@@ -16,7 +16,16 @@ one argues from inflation and rates, one argues from debt, liquidity, currency,
 and policy pressure, then a disagreement agent stress-tests all three before
 the trader picks one ETF.
 
-`See this strategy running live on BotSpot <https://botspot.trade/marketplace/strategy/81af73b8-7dec-4941-ba35-d5a06fee6863>`__
+Hosted examples on BotSpot
+---------------------------
+
+Explore the public `Macro Insight AI: Bridgewater-Style Strategy <https://botspot.trade/marketplace/strategy/81af73b8-7dec-4941-ba35-d5a06fee6863?utm_source=documentation&utm_medium=example&utm_campaign=lumibot_ai_examples>`_ listing.
+Inspect its published revision and available observations before using it; a
+listing is not proof of a currently healthy deployment or future performance.
+BotSpot plans, model usage, broker access, and data requirements may apply.
+
+These are educational examples with no affiliation or endorsement from Ray
+Dalio or Bridgewater, and are not replicas of their proprietary strategies.
 
 How the team works
 ------------------

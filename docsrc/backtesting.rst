@@ -1,17 +1,52 @@
-Backtesting
-************************
+Backtesting Trading Strategies in Python with LumiBot
+*****************************************************
 
-Lumibot has multiple modes for backtesting:
+.. meta::
+   :description: Backtest Python trading strategies with LumiBot using Yahoo, ThetaData, Polygon, Databento, Interactive Brokers, Polymarket, or your own data.
 
-1. **Yahoo Backtesting:** Daily stock backtesting with data from Yahoo.
-2. **Pandas Backtesting:** Intra-day and inter-day testing of stocks and futures using CSV data supplied by you.
-3. **Polygon Backtesting:** Intra-day and inter-day testing of stocks and futures using Polygon data from polygon.io.
-4. **DataBento Backtesting:** Backtesting with high-quality data from DataBento for stocks, futures, and options.
-5. **ThetaData Backtesting:** Backtesting with ThetaData (via the LumiBot Data Downloader).
-6. **Interactive Brokers (REST) Backtesting:** Backtesting with IBKR Client Portal Gateway (via the LumiBot Data Downloader).
-7. **Polymarket Backtesting:** Prediction-contract backtesting from real Polymarket price history.
+Choose a backtesting source from the strategy's asset class and required bar
+interval:
 
-It is recommended to use Yahoo Backtesting for daily stock backtesting, ThetaData Backtesting for stocks/options/index data, Interactive Brokers (REST) Backtesting for futures and crypto data, and Polymarket Backtesting for Polymarket prediction-contract strategies. Pandas Backtesting is an advanced feature that allows you to test any type of data you have in CSV format but requires more work to setup and is not recommended for most users.
+.. list-table:: LumiBot backtesting data choices
+   :header-rows: 1
+   :widths: 22 22 24 32
+
+   * - Need
+     - Start with
+     - Typical granularity
+     - Setup
+   * - Daily stocks and ETFs
+     - :doc:`Yahoo <backtesting.yahoo>`
+     - Daily
+     - No data-provider credentials
+   * - Intraday stocks and options
+     - :doc:`ThetaData <backtesting.thetadata>`
+     - Minute, hour, and daily
+     - Data Downloader and provider access
+   * - Stocks, options, forex, or crypto
+     - :doc:`Polygon.io <backtesting.polygon>`
+     - Intraday and daily
+     - Polygon.io API key
+   * - Futures and market-data schemas
+     - :doc:`Databento <backtesting.databento>`
+     - Tick through daily, by dataset
+     - Databento API key and dataset access
+   * - Your own stock or futures data
+     - :doc:`Pandas <backtesting.pandas>`
+     - Whatever the supplied file contains
+     - Local data prepared in LumiBot's format
+   * - Interactive Brokers history
+     - :doc:`IBKR REST <backtesting.ibkr>`
+     - Provider-supported intervals
+     - Client Portal and Data Downloader access
+   * - Prediction contracts
+     - Polymarket
+     - Market price history
+     - Polymarket market identifiers
+
+Use Yahoo for the simplest free daily-stock example. Use ThetaData when a stock
+or option strategy needs intraday history, and use Pandas when you already own
+the data and can prepare it in LumiBot's input format.
 
 Managed Backtesting on BotSpot
 ==============================

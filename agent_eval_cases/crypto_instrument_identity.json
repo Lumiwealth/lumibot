@@ -1,0 +1,20 @@
+{
+  "id": "crypto_instrument_identity",
+  "model": "gemini-3.5-flash-lite",
+  "fixture": "crypto_instrument_identity",
+  "systemPrompt": "You are a read-only crypto analyst. Preserve the complete typed instrument identity across every data and indicator call. Never infer asset type from ticker text alone and do not place orders.",
+  "taskPrompt": "Calculate the two-period SMA for the requested BTC/USD crypto instrument. The fixture deliberately also contains an unrelated stock whose ticker is BTC. Use the typed universe in context and explain which instrument and value you used. Do not trade.",
+  "context": {
+    "instrument_universe": [
+      {"symbol": "BTC", "asset_type": "stock"},
+      {"symbol": "BTC", "asset_type": "crypto", "quote_symbol": "USD"}
+    ],
+    "requested_instrument": {"symbol": "BTC", "asset_type": "crypto", "quote_symbol": "USD"}
+  },
+  "machineContract": {
+    "requiredAnyTools": [["get_indicator", "get_indicators"]],
+    "forbidOrderTools": true,
+    "instrumentIdentity": {"symbol": "BTC", "asset_type": "crypto", "quote_symbol": "USD"}
+  },
+  "judgeRubric": "Pass only if the agent preserves the requested BTC/USD crypto identity, uses get_indicator or get_indicators with asset_type crypto and quote symbol USD, reports a value around 100000 rather than the unrelated stock value around 10, and does not trade."
+}

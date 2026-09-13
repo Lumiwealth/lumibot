@@ -1,0 +1,12 @@
+{
+  "case_id": "crypto_instrument_identity",
+  "observed_at": "2026-09-09",
+  "source": "preserved production agent-detail failure supplied by the product investigation",
+  "bad_tool_call": {
+    "name": "get_indicators",
+    "arguments": {"indicators": ["rsi", "macd"], "symbol": "BTC", "timestep": "hour"}
+  },
+  "observed_result_identity": {"symbol": "BTC", "asset_type": "stock"},
+  "failure": "The model dropped the requested crypto asset and quote identity; the tool correctly honored its stock default.",
+  "required_regression": "With both stock BTC and BTC/USD crypto present, preserve symbol BTC, asset_type crypto, and quote_symbol USD through the indicator call."
+}

@@ -44,12 +44,12 @@ def test_docs_navigation_and_mobile_brand_stay_compact():
 def test_homepage_keeps_a_short_hero_and_places_image_above_supporting_copy():
     index = (REPO_ROOT / "docsrc" / "index.rst").read_text(encoding="utf-8")
 
-    assert index.startswith("Lumibot\n=======")
-    assert "Build, backtest, and run algorithmic trading strategies" in index
-    image = ".. image:: ../docs/assets/home/lumibot_strategy_lifecycle_homepage.png"
-    supporting_copy = ".. raw:: html\n   :file: _html/main.html"
-
-    assert index.index(image) < index.index(supporting_copy)
+    # September 13 user correction: AI trading pitch, compact image, task routes.
+    assert index.startswith("LumiBot AI Trading\n==================")
+    assert "Build AI-powered trading strategies in Python." in index
+    assert ":width: 560px" in index
+    assert index.index("Start the AI quickstart") < index.index("ai-trading-hero.png")
+    assert index.index(".. _first-python-backtest:") < index.index("learn_with_rob.rst")
 
 
 def test_docs_community_icons_are_local_static_assets():
@@ -61,3 +61,13 @@ def test_docs_community_icons_are_local_static_assets():
     for name in ("github", "reddit", "discord"):
         assert f'_static/{name}.svg' in community
         assert (REPO_ROOT / "docs" / "assets" / "community" / f"{name}.svg").is_file()
+
+
+def test_ai_gallery_uses_verified_public_listings():
+    pages = ["agents_examples.rst", "agents_example_citadel_sector_pods.rst", "agents_example_ray_dalio_idea_meritocracy.rst"]
+    text = "\n".join((REPO_ROOT / "docsrc" / page).read_text() for page in pages)
+    # September 12 owner/public MCP audit: these four former listings return not_found.
+    for missing in ("4fb6cf2f-272c-4a73-96e7-edd7383b1a33", "da83818b-f994-4163-8ef3-99ea346325b4", "b00c5f9c-beea-46fe-bdba-fc65c1315d5f", "362a50a1-d501-4b08-8d42-c7701a363731"):
+        assert missing not in text
+    assert "0b4576c7-f78b-4477-ba3a-630758fb0168" in text
+    assert "81af73b8-7dec-4941-ba35-d5a06fee6863" in text

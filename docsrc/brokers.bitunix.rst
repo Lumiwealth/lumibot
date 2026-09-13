@@ -1,10 +1,33 @@
-Bitunix
-======================================================
+Bitunix API Perpetual Futures Trading with LumiBot
+==================================================
+
+.. meta::
+   :description: Configure Bitunix API perpetual futures trading with LumiBot, including USDT futures funding, credentials, order setup, and supported behavior.
 
 How to Use Bitunix
 ------------------
 
 Bitunix integration in Lumibot supports **only perpetual futures trading**. Spot trading is not supported.
+
+.. list-table:: Bitunix support at a glance
+   :header-rows: 1
+   :widths: 30 25 45
+
+   * - Capability
+     - Status
+     - Requirement
+   * - USDT perpetual futures
+     - Supported
+     - Fund the Futures wallet with USDT
+   * - Spot trading
+     - Not supported
+     - Use another broker integration
+   * - Hedge-mode positions
+     - Required
+     - The account must confirm ``HEDGE`` mode
+   * - Historical futures bars
+     - Supported
+     - Use a native interval and available exchange history
 
 **Account Funding and Cash Calculation:**
 
@@ -20,13 +43,38 @@ Set the following environment variables in your `.env` file or system environmen
     BITUNIX_API_KEY=your_bitunix_api_key
     BITUNIX_API_SECRET=your_bitunix_api_secret
 
+Position Refresh Failures
+----------------------------
+
+Position reads require a complete successful response. A transport error,
+rejected request, or malformed position raises ``LumibotBrokerAPIError`` and
+leaves tracked positions unchanged. A failed read does not mean the account is
+flat and is not cached as a successful refresh; a later read can retry.
+An explicitly successful empty snapshot removes all stale non-cash positions.
+Concurrent polling and strategy reads preserve the latest successfully applied
+request: an older response cannot remove, resurrect, or overwrite its positions.
+Failed reads remain retryable and do not discard another successful response.
+Positions added locally during a pending read retain their fields and ownership
+until the next fresh snapshot.
+Polling reports the failure and retries on its next cycle. Strategy code using
+fresh ``get_position()`` or ``get_positions()`` reads should allow the error to
+stop that decision, rather than treating it as permission to open a position.
+
+The tracker supports one active position per symbol. Multiple nonzero rows for
+the same symbol, including simultaneous long and short HEDGE positions, raise
+the same error and preserve tracked state. They cannot be represented as
+independent positions by this adapter. Zero-quantity rows are ignored.
+
 Setting Leverage for Bitunix Orders
 -----------------------------------
 
 Specify leverage in the ``CRYPTO_FUTURE`` Asset constructor or set its
 ``leverage`` attribute before creating an order. The constructor preserves the
 requested leverage; its default is 1. LumiBot requests that leverage from
-Bitunix before submitting the order. If the exchange rejects the leverage
+Bitunix before submitting an opening order. Reduce-only orders, including full
+and fractional ``close_position`` calls, preserve the existing exchange leverage
+without requesting a leverage change. This also applies after a restart when
+the local leverage cache is empty. If the exchange rejects an opening leverage
 change, LumiBot logs a warning; the Asset value does not confirm the exchange's
 actual leverage.
 

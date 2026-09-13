@@ -6,6 +6,7 @@
   "taskPrompt": "Inspect the account and close the existing spread safely.",
   "requiredSkill": "options-trading",
   "machineContract": {
+    "acceptCompleteInitialAccountSnapshot": true,
     "orderTool": "orders_submit_multileg",
     "exactOrderCount": 1,
     "requiredBeforeOrder": [

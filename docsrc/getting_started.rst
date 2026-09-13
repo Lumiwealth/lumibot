@@ -1,45 +1,49 @@
-Getting Started
-***************
+Start with LumiBot
+******************
 
-Lumibot is a Python library that allows you to create trading strategies and backtest them. It also allows you to run your strategies live on a paper trading account. You can also use Lumibot to run your strategies live on a real trading account, but we recommend you start with paper trading first.
+.. meta::
+   :description: Choose your first LumiBot workflow: an AI trading backtest, a conventional Python strategy, or reusable research tools.
 
-Lumibot is designed to be easy to use, but also powerful. It is designed to be used by both beginners and advanced users. It is also designed to be flexible, so you can use it to create any kind of trading strategy you want. It is also designed to be fast, so you can backtest your strategies quickly.
+Choose what you want to build
+-----------------------------
 
-Build AI Trading Agents
-=======================
+* **AI trading:** :doc:`Run your first AI backtest <agents_quickstart>` with a Gemini API key, historical SPY prices, and complete Python code.
+* **Your own trading rules:** :ref:`Backtest a Python strategy <first-python-backtest>` using daily stock prices. No model account is needed.
+* **Research in another project:** :doc:`Use data and research components <standalone_components>` without creating a trading strategy.
 
-Lumibot now supports **AI trading agents** inside the ``Strategy`` class. If you want an **agentic trading** workflow, you can create an agent in ``initialize()``, run it from ``on_trading_iteration()`` or ``on_filled_order()``, query time-series data with DuckDB, and replay the same agent decisions during backtests.
+Already building with an AI coding assistant? Give it :doc:`agent_start_here`.
 
-Read :doc:`agents` for the full guide.
+Install LumiBot
+---------------
 
-Need Help Building Or Running Strategies?
-=========================================
+Use Python 3.10 or later in your own virtual environment:
 
-Lumibot is open source, but the full workflow is better on `BotSpot <https://botspot.trade/sales?showLogin=1&utm_source=documentation&utm_medium=getting_started&utm_campaign=lumibot&utm_content=top_text&sample=lumibot_deploy_sample>`_ when you want to build, backtest, and run strategies without assembling every data source, broker connection, server, scheduler, log pipeline, and monitoring tool yourself.
+.. code-block:: bash
 
-BotSpot gives Lumibot users a managed layer around the code:
+   python -m pip install lumibot
 
-- **Backtesting data included.** Use supported hosted datasets without wrangling every vendor, API key, downloader, and local file yourself.
-- **Cheaper deployment at scale.** Run scheduled or periodic bots on infrastructure built for Lumibot instead of paying for a separate always-on cloud server per strategy.
-- **Lumibot-tuned AI.** Generate and revise strategies with workflows built around Lumibot conventions, backtests, artifacts, brokers, and deployment.
-- **MCP for coding agents.** Let Codex, Claude Code, Cursor, and other MCP clients launch backtests, inspect artifacts, compare results, and prepare deployment.
-- **Marketplace and strategy library.** Start from existing strategy examples, clone or adapt code when allowed, run marketplace strategies, or publish your own.
-- **Monitoring and control.** Inspect charts, logs, trades, account state, audit history, alerts, and kill switches from one place.
-- **Work from anywhere.** Use the web app, your phone, Telegram, Discord, Claude, ChatGPT, or BotSpot MCP without losing your strategy context.
+The :doc:`AI quickstart <agents_quickstart>` includes the source-version install
+command for its newest example. Follow that page's complete commands if you
+choose the AI route.
 
-.. image:: ../docs/assets/readme/cta_deploy_on_botspot.png
-   :alt: Try deploying a sample Lumibot strategy on BotSpot
-   :align: center
-   :width: 520px
-   :target: https://botspot.trade/sales?showLogin=1&utm_source=documentation&utm_medium=getting_started&utm_campaign=lumibot&utm_content=deploy_button&sample=lumibot_deploy_sample
+Optional offline installation check
+------------------------------------
 
-If you want your coding agent to work directly with BotSpot, open the :doc:`BotSpot MCP guide <botspot_mcp>`. If you want guided training, the AI Trading Bootcamp teaches the full path from strategy idea to backtest to live deployment.
+This is a conventional Python check, **not an AI strategy**. It uses synthetic
+prices and makes no model, market-data, or broker requests:
 
-.. image:: ../docs/assets/readme/cta_bootcamp.png
-   :alt: AI Trading Bootcamp
-   :align: center
-   :width: 520px
-   :target: https://www.botspot.trade/ai-bot-builder-bootcamp?utm_source=documentation&utm_medium=getting_started&utm_campaign=lumibot&utm_content=bootcamp_button
+.. code-block:: bash
+
+   python -m pip install "git+https://github.com/Lumiwealth/lumibot.git@version/4.5.92"
+   BACKTESTING_DATA_SOURCE=none python -m lumibot.example_strategies.first_backtest
+
+It prints a simulated order and ending value so you can check the installation.
+For AI trading, continue to :doc:`agents_quickstart` and configure your model key.
+
+Connect a broker after your backtest
+------------------------------------
+
+The guide below uses Alpaca. See :doc:`brokers` for other supported connections.
 
 Getting Started With Lumibot
 ============================
@@ -343,3 +347,5 @@ During backtesting, ``datetime.now()`` returns the real current time, not the si
 **Where can I find more help?**
 
 Check the :doc:`faq` for 70+ answered questions covering backtesting, brokers, AI agents, options, crypto, and more.
+
+.. include:: _includes/learn_with_rob.rst

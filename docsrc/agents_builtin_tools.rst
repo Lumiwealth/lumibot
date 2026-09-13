@@ -169,9 +169,39 @@ Indicator tools expose LumiBot's indicator system to agents:
 - ``get_indicator``
 - ``get_indicators``
 
-In backtests, indicators are evaluated against the visible historical data and
-return the value at or before the current strategy datetime. This prevents the
-agent from seeing a future indicator value.
+Indicator input is restricted to rows at or before strategy time, not just the
+returned value. Noncausal parameters are rejected. Completion of a timestamped
+bar follows the selected data source's contract; see :doc:`indicators`.
+
+Use ``get_indicators`` with ``requests_json`` for independent parameters and
+timeframes. Each of up to 50 requests needs a unique ``id`` and ``indicator``;
+optional ``parameters`` is an object and ``timestep`` overrides the batch default::
+
+    get_indicators(symbol="SPY", requests_json='[
+      {"id":"sma50","indicator":"sma","parameters":{"length":50}},
+      {"id":"sma200","indicator":"sma","parameters":{"length":200}},
+      {"id":"minute_rsi","indicator":"rsi","timestep":"minute","parameters":{"length":14}}
+    ]')
+
+Results retain their request IDs. A failed calculation does not hide other
+results; ``complete=false`` means at least one request failed. The original
+``indicators=["rsi", "macd"]`` interface remains supported for default parameters.
+Do not combine ``indicators`` and ``requests_json`` in one call.
+Request ids, indicator names and timesteps must be nonempty strings of at most
+128 characters. Malformed envelopes fail before data retrieval.
+
+Testing and eval costs
+---------------------
+
+The source release eval runner uses a durable, per-model-call spending ledger.
+Actor calls, judge calls and continuations reserve their maximum cost before
+inference. Missing usage after a failure retains its reservation across resumes;
+it is not counted as a free call. This opt-in release-test policy does not alter
+ordinary strategy execution or impose a new provider account limit.
+
+Freshness remains 90 days for compatible evidence. Runtime, indicator, broker
+and installed SDK changes invalidate the relevant shared fingerprint. See the
+repository's ``docs/AGENT_EVALS.md`` for the ledger and resume contract.
 
 SEC Fundamentals And Filings
 ----------------------------
@@ -275,3 +305,27 @@ The built-in research tools are designed around backtest/live parity:
 
 This lets agents research during a backtest without accidentally looking into
 the future.
+
+Managed model families
+----------------------
+
+With managed AI configured, a strategy may select a reviewed family such as
+``google/gemini-pro``, ``google/gemini-flash``, ``google/gemini-flash-lite`` or
+``openai/luna``. The gateway resolves that family to one exact model on the
+first request. LumiBot keeps that model for the entire decision, including
+native tool continuations. Later decisions may use a newly reviewed mapping.
+For reproducible historical experiments, use an exact model id instead.
+
+Family names require a compatible managed gateway. They are not aliases to
+send directly to a provider. BYOK execution continues to require an exact
+provider model id; LumiBot does not ignore personal keys or switch billing
+routes when authentication fails.
+Historical indicator windows
+----------------------------
+
+``get_indicator`` and each ``get_indicators`` request accept optional ``start``
+and ``end`` ISO timestamps with timezone offsets. Supply both together. The
+inclusive end cannot exceed strategy time. Only bars inside the window are
+used, including warmup; an insufficient window returns null, not a zero signal.
+For example, use separate result IDs and January/February bounds for independent
+monthly calculations. Source adapters retain ownership of bar completion.

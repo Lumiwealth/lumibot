@@ -1788,8 +1788,11 @@ class Strategy(_Strategy):
         self._refresh_live_orders(broker_refresh=broker_refresh, broker_refresh_ttl_seconds=broker_refresh_ttl_seconds)
         all_orders = self.broker.get_tracked_orders(self.name)
         if identifiers:
-            identifier_set = set(identifiers)
-            all_orders = [order for order in all_orders if order.identifier in identifier_set]
+            all_orders = [
+                order
+                for order in all_orders
+                if any(self.broker.identifiers_equal(order.identifier, identifier) for identifier in identifiers)
+            ]
         if normalized_statuses is not None:
             all_orders = [order for order in all_orders if self._order_matches_statuses(order, normalized_statuses)]
         return all_orders
@@ -2762,6 +2765,8 @@ class Strategy(_Strategy):
             if cache_key in cache:
                 return cache[cache_key]
 
+        if is_backtesting_run:
+            self._record_backtest_runtime_milestone("first_price_lookup_at")
         try:
             # For daily-cadence backtests, prefer day bars for sources where minute-level
             # fetches are expensive (ThetaData/IBKR/routed backtesting). Keep Yahoo/Polygon
@@ -2802,6 +2807,7 @@ class Strategy(_Strategy):
                     if bars is not None and getattr(bars, "df", None) is not None and not bars.df.empty:
                         result = float(bars.df["close"].iloc[-1])
                         cache[cache_key] = result
+                        self._record_usable_backtest_price(result)
                         return result
 
                     # Forward-fill retry (v4.5.1): when the length=1 slice comes
@@ -2843,6 +2849,7 @@ class Strategy(_Strategy):
                                 if not pre_sim.empty:
                                     result = float(pre_sim["close"].iloc[-1])
                                     cache[cache_key] = result
+                                    self._record_usable_backtest_price(result)
                                     return result
                             except Exception:
                                 pass
@@ -2857,11 +2864,30 @@ class Strategy(_Strategy):
             )
             if is_backtesting_run:
                 cache[cache_key] = result
+                self._record_usable_backtest_price(result)
             return result
         except Exception as e:
             self.log_message(f"Could not get last price for {asset}", color="red")
             self.log_message(f"{e}")
             return None
+
+    def _record_backtest_runtime_milestone(self, name):
+        try:
+            source = self.broker.data_source
+            recorder = getattr(source, "record_runtime_milestone", None)
+            if callable(recorder):
+                recorder(name)
+        except Exception:
+            pass
+
+    def _record_usable_backtest_price(self, price):
+        try:
+            import math
+
+            if price is not None and math.isfinite(float(price)):
+                self._record_backtest_runtime_milestone("first_usable_price_at")
+        except (TypeError, ValueError, OverflowError):
+            pass
 
     def _supports_daily_last_price_optimization(self) -> bool:
         data_source = getattr(getattr(self, "broker", None), "data_source", None)
@@ -4468,6 +4494,10 @@ class Strategy(_Strategy):
             from lumibot.tools.ibkr_history_health import ibkr_history_health_snapshot
 
             settings["data_health"] = ibkr_history_health_snapshot()
+        except Exception:
+            pass
+        try:
+            settings["runtime_timings"] = self.broker.data_source.get_runtime_timings()
         except Exception:
             pass
         os.makedirs(os.path.dirname(settings_file), exist_ok=True)

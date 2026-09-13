@@ -2,13 +2,84 @@
 [![Coverage](https://raw.githubusercontent.com/Lumiwealth/lumibot/badge/coverage.svg)](https://github.com/Lumiwealth/lumibot/actions/workflows/cicd.yaml)
 [![PyPI](https://img.shields.io/pypi/v/lumibot)](https://pypi.org/project/lumibot/)
 [![Python](https://img.shields.io/pypi/pyversions/lumibot)](https://pypi.org/project/lumibot/)
-[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](LICENSE)
 
-# Lumibot
+# LumiBot AI Trading
 
-**Build, backtest, and run algorithmic trading strategies and AI agents in Python.**
+**Build AI-powered trading strategies in Python. Backtest them. Connect your broker.**
 
-**Full docs:** [lumibot.lumiwealth.com](https://lumibot.lumiwealth.com/) · **Managed cloud:** [BotSpot.trade](https://botspot.trade/sales?showLogin=1&utm_source=github&utm_medium=readme&utm_campaign=lumibot&utm_content=top_text_link&sample=lumibot_readme_deploy) · **MCP:** [BotSpot for AI coding agents](https://botspot.trade/agents?utm_source=github&utm_medium=readme&utm_campaign=lumibot&utm_content=top_mcp_link)
+Give AI agents market data, research tools, and the ability to place trades. Build a single agent, a team that debates ideas, or combine AI with your own trading rules. LumiBot brings them into one backtesting and trading framework.
+
+**[Run your first AI backtest](#run-your-first-ai-backtest)** · [Explore AI strategies](https://lumibot.lumiwealth.com/agents_examples.html) · [Documentation](https://lumibot.lumiwealth.com/)
+
+<p align="center">
+  <img src="docs/assets/ai-trading/ai-trading-hero.png" alt="LumiBot AI Trading: research, debate, trade and backtest" width="560">
+</p>
+
+## Run your first AI backtest
+
+Start with SPY. A research agent analyzes its trend; a trading agent checks the evidence and account, then decides whether to buy, hold, or sell. This example limits a new position to 10% of the simulated portfolio.
+
+**You need Python 3.10+ and a Gemini API key.** Historical prices come from Yahoo; this backtest does not connect to a broker account. Model usage may incur charges.
+
+```bash
+python -m pip install "git+https://github.com/Lumiwealth/lumibot.git@version/4.5.92"
+export GEMINI_API_KEY="your-gemini-api-key"
+export BACKTESTING_DATA_SOURCE=yahoo
+```
+
+Save as `my_ai_strategy.py`:
+
+```python
+from datetime import datetime
+from lumibot.backtesting import YahooDataBacktesting
+from lumibot.example_strategies.ai_researcher_trader import ResearcherTraderStrategy
+
+if __name__ == "__main__":
+    ResearcherTraderStrategy.backtest(
+        YahooDataBacktesting,
+        datetime(2026, 4, 6),
+        datetime(2026, 4, 11),
+        budget=100_000,
+        benchmark_asset="SPY",
+        parameters={"symbol": "SPY", "max_position_pct": 10},
+    )
+```
+
+```bash
+python my_ai_strategy.py
+```
+
+Watch the research and trading decisions in the log, then inspect the orders and backtest report. The `$100,000` is simulated portfolio capital. The example uses `gemini-3.5-flash-lite`.
+
+**[Open the complete strategy code](lumibot/example_strategies/ai_researcher_trader.py)** to change the prompts, tools, or trading rules. [Follow the walkthrough](https://lumibot.lumiwealth.com/agents_quickstart.html) for the agent setup and how to read the results. Prefer rules without AI? [Run a conventional Python strategy](#backtest-a-strategy).
+
+**Recorded run:** ten fresh agent runs across April 6–10, with one verified fill for 15 SPY shares. [Inspect the source, decisions, and trade records](docs/assets/ai-trading/spy-20260913/README.md). Fresh AI decisions can vary.
+
+If this helps you build, **star LumiBot** so you can find it again and share your strategy with the community.
+
+## Explore an AI trading team
+
+The [large-cap stock example](lumibot/example_strategies/ai_trading_team_bull_bear_large_cap_stocks.py) has four agents: a researcher ranks stocks, a bull makes the case, a bear challenges it, and a trader decides what to do.
+
+**[See the code, run commands, and recorded results](https://lumibot.lumiwealth.com/agents_example_bull_bear_large_cap_stocks.html)**. A fresh model run can choose different trades and returns. Replaying saved decisions is different from asking the model to reason again.
+
+<details>
+<summary>View the archived April 7–May 22, 2026 backtest</summary>
+
+[![Archived large-cap AI backtest, April 7–May 22, 2026](docs/assets/ai-trading-team-backtests/bull-bear-large-cap-stocks-backtest-top.png)](https://lumibot.lumiwealth.com/agents_example_bull_bear_large_cap_stocks.html#backtest-snapshot)
+
+This report belongs to the large-cap strategy on LumiBot 4.5.42, not the SPY quickstart above. Its annualized number extrapolates a short period; it is not an observed annual return. [Inspect the historical report context and the separate current-source run](https://lumibot.lumiwealth.com/agents_example_bull_bear_large_cap_stocks.html).
+
+</details>
+
+## Want help building your first AI trading bot?
+
+**[Join the free challenge](https://botspot.trade/challenges?utm_source=github&utm_medium=readme&utm_campaign=lumibot_ai_trading&utm_content=free_challenge)** with Rob Grzesik, creator of LumiBot. Follow the training and learn how to turn an idea into an AI trading strategy.
+
+<a href="https://botspot.trade/challenges?utm_source=github&utm_medium=readme&utm_campaign=lumibot_ai_trading&utm_content=free_challenge_image"><img src="docs/assets/ai-trading/free-challenge.png" alt="Build your first AI trading bot with Rob Grzesik. Join the FREE challenge." width="360"></a>
+
+Looking for deeper training? [Explore the AI Trading Bootcamp](https://botspot.trade/courses/ai-trading-bootcamp?utm_source=github&utm_medium=readme&utm_campaign=lumibot_ai_trading&utm_content=bootcamp). Prefer a hosted workspace? [Explore BotSpot](https://botspot.trade/agents?utm_source=github&utm_medium=readme&utm_campaign=lumibot_ai_trading&utm_content=hosted).
 
 <p align="center">
   <strong>🌐 Community</strong><br><br>
@@ -17,9 +88,6 @@
   <a href="https://discord.gg/4R9j6T3PN8"><img src="docs/assets/community/discord.svg" alt="Discord" width="20" height="20"> Discord Community</a>
 </p>
 
-<p align="center">
-  <img src="docs/assets/readme/lumibot_ai_trading_agents_overview.png" alt="Lumibot AI trading agents overview" width="100%">
-</p>
 
 ## What You Can Build
 
@@ -31,6 +99,14 @@
 Start with the open-source docs, then deploy when you are ready: [Lumibot documentation](https://lumibot.lumiwealth.com/?utm_source=github&utm_medium=readme&utm_campaign=lumibot&utm_content=what_you_can_build_docs) · [Try a sample Lumibot strategy on BotSpot](https://botspot.trade/sales?showLogin=1&utm_source=github&utm_medium=readme&utm_campaign=lumibot&utm_content=what_you_can_build_botspot&sample=lumibot_readme_deploy)
 
 ## Quick Start
+
+Choose a starting point:
+
+- **Run a Python backtest:** [the complete example below](#backtest-a-strategy), using daily Yahoo data without a broker account.
+- **Build an AI agent:** [AI Agents Quick Start](https://lumibot.lumiwealth.com/agents_quickstart.html), with installation, model credentials, and a complete backtest runner.
+- **Explore an options strategy:** [AI iron condor](https://lumibot.lumiwealth.com/agents_example_ai_iron_condor.html), including data requirements and the limits of the recorded evidence.
+
+Building a product on LumiBot? [Partner with LumiBot](docsrc/PARTNERSHIPS.rst) through funded integrations, open-source maintenance, joint tutorials, or strategic collaboration.
 
 ### Backtest a strategy
 
@@ -103,6 +179,14 @@ Lumibot now includes a built-in AI agent runtime for financial research, reasoni
 Classic Python strategies are still first-class. Lumibot lets you choose the right level of intelligence: fixed rules, AI agents, or a hybrid where Python handles the hard gates and agents reason through evidence.
 
 Built-in AI agent tools include market/account state, order inspection, DuckDB queries, documentation search, Alpaca news when credentials exist, technical indicators, SEC fundamentals and filings, FRED macro data, local memory, and Telegram notifications.
+
+### Explore existing AI strategies
+
+Start with [stock opening range breakout](https://lumibot.lumiwealth.com/agents_example_ai_opening_range_breakout.html), [large-cap stock teams](https://lumibot.lumiwealth.com/agents_example_bull_bear_large_cap_stocks.html), or [macro research](https://lumibot.lumiwealth.com/macro_data.html).
+
+Explore the public [Sector Rotation AI Multi-Pod Strategy](https://botspot.trade/marketplace/strategy/0b4576c7-f78b-4477-ba3a-630758fb0168) and [Macro Insight AI: Bridgewater-Style Strategy](https://botspot.trade/marketplace/strategy/81af73b8-7dec-4941-ba35-d5a06fee6863) listings on BotSpot. Inspect their published code and available observations before using them.
+
+These educational implementations have no affiliation or endorsement from the named firms or people. BotSpot plans, model usage, broker access, and data requirements may apply.
 
 ### Design Your AI Trading Team
 
@@ -320,9 +404,9 @@ See the docs comparison pages for more detail: [Lumibot vs TradingAgents](https:
 | **AI agent runtime** | Built-in | No | FreqAI (ML) | No | No | ML pipeline | No | No | Scripts/controllers |
 | **Broker execution** | Alpaca, IBKR, Tradier, Schwab, Tradovate, TopstepX (via ProjectX), Bitunix, Polymarket, selected CCXT | IB only (outdated) | Crypto exchanges | None | None | Crypto exchanges | No | Exchange adapters | Crypto exchanges |
 | **Hosted deployment path** | BotSpot | No | No | No | No | Paid cloud | No | No | Hummingbot Foundation/enterprise ecosystem |
-| **License** | MIT | GPL-3.0 | GPL-3.0 | Apache-2.0 | AGPL-3.0 | MIT | Apache-2.0 | LGPL-3.0 | Apache-2.0 |
+| **License** | GPL-3.0 | GPL-3.0 | GPL-3.0 | Apache-2.0 | AGPL-3.0 | MIT | Apache-2.0 | LGPL-3.0 | Apache-2.0 |
 
-**Switching from Backtrader?** See our [migration guide](docs/MIGRATING_FROM_BACKTRADER.md) for a side-by-side comparison with code examples.
+**Switching from Backtrader?** See our [migration guide](docsrc/MIGRATING_FROM_BACKTRADER.rst) for a side-by-side comparison with code examples.
 
 ## Deploy Live
 
@@ -577,4 +661,8 @@ Affiliate disclosure: some provider links or promo codes, including ThetaData, m
 
 ## License
 
-MIT License - [View License](https://github.com/Lumiwealth/lumibot/blob/master/LICENSE)
+GNU General Public License v3.0 - [View License](LICENSE)
+
+## Contribute
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for reproducible bugs, examples, tests, and focused pull requests. If LumiBot is useful to your work, star the repository and share an example with another developer.

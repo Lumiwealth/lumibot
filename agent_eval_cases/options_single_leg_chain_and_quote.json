@@ -6,6 +6,7 @@
   "taskPrompt": "Evaluate and place the requested option trade from the available fixture data.",
   "requiredSkill": "options-trading",
   "machineContract": {
+    "acceptCompleteInitialAccountSnapshot": true,
     "orderTool": "orders_submit_order",
     "exactOrderCount": 1,
     "requiredBeforeOrder": [

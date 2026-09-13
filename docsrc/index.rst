@@ -1,20 +1,51 @@
-Lumibot
-=======
+LumiBot AI Trading
+==================
+
+.. meta::
+   :description: Build AI-powered trading strategies in Python. Run an AI backtest, inspect its decisions and orders, then connect a supported broker with LumiBot.
 
 .. container:: lumibot-hero-lead
 
-   **Build, backtest, and run algorithmic trading strategies and AI agents in Python.**
+   **Build AI-powered trading strategies in Python.**
 
-.. image:: ../docs/assets/home/lumibot_strategy_lifecycle_homepage.png
-   :alt: Lumibot strategy lifecycle from market data and filings to Python rules, AI agents, backtest reports, paper trading, and live brokers
-   :width: 100%
-   :class: lumibot-doc-image
+Give agents market data, research tools, and the ability to place trades.
+Backtest a single agent, a debating team, or AI combined with your own rules.
 
-.. raw:: html
-   :file: _html/community_links.html
+.. container:: lumibot-entry-grid lumibot-start-routes
 
-.. raw:: html
-   :file: _html/main.html
+   .. container:: lumibot-entry-card
+
+      **Run your first AI backtest**
+
+      Start with Python, a Gemini key, and a complete SPY strategy.
+
+      :doc:`Start the AI quickstart → <agents_quickstart>`
+
+   .. container:: lumibot-entry-card
+
+      **Explore AI strategies**
+
+      Browse stock, macro, and options teams with code and recorded runs.
+
+      :doc:`Browse the examples → <agents_examples>`
+
+   .. container:: lumibot-entry-card
+
+      **Write a Python strategy**
+
+      Use your own rules, indicators, and the same Strategy lifecycle.
+
+      :ref:`Run a Python backtest → <first-python-backtest>`
+
+.. image:: ../docs/assets/ai-trading/ai-trading-hero.png
+   :alt: LumiBot AI Trading: research, debate, trade and backtest
+   :width: 560px
+   :class: lumibot-entry-hero
+
+For coding assistants, start with :doc:`agent_start_here`.
+To use research and data inside another project, see :doc:`standalone_components`.
+
+.. _first-python-backtest:
 
 Getting Started
 ****************
@@ -481,37 +512,68 @@ Compared With Backtesting Libraries
      - Crypto exchanges
      - Ecosystem/enterprise options
 
+.. include:: _includes/learn_with_rob.rst
+
 Table of Contents
 *****************
 
 .. toctree::
-   :maxdepth: 2
+   :maxdepth: 1
+   :caption: Start here
 
    Home <self>
+   Start Here <getting_started>
+   AI Quickstart <agents_quickstart>
+   AI Examples <agents_examples>
+   For Coding Agents <agent_start_here>
+
+.. toctree::
+   :maxdepth: 1
+   :caption: AI trading
+
+   AI Agent Guide <agents>
+   Compare AI Frameworks <ai_trading_project_comparison>
+
+.. toctree::
+   :maxdepth: 1
+   :caption: Build strategies
+
+   Strategy API <strategy_api_overview>
+   Imports and Startup <imports_and_startup>
+   Reusable Components <standalone_components>
+   Lifecycle Methods <lifecycle_methods>
+   Strategy Methods <strategy_methods>
+   Strategy Properties <strategy_properties>
+   Assets and Orders <entities>
+   Indicators <indicators>
+   SEC Fundamentals <fundamentals>
+   Macro Data <macro_data>
+
+.. toctree::
+   :maxdepth: 1
+   :caption: Backtest and trade
+
+   Backtesting <backtesting>
+   Brokers <brokers>
+   Cash Accounting <cash_accounting>
+   Deployment <deployment>
+   Examples <examples>
+   Reference <reference>
+   Common Mistakes <common_mistakes>
+   FAQ <faq>
+
+.. toctree::
+   :maxdepth: 1
+   :caption: Community and learning
+
+   Free AI Trading Challenge <https://botspot.trade/challenges?utm_source=documentation&utm_medium=sidebar&utm_campaign=lumibot_ai_trading&utm_content=free_challenge>
    Build and Deploy with BotSpot <https://botspot.trade/sales?showLogin=1&utm_source=documentation&utm_medium=sidebar&utm_campaign=lumibot&utm_content=sidebar_build_bots&sample=lumibot_deploy_sample>
    BotSpot MCP Integration <botspot_mcp>
+   Partnerships and Sponsorship <PARTNERSHIPS>
+   Migrate from Backtrader <MIGRATING_FROM_BACKTRADER>
    GitHub <https://github.com/Lumiwealth/lumibot>
    Reddit Community <https://www.reddit.com/r/BotSpotTrade/>
    Discord Community <https://discord.gg/4R9j6T3PN8>
-   getting_started
-   imports_and_startup
-   agents
-   ai_trading_project_comparison
-   cash_accounting
-   lifecycle_methods
-   strategy_methods
-   strategy_properties
-   entities
-   indicators
-   fundamentals
-   macro_data
-   backtesting
-   brokers
-   reference
-   examples
-   deployment
-   common_mistakes
-   faq
    Get Pre-Built Strategies <https://botspot.trade/marketplace?utm_source=documentation&utm_medium=sidebar&utm_campaign=lumibot&utm_content=sidebar_marketplace>
 
 Indices and tables

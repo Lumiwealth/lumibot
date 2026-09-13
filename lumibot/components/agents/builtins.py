@@ -2372,6 +2372,8 @@ def _bind_modify_order(strategy: Any, manager: Any) -> BoundTool:
 
 
 def _jsonable(value: Any) -> Any:
+    if isinstance(value, float) and not math.isfinite(value):
+        return None
     if value is None or isinstance(value, (str, int, float, bool)):
         return value
     if isinstance(value, (datetime, date)):
@@ -2402,7 +2404,8 @@ def _bind_list_indicators(strategy: Any, manager: Any) -> BoundTool:
             "common_indicators": COMMON_INDICATORS,
             "notes": (
                 "Use get_indicator for one current-bar indicator value. "
-                "Lumibot slices indicator outputs to the current strategy datetime, so backtests do not see future bars."
+                "LumiBot restricts calculation input to strategy time and rejects noncausal parameters. "
+                "Bar completion and timestamps follow the selected data source."
             ),
         }
 
@@ -2421,9 +2424,18 @@ def _bind_get_indicator(strategy: Any, manager: Any) -> BoundTool:
         indicator: str,
         timestep: str = "day",
         asset_type: AssetTypeArg = "stock",
+        quote_symbol: str | None = None,
+        exchange: str | None = None,
         parameters_json: str | None = None,
+        start: str | None = None,
+        end: str | None = None,
     ) -> dict[str, Any]:
-        asset = _asset_class()(symbol, asset_type=asset_type)
+        asset, quote = resolve_asset_and_quote(
+            strategy,
+            symbol=symbol,
+            asset_type=asset_type,
+            quote_symbol=quote_symbol,
+        )
         indicator_name = _require_non_empty_text("indicator", indicator)
         indicator_kwargs: dict[str, Any] = {}
         if parameters_json:
@@ -2448,12 +2460,37 @@ def _bind_get_indicator(strategy: Any, manager: Any) -> BoundTool:
                     },
                 }
             indicator_kwargs = parsed
-        fn = getattr(strategy.indicators, indicator_name)
-        value = fn(asset, timestep=timestep, **indicator_kwargs)
+        window = None
+        if start is not None or end is not None:
+            if start is None or end is None:
+                raise ValueError("Indicator window requires both start and end.")
+            bounds = strategy.indicators.validate_window(start, end)
+            window = {"start": bounds[0].isoformat(), "end": bounds[1].isoformat(), "inclusive": True}
+            value = strategy.indicators.calculate_window(
+                asset,
+                indicator_name,
+                start=start,
+                end=end,
+                timestep=timestep,
+                parameters=indicator_kwargs,
+                quote=quote,
+                exchange=exchange,
+            )
+        else:
+            value = strategy.indicators.calculate(
+                asset,
+                indicator_name,
+                timestep=timestep,
+                parameters=indicator_kwargs,
+                quote=quote,
+                exchange=exchange,
+            )
         return {
             "ok": True,
             "symbol": symbol.upper(),
             "asset_type": asset_type,
+            "quote_symbol": quote_symbol.upper() if quote_symbol else None,
+            "exchange": exchange,
             "indicator": indicator_name,
             "timestep": timestep,
             "datetime": strategy.get_datetime().isoformat()
@@ -2461,15 +2498,21 @@ def _bind_get_indicator(strategy: Any, manager: Any) -> BoundTool:
             else str(strategy.get_datetime()),
             "value": _jsonable(value),
             "no_lookahead": True,
+            "window": window,
         }
 
     return BoundTool(
         name="get_indicator",
         description=(
             "Get one technical indicator for the current strategy datetime. "
-            "Arguments: symbol, indicator, timestep='day', asset_type='stock', optional parameters_json as a JSON object string. "
+            "Arguments: symbol, indicator, timestep='day', asset_type='stock', optional quote_symbol, exchange, and parameters_json as a JSON object string. "
+            "Preserve the complete instrument identity: for BTC/USD crypto pass asset_type='crypto' and quote_symbol='USD'; a ticker alone is not enough to distinguish a stock from crypto. "
             "Examples: get_indicator(symbol='SPY', indicator='rsi', parameters_json='{\"length\": 14}'); "
             "get_indicator(symbol='NVDA', indicator='macd'). "
+            "Fibonacci range retracements use indicator='fibonacci', parameters_json='{\"direction\": \"up\"}': "
+            "up measures down from the observed high; down measures up from the low. It does not infer a trend. "
+            "Optional start and end are inclusive ISO timestamps with explicit timezones; both are required together. "
+            "Window calculations use no bars outside that window, including warmup; missing values remain null. "
             "In backtests this returns only the current-bar value and does not expose future bars."
         ),
         function=get_indicator,
@@ -2481,22 +2524,96 @@ def _bind_get_indicator(strategy: Any, manager: Any) -> BoundTool:
 def _bind_get_indicators(strategy: Any, manager: Any) -> BoundTool:
     def get_indicators(
         symbol: str,
-        indicators: list[str],
+        indicators: list[str] | None = None,
         timestep: str = "day",
         asset_type: AssetTypeArg = "stock",
+        quote_symbol: str | None = None,
+        exchange: str | None = None,
+        requests_json: str | None = None,
     ) -> dict[str, Any]:
+        # Keep the published list-of-names call compatible while giving each
+        # parameterized request an unambiguous result identity. Validate the
+        # whole envelope before doing any data work; isolate calculation errors.
+        if requests_json is not None:
+            if indicators is not None:
+                raise ValueError("Use either indicators or requests_json, not both.")
+            requests = json.loads(requests_json)
+        else:
+            requests = [{"id": str(i), "indicator": name} for i, name in enumerate(indicators or [])]
+        if not isinstance(requests, list) or not 1 <= len(requests) <= 50:
+            raise ValueError("An indicator batch must contain between 1 and 50 requests.")
+        seen = set()
+        allowed_request_fields = {
+            "id", "symbol", "asset_type", "quote_symbol", "exchange",
+            "indicator", "timestep", "parameters", "start", "end",
+        }
+        for item in requests:
+            if not isinstance(item, dict) or set(item) - allowed_request_fields:
+                raise ValueError(
+                    "Each request supports only id, symbol, asset_type, quote_symbol, exchange, "
+                    "indicator, timestep, parameters, start and end."
+                )
+            for field in ("id", "indicator", "timestep"):
+                value = item.get(field, timestep if field == "timestep" else None)
+                if not isinstance(value, str) or not value.strip() or len(value) > 128:
+                    raise ValueError(f"Indicator request {field} must be a nonempty string of at most 128 characters.")
+            for field in ("symbol", "asset_type", "quote_symbol", "exchange"):
+                if field in item:
+                    value = item[field]
+                    if not isinstance(value, str) or not value.strip() or len(value) > 128:
+                        raise ValueError(
+                            f"Indicator request {field} must be a nonempty string of at most 128 characters."
+                        )
+            result_id = _require_non_empty_text("id", item.get("id"))
+            if result_id in seen:
+                raise ValueError("Indicator request ids must be unique.")
+            seen.add(result_id)
+            _require_non_empty_text("indicator", item.get("indicator"))
+            _require_non_empty_text("timestep", item.get("timestep", timestep))
+            if not isinstance(item.get("parameters", {}), dict):
+                raise ValueError("Indicator parameters must be an object.")
+            if "start" in item or "end" in item:
+                if not all(isinstance(item.get(field), str) and len(item[field]) <= 128 for field in ("start", "end")):
+                    raise ValueError("Indicator window requires bounded start and end strings.")
+                strategy.indicators.validate_window(item["start"], item["end"])
         results = []
         single = _bind_get_indicator(strategy, manager).function
-        for name in indicators:
+        for item in requests:
             try:
-                results.append(single(symbol=symbol, indicator=name, timestep=timestep, asset_type=asset_type))
+                result = single(
+                    symbol=item.get("symbol", symbol), indicator=item["indicator"],
+                    timestep=item.get("timestep", timestep),
+                    asset_type=item.get("asset_type", asset_type),
+                    quote_symbol=item.get("quote_symbol", quote_symbol),
+                    exchange=item.get("exchange", exchange),
+                    parameters_json=json.dumps(item.get("parameters", {})),
+                    start=item.get("start"), end=item.get("end"),
+                )
             except Exception as exc:
-                results.append({"ok": False, "indicator": name, "error": str(exc)})
-        return {"ok": True, "symbol": symbol.upper(), "results": results}
+                result = {"ok": False, "indicator": item["indicator"], "tool_error": True, "error": str(exc)}
+            results.append({"id": item["id"], **result})
+        return {
+            "ok": True,
+            "symbol": symbol.upper(),
+            "asset_type": asset_type,
+            "quote_symbol": quote_symbol.upper() if quote_symbol else None,
+            "exchange": exchange,
+            "complete": all(r["ok"] for r in results),
+            "results": results,
+        }
 
     return BoundTool(
         name="get_indicators",
-        description="Get multiple current-bar technical indicators for one symbol. Pass indicators=['rsi', 'macd', 'bbands', ...].",
+        description=(
+            "Get up to 50 indicators for one or more symbols. Supply exactly one of indicators or requests_json; never supply both. "
+            "Use requests_json for independent symbols, parameters, timeframes, or instrument identities. "
+            "Preserve asset_type, quote_symbol, and exchange for the complete instrument identity; for BTC/USD crypto pass asset_type='crypto' and quote_symbol='USD'. "
+            'For example: [{"id":"spy-rsi","symbol":"SPY","indicator":"rsi","parameters":{"length":14}},'
+            '{"id":"aapl-rsi","symbol":"AAPL","indicator":"rsi","parameters":{"length":14}}]. '
+            "Each result retains its id and errors do not hide other results. "
+            "Each request may also specify independent zoned ISO start/end timestamps for an inclusive historical window. "
+            "Alternatively use indicators=['rsi', 'macd', 'bbands'] for default parameters."
+        ),
         function=get_indicators,
         source="builtin",
         metadata={"kind": "indicator"},

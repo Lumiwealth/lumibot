@@ -148,6 +148,36 @@ def test_health_snapshot_caps_missing_session_evidence() -> None:
     assert health["missing_session_count"] == 125
 
 
+def test_health_does_not_overwrite_another_required_window():
+    common = dict(symbol="TQQQ", asset_type="stock", timestep="day")
+    record_history_health(**common, requested_start=datetime(2024, 1, 1, tzinfo=timezone.utc),
+        requested_end=datetime(2024, 2, 1, tzinfo=timezone.utc), outcome=HistoryOutcome.PARTIAL,
+        reason="unresolved_daily_sessions_after_bounded_repair")
+    record_history_health(**common, requested_start=datetime(2025, 1, 1, tzinfo=timezone.utc),
+        requested_end=datetime(2025, 2, 1, tzinfo=timezone.utc), outcome=HistoryOutcome.COMPLETE)
+    snapshot = ibkr_history_health_snapshot()
+    assert snapshot["series_count"] == 2
+    assert snapshot["incomplete_series_count"] == 1
+
+
+def test_health_separates_sources_deduplicates_events_and_accepts_repair():
+    common = dict(symbol="TQQQ", asset_type="stock", timestep="day",
+                  requested_start=datetime(2025, 1, 1, tzinfo=timezone.utc),
+                  requested_end=datetime(2025, 2, 1, tzinfo=timezone.utc))
+    for _ in range(2):
+        record_history_health(**common, series_id="trades-rth", event_id="failed-fetch",
+                              outcome=HistoryOutcome.TRANSIENT_FAILURE, transient_failures=1, reason="rate_limited")
+    record_history_health(**common, series_id="midpoint-rth", outcome=HistoryOutcome.COMPLETE)
+    snapshot = ibkr_history_health_snapshot()
+    assert snapshot["series_count"] == 2 and snapshot["incomplete_series_count"] == 1
+    failed = next(row for row in snapshot["series"] if row["series_id"] == "trades-rth")
+    assert failed["transient_failures"] == 1
+    record_history_health(**common, series_id="trades-rth", outcome=HistoryOutcome.COMPLETE,
+                          expected_sessions=21, returned_sessions=21)
+    snapshot = ibkr_history_health_snapshot()
+    assert snapshot["complete"] and snapshot["incomplete_series_count"] == 0
+
+
 def test_backtest_settings_include_sanitized_data_health(tmp_path) -> None:
     from lumibot.strategies.strategy import Strategy
 

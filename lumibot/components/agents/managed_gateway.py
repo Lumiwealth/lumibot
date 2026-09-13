@@ -33,6 +33,20 @@ class ManagedAiGatewayError(RuntimeError):
         self.code = code
 
 
+# Only family identifiers live here. Exact model routing/prices have one owner,
+# the managed gateway, so a provider upgrade does not require a package release.
+MANAGED_MODEL_FAMILIES = frozenset({
+    "google/gemini-pro", "google/gemini-flash", "google/gemini-flash-lite",
+    "openai/luna", "openai/terra", "openai/sol", "openai/astra",
+    "anthropic/sonnet", "anthropic/opus", "anthropic/fable", "xai/grok",
+})
+
+
+def _canonical_model(model: str, provider: str) -> str:
+    value = model.removeprefix(f"{provider}/")
+    return value.removeprefix("models/") if provider == "google" else value
+
+
 def _provider_for_model(model: str) -> str | None:
     lower = model.strip().lower()
     if lower.startswith("gemini-") or lower.startswith("models/gemini") or lower.startswith("google/"):
@@ -274,6 +288,9 @@ class BotSpotManagedLlm(BaseLlm):
     _access_token: str = PrivateAttr()
     _post: Callable[[str, str, dict[str, Any]], tuple[int, dict[str, Any]]] = PrivateAttr()
     _renew_lock: threading.Lock = PrivateAttr()
+    _model_lock: threading.Lock = PrivateAttr()
+    _resolved_model: str | None = PrivateAttr(default=None)
+    _reasoning_effort: str | None = PrivateAttr(default=None)
 
     def __init__(
         self,
@@ -281,6 +298,7 @@ class BotSpotManagedLlm(BaseLlm):
         model: str,
         gateway_url: str,
         access_token: str,
+        reasoning_effort: str | None = None,
         post: Callable[[str, str, dict[str, Any]], tuple[int, dict[str, Any]]] = _post_json,
     ) -> None:
         super().__init__(model=model)
@@ -288,6 +306,10 @@ class BotSpotManagedLlm(BaseLlm):
         self._access_token = access_token
         self._post = post
         self._renew_lock = threading.Lock()
+        self._model_lock = threading.Lock()
+        if reasoning_effort not in {None, "none", "low", "medium", "high", "xhigh", "max"}:
+            raise ValueError("Unsupported managed AI reasoning effort.")
+        self._reasoning_effort = reasoning_effort
 
     def _renew(self) -> None:
         status, body = self._post(f"{self._gateway_url}/v1/grants/renew", self._access_token, {})
@@ -318,6 +340,37 @@ class BotSpotManagedLlm(BaseLlm):
             )
         return body
 
+    def _resolved_inference(self, payload: dict[str, Any]) -> dict[str, Any]:
+        # Only the first family resolution needs single-flight. Exact-id calls
+        # remain parallel, including the existing credential-renewal protocol.
+        if self.model in MANAGED_MODEL_FAMILIES and self._resolved_model is None:
+            with self._model_lock:
+                return self._infer_pinned_model(payload)
+        return self._infer_pinned_model(payload)
+
+    def _infer_pinned_model(self, payload: dict[str, Any]) -> dict[str, Any]:
+        payload = {**payload, "model": self._resolved_model or self.model}
+        body = self._inference(payload)
+        resolved = body.get("resolvedModel")
+        family = self.model in MANAGED_MODEL_FAMILIES
+        if resolved is None and not family and self._resolved_model is None:
+            # Published older gateways omit this field for exact-id clients.
+            return body
+        provider = _provider_for_model(self.model)
+        expected = self._resolved_model or (None if family else _canonical_model(self.model, provider))
+        if (
+            not isinstance(resolved, str) or not resolved.strip() or len(resolved) > 160
+            or resolved in MANAGED_MODEL_FAMILIES or "/" in resolved
+            or _provider_for_model(resolved) != provider
+            or (expected is not None and resolved != expected)
+        ):
+            raise ManagedAiGatewayError(
+                "Managed AI returned inconsistent model resolution; the decision cannot continue.",
+                code="protocol_integrity_error",
+            )
+        self._resolved_model = resolved
+        return body
+
     async def generate_content_async(self, llm_request: Any, stream: bool = False):
         provider = _provider_for_model(self.model)
         if provider is None:
@@ -338,7 +391,9 @@ class BotSpotManagedLlm(BaseLlm):
         temperature = getattr(config, "temperature", None)
         if temperature is not None:
             payload["temperature"] = float(temperature)
-        body = await asyncio.to_thread(self._inference, payload)
+        if self._reasoning_effort is not None:
+            payload["reasoningEffort"] = self._reasoning_effort
+        body = await asyncio.to_thread(self._resolved_inference, payload)
 
         raw_parts = body.get("parts")
         if not isinstance(raw_parts, list) or not raw_parts:
@@ -365,9 +420,10 @@ class BotSpotManagedLlm(BaseLlm):
         )
 
 
-def managed_gateway_model(model: str) -> BotSpotManagedLlm:
+def managed_gateway_model(model: str, *, reasoning_effort: str | None = None) -> BotSpotManagedLlm:
     return BotSpotManagedLlm(
         model=model,
         gateway_url=str(os.environ["LUMIBOT_AI_GATEWAY_URL"]),
         access_token=str(os.environ["LUMIBOT_AI_GATEWAY_TOKEN"]),
+        reasoning_effort=reasoning_effort,
     )

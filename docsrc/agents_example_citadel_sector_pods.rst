@@ -17,7 +17,16 @@ portfolio manager has permission to submit orders. It is a good example when
 you want to test whether specialist agents can create better decisions than one
 single broad prompt.
 
-`See this strategy running live on BotSpot <https://botspot.trade/marketplace/strategy/0b4576c7-f78b-4477-ba3a-630758fb0168>`__
+Hosted examples on BotSpot
+---------------------------
+
+Explore the public `Sector Rotation AI Multi-Pod Strategy <https://botspot.trade/marketplace/strategy/0b4576c7-f78b-4477-ba3a-630758fb0168?utm_source=documentation&utm_medium=example&utm_campaign=lumibot_ai_examples>`_ listing.
+Inspect its published revision and available observations before using it; a
+listing is not proof of a currently healthy deployment or future performance.
+BotSpot plans, model usage, broker access, and data requirements may apply.
+
+These are educational examples with no affiliation or endorsement from Citadel
+or its personnel, and are not replicas of a proprietary strategy.
 
 How the team works
 ------------------

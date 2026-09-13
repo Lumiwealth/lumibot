@@ -2478,9 +2478,13 @@ class BacktestingBroker(Broker):
                 # completed bar. See tests/*_lookahead for regression coverage.
                 timeshift = timedelta(minutes=-1)
                 if data_source_name == "CCXT":
-                    # Crypto candles can be legitimately sparse. Do not look ahead to the
-                    # next provider candle and record the fill at the older sim timestamp.
-                    timeshift = None
+                    # Research history excludes the unclosed CCXT candle. Execution
+                    # alone requests the current interval to simulate its open/range.
+                    # The timestamp check below still rejects future/sparse-gap bars.
+                    bar_duration, _ = DataSourceBacktesting.convert_timestep_str_to_timedelta(
+                        getattr(self.data_source, "_timestep", None) or "minute"
+                    )
+                    timeshift = -bar_duration
                 elif data_source_name in {"DATABENTO", "DATABENTO_POLARS"}:
                     # DataBento feeds can skip minutes around maintenance windows. Giving it a two-minute
                     # cushion mirrors the legacy Polygon behaviour and avoids falling through gaps.

@@ -1,5 +1,6 @@
 from datetime import datetime
 from threading import Event, RLock, Thread
+from uuid import UUID
 
 import pytest
 
@@ -277,6 +278,40 @@ def test_live_get_order_survives_submit_callback_duplicate_then_terminal_sync():
     assert refreshed.identifier == "fast-fill-1"
     assert refreshed.status == Order.OrderStatus.FILLED
     assert [order.identifier for order in broker.get_all_orders()] == ["fast-fill-1"]
+
+
+def test_live_get_order_accepts_string_form_of_uuid_broker_identifier():
+    """Tool/API boundaries serialize Alpaca UUID identifiers to strings."""
+    strategy, broker = _strategy()
+    broker_identifier = UUID("383d1a74-79ec-4e58-a35e-b1df71833cfa")
+    tracked = _order(strategy.name, broker_identifier, Order.OrderStatus.OPEN)
+    broker._new_orders.append(tracked)
+    broker.broker_orders = [
+        _order(strategy.name, broker_identifier, Order.OrderStatus.FILLED),
+    ]
+
+    refreshed = strategy.get_order(str(broker_identifier))
+
+    assert refreshed is tracked
+    assert refreshed.status == Order.OrderStatus.FILLED
+    assert strategy.get_orders(
+        identifiers=[str(broker_identifier)],
+        broker_refresh=False,
+    ) == [tracked]
+
+
+def test_live_get_order_does_not_match_a_different_serialized_uuid():
+    strategy, broker = _strategy()
+    tracked_identifier = UUID("383d1a74-79ec-4e58-a35e-b1df71833cfa")
+    broker._new_orders.append(
+        _order(strategy.name, tracked_identifier, Order.OrderStatus.OPEN)
+    )
+    broker.broker_orders = []
+
+    assert strategy.get_order(
+        "00000000-0000-0000-0000-000000000001",
+        broker_refresh=False,
+    ) is None
 
 
 def test_fresh_process_imports_terminal_broker_order_for_durable_reconciliation():

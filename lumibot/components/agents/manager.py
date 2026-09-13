@@ -83,6 +83,54 @@ def _get_runtime_imports():
     return _RUNTIME_IMPORTS
 
 
+def _list_remote_mcp_tools(server: MCPServer) -> list[dict[str, Any]]:
+    """Load the authoritative MCP tool contracts without importing ADK eagerly."""
+    from .runtime import list_mcp_tools
+
+    return list_mcp_tools(server)
+
+
+def _python_annotation_for_json_schema(schema: Any) -> Any:
+    if not isinstance(schema, dict):
+        return Any
+    schema_type = schema.get("type")
+    if isinstance(schema_type, list):
+        schema_type = next((item for item in schema_type if item != "null"), None)
+    return {
+        "string": str,
+        "integer": int,
+        "number": float,
+        "boolean": bool,
+        "array": list,
+        "object": dict,
+    }.get(schema_type, Any)
+
+
+def _signature_from_json_schema(schema: Any) -> inspect.Signature | None:
+    """Project an MCP object schema into a callable signature for model tooling."""
+    if not isinstance(schema, dict) or schema.get("type") != "object":
+        return None
+    properties = schema.get("properties")
+    if not isinstance(properties, dict):
+        return None
+    required = set(schema.get("required") or [])
+    ordered_names = [name for name in properties if name in required]
+    ordered_names.extend(name for name in properties if name not in required)
+    parameters: list[inspect.Parameter] = []
+    for name in ordered_names:
+        if not isinstance(name, str) or not name.isidentifier():
+            return None
+        parameters.append(
+            inspect.Parameter(
+                name,
+                inspect.Parameter.POSITIONAL_OR_KEYWORD,
+                default=inspect.Parameter.empty if name in required else None,
+                annotation=_python_annotation_for_json_schema(properties.get(name)),
+            )
+        )
+    return inspect.Signature(parameters=parameters, return_annotation=dict)
+
+
 def _get_parquet_utils():
     global _PARQUET_UTILS
     if _PARQUET_UTILS is None:
@@ -786,11 +834,18 @@ def _managed_ai_terminal_status(result: AgentRunResult, *, allow_trading: bool) 
     )
     if successful_order:
         return "completed_decision"
-    if any(
-        isinstance(_unwrap_tool_payload(event.payload), dict)
-        and _unwrap_tool_payload(event.payload).get("tool_error") is True
-        for event in tool_results
-    ):
+    later_successes: set[str] = set()
+    has_unrecovered_tool_error = False
+    for event in reversed(tool_results):
+        tool_name = str(event.tool_name or "")
+        payload = _unwrap_tool_payload(event.payload)
+        is_error = isinstance(payload, dict) and payload.get("tool_error") is True
+        if is_error:
+            if tool_name not in later_successes:
+                has_unrecovered_tool_error = True
+        else:
+            later_successes.add(tool_name)
+    if has_unrecovered_tool_error:
         return "tool_error"
     return "completed_no_action" if allow_trading else "completed_decision"
 
@@ -894,6 +949,7 @@ class AgentHandle:
         rules_path: str | Path | None = None,
         model_request_timeout_seconds: float | None = None,
         run_timeout_seconds: float | None = None,
+        reasoning_effort: str | None = None,
     ) -> None:
         self.manager = manager
         self.name = name
@@ -902,6 +958,9 @@ class AgentHandle:
         self.allow_trading = bool(allow_trading)
         self.model_request_timeout_seconds = model_request_timeout_seconds
         self.run_timeout_seconds = run_timeout_seconds
+        if reasoning_effort not in {None, "none", "low", "medium", "high", "xhigh", "max"}:
+            raise ValueError("Unsupported agent reasoning_effort.")
+        self.reasoning_effort = reasoning_effort
         self.include_builtin_skills = bool(include_builtin_skills)
         self.rules_path = rules_path
         from .builtins import BuiltinTools
@@ -1167,13 +1226,12 @@ class AgentHandle:
             stock_sizing_instruction,
             "Load recent price history for any asset you are considering and inspect it before deciding.",
             "If you already hold a position and are considering adding, reducing, or selling it, call search_memory for the open thesis first and compare the current evidence against that thesis.",
-            "When available, use the built-in evidence stack before making a material equity decision: account/portfolio tools, current market prices, recent price history, DuckDB analysis, technical indicators, relevant news, macro/FRED data, SEC financial statements, SEC company facts, and SEC filings.",
-            "Do not submit a material equity order until you have called account/portfolio tools, market price/history tools, at least one technical indicator tool, a relevant news tool when configured, a macro/FRED tool when configured, and SEC financial/filing tools for relevant single-stock candidates.",
-            "For ETFs, indexes, or broad-market trades, use SEC financial/filing tools on the most relevant single-stock candidates, holdings, or alternatives you are considering; do not skip the category just because the final instrument is an ETF.",
+            "Choose the smallest relevant evidence set for the strategy's thesis and decision. Do not call every available data category by default. Use technical, news, macro, or SEC evidence when it can materially confirm or break the thesis, and explicitly identify important evidence that is unavailable.",
+            "Before a material order, the account/risk checks and a current price needed to size that order are mandatory. Other evidence categories are thesis-dependent: do not fetch unrelated SEC filings for an index or ETF merely to satisfy a generic checklist.",
             "Do not repeat identical read-only evidence calls if the current task context already includes fresh results from another agent; reference those results and call again only when they are missing, stale, or conflicting.",
             "If the user asks for an aggressive or concentrated strategy, let that user strategy prompt override the default investor style, but still ground the decision in tool evidence, position sizing, broker constraints, and backtesting look-ahead safety.",
             "When querying DuckDB tables, use datetime for timestamp columns and close for price columns unless the loaded sample rows clearly show different column names.",
-            "When you have access to external MCP tools, explore what they offer and use them. You do not need to be told which specific tool to call.",
+            "Use external MCP tools only when their evidence is relevant to the current task; availability alone is not a reason to call them.",
             "Before your final response, reconcile every state-changing tool result with the latest account and order reads. Never claim that no order was submitted after an order tool returned a submitted identifier; report the exact observed order status, even if your later analysis changes.",
             "Finish every run with a short summary sentence starting with RESULT: that explains what you did and why.",
         ]
@@ -1284,12 +1342,28 @@ class AgentHandle:
     def _build_remote_tools(self) -> list[BoundTool]:
         remote_tools: list[BoundTool] = []
         for server in self._mcp_servers:
+            contracts = self.manager._remote_mcp_tool_contracts(server)
             for exposed_name in server.exposed_tools or []:
-                description = f"Remote MCP tool {exposed_name} on server {server.name}."
+                contract = contracts.get(exposed_name) or {}
+                input_schema = contract.get("inputSchema") or contract.get("input_schema")
+                description = str(contract.get("description") or "").strip()
+                if not description:
+                    description = f"Remote MCP tool {exposed_name} on server {server.name}."
+                if isinstance(input_schema, dict):
+                    description = (
+                        f"{description}\n\nInput JSON schema (use these exact field names):\n"
+                        f"{json.dumps(input_schema, sort_keys=True, ensure_ascii=True)}"
+                    )
 
                 def make_remote_tool(_server: MCPServer, _tool_name: str):
-                    def remote_tool(payload: dict[str, Any]) -> dict[str, Any]:
-                        payload = self._bound_remote_tool_payload(_server, _tool_name, payload)
+                    def remote_tool(payload: dict[str, Any] | None = None, **arguments: Any) -> dict[str, Any]:
+                        resolved_arguments = dict(payload or {})
+                        resolved_arguments.update(arguments)
+                        payload = self._bound_remote_tool_payload(
+                            _server,
+                            _tool_name,
+                            resolved_arguments,
+                        )
                         warning_key = (_server.name, _tool_name)
                         if (
                             bool(getattr(self.manager.strategy, "is_backtesting", False))
@@ -1309,6 +1383,17 @@ class AgentHandle:
                     return remote_tool
 
                 remote_tool = make_remote_tool(server, exposed_name)
+                signature = _signature_from_json_schema(input_schema)
+                remote_tool.__signature__ = signature or inspect.Signature(
+                    parameters=[
+                        inspect.Parameter(
+                            "payload",
+                            inspect.Parameter.POSITIONAL_OR_KEYWORD,
+                            annotation=dict,
+                        )
+                    ],
+                    return_annotation=dict,
+                )
                 remote_tools.append(
                     BoundTool(
                         name=exposed_name,
@@ -1476,6 +1561,7 @@ class AgentHandle:
         effective_system_prompt: str,
         base_system_prompt: str,
         builtin_skill_fingerprint: str | None,
+        reasoning_effort: str | None,
     ) -> dict[str, Any]:
         bound_tools = self._ensure_bound_tools()
         return {
@@ -1488,6 +1574,7 @@ class AgentHandle:
             "runtime_context": runtime_context,
             "memory_state": memory_state or {},
             "model": model,
+            "reasoning_effort": reasoning_effort,
             "tool_surface": [
                 {
                     "name": tool.name,
@@ -1825,6 +1912,7 @@ class AgentHandle:
         model: str | None = None,
         model_request_timeout_seconds: float | None = None,
         run_timeout_seconds: float | None = None,
+        reasoning_effort: str | None = None,
         **kwargs: Any,
     ) -> AgentRunResult:
         if "task" in kwargs and task_prompt is None:
@@ -1842,6 +1930,9 @@ class AgentHandle:
         resolved_run_timeout_seconds = (
             run_timeout_seconds if run_timeout_seconds is not None else self.run_timeout_seconds
         )
+        resolved_reasoning_effort = reasoning_effort if reasoning_effort is not None else self.reasoning_effort
+        if resolved_reasoning_effort not in {None, "none", "low", "medium", "high", "xhigh", "max"}:
+            raise ValueError("Unsupported agent reasoning_effort.")
         runtime_context = self._runtime_context()
         memory_state = self._memory_state(runtime_context)
         base_system_prompt = self._base_system_prompt(runtime_context)
@@ -1861,6 +1952,7 @@ class AgentHandle:
             effective_system_prompt=effective_system_prompt,
             base_system_prompt=base_system_prompt,
             builtin_skill_fingerprint=skill_fingerprint,
+            reasoning_effort=resolved_reasoning_effort,
         )
         cache_key = self.manager.replay_cache.compute_key(cache_payload)
         strategy = self.manager.strategy
@@ -1915,6 +2007,7 @@ class AgentHandle:
             ),
             model_request_timeout_seconds=resolved_model_request_timeout_seconds,
             run_timeout_seconds=resolved_run_timeout_seconds,
+            reasoning_effort=resolved_reasoning_effort,
         )
         self.manager._reserve_model_call(agent_name=self.name, model=model_name)
         # Strategy-level safety net with live-vs-backtest branching.
@@ -2126,6 +2219,7 @@ class AgentManager:
         self._agents: dict[str, AgentHandle] = {}
         self._warned_backtest_mcp_tools: set[tuple[str, str]] = set()
         self._warning_keys: set[str] = set()
+        self._remote_mcp_contract_cache: dict[tuple[str, str], dict[str, dict[str, Any]]] = {}
         self._model_call_count = 0
         agent_replay_cache_class, _ = _get_replay_imports()
         self.replay_cache = agent_replay_cache_class()
@@ -2135,6 +2229,27 @@ class AgentManager:
         self._observability_rows: dict[str, list[dict[str, Any]]] = {}
         self._observability_all_rows: list[dict[str, Any]] = []
         self._tool_result_cache: dict[str, Any] = {}
+
+    def _remote_mcp_tool_contracts(self, server: MCPServer) -> dict[str, dict[str, Any]]:
+        cache_key = (server.name, str(server.url or server.command or ""))
+        cached = self._remote_mcp_contract_cache.get(cache_key)
+        if cached is not None:
+            return cached
+        contracts: dict[str, dict[str, Any]] = {}
+        try:
+            for item in _list_remote_mcp_tools(server):
+                if not isinstance(item, dict):
+                    continue
+                name = item.get("name")
+                if isinstance(name, str) and name in (server.exposed_tools or []):
+                    contracts[name] = item
+        except Exception as exc:
+            self._warn_once(
+                f"mcp_contract:{server.name}",
+                f"Could not load tool contracts from MCP server {server.name!r}: {exc}",
+            )
+        self._remote_mcp_contract_cache[cache_key] = contracts
+        return contracts
 
     def __getitem__(self, item: str) -> AgentHandle:
         return self._agents[item]
@@ -2600,13 +2715,14 @@ class AgentManager:
         rules_path: str | Path | None = None,
         model_request_timeout_seconds: float | None = None,
         run_timeout_seconds: float | None = None,
+        reasoning_effort: str | None = None,
     ) -> AgentHandle:
         if name in self._agents:
             raise ValueError(f"Agent with name {name!r} already exists.")
         resolved_system_prompt = system_prompt or prompt or "You are a LumiBot trading agent."
         if model is not None and default_model is not None and model != default_model:
             raise ValueError("Pass either model or default_model, not both with different values.")
-        resolved_model = model or default_model or "gemini-3.1-flash-lite-preview"
+        resolved_model = model or default_model or "gemini-3.5-flash-lite"
         resolved_allow_trading = True if allow_trading is None else bool(allow_trading)
         handle = AgentHandle(
             manager=self,
@@ -2622,6 +2738,7 @@ class AgentManager:
             rules_path=rules_path,
             model_request_timeout_seconds=model_request_timeout_seconds,
             run_timeout_seconds=run_timeout_seconds,
+            reasoning_effort=reasoning_effort,
         )
         if cadence is not None:
             self.strategy.log_message(

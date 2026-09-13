@@ -1,5 +1,130 @@
 # Changelog
 
+## 4.5.92 - Unreleased
+
+### Growth documentation and examples
+- Refined AI trading entry points with a runnable README example, grouped navigation, compact brand artwork, and a free challenge invitation after useful content.
+- Added a canonical researcher/trader Strategy example with Gemini 3.5 Flash-Lite, explicit position limits, and order-observation guidance.
+- Promoted AI quickstart and examples to top-level navigation; added reusable-component and coding-agent entry pages.
+- Added creator-led challenge imagery, preserved classic Strategy entry points, and introduced contributor intake and a read-only PR triage utility.
+
+
+### Changed
+- Managed AI agents can select a reviewed provider reasoning effort end to end;
+  unsupported provider/effort combinations fail visibly instead of being
+  silently ignored. Stable Anthropic Opus/Fable family identifiers are also
+  recognized alongside Sonnet.
+- Agent evidence guidance now asks for the smallest thesis-relevant evidence
+  set, reuses fresh account and handoff context, and avoids unrelated tool
+  categories while retaining mandatory account, risk, and current-price checks
+  before an order.
+- Indicator tools preserve complete instrument identity, including asset type,
+  quote asset, and exchange, so a crypto pair cannot be silently treated as a
+  same-ticker stock.
+- Fibonacci range retracements support explicit up/down direction, bounded
+  lookback and independent monthly/annual windows through the agent indicator
+  tools. Numerical contracts cover RSI, VWAP, SMA50/200, MACD, Bollinger and ATR.
+- AI documentation opens with complete workflow routes and a grouped example
+  directory. Stock/ORB setup documents exact prerequisites and validation limits;
+  the public Backtrader migration guide replaces the duplicate internal guide.
+- Documentation analytics distinguish Python, AI, options and partnership entry
+  choices, with duplicate-event and destination-classification coverage.
+- Backtest progress and settings retain per-run initialization, callback, first
+  price, simulation and report timestamps, separately from heartbeat updates.
+- New agents without an explicit model use Gemini 3.5 Flash-Lite rather than
+  the retired preview default. Explicit model pins and managed families remain
+  unchanged; existing agent instances are not migrated during a decision.
+- Agent indicator queries accept independent, explicitly zoned historical
+  windows. Bounds cannot exceed strategy time; missing warmup remains missing,
+  and monthly or annual requests cannot borrow bars from another window.
+- Short daily IBKR stock/index history requests size the provider page from the
+  complete required window, including lookback and calendar padding. Requests
+  longer than one year retain the five-year cap and backward pagination.
+- Added partnership information, direct AI example routes, and hosted marketplace links to the public documentation and README.
+- Corrected README and package license labels to match the existing GPLv3 LICENSE file; the license text is unchanged.
+
+### Fixed
+- Overlapping broker position reads no longer let an older response delete,
+  resurrect, or overwrite a newer applied snapshot. Network reads remain outside
+  the tracker lock, and a failed newer request does not discard older success.
+  Positions added during a read also keep their newer fields and strategy owner.
+- Failed or malformed Bitunix position snapshots preserve tracked positions
+  and remain retryable instead of making the account appear flat. Successful
+  empty broker snapshots now remove every stale non-cash position.
+  Ambiguous same-symbol active positions are rejected instead of overwriting
+  each other according to response order.
+- Strategy variable backups retain `Asset` objects across scheduled-file and
+  database restarts, including nested instruments and option underlyings.
+- Bitunix reduce-only closes no longer request a leverage change from a
+  reconstructed asset's default, preserving the existing position's leverage
+  for full and fractional closes, including after broker restarts.
+- A failed tool attempt followed by a successful retry of the same tool is
+  classified as recovered. Unrecovered or final tool failures still produce a
+  structured ``tool_error`` outcome.
+- Production eval fixtures now execute a real non-trading researcher followed
+  by a separately instantiated trading/risk agent, preserving both actors'
+  tool evidence and usage instead of simulating the handoff with a paragraph.
+- Managed-gateway protocol and hard provider-quota errors retain their typed
+  cause. Backtests now fail visibly on invalid provider tool contracts or
+  exhausted billing/quota instead of recording repeated no-action iterations.
+- CCXT research history and last-price queries no longer expose unfinished
+  candles' future OHLCV values. Minute/hour/day completion boundaries and
+  shifted history are covered; execution retains current-candle fills and
+  existing sparse-gap/future-timestamp safeguards.
+- Cloud telemetry no longer logs listener credentials, authentication headers,
+  echoed response bodies or transport exception text. Status diagnostics remain.
+- Scheduled-order contracts exercise actual process exit and fresh-process
+  reconciliation, including terminal states and duplicate broker observations.
+- Eval startup imports only its approved inference credential and disables
+  automatic broker/dotenv discovery. Non-inference HTTP requests fail before
+  transport, including accidental background broker initialization.
+- Release evals use the real AgentManager and built-in trading tools instead of
+  simplified replacement functions. Fixture data and real simulated broker fills
+  now expose tool-schema drift and missing execution outcomes before publication.
+- Native evals pace exact provider-counted input across concurrent workers and
+  resumes. This avoids bursts over the observed free-tier input limit without
+  changing customer/provider quotas or discarding prior spend reservations.
+- Multi-leg price calculation requires valid quotes for every option leg.
+  Missing, failed, nonfinite, negative or crossed quotes no longer produce a
+  partial package price. Unknown price styles fail visibly.
+- **Indicator batch metadata rejects non-string and oversized fields before
+  data work.** Result ids, indicator names and timesteps are never coerced from
+  arrays or objects into misleading strings.
+- **Managed AI family selection pins one exact model per decision.** A compatible
+  gateway resolves the family once; tool continuations retain that id and reject
+  inconsistent resolution without falling back from personal credentials.
+- **Indicator timeframes do not silently substitute a different cached series.**
+  A request for minute data cannot reuse and relabel a daily store entry.
+- **Agent eval spending survives tool continuations, errors and process resumes.**
+  Durable reservations precede each actor/judge call, unknown usage retains its
+  reserved cost, and budgeted native Gemini requests disable hidden SDK retries.
+  Freshness now includes indicator/broker code and installed SDK versions without
+  renewing the timestamps of unchanged skipped passes.
+- IBKR history diagnostics retain structured downloader causes and distinguish
+  data sources and requested windows. A failed fetch is no longer overwritten
+  or double-counted as an empty payload. Diagnostics do not fail a backtest.
+- Downloader provider cooldowns remain attached to their original queued
+  request instead of forcing duplicate submissions after repeated wait
+  timeouts. Provider waiting is exposed separately from simulated progress.
+- **Indicators cannot calculate against future backtest rows.** Input is copied
+  and restricted to strategy time before computation; negative offsets and
+  explicit noncausal parameters fail visibly. Observed bar corrections invalidate
+  memoized results and custom functions cannot mutate the source frame.
+- **Agent indicator batches support independent parameters and timeframes.**
+  Requests carry unique result IDs and retain individual calculation errors,
+  allowing different moving-average lengths in one call.
+- **Serialized broker order IDs remain queryable during live tool loops.**
+  Broker-native identifiers such as Alpaca ``uuid.UUID`` values now compare
+  losslessly with the string form carried by JSON, agent tools, and scheduled
+  runtime state. Exact ``get_order`` and filtered ``get_orders`` calls can
+  therefore observe the submitted order through its terminal lifecycle without
+  confusing a type mismatch with a missing order.
+- **Remote MCP tools expose their authoritative argument contracts to agents.**
+  LumiBot now loads each allowlisted tool's description and input schema through
+  ``tools/list`` and projects the exact field names into the model-facing
+  callable. Hosted research agents no longer have to guess between names such as
+  ``datasetId`` and ``dataset_id`` before calling BotSpot's strict MCP server.
+
 ## 4.5.91 - 2026-09-06
 
 Deploy marker: `d007efed231d`

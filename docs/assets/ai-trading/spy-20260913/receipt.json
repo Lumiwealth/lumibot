@@ -1,0 +1,32 @@
+{
+  "recorded_at": "2026-09-13",
+  "runtime_commit": "ea55faef38eea8bfcfc022962e1a457f2d4a8476",
+  "source_sha256": "a2820f0c5e9593f6151143f96a9441442d8ab05da38da6e2f7488c436e021ed9",
+  "model": "gemini-3.5-flash-lite",
+  "engine": "YahooDataBacktesting",
+  "window_start": "2026-04-06",
+  "window_end_exclusive": "2026-04-11",
+  "fresh_agent_runs": 10,
+  "application_cache_hits": 0,
+  "initial_equity": 100000,
+  "final_account_equity": 100272.8500366211,
+  "account_equity_change_pct": 0.2728500366210973,
+  "filled_orders": 1,
+  "fill_quantity": 15,
+  "fill_price": 656.6500244140625,
+  "elapsed_seconds": 1111.1113438331522,
+  "model_cost_usd": 0.16638944,
+  "cost_scope": "Successful fresh backtest only, excluding separate eval/judge calls",
+  "engine_summary": {
+    "cagr": 0.29644851763529956,
+    "volatility": 0.02849335805174742,
+    "sharpe": 9.143131455782243,
+    "max_drawdown": {
+      "drawdown": 0.00023181177462017723,
+      "date": "2026-04-10 08:30:00-04:00"
+    },
+    "romad": 1278.832872579615,
+    "total_return": 0.0028473436524925066
+  },
+  "metrics_note": "Engine total_return differs from direct final-account change; do not present them as identical. Annualized metrics over five sessions are not an observed annual outcome."
+}

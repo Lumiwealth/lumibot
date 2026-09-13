@@ -337,3 +337,12 @@ article img:not(.sidebar-logo):not(.only-light):not(.only-dark),
         white-space: normal; /* Ensure text wraps on small screens */
     }
 }
+
+/* Entry routes are documentation UI; generated artwork is displayed unchanged. */
+.lumibot-entry-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; margin: 1.25rem 0; }
+[role="main"] .lumibot-entry-card { padding: 1rem; border: 1px solid var(--color-background-border); border-radius: 10px; background: var(--color-background-secondary); }
+.lumibot-entry-card p:first-child { margin-top: 0; }
+.lumibot-entry-card p:last-child { margin-bottom: 0; }
+.lumibot-entry-hero { display: block; max-width: 100%; height: auto; margin: 1.5rem auto; }
+.lumibot-learning-image { max-width: 100%; height: auto; }
+@media (max-width: 680px) { .lumibot-entry-grid { grid-template-columns: 1fr; } }

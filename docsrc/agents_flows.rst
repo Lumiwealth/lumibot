@@ -1,6 +1,12 @@
 Design Your AI Trading Team
 ===========================
 
+Start with :doc:`agents_quickstart`: one researcher gathers evidence and one
+trading agent owns risk review, order submission, and status reconciliation.
+Add researchers ahead of that trader when the strategy needs more perspectives.
+Research is evidence to evaluate, not permission to override the trading mandate.
+
+
 An AI trading team is the way your strategy calls one or more agents during normal
 LumiBot lifecycle methods such as ``on_trading_iteration()``. It is just Python.
 There is no required graph framework, no fixed team structure, and no

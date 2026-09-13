@@ -479,6 +479,10 @@ class RuntimeRequest:
     model_request_timeout_seconds: float | None = None
     run_timeout_seconds: float | None = None
     max_output_tokens: int | None = None
+    reasoning_effort: str | None = None
+    # Optional caller-owned budget (release evals). No provider credentials or
+    # account caps are modified. Each continuation gets a separate reservation.
+    model_call_budget: Any | None = None
 
 
 _LITELLM_CONFIGURED = False
@@ -587,6 +591,21 @@ def _classify_agent_error(exc: BaseException) -> str:
     exc_name = exc.__class__.__name__
     message = str(exc)
     message_lower = message.lower()
+    typed_code = str(getattr(exc, "code", "") or "").strip().lower()
+
+    # Managed-gateway errors retain a machine-readable cause even though the
+    # public message is deliberately sanitized. Honor that cause before the
+    # gateway's HTTP 502/503 envelope would incorrectly make every failure look
+    # transient. Hard quota/billing failures and invalid provider contracts are
+    # actionable backtest failures, not valid no-op trading decisions.
+    if typed_code == "provider_quota_exhausted":
+        return "billing"
+    if typed_code == "protocol_integrity_error":
+        return "config"
+    if typed_code in {"provider_auth_failed", "unauthorized", "renewal_failed"}:
+        return "auth"
+    if typed_code in {"provider_not_configured", "invalid_request"}:
+        return "config"
 
     # HTTP status code if the provider SDK attached one.
     status_code = None
@@ -1035,6 +1054,7 @@ def _resolve_model_for_adk(
     *,
     prompt_cache_key: str | None = None,
     model_request_timeout_seconds: float | None = None,
+    reasoning_effort: str | None = None,
 ) -> Any:
     # Native Gemini IDs take ADK's fast path as plain strings. Any other
     # provider prefix (e.g. "openai/...", "xai/...", "anthropic/...") is
@@ -1043,10 +1063,18 @@ def _resolve_model_for_adk(
     if not isinstance(model, str):
         return model
     lower = model.strip().lower()
-    from lumibot.components.agents.managed_gateway import managed_gateway_available_for, managed_gateway_model
+    from lumibot.components.agents.managed_gateway import (
+        MANAGED_MODEL_FAMILIES, ManagedAiGatewayError, managed_gateway_available_for, managed_gateway_model,
+    )
 
     if managed_gateway_available_for(model):
-        return managed_gateway_model(model)
+        return managed_gateway_model(model, reasoning_effort=reasoning_effort)
+    if model in MANAGED_MODEL_FAMILIES:
+        raise ManagedAiGatewayError(
+            "Model families require BotSpot managed AI without a personal provider key. "
+            "For direct provider/BYOK execution, select an exact provider model id.",
+            code="model_resolution_required",
+        )
     if _is_native_gemini_model(model):
         return model
     if lower.startswith("xai/"):
@@ -1198,6 +1226,44 @@ class GoogleADKRuntime:
 
         return _callback
 
+    def _model_callbacks(self, request: RuntimeRequest):
+        pruning = self._before_model_context_pruning_callback(request)
+        budget = request.model_call_budget
+        if budget is None:
+            return pruning, None
+        if not _is_native_gemini_model(request.model):
+            raise ValueError("Per-call eval budgeting currently requires a priced native Gemini model.")
+        from .managed_gateway import managed_gateway_available_for
+        if managed_gateway_available_for(request.model):
+            raise ValueError("Budgeted native Gemini evals cannot use a managed gateway pricing route.")
+        ticket = None
+
+        def before(*args, **kwargs):
+            nonlocal ticket
+            if pruning is not None:
+                pruning(*args, **kwargs)
+            before_request = getattr(budget, "before_request", None)
+            if callable(before_request):
+                llm_request = kwargs.get("llm_request") or (args[1] if len(args) > 1 else None)
+                before_request(request.model, llm_request)
+            # An earlier request without usage remains reserved in the durable
+            # ledger. A retry/continuation cannot spend that reservation again.
+            ticket = budget.reserve(request.model, request.max_output_tokens or 65535)
+
+        def after(*args, llm_response=None, **kwargs):
+            nonlocal ticket
+            if llm_response is None and len(args) >= 2:
+                llm_response = args[1]
+            if getattr(llm_response, "partial", False):
+                return None
+            usage = _coerce_usage_metadata(getattr(llm_response, "usage_metadata", None))
+            if ticket is not None and usage:
+                budget.settle(ticket, usage)
+                ticket = None
+            return None
+
+        return before, after
+
     def _after_tool_context_pruning_callback(self, request: RuntimeRequest):
         if _model_context_limit_tokens(request.model) is None:
             return None
@@ -1256,32 +1322,13 @@ class GoogleADKRuntime:
         if request.task_prompt:
             sections.append(f"Task:\n{request.task_prompt.strip()}")
         else:
-            required_categories = [
-                "account_positions or account_portfolio",
-                "market_last_price or market_load_history_table",
-                "duckdb_query after loading a price table",
-                "get_indicator or get_indicators",
-            ]
-            if "alpaca_news" in tool_names:
-                required_categories.append("alpaca_news")
-            fred_tools = sorted(
-                name for name in tool_names if name.startswith("get_fred_") or name == "list_fred_series"
-            )
-            if fred_tools:
-                required_categories.append(" or ".join(fred_tools))
-            required_categories.extend(
-                [
-                    "get_income_statement, get_balance_sheet, get_cash_flow, or get_company_facts",
-                    "get_filings, search_filing, or get_filing_document",
-                ]
-            )
             sections.append(
                 "Task:\n"
-                "Do your normal job for the current market state. Before making a trading decision, use the available "
-                "tools to review account/portfolio state, current market prices, recent price history, technical "
-                "indicators, relevant news when configured, macro/FRED data when configured, and SEC financial/filing "
-                "evidence for relevant single-stock candidates. Specifically, include calls from these available "
-                f"categories: {'; '.join(required_categories)}. "
+                "Do your normal job for the current market state. Use only the evidence and tools needed for this "
+                "decision. Do not call every available data category by default. Treat a fresh, complete Runtime "
+                "Context account snapshot as authoritative until an order mutation occurs. Refresh only stale, "
+                "incomplete, omitted, or decision-critical account details. Prefer bounded batch tools when several "
+                "related values are needed, and pass compact conclusions rather than raw histories between agents. "
                 "In backtests, date-bound every external data request to the current simulated datetime and do not use "
                 "future information."
             )
@@ -1346,18 +1393,21 @@ class GoogleADKRuntime:
         except Exception:
             pass
         planner = self._maybe_build_gemini_thinking_planner(request.model, genai_types)
+        before_model, after_model = self._model_callbacks(request)
         agent = LlmAgentType(
             name=request.agent_name,
             model=_resolve_model_for_adk(
                 request.model,
                 prompt_cache_key=request.provider_prompt_cache_key or _provider_prompt_cache_key(request),
                 model_request_timeout_seconds=model_request_timeout_seconds,
+                reasoning_effort=request.reasoning_effort,
             ),
             instruction=self._instruction_for(request),
             tools=tools,
             generate_content_config=genai_types.GenerateContentConfig(**config_kwargs),
             planner=planner,
-            before_model_callback=self._before_model_context_pruning_callback(request),
+            before_model_callback=before_model,
+            after_model_callback=after_model,
             after_tool_callback=self._after_tool_context_pruning_callback(request),
         )
         runner = InMemoryRunnerType(agent=agent, app_name="lumibot-agents")
@@ -1472,6 +1522,14 @@ class GoogleADKRuntime:
             http_options_type = getattr(genai_types, "HttpOptions", None)
             if http_options_type is not None:
                 config_kwargs["http_options"] = http_options_type(timeout=timeout_millis)
+        if request.model_call_budget is not None:
+            if not _is_native_gemini_model(request.model):
+                raise ValueError("Per-call eval budgeting requires native Gemini.")
+            options = config_kwargs.get("http_options") or genai_types.HttpOptions()
+            # SDK retries happen below ADK callbacks. Disable them for budgeted
+            # runs; outer retries pass through the reservation callback again.
+            options.retry_options = genai_types.HttpRetryOptions(attempts=1)
+            config_kwargs["http_options"] = options
         return config_kwargs
 
     @staticmethod

@@ -1,5 +1,6 @@
 import csv
 import datetime as dt
+import json
 import os
 import threading
 from abc import ABC
@@ -32,6 +33,7 @@ class DataSourceBacktesting(DataSource, ABC):
         "positions_json",
         "orders_json",
         "download_status",
+        "runtime_timings",
     )
 
     def __init__(
@@ -109,6 +111,8 @@ class DataSourceBacktesting(DataSource, ABC):
         self._portfolio_value = None
         self._progress_csv_lock = threading.Lock()
         self._progress_snapshot_lock = threading.Lock()
+        self._runtime_timings_lock = threading.Lock()
+        self._runtime_timings = {}
         self._last_progress_snapshot = {
             "percent": 0.0,
             "elapsed": timedelta(0),
@@ -143,6 +147,44 @@ class DataSourceBacktesting(DataSource, ABC):
 
         if self.log_backtest_progress_to_file and self._progress_heartbeat_enabled:
             self._start_progress_heartbeat_thread()
+
+    def record_runtime_milestone(self, name):
+        """Record bounded, per-run wall-clock observations without advancing simulation.
+
+        First observation wins. These are diagnostics, never billing or success
+        authority, and contain no strategy parameters or provider credentials.
+        """
+        if name not in {
+            "initialize_entered_at", "initialize_completed_at",
+            "first_callback_entered_at", "first_price_lookup_at",
+            "first_usable_price_at", "first_simulation_advance_at",
+            "reports_started_at", "reports_completed_at",
+        }:
+            return
+        try:
+            with self._runtime_timings_lock:
+                if name in self._runtime_timings:
+                    return
+                self._runtime_timings[name] = dt.datetime.now(dt.timezone.utc).isoformat()
+            # The existing progress writer carries the snapshot. Do not import
+            # downloader helpers or perform file I/O at callback entry merely
+            # to measure callback entry.
+        except Exception:
+            # Optional telemetry cannot change strategy execution or data validity.
+            pass
+
+    def get_runtime_timings(self):
+        with self._runtime_timings_lock:
+            return dict(self._runtime_timings)
+
+    def flush_runtime_timings(self):
+        """Publish final phases without inventing another simulation step."""
+        if not self.log_backtest_progress_to_file:
+            return False
+        with self._progress_snapshot_lock:
+            snapshot = dict(self._last_progress_snapshot)
+        self.log_backtest_progress_to_csv(**snapshot)
+        return True
 
     def shutdown(self):
         """Cleanup any background resources (thread pools, progress heartbeat)."""
@@ -188,6 +230,7 @@ class DataSourceBacktesting(DataSource, ABC):
                 "",
                 "[]",
                 "[]",
+                "{}",
                 "{}",
             ]
 
@@ -329,6 +372,8 @@ class DataSourceBacktesting(DataSource, ABC):
         """
         import json
 
+        if new_datetime > self._datetime:
+            self.record_runtime_milestone("first_simulation_advance_at")
         self._datetime = new_datetime
 
         if not self._show_progress_bar and not self.log_backtest_progress_to_file:
@@ -497,7 +542,6 @@ class DataSourceBacktesting(DataSource, ABC):
             from lumibot.tools.thetadata_helper import get_download_status
             download_status = get_download_status()
             if download_status.get("active"):
-                import json
                 download_status_json = json.dumps(download_status)
         except ImportError:
             # ThetaData helper not available, skip download status
@@ -518,7 +562,8 @@ class DataSourceBacktesting(DataSource, ABC):
             f"{total_return_pct:.2f}" if total_return_pct is not None else "",
             positions_json if positions_json else "[]",
             orders_json if orders_json else "[]",
-            download_status_json
+            download_status_json,
+            json.dumps(self.get_runtime_timings()),
         ]
 
         with self._progress_csv_lock:

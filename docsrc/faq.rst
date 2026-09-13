@@ -249,7 +249,7 @@ MCP (Model Context Protocol) servers are external services that provide tools an
 
     self.agents.create(
         name="research",
-        default_model="gpt-4.1-mini",
+        default_model="gemini-3.5-flash-lite",
         system_prompt="Your strategy prompt.",
         mcp_servers=[
             MCPServer(name="my-server", url="https://my-mcp-server.example.com/mcp"),

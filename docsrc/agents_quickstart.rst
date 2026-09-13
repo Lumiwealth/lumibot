@@ -1,67 +1,89 @@
-AI Agents Quick Start
-=====================
+Run your first AI backtest
+=========================
 
-This page shows the core patterns for creating and running AI trading agents inside a LumiBot strategy. Whether you want to backtest an AI trading agent with external tools or build an agentic backtesting workflow, these examples get you started in minutes. For background on why LumiBot is the only framework that puts the LLM inside the backtest loop, see :doc:`agents`.
+.. meta::
+   :description: Backtest a researcher and a trading agent with LumiBot. Inspect the evidence, risk decision, orders, and fills using a complete Python example.
 
-The pattern is simple:
+One agent researches the market. A second agent reviews risk, decides whether
+to trade, and checks the result. Both run inside the same standard ``Strategy``
+class used by conventional LumiBot strategies.
 
-- Create the agent once in ``initialize()``
-- Run the agent from lifecycle methods like ``on_trading_iteration()``
-- The agent reasons, calls tools, and executes trades on each bar
-- The same code works in backtests and live trading
+Before you run
+--------------
 
-Imports
--------
+Use Python 3.10 or later. Install the version-branch source below to get this
+example. It uses
+``gemini-3.5-flash-lite``, ``GEMINI_API_KEY``, and Yahoo daily prices.
+You do not need broker credentials for this historical backtest. Model calls
+use your provider account and incur charges; start with this short date range.
 
-.. code-block:: python
+.. code-block:: bash
 
-    from lumibot.components.agents import MCPServer, agent_tool
-    from lumibot.strategies import Strategy
+   python -m pip install "git+https://github.com/Lumiwealth/lumibot.git@version/4.5.92"
+   export GEMINI_API_KEY="your-gemini-api-key"
+   export BACKTESTING_DATA_SOURCE=yahoo
 
-Built-in tools are included by default -- no import needed for those.
+Save the complete code below as ``my_ai_strategy.py``, then run:
 
-Minimal Example (Built-in Tools Only)
---------------------------------------
+.. code-block:: bash
 
-This strategy creates an agent that uses only the default built-in tools. No external APIs, no explicit tool list.
+   python my_ai_strategy.py
 
-.. code-block:: python
+The researcher compares SPY's completed daily close with its 20-bar average.
+The trader can buy up to 10% of portfolio value, hold, or close the position
+when the trend condition turns negative. No short selling or leverage is part
+of this example. An agent may correctly decide not to trade.
 
-    from lumibot.strategies import Strategy
+Your strategy code
+------------------
 
+.. literalinclude:: ../lumibot/example_strategies/ai_researcher_trader.py
+   :language: python
+   :linenos:
 
-    class SimpleAgentStrategy(Strategy):
-        parameters = {"symbol": "SPY"}
+Inspect what happened
+---------------------
 
-        def initialize(self):
-            self.sleeptime = "1D"
-            self.agents.create(
-                name="research",
-                default_model="gpt-4.1-mini",
-                system_prompt=(
-                    "Analyze the current portfolio and market conditions. "
-                    "Trade conservatively. If the evidence is weak, do nothing."
-                ),
-            )
+A September 13, 2026 run completed all five sessions (April 6–10) with ten
+fresh Gemini researcher/trader runs. The trader bought 15 SPY shares on April 7
+and verified the simulated fill at $656.65. It held on the remaining sessions.
 
-        def on_trading_iteration(self):
-            result = self.agents["research"].run(
-                context={"symbol": self.parameters["symbol"]}
-            )
-            self.log_message(f"[research] {result.summary}", color="yellow")
+`Inspect the exact source, decisions, trade CSV, and run receipt
+<https://github.com/Lumiwealth/lumibot/blob/version/4.5.92/docs/assets/ai-trading/spy-20260913/README.md>`_.
+The final simulated account value was $100,272.85 from $100,000. This short
+run demonstrates the workflow; fresh inference can produce different decisions.
 
-The agent has access to all built-in tools (positions, portfolio, prices, history, DuckDB, orders, docs) without listing them.
+Read the ``Research:`` and ``Trader:`` log entries, then inspect the generated
+trade records and tear sheet. An agent's written claim is not a fill: compare
+the exact returned order identifier, status, filled quantity, and positions.
 
-Trading agents must inspect account state before submitting an order. In the
-same agent run, ``orders_submit_order`` requires successful calls to
-``account_portfolio``, ``account_positions``, and either ``market_last_price``
-for the ordered symbol or ``market_last_prices`` that includes it. If those
-checks are missing, LumiBot returns ``ORDER_READINESS_REQUIRED`` and the agent
-can recover by calling the missing tools and trying again.
+The trader has trading enabled. Only the researcher is read-only. Python
+coordinates the two agents; the trading agent calls the order tools itself.
+``orders_wait_for_terminal`` is a bounded observation tool. In backtests it can
+advance simulation time; a timeout does not mean an order was rejected.
+Never blindly retry an unresolved order.
 
-For universe scans, prefer ``market_last_prices`` with a JSON list of symbols
-(up to 150 per call). Load detailed history for finalists with
-``market_load_history_table``.
+See :doc:`agents_observability` for traces and replay, and
+:doc:`agents_examples` for recorded stock, macro, and options demonstrations.
+Historical model knowledge can include later events even when tools respect
+the strategy clock. Backtest returns are simulated, not a promise of returns.
+
+Change one thing
+----------------
+
+Change ``symbol`` or ``max_position_pct`` in ``parameters`` and rerun. Inspect
+how both the reasoning and orders changed. Keep the same ``Strategy`` class
+when adding researchers or moving to a configured broker runner. Existing
+Strategy subclasses do not need to migrate to another API.
+
+.. include:: _includes/learn_with_rob.rst
+
+Extend the team
+---------------
+
+Use :doc:`agents_flows` for larger teams, :doc:`agents_builtin_tools` for
+available tools, and :doc:`standalone_components` for research in another
+Python project. The following snippets illustrate extensions, not complete runners.
 
 ``@agent_tool`` Example (Primary Pattern)
 -------------------------------------------
@@ -101,7 +123,7 @@ This short FRED example delegates to Lumibot's point-in-time macro helper. In mo
             self.sleeptime = "1D"
             self.agents.create(
                 name="liquidity_research",
-                default_model="gpt-4.1-mini",
+                default_model="gemini-3.5-flash-lite",
                 system_prompt=(
                     "Use money supply and liquidity data to decide between "
                     "TQQQ and SHV. Focus on whether M2 liquidity is expanding "
@@ -135,7 +157,7 @@ If you have a compatible MCP server, you can connect it by URL. This is useful f
             self.sleeptime = "1D"
             self.agents.create(
                 name="research",
-                default_model="gpt-4.1-mini",
+                default_model="gemini-3.5-flash-lite",
                 system_prompt=(
                     "Use the available data tools to make informed trading decisions. "
                     "This is a binary allocator between TQQQ and SHV."
@@ -184,7 +206,7 @@ If your strategy needs a custom helper that the agent can call, decorate a metho
             self.sleeptime = "1D"
             self.agents.create(
                 name="research",
-                default_model="gpt-4.1-mini",
+                default_model="gemini-3.5-flash-lite",
                 system_prompt="Analyze watchlist bias before trading.",
                 tools=[self.get_watchlist_bias],
             )

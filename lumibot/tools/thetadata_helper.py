@@ -62,6 +62,7 @@ _download_status = {
     "estimated_wait": None,
     "attempts": None,
     "last_error": None,
+    "provider_wait": None,
     "submitted_at": None,
     "last_poll_at": None,
     "timeout_at": None,
@@ -156,6 +157,7 @@ def set_download_status(
         _download_status["estimated_wait"] = None
         _download_status["attempts"] = None
         _download_status["last_error"] = None
+        _download_status["provider_wait"] = None
         _download_status["submitted_at"] = None
         _download_status["last_poll_at"] = None
         _download_status["timeout_at"] = (time.time() + timeout_s) if (timeout_s is not None and timeout_s > 0) else None
@@ -245,6 +247,7 @@ def update_download_status_queue_info(
     attempts: Optional[int] = None,
     last_error: Optional[str] = None,
     submitted_at: Optional[float] = None,
+    provider_wait: Optional[dict] = None,
 ) -> None:
     """Best-effort update of queue diagnostics for the active download.
 
@@ -282,6 +285,13 @@ def update_download_status_queue_info(
             _download_status["correlation_id"] = correlation_id
         if queue_status is not None:
             _download_status["queue_status"] = queue_status
+            # Only a structured provider throttle may label this as rate limiting.
+            # Ordinary empty results/no-signal runs do not enter this state.
+            _download_status["provider_wait"] = (
+                {key: provider_wait.get(key) for key in ("provider", "classification", "status_code", "retry_at")}
+                if isinstance(provider_wait, dict) and provider_wait.get("classification") == "rate_limited"
+                else None
+            )
         if queue_position is not None:
             _download_status["queue_position"] = queue_position
         if estimated_wait is not None:
@@ -318,6 +328,7 @@ def clear_download_status() -> None:
         _download_status["estimated_wait"] = None
         _download_status["attempts"] = None
         _download_status["last_error"] = None
+        _download_status["provider_wait"] = None
         _download_status["submitted_at"] = None
         _download_status["last_poll_at"] = None
         _download_status["timeout_at"] = None

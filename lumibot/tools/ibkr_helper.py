@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import hashlib
 import logging
 import math
 import os
@@ -22,6 +23,7 @@ from lumibot.tools.ibkr_secdef import (
 )
 from lumibot.tools.ibkr_history_health import (
     HistoryOutcome,
+    HistoryPayloadError,
     classify_history_failure,
     coalesce_nearby_session_groups,
     group_contiguous_missing_sessions,
@@ -53,16 +55,14 @@ IBKR_DEFAULT_INDEX_HISTORY_SOURCE = "Midpoint"
 # was completing after a single iteration (the initial fetch near real-now
 # filled the cache, then the coverage check skipped the real historical
 # window for every subsequent simulation date, resulting in flat "today"
-# prices for the entire historical range — observed in Peter Credit Spreads
-# backtest a83663bd where VIX was constant 14.2 across 2,010 simulated days
-# and max drawdown was ``-94%``).
+# prices for an entire multi-year historical range).
 #
 # With ``5y``:
 #   - Each call returns up to 1000 bars (~4 years of daily data).
 #   - An 8-year backtest is covered in ~2 paginated chunks per symbol/source.
-#   - Short requests (e.g. "2 bars ending <date>") still receive a valid
-#     response because IBKR honours ``startTime`` and returns the N bars
-#     ending at that time, bounded by 1000.
+#   - Requests exceeding one year retain this cap and whole-run prefetch.
+#     Shorter, explicitly bounded windows include calendar padding instead of
+#     downloading and validating five years for a recent short simulation.
 #
 # If a future need arises for sub-daily stock/index bars with very long
 # windows, extend ``_history_period_for_request`` to pick a smaller period
@@ -908,6 +908,8 @@ def get_price_data(
                             max(existing_block[1], end_utc),
                         )
                     record_history_health(
+                        series_id=_history_health_series_id(asset=asset, quote=quote, timestep=timestep,
+                            exchange=effective_exchange, source=history_source, include_after_hours=include_after_hours),
                         symbol=str(getattr(asset, "symbol", "") or ""),
                         asset_type=asset_type,
                         timestep=timestep,
@@ -920,6 +922,8 @@ def get_price_data(
                             else 1
                         ),
                         reason=classification.reason,
+                        details=classification.details,
+                        event_id=(classification.details or {}).get("request_id"),
                     )
                 except Exception:
                     pass
@@ -949,6 +953,9 @@ def get_price_data(
                     # No-data terminal errors are not recoverable by trying more segments in the
                     # same iteration/window.
                     break
+                # This fetch already recorded its precise cause. An empty-frame
+                # follow-up would overwrite it and count the same failure twice.
+                continue
             if fetched is None or fetched.empty:
                 # Empty payloads are ambiguous in IBKR. Cool down this process, but do not
                 # persist a cross-process negative marker.
@@ -961,6 +968,8 @@ def get_price_data(
                         max(existing_block[1], end_utc),
                     )
                 record_history_health(
+                    series_id=_history_health_series_id(asset=asset, quote=quote, timestep=timestep,
+                        exchange=effective_exchange, source=history_source, include_after_hours=include_after_hours),
                     symbol=str(getattr(asset, "symbol", "") or ""),
                     asset_type=asset_type,
                     timestep=timestep,
@@ -1922,7 +1931,9 @@ def _fetch_history_between_dates(
     # stable across data providers. Only request IBKR "continuous" when we truly do not have an
     # explicit expiration to anchor the contract.
     continuous = bool(asset_type == "cont_future" and getattr(asset, "expiration", None) is None)
-    period = _period_override or _history_period_for_request(asset_type=asset_type, bar=bar, source=source)
+    period = _period_override or _history_period_for_request(
+        asset_type=asset_type, bar=bar, source=source, requested_start=start_dt, requested_end=end_dt
+    )
 
     cursor_end = _to_utc(end_dt)
     start_dt = _to_utc(start_dt)
@@ -1987,6 +1998,8 @@ def _fetch_history_between_dates(
                     )
                 except Exception as refresh_exc:
                     record_history_health(
+                        series_id=_history_health_series_id(asset=asset, quote=quote, timestep=timestep,
+                            exchange=exchange, source=source, include_after_hours=include_after_hours),
                         symbol=str(getattr(asset, "symbol", "") or ""),
                         asset_type=asset_type,
                         timestep=timestep,
@@ -2006,6 +2019,8 @@ def _fetch_history_between_dates(
                 continue
             if conid_refreshed:
                 record_history_health(
+                    series_id=_history_health_series_id(asset=asset, quote=quote, timestep=timestep,
+                        exchange=exchange, source=source, include_after_hours=include_after_hours),
                     symbol=str(getattr(asset, "symbol", "") or ""),
                     asset_type=asset_type,
                     timestep=timestep,
@@ -2034,6 +2049,8 @@ def _fetch_history_between_dates(
 
             if conid_refreshed:
                 record_history_health(
+                    series_id=_history_health_series_id(asset=asset, quote=quote, timestep=timestep,
+                        exchange=exchange, source=source, include_after_hours=include_after_hours),
                     symbol=str(getattr(asset, "symbol", "") or ""),
                     asset_type=asset_type,
                     timestep=timestep,
@@ -2054,6 +2071,8 @@ def _fetch_history_between_dates(
 
             if conid_refreshed:
                 record_history_health(
+                    series_id=_history_health_series_id(asset=asset, quote=quote, timestep=timestep,
+                        exchange=exchange, source=source, include_after_hours=include_after_hours),
                     symbol=str(getattr(asset, "symbol", "") or ""),
                     asset_type=asset_type,
                     timestep=timestep,
@@ -2094,6 +2113,8 @@ def _fetch_history_between_dates(
     merged = merged[~merged.index.duplicated(keep="last")]
     if conid_refreshed:
         record_history_health(
+            series_id=_history_health_series_id(asset=asset, quote=quote, timestep=timestep,
+                exchange=exchange, source=source, include_after_hours=include_after_hours),
             symbol=str(getattr(asset, "symbol", "") or ""),
             asset_type=asset_type,
             timestep=timestep,
@@ -2112,9 +2133,28 @@ def _fetch_history_between_dates(
     return merged
 
 
-def _history_period_for_request(*, asset_type: str, bar: str, source: str) -> str:
+def _history_health_series_id(*, asset, quote, timestep, exchange, source, include_after_hours) -> str:
+    instrument = {name: str(getattr(asset, name, "") or "")
+                  for name in ("asset_type", "symbol", "expiration", "strike", "right", "multiplier")}
+    identity = {"asset": instrument, "quote": str(getattr(quote, "symbol", "") or "USD"),
+                "timestep": timestep, "exchange": exchange or "AUTO", "source": source,
+                "include_after_hours": bool(include_after_hours)}
+    return hashlib.sha256(json.dumps(identity, sort_keys=True).encode()).hexdigest()
+
+
+def _history_period_for_request(
+    *, asset_type: str, bar: str, source: str,
+    requested_start: Optional[datetime] = None, requested_end: Optional[datetime] = None,
+) -> str:
     normalized_bar = (bar or "").strip().lower()
     if asset_type in {"stock", "index"} and normalized_bar.endswith("d"):
+        if requested_start is not None and requested_end is not None:
+            span = (_to_utc(requested_end) - _to_utc(requested_start)).total_seconds()
+            if 0 < span <= 365 * 86400:
+                # The caller's full span includes lookback/prefetch. Never infer
+                # it from the simulation's visible dates or shrink it per bar.
+                days = math.ceil(span / 86400) + 7
+                return f"{days}d"
         return IBKR_STOCK_INDEX_DAILY_MAX_PERIOD
     return _max_period_for_bar(bar)
 
@@ -2239,11 +2279,7 @@ def _ensure_cacheable_downloader_history_payload(payload: Any) -> None:
     error = str(meta.get("error") or "").strip()
     if error:
         logger.warning("IBKR downloader rejected non-cacheable history payload: %s", error)
-    raise RuntimeError(
-        "partial_history:non_cacheable_downloader_payload "
-        f"classification={classification or 'unknown'} "
-        f"cache_write_policy={cache_policy or 'unknown'}"
-    )
+    raise HistoryPayloadError(meta)
 
 
 def _ibkr_history_request(
@@ -2623,6 +2659,8 @@ def _repair_us_stock_index_daily_gaps(
         }
         unresolved = [session for session in expected if session.date() not in real_dates]
         record_history_health(
+            series_id=_history_health_series_id(asset=asset, quote=quote, timestep=timestep,
+                exchange=exchange, source=source, include_after_hours=include_after_hours),
             symbol=str(getattr(asset, "symbol", "") or ""),
             asset_type=_normalize_asset_type(getattr(asset, "asset_type", "")),
             timestep=timestep,
@@ -2701,6 +2739,8 @@ def _repair_us_stock_index_daily_gaps(
     }
     unresolved = [session for session in expected if session.date() not in real_dates]
     record_history_health(
+        series_id=_history_health_series_id(asset=asset, quote=quote, timestep=timestep,
+            exchange=exchange, source=source, include_after_hours=include_after_hours),
         symbol=str(getattr(asset, "symbol", "") or ""),
         asset_type=_normalize_asset_type(getattr(asset, "asset_type", "")),
         timestep=timestep,

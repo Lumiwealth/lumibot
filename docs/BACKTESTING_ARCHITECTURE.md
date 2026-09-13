@@ -15,6 +15,11 @@
 
 ## Overview
 
+Technical indicator calculations restrict input to strategy-time history before
+computing, rather than trimming a result calculated over future bars. See
+[indicator temporal safety](indicator-temporal-safety.md) for the regression,
+cache contract and the separate adapter bar-completion qualification boundary.
+
 LumiBot is a trading and backtesting framework. This document focuses on the **backtesting architecture**, specifically how data flows from external sources (Yahoo, ThetaData, IBKR Client Portal REST, Polygon) into the backtesting engine.
 
 **CORE PRINCIPLE: Backtesting must mimic live broker behavior.**
@@ -729,6 +734,16 @@ IBKR backtesting uses the shared Data Downloader and is cached locally (and opti
 For `Asset.AssetType.CRYPTO_FUTURE`, routed backtesting fetches spot crypto history as the price source while storing bars against the original futures asset. Quote assets are preserved exactly. USDT contracts such as `BTCUSDT`, `ETHUSDT`, and `SOLUSDT` use `BTC/USDT`, `ETH/USDT`, and `SOL/USDT`; if the exact pair has no provider data, LumiBot treats that as missing data instead of silently falling back to USD.
 
 #### Crypto daily bars (important semantics)
+
+CCXT OHLCV timestamps mark candle opens. Default research history and last-price
+queries expose only candles whose full minute/hour/day interval has closed at
+the simulated time (after any explicit timeshift). The broker execution path
+uses an explicit one-interval offset to retrieve the current execution candle;
+its existing timestamp checks still reject future bars and sparse-gap fills.
+Do not share that execution offset with AI research: a current candle's eventual
+high, low, close and volume are not known at its opening time. Coverage lives in
+`tests/test_backtesting_ccxt_execution_semantics.py` and includes actual adapter
+history plus broker execution against the same synthetic cached candles.
 
 IBKR's `bar=1d` history for crypto is not a clean midnight-to-midnight 24/7 day series, and its timestamps can lag the
 simulation clock used by daily-cadence strategies. To keep daily backtests stable (no “stale end of data” refresh loops),

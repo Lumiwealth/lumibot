@@ -13,7 +13,7 @@ Give AI agents market data, research tools, and the ability to place trades. Bui
 **[Run your first AI backtest](#run-your-first-ai-backtest)** · [Explore AI strategies](https://lumibot.lumiwealth.com/agents_examples.html) · [Documentation](https://lumibot.lumiwealth.com/)
 
 <p align="center">
-  <img src="docs/assets/ai-trading/ai-trading-hero.png" alt="LumiBot AI Trading: research, debate, trade and backtest" width="360">
+  <img src="docs/assets/ai-trading/ai-trading-hero.png" alt="LumiBot AI Trading: research, debate, trade and backtest" width="640">
 </p>
 
 ## Run your first AI backtest
@@ -82,7 +82,9 @@ This report belongs to the large-cap strategy on LumiBot 4.5.42, not the SPY qui
 
 **[Join the free challenge](https://botspot.trade/challenges?utm_source=github&utm_medium=readme&utm_campaign=lumibot_ai_trading&utm_content=free_challenge)** with Rob Grzesik, creator of LumiBot. Follow the training and learn how to turn an idea into an AI trading strategy.
 
-<a href="https://botspot.trade/challenges?utm_source=github&utm_medium=readme&utm_campaign=lumibot_ai_trading&utm_content=free_challenge_image"><img src="docs/assets/ai-trading/free-challenge.png" alt="Build your first AI trading bot with Rob Grzesik. Join the FREE challenge." width="360"></a>
+<p align="center">
+<a href="https://botspot.trade/challenges?utm_source=github&utm_medium=readme&utm_campaign=lumibot_ai_trading&utm_content=free_challenge_image"><img src="docs/assets/ai-trading/free-challenge.png" alt="Build your first AI trading bot with Rob Grzesik. Join the FREE challenge." width="640"></a>
+</p>
 
 Looking for deeper training? [Explore the AI Trading Bootcamp](https://botspot.trade/courses/ai-trading-bootcamp?utm_source=github&utm_medium=readme&utm_campaign=lumibot_ai_trading&utm_content=bootcamp). Prefer a hosted workspace? [Explore BotSpot](https://botspot.trade/agents?utm_source=github&utm_medium=readme&utm_campaign=lumibot_ai_trading&utm_content=hosted).
 

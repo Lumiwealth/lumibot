@@ -39,7 +39,8 @@ The example uses ``gemini-3.5-flash-lite``. Fresh AI decisions can vary.
 
 .. image:: ../docs/assets/ai-trading/ai-trading-hero.png
    :alt: LumiBot AI Trading: research, debate, trade and backtest
-   :width: 560px
+   :width: 640px
+   :align: center
    :class: lumibot-entry-hero
 
 Build your own trading system

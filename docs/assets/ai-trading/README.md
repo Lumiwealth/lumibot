@@ -1,16 +1,15 @@
-# AI trading entry-point artwork
+# AI trading artwork — September 13 refresh
 
-Generated September 13, 2026 with the approved Image Generator, server-controlled
-GPT Image 2.5 Sunburst, at the user's explicitly requested high quality.
-Each file is the generator's unedited output. References were the canonical Spot
-mascot and an approved creator portrait. No manual compositing or retouching.
+Five separate images generated with the approved Image Generator, using its default low quality and server-controlled GPT Image 2.5 Sunburst. Each is the raw, visually inspected output. No compositing, retouching or cropping.
 
-- `ai-trading-hero.png`: LumiBot AI Trading; Research. Debate. Trade. Backtest.
-  Presented at 560px wide in the README and documentation.
-- `free-challenge.png`: Build your first AI trading bot; Join the FREE challenge;
-  With Rob Grzesik, Creator of LumiBot. Presented at 360px wide after useful
-  example content, never as the main framework pitch.
+- [AI trading hero](ai-trading-hero.png): replaces the rejected robot portrait.
+- [Free challenge](free-challenge.png): based on Rob's original photographic headshot, without a mascot.
+- [AI strategies](ai-strategies.png): evidence, discussion and decisions.
+- [Inspect decisions](inspect-decisions.png): conceptual backtest illustration, not a performance result.
+- [Build your way](build-your-way.png): data, research and broker components.
 
-These are explanatory/education images, not screenshots or performance evidence.
-Recorded backtest screenshots are identified separately with their exact source
-and dates. A fresh model run is not guaranteed to reproduce saved decisions.
+All assets are 1536 × 864, displayed centered at up to 640 × 360 with proportional responsive scaling. Rounded panels are part of the generated images and therefore also appear in GitHub's sanitized README.
+
+[Prompts and rejected-draft corrections](visual-refresh-prompts.md) · [Screenshots](review/visual-refresh.md)
+
+Historical review screenshots show earlier versions and do not represent the latest artwork. Real backtest records remain separate.

@@ -68,7 +68,7 @@ def test_readme_leads_with_runnable_ai_before_education():
     assert 'ResearcherTraderStrategy.backtest(' in opening
     assert 'export GEMINI_API_KEY=' in opening
     assert opening.index('```python') < opening.index('Join the free challenge')
-    assert 'width="360"' in opening
+    assert 'width="640"' in opening
     assert 'ai-trading-hero.png' in opening
     assert 'learn-with-rob.png' not in opening
 
@@ -80,7 +80,7 @@ def test_navigation_has_task_groups_and_education_follows_quickstart():
     assert index.index('.. _first-python-backtest:') < index.index('.. include:: _includes/learn_with_rob.rst')
     invitation = (ROOT / 'docsrc/_includes/learn_with_rob.rst').read_text()
     assert 'free challenge' in invitation
-    assert ':width: 360px' in invitation
+    assert ':width: 640px' in invitation
 
 
 def test_homepage_and_readme_offer_direct_ai_runner_before_reference_choices():
@@ -91,3 +91,17 @@ def test_homepage_and_readme_offer_direct_ai_runner_before_reference_choices():
     assert home.index(runner) < home.index('lumibot-entry-grid')
     assert home.index(runner) < home.index('.. _first-python-backtest:')
     assert readme.index(runner) < readme.index('Save as `my_ai_strategy.py`')
+
+
+def test_generated_artwork_has_consistent_centered_placements():
+    text = (ROOT / 'README.md').read_text()
+    assert '<p align="center">\n<a href="https://botspot.trade/challenges?' in text
+    for page, asset in [('agents_examples.rst', 'ai-strategies.png'),
+                        ('agents_quickstart.rst', 'inspect-decisions.png'),
+                        ('standalone_components.rst', 'build-your-way.png')]:
+        source = (ROOT / 'docsrc' / page).read_text()
+        assert asset in source
+        assert ':align: center' in source
+    css = (ROOT / 'docsrc/_html/custom.css').read_text()
+    assert '.lumibot-learning-image' in css
+    assert 'width: min(100%, 640px)' in css

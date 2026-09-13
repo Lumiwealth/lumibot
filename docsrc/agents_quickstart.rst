@@ -41,6 +41,12 @@ Your strategy code
    :language: python
    :linenos:
 
+.. image:: ../docs/assets/ai-trading/inspect-decisions.png
+   :alt: Concept illustration of research notes, historical decisions and order records.
+   :width: 640px
+   :align: center
+   :class: lumibot-entry-hero
+
 Inspect what happened
 ---------------------
 

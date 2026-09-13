@@ -7,6 +7,12 @@ Use LumiBot in another Python project
 You can use selected research components without running a trading strategy.
 The examples below are network reads, not backtests or broker connections.
 
+.. image:: ../docs/assets/ai-trading/build-your-way.png
+   :alt: LumiBot components: data, research and brokers.
+   :width: 640px
+   :align: center
+   :class: lumibot-entry-hero
+
 Read macro data
 ---------------
 

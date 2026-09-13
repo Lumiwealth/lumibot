@@ -6,7 +6,8 @@ Follow the training and learn how to turn an idea into an AI trading strategy.
 
 .. image:: ../docs/assets/ai-trading/free-challenge.png
    :alt: Build your first AI trading bot with Rob Grzesik. Join the FREE challenge.
-   :width: 360px
+   :width: 640px
+   :align: center
    :class: lumibot-learning-image
    :target: https://botspot.trade/challenges?utm_source=documentation&utm_medium=docs&utm_campaign=lumibot_ai_trading&utm_content=free_challenge_image
 

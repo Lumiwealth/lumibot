@@ -343,8 +343,9 @@ article img:not(.sidebar-logo):not(.only-light):not(.only-dark),
 [role="main"] .lumibot-entry-card { padding: 1rem; border: 1px solid var(--color-background-border); border-radius: 10px; background: var(--color-background-secondary); }
 .lumibot-entry-card p:first-child { margin-top: 0; }
 .lumibot-entry-card p:last-child { margin-bottom: 0; }
-.lumibot-entry-hero { display: block; max-width: 100%; height: auto; margin: 1.5rem auto; }
-.lumibot-learning-image { max-width: 100%; height: auto; }
+.lumibot-entry-hero, .lumibot-learning-image { display: block; width: min(100%, 640px); max-width: 100%; height: auto; margin: 1.5rem auto; }
+/* Linked images need their wrapper centered too. Artwork corners are generator-rendered. */
+a.reference.image-reference:has(.lumibot-learning-image) { display: block; width: fit-content; max-width: 100%; margin: 1.5rem auto; }
 @media (max-width: 680px) { .lumibot-entry-grid { grid-template-columns: 1fr; } }
 
 /* Keep navigation visible near the top, including on narrow screens. */

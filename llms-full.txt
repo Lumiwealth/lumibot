@@ -1,5 +1,5 @@
 # Lumibot Documentation (Compiled)
-# Generated: 2026-09-13T07:45:13Z
+# Generated: 2026-09-13T17:26:47Z
 
 
 ===== MIGRATING_FROM_BACKTRADER =====
@@ -4475,6 +4475,9 @@ what the agents decided. Model calls require a provider key. Each
 example states its data requirements and whether the displayed result
 is a recorded run.
 
+[image: Concept illustration: evidence, opposing analysis and trade
+decisions.][image]
+
 **First AI backtest**
 
 SPY trend research, risk review, and a trading agent. A small starting
@@ -5605,6 +5608,9 @@ Your strategy code
            show_tearsheet=False,
            show_indicators=False,
        )
+
+[image: Concept illustration of research notes, historical decisions
+and order records.][image]
 
 
 Inspect what happened
@@ -29622,6 +29628,8 @@ Use LumiBot in another Python project
 You can use selected research components without running a trading
 strategy. The examples below are network reads, not backtests or
 broker connections.
+
+[image: LumiBot components: data, research and brokers.][image]
 
 
 Read macro data

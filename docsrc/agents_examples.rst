@@ -5,6 +5,12 @@ Start with a complete strategy, run a historical backtest, and inspect what the
 agents decided. Model calls require a provider key. Each example states its
 data requirements and whether the displayed result is a recorded run.
 
+.. image:: ../docs/assets/ai-trading/ai-strategies.png
+   :alt: Concept illustration: evidence, opposing analysis and trade decisions.
+   :width: 640px
+   :align: center
+   :class: lumibot-entry-hero
+
 .. container:: lumibot-entry-grid lumibot-start-routes
 
    .. container:: lumibot-entry-card

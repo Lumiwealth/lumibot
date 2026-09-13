@@ -1091,7 +1091,9 @@ class Broker(ABC):
 
         # Now iterate through lumibot positions.
         # Remove lumibot position if not at the broker.
-        for position in self._filled_positions.get_list():
+        # get_list() exposes the live list; removing from it while iterating
+        # skips consecutive stale positions.
+        for position in list(self._filled_positions.get_list()):
             found = False
             for position_broker in positions_broker:
                 if position_broker.asset == position.asset:

@@ -77,11 +77,13 @@ def test_failed_snapshot_preserves_all_positions_and_refresh_retry(broker, respo
 
 
 def test_transport_failure_preserves_positions(broker):
-    before = broker._filled_positions.get_list()
+    before = [(p.asset, p.quantity) for p in broker._filled_positions.get_list()]
+    revision = broker._filled_positions.revision
     broker.api._request.side_effect = TimeoutError("unavailable")
     with pytest.raises(LumibotBrokerAPIError):
         broker.sync_positions(SimpleNamespace(name="test_strategy"))
-    assert broker._filled_positions.get_list() == before
+    assert [(p.asset, p.quantity) for p in broker._filled_positions.get_list()] == before
+    assert broker._filled_positions.revision == revision
 
 
 def test_successful_empty_snapshot_removes_stale_positions(broker):

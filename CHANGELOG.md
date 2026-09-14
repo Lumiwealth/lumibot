@@ -1,5 +1,28 @@
 # Changelog
 
+## Unreleased
+
+### Added
+- Kalshi live broker and data source using the existing prediction-contract asset,
+  credentials loader, order/position types, singular/plural strategy methods, and
+  CustomStream lifecycle. Supports RSA API keys (inline PEM or file), Demo/production,
+  USD balances, positions, orders, simple limit GTC/IOC/FOK/GTD, price modification,
+  cancellation, quotes, last prices and historical candles. Unsupported market and
+  advanced order types fail explicitly. Includes offline and opt-in Demo API tests.
+  Kalshi backtesting and hosted OAuth onboarding are not included.
+
+### Fixed
+- Recognize Kalshi's explicit insufficient-liquidity FOK rejection as a terminal
+  error instead of an uncertain submission. Keep unknown conflicts fail-closed,
+  redact provider error details, and verify the real Demo rejection/cleanup path.
+- Isolate Kalshi per-order reconciliation failures, restore recognized states
+  after UNKNOWN without replaying fills, and prevent stale status updates from
+  reopening terminal orders. Keep position polling independent of order errors.
+- Use the existing broker direct-order lookup for live Strategy order IDs absent
+  from tracked state, enabling Kalshi archived lookup without historical callbacks.
+  Cached-only/backtesting reads remain local; failed direct reads return None with
+  a sanitized warning.
+
 ## 4.5.91 - 2026-09-06
 
 Deploy marker: `d007efed231d`

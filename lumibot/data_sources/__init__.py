@@ -16,6 +16,7 @@ _NAME_TO_MODULE = {
     "ExampleBrokerData": "example_broker_data",
     "InteractiveBrokersData": "interactive_brokers_data",
     "InteractiveBrokersRESTData": "interactive_brokers_rest_data",
+    "KalshiData": "kalshi_data",
     "NoDataFound": "exceptions",
     "PandasData": "pandas_data",
     "PolarsData": "polars_data",

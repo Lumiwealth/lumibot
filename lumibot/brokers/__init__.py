@@ -11,6 +11,7 @@ _NAME_TO_MODULE = {
     "ExampleBroker": "example_broker",
     "InteractiveBrokers": "interactive_brokers",
     "InteractiveBrokersREST": "interactive_brokers_rest",
+    "Kalshi": "kalshi",
     "ProjectX": "projectx",
     "Polymarket": "polymarket",
     "Schwab": "schwab",

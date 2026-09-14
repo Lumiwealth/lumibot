@@ -380,6 +380,7 @@ Lumibot supports stocks, options, crypto, futures, forex, indexes, and predictio
 - TopstepX futures (via ProjectX)
 - Bitunix
 - Polymarket prediction-contract trading and backtesting
+- [Kalshi](https://lumibot.lumiwealth.com/brokers.kalshi.html) live binary prediction contracts: account state, limit GTC/IOC/FOK/GTD orders, price modification, cancellation, streaming, quotes and historical prices. No Kalshi backtesting or unpriced market orders.
 - Selected CCXT crypto paths. Coinbase, Kraken, and WEEX have auto-detected credential paths; KuCoin, Binance, and BitMEX have documented manual CCXT setup paths; Kraken, Binance, KuCoin, BitMEX, Bybit, and OKX have documented backtesting examples. Lumibot does not claim blanket support for every CCXT exchange.
 
 ## Select Backtesting Data Sources
@@ -497,6 +498,7 @@ Crypto futures/perpetual backtests can route `Asset.AssetType.CRYPTO_FUTURE` thr
 | Polygon     | Yes   | Yes            | No        | No                        |
 | Tradier     | Yes   | Yes            | No        | No                        |
 | Polymarket  | Yes   | N/A            | N/A       | N/A                       |
+| Kalshi (live) | Yes | N/A            | N/A       | N/A                       |
 | Pandas*     | Yes   | Yes            | Yes       | Yes                       |
 
 *Pandas loads CSV files in Yahoo dataframe format, which can contain dividends.

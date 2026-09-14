@@ -11,6 +11,24 @@ This page documents environment variables used by LumiBot, with an emphasis on *
   - `docsrc/environment_variables.rst` (public docs), and
   - this file (engineering notes) when it helps contributors.
 
+## Kalshi
+
+Use `TRADING_BROKER=KALSHI` and `IS_BACKTESTING=false`. Runtime credentials are
+`KALSHI_API_KEY_ID` plus either `KALSHI_PRIVATE_KEY` (inline RSA PEM, takes precedence,
+accepts actual or escaped newlines) or `KALSHI_PRIVATE_KEY_PATH`. `KALSHI_IS_DEMO`
+defaults to `true`; `false` selects production and requires production credentials.
+`KALSHI_SUBACCOUNT` defaults to 0 (accepted values 0–63). No URL override is exposed.
+`DATA_SOURCE=KALSHI` selects public data independently. `LUMIBOT_CONNECT_STREAM=false`
+is useful for read-only one-shot clients; live strategies normally keep streaming.
+
+Real API tests use only `KALSHI_TEST_API_KEY_ID` and `KALSHI_TEST_PRIVATE_KEY` or
+`KALSHI_TEST_PRIVATE_KEY_PATH`, with mandatory `KALSHI_TEST_IS_DEMO=true`.
+`KALSHI_TEST_ENABLE_ORDER_MUTATIONS=true` explicitly enables Demo mutations;
+`KALSHI_TEST_ENABLE_FILL=true` enables the additional one-contract fill test.
+`KALSHI_TEST_TICKER` optionally overrides the private, test-only current-market
+selector. These are authorization gates for tests that perform external actions,
+not switches for disabling the offline test suite. See `KALSHI_BROKER_ARCHITECTURE.md`.
+
 ## Backtesting selection + dates
 
 ### `ALPACA_NEWS_API_KEY` / `ALPACA_NEWS_API_SECRET`

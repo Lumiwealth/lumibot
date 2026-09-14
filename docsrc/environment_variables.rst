@@ -9,6 +9,39 @@ LumiBot supports configuring many behaviors via environment variables. This page
 
    **Never commit secrets** (API keys, passwords, AWS secret keys) into any repo or docs. Document variable names and semantics only.
 
+Kalshi live broker
+------------------
+
+Select ``TRADING_BROKER=KALSHI`` and ``IS_BACKTESTING=false``. See :doc:`brokers.kalshi`.
+
+.. list-table::
+   :header-rows: 1
+   :widths: 35 65
+
+   * - Variable
+     - Meaning
+   * - ``KALSHI_API_KEY_ID``
+     - Required account API key identifier.
+   * - ``KALSHI_PRIVATE_KEY``
+     - Inline RSA PEM private key. Real or escaped newlines are accepted. Takes precedence over the path.
+   * - ``KALSHI_PRIVATE_KEY_PATH``
+     - Local PEM file path; used when the inline key is absent.
+   * - ``KALSHI_IS_DEMO``
+     - ``true`` (default) or ``false``. Demo and production credentials are separate.
+   * - ``KALSHI_SUBACCOUNT``
+     - Account scope, integer 0–63; default 0.
+
+``DATA_SOURCE=KALSHI`` optionally selects standalone Kalshi market data.
+``LUMIBOT_CONNECT_STREAM=false`` is available for one-shot read-only checks.
+
+The opt-in ``apitest`` suite uses separate ``KALSHI_TEST_API_KEY_ID``,
+``KALSHI_TEST_PRIVATE_KEY`` or ``KALSHI_TEST_PRIVATE_KEY_PATH`` credentials and
+requires ``KALSHI_TEST_IS_DEMO=true``. It never falls back to runtime credentials.
+``KALSHI_TEST_ENABLE_ORDER_MUTATIONS=true`` enables Demo submit/modify/cancel tests;
+``KALSHI_TEST_ENABLE_FILL=true`` additionally enables the one-contract Demo fill
+test. ``KALSHI_TEST_TICKER`` optionally overrides the test-only contract selector.
+Production hosts are prohibited in those tests.
+
 Backtesting configuration
 -------------------------
 

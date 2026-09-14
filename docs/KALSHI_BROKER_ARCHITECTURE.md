@@ -2,8 +2,8 @@
 
 Standard LumiBot live trading and data contracts, with staged Demo qualification.
 
-Last Updated: 2026-09-13
-Status: Implemented; authenticated Demo qualification pending
+Last Updated: 2026-09-14
+Status: Implemented; local Demo suite passed on rerun, hosted CI pending
 Audience: Contributors, maintainers, and integration testers
 
 ## Overview
@@ -78,6 +78,15 @@ traded bars than `length` on sparse markets.
 
 ## Order support and limits
 
+The real V2 API can reject unfillable FOK requests with HTTP 409 and
+`fill_or_kill_insufficient_resting_volume`. The internal transport preserves only
+this allowlisted error code; raw response bodies/messages are not retained on
+the exception. For a FOK request with that exact status and code, the broker
+clears its pending submission and emits the normal terminal error lifecycle,
+then raises the provider exception. It does not synthesize an accepted/canceled
+broker order. Unknown 409s, non-FOK requests and server/transport failures retain
+their uncertain-submission behavior. Mutations are never automatically retried.
+
 Simple LIMIT orders support GTC, IOC, FOK and GTD. GTD maps to provider GTC with
 a future expiration. `day` and unpriced MARKET requests fail explicitly. Stops,
 trailing/smart limits, bracket/OCO/OTO/multileg, custom provider parameters,
@@ -140,7 +149,7 @@ parameter or asset type is introduced.
 ### Offline suite (normal deployment tests)
 
 ```text
-python -m pytest tests/test_kalshi_client.py tests/test_kalshi_data.py tests/test_kalshi_broker.py tests/test_kalshi_stream.py tests/test_kalshi_credentials.py tests/test_kalshi_demo_safety.py tests/test_kalshi_audit_regressions.py tests/test_strategy_live_order_accessors.py -m "not apitest" --cov=lumibot.brokers.kalshi --cov=lumibot.data_sources.kalshi_data --cov=lumibot.tools.kalshi_client --cov-report=term-missing
+python -m pytest tests/test_kalshi_client.py tests/test_kalshi_data.py tests/test_kalshi_broker.py tests/test_kalshi_stream.py tests/test_kalshi_credentials.py tests/test_kalshi_demo_safety.py tests/test_kalshi_audit_regressions.py tests/test_kalshi_fok.py tests/test_strategy_live_order_accessors.py -m "not apitest" --cov=lumibot.brokers.kalshi --cov=lumibot.data_sources.kalshi_data --cov=lumibot.tools.kalshi_client --cov-report=term-missing
 ```
 
 Tests verify signing independently with the RSA public key, credential precedence,
@@ -181,7 +190,14 @@ The test-only market selector finds an open binary market with enough time befor
 close, liquidity and valid non-crossing test prices. It does not export a new
 LumiBot method. `KALSHI_TEST_TICKER` is an optional troubleshooting override.
 The test submits a one-contract GTC, reads it, changes price, cancels it, and
-checks non-crossing IOC/FOK behavior. Cleanup is mandatory and failures are visible.
+checks non-crossing IOC/FOK behavior, including the provider's definitive FOK
+liquidity rejection. Cleanup is mandatory and failures are visible.
+
+Use a contract on a funded exchange shard; account-wide cash alone does not
+guarantee collateral on every shard. The existing `KALSHI_TEST_TICKER` override
+can select a liquid, currently tradable contract on a funded shard. These tests
+do not transfer collateral or enable automatic rebalancing. See Kalshi's
+[exchange sharding guide](https://docs.kalshi.com/getting_started/exchange_sharding).
 Mutation tests require the selected market to have no initial position. They
 reconcile uncertain submissions, cancel outstanding test orders, and attempt to
 close accidental fills with at most three IOC requests. No closing order exceeds
@@ -254,6 +270,27 @@ later without claiming that it already works.
   tests were deliberately deselected; no account access or trading occurred.
 - Scoped Ruff checks and standalone Kalshi RST parsing passed. These checks do
   not replace the outstanding authenticated Demo and hosted CI qualification.
+
+## FOK repair qualification (2026-09-14)
+
+- Added 18 offline regressions for allowlisted error parsing, terminal rejection,
+  ambiguous conflict preservation, and the Demo cleanup harness.
+- Complete offline Kalshi suite: **210 passed**, **93.89% combined statement/branch
+  coverage**. Existing broker/Strategy/entity selection: **269 passed, 3 skipped,
+  7 deselected**.
+- All **4 authenticated Demo tests passed** on an unchanged rerun using a liquid
+  contract on an already-funded shard. This covered account reads, data methods,
+  submit/read/modify/cancel, IOC/FOK behavior, one-contract fill/close, cash and
+  positions, and authenticated stream subscription. A separate final read found
+  zero open test orders and zero prediction positions.
+- The initial full Demo run had 3 passes and a direct order lookup failure before
+  modification. The failure did not recur on the unchanged rerun; retain this as
+  an intermittent provider-read/visibility observation, not a proven fixed bug.
+- A populated hourly bar was observed against real Demo data. Minute data can
+  still be empty. Real forced-disconnect recovery and every timeframe/parameter
+  combination were not separately certified by this run.
+- Scoped Ruff and Kalshi RST parsing passed. Hosted checks and maintainer review
+  remain required; no production trading or deployment was performed.
 
 ## Official sources
 

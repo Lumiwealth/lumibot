@@ -376,7 +376,17 @@ class Kalshi(Broker):
             try:
                 response = self._client.request("POST", "/portfolio/events/orders", json=payload)
             except KalshiAPIError as exc:
-                if exc.status_code is not None and 400 <= exc.status_code < 500 and exc.status_code != 409:
+                definite_fok_rejection = (
+                    str(order.time_in_force).lower() == "fok"
+                    and exc.status_code == 409
+                    and exc.error_code == KalshiAPIError.FOK_INSUFFICIENT_VOLUME
+                )
+                # A known FOK liquidity rejection never creates an order. Other
+                # 409s (e.g. duplicate IDs) can conceal an accepted submission and
+                # must retain their client ID for reconciliation, without retry.
+                if definite_fok_rejection or (
+                    exc.status_code is not None and 400 <= exc.status_code < 500 and exc.status_code != 409
+                ):
                     self._pending_submissions.pop(client_id, None)
                     self._process_trade_event(order, self.ERROR_ORDER, error=exc)
                 else:

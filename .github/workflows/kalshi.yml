@@ -51,6 +51,7 @@ jobs:
           python -m pytest tests/test_kalshi_client.py tests/test_kalshi_data.py
           tests/test_kalshi_broker.py tests/test_kalshi_stream.py tests/test_kalshi_credentials.py
           tests/test_kalshi_demo_safety.py tests/test_kalshi_audit_regressions.py
+          tests/test_kalshi_fok.py
           tests/test_strategy_live_order_accessors.py
           -q -m 'not apitest'
           --cov=lumibot.brokers.kalshi --cov=lumibot.data_sources.kalshi_data

@@ -12,6 +12,9 @@
   Kalshi backtesting and hosted OAuth onboarding are not included.
 
 ### Fixed
+- Recognize Kalshi's explicit insufficient-liquidity FOK rejection as a terminal
+  error instead of an uncertain submission. Keep unknown conflicts fail-closed,
+  redact provider error details, and verify the real Demo rejection/cleanup path.
 - Isolate Kalshi per-order reconciliation failures, restore recognized states
   after UNKNOWN without replaying fills, and prevent stale status updates from
   reopening terminal orders. Keep position polling independent of order errors.

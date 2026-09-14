@@ -125,7 +125,7 @@ Supported orders
    * - Limit, ``ioc``
      - Fills available quantity immediately and cancels the remainder.
    * - Limit, ``fok``
-     - Fills the entire requested quantity immediately or cancels it.
+     - Fills the entire requested quantity immediately, or does not trade. Insufficient liquidity can reject submission.
    * - Limit, ``gtd``
      - Requires a future, timezone-aware ``good_till_date``.
    * - Market
@@ -140,6 +140,14 @@ Supported orders
 The LumiBot default time in force is ``day``, so **always specify the supported
 time in force explicitly**. Unsupported order types/classes and custom provider
 parameters raise an actionable error before an order request is sent.
+
+Kalshi can reject an unfillable FOK request with HTTP 409 and the code
+``fill_or_kill_insufficient_resting_volume``. ``submit_order`` raises
+``KalshiAPIError`` and the order enters LumiBot's terminal ``error`` state:
+no order was accepted and no fill occurred. This is not an uncertain submission.
+Other HTTP 409 responses and transport failures remain uncertain and must be
+reconciled before attempting another submission. Error metadata retains only
+the recognized code, never the provider's raw error message or account details.
 
 Inside a normal strategy method:
 

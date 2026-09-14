@@ -7,9 +7,9 @@ from decimal import Decimal
 
 import pytest
 
-from lumibot.entities import Asset
+from lumibot.entities import Asset, Order
 from lumibot.strategies import Strategy
-from lumibot.tools.kalshi_client import decimal_value
+from lumibot.tools.kalshi_client import KalshiAPIError, decimal_value
 
 pytestmark = [pytest.mark.apitest, pytest.mark.kalshi]
 
@@ -189,8 +189,23 @@ def test_demo_submit_read_modify_cancel_and_ioc_fok(demo):
                 pytest.fail("Demo market moved through the non-marketable test price")
             obj = demo.create_order(asset, 1, "buy", limit_price=low, time_in_force=tif)
             created.append(obj)
-            demo.submit_order(obj)
-            _wait(demo, obj, lambda current: current.is_canceled())
+            try:
+                demo.submit_order(obj)
+            except KalshiAPIError as exc:
+                # Real V2 FOK with insufficient liquidity is a definitive
+                # rejection, not an accepted order subsequently canceled.
+                if not (
+                    tif == "fok"
+                    and exc.status_code == 409
+                    and exc.error_code == KalshiAPIError.FOK_INSUFFICIENT_VOLUME
+                ):
+                    raise
+                assert obj.status == Order.OrderStatus.ERROR
+                assert obj._closed_event.is_set()
+                assert not obj.transactions
+                assert obj._kalshi_client_order_id not in demo.broker._pending_submissions
+            else:
+                _wait(demo, obj, lambda current: current.is_canceled())
         assert demo.broker._is_stream_subscribed, "Authenticated Kalshi stream did not subscribe"
     finally:
         _cleanup_demo_orders_and_position(demo, asset, created, maximum_quantity=len(created))

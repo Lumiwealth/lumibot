@@ -2,7 +2,7 @@
 
 > Notes on live broker behavior that affect backtesting semantics (extended hours, order types, and “market closed / no data” handling).
 
-**Last Updated:** 2026-09-10
+**Last Updated:** 2026-09-14
 **Status:** Active
 **Audience:** Developers, AI Agents
 
@@ -34,6 +34,12 @@ background positions. Incomplete synchronization raises after healthy updates
 are applied and is not cached as a successful refresh. Recognized states restore
 UNKNOWN orders without duplicate callbacks; stale nonterminal snapshots cannot
 reopen terminal orders.
+
+An explicit HTTP 409 `fill_or_kill_insufficient_resting_volume` response to a FOK
+submit is a definitive rejection: emit the existing terminal error lifecycle,
+clear that pending submission, and raise. Do not mark it UNKNOWN or invent an
+accepted/canceled order. Unknown 409s still retain their client ID for repair;
+only the recognized code is retained, without raw provider messages.
 
 For live refresh-enabled `Strategy.get_order`, an ID missing after the normal
 refresh uses the existing provider-generic `_pull_order` hook. Kalshi seeds

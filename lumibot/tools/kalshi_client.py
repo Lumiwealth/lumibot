@@ -19,9 +19,14 @@ from lumibot.brokers.broker import LumibotBrokerAPIError
 class KalshiAPIError(LumibotBrokerAPIError):
     """Sanitized provider error; response bodies may contain account information."""
 
-    def __init__(self, message, *, status_code=None):
+    FOK_INSUFFICIENT_VOLUME = "fill_or_kill_insufficient_resting_volume"
+
+    def __init__(self, message, *, status_code=None, error_code=None):
         super().__init__(message)
         self.status_code = status_code
+        # Preserve only explicitly recognized codes, never raw provider messages
+        # or arbitrary account-specific values from the error response.
+        self.error_code = error_code if error_code == self.FOK_INSUFFICIENT_VOLUME else None
 
 
 def decimal_value(value, name="value"):
@@ -131,9 +136,19 @@ class KalshiClient:
                 self._sleep(0.25 * 2**attempt)
                 continue
             if response.status_code >= 300:
+                error_code = None
+                try:
+                    error_body = response.json()
+                    if isinstance(error_body, dict):
+                        error_body = error_body.get("error", error_body)
+                        if isinstance(error_body, dict):
+                            error_code = error_body.get("code")
+                except ValueError:
+                    pass
                 raise KalshiAPIError(
                     f"Kalshi {method} request failed (HTTP {response.status_code})",
                     status_code=response.status_code,
+                    error_code=error_code,
                 )
             if response.status_code == 204:
                 return {}

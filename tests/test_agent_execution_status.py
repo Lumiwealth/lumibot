@@ -58,6 +58,37 @@ def test_unrecovered_structural_tool_error_is_not_reported_as_completed():
     assert _managed_ai_terminal_status(result, allow_trading=True) == "tool_error"
 
 
+def test_recovered_structural_tool_error_allows_completed_no_action():
+    result = _result(
+        AgentTraceEvent(
+            kind="tool_result",
+            tool_name="get_indicator",
+            payload={"tool_error": True, "error": {"type": "ValueError"}},
+        ),
+        AgentTraceEvent(
+            kind="tool_result",
+            tool_name="get_indicator",
+            payload={"value": 100000.0, "asset_type": "crypto", "quote_symbol": "USD"},
+        ),
+        AgentTraceEvent(kind="text", text="BTC/USD SMA is 100000. No trade requested."),
+    )
+
+    assert _managed_ai_terminal_status(result, allow_trading=True) == "completed_no_action"
+
+
+def test_later_error_after_success_remains_unrecovered():
+    result = _result(
+        AgentTraceEvent(kind="tool_result", tool_name="get_indicator", payload={"value": 100000.0}),
+        AgentTraceEvent(
+            kind="tool_result",
+            tool_name="get_indicator",
+            payload={"tool_error": True, "error": {"type": "ConnectionError"}},
+        ),
+    )
+
+    assert _managed_ai_terminal_status(result, allow_trading=True) == "tool_error"
+
+
 def test_non_trading_research_agent_can_complete_without_an_order():
     result = _result(AgentTraceEvent(kind="text", text="Setup found."))
     assert _managed_ai_terminal_status(result, allow_trading=False) == "completed_decision"

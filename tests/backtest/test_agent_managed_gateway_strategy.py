@@ -61,9 +61,10 @@ def test_24_7_bitcoin_strategy_uses_real_agent_runtime_and_managed_gateway(monke
             "usage": {"inputTokens": 11, "cachedInputTokens": 3, "outputTokens": 4},
         }
 
-    def managed_model(model):
+    def managed_model(model, *, reasoning_effort=None):
         return BotSpotManagedLlm(
             model=model,
+            reasoning_effort=reasoning_effort,
             gateway_url="https://gateway.example.test",
             access_token="deployment-bound-token",
             post=post,
@@ -103,6 +104,7 @@ def test_24_7_bitcoin_strategy_uses_real_agent_runtime_and_managed_gateway(monke
     assert token == "deployment-bound-token"
     assert payload["provider"] == "openai"
     assert payload["model"] == "openai/gpt-5.6-luna"
+    assert "reasoningEffort" not in payload
     assert "OPENAI_API_KEY" not in payload
     assert strategy.parameters["agent_btc_research_input_tokens"] == 11
     assert strategy.parameters["agent_btc_research_cached_input_tokens"] == 3

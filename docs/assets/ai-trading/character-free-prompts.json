@@ -1,0 +1,41 @@
+{
+  "note": "Raw approved Image Generator outputs. Character-free restriction is mandatory. Hero and Python drafts with invented code rejected; final prompts forbid code, UI, numbers, dates and tickers.",
+  "jobs": [
+    [
+      "benefit-hero",
+      "Turn trading ideas into working strategies",
+      "Python rules or AI agents. Backtest and connect your broker.",
+      "An elegant laptop with Python code beside a historical price chart and a small trading terminal. No performance numbers."
+    ],
+    [
+      "example-gallery",
+      "Find your next AI trading strategy",
+      "Stocks. Macro. Options.",
+      "Three attractive editorial panels depicting stock candlesticks, a global economic map and a simple options payoff illustration. These are categories, not a mandatory workflow."
+    ],
+    [
+      "backtest-benefit",
+      "See how your strategy would have traded",
+      "Historical prices. Simulated trades. Results.",
+      "A calendar beside a financial chart with both rises and falls and small buy/sell trade markers. Clearly conceptual, no returns, no invented screenshot."
+    ],
+    [
+      "component-research",
+      "Market research for your Python project",
+      "Economic data and company filings.",
+      "A clean workspace with documents labeled Economic Data and SEC Filings beside a Python notebook. No mascots."
+    ],
+    [
+      "python-strategies",
+      "Your rules. Your trading strategy.",
+      "Build with Python. Test on historical data.",
+      "A refined code notebook beside a price chart with mixed movement. Clear educational illustration for conventional rule-based strategies."
+    ],
+    [
+      "broker-connections",
+      "Bring your strategy to your broker",
+      "Keep strategy logic separate from broker setup.",
+      "A Python strategy notebook connected visually to a financial trading terminal with a ticket labeled BUY / SELL. No brand logos, no shopping carts."
+    ]
+  ]
+}

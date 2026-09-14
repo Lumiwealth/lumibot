@@ -50,6 +50,22 @@ def _fake_strategy(*, balances_updated=True):
     return strategy
 
 
+@pytest.mark.parametrize("status", [200, 401, 400, 413, 500])
+def test_cloud_transport_never_logs_credentials_or_echoed_headers(monkeypatch, caplog, status):
+    strategy = _fake_strategy()
+    strategy.lumiwealth_api_key = "synthetic-listener-secret-must-not-be-logged"
+    strategy.logger = logging.getLogger("cloud-credential-regression")
+    response = _Response()
+    response.status_code = status
+    response.headers = {"x-echo": strategy.lumiwealth_api_key}
+    response.text = strategy.lumiwealth_api_key
+    monkeypatch.setattr("lumibot.strategies._strategy.requests.post", lambda *args, **kwargs: response)
+    with caplog.at_level(logging.DEBUG):
+        _Strategy.send_update_to_cloud(strategy)
+    assert strategy.lumiwealth_api_key not in caplog.text
+    assert strategy.lumiwealth_api_key[:10] not in caplog.text
+
+
 def test_cloud_update_marks_successful_broker_snapshot_verified(monkeypatch):
     strategy = _fake_strategy(balances_updated=True)
     payloads = []

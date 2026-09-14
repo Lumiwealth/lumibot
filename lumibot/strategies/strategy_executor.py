@@ -1297,6 +1297,16 @@ class StrategyExecutor(Thread):
         self.strategy._append_row(result)
         return result
 
+    def _record_backtest_milestone(self, name):
+        if not getattr(self.broker, "IS_BACKTESTING_BROKER", False):
+            return
+        try:
+            recorder = getattr(self.broker.data_source, "record_runtime_milestone", None)
+            if callable(recorder):
+                recorder(name)
+        except Exception:
+            pass
+
     # =======Lifecycle methods====================
 
     @lifecycle_method
@@ -1314,7 +1324,9 @@ class StrategyExecutor(Thread):
             for arg in args:
                 if arg in self.strategy.parameters and arg != "self":
                     safe_params_to_pass[arg] = self.strategy.parameters[arg]
+        self._record_backtest_milestone("initialize_entered_at")
         self.strategy.initialize(**safe_params_to_pass)
+        self._record_backtest_milestone("initialize_completed_at")
 
         # Backtesting perf guard:
         # For daily-cadence strategies (e.g. sleeptime="1D"), prime the data source cadence so
@@ -1450,6 +1462,7 @@ class StrategyExecutor(Thread):
             if not self._run_once_requested:
                 self.strategy.load_variables_from_db()
             if self.broker.IS_BACKTESTING_BROKER:
+                self._record_backtest_milestone("first_callback_entered_at")
                 on_trading_iteration()
             else:
                 # Live: drain fill/hedge events while the user scan runs so a

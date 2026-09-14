@@ -1,4 +1,5 @@
 import asyncio
+import inspect
 import os
 from datetime import datetime, timezone
 
@@ -56,6 +57,63 @@ def test_hosted_research_capability_auto_attaches_exact_read_only_tools(monkeypa
     ]
     assert server.auth_token_env == "BOTSPOT_RESEARCH_MCP_TOKEN"
     assert server.auth_token_refresh_url.endswith("/research-runtime-capabilities/renew")
+
+
+def test_hosted_research_tools_expose_the_remote_mcp_contract_to_the_model(monkeypatch):
+    _configure_hosted_research(monkeypatch)
+    monkeypatch.setattr(
+        runtime_module,
+        "list_mcp_tools",
+        lambda _server: [
+            {
+                "name": "query_data",
+                "description": "Query a registered public research dataset.",
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {
+                        "datasetId": {"type": "string"},
+                        "timeRange": {"type": "object"},
+                        "limit": {"type": "integer"},
+                    },
+                    "required": ["datasetId"],
+                    "additionalProperties": False,
+                },
+            }
+        ],
+    )
+
+    handle = AgentManager(_Strategy()).create(name="researcher", _runtime=_Runtime())
+    query_data = next(tool for tool in handle._ensure_bound_tools() if tool.name == "query_data")
+    parameters = inspect.signature(query_data.function).parameters
+
+    assert list(parameters) == ["datasetId", "timeRange", "limit"]
+    assert parameters["datasetId"].default is inspect.Parameter.empty
+    assert parameters["timeRange"].default is None
+    assert parameters["limit"].default is None
+    assert '"datasetId"' in query_data.description
+    assert '"additionalProperties": false' in query_data.description
+
+
+def test_remote_mcp_contract_failure_warns_once_and_keeps_legacy_payload_shape(monkeypatch):
+    _configure_hosted_research(monkeypatch)
+    calls = []
+
+    def fail_to_list(_server):
+        calls.append("list")
+        raise RuntimeError("contract endpoint unavailable")
+
+    monkeypatch.setattr(runtime_module, "list_mcp_tools", fail_to_list)
+    strategy = _Strategy()
+    manager = AgentManager(strategy)
+
+    first = manager.create(name="first", _runtime=_Runtime())
+    second = manager.create(name="second", _runtime=_Runtime())
+    first_query = next(tool for tool in first._ensure_bound_tools() if tool.name == "query_data")
+    second._ensure_bound_tools()
+
+    assert list(inspect.signature(first_query.function).parameters) == ["payload"]
+    assert calls == ["list"]
+    assert len([message for message in strategy.messages if "Could not load tool contracts" in message]) == 1
 
 
 def test_partial_hosted_configuration_warns_once_without_changing_ordinary_execution(monkeypatch):

@@ -214,38 +214,53 @@ class Bitunix(Broker):
         return cash, positions_value, net_liquidation
 
     def _pull_positions(self, strategy) -> list[Position]:
-        """
-        Retrieves FUTURES positions.
-        Futures positions are fetched from the open positions endpoint.
+        """Return a complete futures snapshot or raise without publishing partial state.
+
+        A successful empty list means the account is flat. An unreadable response
+        must raise instead, because shared position sync prunes absent assets.
         """
         positions = []
+        seen_assets = set()
         Position = _position_class()
-        strategy_name = strategy.name if strategy else ""
+        strategy_name = self._strategy_name_from_input(strategy) or ""
 
         try:
             resp = self.api.get_positions()
-            if resp and resp.get("code") == 0:
-                for p in resp.get("data", []):
-                    sym = p.get("symbol", "")
-                    # qty is now under "qty"
-                    qty = Decimal(str(p.get("qty", "0")))
-                    # Position responses use LONG/SHORT; retain older BUY/SELL responses too.
-                    side = p.get("side", "").upper()
-                    if side in ("SELL", "SHORT"):
-                        qty = -abs(qty)
-                    else:
-                        qty = abs(qty)
-                    # entry price is avgOpenPrice (fallback to entryValue)
-                    entry = Decimal(str(p.get("avgOpenPrice", p.get("entryValue", "0"))))
-                    if qty != 0 and sym:
-                        asset = Asset(sym, Asset.AssetType.CRYPTO_FUTURE)
-                        pos = Position(strategy_name, asset, qty)
-                        pos.avg_fill_price = entry
-                        pos._raw = p
-                        positions.append(pos)
-        except Exception as e:
-            logger.warning("Error fetching futures positions: %s", e)
-            logger.debug(_format_exc())
+            if not isinstance(resp, dict) or resp.get("code") != 0:
+                raise LumibotBrokerAPIError("Bitunix position snapshot request failed")
+            rows = resp.get("data")
+            if not isinstance(rows, list):
+                raise LumibotBrokerAPIError("Bitunix position snapshot must contain a list")
+            for p in rows:
+                if not isinstance(p, dict):
+                    raise LumibotBrokerAPIError("Invalid Bitunix position row")
+                sym = p.get("symbol")
+                side = p.get("side")
+                if not isinstance(sym, str) or not sym.strip() or not isinstance(side, str):
+                    raise LumibotBrokerAPIError("Invalid Bitunix position identity")
+                side = side.upper()
+                if side not in ("LONG", "SHORT", "BUY", "SELL"):
+                    raise LumibotBrokerAPIError("Invalid Bitunix position side")
+                qty = Decimal(str(p["qty"]))
+                entry = Decimal(str(p.get("avgOpenPrice", p.get("entryValue", "0"))))
+                if not qty.is_finite() or not entry.is_finite():
+                    raise LumibotBrokerAPIError("Non-finite Bitunix position quantity or entry price")
+                qty = -abs(qty) if side in ("SELL", "SHORT") else abs(qty)
+                if qty != 0:
+                    asset = Asset(sym, Asset.AssetType.CRYPTO_FUTURE)
+                    if asset in seen_assets:
+                        raise LumibotBrokerAPIError(
+                            "Multiple active Bitunix positions for one symbol cannot be represented safely"
+                        )
+                    seen_assets.add(asset)
+                    pos = Position(strategy_name, asset, qty)
+                    pos.avg_fill_price = entry
+                    pos._raw = p
+                    positions.append(pos)
+        except LumibotBrokerAPIError:
+            raise
+        except Exception as exc:
+            raise LumibotBrokerAPIError("Unable to read complete Bitunix position snapshot") from exc
         return positions
 
     def _map_side_to_bitunix(self, side: Order.OrderSide) -> str:
@@ -394,10 +409,11 @@ class Bitunix(Broker):
                     "Allowing reduce-only close because the live %s position confirms HEDGE mode",
                     symbol,
                 )
-            # Ensure desired leverage is set
+            # Only opening orders set leverage. Reconstructed close assets may
+            # default to 1x, which must not change an existing position's margin.
             leverage = order.asset.leverage
             try:
-                if self.current_leverage.get(symbol) != leverage:
+                if not reduce_only and self.current_leverage.get(symbol) != leverage:
                     lev_resp = self.api.change_leverage(
                         symbol=symbol, leverage=leverage, margin_coin=self.get_quote_asset().symbol
                     )  # Use quote_asset.symbol

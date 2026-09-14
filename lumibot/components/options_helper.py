@@ -1623,28 +1623,39 @@ class OptionsHelper:
         Optional[float]
             The aggregated limit price, or None if quotes are missing.
         """
+        if limit_type not in {"best", "mid", "fastest"}:
+            raise ValueError("limit_type must be best, mid, or fastest.")
         self.strategy.log_message("Calculating multi-leg limit price.", color="blue")
         quotes: List[float] = []
         for order in orders:
             asset = order.asset
             if asset.asset_type != Asset.AssetType.OPTION:
-                continue
+                # A partial package price can reverse debit/credit economics.
+                # Never omit a leg, including unsupported mixed-asset packages.
+                return None
             try:
                 quote = self.strategy.get_quote(asset)
-                self.strategy.log_message(f"Quote for {asset.symbol}: bid={quote.bid}, ask={quote.ask}", color="blue")
             except Exception as e:
                 self.strategy.log_message(f"Error fetching quote for {asset.symbol}: {e}", color="red")
-                continue
+                return None
             if not quote or quote.ask is None or quote.bid is None:
                 self.strategy.log_message(f"Missing quote for {asset.symbol}", color="red")
-                continue
+                return None
+            try:
+                bid, ask = float(quote.bid), float(quote.ask)
+                valid_quote = math.isfinite(bid) and math.isfinite(ask) and 0 <= bid <= ask
+            except (TypeError, ValueError, OverflowError):
+                valid_quote = False
+            if not valid_quote:
+                self.strategy.log_message(f"Invalid bid/ask for {asset.symbol}; package remains unpriced.", color="red")
+                return None
             if limit_type == "mid":
-                mid = (quote.ask + quote.bid) / 2
+                mid = (ask + bid) / 2
                 quotes.append(mid if order.is_buy_order() else -mid)
             elif limit_type == "best":
-                quotes.append(quote.bid if order.is_buy_order() else -quote.ask)
+                quotes.append(bid if order.is_buy_order() else -ask)
             elif limit_type == "fastest":
-                quotes.append(quote.ask if order.is_buy_order() else -quote.bid)
+                quotes.append(ask if order.is_buy_order() else -bid)
         if not quotes:
             self.strategy.log_message("No valid quotes for calculating limit price.", color="red")
             return None

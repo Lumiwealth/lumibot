@@ -398,6 +398,25 @@ def test_ibkr_downloader_payload_contract_rejects_partial_or_uncacheable_history
         )
     assert classify_history_failure(exc_info.value).outcome == HistoryOutcome.PARTIAL
     assert "unverified_seam" not in str(exc_info.value)
+    # Keep the public error concise while retaining the machine-readable cause.
+    assert classify_history_failure(exc_info.value).details["error"] == "partial_history:unverified_seam"
+
+
+def test_ibkr_throttle_metadata_is_transient_and_never_negative_cache():
+    import lumibot.tools.ibkr_helper as ibkr_helper
+    from lumibot.tools.ibkr_history_health import HistoryOutcome, classify_history_failure
+    with pytest.raises(RuntimeError) as failure:
+        ibkr_helper._ensure_cacheable_downloader_history_payload({"_botspot_meta": {
+            "provider": "ibkr",
+            "classification": "rate_limited", "cache_write_policy": "deny", "status_code": 429,
+            "request_id": "synthetic-request", "retry_at": 1900, "Authorization": "must-not-survive",
+        }})
+    classified = classify_history_failure(failure.value)
+    assert classified.outcome is HistoryOutcome.TRANSIENT_FAILURE
+    assert classified.reason == "rate_limited"
+    assert not classified.persist_negative_cache and not classified.identity_related
+    assert classified.details["request_id"] == "synthetic-request"
+    assert "must-not-survive" not in str(classified)
 
 
 def test_cache_placeholder_metadata_never_reaches_strategy_frames():
@@ -517,6 +536,34 @@ def test_history_period_for_request_daily_stock_index_uses_cap():
             )
 
 
+@pytest.mark.parametrize("days,expected_period", [(7, "14d"), (330, "337d"), (8 * 365, "5y")])
+def test_daily_fetch_sizes_full_required_window_and_preserves_long_cap(monkeypatch, days, expected_period):
+    import lumibot.tools.ibkr_helper as helper
+    start = datetime(2017, 1, 3, tzinfo=timezone.utc)
+    end = start + timedelta(days=days)
+    calls = []
+    monkeypatch.setattr(helper, "_resolve_conid", lambda **_: 123)
+
+    def history(**kwargs):
+        calls.append(kwargs)
+        # Two pages for the long request; changing the cap to tiny windows must
+        # fail the asserted request contract even with deterministic provider data.
+        first = start + timedelta(days=1000) if days > 365 and len(calls) == 1 else start
+        return {"data": [{"t": int(first.timestamp() * 1000), "o": len(calls), "h": len(calls),
+                          "l": len(calls), "c": len(calls), "v": 100}]}
+
+    monkeypatch.setattr(helper, "_ibkr_history_request", history)
+    result = helper._fetch_history_between_dates(asset=Asset("TQQQ"), quote=Asset("USD", "forex"),
+        timestep="day", start_dt=start, end_dt=end, exchange=None, include_after_hours=False,
+        source="Trades", source_was_explicit=True)
+    assert calls[0]["period"] == expected_period
+    assert all(call["period"] == expected_period for call in calls)
+    assert len(calls) == (2 if days > 365 else 1)
+    assert result.index.min() <= start
+    if days > 365:
+        assert result["close"].nunique() == 2
+
+
 def test_unresolvable_stock_conid_is_terminal_no_data():
     import lumibot.tools.ibkr_helper as ibkr_helper
 
@@ -582,6 +629,11 @@ def test_ibkr_malformed_rebuild_failure_uses_process_cooldown_without_persisting
 
     assert first.empty
     assert calls["fetch"] == 1
+
+    from lumibot.tools.ibkr_history_health import ibkr_history_health_snapshot
+    health = ibkr_history_health_snapshot()["series"][0]
+    assert health["reason"] == "partial_history"
+    assert health["transient_failures"] == 1
 
     cache_file = ibkr_helper._cache_file_for(
         asset=asset,

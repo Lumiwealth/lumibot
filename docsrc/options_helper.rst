@@ -329,3 +329,11 @@ API Reference
 .. autoclass:: OptionsHelper
    :members:
    :member-order: bysource
+Package quote integrity
+-----------------------
+
+``calculate_multileg_limit_price`` requires valid bid/ask quotes for every
+option leg. Missing, failed, nonfinite, negative or crossed quotes return
+``None`` for the entire package, never a partial-leg price. The supported
+styles are ``best``, ``mid`` and ``fastest``; other styles raise ``ValueError``.
+The result remains a signed per-unit price, not a fill guarantee.

@@ -1,5 +1,8 @@
-DataBento Backtesting
-*********************
+Databento Backtesting with LumiBot
+**********************************
+
+.. meta::
+   :description: Configure Databento historical data for LumiBot backtests across equities, futures, options, schemas, and multiple timeframes.
 
 DataBento is a premium financial data provider that offers high-quality, clean market data for backtesting. Lumibot integrates with DataBento to provide reliable historical data for stocks, futures, options, and other instruments.
 

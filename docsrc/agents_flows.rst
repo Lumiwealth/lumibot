@@ -1,6 +1,12 @@
 Design Your AI Trading Team
 ===========================
 
+Start with :doc:`agents_quickstart`: one researcher gathers evidence and one
+trading agent owns risk review, order submission, and status reconciliation.
+Add researchers ahead of that trader when the strategy needs more perspectives.
+Research is evidence to evaluate, not permission to override the trading mandate.
+
+
 An AI trading team is the way your strategy calls one or more agents during normal
 LumiBot lifecycle methods such as ``on_trading_iteration()``. It is just Python.
 There is no required graph framework, no fixed team structure, and no
@@ -211,3 +217,15 @@ Where To Go Next
 - :doc:`agents_examples` lists the copy-paste AI trading team examples.
 - :doc:`agents_memory` explains how agents can remember decisions and lessons.
 - :doc:`agents_observability` explains traces and replay artifacts.
+
+Learn AI trading with the creator of LumiBot
+--------------------------------------------
+
+Learn with Rob Grzesik, creator of LumiBot. Explore the AI Trading Bootcamp.
+
+.. image:: ../docs/assets/ai-trading/rob-bootcamp-teams.png
+   :alt: Rob Grzesik, creator of LumiBot. Explore the AI Trading Bootcamp.
+   :width: 640px
+   :align: center
+   :class: lumibot-learning-image
+   :target: https://botspot.trade/courses/ai-trading-bootcamp?utm_source=documentation&utm_medium=docs&utm_campaign=lumibot_ai_trading&utm_content=team_design_bootcamp_image

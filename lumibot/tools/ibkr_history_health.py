@@ -10,6 +10,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from enum import Enum
+import json
 from threading import Lock
 from typing import Any, Iterable, Optional, Sequence
 
@@ -31,12 +32,36 @@ class HistoryFailureClassification:
     reason: str
     persist_negative_cache: bool = False
     identity_related: bool = False
+    details: Optional[dict[str, Any]] = None
+
+
+class HistoryPayloadError(RuntimeError):
+    """Non-cacheable history with safe structured cause, separate from its message."""
+
+    def __init__(self, metadata: dict[str, Any]):
+        self.details = {
+            key: value[:500] if isinstance(value, str) else value
+            for key, value in metadata.items()
+            if key in {"provider", "backend", "classification", "cache_write_policy", "error",
+                       "request_id", "status_code", "retry_at"}
+            and (isinstance(value, (str, int, float, bool)) or value is None)
+        }
+        super().__init__("partial_history:non_cacheable_downloader_payload "
+                         f"classification={metadata.get('classification') or 'unknown'} "
+                         f"cache_write_policy={metadata.get('cache_write_policy') or 'unknown'}")
 
 
 def classify_history_failure(exc: BaseException) -> HistoryFailureClassification:
     """Classify a provider/downloader failure without treating ambiguity as fact."""
 
-    message = str(exc or "").strip()
+    details = exc.details if isinstance(exc, HistoryPayloadError) else None
+    provider_details = getattr(exc, "provider_details", None)
+    if details is None and isinstance(provider_details, dict):
+        details = HistoryPayloadError(provider_details).details
+    if details and (details.get("classification") == "rate_limited" or details.get("status_code") == 429):
+        return HistoryFailureClassification(outcome=HistoryOutcome.TRANSIENT_FAILURE,
+                                            reason="rate_limited", details=dict(details))
+    message = str((details or {}).get("error") or exc or "").strip()
     normalized = message.lower()
 
     identity_tokens = (
@@ -50,6 +75,7 @@ def classify_history_failure(exc: BaseException) -> HistoryFailureClassification
             outcome=HistoryOutcome.TRANSIENT_FAILURE,
             reason="identity_related_history_failure",
             identity_related=True,
+            details=details,
         )
 
     confirmed_tokens = (
@@ -64,6 +90,7 @@ def classify_history_failure(exc: BaseException) -> HistoryFailureClassification
             outcome=HistoryOutcome.CONFIRMED_NO_DATA,
             reason="confirmed_no_data",
             persist_negative_cache=True,
+            details=details,
         )
 
     partial_tokens = (
@@ -78,11 +105,13 @@ def classify_history_failure(exc: BaseException) -> HistoryFailureClassification
         return HistoryFailureClassification(
             outcome=HistoryOutcome.PARTIAL,
             reason="partial_history",
+            details=details,
         )
 
     return HistoryFailureClassification(
         outcome=HistoryOutcome.TRANSIENT_FAILURE,
         reason="transient_history_failure",
+        details=details,
     )
 
 
@@ -170,6 +199,7 @@ def padded_repair_window(
 
 _HEALTH_LOCK = Lock()
 _HEALTH_BY_SERIES: dict[str, dict[str, Any]] = {}
+_HEALTH_EVENT_IDS: set[tuple[str, str]] = set()
 
 
 def record_history_health(
@@ -187,17 +217,24 @@ def record_history_health(
     transient_failures: int = 0,
     conid_refreshes: int = 0,
     reason: Optional[str] = None,
+    series_id: Optional[str] = None,
+    details: Optional[dict[str, Any]] = None,
+    event_id: Optional[str] = None,
 ) -> None:
     """Record bounded, credential-free health state for settings.json."""
 
-    key = "|".join((str(asset_type), str(symbol).upper(), str(timestep)))
+    start = requested_start.astimezone(timezone.utc).isoformat()
+    end = requested_end.astimezone(timezone.utc).isoformat()
+    # A successful unrelated interval/source must not erase an unresolved window.
+    key = json.dumps((str(asset_type), str(symbol).upper(), str(timestep), series_id, start, end))
     missing = sorted({str(value)[:10] for value in (missing_sessions or [])})
     payload = {
         "symbol": str(symbol).upper(),
         "asset_type": str(asset_type),
         "timestep": str(timestep),
-        "requested_start": requested_start.astimezone(timezone.utc).isoformat(),
-        "requested_end": requested_end.astimezone(timezone.utc).isoformat(),
+        "requested_start": start,
+        "requested_end": end,
+        "series_id": series_id,
         "outcome": outcome.value,
         "expected_sessions": expected_sessions,
         "returned_sessions": returned_sessions,
@@ -207,8 +244,14 @@ def record_history_health(
         "transient_failures": int(transient_failures),
         "conid_refreshes": int(conid_refreshes),
         "reason": str(reason)[:500] if reason else None,
+        "details": HistoryPayloadError(details).details if details else None,
     }
     with _HEALTH_LOCK:
+        if event_id:
+            event_key = (key, event_id)
+            if event_key in _HEALTH_EVENT_IDS:
+                return
+            _HEALTH_EVENT_IDS.add(event_key)
         previous = _HEALTH_BY_SERIES.get(key)
         if previous:
             payload["repair_attempts"] += int(previous.get("repair_attempts") or 0)
@@ -233,6 +276,7 @@ def ibkr_history_health_snapshot() -> dict[str, Any]:
 def reset_ibkr_history_health() -> None:
     with _HEALTH_LOCK:
         _HEALTH_BY_SERIES.clear()
+        _HEALTH_EVENT_IDS.clear()
 
 
 def reset_ibkr_history_health_for_testing() -> None:

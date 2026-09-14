@@ -287,4 +287,4 @@ TQQQ (3x leveraged Nasdaq) and SHV (short-term Treasury ETF) form a simple binar
 
 **Can I use a different model with the demos?**
 
-Yes. Change the ``default_model`` parameter in the ``self.agents.create(...)`` call. The default is ``gemini-3.1-flash-lite-preview`` if not specified. You can use any model supported by the model router, though you may need to clear the replay cache when switching models since the cache key includes the model name.
+Yes. Change the ``default_model`` parameter in the ``self.agents.create(...)`` call. The default is ``gemini-3.5-flash-lite`` if not specified. Explicit model pins are preserved. The replay-cache key includes the model name, so another model selects a different cache entry without deleting previous evidence.

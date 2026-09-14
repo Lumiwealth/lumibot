@@ -29,6 +29,18 @@ The adapter retains sub-cent fill averages despite the generic Order setter's
 cent rounding. The existing `CustomStream` owns notification dispatch and REST
 repair after disconnects. There is no Kalshi backtesting adapter in this change.
 
+One inconsistent Kalshi order does not block reconciliation of other orders or
+background positions. Incomplete synchronization raises after healthy updates
+are applied and is not cached as a successful refresh. Recognized states restore
+UNKNOWN orders without duplicate callbacks; stale nonterminal snapshots cannot
+reopen terminal orders.
+
+For live refresh-enabled `Strategy.get_order`, an ID missing after the normal
+refresh uses the existing provider-generic `_pull_order` hook. Kalshi seeds
+archived order state through that hook without announcing historical fills.
+Cached-only and backtesting reads never invoke it. Failed direct lookups log a
+sanitized warning and return None, not a fabricated canceled order.
+
 See `KALSHI_BROKER_ARCHITECTURE.md` and `docsrc/brokers.kalshi.rst` for tests,
 credentials, endpoint mappings, limits and user examples.
 

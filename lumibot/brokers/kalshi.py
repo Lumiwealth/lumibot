@@ -117,12 +117,15 @@ class KalshiStream(CustomStream):
             if self._repair.is_set() or now - last_poll >= self.broker.polling_interval:
                 self._repair.clear()
                 last_poll = now
-                try:
-                    if self.broker._strategy_name:
-                        self.broker.sync_orders(self.broker._strategy_name)
-                        self.broker.sync_positions(self.broker._strategy_name)
-                except Exception:
-                    self.broker.logger.warning("Kalshi REST reconciliation failed; retrying next polling interval")
+                if self.broker._strategy_name:
+                    # A lagging order/fill view must not starve position repair.
+                    for synchronize in (self.broker.sync_orders, self.broker.sync_positions):
+                        try:
+                            synchronize(self.broker._strategy_name)
+                        except Exception:
+                            self.broker.logger.warning(
+                                "Kalshi REST reconciliation incomplete; retrying next polling interval"
+                            )
 
     def stop(self):
         self._stop_event.set()
@@ -235,9 +238,20 @@ class Kalshi(Broker):
                 ),
                 None,
             )
+        if row is not None and str(row.get("order_id")) != str(identifier):
+            raise KalshiAPIError("Kalshi direct lookup returned a different order")
         if row is not None and row.get("subaccount_number", 0) != self.subaccount:
             return None
         return row
+
+    def _pull_order(self, identifier, strategy_name):
+        """Use the existing direct-read hook, seeding history without callbacks."""
+        with self._reconcile_lock:
+            tracked = self.get_tracked_order(identifier)
+            if tracked is not None and tracked.strategy != strategy_name:
+                return None
+            row = self._pull_broker_order(identifier)
+            return self._apply_snapshot(row, strategy_name) if row is not None else None
 
     @staticmethod
     def _side(row):
@@ -509,6 +523,13 @@ class Kalshi(Broker):
                 self._new_orders.append(tracked)
             self._invalidate_order_caches()
             return tracked
+        terminal = getattr(tracked, "_kalshi_terminal_event", None)
+        if (
+            tracked.status in (self.FILLED_ORDER, self.CANCELED_ORDER, self.ERROR_ORDER) or terminal is not None
+        ) and row.get("status") not in ("executed", "canceled", "rejected"):
+            # A delayed resting/unknown view must not reopen a terminal order,
+            # including a cancellation already queued during broker sync.
+            return tracked
         old_count = getattr(tracked, "_kalshi_fill_count", Decimal(0))
         if filled < old_count:
             return tracked  # Stale REST/WS snapshot; never roll back fills.
@@ -541,6 +562,13 @@ class Kalshi(Broker):
         elif row.get("status") == "rejected" and tracked.status != self.ERROR_ORDER and terminal != self.ERROR_ORDER:
             tracked._kalshi_terminal_event = self.ERROR_ORDER
             self._process_trade_event(tracked, self.ERROR_ORDER, error=KalshiAPIError("Kalshi rejected the order"))
+        elif row.get("status") == "resting" and tracked.status == Order.OrderStatus.UNKNOWN:
+            # Reuse the shared tracker repair: keep the original Order and its
+            # fill checkpoint, restore bucket membership, and emit no new fills.
+            tracked = self._clean_order_trackers(parsed)
+            tracked.set_new()
+            if filled:
+                tracked.set_partially_filled()
         elif parsed.status == Order.OrderStatus.UNKNOWN:
             tracked.status = Order.OrderStatus.UNKNOWN
             self.logger.warning("Kalshi returned an unknown order status")
@@ -564,13 +592,26 @@ class Kalshi(Broker):
         with self._reconcile_lock:
             rows = self._pull_broker_all_orders()
             identifiers = set()
+            failures = 0
             for row in rows:
-                identifiers.add(str(row["order_id"]))
-                tracked = self.get_tracked_order(str(row["order_id"]))
-                self._apply_snapshot(row, tracked.strategy if tracked else name)
+                try:
+                    identifiers.add(str(row["order_id"]))
+                    tracked = self.get_tracked_order(str(row["order_id"]))
+                    self._apply_snapshot(row, tracked.strategy if tracked else name)
+                except Exception:
+                    failures += 1
             for order in list(self.get_active_tracked_orders(name)):
                 if order.identifier not in identifiers:
-                    self._reconcile_order(order.identifier)
+                    try:
+                        self._reconcile_order(order.identifier)
+                    except Exception:
+                        failures += 1
+            if failures:
+                # Raise only after healthy orders are repaired. The base refresh
+                # helper then does not cache this incomplete refresh as success.
+                raise KalshiAPIError(
+                    f"Kalshi order synchronization incomplete ({failures} deferred updates); retry reconciliation"
+                )
 
     def _get_stream_object(self):
         return KalshiStream(self)

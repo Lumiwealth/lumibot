@@ -11,6 +11,15 @@
   advanced order types fail explicitly. Includes offline and opt-in Demo API tests.
   Kalshi backtesting and hosted OAuth onboarding are not included.
 
+### Fixed
+- Isolate Kalshi per-order reconciliation failures, restore recognized states
+  after UNKNOWN without replaying fills, and prevent stale status updates from
+  reopening terminal orders. Keep position polling independent of order errors.
+- Use the existing broker direct-order lookup for live Strategy order IDs absent
+  from tracked state, enabling Kalshi archived lookup without historical callbacks.
+  Cached-only/backtesting reads remain local; failed direct reads return None with
+  a sanitized warning.
+
 ## 4.5.91 - 2026-09-06
 
 Deploy marker: `d007efed231d`

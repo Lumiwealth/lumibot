@@ -1716,6 +1716,11 @@ class Strategy(_Strategy):
         Some brokers can expose a just-submitted order through direct order lookup before it appears
         in broad account order-list endpoints.
 
+        If an identifier is still untracked after the live refresh, the existing broker direct
+        lookup is attempted. Its parser owns account scope and historical-data support. Direct
+        lookup errors return None with a sanitized warning; None is not proof of cancellation.
+        Backtests and broker_refresh=False never perform this fallback.
+
         Returns
         -------
         Order or None
@@ -1730,7 +1735,21 @@ class Strategy(_Strategy):
         """
         self._refresh_live_orders(broker_refresh=broker_refresh, broker_refresh_ttl_seconds=broker_refresh_ttl_seconds)
         order = self.broker.get_tracked_order(identifier)
-        if order is not None and order.strategy == self.name:
+        if order is None and broker_refresh and not self.broker.IS_BACKTESTING_BROKER:
+            # A fresh process may know an order ID that is absent from the broad
+            # current-order list. Reuse the existing provider-generic direct
+            # lookup hook; the adapter owns archival, parsing and account scope.
+            try:
+                order = self.broker._pull_order(identifier, self.name)
+            except NotImplementedError:
+                return None
+            except Exception:
+                # Preserve the historical None result for an unavailable lookup,
+                # without exposing raw SDK messages or mistaking it for proof of
+                # cancellation. Cached-only and backtesting reads never get here.
+                self.log_message("Direct broker order lookup failed; order state is unavailable.", level="warning")
+                return None
+        if order is not None and order.identifier == identifier and order.strategy == self.name:
             return order
         return None
 

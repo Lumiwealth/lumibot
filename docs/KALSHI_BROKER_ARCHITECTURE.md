@@ -2,7 +2,7 @@
 
 Standard LumiBot live trading and data contracts, with staged Demo qualification.
 
-Last Updated: 2026-09-10
+Last Updated: 2026-09-13
 Status: Implemented; authenticated Demo qualification pending
 Audience: Contributors, maintainers, and integration testers
 
@@ -115,13 +115,32 @@ callers must inspect fills and positions, not assume cancellation means no fill.
    surfaced/logged without private payloads; no mutation is blindly retried.
 8. Live cash/portfolio value use the broker refresh contract. Prediction-market
    fills already bypass equity short-sale cash arithmetic in StrategyExecutor.
+9. Per-order reconciliation failures are isolated. Healthy orders are processed
+   before an aggregate incomplete-sync error is raised, so the shared refresh TTL
+   is not updated on partial success. Stream position refresh has an independent
+   error boundary and still runs after order-sync failure.
+10. Recognized resting states repair UNKNOWN tracker membership through the
+    existing `_clean_order_trackers` helper, without new/fill callback replay.
+    Terminal orders ignore stale resting/unknown snapshots.
+
+### Direct lookup boundary
+
+`Strategy.get_order` first keeps its existing broad-refresh/tracked-order path.
+Only an untracked ID in live, refresh-enabled mode falls back to the existing
+`Broker._pull_order(identifier, strategy_name)` hook. Kalshi overrides that hook
+to apply its direct/current-or-archived snapshot under the reconciliation lock,
+seeding historical transactions without callbacks. Other brokers retain their
+own parser and do not acquire Kalshi-specific logic. Cross-strategy results and
+mismatched identifiers are not returned. Unsupported or failed direct lookups
+preserve None (failed lookups emit a sanitized warning). No new public method,
+parameter or asset type is introduced.
 
 ## Qualification layers
 
 ### Offline suite (normal deployment tests)
 
 ```text
-python -m pytest tests/test_kalshi_client.py tests/test_kalshi_data.py tests/test_kalshi_broker.py tests/test_kalshi_stream.py tests/test_kalshi_credentials.py tests/test_kalshi_demo_safety.py -m "not apitest" --cov=lumibot.brokers.kalshi --cov=lumibot.data_sources.kalshi_data --cov=lumibot.tools.kalshi_client --cov-report=term-missing
+python -m pytest tests/test_kalshi_client.py tests/test_kalshi_data.py tests/test_kalshi_broker.py tests/test_kalshi_stream.py tests/test_kalshi_credentials.py tests/test_kalshi_demo_safety.py tests/test_kalshi_audit_regressions.py tests/test_strategy_live_order_accessors.py -m "not apitest" --cov=lumibot.brokers.kalshi --cov=lumibot.data_sources.kalshi_data --cov=lumibot.tools.kalshi_client --cov-report=term-missing
 ```
 
 Tests verify signing independently with the RSA public key, credential precedence,
@@ -220,6 +239,21 @@ later without claiming that it already works.
   warnings and errors in other providers' documentation.
 - Full repository CI and the Python 3.10/3.11 matrix require hosted validation.
   Do not treat this evidence as a production-trading or release qualification.
+
+## Audit repair verification (2026-09-13)
+
+- Added 21 regression cases covering per-order reconciliation isolation,
+  independent position repair, unknown-status recovery, terminal-state guards,
+  and the existing Strategy direct-order lookup boundary.
+- Complete offline Kalshi selection: **192 passed**, with **93.78% combined
+  statement/branch coverage** across the three runtime modules (90% gate).
+- Broader existing broker, Strategy, entity, credentials and data-source
+  selection: **269 passed, 3 skipped, 7 deselected**.
+- Public Demo API: **1 passed**. Authenticated read-only tests: **2 skipped**
+  because separate Demo credentials were unavailable. The two mutation/fill
+  tests were deliberately deselected; no account access or trading occurred.
+- Scoped Ruff checks and standalone Kalshi RST parsing passed. These checks do
+  not replace the outstanding authenticated Demo and hosted CI qualification.
 
 ## Official sources
 

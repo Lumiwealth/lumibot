@@ -182,6 +182,18 @@ cancel, modified, and error events. Duplicate messages do not repeat fills.
 Disconnects trigger reconnect/subscription recovery and periodic REST repair.
 Normal order wait helpers and strategy callbacks use those same events.
 
+An inconsistent order/fill response defers that order without blocking updates
+for other orders. The refresh reports an incomplete synchronization and retries;
+background position reconciliation continues independently. Unknown statuses can
+recover when Kalshi returns a recognized state, without replaying old fills or
+reopening terminal orders from stale resting messages.
+
+``get_order(identifier)`` also attempts the existing direct broker lookup when
+the ID is absent from the current tracked orders. Kalshi can then search archived
+orders and import them without historical fill callbacks. ``broker_refresh=False``
+is strictly local. A failed direct lookup logs a sanitized warning and returns
+``None``; this is not evidence that an order was canceled or never existed.
+
 Use a dedicated account/subaccount for a strategy. Orders already present on
 startup are imported without announcing old fills as new strategy executions.
 An uncertain submit response retains its client order ID and is reconciled

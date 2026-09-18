@@ -227,12 +227,16 @@ def cmd_init(args) -> int:
         )
         return 1
 
-    project_dir.mkdir(parents=True, exist_ok=True)
     template = _AI_TEMPLATE if args.template == "ai" else _PYTHON_TEMPLATE
-    strategy_file.write_text(
-        template.format(class_name=_class_name(project_dir), project=project_dir.name)
-    )
-    (project_dir / "README.md").write_text(_PROJECT_README.format(project=project_dir.name))
+    try:
+        project_dir.mkdir(parents=True, exist_ok=True)
+        strategy_file.write_text(
+            template.format(class_name=_class_name(project_dir), project=project_dir.name)
+        )
+        (project_dir / "README.md").write_text(_PROJECT_README.format(project=project_dir.name))
+    except OSError as exc:
+        print(f"Could not write to {project_dir}: {exc.strerror or exc}", file=sys.stderr)
+        return 1
 
     print(f"Created {strategy_file}")
     print()
@@ -241,13 +245,30 @@ def cmd_init(args) -> int:
     return 0
 
 
+class StrategyFileError(Exception):
+    """The user's strategy.py could not be turned into a Strategy class."""
+
+
 def _load_strategy_class(strategy_file: Path):
-    """Import the generated file and return the single Strategy subclass in it."""
+    """Import the user's file and return the Strategy subclass defined in it.
+
+    Raises StrategyFileError with a message meant for a person, never a
+    traceback, because this file is the one thing the user edits by hand.
+    """
     from lumibot.strategies.strategy import Strategy
 
     sys.path.insert(0, str(strategy_file.parent))
     try:
         namespace = runpy.run_path(str(strategy_file))
+    except SyntaxError as exc:
+        raise StrategyFileError(
+            f"{strategy_file.name} has a syntax error on line {exc.lineno}: {exc.msg}"
+        ) from exc
+    except Exception as exc:  # noqa: BLE001 - the user's own code raised
+        raise StrategyFileError(
+            f"{strategy_file.name} failed while being imported: "
+            f"{type(exc).__name__}: {exc}"
+        ) from exc
     finally:
         sys.path.pop(0)
 
@@ -257,7 +278,12 @@ def _load_strategy_class(strategy_file: Path):
         if isinstance(obj, type) and issubclass(obj, Strategy) and obj is not Strategy
     ]
     if not candidates:
-        raise LookupError(f"No Strategy subclass found in {strategy_file}")
+        raise StrategyFileError(
+            f"No Strategy subclass found in {strategy_file.name}. "
+            f"It must define a class that inherits from lumibot Strategy."
+        )
+    # Sort so the same file always resolves to the same class.
+    candidates.sort(key=lambda cls: cls.__name__)
     return candidates[0]
 
 
@@ -278,11 +304,22 @@ def cmd_backtest(args) -> int:
     if strategy_file is None:
         return 1
 
+    if args.days <= 0:
+        print("--days must be a positive number of days.", file=sys.stderr)
+        return 2
+    if args.budget <= 0:
+        print("--budget must be greater than zero.", file=sys.stderr)
+        return 2
+
     from datetime import datetime, timedelta
 
     from lumibot.backtesting import YahooDataBacktesting
 
-    strategy_class = _load_strategy_class(strategy_file)
+    try:
+        strategy_class = _load_strategy_class(strategy_file)
+    except StrategyFileError as exc:
+        print(str(exc), file=sys.stderr)
+        return 1
     end = datetime.now()
     start = end - timedelta(days=args.days)
 
@@ -304,6 +341,13 @@ def cmd_run(args) -> int:
     strategy_file = _require_project(args.project)
     if strategy_file is None:
         return 1
+
+    if args.paper and args.live:
+        print(
+            "Choose one mode. You cannot pass both --paper and --live.",
+            file=sys.stderr,
+        )
+        return 2
 
     if not args.paper and not args.live:
         print(
@@ -337,7 +381,12 @@ def cmd_run(args) -> int:
         )
         return 1
 
-    strategy_class = _load_strategy_class(strategy_file)
+    try:
+        strategy_class = _load_strategy_class(strategy_file)
+    except StrategyFileError as exc:
+        print(str(exc), file=sys.stderr)
+        return 1
+
     trader = Trader()
     trader.add_strategy(strategy_class(broker=Alpaca(config)))
     trader.run_all()
@@ -350,6 +399,13 @@ def cmd_demo(args) -> int:
     It runs the exact template `lumibot init` writes, so what you see here is
     what you get when you make your own.
     """
+    if args.days <= 0:
+        print("--days must be a positive number of days.", file=sys.stderr)
+        return 2
+    if args.budget <= 0:
+        print("--budget must be greater than zero.", file=sys.stderr)
+        return 2
+
     import tempfile
     from datetime import datetime, timedelta
 

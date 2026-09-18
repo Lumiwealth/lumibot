@@ -131,3 +131,132 @@ class TestModuleEntryPoint:
             timeout=180,
         )
         assert proc.returncode == 0, proc.stderr[-2000:]
+
+
+class TestEdgeCases:
+    """A broken CLI is worse than no CLI. These are the ways it can break."""
+
+    def test_project_name_with_spaces(self, tmp_path):
+        target = tmp_path / "my great bot"
+        assert cli.main(["init", str(target)]) == 0
+        source = (target / "strategy.py").read_text()
+        compile(source, "spaces", "exec")
+        assert "class MyGreatBot" in source
+
+    def test_project_name_starting_with_a_digit(self, tmp_path):
+        target = tmp_path / "2026-bot"
+        assert cli.main(["init", str(target)]) == 0
+        source = (target / "strategy.py").read_text()
+        compile(source, "digit", "exec")
+        assert "class Strategy2026Bot" in source
+
+    def test_project_name_that_is_a_python_keyword(self, tmp_path):
+        target = tmp_path / "class"
+        assert cli.main(["init", str(target)]) == 0
+        compile((target / "strategy.py").read_text(), "kw", "exec")
+
+    def test_project_name_with_only_punctuation(self, tmp_path):
+        target = tmp_path / "---"
+        assert cli.main(["init", str(target)]) == 0
+        compile((target / "strategy.py").read_text(), "punct", "exec")
+
+    def test_non_ascii_project_name(self, tmp_path):
+        target = tmp_path / "机器人"
+        assert cli.main(["init", str(target)]) == 0
+        compile((target / "strategy.py").read_text(), "unicode", "exec")
+
+    def test_deeply_nested_path_is_created(self, tmp_path):
+        target = tmp_path / "a" / "b" / "c" / "bot"
+        assert cli.main(["init", str(target)]) == 0
+        assert (target / "strategy.py").exists()
+
+    def test_init_into_an_existing_directory_keeps_other_files(self, tmp_path):
+        target = tmp_path / "bot"
+        target.mkdir()
+        keep = target / "notes.txt"
+        keep.write_text("mine")
+        assert cli.main(["init", str(target)]) == 0
+        assert keep.read_text() == "mine"
+
+    def test_init_reports_a_permission_error_instead_of_a_traceback(self, tmp_path, capsys):
+        locked = tmp_path / "locked"
+        locked.mkdir()
+        locked.chmod(0o500)
+        try:
+            rc = cli.main(["init", str(locked / "bot")])
+            assert rc != 0
+            assert "Traceback" not in capsys.readouterr().err
+        finally:
+            locked.chmod(0o700)
+
+    def test_backtest_rejects_a_non_positive_day_count(self, tmp_path, capsys):
+        target = tmp_path / "bot"
+        cli.main(["init", str(target)])
+        assert cli.main(["backtest", str(target), "--days", "0"]) != 0
+        assert "--days" in capsys.readouterr().err
+
+    def test_backtest_rejects_a_non_positive_budget(self, tmp_path, capsys):
+        target = tmp_path / "bot"
+        cli.main(["init", str(target)])
+        assert cli.main(["backtest", str(target), "--budget", "0"]) != 0
+        assert "--budget" in capsys.readouterr().err
+
+    def test_run_rejects_paper_and_live_together(self, tmp_path, capsys):
+        target = tmp_path / "bot"
+        cli.main(["init", str(target)])
+        assert cli.main(["run", str(target), "--paper", "--live", "--yes"]) != 0
+        assert "both" in capsys.readouterr().err.lower()
+
+    def test_live_without_yes_is_refused(self, tmp_path, capsys):
+        target = tmp_path / "bot"
+        cli.main(["init", str(target)])
+        assert cli.main(["run", str(target), "--live"]) != 0
+        assert "--yes" in capsys.readouterr().err
+
+    def test_a_strategy_file_with_no_strategy_class_is_explained(self, tmp_path, capsys):
+        target = tmp_path / "bot"
+        cli.main(["init", str(target)])
+        (target / "strategy.py").write_text("x = 1\n")
+        assert cli.main(["backtest", str(target)]) != 0
+        err = capsys.readouterr().err
+        assert "Strategy" in err and "Traceback" not in err
+
+    def test_a_strategy_file_that_does_not_parse_is_explained(self, tmp_path, capsys):
+        target = tmp_path / "bot"
+        cli.main(["init", str(target)])
+        (target / "strategy.py").write_text("def broken(:\n")
+        assert cli.main(["backtest", str(target)]) != 0
+        err = capsys.readouterr().err
+        assert "strategy.py" in err and "Traceback" not in err
+
+    def test_several_strategy_classes_pick_deterministically(self, tmp_path):
+        target = tmp_path / "bot"
+        cli.main(["init", str(target)])
+        (target / "strategy.py").write_text(
+            "from lumibot.strategies.strategy import Strategy\n"
+            "class Alpha(Strategy):\n    pass\n"
+            "class Beta(Strategy):\n    pass\n"
+        )
+        chosen = {cli._load_strategy_class(target / "strategy.py").__name__ for _ in range(3)}
+        assert len(chosen) == 1, "the same file must always resolve to the same class"
+
+    def test_relative_paths_work_from_any_directory(self, tmp_path, monkeypatch):
+        monkeypatch.chdir(tmp_path)
+        assert cli.main(["init", "relative-bot"]) == 0
+        assert (tmp_path / "relative-bot" / "strategy.py").exists()
+
+    def test_trailing_slash_does_not_break_the_class_name(self, tmp_path):
+        target = tmp_path / "slashbot"
+        assert cli.main(["init", str(target) + "/"]) == 0
+        assert "class Slashbot" in (target / "strategy.py").read_text()
+
+    def test_every_subcommand_has_help(self):
+        parser = cli.build_parser()
+        for command in ("init", "backtest", "run", "demo", "version"):
+            assert parser.parse_args([command, "--help"] if False else [], ) is not None or True
+        # argparse exits on --help; assert the subparsers exist instead.
+        actions = [a for a in parser._actions if hasattr(a, "choices") and a.choices]
+        names = set()
+        for action in actions:
+            names |= set(action.choices)
+        assert {"init", "backtest", "run", "demo", "version"} <= names

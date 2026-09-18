@@ -1,4 +1,4 @@
-[English](README.md) · **中文** · [Español](README.es.md)
+[English](README.md) · **中文** · [Español](README.es.md) · [Français](README.fr.md) · [Deutsch](README.de.md) · [日本語](README.ja.md) · [한국어](README.ko.md) · [Português](README.pt.md) · [Русский](README.ru.md)
 
 # LumiBot AI 交易框架
 

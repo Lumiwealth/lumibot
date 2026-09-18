@@ -9,7 +9,7 @@
 
 **AI agents that actually place the trade.** Twelve broker integrations, real backtests, and stocks, options, futures, forex, crypto and prediction markets. Most AI trading projects stop at a recommendation. LumiBot sends the order.
 
-Read this in [中文](README.zh-CN.md) · [Español](README.es.md)
+Read this in [中文](README.zh-CN.md) · [Español](README.es.md) · [Français](README.fr.md) · [Deutsch](README.de.md) · [日本語](README.ja.md) · [한국어](README.ko.md) · [Português](README.pt.md) · [Русский](README.ru.md)
 
 ## Sixty seconds
 

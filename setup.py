@@ -54,6 +54,11 @@ setuptools.setup(
     long_description_content_type="text/markdown",
     url="https://github.com/Lumiwealth/lumibot",
     packages=setuptools.find_packages(include=["lumibot", "lumibot.*"]),
+    entry_points={
+        "console_scripts": [
+            "lumibot=lumibot.cli:main",
+        ],
+    },
     license="GPL-3.0",
     include_package_data=True,
     install_requires=[

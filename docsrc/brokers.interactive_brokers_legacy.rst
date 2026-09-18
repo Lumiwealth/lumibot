@@ -45,3 +45,13 @@ Set up your entry point file as above, except using Interactive Brokers. Here is
     trader.run_all()
 
 You can also see the file simple_start_ib.py for a working bot here: https://github.com/Lumiwealth/lumibot/blob/master/getting_started/simple_start_ib.py
+
+Order duration
+--------------
+
+The legacy Gateway adapter forwards ``time_in_force`` for simple and advanced
+orders. For ``time_in_force="gtd"``, also provide ``good_till_date`` as a
+``datetime``; LumiBot sends that date to every native order in a bracket, OTO,
+or OCO group. Backtesting preserves the same duration for automatically created
+advanced-order children, so ``day`` and ``gtd`` expiration behavior remains
+consistent with the legacy Gateway path.

@@ -60,3 +60,5 @@ Cache
 
 FRED data is cached under ``~/.lumibot/cache/fred`` by default. Override this
 with ``LUMIBOT_FRED_CACHE_DIR``.
+
+See :doc:`standalone_components` for use in scripts and notebooks.

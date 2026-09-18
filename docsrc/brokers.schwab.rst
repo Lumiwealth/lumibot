@@ -1,9 +1,18 @@
-Schwab
-======
+Charles Schwab API Trading with LumiBot
+=======================================
+
+.. meta::
+   :description: Connect LumiBot to the Charles Schwab Trader API for equities and options. Configure OAuth, callback URLs, account settings, and paper or live execution.
 
 Lumibot integrates directly with Charles Schwab's *Trader* API for equities and options.  Everything you need is built-in; no external wrapper is required.
 
+Go directly to :ref:`Schwab prerequisites <schwab-prerequisites>`,
+:ref:`credentials <schwab-environment>`, :ref:`first-time OAuth login
+<schwab-first-login>`, or :ref:`token renewal <schwab-token-lifecycle>`.
+
 If you want the managed path, `BotSpot <https://botspot.trade/sales?showLogin=1&utm_source=documentation&utm_medium=schwab&utm_campaign=lumibot&utm_content=managed_schwab_text&prompt=I%20want%20to%20connect%20Schwab%20and%20run%20a%20Lumibot%20strategy%20on%20BotSpot.%20Please%20help%20me%20set%20up%20broker%20connections%2C%20monitoring%2C%20and%20paper%20or%20live%20deployment.>`_ can help you connect supported brokers through the website, run paper or live Lumibot strategies, and monitor logs, account state, alerts, audit history, and kill-switch controls without maintaining your own deployment server.
+
+.. _schwab-prerequisites:
 
 Prerequisites
 -------------
@@ -12,6 +21,8 @@ Prerequisites
 2. A Schwab **App Key** (sometimes called *Consumer Key*) generated inside your Developer Portal application.
 3. The brokerage **account number** you want the bot to trade in.
 4. A **callback URL** (HTTPS) you entered when creating the app.  For local testing just use ``https://127.0.0.1:8182``.
+
+.. _schwab-environment:
 
 Environment variables
 ---------------------
@@ -47,12 +58,16 @@ Set the following before running your strategy (``.env`` file, Render secret, Re
    * - ``TRADING_BROKER`` *(optional)*
      - Force Lumibot to select Schwab (``schwab``) even when other creds are present.
 
+.. _schwab-first-login:
+
 First-time login
 ----------------
 
 • **Desktop** – run your bot, a browser pops up, log in, click *Allow*.  A ``token.json`` file is written next to your strategy.  Restart and you're done.
 
 • **Headless / Render / Replit** – the console prints a one-time URL.  Open it on any device, log in, copy the payload string that appears, set it as ``SCHWAB_TOKEN`` and restart.
+
+.. _schwab-token-lifecycle:
 
 Token life-cycle
 ----------------

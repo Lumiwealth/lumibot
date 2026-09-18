@@ -50,7 +50,9 @@ else:
 # This ensures environment variables are available for all tests
 project_root = Path(__file__).parent.parent
 env_file = project_root / ".env"
-if env_file.exists():
+if os.environ.get("LUMIBOT_DISABLE_DOTENV", "").lower() in {"1", "true", "yes", "on"}:
+    print("Local dotenv discovery disabled for this test process")
+elif env_file.exists():
     load_dotenv(env_file)
     print(f"Loaded .env file from: {env_file}")
 else:

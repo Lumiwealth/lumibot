@@ -3582,6 +3582,11 @@ class _Strategy:
         if not self._analyze_backtest:
             return
 
+        try:
+            self.broker.data_source.record_runtime_milestone("reports_started_at")
+        except Exception:
+            pass
+
         if not base_filename:
             base_filename = self._name
 
@@ -3662,6 +3667,12 @@ class _Strategy:
         if tearsheet_result is not None:
             tearsheet_result.to_csv(tearsheet_csv_file)
 
+        try:
+            self.broker.data_source.record_runtime_milestone("reports_completed_at")
+            self.broker.data_source.flush_runtime_timings()
+        except Exception:
+            pass
+        self.write_backtest_settings(settings_file)
         return tearsheet_result
 
     @classmethod
@@ -3861,7 +3872,7 @@ class _Strategy:
             return
 
         # Log that we're starting to send data
-        self.logger.debug(f"Starting cloud update for strategy '{self._name}' with API key: {self.lumiwealth_api_key[:10]}...")
+        self.logger.debug(f"Starting authenticated cloud update for strategy '{self._name}'")
 
         # Refresh the broker account snapshot first. This prevents a failed
         # broker read from being published as stale/default account values.
@@ -3986,8 +3997,7 @@ class _Strategy:
             # Send the data to the cloud
             json_data = _json_dumps(data, default=str)
             data_size_kb = len(json_data.encode('utf-8')) / 1024
-            self.logger.debug(f"Sending {data_size_kb:.2f} KB of data to {listener_url}")
-            self.logger.debug(f"Request headers: {headers}")
+            self.logger.debug(f"Sending {data_size_kb:.2f} KB of data to the configured listener")
 
             response = requests.post(
                 listener_url,
@@ -3996,20 +4006,20 @@ class _Strategy:
                 timeout=10,
             )
 
-            self.logger.debug(f"Cloud response: Status={response.status_code}, Headers={dict(response.headers)}")
+            self.logger.debug(f"Cloud response: Status={response.status_code}")
 
-        except requests.exceptions.ConnectionError as e:
-            self.logger.info(f"Connection error when sending to cloud: {e}", exc_info=True)
+        except requests.exceptions.ConnectionError:
+            self.logger.info("Connection error when sending to cloud; a later snapshot will retry.")
             return False
-        except requests.exceptions.Timeout as e:
-            self.logger.info(f"Timeout error when sending to cloud: {e}", exc_info=True)
+        except requests.exceptions.Timeout:
+            self.logger.info("Timeout error when sending to cloud; a later snapshot will retry.")
             return False
-        except requests.exceptions.RequestException as e:
-            self.logger.info(f"Request error when sending to cloud: {e}", exc_info=True)
+        except requests.exceptions.RequestException:
+            self.logger.info("Request error when sending to cloud; inspect listener status telemetry.")
             return False
         except Exception as e:
-            self.logger.error(f"Unexpected error when sending to cloud: {e}")
-            self.logger.error(_format_exc())
+            # SDK errors/response bodies can echo authentication headers or URLs.
+            self.logger.error(f"Unexpected error when sending to cloud: {type(e).__name__}")
             return False
 
         # Check if the message was sent successfully
@@ -4018,20 +4028,17 @@ class _Strategy:
             self.logger.debug(f"Portfolio update sent successfully to cloud for strategy '{self._name}'")
             return True
         elif response.status_code == 401:
-            self.logger.error(f"❌ Authentication failed - Invalid API key: {self.lumiwealth_api_key[:10]}...")
-            self.logger.error(f"Response: {response.text}")
+            self.logger.error("❌ Cloud authentication failed; check the configured listener credential.")
             return False
         elif response.status_code == 400:
             self.logger.error("❌ Bad request - Invalid data format")
-            self.logger.error(f"Response: {response.text}")
             return False
         elif response.status_code == 413:
             self.logger.error(f"❌ Payload too large ({data_size_kb:.2f} KB)")
-            self.logger.error(f"Response: {response.text}")
             return False
         else:
             self.logger.error(
-                f"❌ Failed to send update to cloud. Status: {response.status_code}, Response: {response.text}"
+                f"❌ Failed to send update to cloud. Status: {response.status_code}"
             )
             return False
 
@@ -4491,18 +4498,26 @@ class _Strategy:
 
     @staticmethod
     def _encode_variable_for_backup(value):
+        if isinstance(value, Asset):
+            # Plain to_dict JSON loses the type required by position/chart APIs.
+            # Tag only actual assets; user dictionaries must remain dictionaries.
+            return {"__lumibot_type__": "Asset", "value": value.to_dict()}
         if isinstance(value, datetime.datetime):
             return {"__lumibot_type__": "datetime", "value": value.isoformat()}
         if isinstance(value, datetime.date):
             return {"__lumibot_type__": "date", "value": value.isoformat()}
         if isinstance(value, dict):
-            return {key: _Strategy._encode_variable_for_backup(nested) for key, nested in value.items()}
+            encoded = {key: _Strategy._encode_variable_for_backup(nested) for key, nested in value.items()}
+            if set(value) == {"__lumibot_type__", "value"}:
+                # Escape literal envelopes, including this escape tag itself.
+                return {"__lumibot_type__": "dict", "value": encoded}
+            return encoded
         if isinstance(value, tuple):
             return {
                 "__lumibot_type__": "tuple",
                 "value": [_Strategy._encode_variable_for_backup(nested) for nested in value],
             }
-        if isinstance(value, list):
+        if isinstance(value, (list, set)):
             return [_Strategy._encode_variable_for_backup(nested) for nested in value]
         return value
 
@@ -4510,6 +4525,13 @@ class _Strategy:
     def _decode_variable_from_backup(value):
         if isinstance(value, dict):
             if set(value.keys()) == {"__lumibot_type__", "value"}:
+                if value["__lumibot_type__"] == "dict":
+                    return {
+                        key: _Strategy._decode_variable_from_backup(nested)
+                        for key, nested in value["value"].items()
+                    }
+                if value["__lumibot_type__"] == "Asset":
+                    return Asset.from_dict(value["value"])
                 if value["__lumibot_type__"] == "datetime":
                     return datetime.datetime.fromisoformat(value["value"])
                 if value["__lumibot_type__"] == "date":
@@ -4524,7 +4546,7 @@ class _Strategy:
     @classmethod
     def _serialize_variables_for_backup(cls, variables):
         return _json_dumps(
-            cls._encode_variable_for_backup(variables),
+            {key: cls._encode_variable_for_backup(value) for key, value in variables.items()},
             sort_keys=True,
             cls=_safe_json_encoder_class(),
         )
@@ -4626,15 +4648,14 @@ class _Strategy:
             # Create the table by saving this empty DataFrame to the database
             stats_new.to_sql(self.backup_table_name, self.db_engine, if_exists='replace', index=True)
 
-        current_state = _json_dumps(self.vars.all(), sort_keys=True, cls=_safe_json_encoder_class())
-        if current_state == self._last_backup_state:
-            self.logger.info("No variables changed. Not backing up.")
-            return
-
         try:
             data_to_save = self.vars.all()
+            current_state = self._serialize_variables_for_backup(data_to_save)
+            if current_state == self._last_backup_state:
+                self.logger.info("No variables changed. Not backing up.")
+                return
             if data_to_save:
-                json_data_to_save = _json_dumps(data_to_save, cls=_safe_json_encoder_class())
+                json_data_to_save = current_state
                 with self.db_engine.connect() as connection:
                     with connection.begin():
                         # Check if the row exists
@@ -4740,15 +4761,24 @@ class _Strategy:
 
                 return v
 
-            # Decode any special types we stored using our SafeJSONEncoder,
-            # but only parse strings that actually look like ISO dates/datetimes.
-            data = _json_loads(json_data, object_hook=lambda d: {k: _coerce_value(v) for k, v in d.items()})
+            def _coerce_legacy_dates(value):
+                # Keep the database's historical date-string behavior, but only
+                # after typed entities are decoded so Asset expiration stays valid.
+                if isinstance(value, dict):
+                    return {key: _coerce_value(_coerce_legacy_dates(nested)) for key, nested in value.items()}
+                if isinstance(value, list):
+                    return [_coerce_legacy_dates(nested) for nested in value]
+                if isinstance(value, tuple):
+                    return tuple(_coerce_legacy_dates(nested) for nested in value)
+                return value
+
+            data = _coerce_legacy_dates(self._deserialize_variables_from_backup(json_data))
     
             # Update self.vars dictionary
             for key, value in data.items():
                 self.vars.set(key, value)
     
-            current_state = _json_dumps(self.vars.all(), sort_keys=True, cls=_safe_json_encoder_class())
+            current_state = self._serialize_variables_for_backup(self.vars.all())
             self._last_backup_state = current_state
     
             self.logger.info("Variables loaded successfully from database")

@@ -1,7 +1,10 @@
 .. _backtesting.tearsheet_html:
 
-Tearsheet HTML
-==============
+LumiBot Backtest Tear Sheets and Performance Reports
+====================================================
+
+.. meta::
+   :description: Read LumiBot backtest tear sheets and performance reports, including total return, drawdown, benchmark comparison, trades, and risk metrics.
 
 .. note::
    The **Tearsheet HTML** is one of the most important files generated and is created using the `quantstats-lumi` library. It includes a variety of metrics such as:

@@ -167,3 +167,17 @@ Related Pages
 - :doc:`agents` -- main guide and architecture
 - :doc:`agents_quickstart` -- code patterns and API reference
 - :doc:`agents_canonical_demos` -- the four reference demo strategies
+
+Order evidence after a decision
+-------------------------------
+
+Inspect the exact order identifier returned by the submission tool.
+``orders_get_status`` reports observed state; ``orders_wait_for_terminal``
+performs bounded observation and can advance simulated time in backtests.
+A timeout is not a rejection. Reconcile pending orders before a retry, inspect
+filled and remaining quantities after partial fills, and refresh positions.
+Never call a submitted order a fill based only on an agent's summary.
+
+For examples, retain source/model/date/data metadata beside the result. A
+scripted-model integration test proves engine wiring; a real-model eval tests
+reasoning and tool use. Neither alone proves real broker behavior.

@@ -1,7 +1,49 @@
-Code Examples
-=============
+LumiBot Python Trading Examples
+===============================
+
+.. meta::
+   :description: Explore runnable LumiBot Python examples for AI trading agents, stocks, options, crypto, futures, backtesting, and supported brokers.
 
 This page contains practical code examples for common Lumibot tasks. These examples cover stocks, options, crypto, futures, and advanced features like the PerplexityHelper for AI-powered trading decisions.
+
+Traditional Python strategies
+-----------------------------
+
+AI is optional. These examples use Python rules and the standard ``Strategy``
+lifecycle; no model API key is needed. Start with the
+:ref:`complete buy-and-hold backtest <first-python-backtest>`, then follow
+:doc:`getting_started` to configure a broker.
+
+* `Buy and hold <https://github.com/Lumiwealth/lumibot/blob/version/4.5.92/lumibot/example_strategies/stock_buy_and_hold.py>`_: a simple stock strategy.
+* `Momentum <https://github.com/Lumiwealth/lumibot/blob/version/4.5.92/lumibot/example_strategies/stock_momentum.py>`_: rank stocks by historical price changes.
+* `Bracket orders <https://github.com/Lumiwealth/lumibot/blob/version/4.5.92/lumibot/example_strategies/stock_bracket.py>`_: order-entry and exit structure.
+
+These source examples have their own runner and provider requirements; start
+with the complete backtest above before adapting them. Historical data or broker
+credentials may be required by the provider you choose.
+
+Learn :doc:`lifecycle_methods`, :doc:`strategy_methods`, :doc:`indicators`,
+:doc:`backtesting`, and :doc:`brokers` as your strategy grows.
+
+.. image:: ../docs/assets/ai-trading/python-strategies.png
+   :alt: Traditional Python strategies: your rules, tested on historical data
+   :width: 640px
+   :align: center
+
+Choose a first runnable example
+-------------------------------
+
+* **AI agent:** :doc:`agents_quickstart` requires a supported model credential.
+* **Daily stocks:** :ref:`the Yahoo buy-and-hold backtest <first-python-backtest>`
+  requires no broker or data-provider credential.
+* **Stock research team:** :doc:`agents_example_bull_bear_large_cap_stocks`
+  uses Yahoo data plus a model credential.
+* **Options:** :doc:`agents_example_ai_iron_condor` requires intraday option data
+  and a model credential.
+* **Crypto:** :doc:`brokers.ccxt` starts with exchange-specific credentials and
+  clearly separates documented live and backtesting paths.
+* **Futures:** :doc:`backtesting.databento` shows a complete historical runner
+  and its dataset requirements.
 
 AI Agents
 ---------
@@ -40,7 +82,7 @@ Typical AI agent pattern:
     def initialize(self):
         self.agents.create(
             name="research",
-            default_model="gemini-3.1-flash-lite-preview",
+            default_model="gemini-3.5-flash-lite",
             system_prompt="Use the available tools and return a short summary.",
             tools=[
                 BuiltinTools.account.positions(),
@@ -932,3 +974,15 @@ Query with a custom JSON schema for structured results:
                 order = self.create_order(asset, 150, "buy")
                 self.submit_order(order)
                 break
+
+Build your trading bot with Rob
+-------------------------------
+
+Learn with Rob Grzesik, creator of LumiBot. Join the FREE AI challenge.
+
+.. image:: ../docs/assets/ai-trading/rob-challenge-python.png
+   :alt: Rob Grzesik, creator of LumiBot. Join the FREE AI challenge.
+   :width: 640px
+   :align: center
+   :class: lumibot-learning-image
+   :target: https://botspot.trade/challenges?utm_source=documentation&utm_medium=docs&utm_campaign=lumibot_ai_trading&utm_content=python_examples_challenge_image

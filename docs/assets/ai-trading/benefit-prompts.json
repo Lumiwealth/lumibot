@@ -1,0 +1,64 @@
+[
+  {
+    "name": "benefit-hero",
+    "refs": [
+      "botspot_mascot_rgba.png"
+    ],
+    "prompt": "Finished polished 16:9 website banner, balanced layout, navy/white/orange palette, generous margins, rounded panel rendered inside white outer corners. Large concise legible typography. Do not invent any logo or wordmark. 'LumiBot' if present is plain text, not a new logo. No numerical returns or performance claims, no fake code, no shopping imagery. Use the attached canonical Spot mascot EXACTLY: preserve face proportions, orange rising-chart eyes, small curved mouth, blue-gray body and orange chest circuit. No human teeth, no realistic humanoid face, no evil expression, no exaggerated grin. Keep mascot a small supporting character on right, not an enormous face. Main headline 'Turn trading ideas into working strategies'. Smaller 'Python rules or AI agents. Backtest and connect your broker.' Small plain text 'LumiBot'. Spot on right beside a laptop and financial candlesticks, engaging in building a trading strategy. Left typography dominant. No research-strategy-orders diagram. This banner sells building and running strategies, not one internal architecture.",
+    "status": "Superseded; not approved for reuse"
+  },
+  {
+    "name": "example-gallery",
+    "refs": [
+      "botspot_mascot_rgba.png"
+    ],
+    "prompt": "Finished polished 16:9 website banner, balanced layout, navy/white/orange palette, generous margins, rounded panel rendered inside white outer corners. Large concise legible typography. Do not invent any logo or wordmark. 'LumiBot' if present is plain text, not a new logo. No numerical returns or performance claims, no fake code, no shopping imagery. Use the attached canonical Spot mascot EXACTLY: preserve face proportions, orange rising-chart eyes, small curved mouth, blue-gray body and orange chest circuit. No human teeth, no realistic humanoid face, no evil expression, no exaggerated grin. Keep mascot a small supporting character on right, not an enormous face. Headline 'Find your next AI trading strategy'. Three simple legible labels 'Stocks', 'Macro', 'Options'. Show Spot beside a shelf of three strategy notebooks, one for each category. No arrows forcing one common process. No evidence/debate decision wording. This is a gallery of different code examples to explore.",
+    "status": "Superseded; not approved for reuse"
+  },
+  {
+    "name": "backtest-benefit",
+    "refs": [
+      "botspot_mascot_rgba.png"
+    ],
+    "prompt": "Finished polished 16:9 website banner, balanced layout, navy/white/orange palette, generous margins, rounded panel rendered inside white outer corners. Large concise legible typography. Do not invent any logo or wordmark. 'LumiBot' if present is plain text, not a new logo. No numerical returns or performance claims, no fake code, no shopping imagery. Use the attached canonical Spot mascot EXACTLY: preserve face proportions, orange rising-chart eyes, small curved mouth, blue-gray body and orange chest circuit. No human teeth, no realistic humanoid face, no evil expression, no exaggerated grin. Keep mascot a small supporting character on right, not an enormous face. Headline 'See how your strategy would have traded'. Subtitle 'Run a historical backtest with LumiBot'. Spot studies a historical calendar beside a simple unlabeled mixed up/down price line and financial trade markers. No numerical returns, no fake report, no instruction to inspect or audit. Benefit is testing an idea on historical data.",
+    "status": "Superseded; not approved for reuse"
+  },
+  {
+    "name": "rob-get-started",
+    "refs": [
+      "2026-09-02_white-shirt_neutral-smile.jpg",
+      "2026-09-02_black-shirt_serious-thoughtful.jpg",
+      "selfie-home-office-1.jpg"
+    ],
+    "prompt": "Finished polished 16:9 website banner, balanced layout, navy/white/orange palette, generous margins, rounded panel rendered inside white outer corners. Large concise legible typography. Do not invent any logo or wordmark. 'LumiBot' if present is plain text, not a new logo. No numerical returns or performance claims, no fake code, no shopping imagery. Use all three photographs as references of the SAME Rob Grzesik. Preserve his actual face, mature features, hairline, brown hair and beard, natural restrained closed-mouth smile. No generic handsome substitute, no exaggerated smile, no de-aging. Rob on right in white shirt at a laptop. Main text 'Your first trading bot starts here'. CTA 'Join the FREE challenge'. Smaller 'Learn with Rob Grzesik, creator of LumiBot'. Calm inviting beginner training banner. No mascot.",
+    "status": "Superseded; not approved for reuse"
+  },
+  {
+    "name": "rob-examples",
+    "refs": [
+      "2026-09-02_white-shirt_neutral-smile.jpg",
+      "2026-09-02_black-shirt_serious-thoughtful.jpg",
+      "selfie-home-office-1.jpg"
+    ],
+    "prompt": "Finished polished 16:9 website banner, balanced layout, navy/white/orange palette, generous margins, rounded panel rendered inside white outer corners. Large concise legible typography. Do not invent any logo or wordmark. 'LumiBot' if present is plain text, not a new logo. No numerical returns or performance claims, no fake code, no shopping imagery. Use all three photographs as references of the SAME Rob Grzesik. Preserve his actual face, mature features, hairline, brown hair and beard, natural restrained closed-mouth smile. No generic handsome substitute, no exaggerated smile, no de-aging. Rob on left in dark casual shirt, relaxed neutral smile, beside notebook. Main text on right 'Have an idea for an AI trading bot?'. CTA 'Build it with me. Join the FREE challenge'. Smaller 'Rob Grzesik, creator of LumiBot'. No mascot. Sell learning to create your own bot, no implied guaranteed outcomes.",
+    "status": "Superseded; not approved for reuse"
+  },
+  {
+    "name": "rob-bootcamp",
+    "refs": [
+      "2026-09-02_white-shirt_neutral-smile.jpg",
+      "2026-09-02_black-shirt_serious-thoughtful.jpg",
+      "selfie-home-office-1.jpg"
+    ],
+    "prompt": "Finished polished 16:9 website banner, balanced layout, navy/white/orange palette, generous margins, rounded panel rendered inside white outer corners. Large concise legible typography. Do not invent any logo or wordmark. 'LumiBot' if present is plain text, not a new logo. No numerical returns or performance claims, no fake code, no shopping imagery. Use all three photographs as references of the SAME Rob Grzesik. Preserve his actual face, mature features, hairline, brown hair and beard, natural restrained closed-mouth smile. No generic handsome substitute, no exaggerated smile, no de-aging. Rob on right in navy blazer over white shirt with natural modest smile in teaching setting. Main text 'Learn to build AI trading bots with Rob'. CTA 'Explore the AI Trading Bootcamp'. Smaller 'From trading idea to Python strategy'. No mascot. Education banner, no financial success guarantees.",
+    "status": "Superseded; not approved for reuse"
+  },
+  {
+    "name": "component-research",
+    "refs": [
+      "botspot_mascot_rgba.png"
+    ],
+    "prompt": "Create finished 16:9 LumiBot documentation banner, rounded panel with white outer corners, navy orange white. Exact headline 'Bring market research into your Python project'. Smaller 'Economic data. SEC filings. Your own scripts.' Show canonical attached Spot faithfully with same small friendly mouth, circular orange chart eyes, blue-gray body, reading two documents labeled 'FRED' and 'SEC'. No invented logo, no giant face, no fake code or charts, no order execution promise. This page explains reusable economic and filing research components. Large typography left, Spot reading on right, generous margins.",
+    "status": "Superseded; not approved for reuse"
+  }
+]

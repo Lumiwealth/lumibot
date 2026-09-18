@@ -38,15 +38,15 @@ Quick Comparison
    * - TradingAgents
      - Multi-agent LLM trading research framework
      - Yes, with a specific research/debate structure
-     - Research/demo oriented
+     - Ticker/date analysis; inspect the research setup
      - Not the main focus
      - Limited
      - No
    * - ai-hedge-fund
-     - Educational AI hedge fund with named investor-style agents
+     - Investor-style agents and saved fund mandates
      - Yes, with investor-style personas
-     - Demo/backtest oriented
-     - Not the main focus
+     - Saved-fund backtest command documented
+     - Roadmap; README says no actual trades
      - Limited
      - No
    * - OpenAlice
@@ -66,15 +66,15 @@ Quick Comparison
    * - Vibe-Trading
      - Personal trading agent
      - Yes
-     - Yes
-     - Agent trading platform focus
-     - Limited
+     - Backtest tools and evidence tracking documented
+     - Broker connectors; support varies by connector
+     - Strategy artifacts documented
      - Platform-specific
    * - AI-Trader
      - Agent-native trading platform
      - Yes
-     - Platform focus
-     - Platform focus
+     - Inspect platform experiment/simulation workflow
+     - Broker-sync and simulated-trading workflows documented
      - Limited
      - Platform-specific
    * - OpenBB
@@ -107,8 +107,9 @@ Detailed Comparisons
 Why Lumibot Is Different
 ************************
 
-Most AI trading demos stop at research, a notebook, or a simulated agent
-conversation. Lumibot is built around the strategy lifecycle:
+Projects overlap, and several offer backtesting and execution-related workflows.
+Choose by the interface, market-data contract, supported broker operations, and
+evidence you need. LumiBot is built around the Strategy lifecycle:
 
 - **Design the agent flow you want:** single agent, research-to-trade,
   bull/bear/neutral team, specialist desk, model debate, or a hybrid flow.
@@ -136,9 +137,11 @@ Source And Verification Method
 ******************************
 
 This page compares product roles and documented capabilities, not investment
-returns. Project claims were checked against each project's public
-documentation or source repository on July 28, 2026. Capabilities can change,
-so use the linked primary sources before making a technical decision.
+returns. The TradingAgents, ai-hedge-fund, Vibe-Trading and AI-Trader rows were refreshed
+from their primary repository READMEs on September 12, 2026. These are documented
+capabilities, not integrations independently executed for this comparison.
+Other rows retain the July 28, 2026 review. Capabilities can change; check the
+linked source and the exact revision before making a technical decision.
 
 - `Lumibot documentation <https://lumibot.lumiwealth.com/>`_
 - `TradingAgents source repository <https://github.com/TauricResearch/TradingAgents>`_

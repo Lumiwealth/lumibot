@@ -36,6 +36,8 @@ def managed_gateway_without_byok(monkeypatch):
         "openai/gpt-5.6-luna",
         "claude-sonnet-5",
         "anthropic/claude-sonnet-5",
+        "anthropic/opus",
+        "anthropic/fable",
         "grok-4.5",
         "xai/grok-4.5",
     ],

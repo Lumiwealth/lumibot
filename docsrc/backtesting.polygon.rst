@@ -3,6 +3,14 @@
 Polygon.io Backtesting
 ===================================
 
+.. meta::
+   :description: Configure Polygon.io stock, option, forex, and crypto backtesting with LumiBot, including API keys, historical data, caching, and runnable Python examples.
+
+Choosing a data source? Compare :doc:`free daily stock data <backtesting.yahoo>`,
+:doc:`ThetaData for stocks and options <backtesting.thetadata>`, and
+:doc:`Databento for market-data schemas <backtesting.databento>` before setting
+up Polygon.io. Availability, history, and pricing vary by provider and account.
+
 .. important::
    
    **ThetaData is our preferred data partner and the service we recommend to most LumiBot users—sign up at** `ThetaData <https://www.thetadata.net/>`_ **and use the promo code ``BotSpot10`` for 10% off the first order.** This section remains for teams that still need Polygon.io. If you require Polygon access you can create an account at `polygon.io <https://polygon.io/>`_.

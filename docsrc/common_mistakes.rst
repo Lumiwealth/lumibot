@@ -3,8 +3,39 @@ Common Mistakes and How to Avoid Them
 
 This page documents the most common mistakes made when writing Lumibot strategies, along with the correct patterns to use instead.
 
+Restoring Asset Variables After a Restart
+--------------------------------------------------------------------------------
+
+Keep instruments as ``Asset`` objects in ``self.vars``. New scheduled-file and
+database backups preserve their type, including assets nested in lists,
+dictionaries, or tuples. Restored objects can be passed directly to
+``get_position()`` and ``add_ohlc()``.
+Sets still restore as lists, with their asset values preserved.
+
+Older backups may contain an untagged asset dictionary. Such dictionaries are
+not converted automatically because the same shape can be ordinary strategy
+metadata. When migrating a known instrument variable, reconstruct it explicitly
+with ``Asset.from_dict(value)`` after restoration and before using strategy APIs.
+Do not apply this conversion to arbitrary dictionaries or discard other saved
+strategy state. Backups written by the updated runtime should be restored by
+the updated runtime; older versions do not understand the asset type tag.
+
 Critical Mistakes (Will Break Your Strategy)
 --------------------------------------------
+
+Using an Unfinished Crypto Candle as Historical Evidence
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+CCXT candles are timestamped at their opening time. At 09:00, the eventual
+close of the 09:00–09:01 candle is not known. Default CCXT backtest history
+and last-price queries therefore use completed candles only. This applies to
+minute, hour and day bars, including AI research through those methods.
+
+Do not add a negative history ``timeshift`` to make that future closing price
+available to your strategy. The backtesting broker uses an execution-only
+offset to simulate orders against the current candle; this does not make the
+whole candle valid evidence for the preceding decision. When no candle has
+closed yet, missing history is expected, not permission to invent a price.
 
 Using datetime.now() Instead of self.get_datetime()
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -392,3 +423,19 @@ Using sleep() in Strategy
         if elapsed > timedelta(seconds=5):
             # Now do the next step
             pass
+
+
+IBKR history waits and data-health diagnostics
+--------------------------------------------------------------------------------
+
+A provider rate limit is a retryable wait, not evidence that an instrument has
+no prices. When the downloader supplies structured rate-limit information,
+LumiBot retains the request identity and exposes the provider wait in download
+status. Buying more simultaneous quotes does not automatically remove
+historical-data pacing restrictions.
+
+Inspect the ``data_health`` field in backtest settings alongside the requested
+window and provider error details. An incomplete diagnostic is not an automatic
+backtest failure; a legitimate strategy can also produce no trades. Short daily
+requests include the full required history and calendar padding. Longer
+stock/index windows retain the five-year page cap and backward pagination.

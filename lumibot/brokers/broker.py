@@ -461,6 +461,8 @@ class Broker(ABC):
         # Shared Variables between threads
         self.name = name
         self._lock = RLock()
+        self._positions_snapshot_started = 0
+        self._positions_snapshot_applied = 0
         self._stop_event = threading.Event()  # Add stop event for clean shutdown
         self._runtime_telemetry = None
         # PERF: Backtesting is single-threaded, but SafeList lock acquisition shows up as
@@ -1051,58 +1053,72 @@ class Broker(ABC):
         """
         Sync the broker positions with the lumibot positions. Remove any lumibot positions that are not at the broker.
         """
-        # Only positions that existed before the broker snapshot began are
-        # eligible for stale pruning. A fill can add a local position while the
-        # remote read is in flight; absence from that older snapshot must not
-        # delete the newly observed fill.
-        positions_before_snapshot = {id(position) for position in self._filled_positions.get_list()}
+        # Sequence requests under the tracker lock, but never hold it across
+        # network I/O: fills and newer accessor reads must remain able to run.
+        with self._lock:
+            self._positions_snapshot_started += 1
+            snapshot_id = self._positions_snapshot_started
+            # Only pre-existing positions are eligible for stale pruning.
+            positions_before_snapshot = {id(position) for position in self._filled_positions.get_list()}
         positions_broker = self._pull_positions(strategy)
-        for position in positions_broker:
-            # Check if the position is None
-            if position is None:
-                continue
+        with self._lock:
+            # A slow response cannot erase or overwrite a newer applied snapshot.
+            # Failed newer reads do not supersede an older successful response.
+            if snapshot_id < self._positions_snapshot_applied:
+                return
+            for position in positions_broker:
+                # Check if the position is None
+                if position is None:
+                    continue
 
-            # Check against existing position.
-            position_lumi = [
-                pos_lumi
-                for pos_lumi in self._filled_positions.get_list()
-                if pos_lumi.asset == position.asset
-            ]
-            position_lumi = position_lumi[0] if len(position_lumi) > 0 else None
+                # Check against existing position.
+                position_lumi = [
+                    pos_lumi
+                    for pos_lumi in self._filled_positions.get_list()
+                    if pos_lumi.asset == position.asset
+                ]
+                position_lumi = position_lumi[0] if len(position_lumi) > 0 else None
 
-            if position_lumi:
-                self._sync_position_fields_from_broker(position_lumi, position)
+                if position_lumi:
+                    # A streamed fill added while the read was in flight is
+                    # newer than this snapshot, including its fields and owner.
+                    if id(position_lumi) not in positions_before_snapshot:
+                        continue
+                    self._sync_position_fields_from_broker(position_lumi, position)
 
-                # No current brokers have any way to distinguish between strategies for an open position.
-                # Therefore, we will just update the strategy to the current strategy.
-                # This is added here because with initial polling, no strategy is set for the positions so we
-                # can create ones that have no strategy attached. This will ensure that all stored positions have a
-                # strategy with subsequent updates.
-                if strategy:
-                    strategy_name = strategy.name if not isinstance(strategy, str) else strategy
-                    if position_lumi.strategy != strategy_name:
-                        position_lumi.strategy = strategy_name
-                        self._filled_positions.revision += 1
-            else:
-                # Add to positions in lumibot, position does not exist
-                # in lumibot.
-                if position.quantity != 0.0:
-                    self._filled_positions.append(position)
+                    # No current brokers have any way to distinguish between strategies for an open position.
+                    # Therefore, we will just update the strategy to the current strategy.
+                    # This is added here because with initial polling, no strategy is set for the positions so we
+                    # can create ones that have no strategy attached. This will ensure that all stored positions have a
+                    # strategy with subsequent updates.
+                    if strategy:
+                        strategy_name = strategy.name if not isinstance(strategy, str) else strategy
+                        if position_lumi.strategy != strategy_name:
+                            position_lumi.strategy = strategy_name
+                            self._filled_positions.revision += 1
+                else:
+                    # Add to positions in lumibot, position does not exist
+                    # in lumibot.
+                    if position.quantity != 0.0:
+                        self._filled_positions.append(position)
 
-        # Now iterate through lumibot positions.
-        # Remove lumibot position if not at the broker.
-        for position in self._filled_positions.get_list():
-            found = False
-            for position_broker in positions_broker:
-                if position_broker.asset == position.asset:
-                    found = True
-                    break
-            if (
-                not found
-                and id(position) in positions_before_snapshot
-                and (position.asset not in self.quote_assets)
-            ):
-                self._filled_positions.remove(position)
+            # Now iterate through lumibot positions.
+            # Remove lumibot position if not at the broker.
+            # get_list() exposes the live list; removing from it while iterating
+            # skips consecutive stale positions.
+            for position in list(self._filled_positions.get_list()):
+                found = False
+                for position_broker in positions_broker:
+                    if position_broker.asset == position.asset:
+                        found = True
+                        break
+                if (
+                    not found
+                    and id(position) in positions_before_snapshot
+                    and (position.asset not in self.quote_assets)
+                ):
+                    self._filled_positions.remove(position)
+            self._positions_snapshot_applied = snapshot_id
 
     def refresh_positions(self, strategy, ttl_seconds: float = 0.0):
         """Refresh live broker positions with a short throttle.
@@ -1497,6 +1513,21 @@ class Broker(ABC):
         if strategy is not None and not isinstance(strategy, str):
             return getattr(strategy, "name", getattr(strategy, "_name", None))
         return strategy
+
+    @staticmethod
+    def identifiers_equal(left, right) -> bool:
+        """Compare broker identifiers across native and serialized boundaries.
+
+        Alpaca returns ``uuid.UUID`` identifiers, while agent tools, JSON, and
+        scheduled-runtime state necessarily carry the same value as text. Keep
+        the broker-native value on the order, but make lookup tolerant of its
+        lossless string representation.
+        """
+        if left == right:
+            return True
+        if left is None or right is None:
+            return False
+        return str(left) == str(right)
 
     @staticmethod
     def _cache_result(cache: dict, key, value):
@@ -2523,7 +2554,7 @@ class Broker(ABC):
         if use_placeholders:
             tracked_orders.extend(self._placeholder_orders.get_list())
         for order in tracked_orders:
-            if order.identifier == identifier:
+            if self.identifiers_equal(order.identifier, identifier):
                 return order
         return None
 
@@ -2593,7 +2624,7 @@ class Broker(ABC):
     def get_order(self, identifier) -> Order:
         """get a tracked order given an identifier"""
         for order in self.get_all_orders():
-            if order.identifier == identifier:
+            if self.identifiers_equal(order.identifier, identifier):
                 return order
         return None
 

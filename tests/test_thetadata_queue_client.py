@@ -74,6 +74,23 @@ class TestQueueClientInit:
         assert client.timeout == 60.0
 
 
+def test_provider_cooldown_never_forces_duplicate_queue_submission(monkeypatch):
+    from lumibot.tools.data_downloader_queue_client import DownloaderQueueTimeout
+    client = QueueClient("http://test:8080", "test-key")
+    provider_wait = {"provider": "ibkr", "classification": "rate_limited", "status_code": 429, "retry_at": 1900}
+    client.check_or_submit = MagicMock(return_value=("same-request", "pending", True))
+    client.wait_for_result = MagicMock(side_effect=[
+        *[DownloaderQueueTimeout("provider waiting", provider_details=provider_wait) for _ in range(4)],
+        ({"data": [1]}, 200),
+    ])
+    monkeypatch.setattr("lumibot.tools.data_downloader_queue_client.time.sleep", lambda _: None)
+    with patch.object(client, "_invalidate_sessions") as invalidate:
+        result = client.execute_request(method="GET", path="ibkr/iserver/marketdata/history", query_params={}, timeout=1)
+    assert result == ({"data": [1]}, 200)
+    assert all(call.kwargs["correlation_id_override"] is None for call in client.check_or_submit.call_args_list)
+    invalidate.assert_not_called()
+
+
 class TestCorrelationId:
     """Tests for correlation ID generation."""
 

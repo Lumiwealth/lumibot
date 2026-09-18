@@ -44,12 +44,15 @@ Lumibot supports:
 Why Backtesting Matters
 ***********************
 
-Without backtesting, a multi-agent trading workflow is mostly a prompt
-experiment. You can read a transcript and hope the agents behave well later.
-With Lumibot, the same team must make decisions inside a repeatable historical
-simulation, using broker-like cash, positions, orders, and market data. That is
-how you find bad prompts, missing tool data, poor sizing, unwanted trades, and
-weak risk rules before moving toward real execution.
+TradingAgents' current README documents ticker/date analysis, checkpoints,
+and the limits of reproducibility when live news and social data are used.
+LumiBot's execution loop adds order and account artifacts to inspect alongside
+agent reasoning. For either project, record the data cutoff, model, source
+revision and actual evidence before comparing results.
+
+This description was checked against the `TradingAgents README
+<https://github.com/TauricResearch/TradingAgents>`_ on September 12, 2026.
+It is a documentation comparison, not an independently run benchmark.
 
 Short Version
 *************

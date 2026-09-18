@@ -11,9 +11,16 @@ broker accounts, live prices, premium news, trading actions, or private user dat
 ## Workflow
 
 1. Call `search_data_catalog` when the correct dataset is not already known.
-2. Call `query_data` for structured public data, or `search_documents` followed
+   Catalog results are metadata, not observations. Do not cite or summarize a
+   catalog entry as if it were the requested economic evidence.
+2. After selecting a structured dataset, call `query_data` for its observations.
+   For SEC evidence, call `search_documents` followed
    by `get_document` for SEC documents. Prefer a bounded section or search result
    over loading an entire filing.
+   When the task explicitly requires both structured macro evidence and SEC
+   evidence, you MUST call `query_data` for at least one relevant macro dataset
+   before finishing, as well as retrieving the SEC evidence. One category is not
+   a substitute for the other.
 3. Record the dataset id, source, attribution, effective or release date, and the
    query's time bound in the evidence packet.
 4. During a backtest, treat the simulated datetime as a hard wall. Always pass an

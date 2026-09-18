@@ -34,7 +34,7 @@ lumibot run my-bot --paper
   <img src="docs/assets/ai-trading/benefit-hero.png" alt="LumiBot: Python rules or AI agents, historical backtests and broker connections" width="640">
 </p>
 
-**Prefer traditional trading strategies?** Use `--template python` instead. Write your own rules, indicators, and order logic in a normal `Strategy` subclass, with no AI model and no model API key.
+**Prefer traditional trading strategies?** Use `--template python` instead. Write your own rules, indicators, and order logic in a normal `Strategy` subclass. No AI model or model API key is required.
 
 **[Python quickstart](#backtest-a-strategy)** · **[AI quickstart](#run-your-first-ai-backtest)** · [Python examples](https://lumibot.lumiwealth.com/examples.html) · [AI examples](https://lumibot.lumiwealth.com/agents_examples.html)
 

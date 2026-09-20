@@ -1,22 +1,24 @@
-AI-Only Opening Range Breakout
-==============================
+AI Opening Range Breakout
+=========================
 
 .. image:: ../docs/assets/ai-agent-workflows/ai-opening-range-breakout.png
    :alt: AI opening-range breakout workflow using LumiBot runtime skills, rules, market evidence, and execution
    :width: 100%
 
-``ai_opening_range_breakout.py`` is a minimal AI-only equity strategy. Python
-creates one trading agent and runs it each iteration. Entry, exit, and sizing
-rules live in the prompt, while the built-in ``stock-trading`` skill provides
-the reusable market-evidence, stock-order, and verification workflow.
+``ai_opening_range_breakout.py`` is a two-agent equity strategy. A research-only
+agent scans completed opening ranges and ranks valid breakouts. A dedicated
+trading-and-risk agent independently verifies that evidence, sizes the position,
+and is the only agent allowed to place a broker order. The built-in
+``stock-trading`` skill provides reusable market-evidence, stock-order, and
+verification mechanics.
 
 How it works
 ------------
 
-* The agent scans the configured universe with batch prices and history.
-* It builds the range only from completed regular-session bars beginning at 09:30 ET.
-* It requires a completed close outside the range, then sizes from the stop distance.
-* It manages exits and enforces the daily-entry and maximum-position rules.
+* The research agent scans the configured universe with batch prices and history.
+* It builds ranges only from completed regular-session bars beginning at 09:30 ET.
+* The trading-and-risk agent rechecks the strongest completed breakout and account state.
+* Only that final agent can size, submit, reconcile, and manage a broker order.
 
 Verified backtest evidence
 --------------------------

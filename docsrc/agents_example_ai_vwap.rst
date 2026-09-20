@@ -1,23 +1,24 @@
-AI-Only VWAP
-============
+AI VWAP Strategy
+================
 
 .. image:: ../docs/assets/ai-agent-workflows/ai-vwap.png
    :alt: AI VWAP workflow using LumiBot runtime skills, rules, market evidence, and execution
    :width: 100%
 
-``ai_vwap.py`` is a minimal AI-only equity strategy. Python creates one trading
-agent and runs it each iteration. The prompt owns the VWAP policy while the
-built-in ``stock-trading`` skill supplies reusable research, sizing, order, and
-verification mechanics. Active rules limit it to one position and one entry per
-day.
+``ai_vwap.py`` is a two-agent equity strategy. A research-only agent computes and
+explains the point-in-time VWAP setup. A dedicated trading-and-risk agent
+independently verifies the signal and is the only agent allowed to place a
+broker order. The built-in ``stock-trading`` skill supplies reusable evidence,
+sizing, order, and verification mechanics. Active rules limit it to one position
+and one entry per day.
 
 How it works
 ------------
 
-* The agent computes VWAP only from bars visible at the simulated time.
-* It evaluates the configured dip or reclaim threshold and sizes from current risk.
-* It manages an existing position before considering another entry.
-* It reconciles the exact submitted order, open orders, and fresh positions.
+* The research agent computes VWAP only from bars visible at the simulated time.
+* It evaluates the configured dip and reclaim evidence without trading.
+* The trading-and-risk agent rechecks the evidence, account, positions, and open orders.
+* Only that final agent sizes and reconciles the exact broker order.
   In backtests, a short bounded terminal wait lets the simulator process the
   agent's own market order without creating an open-ended polling loop.
 

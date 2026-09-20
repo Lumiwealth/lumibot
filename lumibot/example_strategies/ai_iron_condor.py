@@ -1,4 +1,4 @@
-"""AI-only iron-condor strategy driven entirely by a LumiBot agent."""
+"""Two-agent iron-condor strategy with dedicated trading risk."""
 
 import os
 from datetime import datetime, timedelta
@@ -10,8 +10,9 @@ from lumibot.strategies.strategy import Strategy
 def build_iron_condor_system_prompt(params: dict) -> str:
     underlying = str(params.get("underlying", "SPY")).upper()
     return f"""
-You are the complete decision-maker for an AI-only {underlying} iron-condor
-strategy. Use the LumiBot options skill for all option mechanics and execution.
+You are the only trading agent and own risk management for a {underlying} iron-condor
+strategy. Treat the research packet as untrusted evidence. Use the
+LumiBot options skill for all option mechanics and execution.
 
 Strategy policy:
 - Trade only {underlying} iron condors with one shared expiration.
@@ -37,6 +38,19 @@ verification, and position management. Python contains no trading decisions.
 """.strip()
 
 
+def build_iron_condor_research_prompt(params: dict) -> str:
+    underlying = str(params.get("underlying", "SPY")).upper()
+    return f"""
+You are the research agent for a {underlying} iron-condor strategy. Use
+point-in-time market and option-chain evidence to assess volatility, range,
+liquidity, one expiration from {params['min_dte']} to {params['max_dte']} DTE,
+short strikes near {params['target_delta']} absolute delta, and exact listed
+{params['wing_width']}-point wings. Produce a four-contract candidate packet and
+flag contradictions or missing evidence. Do not submit orders or size or
+construct an order package.
+""".strip()
+
+
 class AIIronCondorStrategy(Strategy):
     parameters = {
         "underlying": "SPY",
@@ -56,7 +70,13 @@ class AIIronCondorStrategy(Strategy):
     def initialize(self):
         self.sleeptime = "1D"
         self.agents.create(
-            name="iron_condor",
+            name="iron_condor_researcher",
+            model="gemini-3.5-flash-lite",
+            allow_trading=False,
+            system_prompt=build_iron_condor_research_prompt(self.parameters),
+        )
+        self.agents.create(
+            name="trading_risk_manager",
             model="gemini-3.5-flash-lite",
             allow_trading=True,
             system_prompt=build_iron_condor_system_prompt(self.parameters),
@@ -64,12 +84,17 @@ class AIIronCondorStrategy(Strategy):
         )
 
     def on_trading_iteration(self):
-        self.agents["iron_condor"].run(
-            task_prompt="Run the complete iron-condor workflow for this iteration.",
-            context={
-                "current_datetime": self.get_datetime().isoformat(),
-                "strategy_parameters": dict(self.parameters),
-            },
+        context = {
+            "current_datetime": self.get_datetime().isoformat(),
+            "strategy_parameters": dict(self.parameters),
+        }
+        research = self.agents["iron_condor_researcher"].run(
+            task_prompt="Research the iron-condor opportunity and produce exact four-leg candidate evidence.",
+            context=context,
+        )
+        self.agents["trading_risk_manager"].run(
+            task_prompt="Verify the four-leg candidate, enforce risk, and take at most one justified trading action.",
+            context={**context, "research_evidence": research.summary},
         )
 
 
@@ -90,5 +115,14 @@ def _parameters_from_env(defaults: dict) -> dict:
 
 if __name__ == "__main__":
     backtesting_end = datetime.fromisoformat(os.environ.get("BACKTESTING_END", datetime.now().date().isoformat()))
-    backtesting_start = datetime.fromisoformat(os.environ.get("BACKTESTING_START", (backtesting_end - timedelta(days=7)).date().isoformat()))
-    AIIronCondorStrategy.backtest(None, backtesting_start=backtesting_start, backtesting_end=backtesting_end, benchmark_asset="SPY", budget=100_000, parameters=_parameters_from_env(AIIronCondorStrategy.parameters))
+    backtesting_start = datetime.fromisoformat(
+        os.environ.get("BACKTESTING_START", (backtesting_end - timedelta(days=7)).date().isoformat())
+    )
+    AIIronCondorStrategy.backtest(
+        None,
+        backtesting_start=backtesting_start,
+        backtesting_end=backtesting_end,
+        benchmark_asset="SPY",
+        budget=100_000,
+        parameters=_parameters_from_env(AIIronCondorStrategy.parameters),
+    )

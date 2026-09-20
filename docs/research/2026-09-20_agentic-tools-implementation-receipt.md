@@ -221,10 +221,12 @@ The deterministic Congress replay proof is committed under
 
 Every replacement was generated as an independent GPT Image 2.5 Sunburst
 approved-generator output, copied without overlays or post-processing, and
-inspected at full resolution. The dense first batch was rejected and not added.
-The final direction uses a light background, Spot-style robot roles, few arrows,
-and very little text. Ray Dalio and Citadel were regenerated in the same simpler
-system rather than preserving their older arrow artifacts.
+inspected at full resolution. Rejected intermediate generations were discarded.
+The final visual grammar reserves the official LumiBot head for actual agents;
+input sources and broker-order outputs use separate non-agent symbols. Every
+card is explicitly tagged as input, agent, or output; titles and roles match the
+strategy names and audited code. Ray Dalio and Citadel show their independent
+research branches converging into the real adjudication and portfolio roles.
 
 New simple workflow images:
 
@@ -253,24 +255,57 @@ and output hash for every asset are recorded in
 Committed-output SHA-256 checksums:
 
 ```text
-62062d5628845cd319f98240a1753869783835795181cc5d4c36f3c7fdd2a09d  ai-browser-research-showcase.png
-9dc423d24e7adbb9ce59fface65bcf85ef9cc11ced4c29784724a95f38f05eba  ai-congress-disclosures.png
-4e1ac9cf4ffcc00c4ab42440b231b8076119cf49b3602b6a1df6b595b813a0ca  ai-credit-spread.png
-639a3bf19a14c9566002609682c210a115ef47f2c1d4a161415e436b7d010fd1  ai-iron-condor.png
-e929328cff462b76709b12a5592dbf04a9b8d88b4a987afe651f540976006dca  ai-opening-range-breakout.png
-82add84230c36659c28c63390c5b538613c03514d93df56af257df600c0d5da6  ai-sec-insider-filings.png
-ab74d18a0471137303e6c7aa4d2bfc91425e6dbf9f23b4936c5ca679be32d118  ai-spx-zero-dte-bear-call-team.png
-1e405a3e97fd0f8654164698cdf5206f5b8d003e5ba44a1cbac389b88ab5b932  ai-vwap.png
-d115acd09e12d8663b520e06f806fe88d57d6eb7802c0b3b30150467fe9af39b  bill-ackman-concentrated.png
-50267f7b324bc37a2859cb5406982458e3b1dcdaa384a486f3d3fb747015640b  bull-bear-large-cap-stocks.png
-701d80d1a6b3cce20539147d5c031c545beaf223d3d20f7e71a42c35321ce519  bull-bear-leveraged-etf.png
-3316eb0df31351353f4b4e691ea08404ad586f2e90f307619a6a80d4bf235d85  citadel-sector-pods.png
-08880ebef98df090d1bd185e38ed521ba3b416069eb7361659ba93860104a560  ray-dalio-idea-meritocracy.png
-c6cb5fc1fbbb1eb8ad198b06506e255828a91a85e7b948859bc5c821be96015b  warren-buffett-value.png
+e5b0ed490925cc2ce8b26ca804ab81e755db25051c2c1c1ef3828f43c5b687e0  ai-browser-research-showcase.png
+0704203c035132f205d5402302f1a8346bace941bd8ebec8f51f4ca62fcc2977  ai-congress-disclosures.png
+adb760ee1c4998277bda9a0f0f63dde4ac5850aef70bdb9ea3f8efee9f907509  ai-credit-spread.png
+0637c691fb262847d2d05666e37d5c61784c49e1da94a2b4f547169aef20c7ae  ai-iron-condor.png
+575666c971312cb44ae11e22817b32618d20289bf6d6c1597e7d93a10152c5fb  ai-opening-range-breakout.png
+77e2c2e3fff8dd46e29410695454a4dee232f46330d278c64267f91921765d01  ai-sec-insider-filings.png
+1c428e544d2a46ec78c3c8185b4e17a865b2b28fb87ee334d3d624aaacf2f624  ai-spx-zero-dte-bear-call-team.png
+20f5401380ed3fcd33773120ae2d3a08f196edf97e4056aaced7de1fb67d74f7  ai-vwap.png
+53d8e7a3ea0e46bbd6b1e1d31f0dca3ee3da12a2c4b3ed095f8d409a90f991c9  bill-ackman-concentrated.png
+8c9af5b1e98ccc306946b76b27638199db9a8df528d2961f38051802d9857af9  bull-bear-large-cap-stocks.png
+f84762abfcda8188851793f8f8ceee9297a3007746d3c5382f0e23d9463e66e9  bull-bear-leveraged-etf.png
+dbc88c9a18a6a70ab9963851eae8e4f3e17c14706ce791644ab083b6f03e4509  citadel-sector-pods.png
+53bf2289f7952b4db667466fffac25b85ac35441ad31bf86a46499c998126662  ray-dalio-idea-meritocracy.png
+d41083cf18d10e723b905b2baac2d6aebbf1076e1ea62c6dca19066a2bc87bf4  warren-buffett-value.png
 ```
 
 Sphinx completed successfully, every documented agent example resolves to an
 inspected PNG, and desktop plus 390-pixel mobile layouts were visually checked.
+
+The follow-up topology correction was verified separately after the four
+single-agent examples were split into research and trading/risk ownership:
+
+```text
+ruff check <four corrected strategies plus topology tests>
+All checks passed
+
+pytest tests/test_ai_two_agent_strategy_examples.py
+       tests/test_ai_vwap_example.py
+       tests/test_agent_options_builtins.py
+       tests/test_agent_capability_docs.py
+       tests/test_public_docs_tracking.py
+       tests/test_ai_trading_team_example.py
+       tests/test_public_docs_community_links.py -q
+45 passed
+
+pytest tests/ --ignore=tests/backtest/
+       -m 'not apitest and not downloader' -q
+2854 passed, 37 skipped, 73 deselected, 2 xfailed, 4 xpassed,
+83 subtests passed in 776.98 seconds
+
+sphinx-build -M html docsrc docsrc/_build -a -E
+success with the same 15 pre-existing documentation warnings
+
+git diff --check
+clean
+```
+
+The final deterministic artwork-hash assertion was added after the complete
+suite and then passed in its owning file (6/6). It verifies all fourteen
+committed image bytes against this receipt, so a future asset change cannot
+leave stale topology or hash evidence behind.
 
 ## External gates not represented as completed
 

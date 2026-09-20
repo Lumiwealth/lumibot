@@ -21,10 +21,15 @@ idea is the operating system: independent thinkers argue from different models
 of the world, the disagreement is explicit, and the final decision should be
 stronger because weak assumptions were challenged.
 
-In Lumibot, that turns into a macro trading team. One agent argues from growth,
-one argues from inflation and rates, one argues from debt, liquidity, currency,
-and policy pressure, then a disagreement agent stress-tests all three before
-the trader picks one ETF.
+In Lumibot, that turns into a macro trading team. Three independent research
+branches argue from growth, inflation and rates, and debt/liquidity/currency.
+Their evidence converges into a disagreement agent, then a dedicated trader
+builds the final diversified basket and places broker orders.
+
+The diagram uses parallel branches to show that the three specialists are peer
+inputs with no dependency on one another. The current example invokes those
+branches sequentially before the fan-in; it does not claim simultaneous model
+execution.
 
 These are educational examples with no affiliation or endorsement from Ray
 Dalio or Bridgewater, and are not replicas of their proprietary strategies.
@@ -36,7 +41,7 @@ How the team works
 * ``inflation_agent`` asks what wins or loses if inflation and rates surprise.
 * ``debt_liquidity_agent`` argues from debt, liquidity, currency, and policy pressure.
 * ``thoughtful_disagreement`` challenges the other agents and names the strongest idea.
-* ``trader`` buys the best macro ETF idea and is the only agent allowed to trade.
+* ``trader`` builds the diversified macro ETF basket and is the only agent allowed to place broker orders.
 
 Backtest snapshot
 -----------------

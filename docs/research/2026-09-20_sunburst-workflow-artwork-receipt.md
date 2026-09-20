@@ -3,22 +3,22 @@
 Date: 2026-09-20
 
 All fourteen assets below are independent, raw approved-generator outputs. They
-were copied into the documentation without cropping, retouching, compositing,
-overlays, or text repair and were inspected at full resolution.
+were regenerated after a code-topology audit, copied into the documentation
+without cropping, retouching, compositing, overlays, or text repair, and
+inspected at full resolution.
 
 ## Generation contract
 
 - Model: GPT Image 2.5 Sunburst
 - Quality: maximum
 - Purpose: website/documentation
-- Shared prompt: Create a clean, friendly LumiBot workflow diagram on a light
-  white-to-pale-blue background using the supplied Spot mascot as the character
-  language. Use a wide composition, large readable typography, one straight
-  horizontal flow, very few role labels, and only the arrows needed to show the
-  real code topology. Do not add charts, decorative finance icons, crossing
-  arrows, tiny labels, invented agents, or dense explanatory text. The final
-  trading or portfolio owner must be visually obvious. Render every label in
-  the supplied asset-specific contract exactly.
+- Shared prompt: Create a clean LumiBot workflow diagram on a pale warm
+  background. Only actual agents receive the supplied official LumiBot head and
+  an explicit ``AGENT`` tag. Inputs use source-specific icons, and broker orders
+  use a generic order-ticket icon plus an explicit ``OUTPUT`` tag; neither gets
+  an agent head. Use large typography, exact public strategy titles, exact code
+  roles, and only the arrows needed to show the audited topology. Render every
+  label exactly and add no explanatory prose.
 
 The following asset-specific prompt contracts record the exact topology and
 visible labels used for regeneration. The generator invocation also referenced
@@ -26,20 +26,20 @@ the previous asset and/or the canonical Spot close-up where useful.
 
 | Asset | Asset-specific prompt contract | Raw output | SHA-256 |
 |---|---|---|---|
-| `ai-congress-disclosures.png` | `Congress Disclosure Strategy`; subtitle `Public first. Research second. Risk decides.`; `Public Disclosure` -> `Research Agent` -> `Trading & Risk` -> `LumiBot`. | `.image_generator_output/image_20260920_172253_570345_1.png` | `9dc423d24e7adbb9ce59fface65bcf85ef9cc11ced4c29784724a95f38f05eba` |
-| `ai-sec-insider-filings.png` | `SEC Insider Filings`; subtitle `Public filing. Correct classification. Risk decides.`; `SEC Form 4` -> `Research Agent` -> `Trading & Risk` -> `LumiBot`. | `.image_generator_output/image_20260920_172535_191483_1.png` | `82add84230c36659c28c63390c5b538613c03514d93df56af257df600c0d5da6` |
-| `ai-browser-research-showcase.png` | `Browser Research Showcase`; subtitle `Log in. Research. Trade. Share proof.`; `Authorized Portal` -> `Browser Research` -> `Trading & Risk` -> `Optional Publisher`. | `.image_generator_output/image_20260920_172435_706858_1.png` | `62062d5628845cd319f98240a1753869783835795181cc5d4c36f3c7fdd2a09d` |
-| `ai-credit-spread.png` | `AI Credit Spread`; subtitle `One agent analyzes, sizes, and executes.`; `Market Data` -> `Credit Spread Agent` -> `LumiBot`. | `.image_generator_output/image_20260920_172634_272345_1.png` | `4e1ac9cf4ffcc00c4ab42440b231b8076119cf49b3602b6a1df6b595b813a0ca` |
-| `ai-iron-condor.png` | `AI Iron Condor`; subtitle `One agent finds, checks, and manages the spread.`; `Option Chain` -> `Iron Condor Agent` -> `LumiBot`. | `.image_generator_output/image_20260920_172731_475506_1.png` | `639a3bf19a14c9566002609682c210a115ef47f2c1d4a161415e436b7d010fd1` |
-| `ai-opening-range-breakout.png` | `AI Opening Range Breakout`; subtitle `One agent watches the range and manages the trade.`; `Opening Range` -> `ORB Agent` -> `LumiBot`. | `.image_generator_output/image_20260920_173055_767798_1.png` | `e929328cff462b76709b12a5592dbf04a9b8d88b4a987afe651f540976006dca` |
-| `ai-vwap.png` | `AI VWAP Strategy`; subtitle `One agent compares price, volume, and risk.`; `Price + Volume` -> `VWAP Agent` -> `LumiBot`. | `.image_generator_output/image_20260920_172958_690233_1.png` | `1e405a3e97fd0f8654164698cdf5206f5b8d003e5ba44a1cbac389b88ab5b932` |
-| `ai-spx-zero-dte-bear-call-team.png` | `SPX 0DTE Bear Call Team`; subtitle `Research finds the setup. Trading owns risk.`; `SPX Market` -> `Research Agent` -> `Trading Agent` -> `LumiBot`. | `.image_generator_output/image_20260920_172903_446080_1.png` | `ab74d18a0471137303e6c7aa4d2bfc91425e6dbf9f23b4936c5ca679be32d118` |
-| `bill-ackman-concentrated.png` | `Concentrated Quality Team`; subtitle `Find quality. Build conviction. Attack the thesis. Decide.`; `Quality Research` -> `Activist Bull` -> `Short Seller` -> `Portfolio Manager`. | `.image_generator_output/image_20260920_173150_319531_1.png` | `d115acd09e12d8663b520e06f806fe88d57d6eb7802c0b3b30150467fe9af39b` |
-| `bull-bear-large-cap-stocks.png` | `Bull vs Bear Large-Cap Stocks`; subtitle `Research. Debate. One trading decision.`; `Research` -> `Bull Case` -> `Bear Case` -> `Trader`. | `.image_generator_output/image_20260920_173319_994258_1.png` | `50267f7b324bc37a2859cb5406982458e3b1dcdaa384a486f3d3fb747015640b` |
-| `bull-bear-leveraged-etf.png` | `Bull vs Bear: Leveraged ETFs`; subtitle `Research. Debate. One trading decision.`; `ETF Research` -> `Bull Case` -> `Bear Case` -> `Trader`. | `.image_generator_output/image_20260920_173511_439165_1.png` | `701d80d1a6b3cce20539147d5c031c545beaf223d3d20f7e71a42c35321ce519` |
-| `warren-buffett-value.png` | `Long-Term Value Team`; subtitle `Read the filings. Demand value. Decide.`; `Report Reader` -> `Valuation Skeptic` -> `Portfolio Manager`. | `.image_generator_output/image_20260920_173416_190902_1.png` | `c6cb5fc1fbbb1eb8ad198b06506e255828a91a85e7b948859bc5c821be96015b` |
-| `ray-dalio-idea-meritocracy.png` | `Macro Idea Meritocracy`; subtitle `Build the view. Challenge it. Trade once.`; `Growth` -> `Inflation` -> `Debt & Liquidity` -> `Disagreement` -> `Trader`. | `.image_generator_output/image_20260920_173609_995618_1.png` | `08880ebef98df090d1bd185e38ed521ba3b416069eb7361659ba93860104a560` |
-| `citadel-sector-pods.png` | `Sector Pod Team`; subtitle `Five specialists. One risk review. One portfolio decision.`; `5 Sector Pods` -> `Risk Manager` -> `Portfolio Manager`; exactly two arrows. | `.codex/generated_images/01a0bb50-0e4b-7f02-b19b-59727f45df79/exec-9f45a615-0b90-4359-b99a-23dda0fb4ebc.png` | `3316eb0df31351353f4b4e691ea08404ad586f2e90f307619a6a80d4bf235d85` |
+| `ai-congress-disclosures.png` | `Congressional Disclosure Agent`; INPUT `Public Disclosure` -> AGENT `Disclosure Researcher` (`Checks timing and evidence`) -> AGENT `Trading & Risk` -> OUTPUT `Broker Order`. | `.codex/generated_images/01a0bb50-0e4b-7f02-b19b-59727f45df79/exec-685da486-bf4f-4b54-940b-327d0d4d1f95.png` | `0704203c035132f205d5402302f1a8346bace941bd8ebec8f51f4ca62fcc2977` |
+| `ai-sec-insider-filings.png` | `SEC Form 4 Insider-Filing Agent`; INPUT `SEC Form 4` -> AGENT `Form 4 Researcher` (`Classifies public filings`) -> AGENT `Trading & Risk` -> OUTPUT `Broker Order`. | `.codex/generated_images/01a0bb50-0e4b-7f02-b19b-59727f45df79/exec-19fed1db-3b6e-4333-964e-cfc27627ce98.png` | `77e2c2e3fff8dd46e29410695454a4dee232f46330d278c64267f91921765d01` |
+| `ai-browser-research-showcase.png` | `Authenticated Browser Research Showcase`; INPUT `Authorized Portal` -> AGENT `Browser Researcher` (`Logs in and extracts evidence`) -> AGENT `Trading & Risk` -> OUTPUT `Broker Order` -> optional AGENT `Receipt Publisher`. | `.codex/generated_images/01a0bb50-0e4b-7f02-b19b-59727f45df79/exec-2df1b373-8b0d-4476-86e5-2677143593cd.png` | `e5b0ed490925cc2ce8b26ca804ab81e755db25051c2c1c1ef3828f43c5b687e0` |
+| `ai-credit-spread.png` | `AI Credit Spread`; INPUT `Market + Option Chain` -> AGENT `Spread Researcher` (`Finds exact two-leg spread`) -> AGENT `Trading & Risk` -> OUTPUT `Broker Order`. | `.codex/generated_images/01a0bb50-0e4b-7f02-b19b-59727f45df79/exec-01251ac3-85e0-4e53-8e7c-3b6665e4bd3e.png` | `adb760ee1c4998277bda9a0f0f63dde4ac5850aef70bdb9ea3f8efee9f907509` |
+| `ai-iron-condor.png` | `AI Iron Condor`; INPUT `Market + Option Chain` -> AGENT `Condor Researcher` (`Finds exact four-leg spread`) -> AGENT `Trading & Risk` -> OUTPUT `Broker Order`. | `.codex/generated_images/01a0bb50-0e4b-7f02-b19b-59727f45df79/exec-37628ed7-7186-4807-a63d-14868220d401.png` | `0637c691fb262847d2d05666e37d5c61784c49e1da94a2b4f547169aef20c7ae` |
+| `ai-opening-range-breakout.png` | `AI Opening Range Breakout`; INPUT `Opening Range Data` -> AGENT `ORB Researcher` (`Builds signal evidence`) -> AGENT `Trading & Risk` -> OUTPUT `Broker Order`. | `.codex/generated_images/01a0bb50-0e4b-7f02-b19b-59727f45df79/exec-22b5bec0-ff43-4c7e-9431-631219757369.png` | `575666c971312cb44ae11e22817b32618d20289bf6d6c1597e7d93a10152c5fb` |
+| `ai-vwap.png` | `AI VWAP Strategy`; INPUT `Price + Volume` -> AGENT `VWAP Researcher` (`Computes signal evidence`) -> AGENT `Trading & Risk` -> OUTPUT `Broker Order`. | `.codex/generated_images/01a0bb50-0e4b-7f02-b19b-59727f45df79/exec-7e90122b-21dd-4322-8e4a-22bdc9b690e8.png` | `20f5401380ed3fcd33773120ae2d3a08f196edf97e4056aaced7de1fb67d74f7` |
+| `ai-spx-zero-dte-bear-call-team.png` | `Two-Agent SPX 0 DTE Bear Call Experiment`; INPUT `SPX + Option Chain` -> AGENT `SPX Researcher` -> AGENT `Trading & Risk` -> OUTPUT `Broker Order`. | `.codex/generated_images/01a0bb50-0e4b-7f02-b19b-59727f45df79/exec-9e0270c3-3480-497f-8d5c-e13f0091c461.png` | `1c428e544d2a46ec78c3c8185b4e17a865b2b28fb87ee334d3d624aaacf2f624` |
+| `bill-ackman-concentrated.png` | `Bill Ackman Concentrated AI Trading Team`; AGENT `Quality Researcher` -> AGENT `Activist Bull` -> AGENT `Short Seller` -> AGENT `Portfolio Manager` -> OUTPUT `Broker Order`. | `.codex/generated_images/01a0bb50-0e4b-7f02-b19b-59727f45df79/exec-85ed0ff9-c6be-4325-b27a-4d8f4a68cbfa.png` | `53d8e7a3ea0e46bbd6b1e1d31f0dca3ee3da12a2c4b3ed095f8d409a90f991c9` |
+| `bull-bear-large-cap-stocks.png` | `Bull/Bear Large-Cap Stocks AI Trading Team`; AGENT `Stock Researcher` fans out to parallel AGENT peers `Bull Agent` and `Bear Agent`; they converge into AGENT `Trader & Risk` -> OUTPUT `Broker Order`. | `.codex/generated_images/01a0bb50-0e4b-7f02-b19b-59727f45df79/exec-1259a041-ccab-4a16-aac9-311a9e287976.png` | `8c9af5b1e98ccc306946b76b27638199db9a8df528d2961f38051802d9857af9` |
+| `bull-bear-leveraged-etf.png` | `Bull/Bear Leveraged ETF AI Trading Team`; AGENT `ETF Researcher` fans out to parallel AGENT peers `Bull Agent` and `Bear Agent`; they converge into AGENT `Trader & Risk` -> OUTPUT `Broker Order`. | `.codex/generated_images/01a0bb50-0e4b-7f02-b19b-59727f45df79/exec-752b1b53-3709-409f-86d3-2eb74d2b5b02.png` | `f84762abfcda8188851793f8f8ceee9297a3007746d3c5382f0e23d9463e66e9` |
+| `warren-buffett-value.png` | `Warren Buffett Value AI Trading Team`; AGENT `Report Reader` -> AGENT `Valuation Skeptic` -> AGENT `Portfolio Manager` -> OUTPUT `Broker Order`. | `.codex/generated_images/01a0bb50-0e4b-7f02-b19b-59727f45df79/exec-d5263a3d-ff38-4d53-940b-3d01c949a214.png` | `d41083cf18d10e723b905b2baac2d6aebbf1076e1ea62c6dca19066a2bc87bf4` |
+| `ray-dalio-idea-meritocracy.png` | `Ray Dalio Idea Meritocracy AI Trading Team`; parallel AGENT peers `Growth Agent`, `Inflation Agent`, and `Debt & Liquidity Agent` converge into AGENT `Disagreement Agent` -> AGENT `Trader & Risk` -> OUTPUT `Broker Orders`. | `.codex/generated_images/01a0bb50-0e4b-7f02-b19b-59727f45df79/exec-1bb817f3-18c4-47bc-a864-276c160ee5e8.png` | `53bf2289f7952b4db667466fffac25b85ac35441ad31bf86a46499c998126662` |
+| `citadel-sector-pods.png` | `Citadel Sector Pods AI Trading Team`; five parallel AGENT peers `Technology & Comms`, `Financials`, `Healthcare`, `Energy`, and `Consumer` converge into AGENT `Risk Manager` -> AGENT `Portfolio Manager` -> OUTPUT `Broker Orders`. | `.codex/generated_images/01a0bb50-0e4b-7f02-b19b-59727f45df79/exec-4b799c7f-f72f-4e5e-87df-85e067014fec.png` | `dbc88c9a18a6a70ab9963851eae8e4f3e17c14706ce791644ab083b6f03e4509` |
 
-The first thirteen assets are 1536 x 864. The final sector-pod asset is 1672 x
-941. Dimensions are generator-controlled and were not altered.
+Dimensions are generator-controlled and vary from 1536 x 1024 through 2073 x
+758. They were not cropped, resized, or otherwise altered after generation.

@@ -1,14 +1,14 @@
-AI-Only Iron Condor
-===================
+AI Iron Condor
+==============
 
 .. image:: ../docs/assets/ai-agent-workflows/ai-iron-condor.png
    :alt: AI iron-condor workflow using LumiBot runtime skills, rules, tools, and execution
    :width: 100%
 
-``ai_iron_condor.py`` is a minimal AI-only options strategy. Python creates one
-trading agent in ``initialize()`` and runs it in ``on_trading_iteration()``.
-The agent owns market retrieval, contract selection, sizing, four-leg order
-construction, submission, verification, and position management.
+``ai_iron_condor.py`` is a two-agent options strategy. A research-only agent
+finds and documents an exact four-contract candidate. A dedicated
+trading-and-risk agent independently rechecks the chain, prices and sizes the
+package, and is the only agent allowed to place a broker order.
 
 The system prompt contains only the strategy policy: underlying, delta, DTE,
 wing width, exits, and risk limits. Reusable options mechanics are supplied by
@@ -21,9 +21,9 @@ strategies keep the model identifier already stored in their code.
 How it works
 ------------
 
-* The agent loads the built-in options skill when options become relevant.
-* It reads the account, underlying, chain, exact contracts, Greeks, and quotes.
-* It prices and submits all four legs as one atomic multi-leg package.
+* The research agent reads the underlying, chain, contracts, Greeks, and quotes.
+* The trading-and-risk agent independently verifies the exact four legs and account risk.
+* Only that final agent prices and submits the atomic broker order.
 * It verifies the returned order and current signed positions before reporting state.
 
 Verified backtest evidence

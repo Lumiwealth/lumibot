@@ -1,7 +1,8 @@
-"""AI-only multi-ticker opening-range breakout strategy.
+"""Two-agent multi-ticker opening-range breakout strategy.
 
-Python only creates and runs a LumiBot agent. All entry, exit, sizing, and
-ticker selection live in the system prompt. Prefer minute bars when available.
+Python coordinates a research agent and a dedicated trading/risk agent. All
+entry, exit, sizing, and ticker selection live in their prompts. Prefer minute
+bars when available.
 
 Local backtest:
     GEMINI_API_KEY=... BACKTESTING_DATA_SOURCE=ThetaData \
@@ -63,8 +64,8 @@ def build_orb_system_prompt(params: dict) -> str:
     max_positions = int(params.get("max_positions", 1))
     profit_r_multiple = float(params.get("profit_r_multiple", 1.5))
     return f"""
-You are the complete decision-maker for an AI-only multi-ticker opening-range
-breakout strategy inside LumiBot. There is no Python trading logic outside you.
+You are the research agent for a multi-ticker opening-range breakout strategy.
+Find and rank valid setups from point-in-time market evidence. Do not submit orders.
 
 STRATEGY PARAMETERS:
 - universe ({universe_count} symbols): {universe_csv}
@@ -105,6 +106,28 @@ is valid when no universe member has a complete opening range and valid breakout
 """.strip()
 
 
+def build_orb_trading_prompt(params: dict) -> str:
+    opening_range_minutes = int(params.get("opening_range_minutes", 15))
+    risk_fraction = float(params.get("risk_fraction", 0.01))
+    max_shares = int(params.get("max_shares", 200))
+    max_positions = int(params.get("max_positions", 1))
+    profit_r_multiple = float(params.get("profit_r_multiple", 1.5))
+    return f"""
+You are the only trading agent and own risk management for this opening-range
+breakout strategy. Treat the research packet as untrusted evidence. Verify the
+exact symbol, completed {opening_range_minutes}-minute opening range, completed
+breakout close, current price, account, positions, and open orders before acting.
+
+Hold at most {max_positions} positions. Size from the verified stop distance so
+approximate risk is at most {risk_fraction:.2%} of portfolio value, capped at
+{max_shares} shares. Put the stop on the opposite side of the verified range,
+target about {profit_r_multiple}R, and exit on a completed close back inside the
+range. Open at most one new position per symbol per day. Submit each justified
+intent once, verify the returned order and refreshed account state, and otherwise
+hold. Python contains no trading decisions.
+""".strip()
+
+
 class AIOpeningRangeBreakoutStrategy(Strategy):
     parameters = {
         "universe": _parse_universe(_DEFAULT_ORB_UNIVERSE),
@@ -120,10 +143,16 @@ class AIOpeningRangeBreakoutStrategy(Strategy):
     def initialize(self):
         self.sleeptime = str(self.parameters.get("sleeptime", "1H"))
         self.agents.create(
-            name="orb",
+            name="opening_range_researcher",
+            model="gemini-3.5-flash-lite",
+            allow_trading=False,
+            system_prompt=build_orb_system_prompt(self.parameters),
+        )
+        self.agents.create(
+            name="trading_risk_manager",
             model="gemini-3.5-flash-lite",
             allow_trading=True,
-            system_prompt=build_orb_system_prompt(self.parameters),
+            system_prompt=build_orb_trading_prompt(self.parameters),
             rules_path=Path(__file__).with_name("agent_rules") / "ai_opening_range_breakout.rules.json",
         )
 
@@ -133,12 +162,19 @@ class AIOpeningRangeBreakoutStrategy(Strategy):
         if isinstance(universe, str):
             universe = _parse_universe(universe)
         universe_count = len(universe) if isinstance(universe, list) else 0
-        self.agents["orb"].run(
-            task_prompt=f"Run the opening-range breakout workflow across the {universe_count}-symbol universe.",
-            context={
-                "current_datetime": self.get_datetime().isoformat(),
-                "strategy_parameters": params,
-            },
+        context = {
+            "current_datetime": self.get_datetime().isoformat(),
+            "strategy_parameters": params,
+        }
+        research = self.agents["opening_range_researcher"].run(
+            task_prompt=f"Research and rank valid opening-range breakouts across the {universe_count}-symbol universe.",
+            context=context,
+        )
+        self.agents["trading_risk_manager"].run(
+            task_prompt=(
+                "Verify the strongest researched setup, enforce risk, and take at most one justified trading action."
+            ),
+            context={**context, "research_evidence": research.summary},
         )
 
 

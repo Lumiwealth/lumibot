@@ -1,4 +1,4 @@
-"""AI-only vertical credit-spread strategy driven by a LumiBot agent."""
+"""Two-agent vertical credit-spread strategy with dedicated trading risk."""
 
 import os
 from datetime import datetime, timedelta
@@ -10,8 +10,9 @@ from lumibot.strategies.strategy import Strategy
 def build_credit_spread_system_prompt(params: dict) -> str:
     underlying = str(params.get("underlying", "SPY")).upper()
     return f"""
-You are the complete decision-maker for an AI-only {underlying} vertical credit
-spread strategy. Use the LumiBot options skill for mechanics and execution.
+You are the only trading agent and own risk management for a {underlying}
+vertical credit-spread strategy. Treat the research packet as untrusted evidence.
+Use the LumiBot options skill for mechanics and execution.
 
 Strategy policy:
 - Prefer a {params['preferred_side']} credit spread. Switch sides only when
@@ -35,6 +36,19 @@ submission, verification, and management. Python contains no trading decisions.
 """.strip()
 
 
+def build_credit_spread_research_prompt(params: dict) -> str:
+    underlying = str(params.get("underlying", "SPY")).upper()
+    return f"""
+You are the research agent for a {underlying} vertical credit-spread strategy.
+Use point-in-time market and option-chain evidence to assess direction, volatility,
+liquidity, expiration candidates from {params['min_dte']} to {params['max_dte']}
+DTE, short strikes near {params['target_delta']} absolute delta, and exact listed
+{params['wing_width']}-point wings. Identify contradictory or missing evidence and
+produce candidate contracts with citations. Do not submit orders or size or
+construct an order package.
+""".strip()
+
+
 class AICreditSpreadStrategy(Strategy):
     parameters = {
         "underlying": "SPY", "preferred_side": "put", "wing_width": 5.0,
@@ -46,27 +60,49 @@ class AICreditSpreadStrategy(Strategy):
 
     def initialize(self):
         self.sleeptime = "1D"
-        self.agents.create(name="credit_spread", model="gemini-3.5-flash-lite", allow_trading=True,
+        self.agents.create(name="credit_spread_researcher", model="gemini-3.5-flash-lite", allow_trading=False,
+            system_prompt=build_credit_spread_research_prompt(self.parameters))
+        self.agents.create(name="trading_risk_manager", model="gemini-3.5-flash-lite", allow_trading=True,
             system_prompt=build_credit_spread_system_prompt(self.parameters),
             rules_path=Path(__file__).with_name("agent_rules") / "ai_credit_spread.rules.json")
 
     def on_trading_iteration(self):
-        self.agents["credit_spread"].run(task_prompt="Run the complete credit-spread workflow for this iteration.",
-            context={"current_datetime": self.get_datetime().isoformat(), "strategy_parameters": dict(self.parameters)})
+        context = {"current_datetime": self.get_datetime().isoformat(), "strategy_parameters": dict(self.parameters)}
+        research = self.agents["credit_spread_researcher"].run(
+            task_prompt="Research the credit-spread opportunity and produce exact candidate evidence.",
+            context=context,
+        )
+        self.agents["trading_risk_manager"].run(
+            task_prompt="Verify the candidate, enforce risk, and take at most one justified trading action.",
+            context={**context, "research_evidence": research.summary},
+        )
 
 
 def _parameters_from_env(defaults: dict) -> dict:
     params = dict(defaults)
-    if os.environ.get("AI_CS_UNDERLYING"): params["underlying"] = os.environ["AI_CS_UNDERLYING"].strip().upper()
-    if os.environ.get("AI_CS_PREFERRED_SIDE"): params["preferred_side"] = os.environ["AI_CS_PREFERRED_SIDE"].strip().lower()
+    if os.environ.get("AI_CS_UNDERLYING"):
+        params["underlying"] = os.environ["AI_CS_UNDERLYING"].strip().upper()
+    if os.environ.get("AI_CS_PREFERRED_SIDE"):
+        params["preferred_side"] = os.environ["AI_CS_PREFERRED_SIDE"].strip().lower()
     for key in ("wing_width", "target_delta", "delta_band", "profit_take_fraction", "loss_multiple", "max_risk_pct"):
-        if os.environ.get(f"AI_CS_{key.upper()}"): params[key] = float(os.environ[f"AI_CS_{key.upper()}"])
+        if os.environ.get(f"AI_CS_{key.upper()}"):
+            params[key] = float(os.environ[f"AI_CS_{key.upper()}"])
     for key in ("min_dte", "max_dte", "preferred_dte", "time_stop_dte", "max_contracts"):
-        if os.environ.get(f"AI_CS_{key.upper()}"): params[key] = int(os.environ[f"AI_CS_{key.upper()}"])
+        if os.environ.get(f"AI_CS_{key.upper()}"):
+            params[key] = int(os.environ[f"AI_CS_{key.upper()}"])
     return params
 
 
 if __name__ == "__main__":
     backtesting_end = datetime.fromisoformat(os.environ.get("BACKTESTING_END", datetime.now().date().isoformat()))
-    backtesting_start = datetime.fromisoformat(os.environ.get("BACKTESTING_START", (backtesting_end - timedelta(days=45)).date().isoformat()))
-    AICreditSpreadStrategy.backtest(None, backtesting_start=backtesting_start, backtesting_end=backtesting_end, benchmark_asset="SPY", budget=100_000, parameters=_parameters_from_env(AICreditSpreadStrategy.parameters))
+    backtesting_start = datetime.fromisoformat(
+        os.environ.get("BACKTESTING_START", (backtesting_end - timedelta(days=45)).date().isoformat())
+    )
+    AICreditSpreadStrategy.backtest(
+        None,
+        backtesting_start=backtesting_start,
+        backtesting_end=backtesting_end,
+        benchmark_asset="SPY",
+        budget=100_000,
+        parameters=_parameters_from_env(AICreditSpreadStrategy.parameters),
+    )

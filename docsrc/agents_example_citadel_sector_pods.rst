@@ -21,11 +21,15 @@ ask one generalist to understand every market at once. Give each specialist a
 clear lane, let them pitch their strongest idea, then put a risk manager and
 portfolio manager above the debate.
 
-In Lumibot, that becomes an AI trading team. Sector pods study different parts
-of the market, a risk manager challenges the strongest pitches, and only the
-portfolio manager has permission to submit orders. It is a good example when
-you want to test whether specialist agents can create better decisions than one
-single broad prompt.
+In Lumibot, that becomes an AI trading team. Five independent sector-pod
+research branches study different parts of the market, their evidence converges
+into a risk manager, and only the portfolio manager can build the diversified
+allocation and place broker orders. It is a good example when you want to test
+whether specialist agents can create better decisions than one broad prompt.
+
+The diagram uses parallel branches to show that all five pods are peer inputs
+with no dependency on one another. The current example invokes those branches
+sequentially before the fan-in; it does not claim simultaneous model execution.
 
 These are educational examples with no affiliation or endorsement from Citadel
 or its personnel, and are not replicas of a proprietary strategy.
@@ -39,7 +43,7 @@ How the team works
 * ``energy_pod`` looks at energy and commodity-sensitive exposure.
 * ``consumer_pod`` looks at consumer and housing-sensitive exposure.
 * ``risk_manager`` challenges crowding, drawdown, macro, and reversal risk.
-* ``portfolio_manager`` rotates into the strongest sector ETF and is the only agent allowed to trade.
+* ``portfolio_manager`` builds a diversified three-or-more-sector allocation and is the only agent allowed to place broker orders.
 
 Backtest snapshot
 -----------------

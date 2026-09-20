@@ -20,28 +20,17 @@ Read these first, they are the evidence behind this plan:
 - `docs/research/2026-09-18_growth-roi-plan.md`
 - `docs/research/2026-09-13_competitor-product-plan.md`
 
-## The architecture rule this all serves
+## Corrected architecture recommendation
 
-Rob's instruction, 2026-09-18, and it governs every item here.
+LumiBot supports one agent or any size team. For a fully agentic team, the
+recommended pattern is **two or more agents**, with at least one agent dedicated
+to trading and risk. Any number of research, analysis, debate, or specialist
+agents may support it. Deterministic Python execution and risk controls remain a
+valid alternative, and normal Python wiring in a strategy remains supported.
 
-A LumiBot AI strategy contains **two agents and almost no Python**. The only
-Python allowed in a strategy file is:
-
-- `self.sleeptime` in `initialize`
-- creating the agents in `initialize`
-- running the agents in `on_trading_iteration`
-
-Two agents: a research agent with `allow_trading=False`, and a trading agent
-with `allow_trading=True` that owns risk. Nothing else. No data fetching, no
-parsing, no HTTP calls, no business logic in the strategy.
-
-Rob: "It's pointless. If we have to add in fucking Python code that actually
-does this stuff, that completely takes away from the whole agentic trading
-thing."
-
-**So when an agent lacks a capability, the fix is a new LumiBot tool, never
-Python in the strategy.** The test he applies: "if I ask it to do a Pelosi
-trading strategy, it could just do that."
+This is guidance, not a framework restriction. Reusable capabilities such as
+HTTP, RSS, SEC, and browser control belong in tools; strategy-specific wiring
+and deterministic controls may remain in Python.
 
 ### On MCP, because this has caused confusion
 
@@ -110,14 +99,16 @@ EDGAR submissions API directly         -> newest Form 4 2026-09-18 (same day)
 ~/.lumibot/cache/sec/submissions/CIK0000320193.json   mtime May  5
 ```
 
-Four months stale and silent about it. Ten of the 51 builtin tools read
-through that path, so any live strategy using filings or fundamentals is
-trading on data frozen at first fetch, and it degrades the longer a deployment
-runs.
+Four months stale and silent about it. Nine exposed SEC tools plus the shared
+internal ticker/CIK lookup read through that path; the earlier total of ten was
+counting that internal consumer as though it were another public tool. Any live
+strategy using filings or fundamentals can therefore trade on data frozen at
+first fetch, and the error degrades the longer a deployment runs.
 
-**The fix is not a one-liner** because immutable caching is arguably correct
-for a backtest, where it gives point-in-time behaviour, and clearly wrong for
-live. The fix has to know which mode it is in. Suggested shape:
+**The fix is not a one-liner.** Immutable filing documents may remain cached,
+but a backtest still needs explicit publication-time filtering; freezing a
+company-facts response fetched today does not make it point-in-time data. The
+fix has to know which mode and `as_of` boundary it is serving:
 
 - Live: honour a TTL (an hour for submissions is sensible), and prefer a
   conditional request with `If-Modified-Since` so EDGAR's rate limits stay
@@ -133,56 +124,63 @@ triggers a refetch in live mode and does not in backtest mode.
 
 These are the unlock. Everything else in this document depends on them.
 
-### `http_fetch`
+### `http_request`
 
-A general GET and POST against any URL, returning text or parsed JSON. This
-single tool is the answer to "some random API has the data."
+A general HTTP transport supporting GET, HEAD, OPTIONS, POST, PUT, PATCH, and
+DELETE against public URLs, returning text, bytes, or parsed JSON.
 
-In scope: custom headers, bearer tokens, basic auth, query parameters,
-configurable timeout, a response size cap, and HTTPS obviously.
-Out of scope: cookie-jar login flows, which belong in the browser tool.
+In scope: custom headers, bearer tokens, basic auth, API-key profiles, query
+parameters, JSON/forms/multipart/raw bodies, cookie sessions, client
+certificates, redirects, downloads, configurable timeout, and a response-size
+cap. Secrets stay in host-scoped credential profiles and never enter model
+prompts or tool output.
 
-Safety: this hands an LLM the ability to call arbitrary URLs. Consider an
-allowlist or at minimum a block on private address ranges and link-local
-addresses, because SSRF from a trading agent is a real concern. Do not skip
-this part.
+Safety does not remove methods or public internet access. It blocks loopback,
+private/link-local/reserved networks, cloud metadata, and redirects into those
+networks. Trusted internal targets require an explicitly configured profile.
 
 ### `rss_fetch`
 
 Parse a feed into structured items. Small, and a lot of financial sources are
 still feeds.
 
-### `browser_fetch`
+### Stateful browser sessions
 
-For pages that genuinely need JavaScript. See item 3.
+For pages that need JavaScript, authentication, profiles, tabs, uploads,
+downloads, or consequential actions. See item 3.
 
 ## Item 3: browser control, with the evidence
 
 Full reasoning in `docs/research/2026-09-18_browser-control-evaluation.md`.
 The short version and the two findings that decide it:
 
-**Recommendation: Patchright with `channel=chrome`.**
+**Qualification result: no hosted default yet.**
 
-- Drop-in Playwright replacement, so `from patchright.sync_api import ...` and
-  nothing else changes.
-- It closes the `Runtime.enable` CDP leak, which is the layer anti-bot systems
-  actually gate on. A JavaScript stealth plugin runs too late to fix it.
-- Chromium-based and headless-native, so no Xvfb on Fargate.
-- Permissive licence.
+- Patchright 1.62.3 is Apache-2.0, fast, and completed 100/100 local ARM64
+  restart cycles, but its local headless fingerprint exposed `HeadlessChrome`
+  and zero plugins.
+- Camoufox 0.5.6 is MPL-2.0 and passed the same basic fingerprint probe and
+  100/100 restart cycles, but peaked around 1.35 GiB, above the current 1 GiB
+  Fargate task shape.
+- Browser Use is an orchestration reference, not a third rendering engine; do
+  not nest its LLM runtime inside LumiBot by default.
+- The winner must pass in the exact Linux ARM64 Bot Manager image before hosted
+  selection. See `docs/research/2026-09-20_browser-engine-qualification.md`.
 
 **Do not use nodriver**, even though it won the 2026 benchmark outright with
 28/31 and zero hard blocks. It is **AGPL-3.0**. The network clause reaches
 software offered to users over a network, which is exactly what BotSpot is.
 That is a question for counsel, not an engineering preference.
 
-**Camoufox is the escalation, not the default.** MIT, strongest on pure JS
+**Camoufox is the escalation, not the default.** MPL-2.0, strongest on pure JS
 fingerprinting, but it is a Firefox fork wanting 200+ MiB per instance on top
 of a ~150 MiB binary, and there is a direct practitioner report on X saying
 "Camoufox in Docker fails Cloudflare checks." Docker is our case.
 
-**Before any browser, try `curl_cffi`.** It cleared 26 of 31 Cloudflare targets
-with no browser at all. Most targets need no browser and the container never
-has to grow.
+Use HTTP when it is sufficient, but do not treat that as a replacement for the
+browser capability. Login flows, JavaScript-only applications, multi-tab work,
+uploads/downloads, and authenticated consequential actions still require the
+stateful browser surface.
 
 ### The infrastructure constraint
 
@@ -225,17 +223,19 @@ unprompted during the 2026-09-18 call, at 22:03 in the transcript at
 `/Users/robertgrzesik/Development/MarketingManager/docs/transcripts/2026-09-18_metamask-elisha-koh-call.txt`.
 It is a **nice-to-have demo**, not the MetaMask partnership. Do not let it grow.
 
-Build it as a LumiBot example and put it on the BotSpot marketplace. Two
-agents, zero Python, per the rule at the top.
+Build it as a LumiBot example with a disclosure researcher and a dedicated
+trading/risk agent. Additional agents and deterministic Python controls remain
+valid. Public marketplace use waits for licensed commercial data rights.
 
-**Data sources, all public domain, no browser needed:**
+**Candidate data sources, each requiring a rights review before commercial use:**
 
 - Senate: `efts.senate.gov` JSON API for Periodic Transaction Reports
 - House: `disclosures-clerk.house.gov` year-to-date ZIP plus per-filing PDFs
 - Free normalised APIs if the official ones are painful: QuantEngines (no key,
   20 req/min), Bargo (free key), capitol-api (open source, `?person=Pelosi`)
 
-It needs `http_fetch` and nothing else. Build that first.
+It uses `http_request`; browser control is optional when a licensed source
+genuinely requires it.
 
 **The constraint that must appear in the strategy docstring and in any
 marketplace listing:** STOCK Act disclosures lag the actual trade by **up to 45
@@ -279,10 +279,12 @@ Also `lumibot/example_strategies/stock_buy_and_hold.py` line 43 crashes on a
 
 ## Suggested order
 
-1. SEC cache TTL. It is a live correctness bug and it blocks item 4.
-2. `http_fetch`, with the SSRF guard.
-3. Congress strategy on `http_fetch`, two agents, zero Python.
-4. `browser_fetch` with Patchright, plus the Seeking Alpha example.
-5. `rss_fetch`.
+1. SEC point-in-time integrity plus live TTL/revalidation. It blocks valid
+   disclosure backtests.
+2. `http_request` plus `rss_fetch`, with the SSRF guard and credential profiles.
+3. Congress strategy on `http_request`, with a dedicated trading/risk owner.
+4. Stateful `BrowserSession` tools, with the engine selected by the ARM64
+   reliability and anti-detection benchmark.
+5. Browser showcase on the qualified stateful session layer.
 
 Each step makes the next one smaller, and each is independently testable.

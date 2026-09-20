@@ -85,7 +85,12 @@ def test_provider_cooldown_never_forces_duplicate_queue_submission(monkeypatch):
     ])
     monkeypatch.setattr("lumibot.tools.data_downloader_queue_client.time.sleep", lambda _: None)
     with patch.object(client, "_invalidate_sessions") as invalidate:
-        result = client.execute_request(method="GET", path="ibkr/iserver/marketdata/history", query_params={}, timeout=1)
+        result = client.execute_request(
+            method="GET",
+            path="ibkr/iserver/marketdata/history",
+            query_params={},
+            timeout=1,
+        )
     assert result == ({"data": [1]}, 200)
     assert all(call.kwargs["correlation_id_override"] is None for call in client.check_or_submit.call_args_list)
     invalidate.assert_not_called()
@@ -410,6 +415,26 @@ class TestWaitForResult:
                         client.wait_for_result("req-123", timeout=1.0, poll_interval=0.0)
 
         mocked_invalidate.assert_called_once_with("terminal result fetch failures")
+
+    def test_wait_for_result_failed_auth_error_is_terminal(self):
+        """A downloader-declared 401/403 auth failure must not enter the endless retry loop."""
+        client = QueueClient("http://test:8080", "test-key")
+        client._pending_requests["test-corr"] = QueuedRequestInfo(
+            request_id="req-123",
+            correlation_id="test-corr",
+            path="thetadata/v3/hist/option/ohlc",
+            status="failed",
+            error="ThetaTerminal response 403: session invalid",
+        )
+        client._request_id_to_correlation["req-123"] = "test-corr"
+
+        info = client._pending_requests["test-corr"]
+        with patch.object(client, "_refresh_status", return_value=info):
+            with patch.object(client, "get_result") as mocked_get_result:
+                with pytest.raises(RuntimeError, match="terminal authentication failure"):
+                    client.wait_for_result("req-123", timeout=1.0, poll_interval=0.0)
+
+        mocked_get_result.assert_not_called()
 
     @patch.object(requests.Session, 'get')
     def test_wait_for_result_timeout(self, mock_get):

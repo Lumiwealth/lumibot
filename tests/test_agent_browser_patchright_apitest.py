@@ -36,8 +36,32 @@ class _FixtureHandler(BaseHTTPRequestHandler):
             body = b"""<!doctype html><html><body><h1>Authenticated research dashboard</h1>
               <div id='signal'>Fixture signal: cautious bullish</div>
               <input id='note'><button id='save'
-                onclick="localStorage.setItem('note', document.querySelector('#note').value)">Save</button>
-              <script>document.body.dataset.ready='true'</script></body></html>"""
+                onclick="saveState()">Save</button>
+              <div id='local-storage-status'></div><div id='indexeddb-status'></div>
+              <script>
+                document.querySelector('#local-storage-status').textContent = localStorage.getItem('note') || '';
+                const openRequest = indexedDB.open('lumibot-fixture', 1);
+                openRequest.onupgradeneeded = () => openRequest.result.createObjectStore('state');
+                openRequest.onsuccess = () => {
+                  const db = openRequest.result;
+                  const read = db.transaction('state').objectStore('state').get('note');
+                  read.onsuccess = () => {
+                    document.querySelector('#indexeddb-status').textContent = read.result || '';
+                    document.querySelector('#indexeddb-status').dataset.ready = 'true';
+                  };
+                  window.saveState = () => {
+                    const note = document.querySelector('#note').value;
+                    localStorage.setItem('note', note);
+                    document.querySelector('#local-storage-status').textContent = note;
+                    const write = db.transaction('state', 'readwrite').objectStore('state').put(note, 'note');
+                    write.onsuccess = () => {
+                      document.querySelector('#indexeddb-status').textContent = note;
+                      document.querySelector('#indexeddb-status').dataset.ready = 'true';
+                    };
+                  };
+                };
+                document.body.dataset.ready='true';
+              </script></body></html>"""
             return self._send(200, body)
         if self.path == "/news":
             return self._send(200, b"<html><body><h1>Second tab</h1></body></html>")
@@ -138,6 +162,8 @@ def test_patchright_stateful_login_tabs_storage_and_screenshot(browser_fixture_s
     assert "Authenticated research dashboard" in observed["text"]
     manager.act(session_id, action="fill", selector="#note", value="persistent-note")
     manager.act(session_id, action="click", selector="#save")
+    manager.act(session_id, action="wait", selector="#indexeddb-status[data-ready=true]", value="attached")
+    assert "persistent-note" in manager.extract(session_id, selector="#indexeddb-status")["values"]
     screenshot = manager.screenshot(session_id, name="authenticated-dashboard")
     manager.tabs(session_id, "open", url=f"{browser_fixture_server}/news")
     assert len(manager.tabs(session_id, "list")["tabs"]) == 2
@@ -164,7 +190,18 @@ def test_patchright_stateful_login_tabs_storage_and_screenshot(browser_fixture_s
     manager.navigate(reopened["session_id"], f"{browser_fixture_server}/dashboard")
     persisted = manager.observe(reopened["session_id"])
     assert "Authenticated research dashboard" in persisted["text"]
-    manager.close(reopened["session_id"])
+    manager.act(
+        reopened["session_id"],
+        action="wait",
+        selector="#indexeddb-status[data-ready=true]",
+        value="attached",
+    )
+    persisted = manager.observe(reopened["session_id"])
+    assert persisted["text"].count("persistent-note") >= 2
+    closed = manager.close(reopened["session_id"])
+    trace_text = Path(closed["trace_path"]).read_text(encoding="utf-8")
+    assert '"event":"navigate"' in trace_text
+    assert '"event":"close"' in trace_text
 
 
 @pytest.mark.browserstress

@@ -8,6 +8,15 @@ from decimal import Decimal, InvalidOperation
 from typing import Any, Iterable
 
 _OPEN_MARKET_CODES = {"P", "S"}
+_TRANSACTION_KINDS = {
+    "P": "open_market_purchase",
+    "S": "open_market_sale",
+    "A": "grant_or_award",
+    "D": "disposition_to_issuer",
+    "F": "tax_or_exercise_payment",
+    "G": "gift",
+    "M": "option_exercise",
+}
 _TICKER = re.compile(r"^[A-Z][A-Z0-9]{0,9}(?:[.-][A-Z0-9]{1,4})?$")
 
 
@@ -68,6 +77,7 @@ def normalize_congress_disclosure(record: dict[str, Any]) -> dict[str, Any] | No
     disclosure_id = str(record.get("id") or record.get("DisclosureID") or "").strip() or _stable_id(
         (politician, ticker, transaction, transaction_date, published.isoformat(), amount_min, amount_max)
     )
+    fetched = _datetime(record.get("fetched_at")) or datetime.now(timezone.utc)
     return {
         "id": disclosure_id,
         "politician": politician,
@@ -75,6 +85,7 @@ def normalize_congress_disclosure(record: dict[str, Any]) -> dict[str, Any] | No
         "transaction": transaction,
         "transaction_date": transaction_date or None,
         "published_at": published.isoformat(),
+        "fetched_at": fetched.isoformat(),
         "amount_min": amount_min,
         "amount_max": amount_max,
         "amendment": bool(record.get("Amendment") or record.get("amendment")),
@@ -131,6 +142,7 @@ def parse_form4_xml(
     accession_number: str,
     acceptance_datetime: Any,
     source_url: str | None = None,
+    fetched_at: Any | None = None,
 ) -> list[dict[str, Any]]:
     try:
         root = ET.fromstring(xml_text)
@@ -139,12 +151,14 @@ def parse_form4_xml(
     published = _datetime(acceptance_datetime)
     if published is None:
         raise ValueError("acceptance_datetime must be a valid datetime.")
+    fetched = _datetime(fetched_at) or datetime.now(timezone.utc)
     document_type = _descendant_text(root, "documentType") or "4"
     ticker = (_descendant_text(root, "issuer", "issuerTradingSymbol") or "").upper()
     issuer_cik = _descendant_text(root, "issuer", "issuerCik")
     owner_name = _descendant_text(root, "reportingOwner", "reportingOwnerId", "rptOwnerName")
     owner_cik = _descendant_text(root, "reportingOwner", "reportingOwnerId", "rptOwnerCik")
     period_of_report = _descendant_text(root, "periodOfReport")
+    automatic_plan = str(_descendant_text(root, "aff10b5One") or "").strip().lower() in {"1", "true", "yes"}
     rows = []
     for element in root.iter():
         name = _local_name(element)
@@ -162,6 +176,9 @@ def parse_form4_xml(
         shares = _float(_descendant_text(element, "transactionAmounts", "transactionShares", "value"))
         price = _float(_descendant_text(element, "transactionAmounts", "transactionPricePerShare", "value"))
         derivative = name == "derivativeTransaction"
+        transaction_key = _stable_id(
+            (owner_cik, ticker, derivative, code, transaction_date, security_title, shares, price, acquired_disposed)
+        )
         transaction_id = _stable_id(
             (accession_number, owner_cik, ticker, derivative, code, transaction_date, security_title, shares, price)
         )
@@ -178,9 +195,13 @@ def parse_form4_xml(
                 "period_of_report": period_of_report,
                 "transaction_date": transaction_date,
                 "published_at": published.isoformat(),
+                "fetched_at": fetched.isoformat(),
+                "source": "sec_edgar_form4",
                 "security_title": security_title,
                 "transaction_code": code,
+                "transaction_kind": _TRANSACTION_KINDS.get(code, "other"),
                 "open_market": code in _OPEN_MARKET_CODES,
+                "automatic_plan": automatic_plan,
                 "acquired_disposed": acquired_disposed,
                 "shares": shares,
                 "price_per_share": price,
@@ -188,6 +209,7 @@ def parse_form4_xml(
                 "derivative": derivative,
                 "ownership": {"D": "direct", "I": "indirect"}.get(ownership_code, "unknown"),
                 "source_url": source_url,
+                "transaction_key": transaction_key,
             }
         )
     return rows
@@ -197,8 +219,7 @@ def visible_insider_transactions(records: Iterable[dict[str, Any]], *, as_of: An
     ceiling = _datetime(as_of)
     if ceiling is None:
         raise ValueError("as_of must be a valid datetime.")
-    visible = []
-    seen = set()
+    visible_by_transaction: dict[str, dict[str, Any]] = {}
     for record in records:
         transaction_id = str(record.get("id") or "").strip() or _stable_id(
             (
@@ -210,8 +231,20 @@ def visible_insider_transactions(records: Iterable[dict[str, Any]], *, as_of: An
             )
         )
         published = _datetime(record.get("published_at") or record.get("acceptance_datetime"))
-        if published is None or published > ceiling or transaction_id in seen:
+        if published is None or published > ceiling:
             continue
-        visible.append({**record, "id": transaction_id, "published_at": published.isoformat()})
-        seen.add(transaction_id)
-    return sorted(visible, key=lambda row: (row["published_at"], row["id"]))
+        transaction_key = str(record.get("transaction_key") or transaction_id)
+        candidate = {
+            **record,
+            "id": transaction_id,
+            "published_at": published.isoformat(),
+            "source": record.get("source") or "sec_edgar_form4",
+            "fetched_at": (_datetime(record.get("fetched_at")) or published).isoformat(),
+        }
+        existing = visible_by_transaction.get(transaction_key)
+        if existing is None or (candidate["published_at"], bool(candidate.get("amendment"))) > (
+            existing["published_at"],
+            bool(existing.get("amendment")),
+        ):
+            visible_by_transaction[transaction_key] = candidate
+    return sorted(visible_by_transaction.values(), key=lambda row: (row["published_at"], row["id"]))

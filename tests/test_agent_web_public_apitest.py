@@ -2,7 +2,7 @@ import pytest
 
 from lumibot.components.agents.web_tools import WebClient
 
-pytestmark = pytest.mark.apitest
+pytestmark = [pytest.mark.apitest, pytest.mark.public_http]
 
 
 def test_public_http_transport_reaches_an_owned_stable_example_endpoint():

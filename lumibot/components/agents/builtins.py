@@ -1077,7 +1077,7 @@ def _bind_last_price(strategy: Any, manager: Any) -> BoundTool:
             "Example: market_last_price(symbol='SPY', asset_type='stock')."
         ),
         function=last_price,
-        metadata={"kind": "builtin", "replay_on_cache": True},
+        metadata={"kind": "builtin", "replay_on_cache": True, "temporal": "strategy_clock_snapshot"},
     )
 
 
@@ -1176,7 +1176,7 @@ def _bind_last_prices(strategy: Any, manager: Any) -> BoundTool:
             'Example: market_last_prices(symbols_json=\'["SPY","QQQ","AAPL","MSFT"]\').'
         ),
         function=last_prices,
-        metadata={"kind": "builtin", "replay_on_cache": True},
+        metadata={"kind": "builtin", "replay_on_cache": True, "temporal": "strategy_clock_as_of"},
     )
 
 
@@ -1292,7 +1292,7 @@ def _bind_historical_prices(strategy: Any, manager: Any) -> BoundTool:
             'Examples: market_historical_prices(symbols_json=\'["SPY","QQQ","AAPL"]\', length=20, timestep=\'minute\'); market_historical_prices(symbols="AAPL", length=20, timestep="5minute").'
         ),
         function=historical_prices,
-        metadata={"kind": "builtin", "replay_on_cache": True},
+        metadata={"kind": "builtin", "replay_on_cache": True, "temporal": "strategy_clock_as_of"},
     )
 
 
@@ -1361,7 +1361,7 @@ def _bind_options_get_chain(strategy: Any, manager: Any) -> BoundTool:
             "Example: options_get_chain(symbol='SPY', include_strikes=false)."
         ),
         function=get_chain,
-        metadata={"kind": "builtin", "replay_on_cache": True},
+        metadata={"kind": "builtin", "replay_on_cache": True, "temporal": "strategy_clock_snapshot"},
     )
 
 
@@ -1403,7 +1403,7 @@ def _bind_options_get_strikes(strategy: Any, manager: Any) -> BoundTool:
             "Example: options_get_strikes(symbol='SPY', expiration='2026-09-18', right='put')."
         ),
         function=get_strikes,
-        metadata={"kind": "builtin", "replay_on_cache": True},
+        metadata={"kind": "builtin", "replay_on_cache": True, "temporal": "strategy_clock_snapshot"},
     )
 
 
@@ -1449,7 +1449,7 @@ def _bind_options_get_greeks(strategy: Any, manager: Any) -> BoundTool:
             "Example: options_get_greeks(symbol='SPY', expiration='2026-09-18', strike=650, right='call')."
         ),
         function=get_greeks,
-        metadata={"kind": "builtin", "replay_on_cache": True},
+        metadata={"kind": "builtin", "replay_on_cache": True, "temporal": "strategy_clock_snapshot"},
     )
 
 
@@ -1504,7 +1504,7 @@ def _bind_options_find_strike_for_delta(strategy: Any, manager: Any) -> BoundToo
             "Example: options_find_strike_for_delta(symbol='SPY', expiration='2026-09-18', right='put', target_delta=-0.16)."
         ),
         function=find_strike_for_delta,
-        metadata={"kind": "builtin", "replay_on_cache": True},
+        metadata={"kind": "builtin", "replay_on_cache": True, "temporal": "strategy_clock_snapshot"},
     )
 
 
@@ -1543,7 +1543,7 @@ def _bind_options_evaluate_market(strategy: Any, manager: Any) -> BoundTool:
             "Example: options_evaluate_market(symbol='SPY', expiration='2026-09-18', strike=650, right='call', max_spread_pct=0.20)."
         ),
         function=evaluate_market,
-        metadata={"kind": "builtin", "replay_on_cache": True},
+        metadata={"kind": "builtin", "replay_on_cache": True, "temporal": "strategy_clock_snapshot"},
     )
 
 
@@ -1661,7 +1661,7 @@ def _bind_options_find_expiration(strategy: Any, manager: Any) -> BoundTool:
             "Example: options_find_expiration(symbol='SPY', min_days=30, right='put')."
         ),
         function=find_expiration,
-        metadata={"kind": "builtin", "replay_on_cache": True},
+        metadata={"kind": "builtin", "replay_on_cache": True, "temporal": "strategy_clock_snapshot"},
     )
 
 
@@ -1710,7 +1710,7 @@ def _bind_options_check_spread_profit(strategy: Any, manager: Any) -> BoundTool:
             "Example: options_check_spread_profit(legs_json='[...]', initial_cost=-200)."
         ),
         function=check_spread_profit,
-        metadata={"kind": "builtin", "replay_on_cache": True},
+        metadata={"kind": "builtin", "replay_on_cache": True, "temporal": "strategy_clock_snapshot"},
     )
 
 
@@ -1982,7 +1982,7 @@ def _bind_load_history(strategy: Any, manager: Any) -> BoundTool:
             "Example: market_load_history_table(symbol='TQQQ', length=252, timestep='day', table_name='recent_prices')."
         ),
         function=load_history_table,
-        metadata={"kind": "builtin", "replay_on_cache": True},
+        metadata={"kind": "builtin", "replay_on_cache": True, "temporal": "strategy_clock_as_of"},
     )
 
 
@@ -2168,6 +2168,22 @@ def _bind_browser_session_close(strategy: Any, manager: Any) -> BoundTool:
     )
 
 
+def _bind_browser_session_recover(strategy: Any, manager: Any) -> BoundTool:
+    def browser_session_recover(session_id: str, resume_current_url: bool = True) -> dict[str, Any]:
+        return _browser_manager_for_strategy(strategy).recover(
+            session_id,
+            resume_current_url=resume_current_url,
+        )
+
+    return BoundTool(
+        name="browser_session_recover",
+        description="Restart a crashed browser session with the same persistent profile and optionally resume its URL.",
+        function=browser_session_recover,
+        source="builtin",
+        metadata={"kind": "browser", "cache_scope": "none"},
+    )
+
+
 def _bind_browser_navigate(strategy: Any, manager: Any) -> BoundTool:
     def browser_navigate(
         session_id: str,
@@ -2181,7 +2197,7 @@ def _bind_browser_navigate(strategy: Any, manager: Any) -> BoundTool:
         description="Navigate the active tab in a stateful browser session to a URL.",
         function=browser_navigate,
         source="builtin",
-        metadata={"kind": "browser", "cache_scope": "none"},
+        metadata={"kind": "browser", "cache_scope": "none", "temporal": "browser_observation_time"},
     )
 
 
@@ -2197,7 +2213,7 @@ def _bind_browser_observe(strategy: Any, manager: Any) -> BoundTool:
         description="Read the active tab URL, title and visible text, optionally with a screenshot.",
         function=browser_observe,
         source="builtin",
-        metadata={"kind": "browser", "cache_scope": "none"},
+        metadata={"kind": "browser", "cache_scope": "none", "temporal": "browser_observation_time"},
     )
 
 
@@ -2270,7 +2286,7 @@ def _bind_browser_extract(strategy: Any, manager: Any) -> BoundTool:
         description="Extract text or one attribute from every matching element in the active tab.",
         function=browser_extract,
         source="builtin",
-        metadata={"kind": "browser", "cache_scope": "none"},
+        metadata={"kind": "browser", "cache_scope": "none", "temporal": "browser_observation_time"},
     )
 
 
@@ -2313,7 +2329,7 @@ def _bind_browser_storage_state(strategy: Any, manager: Any) -> BoundTool:
         description="Persist the active browser context storage state inside its managed profile directory.",
         function=browser_storage_state,
         source="builtin",
-        metadata={"kind": "browser", "cache_scope": "none"},
+        metadata={"kind": "browser", "cache_scope": "none", "temporal": "browser_observation_time"},
     )
 
 
@@ -2334,7 +2350,7 @@ def _bind_browser_screenshot(strategy: Any, manager: Any) -> BoundTool:
         description="Save a browser screenshot inside the managed artifact directory and return its SHA-256 receipt.",
         function=browser_screenshot,
         source="builtin",
-        metadata={"kind": "browser", "cache_scope": "none"},
+        metadata={"kind": "browser", "cache_scope": "none", "temporal": "browser_observation_time"},
     )
 
 
@@ -2428,6 +2444,7 @@ def _bind_alpaca_news(strategy: Any, manager: Any) -> BoundTool:
             function=_unavailable_alpaca_news,
             metadata={
                 "kind": "builtin",
+                "temporal": "source_published_at_clamped_to_strategy_clock",
                 "disabled": True,
                 "disabled_reason": "missing Alpaca broker credentials or ALPACA_NEWS_API_KEY / ALPACA_NEWS_API_SECRET",
             },
@@ -2566,7 +2583,7 @@ def _bind_alpaca_news(strategy: Any, manager: Any) -> BoundTool:
         name="alpaca_news",
         description=ALPACA_NEWS_DESCRIPTION,
         function=alpaca_news,
-        metadata={"kind": "builtin"},
+        metadata={"kind": "builtin", "temporal": "source_published_at_clamped_to_strategy_clock"},
     )
 
 
@@ -2826,7 +2843,7 @@ def _bind_get_indicator(strategy: Any, manager: Any) -> BoundTool:
         ),
         function=get_indicator,
         source="builtin",
-        metadata={"kind": "indicator"},
+        metadata={"kind": "indicator", "temporal": "strategy_clock_as_of"},
     )
 
 
@@ -2925,7 +2942,7 @@ def _bind_get_indicators(strategy: Any, manager: Any) -> BoundTool:
         ),
         function=get_indicators,
         source="builtin",
-        metadata={"kind": "indicator"},
+        metadata={"kind": "indicator", "temporal": "strategy_clock_as_of"},
     )
 
 
@@ -3183,6 +3200,7 @@ def _disabled_fred_tool_if_needed(strategy: Any, manager: Any, tool_name: str) -
         source="builtin",
         metadata={
             "kind": "macro",
+            "temporal": "vintage_as_of_strategy_clock",
             "disabled": True,
             "disabled_reason": "missing FRED_API_KEY for point-in-time backtesting",
         },
@@ -3232,7 +3250,7 @@ def _bind_get_fred_series(strategy: Any, manager: Any) -> BoundTool:
         ),
         function=get_fred_series,
         source="builtin",
-        metadata={"kind": "macro", "cache_scope": "strategy_day"},
+        metadata={"kind": "macro", "cache_scope": "strategy_day", "temporal": "vintage_as_of_strategy_clock"},
     )
 
 
@@ -3251,7 +3269,7 @@ def _bind_get_fred_latest(strategy: Any, manager: Any) -> BoundTool:
         ),
         function=get_fred_latest,
         source="builtin",
-        metadata={"kind": "macro", "cache_scope": "strategy_day"},
+        metadata={"kind": "macro", "cache_scope": "strategy_day", "temporal": "vintage_as_of_strategy_clock"},
     )
 
 
@@ -3271,7 +3289,7 @@ def _bind_get_fred_snapshot(strategy: Any, manager: Any) -> BoundTool:
         ),
         function=get_fred_snapshot,
         source="builtin",
-        metadata={"kind": "macro", "cache_scope": "strategy_day"},
+        metadata={"kind": "macro", "cache_scope": "strategy_day", "temporal": "vintage_as_of_strategy_clock"},
     )
 
 
@@ -3292,6 +3310,219 @@ def _bind_notify_user(strategy: Any, manager: Any) -> BoundTool:
         function=notify_user,
         source="builtin",
         metadata={"kind": "notification"},
+    )
+
+
+def _bind_send_email(strategy: Any, manager: Any) -> BoundTool:
+    def send_email(
+        to: list[str] | str,
+        subject: str,
+        text: str = "",
+        html: str | None = None,
+        attachments: list[dict[str, Any]] | None = None,
+        idempotency_key: str | None = None,
+    ) -> dict[str, Any]:
+        result = strategy.send_email(
+            to=to,
+            subject=subject,
+            text=text,
+            html=html,
+            attachments=attachments,
+            idempotency_key=idempotency_key,
+        )
+        return _jsonable(result.__dict__)
+
+    return BoundTool(
+        name="send_email",
+        description=(
+            "Send one email through the strategy's configured provider. Use a stable idempotency_key for retries. "
+            "Backtests record simulated_not_sent communication evidence instead of sending."
+        ),
+        function=send_email,
+        source="builtin",
+        metadata={"kind": "communication", "communication_write": True},
+    )
+
+
+def _bind_list_sent_emails(strategy: Any, manager: Any) -> BoundTool:
+    def list_sent_emails(limit: int = 20, after: str | None = None, before: str | None = None) -> dict[str, Any]:
+        return strategy.list_sent_emails(limit=limit, after=after, before=before)
+
+    return BoundTool(
+        name="list_sent_emails",
+        description="List sent emails from the configured provider with cursor pagination.",
+        function=list_sent_emails,
+        source="builtin",
+        metadata={"kind": "communication", "communication_read": True},
+    )
+
+
+def _bind_get_sent_email(strategy: Any, manager: Any) -> BoundTool:
+    def get_sent_email(email_id: str) -> dict[str, Any]:
+        return strategy.get_sent_email(email_id)
+
+    return BoundTool(
+        name="get_sent_email",
+        description="Read one sent email by provider email ID.",
+        function=get_sent_email,
+        source="builtin",
+        metadata={"kind": "communication", "communication_read": True},
+    )
+
+
+def _bind_get_email_status(strategy: Any, manager: Any) -> BoundTool:
+    def get_email_status(email_id: str) -> dict[str, Any]:
+        return strategy.get_email_status(email_id)
+
+    return BoundTool(
+        name="get_email_status",
+        description="Read the current provider record and delivery state for one sent email.",
+        function=get_email_status,
+        source="builtin",
+        metadata={"kind": "communication", "communication_read": True},
+    )
+
+
+def _bind_list_received_emails(strategy: Any, manager: Any) -> BoundTool:
+    def list_received_emails(limit: int = 20, after: str | None = None, before: str | None = None) -> dict[str, Any]:
+        return strategy.list_received_emails(limit=limit, after=after, before=before)
+
+    return BoundTool(
+        name="list_received_emails",
+        description="List received emails from the configured provider with cursor pagination.",
+        function=list_received_emails,
+        source="builtin",
+        metadata={"kind": "communication", "communication_read": True},
+    )
+
+
+def _bind_get_received_email(strategy: Any, manager: Any) -> BoundTool:
+    def get_received_email(email_id: str) -> dict[str, Any]:
+        return strategy.get_received_email(email_id)
+
+    return BoundTool(
+        name="get_received_email",
+        description="Read one received email by provider email ID.",
+        function=get_received_email,
+        source="builtin",
+        metadata={"kind": "communication", "communication_read": True},
+    )
+
+
+def _bind_list_received_email_attachments(strategy: Any, manager: Any) -> BoundTool:
+    def list_received_email_attachments(email_id: str) -> dict[str, Any]:
+        return strategy.list_received_email_attachments(email_id)
+
+    return BoundTool(
+        name="list_received_email_attachments",
+        description="List the attachments on one received email.",
+        function=list_received_email_attachments,
+        source="builtin",
+        metadata={"kind": "communication", "communication_read": True},
+    )
+
+
+def _bind_get_received_email_attachment(strategy: Any, manager: Any) -> BoundTool:
+    def get_received_email_attachment(email_id: str, attachment_id: str) -> dict[str, Any]:
+        return strategy.get_received_email_attachment(email_id, attachment_id)
+
+    return BoundTool(
+        name="get_received_email_attachment",
+        description="Get one received-email attachment's current download metadata.",
+        function=get_received_email_attachment,
+        source="builtin",
+        metadata={"kind": "communication", "communication_read": True},
+    )
+
+
+def _bind_send_slack_message(strategy: Any, manager: Any) -> BoundTool:
+    def send_slack_message(
+        text: str,
+        channel: str | None = None,
+        thread_ts: str | None = None,
+        blocks: list[dict[str, Any]] | None = None,
+    ) -> dict[str, Any]:
+        return strategy.send_slack_message(text, channel=channel, thread_ts=thread_ts, blocks=blocks)
+
+    return BoundTool(
+        name="send_slack_message",
+        description="Post a Slack message or thread reply. Backtests record simulated_not_sent evidence.",
+        function=send_slack_message,
+        source="builtin",
+        metadata={"kind": "communication", "communication_write": True},
+    )
+
+
+def _bind_list_slack_messages(strategy: Any, manager: Any) -> BoundTool:
+    def list_slack_messages(
+        channel: str | None = None,
+        limit: int = 15,
+        cursor: str | None = None,
+        oldest: str | None = None,
+        latest: str | None = None,
+    ) -> dict[str, Any]:
+        return strategy.list_slack_messages(
+            channel=channel,
+            limit=limit,
+            cursor=cursor,
+            oldest=oldest,
+            latest=latest,
+        )
+
+    return BoundTool(
+        name="list_slack_messages",
+        description="Read recent messages from a configured Slack conversation.",
+        function=list_slack_messages,
+        source="builtin",
+        metadata={"kind": "communication", "communication_read": True},
+    )
+
+
+def _bind_list_slack_channels(strategy: Any, manager: Any) -> BoundTool:
+    def list_slack_channels(
+        limit: int = 100,
+        cursor: str | None = None,
+        types: str = "public_channel,private_channel",
+    ) -> dict[str, Any]:
+        return strategy.list_slack_channels(limit=limit, cursor=cursor, types=types)
+
+    return BoundTool(
+        name="list_slack_channels",
+        description="List Slack conversations visible to the configured bot token.",
+        function=list_slack_channels,
+        source="builtin",
+        metadata={"kind": "communication", "communication_read": True},
+    )
+
+
+def _bind_get_slack_message(strategy: Any, manager: Any) -> BoundTool:
+    def get_slack_message(message_ts: str, channel: str | None = None) -> dict[str, Any]:
+        return strategy.get_slack_message(message_ts, channel=channel)
+
+    return BoundTool(
+        name="get_slack_message",
+        description="Read one Slack message by conversation and timestamp.",
+        function=get_slack_message,
+        source="builtin",
+        metadata={"kind": "communication", "communication_read": True},
+    )
+
+
+def _bind_list_slack_thread(strategy: Any, manager: Any) -> BoundTool:
+    def list_slack_thread(
+        thread_ts: str,
+        channel: str | None = None,
+        limit: int = 15,
+        cursor: str | None = None,
+    ) -> dict[str, Any]:
+        return strategy.list_slack_thread(thread_ts, channel=channel, limit=limit, cursor=cursor)
+
+    return BoundTool(
+        name="list_slack_thread",
+        description="Read a Slack message thread by its parent timestamp.",
+        function=list_slack_thread,
+        source="builtin",
+        metadata={"kind": "communication", "communication_read": True},
     )
 
 
@@ -3816,6 +4047,13 @@ class _BrowserTools:
             binder=_bind_browser_session_close,
         )
 
+    def session_recover(self) -> ToolDefinition:
+        return ToolDefinition(
+            name="browser_session_recover",
+            description="Recover a crashed browser session.",
+            binder=_bind_browser_session_recover,
+        )
+
     def navigate(self) -> ToolDefinition:
         return ToolDefinition(
             name="browser_navigate",
@@ -3964,6 +4202,53 @@ class _NotificationTools:
     def notify_user(self) -> ToolDefinition:
         return ToolDefinition(name="notify_user", description="Send a user notification.", binder=_bind_notify_user)
 
+    def send_email(self) -> ToolDefinition:
+        return ToolDefinition(name="send_email", description="Send an email.", binder=_bind_send_email)
+
+    def list_sent_emails(self) -> ToolDefinition:
+        return ToolDefinition(name="list_sent_emails", description="List sent emails.", binder=_bind_list_sent_emails)
+
+    def get_sent_email(self) -> ToolDefinition:
+        return ToolDefinition(name="get_sent_email", description="Read one sent email.", binder=_bind_get_sent_email)
+
+    def get_email_status(self) -> ToolDefinition:
+        return ToolDefinition(name="get_email_status", description="Read sent email delivery status.", binder=_bind_get_email_status)
+
+    def list_received_emails(self) -> ToolDefinition:
+        return ToolDefinition(name="list_received_emails", description="List received emails.", binder=_bind_list_received_emails)
+
+    def get_received_email(self) -> ToolDefinition:
+        return ToolDefinition(name="get_received_email", description="Read a received email.", binder=_bind_get_received_email)
+
+    def list_received_email_attachments(self) -> ToolDefinition:
+        return ToolDefinition(
+            name="list_received_email_attachments",
+            description="List received email attachments.",
+            binder=_bind_list_received_email_attachments,
+        )
+
+    def get_received_email_attachment(self) -> ToolDefinition:
+        return ToolDefinition(
+            name="get_received_email_attachment",
+            description="Get a received email attachment.",
+            binder=_bind_get_received_email_attachment,
+        )
+
+    def send_slack_message(self) -> ToolDefinition:
+        return ToolDefinition(name="send_slack_message", description="Send a Slack message.", binder=_bind_send_slack_message)
+
+    def list_slack_messages(self) -> ToolDefinition:
+        return ToolDefinition(name="list_slack_messages", description="List Slack messages.", binder=_bind_list_slack_messages)
+
+    def list_slack_channels(self) -> ToolDefinition:
+        return ToolDefinition(name="list_slack_channels", description="List Slack channels.", binder=_bind_list_slack_channels)
+
+    def get_slack_message(self) -> ToolDefinition:
+        return ToolDefinition(name="get_slack_message", description="Read one Slack message.", binder=_bind_get_slack_message)
+
+    def list_slack_thread(self) -> ToolDefinition:
+        return ToolDefinition(name="list_slack_thread", description="Read a Slack thread.", binder=_bind_list_slack_thread)
+
 
 class _MemoryTools:
     def remember(self) -> ToolDefinition:
@@ -4103,6 +4388,7 @@ class _BuiltinTools:
             self.web.rss_fetch(),
             self.browser.session_open(),
             self.browser.session_close(),
+            self.browser.session_recover(),
             self.browser.navigate(),
             self.browser.observe(),
             self.browser.act(),
@@ -4129,6 +4415,19 @@ class _BuiltinTools:
             self.macro.get_fred_latest(),
             self.macro.get_fred_snapshot(),
             self.notifications.notify_user(),
+            self.notifications.send_email(),
+            self.notifications.list_sent_emails(),
+            self.notifications.get_sent_email(),
+            self.notifications.get_email_status(),
+            self.notifications.list_received_emails(),
+            self.notifications.get_received_email(),
+            self.notifications.list_received_email_attachments(),
+            self.notifications.get_received_email_attachment(),
+            self.notifications.send_slack_message(),
+            self.notifications.list_slack_channels(),
+            self.notifications.list_slack_messages(),
+            self.notifications.get_slack_message(),
+            self.notifications.list_slack_thread(),
             self.memory.remember(),
             self.memory.search(),
             self.memory.remember_proposal(),

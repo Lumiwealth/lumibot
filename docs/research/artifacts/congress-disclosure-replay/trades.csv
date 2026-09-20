@@ -1,0 +1,2 @@
+order_id,origin_role,disclosure_id,ticker,side,quantity,fill_price,notional,submitted_at,status
+c14aff6898c80a4ac860,trading_risk_manager,fixture-pelosi-nvda-2026-02-14,NVDA,buy,38,130.0,4940.0,2026-02-14T00:00:00+00:00,filled_fixture_replay

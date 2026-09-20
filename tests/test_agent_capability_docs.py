@@ -107,3 +107,53 @@ def test_all_nine_sec_agent_tools_declare_point_in_time_behavior():
     for definition in definitions.values():
         bound = definition.binder(strategy, None)
         assert bound.metadata["temporal"] == "published_at_as_of"
+
+
+def test_every_external_data_agent_tool_declares_temporal_behavior():
+    external_tool_names = {
+        "market_last_price",
+        "market_last_prices",
+        "market_historical_prices",
+        "market_load_history_table",
+        "options_get_chain",
+        "options_get_strikes",
+        "options_get_greeks",
+        "options_find_strike_for_delta",
+        "options_evaluate_market",
+        "options_find_expiration",
+        "options_check_spread_profit",
+        "alpaca_news",
+        "http_request",
+        "rss_fetch",
+        "get_indicator",
+        "get_indicators",
+        "get_income_statement",
+        "get_balance_sheet",
+        "get_cash_flow",
+        "get_company_facts",
+        "get_filings",
+        "search_filing",
+        "get_filing_document",
+        "list_filing_sections",
+        "get_filing_section",
+        "get_fred_series",
+        "get_fred_latest",
+        "get_fred_snapshot",
+        "browser_navigate",
+        "browser_observe",
+        "browser_extract",
+        "browser_storage_state",
+        "browser_screenshot",
+    }
+    definitions = {tool.name: tool for tool in BuiltinTools.all() if tool.name in external_tool_names}
+    strategy = SimpleNamespace(
+        fundamentals=object(),
+        macro=object(),
+        broker=SimpleNamespace(name=""),
+        is_backtesting=False,
+    )
+
+    assert set(definitions) == external_tool_names
+    for name, definition in definitions.items():
+        bound = definition.binder(strategy, None)
+        assert bound.metadata.get("temporal"), f"{name} must declare its temporal behavior"

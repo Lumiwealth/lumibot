@@ -1,0 +1,59 @@
+{
+  "as_of": "2026-04-01T00:00:00+00:00",
+  "availability_rule": "ReportDate/published_at, never TransactionDate",
+  "decisions": [
+    {
+      "at": "2026-02-14T00:00:00+00:00",
+      "decision": "order",
+      "disclosure_id": "fixture-pelosi-nvda-2026-02-14",
+      "order_id": "c14aff6898c80a4ac860",
+      "reason": "accepted",
+      "risk": {
+        "available_cash_before": 100000.0,
+        "average_dollar_volume": 32500000000.0,
+        "max_position_pct": 5.0,
+        "max_total_exposure_pct": 20.0,
+        "price": 130.0
+      },
+      "role": "trading_risk_manager",
+      "ticker": "NVDA"
+    },
+    {
+      "at": "2026-03-15T00:00:00+00:00",
+      "decision": "hold",
+      "disclosure_id": "fixture-pelosi-aapl-2026-03-15",
+      "reason": "no_long_position_to_sell",
+      "risk": {
+        "available_cash_before": 95060.0,
+        "average_dollar_volume": 13200000000.0,
+        "max_position_pct": 5.0,
+        "max_total_exposure_pct": 20.0,
+        "price": 240.0
+      },
+      "role": "trading_risk_manager",
+      "ticker": "AAPL"
+    }
+  ],
+  "ending_cash": 95060.0,
+  "ending_equity": 100000.0,
+  "initial_cash": 100000.0,
+  "orders": [
+    {
+      "disclosure_id": "fixture-pelosi-nvda-2026-02-14",
+      "fill_price": 130.0,
+      "notional": 4940.0,
+      "order_id": "c14aff6898c80a4ac860",
+      "origin_role": "trading_risk_manager",
+      "quantity": 38,
+      "side": "buy",
+      "status": "filled_fixture_replay",
+      "submitted_at": "2026-02-14T00:00:00+00:00",
+      "ticker": "NVDA"
+    }
+  ],
+  "positions": {
+    "NVDA": 38
+  },
+  "reporting_lag_warning": "Congressional disclosures may arrive up to 45 days after the transaction.",
+  "schema_version": 1
+}

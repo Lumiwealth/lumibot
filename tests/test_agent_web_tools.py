@@ -1,4 +1,5 @@
 import json
+from datetime import datetime, timezone
 
 import httpx
 import pytest
@@ -31,6 +32,51 @@ def test_http_request_supports_all_standard_methods_and_body_types():
 
     assert [entry[0] for entry in requests] == ["GET", "HEAD", "OPTIONS", "POST", "PUT", "PATCH", "DELETE"]
     assert json.loads(requests[3][2]) == {"side": "buy"}
+
+
+def test_http_request_and_rss_results_carry_stable_availability_provenance():
+    fetched_at = datetime(2026, 9, 20, 12, 0, tzinfo=timezone.utc)
+    feed = b"""<rss><channel><title>Filings</title><item><guid>filing-1</guid>
+      <title>New filing</title><link>https://example.test/filing-1</link>
+      <pubDate>Sun, 20 Sep 2026 11:30:00 GMT</pubDate></item></channel></rss>"""
+
+    def handler(request):
+        if request.url.path == "/feed":
+            return httpx.Response(
+                200,
+                content=feed,
+                headers={"content-type": "application/rss+xml", "date": "Sun, 20 Sep 2026 12:00:00 GMT"},
+            )
+        return httpx.Response(
+            200,
+            json={"ok": True},
+            headers={"date": "Sun, 20 Sep 2026 11:59:00 GMT"},
+        )
+
+    client = WebClient(
+        transport=httpx.MockTransport(handler),
+        resolver=_resolver,
+        clock=lambda: fetched_at,
+    )
+
+    response = client.request("GET", "https://example.test/data?secret=redacted")
+    feed_result = client.fetch_feed("https://example.test/feed")
+
+    assert response["id"] == response["content_sha256"]
+    assert response["source"] == "https://example.test/data"
+    assert response["published_at"] == "2026-09-20T11:59:00+00:00"
+    assert response["fetched_at"] == fetched_at.isoformat()
+    assert feed_result["source"] == "https://example.test/feed"
+    assert feed_result["fetched_at"] == fetched_at.isoformat()
+    assert feed_result["entries"][0] == {
+        "id": "filing-1",
+        "title": "New filing",
+        "link": "https://example.test/filing-1",
+        "published_at": "2026-09-20T11:30:00+00:00",
+        "fetched_at": fetched_at.isoformat(),
+        "source": "https://example.test/feed",
+        "summary": None,
+    }
 
 
 def test_http_request_supports_form_raw_multipart_and_binary_downloads():
@@ -227,12 +273,14 @@ def test_rss_fetch_sends_validators_handles_304_and_rejects_malformed_xml():
 
     assert first["entry_count"] == 1
     assert requests[1]["if-none-match"] == '"feed-v1"'
-    assert second == {
-        "ok": True,
-        "not_modified": True,
-        "url": "https://example.test/feed",
-        "entries": [],
-    }
+    assert second["ok"] is True
+    assert second["not_modified"] is True
+    assert second["url"] == "https://example.test/feed"
+    assert second["entries"] == []
+    assert second["source"] == "https://example.test/feed"
+    assert second["published_at"] is None
+    assert second["fetched_at"].endswith("+00:00")
+    assert len(second["id"]) == 64
     with pytest.raises(ValueError, match="Invalid RSS/Atom XML"):
         client.fetch_feed("https://example.test/malformed")
 
@@ -245,14 +293,16 @@ def test_http_request_returns_a_structured_redacted_transport_error():
 
     result = client.request("GET", "https://example.test/data?token=secret-query")
 
-    assert result == {
-        "ok": False,
-        "status_code": None,
-        "method": "GET",
-        "url": "https://example.test/data",
-        "redirects": [],
-        "error": {"type": "ReadTimeout", "message": "HTTP transport failed."},
-    }
+    assert result["ok"] is False
+    assert result["status_code"] is None
+    assert result["method"] == "GET"
+    assert result["url"] == "https://example.test/data"
+    assert result["source"] == "https://example.test/data"
+    assert result["published_at"] is None
+    assert result["fetched_at"]
+    assert result["id"]
+    assert result["redirects"] == []
+    assert result["error"] == {"type": "ReadTimeout", "message": "HTTP transport failed."}
 
 
 def test_web_tools_are_exposed_as_agent_builtins():

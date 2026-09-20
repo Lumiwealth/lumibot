@@ -23,6 +23,14 @@ def _host_matches(hostname: str, pattern: str) -> bool:
     return hostname == pattern
 
 
+def _redacted_url(url: str) -> str:
+    parsed = urlsplit(str(url or ""))
+    if not parsed.scheme:
+        return str(url or "")
+    port = f":{parsed.port}" if parsed.port else ""
+    return f"{parsed.scheme}://{parsed.hostname or ''}{port}{parsed.path}"
+
+
 @dataclass(frozen=True)
 class BrowserCredentialProfile:
     name: str
@@ -102,6 +110,20 @@ class BrowserSessionManager:
             raise ValueError(f"Unknown browser session {session_id!r}.")
         return session
 
+    def _trace(self, session_id: str, event: str, **details: Any) -> None:
+        session = self._session(session_id)
+        path = Path(session["trace_path"])
+        path.parent.mkdir(parents=True, exist_ok=True)
+        record = {
+            "event": event,
+            "session_id": session_id,
+            "profile": session["profile"],
+            "recorded_at": time.time(),
+            **details,
+        }
+        with path.open("a", encoding="utf-8") as handle:
+            handle.write(json.dumps(record, sort_keys=True, separators=(",", ":")) + "\n")
+
     def open(self, *, profile: str = "default", headless: bool = True) -> dict[str, Any]:
         profile_name = self._safe_name(profile, "profile")
         if profile_name in self._open_profiles:
@@ -111,39 +133,93 @@ class BrowserSessionManager:
         profile_dir = self.state_root / "profiles" / profile_name
         profile_dir.mkdir(parents=True, exist_ok=True)
         self.engine.open(session_id=session_id, profile_dir=profile_dir, headless=bool(headless))
+        trace_path = self.state_root / "artifacts" / session_id / "action-trace.jsonl"
         self._sessions[session_id] = {
             "profile": profile_name,
             "profile_dir": str(profile_dir),
             "headless": bool(headless),
             "opened_at": time.time(),
             "current_url": "about:blank",
+            "trace_path": str(trace_path),
         }
         self._open_profiles[profile_name] = session_id
+        self._trace(session_id, "open", headless=bool(headless))
         return {
             "ok": True,
             "session_id": session_id,
             "profile": profile_name,
             "profile_dir": str(profile_dir),
             "headless": bool(headless),
+            "trace_path": str(trace_path),
         }
 
     def close(self, session_id: str) -> dict[str, Any]:
         session = self._session(session_id)
-        self.engine.close(session_id)
-        self._sessions.pop(session_id, None)
-        self._open_profiles.pop(session["profile"], None)
-        return {"ok": True, "session_id": session_id, "closed": True}
+        self._trace(session_id, "close", current_url=_redacted_url(session["current_url"]))
+        trace_path = Path(session["trace_path"])
+        try:
+            self.engine.close(session_id)
+        finally:
+            self._sessions.pop(session_id, None)
+            self._open_profiles.pop(session["profile"], None)
+        return {
+            "ok": True,
+            "session_id": session_id,
+            "closed": True,
+            "trace_path": str(trace_path),
+            "trace_sha256": hashlib.sha256(trace_path.read_bytes()).hexdigest(),
+        }
+
+    def recover(self, session_id: str, *, resume_current_url: bool = True) -> dict[str, Any]:
+        """Restart a crashed session in place using its persistent profile."""
+        session = self._session(session_id)
+        try:
+            self.engine.close(session_id)
+        except Exception:
+            pass
+        self.engine.open(
+            session_id=session_id,
+            profile_dir=Path(session["profile_dir"]),
+            headless=bool(session["headless"]),
+        )
+        resumed_url = None
+        current_url = str(session.get("current_url") or "about:blank")
+        if resume_current_url and current_url != "about:blank":
+            result = self.engine.navigate(session_id, current_url, "domcontentloaded")
+            resumed_url = str(result.get("url") or current_url)
+            session["current_url"] = resumed_url
+        self._trace(session_id, "recover", resumed_url=_redacted_url(resumed_url or ""))
+        return {
+            "ok": True,
+            "session_id": session_id,
+            "profile": session["profile"],
+            "recovered": True,
+            "resumed_url": resumed_url,
+        }
 
     def navigate(self, session_id: str, url: str, *, wait_until: str = "domcontentloaded") -> dict[str, Any]:
         session = self._session(session_id)
         result = self.engine.navigate(session_id, str(url), str(wait_until))
         session["current_url"] = str(result.get("url") or url)
+        self._trace(
+            session_id,
+            "navigate",
+            url=_redacted_url(session["current_url"]),
+            wait_until=str(wait_until),
+            status_code=result.get("status_code"),
+        )
         return {"ok": True, "session_id": session_id, **result}
 
     def observe(self, session_id: str, *, include_screenshot: bool = False) -> dict[str, Any]:
         session = self._session(session_id)
         result = self.engine.observe(session_id, bool(include_screenshot))
         session["current_url"] = str(result.get("url") or session["current_url"])
+        self._trace(
+            session_id,
+            "observe",
+            url=_redacted_url(session["current_url"]),
+            include_screenshot=bool(include_screenshot),
+        )
         return {"ok": True, "session_id": session_id, **result}
 
     def act(
@@ -191,6 +267,14 @@ class BrowserSessionManager:
         }
         receipt_json = json.dumps(receipt_payload, sort_keys=True, separators=(",", ":"))
         receipt_payload["receipt_sha256"] = hashlib.sha256(receipt_json.encode()).hexdigest()
+        self._trace(
+            session_id,
+            "act",
+            action=normalized_action,
+            selector=selector,
+            url=_redacted_url(session["current_url"]),
+            receipt_sha256=receipt_payload["receipt_sha256"],
+        )
         return {"ok": True, "session_id": session_id, **result, "receipt": receipt_payload}
 
     def tabs(
@@ -203,11 +287,20 @@ class BrowserSessionManager:
     ) -> dict[str, Any]:
         self._session(session_id)
         result = self.engine.tabs(session_id, str(operation).lower(), tab_id, url)
+        self._trace(
+            session_id,
+            "tabs",
+            operation=str(operation).lower(),
+            tab_id=tab_id,
+            url=_redacted_url(url or ""),
+        )
         return {"ok": True, "session_id": session_id, **result}
 
     def extract(self, session_id: str, *, selector: str = "body", attribute: str | None = None) -> dict[str, Any]:
         self._session(session_id)
-        return {"ok": True, "session_id": session_id, **self.engine.extract(session_id, selector, attribute)}
+        result = self.engine.extract(session_id, selector, attribute)
+        self._trace(session_id, "extract", selector=selector, attribute=attribute, count=result.get("count"))
+        return {"ok": True, "session_id": session_id, **result}
 
     def login(
         self,
@@ -239,12 +332,21 @@ class BrowserSessionManager:
         receipt["receipt_sha256"] = hashlib.sha256(
             json.dumps(receipt, sort_keys=True, separators=(",", ":")).encode()
         ).hexdigest()
+        self._trace(
+            session_id,
+            "login",
+            credential_profile=credential_profile,
+            host=hostname,
+            submitted=bool(submit_selector),
+            receipt_sha256=receipt["receipt_sha256"],
+        )
         return {"ok": True, "session_id": session_id, "receipt": receipt}
 
     def save_storage_state(self, session_id: str) -> dict[str, Any]:
         session = self._session(session_id)
         path = Path(session["profile_dir"]) / "storage-state.json"
         saved = self.engine.save_storage_state(session_id, path)
+        self._trace(session_id, "storage_state", path=str(saved))
         return {"ok": True, "session_id": session_id, "path": saved}
 
     def screenshot(self, session_id: str, *, name: str = "screenshot", full_page: bool = True) -> dict[str, Any]:
@@ -255,6 +357,7 @@ class BrowserSessionManager:
         path = artifact_dir / f"{safe_name}.png"
         saved = self.engine.screenshot(session_id, path, bool(full_page))
         digest = hashlib.sha256(Path(saved).read_bytes()).hexdigest()
+        self._trace(session_id, "screenshot", path=str(saved), sha256=digest, full_page=bool(full_page))
         return {"ok": True, "session_id": session_id, "path": saved, "sha256": digest}
 
 
@@ -378,7 +481,10 @@ class PatchrightEngine:
             page.mouse.wheel(0, amount)
         elif action == "wait":
             if selector:
-                page.locator(selector).wait_for(timeout=timeout_ms)
+                state = str(value or "visible").lower()
+                if state not in {"attached", "detached", "visible", "hidden"}:
+                    raise ValueError("Browser wait state must be attached, detached, visible, or hidden.")
+                page.locator(selector).wait_for(state=state, timeout=timeout_ms)
             else:
                 page.wait_for_timeout(int(timeout_ms))
         elif action == "upload" and locator is not None:
@@ -460,3 +566,38 @@ class PatchrightEngine:
         path.parent.mkdir(parents=True, exist_ok=True)
         self._page(session_id).screenshot(path=str(path), full_page=full_page)
         return str(path)
+
+
+class CamoufoxEngine(PatchrightEngine):
+    """Optional Camoufox engine implementing the same session contract."""
+
+    def __init__(self) -> None:
+        super().__init__()
+        self._launchers: dict[str, Any] = {}
+
+    def open(self, *, session_id: str, profile_dir: Path, headless: bool) -> None:
+        try:
+            from camoufox.sync_api import Camoufox
+        except ImportError as exc:
+            raise RuntimeError(
+                "Camoufox browser tests require the optional 'camoufox' package and browser build. "
+                "Install camoufox and run 'python -m camoufox fetch'."
+            ) from exc
+
+        profile_dir.mkdir(parents=True, exist_ok=True)
+        launcher = Camoufox(
+            headless=bool(headless),
+            persistent_context=True,
+            user_data_dir=str(profile_dir),
+        )
+        context = launcher.__enter__()
+        if not context.pages:
+            context.new_page()
+        self._sessions[session_id] = {"context": context, "active_index": 0}
+        self._launchers[session_id] = launcher
+
+    def close(self, session_id: str) -> None:
+        self._session(session_id)
+        launcher = self._launchers.pop(session_id)
+        self._sessions.pop(session_id, None)
+        launcher.__exit__(None, None, None)

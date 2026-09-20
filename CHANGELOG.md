@@ -18,6 +18,12 @@
 ### Changed
 - Added full authenticated ``http_request`` and conditional ``rss_fetch`` tools, including all standard HTTP methods, host-scoped secret profiles, redirect revalidation, response bounds, persistent cookies, and private-network/metadata protections.
 - Added an optional Patchright browser runtime with persistent profiles, JavaScript interaction, multi-tab control, scoped login credentials, managed uploads/downloads, storage-state export, screenshots, and action receipts.
+- Added an optional Camoufox browser engine plus reproducible lifecycle,
+  fingerprint, latency, and memory qualification. No hosted default is selected
+  until an engine passes the exact Linux ARM64 Bot Manager gate.
+- Added independently allowlisted Resend email and Slack communication tools.
+  Historical runs use explicit fixtures for reads and can never force a live
+  send; attempted writes produce structured simulation receipts.
 - Agent evaluation resume rebuilds missing freshness receipts from matching completed ledger entries without repeating paid calls or changing their original timestamps.
 - Managed AI agents can select a reviewed provider reasoning effort end to end;
   unsupported provider/effort combinations fail visibly instead of being
@@ -1472,7 +1478,7 @@ Deploy marker: 4.5.11 release commit (`deploy 4.5.11`)
 - **Agent built-in tools are included by default when available.** Account, positions, open orders, history, docs search, indicators, SEC, FRED, memory, notifications, and order tools are available by default; `allow_trading=False` removes only mutating order tools.
 - **Alpaca news tool availability now depends on credentials.** The built-in Alpaca news tool is hidden when no Alpaca credentials are configured and uses the standard Alpaca credential environment variables when present.
 - **FRED no longer uses public CSV fallbacks.** Revised/no-key CSV access was removed from examples, docs, tests, and implementation; official FRED/ALFRED API access is the only supported macro-data fetch path.
-- **AI-agent docs and deployment guidance now require high-quality generated visuals.** Lumibot/BotSpot/Lumiwealth documentation visuals must use Nano Banana/GPT Image 2 quality and the canonical Spot brand reference when a mascot is helpful.
+- **AI-agent docs and deployment guidance now require high-quality generated visuals.** Lumibot/BotSpot/Lumiwealth final documentation visuals must use the approved GPT Image 2.5 Sunburst generator and the canonical Spot brand reference when a mascot is helpful.
 
 ### Fixed
 - **BotSpot cloud account snapshots are marked verified before use.** This prevents unverified broker/account reads from being treated as trusted performance data.

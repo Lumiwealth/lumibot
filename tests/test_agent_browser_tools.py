@@ -91,6 +91,61 @@ def test_browser_sessions_are_stateful_multitab_and_emit_action_receipts(tmp_pat
     assert Path(opened["profile_dir"]).name == "research"
 
 
+def test_browser_wait_forwards_explicit_locator_state(tmp_path):
+    engine = _FakeEngine()
+    manager = BrowserSessionManager(engine=engine, state_root=tmp_path)
+    opened = manager.open(profile="research", headless=True)
+
+    manager.act(
+        opened["session_id"],
+        action="wait",
+        selector="#indexeddb-status[data-ready=true]",
+        value="attached",
+    )
+
+    assert engine.actions[-1][1:] == (
+        "wait",
+        "#indexeddb-status[data-ready=true]",
+        "attached",
+    )
+
+
+def test_browser_session_writes_a_redacted_append_only_action_trace(tmp_path):
+    engine = _FakeEngine()
+    profile = BrowserCredentialProfile(
+        name="portal",
+        allowed_hosts=("research.example.test",),
+        username="trace-user@example.test",
+        password="trace-secret",
+    )
+    manager = BrowserSessionManager(
+        engine=engine,
+        state_root=tmp_path,
+        credential_profiles={"portal": profile},
+    )
+    opened = manager.open(profile="trace")
+    session_id = opened["session_id"]
+    manager.navigate(session_id, "https://research.example.test/login")
+    manager.login(
+        session_id,
+        credential_profile="portal",
+        username_selector="#username",
+        password_selector="#password",
+        submit_selector="#submit",
+    )
+    manager.act(session_id, action="fill", selector="#note", value="sensitive-note")
+    closed = manager.close(session_id)
+
+    trace_path = Path(closed["trace_path"])
+    events = [json.loads(line) for line in trace_path.read_text(encoding="utf-8").splitlines()]
+    serialized = json.dumps(events)
+    assert [event["event"] for event in events] == ["open", "navigate", "login", "act", "close"]
+    assert "trace-secret" not in serialized
+    assert "trace-user@example.test" not in serialized
+    assert "sensitive-note" not in serialized
+    assert closed["trace_sha256"]
+
+
 def test_browser_login_injects_host_scoped_credentials_without_returning_secrets(tmp_path):
     engine = _FakeEngine()
     profile = BrowserCredentialProfile(
@@ -171,6 +226,7 @@ def test_browser_tool_surface_is_available_to_agents():
     assert {
         "browser_session_open",
         "browser_session_close",
+        "browser_session_recover",
         "browser_navigate",
         "browser_observe",
         "browser_act",
@@ -182,9 +238,51 @@ def test_browser_tool_surface_is_available_to_agents():
     }.issubset(names)
 
 
+def test_browser_session_recovery_reopens_the_same_profile_and_current_url(tmp_path):
+    class CrashedEngine(_FakeEngine):
+        def __init__(self):
+            super().__init__()
+            self.open_calls = []
+            self.navigations = []
+
+        def open(self, *, session_id, profile_dir, headless):
+            self.open_calls.append((session_id, str(profile_dir), headless))
+            super().open(session_id=session_id, profile_dir=profile_dir, headless=headless)
+
+        def close(self, session_id):
+            raise RuntimeError("browser process already crashed")
+
+        def navigate(self, session_id, url, wait_until):
+            self.navigations.append((session_id, url, wait_until))
+            return super().navigate(session_id, url, wait_until)
+
+    engine = CrashedEngine()
+    manager = BrowserSessionManager(engine=engine, state_root=tmp_path)
+    opened = manager.open(profile="recoverable", headless=True)
+    session_id = opened["session_id"]
+    manager.navigate(session_id, "https://research.example.test/dashboard")
+
+    recovered = manager.recover(session_id)
+
+    assert recovered["ok"] is True
+    assert recovered["session_id"] == session_id
+    assert recovered["profile"] == "recoverable"
+    assert recovered["resumed_url"] == "https://research.example.test/dashboard"
+    assert len(engine.open_calls) == 2
+    assert engine.navigations[-1] == (
+        session_id,
+        "https://research.example.test/dashboard",
+        "domcontentloaded",
+    )
+
+
 def test_browser_types_are_public_agent_exports():
     from lumibot.components.agents import BrowserCredentialProfile as ExportedProfile
     from lumibot.components.agents import BrowserSessionManager as ExportedManager
+    from lumibot.components.agents import CamoufoxEngine as ExportedCamoufoxEngine
+    from lumibot.components.agents import PatchrightEngine as ExportedPatchrightEngine
 
     assert ExportedProfile is BrowserCredentialProfile
     assert ExportedManager is BrowserSessionManager
+    assert ExportedCamoufoxEngine.__name__ == "CamoufoxEngine"
+    assert ExportedPatchrightEngine.__name__ == "PatchrightEngine"

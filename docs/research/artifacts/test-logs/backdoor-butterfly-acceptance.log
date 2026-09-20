@@ -1,0 +1,10 @@
+s                                                                        [100%]
+=============================== warnings summary ===============================
+.venv/lib/python3.10/site-packages/websockets/legacy/__init__.py:6
+  /Users/robertgrzesik/Development/lumibot/.venv/lib/python3.10/site-packages/websockets/legacy/__init__.py:6: DeprecationWarning: websockets.legacy is deprecated; see https://websockets.readthedocs.io/en/stable/howto/upgrade.html for upgrade instructions
+    warnings.warn(  # deprecated in 14.0 - 2024-11-09
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ============================
+SKIPPED [1] tests/backtest/test_acceptance_backtests_ci.py:108: Missing required env vars for acceptance backtests: ['THETADATA_USERNAME', 'THETADATA_PASSWORD', 'DATADOWNLOADER_BASE_URL', 'DATADOWNLOADER_API_KEY', 'LUMIBOT_CACHE_S3_BUCKET', 'LUMIBOT_CACHE_S3_PREFIX', 'LUMIBOT_CACHE_S3_REGION', 'LUMIBOT_CACHE_S3_ACCESS_KEY_ID', 'LUMIBOT_CACHE_S3_SECRET_ACCESS_KEY']
+1 skipped, 1 warning in 0.21s

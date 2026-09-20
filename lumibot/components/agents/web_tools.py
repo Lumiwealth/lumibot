@@ -7,6 +7,7 @@ import json
 import socket
 import xml.etree.ElementTree as ET
 from dataclasses import dataclass, field
+from datetime import datetime, timezone
 from email.utils import parsedate_to_datetime
 from typing import Any, Callable, Iterable
 from urllib.parse import urljoin, urlsplit, urlunsplit
@@ -15,7 +16,7 @@ import httpx
 
 _ALLOWED_METHODS = {"GET", "HEAD", "OPTIONS", "POST", "PUT", "PATCH", "DELETE"}
 _REDIRECT_STATUSES = {301, 302, 303, 307, 308}
-_SAFE_RESPONSE_HEADERS = {"content-type", "content-length", "etag", "last-modified", "location", "retry-after"}
+_SAFE_RESPONSE_HEADERS = {"content-type", "content-length", "date", "etag", "last-modified", "location", "retry-after"}
 
 
 def _default_resolver(hostname: str) -> list[str]:
@@ -136,6 +137,7 @@ class WebClient:
         max_redirects: int = 10,
         transport: httpx.BaseTransport | None = None,
         resolver: Callable[[str], list[str]] | None = None,
+        clock: Callable[[], datetime] | None = None,
     ) -> None:
         self.credential_profiles = dict(credential_profiles or {})
         self.trusted_private_hosts = tuple(str(host) for host in trusted_private_hosts)
@@ -143,6 +145,7 @@ class WebClient:
         self.max_response_bytes = max(int(max_response_bytes), 1)
         self.max_redirects = max(int(max_redirects), 0)
         self._resolver = resolver or _default_resolver
+        self._clock = clock or (lambda: datetime.now(timezone.utc))
         self._transport = transport
         self._client = httpx.Client(
             timeout=self.timeout_seconds,
@@ -244,6 +247,7 @@ class WebClient:
         max_response_bytes: int | None = None,
     ) -> dict[str, Any]:
         normalized_method = str(method).upper().strip()
+        fetched_at = self._clock().astimezone(timezone.utc).isoformat()
         if normalized_method not in _ALLOWED_METHODS:
             raise ValueError(f"Unsupported HTTP method {normalized_method!r}.")
         body_count = sum(value is not None for value in (json_body, form_body, raw_body, files))
@@ -291,11 +295,16 @@ class WebClient:
                     auth=auth,
                 )
             except httpx.RequestError as exc:
+                safe_url = _safe_url(current_url)
                 return {
+                    "id": hashlib.sha256(f"{current_method}|{safe_url}|{type(exc).__name__}".encode()).hexdigest(),
                     "ok": False,
                     "status_code": None,
                     "method": current_method,
-                    "url": _safe_url(current_url),
+                    "url": safe_url,
+                    "source": safe_url,
+                    "published_at": None,
+                    "fetched_at": fetched_at,
                     "redirects": redirects,
                     "error": {"type": type(exc).__name__, "message": "HTTP transport failed."},
                 }
@@ -322,17 +331,29 @@ class WebClient:
         if len(content) > limit:
             raise ValueError(f"HTTP response exceeded the {limit} byte limit.")
         content_type = response.headers.get("content-type", "")
+        response_url = _safe_url(str(response.url))
+        published_at = None
+        if response.headers.get("date"):
+            try:
+                published_at = parsedate_to_datetime(response.headers["date"]).astimezone(timezone.utc).isoformat()
+            except (TypeError, ValueError, OverflowError):
+                published_at = None
+        content_sha256 = hashlib.sha256(content).hexdigest()
         result: dict[str, Any] = {
+            "id": content_sha256,
             "ok": response.is_success,
             "status_code": response.status_code,
             "method": current_method,
-            "url": _safe_url(str(response.url)),
+            "url": response_url,
+            "source": response_url,
+            "published_at": published_at,
+            "fetched_at": fetched_at,
             "headers": {
                 key.lower(): value for key, value in response.headers.items() if key.lower() in _SAFE_RESPONSE_HEADERS
             },
             "redirects": redirects,
             "content_length": len(content),
-            "content_sha256": hashlib.sha256(content).hexdigest(),
+            "content_sha256": content_sha256,
         }
         if content:
             if "json" in content_type:
@@ -384,27 +405,45 @@ class WebClient:
             max_response_bytes=max_response_bytes,
         )
         if response["status_code"] == 304:
-            return {"ok": True, "not_modified": True, "url": response["url"], "entries": []}
+            return {
+                "id": response["id"],
+                "ok": True,
+                "not_modified": True,
+                "url": response["url"],
+                "source": response["source"],
+                "published_at": response["published_at"],
+                "fetched_at": response["fetched_at"],
+                "entries": [],
+            }
         text = response.get("text")
         if not isinstance(text, str):
             raise ValueError("Feed response was not text or XML.")
-        parsed = self._parse_feed(text, max_entries=max_entries)
+        parsed = self._parse_feed(
+            text,
+            max_entries=max_entries,
+            source=response["source"],
+            fetched_at=response["fetched_at"],
+        )
         etag = response["headers"].get("etag")
         last_modified = response["headers"].get("last-modified")
         self._feed_validators[url] = {
             key: value for key, value in {"etag": etag, "last_modified": last_modified}.items() if value
         }
         return {
+            "id": response["id"],
             "ok": response["ok"],
             "not_modified": False,
             "url": response["url"],
+            "source": response["source"],
+            "published_at": response["published_at"],
+            "fetched_at": response["fetched_at"],
             "etag": etag,
             "last_modified": last_modified,
             **parsed,
         }
 
     @staticmethod
-    def _parse_feed(text: str, *, max_entries: int) -> dict[str, Any]:
+    def _parse_feed(text: str, *, max_entries: int, source: str, fetched_at: str) -> dict[str, Any]:
         try:
             root = ET.fromstring(text)
         except ET.ParseError as exc:
@@ -450,6 +489,8 @@ class WebClient:
                     "title": child_text(element, "title"),
                     "link": link,
                     "published_at": published_at,
+                    "fetched_at": fetched_at,
+                    "source": source,
                     "summary": child_text(element, "description", "summary", "content"),
                 }
             )

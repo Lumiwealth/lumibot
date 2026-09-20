@@ -9,10 +9,12 @@ from lumibot.fundamentals import SECFundamentals
 
 
 class _Response:
-    def __init__(self, *, payload=None, text=""):
+    def __init__(self, *, payload=None, text="", status_code=200, headers=None):
         self._payload = payload
         self.text = text
         self.content = text.encode()
+        self.status_code = status_code
+        self.headers = dict(headers or {})
 
     def raise_for_status(self):
         return None
@@ -391,6 +393,42 @@ def test_live_mutable_sec_cache_expires_but_filing_documents_remain_immutable(mo
     assert sum("Archives/edgar/data" in url for url in calls) == 1
 
 
+def test_live_mutable_sec_cache_revalidates_with_http_validators(monkeypatch, tmp_path):
+    request_headers = []
+
+    def fake_get(url, **kwargs):
+        if url.endswith("company_tickers.json"):
+            return _Response(payload={"0": {"ticker": "AAPL", "cik_str": 320193, "title": "Apple Inc."}})
+        if "submissions" in url:
+            request_headers.append(dict(kwargs["headers"]))
+            if len(request_headers) == 1:
+                return _Response(
+                    payload={"cik": "0000320193", "filings": {"recent": {"form": []}}},
+                    headers={"ETag": '"submissions-v1"', "Last-Modified": "Sat, 20 Sep 2026 12:00:00 GMT"},
+                )
+            return _Response(status_code=304)
+        raise AssertionError(url)
+
+    monkeypatch.setattr("lumibot.fundamentals.sec.requests.get", fake_get)
+    sec = SECFundamentals(
+        cache_dir=tmp_path,
+        cache_mode="live",
+        mutable_cache_ttl_seconds=60,
+        min_request_interval_seconds=0,
+    )
+
+    first = sec.get_submissions("AAPL")
+    cache_path = tmp_path / "submissions" / "CIK0000320193.json"
+    stale_time = time.time() - 61
+    os.utime(cache_path, (stale_time, stale_time))
+    second = sec.get_submissions("AAPL")
+
+    assert second["cik"] == first["cik"]
+    assert request_headers[1]["If-None-Match"] == '"submissions-v1"'
+    assert request_headers[1]["If-Modified-Since"] == "Sat, 20 Sep 2026 12:00:00 GMT"
+    assert cache_path.stat().st_mtime > stale_time
+
+
 def test_backtest_mode_keeps_mutable_sec_cache_immutable(monkeypatch, tmp_path):
     cache_path = tmp_path / "submissions" / "CIK0000320193.json"
     cache_path.parent.mkdir(parents=True)
@@ -440,6 +478,58 @@ def test_raw_company_facts_are_filtered_to_as_of(monkeypatch, tmp_path):
     rows = raw["facts"]["us-gaap"]["Revenues"]["units"]["USD"]
     assert [row["val"] for row in rows] == [100]
     assert raw["as_of"] == "2025-01-01T00:00:00"
+    assert raw["source"] == "sec_edgar_companyfacts"
+    assert raw["source_url"].endswith("/api/xbrl/companyfacts/CIK0000320193.json")
+    assert raw["fetched_at"]
+    assert raw["published_at"] == "2024-01-01T00:00:00"
+    assert raw["id"] == "sec-companyfacts-0000320193"
+
+
+def test_sec_filing_rows_and_documents_carry_availability_provenance(monkeypatch, tmp_path):
+    def fake_get(url, **kwargs):
+        if url.endswith("company_tickers.json"):
+            return _Response(payload={"0": {"ticker": "AAPL", "cik_str": 320193, "title": "Apple Inc."}})
+        if "submissions" in url:
+            return _Response(
+                payload={
+                    "cik": "0000320193",
+                    "filings": {
+                        "recent": {
+                            "form": ["10-K"],
+                            "accessionNumber": ["0000320193-24-000001"],
+                            "filingDate": ["2024-11-01"],
+                            "reportDate": ["2024-09-30"],
+                            "acceptanceDateTime": ["2024-11-01T12:00:00.000Z"],
+                            "primaryDocument": ["aapl-20240930.htm"],
+                            "primaryDocDescription": ["10-K"],
+                        }
+                    },
+                }
+            )
+        if "Archives/edgar/data" in url:
+            return _Response(text="<html><body>public filing</body></html>")
+        raise AssertionError(url)
+
+    monkeypatch.setattr("lumibot.fundamentals.sec.requests.get", fake_get)
+    sec = SECFundamentals(cache_dir=tmp_path, min_request_interval_seconds=0)
+
+    filings = sec.get_filings("AAPL", as_of="2025-01-01T00:00:00+00:00")
+    row = filings["filings"][0]
+    document = sec.get_filing_document(
+        "AAPL",
+        accession_number=row["accession_number"],
+        primary_document=row["primary_document"],
+        as_of="2025-01-01T00:00:00+00:00",
+    )
+
+    assert row["id"] == "0000320193-24-000001"
+    assert row["source"] == "sec_edgar_submissions"
+    assert row["published_at"] == "2024-11-01T12:00:00.000Z"
+    assert row["fetched_at"]
+    assert document["id"] == "0000320193-24-000001"
+    assert document["source"] == "sec_edgar_filing_document"
+    assert document["published_at"] == "2024-11-01T12:00:00.000Z"
+    assert document["fetched_at"]
 
 
 def test_filing_document_rejects_accession_not_public_as_of(monkeypatch, tmp_path):

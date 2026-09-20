@@ -21,6 +21,7 @@ def test_congress_disclosures_are_visible_on_report_date_not_transaction_date():
             "TransactionDate": "2026-01-05",
             "ReportDate": "2026-02-14",
             "Amount": "$100,001 - $250,000",
+            "fetched_at": "2026-02-14T00:05:00+00:00",
         }
     ]
 
@@ -31,6 +32,8 @@ def test_congress_disclosures_are_visible_on_report_date_not_transaction_date():
     assert visible[0]["published_at"].startswith("2026-02-14")
     assert visible[0]["amount_min"] == 100001
     assert visible[0]["amount_max"] == 250000
+    assert visible[0]["fetched_at"] == "2026-02-14T00:05:00+00:00"
+    assert visible[0]["source"] == "congress_disclosure"
 
 
 def test_congress_amendment_supersedes_earlier_duplicate_and_missing_ticker_is_rejected():
@@ -119,6 +122,7 @@ def test_form4_parser_distinguishes_open_market_derivative_and_amendment_rows():
         xml,
         accession_number="0000320193-26-000001",
         acceptance_datetime="2026-09-18T12:30:00+00:00",
+        fetched_at="2026-09-18T12:31:00+00:00",
     )
 
     assert len(rows) == 2
@@ -130,8 +134,108 @@ def test_form4_parser_distinguishes_open_market_derivative_and_amendment_rows():
     assert rows[1]["open_market"] is False
     assert rows[1]["derivative"] is True
     assert rows[1]["ownership"] == "indirect"
+    assert rows[0]["source"] == "sec_edgar_form4"
+    assert rows[0]["fetched_at"] == "2026-09-18T12:31:00+00:00"
     assert visible_insider_transactions(rows, as_of="2026-09-18T12:29:59+00:00") == []
     assert len(visible_insider_transactions(rows, as_of="2026-09-18T12:30:00+00:00")) == 2
+
+
+def test_form4_parser_classifies_sale_gift_exercise_plan_ownership_and_derivatives():
+    xml = """<ownershipDocument>
+      <documentType>4</documentType><periodOfReport>2026-09-18</periodOfReport><aff10b5One>true</aff10b5One>
+      <issuer><issuerCik>0000320193</issuerCik><issuerTradingSymbol>AAPL</issuerTradingSymbol></issuer>
+      <reportingOwner>
+        <reportingOwnerId>
+          <rptOwnerCik>0001</rptOwnerCik>
+          <rptOwnerName>Jane Doe</rptOwnerName>
+        </reportingOwnerId>
+      </reportingOwner>
+      <nonDerivativeTable>
+        <nonDerivativeTransaction>
+          <securityTitle><value>Common Stock</value></securityTitle>
+          <transactionDate><value>2026-09-17</value></transactionDate>
+          <transactionCoding><transactionCode>S</transactionCode></transactionCoding>
+          <transactionAmounts>
+            <transactionShares><value>10</value></transactionShares>
+            <transactionPricePerShare><value>200</value></transactionPricePerShare>
+            <transactionAcquiredDisposedCode><value>D</value></transactionAcquiredDisposedCode>
+          </transactionAmounts>
+          <ownershipNature><directOrIndirectOwnership><value>D</value></directOrIndirectOwnership></ownershipNature>
+        </nonDerivativeTransaction>
+        <nonDerivativeTransaction>
+          <securityTitle><value>Common Stock</value></securityTitle>
+          <transactionDate><value>2026-09-17</value></transactionDate>
+          <transactionCoding><transactionCode>G</transactionCode></transactionCoding>
+          <transactionAmounts>
+            <transactionShares><value>5</value></transactionShares>
+            <transactionAcquiredDisposedCode><value>D</value></transactionAcquiredDisposedCode>
+          </transactionAmounts>
+          <ownershipNature><directOrIndirectOwnership><value>I</value></directOrIndirectOwnership></ownershipNature>
+        </nonDerivativeTransaction>
+      </nonDerivativeTable>
+      <derivativeTable><derivativeTransaction><securityTitle><value>Option</value></securityTitle><transactionDate><value>2026-09-17</value></transactionDate><transactionCoding><transactionCode>M</transactionCode></transactionCoding><transactionAmounts><transactionShares><value>25</value></transactionShares><transactionAcquiredDisposedCode><value>A</value></transactionAcquiredDisposedCode></transactionAmounts><ownershipNature><directOrIndirectOwnership><value>D</value></directOrIndirectOwnership></ownershipNature></derivativeTransaction></derivativeTable>
+    </ownershipDocument>"""
+
+    rows = parse_form4_xml(
+        xml,
+        accession_number="0000320193-26-000002",
+        acceptance_datetime="2026-09-18T12:30:00+00:00",
+    )
+
+    assert [(row["transaction_code"], row["transaction_kind"]) for row in rows] == [
+        ("S", "open_market_sale"),
+        ("G", "gift"),
+        ("M", "option_exercise"),
+    ]
+    assert [row["ownership"] for row in rows] == ["direct", "indirect", "direct"]
+    assert [row["derivative"] for row in rows] == [False, False, True]
+    assert all(row["automatic_plan"] is True for row in rows)
+
+
+def test_form4_amendment_supersedes_the_same_transaction_without_hiding_distinct_rows():
+    base = {
+        "ticker": "AAPL",
+        "owner_cik": "0001",
+        "transaction_code": "P",
+        "transaction_date": "2026-09-17",
+        "security_title": "Common Stock",
+        "shares": 100,
+        "price_per_share": 200,
+        "derivative": False,
+        "transaction_key": "same-economic-transaction",
+        "source": "sec_edgar_form4",
+        "fetched_at": "2026-09-18T12:31:00+00:00",
+    }
+    records = [
+        {
+            **base,
+            "id": "original",
+            "accession_number": "original",
+            "published_at": "2026-09-18T12:30:00+00:00",
+            "amendment": False,
+        },
+        {
+            **base,
+            "id": "amended",
+            "accession_number": "amended",
+            "published_at": "2026-09-19T12:30:00+00:00",
+            "amendment": True,
+            "shares": 125,
+        },
+        {
+            **base,
+            "id": "distinct",
+            "transaction_key": "different-transaction",
+            "published_at": "2026-09-19T12:31:00+00:00",
+            "amendment": False,
+            "transaction_code": "S",
+        },
+    ]
+
+    visible = visible_insider_transactions(records, as_of="2026-09-20T00:00:00+00:00")
+
+    assert [row["id"] for row in visible] == ["amended", "distinct"]
+    assert visible[0]["shares"] == 125
 
 
 class _Agents(dict):
@@ -187,7 +291,15 @@ def test_congress_strategy_has_researcher_and_dedicated_trading_risk_agent():
     assert trader_context["disclosures"][0]["published_at"].startswith("2026-09-19")
     trader = next(item for item in agents.created if item["name"] == "trading_risk_manager")
     assert "max_position_pct" in trader["system_prompt"]
+    assert "max_total_exposure_pct" in trader["system_prompt"]
+    assert "minimum_average_dollar_volume" in trader["system_prompt"]
     assert "available cash" in trader["system_prompt"]
+    assert trader_context["risk_policy"] == {
+        "max_position_pct": 5,
+        "max_total_exposure_pct": 20,
+        "minimum_average_dollar_volume": 1_000_000,
+        "never_short": True,
+    }
 
 
 def test_congress_strategy_skips_stale_records_and_processes_a_disclosure_only_once():

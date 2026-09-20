@@ -14,6 +14,15 @@ Install the optional dependency and its Chromium build::
    pip install "lumibot[browser]"
    patchright install chromium
 
+Camoufox is also available as an explicit engine candidate::
+
+   pip install "lumibot[browser-camoufox]"
+   python -m camoufox fetch
+
+Pass ``CamoufoxEngine()`` as the strategy's ``browser_engine``. LumiBot does
+not silently switch engines: the operator must choose the engine qualified for
+the exact runtime image.
+
 On a container image, run the browser installation at image-build time rather
 than downloading a browser when a strategy starts. Give the task enough shared
 memory for Chromium and validate the same architecture used in production.
@@ -21,14 +30,15 @@ memory for Chromium and validate the same architecture used in production.
 Session model
 -------------
 
-``browser_session_open`` creates a named session and ``browser_session_close``
-closes it. A persistent profile retains cookies and storage across close/open
+``browser_session_open`` creates a named session, ``browser_session_close``
+closes it, and ``browser_session_recover`` restarts a crashed session in place.
+A persistent profile retains cookies and storage across close/open
 cycles when the same profile name is reused. One session can hold multiple
 tabs, and tools address the active tab unless a tab identifier is supplied.
 
 The browser tool set is:
 
-* ``browser_session_open`` and ``browser_session_close``
+* ``browser_session_open``, ``browser_session_close``, and ``browser_session_recover``
 * ``browser_navigate`` and ``browser_observe``
 * ``browser_act`` for click, fill, select, press, upload, and download actions
 * ``browser_tabs`` for list, open, switch, and close
@@ -64,6 +74,27 @@ The Patchright runtime reduces automation fingerprints but cannot guarantee
 access to every site. Prefer a supported API when it offers the same capability;
 use browser control for the important workflows that genuinely need state and
 interaction.
+
+Engine qualification
+--------------------
+
+The committed benchmark can exercise either engine and records 100 restart
+cycles, launch latency, process-tree RSS, crash rate, package versions, host
+architecture, and a basic fingerprint probe::
+
+   python -m lumibot.components.agents.browser_benchmark \
+      --engine patchright --iterations 100 \
+      --state-root /tmp/lumibot-browser-benchmark \
+      --output artifacts/browser_benchmark/result.json
+
+On the 2026-09-20 local macOS ARM64 bakeoff, both engines completed 100/100
+cycles without a crash. Patchright opened much faster (p50 0.271 seconds) and
+used about 444 MiB peak RSS, but exposed ``HeadlessChrome`` and zero plugins.
+Camoufox passed the same basic fingerprint probe, but opened at p50 1.415
+seconds and used about 1.35 GiB peak RSS. Therefore neither result alone is a
+hosted winner: Patchright misses the required anti-detection gate, while
+Camoufox does not fit the current 1 GiB task shape. The exact Linux ARM64 image
+must pass the complete fixture and benchmark before a hosted default is chosen.
 
 Verification
 ------------

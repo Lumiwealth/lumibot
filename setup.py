@@ -132,6 +132,9 @@ setuptools.setup(
         "browser": [
             "patchright>=1.62.3,<2",
         ],
+        "browser-camoufox": [
+            "camoufox>=0.5.6,<0.6",
+        ],
         # Optional dependencies to enable ThetaData support
         "thetadata": [
             "thetadata",

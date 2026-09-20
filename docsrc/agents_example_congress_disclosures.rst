@@ -31,6 +31,18 @@ agent with trading tools and caps a new position at the configured percentage.
 Already processed disclosure IDs are ignored and old records are rejected by
 the configured age limit.
 
+Verified execution
+------------------
+
+A fresh September 20, 2026 Gemini run first exposed the synthetic Pelosi NVDA
+purchase on the first backtest session after its public report date. The risk
+agent submitted ``bt_1`` and the backtest filled 27 NVDA shares at 181.77. The
+trace contains no research or order before publication. This is a software
+execution proof using a frozen fixture and simulated fill, not a performance
+claim or live brokerage trade.
+
+`Inspect the execution receipt <https://github.com/Lumiwealth/lumibot/blob/version/4.5.92/docs/research/2026-09-20_AGENT_STRATEGY_EXECUTION_PROOF.md>`_.
+
 .. literalinclude:: ../lumibot/example_strategies/ai_congress_disclosures.py
    :language: python
    :linenos:

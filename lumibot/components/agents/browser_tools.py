@@ -487,6 +487,11 @@ class PatchrightEngine:
                 page.locator(selector).wait_for(state=state, timeout=timeout_ms)
             else:
                 page.wait_for_timeout(int(timeout_ms))
+        elif action == "wait_text" and locator is not None:
+            expected_text = str(value or "")
+            if not expected_text:
+                raise ValueError("Browser wait_text requires a non-empty value.")
+            locator.filter(has_text=expected_text).wait_for(state="visible", timeout=timeout_ms)
         elif action == "upload" and locator is not None:
             locator.set_input_files(value, timeout=timeout_ms)
         elif action == "download" and locator is not None:
@@ -506,7 +511,7 @@ class PatchrightEngine:
         else:
             raise ValueError(
                 "Unsupported browser action. Use click, fill, type, press, select, check, uncheck, scroll, wait, "
-                "upload, or download."
+                "wait_text, upload, or download."
             )
         return {"action": action, "selector": selector, "url": page.url, "title": page.title()}
 

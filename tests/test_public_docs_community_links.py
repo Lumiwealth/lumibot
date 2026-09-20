@@ -1,5 +1,5 @@
+import hashlib
 from pathlib import Path
-
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 
@@ -64,10 +64,39 @@ def test_docs_community_icons_are_local_static_assets():
 
 
 def test_ai_gallery_uses_verified_public_listings():
-    pages = ["agents_examples.rst", "agents_example_citadel_sector_pods.rst", "agents_example_ray_dalio_idea_meritocracy.rst"]
+    pages = [
+        "agents_examples.rst",
+        "agents_example_citadel_sector_pods.rst",
+        "agents_example_ray_dalio_idea_meritocracy.rst",
+    ]
     text = "\n".join((REPO_ROOT / "docsrc" / page).read_text() for page in pages)
-    # September 12 owner/public MCP audit: these four former listings return not_found.
-    for missing in ("4fb6cf2f-272c-4a73-96e7-edd7383b1a33", "da83818b-f994-4163-8ef3-99ea346325b4", "b00c5f9c-beea-46fe-bdba-fc65c1315d5f", "362a50a1-d501-4b08-8d42-c7701a363731"):
-        assert missing not in text
-    assert "0b4576c7-f78b-4477-ba3a-630758fb0168" in text
-    assert "81af73b8-7dec-4941-ba35-d5a06fee6863" in text
+    # September 20 read-only production audit: these are the approved regular
+    # and leveraged listings whose published main.py files own the docs source.
+    for listing_id in (
+        "4fb6cf2f-272c-4a73-96e7-edd7383b1a33",
+        "da83818b-f994-4163-8ef3-99ea346325b4",
+        "b00c5f9c-beea-46fe-bdba-fc65c1315d5f",
+        "362a50a1-d501-4b08-8d42-c7701a363731",
+    ):
+        assert listing_id in text
+
+
+def test_ray_and_citadel_examples_match_published_botspot_sources():
+    # September 20 read-only production audit of publishedRevisionId -> main.py.
+    expected = {
+        "ai_trading_team_ray_dalio_idea_meritocracy.py": (
+            "a2a02db9ad0db1b8ce8d9e339fe0f0cd8b0698b1ce36281c077291fa077e2914"
+        ),
+        "ai_trading_team_ray_dalio_idea_meritocracy_leveraged.py": (
+            "7f8f2d4ef5363669926080d86504f68bdbd7ab30618fbac94dc2f0e469a304f1"
+        ),
+        "ai_trading_team_citadel_sector_pods.py": (
+            "50e78b923a9548994ba593f91a792c34f2d3ed384cc405ca3d2abecf5166a758"
+        ),
+        "ai_trading_team_citadel_sector_pods_leveraged.py": (
+            "3e9bc4330b0d8bab021f7844fa41541bcd86a7b24b67f371c4967bcf8e36f915"
+        ),
+    }
+    root = REPO_ROOT / "lumibot" / "example_strategies"
+    for filename, expected_sha256 in expected.items():
+        assert hashlib.sha256((root / filename).read_bytes()).hexdigest() == expected_sha256

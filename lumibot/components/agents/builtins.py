@@ -2236,8 +2236,8 @@ def _bind_browser_act(strategy: Any, manager: Any) -> BoundTool:
     return BoundTool(
         name="browser_act",
         description=(
-            "Act in the active browser tab: click, fill, type, press, select, check, uncheck, scroll, wait, upload, "
-            "or download. "
+            "Act in the active browser tab: click, fill, type, press, select, check, uncheck, scroll, wait, "
+            "wait_text, upload, or download. "
             "Returns an action receipt for consequential browser operations."
         ),
         function=browser_act,

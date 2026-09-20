@@ -2,6 +2,7 @@
 
 import json
 from datetime import datetime
+from pathlib import Path
 
 import pandas as pd
 import pytest
@@ -14,12 +15,20 @@ from lumibot.example_strategies.ai_browser_research_showcase import (
     AIBrowserResearchShowcaseStrategy,
 )
 from tests.backtest.test_agent_runtime_backtest import _invoke_tool
+from tests.test_agent_browser_patchright_apitest import _FixtureHandler
+
+pytest_plugins = ("tests.test_agent_browser_patchright_apitest",)
 
 
 @pytest.mark.usefixtures("disable_datasource_override")
-def test_browser_showcase_research_handoff_places_real_backtest_trade(monkeypatch, tmp_path):
+def test_browser_showcase_research_handoff_places_real_backtest_trade(
+    monkeypatch,
+    tmp_path,
+    browser_fixture_server,
+):
     monkeypatch.setenv("LUMIBOT_CACHE_FOLDER", str(tmp_path / "cache"))
     calls = []
+    browser_receipts = {}
 
     class ScriptedRuntime:
         def run(self, request):
@@ -27,13 +36,55 @@ def test_browser_showcase_research_handoff_places_real_backtest_trade(monkeypatc
             events = []
             if request.agent_name == "browser_researcher":
                 assert "orders_submit_order" not in {tool.name for tool in request.bound_tools}
+                opened = _invoke_tool(request, events, "browser_session_open", profile="strategy-research")
+                session_id = opened["session_id"]
+                _invoke_tool(
+                    request,
+                    events,
+                    "browser_navigate",
+                    session_id=session_id,
+                    url=f"{browser_fixture_server}/login",
+                )
+                _invoke_tool(
+                    request,
+                    events,
+                    "browser_login",
+                    session_id=session_id,
+                    credential_profile="fixture",
+                    username_selector="#username",
+                    password_selector="#password",
+                    submit_selector="#login",
+                )
+                observed = _invoke_tool(request, events, "browser_observe", session_id=session_id)
+                screenshot = _invoke_tool(
+                    request,
+                    events,
+                    "browser_screenshot",
+                    session_id=session_id,
+                    name="strategy-research",
+                )
+                closed = _invoke_tool(request, events, "browser_session_close", session_id=session_id)
+                assert "Authenticated research dashboard" in observed["text"]
+                browser_receipts["research"] = {"screenshot": screenshot, "session": closed}
                 return AgentRunResult(
-                    summary="Authorized portal evidence: cautious bullish; screenshot_sha256=fixture-proof",
+                    summary=json.dumps(
+                        {
+                            "finding": "Authorized portal evidence: cautious bullish",
+                            "url": observed["url"],
+                            "screenshot_path": screenshot["path"],
+                            "screenshot_sha256": screenshot["sha256"],
+                            "trace_path": closed["trace_path"],
+                            "trace_sha256": closed["trace_sha256"],
+                        },
+                        sort_keys=True,
+                    ),
                     model=request.model,
                     events=events,
                 )
             if request.agent_name == "trading_risk_manager":
-                assert request.context["research_evidence"].startswith("Authorized portal evidence:")
+                evidence = json.loads(request.context["research_evidence"])
+                assert evidence["finding"].startswith("Authorized portal evidence:")
+                assert Path(evidence["screenshot_path"]).is_file()
                 for tool in ("account_portfolio", "account_positions", "orders_open_orders"):
                     _invoke_tool(request, events, tool)
                 _invoke_tool(request, events, "market_last_price", symbol="SHOW", asset_type="stock")
@@ -47,7 +98,8 @@ def test_browser_showcase_research_handoff_places_real_backtest_trade(monkeypatc
                     asset_type="stock",
                     order_type="market",
                 )
-                assert submitted["execution_outcome"]["certainty"] == "confirmed_submitted"
+                assert submitted["execution_outcome"]["broker_state_certainty"] == "confirmed_submitted"
+                browser_receipts["order_id"] = submitted["order"]["identifier"]
                 return AgentRunResult(
                     summary=json.dumps({"sandbox_order": submitted["order"]}, sort_keys=True),
                     model=request.model,
@@ -57,8 +109,61 @@ def test_browser_showcase_research_handoff_places_real_backtest_trade(monkeypatc
             outcome = json.loads(request.context["trade_outcome"])
             assert outcome["sandbox_order"]["identifier"]
             assert request.context["publish_enabled"] is True
+            opened = _invoke_tool(request, events, "browser_session_open", profile="strategy-publisher")
+            session_id = opened["session_id"]
+            _invoke_tool(
+                request,
+                events,
+                "browser_navigate",
+                session_id=session_id,
+                url=f"{browser_fixture_server}/community",
+            )
+            _invoke_tool(
+                request,
+                events,
+                "browser_act",
+                session_id=session_id,
+                action="fill",
+                selector="#idempotency-key",
+                value=outcome["sandbox_order"]["identifier"],
+            )
+            _invoke_tool(
+                request,
+                events,
+                "browser_act",
+                session_id=session_id,
+                action="fill",
+                selector="#receipt",
+                value="Sandbox trade submitted: SHOW",
+            )
+            _invoke_tool(
+                request,
+                events,
+                "browser_act",
+                session_id=session_id,
+                action="click",
+                selector="#publish",
+            )
+            screenshot = _invoke_tool(
+                request,
+                events,
+                "browser_screenshot",
+                session_id=session_id,
+                name="strategy-published-receipt",
+            )
+            closed = _invoke_tool(request, events, "browser_session_close", session_id=session_id)
+            browser_receipts["publisher"] = {"screenshot": screenshot, "session": closed}
             return AgentRunResult(
-                summary=f"Published idempotent receipt for {outcome['sandbox_order']['identifier']}",
+                summary=json.dumps(
+                    {
+                        "published_order_id": outcome["sandbox_order"]["identifier"],
+                        "screenshot_path": screenshot["path"],
+                        "screenshot_sha256": screenshot["sha256"],
+                        "trace_path": closed["trace_path"],
+                        "trace_sha256": closed["trace_sha256"],
+                    },
+                    sort_keys=True,
+                ),
                 model=request.model,
                 events=events,
             )
@@ -66,6 +171,14 @@ def test_browser_showcase_research_handoff_places_real_backtest_trade(monkeypatc
     original_create = AgentManager.create
 
     def create_with_scripted_model(self, *args, **kwargs):
+        self.strategy.browser_state_root = tmp_path / "browser"
+        self.strategy.browser_credential_profiles = {
+            "fixture": {
+                "allowed_hosts": ["127.0.0.1"],
+                "username": "browser-user",
+                "password": "browser-password",
+            }
+        }
         return original_create(self, *args, **kwargs, _runtime=ScriptedRuntime())
 
     monkeypatch.setattr(AgentManager, "create", create_with_scripted_model)
@@ -87,9 +200,9 @@ def test_browser_showcase_research_handoff_places_real_backtest_trade(monkeypatc
         datetime(2025, 1, 8),
         parameters={
             "symbol": "SHOW",
-            "research_url": "https://owned-research.example.test/dashboard",
+            "research_url": f"{browser_fixture_server}/dashboard",
             "publish_enabled": True,
-            "publish_url": "https://owned-community.example.test/new-post",
+            "publish_url": f"{browser_fixture_server}/community",
             "max_position_pct": 5,
         },
         pandas_data={asset: Data(asset, frame, timestep="day")},
@@ -111,3 +224,30 @@ def test_browser_showcase_research_handoff_places_real_backtest_trade(monkeypatc
     fills = fills[fills["status"] == "fill"]
     assert len(fills) == 1
     assert float(fills.iloc[0]["filled_quantity"]) == 1
+    assert _FixtureHandler.publications == [
+        {
+            "idempotency_key": [browser_receipts["order_id"]],
+            "receipt": ["Sandbox trade submitted: SHOW"],
+        }
+    ]
+    for receipt in (browser_receipts["research"], browser_receipts["publisher"]):
+        assert Path(receipt["screenshot"]["path"]).stat().st_size > 0
+        assert len(receipt["screenshot"]["sha256"]) == 64
+        assert Path(receipt["session"]["trace_path"]).is_file()
+    fills.to_csv(tmp_path / "browser-showcase-trades.csv", index=False)
+    (tmp_path / "browser-showcase-proof.json").write_text(
+        json.dumps(
+            {
+                "agent_calls": calls,
+                "order_id": browser_receipts["order_id"],
+                "research": browser_receipts["research"],
+                "publisher": browser_receipts["publisher"],
+                "publication": _FixtureHandler.publications[0],
+            },
+            indent=2,
+            sort_keys=True,
+            default=str,
+        )
+        + "\n",
+        encoding="utf-8",
+    )

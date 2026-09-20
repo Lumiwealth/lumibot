@@ -40,7 +40,7 @@ The browser tool set is:
 
 * ``browser_session_open``, ``browser_session_close``, and ``browser_session_recover``
 * ``browser_navigate`` and ``browser_observe``
-* ``browser_act`` for click, fill, select, press, upload, and download actions
+* ``browser_act`` for click, fill, select, press, wait, wait-for-text, upload, and download actions
 * ``browser_tabs`` for list, open, switch, and close
 * ``browser_extract`` for text, attributes, links, or structured page evidence
 * ``browser_login`` for scoped credential injection

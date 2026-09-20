@@ -24,6 +24,18 @@ and its separate credential profile, and validate the site terms. The publisher
 must report observed order status truthfully, use a stable idempotency key, and
 capture a screenshot/action receipt. A submitted order is not a filled order.
 
+Verified execution
+------------------
+
+The committed regression test runs this Strategy through
+``PandasDataBacktesting`` against an owned JavaScript fixture. The browser
+researcher performs a real login through the built-in browser tools and captures
+a screenshot/trace; the risk agent fills one simulated SHOW share; the separate
+publisher posts an idempotent receipt keyed by the order ID and captures a
+second screenshot. No third-party account is touched.
+
+`Inspect the execution receipt <https://github.com/Lumiwealth/lumibot/blob/version/4.5.92/docs/research/2026-09-20_AGENT_STRATEGY_EXECUTION_PROOF.md>`_.
+
 .. literalinclude:: ../lumibot/example_strategies/ai_browser_research_showcase.py
    :language: python
    :linenos:

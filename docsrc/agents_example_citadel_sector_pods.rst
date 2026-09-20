@@ -5,6 +5,16 @@ Citadel Sector Pods AI Trading Team
    :alt: AI trading team workflow for Citadel-style sector pods
    :width: 100%
 
+Track or copy it on BotSpot
+---------------------------
+
+* `Regular ETFs on BotSpot <https://botspot.trade/marketplace/strategy/4fb6cf2f-272c-4a73-96e7-edd7383b1a33?utm_source=documentation&utm_medium=example&utm_campaign=lumibot_ai_examples&utm_content=citadel_regular>`_
+* `Leveraged ETFs on BotSpot <https://botspot.trade/marketplace/strategy/da83818b-f994-4163-8ef3-99ea346325b4?utm_source=documentation&utm_medium=example&utm_campaign=lumibot_ai_examples&utm_content=citadel_leveraged>`_
+
+These two approved free listings are the source of truth for the code below.
+Their published ``main.py`` revisions were copied byte-for-byte into this
+repository on September 20, 2026.
+
 This strategy is inspired by the pod-style structure associated with Ken
 Griffin's Citadel and other multi-manager platforms. The idea is simple: do not
 ask one generalist to understand every market at once. Give each specialist a
@@ -16,14 +26,6 @@ of the market, a risk manager challenges the strongest pitches, and only the
 portfolio manager has permission to submit orders. It is a good example when
 you want to test whether specialist agents can create better decisions than one
 single broad prompt.
-
-Hosted examples on BotSpot
----------------------------
-
-Explore the public `Sector Rotation AI Multi-Pod Strategy <https://botspot.trade/marketplace/strategy/0b4576c7-f78b-4477-ba3a-630758fb0168?utm_source=documentation&utm_medium=example&utm_campaign=lumibot_ai_examples>`_ listing.
-Inspect its published revision and available observations before using it; a
-listing is not proof of a currently healthy deployment or future performance.
-BotSpot plans, model usage, broker access, and data requirements may apply.
 
 These are educational examples with no affiliation or endorsement from Citadel
 or its personnel, and are not replicas of a proprietary strategy.
@@ -73,5 +75,12 @@ Use the same strategy class and change ``IS_BACKTESTING = False`` to ``IS_BACKTE
 Example code
 ------------
 
+Regular ETF source:
+
 .. literalinclude:: ../lumibot/example_strategies/ai_trading_team_citadel_sector_pods.py
+   :language: python
+
+Leveraged ETF source:
+
+.. literalinclude:: ../lumibot/example_strategies/ai_trading_team_citadel_sector_pods_leveraged.py
    :language: python

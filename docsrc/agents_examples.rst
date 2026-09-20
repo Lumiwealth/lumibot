@@ -99,10 +99,13 @@ ETF and macro teams
 Public strategy listings
 ~~~~~~~~~~~~~~~~~~~~~~~~
 
-* `Sector Rotation AI Multi-Pod Strategy <https://botspot.trade/marketplace/strategy/0b4576c7-f78b-4477-ba3a-630758fb0168?utm_source=documentation&utm_medium=example_index&utm_campaign=lumibot_ai_examples&utm_content=citadel>`__.
-* `Macro Insight AI: Bridgewater-Style Strategy <https://botspot.trade/marketplace/strategy/81af73b8-7dec-4941-ba35-d5a06fee6863?utm_source=documentation&utm_medium=example_index&utm_campaign=lumibot_ai_examples&utm_content=dalio>`__.
+* `Citadel-style sector pods, regular ETFs <https://botspot.trade/marketplace/strategy/4fb6cf2f-272c-4a73-96e7-edd7383b1a33?utm_source=documentation&utm_medium=example_index&utm_campaign=lumibot_ai_examples&utm_content=citadel_regular>`__.
+* `Citadel-style sector pods, leveraged ETFs <https://botspot.trade/marketplace/strategy/da83818b-f994-4163-8ef3-99ea346325b4?utm_source=documentation&utm_medium=example_index&utm_campaign=lumibot_ai_examples&utm_content=citadel_leveraged>`__.
+* `Ray Dalio idea meritocracy, regular ETFs <https://botspot.trade/marketplace/strategy/b00c5f9c-beea-46fe-bdba-fc65c1315d5f?utm_source=documentation&utm_medium=example_index&utm_campaign=lumibot_ai_examples&utm_content=ray_regular>`__.
+* `Ray Dalio idea meritocracy, leveraged ETFs <https://botspot.trade/marketplace/strategy/362a50a1-d501-4b08-8d42-c7701a363731?utm_source=documentation&utm_medium=example_index&utm_campaign=lumibot_ai_examples&utm_content=ray_leveraged>`__.
 
-These public listings were verified on September 12, 2026. Inspect their
+These approved free public listings were verified through a read-only
+production audit on September 20, 2026. Inspect their
 published revisions and available observations; listing availability does not
 establish deployment health or performance. BotSpot plans, model usage, data,
 and broker requirements may apply.

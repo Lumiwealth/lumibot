@@ -5,6 +5,16 @@ Ray Dalio Idea Meritocracy AI Trading Team
    :alt: AI trading team workflow for Ray Dalio idea-meritocracy style macro debate
    :width: 100%
 
+Track or copy it on BotSpot
+---------------------------
+
+* `Regular ETFs on BotSpot <https://botspot.trade/marketplace/strategy/b00c5f9c-beea-46fe-bdba-fc65c1315d5f?utm_source=documentation&utm_medium=example&utm_campaign=lumibot_ai_examples&utm_content=ray_regular>`_
+* `Leveraged ETFs on BotSpot <https://botspot.trade/marketplace/strategy/362a50a1-d501-4b08-8d42-c7701a363731?utm_source=documentation&utm_medium=example&utm_campaign=lumibot_ai_examples&utm_content=ray_leveraged>`_
+
+These two approved free listings are the source of truth for the code below.
+Their published ``main.py`` revisions were copied byte-for-byte into this
+repository on September 20, 2026.
+
 This strategy is inspired by Ray Dalio's public writing about idea meritocracy
 and thoughtful disagreement. It is not an "All Weather" clone. The important
 idea is the operating system: independent thinkers argue from different models
@@ -15,14 +25,6 @@ In Lumibot, that turns into a macro trading team. One agent argues from growth,
 one argues from inflation and rates, one argues from debt, liquidity, currency,
 and policy pressure, then a disagreement agent stress-tests all three before
 the trader picks one ETF.
-
-Hosted examples on BotSpot
----------------------------
-
-Explore the public `Macro Insight AI: Bridgewater-Style Strategy <https://botspot.trade/marketplace/strategy/81af73b8-7dec-4941-ba35-d5a06fee6863?utm_source=documentation&utm_medium=example&utm_campaign=lumibot_ai_examples>`_ listing.
-Inspect its published revision and available observations before using it; a
-listing is not proof of a currently healthy deployment or future performance.
-BotSpot plans, model usage, broker access, and data requirements may apply.
 
 These are educational examples with no affiliation or endorsement from Ray
 Dalio or Bridgewater, and are not replicas of their proprietary strategies.
@@ -70,5 +72,12 @@ Use the same strategy class and change ``IS_BACKTESTING = False`` to ``IS_BACKTE
 Example code
 ------------
 
+Regular ETF source:
+
 .. literalinclude:: ../lumibot/example_strategies/ai_trading_team_ray_dalio_idea_meritocracy.py
+   :language: python
+
+Leveraged ETF source:
+
+.. literalinclude:: ../lumibot/example_strategies/ai_trading_team_ray_dalio_idea_meritocracy_leveraged.py
    :language: python

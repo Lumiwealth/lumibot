@@ -53,6 +53,7 @@ class _FixtureHandler(BaseHTTPRequestHandler):
                     const note = document.querySelector('#note').value;
                     localStorage.setItem('note', note);
                     document.querySelector('#local-storage-status').textContent = note;
+                    document.querySelector('#indexeddb-status').dataset.ready = 'false';
                     const write = db.transaction('state', 'readwrite').objectStore('state').put(note, 'note');
                     write.onsuccess = () => {
                       document.querySelector('#indexeddb-status').textContent = note;
@@ -160,9 +161,10 @@ def test_patchright_stateful_login_tabs_storage_and_screenshot(browser_fixture_s
     )
     observed = manager.observe(session_id)
     assert "Authenticated research dashboard" in observed["text"]
+    manager.act(session_id, action="wait", selector="#indexeddb-status[data-ready=true]", value="attached")
     manager.act(session_id, action="fill", selector="#note", value="persistent-note")
     manager.act(session_id, action="click", selector="#save")
-    manager.act(session_id, action="wait", selector="#indexeddb-status[data-ready=true]", value="attached")
+    manager.act(session_id, action="wait_text", selector="#indexeddb-status", value="persistent-note")
     assert "persistent-note" in manager.extract(session_id, selector="#indexeddb-status")["values"]
     screenshot = manager.screenshot(session_id, name="authenticated-dashboard")
     manager.tabs(session_id, "open", url=f"{browser_fixture_server}/news")

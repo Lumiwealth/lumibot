@@ -110,6 +110,25 @@ def test_browser_wait_forwards_explicit_locator_state(tmp_path):
     )
 
 
+def test_browser_wait_text_forwards_expected_text(tmp_path):
+    engine = _FakeEngine()
+    manager = BrowserSessionManager(engine=engine, state_root=tmp_path)
+    opened = manager.open(profile="research", headless=True)
+
+    manager.act(
+        opened["session_id"],
+        action="wait_text",
+        selector="#indexeddb-status",
+        value="persistent-note",
+    )
+
+    assert engine.actions[-1][1:] == (
+        "wait_text",
+        "#indexeddb-status",
+        "persistent-note",
+    )
+
+
 def test_browser_session_writes_a_redacted_append_only_action_trace(tmp_path):
     engine = _FakeEngine()
     profile = BrowserCredentialProfile(

@@ -279,8 +279,10 @@ inspected PNG, and desktop plus 390-pixel mobile layouts were visually checked.
   and this task did not authorize a cloud deployment or new cloud spend.
 - No third-party account was logged into and nothing was posted to a real social
   network. The consequential-action proof uses an owned deterministic fixture.
-- Congress marketplace publication remains gated on commercial data rights or
-  written authorization. Frozen fixtures and the engineering example are ready.
+- A frozen-fixture Congress engineering demo or free educational listing is
+  ready. A live-data product still needs a source-terms review because inclusion
+  in a subscription product may be commercial use even when the listing itself
+  has no separate price.
 - No MetaMask integration, external MetaMask Slack message, marketplace
   publication, release, or Development/production deployment was performed.
 - The separate historical backtest inventory was not green: three acceptance

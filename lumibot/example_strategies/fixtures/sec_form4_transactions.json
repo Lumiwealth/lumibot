@@ -1,0 +1,40 @@
+[
+  {
+    "id": "fixture-form4-aapl-purchase",
+    "accession_number": "0000320193-26-000001",
+    "document_type": "4",
+    "amendment": false,
+    "ticker": "AAPL",
+    "owner_name": "Example Executive",
+    "transaction_date": "2026-02-10",
+    "published_at": "2026-02-11T18:30:00+00:00",
+    "transaction_code": "P",
+    "open_market": true,
+    "acquired_disposed": "A",
+    "shares": 1000,
+    "price_per_share": 220,
+    "transaction_value": 220000,
+    "derivative": false,
+    "ownership": "direct",
+    "source_url": "https://example.invalid/frozen-form4-fixture"
+  },
+  {
+    "id": "fixture-form4-nvda-grant",
+    "accession_number": "0001045810-26-000001",
+    "document_type": "4",
+    "amendment": false,
+    "ticker": "NVDA",
+    "owner_name": "Example Executive",
+    "transaction_date": "2026-02-12",
+    "published_at": "2026-02-13T18:30:00+00:00",
+    "transaction_code": "A",
+    "open_market": false,
+    "acquired_disposed": "A",
+    "shares": 500,
+    "price_per_share": 0,
+    "transaction_value": 0,
+    "derivative": false,
+    "ownership": "direct",
+    "source_url": "https://example.invalid/frozen-form4-fixture"
+  }
+]

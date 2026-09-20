@@ -143,8 +143,8 @@ action traces, and the idempotent publication receipt exist.
 
 The complete affected browser, disclosure-strategy, and documentation group
 also passed after the original implementation: `28 passed`. The browser gate
-was expanded and rerun after the async/cache repairs: `60 passed` in 46.10
-seconds. The group includes the real Patchright fixture,
+was expanded and rerun after the async/cache and Bitunix repairs: `75 passed`
+in 47.88 seconds. The group includes the real Patchright fixture,
 authenticated profile persistence, multi-tab behavior, upload/download,
 screenshots, the 100-restart soak, and the new `wait_text` synchronization
 action. `wait_text` was added after a captured red run proved that waiting only
@@ -153,23 +153,28 @@ observable.
 
 ## Repository-Wide Verification
 
-The deterministic inventory was selected with dotenv disabled and with
-credential/network acceptance groups kept separate:
+The current deterministic inventory was selected with dotenv disabled and with
+credential/network acceptance groups kept separate. A single-process attempt
+hit its 15-minute safety cutoff at 56%, so it is not counted as a result. The
+same file inventory was then split once across four terminal shards:
 
 ```text
-3032 selected
-2988 passed
-37 skipped
+3012 passed
+42 skipped
 2 xfailed
 4 xpassed
-1 failed
+83 subtests passed
+0 failed
 ```
 
-The single failure is the pre-existing, independently reproducible
-`tests/test_broker_bitunix.py::TestBitunixBroker::test_parse_source_timestep`.
-It expects `"1m"` while its patched `BitunixData` returns a `MagicMock`. No file
-in that Bitunix path was changed by this work. All 757 remaining tests in that
-shard then completed: `744 passed, 10 skipped, 1 xfailed, 2 xpassed`.
+The shard logs are under
+``logs/full-deterministic-shards-20260920-c82f77e5/``. An isolated follow-up
+correctly revealed that
+``tests/test_broker_bitunix.py::TestBitunixBroker::test_parse_source_timestep``
+was order-dependent: it failed alone because a mocked data-source parser
+returned a ``MagicMock``. The broker now validates delegated parser output and
+uses its existing fallback mapping for invalid values. The complete Bitunix
+broker file then passed: `15 passed`.
 
 The acceptance inventory remains a separate red gate. Three acceptance
 backtests passed before Backdoor Butterfly repeatedly received

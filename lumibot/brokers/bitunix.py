@@ -956,9 +956,12 @@ class Bitunix(Broker):
         Delegates to the data source's implementation.
         """
         if hasattr(self.data_source, '_parse_source_timestep'):
-            return self.data_source._parse_source_timestep(timestep)
+            parsed = self.data_source._parse_source_timestep(timestep)
+            if isinstance(parsed, str):
+                return parsed
 
-        # Fallback implementation if data source doesn't have the method
+        # Fall back when the data source does not implement the parser or
+        # returns an invalid value.
         normalized = timestep.lower().strip()
 
         timestep_map = {

@@ -257,6 +257,29 @@ def test_browser_tool_surface_is_available_to_agents():
     }.issubset(names)
 
 
+def test_stateful_browser_and_http_tools_are_never_result_cached():
+    stateful_names = {
+        "http_request",
+        "rss_fetch",
+        "browser_session_open",
+        "browser_session_close",
+        "browser_session_recover",
+        "browser_navigate",
+        "browser_observe",
+        "browser_act",
+        "browser_tabs",
+        "browser_extract",
+        "browser_login",
+        "browser_storage_state",
+        "browser_screenshot",
+    }
+    definitions = {definition.name: definition for definition in BuiltinTools.all()}
+
+    for name in stateful_names:
+        bound = definitions[name].binder(object(), None)
+        assert not bound.metadata.get("cache_scope"), name
+
+
 def test_browser_session_recovery_reopens_the_same_profile_and_current_url(tmp_path):
     class CrashedEngine(_FakeEngine):
         def __init__(self):

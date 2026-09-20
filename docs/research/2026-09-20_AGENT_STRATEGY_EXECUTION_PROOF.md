@@ -86,6 +86,43 @@ This proves the strategy-to-browser-to-trade-to-publisher contract on an owned
 site. It does not claim that TipRanks, Instagram, X, Reddit, or another
 third-party account was automated.
 
+### Fresh real-model browser run
+
+A fresh Gemini ``gemini-3.5-flash-lite`` run then exercised the same public
+Strategy through Google ADK. The first attempt exposed two real defects that the
+scripted regression had not caught: Patchright's synchronous runtime was being
+started inside ADK's asyncio loop, and stateful browser tools marked with the
+string ``cache_scope=none`` were accidentally cached. Both failures received
+red regression tests before repair.
+
+The corrected run completed the whole flow:
+
+- Authenticated browser research at the owned JavaScript fixture.
+- Screenshot and action-trace receipts from the research session.
+- Risk sizing with ``max_position_pct=1`` interpreted as 1%, not 100%.
+- Order ``bt_1``: buy one SPY market; filled at 602.00 in the backtest.
+- Idempotent publication keyed by ``bt_1`` to the owned fixture.
+- A second screenshot and action trace showing the confirmed ``published``
+  response.
+
+Local raw evidence:
+
+- ``docs/research/artifacts/2026-09-20-strategy-proof/real-model-browser-green/result.json``
+  SHA-256 ``60fae68664f30952bb6f825d9c659303082f0e56cefb8c61733e0708471075c9``
+- Research screenshot SHA-256
+  ``bf4a4a943eacf1ef9a34107e779807be5c04053eb4eb60f69fc6bd11d14db944``
+- Publication screenshot SHA-256
+  ``4ba417a388c92b075e5bd64036a089eb64f0050ef607faf23848b660cfe5078d``
+- Research trace SHA-256
+  ``d3a50f5e6ecabe9bccf273fb3049d06b026da0d080e1cd9ab5461979cefdda0c``
+- Publication trace SHA-256
+  ``7ab4149ba93a4903e67ba51cd765566ebd843d14ef9d8e4ccefa9f362c67ff4e``
+
+The model currently reasons from the rendered page URL, title, visible text,
+extracted DOM values, and action results. Screenshots are preserved as audit
+artifacts, but they are not yet reattached to the model as native multimodal
+image parts. Native screenshot vision remains a separate, explicit gap.
+
 ## Deterministic Gate
 
 Command:
@@ -105,7 +142,9 @@ order tools, that actual backtest fills occur, and that browser screenshots,
 action traces, and the idempotent publication receipt exist.
 
 The complete affected browser, disclosure-strategy, and documentation group
-also passed: `28 passed`. That group includes the real Patchright fixture,
+also passed after the original implementation: `28 passed`. The browser gate
+was expanded and rerun after the async/cache repairs: `60 passed` in 46.10
+seconds. The group includes the real Patchright fixture,
 authenticated profile persistence, multi-tab behavior, upload/download,
 screenshots, the 100-restart soak, and the new `wait_text` synchronization
 action. `wait_text` was added after a captured red run proved that waiting only

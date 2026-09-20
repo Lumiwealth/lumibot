@@ -36,6 +36,11 @@ def test_browser_showcase_research_handoff_places_real_backtest_trade(
             events = []
             if request.agent_name == "browser_researcher":
                 assert "orders_submit_order" not in {tool.name for tool in request.bound_tools}
+                assert request.context["research_login_selectors"] == {
+                    "username": "#username",
+                    "password": "#password",
+                    "submit": "#login",
+                }
                 opened = _invoke_tool(request, events, "browser_session_open", profile="strategy-research")
                 session_id = opened["session_id"]
                 _invoke_tool(
@@ -85,6 +90,8 @@ def test_browser_showcase_research_handoff_places_real_backtest_trade(
                 evidence = json.loads(request.context["research_evidence"])
                 assert evidence["finding"].startswith("Authorized portal evidence:")
                 assert Path(evidence["screenshot_path"]).is_file()
+                assert request.context["max_position_pct"] == 5
+                assert request.context["max_position_fraction"] == 0.05
                 for tool in ("account_portfolio", "account_positions", "orders_open_orders"):
                     _invoke_tool(request, events, tool)
                 _invoke_tool(request, events, "market_last_price", symbol="SHOW", asset_type="stock")
@@ -109,6 +116,12 @@ def test_browser_showcase_research_handoff_places_real_backtest_trade(
             outcome = json.loads(request.context["trade_outcome"])
             assert outcome["sandbox_order"]["identifier"]
             assert request.context["publish_enabled"] is True
+            selectors = request.context["publish_form_selectors"]
+            assert selectors == {
+                "idempotency_key": "#idempotency-key",
+                "receipt": "#receipt",
+                "submit": "#publish",
+            }
             opened = _invoke_tool(request, events, "browser_session_open", profile="strategy-publisher")
             session_id = opened["session_id"]
             _invoke_tool(
@@ -124,7 +137,7 @@ def test_browser_showcase_research_handoff_places_real_backtest_trade(
                 "browser_act",
                 session_id=session_id,
                 action="fill",
-                selector="#idempotency-key",
+                selector=selectors["idempotency_key"],
                 value=outcome["sandbox_order"]["identifier"],
             )
             _invoke_tool(
@@ -133,7 +146,7 @@ def test_browser_showcase_research_handoff_places_real_backtest_trade(
                 "browser_act",
                 session_id=session_id,
                 action="fill",
-                selector="#receipt",
+                selector=selectors["receipt"],
                 value="Sandbox trade submitted: SHOW",
             )
             _invoke_tool(
@@ -142,7 +155,7 @@ def test_browser_showcase_research_handoff_places_real_backtest_trade(
                 "browser_act",
                 session_id=session_id,
                 action="click",
-                selector="#publish",
+                selector=selectors["submit"],
             )
             screenshot = _invoke_tool(
                 request,
@@ -201,8 +214,18 @@ def test_browser_showcase_research_handoff_places_real_backtest_trade(
         parameters={
             "symbol": "SHOW",
             "research_url": f"{browser_fixture_server}/dashboard",
+            "research_login_selectors": {
+                "username": "#username",
+                "password": "#password",
+                "submit": "#login",
+            },
             "publish_enabled": True,
             "publish_url": f"{browser_fixture_server}/community",
+            "publish_form_selectors": {
+                "idempotency_key": "#idempotency-key",
+                "receipt": "#receipt",
+                "submit": "#publish",
+            },
             "max_position_pct": 5,
         },
         pandas_data={asset: Data(asset, frame, timestep="day")},

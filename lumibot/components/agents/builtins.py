@@ -2087,7 +2087,7 @@ def _bind_http_request(strategy: Any, manager: Any) -> BoundTool:
         ),
         function=http_request,
         source="builtin",
-        metadata={"kind": "web", "cache_scope": "none", "temporal": "response_time"},
+        metadata={"kind": "web", "temporal": "response_time"},
     )
 
 
@@ -2113,7 +2113,7 @@ def _bind_rss_fetch(strategy: Any, manager: Any) -> BoundTool:
         ),
         function=rss_fetch,
         source="builtin",
-        metadata={"kind": "web", "cache_scope": "none", "temporal": "source_published_at"},
+        metadata={"kind": "web", "temporal": "source_published_at"},
     )
 
 
@@ -2151,7 +2151,7 @@ def _bind_browser_session_open(strategy: Any, manager: Any) -> BoundTool:
         description="Open a stateful browser session backed by a persistent named profile.",
         function=browser_session_open,
         source="builtin",
-        metadata={"kind": "browser", "cache_scope": "none"},
+        metadata={"kind": "browser"},
     )
 
 
@@ -2164,7 +2164,7 @@ def _bind_browser_session_close(strategy: Any, manager: Any) -> BoundTool:
         description="Close a browser session while preserving its named profile state.",
         function=browser_session_close,
         source="builtin",
-        metadata={"kind": "browser", "cache_scope": "none"},
+        metadata={"kind": "browser"},
     )
 
 
@@ -2180,7 +2180,7 @@ def _bind_browser_session_recover(strategy: Any, manager: Any) -> BoundTool:
         description="Restart a crashed browser session with the same persistent profile and optionally resume its URL.",
         function=browser_session_recover,
         source="builtin",
-        metadata={"kind": "browser", "cache_scope": "none"},
+        metadata={"kind": "browser"},
     )
 
 
@@ -2197,7 +2197,7 @@ def _bind_browser_navigate(strategy: Any, manager: Any) -> BoundTool:
         description="Navigate the active tab in a stateful browser session to a URL.",
         function=browser_navigate,
         source="builtin",
-        metadata={"kind": "browser", "cache_scope": "none", "temporal": "browser_observation_time"},
+        metadata={"kind": "browser", "temporal": "browser_observation_time"},
     )
 
 
@@ -2213,7 +2213,7 @@ def _bind_browser_observe(strategy: Any, manager: Any) -> BoundTool:
         description="Read the active tab URL, title and visible text, optionally with a screenshot.",
         function=browser_observe,
         source="builtin",
-        metadata={"kind": "browser", "cache_scope": "none", "temporal": "browser_observation_time"},
+        metadata={"kind": "browser", "temporal": "browser_observation_time"},
     )
 
 
@@ -2242,7 +2242,7 @@ def _bind_browser_act(strategy: Any, manager: Any) -> BoundTool:
         ),
         function=browser_act,
         source="builtin",
-        metadata={"kind": "browser", "cache_scope": "none", "mutates_external": True},
+        metadata={"kind": "browser", "mutates_external": True},
     )
 
 
@@ -2265,7 +2265,7 @@ def _bind_browser_tabs(strategy: Any, manager: Any) -> BoundTool:
         description="List, open, switch, or close tabs in a stateful browser session.",
         function=browser_tabs,
         source="builtin",
-        metadata={"kind": "browser", "cache_scope": "none"},
+        metadata={"kind": "browser"},
     )
 
 
@@ -2286,7 +2286,7 @@ def _bind_browser_extract(strategy: Any, manager: Any) -> BoundTool:
         description="Extract text or one attribute from every matching element in the active tab.",
         function=browser_extract,
         source="builtin",
-        metadata={"kind": "browser", "cache_scope": "none", "temporal": "browser_observation_time"},
+        metadata={"kind": "browser", "temporal": "browser_observation_time"},
     )
 
 
@@ -2316,7 +2316,7 @@ def _bind_browser_login(strategy: Any, manager: Any) -> BoundTool:
         ),
         function=browser_login,
         source="builtin",
-        metadata={"kind": "browser", "cache_scope": "none", "mutates_external": True},
+        metadata={"kind": "browser", "mutates_external": True},
     )
 
 
@@ -2329,7 +2329,7 @@ def _bind_browser_storage_state(strategy: Any, manager: Any) -> BoundTool:
         description="Persist the active browser context storage state inside its managed profile directory.",
         function=browser_storage_state,
         source="builtin",
-        metadata={"kind": "browser", "cache_scope": "none", "temporal": "browser_observation_time"},
+        metadata={"kind": "browser", "temporal": "browser_observation_time"},
     )
 
 
@@ -2350,7 +2350,7 @@ def _bind_browser_screenshot(strategy: Any, manager: Any) -> BoundTool:
         description="Save a browser screenshot inside the managed artifact directory and return its SHA-256 receipt.",
         function=browser_screenshot,
         source="builtin",
-        metadata={"kind": "browser", "cache_scope": "none", "temporal": "browser_observation_time"},
+        metadata={"kind": "browser", "temporal": "browser_observation_time"},
     )
 
 

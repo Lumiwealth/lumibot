@@ -6,8 +6,10 @@ import json
 import re
 import time
 import uuid
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from pathlib import Path
+from threading import Lock
 from typing import Any, Protocol
 from urllib.parse import urlsplit
 
@@ -368,6 +370,23 @@ class PatchrightEngine:
         self.channel = channel
         self._playwright = None
         self._sessions: dict[str, dict[str, Any]] = {}
+        self._worker: ThreadPoolExecutor | None = None
+        self._worker_lock = Lock()
+
+    def _call(self, function, *args, **kwargs):
+        """Keep Patchright's synchronous runtime on one non-async worker thread."""
+        with self._worker_lock:
+            if self._worker is None:
+                self._worker = ThreadPoolExecutor(max_workers=1, thread_name_prefix="lumibot-browser")
+            worker = self._worker
+        return worker.submit(function, *args, **kwargs).result()
+
+    def _shutdown_worker(self) -> None:
+        with self._worker_lock:
+            worker = self._worker
+            self._worker = None
+        if worker is not None:
+            worker.shutdown(wait=True)
 
     def _runtime(self):
         if self._playwright is None:
@@ -382,6 +401,13 @@ class PatchrightEngine:
         return self._playwright
 
     def open(self, *, session_id: str, profile_dir: Path, headless: bool) -> None:
+        try:
+            self._call(self._open, session_id=session_id, profile_dir=profile_dir, headless=headless)
+        except Exception:
+            self._shutdown_worker()
+            raise
+
+    def _open(self, *, session_id: str, profile_dir: Path, headless: bool) -> None:
         chromium = self._runtime().chromium
         kwargs: dict[str, Any] = {"headless": headless}
         if self.channel:
@@ -409,11 +435,17 @@ class PatchrightEngine:
         self._sessions[session_id] = {"context": context, "active_index": 0}
 
     def close(self, session_id: str) -> None:
+        is_idle = self._call(self._close, session_id)
+        if is_idle:
+            self._shutdown_worker()
+
+    def _close(self, session_id: str) -> bool:
         session = self._sessions.pop(session_id)
         session["context"].close()
         if not self._sessions and self._playwright is not None:
             self._playwright.stop()
             self._playwright = None
+        return not self._sessions
 
     def _session(self, session_id: str) -> dict[str, Any]:
         if session_id not in self._sessions:
@@ -429,6 +461,9 @@ class PatchrightEngine:
         return pages[session["active_index"]]
 
     def navigate(self, session_id: str, url: str, wait_until: str) -> dict[str, Any]:
+        return self._call(self._navigate, session_id, url, wait_until)
+
+    def _navigate(self, session_id: str, url: str, wait_until: str) -> dict[str, Any]:
         page = self._page(session_id)
         response = page.goto(url, wait_until=wait_until)
         return {
@@ -438,6 +473,9 @@ class PatchrightEngine:
         }
 
     def observe(self, session_id: str, include_screenshot: bool) -> dict[str, Any]:
+        return self._call(self._observe, session_id, include_screenshot)
+
+    def _observe(self, session_id: str, include_screenshot: bool) -> dict[str, Any]:
         page = self._page(session_id)
         result = {
             "url": page.url,
@@ -449,6 +487,16 @@ class PatchrightEngine:
         return result
 
     def act(
+        self,
+        session_id: str,
+        action: str,
+        selector: str | None,
+        value: Any,
+        timeout_seconds: float,
+    ) -> dict[str, Any]:
+        return self._call(self._act, session_id, action, selector, value, timeout_seconds)
+
+    def _act(
         self,
         session_id: str,
         action: str,
@@ -522,6 +570,15 @@ class PatchrightEngine:
         tab_id: str | None = None,
         url: str | None = None,
     ) -> dict[str, Any]:
+        return self._call(self._tabs, session_id, operation, tab_id, url)
+
+    def _tabs(
+        self,
+        session_id: str,
+        operation: str,
+        tab_id: str | None = None,
+        url: str | None = None,
+    ) -> dict[str, Any]:
         session = self._session(session_id)
         context = session["context"]
         if operation == "open":
@@ -554,6 +611,9 @@ class PatchrightEngine:
         }
 
     def extract(self, session_id: str, selector: str, attribute: str | None) -> dict[str, Any]:
+        return self._call(self._extract, session_id, selector, attribute)
+
+    def _extract(self, session_id: str, selector: str, attribute: str | None) -> dict[str, Any]:
         locator = self._page(session_id).locator(selector)
         count = min(locator.count(), 1000)
         if attribute:
@@ -563,11 +623,17 @@ class PatchrightEngine:
         return {"selector": selector, "attribute": attribute, "values": values, "count": count}
 
     def save_storage_state(self, session_id: str, path: Path) -> str:
+        return self._call(self._save_storage_state, session_id, path)
+
+    def _save_storage_state(self, session_id: str, path: Path) -> str:
         path.parent.mkdir(parents=True, exist_ok=True)
         self._session(session_id)["context"].storage_state(path=str(path))
         return str(path)
 
     def screenshot(self, session_id: str, path: Path, full_page: bool) -> str:
+        return self._call(self._screenshot, session_id, path, full_page)
+
+    def _screenshot(self, session_id: str, path: Path, full_page: bool) -> str:
         path.parent.mkdir(parents=True, exist_ok=True)
         self._page(session_id).screenshot(path=str(path), full_page=full_page)
         return str(path)
@@ -581,6 +647,13 @@ class CamoufoxEngine(PatchrightEngine):
         self._launchers: dict[str, Any] = {}
 
     def open(self, *, session_id: str, profile_dir: Path, headless: bool) -> None:
+        try:
+            self._call(self._open_camoufox, session_id=session_id, profile_dir=profile_dir, headless=headless)
+        except Exception:
+            self._shutdown_worker()
+            raise
+
+    def _open_camoufox(self, *, session_id: str, profile_dir: Path, headless: bool) -> None:
         try:
             from camoufox.sync_api import Camoufox
         except ImportError as exc:
@@ -602,7 +675,13 @@ class CamoufoxEngine(PatchrightEngine):
         self._launchers[session_id] = launcher
 
     def close(self, session_id: str) -> None:
+        is_idle = self._call(self._close_camoufox, session_id)
+        if is_idle:
+            self._shutdown_worker()
+
+    def _close_camoufox(self, session_id: str) -> bool:
         self._session(session_id)
         launcher = self._launchers.pop(session_id)
         self._sessions.pop(session_id, None)
         launcher.__exit__(None, None, None)
+        return not self._sessions

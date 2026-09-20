@@ -1,3 +1,4 @@
+import asyncio
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from threading import Thread
@@ -130,6 +131,22 @@ def browser_fixture_server():
         server.shutdown()
         server.server_close()
         thread.join(timeout=5)
+
+
+def test_patchright_session_works_inside_running_asyncio_loop(browser_fixture_server, tmp_path):
+    async def exercise_browser():
+        manager = BrowserSessionManager(engine=PatchrightEngine(), state_root=tmp_path)
+        opened = manager.open(profile="async-agent", headless=True)
+        session_id = opened["session_id"]
+        manager.navigate(session_id, browser_fixture_server)
+        observed = manager.observe(session_id)
+        manager.close(session_id)
+        return observed
+
+    observed = asyncio.run(exercise_browser())
+
+    assert observed["url"] == f"{browser_fixture_server}/"
+    assert "missing" in observed["text"]
 
 
 def test_patchright_stateful_login_tabs_storage_and_screenshot(browser_fixture_server, tmp_path):

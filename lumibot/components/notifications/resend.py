@@ -1,4 +1,5 @@
 import os
+import time
 from typing import Any
 
 import requests
@@ -21,12 +22,44 @@ class ResendNotificationProvider:
             raise ValueError("RESEND_API_KEY is required")
         return {"Authorization": f"Bearer {self.api_key}", "Content-Type": "application/json"}
 
+    @staticmethod
+    def _retry_delay(response: requests.Response) -> float:
+        raw = (getattr(response, "headers", {}) or {}).get("Retry-After", "0")
+        try:
+            return min(max(float(raw), 0.0), 60.0)
+        except (TypeError, ValueError):
+            return 0.0
+
+    def _request(
+        self,
+        method: str,
+        path: str,
+        *,
+        params: dict[str, Any] | None = None,
+        payload: dict[str, Any] | None = None,
+        idempotency_key: str | None = None,
+    ) -> requests.Response:
+        headers = self._headers()
+        if idempotency_key:
+            headers["Idempotency-Key"] = idempotency_key
+        can_retry = method == "GET" or bool(idempotency_key)
+        for attempt in range(2):
+            if method == "GET":
+                response = requests.get(f"{self.base_url}{path}", headers=headers, params=params, timeout=20)
+            else:
+                response = requests.post(f"{self.base_url}{path}", headers=headers, json=payload, timeout=20)
+            if response.status_code != 429 and response.status_code < 500:
+                return response
+            if not can_retry or attempt == 1:
+                return response
+            time.sleep(self._retry_delay(response))
+        raise AssertionError("unreachable")
+
     def _get(self, path: str, **params: Any) -> dict[str, Any]:
-        response = requests.get(
-            f"{self.base_url}{path}",
-            headers=self._headers(),
+        response = self._request(
+            "GET",
+            path,
             params={key: value for key, value in params.items() if value is not None},
-            timeout=20,
         )
         response.raise_for_status()
         return response.json() if response.content else {}
@@ -51,6 +84,24 @@ class ResendNotificationProvider:
                 skipped=True,
                 reason="RESEND_API_KEY and RESEND_FROM_EMAIL are required",
             )
+        if text is None and html is None:
+            return NotificationResult(
+                ok=False,
+                provider=self.provider,
+                title=subject,
+                message="",
+                skipped=True,
+                reason="email text or html content is required",
+            )
+        if idempotency_key is not None and not 1 <= len(idempotency_key) <= 256:
+            return NotificationResult(
+                ok=False,
+                provider=self.provider,
+                title=subject,
+                message=text or "",
+                skipped=True,
+                reason="idempotency key must be between 1 and 256 characters",
+            )
         payload: dict[str, Any] = {"from": self.from_address, "to": to, "subject": subject}
         if text is not None:
             payload["text"] = text
@@ -69,11 +120,13 @@ class ResendNotificationProvider:
                 reason=f"reserved Resend field(s) cannot be overridden: {', '.join(sorted(reserved))}",
             )
         payload.update(kwargs)
-        headers = self._headers()
-        if idempotency_key:
-            headers["Idempotency-Key"] = idempotency_key
         try:
-            response = requests.post(f"{self.base_url}/emails", json=payload, headers=headers, timeout=20)
+            response = self._request(
+                "POST",
+                "/emails",
+                payload=payload,
+                idempotency_key=idempotency_key,
+            )
             response.raise_for_status()
             response_payload = response.json() if response.content else {}
         except (requests.RequestException, ValueError) as exc:

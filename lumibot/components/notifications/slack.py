@@ -1,4 +1,5 @@
 import os
+import time
 from typing import Any
 
 import requests
@@ -29,6 +30,25 @@ class SlackNotificationProvider:
             raise ValueError(payload.get("error") or "slack request failed")
         return payload
 
+    @staticmethod
+    def _retry_delay(response: requests.Response) -> float:
+        raw = (getattr(response, "headers", {}) or {}).get("Retry-After", "0")
+        try:
+            return min(max(float(raw), 0.0), 60.0)
+        except (TypeError, ValueError):
+            return 0.0
+
+    def _request(self, method: str, path: str, **kwargs: Any) -> requests.Response:
+        for attempt in range(2):
+            request = requests.get if method == "GET" else requests.post
+            response = request(f"{self.base_url}/{path}", headers=self._headers(), timeout=20, **kwargs)
+            if response.status_code != 429:
+                return response
+            if attempt == 1:
+                return response
+            time.sleep(self._retry_delay(response))
+        raise AssertionError("unreachable")
+
     def send_message(
         self,
         text: str,
@@ -45,11 +65,10 @@ class SlackNotificationProvider:
             payload["thread_ts"] = thread_ts
         if blocks:
             payload["blocks"] = blocks
-        response = requests.post(
-            f"{self.base_url}/chat.postMessage",
+        response = self._request(
+            "POST",
+            "chat.postMessage",
             json=payload,
-            headers=self._headers(),
-            timeout=20,
         )
         return self._payload(response)
 
@@ -57,11 +76,10 @@ class SlackNotificationProvider:
         target = channel or self.default_channel
         if not target:
             raise ValueError("Slack channel is required")
-        response = requests.get(
-            f"{self.base_url}/{method}",
-            headers=self._headers(),
+        response = self._request(
+            "GET",
+            method,
             params={"channel": target, **{key: value for key, value in params.items() if value is not None}},
-            timeout=20,
         )
         return self._payload(response)
 
@@ -90,15 +108,14 @@ class SlackNotificationProvider:
         cursor: str | None = None,
         types: str = "public_channel,private_channel",
     ) -> dict[str, Any]:
-        response = requests.get(
-            f"{self.base_url}/conversations.list",
-            headers=self._headers(),
+        response = self._request(
+            "GET",
+            "conversations.list",
             params={
                 "limit": limit,
                 "types": types,
                 **({"cursor": cursor} if cursor else {}),
             },
-            timeout=20,
         )
         return self._payload(response)
 

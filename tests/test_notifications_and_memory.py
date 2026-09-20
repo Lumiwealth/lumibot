@@ -106,10 +106,10 @@ def test_resend_provider_sends_idempotent_email_with_attachments(monkeypatch):
 
     result = manager.send_email(
         to=["rob@example.com"],
-        subject="Christy's Picks",
+        subject="Daily account summary",
         text="The report is attached.",
         attachments=[{"filename": "picks.csv", "content": "c3ltYm9sXG5WRVJB"}],
-        idempotency_key="christy/2026-09-20",
+        idempotency_key="account-summary/2026-09-20",
     )
 
     assert result.ok is True
@@ -117,7 +117,7 @@ def test_resend_provider_sends_idempotent_email_with_attachments(monkeypatch):
     assert calls[0]["url"] == "https://api.resend.com/emails"
     assert calls[0]["json"]["from"] == "Bot <bot@example.com>"
     assert calls[0]["json"]["attachments"][0]["filename"] == "picks.csv"
-    assert calls[0]["headers"]["Idempotency-Key"] == "christy/2026-09-20"
+    assert calls[0]["headers"]["Idempotency-Key"] == "account-summary/2026-09-20"
     assert "re-secret" not in repr(result)
 
 
@@ -127,7 +127,7 @@ def test_resend_provider_does_not_allow_per_message_sender_override(monkeypatch)
 
     result = manager.send_email(
         to=["rob@example.com"],
-        subject="Christy's Picks",
+        subject="Daily account summary",
         text="The report is attached.",
         **{"from": "forged@example.com"},
     )
@@ -221,9 +221,9 @@ def test_backtest_email_records_simulation_without_network(monkeypatch, caplog):
     monkeypatch.setattr("lumibot.components.notifications.resend.requests.post", fail_post)
     result = manager.send_email(
         to=["rob@example.com"],
-        subject="Christy's Picks",
+        subject="Daily account summary",
         text="Dry run",
-        idempotency_key="christy/backtest",
+        idempotency_key="account-summary/backtest",
     )
 
     assert result.ok is True
@@ -236,11 +236,11 @@ def test_backtest_email_log_preserves_content_and_attachment_evidence(caplog):
     manager = NotificationManager(_Strategy())
     result = manager.send_email(
         to=["rob@example.com"],
-        subject="Christy's Picks",
+        subject="Daily account summary",
         text="Three files are attached.",
         html="<p>Three files are attached.</p>",
         attachments=[{"filename": "picks.csv", "content": "c3ltYm9sXG5WRVJB"}],
-        idempotency_key="christy/backtest",
+        idempotency_key="account-summary/backtest",
     )
 
     assert result.payload["text"] == "Three files are attached."

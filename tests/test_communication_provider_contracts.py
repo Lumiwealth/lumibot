@@ -119,10 +119,11 @@ def test_actual_bound_agent_email_tool_calls_the_strategy_provider_path():
             "subject": "Daily summary",
             "text": "Attached.",
             "html": None,
-            "attachments": [{"filename": "source.csv", "content": "c291cmNl"}],
-            "idempotency_key": "daily-summary/2026-09-20",
-        }
-    ]
+                "attachments": [{"filename": "source.csv", "content": "c291cmNl"}],
+                "idempotency_key": "daily-summary/2026-09-20",
+                "provider": "resend",
+            }
+        ]
 
 
 def test_resend_requires_body_and_valid_idempotency_key():

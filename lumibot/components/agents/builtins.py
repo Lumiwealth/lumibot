@@ -3321,6 +3321,7 @@ def _bind_send_email(strategy: Any, manager: Any) -> BoundTool:
         html: str | None = None,
         attachments: list[dict[str, Any]] | None = None,
         idempotency_key: str | None = None,
+        provider: str = "resend",
     ) -> dict[str, Any]:
         result = strategy.send_email(
             to=to,
@@ -3329,6 +3330,7 @@ def _bind_send_email(strategy: Any, manager: Any) -> BoundTool:
             html=html,
             attachments=attachments,
             idempotency_key=idempotency_key,
+            provider=provider,
         )
         return _jsonable(result.__dict__)
 

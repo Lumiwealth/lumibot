@@ -4069,6 +4069,7 @@ class _Strategy:
         attachments=None,
         idempotency_key=None,
         enabled=None,
+        provider="resend",
         **kwargs,
     ):
         """Send an email through the configured provider, or record it during a backtest."""
@@ -4080,6 +4081,7 @@ class _Strategy:
             attachments=attachments,
             idempotency_key=idempotency_key,
             enabled=enabled,
+            provider=provider,
             **kwargs,
         )
 

@@ -70,6 +70,19 @@ class NotificationManager:
         self.providers.append(provider)
         return provider
 
+    def configure_botspot(
+        self,
+        *,
+        url: str | None = None,
+        token_env: str = "BOTSPOT_COMMUNICATIONS_MCP_TOKEN",
+        renew_url: str | None = None,
+    ) -> Any:
+        from .botspot import BotSpotNotificationProvider
+
+        provider = BotSpotNotificationProvider(url=url, token_env=token_env, renew_url=renew_url)
+        self.providers.append(provider)
+        return provider
+
     def _provider(self, name: str) -> Any | None:
         return next((provider for provider in self.providers if getattr(provider, "provider", None) == name), None)
 
@@ -107,6 +120,7 @@ class NotificationManager:
         attachments: list[dict[str, Any]] | None = None,
         idempotency_key: str | None = None,
         enabled: bool | None = None,
+        provider: str = "resend",
         **kwargs: Any,
     ) -> NotificationResult:
         recipients = [to] if isinstance(to, str) else list(to)
@@ -114,7 +128,7 @@ class NotificationManager:
         if not should_send:
             payload = {
                 "action": "send_email",
-                "provider": "resend",
+                "provider": provider,
                 "status": "simulated_not_sent",
                 "to": recipients,
                 "subject": subject,
@@ -126,24 +140,24 @@ class NotificationManager:
             self._record_communication(payload)
             return NotificationResult(
                 ok=True,
-                provider="resend",
+                provider=provider,
                 title=subject,
                 message=text or "",
                 skipped=True,
                 reason="simulated_not_sent",
                 payload=payload,
             )
-        provider = self._provider("resend")
-        if provider is None:
+        configured_provider = self._provider(provider)
+        if configured_provider is None:
             return NotificationResult(
                 ok=False,
-                provider="resend",
+                provider=provider,
                 title=subject,
                 message=text or "",
                 skipped=True,
-                reason="resend provider not configured",
+                reason=f"{provider} provider not configured",
             )
-        result = provider.send_email(
+        result = configured_provider.send_email(
             to=recipients,
             subject=subject,
             text=text,
@@ -154,7 +168,7 @@ class NotificationManager:
         )
         self._record_communication({
             "action": "send_email",
-            "provider": "resend",
+            "provider": provider,
             "status": "accepted" if result.ok else "failed",
             "to": recipients,
             "subject": subject,
@@ -191,14 +205,14 @@ class NotificationManager:
             raise RuntimeError(f"{provider_name} provider not configured")
         return getattr(provider, method)(**kwargs)
 
-    def list_sent_emails(self, **kwargs: Any) -> dict[str, Any]:
-        return self._read("resend", "list_sent", "resend.sent", **kwargs)
+    def list_sent_emails(self, *, provider: str = "resend", **kwargs: Any) -> dict[str, Any]:
+        return self._read(provider, "list_sent", f"{provider}.sent", **kwargs)
 
-    def get_sent_email(self, email_id: str) -> dict[str, Any]:
-        return self._read("resend", "get_sent", f"resend.sent.{email_id}", email_id=email_id)
+    def get_sent_email(self, email_id: str, *, provider: str = "resend") -> dict[str, Any]:
+        return self._read(provider, "get_sent", f"{provider}.sent.{email_id}", email_id=email_id)
 
-    def get_email_status(self, email_id: str) -> dict[str, Any]:
-        return self._read("resend", "get_status", f"resend.sent.{email_id}", email_id=email_id)
+    def get_email_status(self, email_id: str, *, provider: str = "resend") -> dict[str, Any]:
+        return self._read(provider, "get_status", f"{provider}.sent.{email_id}", email_id=email_id)
 
     def list_received_emails(self, **kwargs: Any) -> dict[str, Any]:
         return self._read("resend", "list_received", "resend.received", **kwargs)

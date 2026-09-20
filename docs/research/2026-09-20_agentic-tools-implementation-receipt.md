@@ -164,6 +164,23 @@ Simplified replacements:
 - Bull/Bear leveraged ETF
 - Warren Buffett value
 
+Committed-output SHA-256 checksums:
+
+```text
+76e2b458c54c637374a32f7c076b1d288f60829a62f439e11fd861b4ba4432d0  ai-browser-research-showcase.png
+6395078862405201fac6591fea7c7eead664289aa98f34eb0a45f78ee29decab  ai-congress-disclosures.png
+27d56126a96b98f114a5d3d03b2510e2439dc876241b732144dd5be40d273db7  ai-credit-spread.png
+96e0cc5131f06948b4d9cf1815fc4b038cac14ab476516cbccfea4992e2af030  ai-iron-condor.png
+ddcb61b8c1b2ec643bc5ad0d17d2a3ecd37e27dd79d5c90037e64bd542ec14d3  ai-opening-range-breakout.png
+0c3db37b07a92fd4f15b6538f69e743104ba2e6b0c7f1eea921cc3ad7d7cf86a  ai-sec-insider-filings.png
+290b11837c1561852ae64742c5e119bca03378867f0fba90c4721409d261adf9  ai-spx-zero-dte-bear-call-team.png
+c49df13be72d6014d23eaab9b9732cdfa55ceabc198d5063481d5ff721bb3c3f  ai-vwap.png
+53a884df95b4a68f2c29eb39e971712b17da717eab7fec7d83eb92eb402d75d9  bill-ackman-concentrated.png
+d69e90ead7eabae56c2a44835ffc3a8463baa34ae87cfb59eb81bf09f31f7df2  bull-bear-large-cap-stocks.png
+d7829d6d88fad0ff8d8b07cf530e639dc8c128de0bb9f6a0a1c3559892d37f8b  bull-bear-leveraged-etf.png
+1e8381974d3153f6b406be373ac681787268175cde3204de9d94277f2ebfb5a7  warren-buffett-value.png
+```
+
 Sphinx completed successfully, every documented agent example resolves to an
 inspected PNG, and desktop plus 390-pixel mobile layouts were visually checked.
 

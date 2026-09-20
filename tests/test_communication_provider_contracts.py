@@ -119,11 +119,11 @@ def test_actual_bound_agent_email_tool_calls_the_strategy_provider_path():
             "subject": "Daily summary",
             "text": "Attached.",
             "html": None,
-                "attachments": [{"filename": "source.csv", "content": "c291cmNl"}],
-                "idempotency_key": "daily-summary/2026-09-20",
-                "provider": "resend",
-            }
-        ]
+            "attachments": [{"filename": "source.csv", "content": "c291cmNl"}],
+            "idempotency_key": "daily-summary/2026-09-20",
+            "provider": "resend",
+        }
+    ]
 
 
 def test_resend_requires_body_and_valid_idempotency_key():
@@ -248,6 +248,76 @@ def test_resend_does_not_retry_non_idempotent_send(monkeypatch):
     result = provider.send_email(to=["owner@example.com"], subject="Daily summary", text="hello")
 
     assert result.ok is False
+    assert len(calls) == 1
+
+
+def test_notification_manager_replays_same_idempotency_payload_without_resending(monkeypatch):
+    calls = []
+
+    def post(url, **kwargs):
+        calls.append((url, kwargs))
+        return _Response({"id": "email-1"})
+
+    monkeypatch.setattr("lumibot.components.notifications.resend.requests.post", post)
+    strategy = _Strategy()
+    strategy.is_backtesting = False
+    from lumibot.components.notifications.base import NotificationManager
+
+    manager = NotificationManager(strategy)
+    manager.configure_resend(api_key="secret", from_address="Bot <bot@example.com>")
+    message = {
+        "to": ["owner@example.com"],
+        "subject": "Daily summary",
+        "text": "hello",
+        "idempotency_key": "daily-summary/2026-09-20",
+    }
+
+    first = manager.send_email(**message)
+    restarted_manager = NotificationManager(strategy)
+    restarted_manager.configure_resend(api_key="secret", from_address="Bot <bot@example.com>")
+    replay = restarted_manager.send_email(**message)
+
+    assert first.ok is True
+    assert replay.ok is True
+    assert replay.skipped is True
+    assert replay.reason == "idempotent_replay"
+    assert replay.payload == {"id": "email-1"}
+    assert len(calls) == 1
+
+
+def test_notification_manager_rejects_changed_payload_for_existing_idempotency_key(monkeypatch):
+    calls = []
+
+    def post(url, **kwargs):
+        calls.append((url, kwargs))
+        return _Response({"id": "email-1"})
+
+    monkeypatch.setattr("lumibot.components.notifications.resend.requests.post", post)
+    strategy = _Strategy()
+    strategy.is_backtesting = False
+    from lumibot.components.notifications.base import NotificationManager
+
+    manager = NotificationManager(strategy)
+    manager.configure_resend(api_key="secret", from_address="Bot <bot@example.com>")
+    first = manager.send_email(
+        to=["owner@example.com"],
+        subject="Daily summary",
+        text="hello",
+        idempotency_key="daily-summary/2026-09-20",
+    )
+    restarted_manager = NotificationManager(strategy)
+    restarted_manager.configure_resend(api_key="secret", from_address="Bot <bot@example.com>")
+    conflict = restarted_manager.send_email(
+        to=["owner@example.com"],
+        subject="Daily summary",
+        text="changed",
+        idempotency_key="daily-summary/2026-09-20",
+    )
+
+    assert first.ok is True
+    assert conflict.ok is False
+    assert conflict.skipped is True
+    assert conflict.reason == "idempotency key was already used for different email content"
     assert len(calls) == 1
 
 

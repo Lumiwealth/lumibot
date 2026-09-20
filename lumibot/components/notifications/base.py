@@ -92,6 +92,57 @@ class NotificationManager:
             logger.info("COMMUNICATION %s", json.dumps(payload, sort_keys=True, default=str))
 
     @staticmethod
+    def _fingerprint_value(value: Any) -> Any:
+        if isinstance(value, bytes):
+            return {
+                "bytes_sha256": hashlib.sha256(value).hexdigest(),
+                "size_bytes": len(value),
+            }
+        if isinstance(value, dict):
+            return {
+                str(key): NotificationManager._fingerprint_value(item)
+                for key, item in sorted(value.items(), key=lambda pair: str(pair[0]))
+            }
+        if isinstance(value, (list, tuple)):
+            return [NotificationManager._fingerprint_value(item) for item in value]
+        if value is None or isinstance(value, (bool, int, float, str)):
+            return value
+        return str(value)
+
+    @classmethod
+    def _email_fingerprint(
+        cls,
+        *,
+        provider: str,
+        recipients: list[str],
+        subject: str,
+        text: str | None,
+        html: str | None,
+        attachments: list[dict[str, Any]] | None,
+        kwargs: dict[str, Any],
+    ) -> str:
+        canonical = cls._fingerprint_value(
+            {
+                "provider": provider,
+                "to": recipients,
+                "subject": subject,
+                "text": text,
+                "html": html,
+                "attachments": attachments or [],
+                "options": kwargs,
+            }
+        )
+        encoded = json.dumps(canonical, sort_keys=True, separators=(",", ":"), ensure_ascii=False).encode("utf-8")
+        return hashlib.sha256(encoded).hexdigest()
+
+    def _idempotency_state(self, provider: str, idempotency_key: str) -> tuple[Any, str]:
+        strategy_vars = getattr(self.strategy, "vars", None)
+        state_key = (
+            "communications.email.idempotency." + hashlib.sha256(f"{provider}\0{idempotency_key}".encode()).hexdigest()
+        )
+        return strategy_vars, state_key
+
+    @staticmethod
     def _attachment_evidence(attachments: list[dict[str, Any]] | None) -> list[dict[str, Any]]:
         evidence: list[dict[str, Any]] = []
         for item in attachments or []:
@@ -157,6 +208,61 @@ class NotificationManager:
                 skipped=True,
                 reason=f"{provider} provider not configured",
             )
+
+        fingerprint = None
+        strategy_vars = None
+        state_key = None
+        if idempotency_key:
+            fingerprint = self._email_fingerprint(
+                provider=provider,
+                recipients=recipients,
+                subject=subject,
+                text=text,
+                html=html,
+                attachments=attachments,
+                kwargs=kwargs,
+            )
+            strategy_vars, state_key = self._idempotency_state(provider, idempotency_key)
+            existing = strategy_vars.get(state_key) if strategy_vars is not None else None
+            if isinstance(existing, dict):
+                if existing.get("fingerprint") != fingerprint:
+                    self._record_communication(
+                        {
+                            "action": "send_email",
+                            "provider": provider,
+                            "status": "idempotency_conflict",
+                            "idempotency_key": idempotency_key,
+                        }
+                    )
+                    return NotificationResult(
+                        ok=False,
+                        provider=provider,
+                        title=subject,
+                        message=text or "",
+                        skipped=True,
+                        reason="idempotency key was already used for different email content",
+                    )
+                if existing.get("status") == "accepted":
+                    provider_message_id = existing.get("provider_message_id")
+                    replay_payload = {"id": provider_message_id} if provider_message_id else {}
+                    self._record_communication(
+                        {
+                            "action": "send_email",
+                            "provider": provider,
+                            "status": "idempotent_replay",
+                            "idempotency_key": idempotency_key,
+                            "provider_message_id": provider_message_id,
+                        }
+                    )
+                    return NotificationResult(
+                        ok=True,
+                        provider=provider,
+                        title=subject,
+                        message=text or "",
+                        skipped=True,
+                        reason="idempotent_replay",
+                        payload=replay_payload,
+                    )
         result = configured_provider.send_email(
             to=recipients,
             subject=subject,
@@ -166,18 +272,31 @@ class NotificationManager:
             idempotency_key=idempotency_key,
             **kwargs,
         )
-        self._record_communication({
-            "action": "send_email",
-            "provider": provider,
-            "status": "accepted" if result.ok else "failed",
-            "to": recipients,
-            "subject": subject,
-            "text": text,
-            "html": html,
-            "attachments": self._attachment_evidence(attachments),
-            "idempotency_key": idempotency_key,
-            "provider_message_id": (result.payload or {}).get("id"),
-        })
+        if result.ok and idempotency_key and strategy_vars is not None and state_key and fingerprint:
+            provider_payload = result.payload or {}
+            provider_message_id = provider_payload.get("id") or provider_payload.get("messageId")
+            strategy_vars.set(
+                state_key,
+                {
+                    "fingerprint": fingerprint,
+                    "status": "accepted",
+                    "provider_message_id": provider_message_id,
+                },
+            )
+        self._record_communication(
+            {
+                "action": "send_email",
+                "provider": provider,
+                "status": "accepted" if result.ok else "failed",
+                "to": recipients,
+                "subject": subject,
+                "text": text,
+                "html": html,
+                "attachments": self._attachment_evidence(attachments),
+                "idempotency_key": idempotency_key,
+                "provider_message_id": (result.payload or {}).get("id"),
+            }
+        )
         return result
 
     def _fixture(self, key: str) -> Any:
@@ -193,12 +312,14 @@ class NotificationManager:
     def _read(self, provider_name: str, method: str, fixture_key: str, **kwargs: Any) -> Any:
         if bool(getattr(self.strategy, "is_backtesting", False)):
             payload = self._fixture(fixture_key)
-            self._record_communication({
-                "action": method,
-                "provider": provider_name,
-                "status": "fixture_read",
-                "fixture_key": fixture_key,
-            })
+            self._record_communication(
+                {
+                    "action": method,
+                    "provider": provider_name,
+                    "status": "fixture_read",
+                    "fixture_key": fixture_key,
+                }
+            )
             return payload
         provider = self._provider(provider_name)
         if provider is None:
@@ -263,13 +384,15 @@ class NotificationManager:
         if provider is None:
             raise RuntimeError("slack provider not configured")
         payload = provider.send_message(text, channel=channel, thread_ts=thread_ts, blocks=blocks)
-        self._record_communication({
-            "action": "send_slack_message",
-            "provider": "slack",
-            "status": "accepted",
-            "channel": payload.get("channel") or channel,
-            "message_ts": payload.get("ts"),
-        })
+        self._record_communication(
+            {
+                "action": "send_slack_message",
+                "provider": "slack",
+                "status": "accepted",
+                "channel": payload.get("channel") or channel,
+                "message_ts": payload.get("ts"),
+            }
+        )
         return payload
 
     def list_slack_messages(self, **kwargs: Any) -> dict[str, Any]:

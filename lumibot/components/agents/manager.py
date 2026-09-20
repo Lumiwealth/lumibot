@@ -944,6 +944,7 @@ class AgentHandle:
         mcp_servers: list[MCPServer] | None = None,
         runtime: Any | None = None,
         allow_trading: bool = True,
+        communication_permissions: set[str] | list[str] | tuple[str, ...] | None = None,
         include_builtin_tools: bool = True,
         include_builtin_skills: bool = True,
         rules_path: str | Path | None = None,
@@ -956,6 +957,9 @@ class AgentHandle:
         self.system_prompt = system_prompt
         self.default_model = default_model
         self.allow_trading = bool(allow_trading)
+        self.communication_permissions = {
+            str(scope).strip() for scope in (communication_permissions or []) if str(scope).strip()
+        }
         self.model_request_timeout_seconds = model_request_timeout_seconds
         self.run_timeout_seconds = run_timeout_seconds
         if reasoning_effort not in {None, "none", "low", "medium", "high", "xhigh", "max"}:
@@ -965,13 +969,13 @@ class AgentHandle:
         self.rules_path = rules_path
         from .builtins import BuiltinTools
 
-        builtin_tools = self._filter_tools_for_trading_permission(BuiltinTools.all())
+        builtin_tools = self._filter_tools_for_permissions(BuiltinTools.all())
         if tools is None:
             self._tool_inputs = builtin_tools
         elif include_builtin_tools:
-            self._tool_inputs = builtin_tools + self._filter_tools_for_trading_permission(list(tools))
+            self._tool_inputs = builtin_tools + self._filter_tools_for_permissions(list(tools))
         else:
-            self._tool_inputs = self._filter_tools_for_trading_permission(list(tools))
+            self._tool_inputs = self._filter_tools_for_permissions(list(tools))
         self._mcp_servers = list(mcp_servers or [])
         hosted_research, research_warning = _botspot_research_server_from_environment()
         if hosted_research and all(server.name != hosted_research.name for server in self._mcp_servers):
@@ -982,13 +986,14 @@ class AgentHandle:
         self._runtime = runtime or google_runtime(mcp_servers=self._mcp_servers)
         self._bound_tools: list[BoundTool] | None = None
 
-    def _filter_tools_for_trading_permission(self, tools: list[Any]) -> list[Any]:
-        if self.allow_trading:
-            return list(tools)
+    def _filter_tools_for_permissions(self, tools: list[Any]) -> list[Any]:
         filtered: list[Any] = []
         for tool in tools:
             metadata = getattr(tool, "metadata", {}) or {}
-            if bool(metadata.get("mutates_trading")):
+            if not self.allow_trading and bool(metadata.get("mutates_trading")):
+                continue
+            required_scope = str(metadata.get("required_communication_scope") or "").strip()
+            if required_scope and required_scope not in self.communication_permissions:
                 continue
             filtered.append(tool)
         return filtered
@@ -2709,6 +2714,7 @@ class AgentManager:
         prompt: str | None = None,
         cadence: str | None = None,
         allow_trading: bool | None = None,
+        communication_permissions: set[str] | list[str] | tuple[str, ...] | None = None,
         _runtime: Any | None = None,
         include_builtin_tools: bool = True,
         include_builtin_skills: bool = True,
@@ -2733,6 +2739,7 @@ class AgentManager:
             mcp_servers=mcp_servers,
             runtime=_runtime,
             allow_trading=resolved_allow_trading,
+            communication_permissions=communication_permissions,
             include_builtin_tools=include_builtin_tools,
             include_builtin_skills=include_builtin_skills,
             rules_path=rules_path,

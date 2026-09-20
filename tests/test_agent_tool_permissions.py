@@ -162,6 +162,34 @@ def test_agent_allow_trading_false_removes_only_mutating_order_tools(monkeypatch
     assert agent.default_model == "openai/gpt-5.4-mini"
 
 
+def test_agent_communication_tools_require_explicit_scopes():
+    strategy = _Strategy()
+    manager = AgentManager(strategy)
+
+    default_agent = manager.create(name="default-communications")
+    default_names = {tool.name for tool in default_agent._ensure_bound_tools()}
+    assert "send_email" not in default_names
+    assert "list_received_emails" not in default_names
+    assert "send_slack_message" not in default_names
+
+    scoped_agent = manager.create(
+        name="scoped-communications",
+        communication_permissions={
+            "communications.email.send",
+            "communications.email.received.read",
+            "communications.slack.history.read",
+        },
+    )
+    scoped_names = {tool.name for tool in scoped_agent._ensure_bound_tools()}
+    assert "send_email" in scoped_names
+    assert "list_received_emails" in scoped_names
+    assert "get_received_email_attachment" in scoped_names
+    assert "list_slack_messages" in scoped_names
+    assert "get_slack_message" in scoped_names
+    assert "send_slack_message" not in scoped_names
+    assert "list_sent_emails" not in scoped_names
+
+
 def test_live_agent_auth_failure_emits_structured_decision_outcome():
     strategy = _Strategy()
     strategy.is_backtesting = False

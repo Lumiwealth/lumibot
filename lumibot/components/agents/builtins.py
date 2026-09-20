@@ -3295,6 +3295,271 @@ def _bind_notify_user(strategy: Any, manager: Any) -> BoundTool:
     )
 
 
+def _bind_send_email(strategy: Any, manager: Any) -> BoundTool:
+    def send_email(
+        to: list[str] | str,
+        subject: str,
+        text: str = "",
+        html: str | None = None,
+        attachments: list[dict[str, Any]] | None = None,
+        idempotency_key: str | None = None,
+    ) -> dict[str, Any]:
+        result = strategy.send_email(
+            to=to,
+            subject=subject,
+            text=text,
+            html=html,
+            attachments=attachments,
+            idempotency_key=idempotency_key,
+        )
+        return _jsonable(result.__dict__)
+
+    return BoundTool(
+        name="send_email",
+        description=(
+            "Send one email through the strategy's configured provider. Use a stable idempotency_key for retries. "
+            "Backtests record simulated_not_sent communication evidence instead of sending."
+        ),
+        function=send_email,
+        source="builtin",
+        metadata={
+            "kind": "communication",
+            "communication_write": True,
+            "required_communication_scope": "communications.email.send",
+        },
+    )
+
+
+def _bind_list_sent_emails(strategy: Any, manager: Any) -> BoundTool:
+    def list_sent_emails(limit: int = 20, after: str | None = None, before: str | None = None) -> dict[str, Any]:
+        return strategy.list_sent_emails(limit=limit, after=after, before=before)
+
+    return BoundTool(
+        name="list_sent_emails",
+        description="List sent emails from the configured provider with cursor pagination.",
+        function=list_sent_emails,
+        source="builtin",
+        metadata={
+            "kind": "communication",
+            "communication_read": True,
+            "required_communication_scope": "communications.email.sent.read",
+        },
+    )
+
+
+def _bind_get_sent_email(strategy: Any, manager: Any) -> BoundTool:
+    def get_sent_email(email_id: str) -> dict[str, Any]:
+        return strategy.get_sent_email(email_id)
+
+    return BoundTool(
+        name="get_sent_email",
+        description="Read one sent email by provider email ID.",
+        function=get_sent_email,
+        source="builtin",
+        metadata={
+            "kind": "communication",
+            "communication_read": True,
+            "required_communication_scope": "communications.email.sent.read",
+        },
+    )
+
+
+def _bind_get_email_status(strategy: Any, manager: Any) -> BoundTool:
+    def get_email_status(email_id: str) -> dict[str, Any]:
+        return strategy.get_email_status(email_id)
+
+    return BoundTool(
+        name="get_email_status",
+        description="Read the current provider record and delivery state for one sent email.",
+        function=get_email_status,
+        source="builtin",
+        metadata={
+            "kind": "communication",
+            "communication_read": True,
+            "required_communication_scope": "communications.email.sent.read",
+        },
+    )
+
+
+def _bind_list_received_emails(strategy: Any, manager: Any) -> BoundTool:
+    def list_received_emails(limit: int = 20, after: str | None = None, before: str | None = None) -> dict[str, Any]:
+        return strategy.list_received_emails(limit=limit, after=after, before=before)
+
+    return BoundTool(
+        name="list_received_emails",
+        description="List received emails from the configured provider with cursor pagination.",
+        function=list_received_emails,
+        source="builtin",
+        metadata={
+            "kind": "communication",
+            "communication_read": True,
+            "required_communication_scope": "communications.email.received.read",
+        },
+    )
+
+
+def _bind_get_received_email(strategy: Any, manager: Any) -> BoundTool:
+    def get_received_email(email_id: str) -> dict[str, Any]:
+        return strategy.get_received_email(email_id)
+
+    return BoundTool(
+        name="get_received_email",
+        description="Read one received email by provider email ID.",
+        function=get_received_email,
+        source="builtin",
+        metadata={
+            "kind": "communication",
+            "communication_read": True,
+            "required_communication_scope": "communications.email.received.read",
+        },
+    )
+
+
+def _bind_list_received_email_attachments(strategy: Any, manager: Any) -> BoundTool:
+    def list_received_email_attachments(email_id: str) -> dict[str, Any]:
+        return strategy.list_received_email_attachments(email_id)
+
+    return BoundTool(
+        name="list_received_email_attachments",
+        description="List the attachments on one received email.",
+        function=list_received_email_attachments,
+        source="builtin",
+        metadata={
+            "kind": "communication",
+            "communication_read": True,
+            "required_communication_scope": "communications.email.received.read",
+        },
+    )
+
+
+def _bind_get_received_email_attachment(strategy: Any, manager: Any) -> BoundTool:
+    def get_received_email_attachment(email_id: str, attachment_id: str) -> dict[str, Any]:
+        return strategy.get_received_email_attachment(email_id, attachment_id)
+
+    return BoundTool(
+        name="get_received_email_attachment",
+        description="Get one received-email attachment's current download metadata.",
+        function=get_received_email_attachment,
+        source="builtin",
+        metadata={
+            "kind": "communication",
+            "communication_read": True,
+            "required_communication_scope": "communications.email.received.read",
+        },
+    )
+
+
+def _bind_send_slack_message(strategy: Any, manager: Any) -> BoundTool:
+    def send_slack_message(
+        text: str,
+        channel: str | None = None,
+        thread_ts: str | None = None,
+        blocks: list[dict[str, Any]] | None = None,
+    ) -> dict[str, Any]:
+        return strategy.send_slack_message(text, channel=channel, thread_ts=thread_ts, blocks=blocks)
+
+    return BoundTool(
+        name="send_slack_message",
+        description="Post a Slack message or thread reply. Backtests record simulated_not_sent evidence.",
+        function=send_slack_message,
+        source="builtin",
+        metadata={
+            "kind": "communication",
+            "communication_write": True,
+            "required_communication_scope": "communications.slack.send",
+        },
+    )
+
+
+def _bind_list_slack_messages(strategy: Any, manager: Any) -> BoundTool:
+    def list_slack_messages(
+        channel: str | None = None,
+        limit: int = 15,
+        cursor: str | None = None,
+        oldest: str | None = None,
+        latest: str | None = None,
+    ) -> dict[str, Any]:
+        return strategy.list_slack_messages(
+            channel=channel,
+            limit=limit,
+            cursor=cursor,
+            oldest=oldest,
+            latest=latest,
+        )
+
+    return BoundTool(
+        name="list_slack_messages",
+        description="Read recent messages from a configured Slack conversation.",
+        function=list_slack_messages,
+        source="builtin",
+        metadata={
+            "kind": "communication",
+            "communication_read": True,
+            "required_communication_scope": "communications.slack.history.read",
+        },
+    )
+
+
+def _bind_list_slack_channels(strategy: Any, manager: Any) -> BoundTool:
+    def list_slack_channels(
+        limit: int = 100,
+        cursor: str | None = None,
+        types: str = "public_channel,private_channel",
+    ) -> dict[str, Any]:
+        return strategy.list_slack_channels(limit=limit, cursor=cursor, types=types)
+
+    return BoundTool(
+        name="list_slack_channels",
+        description="List Slack conversations visible to the configured bot token.",
+        function=list_slack_channels,
+        source="builtin",
+        metadata={
+            "kind": "communication",
+            "communication_read": True,
+            "required_communication_scope": "communications.slack.history.read",
+        },
+    )
+
+
+def _bind_get_slack_message(strategy: Any, manager: Any) -> BoundTool:
+    def get_slack_message(message_ts: str, channel: str | None = None) -> dict[str, Any]:
+        return strategy.get_slack_message(message_ts, channel=channel)
+
+    return BoundTool(
+        name="get_slack_message",
+        description="Read one Slack message by conversation and timestamp.",
+        function=get_slack_message,
+        source="builtin",
+        metadata={
+            "kind": "communication",
+            "communication_read": True,
+            "required_communication_scope": "communications.slack.history.read",
+        },
+    )
+
+
+def _bind_list_slack_thread(strategy: Any, manager: Any) -> BoundTool:
+    def list_slack_thread(
+        thread_ts: str,
+        channel: str | None = None,
+        limit: int = 15,
+        cursor: str | None = None,
+    ) -> dict[str, Any]:
+        return strategy.list_slack_thread(thread_ts, channel=channel, limit=limit, cursor=cursor)
+
+    return BoundTool(
+        name="list_slack_thread",
+        description="Read a Slack message thread by its parent timestamp.",
+        function=list_slack_thread,
+        source="builtin",
+        metadata={
+            "kind": "communication",
+            "communication_read": True,
+            "required_communication_scope": "communications.slack.history.read",
+        },
+    )
+
+
 def _bind_memory_remember(strategy: Any, manager: Any) -> BoundTool:
     def remember(text: str, kind: str = "memory", tags: list[str] | None = None) -> dict[str, Any]:
         return strategy.memory.remember(text, kind=kind, tags=tags, **_agent_memory_context_kwargs())
@@ -3964,6 +4229,110 @@ class _NotificationTools:
     def notify_user(self) -> ToolDefinition:
         return ToolDefinition(name="notify_user", description="Send a user notification.", binder=_bind_notify_user)
 
+    def send_email(self) -> ToolDefinition:
+        return ToolDefinition(
+            name="send_email",
+            description="Send an email.",
+            binder=_bind_send_email,
+            metadata={"required_communication_scope": "communications.email.send"},
+        )
+
+    def list_sent_emails(self) -> ToolDefinition:
+        return ToolDefinition(
+            name="list_sent_emails",
+            description="List sent emails.",
+            binder=_bind_list_sent_emails,
+            metadata={"required_communication_scope": "communications.email.sent.read"},
+        )
+
+    def get_sent_email(self) -> ToolDefinition:
+        return ToolDefinition(
+            name="get_sent_email",
+            description="Read one sent email.",
+            binder=_bind_get_sent_email,
+            metadata={"required_communication_scope": "communications.email.sent.read"},
+        )
+
+    def get_email_status(self) -> ToolDefinition:
+        return ToolDefinition(
+            name="get_email_status",
+            description="Read sent email delivery status.",
+            binder=_bind_get_email_status,
+            metadata={"required_communication_scope": "communications.email.sent.read"},
+        )
+
+    def list_received_emails(self) -> ToolDefinition:
+        return ToolDefinition(
+            name="list_received_emails",
+            description="List received emails.",
+            binder=_bind_list_received_emails,
+            metadata={"required_communication_scope": "communications.email.received.read"},
+        )
+
+    def get_received_email(self) -> ToolDefinition:
+        return ToolDefinition(
+            name="get_received_email",
+            description="Read a received email.",
+            binder=_bind_get_received_email,
+            metadata={"required_communication_scope": "communications.email.received.read"},
+        )
+
+    def list_received_email_attachments(self) -> ToolDefinition:
+        return ToolDefinition(
+            name="list_received_email_attachments",
+            description="List received email attachments.",
+            binder=_bind_list_received_email_attachments,
+            metadata={"required_communication_scope": "communications.email.received.read"},
+        )
+
+    def get_received_email_attachment(self) -> ToolDefinition:
+        return ToolDefinition(
+            name="get_received_email_attachment",
+            description="Get a received email attachment.",
+            binder=_bind_get_received_email_attachment,
+            metadata={"required_communication_scope": "communications.email.received.read"},
+        )
+
+    def send_slack_message(self) -> ToolDefinition:
+        return ToolDefinition(
+            name="send_slack_message",
+            description="Send a Slack message.",
+            binder=_bind_send_slack_message,
+            metadata={"required_communication_scope": "communications.slack.send"},
+        )
+
+    def list_slack_messages(self) -> ToolDefinition:
+        return ToolDefinition(
+            name="list_slack_messages",
+            description="List Slack messages.",
+            binder=_bind_list_slack_messages,
+            metadata={"required_communication_scope": "communications.slack.history.read"},
+        )
+
+    def list_slack_channels(self) -> ToolDefinition:
+        return ToolDefinition(
+            name="list_slack_channels",
+            description="List Slack channels.",
+            binder=_bind_list_slack_channels,
+            metadata={"required_communication_scope": "communications.slack.history.read"},
+        )
+
+    def get_slack_message(self) -> ToolDefinition:
+        return ToolDefinition(
+            name="get_slack_message",
+            description="Read one Slack message.",
+            binder=_bind_get_slack_message,
+            metadata={"required_communication_scope": "communications.slack.history.read"},
+        )
+
+    def list_slack_thread(self) -> ToolDefinition:
+        return ToolDefinition(
+            name="list_slack_thread",
+            description="Read a Slack thread.",
+            binder=_bind_list_slack_thread,
+            metadata={"required_communication_scope": "communications.slack.history.read"},
+        )
+
 
 class _MemoryTools:
     def remember(self) -> ToolDefinition:
@@ -4129,6 +4498,19 @@ class _BuiltinTools:
             self.macro.get_fred_latest(),
             self.macro.get_fred_snapshot(),
             self.notifications.notify_user(),
+            self.notifications.send_email(),
+            self.notifications.list_sent_emails(),
+            self.notifications.get_sent_email(),
+            self.notifications.get_email_status(),
+            self.notifications.list_received_emails(),
+            self.notifications.get_received_email(),
+            self.notifications.list_received_email_attachments(),
+            self.notifications.get_received_email_attachment(),
+            self.notifications.send_slack_message(),
+            self.notifications.list_slack_channels(),
+            self.notifications.list_slack_messages(),
+            self.notifications.get_slack_message(),
+            self.notifications.list_slack_thread(),
             self.memory.remember(),
             self.memory.search(),
             self.memory.remember_proposal(),

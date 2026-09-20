@@ -131,6 +131,30 @@ Options strategies
      - SPX option data and supported index-option execution; advanced example.
      - Inspect exact test conditions; no expected-return claim.
 
+Public disclosures and browser automation
+-----------------------------------------
+
+.. list-table:: Disclosure and browser workflows
+   :header-rows: 1
+   :widths: 25 30 25 20
+
+   * - Example
+     - What it does
+     - Availability boundary
+     - Evidence
+   * - :doc:`Congress disclosures <agents_example_congress_disclosures>`
+     - Research a newly public congressional filing and hand evidence to a dedicated trading/risk agent.
+     - ``ReportDate`` or source publication time, never the earlier transaction date.
+     - Frozen fixtures and point-in-time unit tests; use a licensed source for live or commercial use.
+   * - :doc:`SEC Form 4 insider filings <agents_example_sec_insider_filings>`
+     - Distinguish open-market transactions from grants, gifts, exercises, derivatives, and amendments.
+     - SEC acceptance/publication time, never the transaction date alone.
+     - Frozen filing fixtures and parser/availability tests.
+   * - :doc:`Authenticated browser research <agents_example_browser_research_showcase>`
+     - Log in to an authorized JavaScript application, research, trade, and optionally publish a truthful receipt.
+     - The observed page state and screenshot receipt at strategy time.
+     - Local real-browser acceptance test plus a 100-cycle session restart soak.
+
 Before running a strategy
 -------------------------
 
@@ -158,6 +182,9 @@ public ideas, without affiliation or endorsement from named people or firms.
    agents_example_ai_iron_condor
    agents_example_ai_credit_spread
    agents_example_ai_spx_zero_dte_bear_call_team
+   agents_example_congress_disclosures
+   agents_example_sec_insider_filings
+   agents_example_browser_research_showcase
 
 Build your own AI trading bot
 -----------------------------

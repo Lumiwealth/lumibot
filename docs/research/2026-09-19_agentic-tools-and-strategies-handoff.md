@@ -1,5 +1,14 @@
 # Handoff: agent tools, browser control, and the Congress strategy
 
+> **SUPERSEDED (2026-09-20):** This is historical research, not the current
+> implementation contract. LumiBot now provides the full ``http_request`` and
+> ``rss_fetch`` built-ins plus a persistent ``BrowserSessionManager`` and
+> browser tools. The architecture guidance is also corrected: fully agentic
+> strategies are *recommended* to use two or more agents, with one dedicated
+> trading/risk agent, but neither exactly two agents nor zero strategy Python is
+> a framework requirement. Use the public agent documentation and tests as the
+> authoritative source.
+
 Written 2026-09-19 for the next agent (Codex) to implement. Everything below
 was researched or measured on Rob's machine on 2026-09-18 and 2026-09-19.
 Where something is measured it says so. Where it is a recommendation it says

@@ -37,6 +37,7 @@ integrations, maintenance, developer tutorials, and strategic collaboration.
 
    agents_flows
    agents_builtin_tools
+   agents_browser_tools
    agents_canonical_demos
    agents_observability
    agents_memory
@@ -58,6 +59,20 @@ complete first-run example; the snippets below explain individual capabilities.
   new model decision or independent validation of a strategy.
 * A broker-backed runner and a backtest runner can use the same strategy class,
   but still require different data, credentials, and execution configuration.
+
+Recommended team architecture
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+For fully agentic trading, we recommend **two or more agents**: one or more
+research agents and a **dedicated trading and risk agent** that alone can
+submit or change orders. Ten researchers and one trader are just as valid as
+one researcher and one trader. This is a recommendation, not a framework requirement;
+LumiBot does not impose a fixed team size.
+
+When risk rules must be mechanically fixed, keep execution and limits in
+**deterministic Python** instead. A hybrid can also use agents for research and
+Python for execution. Choose the ownership model deliberately, test it, and do
+not give research-only agents trading permission.
 
 Verification and historical limits
 ----------------------------------

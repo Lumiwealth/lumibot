@@ -21,6 +21,10 @@
     <lastmod>2026-09-12</lastmod>
   </url>
   <url>
+    <loc>https://lumibot.lumiwealth.com/agents_browser_tools.html</loc>
+    <lastmod>2026-09-20</lastmod>
+  </url>
+  <url>
     <loc>https://lumibot.lumiwealth.com/agents_builtin_tools.html</loc>
     <lastmod>2026-09-08</lastmod>
   </url>
@@ -53,6 +57,10 @@
     <lastmod>2026-05-31</lastmod>
   </url>
   <url>
+    <loc>https://lumibot.lumiwealth.com/agents_example_browser_research_showcase.html</loc>
+    <lastmod>2026-09-20</lastmod>
+  </url>
+  <url>
     <loc>https://lumibot.lumiwealth.com/agents_example_bull_bear_large_cap_stocks.html</loc>
     <lastmod>2026-09-09</lastmod>
   </url>
@@ -65,8 +73,16 @@
     <lastmod>2026-09-12</lastmod>
   </url>
   <url>
+    <loc>https://lumibot.lumiwealth.com/agents_example_congress_disclosures.html</loc>
+    <lastmod>2026-09-20</lastmod>
+  </url>
+  <url>
     <loc>https://lumibot.lumiwealth.com/agents_example_ray_dalio_idea_meritocracy.html</loc>
     <lastmod>2026-09-12</lastmod>
+  </url>
+  <url>
+    <loc>https://lumibot.lumiwealth.com/agents_example_sec_insider_filings.html</loc>
+    <lastmod>2026-09-20</lastmod>
   </url>
   <url>
     <loc>https://lumibot.lumiwealth.com/agents_example_warren_buffett_value.html</loc>
@@ -78,7 +94,7 @@
   </url>
   <url>
     <loc>https://lumibot.lumiwealth.com/agents_flows.html</loc>
-    <lastmod>2026-09-12</lastmod>
+    <lastmod>2026-09-13</lastmod>
   </url>
   <url>
     <loc>https://lumibot.lumiwealth.com/agents_memory.html</loc>
@@ -114,7 +130,7 @@
   </url>
   <url>
     <loc>https://lumibot.lumiwealth.com/backtesting.html</loc>
-    <lastmod>2026-09-09</lastmod>
+    <lastmod>2026-09-13</lastmod>
   </url>
   <url>
     <loc>https://lumibot.lumiwealth.com/backtesting.ibkr.html</loc>

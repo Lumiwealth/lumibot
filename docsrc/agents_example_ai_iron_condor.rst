@@ -1,7 +1,7 @@
 AI-Only Iron Condor
 ===================
 
-.. image:: ../docs/assets/ai-agent-workflows/ai-iron-condor.webp
+.. image:: ../docs/assets/ai-agent-workflows/ai-iron-condor.png
    :alt: AI iron-condor workflow using LumiBot runtime skills, rules, tools, and execution
    :width: 100%
 

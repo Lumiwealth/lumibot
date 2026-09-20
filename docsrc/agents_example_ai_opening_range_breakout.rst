@@ -1,7 +1,7 @@
 AI-Only Opening Range Breakout
 ==============================
 
-.. image:: ../docs/assets/ai-agent-workflows/ai-opening-range-breakout.webp
+.. image:: ../docs/assets/ai-agent-workflows/ai-opening-range-breakout.png
    :alt: AI opening-range breakout workflow using LumiBot runtime skills, rules, market evidence, and execution
    :width: 100%
 

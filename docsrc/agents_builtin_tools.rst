@@ -191,7 +191,7 @@ Request ids, indicator names and timesteps must be nonempty strings of at most
 128 characters. Malformed envelopes fail before data retrieval.
 
 Testing and eval costs
----------------------
+----------------------
 
 The source release eval runner uses a durable, per-model-call spending ledger.
 Actor calls, judge calls and continuations reserve their maximum cost before
@@ -223,6 +223,33 @@ Backtests gate filings by filed date or acceptance timestamp, so an agent cannot
 read a filing before it existed. Use ``search_filing`` before
 ``get_filing_document`` when the filing is large and the agent only needs a
 specific section.
+
+HTTP And RSS
+------------
+
+``http_request`` is the general outbound web/API tool. It supports ``GET``,
+``HEAD``, ``OPTIONS``, ``POST``, ``PUT``, ``PATCH``, and ``DELETE`` with query
+parameters, JSON, form, raw, and multipart bodies. Responses are structured and
+size-bounded; binary bodies are base64 encoded. A strategy-level client retains
+cookies across calls and validates the destination again after every redirect.
+
+Authentication is supplied through named, host-scoped credential profiles
+rather than placed in agent prompts. Profiles support bearer, basic, API-key,
+custom-header, cookie, and client-certificate authentication. Secrets are
+injected only for matching hosts and are not returned in tool output. The
+default network policy blocks loopback, private, link-local, reserved, and
+cloud-metadata destinations; a trusted internal host must be explicitly
+allowlisted by the application that creates the client. This guard preserves
+the full HTTP method set while preventing an untrusted page or prompt from
+silently reaching internal infrastructure.
+
+``rss_fetch`` reads RSS and Atom feeds through the same network and credential
+policy. It normalizes feed metadata and entries and supports conditional
+requests with ETag and Last-Modified validators.
+
+Use these built-ins for normal APIs and feeds. Use :doc:`agents_browser_tools`
+when a source requires JavaScript rendering, a login flow, multiple tabs, or
+stateful interaction.
 
 FRED Macro Data
 ---------------

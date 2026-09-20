@@ -3,6 +3,9 @@
 ## 4.5.92 - Unreleased
 
 ### Growth documentation and examples
+- Added point-in-time Congress-disclosure and SEC Form 4 agent examples, plus a stateful authenticated-browser research/trade/publish showcase with publishing disabled by default.
+- Documented the recommended two-or-more-agent architecture with a dedicated trading/risk agent while preserving deterministic-Python and hybrid alternatives.
+- Upgraded the example-art direction to simple, mascot-led workflow diagrams from the approved Image Generator and recorded inspection evidence for every regenerated asset.
 - Restored prominent traditional Python quickstart and example routes alongside AI, with explicit no-model requirements and direct lifecycle/broker guidance.
 - Replaced rejected hero/challenge art, added three workflow illustrations, and centered responsive image placements with consistent proportions.
 - Put the executable AI quickstart in the homepage and README opening, with compact artwork and a smaller navigation logo.
@@ -13,6 +16,8 @@
 
 
 ### Changed
+- Added full authenticated ``http_request`` and conditional ``rss_fetch`` tools, including all standard HTTP methods, host-scoped secret profiles, redirect revalidation, response bounds, persistent cookies, and private-network/metadata protections.
+- Added an optional Patchright browser runtime with persistent profiles, JavaScript interaction, multi-tab control, scoped login credentials, managed uploads/downloads, storage-state export, screenshots, and action receipts.
 - Agent evaluation resume rebuilds missing freshness receipts from matching completed ledger entries without repeating paid calls or changing their original timestamps.
 - Managed AI agents can select a reviewed provider reasoning effort end to end;
   unsupported provider/effort combinations fail visibly instead of being
@@ -48,6 +53,7 @@
 - Corrected README and package license labels to match the existing GPLv3 LICENSE file; the license text is unchanged.
 
 ### Fixed
+- SEC mutable indexes, submissions, and company facts now expire in live mode while remaining deterministic in backtests; raw facts, filings, and filing documents enforce point-in-time availability boundaries.
 - Overlapping broker position reads no longer let an older response delete,
   resurrect, or overwrite a newer applied snapshot. Network reads remain outside
   the tracker lock, and a failed newer request does not discard older success.

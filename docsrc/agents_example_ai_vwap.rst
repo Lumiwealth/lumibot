@@ -1,7 +1,7 @@
 AI-Only VWAP
 ============
 
-.. image:: ../docs/assets/ai-agent-workflows/ai-vwap.webp
+.. image:: ../docs/assets/ai-agent-workflows/ai-vwap.png
    :alt: AI VWAP workflow using LumiBot runtime skills, rules, market evidence, and execution
    :width: 100%
 

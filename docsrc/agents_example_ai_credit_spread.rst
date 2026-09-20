@@ -1,7 +1,7 @@
 AI-Only Credit Spread
 =====================
 
-.. image:: ../docs/assets/ai-agent-workflows/ai-credit-spread.webp
+.. image:: ../docs/assets/ai-agent-workflows/ai-credit-spread.png
    :alt: AI credit-spread workflow using LumiBot runtime skills, rules, tools, and execution
    :width: 100%
 

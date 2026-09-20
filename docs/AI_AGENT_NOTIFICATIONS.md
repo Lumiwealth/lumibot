@@ -24,6 +24,11 @@ self.notifications.configure_slack(
     bot_token=os.environ["SLACK_BOT_TOKEN"],
     default_channel=os.environ["SLACK_CHANNEL_ID"],
 )
+
+# BotSpot-hosted strategies use a short-lived, deployment-bound capability.
+# Bot Manager injects the URL/token/renewal URL; strategy code never receives
+# an SES credential or chooses a system sender.
+self.notifications.configure_botspot()
 ```
 
 Environment variables:
@@ -35,7 +40,24 @@ RESEND_API_KEY=...
 RESEND_FROM_EMAIL=Bot <bot@example.com>
 SLACK_BOT_TOKEN=...
 SLACK_CHANNEL_ID=...
+BOTSPOT_COMMUNICATIONS_MCP_URL=...
+BOTSPOT_COMMUNICATIONS_MCP_TOKEN=...
+BOTSPOT_COMMUNICATIONS_MCP_RENEW_URL=...
 ```
+
+For a hosted BotSpot deployment, communication authority is opt-in. Add only
+the saved setting keys needed by that deployment:
+
+```text
+LUMIBOT_BOTSPOT_EMAIL_SEND
+LUMIBOT_BOTSPOT_EMAIL_SENT_READ
+LUMIBOT_BOTSPOT_EMAIL_RECEIVED_READ
+```
+
+The values are not credentials; the presence of a key asks BotSpot for the
+corresponding narrow scope. BotSpot chooses the owner, environment, sender, and
+provider connection server-side. Direct Resend and Slack providers continue to
+use owner-supplied credentials and do not pass through BotSpot.
 
 Strategies can send and read communications directly:
 

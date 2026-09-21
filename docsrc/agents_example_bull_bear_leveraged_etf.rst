@@ -5,11 +5,11 @@ Bull/Bear Leveraged ETF AI Trading Team
    :alt: AI trading team workflow for bull/bear leveraged ETFs
    :width: 100%
 
-This is the fast, dramatic AI trading team demo. It gives the agents a universe
-of leveraged long and inverse ETFs, then asks them to rotate aggressively into
-one ETF. The purpose is not subtle portfolio construction. The purpose is to
-show the full trading-team loop clearly: research, upside case, risk challenge,
-and final execution.
+This is a fast, dramatic AI trading team demo. It gives the agents a universe
+of leveraged long and inverse ETFs, then asks a dedicated trading-and-risk
+agent to decide whether one ETF deserves a tightly capped position. The
+purpose is to show the full loop clearly: research, upside case, risk
+challenge, risk-controlled execution.
 
 Because the universe includes both bull and bear instruments, the team can
 choose risk-on or risk-off exposure. That makes the decision trail easy to
@@ -24,7 +24,7 @@ How the team works
 * ``researcher`` ranks the leveraged ETF universe.
 * ``bull`` argues for the strongest money-making trade.
 * ``bear`` points out the biggest risk.
-* ``trader`` sells non-picks, buys the chosen ETF, and is the only agent allowed to trade.
+* ``trader`` is the dedicated trading-and-risk agent. It verifies account, leverage, and order state, then holds or sizes one ETF to at most 10% of portfolio value.
 
 Backtest snapshot
 -----------------

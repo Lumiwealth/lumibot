@@ -264,8 +264,8 @@ adb760ee1c4998277bda9a0f0f63dde4ac5850aef70bdb9ea3f8efee9f907509  ai-credit-spre
 1c428e544d2a46ec78c3c8185b4e17a865b2b28fb87ee334d3d624aaacf2f624  ai-spx-zero-dte-bear-call-team.png
 20f5401380ed3fcd33773120ae2d3a08f196edf97e4056aaced7de1fb67d74f7  ai-vwap.png
 53d8e7a3ea0e46bbd6b1e1d31f0dca3ee3da12a2c4b3ed095f8d409a90f991c9  bill-ackman-concentrated.png
-8c9af5b1e98ccc306946b76b27638199db9a8df528d2961f38051802d9857af9  bull-bear-large-cap-stocks.png
-f84762abfcda8188851793f8f8ceee9297a3007746d3c5382f0e23d9463e66e9  bull-bear-leveraged-etf.png
+fccfd9e60612b2974f5a9164b59ad634cfd017363e8c511d29c2cdefae1c7486  bull-bear-large-cap-stocks.png
+4e347a611f475d71c79aed720592b2d987c3a3f652b1d175dd42e7036f8807ad  bull-bear-leveraged-etf.png
 dbc88c9a18a6a70ab9963851eae8e4f3e17c14706ce791644ab083b6f03e4509  citadel-sector-pods.png
 53bf2289f7952b4db667466fffac25b85ac35441ad31bf86a46499c998126662  ray-dalio-idea-meritocracy.png
 d41083cf18d10e723b905b2baac2d6aebbf1076e1ea62c6dca19066a2bc87bf4  warren-buffett-value.png
@@ -274,26 +274,26 @@ d41083cf18d10e723b905b2baac2d6aebbf1076e1ea62c6dca19066a2bc87bf4  warren-buffett
 Sphinx completed successfully, every documented agent example resolves to an
 inspected PNG, and desktop plus 390-pixel mobile layouts were visually checked.
 
-The follow-up topology correction was verified separately after the four
-single-agent examples were split into research and trading/risk ownership:
+The follow-up topology and risk-ownership corrections were verified after the
+four single-agent examples were split into research and trading/risk ownership,
+the four trading-team examples received explicit risk contracts, and the two
+Bull/Bear images were regenerated to match their sequential code:
 
 ```text
-ruff check <four corrected strategies plus topology tests>
+ruff check <four trading-team strategies plus topology tests>
 All checks passed
 
 pytest tests/test_ai_two_agent_strategy_examples.py
-       tests/test_ai_vwap_example.py
-       tests/test_agent_options_builtins.py
        tests/test_agent_capability_docs.py
        tests/test_public_docs_tracking.py
        tests/test_ai_trading_team_example.py
        tests/test_public_docs_community_links.py -q
-45 passed
+28 passed
 
 pytest tests/ --ignore=tests/backtest/
        -m 'not apitest and not downloader' -q
-2854 passed, 37 skipped, 73 deselected, 2 xfailed, 4 xpassed,
-83 subtests passed in 776.98 seconds
+2857 passed, 37 skipped, 73 deselected, 2 xfailed, 4 xpassed,
+83 subtests passed in 769.57 seconds
 
 sphinx-build -M html docsrc docsrc/_build -a -E
 success with the same 15 pre-existing documentation warnings
@@ -302,8 +302,8 @@ git diff --check
 clean
 ```
 
-The final deterministic artwork-hash assertion was added after the complete
-suite and then passed in its owning file (6/6). It verifies all fourteen
+The final deterministic artwork-hash assertion passed in its owning file (8/8).
+It verifies all fourteen
 committed image bytes against this receipt, so a future asset change cannot
 leave stale topology or hash evidence behind.
 

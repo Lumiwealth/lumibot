@@ -23,7 +23,7 @@ How the team works
 * ``quality_researcher`` finds the best high-quality large-cap candidate.
 * ``activist_bull`` argues for catalysts, pricing power, and value creation.
 * ``short_seller_bear`` attacks leverage, governance, accounting, competition, and valuation risk.
-* ``portfolio_manager`` builds one concentrated position and is the only agent allowed to trade.
+* ``portfolio_manager`` is the dedicated trading-and-risk agent. It verifies account and order state, then holds or sizes one surviving idea to at most 25% of portfolio value.
 
 Backtest snapshot
 -----------------

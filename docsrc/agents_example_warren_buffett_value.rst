@@ -24,7 +24,7 @@ How the team works
 
 * ``annual_report_reader`` studies business quality, cash flow, filings, and durability.
 * ``valuation_skeptic`` challenges valuation and asks for a margin of safety.
-* ``portfolio_manager`` buys the best long-term compounder and is the only agent allowed to trade.
+* ``portfolio_manager`` is the dedicated trading-and-risk agent. It verifies account and order state, then holds or sizes one qualified compounder to at most 20% of portfolio value.
 
 Backtest snapshot
 -----------------

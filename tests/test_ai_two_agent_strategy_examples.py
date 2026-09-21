@@ -79,7 +79,7 @@ def test_documentation_and_artwork_contracts_describe_the_real_topology():
         assert "risk" in page
         assert "creates one" not in page
 
-    receipt = (repo / "docs/research/2026-09-20_sunburst-workflow-artwork-receipt.md").read_text(
+    receipt = (repo / "docs/research/2026-09-21_sunburst-workflow-artwork-receipt.md").read_text(
         encoding="utf-8"
     )
     assert "-> `LumiBot`" not in receipt
@@ -89,46 +89,36 @@ def test_documentation_and_artwork_contracts_describe_the_real_topology():
     assert "`Long-Term Value Team`" not in receipt
 
     two_agent_artwork = {
-        "ai-opening-range-breakout.png": ("AI Opening Range Breakout", "ORB Researcher"),
-        "ai-vwap.png": ("AI VWAP Strategy", "VWAP Researcher"),
-        "ai-credit-spread.png": ("AI Credit Spread", "Spread Researcher"),
-        "ai-iron-condor.png": ("AI Iron Condor", "Condor Researcher"),
-        "ai-congress-disclosures.png": (
-            "Congressional Disclosure Agent",
-            "Disclosure Researcher",
-        ),
-        "ai-sec-insider-filings.png": (
-            "SEC Form 4 Insider-Filing Agent",
-            "Form 4 Researcher",
-        ),
-        "ai-spx-zero-dte-bear-call-team.png": (
-            "Two-Agent SPX 0 DTE Bear Call Experiment",
-            "SPX Researcher",
-        ),
+        "ai-opening-range-breakout.png": "Range Researcher",
+        "ai-vwap.png": "VWAP Researcher",
+        "ai-credit-spread.png": "Spread Researcher",
+        "ai-iron-condor.png": "Condor Researcher",
+        "ai-congress-disclosures.png": "Disclosure Researcher",
+        "ai-sec-insider-filings.png": "Form 4 Researcher",
+        "ai-spx-zero-dte-bear-call-team.png": "SPX Researcher",
     }
-    for asset, exact_labels in two_agent_artwork.items():
+    for asset, researcher in two_agent_artwork.items():
         row = next(line for line in receipt.splitlines() if f"`{asset}`" in line)
-        assert all(label in row for label in exact_labels)
+        assert researcher in row
         assert "AGENT" in row
         assert "Trading & Risk" in row
-        assert "OUTPUT `Broker Order" in row
+        assert "Trade Order" in row
+        assert "INPUT" not in row and "OUTPUT" not in row
 
     ray_row = next(line for line in receipt.splitlines() if "`ray-dalio-idea-meritocracy.png`" in line)
     for label in (
-        "Ray Dalio Idea Meritocracy AI Trading Team",
-        "Growth Agent",
-        "Inflation Agent",
-        "Debt & Liquidity Agent",
-        "Disagreement Agent",
-        "Trader & Risk",
-        "OUTPUT `Broker Orders`",
+        "Growth",
+        "Inflation",
+        "Debt & Liquidity",
+        "Disagreement",
+        "Trading & Risk",
+        "Trade Order",
     ):
         assert label in ray_row
-    assert "parallel" in ray_row.lower()
+    assert "branches" in ray_row.lower()
 
     citadel_row = next(line for line in receipt.splitlines() if "`citadel-sector-pods.png`" in line)
     for label in (
-        "Citadel Sector Pods AI Trading Team",
         "Technology & Comms",
         "Financials",
         "Healthcare",
@@ -136,15 +126,15 @@ def test_documentation_and_artwork_contracts_describe_the_real_topology():
         "Consumer",
         "Risk Manager",
         "Portfolio Manager",
-        "OUTPUT `Broker Orders`",
+        "Trade Order",
     ):
         assert label in citadel_row
-    assert "parallel" in citadel_row.lower()
+    assert "branches" in citadel_row.lower()
 
 
 def test_artwork_receipt_hashes_match_committed_assets():
     repo = Path(__file__).resolve().parents[1]
-    receipt = (repo / "docs/research/2026-09-20_sunburst-workflow-artwork-receipt.md").read_text(
+    receipt = (repo / "docs/research/2026-09-21_sunburst-workflow-artwork-receipt.md").read_text(
         encoding="utf-8"
     )
     rows = [line for line in receipt.splitlines() if line.startswith("| `") and ".png` |" in line]

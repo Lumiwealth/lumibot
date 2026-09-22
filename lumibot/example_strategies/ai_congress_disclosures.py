@@ -1,7 +1,7 @@
 """Point-in-time congressional-disclosure AI strategy example.
 
-The bundled records are frozen demonstration fixtures, not a live commercial
-data feed. Use a licensed source before publishing or monetizing live results.
+The bundled records are a frozen synthetic demo, not a real congressional
+filing. Official House and Senate periodic transaction reports are public.
 Congressional trades may be disclosed weeks after execution; the backtest makes
 records visible on ``ReportDate``, never ``TransactionDate``.
 """

@@ -10,8 +10,8 @@ point-in-time research packet, then gives that packet to a dedicated trading
 and risk agent. It is a disclosure-following example, not a claim that the
 member traded on the publication date or that copying the trade is profitable.
 
-Availability and licensing
---------------------------
+Availability
+------------
 
 The source ``TransactionDate`` describes when the reported transaction
 occurred. ``ReportDate`` (normalized as ``published_at``) is when the example
@@ -19,9 +19,14 @@ first makes the record visible. Federal disclosure rules may permit a report
 as late as **45 days** after the transaction, so this is not a low-latency
 signal and the example must never backdate availability to ``TransactionDate``.
 
-The repository includes a small frozen fixture only for deterministic testing.
-Use an authorized, licensed data source and follow its redistribution terms
-before operating or publishing a live/commercial Congress strategy.
+House and Senate periodic transaction reports are public filings. Official
+instructions say an option row should name the underlying security, put or
+call, strike, and expiration. Real filings are PDFs, and some rows leave the
+contract fields incomplete. A live bot should read the official filing and
+skip any option it cannot identify.
+
+The repository includes a small frozen synthetic fixture only for
+deterministic testing. That fixture is not Nancy Pelosi's real trade history.
 
 Architecture
 ------------

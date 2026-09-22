@@ -33,12 +33,17 @@ $99,978 from a $100,000 start. The tear sheet rounded total return to -0.00%,
 annualized return to -2.02%, and maximum drawdown to -0.02%. This short result
 is mechanical evidence, not a performance claim.
 
+A later Alpaca minute proof, January 5, 2026, bought 1 SPY at 686.54 and sold
+that share at 687.29. The tear sheet for that run is a real QuantStats file.
+That is the source this page now names. The earlier August prices stay as
+history from the prior data source.
+
 .. code-block:: bash
 
    export GEMINI_API_KEY="your-key"
    export DATADOWNLOADER_BASE_URL="https://data.example.test"
    export DATADOWNLOADER_API_KEY="your-data-key"
-   export BACKTESTING_DATA_SOURCE="ThetaData"
+   export BACKTESTING_DATA_SOURCE="alpaca"
    python -m lumibot.example_strategies.ai_vwap
 
 Set ``BACKTESTING_START``, ``BACKTESTING_END``, and optional ``AI_VWAP_*``

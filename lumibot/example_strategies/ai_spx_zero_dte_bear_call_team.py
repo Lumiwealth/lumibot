@@ -77,6 +77,23 @@ class AISpxZeroDteBearCallTeamStrategy(Strategy):
         )
 
     def on_trading_iteration(self):
+        if self.parameters.get("execution_mode") == "multileg_proof":
+            from lumibot.example_strategies.proof_modes import submit_multileg_proof
+
+            expiration = self.get_datetime().date().isoformat()
+            submit_multileg_proof(
+                self,
+                [
+                    {"symbol": "SPXW", "expiration": expiration, "strike": 6900, "right": "call", "quantity": 1, "side": "sell_to_open"},
+                    {"symbol": "SPXW", "expiration": expiration, "strike": 6910, "right": "call", "quantity": 1, "side": "buy_to_open"},
+                ],
+                [
+                    {"symbol": "SPXW", "expiration": expiration, "strike": 6900, "right": "call", "quantity": 1, "side": "buy_to_close"},
+                    {"symbol": "SPXW", "expiration": expiration, "strike": 6910, "right": "call", "quantity": 1, "side": "sell_to_close"},
+                ],
+                hold_days=0,
+            )
+            return
         context = {
             "current_datetime": self.get_datetime().isoformat(),
             "strategy_parameters": dict(self.parameters),

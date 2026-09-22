@@ -5,10 +5,12 @@ Congressional Disclosure Agent
    :alt: Congressional disclosure AI trading team workflow
    :width: 100%
 
-This example turns a public congressional financial disclosure into a
-point-in-time research packet, then gives that packet to a dedicated trading
-and risk agent. It is a disclosure-following example, not a claim that the
-member traded on the publication date or that copying the trade is profitable.
+This example reads the public House Clerk periodic transaction report. It
+downloads the yearly index at the House financial-pdfs ZIP, then the member
+PDF. The bot trades only after that filing is public. It is a
+disclosure-following example, not a claim that the member traded on the
+publication date or that copying the trade is profitable. Amounts on the
+report are ranges, and the report can be up to 45 days late.
 
 Availability
 ------------
@@ -19,12 +21,14 @@ first makes the record visible. Federal disclosure rules may permit a report
 as late as **45 days** after the transaction, so this is not a low-latency
 signal and the example must never backdate availability to ``TransactionDate``.
 
-House and Senate periodic transaction reports are public filings. Official
-instructions say an option row should name the underlying security, put or
-call, strike, and expiration. Real filings are PDFs, and some rows leave the
-contract fields incomplete. A stock example can use the ticker and buy or
-sell. An option example must skip any row that lacks the underlying, put or
-call, strike, and expiration.
+House and Senate periodic transaction reports are public filings. The House
+source is the Clerk's yearly index ZIP and the PTR PDF named in that index.
+Official instructions say an option row should name the underlying security,
+put or call, strike, and expiration. Real filings are PDFs, and some rows
+leave the contract fields incomplete. Stock mode needs the ticker and the
+buy or sell. Option mode also needs call or put, strike, and expiration. A
+row without strike and expiration is skipped. Gifts, spinoffs, private
+companies, and money-market funds are skipped.
 
 This example does not ship sample trades. Pass parsed official filings in
 ``disclosures`` or a JSON file of those filings in ``disclosures_path``.

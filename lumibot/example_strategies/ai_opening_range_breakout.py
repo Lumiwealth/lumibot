@@ -5,7 +5,7 @@ entry, exit, sizing, and ticker selection live in their prompts. Prefer minute
 bars when available.
 
 Local backtest:
-    GEMINI_API_KEY=... BACKTESTING_DATA_SOURCE=ThetaData \
+    GEMINI_API_KEY=... BACKTESTING_DATA_SOURCE=alpaca \
         python -m lumibot.example_strategies.ai_opening_range_breakout
 
 Optional env overrides (AI_ORB_*):
@@ -141,7 +141,9 @@ class AIOpeningRangeBreakoutStrategy(Strategy):
     }
 
     def initialize(self):
-        self.sleeptime = str(self.parameters.get("sleeptime", "1H"))
+        self.sleeptime = "1M" if self.parameters.get("execution_mode") == "minute_proof" else str(
+            self.parameters.get("sleeptime", "1H")
+        )
         self.agents.create(
             name="opening_range_researcher",
             model="gemini-3.5-flash-lite",
@@ -157,6 +159,11 @@ class AIOpeningRangeBreakoutStrategy(Strategy):
         )
 
     def on_trading_iteration(self):
+        if self.parameters.get("execution_mode") == "minute_proof":
+            from lumibot.example_strategies.proof_modes import minute_proof_round_trip
+
+            minute_proof_round_trip(self, "SPY")
+            return
         params = dict(self.parameters)
         universe = params.get("universe") or []
         if isinstance(universe, str):

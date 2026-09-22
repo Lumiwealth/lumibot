@@ -92,6 +92,13 @@ def normalize_congress_disclosure(record: dict[str, Any]) -> dict[str, Any] | No
         "source": record.get("source") or "congress_disclosure",
         "source_url": record.get("SourceUrl") or record.get("source_url"),
         "data_rights": record.get("data_rights") or "official_public_filing",
+        "asset_code": record.get("asset_code"),
+        "description": record.get("description"),
+        "doc_id": record.get("doc_id") or record.get("DocID"),
+        "side": record.get("side"),
+        "option_type": record.get("option_type"),
+        "strike": record.get("strike"),
+        "expiration": record.get("expiration"),
     }
 
 

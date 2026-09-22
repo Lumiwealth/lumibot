@@ -116,6 +116,7 @@ setuptools.setup(
         "requests-oauthlib",
         "boto3>=1.40.64",
         "httpx",
+        "pypdf>=5.0.0",
     ],
     # Include configuration files, and only include ThetaTerminal.jar if present
     package_data={

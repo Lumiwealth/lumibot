@@ -5,7 +5,7 @@ trading policy lives in their prompts. Prefer minute bars and the
 get_indicator('vwap') tool when available.
 
 Local backtest:
-    GEMINI_API_KEY=... BACKTESTING_DATA_SOURCE=ThetaData \
+    GEMINI_API_KEY=... BACKTESTING_DATA_SOURCE=alpaca \
         python -m lumibot.example_strategies.ai_vwap
 
 Optional env overrides (AI_VWAP_*):
@@ -95,7 +95,9 @@ class AIVWAPStrategy(Strategy):
     }
 
     def initialize(self):
-        self.sleeptime = str(self.parameters.get("sleeptime", "1H"))
+        self.sleeptime = "1M" if self.parameters.get("execution_mode") == "minute_proof" else str(
+            self.parameters.get("sleeptime", "1H")
+        )
         self.agents.create(
             name="vwap_researcher",
             model="gemini-3.5-flash-lite",
@@ -111,6 +113,11 @@ class AIVWAPStrategy(Strategy):
         )
 
     def on_trading_iteration(self):
+        if self.parameters.get("execution_mode") == "minute_proof":
+            from lumibot.example_strategies.proof_modes import minute_proof_round_trip
+
+            minute_proof_round_trip(self, str(self.parameters.get("underlying", "SPY")).upper())
+            return
         params = dict(self.parameters)
         underlying = str(params.get("underlying", "SPY")).upper()
         context = {

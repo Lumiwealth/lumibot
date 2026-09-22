@@ -37,12 +37,16 @@ results validate mechanics without claiming strategy profitability.
 .. code-block:: bash
 
    export GEMINI_API_KEY="your-key"
-   export BACKTESTING_DATA_SOURCE="ThetaData"
+   export BACKTESTING_DATA_SOURCE="alpaca"
    export DATADOWNLOADER_BASE_URL="https://<your-downloader-host>:8080"
    export DATADOWNLOADER_API_KEY="your-downloader-key"
    python -m lumibot.example_strategies.ai_credit_spread
 
 Set ``BACKTESTING_START`` and ``BACKTESTING_END`` to choose an exact window.
+
+The January 2026 Alpaca proof opened one SPY put credit spread with
+``orders_submit_multileg`` on January 5 and closed it on January 12. The tear
+sheet is a real QuantStats file. One contract did not wreck a $100,000 account.
 
 .. literalinclude:: ../lumibot/example_strategies/ai_credit_spread.py
    :language: python

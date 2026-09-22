@@ -830,3 +830,77 @@ def test_stock_conid_resolution_prefers_stock_contract_for_ambiguous_symbol(monk
     assert conid == 265598
     assert seen_queries == [{"symbol": "MHO", "secType": "STK"}]
     assert ibkr_helper._RUNTIME_CONID_CACHE["stock|MHO|USD||"] == 265598
+
+
+def test_option_conid_lookup_uses_strike_right_and_expiration(monkeypatch):
+    from datetime import date
+
+    import lumibot.tools.ibkr_helper as ibkr_helper
+
+    calls = []
+
+    def fake_resolve_conid(**kwargs):
+        assert kwargs["asset"].asset_type == Asset.AssetType.STOCK
+        assert kwargs["asset"].symbol == "AAPL"
+        return 265598
+
+    def fake_queue_request(url, querystring=None, headers=None, timeout=None):
+        calls.append((url, dict(querystring or {})))
+        if str(url).endswith("/ibkr/iserver/secdef/search"):
+            return [{"conid": 265598, "secType": "STK"}]
+        if str(url).endswith("/ibkr/iserver/secdef/strikes"):
+            return {"call": [100.0, 120.0], "put": [100.0, 120.0]}
+        return [{"conid": 777001, "maturityDate": "20270115"}]
+
+    monkeypatch.setattr(ibkr_helper, "_resolve_conid", fake_resolve_conid)
+    monkeypatch.setattr(ibkr_helper, "queue_request", fake_queue_request)
+    monkeypatch.setattr(ibkr_helper, "_record_negative_conid", lambda **kwargs: None)
+
+    asset = Asset(
+        "AAPL",
+        asset_type=Asset.AssetType.OPTION,
+        expiration=date(2027, 1, 15),
+        strike=100,
+        right="CALL",
+    )
+    conid = ibkr_helper._lookup_conid_remote(asset=asset, quote=None, exchange=None)
+    assert conid == 777001
+    assert [url.rsplit("/", 1)[-1] for url, _query in calls] == ["search", "strikes", "info"]
+    assert calls[1][1]["month"] == "JAN27"
+    assert calls[2][0].endswith("/ibkr/iserver/secdef/info")
+    assert calls[2][1]["strike"] == "100"
+    assert calls[2][1]["right"] == "C"
+    assert calls[2][1]["month"] == "JAN27"
+    assert calls[2][1]["sectype"] == "OPT"
+    assert "100" in ibkr_helper._conid_key(asset, None, None).to_key()
+    assert "CALL" in ibkr_helper._conid_key(asset, None, None).to_key()
+
+
+def test_option_cache_files_do_not_share_a_strike():
+    from datetime import date
+
+    import lumibot.tools.ibkr_helper as ibkr_helper
+
+    call_100 = Asset(
+        "AAPL",
+        asset_type=Asset.AssetType.OPTION,
+        expiration=date(2027, 1, 15),
+        strike=100,
+        right="CALL",
+    )
+    call_150 = Asset(
+        "AAPL",
+        asset_type=Asset.AssetType.OPTION,
+        expiration=date(2027, 1, 15),
+        strike=150,
+        right="CALL",
+    )
+    first = ibkr_helper._cache_file_for(
+        asset=call_100, quote=None, timestep="day", exchange=None, source="Midpoint", include_after_hours=False
+    )
+    second = ibkr_helper._cache_file_for(
+        asset=call_150, quote=None, timestep="day", exchange=None, source="Midpoint", include_after_hours=False
+    )
+    assert first != second
+    assert "100" in first.name and "CALL" in first.name
+    assert "150" in second.name

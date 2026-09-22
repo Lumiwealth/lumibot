@@ -52,25 +52,25 @@ Stocks
      - Data and cadence
      - Evidence
    * - :doc:`Large-cap bull/bear team <agents_example_bull_bear_large_cap_stocks>`
-     - Researcher, bull, and bear inform one trading agent.
-     - Yahoo daily backtest; daily decisions. Alpaca keys only for the broker runner.
-     - Saved source and historical screenshot; follow the tutorial's current validation status.
+     - Researcher, bull, and bear inform one trading agent for names such as Apple, Microsoft, and Nvidia.
+     - Yahoo daily prices. The January 2026 price proof bought 1 AAPL.
+     - Real QuantStats tear sheet from that Yahoo run.
    * - :doc:`Opening range breakout <agents_example_ai_opening_range_breakout>`
      - Inspect completed opening bars and trade a confirmed breakout.
-     - ThetaData via Data Downloader; minute evidence, hourly decisions.
-     - Earlier mechanics run completed; later bounded run did not finish its full window.
+     - Alpaca minute bars. The January 5, 2026 proof bought and sold 1 SPY.
+     - Real QuantStats tear sheet from that Alpaca minute run.
    * - :doc:`VWAP <agents_example_ai_vwap>`
      - Explore VWAP reclaim and mean reversion.
-     - Intraday bars and indicator tools; inspect the example's cadence.
-     - See the page's recorded mechanics evidence; not a returns claim.
+     - Alpaca minute bars. The January 5, 2026 proof bought 1 SPY at 686.54 and sold it at 687.29.
+     - Real QuantStats tear sheet from that Alpaca minute run.
    * - :doc:`Value research team <agents_example_warren_buffett_value>`
      - Research business quality and challenge valuation.
-     - Daily stock prices; SEC identity/setup for filing tools.
-     - Source example; no new full run performed by this documentation update.
+     - Yahoo daily prices, then a real EDGAR read through get_filings and get_filing_section.
+     - January 2026 source proof logged an Apple 10-K read, then held.
    * - :doc:`Concentrated stock team <agents_example_bill_ackman_concentrated>`
      - Debate one high-conviction large-cap position.
-     - Yahoo daily backtest; Alpaca keys for broker execution.
-     - Source example; no new full run performed by this documentation update.
+     - Yahoo daily prices, then a real SEC company atom fetch for Pershing Square.
+     - January 2026 source proof logged that fetch, then held.
 
 ETF and macro teams
 -------------------
@@ -92,9 +92,9 @@ ETF and macro teams
      - Daily ETF prices; :doc:`FRED/ALFRED <macro_data>` is available for macro extensions.
      - Source example and public strategy listing; inspect the published revision.
    * - :doc:`Leveraged ETF bull/bear team <agents_example_bull_bear_leveraged_etf>`
-     - Debate leveraged long and inverse ETFs.
-     - Daily prices; advanced instrument and concentration risk.
-     - Source example; inspect the page's evidence before running it.
+     - Debate leveraged long and inverse ETFs such as TQQQ against SQQQ and UPRO against SPXU.
+     - Yahoo daily prices. The January 2026 price proof bought 1 TQQQ.
+     - Real QuantStats tear sheet from that Yahoo run.
 
 Public strategy listings
 ~~~~~~~~~~~~~~~~~~~~~~~~
@@ -122,17 +122,17 @@ Options strategies
      - Prerequisites
      - Evidence
    * - :doc:`Iron condor <agents_example_ai_iron_condor>`
-     - Select and inspect four contracts, submit a multi-leg package, and manage it.
-     - Historical option chains/quotes, supported options data, Gemini account.
-     - Recorded mechanics evidence includes unavailable-chain/no-order cases.
+     - Open one four-leg package and close it after prices can move.
+     - Alpaca option history. The January 2026 proof used one orders_submit_multileg to open and one to close.
+     - Real QuantStats tear sheet. One contract did not wreck the account.
    * - :doc:`Credit spread <agents_example_ai_credit_spread>`
-     - Explore a vertical credit spread with shared option tools.
-     - Option-chain and contract-price access; inspect the configured dates/cadence.
-     - See the example's recorded evidence and limitations.
+     - Open one vertical credit spread and close it after prices can move.
+     - Alpaca option history. The January 2026 proof used one orders_submit_multileg to open and one to close.
+     - Real QuantStats tear sheet. One contract did not wreck the account.
    * - :doc:`SPX zero-DTE bear-call team <agents_example_ai_spx_zero_dte_bear_call_team>`
-     - Researcher gathers evidence; trading agent refreshes it and decides.
-     - SPX option data and supported index-option execution; advanced example.
-     - Inspect exact test conditions; no expected-return claim.
+     - Open and close one SPXW bear call on the same expiration day.
+     - Alpaca SPXW minute history. January 5, 2026 used the 6900 and 6910 calls.
+     - Real QuantStats tear sheet. Open and close both filled. Ending value about $99,925.
 
 Public disclosures and browser automation
 -----------------------------------------
@@ -146,13 +146,13 @@ Public disclosures and browser automation
      - Availability boundary
      - Evidence
    * - :doc:`Congress disclosures <agents_example_congress_disclosures>`
-     - Research a newly public congressional filing and hand evidence to a dedicated trading/risk agent.
-     - ``ReportDate`` or source publication time, never the earlier transaction date.
+     - Read the House Clerk yearly index and PTR PDF, then trade the stock or the listed option after the filing is public.
+     - ``ReportDate`` or source publication time, never the earlier transaction date. Amounts are ranges. A report can be up to 45 days late. An option row without strike and expiration is skipped.
      - Does not ship sample trades. Official House and Senate filings are public. Point-in-time tests use invented clock rows, not a member portfolio.
    * - :doc:`SEC Form 4 insider filings <agents_example_sec_insider_filings>`
-     - Distinguish open-market transactions from grants, gifts, exercises, derivatives, and amendments.
-     - SEC acceptance/publication time, never the transaction date alone.
-     - Does not ship sample trades. Parser tests use sample XML, not a live filing feed.
+     - Read the live SEC Form 4 Atom feed and act only on rows already public at the backtest clock.
+     - https://www.sec.gov/cgi-bin/browse-edgar?action=getcurrent&type=4&output=atom
+     - Does not ship sample trades. A January 2026 clock hid all 40 current feed rows as future.
    * - :doc:`Authenticated browser research <agents_example_browser_research_showcase>`
      - Log in to an authorized JavaScript application, research, trade, and optionally publish a truthful receipt.
      - The observed page state and screenshot receipt at strategy time.

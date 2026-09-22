@@ -68,6 +68,11 @@ class AITradingTeamBillAckmanConcentratedStrategy(Strategy):
         )
 
     def on_trading_iteration(self):
+        if self.parameters.get("execution_mode") == "source_proof":
+            from lumibot.example_strategies.proof_modes import ackman_page_hold
+
+            ackman_page_hold(self)
+            return
         context = {
             "date": self.get_datetime().date().isoformat(),
             "universe": self.parameters["universe"],

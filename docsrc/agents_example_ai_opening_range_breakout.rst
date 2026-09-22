@@ -49,6 +49,11 @@ The example is therefore qualified for mechanics and bounded model behavior, not
 for expected returns. If minute bars for the true opening window are unavailable,
 the agent must skip the symbol instead of inventing a range.
 
+A later Alpaca minute proof, January 5, 2026, bought 1 SPY at 09:30 ET and
+sold it at 09:31 ET. The tear sheet is a real QuantStats file. That run is
+why this page names Alpaca. The earlier IBKR and ThetaData notes stay as
+history from those attempts.
+
 Run a bounded historical example
 --------------------------------
 
@@ -61,7 +66,7 @@ package in your virtual environment so the runner and documentation match:
    export GEMINI_API_KEY="your-gemini-key"
    export DATADOWNLOADER_BASE_URL="https://your-downloader-host"
    export DATADOWNLOADER_API_KEY="your-downloader-key"
-   export BACKTESTING_DATA_SOURCE="ThetaData"
+   export BACKTESTING_DATA_SOURCE="alpaca"
    export BACKTESTING_START="2026-04-06"
    export BACKTESTING_END="2026-04-11"
    export AI_ORB_UNIVERSE="SPY,NVDA,AMD"
@@ -72,20 +77,10 @@ package in your virtual environment so the runner and documentation match:
 The current source selects ``gemini-3.5-flash-lite``. Check that your provider
 account supports it. The command above spans April 6 through April 10, 2026,
 with an April 11 end boundary. Start with three symbols before expanding to the
-default universe. For the shorter verified mechanics run described above, use
-an April 7 end boundary and the configured IBKR downloader route:
-
-.. code-block:: bash
-
-   export BACKTESTING_DATA_SOURCE="ibkr"
-   export BACKTESTING_END="2026-04-07"
-
-Choose one backtesting data source. Do not set both ThetaData and IBKR values.
-
-Use the configured Data Downloader for historical ThetaData requests. Do not
-start another licensed terminal session as a shortcut. Yahoo daily bars cannot
-supply a 09:30–09:45 opening range. Missing intraday evidence should result in a
-skip with an explanation.
+default universe. The passing minute proof uses Alpaca, the same source as the
+command above. An earlier one-day mechanics run ended April 7 and did not
+trade. Yahoo daily bars cannot supply a 09:30-09:45 opening range. Missing
+intraday evidence should result in a skip with an explanation.
 
 The call limit bounds agent invocations, not necessarily every provider
 continuation or dollar of spend. In the verified one-day run, seven agent

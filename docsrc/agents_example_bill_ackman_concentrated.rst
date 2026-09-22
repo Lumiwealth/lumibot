@@ -24,6 +24,7 @@ How the team works
 * ``activist_bull`` argues for catalysts, pricing power, and value creation.
 * ``short_seller_bear`` attacks leverage, governance, accounting, competition, and valuation risk.
 * ``portfolio_manager`` is the dedicated trading-and-risk agent. It verifies account and order state, then holds or sizes one surviving idea to at most 25% of portfolio value.
+* The source proof fetches the live SEC company atom feed for Pershing Square, CIK 0001336528, before it holds. Yahoo supplies the daily prices.
 
 Backtest snapshot
 -----------------

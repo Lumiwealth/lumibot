@@ -1,0 +1,9 @@
+time,side,status,filled_quantity,symbol,asset.asset_type,asset.right,asset.strike,asset.expiration,price,type,asset.multiplier,trade_cost,trade_slippage,event_kind,event_id,cash_event_type,cash_event_amount,cash_event_currency,cash_event_description,cash_event_direction,cash_event_reason,is_external_cash_flow,cash_event_raw_type,cash_event_raw_subtype,cash_event_broker_name,cash_event_broker_event_id
+2026-01-23 09:30:00-05:00,buy_to_open,new,,AAPL,option,CALL,100.0,2027-01-15,,market,100,,0.0,trade,,,,,,,,,,,,
+2026-01-23 09:30:00-05:00,buy_to_open,new,,NVDA,option,CALL,100.0,2027-01-15,,market,100,,0.0,trade,,,,,,,,,,,,
+2026-01-23 09:30:00-05:00,buy_to_open,new,,AMZN,option,CALL,120.0,2027-01-15,,market,100,,0.0,trade,,,,,,,,,,,,
+2026-01-23 09:30:00-05:00,buy_to_open,new,,GOOGL,option,CALL,150.0,2027-01-15,,market,100,,0.0,trade,,,,,,,,,,,,
+2026-01-23 09:30:00-05:00,buy_to_open,fill,1.0,AAPL,option,CALL,100.0,2027-01-15,157.5,market,100,0.0,0.0,trade,,,,,,,,,,,,
+2026-01-23 09:30:00-05:00,buy_to_open,fill,1.0,NVDA,option,CALL,100.0,2027-01-15,96.0,market,100,0.0,0.0,trade,,,,,,,,,,,,
+2026-01-23 09:30:00-05:00,buy_to_open,fill,1.0,AMZN,option,CALL,120.0,2027-01-15,122.5,market,100,0.0,0.0,trade,,,,,,,,,,,,
+2026-01-23 09:30:00-05:00,buy_to_open,fill,1.0,GOOGL,option,CALL,150.0,2027-01-15,185.06,market,100,0.0,0.0,trade,,,,,,,,,,,,

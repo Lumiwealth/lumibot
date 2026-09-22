@@ -24,6 +24,7 @@ How the team works
 * ``bull`` argues for the strongest upside case.
 * ``bear`` flags the biggest risk.
 * ``trader`` is the dedicated trading-and-risk agent. It verifies account and order state, then holds or sizes one stock to at most 20% of portfolio value.
+* The January 2026 price proof used Yahoo daily bars and bought 1 share of Apple. The universe is large-cap names such as Apple, Microsoft, and Nvidia.
 
 Backtest snapshot
 -----------------

@@ -71,6 +71,11 @@ class AITradingTeamBullBearLargeCapStocksStrategy(Strategy):
         )
 
     def on_trading_iteration(self):
+        if self.parameters.get("execution_mode") == "price_rule":
+            from lumibot.example_strategies.proof_modes import price_rule_once
+
+            price_rule_once(self, str(self.parameters["universe"][0]))
+            return
         context = {
             "date": self.get_datetime().date().isoformat(),
             "universe": self.parameters["universe"],

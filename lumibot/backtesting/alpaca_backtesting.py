@@ -5,8 +5,12 @@ from typing import Optional
 
 import pandas as pd
 import pytz
-from alpaca.data.historical import CryptoHistoricalDataClient, StockHistoricalDataClient
-from alpaca.data.requests import CryptoBarsRequest, StockBarsRequest
+from alpaca.data.historical import (
+    CryptoHistoricalDataClient,
+    OptionHistoricalDataClient,
+    StockHistoricalDataClient,
+)
+from alpaca.data.requests import CryptoBarsRequest, OptionBarsRequest, StockBarsRequest
 from alpaca.data.timeframe import TimeFrame, TimeFrameUnit
 
 from lumibot.constants import LUMIBOT_CACHE_FOLDER
@@ -125,10 +129,7 @@ class AlpacaBacktesting(DataSourceBacktesting):
         api_key = config.get("API_KEY")
         api_secret = config.get("API_SECRET")
         
-        if oauth_token:
-            self._crypto_client = CryptoHistoricalDataClient(oauth_token=oauth_token)
-            self._stock_client = StockHistoricalDataClient(oauth_token=oauth_token)
-        elif api_key and api_secret:
+        if api_key and api_secret:
             self._crypto_client = CryptoHistoricalDataClient(
                 api_key=api_key,
                 secret_key=api_secret
@@ -137,6 +138,14 @@ class AlpacaBacktesting(DataSourceBacktesting):
                 api_key=api_key,
                 secret_key=api_secret
             )
+            self._option_client = OptionHistoricalDataClient(
+                api_key=api_key,
+                secret_key=api_secret,
+            )
+        elif oauth_token:
+            self._crypto_client = CryptoHistoricalDataClient(oauth_token=oauth_token)
+            self._stock_client = StockHistoricalDataClient(oauth_token=oauth_token)
+            self._option_client = OptionHistoricalDataClient(oauth_token=oauth_token)
         else:
             raise ValueError("Either OAuth token or API key/secret must be provided for Alpaca authentication")
 
@@ -540,6 +549,13 @@ class AlpacaBacktesting(DataSourceBacktesting):
         timestep, _ = self._normalize_timestep_for_source(timestep)
 
         base_quote = f"{base_asset.symbol}-{base_asset.asset_type}_{quote_asset.symbol}-{quote_asset.asset_type}"
+        if str(getattr(base_asset, "asset_type", "")).lower() == "option":
+            expiration = getattr(base_asset, "expiration", None)
+            expiration_text = expiration.isoformat() if hasattr(expiration, "isoformat") else str(expiration)
+            strike = float(base_asset.strike)
+            strike_text = str(int(strike)) if strike.is_integer() else str(strike)
+            right = str(getattr(base_asset, "right", "") or "")
+            base_quote = f"{base_quote}_{strike_text}_{right}_{expiration_text}"
         market = market
         tzinfo_str = str(tzinfo).replace("_", "-")
         start_date_str = data_datetime_start.strftime("%Y-%m-%d")
@@ -553,6 +569,57 @@ class AlpacaBacktesting(DataSourceBacktesting):
         key = "_".join(part for part in key_parts if part).upper()
         key = key.replace("/", "-")
         return key
+
+    @staticmethod
+    def _occ_symbol(asset: Asset) -> str:
+        """Build the Alpaca OCC symbol for one listed option."""
+        strike_formatted = f"{float(asset.strike):08.3f}".replace(".", "").rjust(8, "0")
+        expiration = asset.expiration
+        if hasattr(expiration, "strftime"):
+            date = expiration.strftime("%y%m%d")
+        else:
+            date = datetime.strptime(str(expiration)[:10], "%Y-%m-%d").strftime("%y%m%d")
+        right = str(asset.right or "C")[0].upper()
+        return f"{asset.symbol}{date}{right}{strike_formatted}"
+
+    def _history_request(
+            self,
+            *,
+            base_asset: Asset,
+            quote_asset: Asset,
+            timestep: str,
+            data_datetime_start: datetime,
+            data_datetime_end: datetime,
+            auto_adjust: bool,
+    ):
+        """Return the Alpaca client and bar request for this asset."""
+        end = data_datetime_end + timedelta(days=1)
+        timeframe = self._get_alpaca_timeframe(timestep)
+        asset_type = str(getattr(base_asset, "asset_type", "")).lower()
+        if asset_type == "crypto":
+            request = CryptoBarsRequest(
+                symbol_or_symbols=f"{base_asset.symbol}/{quote_asset.symbol}",
+                timeframe=timeframe,
+                start=data_datetime_start,
+                end=end,
+            )
+            return self._crypto_client, request
+        if asset_type == "option":
+            request = OptionBarsRequest(
+                symbol_or_symbols=self._occ_symbol(base_asset),
+                timeframe=timeframe,
+                start=data_datetime_start,
+                end=end,
+            )
+            return self._option_client, request
+        request = StockBarsRequest(
+            symbol_or_symbols=base_asset.symbol,
+            timeframe=timeframe,
+            start=data_datetime_start,
+            end=end,
+            adjustment="all" if auto_adjust else "split",
+        )
+        return self._stock_client, request
 
     def _download_and_cache_ohlcv_data(
             self,
@@ -604,34 +671,20 @@ class AlpacaBacktesting(DataSourceBacktesting):
 
         logger.info(f"Fetching and caching data for {key}")
 
-        if base_asset.asset_type == 'crypto':
-            client = self._crypto_client
-
-            symbol = base_asset.symbol + '/' + quote_asset.symbol
-
-            # noinspection PyArgumentList
-            request_params = CryptoBarsRequest(
-                symbol_or_symbols=symbol,
-                timeframe=self._get_alpaca_timeframe(timestep),
-                start=data_datetime_start,
-                end=data_datetime_end + timedelta(days=1),  # alpaca end dates are exclusive
-            )
-        else:
-            client = self._stock_client
-            adjustment = 'all' if auto_adjust else 'split'
-
-            # noinspection PyArgumentList
-            request_params = StockBarsRequest(
-                symbol_or_symbols=base_asset.symbol,
-                timeframe=self._get_alpaca_timeframe(timestep),
-                start=data_datetime_start,
-                end=data_datetime_end + timedelta(days=1),  # alpaca end dates are exclusive,
-                adjustment=adjustment,
-            )
+        client, request_params = self._history_request(
+            base_asset=base_asset,
+            quote_asset=quote_asset,
+            timestep=timestep,
+            data_datetime_start=data_datetime_start,
+            data_datetime_end=data_datetime_end,
+            auto_adjust=auto_adjust,
+        )
 
         try:
             if isinstance(request_params, CryptoBarsRequest):
                 bars = client.get_crypto_bars(request_params)
+            elif isinstance(request_params, OptionBarsRequest):
+                bars = client.get_option_bars(request_params)
             else:
                 bars = client.get_stock_bars(request_params)
         except Exception as e:

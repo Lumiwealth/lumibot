@@ -36,11 +36,8 @@ def test_browser_showcase_research_handoff_places_real_backtest_trade(
             events = []
             if request.agent_name == "browser_researcher":
                 assert "orders_submit_order" not in {tool.name for tool in request.bound_tools}
-                assert request.context["research_login_selectors"] == {
-                    "username": "#username",
-                    "password": "#password",
-                    "submit": "#login",
-                }
+                real_page = request.context["research_url"]
+                assert real_page.startswith("https://disclosures-clerk.house.gov/")
                 opened = _invoke_tool(request, events, "browser_session_open", profile="strategy-research")
                 session_id = opened["session_id"]
                 _invoke_tool(
@@ -48,17 +45,7 @@ def test_browser_showcase_research_handoff_places_real_backtest_trade(
                     events,
                     "browser_navigate",
                     session_id=session_id,
-                    url=f"{browser_fixture_server}/login",
-                )
-                _invoke_tool(
-                    request,
-                    events,
-                    "browser_login",
-                    session_id=session_id,
-                    credential_profile="fixture",
-                    username_selector="#username",
-                    password_selector="#password",
-                    submit_selector="#login",
+                    url=real_page,
                 )
                 observed = _invoke_tool(request, events, "browser_observe", session_id=session_id)
                 screenshot = _invoke_tool(
@@ -69,12 +56,15 @@ def test_browser_showcase_research_handoff_places_real_backtest_trade(
                     name="strategy-research",
                 )
                 closed = _invoke_tool(request, events, "browser_session_close", session_id=session_id)
-                assert "Authenticated research dashboard" in observed["text"]
+                observed_text = observed["text"].lower()
+                assert "disclosures-clerk.house.gov" in observed["url"]
+                assert "just a moment" not in observed_text
+                assert "financial disclosure" in observed_text or "clerk" in observed_text
                 browser_receipts["research"] = {"screenshot": screenshot, "session": closed}
                 return AgentRunResult(
                     summary=json.dumps(
                         {
-                            "finding": "Authorized portal evidence: cautious bullish",
+                            "finding": "House disclosure page evidence: cautious bullish",
                             "url": observed["url"],
                             "screenshot_path": screenshot["path"],
                             "screenshot_sha256": screenshot["sha256"],
@@ -88,7 +78,7 @@ def test_browser_showcase_research_handoff_places_real_backtest_trade(
                 )
             if request.agent_name == "trading_risk_manager":
                 evidence = json.loads(request.context["research_evidence"])
-                assert evidence["finding"].startswith("Authorized portal evidence:")
+                assert evidence["finding"].startswith("House disclosure page evidence:")
                 assert Path(evidence["screenshot_path"]).is_file()
                 assert request.context["max_position_pct"] == 5
                 assert request.context["max_position_fraction"] == 0.05
@@ -213,12 +203,7 @@ def test_browser_showcase_research_handoff_places_real_backtest_trade(
         datetime(2025, 1, 8),
         parameters={
             "symbol": "SHOW",
-            "research_url": f"{browser_fixture_server}/dashboard",
-            "research_login_selectors": {
-                "username": "#username",
-                "password": "#password",
-                "submit": "#login",
-            },
+            "research_url": "https://disclosures-clerk.house.gov/PublicDisclosure/FinancialDisclosure",
             "publish_enabled": True,
             "publish_url": f"{browser_fixture_server}/community",
             "publish_form_selectors": {

@@ -7,6 +7,62 @@ from lumibot.backtesting import AlpacaBacktesting
 from lumibot.entities import Asset
 
 
+def test_alpaca_option_history_uses_the_listed_contract():
+    """Option backtests must request the OCC contract, not the underlying stock."""
+    data_source = AlpacaBacktesting.__new__(AlpacaBacktesting)
+    data_source.market = "NYSE"
+    data_source.tzinfo = pytz.UTC
+    data_source._auto_adjust = True
+    data_source._timestep = "day"
+    data_source._option_client = object()
+    data_source._stock_client = object()
+    start = datetime(2026, 1, 23, tzinfo=pytz.UTC)
+    end = datetime(2026, 1, 27, tzinfo=pytz.UTC)
+    quote = Asset("USD", asset_type="forex")
+    call_100 = Asset(
+        "AAPL",
+        asset_type=Asset.AssetType.OPTION,
+        expiration="2027-01-15",
+        strike=100,
+        right="CALL",
+    )
+    call_120 = Asset(
+        "AAPL",
+        asset_type=Asset.AssetType.OPTION,
+        expiration="2027-01-15",
+        strike=120,
+        right="CALL",
+    )
+    key_100 = data_source._get_asset_key(
+        base_asset=call_100,
+        quote_asset=quote,
+        timestep="day",
+        data_datetime_start=start,
+        data_datetime_end=end,
+    )
+    key_120 = data_source._get_asset_key(
+        base_asset=call_120,
+        quote_asset=quote,
+        timestep="day",
+        data_datetime_start=start,
+        data_datetime_end=end,
+    )
+    assert key_100 != key_120
+    assert "100" in key_100
+    assert "120" in key_120
+
+    client, request = data_source._history_request(
+        base_asset=call_100,
+        quote_asset=quote,
+        timestep="day",
+        data_datetime_start=start,
+        data_datetime_end=end,
+        auto_adjust=True,
+    )
+    assert client is data_source._option_client
+    assert request.symbol_or_symbols == "AAPL270115C00100000"
+
+
 def test_alpaca_backtesting_normalizes_common_multi_timeframe_aliases():
     assert AlpacaBacktesting._normalize_timestep_for_source("15min") == ("15minute", None)
     assert AlpacaBacktesting._normalize_timestep_for_source("13 minutes") == ("13minute", None)

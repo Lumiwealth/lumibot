@@ -393,6 +393,11 @@ class WebClient:
     ) -> dict[str, Any]:
         validators = self._feed_validators.get(url, {})
         headers = {}
+        if "sec.gov" in str(url):
+            from lumibot.fundamentals.sec import DEFAULT_SEC_USER_AGENT
+
+            headers["User-Agent"] = DEFAULT_SEC_USER_AGENT
+            headers["Accept"] = "application/atom+xml, application/rss+xml, application/xml"
         if validators.get("etag"):
             headers["If-None-Match"] = validators["etag"]
         if validators.get("last_modified"):

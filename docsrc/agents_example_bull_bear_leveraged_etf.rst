@@ -25,6 +25,7 @@ How the team works
 * ``bull`` argues for the strongest money-making trade.
 * ``bear`` points out the biggest risk.
 * ``trader`` is the dedicated trading-and-risk agent. It verifies account, leverage, and order state, then holds or sizes one ETF to at most 10% of portfolio value.
+* The January 2026 price proof used Yahoo daily bars and bought 1 share of TQQQ. The universe pairs leveraged funds that move more than the index, such as TQQQ against SQQQ and UPRO against SPXU.
 
 Backtest snapshot
 -----------------

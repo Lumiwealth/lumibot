@@ -1,0 +1,13 @@
+time,side,status,filled_quantity,symbol,asset.asset_type,asset.right,asset.strike,asset.expiration,price,type,asset.multiplier,trade_cost,trade_slippage,event_kind,event_id,cash_event_type,cash_event_amount,cash_event_currency,cash_event_description,cash_event_direction,cash_event_reason,is_external_cash_flow,cash_event_raw_type,cash_event_raw_subtype,cash_event_broker_name,cash_event_broker_event_id
+2026-01-23 09:30:00-05:00,buy,new,,VST,stock,,0.0,,,market,1,,0.0,trade,,,,,,,,,,,,
+2026-01-23 09:30:00-05:00,buy,new,,AB,stock,,0.0,,,market,1,,0.0,trade,,,,,,,,,,,,
+2026-01-23 09:30:00-05:00,buy,new,,TEM,stock,,0.0,,,market,1,,0.0,trade,,,,,,,,,,,,
+2026-01-23 09:30:00-05:00,buy,new,,NVDA,stock,,0.0,,,market,1,,0.0,trade,,,,,,,,,,,,
+2026-01-23 09:30:00-05:00,buy,new,,AMZN,stock,,0.0,,,market,1,,0.0,trade,,,,,,,,,,,,
+2026-01-23 09:30:00-05:00,buy,new,,GOOGL,stock,,0.0,,,market,1,,0.0,trade,,,,,,,,,,,,
+2026-01-23 09:30:00-05:00,buy,fill,1.0,VST,stock,,0.0,,160.0,market,1,0.0,0.0,trade,,,,,,,,,,,,
+2026-01-23 09:30:00-05:00,buy,fill,1.0,AB,stock,,0.0,,39.52000045776367,market,1,0.0,0.0,trade,,,,,,,,,,,,
+2026-01-23 09:30:00-05:00,buy,fill,1.0,TEM,stock,,0.0,,68.80999755859375,market,1,0.0,0.0,trade,,,,,,,,,,,,
+2026-01-23 09:30:00-05:00,buy,fill,1.0,NVDA,stock,,0.0,,187.5,market,1,0.0,0.0,trade,,,,,,,,,,,,
+2026-01-23 09:30:00-05:00,buy,fill,1.0,AMZN,stock,,0.0,,234.9600067138672,market,1,0.0,0.0,trade,,,,,,,,,,,,
+2026-01-23 09:30:00-05:00,buy,fill,1.0,GOOGL,stock,,0.0,,332.489990234375,market,1,0.0,0.0,trade,,,,,,,,,,,,

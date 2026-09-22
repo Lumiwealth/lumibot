@@ -495,6 +495,10 @@ def get_price_data(
     # requests unless a per-call source was explicitly provided.
     if source is None and asset_type == "index":
         history_source = IBKR_DEFAULT_INDEX_HISTORY_SOURCE
+    # Listed option trades are sparse. Midpoint bars are the history that can
+    # price a contract when the caller did not pick a source.
+    if source is None and not env_source_was_explicit and asset_type == "option":
+        history_source = "Midpoint"
 
     # Normalize timestep classification once so callers can pass "day", "1d", "1day", etc.
     try:
@@ -1096,7 +1100,7 @@ def get_price_data(
             _write_cache_frame(cache_file, df_aug)
             df_cache = df_aug
 
-    if asset_type in {"stock", "index"} and str(timestep_component).endswith("day"):
+    if asset_type in {"stock", "index", "option"} and str(timestep_component).endswith("day"):
         # Align cached daily bars to session close BEFORE slicing by [start_local, end_local].
         # This avoids same-day lookahead at market open when IBKR timestamps day bars near
         # session open/midnight boundaries.
@@ -2147,7 +2151,7 @@ def _history_period_for_request(
     requested_start: Optional[datetime] = None, requested_end: Optional[datetime] = None,
 ) -> str:
     normalized_bar = (bar or "").strip().lower()
-    if asset_type in {"stock", "index"} and normalized_bar.endswith("d"):
+    if asset_type in {"stock", "index", "option"} and normalized_bar.endswith("d"):
         if requested_start is not None and requested_end is not None:
             span = (_to_utc(requested_end) - _to_utc(requested_start)).total_seconds()
             if 0 < span <= 365 * 86400:
@@ -3876,6 +3880,148 @@ def _merge_upload_conids_json(
         logger.warning("IBKR conids.json merge-upload failed after retries: %s", last_exc)
 
 
+_INDEX_OPTION_UNDERLYINGS = {"SPX", "SPXW", "VIX", "RUT", "NDX", "XSP"}
+
+
+def _as_expiration_date(value):
+    """Return a date for an option or future expiration, including ISO strings."""
+    if value is None:
+        return None
+    if isinstance(value, datetime):
+        return value.date()
+    if hasattr(value, "strftime") and not isinstance(value, str):
+        return value
+    text = str(value).strip()
+    for fmt, size in (("%Y-%m-%d", 10), ("%Y%m%d", 8), ("%m/%d/%Y", 10)):
+        try:
+            return datetime.strptime(text[:size], fmt).date()
+        except ValueError:
+            continue
+    return None
+
+
+def _option_strike_text(asset: Asset) -> str:
+    strike = getattr(asset, "strike", None)
+    try:
+        number = float(strike)
+    except (TypeError, ValueError):
+        return _safe_component(str(strike or ""))
+    if not math.isfinite(number):
+        return ""
+    if number.is_integer():
+        return str(int(number))
+    return str(number).replace(".", "p")
+
+
+def _listed_option_strike(strike, listed) -> str:
+    """Return the strike text from the chain that matches the requested strike."""
+    try:
+        target = float(strike)
+    except (TypeError, ValueError) as exc:
+        raise RuntimeError(f"IBKR option strike is not a number: {strike}") from exc
+    if not math.isfinite(target):
+        raise RuntimeError(f"IBKR option strike is not a number: {strike}")
+    for item in listed or []:
+        try:
+            value = float(item)
+        except (TypeError, ValueError):
+            continue
+        if abs(value - target) < 1e-4:
+            if value.is_integer():
+                return str(int(value))
+            return str(value)
+    raise RuntimeError(f"IBKR option chain has no strike {target}")
+
+
+def _lookup_conid_option(
+    *,
+    asset: Asset,
+    quote: Optional[Asset],
+    exchange: Optional[str],
+) -> int:
+    """Resolve one listed option conid from strike, right, and expiration.
+
+    Client Portal only returns option contracts after three calls, in order:
+    search the underlying, ask for that month's strikes, then ask for the contract.
+    A cached stock conid is not a substitute for the search call.
+    """
+    symbol = str(getattr(asset, "symbol", "") or "").strip().upper()
+    expiration = _as_expiration_date(getattr(asset, "expiration", None))
+    strike = getattr(asset, "strike", None)
+    right_raw = str(getattr(asset, "right", "") or "").strip().upper()
+    if expiration is None or strike is None or right_raw not in {"CALL", "PUT", "C", "P"}:
+        raise RuntimeError(
+            f"IBKR option conid needs expiration, strike, and call or put for {symbol or 'unknown'}"
+        )
+    right_code = "C" if right_raw.startswith("C") else "P"
+    underlying_symbol = "SPX" if symbol == "SPXW" else symbol
+    underlying_type = (
+        Asset.AssetType.INDEX if symbol in _INDEX_OPTION_UNDERLYINGS else Asset.AssetType.STOCK
+    )
+    underlying = Asset(underlying_symbol, asset_type=underlying_type)
+    underlying_conid = _resolve_conid(asset=underlying, quote=quote, exchange=exchange)
+    try:
+        maturity = expiration.strftime("%Y%m%d")
+        month = expiration.strftime("%b%y").upper()
+    except Exception as exc:
+        raise RuntimeError(f"IBKR option expiration is not a date for {symbol}: {expiration}") from exc
+    venue = (exchange or ("CBOE" if underlying_type == Asset.AssetType.INDEX else "SMART")).strip().upper()
+    base_url = _downloader_base_url()
+    search_sec_type = "IND" if underlying_type == Asset.AssetType.INDEX else "STK"
+    queue_request(
+        url=f"{base_url}/ibkr/iserver/secdef/search",
+        querystring={"symbol": underlying_symbol, "secType": search_sec_type},
+        headers=None,
+        timeout=None,
+    )
+    strikes_payload = queue_request(
+        url=f"{base_url}/ibkr/iserver/secdef/strikes",
+        querystring={
+            "conid": str(underlying_conid),
+            "sectype": "OPT",
+            "month": month,
+            "exchange": venue,
+        },
+        headers=None,
+        timeout=None,
+    )
+    side_key = "call" if right_code == "C" else "put"
+    listed = strikes_payload.get(side_key) if isinstance(strikes_payload, dict) else None
+    strike_text = _listed_option_strike(strike, listed if isinstance(listed, list) else [])
+    payload = queue_request(
+        url=f"{base_url}/ibkr/iserver/secdef/info",
+        querystring={
+            "conid": str(underlying_conid),
+            "sectype": "OPT",
+            "month": month,
+            "strike": strike_text,
+            "right": right_code,
+            "exchange": venue,
+        },
+        headers=None,
+        timeout=None,
+    )
+    contracts = payload if isinstance(payload, list) else []
+    if isinstance(payload, dict):
+        nested = payload.get("contracts") or payload.get("data") or []
+        contracts = nested if isinstance(nested, list) else []
+    for contract in contracts:
+        if not isinstance(contract, dict):
+            continue
+        maturity_value = str(contract.get("maturityDate") or contract.get("expiry") or "")
+        if maturity_value.startswith(maturity) and contract.get("conid") is not None:
+            return int(contract["conid"])
+    message = (
+        f"Unable to resolve IBKR option conid for {symbol} {right_code} {_option_strike_text(asset)} {maturity}"
+    )
+    _record_negative_conid(
+        key=_conid_key(asset=asset, quote=quote, exchange=exchange).to_key(),
+        reason="no_option_conid",
+        message=message,
+    )
+    raise RuntimeError(message)
+
+
 def _lookup_conid_remote(
     *,
     asset: Asset,
@@ -3894,6 +4040,8 @@ def _lookup_conid_remote(
         return _lookup_conid_future(asset=asset, exchange=exchange, mapping=mapping, keys_added=keys_added)
     if asset_type in {"crypto"}:
         return _lookup_conid_crypto(asset=asset, quote=quote)
+    if asset_type == "option":
+        return _lookup_conid_option(asset=asset, quote=quote, exchange=exchange)
 
     preferred_sec_types: tuple[str, ...] = ()
     if asset_type == "stock":
@@ -4301,11 +4449,13 @@ def _cache_file_for(
     exch = (exchange or "").strip().upper() or "AUTO"
     symbol = _safe_component(getattr(asset, "symbol", "") or "symbol")
     quote_symbol = _safe_component(getattr(quote, "symbol", "") or "USD") if quote else "USD"
-    expiration = getattr(asset, "expiration", None)
+    expiration = _as_expiration_date(getattr(asset, "expiration", None))
     exp_component = expiration.strftime("%Y%m%d") if expiration else ""
     source_component = _safe_component(source)
     session_component = "AHR" if bool(include_after_hours) else "RTH"
     suffix = f"_{exp_component}" if exp_component else ""
+    if _normalize_asset_type(getattr(asset, "asset_type", "")) == "option":
+        suffix = f"{suffix}_{_option_strike_text(asset)}_{_safe_component(str(getattr(asset, 'right', '') or ''))}"
     filename = (
         f"{asset_folder}_{symbol}_{quote_symbol}_{timestep_component}_{exch}_{source_component}_{session_component}"
         f"{suffix}.parquet"
@@ -4691,6 +4841,8 @@ def _conid_key(asset: Asset, quote: Optional[Asset], exchange: Optional[str]) ->
             expiration = asset.expiration.strftime("%Y%m%d")  # type: ignore[union-attr]
         except Exception:
             expiration = str(asset.expiration)
+    if asset_type == "option":
+        expiration = f"{expiration}|{_option_strike_text(asset)}|{str(getattr(asset, 'right', '') or '').upper()}"
     return IbkrConidKey(
         asset_type=asset_type,
         symbol=symbol,

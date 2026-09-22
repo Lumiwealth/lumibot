@@ -84,6 +84,25 @@ class AIIronCondorStrategy(Strategy):
         )
 
     def on_trading_iteration(self):
+        if self.parameters.get("execution_mode") == "multileg_proof":
+            from lumibot.example_strategies.proof_modes import submit_multileg_proof
+
+            submit_multileg_proof(
+                self,
+                [
+                    {"symbol": "SPY", "expiration": "2026-02-20", "strike": 580, "right": "put", "quantity": 1, "side": "sell_to_open"},
+                    {"symbol": "SPY", "expiration": "2026-02-20", "strike": 575, "right": "put", "quantity": 1, "side": "buy_to_open"},
+                    {"symbol": "SPY", "expiration": "2026-02-20", "strike": 610, "right": "call", "quantity": 1, "side": "sell_to_open"},
+                    {"symbol": "SPY", "expiration": "2026-02-20", "strike": 615, "right": "call", "quantity": 1, "side": "buy_to_open"},
+                ],
+                [
+                    {"symbol": "SPY", "expiration": "2026-02-20", "strike": 580, "right": "put", "quantity": 1, "side": "buy_to_close"},
+                    {"symbol": "SPY", "expiration": "2026-02-20", "strike": 575, "right": "put", "quantity": 1, "side": "sell_to_close"},
+                    {"symbol": "SPY", "expiration": "2026-02-20", "strike": 610, "right": "call", "quantity": 1, "side": "buy_to_close"},
+                    {"symbol": "SPY", "expiration": "2026-02-20", "strike": 615, "right": "call", "quantity": 1, "side": "sell_to_close"},
+                ],
+            )
+            return
         context = {
             "current_datetime": self.get_datetime().isoformat(),
             "strategy_parameters": dict(self.parameters),

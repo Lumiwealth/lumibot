@@ -102,6 +102,30 @@ def test_second_history_does_not_call_schwab():
     assert bars is None
 
 
+def test_stock_btc_and_eth_still_request_the_equity_ticker():
+    """Equity tickers BTC and ETH are ETFs. Only asset_type crypto is refused."""
+    data_source, calls = _data_source()
+
+    btc_bars = data_source.get_historical_prices(Asset("BTC"), 5, "day")
+    eth_bars = data_source.get_historical_prices(Asset("ETH"), 5, "day")
+
+    assert calls == ["BTC", "ETH"]
+    assert btc_bars is not None
+    assert eth_bars is not None
+
+    quote_calls = []
+
+    def get_quotes(symbols):
+        quote_calls.append(list(symbols))
+        return _HistoryResponse()
+
+    data_source.client.get_quotes = get_quotes
+    data_source.get_quote(Asset("BTC"))
+    data_source.get_quote(Asset("ETH"))
+
+    assert quote_calls == [["BTC"], ["ETH"]]
+
+
 def test_crypto_quote_does_not_request_the_equity_ticker():
     data_source = SchwabData(auto_create_client=False)
     calls = []

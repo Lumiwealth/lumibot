@@ -80,9 +80,10 @@ def _schwab_market_symbol(asset) -> str | None:
     """Symbol Schwab price history and quotes actually accept.
 
     Option candles come back only for the OCC symbol, not the underlying root.
-    Crypto has no Schwab Trader API symbol. A live read on 2026-09-22 showed
-    ticker BTC is the Grayscale Bitcoin Mini Trust ETF, priced around $38,
-    so a crypto request must not be rewritten onto that equity ticker.
+    Crypto has no Schwab Trader API symbol. Equity tickers stay unchanged:
+    a live read on 2026-09-22 showed ticker BTC is the Grayscale Bitcoin Mini
+    Trust ETF, so Asset("BTC") still requests "BTC". Only asset_type crypto
+    is refused.
     """
     asset_type = getattr(asset, "asset_type", None)
     if asset_type == "crypto":
@@ -420,7 +421,7 @@ class SchwabData(DataSource):
             return None
         if asset.asset_type == "crypto":
             logger.error(colored(
-                "Schwab Trader API has no crypto candles. Ticker BTC is the Grayscale Bitcoin Mini Trust ETF, not bitcoin.",
+                "Schwab does not support the crypto asset type. Equity tickers such as BTC and ETH are unchanged.",
                 "red",
             ))
             return None
@@ -663,7 +664,7 @@ class SchwabData(DataSource):
 
         if getattr(asset, "asset_type", None) == "crypto":
             logger.error(colored(
-                "Schwab Trader API has no crypto quotes. Ticker BTC is the Grayscale Bitcoin Mini Trust ETF, not bitcoin.",
+                "Schwab does not support the crypto asset type. Equity tickers such as BTC and ETH are unchanged.",
                 "red",
             ))
             return None

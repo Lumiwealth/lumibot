@@ -22,11 +22,16 @@ signal and the example must never backdate availability to ``TransactionDate``.
 House and Senate periodic transaction reports are public filings. Official
 instructions say an option row should name the underlying security, put or
 call, strike, and expiration. Real filings are PDFs, and some rows leave the
-contract fields incomplete. A live bot should read the official filing and
-skip any option it cannot identify.
+contract fields incomplete. A stock example can use the ticker and buy or
+sell. An option example must skip any row that lacks the underlying, put or
+call, strike, and expiration.
 
-The repository includes a small frozen synthetic fixture only for
-deterministic testing. That fixture is not Nancy Pelosi's real trade history.
+This example does not ship sample trades. Pass parsed official filings in
+``disclosures`` or a JSON file of those filings in ``disclosures_path``.
+Running the module with neither argument stops instead of inventing a
+portfolio. A backtest on this page is real only after those filings and
+market prices are supplied. Amounts on the filings are ranges, not exact
+share counts.
 
 Architecture
 ------------
@@ -34,19 +39,7 @@ Architecture
 ``disclosure_researcher`` cannot trade. ``trading_risk_manager`` is the only
 agent with trading tools and caps a new position at the configured percentage.
 Already processed disclosure IDs are ignored and old records are rejected by
-the configured age limit.
-
-Verified execution
-------------------
-
-A fresh September 20, 2026 Gemini run first exposed the synthetic Pelosi NVDA
-purchase on the first backtest session after its public report date. The risk
-agent submitted ``bt_1`` and the backtest filled 27 NVDA shares at 181.77. The
-trace contains no research or order before publication. This is a software
-execution proof using a frozen fixture and simulated fill, not a performance
-claim or live brokerage trade.
-
-`Inspect the execution receipt <https://github.com/Lumiwealth/lumibot/blob/version/4.5.92/docs/research/2026-09-20_AGENT_STRATEGY_EXECUTION_PROOF.md>`_.
+the configured age limit. Records stay hidden until ``ReportDate``.
 
 .. literalinclude:: ../lumibot/example_strategies/ai_congress_disclosures.py
    :language: python

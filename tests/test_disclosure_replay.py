@@ -7,14 +7,14 @@ from lumibot.example_strategies.disclosure_replay import (
 )
 
 DISCLOSURE = {
-    "id": "pelosi-nvda",
-    "Politician": "Nancy Pelosi",
+    "id": "clock-report-date",
+    "Politician": "Clock Test Member",
     "Ticker": "NVDA",
     "Transaction": "Purchase",
     "TransactionDate": "2026-01-05",
     "ReportDate": "2026-02-14T15:00:00+00:00",
     "Amount": "$100,001 - $250,000",
-    "source": "synthetic_fixture",
+    "source": "clock_test_not_a_filing",
     "fetched_at": "2026-02-14T15:00:01+00:00",
 }
 

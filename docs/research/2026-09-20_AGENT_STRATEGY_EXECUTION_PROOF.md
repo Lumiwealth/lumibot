@@ -2,9 +2,9 @@
 
 One-line description: Real-model and deterministic end-to-end evidence for the Congress, SEC Form 4, and authenticated-browser Strategy examples.
 
-Last Updated: 2026-09-20
+Last Updated: 2026-09-22
 
-Status: Verified locally; no live broker, customer account, release, or deployment was used.
+Status: The September 20 Congress and Form 4 runs below used sample rows that were deleted on 2026-09-22. Those two runs are retired. They are not current proof that a congressional or Form 4 example works. The browser section used an owned test site and remains a mechanics receipt only. No live broker, customer account, release, or deployment was used.
 
 Audience: LumiBot maintainers, BotSpot integrators, and strategy authors.
 
@@ -20,11 +20,9 @@ This receipt distinguishes three different claims:
    `gemini-3.5-flash-lite` runs through the normal Google ADK runtime and placed
    simulated orders through LumiBot's agent order tools.
 
-The disclosure inputs are synthetic frozen fixtures. The historical daily
-prices in the real-model runs came from Yahoo. Orders and fills are backtest
-simulation, not a paper or live broker account.
+The Congress and Form 4 inputs in the two runs below were invented sample rows, including a made-up Nancy Pelosi NVDA purchase. Those JSON files were deleted. The examples now stop unless the caller passes official filings. Do not cite the fills below as a working Pelosi bot, a working insider bot, or a tear sheet.
 
-## Fresh Real-Model Congress Run
+## Retired sample Congress run (not current proof)
 
 - Strategy: `AICongressDisclosuresStrategy`
 - Backtest window: 2026-01-01 through 2026-04-01
@@ -45,7 +43,7 @@ Local raw evidence:
   SHA-256 `8833cff068df676217f306ec6a89e6cacab8e68fe71e11a49745ff0c412e44a7`
 - `logs/AICongressDisclosuresStrategy_2026-09-20_16-22_6mzysf_tearsheet.html`
 
-## Fresh Real-Model SEC Form 4 Run
+## Retired sample SEC Form 4 run (not current proof)
 
 - Strategy: `AISECInsiderFilingsStrategy`
 - Backtest window: 2026-01-01 through 2026-04-01
@@ -217,13 +215,8 @@ time rather than transaction date. Form 4 uses EDGAR acceptance/publication
 time rather than transaction date. A present-day API snapshot without those
 historical availability timestamps is not sufficient for an honest backtest.
 
-The frozen fixtures make this boundary deterministic. A live-data strategy
-still needs a source that preserves historical publications and amendments.
+The deleted sample files made this boundary easy to test, and they also made the example look like a real member portfolio. That was the wrong trade. Clock tests may still pass invented rows into the date gate. The shipped example must not.
 
-## Data-Rights Boundary
+## Data boundary
 
-A free marketplace listing is not automatically the same as non-commercial
-use when it is part of a subscription product. That question does not block the
-frozen-fixture engineering example or a free educational demo. It does mean a
-live congressional-data product should confirm the upstream source terms or
-obtain permission before ingesting and redistributing that source at scale.
+House Clerk periodic transaction reports and Senate eFD filings are public. SEC Form 4 filings on EDGAR are public. This example does not need a paid license to read those official PDFs and XML files. A backtest is honest only when each row stays hidden until its report or acceptance time.

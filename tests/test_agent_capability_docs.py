@@ -46,8 +46,12 @@ def test_new_flagship_examples_are_in_navigation_with_historical_data_warnings()
     assert "agents_example_browser_research_showcase" in examples
     assert "ReportDate" in congress and "TransactionDate" in congress
     assert "45 days" in congress
-    assert "licensed" in congress.lower()
+    assert "does not ship sample trades" in congress.lower()
+    assert "frozen synthetic fixture" not in congress.lower()
+    assert "licensed" not in congress.lower()
     assert "Form 4" in insider and "acceptance" in insider.lower()
+    assert "does not ship sample trades" in insider.lower()
+    assert "frozen synthetic fixture" not in examples.lower()
     assert "publish_enabled" in showcase and "owned" in showcase.lower()
 
 

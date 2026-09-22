@@ -68,7 +68,7 @@ class QuiverHelper:
             #     "download_datetime": datetime.datetime.now(),
             #     "data": [
             #         {
-            #             "Representative": "Nancy Pelosi",
+            #             "Representative": "Example Member",
             #             "BioGuideID": "P000197",
             #             "ReportDate": "2024-07-30",
             #             "TransactionDate": "2024-07-26",

@@ -91,7 +91,7 @@ def normalize_congress_disclosure(record: dict[str, Any]) -> dict[str, Any] | No
         "amendment": bool(record.get("Amendment") or record.get("amendment")),
         "source": record.get("source") or "congress_disclosure",
         "source_url": record.get("SourceUrl") or record.get("source_url"),
-        "data_rights": record.get("data_rights") or "official_public_filing_or_fixture",
+        "data_rights": record.get("data_rights") or "official_public_filing",
     }
 
 

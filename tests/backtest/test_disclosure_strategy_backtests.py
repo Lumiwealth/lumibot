@@ -152,16 +152,16 @@ def test_congress_strategy_waits_for_report_date_then_places_and_fills_order(
     monkeypatch.setenv("LUMIBOT_CACHE_FOLDER", str(tmp_path / "cache"))
     asset, pandas_data = _stock_data("NVDA", "2026-02-12")
     disclosure = {
-        "id": "pelosi-nvda-proof",
-        "Politician": "Nancy Pelosi",
+        "id": "clock-report-date-proof",
+        "Politician": "Clock Test Member",
         "Ticker": "NVDA",
         "Transaction": "Purchase",
         "TransactionDate": "2026-01-05",
         "ReportDate": "2026-02-17T14:00:00+00:00",
         "fetched_at": "2026-02-17T14:00:01+00:00",
         "Amount": "$100,001 - $250,000",
-        "source_url": "https://example.invalid/frozen-proof",
-        "data_rights": "synthetic_demo_fixture",
+        "source_url": "https://example.invalid/clock-proof",
+        "data_rights": "clock_test_not_a_filing",
     }
 
     _, strategy = _run_strategy(
@@ -189,7 +189,7 @@ def test_congress_strategy_waits_for_report_date_then_places_and_fills_order(
     assert fills.iloc[0]["symbol"] == "NVDA"
     _write_proof(
         tmp_path,
-        name="congress-pelosi",
+        name="congress-report-date-clock",
         strategy=strategy,
         requests=deterministic_agent_runtime.requests,
         evidence={

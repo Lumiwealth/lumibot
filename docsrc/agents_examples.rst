@@ -148,11 +148,11 @@ Public disclosures and browser automation
    * - :doc:`Congress disclosures <agents_example_congress_disclosures>`
      - Research a newly public congressional filing and hand evidence to a dedicated trading/risk agent.
      - ``ReportDate`` or source publication time, never the earlier transaction date.
-     - Frozen synthetic fixture and point-in-time tests. Official House and Senate filings are public.
+     - Does not ship sample trades. Official House and Senate filings are public. Point-in-time tests use invented clock rows, not a member portfolio.
    * - :doc:`SEC Form 4 insider filings <agents_example_sec_insider_filings>`
      - Distinguish open-market transactions from grants, gifts, exercises, derivatives, and amendments.
      - SEC acceptance/publication time, never the transaction date alone.
-     - Frozen filing fixtures and parser/availability tests.
+     - Does not ship sample trades. Parser tests use sample XML, not a live filing feed.
    * - :doc:`Authenticated browser research <agents_example_browser_research_showcase>`
      - Log in to an authorized JavaScript application, research, trade, and optionally publish a truthful receipt.
      - The observed page state and screenshot receipt at strategy time.

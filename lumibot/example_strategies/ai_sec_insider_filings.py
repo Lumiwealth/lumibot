@@ -5,31 +5,38 @@ information and should not be described as illegal insider trading.
 """
 
 import json
-from datetime import datetime
 from pathlib import Path
 from typing import Any
 
 from lumibot.components.disclosure_signals import visible_insider_transactions
 from lumibot.strategies import Strategy
 
-_FIXTURE = Path(__file__).with_name("fixtures") / "sec_form4_transactions.json"
+_MISSING_FILINGS = (
+    "SEC Form 4 example requires official EDGAR filings. Pass transactions or "
+    "transactions_path. This example does not include sample trades."
+)
 
 
 def _records(parameters: dict[str, Any]) -> list[dict[str, Any]]:
     supplied = parameters.get("transactions")
     if supplied is not None:
         return list(supplied)
-    path = Path(parameters.get("transactions_path") or _FIXTURE)
+    path_value = parameters.get("transactions_path")
+    if not path_value:
+        raise ValueError(_MISSING_FILINGS)
+    path = Path(path_value)
+    if not path.is_file():
+        raise ValueError(f"{_MISSING_FILINGS} Missing file: {path}")
     payload = json.loads(path.read_text(encoding="utf-8"))
     if not isinstance(payload, list):
-        raise ValueError("SEC Form 4 fixture must contain a JSON list.")
+        raise ValueError("SEC Form 4 file must contain a JSON list of official filings.")
     return payload
 
 
 class AISECInsiderFilingsStrategy(Strategy):
     parameters = {
         "transactions": None,
-        "transactions_path": str(_FIXTURE),
+        "transactions_path": None,
         "open_market_only": True,
         "include_amendments": False,
         "max_position_pct": 5,
@@ -92,15 +99,4 @@ class AISECInsiderFilingsStrategy(Strategy):
 
 
 if __name__ == "__main__":
-    from lumibot.backtesting import YahooDataBacktesting
-
-    AISECInsiderFilingsStrategy.backtest(
-        YahooDataBacktesting,
-        datetime(2026, 1, 1),
-        datetime(2026, 4, 1),
-        budget=100_000,
-        benchmark_asset="SPY",
-        show_plot=False,
-        show_tearsheet=False,
-        show_indicators=False,
-    )
+    raise SystemExit(_MISSING_FILINGS)

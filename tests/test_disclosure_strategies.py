@@ -8,14 +8,20 @@ from lumibot.components.disclosure_signals import (
     visible_congress_disclosures,
     visible_insider_transactions,
 )
-from lumibot.example_strategies.ai_congress_disclosures import AICongressDisclosuresStrategy
-from lumibot.example_strategies.ai_sec_insider_filings import AISECInsiderFilingsStrategy
+from lumibot.example_strategies.ai_congress_disclosures import (
+    AICongressDisclosuresStrategy,
+    _records as congress_records,
+)
+from lumibot.example_strategies.ai_sec_insider_filings import (
+    AISECInsiderFilingsStrategy,
+    _records as form4_records,
+)
 
 
 def test_congress_disclosures_are_visible_on_report_date_not_transaction_date():
     records = [
         {
-            "Politician": "Nancy Pelosi",
+            "Politician": "Clock Test Member",
             "Ticker": "NVDA",
             "Transaction": "Purchase",
             "TransactionDate": "2026-01-05",
@@ -271,7 +277,7 @@ def _exercise_strategy(strategy_class, records_key, records):
 def test_congress_strategy_has_researcher_and_dedicated_trading_risk_agent():
     records = [
         {
-            "Politician": "Nancy Pelosi",
+            "Politician": "Clock Test Member",
             "Ticker": "NVDA",
             "Transaction": "Purchase",
             "TransactionDate": "2026-08-01",
@@ -306,7 +312,7 @@ def test_congress_strategy_skips_stale_records_and_processes_a_disclosure_only_o
     records = [
         {
             "id": "disclosure-1",
-            "Politician": "Nancy Pelosi",
+            "Politician": "Clock Test Member",
             "Ticker": "NVDA",
             "Transaction": "Purchase",
             "TransactionDate": "2026-08-01",
@@ -374,3 +380,10 @@ def test_insider_strategy_excludes_amendments_by_default():
     agents = _exercise_strategy(AISECInsiderFilingsStrategy, "transactions", records)
 
     assert agents.calls == []
+
+
+def test_disclosure_examples_refuse_to_run_without_official_filings():
+    with pytest.raises(ValueError, match="does not include sample trades"):
+        congress_records({"disclosures": None, "disclosures_path": None})
+    with pytest.raises(ValueError, match="does not include sample trades"):
+        form4_records({"transactions": None, "transactions_path": None})

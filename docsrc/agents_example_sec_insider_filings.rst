@@ -18,18 +18,13 @@ open-market buying or selling.
 
 ``form4_researcher`` builds the evidence packet without trading permission.
 ``trading_risk_manager`` independently verifies account state and price and is
-the only agent allowed to submit an order. The bundled data is a frozen test
-fixture, not a live filing feed or performance claim.
+the only agent allowed to submit an order.
 
-Verified execution
-------------------
-
-A fresh September 20, 2026 Gemini run waited until the session after SEC
-acceptance, excluded the synthetic grant/award, submitted ``bt_1``, and filled
-18 AAPL shares at 275.59 in the backtest. This proves the point-in-time filter,
-classification, agent handoff, order tool, and simulated fill path.
-
-`Inspect the execution receipt <https://github.com/Lumiwealth/lumibot/blob/version/4.5.92/docs/research/2026-09-20_AGENT_STRATEGY_EXECUTION_PROOF.md>`_.
+This example does not ship sample trades. Pass official EDGAR filings in
+``transactions`` or a JSON file of those filings in ``transactions_path``.
+Running the module with neither argument stops instead of inventing trades.
+A backtest on this page is real only after those filings and market prices
+are supplied.
 
 .. literalinclude:: ../lumibot/example_strategies/ai_sec_insider_filings.py
    :language: python

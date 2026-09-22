@@ -1,9 +1,9 @@
 """Point-in-time congressional-disclosure AI strategy example.
 
-The bundled records are a frozen synthetic demo, not a real congressional
-filing. Official House and Senate periodic transaction reports are public.
-Congressional trades may be disclosed weeks after execution; the backtest makes
-records visible on ``ReportDate``, never ``TransactionDate``.
+Official House Clerk and Senate eFD periodic transaction reports are public.
+This example does not ship sample trades. Pass parsed filings in ``disclosures``
+or a JSON file of those filings in ``disclosures_path``. Records stay hidden
+until ``ReportDate``, never ``TransactionDate``.
 """
 
 import json
@@ -14,24 +14,32 @@ from typing import Any
 from lumibot.components.disclosure_signals import visible_congress_disclosures
 from lumibot.strategies import Strategy
 
-_FIXTURE = Path(__file__).with_name("fixtures") / "congress_disclosures.json"
+_MISSING_FILINGS = (
+    "Congress example requires official House Clerk or Senate periodic transaction "
+    "reports. Pass disclosures or disclosures_path. This example does not include sample trades."
+)
 
 
 def _records(parameters: dict[str, Any]) -> list[dict[str, Any]]:
     supplied = parameters.get("disclosures")
     if supplied is not None:
         return list(supplied)
-    path = Path(parameters.get("disclosures_path") or _FIXTURE)
+    path_value = parameters.get("disclosures_path")
+    if not path_value:
+        raise ValueError(_MISSING_FILINGS)
+    path = Path(path_value)
+    if not path.is_file():
+        raise ValueError(f"{_MISSING_FILINGS} Missing file: {path}")
     payload = json.loads(path.read_text(encoding="utf-8"))
     if not isinstance(payload, list):
-        raise ValueError("Congress disclosure fixture must contain a JSON list.")
+        raise ValueError("Congress disclosures file must contain a JSON list of official filings.")
     return payload
 
 
 class AICongressDisclosuresStrategy(Strategy):
     parameters = {
         "disclosures": None,
-        "disclosures_path": str(_FIXTURE),
+        "disclosures_path": None,
         "max_disclosure_age_days": 90,
         "max_position_pct": 5,
         "max_total_exposure_pct": 20,
@@ -110,15 +118,4 @@ class AICongressDisclosuresStrategy(Strategy):
 
 
 if __name__ == "__main__":
-    from lumibot.backtesting import YahooDataBacktesting
-
-    AICongressDisclosuresStrategy.backtest(
-        YahooDataBacktesting,
-        datetime(2026, 1, 1),
-        datetime(2026, 4, 1),
-        budget=100_000,
-        benchmark_asset="SPY",
-        show_plot=False,
-        show_tearsheet=False,
-        show_indicators=False,
-    )
+    raise SystemExit(_MISSING_FILINGS)

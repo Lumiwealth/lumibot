@@ -21,7 +21,12 @@ import os
 from datetime import datetime, timedelta
 from pathlib import Path
 
-from lumibot.example_strategies.agent_cycle import add_agent, run_cycle, trader_prompt
+from lumibot.example_strategies.agent_cycle import (
+    add_agent,
+    run_cycle,
+    session_minutes_elapsed,
+    trader_prompt,
+)
 from lumibot.strategies.strategy import Strategy
 
 
@@ -91,11 +96,12 @@ class AIVWAPStrategy(Strategy):
         "risk_fraction": 0.25,
         "max_shares": 200,
         "hold_bars": 1,
-        "sleeptime": "1D",
+        "min_session_minutes": 30,
+        "sleeptime": "1H",
     }
 
     def initialize(self):
-        self.sleeptime = str(self.parameters.get("sleeptime", "1D"))
+        self.sleeptime = str(self.parameters.get("sleeptime", "1H"))
         rules = Path(__file__).with_name("agent_rules") / "ai_vwap.rules.json"
         underlying = str(self.parameters.get("underlying", "SPY")).upper()
         add_agent(
@@ -145,6 +151,9 @@ class AIVWAPStrategy(Strategy):
 
     def on_trading_iteration(self):
         params = dict(self.parameters)
+        # Session VWAP is undefined until completed session bars exist.
+        if session_minutes_elapsed(self) < int(params.get("min_session_minutes", 30)):
+            return
         underlying = str(params.get("underlying", "SPY")).upper()
         context = {
             "current_datetime": self.get_datetime().isoformat(),

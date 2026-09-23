@@ -9,12 +9,23 @@ from __future__ import annotations
 
 import os
 from typing import Any
+from zoneinfo import ZoneInfo
 
 from lumibot.components.agents.manager import DEFAULT_AGENT_MODEL
+
+_EASTERN = ZoneInfo("America/New_York")
 
 
 def model_name() -> str:
     return os.environ.get("AI_EXAMPLE_MODEL", DEFAULT_AGENT_MODEL)
+
+
+def session_minutes_elapsed(strategy: Any) -> float:
+    """Minutes since the 09:30 ET US cash open. Naive datetimes are read as Eastern."""
+    now = strategy.get_datetime()
+    now = now.replace(tzinfo=_EASTERN) if now.tzinfo is None else now.astimezone(_EASTERN)
+    session_open = now.replace(hour=9, minute=30, second=0, microsecond=0)
+    return (now - session_open).total_seconds() / 60
 
 
 def add_agent(strategy: Any, name: str, prompt: str, *, allow_trading: bool, rules_path: Any = None) -> None:

@@ -22,7 +22,12 @@ import os
 from datetime import datetime, timedelta
 from pathlib import Path
 
-from lumibot.example_strategies.agent_cycle import add_agent, run_cycle, trader_prompt
+from lumibot.example_strategies.agent_cycle import (
+    add_agent,
+    run_cycle,
+    session_minutes_elapsed,
+    trader_prompt,
+)
 from lumibot.strategies.strategy import Strategy
 
 # Default liquid US mega/large-cap + major ETFs (~100 names) for ORB scanning.
@@ -182,6 +187,9 @@ class AIOpeningRangeBreakoutStrategy(Strategy):
 
     def on_trading_iteration(self):
         params = dict(self.parameters)
+        # A breakout needs the completed opening range plus at least one bar after it.
+        if session_minutes_elapsed(self) <= int(params.get("opening_range_minutes", 15)):
+            return
         universe = params.get("universe") or []
         if isinstance(universe, str):
             universe = _parse_universe(universe)

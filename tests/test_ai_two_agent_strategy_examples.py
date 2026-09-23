@@ -2,6 +2,7 @@ import hashlib
 from datetime import datetime
 from pathlib import Path
 from types import SimpleNamespace
+from zoneinfo import ZoneInfo
 
 import pytest
 
@@ -77,6 +78,29 @@ def test_ai_examples_separate_research_from_trading_and_risk(strategy_class, res
     assert "do not submit orders" in researcher["system_prompt"].lower()
     assert "only trading agent" in trader["system_prompt"].lower()
     assert "risk" in trader["system_prompt"].lower()
+
+
+@pytest.mark.parametrize("strategy_class", [AIOpeningRangeBreakoutStrategy, AIVWAPStrategy])
+def test_intraday_teams_wait_for_completed_session_bars(strategy_class):
+    """At the 09:30 open no session bar exists, so the team must not spend model calls."""
+    eastern = ZoneInfo("America/New_York")
+    now = {"value": datetime(2026, 1, 5, 9, 30, tzinfo=eastern)}
+    agents = _Agents()
+    context = SimpleNamespace(
+        agents=agents,
+        parameters=dict(strategy_class.parameters),
+        get_datetime=lambda: now["value"],
+    )
+
+    strategy_class.initialize(context)
+    assert not str(context.sleeptime).upper().endswith("D")
+
+    strategy_class.on_trading_iteration(context)
+    assert agents.calls == []
+
+    now["value"] = datetime(2026, 1, 5, 10, 30, tzinfo=eastern)
+    strategy_class.on_trading_iteration(context)
+    assert len(agents.calls) == 5
 
 
 @pytest.mark.parametrize("strategy_class", [AICreditSpreadStrategy, AIIronCondorStrategy])

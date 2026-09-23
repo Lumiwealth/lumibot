@@ -572,6 +572,22 @@ WAVE16 = ({**WAVE13[2], "name": "sec-insider-luna-v4"},)
 WAVE17 = ({**_wave8("public-fetch-luna"), "name": "public-fetch-luna-v2"},)
 
 
+# v4 rejected the Jan 6 reclaim as stale between 30M evaluations, and public
+# fetch v2 refused a published disclosure because it named no size for us.
+# Rerun both after those prompt fixes; public fetch runs past Jan 26 so the
+# disclosure is published inside the window. Pelosi reruns after the fill fix.
+WAVE18 = (
+    {**WAVE15[0], "name": "vwap-luna-v5"},
+    {
+        **_wave8("public-fetch-luna"),
+        "name": "public-fetch-luna-v3",
+        "end": "2026-01-30",
+        "parameters": {"agent_max_model_calls": 48},
+    },
+    {**_wave8("congress-pelosi-luna"), "name": "congress-pelosi-luna-v2"},
+)
+
+
 def _jobs(wave: str) -> tuple[dict, ...]:
     # "7,8" runs several waves under one parent so the spend cap is shared.
     if "," in wave:

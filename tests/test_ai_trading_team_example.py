@@ -155,6 +155,7 @@ def test_daily_bull_bear_trade_task_does_not_tell_the_trader_to_exit_the_whole_b
 def test_leveraged_etf_book_never_holds_a_long_and_its_inverse_on_one_index():
     trader = _created_prompts(AITradingTeamBullBearLeveragedETFStrategy)["trader"].lower()
     assert "never hold a long etf and its inverse on the same index" in trader
+    assert "sell the whole opposite side before buying" in trader
 
 
 def test_trader_never_buys_more_than_the_cash_it_has():

@@ -15,7 +15,8 @@ _BOOK = (
     "Respect the long or inverse direction. Split the account by the interpreter weights. "
     "Never hold a long ETF and its inverse on the same index at once, such as TQQQ with SQQQ or "
     "UPRO with SPXU: they cancel each other and both decay. Keep only the side with the larger "
-    "weight and give it the net weight."
+    "weight and give it the net weight. When you switch sides on an index, sell the whole "
+    "opposite side before buying, in the same session."
 )
 _EXIT = (
     "Sell a holding with the order tool when today's weights no longer include it, before any "

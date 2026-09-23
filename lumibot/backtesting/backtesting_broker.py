@@ -2502,8 +2502,10 @@ class BacktestingBroker(Broker):
                     # path reads with timeshift=-1. AlpacaBacktesting history returns finished
                     # bars only in environment mode (the BotSpot path), so ask for the current
                     # bar explicitly. The timestamp check below still rejects a bar that is not
-                    # current where the fill policy requires one (options).
+                    # current where the fill policy requires one (options). The fill never needs
+                    # bars from before the backtest window, so it does not reach back for them.
                     execution_bar_kwargs["remove_incomplete_current_bar"] = False
+                    execution_bar_kwargs["_extend_history"] = False
 
                 ohlc = self.data_source.get_historical_prices(
                     asset=asset,

@@ -587,11 +587,25 @@ def test_alpaca_option_order_fills_on_the_next_real_print_in_a_full_backtest(mon
 # ---------------------------------------------------------------------------
 
 _ENV_WEEK = [date(2026, 8, 3), date(2026, 8, 4), date(2026, 8, 5), date(2026, 8, 6), date(2026, 8, 7)]
+# Sessions the fake Alpaca serves: five weeks before the backtest window plus the window, so a
+# history request can reach before backtesting_start. 2026-07-03 is the Independence Day
+# holiday (observed) and has no bars.
+_FAKE_SESSIONS = [
+    day
+    for day in (date(2026, 6, 29) + timedelta(days=offset) for offset in range(40))
+    if day.weekday() < 5 and day != date(2026, 7, 3)
+]
 
 
 def _minute_open(day: date, minutes_after_open: int) -> float:
     # Unique per bar so a test can tell exactly which bar a price came from.
-    return round(600 + _ENV_WEEK.index(day) + minutes_after_open * 0.001, 3)
+    return round(600 + (day - _ENV_WEEK[0]).days + minutes_after_open * 0.001, 3)
+
+
+def _as_new_york(value) -> pd.Timestamp:
+    # alpaca-py stores request datetimes as naive UTC.
+    stamp = pd.Timestamp(value)
+    return (stamp.tz_localize("UTC") if stamp.tzinfo is None else stamp).tz_convert(_NY_TZ)
 
 
 class _FakeStockHistoricalClient:
@@ -610,7 +624,7 @@ class _FakeStockHistoricalClient:
         amount = int(request.timeframe.amount_value)
         unit = str(request.timeframe.unit_value.value).lower()
         rows = []
-        for day in _ENV_WEEK:
+        for day in _FAKE_SESSIONS:
             if unit.startswith("day"):
                 ts = _NY_TZ.localize(datetime.combine(day, datetime.min.time()))
                 if start <= ts <= end:
@@ -780,9 +794,107 @@ def test_env_selected_alpaca_history_never_returns_a_bar_that_closes_after_now(m
     # get_last_price and the fill both use the open of the bar that starts at 10:00.
     assert at_ten["last"] == _minute_open(day, 30)
     assert strategy.vars.fills == [(order_time, _minute_open(day, 30))]
-    # Nothing has finished yet at the first bar of the window, so there is nothing to return.
+    # At the first bar nothing inside the window has finished yet, so history comes from the
+    # session before backtesting_start (these were None until history could reach back).
     first = rows[_NY_TZ.localize(datetime(2026, 8, 3, 9, 30))]
-    assert first["5minute"] is None and first["minute"] is None and first["day"] is None
+    last_session = date(2026, 7, 31)
+    assert list(first["5minute"].index) == [
+        _NY_TZ.localize(datetime(2026, 7, 31, 15, minute)) for minute in (45, 50, 55)
+    ]
+    assert list(first["minute"].index) == [
+        _NY_TZ.localize(datetime(2026, 7, 31, 15, minute)) for minute in (57, 58, 59)
+    ]
+    assert [ts.date() for ts in first["day"].index] == [last_session]
+
+
+def test_env_selected_alpaca_history_reaches_back_before_backtesting_start(monkeypatch, tmp_path):
+    """BotSpot path: history before backtesting_start comes from real earlier bars, like IBKR and ThetaData.
+
+    The opening-range strategy that started this work asks at its first bars for 250
+    five-minute bars and for 15 daily bars (an ATR(14) filter). The data window started at
+    backtesting_start, so it got None for the five-minute bars at 09:30 and a "Not enough
+    historical data" error for the daily ones.
+    """
+    from lumibot.strategies import Strategy
+
+    _select_alpaca_through_environment(monkeypatch, tmp_path)
+    start = _NY_TZ.localize(datetime(2026, 8, 3))
+    first_bar = start.replace(hour=9, minute=30)
+
+    class FirstBarsProbe(Strategy):
+        def initialize(self):
+            self.sleeptime = "5M"
+            self.vars.rows = {}
+
+        def on_trading_iteration(self):
+            five = self.get_historical_prices("SPY", 250, "5minute")
+            daily = self.get_historical_prices("SPY", 15, "day")
+            self.vars.rows[self.get_datetime()] = (
+                None if five is None else five.df[["open", "close"]].copy(),
+                None if daily is None else daily.df[["open", "close"]].copy(),
+            )
+
+    _results, strategy = FirstBarsProbe.run_backtest(**_ENV_RUN_KWARGS)
+
+    rows = strategy.vars.rows
+    assert len(rows) == 5 * 78
+    five, daily = rows[first_bar]
+    assert five is not None and len(five) == 250, f"got {None if five is None else len(five)} of 250 five-minute bars"
+    assert daily is not None and len(daily) == 15, f"got {None if daily is None else len(daily)} of 15 daily bars"
+    # All from before backtesting_start, and all finished by 09:30.
+    assert five.index[-1] == _NY_TZ.localize(datetime(2026, 7, 31, 15, 55))
+    assert [ts.date() for ts in daily.index][-1] == date(2026, 7, 31)
+    assert (five.index < start).all() and (daily.index < start).all()
+    # Real bars only: every bar is one the fake Alpaca served, with that bar's own prices.
+    for ts, row in five.iterrows():
+        minute = ts.hour * 60 + ts.minute - (9 * 60 + 30)
+        assert float(row["open"]) == _minute_open(ts.date(), minute)
+        assert float(row["close"]) == _minute_open(ts.date(), minute + 4)
+    for ts, row in daily.iterrows():
+        assert ts.date() in _FAKE_SESSIONS
+        assert float(row["open"]) == _minute_open(ts.date(), 0)
+    # Every bar of the week gets the full history, and never a bar that is still forming.
+    for now, (five_df, daily_df) in rows.items():
+        assert len(five_df) == 250 and len(daily_df) == 15
+        assert (five_df.index + timedelta(minutes=5) <= now).all()
+        assert (daily_df.index.date < now.date()).all()
+    # Bounded and cached: one request per series reaches before the window, not one per bar,
+    # and it reaches back about as far as the request needs (7 sessions for 250 five-minute
+    # bars, 21 sessions for 15 daily bars, with a margin).
+    early = [r for r in _FakeStockHistoricalClient.requests if _as_new_york(r.start) < start]
+    assert sorted(str(r.timeframe) for r in early) == ["1Day", "5Min"]
+    first_day = {str(r.timeframe): _as_new_york(r.start).date() for r in early}
+    assert date(2026, 7, 20) <= first_day["5Min"] <= date(2026, 7, 27)
+    assert date(2026, 6, 29) <= first_day["1Day"] <= date(2026, 7, 10)
+
+
+def test_explicit_config_alpaca_history_keeps_the_window_unless_asked(monkeypatch, tmp_path):
+    """An explicit config keeps its data window (the existing behavior) unless history_before_start=True."""
+    _select_alpaca_through_environment(monkeypatch, tmp_path)
+    config = {"API_KEY": "test-key", "API_SECRET": "test-secret", "PAPER": True}
+    window = dict(
+        datetime_start=_NY_TZ.localize(datetime(2026, 8, 3)),
+        datetime_end=_NY_TZ.localize(datetime(2026, 8, 7)),
+        config=config,
+        timestep="minute",
+    )
+    now = _NY_TZ.localize(datetime(2026, 8, 3, 9, 35))
+
+    legacy = AlpacaBacktesting(**window)
+    legacy._datetime = now
+    bars = legacy.get_historical_prices(Asset("SPY"), 250, "5minute")
+    # Only the window's bars at or before 09:35 (the documented default includes the forming bar).
+    assert list(bars.df.index) == [_NY_TZ.localize(datetime(2026, 8, 3, 9, 30)), now]
+    with pytest.raises(ValueError, match="Not enough historical data"):
+        legacy.get_historical_prices(Asset("SPY"), 15, "day")
+    assert not [r for r in _FakeStockHistoricalClient.requests if _as_new_york(r.start) < window["datetime_start"]]
+
+    reaching = AlpacaBacktesting(**window, history_before_start=True, remove_incomplete_current_bar=True)
+    reaching._datetime = now
+    bars = reaching.get_historical_prices(Asset("SPY"), 250, "5minute")
+    assert len(bars.df) == 250
+    assert bars.df.index[-1] == _NY_TZ.localize(datetime(2026, 8, 3, 9, 30))
+    assert len(reaching.get_historical_prices(Asset("SPY"), 15, "day").df) == 15
 
 
 def test_env_selected_alpaca_daily_strategy_keeps_daily_bars(monkeypatch, tmp_path):
@@ -887,6 +999,53 @@ def test_env_selected_alpaca_option_history_excludes_the_print_that_is_still_for
     source._datetime = _NY_TZ.localize(datetime(2026, 8, 3, 9, 31))
     # Before the first print has finished there is nothing honest to return.
     assert source.get_historical_prices(contract, 2, "minute") is None
+
+
+def test_env_selected_alpaca_option_history_reaches_back_to_real_prints_before_the_start(monkeypatch, tmp_path):
+    """Option history on the BotSpot path also reaches before backtesting_start, real prints only."""
+    _select_alpaca_through_environment(monkeypatch, tmp_path)
+    prints = [
+        ("2026-07-30T14:05:00Z", 4.10, 4.20, 4.05, 4.15, 7),
+        ("2026-07-31T19:58:00Z", 4.60, 4.70, 4.55, 4.65, 4),
+        ("2026-08-03T13:31:00Z", 5.00, 5.10, 4.95, 5.05, 3),
+    ]
+    _FakeOptionHistoricalClient.barsets = {"SPY260821C00650000": _bars("SPY260821C00650000", prints)}
+    start = _NY_TZ.localize(datetime(2026, 8, 3))
+    source = AlpacaBacktesting(datetime_start=start, datetime_end=_NY_TZ.localize(datetime(2026, 8, 8)), config=None)
+    source._sleep = lambda seconds: None
+    contract = Asset("SPY", asset_type=Asset.AssetType.OPTION, expiration=date(2026, 8, 21), strike=650, right="CALL")
+
+    source._datetime = _NY_TZ.localize(datetime(2026, 8, 3, 9, 35))
+    bars = source.get_historical_prices(contract, 3, "minute")
+    # Exactly the three real prints: two before the start and the 09:31 print. No bar in between.
+    assert list(bars.df.index) == [_as_new_york(ts) for ts, *_rest in prints]
+    assert list(bars.df["open"]) == [4.10, 4.60, 5.00]
+
+    # Asking again (every bar of a backtest does) never asks Alpaca again for the same history.
+    early = lambda: [r for r in _FakeOptionHistoricalClient.requests if _as_new_york(r.start) < start]  # noqa: E731
+    assert len(early()) == 1
+    source._datetime = _NY_TZ.localize(datetime(2026, 8, 3, 9, 36))
+    source.get_historical_prices(contract, 3, "minute")
+    assert len(early()) == 1
+    # A request that needs more sessions reaches further back once, for the missing days only.
+    bars = source.get_historical_prices(contract, 1000, "minute")
+    assert len(early()) == 2
+    assert _as_new_york(early()[1].end) <= _as_new_york(early()[0].start)
+    assert len(bars.df) == 3  # the contract simply has no other prints: nothing is invented
+    source.get_historical_prices(contract, 1000, "minute")
+    assert len(early()) == 2
+
+    # A second run with the same requests reads the window and both history segments from the
+    # disk cache, including the empty one (no prints on those days).
+    requests_before = len(_FakeOptionHistoricalClient.requests)
+    rerun = AlpacaBacktesting(datetime_start=start, datetime_end=_NY_TZ.localize(datetime(2026, 8, 8)), config=None)
+    rerun._sleep = lambda seconds: None
+    rerun._datetime = _NY_TZ.localize(datetime(2026, 8, 3, 9, 35))
+    rerun.get_historical_prices(contract, 3, "minute")
+    rerun._datetime = _NY_TZ.localize(datetime(2026, 8, 3, 9, 36))
+    bars = rerun.get_historical_prices(contract, 1000, "minute")
+    assert len(_FakeOptionHistoricalClient.requests) == requests_before
+    assert list(bars.df.index) == [_as_new_york(ts) for ts, *_rest in prints]
 
 
 def test_alpaca_contract_listing_falls_back_to_the_other_trading_endpoint_on_401(monkeypatch, tmp_path):

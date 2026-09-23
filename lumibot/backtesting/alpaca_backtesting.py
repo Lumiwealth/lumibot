@@ -1,4 +1,5 @@
 import json
+import math
 import os
 import time
 from collections import deque
@@ -105,6 +106,11 @@ class AlpacaBacktesting(DataSourceBacktesting):
     ALPACA_RATE_LIMIT_MAX_WAIT_SECONDS = 120.0
     OPTION_HISTORY_START_HINT = "Alpaca option history starts around February 2024"
     CACHE_SUBFOLDER = "alpaca"
+    # History before backtesting_start (history_before_start, on by default in environment
+    # mode): one reach back covers at most this many trading sessions.
+    HISTORY_BEFORE_START_MAX_INTRADAY_SESSIONS = 260  # about one year of intraday bars
+    HISTORY_BEFORE_START_MAX_DAILY_SESSIONS = 2520  # about ten years of daily bars
+    REGULAR_SESSION_MINUTES = 390
 
     def __init__(
             self,
@@ -146,6 +152,13 @@ class AlpacaBacktesting(DataSourceBacktesting):
                   "day" for strategies that sleep a day or more.
                 - full_window (bool): Run through backtesting_end. Defaults to True in environment mode and to
                   False (the legacy stop at the open of the third-to-last trading day) with an explicit config.
+                - history_before_start (bool): When a history request needs more finished bars than the data
+                  window holds (for example 250 five-minute bars or 15 daily bars at the first bar), fetch the
+                  real bars before it, the way IBKR and ThetaData backtests do. Each reach back is bounded by the
+                  request, cached like the window, and never filled; a request that still cannot be met returns
+                  the bars that exist instead of raising. Defaults to True in environment mode and to False with
+                  an explicit config (the data then starts at backtesting_start, or earlier with
+                  warm_up_trading_days).
                 - option_chain_max_days (int): get_chains() horizon when no expiration hint is set. Default 90.
                 - refresh_cache (bool): Whether to force cache refresh. Defaults to False.
                 - warm_up_trading_days (int): The number of trading days used for warm-up before processing 
@@ -221,6 +234,13 @@ class AlpacaBacktesting(DataSourceBacktesting):
         requested_remove_incomplete = kwargs.get('remove_incomplete_current_bar')
         self._remove_incomplete_current_bar = (
             environment_mode if requested_remove_incomplete is None else bool(requested_remove_incomplete)
+        )
+        # History before backtesting_start: a strategy that asks at its first bars for N bars
+        # gets real earlier bars in environment mode, like IBKR and ThetaData. An explicit config
+        # keeps its window unless asked (the documented default before 2026-09-23).
+        requested_history_before_start = kwargs.get('history_before_start')
+        self._history_before_start = (
+            environment_mode if requested_history_before_start is None else bool(requested_history_before_start)
         )
 
         if not config.get("PAPER", True):
@@ -367,7 +387,8 @@ class AlpacaBacktesting(DataSourceBacktesting):
             length=1,  # Get one bar
             timestep=self._timestep,
             quote=quote,
-            remove_incomplete_current_bar=False  # We want the incomplete bar (aka current bar) for get_last_price
+            remove_incomplete_current_bar=False,  # We want the incomplete bar (aka current bar) for get_last_price
+            _extend_history=False,
         )
 
         if bars is None or bars.df.empty:
@@ -400,6 +421,7 @@ class AlpacaBacktesting(DataSourceBacktesting):
             include_after_hours: bool = True,
             return_polars: bool = False,
             remove_incomplete_current_bar: Optional[bool] = None,
+            _extend_history: bool = True,
     ) -> Bars | None:
         """
         Get bars for an asset by delegating to get_historical_prices_between_dates
@@ -486,21 +508,43 @@ class AlpacaBacktesting(DataSourceBacktesting):
             # Handle errors if fetching data fails
             raise RuntimeError(f"Unable to fetch historical prices during backtest: {e}")
 
-        if resample_rule is not None:
-            df = self._resample_ohlcv_dataframe(df, resample_rule)
-
-        # Ensure sufficient bars are available
-        if length > len(df):
-            raise ValueError(
-                f"Not enough historical data. Requested {length} bars but only {len(df)} available."
-            )
-
+        # _extend_history=False is for the lookups that read the bar starting now (get_last_price
+        # and the broker's fill); they never need bars from before the window.
+        reach_back = _extend_history and bool(getattr(self, "_history_before_start", False))
+        view = self._resample_ohlcv_dataframe(df, resample_rule) if resample_rule is not None else df
         current_index = self._newest_bar_position(
-            df.index,
+            view.index,
             search_datetime,
             timestep,
             remove_incomplete_current_bar,
         )
+        if reach_back and current_index + 1 < length:
+            extended = self._reach_back_for_history(
+                asset=asset,
+                quote=quote,
+                source_timestep=source_timestep,
+                frame=df,
+                search_datetime=search_datetime,
+                length=length,
+                timestep=timestep,
+            )
+            if extended is not None:
+                view = self._resample_ohlcv_dataframe(extended, resample_rule) if resample_rule is not None else extended
+                current_index = self._newest_bar_position(
+                    view.index,
+                    search_datetime,
+                    timestep,
+                    remove_incomplete_current_bar,
+                )
+        df = view
+
+        # Ensure sufficient bars are available. With history before the start, a series that
+        # simply has fewer bars (a recent listing) returns the bars that exist instead, like the
+        # other backtesting sources.
+        if length > len(df) and not reach_back:
+            raise ValueError(
+                f"Not enough historical data. Requested {length} bars but only {len(df)} available."
+            )
 
         # Handle data retrieval and slicing
         if current_index < 0:
@@ -1014,8 +1058,32 @@ class AlpacaBacktesting(DataSourceBacktesting):
             quote: Asset,
             return_polars: bool,
             remove_incomplete_current_bar: bool,
+            extend_history: bool = True,
     ) -> Bars | None:
         df = self._get_option_bars_frame(asset, quote, source_timestep)
+        search_datetime = self._datetime - timeshift if timeshift else self._datetime
+        if extend_history and getattr(self, "_history_before_start", False):
+            # Prints from before the window (real trades only) when the request needs more
+            # finished bars than the window holds at this time.
+            view = self._resample_ohlcv_dataframe(df, resample_rule) if resample_rule is not None else df
+            available = self._newest_bar_position(
+                view.index,
+                search_datetime,
+                timestep,
+                remove_incomplete_current_bar,
+            ) + 1
+            if available < length:
+                extended = self._reach_back_for_history(
+                    asset=asset,
+                    quote=quote,
+                    source_timestep=source_timestep,
+                    frame=df,
+                    search_datetime=search_datetime,
+                    length=length,
+                    timestep=timestep,
+                )
+                if extended is not None:
+                    df = extended
         if df is None or df.empty:
             return None
         if resample_rule is not None:
@@ -1023,7 +1091,6 @@ class AlpacaBacktesting(DataSourceBacktesting):
             if df.empty:
                 return None
 
-        search_datetime = self._datetime - timeshift if timeshift else self._datetime
         current_index = self._newest_bar_position(
             df.index,
             search_datetime,
@@ -1050,6 +1117,7 @@ class AlpacaBacktesting(DataSourceBacktesting):
         bars = self._get_option_historical_prices(
             asset,
             1,
+            extend_history=False,
             timestep=timestep,
             source_timestep=timestep,
             resample_rule=None,
@@ -1177,9 +1245,14 @@ class AlpacaBacktesting(DataSourceBacktesting):
             data_datetime_start: datetime,
             data_datetime_end: datetime,
             auto_adjust: bool,
+            request_end: datetime | None = None,
     ):
-        """Return the Alpaca client and bar request for this asset."""
-        end = data_datetime_end + timedelta(days=1)
+        """Return the Alpaca client and bar request for this asset.
+
+        ``request_end`` replaces the default end (``data_datetime_end`` plus one day), for a
+        history segment that must stop where the loaded window begins.
+        """
+        end = request_end if request_end is not None else data_datetime_end + timedelta(days=1)
         # A window that reaches today (for example an end clamped to "now") used to ask for
         # tomorrow. Free keys refuse the latest 15 minutes of SIP data ("subscription does not
         # permit querying recent SIP data") and there are no bars after now anyway.
@@ -1377,6 +1450,166 @@ class AlpacaBacktesting(DataSourceBacktesting):
         except Exception as e:
             logger.error(f"Failed to load cached data for key: {key}. Error: {e}")
             return False
+
+    # ------------------------------------------------------------------
+    # History before the data window (history_before_start)
+    # ------------------------------------------------------------------
+    def _history_start_needed(self, search_datetime: datetime, length: int, timestep: str) -> datetime:
+        """Midnight of the first trading session a request for ``length`` bars needs.
+
+        Sessions are counted on the market calendar. Intraday bars assume the 390-minute regular
+        session, which over-counts for series that include extended hours (native multi-minute
+        bars) and so reaches back far enough. A quarter more plus two sessions covers half days,
+        halts and bars that do not print every period.
+        """
+        delta, unit = DataSourceBacktesting.convert_timestep_str_to_timedelta(timestep)
+        if unit == "day":
+            sessions = int(length) * max(delta.days, 1)
+            limit = self.HISTORY_BEFORE_START_MAX_DAILY_SESSIONS
+        else:
+            bar_minutes = delta.total_seconds() / 60.0
+            sessions = math.ceil(int(length) * bar_minutes / self.REGULAR_SESSION_MINUTES)
+            limit = self.HISTORY_BEFORE_START_MAX_INTRADAY_SESSIONS
+        sessions = min(math.ceil(sessions * 1.25) + 2, limit)
+        first_day = date_n_trading_days_from_date(
+            n_days=sessions,
+            start_datetime=search_datetime,
+            market=self.market,
+        )
+        return self.tzinfo.localize(datetime.combine(first_day, datetime.min.time()))
+
+    def _reach_back_for_history(
+            self,
+            *,
+            asset: Asset,
+            quote: Asset,
+            source_timestep: str,
+            frame: pd.DataFrame,
+            search_datetime: datetime,
+            length: int,
+            timestep: str,
+    ) -> pd.DataFrame | None:
+        """Add real bars from before the loaded series so ``length`` finished bars can exist.
+
+        Returns the extended series (also stored for later calls), or None when nothing was
+        added. The series only ever grows backwards, one segment per reach, and a reach that is
+        already covered, or was already tried today for this request, never asks Alpaca again:
+        a symbol with no earlier bars (a new listing, an option before its first trade) must
+        not cost one request per bar.
+        """
+        asset, quote = self._sanitize_base_and_quote_asset(asset, quote)
+        key = self._get_asset_key(base_asset=asset, quote_asset=quote, timestep=source_timestep)
+        attempts = self._state("_history_reach_attempts", set)
+        marker = (key, int(length), str(timestep), search_datetime.date())
+        if marker in attempts:
+            return None
+        attempts.add(marker)
+
+        loaded_from = self._state("_history_loaded_from", dict)
+        loaded_start = loaded_from.get(key, self._data_datetime_start)
+        needed_start = self._history_start_needed(search_datetime, length, timestep)
+        if needed_start >= loaded_start:
+            return None
+
+        segment = self._history_segment(asset, quote, source_timestep, needed_start, loaded_start)
+        loaded_from[key] = needed_start
+        if segment.empty:
+            return None
+        merged = pd.concat([segment, frame])
+        merged = merged[~merged.index.duplicated(keep="last")].sort_index()
+        self._state("_data_store", dict)[key] = merged
+        logger.info(
+            "History before %s for %s: %d real bars from %s",
+            loaded_start.date(),
+            key,
+            len(segment),
+            needed_start.date(),
+        )
+        return merged
+
+    def _history_segment(
+            self,
+            asset: Asset,
+            quote: Asset,
+            source_timestep: str,
+            segment_start: datetime,
+            segment_end: datetime,
+    ) -> pd.DataFrame:
+        """Real Alpaca bars in [segment_start, segment_end), cached on disk like the window.
+
+        Nothing is reindexed or filled (RULE #1). Stock and crypto 1-minute bars keep only the
+        regular-session minutes of the market calendar, the same minutes the window's minute
+        series holds; daily, native multi-minute and option bars are kept as Alpaca returns them.
+        """
+        last_included = segment_end - timedelta(seconds=1)
+        key = self._get_asset_key(
+            base_asset=asset,
+            quote_asset=quote,
+            timestep=source_timestep,
+            data_datetime_start=segment_start,
+            data_datetime_end=last_included,
+        ) + "_HISTORY"
+        store = self._state("_data_store", dict)
+        refreshed = self._state("_refreshed_keys", dict)
+        refresh = bool(getattr(self, "_refresh_cache", False)) and key not in refreshed
+        if not refresh and (key in store or self._load_ohlcv_into_data_store(key)):
+            return store[key]
+
+        client, request = self._history_request(
+            base_asset=asset,
+            quote_asset=quote,
+            timestep=source_timestep,
+            data_datetime_start=segment_start,
+            data_datetime_end=last_included,
+            auto_adjust=self._auto_adjust,
+            request_end=segment_end,
+        )
+        if isinstance(request, CryptoBarsRequest):
+            fetch = client.get_crypto_bars
+        elif isinstance(request, OptionBarsRequest):
+            fetch = client.get_option_bars
+        else:
+            fetch = client.get_stock_bars
+        try:
+            bars = self._alpaca_request(fetch, request, what=key)
+        except Exception as exc:
+            raise RuntimeError(f"Failed to fetch history before the backtest window for {key}: {exc}")
+
+        df = self._bars_to_frame(bars)
+        if not df.empty and not self._is_option(asset) and source_timestep == "minute":
+            calendar = get_trading_days(
+                self.market,
+                segment_start,
+                segment_end + timedelta(days=1),
+                tzinfo=self.tzinfo,
+            )
+            session_minutes = self._get_trading_times_for_timestep(pcal=calendar, timestep="minute")
+            df = df[df["timestamp"].isin(session_minutes)]
+        df = df[(df["timestamp"] >= segment_start) & (df["timestamp"] < segment_end)].sort_values("timestamp")
+
+        cache_dir = os.path.join(LUMIBOT_CACHE_FOLDER, self.CACHE_SUBFOLDER)
+        os.makedirs(cache_dir, exist_ok=True)
+        df.to_csv(os.path.join(cache_dir, f"{key}.csv"), index=False)
+        df = df.set_index("timestamp")
+        store[key] = df
+        if refresh:
+            refreshed[key] = True
+        return df
+
+    def _bars_to_frame(self, bars) -> pd.DataFrame:
+        """A BarSet as timestamp/open/high/low/close/volume rows in this source's timezone."""
+        columns = ["timestamp", "open", "high", "low", "close", "volume"]
+        df = bars.df.reset_index() if bars is not None else pd.DataFrame()
+        if df.empty or "timestamp" not in df.columns:
+            empty = pd.DataFrame({column: pd.Series(dtype="float64") for column in columns[1:]})
+            empty.insert(0, "timestamp", pd.DatetimeIndex([], tz=self.tzinfo))
+            return empty
+        df["timestamp"] = pd.to_datetime(df["timestamp"])
+        if df["timestamp"].dt.tz is None:
+            df["timestamp"] = df["timestamp"].dt.tz_localize(self.tzinfo)
+        else:
+            df["timestamp"] = df["timestamp"].dt.tz_convert(self.tzinfo)
+        return df[columns]
 
     def get_historical_prices_between_dates(
             self,

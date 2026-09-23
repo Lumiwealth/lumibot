@@ -54,8 +54,10 @@ def trader_prompt(*, book_rule: str, exit_rule: str, cash_rule: str | None = Non
         "If the interpreter weights a symbol outside this book, drop that weight and rescale the "
         "allowed weights to the same total. Do not skip the rebalance because of it. "
         "Cash, Treasury, or money-market funds outside this book are never an allowed trade. "
-        "Price every limit order so it can fill in this session: use the current price, not a "
-        "prior close. "
+        "At the session open the last price can still be the prior close, and a limit exactly at "
+        "the last price fills only if the next price reaches it. When an order must fill this "
+        "session to reach the target weights, use a market order or a buy limit slightly above "
+        "(sell limit slightly below) the current price. "
         "Submit each order once through the order tool. If you submit no order, that is the result. "
         "Python will not insert a share."
     )

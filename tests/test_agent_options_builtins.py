@@ -189,6 +189,16 @@ def test_stock_quantity_calculator_respects_notional_and_cash_caps():
     assert cash_limited["notional"] == 4_830
 
 
+def test_submit_order_description_explains_when_a_limit_order_can_fill():
+    strategy = _OptionsStrategy()
+    tool = BuiltinTools.orders.submit().binder(strategy, AgentManager(strategy))
+    description = " ".join(tool.description.split())
+
+    assert "A limit exactly at the last price fills only if the next price reaches it" in description
+    assert "At the session open the last price can still be the prior close" in description
+    assert "use order_type='market' or a buy limit slightly above" in description
+
+
 def test_stock_quantity_calculator_handles_zero_cash_and_rejects_invalid_inputs():
     strategy = _OptionsStrategy()
     tool = BuiltinTools.risk.calculate_stock_quantity().binder(strategy, AgentManager(strategy))

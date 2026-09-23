@@ -115,7 +115,10 @@ def test_trader_never_parks_the_book_outside_the_universe_or_at_a_stale_price():
     prompt = " ".join(trader_prompt(book_rule="book", exit_rule="exit").split()).lower()
     assert "cash, treasury, or money-market funds" in prompt
     assert "never an allowed trade" in prompt
-    assert "price every limit order so it can fill in this session" in prompt
+    assert "at the session open the last price can still be the prior close" in prompt
+    assert "a limit exactly at the last price fills only if the next price reaches it" in prompt
+    assert "use a market order or a buy limit slightly above" in prompt
+    assert "use the current price, not a prior close" not in prompt
 
 
 def _created_prompts(strategy_class):

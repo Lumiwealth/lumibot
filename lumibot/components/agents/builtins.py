@@ -3909,6 +3909,8 @@ def _bind_submit_order(strategy: Any, manager: Any) -> BoundTool:
             "Valid order_type values: market, limit, stop, stop_limit, trailing_stop, smart_limit. "
             "Valid time_in_force values: day, gtc, gtd. "
             "Caveats: limit orders require limit_price; stop and stop_limit orders require stop_price; trailing_stop requires trail_price or trail_percent; smart_limit uses LumiBot's built-in smart-limit behavior. "
+            "A limit exactly at the last price fills only if the next price reaches it. At the session open the last price can still be the prior close. "
+            "When the order must fill this session, use order_type='market' or a buy limit slightly above (sell limit slightly below) the current price. "
             "Example: orders_submit_order(symbol='SPY', quantity=100, side='buy', asset_type='stock', order_type='market')."
         ),
         function=submit_order,

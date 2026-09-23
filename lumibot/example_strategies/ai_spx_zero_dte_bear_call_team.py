@@ -12,12 +12,22 @@ from lumibot.example_strategies.agent_cycle import add_agent, run_cycle
 from lumibot.strategies.strategy import Strategy
 
 
+_INDEX_UNDERLYINGS = {"SPX", "XSP", "NDX", "RUT", "VIX"}
+
+
+def underlying_label(params: dict) -> str:
+    symbol = str(params.get("underlying", "SPX")).upper()
+    asset_type = "index" if symbol in _INDEX_UNDERLYINGS else "stock"
+    return f"{symbol} (asset type {asset_type})"
+
+
 def build_research_prompt(params: dict) -> str:
+    underlying = underlying_label(params)
     return f"""
-Research the current SPX 0 DTE bear call spread opportunity without trading.
-Load the options-trading skill and obey the active Rules file. Inspect account
-state, positions, open orders, the current SPX market, today's listed option
-expiration, exact contract Greeks, and executable bid/ask quality.
+Research the current {underlying} 0 DTE bear call spread opportunity without
+trading. Load the options-trading skill and obey the active Rules file. Inspect
+account state, positions, open orders, the current {underlying} market, today's
+listed option expiration, exact contract Greeks, and executable bid/ask quality.
 
 Evaluate a short call near +{params['target_delta']:.2f} delta with a long call
 exactly {params['wing_width']:.0f} points higher. Report exact contract
@@ -27,9 +37,10 @@ and reasons to trade or not trade. Do not claim that an order was submitted.
 
 
 def build_trader_prompt(params: dict) -> str:
+    underlying = underlying_label(params)
     return f"""
-You are the final validation and trading agent for an SPX 0 DTE bear call
-spread. Load the options-trading skill and obey every active Rule.
+You are the final validation and trading agent for a {underlying} 0 DTE bear
+call spread. Load the options-trading skill and obey every active Rule.
 
 Review the research, then independently refresh account state, positions, open
 orders, exact contracts, Greeks, and quotes. Trade only a short call near
@@ -62,6 +73,7 @@ class AISpxZeroDteBearCallTeamStrategy(Strategy):
 
     def initialize(self):
         self.sleeptime = str(self.parameters.get("sleeptime", "5M"))
+        underlying = underlying_label(self.parameters)
         rules_path = Path(__file__).with_name("agent_rules") / "ai_spx_zero_dte_bear_call_team.rules.json"
         add_agent(
             self,
@@ -73,7 +85,7 @@ class AISpxZeroDteBearCallTeamStrategy(Strategy):
         add_agent(
             self,
             "bull",
-            "Argue for today's SPX bear call from the research only. Do not submit orders.",
+            f"Argue for today's {underlying} bear call from the research only. Do not submit orders.",
             allow_trading=False,
         )
         add_agent(
@@ -109,7 +121,7 @@ class AISpxZeroDteBearCallTeamStrategy(Strategy):
             bear="bear",
             interpreter="interpreter",
             trader="trader",
-            research_task="Research today's exact SPX bear call spread opportunity.",
+            research_task=f"Research today's exact {underlying_label(self.parameters)} bear call spread opportunity.",
             bull_task="Make the bull case from the research.",
             bear_task="Make the bear case from the research.",
             interpret_task="Decide whether to open one atomic package and how much risk to use.",

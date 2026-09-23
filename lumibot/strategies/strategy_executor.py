@@ -1339,7 +1339,9 @@ class StrategyExecutor(Thread):
                 sleep_value = str(getattr(self.strategy, "sleeptime", "") or "").strip().lower()
                 if sleep_value.endswith("d"):
                     data_source = getattr(self.broker, "data_source", None)
-                    if data_source is not None:
+                    # A data source whose bar size the caller set explicitly (for example
+                    # AlpacaBacktesting(timestep="minute")) keeps it; only defaults are primed.
+                    if data_source is not None and not getattr(data_source, "_timestep_explicit", False):
                         setattr(data_source, "_timestep", "day")
                         if hasattr(data_source, "_effective_day_mode"):
                             setattr(data_source, "_effective_day_mode", True)

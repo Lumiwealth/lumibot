@@ -257,9 +257,20 @@ class Asset:
         if self.underlying_asset is not None and self.symbol is None:
             self.symbol = self.underlying_asset.symbol
 
-        # If the expiration is a datetime object, convert it to date
+        # If the expiration is a datetime object, convert it to date.
+        # House filings and other public rows carry ISO date strings.
         if expiration is not None and isinstance(expiration, datetime):
             self.expiration = expiration.date()
+        elif isinstance(expiration, str):
+            text = expiration.strip()
+            parsed = None
+            for fmt, size in (("%Y-%m-%d", 10), ("%Y%m%d", 8), ("%m/%d/%Y", 10)):
+                try:
+                    parsed = datetime.strptime(text[:size], fmt).date()
+                    break
+                except ValueError:
+                    continue
+            self.expiration = parsed if parsed is not None else expiration
         else:
             self.expiration = expiration
 

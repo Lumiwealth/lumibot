@@ -769,6 +769,8 @@ MODEL_CONTEXT_LIMIT_PREFIXES: tuple[tuple[str, int, int], ...] = (
     ("gemini-3.1", 1_048_576, DEFAULT_MODEL_CONTEXT_STRING_LIMIT_CHARS),
     ("gemini-2.5", 1_048_576, DEFAULT_MODEL_CONTEXT_STRING_LIMIT_CHARS),
     ("gemini-1.5", 1_048_576, DEFAULT_MODEL_CONTEXT_STRING_LIMIT_CHARS),
+    ("openai/gpt-6-", 922_000, DEFAULT_MODEL_CONTEXT_STRING_LIMIT_CHARS),
+    ("gpt-6-", 922_000, DEFAULT_MODEL_CONTEXT_STRING_LIMIT_CHARS),
     ("openai/gpt-4.1", 1_047_576, DEFAULT_MODEL_CONTEXT_STRING_LIMIT_CHARS),
     ("gpt-4.1", 1_047_576, DEFAULT_MODEL_CONTEXT_STRING_LIMIT_CHARS),
     ("xai/grok-4.20", 2_000_000, DEFAULT_MODEL_CONTEXT_STRING_LIMIT_CHARS),
@@ -1042,6 +1044,46 @@ def _strip_thought_parts_from_litellm_request(llm_request: Any) -> None:
         llm_request.contents = updated
 
 
+# OpenAI pricing and limits, checked 2026-09-23:
+# https://platform.openai.com/docs/models/gpt-6-luna
+# LiteLLM 1.83 has no GPT-6 entry, so without this it rejects reasoning_effort
+# and never bridges tool calls with reasoning to the Responses API, which
+# OpenAI requires for GPT-6 function calling when reasoning is on.
+_OPENAI_GPT6_MODEL_INFO: dict[str, dict[str, Any]] = {
+    "gpt-6-luna": {
+        "litellm_provider": "openai",
+        "mode": "responses",
+        "max_input_tokens": 922_000,
+        "max_output_tokens": 128_000,
+        "max_tokens": 128_000,
+        "input_cost_per_token": 0.10e-6,
+        "cache_read_input_token_cost": 0.01e-6,
+        "cache_creation_input_token_cost": 0.125e-6,
+        "output_cost_per_token": 0.50e-6,
+        "supports_function_calling": True,
+        "supports_parallel_function_calling": True,
+        "supports_tool_choice": True,
+        "supports_reasoning": True,
+        "supports_prompt_caching": True,
+        "supports_response_schema": True,
+    },
+}
+
+
+def _register_openai_gpt6_models() -> None:
+    import litellm
+
+    entries: dict[str, dict[str, Any]] = {}
+    for name, info in _OPENAI_GPT6_MODEL_INFO.items():
+        entries[name] = dict(info)
+        entries[f"openai/{name}"] = dict(info)
+    litellm.register_model(entries)
+
+
+def _is_openai_gpt6_model(lower_model: str) -> bool:
+    return lower_model.removeprefix("openai/").startswith("gpt-6-")
+
+
 def _is_native_gemini_model(model: Any) -> bool:
     if not isinstance(model, str):
         return False
@@ -1117,6 +1159,12 @@ def _resolve_model_for_adk(
         elif lower.startswith("xai/"):
             # xAI recommends x-grok-conv-id for Chat Completions cache routing.
             kwargs["headers"] = {"x-grok-conv-id": prompt_cache_key}
+    if lower.startswith("openai/") and _is_openai_gpt6_model(lower):
+        _register_openai_gpt6_models()
+    if reasoning_effort is not None:
+        kwargs["reasoning_effort"] = reasoning_effort
+        if lower.startswith("openai/"):
+            kwargs["allowed_openai_params"] = ["reasoning_effort"]
     model_type = CerebrasLiteLlm if lower.startswith("cerebras/") else LiteLlm
     return model_type(model=model, **kwargs)
 

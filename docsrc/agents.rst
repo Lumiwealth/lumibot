@@ -37,6 +37,7 @@ integrations, maintenance, developer tutorials, and strategic collaboration.
 
    agents_flows
    agents_builtin_tools
+   agents_browser_tools
    agents_canonical_demos
    agents_observability
    agents_memory
@@ -58,6 +59,20 @@ complete first-run example; the snippets below explain individual capabilities.
   new model decision or independent validation of a strategy.
 * A broker-backed runner and a backtest runner can use the same strategy class,
   but still require different data, credentials, and execution configuration.
+
+Recommended team architecture
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+For fully agentic trading, we recommend **two or more agents**: one or more
+research agents and a **dedicated trading and risk agent** that alone can
+submit or change orders. Ten researchers and one trader are just as valid as
+one researcher and one trader. This is a recommendation, not a framework requirement;
+LumiBot does not impose a fixed team size.
+
+When risk rules must be mechanically fixed, keep execution and limits in
+**deterministic Python** instead. A hybrid can also use agents for research and
+Python for execution. Choose the ownership model deliberately, test it, and do
+not give research-only agents trading permission.
 
 Verification and historical limits
 ----------------------------------
@@ -315,10 +330,10 @@ Most alternatives either put the LLM outside the backtest loop (QuantConnect), h
 
 LumiBot ships with first-class support for Gemini, OpenAI (GPT), xAI (Grok), Anthropic (Claude), and any other provider covered by LiteLLM (~100 providers). You pick the model per agent via the ``default_model`` parameter when creating your agent.
 
-Gemini ids (e.g. ``"gemini-3.5-flash-lite"``) take Google ADK's native fast path. Anything else is automatically routed through LiteLLM using the provider-prefixed id format:
+The default is ``"openai/gpt-6-luna"`` with high reasoning effort. Gemini ids (e.g. ``"gemini-3.5-flash-lite"``) take Google ADK's native fast path. Anything else is automatically routed through LiteLLM using the provider-prefixed id format:
 
-- Gemini: ``"gemini-3.5-flash-lite"`` (default) -- requires ``GEMINI_API_KEY`` for native calls; managed calls use the configured gateway capability
-- OpenAI: ``"openai/gpt-5.4-mini"`` (good default), ``"openai/gpt-5.4"``, ``"openai/gpt-5.4-pro"``, ``"openai/gpt-5.4-nano"`` -- requires ``OPENAI_API_KEY``
+- Gemini: ``"gemini-3.5-flash-lite"`` -- requires ``GEMINI_API_KEY`` for native calls; managed calls use the configured gateway capability
+- OpenAI: ``"openai/gpt-6-luna"`` (default, high reasoning), ``"openai/gpt-5.4-mini"``, ``"openai/gpt-5.4"``, ``"openai/gpt-5.4-pro"``, ``"openai/gpt-5.4-nano"`` -- requires ``OPENAI_API_KEY``
 - xAI Grok: ``"xai/grok-4.20-0309-reasoning"`` (Grok 4.2, reasoning on, 2M ctx), ``"xai/grok-4-1-fast-reasoning-latest"`` (cheap/fast), or ``"xai/grok-4-latest"`` (older) -- requires ``XAI_API_KEY`` or ``GROK_API_KEY``
 - Anthropic Claude: ``"anthropic/claude-opus-4-7"``, ``"anthropic/claude-sonnet-4-6"`` -- requires ``ANTHROPIC_API_KEY``
 
@@ -326,15 +341,15 @@ The replay cache keys on the model id, so swapping providers on the same backtes
 
 **How do I get started?**
 
-Install LumiBot, set ``GEMINI_API_KEY`` in your environment, copy the Quick Start example on this page, and run it. The M2 Liquidity Strategy example is a complete, runnable strategy file. Provider-specific variants are available for OpenAI, Grok, and Anthropic. See :doc:`agents_quickstart` for additional patterns and :doc:`agents_canonical_demos` for the reference demo strategies.
+Install LumiBot, set ``OPENAI_API_KEY`` in your environment, copy the Quick Start example on this page, and run it. The M2 Liquidity Strategy example is a complete, runnable strategy file. Provider-specific variants are available for OpenAI, Grok, and Anthropic. See :doc:`agents_quickstart` for additional patterns and :doc:`agents_canonical_demos` for the reference demo strategies.
 
 **What API keys do I need?**
 
-At minimum, one model provider key matching the ``default_model`` you set: ``GEMINI_API_KEY`` for Gemini (the default), ``OPENAI_API_KEY`` for GPT models, ``XAI_API_KEY`` or ``GROK_API_KEY`` for Grok, or ``ANTHROPIC_API_KEY`` for Claude. If your ``@agent_tool`` functions call external APIs, you also need those keys -- for example ``ALPACA_API_KEY`` and ``ALPACA_API_SECRET`` for Alpaca data APIs. Macro-data examples and built-in FRED tools require ``FRED_API_KEY`` so LumiBot can use the official FRED/ALFRED API and request point-in-time vintage observations in backtests.
+At minimum, one model provider key matching the ``default_model`` you set: ``OPENAI_API_KEY`` for GPT models (the default), ``GEMINI_API_KEY`` for Gemini, ``XAI_API_KEY`` or ``GROK_API_KEY`` for Grok, or ``ANTHROPIC_API_KEY`` for Claude. If your ``@agent_tool`` functions call external APIs, you also need those keys -- for example ``ALPACA_API_KEY`` and ``ALPACA_API_SECRET`` for Alpaca data APIs. Macro-data examples and built-in FRED tools require ``FRED_API_KEY`` so LumiBot can use the official FRED/ALFRED API and request point-in-time vintage observations in backtests.
 
 **How do I set up my environment?**
 
-Create a ``.env`` file in your project directory with your API keys (e.g., ``GEMINI_API_KEY=your_key_here``). LumiBot reads environment variables at startup. You can also export them in your shell. For backtesting, set ``BACKTESTING_DATA_SOURCE`` in ``.env`` or use ``datasource_class=None`` to defer to the environment configuration.
+Create a ``.env`` file in your project directory with your API keys (e.g., ``OPENAI_API_KEY=your_key_here``). LumiBot reads environment variables at startup. You can also export them in your shell. For backtesting, set ``BACKTESTING_DATA_SOURCE`` in ``.env`` or use ``datasource_class=None`` to defer to the environment configuration.
 
 **Can I use this for live trading?**
 
@@ -458,7 +473,7 @@ Cost depends on the LLM provider and model, the number of bars in your backtest,
 
 **How can I reduce API costs?**
 
-Use the replay cache -- compatible cached decisions avoid another model call. Use cost-effective models (e.g., ``gemini-3.5-flash-lite``). Keep your backtest date range focused during development. Reduce the number of tool calls by making your tools return comprehensive data in a single call rather than requiring multiple round trips.
+Use the replay cache -- compatible cached decisions avoid another model call. Use cost-effective models (e.g., ``openai/gpt-6-luna``). Keep your backtest date range focused during development. Reduce the number of tool calls by making your tools return comprehensive data in a single call rather than requiring multiple round trips.
 
 **How does replay caching reduce costs?**
 
@@ -495,7 +510,7 @@ Set these when creating an agent:
 
     self.agents.create(
         name="researcher",
-        model="gemini-3.5-flash",
+        model="openai/gpt-6-luna",
         system_prompt="Research the best trade.",
         model_request_timeout_seconds=600,
         run_timeout_seconds=1800,
@@ -634,7 +649,7 @@ Use ``scripts/run_agent_prompt_cache_probe.py`` to verify provider-reported cach
 
 .. code-block:: bash
 
-    python scripts/run_agent_prompt_cache_probe.py --model gemini-3.5-flash-lite
+    python scripts/run_agent_prompt_cache_probe.py --model openai/gpt-6-luna
     python scripts/run_agent_prompt_cache_probe.py --model openai/gpt-5.4-mini
 
 The probe bypasses LumiBot's replay cache, sends repeated calls with the same long static prefix, and prints input tokens, cached input tokens, uncached input tokens, output tokens, and latency for each call.
@@ -682,7 +697,7 @@ Complete runnable example:
             self.sleeptime = "1D"
             self.agents.create(
                 name="news_trader",
-                default_model=os.environ.get("AGENT_MODEL", "gemini-3.5-flash-lite"),
+                default_model=os.environ.get("AGENT_MODEL", "openai/gpt-6-luna"),
                 system_prompt=(
                     "Use Alpaca news and market tools to decide whether to hold SPY, QQQ, or a defensive ETF. "
                     "First call alpaca_news with symbols='SPY,QQQ,DIA,IWM', include_content=False, and limit=30. "

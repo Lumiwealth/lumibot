@@ -1,0 +1,25 @@
+Backtest start = 2026-08-03 00:00:00-04:00
+Backtest end = 2026-08-08 00:00:00-04:00
+[alpaca_env_orb_2026] 2026-08-03 09:30:00-04:00 HISTORY AT FIRST BAR: five-minute: 250 of 250, 2026-07-31 04:40:00-04:00 to 2026-08-03 09:25:00-04:00, 184 dated before 2026-08-03, 0 still forming; daily: 15 of 15, 2026-07-13 00:00:00-04:00 to 2026-07-31 00:00:00-04:00, 15 dated before 2026-08-03, 0 still forming, ATR(14)=8.40
+[alpaca_env_orb_2026] 2026-08-03 09:45:00-04:00 RANGE high=751.94 from ['09:30', '09:35', '09:40']
+[alpaca_env_orb_2026] 2026-08-03 09:55:00-04:00 BUY 10 SPY: 09:50 bar closed 752.76 above 751.94
+[alpaca_env_orb_2026] FILLED buy 10.0 SPY at 752.765 (2026-08-03 09:55:00-04:00)
+[alpaca_env_orb_2026] 2026-08-03 15:50:00-04:00 SELL 10.0 SPY
+[alpaca_env_orb_2026] FILLED sell 10.0 SPY at 758.15 (2026-08-03 15:50:00-04:00)
+[alpaca_env_orb_2026] 2026-08-04 09:45:00-04:00 RANGE high=762.21 from ['09:30', '09:35', '09:40']
+[alpaca_env_orb_2026] 2026-08-04 09:50:00-04:00 BUY 10 SPY: 09:45 bar closed 762.53 above 762.21
+[alpaca_env_orb_2026] FILLED buy 10.0 SPY at 762.54 (2026-08-04 09:50:00-04:00)
+[alpaca_env_orb_2026] 2026-08-04 15:50:00-04:00 SELL 10.0 SPY
+[alpaca_env_orb_2026] FILLED sell 10.0 SPY at 772.91 (2026-08-04 15:50:00-04:00)
+[alpaca_env_orb_2026] 2026-08-05 09:45:00-04:00 RANGE high=776.85 from ['09:30', '09:35', '09:40']
+[alpaca_env_orb_2026] 2026-08-06 09:45:00-04:00 RANGE high=770.90 from ['09:30', '09:35', '09:40']
+[alpaca_env_orb_2026] 2026-08-06 09:50:00-04:00 BUY 10 SPY: 09:45 bar closed 771.31 above 770.90
+[alpaca_env_orb_2026] FILLED buy 10.0 SPY at 771.31 (2026-08-06 09:50:00-04:00)
+[alpaca_env_orb_2026] 2026-08-06 15:50:00-04:00 SELL 10.0 SPY
+[alpaca_env_orb_2026] FILLED sell 10.0 SPY at 768.43 (2026-08-06 15:50:00-04:00)
+[alpaca_env_orb_2026] 2026-08-07 09:45:00-04:00 RANGE high=772.09 from ['09:30', '09:35', '09:40']
+[alpaca_env_orb_2026] 2026-08-07 10:30:00-04:00 BUY 10 SPY: 10:25 bar closed 773.19 above 772.09
+[alpaca_env_orb_2026] FILLED buy 10.0 SPY at 773.16 (2026-08-07 10:30:00-04:00)
+[alpaca_env_orb_2026] 2026-08-07 15:50:00-04:00 SELL 10.0 SPY
+[alpaca_env_orb_2026] FILLED sell 10.0 SPY at 772.85 (2026-08-07 15:50:00-04:00)
+[alpaca_env_orb_2026] HISTORY CHECK: 33 five-minute history calls, 0 bars returned while still forming

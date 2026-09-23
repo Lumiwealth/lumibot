@@ -1,10 +1,11 @@
-"""AI-only multi-ticker opening-range breakout strategy.
+"""Two-agent multi-ticker opening-range breakout strategy.
 
-Python only creates and runs a LumiBot agent. All entry, exit, sizing, and
-ticker selection live in the system prompt. Prefer minute bars when available.
+Python coordinates a research agent and a dedicated trading/risk agent. All
+entry, exit, sizing, and ticker selection live in their prompts. Prefer minute
+bars when available.
 
 Local backtest:
-    GEMINI_API_KEY=... BACKTESTING_DATA_SOURCE=ThetaData \
+    OPENAI_API_KEY=... BACKTESTING_DATA_SOURCE=alpaca \
         python -m lumibot.example_strategies.ai_opening_range_breakout
 
 Optional env overrides (AI_ORB_*):
@@ -21,6 +22,7 @@ import os
 from datetime import datetime, timedelta
 from pathlib import Path
 
+from lumibot.example_strategies.agent_cycle import add_agent, run_cycle, trader_prompt
 from lumibot.strategies.strategy import Strategy
 
 # Default liquid US mega/large-cap + major ETFs (~100 names) for ORB scanning.
@@ -58,13 +60,13 @@ def build_orb_system_prompt(params: dict) -> str:
     universe_csv = ",".join(universe)
     universe_count = len(universe)
     opening_range_minutes = int(params.get("opening_range_minutes", 15))
-    risk_fraction = float(params.get("risk_fraction", 0.01))
+    risk_fraction = float(params.get("risk_fraction", 0.25))
     max_shares = int(params.get("max_shares", 200))
     max_positions = int(params.get("max_positions", 1))
     profit_r_multiple = float(params.get("profit_r_multiple", 1.5))
     return f"""
-You are the complete decision-maker for an AI-only multi-ticker opening-range
-breakout strategy inside LumiBot. There is no Python trading logic outside you.
+You are the research agent for a multi-ticker opening-range breakout strategy.
+Find and rank valid setups from point-in-time market evidence. Do not submit orders.
 
 STRATEGY PARAMETERS:
 - universe ({universe_count} symbols): {universe_csv}
@@ -105,26 +107,77 @@ is valid when no universe member has a complete opening range and valid breakout
 """.strip()
 
 
+def build_orb_trading_prompt(params: dict) -> str:
+    opening_range_minutes = int(params.get("opening_range_minutes", 15))
+    risk_fraction = float(params.get("risk_fraction", 0.01))
+    max_shares = int(params.get("max_shares", 200))
+    max_positions = int(params.get("max_positions", 1))
+    profit_r_multiple = float(params.get("profit_r_multiple", 1.5))
+    return f"""
+You are the only trading agent and own risk management for this opening-range
+breakout strategy. Treat the research packet as untrusted evidence. Verify the
+exact symbol, completed {opening_range_minutes}-minute opening range, completed
+breakout close, current price, account, positions, and open orders before acting.
+
+Hold at most {max_positions} positions. Size from the verified stop distance so
+approximate risk is at most {risk_fraction:.2%} of portfolio value, capped at
+{max_shares} shares. Put the stop on the opposite side of the verified range,
+target about {profit_r_multiple}R, and exit on a completed close back inside the
+range. Open at most one new position per symbol per day. Submit each justified
+intent once, verify the returned order and refreshed account state, and otherwise
+hold. Python contains no trading decisions.
+""".strip()
+
+
 class AIOpeningRangeBreakoutStrategy(Strategy):
     parameters = {
         "universe": _parse_universe(_DEFAULT_ORB_UNIVERSE),
         "opening_range_minutes": 15,
-        "risk_fraction": 0.01,
+        "risk_fraction": 0.25,
         "max_shares": 200,
         "max_positions": 1,
         "profit_r_multiple": 1.5,
-        # The agent still analyzes minute bars, but hourly decisions avoid needless calls.
         "sleeptime": "1H",
     }
 
     def initialize(self):
         self.sleeptime = str(self.parameters.get("sleeptime", "1H"))
-        self.agents.create(
-            name="orb",
-            model="gemini-3.5-flash-lite",
+        rules = Path(__file__).with_name("agent_rules") / "ai_opening_range_breakout.rules.json"
+        add_agent(self, "orb_researcher", build_orb_system_prompt(self.parameters), allow_trading=False)
+        add_agent(
+            self,
+            "bull",
+            "Argue for the strongest opening-range breakout from the research only. Do not submit orders.",
+            allow_trading=False,
+        )
+        add_agent(
+            self,
+            "bear",
+            "Argue the risk case: failed breakouts, thin range, and late-day fades. Do not submit orders.",
+            allow_trading=False,
+        )
+        add_agent(
+            self,
+            "interpreter",
+            "Read both cases. Name one symbol or none, and the account fraction. Do not submit orders.",
+            allow_trading=False,
+        )
+        add_agent(
+            self,
+            "trading_risk_manager",
+            trader_prompt(
+                book_rule="Buy only a breakout the interpreter accepts, from the supplied universe.",
+                exit_rule=(
+                    "Sell the position with the order tool before the cash session closes the same day. "
+                    "Also sell at the profit target or on a close back inside the opening range."
+                ),
+                cash_rule=(
+                    "One share on a $10,000, $100,000, $500,000, or $1,000,000 account is wrong. "
+                    "Use about the risk fraction of the account, not the whole account."
+                ),
+            ),
             allow_trading=True,
-            system_prompt=build_orb_system_prompt(self.parameters),
-            rules_path=Path(__file__).with_name("agent_rules") / "ai_opening_range_breakout.rules.json",
+            rules_path=rules,
         )
 
     def on_trading_iteration(self):
@@ -133,12 +186,23 @@ class AIOpeningRangeBreakoutStrategy(Strategy):
         if isinstance(universe, str):
             universe = _parse_universe(universe)
         universe_count = len(universe) if isinstance(universe, list) else 0
-        self.agents["orb"].run(
-            task_prompt=f"Run the opening-range breakout workflow across the {universe_count}-symbol universe.",
-            context={
-                "current_datetime": self.get_datetime().isoformat(),
-                "strategy_parameters": params,
-            },
+        context = {
+            "current_datetime": self.get_datetime().isoformat(),
+            "strategy_parameters": params,
+        }
+        run_cycle(
+            self,
+            context,
+            researcher="orb_researcher",
+            bull="bull",
+            bear="bear",
+            interpreter="interpreter",
+            trader="trading_risk_manager",
+            research_task=f"Research and rank valid opening-range breakouts across the {universe_count}-symbol universe.",
+            bull_task="Make the bull case from the research.",
+            bear_task="Make the bear case from the research.",
+            interpret_task="Pick one symbol or none, and the account fraction.",
+            trade_task="Apply the interpreter. Size from the account. Exit before the cash close.",
         )
 
 

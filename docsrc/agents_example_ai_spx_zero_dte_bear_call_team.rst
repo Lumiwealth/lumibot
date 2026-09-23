@@ -1,6 +1,10 @@
 Two-Agent SPX 0 DTE Bear Call Experiment
 ========================================
 
+.. image:: ../docs/assets/ai-agent-workflows/ai-spx-zero-dte-bear-call-team.png
+   :alt: SPX zero-day bear call AI trading team workflow
+   :width: 100%
+
 ``ai_spx_zero_dte_bear_call_team.py`` tests a strict two-agent architecture:
 
 * The researcher has ``allow_trading=False`` and gathers current SPX, account,
@@ -18,10 +22,15 @@ package per trading day, and atomic entry and exit.
 The active broker must support atomic packages. Otherwise LumiBot rejects the
 request before submitting any child leg.
 
+The January 5, 2026 Alpaca proof used SPXW, the listed zero-day symbol, at
+strikes 6900 and 6910. It submitted one ``orders_submit_multileg`` to open and
+one to close. Both filled. The account ended near $99,925. The monthly SPX
+symbol returned no bars for that day, so the proof uses SPXW.
+
 .. code-block:: bash
 
-   export GEMINI_API_KEY="your-key"
-   export BACKTESTING_DATA_SOURCE="ThetaData"
+   export OPENAI_API_KEY="your-key"
+   export BACKTESTING_DATA_SOURCE="alpaca"
    export DATADOWNLOADER_BASE_URL="https://<your-downloader-host>:8080"
    export DATADOWNLOADER_API_KEY="your-downloader-key"
    python -m lumibot.example_strategies.ai_spx_zero_dte_bear_call_team

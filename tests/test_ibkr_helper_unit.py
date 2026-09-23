@@ -830,3 +830,367 @@ def test_stock_conid_resolution_prefers_stock_contract_for_ambiguous_symbol(monk
     assert conid == 265598
     assert seen_queries == [{"symbol": "MHO", "secType": "STK"}]
     assert ibkr_helper._RUNTIME_CONID_CACHE["stock|MHO|USD||"] == 265598
+
+
+def test_option_conid_lookup_uses_strike_right_and_expiration(monkeypatch):
+    from datetime import date
+
+    import lumibot.tools.ibkr_helper as ibkr_helper
+
+    calls = []
+
+    def fake_resolve_conid(**kwargs):
+        assert kwargs["asset"].asset_type == Asset.AssetType.STOCK
+        assert kwargs["asset"].symbol == "AAPL"
+        return 265598
+
+    def fake_queue_request(url, querystring=None, headers=None, timeout=None):
+        calls.append((url, dict(querystring or {})))
+        if str(url).endswith("/ibkr/iserver/secdef/search"):
+            return [{"conid": 265598, "secType": "STK"}]
+        if str(url).endswith("/ibkr/iserver/secdef/strikes"):
+            return {"call": [100.0, 120.0], "put": [100.0, 120.0]}
+        return [{"conid": 777001, "maturityDate": "20270115"}]
+
+    monkeypatch.setattr(ibkr_helper, "_resolve_conid", fake_resolve_conid)
+    monkeypatch.setattr(ibkr_helper, "queue_request", fake_queue_request)
+    monkeypatch.setattr(ibkr_helper, "_record_negative_conid", lambda **kwargs: None)
+
+    asset = Asset(
+        "AAPL",
+        asset_type=Asset.AssetType.OPTION,
+        expiration=date(2027, 1, 15),
+        strike=100,
+        right="CALL",
+    )
+    conid = ibkr_helper._lookup_conid_remote(asset=asset, quote=None, exchange=None)
+    assert conid == 777001
+    assert [url.rsplit("/", 1)[-1] for url, _query in calls] == ["search", "strikes", "info"]
+    assert calls[1][1]["month"] == "JAN27"
+    assert calls[2][0].endswith("/ibkr/iserver/secdef/info")
+    assert calls[2][1]["strike"] == "100"
+    assert calls[2][1]["right"] == "C"
+    assert calls[2][1]["month"] == "JAN27"
+    assert calls[2][1]["sectype"] == "OPT"
+    assert "100" in ibkr_helper._conid_key(asset, None, None).to_key()
+    assert "CALL" in ibkr_helper._conid_key(asset, None, None).to_key()
+
+
+def test_option_cache_files_do_not_share_a_strike():
+    from datetime import date
+
+    import lumibot.tools.ibkr_helper as ibkr_helper
+
+    call_100 = Asset(
+        "AAPL",
+        asset_type=Asset.AssetType.OPTION,
+        expiration=date(2027, 1, 15),
+        strike=100,
+        right="CALL",
+    )
+    call_150 = Asset(
+        "AAPL",
+        asset_type=Asset.AssetType.OPTION,
+        expiration=date(2027, 1, 15),
+        strike=150,
+        right="CALL",
+    )
+    first = ibkr_helper._cache_file_for(
+        asset=call_100, quote=None, timestep="day", exchange=None, source="Midpoint", include_after_hours=False
+    )
+    second = ibkr_helper._cache_file_for(
+        asset=call_150, quote=None, timestep="day", exchange=None, source="Midpoint", include_after_hours=False
+    )
+    assert first != second
+    assert "100" in first.name and "CALL" in first.name
+    assert "150" in second.name
+
+
+# ---------------------------------------------------------------------------
+# 2026-09-23: clamped pre-open window end and closed-market window edges.
+#
+# A production backtest (SPY 5minute, routed IBKR, run at 00:42 ET) had its
+# end clamped to "now", before that day's session. The cache already held every
+# real bar (Sep 8 04:00 ET through Sep 14 19:55 ET), yet:
+#   - frame_covers_requested_window() said the window was not covered because the
+#     end fell before the next session open instead of after the last close;
+#   - get_price_data() kept asking for the closed interval between the lookback
+#     start (Labor Day) and the first pre-market bar, and IBKR answered each time
+#     with bars from before the window, so the same request repeated every bar.
+# See docs/investigations/2026-09-23_alpaca-options-backtesting-and-ibkr-4592-window-regression.md
+# ---------------------------------------------------------------------------
+
+_NY = "America/New_York"
+
+
+def _extended_hours_5min_bars(days, *, first="04:00", last="19:55"):
+    frames = []
+    base = 600.0
+    for day in days:
+        idx = pd.date_range(
+            pd.Timestamp(f"{day} {first}", tz=_NY),
+            pd.Timestamp(f"{day} {last}", tz=_NY),
+            freq="5min",
+        )
+        px = base + pd.Series(range(len(idx)), index=idx, dtype="float64") * 0.01
+        frames.append(
+            pd.DataFrame(
+                {"open": px, "high": px + 0.05, "low": px - 0.05, "close": px + 0.01, "volume": 1000.0},
+                index=idx,
+            )
+        )
+        base += 1.0
+    return pd.concat(frames).sort_index()
+
+
+_SEP_2026_WEEK = ["2026-09-08", "2026-09-09", "2026-09-10", "2026-09-11", "2026-09-14"]
+
+
+def test_frame_covers_window_whose_end_is_before_the_next_session_open():
+    import lumibot.tools.ibkr_helper as ibkr_helper
+
+    asset = Asset(symbol="SPY", asset_type=Asset.AssetType.STOCK)
+    frame = _extended_hours_5min_bars(_SEP_2026_WEEK)
+
+    # Lookback starts on Labor Day; the clamped end is 00:41 ET on Sep 15, hours before
+    # that session. Every session inside the window is present, so it is covered.
+    assert ibkr_helper.frame_covers_requested_window(
+        frame,
+        asset=asset,
+        timestep="5minute",
+        start_dt=pd.Timestamp("2026-09-07 12:40", tz=_NY).to_pydatetime(),
+        end_dt=pd.Timestamp("2026-09-15 00:41:41", tz=_NY).to_pydatetime(),
+    )
+
+    # The calendar must not hide a real missing session: ending mid-session on Sep 15
+    # while the frame stops on Sep 14 is underfilled.
+    assert not ibkr_helper.frame_covers_requested_window(
+        frame,
+        asset=asset,
+        timestep="5minute",
+        start_dt=pd.Timestamp("2026-09-07 12:40", tz=_NY).to_pydatetime(),
+        end_dt=pd.Timestamp("2026-09-15 11:00", tz=_NY).to_pydatetime(),
+    )
+
+
+def test_frame_covers_window_whose_start_is_after_a_session_close():
+    import lumibot.tools.ibkr_helper as ibkr_helper
+
+    asset = Asset(symbol="SPY", asset_type=Asset.AssetType.STOCK)
+    start = pd.Timestamp("2026-09-08 20:30", tz=_NY).to_pydatetime()
+    end = pd.Timestamp("2026-09-10 16:00", tz=_NY).to_pydatetime()
+
+    complete = _extended_hours_5min_bars(["2026-09-09", "2026-09-10"])
+    assert ibkr_helper.frame_covers_requested_window(
+        complete, asset=asset, timestep="5minute", start_dt=start, end_dt=end
+    )
+
+    # Missing the Sep 9 open is a real gap, not a closed-market interval.
+    late = complete.loc[complete.index >= pd.Timestamp("2026-09-09 10:30", tz=_NY)]
+    assert not ibkr_helper.frame_covers_requested_window(
+        late, asset=asset, timestep="5minute", start_dt=start, end_dt=end
+    )
+
+
+def test_stock_intraday_get_price_data_does_not_fetch_closed_market_edges(monkeypatch, tmp_path):
+    import lumibot.tools.ibkr_helper as ibkr_helper
+
+    monkeypatch.setattr(ibkr_helper, "LUMIBOT_CACHE_FOLDER", tmp_path.as_posix())
+    monkeypatch.setattr(ibkr_helper, "_RUNTIME_HISTORY_NO_DATA_WINDOWS", {})
+    monkeypatch.setattr(ibkr_helper, "_RUNTIME_ATTEMPTED_HISTORY_SEGMENTS", {}, raising=False)
+
+    asset = Asset(symbol="SPY", asset_type=Asset.AssetType.STOCK)
+    quote = Asset(symbol="USD", asset_type=Asset.AssetType.FOREX)
+    cache_file = ibkr_helper._cache_file_for(
+        asset=asset, quote=quote, timestep="5minute", exchange=None, source="Trades", include_after_hours=True
+    )
+    cached = _extended_hours_5min_bars(_SEP_2026_WEEK)
+    cached["missing"] = False
+    ibkr_helper._write_cache_frame(cache_file, cached)
+
+    fetches = []
+
+    def _count_fetch(**kwargs):
+        fetches.append((kwargs["start_dt"], kwargs["end_dt"]))
+        return pd.DataFrame()
+
+    monkeypatch.setattr(ibkr_helper, "_fetch_history_between_dates", _count_fetch)
+
+    df = ibkr_helper.get_price_data(
+        asset=asset,
+        quote=quote,
+        timestep="5minute",
+        start_dt=pd.Timestamp("2026-09-07 12:40", tz=_NY).to_pydatetime(),
+        end_dt=pd.Timestamp("2026-09-15 00:41:41", tz=_NY).to_pydatetime(),
+        exchange=None,
+        include_after_hours=True,
+        source="Trades",
+    )
+
+    # Labor Day through 04:00 ET, and 20:00 ET through 00:41 ET, contain no trading time.
+    assert fetches == []
+    assert df.index.min() == pd.Timestamp("2026-09-08 04:00", tz=_NY)
+    assert df.index.max() == pd.Timestamp("2026-09-14 19:55", tz=_NY)
+    assert pd.Timestamp("2026-09-08 09:30", tz=_NY) in df.index
+
+
+def test_stock_intraday_get_price_data_does_not_repeat_an_underfilled_segment(monkeypatch, tmp_path):
+    import lumibot.tools.ibkr_helper as ibkr_helper
+
+    monkeypatch.setattr(ibkr_helper, "LUMIBOT_CACHE_FOLDER", tmp_path.as_posix())
+    monkeypatch.setattr(ibkr_helper, "_RUNTIME_HISTORY_NO_DATA_WINDOWS", {})
+    monkeypatch.setattr(ibkr_helper, "_RUNTIME_ATTEMPTED_HISTORY_SEGMENTS", {}, raising=False)
+
+    asset = Asset(symbol="SPY", asset_type=Asset.AssetType.STOCK)
+    quote = Asset(symbol="USD", asset_type=Asset.AssetType.FOREX)
+    cache_file = ibkr_helper._cache_file_for(
+        asset=asset, quote=quote, timestep="5minute", exchange=None, source="Trades", include_after_hours=True
+    )
+    # A real hole inside the Sep 9 session: nothing between 09:30 and 12:00 ET.
+    cached = _extended_hours_5min_bars(["2026-09-09"], first="12:00", last="15:55")
+    cached["missing"] = False
+    ibkr_helper._write_cache_frame(cache_file, cached)
+
+    # The provider answers successfully but only with bars from before the window, the
+    # same shape as the production left-gap response. The hole stays.
+    earlier = _extended_hours_5min_bars(["2026-09-08"], first="15:00", last="15:55")
+    earlier["missing"] = False  # real provider frames carry the placeholder flag
+    fetches = []
+
+    def _answer_with_earlier_bars(**kwargs):
+        fetches.append((kwargs["start_dt"], kwargs["end_dt"]))
+        return earlier.copy()
+
+    monkeypatch.setattr(ibkr_helper, "_fetch_history_between_dates", _answer_with_earlier_bars)
+
+    end = pd.Timestamp("2026-09-09 15:55", tz=_NY).to_pydatetime()
+    first = ibkr_helper.get_price_data(
+        asset=asset,
+        quote=quote,
+        timestep="5minute",
+        start_dt=pd.Timestamp("2026-09-09 10:00", tz=_NY).to_pydatetime(),
+        end_dt=end,
+        exchange=None,
+        include_after_hours=True,
+        source="Trades",
+    )
+    assert len(fetches) == 1
+
+    # The next iterations ask for windows inside the one already attempted. They must be
+    # served from the real cached bars without another identical downloader request.
+    for minutes in (5, 10, 15):
+        again = ibkr_helper.get_price_data(
+            asset=asset,
+            quote=quote,
+            timestep="5minute",
+            start_dt=(pd.Timestamp("2026-09-09 10:00", tz=_NY) + pd.Timedelta(minutes=minutes)).to_pydatetime(),
+            end_dt=end,
+            exchange=None,
+            include_after_hours=True,
+            source="Trades",
+        )
+        assert not again.empty
+        assert again.index.min() == pd.Timestamp("2026-09-09 12:00", tz=_NY)
+    assert len(fetches) == 1
+    # Missing bars stay missing. Nothing is filled into the 09:30 to 12:00 hole.
+    assert first.index.min() == pd.Timestamp("2026-09-09 12:00", tz=_NY)
+    assert "missing" not in first.columns
+
+
+def test_stock_intraday_get_price_data_still_fetches_edges_that_contain_sessions(monkeypatch, tmp_path):
+    """The closed-market shortcut must not hide a real missing session at a window edge."""
+    import lumibot.tools.ibkr_helper as ibkr_helper
+
+    monkeypatch.setattr(ibkr_helper, "LUMIBOT_CACHE_FOLDER", tmp_path.as_posix())
+    monkeypatch.setattr(ibkr_helper, "_RUNTIME_HISTORY_NO_DATA_WINDOWS", {})
+    monkeypatch.setattr(ibkr_helper, "_RUNTIME_ATTEMPTED_HISTORY_SEGMENTS", {})
+
+    asset = Asset(symbol="SPY", asset_type=Asset.AssetType.STOCK)
+    quote = Asset(symbol="USD", asset_type=Asset.AssetType.FOREX)
+    cache_file = ibkr_helper._cache_file_for(
+        asset=asset, quote=quote, timestep="5minute", exchange=None, source="Trades", include_after_hours=True
+    )
+    cached = _extended_hours_5min_bars(["2026-09-09", "2026-09-10"])
+    cached["missing"] = False
+    ibkr_helper._write_cache_frame(cache_file, cached)
+
+    fetches = []
+
+    def _count_fetch(**kwargs):
+        fetches.append((kwargs["start_dt"], kwargs["end_dt"]))
+        return pd.DataFrame()
+
+    monkeypatch.setattr(ibkr_helper, "_fetch_history_between_dates", _count_fetch)
+
+    ibkr_helper.get_price_data(
+        asset=asset,
+        quote=quote,
+        timestep="5minute",
+        # Sep 8 is a full session before the cache starts; Sep 11 and Sep 14 are missing after it.
+        start_dt=pd.Timestamp("2026-09-08 09:00", tz=_NY).to_pydatetime(),
+        end_dt=pd.Timestamp("2026-09-14 19:55", tz=_NY).to_pydatetime(),
+        exchange=None,
+        include_after_hours=True,
+        source="Trades",
+    )
+
+    assert len(fetches) == 2
+    assert fetches[0][1] == pd.Timestamp("2026-09-09 04:00", tz=_NY)
+    assert fetches[1][0] == pd.Timestamp("2026-09-10 19:55", tz=_NY)
+
+
+def test_us_equity_closed_interval_uses_extended_hours_and_holidays():
+    import lumibot.tools.ibkr_helper as ibkr_helper
+
+    def closed(start, end, extended=True):
+        return ibkr_helper._us_equity_closed_interval(
+            pd.Timestamp(start, tz=_NY), pd.Timestamp(end, tz=_NY), include_after_hours=extended
+        )
+
+    assert closed("2026-09-07 00:00", "2026-09-08 04:00")  # Labor Day, then pre-market opens
+    assert closed("2026-09-14 20:00", "2026-09-15 00:41")  # overnight break
+    assert closed("2026-09-12 00:00", "2026-09-14 04:00")  # weekend
+    assert not closed("2026-09-08 03:00", "2026-09-08 04:05")  # pre-market bar exists
+    assert closed("2026-09-08 03:00", "2026-09-08 09:30", extended=False)  # regular hours only
+    assert not closed("2026-09-08 09:00", "2026-09-08 09:35", extended=False)
+    assert closed("2026-11-27 17:00", "2026-11-30 04:00")  # early close day ends at 17:00
+    assert not closed("2026-11-27 16:30", "2026-11-27 17:00")
+
+
+@pytest.mark.parametrize(
+    ("symbol", "expected_conid"),
+    [("SPXW", 2222), ("SPX", 1111)],
+)
+def test_option_conid_lookup_picks_the_requested_trading_class(monkeypatch, symbol, expected_conid):
+    # On monthly expirations IBKR lists an AM-settled SPX contract and a PM-settled
+    # SPXW contract with the same maturity. The lookup must return the class the
+    # strategy asked for, not whichever contract IBKR listed first.
+    import lumibot.tools.ibkr_helper as ibkr_helper
+
+    monkeypatch.setattr(ibkr_helper, "_resolve_conid", lambda **kwargs: 416904)
+    monkeypatch.setattr(ibkr_helper, "_downloader_base_url", lambda: "http://downloader.test")
+
+    def fake_queue_request(url: str, querystring, headers=None, timeout=None):
+        if url.endswith("/secdef/search"):
+            return [{"conid": 416904}]
+        if url.endswith("/secdef/strikes"):
+            return {"call": [6600.0], "put": [6600.0]}
+        if url.endswith("/secdef/info"):
+            listed = [
+                {"conid": 1111, "maturityDate": "20261016", "tradingClass": "SPX"},
+                {"conid": 2222, "maturityDate": "20261016", "tradingClass": "SPXW"},
+            ]
+            # IBKR lists the AM-settled SPX contract first on monthly expirations.
+            return listed
+        raise AssertionError(f"Unexpected URL: {url}")
+
+    monkeypatch.setattr(ibkr_helper, "queue_request", fake_queue_request)
+
+    asset = Asset(
+        symbol=symbol,
+        asset_type="option",
+        expiration=datetime(2026, 10, 16).date(),
+        strike=6600,
+        right="CALL",
+    )
+    assert ibkr_helper._lookup_conid_option(asset=asset, quote=None, exchange=None) == expected_conid

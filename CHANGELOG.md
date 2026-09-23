@@ -1,8 +1,13 @@
 # Changelog
 
-## 4.5.92 - Unreleased
+## 4.5.92 - 2026-09-23
+
+Deploy marker: `3abbf8fcbd64`
 
 ### Growth documentation and examples
+- Added point-in-time Congress-disclosure and SEC Form 4 agent examples, plus a stateful authenticated-browser research/trade/publish showcase with publishing disabled by default.
+- Documented the recommended two-or-more-agent architecture with a dedicated trading/risk agent while preserving deterministic-Python and hybrid alternatives.
+- Upgraded the example-art direction to simple, mascot-led workflow diagrams from the approved Image Generator and recorded inspection evidence for every regenerated asset.
 - Restored prominent traditional Python quickstart and example routes alongside AI, with explicit no-model requirements and direct lifecycle/broker guidance.
 - Replaced rejected hero/challenge art, added three workflow illustrations, and centered responsive image placements with consistent proportions.
 - Put the executable AI quickstart in the homepage and README opening, with compact artwork and a smaller navigation logo.
@@ -13,6 +18,14 @@
 
 
 ### Changed
+- Added full authenticated ``http_request`` and conditional ``rss_fetch`` tools, including all standard HTTP methods, host-scoped secret profiles, redirect revalidation, response bounds, persistent cookies, and private-network/metadata protections.
+- Added an optional Patchright browser runtime with persistent profiles, JavaScript interaction, multi-tab control, scoped login credentials, managed uploads/downloads, storage-state export, screenshots, and action receipts.
+- Added an optional Camoufox browser engine plus reproducible lifecycle,
+  fingerprint, latency, and memory qualification. No hosted default is selected
+  until an engine passes the exact Linux ARM64 Bot Manager gate.
+- Added independently allowlisted Resend email and Slack communication tools.
+  Historical runs use explicit fixtures for reads and can never force a live
+  send; attempted writes produce structured simulation receipts.
 - Agent evaluation resume rebuilds missing freshness receipts from matching completed ledger entries without repeating paid calls or changing their original timestamps.
 - Managed AI agents can select a reviewed provider reasoning effort end to end;
   unsupported provider/effort combinations fail visibly instead of being
@@ -35,9 +48,13 @@
   choices, with duplicate-event and destination-classification coverage.
 - Backtest progress and settings retain per-run initialization, callback, first
   price, simulation and report timestamps, separately from heartbeat updates.
-- New agents without an explicit model use Gemini 3.5 Flash-Lite rather than
-  the retired preview default. Explicit model pins and managed families remain
-  unchanged; existing agent instances are not migrated during a decision.
+- ⚠️ New agents without an explicit model now use OpenAI GPT-6 Luna
+  (`openai/gpt-6-luna`) with high reasoning effort, replacing the retired preview
+  default. High reasoning applies only when the resolved model is the default and
+  the caller passed no `reasoning_effort`. Explicit model pins and managed
+  families remain unchanged; existing agent instances are not migrated during a
+  decision. Native calls need `OPENAI_API_KEY`. The CLI AI template, examples and
+  docs use the new default (see `docs/AGENT_DEFAULT_MODEL.md`).
 - Agent indicator queries accept independent, explicitly zoned historical
   windows. Bounds cannot exceed strategy time; missing warmup remains missing,
   and monthly or annual requests cannot borrow bars from another window.
@@ -47,7 +64,76 @@
 - Added partnership information, direct AI example routes, and hosted marketplace links to the public documentation and README.
 - Corrected README and package license labels to match the existing GPLv3 LICENSE file; the license text is unchanged.
 
+### Added
+- Alpaca options backtesting with your own key: `AlpacaBacktesting.get_chains()` now lists
+  real contracts (expired and live, paginated) for the simulated date, within 90 days or the
+  `OptionsHelper` expiration hint, cached per day in memory and on disk. Requests stay under
+  the free-tier limit and wait on HTTP 429 with a bounded retry. New public page
+  `docsrc/backtesting.alpaca.rst`; proof runs in `docs/research/2026-09-23-alpaca-options-backtests/`.
+- Managed agents accept OpenAI GPT-6 Luna (`gpt-6-luna` or `openai/gpt-6-luna`) with a
+  reasoning effort. Its model information is registered with LiteLLM, which has no GPT-6
+  entry yet, so reasoning is accepted and tool calls with reasoning use the Responses API.
+
 ### Fixed
+- `lumibot version` printed "unknown" from a source checkout or CI, where no installed package
+  metadata exists. It now reports `lumibot.__version__` (setup.py in a checkout, then installed
+  metadata), the same value the startup log prints.
+- Alpaca option bars are no longer reindexed and forward/back filled like stock bars. That
+  invented prices between sparse trades and back-filled a later trade into the past (a price
+  before the first print). Options now use real prints only; `get_last_price` is `None`
+  before the first trade, `BacktestingBroker` fills Alpaca options only on a bar that printed
+  in the current minute or day, and a contract with no bars logs one clear error instead of
+  crashing. Option cache files carry a new `_TRADES` key so old filled files are not reused.
+- `BACKTESTING_DATA_SOURCE=alpaca` with `backtest(datasource_class=None)` (how BotSpot runs Alpaca
+  backtests) failed with "Config cannot be None". Without a config, `AlpacaBacktesting` now reads
+  `ALPACA_API_KEY`/`ALPACA_API_SECRET`/`ALPACA_OAUTH_TOKEN`/`ALPACA_IS_PAPER`, defaults to minute bars
+  (daily-cadence strategies still get day bars), runs through `backtesting_end` (new `full_window`
+  option; an explicit config keeps the old stop three sessions early), and writes progress.csv. The
+  option contract list retries once on the other Trading API endpoint after a 401, and bar requests
+  stop 16 minutes before now (free keys refuse the latest 15 minutes of SIP data).
+- IBKR option contract lookup returned the first contract with a matching expiration. On monthly
+  expirations IBKR lists AM-settled `SPX` and PM-settled `SPXW` with the same date, so an `SPXW`
+  request could price the `SPX` contract. The lookup now prefers the requested trading class.
+- Polygon option chains fetched with `LUMIBOT_OPTION_CHAIN_MAX_DAYS` were cached under the normal
+  name and reused for up to 14 days, and by runs without the limit, so later dates saw almost no
+  expirations. A limited chain now has its own cache name and is reused only on the same day with
+  the same limit. An invalid value such as `21d` is ignored with a warning instead of crashing.
+  The variable is now documented in `docsrc/environment_variables.rst`.
+- `AlpacaBacktesting` had no `get_quote()`, so `OptionsHelper` failed every expiration probe on
+  Alpaca option backtests. It now returns the last real trade as the price with bid and ask `None`
+  (Alpaca historical option data is trade bars only), and option last price at the first bars of
+  the window reaches back for real prints from before the start.
+- Lookahead: `AlpacaBacktesting.get_historical_prices()` returned the bar that was still forming
+  at the simulated time, with its final close, high, low and volume (the 10:00 five-minute bar at
+  10:00, today's daily bar at 09:30). In environment mode (`BACKTESTING_DATA_SOURCE=alpaca`, the
+  BotSpot path) history now holds finished bars only, like IBKR, ThetaData and Polygon, for stocks,
+  crypto and options at every bar size, and returns `None` when nothing has finished yet. The
+  documented `remove_incomplete_current_bar=True` option now also drops a multi-minute bar that is
+  still forming (it only dropped a bar labeled exactly now). With an explicit config the documented
+  default stays `False`. `get_last_price()` and fills are unchanged: the open of the bar that starts
+  now, which the broker's Alpaca branch now requests explicitly.
+- `AlpacaBacktesting` downloaded nothing before `backtesting_start` unless `warm_up_trading_days` was
+  passed, so on the BotSpot path a strategy that asked at its first bars for 250 five-minute bars got a
+  few pre-market bars, and one that asked for 15 daily bars (an ATR(14) filter) stopped with "Not enough
+  historical data". New `history_before_start` option (default True in environment mode, False with an
+  explicit config): a history request that needs more finished bars than the window holds fetches the
+  real earlier bars once, sized to the request, cached on disk, never filled in, and never asked for
+  again on every bar. The closed-bar rule still applies and fills are unchanged.
+- `AlpacaBacktesting.LUMIBOT_DEFAULT_QUOTE_ASSET` was `None` after the lazy AlpacaData quote
+  change, which broke `_get_asset_key(quote_asset=None)` in the legacy Alpaca backtest tests.
+- An explicit `AlpacaBacktesting(timestep="minute")` is no longer switched to day bars when
+  the strategy sleeps a day. The daily-cadence priming added in 4.4.53 now skips data sources
+  whose bar size the caller set; four legacy Alpaca minute tests pass again.
+- IBKR stock intraday backtests no longer re-submit the same downloader request on
+  every bar when a window edge is market-closed time (a lookback that starts on a
+  weekend or holiday, or a backtest end clamped to "now" before the next session
+  opens). Coverage checks now use the last session that opened before the window end
+  and the first session that had not closed by its start, closed-market edges are not
+  fetched, and a segment already requested in the process is not requested again.
+  A production SPY 5-minute backtest sent `startTime=20260908-08:00:00` 77 times; the same
+  loop reproduces on 4.5.91 code, so it is a latent bug rather than a 4.5.92 change.
+  No bars are synthesized; cached real bars are returned.
+- SEC mutable indexes, submissions, and company facts now expire in live mode while remaining deterministic in backtests; raw facts, filings, and filing documents enforce point-in-time availability boundaries.
 - Overlapping broker position reads no longer let an older response delete,
   resurrect, or overwrite a newer applied snapshot. Network reads remain outside
   the tracker lock, and a failed newer request does not discard older success.
@@ -128,6 +214,16 @@
   ``tools/list`` and projects the exact field names into the model-facing
   callable. Hosted research agents no longer have to guess between names such as
   ``datasetId`` and ``dataset_id`` before calling BotSpot's strict MCP server.
+
+### Security
+
+- Agent `fetch_feed` sends the SEC contact User-Agent only when the URL host is `sec.gov` or a subdomain. A substring check also matched hosts such as `sec.gov.example.com` and URLs that only mention `sec.gov` in a path or query.
+- The SEC filing text extractor now removes `<script>` and `<style>` blocks whose end tags carry spaces or attributes (for example `</script >`), so their contents no longer leak into filing text.
+- Agent `http_request` and `rss_fetch` stream response bodies and stop reading as soon as the response size limit is passed. Before, the whole body was read into memory first, so a URL returning a multi-gigabyte body could exhaust a live bot's memory.
+- Agent `http_request` and `rss_fetch` connect to the exact address the SSRF check approved, including on every redirect hop, instead of resolving the hostname again. This closes a DNS rebinding path where a domain could pass the check with a public address and then connect to `127.0.0.1` or the cloud metadata address `169.254.169.254`. The original `Host` header and TLS server name are kept, so certificate checks still verify the real hostname, and cookies stay scoped to the hostname rather than a shared IP.
+- Email and Slack `COMMUNICATION` log lines no longer contain recipient addresses, subjects, bodies, HTML, or Slack blocks. Those can hold account balances and positions, and strategy logs are shipped to log sinks. The log line now records only the provider, status, channel, message id, idempotency key, recipient count, and short hashes and lengths of the content. The payload returned to the caller is unchanged.
+- Browser profile directories are created with `0700` permissions and `storage-state.json` with `0600` on POSIX, because the exported cookies and local storage work like a login for the sites in that profile.
+- `browser_login` scrubs the username and password from engine errors before they reach the agent or logs (a browser call log can echo the filled value), and `BrowserCredentialProfile` no longer shows the username or password in its `repr`. The browser tools docs now describe storage state as a secret instead of a harmless artifact.
 
 ## 4.5.91 - 2026-09-06
 
@@ -1466,7 +1562,7 @@ Deploy marker: 4.5.11 release commit (`deploy 4.5.11`)
 - **Agent built-in tools are included by default when available.** Account, positions, open orders, history, docs search, indicators, SEC, FRED, memory, notifications, and order tools are available by default; `allow_trading=False` removes only mutating order tools.
 - **Alpaca news tool availability now depends on credentials.** The built-in Alpaca news tool is hidden when no Alpaca credentials are configured and uses the standard Alpaca credential environment variables when present.
 - **FRED no longer uses public CSV fallbacks.** Revised/no-key CSV access was removed from examples, docs, tests, and implementation; official FRED/ALFRED API access is the only supported macro-data fetch path.
-- **AI-agent docs and deployment guidance now require high-quality generated visuals.** Lumibot/BotSpot/Lumiwealth documentation visuals must use Nano Banana/GPT Image 2 quality and the canonical Spot brand reference when a mascot is helpful.
+- **AI-agent docs and deployment guidance now require high-quality generated visuals.** Lumibot/BotSpot/Lumiwealth final documentation visuals must use the approved GPT Image 2.5 Sunburst generator and the canonical Spot brand reference when a mascot is helpful.
 
 ### Fixed
 - **BotSpot cloud account snapshots are marked verified before use.** This prevents unverified broker/account reads from being treated as trusted performance data.

@@ -54,6 +54,11 @@ setuptools.setup(
     long_description_content_type="text/markdown",
     url="https://github.com/Lumiwealth/lumibot",
     packages=setuptools.find_packages(include=["lumibot", "lumibot.*"]),
+    entry_points={
+        "console_scripts": [
+            "lumibot=lumibot.cli:main",
+        ],
+    },
     license="GPL-3.0",
     include_package_data=True,
     install_requires=[
@@ -100,9 +105,9 @@ setuptools.setup(
         "psutil",
         "openai",
         "setuptools<81",
-        "google-adk[extensions]>=2.1.0,<3.0.0",
-        "google-genai>=1.72.0,<2.0.0",
-        "litellm>=1.83.7,<=1.83.14",
+        "google-adk[extensions]>=2.9.1,<3.0.0",
+        "google-genai>=2.24.0,<3.0.0",
+        "litellm>=1.101.0",
         "anyio>=4.10.0",
         "mcp>=1.26.0,<2",
         "schwab-py>=1.5.0",
@@ -111,6 +116,7 @@ setuptools.setup(
         "requests-oauthlib",
         "boto3>=1.40.64",
         "httpx",
+        "pypdf>=5.0.0",
     ],
     # Include configuration files, and only include ThetaTerminal.jar if present
     package_data={
@@ -120,9 +126,16 @@ setuptools.setup(
             "components/agents/skills/*/agents/*.yaml",
             "components/agents/skills/*/references/*.md",
             "example_strategies/agent_rules/*.json",
+            "example_strategies/fixtures/*.json",
         ] + (["resources/ThetaTerminal.jar"] if theta_jar_path.exists() else []),
     },
     extras_require={
+        "browser": [
+            "patchright>=1.62.3,<2",
+        ],
+        "browser-camoufox": [
+            "camoufox>=0.5.6,<0.6",
+        ],
         # Optional dependencies to enable ThetaData support
         "thetadata": [
             "thetadata",

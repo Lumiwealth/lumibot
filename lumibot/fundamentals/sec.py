@@ -1,3 +1,4 @@
+import copy
 import html
 import json
 import os
@@ -10,11 +11,11 @@ from urllib.parse import urljoin
 
 import requests
 
-
 SEC_DATA_BASE_URL = "https://data.sec.gov"
 SEC_ARCHIVES_BASE_URL = "https://www.sec.gov/Archives/edgar/data/"
 SEC_COMPANY_TICKERS_URL = "https://www.sec.gov/files/company_tickers.json"
 DEFAULT_SEC_USER_AGENT = "LumiBot open-source trading framework support@lumiwealth.com"
+DEFAULT_MUTABLE_CACHE_TTL_SECONDS = 300.0
 
 
 INCOME_STATEMENT_TAGS = {
@@ -106,7 +107,7 @@ def _same_tz(value: datetime, reference: datetime) -> datetime:
 
 
 def _strip_html(text: str) -> str:
-    text = re.sub(r"(?is)<script.*?</script>|<style.*?</style>", " ", text)
+    text = re.sub(r"(?is)<script\b.*?</script\b[^>]*>|<style\b.*?</style\b[^>]*>", " ", text)
     text = re.sub(r"(?is)<ix:hidden.*?</ix:hidden>", " ", text)
     text = re.sub(r"(?is)</?(?:p|div|br|tr|table|section|article|h[1-6])\b[^>]*>", "\n", text)
     text = re.sub(r"(?s)<[^>]+>", " ", text)
@@ -161,6 +162,8 @@ class SECFundamentals:
         cache_dir: str | os.PathLike[str] | None = None,
         user_agent: str | None = None,
         min_request_interval_seconds: float = 0.2,
+        cache_mode: str = "auto",
+        mutable_cache_ttl_seconds: float = DEFAULT_MUTABLE_CACHE_TTL_SECONDS,
     ) -> None:
         self.strategy = strategy
         self.cache_dir = Path(
@@ -171,7 +174,65 @@ class SECFundamentals:
         self.cache_dir.mkdir(parents=True, exist_ok=True)
         self.user_agent = user_agent or os.environ.get("LUMIBOT_SEC_USER_AGENT") or DEFAULT_SEC_USER_AGENT
         self.min_request_interval_seconds = max(float(min_request_interval_seconds), 0.0)
+        normalized_cache_mode = str(cache_mode).strip().lower()
+        if normalized_cache_mode not in {"auto", "live", "backtest"}:
+            raise ValueError("cache_mode must be one of: auto, live, backtest")
+        self.cache_mode = normalized_cache_mode
+        self.mutable_cache_ttl_seconds = max(float(mutable_cache_ttl_seconds), 0.0)
         self._last_request_at = 0.0
+
+    @staticmethod
+    def _cache_meta_path(cache_path: Path) -> Path:
+        return cache_path.with_name(f"{cache_path.name}.meta.json")
+
+    def _cache_meta(self, cache_path: Path) -> dict[str, Any]:
+        meta_path = self._cache_meta_path(cache_path)
+        if not meta_path.exists():
+            return {}
+        try:
+            payload = json.loads(meta_path.read_text(encoding="utf-8"))
+        except (OSError, ValueError, TypeError):
+            return {}
+        return payload if isinstance(payload, dict) else {}
+
+    @staticmethod
+    def _response_header(headers: Any, name: str) -> str | None:
+        if not headers:
+            return None
+        for key, value in headers.items():
+            if str(key).lower() == name.lower() and value:
+                return str(value)
+        return None
+
+    def _record_cache_fetch(self, cache_path: Path, response_headers: Any = None) -> str:
+        fetched_at = datetime.now(timezone.utc).isoformat()
+        previous = self._cache_meta(cache_path)
+        etag = self._response_header(response_headers, "etag") or previous.get("etag")
+        last_modified = self._response_header(response_headers, "last-modified") or previous.get("last_modified")
+        metadata = {"fetched_at": fetched_at}
+        if etag:
+            metadata["etag"] = etag
+        if last_modified:
+            metadata["last_modified"] = last_modified
+        meta_path = self._cache_meta_path(cache_path)
+        meta_path.write_text(json.dumps(metadata, sort_keys=True), encoding="utf-8")
+        return fetched_at
+
+    def _cache_fetched_at(self, cache_path: Path) -> str:
+        value = self._cache_meta(cache_path).get("fetched_at")
+        if value:
+            return str(value)
+        timestamp = cache_path.stat().st_mtime if cache_path.exists() else time.time()
+        return datetime.fromtimestamp(timestamp, timezone.utc).isoformat()
+
+    def _revalidation_headers(self, cache_path: Path) -> dict[str, str]:
+        metadata = self._cache_meta(cache_path)
+        headers: dict[str, str] = {}
+        if metadata.get("etag"):
+            headers["If-None-Match"] = str(metadata["etag"])
+        if metadata.get("last_modified"):
+            headers["If-Modified-Since"] = str(metadata["last_modified"])
+        return headers
 
     def _headers(self) -> dict[str, str]:
         return {
@@ -189,26 +250,57 @@ class SECFundamentals:
         safe = [re.sub(r"[^A-Za-z0-9_.=-]+", "_", str(part)).strip("_") for part in parts]
         return self.cache_dir.joinpath(*safe)
 
-    def _get_json(self, url: str, cache_path: Path) -> dict[str, Any]:
-        if cache_path.exists():
+    def _resolved_cache_mode(self) -> str:
+        if self.cache_mode != "auto":
+            return self.cache_mode
+        if self.strategy is not None and bool(getattr(self.strategy, "is_backtesting", False)):
+            return "backtest"
+        return "live"
+
+    def _cache_is_usable(self, cache_path: Path, *, mutable: bool) -> bool:
+        if not cache_path.exists():
+            return False
+        if not mutable or self._resolved_cache_mode() == "backtest":
+            return True
+        age_seconds = max(time.time() - cache_path.stat().st_mtime, 0.0)
+        return age_seconds <= self.mutable_cache_ttl_seconds
+
+    def _get_json(self, url: str, cache_path: Path, *, mutable: bool = False) -> dict[str, Any]:
+        if self._cache_is_usable(cache_path, mutable=mutable):
             return json.loads(cache_path.read_text(encoding="utf-8"))
         self._rate_limit()
-        response = requests.get(url, headers=self._headers(), timeout=30)
+        headers = self._headers()
+        if mutable and cache_path.exists():
+            headers.update(self._revalidation_headers(cache_path))
+        response = requests.get(url, headers=headers, timeout=30)
+        if getattr(response, "status_code", None) == 304 and cache_path.exists():
+            os.utime(cache_path, None)
+            self._record_cache_fetch(cache_path, getattr(response, "headers", None))
+            return json.loads(cache_path.read_text(encoding="utf-8"))
         response.raise_for_status()
         payload = response.json()
         cache_path.parent.mkdir(parents=True, exist_ok=True)
         cache_path.write_text(json.dumps(payload, indent=2, sort_keys=True), encoding="utf-8")
+        self._record_cache_fetch(cache_path, getattr(response, "headers", None))
         return payload
 
-    def _get_text(self, url: str, cache_path: Path) -> str:
-        if cache_path.exists():
+    def _get_text(self, url: str, cache_path: Path, *, mutable: bool = False) -> str:
+        if self._cache_is_usable(cache_path, mutable=mutable):
             return cache_path.read_text(encoding="utf-8", errors="replace")
         self._rate_limit()
-        response = requests.get(url, headers=self._archive_headers(), timeout=30)
+        headers = self._archive_headers()
+        if mutable and cache_path.exists():
+            headers.update(self._revalidation_headers(cache_path))
+        response = requests.get(url, headers=headers, timeout=30)
+        if getattr(response, "status_code", None) == 304 and cache_path.exists():
+            os.utime(cache_path, None)
+            self._record_cache_fetch(cache_path, getattr(response, "headers", None))
+            return cache_path.read_text(encoding="utf-8", errors="replace")
         response.raise_for_status()
         text = response.text
         cache_path.parent.mkdir(parents=True, exist_ok=True)
         cache_path.write_text(text, encoding="utf-8", errors="replace")
+        self._record_cache_fetch(cache_path, getattr(response, "headers", None))
         return text
 
     def _rate_limit(self) -> None:
@@ -227,16 +319,36 @@ class SECFundamentals:
 
     def ticker_to_cik(self, symbol: str) -> str:
         symbol_upper = str(symbol).upper().strip()
-        payload = self._get_json(SEC_COMPANY_TICKERS_URL, self._cache_path("company_tickers.json"))
+        payload = self._get_json(
+            SEC_COMPANY_TICKERS_URL,
+            self._cache_path("company_tickers.json"),
+            mutable=True,
+        )
         for entry in payload.values():
             if str(entry.get("ticker", "")).upper() == symbol_upper:
                 return f"{int(entry['cik_str']):010d}"
         raise ValueError(f"No SEC CIK found for ticker {symbol!r}.")
 
-    def get_submissions(self, symbol: str) -> dict[str, Any]:
+    def _get_submissions_payload(self, symbol: str) -> dict[str, Any]:
         cik = self.ticker_to_cik(symbol)
         url = f"{SEC_DATA_BASE_URL}/submissions/CIK{cik}.json"
-        return self._get_json(url, self._cache_path("submissions", f"CIK{cik}.json"))
+        cache_path = self._cache_path("submissions", f"CIK{cik}.json")
+        payload = self._get_json(
+            url,
+            cache_path,
+            mutable=True,
+        )
+        return {
+            **payload,
+            "id": f"sec-submissions-{cik}",
+            "source": "sec_edgar_submissions",
+            "source_url": url,
+            "fetched_at": self._cache_fetched_at(cache_path),
+        }
+
+    def get_submissions(self, symbol: str, *, as_of: Any | None = None) -> dict[str, Any]:
+        as_of_dt = _as_of_datetime(as_of) if as_of is not None else self._strategy_as_of()
+        return self._filter_submissions_as_of(self._get_submissions_payload(symbol), as_of_dt)
 
     def get_company_facts(
         self,
@@ -248,12 +360,32 @@ class SECFundamentals:
     ) -> dict[str, Any]:
         cik = self.ticker_to_cik(symbol)
         url = f"{SEC_DATA_BASE_URL}/api/xbrl/companyfacts/CIK{cik}.json"
-        payload = self._get_json(url, self._cache_path("companyfacts", f"CIK{cik}.json"))
-        if raw:
-            return payload
-        facts = payload.get("facts", {}).get("us-gaap", {})
+        cache_path = self._cache_path("companyfacts", f"CIK{cik}.json")
+        payload = self._get_json(
+            url,
+            cache_path,
+            mutable=True,
+        )
         as_of_dt = _as_of_datetime(as_of) if as_of is not None else self._strategy_as_of()
-        compact: dict[str, Any] = {"symbol": symbol.upper(), "cik": cik, "as_of": as_of_dt.isoformat(), "facts": {}}
+        provenance = {
+            "id": f"sec-companyfacts-{cik}",
+            "source": "sec_edgar_companyfacts",
+            "source_url": url,
+            "fetched_at": self._cache_fetched_at(cache_path),
+        }
+        if raw:
+            filtered = self._filter_company_facts_as_of(payload, as_of_dt)
+            filtered.update(provenance)
+            filtered["published_at"] = self._latest_company_fact_publication(filtered)
+            return filtered
+        facts = payload.get("facts", {}).get("us-gaap", {})
+        compact: dict[str, Any] = {
+            "symbol": symbol.upper(),
+            "cik": cik,
+            "as_of": as_of_dt.isoformat(),
+            **provenance,
+            "facts": {},
+        }
         ordered_tags = [tag for tag in _PRIORITY_COMPANY_FACT_TAGS if tag in facts]
         priority_seen = set(ordered_tags)
         ordered_tags.extend(tag for tag in sorted(facts) if tag not in priority_seen)
@@ -271,10 +403,88 @@ class SECFundamentals:
         compact["fact_count"] = len(compact["facts"])
         compact["truncated"] = stopped_for_limit
         compact["max_facts"] = max_facts
+        compact["published_at"] = self._latest_company_fact_publication(
+            self._filter_company_facts_as_of(payload, as_of_dt)
+        )
         return compact
 
+    @staticmethod
+    def _latest_company_fact_publication(payload: dict[str, Any]) -> str | None:
+        latest: datetime | None = None
+        facts = payload.get("facts") or {}
+        for taxonomy in facts.values() if isinstance(facts, dict) else ():
+            for fact in taxonomy.values() if isinstance(taxonomy, dict) else ():
+                units = fact.get("units") if isinstance(fact, dict) else None
+                for rows in units.values() if isinstance(units, dict) else ():
+                    for row in rows if isinstance(rows, list) else ():
+                        published = _parse_dt(row.get("acceptanceDateTime") or row.get("filed")) if isinstance(row, dict) else None
+                        if published is not None and (latest is None or _same_tz(published, latest) > latest):
+                            latest = published
+        return latest.isoformat() if latest is not None else None
+
+    def _filter_company_facts_as_of(self, payload: dict[str, Any], as_of: datetime) -> dict[str, Any]:
+        filtered = copy.deepcopy(payload)
+        facts = filtered.get("facts", {})
+        if isinstance(facts, dict):
+            for taxonomy in facts.values():
+                if not isinstance(taxonomy, dict):
+                    continue
+                for fact in taxonomy.values():
+                    units = fact.get("units") if isinstance(fact, dict) else None
+                    if not isinstance(units, dict):
+                        continue
+                    for unit, rows in list(units.items()):
+                        if not isinstance(rows, list):
+                            continue
+                        visible_rows = []
+                        for row in rows:
+                            if not isinstance(row, dict):
+                                continue
+                            published = _parse_dt(row.get("filed") or row.get("acceptanceDateTime"))
+                            if published is None or _same_tz(published, as_of) <= as_of:
+                                visible_rows.append(row)
+                        units[unit] = visible_rows
+        filtered["as_of"] = as_of.isoformat()
+        return filtered
+
+    def _filter_submissions_as_of(self, payload: dict[str, Any], as_of: datetime) -> dict[str, Any]:
+        filtered = copy.deepcopy(payload)
+        recent = filtered.get("filings", {}).get("recent", {})
+        if not isinstance(recent, dict):
+            filtered["as_of"] = as_of.isoformat()
+            filtered["published_at"] = None
+            return filtered
+        forms = recent.get("form")
+        if not isinstance(forms, list):
+            filtered["as_of"] = as_of.isoformat()
+            filtered["published_at"] = None
+            return filtered
+        acceptances = recent.get("acceptanceDateTime", [])
+        filing_dates = recent.get("filingDate", [])
+        keep_indexes = []
+        for index in range(len(forms)):
+            raw = acceptances[index] if index < len(acceptances) and acceptances[index] else None
+            if not raw and index < len(filing_dates):
+                raw = filing_dates[index]
+            published = _parse_dt(raw)
+            if published is not None and _same_tz(published, as_of) <= as_of:
+                keep_indexes.append(index)
+        for key, values in list(recent.items()):
+            if isinstance(values, list):
+                recent[key] = [values[index] for index in keep_indexes if index < len(values)]
+        filtered["as_of"] = as_of.isoformat()
+        recent_acceptances = recent.get("acceptanceDateTime", [])
+        recent_filing_dates = recent.get("filingDate", [])
+        published_values = [value for value in recent_acceptances if value] or [
+            value for value in recent_filing_dates if value
+        ]
+        filtered["published_at"] = max(published_values, default=None)
+        return filtered
+
     def get_income_statement(self, symbol: str, *, as_of: Any | None = None, raw: bool = False) -> dict[str, Any]:
-        return self._normalized_statement(symbol, INCOME_STATEMENT_TAGS, as_of=as_of, raw=raw, statement="income_statement")
+        return self._normalized_statement(
+            symbol, INCOME_STATEMENT_TAGS, as_of=as_of, raw=raw, statement="income_statement"
+        )
 
     def get_balance_sheet(self, symbol: str, *, as_of: Any | None = None, raw: bool = False) -> dict[str, Any]:
         return self._normalized_statement(symbol, BALANCE_SHEET_TAGS, as_of=as_of, raw=raw, statement="balance_sheet")
@@ -282,7 +492,11 @@ class SECFundamentals:
     def get_cash_flow(self, symbol: str, *, as_of: Any | None = None, raw: bool = False) -> dict[str, Any]:
         statement = self._normalized_statement(symbol, CASH_FLOW_TAGS, as_of=as_of, raw=raw, statement="cash_flow")
         rows = statement.get("values", {})
-        ocf = rows.get("operating_cash_flow", {}).get("value") if isinstance(rows.get("operating_cash_flow"), dict) else None
+        ocf = (
+            rows.get("operating_cash_flow", {}).get("value")
+            if isinstance(rows.get("operating_cash_flow"), dict)
+            else None
+        )
         capex = rows.get("capex", {}).get("value") if isinstance(rows.get("capex"), dict) else None
         if ocf is not None and capex is not None:
             try:
@@ -300,7 +514,7 @@ class SECFundamentals:
         raw: bool,
         statement: str,
     ) -> dict[str, Any]:
-        raw_facts = self.get_company_facts(symbol, raw=True)
+        raw_facts = self.get_company_facts(symbol, as_of=as_of, raw=True)
         if raw:
             return raw_facts
         as_of_dt = _as_of_datetime(as_of) if as_of is not None else self._strategy_as_of()
@@ -342,6 +556,11 @@ class SECFundamentals:
             "cik": self.ticker_to_cik(symbol),
             "statement": statement,
             "as_of": as_of_dt.isoformat(),
+            "id": raw_facts.get("id"),
+            "source": raw_facts.get("source"),
+            "source_url": raw_facts.get("source_url"),
+            "published_at": raw_facts.get("published_at"),
+            "fetched_at": raw_facts.get("fetched_at"),
             "values": values,
             "anchor": {
                 key: anchor.get(key)
@@ -520,8 +739,8 @@ class SECFundamentals:
         as_of: Any | None = None,
         limit: int = 10,
     ) -> dict[str, Any]:
-        submissions = self.get_submissions(symbol)
         as_of_dt = _as_of_datetime(as_of) if as_of is not None else self._strategy_as_of()
+        submissions = self.get_submissions(symbol, as_of=as_of_dt)
         recent = submissions.get("filings", {}).get("recent", {})
         rows = []
         forms = recent.get("form", [])
@@ -546,6 +765,11 @@ class SECFundamentals:
             rows.append(
                 {
                     "symbol": symbol.upper(),
+                    "id": accession,
+                    "source": "sec_edgar_submissions",
+                    "source_url": submissions.get("source_url"),
+                    "published_at": acceptances[idx] if idx < len(acceptances) and acceptances[idx] else filing_dates[idx],
+                    "fetched_at": submissions.get("fetched_at"),
                     "cik": submissions.get("cik"),
                     "form": filing_form,
                     "accession_number": accession,
@@ -559,7 +783,16 @@ class SECFundamentals:
             )
             if len(rows) >= max(int(limit), 1):
                 break
-        return {"symbol": symbol.upper(), "as_of": as_of_dt.isoformat(), "filings": rows}
+        return {
+            "symbol": symbol.upper(),
+            "as_of": as_of_dt.isoformat(),
+            "id": submissions.get("id"),
+            "source": submissions.get("source"),
+            "source_url": submissions.get("source_url"),
+            "published_at": max((row["published_at"] for row in rows), default=None),
+            "fetched_at": submissions.get("fetched_at"),
+            "filings": rows,
+        }
 
     def search_filing(
         self,
@@ -570,12 +803,14 @@ class SECFundamentals:
         primary_document: str | None = None,
         max_results: int = 5,
         context_chars: int = 600,
+        as_of: Any | None = None,
     ) -> dict[str, Any]:
         text_result = self.get_filing_document(
             symbol,
             accession_number=accession_number,
             primary_document=primary_document,
             as_text=True,
+            as_of=as_of,
         )
         text = text_result["text"]
         terms = [term for term in re.split(r"\s+", query.strip()) if term]
@@ -593,6 +828,11 @@ class SECFundamentals:
         return {
             "symbol": symbol.upper(),
             "accession_number": accession_number,
+            "id": text_result["id"],
+            "source": text_result["source"],
+            "source_url": text_result["source_url"],
+            "published_at": text_result["published_at"],
+            "fetched_at": text_result["fetched_at"],
             "query": query,
             "match_count": len(matches),
             "matches": matches,
@@ -607,18 +847,40 @@ class SECFundamentals:
         primary_document: str | None = None,
         as_text: bool = True,
         max_chars: int | None = 20000,
+        as_of: Any | None = None,
+        verify_availability: bool = True,
     ) -> dict[str, Any]:
         cik = self.ticker_to_cik(symbol)
+        as_of_dt = _as_of_datetime(as_of) if as_of is not None else self._strategy_as_of()
+        published_raw = None
+        if verify_availability:
+            submissions = self._get_submissions_payload(symbol)
+            recent = submissions.get("filings", {}).get("recent", {})
+            accessions = recent.get("accessionNumber", []) if isinstance(recent, dict) else []
+            if accession_number in accessions:
+                index = accessions.index(accession_number)
+                acceptances = recent.get("acceptanceDateTime", [])
+                filing_dates = recent.get("filingDate", [])
+                published_raw = acceptances[index] if index < len(acceptances) and acceptances[index] else None
+                if not published_raw and index < len(filing_dates):
+                    published_raw = filing_dates[index]
+                published = _parse_dt(published_raw)
+                if published is not None and _same_tz(published, as_of_dt) > as_of_dt:
+                    raise ValueError(
+                        f"SEC accession {accession_number} was not public as of {as_of_dt.isoformat()}."
+                    )
         if not primary_document:
-            filings = self.get_filings(symbol, limit=1000)
+            filings = self.get_filings(symbol, as_of=as_of_dt, limit=1000)
             for filing in filings["filings"]:
                 if filing["accession_number"] == accession_number:
                     primary_document = filing.get("primary_document")
+                    published_raw = filing.get("published_at")
                     break
         if not primary_document:
             raise ValueError("primary_document is required when accession_number is not in recent submissions.")
         url = self._filing_url(cik, accession_number, primary_document)
-        raw = self._get_text(url, self._cache_path("filings", cik, accession_number, primary_document))
+        cache_path = self._cache_path("filings", cik, accession_number, primary_document)
+        raw = self._get_text(url, cache_path)
         text = _strip_html(raw) if as_text else raw
         original_length = len(text)
         truncated = False
@@ -627,6 +889,11 @@ class SECFundamentals:
             truncated = True
         return {
             "symbol": symbol.upper(),
+            "id": accession_number,
+            "source": "sec_edgar_filing_document",
+            "source_url": url,
+            "published_at": published_raw,
+            "fetched_at": self._cache_fetched_at(cache_path),
             "cik": cik,
             "accession_number": accession_number,
             "primary_document": primary_document,
@@ -644,6 +911,7 @@ class SECFundamentals:
         *,
         accession_number: str,
         primary_document: str | None = None,
+        as_of: Any | None = None,
     ) -> dict[str, Any]:
         text_result = self.get_filing_document(
             symbol,
@@ -651,12 +919,18 @@ class SECFundamentals:
             primary_document=primary_document,
             as_text=True,
             max_chars=None,
+            as_of=as_of,
         )
         text = text_result["text"]
         sections = self._detect_filing_sections(text)
         return {
             "symbol": symbol.upper(),
             "accession_number": accession_number,
+            "id": text_result["id"],
+            "source": text_result["source"],
+            "source_url": text_result["source_url"],
+            "published_at": text_result["published_at"],
+            "fetched_at": text_result["fetched_at"],
             "document_url": text_result["document_url"],
             "section_count": len(sections),
             "sections": [
@@ -679,6 +953,7 @@ class SECFundamentals:
         section: str,
         primary_document: str | None = None,
         max_chars: int | None = 12000,
+        as_of: Any | None = None,
     ) -> dict[str, Any]:
         text_result = self.get_filing_document(
             symbol,
@@ -686,6 +961,7 @@ class SECFundamentals:
             primary_document=primary_document,
             as_text=True,
             max_chars=None,
+            as_of=as_of,
         )
         text = text_result["text"]
         sections = self._detect_filing_sections(text)
@@ -701,6 +977,11 @@ class SECFundamentals:
                 "ok": False,
                 "symbol": symbol.upper(),
                 "accession_number": accession_number,
+                "id": text_result["id"],
+                "source": text_result["source"],
+                "source_url": text_result["source_url"],
+                "published_at": text_result["published_at"],
+                "fetched_at": text_result["fetched_at"],
                 "requested_section": section,
                 "available_sections": [
                     {"section_id": entry["section_id"], "heading": entry["heading"]} for entry in sections
@@ -721,6 +1002,11 @@ class SECFundamentals:
             "ok": True,
             "symbol": symbol.upper(),
             "accession_number": accession_number,
+            "id": text_result["id"],
+            "source": text_result["source"],
+            "source_url": text_result["source_url"],
+            "published_at": text_result["published_at"],
+            "fetched_at": text_result["fetched_at"],
             "requested_section": section,
             "section_id": selected["section_id"],
             "heading": selected["heading"],

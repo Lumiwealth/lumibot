@@ -201,6 +201,28 @@ def test_base_prompt_selects_relevant_evidence_instead_of_every_tool_category():
     assert "use SEC financial/filing tools on the most relevant single-stock" not in prompt
 
 
+def test_backtest_prompt_treats_last_trade_option_prices_as_the_fill_basis():
+    manager = AgentManager(_Strategy())
+    agent = manager.create(name="interpreter", allow_trading=False)
+
+    prompt = agent._base_system_prompt(agent._runtime_context())
+
+    assert "price_basis='last_trade'" in prompt
+    assert "missing bid/ask alone is not a reason" in prompt.lower()
+    assert "recent trade bar" in prompt
+
+
+def test_live_prompt_does_not_carry_backtest_last_trade_guidance():
+    strategy = _Strategy()
+    strategy.is_backtesting = False
+    manager = AgentManager(strategy)
+    agent = manager.create(name="interpreter", allow_trading=False)
+
+    prompt = agent._base_system_prompt(agent._runtime_context())
+
+    assert "price_basis='last_trade'" not in prompt
+
+
 def test_optional_agent_auth_failure_does_not_mark_decision_blocked():
     strategy = _Strategy()
     strategy.is_backtesting = False

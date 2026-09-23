@@ -17,9 +17,11 @@ BUILTIN_SKILL_LOADING_INSTRUCTION = (
     "order, you MUST load the matching asset-class skill and follow it. If a broad "
     "mandate leads you to consider an asset class later, load its skill at that "
     "point before acting on the asset. Before using managed BotSpot public macro or "
-    "SEC research tools, you MUST load the research-data skill and follow it. Skill "
-    "loading supplies knowledge; it does not choose a trade or override active "
-    "strategy rules."
+    "SEC research tools, you MUST load the research-data skill and follow it. Call "
+    "load_skill with the exact name: `stock-trading` for stocks and ETFs, "
+    "`options-trading` for options, and `research-data` for managed research "
+    "tools. Skill loading supplies knowledge; it does not choose a trade or "
+    "override active strategy rules."
 )
 
 

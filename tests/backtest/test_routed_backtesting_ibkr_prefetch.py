@@ -490,3 +490,105 @@ def test_non_empty_prefetch_not_marked_as_empty(monkeypatch):
     canonical_key, _ = router._build_dataset_keys(asset, quote, "minute")
     assert canonical_key in adapter._fully_loaded_series
     assert canonical_key not in adapter._empty_prefetch_series
+
+
+# ---------------------------------------------------------------------------
+# 2026-09-23: a production backtest (LumiBot 4.5.92, routed IBKR, SPY 5minute).
+#
+# The run started at 00:42 ET on Sep 15, so `backtesting_end` was clamped to a time
+# before that day's session. The shared cache already held every real bar. The routed
+# prefetch still never counted the window as loaded, and every 5-minute iteration of the
+# first simulated day re-submitted the identical downloader request
+# `startTime=20260908-08:00:00` (77 times). This reproduces it through the real
+# `ibkr_helper.get_price_data()` with only the downloader boundary faked.
+# ---------------------------------------------------------------------------
+
+
+def _ibkr_5min_extended_hours(days: list[str]) -> pd.DataFrame:
+    frames = []
+    base = 650.0
+    for day in days:
+        idx = pd.date_range(
+            pd.Timestamp(f"{day} 04:00", tz="America/New_York"),
+            pd.Timestamp(f"{day} 19:55", tz="America/New_York"),
+            freq="5min",
+        )
+        px = base + pd.Series(range(len(idx)), index=idx, dtype="float64") * 0.01
+        frames.append(
+            pd.DataFrame(
+                {"open": px, "high": px + 0.05, "low": px - 0.05, "close": px + 0.01, "volume": 1000.0},
+                index=idx,
+            )
+        )
+        base += 1.0
+    return pd.concat(frames).sort_index()
+
+
+def test_router_ibkr_stock_minute_clamped_pre_open_end_does_not_refetch_every_bar(monkeypatch, tmp_path):
+    import lumibot.tools.ibkr_helper as ibkr_helper
+
+    monkeypatch.setenv("DATADOWNLOADER_BASE_URL", "http://localhost:8080")
+    monkeypatch.setenv("DATADOWNLOADER_API_KEY", "<redacted>")
+    monkeypatch.delenv("IBKR_HISTORY_SOURCE", raising=False)
+    monkeypatch.setattr(ibkr_helper, "LUMIBOT_CACHE_FOLDER", tmp_path.as_posix())
+    monkeypatch.setattr(ibkr_helper, "_RUNTIME_HISTORY_NO_DATA_WINDOWS", {})
+    monkeypatch.setattr(ibkr_helper, "_RUNTIME_ATTEMPTED_HISTORY_SEGMENTS", {}, raising=False)
+    monkeypatch.setattr(ibkr_helper, "_resolve_conid", lambda **_: 756733)
+
+    asset = Asset("SPY", asset_type=Asset.AssetType.STOCK)
+    quote = Asset("USD", asset_type=Asset.AssetType.FOREX)
+
+    # Warm shared cache, exactly the coverage production had: Sep 8 (after Labor Day)
+    # 04:00 ET through Sep 14 19:55 ET.
+    cached = _ibkr_5min_extended_hours(["2026-09-08", "2026-09-09", "2026-09-10", "2026-09-11", "2026-09-14"])
+    cached["missing"] = False
+    cache_file = ibkr_helper._cache_file_for(
+        asset=asset, quote=quote, timestep="5minute", exchange=None, source="Trades", include_after_hours=True
+    )
+    ibkr_helper._write_cache_frame(cache_file, cached)
+
+    # What IBKR holds. `startTime` is the END of the returned window (see _fetch_history_between_dates).
+    vendor = _ibkr_5min_extended_hours(
+        ["2026-09-01", "2026-09-02", "2026-09-03", "2026-09-04", "2026-09-08", "2026-09-09",
+         "2026-09-10", "2026-09-11", "2026-09-14"]
+    )
+    requests: list[dict] = []
+
+    def fake_queue_request(url, querystring=None, headers=None, timeout=None, **_):
+        assert str(url).endswith("/ibkr/iserver/marketdata/history")
+        requests.append(dict(querystring))
+        window_end = pd.Timestamp(datetime.strptime(querystring["startTime"], "%Y%m%d-%H:%M:%S"), tz="UTC")
+        window_start = window_end - pd.Timedelta(minutes=int(str(querystring["period"]).removesuffix("min")))
+        rows = vendor.loc[(vendor.index >= window_start) & (vendor.index <= window_end)]
+        return {
+            "data": [
+                {
+                    "t": int(ts.timestamp() * 1000),
+                    "o": float(row["open"]),
+                    "h": float(row["high"]),
+                    "l": float(row["low"]),
+                    "c": float(row["close"]),
+                    "v": float(row["volume"]),
+                }
+                for ts, row in rows.iterrows()
+            ]
+        }
+
+    monkeypatch.setattr(ibkr_helper, "queue_request", fake_queue_request)
+
+    start = LUMIBOT_DEFAULT_PYTZ.localize(datetime(2026, 9, 8, 0, 0))
+    clamped_end = LUMIBOT_DEFAULT_PYTZ.localize(datetime(2026, 9, 15, 0, 42, 41))
+    router = _make_router(start, clamped_end, {"default": "ibkr", "stock": "ibkr"})
+
+    seen_last_bars = []
+    for step in range(12):
+        router._datetime = LUMIBOT_DEFAULT_PYTZ.localize(datetime(2026, 9, 8, 9, 30)) + timedelta(minutes=5 * step)
+        bars = router.get_historical_prices(asset, length=250, timestep="5minute", quote=quote)
+        assert bars is not None and not bars.df.empty
+        seen_last_bars.append(bars.df.index[-1])
+
+    request_keys = [tuple(sorted(r.items())) for r in requests]
+    assert len(request_keys) == len(set(request_keys)), f"identical IBKR requests repeated: {requests}"
+    assert len(requests) <= 2, f"expected at most the first-call edge probes, got {len(requests)}: {requests}"
+    # The strategy sees the real session bars, including the 09:30 open.
+    assert pd.Timestamp("2026-09-08 09:30", tz="America/New_York") in set(seen_last_bars)

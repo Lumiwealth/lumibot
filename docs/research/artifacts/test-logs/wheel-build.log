@@ -1,0 +1,987 @@
+/Users/robertgrzesik/Development/lumibot/.venv/lib/python3.10/site-packages/setuptools/dist.py:765: SetuptoolsDeprecationWarning: License classifiers are deprecated.
+!!
+
+        ********************************************************************************
+        Please consider removing the following classifiers in favor of a SPDX license expression:
+
+        License :: OSI Approved :: GNU General Public License v3 (GPLv3)
+
+        See https://packaging.python.org/en/latest/guides/writing-pyproject-toml/#license for details.
+        ********************************************************************************
+
+!!
+  self._finalize_license_expression()
+running bdist_wheel
+running build
+running build_py
+creating build/lib/lumibot
+copying lumibot/credentials.py -> build/lib/lumibot
+copying lumibot/constants.py -> build/lib/lumibot
+copying lumibot/__init__.py -> build/lib/lumibot
+copying lumibot/_lazy_imports.py -> build/lib/lumibot
+copying lumibot/cli.py -> build/lib/lumibot
+copying lumibot/_lazy_timezone.py -> build/lib/lumibot
+copying lumibot/__main__.py -> build/lib/lumibot
+creating build/lib/lumibot/fundamentals
+copying lumibot/fundamentals/__init__.py -> build/lib/lumibot/fundamentals
+copying lumibot/fundamentals/sec.py -> build/lib/lumibot/fundamentals
+creating build/lib/lumibot/brokers
+copying lumibot/brokers/interactive_brokers.py -> build/lib/lumibot/brokers
+copying lumibot/brokers/example_broker.py -> build/lib/lumibot/brokers
+copying lumibot/brokers/tradier.py -> build/lib/lumibot/brokers
+copying lumibot/brokers/ccxt.py -> build/lib/lumibot/brokers
+copying lumibot/brokers/trade_event_priority.py -> build/lib/lumibot/brokers
+copying lumibot/brokers/polymarket.py -> build/lib/lumibot/brokers
+copying lumibot/brokers/interactive_brokers_rest.py -> build/lib/lumibot/brokers
+copying lumibot/brokers/__init__.py -> build/lib/lumibot/brokers
+copying lumibot/brokers/tradovate.py -> build/lib/lumibot/brokers
+copying lumibot/brokers/bitunix.py -> build/lib/lumibot/brokers
+copying lumibot/brokers/schwab.py -> build/lib/lumibot/brokers
+copying lumibot/brokers/projectx.py -> build/lib/lumibot/brokers
+copying lumibot/brokers/oauth_refresh_mode.py -> build/lib/lumibot/brokers
+copying lumibot/brokers/broker.py -> build/lib/lumibot/brokers
+copying lumibot/brokers/alpaca.py -> build/lib/lumibot/brokers
+creating build/lib/lumibot/tools
+copying lumibot/tools/futures_roll.py -> build/lib/lumibot/tools
+copying lumibot/tools/bitunix_helpers.py -> build/lib/lumibot/tools
+copying lumibot/tools/ccxt_data_store.py -> build/lib/lumibot/tools
+copying lumibot/tools/symbol_normalization.py -> build/lib/lumibot/tools
+copying lumibot/tools/symbol_parser.py -> build/lib/lumibot/tools
+copying lumibot/tools/backtest_cache.py -> build/lib/lumibot/tools
+copying lumibot/tools/schwab_helper.py -> build/lib/lumibot/tools
+copying lumibot/tools/black_scholes.py -> build/lib/lumibot/tools
+copying lumibot/tools/pandas.py -> build/lib/lumibot/tools
+copying lumibot/tools/parquet_utils.py -> build/lib/lumibot/tools
+copying lumibot/tools/yahoo_helper_polars_optimized.py -> build/lib/lumibot/tools
+copying lumibot/tools/futures_symbols.py -> build/lib/lumibot/tools
+copying lumibot/tools/lumibot_logger.py -> build/lib/lumibot/tools
+copying lumibot/tools/ibkr_secdef.py -> build/lib/lumibot/tools
+copying lumibot/tools/polars_utils.py -> build/lib/lumibot/tools
+copying lumibot/tools/__init__.py -> build/lib/lumibot/tools
+copying lumibot/tools/indicators.py -> build/lib/lumibot/tools
+copying lumibot/tools/types.py -> build/lib/lumibot/tools
+copying lumibot/tools/yahoo_helper.py -> build/lib/lumibot/tools
+copying lumibot/tools/thetadata_helper.py -> build/lib/lumibot/tools
+copying lumibot/tools/debugers.py -> build/lib/lumibot/tools
+copying lumibot/tools/parquet_series_cache.py -> build/lib/lumibot/tools
+copying lumibot/tools/smart_limit_utils.py -> build/lib/lumibot/tools
+copying lumibot/tools/databento_helper.py -> build/lib/lumibot/tools
+copying lumibot/tools/runtime_telemetry.py -> build/lib/lumibot/tools
+copying lumibot/tools/data_downloader_queue_client.py -> build/lib/lumibot/tools
+copying lumibot/tools/alpaca_helpers.py -> build/lib/lumibot/tools
+copying lumibot/tools/polygon_helper_async.py -> build/lib/lumibot/tools
+copying lumibot/tools/polygon_helper.py -> build/lib/lumibot/tools
+copying lumibot/tools/lumibot_time.py -> build/lib/lumibot/tools
+copying lumibot/tools/databento_helper_polars.py -> build/lib/lumibot/tools
+copying lumibot/tools/polygon_helper_polars_optimized.py -> build/lib/lumibot/tools
+copying lumibot/tools/projectx_helpers.py -> build/lib/lumibot/tools
+copying lumibot/tools/ibkr_helper.py -> build/lib/lumibot/tools
+copying lumibot/tools/helpers.py -> build/lib/lumibot/tools
+copying lumibot/tools/ibkr_history_health.py -> build/lib/lumibot/tools
+copying lumibot/tools/decorators.py -> build/lib/lumibot/tools
+creating build/lib/lumibot/backtesting
+copying lumibot/backtesting/backtesting_broker.py -> build/lib/lumibot/backtesting
+copying lumibot/backtesting/databento_backtesting_polars.py -> build/lib/lumibot/backtesting
+copying lumibot/backtesting/polymarket_backtesting.py -> build/lib/lumibot/backtesting
+copying lumibot/backtesting/thetadata_backtesting_pandas.py -> build/lib/lumibot/backtesting
+copying lumibot/backtesting/alpha_vantage_backtesting.py -> build/lib/lumibot/backtesting
+copying lumibot/backtesting/yahoo_backtesting.py -> build/lib/lumibot/backtesting
+copying lumibot/backtesting/polygon_backtesting.py -> build/lib/lumibot/backtesting
+copying lumibot/backtesting/__init__.py -> build/lib/lumibot/backtesting
+copying lumibot/backtesting/databento_backtesting_pandas.py -> build/lib/lumibot/backtesting
+copying lumibot/backtesting/pandas_backtesting.py -> build/lib/lumibot/backtesting
+copying lumibot/backtesting/thetadata_backtesting.py -> build/lib/lumibot/backtesting
+copying lumibot/backtesting/databento_backtesting.py -> build/lib/lumibot/backtesting
+copying lumibot/backtesting/ccxt_backtesting.py -> build/lib/lumibot/backtesting
+copying lumibot/backtesting/routed_backtesting.py -> build/lib/lumibot/backtesting
+copying lumibot/backtesting/data_provenance.py -> build/lib/lumibot/backtesting
+copying lumibot/backtesting/interactive_brokers_rest_backtesting.py -> build/lib/lumibot/backtesting
+copying lumibot/backtesting/alpaca_backtesting.py -> build/lib/lumibot/backtesting
+creating build/lib/lumibot/traders
+copying lumibot/traders/__init__.py -> build/lib/lumibot/traders
+copying lumibot/traders/debug_log_trader.py -> build/lib/lumibot/traders
+copying lumibot/traders/trader.py -> build/lib/lumibot/traders
+creating build/lib/lumibot/strategies
+copying lumibot/strategies/scheduled_timing.py -> build/lib/lumibot/strategies
+copying lumibot/strategies/_strategy.py -> build/lib/lumibot/strategies
+copying lumibot/strategies/strategy_executor.py -> build/lib/lumibot/strategies
+copying lumibot/strategies/session_manager.py -> build/lib/lumibot/strategies
+copying lumibot/strategies/__init__.py -> build/lib/lumibot/strategies
+copying lumibot/strategies/strategy.py -> build/lib/lumibot/strategies
+creating build/lib/lumibot/indicators
+copying lumibot/indicators/__init__.py -> build/lib/lumibot/indicators
+copying lumibot/indicators/indicators.py -> build/lib/lumibot/indicators
+creating build/lib/lumibot/resources
+copying lumibot/resources/__init__.py -> build/lib/lumibot/resources
+creating build/lib/lumibot/trading_builtins
+copying lumibot/trading_builtins/safe_list.py -> build/lib/lumibot/trading_builtins
+copying lumibot/trading_builtins/__init__.py -> build/lib/lumibot/trading_builtins
+copying lumibot/trading_builtins/custom_stream.py -> build/lib/lumibot/trading_builtins
+creating build/lib/lumibot/components
+copying lumibot/components/configs_helper.py -> build/lib/lumibot/components
+copying lumibot/components/disclosure_signals.py -> build/lib/lumibot/components
+copying lumibot/components/perplexity_helper.py -> build/lib/lumibot/components
+copying lumibot/components/vix_helper.py -> build/lib/lumibot/components
+copying lumibot/components/__init__.py -> build/lib/lumibot/components
+copying lumibot/components/drift_rebalancer_logic.py -> build/lib/lumibot/components
+copying lumibot/components/quiver_helper.py -> build/lib/lumibot/components
+copying lumibot/components/options_helper.py -> build/lib/lumibot/components
+copying lumibot/components/grok_helper.py -> build/lib/lumibot/components
+creating build/lib/lumibot/macro
+copying lumibot/macro/__init__.py -> build/lib/lumibot/macro
+copying lumibot/macro/fred.py -> build/lib/lumibot/macro
+creating build/lib/lumibot/example_strategies
+copying lumibot/example_strategies/ai_iron_condor.py -> build/lib/lumibot/example_strategies
+copying lumibot/example_strategies/agent_discretionary.py -> build/lib/lumibot/example_strategies
+copying lumibot/example_strategies/simple_start_single_file.py -> build/lib/lumibot/example_strategies
+copying lumibot/example_strategies/stock_oco.py -> build/lib/lumibot/example_strategies
+copying lumibot/example_strategies/ai_trading_team_citadel_sector_pods.py -> build/lib/lumibot/example_strategies
+copying lumibot/example_strategies/schedule_function.py -> build/lib/lumibot/example_strategies
+copying lumibot/example_strategies/classic_60_40_config.py -> build/lib/lumibot/example_strategies
+copying lumibot/example_strategies/agent_m2_liquidity_openai.py -> build/lib/lumibot/example_strategies
+copying lumibot/example_strategies/strangle.py -> build/lib/lumibot/example_strategies
+copying lumibot/example_strategies/ccxt_backtesting_example.py -> build/lib/lumibot/example_strategies
+copying lumibot/example_strategies/ai_researcher_trader.py -> build/lib/lumibot/example_strategies
+copying lumibot/example_strategies/lifecycle_logger.py -> build/lib/lumibot/example_strategies
+copying lumibot/example_strategies/stock_limit_and_trailing_stops.py -> build/lib/lumibot/example_strategies
+copying lumibot/example_strategies/stock_diversified_leverage.py -> build/lib/lumibot/example_strategies
+copying lumibot/example_strategies/stock_buy_and_hold.py -> build/lib/lumibot/example_strategies
+copying lumibot/example_strategies/ai_credit_spread.py -> build/lib/lumibot/example_strategies
+copying lumibot/example_strategies/ai_sec_insider_filings.py -> build/lib/lumibot/example_strategies
+copying lumibot/example_strategies/ai_trading_team_ray_dalio_idea_meritocracy.py -> build/lib/lumibot/example_strategies
+copying lumibot/example_strategies/options_hold_to_expiry.py -> build/lib/lumibot/example_strategies
+copying lumibot/example_strategies/ai_spx_zero_dte_bear_call_team.py -> build/lib/lumibot/example_strategies
+copying lumibot/example_strategies/ai_trading_team_bill_ackman_concentrated.py -> build/lib/lumibot/example_strategies
+copying lumibot/example_strategies/stock_momentum.py -> build/lib/lumibot/example_strategies
+copying lumibot/example_strategies/__init__.py -> build/lib/lumibot/example_strategies
+copying lumibot/example_strategies/agent_m2_liquidity_grok.py -> build/lib/lumibot/example_strategies
+copying lumibot/example_strategies/forex_hold_to_expiry.py -> build/lib/lumibot/example_strategies
+copying lumibot/example_strategies/futures_hold_to_expiry.py -> build/lib/lumibot/example_strategies
+copying lumibot/example_strategies/ai_trading_team.py -> build/lib/lumibot/example_strategies
+copying lumibot/example_strategies/disclosure_replay.py -> build/lib/lumibot/example_strategies
+copying lumibot/example_strategies/ai_vwap.py -> build/lib/lumibot/example_strategies
+copying lumibot/example_strategies/agent_macro_risk.py -> build/lib/lumibot/example_strategies
+copying lumibot/example_strategies/classic_60_40.py -> build/lib/lumibot/example_strategies
+copying lumibot/example_strategies/ai_opening_range_breakout.py -> build/lib/lumibot/example_strategies
+copying lumibot/example_strategies/crypto_50_50_config.py -> build/lib/lumibot/example_strategies
+copying lumibot/example_strategies/agent_news_sentiment.py -> build/lib/lumibot/example_strategies
+copying lumibot/example_strategies/drift_rebalancer.py -> build/lib/lumibot/example_strategies
+copying lumibot/example_strategies/agent_momentum_allocator.py -> build/lib/lumibot/example_strategies
+copying lumibot/example_strategies/first_backtest.py -> build/lib/lumibot/example_strategies
+copying lumibot/example_strategies/agent_m2_liquidity_anthropic.py -> build/lib/lumibot/example_strategies
+copying lumibot/example_strategies/ai_congress_disclosures.py -> build/lib/lumibot/example_strategies
+copying lumibot/example_strategies/crypto_important_functions.py -> build/lib/lumibot/example_strategies
+copying lumibot/example_strategies/ai_browser_research_showcase.py -> build/lib/lumibot/example_strategies
+copying lumibot/example_strategies/ai_trading_team_bull_bear_leveraged_etf.py -> build/lib/lumibot/example_strategies
+copying lumibot/example_strategies/agent_m2_liquidity.py -> build/lib/lumibot/example_strategies
+copying lumibot/example_strategies/bitunix_futures_example.py -> build/lib/lumibot/example_strategies
+copying lumibot/example_strategies/ai_trading_team_warren_buffett_value.py -> build/lib/lumibot/example_strategies
+copying lumibot/example_strategies/ai_trading_team_bull_bear_large_cap_stocks.py -> build/lib/lumibot/example_strategies
+copying lumibot/example_strategies/agent_alpaca_news_builtin.py -> build/lib/lumibot/example_strategies
+copying lumibot/example_strategies/test_broker_functions.py -> build/lib/lumibot/example_strategies
+copying lumibot/example_strategies/crypto_50_50.py -> build/lib/lumibot/example_strategies
+copying lumibot/example_strategies/polymarket_prediction_contract.py -> build/lib/lumibot/example_strategies
+copying lumibot/example_strategies/stock_bracket.py -> build/lib/lumibot/example_strategies
+creating build/lib/lumibot/data_sources
+copying lumibot/data_sources/data_source.py -> build/lib/lumibot/data_sources
+copying lumibot/data_sources/polygon_data_polars.py -> build/lib/lumibot/data_sources
+copying lumibot/data_sources/yahoo_data_polars.py -> build/lib/lumibot/data_sources
+copying lumibot/data_sources/alpaca_data.py -> build/lib/lumibot/data_sources
+copying lumibot/data_sources/polymarket_data.py -> build/lib/lumibot/data_sources
+copying lumibot/data_sources/bitunix_data.py -> build/lib/lumibot/data_sources
+copying lumibot/data_sources/databento_data_pandas.py -> build/lib/lumibot/data_sources
+copying lumibot/data_sources/__init__.py -> build/lib/lumibot/data_sources
+copying lumibot/data_sources/databento_data.py -> build/lib/lumibot/data_sources
+copying lumibot/data_sources/ccxt_data.py -> build/lib/lumibot/data_sources
+copying lumibot/data_sources/ibkr_gateway.py -> build/lib/lumibot/data_sources
+copying lumibot/data_sources/alpha_vantage_data.py -> build/lib/lumibot/data_sources
+copying lumibot/data_sources/yahoo_data.py -> build/lib/lumibot/data_sources
+copying lumibot/data_sources/ccxt_backtesting_data.py -> build/lib/lumibot/data_sources
+copying lumibot/data_sources/projectx_data.py -> build/lib/lumibot/data_sources
+copying lumibot/data_sources/exceptions.py -> build/lib/lumibot/data_sources
+copying lumibot/data_sources/polars_mixin.py -> build/lib/lumibot/data_sources
+copying lumibot/data_sources/interactive_brokers_data.py -> build/lib/lumibot/data_sources
+copying lumibot/data_sources/example_broker_data.py -> build/lib/lumibot/data_sources
+copying lumibot/data_sources/tradovate_data.py -> build/lib/lumibot/data_sources
+copying lumibot/data_sources/polars_data.py -> build/lib/lumibot/data_sources
+copying lumibot/data_sources/tradier_data.py -> build/lib/lumibot/data_sources
+copying lumibot/data_sources/pandas_data.py -> build/lib/lumibot/data_sources
+copying lumibot/data_sources/interactive_brokers_rest_data.py -> build/lib/lumibot/data_sources
+copying lumibot/data_sources/databento_data_polars.py -> build/lib/lumibot/data_sources
+copying lumibot/data_sources/schwab_data.py -> build/lib/lumibot/data_sources
+copying lumibot/data_sources/data_source_backtesting.py -> build/lib/lumibot/data_sources
+creating build/lib/lumibot/entities
+copying lumibot/entities/chains.py -> build/lib/lumibot/entities
+copying lumibot/entities/cash_event.py -> build/lib/lumibot/entities
+copying lumibot/entities/asset.py -> build/lib/lumibot/entities
+copying lumibot/entities/quote.py -> build/lib/lumibot/entities
+copying lumibot/entities/order.py -> build/lib/lumibot/entities
+copying lumibot/entities/__init__.py -> build/lib/lumibot/entities
+copying lumibot/entities/trading_slippage.py -> build/lib/lumibot/entities
+copying lumibot/entities/data_polars.py -> build/lib/lumibot/entities
+copying lumibot/entities/position.py -> build/lib/lumibot/entities
+copying lumibot/entities/bar.py -> build/lib/lumibot/entities
+copying lumibot/entities/bars.py -> build/lib/lumibot/entities
+copying lumibot/entities/trading_fee.py -> build/lib/lumibot/entities
+copying lumibot/entities/dataline.py -> build/lib/lumibot/entities
+copying lumibot/entities/data.py -> build/lib/lumibot/entities
+copying lumibot/entities/smart_limit.py -> build/lib/lumibot/entities
+creating build/lib/lumibot/components/memory
+copying lumibot/components/memory/store.py -> build/lib/lumibot/components/memory
+copying lumibot/components/memory/__init__.py -> build/lib/lumibot/components/memory
+creating build/lib/lumibot/components/agents
+copying lumibot/components/agents/browser_benchmark.py -> build/lib/lumibot/components/agents
+copying lumibot/components/agents/managed_gateway.py -> build/lib/lumibot/components/agents
+copying lumibot/components/agents/web_tools.py -> build/lib/lumibot/components/agents
+copying lumibot/components/agents/asset_resolution.py -> build/lib/lumibot/components/agents
+copying lumibot/components/agents/skills.py -> build/lib/lumibot/components/agents
+copying lumibot/components/agents/builtins.py -> build/lib/lumibot/components/agents
+copying lumibot/components/agents/tools.py -> build/lib/lumibot/components/agents
+copying lumibot/components/agents/tool_context.py -> build/lib/lumibot/components/agents
+copying lumibot/components/agents/__init__.py -> build/lib/lumibot/components/agents
+copying lumibot/components/agents/docs_tools.py -> build/lib/lumibot/components/agents
+copying lumibot/components/agents/rules.py -> build/lib/lumibot/components/agents
+copying lumibot/components/agents/replay_cache.py -> build/lib/lumibot/components/agents
+copying lumibot/components/agents/runtime.py -> build/lib/lumibot/components/agents
+copying lumibot/components/agents/schemas.py -> build/lib/lumibot/components/agents
+copying lumibot/components/agents/duckdb_tools.py -> build/lib/lumibot/components/agents
+copying lumibot/components/agents/browser_tools.py -> build/lib/lumibot/components/agents
+copying lumibot/components/agents/manager.py -> build/lib/lumibot/components/agents
+creating build/lib/lumibot/components/notifications
+copying lumibot/components/notifications/telegram.py -> build/lib/lumibot/components/notifications
+copying lumibot/components/notifications/__init__.py -> build/lib/lumibot/components/notifications
+copying lumibot/components/notifications/resend.py -> build/lib/lumibot/components/notifications
+copying lumibot/components/notifications/base.py -> build/lib/lumibot/components/notifications
+copying lumibot/components/notifications/slack.py -> build/lib/lumibot/components/notifications
+running egg_info
+writing lumibot.egg-info/PKG-INFO
+writing dependency_links to lumibot.egg-info/dependency_links.txt
+writing entry points to lumibot.egg-info/entry_points.txt
+writing requirements to lumibot.egg-info/requires.txt
+writing top-level names to lumibot.egg-info/top_level.txt
+reading manifest file 'lumibot.egg-info/SOURCES.txt'
+reading manifest template 'MANIFEST.in'
+warning: no previously-included files matching '*.py[cod]' found anywhere in distribution
+adding license file 'LICENSE'
+writing manifest file 'lumibot.egg-info/SOURCES.txt'
+/Users/robertgrzesik/Development/lumibot/.venv/lib/python3.10/site-packages/setuptools/command/build_py.py:215: _Warning: Package 'lumibot.components.agents.skills' is absent from the `packages` configuration.
+!!
+
+        ********************************************************************************
+        ############################
+        # Package would be ignored #
+        ############################
+        Python recognizes 'lumibot.components.agents.skills' as an importable package[^1],
+        but it is absent from setuptools' `packages` configuration.
+
+        This leads to an ambiguous overall configuration. If you want to distribute this
+        package, please make sure that 'lumibot.components.agents.skills' is explicitly added
+        to the `packages` configuration field.
+
+        Alternatively, you can also rely on setuptools' discovery methods
+        (for example by using `find_namespace_packages(...)`/`find_namespace:`
+        instead of `find_packages(...)`/`find:`).
+
+        You can read more about "package discovery" on setuptools documentation page:
+
+        - https://setuptools.pypa.io/en/latest/userguide/package_discovery.html
+
+        If you don't want 'lumibot.components.agents.skills' to be distributed and are
+        already explicitly excluding 'lumibot.components.agents.skills' via
+        `find_namespace_packages(...)/find_namespace` or `find_packages(...)/find`,
+        you can try to use `exclude_package_data`, or `include-package-data=False` in
+        combination with a more fine grained `package-data` configuration.
+
+        You can read more about "package data files" on setuptools documentation page:
+
+        - https://setuptools.pypa.io/en/latest/userguide/datafiles.html
+
+
+        [^1]: For Python, any directory (with suitable naming) can be imported,
+              even if it does not contain any `.py` files.
+              On the other hand, currently there is no concept of package data
+              directory, all directories are treated like packages.
+        ********************************************************************************
+
+!!
+  check.warn(importable)
+/Users/robertgrzesik/Development/lumibot/.venv/lib/python3.10/site-packages/setuptools/command/build_py.py:215: _Warning: Package 'lumibot.example_strategies.agent_rules' is absent from the `packages` configuration.
+!!
+
+        ********************************************************************************
+        ############################
+        # Package would be ignored #
+        ############################
+        Python recognizes 'lumibot.example_strategies.agent_rules' as an importable package[^1],
+        but it is absent from setuptools' `packages` configuration.
+
+        This leads to an ambiguous overall configuration. If you want to distribute this
+        package, please make sure that 'lumibot.example_strategies.agent_rules' is explicitly added
+        to the `packages` configuration field.
+
+        Alternatively, you can also rely on setuptools' discovery methods
+        (for example by using `find_namespace_packages(...)`/`find_namespace:`
+        instead of `find_packages(...)`/`find:`).
+
+        You can read more about "package discovery" on setuptools documentation page:
+
+        - https://setuptools.pypa.io/en/latest/userguide/package_discovery.html
+
+        If you don't want 'lumibot.example_strategies.agent_rules' to be distributed and are
+        already explicitly excluding 'lumibot.example_strategies.agent_rules' via
+        `find_namespace_packages(...)/find_namespace` or `find_packages(...)/find`,
+        you can try to use `exclude_package_data`, or `include-package-data=False` in
+        combination with a more fine grained `package-data` configuration.
+
+        You can read more about "package data files" on setuptools documentation page:
+
+        - https://setuptools.pypa.io/en/latest/userguide/datafiles.html
+
+
+        [^1]: For Python, any directory (with suitable naming) can be imported,
+              even if it does not contain any `.py` files.
+              On the other hand, currently there is no concept of package data
+              directory, all directories are treated like packages.
+        ********************************************************************************
+
+!!
+  check.warn(importable)
+/Users/robertgrzesik/Development/lumibot/.venv/lib/python3.10/site-packages/setuptools/command/build_py.py:215: _Warning: Package 'lumibot.example_strategies.fixtures' is absent from the `packages` configuration.
+!!
+
+        ********************************************************************************
+        ############################
+        # Package would be ignored #
+        ############################
+        Python recognizes 'lumibot.example_strategies.fixtures' as an importable package[^1],
+        but it is absent from setuptools' `packages` configuration.
+
+        This leads to an ambiguous overall configuration. If you want to distribute this
+        package, please make sure that 'lumibot.example_strategies.fixtures' is explicitly added
+        to the `packages` configuration field.
+
+        Alternatively, you can also rely on setuptools' discovery methods
+        (for example by using `find_namespace_packages(...)`/`find_namespace:`
+        instead of `find_packages(...)`/`find:`).
+
+        You can read more about "package discovery" on setuptools documentation page:
+
+        - https://setuptools.pypa.io/en/latest/userguide/package_discovery.html
+
+        If you don't want 'lumibot.example_strategies.fixtures' to be distributed and are
+        already explicitly excluding 'lumibot.example_strategies.fixtures' via
+        `find_namespace_packages(...)/find_namespace` or `find_packages(...)/find`,
+        you can try to use `exclude_package_data`, or `include-package-data=False` in
+        combination with a more fine grained `package-data` configuration.
+
+        You can read more about "package data files" on setuptools documentation page:
+
+        - https://setuptools.pypa.io/en/latest/userguide/datafiles.html
+
+
+        [^1]: For Python, any directory (with suitable naming) can be imported,
+              even if it does not contain any `.py` files.
+              On the other hand, currently there is no concept of package data
+              directory, all directories are treated like packages.
+        ********************************************************************************
+
+!!
+  check.warn(importable)
+copying lumibot/resources/conf.yaml -> build/lib/lumibot/resources
+creating build/lib/lumibot/components/agents/skills/options-trading
+copying lumibot/components/agents/skills/options-trading/SKILL.md -> build/lib/lumibot/components/agents/skills/options-trading
+creating build/lib/lumibot/components/agents/skills/stock-trading
+copying lumibot/components/agents/skills/stock-trading/SKILL.md -> build/lib/lumibot/components/agents/skills/stock-trading
+creating build/lib/lumibot/components/agents/skills/research-data
+copying lumibot/components/agents/skills/research-data/SKILL.md -> build/lib/lumibot/components/agents/skills/research-data
+creating build/lib/lumibot/components/agents/skills/options-trading/agents
+copying lumibot/components/agents/skills/options-trading/agents/openai.yaml -> build/lib/lumibot/components/agents/skills/options-trading/agents
+creating build/lib/lumibot/components/agents/skills/stock-trading/agents
+copying lumibot/components/agents/skills/stock-trading/agents/openai.yaml -> build/lib/lumibot/components/agents/skills/stock-trading/agents
+creating build/lib/lumibot/components/agents/skills/research-data/agents
+copying lumibot/components/agents/skills/research-data/agents/openai.yaml -> build/lib/lumibot/components/agents/skills/research-data/agents
+creating build/lib/lumibot/components/agents/skills/options-trading/references
+copying lumibot/components/agents/skills/options-trading/references/common-option-structures.md -> build/lib/lumibot/components/agents/skills/options-trading/references
+copying lumibot/components/agents/skills/options-trading/references/contracts-greeks-liquidity.md -> build/lib/lumibot/components/agents/skills/options-trading/references
+copying lumibot/components/agents/skills/options-trading/references/position-management.md -> build/lib/lumibot/components/agents/skills/options-trading/references
+copying lumibot/components/agents/skills/options-trading/references/multileg-orders.md -> build/lib/lumibot/components/agents/skills/options-trading/references
+creating build/lib/lumibot/components/agents/skills/stock-trading/references
+copying lumibot/components/agents/skills/stock-trading/references/research-sizing-and-orders.md -> build/lib/lumibot/components/agents/skills/stock-trading/references
+copying lumibot/components/agents/skills/stock-trading/references/intraday-setups.md -> build/lib/lumibot/components/agents/skills/stock-trading/references
+creating build/lib/lumibot/example_strategies/agent_rules
+copying lumibot/example_strategies/agent_rules/ai_spx_zero_dte_bear_call_team.rules.json -> build/lib/lumibot/example_strategies/agent_rules
+copying lumibot/example_strategies/agent_rules/ai_iron_condor.rules.json -> build/lib/lumibot/example_strategies/agent_rules
+copying lumibot/example_strategies/agent_rules/ai_credit_spread.rules.json -> build/lib/lumibot/example_strategies/agent_rules
+copying lumibot/example_strategies/agent_rules/ai_vwap.rules.json -> build/lib/lumibot/example_strategies/agent_rules
+copying lumibot/example_strategies/agent_rules/ai_opening_range_breakout.rules.json -> build/lib/lumibot/example_strategies/agent_rules
+creating build/lib/lumibot/example_strategies/fixtures
+copying lumibot/example_strategies/fixtures/congress_disclosures.json -> build/lib/lumibot/example_strategies/fixtures
+copying lumibot/example_strategies/fixtures/sec_form4_transactions.json -> build/lib/lumibot/example_strategies/fixtures
+copying lumibot/resources/ThetaTerminal.jar -> build/lib/lumibot/resources
+copying lumibot/resources/ThetaTerminal.jar -> build/lib/lumibot/resources
+copying lumibot/resources/conf.yaml -> build/lib/lumibot/resources
+copying lumibot/example_strategies/agent_rules/ai_credit_spread.rules.json -> build/lib/lumibot/example_strategies/agent_rules
+copying lumibot/example_strategies/agent_rules/ai_iron_condor.rules.json -> build/lib/lumibot/example_strategies/agent_rules
+copying lumibot/example_strategies/agent_rules/ai_opening_range_breakout.rules.json -> build/lib/lumibot/example_strategies/agent_rules
+copying lumibot/example_strategies/agent_rules/ai_spx_zero_dte_bear_call_team.rules.json -> build/lib/lumibot/example_strategies/agent_rules
+copying lumibot/example_strategies/agent_rules/ai_vwap.rules.json -> build/lib/lumibot/example_strategies/agent_rules
+copying lumibot/example_strategies/fixtures/congress_disclosures.json -> build/lib/lumibot/example_strategies/fixtures
+copying lumibot/example_strategies/fixtures/sec_form4_transactions.json -> build/lib/lumibot/example_strategies/fixtures
+copying lumibot/components/agents/skills/options-trading/SKILL.md -> build/lib/lumibot/components/agents/skills/options-trading
+copying lumibot/components/agents/skills/options-trading/agents/openai.yaml -> build/lib/lumibot/components/agents/skills/options-trading/agents
+copying lumibot/components/agents/skills/options-trading/references/common-option-structures.md -> build/lib/lumibot/components/agents/skills/options-trading/references
+copying lumibot/components/agents/skills/options-trading/references/contracts-greeks-liquidity.md -> build/lib/lumibot/components/agents/skills/options-trading/references
+copying lumibot/components/agents/skills/options-trading/references/multileg-orders.md -> build/lib/lumibot/components/agents/skills/options-trading/references
+copying lumibot/components/agents/skills/options-trading/references/position-management.md -> build/lib/lumibot/components/agents/skills/options-trading/references
+copying lumibot/components/agents/skills/research-data/SKILL.md -> build/lib/lumibot/components/agents/skills/research-data
+copying lumibot/components/agents/skills/research-data/agents/openai.yaml -> build/lib/lumibot/components/agents/skills/research-data/agents
+copying lumibot/components/agents/skills/stock-trading/SKILL.md -> build/lib/lumibot/components/agents/skills/stock-trading
+copying lumibot/components/agents/skills/stock-trading/agents/openai.yaml -> build/lib/lumibot/components/agents/skills/stock-trading/agents
+copying lumibot/components/agents/skills/stock-trading/references/intraday-setups.md -> build/lib/lumibot/components/agents/skills/stock-trading/references
+copying lumibot/components/agents/skills/stock-trading/references/research-sizing-and-orders.md -> build/lib/lumibot/components/agents/skills/stock-trading/references
+/Users/robertgrzesik/Development/lumibot/.venv/lib/python3.10/site-packages/setuptools/_distutils/cmd.py:90: SetuptoolsDeprecationWarning: setup.py install is deprecated.
+!!
+
+        ********************************************************************************
+        Please avoid running ``setup.py`` directly.
+        Instead, use pypa/build, pypa/installer or other
+        standards-based tools.
+
+        This deprecation is overdue, please update your project and remove deprecated
+        calls to avoid build errors in the future.
+
+        See https://blog.ganssle.io/articles/2021/10/setup-py-deprecated.html for details.
+        ********************************************************************************
+
+!!
+  self.initialize_options()
+[build] Bundled ThetaTerminal.jar -> build/lib/lumibot/resources/ThetaTerminal.jar (size=39187662 bytes)
+installing to build/bdist.macosx-11.0-arm64/wheel
+running install
+running install_lib
+creating build/bdist.macosx-11.0-arm64/wheel
+creating build/bdist.macosx-11.0-arm64/wheel/lumibot
+creating build/bdist.macosx-11.0-arm64/wheel/lumibot/fundamentals
+copying build/lib/lumibot/fundamentals/__init__.py -> build/bdist.macosx-11.0-arm64/wheel/./lumibot/fundamentals
+copying build/lib/lumibot/fundamentals/sec.py -> build/bdist.macosx-11.0-arm64/wheel/./lumibot/fundamentals
+creating build/bdist.macosx-11.0-arm64/wheel/lumibot/brokers
+copying build/lib/lumibot/brokers/interactive_brokers.py -> build/bdist.macosx-11.0-arm64/wheel/./lumibot/brokers
+copying build/lib/lumibot/brokers/example_broker.py -> build/bdist.macosx-11.0-arm64/wheel/./lumibot/brokers
+copying build/lib/lumibot/brokers/tradier.py -> build/bdist.macosx-11.0-arm64/wheel/./lumibot/brokers
+copying build/lib/lumibot/brokers/ccxt.py -> build/bdist.macosx-11.0-arm64/wheel/./lumibot/brokers
+copying build/lib/lumibot/brokers/trade_event_priority.py -> build/bdist.macosx-11.0-arm64/wheel/./lumibot/brokers
+copying build/lib/lumibot/brokers/polymarket.py -> build/bdist.macosx-11.0-arm64/wheel/./lumibot/brokers
+copying build/lib/lumibot/brokers/interactive_brokers_rest.py -> build/bdist.macosx-11.0-arm64/wheel/./lumibot/brokers
+copying build/lib/lumibot/brokers/__init__.py -> build/bdist.macosx-11.0-arm64/wheel/./lumibot/brokers
+copying build/lib/lumibot/brokers/tradovate.py -> build/bdist.macosx-11.0-arm64/wheel/./lumibot/brokers
+copying build/lib/lumibot/brokers/bitunix.py -> build/bdist.macosx-11.0-arm64/wheel/./lumibot/brokers
+copying build/lib/lumibot/brokers/schwab.py -> build/bdist.macosx-11.0-arm64/wheel/./lumibot/brokers
+copying build/lib/lumibot/brokers/projectx.py -> build/bdist.macosx-11.0-arm64/wheel/./lumibot/brokers
+copying build/lib/lumibot/brokers/oauth_refresh_mode.py -> build/bdist.macosx-11.0-arm64/wheel/./lumibot/brokers
+copying build/lib/lumibot/brokers/broker.py -> build/bdist.macosx-11.0-arm64/wheel/./lumibot/brokers
+copying build/lib/lumibot/brokers/alpaca.py -> build/bdist.macosx-11.0-arm64/wheel/./lumibot/brokers
+creating build/bdist.macosx-11.0-arm64/wheel/lumibot/tools
+copying build/lib/lumibot/tools/futures_roll.py -> build/bdist.macosx-11.0-arm64/wheel/./lumibot/tools
+copying build/lib/lumibot/tools/bitunix_helpers.py -> build/bdist.macosx-11.0-arm64/wheel/./lumibot/tools
+copying build/lib/lumibot/tools/ccxt_data_store.py -> build/bdist.macosx-11.0-arm64/wheel/./lumibot/tools
+copying build/lib/lumibot/tools/symbol_normalization.py -> build/bdist.macosx-11.0-arm64/wheel/./lumibot/tools
+copying build/lib/lumibot/tools/symbol_parser.py -> build/bdist.macosx-11.0-arm64/wheel/./lumibot/tools
+copying build/lib/lumibot/tools/backtest_cache.py -> build/bdist.macosx-11.0-arm64/wheel/./lumibot/tools
+copying build/lib/lumibot/tools/schwab_helper.py -> build/bdist.macosx-11.0-arm64/wheel/./lumibot/tools
+copying build/lib/lumibot/tools/black_scholes.py -> build/bdist.macosx-11.0-arm64/wheel/./lumibot/tools
+copying build/lib/lumibot/tools/pandas.py -> build/bdist.macosx-11.0-arm64/wheel/./lumibot/tools
+copying build/lib/lumibot/tools/parquet_utils.py -> build/bdist.macosx-11.0-arm64/wheel/./lumibot/tools
+copying build/lib/lumibot/tools/yahoo_helper_polars_optimized.py -> build/bdist.macosx-11.0-arm64/wheel/./lumibot/tools
+copying build/lib/lumibot/tools/futures_symbols.py -> build/bdist.macosx-11.0-arm64/wheel/./lumibot/tools
+copying build/lib/lumibot/tools/lumibot_logger.py -> build/bdist.macosx-11.0-arm64/wheel/./lumibot/tools
+copying build/lib/lumibot/tools/ibkr_secdef.py -> build/bdist.macosx-11.0-arm64/wheel/./lumibot/tools
+copying build/lib/lumibot/tools/polars_utils.py -> build/bdist.macosx-11.0-arm64/wheel/./lumibot/tools
+copying build/lib/lumibot/tools/__init__.py -> build/bdist.macosx-11.0-arm64/wheel/./lumibot/tools
+copying build/lib/lumibot/tools/indicators.py -> build/bdist.macosx-11.0-arm64/wheel/./lumibot/tools
+copying build/lib/lumibot/tools/types.py -> build/bdist.macosx-11.0-arm64/wheel/./lumibot/tools
+copying build/lib/lumibot/tools/yahoo_helper.py -> build/bdist.macosx-11.0-arm64/wheel/./lumibot/tools
+copying build/lib/lumibot/tools/thetadata_helper.py -> build/bdist.macosx-11.0-arm64/wheel/./lumibot/tools
+copying build/lib/lumibot/tools/debugers.py -> build/bdist.macosx-11.0-arm64/wheel/./lumibot/tools
+copying build/lib/lumibot/tools/parquet_series_cache.py -> build/bdist.macosx-11.0-arm64/wheel/./lumibot/tools
+copying build/lib/lumibot/tools/smart_limit_utils.py -> build/bdist.macosx-11.0-arm64/wheel/./lumibot/tools
+copying build/lib/lumibot/tools/databento_helper.py -> build/bdist.macosx-11.0-arm64/wheel/./lumibot/tools
+copying build/lib/lumibot/tools/runtime_telemetry.py -> build/bdist.macosx-11.0-arm64/wheel/./lumibot/tools
+copying build/lib/lumibot/tools/data_downloader_queue_client.py -> build/bdist.macosx-11.0-arm64/wheel/./lumibot/tools
+copying build/lib/lumibot/tools/alpaca_helpers.py -> build/bdist.macosx-11.0-arm64/wheel/./lumibot/tools
+copying build/lib/lumibot/tools/polygon_helper_async.py -> build/bdist.macosx-11.0-arm64/wheel/./lumibot/tools
+copying build/lib/lumibot/tools/polygon_helper.py -> build/bdist.macosx-11.0-arm64/wheel/./lumibot/tools
+copying build/lib/lumibot/tools/lumibot_time.py -> build/bdist.macosx-11.0-arm64/wheel/./lumibot/tools
+copying build/lib/lumibot/tools/databento_helper_polars.py -> build/bdist.macosx-11.0-arm64/wheel/./lumibot/tools
+copying build/lib/lumibot/tools/polygon_helper_polars_optimized.py -> build/bdist.macosx-11.0-arm64/wheel/./lumibot/tools
+copying build/lib/lumibot/tools/projectx_helpers.py -> build/bdist.macosx-11.0-arm64/wheel/./lumibot/tools
+copying build/lib/lumibot/tools/ibkr_helper.py -> build/bdist.macosx-11.0-arm64/wheel/./lumibot/tools
+copying build/lib/lumibot/tools/helpers.py -> build/bdist.macosx-11.0-arm64/wheel/./lumibot/tools
+copying build/lib/lumibot/tools/ibkr_history_health.py -> build/bdist.macosx-11.0-arm64/wheel/./lumibot/tools
+copying build/lib/lumibot/tools/decorators.py -> build/bdist.macosx-11.0-arm64/wheel/./lumibot/tools
+creating build/bdist.macosx-11.0-arm64/wheel/lumibot/backtesting
+copying build/lib/lumibot/backtesting/backtesting_broker.py -> build/bdist.macosx-11.0-arm64/wheel/./lumibot/backtesting
+copying build/lib/lumibot/backtesting/databento_backtesting_polars.py -> build/bdist.macosx-11.0-arm64/wheel/./lumibot/backtesting
+copying build/lib/lumibot/backtesting/polymarket_backtesting.py -> build/bdist.macosx-11.0-arm64/wheel/./lumibot/backtesting
+copying build/lib/lumibot/backtesting/thetadata_backtesting_pandas.py -> build/bdist.macosx-11.0-arm64/wheel/./lumibot/backtesting
+copying build/lib/lumibot/backtesting/alpha_vantage_backtesting.py -> build/bdist.macosx-11.0-arm64/wheel/./lumibot/backtesting
+copying build/lib/lumibot/backtesting/yahoo_backtesting.py -> build/bdist.macosx-11.0-arm64/wheel/./lumibot/backtesting
+copying build/lib/lumibot/backtesting/polygon_backtesting.py -> build/bdist.macosx-11.0-arm64/wheel/./lumibot/backtesting
+copying build/lib/lumibot/backtesting/__init__.py -> build/bdist.macosx-11.0-arm64/wheel/./lumibot/backtesting
+copying build/lib/lumibot/backtesting/databento_backtesting_pandas.py -> build/bdist.macosx-11.0-arm64/wheel/./lumibot/backtesting
+copying build/lib/lumibot/backtesting/pandas_backtesting.py -> build/bdist.macosx-11.0-arm64/wheel/./lumibot/backtesting
+copying build/lib/lumibot/backtesting/thetadata_backtesting.py -> build/bdist.macosx-11.0-arm64/wheel/./lumibot/backtesting
+copying build/lib/lumibot/backtesting/databento_backtesting.py -> build/bdist.macosx-11.0-arm64/wheel/./lumibot/backtesting
+copying build/lib/lumibot/backtesting/ccxt_backtesting.py -> build/bdist.macosx-11.0-arm64/wheel/./lumibot/backtesting
+copying build/lib/lumibot/backtesting/routed_backtesting.py -> build/bdist.macosx-11.0-arm64/wheel/./lumibot/backtesting
+copying build/lib/lumibot/backtesting/data_provenance.py -> build/bdist.macosx-11.0-arm64/wheel/./lumibot/backtesting
+copying build/lib/lumibot/backtesting/interactive_brokers_rest_backtesting.py -> build/bdist.macosx-11.0-arm64/wheel/./lumibot/backtesting
+copying build/lib/lumibot/backtesting/alpaca_backtesting.py -> build/bdist.macosx-11.0-arm64/wheel/./lumibot/backtesting
+creating build/bdist.macosx-11.0-arm64/wheel/lumibot/traders
+copying build/lib/lumibot/traders/__init__.py -> build/bdist.macosx-11.0-arm64/wheel/./lumibot/traders
+copying build/lib/lumibot/traders/debug_log_trader.py -> build/bdist.macosx-11.0-arm64/wheel/./lumibot/traders
+copying build/lib/lumibot/traders/trader.py -> build/bdist.macosx-11.0-arm64/wheel/./lumibot/traders
+copying build/lib/lumibot/credentials.py -> build/bdist.macosx-11.0-arm64/wheel/./lumibot
+creating build/bdist.macosx-11.0-arm64/wheel/lumibot/strategies
+copying build/lib/lumibot/strategies/scheduled_timing.py -> build/bdist.macosx-11.0-arm64/wheel/./lumibot/strategies
+copying build/lib/lumibot/strategies/_strategy.py -> build/bdist.macosx-11.0-arm64/wheel/./lumibot/strategies
+copying build/lib/lumibot/strategies/strategy_executor.py -> build/bdist.macosx-11.0-arm64/wheel/./lumibot/strategies
+copying build/lib/lumibot/strategies/session_manager.py -> build/bdist.macosx-11.0-arm64/wheel/./lumibot/strategies
+copying build/lib/lumibot/strategies/__init__.py -> build/bdist.macosx-11.0-arm64/wheel/./lumibot/strategies
+copying build/lib/lumibot/strategies/strategy.py -> build/bdist.macosx-11.0-arm64/wheel/./lumibot/strategies
+creating build/bdist.macosx-11.0-arm64/wheel/lumibot/indicators
+copying build/lib/lumibot/indicators/__init__.py -> build/bdist.macosx-11.0-arm64/wheel/./lumibot/indicators
+copying build/lib/lumibot/indicators/indicators.py -> build/bdist.macosx-11.0-arm64/wheel/./lumibot/indicators
+creating build/bdist.macosx-11.0-arm64/wheel/lumibot/resources
+copying build/lib/lumibot/resources/conf.yaml -> build/bdist.macosx-11.0-arm64/wheel/./lumibot/resources
+copying build/lib/lumibot/resources/__init__.py -> build/bdist.macosx-11.0-arm64/wheel/./lumibot/resources
+copying build/lib/lumibot/resources/ThetaTerminal.jar -> build/bdist.macosx-11.0-arm64/wheel/./lumibot/resources
+copying build/lib/lumibot/constants.py -> build/bdist.macosx-11.0-arm64/wheel/./lumibot
+creating build/bdist.macosx-11.0-arm64/wheel/lumibot/trading_builtins
+copying build/lib/lumibot/trading_builtins/safe_list.py -> build/bdist.macosx-11.0-arm64/wheel/./lumibot/trading_builtins
+copying build/lib/lumibot/trading_builtins/__init__.py -> build/bdist.macosx-11.0-arm64/wheel/./lumibot/trading_builtins
+copying build/lib/lumibot/trading_builtins/custom_stream.py -> build/bdist.macosx-11.0-arm64/wheel/./lumibot/trading_builtins
+copying build/lib/lumibot/__init__.py -> build/bdist.macosx-11.0-arm64/wheel/./lumibot
+copying build/lib/lumibot/_lazy_imports.py -> build/bdist.macosx-11.0-arm64/wheel/./lumibot
+creating build/bdist.macosx-11.0-arm64/wheel/lumibot/components
+copying build/lib/lumibot/components/configs_helper.py -> build/bdist.macosx-11.0-arm64/wheel/./lumibot/components
+creating build/bdist.macosx-11.0-arm64/wheel/lumibot/components/memory
+copying build/lib/lumibot/components/memory/store.py -> build/bdist.macosx-11.0-arm64/wheel/./lumibot/components/memory
+copying build/lib/lumibot/components/memory/__init__.py -> build/bdist.macosx-11.0-arm64/wheel/./lumibot/components/memory
+copying build/lib/lumibot/components/disclosure_signals.py -> build/bdist.macosx-11.0-arm64/wheel/./lumibot/components
+copying build/lib/lumibot/components/perplexity_helper.py -> build/bdist.macosx-11.0-arm64/wheel/./lumibot/components
+copying build/lib/lumibot/components/vix_helper.py -> build/bdist.macosx-11.0-arm64/wheel/./lumibot/components
+copying build/lib/lumibot/components/__init__.py -> build/bdist.macosx-11.0-arm64/wheel/./lumibot/components
+creating build/bdist.macosx-11.0-arm64/wheel/lumibot/components/agents
+copying build/lib/lumibot/components/agents/browser_benchmark.py -> build/bdist.macosx-11.0-arm64/wheel/./lumibot/components/agents
+copying build/lib/lumibot/components/agents/managed_gateway.py -> build/bdist.macosx-11.0-arm64/wheel/./lumibot/components/agents
+copying build/lib/lumibot/components/agents/web_tools.py -> build/bdist.macosx-11.0-arm64/wheel/./lumibot/components/agents
+copying build/lib/lumibot/components/agents/asset_resolution.py -> build/bdist.macosx-11.0-arm64/wheel/./lumibot/components/agents
+copying build/lib/lumibot/components/agents/skills.py -> build/bdist.macosx-11.0-arm64/wheel/./lumibot/components/agents
+copying build/lib/lumibot/components/agents/builtins.py -> build/bdist.macosx-11.0-arm64/wheel/./lumibot/components/agents
+copying build/lib/lumibot/components/agents/tools.py -> build/bdist.macosx-11.0-arm64/wheel/./lumibot/components/agents
+copying build/lib/lumibot/components/agents/tool_context.py -> build/bdist.macosx-11.0-arm64/wheel/./lumibot/components/agents
+copying build/lib/lumibot/components/agents/__init__.py -> build/bdist.macosx-11.0-arm64/wheel/./lumibot/components/agents
+copying build/lib/lumibot/components/agents/docs_tools.py -> build/bdist.macosx-11.0-arm64/wheel/./lumibot/components/agents
+copying build/lib/lumibot/components/agents/rules.py -> build/bdist.macosx-11.0-arm64/wheel/./lumibot/components/agents
+copying build/lib/lumibot/components/agents/replay_cache.py -> build/bdist.macosx-11.0-arm64/wheel/./lumibot/components/agents
+copying build/lib/lumibot/components/agents/runtime.py -> build/bdist.macosx-11.0-arm64/wheel/./lumibot/components/agents
+copying build/lib/lumibot/components/agents/schemas.py -> build/bdist.macosx-11.0-arm64/wheel/./lumibot/components/agents
+copying build/lib/lumibot/components/agents/duckdb_tools.py -> build/bdist.macosx-11.0-arm64/wheel/./lumibot/components/agents
+creating build/bdist.macosx-11.0-arm64/wheel/lumibot/components/agents/skills
+creating build/bdist.macosx-11.0-arm64/wheel/lumibot/components/agents/skills/options-trading
+creating build/bdist.macosx-11.0-arm64/wheel/lumibot/components/agents/skills/options-trading/references
+copying build/lib/lumibot/components/agents/skills/options-trading/references/common-option-structures.md -> build/bdist.macosx-11.0-arm64/wheel/./lumibot/components/agents/skills/options-trading/references
+copying build/lib/lumibot/components/agents/skills/options-trading/references/contracts-greeks-liquidity.md -> build/bdist.macosx-11.0-arm64/wheel/./lumibot/components/agents/skills/options-trading/references
+copying build/lib/lumibot/components/agents/skills/options-trading/references/position-management.md -> build/bdist.macosx-11.0-arm64/wheel/./lumibot/components/agents/skills/options-trading/references
+copying build/lib/lumibot/components/agents/skills/options-trading/references/multileg-orders.md -> build/bdist.macosx-11.0-arm64/wheel/./lumibot/components/agents/skills/options-trading/references
+creating build/bdist.macosx-11.0-arm64/wheel/lumibot/components/agents/skills/options-trading/agents
+copying build/lib/lumibot/components/agents/skills/options-trading/agents/openai.yaml -> build/bdist.macosx-11.0-arm64/wheel/./lumibot/components/agents/skills/options-trading/agents
+copying build/lib/lumibot/components/agents/skills/options-trading/SKILL.md -> build/bdist.macosx-11.0-arm64/wheel/./lumibot/components/agents/skills/options-trading
+creating build/bdist.macosx-11.0-arm64/wheel/lumibot/components/agents/skills/stock-trading
+creating build/bdist.macosx-11.0-arm64/wheel/lumibot/components/agents/skills/stock-trading/references
+copying build/lib/lumibot/components/agents/skills/stock-trading/references/research-sizing-and-orders.md -> build/bdist.macosx-11.0-arm64/wheel/./lumibot/components/agents/skills/stock-trading/references
+copying build/lib/lumibot/components/agents/skills/stock-trading/references/intraday-setups.md -> build/bdist.macosx-11.0-arm64/wheel/./lumibot/components/agents/skills/stock-trading/references
+creating build/bdist.macosx-11.0-arm64/wheel/lumibot/components/agents/skills/stock-trading/agents
+copying build/lib/lumibot/components/agents/skills/stock-trading/agents/openai.yaml -> build/bdist.macosx-11.0-arm64/wheel/./lumibot/components/agents/skills/stock-trading/agents
+copying build/lib/lumibot/components/agents/skills/stock-trading/SKILL.md -> build/bdist.macosx-11.0-arm64/wheel/./lumibot/components/agents/skills/stock-trading
+creating build/bdist.macosx-11.0-arm64/wheel/lumibot/components/agents/skills/research-data
+creating build/bdist.macosx-11.0-arm64/wheel/lumibot/components/agents/skills/research-data/agents
+copying build/lib/lumibot/components/agents/skills/research-data/agents/openai.yaml -> build/bdist.macosx-11.0-arm64/wheel/./lumibot/components/agents/skills/research-data/agents
+copying build/lib/lumibot/components/agents/skills/research-data/SKILL.md -> build/bdist.macosx-11.0-arm64/wheel/./lumibot/components/agents/skills/research-data
+copying build/lib/lumibot/components/agents/browser_tools.py -> build/bdist.macosx-11.0-arm64/wheel/./lumibot/components/agents
+copying build/lib/lumibot/components/agents/manager.py -> build/bdist.macosx-11.0-arm64/wheel/./lumibot/components/agents
+copying build/lib/lumibot/components/drift_rebalancer_logic.py -> build/bdist.macosx-11.0-arm64/wheel/./lumibot/components
+copying build/lib/lumibot/components/quiver_helper.py -> build/bdist.macosx-11.0-arm64/wheel/./lumibot/components
+copying build/lib/lumibot/components/options_helper.py -> build/bdist.macosx-11.0-arm64/wheel/./lumibot/components
+creating build/bdist.macosx-11.0-arm64/wheel/lumibot/components/notifications
+copying build/lib/lumibot/components/notifications/telegram.py -> build/bdist.macosx-11.0-arm64/wheel/./lumibot/components/notifications
+copying build/lib/lumibot/components/notifications/__init__.py -> build/bdist.macosx-11.0-arm64/wheel/./lumibot/components/notifications
+copying build/lib/lumibot/components/notifications/resend.py -> build/bdist.macosx-11.0-arm64/wheel/./lumibot/components/notifications
+copying build/lib/lumibot/components/notifications/base.py -> build/bdist.macosx-11.0-arm64/wheel/./lumibot/components/notifications
+copying build/lib/lumibot/components/notifications/slack.py -> build/bdist.macosx-11.0-arm64/wheel/./lumibot/components/notifications
+copying build/lib/lumibot/components/grok_helper.py -> build/bdist.macosx-11.0-arm64/wheel/./lumibot/components
+copying build/lib/lumibot/cli.py -> build/bdist.macosx-11.0-arm64/wheel/./lumibot
+creating build/bdist.macosx-11.0-arm64/wheel/lumibot/macro
+copying build/lib/lumibot/macro/__init__.py -> build/bdist.macosx-11.0-arm64/wheel/./lumibot/macro
+copying build/lib/lumibot/macro/fred.py -> build/bdist.macosx-11.0-arm64/wheel/./lumibot/macro
+creating build/bdist.macosx-11.0-arm64/wheel/lumibot/example_strategies
+copying build/lib/lumibot/example_strategies/ai_iron_condor.py -> build/bdist.macosx-11.0-arm64/wheel/./lumibot/example_strategies
+copying build/lib/lumibot/example_strategies/agent_discretionary.py -> build/bdist.macosx-11.0-arm64/wheel/./lumibot/example_strategies
+copying build/lib/lumibot/example_strategies/simple_start_single_file.py -> build/bdist.macosx-11.0-arm64/wheel/./lumibot/example_strategies
+copying build/lib/lumibot/example_strategies/stock_oco.py -> build/bdist.macosx-11.0-arm64/wheel/./lumibot/example_strategies
+copying build/lib/lumibot/example_strategies/ai_trading_team_citadel_sector_pods.py -> build/bdist.macosx-11.0-arm64/wheel/./lumibot/example_strategies
+copying build/lib/lumibot/example_strategies/schedule_function.py -> build/bdist.macosx-11.0-arm64/wheel/./lumibot/example_strategies
+copying build/lib/lumibot/example_strategies/classic_60_40_config.py -> build/bdist.macosx-11.0-arm64/wheel/./lumibot/example_strategies
+copying build/lib/lumibot/example_strategies/agent_m2_liquidity_openai.py -> build/bdist.macosx-11.0-arm64/wheel/./lumibot/example_strategies
+copying build/lib/lumibot/example_strategies/strangle.py -> build/bdist.macosx-11.0-arm64/wheel/./lumibot/example_strategies
+copying build/lib/lumibot/example_strategies/ccxt_backtesting_example.py -> build/bdist.macosx-11.0-arm64/wheel/./lumibot/example_strategies
+copying build/lib/lumibot/example_strategies/ai_researcher_trader.py -> build/bdist.macosx-11.0-arm64/wheel/./lumibot/example_strategies
+copying build/lib/lumibot/example_strategies/lifecycle_logger.py -> build/bdist.macosx-11.0-arm64/wheel/./lumibot/example_strategies
+copying build/lib/lumibot/example_strategies/stock_limit_and_trailing_stops.py -> build/bdist.macosx-11.0-arm64/wheel/./lumibot/example_strategies
+copying build/lib/lumibot/example_strategies/stock_diversified_leverage.py -> build/bdist.macosx-11.0-arm64/wheel/./lumibot/example_strategies
+copying build/lib/lumibot/example_strategies/stock_buy_and_hold.py -> build/bdist.macosx-11.0-arm64/wheel/./lumibot/example_strategies
+copying build/lib/lumibot/example_strategies/ai_credit_spread.py -> build/bdist.macosx-11.0-arm64/wheel/./lumibot/example_strategies
+copying build/lib/lumibot/example_strategies/ai_sec_insider_filings.py -> build/bdist.macosx-11.0-arm64/wheel/./lumibot/example_strategies
+copying build/lib/lumibot/example_strategies/ai_trading_team_ray_dalio_idea_meritocracy.py -> build/bdist.macosx-11.0-arm64/wheel/./lumibot/example_strategies
+copying build/lib/lumibot/example_strategies/options_hold_to_expiry.py -> build/bdist.macosx-11.0-arm64/wheel/./lumibot/example_strategies
+copying build/lib/lumibot/example_strategies/ai_spx_zero_dte_bear_call_team.py -> build/bdist.macosx-11.0-arm64/wheel/./lumibot/example_strategies
+copying build/lib/lumibot/example_strategies/ai_trading_team_bill_ackman_concentrated.py -> build/bdist.macosx-11.0-arm64/wheel/./lumibot/example_strategies
+copying build/lib/lumibot/example_strategies/stock_momentum.py -> build/bdist.macosx-11.0-arm64/wheel/./lumibot/example_strategies
+copying build/lib/lumibot/example_strategies/__init__.py -> build/bdist.macosx-11.0-arm64/wheel/./lumibot/example_strategies
+copying build/lib/lumibot/example_strategies/agent_m2_liquidity_grok.py -> build/bdist.macosx-11.0-arm64/wheel/./lumibot/example_strategies
+copying build/lib/lumibot/example_strategies/forex_hold_to_expiry.py -> build/bdist.macosx-11.0-arm64/wheel/./lumibot/example_strategies
+copying build/lib/lumibot/example_strategies/futures_hold_to_expiry.py -> build/bdist.macosx-11.0-arm64/wheel/./lumibot/example_strategies
+copying build/lib/lumibot/example_strategies/ai_trading_team.py -> build/bdist.macosx-11.0-arm64/wheel/./lumibot/example_strategies
+copying build/lib/lumibot/example_strategies/disclosure_replay.py -> build/bdist.macosx-11.0-arm64/wheel/./lumibot/example_strategies
+copying build/lib/lumibot/example_strategies/ai_vwap.py -> build/bdist.macosx-11.0-arm64/wheel/./lumibot/example_strategies
+copying build/lib/lumibot/example_strategies/agent_macro_risk.py -> build/bdist.macosx-11.0-arm64/wheel/./lumibot/example_strategies
+copying build/lib/lumibot/example_strategies/classic_60_40.py -> build/bdist.macosx-11.0-arm64/wheel/./lumibot/example_strategies
+copying build/lib/lumibot/example_strategies/ai_opening_range_breakout.py -> build/bdist.macosx-11.0-arm64/wheel/./lumibot/example_strategies
+copying build/lib/lumibot/example_strategies/crypto_50_50_config.py -> build/bdist.macosx-11.0-arm64/wheel/./lumibot/example_strategies
+copying build/lib/lumibot/example_strategies/agent_news_sentiment.py -> build/bdist.macosx-11.0-arm64/wheel/./lumibot/example_strategies
+copying build/lib/lumibot/example_strategies/drift_rebalancer.py -> build/bdist.macosx-11.0-arm64/wheel/./lumibot/example_strategies
+copying build/lib/lumibot/example_strategies/agent_momentum_allocator.py -> build/bdist.macosx-11.0-arm64/wheel/./lumibot/example_strategies
+copying build/lib/lumibot/example_strategies/first_backtest.py -> build/bdist.macosx-11.0-arm64/wheel/./lumibot/example_strategies
+copying build/lib/lumibot/example_strategies/agent_m2_liquidity_anthropic.py -> build/bdist.macosx-11.0-arm64/wheel/./lumibot/example_strategies
+copying build/lib/lumibot/example_strategies/ai_congress_disclosures.py -> build/bdist.macosx-11.0-arm64/wheel/./lumibot/example_strategies
+creating build/bdist.macosx-11.0-arm64/wheel/lumibot/example_strategies/fixtures
+copying build/lib/lumibot/example_strategies/fixtures/congress_disclosures.json -> build/bdist.macosx-11.0-arm64/wheel/./lumibot/example_strategies/fixtures
+copying build/lib/lumibot/example_strategies/fixtures/sec_form4_transactions.json -> build/bdist.macosx-11.0-arm64/wheel/./lumibot/example_strategies/fixtures
+copying build/lib/lumibot/example_strategies/crypto_important_functions.py -> build/bdist.macosx-11.0-arm64/wheel/./lumibot/example_strategies
+copying build/lib/lumibot/example_strategies/ai_browser_research_showcase.py -> build/bdist.macosx-11.0-arm64/wheel/./lumibot/example_strategies
+copying build/lib/lumibot/example_strategies/ai_trading_team_bull_bear_leveraged_etf.py -> build/bdist.macosx-11.0-arm64/wheel/./lumibot/example_strategies
+copying build/lib/lumibot/example_strategies/agent_m2_liquidity.py -> build/bdist.macosx-11.0-arm64/wheel/./lumibot/example_strategies
+creating build/bdist.macosx-11.0-arm64/wheel/lumibot/example_strategies/agent_rules
+copying build/lib/lumibot/example_strategies/agent_rules/ai_spx_zero_dte_bear_call_team.rules.json -> build/bdist.macosx-11.0-arm64/wheel/./lumibot/example_strategies/agent_rules
+copying build/lib/lumibot/example_strategies/agent_rules/ai_iron_condor.rules.json -> build/bdist.macosx-11.0-arm64/wheel/./lumibot/example_strategies/agent_rules
+copying build/lib/lumibot/example_strategies/agent_rules/ai_credit_spread.rules.json -> build/bdist.macosx-11.0-arm64/wheel/./lumibot/example_strategies/agent_rules
+copying build/lib/lumibot/example_strategies/agent_rules/ai_vwap.rules.json -> build/bdist.macosx-11.0-arm64/wheel/./lumibot/example_strategies/agent_rules
+copying build/lib/lumibot/example_strategies/agent_rules/ai_opening_range_breakout.rules.json -> build/bdist.macosx-11.0-arm64/wheel/./lumibot/example_strategies/agent_rules
+copying build/lib/lumibot/example_strategies/bitunix_futures_example.py -> build/bdist.macosx-11.0-arm64/wheel/./lumibot/example_strategies
+copying build/lib/lumibot/example_strategies/ai_trading_team_warren_buffett_value.py -> build/bdist.macosx-11.0-arm64/wheel/./lumibot/example_strategies
+copying build/lib/lumibot/example_strategies/ai_trading_team_bull_bear_large_cap_stocks.py -> build/bdist.macosx-11.0-arm64/wheel/./lumibot/example_strategies
+copying build/lib/lumibot/example_strategies/agent_alpaca_news_builtin.py -> build/bdist.macosx-11.0-arm64/wheel/./lumibot/example_strategies
+copying build/lib/lumibot/example_strategies/test_broker_functions.py -> build/bdist.macosx-11.0-arm64/wheel/./lumibot/example_strategies
+copying build/lib/lumibot/example_strategies/crypto_50_50.py -> build/bdist.macosx-11.0-arm64/wheel/./lumibot/example_strategies
+copying build/lib/lumibot/example_strategies/polymarket_prediction_contract.py -> build/bdist.macosx-11.0-arm64/wheel/./lumibot/example_strategies
+copying build/lib/lumibot/example_strategies/stock_bracket.py -> build/bdist.macosx-11.0-arm64/wheel/./lumibot/example_strategies
+creating build/bdist.macosx-11.0-arm64/wheel/lumibot/data_sources
+copying build/lib/lumibot/data_sources/data_source.py -> build/bdist.macosx-11.0-arm64/wheel/./lumibot/data_sources
+copying build/lib/lumibot/data_sources/polygon_data_polars.py -> build/bdist.macosx-11.0-arm64/wheel/./lumibot/data_sources
+copying build/lib/lumibot/data_sources/yahoo_data_polars.py -> build/bdist.macosx-11.0-arm64/wheel/./lumibot/data_sources
+copying build/lib/lumibot/data_sources/alpaca_data.py -> build/bdist.macosx-11.0-arm64/wheel/./lumibot/data_sources
+copying build/lib/lumibot/data_sources/polymarket_data.py -> build/bdist.macosx-11.0-arm64/wheel/./lumibot/data_sources
+copying build/lib/lumibot/data_sources/bitunix_data.py -> build/bdist.macosx-11.0-arm64/wheel/./lumibot/data_sources
+copying build/lib/lumibot/data_sources/databento_data_pandas.py -> build/bdist.macosx-11.0-arm64/wheel/./lumibot/data_sources
+copying build/lib/lumibot/data_sources/__init__.py -> build/bdist.macosx-11.0-arm64/wheel/./lumibot/data_sources
+copying build/lib/lumibot/data_sources/databento_data.py -> build/bdist.macosx-11.0-arm64/wheel/./lumibot/data_sources
+copying build/lib/lumibot/data_sources/ccxt_data.py -> build/bdist.macosx-11.0-arm64/wheel/./lumibot/data_sources
+copying build/lib/lumibot/data_sources/ibkr_gateway.py -> build/bdist.macosx-11.0-arm64/wheel/./lumibot/data_sources
+copying build/lib/lumibot/data_sources/alpha_vantage_data.py -> build/bdist.macosx-11.0-arm64/wheel/./lumibot/data_sources
+copying build/lib/lumibot/data_sources/yahoo_data.py -> build/bdist.macosx-11.0-arm64/wheel/./lumibot/data_sources
+copying build/lib/lumibot/data_sources/ccxt_backtesting_data.py -> build/bdist.macosx-11.0-arm64/wheel/./lumibot/data_sources
+copying build/lib/lumibot/data_sources/projectx_data.py -> build/bdist.macosx-11.0-arm64/wheel/./lumibot/data_sources
+copying build/lib/lumibot/data_sources/exceptions.py -> build/bdist.macosx-11.0-arm64/wheel/./lumibot/data_sources
+copying build/lib/lumibot/data_sources/polars_mixin.py -> build/bdist.macosx-11.0-arm64/wheel/./lumibot/data_sources
+copying build/lib/lumibot/data_sources/interactive_brokers_data.py -> build/bdist.macosx-11.0-arm64/wheel/./lumibot/data_sources
+copying build/lib/lumibot/data_sources/example_broker_data.py -> build/bdist.macosx-11.0-arm64/wheel/./lumibot/data_sources
+copying build/lib/lumibot/data_sources/tradovate_data.py -> build/bdist.macosx-11.0-arm64/wheel/./lumibot/data_sources
+copying build/lib/lumibot/data_sources/polars_data.py -> build/bdist.macosx-11.0-arm64/wheel/./lumibot/data_sources
+copying build/lib/lumibot/data_sources/tradier_data.py -> build/bdist.macosx-11.0-arm64/wheel/./lumibot/data_sources
+copying build/lib/lumibot/data_sources/pandas_data.py -> build/bdist.macosx-11.0-arm64/wheel/./lumibot/data_sources
+copying build/lib/lumibot/data_sources/interactive_brokers_rest_data.py -> build/bdist.macosx-11.0-arm64/wheel/./lumibot/data_sources
+copying build/lib/lumibot/data_sources/databento_data_polars.py -> build/bdist.macosx-11.0-arm64/wheel/./lumibot/data_sources
+copying build/lib/lumibot/data_sources/schwab_data.py -> build/bdist.macosx-11.0-arm64/wheel/./lumibot/data_sources
+copying build/lib/lumibot/data_sources/data_source_backtesting.py -> build/bdist.macosx-11.0-arm64/wheel/./lumibot/data_sources
+copying build/lib/lumibot/_lazy_timezone.py -> build/bdist.macosx-11.0-arm64/wheel/./lumibot
+copying build/lib/lumibot/__main__.py -> build/bdist.macosx-11.0-arm64/wheel/./lumibot
+creating build/bdist.macosx-11.0-arm64/wheel/lumibot/entities
+copying build/lib/lumibot/entities/chains.py -> build/bdist.macosx-11.0-arm64/wheel/./lumibot/entities
+copying build/lib/lumibot/entities/cash_event.py -> build/bdist.macosx-11.0-arm64/wheel/./lumibot/entities
+copying build/lib/lumibot/entities/asset.py -> build/bdist.macosx-11.0-arm64/wheel/./lumibot/entities
+copying build/lib/lumibot/entities/quote.py -> build/bdist.macosx-11.0-arm64/wheel/./lumibot/entities
+copying build/lib/lumibot/entities/order.py -> build/bdist.macosx-11.0-arm64/wheel/./lumibot/entities
+copying build/lib/lumibot/entities/__init__.py -> build/bdist.macosx-11.0-arm64/wheel/./lumibot/entities
+copying build/lib/lumibot/entities/trading_slippage.py -> build/bdist.macosx-11.0-arm64/wheel/./lumibot/entities
+copying build/lib/lumibot/entities/data_polars.py -> build/bdist.macosx-11.0-arm64/wheel/./lumibot/entities
+copying build/lib/lumibot/entities/position.py -> build/bdist.macosx-11.0-arm64/wheel/./lumibot/entities
+copying build/lib/lumibot/entities/bar.py -> build/bdist.macosx-11.0-arm64/wheel/./lumibot/entities
+copying build/lib/lumibot/entities/bars.py -> build/bdist.macosx-11.0-arm64/wheel/./lumibot/entities
+copying build/lib/lumibot/entities/trading_fee.py -> build/bdist.macosx-11.0-arm64/wheel/./lumibot/entities
+copying build/lib/lumibot/entities/dataline.py -> build/bdist.macosx-11.0-arm64/wheel/./lumibot/entities
+copying build/lib/lumibot/entities/data.py -> build/bdist.macosx-11.0-arm64/wheel/./lumibot/entities
+copying build/lib/lumibot/entities/smart_limit.py -> build/bdist.macosx-11.0-arm64/wheel/./lumibot/entities
+running install_egg_info
+Copying lumibot.egg-info to build/bdist.macosx-11.0-arm64/wheel/./lumibot-4.5.92-py3.10.egg-info
+running install_scripts
+creating build/bdist.macosx-11.0-arm64/wheel/lumibot-4.5.92.dist-info/WHEEL
+creating 'dist/lumibot-4.5.92-py3-none-any.whl' and adding 'build/bdist.macosx-11.0-arm64/wheel' to it
+adding 'lumibot/__init__.py'
+adding 'lumibot/__main__.py'
+adding 'lumibot/_lazy_imports.py'
+adding 'lumibot/_lazy_timezone.py'
+adding 'lumibot/cli.py'
+adding 'lumibot/constants.py'
+adding 'lumibot/credentials.py'
+adding 'lumibot/backtesting/__init__.py'
+adding 'lumibot/backtesting/alpaca_backtesting.py'
+adding 'lumibot/backtesting/alpha_vantage_backtesting.py'
+adding 'lumibot/backtesting/backtesting_broker.py'
+adding 'lumibot/backtesting/ccxt_backtesting.py'
+adding 'lumibot/backtesting/data_provenance.py'
+adding 'lumibot/backtesting/databento_backtesting.py'
+adding 'lumibot/backtesting/databento_backtesting_pandas.py'
+adding 'lumibot/backtesting/databento_backtesting_polars.py'
+adding 'lumibot/backtesting/interactive_brokers_rest_backtesting.py'
+adding 'lumibot/backtesting/pandas_backtesting.py'
+adding 'lumibot/backtesting/polygon_backtesting.py'
+adding 'lumibot/backtesting/polymarket_backtesting.py'
+adding 'lumibot/backtesting/routed_backtesting.py'
+adding 'lumibot/backtesting/thetadata_backtesting.py'
+adding 'lumibot/backtesting/thetadata_backtesting_pandas.py'
+adding 'lumibot/backtesting/yahoo_backtesting.py'
+adding 'lumibot/brokers/__init__.py'
+adding 'lumibot/brokers/alpaca.py'
+adding 'lumibot/brokers/bitunix.py'
+adding 'lumibot/brokers/broker.py'
+adding 'lumibot/brokers/ccxt.py'
+adding 'lumibot/brokers/example_broker.py'
+adding 'lumibot/brokers/interactive_brokers.py'
+adding 'lumibot/brokers/interactive_brokers_rest.py'
+adding 'lumibot/brokers/oauth_refresh_mode.py'
+adding 'lumibot/brokers/polymarket.py'
+adding 'lumibot/brokers/projectx.py'
+adding 'lumibot/brokers/schwab.py'
+adding 'lumibot/brokers/trade_event_priority.py'
+adding 'lumibot/brokers/tradier.py'
+adding 'lumibot/brokers/tradovate.py'
+adding 'lumibot/components/__init__.py'
+adding 'lumibot/components/configs_helper.py'
+adding 'lumibot/components/disclosure_signals.py'
+adding 'lumibot/components/drift_rebalancer_logic.py'
+adding 'lumibot/components/grok_helper.py'
+adding 'lumibot/components/options_helper.py'
+adding 'lumibot/components/perplexity_helper.py'
+adding 'lumibot/components/quiver_helper.py'
+adding 'lumibot/components/vix_helper.py'
+adding 'lumibot/components/agents/__init__.py'
+adding 'lumibot/components/agents/asset_resolution.py'
+adding 'lumibot/components/agents/browser_benchmark.py'
+adding 'lumibot/components/agents/browser_tools.py'
+adding 'lumibot/components/agents/builtins.py'
+adding 'lumibot/components/agents/docs_tools.py'
+adding 'lumibot/components/agents/duckdb_tools.py'
+adding 'lumibot/components/agents/managed_gateway.py'
+adding 'lumibot/components/agents/manager.py'
+adding 'lumibot/components/agents/replay_cache.py'
+adding 'lumibot/components/agents/rules.py'
+adding 'lumibot/components/agents/runtime.py'
+adding 'lumibot/components/agents/schemas.py'
+adding 'lumibot/components/agents/skills.py'
+adding 'lumibot/components/agents/tool_context.py'
+adding 'lumibot/components/agents/tools.py'
+adding 'lumibot/components/agents/web_tools.py'
+adding 'lumibot/components/agents/skills/options-trading/SKILL.md'
+adding 'lumibot/components/agents/skills/options-trading/agents/openai.yaml'
+adding 'lumibot/components/agents/skills/options-trading/references/common-option-structures.md'
+adding 'lumibot/components/agents/skills/options-trading/references/contracts-greeks-liquidity.md'
+adding 'lumibot/components/agents/skills/options-trading/references/multileg-orders.md'
+adding 'lumibot/components/agents/skills/options-trading/references/position-management.md'
+adding 'lumibot/components/agents/skills/research-data/SKILL.md'
+adding 'lumibot/components/agents/skills/research-data/agents/openai.yaml'
+adding 'lumibot/components/agents/skills/stock-trading/SKILL.md'
+adding 'lumibot/components/agents/skills/stock-trading/agents/openai.yaml'
+adding 'lumibot/components/agents/skills/stock-trading/references/intraday-setups.md'
+adding 'lumibot/components/agents/skills/stock-trading/references/research-sizing-and-orders.md'
+adding 'lumibot/components/memory/__init__.py'
+adding 'lumibot/components/memory/store.py'
+adding 'lumibot/components/notifications/__init__.py'
+adding 'lumibot/components/notifications/base.py'
+adding 'lumibot/components/notifications/resend.py'
+adding 'lumibot/components/notifications/slack.py'
+adding 'lumibot/components/notifications/telegram.py'
+adding 'lumibot/data_sources/__init__.py'
+adding 'lumibot/data_sources/alpaca_data.py'
+adding 'lumibot/data_sources/alpha_vantage_data.py'
+adding 'lumibot/data_sources/bitunix_data.py'
+adding 'lumibot/data_sources/ccxt_backtesting_data.py'
+adding 'lumibot/data_sources/ccxt_data.py'
+adding 'lumibot/data_sources/data_source.py'
+adding 'lumibot/data_sources/data_source_backtesting.py'
+adding 'lumibot/data_sources/databento_data.py'
+adding 'lumibot/data_sources/databento_data_pandas.py'
+adding 'lumibot/data_sources/databento_data_polars.py'
+adding 'lumibot/data_sources/example_broker_data.py'
+adding 'lumibot/data_sources/exceptions.py'
+adding 'lumibot/data_sources/ibkr_gateway.py'
+adding 'lumibot/data_sources/interactive_brokers_data.py'
+adding 'lumibot/data_sources/interactive_brokers_rest_data.py'
+adding 'lumibot/data_sources/pandas_data.py'
+adding 'lumibot/data_sources/polars_data.py'
+adding 'lumibot/data_sources/polars_mixin.py'
+adding 'lumibot/data_sources/polygon_data_polars.py'
+adding 'lumibot/data_sources/polymarket_data.py'
+adding 'lumibot/data_sources/projectx_data.py'
+adding 'lumibot/data_sources/schwab_data.py'
+adding 'lumibot/data_sources/tradier_data.py'
+adding 'lumibot/data_sources/tradovate_data.py'
+adding 'lumibot/data_sources/yahoo_data.py'
+adding 'lumibot/data_sources/yahoo_data_polars.py'
+adding 'lumibot/entities/__init__.py'
+adding 'lumibot/entities/asset.py'
+adding 'lumibot/entities/bar.py'
+adding 'lumibot/entities/bars.py'
+adding 'lumibot/entities/cash_event.py'
+adding 'lumibot/entities/chains.py'
+adding 'lumibot/entities/data.py'
+adding 'lumibot/entities/data_polars.py'
+adding 'lumibot/entities/dataline.py'
+adding 'lumibot/entities/order.py'
+adding 'lumibot/entities/position.py'
+adding 'lumibot/entities/quote.py'
+adding 'lumibot/entities/smart_limit.py'
+adding 'lumibot/entities/trading_fee.py'
+adding 'lumibot/entities/trading_slippage.py'
+adding 'lumibot/example_strategies/__init__.py'
+adding 'lumibot/example_strategies/agent_alpaca_news_builtin.py'
+adding 'lumibot/example_strategies/agent_discretionary.py'
+adding 'lumibot/example_strategies/agent_m2_liquidity.py'
+adding 'lumibot/example_strategies/agent_m2_liquidity_anthropic.py'
+adding 'lumibot/example_strategies/agent_m2_liquidity_grok.py'
+adding 'lumibot/example_strategies/agent_m2_liquidity_openai.py'
+adding 'lumibot/example_strategies/agent_macro_risk.py'
+adding 'lumibot/example_strategies/agent_momentum_allocator.py'
+adding 'lumibot/example_strategies/agent_news_sentiment.py'
+adding 'lumibot/example_strategies/ai_browser_research_showcase.py'
+adding 'lumibot/example_strategies/ai_congress_disclosures.py'
+adding 'lumibot/example_strategies/ai_credit_spread.py'
+adding 'lumibot/example_strategies/ai_iron_condor.py'
+adding 'lumibot/example_strategies/ai_opening_range_breakout.py'
+adding 'lumibot/example_strategies/ai_researcher_trader.py'
+adding 'lumibot/example_strategies/ai_sec_insider_filings.py'
+adding 'lumibot/example_strategies/ai_spx_zero_dte_bear_call_team.py'
+adding 'lumibot/example_strategies/ai_trading_team.py'
+adding 'lumibot/example_strategies/ai_trading_team_bill_ackman_concentrated.py'
+adding 'lumibot/example_strategies/ai_trading_team_bull_bear_large_cap_stocks.py'
+adding 'lumibot/example_strategies/ai_trading_team_bull_bear_leveraged_etf.py'
+adding 'lumibot/example_strategies/ai_trading_team_citadel_sector_pods.py'
+adding 'lumibot/example_strategies/ai_trading_team_ray_dalio_idea_meritocracy.py'
+adding 'lumibot/example_strategies/ai_trading_team_warren_buffett_value.py'
+adding 'lumibot/example_strategies/ai_vwap.py'
+adding 'lumibot/example_strategies/bitunix_futures_example.py'
+adding 'lumibot/example_strategies/ccxt_backtesting_example.py'
+adding 'lumibot/example_strategies/classic_60_40.py'
+adding 'lumibot/example_strategies/classic_60_40_config.py'
+adding 'lumibot/example_strategies/crypto_50_50.py'
+adding 'lumibot/example_strategies/crypto_50_50_config.py'
+adding 'lumibot/example_strategies/crypto_important_functions.py'
+adding 'lumibot/example_strategies/disclosure_replay.py'
+adding 'lumibot/example_strategies/drift_rebalancer.py'
+adding 'lumibot/example_strategies/first_backtest.py'
+adding 'lumibot/example_strategies/forex_hold_to_expiry.py'
+adding 'lumibot/example_strategies/futures_hold_to_expiry.py'
+adding 'lumibot/example_strategies/lifecycle_logger.py'
+adding 'lumibot/example_strategies/options_hold_to_expiry.py'
+adding 'lumibot/example_strategies/polymarket_prediction_contract.py'
+adding 'lumibot/example_strategies/schedule_function.py'
+adding 'lumibot/example_strategies/simple_start_single_file.py'
+adding 'lumibot/example_strategies/stock_bracket.py'
+adding 'lumibot/example_strategies/stock_buy_and_hold.py'
+adding 'lumibot/example_strategies/stock_diversified_leverage.py'
+adding 'lumibot/example_strategies/stock_limit_and_trailing_stops.py'
+adding 'lumibot/example_strategies/stock_momentum.py'
+adding 'lumibot/example_strategies/stock_oco.py'
+adding 'lumibot/example_strategies/strangle.py'
+adding 'lumibot/example_strategies/test_broker_functions.py'
+adding 'lumibot/example_strategies/agent_rules/ai_credit_spread.rules.json'
+adding 'lumibot/example_strategies/agent_rules/ai_iron_condor.rules.json'
+adding 'lumibot/example_strategies/agent_rules/ai_opening_range_breakout.rules.json'
+adding 'lumibot/example_strategies/agent_rules/ai_spx_zero_dte_bear_call_team.rules.json'
+adding 'lumibot/example_strategies/agent_rules/ai_vwap.rules.json'
+adding 'lumibot/example_strategies/fixtures/congress_disclosures.json'
+adding 'lumibot/example_strategies/fixtures/sec_form4_transactions.json'
+adding 'lumibot/fundamentals/__init__.py'
+adding 'lumibot/fundamentals/sec.py'
+adding 'lumibot/indicators/__init__.py'
+adding 'lumibot/indicators/indicators.py'
+adding 'lumibot/macro/__init__.py'
+adding 'lumibot/macro/fred.py'
+adding 'lumibot/resources/ThetaTerminal.jar'
+adding 'lumibot/resources/__init__.py'
+adding 'lumibot/resources/conf.yaml'
+adding 'lumibot/strategies/__init__.py'
+adding 'lumibot/strategies/_strategy.py'
+adding 'lumibot/strategies/scheduled_timing.py'
+adding 'lumibot/strategies/session_manager.py'
+adding 'lumibot/strategies/strategy.py'
+adding 'lumibot/strategies/strategy_executor.py'
+adding 'lumibot/tools/__init__.py'
+adding 'lumibot/tools/alpaca_helpers.py'
+adding 'lumibot/tools/backtest_cache.py'
+adding 'lumibot/tools/bitunix_helpers.py'
+adding 'lumibot/tools/black_scholes.py'
+adding 'lumibot/tools/ccxt_data_store.py'
+adding 'lumibot/tools/data_downloader_queue_client.py'
+adding 'lumibot/tools/databento_helper.py'
+adding 'lumibot/tools/databento_helper_polars.py'
+adding 'lumibot/tools/debugers.py'
+adding 'lumibot/tools/decorators.py'
+adding 'lumibot/tools/futures_roll.py'
+adding 'lumibot/tools/futures_symbols.py'
+adding 'lumibot/tools/helpers.py'
+adding 'lumibot/tools/ibkr_helper.py'
+adding 'lumibot/tools/ibkr_history_health.py'
+adding 'lumibot/tools/ibkr_secdef.py'
+adding 'lumibot/tools/indicators.py'
+adding 'lumibot/tools/lumibot_logger.py'
+adding 'lumibot/tools/lumibot_time.py'
+adding 'lumibot/tools/pandas.py'
+adding 'lumibot/tools/parquet_series_cache.py'
+adding 'lumibot/tools/parquet_utils.py'
+adding 'lumibot/tools/polars_utils.py'
+adding 'lumibot/tools/polygon_helper.py'
+adding 'lumibot/tools/polygon_helper_async.py'
+adding 'lumibot/tools/polygon_helper_polars_optimized.py'
+adding 'lumibot/tools/projectx_helpers.py'
+adding 'lumibot/tools/runtime_telemetry.py'
+adding 'lumibot/tools/schwab_helper.py'
+adding 'lumibot/tools/smart_limit_utils.py'
+adding 'lumibot/tools/symbol_normalization.py'
+adding 'lumibot/tools/symbol_parser.py'
+adding 'lumibot/tools/thetadata_helper.py'
+adding 'lumibot/tools/types.py'
+adding 'lumibot/tools/yahoo_helper.py'
+adding 'lumibot/tools/yahoo_helper_polars_optimized.py'
+adding 'lumibot/traders/__init__.py'
+adding 'lumibot/traders/debug_log_trader.py'
+adding 'lumibot/traders/trader.py'
+adding 'lumibot/trading_builtins/__init__.py'
+adding 'lumibot/trading_builtins/custom_stream.py'
+adding 'lumibot/trading_builtins/safe_list.py'
+adding 'lumibot-4.5.92.dist-info/licenses/LICENSE'
+adding 'lumibot-4.5.92.dist-info/METADATA'
+adding 'lumibot-4.5.92.dist-info/WHEEL'
+adding 'lumibot-4.5.92.dist-info/entry_points.txt'
+adding 'lumibot-4.5.92.dist-info/top_level.txt'
+adding 'lumibot-4.5.92.dist-info/RECORD'
+removing build/bdist.macosx-11.0-arm64/wheel

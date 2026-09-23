@@ -376,6 +376,101 @@ def test_multileg_price_preserves_opening_side_direction():
     assert result["order_type"] == "credit"
 
 
+class _TradeOnlyOptionsStrategy(_OptionsStrategy):
+    """Backtest data source with option trade bars but no bid/ask history (for example Alpaca)."""
+
+    trade_prices = {610.0: 0.40, 615.0: 1.10, 645.0: 1.20, 650.0: 0.50}
+
+    def get_quote(self, asset, quote=None, exchange=None):
+        return SimpleNamespace(bid=None, ask=None, price=self.trade_prices[float(asset.strike)])
+
+
+class _LiveTradeOnlyOptionsStrategy(_TradeOnlyOptionsStrategy):
+    is_backtesting = False
+
+
+def test_evaluate_market_labels_bid_ask_basis_when_quotes_exist():
+    strategy = _OptionsStrategy()
+    tool = BuiltinTools.options.evaluate_market().binder(strategy, AgentManager(strategy))
+
+    result = tool.function(symbol="SPY", expiration="2026-09-18", strike=615, right="put")
+
+    assert result["market"]["price_basis"] == "bid_ask"
+    assert result["market"]["usable_for_limit_pricing"] is True
+
+
+def test_evaluate_market_marks_backtest_last_trade_prices_usable():
+    strategy = _TradeOnlyOptionsStrategy()
+    tool = BuiltinTools.options.evaluate_market().binder(strategy, AgentManager(strategy))
+
+    result = tool.function(symbol="SPY", expiration="2026-09-18", strike=615, right="put")
+
+    market = result["market"]
+    assert market["price_basis"] == "last_trade"
+    assert market["usable_for_limit_pricing"] is True
+    assert market["buy_price"] == pytest.approx(1.10)
+    assert market["sell_price"] == pytest.approx(1.10)
+    assert "trade bars" in market["price_basis_note"]
+
+
+def test_evaluate_market_keeps_live_last_trade_prices_unusable():
+    strategy = _LiveTradeOnlyOptionsStrategy()
+    tool = BuiltinTools.options.evaluate_market().binder(strategy, AgentManager(strategy))
+
+    result = tool.function(symbol="SPY", expiration="2026-09-18", strike=615, right="put")
+
+    assert result["market"]["price_basis"] == "last_trade"
+    assert result["market"]["usable_for_limit_pricing"] is False
+
+
+def test_multileg_price_uses_last_trades_in_trade_only_backtests():
+    strategy = _TradeOnlyOptionsStrategy()
+    tool = BuiltinTools.options.calculate_multileg_price().binder(strategy, AgentManager(strategy))
+
+    result = tool.function(legs_json=json.dumps(_iron_condor_legs()), price_style="mid")
+
+    assert result["available"] is True
+    assert result["price_basis"] == "last_trade"
+    assert result["net_limit_price"] == pytest.approx(0.40 - 1.10 - 1.20 + 0.50)
+    assert result["order_type"] == "credit"
+    assert result["broker_price"] == pytest.approx(1.40)
+
+
+def test_multileg_price_stays_unavailable_live_without_bid_ask():
+    strategy = _LiveTradeOnlyOptionsStrategy()
+    tool = BuiltinTools.options.calculate_multileg_price().binder(strategy, AgentManager(strategy))
+
+    result = tool.function(legs_json=json.dumps(_iron_condor_legs()), price_style="mid")
+
+    assert result["available"] is False
+    assert result["price_basis"] == "none"
+
+
+def test_multileg_submit_prices_from_last_trades_in_trade_only_backtests():
+    strategy = _TradeOnlyOptionsStrategy()
+    tools = _wrapped_tools(
+        strategy,
+        [
+            BuiltinTools.account.positions(),
+            BuiltinTools.account.portfolio(),
+            BuiltinTools.orders.open_orders(),
+            BuiltinTools.market.last_price(),
+            BuiltinTools.orders.submit_multileg(),
+        ],
+    )
+    tools["account_portfolio"]()
+    tools["account_positions"]()
+    tools["orders_open_orders"]()
+    tools["market_last_price"](symbol="SPY")
+
+    result = tools["orders_submit_multileg"](legs_json=json.dumps(_iron_condor_legs()), price_style="mid")
+
+    assert result["order_type"] == "credit"
+    assert result["price_basis"] == "last_trade"
+    _, kwargs = strategy.submissions[0]
+    assert kwargs["price"] == pytest.approx(1.40)
+
+
 def test_option_close_validation_rejects_reversed_side_and_oversized_quantity():
     strategy = _OptionsStrategy()
     long_put = Asset(

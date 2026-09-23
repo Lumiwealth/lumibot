@@ -8,9 +8,11 @@ import os
 import time
 from dataclasses import dataclass
 from datetime import date, datetime, timedelta, timezone
+from functools import lru_cache
 from pathlib import Path
 from typing import Any, Dict, Optional, Tuple
 
+import numpy as np
 import pandas as pd
 
 from lumibot.constants import LUMIBOT_CACHE_FOLDER, LUMIBOT_DEFAULT_PYTZ
@@ -96,6 +98,15 @@ _NEGATIVE_CONID_CACHE_LOADED = False
 _IBKR_EQUITY_ACTIONS_CACHE: Dict[str, pd.DataFrame] = {}
 _RUNTIME_CONID_CACHE: Dict[str, int] = {}
 _RUNTIME_HISTORY_NO_DATA_WINDOWS: Dict[str, Tuple[datetime, datetime]] = {}
+# Downloader segments already requested in this process, keyed by cache file.
+#
+# WHY: a successful response can leave a window underfilled (the provider has no bars
+# inside the gap, or answers with bars from before it). Without this memory the next
+# iteration computes the same missing segment and re-submits the identical request.
+# A production SPY 5-minute backtest (2026-09-15) sent `startTime=20260908-08:00:00` 77 times
+# in one run this way. This is in-process state only: it is never written to the cache,
+# so a later process still retries (see the history integrity contract).
+_RUNTIME_ATTEMPTED_HISTORY_SEGMENTS: Dict[str, list[Tuple[datetime, datetime]]] = {}
 _RUNTIME_DAILY_GAP_CHECKED_WINDOWS: set[tuple[str, str, str]] = set()
 _RUNTIME_HOURLY_GAP_CHECKED_SERIES: Dict[
     str,
@@ -390,6 +401,85 @@ def _us_futures_closed_interval(start_local: datetime, end_local: datetime) -> b
         return False
 
 
+@lru_cache(maxsize=64)
+def _us_equity_session_bounds_for_year(year: int, extended_hours: bool) -> tuple[np.ndarray, np.ndarray]:
+    """Return sorted NYSE session (open, close) bounds for one year as UTC nanoseconds.
+
+    Extended hours use the calendar's pre/post times (04:00 to 20:00 ET, 17:00 on early
+    close days). Regular hours use the market open and close.
+    """
+    import pandas_market_calendars as mcal
+
+    open_col, close_col = ("pre", "post") if extended_hours else ("market_open", "market_close")
+    schedule = mcal.get_calendar("NYSE").schedule(
+        start_date=f"{int(year)}-01-01",
+        end_date=f"{int(year)}-12-31",
+        start=open_col,
+        end=close_col,
+    )
+    if schedule is None or schedule.empty:
+        empty = np.array([], dtype="int64")
+        return empty, empty
+    opens = pd.to_datetime(schedule[open_col], utc=True).astype("int64").to_numpy()
+    closes = pd.to_datetime(schedule[close_col], utc=True).astype("int64").to_numpy()
+    order = np.argsort(opens)
+    return opens[order], closes[order]
+
+
+def _us_equity_closed_interval(start_local: datetime, end_local: datetime, *, include_after_hours: bool) -> bool:
+    """Return True if a US equity cannot trade anywhere in ``[start_local, end_local)``.
+
+    Used to skip downloader requests for window edges that are pure market-closed time
+    (weekends, exchange holidays, overnight). IBKR has no bars there, so asking again
+    only returns bars from outside the window. Any calendar failure returns False, which
+    keeps the old behavior of fetching.
+    """
+    try:
+        start_ts = pd.Timestamp(start_local)
+        end_ts = pd.Timestamp(end_local)
+        if start_ts.tzinfo is None:
+            start_ts = start_ts.tz_localize(LUMIBOT_DEFAULT_PYTZ)
+        if end_ts.tzinfo is None:
+            end_ts = end_ts.tz_localize(LUMIBOT_DEFAULT_PYTZ)
+        if end_ts <= start_ts:
+            return True
+        start_ns = int(start_ts.tz_convert("UTC").value)
+        end_ns = int(end_ts.tz_convert("UTC").value)
+        first_year = int(start_ts.tz_convert("America/New_York").year)
+        last_year = int(end_ts.tz_convert("America/New_York").year)
+        for year in range(first_year, last_year + 1):
+            opens, closes = _us_equity_session_bounds_for_year(year, bool(include_after_hours))
+            if len(opens) == 0:
+                continue
+            # First session that has not closed by `start`; it overlaps if it opens before `end`.
+            idx = int(np.searchsorted(closes, start_ns, side="right"))
+            if idx < len(opens) and int(opens[idx]) < end_ns:
+                return False
+        return True
+    except Exception:
+        return False
+
+
+def _history_segment_already_attempted(runtime_key: str, seg_start: datetime, seg_end: datetime) -> bool:
+    for attempted_start, attempted_end in _RUNTIME_ATTEMPTED_HISTORY_SEGMENTS.get(runtime_key, ()):
+        if attempted_start <= seg_start and seg_end <= attempted_end:
+            return True
+    return False
+
+
+def _remember_attempted_history_segment(runtime_key: str, seg_start: datetime, seg_end: datetime) -> None:
+    segments = list(_RUNTIME_ATTEMPTED_HISTORY_SEGMENTS.get(runtime_key, ()))
+    segments.append((seg_start, seg_end))
+    segments.sort(key=lambda item: item[0])
+    merged: list[Tuple[datetime, datetime]] = []
+    for start, end in segments:
+        if merged and start <= merged[-1][1]:
+            merged[-1] = (merged[-1][0], max(merged[-1][1], end))
+        else:
+            merged.append((start, end))
+    _RUNTIME_ATTEMPTED_HISTORY_SEGMENTS[runtime_key] = merged
+
+
 @dataclass(frozen=True)
 class IbkrConidKey:
     asset_type: str
@@ -495,6 +585,10 @@ def get_price_data(
     # requests unless a per-call source was explicitly provided.
     if source is None and asset_type == "index":
         history_source = IBKR_DEFAULT_INDEX_HISTORY_SOURCE
+    # Listed option trades are sparse. Midpoint bars are the history that can
+    # price a contract when the caller did not pick a source.
+    if source is None and not env_source_was_explicit and asset_type == "option":
+        history_source = "Midpoint"
 
     # Normalize timestep classification once so callers can pass "day", "1d", "1day", etc.
     try:
@@ -778,6 +872,30 @@ def get_price_data(
         and _us_futures_closed_interval(coverage_end + bar_step, end_local)
     )
 
+    # US stock intraday series have the same problem around weekends, exchange holidays and
+    # the overnight break. A window that starts on a holiday or ends before the next session
+    # opens (for example a backtest end clamped to "now" at 00:42 ET) leaves an uncovered edge
+    # that contains no trading time. Fetching it only returns bars from outside the window,
+    # so coverage never changes and every later call would ask again. Indexes keep the old
+    # behavior because their calculation hours differ from the NYSE equity session.
+    if asset_type == "stock" and bar_step > timedelta(0) and not str(timestep_component).endswith("day"):
+        if window_cov_start is not None and start_local < window_cov_start:
+            window_start_gap_closed = _us_equity_closed_interval(
+                start_local, window_cov_start, include_after_hours=include_after_hours
+            )
+        if coverage_start is not None and start_local < coverage_start:
+            cache_start_gap_closed = _us_equity_closed_interval(
+                start_local, coverage_start, include_after_hours=include_after_hours
+            )
+        if window_cov_end is not None and end_local > window_cov_end:
+            window_end_gap_closed = _us_equity_closed_interval(
+                window_cov_end + bar_step, end_local, include_after_hours=include_after_hours
+            )
+        if coverage_end is not None and end_local > coverage_end:
+            cache_end_gap_closed = _us_equity_closed_interval(
+                coverage_end + bar_step, end_local, include_after_hours=include_after_hours
+            )
+
     needs_fetch = (
         coverage_start is None
         or coverage_end is None
@@ -869,6 +987,19 @@ def get_price_data(
         for seg_start, seg_end in segments:
             if seg_start >= seg_end:
                 continue
+            if _history_segment_already_attempted(runtime_no_data_key, seg_start, seg_end):
+                # Same (or a narrower) segment was already requested in this process and the
+                # answer did not fill it. Asking again returns the same answer; serve the real
+                # cached bars instead.
+                logger.debug(
+                    "IBKR history segment already requested this run for %s timestep=%s: %s -> %s",
+                    getattr(asset, "symbol", None),
+                    timestep,
+                    seg_start,
+                    seg_end,
+                )
+                continue
+            _remember_attempted_history_segment(runtime_no_data_key, seg_start, seg_end)
             prev_max = df_cache.index.max() if not df_cache.empty else None
             try:
                 fetched = _fetch_history_between_dates(
@@ -1096,7 +1227,7 @@ def get_price_data(
             _write_cache_frame(cache_file, df_aug)
             df_cache = df_aug
 
-    if asset_type in {"stock", "index"} and str(timestep_component).endswith("day"):
+    if asset_type in {"stock", "index", "option"} and str(timestep_component).endswith("day"):
         # Align cached daily bars to session close BEFORE slicing by [start_local, end_local].
         # This avoids same-day lookahead at market open when IBKR timestamps day bars near
         # session open/midnight boundaries.
@@ -1117,7 +1248,9 @@ def get_price_data(
     # Remove placeholder rows from the returned frame (but keep them in cache).
     frame = df_cache.loc[(df_cache.index >= start_local) & (df_cache.index <= end_local)].copy()
     if "missing" in frame.columns:
-        frame = frame[~frame["missing"].fillna(False)]
+        # `astype(bool)`: after merges the flag can be object dtype, where `~` would be an
+        # integer bitwise NOT instead of a boolean mask.
+        frame = frame[~frame["missing"].fillna(False).astype(bool)]
     frame = _strip_missing_cache_metadata(frame)
     if asset_type in {"stock", "index"} and str(timestep_component).endswith("day"):
         frame = _repair_isolated_split_spikes_daily(frame)
@@ -2147,7 +2280,7 @@ def _history_period_for_request(
     requested_start: Optional[datetime] = None, requested_end: Optional[datetime] = None,
 ) -> str:
     normalized_bar = (bar or "").strip().lower()
-    if asset_type in {"stock", "index"} and normalized_bar.endswith("d"):
+    if asset_type in {"stock", "index", "option"} and normalized_bar.endswith("d"):
         if requested_start is not None and requested_end is not None:
             span = (_to_utc(requested_end) - _to_utc(requested_start)).total_seconds()
             if 0 < span <= 365 * 86400:
@@ -2234,23 +2367,35 @@ def frame_covers_requested_window(
                 tzinfo=LUMIBOT_DEFAULT_PYTZ,
             )
             if schedule is not None and not schedule.empty:
-                first_open = pd.Timestamp(schedule["market_open"].iloc[0])
-                last_close = pd.Timestamp(schedule["market_close"].iloc[-1])
-                if coverage_start.tzinfo is not None:
-                    first_open = first_open.tz_convert(coverage_start.tzinfo)
-                if coverage_end.tzinfo is not None:
-                    last_close = last_close.tz_convert(coverage_end.tzinfo)
-                # A weekend or overnight request boundary needs no synthetic
-                # bars. The first open and last close are the real coverage
-                # boundaries for US stocks and indexes.
-                start_covered = start_covered or (
-                    start_local < first_open
-                    and coverage_start <= (first_open + tolerance)
-                )
-                end_covered = end_covered or (
-                    end_local > last_close
-                    and coverage_end >= (last_close - tolerance)
-                )
+                opens = pd.DatetimeIndex(pd.to_datetime(schedule["market_open"], utc=True))
+                closes = pd.DatetimeIndex(pd.to_datetime(schedule["market_close"], utc=True))
+                start_utc = start_local.tz_convert("UTC") if start_local.tzinfo is not None else start_local.tz_localize("UTC")
+                end_utc = end_local.tz_convert("UTC") if end_local.tzinfo is not None else end_local.tz_localize("UTC")
+                cov_start_utc = coverage_start.tz_convert("UTC") if coverage_start.tzinfo is not None else coverage_start.tz_localize("UTC")
+                cov_end_utc = coverage_end.tz_convert("UTC") if coverage_end.tzinfo is not None else coverage_end.tz_localize("UTC")
+                # A weekend, holiday or overnight request boundary needs no synthetic
+                # bars. The real coverage boundaries are the first session that had not
+                # closed by the requested start, and the last session that had opened by
+                # the requested end. A boundary inside a session still needs the raw check.
+                #
+                # 2026-09-23: the end side used the close of the last calendar day in the
+                # window. A backtest end clamped to "now" at 00:42 ET sits before that
+                # day's session, so a complete cache was reported as underfilled and the
+                # routed prefetch retried on every bar (production SPY 5-minute backtest).
+                pending = closes > start_utc
+                if not bool(pending.any()):
+                    start_covered = True
+                else:
+                    first_open = opens[pending][0]
+                    if start_utc < first_open:
+                        start_covered = start_covered or cov_start_utc <= (first_open + tolerance)
+                begun = opens < end_utc
+                if not bool(begun.any()):
+                    end_covered = True
+                else:
+                    last_close = closes[begun][-1]
+                    if end_utc > last_close:
+                        end_covered = end_covered or cov_end_utc >= (last_close - tolerance)
         except Exception:
             pass
 
@@ -3876,6 +4021,156 @@ def _merge_upload_conids_json(
         logger.warning("IBKR conids.json merge-upload failed after retries: %s", last_exc)
 
 
+_INDEX_OPTION_UNDERLYINGS = {"SPX", "SPXW", "VIX", "RUT", "NDX", "XSP"}
+
+
+def _as_expiration_date(value):
+    """Return a date for an option or future expiration, including ISO strings."""
+    if value is None:
+        return None
+    if isinstance(value, datetime):
+        return value.date()
+    if hasattr(value, "strftime") and not isinstance(value, str):
+        return value
+    text = str(value).strip()
+    for fmt, size in (("%Y-%m-%d", 10), ("%Y%m%d", 8), ("%m/%d/%Y", 10)):
+        try:
+            return datetime.strptime(text[:size], fmt).date()
+        except ValueError:
+            continue
+    return None
+
+
+def _option_strike_text(asset: Asset) -> str:
+    strike = getattr(asset, "strike", None)
+    try:
+        number = float(strike)
+    except (TypeError, ValueError):
+        return _safe_component(str(strike or ""))
+    if not math.isfinite(number):
+        return ""
+    if number.is_integer():
+        return str(int(number))
+    return str(number).replace(".", "p")
+
+
+def _listed_option_strike(strike, listed) -> str:
+    """Return the strike text from the chain that matches the requested strike."""
+    try:
+        target = float(strike)
+    except (TypeError, ValueError) as exc:
+        raise RuntimeError(f"IBKR option strike is not a number: {strike}") from exc
+    if not math.isfinite(target):
+        raise RuntimeError(f"IBKR option strike is not a number: {strike}")
+    for item in listed or []:
+        try:
+            value = float(item)
+        except (TypeError, ValueError):
+            continue
+        if abs(value - target) < 1e-4:
+            if value.is_integer():
+                return str(int(value))
+            return str(value)
+    raise RuntimeError(f"IBKR option chain has no strike {target}")
+
+
+def _lookup_conid_option(
+    *,
+    asset: Asset,
+    quote: Optional[Asset],
+    exchange: Optional[str],
+) -> int:
+    """Resolve one listed option conid from strike, right, and expiration.
+
+    Client Portal only returns option contracts after three calls, in order:
+    search the underlying, ask for that month's strikes, then ask for the contract.
+    A cached stock conid is not a substitute for the search call.
+    """
+    symbol = str(getattr(asset, "symbol", "") or "").strip().upper()
+    expiration = _as_expiration_date(getattr(asset, "expiration", None))
+    strike = getattr(asset, "strike", None)
+    right_raw = str(getattr(asset, "right", "") or "").strip().upper()
+    if expiration is None or strike is None or right_raw not in {"CALL", "PUT", "C", "P"}:
+        raise RuntimeError(
+            f"IBKR option conid needs expiration, strike, and call or put for {symbol or 'unknown'}"
+        )
+    right_code = "C" if right_raw.startswith("C") else "P"
+    underlying_symbol = "SPX" if symbol == "SPXW" else symbol
+    underlying_type = (
+        Asset.AssetType.INDEX if symbol in _INDEX_OPTION_UNDERLYINGS else Asset.AssetType.STOCK
+    )
+    underlying = Asset(underlying_symbol, asset_type=underlying_type)
+    underlying_conid = _resolve_conid(asset=underlying, quote=quote, exchange=exchange)
+    try:
+        maturity = expiration.strftime("%Y%m%d")
+        month = expiration.strftime("%b%y").upper()
+    except Exception as exc:
+        raise RuntimeError(f"IBKR option expiration is not a date for {symbol}: {expiration}") from exc
+    venue = (exchange or ("CBOE" if underlying_type == Asset.AssetType.INDEX else "SMART")).strip().upper()
+    base_url = _downloader_base_url()
+    search_sec_type = "IND" if underlying_type == Asset.AssetType.INDEX else "STK"
+    queue_request(
+        url=f"{base_url}/ibkr/iserver/secdef/search",
+        querystring={"symbol": underlying_symbol, "secType": search_sec_type},
+        headers=None,
+        timeout=None,
+    )
+    strikes_payload = queue_request(
+        url=f"{base_url}/ibkr/iserver/secdef/strikes",
+        querystring={
+            "conid": str(underlying_conid),
+            "sectype": "OPT",
+            "month": month,
+            "exchange": venue,
+        },
+        headers=None,
+        timeout=None,
+    )
+    side_key = "call" if right_code == "C" else "put"
+    listed = strikes_payload.get(side_key) if isinstance(strikes_payload, dict) else None
+    strike_text = _listed_option_strike(strike, listed if isinstance(listed, list) else [])
+    payload = queue_request(
+        url=f"{base_url}/ibkr/iserver/secdef/info",
+        querystring={
+            "conid": str(underlying_conid),
+            "sectype": "OPT",
+            "month": month,
+            "strike": strike_text,
+            "right": right_code,
+            "exchange": venue,
+        },
+        headers=None,
+        timeout=None,
+    )
+    contracts = payload if isinstance(payload, list) else []
+    if isinstance(payload, dict):
+        nested = payload.get("contracts") or payload.get("data") or []
+        contracts = nested if isinstance(nested, list) else []
+    matching = []
+    for contract in contracts:
+        if not isinstance(contract, dict):
+            continue
+        maturity_value = str(contract.get("maturityDate") or contract.get("expiry") or "")
+        if maturity_value.startswith(maturity) and contract.get("conid") is not None:
+            matching.append(contract)
+    # On monthly expirations IBKR lists AM-settled SPX and PM-settled SPXW contracts with
+    # the same maturity. Prefer the requested trading class; otherwise keep the first match.
+    for contract in matching:
+        if str(contract.get("tradingClass") or "").strip().upper() == symbol:
+            return int(contract["conid"])
+    if matching:
+        return int(matching[0]["conid"])
+    message = (
+        f"Unable to resolve IBKR option conid for {symbol} {right_code} {_option_strike_text(asset)} {maturity}"
+    )
+    _record_negative_conid(
+        key=_conid_key(asset=asset, quote=quote, exchange=exchange).to_key(),
+        reason="no_option_conid",
+        message=message,
+    )
+    raise RuntimeError(message)
+
+
 def _lookup_conid_remote(
     *,
     asset: Asset,
@@ -3894,6 +4189,8 @@ def _lookup_conid_remote(
         return _lookup_conid_future(asset=asset, exchange=exchange, mapping=mapping, keys_added=keys_added)
     if asset_type in {"crypto"}:
         return _lookup_conid_crypto(asset=asset, quote=quote)
+    if asset_type == "option":
+        return _lookup_conid_option(asset=asset, quote=quote, exchange=exchange)
 
     preferred_sec_types: tuple[str, ...] = ()
     if asset_type == "stock":
@@ -4301,11 +4598,13 @@ def _cache_file_for(
     exch = (exchange or "").strip().upper() or "AUTO"
     symbol = _safe_component(getattr(asset, "symbol", "") or "symbol")
     quote_symbol = _safe_component(getattr(quote, "symbol", "") or "USD") if quote else "USD"
-    expiration = getattr(asset, "expiration", None)
+    expiration = _as_expiration_date(getattr(asset, "expiration", None))
     exp_component = expiration.strftime("%Y%m%d") if expiration else ""
     source_component = _safe_component(source)
     session_component = "AHR" if bool(include_after_hours) else "RTH"
     suffix = f"_{exp_component}" if exp_component else ""
+    if _normalize_asset_type(getattr(asset, "asset_type", "")) == "option":
+        suffix = f"{suffix}_{_option_strike_text(asset)}_{_safe_component(str(getattr(asset, 'right', '') or ''))}"
     filename = (
         f"{asset_folder}_{symbol}_{quote_symbol}_{timestep_component}_{exch}_{source_component}_{session_component}"
         f"{suffix}.parquet"
@@ -4691,6 +4990,8 @@ def _conid_key(asset: Asset, quote: Optional[Asset], exchange: Optional[str]) ->
             expiration = asset.expiration.strftime("%Y%m%d")  # type: ignore[union-attr]
         except Exception:
             expiration = str(asset.expiration)
+    if asset_type == "option":
+        expiration = f"{expiration}|{_option_strike_text(asset)}|{str(getattr(asset, 'right', '') or '').upper()}"
     return IbkrConidKey(
         asset_type=asset_type,
         symbol=symbol,

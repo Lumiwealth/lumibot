@@ -85,7 +85,7 @@ Supported functionality
 * OTO / one-triggers-other orders for single stock/ETF and option parent/child orders (experimental; live broker validation recommended before production use).
 * OCO / one-cancels-other and bracket orders for single stock/ETF and option orders (experimental; live broker validation recommended before production use).
 * Streaming quotes for equities/options.
-* Historical bars – up to 15 years daily, 6 months intraday.
+* Historical bars for equities, ETFs, and option contracts (OCC symbol). Futures candle history is not requested. Crypto is not on this API.
 
 Multi-leg option spreads and futures trades are not yet implemented.
 
@@ -417,6 +417,12 @@ Supported Assets & Order Types
     - ✖
     - ✖
     - ✖
+  * - Crypto
+    - ✖
+    - ✖
+    - ✖
+    - ✖
+    - ✖
 
 - Multi-leg/spread options are not yet implemented in Lumibot.
 - Schwab OTO, OCO, and bracket orders use Schwab's trigger and one-cancels-other support and should be live-tested with the target account and order shape before relying on them in production.
@@ -425,10 +431,15 @@ Supported Assets & Order Types
 Market Data
 -----------
 
-- Real-time quotes, option chains, and historical bars (up to 15 years daily, 6 months intraday for equities/options).
-- **Level-I/II streaming quotes are available for equities, options, and futures; historical bars only for equities/ETFs.**
+- Real-time quotes, last price, and option chains work for equities and options. A live read on 2026-09-22 returned SPY quotes around 774 and an SPY 775 call quote around 0.10. Current quotes include bid and ask. Price-history candles do not.
+- Daily candles for SPY went back through a 20-year request (2006-09-27 to 2026-09-22, 5027 bars). The every-day helper, which asks for twenty years of daily bars, returned 8469 bars from 1993-01-29 through 2026-09-22. One-minute bars capped at 2026-08-07 even when 90 days were requested. Thirty-minute bars for a one-year request started 2026-01-05. Schwab has no 60-minute frequency and no second bars. LumiBot's hour timestep asks for 30-minute candles and says so. A second timestep returns no bars.
+- Price-history candles are last-trade OHLC plus volume and datetime. A live read of SPY stock daily bars and of an SPY option daily series returned only those keys. There is no historical bid or ask on the candle. Days with no trade come back as gaps. Live ``get_quote`` still returns bid and ask. LumiBot does not invent quote bars to fill those gaps.
+- Option quotes, last price, chains, and candles work. History is the life of that contract, not a fixed bar cap and not the years requested. The request has to use the OCC symbol. The SPY 775 call expiring 2026-09-22 had 11 daily bars from 2026-09-08. The SPY 775 call expiring 2027-09-17 quoted at 68.31 (bid 67.75, ask 69.63). A 30-day daily request returned 20 bars from 2026-08-25. One-year, two-year, and five-year daily requests all stopped at 95 bars from 2026-03-26. One-minute bars existed and were thin: 227 bars back to 2026-08-06. The Jan 2029 775 call quoted at 126.11 and had 3 daily bars from 2026-09-18.
+- A Tesla check on the same day showed less history, not more. The TSLA 380 call expiring 2027-09-17 quoted at bid 76.6, ask 77.3, last 77.14. A 30-day daily request returned 21 bars from 2026-08-24. One-year, two-year, and five-year daily requests all stopped at 72 bars from 2026-05-19. One-minute bars over 48 days returned 194 bars from 2026-08-06. The TSLA 380 call expiring 2029-01-19 quoted at bid 120.0, ask 126.0, last 124.58, and had 5 daily bars from 2026-09-16 plus 34 one-minute bars from the same day. The SPY 95-bar stop is that contract's listing, not an API limit.
+- Equity tickers stay equity tickers. ``Asset("BTC")`` and ``Asset("ETH")`` still request ``BTC`` and ``ETH``, and those can be priced and traded as stocks. A live read on 2026-09-22 showed ticker ``BTC`` is the Grayscale Bitcoin Mini Trust ETF (last price 38.265, asset type EQUITY) and ticker ``ETH`` is the Grayscale Ethereum Staking Mini ETF (last price 26.355). ``DOGE`` and ``SOL`` had no instrument. ``LTC`` and ``BCH`` are unrelated stocks. Description search found no spot bitcoin or ethereum pair. The ``$BLX`` and ``$ELX`` indexes stopped on 2023-10-30.
+- Only ``asset_type`` crypto is refused. ``get_historical_prices`` and ``get_quote`` for a crypto asset return no bars and do not call Schwab. Spot bitcoin cannot be quoted, charted, or bought through this API. LumiBot's order builder rejects ``asset_type`` crypto before any order HTTP call. A stock order for ticker ``BTC`` is an ETF order. No order was sent.
+- Futures quotes can stream. Futures candle history is not requested.
 - No extra entitlements required for individual developers.
-- Futures quotes available; historical futures bars not yet supported.
 
 Rate Limits & Token Expiry
 --------------------------
@@ -451,7 +462,7 @@ Known Issues & Best Practices
 - `token.json` must be unique per account/app.
 - OTO, OCO, and bracket advanced orders are experimental.
 - Callback URL must match exactly (including trailing slash).
-- Refresh tokens proactively (every 28–29 min) to avoid expiry.
+- Access tokens last about 30 minutes. While the process is running and ``SCHWAB_APP_SECRET`` is set, LumiBot refreshes in the background and writes the new token back to the token file. Do not also set ``SCHWAB_TOKEN``: every start overwrites that file with the original payload. A live check on 2026-09-22 forced the access token to look expired, and LumiBot refreshed it without another login.
 - Secure `token.json` (chmod 600) and rotate secrets regularly.
 - Use separate apps for sandbox and production.
 - **Attempting to place a futures order returns HTTP 400 "Unsupported instrument".**

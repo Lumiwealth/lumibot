@@ -1,0 +1,57 @@
+History before backtesting_start in AlpacaBacktesting (BACKTESTING_DATA_SOURCE=alpaca), 2026-09-23
+See docs/investigations/2026-09-23_alpaca-options-backtesting-and-ibkr-4592-window-regression.md.
+
+The data window used to start at backtesting_start. A strategy that asked at its first bar for a
+long lookback got a few bars or an error. Now a history request that needs more finished bars
+than the window holds fetches the real bars before it, once, cached, never filled.
+
+1) ORB proof at its first bar (scripts/alpaca_env_selection_proof.py orb, 2026-08-03 09:30),
+   asking for 250 five-minute bars and 15 daily bars (what an ATR(14) filter needs).
+
+   Before (--no-history-before-start, the old window):
+   [alpaca_env_orb_2026_no_history_before_start] 2026-08-03 09:30:00-04:00 HISTORY AT FIRST BAR: five-minute: 66 of 250, 2026-08-03 04:00:00-04:00 to 2026-08-03 09:25:00-04:00, 0 dated before 2026-08-03, 0 still forming; daily: error Not enough historical data. Requested 15 bars but only 5 available.
+
+   After (default):
+   [alpaca_env_orb_2026] 2026-08-03 09:30:00-04:00 HISTORY AT FIRST BAR: five-minute: 250 of 250, 2026-07-31 04:40:00-04:00 to 2026-08-03 09:25:00-04:00, 184 dated before 2026-08-03, 0 still forming; daily: 15 of 15, 2026-07-13 00:00:00-04:00 to 2026-07-31 00:00:00-04:00, 15 dated before 2026-08-03, 0 still forming, ATR(14)=8.40
+
+   The reaches the run made (one request each):
+   History before 2026-08-03 for SPY-STOCK_USD-FOREX_NASDAQ_5MINUTE_AMERICA-NEW-YORK_2026-08-03_2026-08-08: 1341 real bars from 2026-07-23
+   History before 2026-08-03 for SPY-STOCK_USD-FOREX_NASDAQ_DAY_AMERICA-NEW-YORK_2026-08-03_2026-08-08: 21 real bars from 2026-07-02
+   History before 2026-07-02 for SPY-STOCK_USD-FOREX_NASDAQ_DAY_AMERICA-NEW-YORK_2026-08-03_2026-08-08: 19 real bars from 2026-06-04
+   The third reach comes from the backtest's own dividend and split checks, which ask for 30
+   daily bars once SPY is held.
+
+   Five-minute bars are native Alpaca bars and include extended hours, so 250 of them reach
+   back to 04:40 on 07-31. 0 bars were still forming at the simulated time.
+
+2) Every bar checked against raw Alpaca bars (the same paper key, adjustment=all, requested
+   directly with the SDK for the same span). "Not in raw" counts returned bars with no raw bar at that
+   timestamp.
+
+environment mode: history_before_start = True remove_incomplete_current_bar = True
+  5-minute x250 at 08-03 09:30: 250 bars, 2026-07-31 04:40:00-04:00 to 2026-08-03 09:25:00-04:00; 184 dated before 2026-08-03; 0 still forming; 0 not in raw Alpaca bars; largest OHLCV difference 0.0
+  daily x15 at 08-03 09:30: 15 bars, 2026-07-13 00:00:00-04:00 to 2026-07-31 00:00:00-04:00; 15 dated before 2026-08-03; 0 still forming; 0 not in raw Alpaca bars; largest OHLCV difference 0.0
+  1-minute x500 at 08-03 09:40: 500 bars, 2026-07-30 14:20:00-04:00 to 2026-08-03 09:39:00-04:00; 490 dated before 2026-08-03; 0 still forming; 0 not in raw Alpaca bars; largest OHLCV difference 0.0
+
+   The 1-minute bars before 08-03 are regular-session minutes only, the same minutes the
+   window's minute series holds (07-30 from 14:20 plus the full 07-31 session: 490 bars).
+
+3) Trades
+   - ORB with history before the start: 16 trade rows identical to alpaca_env_orb_2026_trades.csv.
+   - ORB with --no-history-before-start: identical too. This strategy decides on the latest few
+     five-minute bars, which the window already held; the first-bar probe only logs.
+   - weekly_call (options), 2026-07-27 to 2026-08-14: 12 trade rows and all 24 decision lines
+     (including the [FILL][PENDING] waits) identical. It makes no history request, so it never
+     reaches back.
+
+Commands (credentials from your own environment):
+
+  LUMIBOT_DISABLE_DOTENV_LOCAL=1 LUMIBOT_CACHE_BACKEND=local LUMIBOT_CACHE_MODE=disabled \
+  BACKTESTING_QUIET_LOGS=false BACKTESTING_DATA_SOURCE=alpaca ALPACA_IS_PAPER=true \
+  BACKTESTING_START=2026-08-03 BACKTESTING_END=2026-08-08 PYTHONPATH=. \
+  python scripts/alpaca_env_selection_proof.py orb --name alpaca_env_orb_2026 [--no-history-before-start]
+
+  LUMIBOT_DISABLE_DOTENV_LOCAL=1 LUMIBOT_CACHE_BACKEND=local LUMIBOT_CACHE_MODE=disabled \
+  BACKTESTING_QUIET_LOGS=false BACKTESTING_DATA_SOURCE=alpaca ALPACA_IS_PAPER=true \
+  BACKTESTING_START=2026-07-27 BACKTESTING_END=2026-08-15 PYTHONPATH=.:scripts \
+  python scripts/alpaca_env_selection_proof.py weekly_call --name alpaca_env_weekly_call_2026

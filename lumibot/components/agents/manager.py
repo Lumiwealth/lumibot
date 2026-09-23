@@ -5,6 +5,7 @@ import json
 import os
 import re
 import sys
+import threading
 import time
 from datetime import datetime, timezone
 from pathlib import Path
@@ -22,6 +23,8 @@ _TIMESTAMP_HINT_RE = re.compile(
     re.IGNORECASE,
 )
 _DEFAULT_MEMORY_NOTE_MAX_CHARS = 2000
+DEFAULT_AGENT_MODEL = "openai/gpt-6-luna"
+DEFAULT_AGENT_REASONING_EFFORT = "high"
 _BOTSPOT_RESEARCH_TOOLS = [
     "search_data_catalog",
     "query_data",
@@ -944,6 +947,8 @@ class AgentHandle:
         mcp_servers: list[MCPServer] | None = None,
         runtime: Any | None = None,
         allow_trading: bool = True,
+        allow_communication_reads: bool = False,
+        allow_communication_writes: bool = False,
         include_builtin_tools: bool = True,
         include_builtin_skills: bool = True,
         rules_path: str | Path | None = None,
@@ -956,6 +961,8 @@ class AgentHandle:
         self.system_prompt = system_prompt
         self.default_model = default_model
         self.allow_trading = bool(allow_trading)
+        self.allow_communication_reads = bool(allow_communication_reads)
+        self.allow_communication_writes = bool(allow_communication_writes)
         self.model_request_timeout_seconds = model_request_timeout_seconds
         self.run_timeout_seconds = run_timeout_seconds
         if reasoning_effort not in {None, "none", "low", "medium", "high", "xhigh", "max"}:
@@ -965,13 +972,13 @@ class AgentHandle:
         self.rules_path = rules_path
         from .builtins import BuiltinTools
 
-        builtin_tools = self._filter_tools_for_trading_permission(BuiltinTools.all())
+        builtin_tools = self._filter_tools_for_permissions(BuiltinTools.all())
         if tools is None:
             self._tool_inputs = builtin_tools
         elif include_builtin_tools:
-            self._tool_inputs = builtin_tools + self._filter_tools_for_trading_permission(list(tools))
+            self._tool_inputs = builtin_tools + self._filter_tools_for_permissions(list(tools))
         else:
-            self._tool_inputs = self._filter_tools_for_trading_permission(list(tools))
+            self._tool_inputs = self._filter_tools_for_permissions(list(tools))
         self._mcp_servers = list(mcp_servers or [])
         hosted_research, research_warning = _botspot_research_server_from_environment()
         if hosted_research and all(server.name != hosted_research.name for server in self._mcp_servers):
@@ -982,13 +989,34 @@ class AgentHandle:
         self._runtime = runtime or google_runtime(mcp_servers=self._mcp_servers)
         self._bound_tools: list[BoundTool] | None = None
 
-    def _filter_tools_for_trading_permission(self, tools: list[Any]) -> list[Any]:
-        if self.allow_trading:
-            return list(tools)
+    def _filter_tools_for_permissions(self, tools: list[Any]) -> list[Any]:
+        communication_write_tools = {"send_email", "send_slack_message"}
+        communication_read_tools = {
+            "list_sent_emails",
+            "get_sent_email",
+            "get_email_status",
+            "list_received_emails",
+            "get_received_email",
+            "list_received_email_attachments",
+            "get_received_email_attachment",
+            "list_slack_channels",
+            "list_slack_messages",
+            "get_slack_message",
+            "list_slack_thread",
+        }
         filtered: list[Any] = []
         for tool in tools:
             metadata = getattr(tool, "metadata", {}) or {}
-            if bool(metadata.get("mutates_trading")):
+            name = str(getattr(tool, "name", ""))
+            if not self.allow_trading and bool(metadata.get("mutates_trading")):
+                continue
+            if not self.allow_communication_reads and (
+                bool(metadata.get("communication_read")) or name in communication_read_tools
+            ):
+                continue
+            if not self.allow_communication_writes and (
+                bool(metadata.get("communication_write")) or name in communication_write_tools
+            ):
                 continue
             filtered.append(tool)
         return filtered
@@ -1196,8 +1224,11 @@ class AgentHandle:
             "Diversify when the strategy is broad and multiple opportunities compete for capital.",
             "Assume this strategy may be one component of a broader portfolio unless the user says otherwise.",
             "Do not resist intentional concentration when the user's strategy clearly calls for concentrated or single-asset exposure.",
-            "If you are not deploying capital into risk assets, explain why a high-quality short-duration defensive parking choice is preferable right now.",
-            "Avoid leaving raw cash idle unless there is a specific reason the defensive parking asset is unavailable or inappropriate.",
+            "Stay inside the strategy's allowed universe. When the user's system prompt lists allowed symbols, a universe, or a book, trade only those symbols.",
+            "Only use a defensive parking asset when the strategy allows it: either it is in the allowed universe or the user's prompt permits parking. Otherwise hold the allowed assets or cash.",
+            "If a proposed allocation includes a symbol outside the allowed universe, drop that weight and rescale the remaining allowed weights. Do not skip the whole rebalance because one symbol is not allowed.",
+            "If you are not deploying capital into risk assets and parking is allowed, explain why a high-quality short-duration defensive parking choice is preferable right now.",
+            "Avoid leaving raw cash idle unless there is a specific reason, such as parking not being allowed or no allowed asset being attractive.",
             "When rotating, compare the new idea against the current holdings or current defensive posture and only switch if the new opportunity is clearly better.",
             "Be aware that trading has costs. Commissions, spreads, and slippage add up, especially for thinly traded assets.",
             "Prefer limit orders over market orders when the asset is not highly liquid.",
@@ -1218,7 +1249,7 @@ class AgentHandle:
             "Estimate the order's cash impact before submitting it. Ask whether the order is likely to create negative cash or additional leverage, and only do that when it is intentional for the strategy and suitable for the asset class.",
             "Margin and leverage behave differently across stocks, ETFs, options, futures, forex, crypto, brokers, and jurisdictions. Use judgment instead of assuming the same sizing rule works for every asset class.",
             "When switching from one asset to another, close or reduce the current position first to free up capital before buying the replacement.",
-            "If the strategy holds a defensive parking asset (like SHV, BIL, or SGOV) and a better opportunity appears, sell the parking asset first to free the cash, then buy the new position. Do not assume parked capital is unavailable.",
+            "If the strategy holds an allowed defensive parking asset (like SHV, BIL, or SGOV) and a better opportunity appears, sell the parking asset first to free the cash, then buy the new position. Do not assume parked capital is unavailable.",
             "",
             "TOOL USAGE:",
             "Use your available tools to gather evidence before making any trading decision. Do not guess when a tool can give you the answer.",
@@ -1259,6 +1290,7 @@ class AgentHandle:
                     "Correct example: if the current simulated date is 2024-01-22 and a tool accepts end, end_date, time_to, or observation_end, pass 2024-01-22 (or the current simulated datetime) in that field.",
                     "Incorrect example: calling a news, macro, or data tool with only a start parameter and no end parameter, allowing it to return future data by default.",
                     "If a tool response seems to include future timestamps, treat that as suspicious. Do not rely on those records without calling out the risk in your reasoning.",
+                    "Some backtest data sources have option trade bars but no bid/ask history. When a tool result or another agent's research reports price_basis='last_trade', that last traded price is the price this backtest fills at. Missing bid/ask alone is not a reason to pass, and it does not make that price unverified or unexecutable. A recent trade bar for the exact contract is the liquidity evidence.",
                     "If you are unsure whether information was available yet, say the evidence is insufficient and do nothing.",
                     "Backtesting accuracy is more important than being clever. A cautious no-trade is better than a future-biased trade.",
                 ]
@@ -2221,6 +2253,7 @@ class AgentManager:
         self._warning_keys: set[str] = set()
         self._remote_mcp_contract_cache: dict[tuple[str, str], dict[str, dict[str, Any]]] = {}
         self._model_call_count = 0
+        self._model_call_lock = threading.Lock()
         agent_replay_cache_class, _ = _get_replay_imports()
         self.replay_cache = agent_replay_cache_class()
         self.duckdb = _get_duckdb_query_layer_class()(strategy)
@@ -2269,17 +2302,34 @@ class AgentManager:
     def _reserve_model_call(self, *, agent_name: str, model: str) -> None:
         limit = _agent_model_call_limit(self.strategy)
         params = getattr(self.strategy, "parameters", None)
-        if limit is not None and self._model_call_count >= limit:
-            raise AgentModelCallLimitExceeded(
-                f"LUMIBOT_AGENT_MAX_MODEL_CALLS/agent_max_model_calls limit reached "
-                f"before agent={agent_name!r} model={model!r}. "
-                f"Configured limit={limit}, attempted_call={self._model_call_count + 1}."
-            )
-        self._model_call_count += 1
-        if isinstance(params, dict):
-            params["agent_model_calls"] = self._model_call_count
-            if limit is not None:
-                params["agent_max_model_calls"] = limit
+        with self._model_call_lock:
+            if limit is not None and self._model_call_count >= limit:
+                raise AgentModelCallLimitExceeded(
+                    f"LUMIBOT_AGENT_MAX_MODEL_CALLS/agent_max_model_calls limit reached "
+                    f"before agent={agent_name!r} model={model!r}. "
+                    f"Configured limit={limit}, attempted_call={self._model_call_count + 1}."
+                )
+            self._model_call_count += 1
+            if isinstance(params, dict):
+                params["agent_model_calls"] = self._model_call_count
+                if limit is not None:
+                    params["agent_max_model_calls"] = limit
+
+    def run_together(self, jobs: list[tuple[str, str, dict[str, Any] | None]]) -> dict[str, Any]:
+        """Run named agents at the same time. Each job is (name, task_prompt, context)."""
+        from concurrent.futures import ThreadPoolExecutor
+
+        def _one(job: tuple[str, str, dict[str, Any] | None]) -> tuple[str, Any]:
+            name, task_prompt, context = job
+            return name, self._agents[name].run(task_prompt=task_prompt, context=context)
+
+        if len(jobs) <= 1:
+            if not jobs:
+                return {}
+            name, result = _one(jobs[0])
+            return {name: result}
+        with ThreadPoolExecutor(max_workers=len(jobs)) as pool:
+            return dict(pool.map(_one, jobs))
 
     def _with_tool_result_cache(self, tool: BoundTool) -> BoundTool:
         metadata = dict(tool.metadata or {})
@@ -2709,6 +2759,8 @@ class AgentManager:
         prompt: str | None = None,
         cadence: str | None = None,
         allow_trading: bool | None = None,
+        allow_communication_reads: bool = False,
+        allow_communication_writes: bool = False,
         _runtime: Any | None = None,
         include_builtin_tools: bool = True,
         include_builtin_skills: bool = True,
@@ -2722,7 +2774,9 @@ class AgentManager:
         resolved_system_prompt = system_prompt or prompt or "You are a LumiBot trading agent."
         if model is not None and default_model is not None and model != default_model:
             raise ValueError("Pass either model or default_model, not both with different values.")
-        resolved_model = model or default_model or "gemini-3.5-flash-lite"
+        resolved_model = model or default_model or DEFAULT_AGENT_MODEL
+        if reasoning_effort is None and resolved_model == DEFAULT_AGENT_MODEL:
+            reasoning_effort = DEFAULT_AGENT_REASONING_EFFORT
         resolved_allow_trading = True if allow_trading is None else bool(allow_trading)
         handle = AgentHandle(
             manager=self,
@@ -2733,6 +2787,8 @@ class AgentManager:
             mcp_servers=mcp_servers,
             runtime=_runtime,
             allow_trading=resolved_allow_trading,
+            allow_communication_reads=allow_communication_reads,
+            allow_communication_writes=allow_communication_writes,
             include_builtin_tools=include_builtin_tools,
             include_builtin_skills=include_builtin_skills,
             rules_path=rules_path,

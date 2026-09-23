@@ -1,68 +1,81 @@
-"""Bill Ackman / Pershing Square-inspired concentrated AI trading team example.
+"""Bill Ackman-inspired concentrated team.
 
-This example is inspired by public descriptions of concentrated, high-quality
-large-cap investing. It is not affiliated with or endorsed by Bill Ackman,
-Pershing Square, or related companies.
+This example is inspired by public descriptions of concentrated large-cap investing.
+It is not affiliated with or endorsed by Bill Ackman or Pershing Square.
 
-Set GEMINI_API_KEY plus Alpaca credentials, then run paper trading:
-    python ai_trading_team_bill_ackman_concentrated.py
-
-Set IS_BACKTESTING=True in the runner to run the historical example instead.
+Python only creates the agents and runs them. Bull and bear run together.
+The trader is the only order path.
 """
 
 import os
 from datetime import datetime
 
+from lumibot.example_strategies.agent_cycle import add_agent, run_cycle, trader_prompt
 from lumibot.strategies.strategy import Strategy
+
+_BOOK = (
+    "Own a concentrated book from this universe only. A few names can take most of the "
+    "account when the interpreter keeps them. Weights still sum near 100%."
+)
+_EXIT = (
+    "Sell a holding with the order tool when the bear case wins that name, or when the "
+    "position was opened on an earlier session and today's weights no longer include it."
+)
 
 
 class AITradingTeamBillAckmanConcentratedStrategy(Strategy):
     parameters = {
         "universe": ["GOOGL", "CMG", "HLT", "QSR", "UBER", "CP", "LOW", "MDLZ", "BKNG", "MSFT"],
+        "max_position_pct": 1.0,
     }
 
     def initialize(self):
         self.sleeptime = "1D"
-        model = os.environ.get("AI_TRADING_TEAM_MODEL", "gemini-3.1-flash-lite")
-        self.agents.create(
-            name="quality_researcher",
-            model=model,
+        add_agent(
+            self,
+            "researcher",
+            "Find high-quality large-cap businesses with durable cash flow. Do not submit orders.",
             allow_trading=False,
-            system_prompt="Find the best high-quality, large-cap business with durable free cash flow and clear upside.",
         )
-        self.agents.create(
-            name="activist_bull",
-            model=model,
+        add_agent(
+            self,
+            "bull",
+            "Argue the concentrated bull case from the research only. Do not submit orders.",
             allow_trading=False,
-            system_prompt="Argue for the most concentrated high-conviction position. Focus on catalysts, pricing power, and value creation.",
         )
-        self.agents.create(
-            name="short_seller_bear",
-            model=model,
+        add_agent(
+            self,
+            "bear",
+            "Attack leverage, governance, competition, and valuation from the research only. Do not submit orders.",
             allow_trading=False,
-            system_prompt="Attack the thesis like a short seller. Find leverage, governance, accounting, competition, and valuation risk.",
         )
-        self.agents.create(
-            name="portfolio_manager",
-            model=model,
-            allow_trading=True,
-            system_prompt="Build one concentrated position from the universe if the bull case survives. Use nearly all cash in the best idea.",
+        add_agent(
+            self,
+            "interpreter",
+            "Read both cases. Keep only names that survive the attack. Weight only symbols in the universe. Assign concentrated weights. Do not submit orders.",
+            allow_trading=False,
         )
+        add_agent(self, "trader", trader_prompt(book_rule=_BOOK, exit_rule=_EXIT), allow_trading=True)
 
     def on_trading_iteration(self):
         context = {
             "date": self.get_datetime().date().isoformat(),
             "universe": self.parameters["universe"],
+            "max_position_pct": self.parameters["max_position_pct"],
         }
-        quality = self.agents["quality_researcher"].run(task_prompt="Pick the best high-quality large-cap candidate.", context=context)
-        bull = self.agents["activist_bull"].run(task_prompt="Make the concentrated bull case.", context={**context, "quality": quality.summary})
-        bear = self.agents["short_seller_bear"].run(
-            task_prompt="Attack the concentrated thesis.",
-            context={**context, "quality": quality.summary, "bull": bull.summary},
-        )
-        self.agents["portfolio_manager"].run(
-            task_prompt="Sell anything that is not the surviving best idea, then buy the best stock with nearly all available cash.",
-            context={**context, "quality": quality.summary, "bull": bull.summary, "bear": bear.summary},
+        run_cycle(
+            self,
+            context,
+            researcher="researcher",
+            bull="bull",
+            bear="bear",
+            interpreter="interpreter",
+            trader="trader",
+            research_task="Pick the best high-quality candidates.",
+            bull_task="Make the bull case from the research.",
+            bear_task="Make the bear case from the research.",
+            interpret_task="Keep the names that survive and assign concentrated weights.",
+            trade_task="Apply the interpreter weights. Size from the account. Exit any name that left the book.",
         )
 
 

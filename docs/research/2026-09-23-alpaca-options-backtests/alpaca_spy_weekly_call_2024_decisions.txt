@@ -1,0 +1,12 @@
+[alpaca_spy_weekly_call_2024] 2024-03-04 09:35:00-05:00 BUY 1 SPY 2024-03-11 512.0 CALL spot=512.20 chain_calls=63 expirations, picked 2024-03-11 (7d) strike 512.0
+[alpaca_spy_weekly_call_2024] FILLED buy_to_open 1.0 SPY 2024-03-11 512.0 CALL at 3.47 (2024-03-04 09:35:00-05:00)
+[alpaca_spy_weekly_call_2024] 2024-03-08 15:30:00-05:00 SELL 1.0 SPY 2024-03-11 512.0 CALL
+[alpaca_spy_weekly_call_2024] FILLED sell_to_close 1.0 SPY 2024-03-11 512.0 CALL at 1.56 (2024-03-08 15:30:00-05:00)
+[alpaca_spy_weekly_call_2024] 2024-03-11 09:35:00-04:00 BUY 1 SPY 2024-03-18 510.0 CALL spot=510.21 chain_calls=63 expirations, picked 2024-03-18 (7d) strike 510.0
+[alpaca_spy_weekly_call_2024] FILLED buy_to_open 1.0 SPY 2024-03-18 510.0 CALL at 4.07 (2024-03-11 09:35:00-04:00)
+[alpaca_spy_weekly_call_2024] 2024-03-15 15:30:00-04:00 SELL 1.0 SPY 2024-03-18 510.0 CALL
+[alpaca_spy_weekly_call_2024] FILLED sell_to_close 1.0 SPY 2024-03-18 510.0 CALL at 1.76 (2024-03-15 15:30:00-04:00)
+[alpaca_spy_weekly_call_2024] 2024-03-18 09:35:00-04:00 BUY 1 SPY 2024-03-25 515.0 CALL spot=514.72 chain_calls=63 expirations, picked 2024-03-25 (7d) strike 515.0
+[alpaca_spy_weekly_call_2024] FILLED buy_to_open 1.0 SPY 2024-03-25 515.0 CALL at 4.11 (2024-03-18 09:35:00-04:00)
+[alpaca_spy_weekly_call_2024] 2024-03-22 15:30:00-04:00 SELL 1.0 SPY 2024-03-25 515.0 CALL
+[alpaca_spy_weekly_call_2024] FILLED sell_to_close 1.0 SPY 2024-03-25 515.0 CALL at 6.83 (2024-03-22 15:30:00-04:00)

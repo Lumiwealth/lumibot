@@ -23,7 +23,8 @@ How the team works
 * ``quality_researcher`` finds the best high-quality large-cap candidate.
 * ``activist_bull`` argues for catalysts, pricing power, and value creation.
 * ``short_seller_bear`` attacks leverage, governance, accounting, competition, and valuation risk.
-* ``portfolio_manager`` builds one concentrated position and is the only agent allowed to trade.
+* ``portfolio_manager`` is the dedicated trading-and-risk agent. It verifies account and order state, then holds or sizes one surviving idea to at most 25% of portfolio value.
+* The source proof fetches the live SEC company atom feed for Pershing Square, CIK 0001336528, before it holds. Yahoo supplies the daily prices.
 
 Backtest snapshot
 -----------------
@@ -40,7 +41,7 @@ mode unless you set ``ALPACA_IS_PAPER=false``.
 
 .. code-block:: bash
 
-   export GEMINI_API_KEY='your-key-here'
+   export OPENAI_API_KEY='your-key-here'
    export ALPACA_API_KEY='your-alpaca-key'
    export ALPACA_API_SECRET='your-alpaca-secret'
    export ALPACA_IS_PAPER=true
@@ -53,7 +54,7 @@ Use the same strategy class and change ``IS_BACKTESTING = False`` to ``IS_BACKTE
 
 .. code-block:: bash
 
-   export GEMINI_API_KEY='your-key-here'
+   export OPENAI_API_KEY='your-key-here'
    python lumibot/example_strategies/ai_trading_team_bill_ackman_concentrated.py
 
 Example code

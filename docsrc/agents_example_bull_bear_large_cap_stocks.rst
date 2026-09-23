@@ -23,7 +23,8 @@ How the team works
 * ``researcher`` ranks the large-cap stock universe.
 * ``bull`` argues for the strongest upside case.
 * ``bear`` flags the biggest risk.
-* ``trader`` sells non-picks, buys the chosen stock, and is the only agent allowed to trade.
+* ``trader`` is the dedicated trading-and-risk agent. It verifies account and order state, then holds or sizes one stock to at most 20% of portfolio value.
+* The January 2026 price proof used Yahoo daily bars and bought 1 share of Apple. The universe is large-cap names such as Apple, Microsoft, and Nvidia.
 
 Backtest snapshot
 -----------------
@@ -45,8 +46,8 @@ virtual environment and configure your model account:
 .. code-block:: bash
 
    python -m pip install -e .
-   export GEMINI_API_KEY="your-gemini-key"
-   export AI_TRADING_TEAM_MODEL="gemini-3.5-flash-lite"
+   export OPENAI_API_KEY="your-openai-key"
+   export AI_EXAMPLE_MODEL="openai/gpt-6-luna"
    export LUMIBOT_AGENT_MAX_MODEL_CALLS="40"
 
 Save the following complete runner as ``stock_team_backtest.py`` in the checkout:
@@ -66,7 +67,7 @@ Save the following complete runner as ``stock_team_backtest.py`` in the checkout
            datetime(2026, 4, 11),
            budget=100_000,
            benchmark_asset="SPY",
-           parameters={"universe": ["AAPL", "MSFT", "NVDA"]},
+           parameters={"universe": ["AAPL", "MSFT", "NVDA"], "max_position_pct": 0.20},
        )
 
 .. code-block:: bash
@@ -80,24 +81,25 @@ budget is simulated portfolio capital, not a model-spending allowance.
 
 The researcher, bull, bear, and trader each run during a decision cycle, and a
 run can include several provider calls. Model usage may incur charges. The
-agent-call limit is not a dollar cap; a limit exit is incomplete. The original
-trader prompt seeks a concentrated allocation using nearly all available cash.
-This is an aggressive educational example even though its instruments are
-ordinary stocks.
+agent-call limit is not a dollar cap; a limit exit is incomplete. The trader is
+the only agent allowed to execute and owns the final risk check, including the
+20% maximum target-position cap.
 
 Inspect the decision summaries and generated backtest artifacts. Reconcile the
 selected stock, submitted orders, fills or no-action outcome, and terminal run
 status.
 
-Verified current-source run
----------------------------
+Archived pre-risk-correction run
+--------------------------------
 
-We completed the full April 6–10, 2026 window from source commit
+The following evidence was produced from source commit
 ``a5969317cf37f2fa9035c214e5e9be2023afbd2a`` with Yahoo data,
-``gemini-3.5-flash-lite``, and the three-symbol universe above. The four agents
+``openai/gpt-6-luna`` on high reasoning, and the three-symbol universe above. The four agents
 completed 20 decision cycles through the April 10 close. Provider continuations
 made 183 model calls and cost $0.5078 at the recorded input, cached-input, and
-output-token rates.
+output-token rates. It predates the current trading-and-risk prompt and 20%
+position cap, so it proves the older workflow only and is not current-source
+validation.
 
 The backtesting broker recorded one submitted market order and one fill: 580
 shares of NVDA at $177.16 on April 6. The strategy held that position through
@@ -112,8 +114,8 @@ sent both mutually exclusive indicator-batch inputs, received a visible error,
 and recovered. The strategy still completed, but the trace shows why a full
 log review matters. The trader also used concentrated sizing that temporarily
 made simulated cash negative. Treat the example as an inspectable agent
-workflow, not a conservative allocation template. Historical LLM knowledge can
-extend beyond the simulated date.
+workflow, not evidence for the corrected risk contract. Historical LLM
+knowledge can extend beyond the simulated date.
 
 Run the existing broker entry point
 -----------------------------------

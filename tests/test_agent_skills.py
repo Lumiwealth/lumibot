@@ -9,6 +9,7 @@ import pytest
 from lumibot.components.agents import AgentManager, AgentRunResult, AgentTraceEvent
 from lumibot.components.agents.rules import StrategyRulesError, load_strategy_rules
 from lumibot.components.agents.skills import (
+    BUILTIN_SKILL_LOADING_INSTRUCTION,
     BUILTIN_SKILL_NAMES,
     build_builtin_skill_toolset,
     builtin_skill_directories,
@@ -71,8 +72,16 @@ class _CaptureRuntime:
 
 def test_default_agent_model_is_current_and_explicit_pins_are_preserved():
     manager = AgentManager(_Strategy())
-    assert manager.create(name="default", _runtime=_CaptureRuntime()).default_model == "gemini-3.5-flash-lite"
-    assert manager.create(name="pinned", model="pinned-model", _runtime=_CaptureRuntime()).default_model == "pinned-model"
+    default = manager.create(name="default", _runtime=_CaptureRuntime())
+    assert default.default_model == "openai/gpt-6-luna"
+    assert default.reasoning_effort == "high"
+    explicit_default = manager.create(name="explicit", model="openai/gpt-6-luna", _runtime=_CaptureRuntime())
+    assert explicit_default.reasoning_effort == "high"
+    lowered = manager.create(name="lowered", reasoning_effort="low", _runtime=_CaptureRuntime())
+    assert lowered.reasoning_effort == "low"
+    pinned = manager.create(name="pinned", model="pinned-model", _runtime=_CaptureRuntime())
+    assert pinned.default_model == "pinned-model"
+    assert pinned.reasoning_effort is None
     assert manager.create(name="family", model="google/gemini-pro", _runtime=_CaptureRuntime()).default_model == "google/gemini-pro"
 
 
@@ -125,6 +134,12 @@ def test_stock_skill_defines_opening_range_boundaries_and_order_truth():
     assert "aggregate the exact non-overlapping intervals" in intraday
     assert "Never treat the first one-minute constituent" in intraday
     assert "as a completed five-minute bar" in intraday
+
+
+def test_skill_loading_instruction_names_every_builtin_skill_exactly():
+    for name in BUILTIN_SKILL_NAMES:
+        assert f"`{name}`" in BUILTIN_SKILL_LOADING_INSTRUCTION
+    assert "exact name" in BUILTIN_SKILL_LOADING_INSTRUCTION
 
 
 def test_builtin_skill_toolset_exposes_progressive_loading_tools():

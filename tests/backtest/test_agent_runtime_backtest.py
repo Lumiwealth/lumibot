@@ -759,6 +759,9 @@ def test_agent_runtime_injects_base_prompt_runtime_context_and_default_summary_l
     assert "Do not trade for the sake of activity." in request.system_prompt
     assert "Do not resist intentional concentration" in request.system_prompt
     assert "Avoid leaving raw cash idle unless there is a specific reason" in request.system_prompt
+    assert "Stay inside the strategy's allowed universe." in request.system_prompt
+    assert "Only use a defensive parking asset when the strategy allows it" in request.system_prompt
+    assert "drop that weight and rescale the remaining allowed weights" in request.system_prompt
     tool_names = [tool.name for tool in request.bound_tools]
     assert len(tool_names) == len(set(tool_names))
     summary_logs = [line for line in strategy.vars.captured_logs if line.startswith("[agents] name=research")]

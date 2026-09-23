@@ -1,0 +1,13 @@
+time,strategy,exchange,identifier,symbol,side,type,status,price,filled_quantity,multiplier,trade_cost,trade_slippage,time_in_force,asset.right,asset.strike,asset.multiplier,asset.expiration,asset.asset_type,price_source,event_kind,event_id,cash_event_type,cash_event_amount,cash_event_currency,cash_event_description,cash_event_direction,cash_event_reason,is_external_cash_flow,cash_event_raw_type,cash_event_raw_subtype,cash_event_broker_name,cash_event_broker_event_id
+2026-01-26 09:30:00-05:00,congress-pelosi-v2,,bt_1,AB,buy,market,new,,,1,,0.0,day,,0.0,1,,stock,,trade,,,,,,,,,,,,
+2026-01-26 09:30:00-05:00,congress-pelosi-v2,,bt_2,GOOGL,buy,market,new,,,1,,0.0,day,,0.0,1,,stock,,trade,,,,,,,,,,,,
+2026-01-26 09:30:00-05:00,congress-pelosi-v2,,bt_3,NVDA,buy,market,new,,,1,,0.0,day,,0.0,1,,stock,,trade,,,,,,,,,,,,
+2026-01-26 09:30:00-05:00,congress-pelosi-v2,,bt_4,AMZN,buy,market,new,,,1,,0.0,day,,0.0,1,,stock,,trade,,,,,,,,,,,,
+2026-01-26 09:30:00-05:00,congress-pelosi-v2,,bt_5,VST,buy,market,new,,,1,,0.0,day,,0.0,1,,stock,,trade,,,,,,,,,,,,
+2026-01-26 09:30:00-05:00,congress-pelosi-v2,,bt_6,TEM,buy,market,new,,,1,,0.0,day,,0.0,1,,stock,,trade,,,,,,,,,,,,
+2026-01-26 09:30:00-05:00,congress-pelosi-v2,,bt_1,AB,buy,market,fill,39.06999969482422,1265.0,1,0.0,0.0,day,,0.0,1,,stock,,trade,,,,,,,,,,,,
+2026-01-26 09:30:00-05:00,congress-pelosi-v2,,bt_2,GOOGL,buy,market,fill,327.80999755859375,564.0,1,0.0,0.0,day,,0.0,1,,stock,,trade,,,,,,,,,,,,
+2026-01-26 09:30:00-05:00,congress-pelosi-v2,,bt_3,NVDA,buy,market,fill,187.16000366210938,333.0,1,0.0,0.0,day,,0.0,1,,stock,,trade,,,,,,,,,,,,
+2026-01-26 09:30:00-05:00,congress-pelosi-v2,,bt_4,AMZN,buy,market,fill,239.97999572753906,177.0,1,0.0,0.0,day,,0.0,1,,stock,,trade,,,,,,,,,,,,
+2026-01-26 09:30:00-05:00,congress-pelosi-v2,,bt_5,VST,buy,market,fill,160.58999633789062,18.0,1,0.0,0.0,day,,0.0,1,,stock,,trade,,,,,,,,,,,,
+2026-01-26 09:30:00-05:00,congress-pelosi-v2,,bt_6,TEM,buy,market,fill,65.0,10.0,1,0.0,0.0,day,,0.0,1,,stock,,trade,,,,,,,,,,,,

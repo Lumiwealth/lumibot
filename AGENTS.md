@@ -55,9 +55,9 @@ These rules are mandatory whenever you work on ThetaData integrations.
 
 - For any generated or AI-edited image, infographic, diagram, marketing visual, README visual, documentation visual, or repo asset image, use the approved Image Generator only.
 - `Nano Banana` is a compatibility phrase for the approved Image Generator. It does not select Google or Gemini unless Rob explicitly insists on that provider after rejecting the approved default result.
-- The Image Generator controls provider, model, resolution, and quality. Callers may provide only the prompt, purpose, aspect ratio, approved reference images, and an explicit Rob-requested Medium-quality exception. Never request Pro, High, Auto, an arbitrary resolution, or another model.
+- The approved Image Generator uses server-controlled GPT Image 2.5 Sunburst for final documentation/product artwork. Follow the current parent-workspace generator policy for supported quality, purpose, aspect ratio, and references; never select another provider/model or post-process an output without Rob's explicit current-turn exception.
 - Never use local SVG/HTML/canvas placeholders, Python drawing scripts, Mermaid screenshots, manually assembled box diagrams, or other fallback pipelines for generated documentation/product images.
-- Do not generate robot or mascot variations for LumiBot documentation or README illustrations. Repeated generated Spot variants were explicitly rejected. Use relevant character-free illustrations or approved creator photography. The official circular logo may appear as a supplied brand emblem when explicitly requested; it is not permission to invent new bodies, poses or faces. Never reuse a rejected output as a reference or describe it as approved.
+- For agent workflow diagrams, use the approved official LumiBot head as a reference for actual agent cards only. Do not invent a new body, pose, or face, and never use the head to represent a broker order or another non-agent step. Other illustration types can remain character-free. Never reuse a rejected output as a reference or describe it as approved.
 - Every education promotion featuring Rob must include the legible attribution "Rob Grzesik, creator of LumiBot" and a relevant challenge or bootcamp CTA. Preserve tracked clickable image links.
 - Keep generated illustration code and invented trading results out of instructional examples. Runnable code and actual result evidence belong in the page itself.
 - Every generated image must be visually inspected before it is shown to Rob, committed, or used in the repo/docs/README. Open the actual output image, inspect the text, arrows, mascot, spacing, and overall visual hierarchy, and reject outputs with broken/missing text, awkward arrows, cluttered layouts, inaccurate product claims, off-brand mascot variants, or anything that looks like a placeholder.
@@ -112,6 +112,9 @@ This repo is frequently edited by **multiple AI sessions**. To avoid lost work:
   Temporary worktrees outside this folder are allowed only for isolated review
   of unusually large or risky external PRs, and must not become the active
   release workspace.
+  The parent workspace's BotSpot `main`-only development rule does not apply to
+  LumiBot. This repository has no `main` branch; never create one or move normal
+  LumiBot work to `dev` to satisfy that rule.
 
 - **Release workflow (STRICT):**
   - **Implementation authority is not release authority.** Normal coding agents

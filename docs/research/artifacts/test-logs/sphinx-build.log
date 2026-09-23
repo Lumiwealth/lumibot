@@ -1,0 +1,532 @@
+Running Sphinx v8.1.3
+loading translations [en]... done
+[autosummary] generating autosummary for: MIGRATING_FROM_BACKTRADER.rst, PARTNERSHIPS.rst, agent_start_here.rst, agents.rst, agents_browser_tools.rst, agents_builtin_tools.rst, agents_canonical_demos.rst, agents_example_ai_credit_spread.rst, agents_example_ai_iron_condor.rst, agents_example_ai_opening_range_breakout.rst, ..., strategy_properties/lumibot.strategies.strategy.Strategy.minutes_before_opening.rst, strategy_properties/lumibot.strategies.strategy.Strategy.name.rst, strategy_properties/lumibot.strategies.strategy.Strategy.portfolio_value.rst, strategy_properties/lumibot.strategies.strategy.Strategy.pytz.rst, strategy_properties/lumibot.strategies.strategy.Strategy.quote_asset.rst, strategy_properties/lumibot.strategies.strategy.Strategy.sleeptime.rst, strategy_properties/lumibot.strategies.strategy.Strategy.timezone.rst, strategy_properties/lumibot.strategies.strategy.Strategy.unspent_money.rst, strategy_properties/lumibot.strategies.strategy.pytz.rst, vars.rst
+2026-09-20 15:26:22,125 | INFO | LumiBot v4.5.92 starting
+# 2026-09-20 15:26:22,125 INFO lumibot __init__.py:93 -- LumiBot v4.5.92 starting
+
+building [mo]: all of 0 po files
+writing output... 
+building [html]: all source files
+updating environment: [new config] 204 added, 0 changed, 0 removed
+reading sources... [  0%] MIGRATING_FROM_BACKTRADER
+reading sources... [  1%] PARTNERSHIPS
+reading sources... [  1%] agent_start_here
+reading sources... [  2%] agents
+reading sources... [  2%] agents_browser_tools
+reading sources... [  3%] agents_builtin_tools
+reading sources... [  3%] agents_canonical_demos
+reading sources... [  4%] agents_example_ai_credit_spread
+reading sources... [  4%] agents_example_ai_iron_condor
+reading sources... [  5%] agents_example_ai_opening_range_breakout
+reading sources... [  5%] agents_example_ai_spx_zero_dte_bear_call_team
+reading sources... [  6%] agents_example_ai_vwap
+reading sources... [  6%] agents_example_bill_ackman_concentrated
+reading sources... [  7%] agents_example_browser_research_showcase
+reading sources... [  7%] agents_example_bull_bear_large_cap_stocks
+reading sources... [  8%] agents_example_bull_bear_leveraged_etf
+reading sources... [  8%] agents_example_citadel_sector_pods
+reading sources... [  9%] agents_example_congress_disclosures
+reading sources... [  9%] agents_example_ray_dalio_idea_meritocracy
+reading sources... [ 10%] agents_example_sec_insider_filings
+reading sources... [ 10%] agents_example_warren_buffett_value
+reading sources... [ 11%] agents_examples
+reading sources... [ 11%] agents_flows
+reading sources... [ 12%] agents_memory
+reading sources... [ 12%] agents_notifications
+reading sources... [ 13%] agents_observability
+reading sources... [ 13%] agents_quickstart
+reading sources... [ 14%] ai_trading_project_comparison
+reading sources... [ 14%] backtesting
+reading sources... [ 15%] backtesting.backtesting_function
+reading sources... [ 15%] backtesting.databento
+reading sources... [ 16%] backtesting.how_to_backtest
+reading sources... [ 16%] backtesting.ibkr
+reading sources... [ 17%] backtesting.indicators_files
+reading sources... [ 17%] backtesting.logs_csv
+reading sources... [ 18%] backtesting.pandas
+reading sources... [ 18%] backtesting.performance
+reading sources... [ 19%] backtesting.polygon
+reading sources... [ 19%] backtesting.tearsheet_html
+reading sources... [ 20%] backtesting.thetadata
+reading sources... [ 20%] backtesting.trades_files
+reading sources... [ 21%] backtesting.yahoo
+reading sources... [ 21%] botspot_mcp
+reading sources... [ 22%] brokers
+reading sources... [ 22%] brokers.alpaca
+reading sources... [ 23%] brokers.bitunix
+reading sources... [ 23%] brokers.ccxt
+reading sources... [ 24%] brokers.ccxt.binance
+reading sources... [ 24%] brokers.ccxt.bitmex
+reading sources... [ 25%] brokers.ccxt.bybit
+reading sources... [ 25%] brokers.ccxt.coinbase
+reading sources... [ 25%] brokers.ccxt.kraken
+reading sources... [ 26%] brokers.ccxt.kucoin
+reading sources... [ 26%] brokers.ccxt.okx
+reading sources... [ 27%] brokers.ccxt.weex
+reading sources... [ 27%] brokers.interactive_brokers
+reading sources... [ 28%] brokers.interactive_brokers_legacy
+reading sources... [ 28%] brokers.polymarket
+reading sources... [ 29%] brokers.projectx
+reading sources... [ 29%] brokers.schwab
+reading sources... [ 30%] brokers.tradier
+reading sources... [ 30%] brokers.tradovate
+reading sources... [ 31%] cash_accounting
+reading sources... [ 31%] common_mistakes
+reading sources... [ 32%] deployment
+reading sources... [ 32%] entities
+reading sources... [ 33%] entities.asset
+reading sources... [ 33%] entities.bars
+reading sources... [ 34%] entities.chains
+reading sources... [ 34%] entities.data
+reading sources... [ 35%] entities.order
+reading sources... [ 35%] entities.position
+reading sources... [ 36%] entities.smart_limit
+reading sources... [ 36%] entities.trading_fee
+reading sources... [ 37%] entities.trading_slippage
+reading sources... [ 37%] environment_variables
+reading sources... [ 38%] examples
+reading sources... [ 38%] faq
+reading sources... [ 39%] fundamentals
+reading sources... [ 39%] futures
+reading sources... [ 40%] getting_started
+reading sources... [ 40%] imports_and_startup
+reading sources... [ 41%] index
+reading sources... [ 41%] indicators
+reading sources... [ 42%] lifecycle_methods
+reading sources... [ 42%] lifecycle_methods.after_market_closes
+reading sources... [ 43%] lifecycle_methods.before_market_closes
+reading sources... [ 43%] lifecycle_methods.before_market_opens
+reading sources... [ 44%] lifecycle_methods.before_starting_trading
+reading sources... [ 44%] lifecycle_methods.initialize
+reading sources... [ 45%] lifecycle_methods.on_abrupt_closing
+reading sources... [ 45%] lifecycle_methods.on_bot_crash
+reading sources... [ 46%] lifecycle_methods.on_canceled_order
+reading sources... [ 46%] lifecycle_methods.on_filled_order
+reading sources... [ 47%] lifecycle_methods.on_new_order
+reading sources... [ 47%] lifecycle_methods.on_parameters_updated
+reading sources... [ 48%] lifecycle_methods.on_partially_filled_order
+reading sources... [ 48%] lifecycle_methods.on_trading_iteration
+reading sources... [ 49%] lifecycle_methods.summary
+reading sources... [ 49%] lifecycle_methods.tearsheet_custom_metrics
+reading sources... [ 50%] lifecycle_methods.trace_stats
+reading sources... [ 50%] lumibot.backtesting
+reading sources... [ 50%] lumibot.data_sources
+reading sources... [ 51%] lumibot.strategies
+reading sources... [ 51%] lumibot.traders
+reading sources... [ 52%] lumibot_vs_ai_hedge_fund
+reading sources... [ 52%] lumibot_vs_lean
+reading sources... [ 53%] lumibot_vs_openalice
+reading sources... [ 53%] lumibot_vs_quantdinger
+reading sources... [ 54%] lumibot_vs_tradingagents
+reading sources... [ 54%] macro_data
+reading sources... [ 55%] options_helper
+reading sources... [ 55%] reference
+reading sources... [ 56%] smart_limit
+reading sources... [ 56%] standalone_components
+reading sources... [ 57%] strategy_api_overview
+reading sources... [ 57%] strategy_methods
+reading sources... [ 58%] strategy_methods.account
+reading sources... [ 58%] strategy_methods.account/lumibot.strategies.strategy.Strategy.adjust_cash
+reading sources... [ 59%] strategy_methods.account/lumibot.strategies.strategy.Strategy.configure_cash_financing
+reading sources... [ 59%] strategy_methods.account/lumibot.strategies.strategy.Strategy.deposit_cash
+reading sources... [ 60%] strategy_methods.account/lumibot.strategies.strategy.Strategy.get_cash
+reading sources... [ 60%] strategy_methods.account/lumibot.strategies.strategy.Strategy.get_parameters
+reading sources... [ 61%] strategy_methods.account/lumibot.strategies.strategy.Strategy.get_portfolio_value
+reading sources... [ 61%] strategy_methods.account/lumibot.strategies.strategy.Strategy.get_position
+reading sources... [ 62%] strategy_methods.account/lumibot.strategies.strategy.Strategy.get_positions
+reading sources... [ 62%] strategy_methods.account/lumibot.strategies.strategy.Strategy.set_cash_financing_rates
+reading sources... [ 63%] strategy_methods.account/lumibot.strategies.strategy.Strategy.set_parameters
+reading sources... [ 63%] strategy_methods.account/lumibot.strategies.strategy.Strategy.withdraw_cash
+reading sources... [ 64%] strategy_methods.chart
+reading sources... [ 64%] strategy_methods.chart/lumibot.strategies.strategy.Strategy.add_line
+reading sources... [ 65%] strategy_methods.chart/lumibot.strategies.strategy.Strategy.add_marker
+reading sources... [ 65%] strategy_methods.chart/lumibot.strategies.strategy.Strategy.get_lines_df
+reading sources... [ 66%] strategy_methods.chart/lumibot.strategies.strategy.Strategy.get_markers_df
+reading sources... [ 66%] strategy_methods.data
+reading sources... [ 67%] strategy_methods.data/lumibot.strategies.strategy.Strategy.get_historical_prices
+reading sources... [ 67%] strategy_methods.data/lumibot.strategies.strategy.Strategy.get_historical_prices_for_assets
+reading sources... [ 68%] strategy_methods.data/lumibot.strategies.strategy.Strategy.get_last_price
+reading sources... [ 68%] strategy_methods.data/lumibot.strategies.strategy.Strategy.get_last_prices
+reading sources... [ 69%] strategy_methods.data/lumibot.strategies.strategy.Strategy.get_next_trading_day
+reading sources... [ 69%] strategy_methods.data/lumibot.strategies.strategy.Strategy.get_quote
+reading sources... [ 70%] strategy_methods.data/lumibot.strategies.strategy.Strategy.get_yesterday_dividend
+reading sources... [ 70%] strategy_methods.datetime
+reading sources... [ 71%] strategy_methods.datetime/lumibot.strategies.strategy.Strategy.get_datetime
+reading sources... [ 71%] strategy_methods.datetime/lumibot.strategies.strategy.Strategy.get_datetime_range
+reading sources... [ 72%] strategy_methods.datetime/lumibot.strategies.strategy.Strategy.get_last_day
+reading sources... [ 72%] strategy_methods.datetime/lumibot.strategies.strategy.Strategy.get_last_minute
+reading sources... [ 73%] strategy_methods.datetime/lumibot.strategies.strategy.Strategy.get_round_day
+reading sources... [ 73%] strategy_methods.datetime/lumibot.strategies.strategy.Strategy.get_round_minute
+reading sources... [ 74%] strategy_methods.datetime/lumibot.strategies.strategy.Strategy.get_timestamp
+reading sources... [ 74%] strategy_methods.datetime/lumibot.strategies.strategy.Strategy.localize_datetime
+reading sources... [ 75%] strategy_methods.datetime/lumibot.strategies.strategy.Strategy.to_default_timezone
+reading sources... [ 75%] strategy_methods.misc
+reading sources... [ 75%] strategy_methods.misc/lumibot.strategies.strategy.Strategy.await_market_to_close
+reading sources... [ 76%] strategy_methods.misc/lumibot.strategies.strategy.Strategy.await_market_to_open
+reading sources... [ 76%] strategy_methods.misc/lumibot.strategies.strategy.Strategy.get_parameters
+reading sources... [ 77%] strategy_methods.misc/lumibot.strategies.strategy.Strategy.log_message
+reading sources... [ 77%] strategy_methods.misc/lumibot.strategies.strategy.Strategy.register_cron_callback
+reading sources... [ 78%] strategy_methods.misc/lumibot.strategies.strategy.Strategy.set_market
+reading sources... [ 78%] strategy_methods.misc/lumibot.strategies.strategy.Strategy.sleep
+reading sources... [ 79%] strategy_methods.misc/lumibot.strategies.strategy.Strategy.update_parameters
+reading sources... [ 79%] strategy_methods.misc/lumibot.strategies.strategy.Strategy.wait_for_order_execution
+reading sources... [ 80%] strategy_methods.misc/lumibot.strategies.strategy.Strategy.wait_for_order_registration
+reading sources... [ 80%] strategy_methods.misc/lumibot.strategies.strategy.Strategy.wait_for_orders_execution
+reading sources... [ 81%] strategy_methods.misc/lumibot.strategies.strategy.Strategy.wait_for_orders_registration
+reading sources... [ 81%] strategy_methods.options
+reading sources... [ 82%] strategy_methods.options/lumibot.strategies.strategy.Strategy.get_chain
+reading sources... [ 82%] strategy_methods.options/lumibot.strategies.strategy.Strategy.get_chains
+reading sources... [ 83%] strategy_methods.options/lumibot.strategies.strategy.Strategy.get_expiration
+reading sources... [ 83%] strategy_methods.options/lumibot.strategies.strategy.Strategy.get_greeks
+reading sources... [ 84%] strategy_methods.options/lumibot.strategies.strategy.Strategy.get_multiplier
+reading sources... [ 84%] strategy_methods.options/lumibot.strategies.strategy.Strategy.get_next_trading_day
+reading sources... [ 85%] strategy_methods.options/lumibot.strategies.strategy.Strategy.get_strikes
+reading sources... [ 85%] strategy_methods.options/lumibot.strategies.strategy.Strategy.options_expiry_to_datetime_date
+reading sources... [ 86%] strategy_methods.orders
+reading sources... [ 86%] strategy_methods.orders/lumibot.strategies.strategy.Strategy.cancel_open_orders
+reading sources... [ 87%] strategy_methods.orders/lumibot.strategies.strategy.Strategy.cancel_order
+reading sources... [ 87%] strategy_methods.orders/lumibot.strategies.strategy.Strategy.cancel_orders
+reading sources... [ 88%] strategy_methods.orders/lumibot.strategies.strategy.Strategy.create_order
+reading sources... [ 88%] strategy_methods.orders/lumibot.strategies.strategy.Strategy.get_asset_potential_total
+reading sources... [ 89%] strategy_methods.orders/lumibot.strategies.strategy.Strategy.get_order
+reading sources... [ 89%] strategy_methods.orders/lumibot.strategies.strategy.Strategy.get_orders
+reading sources... [ 90%] strategy_methods.orders/lumibot.strategies.strategy.Strategy.get_selling_order
+reading sources... [ 90%] strategy_methods.orders/lumibot.strategies.strategy.Strategy.sell_all
+reading sources... [ 91%] strategy_methods.orders/lumibot.strategies.strategy.Strategy.submit_order
+reading sources... [ 91%] strategy_methods.orders/lumibot.strategies.strategy.Strategy.submit_orders
+reading sources... [ 92%] strategy_methods.parameters
+reading sources... [ 92%] strategy_properties
+reading sources... [ 93%] strategy_properties/lumibot.strategies.strategy.Strategy.cash
+reading sources... [ 93%] strategy_properties/lumibot.strategies.strategy.Strategy.first_iteration
+reading sources... [ 94%] strategy_properties/lumibot.strategies.strategy.Strategy.initial_budget
+reading sources... [ 94%] strategy_properties/lumibot.strategies.strategy.Strategy.is_backtesting
+reading sources... [ 95%] strategy_properties/lumibot.strategies.strategy.Strategy.last_on_trading_iteration_datetime
+reading sources... [ 95%] strategy_properties/lumibot.strategies.strategy.Strategy.minutes_before_closing
+reading sources... [ 96%] strategy_properties/lumibot.strategies.strategy.Strategy.minutes_before_opening
+reading sources... [ 96%] strategy_properties/lumibot.strategies.strategy.Strategy.name
+reading sources... [ 97%] strategy_properties/lumibot.strategies.strategy.Strategy.portfolio_value
+reading sources... [ 97%] strategy_properties/lumibot.strategies.strategy.Strategy.pytz
+reading sources... [ 98%] strategy_properties/lumibot.strategies.strategy.Strategy.quote_asset
+reading sources... [ 98%] strategy_properties/lumibot.strategies.strategy.Strategy.sleeptime
+reading sources... [ 99%] strategy_properties/lumibot.strategies.strategy.Strategy.timezone
+reading sources... [ 99%] strategy_properties/lumibot.strategies.strategy.Strategy.unspent_money
+reading sources... [100%] strategy_properties/lumibot.strategies.strategy.pytz
+reading sources... [100%] vars
+
+/Users/robertgrzesik/Development/lumibot/lumibot/data_sources/alpaca_data.py:docstring of lumibot.data_sources.alpaca_data.AlpacaData.get_chains:8: ERROR: Unexpected indentation. [docutils]
+/Users/robertgrzesik/Development/lumibot/lumibot/data_sources/alpaca_data.py:docstring of lumibot.data_sources.alpaca_data.AlpacaData.get_chains:12: WARNING: Definition list ends without a blank line; unexpected unindent. [docutils]
+/Users/robertgrzesik/Development/lumibot/lumibot/data_sources/alpaca_data.py:docstring of lumibot.data_sources.alpaca_data.AlpacaData.get_chains:14: ERROR: Unexpected indentation. [docutils]
+/Users/robertgrzesik/Development/lumibot/lumibot/data_sources/alpaca_data.py:docstring of lumibot.data_sources.alpaca_data.AlpacaData.get_chains:16: WARNING: Block quote ends without a blank line; unexpected unindent. [docutils]
+/Users/robertgrzesik/Development/lumibot/lumibot/data_sources/alpaca_data.py:docstring of lumibot.data_sources.alpaca_data.AlpacaData.get_chains:17: WARNING: Definition list ends without a blank line; unexpected unindent. [docutils]
+/Users/robertgrzesik/Development/lumibot/lumibot/data_sources/alpaca_data.py:docstring of lumibot.data_sources.alpaca_data.AlpacaData.get_chains:18: WARNING: Block quote ends without a blank line; unexpected unindent. [docutils]
+/Users/robertgrzesik/Development/lumibot/lumibot/data_sources/interactive_brokers_rest_data.py:docstring of lumibot.data_sources.interactive_brokers_rest_data.InteractiveBrokersRESTData.get_chains:5: ERROR: Unexpected indentation. [docutils]
+/Users/robertgrzesik/Development/lumibot/lumibot/data_sources/interactive_brokers_rest_data.py:docstring of lumibot.data_sources.interactive_brokers_rest_data.InteractiveBrokersRESTData.get_chains:6: WARNING: Block quote ends without a blank line; unexpected unindent. [docutils]
+/Users/robertgrzesik/Development/lumibot/lumibot/data_sources/schwab_data.py:docstring of lumibot.data_sources.schwab_data.SchwabData.get_chains:17: ERROR: Unexpected indentation. [docutils]
+/Users/robertgrzesik/Development/lumibot/lumibot/data_sources/schwab_data.py:docstring of lumibot.data_sources.schwab_data.SchwabData.get_chains:19: ERROR: Unexpected indentation. [docutils]
+/Users/robertgrzesik/Development/lumibot/lumibot/data_sources/schwab_data.py:docstring of lumibot.data_sources.schwab_data.SchwabData.get_chains:20: WARNING: Block quote ends without a blank line; unexpected unindent. [docutils]
+/Users/robertgrzesik/Development/lumibot/lumibot/data_sources/tradier_data.py:docstring of lumibot.data_sources.tradier_data.TradierData.get_chains:15: ERROR: Unexpected indentation. [docutils]
+/Users/robertgrzesik/Development/lumibot/lumibot/data_sources/tradier_data.py:docstring of lumibot.data_sources.tradier_data.TradierData.get_chains:17: ERROR: Unexpected indentation. [docutils]
+/Users/robertgrzesik/Development/lumibot/lumibot/data_sources/tradier_data.py:docstring of lumibot.data_sources.tradier_data.TradierData.get_chains:18: WARNING: Block quote ends without a blank line; unexpected unindent. [docutils]
+/Users/robertgrzesik/Development/lumibot/docsrc/options_helper.rst:332: WARNING: Explicit markup ends without a blank line; unexpected unindent. [docutils]
+looking for now-outdated files... none found
+pickling environment... done
+checking consistency... done
+preparing documents... done
+copying assets... 
+copying static files... 
+Writing evaluated template result to /Users/robertgrzesik/Development/lumibot/docsrc/_build/html/_static/basic.css
+Writing evaluated template result to /Users/robertgrzesik/Development/lumibot/docsrc/_build/html/_static/language_data.js
+Writing evaluated template result to /Users/robertgrzesik/Development/lumibot/docsrc/_build/html/_static/documentation_options.js
+copying static files: done
+copying extra files... 
+copying extra files: done
+copying assets: done
+writing output... [  0%] MIGRATING_FROM_BACKTRADER
+writing output... [  1%] PARTNERSHIPS
+writing output... [  1%] agent_start_here
+writing output... [  2%] agents
+writing output... [  2%] agents_browser_tools
+writing output... [  3%] agents_builtin_tools
+writing output... [  3%] agents_canonical_demos
+writing output... [  4%] agents_example_ai_credit_spread
+writing output... [  4%] agents_example_ai_iron_condor
+writing output... [  5%] agents_example_ai_opening_range_breakout
+writing output... [  5%] agents_example_ai_spx_zero_dte_bear_call_team
+writing output... [  6%] agents_example_ai_vwap
+writing output... [  6%] agents_example_bill_ackman_concentrated
+writing output... [  7%] agents_example_browser_research_showcase
+writing output... [  7%] agents_example_bull_bear_large_cap_stocks
+writing output... [  8%] agents_example_bull_bear_leveraged_etf
+writing output... [  8%] agents_example_citadel_sector_pods
+writing output... [  9%] agents_example_congress_disclosures
+writing output... [  9%] agents_example_ray_dalio_idea_meritocracy
+writing output... [ 10%] agents_example_sec_insider_filings
+writing output... [ 10%] agents_example_warren_buffett_value
+writing output... [ 11%] agents_examples
+writing output... [ 11%] agents_flows
+writing output... [ 12%] agents_memory
+writing output... [ 12%] agents_notifications
+writing output... [ 13%] agents_observability
+writing output... [ 13%] agents_quickstart
+writing output... [ 14%] ai_trading_project_comparison
+writing output... [ 14%] backtesting
+writing output... [ 15%] backtesting.backtesting_function
+writing output... [ 15%] backtesting.databento
+writing output... [ 16%] backtesting.how_to_backtest
+writing output... [ 16%] backtesting.ibkr
+writing output... [ 17%] backtesting.indicators_files
+writing output... [ 17%] backtesting.logs_csv
+writing output... [ 18%] backtesting.pandas
+writing output... [ 18%] backtesting.performance
+writing output... [ 19%] backtesting.polygon
+writing output... [ 19%] backtesting.tearsheet_html
+writing output... [ 20%] backtesting.thetadata
+writing output... [ 20%] backtesting.trades_files
+writing output... [ 21%] backtesting.yahoo
+writing output... [ 21%] botspot_mcp
+writing output... [ 22%] brokers
+writing output... [ 22%] brokers.alpaca
+writing output... [ 23%] brokers.bitunix
+writing output... [ 23%] brokers.ccxt
+writing output... [ 24%] brokers.ccxt.binance
+writing output... [ 24%] brokers.ccxt.bitmex
+writing output... [ 25%] brokers.ccxt.bybit
+writing output... [ 25%] brokers.ccxt.coinbase
+writing output... [ 25%] brokers.ccxt.kraken
+writing output... [ 26%] brokers.ccxt.kucoin
+writing output... [ 26%] brokers.ccxt.okx
+writing output... [ 27%] brokers.ccxt.weex
+writing output... [ 27%] brokers.interactive_brokers
+writing output... [ 28%] brokers.interactive_brokers_legacy
+writing output... [ 28%] brokers.polymarket
+writing output... [ 29%] brokers.projectx
+writing output... [ 29%] brokers.schwab
+writing output... [ 30%] brokers.tradier
+writing output... [ 30%] brokers.tradovate
+writing output... [ 31%] cash_accounting
+writing output... [ 31%] common_mistakes
+writing output... [ 32%] deployment
+writing output... [ 32%] entities
+writing output... [ 33%] entities.asset
+writing output... [ 33%] entities.bars
+writing output... [ 34%] entities.chains
+writing output... [ 34%] entities.data
+writing output... [ 35%] entities.order
+writing output... [ 35%] entities.position
+writing output... [ 36%] entities.smart_limit
+writing output... [ 36%] entities.trading_fee
+writing output... [ 37%] entities.trading_slippage
+writing output... [ 37%] environment_variables
+writing output... [ 38%] examples
+writing output... [ 38%] faq
+writing output... [ 39%] fundamentals
+writing output... [ 39%] futures
+writing output... [ 40%] getting_started
+writing output... [ 40%] imports_and_startup
+writing output... [ 41%] index
+writing output... [ 41%] indicators
+writing output... [ 42%] lifecycle_methods
+writing output... [ 42%] lifecycle_methods.after_market_closes
+writing output... [ 43%] lifecycle_methods.before_market_closes
+writing output... [ 43%] lifecycle_methods.before_market_opens
+writing output... [ 44%] lifecycle_methods.before_starting_trading
+writing output... [ 44%] lifecycle_methods.initialize
+writing output... [ 45%] lifecycle_methods.on_abrupt_closing
+writing output... [ 45%] lifecycle_methods.on_bot_crash
+writing output... [ 46%] lifecycle_methods.on_canceled_order
+writing output... [ 46%] lifecycle_methods.on_filled_order
+writing output... [ 47%] lifecycle_methods.on_new_order
+writing output... [ 47%] lifecycle_methods.on_parameters_updated
+writing output... [ 48%] lifecycle_methods.on_partially_filled_order
+writing output... [ 48%] lifecycle_methods.on_trading_iteration
+writing output... [ 49%] lifecycle_methods.summary
+writing output... [ 49%] lifecycle_methods.tearsheet_custom_metrics
+writing output... [ 50%] lifecycle_methods.trace_stats
+writing output... [ 50%] lumibot.backtesting
+writing output... [ 50%] lumibot.data_sources
+writing output... [ 51%] lumibot.strategies
+writing output... [ 51%] lumibot.traders
+writing output... [ 52%] lumibot_vs_ai_hedge_fund
+writing output... [ 52%] lumibot_vs_lean
+writing output... [ 53%] lumibot_vs_openalice
+writing output... [ 53%] lumibot_vs_quantdinger
+writing output... [ 54%] lumibot_vs_tradingagents
+writing output... [ 54%] macro_data
+writing output... [ 55%] options_helper
+writing output... [ 55%] reference
+writing output... [ 56%] smart_limit
+writing output... [ 56%] standalone_components
+writing output... [ 57%] strategy_api_overview
+writing output... [ 57%] strategy_methods
+writing output... [ 58%] strategy_methods.account
+writing output... [ 58%] strategy_methods.account/lumibot.strategies.strategy.Strategy.adjust_cash
+writing output... [ 59%] strategy_methods.account/lumibot.strategies.strategy.Strategy.configure_cash_financing
+writing output... [ 59%] strategy_methods.account/lumibot.strategies.strategy.Strategy.deposit_cash
+writing output... [ 60%] strategy_methods.account/lumibot.strategies.strategy.Strategy.get_cash
+writing output... [ 60%] strategy_methods.account/lumibot.strategies.strategy.Strategy.get_parameters
+writing output... [ 61%] strategy_methods.account/lumibot.strategies.strategy.Strategy.get_portfolio_value
+writing output... [ 61%] strategy_methods.account/lumibot.strategies.strategy.Strategy.get_position
+writing output... [ 62%] strategy_methods.account/lumibot.strategies.strategy.Strategy.get_positions
+writing output... [ 62%] strategy_methods.account/lumibot.strategies.strategy.Strategy.set_cash_financing_rates
+writing output... [ 63%] strategy_methods.account/lumibot.strategies.strategy.Strategy.set_parameters
+writing output... [ 63%] strategy_methods.account/lumibot.strategies.strategy.Strategy.withdraw_cash
+writing output... [ 64%] strategy_methods.chart
+writing output... [ 64%] strategy_methods.chart/lumibot.strategies.strategy.Strategy.add_line
+writing output... [ 65%] strategy_methods.chart/lumibot.strategies.strategy.Strategy.add_marker
+writing output... [ 65%] strategy_methods.chart/lumibot.strategies.strategy.Strategy.get_lines_df
+writing output... [ 66%] strategy_methods.chart/lumibot.strategies.strategy.Strategy.get_markers_df
+writing output... [ 66%] strategy_methods.data
+writing output... [ 67%] strategy_methods.data/lumibot.strategies.strategy.Strategy.get_historical_prices
+writing output... [ 67%] strategy_methods.data/lumibot.strategies.strategy.Strategy.get_historical_prices_for_assets
+writing output... [ 68%] strategy_methods.data/lumibot.strategies.strategy.Strategy.get_last_price
+writing output... [ 68%] strategy_methods.data/lumibot.strategies.strategy.Strategy.get_last_prices
+writing output... [ 69%] strategy_methods.data/lumibot.strategies.strategy.Strategy.get_next_trading_day
+writing output... [ 69%] strategy_methods.data/lumibot.strategies.strategy.Strategy.get_quote
+writing output... [ 70%] strategy_methods.data/lumibot.strategies.strategy.Strategy.get_yesterday_dividend
+writing output... [ 70%] strategy_methods.datetime
+writing output... [ 71%] strategy_methods.datetime/lumibot.strategies.strategy.Strategy.get_datetime
+writing output... [ 71%] strategy_methods.datetime/lumibot.strategies.strategy.Strategy.get_datetime_range
+writing output... [ 72%] strategy_methods.datetime/lumibot.strategies.strategy.Strategy.get_last_day
+writing output... [ 72%] strategy_methods.datetime/lumibot.strategies.strategy.Strategy.get_last_minute
+writing output... [ 73%] strategy_methods.datetime/lumibot.strategies.strategy.Strategy.get_round_day
+writing output... [ 73%] strategy_methods.datetime/lumibot.strategies.strategy.Strategy.get_round_minute
+writing output... [ 74%] strategy_methods.datetime/lumibot.strategies.strategy.Strategy.get_timestamp
+writing output... [ 74%] strategy_methods.datetime/lumibot.strategies.strategy.Strategy.localize_datetime
+writing output... [ 75%] strategy_methods.datetime/lumibot.strategies.strategy.Strategy.to_default_timezone
+writing output... [ 75%] strategy_methods.misc
+writing output... [ 75%] strategy_methods.misc/lumibot.strategies.strategy.Strategy.await_market_to_close
+writing output... [ 76%] strategy_methods.misc/lumibot.strategies.strategy.Strategy.await_market_to_open
+writing output... [ 76%] strategy_methods.misc/lumibot.strategies.strategy.Strategy.get_parameters
+writing output... [ 77%] strategy_methods.misc/lumibot.strategies.strategy.Strategy.log_message
+writing output... [ 77%] strategy_methods.misc/lumibot.strategies.strategy.Strategy.register_cron_callback
+writing output... [ 78%] strategy_methods.misc/lumibot.strategies.strategy.Strategy.set_market
+writing output... [ 78%] strategy_methods.misc/lumibot.strategies.strategy.Strategy.sleep
+writing output... [ 79%] strategy_methods.misc/lumibot.strategies.strategy.Strategy.update_parameters
+writing output... [ 79%] strategy_methods.misc/lumibot.strategies.strategy.Strategy.wait_for_order_execution
+writing output... [ 80%] strategy_methods.misc/lumibot.strategies.strategy.Strategy.wait_for_order_registration
+writing output... [ 80%] strategy_methods.misc/lumibot.strategies.strategy.Strategy.wait_for_orders_execution
+writing output... [ 81%] strategy_methods.misc/lumibot.strategies.strategy.Strategy.wait_for_orders_registration
+writing output... [ 81%] strategy_methods.options
+writing output... [ 82%] strategy_methods.options/lumibot.strategies.strategy.Strategy.get_chain
+writing output... [ 82%] strategy_methods.options/lumibot.strategies.strategy.Strategy.get_chains
+writing output... [ 83%] strategy_methods.options/lumibot.strategies.strategy.Strategy.get_expiration
+writing output... [ 83%] strategy_methods.options/lumibot.strategies.strategy.Strategy.get_greeks
+writing output... [ 84%] strategy_methods.options/lumibot.strategies.strategy.Strategy.get_multiplier
+writing output... [ 84%] strategy_methods.options/lumibot.strategies.strategy.Strategy.get_next_trading_day
+writing output... [ 85%] strategy_methods.options/lumibot.strategies.strategy.Strategy.get_strikes
+writing output... [ 85%] strategy_methods.options/lumibot.strategies.strategy.Strategy.options_expiry_to_datetime_date
+writing output... [ 86%] strategy_methods.orders
+writing output... [ 86%] strategy_methods.orders/lumibot.strategies.strategy.Strategy.cancel_open_orders
+writing output... [ 87%] strategy_methods.orders/lumibot.strategies.strategy.Strategy.cancel_order
+writing output... [ 87%] strategy_methods.orders/lumibot.strategies.strategy.Strategy.cancel_orders
+writing output... [ 88%] strategy_methods.orders/lumibot.strategies.strategy.Strategy.create_order
+writing output... [ 88%] strategy_methods.orders/lumibot.strategies.strategy.Strategy.get_asset_potential_total
+writing output... [ 89%] strategy_methods.orders/lumibot.strategies.strategy.Strategy.get_order
+writing output... [ 89%] strategy_methods.orders/lumibot.strategies.strategy.Strategy.get_orders
+writing output... [ 90%] strategy_methods.orders/lumibot.strategies.strategy.Strategy.get_selling_order
+writing output... [ 90%] strategy_methods.orders/lumibot.strategies.strategy.Strategy.sell_all
+writing output... [ 91%] strategy_methods.orders/lumibot.strategies.strategy.Strategy.submit_order
+writing output... [ 91%] strategy_methods.orders/lumibot.strategies.strategy.Strategy.submit_orders
+writing output... [ 92%] strategy_methods.parameters
+writing output... [ 92%] strategy_properties
+writing output... [ 93%] strategy_properties/lumibot.strategies.strategy.Strategy.cash
+writing output... [ 93%] strategy_properties/lumibot.strategies.strategy.Strategy.first_iteration
+writing output... [ 94%] strategy_properties/lumibot.strategies.strategy.Strategy.initial_budget
+writing output... [ 94%] strategy_properties/lumibot.strategies.strategy.Strategy.is_backtesting
+writing output... [ 95%] strategy_properties/lumibot.strategies.strategy.Strategy.last_on_trading_iteration_datetime
+writing output... [ 95%] strategy_properties/lumibot.strategies.strategy.Strategy.minutes_before_closing
+writing output... [ 96%] strategy_properties/lumibot.strategies.strategy.Strategy.minutes_before_opening
+writing output... [ 96%] strategy_properties/lumibot.strategies.strategy.Strategy.name
+writing output... [ 97%] strategy_properties/lumibot.strategies.strategy.Strategy.portfolio_value
+writing output... [ 97%] strategy_properties/lumibot.strategies.strategy.Strategy.pytz
+writing output... [ 98%] strategy_properties/lumibot.strategies.strategy.Strategy.quote_asset
+writing output... [ 98%] strategy_properties/lumibot.strategies.strategy.Strategy.sleeptime
+writing output... [ 99%] strategy_properties/lumibot.strategies.strategy.Strategy.timezone
+writing output... [ 99%] strategy_properties/lumibot.strategies.strategy.Strategy.unspent_money
+writing output... [100%] strategy_properties/lumibot.strategies.strategy.pytz
+writing output... [100%] vars
+
+generating indices... genindex py-modindex done
+writing additional pages... search done
+copying images... [  1%] ../docs/assets/ai_committee/docs_tool_permissions.png
+copying images... [  3%] ../docs/assets/readme/lumibot_point_in_time_tools.png
+copying images... [  4%] ../docs/assets/ai-agent-workflows/ai-credit-spread.png
+copying images... [  5%] ../docs/assets/ai-agent-workflows/ai-iron-condor.png
+copying images... [  7%] ../docs/assets/ai-agent-workflows/ai-opening-range-breakout.png
+copying images... [  8%] ../docs/assets/ai-agent-workflows/ai-spx-zero-dte-bear-call-team.png
+copying images... [  9%] ../docs/assets/ai-agent-workflows/ai-vwap.png
+copying images... [ 11%] ../docs/assets/ai-trading-team-workflows/bill-ackman-concentrated.png
+copying images... [ 12%] ../docs/assets/ai-trading-team-backtests/bill-ackman-concentrated-backtest-top.png
+copying images... [ 14%] ../docs/assets/ai-agent-workflows/ai-browser-research-showcase.png
+copying images... [ 15%] ../docs/assets/ai-trading-team-workflows/bull-bear-large-cap-stocks.png
+copying images... [ 16%] ../docs/assets/ai-trading-team-backtests/bull-bear-large-cap-stocks-backtest-top.png
+copying images... [ 18%] ../docs/assets/ai-trading-team-workflows/bull-bear-leveraged-etf.png
+copying images... [ 19%] ../docs/assets/ai-trading-team-backtests/bull-bear-leveraged-etf-backtest-top.png
+copying images... [ 20%] ../docs/assets/ai-trading-team-workflows/citadel-sector-pods.png
+copying images... [ 22%] ../docs/assets/ai-trading-team-backtests/citadel-sector-pods-backtest-top.png
+copying images... [ 23%] ../docs/assets/ai-agent-workflows/ai-congress-disclosures.png
+copying images... [ 24%] ../docs/assets/ai-trading-team-workflows/ray-dalio-idea-meritocracy.png
+copying images... [ 26%] ../docs/assets/ai-trading-team-backtests/ray-dalio-idea-meritocracy-backtest-top.png
+copying images... [ 27%] ../docs/assets/ai-agent-workflows/ai-sec-insider-filings.png
+copying images... [ 28%] ../docs/assets/ai-trading-team-workflows/warren-buffett-value.png
+copying images... [ 30%] ../docs/assets/ai-trading-team-backtests/warren-buffett-value-backtest-top.png
+copying images... [ 31%] ../docs/assets/ai-trading/example-gallery.png
+copying images... [ 32%] ../docs/assets/ai-trading/rob-examples.png
+copying images... [ 34%] ../docs/assets/readme/lumibot_agent_flows.png
+copying images... [ 35%] ../docs/assets/ai-trading/rob-bootcamp-teams.png
+copying images... [ 36%] ../docs/assets/ai_committee/docs_memory_lifecycle.png
+copying images... [ 38%] ../docs/assets/ai_committee/docs_backtest_artifacts.png
+copying images... [ 39%] ../docs/assets/ai_committee/docs_notification_configuration.png
+copying images... [ 41%] ../docs/assets/ai-trading/backtest-benefit.png
+copying images... [ 42%] ../docs/assets/ai-trading/rob-bootcamp.png
+copying images... [ 43%] ../docs/assets/readme/cta_deploy_on_botspot.png
+copying images... [ 45%] ../docs/assets/ai-trading/rob-challenge-backtest.png
+copying images... [ 46%] _html/images/indicators_example.png
+copying images... [ 47%] _html/images/tearsheet_condor_martingale.png
+copying images... [ 49%] _html/images/tearsheet_crypto_bbands_v2.png
+copying images... [ 50%] _html/images/trades_example.png
+copying images... [ 51%] ../docs/assets/readme/cta_botspot_mcp.png
+copying images... [ 53%] ../docs/assets/ai-trading/broker-connections.png
+copying images... [ 54%] ../docs/assets/readme/lumibot_brokers_data_sources.png
+copying images... [ 55%] images/ib-main.png
+copying images... [ 57%] images/ib-settings.png
+copying images... [ 58%] images/ib-market-data-subscriptions.png
+copying images... [ 59%] interactive_brokers.png
+copying images... [ 61%] _html/images/render_deploy_button.png
+copying images... [ 62%] _html/images/render_deploy_blueprint.png
+copying images... [ 64%] _html/images/render_worker.png
+copying images... [ 65%] _html/images/render_worker_environment.png
+copying images... [ 66%] _html/images/render_redeploy.png
+copying images... [ 68%] _html/images/render_logs.png
+copying images... [ 69%] _html/images/replit_monitor_bot.png
+copying images... [ 70%] _html/images/deploy_replit_button.png
+copying images... [ 72%] _html/images/replit_tools_secrets.png
+copying images... [ 73%] _html/images/replit_add_secret.png
+copying images... [ 74%] _html/images/replit_run.png
+copying images... [ 76%] _html/images/replit_logs.png
+copying images... [ 77%] _html/images/replit_reserved_vm.png
+copying images... [ 78%] _html/images/replit_deploy.png
+copying images... [ 80%] _html/images/replit_deploy_process.png
+copying images... [ 81%] _html/images/replit_deploy_logs.png
+copying images... [ 82%] ../docs/assets/ai-trading/python-strategies.png
+copying images... [ 84%] ../docs/assets/readme/cta_marketplace.png
+copying images... [ 85%] ../docs/assets/ai-trading/rob-challenge-python.png
+copying images... [ 86%] ../docs/assets/ai_committee/docs_sec_point_in_time_cache.png
+copying images... [ 88%] ../docs/assets/ai_committee/docs_filing_search_workflow.png
+copying images... [ 89%] ../docs/assets/ai-trading/rob-get-started.png
+copying images... [ 91%] ../docs/assets/ai-trading/benefit-hero.png
+copying images... [ 92%] ../docs/assets/ai-trading/rob-challenge-home.png
+copying images... [ 93%] ../docs/assets/readme/lumibot_investment_committee_architecture.png
+copying images... [ 95%] ../docs/assets/ai-trading-team-example/ai-trading-team-tearsheet-rob-crop-2026-05-24.png
+copying images... [ 96%] lifecycle_methods.png
+copying images... [ 97%] ../docs/assets/ai_committee/docs_fred_macro_data.png
+copying images... [ 99%] ../docs/assets/ai-trading/component-research.png
+copying images... [100%] ../docs/assets/ai-trading/rob-bootcamp-components.png
+
+dumping search index in English (code: en)... done
+dumping object inventory... done
+sphinx-llms-txt: Created /Users/robertgrzesik/Development/lumibot/docsrc/_build/html/llms-full.txt with 204 sources and 19051 lines
+sphinx-llms-txt: created /Users/robertgrzesik/Development/lumibot/docsrc/_build/html/llms.txt
+build succeeded, 15 warnings.
+
+The HTML pages are in docsrc/_build/html.

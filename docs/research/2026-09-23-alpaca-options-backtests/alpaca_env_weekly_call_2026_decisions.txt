@@ -1,0 +1,26 @@
+Backtest start = 2026-07-27 00:00:00-04:00
+Backtest end = 2026-08-15 00:00:00-04:00
+[alpaca_env_weekly_call_2026] 2026-07-27 09:35:00-04:00 BUY 1 SPY 2026-08-03 745.0 CALL spot=744.66 chain_calls=55 expirations, picked 2026-08-03 (7d) strike 745.0
+[alpaca_env_weekly_call_2026] FILLED buy_to_open 1.0 SPY 2026-08-03 745.0 CALL at 6.1 (2026-07-27 09:35:00-04:00)
+[alpaca_env_weekly_call_2026] 2026-07-31 15:30:00-04:00 SELL 1.0 SPY 2026-08-03 745.0 CALL
+[alpaca_env_weekly_call_2026] FILLED sell_to_close 1.0 SPY 2026-08-03 745.0 CALL at 3.74 (2026-07-31 15:30:00-04:00)
+[alpaca_env_weekly_call_2026] 2026-08-03 09:35:00-04:00 BUY 1 SPY 2026-08-10 751.0 CALL spot=750.76 chain_calls=51 expirations, picked 2026-08-10 (7d) strike 751.0
+[alpaca_env_weekly_call_2026] FILLED buy_to_open 1.0 SPY 2026-08-10 751.0 CALL at 4.99 (2026-08-03 09:35:00-04:00)
+[alpaca_env_weekly_call_2026] 2026-08-07 15:30:00-04:00 SELL 1.0 SPY 2026-08-10 751.0 CALL
+[alpaca_env_weekly_call_2026] [FILL][PENDING] Order bt_4 for SPY pending: selected minute bar 2026-08-07 15:18:00-04:00 does not match current sim dt 2026-08-07 15:30:00-04:00
+[alpaca_env_weekly_call_2026] [FILL][PENDING] Order bt_4 for SPY pending: selected minute bar 2026-08-07 15:18:00-04:00 does not match current sim dt 2026-08-07 15:31:00-04:00
+[alpaca_env_weekly_call_2026] [FILL][PENDING] Order bt_4 for SPY pending: selected minute bar 2026-08-07 15:18:00-04:00 does not match current sim dt 2026-08-07 15:32:00-04:00
+[alpaca_env_weekly_call_2026] [FILL][PENDING] Order bt_4 for SPY pending: selected minute bar 2026-08-07 15:18:00-04:00 does not match current sim dt 2026-08-07 15:33:00-04:00
+[alpaca_env_weekly_call_2026] [FILL][PENDING] Order bt_4 for SPY pending: selected minute bar 2026-08-07 15:18:00-04:00 does not match current sim dt 2026-08-07 15:34:00-04:00
+[alpaca_env_weekly_call_2026] [FILL][PENDING] Order bt_4 for SPY pending: selected minute bar 2026-08-07 15:18:00-04:00 does not match current sim dt 2026-08-07 15:35:00-04:00
+[alpaca_env_weekly_call_2026] [FILL][PENDING] Order bt_4 for SPY pending: selected minute bar 2026-08-07 15:18:00-04:00 does not match current sim dt 2026-08-07 15:36:00-04:00
+[alpaca_env_weekly_call_2026] [FILL][PENDING] Order bt_4 for SPY pending: selected minute bar 2026-08-07 15:18:00-04:00 does not match current sim dt 2026-08-07 15:37:00-04:00
+[alpaca_env_weekly_call_2026] [FILL][PENDING] Order bt_4 for SPY pending: selected minute bar 2026-08-07 15:18:00-04:00 does not match current sim dt 2026-08-07 15:38:00-04:00
+[alpaca_env_weekly_call_2026] FILLED sell_to_close 1.0 SPY 2026-08-10 751.0 CALL at 21.91 (2026-08-07 15:39:00-04:00)
+[alpaca_env_weekly_call_2026] 2026-08-10 09:35:00-04:00 BUY 1 SPY 2026-08-17 773.0 CALL spot=772.63 chain_calls=46 expirations, picked 2026-08-17 (7d) strike 773.0
+[alpaca_env_weekly_call_2026] [FILL][PENDING] Order bt_5 for SPY pending: selected minute bar 2026-08-10 09:33:00-04:00 does not match current sim dt 2026-08-10 09:35:00-04:00
+[alpaca_env_weekly_call_2026] [FILL][PENDING] Order bt_5 for SPY pending: selected minute bar 2026-08-10 09:33:00-04:00 does not match current sim dt 2026-08-10 09:36:00-04:00
+[alpaca_env_weekly_call_2026] FILLED buy_to_open 1.0 SPY 2026-08-17 773.0 CALL at 4.97 (2026-08-10 09:37:00-04:00)
+[alpaca_env_weekly_call_2026] 2026-08-14 15:30:00-04:00 SELL 1.0 SPY 2026-08-17 773.0 CALL
+[alpaca_env_weekly_call_2026] [FILL][PENDING] Order bt_6 for SPY pending: selected minute bar 2026-08-14 15:29:00-04:00 does not match current sim dt 2026-08-14 15:30:00-04:00
+[alpaca_env_weekly_call_2026] FILLED sell_to_close 1.0 SPY 2026-08-17 773.0 CALL at 3.86 (2026-08-14 15:31:00-04:00)

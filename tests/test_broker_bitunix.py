@@ -28,6 +28,18 @@ class TestBitunixBroker(unittest.TestCase):
                       "quotePrecision": 1, "minTradeVolume": "0.0001"}],
         }
 
+    def _stop_stream_after_test(self, broker):
+        """Stop the polling thread a default Bitunix broker starts, when the test ends.
+
+        Those threads outlived the tests and kept polling. Since 4.5.92 a failed
+        position snapshot logs an ERROR on every poll, which leaked into later tests
+        that assert no ERROR records (test_cloud_update_warning, CI unit shard 3).
+        """
+        stream = getattr(broker, "stream", None)
+        if stream is not None and hasattr(stream, "stop"):
+            self.addCleanup(stream.stop)
+        return broker
+
     @patch("lumibot.brokers.bitunix.BitUnixClient")
     @patch("lumibot.brokers.bitunix.BitunixData")
     def test_initialization_success(self, MockBitunixData, MockBitUnixClientInstance):
@@ -35,7 +47,7 @@ class TestBitunixBroker(unittest.TestCase):
         mock_data_source = MockBitunixData.return_value
         mock_data_source.client_symbols = set()
 
-        broker = Bitunix(self.config)
+        broker = self._stop_stream_after_test(Bitunix(self.config))
         self.assertIsNotNone(broker.api)
         self.assertEqual(broker.api, self.mock_bitunix_client)
         MockBitUnixClientInstance.assert_called_once_with(api_key="test_api_key", secret_key="test_api_secret")
@@ -149,7 +161,7 @@ class TestBitunixBroker(unittest.TestCase):
         mock_data_source = MockBitunixData.return_value
         mock_data_source.client_symbols = set()
 
-        broker = Bitunix(self.config)
+        broker = self._stop_stream_after_test(Bitunix(self.config))
         broker._process_trade_event = MagicMock()
         asset = Asset("BTCUSDT", Asset.AssetType.CRYPTO_FUTURE)
         order = Order("test_strategy", asset, Decimal("0.1"))
@@ -170,7 +182,7 @@ class TestBitunixBroker(unittest.TestCase):
         mock_data_source = MockBitunixData.return_value
         mock_data_source.client_symbols = set()
 
-        broker = Bitunix(self.config)
+        broker = self._stop_stream_after_test(Bitunix(self.config))
         mock_strategy = MagicMock()
         mock_strategy.name = "test_strategy"
 
@@ -209,7 +221,7 @@ class TestBitunixBroker(unittest.TestCase):
         mock_data_source = MockBitunixData.return_value
         mock_data_source.client_symbols = set()
 
-        broker = Bitunix(self.config)
+        broker = self._stop_stream_after_test(Bitunix(self.config))
         mock_strategy = MagicMock()
         mock_strategy.name = "test_strategy"
 
@@ -262,7 +274,7 @@ class TestBitunixBroker(unittest.TestCase):
         mock_data_source = MockBitunixData.return_value
         mock_data_source.client_symbols = set()
 
-        broker = Bitunix(self.config)
+        broker = self._stop_stream_after_test(Bitunix(self.config))
 
         raw_order_data = {
             "orderId": "98765",
@@ -298,7 +310,7 @@ class TestBitunixBroker(unittest.TestCase):
         mock_data_source = MockBitunixData.return_value
         mock_data_source.client_symbols = set()
 
-        broker = Bitunix(self.config)
+        broker = self._stop_stream_after_test(Bitunix(self.config))
 
         # Test all supported timesteps
         self.assertEqual(broker._parse_source_timestep("1m"), "1m")

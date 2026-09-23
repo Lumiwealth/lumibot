@@ -1,61 +1,81 @@
-"""Warren Buffett-inspired annual-report value AI trading team example.
+"""Warren Buffett-inspired value team.
 
-This example is inspired by public Berkshire Hathaway shareholder letters and
-value-investing principles. It is not affiliated with or endorsed by Warren
-Buffett, Berkshire Hathaway, or related companies.
+This example is inspired by public Berkshire Hathaway shareholder letters.
+It is not affiliated with or endorsed by Warren Buffett or Berkshire Hathaway.
 
-Set GEMINI_API_KEY plus Alpaca credentials, then run paper trading:
-    python ai_trading_team_warren_buffett_value.py
-
-Set IS_BACKTESTING=True in the runner to run the historical example instead.
+Python only creates the agents and runs them. Bull and bear run together.
+The trader is the only order path.
 """
 
 import os
 from datetime import datetime
 
+from lumibot.example_strategies.agent_cycle import add_agent, run_cycle, trader_prompt
 from lumibot.strategies.strategy import Strategy
+
+_BOOK = (
+    "Own the businesses the interpreter accepts, from this universe only, when quality "
+    "and a margin of safety both survive the bear case. Split the account by those weights."
+)
+_EXIT = (
+    "Sell a holding with the order tool when the interpreter says the margin of safety is gone, "
+    "or when the position was opened on an earlier session and today's weights no longer include it."
+)
 
 
 class AITradingTeamWarrenBuffettValueStrategy(Strategy):
     parameters = {
         "universe": ["AAPL", "MSFT", "GOOGL", "COST", "V", "MA", "KO", "AXP", "JPM", "PG"],
+        "max_position_pct": 1.0,
     }
 
     def initialize(self):
         self.sleeptime = "1D"
-        model = os.environ.get("AI_TRADING_TEAM_MODEL", "gemini-3.1-flash-lite")
-        self.agents.create(
-            name="annual_report_reader",
-            model=model,
+        add_agent(
+            self,
+            "researcher",
+            "Read public filings and fundamentals. Rank business quality. Do not submit orders.",
             allow_trading=False,
-            system_prompt="Find the best business quality from filings, fundamentals, cash flow, balance sheet strength, and durability.",
         )
-        self.agents.create(
-            name="valuation_skeptic",
-            model=model,
+        add_agent(
+            self,
+            "bull",
+            "Argue the quality and compounding case from the research only. Do not submit orders.",
             allow_trading=False,
-            system_prompt="Challenge the business-quality case. Require a margin of safety and reject weak or overpriced ideas.",
         )
-        self.agents.create(
-            name="portfolio_manager",
-            model=model,
-            allow_trading=True,
-            system_prompt="Buy the best long-term compounder from the universe when quality and margin of safety are acceptable. Use nearly all cash.",
+        add_agent(
+            self,
+            "bear",
+            "Challenge price, debt, and the margin of safety from the research only. Do not submit orders.",
+            allow_trading=False,
         )
+        add_agent(
+            self,
+            "interpreter",
+            "Read both cases. Keep a name only when quality and price both hold. Weight only symbols in the universe. Assign account weights. Do not submit orders.",
+            allow_trading=False,
+        )
+        add_agent(self, "trader", trader_prompt(book_rule=_BOOK, exit_rule=_EXIT), allow_trading=True)
 
     def on_trading_iteration(self):
         context = {
             "date": self.get_datetime().date().isoformat(),
             "universe": self.parameters["universe"],
+            "max_position_pct": self.parameters["max_position_pct"],
         }
-        report = self.agents["annual_report_reader"].run(task_prompt="Pick the highest-quality business.", context=context)
-        skeptic = self.agents["valuation_skeptic"].run(
-            task_prompt="Challenge the valuation and business-quality case. Require margin of safety.",
-            context={**context, "report": report.summary},
-        )
-        self.agents["portfolio_manager"].run(
-            task_prompt="Sell anything that is not the best long-term compounder, then buy the best stock with nearly all available cash.",
-            context={**context, "report": report.summary, "skeptic": skeptic.summary},
+        run_cycle(
+            self,
+            context,
+            researcher="researcher",
+            bull="bull",
+            bear="bear",
+            interpreter="interpreter",
+            trader="trader",
+            research_task="Pick the highest-quality businesses in the universe.",
+            bull_task="Make the bull case from the research.",
+            bear_task="Make the bear case from the research.",
+            interpret_task="Decide which names clear a margin of safety and assign weights.",
+            trade_task="Apply the interpreter weights. Size from the account. Exit any name that left the book.",
         )
 
 

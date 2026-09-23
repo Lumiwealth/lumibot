@@ -581,6 +581,52 @@ df = df[~all_zero]
 
 **Key Function:** `get_price_data_from_polygon()` (line 80)
 
+### 6. Alpaca (`alpaca_backtesting.py`, bring your own key)
+
+**Flow:**
+1. `AlpacaBacktesting` inherits from `DataSourceBacktesting` and downloads one bar series per
+   asset for the whole backtest window (stock, crypto and option clients), cached as CSV in
+   `LUMIBOT_CACHE_FOLDER/alpaca`.
+2. Stock and crypto minute/day bars are reindexed to the trading calendar and filled
+   (legacy behavior, see the RULE #1 note below). Option bars are NOT: they are trade prints
+   and stay sparse. Option cache keys end in `_TRADES` so older filled files are never reused.
+3. `get_chains()` lists contracts from the Trading API (`status=inactive` plus `active`,
+   paginated), for expirations from the simulated date through 90 days (or the
+   `OptionsHelper` hint). One listing is reused across simulated days; each day's chain is
+   cached in memory and as JSON in `LUMIBOT_CACHE_FOLDER/alpaca/option_chains`.
+4. `BacktestingBroker` requires an Alpaca option bar that printed in the current minute/day
+   to fill (`_requires_current_execution_bar`). Orders wait for the next real print.
+5. Environment mode (no `config`, which is how `BACKTESTING_DATA_SOURCE=alpaca` builds it in
+   BotSpot): credentials from `ALPACA_*` variables, minute bars by default (daily-cadence
+   strategies are still primed to day bars), and the run goes through `backtesting_end`. An
+   explicit config keeps the legacy daily default and the stop three sessions early.
+6. History versus execution (2026-09-23). Alpaca labels bars with their start time and daily
+   bars at midnight. `_newest_bar_position()` decides the newest bar `get_historical_prices()`
+   returns: with `remove_incomplete_current_bar` only bars whose label plus length is at or
+   before the simulated time (daily: earlier dates), which is the `Data` contract IBKR,
+   ThetaData and Polygon follow. Environment mode defaults it to True; an explicit config keeps
+   the documented False (the forming bar is included, a lookahead of up to one bar; the 2025
+   apitests pin it). `get_last_price()` and the broker's Alpaca fill branch read the bar that
+   starts now with `remove_incomplete_current_bar=False` and use its open, like the Pandas
+   branch with `timeshift=-1`. When nothing has finished yet, history returns `None`.
+7. History before `backtesting_start` (2026-09-23). `history_before_start` (True in environment
+   mode, False with an explicit config) lets a history request that needs more finished bars
+   than the loaded series holds fetch the real bars before it: `_reach_back_for_history()` sizes
+   one segment from the market calendar (`_history_start_needed()`: sessions for `length` bars
+   plus a quarter plus two, capped at 260 intraday and 2520 daily), `_history_segment()` fetches
+   it once, caches it as `<key>_HISTORY.csv` (empty ones too) and never fills it; 1-minute stock
+   bars keep the window's regular-session minutes. A reach already covered, or tried that day for
+   the same request, never asks Alpaca again. `get_last_price()` and the broker fill lookup pass
+   `_extend_history=False`. This mirrors how IBKR and ThetaData fetch history for the request.
+
+**Limits:** option history from about February 2024; the contract listing has no as-of date
+(small lookahead in listed strikes); no historical option bid/ask or vendor greeks; free-tier
+rate limit about 200 requests per minute. Evidence and details:
+`docs/investigations/2026-09-23_alpaca-options-backtesting-and-ibkr-4592-window-regression.md`.
+
+RULE #1 note: the stock/crypto calendar fill in `_reindex_and_fill` predates this rule and is
+covered by legacy tests. It is a known follow-up, not something to copy into new paths.
+
 ## Progress Logging and Download Status Tracking
 
 ### Progress CSV Output

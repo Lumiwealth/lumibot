@@ -836,6 +836,26 @@ class QueueClient:
                     # no-data failures to avoid multi-minute dead loops.
                     if status == "failed":
                         err_text = str(info.error or "").lower()
+                        terminal_auth_error = (
+                            ("401" in err_text or "403" in err_text)
+                            and any(
+                                marker in err_text
+                                for marker in (
+                                    "auth",
+                                    "credential",
+                                    "forbidden",
+                                    "session invalid",
+                                    "unauthorized",
+                                )
+                            )
+                        )
+                        if terminal_auth_error:
+                            with self._lock:
+                                if info.correlation_id in self._pending_requests:
+                                    self._pending_requests[info.correlation_id].status = "dead"
+                            raise RuntimeError(
+                                f"Request {request_id} terminal authentication failure: {info.error}"
+                            )
                         if (
                             "ibkr/iserver/marketdata/history" in str(info.path or "")
                             and "chart data unavailable" in err_text

@@ -63,6 +63,38 @@ def _parse_timestep_qty_and_unit(*args, **kwargs):
 
     return parse_timestep_qty_and_unit(*args, **kwargs)
 
+
+def _schwab_option_symbol(asset) -> str:
+    """Schwab OCC-style option symbol used by quotes and price history."""
+    root_symbol = asset.symbol.ljust(6)
+    year_str = asset.expiration.strftime("%y")
+    month_str = asset.expiration.strftime("%m")
+    day_str = asset.expiration.strftime("%d")
+    option_type = "C" if str(asset.right).upper() == "CALL" else "P"
+    strike_whole = int(asset.strike)
+    strike_decimal = int((float(asset.strike) - strike_whole) * 1000)
+    return f"{root_symbol}{year_str}{month_str}{day_str}{option_type}{strike_whole:05d}{strike_decimal:03d}"
+
+
+def _schwab_market_symbol(asset) -> str | None:
+    """Symbol Schwab price history and quotes actually accept.
+
+    Option candles come back only for the OCC symbol, not the underlying root.
+    Crypto has no Schwab Trader API symbol. Equity tickers stay unchanged:
+    a live read on 2026-09-22 showed ticker BTC is the Grayscale Bitcoin Mini
+    Trust ETF, so Asset("BTC") still requests "BTC". Only asset_type crypto
+    is refused.
+    """
+    asset_type = getattr(asset, "asset_type", None)
+    if asset_type == "crypto":
+        return None
+    if asset_type == "option":
+        return _schwab_option_symbol(asset)
+    if asset_type == "future":
+        symbol = str(asset.symbol)
+        return symbol if symbol.startswith("/") else f"/{symbol}"
+    return str(getattr(asset, "symbol", "") or "").strip()
+
 class SchwabData(DataSource):
     """
     Data source that connects to the Schwab Broker API.
@@ -380,9 +412,23 @@ class SchwabData(DataSource):
             logger.error(colored("No Schwab client available for get_historical_prices", "red"))
             return None
 
-        # According to the documentation, Schwab doesn't provide price history for futures
-        if asset.asset_type == "future" or asset.asset_type == "option":
-            logger.error(colored(f"Schwab doesn't provide price history for {asset.asset_type}s", "red"))
+        # Schwab futures candle history is not available. Option candles are:
+        # a live call on 2026-09-22 returned daily bars for an SPY call when
+        # the request used the OCC symbol. Crypto is not on this API: ticker
+        # BTC is an ETF, not bitcoin.
+        if asset.asset_type == "future":
+            logger.error(colored("Schwab doesn't provide price history for futures", "red"))
+            return None
+        if asset.asset_type == "crypto":
+            logger.error(colored(
+                "Schwab does not support the crypto asset type. Equity tickers such as BTC and ETH are unchanged.",
+                "red",
+            ))
+            return None
+
+        symbol = _schwab_market_symbol(asset)
+        if not symbol:
+            logger.error(colored(f"No Schwab symbol for {asset.symbol}", "red"))
             return None
 
         # Use default timestep if not provided
@@ -390,6 +436,12 @@ class SchwabData(DataSource):
 
         # Parse the timestep
         timestep_qty, timestep_unit = _parse_timestep_qty_and_unit(timestep)
+        if timestep_unit == "second":
+            logger.error(colored(
+                "Schwab does not provide second bars. Minute bars are 1, 5, 10, 15, and 30.",
+                "red",
+            ))
+            return None
 
         # Calculate end date in Eastern time
         end_date = datetime.datetime.now()
@@ -439,12 +491,12 @@ class SchwabData(DataSource):
                     logger.warning(colored(f"Non-standard minute frequency: {timestep_qty}. Using closest supported frequency: {frequency}", "yellow"))
             elif timestep_unit == "hour":
                 frequency_type = self.client.PriceHistory.FrequencyType.MINUTE
-                # For hour, we need to convert to minutes
-                if timestep_qty == 1:
-                    frequency = 30  # Use 30-minute candles for 1 hour
-                else:
-                    frequency = 30  # Default to 30-minute candles
-                    logger.warning(colored(f"Multiple hour timestep: {timestep_qty}. Using 30-minute frequency.", "yellow"))
+                # Schwab minute frequencies stop at 30. There is no 60-minute bar.
+                frequency = 30
+                logger.warning(colored(
+                    "Schwab has no 60-minute bars. This hour request uses 30-minute candles.",
+                    "yellow",
+                ))
             elif timestep_unit == "day":
                 # daily handled below with helper call
                 frequency_type = None
@@ -463,7 +515,7 @@ class SchwabData(DataSource):
             # Get price history using the simplified API function
             if timestep_unit == "day":
                 response = self.client.get_price_history_every_day(
-                    asset.symbol,
+                    symbol,
                     start_datetime=start_date,
                     end_datetime=end_date,
                     need_extended_hours_data=include_after_hours,
@@ -478,7 +530,7 @@ class SchwabData(DataSource):
                     pass
 
                 response = self.client.get_price_history(
-                    symbol=asset.symbol,
+                    symbol=symbol,
                     frequency_type=frequency_type,
                     frequency=freq_enum,
                     start_datetime=start_date,
@@ -610,40 +662,19 @@ class SchwabData(DataSource):
             logger.error(colored("No Schwab client available for get_quote", "red"))
             return None
 
+        if getattr(asset, "asset_type", None) == "crypto":
+            logger.error(colored(
+                "Schwab does not support the crypto asset type. Equity tickers such as BTC and ETH are unchanged.",
+                "red",
+            ))
+            return None
+
         try:
             # Format the symbol according to asset type
-            if asset.asset_type == Asset.AssetType.OPTION:
-                # For options, construct symbol in Schwab's format: RRRRRRYYMMDDsWWWWWddd
-                # Where R is space-filled root symbol, YY is year, MM is month, DD is day,
-                # s is side (C/P for call/put), WWWWW is whole strike price, nnn is decimal portion
-
-                # Get the root symbol, pad with spaces to 6 characters
-                root_symbol = asset.symbol.ljust(6)
-
-                # Format date portions
-                year_str = asset.expiration.strftime('%y')  # 2-digit year
-                month_str = asset.expiration.strftime('%m')  # 2-digit month
-                day_str = asset.expiration.strftime('%d')    # 2-digit day
-
-                # Determine option type (C for call, P for put)
-                option_type = 'C' if asset.right.upper() == 'CALL' else 'P'
-
-                # Format strike price (whole and decimal parts)
-                strike_whole = int(asset.strike)
-                strike_decimal = int((asset.strike - strike_whole) * 1000)  # Get 3 decimal digits
-
-                # Construct the full option symbol
-                symbol = f"{root_symbol}{year_str}{month_str}{day_str}{option_type}{strike_whole:05d}{strike_decimal:03d}"
-
-            elif asset.asset_type == Asset.AssetType.FUTURE:
-                # For futures, add a slash prefix if not already present
-                symbol = asset.symbol if asset.symbol.startswith('/') else f"/{asset.symbol}"
-            elif asset.asset_type == Asset.AssetType.STOCK:
-                # For stocks, ETFs, etc. use the symbol directly
-                symbol = asset.symbol
-            else:
-                # For stocks, ETFs, etc. use the symbol directly
-                symbol = asset.symbol
+            symbol = _schwab_market_symbol(asset)
+            if not symbol:
+                logger.error(colored(f"No Schwab symbol for {getattr(asset, 'symbol', asset)}", "red"))
+                return None
 
             # Get quotes from Schwab API
             response = self.client.get_quotes([symbol])

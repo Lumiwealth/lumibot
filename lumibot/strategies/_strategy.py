@@ -4059,6 +4059,74 @@ class _Strategy:
             **kwargs,
         )
 
+    def send_email(
+        self,
+        *,
+        to,
+        subject,
+        text=None,
+        html=None,
+        attachments=None,
+        idempotency_key=None,
+        enabled=None,
+        provider="resend",
+        **kwargs,
+    ):
+        """Send an email through the configured provider, or record it during a backtest."""
+        return self.notifications.send_email(
+            to=to,
+            subject=subject,
+            text=text,
+            html=html,
+            attachments=attachments,
+            idempotency_key=idempotency_key,
+            enabled=enabled,
+            provider=provider,
+            **kwargs,
+        )
+
+    def list_sent_emails(self, **kwargs):
+        return self.notifications.list_sent_emails(**kwargs)
+
+    def get_sent_email(self, email_id):
+        return self.notifications.get_sent_email(email_id)
+
+    def list_received_emails(self, **kwargs):
+        return self.notifications.list_received_emails(**kwargs)
+
+    def get_received_email(self, email_id):
+        return self.notifications.get_received_email(email_id)
+
+    def get_email_status(self, email_id):
+        return self.notifications.get_email_status(email_id)
+
+    def list_received_email_attachments(self, email_id):
+        return self.notifications.list_received_email_attachments(email_id)
+
+    def get_received_email_attachment(self, email_id, attachment_id):
+        return self.notifications.get_received_email_attachment(email_id, attachment_id)
+
+    def send_slack_message(self, text, *, channel=None, thread_ts=None, blocks=None, enabled=None):
+        return self.notifications.send_slack_message(
+            text,
+            channel=channel,
+            thread_ts=thread_ts,
+            blocks=blocks,
+            enabled=enabled,
+        )
+
+    def list_slack_messages(self, **kwargs):
+        return self.notifications.list_slack_messages(**kwargs)
+
+    def list_slack_channels(self, **kwargs):
+        return self.notifications.list_slack_channels(**kwargs)
+
+    def get_slack_message(self, message_ts, **kwargs):
+        return self.notifications.get_slack_message(message_ts, **kwargs)
+
+    def list_slack_thread(self, thread_ts, **kwargs):
+        return self.notifications.list_slack_thread(thread_ts, **kwargs)
+
     def should_send_account_summary_to_discord(self):
         # Check if db_connection_str has been set, if not, return False
         if not hasattr(self, "db_connection_str"):

@@ -19,6 +19,9 @@ affiliated with or endorsed by the investors, firms, or companies named.
   sector specialists pitch their best ETF ideas, a risk manager challenges the
   setup, and a portfolio manager rotates into the strongest sector.
 
+- `lumibot/example_strategies/ai_trading_team_citadel_sector_pods_leveraged.py`
+  Exact published BotSpot source for the leveraged-ETF sector-pod variant.
+
 - `lumibot/example_strategies/ai_trading_team_warren_buffett_value.py`
   A value-investing team where one agent reads for business quality and annual
   report evidence, one agent demands valuation discipline, and the portfolio
@@ -28,6 +31,9 @@ affiliated with or endorsed by the investors, firms, or companies named.
   A Bridgewater-style idea-meritocracy workflow where growth, inflation, and
   liquidity agents argue, a disagreement agent stress-tests the assumptions,
   and the trader chooses one macro ETF.
+
+- `lumibot/example_strategies/ai_trading_team_ray_dalio_idea_meritocracy_leveraged.py`
+  Exact published BotSpot source for the leveraged-ETF idea-meritocracy variant.
 
 - `lumibot/example_strategies/ai_trading_team_bill_ackman_concentrated.py`
   A concentrated investing workflow where a quality researcher, activist bull,

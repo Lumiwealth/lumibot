@@ -24,7 +24,8 @@ How the team works
 
 * ``annual_report_reader`` studies business quality, cash flow, filings, and durability.
 * ``valuation_skeptic`` challenges valuation and asks for a margin of safety.
-* ``portfolio_manager`` buys the best long-term compounder and is the only agent allowed to trade.
+* ``portfolio_manager`` is the dedicated trading-and-risk agent. It verifies account and order state, then holds or sizes one qualified compounder to at most 20% of portfolio value.
+* The source proof calls ``get_filings`` and ``get_filing_section`` on a real EDGAR 10-K before it holds. Yahoo supplies the daily prices.
 
 Backtest snapshot
 -----------------
@@ -41,7 +42,7 @@ mode unless you set ``ALPACA_IS_PAPER=false``.
 
 .. code-block:: bash
 
-   export GEMINI_API_KEY='your-key-here'
+   export OPENAI_API_KEY='your-key-here'
    export ALPACA_API_KEY='your-alpaca-key'
    export ALPACA_API_SECRET='your-alpaca-secret'
    export ALPACA_IS_PAPER=true
@@ -54,7 +55,7 @@ Use the same strategy class and change ``IS_BACKTESTING = False`` to ``IS_BACKTE
 
 .. code-block:: bash
 
-   export GEMINI_API_KEY='your-key-here'
+   export OPENAI_API_KEY='your-key-here'
    python lumibot/example_strategies/ai_trading_team_warren_buffett_value.py
 
 Example code

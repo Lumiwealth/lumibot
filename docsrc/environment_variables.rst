@@ -847,6 +847,17 @@ POLYGON_MAX_MEMORY_BYTES
 - Purpose: Hard limit on memory Polygon can use for caching.
 - Values: Integer (bytes).
 
+LUMIBOT_OPTION_CHAIN_MAX_DAYS
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+- Purpose: Polygon backtests only. Limits each option chain request to expirations from the
+  simulated date through that many days ahead, which keeps a free Polygon key under its rate
+  limit. A limited chain is cached under its own name (``<SYMBOL>_<date>_max<N>d.parquet``) and is
+  only reused on the same day with the same limit, never as a full chain.
+- Values: Positive whole number of days (for example ``21``). Unset means no limit. Invalid values
+  are ignored with a warning.
+- Example: ``LUMIBOT_OPTION_CHAIN_MAX_DAYS=21``
+
 THETADATA_USERNAME / THETADATA_PASSWORD
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
@@ -943,7 +954,7 @@ LUMIBOT_AI_GATEWAY_URL and LUMIBOT_AI_GATEWAY_TOKEN
 GEMINI_API_KEY
 ^^^^^^^^^^^^^^
 
-- Purpose: Auth for Gemini models (the default provider).
+- Purpose: Auth for Gemini models.
 - Values: Obtain from https://aistudio.google.com/apikey.
 - Required when ``default_model`` starts with ``gemini-`` (e.g. ``gemini-3.1-flash-lite-preview``).
 - LumiBot's public contract is ``GEMINI_API_KEY``. Do not rely on Google SDK
@@ -953,9 +964,9 @@ GEMINI_API_KEY
 OPENAI_API_KEY
 ^^^^^^^^^^^^^^
 
-- Purpose: Auth for OpenAI models (GPT-5.4 family and others).
+- Purpose: Auth for OpenAI models, including the default ``openai/gpt-6-luna``.
 - Values: Obtain from https://platform.openai.com/api-keys.
-- Required when ``default_model`` looks like ``openai/gpt-5.4-mini`` or any other ``openai/...`` id.
+- Required for the default model and whenever ``default_model`` is any other ``openai/...`` id.
 
 XAI_API_KEY or GROK_API_KEY
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^

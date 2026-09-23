@@ -118,20 +118,20 @@ The replay cache is fully automatic. No configuration needed.
 What LLM providers does LumiBot support for agents?
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-LumiBot's agent runtime is built on `Google ADK <https://google.github.io/adk-docs/>`_ (Agent Development Kit). The default model is **Gemini** (``gemini-3.1-flash-lite-preview``). The architecture supports routing to other providers (OpenAI, Anthropic, xAI/Grok, and others) through Google ADK's LiteLLM bridge. You need a ``GEMINI_API_KEY`` environment variable set for Gemini:
+LumiBot's agent runtime is built on `Google ADK <https://google.github.io/adk-docs/>`_ (Agent Development Kit). The default model is **OpenAI GPT-6 Luna** (``openai/gpt-6-luna``) on high reasoning. The architecture supports other providers (Gemini, Anthropic, xAI/Grok, and others) through Google ADK's LiteLLM bridge. You need an ``OPENAI_API_KEY`` environment variable set for the default model:
 
 .. code-block:: python
 
     self.agents.create(
         name="research",
-        default_model="gemini-3.1-flash-lite-preview",
+        default_model="openai/gpt-6-luna",
         system_prompt="Your strategy prompt here.",
     )
 
 How do I create my first AI trading agent?
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-Create the agent in ``initialize()`` and run it from ``on_trading_iteration()``. You need ``GEMINI_API_KEY`` set in your environment for Gemini:
+Create the agent in ``initialize()`` and run it from ``on_trading_iteration()``. You need ``OPENAI_API_KEY`` set in your environment for the default model:
 
 .. code-block:: python
 
@@ -142,7 +142,7 @@ Create the agent in ``initialize()`` and run it from ``on_trading_iteration()``.
             self.sleeptime = "1D"
             self.agents.create(
                 name="research",
-                default_model="gemini-3.1-flash-lite-preview",
+                default_model="openai/gpt-6-luna",
                 system_prompt="Analyze the market and trade conservatively.",
             )
 
@@ -249,7 +249,7 @@ MCP (Model Context Protocol) servers are external services that provide tools an
 
     self.agents.create(
         name="research",
-        default_model="gemini-3.5-flash-lite",
+        default_model="openai/gpt-6-luna",
         system_prompt="Your strategy prompt.",
         mcp_servers=[
             MCPServer(name="my-server", url="https://my-mcp-server.example.com/mcp"),
@@ -332,9 +332,9 @@ Yes. Create multiple agents in ``initialize()`` with different names, prompts, a
 .. code-block:: python
 
     def initialize(self):
-        self.agents.create(name="macro", default_model="gemini-3.1-flash-lite-preview",
+        self.agents.create(name="macro", default_model="openai/gpt-6-luna",
                            system_prompt="Analyze macro conditions.")
-        self.agents.create(name="technicals", default_model="gemini-3.1-flash-lite-preview",
+        self.agents.create(name="technicals", default_model="openai/gpt-6-luna",
                            system_prompt="Analyze technical indicators.")
 
     def on_trading_iteration(self):

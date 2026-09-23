@@ -39,6 +39,10 @@ interval:
      - :doc:`IBKR REST <backtesting.ibkr>`
      - Provider-supported intervals
      - Client Portal and Data Downloader access
+   * - Options with your own Alpaca account
+     - :doc:`Alpaca <backtesting.alpaca>`
+     - Minute and daily
+     - Alpaca API key (free accounts include option history from about February 2024)
    * - Prediction contracts
      - Polymarket
      - Market price history
@@ -97,6 +101,7 @@ When you run a backtest, several important files are generated, each prefixed by
    backtesting.databento
    backtesting.thetadata
    backtesting.ibkr
+   backtesting.alpaca
    backtesting.tearsheet_html
    backtesting.trades_files
    backtesting.indicators_files

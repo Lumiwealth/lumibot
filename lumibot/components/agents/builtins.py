@@ -6,11 +6,10 @@ from datetime import date, datetime, timedelta, timezone
 from importlib import import_module
 from typing import Any, Literal
 
-from .docs_tools import search_lumibot_docs
 from .asset_resolution import resolve_asset_and_quote
+from .docs_tools import search_lumibot_docs
 from .schemas import BoundTool, ToolDefinition
 from .tool_context import current_agent_tool_context
-
 
 AssetTypeArg = Literal["stock", "option", "future", "cont_future", "forex", "crypto", "index", "multileg", "us_equity"]
 OrderSideArg = Literal[
@@ -1078,7 +1077,7 @@ def _bind_last_price(strategy: Any, manager: Any) -> BoundTool:
             "Example: market_last_price(symbol='SPY', asset_type='stock')."
         ),
         function=last_price,
-        metadata={"kind": "builtin", "replay_on_cache": True},
+        metadata={"kind": "builtin", "replay_on_cache": True, "temporal": "strategy_clock_snapshot"},
     )
 
 
@@ -1177,7 +1176,7 @@ def _bind_last_prices(strategy: Any, manager: Any) -> BoundTool:
             'Example: market_last_prices(symbols_json=\'["SPY","QQQ","AAPL","MSFT"]\').'
         ),
         function=last_prices,
-        metadata={"kind": "builtin", "replay_on_cache": True},
+        metadata={"kind": "builtin", "replay_on_cache": True, "temporal": "strategy_clock_as_of"},
     )
 
 
@@ -1293,7 +1292,7 @@ def _bind_historical_prices(strategy: Any, manager: Any) -> BoundTool:
             'Examples: market_historical_prices(symbols_json=\'["SPY","QQQ","AAPL"]\', length=20, timestep=\'minute\'); market_historical_prices(symbols="AAPL", length=20, timestep="5minute").'
         ),
         function=historical_prices,
-        metadata={"kind": "builtin", "replay_on_cache": True},
+        metadata={"kind": "builtin", "replay_on_cache": True, "temporal": "strategy_clock_as_of"},
     )
 
 
@@ -1362,7 +1361,7 @@ def _bind_options_get_chain(strategy: Any, manager: Any) -> BoundTool:
             "Example: options_get_chain(symbol='SPY', include_strikes=false)."
         ),
         function=get_chain,
-        metadata={"kind": "builtin", "replay_on_cache": True},
+        metadata={"kind": "builtin", "replay_on_cache": True, "temporal": "strategy_clock_snapshot"},
     )
 
 
@@ -1404,7 +1403,7 @@ def _bind_options_get_strikes(strategy: Any, manager: Any) -> BoundTool:
             "Example: options_get_strikes(symbol='SPY', expiration='2026-09-18', right='put')."
         ),
         function=get_strikes,
-        metadata={"kind": "builtin", "replay_on_cache": True},
+        metadata={"kind": "builtin", "replay_on_cache": True, "temporal": "strategy_clock_snapshot"},
     )
 
 
@@ -1450,7 +1449,7 @@ def _bind_options_get_greeks(strategy: Any, manager: Any) -> BoundTool:
             "Example: options_get_greeks(symbol='SPY', expiration='2026-09-18', strike=650, right='call')."
         ),
         function=get_greeks,
-        metadata={"kind": "builtin", "replay_on_cache": True},
+        metadata={"kind": "builtin", "replay_on_cache": True, "temporal": "strategy_clock_snapshot"},
     )
 
 
@@ -1505,8 +1504,69 @@ def _bind_options_find_strike_for_delta(strategy: Any, manager: Any) -> BoundToo
             "Example: options_find_strike_for_delta(symbol='SPY', expiration='2026-09-18', right='put', target_delta=-0.16)."
         ),
         function=find_strike_for_delta,
-        metadata={"kind": "builtin", "replay_on_cache": True},
+        metadata={"kind": "builtin", "replay_on_cache": True, "temporal": "strategy_clock_snapshot"},
     )
+
+
+_BACKTEST_LAST_TRADE_NOTE = (
+    "This backtest data source provides option trade bars but no bid/ask history. buy_price and sell_price are the "
+    "last traded price, and backtest option legs fill from those real trade bars, so they are usable anchors for "
+    "limit pricing. Spread-width checks cannot be applied without bid/ask."
+)
+_LIVE_LAST_TRADE_NOTE = (
+    "No current bid/ask is available. The last traded price may be stale, so do not price a live order from it."
+)
+
+
+def _option_price_basis(strategy: Any, evaluation: Any) -> dict[str, Any]:
+    if getattr(evaluation, "has_bid_ask", False):
+        return {
+            "price_basis": "bid_ask",
+            "usable_for_limit_pricing": getattr(evaluation, "buy_price", None) is not None,
+            "price_basis_note": "Prices come from the current bid/ask quote.",
+        }
+    if getattr(evaluation, "used_last_price_fallback", False):
+        backtesting = bool(getattr(strategy, "is_backtesting", False))
+        return {
+            "price_basis": "last_trade",
+            "usable_for_limit_pricing": backtesting,
+            "price_basis_note": _BACKTEST_LAST_TRADE_NOTE if backtesting else _LIVE_LAST_TRADE_NOTE,
+        }
+    return {
+        "price_basis": "none",
+        "usable_for_limit_pricing": False,
+        "price_basis_note": "No bid/ask or last trade is available for this contract.",
+    }
+
+
+def _backtest_last_trade_multileg_price(strategy: Any, orders: list[Any]) -> float | None:
+    """Per-unit net price from each leg's bid/ask mid or last trade, for trade-only backtest data."""
+    if not getattr(strategy, "is_backtesting", False):
+        return None
+    helper = _options_helper_for_strategy(strategy)
+    total = 0.0
+    for order in orders:
+        evaluation = helper.evaluate_option_market(order.asset)
+        if evaluation.has_bid_ask and evaluation.bid is not None and evaluation.ask is not None:
+            price = (float(evaluation.bid) + float(evaluation.ask)) / 2
+        elif evaluation.used_last_price_fallback and evaluation.last_price is not None:
+            price = float(evaluation.last_price)
+        else:
+            return None
+        if not math.isfinite(price) or price <= 0:
+            return None
+        total += price if order.is_buy_order() else -price
+    return total
+
+
+def _resolve_multileg_net_price(strategy: Any, orders: list[Any], price_style: str) -> tuple[float | None, str]:
+    net_price = _options_helper_for_strategy(strategy).calculate_multileg_limit_price(orders, price_style)
+    if net_price is not None:
+        return float(net_price), "bid_ask"
+    fallback = _backtest_last_trade_multileg_price(strategy, orders)
+    if fallback is not None:
+        return fallback, "last_trade"
+    return None, "none"
 
 
 def _bind_options_evaluate_market(strategy: Any, manager: Any) -> BoundTool:
@@ -1529,22 +1589,25 @@ def _bind_options_evaluate_market(strategy: Any, manager: Any) -> BoundTool:
             option,
             max_spread_pct=max_spread_pct,
         )
+        market = _jsonable(vars(evaluation))
+        market.update(_option_price_basis(strategy, evaluation))
         return {
             "asset": _asset_to_dict(option),
-            "market": _jsonable(vars(evaluation)),
+            "market": market,
             "datetime": strategy.get_datetime().isoformat(),
         }
 
     return BoundTool(
         name="options_evaluate_market",
         description=(
-            "Inspect executable quote quality for one exact option contract and return bid, ask, last, spread percentage, suggested buy/sell prices, and data-quality flags. "
+            "Inspect executable quote quality for one exact option contract and return bid, ask, last, spread percentage, suggested buy/sell prices, data-quality flags, price_basis, and usable_for_limit_pricing. "
             "Arguments: symbol, expiration, strike, right, optional max_spread_pct as a fraction such as 0.20 for 20 percent. "
-            "Call this for every proposed leg before submitting a multi-leg order. Do not trade a contract whose response says the market is unavailable or unacceptably wide under your policy. "
+            "Call this for every proposed leg before submitting a multi-leg order. Do not trade a contract whose usable_for_limit_pricing is false or whose market is unacceptably wide under your policy. "
+            "price_basis='last_trade' with usable_for_limit_pricing=true means a trade-only backtest data source: missing bid/ask alone is not a reason to refuse; follow price_basis_note. "
             "Example: options_evaluate_market(symbol='SPY', expiration='2026-09-18', strike=650, right='call', max_spread_pct=0.20)."
         ),
         function=evaluate_market,
-        metadata={"kind": "builtin", "replay_on_cache": True},
+        metadata={"kind": "builtin", "replay_on_cache": True, "temporal": "strategy_clock_snapshot"},
     )
 
 
@@ -1555,19 +1618,20 @@ def _bind_options_calculate_multileg_price(strategy: Any, manager: Any) -> Bound
         price_style: Literal["best", "mid", "fastest"] = "mid",
     ) -> dict[str, Any]:
         orders = _parse_option_legs(strategy, legs_json)
-        net_price = _options_helper_for_strategy(strategy).calculate_multileg_limit_price(orders, price_style)
+        net_price, price_basis = _resolve_multileg_net_price(strategy, orders, price_style)
         if net_price is None:
             return {
                 "available": False,
                 "price_style": price_style,
+                "price_basis": price_basis,
                 "net_limit_price": None,
                 "legs": [_order_to_dict(order) for order in orders],
             }
-        net_price = float(net_price)
         order_type = "debit" if net_price > 0 else "credit" if net_price < 0 else "even"
         return {
             "available": True,
             "price_style": price_style,
+            "price_basis": price_basis,
             "net_limit_price": net_price,
             "order_type": order_type,
             "broker_price": abs(net_price),
@@ -1585,6 +1649,7 @@ def _bind_options_calculate_multileg_price(strategy: Any, manager: Any) -> Bound
             "Never price a close with buy_to_close for a positive quantity or sell_to_close for a negative quantity because those sides do not close the observed position. "
             "When comparing a per-unit multi-leg opening credit with a per-unit closing debit, price one contract per leg here. Use the full absolute position quantities only in the later orders_submit_multileg call. "
             "Independently reconcile the returned net price from the four option midpoint values you just observed. For a defined-risk structure, reject a result that conflicts materially with those leg mids or violates the structure's economic bounds. "
+            "price_basis='last_trade' means a trade-only backtest priced each leg from its last traded price; reconcile against the leg last prices instead of mids. "
             'Example legs_json: [{"symbol":"SPY","expiration":"2026-09-18","strike":620,"right":"put","quantity":1,"side":"buy_to_open"},{"symbol":"SPY","expiration":"2026-09-18","strike":625,"right":"put","quantity":1,"side":"sell_to_open"}].'
         ),
         function=calculate_multileg_price,
@@ -1662,7 +1727,7 @@ def _bind_options_find_expiration(strategy: Any, manager: Any) -> BoundTool:
             "Example: options_find_expiration(symbol='SPY', min_days=30, right='put')."
         ),
         function=find_expiration,
-        metadata={"kind": "builtin", "replay_on_cache": True},
+        metadata={"kind": "builtin", "replay_on_cache": True, "temporal": "strategy_clock_snapshot"},
     )
 
 
@@ -1711,7 +1776,7 @@ def _bind_options_check_spread_profit(strategy: Any, manager: Any) -> BoundTool:
             "Example: options_check_spread_profit(legs_json='[...]', initial_cost=-200)."
         ),
         function=check_spread_profit,
-        metadata={"kind": "builtin", "replay_on_cache": True},
+        metadata={"kind": "builtin", "replay_on_cache": True, "temporal": "strategy_clock_snapshot"},
     )
 
 
@@ -1983,7 +2048,7 @@ def _bind_load_history(strategy: Any, manager: Any) -> BoundTool:
             "Example: market_load_history_table(symbol='TQQQ', length=252, timestep='day', table_name='recent_prices')."
         ),
         function=load_history_table,
-        metadata={"kind": "builtin", "replay_on_cache": True},
+        metadata={"kind": "builtin", "replay_on_cache": True, "temporal": "strategy_clock_as_of"},
     )
 
 
@@ -2026,6 +2091,332 @@ def _bind_docs_search(strategy: Any, manager: Any) -> BoundTool:
         ),
         function=docs_search,
         metadata={"kind": "builtin"},
+    )
+
+
+def _web_client_for_strategy(strategy: Any):
+    from .web_tools import CredentialProfile, WebClient
+
+    existing = getattr(strategy, "_agent_web_client", None)
+    if isinstance(existing, WebClient):
+        return existing
+    raw_profiles = getattr(strategy, "http_credential_profiles", {}) or {}
+    profiles = {}
+    for name, value in dict(raw_profiles).items():
+        if isinstance(value, CredentialProfile):
+            profiles[str(name)] = value
+        elif isinstance(value, dict):
+            profiles[str(name)] = CredentialProfile.from_mapping(str(name), value)
+        else:
+            raise ValueError(f"HTTP credential profile {name!r} must be a CredentialProfile or mapping.")
+    client = WebClient(
+        credential_profiles=profiles,
+        trusted_private_hosts=getattr(strategy, "http_trusted_private_hosts", ()) or (),
+    )
+    strategy._agent_web_client = client
+    return client
+
+
+def _bind_http_request(strategy: Any, manager: Any) -> BoundTool:
+    def http_request(
+        method: str,
+        url: str,
+        query_json: str | None = None,
+        headers_json: str | None = None,
+        json_body: Any | None = None,
+        form_json: str | None = None,
+        raw_body: str | None = None,
+        files_json: str | None = None,
+        credential_profile: str | None = None,
+        max_response_bytes: int | None = None,
+    ) -> dict[str, Any]:
+        return _web_client_for_strategy(strategy).request(
+            method,
+            url,
+            query=query_json,
+            headers=headers_json,
+            json_body=json_body,
+            form_body=form_json,
+            raw_body=raw_body,
+            files=files_json,
+            credential_profile=credential_profile,
+            max_response_bytes=max_response_bytes,
+        )
+
+    return BoundTool(
+        name="http_request",
+        description=(
+            "Make a stateful HTTP request to the public web using GET, HEAD, OPTIONS, POST, PUT, PATCH, or DELETE. "
+            "Supports query_json, headers_json, JSON/form/raw/multipart bodies, cookies, redirects, binary responses, "
+            "and host-scoped credential profiles configured by the strategy. Private, loopback, link-local, metadata, "
+            "and reserved network targets are blocked unless the host is explicitly trusted by the strategy."
+        ),
+        function=http_request,
+        source="builtin",
+        metadata={"kind": "web", "temporal": "response_time"},
+    )
+
+
+def _bind_rss_fetch(strategy: Any, manager: Any) -> BoundTool:
+    def rss_fetch(
+        url: str,
+        credential_profile: str | None = None,
+        max_entries: int = 100,
+        max_response_bytes: int | None = None,
+    ) -> dict[str, Any]:
+        return _web_client_for_strategy(strategy).fetch_feed(
+            url,
+            credential_profile=credential_profile,
+            max_entries=max_entries,
+            max_response_bytes=max_response_bytes,
+        )
+
+    return BoundTool(
+        name="rss_fetch",
+        description=(
+            "Fetch and parse an RSS or Atom feed through LumiBot's stateful HTTP transport. "
+            "Reuses host-scoped authentication, cookies, SSRF protection, ETag, and Last-Modified validators."
+        ),
+        function=rss_fetch,
+        source="builtin",
+        metadata={"kind": "web", "temporal": "source_published_at"},
+    )
+
+
+def _browser_manager_for_strategy(strategy: Any):
+    from .browser_tools import BrowserCredentialProfile, BrowserSessionManager
+
+    existing = getattr(strategy, "_agent_browser_manager", None)
+    if isinstance(existing, BrowserSessionManager):
+        return existing
+    raw_profiles = getattr(strategy, "browser_credential_profiles", {}) or {}
+    profiles = {}
+    for name, value in dict(raw_profiles).items():
+        if isinstance(value, BrowserCredentialProfile):
+            profiles[str(name)] = value
+        elif isinstance(value, dict):
+            profiles[str(name)] = BrowserCredentialProfile.from_mapping(str(name), value)
+        else:
+            raise ValueError(f"Browser credential profile {name!r} must be a BrowserCredentialProfile or mapping.")
+    browser_manager = BrowserSessionManager(
+        engine=getattr(strategy, "browser_engine", None),
+        state_root=getattr(strategy, "browser_state_root", None),
+        upload_root=getattr(strategy, "browser_upload_root", None),
+        credential_profiles=profiles,
+    )
+    strategy._agent_browser_manager = browser_manager
+    return browser_manager
+
+
+def _bind_browser_session_open(strategy: Any, manager: Any) -> BoundTool:
+    def browser_session_open(profile: str = "default", headless: bool = True) -> dict[str, Any]:
+        return _browser_manager_for_strategy(strategy).open(profile=profile, headless=headless)
+
+    return BoundTool(
+        name="browser_session_open",
+        description="Open a stateful browser session backed by a persistent named profile.",
+        function=browser_session_open,
+        source="builtin",
+        metadata={"kind": "browser"},
+    )
+
+
+def _bind_browser_session_close(strategy: Any, manager: Any) -> BoundTool:
+    def browser_session_close(session_id: str) -> dict[str, Any]:
+        return _browser_manager_for_strategy(strategy).close(session_id)
+
+    return BoundTool(
+        name="browser_session_close",
+        description="Close a browser session while preserving its named profile state.",
+        function=browser_session_close,
+        source="builtin",
+        metadata={"kind": "browser"},
+    )
+
+
+def _bind_browser_session_recover(strategy: Any, manager: Any) -> BoundTool:
+    def browser_session_recover(session_id: str, resume_current_url: bool = True) -> dict[str, Any]:
+        return _browser_manager_for_strategy(strategy).recover(
+            session_id,
+            resume_current_url=resume_current_url,
+        )
+
+    return BoundTool(
+        name="browser_session_recover",
+        description="Restart a crashed browser session with the same persistent profile and optionally resume its URL.",
+        function=browser_session_recover,
+        source="builtin",
+        metadata={"kind": "browser"},
+    )
+
+
+def _bind_browser_navigate(strategy: Any, manager: Any) -> BoundTool:
+    def browser_navigate(
+        session_id: str,
+        url: str,
+        wait_until: str = "domcontentloaded",
+    ) -> dict[str, Any]:
+        return _browser_manager_for_strategy(strategy).navigate(session_id, url, wait_until=wait_until)
+
+    return BoundTool(
+        name="browser_navigate",
+        description="Navigate the active tab in a stateful browser session to a URL.",
+        function=browser_navigate,
+        source="builtin",
+        metadata={"kind": "browser", "temporal": "browser_observation_time"},
+    )
+
+
+def _bind_browser_observe(strategy: Any, manager: Any) -> BoundTool:
+    def browser_observe(session_id: str, include_screenshot: bool = False) -> dict[str, Any]:
+        return _browser_manager_for_strategy(strategy).observe(
+            session_id,
+            include_screenshot=include_screenshot,
+        )
+
+    return BoundTool(
+        name="browser_observe",
+        description="Read the active tab URL, title and visible text, optionally with a screenshot.",
+        function=browser_observe,
+        source="builtin",
+        metadata={"kind": "browser", "temporal": "browser_observation_time"},
+    )
+
+
+def _bind_browser_act(strategy: Any, manager: Any) -> BoundTool:
+    def browser_act(
+        session_id: str,
+        action: str,
+        selector: str | None = None,
+        value: Any = None,
+        timeout_seconds: float = 30.0,
+    ) -> dict[str, Any]:
+        return _browser_manager_for_strategy(strategy).act(
+            session_id,
+            action=action,
+            selector=selector,
+            value=value,
+            timeout_seconds=timeout_seconds,
+        )
+
+    return BoundTool(
+        name="browser_act",
+        description=(
+            "Act in the active browser tab: click, fill, type, press, select, check, uncheck, scroll, wait, "
+            "wait_text, upload, or download. "
+            "Returns an action receipt for consequential browser operations."
+        ),
+        function=browser_act,
+        source="builtin",
+        metadata={"kind": "browser", "mutates_external": True},
+    )
+
+
+def _bind_browser_tabs(strategy: Any, manager: Any) -> BoundTool:
+    def browser_tabs(
+        session_id: str,
+        operation: str = "list",
+        tab_id: str | None = None,
+        url: str | None = None,
+    ) -> dict[str, Any]:
+        return _browser_manager_for_strategy(strategy).tabs(
+            session_id,
+            operation,
+            tab_id=tab_id,
+            url=url,
+        )
+
+    return BoundTool(
+        name="browser_tabs",
+        description="List, open, switch, or close tabs in a stateful browser session.",
+        function=browser_tabs,
+        source="builtin",
+        metadata={"kind": "browser"},
+    )
+
+
+def _bind_browser_extract(strategy: Any, manager: Any) -> BoundTool:
+    def browser_extract(
+        session_id: str,
+        selector: str = "body",
+        attribute: str | None = None,
+    ) -> dict[str, Any]:
+        return _browser_manager_for_strategy(strategy).extract(
+            session_id,
+            selector=selector,
+            attribute=attribute,
+        )
+
+    return BoundTool(
+        name="browser_extract",
+        description="Extract text or one attribute from every matching element in the active tab.",
+        function=browser_extract,
+        source="builtin",
+        metadata={"kind": "browser", "temporal": "browser_observation_time"},
+    )
+
+
+def _bind_browser_login(strategy: Any, manager: Any) -> BoundTool:
+    def browser_login(
+        session_id: str,
+        credential_profile: str,
+        username_selector: str,
+        password_selector: str,
+        submit_selector: str | None = None,
+        timeout_seconds: float = 30.0,
+    ) -> dict[str, Any]:
+        return _browser_manager_for_strategy(strategy).login(
+            session_id,
+            credential_profile=credential_profile,
+            username_selector=username_selector,
+            password_selector=password_selector,
+            submit_selector=submit_selector,
+            timeout_seconds=timeout_seconds,
+        )
+
+    return BoundTool(
+        name="browser_login",
+        description=(
+            "Fill and optionally submit a login form using a host-scoped credential profile. "
+            "The username and password are never returned to the model or trace."
+        ),
+        function=browser_login,
+        source="builtin",
+        metadata={"kind": "browser", "mutates_external": True},
+    )
+
+
+def _bind_browser_storage_state(strategy: Any, manager: Any) -> BoundTool:
+    def browser_storage_state(session_id: str) -> dict[str, Any]:
+        return _browser_manager_for_strategy(strategy).save_storage_state(session_id)
+
+    return BoundTool(
+        name="browser_storage_state",
+        description="Persist the active browser context storage state inside its managed profile directory.",
+        function=browser_storage_state,
+        source="builtin",
+        metadata={"kind": "browser", "temporal": "browser_observation_time"},
+    )
+
+
+def _bind_browser_screenshot(strategy: Any, manager: Any) -> BoundTool:
+    def browser_screenshot(
+        session_id: str,
+        name: str = "screenshot",
+        full_page: bool = True,
+    ) -> dict[str, Any]:
+        return _browser_manager_for_strategy(strategy).screenshot(
+            session_id,
+            name=name,
+            full_page=full_page,
+        )
+
+    return BoundTool(
+        name="browser_screenshot",
+        description="Save a browser screenshot inside the managed artifact directory and return its SHA-256 receipt.",
+        function=browser_screenshot,
+        source="builtin",
+        metadata={"kind": "browser", "temporal": "browser_observation_time"},
     )
 
 
@@ -2119,6 +2510,7 @@ def _bind_alpaca_news(strategy: Any, manager: Any) -> BoundTool:
             function=_unavailable_alpaca_news,
             metadata={
                 "kind": "builtin",
+                "temporal": "source_published_at_clamped_to_strategy_clock",
                 "disabled": True,
                 "disabled_reason": "missing Alpaca broker credentials or ALPACA_NEWS_API_KEY / ALPACA_NEWS_API_SECRET",
             },
@@ -2257,7 +2649,7 @@ def _bind_alpaca_news(strategy: Any, manager: Any) -> BoundTool:
         name="alpaca_news",
         description=ALPACA_NEWS_DESCRIPTION,
         function=alpaca_news,
-        metadata={"kind": "builtin"},
+        metadata={"kind": "builtin", "temporal": "source_published_at_clamped_to_strategy_clock"},
     )
 
 
@@ -2517,7 +2909,7 @@ def _bind_get_indicator(strategy: Any, manager: Any) -> BoundTool:
         ),
         function=get_indicator,
         source="builtin",
-        metadata={"kind": "indicator"},
+        metadata={"kind": "indicator", "temporal": "strategy_clock_as_of"},
     )
 
 
@@ -2616,7 +3008,7 @@ def _bind_get_indicators(strategy: Any, manager: Any) -> BoundTool:
         ),
         function=get_indicators,
         source="builtin",
-        metadata={"kind": "indicator"},
+        metadata={"kind": "indicator", "temporal": "strategy_clock_as_of"},
     )
 
 
@@ -2628,11 +3020,12 @@ def _bind_get_income_statement(strategy: Any, manager: Any) -> BoundTool:
         name="get_income_statement",
         description=(
             "Get SEC income statement facts for a US equity, gated to as_of or the current strategy datetime. "
-            "Fields are kept within one SEC filing/statement period when possible; mismatched old facts are omitted with warnings."
+            "Fields are kept within one SEC filing/statement period when possible; mismatched old facts are omitted "
+            "with warnings."
         ),
         function=get_income_statement,
         source="builtin",
-        metadata={"kind": "fundamentals", "cache_scope": "strategy_day"},
+        metadata={"kind": "fundamentals", "cache_scope": "strategy_day", "temporal": "published_at_as_of"},
     )
 
 
@@ -2644,11 +3037,12 @@ def _bind_get_balance_sheet(strategy: Any, manager: Any) -> BoundTool:
         name="get_balance_sheet",
         description=(
             "Get SEC balance sheet facts for a US equity, gated to as_of or the current strategy datetime. "
-            "Fields are kept within one SEC filing/statement period when possible; mismatched old facts are omitted with warnings."
+            "Fields are kept within one SEC filing/statement period when possible; mismatched old facts are omitted "
+            "with warnings."
         ),
         function=get_balance_sheet,
         source="builtin",
-        metadata={"kind": "fundamentals", "cache_scope": "strategy_day"},
+        metadata={"kind": "fundamentals", "cache_scope": "strategy_day", "temporal": "published_at_as_of"},
     )
 
 
@@ -2664,7 +3058,7 @@ def _bind_get_cash_flow(strategy: Any, manager: Any) -> BoundTool:
         ),
         function=get_cash_flow,
         source="builtin",
-        metadata={"kind": "fundamentals", "cache_scope": "strategy_day"},
+        metadata={"kind": "fundamentals", "cache_scope": "strategy_day", "temporal": "published_at_as_of"},
     )
 
 
@@ -2681,11 +3075,12 @@ def _bind_get_company_facts(strategy: Any, manager: Any) -> BoundTool:
         name="get_company_facts",
         description=(
             "Get compact or raw SEC companyfacts for a US equity, gated to as_of or the current strategy datetime. "
-            "Default output is capped to important/latest facts so agent runs stay within context; use max_facts or raw=True only when needed."
+            "Default output is capped to important/latest facts so agent runs stay within context; use max_facts or "
+            "raw=True only when needed."
         ),
         function=get_company_facts,
         source="builtin",
-        metadata={"kind": "fundamentals", "cache_scope": "strategy_day"},
+        metadata={"kind": "fundamentals", "cache_scope": "strategy_day", "temporal": "published_at_as_of"},
     )
 
 
@@ -2701,7 +3096,7 @@ def _bind_get_filings(strategy: Any, manager: Any) -> BoundTool:
         ),
         function=get_filings,
         source="builtin",
-        metadata={"kind": "filings", "cache_scope": "strategy_day"},
+        metadata={"kind": "filings", "cache_scope": "strategy_day", "temporal": "published_at_as_of"},
     )
 
 
@@ -2712,6 +3107,7 @@ def _bind_search_filing(strategy: Any, manager: Any) -> BoundTool:
         query: str,
         primary_document: str | None = None,
         max_results: int = 5,
+        as_of: str | None = None,
     ) -> dict[str, Any]:
         return strategy.fundamentals.search_filing(
             symbol,
@@ -2719,6 +3115,7 @@ def _bind_search_filing(strategy: Any, manager: Any) -> BoundTool:
             query=query,
             primary_document=primary_document,
             max_results=max_results,
+            as_of=as_of,
         )
 
     return BoundTool(
@@ -2730,7 +3127,7 @@ def _bind_search_filing(strategy: Any, manager: Any) -> BoundTool:
         ),
         function=search_filing,
         source="builtin",
-        metadata={"kind": "filings", "cache_scope": "strategy_day"},
+        metadata={"kind": "filings", "cache_scope": "strategy_day", "temporal": "published_at_as_of"},
     )
 
 
@@ -2740,12 +3137,14 @@ def _bind_get_filing_document(strategy: Any, manager: Any) -> BoundTool:
         accession_number: str,
         primary_document: str | None = None,
         max_chars: int | None = 20000,
+        as_of: str | None = None,
     ) -> dict[str, Any]:
         return strategy.fundamentals.get_filing_document(
             symbol,
             accession_number=accession_number,
             primary_document=primary_document,
             max_chars=max_chars,
+            as_of=as_of,
         )
 
     return BoundTool(
@@ -2756,7 +3155,7 @@ def _bind_get_filing_document(strategy: Any, manager: Any) -> BoundTool:
         ),
         function=get_filing_document,
         source="builtin",
-        metadata={"kind": "filings", "cache_scope": "strategy_day"},
+        metadata={"kind": "filings", "cache_scope": "strategy_day", "temporal": "published_at_as_of"},
     )
 
 
@@ -2765,11 +3164,13 @@ def _bind_list_filing_sections(strategy: Any, manager: Any) -> BoundTool:
         symbol: str,
         accession_number: str,
         primary_document: str | None = None,
+        as_of: str | None = None,
     ) -> dict[str, Any]:
         return strategy.fundamentals.list_filing_sections(
             symbol,
             accession_number=accession_number,
             primary_document=primary_document,
+            as_of=as_of,
         )
 
     return BoundTool(
@@ -2780,7 +3181,7 @@ def _bind_list_filing_sections(strategy: Any, manager: Any) -> BoundTool:
         ),
         function=list_filing_sections,
         source="builtin",
-        metadata={"kind": "filings", "cache_scope": "strategy_day"},
+        metadata={"kind": "filings", "cache_scope": "strategy_day", "temporal": "published_at_as_of"},
     )
 
 
@@ -2791,6 +3192,7 @@ def _bind_get_filing_section(strategy: Any, manager: Any) -> BoundTool:
         section: str,
         primary_document: str | None = None,
         max_chars: int | None = 12000,
+        as_of: str | None = None,
     ) -> dict[str, Any]:
         return strategy.fundamentals.get_filing_section(
             symbol,
@@ -2798,6 +3200,7 @@ def _bind_get_filing_section(strategy: Any, manager: Any) -> BoundTool:
             section=section,
             primary_document=primary_document,
             max_chars=max_chars,
+            as_of=as_of,
         )
 
     return BoundTool(
@@ -2809,7 +3212,7 @@ def _bind_get_filing_section(strategy: Any, manager: Any) -> BoundTool:
         ),
         function=get_filing_section,
         source="builtin",
-        metadata={"kind": "filings", "cache_scope": "strategy_day"},
+        metadata={"kind": "filings", "cache_scope": "strategy_day", "temporal": "published_at_as_of"},
     )
 
 
@@ -2863,6 +3266,7 @@ def _disabled_fred_tool_if_needed(strategy: Any, manager: Any, tool_name: str) -
         source="builtin",
         metadata={
             "kind": "macro",
+            "temporal": "vintage_as_of_strategy_clock",
             "disabled": True,
             "disabled_reason": "missing FRED_API_KEY for point-in-time backtesting",
         },
@@ -2912,7 +3316,7 @@ def _bind_get_fred_series(strategy: Any, manager: Any) -> BoundTool:
         ),
         function=get_fred_series,
         source="builtin",
-        metadata={"kind": "macro", "cache_scope": "strategy_day"},
+        metadata={"kind": "macro", "cache_scope": "strategy_day", "temporal": "vintage_as_of_strategy_clock"},
     )
 
 
@@ -2931,7 +3335,7 @@ def _bind_get_fred_latest(strategy: Any, manager: Any) -> BoundTool:
         ),
         function=get_fred_latest,
         source="builtin",
-        metadata={"kind": "macro", "cache_scope": "strategy_day"},
+        metadata={"kind": "macro", "cache_scope": "strategy_day", "temporal": "vintage_as_of_strategy_clock"},
     )
 
 
@@ -2951,7 +3355,7 @@ def _bind_get_fred_snapshot(strategy: Any, manager: Any) -> BoundTool:
         ),
         function=get_fred_snapshot,
         source="builtin",
-        metadata={"kind": "macro", "cache_scope": "strategy_day"},
+        metadata={"kind": "macro", "cache_scope": "strategy_day", "temporal": "vintage_as_of_strategy_clock"},
     )
 
 
@@ -2972,6 +3376,221 @@ def _bind_notify_user(strategy: Any, manager: Any) -> BoundTool:
         function=notify_user,
         source="builtin",
         metadata={"kind": "notification"},
+    )
+
+
+def _bind_send_email(strategy: Any, manager: Any) -> BoundTool:
+    def send_email(
+        to: list[str] | str,
+        subject: str,
+        text: str = "",
+        html: str | None = None,
+        attachments: list[dict[str, Any]] | None = None,
+        idempotency_key: str | None = None,
+        provider: str = "resend",
+    ) -> dict[str, Any]:
+        result = strategy.send_email(
+            to=to,
+            subject=subject,
+            text=text,
+            html=html,
+            attachments=attachments,
+            idempotency_key=idempotency_key,
+            provider=provider,
+        )
+        return _jsonable(result.__dict__)
+
+    return BoundTool(
+        name="send_email",
+        description=(
+            "Send one email through the strategy's configured provider. Use a stable idempotency_key for retries. "
+            "Backtests record simulated_not_sent communication evidence instead of sending."
+        ),
+        function=send_email,
+        source="builtin",
+        metadata={"kind": "communication", "communication_write": True},
+    )
+
+
+def _bind_list_sent_emails(strategy: Any, manager: Any) -> BoundTool:
+    def list_sent_emails(limit: int = 20, after: str | None = None, before: str | None = None) -> dict[str, Any]:
+        return strategy.list_sent_emails(limit=limit, after=after, before=before)
+
+    return BoundTool(
+        name="list_sent_emails",
+        description="List sent emails from the configured provider with cursor pagination.",
+        function=list_sent_emails,
+        source="builtin",
+        metadata={"kind": "communication", "communication_read": True},
+    )
+
+
+def _bind_get_sent_email(strategy: Any, manager: Any) -> BoundTool:
+    def get_sent_email(email_id: str) -> dict[str, Any]:
+        return strategy.get_sent_email(email_id)
+
+    return BoundTool(
+        name="get_sent_email",
+        description="Read one sent email by provider email ID.",
+        function=get_sent_email,
+        source="builtin",
+        metadata={"kind": "communication", "communication_read": True},
+    )
+
+
+def _bind_get_email_status(strategy: Any, manager: Any) -> BoundTool:
+    def get_email_status(email_id: str) -> dict[str, Any]:
+        return strategy.get_email_status(email_id)
+
+    return BoundTool(
+        name="get_email_status",
+        description="Read the current provider record and delivery state for one sent email.",
+        function=get_email_status,
+        source="builtin",
+        metadata={"kind": "communication", "communication_read": True},
+    )
+
+
+def _bind_list_received_emails(strategy: Any, manager: Any) -> BoundTool:
+    def list_received_emails(limit: int = 20, after: str | None = None, before: str | None = None) -> dict[str, Any]:
+        return strategy.list_received_emails(limit=limit, after=after, before=before)
+
+    return BoundTool(
+        name="list_received_emails",
+        description="List received emails from the configured provider with cursor pagination.",
+        function=list_received_emails,
+        source="builtin",
+        metadata={"kind": "communication", "communication_read": True},
+    )
+
+
+def _bind_get_received_email(strategy: Any, manager: Any) -> BoundTool:
+    def get_received_email(email_id: str) -> dict[str, Any]:
+        return strategy.get_received_email(email_id)
+
+    return BoundTool(
+        name="get_received_email",
+        description="Read one received email by provider email ID.",
+        function=get_received_email,
+        source="builtin",
+        metadata={"kind": "communication", "communication_read": True},
+    )
+
+
+def _bind_list_received_email_attachments(strategy: Any, manager: Any) -> BoundTool:
+    def list_received_email_attachments(email_id: str) -> dict[str, Any]:
+        return strategy.list_received_email_attachments(email_id)
+
+    return BoundTool(
+        name="list_received_email_attachments",
+        description="List the attachments on one received email.",
+        function=list_received_email_attachments,
+        source="builtin",
+        metadata={"kind": "communication", "communication_read": True},
+    )
+
+
+def _bind_get_received_email_attachment(strategy: Any, manager: Any) -> BoundTool:
+    def get_received_email_attachment(email_id: str, attachment_id: str) -> dict[str, Any]:
+        return strategy.get_received_email_attachment(email_id, attachment_id)
+
+    return BoundTool(
+        name="get_received_email_attachment",
+        description="Get one received-email attachment's current download metadata.",
+        function=get_received_email_attachment,
+        source="builtin",
+        metadata={"kind": "communication", "communication_read": True},
+    )
+
+
+def _bind_send_slack_message(strategy: Any, manager: Any) -> BoundTool:
+    def send_slack_message(
+        text: str,
+        channel: str | None = None,
+        thread_ts: str | None = None,
+        blocks: list[dict[str, Any]] | None = None,
+    ) -> dict[str, Any]:
+        return strategy.send_slack_message(text, channel=channel, thread_ts=thread_ts, blocks=blocks)
+
+    return BoundTool(
+        name="send_slack_message",
+        description="Post a Slack message or thread reply. Backtests record simulated_not_sent evidence.",
+        function=send_slack_message,
+        source="builtin",
+        metadata={"kind": "communication", "communication_write": True},
+    )
+
+
+def _bind_list_slack_messages(strategy: Any, manager: Any) -> BoundTool:
+    def list_slack_messages(
+        channel: str | None = None,
+        limit: int = 15,
+        cursor: str | None = None,
+        oldest: str | None = None,
+        latest: str | None = None,
+    ) -> dict[str, Any]:
+        return strategy.list_slack_messages(
+            channel=channel,
+            limit=limit,
+            cursor=cursor,
+            oldest=oldest,
+            latest=latest,
+        )
+
+    return BoundTool(
+        name="list_slack_messages",
+        description="Read recent messages from a configured Slack conversation.",
+        function=list_slack_messages,
+        source="builtin",
+        metadata={"kind": "communication", "communication_read": True},
+    )
+
+
+def _bind_list_slack_channels(strategy: Any, manager: Any) -> BoundTool:
+    def list_slack_channels(
+        limit: int = 100,
+        cursor: str | None = None,
+        types: str = "public_channel,private_channel",
+    ) -> dict[str, Any]:
+        return strategy.list_slack_channels(limit=limit, cursor=cursor, types=types)
+
+    return BoundTool(
+        name="list_slack_channels",
+        description="List Slack conversations visible to the configured bot token.",
+        function=list_slack_channels,
+        source="builtin",
+        metadata={"kind": "communication", "communication_read": True},
+    )
+
+
+def _bind_get_slack_message(strategy: Any, manager: Any) -> BoundTool:
+    def get_slack_message(message_ts: str, channel: str | None = None) -> dict[str, Any]:
+        return strategy.get_slack_message(message_ts, channel=channel)
+
+    return BoundTool(
+        name="get_slack_message",
+        description="Read one Slack message by conversation and timestamp.",
+        function=get_slack_message,
+        source="builtin",
+        metadata={"kind": "communication", "communication_read": True},
+    )
+
+
+def _bind_list_slack_thread(strategy: Any, manager: Any) -> BoundTool:
+    def list_slack_thread(
+        thread_ts: str,
+        channel: str | None = None,
+        limit: int = 15,
+        cursor: str | None = None,
+    ) -> dict[str, Any]:
+        return strategy.list_slack_thread(thread_ts, channel=channel, limit=limit, cursor=cursor)
+
+    return BoundTool(
+        name="list_slack_thread",
+        description="Read a Slack message thread by its parent timestamp.",
+        function=list_slack_thread,
+        source="builtin",
+        metadata={"kind": "communication", "communication_read": True},
     )
 
 
@@ -3279,18 +3898,20 @@ def _bind_submit_multileg_order(strategy: Any, manager: Any) -> BoundTool:
             "duration": time_in_force,
         }
         resolved_net_price: float | None = None
+        price_basis = "agent"
         if price_style == "market":
             if net_limit_price is not None:
                 raise ValueError("net_limit_price cannot be used when price_style='market'.")
             submit_kwargs["order_type"] = "market"
+            price_basis = "market"
         else:
             if net_limit_price is None:
-                calculated = _options_helper_for_strategy(strategy).calculate_multileg_limit_price(orders, price_style)
+                calculated, price_basis = _resolve_multileg_net_price(strategy, orders, price_style)
                 if calculated is None:
                     raise ValueError(
                         "Unable to calculate a multi-leg limit price from the current quotes. Evaluate every leg or use price_style='market' only if your trading policy permits it."
                     )
-                resolved_net_price = float(calculated)
+                resolved_net_price = calculated
             else:
                 resolved_net_price = float(net_limit_price)
                 if not math.isfinite(resolved_net_price):
@@ -3306,6 +3927,7 @@ def _bind_submit_multileg_order(strategy: Any, manager: Any) -> BoundTool:
             "submitted": [_order_to_dict(order) for order in submitted_orders if order is not None],
             "legs": [_order_to_dict(order) for order in orders],
             "price_style": price_style,
+            "price_basis": price_basis,
             "net_limit_price": resolved_net_price,
             "order_type": submit_kwargs["order_type"],
             "time_in_force": time_in_force,
@@ -3465,6 +4087,93 @@ class _DocsTools:
         )
 
 
+class _WebTools:
+    def http_request(self) -> ToolDefinition:
+        return ToolDefinition(
+            name="http_request",
+            description="Make a full authenticated HTTP request with stateful cookies and network-boundary protection.",
+            binder=_bind_http_request,
+        )
+
+    def rss_fetch(self) -> ToolDefinition:
+        return ToolDefinition(
+            name="rss_fetch",
+            description="Fetch and parse RSS or Atom with authentication and cache validators.",
+            binder=_bind_rss_fetch,
+        )
+
+
+class _BrowserTools:
+    def session_open(self) -> ToolDefinition:
+        return ToolDefinition(
+            name="browser_session_open",
+            description="Open a browser session.",
+            binder=_bind_browser_session_open,
+        )
+
+    def session_close(self) -> ToolDefinition:
+        return ToolDefinition(
+            name="browser_session_close",
+            description="Close a browser session.",
+            binder=_bind_browser_session_close,
+        )
+
+    def session_recover(self) -> ToolDefinition:
+        return ToolDefinition(
+            name="browser_session_recover",
+            description="Recover a crashed browser session.",
+            binder=_bind_browser_session_recover,
+        )
+
+    def navigate(self) -> ToolDefinition:
+        return ToolDefinition(
+            name="browser_navigate",
+            description="Navigate a browser tab.",
+            binder=_bind_browser_navigate,
+        )
+
+    def observe(self) -> ToolDefinition:
+        return ToolDefinition(
+            name="browser_observe",
+            description="Observe the active browser tab.",
+            binder=_bind_browser_observe,
+        )
+
+    def act(self) -> ToolDefinition:
+        return ToolDefinition(name="browser_act", description="Act in a browser tab.", binder=_bind_browser_act)
+
+    def tabs(self) -> ToolDefinition:
+        return ToolDefinition(name="browser_tabs", description="Manage browser tabs.", binder=_bind_browser_tabs)
+
+    def extract(self) -> ToolDefinition:
+        return ToolDefinition(
+            name="browser_extract",
+            description="Extract browser page content.",
+            binder=_bind_browser_extract,
+        )
+
+    def login(self) -> ToolDefinition:
+        return ToolDefinition(
+            name="browser_login",
+            description="Log in with a scoped credential profile.",
+            binder=_bind_browser_login,
+        )
+
+    def storage_state(self) -> ToolDefinition:
+        return ToolDefinition(
+            name="browser_storage_state",
+            description="Persist browser storage state.",
+            binder=_bind_browser_storage_state,
+        )
+
+    def screenshot(self) -> ToolDefinition:
+        return ToolDefinition(
+            name="browser_screenshot",
+            description="Capture a browser screenshot.",
+            binder=_bind_browser_screenshot,
+        )
+
+
 class _NewsTools:
     def alpaca_news(self) -> ToolDefinition:
         return ToolDefinition(
@@ -3563,6 +4272,53 @@ class _MacroTools:
 class _NotificationTools:
     def notify_user(self) -> ToolDefinition:
         return ToolDefinition(name="notify_user", description="Send a user notification.", binder=_bind_notify_user)
+
+    def send_email(self) -> ToolDefinition:
+        return ToolDefinition(name="send_email", description="Send an email.", binder=_bind_send_email)
+
+    def list_sent_emails(self) -> ToolDefinition:
+        return ToolDefinition(name="list_sent_emails", description="List sent emails.", binder=_bind_list_sent_emails)
+
+    def get_sent_email(self) -> ToolDefinition:
+        return ToolDefinition(name="get_sent_email", description="Read one sent email.", binder=_bind_get_sent_email)
+
+    def get_email_status(self) -> ToolDefinition:
+        return ToolDefinition(name="get_email_status", description="Read sent email delivery status.", binder=_bind_get_email_status)
+
+    def list_received_emails(self) -> ToolDefinition:
+        return ToolDefinition(name="list_received_emails", description="List received emails.", binder=_bind_list_received_emails)
+
+    def get_received_email(self) -> ToolDefinition:
+        return ToolDefinition(name="get_received_email", description="Read a received email.", binder=_bind_get_received_email)
+
+    def list_received_email_attachments(self) -> ToolDefinition:
+        return ToolDefinition(
+            name="list_received_email_attachments",
+            description="List received email attachments.",
+            binder=_bind_list_received_email_attachments,
+        )
+
+    def get_received_email_attachment(self) -> ToolDefinition:
+        return ToolDefinition(
+            name="get_received_email_attachment",
+            description="Get a received email attachment.",
+            binder=_bind_get_received_email_attachment,
+        )
+
+    def send_slack_message(self) -> ToolDefinition:
+        return ToolDefinition(name="send_slack_message", description="Send a Slack message.", binder=_bind_send_slack_message)
+
+    def list_slack_messages(self) -> ToolDefinition:
+        return ToolDefinition(name="list_slack_messages", description="List Slack messages.", binder=_bind_list_slack_messages)
+
+    def list_slack_channels(self) -> ToolDefinition:
+        return ToolDefinition(name="list_slack_channels", description="List Slack channels.", binder=_bind_list_slack_channels)
+
+    def get_slack_message(self) -> ToolDefinition:
+        return ToolDefinition(name="get_slack_message", description="Read one Slack message.", binder=_bind_get_slack_message)
+
+    def list_slack_thread(self) -> ToolDefinition:
+        return ToolDefinition(name="list_slack_thread", description="Read a Slack thread.", binder=_bind_list_slack_thread)
 
 
 class _MemoryTools:
@@ -3669,6 +4425,8 @@ class _BuiltinTools:
     options = _OptionsTools()
     duckdb = _DuckDBTools()
     docs = _DocsTools()
+    web = _WebTools()
+    browser = _BrowserTools()
     news = _NewsTools()
     indicators = _IndicatorTools()
     fundamentals = _FundamentalTools()
@@ -3697,6 +4455,19 @@ class _BuiltinTools:
             self.options.check_spread_profit(),
             self.duckdb.query(),
             self.docs.search(),
+            self.web.http_request(),
+            self.web.rss_fetch(),
+            self.browser.session_open(),
+            self.browser.session_close(),
+            self.browser.session_recover(),
+            self.browser.navigate(),
+            self.browser.observe(),
+            self.browser.act(),
+            self.browser.tabs(),
+            self.browser.extract(),
+            self.browser.login(),
+            self.browser.storage_state(),
+            self.browser.screenshot(),
             self.news.alpaca_news(),
             self.indicators.list_indicators(),
             self.indicators.get_indicator(),
@@ -3715,6 +4486,19 @@ class _BuiltinTools:
             self.macro.get_fred_latest(),
             self.macro.get_fred_snapshot(),
             self.notifications.notify_user(),
+            self.notifications.send_email(),
+            self.notifications.list_sent_emails(),
+            self.notifications.get_sent_email(),
+            self.notifications.get_email_status(),
+            self.notifications.list_received_emails(),
+            self.notifications.get_received_email(),
+            self.notifications.list_received_email_attachments(),
+            self.notifications.get_received_email_attachment(),
+            self.notifications.send_slack_message(),
+            self.notifications.list_slack_channels(),
+            self.notifications.list_slack_messages(),
+            self.notifications.get_slack_message(),
+            self.notifications.list_slack_thread(),
             self.memory.remember(),
             self.memory.search(),
             self.memory.remember_proposal(),

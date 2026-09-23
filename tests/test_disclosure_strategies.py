@@ -348,6 +348,25 @@ def test_insider_strategy_reads_point_in_time_form4_filings_for_a_watchlist():
     assert "equal weight" in trader["system_prompt"]
 
 
+def test_public_page_strategy_follows_published_purchases_sized_from_our_account():
+    """public-fetch-luna-v2 (2026-01-26) read a published House report listing AB, GOOGL, AMZN,
+    and NVDA purchases, then refused because the page did not name a size for our account."""
+    from lumibot.example_strategies.ai_public_web_fetch import AIPublicWebFetchStrategy
+
+    agents = _exercise_strategy(AIPublicWebFetchStrategy)
+    prompts = {item["name"]: item["system_prompt"] for item in agents.created}
+    trader = prompts["trading_risk_manager"]
+
+    assert "with a ticker and a size" not in trader
+    assert "does not need to state a size for this account" in trader
+    assert "purchase" in trader and "weight" in trader
+    assert "account value" in trader
+    assert "risk_calculate_stock_quantity" in trader
+    assert "published" in prompts["interpreter"] and "purchase" in prompts["interpreter"]
+    assert "Argue why the page is not a trade" not in prompts["bear"]
+    assert "not published" in trader or "published after" in trader
+
+
 _ONE_PATH_FILES = (
     "ai_congress_disclosures.py",
     "ai_sec_insider_filings.py",

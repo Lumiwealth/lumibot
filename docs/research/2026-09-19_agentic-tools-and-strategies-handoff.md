@@ -219,8 +219,8 @@ cannot be read otherwise.
 ## Item 4: the Congress strategy
 
 Context so nobody mis-scopes this. Elisha Koh of MetaMask asked about it
-unprompted during the 2026-09-18 call, at 22:03 in the transcript at
-`/Users/robertgrzesik/Development/MarketingManager/docs/transcripts/2026-09-18_metamask-elisha-koh-call.txt`.
+unprompted during the 2026-09-18 call, at 22:03 in the call transcript (kept in
+private notes, not in this public repository).
 It is a **nice-to-have demo**, not the MetaMask partnership. Do not let it grow.
 
 Build it as a LumiBot example with a disclosure researcher and a dedicated

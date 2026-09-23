@@ -4,7 +4,7 @@
   "hosted_default": false,
   "aws_task": false,
   "nodriver_license": "AGPL-3.0",
-  "profile_root": "/var/folders/bw/tqqnz8cn2rjf5qtg2hrmvrwr0000gn/T/lumibot-browser-bakeoff-wlzbzis7",
+  "profile_root": "$TMPDIR/lumibot-browser-bakeoff-wlzbzis7",
   "pages": {
     "normal": "https://disclosures-clerk.house.gov/PublicDisclosure/FinancialDisclosure",
     "hard": "https://seekingalpha.com/symbol/AAPL/earnings/transcripts"

@@ -198,10 +198,9 @@ BotSpot listings after the separately authorized LumiBot release.
 
 ## Communication Delivery Receipts
 
-- Slack DM to Rob:
-  `https://lumiwealthworkspace.slack.com/archives/D0C30GUR8GZ/p1789936277323689`
-- Gmail from `rob@botspot.trade` to `rob.grzesik@gmail.com`: message
-  `1a0c085f8c080d63`
+- Slack DM to Rob (link kept in private notes).
+- Gmail from the BotSpot sender mailbox to Rob's test inbox (message ID kept in
+  private notes).
 
 The MetaMask external channel was read successfully through the connected
 Slack application. There was no newer MetaMask reply after Rob's 2026-09-19

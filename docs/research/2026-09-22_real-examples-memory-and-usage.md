@@ -14,10 +14,10 @@ This note records what was checked before the next implementation slice. It is n
 
 Deleted:
 
-- `/Users/robertgrzesik/Development/lumibot/lumibot/example_strategies/fixtures/congress_disclosures.json`
-- `/Users/robertgrzesik/Development/lumibot/lumibot/example_strategies/fixtures/sec_form4_transactions.json`
+- `lumibot/example_strategies/fixtures/congress_disclosures.json`
+- `lumibot/example_strategies/fixtures/sec_form4_transactions.json`
 
-`AICongressDisclosuresStrategy` and `AISECInsiderFilingsStrategy` no longer stop unless the caller passes official filings. That behavior is gone. The public pages no longer describe a synthetic Pelosi NVDA fill or a synthetic AAPL Form 4 fill as current proof. The September 20 receipt at `/Users/robertgrzesik/Development/lumibot/docs/research/2026-09-20_AGENT_STRATEGY_EXECUTION_PROOF.md` marks those two runs retired.
+`AICongressDisclosuresStrategy` and `AISECInsiderFilingsStrategy` no longer stop unless the caller passes official filings. That behavior is gone. The public pages no longer describe a synthetic Pelosi NVDA fill or a synthetic AAPL Form 4 fill as current proof. The September 20 receipt at `docs/research/2026-09-20_AGENT_STRATEGY_EXECUTION_PROOF.md` marks those two runs retired.
 
 Clock tests still pass invented rows into the date gate. Those rows use the name `Clock Test Member`. They are not a member portfolio and they are not shipped sample trades.
 
@@ -62,7 +62,7 @@ A short backtest that finishes slightly red can go on a page if it is not an acc
 
 ## Memory and what a bot costs
 
-Always-on live bots are not one Fargate box each. They share EC2 `t4g.small` hosts in `/Users/robertgrzesik/Development/bot_manager/terraform/main.tf`: 2 vCPU, 2 GiB, comment says about two bots per instance, `asg_max_size` 500. Current task size in `broker_configs.json` is about 682 CPU units and 596 MiB. A 3 GB or 4 GB bot cannot fit on that host.
+Always-on live bots are not one Fargate box each. They share EC2 `t4g.small` hosts defined in the private Bot Manager repository (`terraform/main.tf`): 2 vCPU, 2 GiB, comment says about two bots per instance, `asg_max_size` 500. Current task size in `broker_configs.json` is about 682 CPU units and 596 MiB. A 3 GB or 4 GB bot cannot fit on that host.
 
 us-east-1 Linux on-demand, third-party calculators checked 2026-09-22, not an AWS bill:
 

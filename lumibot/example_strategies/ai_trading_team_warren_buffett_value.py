@@ -52,7 +52,7 @@ class AITradingTeamWarrenBuffettValueStrategy(Strategy):
         add_agent(
             self,
             "interpreter",
-            "Read both cases. Keep a name only when quality and price both hold. Assign account weights. Do not submit orders.",
+            "Read both cases. Keep a name only when quality and price both hold. Weight only symbols in the universe. Assign account weights. Do not submit orders.",
             allow_trading=False,
         )
         add_agent(self, "trader", trader_prompt(book_rule=_BOOK, exit_rule=_EXIT), allow_trading=True)

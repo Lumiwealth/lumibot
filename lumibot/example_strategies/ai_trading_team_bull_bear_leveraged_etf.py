@@ -78,7 +78,7 @@ class AITradingTeamBullBearLeveragedETFStrategy(Strategy):
         add_agent(
             self,
             "interpreter",
-            "Read the bull case and the bear case. Assign weights that sum near 100% of the account. Do not submit orders.",
+            "Read the bull case and the bear case. Weight only symbols in the universe. Assign weights that sum near 100% of the account. Do not submit orders.",
             allow_trading=False,
         )
         add_agent(self, "trader", trader_prompt(book_rule=_BOOK, exit_rule=_EXIT), allow_trading=True)

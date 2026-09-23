@@ -52,7 +52,7 @@ class AITradingTeamBillAckmanConcentratedStrategy(Strategy):
         add_agent(
             self,
             "interpreter",
-            "Read both cases. Keep only names that survive the attack. Assign concentrated weights. Do not submit orders.",
+            "Read both cases. Keep only names that survive the attack. Weight only symbols in the universe. Assign concentrated weights. Do not submit orders.",
             allow_trading=False,
         )
         add_agent(self, "trader", trader_prompt(book_rule=_BOOK, exit_rule=_EXIT), allow_trading=True)

@@ -99,10 +99,12 @@ def test_final_trading_agents_own_risk_instead_of_spending_nearly_all_cash():
     assert "account" in prompt
     assert "positions" in prompt
     assert "open orders" in prompt
+    assert "outside this book, drop that weight and rescale" in prompt
 
     for strategy_class in strategy_classes:
         initialize_source = inspect.getsource(strategy_class.initialize).lower()
         iteration_source = inspect.getsource(strategy_class.on_trading_iteration).lower()
+        assert "weight only symbols in the universe" in initialize_source
         assert "nearly all cash" not in initialize_source
         assert "nearly all available cash" not in iteration_source
         assert "trader_prompt(" in initialize_source

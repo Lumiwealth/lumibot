@@ -349,6 +349,68 @@ class DuckDBQueryLayer:
         self._history_cache[cache_key] = dict(info)
         return info
 
+    def validate_table_name(self, table_name: str) -> str:
+        return self._safe_identifier(str(table_name))
+
+    def register_bars_table(
+        self,
+        *,
+        table_name: str,
+        bars_by_symbol: dict[str, list[dict[str, Any]]],
+        meta: dict[str, Any],
+    ) -> dict[str, Any]:
+        """Register many symbols' bars as one long table: symbol, datetime, OHLCV.
+
+        Datetimes are stored as naive wall-clock time in the strategy timezone so
+        SQL session filters (for example hour(datetime) = 9) read in market time
+        instead of the DuckDB session timezone.
+        """
+        table_name = self._safe_identifier(str(table_name))
+        rows = [
+            {"symbol": symbol, **record}
+            for symbol, records in bars_by_symbol.items()
+            for record in records
+        ]
+        base_columns = ["symbol", "datetime", "open", "high", "low", "close", "volume"]
+        frame = pd.DataFrame(rows)
+        for column in base_columns:
+            if column not in frame.columns:
+                frame[column] = None
+        extra = [column for column in frame.columns if column not in base_columns]
+        frame = frame[base_columns + extra]
+        timezone_name = None
+        current_dt = self._current_datetime()
+        tzinfo = getattr(current_dt, "tzinfo", None)
+        if tzinfo is not None:
+            timezone_name = str(getattr(tzinfo, "zone", None) or getattr(tzinfo, "key", None) or tzinfo)
+        if len(frame.index):
+            stamps = pd.to_datetime(frame["datetime"], utc=True)
+            if tzinfo is not None:
+                stamps = stamps.dt.tz_convert(tzinfo)
+            frame["datetime"] = stamps.dt.tz_localize(None)
+        else:
+            frame["datetime"] = pd.to_datetime(frame["datetime"])
+        frame = frame.sort_values(["symbol", "datetime"], kind="stable").reset_index(drop=True)
+        info = self._register_frame(
+            table_name,
+            frame,
+            {
+                "kind": "multi_symbol_bars",
+                "datetime_column": "datetime",
+                "datetime_timezone": timezone_name,
+                "loaded_at": current_dt.isoformat() if hasattr(current_dt, "isoformat") else None,
+                **meta,
+            },
+        )
+        if len(frame.index):
+            info["first_datetime"] = frame["datetime"].min().isoformat()
+            info["last_datetime"] = frame["datetime"].max().isoformat()
+        else:
+            info["first_datetime"] = None
+            info["last_datetime"] = None
+        self._table_meta[table_name] = dict(info)
+        return info
+
     def query(self, *, sql: str, limit: int = 200) -> dict[str, Any]:
         if not sql or not _READ_ONLY_SQL_RE.match(sql):
             raise ValueError("DuckDB tool only allows read-only SQL statements.")

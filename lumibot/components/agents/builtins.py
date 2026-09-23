@@ -1193,12 +1193,17 @@ def _bind_historical_prices(strategy: Any, manager: Any) -> BoundTool:
         include_after_hours: bool = True,
         chunk_size: int = 100,
         max_workers: int = 200,
+        table_name: str | None = None,
     ) -> dict[str, Any]:
         """Return historical OHLCV bars for many symbols in one call.
 
         Prefer this over calling market_load_history_table once per symbol when the
         strategy needs bars for a provided universe or a shortlist of finalists.
+        With table_name, the bars load into one DuckDB table and only a summary is
+        returned, so wide scans are not cut short by the model context window.
         """
+        if table_name is not None:
+            table_name = manager.duckdb.validate_table_name(table_name)
         symbol_list = _parse_symbol_list(symbols=symbols, symbols_json=symbols_json, max_symbols=150)
         length = _require_positive_int("length", length)
         timestep = _require_non_empty_text("timestep", timestep)
@@ -1262,6 +1267,31 @@ def _bind_historical_prices(strategy: Any, manager: Any) -> BoundTool:
                     missing.append(symbol)
 
         available = [symbol for symbol, records in bars_by_symbol.items() if records]
+        if table_name is not None:
+            table = manager.duckdb.register_bars_table(
+                table_name=table_name,
+                bars_by_symbol={symbol: bars_by_symbol[symbol] for symbol in available},
+                meta={"timestep": timestep, "asset_type": asset_type, "length": length},
+            )
+            return {
+                "table_name": table["table_name"],
+                "row_count": table["row_count"],
+                "columns": table["columns"],
+                "rows_by_symbol": {symbol: len(bars_by_symbol[symbol]) for symbol in available},
+                "first_datetime": table["first_datetime"],
+                "last_datetime": table["last_datetime"],
+                "datetime_timezone": table["datetime_timezone"],
+                "symbols_requested": symbol_list,
+                "symbols_available": available,
+                "symbols_missing": missing,
+                "count_requested": len(symbol_list),
+                "count_available": len(available),
+                "length": length,
+                "timestep": timestep,
+                "asset_type": asset_type,
+                "include_after_hours": bool(include_after_hours),
+                "datetime": strategy.get_datetime().isoformat(),
+            }
         return {
             "bars_by_symbol": bars_by_symbol,
             "symbols_requested": symbol_list,
@@ -1286,10 +1316,17 @@ def _bind_historical_prices(strategy: Any, manager: Any) -> BoundTool:
             "exchange, include_after_hours, chunk_size, max_workers. "
             "Cap is 150 symbols per call. Returns bars_by_symbol keyed by symbol with datetime/open/high/low/close/volume rows, "
             "plus symbols_available and symbols_missing. "
+            "Optional table_name loads every returned bar into one DuckDB table with columns "
+            "symbol, datetime, open, high, low, close, volume and returns only a summary (row counts per symbol, "
+            "first/last datetime, missing symbols) instead of the raw bars. Datetimes in that table are "
+            "wall-clock time in the strategy timezone. Use table_name whenever symbols times length is large "
+            "(for example an intraday scan of more than a few symbols); raw bars that large get shortened before "
+            "you can read them, which hides data. Then compute the scan with duckdb_query against that table. "
             "Never loop market_load_history_table or market_last_price once per symbol when you need multi-symbol history. "
             "Use market_last_prices for a cheap latest-price universe scan, then this tool for history on finalists or the full list. "
-            "For SQL analysis of one already-loaded table, use market_load_history_table plus duckdb_query. "
-            'Examples: market_historical_prices(symbols_json=\'["SPY","QQQ","AAPL"]\', length=20, timestep=\'minute\'); market_historical_prices(symbols="AAPL", length=20, timestep="5minute").'
+            'Examples: market_historical_prices(symbols_json=\'["SPY","QQQ","AAPL"]\', length=20, timestep=\'minute\'); '
+            'market_historical_prices(symbols_json=\'["SPY","QQQ","AAPL","MSFT"]\', length=60, timestep="5minute", table_name="scan_bars") '
+            "then duckdb_query(sql=\"SELECT symbol, MAX(high) AS range_high FROM scan_bars WHERE CAST(datetime AS TIME) < '09:45' GROUP BY symbol\")."
         ),
         function=historical_prices,
         metadata={"kind": "builtin", "replay_on_cache": True, "temporal": "strategy_clock_as_of"},

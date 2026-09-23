@@ -87,9 +87,12 @@ Rules:
    beginning at 09:30 ET. Skip symbols whose true opening window is unavailable.
    Request only the evidence needed for that opening window and the later
    breakout decision, using at most 100 completed bars for any one request.
-   Reuse one bounded multi-symbol history result for the scan. Do not request
-   separate history for a symbol already covered by that result unless its
-   evidence is missing or invalid. The breakout candidate is the latest completed
+   Load the scan with one bounded multi-symbol history call that passes a
+   table_name, then compute every symbol's opening-range high and low and its
+   latest completed bar with SQL over that table. Raw bars for the whole universe
+   are too large to read reliably. Do not request separate history for a symbol
+   already covered by that table unless its evidence is missing or invalid.
+   Report the SQL result rows you relied on. The breakout candidate is the latest completed
    bar. Retrieve the opening-window bars and that candidate directly instead of
    loading premarket bars. With 5-minute data, request only the completed
    regular-session bars since 09:30 ET: 12 bars at 10:30, then 24, 36, 48, 60,

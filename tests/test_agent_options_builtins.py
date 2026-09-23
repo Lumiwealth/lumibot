@@ -305,6 +305,47 @@ def test_market_historical_prices_falls_back_per_symbol_when_batch_missing():
     assert "MSFT" in batch["symbols_missing"]
 
 
+def test_market_historical_prices_table_name_loads_sql_table_instead_of_raw_bars():
+    strategy = _OptionsStrategy()
+    tools = _wrapped_tools(
+        strategy,
+        [BuiltinTools.market.historical_prices(), BuiltinTools.duckdb.query()],
+    )
+
+    batch = tools["market_historical_prices"](
+        symbols_json='["SPY","QQQ","AAPL","MSFT"]',
+        length=3,
+        timestep="minute",
+        table_name="scan_bars",
+    )
+
+    assert "bars_by_symbol" not in batch
+    assert batch["table_name"] == "scan_bars"
+    assert batch["row_count"] == 9
+    assert batch["symbols_available"] == ["SPY", "QQQ", "AAPL"]
+    assert batch["symbols_missing"] == ["MSFT"]
+    assert batch["rows_by_symbol"] == {"SPY": 3, "QQQ": 3, "AAPL": 3}
+    assert {"symbol", "datetime", "open", "high", "low", "close", "volume"}.issubset(batch["columns"])
+    assert batch["first_datetime"] and batch["last_datetime"]
+
+    result = tools["duckdb_query"](
+        sql="SELECT symbol, MAX(close) AS high_close FROM scan_bars GROUP BY symbol ORDER BY symbol"
+    )
+    assert result["rows"] == [
+        {"symbol": "AAPL", "high_close": 302.0},
+        {"symbol": "QQQ", "high_close": 202.0},
+        {"symbol": "SPY", "high_close": 102.0},
+    ]
+
+
+def test_market_historical_prices_rejects_unsafe_table_name():
+    strategy = _OptionsStrategy()
+    tool = BuiltinTools.market.historical_prices().binder(strategy, AgentManager(strategy))
+
+    with pytest.raises(ValueError, match="Invalid DuckDB table name"):
+        tool.function(symbols="SPY", length=2, table_name="bars; DROP TABLE x")
+
+
 def test_orb_prompt_keeps_strategy_policy_without_repeating_tool_instructions():
     from lumibot.example_strategies.ai_opening_range_breakout import (
         build_orb_system_prompt,
@@ -326,7 +367,8 @@ def test_orb_prompt_keeps_strategy_policy_without_repeating_tool_instructions():
     assert "market_historical_prices" not in prompt
     assert "09:30" in prompt
     assert "at most 100 completed bars" in prompt
-    assert "Reuse one bounded multi-symbol history result" in prompt
+    assert "one bounded multi-symbol history call that passes a\n   table_name" in prompt
+    assert "with SQL over that table" in prompt
     assert "evidence is missing or invalid" in prompt
     assert "breakout candidate is the latest completed" in prompt
     assert "12 bars at 10:30, then 24, 36, 48, 60" in prompt

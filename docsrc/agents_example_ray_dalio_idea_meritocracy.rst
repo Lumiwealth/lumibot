@@ -58,7 +58,7 @@ mode unless you set ``ALPACA_IS_PAPER=false``.
 
 .. code-block:: bash
 
-   export GEMINI_API_KEY='your-key-here'
+   export OPENAI_API_KEY='your-key-here'
    export ALPACA_API_KEY='your-alpaca-key'
    export ALPACA_API_SECRET='your-alpaca-secret'
    export ALPACA_IS_PAPER=true
@@ -71,7 +71,7 @@ Use the same strategy class and change ``IS_BACKTESTING = False`` to ``IS_BACKTE
 
 .. code-block:: bash
 
-   export GEMINI_API_KEY='your-key-here'
+   export OPENAI_API_KEY='your-key-here'
    python lumibot/example_strategies/ai_trading_team_ray_dalio_idea_meritocracy.py
 
 Example code

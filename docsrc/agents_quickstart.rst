@@ -52,14 +52,14 @@ Your strategy code
 See the example backtest
 ------------------------
 
-A September 13, 2026 run completed all five sessions (April 6–10) with ten
-fresh Gemini researcher/trader runs. The trader bought 15 SPY shares on April 7
-and verified the simulated fill at $656.65. It held on the remaining sessions.
+An earlier recorded run of this workflow is saved with its exact source,
+decisions, trade CSV, and run receipt. That run was made before GPT-6 Luna
+became the default model, so its decisions are not output from the current
+default.
 
-`Inspect the exact source, decisions, trade CSV, and run receipt
+`Inspect the recorded run
 <https://github.com/Lumiwealth/lumibot/blob/version/4.5.92/docs/assets/ai-trading/spy-20260913/README.md>`_.
-The final simulated account value was $100,272.85 from $100,000. This short
-run demonstrates the workflow; fresh inference can produce different decisions.
+It shows the workflow end to end. Your own run can make different decisions.
 
 Read the ``Research:`` and ``Trader:`` log entries, then inspect the generated
 trade records and tear sheet. An agent's written claim is not a fill: compare

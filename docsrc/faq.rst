@@ -176,7 +176,7 @@ Create it with ``allow_trading=False``:
 
     self.agents.create(
         name="researcher",
-        model="openai/gpt-5.4-mini",
+        model="openai/gpt-6-luna",
         allow_trading=False,
         system_prompt="Research the setup. Do not place, modify, or cancel orders.",
     )
@@ -322,7 +322,7 @@ Start with a demo that only uses built-in market data if you want the fewest cre
 How much does it cost to run AI agent backtests?
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-The first run of an AI agent backtest incurs one LLM API call per bar. For example, a daily strategy over 5 years is ~1,260 Gemini API calls. With replay caching, all subsequent reruns are **free** -- zero LLM calls. This makes iterating on strategy parameters or re-running for reporting extremely cost-effective. The Gemini models used by default are among the most affordable LLM APIs available.
+The first run of an AI agent backtest incurs one LLM API call per bar. For example, a daily strategy over 5 years is about 1,260 model calls. The cost of that first run depends on the model you choose and your provider's current pricing, so start with a short date range. With replay caching, all subsequent reruns are **free** -- zero LLM calls. This makes iterating on strategy parameters or re-running for reporting extremely cost-effective.
 
 Can I use multiple AI agents in a single strategy?
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~

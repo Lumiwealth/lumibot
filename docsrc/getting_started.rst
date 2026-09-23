@@ -12,7 +12,7 @@ bracket-order starting points.
 Choose what you want to build
 -----------------------------
 
-* **AI trading:** :doc:`Run your first AI backtest <agents_quickstart>` with a Gemini API key, historical SPY prices, and complete Python code.
+* **AI trading:** :doc:`Run your first AI backtest <agents_quickstart>` with an OpenAI API key (``OPENAI_API_KEY``) and the default ``openai/gpt-6-luna`` model, historical SPY prices, and complete Python code.
 * **Your own trading rules:** :ref:`Backtest a Python strategy <first-python-backtest>` using daily stock prices. No model account is needed.
 * **Research in another project:** :doc:`Use data and research components <standalone_components>` without creating a trading strategy.
 

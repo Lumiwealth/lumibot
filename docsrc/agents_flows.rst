@@ -85,13 +85,13 @@ Minimal Two-Agent Flow
    def initialize(self):
        self.agents.create(
            name="researcher",
-           model="openai/gpt-5.4-mini",
+           model="openai/gpt-6-luna",
            allow_trading=False,
            system_prompt="Gather evidence. Do not trade.",
        )
        self.agents.create(
            name="trader",
-           model="openai/gpt-5.5",
+           model="openai/gpt-6-luna",
            allow_trading=True,
            system_prompt="Review evidence, check risk, and trade only when justified.",
        )
@@ -126,14 +126,14 @@ and pass the outputs forward.
        }.items():
            self.agents.create(
                name=name,
-               model="openai/gpt-5.4-mini",
+               model="openai/gpt-6-luna",
                allow_trading=False,
                system_prompt=prompt,
            )
 
        self.agents.create(
            name="portfolio_manager",
-           model="openai/gpt-5.5",
+           model="openai/gpt-6-luna",
            allow_trading=True,
            system_prompt="Weigh the research, check risk limits, then place orders only if justified.",
        )
@@ -186,21 +186,19 @@ but still want deterministic order sizing and execution.
 Choosing Models Per Agent
 -------------------------
 
-Every agent can use its own model. That does not mean every strategy needs many
-models. The common pattern is:
-
-- cheaper model for data gathering and summarization
-- stronger model for adversarial reasoning or final trade decisions
-- different providers when you want independent perspectives
+Every agent can use its own model. The default is ``openai/gpt-6-luna`` on high
+reasoning, and it is a good choice for every role. Most strategies do not need
+many models. Override ``model=`` on one agent only when you have a reason, for
+example a different provider when you want an independent perspective.
 
 For a four-agent trading team, that can look like this:
 
 .. code-block:: python
 
-   self.agents.create(name="evidence_researcher", model="openai/gpt-5.4-mini", allow_trading=False)
-   self.agents.create(name="bull_researcher", model="openai/gpt-5.5", allow_trading=False)
-   self.agents.create(name="bear_researcher", model="google/gemini-3.1-pro", allow_trading=False)
-   self.agents.create(name="portfolio_manager", model="openai/gpt-5.5", allow_trading=True)
+   self.agents.create(name="evidence_researcher", model="openai/gpt-6-luna", allow_trading=False)
+   self.agents.create(name="bull_researcher", model="openai/gpt-6-luna", allow_trading=False)
+   self.agents.create(name="bear_researcher", model="openai/gpt-6-luna", allow_trading=False)
+   self.agents.create(name="portfolio_manager", model="openai/gpt-6-luna", allow_trading=True)
 
 Safety Defaults
 ---------------

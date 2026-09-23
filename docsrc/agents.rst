@@ -471,7 +471,7 @@ SHV is a common defensive parking asset used in the demo strategies. If the agen
 
 **How much does it cost to run?**
 
-Cost depends on the LLM provider and model, the number of bars in your backtest, and how many tool calls the agent makes per bar. A six-year daily backtest might cost a few dollars on the first cold run with a fast model like Gemini Flash. Warm reruns cost nothing because the replay cache eliminates all LLM and external API calls.
+Cost depends on the LLM provider and model, the number of bars in your backtest, and how many tool calls the agent makes per bar. The first cold run of a long backtest makes one or more model calls per bar, so check your provider's current pricing and start with a short date range. Warm reruns cost nothing because the replay cache eliminates all LLM and external API calls.
 
 **How can I reduce API costs?**
 
@@ -652,6 +652,7 @@ Use ``scripts/run_agent_prompt_cache_probe.py`` to verify provider-reported cach
 .. code-block:: bash
 
     python scripts/run_agent_prompt_cache_probe.py --model openai/gpt-6-luna
+    # Optional: compare another model
     python scripts/run_agent_prompt_cache_probe.py --model openai/gpt-5.4-mini
 
 The probe bypasses LumiBot's replay cache, sends repeated calls with the same long static prefix, and prints input tokens, cached input tokens, uncached input tokens, output tokens, and latency for each call.
@@ -721,4 +722,4 @@ To run the live proof that validates historical relevance, full-content retrieva
 
 .. code-block:: bash
 
-    python scripts/run_alpaca_news_ai_proof.py --model gemini-3.1-pro-preview
+    python scripts/run_alpaca_news_ai_proof.py --model openai/gpt-6-luna

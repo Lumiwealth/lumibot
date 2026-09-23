@@ -8,14 +8,14 @@ These are complete, runnable strategies -- not snippets. They demonstrate how to
 The Six Demos
 ---------------
 
-- **Discretionary Trader** (``lumibot/example_strategies/agent_discretionary.py``) -- **maximum-discretion agent** with a one-sentence prompt, no asset whitelist, broad tool surface, and an ``AGENT_MODEL`` env var for multi-provider comparisons (Gemini, GPT, Grok, Claude)
+- **Discretionary Trader** (``lumibot/example_strategies/agent_discretionary.py``) -- **maximum-discretion agent** with a one-sentence prompt, no asset whitelist, broad tool surface, and an ``AGENT_MODEL`` env var that defaults to ``openai/gpt-6-luna`` (high reasoning) and can be switched to other providers (Gemini, Grok, Claude) for comparisons
 - **Alpaca News Built-in Strategy** (``lumibot/example_strategies/agent_alpaca_news_builtin.py``) -- recommended built-in-tool pattern for Alpaca/Benzinga news: scan headlines/summaries first, fetch full article bodies on demand, and use pagination when needed
 - **News Sentiment Strategy** (``lumibot/example_strategies/agent_news_sentiment.py``) -- event-driven stock selection using Alpaca news data
 - **Macro Risk Strategy** (``lumibot/example_strategies/agent_macro_risk.py``) -- macro regime allocation using Alpaca market data
 - **Momentum Allocator Strategy** (``lumibot/example_strategies/agent_momentum_allocator.py``) -- momentum and sentiment allocation using Alpaca price bars and news
 - **M2 Liquidity Strategy** (``lumibot/example_strategies/agent_m2_liquidity.py``) -- liquidity-driven allocation using FRED money supply data
 
-The first demo (Discretionary Trader) intentionally gives the AI maximum latitude so you can compare how different frontier models (Gemini 3.1 Pro, GPT-5.4, Grok 4.2) perform with minimal guidance. The Alpaca News Built-in Strategy is the recommended news-tool template for new code. The older News Sentiment Strategy intentionally remains as a custom ``@agent_tool`` example for users who need to wrap their own REST APIs.
+The first demo (Discretionary Trader) intentionally gives the AI maximum latitude so you can compare how different frontier models perform with minimal guidance. It runs on GPT-6 Luna by default; Gemini, Grok, and Claude are available as alternatives. The Alpaca News Built-in Strategy is the recommended news-tool template for new code. The older News Sentiment Strategy intentionally remains as a custom ``@agent_tool`` example for users who need to wrap their own REST APIs.
 
 Discretionary Trader
 --------------------
@@ -50,21 +50,21 @@ Maximum-discretion AI trader. The user system prompt is literally one sentence: 
 
 .. code-block:: bash
 
-    # Google Gemini 3.1 Pro (default)
+    # OpenAI GPT-6 Luna, high reasoning (default)
     export OPENAI_API_KEY='your-key'
     export BACKTESTING_START='2026-03-01'
     export BACKTESTING_END='2026-03-31'
+    AGENT_MODEL="openai/gpt-6-luna" python agent_discretionary.py
+
+    # Alternative: Google Gemini 3.1 Pro
+    export GEMINI_API_KEY='your-key'
     AGENT_MODEL="gemini-3.1-pro-preview" python agent_discretionary.py
 
-    # OpenAI GPT-5.4
-    export OPENAI_API_KEY='your-key'
-    AGENT_MODEL="openai/gpt-5.4" python agent_discretionary.py
-
-    # xAI Grok 4.2 (reasoning)
+    # Alternative: xAI Grok 4.2 (reasoning)
     export XAI_API_KEY='your-key'
     AGENT_MODEL="xai/grok-4.20-0309-reasoning" python agent_discretionary.py
 
-    # Anthropic Claude
+    # Alternative: Anthropic Claude
     export ANTHROPIC_API_KEY='your-key'
     AGENT_MODEL="anthropic/claude-opus-4-7" python agent_discretionary.py
 

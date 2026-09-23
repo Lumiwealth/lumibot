@@ -89,7 +89,7 @@ See the docs comparison pages for more detail: [Lumibot vs TradingAgents](https:
 
 Start with SPY. A research agent analyzes its trend; a trading agent checks the evidence and account, then decides whether to buy, hold, or sell. This example limits a new position to 10% of the simulated portfolio.
 
-**You need Python 3.10+ and a Gemini API key.** Historical prices come from Yahoo; this backtest does not connect to a broker account. Model usage may incur charges.
+**You need Python 3.10+ and an OpenAI API key (`OPENAI_API_KEY`).** The default model is `openai/gpt-6-luna` on high reasoning. Historical prices come from Yahoo; this backtest does not connect to a broker account. Model usage may incur charges.
 
 ```bash
 python -m pip install "git+https://github.com/Lumiwealth/lumibot.git@version/4.5.92"
@@ -529,7 +529,7 @@ For the deepest historical coverage (stocks, options, futures, indexes), we reco
 Lumibot includes a built-in AI trading agent runtime. Build agents that run identically in backtests and live trading.
 
 - Create agents with `self.agents.create(...)`
-- Use a different model per agent with `model="openai/gpt-5.5"` or any LiteLLM/ADK-supported provider string
+- The default model is `openai/gpt-6-luna` on high reasoning; set `model=` per agent to use any other LiteLLM/ADK-supported provider string
 - Make research agents read-only with `allow_trading=False`
 - Give agents built-in SEC fundamentals, filings, FRED macro data, indicators, memory, and notifications
 - Use **DuckDB** for time-series analysis instead of dumping raw bars into prompts

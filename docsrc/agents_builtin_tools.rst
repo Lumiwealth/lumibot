@@ -22,7 +22,7 @@ review without changing broker state.
 
    self.agents.create(
        name="researcher",
-       model="openai/gpt-5.4-mini",
+       model="openai/gpt-6-luna",
        allow_trading=False,
        system_prompt="Gather market data, indicators, news, filings, fundamentals, and macro context.",
    )
@@ -64,7 +64,7 @@ Opt an agent in with ``allow_network=True``:
 
    self.agents.create(
        name="page_researcher",
-       model="openai/gpt-5.4-mini",
+       model="openai/gpt-6-luna",
        allow_trading=False,
        allow_network=True,
        system_prompt="Use http_request to read the supplied public page. Do not submit orders.",

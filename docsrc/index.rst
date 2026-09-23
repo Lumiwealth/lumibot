@@ -27,8 +27,8 @@ Run an AI strategy
 ******************
 
 Start with a complete SPY strategy: research the trend, review risk, and let the
-trading agent decide whether to buy, hold, or sell. **Python 3.10+ and a Gemini
-API key required.** This historical backtest uses Yahoo prices and no broker
+trading agent decide whether to buy, hold, or sell. **Python 3.10+ and an
+OpenAI API key (``OPENAI_API_KEY``) required.** This historical backtest uses Yahoo prices and no broker
 account; model calls use your provider billing.
 
 .. code-block:: bash
@@ -65,7 +65,7 @@ Build your own trading system
 
       **Run your first AI backtest**
 
-      Start with Python, a Gemini key, and a complete SPY strategy.
+      Start with Python, an OpenAI key, and a complete SPY strategy.
 
       :doc:`Start the AI quickstart → <agents_quickstart>`
 
@@ -257,7 +257,7 @@ In this pattern, each agent has a job:
 3. **Bear Agent:** challenges the thesis, looks for risk, and argues for avoiding, delaying, or reducing the trade.
 4. **Trader / Portfolio Manager Agent:** checks cash, positions, open orders, and risk limits, then decides whether to trade.
 
-The copy-paste example below implements that exact team. It uses Gemini Flash Lite because it is fast and inexpensive for experiments.
+The copy-paste example below implements that exact team. It uses GPT-6 Luna on high reasoning, LumiBot's default model.
 
 To run it with a broker in paper mode, set your AI and Alpaca credentials and run the file:
 

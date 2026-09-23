@@ -1,0 +1,9 @@
+time,side,status,filled_quantity,symbol,asset.asset_type,asset.right,asset.strike,asset.expiration,price,type,asset.multiplier,trade_cost,trade_slippage,event_kind,event_id,cash_event_type,cash_event_amount,cash_event_currency,cash_event_description,cash_event_direction,cash_event_reason,is_external_cash_flow,cash_event_raw_type,cash_event_raw_subtype,cash_event_broker_name,cash_event_broker_event_id
+2026-01-05 09:30:00-05:00,buy,new,,GOOGL,stock,,0.0,,,market,1,,0.0,trade,,,,,,,,,,,,
+2026-01-05 09:30:00-05:00,buy,new,,CMG,stock,,0.0,,,market,1,,0.0,trade,,,,,,,,,,,,
+2026-01-05 09:30:00-05:00,buy,new,,UBER,stock,,0.0,,,market,1,,0.0,trade,,,,,,,,,,,,
+2026-01-05 09:30:00-05:00,buy,new,,HLT,stock,,0.0,,,market,1,,0.0,trade,,,,,,,,,,,,
+2026-01-05 09:30:00-05:00,buy,fill,94.0,GOOGL,stock,,0.0,,317.6600036621094,market,1,0.0,0.0,trade,,,,,,,,,,,,
+2026-01-05 09:30:00-05:00,buy,fill,671.0,CMG,stock,,0.0,,37.43000030517578,market,1,0.0,0.0,trade,,,,,,,,,,,,
+2026-01-05 09:30:00-05:00,buy,fill,304.0,UBER,stock,,0.0,,81.61000061035156,market,1,0.0,0.0,trade,,,,,,,,,,,,
+2026-01-05 09:30:00-05:00,buy,fill,69.0,HLT,stock,,0.0,,291.2300109863281,market,1,0.0,0.0,trade,,,,,,,,,,,,

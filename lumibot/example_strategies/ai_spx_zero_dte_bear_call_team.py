@@ -8,6 +8,7 @@ import os
 from datetime import datetime, timedelta
 from pathlib import Path
 
+from lumibot.example_strategies.agent_cycle import add_agent, run_cycle
 from lumibot.strategies.strategy import Strategy
 
 
@@ -34,9 +35,10 @@ Review the research, then independently refresh account state, positions, open
 orders, exact contracts, Greeks, and quotes. Trade only a short call near
 +{params['target_delta']:.2f} delta with a listed long call exactly
 {params['wing_width']:.0f} points higher. Require a positive net credit below
-the {params['wing_width']:.0f}-point width. Risk no more than
-{params['max_risk_pct']:.2%} of portfolio value and no more than
-{params['max_contracts']} package per trading day.
+the {params['wing_width']:.0f}-point width. Risk about
+{params['max_risk_pct']:.2%} of portfolio value. One contract on a $10,000,
+$100,000, $500,000, or $1,000,000 account is wrong. Never exceed
+{params['max_contracts']} contracts, and do not use the whole account.
 
 If all conditions pass, call orders_submit_multileg once for one atomic
 multi-leg package. Never submit independent legs. After submission, verify the
@@ -52,59 +54,66 @@ class AISpxZeroDteBearCallTeamStrategy(Strategy):
         "underlying": "SPX",
         "target_delta": 0.20,
         "wing_width": 5.0,
-        "max_risk_pct": 0.01,
-        "max_contracts": 1,
+        "max_risk_pct": 0.15,
+        "max_contracts": 40,
         "model": "gemini-3.5-flash-lite",
+        "sleeptime": "5M",
     }
 
     def initialize(self):
-        self.sleeptime = "5M"
+        self.sleeptime = str(self.parameters.get("sleeptime", "5M"))
         rules_path = Path(__file__).with_name("agent_rules") / "ai_spx_zero_dte_bear_call_team.rules.json"
-        model = os.environ.get("AI_SPX_TEAM_MODEL", self.parameters["model"])
-        self.agents.create(
-            name="researcher",
-            model=model,
+        add_agent(
+            self,
+            "researcher",
+            build_research_prompt(self.parameters),
             allow_trading=False,
-            system_prompt=build_research_prompt(self.parameters),
             rules_path=rules_path,
         )
-        self.agents.create(
-            name="trader",
-            model=model,
+        add_agent(
+            self,
+            "bull",
+            "Argue for today's SPX bear call from the research only. Do not submit orders.",
+            allow_trading=False,
+        )
+        add_agent(
+            self,
+            "bear",
+            "Argue the risk case: a squeeze through the short strike or a credit that is too small. Do not submit orders.",
+            allow_trading=False,
+        )
+        add_agent(
+            self,
+            "interpreter",
+            "Read both cases. Say whether to open one atomic package and what fraction of the risk budget to use. Do not submit orders.",
+            allow_trading=False,
+        )
+        add_agent(
+            self,
+            "trader",
+            build_trader_prompt(self.parameters),
             allow_trading=True,
-            system_prompt=build_trader_prompt(self.parameters),
             rules_path=rules_path,
         )
 
     def on_trading_iteration(self):
-        if self.parameters.get("execution_mode") == "multileg_proof":
-            from lumibot.example_strategies.proof_modes import submit_multileg_proof
-
-            expiration = self.get_datetime().date().isoformat()
-            submit_multileg_proof(
-                self,
-                [
-                    {"symbol": "SPXW", "expiration": expiration, "strike": 6900, "right": "call", "quantity": 1, "side": "sell_to_open"},
-                    {"symbol": "SPXW", "expiration": expiration, "strike": 6910, "right": "call", "quantity": 1, "side": "buy_to_open"},
-                ],
-                [
-                    {"symbol": "SPXW", "expiration": expiration, "strike": 6900, "right": "call", "quantity": 1, "side": "buy_to_close"},
-                    {"symbol": "SPXW", "expiration": expiration, "strike": 6910, "right": "call", "quantity": 1, "side": "sell_to_close"},
-                ],
-                hold_days=0,
-            )
-            return
         context = {
             "current_datetime": self.get_datetime().isoformat(),
             "strategy_parameters": dict(self.parameters),
         }
-        research = self.agents["researcher"].run(
-            task_prompt="Research today's exact SPX bear call spread opportunity.",
-            context=context,
-        )
-        self.agents["trader"].run(
-            task_prompt="Validate the research, make the final decision, and verify any trade.",
-            context={**context, "research": research.summary},
+        run_cycle(
+            self,
+            context,
+            researcher="researcher",
+            bull="bull",
+            bear="bear",
+            interpreter="interpreter",
+            trader="trader",
+            research_task="Research today's exact SPX bear call spread opportunity.",
+            bull_task="Make the bull case from the research.",
+            bear_task="Make the bear case from the research.",
+            interpret_task="Decide whether to open one atomic package and how much risk to use.",
+            trade_task="Apply the interpreter. Size from the account. Close the package before expiration.",
         )
 
 

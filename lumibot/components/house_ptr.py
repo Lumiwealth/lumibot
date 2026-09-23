@@ -117,6 +117,54 @@ def pdf_bytes_to_text(pdf_bytes: bytes) -> str:
     return "\n".join((page.extract_text() or "") for page in reader.pages).replace("\x00", "")
 
 
+def reflow_ptr_text(text: str) -> str:
+    """Join a wrapped House PTR extract into one line per transaction.
+
+    This only removes page furniture and line wraps. It does not decide
+    buy, sell, size, or whether a row is public.
+    """
+    cleaned = text.replace("\x00", "")
+    if "Filing ID #" not in cleaned and "Digitally Signed:" not in cleaned:
+        return cleaned
+
+    records: list[str] = []
+    current: list[str] = []
+
+    def flush() -> None:
+        if current:
+            records.append(" ".join(current))
+            current.clear()
+
+    for raw_line in text.replace("\x00", "").splitlines():
+        line = " ".join(raw_line.split())
+        if not line:
+            continue
+        if line in {"F I", "T", "Type", "Date", "$200?", "I P O", "C S", "Yes No"}:
+            continue
+        if line.startswith(
+            (
+                "Name:",
+                "Status:",
+                "State/District:",
+                "Digitally Signed:",
+                "P T R",
+                "Clerk of the House",
+                "Filing ID",
+                "ID Owner",
+                "* For the",
+            )
+        ):
+            continue
+        if line.startswith("SP ") or line.startswith("JT "):
+            flush()
+            current.append(line)
+            continue
+        if current:
+            current.append(line)
+    flush()
+    return "\n".join(records)
+
+
 def _clean_text(text: str) -> str:
     kept = []
     for raw_line in text.replace("\x00", "").splitlines():

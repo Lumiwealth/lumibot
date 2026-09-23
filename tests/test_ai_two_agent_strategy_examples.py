@@ -27,11 +27,17 @@ class _Agents(dict):
 
         self[name] = SimpleNamespace(run=run)
 
+    def run_together(self, jobs):
+        results = {}
+        for name, task_prompt, context in jobs:
+            results[name] = self[name].run(task_prompt=task_prompt, context=context)
+        return results
+
 
 @pytest.mark.parametrize(
     ("strategy_class", "researcher_name"),
     [
-        (AIOpeningRangeBreakoutStrategy, "opening_range_researcher"),
+        (AIOpeningRangeBreakoutStrategy, "orb_researcher"),
         (AIVWAPStrategy, "vwap_researcher"),
         (AICreditSpreadStrategy, "credit_spread_researcher"),
         (AIIronCondorStrategy, "iron_condor_researcher"),
@@ -51,14 +57,23 @@ def test_ai_examples_separate_research_from_trading_and_risk(strategy_class, res
 
     assert [(item["name"], item["allow_trading"]) for item in agents.created] == [
         (researcher_name, False),
+        ("bull", False),
+        ("bear", False),
+        ("interpreter", False),
         ("trading_risk_manager", True),
     ]
-    assert [name for name, _ in agents.calls] == [researcher_name, "trading_risk_manager"]
-    trader_context = agents.calls[1][1]["context"]
+    assert [name for name, _ in agents.calls] == [
+        researcher_name,
+        "bull",
+        "bear",
+        "interpreter",
+        "trading_risk_manager",
+    ]
+    trader_context = agents.calls[-1][1]["context"]
     assert trader_context["research_evidence"] == f"{researcher_name} evidence"
 
     researcher = agents.created[0]
-    trader = agents.created[1]
+    trader = agents.created[-1]
     assert "do not submit orders" in researcher["system_prompt"].lower()
     assert "only trading agent" in trader["system_prompt"].lower()
     assert "risk" in trader["system_prompt"].lower()

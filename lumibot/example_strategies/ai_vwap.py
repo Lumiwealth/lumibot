@@ -21,15 +21,16 @@ import os
 from datetime import datetime, timedelta
 from pathlib import Path
 
+from lumibot.example_strategies.agent_cycle import add_agent, run_cycle, trader_prompt
 from lumibot.strategies.strategy import Strategy
 
 
 def build_vwap_system_prompt(params: dict) -> str:
     underlying = str(params.get("underlying", "SPY")).upper()
     deviation_pct = float(params.get("deviation_pct", 0.0015))
-    risk_fraction = float(params.get("risk_fraction", 0.01))
+    risk_fraction = float(params.get("risk_fraction", 0.25))
     max_shares = int(params.get("max_shares", 200))
-    hold_bars = int(params.get("hold_bars", 30))
+    hold_bars = int(params.get("hold_bars", 1))
     return f"""
 You are the research agent for a {underlying} VWAP strategy. Evaluate the setup
 from point-in-time evidence and produce a precise research packet. Do not submit orders.
@@ -87,50 +88,81 @@ class AIVWAPStrategy(Strategy):
     parameters = {
         "underlying": "SPY",
         "deviation_pct": 0.0015,
-        "risk_fraction": 0.01,
+        "risk_fraction": 0.25,
         "max_shares": 200,
-        "hold_bars": 30,
-        # The agent still analyzes minute bars, but hourly decisions avoid needless calls.
-        "sleeptime": "1H",
+        "hold_bars": 1,
+        "sleeptime": "1D",
     }
 
     def initialize(self):
-        self.sleeptime = "1M" if self.parameters.get("execution_mode") == "minute_proof" else str(
-            self.parameters.get("sleeptime", "1H")
-        )
-        self.agents.create(
-            name="vwap_researcher",
-            model="gemini-3.5-flash-lite",
+        self.sleeptime = str(self.parameters.get("sleeptime", "1D"))
+        rules = Path(__file__).with_name("agent_rules") / "ai_vwap.rules.json"
+        underlying = str(self.parameters.get("underlying", "SPY")).upper()
+        add_agent(
+            self,
+            "vwap_researcher",
+            build_vwap_system_prompt(self.parameters),
             allow_trading=False,
-            system_prompt=build_vwap_system_prompt(self.parameters),
         )
-        self.agents.create(
-            name="trading_risk_manager",
-            model="gemini-3.5-flash-lite",
+        add_agent(
+            self,
+            "bull",
+            f"Argue the long reclaim case for {underlying} from the research only. Do not submit orders.",
+            allow_trading=False,
+        )
+        add_agent(
+            self,
+            "bear",
+            f"Argue the risk case against the {underlying} VWAP entry. Do not submit orders.",
+            allow_trading=False,
+        )
+        add_agent(
+            self,
+            "interpreter",
+            "Read both cases. Say whether the reclaim is real and what fraction of the account to use. Do not submit orders.",
+            allow_trading=False,
+        )
+        add_agent(
+            self,
+            "trading_risk_manager",
+            trader_prompt(
+                book_rule=(
+                    f"Trade only {underlying}. Buy only after reclaim confirmation. "
+                    "Size the position to about the risk fraction of account value."
+                ),
+                exit_rule=(
+                    "If a position was opened on an earlier bar, sell it with the order tool "
+                    "before any new buy. Also sell when price is back at VWAP or the hold is over."
+                ),
+                cash_rule=(
+                    "One share on a $10,000, $100,000, $500,000, or $1,000,000 account is wrong. "
+                    "Use about the risk fraction of the account, not the whole account."
+                ),
+            ),
             allow_trading=True,
-            system_prompt=build_vwap_trading_prompt(self.parameters),
-            rules_path=Path(__file__).with_name("agent_rules") / "ai_vwap.rules.json",
+            rules_path=rules,
         )
 
     def on_trading_iteration(self):
-        if self.parameters.get("execution_mode") == "minute_proof":
-            from lumibot.example_strategies.proof_modes import minute_proof_round_trip
-
-            minute_proof_round_trip(self, str(self.parameters.get("underlying", "SPY")).upper())
-            return
         params = dict(self.parameters)
         underlying = str(params.get("underlying", "SPY")).upper()
         context = {
             "current_datetime": self.get_datetime().isoformat(),
             "strategy_parameters": params,
         }
-        research = self.agents["vwap_researcher"].run(
-            task_prompt=f"Research the {underlying} VWAP setup for this completed bar.",
-            context=context,
-        )
-        self.agents["trading_risk_manager"].run(
-            task_prompt="Verify the VWAP evidence, enforce risk, and take at most one justified trading action.",
-            context={**context, "research_evidence": research.summary},
+        run_cycle(
+            self,
+            context,
+            researcher="vwap_researcher",
+            bull="bull",
+            bear="bear",
+            interpreter="interpreter",
+            trader="trading_risk_manager",
+            research_task=f"Research the {underlying} VWAP setup for this completed bar.",
+            bull_task="Make the bull case from the research.",
+            bear_task="Make the bear case from the research.",
+            interpret_task="Decide whether the reclaim is real and how much of the account to use.",
+            trade_task="Apply the interpreter. Size from the account. Exit an older position before a new buy.",
         )
 
 

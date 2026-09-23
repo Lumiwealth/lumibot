@@ -22,6 +22,7 @@ import os
 from datetime import datetime, timedelta
 from pathlib import Path
 
+from lumibot.example_strategies.agent_cycle import add_agent, run_cycle, trader_prompt
 from lumibot.strategies.strategy import Strategy
 
 # Default liquid US mega/large-cap + major ETFs (~100 names) for ORB scanning.
@@ -59,7 +60,7 @@ def build_orb_system_prompt(params: dict) -> str:
     universe_csv = ",".join(universe)
     universe_count = len(universe)
     opening_range_minutes = int(params.get("opening_range_minutes", 15))
-    risk_fraction = float(params.get("risk_fraction", 0.01))
+    risk_fraction = float(params.get("risk_fraction", 0.25))
     max_shares = int(params.get("max_shares", 200))
     max_positions = int(params.get("max_positions", 1))
     profit_r_multiple = float(params.get("profit_r_multiple", 1.5))
@@ -132,38 +133,54 @@ class AIOpeningRangeBreakoutStrategy(Strategy):
     parameters = {
         "universe": _parse_universe(_DEFAULT_ORB_UNIVERSE),
         "opening_range_minutes": 15,
-        "risk_fraction": 0.01,
+        "risk_fraction": 0.25,
         "max_shares": 200,
         "max_positions": 1,
         "profit_r_multiple": 1.5,
-        # The agent still analyzes minute bars, but hourly decisions avoid needless calls.
         "sleeptime": "1H",
     }
 
     def initialize(self):
-        self.sleeptime = "1M" if self.parameters.get("execution_mode") == "minute_proof" else str(
-            self.parameters.get("sleeptime", "1H")
-        )
-        self.agents.create(
-            name="opening_range_researcher",
-            model="gemini-3.5-flash-lite",
+        self.sleeptime = str(self.parameters.get("sleeptime", "1H"))
+        rules = Path(__file__).with_name("agent_rules") / "ai_opening_range_breakout.rules.json"
+        add_agent(self, "orb_researcher", build_orb_system_prompt(self.parameters), allow_trading=False)
+        add_agent(
+            self,
+            "bull",
+            "Argue for the strongest opening-range breakout from the research only. Do not submit orders.",
             allow_trading=False,
-            system_prompt=build_orb_system_prompt(self.parameters),
         )
-        self.agents.create(
-            name="trading_risk_manager",
-            model="gemini-3.5-flash-lite",
+        add_agent(
+            self,
+            "bear",
+            "Argue the risk case: failed breakouts, thin range, and late-day fades. Do not submit orders.",
+            allow_trading=False,
+        )
+        add_agent(
+            self,
+            "interpreter",
+            "Read both cases. Name one symbol or none, and the account fraction. Do not submit orders.",
+            allow_trading=False,
+        )
+        add_agent(
+            self,
+            "trading_risk_manager",
+            trader_prompt(
+                book_rule="Buy only a breakout the interpreter accepts, from the supplied universe.",
+                exit_rule=(
+                    "Sell the position with the order tool before the cash session closes the same day. "
+                    "Also sell at the profit target or on a close back inside the opening range."
+                ),
+                cash_rule=(
+                    "One share on a $10,000, $100,000, $500,000, or $1,000,000 account is wrong. "
+                    "Use about the risk fraction of the account, not the whole account."
+                ),
+            ),
             allow_trading=True,
-            system_prompt=build_orb_trading_prompt(self.parameters),
-            rules_path=Path(__file__).with_name("agent_rules") / "ai_opening_range_breakout.rules.json",
+            rules_path=rules,
         )
 
     def on_trading_iteration(self):
-        if self.parameters.get("execution_mode") == "minute_proof":
-            from lumibot.example_strategies.proof_modes import minute_proof_round_trip
-
-            minute_proof_round_trip(self, "SPY")
-            return
         params = dict(self.parameters)
         universe = params.get("universe") or []
         if isinstance(universe, str):
@@ -173,15 +190,19 @@ class AIOpeningRangeBreakoutStrategy(Strategy):
             "current_datetime": self.get_datetime().isoformat(),
             "strategy_parameters": params,
         }
-        research = self.agents["opening_range_researcher"].run(
-            task_prompt=f"Research and rank valid opening-range breakouts across the {universe_count}-symbol universe.",
-            context=context,
-        )
-        self.agents["trading_risk_manager"].run(
-            task_prompt=(
-                "Verify the strongest researched setup, enforce risk, and take at most one justified trading action."
-            ),
-            context={**context, "research_evidence": research.summary},
+        run_cycle(
+            self,
+            context,
+            researcher="orb_researcher",
+            bull="bull",
+            bear="bear",
+            interpreter="interpreter",
+            trader="trading_risk_manager",
+            research_task=f"Research and rank valid opening-range breakouts across the {universe_count}-symbol universe.",
+            bull_task="Make the bull case from the research.",
+            bear_task="Make the bear case from the research.",
+            interpret_task="Pick one symbol or none, and the account fraction.",
+            trade_task="Apply the interpreter. Size from the account. Exit before the cash close.",
         )
 
 

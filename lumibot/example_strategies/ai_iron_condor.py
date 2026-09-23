@@ -4,6 +4,7 @@ import os
 from datetime import datetime, timedelta
 from pathlib import Path
 
+from lumibot.example_strategies.agent_cycle import add_agent, run_cycle
 from lumibot.strategies.strategy import Strategy
 
 
@@ -23,8 +24,9 @@ Strategy policy:
   {params['delta_band']} of the target.
 - Wings must be exactly {params['wing_width']} points beyond the short strikes.
 - Require a net credit and liquid markets for every exact leg.
-- Risk no more than {params['max_risk_pct']:.2%} of portfolio value and never
-  exceed {params['max_contracts']} contracts.
+- Risk about {params['max_risk_pct']:.2%} of portfolio value. One contract on a
+  $10,000, $100,000, $500,000, or $1,000,000 account is wrong. Never exceed
+  {params['max_contracts']} contracts, and do not use the whole account.
 - Hold at most one {underlying} option structure. Manage existing exposure before
   considering a new entry.
 - Close when {params['profit_take_fraction']:.0%} of opening credit is captured,
@@ -63,57 +65,63 @@ class AIIronCondorStrategy(Strategy):
         "profit_take_fraction": 0.50,
         "loss_multiple": 2.0,
         "time_stop_dte": 21,
-        "max_risk_pct": 0.02,
-        "max_contracts": 10,
+        "max_risk_pct": 0.15,
+        "max_contracts": 40,
     }
 
     def initialize(self):
         self.sleeptime = "1D"
-        self.agents.create(
-            name="iron_condor_researcher",
-            model="gemini-3.5-flash-lite",
+        rules = Path(__file__).with_name("agent_rules") / "ai_iron_condor.rules.json"
+        add_agent(
+            self,
+            "iron_condor_researcher",
+            build_iron_condor_research_prompt(self.parameters),
             allow_trading=False,
-            system_prompt=build_iron_condor_research_prompt(self.parameters),
         )
-        self.agents.create(
-            name="trading_risk_manager",
-            model="gemini-3.5-flash-lite",
+        add_agent(
+            self,
+            "bull",
+            "Argue for the iron condor from the research only. Do not submit orders.",
+            allow_trading=False,
+        )
+        add_agent(
+            self,
+            "bear",
+            "Argue the risk case: a trend day, a short strike that is too close, or a thin credit. Do not submit orders.",
+            allow_trading=False,
+        )
+        add_agent(
+            self,
+            "interpreter",
+            "Read both cases. Say whether to open the condor and what fraction of the risk budget to use. Do not submit orders.",
+            allow_trading=False,
+        )
+        add_agent(
+            self,
+            "trading_risk_manager",
+            build_iron_condor_system_prompt(self.parameters),
             allow_trading=True,
-            system_prompt=build_iron_condor_system_prompt(self.parameters),
-            rules_path=Path(__file__).with_name("agent_rules") / "ai_iron_condor.rules.json",
+            rules_path=rules,
         )
 
     def on_trading_iteration(self):
-        if self.parameters.get("execution_mode") == "multileg_proof":
-            from lumibot.example_strategies.proof_modes import submit_multileg_proof
-
-            submit_multileg_proof(
-                self,
-                [
-                    {"symbol": "SPY", "expiration": "2026-02-20", "strike": 580, "right": "put", "quantity": 1, "side": "sell_to_open"},
-                    {"symbol": "SPY", "expiration": "2026-02-20", "strike": 575, "right": "put", "quantity": 1, "side": "buy_to_open"},
-                    {"symbol": "SPY", "expiration": "2026-02-20", "strike": 610, "right": "call", "quantity": 1, "side": "sell_to_open"},
-                    {"symbol": "SPY", "expiration": "2026-02-20", "strike": 615, "right": "call", "quantity": 1, "side": "buy_to_open"},
-                ],
-                [
-                    {"symbol": "SPY", "expiration": "2026-02-20", "strike": 580, "right": "put", "quantity": 1, "side": "buy_to_close"},
-                    {"symbol": "SPY", "expiration": "2026-02-20", "strike": 575, "right": "put", "quantity": 1, "side": "sell_to_close"},
-                    {"symbol": "SPY", "expiration": "2026-02-20", "strike": 610, "right": "call", "quantity": 1, "side": "buy_to_close"},
-                    {"symbol": "SPY", "expiration": "2026-02-20", "strike": 615, "right": "call", "quantity": 1, "side": "sell_to_close"},
-                ],
-            )
-            return
         context = {
             "current_datetime": self.get_datetime().isoformat(),
             "strategy_parameters": dict(self.parameters),
         }
-        research = self.agents["iron_condor_researcher"].run(
-            task_prompt="Research the iron-condor opportunity and produce exact four-leg candidate evidence.",
-            context=context,
-        )
-        self.agents["trading_risk_manager"].run(
-            task_prompt="Verify the four-leg candidate, enforce risk, and take at most one justified trading action.",
-            context={**context, "research_evidence": research.summary},
+        run_cycle(
+            self,
+            context,
+            researcher="iron_condor_researcher",
+            bull="bull",
+            bear="bear",
+            interpreter="interpreter",
+            trader="trading_risk_manager",
+            research_task="Research the iron-condor opportunity and produce exact four-leg candidate evidence.",
+            bull_task="Make the bull case from the research.",
+            bear_task="Make the bear case from the research.",
+            interpret_task="Decide whether to open the condor and how much of the risk budget to use.",
+            trade_task="Apply the interpreter. Size from the account. Close at the profit, loss, or time stop.",
         )
 
 

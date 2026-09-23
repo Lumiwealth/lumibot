@@ -8,14 +8,8 @@ from lumibot.components.disclosure_signals import (
     visible_congress_disclosures,
     visible_insider_transactions,
 )
-from lumibot.example_strategies.ai_congress_disclosures import (
-    AICongressDisclosuresStrategy,
-    _records as congress_records,
-)
-from lumibot.example_strategies.ai_sec_insider_filings import (
-    AISECInsiderFilingsStrategy,
-    _records as form4_records,
-)
+from lumibot.example_strategies.ai_congress_disclosures import AICongressDisclosuresStrategy
+from lumibot.example_strategies.ai_sec_insider_filings import AISECInsiderFilingsStrategy
 
 
 def test_congress_disclosures_are_visible_on_report_date_not_transaction_date():
@@ -260,12 +254,18 @@ class _Agents(dict):
 
         self[name] = SimpleNamespace(run=run)
 
+    def run_together(self, jobs):
+        results = {}
+        for name, task_prompt, context in jobs:
+            results[name] = self[name].run(task_prompt=task_prompt, context=context)
+        return results
 
-def _exercise_strategy(strategy_class, records_key, records):
+
+def _exercise_strategy(strategy_class):
     agents = _Agents()
     context = SimpleNamespace(
         agents=agents,
-        parameters={**strategy_class.parameters, records_key: records},
+        parameters=dict(strategy_class.parameters),
         get_datetime=lambda: datetime(2026, 9, 20, tzinfo=timezone.utc),
         log_message=lambda *args, **kwargs: None,
     )
@@ -275,115 +275,98 @@ def _exercise_strategy(strategy_class, records_key, records):
 
 
 def test_congress_strategy_has_researcher_and_dedicated_trading_risk_agent():
-    records = [
-        {
-            "Politician": "Clock Test Member",
-            "Ticker": "NVDA",
-            "Transaction": "Purchase",
-            "TransactionDate": "2026-08-01",
-            "ReportDate": "2026-09-19",
-            "Amount": "$1,001 - $15,000",
-        }
-    ]
-    agents = _exercise_strategy(AICongressDisclosuresStrategy, "disclosures", records)
+    agents = _exercise_strategy(AICongressDisclosuresStrategy)
 
     assert [(item["name"], item["allow_trading"]) for item in agents.created] == [
-        ("disclosure_researcher", False),
+        ("congress_researcher", False),
+        ("bull", False),
+        ("bear", False),
+        ("interpreter", False),
         ("trading_risk_manager", True),
     ]
-    assert [name for name, _ in agents.calls] == ["disclosure_researcher", "trading_risk_manager"]
-    trader_context = agents.calls[1][1]["context"]
-    assert trader_context["research_evidence"] == "disclosure_researcher evidence"
-    assert trader_context["disclosures"][0]["published_at"].startswith("2026-09-19")
+    assert [name for name, _ in agents.calls] == [
+        "congress_researcher",
+        "bull",
+        "bear",
+        "interpreter",
+        "trading_risk_manager",
+    ]
+    trader_context = agents.calls[-1][1]["context"]
+    assert trader_context["research_evidence"] == "congress_researcher evidence"
+    assert "disclosures" not in trader_context
+    assert "report date" in trader_context["clock_rule"]
     trader = next(item for item in agents.created if item["name"] == "trading_risk_manager")
-    assert "max_position_pct" in trader["system_prompt"]
-    assert "max_total_exposure_pct" in trader["system_prompt"]
-    assert "minimum_average_dollar_volume" in trader["system_prompt"]
-    assert "available cash" in trader["system_prompt"]
+    assert "account value" in trader["system_prompt"]
+    assert "0% to 5%" in trader["system_prompt"]
     assert trader_context["risk_policy"] == {
-        "max_position_pct": 5,
-        "max_total_exposure_pct": 20,
-        "minimum_average_dollar_volume": 1_000_000,
+        "cash_target": "0% to 5%",
+        "sizing": "scale visible filing range midpoints to account value",
         "never_short": True,
     }
 
 
-def test_congress_strategy_skips_stale_records_and_processes_a_disclosure_only_once():
-    records = [
-        {
-            "id": "disclosure-1",
-            "Politician": "Clock Test Member",
-            "Ticker": "NVDA",
-            "Transaction": "Purchase",
-            "TransactionDate": "2026-08-01",
-            "ReportDate": "2026-09-19",
-            "Amount": "$1,001 - $15,000",
-        },
-        {
-            "id": "stale-disclosure",
-            "Politician": "Example Member",
-            "Ticker": "AAPL",
-            "Transaction": "Purchase",
-            "TransactionDate": "2025-12-01",
-            "ReportDate": "2026-01-01",
-            "Amount": "$1,001 - $15,000",
-        },
-    ]
-    agents = _Agents()
-    context = SimpleNamespace(
-        agents=agents,
-        parameters={**AICongressDisclosuresStrategy.parameters, "disclosures": records},
-        get_datetime=lambda: datetime(2026, 9, 20, tzinfo=timezone.utc),
-        log_message=lambda *args, **kwargs: None,
-    )
-    AICongressDisclosuresStrategy.initialize(context)
-
-    AICongressDisclosuresStrategy.on_trading_iteration(context)
-    AICongressDisclosuresStrategy.on_trading_iteration(context)
-
-    assert [name for name, _ in agents.calls] == ["disclosure_researcher", "trading_risk_manager"]
-    assert agents.calls[0][1]["context"]["disclosures"][0]["id"] == "disclosure-1"
-
-
 def test_insider_strategy_has_researcher_and_dedicated_trading_risk_agent():
-    records = [
-        {
-            "id": "filing-1",
-            "ticker": "AAPL",
-            "transaction_code": "P",
-            "open_market": True,
-            "published_at": "2026-09-19T12:00:00+00:00",
-        }
-    ]
-    agents = _exercise_strategy(AISECInsiderFilingsStrategy, "transactions", records)
+    agents = _exercise_strategy(AISECInsiderFilingsStrategy)
 
     assert [(item["name"], item["allow_trading"]) for item in agents.created] == [
-        ("form4_researcher", False),
+        ("insider_trade_researcher", False),
+        ("bull", False),
+        ("bear", False),
+        ("interpreter", False),
         ("trading_risk_manager", True),
     ]
-    assert [name for name, _ in agents.calls] == ["form4_researcher", "trading_risk_manager"]
-    assert agents.calls[1][1]["context"]["research_evidence"] == "form4_researcher evidence"
-
-
-def test_insider_strategy_excludes_amendments_by_default():
-    records = [
-        {
-            "id": "filing-amendment",
-            "ticker": "AAPL",
-            "transaction_code": "P",
-            "open_market": True,
-            "amendment": True,
-            "published_at": "2026-09-19T12:00:00+00:00",
-        }
+    assert [name for name, _ in agents.calls] == [
+        "insider_trade_researcher",
+        "bull",
+        "bear",
+        "interpreter",
+        "trading_risk_manager",
     ]
+    trader = next(item for item in agents.created if item["name"] == "trading_risk_manager")
+    assert "amendments" in agents.created[0]["system_prompt"]
+    assert "open-market" in trader["system_prompt"]
+    assert agents.calls[-1][1]["context"]["research_evidence"] == "insider_trade_researcher evidence"
+    assert "after as_of" in agents.calls[0][1]["context"]["clock_rule"]
 
-    agents = _exercise_strategy(AISECInsiderFilingsStrategy, "transactions", records)
 
-    assert agents.calls == []
+_ONE_PATH_FILES = (
+    "ai_congress_disclosures.py",
+    "ai_sec_insider_filings.py",
+    "ai_public_web_fetch.py",
+    "ai_vwap.py",
+    "ai_opening_range_breakout.py",
+    "ai_credit_spread.py",
+    "ai_iron_condor.py",
+    "ai_spx_zero_dte_bear_call_team.py",
+    "ai_trading_team_bull_bear_large_cap_stocks.py",
+    "ai_trading_team_bull_bear_leveraged_etf.py",
+    "ai_trading_team_warren_buffett_value.py",
+    "ai_trading_team_bill_ackman_concentrated.py",
+)
+_BANNED_SNIPPETS = (
+    "create_order(",
+    "submit_order(",
+    "execution_mode",
+    "proof_modes",
+    "filing_rule",
+    "price_rule",
+    "minute_proof",
+    "multileg_proof",
+    "source_proof",
+    "WebClient",
+    "download_house_pdf",
+    "pdf_bytes_to_text",
+)
 
 
-def test_disclosure_examples_refuse_to_run_without_official_filings():
-    with pytest.raises(ValueError, match="does not include sample trades"):
-        congress_records({"disclosures": None, "disclosures_path": None})
-    with pytest.raises(ValueError, match="does not include sample trades"):
-        form4_records({"transactions": None, "transactions_path": None})
+def test_example_strategies_only_run_the_agent_cycle():
+    from pathlib import Path
+
+    folder = Path(__file__).resolve().parents[1] / "lumibot" / "example_strategies"
+    for name in _ONE_PATH_FILES:
+        source = (folder / name).read_text(encoding="utf-8")
+        assert "def initialize" in source
+        assert "def on_trading_iteration" in source
+        assert "run_cycle(" in source
+        for snippet in _BANNED_SNIPPETS:
+            assert snippet not in source, f"{name} still contains {snippet}"

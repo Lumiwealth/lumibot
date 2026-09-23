@@ -2,6 +2,12 @@
 
 Date: 2026-09-22
 
+## Correction, 2026-09-23
+
+The HTML files in `docs/research/tearsheets/2026-09-22-*.html` are invalid as AI results. The marker is `docs/research/tearsheets/2026-09-22-INVALID.md`. Do not delete the HTML.
+
+`AICongressDisclosuresStrategy` and `AISECInsiderFilingsStrategy` do not take a filings parameter, and they do not stop when filings are missing. The research agent fetches the public source. There is no execution mode. Each in-scope example is `initialize` plus `on_trading_iteration`. Bull and bear run together, then an interpreter, then the trading agent. The rest of this note still describes the old `filing_rule` and `price_rule` runs. That is the record of the invalid sheets, not the current code.
+
 This note records what was checked before the next implementation slice. It is not a deploy plan and it does not change AWS.
 
 ## Fake sample trades removed
@@ -11,7 +17,7 @@ Deleted:
 - `/Users/robertgrzesik/Development/lumibot/lumibot/example_strategies/fixtures/congress_disclosures.json`
 - `/Users/robertgrzesik/Development/lumibot/lumibot/example_strategies/fixtures/sec_form4_transactions.json`
 
-`AICongressDisclosuresStrategy` and `AISECInsiderFilingsStrategy` now stop unless the caller passes official filings. The public pages no longer describe a synthetic Pelosi NVDA fill or a synthetic AAPL Form 4 fill as current proof. The September 20 receipt at `/Users/robertgrzesik/Development/lumibot/docs/research/2026-09-20_AGENT_STRATEGY_EXECUTION_PROOF.md` marks those two runs retired.
+`AICongressDisclosuresStrategy` and `AISECInsiderFilingsStrategy` no longer stop unless the caller passes official filings. That behavior is gone. The public pages no longer describe a synthetic Pelosi NVDA fill or a synthetic AAPL Form 4 fill as current proof. The September 20 receipt at `/Users/robertgrzesik/Development/lumibot/docs/research/2026-09-20_AGENT_STRATEGY_EXECUTION_PROOF.md` marks those two runs retired.
 
 Clock tests still pass invented rows into the date gate. Those rows use the name `Clock Test Member`. They are not a member portfolio and they are not shipped sample trades.
 

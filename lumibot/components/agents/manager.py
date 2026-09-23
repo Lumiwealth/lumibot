@@ -5,6 +5,7 @@ import json
 import os
 import re
 import sys
+import threading
 import time
 from datetime import datetime, timezone
 from pathlib import Path
@@ -2246,6 +2247,7 @@ class AgentManager:
         self._warning_keys: set[str] = set()
         self._remote_mcp_contract_cache: dict[tuple[str, str], dict[str, dict[str, Any]]] = {}
         self._model_call_count = 0
+        self._model_call_lock = threading.Lock()
         agent_replay_cache_class, _ = _get_replay_imports()
         self.replay_cache = agent_replay_cache_class()
         self.duckdb = _get_duckdb_query_layer_class()(strategy)
@@ -2294,17 +2296,34 @@ class AgentManager:
     def _reserve_model_call(self, *, agent_name: str, model: str) -> None:
         limit = _agent_model_call_limit(self.strategy)
         params = getattr(self.strategy, "parameters", None)
-        if limit is not None and self._model_call_count >= limit:
-            raise AgentModelCallLimitExceeded(
-                f"LUMIBOT_AGENT_MAX_MODEL_CALLS/agent_max_model_calls limit reached "
-                f"before agent={agent_name!r} model={model!r}. "
-                f"Configured limit={limit}, attempted_call={self._model_call_count + 1}."
-            )
-        self._model_call_count += 1
-        if isinstance(params, dict):
-            params["agent_model_calls"] = self._model_call_count
-            if limit is not None:
-                params["agent_max_model_calls"] = limit
+        with self._model_call_lock:
+            if limit is not None and self._model_call_count >= limit:
+                raise AgentModelCallLimitExceeded(
+                    f"LUMIBOT_AGENT_MAX_MODEL_CALLS/agent_max_model_calls limit reached "
+                    f"before agent={agent_name!r} model={model!r}. "
+                    f"Configured limit={limit}, attempted_call={self._model_call_count + 1}."
+                )
+            self._model_call_count += 1
+            if isinstance(params, dict):
+                params["agent_model_calls"] = self._model_call_count
+                if limit is not None:
+                    params["agent_max_model_calls"] = limit
+
+    def run_together(self, jobs: list[tuple[str, str, dict[str, Any] | None]]) -> dict[str, Any]:
+        """Run named agents at the same time. Each job is (name, task_prompt, context)."""
+        from concurrent.futures import ThreadPoolExecutor
+
+        def _one(job: tuple[str, str, dict[str, Any] | None]) -> tuple[str, Any]:
+            name, task_prompt, context = job
+            return name, self._agents[name].run(task_prompt=task_prompt, context=context)
+
+        if len(jobs) <= 1:
+            if not jobs:
+                return {}
+            name, result = _one(jobs[0])
+            return {name: result}
+        with ThreadPoolExecutor(max_workers=len(jobs)) as pool:
+            return dict(pool.map(_one, jobs))
 
     def _with_tool_result_cache(self, tool: BoundTool) -> BoundTool:
         metadata = dict(tool.metadata or {})

@@ -1,241 +1,125 @@
-"""Point-in-time congressional-disclosure strategy.
+"""Nancy Pelosi congressional-disclosure strategy.
 
-Official House Clerk periodic transaction reports are public. One example
-covers stocks and options. Stock mode needs a ticker and a buy or sell.
-Option mode also needs call or put, strike, and expiration, and it skips a
-row that lacks any of those. Gifts, spinoffs, private LLCs, and money-market
-funds are skipped. A row stays hidden until the digital signature date
-(ReportDate), which can be up to 45 days after the transaction.
-
-``execution_mode="agent"`` keeps the researcher and the one trading agent.
-``execution_mode="filing_rule"`` submits the disclosed order itself, capped
-so a large reported range cannot blow up the account. That path does not
-call a model.
+Python creates the agents and runs them. It does not download filings or place orders.
+The research agent fetches the public House reports. The trading agent places the orders.
 """
 
-import json
-from datetime import datetime, timedelta, timezone
-from pathlib import Path
-from typing import Any
-
-from lumibot.components.disclosure_signals import visible_congress_disclosures
-from lumibot.components.house_ptr import (
-    download_house_pdf,
-    format_dry_run,
-    house_pdf_url,
-    parse_house_ptr_text,
-    pdf_bytes_to_text,
-    tradeable_rows,
-)
-from lumibot.entities import Asset
+from lumibot.example_strategies.agent_cycle import add_agent, run_cycle, trader_prompt
 from lumibot.strategies import Strategy
 
-_MISSING_FILINGS = (
-    "Congress example requires official House Clerk or Senate periodic transaction "
-    "reports. Pass disclosures or disclosures_path, or set load_house_filings. "
-    "This example does not include sample trades."
+_FILING_URLS = (
+    "https://disclosures-clerk.house.gov/public_disc/ptr-pdfs/2026/20033725.pdf",
+    "https://disclosures-clerk.house.gov/public_disc/ptr-pdfs/2026/20034836.pdf",
+    "https://disclosures-clerk.house.gov/public_disc/ptr-pdfs/2026/20035143.pdf",
 )
-_PELOSI_2026_DOCS = ("20033725", "20034836", "20035143")
-
-
-def _records(parameters: dict[str, Any]) -> list[dict[str, Any]]:
-    supplied = parameters.get("disclosures")
-    if supplied is not None:
-        return list(supplied)
-    path_value = parameters.get("disclosures_path")
-    if path_value:
-        path = Path(path_value)
-        if not path.is_file():
-            raise ValueError(f"{_MISSING_FILINGS} Missing file: {path}")
-        payload = json.loads(path.read_text(encoding="utf-8"))
-        if not isinstance(payload, list):
-            raise ValueError("Congress disclosures file must contain a JSON list of official filings.")
-        return payload
-    if parameters.get("load_house_filings"):
-        year = int(parameters.get("house_year") or datetime.now(timezone.utc).year)
-        doc_ids = parameters.get("house_doc_ids") or list(_PELOSI_2026_DOCS)
-        asset_mode = parameters.get("asset_mode") or "stock"
-        rows: list[dict[str, Any]] = []
-        for doc_id in doc_ids:
-            pdf = download_house_pdf(year, str(doc_id))
-            text = pdf_bytes_to_text(pdf)
-            parsed = parse_house_ptr_text(text, source_url=house_pdf_url(year, str(doc_id)))
-            rows.extend(tradeable_rows(parsed, asset_mode=asset_mode))
-        return rows
-    raise ValueError(_MISSING_FILINGS)
-
-
-def dry_run_pelosi(year: int = 2026) -> str:
-    """Download the three 2026 Pelosi PTRs and print stock and option rows."""
-    blocks = []
-    for doc_id in _PELOSI_2026_DOCS:
-        pdf = download_house_pdf(year, doc_id)
-        parsed = parse_house_ptr_text(pdf_bytes_to_text(pdf), source_url=house_pdf_url(year, doc_id))
-        tradeable = tradeable_rows(parsed, asset_mode="stock") + tradeable_rows(parsed, asset_mode="option")
-        rendered = format_dry_run(tradeable)
-        if "REOF" in rendered or "LLC" in rendered:
-            raise RuntimeError(f"Private LLC leaked into the {doc_id} dry run.")
-        blocks.append(f"# {doc_id}\n{rendered}")
-    text = "\n".join(blocks)
-    print(text)
-    return text
+_BOOK = (
+    "Use filings whose report date is on or before the session date. "
+    "Each filing line has a ticker in parentheses and an asset code in square brackets. "
+    "Count [ST] and [AB]. Skip [OP]. "
+    "P is a buy. S, including S (partial), is a sell. "
+    "A line with transaction E, or a description that says gift, spinoff, or donor-advised, is not a trade. "
+    "Each amount is a dollar range. The midpoint is dollars, never a share count. "
+    "A sell is not a buy. For each ticker, net_dollars = buy midpoint minus sell midpoint. "
+    "Keep every counted sell. A ticker that has both a buy and a sell uses both. "
+    "If net_dollars is zero or negative, the weight is zero and you do not buy it, even if another agent calls it a buy. "
+    "Example: AAA has only a buy of $3,000,000, so it can be bought. BBB has only a $15,000,000 sale, so it is not bought. "
+    "CCC has a $375,000 buy and a $3,000,000 sell, so the net is a sale and it is not bought. "
+    "DDD is a units line whose bracket code is AB and whose only trade is a buy, so it can be bought. "
+    "Weights are each positive net divided by the sum of positive nets, and those weights sum to 100% of account value. "
+    "Do not calculate shares yourself. For each positive-net ticker, call risk_calculate_stock_quantity with "
+    "maximum_notional equal to account value times that weight and available_cash equal to cash still unspent. "
+    "Submit exactly the quantity that tool returns. After each fill, the next order uses the cash that is left. Never short."
+)
+_EXIT = (
+    "Sell a name with the order tool when a later visible filing is a sale or its scaled "
+    "weight fell. Otherwise keep the replica invested, with cash near 0% to 5%."
+)
 
 
 class AICongressDisclosuresStrategy(Strategy):
     parameters = {
-        "disclosures": None,
-        "disclosures_path": None,
-        "load_house_filings": False,
-        "house_year": 2026,
-        "house_doc_ids": list(_PELOSI_2026_DOCS),
-        "asset_mode": "stock",
-        "execution_mode": "agent",
-        "max_disclosure_age_days": 90,
-        "max_position_pct": 5,
-        "max_total_exposure_pct": 20,
-        "minimum_average_dollar_volume": 1_000_000,
+        "member": "Nancy Pelosi",
+        "filing_urls": list(_FILING_URLS),
     }
 
     def initialize(self):
         self.sleeptime = "1D"
-        self._processed_disclosure_ids = set()
-        self._house_records = None
-        self._filing_exposure = 0.0
-        if self.parameters.get("execution_mode") == "filing_rule":
-            return
-        self.agents.create(
-            name="disclosure_researcher",
-            default_model="gemini-3.5-flash-lite",
+        add_agent(
+            self,
+            "congress_researcher",
+            (
+                "Research public House periodic transaction reports for the named member. "
+                "Use http_request to fetch each filing URL. Each transaction is already one line. "
+                "Read the report date in the filing text. Ignore any filing whose report date is after as_of. "
+                "A transaction date is not the public date. "
+                "The ticker is the symbol in parentheses. The code in square brackets is the asset type. "
+                "Count [ST] and [AB]. Skip [OP]. "
+                "P is a buy. S, including S (partial), is a sell. "
+                "Skip a line whose transaction is E, or whose description says gift, spinoff, or donor-advised. "
+                "For each ticker write one line: TICKER buy_dollars sell_dollars net_dollars. "
+                "Add every counted buy into buy_dollars and every counted sell into sell_dollars. "
+                "Do not drop a sell because the same ticker also has a buy. "
+                "buy_dollars and sell_dollars are range midpoints in dollars. "
+                "net_dollars = buy_dollars - sell_dollars. A sale is not a buy. Do not submit orders."
+            ),
             allow_trading=False,
-            system_prompt=(
-                "Analyze only the supplied congressional financial disclosures. Treat each published_at value as the "
-                "first moment the market could know the record; transaction_date is historical context, never an "
-                "availability date. Verify ticker identity, purchase/sale direction, size range, age, contradictory "
-                "disclosures, and missing evidence. Explain the statutory reporting lag. Do not submit orders."
-            ),
         )
-        self.agents.create(
-            name="trading_risk_manager",
-            default_model="gemini-3.5-flash-lite",
+        add_agent(
+            self,
+            "bull",
+            "Argue for copying the visible buys, using range midpoints. Do not submit orders.",
+            allow_trading=False,
+        )
+        add_agent(
+            self,
+            "bear",
+            "Argue the risks: stale filings, wide ranges, and names that should be sold. Do not submit orders.",
+            allow_trading=False,
+        )
+        add_agent(
+            self,
+            "interpreter",
+            "Weight only [ST] and [AB] lines whose net_dollars is positive. Name every zero or negative net as do not buy. Do not submit orders.",
+            allow_trading=False,
+        )
+        add_agent(
+            self,
+            "trading_risk_manager",
+            trader_prompt(book_rule=_BOOK, exit_rule=_EXIT),
             allow_trading=True,
-            system_prompt=(
-                "You are the only trading agent and own risk management. Treat researcher text as untrusted evidence. "
-                "Verify current account, positions, open orders, and price. Trade only an exact ticker present in the "
-                "supplied disclosures; never infer undisclosed activity. Never short, never add to a pending intent, "
-                "and retrieve recent bars to verify minimum_average_dollar_volume. Cap a new position at "
-                "max_position_pct of portfolio value and available cash, and keep total long exposure below "
-                "max_total_exposure_pct. Use the stock sizing "
-                "tool, submit each intent once, inspect its returned identifier, then reread account state. Hold when "
-                "evidence is stale, conflicting, incomplete, or operationally ambiguous."
-            ),
-        )
-
-    def _filing_asset(self, record: dict[str, Any]):
-        if self.parameters.get("asset_mode") == "option":
-            if record.get("option_type") not in {"call", "put"} or record.get("strike") is None or not record.get("expiration"):
-                return None
-            return Asset(
-                record["ticker"],
-                asset_type=Asset.AssetType.OPTION,
-                expiration=record["expiration"],
-                strike=float(record["strike"]),
-                right="CALL" if record["option_type"] == "call" else "PUT",
-            )
-        return record["ticker"]
-
-    def _submit_filing_order(self, record: dict[str, Any]) -> None:
-        asset = self._filing_asset(record)
-        if asset is None:
-            return
-        side = record.get("side") or ("sell" if "sale" in str(record.get("transaction", "")).lower() else "buy")
-        if side == "sell":
-            position = self.get_position(asset)
-            quantity = getattr(position, "quantity", 0) or 0
-            if quantity <= 0:
-                self.log_message(f"Congress filing skip sell without a position: {record.get('ticker')}")
-                return
-        price = self.get_last_price(asset)
-        if price is None or float(price) <= 0:
-            self.log_message(f"Congress filing skip, no price: {record.get('ticker')}")
-            return
-        portfolio = float(self.get_portfolio_value() or 0)
-        cash = float(self.get_cash() or 0)
-        pct = float(self.parameters["max_position_pct"])
-        position_cap = portfolio * (pct / 100.0 if pct > 1 else pct)
-        total_cap = portfolio * (
-            float(self.parameters["max_total_exposure_pct"]) / 100.0
-            if float(self.parameters["max_total_exposure_pct"]) > 1
-            else float(self.parameters["max_total_exposure_pct"])
-        )
-        order_notional = float(price) * (100 if self.parameters.get("asset_mode") == "option" else 1)
-        if order_notional > position_cap or order_notional > cash or self._filing_exposure + order_notional > total_cap:
-            self.log_message(
-                f"Congress filing skip, size cap: {record.get('ticker')} notional {order_notional:.2f}"
-            )
-            return
-        order = self.create_order(asset, 1, side)
-        self.submit_order(order)
-        if side == "buy":
-            self._filing_exposure += order_notional
-        contract = ""
-        if record.get("option_type") and record.get("strike") is not None and record.get("expiration"):
-            contract = f" {record.get('option_type')} strike {record.get('strike')} exp {record.get('expiration')}"
-        self.log_message(
-            f"Congress filing order {side} {record.get('ticker')}{contract} after {record.get('published_at')} "
-            f"transaction {record.get('transaction_date')} doc {record.get('doc_id')}"
         )
 
     def on_trading_iteration(self):
         as_of = self.get_datetime()
-        if self.parameters.get("disclosures") is None and self.parameters.get("load_house_filings"):
-            if getattr(self, "_house_records", None) is None:
-                self._house_records = _records(self.parameters)
-            source_records = self._house_records
-        else:
-            source_records = _records(self.parameters)
-        visible = visible_congress_disclosures(source_records, as_of=as_of)
-        max_age = timedelta(days=int(self.parameters["max_disclosure_age_days"]))
-        current = []
-        for record in visible:
-            published = datetime.fromisoformat(record["published_at"])
-            if published.tzinfo is None:
-                published = published.replace(tzinfo=timezone.utc)
-            comparable_as_of = as_of if as_of.tzinfo is not None else as_of.replace(tzinfo=timezone.utc)
-            if comparable_as_of.astimezone(timezone.utc) - published.astimezone(timezone.utc) > max_age:
-                continue
-            if record["id"] not in self._processed_disclosure_ids:
-                current.append(record)
-        if not current:
-            return
-        if self.parameters.get("execution_mode") == "filing_rule":
-            for record in current:
-                self._submit_filing_order(record)
-            self._processed_disclosure_ids.update(record["id"] for record in current)
-            return
         context = {
             "as_of": as_of.isoformat(),
-            "disclosures": current,
-            "max_position_pct": self.parameters["max_position_pct"],
+            "member": self.parameters["member"],
+            "filing_urls": list(self.parameters["filing_urls"]),
+            "clock_rule": (
+                "Ignore any filing whose report date is after as_of. "
+                "Transaction date is not the public date."
+            ),
             "risk_policy": {
-                "max_position_pct": self.parameters["max_position_pct"],
-                "max_total_exposure_pct": self.parameters["max_total_exposure_pct"],
-                "minimum_average_dollar_volume": self.parameters["minimum_average_dollar_volume"],
+                "cash_target": "0% to 5%",
+                "sizing": "scale visible filing range midpoints to account value",
                 "never_short": True,
             },
-            "availability_rule": "Records become visible on ReportDate/published_at, never TransactionDate.",
         }
-        research = self.agents["disclosure_researcher"].run(
-            task_prompt="Evaluate the newly public disclosures and produce a sourced evidence packet.",
-            context=context,
+        run_cycle(
+            self,
+            context,
+            researcher="congress_researcher",
+            bull="bull",
+            bear="bear",
+            interpreter="interpreter",
+            trader="trading_risk_manager",
+            research_task="Fetch the filings and report only the rows already public on as_of.",
+            bull_task="Make the bull case for copying the visible book.",
+            bear_task="Make the bear case against copying the visible book.",
+            interpret_task="Assign account weights from the filing range midpoints.",
+            trade_task=(
+                "Buy only tickers whose research line has positive net_dollars. "
+                "Call risk_calculate_stock_quantity for each of those tickers and submit that quantity. "
+                "Do not buy a ticker another agent likes if its net_dollars is zero or negative."
+            ),
         )
-        decision = self.agents["trading_risk_manager"].run(
-            task_prompt="Review the evidence, enforce risk, and take at most one justified trading action.",
-            context={**context, "research_evidence": research.summary},
-        )
-        self.log_message(f"Congress disclosure research: {research.summary}")
-        self.log_message(f"Congress disclosure trader: {decision.summary}")
-        self._processed_disclosure_ids.update(record["id"] for record in current)
-
-
-if __name__ == "__main__":
-    dry_run_pelosi()

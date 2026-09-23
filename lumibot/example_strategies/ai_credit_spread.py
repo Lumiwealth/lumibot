@@ -4,6 +4,7 @@ import os
 from datetime import datetime, timedelta
 from pathlib import Path
 
+from lumibot.example_strategies.agent_cycle import add_agent, run_cycle
 from lumibot.strategies.strategy import Strategy
 
 
@@ -23,8 +24,9 @@ Strategy policy:
   within {params['delta_band']} of the target.
 - Use a listed long wing exactly {params['wing_width']} points farther OTM.
 - Require a net credit between zero and the wing width.
-- Risk no more than {params['max_risk_pct']:.2%} of portfolio value and never
-  exceed {params['max_contracts']} contracts.
+- Risk about {params['max_risk_pct']:.2%} of portfolio value. One contract on a
+  $10,000, $100,000, $500,000, or $1,000,000 account is wrong. Never exceed
+  {params['max_contracts']} contracts, and do not use the whole account.
 - Hold at most one {underlying} option structure and manage it before new entries.
 - Close when {params['profit_take_fraction']:.0%} of credit is captured, closing
   debit reaches {params['loss_multiple']} times opening credit, DTE is
@@ -54,42 +56,60 @@ class AICreditSpreadStrategy(Strategy):
         "underlying": "SPY", "preferred_side": "put", "wing_width": 5.0,
         "target_delta": 0.16, "delta_band": 0.04, "min_dte": 30,
         "max_dte": 45, "preferred_dte": 35, "profit_take_fraction": 0.50,
-        "loss_multiple": 2.0, "time_stop_dte": 21, "max_risk_pct": 0.02,
-        "max_contracts": 10,
+        "loss_multiple": 2.0,         "time_stop_dte": 21, "max_risk_pct": 0.15,
+        "max_contracts": 40,
     }
 
     def initialize(self):
         self.sleeptime = "1D"
-        self.agents.create(name="credit_spread_researcher", model="gemini-3.5-flash-lite", allow_trading=False,
-            system_prompt=build_credit_spread_research_prompt(self.parameters))
-        self.agents.create(name="trading_risk_manager", model="gemini-3.5-flash-lite", allow_trading=True,
-            system_prompt=build_credit_spread_system_prompt(self.parameters),
-            rules_path=Path(__file__).with_name("agent_rules") / "ai_credit_spread.rules.json")
+        rules = Path(__file__).with_name("agent_rules") / "ai_credit_spread.rules.json"
+        add_agent(
+            self,
+            "credit_spread_researcher",
+            build_credit_spread_research_prompt(self.parameters),
+            allow_trading=False,
+        )
+        add_agent(
+            self,
+            "bull",
+            "Argue for the credit spread from the research only. Do not submit orders.",
+            allow_trading=False,
+        )
+        add_agent(
+            self,
+            "bear",
+            "Argue the risk case: gap, assignment, and a credit that is too small. Do not submit orders.",
+            allow_trading=False,
+        )
+        add_agent(
+            self,
+            "interpreter",
+            "Read both cases. Say whether to open the spread and what fraction of the risk budget to use. Do not submit orders.",
+            allow_trading=False,
+        )
+        add_agent(
+            self,
+            "trading_risk_manager",
+            build_credit_spread_system_prompt(self.parameters),
+            allow_trading=True,
+            rules_path=rules,
+        )
 
     def on_trading_iteration(self):
-        if self.parameters.get("execution_mode") == "multileg_proof":
-            from lumibot.example_strategies.proof_modes import submit_multileg_proof
-
-            submit_multileg_proof(
-                self,
-                [
-                    {"symbol": "SPY", "expiration": "2026-02-20", "strike": 580, "right": "put", "quantity": 1, "side": "sell_to_open"},
-                    {"symbol": "SPY", "expiration": "2026-02-20", "strike": 575, "right": "put", "quantity": 1, "side": "buy_to_open"},
-                ],
-                [
-                    {"symbol": "SPY", "expiration": "2026-02-20", "strike": 580, "right": "put", "quantity": 1, "side": "buy_to_close"},
-                    {"symbol": "SPY", "expiration": "2026-02-20", "strike": 575, "right": "put", "quantity": 1, "side": "sell_to_close"},
-                ],
-            )
-            return
         context = {"current_datetime": self.get_datetime().isoformat(), "strategy_parameters": dict(self.parameters)}
-        research = self.agents["credit_spread_researcher"].run(
-            task_prompt="Research the credit-spread opportunity and produce exact candidate evidence.",
-            context=context,
-        )
-        self.agents["trading_risk_manager"].run(
-            task_prompt="Verify the candidate, enforce risk, and take at most one justified trading action.",
-            context={**context, "research_evidence": research.summary},
+        run_cycle(
+            self,
+            context,
+            researcher="credit_spread_researcher",
+            bull="bull",
+            bear="bear",
+            interpreter="interpreter",
+            trader="trading_risk_manager",
+            research_task="Research the credit-spread opportunity and produce exact candidate evidence.",
+            bull_task="Make the bull case from the research.",
+            bear_task="Make the bear case from the research.",
+            interpret_task="Decide whether to open the spread and how much of the risk budget to use.",
+            trade_task="Apply the interpreter. Size from the account. Close at the profit, loss, or time stop.",
         )
 
 

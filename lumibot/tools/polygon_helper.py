@@ -835,14 +835,22 @@ def get_chains_cached(
     #    to ensure we get all relevant strikes near that historical date.
     expired_list = [True, False]
 
+    max_days_raw = os.environ.get("LUMIBOT_OPTION_CHAIN_MAX_DAYS", "").strip()
+    expiration_lte = None
+    if max_days_raw:
+        expiration_lte = current_date + timedelta(days=int(max_days_raw))
+
     polygon_contracts = []
     for expired in expired_list:
-        contracts_gen = polygon_client.list_options_contracts(
-            underlying_ticker=asset.symbol,
-            expiration_date_gte=current_date,
-            expired=expired,
-            limit=1000,
-        )
+        chain_kwargs = {
+            "underlying_ticker": asset.symbol,
+            "expiration_date_gte": current_date,
+            "expired": expired,
+            "limit": 1000,
+        }
+        if expiration_lte is not None:
+            chain_kwargs["expiration_date_lte"] = expiration_lte
+        contracts_gen = polygon_client.list_options_contracts(**chain_kwargs)
         polygon_contracts.extend(list(contracts_gen))
 
     # 7) Build the dictionary

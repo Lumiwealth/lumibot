@@ -17,11 +17,11 @@ EXAMPLE = (
 def test_spx_experiment_is_a_two_agent_research_then_trade_flow():
     source = EXAMPLE.read_text(encoding="utf-8")
 
-    assert 'name="researcher"' in source
+    assert '"researcher"' in source
     assert 'allow_trading=False' in source
-    assert 'name="trader"' in source
+    assert '"trader"' in source
     assert 'allow_trading=True' in source
-    assert '"research": research.summary' in source
+    assert "run_cycle(" in source
     assert "orders_submit_multileg" in source
     trader_prompt = build_trader_prompt(AISpxZeroDteBearCallTeamStrategy.parameters)
     assert "verify the\nsubmitted order" in trader_prompt
@@ -43,4 +43,4 @@ def test_spx_experiment_requires_one_atomic_five_point_package():
 def test_spx_zero_dte_team_runs_intraday_for_same_day_management():
     source = EXAMPLE.read_text(encoding="utf-8")
 
-    assert 'self.sleeptime = "5M"' in source
+    assert 'self.sleeptime = str(self.parameters.get("sleeptime", "5M"))' in source

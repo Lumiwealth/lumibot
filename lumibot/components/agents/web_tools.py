@@ -261,6 +261,8 @@ class WebClient:
         current_content = raw_body
         current_files = self._prepare_files(files)
         request_headers = {str(key): str(value) for key, value in self._mapping(headers, "headers").items()}
+        if not any(str(key).lower() == "user-agent" for key in request_headers):
+            request_headers["User-Agent"] = "Lumiwealth research botspot.trade"
         params = self._mapping(query, "query") if query is not None else None
         redirects = []
         response = None
@@ -363,6 +365,15 @@ class WebClient:
                     result["text"] = response.text
             elif content_type.startswith("text/") or "xml" in content_type or "html" in content_type:
                 result["text"] = response.text
+            elif "pdf" in content_type.lower() or content.startswith(b"%PDF"):
+                from lumibot.components.house_ptr import pdf_bytes_to_text, reflow_ptr_text
+
+                extracted = reflow_ptr_text(pdf_bytes_to_text(content)).strip()
+                if len(extracted) > 12_000:
+                    result["text"] = extracted[:12_000]
+                    result["text_truncated"] = True
+                else:
+                    result["text"] = extracted
             else:
                 result["body_base64"] = base64.b64encode(content).decode("ascii")
         return result

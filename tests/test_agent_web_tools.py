@@ -106,6 +106,26 @@ def test_http_request_supports_form_raw_multipart_and_binary_downloads():
     assert binary["body_base64"] == "AAE="
 
 
+def test_http_request_returns_pdf_text_instead_of_base64(monkeypatch):
+    pdf = b"%PDF-1.4\n" + b"0" * 32
+
+    def handler(request):
+        return httpx.Response(200, content=pdf, headers={"content-type": "application/pdf"})
+
+    monkeypatch.setattr(
+        "lumibot.components.house_ptr.pdf_bytes_to_text",
+        lambda raw: "Nancy Pelosi GOOGL purchase " + ("x" * 20_000),
+    )
+    client = WebClient(transport=httpx.MockTransport(handler), resolver=_resolver)
+
+    result = client.request("GET", "https://example.test/filing.pdf")
+
+    assert result["text"].startswith("Nancy Pelosi GOOGL purchase")
+    assert len(result["text"]) == 12_000
+    assert result["text_truncated"] is True
+    assert "body_base64" not in result
+
+
 def test_http_request_supports_basic_api_key_custom_header_cookie_and_client_cert_profiles():
     seen = []
 

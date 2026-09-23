@@ -27,35 +27,41 @@ class _DisclosureRuntime:
     def run(self, request):
         type(self).requests.append(request)
         events = []
-        if request.agent_name in {"disclosure_researcher", "form4_researcher"}:
+        if request.agent_name in {"bull", "bear", "interpreter"}:
             assert "orders_submit_order" not in {tool.name for tool in request.bound_tools}
-            evidence_key = "disclosures" if request.agent_name == "disclosure_researcher" else "transactions"
+            return AgentRunResult(summary=f"{request.agent_name} note", model=request.model, events=events)
+        if request.agent_name in {"congress_researcher", "insider_trade_researcher"}:
+            assert "orders_submit_order" not in {tool.name for tool in request.bound_tools}
+            symbol = "NVDA" if request.agent_name == "congress_researcher" else "AAPL"
             return AgentRunResult(
-                summary=json.dumps(
-                    {
-                        "as_of": request.context["as_of"],
-                        "evidence": request.context[evidence_key],
-                        "availability_rule": request.context["availability_rule"],
-                    },
-                    sort_keys=True,
-                ),
+                summary=json.dumps({"ticker": symbol, "side": "buy"}, sort_keys=True),
                 model=request.model,
                 events=events,
             )
 
         assert request.agent_name == "trading_risk_manager"
         _invoke_tool(request, events, "account_portfolio")
-        _invoke_tool(request, events, "account_positions")
+        held = _invoke_tool(request, events, "account_positions")
         _invoke_tool(request, events, "orders_open_orders")
-        evidence = json.loads(request.context["research_evidence"])["evidence"]
-        symbol = evidence[0].get("ticker")
-        _invoke_tool(request, events, "market_last_price", symbol=symbol, asset_type="stock")
+        stock_rows = [
+            row
+            for row in held.get("positions") or []
+            if str((row.get("asset") or {}).get("type") or "").lower() == "stock"
+        ]
+        if stock_rows:
+            return AgentRunResult(summary="already invested", model=request.model, events=events)
+        symbol = json.loads(request.context["research_evidence"])["ticker"]
+        portfolio = _invoke_tool(request, events, "account_portfolio")
+        quote = _invoke_tool(request, events, "market_last_price", symbol=symbol, asset_type="stock")
+        price = float(quote["price"])
+        quantity = int(float(portfolio["portfolio_value"]) * 0.95 / price)
+        assert quantity >= 50
         submitted = _invoke_tool(
             request,
             events,
             "orders_submit_order",
             symbol=symbol,
-            quantity=1,
+            quantity=quantity,
             side="buy",
             asset_type="stock",
             order_type="market",
@@ -144,45 +150,31 @@ def deterministic_agent_runtime(monkeypatch):
 
 
 @pytest.mark.usefixtures("disable_datasource_override")
-def test_congress_strategy_waits_for_report_date_then_places_and_fills_order(
+def test_congress_strategy_agent_order_is_account_sized(
     deterministic_agent_runtime,
     monkeypatch,
     tmp_path,
 ):
     monkeypatch.setenv("LUMIBOT_CACHE_FOLDER", str(tmp_path / "cache"))
     asset, pandas_data = _stock_data("NVDA", "2026-02-12")
-    disclosure = {
-        "id": "clock-report-date-proof",
-        "Politician": "Clock Test Member",
-        "Ticker": "NVDA",
-        "Transaction": "Purchase",
-        "TransactionDate": "2026-01-05",
-        "ReportDate": "2026-02-17T14:00:00+00:00",
-        "fetched_at": "2026-02-17T14:00:01+00:00",
-        "Amount": "$100,001 - $250,000",
-        "source_url": "https://example.invalid/clock-proof",
-        "data_rights": "clock_test_not_a_filing",
-    }
-
     _, strategy = _run_strategy(
         AICongressDisclosuresStrategy,
         pandas_data=pandas_data,
         start=datetime(2026, 2, 12),
         end=datetime(2026, 2, 23),
-        parameters={"disclosures": [disclosure]},
+        parameters={},
     )
 
     research_requests = [
-        request for request in deterministic_agent_runtime.requests if request.agent_name == "disclosure_researcher"
+        request for request in deterministic_agent_runtime.requests if request.agent_name == "congress_researcher"
     ]
     trading_requests = [
         request for request in deterministic_agent_runtime.requests if request.agent_name == "trading_risk_manager"
     ]
-    assert len(research_requests) == len(trading_requests) == 1
-    assert research_requests[0].context["as_of"] >= disclosure["ReportDate"]
-    assert research_requests[0].context["disclosures"][0]["transaction_date"] == "2026-01-05"
-    assert research_requests[0].context["disclosures"][0]["published_at"] == disclosure["ReportDate"]
-    assert float(strategy.get_position(asset).quantity) == 1
+    assert len(research_requests) == len(trading_requests) >= 1
+    assert "report date" in research_requests[0].context["clock_rule"]
+    assert "disclosures" not in research_requests[0].context
+    assert float(strategy.get_position(asset).quantity) >= 50
     fills = strategy.broker._trade_event_log_df
     fills = fills[fills["status"] == "fill"]
     assert len(fills) == 1
@@ -193,89 +185,38 @@ def test_congress_strategy_waits_for_report_date_then_places_and_fills_order(
         strategy=strategy,
         requests=deterministic_agent_runtime.requests,
         evidence={
-            "transaction_date": disclosure["TransactionDate"],
-            "published_at": disclosure["ReportDate"],
             "first_agent_as_of": research_requests[0].context["as_of"],
-            "lookahead_prevented": research_requests[0].context["as_of"] >= disclosure["ReportDate"],
+            "clock_rule": research_requests[0].context["clock_rule"],
         },
     )
 
 
 @pytest.mark.usefixtures("disable_datasource_override")
-def test_form4_strategy_waits_for_sec_acceptance_filters_grant_then_fills_order(
+def test_form4_strategy_agent_order_is_account_sized(
     deterministic_agent_runtime,
     monkeypatch,
     tmp_path,
 ):
     monkeypatch.setenv("LUMIBOT_CACHE_FOLDER", str(tmp_path / "cache"))
     asset, pandas_data = _stock_data("AAPL", "2026-02-10")
-    transactions = [
-        {
-            "id": "form4-aapl-proof",
-            "accession_number": "0000320193-26-000001",
-            "document_type": "4",
-            "amendment": False,
-            "ticker": "AAPL",
-            "owner_name": "Example Executive",
-            "transaction_date": "2026-02-10",
-            "published_at": "2026-02-11T21:30:00+00:00",
-            "fetched_at": "2026-02-11T21:30:01+00:00",
-            "source": "sec_edgar_form4",
-            "transaction_code": "P",
-            "transaction_kind": "open_market_purchase",
-            "automatic_plan": False,
-            "open_market": True,
-            "acquired_disposed": "A",
-            "shares": 1000,
-            "price_per_share": 220,
-            "transaction_value": 220000,
-            "derivative": False,
-            "ownership": "direct",
-            "source_url": "https://example.invalid/frozen-form4-proof",
-        },
-        {
-            "id": "form4-aapl-grant-proof",
-            "accession_number": "0000320193-26-000002",
-            "document_type": "4",
-            "amendment": False,
-            "ticker": "AAPL",
-            "owner_name": "Example Executive",
-            "transaction_date": "2026-02-10",
-            "published_at": "2026-02-11T21:30:00+00:00",
-            "fetched_at": "2026-02-11T21:30:01+00:00",
-            "source": "sec_edgar_form4",
-            "transaction_code": "A",
-            "transaction_kind": "grant_or_award",
-            "automatic_plan": False,
-            "open_market": False,
-            "acquired_disposed": "A",
-            "shares": 500,
-            "price_per_share": 0,
-            "transaction_value": 0,
-            "derivative": False,
-            "ownership": "direct",
-            "source_url": "https://example.invalid/frozen-form4-proof",
-        },
-    ]
-
     _, strategy = _run_strategy(
         AISECInsiderFilingsStrategy,
         pandas_data=pandas_data,
         start=datetime(2026, 2, 10),
         end=datetime(2026, 2, 20),
-        parameters={"transactions": transactions},
+        parameters={},
     )
 
     research_requests = [
-        request for request in deterministic_agent_runtime.requests if request.agent_name == "form4_researcher"
+        request for request in deterministic_agent_runtime.requests if request.agent_name == "insider_trade_researcher"
     ]
     trading_requests = [
         request for request in deterministic_agent_runtime.requests if request.agent_name == "trading_risk_manager"
     ]
-    assert len(research_requests) == len(trading_requests) == 1
-    assert research_requests[0].context["as_of"] >= transactions[0]["published_at"]
-    assert [row["id"] for row in research_requests[0].context["transactions"]] == ["form4-aapl-proof"]
-    assert float(strategy.get_position(asset).quantity) == 1
+    assert len(research_requests) == len(trading_requests) >= 1
+    assert "after as_of" in research_requests[0].context["clock_rule"]
+    assert "transactions" not in research_requests[0].context
+    assert float(strategy.get_position(asset).quantity) >= 50
     fills = strategy.broker._trade_event_log_df
     fills = fills[fills["status"] == "fill"]
     assert len(fills) == 1
@@ -286,10 +227,7 @@ def test_form4_strategy_waits_for_sec_acceptance_filters_grant_then_fills_order(
         strategy=strategy,
         requests=deterministic_agent_runtime.requests,
         evidence={
-            "transaction_date": transactions[0]["transaction_date"],
-            "published_at": transactions[0]["published_at"],
             "first_agent_as_of": research_requests[0].context["as_of"],
-            "lookahead_prevented": research_requests[0].context["as_of"] >= transactions[0]["published_at"],
-            "filtered_non_open_market_ids": [transactions[1]["id"]],
+            "clock_rule": research_requests[0].context["clock_rule"],
         },
     )

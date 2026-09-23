@@ -2,7 +2,7 @@
 
 ## 4.5.92 - 2026-09-23
 
-Deploy marker: `f20f4c737065`
+Deploy marker: `2eb22feb603d`
 
 ### Growth documentation and examples
 - Added point-in-time Congress-disclosure and SEC Form 4 agent examples, plus a stateful authenticated-browser research/trade/publish showcase with publishing disabled by default.

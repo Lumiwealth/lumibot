@@ -8,7 +8,7 @@ import os
 from datetime import datetime, timedelta
 from pathlib import Path
 
-from lumibot.example_strategies.agent_cycle import add_agent, interpreter_prompt, run_cycle
+from lumibot.example_strategies.agent_cycle import add_agent, interpreter_prompt, option_sizing_rule, run_cycle
 from lumibot.strategies.strategy import Strategy
 
 
@@ -29,7 +29,7 @@ trading. Load the options-trading skill and obey the active Rules file. Inspect
 account state, positions, open orders, the current {underlying} market, today's
 listed option expiration, exact contract Greeks, and executable bid/ask quality.
 
-Evaluate a short call near +{params['target_delta']:.2f} delta with a long call
+Evaluate the listed short call whose delta is closest to +{params['target_delta']:.2f} with a long call
 exactly {params['wing_width']:.0f} points higher. Report exact contract
 identities, timestamps, deltas, quotes, signed package pricing, maximum loss,
 and reasons to trade or not trade. Do not claim that an order was submitted.
@@ -40,12 +40,10 @@ def build_bear_call_policy(params: dict) -> str:
     underlying = underlying_label(params)
     return f"""
 Strategy policy: open a {underlying} bear call spread on today's listed
-expiration. Sell a call near +{params['target_delta']:.2f} delta and buy a
-listed call exactly {params['wing_width']:.0f} points higher. Require a
-positive net credit below the {params['wing_width']:.0f}-point width. Risk about
-{params['max_risk_pct']:.2%} of portfolio value. One contract on a $10,000,
-$100,000, $500,000, or $1,000,000 account is wrong. Never exceed
-{params['max_contracts']} contracts, and do not use the whole account.
+expiration. Sell the listed call whose delta is closest to +{params['target_delta']:.2f}
+and buy a listed call exactly {params['wing_width']:.0f} points higher. Require a
+positive net credit below the {params['wing_width']:.0f}-point width.
+{option_sizing_rule(params['max_risk_pct'], params['max_contracts'])}
 """.strip()
 
 

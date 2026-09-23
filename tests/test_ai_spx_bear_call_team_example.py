@@ -76,6 +76,7 @@ def test_interpreter_judges_the_configured_spread_against_the_strategy_policy():
     AISpxZeroDteBearCallTeamStrategy.initialize(context)
 
     interpreter = _flat(created["interpreter"])
+    assert "listed call whose delta is closest to +0.20" in interpreter
     assert "Strategy policy:" in interpreter
     assert "SPY" in interpreter and "SPX" not in interpreter
     assert "exactly 1 points higher" in interpreter

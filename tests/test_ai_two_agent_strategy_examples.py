@@ -9,6 +9,7 @@ import pytest
 from lumibot.example_strategies.ai_credit_spread import AICreditSpreadStrategy
 from lumibot.example_strategies.ai_iron_condor import AIIronCondorStrategy
 from lumibot.example_strategies.ai_opening_range_breakout import AIOpeningRangeBreakoutStrategy
+from lumibot.example_strategies.ai_spx_zero_dte_bear_call_team import AISpxZeroDteBearCallTeamStrategy
 from lumibot.example_strategies.ai_vwap import AIVWAPStrategy
 
 
@@ -124,6 +125,24 @@ def test_option_interpreters_judge_against_the_strategy_policy(strategy_class):
     assert "maximum loss is larger than its credit" in interpreter
     assert "name the failed policy condition" in interpreter.lower()
     assert "Strategy policy:" in trader
+
+
+@pytest.mark.parametrize(
+    "strategy_class", [AICreditSpreadStrategy, AIIronCondorStrategy, AISpxZeroDteBearCallTeamStrategy]
+)
+def test_option_contract_cap_limits_size_instead_of_blocking_the_trade(strategy_class):
+    """A binding contract cap once made every SPY 0 DTE cycle decline a valid spread."""
+    agents = _Agents()
+    context = SimpleNamespace(agents=agents, parameters=dict(strategy_class.parameters))
+
+    strategy_class.initialize(context)
+
+    for item in agents.created:
+        if item["name"] not in ("interpreter", "trader", "trading_risk_manager"):
+            continue
+        prompt = " ".join(item["system_prompt"].split())
+        assert "size to the risk target or the contract cap, whichever is smaller" in prompt
+        assert "the cap is never a reason to skip" in prompt
 
 
 def test_documentation_and_artwork_contracts_describe_the_real_topology():

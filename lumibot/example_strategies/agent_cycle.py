@@ -61,6 +61,17 @@ def trader_prompt(*, book_rule: str, exit_rule: str, cash_rule: str | None = Non
     )
 
 
+def option_sizing_rule(max_risk_pct: float, max_contracts: int) -> str:
+    return (
+        f"Risk about {max_risk_pct:.2%} of portfolio value. One contract on a $10,000, "
+        "$100,000, $500,000, or $1,000,000 account is wrong. "
+        f"Never exceed {max_contracts} contracts: "
+        "size to the risk target or the contract cap, whichever is smaller. "
+        "When the cap binds, trade the cap: the cap is never a reason to skip "
+        "a package that meets every other condition. Do not use the whole account."
+    )
+
+
 def interpreter_prompt(structure: str, policy: str) -> str:
     return (
         f"You are the interpreter for a {structure} strategy. Read the bull and bear cases "

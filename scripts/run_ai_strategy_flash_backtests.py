@@ -603,6 +603,9 @@ WAVE20 = (
 # Large-cap v2 ended $342 below zero cash; rerun under the cash rule.
 WAVE21 = ({**_wave8("large-cap-luna"), "name": "large-cap-luna-v3"},)
 
+# Pelosi v3 refused every ticker because the research line had no asset code.
+WAVE22 = ({**_wave8("congress-pelosi-luna"), "name": "congress-pelosi-luna-v4"},)
+
 
 def _jobs(wave: str) -> tuple[dict, ...]:
     # "7,8" runs several waves under one parent so the spend cap is shared.

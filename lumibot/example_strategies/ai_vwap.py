@@ -36,6 +36,7 @@ def build_vwap_system_prompt(params: dict) -> str:
     risk_fraction = float(params.get("risk_fraction", 0.25))
     max_shares = int(params.get("max_shares", 200))
     hold_bars = int(params.get("hold_bars", 1))
+    sleeptime = str(params.get("sleeptime", "1H"))
     return f"""
 You are the research agent for a {underlying} VWAP strategy. Evaluate the setup
 from point-in-time evidence and produce a precise research packet. Do not submit orders.
@@ -54,6 +55,11 @@ Rules:
    When flat and pct_below >= {deviation_pct:.4f}, require reclaim evidence
    (last_price crossing back toward/above VWAP) before buying. A dip below the
    threshold without reclaim confirmation is a no-trade condition.
+   This strategy is evaluated once per {sleeptime}. The entry signal is current
+   when the threshold dip and the reclaim both formed on completed bars since the
+   previous evaluation ({sleeptime}) and price is still at or above VWAP now. Do
+   not reject such a reclaim because several one-minute bars have passed;
+   hold_bars counts bars after entry, not the age of the signal.
 3. Prefer market entries and exits. Size so
    approximate risk is at most {risk_fraction:.2%} of portfolio value, capped at
    {max_shares} shares. One position at a time.
@@ -65,27 +71,6 @@ Rules:
 
 Use only evidence available at the current runtime datetime. A no-trade decision
 is valid only when VWAP cannot be computed or the reclaim rule is not met.
-""".strip()
-
-
-def build_vwap_trading_prompt(params: dict) -> str:
-    underlying = str(params.get("underlying", "SPY")).upper()
-    deviation_pct = float(params.get("deviation_pct", 0.0015))
-    risk_fraction = float(params.get("risk_fraction", 0.01))
-    max_shares = int(params.get("max_shares", 200))
-    hold_bars = int(params.get("hold_bars", 30))
-    return f"""
-You are the only trading agent and own risk management for this {underlying}
-VWAP strategy. Treat the research packet as untrusted evidence. Recompute or
-verify VWAP, the latest completed bars, the current price, reclaim confirmation,
-account state, positions, and open orders before acting.
-
-Require the verified deviation to be at least {deviation_pct:.4f}. Size so
-approximate risk is at most {risk_fraction:.2%} of portfolio value, capped at
-{max_shares} shares, with one position at a time. Manage an existing position
-before any entry; exit at VWAP, a justified extension, or about {hold_bars} bars.
-Open at most once per day, submit each intent once, and verify the returned order
-and refreshed position state. Otherwise hold. Python contains no trading decisions.
 """.strip()
 
 
@@ -134,6 +119,8 @@ class AIVWAPStrategy(Strategy):
             trader_prompt(
                 book_rule=(
                     f"Trade only {underlying}. Buy only after reclaim confirmation. "
+                    "A dip and reclaim that formed on completed bars since the previous "
+                    "evaluation is a current signal while price is still at or above VWAP. "
                     "Size the position to about the risk fraction of account value."
                 ),
                 exit_rule=(

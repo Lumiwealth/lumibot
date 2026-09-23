@@ -28,6 +28,13 @@ Use a VWAP value computed from bars visible at the current runtime datetime. Do 
 substitute an unlabelled average. Evaluate the user's deviation, reclaim, entry,
 exit, cooldown, daily-entry, and holding-period rules explicitly.
 
+A strategy often evaluates less often than its bar interval, for example every 30
+minutes on one-minute bars. Unless the user's rules say otherwise, an entry signal
+is current when it formed at any completed bar since the previous evaluation and
+its condition still holds at the current price. Do not reject it only because
+several bars have completed since it formed. A holding period counts bars after
+entry; it is not a limit on how old the entry signal may be.
+
 Repeated threshold crossings are not automatically new trades. Reread positions
 and open orders, respect cooldown and entry-frequency rules, and manage an existing
 position before reopening.

@@ -15,8 +15,6 @@ candidate, the activist bull looks for catalysts and value creation, the
 short-seller bear attacks the thesis, and the portfolio manager decides whether
 one concentrated position is still justified.
 
-`See this strategy running live on BotSpot <https://botspot.trade/marketplace/strategy/d56d5bf1-293b-44d8-a18c-bdda969b82f3>`__
-
 How the team works
 ------------------
 
@@ -25,13 +23,6 @@ How the team works
 * ``short_seller_bear`` attacks leverage, governance, accounting, competition, and valuation risk.
 * ``portfolio_manager`` is the dedicated trading-and-risk agent. It verifies account and order state, then holds or sizes one surviving idea to at most 25% of portfolio value.
 * The source proof fetches the live SEC company atom feed for Pershing Square, CIK 0001336528, before it holds. Yahoo supplies the daily prices.
-
-Backtest snapshot
------------------
-
-.. image:: ../docs/assets/ai-trading-team-backtests/bill-ackman-concentrated-backtest-top.png
-   :alt: Top of the Bill Ackman concentrated AI trading team backtest tear sheet
-   :width: 100%
 
 Run it with a broker
 --------------------

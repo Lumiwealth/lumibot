@@ -63,22 +63,32 @@ def test_docs_community_icons_are_local_static_assets():
         assert (REPO_ROOT / "docs" / "assets" / "community" / f"{name}.svg").is_file()
 
 
-def test_ai_gallery_uses_verified_public_listings():
-    pages = [
-        "agents_examples.rst",
-        "agents_example_citadel_sector_pods.rst",
-        "agents_example_ray_dalio_idea_meritocracy.rst",
-    ]
-    text = "\n".join((REPO_ROOT / "docsrc" / page).read_text() for page in pages)
-    # September 20 read-only production audit: these are the approved regular
-    # and leveraged listings whose published main.py files own the docs source.
-    for listing_id in (
+def test_docs_never_link_withdrawn_marketplace_listings():
+    # September 23 audit: each of these listings was backed by a backtest whose
+    # simulated cash went negative (the pre-fill-drain engine), so its tear
+    # sheet overstated the result. They were unpublished and must not return
+    # to the docs until a corrected backtest is republished.
+    withdrawn = (
+        "932f3661-c552-4723-b247-869518a5d30f",
+        "4aa43848-54d6-48bf-b2e4-b266f9fec6ad",
+        "d56d5bf1-293b-44d8-a18c-bdda969b82f3",
+        "bdd324e9-8026-4115-b26e-30cccf6e00e8",
         "4fb6cf2f-272c-4a73-96e7-edd7383b1a33",
         "da83818b-f994-4163-8ef3-99ea346325b4",
         "b00c5f9c-beea-46fe-bdba-fc65c1315d5f",
         "362a50a1-d501-4b08-8d42-c7701a363731",
-    ):
-        assert listing_id in text
+        "0b4576c7-f78b-4477-ba3a-630758fb0168",
+        "2286f75f-5ebf-450d-8cf8-803d1cdee6db",
+    )
+    pages = [REPO_ROOT / "README.md", *sorted((REPO_ROOT / "docsrc").glob("*.rst"))]
+    for page in pages:
+        text = page.read_text(encoding="utf-8")
+        for listing_id in withdrawn:
+            assert listing_id not in text, f"{page.name} links withdrawn listing {listing_id}"
+        # The May 24 leveraged ETF tear sheet came from that same overspending engine.
+        assert "ai-trading-team-tearsheet-rob-crop-2026-05-24.png" not in text, page.name
+        # So did the May 31 per-example snapshots.
+        assert "assets/ai-trading-team-backtests/" not in text, page.name
 
 
 def test_ray_and_citadel_examples_match_published_botspot_sources():

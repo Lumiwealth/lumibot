@@ -138,15 +138,6 @@ The [large-cap stock example](lumibot/example_strategies/ai_trading_team_bull_be
 
 **[See the code, run commands, and recorded results](https://lumibot.lumiwealth.com/agents_example_bull_bear_large_cap_stocks.html)**. A fresh model run can choose different trades and returns. Replaying saved decisions is different from asking the model to reason again.
 
-<details>
-<summary>View the archived April 7–May 22, 2026 backtest</summary>
-
-[![Archived large-cap AI backtest, April 7–May 22, 2026](docs/assets/ai-trading-team-backtests/bull-bear-large-cap-stocks-backtest-top.png)](https://lumibot.lumiwealth.com/agents_example_bull_bear_large_cap_stocks.html#backtest-snapshot)
-
-This report belongs to the large-cap strategy on LumiBot 4.5.42, not the SPY quickstart above. Its annualized number extrapolates a short period; it is not an observed annual return. [Inspect the historical report context and the separate current-source run](https://lumibot.lumiwealth.com/agents_example_bull_bear_large_cap_stocks.html).
-
-</details>
-
 ## Want help building your first AI trading bot?
 
 **[Join the free challenge](https://botspot.trade/challenges?utm_source=github&utm_medium=readme&utm_campaign=lumibot_ai_trading&utm_content=free_challenge)** with Rob Grzesik, creator of LumiBot. Follow the training and learn how to turn an idea into an AI trading strategy.
@@ -262,7 +253,7 @@ Built-in AI agent tools include market/account state, order inspection, DuckDB q
 
 Start with [stock opening range breakout](https://lumibot.lumiwealth.com/agents_example_ai_opening_range_breakout.html), [large-cap stock teams](https://lumibot.lumiwealth.com/agents_example_bull_bear_large_cap_stocks.html), or [macro research](https://lumibot.lumiwealth.com/macro_data.html).
 
-Explore the public [Sector Rotation AI Multi-Pod Strategy](https://botspot.trade/marketplace/strategy/0b4576c7-f78b-4477-ba3a-630758fb0168) and [Macro Insight AI: Bridgewater-Style Strategy](https://botspot.trade/marketplace/strategy/81af73b8-7dec-4941-ba35-d5a06fee6863) listings on BotSpot. Inspect their published code and available observations before using them.
+Explore the public [Macro Insight AI: Bridgewater-Style Strategy](https://botspot.trade/marketplace/strategy/81af73b8-7dec-4941-ba35-d5a06fee6863) listing on BotSpot. Inspect their published code and available observations before using them.
 
 These educational implementations have no affiliation or endorsement from the named firms or people. BotSpot plans, model usage, broker access, and data requirements may apply.
 
@@ -405,26 +396,19 @@ if __name__ == "__main__":
         trader.run_all()
 ```
 
-Example backtest artifact from this sample strategy:
-
-<p align="center">
-  <img src="docs/assets/ai-trading-team-example/ai-trading-team-tearsheet-rob-crop-2026-05-24.png" alt="AI trading team backtest tear sheet compared to SPY" width="100%">
-</p>
-
 Backtests are not expected future performance. The point is that the full AI trading team runs inside Lumibot's normal broker and backtest loops, so the decisions, orders, and artifacts are inspectable before you connect real money.
 
-**[See this AI trading team running live on BotSpot](https://botspot.trade/marketplace/strategy/4aa43848-54d6-48bf-b2e4-b266f9fec6ad)**
 
 ### More AI Trading Team Examples
 
 These examples show different ways to organize an AI trading team. Each page explains the inspiration, the agent flow, how to run it with a broker in paper mode, and how to backtest it.
 
-1. **[Citadel sector pods AI trading team](https://lumibot.lumiwealth.com/agents_example_citadel_sector_pods.html):** inspired by the pod-style structure associated with Ken Griffin's Citadel: sector specialists pitch their best ideas, a risk manager challenges crowding and drawdown risk, and a portfolio manager rotates into the strongest sector ETF. [Watch it live on BotSpot](https://botspot.trade/marketplace/strategy/0b4576c7-f78b-4477-ba3a-630758fb0168). Source: [`ai_trading_team_citadel_sector_pods.py`](lumibot/example_strategies/ai_trading_team_citadel_sector_pods.py).
-2. **[Warren Buffett value AI trading team](https://lumibot.lumiwealth.com/agents_example_warren_buffett_value.html):** uses AI agents like a patient value-investing desk: one agent digs into business quality and annual reports, one demands valuation discipline, and the portfolio manager only buys the best long-term compounder. [Watch it live on BotSpot](https://botspot.trade/marketplace/strategy/bdd324e9-8026-4115-b26e-30cccf6e00e8). Source: [`ai_trading_team_warren_buffett_value.py`](lumibot/example_strategies/ai_trading_team_warren_buffett_value.py).
+1. **[Citadel sector pods AI trading team](https://lumibot.lumiwealth.com/agents_example_citadel_sector_pods.html):** inspired by the pod-style structure associated with Ken Griffin's Citadel: sector specialists pitch their best ideas, a risk manager challenges crowding and drawdown risk, and a portfolio manager rotates into the strongest sector ETF. Source: [`ai_trading_team_citadel_sector_pods.py`](lumibot/example_strategies/ai_trading_team_citadel_sector_pods.py).
+2. **[Warren Buffett value AI trading team](https://lumibot.lumiwealth.com/agents_example_warren_buffett_value.html):** uses AI agents like a patient value-investing desk: one agent digs into business quality and annual reports, one demands valuation discipline, and the portfolio manager only buys the best long-term compounder. Source: [`ai_trading_team_warren_buffett_value.py`](lumibot/example_strategies/ai_trading_team_warren_buffett_value.py).
 3. **[Ray Dalio idea meritocracy AI trading team](https://lumibot.lumiwealth.com/agents_example_ray_dalio_idea_meritocracy.html):** turns Bridgewater-style thoughtful disagreement into a macro ETF workflow, with growth, inflation, liquidity, and disagreement agents arguing before the trader acts. [Watch it live on BotSpot](https://botspot.trade/marketplace/strategy/81af73b8-7dec-4941-ba35-d5a06fee6863). Source: [`ai_trading_team_ray_dalio_idea_meritocracy.py`](lumibot/example_strategies/ai_trading_team_ray_dalio_idea_meritocracy.py).
-4. **[Bill Ackman concentrated AI trading team](https://lumibot.lumiwealth.com/agents_example_bill_ackman_concentrated.html):** inspired by Pershing Square-style concentrated investing: find one great business, make the activist bull case, attack it like a short seller, then let the portfolio manager take a focused position if the thesis survives. [Watch it live on BotSpot](https://botspot.trade/marketplace/strategy/d56d5bf1-293b-44d8-a18c-bdda969b82f3). Source: [`ai_trading_team_bill_ackman_concentrated.py`](lumibot/example_strategies/ai_trading_team_bill_ackman_concentrated.py).
-5. **[Bull/bear leveraged ETF AI trading team](https://lumibot.lumiwealth.com/agents_example_bull_bear_leveraged_etf.html):** a fast, aggressive demo where bull and bear agents debate leveraged long and inverse ETFs before the trader rotates into one high-conviction ETF. [Watch it live on BotSpot](https://botspot.trade/marketplace/strategy/4aa43848-54d6-48bf-b2e4-b266f9fec6ad). Source: [`ai_trading_team_bull_bear_leveraged_etf.py`](lumibot/example_strategies/ai_trading_team_bull_bear_leveraged_etf.py).
-6. **[Bull/bear large-cap stocks AI trading team](https://lumibot.lumiwealth.com/agents_example_bull_bear_large_cap_stocks.html):** the same debate structure applied to familiar large-cap stocks, which makes it easier to inspect each agent's reasoning before using more volatile instruments. [Watch it live on BotSpot](https://botspot.trade/marketplace/strategy/932f3661-c552-4723-b247-869518a5d30f). Source: [`ai_trading_team_bull_bear_large_cap_stocks.py`](lumibot/example_strategies/ai_trading_team_bull_bear_large_cap_stocks.py).
+4. **[Bill Ackman concentrated AI trading team](https://lumibot.lumiwealth.com/agents_example_bill_ackman_concentrated.html):** inspired by Pershing Square-style concentrated investing: find one great business, make the activist bull case, attack it like a short seller, then let the portfolio manager take a focused position if the thesis survives. Source: [`ai_trading_team_bill_ackman_concentrated.py`](lumibot/example_strategies/ai_trading_team_bill_ackman_concentrated.py).
+5. **[Bull/bear leveraged ETF AI trading team](https://lumibot.lumiwealth.com/agents_example_bull_bear_leveraged_etf.html):** a fast, aggressive demo where bull and bear agents debate leveraged long and inverse ETFs before the trader rebalances to one direction per index. Source: [`ai_trading_team_bull_bear_leveraged_etf.py`](lumibot/example_strategies/ai_trading_team_bull_bear_leveraged_etf.py).
+6. **[Bull/bear large-cap stocks AI trading team](https://lumibot.lumiwealth.com/agents_example_bull_bear_large_cap_stocks.html):** the same debate structure applied to familiar large-cap stocks, which makes it easier to inspect each agent's reasoning before using more volatile instruments. Source: [`ai_trading_team_bull_bear_large_cap_stocks.py`](lumibot/example_strategies/ai_trading_team_bull_bear_large_cap_stocks.py).
 
 ## Run Lumibot Without Managing Servers
 

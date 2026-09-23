@@ -56,9 +56,12 @@ source:
 Set ``BACKTESTING_START`` and ``BACKTESTING_END`` in ``YYYY-MM-DD`` format to
 choose an exact historical window.
 
-The January 2026 Alpaca proof opened one SPY iron condor with
-``orders_submit_multileg`` on January 5 and closed it on January 12. The tear
-sheet is a real QuantStats file and the account was not wrecked.
+The latest run used ``openai/gpt-6-luna`` on high reasoning with Alpaca option
+history from January 5 to 15, 2026. On January 5 it opened 38 SPY February 13
+iron condors (645/650 puts and 715/720 calls) at real Alpaca prices through
+``orders_submit_multileg``, sized to the risk budget. The account ended at
+$99,734 with the package still open. This is one short simulation, not a
+performance claim.
 
 .. literalinclude:: ../lumibot/example_strategies/ai_iron_condor.py
    :language: python

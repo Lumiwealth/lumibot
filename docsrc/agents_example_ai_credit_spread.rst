@@ -44,9 +44,11 @@ results validate mechanics without claiming strategy profitability.
 
 Set ``BACKTESTING_START`` and ``BACKTESTING_END`` to choose an exact window.
 
-The January 2026 Alpaca proof opened one SPY put credit spread with
-``orders_submit_multileg`` on January 5 and closed it on January 12. The tear
-sheet is a real QuantStats file. One contract did not wreck a $100,000 account.
+The latest run used ``openai/gpt-6-luna`` on high reasoning with Alpaca option
+history from January 5 to 15, 2026. On January 5 it sold 33 SPY February 13
+655/650 put credit spreads at real Alpaca prices through
+``orders_submit_multileg``, sized to the risk budget. The account ended at
+$100,627. This is one short simulation, not a performance claim.
 
 .. literalinclude:: ../lumibot/example_strategies/ai_credit_spread.py
    :language: python

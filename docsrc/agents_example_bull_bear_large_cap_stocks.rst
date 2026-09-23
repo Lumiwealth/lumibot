@@ -10,12 +10,10 @@ but applies it to familiar large-cap stocks. It is a cleaner starting point for
 people who want to understand the AI agent behavior before using more volatile
 leveraged instruments.
 
-The researcher picks the strongest stock, the bull agent argues the upside
-case, the bear agent forces a risk check, and the trader decides whether to
-rotate into the pick. Because the symbols are recognizable, it is easier to
+The researcher ranks the stocks, the bull and bear agents argue both sides, the
+interpreter turns the debate into account weights, and the trader rebalances to
+those weights. Because the symbols are recognizable, it is easier to
 read the trace and decide whether the agents are making sensible arguments.
-
-`View the BotSpot marketplace listing <https://botspot.trade/marketplace/strategy/932f3661-c552-4723-b247-869518a5d30f>`__
 
 How the team works
 ------------------
@@ -23,19 +21,8 @@ How the team works
 * ``researcher`` ranks the large-cap stock universe.
 * ``bull`` argues for the strongest upside case.
 * ``bear`` flags the biggest risk.
-* ``trader`` is the dedicated trading-and-risk agent. It verifies account and order state, then holds or sizes one stock to at most 20% of portfolio value.
-* The January 2026 price proof used Yahoo daily bars and bought 1 share of Apple. The universe is large-cap names such as Apple, Microsoft, and Nvidia.
-
-Backtest snapshot
------------------
-
-Historical saved report from LumiBot 4.5.42, April 7–May 22, 2026. This is not
-the current five-day tutorial run. The annualized figure extrapolates a short
-historical window; it is not an observed annual return or a forecast.
-
-.. image:: ../docs/assets/ai-trading-team-backtests/bull-bear-large-cap-stocks-backtest-top.png
-   :alt: Top of the bull bear large cap stocks AI trading team backtest tear sheet
-   :width: 100%
+* ``interpreter`` weighs both cases and returns target weights for the account.
+* ``trader`` is the only agent that can place orders. It reads the account once, sells names the weights dropped, leaves holdings within 2 percentage points of target alone, and never buys more than its cash.
 
 Start with a historical backtest
 --------------------------------
@@ -48,7 +35,7 @@ virtual environment and configure your model account:
    python -m pip install -e .
    export OPENAI_API_KEY="your-openai-key"
    export AI_EXAMPLE_MODEL="openai/gpt-6-luna"
-   export LUMIBOT_AGENT_MAX_MODEL_CALLS="40"
+   export LUMIBOT_AGENT_MAX_MODEL_CALLS="80"
 
 Save the following complete runner as ``stock_team_backtest.py`` in the checkout:
 
@@ -63,11 +50,11 @@ Save the following complete runner as ``stock_team_backtest.py`` in the checkout
    if __name__ == "__main__":
        AITradingTeamBullBearLargeCapStocksStrategy.backtest(
            YahooDataBacktesting,
-           datetime(2026, 4, 6),
-           datetime(2026, 4, 11),
+           datetime(2026, 1, 5),
+           datetime(2026, 1, 16),
            budget=100_000,
            benchmark_asset="SPY",
-           parameters={"universe": ["AAPL", "MSFT", "NVDA"], "max_position_pct": 0.20},
+           parameters={"universe": ["AAPL", "MSFT", "NVDA", "AMZN"]},
        )
 
 .. code-block:: bash
@@ -75,47 +62,32 @@ Save the following complete runner as ``stock_team_backtest.py`` in the checkout
    python stock_team_backtest.py
 
 This imports the existing strategy class without invoking its broker runner.
-It uses Yahoo daily prices, three stocks, and daily agent decisions over April
-6–10, 2026. Broker credentials are not required for this runner. The $100,000
+It uses Yahoo daily prices, four stocks, and daily agent decisions over January
+5 to 15, 2026. Broker credentials are not required for this runner. The $100,000
 budget is simulated portfolio capital, not a model-spending allowance.
 
-The researcher, bull, bear, and trader each run during a decision cycle, and a
+The researcher, bull, bear, interpreter, and trader each run during a decision cycle, and a
 run can include several provider calls. Model usage may incur charges. The
 agent-call limit is not a dollar cap; a limit exit is incomplete. The trader is
-the only agent allowed to execute and owns the final risk check, including the
-20% maximum target-position cap.
+the only agent allowed to execute and owns the final risk check.
 
 Inspect the decision summaries and generated backtest artifacts. Reconcile the
 selected stock, submitted orders, fills or no-action outcome, and terminal run
 status.
 
-Archived pre-risk-correction run
---------------------------------
+Latest run
+----------
 
-The following evidence was produced from source commit
-``a5969317cf37f2fa9035c214e5e9be2023afbd2a`` with Yahoo data,
-``openai/gpt-6-luna`` on high reasoning, and the three-symbol universe above. The four agents
-completed 20 decision cycles through the April 10 close. Provider continuations
-made 183 model calls and cost $0.5078 at the recorded input, cached-input, and
-output-token rates. It predates the current trading-and-risk prompt and 20%
-position cap, so it proves the older workflow only and is not current-source
-validation.
+The runner above was checked with ``openai/gpt-6-luna`` on high reasoning,
+Yahoo daily prices, and a $100,000 simulated account from January 5 to 15,
+2026. On January 5 the trader split the account across NVDA, AAPL, AMZN, and
+MSFT, spending about $98,700. On later sessions it resized toward each day's
+weights and never bought and sold the same stock on the same day. Cash stayed
+positive the whole run; the lowest balance was $206.
 
-The backtesting broker recorded one submitted market order and one fill: 580
-shares of NVDA at $177.16 on April 6. The strategy held that position through
-the end of the window. Portfolio value moved from $100,000 to $102,714.40, a
-2.71% return over the run. The generated tear sheet reports a 2.89% maximum
-drawdown. These figures describe this short historical simulation only; they do
-not forecast future performance.
-
-The run saved ``stats.csv``, ``trades.csv``, ``lumibot.log``,
-``tearsheet.html``, and ``tearsheet_metrics.json``. Five researcher calls first
-sent both mutually exclusive indicator-batch inputs, received a visible error,
-and recovered. The strategy still completed, but the trace shows why a full
-log review matters. The trader also used concentrated sizing that temporarily
-made simulated cash negative. Treat the example as an inspectable agent
-workflow, not evidence for the corrected risk contract. Historical LLM
-knowledge can extend beyond the simulated date.
+The account ended at $97,844, down 2.16%, while SPY rose about 1% over the
+same window. The largest drawdown was 2.5%. This is one short simulation, not a
+forecast, and a fresh model run can choose different weights.
 
 Run the existing broker entry point
 -----------------------------------

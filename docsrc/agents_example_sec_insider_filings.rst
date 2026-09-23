@@ -26,6 +26,9 @@ Point-in-time safety: in a backtest, the SEC tools cap every ``as_of`` at the
 backtest clock. An agent cannot see a filing accepted after that moment, even
 if it passes a later date.
 
+This example does not ship sample trades. Every trade comes from real SEC
+filings the agents read at run time.
+
 Parameters:
 
 - ``watchlist``: the tickers the strategy may hold.

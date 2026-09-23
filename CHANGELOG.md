@@ -1,6 +1,6 @@
 # Changelog
 
-## 4.5.92 - Unreleased
+## 4.5.92 - 2026-09-23
 
 ### Growth documentation and examples
 - Added point-in-time Congress-disclosure and SEC Form 4 agent examples, plus a stateful authenticated-browser research/trade/publish showcase with publishing disabled by default.
@@ -64,6 +64,10 @@
   `OptionsHelper` expiration hint, cached per day in memory and on disk. Requests stay under
   the free-tier limit and wait on HTTP 429 with a bounded retry. New public page
   `docsrc/backtesting.alpaca.rst`; proof runs in `docs/research/2026-09-23-alpaca-options-backtests/`.
+- Managed agents accept OpenAI GPT-6 Luna (`gpt-6-luna` or `openai/gpt-6-luna`) with a
+  reasoning effort. Its model information is registered with LiteLLM, which has no GPT-6
+  entry yet, so reasoning is accepted and tool calls with reasoning use the Responses API.
+  Default agent models are unchanged in this release.
 
 ### Fixed
 - Alpaca option bars are no longer reindexed and forward/back filled like stock bars. That

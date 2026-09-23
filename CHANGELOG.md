@@ -91,6 +91,10 @@ Deploy marker: `180c340ccf48`
   option; an explicit config keeps the old stop three sessions early), and writes progress.csv. The
   option contract list retries once on the other Trading API endpoint after a 401, and bar requests
   stop 16 minutes before now (free keys refuse the latest 15 minutes of SIP data).
+- `AlpacaBacktesting` had no `get_quote()`, so `OptionsHelper` failed every expiration probe on
+  Alpaca option backtests. It now returns the last real trade as the price with bid and ask `None`
+  (Alpaca historical option data is trade bars only), and option last price at the first bars of
+  the window reaches back for real prints from before the start.
 - Lookahead: `AlpacaBacktesting.get_historical_prices()` returned the bar that was still forming
   at the simulated time, with its final close, high, low and volume (the 10:00 five-minute bar at
   10:00, today's daily bar at 09:30). In environment mode (`BACKTESTING_DATA_SOURCE=alpaca`, the

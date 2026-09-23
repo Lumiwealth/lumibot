@@ -2,7 +2,7 @@
 
 One-line description: bring-your-own-key options backtests on Alpaca now work end to end, and the IBKR "same underfilled request every bar" loop seen on 4.5.92 is fixed (it is a latent bug, not a 4.5.92 change).
 
-Last Updated: 2026-09-23
+Last Updated: 2026-09-23 (follow-up: BACKTESTING_DATA_SOURCE=alpaca path)
 Status: Fixed on `version/4.5.92`, not released
 Audience: LumiBot maintainers, BotSpot release captain, Bot Manager owners
 
@@ -222,6 +222,81 @@ minute for everyone).
   missing sessions at both edges are still fetched, and the calendar helper (holiday, overnight,
   weekend, pre-market, early close).
 
+## Follow-up: Alpaca through `BACKTESTING_DATA_SOURCE=alpaca` (the BotSpot path)
+
+### How BotSpot builds an Alpaca backtest
+
+- BotSpot Node (`botspot_node/src/services/dataAccess.service.ts`, provider `alpaca`) sets
+  `BACKTESTING_DATA_SOURCE=alpaca`, hard-codes `ALPACA_IS_PAPER=true`, and passes
+  `ALPACA_OAUTH_TOKEN` and/or `ALPACA_API_KEY`/`ALPACA_API_SECRET` from the user's environment.
+- Bot Manager (`flask_app.py` backtest start) copies that `bot_config` into the task environment
+  with `BACKTESTING_START`/`BACKTESTING_END`; `bootstrap_backtest.py` only uses the data source
+  name for cache prefixes and runs the strategy's `main.py`.
+- The generated strategy template (`botspot_agent` `shared_strategy_structure.md`) calls
+  `backtest(datasource_class=None, benchmark_asset=..., quote_asset=..., parameters=...)`: no
+  config, no timestep, no dates.
+- LumiBot then maps `alpaca` to `AlpacaBacktesting` and builds it through the generic branch of
+  `run_backtest` with `config=None`.
+
+### What was wrong on that path
+
+1. `config=None` raised `ValueError("Config cannot be None")`, so every such backtest failed
+   before its first bar.
+2. With a config but no timestep it defaulted to daily bars: an intraday strategy would read the
+   day's open all day and fill intraday orders at the day's open.
+3. It stopped at the open of the third-to-last trading day of the window.
+4. `log_backtest_progress_to_file` from `run_backtest` was not forwarded, so no progress.csv.
+5. Found while checking the credentials path: `ALPACA_IS_PAPER` is always `true` from BotSpot, so
+   a live-account key gets 401 from the paper Trading API (option contract list), and a window
+   clamped to "now" asked Alpaca for bars up to tomorrow, which free keys refuse ("subscription
+   does not permit querying recent SIP data").
+
+### Fix (`lumibot/backtesting/alpaca_backtesting.py`)
+
+- Environment mode: when no config is passed (this used to raise, so no caller depended on it),
+  credentials come from `ALPACA_API_KEY`, `ALPACA_API_SECRET`, `ALPACA_OAUTH_TOKEN` and
+  `ALPACA_IS_PAPER`; bars default to minute (not marked explicit, so `StrategyExecutor` still
+  switches a daily-cadence strategy to day bars and it downloads no minute history); and the
+  backtest runs through `backtesting_end` like every other source (`full_window`, default True in
+  environment mode). An explicit config keeps the legacy defaults, which the legacy tests pin.
+- Progress-file settings are forwarded to the base class.
+- The option contract list retries once on the other Trading API endpoint after a 401/403
+  (read-only; backtests never send orders).
+- Bar requests stop 16 minutes before now.
+- ThetaData, IBKR and the BotSpot Auto router are untouched.
+
+### Tests (red first, then green)
+
+In `tests/test_alpaca_backtesting_multitimeframe_unit.py`, through the real env-var selection
+(`run_backtest(datasource_class=None)` with `BACKTESTING_DATA_SOURCE=alpaca` and only
+environment credentials; the SDK clients are faked at the module boundary):
+
+- intraday 5-minute strategy: minute timestep, every session of the window (Aug 3 to Aug 7),
+  last price at 10:00 is the 10:00 minute bar, the market order at 09:40 fills on the 09:40
+  minute bar;
+- daily strategy: day bars only (no minute requests), all five sessions;
+- options: `get_chains()` plus a market order fills on the next real print (09:37);
+- 401 on the paper endpoint lists contracts from the live endpoint;
+- the bar request never reaches the latest 15 minutes.
+
+Red before the fix: the three backtests raised "Config cannot be None", the 401 test raised
+`APIError: unauthorized`, and the request end was tomorrow 03:59:59 UTC.
+
+### Real runs selected only by the environment
+
+`scripts/alpaca_env_selection_proof.py` with `BACKTESTING_DATA_SOURCE=alpaca`,
+`ALPACA_IS_PAPER=true`, the paper key, and `BACKTESTING_START`/`BACKTESTING_END`, calling
+`backtest(datasource_class=None)`. Evidence in `docs/research/2026-09-23-alpaca-options-backtests/`
+(`alpaca_env_*`); `settings.json` records `backtesting_data_sources: alpaca`.
+
+- SPY 5-minute opening range breakout, `BACKTESTING_START=2026-08-03`,
+  `BACKTESTING_END=2026-08-08`: `sleeptime` 5M, simulated through 2026-08-07 23:59 (the legacy
+  stop would have ended at the 2026-08-05 open). Ranges from the completed 09:30, 09:35 and 09:40
+  bars; 4 round trips, no breakout on Aug 5; net +$125.65 on 10 shares. Fills match raw Alpaca
+  minute bars (09:55 open 752.765, 10:30 open 773.16, 15:50 opens 758.15 and 772.85).
+- Weekly SPY call, `BACKTESTING_START=2026-07-27`, `BACKTESTING_END=2026-08-15`: trades are
+  identical to the explicit-class 2026 run (which had to pass an end date three sessions later).
+
 ## Test results
 
 Run with `LUMIBOT_DISABLE_DOTENV_LOCAL=1 LUMIBOT_CACHE_BACKEND=local LUMIBOT_CACHE_MODE=disabled`
@@ -236,6 +311,10 @@ Run with `LUMIBOT_DISABLE_DOTENV_LOCAL=1 LUMIBOT_CACHE_BACKEND=local LUMIBOT_CAC
 | `pytest tests -k "alpaca or Alpaca" -m "not apitest and not downloader"` | 104 passed, 2 skipped |
 | `pytest tests -k "backtesting_broker or order_lifecycle or options_helper or backtest_lookahead or lookahead" -m "not apitest and not downloader"` | 157 passed, 4 skipped |
 | 16 daily-sleeptime related test files (executor priming change) | 190 passed, 2 skipped |
+| Follow-up: `pytest tests/test_alpaca_backtesting_multitimeframe_unit.py` | 18/18 |
+| Follow-up: `pytest tests -k "alpaca or Alpaca" -m "not apitest and not downloader"` | 109 passed, 2 skipped |
+| Follow-up: `pytest tests/test_strategy_backtest_env_override.py tests/test_backtesting_data_source_env.py tests/test_backtest_runtime_timings.py tests/test_backtesting_broker.py` | 60/60 |
+| Follow-up: `pytest tests/test_alpaca_backtesting.py` (apitest, paper key) | 38/38 |
 
 Environment notes: the local `ALPACA_TEST_API_KEY` is revoked (401 on data and trading), so
 the Alpaca apitest file was run with a valid paper key exported as `ALPACA_TEST_API_KEY`.
@@ -253,15 +332,12 @@ Nothing here is released. When a release captain is authorized:
 2. Bot Manager: the promoted 4.5.92 runtime bundle predates these commits and still has the
    IBKR loop. Rebuild the bundle (or set `LUMIBOT_VERSION` to the released version with
    `force_rebuild_images=true`), Dev then production, and check `settings.json.lumibot_version`.
-3. BotSpot product wiring for "bring your own Alpaca key" is not in LumiBot yet. The router's
-   Alpaca adapter reads `ALPACA_API_KEY`/`ALPACA_API_SECRET` (or the OAuth token) from the
-   process environment and only serves bars, and `RoutedBacktestingPandas` inherits ThetaData's
-   `get_chains()`, so routed chains still come from ThetaData whatever the option route says.
-   Options backtests on BotSpot need either `BACKTESTING_DATA_SOURCE=alpaca` with the customer's
-   Alpaca credentials injected into the backtest environment, or a router change that sends
-   option bars and chains to Alpaca. Note that `AlpacaBacktesting` selected that way gets no
-   `timestep` argument and uses daily bars (option fills on the day's bar), and it ends three
-   trading days before `backtesting_end` (existing behavior).
+3. BotSpot: the `alpaca` provider path (`BACKTESTING_DATA_SOURCE=alpaca` plus the customer's
+   credentials) now works end to end for stocks and options once this LumiBot ships; nothing in
+   BotSpot Node or Bot Manager has to change for it. The BotSpot Auto router is unchanged: it
+   still sends options to ThetaData, its Alpaca adapter only serves bars, and
+   `RoutedBacktestingPandas` inherits ThetaData's `get_chains()`. Customers who pick Auto do not
+   get Alpaca options.
 
 ## Open items
 
@@ -269,6 +345,14 @@ Nothing here is released. When a release captain is authorized:
   options on a carried-forward bar (Task C: sold at 15:30 on the 15:18 print). Same class of
   problem fixed here for Alpaca; needs its own change and tests.
 - `AlpacaBacktesting` stock/crypto calendar fill (`_reindex_and_fill`) predates RULE #1.
+- `AlpacaBacktesting.get_historical_prices()` includes the intraday bar that is still forming at
+  the simulated time (`remove_incomplete_current_bar=False`, the historical Alpaca default), so a
+  signal built on the last 5-minute bar sees up to one bar of the future. The proof strategy
+  filters to completed bars. Changing the default needs the broker fill path (which relies on the
+  current bar's open) to request the current bar explicitly first; both the explicit and
+  environment modes are affected.
+- An explicit config still stops three sessions early (legacy tests pin it); `full_window=True`
+  opts out.
 - `LUMIBOT_OPTION_CHAIN_MAX_DAYS` (Polygon chain bound) is not in `docsrc/environment_variables.rst`.
 - The chain lookahead (strikes listed after the simulated date) could be tightened by dropping
   contracts whose first bar is after the simulated date, at the cost of one bar request each.

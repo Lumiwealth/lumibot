@@ -20,3 +20,13 @@ Polygon minute aggregates for O:SPY260810C00751000 on 2026-08-07 between 15:10 a
 PolygonDataBacktesting picked the same contract (SPY 2026-08-10 751 call), bought at 4.99 at 09:35
 like Alpaca, but sold at 15:30 at 22.11, the stale 15:18 print. The Pandas-based Polygon path fills
 sparse options on a carried-forward bar; AlpacaBacktesting now waits for the 15:39 print (21.91).
+
+Environment-selected runs (BACKTESTING_DATA_SOURCE=alpaca, backtest(datasource_class=None), no config,
+no timestep; credentials and dates from the environment, like BotSpot):
+SPY 5-minute opening range breakout, 2026-08-03 to 2026-08-07:
+  SPY 2026-08-03 09:50 five-minute bar close 752.76 (> range high 751.94) -> buy at the 09:55 minute open 752.765
+  SPY 2026-08-03 15:50 minute open 758.15 -> sell fill 758.15
+  SPY 2026-08-07 10:25 five-minute bar close 773.19 (> range high 772.09) -> buy at the 10:30 minute open 773.16
+  SPY 2026-08-07 15:50 minute open 772.85 -> sell fill 772.85
+Weekly SPY call, 2026-07-27 to 2026-08-14 (BACKTESTING_END=2026-08-15): trades identical to the
+explicit-class run above, which had to pass an end date three sessions later.

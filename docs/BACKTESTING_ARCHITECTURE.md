@@ -596,6 +596,10 @@ df = df[~all_zero]
    cached in memory and as JSON in `LUMIBOT_CACHE_FOLDER/alpaca/option_chains`.
 4. `BacktestingBroker` requires an Alpaca option bar that printed in the current minute/day
    to fill (`_requires_current_execution_bar`). Orders wait for the next real print.
+5. Environment mode (no `config`, which is how `BACKTESTING_DATA_SOURCE=alpaca` builds it in
+   BotSpot): credentials from `ALPACA_*` variables, minute bars by default (daily-cadence
+   strategies are still primed to day bars), and the run goes through `backtesting_end`. An
+   explicit config keeps the legacy daily default and the stop three sessions early.
 
 **Limits:** option history from about February 2024; the contract listing has no as-of date
 (small lookahead in listed strikes); no historical option bid/ask or vendor greeks; free-tier

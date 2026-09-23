@@ -1,0 +1,94 @@
+{
+  "name": "alpaca_env_orb_2026",
+  "backtesting_start": "2026-08-03 00:00:00-04:00",
+  "backtesting_end": "2026-08-07 23:59:00-04:00",
+  "budget": 10000,
+  "risk_free_rate": 0.037100000381469725,
+  "minutes_before_closing": 1,
+  "minutes_before_opening": 60,
+  "sleeptime": "5M",
+  "auto_adjust": false,
+  "quote_asset": {
+    "py/object": "lumibot.entities.asset.Asset",
+    "symbol": "USD",
+    "asset_type": {
+      "py/reduce": [
+        {
+          "py/type": "lumibot.entities.asset.Asset.AssetType"
+        },
+        {
+          "py/tuple": [
+            "forex"
+          ]
+        }
+      ]
+    },
+    "strike": 0.0,
+    "multiplier": 1,
+    "precision": null,
+    "underlying_asset": null,
+    "leverage": 1,
+    "expiration": null,
+    "auto_expiry": null,
+    "right": null,
+    "_cached_asset_type_key": "forex",
+    "_cached_hash": -8495304211067717458,
+    "_cached_minimal_dict": {
+      "symbol": "USD",
+      "type": "forex"
+    }
+  },
+  "benchmark_asset": {
+    "py/object": "lumibot.entities.asset.Asset",
+    "symbol": "SPY",
+    "asset_type": {
+      "py/reduce": [
+        {
+          "py/type": "lumibot.entities.asset.Asset.AssetType"
+        },
+        {
+          "py/tuple": [
+            "stock"
+          ]
+        }
+      ]
+    },
+    "strike": 0.0,
+    "multiplier": 1,
+    "precision": null,
+    "underlying_asset": null,
+    "leverage": 1,
+    "expiration": null,
+    "auto_expiry": null,
+    "right": null,
+    "_cached_asset_type_key": "stock",
+    "_cached_hash": -2351251265861178738,
+    "_cached_minimal_dict": {
+      "symbol": "SPY",
+      "type": "stock"
+    }
+  },
+  "starting_positions": null,
+  "parameters": {
+    "symbol": "SPY",
+    "shares": 10
+  },
+  "lumibot_version": "4.5.92",
+  "backtesting_data_sources": "alpaca",
+  "backtest_time_seconds": 0.7851691250107251,
+  "data_health": {
+    "provider": "ibkr",
+    "series_count": 0,
+    "incomplete_series_count": 0,
+    "complete": true,
+    "series": []
+  },
+  "runtime_timings": {
+    "initialize_entered_at": "2026-09-23T10:20:48.111112+00:00",
+    "initialize_completed_at": "2026-09-23T10:20:48.111119+00:00",
+    "first_simulation_advance_at": "2026-09-23T10:20:48.188144+00:00",
+    "first_callback_entered_at": "2026-09-23T10:20:48.188419+00:00",
+    "reports_started_at": "2026-09-23T10:20:48.895931+00:00",
+    "reports_completed_at": "2026-09-23T10:20:51.606437+00:00"
+  }
+}

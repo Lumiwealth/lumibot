@@ -23,6 +23,31 @@ Set your Alpaca keys in the environment (a paper account is required for backtes
 An OAuth token (``ALPACA_OAUTH_TOKEN``) works as well. API key and secret take precedence,
 the same as the live Alpaca broker.
 
+Selecting Alpaca from the environment
+-------------------------------------
+
+You do not have to pass a data source or a config. Set ``BACKTESTING_DATA_SOURCE=alpaca`` and
+call ``backtest()`` with ``datasource_class=None`` (this is how BotSpot runs Alpaca backtests):
+
+.. code-block:: bash
+
+    BACKTESTING_DATA_SOURCE=alpaca
+    ALPACA_API_KEY=<your-alpaca-key>
+    ALPACA_API_SECRET=<your-alpaca-secret>
+    ALPACA_IS_PAPER=true
+    BACKTESTING_START=2026-08-03
+    BACKTESTING_END=2026-08-08
+
+.. code-block:: python
+
+    MyStrategy.backtest(datasource_class=None, benchmark_asset="SPY")
+
+Without a config, ``AlpacaBacktesting`` reads the credentials above, uses minute bars (a
+strategy that sleeps a day or more still gets daily bars), and runs through
+``BACKTESTING_END`` like every other data source. Option chains and option fills work the
+same way as below. If the paper Trading API rejects a live-account key, the read-only option
+contract list is fetched from the live endpoint instead; backtests never send orders.
+
 Options example
 ---------------
 
@@ -75,8 +100,9 @@ that have since expired. This strategy buys one SPY call each week and sells it 
         config={"API_KEY": "<your-alpaca-key>", "API_SECRET": "<your-alpaca-secret>", "PAPER": True},
     )
 
-``AlpacaBacktesting`` stops three trading days before ``backtesting_end``. Set the end date
-three sessions after the last day you want to trade.
+With an explicit ``config``, ``AlpacaBacktesting`` keeps its original behavior and stops three
+trading days before ``backtesting_end``. Pass ``full_window=True`` (or select Alpaca from the
+environment as shown above) to run through the end date.
 
 How option data works
 ---------------------
@@ -106,5 +132,8 @@ Known limits
   ``timestep="minute"`` when fill timing matters.
 - Free keys allow about 200 requests per minute. LumiBot throttles below that and waits on
   HTTP 429 answers before retrying a bounded number of times.
+- ``get_historical_prices()`` includes the bar that is still forming at the simulated time
+  (for example the 10:00 five-minute bar at 10:00). Build signals from completed bars only: keep
+  bars whose start time plus the bar length is at or before ``self.get_datetime()``.
 - On a free key, stock history comes from SIP (all US exchanges), but the latest 15 minutes
   are not available. End backtests at least one full day before today.

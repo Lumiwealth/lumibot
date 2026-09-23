@@ -32,4 +32,10 @@ Files per window (`2026` = 2026-07-27 to 2026-08-14 trading, `2024` = 2024-03-04
   Polygon key (`--source polygon`, `LUMIBOT_OPTION_CHAIN_MAX_DAYS=21`). It works end to end; the
   cross-check file shows its 15:30 exit filled on the stale 15:18 print.
 
+- `alpaca_env_orb_2026_*`, `alpaca_env_weekly_call_2026_*`: the same data source selected ONLY through
+  `BACKTESTING_DATA_SOURCE=alpaca` (the BotSpot path: `backtest(datasource_class=None)`, no config, no
+  timestep, credentials and `BACKTESTING_START`/`BACKTESTING_END` from the environment), with
+  `scripts/alpaca_env_selection_proof.py`. `orb` is a SPY 5-minute opening range breakout
+  (2026-08-03 to 2026-08-07); `weekly_call` reproduces the 2026 options trades exactly.
+
 These are one-contract engineering proof runs, not a strategy result.

@@ -72,6 +72,13 @@
   before the first trade, `BacktestingBroker` fills Alpaca options only on a bar that printed
   in the current minute or day, and a contract with no bars logs one clear error instead of
   crashing. Option cache files carry a new `_TRADES` key so old filled files are not reused.
+- `BACKTESTING_DATA_SOURCE=alpaca` with `backtest(datasource_class=None)` (how BotSpot runs Alpaca
+  backtests) failed with "Config cannot be None". Without a config, `AlpacaBacktesting` now reads
+  `ALPACA_API_KEY`/`ALPACA_API_SECRET`/`ALPACA_OAUTH_TOKEN`/`ALPACA_IS_PAPER`, defaults to minute bars
+  (daily-cadence strategies still get day bars), runs through `backtesting_end` (new `full_window`
+  option; an explicit config keeps the old stop three sessions early), and writes progress.csv. The
+  option contract list retries once on the other Trading API endpoint after a 401, and bar requests
+  stop 16 minutes before now (free keys refuse the latest 15 minutes of SIP data).
 - `AlpacaBacktesting.LUMIBOT_DEFAULT_QUOTE_ASSET` was `None` after the lazy AlpacaData quote
   change, which broke `_get_asset_key(quote_asset=None)` in the legacy Alpaca backtest tests.
 - An explicit `AlpacaBacktesting(timestep="minute")` is no longer switched to day bars when

@@ -165,6 +165,7 @@ def test_model_context_registry_uses_known_provider_overrides(monkeypatch):
 
     assert _model_context_limit_tokens("gemini-3.1-flash-lite") == 1_048_576
     assert _model_context_limit_tokens("openai/gpt-4.1-mini") == 1_047_576
+    assert _model_context_limit_tokens("openai/gpt-6-luna") == 922_000
     assert _model_context_limit_tokens("anthropic/claude-sonnet-4-6") == 200_000
     assert _model_context_limit_tokens("xai/grok-4.20-0309-reasoning") == 2_000_000
 
@@ -311,6 +312,50 @@ def test_openai_model_forwards_prompt_cache_key_and_24h_retention(monkeypatch):
     assert created["model"] == "openai/gpt-5.4-mini"
     assert created["prompt_cache_key"] == "stable-prefix-key"
     assert created["prompt_cache_retention"] == "24h"
+
+
+def test_gpt6_luna_forwards_reasoning_effort_and_routes_to_responses_api(monkeypatch):
+    import litellm
+
+    created: dict[str, object] = {}
+
+    class FakeLiteLlm:
+        def __init__(self, **kwargs):
+            created.update(kwargs)
+
+    fake_module = types.ModuleType("google.adk.models.lite_llm")
+    fake_module.LiteLlm = FakeLiteLlm
+    monkeypatch.setitem(sys.modules, "google.adk.models.lite_llm", fake_module)
+
+    result = _resolve_model_for_adk(
+        "openai/gpt-6-luna", prompt_cache_key="stable-prefix-key", reasoning_effort="high"
+    )
+
+    assert isinstance(result, FakeLiteLlm)
+    assert created["model"] == "openai/gpt-6-luna"
+    assert created["reasoning_effort"] == "high"
+    assert "reasoning_effort" in created["allowed_openai_params"]
+    info = litellm.get_model_info("openai/gpt-6-luna")
+    assert info["mode"] == "responses"
+    assert info["supports_function_calling"] is True
+    assert info["input_cost_per_token"] == 0.10e-6
+    assert info["output_cost_per_token"] == 0.50e-6
+
+
+def test_reasoning_effort_is_not_forwarded_when_unset(monkeypatch):
+    created: dict[str, object] = {}
+
+    class FakeLiteLlm:
+        def __init__(self, **kwargs):
+            created.update(kwargs)
+
+    fake_module = types.ModuleType("google.adk.models.lite_llm")
+    fake_module.LiteLlm = FakeLiteLlm
+    monkeypatch.setitem(sys.modules, "google.adk.models.lite_llm", fake_module)
+
+    _resolve_model_for_adk("openai/gpt-5.4-mini")
+
+    assert "reasoning_effort" not in created
 
 
 def test_litellm_model_forwards_model_request_timeout(monkeypatch):

@@ -131,6 +131,20 @@ class CredentialProfile:
 
 
 
+def _parse_http_date(value: str | None) -> datetime | None:
+    if not value:
+        return None
+    try:
+        parsed = parsedate_to_datetime(value)
+    except (TypeError, ValueError, OverflowError, IndexError):
+        return None
+    if parsed is None:
+        return None
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=timezone.utc)
+    return parsed.astimezone(timezone.utc)
+
+
 def _is_sec_host(url: str) -> bool:
     """True only when the URL's host is sec.gov or one of its subdomains.
 
@@ -444,12 +458,13 @@ class WebClient:
             response.close()
         content_type = response.headers.get("content-type", "")
         response_url = _safe_url(str(response.url))
-        published_at = None
-        if response.headers.get("date"):
-            try:
-                published_at = parsedate_to_datetime(response.headers["date"]).astimezone(timezone.utc).isoformat()
-            except (TypeError, ValueError, OverflowError):
-                published_at = None
+        response_date = _parse_http_date(response.headers.get("date"))
+        last_modified = _parse_http_date(response.headers.get("last-modified"))
+        # The returned bytes have existed since Last-Modified; Date is only when they were served.
+        if last_modified is not None and (response_date is None or last_modified <= response_date):
+            published_at = last_modified.isoformat()
+        else:
+            published_at = response_date.isoformat() if response_date is not None else None
         content_sha256 = hashlib.sha256(content).hexdigest()
         result: dict[str, Any] = {
             "id": content_sha256,
@@ -480,7 +495,12 @@ class WebClient:
             elif "pdf" in content_type.lower() or content.startswith(b"%PDF"):
                 from lumibot.components.house_ptr import pdf_bytes_to_text, reflow_ptr_text
 
-                extracted = reflow_ptr_text(pdf_bytes_to_text(content)).strip()
+                try:
+                    extracted = reflow_ptr_text(pdf_bytes_to_text(content)).strip()
+                except Exception as exc:
+                    result["text_error"] = f"Could not extract PDF text: {type(exc).__name__}: {exc}"
+                    result["body_base64"] = base64.b64encode(content).decode("ascii")
+                    return result
                 if len(extracted) > 12_000:
                     result["text"] = extracted[:12_000]
                     result["text_truncated"] = True

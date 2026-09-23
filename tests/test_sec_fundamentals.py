@@ -606,6 +606,51 @@ def test_submissions_default_to_strategy_time_in_backtests(monkeypatch, tmp_path
     assert submissions["as_of"] == "2025-01-01T00:00:00+00:00"
 
 
+def test_backtest_caps_caller_as_of_at_strategy_time(monkeypatch, tmp_path):
+    class _Strategy:
+        is_backtesting = True
+
+        @staticmethod
+        def get_datetime():
+            return datetime(2025, 1, 1, tzinfo=timezone.utc)
+
+    def fake_get(url, **kwargs):
+        if url.endswith("company_tickers.json"):
+            return _Response(payload={"0": {"ticker": "AAPL", "cik_str": 320193, "title": "Apple Inc."}})
+        if "submissions" in url:
+            return _Response(
+                payload={
+                    "cik": "0000320193",
+                    "filings": {
+                        "recent": {
+                            "form": ["4", "4"],
+                            "accessionNumber": ["old", "future"],
+                            "filingDate": ["2024-12-20", "2025-06-02"],
+                            "acceptanceDateTime": ["2024-12-20T12:00:00Z", "2025-06-02T12:00:00Z"],
+                            "primaryDocument": ["old.xml", "future.xml"],
+                        }
+                    },
+                }
+            )
+        if "Archives/edgar/data" in url:
+            raise AssertionError("future filing document must not be downloaded")
+        raise AssertionError(url)
+
+    monkeypatch.setattr("lumibot.fundamentals.sec.requests.get", fake_get)
+    sec = SECFundamentals(strategy=_Strategy(), cache_dir=tmp_path, min_request_interval_seconds=0)
+
+    filings = sec.get_filings("AAPL", form="4", as_of="2026-01-01T00:00:00Z")
+
+    assert [row["accession_number"] for row in filings["filings"]] == ["old"]
+    with pytest.raises(ValueError, match="was not public as of"):
+        sec.get_filing_document(
+            "AAPL",
+            accession_number="future",
+            primary_document="future.xml",
+            as_of="2026-01-01T00:00:00Z",
+        )
+
+
 def test_search_filing_threads_explicit_as_of_to_document_availability(monkeypatch, tmp_path):
     def fake_get(url, **kwargs):
         if url.endswith("company_tickers.json"):

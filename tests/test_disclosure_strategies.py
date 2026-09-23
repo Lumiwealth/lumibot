@@ -329,6 +329,25 @@ def test_insider_strategy_has_researcher_and_dedicated_trading_risk_agent():
     assert "after as_of" in agents.calls[0][1]["context"]["clock_rule"]
 
 
+def test_insider_strategy_reads_point_in_time_form4_filings_for_a_watchlist():
+    agents = _exercise_strategy(AISECInsiderFilingsStrategy)
+
+    research_prompt = agents.created[0]["system_prompt"]
+    research_context = agents.calls[0][1]["context"]
+    trader_context = agents.calls[-1][1]["context"]
+    # The live getcurrent feed shows today's filings, so a backtest would see the future.
+    assert "feed_url" not in AISECInsiderFilingsStrategy.parameters
+    assert "getcurrent" not in repr(research_context)
+    assert "get_filings" in research_prompt and "form='4'" in research_prompt
+    assert "get_filing_document" in research_prompt
+    assert research_context["watchlist"] == list(AISECInsiderFilingsStrategy.parameters["watchlist"])
+    assert len(research_context["watchlist"]) >= 8
+    assert research_context["lookback_days"] == AISECInsiderFilingsStrategy.parameters["lookback_days"]
+    assert trader_context["watchlist"] == research_context["watchlist"]
+    trader = next(item for item in agents.created if item["name"] == "trading_risk_manager")
+    assert "equal weight" in trader["system_prompt"]
+
+
 _ONE_PATH_FILES = (
     "ai_congress_disclosures.py",
     "ai_sec_insider_filings.py",

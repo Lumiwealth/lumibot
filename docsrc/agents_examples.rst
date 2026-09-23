@@ -150,9 +150,9 @@ Public disclosures and browser automation
      - ``ReportDate`` or source publication time, never the earlier transaction date. Amounts are ranges. A report can be up to 45 days late. An option row without strike and expiration is skipped.
      - Does not ship sample trades. Official House and Senate filings are public. Point-in-time tests use invented clock rows, not a member portfolio.
    * - :doc:`SEC Form 4 insider filings <agents_example_sec_insider_filings>`
-     - Read the live SEC Form 4 Atom feed and act only on rows already public at the backtest clock.
-     - https://www.sec.gov/cgi-bin/browse-edgar?action=getcurrent&type=4&output=atom
-     - Does not ship sample trades. A January 2026 clock hid all 40 current feed rows as future.
+     - Read point-in-time Form 4 filings for a watchlist, then tilt an equal-weight book toward insider buying.
+     - SEC EDGAR submissions and filing documents, capped at the backtest clock.
+     - Only filings accepted before the backtest clock are visible.
    * - :doc:`Authenticated browser research <agents_example_browser_research_showcase>`
      - Log in to an authorized JavaScript application, research, trade, and optionally publish a truthful receipt.
      - The observed page state and screenshot receipt at strategy time.

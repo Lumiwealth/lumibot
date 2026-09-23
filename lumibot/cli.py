@@ -189,17 +189,15 @@ def _class_name(project_dir: Path) -> str:
 
 
 def _package_version() -> str:
+    # Use the package's own version lookup (setup.py in a source checkout, then
+    # installed metadata) so `lumibot version` works in CI and editable clones.
+    # Installed metadata alone is missing there, and lumibot.credentials has no
+    # LUMIBOT_VERSION, so the old lookup printed "unknown".
     try:
-        from importlib.metadata import version
-
-        return version("lumibot")
+        from lumibot import __version__
     except Exception:
-        try:
-            from lumibot.credentials import LUMIBOT_VERSION
-
-            return str(LUMIBOT_VERSION)
-        except Exception:
-            return "unknown"
+        return "unknown"
+    return str(__version__) if __version__ else "unknown"
 
 
 def _strategy_path(project: str) -> Path:

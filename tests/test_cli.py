@@ -27,6 +27,22 @@ class TestCliParser:
         assert printed.startswith("lumibot ")
         assert printed.split()[1] not in ("", "unknown")
 
+    def test_version_works_without_installed_package_metadata(self, capsys, monkeypatch):
+        # CI and source checkouts run LumiBot without pip metadata. The CLI must
+        # still print the real version (the 4.5.92 release CI printed "unknown").
+        import importlib.metadata
+
+        import lumibot
+
+        def _missing(_name):
+            raise importlib.metadata.PackageNotFoundError("lumibot")
+
+        monkeypatch.setattr(importlib.metadata, "version", _missing)
+        assert cli.main(["version"]) == 0
+        printed = capsys.readouterr().out.strip()
+        assert printed == f"lumibot {lumibot.__version__}"
+        assert lumibot.__version__ not in ("", "unknown")
+
     def test_unknown_template_is_rejected(self, tmp_path, capsys):
         rc = cli.main(["init", str(tmp_path / "bot"), "--template", "nonsense"])
         assert rc != 0
@@ -51,7 +67,10 @@ class TestInit:
         assert cli.main(["init", str(target), "--template", "ai"]) == 0
         source = (target / "strategy.py").read_text()
         compile(source, "ai", "exec")
-        assert "GEMINI_API_KEY" in source
+        # 4.5.92 moved the default agent model to OpenAI GPT-6 Luna, so the
+        # template must name the OpenAI key a new user has to set.
+        assert "OPENAI_API_KEY" in source
+        assert "GEMINI_API_KEY" not in source
 
     def test_ai_template_uses_the_real_agents_api(self, tmp_path):
         """A template that compiles but calls a method that does not exist is worse

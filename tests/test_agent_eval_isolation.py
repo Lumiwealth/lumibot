@@ -1,4 +1,5 @@
 import os
+from pathlib import Path
 
 import pytest
 
@@ -65,3 +66,28 @@ def test_pytest_bootstrap_respects_explicit_dotenv_isolation():
         timeout=30,
     )
     assert result.returncode == 0, result.stderr
+
+
+def test_production_fixture_serves_builtin_sec_tools_offline(monkeypatch, tmp_path):
+    """The fixture must not read a developer's SEC cache or reach sec.gov.
+
+    On GitHub the built-in get_filings hit the network boundary; locally it read
+    ~/.lumibot/cache/sec. Both runs must see the same recorded SEC data.
+    """
+    from scripts.agent_eval_production_fixture import ProductionFixture
+    from scripts.run_agent_evals import build_fixture
+
+    monkeypatch.setenv("HOME", str(tmp_path / "home"))
+    monkeypatch.delenv("LUMIBOT_SEC_CACHE_DIR", raising=False)
+    production = ProductionFixture(build_fixture("research_available"))
+    try:
+        cache_dir = Path(production.strategy.fundamentals.cache_dir)
+        assert production.root in cache_dir.parents
+        with fixture_network_boundary():
+            result = production.strategy.fundamentals.get_filings("ACME", form="10-Q", as_of="2026-08-11")
+    finally:
+        production.close()
+
+    assert result["available"] is False
+    assert result["reason"] == "no_sec_cik"
+    assert result["filings"] == []

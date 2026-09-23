@@ -100,6 +100,26 @@ def _history(asset, fixture, quote_asset=None):
     return Data(asset, frame, quote=quote_asset, timestep="minute")
 
 
+# Recorded SEC ticker map for the built-in SEC tools. ACME, the research
+# fixtures' company, is fictional and deliberately absent: EDGAR has no filings
+# for it, and its SEC evidence comes only from the managed research fixture.
+_RECORDED_SEC_TICKERS = {"0": {"cik_str": 320193, "ticker": "AAPL", "title": "Apple Inc."}}
+
+
+def _recorded_sec_fundamentals(strategy, cache_dir):
+    """Production SEC client on a private recorded cache.
+
+    Without this the built-in SEC tools read the developer's ~/.lumibot SEC
+    cache locally and hit the network boundary on CI, so the same eval saw
+    different evidence in each place. Backtest cache mode never refetches.
+    """
+    from lumibot.fundamentals import SECFundamentals
+
+    cache_dir.mkdir(parents=True, exist_ok=True)
+    (cache_dir / "company_tickers.json").write_text(json.dumps(_RECORDED_SEC_TICKERS), encoding="utf-8")
+    return SECFundamentals(strategy, cache_dir=cache_dir, cache_mode="backtest", min_request_interval_seconds=0)
+
+
 class ProductionFixture:
     def __init__(self, fixture):
         self.fixture = fixture
@@ -160,6 +180,7 @@ class ProductionFixture:
             order = self.strategy.create_order(Asset("AAPL"), 40, "sell", order_type="limit", limit_price=250.0)
             order.identifier = "bt_pending_exit"
             self.strategy.submit_order(order)
+        self.strategy.fundamentals = _recorded_sec_fundamentals(self.strategy, self.root / "sec")
         self.manager = self.strategy.agents
         self.manager.replay_cache.root = self.root / "replay"
         self.manager.replay_cache.remote_cache = _NoRemoteCache()

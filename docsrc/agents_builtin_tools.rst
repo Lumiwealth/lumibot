@@ -257,6 +257,8 @@ Common tools include:
 - ``search_filing``
 - ``get_filing_document``
 
+``get_filings`` for a symbol the SEC ticker map does not list (ETFs, foreign listings, crypto, private names) returns an empty ``filings`` list with ``available: false`` and ``reason: "no_sec_cik"`` instead of an error. The absence is reported, never filled in.
+
 Backtests gate filings by filed date or acceptance timestamp, so an agent cannot
 read a filing before it existed. Use ``search_filing`` before
 ``get_filing_document`` when the filing is large and the agent only needs a

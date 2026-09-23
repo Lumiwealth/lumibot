@@ -267,6 +267,34 @@ def test_sec_filings_and_keyword_search(monkeypatch, tmp_path):
     assert "Customer concentration" in matches["matches"][0]["context"]
 
 
+def test_filings_for_a_ticker_without_an_sec_cik_are_an_explicit_empty_result(monkeypatch, tmp_path):
+    """A ticker EDGAR does not list has no filings; that is evidence, not a tool failure.
+
+    Release eval research_sec_prompt_injection: get_filings raised for a ticker
+    missing from the SEC ticker map, the tool error marked the whole research
+    decision blocked, although the agent then read the filing from the managed
+    research source. Missing data is reported as missing, never invented.
+    """
+
+    def fake_get(url, **kwargs):
+        if url.endswith("company_tickers.json"):
+            return _Response(payload={"0": {"ticker": "AAPL", "cik_str": 320193, "title": "Apple Inc."}})
+        raise AssertionError(url)
+
+    monkeypatch.setattr("lumibot.fundamentals.sec.requests.get", fake_get)
+    sec = SECFundamentals(cache_dir=tmp_path, min_request_interval_seconds=0)
+
+    result = sec.get_filings("acme", form="10-Q", as_of="2026-08-11T00:00:00+00:00")
+
+    assert result["symbol"] == "ACME"
+    assert result["filings"] == []
+    assert result["available"] is False
+    assert result["reason"] == "no_sec_cik"
+    assert "ACME" in result["message"]
+    with pytest.raises(ValueError, match="No SEC CIK found"):
+        sec.ticker_to_cik("ACME")
+
+
 def test_sec_filing_sections_can_be_listed_and_read(monkeypatch, tmp_path):
     filing_html = """
     <html><body>

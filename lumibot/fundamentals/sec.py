@@ -152,6 +152,10 @@ def _section_alias_candidates(section: str) -> list[str]:
     return aliases.get(normalized, [normalized])
 
 
+class SECTickerNotFoundError(ValueError):
+    """The SEC ticker map has no CIK for this symbol, so EDGAR has no filings for it."""
+
+
 class SECFundamentals:
     """Direct SEC EDGAR client with mandatory local caching and point-in-time helpers."""
 
@@ -337,7 +341,7 @@ class SECFundamentals:
         for entry in payload.values():
             if str(entry.get("ticker", "")).upper() == symbol_upper:
                 return f"{int(entry['cik_str']):010d}"
-        raise ValueError(f"No SEC CIK found for ticker {symbol!r}.")
+        raise SECTickerNotFoundError(f"No SEC CIK found for ticker {symbol!r}.")
 
     def _get_submissions_payload(self, symbol: str) -> dict[str, Any]:
         cik = self.ticker_to_cik(symbol)
@@ -750,7 +754,25 @@ class SECFundamentals:
         limit: int = 10,
     ) -> dict[str, Any]:
         as_of_dt = self._resolve_as_of(as_of)
-        submissions = self.get_submissions(symbol, as_of=as_of_dt)
+        try:
+            submissions = self.get_submissions(symbol, as_of=as_of_dt)
+        except SECTickerNotFoundError:
+            # No CIK means EDGAR lists no filings for this symbol (ETFs, foreign
+            # listings, crypto, private or fictional names). Report the absence
+            # explicitly instead of raising: an agent tool error here blocked a
+            # whole research decision that other evidence had already answered.
+            return {
+                "symbol": str(symbol).upper(),
+                "as_of": as_of_dt.isoformat(),
+                "source": "sec_edgar_submissions",
+                "available": False,
+                "reason": "no_sec_cik",
+                "message": (
+                    f"The SEC ticker map has no CIK for {str(symbol).upper()}, so EDGAR lists no filings for it. "
+                    "Nothing was invented; use another point-in-time source or report the evidence as missing."
+                ),
+                "filings": [],
+            }
         recent = submissions.get("filings", {}).get("recent", {})
         rows = []
         forms = recent.get("form", [])

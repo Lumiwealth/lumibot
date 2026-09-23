@@ -847,6 +847,17 @@ POLYGON_MAX_MEMORY_BYTES
 - Purpose: Hard limit on memory Polygon can use for caching.
 - Values: Integer (bytes).
 
+LUMIBOT_OPTION_CHAIN_MAX_DAYS
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+- Purpose: Polygon backtests only. Limits each option chain request to expirations from the
+  simulated date through that many days ahead, which keeps a free Polygon key under its rate
+  limit. A limited chain is cached under its own name (``<SYMBOL>_<date>_max<N>d.parquet``) and is
+  only reused on the same day with the same limit, never as a full chain.
+- Values: Positive whole number of days (for example ``21``). Unset means no limit. Invalid values
+  are ignored with a warning.
+- Example: ``LUMIBOT_OPTION_CHAIN_MAX_DAYS=21``
+
 THETADATA_USERNAME / THETADATA_PASSWORD
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 

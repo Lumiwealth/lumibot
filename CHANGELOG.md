@@ -91,6 +91,11 @@ Deploy marker: `180c340ccf48`
   option; an explicit config keeps the old stop three sessions early), and writes progress.csv. The
   option contract list retries once on the other Trading API endpoint after a 401, and bar requests
   stop 16 minutes before now (free keys refuse the latest 15 minutes of SIP data).
+- Polygon option chains fetched with `LUMIBOT_OPTION_CHAIN_MAX_DAYS` were cached under the normal
+  name and reused for up to 14 days, and by runs without the limit, so later dates saw almost no
+  expirations. A limited chain now has its own cache name and is reused only on the same day with
+  the same limit. An invalid value such as `21d` is ignored with a warning instead of crashing.
+  The variable is now documented in `docsrc/environment_variables.rst`.
 - `AlpacaBacktesting` had no `get_quote()`, so `OptionsHelper` failed every expiration probe on
   Alpaca option backtests. It now returns the last real trade as the price with bid and ask `None`
   (Alpaca historical option data is trade bars only), and option last price at the first bars of

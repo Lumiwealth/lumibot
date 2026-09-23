@@ -87,6 +87,8 @@ Market-price tools:
 - `market_last_price` accepts one tradable symbol per call.
 - `market_last_prices` accepts a JSON-friendly list (`symbols` or `symbols_json`, cap 150) and returns last prices available at the current runtime datetime, plus `symbols_available` / `symbols_missing`. Prefer this when scanning a provided universe (for example multi-ticker ORB). Do not invent prices for missing symbols.
 - `market_load_history_table` still loads one symbol per call; load finalists into DuckDB after the batch scan.
+- `market_historical_prices(..., table_name=...)` stores bars in the bars' own market wall-clock time (the clock the raw bars show; `datetime_timezone` names it), never the strategy clock. The eval fixture's strategy clock is UTC while its bars are New York time; converting to the strategy clock moved the 09:30 ET open to 13:30 and made an ORB agent find no breakout.
+- `market_load_history_table` serves stored source rows only when they are the requested bar size (a `5minute` request against 1-minute data goes through `get_historical_prices`, which aggregates), and for minute and hour bars it excludes the bar that starts at the current time, which has not finished.
 
 Indicator tools:
 

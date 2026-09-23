@@ -78,6 +78,10 @@ Deploy marker: `3abbf8fcbd64`
 - `lumibot version` printed "unknown" from a source checkout or CI, where no installed package
   metadata exists. It now reports `lumibot.__version__` (setup.py in a checkout, then installed
   metadata), the same value the startup log prints.
+- Agent `market_historical_prices(..., table_name=...)` stores bars in their own market wall-clock time and reports that zone in `datetime_timezone`. It used the strategy clock's zone, so with a UTC clock and New York bars the 09:30 ET open landed at 13:30 in the table and an opening-range query read pre-market rows (release eval `stock_orb_completed_bars`).
+- Agent `market_load_history_table` no longer serves raw 1-minute source rows for a `5minute` (or other multi-minute) request; it aggregates through `get_historical_prices`. For minute and hour bars it also excludes the bar that starts at the current time, which has not finished yet (a one-bar lookahead).
+- The `stock-trading` skill tells agents to price limit orders from `market_last_price`, not a historical bar close, and to load rule-interval bars with `market_historical_prices`. An ORB eval run priced a buy limit at 228.60 with the stock at 230.00 and never filled. The rule covers new orders only: the skill also says not to reprice a pending order to make it fill sooner, since an earlier wording led agents to modify a pending exit.
+- Release eval freshness now fingerprints `lumibot/components/agents/duckdb_tools.py`, so DuckDB tool changes rerun the agent evals.
 - Alpaca option bars are no longer reindexed and forward/back filled like stock bars. That
   invented prices between sparse trades and back-filled a later trade into the past (a price
   before the first print). Options now use real prints only; `get_last_price` is `None`

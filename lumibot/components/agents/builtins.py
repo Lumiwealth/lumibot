@@ -488,6 +488,17 @@ def _bars_to_records(bars: Any) -> list[dict[str, Any]]:
     return records
 
 
+def _bars_timezone_name(bars: Any) -> str | None:
+    """Name of the timezone a Bars frame's index is in, such as America/New_York."""
+    frame = getattr(bars, "pandas_df", None)
+    if frame is None:
+        frame = getattr(bars, "df", None)
+    tzinfo = getattr(getattr(frame, "index", None), "tz", None)
+    if tzinfo is None:
+        return None
+    return str(getattr(tzinfo, "zone", None) or getattr(tzinfo, "key", None) or tzinfo)
+
+
 def _symbol_from_bars_key(key: Any, fallback: str | None = None) -> str:
     symbol = getattr(key, "symbol", None)
     if symbol is None and isinstance(key, (list, tuple)) and key:
@@ -1213,6 +1224,7 @@ def _bind_historical_prices(strategy: Any, manager: Any) -> BoundTool:
         max_workers = min(max_workers, 32)
 
         bars_by_symbol: dict[str, list[dict[str, Any]]] = {}
+        bar_timezones: list[str] = []
         missing: list[str] = []
         batch_fn = getattr(strategy, "get_historical_prices_for_assets", None)
         batch_result = None
@@ -1236,6 +1248,9 @@ def _bind_historical_prices(strategy: Any, manager: Any) -> BoundTool:
                 keyed[_symbol_from_bars_key(key)] = bars
             for symbol in symbol_list:
                 records = _bars_to_records(keyed.get(symbol))
+                zone = _bars_timezone_name(keyed.get(symbol))
+                if records and zone:
+                    bar_timezones.append(zone)
                 if records:
                     bars_by_symbol[symbol] = records
                 else:
@@ -1260,6 +1275,9 @@ def _bind_historical_prices(strategy: Any, manager: Any) -> BoundTool:
                     )
                     records = _bars_to_records(bars)
                     bars_by_symbol[symbol] = records
+                    zone = _bars_timezone_name(bars)
+                    if records and zone:
+                        bar_timezones.append(zone)
                     if not records:
                         missing.append(symbol)
                 except Exception:
@@ -1272,6 +1290,7 @@ def _bind_historical_prices(strategy: Any, manager: Any) -> BoundTool:
                 table_name=table_name,
                 bars_by_symbol={symbol: bars_by_symbol[symbol] for symbol in available},
                 meta={"timestep": timestep, "asset_type": asset_type, "length": length},
+                bars_timezone=bar_timezones[0] if bar_timezones else None,
             )
             return {
                 "table_name": table["table_name"],
@@ -1319,7 +1338,8 @@ def _bind_historical_prices(strategy: Any, manager: Any) -> BoundTool:
             "Optional table_name loads every returned bar into one DuckDB table with columns "
             "symbol, datetime, open, high, low, close, volume and returns only a summary (row counts per symbol, "
             "first/last datetime, missing symbols) instead of the raw bars. Datetimes in that table are "
-            "wall-clock time in the strategy timezone. Use table_name whenever symbols times length is large "
+            "the same market wall-clock times as the raw bars (for US stocks, New York time; "
+            "datetime_timezone names it). Use table_name whenever symbols times length is large "
             "(for example an intraday scan of more than a few symbols); raw bars that large get shortened before "
             "you can read them, which hides data. Then compute the scan with duckdb_query against that table. "
             "Never loop market_load_history_table or market_last_price once per symbol when you need multi-symbol history. "

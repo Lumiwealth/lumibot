@@ -191,14 +191,17 @@ class CommitteeToolBacktestStrategy(Strategy):
 
 
 def _build_committee_pandas_data():
-    index = pd.date_range("2025-01-06 09:30", periods=8, freq="min", tz="America/New_York")
+    # Five completed pre-open bars (09:25-09:29) so the 09:30 iteration has
+    # finished history. The 09:30 bar starts at the first iteration and is not
+    # complete yet, so history tools must not return it.
+    index = pd.date_range("2025-01-06 09:25", periods=13, freq="min", tz="America/New_York")
     df = pd.DataFrame(
         {
-            "open": [100.0, 100.5, 101.0, 101.5, 102.0, 102.5, 103.0, 103.5],
-            "high": [101.0, 101.2, 101.8, 102.2, 102.8, 103.2, 103.8, 104.2],
-            "low": [99.5, 100.0, 100.4, 101.0, 101.5, 102.0, 102.4, 103.0],
-            "close": [100.4, 100.9, 101.4, 101.9, 102.4, 102.9, 103.4, 103.9],
-            "volume": [1000, 1100, 1200, 1300, 1400, 1500, 1600, 1700],
+            "open": [99.5, 99.6, 99.7, 99.8, 99.9, 100.0, 100.5, 101.0, 101.5, 102.0, 102.5, 103.0, 103.5],
+            "high": [99.8, 99.9, 100.0, 100.1, 100.2, 101.0, 101.2, 101.8, 102.2, 102.8, 103.2, 103.8, 104.2],
+            "low": [99.3, 99.4, 99.5, 99.6, 99.7, 99.5, 100.0, 100.4, 101.0, 101.5, 102.0, 102.4, 103.0],
+            "close": [99.6, 99.7, 99.8, 99.9, 100.0, 100.4, 100.9, 101.4, 101.9, 102.4, 102.9, 103.4, 103.9],
+            "volume": [900, 900, 900, 900, 900, 1000, 1100, 1200, 1300, 1400, 1500, 1600, 1700],
         },
         index=index,
     )

@@ -348,6 +348,107 @@ def test_market_historical_prices_table_name_loads_sql_table_instead_of_raw_bars
     ]
 
 
+class _MarketTimeBars:
+    """Bars as a LumiBot data source returns them: exchange-local timestamps."""
+
+    def __init__(self):
+        index = pd.date_range("2026-08-11 09:30", periods=20, freq="min", tz="America/New_York")
+        highs = [228.0 + (0.5 if minute == 7 else 0.0) for minute in range(15)] + [230.2] * 5
+        self.pandas_df = pd.DataFrame(
+            {
+                "open": [228.0] * 20,
+                "high": highs,
+                "low": [227.5] * 20,
+                "close": [228.0] * 15 + [230.0] * 5,
+                "volume": [200.0] * 15 + [480.0] * 5,
+            },
+            index=index,
+        )
+        self.df = self.pandas_df
+
+
+class _UtcClockStrategy(_OptionsStrategy):
+    """Strategy clock in UTC while the data source returns New York bars.
+
+    This is the release-eval fixture shape: stock_orb_completed_bars failed when
+    a table_name load stored these bars in UTC wall-clock time, so the agent's
+    09:30-09:45 opening-range query read 05:30 ET pre-market rows instead.
+    """
+
+    def get_datetime(self):
+        return datetime(2026, 8, 11, 14, 35, tzinfo=timezone.utc)
+
+    def get_historical_prices_for_assets(self, assets, length, timestep="day", **kwargs):
+        return {str(getattr(asset, "symbol", asset)).upper(): _MarketTimeBars() for asset in assets}
+
+
+def test_market_historical_prices_table_keeps_the_bars_market_wall_clock():
+    strategy = _UtcClockStrategy()
+    tools = _wrapped_tools(
+        strategy,
+        [BuiltinTools.market.historical_prices(), BuiltinTools.duckdb.query()],
+    )
+    raw = tools["market_historical_prices"](symbols="AAPL", length=20, timestep="minute")
+    batch = tools["market_historical_prices"](symbols="AAPL", length=20, timestep="minute", table_name="orb_bars")
+
+    assert raw["bars_by_symbol"]["AAPL"][0]["datetime"].startswith("2026-08-11T09:30:00")
+    assert batch["first_datetime"] == "2026-08-11T09:30:00"
+    assert batch["last_datetime"] == "2026-08-11T09:49:00"
+    assert batch["datetime_timezone"] == "America/New_York"
+
+    opening = tools["duckdb_query"](
+        sql=(
+            "SELECT MAX(high) AS range_high, COUNT(*) AS bars FROM orb_bars "
+            "WHERE CAST(datetime AS TIME) >= '09:30' AND CAST(datetime AS TIME) < '09:45'"
+        )
+    )
+    assert opening["rows"] == [{"range_high": 228.5, "bars": 15}]
+
+
+def _orb_fixture_tools():
+    """The release-eval ORB fixture: one-minute AAPL data, clock 10:35 ET."""
+    from scripts.agent_eval_production_fixture import ProductionFixture
+    from scripts.run_agent_evals import build_fixture
+
+    production = ProductionFixture(build_fixture("orb_breakout"))
+    manager = production.manager
+    tools = {
+        definition.name: definition.binder(production.strategy, manager)
+        for definition in (BuiltinTools.market.load_history_table(), BuiltinTools.duckdb.query())
+    }
+    return production, tools
+
+
+def test_load_history_table_never_serves_one_minute_rows_for_a_five_minute_request():
+    """stock_orb_completed_bars: a 5minute request returned the raw 1-minute
+    source rows, and the agent read them as five-minute bars."""
+    production, tools = _orb_fixture_tools()
+    try:
+        tools["market_load_history_table"].function(symbol="AAPL", length=12, timestep="5minute", table_name="b5")
+        rows = tools["duckdb_query"].function(sql="SELECT datetime, volume FROM b5 ORDER BY datetime")["rows"]
+    finally:
+        production.close()
+
+    stamps = [pd.Timestamp(row["datetime"]) for row in rows]
+    assert stamps, "five-minute history must not be empty"
+    assert all((later - earlier) == pd.Timedelta(minutes=5) for earlier, later in zip(stamps, stamps[1:]))
+    new_york = [pd.Timestamp(row["datetime"]).tz_convert("America/New_York") for row in rows]
+    breakout = next(row for row, stamp in zip(rows, new_york) if stamp.strftime("%H:%M") == "09:45")
+    assert breakout["volume"] == 2400.0
+
+
+def test_load_history_table_excludes_the_bar_that_starts_at_the_current_time():
+    """At 10:35 ET the 10:35 minute bar has not finished; returning it is lookahead."""
+    production, tools = _orb_fixture_tools()
+    try:
+        tools["market_load_history_table"].function(symbol="AAPL", length=30, timestep="minute", table_name="b1")
+        last = tools["duckdb_query"].function(sql="SELECT MAX(datetime) AS last FROM b1")["rows"][0]["last"]
+    finally:
+        production.close()
+
+    assert pd.Timestamp(last) == pd.Timestamp("2026-08-11T14:34:00Z")
+
+
 def test_market_historical_prices_rejects_unsafe_table_name():
     strategy = _OptionsStrategy()
     tool = BuiltinTools.market.historical_prices().binder(strategy, AgentManager(strategy))

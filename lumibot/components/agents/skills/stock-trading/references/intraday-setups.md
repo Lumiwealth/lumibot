@@ -7,9 +7,10 @@ Use the exact opening-window duration in the user's rules. A long breakout requi
 the selected completed bar to exceed the range high under the user's confirmation
 rules. A short breakout requires the corresponding break below the range low.
 
-Request bars at the interval named by the rule whenever the data source supports
-that interval; `market_historical_prices` supports multi-minute timesteps such as
-`5minute`. A bar timestamp identifies the start of its interval: for a
+Load the rule-interval bars with `market_historical_prices`, which returns the
+same completed bars the strategy sees and supports multi-minute timesteps such
+as `5minute`; pass `table_name` to query them with `duckdb_query`. Request the
+interval named by the rule whenever the data source supports it. A bar timestamp identifies the start of its interval: for a
 15-minute opening range beginning at 09:30, three five-minute bars starting at
 09:30, 09:35, and 09:40 form the range. A five-minute bar starting at 09:45 is
 the first later candidate; do not include it in the opening range. If only

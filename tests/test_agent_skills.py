@@ -151,6 +151,25 @@ def test_stock_skill_defines_opening_range_boundaries_and_order_truth():
     assert "as a completed five-minute bar" in intraday
 
 
+def test_stock_skill_prices_limits_from_current_price_and_loads_rule_bars_with_historical_prices():
+    """Release eval stock_orb_completed_bars: one run priced a buy limit at a
+    breakout bar's close (228.60) while the current price was 230.00, so it never
+    filled; another built the range from market_load_history_table rows instead
+    of the completed rule-interval bars from market_historical_prices."""
+    stock_skill = next(skill for skill in load_builtin_skills() if skill.name == "stock-trading")
+    instructions = " ".join(stock_skill.instructions.split())
+    intraday = " ".join(stock_skill.resources.references["intraday-setups.md"].split())
+
+    assert "Price a limit order from the current `market_last_price` result" in instructions
+    assert "never from a historical bar's close" in instructions
+    # The limit-price rule is for a new order. It made agents reprice an
+    # already-pending exit (release eval stock_pending_exit_no_duplicate).
+    assert "This is for a new order; it is never a reason to modify an order that is already pending" in instructions
+    assert "Do not modify a pending order's price or quantity to make it fill sooner" in instructions
+    assert "Load the rule-interval bars with `market_historical_prices`" in intraday
+    assert "pass `table_name` to query them with `duckdb_query`" in intraday
+
+
 def test_skill_loading_instruction_names_every_builtin_skill_exactly():
     for name in BUILTIN_SKILL_NAMES:
         assert f"`{name}`" in BUILTIN_SKILL_LOADING_INSTRUCTION

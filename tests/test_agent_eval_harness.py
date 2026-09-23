@@ -547,6 +547,9 @@ def test_runtime_fingerprint_includes_indicators_broker_and_installed_sdks(monke
     assert evals.REPO_ROOT / "lumibot/components/agents/asset_resolution.py" in seen
     assert evals.REPO_ROOT / "lumibot/brokers/broker.py" in seen
     assert evals.REPO_ROOT / "scripts/agent_eval_call_budget.py" in seen
+    # The DuckDB table behind market_historical_prices(table_name=...) is agent
+    # evidence; a change there must invalidate fresh eval receipts.
+    assert evals.REPO_ROOT / "lumibot/components/agents/duckdb_tools.py" in seen
 
 
 def test_fresh_gate_preserves_original_pass_time_without_spending(tmp_path, monkeypatch):

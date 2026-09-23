@@ -70,6 +70,7 @@ def runtime_fingerprint() -> str:
         REPO_ROOT / "lumibot/components/agents/rules.py",
         REPO_ROOT / "lumibot/components/agents/skills.py",
         REPO_ROOT / "lumibot/components/agents/builtins.py",
+        REPO_ROOT / "lumibot/components/agents/duckdb_tools.py",
         REPO_ROOT / "lumibot/components/agents/asset_resolution.py",
         REPO_ROOT / "lumibot/components/agents/managed_gateway.py",
         REPO_ROOT / "lumibot/indicators/indicators.py",

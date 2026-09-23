@@ -23,7 +23,11 @@ broad mandate leads you to a stock idea, load it before submitting an order.
    whole-share quantity unchanged. Verify its notional is at or below both the cap
    and available cash before submission. Submit only when the returned quantity is
    greater than zero; otherwise make a no-trade decision.
-6. Submit the selected order once.
+6. Submit the selected order once. Price a limit order from the current
+   `market_last_price` result, never from a historical bar's close: a buy limit
+   below the current price usually does not fill. Follow the order tool's
+   guidance when the order must fill this session. This is for a new order; it
+   is never a reason to modify an order that is already pending (see step 8).
 7. Capture the returned identifier, inspect that exact order, and reread positions
    and open orders. In backtests, a short bounded `orders_wait_for_terminal` is
    appropriate immediately after your own market-order submission because it
@@ -31,6 +35,8 @@ broad mandate leads you to a stock idea, load it before submitting an order.
 8. If a related order is already open, inspect that exact order and do not submit
    another order for the same intended position change. A pending exit already
    owns the exit. Let it resolve or cancel it deliberately before replacing it.
+   Do not modify a pending order's price or quantity to make it fill sooner
+   unless the user's rules ask for that.
 9. Reconcile the final summary with the mutation tools and the final account
    reads. If an order tool returned a submitted identifier, never say that no
    order was entered. Report the exact observed status instead.

@@ -640,3 +640,19 @@ def test_search_filing_threads_explicit_as_of_to_document_availability(monkeypat
             query="risk",
             as_of="2025-01-01T00:00:00Z",
         )
+
+
+def test_strip_html_drops_script_and_style_blocks_with_spaced_end_tags():
+    # Browsers accept "</script >" and "</style foo>" as end tags. The stripper must
+    # drop those blocks too instead of leaking their contents into filing text.
+    from lumibot.fundamentals.sec import _strip_html
+
+    text = _strip_html(
+        "<p>Revenue grew.</p><script>var secret = 1;</script >"
+        "<style>.x{color:red}</style\n><p>Margins held.</p><SCRIPT type='a'>evil()</SCRIPT\t>"
+    )
+    assert "Revenue grew." in text
+    assert "Margins held." in text
+    assert "secret" not in text
+    assert "color" not in text
+    assert "evil" not in text

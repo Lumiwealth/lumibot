@@ -124,6 +124,16 @@ class CredentialProfile:
             raise ValueError(f"Credential profile {self.name!r} is not allowed for host {hostname!r}.")
 
 
+
+def _is_sec_host(url: str) -> bool:
+    """True only when the URL's host is sec.gov or one of its subdomains.
+
+    The SEC asks for a contact User-Agent, and that header must not be sent to
+    other hosts that merely mention sec.gov in their name, path, or query.
+    """
+    host = (urlsplit(str(url)).hostname or "").lower().rstrip(".")
+    return host == "sec.gov" or host.endswith(".sec.gov")
+
 class WebClient:
     """Stateful public-web HTTP/RSS transport with credential scoping and SSRF protection."""
 
@@ -404,7 +414,7 @@ class WebClient:
     ) -> dict[str, Any]:
         validators = self._feed_validators.get(url, {})
         headers = {}
-        if "sec.gov" in str(url):
+        if _is_sec_host(url):
             from lumibot.fundamentals.sec import DEFAULT_SEC_USER_AGENT
 
             headers["User-Agent"] = DEFAULT_SEC_USER_AGENT

@@ -336,3 +336,33 @@ def test_web_types_are_public_agent_exports():
 
     assert ExportedProfile is CredentialProfile
     assert ExportedClient is WebClient
+
+
+def test_fetch_feed_sends_the_sec_user_agent_only_to_sec_hosts():
+    # The SEC contact User-Agent must go to sec.gov and its subdomains only. A plain
+    # substring check also matched hosts such as "sec.gov.example.test" and URLs that
+    # merely mention sec.gov in a path or query (CodeQL: incomplete URL sanitization).
+    from lumibot.fundamentals.sec import DEFAULT_SEC_USER_AGENT
+
+    seen = {}
+    feed = b"<rss><channel><title>t</title></channel></rss>"
+
+    def handler(request):
+        seen[str(request.url)] = request.headers.get("user-agent")
+        return httpx.Response(200, content=feed, headers={"content-type": "application/rss+xml"})
+
+    client = WebClient(transport=httpx.MockTransport(handler), resolver=_resolver)
+    sec_urls = ["https://www.sec.gov/feed", "https://sec.gov/feed"]
+    other_urls = [
+        "https://sec.gov.example.test/feed",
+        "https://example.test/sec.gov/feed",
+        "https://example.test/feed?next=sec.gov",
+        "https://notsec.gov/feed",
+    ]
+    for url in sec_urls + other_urls:
+        client.fetch_feed(url)
+
+    for url in sec_urls:
+        assert seen[url] == DEFAULT_SEC_USER_AGENT
+    for url in other_urls:
+        assert seen[url] != DEFAULT_SEC_USER_AGENT

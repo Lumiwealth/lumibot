@@ -107,7 +107,7 @@ def _same_tz(value: datetime, reference: datetime) -> datetime:
 
 
 def _strip_html(text: str) -> str:
-    text = re.sub(r"(?is)<script.*?</script>|<style.*?</style>", " ", text)
+    text = re.sub(r"(?is)<script\b.*?</script\b[^>]*>|<style\b.*?</style\b[^>]*>", " ", text)
     text = re.sub(r"(?is)<ix:hidden.*?</ix:hidden>", " ", text)
     text = re.sub(r"(?is)</?(?:p|div|br|tr|table|section|article|h[1-6])\b[^>]*>", "\n", text)
     text = re.sub(r"(?s)<[^>]+>", " ", text)

@@ -203,6 +203,11 @@ Deploy marker: `2eb22feb603d`
   callable. Hosted research agents no longer have to guess between names such as
   ``datasetId`` and ``dataset_id`` before calling BotSpot's strict MCP server.
 
+### Security
+
+- Agent `fetch_feed` sends the SEC contact User-Agent only when the URL host is `sec.gov` or a subdomain. A substring check also matched hosts such as `sec.gov.example.com` and URLs that only mention `sec.gov` in a path or query.
+- The SEC filing text extractor now removes `<script>` and `<style>` blocks whose end tags carry spaces or attributes (for example `</script >`), so their contents no longer leak into filing text.
+
 ## 4.5.91 - 2026-09-06
 
 Deploy marker: `d007efed231d`

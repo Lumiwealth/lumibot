@@ -15,14 +15,11 @@ Deleted:
 
 Clock tests still pass invented rows into the date gate. Those rows use the name `Clock Test Member`. They are not a member portfolio and they are not shipped sample trades.
 
-Local proof on 2026-09-22:
+Local proof on 2026-09-22 did run. The tear sheets are in `docs/research/tearsheets/2026-09-22-*.html`. Those runs used `filing_rule` and `price_rule`. They did not call a model, so they spent no AI tokens.
 
-```text
-.venv/bin/pytest -q tests/test_disclosure_strategies.py tests/test_disclosure_replay.py tests/backtest/test_disclosure_strategy_backtests.py tests/test_agent_capability_docs.py tests/test_ai_two_agent_strategy_examples.py tests/test_ai_trading_team_example.py
-37 passed
-```
+They are not finished bots. `proof_modes.price_rule_once` buys one share and stops. The Congress filing path also submits quantity 1. On a $100,000 account that is why the stock tear sheets look flat. Option proofs submit one contract. One contract is 100 shares of premium, so the Pelosi options curve moves. That sheet is 22 Jan 2026 to 4 Feb 2026. The strategy card is about 3% total return and 124% annualized. SPY on the same short window is about -1%. The 124% figure is two weeks stretched into a year. The trade file has four buys and no sells. Those four contracts cost roughly $56,000 of premium, which is why the account moves. Spread proofs open one package, wait a fixed number of days, and close. They do not use the 50% profit take or the 21-day time stop written in the prompt.
 
-No real House PDF, Senate PDF, or EDGAR backtest has been run yet. The examples are honest. They are not yet working bots.
+Buffett and Ackman proofs read a real filing and then hold. There is no trade, so there is no QuantStats curve. Ro Khanna was only a search-name idea. His House PDF is a scan, the text parser got nothing, and no Khanna bot was built.
 
 ## Official filings do contain option fields
 
@@ -42,15 +39,16 @@ X search, 2026-06-01 through 2026-09-22, 34 posts, 4 x_search calls. After Pelos
 
 SEO parent is the category (`congress stock tracker`), not a second personal name. First member page: Pelosi. Second member page: Ro Khanna, because that is the X crowd after Pelosi, and only after his filings parse. A third or fourth member waits on the same proof. Add one category page for the search phrase people actually type.
 
-## What the other examples actually do
+## What the tear sheets actually proved
 
-Checked by reading code. No fresh tear sheet.
+Checked against the 2026-09-22 HTML files and `proof_modes.py`.
 
-- Ackman GitHub example hardcodes a stock list and asks the model about quality and catalysts. It does not fetch news or 13F filings. The public BotSpot Marketplace page points at a different 573-byte SPY file, strategy `ab216282-0ff0-4aa1-948c-c0daa1eed5a9`.
-- Buffett GitHub example asks for filings and cash flow in the prompt. The strategy file has no EDGAR client. The Marketplace copy is an older, shorter file.
-- Large-cap means the big-stock bull and bear team (names such as AAPL, MSFT, NVDA). Leveraged ETF means paired funds such as TQQQ with SQQQ. Both Marketplace copies are older than GitHub.
-- Iron condor and credit spread rules say one atomic multi-leg order. Their prompts do not name `orders_submit_multileg`. The SPX zero-DTE example does name that tool. A real options backtest has to prove one package for entry and one package for exit.
-- Ray Dalio and Citadel Marketplace code still matches GitHub. Leave them alone, including their four paper deployments.
+- Congress stock pages (Pelosi, Josh Gottheimer, Lisa McClain) trade the real House PDF after the filing date. They buy one share per row. They do not rebuild the member's portfolio or scale it to the account.
+- Large-cap bought 1 AAPL. Leveraged ETF bought 1 TQQQ. In the real agent code, bull runs, then bear reads the bull case, then the trader decides. That is sequential. It is not bull and bear in parallel.
+- Iron condor, credit spread, and SPXW each opened and closed one package. The close was a timer in the proof, not the profit target or stop in the prompt.
+- The live web proof downloaded one Pelosi PDF and posted the id to postman-echo.com, a site that repeats what you send it. It then bought 1 SPY. That proved GET and POST. It is not a Pelosi strategy. Unit tests cover PUT, PATCH, DELETE, and credential headers. Those methods were not part of this tear sheet.
+- The SEC Form 4 proof fetched the live Atom feed. A backtest's clock is the simulated day. The feed is "latest right now," so those filings were in the future of the simulated day and were hidden. No trade. No Marketplace page.
+- Ray Dalio and Citadel stay untouched, including their four paper bots. Do not put the new examples on the Marketplace until sizing and a real exit cycle are in the tear sheets.
 
 Options history for the new tear sheets should use Alpaca or Interactive Brokers. ThetaData is not the path.
 
@@ -66,7 +64,7 @@ us-east-1 Linux on-demand, third-party calculators checked 2026-09-22, not an AW
 - `t4g.medium`: $0.0336 per hour, about $24.53 for 730 hours, 4 GiB, still tight once the operating system is subtracted
 - `t4g.large`: 8 GiB, not priced in this note
 
-Scheduled custom bots use one global Fargate size, not a per-bot setting. Terraform default is 512 CPU and 1024 MiB. At 0.5 vCPU, Fargate allows 1, 2, 3, or 4 GB.
+Scheduled starts can now ask for 2, 3, or 4 GB on that one start. CPU stays at the requested value. Omit the setting and the task stays 1024 MiB. An always-on start that asks for 2, 3, or 4 GB is rejected, because those bots share a 2 GB host and a bigger host was not approved. That rejection is only the always-on path.
 
 Linux ARM Fargate us-east-1 public rates from the AWS Fargate pricing page: $0.0000089944 per vCPU-second and $0.0000009889 per GB-second. At 730 hours and 0.5 vCPU:
 
@@ -79,18 +77,18 @@ Linux ARM Fargate us-east-1 public rates from the AWS Fargate pricing page: $0.0
 
 The extra gigabyte is about $2.60. That is compute only. A public IPv4 address is $0.005 per hour, about $3.65 per month, and only if one is assigned. The scheduled path defaults public IP off. Production always-on bots use the shared host network, not one public IP per bot. NAT already exists for production. Do not add another NAT.
 
-CPU stays fixed. Customers and the agent should set memory when a schedule or an always-on bot starts. Allowed steps: 2, 3, and 4 GB. Hard cap: 4 GB. Browser is one reason to raise memory. It is not a separate product. An Agent eval should teach the agent to raise memory when the strategy needs it. A blanket "every AI bot is 2 GB" rule is optional and was not chosen.
+CPU stays fixed. A scheduled start may set 2, 3, or 4 GB. Allowed steps are only those three. Hard cap is 4 GB. Leave it unset and the task stays 1024 MiB. An always-on start that asks for 2, 3, or 4 GB is rejected in plain language and is not placed. Browser use is one reason a scheduled bot may need more memory. It is not a separate product. The Agent eval already teaches a scheduled start to pass `memoryGb` when the user asks for 2, 3, or 4 GB. A blanket "every AI bot is 2 GB" rule was not chosen.
 
 A 4 GB always-on bot needs a larger host than `t4g.small`. That host change is spending. It stays out until Rob approves the exact size and monthly cost.
 
 ## Usage tracking today
 
-Production `deployment_runtime_session` columns: id, deploymentId, ownerId, runId, status, startedAt, endedAt, runtimeSeconds, observedAt, createdAt, updatedAt. No memory, gigabytes, or dollar columns.
+The code now stores memory on the runtime session. Node migration `1796000000000-AddDeploymentRuntimeMemory` adds `memoryMib` and `estimatedCostUsd`. Allowed stored sizes are 2048, 3072, and 4096. The cost estimate is the monthly Fargate rate times seconds run, divided by 2,592,000. A 1024 MiB run and an unknown size store null. The account usage query still sums `runtimeSeconds` only. Memory does not feed the minute quota and does not stop a bot.
 
-September 2026 is the only month with rows: 597 runs, 44 deployments, 25.16 runtime hours, first start 2026-09-04, last start 2026-09-22 19:30 UTC, longest run 540 seconds. This is short scheduled duration, not always-on gigabyte-hours. The writer is live.
+That migration is in the repo. It is not on the live database, because nothing has been deployed. A read of production on 2026-09-22 still showed the old columns only: id, deploymentId, ownerId, runId, status, startedAt, endedAt, runtimeSeconds, observedAt, createdAt, updatedAt.
 
-`ai_usage_event` is model token cost. August 2026: 4,752 events, 0 with a deployment id, estimated cost $490.26. September 2026: 15,745 events, 594 with a deployment id, estimated cost $181.57.
+September 2026 production rows at that read: 597 runs, 44 deployments, 25.16 runtime hours, first start 2026-09-04, last start 2026-09-22 19:30 UTC, longest run 540 seconds. This is short scheduled duration. No live bot was started at 2, 3, or 4 GB. The memory eval used a fixture start.
 
-`GET /account/usage` shows deployment runtime minutes. Backtest minute limits can stop a new backtest. Deployment runtime minutes do not stop a bot. There is no gigabyte bill yet.
+`ai_usage_event` is model token cost. August 2026: 4,752 events, 0 with a deployment id, estimated cost $490.26. September 2026: 15,745 events, 594 with a deployment id, estimated cost $181.57. The 2026-09-22 tear sheets are not in that number. They used `filing_rule` and `price_rule` and called no model.
 
-Next usage work, after approval: store the memory setting and gigabyte-hours on the runtime session. Keep it as a record. Do not block starts and do not change plan caps until a later decision.
+`GET /account/usage` shows deployment runtime minutes. Backtest minute limits can stop a new backtest. Deployment runtime minutes do not stop a bot. There is no live gigabyte bill until a release Rob asks for.

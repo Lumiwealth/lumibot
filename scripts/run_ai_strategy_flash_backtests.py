@@ -609,6 +609,9 @@ WAVE22 = ({**_wave8("congress-pelosi-luna"), "name": "congress-pelosi-luna-v4"},
 # Leveraged v5 bought TQQQ on Jan 9 while still holding part of SQQQ.
 WAVE23 = ({**_wave8("leveraged-etf-luna"), "name": "leveraged-etf-luna-v6"},)
 
+# Leveraged v6 skipped every rebalance after netting; rerun after the rescale rule.
+WAVE24 = ({**_wave8("leveraged-etf-luna"), "name": "leveraged-etf-luna-v7"},)
+
 
 def _jobs(wave: str) -> tuple[dict, ...]:
     # "7,8" runs several waves under one parent so the spend cap is shared.

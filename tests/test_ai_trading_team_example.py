@@ -111,6 +111,39 @@ def test_final_trading_agents_own_risk_instead_of_spending_nearly_all_cash():
         assert "max_position_pct" in strategy_class.parameters
 
 
+def test_trader_never_parks_the_book_outside_the_universe_or_at_a_stale_price():
+    prompt = " ".join(trader_prompt(book_rule="book", exit_rule="exit").split()).lower()
+    assert "cash, treasury, or money-market funds" in prompt
+    assert "never an allowed trade" in prompt
+    assert "price every limit order so it can fill in this session" in prompt
+
+
+def _created_prompts(strategy_class):
+    from types import SimpleNamespace
+
+    created = {}
+
+    class _Agents(dict):
+        def create(self, **kwargs):
+            created[kwargs["name"]] = " ".join(kwargs["system_prompt"].split())
+
+    strategy_class.initialize(SimpleNamespace(agents=_Agents(), parameters=dict(strategy_class.parameters)))
+    return created
+
+
+def test_buffett_team_values_the_business_before_judging_the_margin_of_safety():
+    prompts = _created_prompts(AITradingTeamWarrenBuffettValueStrategy)
+    researcher = prompts["researcher"].lower()
+    interpreter = prompts["interpreter"].lower()
+
+    for measure in ("earnings yield", "free cash flow yield", "net debt"):
+        assert measure in researcher
+    assert "as of the current date" in researcher
+    assert "do not require a full intrinsic value model" in interpreter
+    assert "weights sum near 100%" in interpreter
+    assert "weight only symbols in the universe" in interpreter
+
+
 def test_bull_bear_code_runs_the_two_sides_together_then_an_interpreter():
     from lumibot.example_strategies import agent_cycle
 

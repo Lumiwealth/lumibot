@@ -42,6 +42,9 @@ def trader_prompt(*, book_rule: str, exit_rule: str, cash_rule: str | None = Non
         f"{book_rule} {exit_rule} {sizing} "
         "If the interpreter weights a symbol outside this book, drop that weight and rescale the "
         "allowed weights to the same total. Do not skip the rebalance because of it. "
+        "Cash, Treasury, or money-market funds outside this book are never an allowed trade. "
+        "Price every limit order so it can fill in this session: use the current price, not a "
+        "prior close. "
         "Submit each order once through the order tool. If you submit no order, that is the result. "
         "Python will not insert a share."
     )

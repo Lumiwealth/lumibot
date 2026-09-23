@@ -305,6 +305,13 @@ def test_congress_strategy_has_researcher_and_dedicated_trading_risk_agent():
     }
 
 
+def test_congress_research_line_carries_the_asset_code_the_trader_checks():
+    agents = _exercise_strategy(AICongressDisclosuresStrategy)
+    prompts = {item["name"]: " ".join(item["system_prompt"].split()) for item in agents.created}
+    assert "TICKER [CODE] buy_dollars sell_dollars net_dollars" in prompts["congress_researcher"]
+    assert "research lines already exclude [OP]" in prompts["trading_risk_manager"]
+
+
 def test_insider_strategy_has_researcher_and_dedicated_trading_risk_agent():
     agents = _exercise_strategy(AISECInsiderFilingsStrategy)
 

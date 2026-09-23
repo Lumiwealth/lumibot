@@ -12,11 +12,11 @@ The agent is instructed to:
     3. Compare article timestamps to the current simulated datetime.
 
 Requirements:
-    - GEMINI_API_KEY, or set AGENT_MODEL to another provider and provide its key
+    - OPENAI_API_KEY, or set AGENT_MODEL to another provider and provide its key
     - An active Alpaca broker connection, or ALPACA_NEWS_API_KEY and ALPACA_NEWS_API_SECRET
 
 Usage:
-    export GEMINI_API_KEY='your-gemini-key'
+    export OPENAI_API_KEY='your-openai-key'
     export ALPACA_NEWS_API_KEY='your-alpaca-news-key'
     export ALPACA_NEWS_API_SECRET='your-alpaca-news-secret'
     export BACKTESTING_START='2025-04-21'
@@ -37,7 +37,7 @@ class AlpacaNewsBuiltinStrategy(Strategy):
     def initialize(self):
         self.sleeptime = "1D"
         self.vars.iteration_count = 0
-        model_id = os.environ.get("AGENT_MODEL", "gemini-3.1-flash-lite-preview")
+        model_id = os.environ.get("AGENT_MODEL", "openai/gpt-6-luna")
         self.agents.create(
             name="news_trader",
             default_model=model_id,
@@ -85,7 +85,7 @@ def _has_model_key(model_id: str) -> bool:
 
 
 if __name__ == "__main__":
-    model_id = os.environ.get("AGENT_MODEL", "gemini-3.1-flash-lite-preview")
+    model_id = os.environ.get("AGENT_MODEL", "openai/gpt-6-luna")
     if not _has_model_key(model_id):
         print(f"ERROR: missing model-provider API key for AGENT_MODEL={model_id!r}.")
         raise SystemExit(1)

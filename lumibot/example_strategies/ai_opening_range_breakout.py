@@ -5,7 +5,7 @@ entry, exit, sizing, and ticker selection live in their prompts. Prefer minute
 bars when available.
 
 Local backtest:
-    GEMINI_API_KEY=... BACKTESTING_DATA_SOURCE=alpaca \
+    OPENAI_API_KEY=... BACKTESTING_DATA_SOURCE=alpaca \
         python -m lumibot.example_strategies.ai_opening_range_breakout
 
 Optional env overrides (AI_ORB_*):

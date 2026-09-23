@@ -40,7 +40,7 @@ history from the prior data source.
 
 .. code-block:: bash
 
-   export GEMINI_API_KEY="your-key"
+   export OPENAI_API_KEY="your-key"
    export DATADOWNLOADER_BASE_URL="https://data.example.test"
    export DATADOWNLOADER_API_KEY="your-data-key"
    export BACKTESTING_DATA_SOURCE="alpaca"

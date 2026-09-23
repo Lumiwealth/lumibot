@@ -112,7 +112,7 @@ class DiscretionaryTraderStrategy(Strategy):
     def initialize(self):
         self.sleeptime = "1D"
         self.vars.iteration_count = 0
-        model_id = os.environ.get("AGENT_MODEL", "gemini-3.1-pro-preview")
+        model_id = os.environ.get("AGENT_MODEL", "openai/gpt-6-luna")
         self.agents.create(
             name="trader",
             default_model=model_id,
@@ -131,7 +131,7 @@ class DiscretionaryTraderStrategy(Strategy):
 
 
 if __name__ == "__main__":
-    model_id = os.environ.get("AGENT_MODEL", "gemini-3.1-pro-preview")
+    model_id = os.environ.get("AGENT_MODEL", "openai/gpt-6-luna")
     # Auth precheck: only the key for the selected provider is required.
     prefix_key = {
         "openai/": ("OPENAI_API_KEY", "https://platform.openai.com/api-keys"),

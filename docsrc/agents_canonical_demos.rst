@@ -51,7 +51,7 @@ Maximum-discretion AI trader. The user system prompt is literally one sentence: 
 .. code-block:: bash
 
     # Google Gemini 3.1 Pro (default)
-    export GEMINI_API_KEY='your-key'
+    export OPENAI_API_KEY='your-key'
     export BACKTESTING_START='2026-03-01'
     export BACKTESTING_END='2026-03-31'
     AGENT_MODEL="gemini-3.1-pro-preview" python agent_discretionary.py
@@ -243,7 +243,7 @@ Start with ``agent_m2_liquidity.py`` if you want the simplest macro setup. It ne
 
 **Do these demos work out of the box?**
 
-Yes. Set the required model provider key for the demo you are running (for example ``GEMINI_API_KEY`` for Gemini, ``OPENAI_API_KEY`` for OpenAI, ``XAI_API_KEY`` or ``GROK_API_KEY`` for Grok, or ``ANTHROPIC_API_KEY`` for Claude), plus ``ALPACA_API_KEY`` and ``ALPACA_API_SECRET`` for the Alpaca-based demos, and run the file directly with ``python3 agent_m2_liquidity.py``. Each demo is a complete, self-contained strategy file.
+Yes. Set the required model provider key for the demo you are running (for example ``OPENAI_API_KEY`` for OpenAI, the default, ``GEMINI_API_KEY`` for Gemini, ``XAI_API_KEY`` or ``GROK_API_KEY`` for Grok, or ``ANTHROPIC_API_KEY`` for Claude), plus ``ALPACA_API_KEY`` and ``ALPACA_API_SECRET`` for the Alpaca-based demos, and run the file directly with ``python3 agent_m2_liquidity.py``. Each demo is a complete, self-contained strategy file.
 
 **Can I modify the demos?**
 
@@ -287,4 +287,4 @@ TQQQ (3x leveraged Nasdaq) and SHV (short-term Treasury ETF) form a simple binar
 
 **Can I use a different model with the demos?**
 
-Yes. Change the ``default_model`` parameter in the ``self.agents.create(...)`` call. The default is ``gemini-3.5-flash-lite`` if not specified. Explicit model pins are preserved. The replay-cache key includes the model name, so another model selects a different cache entry without deleting previous evidence.
+Yes. Change the ``default_model`` parameter in the ``self.agents.create(...)`` call. The default is ``openai/gpt-6-luna`` on high reasoning if not specified. Explicit model pins are preserved. The replay-cache key includes the model name, so another model selects a different cache entry without deleting previous evidence.

@@ -46,8 +46,8 @@ virtual environment and configure your model account:
 .. code-block:: bash
 
    python -m pip install -e .
-   export GEMINI_API_KEY="your-gemini-key"
-   export AI_TRADING_TEAM_MODEL="gemini-3.5-flash-lite"
+   export OPENAI_API_KEY="your-openai-key"
+   export AI_EXAMPLE_MODEL="openai/gpt-6-luna"
    export LUMIBOT_AGENT_MAX_MODEL_CALLS="40"
 
 Save the following complete runner as ``stock_team_backtest.py`` in the checkout:
@@ -94,7 +94,7 @@ Archived pre-risk-correction run
 
 The following evidence was produced from source commit
 ``a5969317cf37f2fa9035c214e5e9be2023afbd2a`` with Yahoo data,
-``gemini-3.5-flash-lite``, and the three-symbol universe above. The four agents
+``openai/gpt-6-luna`` on high reasoning, and the three-symbol universe above. The four agents
 completed 20 decision cycles through the April 10 close. Provider continuations
 made 183 model calls and cost $0.5078 at the recorded input, cached-input, and
 output-token rates. It predates the current trading-and-risk prompt and 20%

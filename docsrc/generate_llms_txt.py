@@ -41,7 +41,7 @@ For complete API documentation with all method signatures, parameters, return ty
 
 - LumiBot supports **AI trading agents** directly inside the `Strategy` lifecycle with `self.agents.create(...)`
 - Start with a read-only researcher and a trading-enabled risk reviewer. The trader submits orders and reconciles their actual status; a submission or timeout is not proof of a fill.
-- The quickstart uses gemini-3.5-flash-lite and GEMINI_API_KEY.
+- The quickstart uses openai/gpt-6-luna on high reasoning and OPENAI_API_KEY.
 - Agents can run from `initialize()`, `on_trading_iteration()`, `on_filled_order()`, and other lifecycle methods
 - Agentic backtests can replay identical runs from cache without another model call
 - DuckDB is the built-in SQL query surface for time-series analysis

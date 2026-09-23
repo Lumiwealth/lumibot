@@ -82,7 +82,7 @@ Typical AI agent pattern:
     def initialize(self):
         self.agents.create(
             name="research",
-            default_model="gemini-3.5-flash-lite",
+            default_model="openai/gpt-6-luna",
             system_prompt="Use the available tools and return a short summary.",
             tools=[
                 BuiltinTools.account.positions(),

@@ -56,7 +56,7 @@ class AISpxZeroDteBearCallTeamStrategy(Strategy):
         "wing_width": 5.0,
         "max_risk_pct": 0.15,
         "max_contracts": 40,
-        "model": "gemini-3.5-flash-lite",
+        "model": "openai/gpt-6-luna",
         "sleeptime": "5M",
     }
 

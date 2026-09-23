@@ -15,7 +15,7 @@ wing width, exits, and risk limits. Reusable options mechanics are supplied by
 LumiBot's built-in ``options-trading`` skill. Active ``rules.json`` entries are
 loaded again before every agent call and appended to the runtime instructions.
 
-The example uses ``gemini-3.5-flash-lite`` explicitly. Existing saved
+The example uses ``openai/gpt-6-luna`` on high reasoning explicitly. Existing saved
 strategies keep the model identifier already stored in their code.
 
 How it works
@@ -47,7 +47,7 @@ source:
 
 .. code-block:: bash
 
-   export GEMINI_API_KEY="your-key"
+   export OPENAI_API_KEY="your-key"
    export BACKTESTING_DATA_SOURCE="alpaca"
    export DATADOWNLOADER_BASE_URL="https://<your-downloader-host>:8080"
    export DATADOWNLOADER_API_KEY="your-downloader-key"

@@ -49,12 +49,12 @@ Start with a researcher and a separate trading agent using the existing Strategy
 
 ```bash
 python -m pip install "git+https://github.com/Lumiwealth/lumibot.git@version/4.5.92"
-export GEMINI_API_KEY="your-gemini-api-key"
+export OPENAI_API_KEY="your-openai-api-key"
 export BACKTESTING_DATA_SOURCE=yahoo
 python -m lumibot.example_strategies.ai_researcher_trader
 ```
 
-The example uses `gemini-3.5-flash-lite`, Yahoo daily prices and a short historical window. Model calls incur charges. The version-branch installation is explicit because this documentation update does not publish a PyPI release. Fresh real-model proof for this new example is still pending; the real-engine test uses a scripted model substitute.
+The example uses `openai/gpt-6-luna` on high reasoning, Yahoo daily prices and a short historical window. Model calls incur charges. The version-branch installation is explicit because this documentation update does not publish a PyPI release. Fresh real-model proof for this new example is still pending; the real-engine test uses a scripted model substitute.
 
 For an installation check without credentials or paid calls, run `BACKTESTING_DATA_SOURCE=none python -m lumibot.example_strategies.first_backtest`. Its prices are synthetic and its simulated fill tests mechanics, not returns.
 
@@ -159,7 +159,7 @@ from pathlib import Path
 
 self.agents.create(
     name="allocator",
-    model="gemini-3.5-flash-lite",
+    model="openai/gpt-6-luna",
     allow_trading=True,
     system_prompt="Trade the best risk-adjusted opportunity you can prove.",
     rules_path=Path(__file__).with_name("rules.json"),
@@ -260,8 +260,8 @@ Most alternatives either put the LLM outside the backtest loop (QuantConnect), h
 **What AI models are supported?**
 
 The architecture supports Gemini, OpenAI, Anthropic, and other providers through
-the underlying model router. The AI-only trading examples explicitly use
-`gemini-3.5-flash-lite`. Existing saved strategies keep the model string already
+the underlying model router. The AI-only trading examples use the default
+`openai/gpt-6-luna` on high reasoning. Existing saved strategies keep the model string already
 stored in their code. Pass a model identifier when creating an agent.
 
 **How is agent behavior tested before release?**
@@ -275,15 +275,15 @@ changes. See `docs/AGENT_EVALS.md`.
 
 **How do I get started?**
 
-Install LumiBot, set `GEMINI_API_KEY` in your environment, run the Quick Start commands above. The linked researcher/trader example is a complete strategy file. Provider-specific variants are available for OpenAI, Grok, and Anthropic. See the public docs at `https://lumibot.lumiwealth.com/agents.html` for additional patterns and the reference demo strategies.
+Install LumiBot, set `OPENAI_API_KEY` in your environment, run the Quick Start commands above. The linked researcher/trader example is a complete strategy file. Provider-specific variants are available for OpenAI, Grok, and Anthropic. See the public docs at `https://lumibot.lumiwealth.com/agents.html` for additional patterns and the reference demo strategies.
 
 **What API keys do I need?**
 
-At minimum, `GEMINI_API_KEY` for the Gemini model that powers the agent. If your `@agent_tool` functions call external APIs, you also need those keys -- for example `ALPACA_API_KEY` and `ALPACA_API_SECRET` for Alpaca data APIs. Macro-data examples and built-in FRED tools require `FRED_API_KEY` so Lumibot can use the official FRED/ALFRED API and request point-in-time vintage observations in backtests.
+At minimum, `OPENAI_API_KEY` for the default GPT-6 Luna model that powers the agent. If your `@agent_tool` functions call external APIs, you also need those keys -- for example `ALPACA_API_KEY` and `ALPACA_API_SECRET` for Alpaca data APIs. Macro-data examples and built-in FRED tools require `FRED_API_KEY` so Lumibot can use the official FRED/ALFRED API and request point-in-time vintage observations in backtests.
 
 **How do I set up my environment?**
 
-Create a `.env` file in your project directory with your API keys (e.g., `GEMINI_API_KEY=your_key_here`). LumiBot reads environment variables at startup. You can also export them in your shell. For backtesting, set `BACKTESTING_DATA_SOURCE` in `.env` or use `datasource_class=None` to defer to the environment configuration.
+Create a `.env` file in your project directory with your API keys (e.g., `OPENAI_API_KEY=your_key_here`). LumiBot reads environment variables at startup. You can also export them in your shell. For backtesting, set `BACKTESTING_DATA_SOURCE` in `.env` or use `datasource_class=None` to defer to the environment configuration.
 
 **Can I use this for live trading?**
 
@@ -407,7 +407,7 @@ Cost depends on the LLM provider and model, the number of bars in your backtest,
 
 **How can I reduce API costs?**
 
-Use the replay cache and inspect actual hit/miss records; do not assume every subsequent run is free. Use cost-effective models (e.g., `gemini-3.5-flash-lite`). Keep your backtest date range focused during development. Reduce the number of tool calls by making your tools return comprehensive data in a single call rather than requiring multiple round trips.
+Use the replay cache and inspect actual hit/miss records; do not assume every subsequent run is free. Use cost-effective models (e.g., `openai/gpt-6-luna`). Keep your backtest date range focused during development. Reduce the number of tool calls by making your tools return comprehensive data in a single call rather than requiring multiple round trips.
 
 **How does replay caching reduce costs?**
 

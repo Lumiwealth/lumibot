@@ -34,7 +34,7 @@ and post-order state.
 A fresh one-day run from source commit
 ``cfa017cfd11c937cd1b87d5119fff067972e6b04`` completed from the April 6,
 2026 open through the 16:00 ET close. It used IBKR intraday history through the
-configured Data Downloader, ``gemini-3.5-flash-lite``, and the SPY, NVDA, and AMD
+configured Data Downloader, ``openai/gpt-6-luna`` on high reasoning, and the SPY, NVDA, and AMD
 universe below. Seven hourly agent decisions completed without a runtime or data
 fetch failure. The agent submitted no order, the backtesting broker recorded no
 fill, and simulated portfolio value remained $100,000. This is a completed
@@ -63,7 +63,7 @@ package in your virtual environment so the runner and documentation match:
 .. code-block:: bash
 
    python -m pip install -e .
-   export GEMINI_API_KEY="your-gemini-key"
+   export OPENAI_API_KEY="your-openai-key"
    export DATADOWNLOADER_BASE_URL="https://your-downloader-host"
    export DATADOWNLOADER_API_KEY="your-downloader-key"
    export BACKTESTING_DATA_SOURCE="alpaca"
@@ -74,7 +74,7 @@ package in your virtual environment so the runner and documentation match:
    export LUMIBOT_AGENT_MAX_MODEL_CALLS="60"
    python -m lumibot.example_strategies.ai_opening_range_breakout
 
-The current source selects ``gemini-3.5-flash-lite``. Check that your provider
+The current source selects ``openai/gpt-6-luna`` on high reasoning. Check that your provider
 account supports it. The command above spans April 6 through April 10, 2026,
 with an April 11 end boundary. Start with three symbols before expanding to the
 default universe. The passing minute proof uses Alpaca, the same source as the

@@ -16,7 +16,8 @@ def test_ai_examples_are_root_navigation_entries():
 def test_quickstart_includes_one_canonical_trading_example():
     text = (ROOT / "docsrc/agents_quickstart.rst").read_text()
     assert "literalinclude:: ../lumibot/example_strategies/ai_researcher_trader.py" in text
-    assert "gemini-3.5-flash-lite" in text
+    assert "openai/gpt-6-luna" in text
+    assert "gemini-3.5-flash-lite" not in text
     assert "gpt-4.1" not in text
     guide = (ROOT / "docs/AI_TRADING_AGENTS.md").read_text()
     assert "gpt-4.1" not in guide
@@ -54,7 +55,8 @@ def test_two_roles_preserve_evidence_and_trading_ownership():
     ResearcherTraderStrategy.initialize(ctx)
     ResearcherTraderStrategy.on_trading_iteration(ctx)
     assert [(a["name"], a["allow_trading"]) for a in created] == [("researcher", False), ("trader", True)]
-    assert all(a["default_model"] == "gemini-3.5-flash-lite" for a in created)
+    assert all(a["default_model"] == "openai/gpt-6-luna" for a in created)
+    assert all(a["reasoning_effort"] == "high" for a in created)
     assert [name for name, _ in calls] == ["researcher", "trader"]
     assert calls[1][1]["context"]["research_evidence"] == "researcher evidence"
     assert calls[1][1]["context"]["max_position_pct"] == 10
@@ -66,7 +68,7 @@ def test_readme_leads_with_runnable_ai_before_education():
     assert 'LumiBot AI Trading' in opening
     assert 'Try the development example without API keys' not in opening
     assert 'ResearcherTraderStrategy.backtest(' in opening
-    assert 'export GEMINI_API_KEY=' in opening
+    assert 'export OPENAI_API_KEY=' in opening
     assert opening.index('```python') < opening.index('Join the free challenge')
     assert 'width="640"' in opening
     assert 'benefit-hero.png' in opening
@@ -146,7 +148,7 @@ def test_rejected_mascot_outputs_cannot_return():
     rejected = set(json.loads((assets / "rejected-mascot-hashes.json").read_text()).values())
     for name in ("benefit-hero", "example-gallery", "backtest-benefit", "component-research", "python-strategies", "broker-connections"):
         assert hashlib.sha256((assets / f"{name}.png").read_bytes()).hexdigest() not in rejected
-    assert "Do not generate robot or mascot variations" in (root / "AGENTS.md").read_text()
+    assert "Do not invent a new body, pose, or face" in (root / "AGENTS.md").read_text()
 
 
 def test_creator_campaign_placements_have_distinct_tracking():

@@ -93,7 +93,7 @@ Start with SPY. A research agent analyzes its trend; a trading agent checks the 
 
 ```bash
 python -m pip install "git+https://github.com/Lumiwealth/lumibot.git@version/4.5.92"
-export GEMINI_API_KEY="your-gemini-api-key"
+export OPENAI_API_KEY="your-openai-api-key"
 export BACKTESTING_DATA_SOURCE=yahoo
 python -m lumibot.example_strategies.ai_researcher_trader
 ```
@@ -124,7 +124,7 @@ if __name__ == "__main__":
 python my_ai_strategy.py
 ```
 
-Watch the research and trading decisions in the log, then inspect the orders and backtest report. The `$100,000` is simulated portfolio capital. The example uses `gemini-3.5-flash-lite`.
+Watch the research and trading decisions in the log, then inspect the orders and backtest report. The `$100,000` is simulated portfolio capital. The example uses `openai/gpt-6-luna` on high reasoning.
 
 **[Open the complete strategy code](lumibot/example_strategies/ai_researcher_trader.py)** to change the prompts, tools, or trading rules. [Follow the walkthrough](https://lumibot.lumiwealth.com/agents_quickstart.html) for the agent setup and how to read the results. Prefer rules without AI? [Run a conventional Python strategy](#backtest-a-strategy).
 
@@ -289,12 +289,12 @@ In this pattern, each agent has a job:
 3. **Bear Agent:** challenges the thesis, looks for risk, and argues for avoiding, delaying, or reducing the trade.
 4. **Trader / Portfolio Manager Agent:** checks cash, positions, open orders, and risk limits, then decides whether to trade.
 
-The copy-paste example below implements that exact team. It uses Gemini Flash Lite because it is fast and inexpensive for experiments.
+The copy-paste example below implements that exact team. It uses GPT-6 Luna on high reasoning, LumiBot's default model.
 
 To run it with a broker in paper mode, set your AI and Alpaca credentials and run the file:
 
 ```bash
-export GEMINI_API_KEY='your-key-here'
+export OPENAI_API_KEY='your-key-here'
 export ALPACA_API_KEY='your-alpaca-key'
 export ALPACA_API_SECRET='your-alpaca-secret'
 export ALPACA_IS_PAPER=true
@@ -304,7 +304,7 @@ python ai_trading_team_bull_bear_leveraged_etf.py
 To backtest the same strategy instead, change `IS_BACKTESTING = False` to `IS_BACKTESTING = True` in the runner:
 
 ```bash
-export GEMINI_API_KEY='your-key-here'
+export OPENAI_API_KEY='your-key-here'
 python ai_trading_team_bull_bear_leveraged_etf.py
 ```
 
@@ -324,7 +324,7 @@ class AITradingTeamBullBearLeveragedETFStrategy(Strategy):
 
     def initialize(self):
         self.sleeptime = "1D"
-        model = os.environ.get("AI_TRADING_TEAM_MODEL", "gemini-3.1-flash-lite")
+        model = os.environ.get("AI_TRADING_TEAM_MODEL", "openai/gpt-6-luna")
         # The first three agents are read-only. They can reason, but cannot trade.
         self.agents.create(
             name="researcher",

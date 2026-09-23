@@ -71,8 +71,16 @@ class _CaptureRuntime:
 
 def test_default_agent_model_is_current_and_explicit_pins_are_preserved():
     manager = AgentManager(_Strategy())
-    assert manager.create(name="default", _runtime=_CaptureRuntime()).default_model == "gemini-3.5-flash-lite"
-    assert manager.create(name="pinned", model="pinned-model", _runtime=_CaptureRuntime()).default_model == "pinned-model"
+    default = manager.create(name="default", _runtime=_CaptureRuntime())
+    assert default.default_model == "openai/gpt-6-luna"
+    assert default.reasoning_effort == "high"
+    explicit_default = manager.create(name="explicit", model="openai/gpt-6-luna", _runtime=_CaptureRuntime())
+    assert explicit_default.reasoning_effort == "high"
+    lowered = manager.create(name="lowered", reasoning_effort="low", _runtime=_CaptureRuntime())
+    assert lowered.reasoning_effort == "low"
+    pinned = manager.create(name="pinned", model="pinned-model", _runtime=_CaptureRuntime())
+    assert pinned.default_model == "pinned-model"
+    assert pinned.reasoning_effort is None
     assert manager.create(name="family", model="google/gemini-pro", _runtime=_CaptureRuntime()).default_model == "google/gemini-pro"
 
 

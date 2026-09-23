@@ -36,7 +36,7 @@ results validate mechanics without claiming strategy profitability.
 
 .. code-block:: bash
 
-   export GEMINI_API_KEY="your-key"
+   export OPENAI_API_KEY="your-key"
    export BACKTESTING_DATA_SOURCE="alpaca"
    export DATADOWNLOADER_BASE_URL="https://<your-downloader-host>:8080"
    export DATADOWNLOADER_API_KEY="your-downloader-key"

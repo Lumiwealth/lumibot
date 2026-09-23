@@ -23,6 +23,8 @@ _TIMESTAMP_HINT_RE = re.compile(
     re.IGNORECASE,
 )
 _DEFAULT_MEMORY_NOTE_MAX_CHARS = 2000
+DEFAULT_AGENT_MODEL = "openai/gpt-6-luna"
+DEFAULT_AGENT_REASONING_EFFORT = "high"
 _BOTSPOT_RESEARCH_TOOLS = [
     "search_data_catalog",
     "query_data",
@@ -2768,7 +2770,9 @@ class AgentManager:
         resolved_system_prompt = system_prompt or prompt or "You are a LumiBot trading agent."
         if model is not None and default_model is not None and model != default_model:
             raise ValueError("Pass either model or default_model, not both with different values.")
-        resolved_model = model or default_model or "gemini-3.5-flash-lite"
+        resolved_model = model or default_model or DEFAULT_AGENT_MODEL
+        if reasoning_effort is None and resolved_model == DEFAULT_AGENT_MODEL:
+            reasoning_effort = DEFAULT_AGENT_REASONING_EFFORT
         resolved_allow_trading = True if allow_trading is None else bool(allow_trading)
         handle = AgentHandle(
             manager=self,

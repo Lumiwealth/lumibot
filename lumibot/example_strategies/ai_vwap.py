@@ -5,7 +5,7 @@ trading policy lives in their prompts. Prefer minute bars and the
 get_indicator('vwap') tool when available.
 
 Local backtest:
-    GEMINI_API_KEY=... BACKTESTING_DATA_SOURCE=alpaca \
+    OPENAI_API_KEY=... BACKTESTING_DATA_SOURCE=alpaca \
         python -m lumibot.example_strategies.ai_vwap
 
 Optional env overrides (AI_VWAP_*):

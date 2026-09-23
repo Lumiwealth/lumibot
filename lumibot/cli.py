@@ -85,7 +85,7 @@ only one allowed to place an order. Edit this file freely: it is an ordinary
 
 Set a model key before running. Model calls incur charges:
 
-    export GEMINI_API_KEY="your-gemini-api-key"
+    export OPENAI_API_KEY="your-openai-api-key"
 
     lumibot backtest {project} --days 30
     lumibot run {project} --paper
@@ -105,7 +105,8 @@ class {class_name}(Strategy):
 
         self.agents.create(
             name="researcher",
-            default_model="gemini-3.5-flash-lite",
+            default_model="openai/gpt-6-luna",
+            reasoning_effort="high",
             allow_trading=False,
             system_prompt=(
                 "Research the supplied symbol using the current price and the last 20 "
@@ -119,7 +120,8 @@ class {class_name}(Strategy):
 
         self.agents.create(
             name="trader",
-            default_model="gemini-3.5-flash-lite",
+            default_model="openai/gpt-6-luna",
+            reasoning_effort="high",
             allow_trading=True,
             system_prompt=(
                 "You are the risk reviewer and the only trading agent. Treat research as "

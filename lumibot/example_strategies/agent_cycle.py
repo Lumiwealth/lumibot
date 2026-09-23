@@ -10,17 +10,11 @@ from __future__ import annotations
 import os
 from typing import Any
 
-CHEAP_MODEL = "gemini-3.5-flash-lite"
-
-# Gemini API paid tier for gemini-3.5-flash-lite, checked 2026-09-22:
-# https://ai.google.dev/gemini-api/docs/pricing
-INPUT_USD_PER_MILLION = 0.30
-CACHED_INPUT_USD_PER_MILLION = 0.03
-OUTPUT_USD_PER_MILLION = 2.50
+from lumibot.components.agents.manager import DEFAULT_AGENT_MODEL
 
 
 def model_name() -> str:
-    return os.environ.get("AI_EXAMPLE_MODEL", CHEAP_MODEL)
+    return os.environ.get("AI_EXAMPLE_MODEL", DEFAULT_AGENT_MODEL)
 
 
 def add_agent(strategy: Any, name: str, prompt: str, *, allow_trading: bool, rules_path: Any = None) -> None:
@@ -29,7 +23,6 @@ def add_agent(strategy: Any, name: str, prompt: str, *, allow_trading: bool, rul
         "model": model_name(),
         "allow_trading": allow_trading,
         "system_prompt": prompt,
-        "reasoning_effort": "low",
     }
     if rules_path is not None:
         kwargs["rules_path"] = rules_path

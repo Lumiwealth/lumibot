@@ -943,7 +943,7 @@ LUMIBOT_AI_GATEWAY_URL and LUMIBOT_AI_GATEWAY_TOKEN
 GEMINI_API_KEY
 ^^^^^^^^^^^^^^
 
-- Purpose: Auth for Gemini models (the default provider).
+- Purpose: Auth for Gemini models.
 - Values: Obtain from https://aistudio.google.com/apikey.
 - Required when ``default_model`` starts with ``gemini-`` (e.g. ``gemini-3.1-flash-lite-preview``).
 - LumiBot's public contract is ``GEMINI_API_KEY``. Do not rely on Google SDK
@@ -953,9 +953,9 @@ GEMINI_API_KEY
 OPENAI_API_KEY
 ^^^^^^^^^^^^^^
 
-- Purpose: Auth for OpenAI models (GPT-5.4 family and others).
+- Purpose: Auth for OpenAI models, including the default ``openai/gpt-6-luna``.
 - Values: Obtain from https://platform.openai.com/api-keys.
-- Required when ``default_model`` looks like ``openai/gpt-5.4-mini`` or any other ``openai/...`` id.
+- Required for the default model and whenever ``default_model`` is any other ``openai/...`` id.
 
 XAI_API_KEY or GROK_API_KEY
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^

@@ -18,9 +18,10 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 OUT = ROOT / "docs" / "research" / "2026-09-23-ai-strategy-backtests"
 CAP_USD = 25.0
-INPUT_USD_PER_MILLION = 0.30
-CACHED_INPUT_USD_PER_MILLION = 0.03
-OUTPUT_USD_PER_MILLION = 2.50
+MODEL = "openai/gpt-6-luna"
+INPUT_USD_PER_MILLION = 0.10
+CACHED_INPUT_USD_PER_MILLION = 0.01
+OUTPUT_USD_PER_MILLION = 0.50
 TOKEN_LINE = re.compile(
     r"tokens_out=(\d+) tokens_cached_in=(\d+) tokens_uncached_in=(\d+) tokens_thinking=(\d+)"
 )
@@ -133,17 +134,18 @@ WAVE1 = (
 )
 
 
-def _load_gemini_key() -> str:
-    for name in (".env.local", ".env"):
-        path = ROOT / name
+def _load_openai_key() -> str:
+    if os.environ.get("OPENAI_API_KEY"):
+        return os.environ["OPENAI_API_KEY"]
+    for path in (ROOT.parent / "botspot_agent" / ".env", ROOT / ".env.local", ROOT / ".env"):
         if not path.exists():
             continue
         for line in path.read_text().splitlines():
-            if line.startswith("GEMINI_API_KEY="):
+            if line.startswith("OPENAI_API_KEY="):
                 value = line.split("=", 1)[1].strip().strip('"').strip("'")
                 if value:
                     return value
-    raise SystemExit("GEMINI_API_KEY is missing from lumibot env files")
+    raise SystemExit("OPENAI_API_KEY is missing")
 
 
 def _env_file_value(filename: str, key: str) -> str:
@@ -166,8 +168,8 @@ def _child_env(source: str) -> dict[str, str]:
     env["LUMIBOT_DISABLE_DOTENV_LOCAL"] = "1"
     env["IS_BACKTESTING"] = "true"
     env["PYTHONUNBUFFERED"] = "1"
-    env["AI_EXAMPLE_MODEL"] = "gemini-3.5-flash-lite"
-    env["GEMINI_API_KEY"] = _load_gemini_key()
+    env["AI_EXAMPLE_MODEL"] = MODEL
+    env["OPENAI_API_KEY"] = _load_openai_key()
     env["PYTHONPATH"] = str(ROOT) + os.pathsep + env.get("PYTHONPATH", "")
     if source == "alpaca":
         paper = _env_file_value(".env", "ALPACA_IS_PAPER").lower()

@@ -34,13 +34,13 @@ account; model calls use your provider billing.
 .. code-block:: bash
 
    python -m pip install "git+https://github.com/Lumiwealth/lumibot.git@version/4.5.92"
-   export GEMINI_API_KEY="your-gemini-api-key"
+   export OPENAI_API_KEY="your-openai-api-key"
    export BACKTESTING_DATA_SOURCE=yahoo
    python -m lumibot.example_strategies.ai_researcher_trader
 
 :doc:`Read and customize the strategy <agents_quickstart>` or
 `inspect the recorded decisions and fill <https://github.com/Lumiwealth/lumibot/blob/version/4.5.92/docs/assets/ai-trading/spy-20260913/README.md>`_.
-The example uses ``gemini-3.5-flash-lite``. Fresh AI decisions can vary.
+The example uses ``openai/gpt-6-luna`` on high reasoning. Fresh AI decisions can vary.
 
 .. image:: ../docs/assets/ai-trading/benefit-hero.png
    :alt: LumiBot: Python rules or AI agents, historical backtests and broker connections
@@ -263,7 +263,7 @@ To run it with a broker in paper mode, set your AI and Alpaca credentials and ru
 
 .. code-block:: bash
 
-    export GEMINI_API_KEY='your-key-here'
+    export OPENAI_API_KEY='your-key-here'
     export ALPACA_API_KEY='your-alpaca-key'
     export ALPACA_API_SECRET='your-alpaca-secret'
     export ALPACA_IS_PAPER=true
@@ -273,7 +273,7 @@ To backtest the same strategy instead, change ``IS_BACKTESTING = False`` to ``IS
 
 .. code-block:: bash
 
-    export GEMINI_API_KEY='your-key-here'
+    export OPENAI_API_KEY='your-key-here'
     python ai_trading_team_bull_bear_leveraged_etf.py
 
 Save this as ``ai_trading_team_bull_bear_leveraged_etf.py``. If an AI key is missing or invalid, LumiBot stops and prints a clear provider key error with a link to create a key.
@@ -293,7 +293,7 @@ Save this as ``ai_trading_team_bull_bear_leveraged_etf.py``. If an AI key is mis
 
         def initialize(self):
             self.sleeptime = "1D"
-            model = os.environ.get("AI_TRADING_TEAM_MODEL", "gemini-3.1-flash-lite")
+            model = os.environ.get("AI_TRADING_TEAM_MODEL", "openai/gpt-6-luna")
             # The first three agents are read-only. They can reason, but cannot trade.
             self.agents.create(
                 name="researcher",

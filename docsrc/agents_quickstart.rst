@@ -13,14 +13,14 @@ Before you run
 
 Use Python 3.10 or later. Install the version-branch source below to get this
 example. It uses
-``gemini-3.5-flash-lite``, ``GEMINI_API_KEY``, and Yahoo daily prices.
+``openai/gpt-6-luna`` on high reasoning, ``OPENAI_API_KEY``, and Yahoo daily prices.
 You do not need broker credentials for this historical backtest. Model calls
 use your provider account and incur charges; start with this short date range.
 
 .. code-block:: bash
 
    python -m pip install "git+https://github.com/Lumiwealth/lumibot.git@version/4.5.92"
-   export GEMINI_API_KEY="your-gemini-api-key"
+   export OPENAI_API_KEY="your-openai-api-key"
    export BACKTESTING_DATA_SOURCE=yahoo
 
 Save the complete code below as ``my_ai_strategy.py``, then run:
@@ -149,7 +149,7 @@ This short FRED example delegates to Lumibot's point-in-time macro helper. In mo
             self.sleeptime = "1D"
             self.agents.create(
                 name="liquidity_research",
-                default_model="gemini-3.5-flash-lite",
+                default_model="openai/gpt-6-luna",
                 system_prompt=(
                     "Use money supply and liquidity data to decide between "
                     "TQQQ and SHV. Focus on whether M2 liquidity is expanding "
@@ -183,7 +183,7 @@ If you have a compatible MCP server, you can connect it by URL. This is useful f
             self.sleeptime = "1D"
             self.agents.create(
                 name="research",
-                default_model="gemini-3.5-flash-lite",
+                default_model="openai/gpt-6-luna",
                 system_prompt=(
                     "Use the available data tools to make informed trading decisions. "
                     "This is a binary allocator between TQQQ and SHV."
@@ -232,7 +232,7 @@ If your strategy needs a custom helper that the agent can call, decorate a metho
             self.sleeptime = "1D"
             self.agents.create(
                 name="research",
-                default_model="gemini-3.5-flash-lite",
+                default_model="openai/gpt-6-luna",
                 system_prompt="Analyze watchlist bias before trading.",
                 tools=[self.get_watchlist_bias],
             )
@@ -329,7 +329,7 @@ No. All built-in tools (positions, portfolio, prices, orders, DuckDB, docs) are 
 
 **What API keys do I need?**
 
-At minimum, one model provider key matching your ``default_model``. The default is Gemini, which needs ``GEMINI_API_KEY``. LumiBot also supports ``openai/...`` ids (needs ``OPENAI_API_KEY``), ``xai/...`` ids for Grok (needs ``XAI_API_KEY`` or ``GROK_API_KEY``), and ``anthropic/...`` ids for Claude (needs ``ANTHROPIC_API_KEY``). If your ``@agent_tool`` functions call external APIs, you also need those keys -- for example ``ALPACA_API_KEY`` and ``ALPACA_API_SECRET`` for Alpaca-based demos. FRED macro tools require ``FRED_API_KEY`` so backtests can request official FRED/ALFRED observations with point-in-time vintage parameters instead of using revised CSV data.
+At minimum, one model provider key matching your ``default_model``. The default is ``openai/gpt-6-luna`` on high reasoning, which needs ``OPENAI_API_KEY``. LumiBot also supports Gemini ids (needs ``GEMINI_API_KEY``), ``xai/...`` ids for Grok (needs ``XAI_API_KEY`` or ``GROK_API_KEY``), and ``anthropic/...`` ids for Claude (needs ``ANTHROPIC_API_KEY``). If your ``@agent_tool`` functions call external APIs, you also need those keys -- for example ``ALPACA_API_KEY`` and ``ALPACA_API_SECRET`` for Alpaca-based demos. FRED macro tools require ``FRED_API_KEY`` so backtests can request official FRED/ALFRED observations with point-in-time vintage parameters instead of using revised CSV data.
 
 **How long should my system prompt be?**
 
@@ -337,7 +337,7 @@ Two to three sentences describing your strategy intent. For example: what data t
 
 **How do I get started with the minimal example?**
 
-Copy the Minimal Example from this page, set ``GEMINI_API_KEY`` in your environment, and run it. The agent will use only built-in tools (positions, prices, DuckDB, orders) to analyze the market and make decisions. No external APIs or custom tools are required for the minimal example.
+Copy the Minimal Example from this page, set ``OPENAI_API_KEY`` in your environment, and run it. The agent will use only built-in tools (positions, prices, DuckDB, orders) to analyze the market and make decisions. No external APIs or custom tools are required for the minimal example.
 
 **What does datasource_class=None mean?**
 

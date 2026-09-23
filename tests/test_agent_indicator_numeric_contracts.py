@@ -146,6 +146,18 @@ def test_indicator_batch_can_calculate_the_same_indicator_for_multiple_symbols()
     ]
 
 
+def test_malformed_requests_json_error_tells_the_model_how_to_fix_it():
+    strategy, _, _ = _fixture()
+    malformed = '[{"id": "rsi", "indicator": "rsi", "parameters": {"length": 14}}],'
+
+    with pytest.raises(ValueError) as error:
+        _bind_get_indicators(strategy, None).function("SPY", requests_json=malformed)
+
+    message = str(error.value)
+    assert "requests_json must be exactly one JSON array" in message
+    assert "Extra data" in message
+
+
 def _adjusted_average(values, alpha):
     # Independent scalar recurrence, not pandas-ta or the production calculation.
     weighted = denominator = 0.0

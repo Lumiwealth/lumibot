@@ -2966,7 +2966,13 @@ def _bind_get_indicators(strategy: Any, manager: Any) -> BoundTool:
         if requests_json is not None:
             if indicators is not None:
                 raise ValueError("Use either indicators or requests_json, not both.")
-            requests = json.loads(requests_json)
+            try:
+                requests = json.loads(requests_json)
+            except json.JSONDecodeError as exc:
+                raise ValueError(
+                    "requests_json must be exactly one JSON array of request objects, with "
+                    f"nothing before or after it (no trailing comma or text). Parser error: {exc}"
+                ) from exc
         else:
             requests = [{"id": str(i), "indicator": name} for i, name in enumerate(indicators or [])]
         if not isinstance(requests, list) or not 1 <= len(requests) <= 50:

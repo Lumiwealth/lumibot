@@ -4146,12 +4146,20 @@ def _lookup_conid_option(
     if isinstance(payload, dict):
         nested = payload.get("contracts") or payload.get("data") or []
         contracts = nested if isinstance(nested, list) else []
+    matching = []
     for contract in contracts:
         if not isinstance(contract, dict):
             continue
         maturity_value = str(contract.get("maturityDate") or contract.get("expiry") or "")
         if maturity_value.startswith(maturity) and contract.get("conid") is not None:
+            matching.append(contract)
+    # On monthly expirations IBKR lists AM-settled SPX and PM-settled SPXW contracts with
+    # the same maturity. Prefer the requested trading class; otherwise keep the first match.
+    for contract in matching:
+        if str(contract.get("tradingClass") or "").strip().upper() == symbol:
             return int(contract["conid"])
+    if matching:
+        return int(matching[0]["conid"])
     message = (
         f"Unable to resolve IBKR option conid for {symbol} {right_code} {_option_strike_text(asset)} {maturity}"
     )

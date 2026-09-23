@@ -91,6 +91,9 @@ Deploy marker: `180c340ccf48`
   option; an explicit config keeps the old stop three sessions early), and writes progress.csv. The
   option contract list retries once on the other Trading API endpoint after a 401, and bar requests
   stop 16 minutes before now (free keys refuse the latest 15 minutes of SIP data).
+- IBKR option contract lookup returned the first contract with a matching expiration. On monthly
+  expirations IBKR lists AM-settled `SPX` and PM-settled `SPXW` with the same date, so an `SPXW`
+  request could price the `SPX` contract. The lookup now prefers the requested trading class.
 - Polygon option chains fetched with `LUMIBOT_OPTION_CHAIN_MAX_DAYS` were cached under the normal
   name and reused for up to 14 days, and by runs without the limit, so later dates saw almost no
   expirations. A limited chain now has its own cache name and is reused only on the same day with

@@ -1155,3 +1155,42 @@ def test_us_equity_closed_interval_uses_extended_hours_and_holidays():
     assert not closed("2026-09-08 09:00", "2026-09-08 09:35", extended=False)
     assert closed("2026-11-27 17:00", "2026-11-30 04:00")  # early close day ends at 17:00
     assert not closed("2026-11-27 16:30", "2026-11-27 17:00")
+
+
+@pytest.mark.parametrize(
+    ("symbol", "expected_conid"),
+    [("SPXW", 2222), ("SPX", 1111)],
+)
+def test_option_conid_lookup_picks_the_requested_trading_class(monkeypatch, symbol, expected_conid):
+    # On monthly expirations IBKR lists an AM-settled SPX contract and a PM-settled
+    # SPXW contract with the same maturity. The lookup must return the class the
+    # strategy asked for, not whichever contract IBKR listed first.
+    import lumibot.tools.ibkr_helper as ibkr_helper
+
+    monkeypatch.setattr(ibkr_helper, "_resolve_conid", lambda **kwargs: 416904)
+    monkeypatch.setattr(ibkr_helper, "_downloader_base_url", lambda: "http://downloader.test")
+
+    def fake_queue_request(url: str, querystring, headers=None, timeout=None):
+        if url.endswith("/secdef/search"):
+            return [{"conid": 416904}]
+        if url.endswith("/secdef/strikes"):
+            return {"call": [6600.0], "put": [6600.0]}
+        if url.endswith("/secdef/info"):
+            listed = [
+                {"conid": 1111, "maturityDate": "20261016", "tradingClass": "SPX"},
+                {"conid": 2222, "maturityDate": "20261016", "tradingClass": "SPXW"},
+            ]
+            # IBKR lists the AM-settled SPX contract first on monthly expirations.
+            return listed
+        raise AssertionError(f"Unexpected URL: {url}")
+
+    monkeypatch.setattr(ibkr_helper, "queue_request", fake_queue_request)
+
+    asset = Asset(
+        symbol=symbol,
+        asset_type="option",
+        expiration=datetime(2026, 10, 16).date(),
+        strike=6600,
+        right="CALL",
+    )
+    assert ibkr_helper._lookup_conid_option(asset=asset, quote=None, exchange=None) == expected_conid

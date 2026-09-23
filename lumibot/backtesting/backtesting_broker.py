@@ -3372,6 +3372,15 @@ class BacktestingBroker(Broker):
         timestep: Optional[str],
         data_source_name: Optional[str] = None,
     ) -> bool:
+        # Alpaca option history is trade prints with no forward fill, for minute and day
+        # bars alike. Fill only on a bar that printed in the current bucket; an older print
+        # is a stale price, so the order keeps working until a real trade prints.
+        source = getattr(self, "data_source", None)
+        if self._is_option_asset(getattr(order, "asset", None) if order is not None else None) and (
+            str(data_source_name or getattr(source, "SOURCE", "") or "").upper() == "ALPACA"
+            or (source is not None and source.__class__.__name__ == "AlpacaBacktesting")
+        ):
+            return True
         try:
             _, unit = parse_timestep_qty_and_unit(timestep or getattr(getattr(self, "data_source", None), "_timestep", None))
         except Exception:

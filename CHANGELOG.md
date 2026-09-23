@@ -58,7 +58,25 @@
 - Added partnership information, direct AI example routes, and hosted marketplace links to the public documentation and README.
 - Corrected README and package license labels to match the existing GPLv3 LICENSE file; the license text is unchanged.
 
+### Added
+- Alpaca options backtesting with your own key: `AlpacaBacktesting.get_chains()` now lists
+  real contracts (expired and live, paginated) for the simulated date, within 90 days or the
+  `OptionsHelper` expiration hint, cached per day in memory and on disk. Requests stay under
+  the free-tier limit and wait on HTTP 429 with a bounded retry. New public page
+  `docsrc/backtesting.alpaca.rst`; proof runs in `docs/research/2026-09-23-alpaca-options-backtests/`.
+
 ### Fixed
+- Alpaca option bars are no longer reindexed and forward/back filled like stock bars. That
+  invented prices between sparse trades and back-filled a later trade into the past (a price
+  before the first print). Options now use real prints only; `get_last_price` is `None`
+  before the first trade, `BacktestingBroker` fills Alpaca options only on a bar that printed
+  in the current minute or day, and a contract with no bars logs one clear error instead of
+  crashing. Option cache files carry a new `_TRADES` key so old filled files are not reused.
+- `AlpacaBacktesting.LUMIBOT_DEFAULT_QUOTE_ASSET` was `None` after the lazy AlpacaData quote
+  change, which broke `_get_asset_key(quote_asset=None)` in the legacy Alpaca backtest tests.
+- An explicit `AlpacaBacktesting(timestep="minute")` is no longer switched to day bars when
+  the strategy sleeps a day. The daily-cadence priming added in 4.4.53 now skips data sources
+  whose bar size the caller set; four legacy Alpaca minute tests pass again.
 - IBKR stock intraday backtests no longer re-submit the same downloader request on
   every bar when a window edge is market-closed time (a lookback that starts on a
   weekend or holiday, or a backtest end clamped to "now" before the next session

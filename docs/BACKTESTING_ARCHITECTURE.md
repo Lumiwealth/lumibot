@@ -581,6 +581,30 @@ df = df[~all_zero]
 
 **Key Function:** `get_price_data_from_polygon()` (line 80)
 
+### 6. Alpaca (`alpaca_backtesting.py`, bring your own key)
+
+**Flow:**
+1. `AlpacaBacktesting` inherits from `DataSourceBacktesting` and downloads one bar series per
+   asset for the whole backtest window (stock, crypto and option clients), cached as CSV in
+   `LUMIBOT_CACHE_FOLDER/alpaca`.
+2. Stock and crypto minute/day bars are reindexed to the trading calendar and filled
+   (legacy behavior, see the RULE #1 note below). Option bars are NOT: they are trade prints
+   and stay sparse. Option cache keys end in `_TRADES` so older filled files are never reused.
+3. `get_chains()` lists contracts from the Trading API (`status=inactive` plus `active`,
+   paginated), for expirations from the simulated date through 90 days (or the
+   `OptionsHelper` hint). One listing is reused across simulated days; each day's chain is
+   cached in memory and as JSON in `LUMIBOT_CACHE_FOLDER/alpaca/option_chains`.
+4. `BacktestingBroker` requires an Alpaca option bar that printed in the current minute/day
+   to fill (`_requires_current_execution_bar`). Orders wait for the next real print.
+
+**Limits:** option history from about February 2024; the contract listing has no as-of date
+(small lookahead in listed strikes); no historical option bid/ask or vendor greeks; free-tier
+rate limit about 200 requests per minute. Evidence and details:
+`docs/investigations/2026-09-23_alpaca-options-backtesting-and-ibkr-4592-window-regression.md`.
+
+RULE #1 note: the stock/crypto calendar fill in `_reindex_and_fill` predates this rule and is
+covered by legacy tests. It is a known follow-up, not something to copy into new paths.
+
 ## Progress Logging and Download Status Tracking
 
 ### Progress CSV Output

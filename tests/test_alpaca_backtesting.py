@@ -2006,3 +2006,70 @@ class TestAlpacaBacktestingDataSource(BaseDataSourceTester):
             length = -1
             bars = data_source.get_historical_prices(asset=asset, length=length, timestep=timestep)
 
+
+
+# 2026-09-23: real-API proof for bring-your-own-key Alpaca options backtesting.
+# Runs against the paper key in ALPACA_TEST_API_KEY / ALPACA_TEST_API_SECRET (apitest module).
+@pytest.mark.usefixtures("disable_datasource_override")
+class TestAlpacaBacktestingOptionsApi:
+
+    def test_real_option_chain_prices_and_history_start(self, monkeypatch, tmp_path):
+        from datetime import date
+
+        import lumibot.backtesting.alpaca_backtesting as alpaca_backtesting
+
+        # A private cache folder forces real API calls instead of a warm local cache.
+        monkeypatch.setattr(alpaca_backtesting, "LUMIBOT_CACHE_FOLDER", tmp_path.as_posix())
+        ny = pytz.timezone("America/New_York")
+
+        source = AlpacaBacktesting(
+            datetime_start=ny.localize(datetime(2026, 8, 3)),
+            datetime_end=ny.localize(datetime(2026, 8, 14)),
+            config=ALPACA_TEST_CONFIG,
+            timestep="minute",
+            market="NYSE",
+        )
+        source._datetime = ny.localize(datetime(2026, 8, 4, 10, 0))
+
+        chains = source.get_chains(Asset("SPY"))
+        calls = chains["Chains"]["CALL"]
+        puts = chains["Chains"]["PUT"]
+        assert chains["Multiplier"] == 100
+        assert calls and puts
+        assert "2026-08-21" in calls and 760.0 in calls["2026-08-21"]
+        # Expired contracts (status=inactive) are part of a historical chain.
+        assert min(calls) <= "2026-08-07"
+        assert all("2026-08-04" <= expiry <= "2026-11-02" for expiry in calls)
+        assert calls["2026-08-21"] == sorted(calls["2026-08-21"])
+        assert list((tmp_path / "alpaca" / "option_chains").glob("SPY_2026-08-04_*.json"))
+
+        call_760 = Asset("SPY", asset_type=Asset.AssetType.OPTION, expiration=date(2026, 8, 21), strike=760, right="CALL")
+        price = source.get_last_price(call_760)
+        assert price is not None and float(price) > 0
+        bars = source.get_historical_prices(call_760, length=30, timestep="minute")
+        assert bars is not None and 0 < len(bars.df) <= 30
+        assert bars.df.index.max() <= source._datetime  # never a print from after the simulated time
+
+        # Expired March 2024 contract: daily bars exist.
+        source_2024 = AlpacaBacktesting(
+            datetime_start=ny.localize(datetime(2024, 3, 1)),
+            datetime_end=ny.localize(datetime(2024, 3, 15)),
+            config=ALPACA_TEST_CONFIG,
+            timestep="day",
+            market="NYSE",
+        )
+        source_2024._datetime = ny.localize(datetime(2024, 3, 11, 9, 30))
+        call_510 = Asset("SPY", asset_type=Asset.AssetType.OPTION, expiration=date(2024, 3, 15), strike=510, right="CALL")
+        assert float(source_2024.get_last_price(call_510)) > 0
+
+        # Before Alpaca option history (about February 2024): no bars, a clear None, no crash.
+        source_2023 = AlpacaBacktesting(
+            datetime_start=ny.localize(datetime(2023, 6, 1)),
+            datetime_end=ny.localize(datetime(2023, 6, 14)),
+            config=ALPACA_TEST_CONFIG,
+            timestep="day",
+            market="NYSE",
+        )
+        source_2023._datetime = ny.localize(datetime(2023, 6, 5, 9, 30))
+        call_420 = Asset("SPY", asset_type=Asset.AssetType.OPTION, expiration=date(2023, 6, 16), strike=420, right="CALL")
+        assert source_2023.get_last_price(call_420) is None

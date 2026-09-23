@@ -1,5 +1,8 @@
+import json
 import os
-from datetime import datetime, timedelta
+import time
+from collections import deque
+from datetime import date, datetime, timedelta
 from decimal import Decimal
 from typing import Optional
 
@@ -15,7 +18,7 @@ from alpaca.data.timeframe import TimeFrame, TimeFrameUnit
 
 from lumibot.constants import LUMIBOT_CACHE_FOLDER
 from lumibot.data_sources import AlpacaData, DataSourceBacktesting
-from lumibot.entities import Asset, Bars
+from lumibot.entities import Asset, Bars, Chains
 from lumibot.tools.helpers import (
     date_n_trading_days_from_date,
     get_decimals,
@@ -31,7 +34,55 @@ logger = get_logger(__name__)
 from lumibot.tools.alpaca_helpers import sanitize_base_and_quote_asset
 
 
+class AlpacaOptionHistoryUnavailable(RuntimeError):
+    """Alpaca answered an option bars request successfully but returned no bars."""
+
+
 class AlpacaBacktesting(DataSourceBacktesting):
+    """Backtest with historical data from your own Alpaca account (stocks, crypto, options).
+
+    Options ("bring your own key"):
+
+    - ``get_chains()`` lists contracts with Alpaca's option contracts API
+      (``GET /v2/options/contracts``), expired (``status=inactive``) and live
+      (``status=active``) together, following ``next_page_token`` pagination. The chain
+      holds expirations from the simulated date through ``OPTION_CHAIN_MAX_DAYS`` (90)
+      days later, or the ``min/max_expiration_date`` hint that ``OptionsHelper`` sets.
+      Only standard 100-share contracts whose root is the underlying are included.
+    - Chains are cached per (underlying, simulated date, expiration window) in memory
+      and as JSON under ``<LUMIBOT_CACHE_FOLDER>/alpaca/option_chains/``. One contract
+      listing is reused for later dates while it still covers their window, so a
+      strategy that calls ``get_chains()`` every bar makes about three API calls per
+      listing, not one per bar.
+    - Option prices come from Alpaca historical option bars, which are trade prints.
+      They are kept as-is: no reindexing, no forward fill, no back fill (RULE #1 in
+      ``docs/BACKTESTING_ARCHITECTURE.md``). ``get_last_price()`` returns the open of a
+      bar that printed in the current minute (or day), otherwise the close of the most
+      recent earlier print, and ``None`` before the first print. ``BacktestingBroker``
+      fills an option order only on a bar that printed in the current bucket, so orders
+      wait for a real trade instead of filling at a stale price.
+    - A contract with no bars at all logs one clear error and returns ``None``.
+
+    Known limits:
+
+    - Alpaca option history starts around February 2024. Earlier contracts return no bars.
+    - The contract listing has no as-of date. A strike or expiration listed after the
+      simulated date can appear in that date's chain (a small lookahead). Contracts with
+      no trade before the simulated date simply have no price yet.
+    - No historical bid/ask or greeks for options. Fills use trade bars, so spreads are
+      not modeled. ``Strategy.get_greeks()`` still works: LumiBot computes greeks locally
+      from the last trade and the underlying price, which is only as fresh as the prints.
+    - Daily option bars start at the day's first trade, which can print after the open.
+      Use minute bars when fill timing matters.
+    - Free keys allow about 200 requests per minute. Requests are throttled below that
+      and HTTP 429 answers wait (``Retry-After`` when present) with a bounded retry.
+    - Stock bars use Alpaca's default feed. Checked 2026-09-23 on a free key: history comes
+      back as SIP (all US exchanges, SPY about 60M shares a day versus about 2M on IEX), but
+      the latest 15 minutes of SIP are refused ("subscription does not permit querying
+      recent SIP data"). Requests run to the end date plus one day, so end a backtest at
+      least one full day before today.
+    """
+
     SOURCE = "ALPACA"
     APPLY_BACKTEST_POSITION_SPLITS = False
     MIN_TIMESTEP = "minute"
@@ -39,7 +90,21 @@ class AlpacaBacktesting(DataSourceBacktesting):
         {"timestep": "day", "representations": [TimeFrame.Day]},
         {"timestep": "minute", "representations": [TimeFrame.Minute]},
     ]
-    LUMIBOT_DEFAULT_QUOTE_ASSET = AlpacaData.LUMIBOT_DEFAULT_QUOTE_ASSET
+    # AlpacaData builds its default quote asset lazily and leaves the class attribute None
+    # until first use (2026-07-02). Copying that None made `_get_asset_key(quote_asset=None)`
+    # crash in the legacy backtest tests; resolve the real USD quote asset here instead.
+    LUMIBOT_DEFAULT_QUOTE_ASSET = AlpacaData._default_quote_asset()
+    # Option chain horizon (days after the simulated date) when no expiration hint is set.
+    OPTION_CHAIN_MAX_DAYS = 90
+    # Extra expiration days fetched per contract listing so later simulated days reuse it.
+    OPTION_CHAIN_LISTING_EXTRA_DAYS = 30
+    OPTION_CONTRACTS_PAGE_LIMIT = 10000
+    # Alpaca free-tier keys allow about 200 data/trading requests per minute.
+    ALPACA_MAX_REQUESTS_PER_MINUTE = 180
+    ALPACA_RATE_LIMIT_MAX_RETRIES = 5
+    ALPACA_RATE_LIMIT_MAX_WAIT_SECONDS = 120.0
+    OPTION_HISTORY_START_HINT = "Alpaca option history starts around February 2024"
+    CACHE_SUBFOLDER = "alpaca"
 
     def __init__(
             self,
@@ -110,6 +175,9 @@ class AlpacaBacktesting(DataSourceBacktesting):
         )
 
         self._timestep: str = kwargs.get('timestep', 'day')
+        # The caller chose the bar size. StrategyExecutor's daily-cadence priming (4.4.53)
+        # must not silently switch an explicit timestep="minute" to day bars.
+        self._timestep_explicit = kwargs.get('timestep') is not None
         warm_up_trading_days: int = kwargs.get('warm_up_trading_days', 0)
 
         self._auto_adjust: bool = kwargs.get('auto_adjust', True)
@@ -148,6 +216,18 @@ class AlpacaBacktesting(DataSourceBacktesting):
             self._option_client = OptionHistoricalDataClient(oauth_token=oauth_token)
         else:
             raise ValueError("Either OAuth token or API key/secret must be provided for Alpaca authentication")
+
+        # Option chains come from the Trading API. Create that client lazily with the same
+        # credentials and the same precedence as the live Alpaca broker: key/secret first,
+        # then OAuth token. Backtests are always paper (checked above).
+        self._alpaca_credentials = {
+            "api_key": api_key,
+            "api_secret": api_secret,
+            "oauth_token": oauth_token,
+            "paper": bool(config.get("PAPER", True)),
+        }
+        self._trading_client = None
+        self._option_chain_max_days = int(kwargs.get("option_chain_max_days") or self.OPTION_CHAIN_MAX_DAYS)
 
         # Create an AlpacaData instance for internal use
         self._alpaca_data = AlpacaData(config)
@@ -235,9 +315,16 @@ class AlpacaBacktesting(DataSourceBacktesting):
             quote: Asset | None = None,
             exchange: str | None = None
     ) -> float | Decimal | None:
-        """Returns the open price of the current bar."""
+        """Returns the open price of the current bar.
+
+        Options use real trade prints only: the open of a bar that printed in the current
+        bucket, otherwise the close of the latest earlier print, otherwise ``None``.
+        """
 
         asset, quote = self._sanitize_base_and_quote_asset(asset, quote)
+
+        if self._is_option(asset):
+            return self._get_option_last_price(asset, quote)
 
         bars = self.get_historical_prices(
             asset=asset,
@@ -330,6 +417,18 @@ class AlpacaBacktesting(DataSourceBacktesting):
 
         if quote is None:
             quote = self.LUMIBOT_DEFAULT_QUOTE_ASSET
+
+        if self._is_option(asset):
+            return self._get_option_historical_prices(
+                asset,
+                length,
+                source_timestep=source_timestep,
+                resample_rule=resample_rule,
+                timeshift=timeshift,
+                quote=quote,
+                return_polars=return_polars,
+                remove_incomplete_current_bar=remove_incomplete_current_bar,
+            )
 
         # Determine search target datetime
         search_datetime = self._datetime
@@ -487,9 +586,378 @@ class AlpacaBacktesting(DataSourceBacktesting):
             resampled = resampled.dropna(subset=required_columns, how="any")
         return resampled
 
+    # ------------------------------------------------------------------
+    # Options
+    # ------------------------------------------------------------------
+    @staticmethod
+    def _is_option(asset) -> bool:
+        return str(getattr(asset, "asset_type", "")).lower() == "option"
+
+    def _state(self, name, factory):
+        """Per-instance state that also exists on instances built without __init__ (tests)."""
+        value = self.__dict__.get(name)
+        if value is None:
+            value = factory()
+            self.__dict__[name] = value
+        return value
+
+    def _get_trading_client(self):
+        client = self.__dict__.get("_trading_client")
+        if client is not None:
+            return client
+        from alpaca.trading.client import TradingClient
+
+        creds = self.__dict__.get("_alpaca_credentials") or {}
+        paper = bool(creds.get("paper", True))
+        if creds.get("api_key") and creds.get("api_secret"):
+            client = TradingClient(creds["api_key"], creds["api_secret"], paper=paper)
+        elif creds.get("oauth_token"):
+            client = TradingClient(oauth_token=creds["oauth_token"], paper=paper)
+        else:
+            raise ValueError("Alpaca option chains need an API key/secret or an OAuth token")
+        self._trading_client = client
+        return client
+
+    def _sleep_seconds(self, seconds: float) -> None:
+        sleeper = self.__dict__.get("_sleep") or time.sleep
+        sleeper(seconds)
+
+    def _throttle_alpaca_requests(self) -> None:
+        """Keep this process under Alpaca's free-tier limit (about 200 requests per minute)."""
+        recent = self._state("_alpaca_request_times", deque)
+        limit = max(1, int(self.ALPACA_MAX_REQUESTS_PER_MINUTE))
+        now = time.monotonic()
+        while recent and now - recent[0] >= 60.0:
+            recent.popleft()
+        if len(recent) >= limit:
+            wait = 60.0 - (now - recent[0]) + 0.05
+            if wait > 0:
+                logger.info("Alpaca request budget reached (%d per minute); waiting %.1fs", limit, wait)
+                self._sleep_seconds(wait)
+            now = time.monotonic()
+            while recent and now - recent[0] >= 60.0:
+                recent.popleft()
+        recent.append(time.monotonic())
+
+    @staticmethod
+    def _is_rate_limited(exc: Exception) -> bool:
+        status = getattr(exc, "status_code", None)
+        if status is None:
+            status = getattr(getattr(exc, "response", None), "status_code", None)
+        if status == 429:
+            return True
+        text = str(exc).lower()
+        return "429" in text or "too many requests" in text or "rate limit" in text
+
+    @staticmethod
+    def _rate_limit_wait_seconds(exc: Exception, attempt: int) -> float:
+        headers = getattr(getattr(exc, "response", None), "headers", None) or {}
+        try:
+            retry_after = headers.get("Retry-After") or headers.get("retry-after")
+            if retry_after is not None:
+                return float(min(max(float(retry_after), 1.0), 60.0))
+        except (TypeError, ValueError):
+            pass
+        try:
+            reset = headers.get("X-RateLimit-Reset") or headers.get("x-ratelimit-reset")
+            if reset is not None:
+                return float(min(max(float(reset) - time.time(), 1.0), 60.0))
+        except (TypeError, ValueError):
+            pass
+        return float(min(5.0 * (2 ** max(attempt - 1, 0)), 60.0))
+
+    def _alpaca_request(self, fn, request, *, what: str):
+        """Call one Alpaca SDK method politely: client-side throttle plus bounded 429 retry.
+
+        The SDK already retries a 429 three times after 3 seconds. This adds a longer,
+        bounded wait (``Retry-After`` when Alpaca sends it) before failing loudly.
+        """
+        retries = 0
+        waited = 0.0
+        while True:
+            self._throttle_alpaca_requests()
+            try:
+                return fn(request)
+            except Exception as exc:
+                if not self._is_rate_limited(exc):
+                    raise
+                retries += 1
+                wait = self._rate_limit_wait_seconds(exc, retries)
+                if (
+                    retries > self.ALPACA_RATE_LIMIT_MAX_RETRIES
+                    or waited + wait > self.ALPACA_RATE_LIMIT_MAX_WAIT_SECONDS
+                ):
+                    raise RuntimeError(
+                        f"Alpaca rate limit persisted while requesting {what} after {retries - 1} waits "
+                        f"({waited:.0f}s). Free keys allow about 200 requests per minute; retry later."
+                    ) from exc
+                logger.warning(
+                    "Alpaca rate limit (HTTP 429) while requesting %s; waiting %.1fs (retry %d of %d)",
+                    what,
+                    wait,
+                    retries,
+                    self.ALPACA_RATE_LIMIT_MAX_RETRIES,
+                )
+                waited += wait
+                self._sleep_seconds(wait)
+
+    @staticmethod
+    def _as_date(value) -> Optional[date]:
+        if value is None:
+            return None
+        if isinstance(value, datetime):
+            return value.date()
+        if isinstance(value, date):
+            return value
+        try:
+            return datetime.strptime(str(value)[:10], "%Y-%m-%d").date()
+        except ValueError:
+            return None
+
+    @staticmethod
+    def _option_root(symbol: str) -> str:
+        return "".join(ch for ch in str(symbol or "").upper() if ch.isalnum())
+
+    def _list_option_contracts(self, symbol: str, first_expiration: date, last_expiration: date) -> list:
+        """Return (expiration, right, strike) for standard contracts expiring in the window.
+
+        Expired contracts are ``status=inactive`` and live ones ``status=active``; a historical
+        chain needs both. One listing is kept per underlying and reused for later simulated
+        days while it still covers their window.
+        """
+        from alpaca.trading.enums import AssetStatus
+        from alpaca.trading.requests import GetOptionContractsRequest
+
+        listings = self._state("_option_contract_listings", dict)
+        cached = listings.get(symbol)
+        if cached is not None and cached[0] <= first_expiration and last_expiration <= cached[1]:
+            return [c for c in cached[2] if first_expiration <= c[0] <= last_expiration]
+
+        listing_end = last_expiration + timedelta(days=int(self.OPTION_CHAIN_LISTING_EXTRA_DAYS))
+        root = self._option_root(symbol)
+        client = self._get_trading_client()
+        contracts = []
+        for status in (AssetStatus.INACTIVE, AssetStatus.ACTIVE):
+            page_token = None
+            while True:
+                request = GetOptionContractsRequest(
+                    underlying_symbols=[symbol],
+                    status=status,
+                    expiration_date_gte=first_expiration,
+                    expiration_date_lte=listing_end,
+                    limit=int(self.OPTION_CONTRACTS_PAGE_LIMIT),
+                    page_token=page_token,
+                )
+                response = self._alpaca_request(
+                    client.get_option_contracts,
+                    request,
+                    what=f"{symbol} option contracts ({status.value})",
+                )
+                for contract in getattr(response, "option_contracts", None) or []:
+                    parsed = self._parse_option_contract(contract, root)
+                    if parsed is not None:
+                        contracts.append(parsed)
+                page_token = getattr(response, "next_page_token", None)
+                if not page_token:
+                    break
+
+        listings[symbol] = (first_expiration, listing_end, contracts)
+        return [c for c in contracts if first_expiration <= c[0] <= last_expiration]
+
+    def _parse_option_contract(self, contract, root: str):
+        try:
+            size = float(getattr(contract, "size", 100) or 100)
+        except (TypeError, ValueError):
+            return None
+        if size != 100:
+            # Adjusted deliverables after corporate actions are not the standard contract.
+            return None
+        contract_root = getattr(contract, "root_symbol", None)
+        if contract_root and self._option_root(contract_root) != root:
+            return None
+        expiration = self._as_date(getattr(contract, "expiration_date", None))
+        right = str(getattr(getattr(contract, "type", None), "value", getattr(contract, "type", "")) or "").upper()
+        if right not in ("CALL", "PUT") or expiration is None:
+            return None
+        try:
+            strike = float(getattr(contract, "strike_price"))
+        except (TypeError, ValueError):
+            return None
+        return expiration, right, strike
+
+    @staticmethod
+    def _empty_chain(symbol: str) -> dict:
+        return {"Multiplier": 100, "Exchange": "SMART", "UnderlyingSymbol": symbol, "Chains": {"CALL": {}, "PUT": {}}}
+
+    @staticmethod
+    def _copy_chain(chain: dict) -> Chains:
+        copied = dict(chain)
+        copied["Chains"] = {
+            side: {expiry: list(strikes) for expiry, strikes in (chain.get("Chains", {}).get(side) or {}).items()}
+            for side in ("CALL", "PUT")
+        }
+        return Chains(copied)
+
     def get_chains(self, asset, quote=None):
-        """Mock implementation for getting option chains"""
-        return {}
+        """Return the option chain for ``asset`` as of the simulated date.
+
+        Shape (same as the other backtesting sources)::
+
+            {
+                "Multiplier": 100,
+                "Exchange": "SMART",
+                "UnderlyingSymbol": "SPY",
+                "Chains": {
+                    "CALL": {"2026-08-21": [640.0, 645.0, ...], ...},
+                    "PUT": {"2026-08-21": [640.0, 645.0, ...], ...},
+                },
+            }
+
+        Expirations run from the simulated date (or ``min_expiration_date``) through
+        ``OPTION_CHAIN_MAX_DAYS`` days later (or ``max_expiration_date``). See the class
+        docstring for caching, rate limits and the listing lookahead limit.
+        """
+        if isinstance(asset, str):
+            asset = Asset(asset)
+        symbol = str(getattr(asset, "symbol", "") or "").upper()
+        current_date = self.get_datetime().date()
+
+        constraints = getattr(self, "_chain_constraints", None) or {}
+        first_expiration = current_date
+        min_hint = self._as_date(constraints.get("min_expiration_date")) if isinstance(constraints, dict) else None
+        if min_hint is not None and min_hint > first_expiration:
+            first_expiration = min_hint
+        max_hint = self._as_date(constraints.get("max_expiration_date")) if isinstance(constraints, dict) else None
+        default_days = int(self.__dict__.get("_option_chain_max_days") or self.OPTION_CHAIN_MAX_DAYS)
+        last_expiration = max_hint if max_hint is not None else current_date + timedelta(days=default_days)
+        if last_expiration < first_expiration:
+            return self._copy_chain(self._empty_chain(symbol))
+
+        cache_key = (symbol, current_date.isoformat(), first_expiration.isoformat(), last_expiration.isoformat())
+        memory = self._state("_option_chain_cache", dict)
+        if cache_key in memory:
+            return self._copy_chain(memory[cache_key])
+
+        cache_dir = os.path.join(LUMIBOT_CACHE_FOLDER, self.CACHE_SUBFOLDER, "option_chains")
+        cache_file = os.path.join(cache_dir, "_".join(cache_key) + ".json")
+        if os.path.exists(cache_file):
+            try:
+                with open(cache_file, "r", encoding="utf-8") as handle:
+                    chain = json.load(handle)
+                memory[cache_key] = chain
+                return self._copy_chain(chain)
+            except (OSError, ValueError) as exc:
+                logger.warning("Ignoring unreadable Alpaca option chain cache %s: %s", cache_file, exc)
+
+        chain = self._empty_chain(symbol)
+        for expiration, right, strike in self._list_option_contracts(symbol, first_expiration, last_expiration):
+            chain["Chains"][right].setdefault(expiration.isoformat(), set()).add(strike)
+        for side in ("CALL", "PUT"):
+            chain["Chains"][side] = {
+                expiry: sorted(strikes) for expiry, strikes in sorted(chain["Chains"][side].items())
+            }
+
+        try:
+            os.makedirs(cache_dir, exist_ok=True)
+            with open(cache_file, "w", encoding="utf-8") as handle:
+                json.dump(chain, handle, separators=(",", ":"))
+        except OSError as exc:
+            logger.warning("Could not write Alpaca option chain cache %s: %s", cache_file, exc)
+        memory[cache_key] = chain
+        return self._copy_chain(chain)
+
+    def _get_option_bars_frame(self, asset: Asset, quote: Asset, timestep: str) -> pd.DataFrame:
+        """Real option trade bars for the whole backtest window, or an empty frame."""
+        asset, quote = self._sanitize_base_and_quote_asset(asset, quote)
+        key = self._get_asset_key(base_asset=asset, quote_asset=quote, timestep=timestep)
+        store = self._state("_data_store", dict)
+        if key in store:
+            return store[key]
+        try:
+            return self.get_historical_prices_between_dates(base_asset=asset, quote_asset=quote, timestep=timestep)
+        except AlpacaOptionHistoryUnavailable as exc:
+            # Missing is honest; remember it for the run so every bar does not re-ask Alpaca.
+            logger.error("%s", exc)
+            empty = pd.DataFrame(columns=["open", "high", "low", "close", "volume"])
+            empty.index = pd.DatetimeIndex([], tz=self.tzinfo, name="timestamp")
+            store[key] = empty
+            self._state("_refreshed_keys", dict)[key] = True
+            return empty
+
+    def _get_option_historical_prices(
+            self,
+            asset: Asset,
+            length: int,
+            *,
+            source_timestep: str,
+            resample_rule: str | None,
+            timeshift: timedelta | None,
+            quote: Asset,
+            return_polars: bool,
+            remove_incomplete_current_bar: bool,
+    ) -> Bars | None:
+        df = self._get_option_bars_frame(asset, quote, source_timestep)
+        if df is None or df.empty:
+            return None
+        if resample_rule is not None:
+            df = self._resample_ohlcv_dataframe(df, resample_rule)
+            if df.empty:
+                return None
+
+        search_datetime = self._datetime - timeshift if timeshift else self._datetime
+        if source_timestep == "day":
+            search_date = search_datetime.date()
+            dates = df.index.date
+            current_index = dates.searchsorted(search_date, side="right") - 1
+            if remove_incomplete_current_bar and current_index >= 0 and dates[current_index] == search_date:
+                current_index -= 1
+        else:
+            current_index = df.index.searchsorted(search_datetime, side="right") - 1
+            if remove_incomplete_current_bar and current_index >= 0 and df.index[current_index] == search_datetime:
+                current_index -= 1
+
+        if current_index < 0:
+            # No trade printed yet. Never back-fill a later price into the past.
+            return None
+
+        result_df = df.iloc[max(0, current_index - length + 1): current_index + 1]
+        return Bars(
+            result_df,
+            self.SOURCE,
+            asset=asset,
+            quote=quote,
+            return_polars=return_polars,
+            tzinfo=self.tzinfo,
+        )
+
+    def _get_option_last_price(self, asset: Asset, quote: Asset) -> float | Decimal | None:
+        timestep = self.__dict__.get("_timestep") or "minute"
+        bars = self._get_option_historical_prices(
+            asset,
+            1,
+            source_timestep=timestep,
+            resample_rule=None,
+            timeshift=None,
+            quote=quote,
+            return_polars=False,
+            remove_incomplete_current_bar=False,
+        )
+        if bars is None or bars.df.empty:
+            return None
+        df_local = bars.df
+        bar_ts = pd.Timestamp(df_local.index[-1])
+        now = pd.Timestamp(self._datetime)
+        if timestep == "day":
+            printed_now = bar_ts.date() == now.date()
+        else:
+            printed_now = bar_ts.floor("min") == now.floor("min")
+        # A bar that printed now: its open, which is the fill price the broker uses.
+        # Otherwise the close of the latest earlier print is the last real trade.
+        price = df_local["open"].iloc[-1] if printed_now else df_local["close"].iloc[-1]
+        if price is None or pd.isna(price):
+            return None
+        num_decimals = get_decimals(price)
+        return quantize_to_num_decimals(price, num_decimals)
 
     def _get_asset_key(
             self,
@@ -555,7 +1023,9 @@ class AlpacaBacktesting(DataSourceBacktesting):
             strike = float(base_asset.strike)
             strike_text = str(int(strike)) if strike.is_integer() else str(strike)
             right = str(getattr(base_asset, "right", "") or "")
-            base_quote = f"{base_quote}_{strike_text}_{right}_{expiration_text}"
+            # "TRADES": option files hold only real trade prints. Older option cache files
+            # were reindexed and forward-filled like stock bars, so they must not be reused.
+            base_quote = f"{base_quote}_{strike_text}_{right}_{expiration_text}_TRADES"
         market = market
         tzinfo_str = str(tzinfo).replace("_", "-")
         start_date_str = data_datetime_start.strftime("%Y-%m-%d")
@@ -680,18 +1150,26 @@ class AlpacaBacktesting(DataSourceBacktesting):
             auto_adjust=auto_adjust,
         )
 
+        is_option = self._is_option(base_asset)
         try:
             if isinstance(request_params, CryptoBarsRequest):
-                bars = client.get_crypto_bars(request_params)
+                bars = self._alpaca_request(client.get_crypto_bars, request_params, what=key)
             elif isinstance(request_params, OptionBarsRequest):
-                bars = client.get_option_bars(request_params)
+                bars = self._alpaca_request(client.get_option_bars, request_params, what=key)
             else:
-                bars = client.get_stock_bars(request_params)
+                bars = self._alpaca_request(client.get_stock_bars, request_params, what=key)
         except Exception as e:
             raise RuntimeError(f"Failed to fetch data for {key}: {e}")
 
         df = bars.df.reset_index()
         if df.empty:
+            if is_option:
+                raise AlpacaOptionHistoryUnavailable(
+                    f"Alpaca returned no option bars for {self._occ_symbol(base_asset)} between "
+                    f"{data_datetime_start.date()} and {data_datetime_end.date()}. "
+                    f"{self.OPTION_HISTORY_START_HINT}, and a contract that never traded in the window "
+                    "has no bars. Its price is None for this backtest."
+                )
             raise RuntimeError(f"No data fetched for {key}.")
 
         # Ensure 'timestamp' is a pandas timestamp object
@@ -703,7 +1181,12 @@ class AlpacaBacktesting(DataSourceBacktesting):
 
         df = df[['timestamp', 'open', 'high', 'low', 'close', 'volume']]
 
-        if timestep in ("day", "minute"):
+        if is_option:
+            # Option bars are sparse trade prints. Reindexing and forward/back filling them
+            # would invent prices (and back-fill a later trade into the past). Keep only
+            # real bars; get_last_price/get_historical_prices handle the gaps honestly.
+            df = df.sort_values("timestamp")
+        elif timestep in ("day", "minute"):
             trading_times = self._get_trading_times_for_timestep(
                 pcal=self._trading_days,
                 timestep=timestep,

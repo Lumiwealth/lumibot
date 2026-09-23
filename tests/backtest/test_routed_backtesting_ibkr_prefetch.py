@@ -493,7 +493,7 @@ def test_non_empty_prefetch_not_marked_as_empty(monkeypatch):
 
 
 # ---------------------------------------------------------------------------
-# 2026-09-23: production backtest 0d92a149 (LumiBot 4.5.92, routed IBKR, SPY 5minute).
+# 2026-09-23: a production backtest (LumiBot 4.5.92, routed IBKR, SPY 5minute).
 #
 # The run started at 00:42 ET on Sep 15, so `backtesting_end` was clamped to a time
 # before that day's session. The shared cache already held every real bar. The routed

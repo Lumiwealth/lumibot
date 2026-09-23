@@ -103,7 +103,7 @@ _RUNTIME_HISTORY_NO_DATA_WINDOWS: Dict[str, Tuple[datetime, datetime]] = {}
 # WHY: a successful response can leave a window underfilled (the provider has no bars
 # inside the gap, or answers with bars from before it). Without this memory the next
 # iteration computes the same missing segment and re-submits the identical request.
-# Production backtest 0d92a149 (2026-09-15) sent `startTime=20260908-08:00:00` 77 times
+# A production SPY 5-minute backtest (2026-09-15) sent `startTime=20260908-08:00:00` 77 times
 # in one run this way. This is in-process state only: it is never written to the cache,
 # so a later process still retries (see the history integrity contract).
 _RUNTIME_ATTEMPTED_HISTORY_SEGMENTS: Dict[str, list[Tuple[datetime, datetime]]] = {}
@@ -2381,7 +2381,7 @@ def frame_covers_requested_window(
                 # 2026-09-23: the end side used the close of the last calendar day in the
                 # window. A backtest end clamped to "now" at 00:42 ET sits before that
                 # day's session, so a complete cache was reported as underfilled and the
-                # routed prefetch retried on every bar (production backtest 0d92a149).
+                # routed prefetch retried on every bar (production SPY 5-minute backtest).
                 pending = closes > start_utc
                 if not bool(pending.any()):
                     start_covered = True

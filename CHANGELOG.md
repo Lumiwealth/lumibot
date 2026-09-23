@@ -83,7 +83,7 @@
   opens). Coverage checks now use the last session that opened before the window end
   and the first session that had not closed by its start, closed-market edges are not
   fetched, and a segment already requested in the process is not requested again.
-  Production backtest 0d92a149 sent `startTime=20260908-08:00:00` 77 times; the same
+  A production SPY 5-minute backtest sent `startTime=20260908-08:00:00` 77 times; the same
   loop reproduces on 4.5.91 code, so it is a latent bug rather than a 4.5.92 change.
   No bars are synthesized; cached real bars are returned.
 - SEC mutable indexes, submissions, and company facts now expire in live mode while remaining deterministic in backtests; raw facts, filings, and filing documents enforce point-in-time availability boundaries.

@@ -909,7 +909,7 @@ def test_option_cache_files_do_not_share_a_strike():
 # ---------------------------------------------------------------------------
 # 2026-09-23: clamped pre-open window end and closed-market window edges.
 #
-# Production backtest 0d92a149 (SPY 5minute, routed IBKR, run at 00:42 ET) had its
+# A production backtest (SPY 5minute, routed IBKR, run at 00:42 ET) had its
 # end clamped to "now", before that day's session. The cache already held every
 # real bar (Sep 8 04:00 ET through Sep 14 19:55 ET), yet:
 #   - frame_covers_requested_window() said the window was not covered because the

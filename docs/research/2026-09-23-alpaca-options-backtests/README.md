@@ -28,5 +28,8 @@ Files per window (`2026` = 2026-07-27 to 2026-08-14 trading, `2024` = 2024-03-04
 - `*_tearsheet.html`, `*_tearsheet.csv`, `*_tearsheet_metrics.json`: QuantStats tear sheet.
 - `*_settings.json`: run settings (downloader and remote cache fields removed; they were unused).
 - `raw_bar_crosscheck_2026.txt`: the 2026 fills checked against raw Alpaca option minute bars.
+- `polygon_spy_weekly_call_2026_*`: Task C, the same strategy for one week on a customer's own
+  Polygon key (`--source polygon`, `LUMIBOT_OPTION_CHAIN_MAX_DAYS=21`). It works end to end; the
+  cross-check file shows its 15:30 exit filled on the stale 15:18 print.
 
 These are one-contract engineering proof runs, not a strategy result.

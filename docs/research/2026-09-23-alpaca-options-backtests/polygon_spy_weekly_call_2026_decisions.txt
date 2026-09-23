@@ -1,0 +1,4 @@
+[polygon_spy_weekly_call_2026] 2026-08-03 09:35:00-04:00 BUY 1 SPY 2026-08-10 751.0 CALL spot=750.76 chain_calls=16 expirations, picked 2026-08-10 (7d) strike 751.0
+[polygon_spy_weekly_call_2026] FILLED buy_to_open 1.0 SPY 2026-08-10 751.0 CALL at 4.99 (2026-08-03 09:35:00-04:00)
+[polygon_spy_weekly_call_2026] 2026-08-07 15:30:00-04:00 SELL 1.0 SPY 2026-08-10 751.0 CALL
+[polygon_spy_weekly_call_2026] FILLED sell_to_close 1.0 SPY 2026-08-10 751.0 CALL at 22.11 (2026-08-07 15:30:00-04:00)

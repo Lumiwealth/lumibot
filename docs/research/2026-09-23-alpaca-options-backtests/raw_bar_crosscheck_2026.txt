@@ -13,3 +13,10 @@ SPY260817C00773000 2026-08-14 prints between 15:28 and 15:32: 15:28 o=3.9, 15:29
   -> sell submitted 15:30 waited, filled 15:31 at 3.86.
 SPY stock 2026-08-07 15:38 to 15:39 minute closes: 772.96, 772.91, 772.69
   -> the 751 call at 21.91 is about intrinsic value (772.9 - 751).
+
+Task C cross-provider check (Polygon key, same strategy, window 2026-08-03 to 2026-08-07):
+Polygon minute aggregates for O:SPY260810C00751000 on 2026-08-07 between 15:10 and 15:45:
+  15:18 o=22.11 v=3, 15:39 o=21.91 v=1   (the same two prints Alpaca returns)
+PolygonDataBacktesting picked the same contract (SPY 2026-08-10 751 call), bought at 4.99 at 09:35
+like Alpaca, but sold at 15:30 at 22.11, the stale 15:18 print. The Pandas-based Polygon path fills
+sparse options on a carried-forward bar; AlpacaBacktesting now waits for the 15:39 print (21.91).

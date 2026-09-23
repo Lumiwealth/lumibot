@@ -37,7 +37,7 @@ from lumibot.strategies import Strategy
 NY = pytz.timezone("America/New_York")
 
 
-class AlpacaWeeklySpyCall(Strategy):
+class WeeklySpyCall(Strategy):
     parameters = {
         "underlying": "SPY",
         "min_days_to_expiration": 7,
@@ -152,19 +152,12 @@ def main() -> None:
     parser.add_argument("--start", required=True, help="YYYY-MM-DD")
     parser.add_argument("--end", required=True, help="YYYY-MM-DD (three sessions after the last traded Friday)")
     parser.add_argument("--name", required=True, help="artifact name prefix")
+    parser.add_argument("--source", choices=["alpaca", "polygon"], default="alpaca", help="data source (default alpaca)")
     args = parser.parse_args()
 
-    config = {
-        "API_KEY": os.environ.get("ALPACA_API_KEY"),
-        "API_SECRET": os.environ.get("ALPACA_API_SECRET"),
-        "OAUTH_TOKEN": os.environ.get("ALPACA_OAUTH_TOKEN"),
-        "PAPER": True,
-    }
     start = NY.localize(datetime.fromisoformat(args.start))
     end = NY.localize(datetime.fromisoformat(args.end))
-
-    AlpacaWeeklySpyCall.run_backtest(
-        AlpacaBacktesting,
+    common = dict(
         backtesting_start=start,
         backtesting_end=end,
         name=args.name,
@@ -175,10 +168,33 @@ def main() -> None:
         save_tearsheet=True,
         show_indicators=False,
         show_progress_bar=False,
+    )
+
+    if args.source == "polygon":
+        # Same strategy on a customer's own Polygon key. Bound the chain listing with
+        # LUMIBOT_OPTION_CHAIN_MAX_DAYS (for example 21) so a free key is not rate limited.
+        from lumibot.backtesting import PolygonDataBacktesting
+
+        WeeklySpyCall.run_backtest(
+            PolygonDataBacktesting,
+            polygon_api_key=os.environ.get("POLYGON_API_KEY"),
+            **common,
+        )
+        return
+
+    config = {
+        "API_KEY": os.environ.get("ALPACA_API_KEY"),
+        "API_SECRET": os.environ.get("ALPACA_API_SECRET"),
+        "OAUTH_TOKEN": os.environ.get("ALPACA_OAUTH_TOKEN"),
+        "PAPER": True,
+    }
+    WeeklySpyCall.run_backtest(
+        AlpacaBacktesting,
         # AlpacaBacktesting kwargs
         timestep="minute",
         market="NYSE",
         config=config,
+        **common,
     )
 
 

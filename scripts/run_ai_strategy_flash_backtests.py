@@ -587,6 +587,19 @@ WAVE18 = (
     {**_wave8("congress-pelosi-luna"), "name": "congress-pelosi-luna-v2"},
 )
 
+# Both bull-bear books sold every position each morning and bought it back,
+# because the exit rule forced it. Rerun after the rebalance exit rule.
+WAVE19 = (
+    {**_wave8("large-cap-luna"), "name": "large-cap-luna-v2"},
+    {**_wave8("leveraged-etf-luna"), "name": "leveraged-etf-luna-v4"},
+)
+
+# Rerun after the cash rule and the one-direction-per-index rule.
+WAVE20 = (
+    {**_wave8("leveraged-etf-luna"), "name": "leveraged-etf-luna-v5"},
+    {**_wave8("congress-pelosi-luna"), "name": "congress-pelosi-luna-v3"},
+)
+
 
 def _jobs(wave: str) -> tuple[dict, ...]:
     # "7,8" runs several waves under one parent so the spend cap is shared.

@@ -121,6 +121,14 @@ def test_trader_never_parks_the_book_outside_the_universe_or_at_a_stale_price():
     assert "use the current price, not a prior close" not in prompt
 
 
+def test_trader_rebalances_once_within_a_tolerance_instead_of_churning():
+    prompt = " ".join(trader_prompt(book_rule="book", exit_rule="exit").split()).lower()
+    assert "plan every order from one read of the account" in prompt
+    assert "within 2 percentage points of its target weight" in prompt
+    assert "never buy and sell the same symbol in the same session" in prompt
+    assert "once every holding is within that tolerance, stop" in prompt
+
+
 def _created_prompts(strategy_class):
     from types import SimpleNamespace
 

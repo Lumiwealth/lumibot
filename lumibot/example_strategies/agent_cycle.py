@@ -69,6 +69,11 @@ def trader_prompt(*, book_rule: str, exit_rule: str, cash_rule: str | None = Non
         "the last price fills only if the next price reaches it. When an order must fill this "
         "session to reach the target weights, use a market order or a buy limit slightly above "
         "(sell limit slightly below) the current price. "
+        "Plan every order from one read of the account before submitting any of them. Leave a "
+        "holding alone when it is already within 2 percentage points of its target weight; small "
+        "trades only add cost. Never buy and sell the same symbol in the same session, and do not "
+        "re-read positions after each fill to chase an exact weight. Once every holding is within "
+        "that tolerance, stop. "
         "Submit each order once through the order tool. If you submit no order, that is the result. "
         "Python will not insert a share."
     )

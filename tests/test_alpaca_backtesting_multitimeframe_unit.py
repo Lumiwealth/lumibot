@@ -1093,3 +1093,87 @@ def test_alpaca_history_request_never_asks_for_the_latest_15_minutes(monkeypatch
     end = pd.Timestamp(request.end)
     end = end.tz_localize("UTC") if end.tzinfo is None else end  # the SDK stores naive UTC
     assert end <= pd.Timestamp(now) - pd.Timedelta(minutes=15)
+
+
+def _ohlcv(rows, tzinfo):
+    index = pd.DatetimeIndex([tzinfo.localize(ts) for ts, _ in rows], tz=tzinfo, name="timestamp")
+    return pd.DataFrame(
+        [{"open": o, "high": max(o, c), "low": min(o, c), "close": c, "volume": 10} for _, (o, c) in rows],
+        index=index,
+    )
+
+
+def _offline_option_source(now, window_rows, history_rows):
+    """Environment-mode Alpaca source at the first bar of the window, with stubbed bars."""
+    ny = pytz.timezone("America/New_York")
+    source = AlpacaBacktesting.__new__(AlpacaBacktesting)
+    source.market = "NYSE"
+    source.tzinfo = ny
+    source._auto_adjust = True
+    source._timestep = "minute"
+    source._history_before_start = True
+    source._data_datetime_start = ny.localize(datetime(2026, 1, 5))
+    source._data_datetime_end = ny.localize(datetime(2026, 1, 7, 23, 59))
+    source._datetime = ny.localize(now)
+    window = _ohlcv(window_rows, ny)
+    history = _ohlcv(history_rows, ny)
+    source._get_option_bars_frame = lambda asset, quote, timestep: window
+    source._history_segment = lambda asset, quote, source_timestep, start, end: history
+    return source
+
+
+_SPY_CALL = Asset("SPY", asset_type=Asset.AssetType.OPTION, expiration="2026-01-16", strike=690, right="CALL")
+
+
+def test_alpaca_option_last_price_at_first_bar_uses_latest_print_before_the_window():
+    """At 09:30 on day one there is no in-window print yet; the last real trade is from before start."""
+    source = _offline_option_source(
+        datetime(2026, 1, 5, 9, 30),
+        window_rows=[(datetime(2026, 1, 5, 9, 45), (2.00, 2.10))],
+        history_rows=[(datetime(2026, 1, 2, 15, 58), (1.20, 1.25))],
+    )
+    price = source.get_last_price(_SPY_CALL)
+    assert price is not None
+    assert float(price) == 1.25  # never the 09:45 print from after the simulated time
+
+
+def test_alpaca_get_quote_for_option_reports_last_trade_without_inventing_bid_ask():
+    source = _offline_option_source(
+        datetime(2026, 1, 5, 9, 30),
+        window_rows=[(datetime(2026, 1, 5, 9, 45), (2.00, 2.10))],
+        history_rows=[(datetime(2026, 1, 2, 15, 58), (1.20, 1.25))],
+    )
+    quote = source.get_quote(_SPY_CALL, snapshot_only=True)
+    assert float(quote.price) == 1.25
+    assert quote.bid is None and quote.ask is None  # Alpaca historical options have trades only
+
+
+def test_alpaca_get_quote_for_stock_uses_the_current_bar_price(monkeypatch):
+    source = _offline_option_source(datetime(2026, 1, 5, 10, 0), window_rows=[], history_rows=[])
+    monkeypatch.setattr(source, "get_last_price", lambda asset, quote=None, exchange=None: 690.5)
+    quote = source.get_quote(Asset("SPY"))
+    assert quote.price == 690.5
+    assert quote.bid is None and quote.ask is None
+
+
+def test_options_helper_validates_alpaca_option_marks_from_real_trades():
+    """Expiration and strike probes read marks through get_quote; Alpaca must not fail them all."""
+    from types import SimpleNamespace
+
+    from lumibot.components.options_helper import OptionsHelper
+
+    source = _offline_option_source(
+        datetime(2026, 1, 5, 9, 30),
+        window_rows=[],
+        history_rows=[(datetime(2026, 1, 2, 15, 58), (1.20, 1.25))],
+    )
+    broker = SimpleNamespace(IS_BACKTESTING_BROKER=True, data_source=source, option_source=None)
+    strategy = SimpleNamespace(
+        broker=broker,
+        get_datetime=lambda: source._datetime,
+        log_message=lambda *args, **kwargs: None,
+    )
+    helper = OptionsHelper(strategy)
+    mark, bid, ask = helper._get_option_mark_from_quote(_SPY_CALL, snapshot=True)
+    assert mark == 1.25
+    assert bid is None and ask is None

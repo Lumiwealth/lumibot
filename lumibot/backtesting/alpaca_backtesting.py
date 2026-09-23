@@ -1112,12 +1112,30 @@ class AlpacaBacktesting(DataSourceBacktesting):
             tzinfo=self.tzinfo,
         )
 
+    def get_quote(self, asset, quote=None, exchange=None, snapshot_only=False, **kwargs):
+        """Quote at the simulated time built from real trades.
+
+        Alpaca historical bars are trades, not NBBO quotes, so ``bid`` and ``ask`` stay ``None``
+        and ``price`` is the same last real trade ``get_last_price`` returns. Option selection
+        helpers read marks through this method; without it every expiration probe fails.
+        """
+        from lumibot.entities import Quote
+
+        price = self.get_last_price(asset, quote=quote, exchange=exchange)
+        return Quote(
+            asset=asset,
+            price=float(price) if price is not None else None,
+            timestamp=self._datetime,
+            raw_data={"source": "alpaca_trade_bars"},
+        )
+
     def _get_option_last_price(self, asset: Asset, quote: Asset) -> float | Decimal | None:
         timestep = self.__dict__.get("_timestep") or "minute"
+        # On the first bars of the window the latest real trade can be from before the start.
         bars = self._get_option_historical_prices(
             asset,
             1,
-            extend_history=False,
+            extend_history=True,
             timestep=timestep,
             source_timestep=timestep,
             resample_rule=None,

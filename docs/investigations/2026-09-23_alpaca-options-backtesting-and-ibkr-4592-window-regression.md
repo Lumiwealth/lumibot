@@ -2,7 +2,7 @@
 
 One-line description: bring-your-own-key options backtests on Alpaca now work end to end, and the IBKR "same underfilled request every bar" loop seen on 4.5.92 is fixed (it is a latent bug, not a 4.5.92 change).
 
-Last Updated: 2026-09-23 (follow-up: BACKTESTING_DATA_SOURCE=alpaca path)
+Last Updated: 2026-09-23 (follow-ups: BACKTESTING_DATA_SOURCE=alpaca path; still-forming bar lookahead)
 Status: Fixed on `version/4.5.92`, not released
 Audience: LumiBot maintainers, BotSpot release captain, Bot Manager owners
 
@@ -22,6 +22,9 @@ Two pieces of work on `version/4.5.92`:
   history request on every bar of the first simulated day (77 times). Root cause found, the same
   loop reproduced on 4.5.91 code, fixed with deterministic tests.
 - Task C: the same options strategy also runs on a customer's own Polygon key (tiny window).
+- Follow-ups: `BACKTESTING_DATA_SOURCE=alpaca` (the BotSpot path) now works with minute bars
+  over the full window, and its history no longer returns the bar that is still forming at the
+  simulated time (a lookahead of up to one bar).
 
 Nothing was released, tagged, published, merged to `dev`, or deployed.
 
@@ -297,6 +300,102 @@ Red before the fix: the three backtests raised "Config cannot be None", the 401 
 - Weekly SPY call, `BACKTESTING_START=2026-07-27`, `BACKTESTING_END=2026-08-15`: trades are
   identical to the explicit-class 2026 run (which had to pass an end date three sessions later).
 
+## Follow-up 2: history returned the bar that was still forming (lookahead, fixed)
+
+### What was wrong
+
+Alpaca labels a bar with its start time: the 5-minute bar labeled 10:00 holds trades from
+10:00 to 10:04:59, and the daily bar labeled 08-04 00:00 holds the whole 08-04 session.
+`get_historical_prices()` picked the newest bar whose label was at or before the simulated time
+(`searchsorted(now, side="right") - 1`), so at 10:00 it returned the 10:00 five-minute bar with
+its 10:04:59 close, high, low and volume, and at 09:30 it returned today's daily bar with the
+session's close. The documented `remove_incomplete_current_bar=True` option did not help for
+multi-minute bars: it dropped the newest bar only when its label equaled the simulated time
+exactly, so at 10:02 (or 10:50 for 20-minute bars) the forming bar still came back. The
+BotSpot path used the default `False`.
+
+Real SPY at 2026-08-04 10:00 (evidence file `forming_bar_fix_2026-09-23.txt`): the old history
+showed the 10:00 five-minute close 761.98 and the daily close 769.42, up 1.4 percent from the
+open, six hours before it happened.
+
+### The contract the other sources follow
+
+- IBKR, ThetaData and Polygon backtests go through `Data`. For intraday bars
+  `Data._get_bars_row_bounds` ends the slice before `get_iter_count(dt)`, the bar at or just
+  before the simulated time, so history holds finished bars only (the comment in
+  `Data._get_bars_dict`: "the legacy behaviour is preserved to avoid lookahead"). Multi-minute
+  requests drop a resampled bucket until its last base bar is in (`latest_complete_label`), and
+  daily-from-minute requests drop today's partial day.
+- Daily bars: IBKR and ThetaData stamp them at 16:00 ET so a day's bar is visible only after
+  its session (`_align_day_index_to_market_close_utc` in `thetadata_helper.py`, and the day-bar
+  reindex in `ibkr_helper.py`). Alpaca stamps daily bars at midnight, which is why its current
+  day's bar leaked at 09:30.
+- Fills read the current bar separately: the Pandas branch of `BacktestingBroker` asks for
+  `timeshift=-1` intraday, which adds the bar that starts now, and fills market orders at its
+  open. `Data.get_last_price` returns that bar's open when a bar starts at the simulated time.
+
+### Fix (`lumibot/backtesting/alpaca_backtesting.py`, `lumibot/backtesting/backtesting_broker.py`)
+
+- `_newest_bar_position()` is the one rule for stocks, crypto and options: with
+  `remove_incomplete_current_bar` a bar qualifies only when its label plus its length is at or
+  before the simulated time (daily bars: only earlier dates, multi-day buckets once their last
+  day has passed). The length comes from the requested timestep, so native multi-minute,
+  hourly and resampled bars are all covered.
+- Environment mode (`config=None`, the BotSpot path) defaults `remove_incomplete_current_bar` to
+  `True`. An explicit value passed to `backtest()` or the constructor wins in both modes.
+- With an explicit config the default stays `False`. It is documented that way, and the
+  February 2025 apitests `test_amzn_day_1d_5`, `test_amzn_minute_1d_5` and
+  `test_amzn_minute_30m_5` assert that the lookback at the 2025-01-15 09:30 iteration ends with
+  the 2025-01-15 daily bar. The docstring and `docsrc/backtesting.alpaca.rst` now say plainly
+  that `False` is a lookahead of up to one bar in a backtest and recommend `True`.
+- When no bar has finished yet (the very start of the data window) history returns `None`, as
+  `Data` does, instead of raising. The old "Datetime not found" error is kept for `False`.
+- `get_last_price()` and fills are unchanged: they use the open of the bar that starts now.
+  The broker's Alpaca branch now passes `remove_incomplete_current_bar=False` so it still reads
+  that bar, the same bar the Pandas branch reads with `timeshift=-1`. The option check that a
+  print happened in the current minute still applies.
+
+### Tests (red first, then green)
+
+In `tests/test_alpaca_backtesting_multitimeframe_unit.py`:
+
+- `test_env_selected_alpaca_history_never_returns_a_bar_that_closes_after_now`: a full
+  `backtest(datasource_class=None)` run selected by `BACKTESTING_DATA_SOURCE=alpaca`. At every
+  iteration every 5-minute, 1-minute and daily bar returned must have closed. At 10:00 the
+  newest 5-minute bar is 09:55 with the 09:59 close, the 10:04 price is absent, the daily bar
+  is the previous session, and `get_last_price` and the fill are the 10:00 minute open. The fake
+  5-minute bars now close at their last minute's price so a leaked close is visible. Red: "5minute
+  bar still forming at 2026-08-03 09:30".
+- `test_env_selected_alpaca_option_history_excludes_the_print_that_is_still_forming`: the 09:37
+  option print is not in history at 09:37, is at 09:38, and `get_last_price` at 09:37 is still
+  its open (5.40). Red: history at 09:37 held the 09:37 print.
+- `test_alpaca_remove_incomplete_current_bar_drops_a_native_bar_that_is_still_forming`: the
+  documented option at 10:50 with 20-minute bars. Red: returned the 10:40 bar that closes at 11:00.
+- `test_env_selected_alpaca_runs_intraday_minute_bars_over_the_full_window` (added earlier the
+  same day) asserted the forming 10:00 bar; it now asserts 09:55.
+
+### Real runs after the fix
+
+`docs/research/2026-09-23-alpaca-options-backtests/forming_bar_fix_2026-09-23.txt`.
+
+- ORB proof: the strategy now counts bars the source returns while still forming. Reproducing
+  the old history (`--legacy-forming-bar`): 33 of 33 five-minute history calls returned a
+  forming bar. After the fix: 0 of 33. Trades are identical row for row, because this strategy
+  already filtered to finished bars and asked for one extra bar. A strategy without that guard
+  would have traded on a close up to 5 minutes in the future.
+- Weekly SPY call (options): 12 trade rows identical, including the `[FILL][PENDING]` waits.
+  It uses `get_last_price`, `get_chains` and market orders, none of which changed.
+
+### Behavior notes
+
+- Daily bars are treated as finished only on a later date, so a call after the close (16:00 to
+  midnight) still gets the previous session. Conservative; `Data` sources whose daily bars are
+  stamped at the close include today's bar from 16:00.
+- The data window starts at `backtesting_start` unless `warm_up_trading_days` is passed, so on
+  the first bar of a backtest there is nothing finished to return (`None`). Before the fix the
+  same call returned the forming bar. IBKR and ThetaData fetch history before the start; see
+  open items.
+
 ## Test results
 
 Run with `LUMIBOT_DISABLE_DOTENV_LOCAL=1 LUMIBOT_CACHE_BACKEND=local LUMIBOT_CACHE_MODE=disabled`
@@ -315,6 +414,11 @@ Run with `LUMIBOT_DISABLE_DOTENV_LOCAL=1 LUMIBOT_CACHE_BACKEND=local LUMIBOT_CAC
 | Follow-up: `pytest tests -k "alpaca or Alpaca" -m "not apitest and not downloader"` | 109 passed, 2 skipped |
 | Follow-up: `pytest tests/test_strategy_backtest_env_override.py tests/test_backtesting_data_source_env.py tests/test_backtest_runtime_timings.py tests/test_backtesting_broker.py` | 60/60 |
 | Follow-up: `pytest tests/test_alpaca_backtesting.py` (apitest, paper key) | 38/38 |
+| Follow-up 2: `pytest tests/test_alpaca_backtesting_multitimeframe_unit.py` | 21/21 |
+| Follow-up 2: `pytest tests -k "alpaca or Alpaca" -m "not apitest and not downloader"` | 112 passed, 2 skipped |
+| Follow-up 2: `pytest tests/test_backtesting_broker.py tests/test_backtesting_broker_await_close.py tests/test_backtesting_broker_time_advance.py tests/backtest/test_backtesting_broker_processing.py tests/test_strategy_backtest_env_override.py tests/test_get_last_price_sim_time_safety.py tests/test_indicator_temporal_safety.py tests/test_ibkr_crypto_backtesting_smoke_stubbed.py` | 140/140 |
+| Follow-up 2: `pytest tests -k "backtesting_broker or order_lifecycle or options_helper or backtest_lookahead or lookahead" -m "not apitest and not downloader"` | 157 passed, 4 skipped |
+| Follow-up 2: `pytest tests/test_alpaca_backtesting.py` (apitest, paper key) | 38/38 |
 
 Environment notes: the local `ALPACA_TEST_API_KEY` is revoked (401 on data and trading), so
 the Alpaca apitest file was run with a valid paper key exported as `ALPACA_TEST_API_KEY`.
@@ -344,13 +448,26 @@ Nothing here is released. When a release captain is authorized:
 - Pandas-based option paths (Polygon, and any `Data.repair_times_and_fill` source) fill sparse
   options on a carried-forward bar (Task C: sold at 15:30 on the 15:18 print). Same class of
   problem fixed here for Alpaca; needs its own change and tests.
-- `AlpacaBacktesting` stock/crypto calendar fill (`_reindex_and_fill`) predates RULE #1.
-- `AlpacaBacktesting.get_historical_prices()` includes the intraday bar that is still forming at
-  the simulated time (`remove_incomplete_current_bar=False`, the historical Alpaca default), so a
-  signal built on the last 5-minute bar sees up to one bar of the future. The proof strategy
-  filters to completed bars. Changing the default needs the broker fill path (which relies on the
-  current bar's open) to request the current bar explicitly first; both the explicit and
-  environment modes are affected.
+- `AlpacaBacktesting` stock/crypto calendar fill (`_reindex_and_fill`) predates RULE #1: minute
+  and daily stock bars are reindexed to the trading calendar, a minute with no trade becomes a
+  flat bar at the previous close with volume 0, and a missing first open is back-filled from a
+  later bar. Legacy tests (`test_reindex_and_fill_*`, February 2025) pin it, so removing it is a
+  deliberate decision, not a drive-by edit.
+- Fixed (follow-up 2): history on the BotSpot path no longer includes the bar that is still
+  forming. With an explicit config the documented default `remove_incomplete_current_bar=False`
+  still includes it (a lookahead of up to one bar; the 2025 apitests pin that default). Flipping
+  the explicit default is a one-line change once those tests are updated deliberately.
+- `AlpacaBacktesting` fetches nothing before `backtesting_start` unless `warm_up_trading_days`
+  is passed, and BotSpot does not pass it. On the first bar a history call returns `None`, and a
+  daily lookback of N bars is short for the first N sessions (a request longer than the whole
+  window raises "Not enough historical data"). IBKR and ThetaData fetch history before the
+  start. Needs its own change: fetch warm-up bars in environment mode, including trading times
+  for the minute reindex.
+- Seen in passing, not verified end to end: the multi-leg SMART_LIMIT fallback
+  `BacktestingBroker._fill_multileg_children_at_market_open` passes an integer `timeshift` (bars)
+  to `get_historical_prices`. `AlpacaBacktesting` treats `timeshift` as a `timedelta`, so that
+  call raises inside a `try` and the fallback returns False. Check with a real Alpaca spread
+  before relying on multi-leg option orders there.
 - An explicit config still stops three sessions early (legacy tests pin it); `full_window=True`
   opts out.
 - `LUMIBOT_OPTION_CHAIN_MAX_DAYS` (Polygon chain bound) is not in `docsrc/environment_variables.rst`.

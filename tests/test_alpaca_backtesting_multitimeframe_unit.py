@@ -725,7 +725,7 @@ def test_env_selected_alpaca_history_never_returns_a_bar_that_closes_after_now(m
     """BotSpot path: history holds completed bars only, the contract IBKR, ThetaData and Polygon use.
 
     Before 2026-09-23 the 5-minute bar labeled 10:00 came back at 10:00 carrying its 10:04
-    close (and the day's bar came back at 10:00 carrying the 16:00 close), so a signal built
+    close (and the day's bar came back at 10:00 carrying the session's close), so a signal built
     on the latest bar saw into the future. The price used for fills is unchanged: the open
     of the bar that starts now.
     """

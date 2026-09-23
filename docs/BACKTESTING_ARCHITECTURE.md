@@ -600,6 +600,15 @@ df = df[~all_zero]
    BotSpot): credentials from `ALPACA_*` variables, minute bars by default (daily-cadence
    strategies are still primed to day bars), and the run goes through `backtesting_end`. An
    explicit config keeps the legacy daily default and the stop three sessions early.
+6. History versus execution (2026-09-23). Alpaca labels bars with their start time and daily
+   bars at midnight. `_newest_bar_position()` decides the newest bar `get_historical_prices()`
+   returns: with `remove_incomplete_current_bar` only bars whose label plus length is at or
+   before the simulated time (daily: earlier dates), which is the `Data` contract IBKR,
+   ThetaData and Polygon follow. Environment mode defaults it to True; an explicit config keeps
+   the documented False (the forming bar is included, a lookahead of up to one bar; the 2025
+   apitests pin it). `get_last_price()` and the broker's Alpaca fill branch read the bar that
+   starts now with `remove_incomplete_current_bar=False` and use its open, like the Pandas
+   branch with `timeshift=-1`. When nothing has finished yet, history returns `None`.
 
 **Limits:** option history from about February 2024; the contract listing has no as-of date
 (small lookahead in listed strikes); no historical option bid/ask or vendor greeks; free-tier

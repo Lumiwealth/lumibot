@@ -48,6 +48,13 @@ strategy that sleeps a day or more still gets daily bars), and runs through
 same way as below. If the paper Trading API rejects a live-account key, the read-only option
 contract list is fetched from the live endpoint instead; backtests never send orders.
 
+History holds finished bars only, the same rule as the IBKR, ThetaData and Polygon backtests.
+Alpaca labels a bar with its start time, so at 10:00 the newest 5-minute bar is the 09:55 bar
+(it closed at 10:00), the newest 1-minute bar is 09:59, and the newest daily bar is
+yesterday's. At the very first bar of a backtest nothing has finished yet, so
+``get_historical_prices()`` returns ``None``. Orders still fill at the open of the bar that
+starts at the current time, and ``get_last_price()`` returns that open.
+
 Options example
 ---------------
 
@@ -104,6 +111,24 @@ With an explicit ``config``, ``AlpacaBacktesting`` keeps its original behavior a
 trading days before ``backtesting_end``. Pass ``full_window=True`` (or select Alpaca from the
 environment as shown above) to run through the end date.
 
+An explicit ``config`` also keeps the original ``remove_incomplete_current_bar=False`` default:
+history then includes the bar that is still forming at the simulated time, with its final
+close, high, low and volume (for example today's daily bar at 09:30). In a backtest that is a
+look into the future of up to one bar. Pass ``remove_incomplete_current_bar=True`` to get
+finished bars only:
+
+.. code-block:: python
+
+    MyStrategy.backtest(
+        AlpacaBacktesting,
+        backtesting_start=ny.localize(datetime(2026, 7, 27)),
+        backtesting_end=ny.localize(datetime(2026, 8, 19)),
+        timestep="minute",
+        config={"API_KEY": "<your-alpaca-key>", "API_SECRET": "<your-alpaca-secret>", "PAPER": True},
+        remove_incomplete_current_bar=True,
+        full_window=True,
+    )
+
 How option data works
 ---------------------
 
@@ -132,8 +157,10 @@ Known limits
   ``timestep="minute"`` when fill timing matters.
 - Free keys allow about 200 requests per minute. LumiBot throttles below that and waits on
   HTTP 429 answers before retrying a bounded number of times.
-- ``get_historical_prices()`` includes the bar that is still forming at the simulated time
-  (for example the 10:00 five-minute bar at 10:00). Build signals from completed bars only: keep
-  bars whose start time plus the bar length is at or before ``self.get_datetime()``.
+- Data is downloaded from ``backtesting_start`` onward (pass ``warm_up_trading_days`` to start
+  earlier), so a long lookback has fewer bars than requested in the first sessions of a
+  backtest. Check for ``None`` and for the number of bars you got.
+- Daily bars count as finished on the next calendar day, so a call after the 16:00 close still
+  returns the previous session as the newest daily bar.
 - On a free key, stock history comes from SIP (all US exchanges), but the latest 15 minutes
   are not available. End backtests at least one full day before today.

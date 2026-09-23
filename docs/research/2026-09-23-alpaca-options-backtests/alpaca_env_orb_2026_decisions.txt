@@ -21,3 +21,4 @@ Backtest end = 2026-08-08 00:00:00-04:00
 [alpaca_env_orb_2026] FILLED buy 10.0 SPY at 773.16 (2026-08-07 10:30:00-04:00)
 [alpaca_env_orb_2026] 2026-08-07 15:50:00-04:00 SELL 10.0 SPY
 [alpaca_env_orb_2026] FILLED sell 10.0 SPY at 772.85 (2026-08-07 15:50:00-04:00)
+[alpaca_env_orb_2026] HISTORY CHECK: 33 five-minute history calls, 0 bars returned while still forming

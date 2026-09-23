@@ -11,7 +11,9 @@ Strategies:
 - ``orb``: SPY 5-minute opening range breakout. The range is the 09:30, 09:35 and 09:40
   five-minute bars. From 09:50 to 11:00 ET, buy 10 shares on the first completed five-minute
   bar that closes above the range high. Sell at or after 15:50 ET. Only completed bars are
-  used (AlpacaBacktesting also returns the bar that is still forming).
+  used. The strategy keeps its own completed-bar filter as a guard and counts every bar the
+  data source returned that was still forming; since the 2026-09-23 lookahead fix the count
+  must be zero, and the run logs it at the end.
 - ``weekly_call``: the weekly SPY call from scripts/alpaca_options_backtest_proof.py.
 
 Usage (credentials come from your environment; nothing here is secret):
@@ -42,6 +44,8 @@ class SpyOpeningRangeBreakout(Strategy):
         self.vars.day = None
         self.vars.range_high = None
         self.vars.entered = False
+        self.vars.history_calls = 0
+        self.vars.forming_bars_returned = 0
 
     def _completed_five_minute_bars(self, count: int) -> pd.DataFrame:
         now = pd.Timestamp(self.get_datetime())
@@ -49,7 +53,12 @@ class SpyOpeningRangeBreakout(Strategy):
         if bars is None or bars.df.empty:
             return pd.DataFrame()
         df = bars.df
-        return df[df.index + pd.Timedelta(minutes=5) <= now]
+        completed = df[df.index + pd.Timedelta(minutes=5) <= now]
+        # Evidence for the lookahead fix: a bar labeled t closes at t + 5 minutes, so any row
+        # the filter removes is a bar the source returned while it was still forming.
+        self.vars.history_calls += 1
+        self.vars.forming_bars_returned += len(df) - len(completed)
+        return completed
 
     def on_trading_iteration(self):
         now = self.get_datetime()
@@ -93,11 +102,24 @@ class SpyOpeningRangeBreakout(Strategy):
     def on_filled_order(self, position, order, price, quantity, multiplier):
         self.log_message(f"FILLED {order.side} {quantity} {order.asset} at {price} ({self.get_datetime()})", color="blue")
 
+    def on_strategy_end(self):
+        self.log_message(
+            f"HISTORY CHECK: {self.vars.history_calls} five-minute history calls, "
+            f"{self.vars.forming_bars_returned} bars returned while still forming",
+            color="blue",
+        )
+
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("strategy", choices=["orb", "weekly_call"])
     parser.add_argument("--name", required=True, help="artifact name prefix")
+    parser.add_argument(
+        "--legacy-forming-bar",
+        action="store_true",
+        help="pass remove_incomplete_current_bar=False to reproduce the history the source returned "
+        "before the 2026-09-23 lookahead fix (for before/after evidence only)",
+    )
     args = parser.parse_args()
 
     if (os.environ.get("BACKTESTING_DATA_SOURCE") or "").strip().lower() != "alpaca":
@@ -110,6 +132,7 @@ def main() -> None:
 
         strategy_class = WeeklySpyCall
 
+    extra = {"remove_incomplete_current_bar": False} if args.legacy_forming_bar else {}
     # The BotSpot template: no datasource_class, no config, no timestep, dates from the environment.
     strategy_class.backtest(
         datasource_class=None,
@@ -121,6 +144,7 @@ def main() -> None:
         save_tearsheet=True,
         show_indicators=False,
         show_progress_bar=False,
+        **extra,
     )
 
 

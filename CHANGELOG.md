@@ -79,6 +79,15 @@
   option; an explicit config keeps the old stop three sessions early), and writes progress.csv. The
   option contract list retries once on the other Trading API endpoint after a 401, and bar requests
   stop 16 minutes before now (free keys refuse the latest 15 minutes of SIP data).
+- Lookahead: `AlpacaBacktesting.get_historical_prices()` returned the bar that was still forming
+  at the simulated time, with its final close, high, low and volume (the 10:00 five-minute bar at
+  10:00, today's daily bar at 09:30). In environment mode (`BACKTESTING_DATA_SOURCE=alpaca`, the
+  BotSpot path) history now holds finished bars only, like IBKR, ThetaData and Polygon, for stocks,
+  crypto and options at every bar size, and returns `None` when nothing has finished yet. The
+  documented `remove_incomplete_current_bar=True` option now also drops a multi-minute bar that is
+  still forming (it only dropped a bar labeled exactly now). With an explicit config the documented
+  default stays `False`. `get_last_price()` and fills are unchanged: the open of the bar that starts
+  now, which the broker's Alpaca branch now requests explicitly.
 - `AlpacaBacktesting.LUMIBOT_DEFAULT_QUOTE_ASSET` was `None` after the lazy AlpacaData quote
   change, which broke `_get_asset_key(quote_asset=None)` in the legacy Alpaca backtest tests.
 - An explicit `AlpacaBacktesting(timestep="minute")` is no longer switched to day bars when

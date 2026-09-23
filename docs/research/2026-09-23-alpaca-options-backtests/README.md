@@ -37,5 +37,9 @@ Files per window (`2026` = 2026-07-27 to 2026-08-14 trading, `2024` = 2024-03-04
   timestep, credentials and `BACKTESTING_START`/`BACKTESTING_END` from the environment), with
   `scripts/alpaca_env_selection_proof.py`. `orb` is a SPY 5-minute opening range breakout
   (2026-08-03 to 2026-08-07); `weekly_call` reproduces the 2026 options trades exactly.
+- `forming_bar_fix_2026-09-23.txt`: the lookahead fix (history returned the bar that was still
+  forming). Real SPY bars at 10:00 and 10:02 before and after, the ORB proof's count of forming
+  bars returned (33 of 33 before, 0 of 33 after) and the rerun of both environment proofs after
+  the fix (trades identical). `alpaca_env_orb_2026_decisions.txt` now ends with that count.
 
 These are one-contract engineering proof runs, not a strategy result.

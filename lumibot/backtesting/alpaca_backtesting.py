@@ -153,10 +153,13 @@ class AlpacaBacktesting(DataSourceBacktesting):
                 - market (str): Indicates the stock exchange or market (e.g., "NYSE"). Defaults to "NYSE".
                 - auto_adjust (bool): Determines whether to auto-adjust data, such as stock splits. Defaults 
                   to True.
-                remove_incomplete_current_bar (bool): Whether to remove the incomplete current bar from the data.
-                  Alpaca includes incomplete bars for the current bar (ie: it gives you a daily bar for the current
-                  day even if the day isn't over yet). That's not how lumibot does it, but it is probably
-                  what most Alpaca users expect so the default is False (leave incomplete bar in the data).
+                - remove_incomplete_current_bar (bool): Return only bars that have closed by the simulated
+                  time. Defaults to True in environment mode, the contract IBKR, ThetaData and Polygon
+                  backtests follow, and to False with an explicit config (the original default, kept for
+                  existing scripts). With False, history includes the bar that is still forming at the
+                  simulated time (for example today's daily bar at 09:30, or the 10:00 five-minute bar at
+                  10:02) with its final close, high, low and volume. In a backtest that is a lookahead of
+                  up to one bar. get_last_price and order fills use the open of the current bar either way.
 
         Raises:
             ValueError: If the credentials are missing or the config is not a paper account.
@@ -210,7 +213,15 @@ class AlpacaBacktesting(DataSourceBacktesting):
         self._data_store: dict[str, pd.DataFrame] = {}
         self._refreshed_keys = {}
         self._refresh_cache: bool = kwargs.get('refresh_cache', False)
-        self._remove_incomplete_current_bar = kwargs.get('remove_incomplete_current_bar', False)
+        # History never shows the bar that is still forming, in environment mode (BotSpot):
+        # a bar is returned only after it has closed, like IBKR, ThetaData and Polygon
+        # backtests. The explicit-config default stays False as documented above (the 2025
+        # apitests pin it). An explicit value wins in both modes. get_last_price and order
+        # fills always use the open of the bar that starts now, whatever this is set to.
+        requested_remove_incomplete = kwargs.get('remove_incomplete_current_bar')
+        self._remove_incomplete_current_bar = (
+            environment_mode if requested_remove_incomplete is None else bool(requested_remove_incomplete)
+        )
 
         if not config.get("PAPER", True):
             raise ValueError("Backtesting is restricted to paper accounts. Pass in a paper account config.")
@@ -447,6 +458,7 @@ class AlpacaBacktesting(DataSourceBacktesting):
             return self._get_option_historical_prices(
                 asset,
                 length,
+                timestep=timestep,
                 source_timestep=source_timestep,
                 resample_rule=resample_rule,
                 timeshift=timeshift,
@@ -483,26 +495,20 @@ class AlpacaBacktesting(DataSourceBacktesting):
                 f"Not enough historical data. Requested {length} bars but only {len(df)} available."
             )
 
-        # Adjust the search based on timestep
-        if source_timestep == 'day':
-            # For daily bars
-            search_date = search_datetime.date()
-            dates = df.index.date
-            current_index = dates.searchsorted(search_date, side="right") - 1
-
-            # Adjust for incomplete current bar
-            if remove_incomplete_current_bar and current_index >= 0 and dates[current_index] == search_date:
-                current_index -= 1
-        else:
-            # For intraday bars, use the most recent bar at or before the search datetime.
-            current_index = df.index.searchsorted(search_datetime, side="right") - 1
-
-            # Adjust for incomplete current bar
-            if remove_incomplete_current_bar and current_index >= 0 and df.index[current_index] == search_datetime:
-                current_index -= 1
+        current_index = self._newest_bar_position(
+            df.index,
+            search_datetime,
+            timestep,
+            remove_incomplete_current_bar,
+        )
 
         # Handle data retrieval and slicing
         if current_index < 0:
+            if remove_incomplete_current_bar:
+                # No bar has finished yet (the very start of the data window). Missing is
+                # honest: return None, as the other backtesting sources do, rather than the
+                # bar that is still forming.
+                return None
             raise ValueError(f"Datetime {search_datetime} not found in the dataset.")
 
         if current_index >= len(df):
@@ -543,6 +549,43 @@ class AlpacaBacktesting(DataSourceBacktesting):
             return ("minute" if minutes == 1 else f"{minutes}minute"), None
 
         return "minute", f"{minutes}min"
+
+    @staticmethod
+    def _newest_bar_position(
+            index: pd.DatetimeIndex,
+            search_datetime: datetime,
+            timestep: str,
+            remove_incomplete_current_bar: bool,
+    ) -> int:
+        """Position in ``index`` of the newest bar to return at ``search_datetime``, or -1.
+
+        Alpaca labels a bar with its start time, so the bar labeled 10:00 in a 5-minute series
+        holds trades from 10:00 to 10:04:59 and closes at 10:05. Daily bars are labeled at
+        midnight and close with the session.
+
+        With ``remove_incomplete_current_bar`` only a bar that has finished by
+        ``search_datetime`` qualifies: its label plus its length is at or before
+        ``search_datetime`` (for daily bars, its date plus its length in days is at or before
+        the search date). That is LumiBot's history contract for IBKR, ThetaData and Polygon
+        (``Data._get_bars_row_bounds`` stops before the bar that is in progress), and it holds
+        when ``search_datetime`` falls inside a multi-minute or resampled bar, not only when a
+        bar starts exactly then.
+
+        Without it, the bar that is still forming at ``search_datetime`` is included with its
+        final close, high, low and volume. That is the documented default for an explicit
+        config and what get_last_price and order fills use (they read the bar's open only).
+        """
+        delta, unit = DataSourceBacktesting.convert_timestep_str_to_timedelta(timestep)
+        if unit == "day":
+            search_date = search_datetime.date()
+            if remove_incomplete_current_bar:
+                search_date -= timedelta(days=max(delta.days, 1))
+            return int(index.date.searchsorted(search_date, side="right")) - 1
+
+        cutoff = search_datetime
+        if remove_incomplete_current_bar:
+            cutoff = search_datetime - delta
+        return int(index.searchsorted(cutoff, side="right")) - 1
 
     @staticmethod
     def _get_alpaca_timeframe(timestep: str) -> TimeFrame:
@@ -964,6 +1007,7 @@ class AlpacaBacktesting(DataSourceBacktesting):
             asset: Asset,
             length: int,
             *,
+            timestep: str,
             source_timestep: str,
             resample_rule: str | None,
             timeshift: timedelta | None,
@@ -980,19 +1024,15 @@ class AlpacaBacktesting(DataSourceBacktesting):
                 return None
 
         search_datetime = self._datetime - timeshift if timeshift else self._datetime
-        if source_timestep == "day":
-            search_date = search_datetime.date()
-            dates = df.index.date
-            current_index = dates.searchsorted(search_date, side="right") - 1
-            if remove_incomplete_current_bar and current_index >= 0 and dates[current_index] == search_date:
-                current_index -= 1
-        else:
-            current_index = df.index.searchsorted(search_datetime, side="right") - 1
-            if remove_incomplete_current_bar and current_index >= 0 and df.index[current_index] == search_datetime:
-                current_index -= 1
+        current_index = self._newest_bar_position(
+            df.index,
+            search_datetime,
+            timestep,
+            remove_incomplete_current_bar,
+        )
 
         if current_index < 0:
-            # No trade printed yet. Never back-fill a later price into the past.
+            # No trade printed (or finished) yet. Never back-fill a later price into the past.
             return None
 
         result_df = df.iloc[max(0, current_index - length + 1): current_index + 1]
@@ -1010,6 +1050,7 @@ class AlpacaBacktesting(DataSourceBacktesting):
         bars = self._get_option_historical_prices(
             asset,
             1,
+            timestep=timestep,
             source_timestep=timestep,
             resample_rule=None,
             timeshift=None,

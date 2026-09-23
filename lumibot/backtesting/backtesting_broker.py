@@ -2477,6 +2477,7 @@ class BacktestingBroker(Broker):
                 # passing -1 minute yields an effective +1 minute guard that keeps us on the previously
                 # completed bar. See tests/*_lookahead for regression coverage.
                 timeshift = timedelta(minutes=-1)
+                execution_bar_kwargs = {}
                 if data_source_name == "CCXT":
                     # Research history excludes the unclosed CCXT candle. Execution
                     # alone requests the current interval to simulate its open/range.
@@ -2496,12 +2497,20 @@ class BacktestingBroker(Broker):
                 elif data_source_name == "ALPACA":
                     # Alpaca minute bars line up with our clock already; no offset needed.
                     timeshift = None
+                    # Execution is simulated on the bar that starts now (market orders at its
+                    # open, limit and stop orders against its range), the same bar the Pandas
+                    # path reads with timeshift=-1. AlpacaBacktesting history returns finished
+                    # bars only in environment mode (the BotSpot path), so ask for the current
+                    # bar explicitly. The timestamp check below still rejects a bar that is not
+                    # current where the fill policy requires one (options).
+                    execution_bar_kwargs["remove_incomplete_current_bar"] = False
 
                 ohlc = self.data_source.get_historical_prices(
                     asset=asset,
                     length=1,
                     quote=order.quote,
                     timeshift=timeshift,
+                    **execution_bar_kwargs,
                 )
 
                 if (

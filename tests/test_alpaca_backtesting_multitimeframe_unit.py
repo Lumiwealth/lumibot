@@ -163,6 +163,46 @@ def test_alpaca_backtesting_uses_latest_completed_native_intraday_bar():
     assert list(df["open"]) == [1, 2]
 
 
+def test_alpaca_remove_incomplete_current_bar_drops_a_native_bar_that_is_still_forming():
+    """The documented option must drop the forming bar even when now is inside the bar.
+
+    It used to drop the current bar only when its label equaled now exactly, so at 10:50 the
+    20-minute bar labeled 10:40 (closing at 11:00) was still returned.
+    """
+    tzinfo = pytz.timezone("America/New_York")
+    data_source = AlpacaBacktesting.__new__(AlpacaBacktesting)
+    data_source._remove_incomplete_current_bar = True
+    data_source._timestep = "minute"
+    data_source._datetime = tzinfo.localize(datetime(2026, 1, 2, 10, 50))
+    data_source._data_datetime_start = tzinfo.localize(datetime(2026, 1, 2, 0, 0))
+    data_source._data_datetime_end = tzinfo.localize(datetime(2026, 1, 2, 23, 59))
+    data_source._auto_adjust = True
+    data_source.tzinfo = tzinfo
+
+    index = pd.DatetimeIndex(
+        [tzinfo.localize(datetime(2026, 1, 2, hour, minute)) for hour, minute in ((10, 0), (10, 20), (10, 40), (11, 0))]
+    )
+    native_20min_df = pd.DataFrame(
+        {
+            "open": range(len(index)),
+            "high": [value + 0.5 for value in range(len(index))],
+            "low": [value - 0.5 for value in range(len(index))],
+            "close": [value + 0.25 for value in range(len(index))],
+            "volume": [1] * len(index),
+        },
+        index=index,
+    )
+    data_source.get_historical_prices_between_dates = lambda **kwargs: native_20min_df
+
+    bars = data_source.get_historical_prices(Asset("TSLA"), length=2, timestep="20min")
+    assert list(bars.pandas_df.index) == list(index[0:2])
+
+    # At 11:00 the 10:40 bar has closed and is returned.
+    data_source._datetime = tzinfo.localize(datetime(2026, 1, 2, 11, 0))
+    bars = data_source.get_historical_prices(Asset("TSLA"), length=2, timestep="20min")
+    assert list(bars.pandas_df.index) == list(index[1:3])
+
+
 def test_alpaca_backtesting_uses_alpaca_sdk_timeframes_for_intraday_multiples():
     assert str(AlpacaBacktesting._get_alpaca_timeframe("13minute")) == "13Min"
     assert str(AlpacaBacktesting._get_alpaca_timeframe("15minute")) == "15Min"
@@ -582,7 +622,10 @@ class _FakeStockHistoricalClient:
                 ts = _NY_TZ.localize(datetime.combine(day, datetime.min.time()).replace(hour=9, minute=30)) + timedelta(minutes=minute)
                 if start <= ts <= end:
                     o = _minute_open(day, minute)
-                    rows.append((ts, o, o + 0.01, o - 0.01, o, 1000))
+                    # A multi-minute bar closes at the price of its last minute, which is
+                    # later than the bar's label. That makes a leaked close visible.
+                    c = _minute_open(day, minute + step - 1)
+                    rows.append((ts, o, max(o, c) + 0.01, min(o, c) - 0.01, c, 1000 * step))
         return _bars(
             request.symbol_or_symbols,
             [(ts.astimezone(pytz.UTC).strftime("%Y-%m-%dT%H:%M:%SZ"), o, h, l, c, v) for ts, o, h, l, c, v in rows],
@@ -670,10 +713,76 @@ def test_env_selected_alpaca_runs_intraday_minute_bars_over_the_full_window(monk
     by_time = {now.strftime("%Y-%m-%d %H:%M"): (bar, price) for now, bar, price in strategy.vars.seen}
     # Minute resolution: the last price at 10:00 is the 10:00 minute bar, not the day's open.
     assert float(by_time["2026-08-04 10:00"][1]) == _minute_open(date(2026, 8, 4), 30)
-    assert by_time["2026-08-04 10:00"][0] == _NY_TZ.localize(datetime(2026, 8, 4, 10, 0))
+    # The newest finished 5-minute bar at 10:00 is 09:55. (This line asserted 10:00, the bar
+    # still forming, until the 2026-09-23 lookahead fix; see the test below.)
+    assert by_time["2026-08-04 10:00"][0] == _NY_TZ.localize(datetime(2026, 8, 4, 9, 55))
     # The market order submitted at 09:40 fills on the 09:40 minute bar.
     assert strategy.vars.fills == [(_NY_TZ.localize(datetime(2026, 8, 3, 9, 40)), _minute_open(date(2026, 8, 3), 10))]
     assert {str(r.timeframe) for r in _FakeStockHistoricalClient.requests} >= {"1Min", "5Min"}
+
+
+def test_env_selected_alpaca_history_never_returns_a_bar_that_closes_after_now(monkeypatch, tmp_path):
+    """BotSpot path: history holds completed bars only, the contract IBKR, ThetaData and Polygon use.
+
+    Before 2026-09-23 the 5-minute bar labeled 10:00 came back at 10:00 carrying its 10:04
+    close (and the day's bar came back at 10:00 carrying the 16:00 close), so a signal built
+    on the latest bar saw into the future. The price used for fills is unchanged: the open
+    of the bar that starts now.
+    """
+    from lumibot.strategies import Strategy
+
+    _select_alpaca_through_environment(monkeypatch, tmp_path)
+    order_time = _NY_TZ.localize(datetime(2026, 8, 4, 10, 0))
+    lengths = {"5minute": timedelta(minutes=5), "minute": timedelta(minutes=1)}
+
+    class HistoryProbe(Strategy):
+        def initialize(self):
+            self.sleeptime = "5M"
+            self.vars.rows = {}
+            self.vars.fills = []
+
+        def on_trading_iteration(self):
+            now = self.get_datetime()
+            row = {"last": float(self.get_last_price("SPY"))}
+            for timestep, length in (("5minute", 3), ("minute", 3), ("day", 1)):
+                bars = self.get_historical_prices("SPY", length, timestep)
+                row[timestep] = None if bars is None else bars.df[["open", "close"]].copy()
+            self.vars.rows[now] = row
+            if now == order_time:
+                self.submit_order(self.create_order("SPY", 1, "buy"))
+
+        def on_filled_order(self, position, order, price, quantity, multiplier):
+            self.vars.fills.append((self.get_datetime(), float(price)))
+
+    _results, strategy = HistoryProbe.run_backtest(**_ENV_RUN_KWARGS)
+
+    rows = strategy.vars.rows
+    assert len(rows) == 5 * 78
+    for now, row in rows.items():
+        for timestep, bar_length in lengths.items():
+            df = row[timestep]
+            if df is not None:
+                assert (df.index + bar_length <= now).all(), f"{timestep} bar still forming at {now}: {list(df.index)}"
+        day_df = row["day"]
+        if day_df is not None:
+            # Daily bars are labeled at midnight and close at the end of the session.
+            assert (day_df.index.date < now.date()).all(), f"today's daily bar returned at {now}"
+
+    at_ten = rows[order_time]
+    day = date(2026, 8, 4)
+    # The 5-minute bar labeled 10:00 closes at 10:05; the newest one finished by 10:00 is 09:55,
+    # whose close is the 09:59 price. Its 10:04 close must not be visible at 10:00.
+    assert at_ten["5minute"].index[-1] == _NY_TZ.localize(datetime(2026, 8, 4, 9, 55))
+    assert float(at_ten["5minute"]["close"].iloc[-1]) == _minute_open(day, 29)
+    assert _minute_open(day, 34) not in set(at_ten["5minute"]["close"].astype(float))
+    assert at_ten["minute"].index[-1] == _NY_TZ.localize(datetime(2026, 8, 4, 9, 59))
+    assert at_ten["day"].index[-1].date() == date(2026, 8, 3)
+    # get_last_price and the fill both use the open of the bar that starts at 10:00.
+    assert at_ten["last"] == _minute_open(day, 30)
+    assert strategy.vars.fills == [(order_time, _minute_open(day, 30))]
+    # Nothing has finished yet at the first bar of the window, so there is nothing to return.
+    first = rows[_NY_TZ.localize(datetime(2026, 8, 3, 9, 30))]
+    assert first["5minute"] is None and first["minute"] is None and first["day"] is None
 
 
 def test_env_selected_alpaca_daily_strategy_keeps_daily_bars(monkeypatch, tmp_path):
@@ -739,6 +848,45 @@ def test_env_selected_alpaca_options_fill_on_real_prints(monkeypatch, tmp_path):
     _results, strategy = BuyOneCall.run_backtest(**_ENV_RUN_KWARGS)
 
     assert strategy.vars.fills == [("2026-08-03 09:37", 5.40)]
+
+
+def test_env_selected_alpaca_option_history_excludes_the_print_that_is_still_forming(monkeypatch, tmp_path):
+    """Option history on the BotSpot path also stops at the newest finished bar."""
+    _select_alpaca_through_environment(monkeypatch, tmp_path)
+    _FakeOptionHistoricalClient.barsets = {
+        "SPY260821C00650000": _bars(
+            "SPY260821C00650000",
+            [
+                ("2026-08-03T13:31:00Z", 5.00, 5.10, 4.95, 5.05, 3),
+                ("2026-08-03T13:37:00Z", 5.40, 5.50, 5.35, 5.45, 2),
+            ],
+        )
+    }
+    source = AlpacaBacktesting(
+        datetime_start=_NY_TZ.localize(datetime(2026, 8, 3)),
+        datetime_end=_NY_TZ.localize(datetime(2026, 8, 8)),
+        config=None,
+    )
+    source._sleep = lambda seconds: None
+    contract = Asset("SPY", asset_type=Asset.AssetType.OPTION, expiration=date(2026, 8, 21), strike=650, right="CALL")
+
+    source._datetime = _NY_TZ.localize(datetime(2026, 8, 3, 9, 37))
+    bars = source.get_historical_prices(contract, 2, "minute")
+    # The 09:37 print closes at 09:38: at 09:37 only the 09:31 bar has finished.
+    assert list(bars.df.index) == [_NY_TZ.localize(datetime(2026, 8, 3, 9, 31))]
+    # The fill price is still the open of the print that starts now.
+    assert float(source.get_last_price(contract)) == 5.40
+
+    source._datetime = _NY_TZ.localize(datetime(2026, 8, 3, 9, 38))
+    bars = source.get_historical_prices(contract, 2, "minute")
+    assert list(bars.df.index) == [
+        _NY_TZ.localize(datetime(2026, 8, 3, 9, 31)),
+        _NY_TZ.localize(datetime(2026, 8, 3, 9, 37)),
+    ]
+
+    source._datetime = _NY_TZ.localize(datetime(2026, 8, 3, 9, 31))
+    # Before the first print has finished there is nothing honest to return.
+    assert source.get_historical_prices(contract, 2, "minute") is None
 
 
 def test_alpaca_contract_listing_falls_back_to_the_other_trading_endpoint_on_401(monkeypatch, tmp_path):

@@ -1049,6 +1049,23 @@ class _Strategy:
     def _executor(self, executor):
         self._executor_instance = executor
 
+    def _apply_pending_backtest_trade_events(self):
+        """Apply fills produced inside the current backtest iteration to cash and portfolio value.
+
+        Backtest fills update positions immediately but queue the cash update, which the
+        executor otherwise drains only after ``on_trading_iteration`` returns. Without this,
+        code that fills an order and then reads cash in the same iteration sees pre-fill cash.
+        """
+        if not self.is_backtesting:
+            return
+        executor = getattr(self, "_executor_instance", None)
+        if executor is None or not hasattr(executor, "process_queue"):
+            return
+        executor.process_queue(skip_first_iteration_events=False)
+        self._portfolio_value_cache_key = None
+        self._portfolio_value_cache_value = None
+        self._update_portfolio_value()
+
     def _build_executor(self):
         from .strategy_executor import StrategyExecutor
 

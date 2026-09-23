@@ -979,6 +979,7 @@ class Strategy(_Strategy):
                     broker.process_pending_orders(strategy=self)
                 except TypeError:
                     broker.process_pending_orders(self)
+            self._apply_pending_backtest_trade_events()
             return None
 
         time.sleep(sleeptime)

@@ -2012,6 +2012,11 @@ def _bind_orders_wait_for_terminal(strategy: Any, manager: Any) -> BoundTool:
             if is_backtesting:
                 sim_slept += sleep_for
 
+        if is_backtesting:
+            apply_fills = getattr(strategy, "_apply_pending_backtest_trade_events", None)
+            if callable(apply_fills):
+                apply_fills()
+
         elapsed_total = _time.monotonic() - started
         return {
             **latest,

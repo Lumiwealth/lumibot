@@ -15,8 +15,9 @@ _BOOK = (
     "Respect the long or inverse direction. Split the account by the interpreter weights."
 )
 _EXIT = (
-    "If a position was opened on an earlier session, sell it with the order tool "
-    "before any new buy. Then open the new book if the interpreter still wants it."
+    "Sell a holding with the order tool when today's weights no longer include it, before any "
+    "new buy. Keep a holding that today's weights still include and resize it only toward its "
+    "new weight."
 )
 
 

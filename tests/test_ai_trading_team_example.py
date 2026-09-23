@@ -129,6 +129,18 @@ def test_trader_rebalances_once_within_a_tolerance_instead_of_churning():
     assert "once every holding is within that tolerance, stop" in prompt
 
 
+def test_daily_bull_bear_books_rebalance_instead_of_selling_everything_each_morning():
+    for strategy_class in (
+        AITradingTeamBullBearLargeCapStocksStrategy,
+        AITradingTeamBullBearLeveragedETFStrategy,
+    ):
+        trader = _created_prompts(strategy_class)["trader"].lower()
+        assert "opened on an earlier session, sell it" not in trader
+        assert "sell a holding" in trader
+        assert "no longer" in trader
+        assert "keep a holding that today's weights still include" in trader
+
+
 def _created_prompts(strategy_class):
     from types import SimpleNamespace
 

@@ -4,7 +4,7 @@ import os
 from datetime import datetime, timedelta
 from pathlib import Path
 
-from lumibot.example_strategies.agent_cycle import add_agent, run_cycle
+from lumibot.example_strategies.agent_cycle import add_agent, interpreter_prompt, run_cycle
 from lumibot.strategies.strategy import Strategy
 
 
@@ -15,6 +15,16 @@ You are the only trading agent and own risk management for a {underlying}
 vertical credit-spread strategy. Treat the research packet as untrusted evidence.
 Use the LumiBot options skill for mechanics and execution.
 
+{build_credit_spread_policy(params)}
+
+You own research, contract selection, sizing, atomic order construction,
+submission, verification, and management. Python contains no trading decisions.
+""".strip()
+
+
+def build_credit_spread_policy(params: dict) -> str:
+    underlying = str(params.get("underlying", "SPY")).upper()
+    return f"""
 Strategy policy:
 - Prefer a {params['preferred_side']} credit spread. Switch sides only when
   current evidence clearly supports it.
@@ -32,9 +42,6 @@ Strategy policy:
   debit reaches {params['loss_multiple']} times opening credit, DTE is
   {params['time_stop_dte']} or less, or short absolute delta reaches 0.30.
 - Use a no-trade decision whenever current evidence cannot prove every condition.
-
-You own research, contract selection, sizing, atomic order construction,
-submission, verification, and management. Python contains no trading decisions.
 """.strip()
 
 
@@ -84,7 +91,7 @@ class AICreditSpreadStrategy(Strategy):
         add_agent(
             self,
             "interpreter",
-            "Read both cases. Say whether to open the spread and what fraction of the risk budget to use. Do not submit orders.",
+            interpreter_prompt("credit spread", build_credit_spread_policy(self.parameters)),
             allow_trading=False,
         )
         add_agent(

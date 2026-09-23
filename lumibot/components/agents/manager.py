@@ -1290,6 +1290,7 @@ class AgentHandle:
                     "Correct example: if the current simulated date is 2024-01-22 and a tool accepts end, end_date, time_to, or observation_end, pass 2024-01-22 (or the current simulated datetime) in that field.",
                     "Incorrect example: calling a news, macro, or data tool with only a start parameter and no end parameter, allowing it to return future data by default.",
                     "If a tool response seems to include future timestamps, treat that as suspicious. Do not rely on those records without calling out the risk in your reasoning.",
+                    "Some backtest data sources have option trade bars but no bid/ask history. When a tool result or another agent's research reports price_basis='last_trade', that last traded price is the price this backtest fills at. Missing bid/ask alone is not a reason to pass, and it does not make that price unverified or unexecutable. A recent trade bar for the exact contract is the liquidity evidence.",
                     "If you are unsure whether information was available yet, say the evidence is insufficient and do nothing.",
                     "Backtesting accuracy is more important than being clever. A cautious no-trade is better than a future-biased trade.",
                 ]

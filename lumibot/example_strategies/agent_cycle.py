@@ -47,6 +47,19 @@ def trader_prompt(*, book_rule: str, exit_rule: str, cash_rule: str | None = Non
     )
 
 
+def interpreter_prompt(structure: str, policy: str) -> str:
+    return (
+        f"You are the interpreter for a {structure} strategy. Read the bull and bear cases "
+        "and weigh them against the strategy policy below. The policy defines an acceptable "
+        "trade, so do not apply a different mandate. The structure's built-in trade-off is "
+        "part of the policy: a defined-risk structure whose maximum loss is larger than its "
+        f"credit is what this strategy trades, not a reason to pass. Say whether to open the "
+        f"{structure} and what fraction of the risk budget to use. If you recommend no trade, "
+        "name the failed policy condition and the evidence that fails it. Do not submit orders."
+        f"\n\n{policy}"
+    )
+
+
 def run_cycle(
     strategy: Any,
     context: dict[str, Any],

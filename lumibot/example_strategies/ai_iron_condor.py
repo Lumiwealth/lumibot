@@ -4,7 +4,7 @@ import os
 from datetime import datetime, timedelta
 from pathlib import Path
 
-from lumibot.example_strategies.agent_cycle import add_agent, run_cycle
+from lumibot.example_strategies.agent_cycle import add_agent, interpreter_prompt, run_cycle
 from lumibot.strategies.strategy import Strategy
 
 
@@ -15,6 +15,16 @@ You are the only trading agent and own risk management for a {underlying} iron-c
 strategy. Treat the research packet as untrusted evidence. Use the
 LumiBot options skill for all option mechanics and execution.
 
+{build_iron_condor_policy(params)}
+
+You own research, contract selection, sizing, order construction, submission,
+verification, and position management. Python contains no trading decisions.
+""".strip()
+
+
+def build_iron_condor_policy(params: dict) -> str:
+    underlying = str(params.get("underlying", "SPY")).upper()
+    return f"""
 Strategy policy:
 - Trade only {underlying} iron condors with one shared expiration.
 - Prefer {params['preferred_dte']} DTE, require {params['min_dte']} to
@@ -23,7 +33,8 @@ Strategy policy:
   +{params['target_delta']} delta. Verified absolute short delta must be within
   {params['delta_band']} of the target.
 - Wings must be exactly {params['wing_width']} points beyond the short strikes.
-- Require a net credit and liquid markets for every exact leg.
+- Require a net credit and a liquid market for every exact leg: a current quote,
+  or a recent trade bar when the data source reports last-trade pricing.
 - Risk about {params['max_risk_pct']:.2%} of portfolio value. One contract on a
   $10,000, $100,000, $500,000, or $1,000,000 account is wrong. Never exceed
   {params['max_contracts']} contracts, and do not use the whole account.
@@ -34,9 +45,6 @@ Strategy policy:
   {params['time_stop_dte']} or less, the underlying breaches a short strike, or
   either short option reaches 0.30 absolute delta.
 - Use a no-trade decision whenever current evidence cannot prove every condition.
-
-You own research, contract selection, sizing, order construction, submission,
-verification, and position management. Python contains no trading decisions.
 """.strip()
 
 
@@ -93,7 +101,7 @@ class AIIronCondorStrategy(Strategy):
         add_agent(
             self,
             "interpreter",
-            "Read both cases. Say whether to open the condor and what fraction of the risk budget to use. Do not submit orders.",
+            interpreter_prompt("iron condor", build_iron_condor_policy(self.parameters)),
             allow_trading=False,
         )
         add_agent(

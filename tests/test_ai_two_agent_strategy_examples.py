@@ -79,6 +79,29 @@ def test_ai_examples_separate_research_from_trading_and_risk(strategy_class, res
     assert "risk" in trader["system_prompt"].lower()
 
 
+@pytest.mark.parametrize("strategy_class", [AICreditSpreadStrategy, AIIronCondorStrategy])
+def test_option_interpreters_judge_against_the_strategy_policy(strategy_class):
+    """The interpreter must not reject the defined structure the strategy exists to trade."""
+    agents = _Agents()
+    context = SimpleNamespace(
+        agents=agents,
+        parameters=dict(strategy_class.parameters),
+        get_datetime=lambda: datetime(2026, 9, 18, 14, 30),
+    )
+
+    strategy_class.initialize(context)
+
+    created = {item["name"]: item for item in agents.created}
+    interpreter = created["interpreter"]["system_prompt"]
+    trader = created["trading_risk_manager"]["system_prompt"]
+    assert "do not submit orders" in interpreter.lower()
+    assert "Strategy policy:" in interpreter
+    assert f"Wings must be exactly" in interpreter or "long wing exactly" in interpreter
+    assert "maximum loss is larger than its credit" in interpreter
+    assert "name the failed policy condition" in interpreter.lower()
+    assert "Strategy policy:" in trader
+
+
 def test_documentation_and_artwork_contracts_describe_the_real_topology():
     repo = Path(__file__).resolve().parents[1]
     two_agent_pages = [

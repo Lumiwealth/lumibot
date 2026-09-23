@@ -184,20 +184,14 @@ stateful browser surface.
 
 ### The infrastructure constraint
 
-Read out of `bot_manager/terraform/main.tf` on 2026-09-18:
+The hosted base image has no browser in it, and scheduled strategies run on a
+small default task shape (exact sizes are in private BotSpot operations notes).
+Chrome with one page is roughly 300 to 500 MiB, so it fits only barely. Measure
+the image size increase and the task memory headroom before merging.
 
-- Base image `python:3.13-slim-trixie`, no browser in it
-- Scheduled custom Fargate default: `cpu = 512` (0.5 vCPU),
-  `memory = 1024` MiB
-- Backtest tasks get `cpu = 2048`, `memory = 3700` MiB, so the bigger shape
-  exists but is not what scheduled strategies get
-
-Chrome with one page is roughly 300 to 500 MiB. It fits, barely. Measure the
-image size increase and the task memory headroom before merging.
-
-**Raising `scheduled_custom_fargate_memory` above 1024 MiB is a cost increase
-across every scheduled task and needs Rob's explicit approval with a monthly
-number attached. Do not do it unilaterally.**
+**Raising the hosted task memory is a cost increase across every scheduled task
+and needs Rob's explicit approval with a monthly number attached. Do not do it
+unilaterally.**
 
 ### Which targets actually need a browser
 

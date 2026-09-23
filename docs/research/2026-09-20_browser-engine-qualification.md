@@ -48,15 +48,11 @@ Patchright Chromium/headless-shell/ffmpeg set used by the benchmark and 657 MiB
 for Camoufox. Those are local filesystem measurements, not compressed container
 layer sizes; exact image-size impact remains part of the Linux ARM64 gate.
 
-## Current production runtime readback
+## Current hosted runtime
 
-A read-only ECS inventory in `us-east-1` found 12 running tasks in the
-`prod-trading-bots` cluster and zero in the production backtest cluster at the
-time of inspection:
-
-- 10 tasks used the EC2 launch type at 682 CPU units and 596 MiB.
-- 2 tasks used Fargate at 512 CPU units and 1,024 MiB.
-- Both Fargate task definitions declared Linux ARM64 and platform version 1.4.0.
+The hosted runtime is a mix of shared EC2 hosts and Fargate tasks with small
+CPU and memory shapes. Exact inventory and task sizes are kept in private
+BotSpot operations notes.
 
 This proves production is not "all Fargate" and that a browser cannot be added
 indiscriminately to every current workload.

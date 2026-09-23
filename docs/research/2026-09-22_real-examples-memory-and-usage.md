@@ -62,39 +62,7 @@ A short backtest that finishes slightly red can go on a page if it is not an acc
 
 ## Memory and what a bot costs
 
-Always-on live bots are not one Fargate box each. They share EC2 `t4g.small` hosts defined in the private Bot Manager repository (`terraform/main.tf`): 2 vCPU, 2 GiB, comment says about two bots per instance, `asg_max_size` 500. Current task size in `broker_configs.json` is about 682 CPU units and 596 MiB. A 3 GB or 4 GB bot cannot fit on that host.
-
-us-east-1 Linux on-demand, third-party calculators checked 2026-09-22, not an AWS bill:
-
-- `t4g.small`: $0.0168 per hour, about $12.26 for 730 hours, for the whole host
-- `t4g.medium`: $0.0336 per hour, about $24.53 for 730 hours, 4 GiB, still tight once the operating system is subtracted
-- `t4g.large`: 8 GiB, not priced in this note
-
-Scheduled starts can now ask for 2, 3, or 4 GB on that one start. CPU stays at the requested value. Omit the setting and the task stays 1024 MiB. An always-on start that asks for 2, 3, or 4 GB is rejected, because those bots share a 2 GB host and a bigger host was not approved. That rejection is only the always-on path.
-
-Linux ARM Fargate us-east-1 public rates from the AWS Fargate pricing page: $0.0000089944 per vCPU-second and $0.0000009889 per GB-second. At 730 hours and 0.5 vCPU:
-
-| Memory | Compute only |
-| --- | --- |
-| 1 GB | about $14.42 |
-| 2 GB | about $17.02 |
-| 3 GB | about $19.62 |
-| 4 GB | about $22.21 |
-
-The extra gigabyte is about $2.60. That is compute only. A public IPv4 address is $0.005 per hour, about $3.65 per month, and only if one is assigned. The scheduled path defaults public IP off. Production always-on bots use the shared host network, not one public IP per bot. NAT already exists for production. Do not add another NAT.
-
-CPU stays fixed. A scheduled start may set 2, 3, or 4 GB. Allowed steps are only those three. Hard cap is 4 GB. Leave it unset and the task stays 1024 MiB. An always-on start that asks for 2, 3, or 4 GB is rejected in plain language and is not placed. Browser use is one reason a scheduled bot may need more memory. It is not a separate product. The Agent eval already teaches a scheduled start to pass `memoryGb` when the user asks for 2, 3, or 4 GB. A blanket "every AI bot is 2 GB" rule was not chosen.
-
-A 4 GB always-on bot needs a larger host than `t4g.small`. That host change is spending. It stays out until Rob approves the exact size and monthly cost.
-
-## Usage tracking today
-
-The code now stores memory on the runtime session. Node migration `1796000000000-AddDeploymentRuntimeMemory` adds `memoryMib` and `estimatedCostUsd`. Allowed stored sizes are 2048, 3072, and 4096. The cost estimate is the monthly Fargate rate times seconds run, divided by 2,592,000. A 1024 MiB run and an unknown size store null. The account usage query still sums `runtimeSeconds` only. Memory does not feed the minute quota and does not stop a bot.
-
-That migration is in the repo. It is not on the live database, because nothing has been deployed. A read of production on 2026-09-22 still showed the old columns only: id, deploymentId, ownerId, runId, status, startedAt, endedAt, runtimeSeconds, observedAt, createdAt, updatedAt.
-
-September 2026 production rows at that read: 597 runs, 44 deployments, 25.16 runtime hours, first start 2026-09-04, last start 2026-09-22 19:30 UTC, longest run 540 seconds. This is short scheduled duration. No live bot was started at 2, 3, or 4 GB. The memory eval used a fixture start.
-
-`ai_usage_event` is model token cost. August 2026: 4,752 events, 0 with a deployment id, estimated cost $490.26. September 2026: 15,745 events, 594 with a deployment id, estimated cost $181.57. The 2026-09-22 tear sheets are not in that number. They used `filing_rule` and `price_rule` and called no model.
-
-`GET /account/usage` shows deployment runtime minutes. Backtest minute limits can stop a new backtest. Deployment runtime minutes do not stop a bot. There is no live gigabyte bill until a release Rob asks for.
+Always-on hosted bots share small hosts, so a 3 GB or 4 GB bot needs a larger
+host shape. That is a spending change and stays out until Rob approves the
+exact size and monthly cost. Host sizes, current task shapes, production usage
+counts, and model-cost figures are kept in private BotSpot operations notes.

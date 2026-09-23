@@ -150,22 +150,17 @@ is a pre-existing issue outside this change (see open items).
 
 ## Task B: IBKR "remained underfilled" loop on 4.5.92
 
-### Production evidence (Bot Manager log group, read-only)
+### Hosted evidence (summary)
 
-- A routed IBKR backtest (SPY, 250 bars of 5-minute history per 5-minute iteration, window
-  2026-09-08 to 2026-09-16) ran on LumiBot 4.5.92 from a Bot Manager release bundle at 00:42 ET
-  on 2026-09-15. `backtesting_end` was clamped to 2026-09-15 00:42:41 ET.
-- It made 78 history requests: 77 identical
-  `{"bar": "5min", "conid": "756733", "outsideRth": "true", "period": "5000min", "source": "Trades", "startTime": "20260908-08:00:00"}`
-  and one `startTime=20260915-04:41:41`. Each took 4 to 5 seconds. All 77 repeats happened during
-  the first simulated day (one per 5-minute bar), each followed by
-  `IBKR cached history remained underfilled after refresh ... (placeholder_covered=False)`.
-- Three other 4.5.92 runs of the same window, clamped at 21:29 to 21:38 ET on 2026-09-14 (after
-  the session close), made only 2 requests each. A 4.5.91 run of 2026-08-03 to 2026-08-15 (not
-  clamped, cold cache) paged backwards 5 times and was done.
-- One live request through the production downloader on 2026-09-23
-  (`startTime=20260908-08:00:00`, `period=5000min`): 40 bars, all Friday 2026-09-04 16:40 to
-  19:55 ET, classification `complete`, zero bars inside the requested gap.
+- A hosted routed IBKR backtest on 4.5.92 (SPY, 5-minute bars, 250 bars of history per
+  iteration) whose end date was clamped to the current time re-sent the identical history
+  request once per bar for the whole first simulated day (77 repeats), each followed by
+  `IBKR cached history remained underfilled after refresh`.
+- Runs of the same window clamped after the session close made only two requests each, and a
+  4.5.91 run of an older window paged backwards a few times and finished.
+- A single live request for the same window returned only bars from the previous trading day,
+  classified `complete`, with zero bars inside the requested gap.
+- Exact log evidence is kept in private BotSpot operations notes.
 
 ### Root cause
 

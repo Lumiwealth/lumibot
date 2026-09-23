@@ -158,6 +158,12 @@ def test_leveraged_etf_book_never_holds_a_long_and_its_inverse_on_one_index():
     assert "sell the whole opposite side before buying" in trader
 
 
+def test_trader_rescales_weights_a_book_rule_removed_instead_of_skipping():
+    prompt = " ".join(trader_prompt(book_rule="book", exit_rule="exit").split()).lower()
+    assert "when a book rule drops or nets away weight" in prompt
+    assert "a conflict between these rules is never a reason to skip the rebalance" in prompt
+
+
 def test_trader_never_buys_more_than_the_cash_it_has():
     prompt = " ".join(trader_prompt(book_rule="book", exit_rule="exit").split()).lower()
     assert "total cost of new buys must stay below cash plus the proceeds of this session's sells" in prompt

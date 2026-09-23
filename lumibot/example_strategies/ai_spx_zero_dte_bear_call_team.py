@@ -44,6 +44,11 @@ expiration. Sell the listed call whose delta is closest to +{params['target_delt
 and buy a listed call exactly {params['wing_width']:.0f} points higher. Require a
 positive net credit below the {params['wing_width']:.0f}-point width.
 {option_sizing_rule(params['max_risk_pct'], params['max_contracts'])}
+Hold a package opened in this cycle. Exits are checked on later cycles: close
+the package when {params['profit_take_fraction']:.0%} of opening credit is captured, the closing
+debit reaches {params['loss_multiple']:.1f} times opening credit, the underlying breaches the
+short strike, or less than one {params['sleeptime']} sleeptime interval remains before
+today's market close. Do not open a new package once the time stop applies.
 """.strip()
 
 
@@ -75,6 +80,8 @@ class AISpxZeroDteBearCallTeamStrategy(Strategy):
         "wing_width": 5.0,
         "max_risk_pct": 0.15,
         "max_contracts": 40,
+        "profit_take_fraction": 0.50,
+        "loss_multiple": 2.0,
         "model": "openai/gpt-6-luna",
         "sleeptime": "5M",
     }
@@ -133,7 +140,7 @@ class AISpxZeroDteBearCallTeamStrategy(Strategy):
             bull_task="Make the bull case from the research.",
             bear_task="Make the bear case from the research.",
             interpret_task="Decide whether to open one atomic package and how much risk to use.",
-            trade_task="Apply the interpreter. Size from the account. Close the package before expiration.",
+            trade_task="Apply the interpreter. Size from the account. Close at the profit, loss, breach, or time stop.",
         )
 
 

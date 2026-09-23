@@ -86,6 +86,23 @@ def test_interpreter_judges_the_configured_spread_against_the_strategy_policy():
     assert "Strategy policy:" in _flat(created["trader"])
 
 
+def test_policy_holds_a_new_package_and_names_later_exit_conditions():
+    """spy-0dte-luna-v4 sold and bought back the same spread at the same bar every
+    day because the only exit instruction was "close before expiration"."""
+    policy = _flat(build_trader_prompt(AISpxZeroDteBearCallTeamStrategy.parameters))
+
+    assert "Hold a package opened in this cycle" in policy
+    assert "50% of opening credit is captured" in policy
+    assert "closing debit reaches 2.0 times opening credit" in policy
+    assert "the underlying breaches the short strike" in policy
+    assert "less than one 5M sleeptime interval remains before today's market close" in policy
+    assert "Do not open a new package once the time stop applies" in policy
+
+    source = EXAMPLE.read_text(encoding="utf-8")
+    assert "Close the package before expiration" not in source
+    assert "Close at the profit, loss, breach, or time stop" in source
+
+
 def test_rules_file_defers_underlying_and_wing_to_strategy_parameters():
     rules = json.loads(RULES.read_text(encoding="utf-8"))["rules"]
     text = " ".join(rule["interpretation"] for rule in rules)

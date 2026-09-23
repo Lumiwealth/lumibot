@@ -606,6 +606,9 @@ WAVE21 = ({**_wave8("large-cap-luna"), "name": "large-cap-luna-v3"},)
 # Pelosi v3 refused every ticker because the research line had no asset code.
 WAVE22 = ({**_wave8("congress-pelosi-luna"), "name": "congress-pelosi-luna-v4"},)
 
+# Leveraged v5 bought TQQQ on Jan 9 while still holding part of SQQQ.
+WAVE23 = ({**_wave8("leveraged-etf-luna"), "name": "leveraged-etf-luna-v6"},)
+
 
 def _jobs(wave: str) -> tuple[dict, ...]:
     # "7,8" runs several waves under one parent so the spend cap is shared.

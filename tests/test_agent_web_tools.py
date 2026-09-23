@@ -14,6 +14,12 @@ def _resolver(hostname):
     return [PUBLIC_IP]
 
 
+def _original_url(request):
+    # WebClient pins each request to the validated IP, so the transport sees the IP in
+    # request.url and the real hostname in the Host header.
+    return f"{request.url.scheme}://{request.headers['host']}{request.url.raw_path.decode()}"
+
+
 def test_http_request_supports_all_standard_methods_and_body_types():
     requests = []
 
@@ -193,7 +199,7 @@ def test_profile_cookies_do_not_leak_to_another_host():
     seen = []
 
     def handler(request):
-        seen.append((request.url.host, request.headers.get("cookie")))
+        seen.append((request.headers.get("host"), request.headers.get("cookie")))
         return httpx.Response(200, text="ok")
 
     profile = CredentialProfile(
@@ -348,7 +354,7 @@ def test_fetch_feed_sends_the_sec_user_agent_only_to_sec_hosts():
     feed = b"<rss><channel><title>t</title></channel></rss>"
 
     def handler(request):
-        seen[str(request.url)] = request.headers.get("user-agent")
+        seen[_original_url(request)] = request.headers.get("user-agent")
         return httpx.Response(200, content=feed, headers={"content-type": "application/rss+xml"})
 
     client = WebClient(transport=httpx.MockTransport(handler), resolver=_resolver)
@@ -366,3 +372,130 @@ def test_fetch_feed_sends_the_sec_user_agent_only_to_sec_hosts():
         assert seen[url] == DEFAULT_SEC_USER_AGENT
     for url in other_urls:
         assert seen[url] != DEFAULT_SEC_USER_AGENT
+
+
+def test_http_request_stops_reading_an_oversized_body_at_the_limit():
+    # A URL the agent picks can return a body of many gigabytes. The size limit must
+    # stop reading once it is exceeded instead of loading the whole body into memory
+    # and checking afterward (CodeRabbit finding on the 4.5.92 release).
+    chunk_size = 8
+    total_chunks = 10_000
+    consumed = {"chunks": 0}
+
+    def endless_body():
+        for _ in range(total_chunks):
+            consumed["chunks"] += 1
+            yield b"x" * chunk_size
+
+    def handler(request):
+        return httpx.Response(200, content=endless_body(), headers={"content-type": "text/plain"})
+
+    client = WebClient(transport=httpx.MockTransport(handler), resolver=_resolver, max_response_bytes=16)
+
+    with pytest.raises(ValueError, match="exceeded the 16 byte limit"):
+        client.request("GET", "https://example.test/huge")
+
+    # 16 bytes is two 8-byte chunks; the third chunk crosses the limit. Nothing past it.
+    assert consumed["chunks"] <= 3
+
+
+def test_http_request_streams_normal_bodies_within_the_limit():
+    def handler(request):
+        if request.url.path == "/json":
+            return httpx.Response(200, content=iter([b'{"a"', b": 1}"]), headers={"content-type": "application/json"})
+        return httpx.Response(
+            200,
+            content=iter(["café ".encode("latin-1"), b"ok"]),
+            headers={"content-type": "text/plain; charset=latin-1"},
+        )
+
+    client = WebClient(transport=httpx.MockTransport(handler), resolver=_resolver, max_response_bytes=64)
+
+    assert client.request("GET", "https://example.test/json")["json"] == {"a": 1}
+    text_result = client.request("GET", "https://example.test/text")
+    assert text_result["text"] == "café ok"
+    assert text_result["content_length"] == len("café ok".encode("latin-1"))
+
+
+def _rebinding_resolver(calls):
+    # Answers a public address the first time each host is resolved and a loopback
+    # address every time after, like an attacker-controlled DNS rebinding domain.
+    def resolve(hostname):
+        calls.append(hostname)
+        if calls.count(hostname) == 1:
+            return [PUBLIC_IP]
+        return ["127.0.0.1"]
+
+    return resolve
+
+
+def test_http_request_pins_the_connection_to_the_validated_address():
+    # SSRF via DNS rebinding: the host is validated against one DNS answer, so the
+    # connection must go to that exact address instead of resolving the name again.
+    seen = []
+
+    def handler(request):
+        seen.append(
+            (request.url.host, request.headers.get("host"), request.extensions.get("sni_hostname"), request.url.path)
+        )
+        return httpx.Response(200, text="ok")
+
+    resolver_calls = []
+    client = WebClient(transport=httpx.MockTransport(handler), resolver=_rebinding_resolver(resolver_calls))
+
+    result = client.request("GET", "https://example.test:8443/data?x=1")
+
+    assert seen == [(PUBLIC_IP, "example.test:8443", "example.test", "/data")]
+    assert result["url"] == "https://example.test:8443/data"
+    assert resolver_calls == ["example.test"]
+
+
+def test_http_request_pins_every_redirect_hop_and_never_reaches_a_rebound_address():
+    seen = []
+
+    def handler(request):
+        seen.append((request.url.host, request.headers.get("host"), request.extensions.get("sni_hostname")))
+        if request.headers.get("host") == "start.test":
+            return httpx.Response(302, headers={"location": "https://rebind.test/next"})
+        if request.headers.get("host") == "rebind.test":
+            return httpx.Response(302, headers={"location": "http://final.test/done"})
+        return httpx.Response(200, text="done")
+
+    resolver_calls = []
+    client = WebClient(transport=httpx.MockTransport(handler), resolver=_rebinding_resolver(resolver_calls))
+
+    result = client.request("GET", "https://start.test/begin")
+
+    assert result["ok"] is True
+    assert result["url"] == "http://final.test/done"
+    assert [hop["url"] for hop in result["redirects"]] == ["https://rebind.test/next", "http://final.test/done"]
+    assert all(host != "127.0.0.1" for host, _, _ in seen)
+    assert seen == [
+        (PUBLIC_IP, "start.test", "start.test"),
+        (PUBLIC_IP, "rebind.test", "rebind.test"),
+        (PUBLIC_IP, "final.test", None),
+    ]
+
+
+def test_http_request_pins_ipv6_addresses_and_keeps_cookies_scoped_to_the_hostname():
+    ipv6 = "2606:4700:4700::1111"
+    seen = []
+
+    def handler(request):
+        seen.append((request.url.host, request.headers.get("host"), request.headers.get("cookie")))
+        if request.url.path == "/login":
+            return httpx.Response(200, headers={"set-cookie": "session=abc; Path=/"}, text="ok")
+        return httpx.Response(200, text="ok")
+
+    client = WebClient(transport=httpx.MockTransport(handler), resolver=lambda hostname: [ipv6])
+
+    client.request("POST", "https://a.example.test/login")
+    client.request("GET", "https://a.example.test/me")
+    # Another hostname on the same shared address (a CDN, say) must not get a.example.test's cookie.
+    client.request("GET", "https://b.example.test/me")
+
+    assert seen == [
+        (ipv6, "a.example.test", None),
+        (ipv6, "a.example.test", "session=abc"),
+        (ipv6, "b.example.test", None),
+    ]

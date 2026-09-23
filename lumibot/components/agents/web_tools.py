@@ -6,6 +6,7 @@ import ipaddress
 import json
 import socket
 import xml.etree.ElementTree as ET
+from collections import OrderedDict
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from email.utils import parsedate_to_datetime
@@ -17,6 +18,10 @@ import httpx
 _ALLOWED_METHODS = {"GET", "HEAD", "OPTIONS", "POST", "PUT", "PATCH", "DELETE"}
 _REDIRECT_STATUSES = {301, 302, 303, 307, 308}
 _SAFE_RESPONSE_HEADERS = {"content-type", "content-length", "date", "etag", "last-modified", "location", "retry-after"}
+# Request extension that carries the address WebClient validated for this request's host.
+_PINNED_ADDRESS_EXTENSION = "lumibot_pinned_address"
+# Upper bound on per-host connection pools kept open by one client.
+_MAX_PINNED_HOST_POOLS = 32
 
 
 def _default_resolver(hostname: str) -> list[str]:
@@ -134,6 +139,84 @@ def _is_sec_host(url: str) -> bool:
     host = (urlsplit(str(url)).hostname or "").lower().rstrip(".")
     return host == "sec.gov" or host.endswith(".sec.gov")
 
+
+class _PinnedAddressTransport(httpx.BaseTransport):
+    """Connects each request to the exact address WebClient already validated.
+
+    Why: WebClient checks that a hostname resolves to a public address before it
+    sends anything. If the connection then resolved the hostname again, a DNS
+    rebinding domain could answer with a public address for the check and with
+    127.0.0.1 or the cloud metadata address (169.254.169.254) for the connection.
+
+    Invariants:
+    - A request without a validated address is refused (fail closed).
+    - The outgoing URL uses the validated IP, the original Host header is kept,
+      and https requests set ``sni_hostname`` so TLS still verifies the real name.
+    - httpx replaces ``response.request`` with the original request after this
+      transport returns, so cookies, redirects, and reported URLs stay keyed to
+      the hostname, never to a shared IP address.
+    - Without an injected transport, each hostname gets its own connection pool.
+      Pools are keyed by IP, so a shared pool could reuse a TLS session made for
+      one hostname to send another hostname's request on a shared address.
+    """
+
+    def __init__(
+        self,
+        *,
+        transport: httpx.BaseTransport | None = None,
+        cert: str | tuple[str, str] | None = None,
+    ) -> None:
+        self._shared_transport = transport
+        self._cert = cert
+        self._ssl_context: Any = None
+        self._host_transports: OrderedDict[str, httpx.BaseTransport] = OrderedDict()
+
+    def _transport_for(self, hostname: str) -> httpx.BaseTransport:
+        if self._shared_transport is not None:
+            return self._shared_transport
+        transport = self._host_transports.get(hostname)
+        if transport is not None:
+            self._host_transports.move_to_end(hostname)
+            return transport
+        if self._ssl_context is None:
+            context = httpx.create_ssl_context(verify=True, trust_env=True)
+            if isinstance(self._cert, str):
+                context.load_cert_chain(self._cert)
+            elif self._cert:
+                context.load_cert_chain(*self._cert)
+            self._ssl_context = context
+        transport = httpx.HTTPTransport(verify=self._ssl_context)
+        self._host_transports[hostname] = transport
+        while len(self._host_transports) > _MAX_PINNED_HOST_POOLS:
+            _, evicted = self._host_transports.popitem(last=False)
+            evicted.close()
+        return transport
+
+    def handle_request(self, request: httpx.Request) -> httpx.Response:
+        address = request.extensions.get(_PINNED_ADDRESS_EXTENSION)
+        if not address:
+            raise RuntimeError("Refusing to send an HTTP request without a validated address.")
+        hostname = request.url.host
+        extensions = {key: value for key, value in request.extensions.items() if key != _PINNED_ADDRESS_EXTENSION}
+        if request.url.scheme == "https":
+            extensions["sni_hostname"] = hostname
+        pinned = httpx.Request(
+            request.method,
+            request.url.copy_with(host=address),
+            headers=request.headers,
+            stream=request.stream,
+            extensions=extensions,
+        )
+        return self._transport_for(hostname).handle_request(pinned)
+
+    def close(self) -> None:
+        for transport in self._host_transports.values():
+            transport.close()
+        self._host_transports.clear()
+        if self._shared_transport is not None:
+            self._shared_transport.close()
+
+
 class WebClient:
     """Stateful public-web HTTP/RSS transport with credential scoping and SSRF protection."""
 
@@ -160,7 +243,7 @@ class WebClient:
         self._client = httpx.Client(
             timeout=self.timeout_seconds,
             follow_redirects=False,
-            transport=transport,
+            transport=_PinnedAddressTransport(transport=transport),
         )
         self._certificate_clients: dict[str, httpx.Client] = {}
         self._feed_validators: dict[str, dict[str, str]] = {}
@@ -176,16 +259,26 @@ class WebClient:
             return self._client
         client = self._certificate_clients.get(profile.name)
         if client is None:
+            # The client certificate lives on the pinned transport: httpx ignores
+            # ``cert=`` on a Client once a custom transport is supplied.
             client = httpx.Client(
                 timeout=self.timeout_seconds,
                 follow_redirects=False,
-                transport=self._transport,
-                cert=profile.client_cert,
+                transport=_PinnedAddressTransport(transport=self._transport, cert=profile.client_cert),
             )
             self._certificate_clients[profile.name] = client
         return client
 
     def _validate_url(self, url: str) -> str:
+        return self._validate_and_pin(url)[0]
+
+    def _validate_and_pin(self, url: str) -> tuple[str, str]:
+        """Validate ``url`` and return ``(hostname, address)`` to connect to.
+
+        The hostname is resolved exactly once. The returned address is one the
+        checks below approved, and the request is pinned to it so the connection
+        cannot resolve the name again (DNS rebinding).
+        """
         parsed = urlsplit(str(url).strip())
         if parsed.scheme not in {"http", "https"}:
             raise ValueError("Only http and https URLs are supported.")
@@ -216,7 +309,7 @@ class WebClient:
                     raise ValueError(
                         f"Host {hostname!r} resolved to a private, loopback, link-local, or reserved address."
                     )
-        return hostname
+        return hostname, str(ipaddress.ip_address(addresses[0]))
 
     def _profile(self, name: str | None, hostname: str) -> CredentialProfile | None:
         if not name:
@@ -278,7 +371,8 @@ class WebClient:
         response = None
 
         for redirect_index in range(self.max_redirects + 1):
-            hostname = self._validate_url(current_url)
+            # Every hop, including redirect targets, is validated once and pinned.
+            hostname, address = self._validate_and_pin(current_url)
             profile = self._profile(credential_profile, hostname)
             request_client = self._request_client(profile)
             effective_headers = dict(request_headers)
@@ -295,7 +389,7 @@ class WebClient:
                     auth = httpx.BasicAuth(profile.basic_username, profile.basic_password or "")
 
             try:
-                response = request_client.request(
+                outgoing = request_client.build_request(
                     current_method,
                     current_url,
                     params=params,
@@ -304,29 +398,19 @@ class WebClient:
                     data=current_form,
                     content=current_content,
                     files=current_files,
-                    auth=auth,
+                    extensions={_PINNED_ADDRESS_EXTENSION: address},
                 )
+                # Stream so the body is never read in full before the size limit applies.
+                response = request_client.send(outgoing, auth=auth, stream=True)
             except httpx.RequestError as exc:
-                safe_url = _safe_url(current_url)
-                return {
-                    "id": hashlib.sha256(f"{current_method}|{safe_url}|{type(exc).__name__}".encode()).hexdigest(),
-                    "ok": False,
-                    "status_code": None,
-                    "method": current_method,
-                    "url": safe_url,
-                    "source": safe_url,
-                    "published_at": None,
-                    "fetched_at": fetched_at,
-                    "redirects": redirects,
-                    "error": {"type": type(exc).__name__, "message": "HTTP transport failed."},
-                }
+                return self._transport_error(exc, current_method, current_url, fetched_at, redirects)
             params = None
             if response.status_code not in _REDIRECT_STATUSES or "location" not in response.headers:
                 break
+            response.close()
             if redirect_index >= self.max_redirects:
                 raise ValueError(f"HTTP request exceeded {self.max_redirects} redirects.")
             next_url = urljoin(str(response.url), response.headers["location"])
-            self._validate_url(next_url)
             redirects.append({"status_code": response.status_code, "url": _safe_url(next_url)})
             if response.status_code == 303 or (response.status_code in {301, 302} and current_method == "POST"):
                 current_method = "GET"
@@ -339,9 +423,12 @@ class WebClient:
         if response is None:
             raise RuntimeError("HTTP request did not produce a response.")
         limit = self.max_response_bytes if max_response_bytes is None else max(int(max_response_bytes), 1)
-        content = response.content
-        if len(content) > limit:
-            raise ValueError(f"HTTP response exceeded the {limit} byte limit.")
+        try:
+            content = self._read_limited(response, limit)
+        except httpx.RequestError as exc:
+            return self._transport_error(exc, current_method, current_url, fetched_at, redirects)
+        finally:
+            response.close()
         content_type = response.headers.get("content-type", "")
         response_url = _safe_url(str(response.url))
         published_at = None
@@ -368,13 +455,15 @@ class WebClient:
             "content_sha256": content_sha256,
         }
         if content:
+            # The body was streamed, so decode it here instead of response.json()/.text.
+            text_encoding = response.encoding or "utf-8"
             if "json" in content_type:
                 try:
-                    result["json"] = response.json()
+                    result["json"] = json.loads(content)
                 except ValueError:
-                    result["text"] = response.text
+                    result["text"] = content.decode(text_encoding, errors="replace")
             elif content_type.startswith("text/") or "xml" in content_type or "html" in content_type:
-                result["text"] = response.text
+                result["text"] = content.decode(text_encoding, errors="replace")
             elif "pdf" in content_type.lower() or content.startswith(b"%PDF"):
                 from lumibot.components.house_ptr import pdf_bytes_to_text, reflow_ptr_text
 
@@ -387,6 +476,44 @@ class WebClient:
             else:
                 result["body_base64"] = base64.b64encode(content).decode("ascii")
         return result
+
+    @staticmethod
+    def _read_limited(response: httpx.Response, limit: int) -> bytes:
+        """Read a streamed body, stopping as soon as it passes ``limit`` bytes.
+
+        Why: the URL is chosen by an agent, and a multi-gigabyte body read into
+        memory before the size check could take down a live trading process.
+        """
+        chunks = []
+        total = 0
+        for chunk in response.iter_bytes():
+            total += len(chunk)
+            if total > limit:
+                raise ValueError(f"HTTP response exceeded the {limit} byte limit.")
+            chunks.append(chunk)
+        return b"".join(chunks)
+
+    @staticmethod
+    def _transport_error(
+        exc: Exception,
+        method: str,
+        url: str,
+        fetched_at: str,
+        redirects: list[dict[str, Any]],
+    ) -> dict[str, Any]:
+        safe_url = _safe_url(url)
+        return {
+            "id": hashlib.sha256(f"{method}|{safe_url}|{type(exc).__name__}".encode()).hexdigest(),
+            "ok": False,
+            "status_code": None,
+            "method": method,
+            "url": safe_url,
+            "source": safe_url,
+            "published_at": None,
+            "fetched_at": fetched_at,
+            "redirects": redirects,
+            "error": {"type": type(exc).__name__, "message": "HTTP transport failed."},
+        }
 
     def _prepare_files(self, value: str | dict[str, Any] | None) -> dict[str, Any] | None:
         if value is None:

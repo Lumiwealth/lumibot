@@ -216,6 +216,8 @@ Deploy marker: `180c340ccf48`
 
 - Agent `fetch_feed` sends the SEC contact User-Agent only when the URL host is `sec.gov` or a subdomain. A substring check also matched hosts such as `sec.gov.example.com` and URLs that only mention `sec.gov` in a path or query.
 - The SEC filing text extractor now removes `<script>` and `<style>` blocks whose end tags carry spaces or attributes (for example `</script >`), so their contents no longer leak into filing text.
+- Agent `http_request` and `rss_fetch` stream response bodies and stop reading as soon as the response size limit is passed. Before, the whole body was read into memory first, so a URL returning a multi-gigabyte body could exhaust a live bot's memory.
+- Agent `http_request` and `rss_fetch` connect to the exact address the SSRF check approved, including on every redirect hop, instead of resolving the hostname again. This closes a DNS rebinding path where a domain could pass the check with a public address and then connect to `127.0.0.1` or the cloud metadata address `169.254.169.254`. The original `Host` header and TLS server name are kept, so certificate checks still verify the real hostname, and cookies stay scoped to the hostname rather than a shared IP.
 
 ## 4.5.91 - 2026-09-06
 

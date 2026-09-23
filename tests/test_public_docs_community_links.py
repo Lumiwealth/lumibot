@@ -82,19 +82,22 @@ def test_ai_gallery_uses_verified_public_listings():
 
 
 def test_ray_and_citadel_examples_match_published_botspot_sources():
-    # September 20 read-only production audit of publishedRevisionId -> main.py.
+    # These files are the source the four listings above publish as main.py.
+    # September 23: the default moved to GPT-6 Luna, so the listings must be
+    # republished from exactly these bytes; the September 20 Gemini revisions
+    # are superseded.
     expected = {
         "ai_trading_team_ray_dalio_idea_meritocracy.py": (
-            "a2a02db9ad0db1b8ce8d9e339fe0f0cd8b0698b1ce36281c077291fa077e2914"
+            "cdf995d11fe147ff44e93c89003ae559b680c16f5577030e126e348d32792950"
         ),
         "ai_trading_team_ray_dalio_idea_meritocracy_leveraged.py": (
-            "7f8f2d4ef5363669926080d86504f68bdbd7ab30618fbac94dc2f0e469a304f1"
+            "40aa0c50be129442f91adf84d6a9aad3dfb5d0d7b5bbe542f6829785546bb10e"
         ),
         "ai_trading_team_citadel_sector_pods.py": (
-            "50e78b923a9548994ba593f91a792c34f2d3ed384cc405ca3d2abecf5166a758"
+            "083286662fdbe9cc41b1f82e1336f75996388feba4eb825ec252f57ba037d64f"
         ),
         "ai_trading_team_citadel_sector_pods_leveraged.py": (
-            "3e9bc4330b0d8bab021f7844fa41541bcd86a7b24b67f371c4967bcf8e36f915"
+            "401b6454166828894aa1d6ea506fdc73e15de062c7ea485746efe27dc429d10b"
         ),
     }
     root = REPO_ROOT / "lumibot" / "example_strategies"

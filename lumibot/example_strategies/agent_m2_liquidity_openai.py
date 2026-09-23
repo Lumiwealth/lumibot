@@ -1,13 +1,12 @@
 """
 M2 Liquidity Strategy - AI Agent Demo (OpenAI GPT)
 --------------------------------------------------
-Same strategy intent as agent_m2_liquidity.py, but uses OpenAI's GPT model
-instead of Google's Gemini. This demonstrates Lumibot's multi-provider
-AI agent support via the LiteLLM bridge.
+Same strategy intent as agent_m2_liquidity.py, with the OpenAI model named
+explicitly. agent_m2_liquidity.py already defaults to GPT-6 Luna, so this
+file only shows where to pin an OpenAI model id.
 
-The only differences vs the Gemini version:
-    - default_model is an OpenAI id ("openai/gpt-5.4-mini")
-    - OPENAI_API_KEY is required instead of GEMINI_API_KEY
+    - default_model is an OpenAI id ("openai/gpt-6-luna", reasoning high)
+    - OPENAI_API_KEY is required
     - The litellm package must be installed (it ships with Lumibot)
 
 All other agent mechanics (built-in tools, replay cache, backtesting
@@ -60,7 +59,7 @@ class M2LiquidityOpenAIStrategy(Strategy):
         self.vars.iteration_count = 0
         self.agents.create(
             name="m2_analyst",
-            default_model="openai/gpt-5.4-mini",
+            default_model="openai/gpt-6-luna",
             system_prompt=(
                 "You must be fully invested at all times. Never leave cash idle. "
                 "Fetch M2 money supply data (M2SL) and check if liquidity is expanding "

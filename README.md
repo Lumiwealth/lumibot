@@ -128,7 +128,7 @@ Watch the research and trading decisions in the log, then inspect the orders and
 
 **[Open the complete strategy code](lumibot/example_strategies/ai_researcher_trader.py)** to change the prompts, tools, or trading rules. [Follow the walkthrough](https://lumibot.lumiwealth.com/agents_quickstart.html) for the agent setup and how to read the results. Prefer rules without AI? [Run a conventional Python strategy](#backtest-a-strategy).
 
-**Recorded run:** ten fresh agent runs across April 6–10, with one verified fill for 15 SPY shares. [Inspect the source, decisions, and trade records](docs/assets/ai-trading/spy-20260913/README.md). Fresh AI decisions can vary.
+**Recorded run (made with Gemini, before GPT-6 Luna became the default):** ten fresh agent runs across April 6 to 10, with one verified fill for 15 SPY shares. [Inspect the source, decisions, and trade records](docs/assets/ai-trading/spy-20260913/README.md). Fresh AI decisions can vary.
 
 If this helps you build, **star LumiBot** so you can find it again and share your strategy with the community.
 

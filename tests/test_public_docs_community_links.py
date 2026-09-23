@@ -63,6 +63,14 @@ def test_docs_community_icons_are_local_static_assets():
         assert (REPO_ROOT / "docs" / "assets" / "community" / f"{name}.svg").is_file()
 
 
+def test_readme_recorded_run_names_the_model_that_made_it():
+    # The April 6-10 SPY run in docs/assets/ai-trading/spy-20260913 used Gemini,
+    # not the current GPT-6 Luna default named just above it.
+    readme = (REPO_ROOT / "README.md").read_text(encoding="utf-8")
+    line = next(l for l in readme.splitlines() if l.startswith("**Recorded run"))
+    assert "Gemini" in line
+
+
 def test_docs_never_link_withdrawn_marketplace_listings():
     # September 23 audit: each of these listings was backed by a backtest whose
     # simulated cash went negative (the pre-fill-drain engine), so its tear

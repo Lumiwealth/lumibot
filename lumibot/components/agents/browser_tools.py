@@ -3,11 +3,12 @@ from __future__ import annotations
 import base64
 import hashlib
 import json
+import os
 import re
 import time
 import uuid
 from concurrent.futures import ThreadPoolExecutor
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from threading import Lock
 from typing import Any, Protocol
@@ -25,6 +26,17 @@ def _host_matches(hostname: str, pattern: str) -> bool:
     return hostname == pattern
 
 
+def _restrict_to_owner(path: Path, mode: int) -> None:
+    """Best-effort owner-only permissions for profile data (POSIX only).
+
+    Persistent browser profiles and exported storage state hold live session
+    cookies and local-storage tokens, which are equivalent to a login.
+    """
+    if os.name == "nt":
+        return
+    os.chmod(path, mode)
+
+
 def _redacted_url(url: str) -> str:
     parsed = urlsplit(str(url or ""))
     if not parsed.scheme:
@@ -37,8 +49,10 @@ def _redacted_url(url: str) -> str:
 class BrowserCredentialProfile:
     name: str
     allowed_hosts: tuple[str, ...]
-    username: str
-    password: str
+    # Excluded from repr so a profile printed in a log, traceback, or tool
+    # error can never reveal the credential it carries.
+    username: str = field(repr=False)
+    password: str = field(repr=False)
 
     def ensure_host_allowed(self, hostname: str) -> None:
         if not any(_host_matches(hostname, pattern) for pattern in self.allowed_hosts):
@@ -133,7 +147,8 @@ class BrowserSessionManager:
             raise ValueError(f"Browser profile {profile_name!r} is already open in session {existing!r}.")
         session_id = uuid.uuid4().hex
         profile_dir = self.state_root / "profiles" / profile_name
-        profile_dir.mkdir(parents=True, exist_ok=True)
+        profile_dir.mkdir(parents=True, exist_ok=True, mode=0o700)
+        _restrict_to_owner(profile_dir, 0o700)
         self.engine.open(session_id=session_id, profile_dir=profile_dir, headless=bool(headless))
         trace_path = self.state_root / "artifacts" / session_id / "action-trace.jsonl"
         self._sessions[session_id] = {
@@ -320,10 +335,23 @@ class BrowserSessionManager:
             raise ValueError(f"Unknown browser credential profile {credential_profile!r}.")
         hostname = urlsplit(session["current_url"]).hostname or ""
         profile.ensure_host_allowed(hostname)
-        self.engine.act(session_id, "fill", username_selector, profile.username, float(timeout_seconds))
-        self.engine.act(session_id, "fill", password_selector, profile.password, float(timeout_seconds))
+        steps = [("fill", username_selector, profile.username), ("fill", password_selector, profile.password)]
         if submit_selector:
-            self.engine.act(session_id, "click", submit_selector, None, float(timeout_seconds))
+            steps.append(("click", submit_selector, None))
+        for action, selector, value in steps:
+            try:
+                self.engine.act(session_id, action, selector, value, float(timeout_seconds))
+            except Exception as exc:
+                # Engine errors (for example a Playwright call log) can echo the
+                # filled value. Tool errors are returned to the model and logged,
+                # so scrub the credential and drop the original exception chain.
+                detail = str(exc)
+                for secret in (profile.password, profile.username):
+                    if secret:
+                        detail = detail.replace(secret, "[REDACTED]")
+                raise RuntimeError(
+                    f"browser_login failed during {action} on {selector!r}: {type(exc).__name__}: {detail}"
+                ) from None
         receipt = {
             "session_id": session_id,
             "credential_profile": credential_profile,
@@ -347,7 +375,11 @@ class BrowserSessionManager:
     def save_storage_state(self, session_id: str) -> dict[str, Any]:
         session = self._session(session_id)
         path = Path(session["profile_dir"]) / "storage-state.json"
+        if os.name != "nt" and not path.exists():
+            # Create the file owner-only before the engine writes cookies into it.
+            os.close(os.open(path, os.O_WRONLY | os.O_CREAT, 0o600))
         saved = self.engine.save_storage_state(session_id, path)
+        _restrict_to_owner(Path(saved), 0o600)
         self._trace(session_id, "storage_state", path=str(saved))
         return {"ok": True, "session_id": session_id, "path": saved}
 

@@ -44,7 +44,7 @@ The browser tool set is:
 * ``browser_tabs`` for list, open, switch, and close
 * ``browser_extract`` for text, attributes, links, or structured page evidence
 * ``browser_login`` for scoped credential injection
-* ``browser_storage_state`` for an inspectable session-state artifact
+* ``browser_storage_state`` for an owner-only session-state file (treat it as a secret)
 * ``browser_screenshot`` for a PNG plus a content hash
 
 Credentials and artifacts
@@ -53,13 +53,26 @@ Credentials and artifacts
 Login secrets belong in named, **host-scoped** credential profiles configured
 by the application, never in an agent prompt or committed strategy. The
 ``browser_login`` tool injects a profile only when the page host matches its
-allowed domains and never returns the secret. Configure profiles from the
-deployment's existing secret manager.
+allowed domains and never returns the secret. If a fill or submit step fails,
+the error returned to the agent names the step and selector with the username
+and password scrubbed. A credential profile's ``repr`` never includes the
+username or password. Configure profiles from the deployment's existing secret
+manager.
 
 Uploads must come from ``browser_upload_root`` (or the default managed upload
-directory under ``browser_state_root``). Downloads,
-screenshots, storage state, and action receipts are written to managed artifact
-paths so a run can prove what it observed and did without exposing credentials.
+directory under ``browser_state_root``). Downloads, screenshots, and action
+receipts are written to managed artifact paths so a run can prove what it
+observed and did. Action traces and receipts never record typed values or login
+secrets.
+
+Storage state is different: ``browser_storage_state`` exports the session's
+cookies and local storage, which work like a logged-in password for the sites
+in that profile. The tool returns only the file path, never the contents. On
+POSIX systems the profile directory is created with ``0700`` permissions and
+``storage-state.json`` with ``0600``, so only the account running the strategy
+can read them. Keep ``browser_state_root`` on private storage, do not commit or
+upload it, do not attach storage state to reports or emails, and delete the
+profile directory when the account's access should end.
 
 Safety and authorization
 ------------------------

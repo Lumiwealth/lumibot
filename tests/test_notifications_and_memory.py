@@ -1,3 +1,5 @@
+import json
+import logging
 from datetime import datetime, timezone
 
 import requests
@@ -232,7 +234,7 @@ def test_backtest_email_records_simulation_without_network(monkeypatch, caplog):
     assert result.payload["status"] == "simulated_not_sent"
 
 
-def test_backtest_email_log_preserves_content_and_attachment_evidence(caplog):
+def test_backtest_email_result_preserves_content_and_attachment_evidence(caplog):
     manager = NotificationManager(_Strategy())
     result = manager.send_email(
         to=["rob@example.com"],
@@ -252,6 +254,94 @@ def test_backtest_email_log_preserves_content_and_attachment_evidence(caplog):
             "sha256": "74ac32db0f7e53033d018f16b69ff2f41472f20fac10c07da23861371ad913dd",
         }
     ]
+
+
+class _LoggingStrategy(_Strategy):
+    logger = logging.getLogger("lumibot.tests.communication_log")
+
+
+class _LoggingLiveStrategy(_LoggingStrategy):
+    is_backtesting = False
+
+
+_SENSITIVE_EMAIL = {
+    "to": ["private-owner@example.test"],
+    "subject": "Balance 123456.78 for account ACCT-998877",
+    "text": "Positions: 400 SECRETCO, cash 98765.43",
+    "html": "<p>Positions: 400 SECRETCO, cash 98765.43</p>",
+}
+
+
+def _communication_log_lines(caplog):
+    return [record.getMessage() for record in caplog.records if record.getMessage().startswith("COMMUNICATION ")]
+
+
+def _assert_no_sensitive_email_content(lines):
+    joined = "\n".join(lines)
+    assert "private-owner@example.test" not in joined
+    assert "ACCT-998877" not in joined
+    assert "123456.78" not in joined
+    assert "SECRETCO" not in joined
+    assert "98765.43" not in joined
+
+
+def test_simulated_email_log_line_omits_recipients_subject_and_body(caplog):
+    caplog.set_level(logging.INFO, logger=_LoggingStrategy.logger.name)
+    manager = NotificationManager(_LoggingStrategy())
+
+    manager.send_email(**_SENSITIVE_EMAIL, idempotency_key="account-summary/backtest")
+
+    lines = _communication_log_lines(caplog)
+    assert len(lines) == 1
+    _assert_no_sensitive_email_content(lines)
+    record = json.loads(lines[0].removeprefix("COMMUNICATION "))
+    assert record["status"] == "simulated_not_sent"
+    assert record["provider"] == "resend"
+    assert record["recipient_count"] == 1
+    assert len(record["recipients_sha256"]) == 16
+    assert record["subject_length"] == len(_SENSITIVE_EMAIL["subject"])
+    assert record["idempotency_key"] == "account-summary/backtest"
+
+
+def test_live_email_log_line_omits_recipients_subject_and_body(monkeypatch, caplog):
+    caplog.set_level(logging.INFO, logger=_LoggingStrategy.logger.name)
+    monkeypatch.setattr(
+        "lumibot.components.notifications.resend.requests.post",
+        lambda url, json, headers, timeout: _JsonResponse({"id": "email-777"}),
+    )
+    manager = NotificationManager(_LoggingLiveStrategy(), enabled=True)
+    manager.configure_resend(api_key="re-secret", from_address="Bot <bot@example.com>")
+
+    result = manager.send_email(**_SENSITIVE_EMAIL)
+
+    lines = _communication_log_lines(caplog)
+    assert result.ok is True
+    assert len(lines) == 1
+    _assert_no_sensitive_email_content(lines)
+    record = json.loads(lines[0].removeprefix("COMMUNICATION "))
+    assert record["status"] == "accepted"
+    assert record["provider_message_id"] == "email-777"
+    assert record["recipient_count"] == 1
+
+
+def test_simulated_slack_log_line_omits_text_and_blocks(caplog):
+    caplog.set_level(logging.INFO, logger=_LoggingStrategy.logger.name)
+    manager = NotificationManager(_LoggingStrategy())
+
+    payload = manager.send_slack_message(
+        "Cash 98765.43 in ACCT-998877",
+        channel="C123",
+        blocks=[{"type": "section", "text": {"type": "mrkdwn", "text": "400 SECRETCO"}}],
+    )
+
+    lines = _communication_log_lines(caplog)
+    assert payload["text"] == "Cash 98765.43 in ACCT-998877"
+    assert len(lines) == 1
+    _assert_no_sensitive_email_content(lines)
+    record = json.loads(lines[0].removeprefix("COMMUNICATION "))
+    assert record["status"] == "simulated_not_sent"
+    assert record["channel"] == "C123"
+    assert record["block_count"] == 1
 
 
 def test_backtest_communication_cannot_be_force_enabled(monkeypatch):

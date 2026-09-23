@@ -86,10 +86,45 @@ class NotificationManager:
     def _provider(self, name: str) -> Any | None:
         return next((provider for provider in self.providers if getattr(provider, "provider", None) == name), None)
 
+    # Fields that may carry personal data or account content (email addresses,
+    # balances, positions). They never reach strategy logs, which are shipped to
+    # log sinks; only counts, lengths, and short stable hashes are logged so an
+    # operator can still correlate a log line with the returned payload.
+    _LOG_REDACTED_TEXT_FIELDS = ("subject", "text", "html")
+
+    @staticmethod
+    def _short_hash(value: Any) -> str:
+        encoded = json.dumps(value, sort_keys=True, default=str, ensure_ascii=False).encode("utf-8")
+        return hashlib.sha256(encoded).hexdigest()[:16]
+
+    @classmethod
+    def _log_safe_communication(cls, payload: dict[str, Any]) -> dict[str, Any]:
+        safe: dict[str, Any] = {}
+        for key, value in payload.items():
+            if key == "to":
+                recipients = [value] if isinstance(value, str) else list(value or [])
+                safe["recipient_count"] = len(recipients)
+                safe["recipients_sha256"] = cls._short_hash(sorted(str(item) for item in recipients))
+            elif key in cls._LOG_REDACTED_TEXT_FIELDS:
+                if value is not None:
+                    safe[f"{key}_length"] = len(str(value))
+                    safe[f"{key}_sha256"] = cls._short_hash(str(value))
+            elif key == "blocks":
+                if value is not None:
+                    safe["block_count"] = len(value) if isinstance(value, (list, tuple)) else 1
+            elif key == "attachments":
+                safe["attachment_count"] = len(value or [])
+            else:
+                safe[key] = value
+        return safe
+
     def _record_communication(self, payload: dict[str, Any]) -> None:
         logger = getattr(self.strategy, "logger", None)
         if logger is not None:
-            logger.info("COMMUNICATION %s", json.dumps(payload, sort_keys=True, default=str))
+            logger.info(
+                "COMMUNICATION %s",
+                json.dumps(self._log_safe_communication(payload), sort_keys=True, default=str),
+            )
 
     @staticmethod
     def _fingerprint_value(value: Any) -> Any:

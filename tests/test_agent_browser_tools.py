@@ -1,4 +1,6 @@
 import json
+import os
+import stat
 from pathlib import Path
 
 import pytest
@@ -204,6 +206,73 @@ def test_browser_login_injects_host_scoped_credentials_without_returning_secrets
             username_selector="#u",
             password_selector="#p",
         )
+
+
+@pytest.mark.skipif(os.name == "nt", reason="POSIX permission bits only")
+def test_browser_profile_dir_and_storage_state_are_owner_only(tmp_path):
+    previous_umask = os.umask(0o022)
+    try:
+        manager = BrowserSessionManager(engine=_FakeEngine(), state_root=tmp_path)
+        opened = manager.open(profile="authenticated")
+        storage = manager.save_storage_state(opened["session_id"])
+    finally:
+        os.umask(previous_umask)
+
+    assert stat.S_IMODE(Path(opened["profile_dir"]).stat().st_mode) == 0o700
+    assert stat.S_IMODE(Path(storage["path"]).stat().st_mode) == 0o600
+
+
+def test_browser_credential_profile_repr_never_contains_the_secret():
+    profile = BrowserCredentialProfile(
+        name="portal",
+        allowed_hosts=("research.example.test",),
+        username="repr-user@example.test",
+        password="repr-secret-password",
+    )
+
+    rendered = f"{profile!r} {profile}"
+
+    assert "repr-secret-password" not in rendered
+    assert "repr-user@example.test" not in rendered
+    assert "portal" in rendered
+
+
+def test_browser_login_engine_failure_never_leaks_credentials(tmp_path):
+    class LeakyEngine(_FakeEngine):
+        def act(self, session_id, action, selector, value, timeout_seconds):
+            if action == "fill" and selector == "#password":
+                raise TimeoutError(f'locator.fill: Timeout exceeded. Call log: fill("{value}") on {selector}')
+            return super().act(session_id, action, selector, value, timeout_seconds)
+
+    profile = BrowserCredentialProfile(
+        name="portal",
+        allowed_hosts=("research.example.test",),
+        username="leak-user@example.test",
+        password="leak-secret-password",
+    )
+    manager = BrowserSessionManager(
+        engine=LeakyEngine(),
+        state_root=tmp_path,
+        credential_profiles={"portal": profile},
+    )
+    session_id = manager.open(profile="login")["session_id"]
+    manager.navigate(session_id, "https://research.example.test/login")
+
+    with pytest.raises(RuntimeError) as raised:
+        manager.login(
+            session_id,
+            credential_profile="portal",
+            username_selector="#username",
+            password_selector="#password",
+        )
+
+    message = str(raised.value)
+    assert "leak-secret-password" not in message
+    assert "leak-user@example.test" not in message
+    assert "TimeoutError" in message
+    assert "#password" in message
+    assert raised.value.__cause__ is None
+    assert raised.value.__suppress_context__ is True
 
 
 def test_browser_artifacts_stay_within_managed_state_root(tmp_path):

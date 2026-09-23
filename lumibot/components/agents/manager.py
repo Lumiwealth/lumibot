@@ -31,6 +31,33 @@ _BOTSPOT_RESEARCH_TOOLS = [
     "search_documents",
     "get_document",
 ]
+# Outbound network tools are default-deny. An agent gets them only with
+# allow_network=True, or by listing one explicitly in tools=[...]. Fetched
+# pages are untrusted input, and a network tool is the channel that could send
+# agent context out. Keeping them out of the default toolset also keeps trading
+# agents focused on account and market tools.
+NETWORK_TOOL_NAMES = frozenset(
+    {
+        "http_request",
+        "rss_fetch",
+        "browser_session_open",
+        "browser_session_close",
+        "browser_session_recover",
+        "browser_navigate",
+        "browser_observe",
+        "browser_act",
+        "browser_tabs",
+        "browser_extract",
+        "browser_login",
+        "browser_storage_state",
+        "browser_screenshot",
+    }
+)
+
+
+def _is_network_tool(tool: Any) -> bool:
+    metadata = getattr(tool, "metadata", {}) or {}
+    return bool(metadata.get("network")) or str(getattr(tool, "name", "")) in NETWORK_TOOL_NAMES
 
 
 class AgentModelCallLimitExceeded(RuntimeError):
@@ -949,6 +976,7 @@ class AgentHandle:
         allow_trading: bool = True,
         allow_communication_reads: bool = False,
         allow_communication_writes: bool = False,
+        allow_network: bool | None = None,
         include_builtin_tools: bool = True,
         include_builtin_skills: bool = True,
         rules_path: str | Path | None = None,
@@ -972,13 +1000,27 @@ class AgentHandle:
         self.rules_path = rules_path
         from .builtins import BuiltinTools
 
-        builtin_tools = self._filter_tools_for_permissions(BuiltinTools.all())
+        # Network permission has three states. True: every built-in network
+        # tool joins the default set. None (default): the default set has none,
+        # but a network tool the caller lists explicitly is kept, because
+        # listing it is the opt-in. False: network tools are removed even when
+        # listed explicitly.
+        explicit_tools = list(tools) if tools is not None else []
+        self.allow_network = bool(allow_network) or (
+            allow_network is None and any(_is_network_tool(tool) for tool in explicit_tools)
+        )
+        builtin_tools = self._filter_tools_for_permissions(
+            BuiltinTools.all(), allow_network=bool(allow_network)
+        )
+        explicit_allowed = self._filter_tools_for_permissions(
+            explicit_tools, allow_network=allow_network is not False
+        )
         if tools is None:
             self._tool_inputs = builtin_tools
         elif include_builtin_tools:
-            self._tool_inputs = builtin_tools + self._filter_tools_for_permissions(list(tools))
+            self._tool_inputs = builtin_tools + explicit_allowed
         else:
-            self._tool_inputs = self._filter_tools_for_permissions(list(tools))
+            self._tool_inputs = explicit_allowed
         self._mcp_servers = list(mcp_servers or [])
         hosted_research, research_warning = _botspot_research_server_from_environment()
         if hosted_research and all(server.name != hosted_research.name for server in self._mcp_servers):
@@ -989,7 +1031,7 @@ class AgentHandle:
         self._runtime = runtime or google_runtime(mcp_servers=self._mcp_servers)
         self._bound_tools: list[BoundTool] | None = None
 
-    def _filter_tools_for_permissions(self, tools: list[Any]) -> list[Any]:
+    def _filter_tools_for_permissions(self, tools: list[Any], *, allow_network: bool) -> list[Any]:
         communication_write_tools = {"send_email", "send_slack_message"}
         communication_read_tools = {
             "list_sent_emails",
@@ -1009,6 +1051,8 @@ class AgentHandle:
             metadata = getattr(tool, "metadata", {}) or {}
             name = str(getattr(tool, "name", ""))
             if not self.allow_trading and bool(metadata.get("mutates_trading")):
+                continue
+            if not allow_network and _is_network_tool(tool):
                 continue
             if not self.allow_communication_reads and (
                 bool(metadata.get("communication_read")) or name in communication_read_tools
@@ -1246,7 +1290,7 @@ class AgentHandle:
             "POSITION SIZING AND ORDER EXECUTION:",
             "Do not buy token one-share positions. Use account cash, portfolio value, current position size, and last price to calculate a sensible whole-share quantity.",
             "Round down to whole shares when sizing positions.",
-            "Before every order, check current cash, portfolio value, current positions, open orders, and the latest price of the asset you are ordering. A complete current injected snapshot satisfies the initial account and open-order checks. After any order mutation, Lumibot requires fresh complete account_positions and orders_open_orders pagination plus account_portfolio before another order.",
+            "Before every order, check current cash, portfolio value, current positions, open orders, and the latest price of the asset you are ordering. A complete current injected snapshot satisfies the initial account and open-order checks for non-option orders. Before an option order, call account_portfolio, account_positions, and orders_open_orders in this run even when the snapshot is complete, as the options-trading skill requires. After any order mutation, Lumibot requires fresh complete account_positions and orders_open_orders pagination plus account_portfolio before another order.",
             "Estimate the order's cash impact before submitting it. Ask whether the order is likely to create negative cash or additional leverage, and only do that when it is intentional for the strategy and suitable for the asset class.",
             "Margin and leverage behave differently across stocks, ETFs, options, futures, forex, crypto, brokers, and jurisdictions. Use judgment instead of assuming the same sizing rule works for every asset class.",
             "When switching from one asset to another, close or reduce the current position first to free up capital before buying the replacement.",
@@ -2762,6 +2806,7 @@ class AgentManager:
         allow_trading: bool | None = None,
         allow_communication_reads: bool = False,
         allow_communication_writes: bool = False,
+        allow_network: bool | None = None,
         _runtime: Any | None = None,
         include_builtin_tools: bool = True,
         include_builtin_skills: bool = True,
@@ -2790,6 +2835,7 @@ class AgentManager:
             allow_trading=resolved_allow_trading,
             allow_communication_reads=allow_communication_reads,
             allow_communication_writes=allow_communication_writes,
+            allow_network=allow_network,
             include_builtin_tools=include_builtin_tools,
             include_builtin_skills=include_builtin_skills,
             rules_path=rules_path,

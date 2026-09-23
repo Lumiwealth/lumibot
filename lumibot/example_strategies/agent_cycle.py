@@ -28,7 +28,15 @@ def session_minutes_elapsed(strategy: Any) -> float:
     return (now - session_open).total_seconds() / 60
 
 
-def add_agent(strategy: Any, name: str, prompt: str, *, allow_trading: bool, rules_path: Any = None) -> None:
+def add_agent(
+    strategy: Any,
+    name: str,
+    prompt: str,
+    *,
+    allow_trading: bool,
+    rules_path: Any = None,
+    allow_network: bool = False,
+) -> None:
     kwargs = {
         "name": name,
         "model": model_name(),
@@ -37,6 +45,9 @@ def add_agent(strategy: Any, name: str, prompt: str, *, allow_trading: bool, rul
     }
     if rules_path is not None:
         kwargs["rules_path"] = rules_path
+    # Web and browser tools are opt-in. Only the agent that fetches pages gets them.
+    if allow_network:
+        kwargs["allow_network"] = True
     strategy.agents.create(**kwargs)
 
 

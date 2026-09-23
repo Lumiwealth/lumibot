@@ -28,6 +28,7 @@ class AIBrowserResearchShowcaseStrategy(Strategy):
             name="browser_researcher",
             default_model="openai/gpt-6-luna",
             allow_trading=False,
+            allow_network=True,
             system_prompt=(
                 "Open one persistent browser profile and visit the authorized research URL. Log in with the named "
                 "credential profile when supplied, using the configured research_login_selectors when present, then "
@@ -54,6 +55,7 @@ class AIBrowserResearchShowcaseStrategy(Strategy):
             name="trade_publisher",
             default_model="openai/gpt-6-luna",
             allow_trading=False,
+            allow_network=True,
             system_prompt=(
                 "Publish only when publish_enabled is true, to the explicitly configured authorized account. Use a "
                 "separate persistent browser profile and the named credential profile. Post a truthful summary of the "

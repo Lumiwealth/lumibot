@@ -162,6 +162,18 @@ def test_agent_allow_trading_false_removes_only_mutating_order_tools(monkeypatch
     assert agent.default_model == "openai/gpt-5.4-mini"
 
 
+def test_base_prompt_does_not_let_the_snapshot_stand_in_for_option_order_account_reads():
+    agent = AgentManager(_Strategy()).create(name="trader", allow_trading=True)
+
+    prompt = " ".join(agent._base_system_prompt(agent._runtime_context()).split())
+
+    assert (
+        "A complete current injected snapshot satisfies the initial account and open-order checks "
+        "for non-option orders" in prompt
+    )
+    assert "Before an option order, call account_portfolio, account_positions, and orders_open_orders" in prompt
+
+
 def test_live_agent_auth_failure_emits_structured_decision_outcome():
     strategy = _Strategy()
     strategy.is_backtesting = False
@@ -1034,3 +1046,132 @@ def test_agent_model_call_limit_stops_before_runtime_call(monkeypatch):
     assert len(_LongSummaryRuntime.requests) == 1
     assert strategy.parameters["agent_model_calls"] == 1
     assert strategy.parameters["agent_max_model_calls"] == 1
+
+
+# Outbound network tools (HTTP, RSS, browser) are default-deny. Page text can
+# carry prompt injection, and a network tool is the channel that could send
+# agent context out. They also crowd the default trading toolset: the options
+# iron-condor eval regressed from 3/3 to 1/3 when they joined every agent.
+_NETWORK_TOOL_NAMES = {
+    "http_request",
+    "rss_fetch",
+    "browser_session_open",
+    "browser_session_close",
+    "browser_session_recover",
+    "browser_navigate",
+    "browser_observe",
+    "browser_act",
+    "browser_tabs",
+    "browser_extract",
+    "browser_login",
+    "browser_storage_state",
+    "browser_screenshot",
+}
+
+
+def test_network_permission_set_covers_every_web_and_browser_builtin():
+    from lumibot.components.agents.manager import NETWORK_TOOL_NAMES
+
+    namespace_tools = set()
+    for namespace in (BuiltinTools.web, BuiltinTools.browser):
+        for attribute in dir(namespace):
+            if not attribute.startswith("_"):
+                namespace_tools.add(getattr(namespace, attribute)().name)
+
+    assert namespace_tools == _NETWORK_TOOL_NAMES
+    assert set(NETWORK_TOOL_NAMES) == _NETWORK_TOOL_NAMES
+    assert _NETWORK_TOOL_NAMES.issubset({definition.name for definition in BuiltinTools.all()})
+
+
+@pytest.mark.parametrize("allow_trading", [True, False])
+def test_default_agent_gets_no_outbound_network_tools(allow_trading):
+    agent = AgentManager(_Strategy()).create(name="trader", allow_trading=allow_trading)
+    tool_names = {tool.name for tool in agent._ensure_bound_tools()}
+
+    assert agent.allow_network is False
+    assert not (tool_names & _NETWORK_TOOL_NAMES)
+    assert "account_portfolio" in tool_names
+    assert "options_get_chain" in tool_names
+
+
+def test_allow_network_opts_the_agent_into_web_and_browser_tools():
+    agent = AgentManager(_Strategy()).create(name="researcher", allow_trading=False, allow_network=True)
+    tool_names = {tool.name for tool in agent._ensure_bound_tools()}
+
+    assert agent.allow_network is True
+    assert _NETWORK_TOOL_NAMES.issubset(tool_names)
+
+
+def test_explicitly_listed_network_tool_is_an_opt_in_for_that_tool_only():
+    agent = AgentManager(_Strategy()).create(
+        name="researcher",
+        allow_trading=False,
+        tools=[BuiltinTools.web.http_request()],
+    )
+    tool_names = {tool.name for tool in agent._ensure_bound_tools()}
+
+    assert "http_request" in tool_names
+    assert not (tool_names & (_NETWORK_TOOL_NAMES - {"http_request"}))
+
+
+def test_allow_network_false_removes_even_explicit_network_tools():
+    agent = AgentManager(_Strategy()).create(
+        name="researcher",
+        allow_trading=False,
+        allow_network=False,
+        tools=[BuiltinTools.web.http_request(), BuiltinTools.browser.navigate()],
+    )
+    tool_names = {tool.name for tool in agent._ensure_bound_tools()}
+
+    assert not (tool_names & _NETWORK_TOOL_NAMES)
+
+
+def _example_network_agents():
+    from lumibot.example_strategies.ai_browser_research_showcase import AIBrowserResearchShowcaseStrategy
+    from lumibot.example_strategies.ai_congress_disclosures import AICongressDisclosuresStrategy
+    from lumibot.example_strategies.ai_public_web_fetch import AIPublicWebFetchStrategy
+
+    return {
+        "ai_public_web_fetch.py": (AIPublicWebFetchStrategy, {"page_researcher"}),
+        "ai_congress_disclosures.py": (AICongressDisclosuresStrategy, {"congress_researcher"}),
+        "ai_browser_research_showcase.py": (
+            AIBrowserResearchShowcaseStrategy,
+            {"browser_researcher", "trade_publisher"},
+        ),
+    }
+
+
+def test_every_example_that_uses_network_tools_is_covered_by_the_opt_in_contract():
+    import re
+    from pathlib import Path
+
+    examples = Path(__file__).resolve().parents[1] / "lumibot" / "example_strategies"
+    pattern = re.compile(r"\b(http_request|rss_fetch|browser_[a-z_]+|persistent browser)\b")
+    users = {path.name for path in examples.glob("*.py") if pattern.search(path.read_text(encoding="utf-8"))}
+
+    assert users == set(_example_network_agents())
+
+
+@pytest.mark.parametrize(
+    "filename", ["ai_public_web_fetch.py", "ai_congress_disclosures.py", "ai_browser_research_showcase.py"]
+)
+def test_examples_that_use_the_web_opt_in_only_the_agents_that_fetch(filename):
+    strategy_class, expected = _example_network_agents()[filename]
+    created = []
+
+    class _Agents(dict):
+        def create(self, **kwargs):
+            created.append(kwargs)
+
+    context = SimpleNamespace(
+        agents=_Agents(),
+        parameters=dict(strategy_class.parameters),
+        log_message=lambda *args, **kwargs: None,
+    )
+    strategy_class.initialize(context)
+
+    opted_in = {item["name"] for item in created if item.get("allow_network") is True}
+    assert opted_in == expected
+    for item in created:
+        if item["name"] not in expected:
+            assert not item.get("allow_network"), item["name"]

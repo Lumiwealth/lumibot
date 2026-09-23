@@ -27,6 +27,23 @@ On a container image, run the browser installation at image-build time rather
 than downloading a browser when a strategy starts. Give the task enough shared
 memory for Chromium and validate the same architecture used in production.
 
+Opting in
+---------
+
+Browser tools are off by default, like the HTTP and RSS tools. Create the agent
+that browses with ``allow_network=True``, or list the browser tools it needs in
+``tools=[...]``. Keep the trading agent without network access and pass it the
+browser agent's evidence instead. See :doc:`agents_builtin_tools`.
+
+.. code-block:: python
+
+   self.agents.create(
+       name="browser_researcher",
+       allow_trading=False,
+       allow_network=True,
+       system_prompt="Open the authorized research URL and return an evidence packet.",
+   )
+
 Session model
 -------------
 

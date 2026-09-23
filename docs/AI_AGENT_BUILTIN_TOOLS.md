@@ -62,6 +62,14 @@ self.agents.create(name="researcher", allow_trading=False)
 
 It keeps read-only tools, including `orders_open_orders`, `orders_get_status`, `orders_wait_for_terminal`, positions, portfolio, market data, indicators, SEC filings, FRED macro data, memory, and notifications.
 
+Network permission (default-deny, since 4.5.92):
+
+```python
+self.agents.create(name="page_researcher", allow_trading=False, allow_network=True)
+```
+
+`http_request`, `rss_fetch`, and every `browser_*` tool are outbound network tools (`NETWORK_TOOL_NAMES` in `lumibot/components/agents/manager.py`). They are not in the default toolset. `allow_network=True` adds all of them; listing one in `tools=[...]` adds only that tool; `allow_network=False` removes them even when listed. Why: a fetched page is untrusted input and a network tool is the channel it could use to send agent context out, so only the agent that must fetch pages should hold one, never the trader. It also matters for model quality: when the 13 tools joined every default agent, the `options_iron_condor_atomic_open` release eval fell from 3/3 to 1/3 (declined a supported trade, or ordered before the account checks). `tests/test_agent_tool_permissions.py` guards the default, the opt-ins, and the shipped examples.
+
 Order readiness:
 
 Before an agent can submit an order with `orders_submit_order` or `orders_submit_multileg`, it must inspect account and price context in the same agent run:

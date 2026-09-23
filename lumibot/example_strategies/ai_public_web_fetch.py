@@ -22,6 +22,7 @@ class AIPublicWebFetchStrategy(Strategy):
             "page_researcher",
             "Use http_request to read the supplied public page. Report what it actually says. Do not submit orders.",
             allow_trading=False,
+            allow_network=True,
         )
         add_agent(
             self,

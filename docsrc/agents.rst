@@ -119,6 +119,8 @@ The introductory macro examples on this page use Lumibot's built-in FRED tools. 
 
 When you pass custom tools via ``tools=[self.my_tool]``, they are added **alongside** the default built-in tools. You only need to list your custom tools -- built-in tools are always included.
 
+The one exception is outbound network access. ``http_request``, ``rss_fetch``, and the ``browser_*`` tools are off by default; pass ``allow_network=True`` to the agent that fetches pages. See :ref:`the network permissions section <agents-network-permissions>`.
+
 External Data Patterns
 ----------------------
 
@@ -369,7 +371,7 @@ LumiBot supports Alpaca, Interactive Brokers, Tradier, Schwab, Tradovate, Topste
 
 **Do I need to list built-in tools?**
 
-No. All built-in tools (positions, portfolio, prices, orders, DuckDB, docs) are always included automatically. When you pass custom tools via ``tools=[self.my_tool]``, they are added alongside the built-in tools. You only need to list your custom ``@agent_tool`` functions.
+No. All built-in tools (positions, portfolio, prices, orders, DuckDB, docs) are always included automatically. When you pass custom tools via ``tools=[self.my_tool]``, they are added alongside the built-in tools. You only need to list your custom ``@agent_tool`` functions. Outbound web and browser tools are the exception: they need ``allow_network=True``.
 
 **Can I use multiple custom tools?**
 

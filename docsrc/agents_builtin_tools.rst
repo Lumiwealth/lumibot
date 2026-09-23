@@ -47,6 +47,35 @@ Use ``allow_trading=True`` only for the final agent that is allowed to place or
 change orders. In an AI trading team workflow, that is usually the portfolio
 manager or trader agent.
 
+.. _agents-network-permissions:
+
+Network Permissions
+-------------------
+
+The outbound network tools (``http_request``, ``rss_fetch``, and every
+``browser_*`` tool) are off by default. Fetched pages are untrusted input, and
+a network tool is the channel a prompt-injected page could use to send agent
+context somewhere else. Keeping them out of the default set also keeps trading
+agents focused on account and market tools.
+
+Opt an agent in with ``allow_network=True``:
+
+.. code-block:: python
+
+   self.agents.create(
+       name="page_researcher",
+       model="openai/gpt-5.4-mini",
+       allow_trading=False,
+       allow_network=True,
+       system_prompt="Use http_request to read the supplied public page. Do not submit orders.",
+   )
+
+Listing a network tool explicitly, for example
+``tools=[BuiltinTools.web.http_request()]``, is also an opt-in, but only for
+the tools you list. ``allow_network=False`` removes network tools even when
+they are listed. Give network access to the research agent that fetches pages,
+not to the trading agent.
+
 Order Readiness
 ---------------
 
@@ -73,6 +102,15 @@ judgment remains with the strategy and agent. A fresh injected account snapshot
 satisfies the initial account and open-order checks only when all of its
 completeness flags are true. After an order mutation, the agent must refresh
 the account and open-order context before submitting another order.
+
+Option orders ask for more. The agent prompt and the built-in
+``options-trading`` skill tell the agent to call ``account_portfolio``,
+``account_positions``, and ``orders_open_orders`` in the run before any option
+order, even when the injected snapshot is complete, because an option package
+depends on exact signed contract positions and pending packages. The skill also
+tells the agent to apply only the expiration, delta, and width limits the user
+or active rules state, and to measure deltas with the Greek tools instead of
+declining from strike distance alone.
 
 Market-price tools:
 
@@ -226,6 +264,8 @@ specific section.
 
 HTTP And RSS
 ------------
+
+These tools require the network opt-in described in `Network Permissions`_.
 
 ``http_request`` is the general outbound web/API tool. It supports ``GET``,
 ``HEAD``, ``OPTIONS``, ``POST``, ``PUT``, ``PATCH``, and ``DELETE`` with query

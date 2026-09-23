@@ -63,6 +63,7 @@ class AICongressDisclosuresStrategy(Strategy):
                 "net_dollars = buy_dollars - sell_dollars. A sale is not a buy. Do not submit orders."
             ),
             allow_trading=False,
+            allow_network=True,
         )
         add_agent(
             self,

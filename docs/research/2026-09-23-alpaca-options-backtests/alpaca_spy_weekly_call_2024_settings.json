@@ -1,0 +1,101 @@
+{
+  "name": "alpaca_spy_weekly_call_2024",
+  "backtesting_start": "2024-03-04 00:00:00-05:00",
+  "backtesting_end": "2024-03-25 09:30:00-04:00",
+  "budget": 10000,
+  "risk_free_rate": 0.052179999351501465,
+  "minutes_before_closing": 5,
+  "minutes_before_opening": 60,
+  "sleeptime": "1M",
+  "auto_adjust": false,
+  "quote_asset": {
+    "py/object": "lumibot.entities.asset.Asset",
+    "symbol": "USD",
+    "asset_type": {
+      "py/reduce": [
+        {
+          "py/type": "lumibot.entities.asset.Asset.AssetType"
+        },
+        {
+          "py/tuple": [
+            "forex"
+          ]
+        }
+      ]
+    },
+    "strike": 0.0,
+    "multiplier": 1,
+    "precision": null,
+    "underlying_asset": null,
+    "leverage": 1,
+    "expiration": null,
+    "auto_expiry": null,
+    "right": null,
+    "_cached_asset_type_key": "forex",
+    "_cached_hash": -3849928455527937534,
+    "_cached_minimal_dict": {
+      "symbol": "USD",
+      "type": "forex"
+    }
+  },
+  "benchmark_asset": {
+    "py/object": "lumibot.entities.asset.Asset",
+    "symbol": "SPY",
+    "asset_type": {
+      "py/reduce": [
+        {
+          "py/type": "lumibot.entities.asset.Asset.AssetType"
+        },
+        {
+          "py/tuple": [
+            "stock"
+          ]
+        }
+      ]
+    },
+    "strike": 0.0,
+    "multiplier": 1,
+    "precision": null,
+    "underlying_asset": null,
+    "leverage": 1,
+    "expiration": null,
+    "auto_expiry": null,
+    "right": null,
+    "_cached_asset_type_key": "stock",
+    "_cached_hash": -7940970952297454870,
+    "_cached_minimal_dict": {
+      "symbol": "SPY",
+      "type": "stock"
+    }
+  },
+  "starting_positions": null,
+  "parameters": {
+    "underlying": "SPY",
+    "min_days_to_expiration": 7,
+    "max_days_to_expiration": 21,
+    "entry_after": "09:35",
+    "exit_after": "15:30",
+    "timestep": "minute",
+    "market": "NYSE"
+  },
+  "lumibot_version": "4.5.92",
+  "backtesting_data_sources": "none",
+  "backtest_time_seconds": 4.522284457983915,
+  "data_health": {
+    "provider": "ibkr",
+    "series_count": 0,
+    "incomplete_series_count": 0,
+    "complete": true,
+    "series": []
+  },
+  "runtime_timings": {
+    "initialize_entered_at": "2026-09-23T09:37:38.490322+00:00",
+    "initialize_completed_at": "2026-09-23T09:37:38.490332+00:00",
+    "first_simulation_advance_at": "2026-09-23T09:37:38.642657+00:00",
+    "first_callback_entered_at": "2026-09-23T09:37:38.642936+00:00",
+    "first_price_lookup_at": "2026-09-23T09:37:38.740940+00:00",
+    "first_usable_price_at": "2026-09-23T09:37:39.289875+00:00",
+    "reports_started_at": "2026-09-23T09:37:43.012230+00:00",
+    "reports_completed_at": "2026-09-23T09:37:45.557261+00:00"
+  }
+}

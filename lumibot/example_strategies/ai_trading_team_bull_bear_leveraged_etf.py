@@ -12,7 +12,10 @@ from lumibot.strategies.strategy import Strategy
 
 _BOOK = (
     "Own the leveraged ETFs the interpreter ranks, from this universe only. "
-    "Respect the long or inverse direction. Split the account by the interpreter weights."
+    "Respect the long or inverse direction. Split the account by the interpreter weights. "
+    "Never hold a long ETF and its inverse on the same index at once, such as TQQQ with SQQQ or "
+    "UPRO with SPXU: they cancel each other and both decay. Keep only the side with the larger "
+    "weight and give it the net weight."
 )
 _EXIT = (
     "Sell a holding with the order tool when today's weights no longer include it, before any "
@@ -102,7 +105,7 @@ class AITradingTeamBullBearLeveragedETFStrategy(Strategy):
             bull_task="Make the bull case from the research.",
             bear_task="Make the bear case from the research.",
             interpret_task="Turn the bull case and the bear case into account weights.",
-            trade_task="Apply the interpreter weights. Size from the account. Exit yesterday's book first if it is still open.",
+            trade_task="Apply the interpreter weights. Size from the account. Sell holdings the weights dropped before buying.",
         )
 
 

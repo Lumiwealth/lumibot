@@ -141,6 +141,28 @@ def test_daily_bull_bear_books_rebalance_instead_of_selling_everything_each_morn
         assert "keep a holding that today's weights still include" in trader
 
 
+def test_daily_bull_bear_trade_task_does_not_tell_the_trader_to_exit_the_whole_book():
+    import inspect
+
+    for strategy_class in (
+        AITradingTeamBullBearLargeCapStocksStrategy,
+        AITradingTeamBullBearLeveragedETFStrategy,
+    ):
+        source = inspect.getsource(inspect.getmodule(strategy_class))
+        assert "Exit yesterday's book first" not in source
+
+
+def test_leveraged_etf_book_never_holds_a_long_and_its_inverse_on_one_index():
+    trader = _created_prompts(AITradingTeamBullBearLeveragedETFStrategy)["trader"].lower()
+    assert "never hold a long etf and its inverse on the same index" in trader
+
+
+def test_trader_never_buys_more_than_the_cash_it_has():
+    prompt = " ".join(trader_prompt(book_rule="book", exit_rule="exit").split()).lower()
+    assert "total cost of new buys must stay below cash plus the proceeds of this session's sells" in prompt
+    assert "never let cash go negative" in prompt
+
+
 def _created_prompts(strategy_class):
     from types import SimpleNamespace
 

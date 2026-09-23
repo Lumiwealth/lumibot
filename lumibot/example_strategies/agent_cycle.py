@@ -74,6 +74,9 @@ def trader_prompt(*, book_rule: str, exit_rule: str, cash_rule: str | None = Non
         "trades only add cost. Never buy and sell the same symbol in the same session, and do not "
         "re-read positions after each fill to chase an exact weight. Once every holding is within "
         "that tolerance, stop. "
+        "The total cost of new buys must stay below cash plus the proceeds of this session's sells, "
+        "with about 1% left over because the fill can be above the price you read. Never let cash "
+        "go negative. "
         "Submit each order once through the order tool. If you submit no order, that is the result. "
         "Python will not insert a share."
     )

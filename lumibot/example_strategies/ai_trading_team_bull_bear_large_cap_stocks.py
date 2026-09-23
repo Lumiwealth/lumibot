@@ -89,7 +89,7 @@ class AITradingTeamBullBearLargeCapStocksStrategy(Strategy):
             bull_task="Make the bull case from the research.",
             bear_task="Make the bear case from the research.",
             interpret_task="Turn the bull case and the bear case into account weights.",
-            trade_task="Apply the interpreter weights. Size from the account. Exit yesterday's book first if it is still open.",
+            trade_task="Apply the interpreter weights. Size from the account. Sell holdings the weights dropped before buying.",
         )
 
 

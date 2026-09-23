@@ -48,9 +48,13 @@ Deploy marker: `f20f4c737065`
   choices, with duplicate-event and destination-classification coverage.
 - Backtest progress and settings retain per-run initialization, callback, first
   price, simulation and report timestamps, separately from heartbeat updates.
-- New agents without an explicit model use Gemini 3.5 Flash-Lite rather than
-  the retired preview default. Explicit model pins and managed families remain
-  unchanged; existing agent instances are not migrated during a decision.
+- ⚠️ New agents without an explicit model now use OpenAI GPT-6 Luna
+  (`openai/gpt-6-luna`) with high reasoning effort, replacing the retired preview
+  default. High reasoning applies only when the resolved model is the default and
+  the caller passed no `reasoning_effort`. Explicit model pins and managed
+  families remain unchanged; existing agent instances are not migrated during a
+  decision. Native calls need `OPENAI_API_KEY`. The CLI AI template, examples and
+  docs use the new default (see `docs/AGENT_DEFAULT_MODEL.md`).
 - Agent indicator queries accept independent, explicitly zoned historical
   windows. Bounds cannot exceed strategy time; missing warmup remains missing,
   and monthly or annual requests cannot borrow bars from another window.
@@ -69,9 +73,11 @@ Deploy marker: `f20f4c737065`
 - Managed agents accept OpenAI GPT-6 Luna (`gpt-6-luna` or `openai/gpt-6-luna`) with a
   reasoning effort. Its model information is registered with LiteLLM, which has no GPT-6
   entry yet, so reasoning is accepted and tool calls with reasoning use the Responses API.
-  Default agent models are unchanged in this release.
 
 ### Fixed
+- `lumibot version` printed "unknown" from a source checkout or CI, where no installed package
+  metadata exists. It now reports `lumibot.__version__` (setup.py in a checkout, then installed
+  metadata), the same value the startup log prints.
 - Alpaca option bars are no longer reindexed and forward/back filled like stock bars. That
   invented prices between sparse trades and back-filled a later trade into the past (a price
   before the first print). Options now use real prints only; `get_last_price` is `None`

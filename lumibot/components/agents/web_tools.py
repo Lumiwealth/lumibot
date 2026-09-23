@@ -4,6 +4,7 @@ import base64
 import hashlib
 import ipaddress
 import json
+import os
 import socket
 import xml.etree.ElementTree as ET
 from collections import OrderedDict
@@ -138,6 +139,12 @@ def _is_sec_host(url: str) -> bool:
     """
     host = (urlsplit(str(url)).hostname or "").lower().rstrip(".")
     return host == "sec.gov" or host.endswith(".sec.gov")
+
+
+def _sec_user_agent() -> str:
+    from lumibot.fundamentals.sec import DEFAULT_SEC_USER_AGENT
+
+    return os.environ.get("LUMIBOT_SEC_USER_AGENT") or DEFAULT_SEC_USER_AGENT
 
 
 class _PinnedAddressTransport(httpx.BaseTransport):
@@ -376,6 +383,12 @@ class WebClient:
             profile = self._profile(credential_profile, hostname)
             request_client = self._request_client(profile)
             effective_headers = dict(request_headers)
+            if _is_sec_host(current_url):
+                # SEC fair-access policy denies undeclared or placeholder contacts.
+                effective_headers = {
+                    key: value for key, value in effective_headers.items() if key.lower() != "user-agent"
+                }
+                effective_headers["User-Agent"] = _sec_user_agent()
             auth = None
             if profile is not None:
                 effective_headers.update(profile.headers)
@@ -542,9 +555,6 @@ class WebClient:
         validators = self._feed_validators.get(url, {})
         headers = {}
         if _is_sec_host(url):
-            from lumibot.fundamentals.sec import DEFAULT_SEC_USER_AGENT
-
-            headers["User-Agent"] = DEFAULT_SEC_USER_AGENT
             headers["Accept"] = "application/atom+xml, application/rss+xml, application/xml"
         if validators.get("etag"):
             headers["If-None-Match"] = validators["etag"]

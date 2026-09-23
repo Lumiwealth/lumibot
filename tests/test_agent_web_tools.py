@@ -499,3 +499,32 @@ def test_http_request_pins_ipv6_addresses_and_keeps_cookies_scoped_to_the_hostna
         (ipv6, "a.example.test", "session=abc"),
         (ipv6, "b.example.test", None),
     ]
+
+
+def test_http_request_to_sec_uses_declared_contact_user_agent_even_when_agent_supplies_one(monkeypatch):
+    from lumibot.fundamentals.sec import DEFAULT_SEC_USER_AGENT
+
+    monkeypatch.delenv("LUMIBOT_SEC_USER_AGENT", raising=False)
+    seen = []
+
+    def handler(request):
+        seen.append((request.headers["host"], request.headers["user-agent"]))
+        if request.headers["host"] == "example.test":
+            return httpx.Response(302, headers={"location": "https://www.sec.gov/Archives/x.idx"})
+        return httpx.Response(200, text="ok", headers={"content-type": "text/plain"})
+
+    client = WebClient(transport=httpx.MockTransport(handler), resolver=_resolver)
+
+    direct = client.request(
+        "GET",
+        "https://www.sec.gov/Archives/edgar/daily-index/2026/QTR1/form.20260105.idx",
+        headers={"user-agent": "research contact@example.com"},
+    )
+    redirected = client.request("GET", "https://example.test/start", headers={"User-Agent": "agent-ua"})
+
+    assert direct["ok"] is True and redirected["ok"] is True
+    assert seen == [
+        ("www.sec.gov", DEFAULT_SEC_USER_AGENT),
+        ("example.test", "agent-ua"),
+        ("www.sec.gov", DEFAULT_SEC_USER_AGENT),
+    ]

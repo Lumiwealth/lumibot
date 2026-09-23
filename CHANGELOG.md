@@ -2,6 +2,8 @@
 
 ## 4.5.92 - 2026-09-23
 
+Deploy marker: `f20f4c737065`
+
 ### Growth documentation and examples
 - Added point-in-time Congress-disclosure and SEC Form 4 agent examples, plus a stateful authenticated-browser research/trade/publish showcase with publishing disabled by default.
 - Documented the recommended two-or-more-agent architecture with a dedicated trading/risk agent while preserving deterministic-Python and hybrid alternatives.

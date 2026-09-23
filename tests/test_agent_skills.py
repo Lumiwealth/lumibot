@@ -9,6 +9,7 @@ import pytest
 from lumibot.components.agents import AgentManager, AgentRunResult, AgentTraceEvent
 from lumibot.components.agents.rules import StrategyRulesError, load_strategy_rules
 from lumibot.components.agents.skills import (
+    BUILTIN_SKILL_LOADING_INSTRUCTION,
     BUILTIN_SKILL_NAMES,
     build_builtin_skill_toolset,
     builtin_skill_directories,
@@ -133,6 +134,12 @@ def test_stock_skill_defines_opening_range_boundaries_and_order_truth():
     assert "aggregate the exact non-overlapping intervals" in intraday
     assert "Never treat the first one-minute constituent" in intraday
     assert "as a completed five-minute bar" in intraday
+
+
+def test_skill_loading_instruction_names_every_builtin_skill_exactly():
+    for name in BUILTIN_SKILL_NAMES:
+        assert f"`{name}`" in BUILTIN_SKILL_LOADING_INSTRUCTION
+    assert "exact name" in BUILTIN_SKILL_LOADING_INSTRUCTION
 
 
 def test_builtin_skill_toolset_exposes_progressive_loading_tools():

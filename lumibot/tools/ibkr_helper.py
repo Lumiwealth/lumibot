@@ -8,9 +8,11 @@ import os
 import time
 from dataclasses import dataclass
 from datetime import date, datetime, timedelta, timezone
+from functools import lru_cache
 from pathlib import Path
 from typing import Any, Dict, Optional, Tuple
 
+import numpy as np
 import pandas as pd
 
 from lumibot.constants import LUMIBOT_CACHE_FOLDER, LUMIBOT_DEFAULT_PYTZ
@@ -96,6 +98,15 @@ _NEGATIVE_CONID_CACHE_LOADED = False
 _IBKR_EQUITY_ACTIONS_CACHE: Dict[str, pd.DataFrame] = {}
 _RUNTIME_CONID_CACHE: Dict[str, int] = {}
 _RUNTIME_HISTORY_NO_DATA_WINDOWS: Dict[str, Tuple[datetime, datetime]] = {}
+# Downloader segments already requested in this process, keyed by cache file.
+#
+# WHY: a successful response can leave a window underfilled (the provider has no bars
+# inside the gap, or answers with bars from before it). Without this memory the next
+# iteration computes the same missing segment and re-submits the identical request.
+# Production backtest 0d92a149 (2026-09-15) sent `startTime=20260908-08:00:00` 77 times
+# in one run this way. This is in-process state only: it is never written to the cache,
+# so a later process still retries (see the history integrity contract).
+_RUNTIME_ATTEMPTED_HISTORY_SEGMENTS: Dict[str, list[Tuple[datetime, datetime]]] = {}
 _RUNTIME_DAILY_GAP_CHECKED_WINDOWS: set[tuple[str, str, str]] = set()
 _RUNTIME_HOURLY_GAP_CHECKED_SERIES: Dict[
     str,
@@ -388,6 +399,85 @@ def _us_futures_closed_interval(start_local: datetime, end_local: datetime) -> b
         return bool(next_open >= end_ts)
     except Exception:
         return False
+
+
+@lru_cache(maxsize=64)
+def _us_equity_session_bounds_for_year(year: int, extended_hours: bool) -> tuple[np.ndarray, np.ndarray]:
+    """Return sorted NYSE session (open, close) bounds for one year as UTC nanoseconds.
+
+    Extended hours use the calendar's pre/post times (04:00 to 20:00 ET, 17:00 on early
+    close days). Regular hours use the market open and close.
+    """
+    import pandas_market_calendars as mcal
+
+    open_col, close_col = ("pre", "post") if extended_hours else ("market_open", "market_close")
+    schedule = mcal.get_calendar("NYSE").schedule(
+        start_date=f"{int(year)}-01-01",
+        end_date=f"{int(year)}-12-31",
+        start=open_col,
+        end=close_col,
+    )
+    if schedule is None or schedule.empty:
+        empty = np.array([], dtype="int64")
+        return empty, empty
+    opens = pd.to_datetime(schedule[open_col], utc=True).astype("int64").to_numpy()
+    closes = pd.to_datetime(schedule[close_col], utc=True).astype("int64").to_numpy()
+    order = np.argsort(opens)
+    return opens[order], closes[order]
+
+
+def _us_equity_closed_interval(start_local: datetime, end_local: datetime, *, include_after_hours: bool) -> bool:
+    """Return True if a US equity cannot trade anywhere in ``[start_local, end_local)``.
+
+    Used to skip downloader requests for window edges that are pure market-closed time
+    (weekends, exchange holidays, overnight). IBKR has no bars there, so asking again
+    only returns bars from outside the window. Any calendar failure returns False, which
+    keeps the old behavior of fetching.
+    """
+    try:
+        start_ts = pd.Timestamp(start_local)
+        end_ts = pd.Timestamp(end_local)
+        if start_ts.tzinfo is None:
+            start_ts = start_ts.tz_localize(LUMIBOT_DEFAULT_PYTZ)
+        if end_ts.tzinfo is None:
+            end_ts = end_ts.tz_localize(LUMIBOT_DEFAULT_PYTZ)
+        if end_ts <= start_ts:
+            return True
+        start_ns = int(start_ts.tz_convert("UTC").value)
+        end_ns = int(end_ts.tz_convert("UTC").value)
+        first_year = int(start_ts.tz_convert("America/New_York").year)
+        last_year = int(end_ts.tz_convert("America/New_York").year)
+        for year in range(first_year, last_year + 1):
+            opens, closes = _us_equity_session_bounds_for_year(year, bool(include_after_hours))
+            if len(opens) == 0:
+                continue
+            # First session that has not closed by `start`; it overlaps if it opens before `end`.
+            idx = int(np.searchsorted(closes, start_ns, side="right"))
+            if idx < len(opens) and int(opens[idx]) < end_ns:
+                return False
+        return True
+    except Exception:
+        return False
+
+
+def _history_segment_already_attempted(runtime_key: str, seg_start: datetime, seg_end: datetime) -> bool:
+    for attempted_start, attempted_end in _RUNTIME_ATTEMPTED_HISTORY_SEGMENTS.get(runtime_key, ()):
+        if attempted_start <= seg_start and seg_end <= attempted_end:
+            return True
+    return False
+
+
+def _remember_attempted_history_segment(runtime_key: str, seg_start: datetime, seg_end: datetime) -> None:
+    segments = list(_RUNTIME_ATTEMPTED_HISTORY_SEGMENTS.get(runtime_key, ()))
+    segments.append((seg_start, seg_end))
+    segments.sort(key=lambda item: item[0])
+    merged: list[Tuple[datetime, datetime]] = []
+    for start, end in segments:
+        if merged and start <= merged[-1][1]:
+            merged[-1] = (merged[-1][0], max(merged[-1][1], end))
+        else:
+            merged.append((start, end))
+    _RUNTIME_ATTEMPTED_HISTORY_SEGMENTS[runtime_key] = merged
 
 
 @dataclass(frozen=True)
@@ -782,6 +872,30 @@ def get_price_data(
         and _us_futures_closed_interval(coverage_end + bar_step, end_local)
     )
 
+    # US stock intraday series have the same problem around weekends, exchange holidays and
+    # the overnight break. A window that starts on a holiday or ends before the next session
+    # opens (for example a backtest end clamped to "now" at 00:42 ET) leaves an uncovered edge
+    # that contains no trading time. Fetching it only returns bars from outside the window,
+    # so coverage never changes and every later call would ask again. Indexes keep the old
+    # behavior because their calculation hours differ from the NYSE equity session.
+    if asset_type == "stock" and bar_step > timedelta(0) and not str(timestep_component).endswith("day"):
+        if window_cov_start is not None and start_local < window_cov_start:
+            window_start_gap_closed = _us_equity_closed_interval(
+                start_local, window_cov_start, include_after_hours=include_after_hours
+            )
+        if coverage_start is not None and start_local < coverage_start:
+            cache_start_gap_closed = _us_equity_closed_interval(
+                start_local, coverage_start, include_after_hours=include_after_hours
+            )
+        if window_cov_end is not None and end_local > window_cov_end:
+            window_end_gap_closed = _us_equity_closed_interval(
+                window_cov_end + bar_step, end_local, include_after_hours=include_after_hours
+            )
+        if coverage_end is not None and end_local > coverage_end:
+            cache_end_gap_closed = _us_equity_closed_interval(
+                coverage_end + bar_step, end_local, include_after_hours=include_after_hours
+            )
+
     needs_fetch = (
         coverage_start is None
         or coverage_end is None
@@ -873,6 +987,19 @@ def get_price_data(
         for seg_start, seg_end in segments:
             if seg_start >= seg_end:
                 continue
+            if _history_segment_already_attempted(runtime_no_data_key, seg_start, seg_end):
+                # Same (or a narrower) segment was already requested in this process and the
+                # answer did not fill it. Asking again returns the same answer; serve the real
+                # cached bars instead.
+                logger.debug(
+                    "IBKR history segment already requested this run for %s timestep=%s: %s -> %s",
+                    getattr(asset, "symbol", None),
+                    timestep,
+                    seg_start,
+                    seg_end,
+                )
+                continue
+            _remember_attempted_history_segment(runtime_no_data_key, seg_start, seg_end)
             prev_max = df_cache.index.max() if not df_cache.empty else None
             try:
                 fetched = _fetch_history_between_dates(
@@ -1121,7 +1248,9 @@ def get_price_data(
     # Remove placeholder rows from the returned frame (but keep them in cache).
     frame = df_cache.loc[(df_cache.index >= start_local) & (df_cache.index <= end_local)].copy()
     if "missing" in frame.columns:
-        frame = frame[~frame["missing"].fillna(False)]
+        # `astype(bool)`: after merges the flag can be object dtype, where `~` would be an
+        # integer bitwise NOT instead of a boolean mask.
+        frame = frame[~frame["missing"].fillna(False).astype(bool)]
     frame = _strip_missing_cache_metadata(frame)
     if asset_type in {"stock", "index"} and str(timestep_component).endswith("day"):
         frame = _repair_isolated_split_spikes_daily(frame)
@@ -2238,23 +2367,35 @@ def frame_covers_requested_window(
                 tzinfo=LUMIBOT_DEFAULT_PYTZ,
             )
             if schedule is not None and not schedule.empty:
-                first_open = pd.Timestamp(schedule["market_open"].iloc[0])
-                last_close = pd.Timestamp(schedule["market_close"].iloc[-1])
-                if coverage_start.tzinfo is not None:
-                    first_open = first_open.tz_convert(coverage_start.tzinfo)
-                if coverage_end.tzinfo is not None:
-                    last_close = last_close.tz_convert(coverage_end.tzinfo)
-                # A weekend or overnight request boundary needs no synthetic
-                # bars. The first open and last close are the real coverage
-                # boundaries for US stocks and indexes.
-                start_covered = start_covered or (
-                    start_local < first_open
-                    and coverage_start <= (first_open + tolerance)
-                )
-                end_covered = end_covered or (
-                    end_local > last_close
-                    and coverage_end >= (last_close - tolerance)
-                )
+                opens = pd.DatetimeIndex(pd.to_datetime(schedule["market_open"], utc=True))
+                closes = pd.DatetimeIndex(pd.to_datetime(schedule["market_close"], utc=True))
+                start_utc = start_local.tz_convert("UTC") if start_local.tzinfo is not None else start_local.tz_localize("UTC")
+                end_utc = end_local.tz_convert("UTC") if end_local.tzinfo is not None else end_local.tz_localize("UTC")
+                cov_start_utc = coverage_start.tz_convert("UTC") if coverage_start.tzinfo is not None else coverage_start.tz_localize("UTC")
+                cov_end_utc = coverage_end.tz_convert("UTC") if coverage_end.tzinfo is not None else coverage_end.tz_localize("UTC")
+                # A weekend, holiday or overnight request boundary needs no synthetic
+                # bars. The real coverage boundaries are the first session that had not
+                # closed by the requested start, and the last session that had opened by
+                # the requested end. A boundary inside a session still needs the raw check.
+                #
+                # 2026-09-23: the end side used the close of the last calendar day in the
+                # window. A backtest end clamped to "now" at 00:42 ET sits before that
+                # day's session, so a complete cache was reported as underfilled and the
+                # routed prefetch retried on every bar (production backtest 0d92a149).
+                pending = closes > start_utc
+                if not bool(pending.any()):
+                    start_covered = True
+                else:
+                    first_open = opens[pending][0]
+                    if start_utc < first_open:
+                        start_covered = start_covered or cov_start_utc <= (first_open + tolerance)
+                begun = opens < end_utc
+                if not bool(begun.any()):
+                    end_covered = True
+                else:
+                    last_close = closes[begun][-1]
+                    if end_utc > last_close:
+                        end_covered = end_covered or cov_end_utc >= (last_close - tolerance)
         except Exception:
             pass
 

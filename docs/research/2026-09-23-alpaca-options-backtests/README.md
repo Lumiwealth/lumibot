@@ -41,5 +41,10 @@ Files per window (`2026` = 2026-07-27 to 2026-08-14 trading, `2024` = 2024-03-04
   forming). Real SPY bars at 10:00 and 10:02 before and after, the ORB proof's count of forming
   bars returned (33 of 33 before, 0 of 33 after) and the rerun of both environment proofs after
   the fix (trades identical). `alpaca_env_orb_2026_decisions.txt` now ends with that count.
+- `history_before_start_2026-09-23.txt`: history before `BACKTESTING_START`. The ORB proof's first-bar
+  request for 250 five-minute and 15 daily bars before and after (66 of 250 and an error, then 250 and
+  15 with ATR(14) = 8.40), every returned bar checked against raw Alpaca bars (0 differences), and
+  the rerun of both environment proofs (trades identical). The decisions file now starts with that
+  first-bar line.
 
 These are one-contract engineering proof runs, not a strategy result.

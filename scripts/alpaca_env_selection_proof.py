@@ -13,7 +13,9 @@ Strategies:
   bar that closes above the range high. Sell at or after 15:50 ET. Only completed bars are
   used. The strategy keeps its own completed-bar filter as a guard and counts every bar the
   data source returned that was still forming; since the 2026-09-23 lookahead fix the count
-  must be zero, and the run logs it at the end.
+  must be zero, and the run logs it at the end. At its first bar it also asks for 250
+  five-minute bars and 15 daily bars (what an ATR(14) filter needs) and logs what came back,
+  so the run shows history reaching before BACKTESTING_START. That probe never changes a trade.
 - ``weekly_call``: the weekly SPY call from scripts/alpaca_options_backtest_proof.py.
 
 Usage (credentials come from your environment; nothing here is secret):
@@ -46,6 +48,7 @@ class SpyOpeningRangeBreakout(Strategy):
         self.vars.entered = False
         self.vars.history_calls = 0
         self.vars.forming_bars_returned = 0
+        self.vars.probed_first_bar = False
 
     def _completed_five_minute_bars(self, count: int) -> pd.DataFrame:
         now = pd.Timestamp(self.get_datetime())
@@ -60,8 +63,45 @@ class SpyOpeningRangeBreakout(Strategy):
         self.vars.forming_bars_returned += len(df) - len(completed)
         return completed
 
+    def _probe_history_at_first_bar(self) -> None:
+        """Evidence only: the history a strategy that needs a long lookback gets at its first bar."""
+        now = pd.Timestamp(self.get_datetime())
+        symbol = self.parameters["symbol"]
+        report = []
+        for label, length, timestep in (("five-minute", 250, "5minute"), ("daily", 15, "day")):
+            try:
+                bars = self.get_historical_prices(symbol, length, timestep)
+            except Exception as exc:  # the old window raised "Not enough historical data"
+                report.append(f"{label}: error {exc}")
+                continue
+            if bars is None or bars.df.empty:
+                report.append(f"{label}: none of {length}")
+                continue
+            df = bars.df
+            if timestep == "day":
+                forming = int((df.index.date >= now.date()).sum())
+            else:
+                forming = int((df.index + pd.Timedelta(minutes=5) > now).sum())
+            before_start = int((df.index < now.normalize()).sum())
+            text = (
+                f"{label}: {len(df)} of {length}, {df.index[0]} to {df.index[-1]}, "
+                f"{before_start} dated before {now.date()}, {forming} still forming"
+            )
+            if timestep == "day" and len(df) >= 15:
+                prev_close = df["close"].shift(1)
+                true_range = pd.concat(
+                    [df["high"] - df["low"], (df["high"] - prev_close).abs(), (df["low"] - prev_close).abs()],
+                    axis=1,
+                ).max(axis=1)
+                text += f", ATR(14)={true_range.iloc[-14:].mean():.2f}"
+            report.append(text)
+        self.log_message(f"{now} HISTORY AT FIRST BAR: " + "; ".join(report), color="blue")
+
     def on_trading_iteration(self):
         now = self.get_datetime()
+        if not self.vars.probed_first_bar:
+            self.vars.probed_first_bar = True
+            self._probe_history_at_first_bar()
         today = now.date()
         if self.vars.day != today:
             self.vars.day = today
@@ -120,6 +160,12 @@ def main() -> None:
         help="pass remove_incomplete_current_bar=False to reproduce the history the source returned "
         "before the 2026-09-23 lookahead fix (for before/after evidence only)",
     )
+    parser.add_argument(
+        "--no-history-before-start",
+        action="store_true",
+        help="pass history_before_start=False to reproduce the data window that started at "
+        "BACKTESTING_START (for before/after evidence only)",
+    )
     args = parser.parse_args()
 
     if (os.environ.get("BACKTESTING_DATA_SOURCE") or "").strip().lower() != "alpaca":
@@ -133,6 +179,8 @@ def main() -> None:
         strategy_class = WeeklySpyCall
 
     extra = {"remove_incomplete_current_bar": False} if args.legacy_forming_bar else {}
+    if args.no_history_before_start:
+        extra["history_before_start"] = False
     # The BotSpot template: no datasource_class, no config, no timestep, dates from the environment.
     strategy_class.backtest(
         datasource_class=None,

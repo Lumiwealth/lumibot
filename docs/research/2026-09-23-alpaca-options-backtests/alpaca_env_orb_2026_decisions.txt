@@ -1,5 +1,6 @@
 Backtest start = 2026-08-03 00:00:00-04:00
 Backtest end = 2026-08-08 00:00:00-04:00
+[alpaca_env_orb_2026] 2026-08-03 09:30:00-04:00 HISTORY AT FIRST BAR: five-minute: 250 of 250, 2026-07-31 04:40:00-04:00 to 2026-08-03 09:25:00-04:00, 184 dated before 2026-08-03, 0 still forming; daily: 15 of 15, 2026-07-13 00:00:00-04:00 to 2026-07-31 00:00:00-04:00, 15 dated before 2026-08-03, 0 still forming, ATR(14)=8.40
 [alpaca_env_orb_2026] 2026-08-03 09:45:00-04:00 RANGE high=751.94 from ['09:30', '09:35', '09:40']
 [alpaca_env_orb_2026] 2026-08-03 09:55:00-04:00 BUY 10 SPY: 09:50 bar closed 752.76 above 751.94
 [alpaca_env_orb_2026] FILLED buy 10.0 SPY at 752.765 (2026-08-03 09:55:00-04:00)

@@ -88,6 +88,13 @@
   still forming (it only dropped a bar labeled exactly now). With an explicit config the documented
   default stays `False`. `get_last_price()` and fills are unchanged: the open of the bar that starts
   now, which the broker's Alpaca branch now requests explicitly.
+- `AlpacaBacktesting` downloaded nothing before `backtesting_start` unless `warm_up_trading_days` was
+  passed, so on the BotSpot path a strategy that asked at its first bars for 250 five-minute bars got a
+  few pre-market bars, and one that asked for 15 daily bars (an ATR(14) filter) stopped with "Not enough
+  historical data". New `history_before_start` option (default True in environment mode, False with an
+  explicit config): a history request that needs more finished bars than the window holds fetches the
+  real earlier bars once, sized to the request, cached on disk, never filled in, and never asked for
+  again on every bar. The closed-bar rule still applies and fills are unchanged.
 - `AlpacaBacktesting.LUMIBOT_DEFAULT_QUOTE_ASSET` was `None` after the lazy AlpacaData quote
   change, which broke `_get_asset_key(quote_asset=None)` in the legacy Alpaca backtest tests.
 - An explicit `AlpacaBacktesting(timestep="minute")` is no longer switched to day bars when

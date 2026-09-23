@@ -2,7 +2,7 @@
 
 One-line description: bring-your-own-key options backtests on Alpaca now work end to end, and the IBKR "same underfilled request every bar" loop seen on 4.5.92 is fixed (it is a latent bug, not a 4.5.92 change).
 
-Last Updated: 2026-09-23 (follow-ups: BACKTESTING_DATA_SOURCE=alpaca path; still-forming bar lookahead)
+Last Updated: 2026-09-23 (follow-ups: BACKTESTING_DATA_SOURCE=alpaca path; still-forming bar lookahead; history before backtesting_start)
 Status: Fixed on `version/4.5.92`, not released
 Audience: LumiBot maintainers, BotSpot release captain, Bot Manager owners
 
@@ -23,8 +23,9 @@ Two pieces of work on `version/4.5.92`:
   loop reproduced on 4.5.91 code, fixed with deterministic tests.
 - Task C: the same options strategy also runs on a customer's own Polygon key (tiny window).
 - Follow-ups: `BACKTESTING_DATA_SOURCE=alpaca` (the BotSpot path) now works with minute bars
-  over the full window, and its history no longer returns the bar that is still forming at the
-  simulated time (a lookahead of up to one bar).
+  over the full window, its history no longer returns the bar that is still forming at the
+  simulated time (a lookahead of up to one bar), and a long lookback at the first bars gets real
+  bars from before `backtesting_start`, like IBKR and ThetaData.
 
 Nothing was released, tagged, published, merged to `dev`, or deployed.
 
@@ -391,10 +392,85 @@ In `tests/test_alpaca_backtesting_multitimeframe_unit.py`:
 - Daily bars are treated as finished only on a later date, so a call after the close (16:00 to
   midnight) still gets the previous session. Conservative; `Data` sources whose daily bars are
   stamped at the close include today's bar from 16:00.
-- The data window starts at `backtesting_start` unless `warm_up_trading_days` is passed, so on
-  the first bar of a backtest there is nothing finished to return (`None`). Before the fix the
-  same call returned the forming bar. IBKR and ThetaData fetch history before the start; see
-  open items.
+- The data window started at `backtesting_start` unless `warm_up_trading_days` was passed, so on
+  the first bar there was nothing finished to return (`None`). Follow-up 3 fixes that.
+
+## Follow-up 3: history before `backtesting_start` (fixed)
+
+### What was wrong
+
+`AlpacaBacktesting` downloads one series per asset and bar size for the data window, which
+started at `backtesting_start` (midnight) unless `warm_up_trading_days` was passed, and BotSpot
+does not pass it. The opening-range strategy that started this work asks at its first bars for
+250 five-minute bars and for 15 daily bars (an ATR(14) filter). On real SPY at 2026-08-03 09:30
+it got 66 of 250 five-minute bars (only that morning's pre-market bars) and the daily request
+raised "Not enough historical data. Requested 15 bars but only 5 available." (the whole window
+held 5 daily bars), which stops the backtest. IBKR and ThetaData backtests fetch the history
+before the start for the request.
+
+### Fix (`lumibot/backtesting/alpaca_backtesting.py`)
+
+- New documented option `history_before_start`: `True` by default in environment mode, `False`
+  with an explicit config (the old window), an explicit value wins in both modes.
+- When a history request needs more finished bars than the loaded series holds at the simulated
+  time, `_reach_back_for_history()` fetches the real bars before the series once and merges them
+  into it. The closed-bar rule is applied after the merge, so nothing still forming is returned.
+- Bounded: `_history_start_needed()` counts trading sessions on the market calendar for `length`
+  bars (1-minute to hourly bars assume the 390-minute session, which over-counts for native
+  multi-minute bars that include extended hours), adds a quarter plus two sessions, and caps a
+  reach at 260 sessions intraday and 2520 daily.
+- Cached: each reach is one segment `[needed start, loaded start)` saved as
+  `<cache>/alpaca/<key>_HISTORY.csv`, an empty segment too. The same requests in a later run read
+  the segments from disk. A new need that goes further back fetches only the missing earlier days.
+- No request loop: a reach already covered, or already tried that day for the same request, never
+  asks Alpaca again, so a new listing or an option before its first trade costs no request per
+  bar. `get_last_price` and the broker's fill lookup never reach back (`_extend_history=False`).
+- Real bars only (RULE #1): segments are not reindexed or filled. Stock and crypto 1-minute bars
+  keep the regular-session minutes of the market calendar, the same minutes the window's minute
+  series holds; daily, native multi-minute and option bars are kept as Alpaca returns them.
+- With history before the start, a request that still cannot be met (a recent listing, a thinly
+  traded option) returns the bars that exist instead of raising "Not enough historical data". An
+  explicit config keeps that error.
+
+### Tests (red first, then green)
+
+In `tests/test_alpaca_backtesting_multitimeframe_unit.py` (the fake Alpaca now also serves five
+weeks before the window, without the 2026-07-03 holiday):
+
+- `test_env_selected_alpaca_history_reaches_back_before_backtesting_start`: a full
+  `backtest(datasource_class=None)` run selected by `BACKTESTING_DATA_SOURCE=alpaca`, asking for
+  250 five-minute and 15 daily bars on every bar. At 09:30 on the first day it gets exactly 250
+  and 15 bars, all from before the start, each equal to a bar the fake served; every bar of the
+  week gets the full history with nothing still forming; exactly one earlier request per series,
+  starting 7 and 21 sessions back (within the margin). Red: "Not enough historical data.
+  Requested 15 bars but only 5 available."
+- `test_explicit_config_alpaca_history_keeps_the_window_unless_asked`: an explicit config still
+  returns only the window's bars and still raises for 15 daily bars, with no earlier request;
+  `history_before_start=True` reaches back. Red: the option was ignored (1 of 250 bars).
+- `test_env_selected_alpaca_option_history_reaches_back_to_real_prints_before_the_start`: at
+  09:35 the option history holds exactly the two real prints from before the start plus the
+  09:31 print; asking again makes no request; a longer request reaches back once for the missing
+  days only and invents nothing; a second run reads everything, the empty segment included, from
+  the disk cache. Red: 1 of 3 prints.
+- `test_env_selected_alpaca_history_never_returns_a_bar_that_closes_after_now` (follow-up 2)
+  asserted `None` at the first bar; it now asserts the prior session's bars.
+
+### Real runs after the fix
+
+`docs/research/2026-09-23-alpaca-options-backtests/history_before_start_2026-09-23.txt`.
+
+- ORB proof, first bar (08-03 09:30): 250 of 250 five-minute bars (from 07-31 04:40) and 15 of 15
+  daily bars (07-13 to 07-31), ATR(14) = 8.40, 0 still forming. Without history before the start:
+  66 of 250 and the "Not enough historical data" error. Three reaches in the run, one request
+  each (5-minute from 07-23, daily from 07-02, and daily from 06-04 for the backtest's own 30-bar
+  dividend and split checks).
+- Every bar compared with raw Alpaca bars requested directly for the same span (250 five-minute,
+  15 daily, 500 one-minute at 09:40): 0 bars missing from the raw data, largest OHLCV difference
+  0.0, 0 still forming.
+- Trades: the ORB proof is identical row for row with and without history before the start (its
+  decisions use the latest few five-minute bars, which the window already held; the probe only
+  logs). The weekly SPY call is identical, 12 trade rows and all 24 decision lines; it makes no
+  history request.
 
 ## Test results
 
@@ -419,6 +495,11 @@ Run with `LUMIBOT_DISABLE_DOTENV_LOCAL=1 LUMIBOT_CACHE_BACKEND=local LUMIBOT_CAC
 | Follow-up 2: `pytest tests/test_backtesting_broker.py tests/test_backtesting_broker_await_close.py tests/test_backtesting_broker_time_advance.py tests/backtest/test_backtesting_broker_processing.py tests/test_strategy_backtest_env_override.py tests/test_get_last_price_sim_time_safety.py tests/test_indicator_temporal_safety.py tests/test_ibkr_crypto_backtesting_smoke_stubbed.py` | 140/140 |
 | Follow-up 2: `pytest tests -k "backtesting_broker or order_lifecycle or options_helper or backtest_lookahead or lookahead" -m "not apitest and not downloader"` | 157 passed, 4 skipped |
 | Follow-up 2: `pytest tests/test_alpaca_backtesting.py` (apitest, paper key) | 38/38 |
+| Follow-up 3: `pytest tests/test_alpaca_backtesting_multitimeframe_unit.py` | 24/24 |
+| Follow-up 3: `pytest tests -k "alpaca or Alpaca" -m "not apitest and not downloader"` | 115 passed, 2 skipped |
+| Follow-up 3: the eight broker, env override and sim-time safety files (as in follow-up 2) | 140/140 |
+| Follow-up 3: `pytest tests -k "backtesting_broker or order_lifecycle or options_helper or backtest_lookahead or lookahead" -m "not apitest and not downloader"` | 157 passed, 4 skipped |
+| Follow-up 3: `pytest tests/test_alpaca_backtesting.py` (apitest, paper key) | 38/38 |
 
 Environment notes: the local `ALPACA_TEST_API_KEY` is revoked (401 on data and trading), so
 the Alpaca apitest file was run with a valid paper key exported as `ALPACA_TEST_API_KEY`.
@@ -457,12 +538,9 @@ Nothing here is released. When a release captain is authorized:
   forming. With an explicit config the documented default `remove_incomplete_current_bar=False`
   still includes it (a lookahead of up to one bar; the 2025 apitests pin that default). Flipping
   the explicit default is a one-line change once those tests are updated deliberately.
-- `AlpacaBacktesting` fetches nothing before `backtesting_start` unless `warm_up_trading_days`
-  is passed, and BotSpot does not pass it. On the first bar a history call returns `None`, and a
-  daily lookback of N bars is short for the first N sessions (a request longer than the whole
-  window raises "Not enough historical data"). IBKR and ThetaData fetch history before the
-  start. Needs its own change: fetch warm-up bars in environment mode, including trading times
-  for the minute reindex.
+- Fixed (follow-up 3): history before `backtesting_start` on the BotSpot path. With an explicit
+  config the window still starts at `backtesting_start` unless `history_before_start=True` or
+  `warm_up_trading_days` is passed.
 - Seen in passing, not verified end to end: the multi-leg SMART_LIMIT fallback
   `BacktestingBroker._fill_multileg_children_at_market_open` passes an integer `timeshift` (bars)
   to `get_historical_prices`. `AlpacaBacktesting` treats `timeshift` as a `timedelta`, so that

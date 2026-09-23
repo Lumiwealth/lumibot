@@ -51,9 +51,15 @@ contract list is fetched from the live endpoint instead; backtests never send or
 History holds finished bars only, the same rule as the IBKR, ThetaData and Polygon backtests.
 Alpaca labels a bar with its start time, so at 10:00 the newest 5-minute bar is the 09:55 bar
 (it closed at 10:00), the newest 1-minute bar is 09:59, and the newest daily bar is
-yesterday's. At the very first bar of a backtest nothing has finished yet, so
-``get_historical_prices()`` returns ``None``. Orders still fill at the open of the bar that
-starts at the current time, and ``get_last_price()`` returns that open.
+yesterday's. Orders still fill at the open of the bar that starts at the current time, and
+``get_last_price()`` returns that open.
+
+History also reaches before ``BACKTESTING_START``, like IBKR and ThetaData. A strategy that asks
+at its first bar for 250 five-minute bars, or for 15 daily bars for an ATR(14) filter, gets
+real bars from the sessions before the start. Each reach is one extra request, sized to the
+request, saved in the Alpaca cache folder so a rerun downloads nothing, and never filled in. If
+a symbol simply has fewer bars (a recent listing, an option that rarely trades), you get the bars
+that exist, so check ``len(bars.df)`` before using a long lookback.
 
 Options example
 ---------------
@@ -111,11 +117,16 @@ With an explicit ``config``, ``AlpacaBacktesting`` keeps its original behavior a
 trading days before ``backtesting_end``. Pass ``full_window=True`` (or select Alpaca from the
 environment as shown above) to run through the end date.
 
+An explicit ``config`` also keeps its data window: history starts at ``backtesting_start`` and a
+request for more bars than the window holds raises "Not enough historical data". Pass
+``history_before_start=True`` to reach back as in environment mode, or ``warm_up_trading_days``
+to download a fixed number of earlier sessions.
+
 An explicit ``config`` also keeps the original ``remove_incomplete_current_bar=False`` default:
 history then includes the bar that is still forming at the simulated time, with its final
 close, high, low and volume (for example today's daily bar at 09:30). In a backtest that is a
 look into the future of up to one bar. Pass ``remove_incomplete_current_bar=True`` to get
-finished bars only:
+finished bars only. With all three options an explicit config behaves like environment mode:
 
 .. code-block:: python
 
@@ -126,6 +137,7 @@ finished bars only:
         timestep="minute",
         config={"API_KEY": "<your-alpaca-key>", "API_SECRET": "<your-alpaca-secret>", "PAPER": True},
         remove_incomplete_current_bar=True,
+        history_before_start=True,
         full_window=True,
     )
 
@@ -157,9 +169,9 @@ Known limits
   ``timestep="minute"`` when fill timing matters.
 - Free keys allow about 200 requests per minute. LumiBot throttles below that and waits on
   HTTP 429 answers before retrying a bounded number of times.
-- Data is downloaded from ``backtesting_start`` onward (pass ``warm_up_trading_days`` to start
-  earlier), so a long lookback has fewer bars than requested in the first sessions of a
-  backtest. Check for ``None`` and for the number of bars you got.
+- One reach before the start covers at most about one year of intraday bars or ten years of
+  daily bars. Alpaca option history starts around February 2024, so option history before that
+  date comes back empty.
 - Daily bars count as finished on the next calendar day, so a call after the 16:00 close still
   returns the previous session as the newest daily bar.
 - On a free key, stock history comes from SIP (all US exchanges), but the latest 15 minutes

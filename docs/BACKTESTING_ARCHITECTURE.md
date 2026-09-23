@@ -609,6 +609,15 @@ df = df[~all_zero]
    apitests pin it). `get_last_price()` and the broker's Alpaca fill branch read the bar that
    starts now with `remove_incomplete_current_bar=False` and use its open, like the Pandas
    branch with `timeshift=-1`. When nothing has finished yet, history returns `None`.
+7. History before `backtesting_start` (2026-09-23). `history_before_start` (True in environment
+   mode, False with an explicit config) lets a history request that needs more finished bars
+   than the loaded series holds fetch the real bars before it: `_reach_back_for_history()` sizes
+   one segment from the market calendar (`_history_start_needed()`: sessions for `length` bars
+   plus a quarter plus two, capped at 260 intraday and 2520 daily), `_history_segment()` fetches
+   it once, caches it as `<key>_HISTORY.csv` (empty ones too) and never fills it; 1-minute stock
+   bars keep the window's regular-session minutes. A reach already covered, or tried that day for
+   the same request, never asks Alpaca again. `get_last_price()` and the broker fill lookup pass
+   `_extend_history=False`. This mirrors how IBKR and ThetaData fetch history for the request.
 
 **Limits:** option history from about February 2024; the contract listing has no as-of date
 (small lookahead in listed strikes); no historical option bid/ask or vendor greeks; free-tier

@@ -8,7 +8,7 @@ import os
 from datetime import datetime, timedelta
 from pathlib import Path
 
-from lumibot.example_strategies.agent_cycle import add_agent, run_cycle
+from lumibot.example_strategies.agent_cycle import add_agent, interpreter_prompt, run_cycle
 from lumibot.strategies.strategy import Strategy
 
 
@@ -36,6 +36,19 @@ and reasons to trade or not trade. Do not claim that an order was submitted.
 """.strip()
 
 
+def build_bear_call_policy(params: dict) -> str:
+    underlying = underlying_label(params)
+    return f"""
+Strategy policy: open a {underlying} bear call spread on today's listed
+expiration. Sell a call near +{params['target_delta']:.2f} delta and buy a
+listed call exactly {params['wing_width']:.0f} points higher. Require a
+positive net credit below the {params['wing_width']:.0f}-point width. Risk about
+{params['max_risk_pct']:.2%} of portfolio value. One contract on a $10,000,
+$100,000, $500,000, or $1,000,000 account is wrong. Never exceed
+{params['max_contracts']} contracts, and do not use the whole account.
+""".strip()
+
+
 def build_trader_prompt(params: dict) -> str:
     underlying = underlying_label(params)
     return f"""
@@ -43,13 +56,10 @@ You are the final validation and trading agent for a {underlying} 0 DTE bear
 call spread. Load the options-trading skill and obey every active Rule.
 
 Review the research, then independently refresh account state, positions, open
-orders, exact contracts, Greeks, and quotes. Trade only a short call near
-+{params['target_delta']:.2f} delta with a listed long call exactly
-{params['wing_width']:.0f} points higher. Require a positive net credit below
-the {params['wing_width']:.0f}-point width. Risk about
-{params['max_risk_pct']:.2%} of portfolio value. One contract on a $10,000,
-$100,000, $500,000, or $1,000,000 account is wrong. Never exceed
-{params['max_contracts']} contracts, and do not use the whole account.
+orders, exact contracts, Greeks, and quotes. Trade only the package the policy
+below allows.
+
+{build_bear_call_policy(params)}
 
 If all conditions pass, call orders_submit_multileg once for one atomic
 multi-leg package. Never submit independent legs. After submission, verify the
@@ -97,7 +107,7 @@ class AISpxZeroDteBearCallTeamStrategy(Strategy):
         add_agent(
             self,
             "interpreter",
-            "Read both cases. Say whether to open one atomic package and what fraction of the risk budget to use. Do not submit orders.",
+            interpreter_prompt("0 DTE bear call spread", build_bear_call_policy(self.parameters)),
             allow_trading=False,
         )
         add_agent(

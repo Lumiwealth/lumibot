@@ -1,5 +1,6 @@
 import json
 from pathlib import Path
+from types import SimpleNamespace
 
 from lumibot.example_strategies.ai_spx_zero_dte_bear_call_team import (
     AISpxZeroDteBearCallTeamStrategy,
@@ -61,6 +62,27 @@ def test_prompts_follow_the_configured_underlying_and_asset_type():
     default = _flat(build_trader_prompt(AISpxZeroDteBearCallTeamStrategy.parameters))
     assert "SPX" in default
     assert "asset type index" in default
+
+
+def test_interpreter_judges_the_configured_spread_against_the_strategy_policy():
+    created = {}
+
+    class _Agents(dict):
+        def create(self, **kwargs):
+            created[kwargs["name"]] = kwargs["system_prompt"]
+
+    spy = {**AISpxZeroDteBearCallTeamStrategy.parameters, "underlying": "SPY", "wing_width": 1}
+    context = SimpleNamespace(agents=_Agents(), parameters=spy)
+    AISpxZeroDteBearCallTeamStrategy.initialize(context)
+
+    interpreter = _flat(created["interpreter"])
+    assert "Strategy policy:" in interpreter
+    assert "SPY" in interpreter and "SPX" not in interpreter
+    assert "exactly 1 points higher" in interpreter
+    assert "maximum loss is larger than its credit" in interpreter
+    assert "name the failed policy condition" in interpreter.lower()
+    assert "do not submit orders" in interpreter.lower()
+    assert "Strategy policy:" in _flat(created["trader"])
 
 
 def test_rules_file_defers_underlying_and_wing_to_strategy_parameters():

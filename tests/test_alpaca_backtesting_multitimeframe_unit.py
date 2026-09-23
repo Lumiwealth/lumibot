@@ -475,7 +475,7 @@ def test_alpaca_option_order_fills_on_the_next_real_print_in_a_full_backtest(mon
     monkeypatch.setattr(alpaca_backtesting, "LUMIBOT_CACHE_FOLDER", tmp_path.as_posix())
     days = ["2026-08-03", "2026-08-04", "2026-08-05", "2026-08-06", "2026-08-07"]
     option_bars = _bars(
-        "SPY260821C00640000",
+        "SPY260821C00650000",
         [
             ("2026-08-03T13:31:00Z", 5.00, 5.10, 4.95, 5.05, 3),  # 09:31, before the order
             ("2026-08-03T13:37:00Z", 5.40, 5.50, 5.35, 5.45, 2),  # 09:37, first print after it
@@ -533,3 +533,256 @@ def test_alpaca_option_order_fills_on_the_next_real_print_in_a_full_backtest(mon
     # No print at 09:35 or 09:36: the order waits for the 09:37 trade and fills at its open.
     assert filled_at.strftime("%Y-%m-%d %H:%M") == "2026-08-03 09:37"
     assert fill_price == 5.40
+
+
+# ---------------------------------------------------------------------------
+# 2026-09-23: AlpacaBacktesting selected ONLY through BACKTESTING_DATA_SOURCE=alpaca.
+#
+# This is how BotSpot runs an Alpaca backtest: the strategy calls
+# backtest(datasource_class=None, ...) without a config or timestep, BotSpot Node sets
+# BACKTESTING_DATA_SOURCE=alpaca and ALPACA_IS_PAPER=true, and the customer's
+# credentials arrive as ALPACA_API_KEY/ALPACA_API_SECRET or ALPACA_OAUTH_TOKEN.
+# Before this change that path could not even build the data source (config=None),
+# defaulted to daily bars and ended the backtest three sessions early.
+# ---------------------------------------------------------------------------
+
+_ENV_WEEK = [date(2026, 8, 3), date(2026, 8, 4), date(2026, 8, 5), date(2026, 8, 6), date(2026, 8, 7)]
+
+
+def _minute_open(day: date, minutes_after_open: int) -> float:
+    # Unique per bar so a test can tell exactly which bar a price came from.
+    return round(600 + _ENV_WEEK.index(day) + minutes_after_open * 0.001, 3)
+
+
+class _FakeStockHistoricalClient:
+    requests = []
+
+    def __init__(self, *args, **kwargs):
+        pass
+
+    def get_stock_bars(self, request):
+        type(self).requests.append(request)
+        # alpaca-py stores request datetimes as naive UTC.
+        start = pd.Timestamp(request.start)
+        start = (start.tz_localize("UTC") if start.tzinfo is None else start).tz_convert(_NY_TZ)
+        end = pd.Timestamp(request.end)
+        end = (end.tz_localize("UTC") if end.tzinfo is None else end).tz_convert(_NY_TZ)
+        amount = int(request.timeframe.amount_value)
+        unit = str(request.timeframe.unit_value.value).lower()
+        rows = []
+        for day in _ENV_WEEK:
+            if unit.startswith("day"):
+                ts = _NY_TZ.localize(datetime.combine(day, datetime.min.time()))
+                if start <= ts <= end:
+                    o = _minute_open(day, 0)
+                    rows.append((ts, o, o + 1, o - 1, o + 0.5, 1_000_000))
+                continue
+            step = amount * (60 if unit.startswith("hour") else 1)
+            for minute in range(0, 390, step):
+                ts = _NY_TZ.localize(datetime.combine(day, datetime.min.time()).replace(hour=9, minute=30)) + timedelta(minutes=minute)
+                if start <= ts <= end:
+                    o = _minute_open(day, minute)
+                    rows.append((ts, o, o + 0.01, o - 0.01, o, 1000))
+        return _bars(
+            request.symbol_or_symbols,
+            [(ts.astimezone(pytz.UTC).strftime("%Y-%m-%dT%H:%M:%SZ"), o, h, l, c, v) for ts, o, h, l, c, v in rows],
+        )
+
+
+class _FakeOptionHistoricalClient:
+    barsets = {}
+    requests = []
+
+    def __init__(self, *args, **kwargs):
+        pass
+
+    def get_option_bars(self, request):
+        type(self).requests.append(request)
+        return type(self).barsets.get(request.symbol_or_symbols, BarSet({}))
+
+
+class _FakeCryptoHistoricalClient:
+    def __init__(self, *args, **kwargs):
+        pass
+
+
+def _select_alpaca_through_environment(monkeypatch, tmp_path):
+    import lumibot.backtesting.alpaca_backtesting as alpaca_backtesting
+
+    monkeypatch.setenv("BACKTESTING_DATA_SOURCE", "alpaca")
+    monkeypatch.setenv("ALPACA_API_KEY", "env-key")
+    monkeypatch.setenv("ALPACA_API_SECRET", "env-secret")
+    monkeypatch.setenv("ALPACA_IS_PAPER", "true")
+    for name in ("ALPACA_OAUTH_TOKEN", "BACKTESTING_START", "BACKTESTING_END"):
+        monkeypatch.delenv(name, raising=False)
+    monkeypatch.setattr(alpaca_backtesting, "LUMIBOT_CACHE_FOLDER", tmp_path.as_posix())
+    monkeypatch.setattr(alpaca_backtesting, "StockHistoricalDataClient", _FakeStockHistoricalClient)
+    monkeypatch.setattr(alpaca_backtesting, "OptionHistoricalDataClient", _FakeOptionHistoricalClient)
+    monkeypatch.setattr(alpaca_backtesting, "CryptoHistoricalDataClient", _FakeCryptoHistoricalClient)
+    _FakeStockHistoricalClient.requests = []
+    _FakeOptionHistoricalClient.requests = []
+    _FakeOptionHistoricalClient.barsets = {}
+
+
+_ENV_RUN_KWARGS = dict(
+    datasource_class=None,  # the BotSpot template: the environment picks the source
+    backtesting_start=_NY_TZ.localize(datetime(2026, 8, 3)),
+    backtesting_end=_NY_TZ.localize(datetime(2026, 8, 8)),
+    benchmark_asset=None,
+    analyze_backtest=False,
+    show_plot=False,
+    save_tearsheet=False,
+    show_tearsheet=False,
+    show_progress_bar=False,
+    budget=10_000,
+)
+
+
+def test_env_selected_alpaca_runs_intraday_minute_bars_over_the_full_window(monkeypatch, tmp_path):
+    from lumibot.strategies import Strategy
+
+    _select_alpaca_through_environment(monkeypatch, tmp_path)
+
+    class FiveMinuteProbe(Strategy):
+        def initialize(self):
+            self.sleeptime = "5M"
+            self.vars.seen = []
+            self.vars.fills = []
+
+        def on_trading_iteration(self):
+            now = self.get_datetime()
+            bars = self.get_historical_prices("SPY", 3, "5minute")
+            self.vars.seen.append((now, bars.df.index[-1] if bars is not None else None, self.get_last_price("SPY")))
+            if len(self.vars.seen) == 3:
+                self.submit_order(self.create_order("SPY", 1, "buy"))
+
+        def on_filled_order(self, position, order, price, quantity, multiplier):
+            self.vars.fills.append((self.get_datetime(), float(price)))
+
+    _results, strategy = FiveMinuteProbe.run_backtest(**_ENV_RUN_KWARGS)
+
+    source = strategy.broker.data_source
+    assert isinstance(source, AlpacaBacktesting)
+    assert source._timestep == "minute"
+    seen_days = sorted({now.date() for now, _bar, _price in strategy.vars.seen})
+    # Every requested session, not the old stop at the open of the third-to-last one.
+    assert seen_days == _ENV_WEEK
+    by_time = {now.strftime("%Y-%m-%d %H:%M"): (bar, price) for now, bar, price in strategy.vars.seen}
+    # Minute resolution: the last price at 10:00 is the 10:00 minute bar, not the day's open.
+    assert float(by_time["2026-08-04 10:00"][1]) == _minute_open(date(2026, 8, 4), 30)
+    assert by_time["2026-08-04 10:00"][0] == _NY_TZ.localize(datetime(2026, 8, 4, 10, 0))
+    # The market order submitted at 09:40 fills on the 09:40 minute bar.
+    assert strategy.vars.fills == [(_NY_TZ.localize(datetime(2026, 8, 3, 9, 40)), _minute_open(date(2026, 8, 3), 10))]
+    assert {str(r.timeframe) for r in _FakeStockHistoricalClient.requests} >= {"1Min", "5Min"}
+
+
+def test_env_selected_alpaca_daily_strategy_keeps_daily_bars(monkeypatch, tmp_path):
+    from lumibot.strategies import Strategy
+
+    _select_alpaca_through_environment(monkeypatch, tmp_path)
+
+    class DailyProbe(Strategy):
+        def initialize(self):
+            self.sleeptime = "1D"
+            self.vars.days = []
+
+        def on_trading_iteration(self):
+            self.vars.days.append(self.get_datetime().date())
+            self.get_last_price("SPY")
+
+    _results, strategy = DailyProbe.run_backtest(**_ENV_RUN_KWARGS)
+
+    assert strategy.broker.data_source._timestep == "day"
+    assert strategy.vars.days == _ENV_WEEK
+    # A daily strategy does not download minute history it never uses.
+    assert {str(r.timeframe) for r in _FakeStockHistoricalClient.requests} == {"1Day"}
+
+
+def test_env_selected_alpaca_options_fill_on_real_prints(monkeypatch, tmp_path):
+    import alpaca.trading.client as trading_client_module
+
+    from lumibot.strategies import Strategy
+
+    _select_alpaca_through_environment(monkeypatch, tmp_path)
+    monkeypatch.setattr(
+        trading_client_module, "TradingClient", lambda *args, **kwargs: _FakeTradingClient(_spy_contract_pages())
+    )
+    _FakeOptionHistoricalClient.barsets = {
+        "SPY260821C00650000": _bars(
+            "SPY260821C00650000",
+            [
+                ("2026-08-03T13:31:00Z", 5.00, 5.10, 4.95, 5.05, 3),
+                ("2026-08-03T13:37:00Z", 5.40, 5.50, 5.35, 5.45, 2),
+            ],
+        )
+    }
+
+    class BuyOneCall(Strategy):
+        def initialize(self):
+            self.sleeptime = "1M"
+            self.vars.done = False
+            self.vars.fills = []
+
+        def on_trading_iteration(self):
+            now = self.get_datetime()
+            if not self.vars.done and (now.hour, now.minute) >= (9, 35):
+                strikes = self.get_chains(Asset("SPY"))["Chains"]["CALL"]["2026-08-21"]
+                contract = Asset(
+                    "SPY", asset_type=Asset.AssetType.OPTION, expiration=date(2026, 8, 21), strike=strikes[0], right="CALL"
+                )
+                self.submit_order(self.create_order(contract, 1, "buy"))
+                self.vars.done = True
+
+        def on_filled_order(self, position, order, price, quantity, multiplier):
+            self.vars.fills.append((self.get_datetime().strftime("%Y-%m-%d %H:%M"), float(price)))
+
+    _results, strategy = BuyOneCall.run_backtest(**_ENV_RUN_KWARGS)
+
+    assert strategy.vars.fills == [("2026-08-03 09:37", 5.40)]
+
+
+def test_alpaca_contract_listing_falls_back_to_the_other_trading_endpoint_on_401(monkeypatch, tmp_path):
+    """BotSpot always sends ALPACA_IS_PAPER=true; a live-account key is refused by paper-api."""
+    import alpaca.trading.client as trading_client_module
+
+    unauthorized = APIError(
+        '{"message": "unauthorized."}',
+        http_error=SimpleNamespace(response=SimpleNamespace(status_code=401, headers={}), request=None),
+    )
+    endpoints = []
+
+    def trading_client_factory(*args, paper=True, **kwargs):
+        endpoints.append(paper)
+        return _FakeTradingClient(_spy_contract_pages(), failures=[unauthorized] if paper else [])
+
+    monkeypatch.setattr(trading_client_module, "TradingClient", trading_client_factory)
+    source = _alpaca_source(monkeypatch, tmp_path)
+    source._trading_client = None
+    source._datetime = _NY_TZ.localize(datetime(2026, 8, 3, 9, 30))
+
+    chains = source.get_chains(Asset("SPY"))
+
+    assert chains["Chains"]["CALL"]["2026-08-07"] == [640.0, 645.0]
+    assert endpoints == [True, False]
+
+
+def test_alpaca_history_request_never_asks_for_the_latest_15_minutes(monkeypatch, tmp_path):
+    """Free keys refuse recent SIP data, and a window clamped to now used to ask for tomorrow."""
+    now = datetime.now(pytz.UTC)
+    source = _alpaca_source(
+        monkeypatch,
+        tmp_path,
+        start=(now - timedelta(days=5)).astimezone(_NY_TZ).replace(tzinfo=None),
+        end=now.astimezone(_NY_TZ).replace(tzinfo=None),
+    )
+    _client, request = source._history_request(
+        base_asset=Asset("SPY"),
+        quote_asset=Asset("USD", asset_type="forex"),
+        timestep="minute",
+        data_datetime_start=source._data_datetime_start,
+        data_datetime_end=source._data_datetime_end,
+        auto_adjust=True,
+    )
+    end = pd.Timestamp(request.end)
+    end = end.tz_localize("UTC") if end.tzinfo is None else end  # the SDK stores naive UTC
+    assert end <= pd.Timestamp(now) - pd.Timedelta(minutes=15)

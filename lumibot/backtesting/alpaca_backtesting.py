@@ -128,8 +128,10 @@ class AlpacaBacktesting(DataSourceBacktesting):
             datetime_start (tz aware datetime): The starting datetime for the backtesting process. Inclusive.
             datetime_end (tz aware datetime): The ending datetime for the backtesting process. Inclusive.
             backtesting_started (datetime | None): Represents the datetime when backtesting started. Defaults to None.
-            config (dict | None): Configuration dictionary containing required API keys and account details.
-                Cannot be None as it's critical for API connections.
+            config (dict | None): API_KEY/API_SECRET or OAUTH_TOKEN, PAPER and optional MARKET. When None
+                ("environment mode", how BotSpot selects this source through BACKTESTING_DATA_SOURCE=alpaca),
+                credentials are read from ALPACA_API_KEY, ALPACA_API_SECRET, ALPACA_OAUTH_TOKEN and
+                ALPACA_IS_PAPER, bars default to minute, and the backtest runs through backtesting_end.
             api_key (str | None): API key for authorized data access. Optional as it can typically be found 
                 within the provided config.
             show_progress_bar (bool): Indicates whether to show a progress bar during data operations. 
@@ -139,7 +141,12 @@ class AlpacaBacktesting(DataSourceBacktesting):
             pandas_data (dict | list): Data to be loaded directly into pandas, allowing analysis or backtesting 
                 without requiring external API calls.
             **kwargs: Additional keyword arguments, such as:
-                - timestep (str): Interval for data ("day" or "minute"). Defaults to "day".
+                - timestep (str): Interval for data ("day" or "minute"). Defaults to "day" with an explicit
+                  config and to "minute" in environment mode. A default (not explicit) timestep is switched to
+                  "day" for strategies that sleep a day or more.
+                - full_window (bool): Run through backtesting_end. Defaults to True in environment mode and to
+                  False (the legacy stop at the open of the third-to-last trading day) with an explicit config.
+                - option_chain_max_days (int): get_chains() horizon when no expiration hint is set. Default 90.
                 - refresh_cache (bool): Whether to force cache refresh. Defaults to False.
                 - warm_up_trading_days (int): The number of trading days used for warm-up before processing 
                   the primary dataset. Defaults to 0.
@@ -152,12 +159,13 @@ class AlpacaBacktesting(DataSourceBacktesting):
                   what most Alpaca users expect so the default is False (leave incomplete bar in the data).
 
         Raises:
-            ValueError: If the `config` argument is None or lacks a valid paper account setup.
+            ValueError: If the credentials are missing or the config is not a paper account.
 
         """
         self._datetime = None
 
-        # Call the base class.
+        # Call the base class. Forward the progress-file settings run_backtest passes so hosted
+        # runs (BotSpot) get the same progress.csv as every other backtesting source.
         super().__init__(
             datetime_start=datetime_start,
             datetime_end=datetime_end,
@@ -165,7 +173,19 @@ class AlpacaBacktesting(DataSourceBacktesting):
             show_progress_bar=show_progress_bar,
             delay=delay,
             pandas_data=None,
+            log_backtest_progress_to_file=kwargs.get("log_backtest_progress_to_file", False),
+            progress_csv_path=kwargs.get("progress_csv_path"),
         )
+
+        # Environment mode: no config was passed, so credentials come from the process
+        # environment. This is how BotSpot runs Alpaca backtests: the strategy calls
+        # backtest(datasource_class=None), BotSpot Node sets BACKTESTING_DATA_SOURCE=alpaca and
+        # ALPACA_IS_PAPER=true, and the customer's ALPACA_API_KEY/ALPACA_API_SECRET or
+        # ALPACA_OAUTH_TOKEN are injected. Before 2026-09-23 config=None raised, so no existing
+        # caller depends on the defaults below.
+        environment_mode = config is None
+        if environment_mode:
+            config = self._config_from_environment()
 
         self.market = (
                 kwargs.get("market", None)
@@ -174,10 +194,15 @@ class AlpacaBacktesting(DataSourceBacktesting):
                 or "NASDAQ"
         )
 
-        self._timestep: str = kwargs.get('timestep', 'day')
+        explicit_timestep = kwargs.get('timestep')
+        # Environment mode defaults to minute bars so intraday strategies (5-minute opening range
+        # breakouts, for example) get minute prices and minute fills. A daily-cadence strategy is
+        # still switched to day bars by StrategyExecutor because the default is not explicit.
+        # With an explicit config the historical default stays "day".
+        self._timestep: str = explicit_timestep or ('minute' if environment_mode else 'day')
         # The caller chose the bar size. StrategyExecutor's daily-cadence priming (4.4.53)
         # must not silently switch an explicit timestep="minute" to day bars.
-        self._timestep_explicit = kwargs.get('timestep') is not None
+        self._timestep_explicit = explicit_timestep is not None
         warm_up_trading_days: int = kwargs.get('warm_up_trading_days', 0)
 
         self._auto_adjust: bool = kwargs.get('auto_adjust', True)
@@ -187,8 +212,6 @@ class AlpacaBacktesting(DataSourceBacktesting):
         self._refresh_cache: bool = kwargs.get('refresh_cache', False)
         self._remove_incomplete_current_bar = kwargs.get('remove_incomplete_current_bar', False)
 
-        if config is None:
-            raise ValueError("Config cannot be None. Please provide a valid configuration.")
         if not config.get("PAPER", True):
             raise ValueError("Backtesting is restricted to paper accounts. Pass in a paper account config.")
 
@@ -287,20 +310,22 @@ class AlpacaBacktesting(DataSourceBacktesting):
             tzinfo=self.tzinfo
         )
 
-        # I think lumibot's got a bug in the strategy_executor when backtesting daily strategies.
-        # After the backtest is over, it calls on_market_close() which calls get_last_price.
-        # So if you run the backtest until the last day of data, lumibot will crash when it tries to calculate
-        # the portfolio value. To avoid that crash (and because im avoiding dealing with people complaining about
-        # backtest behavior changing if i fix it) im just hacking this so the backtest ends before the data runs out.
-        if self._timestep == 'day':
-            end_shift = -3
-        else:
-            end_shift = -3
+        full_window = kwargs.get('full_window')
+        if full_window is None:
+            full_window = environment_mode
+        self._full_window = bool(full_window)
 
-        # stop backtesting before the last trading date of the backtest
-        # so there's one day of data the backtester has to calculate all its stuff.
-        last_trading_day = self._trading_days.iloc[end_shift]['market_open']
-        self.datetime_end = last_trading_day
+        if not self._full_window:
+            # Legacy behavior for an explicit config (kept for existing scripts and the legacy
+            # tests): stop at the open of the third-to-last trading day. The original comment:
+            # "lumibot crashed calculating portfolio value after the last day of data, so the
+            # backtest ends before the data runs out". Environment mode and full_window=True run
+            # through backtesting_end like every other source (the base class already set
+            # datetime_end to backtesting_end minus one minute), and the data window covers the
+            # whole end date.
+            end_shift = -3
+            last_trading_day = self._trading_days.iloc[end_shift]['market_open']
+            self.datetime_end = last_trading_day
 
         self.datetime_start = start_dt
         self._datetime = self.datetime_start
@@ -593,6 +618,46 @@ class AlpacaBacktesting(DataSourceBacktesting):
     def _is_option(asset) -> bool:
         return str(getattr(asset, "asset_type", "")).lower() == "option"
 
+    @staticmethod
+    def _config_from_environment() -> dict:
+        """Alpaca credentials from the environment, the variables BotSpot and Bot Manager set."""
+        paper_raw = os.environ.get("ALPACA_IS_PAPER")
+        return {
+            "API_KEY": (os.environ.get("ALPACA_API_KEY") or "").strip() or None,
+            "API_SECRET": (os.environ.get("ALPACA_API_SECRET") or "").strip() or None,
+            "OAUTH_TOKEN": (os.environ.get("ALPACA_OAUTH_TOKEN") or "").strip() or None,
+            "PAPER": True if paper_raw is None else paper_raw.strip().lower() in ("true", "1", "yes", "y", "on"),
+        }
+
+    @staticmethod
+    def _is_unauthorized(exc: Exception) -> bool:
+        status = getattr(exc, "status_code", None)
+        if status is None:
+            status = getattr(getattr(exc, "response", None), "status_code", None)
+        if status in (401, 403):
+            return True
+        text = str(exc).lower()
+        return "unauthorized" in text or "forbidden" in text
+
+    def _switch_trading_endpoint(self):
+        """Use the other Trading API endpoint (paper vs live) for the read-only contract list.
+
+        BotSpot always sends ALPACA_IS_PAPER=true, but a customer's connection can hold a live
+        key, which paper-api rejects with 401 (and a paper key is rejected by the live API).
+        Both endpoints serve the same contract master list. Backtests never send orders.
+        """
+        creds = self._state("_alpaca_credentials", dict)
+        creds["paper"] = not bool(creds.get("paper", True))
+        self._trading_endpoint_switched = True
+        self._trading_client = None
+        logger.info(
+            "Alpaca Trading API rejected this key on the %s endpoint; listing option contracts from the %s "
+            "endpoint instead (read-only; backtests never send orders to Alpaca).",
+            "live" if creds["paper"] else "paper",
+            "paper" if creds["paper"] else "live",
+        )
+        return self._get_trading_client()
+
     def _state(self, name, factory):
         """Per-instance state that also exists on instances built without __init__ (tests)."""
         value = self.__dict__.get(name)
@@ -748,11 +813,21 @@ class AlpacaBacktesting(DataSourceBacktesting):
                     limit=int(self.OPTION_CONTRACTS_PAGE_LIMIT),
                     page_token=page_token,
                 )
-                response = self._alpaca_request(
-                    client.get_option_contracts,
-                    request,
-                    what=f"{symbol} option contracts ({status.value})",
-                )
+                try:
+                    response = self._alpaca_request(
+                        client.get_option_contracts,
+                        request,
+                        what=f"{symbol} option contracts ({status.value})",
+                    )
+                except Exception as exc:
+                    if not self._is_unauthorized(exc) or self.__dict__.get("_trading_endpoint_switched"):
+                        raise
+                    client = self._switch_trading_endpoint()
+                    response = self._alpaca_request(
+                        client.get_option_contracts,
+                        request,
+                        what=f"{symbol} option contracts ({status.value})",
+                    )
                 for contract in getattr(response, "option_contracts", None) or []:
                     parsed = self._parse_option_contract(contract, root)
                     if parsed is not None:
@@ -1064,6 +1139,12 @@ class AlpacaBacktesting(DataSourceBacktesting):
     ):
         """Return the Alpaca client and bar request for this asset."""
         end = data_datetime_end + timedelta(days=1)
+        # A window that reaches today (for example an end clamped to "now") used to ask for
+        # tomorrow. Free keys refuse the latest 15 minutes of SIP data ("subscription does not
+        # permit querying recent SIP data") and there are no bars after now anyway.
+        latest_allowed = datetime.now(pytz.UTC) - timedelta(minutes=16)
+        if end > latest_allowed:
+            end = max(latest_allowed, data_datetime_start + timedelta(minutes=1))
         timeframe = self._get_alpaca_timeframe(timestep)
         asset_type = str(getattr(base_asset, "asset_type", "")).lower()
         if asset_type == "crypto":

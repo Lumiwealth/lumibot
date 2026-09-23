@@ -1508,6 +1508,67 @@ def _bind_options_find_strike_for_delta(strategy: Any, manager: Any) -> BoundToo
     )
 
 
+_BACKTEST_LAST_TRADE_NOTE = (
+    "This backtest data source provides option trade bars but no bid/ask history. buy_price and sell_price are the "
+    "last traded price, and backtest option legs fill from those real trade bars, so they are usable anchors for "
+    "limit pricing. Spread-width checks cannot be applied without bid/ask."
+)
+_LIVE_LAST_TRADE_NOTE = (
+    "No current bid/ask is available. The last traded price may be stale, so do not price a live order from it."
+)
+
+
+def _option_price_basis(strategy: Any, evaluation: Any) -> dict[str, Any]:
+    if getattr(evaluation, "has_bid_ask", False):
+        return {
+            "price_basis": "bid_ask",
+            "usable_for_limit_pricing": getattr(evaluation, "buy_price", None) is not None,
+            "price_basis_note": "Prices come from the current bid/ask quote.",
+        }
+    if getattr(evaluation, "used_last_price_fallback", False):
+        backtesting = bool(getattr(strategy, "is_backtesting", False))
+        return {
+            "price_basis": "last_trade",
+            "usable_for_limit_pricing": backtesting,
+            "price_basis_note": _BACKTEST_LAST_TRADE_NOTE if backtesting else _LIVE_LAST_TRADE_NOTE,
+        }
+    return {
+        "price_basis": "none",
+        "usable_for_limit_pricing": False,
+        "price_basis_note": "No bid/ask or last trade is available for this contract.",
+    }
+
+
+def _backtest_last_trade_multileg_price(strategy: Any, orders: list[Any]) -> float | None:
+    """Per-unit net price from each leg's bid/ask mid or last trade, for trade-only backtest data."""
+    if not getattr(strategy, "is_backtesting", False):
+        return None
+    helper = _options_helper_for_strategy(strategy)
+    total = 0.0
+    for order in orders:
+        evaluation = helper.evaluate_option_market(order.asset)
+        if evaluation.has_bid_ask and evaluation.bid is not None and evaluation.ask is not None:
+            price = (float(evaluation.bid) + float(evaluation.ask)) / 2
+        elif evaluation.used_last_price_fallback and evaluation.last_price is not None:
+            price = float(evaluation.last_price)
+        else:
+            return None
+        if not math.isfinite(price) or price <= 0:
+            return None
+        total += price if order.is_buy_order() else -price
+    return total
+
+
+def _resolve_multileg_net_price(strategy: Any, orders: list[Any], price_style: str) -> tuple[float | None, str]:
+    net_price = _options_helper_for_strategy(strategy).calculate_multileg_limit_price(orders, price_style)
+    if net_price is not None:
+        return float(net_price), "bid_ask"
+    fallback = _backtest_last_trade_multileg_price(strategy, orders)
+    if fallback is not None:
+        return fallback, "last_trade"
+    return None, "none"
+
+
 def _bind_options_evaluate_market(strategy: Any, manager: Any) -> BoundTool:
     def evaluate_market(
         *,
@@ -1528,18 +1589,21 @@ def _bind_options_evaluate_market(strategy: Any, manager: Any) -> BoundTool:
             option,
             max_spread_pct=max_spread_pct,
         )
+        market = _jsonable(vars(evaluation))
+        market.update(_option_price_basis(strategy, evaluation))
         return {
             "asset": _asset_to_dict(option),
-            "market": _jsonable(vars(evaluation)),
+            "market": market,
             "datetime": strategy.get_datetime().isoformat(),
         }
 
     return BoundTool(
         name="options_evaluate_market",
         description=(
-            "Inspect executable quote quality for one exact option contract and return bid, ask, last, spread percentage, suggested buy/sell prices, and data-quality flags. "
+            "Inspect executable quote quality for one exact option contract and return bid, ask, last, spread percentage, suggested buy/sell prices, data-quality flags, price_basis, and usable_for_limit_pricing. "
             "Arguments: symbol, expiration, strike, right, optional max_spread_pct as a fraction such as 0.20 for 20 percent. "
-            "Call this for every proposed leg before submitting a multi-leg order. Do not trade a contract whose response says the market is unavailable or unacceptably wide under your policy. "
+            "Call this for every proposed leg before submitting a multi-leg order. Do not trade a contract whose usable_for_limit_pricing is false or whose market is unacceptably wide under your policy. "
+            "price_basis='last_trade' with usable_for_limit_pricing=true means a trade-only backtest data source: missing bid/ask alone is not a reason to refuse; follow price_basis_note. "
             "Example: options_evaluate_market(symbol='SPY', expiration='2026-09-18', strike=650, right='call', max_spread_pct=0.20)."
         ),
         function=evaluate_market,
@@ -1554,19 +1618,20 @@ def _bind_options_calculate_multileg_price(strategy: Any, manager: Any) -> Bound
         price_style: Literal["best", "mid", "fastest"] = "mid",
     ) -> dict[str, Any]:
         orders = _parse_option_legs(strategy, legs_json)
-        net_price = _options_helper_for_strategy(strategy).calculate_multileg_limit_price(orders, price_style)
+        net_price, price_basis = _resolve_multileg_net_price(strategy, orders, price_style)
         if net_price is None:
             return {
                 "available": False,
                 "price_style": price_style,
+                "price_basis": price_basis,
                 "net_limit_price": None,
                 "legs": [_order_to_dict(order) for order in orders],
             }
-        net_price = float(net_price)
         order_type = "debit" if net_price > 0 else "credit" if net_price < 0 else "even"
         return {
             "available": True,
             "price_style": price_style,
+            "price_basis": price_basis,
             "net_limit_price": net_price,
             "order_type": order_type,
             "broker_price": abs(net_price),
@@ -1584,6 +1649,7 @@ def _bind_options_calculate_multileg_price(strategy: Any, manager: Any) -> Bound
             "Never price a close with buy_to_close for a positive quantity or sell_to_close for a negative quantity because those sides do not close the observed position. "
             "When comparing a per-unit multi-leg opening credit with a per-unit closing debit, price one contract per leg here. Use the full absolute position quantities only in the later orders_submit_multileg call. "
             "Independently reconcile the returned net price from the four option midpoint values you just observed. For a defined-risk structure, reject a result that conflicts materially with those leg mids or violates the structure's economic bounds. "
+            "price_basis='last_trade' means a trade-only backtest priced each leg from its last traded price; reconcile against the leg last prices instead of mids. "
             'Example legs_json: [{"symbol":"SPY","expiration":"2026-09-18","strike":620,"right":"put","quantity":1,"side":"buy_to_open"},{"symbol":"SPY","expiration":"2026-09-18","strike":625,"right":"put","quantity":1,"side":"sell_to_open"}].'
         ),
         function=calculate_multileg_price,
@@ -3832,18 +3898,20 @@ def _bind_submit_multileg_order(strategy: Any, manager: Any) -> BoundTool:
             "duration": time_in_force,
         }
         resolved_net_price: float | None = None
+        price_basis = "agent"
         if price_style == "market":
             if net_limit_price is not None:
                 raise ValueError("net_limit_price cannot be used when price_style='market'.")
             submit_kwargs["order_type"] = "market"
+            price_basis = "market"
         else:
             if net_limit_price is None:
-                calculated = _options_helper_for_strategy(strategy).calculate_multileg_limit_price(orders, price_style)
+                calculated, price_basis = _resolve_multileg_net_price(strategy, orders, price_style)
                 if calculated is None:
                     raise ValueError(
                         "Unable to calculate a multi-leg limit price from the current quotes. Evaluate every leg or use price_style='market' only if your trading policy permits it."
                     )
-                resolved_net_price = float(calculated)
+                resolved_net_price = calculated
             else:
                 resolved_net_price = float(net_limit_price)
                 if not math.isfinite(resolved_net_price):
@@ -3859,6 +3927,7 @@ def _bind_submit_multileg_order(strategy: Any, manager: Any) -> BoundTool:
             "submitted": [_order_to_dict(order) for order in submitted_orders if order is not None],
             "legs": [_order_to_dict(order) for order in orders],
             "price_style": price_style,
+            "price_basis": price_basis,
             "net_limit_price": resolved_net_price,
             "order_type": submit_kwargs["order_type"],
             "time_in_force": time_in_force,

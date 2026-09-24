@@ -266,7 +266,8 @@ Working with the Result
 - ``result.warning_messages`` -- list of observability warnings
 - ``result.tool_calls`` -- list of tool call events
 - ``result.tool_results`` -- list of tool result events
-- ``(result.payload or {}).get("trace_path")`` -- path to the full JSON trace
+- ``(result.payload or {}).get("trace_path")`` -- path to one call's JSON trace
+- ``*_agent_detail.parquet`` -- the table for the whole run, next to the tear sheet in a backtest, or under ``~/Library/Caches/lumibot/1.0/agent_runtime/`` on macOS for live and paper. The ``call_summary`` row includes ``effective_system_prompt``. Raising ``LUMIBOT_LOG_LEVEL`` does not create this file. See :doc:`agents_observability`.
 
 .. code-block:: python
 

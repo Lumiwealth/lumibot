@@ -284,9 +284,11 @@ How do I debug an AI agent's decisions?
 LumiBot provides a full observability system:
 
 1. **Summary log lines** -- every run emits agent name, model, cache status, tool count, and summary
-2. **Structured JSON traces** -- the full record of prompts, tool calls, results, and reasoning
+2. **``*_agent_detail.parquet``** -- the table to query. A backtest writes it next to the tear sheet. On macOS, live and paper write it under ``~/Library/Caches/lumibot/1.0/agent_runtime/``. Set ``LUMIBOT_CACHE_FOLDER`` before importing lumibot to move it. The ``call_summary`` row has ``effective_system_prompt``.
 3. **Warning system** -- flags suspicious conditions (no tools called, future-dated data, unsupported orders)
-4. Access the trace path via ``(result.payload or {}).get("trace_path")``
+4. Access one call's JSON trace via ``(result.payload or {}).get("trace_path")``
+
+Raising ``LUMIBOT_LOG_LEVEL`` only changes printed logs. It does not store the prompt or the tool calls.
 
 See :doc:`agents_observability` for the complete debugging workflow.
 

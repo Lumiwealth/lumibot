@@ -431,7 +431,7 @@ In backtesting mode, LumiBot caches every agent run keyed by a SHA-256 hash of t
 
 **How do I clear the cache for a fresh run?**
 
-Delete the replay cache directory. On macOS the default location is ``~/Library/Caches/lumibot/agent_runtime/replay/``. You can also set the ``LUMIBOT_CACHE_FOLDER`` environment variable to control where caches are stored. After clearing, the next run will make fresh LLM and tool calls.
+Delete the replay cache directory. On macOS the default location is ``~/Library/Caches/lumibot/1.0/agent_runtime/replay/``. Set ``LUMIBOT_CACHE_FOLDER`` before importing lumibot to store caches somewhere else. After clearing, the next run will make fresh LLM and tool calls.
 
 **How long does a backtest take?**
 
@@ -447,19 +447,19 @@ Set ``datasource_class=None`` to use the data source from your ``.env`` file (vi
 
 **How do I see what the agent is doing?**
 
-Every agent run emits a compact summary log line with the agent name, model, cache status, tool call count, warning count, and the agent's summary conclusion. For deeper inspection, open the structured JSON trace file. See :doc:`agents_observability` for the full debugging workflow.
+Every agent run emits a compact summary log line with the agent name, model, cache status, tool call count, warning count, and the agent's summary conclusion. The queryable record is ``*_agent_detail.parquet``. The ``call_summary`` row includes ``effective_system_prompt``. Raising ``LUMIBOT_LOG_LEVEL`` only changes printed logs. See :doc:`agents_observability` for the full debugging workflow.
 
 **What are agent traces?**
 
-Traces are structured JSON files that record everything the agent did during a single run: the full prompt surface, every tool call with arguments, every tool result, the agent's reasoning and summary, observability warnings, cache hit/miss status, and DuckDB query metrics. They are the source of truth for debugging.
+``*_agent_detail.parquet`` is one table for the whole run: a ``call_summary`` row per AI call, plus rows for thinking, text, tool calls, and tool results. A JSON trace is also written per call. Both record the prompt (``effective_system_prompt``), every tool call and result, the summary, warnings, and cache status.
 
 **Where are trace files stored?**
 
-Trace files are stored in the LumiBot cache directory under ``agent_runtime/``. The trace path is available on the result object via ``(result.payload or {}).get("trace_path")``. Machine-readable summaries are also written to ``agent_run_summaries.jsonl``.
+A backtest writes ``*_agent_detail.parquet`` next to the tear sheet. Live and paper files are under ``~/Library/Caches/lumibot/1.0/agent_runtime/`` on macOS. Set ``LUMIBOT_CACHE_FOLDER`` before importing lumibot to move that folder. The per-call JSON path is ``(result.payload or {}).get("trace_path")``. Summaries are also written to ``agent_run_summaries.jsonl``. ``LUMIBOT_LOG_LEVEL`` does not change either location.
 
 **How do I debug a bad trade?**
 
-Open the trace JSON for the run where the bad trade occurred. Check what tools the agent called, what data it received, and what reasoning it stated. Look for observability warnings (future-dated data, no tools called, unsupported orders). Compare the agent's summary to the actual trade. See :doc:`agents_observability` for the recommended debugging workflow.
+Open ``*_agent_detail.parquet`` for that run and read ``effective_system_prompt``, the tool rows, and the summary. Look for warnings (future-dated data, no tools called, unsupported orders). Compare the summary to the trade. See :doc:`agents_observability`. Raising ``LUMIBOT_LOG_LEVEL`` will not add this record.
 
 **Why is my agent not trading?**
 

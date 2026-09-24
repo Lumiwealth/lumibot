@@ -99,6 +99,26 @@ def test_docs_never_link_withdrawn_marketplace_listings():
         assert "assets/ai-trading-team-backtests/" not in text, page.name
 
 
+def test_agent_docs_name_the_parquet_audit_and_versioned_cache():
+    # Discord, 2026-09-23: people raised LUMIBOT_LOG_LEVEL and wrote a custom
+    # LiteLLM logger because these pages said the only record was a JSON file
+    # under an unversioned agent_runtime folder.
+    pages = (
+        REPO_ROOT / "docsrc" / "agents_observability.rst",
+        REPO_ROOT / "docsrc" / "agents.rst",
+        REPO_ROOT / "docsrc" / "faq.rst",
+        REPO_ROOT / "docsrc" / "agents_quickstart.rst",
+        REPO_ROOT / "docs" / "AI_TRADING_AGENTS.md",
+    )
+    for page in pages:
+        text = page.read_text(encoding="utf-8")
+        assert "_agent_detail.parquet" in text, page.name
+        assert "~/Library/Caches/lumibot/1.0/agent_runtime" in text, page.name
+        assert "LUMIBOT_LOG_LEVEL" in text, page.name
+        assert "effective_system_prompt" in text, page.name
+        assert "~/Library/Caches/lumibot/agent_runtime" not in text, page.name
+
+
 def test_ray_and_citadel_examples_match_published_botspot_sources():
     # These files are the source the four listings above publish as main.py.
     # September 23: the default moved to GPT-6 Luna, so the listings must be

@@ -1519,6 +1519,11 @@ class StrategyExecutor(Thread):
                     if self.strategy.is_backtesting:
                         raise e  # Re-raise original exception to preserve error message for tests
 
+                    # In live trading, pause briefly before retrying so a persistently
+                    # failing session (e.g. network outage) cannot spin this loop at
+                    # 100% CPU with no delay between attempts. See issue #1145.
+                    time.sleep(1)
+
                 # Different logic for continuous vs non-continuous markets
                 if is_continuous_market:
                     # For continuous markets (24/7, futures), _run_trading_session handles the entire backtest

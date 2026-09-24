@@ -97,7 +97,7 @@ def test_two_roles_preserve_evidence_and_trading_ownership():
     ResearcherTraderStrategy.on_trading_iteration(ctx)
     assert [(a["name"], a["allow_trading"]) for a in created] == [("researcher", False), ("trader", True)]
     assert all(a["default_model"] == "openai/gpt-6-luna" for a in created)
-    assert all(a["reasoning_effort"] == "high" for a in created)
+    assert all(a["reasoning_effort"] == "medium" for a in created)
     assert [name for name, _ in calls] == ["researcher", "trader"]
     assert calls[1][1]["context"]["research_evidence"] == "researcher evidence"
     assert calls[1][1]["context"]["max_position_pct"] == 10

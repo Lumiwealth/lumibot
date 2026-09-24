@@ -74,9 +74,12 @@ def test_default_agent_model_is_current_and_explicit_pins_are_preserved():
     manager = AgentManager(_Strategy())
     default = manager.create(name="default", _runtime=_CaptureRuntime())
     assert default.default_model == "openai/gpt-6-luna"
-    assert default.reasoning_effort == "high"
+    # Rob, 2026-09-23: the default is GPT-6 Luna on medium reasoning.
+    assert default.reasoning_effort == "medium"
     explicit_default = manager.create(name="explicit", model="openai/gpt-6-luna", _runtime=_CaptureRuntime())
-    assert explicit_default.reasoning_effort == "high"
+    assert explicit_default.reasoning_effort == "medium"
+    raised = manager.create(name="raised", reasoning_effort="high", _runtime=_CaptureRuntime())
+    assert raised.reasoning_effort == "high"
     lowered = manager.create(name="lowered", reasoning_effort="low", _runtime=_CaptureRuntime())
     assert lowered.reasoning_effort == "low"
     pinned = manager.create(name="pinned", model="pinned-model", _runtime=_CaptureRuntime())
@@ -165,7 +168,7 @@ def test_stock_skill_prices_limits_from_current_price_and_loads_rule_bars_with_h
     # The limit-price rule is for a new order. It made agents reprice an
     # already-pending exit (release eval stock_pending_exit_no_duplicate).
     assert "This is for a new order; it is never a reason to modify an order that is already pending" in instructions
-    assert "Do not modify a pending order's price or quantity to make it fill sooner" in instructions
+    assert "Do not cancel and replace a pending order, or modify it, to make it fill sooner" in instructions
     assert "Load the rule-interval bars with `market_historical_prices`" in intraday
     assert "pass `table_name` to query them with `duckdb_query`" in intraday
 
@@ -192,6 +195,27 @@ def test_orb_volume_confirmation_compares_regular_session_bars_and_keeps_an_earl
     assert "compare the candidate bar with the opening-range bars" in intraday
     assert "Pre-market and after-hours bars are not part of that comparison" in intraday
     assert "The first completed bar after the range that meets the rule is the breakout" in intraday
+
+
+def test_options_skill_takes_spread_limits_from_the_user_not_an_invented_threshold():
+    """options_iron_condor_atomic_open on GPT-6 Luna: the agent passed its own
+    max_spread_pct=0.20, flagged the cheap protective wings, and declined a
+    package every leg of which the tool marked usable_for_limit_pricing."""
+    options_skill = next(skill for skill in load_builtin_skills() if skill.name == "options-trading")
+    quality = " ".join(options_skill.resources.references["contracts-greeks-liquidity.md"].split())
+
+    assert "Pass `max_spread_pct` only when the user or active rules set a spread limit" in quality
+    assert "A cheap protective wing often has a wide percentage spread" in quality
+
+
+def test_stock_skill_leaves_a_pending_exit_in_place():
+    """stock_pending_exit_no_duplicate on GPT-6 Luna: the agent cancelled the
+    pending 40-share exit and sent a new market sell, which the skill allowed."""
+    stock_skill = next(skill for skill in load_builtin_skills() if skill.name == "stock-trading")
+    instructions = " ".join(stock_skill.instructions.split())
+
+    assert "Do not cancel and replace a pending order, or modify it, to make it fill sooner" in instructions
+    assert "Let it resolve or cancel it deliberately before replacing it" not in instructions
 
 
 def test_skill_loading_instruction_names_every_builtin_skill_exactly():
@@ -428,3 +452,29 @@ def test_rules_loader_uses_only_active_rules(tmp_path):
     assert [rule["id"] for rule in snapshot.document["rules"]] == ["a"]
     assert snapshot.file_name == "rules.json"
     assert len(snapshot.content_hash or "") == 64
+
+
+def test_evaluate_market_example_does_not_teach_an_invented_spread_limit():
+    from lumibot.components.agents import BuiltinTools
+
+    tool = BuiltinTools.options.evaluate_market().binder(object(), None)
+    description = " ".join(tool.description.split())
+    assert "max_spread_pct=0.20)" not in description
+    assert "only when the user or active rules set a spread limit" in description
+
+
+def test_indicator_values_come_from_tools_not_hand_arithmetic():
+    """GPT-6 Luna evals: crypto_instrument_identity computed a two-period SMA by
+    hand from market_historical_prices, and stock_price_before_order misstated
+    a five-day average (227.80 and 226 for closes averaging 227.00)."""
+    from lumibot.components.agents import BuiltinTools
+
+    history = BuiltinTools.market.historical_prices().binder(object(), None)
+    description = " ".join(history.description.split())
+    assert "For an indicator value such as an SMA, EMA or RSI, call get_indicator or get_indicators" in description
+
+    stock_skill = next(skill for skill in load_builtin_skills() if skill.name == "stock-trading")
+    instructions = " ".join(stock_skill.instructions.split())
+    assert "Compute averages and indicators with a tool" in instructions
+    assert "never by mental arithmetic" in instructions
+

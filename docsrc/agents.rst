@@ -332,10 +332,10 @@ Most alternatives either put the LLM outside the backtest loop (QuantConnect), h
 
 LumiBot ships with first-class support for Gemini, OpenAI (GPT), xAI (Grok), Anthropic (Claude), and any other provider covered by LiteLLM (~100 providers). You pick the model per agent via the ``default_model`` parameter when creating your agent.
 
-The default is ``"openai/gpt-6-luna"`` with high reasoning effort. Gemini ids (e.g. ``"gemini-3.5-flash-lite"``) take Google ADK's native fast path. Anything else is automatically routed through LiteLLM using the provider-prefixed id format:
+The default is ``"openai/gpt-6-luna"`` with medium reasoning effort. Gemini ids (e.g. ``"gemini-3.5-flash-lite"``) take Google ADK's native fast path. Anything else is automatically routed through LiteLLM using the provider-prefixed id format:
 
 - Gemini: ``"gemini-3.5-flash-lite"`` -- requires ``GEMINI_API_KEY`` for native calls; managed calls use the configured gateway capability
-- OpenAI: ``"openai/gpt-6-luna"`` (default, high reasoning), ``"openai/gpt-5.4-mini"``, ``"openai/gpt-5.4"``, ``"openai/gpt-5.4-pro"``, ``"openai/gpt-5.4-nano"`` -- requires ``OPENAI_API_KEY``
+- OpenAI: ``"openai/gpt-6-luna"`` (default, medium reasoning), ``"openai/gpt-5.4-mini"``, ``"openai/gpt-5.4"``, ``"openai/gpt-5.4-pro"``, ``"openai/gpt-5.4-nano"`` -- requires ``OPENAI_API_KEY``
 - xAI Grok: ``"xai/grok-4.20-0309-reasoning"`` (Grok 4.2, reasoning on, 2M ctx), ``"xai/grok-4-1-fast-reasoning-latest"`` (cheap/fast), or ``"xai/grok-4-latest"`` (older) -- requires ``XAI_API_KEY`` or ``GROK_API_KEY``
 - Anthropic Claude: ``"anthropic/claude-opus-4-7"``, ``"anthropic/claude-sonnet-4-6"`` -- requires ``ANTHROPIC_API_KEY``
 

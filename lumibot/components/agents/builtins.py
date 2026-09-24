@@ -1456,6 +1456,7 @@ def _bind_historical_prices(strategy: Any, manager: Any) -> BoundTool:
             "required length; timestep (default day; multi-minute aliases such as '5minute', '5min', and '5 minutes' are supported); optional asset_type (default stock), quote_symbol, "
             "exchange, include_after_hours, chunk_size, max_workers. "
             "Cap is 150 symbols per call. Returns bars_by_symbol keyed by symbol with datetime/open/high/low/close/volume rows, "
+            "For an indicator value such as an SMA, EMA or RSI, call get_indicator or get_indicators instead of computing it from these bars by hand. "
             "plus symbols_available and symbols_missing. "
             "Optional table_name loads every returned bar into one DuckDB table with columns "
             "symbol, datetime, open, high, low, close, volume and returns only a summary (row counts per symbol, "
@@ -1780,10 +1781,11 @@ def _bind_options_evaluate_market(strategy: Any, manager: Any) -> BoundTool:
         name="options_evaluate_market",
         description=(
             "Inspect executable quote quality for one exact option contract and return bid, ask, last, spread percentage, suggested buy/sell prices, data-quality flags, price_basis, and usable_for_limit_pricing. "
-            "Arguments: symbol, expiration, strike, right, optional max_spread_pct as a fraction such as 0.20 for 20 percent. "
+            "Arguments: symbol, expiration, strike, right, optional max_spread_pct as a fraction such as 0.20 for 20 percent; "
+            "pass it only when the user or active rules set a spread limit, otherwise rely on usable_for_limit_pricing. "
             "Call this for every proposed leg before submitting a multi-leg order. Do not trade a contract whose usable_for_limit_pricing is false or whose market is unacceptably wide under your policy. "
             "price_basis='last_trade' with usable_for_limit_pricing=true means a trade-only backtest data source: missing bid/ask alone is not a reason to refuse; follow price_basis_note. "
-            "Example: options_evaluate_market(symbol='SPY', expiration='2026-09-18', strike=650, right='call', max_spread_pct=0.20)."
+            "Example: options_evaluate_market(symbol='SPY', expiration='2026-09-18', strike=650, right='call')."
         ),
         function=evaluate_market,
         metadata={"kind": "builtin", "replay_on_cache": True, "temporal": "strategy_clock_snapshot"},

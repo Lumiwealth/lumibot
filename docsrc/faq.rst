@@ -118,7 +118,7 @@ The replay cache is fully automatic. No configuration needed.
 What LLM providers does LumiBot support for agents?
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-LumiBot's agent runtime is built on `Google ADK <https://google.github.io/adk-docs/>`_ (Agent Development Kit). The default model is **OpenAI GPT-6 Luna** (``openai/gpt-6-luna``) on high reasoning. The architecture supports other providers (Gemini, Anthropic, xAI/Grok, and others) through Google ADK's LiteLLM bridge. You need an ``OPENAI_API_KEY`` environment variable set for the default model:
+LumiBot's agent runtime is built on `Google ADK <https://google.github.io/adk-docs/>`_ (Agent Development Kit). The default model is **OpenAI GPT-6 Luna** (``openai/gpt-6-luna``) on medium reasoning. The architecture supports other providers (Gemini, Anthropic, xAI/Grok, and others) through Google ADK's LiteLLM bridge. You need an ``OPENAI_API_KEY`` environment variable set for the default model:
 
 .. code-block:: python
 

@@ -1,11 +1,11 @@
 # Default agent model
 
 New `strategy.agents.create(name="trader")` calls default to
-`openai/gpt-6-luna` with high reasoning effort. This replaces the old Gemini default, not a strategy's
+`openai/gpt-6-luna` with medium reasoning effort. This replaces the old Gemini default, not a strategy's
 explicit `model` or `default_model` selection. Existing agent instances retain
 their model; there is no silent model migration during a tool loop.
 
-High reasoning is applied only when the resolved model is the default and the
+Medium reasoning is applied only when the resolved model is the default and the
 caller did not pass `reasoning_effort`. An explicit `reasoning_effort`, or any
 other model, is left exactly as written. GPT-6 Luna needs `OPENAI_API_KEY` for
 native calls; LumiBot routes it through the OpenAI Responses API because

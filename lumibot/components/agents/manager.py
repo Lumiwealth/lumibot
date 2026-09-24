@@ -24,7 +24,7 @@ _TIMESTAMP_HINT_RE = re.compile(
 )
 _DEFAULT_MEMORY_NOTE_MAX_CHARS = 2000
 DEFAULT_AGENT_MODEL = "openai/gpt-6-luna"
-DEFAULT_AGENT_REASONING_EFFORT = "high"
+DEFAULT_AGENT_REASONING_EFFORT = "medium"
 _BOTSPOT_RESEARCH_TOOLS = [
     "search_data_catalog",
     "query_data",

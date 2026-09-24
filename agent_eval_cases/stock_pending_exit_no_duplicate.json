@@ -1,6 +1,6 @@
 {
   "id": "stock_pending_exit_no_duplicate",
-  "model": "gemini-3.5-flash-lite",
+  "model": "openai/gpt-6-luna",
   "fixture": "stock_pending_exit",
   "systemPrompt": "Manage the existing AAPL position. Its holding-period exit is due now. Do not create duplicate exposure or duplicate exit orders.",
   "taskPrompt": "Inspect the account and safely manage the due exit.",

@@ -169,3 +169,36 @@ def test_actual_adk_loop_budgets_two_native_calls_and_one_tool_result(tmp_path, 
     assert snapshot["settled_calls"] == 2
     assert snapshot["reserved_calls"] == 0
     assert snapshot["usage"]["input_tokens"] == 200
+
+
+def test_budgeted_runtime_accepts_the_registered_luna_model():
+    from lumibot.components.agents.runtime import GoogleADKRuntime, RuntimeRequest
+
+    request = RuntimeRequest(
+        agent_name="luna",
+        model="openai/gpt-6-luna",
+        system_prompt="x",
+        task_prompt="x",
+        context=None,
+        runtime_context=None,
+        memory_state=None,
+        memory_notes=[],
+        bound_tools=[],
+        model_call_budget=object(),
+    )
+    before, after = GoogleADKRuntime()._model_callbacks(request)
+    assert callable(before) and callable(after)
+    from google.genai import types
+
+    config = GoogleADKRuntime._generate_content_config_kwargs_for_request(request, types)
+    assert "http_options" not in config
+
+    from lumibot.components.agents.runtime import _resolve_model_for_adk
+
+    model = _resolve_model_for_adk("openai/gpt-6-luna", reasoning_effort="medium", disable_provider_retries=True)
+    assert model._additional_args["num_retries"] == 0
+    assert model._additional_args["max_retries"] == 0
+
+    unpriced = RuntimeRequest(**{**request.__dict__, "model": "openai/gpt-5.4-mini"})
+    with pytest.raises(ValueError, match="priced"):
+        GoogleADKRuntime()._model_callbacks(unpriced)

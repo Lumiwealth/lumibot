@@ -13,7 +13,7 @@ Before you run
 
 Use Python 3.10 or later. Install the version-branch source below to get this
 example. It uses
-``openai/gpt-6-luna`` on high reasoning, ``OPENAI_API_KEY``, and Yahoo daily prices.
+``openai/gpt-6-luna`` on medium reasoning, ``OPENAI_API_KEY``, and Yahoo daily prices.
 You do not need broker credentials for this historical backtest. Model calls
 use your provider account and incur charges; start with this short date range.
 
@@ -329,7 +329,7 @@ No. All built-in tools (positions, portfolio, prices, orders, DuckDB, docs) are 
 
 **What API keys do I need?**
 
-At minimum, one model provider key matching your ``default_model``. The default is ``openai/gpt-6-luna`` on high reasoning, which needs ``OPENAI_API_KEY``. LumiBot also supports Gemini ids (needs ``GEMINI_API_KEY``), ``xai/...`` ids for Grok (needs ``XAI_API_KEY`` or ``GROK_API_KEY``), and ``anthropic/...`` ids for Claude (needs ``ANTHROPIC_API_KEY``). If your ``@agent_tool`` functions call external APIs, you also need those keys -- for example ``ALPACA_API_KEY`` and ``ALPACA_API_SECRET`` for Alpaca-based demos. FRED macro tools require ``FRED_API_KEY`` so backtests can request official FRED/ALFRED observations with point-in-time vintage parameters instead of using revised CSV data.
+At minimum, one model provider key matching your ``default_model``. The default is ``openai/gpt-6-luna`` on medium reasoning, which needs ``OPENAI_API_KEY``. LumiBot also supports Gemini ids (needs ``GEMINI_API_KEY``), ``xai/...`` ids for Grok (needs ``XAI_API_KEY`` or ``GROK_API_KEY``), and ``anthropic/...`` ids for Claude (needs ``ANTHROPIC_API_KEY``). If your ``@agent_tool`` functions call external APIs, you also need those keys -- for example ``ALPACA_API_KEY`` and ``ALPACA_API_SECRET`` for Alpaca-based demos. FRED macro tools require ``FRED_API_KEY`` so backtests can request official FRED/ALFRED observations with point-in-time vintage parameters instead of using revised CSV data.
 
 **How long should my system prompt be?**
 

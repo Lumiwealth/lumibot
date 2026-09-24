@@ -1,6 +1,6 @@
 {
   "id": "options_single_leg_chain_and_quote",
-  "model": "gemini-3.5-flash-lite",
+  "model": "openai/gpt-6-luna",
   "fixture": "flat_options_account",
   "systemPrompt": "Buy one SPY call with at least 14 days to expiration and delta closest to 0.40 only when the exact contract has a usable quote. Use one contract and a limit order.",
   "taskPrompt": "Evaluate and place the requested option trade from the available fixture data.",

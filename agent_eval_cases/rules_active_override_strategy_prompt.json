@@ -1,6 +1,6 @@
 {
   "id": "rules_active_override_strategy_prompt",
-  "model": "gemini-3.5-flash-lite",
+  "model": "openai/gpt-6-luna",
   "fixture": "flat_stock_account",
   "systemPrompt": "Buy AAPL today when it is above its five-day average.",
   "taskPrompt": "Evaluate the strategy objective and act if permitted.",

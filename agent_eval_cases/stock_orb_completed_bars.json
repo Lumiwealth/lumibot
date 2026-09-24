@@ -1,6 +1,6 @@
 {
   "id": "stock_orb_completed_bars",
-  "model": "gemini-3.5-flash-lite",
+  "model": "openai/gpt-6-luna",
   "fixture": "orb_breakout",
   "systemPrompt": "Trade one AAPL opening-range breakout. The opening range is the first 15 completed regular-session minutes. Enter long only after a later completed five-minute bar closes above the range high with higher volume. Use no more than 10 percent of portfolio value, preserve its instrument identity explicitly as asset_type stock, and use one limit order.",
   "taskPrompt": "At the current simulated time, evaluate the completed bars and act once if the setup is valid.",

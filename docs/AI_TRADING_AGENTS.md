@@ -54,7 +54,7 @@ export BACKTESTING_DATA_SOURCE=yahoo
 python -m lumibot.example_strategies.ai_researcher_trader
 ```
 
-The example uses `openai/gpt-6-luna` on high reasoning, Yahoo daily prices and a short historical window. Model calls incur charges. The version-branch installation is explicit because this documentation update does not publish a PyPI release. Fresh real-model proof for this new example is still pending; the real-engine test uses a scripted model substitute.
+The example uses `openai/gpt-6-luna` on medium reasoning, Yahoo daily prices and a short historical window. Model calls incur charges. The version-branch installation is explicit because this documentation update does not publish a PyPI release. Fresh real-model proof for this new example is still pending; the real-engine test uses a scripted model substitute.
 
 For an installation check without credentials or paid calls, run `BACKTESTING_DATA_SOURCE=none python -m lumibot.example_strategies.first_backtest`. Its prices are synthetic and its simulated fill tests mechanics, not returns.
 
@@ -261,7 +261,7 @@ Most alternatives either put the LLM outside the backtest loop (QuantConnect), h
 
 The architecture supports Gemini, OpenAI, Anthropic, and other providers through
 the underlying model router. The AI-only trading examples use the default
-`openai/gpt-6-luna` on high reasoning. Existing saved strategies keep the model string already
+`openai/gpt-6-luna` on medium reasoning. Existing saved strategies keep the model string already
 stored in their code. Pass a model identifier when creating an agent.
 
 **How is agent behavior tested before release?**

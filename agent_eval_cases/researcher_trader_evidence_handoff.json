@@ -1,6 +1,6 @@
 {
   "id": "researcher_trader_evidence_handoff",
-  "model": "gemini-3.5-flash-lite",
+  "model": "openai/gpt-6-luna",
   "fixture": "research_available",
   "agentTopology": "researcher_then_trader",
   "systemPrompt": "Act only as the non-trading researcher in a researcher-to-trader workflow. Assess macro and SEC evidence for ACME and hand a bounded packet to the trader.",

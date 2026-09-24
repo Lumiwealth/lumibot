@@ -40,7 +40,7 @@ account; model calls use your provider billing.
 
 :doc:`Read and customize the strategy <agents_quickstart>` or
 `inspect the recorded decisions and fill <https://github.com/Lumiwealth/lumibot/blob/version/4.5.92/docs/assets/ai-trading/spy-20260913/README.md>`_.
-The example uses ``openai/gpt-6-luna`` on high reasoning. Fresh AI decisions can vary.
+The example uses ``openai/gpt-6-luna`` on medium reasoning. Fresh AI decisions can vary.
 
 .. image:: ../docs/assets/ai-trading/benefit-hero.png
    :alt: LumiBot: Python rules or AI agents, historical backtests and broker connections
@@ -257,7 +257,7 @@ In this pattern, each agent has a job:
 3. **Bear Agent:** challenges the thesis, looks for risk, and argues for avoiding, delaying, or reducing the trade.
 4. **Trader / Portfolio Manager Agent:** checks cash, positions, open orders, and risk limits, then decides whether to trade.
 
-The copy-paste example below implements that exact team. It uses GPT-6 Luna on high reasoning, LumiBot's default model.
+The copy-paste example below implements that exact team. It uses GPT-6 Luna on medium reasoning, LumiBot's default model.
 
 To run it with a broker in paper mode, set your AI and Alpaca credentials and run the file:
 

@@ -297,7 +297,7 @@ jobs:
 
       - name: Run stale real-model evals
         env:
-          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           LUMIBOT_DISABLE_DOTENV: "1"
         run: |
           set -euo pipefail

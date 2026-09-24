@@ -8,7 +8,7 @@ These are complete, runnable strategies -- not snippets. They demonstrate how to
 The Six Demos
 ---------------
 
-- **Discretionary Trader** (``lumibot/example_strategies/agent_discretionary.py``) -- **maximum-discretion agent** with a one-sentence prompt, no asset whitelist, broad tool surface, and an ``AGENT_MODEL`` env var that defaults to ``openai/gpt-6-luna`` (high reasoning) and can be switched to other providers (Gemini, Grok, Claude) for comparisons
+- **Discretionary Trader** (``lumibot/example_strategies/agent_discretionary.py``) -- **maximum-discretion agent** with a one-sentence prompt, no asset whitelist, broad tool surface, and an ``AGENT_MODEL`` env var that defaults to ``openai/gpt-6-luna`` (medium reasoning) and can be switched to other providers (Gemini, Grok, Claude) for comparisons
 - **Alpaca News Built-in Strategy** (``lumibot/example_strategies/agent_alpaca_news_builtin.py``) -- recommended built-in-tool pattern for Alpaca/Benzinga news: scan headlines/summaries first, fetch full article bodies on demand, and use pagination when needed
 - **News Sentiment Strategy** (``lumibot/example_strategies/agent_news_sentiment.py``) -- event-driven stock selection using Alpaca news data
 - **Macro Risk Strategy** (``lumibot/example_strategies/agent_macro_risk.py``) -- macro regime allocation using Alpaca market data
@@ -50,7 +50,7 @@ Maximum-discretion AI trader. The user system prompt is literally one sentence: 
 
 .. code-block:: bash
 
-    # OpenAI GPT-6 Luna, high reasoning (default)
+    # OpenAI GPT-6 Luna, medium reasoning (default)
     export OPENAI_API_KEY='your-key'
     export BACKTESTING_START='2026-03-01'
     export BACKTESTING_END='2026-03-31'
@@ -287,4 +287,4 @@ TQQQ (3x leveraged Nasdaq) and SHV (short-term Treasury ETF) form a simple binar
 
 **Can I use a different model with the demos?**
 
-Yes. Change the ``default_model`` parameter in the ``self.agents.create(...)`` call. The default is ``openai/gpt-6-luna`` on high reasoning if not specified. Explicit model pins are preserved. The replay-cache key includes the model name, so another model selects a different cache entry without deleting previous evidence.
+Yes. Change the ``default_model`` parameter in the ``self.agents.create(...)`` call. The default is ``openai/gpt-6-luna`` on medium reasoning if not specified. Explicit model pins are preserved. The replay-cache key includes the model name, so another model selects a different cache entry without deleting previous evidence.

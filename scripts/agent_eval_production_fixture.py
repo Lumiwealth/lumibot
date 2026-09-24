@@ -65,6 +65,20 @@ def _history(asset, fixture, quote_asset=None):
         {"open": price, "high": price + 0.05, "low": price - 0.05, "close": price, "volume": 1000, **market_quote}, index=index
     )
     if asset.symbol == "AAPL" and asset.asset_type == "stock":
+        # Earlier sessions step up one dollar a day to 229.00 on August 10, so
+        # the premise of stock_price_before_order ("current price and recent
+        # completed daily bars confirm it remains above its five-day average")
+        # holds on the evidence: each recent completed close and today's
+        # 230.00 sit above the five-day average. With every session at 230.00
+        # the price only equalled the average, and GPT-6 Luna rightly declined.
+        for day in range(4, 11):
+            session = (frame.index >= pd.Timestamp(f"2026-08-{day:02d}T04:00:00Z")) & (
+                frame.index < pd.Timestamp(f"2026-08-{day + 1:02d}T04:00:00Z")
+            )
+            close = 222.0 + (day - 3)
+            frame.loc[session, ["open", "high", "low", "close", "bid", "ask"]] = [
+                close, close + 0.05, close - 0.05, close, close - 0.05, close + 0.05,
+            ]
         closes = [
             227.1,
             227.2,
@@ -233,6 +247,7 @@ class ProductionFixture:
             _runtime=runtime,
             mcp_servers=servers,
             allow_trading=allow_trading,
+            reasoning_effort=None if str(case["model"]).startswith("gemini") else "medium",
         )
 
     def tools(self):

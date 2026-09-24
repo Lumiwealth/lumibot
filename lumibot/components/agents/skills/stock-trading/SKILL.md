@@ -15,6 +15,9 @@ broad mandate leads you to a stock idea, load it before submitting an order.
    Read that history with `market_historical_prices`, also for a single symbol;
    pass `table_name` to query it with `duckdb_query`.
    `market_load_history_table` does not replace it before a stock order.
+   Compute averages and indicators with a tool (`get_indicator`, `get_indicators`,
+   or `duckdb_query` over loaded bars), never by mental arithmetic, and quote
+   the tool's value.
 3. Use batch tools for a universe. Do not loop one symbol at a time when a batch
    price or history tool can return the same evidence.
 4. Evaluate the user's entry, exit, sizing, and frequency rules against current
@@ -37,9 +40,9 @@ broad mandate leads you to a stock idea, load it before submitting an order.
    lets the simulator process the pending fill. Do not use an unbounded wait.
 8. If a related order is already open, inspect that exact order and do not submit
    another order for the same intended position change. A pending exit already
-   owns the exit. Let it resolve or cancel it deliberately before replacing it.
-   Do not modify a pending order's price or quantity to make it fill sooner
-   unless the user's rules ask for that.
+   owns the exit: leave it in place and report that it owns the position change.
+   Do not cancel and replace a pending order, or modify it, to make it fill sooner
+   unless the user's rules explicitly ask for that.
 9. Reconcile the final summary with the mutation tools and the final account
    reads. If an order tool returned a submitted identifier, never say that no
    order was entered. Report the exact observed status instead.

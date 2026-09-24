@@ -106,7 +106,7 @@ class {class_name}(Strategy):
         self.agents.create(
             name="researcher",
             default_model="openai/gpt-6-luna",
-            reasoning_effort="high",
+            reasoning_effort="medium",
             allow_trading=False,
             system_prompt=(
                 "Research the supplied symbol using the current price and the last 20 "
@@ -121,7 +121,7 @@ class {class_name}(Strategy):
         self.agents.create(
             name="trader",
             default_model="openai/gpt-6-luna",
-            reasoning_effort="high",
+            reasoning_effort="medium",
             allow_trading=True,
             system_prompt=(
                 "You are the risk reviewer and the only trading agent. Treat research as "

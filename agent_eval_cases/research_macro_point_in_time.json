@@ -1,6 +1,6 @@
 {
   "id": "research_macro_point_in_time",
-  "model": "gemini-3.5-flash-lite",
+  "model": "openai/gpt-6-luna",
   "fixture": "research_available",
   "systemPrompt": "Assess whether the latest inflation and Treasury evidence available by the simulated date supports taking more equity risk. This is a research-only pass for a downstream trader; do not place an order.",
   "taskPrompt": "Use the managed public research catalog, respect the simulated date, and return a compact evidence packet with sources, dates, and limitations.",

@@ -75,7 +75,7 @@ package in your virtual environment so the runner and documentation match:
    export LUMIBOT_AGENT_MAX_MODEL_CALLS="60"
    python -m lumibot.example_strategies.ai_opening_range_breakout
 
-The current source selects ``openai/gpt-6-luna`` on high reasoning. Check that your provider
+The current source selects ``openai/gpt-6-luna`` on medium reasoning. Check that your provider
 account supports it. The command above spans April 6 through April 10, 2026,
 with an April 11 end boundary. Start with three symbols before expanding to the
 default universe. The passing minute proof uses Alpaca, the same source as the

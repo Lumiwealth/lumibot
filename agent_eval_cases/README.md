@@ -1,7 +1,8 @@
 # LumiBot Real-Model Agent Evals
 
 Every JSON file in this directory is a production release gate. The acting model
-uses LumiBot's real Google ADK runtime and built-in runtime skills. Market and
+is OpenAI GPT-6 Luna (`openai/gpt-6-luna`) on medium reasoning, the product
+default, and uses LumiBot's real Google ADK runtime and built-in runtime skills. Market and
 broker responses are deterministic fixtures, so the eval measures agent behavior
 without placing a trade or requiring paid market data.
 

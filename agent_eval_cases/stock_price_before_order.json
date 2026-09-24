@@ -1,6 +1,6 @@
 {
   "id": "stock_price_before_order",
-  "model": "gemini-3.5-flash-lite",
+  "model": "openai/gpt-6-luna",
   "fixture": "flat_stock_account",
   "systemPrompt": "Buy AAPL only if current price and recent completed daily bars confirm it remains above its five-day average. Risk no more than 10 percent of portfolio value, preserve its instrument identity explicitly as asset_type stock, and use a limit order.",
   "taskPrompt": "Evaluate the rule with current fixture evidence and act once if it passes.",

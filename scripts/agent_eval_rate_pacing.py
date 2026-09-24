@@ -43,8 +43,17 @@ class InputPacer:
 
 
 def count_native_request(model, llm_request):
-    """Use the provider's count-only endpoint, with the exact system/tools/history."""
+    """Input tokens for pacing: Gemini's count-only endpoint, or a local estimate.
+
+    Only Gemini has a count endpoint on the eval network boundary. For other
+    providers the pacing window uses a conservative local estimate (about 3
+    characters per token over the exact system, tools and history). Spending is
+    still settled from the provider's reported usage, never from this estimate.
+    """
     import os
+
+    if not str(model or "").startswith("gemini"):
+        return _estimate_request_tokens(llm_request)
     from urllib.parse import quote
 
     import requests
@@ -77,3 +86,18 @@ def count_native_request(model, llm_request):
     if type(count) is not int or count <= 0:
         raise ValueError("The provider returned no authoritative input-token count.")
     return count
+
+
+def _estimate_request_tokens(llm_request):
+    config = getattr(llm_request, "config", None)
+    parts = []
+    system = getattr(config, "system_instruction", None)
+    if system is not None:
+        parts.append(system if isinstance(system, str) else system.model_dump_json(exclude_none=True))
+    for tool in getattr(config, "tools", None) or []:
+        dump = getattr(tool, "model_dump_json", None)
+        parts.append(dump(exclude_none=True) if callable(dump) else json.dumps(str(tool)))
+    for content in getattr(llm_request, "contents", None) or []:
+        parts.append(content.model_dump_json(exclude_none=True))
+    characters = sum(len(part) for part in parts)
+    return max(1, -(-characters // 3))

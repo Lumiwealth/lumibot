@@ -89,7 +89,7 @@ See the docs comparison pages for more detail: [Lumibot vs TradingAgents](https:
 
 Start with SPY. A research agent analyzes its trend; a trading agent checks the evidence and account, then decides whether to buy, hold, or sell. This example limits a new position to 10% of the simulated portfolio.
 
-**You need Python 3.10+ and an OpenAI API key (`OPENAI_API_KEY`).** The default model is `openai/gpt-6-luna` on high reasoning. Historical prices come from Yahoo; this backtest does not connect to a broker account. Model usage may incur charges.
+**You need Python 3.10+ and an OpenAI API key (`OPENAI_API_KEY`).** The default model is `openai/gpt-6-luna` on medium reasoning. Historical prices come from Yahoo; this backtest does not connect to a broker account. Model usage may incur charges.
 
 ```bash
 python -m pip install "git+https://github.com/Lumiwealth/lumibot.git@version/4.5.92"
@@ -124,7 +124,7 @@ if __name__ == "__main__":
 python my_ai_strategy.py
 ```
 
-Watch the research and trading decisions in the log, then inspect the orders and backtest report. The `$100,000` is simulated portfolio capital. The example uses `openai/gpt-6-luna` on high reasoning.
+Watch the research and trading decisions in the log, then inspect the orders and backtest report. The `$100,000` is simulated portfolio capital. The example uses `openai/gpt-6-luna` on medium reasoning.
 
 **[Open the complete strategy code](lumibot/example_strategies/ai_researcher_trader.py)** to change the prompts, tools, or trading rules. [Follow the walkthrough](https://lumibot.lumiwealth.com/agents_quickstart.html) for the agent setup and how to read the results. Prefer rules without AI? [Run a conventional Python strategy](#backtest-a-strategy).
 
@@ -280,7 +280,7 @@ In this pattern, each agent has a job:
 3. **Bear Agent:** challenges the thesis, looks for risk, and argues for avoiding, delaying, or reducing the trade.
 4. **Trader / Portfolio Manager Agent:** checks cash, positions, open orders, and risk limits, then decides whether to trade.
 
-The copy-paste example below implements that exact team. It uses GPT-6 Luna on high reasoning, LumiBot's default model.
+The copy-paste example below implements that exact team. It uses GPT-6 Luna on medium reasoning, LumiBot's default model.
 
 To run it with a broker in paper mode, set your AI and Alpaca credentials and run the file:
 
@@ -513,7 +513,7 @@ For the deepest historical coverage (stocks, options, futures, indexes), we reco
 Lumibot includes a built-in AI trading agent runtime. Build agents that run identically in backtests and live trading.
 
 - Create agents with `self.agents.create(...)`
-- The default model is `openai/gpt-6-luna` on high reasoning; set `model=` per agent to use any other LiteLLM/ADK-supported provider string
+- The default model is `openai/gpt-6-luna` on medium reasoning; set `model=` per agent to use any other LiteLLM/ADK-supported provider string
 - Make research agents read-only with `allow_trading=False`
 - Give agents built-in SEC fundamentals, filings, FRED macro data, indicators, memory, and notifications
 - Use **DuckDB** for time-series analysis instead of dumping raw bars into prompts

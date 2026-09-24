@@ -15,7 +15,7 @@ wing width, exits, and risk limits. Reusable options mechanics are supplied by
 LumiBot's built-in ``options-trading`` skill. Active ``rules.json`` entries are
 loaded again before every agent call and appended to the runtime instructions.
 
-The example uses ``openai/gpt-6-luna`` on high reasoning explicitly. Existing saved
+The example uses ``openai/gpt-6-luna`` on medium reasoning, the default. Existing saved
 strategies keep the model identifier already stored in their code.
 
 How it works

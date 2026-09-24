@@ -23,6 +23,29 @@ def test_fixture_process_keeps_only_inference_credentials(monkeypatch, tmp_path)
     assert os.environ["LUMIBOT_DISABLE_DOTENV"] == "true"
 
 
+def test_fixture_process_keeps_the_openai_key_for_luna_without_requiring_gemini(monkeypatch, tmp_path):
+    monkeypatch.setattr(
+        os,
+        "environ",
+        {"PATH": "/bin", "OPENAI_API_KEY": "synthetic-openai", "AWS_ACCESS_KEY_ID": "must-not-leave"},
+    )
+    configure_fixture_environment(tmp_path)
+    assert set(os.environ) == {"PATH", "OPENAI_API_KEY", "LUMIBOT_DISABLE_DOTENV", "IS_BACKTESTING"}
+
+
+def test_openai_responses_inference_is_allowed_but_other_openai_paths_are_not():
+    assert_fixture_request("https://api.openai.com/v1/responses", "POST")
+    assert_fixture_request("https://api.openai.com/v1/chat/completions", "POST")
+    for url, method in (
+        ("https://api.openai.com/v1/files", "POST"),
+        ("https://api.openai.com/v1/responses", "GET"),
+        ("http://api.openai.com/v1/responses", "POST"),
+        ("https://api.openai.com.evil.test/v1/responses", "POST"),
+    ):
+        with pytest.raises(RuntimeError, match="external boundary"):
+            assert_fixture_request(url, method)
+
+
 @pytest.mark.parametrize(
     "url",
     [

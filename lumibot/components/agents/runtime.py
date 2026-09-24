@@ -1070,6 +1070,14 @@ _OPENAI_GPT6_MODEL_INFO: dict[str, dict[str, Any]] = {
 }
 
 
+def _is_priced_openai_gpt6_model(model: Any) -> bool:
+    """True for a GPT-6 model whose pricing and limits are registered above."""
+    name = str(model or "").strip()
+    if name.startswith("openai/"):
+        name = name[len("openai/"):]
+    return name in _OPENAI_GPT6_MODEL_INFO
+
+
 def _register_openai_gpt6_models() -> None:
     import litellm
 
@@ -1097,6 +1105,7 @@ def _resolve_model_for_adk(
     prompt_cache_key: str | None = None,
     model_request_timeout_seconds: float | None = None,
     reasoning_effort: str | None = None,
+    disable_provider_retries: bool = False,
 ) -> Any:
     # Native Gemini IDs take ADK's fast path as plain strings. Any other
     # provider prefix (e.g. "openai/...", "xai/...", "anthropic/...") is
@@ -1165,6 +1174,11 @@ def _resolve_model_for_adk(
         kwargs["reasoning_effort"] = reasoning_effort
         if lower.startswith("openai/"):
             kwargs["allowed_openai_params"] = ["reasoning_effort"]
+    if disable_provider_retries:
+        # Budgeted eval calls: a retry below ADK's callbacks would bypass the
+        # per-call spending reservation, so each attempt must go through it.
+        kwargs["num_retries"] = 0
+        kwargs["max_retries"] = 0
     model_type = CerebrasLiteLlm if lower.startswith("cerebras/") else LiteLlm
     return model_type(model=model, **kwargs)
 
@@ -1279,8 +1293,10 @@ class GoogleADKRuntime:
         budget = request.model_call_budget
         if budget is None:
             return pruning, None
-        if not _is_native_gemini_model(request.model):
-            raise ValueError("Per-call eval budgeting currently requires a priced native Gemini model.")
+        if not (_is_native_gemini_model(request.model) or _is_priced_openai_gpt6_model(request.model)):
+            raise ValueError(
+                "Per-call eval budgeting requires a priced model: native Gemini or a registered GPT-6 model."
+            )
         from .managed_gateway import managed_gateway_available_for
         if managed_gateway_available_for(request.model):
             raise ValueError("Budgeted native Gemini evals cannot use a managed gateway pricing route.")
@@ -1480,6 +1496,7 @@ class GoogleADKRuntime:
                 prompt_cache_key=request.provider_prompt_cache_key or _provider_prompt_cache_key(request),
                 model_request_timeout_seconds=model_request_timeout_seconds,
                 reasoning_effort=request.reasoning_effort,
+                disable_provider_retries=request.model_call_budget is not None,
             ),
             instruction=self._instruction_for(request),
             tools=tools,
@@ -1603,8 +1620,12 @@ class GoogleADKRuntime:
             if http_options_type is not None:
                 config_kwargs["http_options"] = http_options_type(timeout=timeout_millis)
         if request.model_call_budget is not None:
+            if _is_priced_openai_gpt6_model(request.model):
+                # LiteLLM retries are disabled on the model itself
+                # (disable_provider_retries in _resolve_model_for_adk).
+                return config_kwargs
             if not _is_native_gemini_model(request.model):
-                raise ValueError("Per-call eval budgeting requires native Gemini.")
+                raise ValueError("Per-call eval budgeting requires native Gemini or a registered GPT-6 model.")
             options = config_kwargs.get("http_options") or genai_types.HttpOptions()
             # SDK retries happen below ADK callbacks. Disable them for budgeted
             # runs; outer retries pass through the reservation callback again.

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Run production-gated LumiBot agent evals against real Gemini models."""
+"""Run production-gated LumiBot agent evals against real models (GPT-6 Luna by default)."""
 
 from __future__ import annotations
 
@@ -25,16 +25,34 @@ if str(REPO_ROOT) in sys.path:
     sys.path.remove(str(REPO_ROOT))
 sys.path.insert(0, str(REPO_ROOT))
 CASE_ROOT = REPO_ROOT / "agent_eval_cases"
-DEFAULT_ACTING_MODEL = "gemini-3.5-flash-lite"
-DEFAULT_JUDGE_MODEL = "gemini-3.1-flash-lite"
+# Release evals run the product default: GPT-6 Luna on medium reasoning for
+# both the acting agent and the judge. Gemini stays available only when a case
+# or --judge-model names it explicitly.
+DEFAULT_ACTING_MODEL = "openai/gpt-6-luna"
+DEFAULT_JUDGE_MODEL = "openai/gpt-6-luna"
+EVAL_REASONING_EFFORT = "medium"
 DEFAULT_FRESHNESS_DAYS = 90
 REQUIRED_CONSECUTIVE_PASSES = 3
 PRICE_SOURCE = "Google Cloud Agent Platform pricing, 2026-08-11"
 PRICE_SOURCE_URL = "https://cloud.google.com/gemini-enterprise-agent-platform/generative-ai/pricing"
+OPENAI_PRICE_SOURCE = "OpenAI GPT-6 Luna pricing, 2026-09-23 (registered in lumibot/components/agents/runtime.py)"
+OPENAI_PRICE_SOURCE_URL = "https://platform.openai.com/docs/models/gpt-6-luna"
 MODEL_PRICES_PER_MILLION = {
+    # Must equal _OPENAI_GPT6_MODEL_INFO in runtime.py; a unit test checks it.
+    "openai/gpt-6-luna": {"input": 0.10, "cached_input": 0.01, "output": 0.50},
     "gemini-3.5-flash-lite": {"input": 0.30, "cached_input": 0.03, "output": 2.50},
     "gemini-3.1-flash-lite": {"input": 0.25, "cached_input": 0.025, "output": 1.50},
 }
+
+
+def _is_gemini_model(model: str) -> bool:
+    return str(model).startswith("gemini")
+
+
+def _price_source(model: str) -> tuple[str, str]:
+    if _is_gemini_model(model):
+        return PRICE_SOURCE, PRICE_SOURCE_URL
+    return OPENAI_PRICE_SOURCE, OPENAI_PRICE_SOURCE_URL
 MAX_INPUT_TOKENS_PER_MODEL_CALL = 1_048_576
 ACTING_MAX_OUTPUT_TOKENS = 12_000
 JUDGE_MAX_OUTPUT_TOKENS = 1_000
@@ -177,10 +195,11 @@ def estimate_cost(model: str, usage: dict[str, Any] | None) -> dict[str, Any]:
         + normalized["cached_input_tokens"] * prices["cached_input"]
         + billed_output_tokens * prices["output"]
     ) / 1_000_000
+    price_source, price_source_url = _price_source(model)
     return {
         "estimated_usd": round(estimated, 6),
-        "price_source": PRICE_SOURCE,
-        "price_source_url": PRICE_SOURCE_URL,
+        "price_source": price_source,
+        "price_source_url": price_source_url,
         "prices_per_million_tokens": prices,
         "usage": normalized,
     }
@@ -562,6 +581,7 @@ def run_judge(
         run_timeout_seconds=300,
         max_output_tokens=1000,
         model_call_budget=budget,
+        reasoning_effort=None if _is_gemini_model(judge_model) else EVAL_REASONING_EFFORT,
     )
     started = time.perf_counter()
     result = GoogleADKRuntime().run(request)
@@ -811,8 +831,13 @@ def preflight(cases: list[dict[str, Any]], judge_model: str, max_cost_usd: float
         raise RuntimeError(f"Pricing is unknown for: {', '.join(missing_models)}")
     if max_cost_usd <= 0:
         raise RuntimeError("--max-cost-usd must be positive")
-    if not os.environ.get("GEMINI_API_KEY") and not os.environ.get("GOOGLE_API_KEY"):
-        raise RuntimeError("GEMINI_API_KEY or GOOGLE_API_KEY is required for real-model evals")
+    models = {str(case.get("model") or DEFAULT_ACTING_MODEL) for case in cases} | {judge_model}
+    if any(not _is_gemini_model(model) for model in models) and not os.environ.get("OPENAI_API_KEY"):
+        raise RuntimeError("OPENAI_API_KEY is required for GPT-6 Luna evals")
+    if any(_is_gemini_model(model) for model in models) and not (
+        os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_API_KEY")
+    ):
+        raise RuntimeError("GEMINI_API_KEY or GOOGLE_API_KEY is required for Gemini evals")
     if any(
         os.environ.get(key)
         for key in (
@@ -875,8 +900,24 @@ def preflight_production_fixtures(cases: list[dict[str, Any]]) -> None:
             fixture.close()
 
 
+def select_eval_credentials(models: set[str]) -> list[str]:
+    """Name the credential each selected model needs; never log a value.
+
+    GPT-6 Luna needs OPENAI_API_KEY. Gemini is an explicit opt-in and keeps
+    its own key selection below.
+    """
+    selected: list[str] = []
+    if any(not _is_gemini_model(model) for model in models):
+        if not str(os.environ.get("OPENAI_API_KEY") or "").strip():
+            raise RuntimeError("OPENAI_API_KEY is required for GPT-6 Luna evals")
+        selected.append("OPENAI_API_KEY")
+    if any(_is_gemini_model(model) for model in models):
+        selected.append(select_gemini_credential())
+    return selected
+
+
 def select_gemini_credential() -> str:
-    """Make the release runner's documented credential deterministic.
+    """Make the release runner's documented Gemini credential deterministic.
 
     google-genai gives GOOGLE_API_KEY precedence when both names are present.
     Local dotenv files can contain an older Google key alongside the release
@@ -918,8 +959,8 @@ def main() -> int:
     from scripts.agent_eval_isolation import configure_fixture_environment
 
     configure_fixture_environment(REPO_ROOT)
-    select_gemini_credential()
     cases = load_cases(set(args.case_id) or None)
+    select_eval_credentials({str(case.get("model") or DEFAULT_ACTING_MODEL) for case in cases} | {args.judge_model})
     preflight(cases, args.judge_model, args.max_cost_usd)
     preflight_production_fixtures(cases)
     runtime_hash = runtime_fingerprint()

@@ -69,6 +69,11 @@ def test_release_eval_uses_production_manager_context_and_builtin_bindings(monke
             )
 
     monkeypatch.setattr(runtime, "GoogleADKRuntime", CaptureRuntime)
+    # AgentManager caches the runtime class on first use. Reset the cache for
+    # this test only, so the stub is not left behind for later tests.
+    import lumibot.components.agents.manager as manager_module
+
+    monkeypatch.setattr(manager_module, "_RUNTIME_IMPORTS", None)
     monkeypatch.setattr(
         evals,
         "run_judge",
@@ -154,7 +159,8 @@ def test_every_eval_case_uses_a_real_model_and_a_production_contract():
     assert len(cases) >= 7
     assert len({case["id"] for case in cases}) == len(cases)
     for case in cases:
-        assert case["model"] == "gemini-3.5-flash-lite"
+        # Rob, 2026-09-23: release evals run the product default, GPT-6 Luna.
+        assert case["model"] == "openai/gpt-6-luna"
         assert case["judgeRubric"].strip()
         assert case["machineContract"]
         assert "simulatedEvents" not in case
@@ -317,7 +323,7 @@ def test_release_runner_prefers_gemini_key_when_both_credential_names_exist(monk
     monkeypatch.setenv("GEMINI_API_KEY", "release-gemini-key")
     monkeypatch.setenv("GOOGLE_API_KEY", "stale-google-key")
 
-    assert evals.select_gemini_credential() == "GEMINI_API_KEY"
+    assert evals.select_eval_credentials({"gemini-3.5-flash-lite"}) == ["GEMINI_API_KEY"]
     assert os.environ["GOOGLE_API_KEY"] == "release-gemini-key"
 
 
@@ -325,8 +331,68 @@ def test_release_runner_supports_google_key_when_it_is_the_only_credential(monke
     monkeypatch.delenv("GEMINI_API_KEY", raising=False)
     monkeypatch.setenv("GOOGLE_API_KEY", "google-key")
 
-    assert evals.select_gemini_credential() == "GOOGLE_API_KEY"
+    assert evals.select_eval_credentials({"gemini-3.5-flash-lite"}) == ["GOOGLE_API_KEY"]
     assert os.environ["GOOGLE_API_KEY"] == "google-key"
+
+
+def test_luna_evals_need_only_the_openai_key(monkeypatch):
+    monkeypatch.setenv("OPENAI_API_KEY", "synthetic-openai")
+    monkeypatch.delenv("GEMINI_API_KEY", raising=False)
+    monkeypatch.delenv("GOOGLE_API_KEY", raising=False)
+
+    assert evals.select_eval_credentials({"openai/gpt-6-luna"}) == ["OPENAI_API_KEY"]
+    evals.preflight(evals.load_cases(), evals.DEFAULT_JUDGE_MODEL, 2.0)
+
+    monkeypatch.delenv("OPENAI_API_KEY")
+    with pytest.raises(RuntimeError, match="OPENAI_API_KEY"):
+        evals.select_eval_credentials({"openai/gpt-6-luna"})
+    with pytest.raises(RuntimeError, match="OPENAI_API_KEY"):
+        evals.preflight(evals.load_cases(), evals.DEFAULT_JUDGE_MODEL, 2.0)
+
+
+def test_eval_defaults_are_gpt6_luna_on_medium_reasoning_with_registered_prices():
+    from lumibot.components.agents.manager import DEFAULT_AGENT_MODEL
+    from lumibot.components.agents.runtime import _OPENAI_GPT6_MODEL_INFO
+
+    assert evals.DEFAULT_ACTING_MODEL == DEFAULT_AGENT_MODEL == "openai/gpt-6-luna"
+    assert evals.DEFAULT_JUDGE_MODEL == "openai/gpt-6-luna"
+    assert evals.EVAL_REASONING_EFFORT == "medium"
+    info = _OPENAI_GPT6_MODEL_INFO["gpt-6-luna"]
+    prices = evals.MODEL_PRICES_PER_MILLION["openai/gpt-6-luna"]
+    assert prices["input"] == pytest.approx(info["input_cost_per_token"] * 1_000_000)
+    assert prices["cached_input"] == pytest.approx(info["cache_read_input_token_cost"] * 1_000_000)
+    assert prices["output"] == pytest.approx(info["output_cost_per_token"] * 1_000_000)
+    assert "openai" in evals.estimate_cost("openai/gpt-6-luna", {"input_tokens": 10})["price_source_url"]
+
+
+def test_acting_and_judge_requests_use_medium_reasoning(monkeypatch):
+    from lumibot.components.agents import runtime
+    from lumibot.components.agents.schemas import AgentRunResult, AgentTraceEvent
+    from scripts.agent_eval_production_fixture import ProductionFixture
+
+    production = ProductionFixture(evals.build_fixture("flat_stock_account"))
+    try:
+        handle = production.create_agent(evals.load_cases({"stock_price_before_order"})[0], None)
+        assert handle.reasoning_effort == "medium"
+    finally:
+        production.close()
+
+    seen = []
+
+    class CaptureRuntime:
+        def run(self, request):
+            seen.append(request)
+            return AgentRunResult(
+                summary='{"pass": true, "reason": "ok"}',
+                model=request.model,
+                events=[AgentTraceEvent(kind="text", text='{"pass": true, "reason": "ok"}')],
+            )
+
+    monkeypatch.setattr(runtime, "GoogleADKRuntime", CaptureRuntime)
+    case = evals.load_cases({"stock_price_before_order"})[0]
+    evals.run_judge(case, {"tool_calls": []}, evals.DEFAULT_JUDGE_MODEL, None)
+    assert seen[0].model == "openai/gpt-6-luna"
+    assert seen[0].reasoning_effort == "medium"
 
 
 def test_release_publish_is_blocked_by_real_model_agent_evals():
@@ -334,7 +400,9 @@ def test_release_publish_is_blocked_by_real_model_agent_evals():
     assert "agent-evals:" in workflow
     assert "python scripts/run_agent_evals.py" in workflow
     assert "needs: [validate-build, unit-tests, backtest-tests, agent-evals]" in workflow
-    assert "GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}" in workflow
+    assert "OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}" in workflow
+    standalone = (Path(__file__).resolve().parents[1] / ".github/workflows/agent-evals.yml").read_text(encoding="utf-8")
+    assert "OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}" in standalone
 
 
 def test_paid_eval_workflows_cap_each_run_at_two_dollars():
@@ -553,7 +621,11 @@ def test_runtime_fingerprint_includes_indicators_broker_and_installed_sdks(monke
 
 
 def test_fresh_gate_preserves_original_pass_time_without_spending(tmp_path, monkeypatch):
-    monkeypatch.setenv("GEMINI_API_KEY", "unused-synthetic-key")
+    # main() rebuilds the process environment for the fixture. Give it a
+    # private copy and a synthetic key so it neither clears the real test
+    # environment nor imports a key from a developer's .env.local.
+    monkeypatch.setattr(os, "environ", {"PATH": os.environ.get("PATH", "")})
+    monkeypatch.setenv("OPENAI_API_KEY", "unused-synthetic-key")
     case = evals.load_cases({"stock_price_before_order"})[0]
     fingerprint = evals.case_fingerprint(case, judge_model=evals.DEFAULT_JUDGE_MODEL, runtime_hash="runtime")
     passed_at = evals.utc_text(evals.utc_now() - evals.timedelta(days=2))
@@ -838,7 +910,7 @@ def test_preflight_only_never_constructs_a_spending_ledger(
     from scripts import agent_eval_call_budget, agent_eval_isolation
 
     monkeypatch.setattr(agent_eval_isolation, "configure_fixture_environment", lambda root: None)
-    monkeypatch.setattr(evals, "select_gemini_credential", lambda: "GEMINI_API_KEY")
+    monkeypatch.setenv("OPENAI_API_KEY", "unused-synthetic-key")
     monkeypatch.setattr(evals, "preflight", lambda *args: None)
     monkeypatch.setattr(evals, "preflight_production_fixtures", lambda cases: None)
     monkeypatch.setattr(evals, "runtime_fingerprint", lambda: "test-fingerprint")
@@ -877,9 +949,9 @@ def test_resume_rebuilds_missing_freshness_from_completed_matching_ledger(monkey
     from scripts import agent_eval_isolation
     from scripts.agent_eval_call_budget import EvalCallBudget
 
-    case = {"id": "resume-contract", "model": "gemini-3.5-flash-lite"}
+    case = {"id": "resume-contract", "model": "openai/gpt-6-luna"}
     monkeypatch.setattr(agent_eval_isolation, "configure_fixture_environment", lambda root: None)
-    monkeypatch.setattr(evals, "select_gemini_credential", lambda: "GEMINI_API_KEY")
+    monkeypatch.setenv("OPENAI_API_KEY", "unused-synthetic-key")
     monkeypatch.setattr(evals, "load_cases", lambda ids: [case])
     monkeypatch.setattr(evals, "preflight", lambda *args: None)
     monkeypatch.setattr(evals, "preflight_production_fixtures", lambda cases: None)
@@ -1001,3 +1073,25 @@ def test_harness_error_rows_name_where_the_error_happened_without_its_message():
     assert row["error_location"].startswith("tests/test_agent_eval_harness.py:")
     assert "fail" in row["error_location"]
     assert "secret-looking-key" not in json.dumps(row)
+
+
+def test_stock_fixture_supports_the_above_five_day_average_premise():
+    """stock_price_before_order expects a buy when AAPL is above its five-day
+    average. The fixture's prior sessions all closed at the current 230.00, so a
+    careful model (GPT-6 Luna) correctly found price equal to the average."""
+    from scripts.agent_eval_production_fixture import ProductionFixture
+
+    production = ProductionFixture(evals.build_fixture("flat_stock_account"))
+    try:
+        tools = {tool.name: tool for tool in production.tools()}
+        last = tools["market_last_price"].function(symbol="AAPL", asset_type="stock")["price"]
+        daily = tools["market_historical_prices"].function(symbols="AAPL", length=5, timestep="day")
+    finally:
+        production.close()
+    closes = [bar["close"] for bar in daily["bars_by_symbol"]["AAPL"]]
+    assert len(closes) == 5
+    average = sum(closes) / len(closes)
+    assert last > average
+    # "recent completed daily bars confirm it remains above": the latest
+    # completed close is above the average too, not merely today's price.
+    assert closes[-1] > average

@@ -10,7 +10,7 @@ account. Everything else (risk discipline, look-ahead safety, tool-use
 guidance, position sizing) comes from LumiBot's base system prompt.
 
 This is the demo used for honest multi-provider model comparison. It
-defaults to GPT-6 Luna on high reasoning. The exact same code runs against
+defaults to GPT-6 Luna on medium reasoning. The exact same code runs against
 any provider via the AGENT_MODEL env var:
 
     AGENT_MODEL="openai/gpt-6-luna"                 # default; needs OPENAI_API_KEY

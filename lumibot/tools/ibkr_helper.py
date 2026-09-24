@@ -82,6 +82,9 @@ IBKR_HOURLY_GAP_REPAIR_MAX_SEGMENTS_PER_SERIES = 4
 # of history. A 1000-minute page is 16.7 hours, a weekend is about 56 closed hours.
 # The bound only guards against a calendar bug; a real walk skips one or two per gap.
 IBKR_MAX_CLOSED_PAGE_SKIPS = 2000
+# Smallest daily page tried after IBKR says "Chart data unavailable" for a page that
+# reaches back before the contract's first bar (see _smaller_daily_period_after_chart_unavailable).
+IBKR_DAILY_MIN_PAGE_DAYS = 5
 IBKR_STOCK_INDEX_HOURLY_REPAIR_PERIOD = "2000h"
 
 IBKR_CONID_NEGATIVE_CACHE_TTL_SECONDS = 24 * 60 * 60  # 24h (persisted via BacktestCacheManager when enabled)
@@ -468,13 +471,48 @@ def _us_equity_closed_interval(start_local: datetime, end_local: datetime, *, in
 def _period_to_timedelta(period: str) -> Optional[timedelta]:
     """Parse an IBKR history `period` (``1000min``, ``5000min``, ``1000h``, ``45d``)."""
     text = (period or "").strip().lower()
-    for suffix, unit in (("min", "minutes"), ("sec", "seconds"), ("h", "hours"), ("d", "days")):
+    for suffix, unit, scale in (
+        ("min", "minutes", 1),
+        ("sec", "seconds", 1),
+        ("h", "hours", 1),
+        ("d", "days", 1),
+        ("w", "days", 7),
+        ("y", "days", 365),
+        ("m", "days", 30),
+    ):
         if text.endswith(suffix):
             number = text[: -len(suffix)]
             if number.isdigit() and int(number) > 0:
-                return timedelta(**{unit: int(number)})
+                return timedelta(**{unit: int(number) * scale})
             return None
     return None
+
+
+def _is_chart_data_unavailable(exc: BaseException) -> bool:
+    return "chart data unavailable" in str(exc).lower()
+
+
+def _smaller_daily_period_after_chart_unavailable(
+    exc: BaseException, *, asset_type: str, bar: str, period: str
+) -> Optional[str]:
+    """Half-size daily page to retry after IBKR's ``Chart data unavailable``.
+
+    IBKR returns that HTTP 500 when a daily page reaches back before the first bar it
+    holds for the contract (recent listings, or the last page of a long backtest).
+    Verified 2026-09-24: a 2022 listing failed with ``5y`` and returned 1002 bars with
+    ``4y``. Halving keeps the real bars that exist; None once the page is tiny.
+    """
+    if asset_type not in {"stock", "index"} or not (bar or "").strip().lower().endswith("d"):
+        return None
+    if not _is_chart_data_unavailable(exc):
+        return None
+    step = _period_to_timedelta(period)
+    if step is None:
+        return None
+    days = step.days // 2
+    if days < IBKR_DAILY_MIN_PAGE_DAYS:
+        return None
+    return f"{days}d"
 
 
 def _cursor_before_closed_stock_page(
@@ -2163,6 +2201,16 @@ def _fetch_history_between_dates(
                 max_timeout_attempts=_max_timeout_attempts,
             )
         except Exception as exc:
+            smaller_period = _smaller_daily_period_after_chart_unavailable(
+                exc, asset_type=asset_type, bar=bar, period=period
+            )
+            if smaller_period is not None:
+                period = smaller_period
+                continue
+            if chunks and asset_type in {"stock", "index"} and _is_chart_data_unavailable(exc):
+                # The page reaches before the first bar IBKR holds. Keep the real bars
+                # already collected instead of discarding the whole series.
+                break
             classification = classify_history_failure(exc)
             if (
                 not chunks
@@ -2211,7 +2259,20 @@ def _fetch_history_between_dates(
                     conid_refreshes=1,
                     reason=classification.reason,
                 )
-            if chunks and _deadline_monotonic is not None:
+            if chunks:
+                # A later (older) page failed. The newer pages are real bars: keep them
+                # and stop paging instead of raising, which used to discard every page
+                # already collected and leave the strategy with no bars at all. Nothing
+                # is negatively cached, so the missing older part stays retryable.
+                logger.warning(
+                    "IBKR history paging for %s timestep=%s stopped at an older page (%s); keeping %d real bars "
+                    "already collected back to %s",
+                    getattr(asset, "symbol", None),
+                    timestep,
+                    classification.reason,
+                    sum(len(chunk) for chunk in chunks),
+                    min(chunk.index.min() for chunk in chunks),
+                )
                 break
             raise
 

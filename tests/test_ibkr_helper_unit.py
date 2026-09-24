@@ -1194,3 +1194,161 @@ def test_option_conid_lookup_picks_the_requested_trading_class(monkeypatch, symb
         right="CALL",
     )
     assert ibkr_helper._lookup_conid_option(asset=asset, quote=None, exchange=None) == expected_conid
+
+
+# ---------------------------------------------------------------------------
+# 2026-09-24: IBKR answers HTTP 500 {"error":"Chart data unavailable"} when a daily
+# history page reaches back before the first bar it holds for the contract (a fund
+# listed in 2022 asked for 5y, or the last page of a 2006 backtest). Verified live on
+# the production downloader: a 2022 listing failed with period=5y and returned 1002
+# bars with period=4y. The pager raised on that answer, so the symbol lost every bar
+# (first page) or every page it had already collected (later page), and the strategy
+# ran without the asset.
+# ---------------------------------------------------------------------------
+
+
+def _daily_vendor_rows(first_day: str, last_day: str) -> pd.DataFrame:
+    idx = pd.bdate_range(first_day, last_day, tz="UTC") + pd.Timedelta(hours=20)
+    px = pd.Series(range(len(idx)), index=idx, dtype="float64") * 0.1 + 20.0
+    return pd.DataFrame({"open": px, "high": px + 1, "low": px - 1, "close": px + 0.5, "volume": 1000.0})
+
+
+def _chart_unavailable_history_fake(vendor: pd.DataFrame, calls: list):
+    first_bar = vendor.index.min()
+
+    def _period_days(period: str) -> int:
+        text = period.strip().lower()
+        if text.endswith("y"):
+            return int(text[:-1]) * 365
+        assert text.endswith("d"), period
+        return int(text[:-1])
+
+    def fake_history_request(**kwargs):
+        calls.append(kwargs)
+        window_end = pd.Timestamp(kwargs["start_time"])
+        window_start = window_end - pd.Timedelta(days=_period_days(kwargs["period"]))
+        if window_start < first_bar - pd.Timedelta(days=3):
+            raise RuntimeError(
+                'Request r1 permanently failed: IBKR rest server error 500: {"error":"Chart data unavailable"}'
+            )
+        rows = vendor.loc[(vendor.index > window_start) & (vendor.index <= window_end)].tail(1000)
+        return {
+            "data": [
+                {"t": int(ts.timestamp() * 1000), "o": r["open"], "h": r["high"], "l": r["low"],
+                 "c": r["close"], "v": r["volume"]}
+                for ts, r in rows.iterrows()
+            ]
+        }
+
+    return fake_history_request
+
+
+@pytest.mark.parametrize(
+    "start_dt",
+    [
+        datetime(2025, 1, 2, tzinfo=timezone.utc),  # first 5y page already reaches before the listing
+        datetime(2019, 1, 2, tzinfo=timezone.utc),  # a later page reaches before the listing
+    ],
+)
+def test_ibkr_daily_history_keeps_real_bars_when_a_page_reaches_before_the_first_bar(monkeypatch, start_dt):
+    import lumibot.tools.ibkr_helper as ibkr_helper
+
+    vendor = _daily_vendor_rows("2022-05-04", "2026-09-18")
+    calls: list = []
+    monkeypatch.setattr(ibkr_helper, "_resolve_conid", lambda **_: 559931479)
+    monkeypatch.setattr(ibkr_helper, "_ibkr_history_request", _chart_unavailable_history_fake(vendor, calls))
+
+    result = ibkr_helper._fetch_history_between_dates(
+        asset=Asset("JEPQ", asset_type=Asset.AssetType.STOCK),
+        quote=Asset("USD", asset_type=Asset.AssetType.FOREX),
+        timestep="day",
+        start_dt=start_dt,
+        end_dt=datetime(2026, 9, 18, 20, tzinfo=timezone.utc),
+        exchange=None,
+        include_after_hours=False,
+        source="Trades",
+        source_was_explicit=True,
+    )
+
+    # Every real bar from the later of the requested start and the first bar IBKR holds.
+    lower = max(pd.Timestamp(start_dt), vendor.index.min())
+    expected = vendor.loc[vendor.index >= lower]
+    assert not result.empty, f"real bars discarded; calls={[(c['period'], str(c['start_time'])) for c in calls]}"
+    assert result.index.min() <= lower + pd.Timedelta(days=3)
+    assert result.index.max() == vendor.index.max()
+    got = result.loc[result.index >= lower]
+    assert list(got.index) == list(expected.index), "a real bar is missing or invented"
+    assert len(calls) <= 20, f"too many downloader requests: {len(calls)}"
+
+
+def test_ibkr_later_page_failure_keeps_the_real_pages_already_collected(monkeypatch):
+    """2026-09-24 production: a 58-ETF minute backtest lost every bar for 13 ETFs.
+
+    Each series paged back fine, then one older page failed in the downloader with
+    ``IBKR history remained invalid after rebuild (... reason=tail:missing_overlap_timestamp)``.
+    The pager raised, which threw away the newer pages it had already collected, so the
+    strategy saw no bars at all for those symbols. Keep the real pages; the missing older
+    part stays visibly missing (no negative cache) and a later process can retry it.
+    """
+    import lumibot.tools.ibkr_helper as ibkr_helper
+
+    monkeypatch.setattr(ibkr_helper, "_resolve_conid", lambda **_: 95346641)
+    first_page = [
+        {"t": int(ts.timestamp() * 1000), "o": 50.0, "h": 50.2, "l": 49.9, "c": 50.1, "v": 300.0}
+        for ts in pd.date_range("2026-09-18 13:30", "2026-09-18 19:59", freq="1min", tz="UTC")
+    ]
+    calls = {"count": 0}
+
+    def fake_history_request(**_kwargs):
+        calls["count"] += 1
+        if calls["count"] == 1:
+            return {"data": first_page}
+        raise RuntimeError(
+            "Request r2 permanently failed: IBKR history remained invalid after rebuild "
+            "(conid=95346641 period=1000min bar=1min reason=tail:missing_overlap_timestamp:1789602420000)"
+        )
+
+    monkeypatch.setattr(ibkr_helper, "_ibkr_history_request", fake_history_request)
+
+    result = ibkr_helper._fetch_history_between_dates(
+        asset=Asset("XSW", asset_type=Asset.AssetType.STOCK),
+        quote=Asset("USD", asset_type=Asset.AssetType.FOREX),
+        timestep="minute",
+        start_dt=datetime(2026, 9, 14, 8, 0, tzinfo=timezone.utc),
+        end_dt=datetime(2026, 9, 19, 3, 59, tzinfo=timezone.utc),
+        exchange=None,
+        include_after_hours=True,
+        source="Trades",
+        source_was_explicit=True,
+    )
+
+    assert len(result) == len(first_page)
+    assert calls["count"] == 2
+
+
+def test_ibkr_first_page_failure_still_raises(monkeypatch):
+    """With nothing collected there is nothing real to keep: the caller must see the error."""
+    import lumibot.tools.ibkr_helper as ibkr_helper
+
+    monkeypatch.setattr(ibkr_helper, "_resolve_conid", lambda **_: 95346641)
+
+    def fake_history_request(**_kwargs):
+        raise RuntimeError(
+            "Request r1 permanently failed: IBKR history remained invalid after rebuild "
+            "(conid=95346641 period=1000min bar=1min reason=tail:missing_overlap_timestamp:1789602420000)"
+        )
+
+    monkeypatch.setattr(ibkr_helper, "_ibkr_history_request", fake_history_request)
+
+    with pytest.raises(RuntimeError, match="remained invalid after rebuild"):
+        ibkr_helper._fetch_history_between_dates(
+            asset=Asset("XSW", asset_type=Asset.AssetType.STOCK),
+            quote=Asset("USD", asset_type=Asset.AssetType.FOREX),
+            timestep="minute",
+            start_dt=datetime(2026, 9, 14, 8, 0, tzinfo=timezone.utc),
+            end_dt=datetime(2026, 9, 19, 3, 59, tzinfo=timezone.utc),
+            exchange=None,
+            include_after_hours=True,
+            source="Trades",
+            source_was_explicit=True,
+        )

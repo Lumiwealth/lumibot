@@ -1352,3 +1352,28 @@ def test_ibkr_first_page_failure_still_raises(monkeypatch):
             source="Trades",
             source_was_explicit=True,
         )
+
+
+@pytest.mark.parametrize("days,expected_period", [(390, "397d"), (700, "707d"), (993, "1000d")])
+def test_daily_fetch_sizes_windows_up_to_1000_days_exactly(monkeypatch, days, expected_period):
+    """2026-09-24: a one-year backtest plus a 75-bar indicator lookback spans ~390 days, just over
+    the old 365-day exact-sizing limit, so every symbol asked IBKR for a 5y page. The downloader's
+    head probe never matched a 5y daily page (head:missing_overlap_timestamp:1632144600000 on 11
+    ETFs in 15 minutes), and each rebuild cost ~35 s per symbol. IBKR accepts exact day periods up
+    to 1000d (verified live), so size those windows exactly and keep 5y only for longer spans."""
+    import lumibot.tools.ibkr_helper as helper
+
+    start = datetime(2025, 9, 1, tzinfo=timezone.utc)
+    end = start + timedelta(days=days)
+    calls = []
+    monkeypatch.setattr(helper, "_resolve_conid", lambda **_: 123)
+
+    def history(**kwargs):
+        calls.append(kwargs)
+        return {"data": [{"t": int(start.timestamp() * 1000), "o": 1, "h": 1, "l": 1, "c": 1, "v": 100}]}
+
+    monkeypatch.setattr(helper, "_ibkr_history_request", history)
+    helper._fetch_history_between_dates(asset=Asset("XLK"), quote=Asset("USD", "forex"), timestep="day",
+        start_dt=start, end_dt=end, exchange=None, include_after_hours=False, source="Trades",
+        source_was_explicit=True)
+    assert [c["period"] for c in calls] == [expected_period]

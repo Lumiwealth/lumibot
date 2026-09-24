@@ -85,6 +85,9 @@ IBKR_MAX_CLOSED_PAGE_SKIPS = 2000
 # Smallest daily page tried after IBKR says "Chart data unavailable" for a page that
 # reaches back before the contract's first bar (see _smaller_daily_period_after_chart_unavailable).
 IBKR_DAILY_MIN_PAGE_DAYS = 5
+# Daily windows up to this many days are requested as one exact "<N>d" page (N <= 1000,
+# which IBKR accepts); longer windows page with IBKR_STOCK_INDEX_DAILY_MAX_PERIOD.
+IBKR_DAILY_EXACT_PERIOD_MAX_DAYS = 993
 # How far behind real time IBKR stock/index intraday history can lag on the shared account
 # (observed 13 to 17 minutes). Intraday requests never ask for bars newer than this.
 IBKR_INTRADAY_HISTORY_DELAY = timedelta(minutes=20)
@@ -2429,9 +2432,14 @@ def _history_period_for_request(
     if asset_type in {"stock", "index", "option"} and normalized_bar.endswith("d"):
         if requested_start is not None and requested_end is not None:
             span = (_to_utc(requested_end) - _to_utc(requested_start)).total_seconds()
-            if 0 < span <= 365 * 86400:
+            if 0 < span <= IBKR_DAILY_EXACT_PERIOD_MAX_DAYS * 86400:
                 # The caller's full span includes lookback/prefetch. Never infer
                 # it from the simulation's visible dates or shrink it per bar.
+                #
+                # 2026-09-24: the limit was 365 days, so a one-year backtest plus an
+                # indicator lookback (~390 days) asked for a 5y page. The downloader's
+                # head probe never matches a 5y daily page and rebuilt every one (~35 s
+                # per symbol). IBKR accepts exact day periods up to 1000d.
                 days = math.ceil(span / 86400) + 7
                 return f"{days}d"
         return IBKR_STOCK_INDEX_DAILY_MAX_PERIOD

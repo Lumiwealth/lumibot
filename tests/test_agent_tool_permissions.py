@@ -1175,3 +1175,93 @@ def test_examples_that_use_the_web_opt_in_only_the_agents_that_fetch(filename):
     for item in created:
         if item["name"] not in expected:
             assert not item.get("allow_network"), item["name"]
+
+
+class _SlowVars(dict):
+    """A vars store that writes slowly, widening read-modify-write windows."""
+
+    def get(self, key, default=None):
+        return super().get(key, default)
+
+    def set(self, key, value):
+        import time
+
+        time.sleep(0.01)
+        self[key] = value
+
+
+def test_run_together_keeps_model_calls_parallel_but_serializes_shared_state(monkeypatch, tmp_path):
+    import threading
+    import time
+
+    monkeypatch.setenv("LUMIBOT_CACHE_FOLDER", str(tmp_path))
+    monkeypatch.delenv("LUMIBOT_AGENT_MAX_MODEL_CALLS", raising=False)
+    strategy = _Strategy()
+    # Own parameters: other tests leave a model-call limit on the shared class dict.
+    strategy.parameters = {}
+    strategy.vars = _SlowVars()
+    strategy.is_backtesting = False
+    manager = AgentManager(strategy)
+
+    agent_names = ["bull", "bear", "judge"]
+    runs_per_agent = 3
+    ledger = {"count": 0}
+    both_models_running = threading.Barrier(len(agent_names), timeout=5)
+
+    def record_tick(note: str) -> dict:
+        """Append one tick to a shared ledger."""
+        current = ledger["count"]
+        time.sleep(0.01)
+        ledger["count"] = current + 1
+        return {"ok": True, "count": ledger["count"], "note": note}
+
+    class _ParallelRuntime:
+        def __init__(self):
+            self.first_run = True
+
+        def run(self, request):
+            from lumibot.components.agents.runtime import _wrap_tool_callable
+
+            if self.first_run:
+                self.first_run = False
+                # Every agent's model call must be in flight at the same time.
+                both_models_running.wait()
+            tool_context = {"agent_name": request.agent_name, "model_call_id": request.model_call_id}
+            tool_map = {tool.name: _wrap_tool_callable(tool, tool_context) for tool in request.bound_tools}
+            for index in range(4):
+                tool_map["record_tick"](note=f"{request.agent_name}-{index}")
+            summary = f"{request.agent_name} done"
+            return AgentRunResult(summary=summary, model=request.model, events=[AgentTraceEvent(kind="text", text=summary)])
+
+    for name in agent_names:
+        manager.create(
+            name=name,
+            model="openai/gpt-5.4-mini",
+            allow_trading=False,
+            include_builtin_tools=False,
+            tools=[record_tick],
+            _runtime=_ParallelRuntime(),
+        )
+
+    for _ in range(runs_per_agent):
+        results = manager.run_together([(name, f"{name} task", None) for name in agent_names])
+        assert set(results) == set(agent_names)
+
+    total_runs = len(agent_names) * runs_per_agent
+    assert ledger["count"] == total_runs * 4
+
+    state = strategy.vars.get("_agent_runtime_state")
+    assert set(state) == set(agent_names)
+    for name in agent_names:
+        assert len(state[name]["runs"]) == runs_per_agent
+        assert len(state[name]["memory_notes"]) == runs_per_agent
+
+    summary_rows = [
+        json.loads(line)
+        for line in (tmp_path / "agent_runtime" / "agent_run_summaries.jsonl").read_text().splitlines()
+    ]
+    assert len(summary_rows) == total_runs
+    assert {row["agent_name"] for row in summary_rows} == set(agent_names)
+
+    for name in agent_names:
+        assert manager._observability_call_index[name] == runs_per_agent

@@ -42,19 +42,15 @@ class BitUnixClient:
         qp = ''.join(f"{k}{params[k]}" for k in sorted(params)) if params else ""
         # Prepare compact JSON body string without spaces
         body_str = json.dumps(body, separators=(',', ':'), ensure_ascii=False) if body else ""
-        # Construct digest input and log it
+        # Never log the digest input, digest, sign input, or signature: they contain or are
+        # derived from the API key and secret key, and debug logs are shipped to log sinks.
         digest_input = nonce + timestamp + self.api_key + qp + body_str
-        logger.debug("digest_input: %s", digest_input)
         # First SHA-256 hash
         digest = hashlib.sha256(digest_input.encode('utf-8')).hexdigest()
-        logger.debug("digest: %s", digest)
-        # Final signature input and log it
+        # Second SHA-256 hash over digest + secret. Bitunix's API spec requires this
+        # double SHA-256 request signature; it is not password hashing.
         sign_input = digest + self.secret_key
-        logger.debug("sign_input: %s", sign_input)
-        # Second SHA-256 hash and return
-        signature = hashlib.sha256(sign_input.encode('utf-8')).hexdigest()
-        logger.debug("signature: %s", signature)
-        return signature
+        return hashlib.sha256(sign_input.encode('utf-8')).hexdigest()
 
     def _headers(self, params: Dict[str, Any], body: Optional[Dict[str, Any]]) -> Dict[str, str]:
         nonce     = self._nonce()

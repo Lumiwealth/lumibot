@@ -229,3 +229,52 @@ def test_artwork_receipt_hashes_match_committed_assets():
 
         assert image_path.is_file()
         assert hashlib.sha256(image_path.read_bytes()).hexdigest() == expected_sha256
+
+
+def _created_prompts(strategy_class):
+    agents = _Agents()
+    context = SimpleNamespace(agents=agents, parameters=dict(strategy_class.parameters))
+    strategy_class.initialize(context)
+    return {item["name"]: " ".join(item["system_prompt"].split()) for item in agents.created}
+
+
+def test_public_ai_examples_ship_conservative_risk_defaults():
+    """Users copy these examples into live trading, so the shipped risk limits stay small."""
+    assert AIOpeningRangeBreakoutStrategy.parameters["risk_fraction"] <= 0.01
+    assert AIVWAPStrategy.parameters["risk_fraction"] <= 0.01
+    for strategy_class in (AICreditSpreadStrategy, AIIronCondorStrategy):
+        assert strategy_class.parameters["max_risk_pct"] <= 0.02
+        assert strategy_class.parameters["max_contracts"] <= 10
+    assert AISpxZeroDteBearCallTeamStrategy.parameters["max_risk_pct"] <= 0.01
+    assert AISpxZeroDteBearCallTeamStrategy.parameters["max_contracts"] <= 2
+
+
+def test_stock_example_prompt_builders_share_one_risk_fraction_default():
+    from lumibot.example_strategies.ai_opening_range_breakout import (
+        build_orb_system_prompt,
+        build_orb_trading_prompt,
+    )
+    from lumibot.example_strategies.ai_vwap import build_vwap_system_prompt
+
+    for prompt in (build_orb_system_prompt({}), build_orb_trading_prompt({}), build_vwap_system_prompt({})):
+        flat = " ".join(prompt.split())
+        assert "stop risk is at most 1.00% of portfolio value" in flat
+
+
+def test_orb_trader_uses_the_orb_trading_prompt():
+    from lumibot.example_strategies.ai_opening_range_breakout import build_orb_trading_prompt
+
+    trader = _created_prompts(AIOpeningRangeBreakoutStrategy)["trading_risk_manager"]
+    assert trader == " ".join(build_orb_trading_prompt(AIOpeningRangeBreakoutStrategy.parameters).split())
+    assert "Verify the exact symbol, completed 15-minute opening range" in trader
+    assert "stop on the opposite side of the verified range" in trader
+    assert "capped at 200 shares" in trader
+    assert "only trading agent" in trader.lower()
+
+
+def test_vwap_trader_receives_the_entry_threshold_share_cap_and_stop_risk():
+    trader = _created_prompts(AIVWAPStrategy)["trading_risk_manager"]
+    assert "at least 0.15% below VWAP" in trader
+    assert "stop risk is at most 1.00% of portfolio value" in trader
+    assert "capped at 200 shares" in trader
+    assert "Use about the risk fraction of the account" not in trader

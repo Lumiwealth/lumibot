@@ -61,8 +61,8 @@ class AICreditSpreadStrategy(Strategy):
         "underlying": "SPY", "preferred_side": "put", "wing_width": 5.0,
         "target_delta": 0.16, "delta_band": 0.04, "min_dte": 30,
         "max_dte": 45, "preferred_dte": 35, "profit_take_fraction": 0.50,
-        "loss_multiple": 2.0,         "time_stop_dte": 21, "max_risk_pct": 0.15,
-        "max_contracts": 40,
+        "loss_multiple": 2.0,         "time_stop_dte": 21, "max_risk_pct": 0.02,
+        "max_contracts": 10,
     }
 
     def initialize(self):

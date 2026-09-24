@@ -33,7 +33,7 @@ from lumibot.strategies.strategy import Strategy
 def build_vwap_system_prompt(params: dict) -> str:
     underlying = str(params.get("underlying", "SPY")).upper()
     deviation_pct = float(params.get("deviation_pct", 0.0015))
-    risk_fraction = float(params.get("risk_fraction", 0.25))
+    risk_fraction = float(params.get("risk_fraction", 0.01))
     max_shares = int(params.get("max_shares", 200))
     hold_bars = int(params.get("hold_bars", 1))
     sleeptime = str(params.get("sleeptime", "1H"))
@@ -60,9 +60,9 @@ Rules:
    previous evaluation ({sleeptime}) and price is still at or above VWAP now. Do
    not reject such a reclaim because several one-minute bars have passed;
    hold_bars counts bars after entry, not the age of the signal.
-3. Prefer market entries and exits. Size so
-   approximate risk is at most {risk_fraction:.2%} of portfolio value, capped at
-   {max_shares} shares. One position at a time.
+3. Prefer market entries and exits. Put the stop just below the dip's lowest
+   completed bar and size so stop risk is at most {risk_fraction:.2%} of portfolio
+   value, capped at {max_shares} shares. One position at a time.
 4. Exit when price returns to VWAP, reaches a modest extension above VWAP, or about
    {hold_bars} bars have passed since entry. Manage an open position before opening
    another.
@@ -78,7 +78,7 @@ class AIVWAPStrategy(Strategy):
     parameters = {
         "underlying": "SPY",
         "deviation_pct": 0.0015,
-        "risk_fraction": 0.25,
+        "risk_fraction": 0.01,
         "max_shares": 200,
         "hold_bars": 1,
         "min_session_minutes": 30,
@@ -89,6 +89,9 @@ class AIVWAPStrategy(Strategy):
         self.sleeptime = str(self.parameters.get("sleeptime", "1H"))
         rules = Path(__file__).with_name("agent_rules") / "ai_vwap.rules.json"
         underlying = str(self.parameters.get("underlying", "SPY")).upper()
+        deviation_pct = float(self.parameters.get("deviation_pct", 0.0015))
+        risk_fraction = float(self.parameters.get("risk_fraction", 0.01))
+        max_shares = int(self.parameters.get("max_shares", 200))
         add_agent(
             self,
             "vwap_researcher",
@@ -110,7 +113,7 @@ class AIVWAPStrategy(Strategy):
         add_agent(
             self,
             "interpreter",
-            "Read both cases. Say whether the reclaim is real and what fraction of the account to use. Do not submit orders.",
+            "Read both cases. Say whether the reclaim is real and where the dip low stop sits. Do not submit orders.",
             allow_trading=False,
         )
         add_agent(
@@ -118,18 +121,20 @@ class AIVWAPStrategy(Strategy):
             "trading_risk_manager",
             trader_prompt(
                 book_rule=(
-                    f"Trade only {underlying}. Buy only after reclaim confirmation. "
+                    f"Trade only {underlying}. Buy only after price dipped at least "
+                    f"{deviation_pct:.2%} below VWAP and reclaim confirmation. "
                     "A dip and reclaim that formed on completed bars since the previous "
-                    "evaluation is a current signal while price is still at or above VWAP. "
-                    "Size the position to about the risk fraction of account value."
+                    "evaluation is a current signal while price is still at or above VWAP."
                 ),
                 exit_rule=(
                     "If a position was opened on an earlier bar, sell it with the order tool "
                     "before any new buy. Also sell when price is back at VWAP or the hold is over."
                 ),
                 cash_rule=(
-                    "One share on a $10,000, $100,000, $500,000, or $1,000,000 account is wrong. "
-                    "Use about the risk fraction of the account, not the whole account."
+                    "Size from the stop: put the stop just below the dip's lowest completed bar, so "
+                    f"stop risk is at most {risk_fraction:.2%} of portfolio value, capped at {max_shares} shares. "
+                    "Shares are that risk budget divided by the distance from entry to stop. "
+                    "Do not size to a fraction of account value."
                 ),
             ),
             allow_trading=True,
@@ -158,7 +163,7 @@ class AIVWAPStrategy(Strategy):
             bull_task="Make the bull case from the research.",
             bear_task="Make the bear case from the research.",
             interpret_task="Decide whether the reclaim is real and how much of the account to use.",
-            trade_task="Apply the interpreter. Size from the account. Exit an older position before a new buy.",
+            trade_task="Apply the interpreter. Size from the stop risk. Exit an older position before a new buy.",
         )
 
 

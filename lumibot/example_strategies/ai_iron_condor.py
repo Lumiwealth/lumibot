@@ -71,8 +71,8 @@ class AIIronCondorStrategy(Strategy):
         "profit_take_fraction": 0.50,
         "loss_multiple": 2.0,
         "time_stop_dte": 21,
-        "max_risk_pct": 0.15,
-        "max_contracts": 40,
+        "max_risk_pct": 0.02,
+        "max_contracts": 10,
     }
 
     def initialize(self):

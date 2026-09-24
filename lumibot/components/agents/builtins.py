@@ -561,6 +561,39 @@ def _bars_timezone_name(bars: Any) -> str | None:
     return str(getattr(tzinfo, "zone", None) or getattr(tzinfo, "key", None) or tzinfo)
 
 
+def _bars_coarser_than_requested(bars: Any, timestep: str) -> bool:
+    """True when an intraday request came back as daily (or coarser) bars.
+
+    Some sources ignore the requested interval and hand back their daily
+    series. Those bars must never be reported under a minute or hour label.
+    """
+    from lumibot.tools.helpers import parse_timestep_qty_and_unit
+
+    try:
+        _, unit = parse_timestep_qty_and_unit(timestep)
+    except Exception:
+        return False
+    if unit not in {"minute", "hour"}:
+        return False
+    frame = getattr(bars, "pandas_df", None)
+    if frame is None:
+        frame = getattr(bars, "df", None)
+    index = getattr(frame, "index", None)
+    if index is None or len(index) < 2:
+        return str(getattr(bars, "timestep", "") or "").strip().lower() == "day"
+    try:
+        import pandas as pd
+
+        times = pd.DatetimeIndex(index)
+        gaps = times[1:] - times[:-1]
+        positive = gaps[gaps > pd.Timedelta(0)]
+        if len(positive) == 0:
+            return False
+        return bool(positive.min() >= pd.Timedelta(hours=20))
+    except Exception:
+        return False
+
+
 def _symbol_from_bars_key(key: Any, fallback: str | None = None) -> str:
     symbol = getattr(key, "symbol", None)
     if symbol is None and isinstance(key, (list, tuple)) and key:
@@ -1294,6 +1327,7 @@ def _bind_historical_prices(strategy: Any, manager: Any) -> BoundTool:
         bars_by_symbol: dict[str, list[dict[str, Any]]] = {}
         bar_timezones: list[str] = []
         missing: list[str] = []
+        interval_mismatch: list[str] = []
         batch_fn = getattr(strategy, "get_historical_prices_for_assets", None)
         batch_result = None
         if callable(batch_fn) and asset_type in {"stock", "us_equity", "index"}:
@@ -1315,6 +1349,9 @@ def _bind_historical_prices(strategy: Any, manager: Any) -> BoundTool:
             for key, bars in batch_result.items():
                 keyed[_symbol_from_bars_key(key)] = bars
             for symbol in symbol_list:
+                if _bars_coarser_than_requested(keyed.get(symbol), timestep):
+                    interval_mismatch.append(symbol)
+                    keyed[symbol] = None
                 records = _bars_to_records(keyed.get(symbol))
                 zone = _bars_timezone_name(keyed.get(symbol))
                 if records and zone:
@@ -1341,6 +1378,9 @@ def _bind_historical_prices(strategy: Any, manager: Any) -> BoundTool:
                         exchange=exchange,
                         include_after_hours=include_after_hours,
                     )
+                    if _bars_coarser_than_requested(bars, timestep):
+                        interval_mismatch.append(symbol)
+                        bars = None
                     records = _bars_to_records(bars)
                     bars_by_symbol[symbol] = records
                     zone = _bars_timezone_name(bars)
@@ -1353,6 +1393,13 @@ def _bind_historical_prices(strategy: Any, manager: Any) -> BoundTool:
                     missing.append(symbol)
 
         available = [symbol for symbol, records in bars_by_symbol.items() if records]
+        interval_fields: dict[str, Any] = {"symbols_interval_mismatch": interval_mismatch}
+        if interval_mismatch:
+            interval_fields["interval_note"] = (
+                f"The data source returned daily bars, not {timestep} bars, for "
+                f"{', '.join(interval_mismatch)}. No {timestep} history is available for them; "
+                "they are listed as missing instead."
+            )
         if table_name is not None:
             table = manager.duckdb.register_bars_table(
                 table_name=table_name,
@@ -1371,6 +1418,7 @@ def _bind_historical_prices(strategy: Any, manager: Any) -> BoundTool:
                 "symbols_requested": symbol_list,
                 "symbols_available": available,
                 "symbols_missing": missing,
+                **interval_fields,
                 "count_requested": len(symbol_list),
                 "count_available": len(available),
                 "length": length,
@@ -1384,6 +1432,7 @@ def _bind_historical_prices(strategy: Any, manager: Any) -> BoundTool:
             "symbols_requested": symbol_list,
             "symbols_available": available,
             "symbols_missing": missing,
+            **interval_fields,
             "count_requested": len(symbol_list),
             "count_available": len(available),
             "length": length,

@@ -929,3 +929,61 @@ def test_market_historical_prices_accepts_a_single_symbol_argument():
     assert "tool_error" not in result
     assert result["symbols_requested"] == ["AAPL"]
     assert len(result["bars_by_symbol"]["AAPL"]) == 3
+
+
+class _DailyBars:
+    """Daily bars at the 16:00 close, like a source that ignores the requested interval."""
+
+    def __init__(self, closes):
+        index = pd.date_range("2025-12-29 16:00", periods=len(closes), freq="B", tz="America/New_York")
+        self.pandas_df = pd.DataFrame(
+            {"open": closes, "high": closes, "low": closes, "close": closes, "volume": [1_000] * len(closes)},
+            index=index,
+        )
+        self.df = self.pandas_df
+
+
+class _DailyOnlySourceStrategy(_OptionsStrategy):
+    def get_historical_prices_for_assets(self, assets, length, timestep="day", **kwargs):
+        return {str(getattr(asset, "symbol", asset)).upper(): _DailyBars([500.0 + i for i in range(length)]) for asset in assets}
+
+    def get_historical_prices(self, asset, length, timestep="day", **kwargs):
+        return _DailyBars([500.0 + i for i in range(length)])
+
+
+@pytest.mark.parametrize("batch", [True, False])
+@pytest.mark.parametrize("timestep", ["minute", "5minute", "hour"])
+def test_market_historical_prices_never_labels_daily_bars_as_intraday(batch, timestep):
+    strategy = _DailyOnlySourceStrategy()
+    if not batch:
+        strategy.get_historical_prices_for_assets = None
+    tools = _wrapped_tools(strategy, [BuiltinTools.market.historical_prices()])
+
+    result = tools["market_historical_prices"](symbols=["SPY"], length=5, timestep=timestep)
+
+    assert result["bars_by_symbol"]["SPY"] == []
+    assert result["symbols_available"] == []
+    assert result["symbols_missing"] == ["SPY"]
+    assert result["symbols_interval_mismatch"] == ["SPY"]
+    assert "daily" in result["interval_note"]
+
+
+def test_market_historical_prices_table_refuses_daily_bars_for_minute_request():
+    strategy = _DailyOnlySourceStrategy()
+    tools = _wrapped_tools(strategy, [BuiltinTools.market.historical_prices()])
+
+    result = tools["market_historical_prices"](symbols=["SPY"], length=5, timestep="minute", table_name="spy_min")
+
+    assert result["row_count"] == 0
+    assert result["symbols_missing"] == ["SPY"]
+    assert result["symbols_interval_mismatch"] == ["SPY"]
+
+
+def test_market_historical_prices_keeps_daily_bars_for_day_request():
+    strategy = _DailyOnlySourceStrategy()
+    tools = _wrapped_tools(strategy, [BuiltinTools.market.historical_prices()])
+
+    result = tools["market_historical_prices"](symbols=["SPY"], length=5, timestep="day")
+
+    assert len(result["bars_by_symbol"]["SPY"]) == 5
+    assert result["symbols_interval_mismatch"] == []

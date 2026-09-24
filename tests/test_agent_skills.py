@@ -170,6 +170,30 @@ def test_stock_skill_prices_limits_from_current_price_and_loads_rule_bars_with_h
     assert "pass `table_name` to query them with `duckdb_query`" in intraday
 
 
+def test_stock_skill_reads_price_history_through_market_historical_prices():
+    """stock_orb_completed_bars (GitHub run 35931107571): an agent built the
+    range from market_load_history_table and ordered without the
+    market_historical_prices read the stock workflow expects."""
+    stock_skill = next(skill for skill in load_builtin_skills() if skill.name == "stock-trading")
+    instructions = " ".join(stock_skill.instructions.split())
+
+    assert "Read that history with `market_historical_prices`, also for a single symbol" in instructions
+    assert "`market_load_history_table` does not replace it before a stock order" in instructions
+
+
+def test_orb_volume_confirmation_compares_regular_session_bars_and_keeps_an_earlier_breakout():
+    """stock_orb_completed_bars (six-final rep 2): with the 09:45 bar closing at
+    230.00 above the 228.50 range high on 2,400 shares against 1,000-1,100 in the
+    range, the agent declined, measuring volume against pre-market bars or
+    treating the 09:45 breakout as stale at 10:35."""
+    stock_skill = next(skill for skill in load_builtin_skills() if skill.name == "stock-trading")
+    intraday = " ".join(stock_skill.resources.references["intraday-setups.md"].split())
+
+    assert "compare the candidate bar with the opening-range bars" in intraday
+    assert "Pre-market and after-hours bars are not part of that comparison" in intraday
+    assert "The first completed bar after the range that meets the rule is the breakout" in intraday
+
+
 def test_skill_loading_instruction_names_every_builtin_skill_exactly():
     for name in BUILTIN_SKILL_NAMES:
         assert f"`{name}`" in BUILTIN_SKILL_LOADING_INSTRUCTION

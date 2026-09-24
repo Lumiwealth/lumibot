@@ -367,6 +367,68 @@ def _require_agent_order_readiness(symbol: str) -> None:
         )
 
 
+def _merge_single_symbol(symbols: Any, symbol: str) -> list[str] | str:
+    """Add a single `symbol` argument to a batch `symbols` argument."""
+    single = _require_single_symbol_text("symbol", symbol)
+    if symbols is None or (isinstance(symbols, str) and not symbols.strip()):
+        return [single]
+    if isinstance(symbols, (list, tuple)):
+        return [*symbols, single]
+    return f"{symbols},{single}"
+
+
+def _require_option_chain_before_opening(strategy: Any, orders: list[Any]) -> None:
+    """An agent must read the chain before it opens an option position.
+
+    Expiration and delta helpers return candidates; only options_get_chain shows
+    what is listed. Release eval options_single_leg_chain_and_quote caught an
+    agent opening a call it had found through helpers alone. Closing an
+    existing position needs no chain: the contract is already held.
+    """
+    if not bool(current_agent_tool_context().get("enforce_order_readiness")):
+        return
+    held: dict[tuple[str, str, float, str], float] = {}
+    for position in strategy.get_positions(include_cash_positions=True) or []:
+        asset = getattr(position, "asset", None)
+        asset_type = getattr(asset, "asset_type", None)
+        if str(getattr(asset_type, "value", asset_type) or "").lower() != "option":
+            continue
+        key = _option_contract_key(asset)
+        held[key] = held.get(key, 0.0) + float(getattr(position, "quantity", 0) or 0)
+    missing: list[str] = []
+    for order in orders:
+        asset = getattr(order, "asset", None)
+        asset_type = getattr(asset, "asset_type", None)
+        if str(getattr(asset_type, "value", asset_type) or "").lower() != "option":
+            continue
+        side = str(getattr(order, "side", "") or "").lower()
+        if side.endswith("_to_close"):
+            continue
+        current = held.get(_option_contract_key(asset), 0.0)
+        if (side == "sell" and current > 0) or (side == "buy" and current < 0):
+            continue
+        symbol = str(getattr(asset, "symbol", "") or "").upper()
+        if symbol and not _has_successful_options_chain_for_symbol(symbol) and symbol not in missing:
+            missing.append(symbol)
+    if missing:
+        raise ValueError(
+            "ORDER_READINESS_REQUIRED: Before opening an option position, call "
+            + ", ".join(f"options_get_chain(symbol={symbol!r})" for symbol in missing)
+            + " in this same agent run and choose an expiration and strike it lists."
+        )
+
+
+def _has_successful_options_chain_for_symbol(symbol: str) -> bool:
+    normalized_symbol = str(symbol or "").strip().upper()
+    for call in _agent_tool_calls_for_current_run():
+        if call.get("tool_name") != "options_get_chain" or not _tool_call_was_successful(call):
+            continue
+        arguments = call.get("arguments") if isinstance(call.get("arguments"), dict) else {}
+        if str(arguments.get("symbol") or "").strip().upper() == normalized_symbol:
+            return True
+    return False
+
+
 def _parse_symbol_list(
     *,
     symbols: list[str] | tuple[str, ...] | str | None = None,
@@ -1196,6 +1258,7 @@ def _bind_historical_prices(strategy: Any, manager: Any) -> BoundTool:
         *,
         symbols: list[str] | tuple[str, ...] | str | None = None,
         symbols_json: str | None = None,
+        symbol: str | None = None,
         length: int,
         timestep: str = "day",
         asset_type: AssetTypeArg = "stock",
@@ -1215,6 +1278,11 @@ def _bind_historical_prices(strategy: Any, manager: Any) -> BoundTool:
         """
         if table_name is not None:
             table_name = manager.duckdb.validate_table_name(table_name)
+        # Every single-symbol market tool names its argument symbol, and agents
+        # call this one the same way. Dropping it raised a tool error that
+        # blocked a whole decision (release eval rules_active_override_strategy_prompt).
+        if symbol is not None and str(symbol).strip():
+            symbols = _merge_single_symbol(symbols, symbol)
         symbol_list = _parse_symbol_list(symbols=symbols, symbols_json=symbols_json, max_symbols=150)
         length = _require_positive_int("length", length)
         timestep = _require_non_empty_text("timestep", timestep)
@@ -1330,7 +1398,8 @@ def _bind_historical_prices(strategy: Any, manager: Any) -> BoundTool:
         description=(
             "Get historical OHLCV bars for many symbols in one call via "
             "Strategy.get_historical_prices_for_assets. "
-            "Arguments: symbols as a list or comma-separated string, and/or symbols_json as a JSON array; "
+            "Arguments: symbols as a list or comma-separated string, and/or symbols_json as a JSON array "
+            "(a single symbol='AAPL' also works); "
             "required length; timestep (default day; multi-minute aliases such as '5minute', '5min', and '5 minutes' are supported); optional asset_type (default stock), quote_symbol, "
             "exchange, include_after_hours, chunk_size, max_workers. "
             "Cap is 150 symbols per call. Returns bars_by_symbol keyed by symbol with datetime/open/high/low/close/volume rows, "
@@ -2103,6 +2172,7 @@ def _bind_load_history(strategy: Any, manager: Any) -> BoundTool:
             "Valid asset_type values: stock, option, future, cont_future, forex, crypto, index, multileg, us_equity. "
             "The symbol argument must be the exact tradable symbol, such as XLY or SPY, not a generated table name such as XLY_HIST. "
             "For two or more symbols of history, prefer market_historical_prices instead of calling this once per symbol. "
+            "For stock and ETF trading decisions, read price history with market_historical_prices (pass table_name to query it in SQL). "
             "Use stock for normal equities. If asset_type is omitted, stock is assumed. Do not pass economic series ids such as DCOILWTICO, FEDFUNDS, or M2SL as market symbols; use macro/FRED tools for those instead. "
             "The loaded price tables usually expose columns such as datetime, open, high, low, close, volume, bid, ask, dividend, and dividend_yield. "
             "Use datetime for timestamps and close for the traded price unless the returned sample rows show otherwise. "
@@ -3876,6 +3946,7 @@ def _bind_submit_order(strategy: Any, manager: Any) -> BoundTool:
             quote=quote,
             time_in_force=time_in_force,
         )
+        _require_option_chain_before_opening(strategy, [created])
         _validate_option_closing_orders(strategy, [created])
         memory = getattr(strategy, "memory", None)
         memory_context = _agent_memory_context_kwargs()
@@ -3937,6 +4008,7 @@ def _bind_submit_order(strategy: Any, manager: Any) -> BoundTool:
             "Before using this tool, inspect the injected account_snapshot plus market_last_price (or market_last_prices including the symbol). A complete injected account_snapshot satisfies the initial account_portfolio, account_positions, and open-order readiness checks; after any order mutation, refresh account_portfolio and complete unfiltered pagination for both account_positions and orders_open_orders before another order. The current-price check is always required in the same agent run; otherwise the order is rejected with ORDER_READINESS_REQUIRED. "
             "Valid side values: buy, sell, buy_to_open, buy_to_close, sell_to_open, sell_to_close, sell_short, buy_to_cover. "
             "For an option close, reconcile the exact contract with the latest account_positions result: positive long quantity requires sell_to_close and negative short quantity requires buy_to_close, always using the absolute current quantity. Never use the inverse mapping. "
+            "Opening an option position also requires options_get_chain for the underlying in the same agent run; closing a held contract does not. "
             "Valid order_type values: market, limit, stop, stop_limit, trailing_stop, smart_limit. "
             "Valid time_in_force values: day, gtc, gtd. "
             "Caveats: limit orders require limit_price; stop and stop_limit orders require stop_price; trailing_stop requires trail_price or trail_percent; smart_limit uses LumiBot's built-in smart-limit behavior. "
@@ -3961,6 +4033,7 @@ def _bind_submit_multileg_order(strategy: Any, manager: Any) -> BoundTool:
         symbols = sorted({str(getattr(order.asset, "symbol", "")).upper() for order in orders})
         for symbol in symbols:
             _require_agent_order_readiness(symbol)
+        _require_option_chain_before_opening(strategy, orders)
         _validate_option_closing_orders(strategy, orders)
 
         submit_kwargs: dict[str, Any] = {

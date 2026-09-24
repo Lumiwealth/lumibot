@@ -19,6 +19,14 @@ before comparing closes or volume. Do not infer an interval merely from sparse
 timestamps. Never treat the first one-minute constituent of a five-minute window
 as a completed five-minute bar or submit an order from that partial window.
 
+When the rule asks for higher volume without naming a baseline, compare the
+candidate bar with the opening-range bars of the same session. Pre-market and
+after-hours bars are not part of that comparison, and neither are bars that
+completed after the candidate. The first completed bar after the range that
+meets the rule is the breakout. Unless the user's rules limit how late an entry
+may come, it stays a valid signal at a later evaluation while price still holds
+above the range high; do not reject it only because later bars have completed.
+
 Do not invent an opening range from incomplete bars. Use batch prices and history
 for a universe, then perform deeper analysis only on valid finalists. Respect the
 user's maximum entries, positions, stops, targets, and session boundaries.

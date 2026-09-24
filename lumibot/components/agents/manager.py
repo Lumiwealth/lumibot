@@ -870,6 +870,10 @@ def _managed_ai_terminal_status(result: AgentRunResult, *, allow_trading: bool) 
         tool_name = str(event.tool_name or "")
         payload = _unwrap_tool_payload(event.payload)
         is_error = isinstance(payload, dict) and payload.get("tool_error") is True
+        # A call to a tool that does not exist ran nothing; it cannot leave the
+        # decision incomplete.
+        if is_error and payload.get("unknown_tool") is True:
+            continue
         if is_error:
             if tool_name not in later_successes:
                 has_unrecovered_tool_error = True

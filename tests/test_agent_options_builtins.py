@@ -608,6 +608,7 @@ def test_multileg_submit_prices_from_last_trades_in_trade_only_backtests():
             BuiltinTools.account.portfolio(),
             BuiltinTools.orders.open_orders(),
             BuiltinTools.market.last_price(),
+            BuiltinTools.options.get_chain(),
             BuiltinTools.orders.submit_multileg(),
         ],
     )
@@ -615,6 +616,8 @@ def test_multileg_submit_prices_from_last_trades_in_trade_only_backtests():
     tools["account_positions"]()
     tools["orders_open_orders"]()
     tools["market_last_price"](symbol="SPY")
+    # Opening an option position requires the chain in the same run.
+    tools["options_get_chain"](symbol="SPY")
 
     result = tools["orders_submit_multileg"](legs_json=json.dumps(_iron_condor_legs()), price_style="mid")
 
@@ -673,6 +676,7 @@ def test_multileg_submit_creates_one_atomic_four_leg_order_after_normal_readines
             BuiltinTools.account.portfolio(),
             BuiltinTools.orders.open_orders(),
             BuiltinTools.market.last_price(),
+            BuiltinTools.options.get_chain(),
             BuiltinTools.orders.submit_multileg(),
         ],
     )
@@ -680,6 +684,8 @@ def test_multileg_submit_creates_one_atomic_four_leg_order_after_normal_readines
     tools["account_positions"]()
     tools["orders_open_orders"]()
     tools["market_last_price"](symbol="SPY")
+    # Opening an option position requires the chain in the same run.
+    tools["options_get_chain"](symbol="SPY")
 
     result = tools["orders_submit_multileg"](
         legs_json=json.dumps(_iron_condor_legs()),
@@ -818,3 +824,108 @@ def test_iron_condor_prompt_includes_parameterized_wing_and_delta():
     assert "0.03 of the target" in prompt
     assert "orders_get_status" not in prompt
     assert "options_find_expiration" not in prompt
+
+
+def _opening_option_tools(strategy):
+    return _wrapped_tools(
+        strategy,
+        [
+            BuiltinTools.account.positions(),
+            BuiltinTools.account.portfolio(),
+            BuiltinTools.orders.open_orders(),
+            BuiltinTools.market.last_price(),
+            BuiltinTools.options.get_chain(),
+            BuiltinTools.orders.submit(),
+            BuiltinTools.orders.submit_multileg(),
+        ],
+    )
+
+
+def _checked_account(tools):
+    tools["account_portfolio"]()
+    tools["account_positions"]()
+    tools["orders_open_orders"]()
+    tools["market_last_price"](symbol="SPY")
+
+
+def test_opening_single_option_order_requires_the_chain_in_the_same_run():
+    """Release eval options_single_leg_chain_and_quote: an agent opened a call
+    from options_find_expiration and options_find_strike_for_delta without ever
+    reading the chain. Opening an option now requires options_get_chain."""
+    strategy = _OptionsStrategy()
+    tools = _opening_option_tools(strategy)
+    _checked_account(tools)
+    order = {
+        "symbol": "SPY",
+        "quantity": 1,
+        "side": "buy_to_open",
+        "asset_type": "option",
+        "expiration": "2026-09-18",
+        "strike": 645,
+        "right": "call",
+        "order_type": "limit",
+        "limit_price": 1.5,
+    }
+
+    rejected = tools["orders_submit_order"](**order)
+    assert rejected["tool_error"] is True
+    assert "ORDER_READINESS_REQUIRED" in rejected["error"]["message"]
+    assert "options_get_chain(symbol='SPY')" in rejected["error"]["message"]
+    assert strategy.submissions == []
+
+    tools["options_get_chain"](symbol="SPY")
+    accepted = tools["orders_submit_order"](**order)
+    assert "tool_error" not in accepted
+    assert len(strategy.submissions) == 1
+
+
+def test_opening_multileg_order_requires_the_chain_in_the_same_run():
+    strategy = _OptionsStrategy()
+    tools = _opening_option_tools(strategy)
+    _checked_account(tools)
+
+    rejected = tools["orders_submit_multileg"](legs_json=json.dumps(_iron_condor_legs()), price_style="mid")
+    assert rejected["tool_error"] is True
+    assert "options_get_chain(symbol='SPY')" in rejected["error"]["message"]
+
+    tools["options_get_chain"](symbol="SPY")
+    accepted = tools["orders_submit_multileg"](legs_json=json.dumps(_iron_condor_legs()), price_style="mid")
+    assert "tool_error" not in accepted
+    assert len(strategy.submissions) == 1
+
+
+def test_closing_an_existing_option_position_does_not_require_the_chain():
+    strategy = _OptionsStrategy()
+    long_call = Asset(symbol="SPY", asset_type="option", expiration=date(2026, 9, 18), strike=645, right="call")
+    strategy.get_positions = lambda include_cash_positions=True: [SimpleNamespace(asset=long_call, quantity=1)]
+    tools = _opening_option_tools(strategy)
+    _checked_account(tools)
+
+    result = tools["orders_submit_order"](
+        symbol="SPY",
+        quantity=1,
+        side="sell_to_close",
+        asset_type="option",
+        expiration="2026-09-18",
+        strike=645,
+        right="call",
+        order_type="limit",
+        limit_price=1.5,
+    )
+
+    assert "tool_error" not in result
+    assert len(strategy.submissions) == 1
+
+
+def test_market_historical_prices_accepts_a_single_symbol_argument():
+    """rules_active_override_strategy_prompt: market_historical_prices(symbol="AAPL")
+    lost the symbol, raised, and the unrecovered tool error blocked the decision.
+    Every other market tool names the argument symbol."""
+    strategy = _OptionsStrategy()
+    tools = _wrapped_tools(strategy, [BuiltinTools.market.historical_prices()])
+
+    result = tools["market_historical_prices"](symbol="AAPL", length=3, timestep="day")
+
+    assert "tool_error" not in result
+    assert result["symbols_requested"] == ["AAPL"]
+    assert len(result["bars_by_symbol"]["AAPL"]) == 3

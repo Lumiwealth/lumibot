@@ -13,6 +13,7 @@ import re
 import sys
 import threading
 import time
+import traceback
 import uuid
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
@@ -227,6 +228,10 @@ class FixtureRuntime:
     positions: list[dict[str, Any]] = field(default_factory=list)
     calls: list[dict[str, Any]] = field(default_factory=list)
     submissions: list[dict[str, Any]] = field(default_factory=list)
+    # Order tool calls the tool itself rejected (readiness gate, malformed
+    # legs). They never reached the broker, so they are not submissions, but a
+    # no-order contract still fails on any attempt.
+    rejected_submissions: list[dict[str, Any]] = field(default_factory=list)
     order_counter: int = 0
 
     expiration: str = "2026-08-28"
@@ -332,6 +337,7 @@ def compact_transcript(result: Any, fixture: FixtureRuntime) -> dict[str, Any]:
         "tool_results": [{"name": event.tool_name, "payload": event.payload} for event in result.tool_results],
         "fixture_calls": fixture.calls,
         "submissions": fixture.submissions,
+        "rejected_submissions": fixture.rejected_submissions,
         "final_positions": fixture.positions,
     }
 
@@ -344,6 +350,19 @@ def combined_usage(*results: Any) -> dict[str, int]:
         for key in totals:
             totals[key] += usage[key]
     return totals
+
+
+def _malformed_leg_failures(legs: list[Any], fields: tuple[str, ...]) -> list[str]:
+    """Name missing leg fields as contract failures instead of crashing the scorer."""
+    failures = []
+    for index, leg in enumerate(legs):
+        if not isinstance(leg, dict):
+            failures.append(f"leg {index} is not an object")
+            continue
+        missing = [name for name in fields if leg.get(name) in (None, "")]
+        if missing:
+            failures.append(f"leg {index} is missing {', '.join(missing)}")
+    return failures
 
 
 def _side(leg: dict[str, Any]) -> str:
@@ -418,7 +437,7 @@ def score_machine_contract(case: dict[str, Any], transcript: dict[str, Any]) -> 
         if not skill_loaded:
             failures.append(f"did not load required skill {required_skill}")
 
-    if contract.get("forbidOrderTools") and submissions:
+    if contract.get("forbidOrderTools") and (submissions or transcript.get("rejected_submissions")):
         failures.append("submitted an order despite a no-order contract")
 
     for required in contract.get("requiredTools") or []:
@@ -444,8 +463,11 @@ def score_machine_contract(case: dict[str, Any], transcript: dict[str, Any]) -> 
     topology = contract.get("legTopology")
     if topology == "iron_condor" and relevant:
         legs = relevant[0].get("legs") or []
+        malformed = _malformed_leg_failures(legs, ("strike", "right", "side", "expiration"))
         if len(legs) != 4:
             failures.append("iron condor did not contain exactly four legs")
+        elif malformed:
+            failures.extend(malformed)
         else:
             puts = sorted(
                 (leg for leg in legs if str(leg.get("right")).lower() == "put"), key=lambda leg: float(leg["strike"])
@@ -467,10 +489,14 @@ def score_machine_contract(case: dict[str, Any], transcript: dict[str, Any]) -> 
                 failures.append("iron condor legs did not share one expiration")
     elif topology == "close_credit_spread" and relevant:
         legs = relevant[0].get("legs") or []
-        exact = {(float(leg.get("strike")), _side(leg), abs(float(leg.get("quantity") or 0))) for leg in legs}
-        expected = {(594.0, "buy_to_close", 3.0), (592.0, "sell_to_close", 3.0)}
-        if exact != expected:
-            failures.append(f"closing legs were {sorted(exact)}, expected {sorted(expected)}")
+        malformed = _malformed_leg_failures(legs, ("strike", "side"))
+        if malformed:
+            failures.extend(malformed)
+        else:
+            exact = {(float(leg.get("strike")), _side(leg), abs(float(leg.get("quantity") or 0))) for leg in legs}
+            expected = {(594.0, "buy_to_close", 3.0), (592.0, "sell_to_close", 3.0)}
+            if exact != expected:
+                failures.append(f"closing legs were {sorted(exact)}, expected {sorted(expected)}")
 
     if contract.get("positionsMustEndFlat") and transcript["final_positions"]:
         failures.append("fixture positions were not flat after the close")
@@ -678,6 +704,34 @@ def execute_repetition(
             "judge": round(judge_seconds, 3),
             "total": round(setup_seconds + model_seconds + judge_seconds, 3),
         },
+        "external_writes": "fixture_only",
+    }
+
+
+def harness_error_row(case_id: str, repetition: int, fingerprint: str, exc: BaseException) -> dict[str, Any]:
+    """Ledger row for a repetition the harness could not finish.
+
+    Provider errors can contain request material, so the message is never
+    stored. The innermost repository frame is: GitHub run 35930118229 left only
+    a bare KeyError, which took a local re-run to place.
+    """
+    location = None
+    for frame in reversed(traceback.extract_tb(exc.__traceback__)):
+        try:
+            relative = Path(frame.filename).resolve().relative_to(REPO_ROOT)
+        except ValueError:
+            continue
+        location = f"{relative.as_posix()}:{frame.lineno} in {frame.name}"
+        break
+    return {
+        "timestamp": utc_text(),
+        "run_id": str(uuid.uuid4()),
+        "case_id": case_id,
+        "repetition": repetition,
+        "fingerprint": fingerprint,
+        "status": "error",
+        "error": type(exc).__name__,
+        "error_location": location,
         "external_writes": "fixture_only",
     }
 
@@ -963,18 +1017,7 @@ def main() -> int:
                 try:
                     row = future.result()
                 except Exception as exc:
-                    row = {
-                        "timestamp": utc_text(),
-                        "run_id": str(uuid.uuid4()),
-                        "case_id": case_id,
-                        "repetition": repetition,
-                        "fingerprint": fingerprints[case_id],
-                        "status": "error",
-                        # Provider errors can contain request material. Detailed
-                        # cost survives separately without persisting secrets.
-                        "error": type(exc).__name__,
-                        "external_writes": "fixture_only",
-                    }
+                    row = harness_error_row(case_id, repetition, fingerprints[case_id], exc)
                 append_jsonl(ledger_path, row)
                 new_rows.append(row)
                 # Batch estimates schedule workers, but only the shared durable

@@ -1312,6 +1312,37 @@ class GoogleADKRuntime:
 
         return before, after
 
+    @staticmethod
+    def _unknown_tool_error_callback(*, tool: Any = None, args: Any = None, tool_context: Any = None, error: Any = None):
+        """Turn a call to a tool that does not exist into a tool error the model can read.
+
+        ADK raises ValueError for an unknown function name, which ended the whole
+        run with no decision (release eval options_iron_condor_atomic_open, where
+        the model invented a tool name). Returning a structured error lets the
+        model call a real tool. Other errors keep their normal handling.
+        """
+        message = str(error or "")
+        if not isinstance(error, ValueError) or "not found." not in message or not message.startswith("Tool '"):
+            return None
+        name = str(getattr(tool, "name", "") or "")
+        available = ""
+        marker = "Available tools:"
+        if marker in message:
+            available = message.split(marker, 1)[1].split("\n", 1)[0].strip()
+        return {
+            "ok": False,
+            "tool_error": True,
+            "unknown_tool": True,
+            "tool_name": name,
+            "error": {
+                "type": "UnknownTool",
+                "message": (
+                    f"Tool {name!r} does not exist, so nothing ran. Call one of the available tools instead"
+                    + (f": {available}." if available else ".")
+                ),
+            },
+        }
+
     def _after_tool_context_pruning_callback(self, request: RuntimeRequest):
         if _model_context_limit_tokens(request.model) is None:
             return None
@@ -1457,6 +1488,7 @@ class GoogleADKRuntime:
             before_model_callback=before_model,
             after_model_callback=after_model,
             after_tool_callback=self._after_tool_context_pruning_callback(request),
+            on_tool_error_callback=GoogleADKRuntime._unknown_tool_error_callback,
         )
         runner = InMemoryRunnerType(agent=agent, app_name="lumibot-agents")
         session_id = str(uuid4())

@@ -120,6 +120,33 @@ def _recorded_sec_fundamentals(strategy, cache_dir):
     return SECFundamentals(strategy, cache_dir=cache_dir, cache_mode="backtest", min_request_interval_seconds=0)
 
 
+def _rejected_order_calls(result):
+    """Positions in result.tool_calls of order calls whose tool result was a tool error.
+
+    Calls and results pair by call_id; without ids they pair in order per tool.
+    """
+    calls = list(result.tool_calls)
+    results = list(result.tool_results)
+    by_id = {event.call_id: event for event in results if getattr(event, "call_id", None)}
+    unmatched: dict[str, list] = {}
+    for event in results:
+        if not getattr(event, "call_id", None):
+            unmatched.setdefault(event.tool_name, []).append(event)
+    rejected = set()
+    for position, call in enumerate(calls):
+        if call.tool_name not in {"orders_submit_order", "orders_submit_multileg"}:
+            continue
+        outcome = by_id.get(call.call_id) if getattr(call, "call_id", None) else None
+        if outcome is None and unmatched.get(call.tool_name):
+            outcome = unmatched[call.tool_name].pop(0)
+        payload = getattr(outcome, "payload", None)
+        if isinstance(payload, dict) and isinstance(payload.get("result"), dict):
+            payload = payload["result"]
+        if isinstance(payload, dict) and payload.get("tool_error") is True:
+            rejected.add(position)
+    return rejected
+
+
 class ProductionFixture:
     def __init__(self, fixture):
         self.fixture = fixture
@@ -225,21 +252,28 @@ class ProductionFixture:
             _position_to_dict(p) for p in self.strategy.get_positions() if p.asset.symbol != "USD"
         ]
         self.fixture.submissions = []
-        for event in result.tool_calls:
+        self.fixture.rejected_submissions = []
+        rejected = _rejected_order_calls(result)
+        for position, event in enumerate(result.tool_calls):
             if event.tool_name not in {"orders_submit_order", "orders_submit_multileg"}:
                 continue
             args = event.payload or {}
             if event.tool_name == "orders_submit_multileg":
                 legs = args.get("legs_json", "[]")
-                self.fixture.submissions.append(
-                    {
-                        "tool": event.tool_name,
-                        "legs": json.loads(legs) if isinstance(legs, str) else legs,
-                        "net_limit_price": args.get("net_limit_price"),
-                    }
-                )
+                try:
+                    legs = json.loads(legs) if isinstance(legs, str) else legs
+                except json.JSONDecodeError:
+                    legs = []
+                record = {
+                    "tool": event.tool_name,
+                    "legs": legs,
+                    "net_limit_price": args.get("net_limit_price"),
+                }
             else:
-                self.fixture.submissions.append({"tool": event.tool_name, **args})
+                record = {"tool": event.tool_name, **args}
+            # Only orders the tool accepted reached the broker.
+            target = self.fixture.rejected_submissions if position in rejected else self.fixture.submissions
+            target.append(record)
         return [_order_to_dict(order) for order in self.strategy.get_orders()]
 
     def close(self):

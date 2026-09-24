@@ -142,6 +142,8 @@ class OptionPlanRuntime:
             if isinstance(pos, dict)
         )
         if not has_position:
+            # Opening an option position requires the chain in the same run.
+            _invoke_tool(request, events, "options_get_chain", symbol=request.context["symbol"])
             _invoke_tool(
                 request,
                 events,

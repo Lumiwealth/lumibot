@@ -12,6 +12,9 @@ broad mandate leads you to a stock idea, load it before submitting an order.
 
 1. Read portfolio value, cash, current positions, and open orders.
 2. Retrieve the current price and recent price history for every serious candidate.
+   Read that history with `market_historical_prices`, also for a single symbol;
+   pass `table_name` to query it with `duckdb_query`.
+   `market_load_history_table` does not replace it before a stock order.
 3. Use batch tools for a universe. Do not loop one symbol at a time when a batch
    price or history tool can return the same evidence.
 4. Evaluate the user's entry, exit, sizing, and frequency rules against current

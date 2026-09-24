@@ -112,6 +112,13 @@ tells the agent to apply only the expiration, delta, and width limits the user
 or active rules state, and to measure deltas with the Greek tools instead of
 declining from strike distance alone.
 
+Opening an option position (``buy_to_open``, ``sell_to_open``, or a plain buy or
+sell that does not reduce a held contract) also requires a successful
+``options_get_chain`` for the underlying in the same run. Without it the order
+tool returns ``ORDER_READINESS_REQUIRED``. Expiration and delta helpers only
+return candidates; the chain shows what is listed. Closing a held contract does
+not need the chain.
+
 Market-price tools:
 
 - ``market_last_price`` accepts one tradable symbol per call.

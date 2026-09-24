@@ -903,3 +903,101 @@ def test_resume_rebuilds_missing_freshness_from_completed_matching_ledger(monkey
     assert summary["fresh_case_count"] == 1
     assert summary["incremental_estimated_cost_usd"] == 0
     assert json.loads(state_path.read_text())["cases"][case["id"]]["passed_at"] == passed_at
+
+
+def _iron_condor_case():
+    return evals.load_cases({"options_iron_condor_atomic_open"})[0]
+
+
+def _good_condor_legs():
+    rows = [
+        (592, "put", "buy_to_open"),
+        (594, "put", "sell_to_open"),
+        (606, "call", "sell_to_open"),
+        (608, "call", "buy_to_open"),
+    ]
+    return [
+        {"symbol": "SPY", "expiration": "2026-08-28", "strike": strike, "right": right, "side": side, "quantity": 1}
+        for strike, right, side in rows
+    ]
+
+
+def test_iron_condor_scoring_reports_a_malformed_leg_instead_of_crashing():
+    """GitHub run 35930118229 recorded options_iron_condor_atomic_open as a bare
+    KeyError: a submission whose legs lacked a strike crashed the scorer."""
+    legs = _good_condor_legs()
+    del legs[1]["strike"]
+    transcript = {
+        "tool_calls": [{"name": "load_skill", "payload": {"skill_name": "options-trading"}}],
+        "fixture_calls": [{"name": "orders_submit_multileg"}],
+        "submissions": [{"tool": "orders_submit_multileg", "legs": legs}],
+        "final_positions": [],
+    }
+
+    score = evals.score_machine_contract(_iron_condor_case(), transcript)
+
+    assert score["pass"] is False
+    assert any("strike" in failure for failure in score["failures"])
+
+
+def test_rejected_order_attempts_are_not_counted_as_broker_submissions():
+    """An order the tool rejected (readiness gate, malformed legs) never reached
+    the broker. exactOrderCount and topology score the accepted order; the
+    rejected attempt is kept separately and still fails a no-order contract."""
+    from types import SimpleNamespace
+
+    from lumibot.components.agents import AgentTraceEvent
+    from scripts.agent_eval_production_fixture import ProductionFixture
+
+    bad = _good_condor_legs()
+    del bad[0]["strike"]
+    def event(kind, call_id, payload):
+        return AgentTraceEvent(kind=kind, tool_name="orders_submit_multileg", call_id=call_id, payload=payload)
+
+    events = [
+        event("tool_call", "a", {"legs_json": json.dumps(bad)}),
+        event("tool_result", "a", {"ok": False, "tool_error": True}),
+        event("tool_call", "b", {"legs_json": json.dumps(_good_condor_legs())}),
+        event("tool_result", "b", {"order_type": "credit"}),
+    ]
+    result = SimpleNamespace(
+        tool_calls=[event for event in events if event.kind == "tool_call"],
+        tool_results=[event for event in events if event.kind == "tool_result"],
+    )
+    production = ProductionFixture(evals.build_fixture("flat_options_account"))
+    try:
+        production.capture(result)
+    finally:
+        production.close()
+    fixture = production.fixture
+
+    assert [submission["legs"] for submission in fixture.submissions] == [_good_condor_legs()]
+    assert [submission["legs"] for submission in fixture.rejected_submissions] == [bad]
+
+    no_order_case = evals.load_cases({"stock_pending_exit_no_duplicate"})[0]
+    transcript = {
+        "tool_calls": [{"name": "load_skill", "payload": {"skill_name": "stock-trading"}}],
+        "fixture_calls": [{"name": "account_positions"}, {"name": "orders_open_orders"}],
+        "submissions": [],
+        "rejected_submissions": [{"tool": "orders_submit_order", "symbol": "AAPL"}],
+        "final_positions": [{"symbol": "AAPL", "quantity": 40}],
+    }
+    score = evals.score_machine_contract(no_order_case, transcript)
+    assert score["pass"] is False
+    assert "submitted an order despite a no-order contract" in score["failures"]
+
+
+def test_harness_error_rows_name_where_the_error_happened_without_its_message():
+    def fail():
+        return {}["secret-looking-key"]
+
+    try:
+        fail()
+    except KeyError as exc:
+        row = evals.harness_error_row("case", 1, "fingerprint", exc)
+
+    assert row["status"] == "error"
+    assert row["error"] == "KeyError"
+    assert row["error_location"].startswith("tests/test_agent_eval_harness.py:")
+    assert "fail" in row["error_location"]
+    assert "secret-looking-key" not in json.dumps(row)

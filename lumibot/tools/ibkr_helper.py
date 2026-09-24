@@ -77,6 +77,11 @@ IBKR_DAILY_GAP_REPAIR_MAX_SESSIONS_PER_SEGMENT = 10
 IBKR_HOURLY_GAP_REPAIR_TIMEOUT_SECONDS = 300.0
 IBKR_HOURLY_INTERNAL_GAP_THRESHOLD = timedelta(days=7)
 IBKR_HOURLY_GAP_REPAIR_MAX_SEGMENTS_PER_SERIES = 4
+# Backward pagination of US stock intraday history steps over closed-market pages
+# (weekends, holidays, overnight) instead of treating their empty answer as the start
+# of history. A 1000-minute page is 16.7 hours, a weekend is about 56 closed hours.
+# The bound only guards against a calendar bug; a real walk skips one or two per gap.
+IBKR_MAX_CLOSED_PAGE_SKIPS = 2000
 IBKR_STOCK_INDEX_HOURLY_REPAIR_PERIOD = "2000h"
 
 IBKR_CONID_NEGATIVE_CACHE_TTL_SECONDS = 24 * 60 * 60  # 24h (persisted via BacktestCacheManager when enabled)
@@ -458,6 +463,48 @@ def _us_equity_closed_interval(start_local: datetime, end_local: datetime, *, in
         return True
     except Exception:
         return False
+
+
+def _period_to_timedelta(period: str) -> Optional[timedelta]:
+    """Parse an IBKR history `period` (``1000min``, ``5000min``, ``1000h``, ``45d``)."""
+    text = (period or "").strip().lower()
+    for suffix, unit in (("min", "minutes"), ("sec", "seconds"), ("h", "hours"), ("d", "days")):
+        if text.endswith(suffix):
+            number = text[: -len(suffix)]
+            if number.isdigit() and int(number) > 0:
+                return timedelta(**{unit: int(number)})
+            return None
+    return None
+
+
+def _cursor_before_closed_stock_page(
+    *,
+    asset_type: str,
+    bar: str,
+    period: str,
+    cursor_end: datetime,
+    include_after_hours: bool,
+) -> Optional[datetime]:
+    """Where backward pagination continues after an empty US stock intraday page.
+
+    IBKR answers an empty list when the whole ``[cursor_end - period, cursor_end]`` page
+    is closed-market time. That is not the start of history. Returns the end of the next
+    page that can hold bars (stepping over further closed pages without a request), or
+    None when the empty page covered trading time and the old stop behavior applies.
+    Only stocks: index and futures sessions differ from the NYSE equity calendar.
+    """
+    if asset_type != "stock" or (bar or "").strip().lower().endswith("d"):
+        return None
+    step = _period_to_timedelta(period)
+    if step is None:
+        return None
+    page_end = cursor_end
+    for _ in range(64):
+        page_start = page_end - step
+        if not _us_equity_closed_interval(page_start, page_end, include_after_hours=include_after_hours):
+            return None if page_end == cursor_end else page_end
+        page_end = page_start
+    return page_end
 
 
 def _history_segment_already_attempted(runtime_key: str, seg_start: datetime, seg_end: datetime) -> bool:
@@ -2071,6 +2118,7 @@ def _fetch_history_between_dates(
     cursor_end = _to_utc(end_dt)
     start_dt = _to_utc(start_dt)
     chunks: list[pd.DataFrame] = []
+    closed_pages_skipped = 0
 
     # Opt-in trace: log every real network fetch + caller, to audit cache-miss root causes.
     if os.environ.get("LUMIBOT_CACHE_MISS_DEBUG"):
@@ -2169,6 +2217,20 @@ def _fetch_history_between_dates(
 
         # IBKR typically returns {"data":[...]} (empty list means no data).
         data = payload.get("data") if isinstance(payload, dict) else None
+        df = _history_payload_to_frame(data, source_was_explicit=source_was_explicit) if data else pd.DataFrame()
+        if df.empty:
+            skipped_to = _cursor_before_closed_stock_page(
+                asset_type=asset_type,
+                bar=bar,
+                period=period,
+                cursor_end=cursor_end,
+                include_after_hours=include_after_hours,
+            )
+            if skipped_to is not None:
+                closed_pages_skipped += 1
+                if closed_pages_skipped <= IBKR_MAX_CLOSED_PAGE_SKIPS and skipped_to > start_dt:
+                    cursor_end = skipped_to
+                    continue
         if not data:
             # If we already fetched earlier chunks, keep them and stop paging.
             # CME weekend/maintenance gaps (Fri 4pm CT → Sun 5pm CT, nightly 4–5pm CT)
@@ -2195,7 +2257,6 @@ def _fetch_history_between_dates(
                 )
             return pd.DataFrame()
 
-        df = _history_payload_to_frame(data, source_was_explicit=source_was_explicit)
         if df.empty:
             # Same rationale as the empty-data branch above: an intermediate empty
             # page during backward pagination must not discard earlier chunks.

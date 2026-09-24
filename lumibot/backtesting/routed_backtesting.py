@@ -1250,7 +1250,7 @@ class RoutedBacktestingPandas(ThetaDataBacktestingPandas):
                 asset_type = asset_type.split(".")[-1]
             prefer_native_day = bool(getattr(self, "PREFER_NATIVE_DAY_BARS_FOR_STOCK_INDEX", False))
             source_timestep = str(getattr(self, "_timestep", "") or "").strip().lower()
-            if asset_type not in {"crypto", "crypto_future"}:
+            if asset_type not in {"crypto", "crypto_future"} and not self._has_loaded_intraday_series(asset_obj, quote):
                 if prefer_native_day and asset_type in {"stock", "equity", "index"}:
                     timestep = "day"
                 elif _is_day_like_timestep(source_timestep):
@@ -1287,7 +1287,7 @@ class RoutedBacktestingPandas(ThetaDataBacktestingPandas):
                 asset_type = asset_type.split(".")[-1]
             prefer_native_day = bool(getattr(self, "PREFER_NATIVE_DAY_BARS_FOR_STOCK_INDEX", False))
             source_timestep = str(getattr(self, "_timestep", "") or "").strip().lower()
-            if asset_type not in {"crypto", "crypto_future"}:
+            if asset_type not in {"crypto", "crypto_future"} and not self._has_loaded_intraday_series(asset_obj, quote):
                 if prefer_native_day and asset_type in {"stock", "equity", "index"}:
                     timestep = "day"
                 elif _is_day_like_timestep(source_timestep):

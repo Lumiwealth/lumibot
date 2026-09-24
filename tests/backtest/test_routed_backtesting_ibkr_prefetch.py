@@ -1020,3 +1020,77 @@ def test_daily_sleeptime_minute_request_without_minute_data_returns_nothing(monk
     bars = router.get_historical_prices(asset, 1440, "minute", quote=quote)
     df = getattr(bars, "df", None) if bars is not None else None
     assert df is None or df.empty, f"minute request returned {len(df)} non-minute bars"
+
+
+def _flat_minute_ohlc(start_dt: datetime, end_dt: datetime, price: float) -> pd.DataFrame:
+    frame = _session_minute_ohlc(start_dt, end_dt)
+    for column in ("open", "high", "low", "close"):
+        frame[column] = price
+    # ibkr_helper fills bid/ask from the close when no history source is chosen.
+    frame["bid"] = price
+    frame["ask"] = price
+    return frame
+
+
+def test_intraday_stock_quote_uses_loaded_minute_bars_not_yesterdays_daily_close(monkeypatch):
+    """2026-09-24, a real 1-minute ETF strategy on routed IBKR: SELL SLV on Jan 7 with a completed
+    minute close of 69.67 filled at 73.71, SLV's Jan 6 DAILY close, although SLV minute bars were
+    loaded. Market orders fill from get_quote() first, and RoutedBacktestingPandas forced every
+    stock quote to daily bars (PREFER_NATIVE_DAY_BARS_FOR_STOCK_INDEX). Daily bars are only a
+    shortcut for strategies that never loaded intraday bars for the asset."""
+    import lumibot.tools.ibkr_helper as ibkr_helper
+
+    monkeypatch.setenv("DATADOWNLOADER_BASE_URL", "http://localhost:8080")
+    monkeypatch.setenv("DATADOWNLOADER_API_KEY", "<redacted>")
+
+    start = LUMIBOT_DEFAULT_PYTZ.localize(datetime(2026, 1, 2, 0, 0))
+    end = LUMIBOT_DEFAULT_PYTZ.localize(datetime(2026, 1, 9, 0, 0))
+    router = _make_router(start, end, {"default": "ibkr", "stock": "ibkr", "index": "ibkr"})
+    asset = Asset("SLV", asset_type=Asset.AssetType.STOCK)
+    quote = Asset("USD", asset_type=Asset.AssetType.FOREX)
+
+    def fake_get_price_data(*, asset, quote, timestep, start_dt, end_dt, **_):
+        if timestep == "day":
+            daily = _daily_ohlc(start_dt, end_dt)
+            daily[["open", "high", "low", "close", "bid", "ask"]] = 73.71
+            return daily
+        return _flat_minute_ohlc(start_dt, end_dt, 69.67)
+
+    monkeypatch.setattr(ibkr_helper, "get_price_data", fake_get_price_data)
+
+    router._datetime = LUMIBOT_DEFAULT_PYTZ.localize(datetime(2026, 1, 7, 10, 30))
+    router.get_historical_prices(asset, 75, "day", quote=quote)
+    minute = router.get_historical_prices(asset, 8, "minute", quote=quote)
+    assert minute is not None and not minute.df.empty
+
+    q = router.get_quote(asset, quote=quote)
+    last = router.get_last_price(asset, quote=quote)
+    assert q is not None
+    assert round(float(q.bid), 2) == 69.67 and round(float(q.ask), 2) == 69.67, (q.bid, q.ask)
+    assert round(float(last), 2) == 69.67, last
+
+
+def test_daily_strategy_quote_still_uses_daily_bars_without_intraday_series(monkeypatch):
+    """The daily shortcut stays for strategies that never loaded intraday bars (no minute download)."""
+    import lumibot.tools.ibkr_helper as ibkr_helper
+
+    monkeypatch.setenv("DATADOWNLOADER_BASE_URL", "http://localhost:8080")
+    monkeypatch.setenv("DATADOWNLOADER_API_KEY", "<redacted>")
+
+    start = LUMIBOT_DEFAULT_PYTZ.localize(datetime(2026, 1, 2, 0, 0))
+    end = LUMIBOT_DEFAULT_PYTZ.localize(datetime(2026, 1, 9, 0, 0))
+    router = _make_router(start, end, {"default": "ibkr", "stock": "ibkr", "index": "ibkr"})
+    asset = Asset("SLV", asset_type=Asset.AssetType.STOCK)
+    quote = Asset("USD", asset_type=Asset.AssetType.FOREX)
+    requested: list[str] = []
+
+    def fake_get_price_data(*, asset, quote, timestep, start_dt, end_dt, **_):
+        requested.append(timestep)
+        return _daily_ohlc(start_dt, end_dt)
+
+    monkeypatch.setattr(ibkr_helper, "get_price_data", fake_get_price_data)
+    router._datetime = LUMIBOT_DEFAULT_PYTZ.localize(datetime(2026, 1, 7, 10, 30))
+    router.get_historical_prices(asset, 75, "day", quote=quote)
+    router.get_quote(asset, quote=quote)
+    router.get_last_price(asset, quote=quote)
+    assert "minute" not in requested, requested

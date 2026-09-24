@@ -395,6 +395,31 @@ def test_acting_and_judge_requests_use_medium_reasoning(monkeypatch):
     assert seen[0].reasoning_effort == "medium"
 
 
+def test_judge_output_cap_leaves_room_for_luna_reasoning(monkeypatch):
+    # GPT-6 Luna counts reasoning tokens against max_output_tokens. A passing
+    # judge call used 985 of the old 1,000 (463 reasoning + 522 text), and run
+    # 36021663457 errored when a longer reasoning pass truncated the JSON verdict.
+    from lumibot.components.agents import runtime
+    from lumibot.components.agents.schemas import AgentRunResult, AgentTraceEvent
+
+    seen = []
+
+    class CaptureRuntime:
+        def run(self, request):
+            seen.append(request)
+            return AgentRunResult(
+                summary='{"pass": true, "reason": "ok"}',
+                model=request.model,
+                events=[AgentTraceEvent(kind="text", text='{"pass": true, "reason": "ok"}')],
+            )
+
+    monkeypatch.setattr(runtime, "GoogleADKRuntime", CaptureRuntime)
+    case = evals.load_cases({"stock_price_before_order"})[0]
+    evals.run_judge(case, {"tool_calls": []}, evals.DEFAULT_JUDGE_MODEL, None)
+    assert seen[0].max_output_tokens == evals.JUDGE_MAX_OUTPUT_TOKENS
+    assert evals.JUDGE_MAX_OUTPUT_TOKENS >= 4_000
+
+
 def test_release_publish_is_blocked_by_real_model_agent_evals():
     workflow = (Path(__file__).resolve().parents[1] / ".github/workflows/release.yml").read_text(encoding="utf-8")
     assert "agent-evals:" in workflow

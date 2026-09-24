@@ -55,7 +55,7 @@ def _price_source(model: str) -> tuple[str, str]:
     return OPENAI_PRICE_SOURCE, OPENAI_PRICE_SOURCE_URL
 MAX_INPUT_TOKENS_PER_MODEL_CALL = 1_048_576
 ACTING_MAX_OUTPUT_TOKENS = 12_000
-JUDGE_MAX_OUTPUT_TOKENS = 1_000
+JUDGE_MAX_OUTPUT_TOKENS = 4_000  # GPT-6 Luna reasoning tokens count against this cap
 ORDER_TOOLS = {"orders_submit_order", "orders_submit_multileg"}
 LEDGER_LOCK = threading.Lock()
 
@@ -579,7 +579,7 @@ def run_judge(
         model_call_id=f"judge-{uuid.uuid4()}",
         model_request_timeout_seconds=180,
         run_timeout_seconds=300,
-        max_output_tokens=1000,
+        max_output_tokens=JUDGE_MAX_OUTPUT_TOKENS,
         model_call_budget=budget,
         reasoning_effort=None if _is_gemini_model(judge_model) else EVAL_REASONING_EFFORT,
     )

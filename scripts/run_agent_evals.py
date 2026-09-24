@@ -32,7 +32,12 @@ DEFAULT_ACTING_MODEL = "openai/gpt-6-luna"
 DEFAULT_JUDGE_MODEL = "openai/gpt-6-luna"
 EVAL_REASONING_EFFORT = "medium"
 DEFAULT_FRESHNESS_DAYS = 90
-REQUIRED_CONSECUTIVE_PASSES = 3
+# A brand new or changed case must pass three times in a row before it is
+# recorded as established. The ongoing gate then runs an established case
+# once, because three-on-every-run made the suite too costly to run often
+# and coverage stayed thin as a result.
+NEW_CASE_REQUIRED_PASSES = 3
+REQUIRED_CONSECUTIVE_PASSES = NEW_CASE_REQUIRED_PASSES  # backwards-compatible alias
 PRICE_SOURCE = "Google Cloud Agent Platform pricing, 2026-08-11"
 PRICE_SOURCE_URL = "https://cloud.google.com/gemini-enterprise-agent-platform/generative-ai/pricing"
 OPENAI_PRICE_SOURCE = "OpenAI GPT-6 Luna pricing, 2026-09-23 (registered in lumibot/components/agents/runtime.py)"
@@ -892,6 +897,19 @@ def append_jsonl(path: Path, row: dict[str, Any]) -> None:
             os.fsync(handle.fileno())
 
 
+def target_passes(already: int, repeat: int) -> int:
+    """How many consecutive passes this case needs before it is done.
+
+    A case that has not yet earned NEW_CASE_REQUIRED_PASSES consecutive passes
+    is driven to that number whatever --repeat says, so a brand new eval can
+    never be accepted on one lucky run. An established case honours --repeat,
+    which is 1 for the ordinary gate.
+    """
+    if already < NEW_CASE_REQUIRED_PASSES:
+        return max(repeat, NEW_CASE_REQUIRED_PASSES)
+    return repeat
+
+
 def consecutive_pass_count(rows: list[dict[str, Any]], case_id: str, fingerprint: str) -> int:
     relevant = [row for row in rows if row.get("case_id") == case_id and row.get("fingerprint") == fingerprint]
     count = 0
@@ -1045,26 +1063,46 @@ def select_gemini_credential() -> str:
     raise RuntimeError("GEMINI_API_KEY or GOOGLE_API_KEY is required for real-model evals")
 
 
-def main() -> int:
+def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--case-id", action="append", default=[])
-    parser.add_argument("--repeat", type=int, default=REQUIRED_CONSECUTIVE_PASSES)
+    parser.add_argument(
+        "--repeat",
+        type=int,
+        default=1,
+        help=(
+            "Repetitions to run for each selected case. An established case needs 1. "
+            f"A new or changed case still needs {NEW_CASE_REQUIRED_PASSES} consecutive "
+            "passes before it is recorded as fresh, and prior passes carry forward."
+        ),
+    )
     parser.add_argument("--judge-model", default=DEFAULT_JUDGE_MODEL)
     parser.add_argument("--max-cost-usd", type=float, required=True)
     parser.add_argument("--freshness-days", type=int, default=DEFAULT_FRESHNESS_DAYS)
     parser.add_argument("--freshness-state", type=Path, default=Path(".ci/agent-evals/freshness.json"))
     parser.add_argument("--output-root", type=Path, default=Path("artifacts/agent_evals"))
-    parser.add_argument("--max-workers", type=int, default=3)
+    parser.add_argument("--max-workers", type=int, default=8)
     parser.add_argument("--gate", action="store_true", help="Skip fresh cases and require complete fresh coverage")
     parser.add_argument(
         "--preflight-only", action="store_true", help="Validate fixtures and report freshness without inference"
     )
     parser.add_argument("--force", action="store_true", help="Ignore freshness and existing passing repetitions")
-    args = parser.parse_args()
-    if args.repeat < REQUIRED_CONSECUTIVE_PASSES:
-        raise RuntimeError(f"--repeat must be at least {REQUIRED_CONSECUTIVE_PASSES}")
+    return parser
+
+
+def validate_args(args: argparse.Namespace) -> None:
+    if args.repeat < 1:
+        raise RuntimeError("--repeat must be at least 1")
     if args.freshness_days < 1:
         raise RuntimeError("--freshness-days must be positive")
+    if args.max_workers < 1:
+        raise RuntimeError("--max-workers must be at least 1")
+
+
+def main() -> int:
+    parser = build_parser()
+    args = parser.parse_args()
+    validate_args(args)
 
     from scripts.agent_eval_isolation import configure_fixture_environment
 
@@ -1129,7 +1167,7 @@ def main() -> int:
             fresh_case_ids.append(case["id"])
             continue
         already = 0 if args.force else consecutive_pass_count(existing_rows, case["id"], fingerprint)
-        for repetition in range(already + 1, args.repeat + 1):
+        for repetition in range(already + 1, target_passes(already, args.repeat) + 1):
             work.append((case, repetition, fingerprint))
 
     run_started = time.perf_counter()

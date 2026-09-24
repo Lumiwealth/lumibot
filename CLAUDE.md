@@ -698,3 +698,37 @@ Without MCP tools, debugging these issues is slow and error-prone. With them, yo
 - When starting any task, check: does this move a North Star metric? If not, question its priority.
 - See the private workspace operating instructions for the full framework when
   working inside Rob's local BotSpot/Lumiwealth environment.
+
+# Agent evals are part of "done" (2026-09-24)
+
+LumiBot's agent runtime now ships 78 builtin tools against 16 eval cases.
+Twenty-seven of those tools landed in a single day and one of them got an eval.
+That is the gap these rules close.
+
+- **Every new agent tool ships with at least one eval.** A tool with no eval is
+  not done. Put the case in `agent_eval_cases/` next to the others.
+- **Every eval must fail first**, for the reason a customer would actually hit,
+  and the red artifact is saved in `agent_eval_baselines/` with the date in the
+  filename. An eval that was green from birth proves nothing.
+- **Repeat policy.** A new or changed case must reach three consecutive passes
+  before it is recorded as established; the runner enforces this itself through
+  `target_passes()`, so you do not need to pass `--repeat 3`. An established
+  case then runs once on the ordinary gate. Prior passes carry forward, so an
+  interrupted run resumes rather than restarting.
+- **Run it:**
+
+  ```bash
+  python3 scripts/run_agent_evals.py --max-cost-usd 10
+  ```
+
+  Defaults are `--repeat 1` and `--max-workers 8`. Evals are network-bound, not
+  CPU-bound, so raising workers is the cheapest speedup available.
+- **Highest-value gaps right now**, in order: order lifecycle (market vs limit
+  vs bracket, limit walking, wait-for-terminal, partial fills, rejections),
+  look-ahead discipline when the agent reads the open web through
+  `browser_*`, `http_request` or `rss_fetch`, then indicators, futures and
+  forex. See `docs/research/2026-09-24_lumibot-4.6.1-game-plan.md`.
+- **Look-ahead is special.** LumiBot blocks look-ahead mechanically where it
+  owns the data path. It cannot once the agent reaches an arbitrary page or
+  API, so those cases are the only protection that exists there. When you add a
+  look-ahead eval, teach the rule in the matching skill in the same change.

@@ -1084,6 +1084,45 @@ def test_rejected_order_attempts_are_not_counted_as_broker_submissions():
     assert "submitted an order despite a no-order contract" in score["failures"]
 
 
+def test_close_mode_submission_is_scored_from_the_legs_lumibot_built():
+    """In action='close' mode the agent sends only contracts and LumiBot derives
+    each side and quantity. The harness must score the legs that reached the
+    broker, not the side-less (or ignored) call arguments."""
+    from types import SimpleNamespace
+
+    from lumibot.components.agents import AgentTraceEvent
+    from scripts.agent_eval_production_fixture import ProductionFixture
+
+    contracts = [
+        {"symbol": "SPY", "expiration": "2026-08-28", "strike": 594, "right": "put"},
+        {"symbol": "SPY", "expiration": "2026-08-28", "strike": 592, "right": "put"},
+    ]
+    built = [
+        {"asset": {"symbol": "SPY", "expiration": "2026-08-28", "strike": 594.0, "right": "PUT"}, "side": "buy_to_close", "quantity": 3.0},
+        {"asset": {"symbol": "SPY", "expiration": "2026-08-28", "strike": 592.0, "right": "PUT"}, "side": "sell_to_close", "quantity": 3.0},
+    ]
+
+    def event(kind, payload):
+        return AgentTraceEvent(kind=kind, tool_name="orders_submit_multileg", call_id="a", payload=payload)
+
+    result = SimpleNamespace(
+        tool_calls=[event("tool_call", {"legs_json": json.dumps(contracts), "action": "close"})],
+        tool_results=[event("tool_result", {"legs": built, "order_type": "debit"})],
+    )
+    production = ProductionFixture(evals.build_fixture("open_credit_spread"))
+    try:
+        production.capture(result)
+    finally:
+        production.close()
+
+    legs = production.fixture.submissions[0]["legs"]
+    assert {(float(leg["strike"]), leg["side"], leg["quantity"]) for leg in legs} == {
+        (594.0, "buy_to_close", 3.0),
+        (592.0, "sell_to_close", 3.0),
+    }
+    assert {leg["right"] for leg in legs} == {"put"}
+
+
 def test_harness_error_rows_name_where_the_error_happened_without_its_message():
     def fail():
         return {}["secret-looking-key"]
@@ -1277,3 +1316,64 @@ def test_public_filings_scoring_rejects_a_future_filing_in_the_tool_result():
     score = evals.score_machine_contract(case, transcript)
     assert score["pass"] is False
     assert any("222" in failure or "after as_of" in failure for failure in score["failures"])
+
+
+class TestRepeatPolicy:
+    """A new eval proves itself three times. The ongoing gate runs it once.
+
+    Three repeats on every run made the suite too expensive to run often, and
+    coverage stayed thin as a result. Establishing a case still costs three
+    consecutive passes, so a flaky eval cannot sneak in.
+    """
+
+    def test_establishing_a_case_still_requires_three_consecutive_passes(self):
+        assert evals.NEW_CASE_REQUIRED_PASSES == 3
+
+    def test_repeat_one_is_allowed(self):
+        parser = evals.build_parser()
+        args = parser.parse_args(["--max-cost-usd", "5", "--repeat", "1"])
+        assert args.repeat == 1
+        evals.validate_args(args)  # must not raise
+
+    def test_repeat_zero_is_still_rejected(self):
+        parser = evals.build_parser()
+        args = parser.parse_args(["--max-cost-usd", "5", "--repeat", "0"])
+        with pytest.raises(RuntimeError, match="repeat"):
+            evals.validate_args(args)
+
+    def test_default_repeat_is_one_so_the_ordinary_loop_is_cheap(self):
+        parser = evals.build_parser()
+        args = parser.parse_args(["--max-cost-usd", "5"])
+        assert args.repeat == 1
+
+    def test_workers_default_high_enough_for_network_bound_calls(self):
+        parser = evals.build_parser()
+        args = parser.parse_args(["--max-cost-usd", "5"])
+        assert args.max_workers >= 8
+
+    def test_one_pass_does_not_establish_a_brand_new_case(self):
+        """Freshness is still earned with three, never with one."""
+        rows = [{"case_id": "c1", "fingerprint": "f1", "passed": True, "timestamp": "t"}]
+        assert evals.consecutive_pass_count(rows, "c1", "f1") < evals.NEW_CASE_REQUIRED_PASSES
+
+
+class TestTargetPasses:
+    """An unestablished case is driven to three regardless of --repeat.
+
+    Without this, defaulting --repeat to 1 would let a brand new eval be
+    accepted on a single lucky pass, which is exactly what the three-in-a-row
+    rule exists to stop.
+    """
+
+    def test_new_case_is_driven_to_three_even_when_repeat_is_one(self):
+        assert evals.target_passes(already=0, repeat=1) == 3
+
+    def test_partially_established_case_finishes_its_three(self):
+        assert evals.target_passes(already=2, repeat=1) == 3
+
+    def test_established_case_honours_repeat(self):
+        assert evals.target_passes(already=3, repeat=1) == 1
+        assert evals.target_passes(already=5, repeat=2) == 2
+
+    def test_an_explicit_higher_repeat_still_wins(self):
+        assert evals.target_passes(already=0, repeat=5) == 5

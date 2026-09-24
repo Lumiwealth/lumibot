@@ -517,16 +517,20 @@ def _bars_to_records(bars: Any) -> list[dict[str, Any]]:
         return []
     if getattr(working, "empty", False):
         return []
+    index_name = None
     try:
         if getattr(working.index, "name", None) is not None or str(getattr(working.index, "dtype", "")).startswith(
             "datetime"
         ):
+            is_datetime_index = str(getattr(working.index, "dtype", "")).startswith("datetime")
+            index_name = (working.index.name or "index") if is_datetime_index else None
             working = working.reset_index()
     except Exception:
         pass
     datetime_col = None
-    for candidate in ("datetime", "date", "timestamp", "time", "index"):
-        if candidate in working.columns:
+    # Yahoo names its DatetimeIndex "Date"; use the reset index's own name first.
+    for candidate in (index_name, "datetime", "date", "timestamp", "time", "index"):
+        if candidate is not None and candidate in working.columns:
             datetime_col = candidate
             break
     records: list[dict[str, Any]] = []

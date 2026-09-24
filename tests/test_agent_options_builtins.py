@@ -367,6 +367,38 @@ class _MarketTimeBars:
         self.df = self.pandas_df
 
 
+class _YahooDailyBars:
+    """Yahoo daily bars: the DatetimeIndex is named "Date", not "datetime"."""
+
+    def __init__(self):
+        index = pd.date_range("2026-01-02", periods=3, freq="B", tz="America/New_York", name="Date")
+        self.pandas_df = pd.DataFrame(
+            {"open": [680.0, 681.0, 682.0], "high": [683.0] * 3, "low": [679.0] * 3,
+             "close": [681.0, 682.0, 683.0], "volume": [1.0e6] * 3},
+            index=index,
+        )
+        self.df = self.pandas_df
+
+
+class _YahooDailyStrategy(_OptionsStrategy):
+    def get_historical_prices_for_assets(self, assets, length, timestep="day", **kwargs):
+        return {str(getattr(asset, "symbol", asset)).upper(): _YahooDailyBars() for asset in assets}
+
+
+def test_market_historical_prices_keeps_dates_from_a_date_named_index():
+    # researcher-trader-luna-v2 (Sept 23) refused every SPY trade because the
+    # daily table's datetime column was all NaT: Yahoo names its index "Date".
+    tools = _wrapped_tools(
+        _YahooDailyStrategy(),
+        [BuiltinTools.market.historical_prices(), BuiltinTools.duckdb.query()],
+    )
+    raw = tools["market_historical_prices"](symbols="SPY", length=3, timestep="day")
+    assert all(bar.get("datetime") for bar in raw["bars_by_symbol"]["SPY"])
+    table = tools["market_historical_prices"](symbols="SPY", length=3, timestep="day", table_name="spy_daily")
+    assert table["first_datetime"].startswith("2026-01-02")
+    assert table["last_datetime"].startswith("2026-01-06")
+
+
 class _UtcClockStrategy(_OptionsStrategy):
     """Strategy clock in UTC while the data source returns New York bars.
 

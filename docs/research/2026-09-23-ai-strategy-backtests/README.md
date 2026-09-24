@@ -7,7 +7,7 @@ entries and exits, and cash. Artifacts (`*_trades.csv`, `*_settings.json`,
 `/Users/robertgrzesik/Development/lumibot/logs/`. The runner is
 `/Users/robertgrzesik/Development/lumibot/scripts/run_ai_strategy_flash_backtests.py`
 (`--wave N --already <spent>`), with a $25 cap. Total model spend for the day
-was about $22.72 (the spend.txt figure is slightly higher because each wave started from a padded baseline).
+was about $22.72 before the evening reruns and about $24 after them (the spend.txt figure is slightly higher because each wave started from a padded baseline).
 
 ## Latest result per strategy
 

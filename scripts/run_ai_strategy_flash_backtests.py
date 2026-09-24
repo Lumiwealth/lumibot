@@ -17,7 +17,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 OUT = ROOT / "docs" / "research" / "2026-09-23-ai-strategy-backtests"
-CAP_USD = 25.0
+CAP_USD = 35.0
 MODEL = "openai/gpt-6-luna"
 INPUT_USD_PER_MILLION = 0.10
 CACHED_INPUT_USD_PER_MILLION = 0.01
@@ -611,6 +611,25 @@ WAVE23 = ({**_wave8("leveraged-etf-luna"), "name": "leveraged-etf-luna-v6"},)
 
 # Leveraged v6 skipped every rebalance after netting; rerun after the rescale rule.
 WAVE24 = ({**_wave8("leveraged-etf-luna"), "name": "leveraged-etf-luna-v7"},)
+
+# ORB v3 and insider v4 ran before the churn, cash, and rescale rules.
+WAVE25 = (
+    {**WAVE11[3], "name": "orb-luna-v4"},
+    {**WAVE13[2], "name": "sec-insider-luna-v5"},
+)
+
+# Every run that started before the 15:56 fill-drain fix, rerun on current code.
+WAVE26 = (
+    {**_wave8("ackman-luna"), "name": "ackman-luna-v2"},
+    {**WAVE11[1], "name": "buffett-luna-v3"},
+    {**_wave8("researcher-trader-luna"), "name": "researcher-trader-luna-v2"},
+    {**WAVE10[0], "name": "iron-condor-luna-v4"},
+    {**WAVE10[1], "name": "credit-spread-luna-v4"},
+    {**WAVE14[0], "name": "spy-0dte-luna-v6"},
+)
+
+# researcher-trader v2 refused to trade because daily bar dates were NaT.
+WAVE27 = ({**_wave8("researcher-trader-luna"), "name": "researcher-trader-luna-v3"},)
 
 
 def _jobs(wave: str) -> tuple[dict, ...]:

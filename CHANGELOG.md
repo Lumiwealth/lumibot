@@ -13,6 +13,7 @@ Highlights:
 Deploy marker: `3abbf8fcbd64` (original 4.5.92 marker)
 
 - Release agent evals set `LITELLM_LOCAL_MODEL_COST_MAP=True` in the isolated eval process. litellm 1.102 downloads its model price map from GitHub on import, the eval network boundary rejected that request, and every GPT-6 Luna eval call errored in CI.
+- The options skill now tells agents to wait briefly (bounded) for their own pending package in backtests and never cancel or replace it to restart the decision, matching the stock skill. Release eval options_iron_condor_atomic_open failed 1/3 when the agent cancelled its own valid condor.
 - Trading agents now name, in their final decision, the account state they relied on before any order and state that upstream research or handoff packets were treated as unverified evidence, listing what they revalidated. A decision not to order must also name the existing position or pending order that already covers it, or the condition that blocks it, after reading account_positions and orders_open_orders fresh in that run. Release evals failed 1/3 when a correct decision left this out.
 
 ### Growth documentation and examples

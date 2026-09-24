@@ -478,3 +478,14 @@ def test_indicator_values_come_from_tools_not_hand_arithmetic():
     assert "Compute averages and indicators with a tool" in instructions
     assert "never by mental arithmetic" in instructions
 
+
+
+def test_options_skill_keeps_its_own_pending_package_instead_of_cancelling_it():
+    # Release eval options_iron_condor_atomic_open (run 36034047544, repetition 3)
+    # submitted a valid atomic condor, then cancelled its own pending package and
+    # ended with no trade. The stock skill already forbids this; options did not.
+    options_skill = next(skill for skill in load_builtin_skills() if skill.name == "options-trading")
+    text = " ".join(options_skill.instructions.split())
+
+    assert "In backtests, a short bounded `orders_wait_for_terminal` is appropriate" in text
+    assert "Do not cancel, replace, or modify your own pending package" in text

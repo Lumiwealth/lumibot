@@ -43,6 +43,12 @@ submitting an option order.
 8. Capture the returned identifier, inspect that exact order, and reread positions.
    Submission is not proof of a fill, and a fill response alone is not proof that
    the account has the intended final exposure.
+   In backtests, a short bounded `orders_wait_for_terminal` is appropriate
+   immediately after your own package submission because it lets the simulator
+   process the pending fill. Do not use an unbounded wait. Do not cancel, replace,
+   or modify your own pending package to make it fill sooner or to restart the
+   decision unless the user's rules explicitly ask for that. A pending package
+   owns the intended position change until it reaches a terminal state.
 
 ## Position truth
 

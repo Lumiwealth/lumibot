@@ -1,12 +1,16 @@
-# AI example strategies: status, evidence, and game plan (Sept 23, 2026)
+# AI example strategies: status, evidence, and game plan (updated Sept 24, 2026)
 
 Written for the next agent. Read this first, then
-`docs/research/2026-09-23-ai-strategy-backtests/README.md`.
+`docs/research/2026-09-23-ai-strategy-backtests/README.md`. Section 8 is the
+Sept 24 work. Do not rerun it.
 
-Branch: `version/4.5.92` in the repository root
-(LumiBot has no `main`). Everything below is pushed; last commit `0e285ac2`.
-Model default everywhere: `openai/gpt-6-luna`, high reasoning. Total model
-spend on Sept 23: about $24 (cap in the runner is now $35).
+Branch: `version/4.6.0` in the repository root
+(LumiBot has no `main`). Sept 24 product work is commit `488c2d52`
+("Return only public filings and score options orders"). Later commits on
+this branch belong to other agents. Model default everywhere:
+`openai/gpt-6-luna`, high reasoning. Spend after the Sept 24 runs:
+$28.1395 of the $35 cap in `spend.txt`. Do not start another wave unless
+Rob asks. Each new run still needs its own `WAVEnn` name.
 
 ## 1. Where the evidence is
 
@@ -55,16 +59,16 @@ Gemini Flash Lite and none matches the repo code. See section 4 for why.
 | Leveraged ETF bull/bear (`ai_trading_team_bull_bear_leveraged_etf.py`) | leveraged-etf-luna-v7 | +1.47% | Never an ETF with its inverse; about 99% invested; cash low $189 | None found | Yes (Sept 22) | No | No (withdrawn) |
 | Buffett value (`ai_trading_team_warren_buffett_value.py`) | buffett-luna-v3 | +3.44% | Real SEC work: filings searched and sections read, balance sheets and cash flows pulled, all dated to the backtest day. Stayed in cash 2 days, then 705 PG | Judge the quality of the analysis in the trace; not yet reviewed line by line | Yes (Sept 22) | No | No (withdrawn) |
 | Ackman concentrated (`ai_trading_team_bill_ackman_concentrated.py`) | ackman-luna-v2 | +0.91% | 65% MSFT / 35% GOOGL, cash low $1,216 | Researcher used financial statements and indicators but read no filings; v2 also hit the NaT bug (fixed after) | No copy found | n/a | No (withdrawn) |
-| Citadel sector pods (`ai_trading_team_citadel_sector_pods*.py`) | Not run on Sept 23 | n/a | n/a | Listing backtests (July, Gemini) went below zero cash: -$58,933 and -$24,775 | Yes (July) | No | No (withdrawn) |
-| Ray Dalio meritocracy (`ai_trading_team_ray_dalio_idea_meritocracy*.py`) | Not run on Sept 23 | n/a | n/a | Listing backtests went to -$430,482 and -$17,462 cash. A third copy, "Macro Insight AI" (81af73b8), is still public; cash-clean but about 0% return | Yes (July) | No | 1 of 3 still public |
-| Pelosi congress (`ai_congress_disclosures.py`) | congress-pelosi-luna-v4, Jan 22 to 27 | +8.7% | Read the official House Clerk PDFs; saw that the Jan 23 filing was not public at the Jan 22 and Jan 23 opens; bought AB, GOOGL, TEM, VST at the Jan 26 open. Weights 75 / 18.75 / 1.875 / 4.375% match the range midpoints exactly. Cash low $1,436 | Lookahead exposure: the strategy passes URLs of June and August filings too, so the agent downloads future documents and only the prompt stops it using them. Also used r.jina.ai and Google gview to read a PDF | "Pelosi Stock Disclosures" (Sept 22) | No | No |
+| Citadel sector pods (`ai_trading_team_citadel_sector_pods*.py`) | citadel-luna, Jan 5 to 16, Yahoo | +2% vs SPY +1% | Did not repeat the July -$58,933 overspend. Cash dipped to -$78.47, then a 1-share sale brought it back. Last cash $33.21. Portfolio about $101,680 | Yahoo child had no Alpaca news and no FRED. See section 8 | Yes (July) | No | No (withdrawn) |
+| Ray Dalio meritocracy (`ai_trading_team_ray_dalio_idea_meritocracy*.py`) | ray-dalio-luna, Jan 5 to 16, Yahoo | +1% vs SPY +1% | Cash never negative (low $261.97). Did not repeat the July -$24,775. Portfolio about $101,559 | FRED was not exposed on this Yahoo child. "Macro Insight AI" (81af73b8) is still public | Yes (July) | No | 1 of 3 still public |
+| Pelosi congress (`ai_congress_disclosures.py`) | congress-pelosi-luna-v4, Jan 22 to 27 (not rerun) | +8.7% | `house_public_disclosures` returns only filings already public. Eval failed first on a future filing, then passed 3/3. See section 8 | The example file still lists clerk PDF URLs. The Jan 22 backtest was not rerun. v4 also used r.jina.ai and Google gview | "Pelosi Stock Disclosures" (Sept 22) | No | No |
 | Public page fetch (`ai_public_web_fetch.py`) | public-fetch-luna-v3 | +7.3% | Used the browser and HTTP tools on the House PDF; read `published_at` 10:06 ET Jan 23; bought at the Jan 26 open | Same future-URL exposure as Pelosi | No | n/a | No |
 | Iron condor (`ai_iron_condor.py`) | iron-condor-luna-v4, Alpaca options | ended $100,240 | One atomic multi-leg limit order: 40 SPY Feb 13 650/655P and 715/720C at a $1.31 credit | Days 1 to 3 it chose the Feb 9 weekly, which has no Alpaca data, and correctly refused. Fills land exactly at the mid (optimistic) | "SPY Iron Condor" (Sept 22) | No | No |
-| Credit spread (`ai_credit_spread.py`) | credit-spread-luna-v4 | ended $100,627 | One atomic limit order: 33 SPY 655/650P at a $0.50 credit; checked the 50% profit, $1.00 loss, 21-DTE, and delta exits daily | Never exited inside the window; test a longer window | "SPY Credit Spread" (Sept 22) | No | No |
+| Credit spread (`ai_credit_spread.py`) | credit-spread-luna-v5, Jan 5 to Feb 6 | ended about $100,088 vs SPY -2% | Two 50% profit closes and one 2x-credit loss close. Cash never negative (low $100,000). The 21-day time stop did not fire. See section 8 | Last loss close was submitted on the final bar. Alpaca priced from last trade when bid and ask were missing | "SPY Credit Spread" (Sept 22) | No | No |
 | Same-day bear call (`ai_spx_zero_dte_bear_call_team.py`) | spy-0dte-luna-v6 | ended $98,640 | Open and close each a single multi-leg limit order; 40 lots; closed on a strike breach | Lost on day 1 (closed at $0.61 after opening at $0.16) | "SPXW Zero Day Bear Call" (Sept 22) | No | No |
-| Opening range breakout (`ai_opening_range_breakout.py`) | orb-luna-v4, Alpaca minute | -0.08% | One CMCSA breakout at 5% size | Two-hour cadence: the target was touched but the sale happened later at a worse price. Put a take-profit limit and a stop on at entry | "Opening Range Breakout" (Sept 22) | No | No |
-| VWAP (`ai_vwap.py`) | vwap-luna-v5 | flat | No setup, no trade (correct) | Needs a window with a real setup to prove a trade | "VWAP Minute Example" (Sept 22) | No | No |
-| SEC insider (`ai_sec_insider_filings.py`) | sec-insider-luna-v5 | -0.76% | Churn gone (37 fills down to 12); cash low $2,263 | Found no insider buying in the 4-day window, so it only held an equal-weight book; test a longer window | "SEC Form 4 Insider Buy Tracker" (May) | No | No |
+| Opening range breakout (`ai_opening_range_breakout.py`) | orb-luna-v5, Jan 5 to 7, Alpaca | about flat | Same session as the DIS entry: market buy 200, limit sell 200 at $122.86, stop sell 200 at $111.38. Cash never negative (low $76,806) | Next session canceled the day-TIF stop, then the risk manager sold at market. Not a new prompt change | "Opening Range Breakout" (Sept 22) | No | No |
+| VWAP (`ai_vwap.py`) | vwap-luna-v6, Jan 5 to 16, 1H | about flat vs SPY +1% | Two real SPY round trips of 143 shares. Cash never negative (low $1,008). A later bar correctly refused a long below VWAP | Prices on some trade-csv rows are blank; the log has them | "VWAP Minute Example" (Sept 22) | No | No |
+| SEC insider (`ai_sec_insider_filings.py`) | sec-insider-luna-v6, Jan 5 to Feb 13 | +7% vs SPY -1% | Longer window still found no open-market Form 4 buy or discretionary sale through Feb 12. Held an equal-weight book | Cash dipped to -$220.39 (3 reads), then recovered. Last cash $2,657. Portfolio about $106,697 | "SEC Form 4 Insider Buy Tracker" (May) | No | No |
 | Quickstart researcher/trader (`ai_researcher_trader.py`) | researcher-trader-luna-v3 | small | 14 SPY at $687.93 (10% cap by design) | v2 refused all 10 days because of the NaT bug, fixed in `337c4995` | n/a | n/a | n/a |
 
 Other public AI listings still up and cash-clean: AI Investment Committee,
@@ -89,10 +93,10 @@ ORB" (c7a7a179). Rob must decide on those two.
 
 The repo examples import `lumibot.example_strategies.agent_cycle`. BotSpot
 runs whatever LumiBot version its bot image installs, so the new code only
-works on BotSpot after LumiBot 4.5.92 is released and the runtime uses it.
-Releasing LumiBot needs Rob's explicit authorization, and no agent may deploy
-on its own. Until then, a BotSpot copy must either wait for the release or
-inline the prompt helpers.
+works on BotSpot after the current version branch (`version/4.6.0`) is
+released and the runtime uses it. Releasing LumiBot needs Rob's explicit
+authorization, and no agent may deploy on its own. Until then, a BotSpot
+copy must either wait for the release or inline the prompt helpers.
 
 ## 5. Data sources (answers to Rob)
 
@@ -101,12 +105,12 @@ inline the prompt helpers.
   expirations, such as Feb 9, have no bars, and fills are at the exact mid.
   Alpaca options history starts February 2024. For backtests after that date,
   Alpaca data is enough and ThetaData is not needed.
-- **Alpaca news: easy fix.** In a backtest the news tool only reads
-  `ALPACA_NEWS_API_KEY` / `ALPACA_NEWS_API_SECRET`. It does not fall back to
-  `ALPACA_API_KEY` / `ALPACA_API_SECRET`, which are already in
-  the repository env file. Fix: add that fallback in
-  `_resolve_alpaca_news_headers` in `lumibot/components/agents/builtins.py`,
-  test first.
+- **Alpaca news: fallback is in.** `_resolve_alpaca_news_headers` now uses
+  the regular `ALPACA_API_KEY` / `ALPACA_API_SECRET` when the news-specific
+  keys and the broker OAuth path are empty. The saved proof used
+  `alpaca_api_env` and kept one full article of 15,177 characters. Parquet:
+  `logs/AlpacaNewsDeepReadProofStrategy_2026-09-24_12-03_kLnzKx_agent_detail.parquet`.
+  Do not pay for another news proof.
 - **FRED: the key exists** (`FRED_API_KEY` in `lumibot/.env`, 32 characters).
   No example needs it today; Ray Dalio would use it for macro data.
 - **ThetaData:** not needed for the examples. Recommend the broker-data path:
@@ -130,28 +134,30 @@ Draft reply (Rob sends it; agents never post to Discord):
 
 ## 7. Game plan, in order
 
-1. **Rob decides on the release.** Authorize the LumiBot 4.5.92 release so
-   BotSpot can run the new code. Without it, nothing below reaches customers.
-2. **Two lookahead fixes, tests first.** (a) Congress and public-fetch: give
-   the agent a point-in-time disclosure tool that only returns filings whose
-   report date is on or before the backtest clock, instead of passing future
-   URLs. (b) Add an eval that hands the agent a future-dated filing and fails
-   if it trades on it. It must start red.
-3. **Options evals and skill.** Add an eval where the prompt does not say
-   "limit" and the agent must still choose one atomic limit order priced
-   between bid and ask. In `lumibot/components/agents/skills/options-trading/`,
-   tell the agent to fall back to the nearest expiration with data. Consider a
-   backtest fill model that does not always fill exactly at the mid.
-4. **ORB exits.** Place the take-profit limit and the stop at entry so a
-   two-hour cadence cannot miss the target. Rerun ORB.
-5. **Alpaca news fallback** (section 5), then run the news proof in
-   `docsrc/agents_canonical_demos.rst`.
-6. **Run Citadel and Ray Dalio on Luna.** Neither ran today. Their July
-   listing backtests overspent heavily, so they need fresh backtests before
-   any relisting. Rob believes they are fine; the evidence says the old tear
-   sheets are not.
-7. **Longer windows** for credit spread, SEC insider, and VWAP so exits and
-   real signals appear. Keep the $35 cap; each run costs about $0.10 to $0.50.
+1. **Rob decides on the release.** Authorize a LumiBot release from
+   `version/4.6.0` so BotSpot can run the new code. Without it, nothing
+   below reaches customers.
+2. **Done, Sept 24. Public filings tool and red-first eval.**
+   `house_public_disclosures` omits a filing until its publish time is on or
+   before the strategy clock, and it does not download that PDF. The eval
+   failed first (future ticker ZZZZ, doc 222), then passed 3/3. The Pelosi
+   example file still lists clerk URLs, and that backtest was not rerun.
+3. **Done, Sept 24. Options evals. Skill left unchanged.** The limit eval
+   does not say "limit". Official 3/3: one atomic iron condor, limit price
+   between bid and ask. The expiration eval's nearer date has no quotes.
+   Official 3/3: the agent ordered 2026-08-28, the expiration that has data.
+   The skill was not edited, because the agent already did that.
+4. **Done, Sept 24. ORB exits.** Prompt places the take-profit and the stop
+   in the same session as the entry. `orb-luna-v5` did that on DIS. The next
+   session canceled the day stop. That cancel is an observation, not a new
+   prompt rewrite.
+5. **Done, Sept 24. Alpaca news fallback.** See section 5. Proof already saved.
+6. **Done, Sept 24. Citadel and Ray Dalio Luna backtests.** Fresh Yahoo
+   windows. Neither repeated the July cash overspend. See section 8.
+7. **Done, Sept 24. Longer windows.** Credit spread produced real exits.
+   VWAP produced real round trips. Insider still found no open-market Form 4
+   buy through Feb 12. Spend stopped at $28.1395. Do not extend them again
+   unless Rob asks.
 8. **After the release: update BotSpot copies.** Update each copy to the
    repo code through the owner BotSpot MCP (`replace_file`, new revision),
    run the backtest on BotSpot, check `stats.csv` for negative cash and the
@@ -163,3 +169,82 @@ Draft reply (Rob sends it; agents never post to Discord):
 
 Rob's actions: step 1 (release authorization), step 9 (two listings), and
 sending the Discord reply.
+
+## 8. Sept 24 results (do not rerun)
+
+Product commit `488c2d52` is on `origin/version/4.6.0`. Backtest tear sheets
+and logs stay untracked under this folder and `logs/`. `spend.txt` is a live
+counter. Do not commit it.
+
+### Public filings
+
+`public_house_filings` filters before any PDF download. The recorded eval
+path uses `visible_congress_disclosures`, so a future row never reaches the
+model. Red artifact, saved before the filter was always on:
+`agent_eval_baselines/2026-09-24_congress_public_filings_red.json`.
+Clock `2026-08-11T14:35:00Z`. The unfiltered tool returned ZZZZ, published
+`2026-09-15`, doc 222. Official green 3/3:
+`artifacts/agent_evals/2026-09-24-congress-green/`. Cost $0.013692.
+Fingerprint `c06b5f354223bcf271e2c506427b78cb5c767e816bdf13e48e1af6be14e20901`.
+
+### Options
+
+Both cases call the real model. Machine checks: limit price inside the
+signed bid/ask, and every leg expiration exactly `2026-08-28`. Official 6/6:
+`artifacts/agent_evals/2026-09-24-options-repeat3/summary.json`.
+Cost $0.040187. Fingerprint
+`5f75eaa4813f451f92ee9c43b652e7c4fb012322072a166b6c8d2bec678b537d`.
+`options-trading/SKILL.md` was not edited. The judge rubric scores the
+order, not a sentence about inspecting the empty expiration.
+
+### Opening range, wave 28
+
+`orb-luna-v5_2026-09-24_12-01_NB6wB6`. Jan 5, 13:30 ET: market buy 200 DIS,
+then limit sell 200 at $122.86 and stop sell 200 at $111.38 (opening-range
+low). Next session the day stop was canceled. Cash low $76,806, last
+$99,694, never negative. Tearsheet return about 0. End period 2026-01-06.
+
+### Citadel and Ray Dalio, wave 28
+
+`citadel-luna_2026-09-24_12-01_Y9abv8`. Jan 4 to Jan 15. Return +2% vs SPY
++1%. Max drop 0.7%. Cash low -$78.47 (5 negative reads), last $33.21.
+It bought, went slightly negative, and sold 1 share in that session.
+
+`ray-dalio-luna_2026-09-24_12-01_LsKUBq`. Same window. Return +1% vs SPY
++1%. Max drop 0.32%. Cash low and last $261.97. Zero negative reads.
+The old tearsheet figure of a 31% drop was an artifact. Cash never went
+negative. Yahoo children do not expose Alpaca news or FRED.
+
+### Longer windows
+
+`vwap-luna-v6_2026-09-24_12-01_bXEC0i`. Through Jan 15. Return about 0 vs
+SPY +1%. Max drop 0.3%. Cash low $1,008.25, last $99,905.62. Confirmed
+orders: buy 143 SPY, sell 143, buy 143, sell 143. On Jan 13 at 11:30 ET it
+refused a long because $693.48 was below VWAP $694.09.
+
+`sec-insider-luna-v6_2026-09-24_12-01_TmDOYc`. Through Feb 12. Return +7%
+vs SPY -1%. Max drop 2.32%. Cash low -$220.39 (3 reads), last $2,657.
+Portfolio about $106,697. 28 researcher summaries, Jan 5 through Feb 12.
+None found a qualifying open-market purchase or discretionary sale. Jan 5
+bought an equal-weight book. That is the result. Do not run a longer
+insider window for the same question.
+
+`credit-spread-luna-v5_2026-09-24_13-53_jxgBhb`. Jan 4 to Feb 5. Return
+about 0 vs SPY -2%. Max drop 0.25%. Cash low $100,000 (the start). Last
+read on Feb 5 at 09:30 ET: cash $100,448, portfolio $100,088. Zero negative
+reads. Three atomic 4-lot SPY put credit spreads, each closed:
+
+- Feb 13 655/650 opened Jan 5 at a $0.50 credit. Closed Jan 22 at $0.22.
+  50% profit rule (about 56% of the credit).
+- Feb 27 655/650 opened at a $0.68 credit. Closed Jan 26 at $0.29.
+  50% profit rule (about 57% of the credit).
+- Feb 27 660/655 opened Jan 27 at a $0.45 credit. Loss close submitted
+  Feb 5 at $0.90 (2x credit). Short delta was 0.263, so the 0.30 delta
+  stop did not fire. The 21-day stop did not fire. The order was still
+  new in that same agent turn. Twelve "Order was filled" lines match the
+  six packages' legs. Treat the last close as submitted on the final bar,
+  and the account as about flat at $100,088.
+
+Wave 28 parent finished all five jobs at code 0. Spend then $27.6107.
+Wave 29 (`credit-spread-luna-v5` only) finished at code 0. Spend $28.1395.
+Headroom to the $35 cap is about $6.86. Do not start another parent.

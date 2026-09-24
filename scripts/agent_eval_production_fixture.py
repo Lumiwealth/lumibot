@@ -138,8 +138,8 @@ def _recorded_sec_fundamentals(strategy, cache_dir):
     return SECFundamentals(strategy, cache_dir=cache_dir, cache_mode="backtest", min_request_interval_seconds=0)
 
 
-def _rejected_order_calls(result):
-    """Positions in result.tool_calls of order calls whose tool result was a tool error.
+def _order_call_outcomes(result):
+    """Map positions in result.tool_calls of order calls to their tool result payloads.
 
     Calls and results pair by call_id; without ids they pair in order per tool.
     """
@@ -150,7 +150,7 @@ def _rejected_order_calls(result):
     for event in results:
         if not getattr(event, "call_id", None):
             unmatched.setdefault(event.tool_name, []).append(event)
-    rejected = set()
+    outcomes = {}
     for position, call in enumerate(calls):
         if call.tool_name not in {"orders_submit_order", "orders_submit_multileg"}:
             continue
@@ -160,9 +160,43 @@ def _rejected_order_calls(result):
         payload = getattr(outcome, "payload", None)
         if isinstance(payload, dict) and isinstance(payload.get("result"), dict):
             payload = payload["result"]
-        if isinstance(payload, dict) and payload.get("tool_error") is True:
-            rejected.add(position)
-    return rejected
+        outcomes[position] = payload
+    return outcomes
+
+
+def _rejected_order_calls(result):
+    """Positions in result.tool_calls of order calls whose tool result was a tool error."""
+    return {
+        position
+        for position, payload in _order_call_outcomes(result).items()
+        if isinstance(payload, dict) and payload.get("tool_error") is True
+    }
+
+
+def _resolved_multileg_legs(payload):
+    """Legs LumiBot actually built, flattened to the harness leg shape.
+
+    In action='close' mode the agent sends only contracts and LumiBot derives
+    each side and quantity, so the call arguments are not the submitted legs.
+    """
+    if not isinstance(payload, dict) or not isinstance(payload.get("legs"), list):
+        return None
+    legs = []
+    for leg in payload["legs"]:
+        asset = leg.get("asset") if isinstance(leg, dict) else None
+        if not isinstance(asset, dict):
+            return None
+        legs.append(
+            {
+                "symbol": asset.get("symbol"),
+                "expiration": asset.get("expiration"),
+                "strike": asset.get("strike"),
+                "right": str(asset.get("right") or "").lower(),
+                "side": leg.get("side"),
+                "quantity": leg.get("quantity"),
+            }
+        )
+    return legs
 
 
 class ProductionFixture:
@@ -322,6 +356,7 @@ class ProductionFixture:
         ]
         self.fixture.submissions = []
         self.fixture.rejected_submissions = []
+        outcomes = _order_call_outcomes(result)
         rejected = _rejected_order_calls(result)
         for position, event in enumerate(result.tool_calls):
             if event.tool_name not in {"orders_submit_order", "orders_submit_multileg"}:
@@ -333,6 +368,8 @@ class ProductionFixture:
                     legs = json.loads(legs) if isinstance(legs, str) else legs
                 except json.JSONDecodeError:
                     legs = []
+                if args.get("action") == "close" and position not in rejected:
+                    legs = _resolved_multileg_legs(outcomes.get(position)) or legs
                 record = {
                     "tool": event.tool_name,
                     "legs": legs,

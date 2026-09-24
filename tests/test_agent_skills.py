@@ -489,3 +489,92 @@ def test_options_skill_keeps_its_own_pending_package_instead_of_cancelling_it():
 
     assert "In backtests, a short bounded `orders_wait_for_terminal` is appropriate" in text
     assert "Do not cancel, replace, or modify your own pending package" in text
+
+
+class TestUserSuppliedSkills:
+    """Users must be able to bring their own skills, not only switch ours off.
+
+    Before this, `include_builtin_skills` was an on/off switch: you got our
+    three skills or nothing. Someone building a trading system needs to teach
+    the agent their own rules without forking the library.
+    """
+
+    def _write_skill(self, root, name, body="Always size to 1% of the book."):
+        skill_dir = root / name
+        skill_dir.mkdir(parents=True)
+        (skill_dir / "SKILL.md").write_text(
+            f"---\nname: {name}\ndescription: {name} rules\n---\n\n{body}\n"
+        )
+        return skill_dir
+
+    def test_user_skill_directories_are_resolved(self, tmp_path):
+        from lumibot.components.agents import skills as skills_module
+
+        mine = self._write_skill(tmp_path, "my-house-rules")
+        resolved = skills_module.resolve_skill_directories(
+            skill_dirs=[mine], include_builtin=False
+        )
+        assert resolved == (mine,)
+
+    def test_builtin_and_user_skills_compose(self, tmp_path):
+        from lumibot.components.agents import skills as skills_module
+
+        mine = self._write_skill(tmp_path, "my-house-rules")
+        resolved = skills_module.resolve_skill_directories(
+            skill_dirs=[mine], include_builtin=True
+        )
+        assert mine in resolved
+        assert len(resolved) == len(skills_module.builtin_skill_directories()) + 1
+        # Built-ins keep their catalog order and the user's skill comes last,
+        # so a user skill can build on ours rather than being shadowed.
+        assert resolved[: len(skills_module.builtin_skill_directories())] == (
+            skills_module.builtin_skill_directories()
+        )
+
+    def test_a_directory_without_skill_md_is_rejected_by_name(self, tmp_path):
+        from lumibot.components.agents import skills as skills_module
+
+        empty = tmp_path / "not-a-skill"
+        empty.mkdir()
+        with pytest.raises(ValueError, match="SKILL.md"):
+            skills_module.resolve_skill_directories(skill_dirs=[empty], include_builtin=False)
+
+    def test_a_missing_directory_says_which_one(self, tmp_path):
+        from lumibot.components.agents import skills as skills_module
+
+        with pytest.raises(ValueError, match="does-not-exist"):
+            skills_module.resolve_skill_directories(
+                skill_dirs=[tmp_path / "does-not-exist"], include_builtin=False
+            )
+
+    def test_strings_are_accepted_as_well_as_paths(self, tmp_path):
+        from lumibot.components.agents import skills as skills_module
+
+        mine = self._write_skill(tmp_path, "my-house-rules")
+        resolved = skills_module.resolve_skill_directories(
+            skill_dirs=[str(mine)], include_builtin=False
+        )
+        assert resolved == (mine,)
+
+    def test_user_skills_change_the_fingerprint(self, tmp_path):
+        """Provenance must notice a user skill, or an eval receipt would lie."""
+        from lumibot.components.agents import skills as skills_module
+
+        mine = self._write_skill(tmp_path, "my-house-rules")
+        builtin_only = skills_module.skill_fingerprint(
+            skills_module.resolve_skill_directories(skill_dirs=None, include_builtin=True)
+        )
+        with_mine = skills_module.skill_fingerprint(
+            skills_module.resolve_skill_directories(skill_dirs=[mine], include_builtin=True)
+        )
+        assert builtin_only != with_mine
+
+    def test_create_accepts_skill_dirs(self, tmp_path):
+        """The public API is agents.create(skill_dirs=[...])."""
+        import inspect
+
+        from lumibot.components.agents.manager import AgentManager
+
+        params = inspect.signature(AgentManager.create).parameters
+        assert "skill_dirs" in params
+        assert params["skill_dirs"].default is None

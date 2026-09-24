@@ -983,6 +983,7 @@ class AgentHandle:
         allow_network: bool | None = None,
         include_builtin_tools: bool = True,
         include_builtin_skills: bool = True,
+        skill_dirs: list[str | Path] | tuple[str | Path, ...] | None = None,
         rules_path: str | Path | None = None,
         model_request_timeout_seconds: float | None = None,
         run_timeout_seconds: float | None = None,
@@ -1001,6 +1002,7 @@ class AgentHandle:
             raise ValueError("Unsupported agent reasoning_effort.")
         self.reasoning_effort = reasoning_effort
         self.include_builtin_skills = bool(include_builtin_skills)
+        self.skill_dirs = tuple(skill_dirs or ())
         self.rules_path = rules_path
         from .builtins import BuiltinTools
 
@@ -2022,7 +2024,20 @@ class AgentHandle:
             memory_state = self._memory_state(runtime_context)
             base_system_prompt = self._base_system_prompt(runtime_context)
             effective_system_prompt = self._compose_system_prompt(runtime_context)
-            if self.include_builtin_skills:
+            if self.skill_dirs:
+                # User skills are in play, so the fingerprint must span both
+                # sets or a cache hit or eval receipt would claim a run used
+                # skills it did not.
+                from .skills import resolve_skill_directories
+                from .skills import skill_fingerprint as _skill_fingerprint
+
+                skill_fingerprint = _skill_fingerprint(
+                    resolve_skill_directories(
+                        skill_dirs=self.skill_dirs,
+                        include_builtin=self.include_builtin_skills,
+                    )
+                )
+            elif self.include_builtin_skills:
                 from .skills import builtin_skill_fingerprint
 
                 skill_fingerprint = builtin_skill_fingerprint()
@@ -2851,6 +2866,7 @@ class AgentManager:
         _runtime: Any | None = None,
         include_builtin_tools: bool = True,
         include_builtin_skills: bool = True,
+        skill_dirs: list[str | Path] | tuple[str | Path, ...] | None = None,
         rules_path: str | Path | None = None,
         model_request_timeout_seconds: float | None = None,
         run_timeout_seconds: float | None = None,
@@ -2879,6 +2895,7 @@ class AgentManager:
             allow_network=allow_network,
             include_builtin_tools=include_builtin_tools,
             include_builtin_skills=include_builtin_skills,
+            skill_dirs=skill_dirs,
             rules_path=rules_path,
             model_request_timeout_seconds=model_request_timeout_seconds,
             run_timeout_seconds=run_timeout_seconds,

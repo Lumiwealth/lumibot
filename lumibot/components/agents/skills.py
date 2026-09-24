@@ -72,3 +72,81 @@ def build_builtin_skill_toolset() -> Any:
             "LumiBot agent skills require google-adk 2.1.0 or newer."
         ) from exc
     return SkillToolset(skills=list(load_builtin_skills()))
+
+
+def resolve_skill_directories(
+    *,
+    skill_dirs: "list[str | Path] | tuple[str | Path, ...] | None" = None,
+    include_builtin: bool = True,
+) -> tuple[Path, ...]:
+    """Resolve the skill folders one agent should load, built-ins first.
+
+    Built-ins keep their catalog order and user skills come last, so a user
+    skill can build on ours rather than being shadowed by them. Pass
+    ``include_builtin=False`` to run on your own skills alone.
+
+    Raises ValueError naming the offending path when a directory is missing or
+    has no SKILL.md, because a silently ignored skill is worse than an error.
+    """
+    resolved: list[Path] = list(builtin_skill_directories()) if include_builtin else []
+    for entry in skill_dirs or ():
+        path = Path(entry).expanduser()
+        if not path.is_dir():
+            raise ValueError(f"Skill directory does not exist: {path}")
+        if not (path / "SKILL.md").is_file():
+            raise ValueError(f"Skill directory has no SKILL.md: {path}")
+        resolved.append(path)
+    return tuple(resolved)
+
+
+def skill_fingerprint(skill_dirs: "tuple[Path, ...]") -> str:
+    """Hash every model-visible file across the given skill folders.
+
+    Used for cache keys and eval provenance. A user skill must change this or a
+    receipt would claim a run used skills it did not.
+    """
+    digest = hashlib.sha256()
+    for skill_dir in skill_dirs:
+        for path in sorted(skill_dir.rglob("*")):
+            if not path.is_file() or path.name == "openai.yaml":
+                continue
+            digest.update(str(skill_dir.name).encode("utf-8"))
+            digest.update(b"\0")
+            digest.update(path.relative_to(skill_dir).as_posix().encode("utf-8"))
+            digest.update(b"\0")
+            digest.update(path.read_bytes())
+            digest.update(b"\0")
+    return digest.hexdigest()
+
+
+def load_skills_from_dirs(skill_dirs: "tuple[Path, ...]") -> tuple[Any, ...]:
+    """Load ADK skill definitions from arbitrary folders."""
+    try:
+        from google.adk.skills import load_skill_from_dir
+    except ImportError as exc:  # pragma: no cover - dependency error surfaced to users
+        raise RuntimeError(
+            "LumiBot agent skills require google-adk 2.1.0 or newer."
+        ) from exc
+
+    skills = []
+    for skill_dir in skill_dirs:
+        if not (skill_dir / "SKILL.md").is_file():
+            raise RuntimeError(f"Skill folder is missing SKILL.md: {skill_dir}")
+        skills.append(load_skill_from_dir(skill_dir))
+    return tuple(skills)
+
+
+def build_skill_toolset(
+    *,
+    skill_dirs: "list[str | Path] | tuple[str | Path, ...] | None" = None,
+    include_builtin: bool = True,
+) -> Any:
+    """Build an isolated ADK SkillToolset from built-in and user skills."""
+    try:
+        from google.adk.tools.skill_toolset import SkillToolset
+    except ImportError as exc:  # pragma: no cover - dependency error surfaced to users
+        raise RuntimeError(
+            "LumiBot agent skills require google-adk 2.1.0 or newer."
+        ) from exc
+    resolved = resolve_skill_directories(skill_dirs=skill_dirs, include_builtin=include_builtin)
+    return SkillToolset(skills=list(load_skills_from_dirs(resolved)))

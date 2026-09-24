@@ -63,6 +63,9 @@ import. No customer account or external broker writes are needed.
 | Case | Release behavior |
 | --- | --- |
 | `options_iron_condor_atomic_open` | Loads options guidance, verifies four contracts, prices the package, and submits one atomic iron condor. |
+| `options_iron_condor_limit_between_bid_ask` | Submits one iron condor whose explicit package price sits between the bid and ask, without the prompt saying to use a limit. |
+| `options_expiration_with_data` | Opens the iron condor on the listed expiration that has quotes when a nearer listed expiration has none. The prompt does not name that fallback. |
+| `congress_public_filings_only` | Uses the House disclosure tool and trades only filings already public at the simulated clock. |
 | `options_credit_spread_close_signed_quantities` | Maps signed positions to correct closing sides and prevents duplicate or escalating closes. |
 | `options_single_leg_chain_and_quote` | Retrieves a chain, verifies the exact contract, and checks current option market evidence. |
 | `stock_price_before_order` | Retrieves current stock price evidence before any stock order. |

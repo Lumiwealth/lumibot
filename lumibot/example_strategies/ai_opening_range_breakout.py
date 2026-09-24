@@ -129,8 +129,9 @@ def build_orb_trading_prompt(params: dict) -> str:
             f"Hold at most {max_positions} positions and open at most one new position per symbol per day."
         ),
         exit_rule=(
-            "Sell the position with the order tool before the cash session closes the same day. "
-            f"Also sell near {profit_r_multiple}R or on a completed close back inside the opening range."
+            "In the same session as the entry, submit a take-profit limit at "
+            f"{profit_r_multiple}R and a protective stop on the opposite side of the opening range. "
+            "Also sell before the cash session closes, or on a completed close back inside the range."
         ),
         cash_rule=(
             "Size from the stop: put the stop on the opposite side of the verified range, so "
@@ -207,7 +208,10 @@ class AIOpeningRangeBreakoutStrategy(Strategy):
             bull_task="Make the bull case from the research.",
             bear_task="Make the bear case from the research.",
             interpret_task="Pick one symbol or none, with its range stop.",
-            trade_task="Apply the interpreter. Size from the stop risk. Exit before the cash close.",
+            trade_task=(
+                "Apply the interpreter. Size from the stop risk. In the same session as the entry, "
+                "place the take-profit limit and the protective stop."
+            ),
         )
 
 

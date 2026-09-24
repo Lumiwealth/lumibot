@@ -12,6 +12,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import re
 import sys
 import time
 from datetime import datetime
@@ -142,6 +143,73 @@ def _json_loads(value: Any) -> dict[str, Any]:
     return parsed if isinstance(parsed, dict) else {}
 
 
+def _pruned_excerpt(payload: dict[str, Any]) -> str:
+    if payload.get("lumibot_tool_result_pruned") is True:
+        return str(payload.get("excerpt") or "")
+    return ""
+
+
+def _credential_sources(payloads: list[dict[str, Any]]) -> list[str]:
+    found: list[str] = []
+    for payload in payloads:
+        source = payload.get("credential_source")
+        if not source:
+            match = re.search(r'"credential_source":\s*"([^"]+)"', _pruned_excerpt(payload))
+            source = match.group(1) if match else None
+        if source and source not in found:
+            found.append(str(source))
+    return found
+
+
+def _articles_from_payload(payload: dict[str, Any]) -> list[dict[str, Any]]:
+    direct = [article for article in payload.get("articles") or [] if isinstance(article, dict)]
+    if direct:
+        return direct
+    excerpt = _pruned_excerpt(payload)
+    if not excerpt:
+        return []
+    # Detail logs keep a short excerpt once the article body is too large for
+    # the model context. The length and truncation flags in that excerpt are
+    # the same fields the tool returned.
+    recovered: list[dict[str, Any]] = []
+    pattern = re.compile(
+        r'"content_available":\s*true,\s*"content_original_length":\s*(\d+),\s*"content_truncated":\s*(true|false)'
+    )
+    for match in pattern.finditer(excerpt):
+        headline_match = re.search(r'"headline":\s*"([^"]*)"', excerpt[match.end(): match.end() + 500])
+        recovered.append({
+            "content_original_length": int(match.group(1)),
+            "content_truncated": match.group(2) == "true",
+            "headline": headline_match.group(1) if headline_match else "",
+        })
+    return recovered
+
+
+def _article_chars(article: dict[str, Any]) -> int:
+    content = str(article.get("content") or "")
+    if content:
+        return len(content)
+    recorded = article.get("content_original_length")
+    return int(recorded) if isinstance(recorded, int) else 0
+
+
+def _scan_text(payloads: list[dict[str, Any]]) -> str:
+    parts: list[str] = []
+    for payload in payloads:
+        articles = payload.get("articles") or []
+        if articles:
+            parts.extend(
+                f"{article.get('headline') or ''} {article.get('summary') or ''}"
+                for article in articles
+                if isinstance(article, dict)
+            )
+            continue
+        excerpt = _pruned_excerpt(payload)
+        if '"include_content": false' in excerpt:
+            parts.extend(re.findall(r'"headline":\s*"([^"]*)"', excerpt))
+    return " ".join(parts).lower()
+
+
 def _summarize_and_assert(detail_path: Path) -> dict[str, Any]:
     df = pd.read_parquet(detail_path)
     tool_calls = df[(df["event_kind"] == "tool_call") & (df["tool_name"] == "alpaca_news")]
@@ -156,22 +224,28 @@ def _summarize_and_assert(detail_path: Path) -> dict[str, Any]:
     full_articles = [
         article
         for payload in result_payloads
-        for article in payload.get("articles", [])
-        if isinstance(article, dict) and article.get("content")
+        for article in _articles_from_payload(payload)
+        if article.get("content") or (
+            article.get("content_available") is not False
+            and isinstance(article.get("content_original_length"), int)
+            and article.get("content_original_length") > 0
+        )
     ]
-    scan_payloads = [payload for payload in result_payloads if payload.get("ok") and payload.get("articles")]
-    combined_scan_text = " ".join(
-        f"{article.get('headline') or ''} {article.get('summary') or ''}".lower()
-        for payload in scan_payloads
-        for article in payload.get("articles", [])
-        if isinstance(article, dict)
-    )
+    # A body stored on the article is the unshortened path. A recovered row
+    # only counts when the tool said the body was not truncated.
+    full_articles = [
+        article for article in full_articles
+        if article.get("content") or article.get("content_truncated") is False
+    ]
+    credential_sources = _credential_sources(result_payloads)
+    combined_scan_text = _scan_text(result_payloads)
 
     assert len(tool_calls) >= 2, f"expected at least 2 alpaca_news tool calls, got {len(tool_calls)}"
     assert scan_calls, "expected a scan call with include_content=False"
     assert full_calls, "expected a deep-read call with include_content=True"
+    assert credential_sources, "expected a credential source on the news result"
     assert full_articles, "expected at least one full-content article"
-    assert max(len(str(article.get("content") or "")) for article in full_articles) > 1000
+    assert max(_article_chars(article) for article in full_articles) > 1000
     assert all(article.get("content_truncated") is False for article in full_articles)
     assert any(keyword in combined_scan_text for keyword in ("fed", "dollar", "market", "stocks", "treasury", "tariff", "volatility"))
 
@@ -183,7 +257,8 @@ def _summarize_and_assert(detail_path: Path) -> dict[str, Any]:
         "scan_calls": len(scan_calls),
         "full_content_calls": len(full_calls),
         "full_content_articles": len(full_articles),
-        "max_full_article_chars": max(len(str(article.get("content") or "")) for article in full_articles),
+        "credential_sources": credential_sources,
+        "max_full_article_chars": max(_article_chars(article) for article in full_articles),
         "thinking_rows": int((df["event_kind"] == "thinking").sum()),
         "input_tokens": int(pd.to_numeric(summaries["call_input_tokens"], errors="coerce").fillna(0).sum()),
         "output_tokens": int(pd.to_numeric(summaries["call_output_tokens"], errors="coerce").fillna(0).sum()),

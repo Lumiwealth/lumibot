@@ -41,6 +41,10 @@ class _FixtureBroker(BacktestingBroker):
     """Recorded Greeks are a broker response; execution uses the real broker."""
 
     def get_greeks(self, asset, **kwargs):
+        expiration = getattr(asset, "expiration", None)
+        text = expiration.isoformat() if isinstance(expiration, date) else str(expiration or "")[:10]
+        if text in set(getattr(self.fixture, "empty_expirations", ()) or ()):
+            return None
         delta = self.fixture.greek(float(asset.strike), str(asset.right).lower())
         return {"delta": delta, "gamma": 0.012, "theta": -0.05, "vega": 0.10, "rho": 0.02, "implied_volatility": 0.2}
 
@@ -221,6 +225,56 @@ class ProductionFixture:
             order = self.strategy.create_order(Asset("AAPL"), 40, "sell", order_type="limit", limit_price=250.0)
             order.identifier = "bt_pending_exit"
             self.strategy.submit_order(order)
+        if fixture.empty_expirations:
+            original_get_chains = self.strategy.get_chains
+            empty = tuple(fixture.empty_expirations)
+            extra_strikes = {"CALL": [602.0, 604.0, 606.0, 608.0], "PUT": [592.0, 594.0, 596.0, 598.0]}
+
+            def get_chains(asset, *args, **kwargs):
+                chains = original_get_chains(asset, *args, **kwargs)
+                if str(getattr(asset, "symbol", "")).upper() != "SPY":
+                    return chains
+                root = chains.setdefault("Chains", {})
+                for side, strikes in extra_strikes.items():
+                    side_map = root.get(side) or {}
+                    normalized: dict[str, list] = {}
+                    for key, listed in list(side_map.items()):
+                        text = key.isoformat() if isinstance(key, date) else str(key)[:10]
+                        normalized[text] = [float(value) for value in listed]
+                    for expiration in empty:
+                        # Listed, with no bars in the data store, so quotes and last trades miss.
+                        normalized[expiration] = list(strikes)
+                    root[side] = normalized
+                return chains
+
+            self.strategy.get_chains = get_chains
+        if fixture.name == "congress_public_filings":
+            self.strategy.house_disclosure_records = [
+                {
+                    "Ticker": "AAPL",
+                    "Politician": "Nancy Pelosi",
+                    "Transaction": "P",
+                    "TransactionDate": "2026-07-28",
+                    "ReportDate": "2026-08-01",
+                    "Amount": "$1,001 - $15,000",
+                    "side": "buy",
+                    "asset_code": "ST",
+                    "doc_id": "111",
+                    "source": "house_ptr",
+                },
+                {
+                    "Ticker": "ZZZZ",
+                    "Politician": "Nancy Pelosi",
+                    "Transaction": "P",
+                    "TransactionDate": "2026-09-10",
+                    "ReportDate": "2026-09-15",
+                    "Amount": "$1,001 - $15,000",
+                    "side": "buy",
+                    "asset_code": "ST",
+                    "doc_id": "222",
+                    "source": "house_ptr",
+                },
+            ]
         self.strategy.fundamentals = _recorded_sec_fundamentals(self.strategy, self.root / "sec")
         self.manager = self.strategy.agents
         self.manager.replay_cache.root = self.root / "replay"
@@ -283,6 +337,7 @@ class ProductionFixture:
                     "tool": event.tool_name,
                     "legs": legs,
                     "net_limit_price": args.get("net_limit_price"),
+                    "price_style": args.get("price_style"),
                 }
             else:
                 record = {"tool": event.tool_name, **args}

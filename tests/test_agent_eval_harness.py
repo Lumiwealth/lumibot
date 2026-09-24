@@ -1120,3 +1120,160 @@ def test_stock_fixture_supports_the_above_five_day_average_premise():
     # "recent completed daily bars confirm it remains above": the latest
     # completed close is above the average too, not merely today's price.
     assert closes[-1] > average
+
+
+def test_limit_between_bid_ask_case_does_not_tell_the_agent_to_use_a_limit():
+    case = evals.load_cases({"options_iron_condor_limit_between_bid_ask"})[0]
+    prompt = f"{case['systemPrompt']} {case['taskPrompt']}".lower()
+    assert "limit" not in prompt
+
+
+def test_explicit_limit_scoring_rejects_a_missing_package_price():
+    case = evals.load_cases({"options_iron_condor_limit_between_bid_ask"})[0]
+    transcript = {
+        "tool_calls": [{"name": "load_skill", "payload": {"skill_name": "options-trading"}}],
+        "fixture_calls": [
+            {"name": "account_portfolio"},
+            {"name": "account_positions"},
+            {"name": "orders_open_orders"},
+            {"name": "market_last_price"},
+            {"name": "options_get_chain"},
+            {"name": "options_get_greeks"},
+            {"name": "options_evaluate_market"},
+            {"name": "options_calculate_multileg_price"},
+            {"name": "load_skill"},
+            {"name": "orders_submit_multileg"},
+        ],
+        "submissions": [{"tool": "orders_submit_multileg", "legs": _good_condor_legs(), "net_limit_price": None}],
+        "final_positions": [],
+    }
+    score = evals.score_machine_contract(case, transcript)
+    assert score["pass"] is False
+    assert any("explicit limit" in failure for failure in score["failures"])
+
+
+def test_explicit_limit_scoring_accepts_a_price_between_bid_and_ask():
+    case = evals.load_cases({"options_iron_condor_limit_between_bid_ask"})[0]
+    transcript = {
+        "tool_calls": [{"name": "load_skill", "payload": {"skill_name": "options-trading"}}],
+        "fixture_calls": [
+            {"name": "account_portfolio"},
+            {"name": "account_positions"},
+            {"name": "orders_open_orders"},
+            {"name": "market_last_price"},
+            {"name": "options_get_chain"},
+            {"name": "options_get_greeks"},
+            {"name": "options_evaluate_market"},
+            {"name": "options_calculate_multileg_price"},
+            {"name": "load_skill"},
+            {"name": "orders_submit_multileg"},
+        ],
+        "submissions": [
+            {
+                "tool": "orders_submit_multileg",
+                "legs": _good_condor_legs(),
+                "net_limit_price": -1.0,
+                "price_style": "mid",
+            }
+        ],
+        "final_positions": [],
+    }
+    score = evals.score_machine_contract(case, transcript)
+    assert score["pass"] is True
+
+
+def test_nearest_expiration_without_data_is_listed_and_unpriced():
+    """The nearer expiration is on the chain. It has no bars, so a quote check
+    cannot price it. The later expiration still has bid and ask."""
+    from scripts.agent_eval_production_fixture import ProductionFixture
+
+    production = ProductionFixture(evals.build_fixture("options_nearest_expiration_without_data"))
+    try:
+        tools = {tool.name: tool for tool in production.tools()}
+        chain = tools["options_get_chain"].function(symbol="SPY")
+        empty = tools["options_evaluate_market"].function(
+            symbol="SPY", expiration="2026-08-14", strike=594, right="put"
+        )
+        priced = tools["options_evaluate_market"].function(
+            symbol="SPY", expiration="2026-08-28", strike=594, right="put"
+        )
+        empty_greeks = tools["options_get_greeks"].function(
+            symbol="SPY", expiration="2026-08-14", strike=594, right="put"
+        )
+    finally:
+        production.close()
+    assert chain["call_expirations"][0] == "2026-08-14"
+    assert "2026-08-28" in chain["call_expirations"]
+    assert empty["market"]["usable_for_limit_pricing"] is False
+    assert empty["market"]["price_basis"] == "none"
+    assert priced["market"]["usable_for_limit_pricing"] is True
+    assert empty_greeks["available"] is False
+
+
+def test_expiration_with_data_case_does_not_name_the_fallback():
+    case = evals.load_cases({"options_expiration_with_data"})[0]
+    prompt = f"{case['systemPrompt']} {case['taskPrompt']}".lower()
+    assert "2026-08-28" not in prompt
+    assert "2026-08-14" not in prompt
+    assert "fall back" not in prompt
+    assert "fallback" not in prompt
+
+
+def test_expiration_scoring_rejects_the_unpriced_expiration():
+    case = evals.load_cases({"options_expiration_with_data"})[0]
+    legs = _good_condor_legs()
+    for leg in legs:
+        leg["expiration"] = "2026-08-14"
+    transcript = {
+        "tool_calls": [{"name": "load_skill", "payload": {"skill_name": "options-trading"}}],
+        "fixture_calls": [
+            {"name": "account_portfolio"},
+            {"name": "account_positions"},
+            {"name": "orders_open_orders"},
+            {"name": "market_last_price"},
+            {"name": "options_get_chain"},
+            {"name": "options_get_greeks"},
+            {"name": "options_evaluate_market"},
+            {"name": "options_calculate_multileg_price"},
+            {"name": "load_skill"},
+            {"name": "orders_submit_multileg"},
+        ],
+        "submissions": [
+            {
+                "tool": "orders_submit_multileg",
+                "legs": legs,
+                "net_limit_price": -1.0,
+                "price_style": "mid",
+            }
+        ],
+        "final_positions": [],
+    }
+    score = evals.score_machine_contract(case, transcript)
+    assert score["pass"] is False
+    assert any("2026-08-28" in failure for failure in score["failures"])
+
+
+def test_public_filings_scoring_rejects_a_future_filing_in_the_tool_result():
+    case = evals.load_cases({"congress_public_filings_only"})[0]
+    transcript = {
+        "tool_calls": [],
+        "fixture_calls": [{"name": "house_public_disclosures"}],
+        "submissions": [],
+        "tool_results": [
+            {
+                "name": "house_public_disclosures",
+                "payload": {
+                    "ok": True,
+                    "as_of": "2026-08-11T14:35:00+00:00",
+                    "filings": [
+                        {"ticker": "AAPL", "published_at": "2026-08-01T00:00:00+00:00", "doc_id": "111"},
+                        {"ticker": "ZZZZ", "published_at": "2026-09-15T00:00:00+00:00", "doc_id": "222"},
+                    ],
+                },
+            }
+        ],
+        "final_positions": [],
+    }
+    score = evals.score_machine_contract(case, transcript)
+    assert score["pass"] is False
+    assert any("222" in failure or "after as_of" in failure for failure in score["failures"])

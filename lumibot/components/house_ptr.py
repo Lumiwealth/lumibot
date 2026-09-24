@@ -10,7 +10,7 @@ from __future__ import annotations
 import io
 import re
 import zipfile
-from datetime import date, datetime, timezone
+from datetime import date, datetime, time, timezone
 from typing import Any
 
 import httpx
@@ -405,6 +405,81 @@ def load_house_filings(
         text = pdf_bytes_to_text(pdf)
         parsed.extend(tradeable_rows(parse_house_ptr_text(text, source_url=house_pdf_url(int(row["year"] or year), row["doc_id"])), asset_mode=asset_mode))
     return parsed
+
+
+def _public_datetime(value: Any) -> datetime | None:
+    """Parse a House index date. MM/DD/YYYY and ISO are both public dates."""
+    if isinstance(value, datetime):
+        parsed = value
+    elif isinstance(value, date):
+        parsed = datetime.combine(value, time.min)
+    else:
+        text = str(value or "").strip()
+        if not text:
+            return None
+        if text.endswith("Z"):
+            text = f"{text[:-1]}+00:00"
+        parsed = None
+        for fmt in ("%m/%d/%Y", "%Y-%m-%d"):
+            try:
+                parsed = datetime.strptime(text, fmt)
+                break
+            except ValueError:
+                continue
+        if parsed is None:
+            try:
+                parsed = datetime.fromisoformat(text)
+            except ValueError:
+                return None
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=timezone.utc)
+    return parsed.astimezone(timezone.utc)
+
+
+def public_house_filings(
+    year: int,
+    *,
+    last_names: list[str],
+    as_of: Any,
+    asset_mode: str = "stock",
+) -> dict[str, Any]:
+    """Download only House PTR filings already public at as_of.
+
+    The yearly index date is the gate. A later filing is counted and skipped
+    before any PDF download, so its document id and trades never enter the result.
+    """
+    from lumibot.components.disclosure_signals import visible_congress_disclosures
+
+    ceiling = _public_datetime(as_of)
+    if ceiling is None:
+        raise ValueError("as_of must be a valid datetime.")
+    wanted = {str(name).strip().lower() for name in last_names if str(name).strip()}
+    index_rows = parse_house_index(download_house_index(year))
+    kept = []
+    omitted_future_count = 0
+    for row in index_rows:
+        if row["last"].strip().lower() not in wanted:
+            continue
+        published = _public_datetime(row["filing_date"])
+        if published is None or published > ceiling:
+            omitted_future_count += 1
+            continue
+        kept.append(row)
+    parsed: list[dict[str, Any]] = []
+    for row in kept:
+        filing_year = int(row["year"] or year)
+        pdf = download_house_pdf(filing_year, row["doc_id"])
+        text = pdf_bytes_to_text(pdf)
+        source_url = house_pdf_url(filing_year, row["doc_id"])
+        parsed.extend(tradeable_rows(parse_house_ptr_text(text, source_url=source_url), asset_mode=asset_mode))
+    filings = visible_congress_disclosures(parsed, as_of=ceiling)
+    return {
+        "ok": True,
+        "as_of": ceiling.isoformat(),
+        "filings": filings,
+        "count": len(filings),
+        "omitted_future_count": omitted_future_count,
+    }
 
 
 def format_dry_run(rows: list[dict[str, Any]]) -> str:

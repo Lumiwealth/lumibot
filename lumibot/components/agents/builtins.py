@@ -2628,7 +2628,8 @@ def _bind_alpaca_news(strategy: Any, manager: Any) -> BoundTool:
     def _warn_unavailable() -> None:
         message = (
             "[agents] alpaca_news is not configured and will not be exposed. "
-            "Use an Alpaca broker connection or set ALPACA_NEWS_API_KEY and ALPACA_NEWS_API_SECRET."
+            "Use an Alpaca broker connection, ALPACA_NEWS_API_KEY and ALPACA_NEWS_API_SECRET, "
+            "or ALPACA_API_KEY and ALPACA_API_SECRET."
         )
         if manager is not None:
             warned = getattr(manager, "_warned_unavailable_builtin_tools", None)
@@ -2675,6 +2676,17 @@ def _bind_alpaca_news(strategy: Any, manager: Any) -> BoundTool:
                     "APCA-API-SECRET-KEY": api_secret,
                 }, "alpaca_broker_api_key"
 
+        # Regular Alpaca keys are the last fallback. News-only keys and a
+        # connected Alpaca broker stay ahead of them so an existing broker
+        # session is not replaced by whatever ALPACA_API_KEY the shell has.
+        api_key = str(os.environ.get("ALPACA_API_KEY") or "").strip()
+        api_secret = str(os.environ.get("ALPACA_API_SECRET") or "").strip()
+        if api_key and api_secret:
+            return {
+                "APCA-API-KEY-ID": api_key,
+                "APCA-API-SECRET-KEY": api_secret,
+            }, "alpaca_api_env"
+
         return None, None
 
     def _unavailable_alpaca_news(**kwargs: Any) -> dict[str, Any]:
@@ -2683,7 +2695,7 @@ def _bind_alpaca_news(strategy: Any, manager: Any) -> BoundTool:
             "tool_error": True,
             "error": {
                 "type": "MissingCredentials",
-                "message": "alpaca_news is not configured. Use an Alpaca broker connection or set ALPACA_NEWS_API_KEY and ALPACA_NEWS_API_SECRET.",
+                "message": "alpaca_news is not configured. Use an Alpaca broker connection, ALPACA_NEWS_API_KEY and ALPACA_NEWS_API_SECRET, or ALPACA_API_KEY and ALPACA_API_SECRET.",
             },
             "articles": [],
             "count": 0,
@@ -2699,7 +2711,7 @@ def _bind_alpaca_news(strategy: Any, manager: Any) -> BoundTool:
                 "kind": "builtin",
                 "temporal": "source_published_at_clamped_to_strategy_clock",
                 "disabled": True,
-                "disabled_reason": "missing Alpaca broker credentials or ALPACA_NEWS_API_KEY / ALPACA_NEWS_API_SECRET",
+                "disabled_reason": "missing Alpaca broker credentials, ALPACA_NEWS_API_KEY / ALPACA_NEWS_API_SECRET, or ALPACA_API_KEY / ALPACA_API_SECRET",
             },
         )
 
@@ -2722,7 +2734,7 @@ def _bind_alpaca_news(strategy: Any, manager: Any) -> BoundTool:
                 "tool_error": True,
                 "error": {
                     "type": "MissingCredentials",
-                    "message": "Use an Alpaca broker connection or set ALPACA_NEWS_API_KEY and ALPACA_NEWS_API_SECRET to use alpaca_news.",
+                    "message": "Use an Alpaca broker connection, ALPACA_NEWS_API_KEY and ALPACA_NEWS_API_SECRET, or ALPACA_API_KEY and ALPACA_API_SECRET to use alpaca_news.",
                 },
                 "articles": [],
                 "count": 0,
@@ -4372,6 +4384,86 @@ class _BrowserTools:
         )
 
 
+def _house_last_name_matches(record: dict[str, Any], last_name: str) -> bool:
+    needle = str(last_name or "").strip().lower()
+    if not needle:
+        return False
+    politician = str(record.get("Politician") or record.get("politician") or "").lower()
+    last = str(record.get("last") or record.get("Last") or "").lower()
+    return needle == last or needle in politician
+
+
+def _house_disclosure_payload(
+    records: list[dict[str, Any]],
+    *,
+    last_name: str,
+    as_of: datetime,
+    asset_mode: str,
+) -> dict[str, Any]:
+    from lumibot.components.disclosure_signals import visible_congress_disclosures
+
+    matched = [record for record in records if _house_last_name_matches(record, last_name)]
+    if str(asset_mode or "stock").lower().strip() == "stock":
+        matched = [record for record in matched if str(record.get("asset_code") or "").upper() != "OP"]
+    ceiling = as_of if as_of.tzinfo else as_of.replace(tzinfo=timezone.utc)
+    filings = visible_congress_disclosures(matched, as_of=ceiling)
+    visible_ids = {str(row.get("doc_id")) for row in filings}
+    omitted = sum(1 for row in matched if str(row.get("doc_id")) not in visible_ids)
+    return {
+        "ok": True,
+        "as_of": ceiling.isoformat(),
+        "last_name": last_name,
+        "filings": filings,
+        "count": len(filings),
+        "omitted_future_count": omitted,
+    }
+
+
+def _bind_house_public_disclosures(strategy: Any, manager: Any) -> BoundTool:
+    def house_public_disclosures(last_name: str, year: int | None = None, asset_mode: str = "stock") -> dict[str, Any]:
+        as_of = strategy.get_datetime()
+        if not isinstance(as_of, datetime):
+            as_of = datetime.now(timezone.utc)
+        recorded = getattr(strategy, "house_disclosure_records", None)
+        if recorded is not None:
+            return _house_disclosure_payload(list(recorded), last_name=last_name, as_of=as_of, asset_mode=asset_mode)
+        from lumibot.components.house_ptr import public_house_filings
+
+        result = public_house_filings(
+            int(year or as_of.year),
+            last_names=[last_name],
+            as_of=as_of,
+            asset_mode=asset_mode,
+        )
+        result["last_name"] = last_name
+        return result
+
+    return BoundTool(
+        name="house_public_disclosures",
+        description=(
+            "Return House periodic transaction filings for one last name that are already "
+            "public at the strategy clock. Filings dated after that clock are omitted and "
+            "are not downloaded."
+        ),
+        function=house_public_disclosures,
+        source="builtin",
+        metadata={"kind": "disclosure", "temporal": "published_at_on_or_before_strategy_clock"},
+    )
+
+
+class _DisclosureTools:
+    def house_public_disclosures(self) -> ToolDefinition:
+        return ToolDefinition(
+            name="house_public_disclosures",
+            description=(
+                "Return House periodic transaction filings for one last name that are already "
+                "public at the strategy clock. Filings dated after that clock are omitted and "
+                "are not downloaded."
+            ),
+            binder=_bind_house_public_disclosures,
+        )
+
+
 class _NewsTools:
     def alpaca_news(self) -> ToolDefinition:
         return ToolDefinition(
@@ -4625,6 +4717,7 @@ class _BuiltinTools:
     docs = _DocsTools()
     web = _WebTools()
     browser = _BrowserTools()
+    disclosures = _DisclosureTools()
     news = _NewsTools()
     indicators = _IndicatorTools()
     fundamentals = _FundamentalTools()
@@ -4666,6 +4759,7 @@ class _BuiltinTools:
             self.browser.login(),
             self.browser.storage_state(),
             self.browser.screenshot(),
+            self.disclosures.house_public_disclosures(),
             self.news.alpaca_news(),
             self.indicators.list_indicators(),
             self.indicators.get_indicator(),

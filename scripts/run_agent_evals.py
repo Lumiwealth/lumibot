@@ -254,6 +254,8 @@ class FixtureRuntime:
     order_counter: int = 0
 
     expiration: str = "2026-08-28"
+    # Listed on the chain, but the fixture has no bars or quotes for them.
+    empty_expirations: tuple[str, ...] = ()
     underlying_price: float = 600.0
 
     def record(self, name: str, arguments: dict[str, Any], result: Any) -> Any:
@@ -324,6 +326,9 @@ def build_fixture(name: str) -> FixtureRuntime:
                 "quantity": 3,
             },
         ]
+    elif name == "options_nearest_expiration_without_data":
+        # 2026-08-14 is nearer than the quoted 2026-08-28 expiration and has no bars.
+        fixture.empty_expirations = ("2026-08-14",)
     elif name == "stock_pending_exit":
         fixture.positions = [
             {
@@ -538,7 +543,112 @@ def score_machine_contract(case: dict[str, Any], transcript: dict[str, Any]) -> 
         if float(order.get("quantity") or 0) * 230.0 > 10000.0:
             failures.append("stock order exceeded ten percent of portfolio value")
 
+    if contract.get("explicitLimitBetweenBidAsk") and relevant:
+        failures.extend(_explicit_limit_failures(relevant[0]))
+
+    required_expiration = contract.get("expirationMustBe")
+    if required_expiration:
+        if not relevant:
+            failures.append(f"did not order the listed expiration with quotes {required_expiration}")
+        else:
+            seen = {
+                str(leg.get("expiration"))[:10]
+                for leg in (relevant[0].get("legs") or [])
+                if isinstance(leg, dict) and leg.get("expiration")
+            }
+            if seen != {str(required_expiration)}:
+                failures.append(
+                    f"package used expiration {sorted(seen) or ['none']}, expected the listed expiration with quotes {required_expiration}"
+                )
+
+    public_rule = contract.get("publicFilingsOnly")
+    if public_rule:
+        failures.extend(_public_filing_failures(public_rule, transcript))
+
     return {"pass": not failures, "failures": failures, "tool_sequence": sequence}
+
+
+def _explicit_limit_failures(order: dict[str, Any]) -> list[str]:
+    """A package limit sits between the natural bid and ask. Market, or no price, fails."""
+    style = str(order.get("price_style") or "").lower()
+    price = order.get("net_limit_price")
+    if style == "market" or price is None:
+        return ["multi-leg order did not pass an explicit limit between the bid and ask"]
+    band = _signed_package_band(order.get("legs") or [])
+    if band is None:
+        return ["multi-leg limit could not be checked against the bid and ask"]
+    low, high = band
+    try:
+        signed = float(price)
+    except (TypeError, ValueError):
+        return ["multi-leg limit price was not a number"]
+    if signed < low or signed > high:
+        return [f"multi-leg limit {signed} was outside the bid/ask band {low} to {high}"]
+    return []
+
+
+def _signed_package_band(legs: list[Any]) -> tuple[float, float] | None:
+    """Signed credit band from fixture quotes. Negative means a credit."""
+    credit_low = 0.0
+    credit_high = 0.0
+    sample = FixtureRuntime(name="flat_options_account")
+    for leg in legs:
+        if not isinstance(leg, dict):
+            return None
+        side = _side(leg)
+        try:
+            quote = sample.quote(float(leg["strike"]), str(leg["right"]))
+        except (KeyError, TypeError, ValueError):
+            return None
+        if side.startswith("sell"):
+            credit_low += float(quote["bid"])
+            credit_high += float(quote["ask"])
+        elif side.startswith("buy"):
+            credit_low -= float(quote["ask"])
+            credit_high -= float(quote["bid"])
+        else:
+            return None
+    return (-credit_high, -credit_low)
+
+
+def _public_filing_failures(rule: dict[str, Any], transcript: dict[str, Any]) -> list[str]:
+    """Fail when a disclosure tool returns a filing that was not public at its own as_of."""
+    tool_name = str(rule.get("tool") or "house_public_disclosures")
+    results = [item for item in transcript.get("tool_results") or [] if item.get("name") == tool_name]
+    if not results:
+        return [f"{tool_name} returned no result"]
+    payload = results[-1].get("payload") or {}
+    if not isinstance(payload, dict):
+        return [f"{tool_name} result was not an object"]
+    failures = []
+    ceiling = _parse_eval_datetime(payload.get("as_of"))
+    for filing in payload.get("filings") or []:
+        if not isinstance(filing, dict):
+            continue
+        published = _parse_eval_datetime(filing.get("published_at"))
+        if ceiling is not None and published is not None and published > ceiling:
+            failures.append(f"{tool_name} returned a filing published after as_of")
+            break
+    blob = stable_json(payload)
+    for token in rule.get("forbiddenTokens") or []:
+        if str(token) in blob:
+            failures.append(f"{tool_name} result contained {token}")
+    return failures
+
+
+def _parse_eval_datetime(value: Any) -> datetime | None:
+    text = str(value or "").strip()
+    if not text:
+        return None
+    if text.endswith("Z"):
+        text = f"{text[:-1]}+00:00"
+    try:
+        parsed = datetime.fromisoformat(text)
+    except ValueError:
+        return None
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=timezone.utc)
+    return parsed.astimezone(timezone.utc)
 
 
 def parse_judge_json(text: str) -> dict[str, Any]:

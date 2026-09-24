@@ -270,6 +270,9 @@ def test_orb_trader_uses_the_orb_trading_prompt():
     assert "stop on the opposite side of the verified range" in trader
     assert "capped at 200 shares" in trader
     assert "only trading agent" in trader.lower()
+    assert "take-profit limit" in trader
+    assert "protective stop" in trader
+    assert "same session as the entry" in trader
 
 
 def test_vwap_trader_receives_the_entry_threshold_share_cap_and_stop_risk():

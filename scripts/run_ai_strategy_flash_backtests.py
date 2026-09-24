@@ -631,6 +631,52 @@ WAVE26 = (
 # researcher-trader v2 refused to trade because daily bar dates were NaT.
 WAVE27 = ({**_wave8("researcher-trader-luna"), "name": "researcher-trader-luna-v3"},)
 
+# Citadel and Ray Dalio have no Luna backtest. Insider and VWAP get a longer
+# window so a real filing or VWAP signal can show up. ORB v5 submits the
+# take-profit and the stop in the same session as the entry.
+WAVE28 = (
+    {
+        "name": "citadel-luna",
+        "class_path": _EX + "ai_trading_team_citadel_sector_pods:AITradingTeamCitadelSectorPodsStrategy",
+        "start": "2026-01-05",
+        "end": "2026-01-16",
+        "source": "yahoo",
+        "parameters": {"agent_max_model_calls": 120},
+    },
+    {
+        "name": "ray-dalio-luna",
+        "class_path": _EX + "ai_trading_team_ray_dalio_idea_meritocracy:AITradingTeamRayDalioIdeaMeritocracyStrategy",
+        "start": "2026-01-05",
+        "end": "2026-01-16",
+        "source": "yahoo",
+        "parameters": {"agent_max_model_calls": 96},
+    },
+    {
+        **WAVE13[2],
+        "name": "sec-insider-luna-v6",
+        "end": "2026-02-13",
+        "parameters": {"lookback_days": 45, "agent_max_model_calls": 160},
+    },
+    {
+        **WAVE15[0],
+        "name": "vwap-luna-v6",
+        "end": "2026-01-16",
+        "parameters": {**WAVE15[0]["parameters"], "sleeptime": "1H", "agent_max_model_calls": 400},
+    },
+    {**WAVE11[3], "name": "orb-luna-v5"},
+)
+
+# Credit spread v4 never reached an exit. This window runs through early February
+# so the 21-day, 50 percent, and loss exits have time to fire.
+WAVE29 = (
+    {
+        **WAVE10[1],
+        "name": "credit-spread-luna-v5",
+        "end": "2026-02-06",
+        "parameters": {"agent_max_model_calls": 140},
+    },
+)
+
 
 def _jobs(wave: str) -> tuple[dict, ...]:
     # "7,8" runs several waves under one parent so the spend cap is shared.

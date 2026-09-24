@@ -78,6 +78,10 @@ class InteractiveBrokersRESTBacktesting(PandasData):
             return Asset(symbol=asset, asset_type=Asset.AssetType.STOCK)
         return asset
 
+    def _is_daily_cadence(self) -> bool:
+        """True when the backtest steps once per day (for example sleeptime="1D")."""
+        return str(getattr(self, "_timestep", "") or "").strip().lower() == "day"
+
     @staticmethod
     def _ibkr_include_after_hours(asset_type: str, timestep_unit: str) -> bool:
         """Return IBKR outsideRth policy for backtests.
@@ -280,7 +284,9 @@ class InteractiveBrokersRESTBacktesting(PandasData):
         # If a native daily stock/index series is already loaded, prefer it over triggering a
         # separate minute fetch. This preserves daily-cadence semantics and avoids unnecessary
         # intraday index requests such as VIX/USD midpoint history during daily backtests.
-        if asset_type in {"stock", "index", "option"}:
+        # Options follow the run cadence: daily backtests mark them on day bars, intraday
+        # backtests fall through to the minute bars that option fills also use.
+        if asset_type in {"stock", "index"} or (asset_type == "option" and self._is_daily_cadence()):
             day_key = (base_asset, quote_asset, "day", self._normalize_exchange_key(effective_exchange))
             day_data = self._data_store.get(day_key)
             if day_data is None:
@@ -407,7 +413,9 @@ class InteractiveBrokersRESTBacktesting(PandasData):
                 except Exception:
                     pass
 
-        if asset_type in {"stock", "index", "option"}:
+        # Options follow the run cadence: daily backtests mark them on day bars, intraday
+        # backtests fall through to the minute bars that option fills also use.
+        if asset_type in {"stock", "index"} or (asset_type == "option" and self._is_daily_cadence()):
             day_key = (base_asset, quote_asset, "day", self._normalize_exchange_key(effective_exchange))
             day_data = self._data_store.get(day_key)
             if day_data is None:

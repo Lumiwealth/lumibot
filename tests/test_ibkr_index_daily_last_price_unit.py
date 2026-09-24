@@ -229,10 +229,12 @@ def test_ibkr_string_stock_get_quote_uses_loaded_day_series_without_minute_fetch
     assert len(refresh_calls) == 1
 
 
-def test_ibkr_option_get_last_price_uses_day_bars(monkeypatch):
+def test_ibkr_option_get_last_price_uses_day_bars_in_daily_backtests(monkeypatch):
     from datetime import date
 
     data_source = _make_data_source()
+    # Daily strategies (sleeptime "1D") prime the data source to day cadence.
+    data_source._timestep = "day"
     asset = Asset(
         "AAPL",
         asset_type=Asset.AssetType.OPTION,
@@ -252,3 +254,72 @@ def test_ibkr_option_get_last_price_uses_day_bars(monkeypatch):
     monkeypatch.setattr(data_source, "_refresh_window_around_datetime", _refresh_window_around_datetime)
     assert data_source.get_last_price(asset) == 42.5
     assert refresh_calls and refresh_calls[0]["dataset_key"] == "day"
+
+
+def _intraday_option_asset():
+    from datetime import date
+
+    return Asset(
+        "AAPL",
+        asset_type=Asset.AssetType.OPTION,
+        expiration=date(2027, 1, 15),
+        strike=100,
+        right="CALL",
+    )
+
+
+def test_ibkr_option_get_last_price_uses_minute_bars_in_intraday_backtests(monkeypatch):
+    """Intraday option marks must come from the minute bars fills use, not a stale daily close."""
+    data_source = _make_data_source()
+    assert data_source._timestep == "minute"
+    asset = _intraday_option_asset()
+    quote = Asset("USD", asset_type=Asset.AssetType.FOREX)
+    day_key = (asset, quote, "day", "AUTO")
+    minute_key = (asset, quote, "minute", "AUTO")
+    data_source._data_store[day_key] = _FakeDayData(42.5)
+    refresh_calls = []
+
+    def _refresh_window_around_datetime(**kwargs):
+        refresh_calls.append(kwargs)
+        assert kwargs["dataset_key"] == "minute"
+        data_source._data_store[minute_key] = _FakeDayData(44.75)
+
+    monkeypatch.setattr(data_source, "_refresh_window_around_datetime", _refresh_window_around_datetime)
+    assert data_source.get_last_price(asset) == 44.75
+    assert [call["dataset_key"] for call in refresh_calls] == ["minute"]
+
+
+def test_ibkr_option_get_quote_uses_minute_bars_in_intraday_backtests(monkeypatch):
+    data_source = _make_data_source()
+    asset = _intraday_option_asset()
+    quote = Asset("USD", asset_type=Asset.AssetType.FOREX)
+    day_key = (asset, quote, "day", "AUTO")
+    minute_key = (asset, quote, "minute", "AUTO")
+    data_source._data_store[day_key] = _FakeDayData(42.5)
+    refresh_calls = []
+
+    def _refresh_window_around_datetime(**kwargs):
+        refresh_calls.append(kwargs)
+        assert kwargs["dataset_key"] == "minute"
+        data_source._data_store[minute_key] = _FakeDayData(44.75)
+
+    monkeypatch.setattr(data_source, "_refresh_window_around_datetime", _refresh_window_around_datetime)
+    snapshot = data_source.get_quote(asset)
+    assert snapshot.price == 44.75
+    assert snapshot.bid == 44.65
+    assert [call["dataset_key"] for call in refresh_calls] == ["minute"]
+
+
+def test_ibkr_option_get_quote_uses_day_bars_in_daily_backtests(monkeypatch):
+    data_source = _make_data_source()
+    data_source._timestep = "day"
+    asset = _intraday_option_asset()
+    quote = Asset("USD", asset_type=Asset.AssetType.FOREX)
+    day_key = (asset, quote, "day", "AUTO")
+    data_source._data_store[day_key] = _FakeDayData(42.5)
+
+    def _unexpected_refresh(**kwargs):
+        raise AssertionError("daily option quotes must not fetch minute history")
+
+    monkeypatch.setattr(data_source, "_refresh_window_around_datetime", _unexpected_refresh)
+    assert data_source.get_quote(asset).price == 42.5

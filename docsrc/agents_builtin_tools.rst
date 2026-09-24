@@ -22,7 +22,7 @@ review without changing broker state.
 
    self.agents.create(
        name="researcher",
-       model="openai/gpt-5.4-mini",
+       model="openai/gpt-6-luna",
        allow_trading=False,
        system_prompt="Gather market data, indicators, news, filings, fundamentals, and macro context.",
    )
@@ -46,6 +46,35 @@ macro data, memory, and notifications.
 Use ``allow_trading=True`` only for the final agent that is allowed to place or
 change orders. In an AI trading team workflow, that is usually the portfolio
 manager or trader agent.
+
+.. _agents-network-permissions:
+
+Network Permissions
+-------------------
+
+The outbound network tools (``http_request``, ``rss_fetch``, and every
+``browser_*`` tool) are off by default. Fetched pages are untrusted input, and
+a network tool is the channel a prompt-injected page could use to send agent
+context somewhere else. Keeping them out of the default set also keeps trading
+agents focused on account and market tools.
+
+Opt an agent in with ``allow_network=True``:
+
+.. code-block:: python
+
+   self.agents.create(
+       name="page_researcher",
+       model="openai/gpt-6-luna",
+       allow_trading=False,
+       allow_network=True,
+       system_prompt="Use http_request to read the supplied public page. Do not submit orders.",
+   )
+
+Listing a network tool explicitly, for example
+``tools=[BuiltinTools.web.http_request()]``, is also an opt-in, but only for
+the tools you list. ``allow_network=False`` removes network tools even when
+they are listed. Give network access to the research agent that fetches pages,
+not to the trading agent.
 
 Order Readiness
 ---------------
@@ -73,6 +102,22 @@ judgment remains with the strategy and agent. A fresh injected account snapshot
 satisfies the initial account and open-order checks only when all of its
 completeness flags are true. After an order mutation, the agent must refresh
 the account and open-order context before submitting another order.
+
+Option orders ask for more. The agent prompt and the built-in
+``options-trading`` skill tell the agent to call ``account_portfolio``,
+``account_positions``, and ``orders_open_orders`` in the run before any option
+order, even when the injected snapshot is complete, because an option package
+depends on exact signed contract positions and pending packages. The skill also
+tells the agent to apply only the expiration, delta, and width limits the user
+or active rules state, and to measure deltas with the Greek tools instead of
+declining from strike distance alone.
+
+Opening an option position (``buy_to_open``, ``sell_to_open``, or a plain buy or
+sell that does not reduce a held contract) also requires a successful
+``options_get_chain`` for the underlying in the same run. Without it the order
+tool returns ``ORDER_READINESS_REQUIRED``. Expiration and delta helpers only
+return candidates; the chain shows what is listed. Closing a held contract does
+not need the chain.
 
 Market-price tools:
 
@@ -219,6 +264,8 @@ Common tools include:
 - ``search_filing``
 - ``get_filing_document``
 
+``get_filings`` for a symbol the SEC ticker map does not list (ETFs, foreign listings, crypto, private names) returns an empty ``filings`` list with ``available: false`` and ``reason: "no_sec_cik"`` instead of an error. The absence is reported, never filled in.
+
 Backtests gate filings by filed date or acceptance timestamp, so an agent cannot
 read a filing before it existed. Use ``search_filing`` before
 ``get_filing_document`` when the filing is large and the agent only needs a
@@ -226,6 +273,8 @@ specific section.
 
 HTTP And RSS
 ------------
+
+These tools require the network opt-in described in `Network Permissions`_.
 
 ``http_request`` is the general outbound web/API tool. It supports ``GET``,
 ``HEAD``, ``OPTIONS``, ``POST``, ``PUT``, ``PATCH``, and ``DELETE`` with query

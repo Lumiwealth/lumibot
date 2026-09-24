@@ -152,6 +152,10 @@ def _section_alias_candidates(section: str) -> list[str]:
     return aliases.get(normalized, [normalized])
 
 
+class SECTickerNotFoundError(ValueError):
+    """The SEC ticker map has no CIK for this symbol, so EDGAR has no filings for it."""
+
+
 class SECFundamentals:
     """Direct SEC EDGAR client with mandatory local caching and point-in-time helpers."""
 
@@ -317,6 +321,16 @@ class SECFundamentals:
                 pass
         return datetime.now(timezone.utc)
 
+    def _resolve_as_of(self, as_of: Any | None) -> datetime:
+        strategy_as_of = self._strategy_as_of()
+        if as_of is None:
+            return strategy_as_of
+        requested = _as_of_datetime(as_of)
+        if self.strategy is not None and bool(getattr(self.strategy, "is_backtesting", False)):
+            # A caller-supplied date must never reveal filings after the backtest clock.
+            return min(_same_tz(requested, strategy_as_of), strategy_as_of)
+        return requested
+
     def ticker_to_cik(self, symbol: str) -> str:
         symbol_upper = str(symbol).upper().strip()
         payload = self._get_json(
@@ -327,7 +341,7 @@ class SECFundamentals:
         for entry in payload.values():
             if str(entry.get("ticker", "")).upper() == symbol_upper:
                 return f"{int(entry['cik_str']):010d}"
-        raise ValueError(f"No SEC CIK found for ticker {symbol!r}.")
+        raise SECTickerNotFoundError(f"No SEC CIK found for ticker {symbol!r}.")
 
     def _get_submissions_payload(self, symbol: str) -> dict[str, Any]:
         cik = self.ticker_to_cik(symbol)
@@ -347,7 +361,7 @@ class SECFundamentals:
         }
 
     def get_submissions(self, symbol: str, *, as_of: Any | None = None) -> dict[str, Any]:
-        as_of_dt = _as_of_datetime(as_of) if as_of is not None else self._strategy_as_of()
+        as_of_dt = self._resolve_as_of(as_of)
         return self._filter_submissions_as_of(self._get_submissions_payload(symbol), as_of_dt)
 
     def get_company_facts(
@@ -366,7 +380,7 @@ class SECFundamentals:
             cache_path,
             mutable=True,
         )
-        as_of_dt = _as_of_datetime(as_of) if as_of is not None else self._strategy_as_of()
+        as_of_dt = self._resolve_as_of(as_of)
         provenance = {
             "id": f"sec-companyfacts-{cik}",
             "source": "sec_edgar_companyfacts",
@@ -517,7 +531,7 @@ class SECFundamentals:
         raw_facts = self.get_company_facts(symbol, as_of=as_of, raw=True)
         if raw:
             return raw_facts
-        as_of_dt = _as_of_datetime(as_of) if as_of is not None else self._strategy_as_of()
+        as_of_dt = self._resolve_as_of(as_of)
         facts = raw_facts.get("facts", {}).get("us-gaap", {})
         field_candidates: dict[str, list[dict[str, Any]]] = {}
         for field, tags in tag_map.items():
@@ -739,8 +753,26 @@ class SECFundamentals:
         as_of: Any | None = None,
         limit: int = 10,
     ) -> dict[str, Any]:
-        as_of_dt = _as_of_datetime(as_of) if as_of is not None else self._strategy_as_of()
-        submissions = self.get_submissions(symbol, as_of=as_of_dt)
+        as_of_dt = self._resolve_as_of(as_of)
+        try:
+            submissions = self.get_submissions(symbol, as_of=as_of_dt)
+        except SECTickerNotFoundError:
+            # No CIK means EDGAR lists no filings for this symbol (ETFs, foreign
+            # listings, crypto, private or fictional names). Report the absence
+            # explicitly instead of raising: an agent tool error here blocked a
+            # whole research decision that other evidence had already answered.
+            return {
+                "symbol": str(symbol).upper(),
+                "as_of": as_of_dt.isoformat(),
+                "source": "sec_edgar_submissions",
+                "available": False,
+                "reason": "no_sec_cik",
+                "message": (
+                    f"The SEC ticker map has no CIK for {str(symbol).upper()}, so EDGAR lists no filings for it. "
+                    "Nothing was invented; use another point-in-time source or report the evidence as missing."
+                ),
+                "filings": [],
+            }
         recent = submissions.get("filings", {}).get("recent", {})
         rows = []
         forms = recent.get("form", [])
@@ -851,7 +883,7 @@ class SECFundamentals:
         verify_availability: bool = True,
     ) -> dict[str, Any]:
         cik = self.ticker_to_cik(symbol)
-        as_of_dt = _as_of_datetime(as_of) if as_of is not None else self._strategy_as_of()
+        as_of_dt = self._resolve_as_of(as_of)
         published_raw = None
         if verify_availability:
             submissions = self._get_submissions_payload(symbol)

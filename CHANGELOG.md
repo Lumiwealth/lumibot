@@ -1,8 +1,20 @@
 # Changelog
 
-## 4.5.92 - 2026-09-23
+## 4.6.0 - 2026-09-24
 
-Deploy marker: `3abbf8fcbd64`
+4.6.0 is the first published release of this work. Tag `v4.5.92` was created but its release run stopped at the agent eval gate, so 4.5.92 was never published to PyPI. Everything planned for 4.5.92 ships here, renamed 4.6.0 because of the size of the AI agent changes.
+
+Highlights:
+- `BACKTESTING_DATA_SOURCE=alpaca` backtests no longer crash with "Config cannot be None" (see Fixed).
+- IBKR intraday backtests no longer loop on the same downloader request across clamped or holiday windows.
+- Alpaca and IBKR history returns closed bars only, and history before the backtest start is downloaded.
+- New agents default to GPT-6 Luna on medium reasoning; agent network tools are opt-in.
+
+Deploy marker: `3abbf8fcbd64` (original 4.5.92 marker)
+
+- Release agent evals set `LITELLM_LOCAL_MODEL_COST_MAP=True` in the isolated eval process. litellm 1.102 downloads its model price map from GitHub on import, the eval network boundary rejected that request, and every GPT-6 Luna eval call errored in CI.
+- The options skill now tells agents to wait briefly (bounded) for their own pending package in backtests and never cancel or replace it to restart the decision, matching the stock skill. Release eval options_iron_condor_atomic_open failed 1/3 when the agent cancelled its own valid condor.
+- Trading agents now name, in their final decision, the account state they relied on before any order and state that upstream research or handoff packets were treated as unverified evidence, listing what they revalidated. A decision not to order must also name the existing position or pending order that already covers it, or the condition that blocks it, after reading account_positions and orders_open_orders fresh in that run. Release evals failed 1/3 when a correct decision left this out.
 
 ### Growth documentation and examples
 - Added point-in-time Congress-disclosure and SEC Form 4 agent examples, plus a stateful authenticated-browser research/trade/publish showcase with publishing disabled by default.
@@ -49,8 +61,8 @@ Deploy marker: `3abbf8fcbd64`
 - Backtest progress and settings retain per-run initialization, callback, first
   price, simulation and report timestamps, separately from heartbeat updates.
 - ⚠️ New agents without an explicit model now use OpenAI GPT-6 Luna
-  (`openai/gpt-6-luna`) with high reasoning effort, replacing the retired preview
-  default. High reasoning applies only when the resolved model is the default and
+  (`openai/gpt-6-luna`) with medium reasoning effort, replacing the retired preview
+  default. Medium reasoning applies only when the resolved model is the default and
   the caller passed no `reasoning_effort`. Explicit model pins and managed
   families remain unchanged; existing agent instances are not migrated during a
   decision. Native calls need `OPENAI_API_KEY`. The CLI AI template, examples and
@@ -78,6 +90,19 @@ Deploy marker: `3abbf8fcbd64`
 - `lumibot version` printed "unknown" from a source checkout or CI, where no installed package
   metadata exists. It now reports `lumibot.__version__` (setup.py in a checkout, then installed
   metadata), the same value the startup log prints.
+- Agent `market_historical_prices(..., table_name=...)` stores bars in their own market wall-clock time and reports that zone in `datetime_timezone`. It used the strategy clock's zone, so with a UTC clock and New York bars the 09:30 ET open landed at 13:30 in the table and an opening-range query read pre-market rows (release eval `stock_orb_completed_bars`).
+- Agent `market_load_history_table` no longer serves raw 1-minute source rows for a `5minute` (or other multi-minute) request; it aggregates through `get_historical_prices`. For minute and hour bars it also excludes the bar that starts at the current time, which has not finished yet (a one-bar lookahead).
+- The `stock-trading` skill tells agents to price limit orders from `market_last_price`, not a historical bar close, and to load rule-interval bars with `market_historical_prices`. An ORB eval run priced a buy limit at 228.60 with the stock at 230.00 and never filled. The rule covers new orders only: the skill also says not to reprice a pending order to make it fill sooner, since an earlier wording led agents to modify a pending exit.
+- Release eval freshness now fingerprints `lumibot/components/agents/duckdb_tools.py`, so DuckDB tool changes rerun the agent evals.
+- `get_filings` (and the agent tool) returns an empty `filings` list with `available: false` and `reason: "no_sec_cik"` for a symbol the SEC ticker map does not list, instead of raising. The raised error became an agent tool error that marked a research decision blocked even after the agent read the filing from the managed research source (release eval `research_sec_prompt_injection`). `ticker_to_cik` still raises, now as `SECTickerNotFoundError`, a `ValueError` subclass.
+- The release-eval production fixture gives the built-in SEC tools a private recorded cache in backtest mode. They used to read the developer's `~/.lumibot/cache/sec` locally and hit the network boundary on CI, so the same eval saw different SEC evidence in each place.
+- Agent `market_historical_prices` accepts a single `symbol` argument like every other market tool. `symbol="AAPL"` used to be dropped and the call raised, and that unrecovered tool error blocked a whole decision (release eval `rules_active_override_strategy_prompt`).
+- Agent order tools require a successful `options_get_chain` for the underlying before opening an option position; closing a held contract is exempt. An agent had opened a call found only through the expiration and delta helpers (release eval `options_single_leg_chain_and_quote`).
+- The `stock-trading` skill and `market_load_history_table` description tell agents to read stock and ETF history with `market_historical_prices` (with `table_name` for SQL) before an order. Its opening-range reference now says a higher-volume check compares the candidate with the opening-range bars (not pre-market or later bars) and that the first qualifying breakout stays valid at a later evaluation while price holds.
+- ⚠️ Release agent evals now run on GPT-6 Luna (`openai/gpt-6-luna`) on medium reasoning for both the acting agent and the judge, and need only `OPENAI_API_KEY` (the release and agent-evals workflows pass `secrets.OPENAI_API_KEY`). All 12 eval cases name the Luna model; their prompts, contracts and rubrics are unchanged. Gemini remains an explicit opt-in. Eval prices for Luna come from the model information registered in the runtime, and the eval network boundary allows only the OpenAI Responses and Chat Completions endpoints besides Gemini inference.
+- First GPT-6 Luna eval runs exposed three guidance and fixture gaps, fixed without touching case prompts, contracts or rubrics: the `options-trading` skill and `options_evaluate_market` description say to pass `max_spread_pct` only when the user sets a spread limit (Luna invented a 20% limit and declined a condor whose legs were all usable); the `stock-trading` skill says to leave a pending exit in place rather than cancel and replace it; and the eval fixture's AAPL daily closes now step up to today's price, so the "above its five-day average" premise of `stock_price_before_order` holds on the evidence instead of price equalling the average. Tool guidance also tells agents to take indicator values such as an SMA from `get_indicator`, `get_indicators` or `duckdb_query`, never from mental arithmetic (Luna misstated a five-day average and hand-computed a crypto SMA).
+- A call to a tool that does not exist no longer ends the agent run. ADK raised `ValueError` and the whole decision was lost (release eval `options_iron_condor_atomic_open`, where the model invented a tool name); the model now gets a structured `UnknownTool` error listing the real tools, and such a call does not mark the decision blocked because nothing ran.
+- Release eval harness: order calls the tool rejected are recorded separately and no longer count as broker submissions (a no-order contract still fails on them); a malformed leg is a named failure instead of crashing the scorer; harness error rows record the file and line of the error without its message. GitHub run 35930118229 had logged only a bare `KeyError`.
 - Alpaca option bars are no longer reindexed and forward/back filled like stock bars. That
   invented prices between sparse trades and back-filled a later trade into the past (a price
   before the first print). Options now use real prints only; `get_last_price` is `None`
@@ -215,6 +240,12 @@ Deploy marker: `3abbf8fcbd64`
   callable. Hosted research agents no longer have to guess between names such as
   ``datasetId`` and ``dataset_id`` before calling BotSpot's strict MCP server.
 
+- `AgentManager.run_together` no longer runs whole agent runs unsynchronized. Model calls still overlap, but every tool call and each run's bookkeeping (self.vars run state, strategy memory, `agent_run_summaries.jsonl`, traces, the tool-result cache, observability rows and the DuckDB query layer) now take one manager lock, so parallel agents cannot lose or duplicate those rows.
+- IBKR REST intraday backtests value options from minute bars. `get_last_price()` and `get_quote()` sent options to the daily dataset in every run, so an intraday strategy could mark an option at a stale daily close while its fills used minute bars. Daily-cadence runs (for example `sleeptime="1D"`) still use day bars.
+- Agent `market_historical_prices` never labels daily bars as intraday. `YahooData` kept one bar series per asset, so after daily bars were loaded a `timestep="minute"` request returned those daily bars. The store is now kept per interval. The tool also checks the bars it gets back: when an intraday request comes back daily, that symbol is listed as missing and in `symbols_interval_mismatch` with an `interval_note`, for every data source.
+- ⚠️ `AlpacaBacktesting` with an explicit `config` now also defaults `remove_incomplete_current_bar` to `True`, like environment mode. Before, history included the bar still forming at the simulated time with its final OHLCV, a lookahead of up to one bar. Pass `remove_incomplete_current_bar=False` to keep the old behavior. The docs now also say plainly that Alpaca option chains are today's contract listing, not a point-in-time chain: Alpaca gives no listing date, so chain membership is not proof a contract existed on the simulated date (a contract still cannot fill before its first real trade).
+- ⚠️ The public AI examples ship conservative risk limits again. `ai_opening_range_breakout` and `ai_vwap` use `risk_fraction=0.01`, meaning stop risk as a share of portfolio value, capped at `max_shares`; `ai_credit_spread` and `ai_iron_condor` use `max_risk_pct=0.02` and 10 contracts; `ai_spx_zero_dte_bear_call_team` uses `max_risk_pct=0.01` and 2 contracts. They had been raised to 25% stop risk and up to 15% / 40 contracts. The ORB trader now uses `build_orb_trading_prompt` (range verification, stop placement, share cap), and the VWAP trader prompt now carries `deviation_pct`, the dip-low stop and the share cap. Raise the limits through strategy parameters.
+
 ### Security
 
 - Agent `fetch_feed` sends the SEC contact User-Agent only when the URL host is `sec.gov` or a subdomain. A substring check also matched hosts such as `sec.gov.example.com` and URLs that only mention `sec.gov` in a path or query.
@@ -224,6 +255,9 @@ Deploy marker: `3abbf8fcbd64`
 - Email and Slack `COMMUNICATION` log lines no longer contain recipient addresses, subjects, bodies, HTML, or Slack blocks. Those can hold account balances and positions, and strategy logs are shipped to log sinks. The log line now records only the provider, status, channel, message id, idempotency key, recipient count, and short hashes and lengths of the content. The payload returned to the caller is unchanged.
 - Browser profile directories are created with `0700` permissions and `storage-state.json` with `0600` on POSIX, because the exported cookies and local storage work like a login for the sites in that profile.
 - `browser_login` scrubs the username and password from engine errors before they reach the agent or logs (a browser call log can echo the filled value), and `BrowserCredentialProfile` no longer shows the username or password in its `repr`. The browser tools docs now describe storage state as a secret instead of a harmless artifact.
+- ⚠️ Agent outbound network tools are now off by default. `http_request`, `rss_fetch`, and every `browser_*` tool join an agent only when it is created with `allow_network=True`, or for the specific tools listed in `tools=[...]`. `allow_network=False` removes them even when listed. Before, every agent got them by default, so a prompt-injected page could make any agent, including the trader, send its context to an outside URL. The shipped web examples (`ai_public_web_fetch`, `ai_congress_disclosures`, `ai_browser_research_showcase`) opt in only the agent that fetches pages. Strategies whose agents fetch the web must add `allow_network=True`. The 13 extra tools also crowded the default trading toolset: the `options_iron_condor_atomic_open` release eval fell from 3/3 to 1/3 with them.
+- Option agents now call `account_portfolio`, `account_positions`, and `orders_open_orders` before any option order, even when the injected account snapshot is complete (agent prompt and `options-trading` skill). The `options-trading` skill also tells the agent to use only the expiration, delta, and width limits the user or rules state, and to measure deltas with the Greek tools before declining. The `options_iron_condor_atomic_open` release eval caught one run that ordered without the account reads and others that declined a supported condor by inventing a 30-day expiration minimum.
+- Bitunix request signing no longer writes the API key or secret key to logs. `BitUnixClient._sign` logged the digest input (which holds the API key) and the sign input (digest plus the secret key) at DEBUG level, so any strategy run with debug logging leaked the Bitunix secret to its log sinks. Signing now logs nothing. The double SHA-256 signature is unchanged because Bitunix's API spec requires it.
 
 ## 4.5.91 - 2026-09-06
 

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Run production-gated LumiBot agent evals against real Gemini models."""
+"""Run production-gated LumiBot agent evals against real models (GPT-6 Luna by default)."""
 
 from __future__ import annotations
 
@@ -13,6 +13,7 @@ import re
 import sys
 import threading
 import time
+import traceback
 import uuid
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
@@ -24,19 +25,37 @@ if str(REPO_ROOT) in sys.path:
     sys.path.remove(str(REPO_ROOT))
 sys.path.insert(0, str(REPO_ROOT))
 CASE_ROOT = REPO_ROOT / "agent_eval_cases"
-DEFAULT_ACTING_MODEL = "gemini-3.5-flash-lite"
-DEFAULT_JUDGE_MODEL = "gemini-3.1-flash-lite"
+# Release evals run the product default: GPT-6 Luna on medium reasoning for
+# both the acting agent and the judge. Gemini stays available only when a case
+# or --judge-model names it explicitly.
+DEFAULT_ACTING_MODEL = "openai/gpt-6-luna"
+DEFAULT_JUDGE_MODEL = "openai/gpt-6-luna"
+EVAL_REASONING_EFFORT = "medium"
 DEFAULT_FRESHNESS_DAYS = 90
 REQUIRED_CONSECUTIVE_PASSES = 3
 PRICE_SOURCE = "Google Cloud Agent Platform pricing, 2026-08-11"
 PRICE_SOURCE_URL = "https://cloud.google.com/gemini-enterprise-agent-platform/generative-ai/pricing"
+OPENAI_PRICE_SOURCE = "OpenAI GPT-6 Luna pricing, 2026-09-23 (registered in lumibot/components/agents/runtime.py)"
+OPENAI_PRICE_SOURCE_URL = "https://platform.openai.com/docs/models/gpt-6-luna"
 MODEL_PRICES_PER_MILLION = {
+    # Must equal _OPENAI_GPT6_MODEL_INFO in runtime.py; a unit test checks it.
+    "openai/gpt-6-luna": {"input": 0.10, "cached_input": 0.01, "output": 0.50},
     "gemini-3.5-flash-lite": {"input": 0.30, "cached_input": 0.03, "output": 2.50},
     "gemini-3.1-flash-lite": {"input": 0.25, "cached_input": 0.025, "output": 1.50},
 }
+
+
+def _is_gemini_model(model: str) -> bool:
+    return str(model).startswith("gemini")
+
+
+def _price_source(model: str) -> tuple[str, str]:
+    if _is_gemini_model(model):
+        return PRICE_SOURCE, PRICE_SOURCE_URL
+    return OPENAI_PRICE_SOURCE, OPENAI_PRICE_SOURCE_URL
 MAX_INPUT_TOKENS_PER_MODEL_CALL = 1_048_576
 ACTING_MAX_OUTPUT_TOKENS = 12_000
-JUDGE_MAX_OUTPUT_TOKENS = 1_000
+JUDGE_MAX_OUTPUT_TOKENS = 4_000  # GPT-6 Luna reasoning tokens count against this cap
 ORDER_TOOLS = {"orders_submit_order", "orders_submit_multileg"}
 LEDGER_LOCK = threading.Lock()
 
@@ -70,6 +89,7 @@ def runtime_fingerprint() -> str:
         REPO_ROOT / "lumibot/components/agents/rules.py",
         REPO_ROOT / "lumibot/components/agents/skills.py",
         REPO_ROOT / "lumibot/components/agents/builtins.py",
+        REPO_ROOT / "lumibot/components/agents/duckdb_tools.py",
         REPO_ROOT / "lumibot/components/agents/asset_resolution.py",
         REPO_ROOT / "lumibot/components/agents/managed_gateway.py",
         REPO_ROOT / "lumibot/indicators/indicators.py",
@@ -175,10 +195,11 @@ def estimate_cost(model: str, usage: dict[str, Any] | None) -> dict[str, Any]:
         + normalized["cached_input_tokens"] * prices["cached_input"]
         + billed_output_tokens * prices["output"]
     ) / 1_000_000
+    price_source, price_source_url = _price_source(model)
     return {
         "estimated_usd": round(estimated, 6),
-        "price_source": PRICE_SOURCE,
-        "price_source_url": PRICE_SOURCE_URL,
+        "price_source": price_source,
+        "price_source_url": price_source_url,
         "prices_per_million_tokens": prices,
         "usage": normalized,
     }
@@ -226,9 +247,15 @@ class FixtureRuntime:
     positions: list[dict[str, Any]] = field(default_factory=list)
     calls: list[dict[str, Any]] = field(default_factory=list)
     submissions: list[dict[str, Any]] = field(default_factory=list)
+    # Order tool calls the tool itself rejected (readiness gate, malformed
+    # legs). They never reached the broker, so they are not submissions, but a
+    # no-order contract still fails on any attempt.
+    rejected_submissions: list[dict[str, Any]] = field(default_factory=list)
     order_counter: int = 0
 
     expiration: str = "2026-08-28"
+    # Listed on the chain, but the fixture has no bars or quotes for them.
+    empty_expirations: tuple[str, ...] = ()
     underlying_price: float = 600.0
 
     def record(self, name: str, arguments: dict[str, Any], result: Any) -> Any:
@@ -299,6 +326,9 @@ def build_fixture(name: str) -> FixtureRuntime:
                 "quantity": 3,
             },
         ]
+    elif name == "options_nearest_expiration_without_data":
+        # 2026-08-14 is nearer than the quoted 2026-08-28 expiration and has no bars.
+        fixture.empty_expirations = ("2026-08-14",)
     elif name == "stock_pending_exit":
         fixture.positions = [
             {
@@ -331,6 +361,7 @@ def compact_transcript(result: Any, fixture: FixtureRuntime) -> dict[str, Any]:
         "tool_results": [{"name": event.tool_name, "payload": event.payload} for event in result.tool_results],
         "fixture_calls": fixture.calls,
         "submissions": fixture.submissions,
+        "rejected_submissions": fixture.rejected_submissions,
         "final_positions": fixture.positions,
     }
 
@@ -343,6 +374,19 @@ def combined_usage(*results: Any) -> dict[str, int]:
         for key in totals:
             totals[key] += usage[key]
     return totals
+
+
+def _malformed_leg_failures(legs: list[Any], fields: tuple[str, ...]) -> list[str]:
+    """Name missing leg fields as contract failures instead of crashing the scorer."""
+    failures = []
+    for index, leg in enumerate(legs):
+        if not isinstance(leg, dict):
+            failures.append(f"leg {index} is not an object")
+            continue
+        missing = [name for name in fields if leg.get(name) in (None, "")]
+        if missing:
+            failures.append(f"leg {index} is missing {', '.join(missing)}")
+    return failures
 
 
 def _side(leg: dict[str, Any]) -> str:
@@ -417,7 +461,7 @@ def score_machine_contract(case: dict[str, Any], transcript: dict[str, Any]) -> 
         if not skill_loaded:
             failures.append(f"did not load required skill {required_skill}")
 
-    if contract.get("forbidOrderTools") and submissions:
+    if contract.get("forbidOrderTools") and (submissions or transcript.get("rejected_submissions")):
         failures.append("submitted an order despite a no-order contract")
 
     for required in contract.get("requiredTools") or []:
@@ -443,8 +487,11 @@ def score_machine_contract(case: dict[str, Any], transcript: dict[str, Any]) -> 
     topology = contract.get("legTopology")
     if topology == "iron_condor" and relevant:
         legs = relevant[0].get("legs") or []
+        malformed = _malformed_leg_failures(legs, ("strike", "right", "side", "expiration"))
         if len(legs) != 4:
             failures.append("iron condor did not contain exactly four legs")
+        elif malformed:
+            failures.extend(malformed)
         else:
             puts = sorted(
                 (leg for leg in legs if str(leg.get("right")).lower() == "put"), key=lambda leg: float(leg["strike"])
@@ -466,10 +513,14 @@ def score_machine_contract(case: dict[str, Any], transcript: dict[str, Any]) -> 
                 failures.append("iron condor legs did not share one expiration")
     elif topology == "close_credit_spread" and relevant:
         legs = relevant[0].get("legs") or []
-        exact = {(float(leg.get("strike")), _side(leg), abs(float(leg.get("quantity") or 0))) for leg in legs}
-        expected = {(594.0, "buy_to_close", 3.0), (592.0, "sell_to_close", 3.0)}
-        if exact != expected:
-            failures.append(f"closing legs were {sorted(exact)}, expected {sorted(expected)}")
+        malformed = _malformed_leg_failures(legs, ("strike", "side"))
+        if malformed:
+            failures.extend(malformed)
+        else:
+            exact = {(float(leg.get("strike")), _side(leg), abs(float(leg.get("quantity") or 0))) for leg in legs}
+            expected = {(594.0, "buy_to_close", 3.0), (592.0, "sell_to_close", 3.0)}
+            if exact != expected:
+                failures.append(f"closing legs were {sorted(exact)}, expected {sorted(expected)}")
 
     if contract.get("positionsMustEndFlat") and transcript["final_positions"]:
         failures.append("fixture positions were not flat after the close")
@@ -492,7 +543,112 @@ def score_machine_contract(case: dict[str, Any], transcript: dict[str, Any]) -> 
         if float(order.get("quantity") or 0) * 230.0 > 10000.0:
             failures.append("stock order exceeded ten percent of portfolio value")
 
+    if contract.get("explicitLimitBetweenBidAsk") and relevant:
+        failures.extend(_explicit_limit_failures(relevant[0]))
+
+    required_expiration = contract.get("expirationMustBe")
+    if required_expiration:
+        if not relevant:
+            failures.append(f"did not order the listed expiration with quotes {required_expiration}")
+        else:
+            seen = {
+                str(leg.get("expiration"))[:10]
+                for leg in (relevant[0].get("legs") or [])
+                if isinstance(leg, dict) and leg.get("expiration")
+            }
+            if seen != {str(required_expiration)}:
+                failures.append(
+                    f"package used expiration {sorted(seen) or ['none']}, expected the listed expiration with quotes {required_expiration}"
+                )
+
+    public_rule = contract.get("publicFilingsOnly")
+    if public_rule:
+        failures.extend(_public_filing_failures(public_rule, transcript))
+
     return {"pass": not failures, "failures": failures, "tool_sequence": sequence}
+
+
+def _explicit_limit_failures(order: dict[str, Any]) -> list[str]:
+    """A package limit sits between the natural bid and ask. Market, or no price, fails."""
+    style = str(order.get("price_style") or "").lower()
+    price = order.get("net_limit_price")
+    if style == "market" or price is None:
+        return ["multi-leg order did not pass an explicit limit between the bid and ask"]
+    band = _signed_package_band(order.get("legs") or [])
+    if band is None:
+        return ["multi-leg limit could not be checked against the bid and ask"]
+    low, high = band
+    try:
+        signed = float(price)
+    except (TypeError, ValueError):
+        return ["multi-leg limit price was not a number"]
+    if signed < low or signed > high:
+        return [f"multi-leg limit {signed} was outside the bid/ask band {low} to {high}"]
+    return []
+
+
+def _signed_package_band(legs: list[Any]) -> tuple[float, float] | None:
+    """Signed credit band from fixture quotes. Negative means a credit."""
+    credit_low = 0.0
+    credit_high = 0.0
+    sample = FixtureRuntime(name="flat_options_account")
+    for leg in legs:
+        if not isinstance(leg, dict):
+            return None
+        side = _side(leg)
+        try:
+            quote = sample.quote(float(leg["strike"]), str(leg["right"]))
+        except (KeyError, TypeError, ValueError):
+            return None
+        if side.startswith("sell"):
+            credit_low += float(quote["bid"])
+            credit_high += float(quote["ask"])
+        elif side.startswith("buy"):
+            credit_low -= float(quote["ask"])
+            credit_high -= float(quote["bid"])
+        else:
+            return None
+    return (-credit_high, -credit_low)
+
+
+def _public_filing_failures(rule: dict[str, Any], transcript: dict[str, Any]) -> list[str]:
+    """Fail when a disclosure tool returns a filing that was not public at its own as_of."""
+    tool_name = str(rule.get("tool") or "house_public_disclosures")
+    results = [item for item in transcript.get("tool_results") or [] if item.get("name") == tool_name]
+    if not results:
+        return [f"{tool_name} returned no result"]
+    payload = results[-1].get("payload") or {}
+    if not isinstance(payload, dict):
+        return [f"{tool_name} result was not an object"]
+    failures = []
+    ceiling = _parse_eval_datetime(payload.get("as_of"))
+    for filing in payload.get("filings") or []:
+        if not isinstance(filing, dict):
+            continue
+        published = _parse_eval_datetime(filing.get("published_at"))
+        if ceiling is not None and published is not None and published > ceiling:
+            failures.append(f"{tool_name} returned a filing published after as_of")
+            break
+    blob = stable_json(payload)
+    for token in rule.get("forbiddenTokens") or []:
+        if str(token) in blob:
+            failures.append(f"{tool_name} result contained {token}")
+    return failures
+
+
+def _parse_eval_datetime(value: Any) -> datetime | None:
+    text = str(value or "").strip()
+    if not text:
+        return None
+    if text.endswith("Z"):
+        text = f"{text[:-1]}+00:00"
+    try:
+        parsed = datetime.fromisoformat(text)
+    except ValueError:
+        return None
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=timezone.utc)
+    return parsed.astimezone(timezone.utc)
 
 
 def parse_judge_json(text: str) -> dict[str, Any]:
@@ -533,8 +689,9 @@ def run_judge(
         model_call_id=f"judge-{uuid.uuid4()}",
         model_request_timeout_seconds=180,
         run_timeout_seconds=300,
-        max_output_tokens=1000,
+        max_output_tokens=JUDGE_MAX_OUTPUT_TOKENS,
         model_call_budget=budget,
+        reasoning_effort=None if _is_gemini_model(judge_model) else EVAL_REASONING_EFFORT,
     )
     started = time.perf_counter()
     result = GoogleADKRuntime().run(request)
@@ -681,6 +838,34 @@ def execute_repetition(
     }
 
 
+def harness_error_row(case_id: str, repetition: int, fingerprint: str, exc: BaseException) -> dict[str, Any]:
+    """Ledger row for a repetition the harness could not finish.
+
+    Provider errors can contain request material, so the message is never
+    stored. The innermost repository frame is: GitHub run 35930118229 left only
+    a bare KeyError, which took a local re-run to place.
+    """
+    location = None
+    for frame in reversed(traceback.extract_tb(exc.__traceback__)):
+        try:
+            relative = Path(frame.filename).resolve().relative_to(REPO_ROOT)
+        except ValueError:
+            continue
+        location = f"{relative.as_posix()}:{frame.lineno} in {frame.name}"
+        break
+    return {
+        "timestamp": utc_text(),
+        "run_id": str(uuid.uuid4()),
+        "case_id": case_id,
+        "repetition": repetition,
+        "fingerprint": fingerprint,
+        "status": "error",
+        "error": type(exc).__name__,
+        "error_location": location,
+        "external_writes": "fixture_only",
+    }
+
+
 def read_jsonl(path: Path) -> list[dict[str, Any]]:
     if not path.exists():
         return []
@@ -756,8 +941,13 @@ def preflight(cases: list[dict[str, Any]], judge_model: str, max_cost_usd: float
         raise RuntimeError(f"Pricing is unknown for: {', '.join(missing_models)}")
     if max_cost_usd <= 0:
         raise RuntimeError("--max-cost-usd must be positive")
-    if not os.environ.get("GEMINI_API_KEY") and not os.environ.get("GOOGLE_API_KEY"):
-        raise RuntimeError("GEMINI_API_KEY or GOOGLE_API_KEY is required for real-model evals")
+    models = {str(case.get("model") or DEFAULT_ACTING_MODEL) for case in cases} | {judge_model}
+    if any(not _is_gemini_model(model) for model in models) and not os.environ.get("OPENAI_API_KEY"):
+        raise RuntimeError("OPENAI_API_KEY is required for GPT-6 Luna evals")
+    if any(_is_gemini_model(model) for model in models) and not (
+        os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_API_KEY")
+    ):
+        raise RuntimeError("GEMINI_API_KEY or GOOGLE_API_KEY is required for Gemini evals")
     if any(
         os.environ.get(key)
         for key in (
@@ -820,8 +1010,24 @@ def preflight_production_fixtures(cases: list[dict[str, Any]]) -> None:
             fixture.close()
 
 
+def select_eval_credentials(models: set[str]) -> list[str]:
+    """Name the credential each selected model needs; never log a value.
+
+    GPT-6 Luna needs OPENAI_API_KEY. Gemini is an explicit opt-in and keeps
+    its own key selection below.
+    """
+    selected: list[str] = []
+    if any(not _is_gemini_model(model) for model in models):
+        if not str(os.environ.get("OPENAI_API_KEY") or "").strip():
+            raise RuntimeError("OPENAI_API_KEY is required for GPT-6 Luna evals")
+        selected.append("OPENAI_API_KEY")
+    if any(_is_gemini_model(model) for model in models):
+        selected.append(select_gemini_credential())
+    return selected
+
+
 def select_gemini_credential() -> str:
-    """Make the release runner's documented credential deterministic.
+    """Make the release runner's documented Gemini credential deterministic.
 
     google-genai gives GOOGLE_API_KEY precedence when both names are present.
     Local dotenv files can contain an older Google key alongside the release
@@ -863,8 +1069,8 @@ def main() -> int:
     from scripts.agent_eval_isolation import configure_fixture_environment
 
     configure_fixture_environment(REPO_ROOT)
-    select_gemini_credential()
     cases = load_cases(set(args.case_id) or None)
+    select_eval_credentials({str(case.get("model") or DEFAULT_ACTING_MODEL) for case in cases} | {args.judge_model})
     preflight(cases, args.judge_model, args.max_cost_usd)
     preflight_production_fixtures(cases)
     runtime_hash = runtime_fingerprint()
@@ -962,18 +1168,7 @@ def main() -> int:
                 try:
                     row = future.result()
                 except Exception as exc:
-                    row = {
-                        "timestamp": utc_text(),
-                        "run_id": str(uuid.uuid4()),
-                        "case_id": case_id,
-                        "repetition": repetition,
-                        "fingerprint": fingerprints[case_id],
-                        "status": "error",
-                        # Provider errors can contain request material. Detailed
-                        # cost survives separately without persisting secrets.
-                        "error": type(exc).__name__,
-                        "external_writes": "fixture_only",
-                    }
+                    row = harness_error_row(case_id, repetition, fingerprints[case_id], exc)
                 append_jsonl(ledger_path, row)
                 new_rows.append(row)
                 # Batch estimates schedule workers, but only the shared durable

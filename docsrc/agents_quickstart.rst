@@ -13,7 +13,7 @@ Before you run
 
 Use Python 3.10 or later. Install the version-branch source below to get this
 example. It uses
-``openai/gpt-6-luna`` on high reasoning, ``OPENAI_API_KEY``, and Yahoo daily prices.
+``openai/gpt-6-luna`` on medium reasoning, ``OPENAI_API_KEY``, and Yahoo daily prices.
 You do not need broker credentials for this historical backtest. Model calls
 use your provider account and incur charges; start with this short date range.
 
@@ -52,14 +52,14 @@ Your strategy code
 See the example backtest
 ------------------------
 
-A September 13, 2026 run completed all five sessions (April 6–10) with ten
-fresh Gemini researcher/trader runs. The trader bought 15 SPY shares on April 7
-and verified the simulated fill at $656.65. It held on the remaining sessions.
+An earlier recorded run of this workflow is saved with its exact source,
+decisions, trade CSV, and run receipt. That run was made before GPT-6 Luna
+became the default model, so its decisions are not output from the current
+default.
 
-`Inspect the exact source, decisions, trade CSV, and run receipt
+`Inspect the recorded run
 <https://github.com/Lumiwealth/lumibot/blob/version/4.5.92/docs/assets/ai-trading/spy-20260913/README.md>`_.
-The final simulated account value was $100,272.85 from $100,000. This short
-run demonstrates the workflow; fresh inference can produce different decisions.
+It shows the workflow end to end. Your own run can make different decisions.
 
 Read the ``Research:`` and ``Trader:`` log entries, then inspect the generated
 trade records and tear sheet. An agent's written claim is not a fill: compare
@@ -266,7 +266,8 @@ Working with the Result
 - ``result.warning_messages`` -- list of observability warnings
 - ``result.tool_calls`` -- list of tool call events
 - ``result.tool_results`` -- list of tool result events
-- ``(result.payload or {}).get("trace_path")`` -- path to the full JSON trace
+- ``(result.payload or {}).get("trace_path")`` -- path to one call's JSON trace
+- ``*_agent_detail.parquet`` -- the table for the whole run, next to the tear sheet in a backtest, or under ``~/Library/Caches/lumibot/1.0/agent_runtime/`` on macOS for live and paper. The ``call_summary`` row includes ``effective_system_prompt``. Raising ``LUMIBOT_LOG_LEVEL`` does not create this file. See :doc:`agents_observability`.
 
 .. code-block:: python
 
@@ -329,7 +330,7 @@ No. All built-in tools (positions, portfolio, prices, orders, DuckDB, docs) are 
 
 **What API keys do I need?**
 
-At minimum, one model provider key matching your ``default_model``. The default is ``openai/gpt-6-luna`` on high reasoning, which needs ``OPENAI_API_KEY``. LumiBot also supports Gemini ids (needs ``GEMINI_API_KEY``), ``xai/...`` ids for Grok (needs ``XAI_API_KEY`` or ``GROK_API_KEY``), and ``anthropic/...`` ids for Claude (needs ``ANTHROPIC_API_KEY``). If your ``@agent_tool`` functions call external APIs, you also need those keys -- for example ``ALPACA_API_KEY`` and ``ALPACA_API_SECRET`` for Alpaca-based demos. FRED macro tools require ``FRED_API_KEY`` so backtests can request official FRED/ALFRED observations with point-in-time vintage parameters instead of using revised CSV data.
+At minimum, one model provider key matching your ``default_model``. The default is ``openai/gpt-6-luna`` on medium reasoning, which needs ``OPENAI_API_KEY``. LumiBot also supports Gemini ids (needs ``GEMINI_API_KEY``), ``xai/...`` ids for Grok (needs ``XAI_API_KEY`` or ``GROK_API_KEY``), and ``anthropic/...`` ids for Claude (needs ``ANTHROPIC_API_KEY``). If your ``@agent_tool`` functions call external APIs, you also need those keys -- for example ``ALPACA_API_KEY`` and ``ALPACA_API_SECRET`` for Alpaca-based demos. FRED macro tools require ``FRED_API_KEY`` so backtests can request official FRED/ALFRED observations with point-in-time vintage parameters instead of using revised CSV data.
 
 **How long should my system prompt be?**
 

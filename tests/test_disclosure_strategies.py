@@ -305,6 +305,13 @@ def test_congress_strategy_has_researcher_and_dedicated_trading_risk_agent():
     }
 
 
+def test_congress_research_line_carries_the_asset_code_the_trader_checks():
+    agents = _exercise_strategy(AICongressDisclosuresStrategy)
+    prompts = {item["name"]: " ".join(item["system_prompt"].split()) for item in agents.created}
+    assert "TICKER [CODE] buy_dollars sell_dollars net_dollars" in prompts["congress_researcher"]
+    assert "research lines already exclude [OP]" in prompts["trading_risk_manager"]
+
+
 def test_insider_strategy_has_researcher_and_dedicated_trading_risk_agent():
     agents = _exercise_strategy(AISECInsiderFilingsStrategy)
 
@@ -327,6 +334,44 @@ def test_insider_strategy_has_researcher_and_dedicated_trading_risk_agent():
     assert "open-market" in trader["system_prompt"]
     assert agents.calls[-1][1]["context"]["research_evidence"] == "insider_trade_researcher evidence"
     assert "after as_of" in agents.calls[0][1]["context"]["clock_rule"]
+
+
+def test_insider_strategy_reads_point_in_time_form4_filings_for_a_watchlist():
+    agents = _exercise_strategy(AISECInsiderFilingsStrategy)
+
+    research_prompt = agents.created[0]["system_prompt"]
+    research_context = agents.calls[0][1]["context"]
+    trader_context = agents.calls[-1][1]["context"]
+    # The live getcurrent feed shows today's filings, so a backtest would see the future.
+    assert "feed_url" not in AISECInsiderFilingsStrategy.parameters
+    assert "getcurrent" not in repr(research_context)
+    assert "get_filings" in research_prompt and "form='4'" in research_prompt
+    assert "get_filing_document" in research_prompt
+    assert research_context["watchlist"] == list(AISECInsiderFilingsStrategy.parameters["watchlist"])
+    assert len(research_context["watchlist"]) >= 8
+    assert research_context["lookback_days"] == AISECInsiderFilingsStrategy.parameters["lookback_days"]
+    assert trader_context["watchlist"] == research_context["watchlist"]
+    trader = next(item for item in agents.created if item["name"] == "trading_risk_manager")
+    assert "equal weight" in trader["system_prompt"]
+
+
+def test_public_page_strategy_follows_published_purchases_sized_from_our_account():
+    """public-fetch-luna-v2 (2026-01-26) read a published House report listing AB, GOOGL, AMZN,
+    and NVDA purchases, then refused because the page did not name a size for our account."""
+    from lumibot.example_strategies.ai_public_web_fetch import AIPublicWebFetchStrategy
+
+    agents = _exercise_strategy(AIPublicWebFetchStrategy)
+    prompts = {item["name"]: item["system_prompt"] for item in agents.created}
+    trader = prompts["trading_risk_manager"]
+
+    assert "with a ticker and a size" not in trader
+    assert "does not need to state a size for this account" in trader
+    assert "purchase" in trader and "weight" in trader
+    assert "account value" in trader
+    assert "risk_calculate_stock_quantity" in trader
+    assert "published" in prompts["interpreter"] and "purchase" in prompts["interpreter"]
+    assert "Argue why the page is not a trade" not in prompts["bear"]
+    assert "not published" in trader or "published after" in trader
 
 
 _ONE_PATH_FILES = (

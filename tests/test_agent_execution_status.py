@@ -141,3 +141,88 @@ def test_adjacent_streamed_text_deltas_are_coalesced_without_crossing_tool_bound
         ("tool_call", None, "call-1"),
         ("text", "Then continue", None),
     ]
+
+
+_HALLUCINATED = "orders_submit_multilevel_package_check_not_needed_use_orders_submit_multileg"
+
+
+def test_unknown_tool_call_is_returned_to_the_model_instead_of_ending_the_run():
+    """Release eval options_iron_condor_atomic_open (all12-final rep 1): the model
+    called a tool name that does not exist; ADK raised ValueError and the whole
+    run ended with no decision. The model now gets a structured tool error."""
+    from lumibot.components.agents.runtime import GoogleADKRuntime
+
+    callback = GoogleADKRuntime._unknown_tool_error_callback
+    error = ValueError(f"Tool '{_HALLUCINATED}' not found.\nAvailable tools: account_positions, orders_submit_multileg")
+
+    response = callback(tool=SimpleNamespace(name=_HALLUCINATED), args={}, tool_context=None, error=error)
+
+    assert response["tool_error"] is True
+    assert response["unknown_tool"] is True
+    assert response["tool_name"] == _HALLUCINATED
+    assert "does not exist" in response["error"]["message"]
+    assert "orders_submit_multileg" in response["error"]["message"]
+    other = callback(tool=SimpleNamespace(name="x"), args={}, tool_context=None, error=RuntimeError("boom"))
+    assert other is None
+
+
+def test_adk_agent_is_built_with_the_unknown_tool_callback(monkeypatch):
+    import asyncio
+
+    import pytest
+
+    from lumibot.components.agents.runtime import GoogleADKRuntime, RuntimeRequest
+
+    captured = {}
+
+    class _Stop(Exception):
+        pass
+
+    class _FakeAgent:
+        def __init__(self, **kwargs):
+            captured.update(kwargs)
+            raise _Stop()
+
+    runtime = GoogleADKRuntime()
+    real = runtime._ensure_adk
+    monkeypatch.setattr(runtime, "_ensure_adk", lambda: (_FakeAgent, *real()[1:]))
+    request = RuntimeRequest(
+        agent_name="test",
+        model="gemini-3.5-flash-lite",
+        system_prompt="test",
+        task_prompt="test",
+        context=None,
+        runtime_context=None,
+        memory_state=None,
+        memory_notes=[],
+        bound_tools=[],
+    )
+    with pytest.raises(_Stop):
+        asyncio.run(runtime._run_async(request))
+
+    assert captured["on_tool_error_callback"] is GoogleADKRuntime._unknown_tool_error_callback
+
+
+def test_unknown_tool_error_does_not_block_a_decision_the_agent_completed():
+    result = _result(
+        AgentTraceEvent(kind="tool_call", tool_name=_HALLUCINATED, payload={}),
+        AgentTraceEvent(
+            kind="tool_result",
+            tool_name=_HALLUCINATED,
+            payload={"ok": False, "tool_error": True, "unknown_tool": True, "tool_name": _HALLUCINATED},
+        ),
+        AgentTraceEvent(kind="tool_call", tool_name="orders_submit_multileg", payload={}),
+        AgentTraceEvent(kind="tool_result", tool_name="orders_submit_multileg", payload={"identifier": "o-1"}),
+    )
+    assert _managed_ai_terminal_status(result, allow_trading=True) == "completed_decision"
+
+    no_order = _result(
+        AgentTraceEvent(kind="tool_call", tool_name=_HALLUCINATED, payload={}),
+        AgentTraceEvent(
+            kind="tool_result",
+            tool_name=_HALLUCINATED,
+            payload={"ok": False, "tool_error": True, "unknown_tool": True, "tool_name": _HALLUCINATED},
+        ),
+        AgentTraceEvent(kind="text", text="No setup."),
+    )
+    assert _managed_ai_terminal_status(no_order, allow_trading=True) == "completed_no_action"

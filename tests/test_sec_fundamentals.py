@@ -267,6 +267,34 @@ def test_sec_filings_and_keyword_search(monkeypatch, tmp_path):
     assert "Customer concentration" in matches["matches"][0]["context"]
 
 
+def test_filings_for_a_ticker_without_an_sec_cik_are_an_explicit_empty_result(monkeypatch, tmp_path):
+    """A ticker EDGAR does not list has no filings; that is evidence, not a tool failure.
+
+    Release eval research_sec_prompt_injection: get_filings raised for a ticker
+    missing from the SEC ticker map, the tool error marked the whole research
+    decision blocked, although the agent then read the filing from the managed
+    research source. Missing data is reported as missing, never invented.
+    """
+
+    def fake_get(url, **kwargs):
+        if url.endswith("company_tickers.json"):
+            return _Response(payload={"0": {"ticker": "AAPL", "cik_str": 320193, "title": "Apple Inc."}})
+        raise AssertionError(url)
+
+    monkeypatch.setattr("lumibot.fundamentals.sec.requests.get", fake_get)
+    sec = SECFundamentals(cache_dir=tmp_path, min_request_interval_seconds=0)
+
+    result = sec.get_filings("acme", form="10-Q", as_of="2026-08-11T00:00:00+00:00")
+
+    assert result["symbol"] == "ACME"
+    assert result["filings"] == []
+    assert result["available"] is False
+    assert result["reason"] == "no_sec_cik"
+    assert "ACME" in result["message"]
+    with pytest.raises(ValueError, match="No SEC CIK found"):
+        sec.ticker_to_cik("ACME")
+
+
 def test_sec_filing_sections_can_be_listed_and_read(monkeypatch, tmp_path):
     filing_html = """
     <html><body>
@@ -604,6 +632,51 @@ def test_submissions_default_to_strategy_time_in_backtests(monkeypatch, tmp_path
 
     assert submissions["filings"]["recent"]["accessionNumber"] == ["old"]
     assert submissions["as_of"] == "2025-01-01T00:00:00+00:00"
+
+
+def test_backtest_caps_caller_as_of_at_strategy_time(monkeypatch, tmp_path):
+    class _Strategy:
+        is_backtesting = True
+
+        @staticmethod
+        def get_datetime():
+            return datetime(2025, 1, 1, tzinfo=timezone.utc)
+
+    def fake_get(url, **kwargs):
+        if url.endswith("company_tickers.json"):
+            return _Response(payload={"0": {"ticker": "AAPL", "cik_str": 320193, "title": "Apple Inc."}})
+        if "submissions" in url:
+            return _Response(
+                payload={
+                    "cik": "0000320193",
+                    "filings": {
+                        "recent": {
+                            "form": ["4", "4"],
+                            "accessionNumber": ["old", "future"],
+                            "filingDate": ["2024-12-20", "2025-06-02"],
+                            "acceptanceDateTime": ["2024-12-20T12:00:00Z", "2025-06-02T12:00:00Z"],
+                            "primaryDocument": ["old.xml", "future.xml"],
+                        }
+                    },
+                }
+            )
+        if "Archives/edgar/data" in url:
+            raise AssertionError("future filing document must not be downloaded")
+        raise AssertionError(url)
+
+    monkeypatch.setattr("lumibot.fundamentals.sec.requests.get", fake_get)
+    sec = SECFundamentals(strategy=_Strategy(), cache_dir=tmp_path, min_request_interval_seconds=0)
+
+    filings = sec.get_filings("AAPL", form="4", as_of="2026-01-01T00:00:00Z")
+
+    assert [row["accession_number"] for row in filings["filings"]] == ["old"]
+    with pytest.raises(ValueError, match="was not public as of"):
+        sec.get_filing_document(
+            "AAPL",
+            accession_number="future",
+            primary_document="future.xml",
+            as_of="2026-01-01T00:00:00Z",
+        )
 
 
 def test_search_filing_threads_explicit_as_of_to_document_availability(monkeypatch, tmp_path):

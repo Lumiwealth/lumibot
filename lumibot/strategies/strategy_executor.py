@@ -860,14 +860,15 @@ class StrategyExecutor(Thread):
         else:
             self.queue.put((event_name, payload))
 
-    def process_event(self, event, payload):
+    def process_event(self, event, payload, skip_first_iteration_events=True):
         # Log that we are processing an event.
         if self.strategy.logger.isEnabledFor(10):
             self.strategy.logger.debug(f"Processing event: {event}, payload: {payload}")
 
         # If it's the first iteration, we don't want to process any events.
         # This is because in this case we are most likely processing events that occurred before the strategy started.
-        if self.strategy._first_iteration or self.broker._first_iteration:
+        # Callers draining fills the strategy itself just produced mid-iteration pass False.
+        if skip_first_iteration_events and (self.strategy._first_iteration or self.broker._first_iteration):
             # Reduce noise on startup: log at debug instead of info
             if self.strategy.logger.isEnabledFor(10):
                 self.strategy.logger.debug(
@@ -980,7 +981,7 @@ class StrategyExecutor(Thread):
         else:
             self.strategy.logger.error(f"Event {event} not recognized. Payload: {payload}")
 
-    def process_queue(self):
+    def process_queue(self, skip_first_iteration_events=True):
         while True:
             try:
                 event, payload = self.priority_queue.get_nowait()
@@ -989,7 +990,10 @@ class StrategyExecutor(Thread):
                     event, payload = self.queue.get_nowait()
                 except Empty:
                     break
-            self.process_event(event, payload)
+            if skip_first_iteration_events:
+                self.process_event(event, payload)
+            else:
+                self.process_event(event, payload, skip_first_iteration_events=False)
 
     def _process_smart_limit_orders(self):
         if self.broker.IS_BACKTESTING_BROKER:

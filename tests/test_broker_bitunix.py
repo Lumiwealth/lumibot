@@ -139,6 +139,58 @@ class TestBitunixBroker(unittest.TestCase):
             json_body={"symbol": "BTCUSDT", "orderList": ["2048802184602955776"]},
         )
 
+    def test_client_sign_never_logs_secret_or_api_key(self):
+        """Signing at DEBUG level must not write the secret key or API key to any log record.
+
+        The signature itself follows Bitunix's required double SHA-256 scheme, so this test
+        also pins that algorithm: sign = SHA256(SHA256(nonce + ts + apiKey + qp + body) + secret).
+        """
+        import hashlib
+        import json
+        import logging
+
+        api_key = "FAKE-BITUNIX-API-KEY-7c1d"
+        secret_key = "FAKE-BITUNIX-SECRET-9f3e2a"
+        client = BitUnixClient(api_key=api_key, secret_key=secret_key)
+
+        records = []
+
+        class _Capture(logging.Handler):
+            def emit(self, record):
+                records.append(record)
+
+        handler = _Capture(level=logging.DEBUG)
+        module_logger = logging.getLogger("test_bitunix_sign_capture")
+        module_logger.setLevel(logging.DEBUG)
+        module_logger.propagate = False
+        module_logger.addHandler(handler)
+        root_logger = logging.getLogger()
+        previous_root_level = root_logger.level
+        root_logger.setLevel(logging.DEBUG)
+        root_logger.addHandler(handler)
+        try:
+            with patch("lumibot.tools.bitunix_helpers.logger", module_logger):
+                params = {"symbol": "BTCUSDT", "marginCoin": "USDT"}
+                body = {"side": "BUY", "qty": "0.01"}
+                signature = client._sign(params, body, nonce="abc123nonce", timestamp="1700000000000")
+        finally:
+            module_logger.removeHandler(handler)
+            root_logger.removeHandler(handler)
+            root_logger.setLevel(previous_root_level)
+
+        qp = "marginCoinUSDTsymbolBTCUSDT"
+        body_str = json.dumps(body, separators=(",", ":"), ensure_ascii=False)
+        digest = hashlib.sha256(("abc123nonce" + "1700000000000" + api_key + qp + body_str).encode("utf-8")).hexdigest()
+        expected = hashlib.sha256((digest + secret_key).encode("utf-8")).hexdigest()
+        self.assertEqual(signature, expected)
+
+        for record in records:
+            text = record.getMessage()
+            self.assertNotIn(secret_key, text)
+            self.assertNotIn(api_key, text)
+            self.assertNotIn(digest, text)
+            self.assertNotIn(signature, text)
+
     def test_client_cancel_order_accepts_order_object(self):
         client = BitUnixClient(api_key="test_api_key", secret_key="test_api_secret")
         client._request = MagicMock(return_value={"code": 0})

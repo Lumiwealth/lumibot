@@ -5,16 +5,6 @@ Citadel Sector Pods AI Trading Team
    :alt: AI trading team workflow for Citadel-style sector pods
    :width: 100%
 
-Track or copy it on BotSpot
----------------------------
-
-* `Regular ETFs on BotSpot <https://botspot.trade/marketplace/strategy/4fb6cf2f-272c-4a73-96e7-edd7383b1a33?utm_source=documentation&utm_medium=example&utm_campaign=lumibot_ai_examples&utm_content=citadel_regular>`_
-* `Leveraged ETFs on BotSpot <https://botspot.trade/marketplace/strategy/da83818b-f994-4163-8ef3-99ea346325b4?utm_source=documentation&utm_medium=example&utm_campaign=lumibot_ai_examples&utm_content=citadel_leveraged>`_
-
-These two approved free listings are the source of truth for the code below.
-Their published ``main.py`` revisions were copied byte-for-byte into this
-repository on September 20, 2026.
-
 This strategy is inspired by the pod-style structure associated with Ken
 Griffin's Citadel and other multi-manager platforms. The idea is simple: do not
 ask one generalist to understand every market at once. Give each specialist a
@@ -45,13 +35,6 @@ How the team works
 * ``risk_manager`` challenges crowding, drawdown, macro, and reversal risk.
 * ``portfolio_manager`` builds a diversified three-or-more-sector allocation and is the only agent allowed to place broker orders.
 
-Backtest snapshot
------------------
-
-.. image:: ../docs/assets/ai-trading-team-backtests/citadel-sector-pods-backtest-top.png
-   :alt: Top of the Citadel sector pods AI trading team backtest tear sheet
-   :width: 100%
-
 Run it with a broker
 --------------------
 
@@ -60,7 +43,8 @@ mode unless you set ``ALPACA_IS_PAPER=false``.
 
 .. code-block:: bash
 
-   export GEMINI_API_KEY='your-key-here'
+   export OPENAI_API_KEY='your-key-here'
+   export AI_TRADING_TEAM_MODEL='openai/gpt-6-luna'
    export ALPACA_API_KEY='your-alpaca-key'
    export ALPACA_API_SECRET='your-alpaca-secret'
    export ALPACA_IS_PAPER=true
@@ -73,7 +57,8 @@ Use the same strategy class and change ``IS_BACKTESTING = False`` to ``IS_BACKTE
 
 .. code-block:: bash
 
-   export GEMINI_API_KEY='your-key-here'
+   export OPENAI_API_KEY='your-key-here'
+   export AI_TRADING_TEAM_MODEL='openai/gpt-6-luna'
    python lumibot/example_strategies/ai_trading_team_citadel_sector_pods.py
 
 Example code

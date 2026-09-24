@@ -74,9 +74,12 @@ def test_default_agent_model_is_current_and_explicit_pins_are_preserved():
     manager = AgentManager(_Strategy())
     default = manager.create(name="default", _runtime=_CaptureRuntime())
     assert default.default_model == "openai/gpt-6-luna"
-    assert default.reasoning_effort == "high"
+    # Rob, 2026-09-23: the default is GPT-6 Luna on medium reasoning.
+    assert default.reasoning_effort == "medium"
     explicit_default = manager.create(name="explicit", model="openai/gpt-6-luna", _runtime=_CaptureRuntime())
-    assert explicit_default.reasoning_effort == "high"
+    assert explicit_default.reasoning_effort == "medium"
+    raised = manager.create(name="raised", reasoning_effort="high", _runtime=_CaptureRuntime())
+    assert raised.reasoning_effort == "high"
     lowered = manager.create(name="lowered", reasoning_effort="low", _runtime=_CaptureRuntime())
     assert lowered.reasoning_effort == "low"
     pinned = manager.create(name="pinned", model="pinned-model", _runtime=_CaptureRuntime())
@@ -119,6 +122,21 @@ def test_options_skill_requires_atomic_multileg_or_no_trade():
     assert "make a no-trade decision" in instructions
 
 
+def test_options_skill_requires_explicit_account_reads_and_measured_deltas():
+    """Release eval options_iron_condor_atomic_open failed when the agent ordered
+    from the injected snapshot without account tool calls, and when it declined a
+    supported condor by inventing a 30-day minimum and guessing deltas from strike
+    distance instead of measuring them."""
+    options_skill = next(skill for skill in load_builtin_skills() if skill.name == "options-trading")
+    instructions = " ".join(options_skill.instructions.split())
+
+    assert "Call `account_portfolio`, `account_positions`, and `orders_open_orders`" in instructions
+    assert "the injected account snapshot does not replace these calls" in instructions
+    assert "Never judge a delta target unreachable from strike distance alone" in instructions
+    assert "Do not add your own days-to-expiration minimum" in instructions
+    assert "A short strike list is not by itself a reason to decline" in instructions
+
+
 def test_stock_skill_defines_opening_range_boundaries_and_order_truth():
     stock_skill = next(skill for skill in load_builtin_skills() if skill.name == "stock-trading")
     instructions = " ".join(stock_skill.instructions.split())
@@ -134,6 +152,70 @@ def test_stock_skill_defines_opening_range_boundaries_and_order_truth():
     assert "aggregate the exact non-overlapping intervals" in intraday
     assert "Never treat the first one-minute constituent" in intraday
     assert "as a completed five-minute bar" in intraday
+
+
+def test_stock_skill_prices_limits_from_current_price_and_loads_rule_bars_with_historical_prices():
+    """Release eval stock_orb_completed_bars: one run priced a buy limit at a
+    breakout bar's close (228.60) while the current price was 230.00, so it never
+    filled; another built the range from market_load_history_table rows instead
+    of the completed rule-interval bars from market_historical_prices."""
+    stock_skill = next(skill for skill in load_builtin_skills() if skill.name == "stock-trading")
+    instructions = " ".join(stock_skill.instructions.split())
+    intraday = " ".join(stock_skill.resources.references["intraday-setups.md"].split())
+
+    assert "Price a limit order from the current `market_last_price` result" in instructions
+    assert "never from a historical bar's close" in instructions
+    # The limit-price rule is for a new order. It made agents reprice an
+    # already-pending exit (release eval stock_pending_exit_no_duplicate).
+    assert "This is for a new order; it is never a reason to modify an order that is already pending" in instructions
+    assert "Do not cancel and replace a pending order, or modify it, to make it fill sooner" in instructions
+    assert "Load the rule-interval bars with `market_historical_prices`" in intraday
+    assert "pass `table_name` to query them with `duckdb_query`" in intraday
+
+
+def test_stock_skill_reads_price_history_through_market_historical_prices():
+    """stock_orb_completed_bars (GitHub run 35931107571): an agent built the
+    range from market_load_history_table and ordered without the
+    market_historical_prices read the stock workflow expects."""
+    stock_skill = next(skill for skill in load_builtin_skills() if skill.name == "stock-trading")
+    instructions = " ".join(stock_skill.instructions.split())
+
+    assert "Read that history with `market_historical_prices`, also for a single symbol" in instructions
+    assert "`market_load_history_table` does not replace it before a stock order" in instructions
+
+
+def test_orb_volume_confirmation_compares_regular_session_bars_and_keeps_an_earlier_breakout():
+    """stock_orb_completed_bars (six-final rep 2): with the 09:45 bar closing at
+    230.00 above the 228.50 range high on 2,400 shares against 1,000-1,100 in the
+    range, the agent declined, measuring volume against pre-market bars or
+    treating the 09:45 breakout as stale at 10:35."""
+    stock_skill = next(skill for skill in load_builtin_skills() if skill.name == "stock-trading")
+    intraday = " ".join(stock_skill.resources.references["intraday-setups.md"].split())
+
+    assert "compare the candidate bar with the opening-range bars" in intraday
+    assert "Pre-market and after-hours bars are not part of that comparison" in intraday
+    assert "The first completed bar after the range that meets the rule is the breakout" in intraday
+
+
+def test_options_skill_takes_spread_limits_from_the_user_not_an_invented_threshold():
+    """options_iron_condor_atomic_open on GPT-6 Luna: the agent passed its own
+    max_spread_pct=0.20, flagged the cheap protective wings, and declined a
+    package every leg of which the tool marked usable_for_limit_pricing."""
+    options_skill = next(skill for skill in load_builtin_skills() if skill.name == "options-trading")
+    quality = " ".join(options_skill.resources.references["contracts-greeks-liquidity.md"].split())
+
+    assert "Pass `max_spread_pct` only when the user or active rules set a spread limit" in quality
+    assert "A cheap protective wing often has a wide percentage spread" in quality
+
+
+def test_stock_skill_leaves_a_pending_exit_in_place():
+    """stock_pending_exit_no_duplicate on GPT-6 Luna: the agent cancelled the
+    pending 40-share exit and sent a new market sell, which the skill allowed."""
+    stock_skill = next(skill for skill in load_builtin_skills() if skill.name == "stock-trading")
+    instructions = " ".join(stock_skill.instructions.split())
+
+    assert "Do not cancel and replace a pending order, or modify it, to make it fill sooner" in instructions
+    assert "Let it resolve or cancel it deliberately before replacing it" not in instructions
 
 
 def test_skill_loading_instruction_names_every_builtin_skill_exactly():
@@ -370,3 +452,40 @@ def test_rules_loader_uses_only_active_rules(tmp_path):
     assert [rule["id"] for rule in snapshot.document["rules"]] == ["a"]
     assert snapshot.file_name == "rules.json"
     assert len(snapshot.content_hash or "") == 64
+
+
+def test_evaluate_market_example_does_not_teach_an_invented_spread_limit():
+    from lumibot.components.agents import BuiltinTools
+
+    tool = BuiltinTools.options.evaluate_market().binder(object(), None)
+    description = " ".join(tool.description.split())
+    assert "max_spread_pct=0.20)" not in description
+    assert "only when the user or active rules set a spread limit" in description
+
+
+def test_indicator_values_come_from_tools_not_hand_arithmetic():
+    """GPT-6 Luna evals: crypto_instrument_identity computed a two-period SMA by
+    hand from market_historical_prices, and stock_price_before_order misstated
+    a five-day average (227.80 and 226 for closes averaging 227.00)."""
+    from lumibot.components.agents import BuiltinTools
+
+    history = BuiltinTools.market.historical_prices().binder(object(), None)
+    description = " ".join(history.description.split())
+    assert "For an indicator value such as an SMA, EMA or RSI, call get_indicator or get_indicators" in description
+
+    stock_skill = next(skill for skill in load_builtin_skills() if skill.name == "stock-trading")
+    instructions = " ".join(stock_skill.instructions.split())
+    assert "Compute averages and indicators with a tool" in instructions
+    assert "never by mental arithmetic" in instructions
+
+
+
+def test_options_skill_keeps_its_own_pending_package_instead_of_cancelling_it():
+    # Release eval options_iron_condor_atomic_open (run 36034047544, repetition 3)
+    # submitted a valid atomic condor, then cancelled its own pending package and
+    # ended with no trade. The stock skill already forbids this; options did not.
+    options_skill = next(skill for skill in load_builtin_skills() if skill.name == "options-trading")
+    text = " ".join(options_skill.instructions.split())
+
+    assert "In backtests, a short bounded `orders_wait_for_terminal` is appropriate" in text
+    assert "Do not cancel, replace, or modify your own pending package" in text

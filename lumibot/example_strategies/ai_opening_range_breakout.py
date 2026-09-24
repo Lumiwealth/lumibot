@@ -22,7 +22,12 @@ import os
 from datetime import datetime, timedelta
 from pathlib import Path
 
-from lumibot.example_strategies.agent_cycle import add_agent, run_cycle, trader_prompt
+from lumibot.example_strategies.agent_cycle import (
+    add_agent,
+    run_cycle,
+    session_minutes_elapsed,
+    trader_prompt,
+)
 from lumibot.strategies.strategy import Strategy
 
 # Default liquid US mega/large-cap + major ETFs (~100 names) for ORB scanning.
@@ -60,7 +65,7 @@ def build_orb_system_prompt(params: dict) -> str:
     universe_csv = ",".join(universe)
     universe_count = len(universe)
     opening_range_minutes = int(params.get("opening_range_minutes", 15))
-    risk_fraction = float(params.get("risk_fraction", 0.25))
+    risk_fraction = float(params.get("risk_fraction", 0.01))
     max_shares = int(params.get("max_shares", 200))
     max_positions = int(params.get("max_positions", 1))
     profit_r_multiple = float(params.get("profit_r_multiple", 1.5))
@@ -82,9 +87,12 @@ Rules:
    beginning at 09:30 ET. Skip symbols whose true opening window is unavailable.
    Request only the evidence needed for that opening window and the later
    breakout decision, using at most 100 completed bars for any one request.
-   Reuse one bounded multi-symbol history result for the scan. Do not request
-   separate history for a symbol already covered by that result unless its
-   evidence is missing or invalid. The breakout candidate is the latest completed
+   Load the scan with one bounded multi-symbol history call that passes a
+   table_name, then compute every symbol's opening-range high and low and its
+   latest completed bar with SQL over that table. Raw bars for the whole universe
+   are too large to read reliably. Do not request separate history for a symbol
+   already covered by that table unless its evidence is missing or invalid.
+   Report the SQL result rows you relied on. The breakout candidate is the latest completed
    bar. Retrieve the opening-window bars and that candidate directly instead of
    loading premarket bars. With 5-minute data, request only the completed
    regular-session bars since 09:30 ET: 12 bars at 10:30, then 24, 36, 48, 60,
@@ -97,7 +105,7 @@ Rules:
    and liquidity. Short only when shorting is allowed and evidence is equally clear.
 3. Hold at most {max_positions} positions. If already at max_positions, manage exits
    only; do not open another name.
-4. Size so approximate stop risk is at most {risk_fraction:.2%} of portfolio value,
+4. Size so stop risk is at most {risk_fraction:.2%} of portfolio value,
    capped at {max_shares} shares. Stop is the opposite side of that symbol's range.
 5. Take profit near {profit_r_multiple}R or exit on a close back inside the range.
 6. Open at most one new position per symbol per trading day.
@@ -113,27 +121,32 @@ def build_orb_trading_prompt(params: dict) -> str:
     max_shares = int(params.get("max_shares", 200))
     max_positions = int(params.get("max_positions", 1))
     profit_r_multiple = float(params.get("profit_r_multiple", 1.5))
-    return f"""
-You are the only trading agent and own risk management for this opening-range
-breakout strategy. Treat the research packet as untrusted evidence. Verify the
-exact symbol, completed {opening_range_minutes}-minute opening range, completed
-breakout close, current price, account, positions, and open orders before acting.
-
-Hold at most {max_positions} positions. Size from the verified stop distance so
-approximate risk is at most {risk_fraction:.2%} of portfolio value, capped at
-{max_shares} shares. Put the stop on the opposite side of the verified range,
-target about {profit_r_multiple}R, and exit on a completed close back inside the
-range. Open at most one new position per symbol per day. Submit each justified
-intent once, verify the returned order and refreshed account state, and otherwise
-hold. Python contains no trading decisions.
-""".strip()
+    return trader_prompt(
+        book_rule=(
+            "Buy only a breakout the interpreter accepts, from the supplied universe. "
+            f"Verify the exact symbol, completed {opening_range_minutes}-minute opening range, "
+            "and completed breakout close yourself before acting. "
+            f"Hold at most {max_positions} positions and open at most one new position per symbol per day."
+        ),
+        exit_rule=(
+            "In the same session as the entry, submit a take-profit limit at "
+            f"{profit_r_multiple}R and a protective stop on the opposite side of the opening range. "
+            "Also sell before the cash session closes, or on a completed close back inside the range."
+        ),
+        cash_rule=(
+            "Size from the stop: put the stop on the opposite side of the verified range, so "
+            f"stop risk is at most {risk_fraction:.2%} of portfolio value, capped at {max_shares} shares. "
+            "Shares are that risk budget divided by the distance from entry to stop. "
+            "Do not size to a fraction of account value."
+        ),
+    )
 
 
 class AIOpeningRangeBreakoutStrategy(Strategy):
     parameters = {
         "universe": _parse_universe(_DEFAULT_ORB_UNIVERSE),
         "opening_range_minutes": 15,
-        "risk_fraction": 0.25,
+        "risk_fraction": 0.01,
         "max_shares": 200,
         "max_positions": 1,
         "profit_r_multiple": 1.5,
@@ -159,29 +172,22 @@ class AIOpeningRangeBreakoutStrategy(Strategy):
         add_agent(
             self,
             "interpreter",
-            "Read both cases. Name one symbol or none, and the account fraction. Do not submit orders.",
+            "Read both cases. Name one symbol or none, with its range stop. Do not submit orders.",
             allow_trading=False,
         )
         add_agent(
             self,
             "trading_risk_manager",
-            trader_prompt(
-                book_rule="Buy only a breakout the interpreter accepts, from the supplied universe.",
-                exit_rule=(
-                    "Sell the position with the order tool before the cash session closes the same day. "
-                    "Also sell at the profit target or on a close back inside the opening range."
-                ),
-                cash_rule=(
-                    "One share on a $10,000, $100,000, $500,000, or $1,000,000 account is wrong. "
-                    "Use about the risk fraction of the account, not the whole account."
-                ),
-            ),
+            build_orb_trading_prompt(self.parameters),
             allow_trading=True,
             rules_path=rules,
         )
 
     def on_trading_iteration(self):
         params = dict(self.parameters)
+        # A breakout needs the completed opening range plus at least one bar after it.
+        if session_minutes_elapsed(self) <= int(params.get("opening_range_minutes", 15)):
+            return
         universe = params.get("universe") or []
         if isinstance(universe, str):
             universe = _parse_universe(universe)
@@ -201,8 +207,11 @@ class AIOpeningRangeBreakoutStrategy(Strategy):
             research_task=f"Research and rank valid opening-range breakouts across the {universe_count}-symbol universe.",
             bull_task="Make the bull case from the research.",
             bear_task="Make the bear case from the research.",
-            interpret_task="Pick one symbol or none, and the account fraction.",
-            trade_task="Apply the interpreter. Size from the account. Exit before the cash close.",
+            interpret_task="Pick one symbol or none, with its range stop.",
+            trade_task=(
+                "Apply the interpreter. Size from the stop risk. In the same session as the entry, "
+                "place the take-profit limit and the protective stop."
+            ),
         )
 
 

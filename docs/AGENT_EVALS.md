@@ -2,7 +2,7 @@
 
 > Real-model release gates for LumiBot's built-in trading-agent behavior.
 
-**Last Updated:** 2026-09-08
+**Last Updated:** 2026-09-23
 **Status:** Active
 **Audience:** Both
 
@@ -11,6 +11,9 @@
 ## Overview
 
 LumiBot agent evals call the real trading model and a separate real LLM judge.
+Both default to the product default, OpenAI GPT-6 Luna (`openai/gpt-6-luna`) on
+medium reasoning, and need only `OPENAI_API_KEY`. Gemini is supported only when
+a case or `--judge-model` names a Gemini model explicitly; it is never a default.
 They verify model behavior through the real Strategy, AgentManager and built-in
 tool bindings, with fixture OHLCV and broker responses underneath those APIs, while
 preventing broker writes, customer access, and unnecessary historical-data cost.
@@ -30,9 +33,11 @@ cannot pass as completed decisions.
 Each repetition receives a unique strategy identity and local replay directory;
 remote replay reads/writes are disabled at the cache transport boundary. Live
 hosted gateway and broker credentials never enter the fixture process. The CLI
-imports only the approved Gemini key, disables LumiBot dotenv discovery before
-importing Strategy, and rejects non-inference HTTP requests at the transport
-boundary. This prevents a developer's default broker from starting during an
+imports only the approved inference keys (`OPENAI_API_KEY`, plus a Gemini key
+only when one is set), disables LumiBot dotenv discovery before importing
+Strategy, and rejects non-inference HTTP requests at the transport boundary. The
+allowed requests are POSTs to the OpenAI Responses and Chat Completions
+endpoints and to Gemini's generate and count endpoints. This prevents a developer's default broker from starting during an
 import. No customer account or external broker writes are needed.
 
 ---
@@ -58,6 +63,9 @@ import. No customer account or external broker writes are needed.
 | Case | Release behavior |
 | --- | --- |
 | `options_iron_condor_atomic_open` | Loads options guidance, verifies four contracts, prices the package, and submits one atomic iron condor. |
+| `options_iron_condor_limit_between_bid_ask` | Submits one iron condor whose explicit package price sits between the bid and ask, without the prompt saying to use a limit. |
+| `options_expiration_with_data` | Opens the iron condor on the listed expiration that has quotes when a nearer listed expiration has none. The prompt does not name that fallback. |
+| `congress_public_filings_only` | Uses the House disclosure tool and trades only filings already public at the simulated clock. |
 | `options_credit_spread_close_signed_quantities` | Maps signed positions to correct closing sides and prevents duplicate or escalating closes. |
 | `options_single_leg_chain_and_quote` | Retrieves a chain, verifies the exact contract, and checks current option market evidence. |
 | `stock_price_before_order` | Retrieves current stock price evidence before any stock order. |
@@ -128,8 +136,13 @@ until its spending is reconciled. Do not start a new output directory to reset
 an approved release-attempt cap. CI and local qualification must carry the same
 attempt ledger or an explicitly reconciled remaining allocation.
 
-Budgeted native Gemini requests disable SDK-level retries; any outer retry gets
-a new reservation. The optional budget does not change ordinary agent runs or
+Budgeted requests (native Gemini or the registered GPT-6 Luna) disable
+SDK-level retries; any outer retry gets a new reservation. GPT-6 Luna prices come
+from the model information registered in `lumibot/components/agents/runtime.py`,
+and a unit test keeps the eval price table equal to it. Gemini has a count-only
+endpoint for input pacing; for Luna the pacer uses a local estimate of about
+three characters per token, while spending always settles from the provider's
+reported usage. The optional budget does not change ordinary agent runs or
 provider account limits. No prompt or credential is written to the call ledger.
 Cost with unsettled calls is a conservative committed amount, not a claim of
 provider-settled billing. Native model context/output limits bound reservations.

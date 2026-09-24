@@ -189,6 +189,16 @@ def test_stock_quantity_calculator_respects_notional_and_cash_caps():
     assert cash_limited["notional"] == 4_830
 
 
+def test_submit_order_description_explains_when_a_limit_order_can_fill():
+    strategy = _OptionsStrategy()
+    tool = BuiltinTools.orders.submit().binder(strategy, AgentManager(strategy))
+    description = " ".join(tool.description.split())
+
+    assert "A limit exactly at the last price fills only if the next price reaches it" in description
+    assert "At the session open the last price can still be the prior close" in description
+    assert "use order_type='market' or a buy limit slightly above" in description
+
+
 def test_stock_quantity_calculator_handles_zero_cash_and_rejects_invalid_inputs():
     strategy = _OptionsStrategy()
     tool = BuiltinTools.risk.calculate_stock_quantity().binder(strategy, AgentManager(strategy))
@@ -305,6 +315,180 @@ def test_market_historical_prices_falls_back_per_symbol_when_batch_missing():
     assert "MSFT" in batch["symbols_missing"]
 
 
+def test_market_historical_prices_table_name_loads_sql_table_instead_of_raw_bars():
+    strategy = _OptionsStrategy()
+    tools = _wrapped_tools(
+        strategy,
+        [BuiltinTools.market.historical_prices(), BuiltinTools.duckdb.query()],
+    )
+
+    batch = tools["market_historical_prices"](
+        symbols_json='["SPY","QQQ","AAPL","MSFT"]',
+        length=3,
+        timestep="minute",
+        table_name="scan_bars",
+    )
+
+    assert "bars_by_symbol" not in batch
+    assert batch["table_name"] == "scan_bars"
+    assert batch["row_count"] == 9
+    assert batch["symbols_available"] == ["SPY", "QQQ", "AAPL"]
+    assert batch["symbols_missing"] == ["MSFT"]
+    assert batch["rows_by_symbol"] == {"SPY": 3, "QQQ": 3, "AAPL": 3}
+    assert {"symbol", "datetime", "open", "high", "low", "close", "volume"}.issubset(batch["columns"])
+    assert batch["first_datetime"] and batch["last_datetime"]
+
+    result = tools["duckdb_query"](
+        sql="SELECT symbol, MAX(close) AS high_close FROM scan_bars GROUP BY symbol ORDER BY symbol"
+    )
+    assert result["rows"] == [
+        {"symbol": "AAPL", "high_close": 302.0},
+        {"symbol": "QQQ", "high_close": 202.0},
+        {"symbol": "SPY", "high_close": 102.0},
+    ]
+
+
+class _MarketTimeBars:
+    """Bars as a LumiBot data source returns them: exchange-local timestamps."""
+
+    def __init__(self):
+        index = pd.date_range("2026-08-11 09:30", periods=20, freq="min", tz="America/New_York")
+        highs = [228.0 + (0.5 if minute == 7 else 0.0) for minute in range(15)] + [230.2] * 5
+        self.pandas_df = pd.DataFrame(
+            {
+                "open": [228.0] * 20,
+                "high": highs,
+                "low": [227.5] * 20,
+                "close": [228.0] * 15 + [230.0] * 5,
+                "volume": [200.0] * 15 + [480.0] * 5,
+            },
+            index=index,
+        )
+        self.df = self.pandas_df
+
+
+class _YahooDailyBars:
+    """Yahoo daily bars: the DatetimeIndex is named "Date", not "datetime"."""
+
+    def __init__(self):
+        index = pd.date_range("2026-01-02", periods=3, freq="B", tz="America/New_York", name="Date")
+        self.pandas_df = pd.DataFrame(
+            {"open": [680.0, 681.0, 682.0], "high": [683.0] * 3, "low": [679.0] * 3,
+             "close": [681.0, 682.0, 683.0], "volume": [1.0e6] * 3},
+            index=index,
+        )
+        self.df = self.pandas_df
+
+
+class _YahooDailyStrategy(_OptionsStrategy):
+    def get_historical_prices_for_assets(self, assets, length, timestep="day", **kwargs):
+        return {str(getattr(asset, "symbol", asset)).upper(): _YahooDailyBars() for asset in assets}
+
+
+def test_market_historical_prices_keeps_dates_from_a_date_named_index():
+    # researcher-trader-luna-v2 (Sept 23) refused every SPY trade because the
+    # daily table's datetime column was all NaT: Yahoo names its index "Date".
+    tools = _wrapped_tools(
+        _YahooDailyStrategy(),
+        [BuiltinTools.market.historical_prices(), BuiltinTools.duckdb.query()],
+    )
+    raw = tools["market_historical_prices"](symbols="SPY", length=3, timestep="day")
+    assert all(bar.get("datetime") for bar in raw["bars_by_symbol"]["SPY"])
+    table = tools["market_historical_prices"](symbols="SPY", length=3, timestep="day", table_name="spy_daily")
+    assert table["first_datetime"].startswith("2026-01-02")
+    assert table["last_datetime"].startswith("2026-01-06")
+
+
+class _UtcClockStrategy(_OptionsStrategy):
+    """Strategy clock in UTC while the data source returns New York bars.
+
+    This is the release-eval fixture shape: stock_orb_completed_bars failed when
+    a table_name load stored these bars in UTC wall-clock time, so the agent's
+    09:30-09:45 opening-range query read 05:30 ET pre-market rows instead.
+    """
+
+    def get_datetime(self):
+        return datetime(2026, 8, 11, 14, 35, tzinfo=timezone.utc)
+
+    def get_historical_prices_for_assets(self, assets, length, timestep="day", **kwargs):
+        return {str(getattr(asset, "symbol", asset)).upper(): _MarketTimeBars() for asset in assets}
+
+
+def test_market_historical_prices_table_keeps_the_bars_market_wall_clock():
+    strategy = _UtcClockStrategy()
+    tools = _wrapped_tools(
+        strategy,
+        [BuiltinTools.market.historical_prices(), BuiltinTools.duckdb.query()],
+    )
+    raw = tools["market_historical_prices"](symbols="AAPL", length=20, timestep="minute")
+    batch = tools["market_historical_prices"](symbols="AAPL", length=20, timestep="minute", table_name="orb_bars")
+
+    assert raw["bars_by_symbol"]["AAPL"][0]["datetime"].startswith("2026-08-11T09:30:00")
+    assert batch["first_datetime"] == "2026-08-11T09:30:00"
+    assert batch["last_datetime"] == "2026-08-11T09:49:00"
+    assert batch["datetime_timezone"] == "America/New_York"
+
+    opening = tools["duckdb_query"](
+        sql=(
+            "SELECT MAX(high) AS range_high, COUNT(*) AS bars FROM orb_bars "
+            "WHERE CAST(datetime AS TIME) >= '09:30' AND CAST(datetime AS TIME) < '09:45'"
+        )
+    )
+    assert opening["rows"] == [{"range_high": 228.5, "bars": 15}]
+
+
+def _orb_fixture_tools():
+    """The release-eval ORB fixture: one-minute AAPL data, clock 10:35 ET."""
+    from scripts.agent_eval_production_fixture import ProductionFixture
+    from scripts.run_agent_evals import build_fixture
+
+    production = ProductionFixture(build_fixture("orb_breakout"))
+    manager = production.manager
+    tools = {
+        definition.name: definition.binder(production.strategy, manager)
+        for definition in (BuiltinTools.market.load_history_table(), BuiltinTools.duckdb.query())
+    }
+    return production, tools
+
+
+def test_load_history_table_never_serves_one_minute_rows_for_a_five_minute_request():
+    """stock_orb_completed_bars: a 5minute request returned the raw 1-minute
+    source rows, and the agent read them as five-minute bars."""
+    production, tools = _orb_fixture_tools()
+    try:
+        tools["market_load_history_table"].function(symbol="AAPL", length=12, timestep="5minute", table_name="b5")
+        rows = tools["duckdb_query"].function(sql="SELECT datetime, volume FROM b5 ORDER BY datetime")["rows"]
+    finally:
+        production.close()
+
+    stamps = [pd.Timestamp(row["datetime"]) for row in rows]
+    assert stamps, "five-minute history must not be empty"
+    assert all((later - earlier) == pd.Timedelta(minutes=5) for earlier, later in zip(stamps, stamps[1:]))
+    new_york = [pd.Timestamp(row["datetime"]).tz_convert("America/New_York") for row in rows]
+    breakout = next(row for row, stamp in zip(rows, new_york) if stamp.strftime("%H:%M") == "09:45")
+    assert breakout["volume"] == 2400.0
+
+
+def test_load_history_table_excludes_the_bar_that_starts_at_the_current_time():
+    """At 10:35 ET the 10:35 minute bar has not finished; returning it is lookahead."""
+    production, tools = _orb_fixture_tools()
+    try:
+        tools["market_load_history_table"].function(symbol="AAPL", length=30, timestep="minute", table_name="b1")
+        last = tools["duckdb_query"].function(sql="SELECT MAX(datetime) AS last FROM b1")["rows"][0]["last"]
+    finally:
+        production.close()
+
+    assert pd.Timestamp(last) == pd.Timestamp("2026-08-11T14:34:00Z")
+
+
+def test_market_historical_prices_rejects_unsafe_table_name():
+    strategy = _OptionsStrategy()
+    tool = BuiltinTools.market.historical_prices().binder(strategy, AgentManager(strategy))
+
+    with pytest.raises(ValueError, match="Invalid DuckDB table name"):
+        tool.function(symbols="SPY", length=2, table_name="bars; DROP TABLE x")
+
+
 def test_orb_prompt_keeps_strategy_policy_without_repeating_tool_instructions():
     from lumibot.example_strategies.ai_opening_range_breakout import (
         build_orb_system_prompt,
@@ -326,7 +510,8 @@ def test_orb_prompt_keeps_strategy_policy_without_repeating_tool_instructions():
     assert "market_historical_prices" not in prompt
     assert "09:30" in prompt
     assert "at most 100 completed bars" in prompt
-    assert "Reuse one bounded multi-symbol history result" in prompt
+    assert "one bounded multi-symbol history call that passes a\n   table_name" in prompt
+    assert "with SQL over that table" in prompt
     assert "evidence is missing or invalid" in prompt
     assert "breakout candidate is the latest completed" in prompt
     assert "12 bars at 10:30, then 24, 36, 48, 60" in prompt
@@ -455,6 +640,7 @@ def test_multileg_submit_prices_from_last_trades_in_trade_only_backtests():
             BuiltinTools.account.portfolio(),
             BuiltinTools.orders.open_orders(),
             BuiltinTools.market.last_price(),
+            BuiltinTools.options.get_chain(),
             BuiltinTools.orders.submit_multileg(),
         ],
     )
@@ -462,6 +648,8 @@ def test_multileg_submit_prices_from_last_trades_in_trade_only_backtests():
     tools["account_positions"]()
     tools["orders_open_orders"]()
     tools["market_last_price"](symbol="SPY")
+    # Opening an option position requires the chain in the same run.
+    tools["options_get_chain"](symbol="SPY")
 
     result = tools["orders_submit_multileg"](legs_json=json.dumps(_iron_condor_legs()), price_style="mid")
 
@@ -520,6 +708,7 @@ def test_multileg_submit_creates_one_atomic_four_leg_order_after_normal_readines
             BuiltinTools.account.portfolio(),
             BuiltinTools.orders.open_orders(),
             BuiltinTools.market.last_price(),
+            BuiltinTools.options.get_chain(),
             BuiltinTools.orders.submit_multileg(),
         ],
     )
@@ -527,6 +716,8 @@ def test_multileg_submit_creates_one_atomic_four_leg_order_after_normal_readines
     tools["account_positions"]()
     tools["orders_open_orders"]()
     tools["market_last_price"](symbol="SPY")
+    # Opening an option position requires the chain in the same run.
+    tools["options_get_chain"](symbol="SPY")
 
     result = tools["orders_submit_multileg"](
         legs_json=json.dumps(_iron_condor_legs()),
@@ -665,3 +856,166 @@ def test_iron_condor_prompt_includes_parameterized_wing_and_delta():
     assert "0.03 of the target" in prompt
     assert "orders_get_status" not in prompt
     assert "options_find_expiration" not in prompt
+
+
+def _opening_option_tools(strategy):
+    return _wrapped_tools(
+        strategy,
+        [
+            BuiltinTools.account.positions(),
+            BuiltinTools.account.portfolio(),
+            BuiltinTools.orders.open_orders(),
+            BuiltinTools.market.last_price(),
+            BuiltinTools.options.get_chain(),
+            BuiltinTools.orders.submit(),
+            BuiltinTools.orders.submit_multileg(),
+        ],
+    )
+
+
+def _checked_account(tools):
+    tools["account_portfolio"]()
+    tools["account_positions"]()
+    tools["orders_open_orders"]()
+    tools["market_last_price"](symbol="SPY")
+
+
+def test_opening_single_option_order_requires_the_chain_in_the_same_run():
+    """Release eval options_single_leg_chain_and_quote: an agent opened a call
+    from options_find_expiration and options_find_strike_for_delta without ever
+    reading the chain. Opening an option now requires options_get_chain."""
+    strategy = _OptionsStrategy()
+    tools = _opening_option_tools(strategy)
+    _checked_account(tools)
+    order = {
+        "symbol": "SPY",
+        "quantity": 1,
+        "side": "buy_to_open",
+        "asset_type": "option",
+        "expiration": "2026-09-18",
+        "strike": 645,
+        "right": "call",
+        "order_type": "limit",
+        "limit_price": 1.5,
+    }
+
+    rejected = tools["orders_submit_order"](**order)
+    assert rejected["tool_error"] is True
+    assert "ORDER_READINESS_REQUIRED" in rejected["error"]["message"]
+    assert "options_get_chain(symbol='SPY')" in rejected["error"]["message"]
+    assert strategy.submissions == []
+
+    tools["options_get_chain"](symbol="SPY")
+    accepted = tools["orders_submit_order"](**order)
+    assert "tool_error" not in accepted
+    assert len(strategy.submissions) == 1
+
+
+def test_opening_multileg_order_requires_the_chain_in_the_same_run():
+    strategy = _OptionsStrategy()
+    tools = _opening_option_tools(strategy)
+    _checked_account(tools)
+
+    rejected = tools["orders_submit_multileg"](legs_json=json.dumps(_iron_condor_legs()), price_style="mid")
+    assert rejected["tool_error"] is True
+    assert "options_get_chain(symbol='SPY')" in rejected["error"]["message"]
+
+    tools["options_get_chain"](symbol="SPY")
+    accepted = tools["orders_submit_multileg"](legs_json=json.dumps(_iron_condor_legs()), price_style="mid")
+    assert "tool_error" not in accepted
+    assert len(strategy.submissions) == 1
+
+
+def test_closing_an_existing_option_position_does_not_require_the_chain():
+    strategy = _OptionsStrategy()
+    long_call = Asset(symbol="SPY", asset_type="option", expiration=date(2026, 9, 18), strike=645, right="call")
+    strategy.get_positions = lambda include_cash_positions=True: [SimpleNamespace(asset=long_call, quantity=1)]
+    tools = _opening_option_tools(strategy)
+    _checked_account(tools)
+
+    result = tools["orders_submit_order"](
+        symbol="SPY",
+        quantity=1,
+        side="sell_to_close",
+        asset_type="option",
+        expiration="2026-09-18",
+        strike=645,
+        right="call",
+        order_type="limit",
+        limit_price=1.5,
+    )
+
+    assert "tool_error" not in result
+    assert len(strategy.submissions) == 1
+
+
+def test_market_historical_prices_accepts_a_single_symbol_argument():
+    """rules_active_override_strategy_prompt: market_historical_prices(symbol="AAPL")
+    lost the symbol, raised, and the unrecovered tool error blocked the decision.
+    Every other market tool names the argument symbol."""
+    strategy = _OptionsStrategy()
+    tools = _wrapped_tools(strategy, [BuiltinTools.market.historical_prices()])
+
+    result = tools["market_historical_prices"](symbol="AAPL", length=3, timestep="day")
+
+    assert "tool_error" not in result
+    assert result["symbols_requested"] == ["AAPL"]
+    assert len(result["bars_by_symbol"]["AAPL"]) == 3
+
+
+class _DailyBars:
+    """Daily bars at the 16:00 close, like a source that ignores the requested interval."""
+
+    def __init__(self, closes):
+        index = pd.date_range("2025-12-29 16:00", periods=len(closes), freq="B", tz="America/New_York")
+        self.pandas_df = pd.DataFrame(
+            {"open": closes, "high": closes, "low": closes, "close": closes, "volume": [1_000] * len(closes)},
+            index=index,
+        )
+        self.df = self.pandas_df
+
+
+class _DailyOnlySourceStrategy(_OptionsStrategy):
+    def get_historical_prices_for_assets(self, assets, length, timestep="day", **kwargs):
+        return {str(getattr(asset, "symbol", asset)).upper(): _DailyBars([500.0 + i for i in range(length)]) for asset in assets}
+
+    def get_historical_prices(self, asset, length, timestep="day", **kwargs):
+        return _DailyBars([500.0 + i for i in range(length)])
+
+
+@pytest.mark.parametrize("batch", [True, False])
+@pytest.mark.parametrize("timestep", ["minute", "5minute", "hour"])
+def test_market_historical_prices_never_labels_daily_bars_as_intraday(batch, timestep):
+    strategy = _DailyOnlySourceStrategy()
+    if not batch:
+        strategy.get_historical_prices_for_assets = None
+    tools = _wrapped_tools(strategy, [BuiltinTools.market.historical_prices()])
+
+    result = tools["market_historical_prices"](symbols=["SPY"], length=5, timestep=timestep)
+
+    assert result["bars_by_symbol"]["SPY"] == []
+    assert result["symbols_available"] == []
+    assert result["symbols_missing"] == ["SPY"]
+    assert result["symbols_interval_mismatch"] == ["SPY"]
+    assert "daily" in result["interval_note"]
+
+
+def test_market_historical_prices_table_refuses_daily_bars_for_minute_request():
+    strategy = _DailyOnlySourceStrategy()
+    tools = _wrapped_tools(strategy, [BuiltinTools.market.historical_prices()])
+
+    result = tools["market_historical_prices"](symbols=["SPY"], length=5, timestep="minute", table_name="spy_min")
+
+    assert result["row_count"] == 0
+    assert result["symbols_missing"] == ["SPY"]
+    assert result["symbols_interval_mismatch"] == ["SPY"]
+
+
+def test_market_historical_prices_keeps_daily_bars_for_day_request():
+    strategy = _DailyOnlySourceStrategy()
+    tools = _wrapped_tools(strategy, [BuiltinTools.market.historical_prices()])
+
+    result = tools["market_historical_prices"](symbols=["SPY"], length=5, timestep="day")
+
+    assert len(result["bars_by_symbol"]["SPY"]) == 5
+    assert result["symbols_interval_mismatch"] == []

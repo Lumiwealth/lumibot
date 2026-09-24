@@ -63,38 +63,79 @@ def test_docs_community_icons_are_local_static_assets():
         assert (REPO_ROOT / "docs" / "assets" / "community" / f"{name}.svg").is_file()
 
 
-def test_ai_gallery_uses_verified_public_listings():
-    pages = [
-        "agents_examples.rst",
-        "agents_example_citadel_sector_pods.rst",
-        "agents_example_ray_dalio_idea_meritocracy.rst",
-    ]
-    text = "\n".join((REPO_ROOT / "docsrc" / page).read_text() for page in pages)
-    # September 20 read-only production audit: these are the approved regular
-    # and leveraged listings whose published main.py files own the docs source.
-    for listing_id in (
+def test_readme_recorded_run_names_the_model_that_made_it():
+    # The April 6-10 SPY run in docs/assets/ai-trading/spy-20260913 used Gemini,
+    # not the current GPT-6 Luna default named just above it.
+    readme = (REPO_ROOT / "README.md").read_text(encoding="utf-8")
+    line = next(l for l in readme.splitlines() if l.startswith("**Recorded run"))
+    assert "Gemini" in line
+
+
+def test_docs_never_link_withdrawn_marketplace_listings():
+    # September 23 audit: each of these listings was backed by a backtest whose
+    # simulated cash went negative (the pre-fill-drain engine), so its tear
+    # sheet overstated the result. They were unpublished and must not return
+    # to the docs until a corrected backtest is republished.
+    withdrawn = (
+        "932f3661-c552-4723-b247-869518a5d30f",
+        "4aa43848-54d6-48bf-b2e4-b266f9fec6ad",
+        "d56d5bf1-293b-44d8-a18c-bdda969b82f3",
+        "bdd324e9-8026-4115-b26e-30cccf6e00e8",
         "4fb6cf2f-272c-4a73-96e7-edd7383b1a33",
         "da83818b-f994-4163-8ef3-99ea346325b4",
         "b00c5f9c-beea-46fe-bdba-fc65c1315d5f",
         "362a50a1-d501-4b08-8d42-c7701a363731",
-    ):
-        assert listing_id in text
+        "0b4576c7-f78b-4477-ba3a-630758fb0168",
+        "2286f75f-5ebf-450d-8cf8-803d1cdee6db",
+    )
+    pages = [REPO_ROOT / "README.md", *sorted((REPO_ROOT / "docsrc").glob("*.rst"))]
+    for page in pages:
+        text = page.read_text(encoding="utf-8")
+        for listing_id in withdrawn:
+            assert listing_id not in text, f"{page.name} links withdrawn listing {listing_id}"
+        # The May 24 leveraged ETF tear sheet came from that same overspending engine.
+        assert "ai-trading-team-tearsheet-rob-crop-2026-05-24.png" not in text, page.name
+        # So did the May 31 per-example snapshots.
+        assert "assets/ai-trading-team-backtests/" not in text, page.name
+
+
+def test_agent_docs_name_the_parquet_audit_and_versioned_cache():
+    # Discord, 2026-09-23: people raised LUMIBOT_LOG_LEVEL and wrote a custom
+    # LiteLLM logger because these pages said the only record was a JSON file
+    # under an unversioned agent_runtime folder.
+    pages = (
+        REPO_ROOT / "docsrc" / "agents_observability.rst",
+        REPO_ROOT / "docsrc" / "agents.rst",
+        REPO_ROOT / "docsrc" / "faq.rst",
+        REPO_ROOT / "docsrc" / "agents_quickstart.rst",
+        REPO_ROOT / "docs" / "AI_TRADING_AGENTS.md",
+    )
+    for page in pages:
+        text = page.read_text(encoding="utf-8")
+        assert "_agent_detail.parquet" in text, page.name
+        assert "~/Library/Caches/lumibot/1.0/agent_runtime" in text, page.name
+        assert "LUMIBOT_LOG_LEVEL" in text, page.name
+        assert "effective_system_prompt" in text, page.name
+        assert "~/Library/Caches/lumibot/agent_runtime" not in text, page.name
 
 
 def test_ray_and_citadel_examples_match_published_botspot_sources():
-    # September 20 read-only production audit of publishedRevisionId -> main.py.
+    # These files are the source the four listings above publish as main.py.
+    # September 23: the default moved to GPT-6 Luna, so the listings must be
+    # republished from exactly these bytes; the September 20 Gemini revisions
+    # are superseded.
     expected = {
         "ai_trading_team_ray_dalio_idea_meritocracy.py": (
-            "a2a02db9ad0db1b8ce8d9e339fe0f0cd8b0698b1ce36281c077291fa077e2914"
+            "cdf995d11fe147ff44e93c89003ae559b680c16f5577030e126e348d32792950"
         ),
         "ai_trading_team_ray_dalio_idea_meritocracy_leveraged.py": (
-            "7f8f2d4ef5363669926080d86504f68bdbd7ab30618fbac94dc2f0e469a304f1"
+            "40aa0c50be129442f91adf84d6a9aad3dfb5d0d7b5bbe542f6829785546bb10e"
         ),
         "ai_trading_team_citadel_sector_pods.py": (
-            "50e78b923a9548994ba593f91a792c34f2d3ed384cc405ca3d2abecf5166a758"
+            "083286662fdbe9cc41b1f82e1336f75996388feba4eb825ec252f57ba037d64f"
         ),
         "ai_trading_team_citadel_sector_pods_leveraged.py": (
-            "3e9bc4330b0d8bab021f7844fa41541bcd86a7b24b67f371c4967bcf8e36f915"
+            "401b6454166828894aa1d6ea506fdc73e15de062c7ea485746efe27dc429d10b"
         ),
     }
     root = REPO_ROOT / "lumibot" / "example_strategies"

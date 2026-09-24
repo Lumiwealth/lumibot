@@ -5,34 +5,34 @@ SEC Form 4 Insider-Filing Agent
    :alt: SEC Form 4 insider-filing AI trading team workflow
    :width: 100%
 
-This example analyzes public SEC **Form 4** filings. It does not use material
-non-public information. Records first become visible at the SEC
-``acceptance``/publication time (normalized as ``published_at``), never merely
-on their earlier transaction date.
+This example reads public SEC **Form 4** filings for a fixed watchlist. It uses
+no material non-public information. A filing becomes visible at its SEC
+acceptance time, never on the earlier transaction date.
 
-The parser preserves transaction codes, direct versus indirect ownership,
-derivative status, amendments, quantities, prices, and computed values. The
-default strategy considers only open-market transactions; grants, gifts,
-option exercises, derivatives, and amendments must not be treated as ordinary
-open-market buying or selling.
+How it works:
 
-``form4_researcher`` builds the evidence packet without trading permission.
-``trading_risk_manager`` independently verifies account state and price and is
-the only agent allowed to submit an order.
+1. ``insider_trade_researcher`` calls ``get_filings(symbol, form='4')`` for each
+   watchlist ticker. It opens recent filings with ``get_filing_document``. It
+   keeps open-market purchases (code ``P``) and discretionary open-market
+   sales (code ``S``). It ignores grants, gifts, option exercises, tax
+   withholding, 10b5-1 plan sales, and amendments.
+2. ``bull`` and ``bear`` argue for and against the tilts.
+3. ``interpreter`` assigns weights across the watchlist.
+4. ``trading_risk_manager`` starts from equal weight. It tilts toward names
+   with insider buying and trims names with discretionary selling. It keeps
+   cash near 0% to 5%. It is the only agent allowed to submit orders.
 
-The live source is the SEC Form 4 Atom feed at
-``https://www.sec.gov/cgi-bin/browse-edgar?action=getcurrent&type=4&output=atom``.
-The strategy may act only on entries whose published time is already visible
-at the backtest clock. A January 23, 2026 clock fetched 40 current entries
-and hid all 40 as future. A live feed item such as Mark W. Webb, accession
-0001193125-26-397981, is the kind of row live mode can see when it is still
-in the latest feed.
+Point-in-time safety: in a backtest, the SEC tools cap every ``as_of`` at the
+backtest clock. An agent cannot see a filing accepted after that moment, even
+if it passes a later date.
 
-This example does not ship sample trades. Pass official EDGAR filings in
-``transactions`` or a JSON file of those filings in ``transactions_path``.
-Running the module with neither argument stops instead of inventing trades.
-A backtest on this page is real only after those filings and market prices
-are supplied.
+This example does not ship sample trades. Every trade comes from real SEC
+filings the agents read at run time.
+
+Parameters:
+
+- ``watchlist``: the tickers the strategy may hold.
+- ``lookback_days``: how many days of filings the researcher reads.
 
 .. literalinclude:: ../lumibot/example_strategies/ai_sec_insider_filings.py
    :language: python

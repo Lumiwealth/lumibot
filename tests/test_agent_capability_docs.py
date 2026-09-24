@@ -127,6 +127,7 @@ def test_every_external_data_agent_tool_declares_temporal_behavior():
         "options_find_expiration",
         "options_check_spread_profit",
         "alpaca_news",
+        "house_public_disclosures",
         "http_request",
         "rss_fetch",
         "get_indicator",

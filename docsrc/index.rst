@@ -27,8 +27,8 @@ Run an AI strategy
 ******************
 
 Start with a complete SPY strategy: research the trend, review risk, and let the
-trading agent decide whether to buy, hold, or sell. **Python 3.10+ and a Gemini
-API key required.** This historical backtest uses Yahoo prices and no broker
+trading agent decide whether to buy, hold, or sell. **Python 3.10+ and an
+OpenAI API key (``OPENAI_API_KEY``) required.** This historical backtest uses Yahoo prices and no broker
 account; model calls use your provider billing.
 
 .. code-block:: bash
@@ -40,7 +40,7 @@ account; model calls use your provider billing.
 
 :doc:`Read and customize the strategy <agents_quickstart>` or
 `inspect the recorded decisions and fill <https://github.com/Lumiwealth/lumibot/blob/version/4.5.92/docs/assets/ai-trading/spy-20260913/README.md>`_.
-The example uses ``openai/gpt-6-luna`` on high reasoning. Fresh AI decisions can vary.
+The example uses ``openai/gpt-6-luna`` on medium reasoning. Fresh AI decisions can vary.
 
 .. image:: ../docs/assets/ai-trading/benefit-hero.png
    :alt: LumiBot: Python rules or AI agents, historical backtests and broker connections
@@ -65,7 +65,7 @@ Build your own trading system
 
       **Run your first AI backtest**
 
-      Start with Python, a Gemini key, and a complete SPY strategy.
+      Start with Python, an OpenAI key, and a complete SPY strategy.
 
       :doc:`Start the AI quickstart → <agents_quickstart>`
 
@@ -257,7 +257,7 @@ In this pattern, each agent has a job:
 3. **Bear Agent:** challenges the thesis, looks for risk, and argues for avoiding, delaying, or reducing the trade.
 4. **Trader / Portfolio Manager Agent:** checks cash, positions, open orders, and risk limits, then decides whether to trade.
 
-The copy-paste example below implements that exact team. It uses Gemini Flash Lite because it is fast and inexpensive for experiments.
+The copy-paste example below implements that exact team. It uses GPT-6 Luna on medium reasoning, LumiBot's default model.
 
 To run it with a broker in paper mode, set your AI and Alpaca credentials and run the file:
 
@@ -373,27 +373,19 @@ Save this as ``ai_trading_team_bull_bear_leveraged_etf.py``. If an AI key is mis
             trader.add_strategy(strategy)
             trader.run_all()
 
-Example backtest artifact from this sample strategy:
-
-.. image:: ../docs/assets/ai-trading-team-example/ai-trading-team-tearsheet-rob-crop-2026-05-24.png
-   :alt: AI trading team backtest tear sheet compared to SPY
-   :width: 100%
-
-The result is intentionally eye-catching, but the exact percentage is not the point. The point is that the full AI trading team runs inside Lumibot's normal broker and backtest loops, so the decisions, orders, and artifacts are inspectable before you connect real money. Backtests are not expected future performance.
-
-`See this AI trading team running live on BotSpot <https://botspot.trade/marketplace/strategy/4aa43848-54d6-48bf-b2e4-b266f9fec6ad>`__
+The point is that the full AI trading team runs inside Lumibot's normal broker and backtest loops, so the decisions, orders, and artifacts are inspectable before you connect real money. Backtests are not expected future performance.
 
 More AI Trading Team Examples
 *****************************
 
 These examples show different ways to organize an AI trading team. Each page explains the inspiration, the agent flow, how to run it with a broker in paper mode, and how to backtest it.
 
-1. :doc:`agents_example_citadel_sector_pods` -- inspired by the pod-style structure associated with Ken Griffin's Citadel: sector specialists pitch their best ideas, a risk manager challenges crowding and drawdown risk, and a portfolio manager rotates into the strongest sector ETF. `Track the regular version on BotSpot <https://botspot.trade/marketplace/strategy/4fb6cf2f-272c-4a73-96e7-edd7383b1a33>`__ or `the leveraged version <https://botspot.trade/marketplace/strategy/da83818b-f994-4163-8ef3-99ea346325b4>`__.
-2. :doc:`agents_example_warren_buffett_value` -- uses AI agents like a patient value-investing desk: one agent digs into business quality and annual reports, one demands valuation discipline, and the portfolio manager only buys the best long-term compounder. `Watch it live on BotSpot <https://botspot.trade/marketplace/strategy/bdd324e9-8026-4115-b26e-30cccf6e00e8>`__.
-3. :doc:`agents_example_ray_dalio_idea_meritocracy` -- turns Bridgewater-style thoughtful disagreement into a macro ETF workflow, with growth, inflation, liquidity, and disagreement agents arguing before the trader acts. `Track the regular version on BotSpot <https://botspot.trade/marketplace/strategy/b00c5f9c-beea-46fe-bdba-fc65c1315d5f>`__ or `the leveraged version <https://botspot.trade/marketplace/strategy/362a50a1-d501-4b08-8d42-c7701a363731>`__.
-4. :doc:`agents_example_bill_ackman_concentrated` -- inspired by Pershing Square-style concentrated investing: find one great business, make the activist bull case, attack it like a short seller, then let the portfolio manager take a focused position if the thesis survives. `Watch it live on BotSpot <https://botspot.trade/marketplace/strategy/d56d5bf1-293b-44d8-a18c-bdda969b82f3>`__.
-5. :doc:`agents_example_bull_bear_leveraged_etf` -- a fast, aggressive demo where bull and bear agents debate leveraged long and inverse ETFs before the trader rotates into one high-conviction ETF. `Watch it live on BotSpot <https://botspot.trade/marketplace/strategy/4aa43848-54d6-48bf-b2e4-b266f9fec6ad>`__.
-6. :doc:`agents_example_bull_bear_large_cap_stocks` -- the same debate structure applied to familiar large-cap stocks, which makes it easier to inspect each agent's reasoning before using more volatile instruments. `Watch it live on BotSpot <https://botspot.trade/marketplace/strategy/932f3661-c552-4723-b247-869518a5d30f>`__.
+1. :doc:`agents_example_citadel_sector_pods` -- inspired by the pod-style structure associated with Ken Griffin's Citadel: sector specialists pitch their best ideas, a risk manager challenges crowding and drawdown risk, and a portfolio manager rotates into the strongest sector ETF.
+2. :doc:`agents_example_warren_buffett_value` -- uses AI agents like a patient value-investing desk: one agent digs into business quality and annual reports, one demands valuation discipline, and the portfolio manager only buys the best long-term compounder.
+3. :doc:`agents_example_ray_dalio_idea_meritocracy` -- turns Bridgewater-style thoughtful disagreement into a macro ETF workflow, with growth, inflation, liquidity, and disagreement agents arguing before the trader acts.
+4. :doc:`agents_example_bill_ackman_concentrated` -- inspired by Pershing Square-style concentrated investing: find one great business, make the activist bull case, attack it like a short seller, then let the portfolio manager take a focused position if the thesis survives.
+5. :doc:`agents_example_bull_bear_leveraged_etf` -- a fast, aggressive demo where bull and bear agents debate leveraged long and inverse ETFs before the trader rebalances to one direction per index.
+6. :doc:`agents_example_bull_bear_large_cap_stocks` -- the same debate structure applied to familiar large-cap stocks, which makes it easier to inspect each agent's reasoning before using more volatile instruments.
 
 Cash Accounting
 ***************

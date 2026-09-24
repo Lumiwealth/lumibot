@@ -15,7 +15,8 @@ _FILING_URLS = (
 _BOOK = (
     "Use filings whose report date is on or before the session date. "
     "Each filing line has a ticker in parentheses and an asset code in square brackets. "
-    "Count [ST] and [AB]. Skip [OP]. "
+    "Count [ST] and [AB]. Skip [OP]. The research lines already exclude [OP], so each "
+    "research line is a counted ticker even when its code is missing. "
     "P is a buy. S, including S (partial), is a sell. "
     "A line with transaction E, or a description that says gift, spinoff, or donor-advised, is not a trade. "
     "Each amount is a dollar range. The midpoint is dollars, never a share count. "
@@ -56,13 +57,14 @@ class AICongressDisclosuresStrategy(Strategy):
                 "Count [ST] and [AB]. Skip [OP]. "
                 "P is a buy. S, including S (partial), is a sell. "
                 "Skip a line whose transaction is E, or whose description says gift, spinoff, or donor-advised. "
-                "For each ticker write one line: TICKER buy_dollars sell_dollars net_dollars. "
+                "For each ticker write one line: TICKER [CODE] buy_dollars sell_dollars net_dollars. "
                 "Add every counted buy into buy_dollars and every counted sell into sell_dollars. "
                 "Do not drop a sell because the same ticker also has a buy. "
                 "buy_dollars and sell_dollars are range midpoints in dollars. "
                 "net_dollars = buy_dollars - sell_dollars. A sale is not a buy. Do not submit orders."
             ),
             allow_trading=False,
+            allow_network=True,
         )
         add_agent(
             self,

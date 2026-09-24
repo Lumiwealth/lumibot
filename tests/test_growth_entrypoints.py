@@ -24,6 +24,47 @@ def test_quickstart_includes_one_canonical_trading_example():
     assert "ai_researcher_trader.py" in guide
 
 
+def _example_model_defaults():
+    import ast
+
+    for path in sorted((ROOT / "lumibot/example_strategies").glob("*.py")):
+        for node in ast.walk(ast.parse(path.read_text())):
+            if not isinstance(node, ast.Call):
+                continue
+            for keyword in node.keywords:
+                if keyword.arg in {"model", "default_model"} and isinstance(keyword.value, ast.Constant):
+                    yield path.name, keyword.value.value
+            func = node.func
+            if (
+                isinstance(func, ast.Attribute)
+                and func.attr == "get"
+                and len(node.args) == 2
+                and isinstance(node.args[0], ast.Constant)
+                and "MODEL" in str(node.args[0].value)
+                and isinstance(node.args[1], ast.Constant)
+            ):
+                yield path.name, node.args[1].value
+
+
+# These files exist to show a second provider running the same strategy, so
+# their provider is the point of the example. Anything else must use the default.
+PROVIDER_DEMO_MODELS = {
+    "agent_m2_liquidity_anthropic.py": "anthropic/claude-sonnet-4-6",
+    "agent_m2_liquidity_grok.py": "xai/grok-4.20-0309-reasoning",
+}
+
+
+def test_every_example_strategy_defaults_to_gpt_6_luna():
+    defaults = list(_example_model_defaults())
+    assert defaults
+    wrong = [
+        (name, model)
+        for name, model in defaults
+        if model != PROVIDER_DEMO_MODELS.get(name, "openai/gpt-6-luna")
+    ]
+    assert wrong == []
+
+
 def test_example_import_does_not_start_agents(monkeypatch):
     from lumibot.components.agents.manager import AgentManager
 
@@ -56,7 +97,7 @@ def test_two_roles_preserve_evidence_and_trading_ownership():
     ResearcherTraderStrategy.on_trading_iteration(ctx)
     assert [(a["name"], a["allow_trading"]) for a in created] == [("researcher", False), ("trader", True)]
     assert all(a["default_model"] == "openai/gpt-6-luna" for a in created)
-    assert all(a["reasoning_effort"] == "high" for a in created)
+    assert all(a["reasoning_effort"] == "medium" for a in created)
     assert [name for name, _ in calls] == ["researcher", "trader"]
     assert calls[1][1]["context"]["research_evidence"] == "researcher evidence"
     assert calls[1][1]["context"]["max_position_pct"] == 10

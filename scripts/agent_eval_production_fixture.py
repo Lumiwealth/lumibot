@@ -41,6 +41,10 @@ class _FixtureBroker(BacktestingBroker):
     """Recorded Greeks are a broker response; execution uses the real broker."""
 
     def get_greeks(self, asset, **kwargs):
+        expiration = getattr(asset, "expiration", None)
+        text = expiration.isoformat() if isinstance(expiration, date) else str(expiration or "")[:10]
+        if text in set(getattr(self.fixture, "empty_expirations", ()) or ()):
+            return None
         delta = self.fixture.greek(float(asset.strike), str(asset.right).lower())
         return {"delta": delta, "gamma": 0.012, "theta": -0.05, "vega": 0.10, "rho": 0.02, "implied_volatility": 0.2}
 
@@ -65,6 +69,20 @@ def _history(asset, fixture, quote_asset=None):
         {"open": price, "high": price + 0.05, "low": price - 0.05, "close": price, "volume": 1000, **market_quote}, index=index
     )
     if asset.symbol == "AAPL" and asset.asset_type == "stock":
+        # Earlier sessions step up one dollar a day to 229.00 on August 10, so
+        # the premise of stock_price_before_order ("current price and recent
+        # completed daily bars confirm it remains above its five-day average")
+        # holds on the evidence: each recent completed close and today's
+        # 230.00 sit above the five-day average. With every session at 230.00
+        # the price only equalled the average, and GPT-6 Luna rightly declined.
+        for day in range(4, 11):
+            session = (frame.index >= pd.Timestamp(f"2026-08-{day:02d}T04:00:00Z")) & (
+                frame.index < pd.Timestamp(f"2026-08-{day + 1:02d}T04:00:00Z")
+            )
+            close = 222.0 + (day - 3)
+            frame.loc[session, ["open", "high", "low", "close", "bid", "ask"]] = [
+                close, close + 0.05, close - 0.05, close, close - 0.05, close + 0.05,
+            ]
         closes = [
             227.1,
             227.2,
@@ -98,6 +116,53 @@ def _history(asset, fixture, quote_asset=None):
                 [200, 220, 210, 480][i // 5],
             ]
     return Data(asset, frame, quote=quote_asset, timestep="minute")
+
+
+# Recorded SEC ticker map for the built-in SEC tools. ACME, the research
+# fixtures' company, is fictional and deliberately absent: EDGAR has no filings
+# for it, and its SEC evidence comes only from the managed research fixture.
+_RECORDED_SEC_TICKERS = {"0": {"cik_str": 320193, "ticker": "AAPL", "title": "Apple Inc."}}
+
+
+def _recorded_sec_fundamentals(strategy, cache_dir):
+    """Production SEC client on a private recorded cache.
+
+    Without this the built-in SEC tools read the developer's ~/.lumibot SEC
+    cache locally and hit the network boundary on CI, so the same eval saw
+    different evidence in each place. Backtest cache mode never refetches.
+    """
+    from lumibot.fundamentals import SECFundamentals
+
+    cache_dir.mkdir(parents=True, exist_ok=True)
+    (cache_dir / "company_tickers.json").write_text(json.dumps(_RECORDED_SEC_TICKERS), encoding="utf-8")
+    return SECFundamentals(strategy, cache_dir=cache_dir, cache_mode="backtest", min_request_interval_seconds=0)
+
+
+def _rejected_order_calls(result):
+    """Positions in result.tool_calls of order calls whose tool result was a tool error.
+
+    Calls and results pair by call_id; without ids they pair in order per tool.
+    """
+    calls = list(result.tool_calls)
+    results = list(result.tool_results)
+    by_id = {event.call_id: event for event in results if getattr(event, "call_id", None)}
+    unmatched: dict[str, list] = {}
+    for event in results:
+        if not getattr(event, "call_id", None):
+            unmatched.setdefault(event.tool_name, []).append(event)
+    rejected = set()
+    for position, call in enumerate(calls):
+        if call.tool_name not in {"orders_submit_order", "orders_submit_multileg"}:
+            continue
+        outcome = by_id.get(call.call_id) if getattr(call, "call_id", None) else None
+        if outcome is None and unmatched.get(call.tool_name):
+            outcome = unmatched[call.tool_name].pop(0)
+        payload = getattr(outcome, "payload", None)
+        if isinstance(payload, dict) and isinstance(payload.get("result"), dict):
+            payload = payload["result"]
+        if isinstance(payload, dict) and payload.get("tool_error") is True:
+            rejected.add(position)
+    return rejected
 
 
 class ProductionFixture:
@@ -160,6 +225,57 @@ class ProductionFixture:
             order = self.strategy.create_order(Asset("AAPL"), 40, "sell", order_type="limit", limit_price=250.0)
             order.identifier = "bt_pending_exit"
             self.strategy.submit_order(order)
+        if fixture.empty_expirations:
+            original_get_chains = self.strategy.get_chains
+            empty = tuple(fixture.empty_expirations)
+            extra_strikes = {"CALL": [602.0, 604.0, 606.0, 608.0], "PUT": [592.0, 594.0, 596.0, 598.0]}
+
+            def get_chains(asset, *args, **kwargs):
+                chains = original_get_chains(asset, *args, **kwargs)
+                if str(getattr(asset, "symbol", "")).upper() != "SPY":
+                    return chains
+                root = chains.setdefault("Chains", {})
+                for side, strikes in extra_strikes.items():
+                    side_map = root.get(side) or {}
+                    normalized: dict[str, list] = {}
+                    for key, listed in list(side_map.items()):
+                        text = key.isoformat() if isinstance(key, date) else str(key)[:10]
+                        normalized[text] = [float(value) for value in listed]
+                    for expiration in empty:
+                        # Listed, with no bars in the data store, so quotes and last trades miss.
+                        normalized[expiration] = list(strikes)
+                    root[side] = normalized
+                return chains
+
+            self.strategy.get_chains = get_chains
+        if fixture.name == "congress_public_filings":
+            self.strategy.house_disclosure_records = [
+                {
+                    "Ticker": "AAPL",
+                    "Politician": "Nancy Pelosi",
+                    "Transaction": "P",
+                    "TransactionDate": "2026-07-28",
+                    "ReportDate": "2026-08-01",
+                    "Amount": "$1,001 - $15,000",
+                    "side": "buy",
+                    "asset_code": "ST",
+                    "doc_id": "111",
+                    "source": "house_ptr",
+                },
+                {
+                    "Ticker": "ZZZZ",
+                    "Politician": "Nancy Pelosi",
+                    "Transaction": "P",
+                    "TransactionDate": "2026-09-10",
+                    "ReportDate": "2026-09-15",
+                    "Amount": "$1,001 - $15,000",
+                    "side": "buy",
+                    "asset_code": "ST",
+                    "doc_id": "222",
+                    "source": "house_ptr",
+                },
+            ]
+        self.strategy.fundamentals = _recorded_sec_fundamentals(self.strategy, self.root / "sec")
         self.manager = self.strategy.agents
         self.manager.replay_cache.root = self.root / "replay"
         self.manager.replay_cache.remote_cache = _NoRemoteCache()
@@ -185,6 +301,7 @@ class ProductionFixture:
             _runtime=runtime,
             mcp_servers=servers,
             allow_trading=allow_trading,
+            reasoning_effort=None if str(case["model"]).startswith("gemini") else "medium",
         )
 
     def tools(self):
@@ -204,21 +321,29 @@ class ProductionFixture:
             _position_to_dict(p) for p in self.strategy.get_positions() if p.asset.symbol != "USD"
         ]
         self.fixture.submissions = []
-        for event in result.tool_calls:
+        self.fixture.rejected_submissions = []
+        rejected = _rejected_order_calls(result)
+        for position, event in enumerate(result.tool_calls):
             if event.tool_name not in {"orders_submit_order", "orders_submit_multileg"}:
                 continue
             args = event.payload or {}
             if event.tool_name == "orders_submit_multileg":
                 legs = args.get("legs_json", "[]")
-                self.fixture.submissions.append(
-                    {
-                        "tool": event.tool_name,
-                        "legs": json.loads(legs) if isinstance(legs, str) else legs,
-                        "net_limit_price": args.get("net_limit_price"),
-                    }
-                )
+                try:
+                    legs = json.loads(legs) if isinstance(legs, str) else legs
+                except json.JSONDecodeError:
+                    legs = []
+                record = {
+                    "tool": event.tool_name,
+                    "legs": legs,
+                    "net_limit_price": args.get("net_limit_price"),
+                    "price_style": args.get("price_style"),
+                }
             else:
-                self.fixture.submissions.append({"tool": event.tool_name, **args})
+                record = {"tool": event.tool_name, **args}
+            # Only orders the tool accepted reached the broker.
+            target = self.fixture.rejected_submissions if position in rejected else self.fixture.submissions
+            target.append(record)
         return [_order_to_dict(order) for order in self.strategy.get_orders()]
 
     def close(self):

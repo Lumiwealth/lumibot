@@ -9,15 +9,34 @@ from __future__ import annotations
 
 import os
 from typing import Any
+from zoneinfo import ZoneInfo
 
 from lumibot.components.agents.manager import DEFAULT_AGENT_MODEL
+
+_EASTERN = ZoneInfo("America/New_York")
 
 
 def model_name() -> str:
     return os.environ.get("AI_EXAMPLE_MODEL", DEFAULT_AGENT_MODEL)
 
 
-def add_agent(strategy: Any, name: str, prompt: str, *, allow_trading: bool, rules_path: Any = None) -> None:
+def session_minutes_elapsed(strategy: Any) -> float:
+    """Minutes since the 09:30 ET US cash open. Naive datetimes are read as Eastern."""
+    now = strategy.get_datetime()
+    now = now.replace(tzinfo=_EASTERN) if now.tzinfo is None else now.astimezone(_EASTERN)
+    session_open = now.replace(hour=9, minute=30, second=0, microsecond=0)
+    return (now - session_open).total_seconds() / 60
+
+
+def add_agent(
+    strategy: Any,
+    name: str,
+    prompt: str,
+    *,
+    allow_trading: bool,
+    rules_path: Any = None,
+    allow_network: bool = False,
+) -> None:
     kwargs = {
         "name": name,
         "model": model_name(),
@@ -26,6 +45,9 @@ def add_agent(strategy: Any, name: str, prompt: str, *, allow_trading: bool, rul
     }
     if rules_path is not None:
         kwargs["rules_path"] = rules_path
+    # Web and browser tools are opt-in. Only the agent that fetches pages gets them.
+    if allow_network:
+        kwargs["allow_network"] = True
     strategy.agents.create(**kwargs)
 
 
@@ -42,8 +64,35 @@ def trader_prompt(*, book_rule: str, exit_rule: str, cash_rule: str | None = Non
         f"{book_rule} {exit_rule} {sizing} "
         "If the interpreter weights a symbol outside this book, drop that weight and rescale the "
         "allowed weights to the same total. Do not skip the rebalance because of it. "
+        "Likewise, when a book rule drops or nets away weight, rescale the kept weights to the "
+        "interpreter's total so cash still lands near its target. A conflict between these rules "
+        "is never a reason to skip the rebalance. "
+        "Cash, Treasury, or money-market funds outside this book are never an allowed trade. "
+        "At the session open the last price can still be the prior close, and a limit exactly at "
+        "the last price fills only if the next price reaches it. When an order must fill this "
+        "session to reach the target weights, use a market order or a buy limit slightly above "
+        "(sell limit slightly below) the current price. "
+        "Plan every order from one read of the account before submitting any of them. Leave a "
+        "holding alone when it is already within 2 percentage points of its target weight; small "
+        "trades only add cost. Never buy and sell the same symbol in the same session, and do not "
+        "re-read positions after each fill to chase an exact weight. Once every holding is within "
+        "that tolerance, stop. "
+        "The total cost of new buys must stay below cash plus the proceeds of this session's sells, "
+        "with about 1% left over because the fill can be above the price you read. Never let cash "
+        "go negative. "
         "Submit each order once through the order tool. If you submit no order, that is the result. "
         "Python will not insert a share."
+    )
+
+
+def option_sizing_rule(max_risk_pct: float, max_contracts: int) -> str:
+    return (
+        f"Risk about {max_risk_pct:.2%} of portfolio value. One contract on a $10,000, "
+        "$100,000, $500,000, or $1,000,000 account is wrong. "
+        f"Never exceed {max_contracts} contracts: "
+        "size to the risk target or the contract cap, whichever is smaller. "
+        "When the cap binds, trade the cap: the cap is never a reason to skip "
+        "a package that meets every other condition. Do not use the whole account."
     )
 
 

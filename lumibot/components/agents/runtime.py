@@ -1070,6 +1070,14 @@ _OPENAI_GPT6_MODEL_INFO: dict[str, dict[str, Any]] = {
 }
 
 
+def _is_priced_openai_gpt6_model(model: Any) -> bool:
+    """True for a GPT-6 model whose pricing and limits are registered above."""
+    name = str(model or "").strip()
+    if name.startswith("openai/"):
+        name = name[len("openai/"):]
+    return name in _OPENAI_GPT6_MODEL_INFO
+
+
 def _register_openai_gpt6_models() -> None:
     import litellm
 
@@ -1097,6 +1105,7 @@ def _resolve_model_for_adk(
     prompt_cache_key: str | None = None,
     model_request_timeout_seconds: float | None = None,
     reasoning_effort: str | None = None,
+    disable_provider_retries: bool = False,
 ) -> Any:
     # Native Gemini IDs take ADK's fast path as plain strings. Any other
     # provider prefix (e.g. "openai/...", "xai/...", "anthropic/...") is
@@ -1165,6 +1174,11 @@ def _resolve_model_for_adk(
         kwargs["reasoning_effort"] = reasoning_effort
         if lower.startswith("openai/"):
             kwargs["allowed_openai_params"] = ["reasoning_effort"]
+    if disable_provider_retries:
+        # Budgeted eval calls: a retry below ADK's callbacks would bypass the
+        # per-call spending reservation, so each attempt must go through it.
+        kwargs["num_retries"] = 0
+        kwargs["max_retries"] = 0
     model_type = CerebrasLiteLlm if lower.startswith("cerebras/") else LiteLlm
     return model_type(model=model, **kwargs)
 
@@ -1279,8 +1293,10 @@ class GoogleADKRuntime:
         budget = request.model_call_budget
         if budget is None:
             return pruning, None
-        if not _is_native_gemini_model(request.model):
-            raise ValueError("Per-call eval budgeting currently requires a priced native Gemini model.")
+        if not (_is_native_gemini_model(request.model) or _is_priced_openai_gpt6_model(request.model)):
+            raise ValueError(
+                "Per-call eval budgeting requires a priced model: native Gemini or a registered GPT-6 model."
+            )
         from .managed_gateway import managed_gateway_available_for
         if managed_gateway_available_for(request.model):
             raise ValueError("Budgeted native Gemini evals cannot use a managed gateway pricing route.")
@@ -1311,6 +1327,37 @@ class GoogleADKRuntime:
             return None
 
         return before, after
+
+    @staticmethod
+    def _unknown_tool_error_callback(*, tool: Any = None, args: Any = None, tool_context: Any = None, error: Any = None):
+        """Turn a call to a tool that does not exist into a tool error the model can read.
+
+        ADK raises ValueError for an unknown function name, which ended the whole
+        run with no decision (release eval options_iron_condor_atomic_open, where
+        the model invented a tool name). Returning a structured error lets the
+        model call a real tool. Other errors keep their normal handling.
+        """
+        message = str(error or "")
+        if not isinstance(error, ValueError) or "not found." not in message or not message.startswith("Tool '"):
+            return None
+        name = str(getattr(tool, "name", "") or "")
+        available = ""
+        marker = "Available tools:"
+        if marker in message:
+            available = message.split(marker, 1)[1].split("\n", 1)[0].strip()
+        return {
+            "ok": False,
+            "tool_error": True,
+            "unknown_tool": True,
+            "tool_name": name,
+            "error": {
+                "type": "UnknownTool",
+                "message": (
+                    f"Tool {name!r} does not exist, so nothing ran. Call one of the available tools instead"
+                    + (f": {available}." if available else ".")
+                ),
+            },
+        }
 
     def _after_tool_context_pruning_callback(self, request: RuntimeRequest):
         if _model_context_limit_tokens(request.model) is None:
@@ -1449,6 +1496,7 @@ class GoogleADKRuntime:
                 prompt_cache_key=request.provider_prompt_cache_key or _provider_prompt_cache_key(request),
                 model_request_timeout_seconds=model_request_timeout_seconds,
                 reasoning_effort=request.reasoning_effort,
+                disable_provider_retries=request.model_call_budget is not None,
             ),
             instruction=self._instruction_for(request),
             tools=tools,
@@ -1457,6 +1505,7 @@ class GoogleADKRuntime:
             before_model_callback=before_model,
             after_model_callback=after_model,
             after_tool_callback=self._after_tool_context_pruning_callback(request),
+            on_tool_error_callback=GoogleADKRuntime._unknown_tool_error_callback,
         )
         runner = InMemoryRunnerType(agent=agent, app_name="lumibot-agents")
         session_id = str(uuid4())
@@ -1571,8 +1620,12 @@ class GoogleADKRuntime:
             if http_options_type is not None:
                 config_kwargs["http_options"] = http_options_type(timeout=timeout_millis)
         if request.model_call_budget is not None:
+            if _is_priced_openai_gpt6_model(request.model):
+                # LiteLLM retries are disabled on the model itself
+                # (disable_provider_retries in _resolve_model_for_adk).
+                return config_kwargs
             if not _is_native_gemini_model(request.model):
-                raise ValueError("Per-call eval budgeting requires native Gemini.")
+                raise ValueError("Per-call eval budgeting requires native Gemini or a registered GPT-6 model.")
             options = config_kwargs.get("http_options") or genai_types.HttpOptions()
             # SDK retries happen below ADK callbacks. Disable them for budgeted
             # runs; outer retries pass through the reservation callback again.

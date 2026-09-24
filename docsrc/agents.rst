@@ -119,6 +119,8 @@ The introductory macro examples on this page use Lumibot's built-in FRED tools. 
 
 When you pass custom tools via ``tools=[self.my_tool]``, they are added **alongside** the default built-in tools. You only need to list your custom tools -- built-in tools are always included.
 
+The one exception is outbound network access. ``http_request``, ``rss_fetch``, and the ``browser_*`` tools are off by default; pass ``allow_network=True`` to the agent that fetches pages. See :ref:`the network permissions section <agents-network-permissions>`.
+
 External Data Patterns
 ----------------------
 
@@ -330,10 +332,10 @@ Most alternatives either put the LLM outside the backtest loop (QuantConnect), h
 
 LumiBot ships with first-class support for Gemini, OpenAI (GPT), xAI (Grok), Anthropic (Claude), and any other provider covered by LiteLLM (~100 providers). You pick the model per agent via the ``default_model`` parameter when creating your agent.
 
-The default is ``"openai/gpt-6-luna"`` with high reasoning effort. Gemini ids (e.g. ``"gemini-3.5-flash-lite"``) take Google ADK's native fast path. Anything else is automatically routed through LiteLLM using the provider-prefixed id format:
+The default is ``"openai/gpt-6-luna"`` with medium reasoning effort. Gemini ids (e.g. ``"gemini-3.5-flash-lite"``) take Google ADK's native fast path. Anything else is automatically routed through LiteLLM using the provider-prefixed id format:
 
 - Gemini: ``"gemini-3.5-flash-lite"`` -- requires ``GEMINI_API_KEY`` for native calls; managed calls use the configured gateway capability
-- OpenAI: ``"openai/gpt-6-luna"`` (default, high reasoning), ``"openai/gpt-5.4-mini"``, ``"openai/gpt-5.4"``, ``"openai/gpt-5.4-pro"``, ``"openai/gpt-5.4-nano"`` -- requires ``OPENAI_API_KEY``
+- OpenAI: ``"openai/gpt-6-luna"`` (default, medium reasoning), ``"openai/gpt-5.4-mini"``, ``"openai/gpt-5.4"``, ``"openai/gpt-5.4-pro"``, ``"openai/gpt-5.4-nano"`` -- requires ``OPENAI_API_KEY``
 - xAI Grok: ``"xai/grok-4.20-0309-reasoning"`` (Grok 4.2, reasoning on, 2M ctx), ``"xai/grok-4-1-fast-reasoning-latest"`` (cheap/fast), or ``"xai/grok-4-latest"`` (older) -- requires ``XAI_API_KEY`` or ``GROK_API_KEY``
 - Anthropic Claude: ``"anthropic/claude-opus-4-7"``, ``"anthropic/claude-sonnet-4-6"`` -- requires ``ANTHROPIC_API_KEY``
 
@@ -369,7 +371,7 @@ LumiBot supports Alpaca, Interactive Brokers, Tradier, Schwab, Tradovate, Topste
 
 **Do I need to list built-in tools?**
 
-No. All built-in tools (positions, portfolio, prices, orders, DuckDB, docs) are always included automatically. When you pass custom tools via ``tools=[self.my_tool]``, they are added alongside the built-in tools. You only need to list your custom ``@agent_tool`` functions.
+No. All built-in tools (positions, portfolio, prices, orders, DuckDB, docs) are always included automatically. When you pass custom tools via ``tools=[self.my_tool]``, they are added alongside the built-in tools. You only need to list your custom ``@agent_tool`` functions. Outbound web and browser tools are the exception: they need ``allow_network=True``.
 
 **Can I use multiple custom tools?**
 
@@ -429,7 +431,7 @@ In backtesting mode, LumiBot caches every agent run keyed by a SHA-256 hash of t
 
 **How do I clear the cache for a fresh run?**
 
-Delete the replay cache directory. On macOS the default location is ``~/Library/Caches/lumibot/agent_runtime/replay/``. You can also set the ``LUMIBOT_CACHE_FOLDER`` environment variable to control where caches are stored. After clearing, the next run will make fresh LLM and tool calls.
+Delete the replay cache directory. On macOS the default location is ``~/Library/Caches/lumibot/1.0/agent_runtime/replay/``. Set ``LUMIBOT_CACHE_FOLDER`` before importing lumibot to store caches somewhere else. After clearing, the next run will make fresh LLM and tool calls.
 
 **How long does a backtest take?**
 
@@ -445,19 +447,19 @@ Set ``datasource_class=None`` to use the data source from your ``.env`` file (vi
 
 **How do I see what the agent is doing?**
 
-Every agent run emits a compact summary log line with the agent name, model, cache status, tool call count, warning count, and the agent's summary conclusion. For deeper inspection, open the structured JSON trace file. See :doc:`agents_observability` for the full debugging workflow.
+Every agent run emits a compact summary log line with the agent name, model, cache status, tool call count, warning count, and the agent's summary conclusion. The queryable record is ``*_agent_detail.parquet``. The ``call_summary`` row includes ``effective_system_prompt``. Raising ``LUMIBOT_LOG_LEVEL`` only changes printed logs. See :doc:`agents_observability` for the full debugging workflow.
 
 **What are agent traces?**
 
-Traces are structured JSON files that record everything the agent did during a single run: the full prompt surface, every tool call with arguments, every tool result, the agent's reasoning and summary, observability warnings, cache hit/miss status, and DuckDB query metrics. They are the source of truth for debugging.
+``*_agent_detail.parquet`` is one table for the whole run: a ``call_summary`` row per AI call, plus rows for thinking, text, tool calls, and tool results. A JSON trace is also written per call. Both record the prompt (``effective_system_prompt``), every tool call and result, the summary, warnings, and cache status.
 
 **Where are trace files stored?**
 
-Trace files are stored in the LumiBot cache directory under ``agent_runtime/``. The trace path is available on the result object via ``(result.payload or {}).get("trace_path")``. Machine-readable summaries are also written to ``agent_run_summaries.jsonl``.
+A backtest writes ``*_agent_detail.parquet`` next to the tear sheet. Live and paper files are under ``~/Library/Caches/lumibot/1.0/agent_runtime/`` on macOS. Set ``LUMIBOT_CACHE_FOLDER`` before importing lumibot to move that folder. The per-call JSON path is ``(result.payload or {}).get("trace_path")``. Summaries are also written to ``agent_run_summaries.jsonl``. ``LUMIBOT_LOG_LEVEL`` does not change either location.
 
 **How do I debug a bad trade?**
 
-Open the trace JSON for the run where the bad trade occurred. Check what tools the agent called, what data it received, and what reasoning it stated. Look for observability warnings (future-dated data, no tools called, unsupported orders). Compare the agent's summary to the actual trade. See :doc:`agents_observability` for the recommended debugging workflow.
+Open ``*_agent_detail.parquet`` for that run and read ``effective_system_prompt``, the tool rows, and the summary. Look for warnings (future-dated data, no tools called, unsupported orders). Compare the summary to the trade. See :doc:`agents_observability`. Raising ``LUMIBOT_LOG_LEVEL`` will not add this record.
 
 **Why is my agent not trading?**
 
@@ -469,7 +471,7 @@ SHV is a common defensive parking asset used in the demo strategies. If the agen
 
 **How much does it cost to run?**
 
-Cost depends on the LLM provider and model, the number of bars in your backtest, and how many tool calls the agent makes per bar. A six-year daily backtest might cost a few dollars on the first cold run with a fast model like Gemini Flash. Warm reruns cost nothing because the replay cache eliminates all LLM and external API calls.
+Cost depends on the LLM provider and model, the number of bars in your backtest, and how many tool calls the agent makes per bar. The first cold run of a long backtest makes one or more model calls per bar, so check your provider's current pricing and start with a short date range. Warm reruns cost nothing because the replay cache eliminates all LLM and external API calls.
 
 **How can I reduce API costs?**
 
@@ -650,6 +652,7 @@ Use ``scripts/run_agent_prompt_cache_probe.py`` to verify provider-reported cach
 .. code-block:: bash
 
     python scripts/run_agent_prompt_cache_probe.py --model openai/gpt-6-luna
+    # Optional: compare another model
     python scripts/run_agent_prompt_cache_probe.py --model openai/gpt-5.4-mini
 
 The probe bypasses LumiBot's replay cache, sends repeated calls with the same long static prefix, and prints input tokens, cached input tokens, uncached input tokens, output tokens, and latency for each call.
@@ -719,4 +722,4 @@ To run the live proof that validates historical relevance, full-content retrieva
 
 .. code-block:: bash
 
-    python scripts/run_alpaca_news_ai_proof.py --model gemini-3.1-pro-preview
+    python scripts/run_alpaca_news_ai_proof.py --model openai/gpt-6-luna

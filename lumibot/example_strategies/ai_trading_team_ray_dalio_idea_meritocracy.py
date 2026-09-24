@@ -43,7 +43,7 @@ class AITradingTeamRayDalioIdeaMeritocracyStrategy(Strategy):
         self.sleeptime = "1D"
         self.agents.create(
             name="growth_agent",
-            model="gemini-3.1-flash-lite",
+            model="openai/gpt-6-luna",
             allow_trading=False,
             system_prompt=(
                 "Argue which ETFs win if growth improves. Inspect price/market tools, "
@@ -53,7 +53,7 @@ class AITradingTeamRayDalioIdeaMeritocracyStrategy(Strategy):
         )
         self.agents.create(
             name="inflation_agent",
-            model="gemini-3.1-flash-lite",
+            model="openai/gpt-6-luna",
             allow_trading=False,
             system_prompt=(
                 "Argue which ETFs win or lose if inflation and rates surprise. Inspect FRED CPI, "
@@ -63,7 +63,7 @@ class AITradingTeamRayDalioIdeaMeritocracyStrategy(Strategy):
         )
         self.agents.create(
             name="debt_liquidity_agent",
-            model="gemini-3.1-flash-lite",
+            model="openai/gpt-6-luna",
             allow_trading=False,
             system_prompt=(
                 "Argue from debt, liquidity, currency, and policy pressure. Inspect FRED liquidity, "
@@ -73,7 +73,7 @@ class AITradingTeamRayDalioIdeaMeritocracyStrategy(Strategy):
         )
         self.agents.create(
             name="thoughtful_disagreement",
-            model="gemini-3.1-flash-lite",
+            model="openai/gpt-6-luna",
             allow_trading=False,
             system_prompt=(
                 "Challenge all views with thoughtful disagreement. Identify the best diversified "
@@ -84,7 +84,7 @@ class AITradingTeamRayDalioIdeaMeritocracyStrategy(Strategy):
         )
         self.agents.create(
             name="trader",
-            model="gemini-3.1-flash-lite",
+            model="openai/gpt-6-luna",
             allow_trading=True,
             system_prompt=(
                 "Build a Ray Dalio-style idea-meritocracy macro ETF basket, not a one-ETF bet. "

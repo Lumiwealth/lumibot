@@ -42,6 +42,8 @@ Architecture
 
 ``disclosure_researcher`` cannot trade. ``trading_risk_manager`` is the only
 agent with trading tools and caps a new position at the configured percentage.
+The researcher is the only agent created with ``allow_network=True``, so it is
+the only one that can fetch filings with ``http_request``.
 Already processed disclosure IDs are ignored and old records are rejected by
 the configured age limit. Records stay hidden until ``ReportDate``.
 

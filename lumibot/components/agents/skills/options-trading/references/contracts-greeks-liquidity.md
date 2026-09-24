@@ -13,7 +13,11 @@ or the underlying.
 ## Quote quality
 
 Call `options_evaluate_market` for every intended leg. Treat unavailable,
-non-finite, crossed, or excessively wide quotes as insufficient evidence. A stale
+non-finite, crossed, or excessively wide quotes as insufficient evidence.
+Pass `max_spread_pct` only when the user or active rules set a spread limit;
+otherwise use the tool's own `usable_for_limit_pricing` verdict. A cheap
+protective wing often has a wide percentage spread on a few cents of width; that
+alone is not a reason to skip a package whose legs are all usable. A stale
 last trade does not replace a current actionable bid and ask unless the tool
 explicitly marks its fallback as usable and the user's rules permit it.
 

@@ -9,11 +9,12 @@ cash, and which instruments make sense. Its only mandate is to grow the
 account. Everything else (risk discipline, look-ahead safety, tool-use
 guidance, position sizing) comes from LumiBot's base system prompt.
 
-This is the demo used for honest multi-provider model comparison. The
-exact same code runs against any provider via the AGENT_MODEL env var:
+This is the demo used for honest multi-provider model comparison. It
+defaults to GPT-6 Luna on medium reasoning. The exact same code runs against
+any provider via the AGENT_MODEL env var:
 
+    AGENT_MODEL="openai/gpt-6-luna"                 # default; needs OPENAI_API_KEY
     AGENT_MODEL="gemini-3.1-pro-preview"           # needs GEMINI_API_KEY
-    AGENT_MODEL="openai/gpt-5.4"                    # needs OPENAI_API_KEY
     AGENT_MODEL="xai/grok-4.20-0309-reasoning"      # needs XAI_API_KEY or GROK_API_KEY
     AGENT_MODEL="anthropic/claude-opus-4-7"         # needs ANTHROPIC_API_KEY
 
@@ -22,13 +23,12 @@ from yfinance (already a LumiBot dependency). News comes from Alpaca.
 Macro comes from FRED.
 
 Requirements (only the key matching AGENT_MODEL is strictly required):
-    - GEMINI_API_KEY / OPENAI_API_KEY / XAI_API_KEY or GROK_API_KEY / ANTHROPIC_API_KEY
+    - OPENAI_API_KEY / GEMINI_API_KEY / XAI_API_KEY or GROK_API_KEY / ANTHROPIC_API_KEY
     - Active Alpaca broker credentials or ALPACA_NEWS_API_KEY / ALPACA_NEWS_API_SECRET for the news tool; optional
     - FRED_API_KEY for official FRED/ALFRED macro data
 
 Usage:
-    export AGENT_MODEL="xai/grok-4.20-0309-reasoning"
-    export XAI_API_KEY='your-xai-key'
+    export OPENAI_API_KEY='your-openai-key'
     export BACKTESTING_START='2026-03-01'
     export BACKTESTING_END='2026-03-31'
     python agent_discretionary.py

@@ -59,7 +59,7 @@ class AITradingTeamRayDalioIdeaMeritocracyStrategy(Strategy):
         self.sleeptime = "1D"
         self.agents.create(
             name="growth_agent",
-            model="gemini-3.1-flash-lite",
+            model="openai/gpt-6-luna",
             allow_trading=False,
             system_prompt=(
                 "Argue which leveraged ETFs win if growth improves. First call get_fred_snapshot "
@@ -70,7 +70,7 @@ class AITradingTeamRayDalioIdeaMeritocracyStrategy(Strategy):
         )
         self.agents.create(
             name="inflation_agent",
-            model="gemini-3.1-flash-lite",
+            model="openai/gpt-6-luna",
             allow_trading=False,
             system_prompt=(
                 "Argue which leveraged ETFs win or lose if inflation and rates surprise. First call "
@@ -81,7 +81,7 @@ class AITradingTeamRayDalioIdeaMeritocracyStrategy(Strategy):
         )
         self.agents.create(
             name="debt_liquidity_agent",
-            model="gemini-3.1-flash-lite",
+            model="openai/gpt-6-luna",
             allow_trading=False,
             system_prompt=(
                 "Argue from debt, liquidity, currency, credit, and policy pressure. First call FRED tools "
@@ -91,7 +91,7 @@ class AITradingTeamRayDalioIdeaMeritocracyStrategy(Strategy):
         )
         self.agents.create(
             name="thoughtful_disagreement",
-            model="gemini-3.1-flash-lite",
+            model="openai/gpt-6-luna",
             allow_trading=False,
             system_prompt=(
                 "Challenge all views with thoughtful disagreement. Identify the best diversified leveraged basket after stress testing. "
@@ -101,7 +101,7 @@ class AITradingTeamRayDalioIdeaMeritocracyStrategy(Strategy):
         )
         self.agents.create(
             name="trader",
-            model="gemini-3.1-flash-lite",
+            model="openai/gpt-6-luna",
             allow_trading=True,
             system_prompt=(
                 "Build a Ray Dalio-style idea-meritocracy leveraged ETF basket. This is not All Weather and not a one-ETF momentum bet. "

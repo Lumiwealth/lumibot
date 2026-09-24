@@ -4,7 +4,7 @@ import os
 from datetime import datetime, timedelta
 from pathlib import Path
 
-from lumibot.example_strategies.agent_cycle import add_agent, interpreter_prompt, run_cycle
+from lumibot.example_strategies.agent_cycle import add_agent, interpreter_prompt, option_sizing_rule, run_cycle
 from lumibot.strategies.strategy import Strategy
 
 
@@ -35,9 +35,7 @@ Strategy policy:
 - Wings must be exactly {params['wing_width']} points beyond the short strikes.
 - Require a net credit and a liquid market for every exact leg: a current quote,
   or a recent trade bar when the data source reports last-trade pricing.
-- Risk about {params['max_risk_pct']:.2%} of portfolio value. One contract on a
-  $10,000, $100,000, $500,000, or $1,000,000 account is wrong. Never exceed
-  {params['max_contracts']} contracts, and do not use the whole account.
+- {option_sizing_rule(params['max_risk_pct'], params['max_contracts'])}
 - Hold at most one {underlying} option structure. Manage existing exposure before
   considering a new entry.
 - Close when {params['profit_take_fraction']:.0%} of opening credit is captured,
@@ -73,8 +71,8 @@ class AIIronCondorStrategy(Strategy):
         "profit_take_fraction": 0.50,
         "loss_multiple": 2.0,
         "time_stop_dte": 21,
-        "max_risk_pct": 0.15,
-        "max_contracts": 40,
+        "max_risk_pct": 0.02,
+        "max_contracts": 10,
     }
 
     def initialize(self):

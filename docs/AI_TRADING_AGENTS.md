@@ -54,7 +54,7 @@ export BACKTESTING_DATA_SOURCE=yahoo
 python -m lumibot.example_strategies.ai_researcher_trader
 ```
 
-The example uses `openai/gpt-6-luna` on high reasoning, Yahoo daily prices and a short historical window. Model calls incur charges. The version-branch installation is explicit because this documentation update does not publish a PyPI release. Fresh real-model proof for this new example is still pending; the real-engine test uses a scripted model substitute.
+The example uses `openai/gpt-6-luna` on medium reasoning, Yahoo daily prices and a short historical window. Model calls incur charges. The version-branch installation is explicit because this documentation update does not publish a PyPI release. Fresh real-model proof for this new example is still pending; the real-engine test uses a scripted model substitute.
 
 For an installation check without credentials or paid calls, run `BACKTESTING_DATA_SOURCE=none python -m lumibot.example_strategies.first_backtest`. Its prices are synthetic and its simulated fill tests mechanics, not returns.
 
@@ -261,7 +261,7 @@ Most alternatives either put the LLM outside the backtest loop (QuantConnect), h
 
 The architecture supports Gemini, OpenAI, Anthropic, and other providers through
 the underlying model router. The AI-only trading examples use the default
-`openai/gpt-6-luna` on high reasoning. Existing saved strategies keep the model string already
+`openai/gpt-6-luna` on medium reasoning. Existing saved strategies keep the model string already
 stored in their code. Pass a model identifier when creating an agent.
 
 **How is agent behavior tested before release?**
@@ -363,7 +363,7 @@ In backtesting mode, LumiBot caches every agent run keyed by a SHA-256 hash of t
 
 **How do I clear the cache for a fresh run?**
 
-Delete the replay cache directory. On macOS the default location is `~/Library/Caches/lumibot/agent_runtime/replay/`. You can also set the `LUMIBOT_CACHE_FOLDER` environment variable to control where caches are stored. After clearing, the next run will make fresh LLM and tool calls.
+Delete the replay cache directory. On macOS the default location is `~/Library/Caches/lumibot/1.0/agent_runtime/replay/`. Set `LUMIBOT_CACHE_FOLDER` before importing lumibot to store caches somewhere else. After clearing, the next run will make fresh LLM and tool calls.
 
 **How long does a backtest take?**
 
@@ -379,19 +379,19 @@ Set `datasource_class=None` to use the data source from your `.env` file (via `B
 
 **How do I see what the agent is doing?**
 
-Every agent run emits a compact summary log line with the agent name, model, cache status, tool call count, warning count, and the agent's summary conclusion. For deeper inspection, open the structured JSON trace file. See `docs/AI_TRADING_AGENT_COMPONENT_GUIDE.md` for the full debugging workflow.
+Every agent run emits a compact summary log line with the agent name, model, cache status, tool call count, warning count, and the agent's summary conclusion. The file to query is `*_agent_detail.parquet`. The `call_summary` row includes `effective_system_prompt`. Raising `LUMIBOT_LOG_LEVEL` only changes printed logs. It does not store the prompt or the tool calls.
 
 **What are agent traces?**
 
-Traces are structured JSON files that record everything the agent did during a single run: the full prompt surface, every tool call with arguments, every tool result, the agent's reasoning and summary, observability warnings, cache hit/miss status, and DuckDB query metrics. They are the source of truth for debugging.
+`*_agent_detail.parquet` is one table for the whole run: a `call_summary` row per AI call, plus rows for thinking, text, tool calls, and tool results. A JSON trace is also written per call. Both record `effective_system_prompt`, every tool call and result, the summary, warnings, and cache status.
 
 **Where are trace files stored?**
 
-Trace files are stored in the LumiBot cache directory under `agent_runtime/`. The trace path is available on the result object via `(result.payload or {}).get("trace_path")`. Machine-readable summaries are also written to `agent_run_summaries.jsonl`.
+A backtest writes `*_agent_detail.parquet` next to the tear sheet. Live and paper files are under `~/Library/Caches/lumibot/1.0/agent_runtime/` on macOS. Set `LUMIBOT_CACHE_FOLDER` before importing lumibot to move that folder. The per-call JSON path is `(result.payload or {}).get("trace_path")`. Summaries are also written to `agent_run_summaries.jsonl`.
 
 **How do I debug a bad trade?**
 
-Open the trace JSON for the run where the bad trade occurred. Check what tools the agent called, what data it received, and what reasoning it stated. Look for observability warnings (future-dated data, no tools called, unsupported orders). Compare the agent's summary to the actual trade.
+Open `*_agent_detail.parquet` for that run. Read `effective_system_prompt`, the tool rows, and the summary. Look for warnings (future-dated data, no tools called, unsupported orders). Compare the summary to the trade. A live run with hundreds of tool calls and a short backtest with a dozen are compared in that file, not by adding a LiteLLM logger. `LUMIBOT_LOG_LEVEL` will not add the missing rows.
 
 **Why is my agent not trading?**
 

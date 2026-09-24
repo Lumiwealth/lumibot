@@ -4,7 +4,7 @@ import os
 from datetime import datetime, timedelta
 from pathlib import Path
 
-from lumibot.example_strategies.agent_cycle import add_agent, interpreter_prompt, run_cycle
+from lumibot.example_strategies.agent_cycle import add_agent, interpreter_prompt, option_sizing_rule, run_cycle
 from lumibot.strategies.strategy import Strategy
 
 
@@ -34,9 +34,7 @@ Strategy policy:
   within {params['delta_band']} of the target.
 - Use a listed long wing exactly {params['wing_width']} points farther OTM.
 - Require a net credit between zero and the wing width.
-- Risk about {params['max_risk_pct']:.2%} of portfolio value. One contract on a
-  $10,000, $100,000, $500,000, or $1,000,000 account is wrong. Never exceed
-  {params['max_contracts']} contracts, and do not use the whole account.
+- {option_sizing_rule(params['max_risk_pct'], params['max_contracts'])}
 - Hold at most one {underlying} option structure and manage it before new entries.
 - Close when {params['profit_take_fraction']:.0%} of credit is captured, closing
   debit reaches {params['loss_multiple']} times opening credit, DTE is
@@ -63,8 +61,8 @@ class AICreditSpreadStrategy(Strategy):
         "underlying": "SPY", "preferred_side": "put", "wing_width": 5.0,
         "target_delta": 0.16, "delta_band": 0.04, "min_dte": 30,
         "max_dte": 45, "preferred_dte": 35, "profit_take_fraction": 0.50,
-        "loss_multiple": 2.0,         "time_stop_dte": 21, "max_risk_pct": 0.15,
-        "max_contracts": 40,
+        "loss_multiple": 2.0,         "time_stop_dte": 21, "max_risk_pct": 0.02,
+        "max_contracts": 10,
     }
 
     def initialize(self):

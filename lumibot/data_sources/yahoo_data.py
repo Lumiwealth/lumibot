@@ -51,13 +51,24 @@ class YahooData(DataSourceBacktesting):
         self._daily_last_price_cache = {}
         self._daily_last_price_cache_date = None
 
-    def _append_data(self, asset, data):
+    @staticmethod
+    def _store_key(asset, interval="1d"):
+        """Key the in-memory store by bar interval.
+
+        Daily bars keep the bare asset key used elsewhere; every other interval is
+        stored separately so a minute request can never be served daily bars.
+        """
+        return asset if interval == "1d" else (asset, interval)
+
+    def _append_data(self, asset, data, interval="1d"):
         """
 
         Parameters
         ----------
         asset : Asset
         data
+        interval : str
+            Yahoo interval of ``data`` ("1d", "15m", "1m").
 
         Returns
         -------
@@ -80,8 +91,9 @@ class YahooData(DataSourceBacktesting):
         data["price_change"] = data["close"].pct_change()
         data["dividend_yield"] = data["dividend"] / data["close"]
         data["return"] = data["dividend_yield"] + data["price_change"]
-        self._data_store[asset] = data
-        self._data_index_values[asset] = data.index.values
+        key = self._store_key(asset, interval)
+        self._data_store[key] = data
+        self._data_index_values[key] = data.index.values
         self._data_open_values[asset] = data["open"].to_numpy(copy=False)
         return data
 
@@ -217,9 +229,12 @@ class YahooData(DataSourceBacktesting):
         if data is None:
             return None
 
-        end_idx = self._get_filtered_end_index(data, timestep, timeshift=timeshift, asset=asset)
+        store_key = self._store_key(asset, self._parse_source_timestep(timestep, reverse=True))
+        end_idx = self._get_filtered_end_index(data, timestep, timeshift=timeshift, asset=store_key)
         start_idx = max(0, end_idx - length)
         result = data.iloc[start_idx:end_idx].copy()
+        if result.empty:
+            return None
 
         if len(result) < length:
             logger.warning(
@@ -247,8 +262,9 @@ class YahooData(DataSourceBacktesting):
             if not isinstance(symbols_to_try, list):
                 symbols_to_try = [symbols_to_try]
 
-        if asset in self._data_store:
-            return self._data_store[asset]
+        store_key = self._store_key(asset, interval)
+        if store_key in self._data_store:
+            return self._data_store[store_key]
 
         data = None
         successful_symbol = None
@@ -280,7 +296,7 @@ class YahooData(DataSourceBacktesting):
             logger.error(message)
             return None
 
-        data = self._append_data(asset, data)
+        data = self._append_data(asset, data, interval)
         if successful_symbol and successful_symbol != asset.symbol:
             logger.info("Updating asset symbol from %s to successful format: %s", asset.symbol, successful_symbol)
         return data
@@ -325,7 +341,7 @@ class YahooData(DataSourceBacktesting):
 
         # Check for futures and index symbols and properly format them
         for asset in assets:
-            if asset not in self._data_store:
+            if interval is not None and self._store_key(asset, interval) not in self._data_store:
                 if asset.asset_type == Asset.AssetType.FUTURE:
                     symbol = self._format_futures_symbol(asset.symbol)
                     missing_assets.append(symbol)
@@ -352,7 +368,7 @@ class YahooData(DataSourceBacktesting):
                         asset_symbol = self._format_index_symbol(asset_symbol)
 
                     if asset_symbol == symbol:
-                        self._append_data(asset, df)
+                        self._append_data(asset, df, interval)
                         break
 
         result = {}

@@ -94,6 +94,16 @@ class DuckDBQueryLayer:
             return "day"
         return normalized
 
+    @classmethod
+    def _timestep_key(cls, value: str) -> tuple[int, str]:
+        """(quantity, unit) so 5minute and minute are different timesteps."""
+        try:
+            quantity, _ = parse_timestep_qty_and_unit(str(value))
+            quantity = int(quantity or 1)
+        except Exception:
+            quantity = 1
+        return quantity, cls._normalize_timestep(value)
+
     @staticmethod
     def _safe_identifier(value: str) -> str:
         if not re.match(r"^[A-Za-z_][A-Za-z0-9_]*$", value):
@@ -133,9 +143,12 @@ class DuckDBQueryLayer:
         data = store[store_key]
         if data is None:
             return None
-        source_timestep = self._normalize_timestep(getattr(data, "timestep", ""))
-        requested_timestep = self._normalize_timestep(timestep)
-        if source_timestep != requested_timestep:
+        # The fast path exposes the stored source rows unchanged, so it is only
+        # valid when the stored bars are the requested size. A 5minute request
+        # against 1-minute source data must go through get_historical_prices,
+        # which aggregates; serving the raw 1-minute rows under a 5minute label
+        # made an agent read minute bars as five-minute bars.
+        if self._timestep_key(getattr(data, "timestep", "")) != self._timestep_key(timestep):
             return None
         frame = getattr(data, "df", None)
         if not isinstance(frame, pd.DataFrame):
@@ -213,11 +226,15 @@ class DuckDBQueryLayer:
         table_name = self._safe_identifier(table_name)
         current_dt = self._current_datetime()
         cutoff_literal = self._timestamp_literal(current_dt)
+        # Intraday bars are stamped with their start time, so the bar that starts
+        # at the current time has not finished yet. Exclude it, matching
+        # get_historical_prices; including it leaked an incomplete bar.
+        cutoff_operator = "<" if self._normalize_timestep(timestep) in {"minute", "hour"} else "<="
         sql = (
             f"CREATE OR REPLACE TEMP VIEW {self._quote_identifier(table_name)} AS "
             f"WITH visible AS ("
             f"SELECT * FROM {self._quote_identifier(source_table_name)} "
-            f"WHERE {self._quote_identifier(datetime_column)} <= {cutoff_literal} "
+            f"WHERE {self._quote_identifier(datetime_column)} {cutoff_operator} {cutoff_literal} "
             f"ORDER BY {self._quote_identifier(datetime_column)} DESC "
             f"LIMIT {int(length)}"
             f") "
@@ -347,6 +364,76 @@ class DuckDBQueryLayer:
         self.metrics["history_load_ms"] += float(elapsed_ms)
         info["load_ms"] = round(elapsed_ms, 3)
         self._history_cache[cache_key] = dict(info)
+        return info
+
+    def validate_table_name(self, table_name: str) -> str:
+        return self._safe_identifier(str(table_name))
+
+    def register_bars_table(
+        self,
+        *,
+        table_name: str,
+        bars_by_symbol: dict[str, list[dict[str, Any]]],
+        meta: dict[str, Any],
+        bars_timezone: str | None = None,
+    ) -> dict[str, Any]:
+        """Register many symbols' bars as one long table: symbol, datetime, OHLCV.
+
+        Datetimes are stored as naive wall-clock time in the bars' own market
+        timezone, the same clock the raw bars show, so SQL session filters (for
+        example CAST(datetime AS TIME) >= '09:30') read in market time. The
+        strategy clock is not used: it can be UTC while the data source returns
+        exchange-local bars, and converting to it shifted a 09:30 ET opening
+        range to 13:30 in the table (release eval stock_orb_completed_bars).
+        """
+        table_name = self._safe_identifier(str(table_name))
+        rows = [
+            {"symbol": symbol, **record}
+            for symbol, records in bars_by_symbol.items()
+            for record in records
+        ]
+        base_columns = ["symbol", "datetime", "open", "high", "low", "close", "volume"]
+        frame = pd.DataFrame(rows)
+        for column in base_columns:
+            if column not in frame.columns:
+                frame[column] = None
+        extra = [column for column in frame.columns if column not in base_columns]
+        frame = frame[base_columns + extra]
+        timezone_name = bars_timezone
+        current_dt = self._current_datetime()
+        if len(frame.index):
+            wall_clock = []
+            for value in frame["datetime"]:
+                stamp = pd.Timestamp(value)
+                if stamp.tzinfo is not None:
+                    if bars_timezone:
+                        stamp = stamp.tz_convert(bars_timezone)
+                    elif timezone_name is None:
+                        timezone_name = str(stamp.tzinfo)
+                    stamp = stamp.tz_localize(None)
+                wall_clock.append(stamp)
+            frame["datetime"] = pd.to_datetime(pd.Series(wall_clock, index=frame.index))
+        else:
+            frame["datetime"] = pd.to_datetime(frame["datetime"])
+        frame = frame.sort_values(["symbol", "datetime"], kind="stable").reset_index(drop=True)
+        info = self._register_frame(
+            table_name,
+            frame,
+            {
+                "kind": "multi_symbol_bars",
+                "datetime_column": "datetime",
+                "datetime_timezone": timezone_name,
+                "loaded_at": current_dt.isoformat() if hasattr(current_dt, "isoformat") else None,
+                **meta,
+            },
+        )
+        if len(frame.index):
+            info["first_datetime"] = frame["datetime"].min().isoformat()
+            info["last_datetime"] = frame["datetime"].max().isoformat()
+        else:
+            info["first_datetime"] = None
+            info["last_datetime"] = None
+        self._table_meta[table_name] = dict(info)
         return info
 
     def query(self, *, sql: str, limit: int = 200) -> dict[str, Any]:

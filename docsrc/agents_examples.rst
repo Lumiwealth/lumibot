@@ -52,25 +52,25 @@ Stocks
      - Data and cadence
      - Evidence
    * - :doc:`Large-cap bull/bear team <agents_example_bull_bear_large_cap_stocks>`
-     - Researcher, bull, and bear inform one trading agent for names such as Apple, Microsoft, and Nvidia.
-     - Yahoo daily prices. The January 2026 price proof bought 1 AAPL.
-     - Real QuantStats tear sheet from that Yahoo run.
+     - Researcher, bull, bear, and interpreter set weights; one trading agent rebalances names such as Apple, Microsoft, and Nvidia.
+     - Yahoo daily prices, one decision per session.
+     - GPT-6 Luna, January 5 to 15, 2026: split the account across four names, rebalanced daily without churn, kept cash positive, and ended down 2.16% while SPY rose about 1%.
    * - :doc:`Opening range breakout <agents_example_ai_opening_range_breakout>`
      - Inspect completed opening bars and trade a confirmed breakout.
-     - Alpaca minute bars. The January 5, 2026 proof bought and sold 1 SPY.
-     - Real QuantStats tear sheet from that Alpaca minute run.
+     - Alpaca minute bars, evaluated every two hours.
+     - GPT-6 Luna, January 5 to 6, 2026: traded DE, DIS, and SPGI at about 10% of the account and finished down 0.08%. One SPGI buy and sell landed in the same bar.
    * - :doc:`VWAP <agents_example_ai_vwap>`
      - Explore VWAP reclaim and mean reversion.
-     - Alpaca minute bars. The January 5, 2026 proof bought 1 SPY at 686.54 and sold it at 687.29.
-     - Real QuantStats tear sheet from that Alpaca minute run.
+     - Alpaca minute bars.
+     - GPT-6 Luna, January 5 to 6, 2026: no dip-and-reclaim setup appeared, so it stayed in cash. That is the intended no-trade result.
    * - :doc:`Value research team <agents_example_warren_buffett_value>`
      - Research business quality and challenge valuation.
      - Yahoo daily prices, then a real EDGAR read through get_filings and get_filing_section.
-     - January 2026 source proof logged an Apple 10-K read, then held.
+     - GPT-6 Luna, January 5 to 15, 2026: bought 708 PG with nearly the whole account and finished up 2.64%. Cash never went negative.
    * - :doc:`Concentrated stock team <agents_example_bill_ackman_concentrated>`
      - Debate one high-conviction large-cap position.
      - Yahoo daily prices, then a real SEC company atom fetch for Pershing Square.
-     - January 2026 source proof logged that fetch, then held.
+     - GPT-6 Luna, January 5 to 15, 2026: opened GOOGL and MSFT, later added UBER, and finished up 3.95%. Cash never went negative.
 
 ETF and macro teams
 -------------------
@@ -86,29 +86,15 @@ ETF and macro teams
    * - :doc:`Sector pods <agents_example_citadel_sector_pods>`
      - Sector specialists present ideas to a portfolio manager.
      - Daily ETF prices; inspect the published revision for additional data requirements.
-     - Source example and public strategy listing; not a performance endorsement.
+     - Source example. Its public listing was withdrawn because the backing backtest overspent cash.
    * - :doc:`Macro idea meritocracy <agents_example_ray_dalio_idea_meritocracy>`
      - Growth, inflation, and liquidity agents debate allocation.
      - Daily ETF prices; :doc:`FRED/ALFRED <macro_data>` is available for macro extensions.
-     - Source example and public strategy listing; inspect the published revision.
+     - Source example. Its public listing was withdrawn because the backing backtest overspent cash.
    * - :doc:`Leveraged ETF bull/bear team <agents_example_bull_bear_leveraged_etf>`
      - Debate leveraged long and inverse ETFs such as TQQQ against SQQQ and UPRO against SPXU.
-     - Yahoo daily prices. The January 2026 price proof bought 1 TQQQ.
-     - Real QuantStats tear sheet from that Yahoo run.
-
-Public strategy listings
-~~~~~~~~~~~~~~~~~~~~~~~~
-
-* `Citadel-style sector pods, regular ETFs <https://botspot.trade/marketplace/strategy/4fb6cf2f-272c-4a73-96e7-edd7383b1a33?utm_source=documentation&utm_medium=example_index&utm_campaign=lumibot_ai_examples&utm_content=citadel_regular>`__.
-* `Citadel-style sector pods, leveraged ETFs <https://botspot.trade/marketplace/strategy/da83818b-f994-4163-8ef3-99ea346325b4?utm_source=documentation&utm_medium=example_index&utm_campaign=lumibot_ai_examples&utm_content=citadel_leveraged>`__.
-* `Ray Dalio idea meritocracy, regular ETFs <https://botspot.trade/marketplace/strategy/b00c5f9c-beea-46fe-bdba-fc65c1315d5f?utm_source=documentation&utm_medium=example_index&utm_campaign=lumibot_ai_examples&utm_content=ray_regular>`__.
-* `Ray Dalio idea meritocracy, leveraged ETFs <https://botspot.trade/marketplace/strategy/362a50a1-d501-4b08-8d42-c7701a363731?utm_source=documentation&utm_medium=example_index&utm_campaign=lumibot_ai_examples&utm_content=ray_leveraged>`__.
-
-These approved free public listings were verified through a read-only
-production audit on September 20, 2026. Inspect their
-published revisions and available observations; listing availability does not
-establish deployment health or performance. BotSpot plans, model usage, data,
-and broker requirements may apply.
+     - Yahoo daily prices. The trader holds one direction per index.
+     - GPT-6 Luna, January 5 to 15, 2026: held UPRO and later TQQQ, never an ETF and its inverse together, kept cash positive, and ended up 1.47%.
 
 Options strategies
 ------------------
@@ -122,13 +108,13 @@ Options strategies
      - Prerequisites
      - Evidence
    * - :doc:`Iron condor <agents_example_ai_iron_condor>`
-     - Open one four-leg package and close it after prices can move.
-     - Alpaca option history. The January 2026 proof used one orders_submit_multileg to open and one to close.
-     - Real QuantStats tear sheet. One contract did not wreck the account.
+     - Open one four-leg package sized to the risk budget and close it after prices can move.
+     - Alpaca option history.
+     - GPT-6 Luna, January 5 to 15, 2026: opened 38 SPY February 645/650 put and 715/720 call spreads at real Alpaca prices and ended at $99,734.
    * - :doc:`Credit spread <agents_example_ai_credit_spread>`
-     - Open one vertical credit spread and close it after prices can move.
-     - Alpaca option history. The January 2026 proof used one orders_submit_multileg to open and one to close.
-     - Real QuantStats tear sheet. One contract did not wreck the account.
+     - Open one vertical credit spread sized to the risk budget and close it after prices can move.
+     - Alpaca option history.
+     - GPT-6 Luna, January 5 to 15, 2026: sold 33 SPY February 655/650 put spreads at real Alpaca prices and ended at $100,627.
    * - :doc:`SPX zero-DTE bear-call team <agents_example_ai_spx_zero_dte_bear_call_team>`
      - Open and close one SPXW bear call on the same expiration day.
      - Alpaca SPXW minute history. January 5, 2026 used the 6900 and 6910 calls.
@@ -150,9 +136,9 @@ Public disclosures and browser automation
      - ``ReportDate`` or source publication time, never the earlier transaction date. Amounts are ranges. A report can be up to 45 days late. An option row without strike and expiration is skipped.
      - Does not ship sample trades. Official House and Senate filings are public. Point-in-time tests use invented clock rows, not a member portfolio.
    * - :doc:`SEC Form 4 insider filings <agents_example_sec_insider_filings>`
-     - Read the live SEC Form 4 Atom feed and act only on rows already public at the backtest clock.
-     - https://www.sec.gov/cgi-bin/browse-edgar?action=getcurrent&type=4&output=atom
-     - Does not ship sample trades. A January 2026 clock hid all 40 current feed rows as future.
+     - Read point-in-time Form 4 filings for a watchlist, then tilt an equal-weight book toward insider buying.
+     - SEC EDGAR submissions and filing documents, capped at the backtest clock.
+     - Only filings accepted before the backtest clock are visible.
    * - :doc:`Authenticated browser research <agents_example_browser_research_showcase>`
      - Log in to an authorized JavaScript application, research, trade, and optionally publish a truthful receipt.
      - The observed page state and screenshot receipt at strategy time.

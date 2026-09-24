@@ -118,7 +118,7 @@ The replay cache is fully automatic. No configuration needed.
 What LLM providers does LumiBot support for agents?
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-LumiBot's agent runtime is built on `Google ADK <https://google.github.io/adk-docs/>`_ (Agent Development Kit). The default model is **OpenAI GPT-6 Luna** (``openai/gpt-6-luna``) on high reasoning. The architecture supports other providers (Gemini, Anthropic, xAI/Grok, and others) through Google ADK's LiteLLM bridge. You need an ``OPENAI_API_KEY`` environment variable set for the default model:
+LumiBot's agent runtime is built on `Google ADK <https://google.github.io/adk-docs/>`_ (Agent Development Kit). The default model is **OpenAI GPT-6 Luna** (``openai/gpt-6-luna``) on medium reasoning. The architecture supports other providers (Gemini, Anthropic, xAI/Grok, and others) through Google ADK's LiteLLM bridge. You need an ``OPENAI_API_KEY`` environment variable set for the default model:
 
 .. code-block:: python
 
@@ -176,7 +176,7 @@ Create it with ``allow_trading=False``:
 
     self.agents.create(
         name="researcher",
-        model="openai/gpt-5.4-mini",
+        model="openai/gpt-6-luna",
         allow_trading=False,
         system_prompt="Research the setup. Do not place, modify, or cancel orders.",
     )
@@ -284,9 +284,11 @@ How do I debug an AI agent's decisions?
 LumiBot provides a full observability system:
 
 1. **Summary log lines** -- every run emits agent name, model, cache status, tool count, and summary
-2. **Structured JSON traces** -- the full record of prompts, tool calls, results, and reasoning
+2. **``*_agent_detail.parquet``** -- the table to query. A backtest writes it next to the tear sheet. On macOS, live and paper write it under ``~/Library/Caches/lumibot/1.0/agent_runtime/``. Set ``LUMIBOT_CACHE_FOLDER`` before importing lumibot to move it. The ``call_summary`` row has ``effective_system_prompt``.
 3. **Warning system** -- flags suspicious conditions (no tools called, future-dated data, unsupported orders)
-4. Access the trace path via ``(result.payload or {}).get("trace_path")``
+4. Access one call's JSON trace via ``(result.payload or {}).get("trace_path")``
+
+Raising ``LUMIBOT_LOG_LEVEL`` only changes printed logs. It does not store the prompt or the tool calls.
 
 See :doc:`agents_observability` for the complete debugging workflow.
 
@@ -322,7 +324,7 @@ Start with a demo that only uses built-in market data if you want the fewest cre
 How much does it cost to run AI agent backtests?
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-The first run of an AI agent backtest incurs one LLM API call per bar. For example, a daily strategy over 5 years is ~1,260 Gemini API calls. With replay caching, all subsequent reruns are **free** -- zero LLM calls. This makes iterating on strategy parameters or re-running for reporting extremely cost-effective. The Gemini models used by default are among the most affordable LLM APIs available.
+The first run of an AI agent backtest incurs one LLM API call per bar. For example, a daily strategy over 5 years is about 1,260 model calls. The cost of that first run depends on the model you choose and your provider's current pricing, so start with a short date range. With replay caching, all subsequent reruns are **free** -- zero LLM calls. This makes iterating on strategy parameters or re-running for reporting extremely cost-effective.
 
 Can I use multiple AI agents in a single strategy?
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~

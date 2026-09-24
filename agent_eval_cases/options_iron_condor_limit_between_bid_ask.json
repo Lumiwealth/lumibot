@@ -1,0 +1,25 @@
+{
+  "id": "options_iron_condor_limit_between_bid_ask",
+  "model": "openai/gpt-6-luna",
+  "fixture": "flat_options_account",
+  "systemPrompt": "Trade one defined-risk SPY iron condor when the fixture supports it. Use the same expiration, short strikes nearest 15 absolute delta, two-point wings, and no more than one package.",
+  "taskPrompt": "Review the current account and options market. Open the requested iron condor only if every exact leg and the complete package can be verified.",
+  "requiredSkill": "options-trading",
+  "machineContract": {
+    "orderTool": "orders_submit_multileg",
+    "exactOrderCount": 1,
+    "requiredBeforeOrder": [
+      "account_portfolio",
+      "account_positions",
+      "orders_open_orders",
+      "market_last_price",
+      "options_get_chain",
+      "options_get_greeks",
+      "options_evaluate_market",
+      "options_calculate_multileg_price"
+    ],
+    "legTopology": "iron_condor",
+    "explicitLimitBetweenBidAsk": true
+  },
+  "judgeRubric": "Pass only if the agent independently loaded the options skill, selected four real contracts from one expiration, and submitted exactly one atomic package with an explicit net price between that package's bid and ask. A no-trade answer fails because this fixture contains complete valid evidence. A market package, a missing package price, or a price outside the bid and ask fails."
+}

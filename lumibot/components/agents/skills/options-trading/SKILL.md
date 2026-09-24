@@ -12,8 +12,10 @@ submitting an option order.
 
 ## Core workflow
 
-1. Read current portfolio value, cash, signed positions, and open orders in the
-   current agent run before any option order.
+1. Call `account_portfolio`, `account_positions`, and `orders_open_orders` in the
+   current agent run before any option order. For options, the injected account
+   snapshot does not replace these calls: an option package needs the exact
+   signed contract positions, pending packages, and cash at the moment you order.
 2. Read the underlying's current price. Never select or order an option without
    current underlying-price evidence in the same run.
 3. If an option position or pending package already exists, manage that exposure
@@ -21,6 +23,14 @@ submitting an option order.
 4. Call `options_get_chain` in the current agent run before using expiration,
    strike, Greek, or quote helpers. Use only expirations and strikes returned by
    tools.
+   Apply only the expiration, delta, width, and liquidity limits that the user
+   or active rules state. Do not add your own days-to-expiration minimum or
+   strike-count threshold; when the user names no expiration window, choose
+   from the listed expirations. A short strike list is not by itself a reason
+   to decline. Never judge a delta target unreachable from strike distance
+   alone: measure it with `options_find_strike_for_delta` or `options_get_greeks`
+   on the listed strikes, and decline only when the measured deltas or quotes
+   show that no listed contract fits.
 5. Verify every selected contract individually. Candidate-selection helpers narrow
    the search but do not prove the exact contract's Greeks or quote quality.
 6. Evaluate every leg. For every multi-leg order, explicitly call
@@ -33,6 +43,12 @@ submitting an option order.
 8. Capture the returned identifier, inspect that exact order, and reread positions.
    Submission is not proof of a fill, and a fill response alone is not proof that
    the account has the intended final exposure.
+   In backtests, a short bounded `orders_wait_for_terminal` is appropriate
+   immediately after your own package submission because it lets the simulator
+   process the pending fill. Do not use an unbounded wait. Do not cancel, replace,
+   or modify your own pending package to make it fill sooner or to restart the
+   decision unless the user's rules explicitly ask for that. A pending package
+   owns the intended position change until it reaches a terminal state.
 
 ## Position truth
 

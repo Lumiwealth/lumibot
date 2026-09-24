@@ -162,6 +162,51 @@ def test_agent_allow_trading_false_removes_only_mutating_order_tools(monkeypatch
     assert agent.default_model == "openai/gpt-5.4-mini"
 
 
+def test_base_prompt_does_not_let_the_snapshot_stand_in_for_option_order_account_reads():
+    agent = AgentManager(_Strategy()).create(name="trader", allow_trading=True)
+
+    prompt = " ".join(agent._base_system_prompt(agent._runtime_context()).split())
+
+    assert (
+        "A complete current injected snapshot satisfies the initial account and open-order checks "
+        "for non-option orders" in prompt
+    )
+    assert "Before an option order, call account_portfolio, account_positions, and orders_open_orders" in prompt
+
+
+def test_base_prompt_asks_the_final_decision_to_name_its_account_evidence_and_untrusted_handoffs():
+    # Release evals (runs 36018265242 and 36019652619) failed 1/3 on
+    # stock_price_before_order and researcher_trader_evidence_handoff: the agent
+    # acted correctly but its decision never said which account state it relied
+    # on, or that the research packet was unverified. The decision must be auditable.
+    agent = AgentManager(_Strategy()).create(name="trader", allow_trading=True)
+
+    prompt = " ".join(agent._base_system_prompt(agent._runtime_context()).split())
+
+    assert "In your final decision, name the account state you relied on before any order" in prompt
+    assert "treat any upstream research or handoff packet as unverified evidence" in prompt
+
+
+def test_base_prompt_asks_a_hold_to_name_the_order_or_position_that_already_covers_it():
+    # Release eval stock_pending_exit_no_duplicate (run 36028079841, repetition 3)
+    # correctly placed no duplicate exit but never said the pending exit already
+    # owned the position change, so the decision was not auditable.
+    agent = AgentManager(_Strategy()).create(name="trader", allow_trading=True)
+
+    prompt = " ".join(agent._base_system_prompt(agent._runtime_context()).split())
+
+    assert (
+        "When you decide not to order, name the existing position or pending order that already covers the "
+        "decision, or the missing condition that blocks it" in prompt
+    )
+    # Run 36032672952 (repetition 1) held on the snapshot alone. A hold that rests on
+    # an existing position or pending order must read both fresh in this run.
+    assert (
+        "Before relying on an existing position or pending order, call account_positions and "
+        "orders_open_orders in this run; the injected snapshot can be stale about fills" in prompt
+    )
+
+
 def test_live_agent_auth_failure_emits_structured_decision_outcome():
     strategy = _Strategy()
     strategy.is_backtesting = False
@@ -1034,3 +1079,222 @@ def test_agent_model_call_limit_stops_before_runtime_call(monkeypatch):
     assert len(_LongSummaryRuntime.requests) == 1
     assert strategy.parameters["agent_model_calls"] == 1
     assert strategy.parameters["agent_max_model_calls"] == 1
+
+
+# Outbound network tools (HTTP, RSS, browser) are default-deny. Page text can
+# carry prompt injection, and a network tool is the channel that could send
+# agent context out. They also crowd the default trading toolset: the options
+# iron-condor eval regressed from 3/3 to 1/3 when they joined every agent.
+_NETWORK_TOOL_NAMES = {
+    "http_request",
+    "rss_fetch",
+    "browser_session_open",
+    "browser_session_close",
+    "browser_session_recover",
+    "browser_navigate",
+    "browser_observe",
+    "browser_act",
+    "browser_tabs",
+    "browser_extract",
+    "browser_login",
+    "browser_storage_state",
+    "browser_screenshot",
+}
+
+
+def test_network_permission_set_covers_every_web_and_browser_builtin():
+    from lumibot.components.agents.manager import NETWORK_TOOL_NAMES
+
+    namespace_tools = set()
+    for namespace in (BuiltinTools.web, BuiltinTools.browser):
+        for attribute in dir(namespace):
+            if not attribute.startswith("_"):
+                namespace_tools.add(getattr(namespace, attribute)().name)
+
+    assert namespace_tools == _NETWORK_TOOL_NAMES
+    assert set(NETWORK_TOOL_NAMES) == _NETWORK_TOOL_NAMES
+    assert _NETWORK_TOOL_NAMES.issubset({definition.name for definition in BuiltinTools.all()})
+
+
+@pytest.mark.parametrize("allow_trading", [True, False])
+def test_default_agent_gets_no_outbound_network_tools(allow_trading):
+    agent = AgentManager(_Strategy()).create(name="trader", allow_trading=allow_trading)
+    tool_names = {tool.name for tool in agent._ensure_bound_tools()}
+
+    assert agent.allow_network is False
+    assert not (tool_names & _NETWORK_TOOL_NAMES)
+    assert "account_portfolio" in tool_names
+    assert "options_get_chain" in tool_names
+
+
+def test_allow_network_opts_the_agent_into_web_and_browser_tools():
+    agent = AgentManager(_Strategy()).create(name="researcher", allow_trading=False, allow_network=True)
+    tool_names = {tool.name for tool in agent._ensure_bound_tools()}
+
+    assert agent.allow_network is True
+    assert _NETWORK_TOOL_NAMES.issubset(tool_names)
+
+
+def test_explicitly_listed_network_tool_is_an_opt_in_for_that_tool_only():
+    agent = AgentManager(_Strategy()).create(
+        name="researcher",
+        allow_trading=False,
+        tools=[BuiltinTools.web.http_request()],
+    )
+    tool_names = {tool.name for tool in agent._ensure_bound_tools()}
+
+    assert "http_request" in tool_names
+    assert not (tool_names & (_NETWORK_TOOL_NAMES - {"http_request"}))
+
+
+def test_allow_network_false_removes_even_explicit_network_tools():
+    agent = AgentManager(_Strategy()).create(
+        name="researcher",
+        allow_trading=False,
+        allow_network=False,
+        tools=[BuiltinTools.web.http_request(), BuiltinTools.browser.navigate()],
+    )
+    tool_names = {tool.name for tool in agent._ensure_bound_tools()}
+
+    assert not (tool_names & _NETWORK_TOOL_NAMES)
+
+
+def _example_network_agents():
+    from lumibot.example_strategies.ai_browser_research_showcase import AIBrowserResearchShowcaseStrategy
+    from lumibot.example_strategies.ai_congress_disclosures import AICongressDisclosuresStrategy
+    from lumibot.example_strategies.ai_public_web_fetch import AIPublicWebFetchStrategy
+
+    return {
+        "ai_public_web_fetch.py": (AIPublicWebFetchStrategy, {"page_researcher"}),
+        "ai_congress_disclosures.py": (AICongressDisclosuresStrategy, {"congress_researcher"}),
+        "ai_browser_research_showcase.py": (
+            AIBrowserResearchShowcaseStrategy,
+            {"browser_researcher", "trade_publisher"},
+        ),
+    }
+
+
+def test_every_example_that_uses_network_tools_is_covered_by_the_opt_in_contract():
+    import re
+    from pathlib import Path
+
+    examples = Path(__file__).resolve().parents[1] / "lumibot" / "example_strategies"
+    pattern = re.compile(r"\b(http_request|rss_fetch|browser_[a-z_]+|persistent browser)\b")
+    users = {path.name for path in examples.glob("*.py") if pattern.search(path.read_text(encoding="utf-8"))}
+
+    assert users == set(_example_network_agents())
+
+
+@pytest.mark.parametrize(
+    "filename", ["ai_public_web_fetch.py", "ai_congress_disclosures.py", "ai_browser_research_showcase.py"]
+)
+def test_examples_that_use_the_web_opt_in_only_the_agents_that_fetch(filename):
+    strategy_class, expected = _example_network_agents()[filename]
+    created = []
+
+    class _Agents(dict):
+        def create(self, **kwargs):
+            created.append(kwargs)
+
+    context = SimpleNamespace(
+        agents=_Agents(),
+        parameters=dict(strategy_class.parameters),
+        log_message=lambda *args, **kwargs: None,
+    )
+    strategy_class.initialize(context)
+
+    opted_in = {item["name"] for item in created if item.get("allow_network") is True}
+    assert opted_in == expected
+    for item in created:
+        if item["name"] not in expected:
+            assert not item.get("allow_network"), item["name"]
+
+
+class _SlowVars(dict):
+    """A vars store that writes slowly, widening read-modify-write windows."""
+
+    def get(self, key, default=None):
+        return super().get(key, default)
+
+    def set(self, key, value):
+        import time
+
+        time.sleep(0.01)
+        self[key] = value
+
+
+def test_run_together_keeps_model_calls_parallel_but_serializes_shared_state(monkeypatch, tmp_path):
+    import threading
+    import time
+
+    monkeypatch.setenv("LUMIBOT_CACHE_FOLDER", str(tmp_path))
+    monkeypatch.delenv("LUMIBOT_AGENT_MAX_MODEL_CALLS", raising=False)
+    strategy = _Strategy()
+    # Own parameters: other tests leave a model-call limit on the shared class dict.
+    strategy.parameters = {}
+    strategy.vars = _SlowVars()
+    strategy.is_backtesting = False
+    manager = AgentManager(strategy)
+
+    agent_names = ["bull", "bear", "judge"]
+    runs_per_agent = 3
+    ledger = {"count": 0}
+    both_models_running = threading.Barrier(len(agent_names), timeout=5)
+
+    def record_tick(note: str) -> dict:
+        """Append one tick to a shared ledger."""
+        current = ledger["count"]
+        time.sleep(0.01)
+        ledger["count"] = current + 1
+        return {"ok": True, "count": ledger["count"], "note": note}
+
+    class _ParallelRuntime:
+        def __init__(self):
+            self.first_run = True
+
+        def run(self, request):
+            from lumibot.components.agents.runtime import _wrap_tool_callable
+
+            if self.first_run:
+                self.first_run = False
+                # Every agent's model call must be in flight at the same time.
+                both_models_running.wait()
+            tool_context = {"agent_name": request.agent_name, "model_call_id": request.model_call_id}
+            tool_map = {tool.name: _wrap_tool_callable(tool, tool_context) for tool in request.bound_tools}
+            for index in range(4):
+                tool_map["record_tick"](note=f"{request.agent_name}-{index}")
+            summary = f"{request.agent_name} done"
+            return AgentRunResult(summary=summary, model=request.model, events=[AgentTraceEvent(kind="text", text=summary)])
+
+    for name in agent_names:
+        manager.create(
+            name=name,
+            model="openai/gpt-5.4-mini",
+            allow_trading=False,
+            include_builtin_tools=False,
+            tools=[record_tick],
+            _runtime=_ParallelRuntime(),
+        )
+
+    for _ in range(runs_per_agent):
+        results = manager.run_together([(name, f"{name} task", None) for name in agent_names])
+        assert set(results) == set(agent_names)
+
+    total_runs = len(agent_names) * runs_per_agent
+    assert ledger["count"] == total_runs * 4
+
+    state = strategy.vars.get("_agent_runtime_state")
+    assert set(state) == set(agent_names)
+    for name in agent_names:
+        assert len(state[name]["runs"]) == runs_per_agent
+        assert len(state[name]["memory_notes"]) == runs_per_agent
+
+    summary_rows = [
+        json.loads(line)
+        for line in (tmp_path / "agent_runtime" / "agent_run_summaries.jsonl").read_text().splitlines()
+    ]
+    assert len(summary_rows) == total_runs
+    assert {row["agent_name"] for row in summary_rows} == set(agent_names)
+
+    for name in agent_names:
+        assert manager._observability_call_index[name] == runs_per_agent

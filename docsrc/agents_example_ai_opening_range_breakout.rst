@@ -49,10 +49,11 @@ The example is therefore qualified for mechanics and bounded model behavior, not
 for expected returns. If minute bars for the true opening window are unavailable,
 the agent must skip the symbol instead of inventing a range.
 
-A later Alpaca minute proof, January 5, 2026, bought 1 SPY at 09:30 ET and
-sold it at 09:31 ET. The tear sheet is a real QuantStats file. That run is
-why this page names Alpaca. The earlier IBKR and ThetaData notes stay as
-history from those attempts.
+The latest run used ``openai/gpt-6-luna`` on high reasoning with Alpaca minute
+bars on January 5 and 6, 2026. It traded confirmed breakouts in DIS and DE at
+about 10% of the account, plus an SPGI buy and sell inside the same bar, and
+ended at $99,915. The earlier IBKR and ThetaData notes stay as history from
+those attempts.
 
 Run a bounded historical example
 --------------------------------
@@ -74,7 +75,7 @@ package in your virtual environment so the runner and documentation match:
    export LUMIBOT_AGENT_MAX_MODEL_CALLS="60"
    python -m lumibot.example_strategies.ai_opening_range_breakout
 
-The current source selects ``openai/gpt-6-luna`` on high reasoning. Check that your provider
+The current source selects ``openai/gpt-6-luna`` on medium reasoning. Check that your provider
 account supports it. The command above spans April 6 through April 10, 2026,
 with an April 11 end boundary. Start with three symbols before expanding to the
 default universe. The passing minute proof uses Alpaca, the same source as the

@@ -6,8 +6,8 @@ Bull/Bear Leveraged ETF AI Trading Team
    :width: 100%
 
 This is a fast, dramatic AI trading team demo. It gives the agents a universe
-of leveraged long and inverse ETFs, then asks a dedicated trading-and-risk
-agent to decide whether one ETF deserves a tightly capped position. The
+of leveraged long and inverse ETFs, turns a bull and bear debate into account
+weights, and asks a dedicated trading-and-risk agent to rebalance to them. The
 purpose is to show the full loop clearly: research, upside case, risk
 challenge, risk-controlled execution.
 
@@ -16,23 +16,25 @@ choose risk-on or risk-off exposure. That makes the decision trail easy to
 audit: you can inspect why the agents liked a sector, why the bear agent
 objected, and why the final trader still bought or sold.
 
-`See this strategy running live on BotSpot <https://botspot.trade/marketplace/strategy/4aa43848-54d6-48bf-b2e4-b266f9fec6ad>`__
-
 How the team works
 ------------------
 
 * ``researcher`` ranks the leveraged ETF universe.
 * ``bull`` argues for the strongest money-making trade.
 * ``bear`` points out the biggest risk.
-* ``trader`` is the dedicated trading-and-risk agent. It verifies account, leverage, and order state, then holds or sizes one ETF to at most 10% of portfolio value.
-* The January 2026 price proof used Yahoo daily bars and bought 1 share of TQQQ. The universe pairs leveraged funds that move more than the index, such as TQQQ against SQQQ and UPRO against SPXU.
+* ``interpreter`` weighs both cases and returns target weights for the account.
+* ``trader`` is the only agent that can place orders. It holds one direction per index (never TQQQ with SQQQ, or UPRO with SPXU), sells what the weights dropped, and never buys more than its cash.
+* The universe pairs leveraged funds that move more than the index, such as TQQQ against SQQQ and UPRO against SPXU.
 
-Backtest snapshot
------------------
+Latest run
+----------
 
-.. image:: ../docs/assets/ai-trading-team-backtests/bull-bear-leveraged-etf-backtest-top.png
-   :alt: Top of the bull bear leveraged ETF AI trading team backtest tear sheet
-   :width: 100%
+A check with ``openai/gpt-6-luna`` on high reasoning, Yahoo daily prices, a
+$100,000 simulated account, and a TQQQ, SQQQ, UPRO, and SPXU universe ran from
+January 5 to 15, 2026. It bought 841 UPRO on the first session, later split the
+book between UPRO and TQQQ, and never held an ETF with its inverse. Cash stayed
+positive the whole run; the lowest balance was $189. The account ended at
+$101,466, up 1.47%. This is one short simulation, not a forecast.
 
 Run it with a broker
 --------------------

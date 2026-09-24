@@ -367,6 +367,68 @@ def _require_agent_order_readiness(symbol: str) -> None:
         )
 
 
+def _merge_single_symbol(symbols: Any, symbol: str) -> list[str] | str:
+    """Add a single `symbol` argument to a batch `symbols` argument."""
+    single = _require_single_symbol_text("symbol", symbol)
+    if symbols is None or (isinstance(symbols, str) and not symbols.strip()):
+        return [single]
+    if isinstance(symbols, (list, tuple)):
+        return [*symbols, single]
+    return f"{symbols},{single}"
+
+
+def _require_option_chain_before_opening(strategy: Any, orders: list[Any]) -> None:
+    """An agent must read the chain before it opens an option position.
+
+    Expiration and delta helpers return candidates; only options_get_chain shows
+    what is listed. Release eval options_single_leg_chain_and_quote caught an
+    agent opening a call it had found through helpers alone. Closing an
+    existing position needs no chain: the contract is already held.
+    """
+    if not bool(current_agent_tool_context().get("enforce_order_readiness")):
+        return
+    held: dict[tuple[str, str, float, str], float] = {}
+    for position in strategy.get_positions(include_cash_positions=True) or []:
+        asset = getattr(position, "asset", None)
+        asset_type = getattr(asset, "asset_type", None)
+        if str(getattr(asset_type, "value", asset_type) or "").lower() != "option":
+            continue
+        key = _option_contract_key(asset)
+        held[key] = held.get(key, 0.0) + float(getattr(position, "quantity", 0) or 0)
+    missing: list[str] = []
+    for order in orders:
+        asset = getattr(order, "asset", None)
+        asset_type = getattr(asset, "asset_type", None)
+        if str(getattr(asset_type, "value", asset_type) or "").lower() != "option":
+            continue
+        side = str(getattr(order, "side", "") or "").lower()
+        if side.endswith("_to_close"):
+            continue
+        current = held.get(_option_contract_key(asset), 0.0)
+        if (side == "sell" and current > 0) or (side == "buy" and current < 0):
+            continue
+        symbol = str(getattr(asset, "symbol", "") or "").upper()
+        if symbol and not _has_successful_options_chain_for_symbol(symbol) and symbol not in missing:
+            missing.append(symbol)
+    if missing:
+        raise ValueError(
+            "ORDER_READINESS_REQUIRED: Before opening an option position, call "
+            + ", ".join(f"options_get_chain(symbol={symbol!r})" for symbol in missing)
+            + " in this same agent run and choose an expiration and strike it lists."
+        )
+
+
+def _has_successful_options_chain_for_symbol(symbol: str) -> bool:
+    normalized_symbol = str(symbol or "").strip().upper()
+    for call in _agent_tool_calls_for_current_run():
+        if call.get("tool_name") != "options_get_chain" or not _tool_call_was_successful(call):
+            continue
+        arguments = call.get("arguments") if isinstance(call.get("arguments"), dict) else {}
+        if str(arguments.get("symbol") or "").strip().upper() == normalized_symbol:
+            return True
+    return False
+
+
 def _parse_symbol_list(
     *,
     symbols: list[str] | tuple[str, ...] | str | None = None,
@@ -455,16 +517,20 @@ def _bars_to_records(bars: Any) -> list[dict[str, Any]]:
         return []
     if getattr(working, "empty", False):
         return []
+    index_name = None
     try:
         if getattr(working.index, "name", None) is not None or str(getattr(working.index, "dtype", "")).startswith(
             "datetime"
         ):
+            is_datetime_index = str(getattr(working.index, "dtype", "")).startswith("datetime")
+            index_name = (working.index.name or "index") if is_datetime_index else None
             working = working.reset_index()
     except Exception:
         pass
     datetime_col = None
-    for candidate in ("datetime", "date", "timestamp", "time", "index"):
-        if candidate in working.columns:
+    # Yahoo names its DatetimeIndex "Date"; use the reset index's own name first.
+    for candidate in (index_name, "datetime", "date", "timestamp", "time", "index"):
+        if candidate is not None and candidate in working.columns:
             datetime_col = candidate
             break
     records: list[dict[str, Any]] = []
@@ -486,6 +552,50 @@ def _bars_to_records(bars: Any) -> list[dict[str, Any]]:
                 record[column] = _jsonable(value)
         records.append(record)
     return records
+
+
+def _bars_timezone_name(bars: Any) -> str | None:
+    """Name of the timezone a Bars frame's index is in, such as America/New_York."""
+    frame = getattr(bars, "pandas_df", None)
+    if frame is None:
+        frame = getattr(bars, "df", None)
+    tzinfo = getattr(getattr(frame, "index", None), "tz", None)
+    if tzinfo is None:
+        return None
+    return str(getattr(tzinfo, "zone", None) or getattr(tzinfo, "key", None) or tzinfo)
+
+
+def _bars_coarser_than_requested(bars: Any, timestep: str) -> bool:
+    """True when an intraday request came back as daily (or coarser) bars.
+
+    Some sources ignore the requested interval and hand back their daily
+    series. Those bars must never be reported under a minute or hour label.
+    """
+    from lumibot.tools.helpers import parse_timestep_qty_and_unit
+
+    try:
+        _, unit = parse_timestep_qty_and_unit(timestep)
+    except Exception:
+        return False
+    if unit not in {"minute", "hour"}:
+        return False
+    frame = getattr(bars, "pandas_df", None)
+    if frame is None:
+        frame = getattr(bars, "df", None)
+    index = getattr(frame, "index", None)
+    if index is None or len(index) < 2:
+        return str(getattr(bars, "timestep", "") or "").strip().lower() == "day"
+    try:
+        import pandas as pd
+
+        times = pd.DatetimeIndex(index)
+        gaps = times[1:] - times[:-1]
+        positive = gaps[gaps > pd.Timedelta(0)]
+        if len(positive) == 0:
+            return False
+        return bool(positive.min() >= pd.Timedelta(hours=20))
+    except Exception:
+        return False
 
 
 def _symbol_from_bars_key(key: Any, fallback: str | None = None) -> str:
@@ -1185,6 +1295,7 @@ def _bind_historical_prices(strategy: Any, manager: Any) -> BoundTool:
         *,
         symbols: list[str] | tuple[str, ...] | str | None = None,
         symbols_json: str | None = None,
+        symbol: str | None = None,
         length: int,
         timestep: str = "day",
         asset_type: AssetTypeArg = "stock",
@@ -1193,12 +1304,22 @@ def _bind_historical_prices(strategy: Any, manager: Any) -> BoundTool:
         include_after_hours: bool = True,
         chunk_size: int = 100,
         max_workers: int = 200,
+        table_name: str | None = None,
     ) -> dict[str, Any]:
         """Return historical OHLCV bars for many symbols in one call.
 
         Prefer this over calling market_load_history_table once per symbol when the
         strategy needs bars for a provided universe or a shortlist of finalists.
+        With table_name, the bars load into one DuckDB table and only a summary is
+        returned, so wide scans are not cut short by the model context window.
         """
+        if table_name is not None:
+            table_name = manager.duckdb.validate_table_name(table_name)
+        # Every single-symbol market tool names its argument symbol, and agents
+        # call this one the same way. Dropping it raised a tool error that
+        # blocked a whole decision (release eval rules_active_override_strategy_prompt).
+        if symbol is not None and str(symbol).strip():
+            symbols = _merge_single_symbol(symbols, symbol)
         symbol_list = _parse_symbol_list(symbols=symbols, symbols_json=symbols_json, max_symbols=150)
         length = _require_positive_int("length", length)
         timestep = _require_non_empty_text("timestep", timestep)
@@ -1208,7 +1329,9 @@ def _bind_historical_prices(strategy: Any, manager: Any) -> BoundTool:
         max_workers = min(max_workers, 32)
 
         bars_by_symbol: dict[str, list[dict[str, Any]]] = {}
+        bar_timezones: list[str] = []
         missing: list[str] = []
+        interval_mismatch: list[str] = []
         batch_fn = getattr(strategy, "get_historical_prices_for_assets", None)
         batch_result = None
         if callable(batch_fn) and asset_type in {"stock", "us_equity", "index"}:
@@ -1230,7 +1353,13 @@ def _bind_historical_prices(strategy: Any, manager: Any) -> BoundTool:
             for key, bars in batch_result.items():
                 keyed[_symbol_from_bars_key(key)] = bars
             for symbol in symbol_list:
+                if _bars_coarser_than_requested(keyed.get(symbol), timestep):
+                    interval_mismatch.append(symbol)
+                    keyed[symbol] = None
                 records = _bars_to_records(keyed.get(symbol))
+                zone = _bars_timezone_name(keyed.get(symbol))
+                if records and zone:
+                    bar_timezones.append(zone)
                 if records:
                     bars_by_symbol[symbol] = records
                 else:
@@ -1253,8 +1382,14 @@ def _bind_historical_prices(strategy: Any, manager: Any) -> BoundTool:
                         exchange=exchange,
                         include_after_hours=include_after_hours,
                     )
+                    if _bars_coarser_than_requested(bars, timestep):
+                        interval_mismatch.append(symbol)
+                        bars = None
                     records = _bars_to_records(bars)
                     bars_by_symbol[symbol] = records
+                    zone = _bars_timezone_name(bars)
+                    if records and zone:
+                        bar_timezones.append(zone)
                     if not records:
                         missing.append(symbol)
                 except Exception:
@@ -1262,11 +1397,46 @@ def _bind_historical_prices(strategy: Any, manager: Any) -> BoundTool:
                     missing.append(symbol)
 
         available = [symbol for symbol, records in bars_by_symbol.items() if records]
+        interval_fields: dict[str, Any] = {"symbols_interval_mismatch": interval_mismatch}
+        if interval_mismatch:
+            interval_fields["interval_note"] = (
+                f"The data source returned daily bars, not {timestep} bars, for "
+                f"{', '.join(interval_mismatch)}. No {timestep} history is available for them; "
+                "they are listed as missing instead."
+            )
+        if table_name is not None:
+            table = manager.duckdb.register_bars_table(
+                table_name=table_name,
+                bars_by_symbol={symbol: bars_by_symbol[symbol] for symbol in available},
+                meta={"timestep": timestep, "asset_type": asset_type, "length": length},
+                bars_timezone=bar_timezones[0] if bar_timezones else None,
+            )
+            return {
+                "table_name": table["table_name"],
+                "row_count": table["row_count"],
+                "columns": table["columns"],
+                "rows_by_symbol": {symbol: len(bars_by_symbol[symbol]) for symbol in available},
+                "first_datetime": table["first_datetime"],
+                "last_datetime": table["last_datetime"],
+                "datetime_timezone": table["datetime_timezone"],
+                "symbols_requested": symbol_list,
+                "symbols_available": available,
+                "symbols_missing": missing,
+                **interval_fields,
+                "count_requested": len(symbol_list),
+                "count_available": len(available),
+                "length": length,
+                "timestep": timestep,
+                "asset_type": asset_type,
+                "include_after_hours": bool(include_after_hours),
+                "datetime": strategy.get_datetime().isoformat(),
+            }
         return {
             "bars_by_symbol": bars_by_symbol,
             "symbols_requested": symbol_list,
             "symbols_available": available,
             "symbols_missing": missing,
+            **interval_fields,
             "count_requested": len(symbol_list),
             "count_available": len(available),
             "length": length,
@@ -1281,15 +1451,25 @@ def _bind_historical_prices(strategy: Any, manager: Any) -> BoundTool:
         description=(
             "Get historical OHLCV bars for many symbols in one call via "
             "Strategy.get_historical_prices_for_assets. "
-            "Arguments: symbols as a list or comma-separated string, and/or symbols_json as a JSON array; "
+            "Arguments: symbols as a list or comma-separated string, and/or symbols_json as a JSON array "
+            "(a single symbol='AAPL' also works); "
             "required length; timestep (default day; multi-minute aliases such as '5minute', '5min', and '5 minutes' are supported); optional asset_type (default stock), quote_symbol, "
             "exchange, include_after_hours, chunk_size, max_workers. "
             "Cap is 150 symbols per call. Returns bars_by_symbol keyed by symbol with datetime/open/high/low/close/volume rows, "
+            "For an indicator value such as an SMA, EMA or RSI, call get_indicator or get_indicators instead of computing it from these bars by hand. "
             "plus symbols_available and symbols_missing. "
+            "Optional table_name loads every returned bar into one DuckDB table with columns "
+            "symbol, datetime, open, high, low, close, volume and returns only a summary (row counts per symbol, "
+            "first/last datetime, missing symbols) instead of the raw bars. Datetimes in that table are "
+            "the same market wall-clock times as the raw bars (for US stocks, New York time; "
+            "datetime_timezone names it). Use table_name whenever symbols times length is large "
+            "(for example an intraday scan of more than a few symbols); raw bars that large get shortened before "
+            "you can read them, which hides data. Then compute the scan with duckdb_query against that table. "
             "Never loop market_load_history_table or market_last_price once per symbol when you need multi-symbol history. "
             "Use market_last_prices for a cheap latest-price universe scan, then this tool for history on finalists or the full list. "
-            "For SQL analysis of one already-loaded table, use market_load_history_table plus duckdb_query. "
-            'Examples: market_historical_prices(symbols_json=\'["SPY","QQQ","AAPL"]\', length=20, timestep=\'minute\'); market_historical_prices(symbols="AAPL", length=20, timestep="5minute").'
+            'Examples: market_historical_prices(symbols_json=\'["SPY","QQQ","AAPL"]\', length=20, timestep=\'minute\'); '
+            'market_historical_prices(symbols_json=\'["SPY","QQQ","AAPL","MSFT"]\', length=60, timestep="5minute", table_name="scan_bars") '
+            "then duckdb_query(sql=\"SELECT symbol, MAX(high) AS range_high FROM scan_bars WHERE CAST(datetime AS TIME) < '09:45' GROUP BY symbol\")."
         ),
         function=historical_prices,
         metadata={"kind": "builtin", "replay_on_cache": True, "temporal": "strategy_clock_as_of"},
@@ -1601,10 +1781,11 @@ def _bind_options_evaluate_market(strategy: Any, manager: Any) -> BoundTool:
         name="options_evaluate_market",
         description=(
             "Inspect executable quote quality for one exact option contract and return bid, ask, last, spread percentage, suggested buy/sell prices, data-quality flags, price_basis, and usable_for_limit_pricing. "
-            "Arguments: symbol, expiration, strike, right, optional max_spread_pct as a fraction such as 0.20 for 20 percent. "
+            "Arguments: symbol, expiration, strike, right, optional max_spread_pct as a fraction such as 0.20 for 20 percent; "
+            "pass it only when the user or active rules set a spread limit, otherwise rely on usable_for_limit_pricing. "
             "Call this for every proposed leg before submitting a multi-leg order. Do not trade a contract whose usable_for_limit_pricing is false or whose market is unacceptably wide under your policy. "
             "price_basis='last_trade' with usable_for_limit_pricing=true means a trade-only backtest data source: missing bid/ask alone is not a reason to refuse; follow price_basis_note. "
-            "Example: options_evaluate_market(symbol='SPY', expiration='2026-09-18', strike=650, right='call', max_spread_pct=0.20)."
+            "Example: options_evaluate_market(symbol='SPY', expiration='2026-09-18', strike=650, right='call')."
         ),
         function=evaluate_market,
         metadata={"kind": "builtin", "replay_on_cache": True, "temporal": "strategy_clock_snapshot"},
@@ -1975,6 +2156,11 @@ def _bind_orders_wait_for_terminal(strategy: Any, manager: Any) -> BoundTool:
             if is_backtesting:
                 sim_slept += sleep_for
 
+        if is_backtesting:
+            apply_fills = getattr(strategy, "_apply_pending_backtest_trade_events", None)
+            if callable(apply_fills):
+                apply_fills()
+
         elapsed_total = _time.monotonic() - started
         return {
             **latest,
@@ -2041,6 +2227,7 @@ def _bind_load_history(strategy: Any, manager: Any) -> BoundTool:
             "Valid asset_type values: stock, option, future, cont_future, forex, crypto, index, multileg, us_equity. "
             "The symbol argument must be the exact tradable symbol, such as XLY or SPY, not a generated table name such as XLY_HIST. "
             "For two or more symbols of history, prefer market_historical_prices instead of calling this once per symbol. "
+            "For stock and ETF trading decisions, read price history with market_historical_prices (pass table_name to query it in SQL). "
             "Use stock for normal equities. If asset_type is omitted, stock is assumed. Do not pass economic series ids such as DCOILWTICO, FEDFUNDS, or M2SL as market symbols; use macro/FRED tools for those instead. "
             "The loaded price tables usually expose columns such as datetime, open, high, low, close, volume, bid, ask, dividend, and dividend_yield. "
             "Use datetime for timestamps and close for the traded price unless the returned sample rows show otherwise. "
@@ -2441,7 +2628,8 @@ def _bind_alpaca_news(strategy: Any, manager: Any) -> BoundTool:
     def _warn_unavailable() -> None:
         message = (
             "[agents] alpaca_news is not configured and will not be exposed. "
-            "Use an Alpaca broker connection or set ALPACA_NEWS_API_KEY and ALPACA_NEWS_API_SECRET."
+            "Use an Alpaca broker connection, ALPACA_NEWS_API_KEY and ALPACA_NEWS_API_SECRET, "
+            "or ALPACA_API_KEY and ALPACA_API_SECRET."
         )
         if manager is not None:
             warned = getattr(manager, "_warned_unavailable_builtin_tools", None)
@@ -2488,6 +2676,17 @@ def _bind_alpaca_news(strategy: Any, manager: Any) -> BoundTool:
                     "APCA-API-SECRET-KEY": api_secret,
                 }, "alpaca_broker_api_key"
 
+        # Regular Alpaca keys are the last fallback. News-only keys and a
+        # connected Alpaca broker stay ahead of them so an existing broker
+        # session is not replaced by whatever ALPACA_API_KEY the shell has.
+        api_key = str(os.environ.get("ALPACA_API_KEY") or "").strip()
+        api_secret = str(os.environ.get("ALPACA_API_SECRET") or "").strip()
+        if api_key and api_secret:
+            return {
+                "APCA-API-KEY-ID": api_key,
+                "APCA-API-SECRET-KEY": api_secret,
+            }, "alpaca_api_env"
+
         return None, None
 
     def _unavailable_alpaca_news(**kwargs: Any) -> dict[str, Any]:
@@ -2496,7 +2695,7 @@ def _bind_alpaca_news(strategy: Any, manager: Any) -> BoundTool:
             "tool_error": True,
             "error": {
                 "type": "MissingCredentials",
-                "message": "alpaca_news is not configured. Use an Alpaca broker connection or set ALPACA_NEWS_API_KEY and ALPACA_NEWS_API_SECRET.",
+                "message": "alpaca_news is not configured. Use an Alpaca broker connection, ALPACA_NEWS_API_KEY and ALPACA_NEWS_API_SECRET, or ALPACA_API_KEY and ALPACA_API_SECRET.",
             },
             "articles": [],
             "count": 0,
@@ -2512,7 +2711,7 @@ def _bind_alpaca_news(strategy: Any, manager: Any) -> BoundTool:
                 "kind": "builtin",
                 "temporal": "source_published_at_clamped_to_strategy_clock",
                 "disabled": True,
-                "disabled_reason": "missing Alpaca broker credentials or ALPACA_NEWS_API_KEY / ALPACA_NEWS_API_SECRET",
+                "disabled_reason": "missing Alpaca broker credentials, ALPACA_NEWS_API_KEY / ALPACA_NEWS_API_SECRET, or ALPACA_API_KEY / ALPACA_API_SECRET",
             },
         )
 
@@ -2535,7 +2734,7 @@ def _bind_alpaca_news(strategy: Any, manager: Any) -> BoundTool:
                 "tool_error": True,
                 "error": {
                     "type": "MissingCredentials",
-                    "message": "Use an Alpaca broker connection or set ALPACA_NEWS_API_KEY and ALPACA_NEWS_API_SECRET to use alpaca_news.",
+                    "message": "Use an Alpaca broker connection, ALPACA_NEWS_API_KEY and ALPACA_NEWS_API_SECRET, or ALPACA_API_KEY and ALPACA_API_SECRET to use alpaca_news.",
                 },
                 "articles": [],
                 "count": 0,
@@ -2929,7 +3128,13 @@ def _bind_get_indicators(strategy: Any, manager: Any) -> BoundTool:
         if requests_json is not None:
             if indicators is not None:
                 raise ValueError("Use either indicators or requests_json, not both.")
-            requests = json.loads(requests_json)
+            try:
+                requests = json.loads(requests_json)
+            except json.JSONDecodeError as exc:
+                raise ValueError(
+                    "requests_json must be exactly one JSON array of request objects, with "
+                    f"nothing before or after it (no trailing comma or text). Parser error: {exc}"
+                ) from exc
         else:
             requests = [{"id": str(i), "indicator": name} for i, name in enumerate(indicators or [])]
         if not isinstance(requests, list) or not 1 <= len(requests) <= 50:
@@ -3808,6 +4013,7 @@ def _bind_submit_order(strategy: Any, manager: Any) -> BoundTool:
             quote=quote,
             time_in_force=time_in_force,
         )
+        _require_option_chain_before_opening(strategy, [created])
         _validate_option_closing_orders(strategy, [created])
         memory = getattr(strategy, "memory", None)
         memory_context = _agent_memory_context_kwargs()
@@ -3869,9 +4075,12 @@ def _bind_submit_order(strategy: Any, manager: Any) -> BoundTool:
             "Before using this tool, inspect the injected account_snapshot plus market_last_price (or market_last_prices including the symbol). A complete injected account_snapshot satisfies the initial account_portfolio, account_positions, and open-order readiness checks; after any order mutation, refresh account_portfolio and complete unfiltered pagination for both account_positions and orders_open_orders before another order. The current-price check is always required in the same agent run; otherwise the order is rejected with ORDER_READINESS_REQUIRED. "
             "Valid side values: buy, sell, buy_to_open, buy_to_close, sell_to_open, sell_to_close, sell_short, buy_to_cover. "
             "For an option close, reconcile the exact contract with the latest account_positions result: positive long quantity requires sell_to_close and negative short quantity requires buy_to_close, always using the absolute current quantity. Never use the inverse mapping. "
+            "Opening an option position also requires options_get_chain for the underlying in the same agent run; closing a held contract does not. "
             "Valid order_type values: market, limit, stop, stop_limit, trailing_stop, smart_limit. "
             "Valid time_in_force values: day, gtc, gtd. "
             "Caveats: limit orders require limit_price; stop and stop_limit orders require stop_price; trailing_stop requires trail_price or trail_percent; smart_limit uses LumiBot's built-in smart-limit behavior. "
+            "A limit exactly at the last price fills only if the next price reaches it. At the session open the last price can still be the prior close. "
+            "When the order must fill this session, use order_type='market' or a buy limit slightly above (sell limit slightly below) the current price. "
             "Example: orders_submit_order(symbol='SPY', quantity=100, side='buy', asset_type='stock', order_type='market')."
         ),
         function=submit_order,
@@ -3891,6 +4100,7 @@ def _bind_submit_multileg_order(strategy: Any, manager: Any) -> BoundTool:
         symbols = sorted({str(getattr(order.asset, "symbol", "")).upper() for order in orders})
         for symbol in symbols:
             _require_agent_order_readiness(symbol)
+        _require_option_chain_before_opening(strategy, orders)
         _validate_option_closing_orders(strategy, orders)
 
         submit_kwargs: dict[str, Any] = {
@@ -4174,6 +4384,86 @@ class _BrowserTools:
         )
 
 
+def _house_last_name_matches(record: dict[str, Any], last_name: str) -> bool:
+    needle = str(last_name or "").strip().lower()
+    if not needle:
+        return False
+    politician = str(record.get("Politician") or record.get("politician") or "").lower()
+    last = str(record.get("last") or record.get("Last") or "").lower()
+    return needle == last or needle in politician
+
+
+def _house_disclosure_payload(
+    records: list[dict[str, Any]],
+    *,
+    last_name: str,
+    as_of: datetime,
+    asset_mode: str,
+) -> dict[str, Any]:
+    from lumibot.components.disclosure_signals import visible_congress_disclosures
+
+    matched = [record for record in records if _house_last_name_matches(record, last_name)]
+    if str(asset_mode or "stock").lower().strip() == "stock":
+        matched = [record for record in matched if str(record.get("asset_code") or "").upper() != "OP"]
+    ceiling = as_of if as_of.tzinfo else as_of.replace(tzinfo=timezone.utc)
+    filings = visible_congress_disclosures(matched, as_of=ceiling)
+    visible_ids = {str(row.get("doc_id")) for row in filings}
+    omitted = sum(1 for row in matched if str(row.get("doc_id")) not in visible_ids)
+    return {
+        "ok": True,
+        "as_of": ceiling.isoformat(),
+        "last_name": last_name,
+        "filings": filings,
+        "count": len(filings),
+        "omitted_future_count": omitted,
+    }
+
+
+def _bind_house_public_disclosures(strategy: Any, manager: Any) -> BoundTool:
+    def house_public_disclosures(last_name: str, year: int | None = None, asset_mode: str = "stock") -> dict[str, Any]:
+        as_of = strategy.get_datetime()
+        if not isinstance(as_of, datetime):
+            as_of = datetime.now(timezone.utc)
+        recorded = getattr(strategy, "house_disclosure_records", None)
+        if recorded is not None:
+            return _house_disclosure_payload(list(recorded), last_name=last_name, as_of=as_of, asset_mode=asset_mode)
+        from lumibot.components.house_ptr import public_house_filings
+
+        result = public_house_filings(
+            int(year or as_of.year),
+            last_names=[last_name],
+            as_of=as_of,
+            asset_mode=asset_mode,
+        )
+        result["last_name"] = last_name
+        return result
+
+    return BoundTool(
+        name="house_public_disclosures",
+        description=(
+            "Return House periodic transaction filings for one last name that are already "
+            "public at the strategy clock. Filings dated after that clock are omitted and "
+            "are not downloaded."
+        ),
+        function=house_public_disclosures,
+        source="builtin",
+        metadata={"kind": "disclosure", "temporal": "published_at_on_or_before_strategy_clock"},
+    )
+
+
+class _DisclosureTools:
+    def house_public_disclosures(self) -> ToolDefinition:
+        return ToolDefinition(
+            name="house_public_disclosures",
+            description=(
+                "Return House periodic transaction filings for one last name that are already "
+                "public at the strategy clock. Filings dated after that clock are omitted and "
+                "are not downloaded."
+            ),
+            binder=_bind_house_public_disclosures,
+        )
+
+
 class _NewsTools:
     def alpaca_news(self) -> ToolDefinition:
         return ToolDefinition(
@@ -4427,6 +4717,7 @@ class _BuiltinTools:
     docs = _DocsTools()
     web = _WebTools()
     browser = _BrowserTools()
+    disclosures = _DisclosureTools()
     news = _NewsTools()
     indicators = _IndicatorTools()
     fundamentals = _FundamentalTools()
@@ -4468,6 +4759,7 @@ class _BuiltinTools:
             self.browser.login(),
             self.browser.storage_state(),
             self.browser.screenshot(),
+            self.disclosures.house_public_disclosures(),
             self.news.alpaca_news(),
             self.indicators.list_indicators(),
             self.indicators.get_indicator(),

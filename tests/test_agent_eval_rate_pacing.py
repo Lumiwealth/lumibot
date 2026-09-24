@@ -62,3 +62,18 @@ def test_counter_preserves_system_tools_and_continuation_contents(monkeypatch):
     assert native["systemInstruction"]["parts"][0]["text"] == config.system_instruction
     assert native["tools"][0]["functionDeclarations"][0]["name"] == "account_portfolio"
     assert requests[0]["timeout"] == 30
+
+
+def test_openai_pacing_count_is_local_and_never_calls_the_network(monkeypatch):
+    from types import SimpleNamespace
+
+    import requests as http
+    from google.genai import types
+
+    from scripts.agent_eval_rate_pacing import count_native_request
+
+    monkeypatch.setattr(http, "post", lambda *a, **k: (_ for _ in ()).throw(AssertionError("no network")))
+    config = types.GenerateContentConfig(system_instruction="Read the account." * 50)
+    contents = [types.Content(role="user", parts=[types.Part(text="Inspect." * 100)])]
+    count = count_native_request("openai/gpt-6-luna", SimpleNamespace(config=config, contents=contents))
+    assert type(count) is int and count >= 200

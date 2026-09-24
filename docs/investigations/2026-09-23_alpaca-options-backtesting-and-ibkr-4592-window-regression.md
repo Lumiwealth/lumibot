@@ -138,9 +138,12 @@ is a pre-existing issue outside this change (see open items).
 ### Known limits (also in the class docstring and `docsrc/backtesting.alpaca.rst`)
 
 - Option history starts around February 2024.
-- The contract listing has no as-of date: a strike or expiration listed after the simulated
-  date can appear in that day's chain (small lookahead). A contract with no trade yet has no
-  price, so it cannot be traded before its first print.
+- The contract listing is not point-in-time. Alpaca's contracts API returns today's listing
+  with no listing or first-trade date, so a strike or expiration listed after the simulated
+  date can appear in that day's chain. That listing must not be read as historical
+  availability. A true point-in-time chain needs an authoritative contract-availability date or
+  a historical chain source, and Alpaca offers neither. The remaining guard: a contract with no
+  trade yet has no price, so it cannot be traded before its first print.
 - No historical option bid/ask or vendor greeks. Fills use trade bars (spread not modeled).
   `Strategy.get_greeks()` still works from the last trade and the underlying price.
 - Daily option bars start with the day's first trade, which can print after 09:30.
@@ -339,11 +342,11 @@ open, six hours before it happened.
   hourly and resampled bars are all covered.
 - Environment mode (`config=None`, the BotSpot path) defaults `remove_incomplete_current_bar` to
   `True`. An explicit value passed to `backtest()` or the constructor wins in both modes.
-- With an explicit config the default stays `False`. It is documented that way, and the
-  February 2025 apitests `test_amzn_day_1d_5`, `test_amzn_minute_1d_5` and
-  `test_amzn_minute_30m_5` assert that the lookback at the 2025-01-15 09:30 iteration ends with
-  the 2025-01-15 daily bar. The docstring and `docsrc/backtesting.alpaca.rst` now say plainly
-  that `False` is a lookahead of up to one bar in a backtest and recommend `True`.
+- Update (post-review, 4.5.92): an explicit config now also defaults to `True`. `False` is an
+  explicit opt-in because the forming bar is a lookahead of up to one bar. The February 2025
+  apitests `test_amzn_day_1d_5`, `test_amzn_minute_1d_5` and `test_amzn_minute_30m_5`, which
+  assert that the lookback at the 2025-01-15 09:30 iteration ends with the 2025-01-15 daily
+  bar, now pass `remove_incomplete_current_bar=False` explicitly.
 - When no bar has finished yet (the very start of the data window) history returns `None`, as
   `Data` does, instead of raising. The old "Datetime not found" error is kept for `False`.
 - `get_last_price()` and fills are unchanged: they use the open of the bar that starts now.

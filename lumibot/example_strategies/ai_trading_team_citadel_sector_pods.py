@@ -50,7 +50,7 @@ class AITradingTeamCitadelSectorPodsStrategy(Strategy):
 
     def initialize(self):
         self.sleeptime = "1D"
-        model = os.environ.get("AI_TRADING_TEAM_MODEL", "gemini-3.1-flash-lite")
+        model = os.environ.get("AI_TRADING_TEAM_MODEL", "openai/gpt-6-luna")
         self.agents.create(
             name="technology_pod",
             model=model,

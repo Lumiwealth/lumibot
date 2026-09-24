@@ -24,13 +24,40 @@ _TIMESTAMP_HINT_RE = re.compile(
 )
 _DEFAULT_MEMORY_NOTE_MAX_CHARS = 2000
 DEFAULT_AGENT_MODEL = "openai/gpt-6-luna"
-DEFAULT_AGENT_REASONING_EFFORT = "high"
+DEFAULT_AGENT_REASONING_EFFORT = "medium"
 _BOTSPOT_RESEARCH_TOOLS = [
     "search_data_catalog",
     "query_data",
     "search_documents",
     "get_document",
 ]
+# Outbound network tools are default-deny. An agent gets them only with
+# allow_network=True, or by listing one explicitly in tools=[...]. Fetched
+# pages are untrusted input, and a network tool is the channel that could send
+# agent context out. Keeping them out of the default toolset also keeps trading
+# agents focused on account and market tools.
+NETWORK_TOOL_NAMES = frozenset(
+    {
+        "http_request",
+        "rss_fetch",
+        "browser_session_open",
+        "browser_session_close",
+        "browser_session_recover",
+        "browser_navigate",
+        "browser_observe",
+        "browser_act",
+        "browser_tabs",
+        "browser_extract",
+        "browser_login",
+        "browser_storage_state",
+        "browser_screenshot",
+    }
+)
+
+
+def _is_network_tool(tool: Any) -> bool:
+    metadata = getattr(tool, "metadata", {}) or {}
+    return bool(metadata.get("network")) or str(getattr(tool, "name", "")) in NETWORK_TOOL_NAMES
 
 
 class AgentModelCallLimitExceeded(RuntimeError):
@@ -843,6 +870,10 @@ def _managed_ai_terminal_status(result: AgentRunResult, *, allow_trading: bool) 
         tool_name = str(event.tool_name or "")
         payload = _unwrap_tool_payload(event.payload)
         is_error = isinstance(payload, dict) and payload.get("tool_error") is True
+        # A call to a tool that does not exist ran nothing; it cannot leave the
+        # decision incomplete.
+        if is_error and payload.get("unknown_tool") is True:
+            continue
         if is_error:
             if tool_name not in later_successes:
                 has_unrecovered_tool_error = True
@@ -949,6 +980,7 @@ class AgentHandle:
         allow_trading: bool = True,
         allow_communication_reads: bool = False,
         allow_communication_writes: bool = False,
+        allow_network: bool | None = None,
         include_builtin_tools: bool = True,
         include_builtin_skills: bool = True,
         rules_path: str | Path | None = None,
@@ -972,13 +1004,27 @@ class AgentHandle:
         self.rules_path = rules_path
         from .builtins import BuiltinTools
 
-        builtin_tools = self._filter_tools_for_permissions(BuiltinTools.all())
+        # Network permission has three states. True: every built-in network
+        # tool joins the default set. None (default): the default set has none,
+        # but a network tool the caller lists explicitly is kept, because
+        # listing it is the opt-in. False: network tools are removed even when
+        # listed explicitly.
+        explicit_tools = list(tools) if tools is not None else []
+        self.allow_network = bool(allow_network) or (
+            allow_network is None and any(_is_network_tool(tool) for tool in explicit_tools)
+        )
+        builtin_tools = self._filter_tools_for_permissions(
+            BuiltinTools.all(), allow_network=bool(allow_network)
+        )
+        explicit_allowed = self._filter_tools_for_permissions(
+            explicit_tools, allow_network=allow_network is not False
+        )
         if tools is None:
             self._tool_inputs = builtin_tools
         elif include_builtin_tools:
-            self._tool_inputs = builtin_tools + self._filter_tools_for_permissions(list(tools))
+            self._tool_inputs = builtin_tools + explicit_allowed
         else:
-            self._tool_inputs = self._filter_tools_for_permissions(list(tools))
+            self._tool_inputs = explicit_allowed
         self._mcp_servers = list(mcp_servers or [])
         hosted_research, research_warning = _botspot_research_server_from_environment()
         if hosted_research and all(server.name != hosted_research.name for server in self._mcp_servers):
@@ -989,7 +1035,7 @@ class AgentHandle:
         self._runtime = runtime or google_runtime(mcp_servers=self._mcp_servers)
         self._bound_tools: list[BoundTool] | None = None
 
-    def _filter_tools_for_permissions(self, tools: list[Any]) -> list[Any]:
+    def _filter_tools_for_permissions(self, tools: list[Any], *, allow_network: bool) -> list[Any]:
         communication_write_tools = {"send_email", "send_slack_message"}
         communication_read_tools = {
             "list_sent_emails",
@@ -1009,6 +1055,8 @@ class AgentHandle:
             metadata = getattr(tool, "metadata", {}) or {}
             name = str(getattr(tool, "name", ""))
             if not self.allow_trading and bool(metadata.get("mutates_trading")):
+                continue
+            if not allow_network and _is_network_tool(tool):
                 continue
             if not self.allow_communication_reads and (
                 bool(metadata.get("communication_read")) or name in communication_read_tools
@@ -1227,6 +1275,7 @@ class AgentHandle:
             "Stay inside the strategy's allowed universe. When the user's system prompt lists allowed symbols, a universe, or a book, trade only those symbols.",
             "Only use a defensive parking asset when the strategy allows it: either it is in the allowed universe or the user's prompt permits parking. Otherwise hold the allowed assets or cash.",
             "If a proposed allocation includes a symbol outside the allowed universe, drop that weight and rescale the remaining allowed weights. Do not skip the whole rebalance because one symbol is not allowed.",
+            "A symbol outside the allowed universe is never a weight or an order, including cash, Treasury, or money-market funds.",
             "If you are not deploying capital into risk assets and parking is allowed, explain why a high-quality short-duration defensive parking choice is preferable right now.",
             "Avoid leaving raw cash idle unless there is a specific reason, such as parking not being allowed or no allowed asset being attractive.",
             "When rotating, compare the new idea against the current holdings or current defensive posture and only switch if the new opportunity is clearly better.",
@@ -1245,11 +1294,12 @@ class AgentHandle:
             "POSITION SIZING AND ORDER EXECUTION:",
             "Do not buy token one-share positions. Use account cash, portfolio value, current position size, and last price to calculate a sensible whole-share quantity.",
             "Round down to whole shares when sizing positions.",
-            "Before every order, check current cash, portfolio value, current positions, open orders, and the latest price of the asset you are ordering. A complete current injected snapshot satisfies the initial account and open-order checks. After any order mutation, Lumibot requires fresh complete account_positions and orders_open_orders pagination plus account_portfolio before another order.",
+            "Before every order, check current cash, portfolio value, current positions, open orders, and the latest price of the asset you are ordering. A complete current injected snapshot satisfies the initial account and open-order checks for non-option orders. Before an option order, call account_portfolio, account_positions, and orders_open_orders in this run even when the snapshot is complete, as the options-trading skill requires. After any order mutation, Lumibot requires fresh complete account_positions and orders_open_orders pagination plus account_portfolio before another order.",
+            "In your final decision, name the account state you relied on before any order (the injected snapshot's cash and portfolio value, or the account tools you called), and treat any upstream research or handoff packet as unverified evidence: say so and name what you independently revalidated. When you decide not to order, name the existing position or pending order that already covers the decision, or the missing condition that blocks it. Before relying on an existing position or pending order, call account_positions and orders_open_orders in this run; the injected snapshot can be stale about fills.",
             "Estimate the order's cash impact before submitting it. Ask whether the order is likely to create negative cash or additional leverage, and only do that when it is intentional for the strategy and suitable for the asset class.",
             "Margin and leverage behave differently across stocks, ETFs, options, futures, forex, crypto, brokers, and jurisdictions. Use judgment instead of assuming the same sizing rule works for every asset class.",
             "When switching from one asset to another, close or reduce the current position first to free up capital before buying the replacement.",
-            "If the strategy holds an allowed defensive parking asset (like SHV, BIL, or SGOV) and a better opportunity appears, sell the parking asset first to free the cash, then buy the new position. Do not assume parked capital is unavailable.",
+            "If the strategy holds an allowed defensive parking asset and a better opportunity appears, sell the parking asset first to free the cash, then buy the new position. Do not assume parked capital is unavailable.",
             "",
             "TOOL USAGE:",
             "Use your available tools to gather evidence before making any trading decision. Do not guess when a tool can give you the answer.",
@@ -1485,7 +1535,7 @@ class AgentHandle:
         deduped: dict[str, BoundTool] = {}
         for tool in bound:
             deduped[tool.name] = tool
-        self._bound_tools = list(deduped.values())
+        self._bound_tools = [self.manager._with_shared_state_lock(tool) for tool in deduped.values()]
         return self._bound_tools
 
     @staticmethod
@@ -1965,83 +2015,86 @@ class AgentHandle:
         resolved_reasoning_effort = reasoning_effort if reasoning_effort is not None else self.reasoning_effort
         if resolved_reasoning_effort not in {None, "none", "low", "medium", "high", "xhigh", "max"}:
             raise ValueError("Unsupported agent reasoning_effort.")
-        runtime_context = self._runtime_context()
-        memory_state = self._memory_state(runtime_context)
-        base_system_prompt = self._base_system_prompt(runtime_context)
-        effective_system_prompt = self._compose_system_prompt(runtime_context)
-        if self.include_builtin_skills:
-            from .skills import builtin_skill_fingerprint
+        # Shared run state (self.vars, memory, artifacts, caches) is locked;
+        # only the model call below runs unlocked so run_together stays parallel.
+        with self.manager._shared_state_lock:
+            runtime_context = self._runtime_context()
+            memory_state = self._memory_state(runtime_context)
+            base_system_prompt = self._base_system_prompt(runtime_context)
+            effective_system_prompt = self._compose_system_prompt(runtime_context)
+            if self.include_builtin_skills:
+                from .skills import builtin_skill_fingerprint
 
-            skill_fingerprint = builtin_skill_fingerprint()
-        else:
-            skill_fingerprint = None
-        cache_payload = self._cache_payload(
-            task_prompt=task_prompt,
-            context=context,
-            model=model_name,
-            runtime_context=runtime_context,
-            memory_state=memory_state,
-            effective_system_prompt=effective_system_prompt,
-            base_system_prompt=base_system_prompt,
-            builtin_skill_fingerprint=skill_fingerprint,
-            reasoning_effort=resolved_reasoning_effort,
-        )
-        cache_key = self.manager.replay_cache.compute_key(cache_payload)
-        strategy = self.manager.strategy
-        should_replay = bool(getattr(strategy, "is_backtesting", False))
-        if should_replay:
-            cached = self.manager.replay_cache.load(cache_key)
-            if cached is not None:
-                result = self._result_from_cached(cached, cache_key)
-                result.payload = {
-                    **(result.payload or {}),
-                    "execution_outcome": _managed_ai_execution_outcome(
-                        required_for_decision=self.allow_trading,
-                        decision_completed=(
-                            _managed_ai_terminal_status(result, allow_trading=self.allow_trading)
-                            in {"completed_decision", "completed_no_action"}
+                skill_fingerprint = builtin_skill_fingerprint()
+            else:
+                skill_fingerprint = None
+            cache_payload = self._cache_payload(
+                task_prompt=task_prompt,
+                context=context,
+                model=model_name,
+                runtime_context=runtime_context,
+                memory_state=memory_state,
+                effective_system_prompt=effective_system_prompt,
+                base_system_prompt=base_system_prompt,
+                builtin_skill_fingerprint=skill_fingerprint,
+                reasoning_effort=resolved_reasoning_effort,
+            )
+            cache_key = self.manager.replay_cache.compute_key(cache_payload)
+            strategy = self.manager.strategy
+            should_replay = bool(getattr(strategy, "is_backtesting", False))
+            if should_replay:
+                cached = self.manager.replay_cache.load(cache_key)
+                if cached is not None:
+                    result = self._result_from_cached(cached, cache_key)
+                    result.payload = {
+                        **(result.payload or {}),
+                        "execution_outcome": _managed_ai_execution_outcome(
+                            required_for_decision=self.allow_trading,
+                            decision_completed=(
+                                _managed_ai_terminal_status(result, allow_trading=self.allow_trading)
+                                in {"completed_decision", "completed_no_action"}
+                            ),
+                            decision_status=_managed_ai_terminal_status(result, allow_trading=self.allow_trading),
                         ),
-                        decision_status=_managed_ai_terminal_status(result, allow_trading=self.allow_trading),
-                    ),
-                }
-                self._replay_cached_side_effects(result)
-                self.manager._record_agent_observability(
-                    handle=self,
-                    result=result,
-                    runtime_context=runtime_context,
-                    cache_payload=cache_payload,
-                )
-                self._append_memory(result)
-                self._append_run_artifact_summary(result, runtime_context)
-                self._log_run_summary(result, runtime_context)
-                return result
+                    }
+                    self._replay_cached_side_effects(result)
+                    self.manager._record_agent_observability(
+                        handle=self,
+                        result=result,
+                        runtime_context=runtime_context,
+                        cache_payload=cache_payload,
+                    )
+                    self._append_memory(result)
+                    self._append_run_artifact_summary(result, runtime_context)
+                    self._log_run_summary(result, runtime_context)
+                    return result
 
-        _GoogleADKRuntime, runtime_request_class, _StubAgentRuntime, _call_mcp_tool = _get_runtime_imports()
-        request = runtime_request_class(
-            agent_name=self.name,
-            model=model_name,
-            system_prompt=effective_system_prompt,
-            task_prompt=task_prompt,
-            context=context,
-            runtime_context=runtime_context,
-            memory_state=memory_state,
-            memory_notes=self._memory_prompt_notes(),
-            bound_tools=self._ensure_bound_tools(),
-            include_builtin_skills=self.include_builtin_skills,
-            builtin_skill_fingerprint=skill_fingerprint,
-            model_call_id=cache_key,
-            provider_prompt_cache_key=_provider_prompt_cache_key(
+            _GoogleADKRuntime, runtime_request_class, _StubAgentRuntime, _call_mcp_tool = _get_runtime_imports()
+            request = runtime_request_class(
                 agent_name=self.name,
                 model=model_name,
-                effective_system_prompt=effective_system_prompt,
+                system_prompt=effective_system_prompt,
+                task_prompt=task_prompt,
+                context=context,
+                runtime_context=runtime_context,
+                memory_state=memory_state,
+                memory_notes=self._memory_prompt_notes(),
                 bound_tools=self._ensure_bound_tools(),
+                include_builtin_skills=self.include_builtin_skills,
                 builtin_skill_fingerprint=skill_fingerprint,
-            ),
-            model_request_timeout_seconds=resolved_model_request_timeout_seconds,
-            run_timeout_seconds=resolved_run_timeout_seconds,
-            reasoning_effort=resolved_reasoning_effort,
-        )
-        self.manager._reserve_model_call(agent_name=self.name, model=model_name)
+                model_call_id=cache_key,
+                provider_prompt_cache_key=_provider_prompt_cache_key(
+                    agent_name=self.name,
+                    model=model_name,
+                    effective_system_prompt=effective_system_prompt,
+                    bound_tools=self._ensure_bound_tools(),
+                    builtin_skill_fingerprint=skill_fingerprint,
+                ),
+                model_request_timeout_seconds=resolved_model_request_timeout_seconds,
+                run_timeout_seconds=resolved_run_timeout_seconds,
+                reasoning_effort=resolved_reasoning_effort,
+            )
+            self.manager._reserve_model_call(agent_name=self.name, model=model_name)
         # Strategy-level safety net with live-vs-backtest branching.
         #
         # Scope: this behavior is ONLY for AI agent calls. The rest of
@@ -2068,78 +2121,99 @@ class AgentHandle:
         except (KeyboardInterrupt, SystemExit):
             raise
         except BaseException as exc:  # noqa: BLE001 - intentional broad catch
-            import traceback as _tb
+            with self.manager._shared_state_lock:
+                import traceback as _tb
 
-            from .runtime import _classify_agent_error
-            from .schemas import AgentRunResult, AgentTraceEvent
+                from .runtime import _classify_agent_error
+                from .schemas import AgentRunResult, AgentTraceEvent
 
-            category = _classify_agent_error(exc)
-            is_backtesting = bool(getattr(self.manager.strategy, "is_backtesting", False))
+                category = _classify_agent_error(exc)
+                is_backtesting = bool(getattr(self.manager.strategy, "is_backtesting", False))
 
-            # Backtest crashes loud on permanent config errors so user notices + fixes.
-            # Live never crashes, regardless of category.
-            if is_backtesting and category in ("auth", "config", "billing"):
-                self._log_fatal_backtest_error(exc, category, model_name)
-                raise
+                # Backtest crashes loud on permanent config errors so user notices + fixes.
+                # Live never crashes, regardless of category.
+                if is_backtesting and category in ("auth", "config", "billing"):
+                    self._log_fatal_backtest_error(exc, category, model_name)
+                    raise
 
-            error_detail = f"{exc.__class__.__name__}: {str(exc)[:400]}"
-            try:
-                sys.stderr.write(
-                    f"[lumibot.agents] agent '{self.name}' (model={model_name!r}) call failed: "
-                    f"category={category} mode={'backtest' if is_backtesting else 'live'}. "
-                    f"Skipping this iteration (no trades placed). Error: {error_detail}\n"
+                error_detail = f"{exc.__class__.__name__}: {str(exc)[:400]}"
+                try:
+                    sys.stderr.write(
+                        f"[lumibot.agents] agent '{self.name}' (model={model_name!r}) call failed: "
+                        f"category={category} mode={'backtest' if is_backtesting else 'live'}. "
+                        f"Skipping this iteration (no trades placed). Error: {error_detail}\n"
+                    )
+                    sys.stderr.flush()
+                except Exception:
+                    pass
+                now_iso = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+                fallback_summary = (
+                    f"RESULT: Skipped this iteration. Agent call failed "
+                    f"(category={category}): {error_detail}. "
+                    f"Strategy continues with no-op decision; no trades placed."
                 )
-                sys.stderr.flush()
-            except Exception:
-                pass
-            now_iso = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
-            fallback_summary = (
-                f"RESULT: Skipped this iteration. Agent call failed "
-                f"(category={category}): {error_detail}. "
-                f"Strategy continues with no-op decision; no trades placed."
-            )
-            error_event = AgentTraceEvent(
-                kind="text",
-                text=fallback_summary,
-                timestamp=now_iso,
-                payload={
+                error_event = AgentTraceEvent(
+                    kind="text",
+                    text=fallback_summary,
+                    timestamp=now_iso,
+                    payload={
+                        "runtime_error": True,
+                        "error_category": category,
+                        "error_class": exc.__class__.__name__,
+                        "error_message": str(exc)[:800],
+                        "traceback": "".join(_tb.format_exception(type(exc), exc, exc.__traceback__))[-2000:],
+                    },
+                )
+                result = AgentRunResult(
+                    summary=fallback_summary,
+                    model=model_name,
+                    events=[error_event],
+                    usage=None,
+                )
+                # Mark it so downstream code and the user can easily filter/count
+                # skipped iterations in the warnings stream.
+                result.warnings.append(
+                    {
+                        "kind": "agent_runtime_failure_skipped",
+                        "category": category,
+                        "message": f"agent_runtime_failure_skipped: {error_detail}",
+                        "timestamp": now_iso,
+                    }
+                )
+                result.cache_key = None  # never cache a failure
+                result.payload = {
+                    "trace_path": None,
                     "runtime_error": True,
-                    "error_category": category,
                     "error_class": exc.__class__.__name__,
                     "error_message": str(exc)[:800],
-                    "traceback": "".join(_tb.format_exception(type(exc), exc, exc.__traceback__))[-2000:],
-                },
-            )
-            result = AgentRunResult(
-                summary=fallback_summary,
-                model=model_name,
-                events=[error_event],
-                usage=None,
-            )
-            # Mark it so downstream code and the user can easily filter/count
-            # skipped iterations in the warnings stream.
-            result.warnings.append(
-                {
-                    "kind": "agent_runtime_failure_skipped",
-                    "category": category,
-                    "message": f"agent_runtime_failure_skipped: {error_detail}",
-                    "timestamp": now_iso,
+                    "execution_outcome": _managed_ai_execution_outcome(
+                        required_for_decision=self.allow_trading,
+                        decision_completed=False,
+                        decision_status=_managed_ai_error_status(exc),
+                        error_category=category,
+                        fallback_used=True,
+                    ),
                 }
-            )
-            result.cache_key = None  # never cache a failure
-            result.payload = {
-                "trace_path": None,
-                "runtime_error": True,
-                "error_class": exc.__class__.__name__,
-                "error_message": str(exc)[:800],
-                "execution_outcome": _managed_ai_execution_outcome(
-                    required_for_decision=self.allow_trading,
-                    decision_completed=False,
-                    decision_status=_managed_ai_error_status(exc),
-                    error_category=category,
-                    fallback_used=True,
-                ),
-            }
+                self._finalize_runtime_timing(
+                    result,
+                    started_at=started_at,
+                    started_perf=started_perf,
+                    ended_at=datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
+                    ended_perf=time.perf_counter(),
+                )
+                # Record this skipped run in the agent's memory so the model on
+                # the next iteration knows the previous cycle was skipped.
+                self.manager._record_agent_observability(
+                    handle=self,
+                    result=result,
+                    runtime_context=runtime_context,
+                    cache_payload=cache_payload,
+                )
+                self._append_memory(result)
+                self._append_run_artifact_summary(result, runtime_context)
+                self._log_run_summary(result, runtime_context)
+                return result
+        with self.manager._shared_state_lock:
             self._finalize_runtime_timing(
                 result,
                 started_at=started_at,
@@ -2147,8 +2221,73 @@ class AgentHandle:
                 ended_at=datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
                 ended_perf=time.perf_counter(),
             )
-            # Record this skipped run in the agent's memory so the model on
-            # the next iteration knows the previous cycle was skipped.
+            result.cache_key = cache_key
+            result.warnings = self._derive_warnings(result, runtime_context)
+            decision_status = _managed_ai_terminal_status(result, allow_trading=self.allow_trading)
+            execution_outcome = _managed_ai_execution_outcome(
+                required_for_decision=self.allow_trading,
+                decision_completed=decision_status in {"completed_decision", "completed_no_action"},
+                decision_status=decision_status,
+            )
+            trace_payload = {
+                "agent": self.name,
+                "model": model_name,
+                "request": cache_payload,
+                "tool_calls": [
+                    {
+                        "tool_name": event.tool_name,
+                        "call_id": event.call_id,
+                        "payload": event.payload,
+                        "timestamp": event.timestamp,
+                    }
+                    for event in result.tool_calls
+                ],
+                "tool_results": [
+                    {
+                        "tool_name": event.tool_name,
+                        "call_id": event.call_id,
+                        "payload": event.payload,
+                        "timestamp": event.timestamp,
+                    }
+                    for event in result.tool_results
+                ],
+                "events": [
+                    {
+                        "kind": event.kind,
+                        "text": event.text,
+                        "tool_name": event.tool_name,
+                        "call_id": event.call_id,
+                        "payload": event.payload,
+                        "timestamp": event.timestamp,
+                    }
+                    for event in result.events
+                ],
+                "warnings": result.warnings,
+                "summary": result.summary,
+                "usage": result.usage,
+                "timing": _runtime_timing_payload(result),
+                "duckdb_metrics": self.manager.duckdb.get_metrics(),
+                "execution_outcome": execution_outcome,
+            }
+            trace_path = self._write_trace(result, trace_payload)
+            result.payload = {
+                "trace_path": trace_path.as_posix(),
+                "warnings": result.warnings,
+                "execution_outcome": execution_outcome,
+            }
+            if should_replay:
+                self.manager.replay_cache.save(
+                    cache_key,
+                    {
+                        "summary": result.summary,
+                        "model": model_name,
+                        "events": trace_payload["events"],
+                        "warnings": result.warnings,
+                        "usage": result.usage,
+                        "payload": result.payload,
+                        "timing": _runtime_timing_payload(result),
+                    },
+                )
             self.manager._record_agent_observability(
                 handle=self,
                 result=result,
@@ -2159,90 +2298,6 @@ class AgentHandle:
             self._append_run_artifact_summary(result, runtime_context)
             self._log_run_summary(result, runtime_context)
             return result
-        self._finalize_runtime_timing(
-            result,
-            started_at=started_at,
-            started_perf=started_perf,
-            ended_at=datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
-            ended_perf=time.perf_counter(),
-        )
-        result.cache_key = cache_key
-        result.warnings = self._derive_warnings(result, runtime_context)
-        decision_status = _managed_ai_terminal_status(result, allow_trading=self.allow_trading)
-        execution_outcome = _managed_ai_execution_outcome(
-            required_for_decision=self.allow_trading,
-            decision_completed=decision_status in {"completed_decision", "completed_no_action"},
-            decision_status=decision_status,
-        )
-        trace_payload = {
-            "agent": self.name,
-            "model": model_name,
-            "request": cache_payload,
-            "tool_calls": [
-                {
-                    "tool_name": event.tool_name,
-                    "call_id": event.call_id,
-                    "payload": event.payload,
-                    "timestamp": event.timestamp,
-                }
-                for event in result.tool_calls
-            ],
-            "tool_results": [
-                {
-                    "tool_name": event.tool_name,
-                    "call_id": event.call_id,
-                    "payload": event.payload,
-                    "timestamp": event.timestamp,
-                }
-                for event in result.tool_results
-            ],
-            "events": [
-                {
-                    "kind": event.kind,
-                    "text": event.text,
-                    "tool_name": event.tool_name,
-                    "call_id": event.call_id,
-                    "payload": event.payload,
-                    "timestamp": event.timestamp,
-                }
-                for event in result.events
-            ],
-            "warnings": result.warnings,
-            "summary": result.summary,
-            "usage": result.usage,
-            "timing": _runtime_timing_payload(result),
-            "duckdb_metrics": self.manager.duckdb.get_metrics(),
-            "execution_outcome": execution_outcome,
-        }
-        trace_path = self._write_trace(result, trace_payload)
-        result.payload = {
-            "trace_path": trace_path.as_posix(),
-            "warnings": result.warnings,
-            "execution_outcome": execution_outcome,
-        }
-        if should_replay:
-            self.manager.replay_cache.save(
-                cache_key,
-                {
-                    "summary": result.summary,
-                    "model": model_name,
-                    "events": trace_payload["events"],
-                    "warnings": result.warnings,
-                    "usage": result.usage,
-                    "payload": result.payload,
-                    "timing": _runtime_timing_payload(result),
-                },
-            )
-        self.manager._record_agent_observability(
-            handle=self,
-            result=result,
-            runtime_context=runtime_context,
-            cache_payload=cache_payload,
-        )
-        self._append_memory(result)
-        self._append_run_artifact_summary(result, runtime_context)
-        self._log_run_summary(result, runtime_context)
-        return result
 
 
 class AgentManager:
@@ -2254,6 +2309,11 @@ class AgentManager:
         self._remote_mcp_contract_cache: dict[tuple[str, str], dict[str, dict[str, Any]]] = {}
         self._model_call_count = 0
         self._model_call_lock = threading.Lock()
+        # run_together runs agents on worker threads. Model calls stay parallel,
+        # but tool calls and run bookkeeping share strategy state, memory,
+        # artifact files, the tool-result cache, and the DuckDB layer, so they
+        # take this lock one at a time.
+        self._shared_state_lock = threading.RLock()
         agent_replay_cache_class, _ = _get_replay_imports()
         self.replay_cache = agent_replay_cache_class()
         self.duckdb = _get_duckdb_query_layer_class()(strategy)
@@ -2316,7 +2376,12 @@ class AgentManager:
                     params["agent_max_model_calls"] = limit
 
     def run_together(self, jobs: list[tuple[str, str, dict[str, Any] | None]]) -> dict[str, Any]:
-        """Run named agents at the same time. Each job is (name, task_prompt, context)."""
+        """Run named agents at the same time. Each job is (name, task_prompt, context).
+
+        Only the model calls overlap. Tool calls and each run's bookkeeping
+        (self.vars state, memory, summaries, caches, DuckDB) run one at a time
+        under the manager's shared-state lock.
+        """
         from concurrent.futures import ThreadPoolExecutor
 
         def _one(job: tuple[str, str, dict[str, Any] | None]) -> tuple[str, Any]:
@@ -2330,6 +2395,27 @@ class AgentManager:
             return {name: result}
         with ThreadPoolExecutor(max_workers=len(jobs)) as pool:
             return dict(pool.map(_one, jobs))
+
+    def _with_shared_state_lock(self, tool: BoundTool) -> BoundTool:
+        lock = self._shared_state_lock
+
+        @functools.wraps(tool.function)
+        def locked_function(*args: Any, **kwargs: Any) -> Any:
+            with lock:
+                return tool.function(*args, **kwargs)
+
+        try:
+            locked_function.__signature__ = inspect.signature(tool.function)  # type: ignore[attr-defined]
+        except (TypeError, ValueError):
+            pass
+
+        return BoundTool(
+            name=tool.name,
+            description=tool.description,
+            function=locked_function,
+            source=tool.source,
+            metadata=dict(tool.metadata or {}),
+        )
 
     def _with_tool_result_cache(self, tool: BoundTool) -> BoundTool:
         metadata = dict(tool.metadata or {})
@@ -2761,6 +2847,7 @@ class AgentManager:
         allow_trading: bool | None = None,
         allow_communication_reads: bool = False,
         allow_communication_writes: bool = False,
+        allow_network: bool | None = None,
         _runtime: Any | None = None,
         include_builtin_tools: bool = True,
         include_builtin_skills: bool = True,
@@ -2789,6 +2876,7 @@ class AgentManager:
             allow_trading=resolved_allow_trading,
             allow_communication_reads=allow_communication_reads,
             allow_communication_writes=allow_communication_writes,
+            allow_network=allow_network,
             include_builtin_tools=include_builtin_tools,
             include_builtin_skills=include_builtin_skills,
             rules_path=rules_path,

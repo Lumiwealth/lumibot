@@ -34,7 +34,9 @@ class AITradingTeamWarrenBuffettValueStrategy(Strategy):
         add_agent(
             self,
             "researcher",
-            "Read public filings and fundamentals. Rank business quality. Do not submit orders.",
+            "Read public filings and fundamentals. Rank business quality. For each name, compute "
+            "valuation as of the current date from the latest statements and the current price: "
+            "earnings yield, free cash flow yield, P/E, and net debt. Do not submit orders.",
             allow_trading=False,
         )
         add_agent(
@@ -52,7 +54,11 @@ class AITradingTeamWarrenBuffettValueStrategy(Strategy):
         add_agent(
             self,
             "interpreter",
-            "Read both cases. Keep a name only when quality and price both hold. Weight only symbols in the universe. Assign account weights. Do not submit orders.",
+            "Read both cases. Do not require a full intrinsic value model. Judge the margin of "
+            "safety by comparing earnings yield, free cash flow yield, and net debt across the "
+            "universe, and keep the names where quality and price both hold best. "
+            "Weight only symbols in the universe, and make the weights sum near 100%. "
+            "Do not submit orders.",
             allow_trading=False,
         )
         add_agent(self, "trader", trader_prompt(book_rule=_BOOK, exit_rule=_EXIT), allow_trading=True)

@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 import pandas as pd
 
@@ -692,3 +692,63 @@ def test_router_ibkr_stock_minute_prefetch_pages_across_weekends(monkeypatch, tm
     assert len(request_keys) == len(set(request_keys)), f"identical IBKR requests repeated: {requests}"
     # One page per session plus the empty closed pages it had to step over; far from one per bar.
     assert len(requests) <= 3 * len(sessions), f"too many downloader requests: {len(requests)}"
+
+
+# ---------------------------------------------------------------------------
+# 2026-09-23 production: SPY 1-minute and 5-minute backtests whose end date was "today",
+# started during market hours (14:46 ET). The account's IBKR history runs about 13 to 17
+# minutes behind, so the newest page ended at "now" and the downloader rejected it as
+# `stale_tail:gap_seconds=807` ("IBKR history remained invalid after rebuild"). That page
+# is the first page, so the strategy got no SPY bars at all.
+# ---------------------------------------------------------------------------
+
+
+def test_ibkr_stock_minute_request_ending_now_stays_behind_the_delayed_feed(monkeypatch, tmp_path):
+    import lumibot.tools.ibkr_helper as ibkr_helper
+
+    monkeypatch.setenv("DATADOWNLOADER_BASE_URL", "http://localhost:8080")
+    monkeypatch.setenv("DATADOWNLOADER_API_KEY", "<redacted>")
+    monkeypatch.delenv("IBKR_HISTORY_SOURCE", raising=False)
+    monkeypatch.setattr(ibkr_helper, "LUMIBOT_CACHE_FOLDER", tmp_path.as_posix())
+    monkeypatch.setattr(ibkr_helper, "_RUNTIME_HISTORY_NO_DATA_WINDOWS", {})
+    monkeypatch.setattr(ibkr_helper, "_RUNTIME_ATTEMPTED_HISTORY_SEGMENTS", {}, raising=False)
+    monkeypatch.setattr(ibkr_helper, "_resolve_conid", lambda **_: 756733)
+
+    now = pd.Timestamp("2026-09-23 18:46:00", tz="UTC")
+    monkeypatch.setattr(ibkr_helper, "_ibkr_history_now_utc", lambda: now.to_pydatetime())
+    feed_lag = pd.Timedelta(minutes=16)
+    vendor = _ibkr_1min_extended_hours(["2026-09-21", "2026-09-22", "2026-09-23"])
+    vendor = vendor.loc[vendor.index <= now - feed_lag]
+    requests: list[dict] = []
+
+    def fake_queue_request(url, querystring=None, headers=None, timeout=None, **_):
+        requests.append(dict(querystring))
+        window_end = pd.Timestamp(datetime.strptime(querystring["startTime"], "%Y%m%d-%H:%M:%S"), tz="UTC")
+        rows = vendor.loc[vendor.index <= window_end]
+        # The downloader's tail check: the last bar must be within 3 bars of the requested end.
+        if not rows.empty and (window_end - rows.index.max()) > pd.Timedelta(minutes=3) and window_end > now - feed_lag:
+            raise RuntimeError(
+                "Request r1 permanently failed: IBKR history remained invalid after rebuild "
+                f"(conid=756733 period=1000min bar=1min reason=stale_tail:gap_seconds={int((window_end - rows.index.max()).total_seconds())}:tolerance_seconds=180)"
+            )
+        window_start = window_end - pd.Timedelta(minutes=int(str(querystring["period"]).removesuffix("min")))
+        rows = rows.loc[rows.index > window_start].tail(1000)
+        return {"data": [{"t": int(ts.timestamp() * 1000), "o": float(r["open"]), "h": float(r["high"]),
+                          "l": float(r["low"]), "c": float(r["close"]), "v": float(r["volume"])}
+                         for ts, r in rows.iterrows()]}
+
+    monkeypatch.setattr(ibkr_helper, "queue_request", fake_queue_request)
+
+    frame = ibkr_helper.get_price_data(
+        asset=Asset("SPY", asset_type=Asset.AssetType.STOCK),
+        quote=Asset("USD", asset_type=Asset.AssetType.FOREX),
+        timestep="minute",
+        start_dt=datetime(2026, 9, 21, 4, 0, tzinfo=timezone.utc),
+        end_dt=now.to_pydatetime(),
+        include_after_hours=True,
+    )
+
+    assert not frame.empty, f"no SPY bars for a backtest ending now; requests={requests}"
+    assert frame.index.max() >= now - pd.Timedelta(minutes=25)
+    assert frame.index.max() <= now - feed_lag
+    assert pd.Timestamp("2026-09-22 09:30", tz="America/New_York") in set(frame.index)

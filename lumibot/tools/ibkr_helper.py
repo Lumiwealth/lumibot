@@ -85,6 +85,9 @@ IBKR_MAX_CLOSED_PAGE_SKIPS = 2000
 # Smallest daily page tried after IBKR says "Chart data unavailable" for a page that
 # reaches back before the contract's first bar (see _smaller_daily_period_after_chart_unavailable).
 IBKR_DAILY_MIN_PAGE_DAYS = 5
+# How far behind real time IBKR stock/index intraday history can lag on the shared account
+# (observed 13 to 17 minutes). Intraday requests never ask for bars newer than this.
+IBKR_INTRADAY_HISTORY_DELAY = timedelta(minutes=20)
 IBKR_STOCK_INDEX_HOURLY_REPAIR_PERIOD = "2000h"
 
 IBKR_CONID_NEGATIVE_CACHE_TTL_SECONDS = 24 * 60 * 60  # 24h (persisted via BacktestCacheManager when enabled)
@@ -488,6 +491,11 @@ def _period_to_timedelta(period: str) -> Optional[timedelta]:
     return None
 
 
+def _ibkr_history_now_utc() -> datetime:
+    """Wall clock for history requests (a seam so tests can pin "now")."""
+    return datetime.now(timezone.utc)
+
+
 def _is_chart_data_unavailable(exc: BaseException) -> bool:
     return "chart data unavailable" in str(exc).lower()
 
@@ -680,6 +688,17 @@ def get_price_data(
         _bar, _bar_seconds, timestep_component = _timestep_to_ibkr_bar(timestep)
     except Exception:
         timestep_component = _timestep_component(timestep)
+
+    # IBKR history for US stocks and indexes on the shared account runs about 13 to 17
+    # minutes behind real time. A request ending at "now" (a backtest whose end date is
+    # today, run during market hours) makes the downloader reject the newest page as
+    # `stale_tail`, and that page is the first one, so the series came back empty.
+    # Ask only for bars the feed can already have.
+    if asset_type in {"stock", "index"} and not str(timestep_component).endswith("day"):
+        latest_available = _ibkr_history_now_utc() - IBKR_INTRADAY_HISTORY_DELAY
+        if end_utc > latest_available:
+            end_utc = max(start_utc, latest_available)
+            end_local = end_utc.astimezone(LUMIBOT_DEFAULT_PYTZ)
 
     # Continuous futures
     #

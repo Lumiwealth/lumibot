@@ -19,7 +19,14 @@ def test_fixture_process_keeps_only_inference_credentials(monkeypatch, tmp_path)
         },
     )
     configure_fixture_environment(tmp_path)
-    assert set(os.environ) == {"PATH", "GEMINI_API_KEY", "GOOGLE_API_KEY", "LUMIBOT_DISABLE_DOTENV", "IS_BACKTESTING"}
+    assert set(os.environ) == {
+        "PATH",
+        "GEMINI_API_KEY",
+        "GOOGLE_API_KEY",
+        "LUMIBOT_DISABLE_DOTENV",
+        "IS_BACKTESTING",
+        "LITELLM_LOCAL_MODEL_COST_MAP",
+    }
     assert os.environ["LUMIBOT_DISABLE_DOTENV"] == "true"
 
 
@@ -30,7 +37,13 @@ def test_fixture_process_keeps_the_openai_key_for_luna_without_requiring_gemini(
         {"PATH": "/bin", "OPENAI_API_KEY": "synthetic-openai", "AWS_ACCESS_KEY_ID": "must-not-leave"},
     )
     configure_fixture_environment(tmp_path)
-    assert set(os.environ) == {"PATH", "OPENAI_API_KEY", "LUMIBOT_DISABLE_DOTENV", "IS_BACKTESTING"}
+    assert set(os.environ) == {
+        "PATH",
+        "OPENAI_API_KEY",
+        "LUMIBOT_DISABLE_DOTENV",
+        "IS_BACKTESTING",
+        "LITELLM_LOCAL_MODEL_COST_MAP",
+    }
 
 
 def test_openai_responses_inference_is_allowed_but_other_openai_paths_are_not():
@@ -114,3 +127,14 @@ def test_production_fixture_serves_builtin_sec_tools_offline(monkeypatch, tmp_pa
     assert result["available"] is False
     assert result["reason"] == "no_sec_cik"
     assert result["filings"] == []
+
+
+def test_fixture_process_uses_litellm_bundled_price_map(monkeypatch, tmp_path):
+    # litellm >= 1.102 downloads its model price map from GitHub on import. The
+    # fixture boundary correctly rejects that GET, which made every GPT-6 Luna
+    # eval call error in CI (release run for v4.5.92 and agent-evals run
+    # 35964520979). The eval process must use litellm's bundled map instead.
+    monkeypatch.setenv("OPENAI_API_KEY", "openai-test-key")
+    monkeypatch.delenv("LITELLM_LOCAL_MODEL_COST_MAP", raising=False)
+    configure_fixture_environment(tmp_path)
+    assert os.environ["LITELLM_LOCAL_MODEL_COST_MAP"] == "True"

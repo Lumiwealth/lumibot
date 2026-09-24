@@ -50,7 +50,11 @@ def configure_fixture_environment(root):
     }
     os.environ.clear()
     os.environ.update(retained)
-    os.environ.update(LUMIBOT_DISABLE_DOTENV="true", IS_BACKTESTING="true")
+    # litellm >= 1.102 downloads its model price map from GitHub on import;
+    # the fixture boundary rejects that request, so use the bundled map.
+    os.environ.update(
+        LUMIBOT_DISABLE_DOTENV="true", IS_BACKTESTING="true", LITELLM_LOCAL_MODEL_COST_MAP="True"
+    )
     if openai_key:
         os.environ["OPENAI_API_KEY"] = openai_key
     if gemini_key:

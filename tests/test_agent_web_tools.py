@@ -577,3 +577,63 @@ def test_http_request_reports_unreadable_pdf_instead_of_raising():
     assert "text" not in result
     assert result["text_error"].startswith("Could not extract PDF text:")
     assert base64.b64decode(result["body_base64"]) == b"%PDF-1.4"
+
+
+class TestWebSearch:
+    """The agent can fetch a URL and drive a browser, but could not find one.
+
+    Search is the missing discovery primitive. It defaults to a backend that
+    needs no API key, because key fatigue is the real adoption blocker: a model
+    key plus a broker key plus a search key plus a data key is a wall in front
+    of the first run.
+    """
+
+    def test_web_search_is_a_registered_builtin_tool(self):
+        from lumibot.components.agents.builtins import BuiltinTools
+
+        assert "web_search" in {tool.name for tool in BuiltinTools.all()}
+
+    def test_description_says_no_key_is_required(self):
+        from lumibot.components.agents.builtins import BuiltinTools
+
+        tool = next(t for t in BuiltinTools.all() if t.name == "web_search")
+        assert "no api key" in tool.description.lower()
+
+    def test_missing_backend_names_the_install_command(self):
+        """An optional dependency must fail with the fix, not a stack trace."""
+        import builtins as _builtins
+
+        from lumibot.components.agents import builtins as lumibot_builtins
+
+        real_import = _builtins.__import__
+
+        def blocked(name, *args, **kwargs):
+            if name.split(".")[0] == "ddgs":
+                raise ImportError("No module named 'ddgs'")
+            return real_import(name, *args, **kwargs)
+
+        _builtins.__import__ = blocked
+        try:
+            with pytest.raises(RuntimeError, match="pip install ddgs"):
+                lumibot_builtins._web_search_backend()
+        finally:
+            _builtins.__import__ = real_import
+
+    def test_results_are_capped_and_shaped(self, monkeypatch):
+        from lumibot.components.agents import builtins as lumibot_builtins
+
+        rows = [
+            {"title": f"t{i}", "href": f"https://example.test/{i}", "body": f"b{i}"}
+            for i in range(50)
+        ]
+        monkeypatch.setattr(lumibot_builtins, "_web_search_backend", lambda: (lambda **kw: rows))
+        out = lumibot_builtins._run_web_search(query="spy", max_results=5)
+        assert len(out["results"]) == 5
+        assert out["query"] == "spy"
+        assert set(out["results"][0]) == {"title", "url", "snippet"}
+
+    def test_empty_query_is_refused(self):
+        from lumibot.components.agents import builtins as lumibot_builtins
+
+        with pytest.raises(ValueError, match="query"):
+            lumibot_builtins._run_web_search(query="   ", max_results=5)

@@ -1088,6 +1088,7 @@ def test_agent_model_call_limit_stops_before_runtime_call(monkeypatch):
 _NETWORK_TOOL_NAMES = {
     "http_request",
     "rss_fetch",
+    "web_search",
     "browser_session_open",
     "browser_session_close",
     "browser_session_recover",

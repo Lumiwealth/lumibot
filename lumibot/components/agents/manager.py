@@ -40,6 +40,7 @@ NETWORK_TOOL_NAMES = frozenset(
     {
         "http_request",
         "rss_fetch",
+        "web_search",
         "browser_session_open",
         "browser_session_close",
         "browser_session_recover",

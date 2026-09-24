@@ -561,6 +561,42 @@ def _cursor_before_closed_equity_page(
     return page_end
 
 
+def _previous_equity_session_close_before(
+    *, asset_type: str, bar: str, earliest: datetime, include_after_hours: bool
+) -> Optional[datetime]:
+    """Close of the last US equity session before ``earliest`` when only closed time lies between.
+
+    Backward pagination continues from the oldest bar received. When that bar opens a session,
+    anchoring the next 1000-minute page there makes it straddle the closed overnight or weekend
+    gap, so about half of every page was empty (production: ~1.8 requests per session).
+    Anchoring at the previous session's close gives one full page per session.
+    """
+    if asset_type not in {"stock", "index"} or (bar or "").strip().lower().endswith("d"):
+        return None
+    try:
+        extended = bool(include_after_hours) if asset_type == "stock" else False
+        earliest_ts = pd.Timestamp(earliest)
+        if earliest_ts.tzinfo is None:
+            earliest_ts = earliest_ts.tz_localize(LUMIBOT_DEFAULT_PYTZ)
+        earliest_ns = int(earliest_ts.tz_convert("UTC").value)
+        year = int(earliest_ts.tz_convert("America/New_York").year)
+        closes = np.concatenate(
+            [
+                _us_equity_session_bounds_for_year(year - 1, extended)[1],
+                _us_equity_session_bounds_for_year(year, extended)[1],
+            ]
+        )
+        idx = int(np.searchsorted(closes, earliest_ns, side="left")) - 1
+        if idx < 0:
+            return None
+        previous_close = pd.Timestamp(int(closes[idx]), unit="ns", tz="UTC").to_pydatetime()
+        if not _us_equity_closed_interval(previous_close, earliest_ts.to_pydatetime(), include_after_hours=extended):
+            return None
+        return previous_close
+    except Exception:
+        return None
+
+
 def _history_segment_already_attempted(runtime_key: str, seg_start: datetime, seg_end: datetime) -> bool:
     for attempted_start, attempted_end in _RUNTIME_ATTEMPTED_HISTORY_SEGMENTS.get(runtime_key, ()):
         if attempted_start <= seg_start and seg_end <= attempted_end:
@@ -2382,6 +2418,11 @@ def _fetch_history_between_dates(
         next_cursor_end = earliest
         if next_cursor_end >= cursor_end:
             next_cursor_end = earliest - pd.Timedelta(seconds=bar_seconds)
+        session_close = _previous_equity_session_close_before(
+            asset_type=asset_type, bar=bar, earliest=earliest, include_after_hours=include_after_hours
+        )
+        if session_close is not None and session_close < _to_utc(next_cursor_end):
+            next_cursor_end = session_close
         cursor_end = next_cursor_end
 
         # Do not assume `len(df) < 1000` implies we're at the start of history.

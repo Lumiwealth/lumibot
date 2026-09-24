@@ -52,29 +52,24 @@ submitting an option order.
 
 ## Position truth
 
-Treat current signed quantities as authoritative:
+Treat current signed quantities as authoritative. Positive is long, negative
+is short, zero is flat.
 
-- Positive quantity is long. Reduce it with `sell_to_close`.
-- Negative quantity is short. Reduce it with `buy_to_close`.
-- Never use `buy_to_close` for a positive quantity. Never use `sell_to_close`
-  for a negative quantity. Those pairings do not close the observed position.
-- Close exactly the absolute current quantity for each contract.
+To close held option contracts, always pass `action='close'` to
+`options_calculate_multileg_price` and `orders_submit_multileg`. List only
+`symbol`, `expiration`, `strike`, and `right` for each held leg. LumiBot derives
+each closing side from the current signed position (long becomes
+`sell_to_close`, short becomes `buy_to_close`) and defaults the quantity to the
+full held amount. Never write closing sides yourself. Pass `quantity` only for
+a per-unit price check or an intended partial close.
+
 - Never multiply a cleanup quantity or repeat a close without rereading positions.
 - Do not report flatness until every relevant signed quantity is zero.
 
-Immediately before pricing or submitting a close, reconcile every exact contract
-against the latest `account_positions` result:
-
-| Observed signed quantity | Meaning | Closing side | Closing quantity |
-| --- | --- | --- | --- |
-| `+Q` | long | `sell_to_close` | `Q` |
-| `-Q` | short | `buy_to_close` | `Q` |
-
-Reject the proposed package yourself if any closing leg violates this table. If
-a close does not produce flat positions, inspect its exact status and open orders.
-Do not switch tools, reverse sides, change quantities, or submit another close
-until the prior order's terminal state and the current signed positions prove
-what remains.
+If a close does not produce flat positions, inspect its exact status and open
+orders. Do not switch tools, change quantities, or submit another close until
+the prior order's terminal state and the current signed positions prove what
+remains.
 
 ## Pricing truth
 

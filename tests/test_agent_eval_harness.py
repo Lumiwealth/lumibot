@@ -1084,6 +1084,45 @@ def test_rejected_order_attempts_are_not_counted_as_broker_submissions():
     assert "submitted an order despite a no-order contract" in score["failures"]
 
 
+def test_close_mode_submission_is_scored_from_the_legs_lumibot_built():
+    """In action='close' mode the agent sends only contracts and LumiBot derives
+    each side and quantity. The harness must score the legs that reached the
+    broker, not the side-less (or ignored) call arguments."""
+    from types import SimpleNamespace
+
+    from lumibot.components.agents import AgentTraceEvent
+    from scripts.agent_eval_production_fixture import ProductionFixture
+
+    contracts = [
+        {"symbol": "SPY", "expiration": "2026-08-28", "strike": 594, "right": "put"},
+        {"symbol": "SPY", "expiration": "2026-08-28", "strike": 592, "right": "put"},
+    ]
+    built = [
+        {"asset": {"symbol": "SPY", "expiration": "2026-08-28", "strike": 594.0, "right": "PUT"}, "side": "buy_to_close", "quantity": 3.0},
+        {"asset": {"symbol": "SPY", "expiration": "2026-08-28", "strike": 592.0, "right": "PUT"}, "side": "sell_to_close", "quantity": 3.0},
+    ]
+
+    def event(kind, payload):
+        return AgentTraceEvent(kind=kind, tool_name="orders_submit_multileg", call_id="a", payload=payload)
+
+    result = SimpleNamespace(
+        tool_calls=[event("tool_call", {"legs_json": json.dumps(contracts), "action": "close"})],
+        tool_results=[event("tool_result", {"legs": built, "order_type": "debit"})],
+    )
+    production = ProductionFixture(evals.build_fixture("open_credit_spread"))
+    try:
+        production.capture(result)
+    finally:
+        production.close()
+
+    legs = production.fixture.submissions[0]["legs"]
+    assert {(float(leg["strike"]), leg["side"], leg["quantity"]) for leg in legs} == {
+        (594.0, "buy_to_close", 3.0),
+        (592.0, "sell_to_close", 3.0),
+    }
+    assert {leg["right"] for leg in legs} == {"put"}
+
+
 def test_harness_error_rows_name_where_the_error_happened_without_its_message():
     def fail():
         return {}["secret-looking-key"]

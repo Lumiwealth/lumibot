@@ -1019,3 +1019,101 @@ def test_market_historical_prices_keeps_daily_bars_for_day_request():
 
     assert len(result["bars_by_symbol"]["SPY"]) == 5
     assert result["symbols_interval_mismatch"] == []
+
+
+def _bull_put_spread_strategy():
+    """Short 3 SPY 615 puts and long 3 SPY 610 puts, like the eval fixture."""
+    strategy = _OptionsStrategy()
+    short_put = Asset(symbol="SPY", asset_type="option", expiration=date(2026, 9, 18), strike=615, right="put")
+    long_put = Asset(symbol="SPY", asset_type="option", expiration=date(2026, 9, 18), strike=610, right="put")
+    strategy.get_positions = lambda include_cash_positions=True: [
+        SimpleNamespace(asset=short_put, quantity=-3),
+        SimpleNamespace(asset=long_put, quantity=3),
+    ]
+    return strategy
+
+
+def _spread_contracts(**extra):
+    return [
+        {"symbol": "SPY", "expiration": "2026-09-18", "strike": 615, "right": "put", **extra},
+        {"symbol": "SPY", "expiration": "2026-09-18", "strike": 610, "right": "put", **extra},
+    ]
+
+
+def _sides_and_quantities(legs):
+    return {(float(leg["asset"]["strike"]), leg["side"], float(leg["quantity"])) for leg in legs}
+
+
+def test_close_mode_derives_closing_legs_from_signed_positions():
+    """Release eval options_credit_spread_close_signed_quantities (run 36024557992,
+    repetition 1): GPT-6 Luna reversed both closing sides of a bull put spread on
+    its first orders_submit_multileg call. action='close' takes only the exact
+    contracts and derives side and quantity from the current signed positions, so
+    the agent never maps sides by hand."""
+    strategy = _bull_put_spread_strategy()
+    tools = _wrapped_tools(
+        strategy,
+        [
+            BuiltinTools.account.positions(),
+            BuiltinTools.account.portfolio(),
+            BuiltinTools.orders.open_orders(),
+            BuiltinTools.market.last_price(),
+            BuiltinTools.options.calculate_multileg_price(),
+            BuiltinTools.orders.submit_multileg(),
+        ],
+    )
+    _checked_account(tools)
+
+    per_unit = tools["options_calculate_multileg_price"](
+        legs_json=json.dumps(_spread_contracts(quantity=1)), action="close"
+    )
+    assert "tool_error" not in per_unit
+    assert _sides_and_quantities(per_unit["legs"]) == {
+        (615.0, "buy_to_close", 1.0),
+        (610.0, "sell_to_close", 1.0),
+    }
+    assert per_unit["order_type"] == "debit"
+
+    # Sides the agent supplies in close mode are ignored, including reversed ones.
+    result = tools["orders_submit_multileg"](
+        legs_json=json.dumps(
+            [
+                {**_spread_contracts()[0], "side": "sell_to_close"},
+                {**_spread_contracts()[1], "side": "buy_to_close"},
+            ]
+        ),
+        action="close",
+    )
+
+    assert "tool_error" not in result
+    assert _sides_and_quantities(result["legs"]) == {
+        (615.0, "buy_to_close", 3.0),
+        (610.0, "sell_to_close", 3.0),
+    }
+    orders, kwargs = strategy.submissions[0]
+    assert {(float(o.asset.strike), o.side, float(o.quantity)) for o in orders} == {
+        (615.0, "buy_to_close", 3.0),
+        (610.0, "sell_to_close", 3.0),
+    }
+    assert kwargs["order_type"] == "debit"
+
+
+def test_close_mode_rejects_contracts_without_a_position_and_oversized_quantities():
+    strategy = _bull_put_spread_strategy()
+    tool = BuiltinTools.options.calculate_multileg_price().binder(strategy, AgentManager(strategy))
+
+    unheld = _spread_contracts()
+    unheld[1]["strike"] = 605
+    with pytest.raises(ValueError, match="no open position"):
+        tool.function(legs_json=json.dumps(unheld), action="close")
+
+    with pytest.raises(ValueError, match="exceeds the current position"):
+        tool.function(legs_json=json.dumps(_spread_contracts(quantity=4)), action="close")
+
+
+def test_close_mode_is_documented_on_both_multileg_tools():
+    strategy = _OptionsStrategy()
+    manager = AgentManager(strategy)
+    for definition in (BuiltinTools.options.calculate_multileg_price(), BuiltinTools.orders.submit_multileg()):
+        description = " ".join(definition.binder(strategy, manager).description.split())
+        assert "action='close'" in description

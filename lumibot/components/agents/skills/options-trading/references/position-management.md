@@ -12,10 +12,10 @@ For every exact contract:
 - quantity less than zero: short, close with `buy_to_close`
 - quantity equal to zero: flat, do not send another close
 
-The inverse mappings are invalid: `buy_to_close` does not close a positive long
-position, and `sell_to_close` does not close a negative short position. Check the
-side of every proposed closing leg against the latest signed quantity before
-pricing or submission.
+Do not map those sides by hand. Close multi-leg positions with `action='close'`
+on `options_calculate_multileg_price` and `orders_submit_multileg`, naming only
+the held contracts; LumiBot derives each side and the full held quantity from
+the current signed position.
 
 Closing quantity is `abs(current_quantity)`. Reread positions after every close
 attempt. Never double, aggregate repeatedly, or use a previously remembered

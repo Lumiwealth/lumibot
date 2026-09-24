@@ -26,6 +26,7 @@ OrderTypeArg = Literal["market", "limit", "stop", "stop_limit", "trailing_stop",
 TimeInForceArg = Literal["day", "gtc", "gtd"]
 OptionRightArg = Literal["call", "put"]
 MultilegPriceStyleArg = Literal["market", "best", "mid", "fastest"]
+MultilegActionArg = Literal["as_given", "close"]
 NewsSortArg = Literal["asc", "desc"]
 
 COMMON_INDICATORS = [
@@ -971,6 +972,74 @@ def _parse_option_legs(strategy: Any, legs_json: str, *, time_in_force: TimeInFo
     return orders
 
 
+def _signed_option_quantities(strategy: Any) -> dict[tuple[str, str, float, str], float]:
+    quantities: dict[tuple[str, str, float, str], float] = {}
+    for position in strategy.get_positions(include_cash_positions=True) or []:
+        asset = getattr(position, "asset", None)
+        asset_type = getattr(asset, "asset_type", None)
+        if str(getattr(asset_type, "value", asset_type) or "").lower() != "option":
+            continue
+        key = _option_contract_key(asset)
+        quantities[key] = quantities.get(key, 0.0) + float(getattr(position, "quantity", 0) or 0)
+    return quantities
+
+
+def _parse_closing_option_legs(
+    strategy: Any, legs_json: str, *, time_in_force: TimeInForceArg = "day"
+) -> list[Any]:
+    """Build closing legs from the exact contracts and the current signed positions.
+
+    Why: agents reversed closing sides by hand (release eval
+    options_credit_spread_close_signed_quantities). In close mode the agent names
+    only the contracts; a long position always becomes sell_to_close and a short
+    position buy_to_close. Any side in the input is ignored. Quantity defaults to
+    the full absolute position and may be smaller for a partial or per-unit close.
+    """
+    raw = _require_non_empty_text("legs_json", legs_json)
+    try:
+        legs = json.loads(raw)
+    except json.JSONDecodeError as exc:
+        raise ValueError(f"legs_json must be valid JSON: {exc}") from exc
+    if not isinstance(legs, list) or len(legs) < 2:
+        raise ValueError("legs_json must decode to a list containing at least two option legs.")
+
+    remaining = _signed_option_quantities(strategy)
+    orders: list[Any] = []
+    for index, leg in enumerate(legs):
+        if not isinstance(leg, dict):
+            raise ValueError(f"legs_json item {index} must be a JSON object.")
+        try:
+            symbol = _require_single_symbol_text("symbol", leg.get("symbol"))
+            expiration = _require_non_empty_text("expiration", leg.get("expiration"))
+            strike = _require_positive_number("strike", leg.get("strike"))
+            requested = leg.get("quantity")
+            quantity = None if requested is None else _require_positive_number("quantity", requested)
+        except ValueError as exc:
+            raise ValueError(f"Invalid option leg at index {index}: {exc}") from exc
+        right = str(leg.get("right") or "").strip().lower()
+        if right not in {"call", "put"}:
+            raise ValueError(f"Invalid option leg at index {index}: right must be 'call' or 'put'.")
+        option = _option_asset(strategy, symbol=symbol, expiration=expiration, strike=strike, right=right)
+        key = _option_contract_key(option)
+        current = remaining.get(key, 0.0)
+        if current == 0:
+            raise ValueError(
+                f"Invalid option leg at index {index}: there is no open position to close for contract={key}. "
+                "Reread account_positions and name only held contracts."
+            )
+        if quantity is None:
+            quantity = abs(current)
+        elif quantity > abs(current):
+            raise ValueError(
+                f"Invalid option leg at index {index}: closing quantity {quantity} exceeds the current position "
+                f"{current} for contract={key}."
+            )
+        side = "sell_to_close" if current > 0 else "buy_to_close"
+        remaining[key] = current - quantity if current > 0 else current + quantity
+        orders.append(strategy.create_order(option, quantity, side, time_in_force=time_in_force))
+    return orders
+
+
 def _option_contract_key(asset: Any) -> tuple[str, str, float, str]:
     expiration = getattr(asset, "expiration", None)
     if isinstance(expiration, (date, datetime)):
@@ -995,16 +1064,7 @@ def _validate_option_closing_orders(strategy: Any, orders: list[Any]) -> None:
     if not closing_orders:
         return
 
-    quantities_by_contract: dict[tuple[str, str, float, str], float] = {}
-    for position in strategy.get_positions(include_cash_positions=True) or []:
-        asset = getattr(position, "asset", None)
-        asset_type = getattr(asset, "asset_type", None)
-        if str(getattr(asset_type, "value", asset_type) or "").lower() != "option":
-            continue
-        key = _option_contract_key(asset)
-        quantities_by_contract[key] = quantities_by_contract.get(key, 0.0) + float(
-            getattr(position, "quantity", 0) or 0
-        )
+    quantities_by_contract = _signed_option_quantities(strategy)
 
     for order in closing_orders:
         side = str(getattr(order, "side", "") or "").lower()
@@ -1797,8 +1857,12 @@ def _bind_options_calculate_multileg_price(strategy: Any, manager: Any) -> Bound
         *,
         legs_json: str,
         price_style: Literal["best", "mid", "fastest"] = "mid",
+        action: MultilegActionArg = "as_given",
     ) -> dict[str, Any]:
-        orders = _parse_option_legs(strategy, legs_json)
+        if action == "close":
+            orders = _parse_closing_option_legs(strategy, legs_json)
+        else:
+            orders = _parse_option_legs(strategy, legs_json)
         net_price, price_basis = _resolve_multileg_net_price(strategy, orders, price_style)
         if net_price is None:
             return {
@@ -1824,10 +1888,9 @@ def _bind_options_calculate_multileg_price(strategy: Any, manager: Any) -> Bound
         name="options_calculate_multileg_price",
         description=(
             "Calculate a provider-generic net limit price for two or more exact option legs without submitting them. "
-            "Arguments: legs_json and optional price_style='best', 'mid', or 'fastest'. legs_json must be a JSON array; every leg requires symbol, expiration, strike, right, quantity, and side. "
-            "Use buy_to_open/sell_to_open when opening and buy_to_close/sell_to_close when closing. A positive net_limit_price is a debit and a negative value is a credit. "
-            "For a closing order, a positive account_positions quantity is long and requires sell_to_close; a negative quantity is short and requires buy_to_close. Closing quantity is the absolute value of the position quantity. "
-            "Never price a close with buy_to_close for a positive quantity or sell_to_close for a negative quantity because those sides do not close the observed position. "
+            "Arguments: legs_json, optional price_style='best', 'mid', or 'fastest', and optional action. legs_json must be a JSON array; every leg requires symbol, expiration, strike, right, quantity, and side, except in close mode. "
+            "To close held option contracts, always pass action='close': each leg then needs only symbol, expiration, strike, and right plus an optional quantity (default: the full held quantity). LumiBot derives every closing side from the current signed position, so never write closing sides yourself. "
+            "Use buy_to_open/sell_to_open when opening. A positive net_limit_price is a debit and a negative value is a credit. "
             "When comparing a per-unit multi-leg opening credit with a per-unit closing debit, price one contract per leg here. Use the full absolute position quantities only in the later orders_submit_multileg call. "
             "Independently reconcile the returned net price from the four option midpoint values you just observed. For a defined-risk structure, reject a result that conflicts materially with those leg mids or violates the structure's economic bounds. "
             "price_basis='last_trade' means a trade-only backtest priced each leg from its last traded price; reconcile against the leg last prices instead of mids. "
@@ -4095,8 +4158,12 @@ def _bind_submit_multileg_order(strategy: Any, manager: Any) -> BoundTool:
         price_style: MultilegPriceStyleArg = "mid",
         net_limit_price: float | None = None,
         time_in_force: TimeInForceArg = "day",
+        action: MultilegActionArg = "as_given",
     ) -> dict[str, Any]:
-        orders = _parse_option_legs(strategy, legs_json, time_in_force=time_in_force)
+        if action == "close":
+            orders = _parse_closing_option_legs(strategy, legs_json, time_in_force=time_in_force)
+        else:
+            orders = _parse_option_legs(strategy, legs_json, time_in_force=time_in_force)
         symbols = sorted({str(getattr(order.asset, "symbol", "")).upper() for order in orders})
         for symbol in symbols:
             _require_agent_order_readiness(symbol)
@@ -4150,10 +4217,8 @@ def _bind_submit_multileg_order(strategy: Any, manager: Any) -> BoundTool:
             "Create and submit one atomic multi-leg option order from exact contracts selected by the agent. This is generic and does not choose a strategy or its legs. "
             "Arguments: legs_json, optional price_style='market', 'best', 'mid', or 'fastest', optional signed net_limit_price, optional time_in_force. legs_json must be a JSON array with at least two legs; each leg requires symbol, expiration, strike, right, quantity, and side. "
             "Before submitting in the same agent run, inspect the injected account_snapshot, market_last_price or market_last_prices for each underlying symbol, options_get_chain, and options_calculate_multileg_price after evaluating every exact leg. A complete injected account_snapshot satisfies the initial account_portfolio, account_positions, and open-order inspection; after any order mutation, refresh account_portfolio, account_positions, and orders_open_orders before another order. Market and option evidence are always required. "
-            "Opening sides are buy_to_open and sell_to_open. Closing sides are buy_to_close and sell_to_close. Use matching quantities when the intended position requires matched contracts. "
-            "When closing existing positions, map signed account quantities exactly: positive long quantity -> sell_to_close; negative short quantity -> buy_to_close. Reversing that mapping increases exposure instead of closing it. "
-            "Immediately before submission, reconcile every closing leg against the latest account_positions result. Reject the package yourself if any positive quantity is paired with buy_to_close or any negative quantity is paired with sell_to_close. "
-            "Every proposed closing leg must reduce the corresponding exact position quantity toward zero. Do not use the same closing side for positive and negative position quantities. "
+            "Opening sides are buy_to_open and sell_to_open. Use matching quantities when the intended position requires matched contracts. "
+            "To close held option contracts, always pass action='close' and list only symbol, expiration, strike, and right for each held leg, plus an optional quantity (default: the full held quantity). LumiBot derives each closing side from the current signed position (long -> sell_to_close, short -> buy_to_close), so never write closing sides yourself. Close mode rejects contracts with no open position and quantities above the held amount. "
             "Current nonzero option positions remain open until a later account_positions result shows zero quantity. A submitted or filled order result is not itself proof that positions are flat, and a final response must not claim submission unless this tool returned submitted orders. "
             "If positions are not flat afterward, inspect the exact order status and open orders. Do not switch order tools, reverse sides, change quantities, or submit another close until the prior order has a terminal state and a fresh account_positions result proves what remains. "
             "Before opening more option exposure, compare the proposed legs with all current option positions and pending orders. Do not add another structure when the strategy policy permits only one open structure. "

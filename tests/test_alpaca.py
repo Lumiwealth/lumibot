@@ -604,3 +604,22 @@ class TestAlpacaBroker:
         assert result is not None
         assert result.avg_fill_price is None
         assert result.broker_create_date is None
+
+
+def test_alpaca_await_market_to_close_does_not_crash_without_process_pending_orders():
+    """Regression test for issue #1113: Alpaca live broker has no process_pending_orders method."""
+    broker = Alpaca(ALPACA_UNIT_CONFIG, connect_stream=False)
+    broker.get_time_to_close = MagicMock(return_value=0)
+    mock_strategy = MagicMock()
+    # Must not raise AttributeError: 'Alpaca' object has no attribute 'process_pending_orders'
+    broker._await_market_to_close(timedelta=None, strategy=mock_strategy)
+
+
+def test_alpaca_await_market_to_close_invokes_process_pending_orders_if_present():
+    """Ensures process_pending_orders is called when implemented (e.g. BacktestingBroker)."""
+    broker = Alpaca(ALPACA_UNIT_CONFIG, connect_stream=False)
+    broker.get_time_to_close = MagicMock(return_value=0)
+    broker.process_pending_orders = MagicMock()
+    mock_strategy = MagicMock()
+    broker._await_market_to_close(timedelta=None, strategy=mock_strategy)
+    broker.process_pending_orders.assert_called_once_with(strategy=mock_strategy)

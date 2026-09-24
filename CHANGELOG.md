@@ -1,8 +1,16 @@
 # Changelog
 
-## 4.5.92 - 2026-09-23
+## 4.6.0 - 2026-09-24
 
-Deploy marker: `3abbf8fcbd64`
+4.6.0 is the first published release of this work. Tag `v4.5.92` was created but its release run stopped at the agent eval gate, so 4.5.92 was never published to PyPI. Everything planned for 4.5.92 ships here, renamed 4.6.0 because of the size of the AI agent changes.
+
+Highlights:
+- `BACKTESTING_DATA_SOURCE=alpaca` backtests no longer crash with "Config cannot be None" (see Fixed).
+- IBKR intraday backtests no longer loop on the same downloader request across clamped or holiday windows.
+- Alpaca and IBKR history returns closed bars only, and history before the backtest start is downloaded.
+- New agents default to GPT-6 Luna on medium reasoning; agent network tools are opt-in.
+
+Deploy marker: `3abbf8fcbd64` (original 4.5.92 marker)
 
 ### Growth documentation and examples
 - Added point-in-time Congress-disclosure and SEC Form 4 agent examples, plus a stateful authenticated-browser research/trade/publish showcase with publishing disabled by default.

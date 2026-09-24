@@ -586,6 +586,7 @@ Table of Contents
    :caption: AI trading
 
    AI Agent Guide <agents>
+   The Execution Gap <execution_gap>
    Compare AI Frameworks <ai_trading_project_comparison>
 
 .. toctree::

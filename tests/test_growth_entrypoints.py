@@ -218,3 +218,35 @@ def test_creator_campaign_placements_have_distinct_tracking():
         (challenge if destination == "challenges" else bootcamp).add(image)
     assert len(challenge) >= 6
     assert len(bootcamp) >= 3
+
+
+def test_execution_gap_claim_is_on_the_first_screen_with_citations():
+    """The one claim no competitor can copy quickly must be above the fold.
+
+    Every agentic trading framework stops at the decision. LumiBot carries it
+    through a deterministic gate into a broker and leaves a record. That is the
+    gap the 2026 literature names, so the README states it and cites the
+    sources rather than boasting.
+    """
+    readme = (ROOT / "README.md").read_text()
+    head = readme.split("## Why LumiBot?")[0]
+
+    assert "The part everyone else skips" in head
+    # The arXiv survey and the DeFi agent review are what make this credible.
+    assert "2608.31041" in head
+    assert "model said yes" in head
+    # Named requirements from the 2026 frameworks, stated as theirs, not ours.
+    for requirement in ("identity", "traceability", "stoppability"):
+        assert requirement in head.lower()
+    # Never claim compliance with a framework we have not been assessed against.
+    for forbidden in ("we are compliant", "fully compliant", "certified"):
+        assert forbidden not in readme.lower()
+
+
+def test_the_record_is_shown_not_just_described():
+    """A docs page must point at the real artifacts a reader can open."""
+    page = (ROOT / "docsrc/execution_gap.rst").read_text()
+    assert "agent_detail.parquet" in page
+    assert "risk" in page.lower()
+    index = (ROOT / "docsrc/index.rst").read_text()
+    assert "execution_gap" in index

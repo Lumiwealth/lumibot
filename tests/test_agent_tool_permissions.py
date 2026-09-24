@@ -199,6 +199,12 @@ def test_base_prompt_asks_a_hold_to_name_the_order_or_position_that_already_cove
         "When you decide not to order, name the existing position or pending order that already covers the "
         "decision, or the missing condition that blocks it" in prompt
     )
+    # Run 36032672952 (repetition 1) held on the snapshot alone. A hold that rests on
+    # an existing position or pending order must read both fresh in this run.
+    assert (
+        "Before relying on an existing position or pending order, call account_positions and "
+        "orders_open_orders in this run; the injected snapshot can be stale about fills" in prompt
+    )
 
 
 def test_live_agent_auth_failure_emits_structured_decision_outcome():

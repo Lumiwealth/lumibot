@@ -187,6 +187,20 @@ def test_base_prompt_asks_the_final_decision_to_name_its_account_evidence_and_un
     assert "treat any upstream research or handoff packet as unverified evidence" in prompt
 
 
+def test_base_prompt_asks_a_hold_to_name_the_order_or_position_that_already_covers_it():
+    # Release eval stock_pending_exit_no_duplicate (run 36028079841, repetition 3)
+    # correctly placed no duplicate exit but never said the pending exit already
+    # owned the position change, so the decision was not auditable.
+    agent = AgentManager(_Strategy()).create(name="trader", allow_trading=True)
+
+    prompt = " ".join(agent._base_system_prompt(agent._runtime_context()).split())
+
+    assert (
+        "When you decide not to order, name the existing position or pending order that already covers the "
+        "decision, or the missing condition that blocks it" in prompt
+    )
+
+
 def test_live_agent_auth_failure_emits_structured_decision_outcome():
     strategy = _Strategy()
     strategy.is_backtesting = False

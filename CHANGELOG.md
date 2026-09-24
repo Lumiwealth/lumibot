@@ -1,5 +1,7 @@
 # Changelog
 
+## 4.6.1 - Unreleased
+
 ## 4.6.0 - 2026-09-24
 
 4.6.0 is the first published release of this work. Tag `v4.5.92` was created but its release run stopped at the agent eval gate, so 4.5.92 was never published to PyPI. Everything planned for 4.5.92 ships here, renamed 4.6.0 because of the size of the AI agent changes.

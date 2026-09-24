@@ -40,39 +40,11 @@ lumibot run my-bot --paper
 
 ## The part everyone else skips
 
-Most agentic trading projects end at the decision. The model reasons, prints a
-recommendation, and stops. Everything after that, the sizing, the gate, the
-order, the record, is left to you.
+Most agentic trading projects end at the decision. The model reasons, prints a recommendation, and stops. LumiBot carries it through a **deterministic Python gate** the model cannot talk past, into a **real broker**, and leaves a **trace you can open**.
 
-Independent reviews say the same thing. A 2026 review of more than twenty
-open-source DeFi trading agents found one failure mode everywhere: *"the
-strategy looks responsible at the LLM step, and then nothing checks anything
-between 'model said yes' and 'transaction broadcasted'."* The academic survey
-*Agentic Quantitative Trading* ([arXiv 2608.31041](https://arxiv.org/abs/2608.31041))
-reports that these systems "remain concentrated on signal discovery, while
-complete integration with portfolio construction, execution, and risk control
-is still uncommon," and that strong model capability "does not reliably
-translate into trading performance under live market conditions."
+That is the gap the research names. The survey *Agentic Quantitative Trading* ([arXiv 2608.31041](https://arxiv.org/abs/2608.31041)) finds these systems "remain concentrated on signal discovery, while complete integration with portfolio construction, execution, and risk control is still uncommon." A 2026 review of 20+ open-source trading agents put it bluntly: nothing checks anything *"between 'model said yes' and 'transaction broadcasted'."*
 
-LumiBot is built around the half everyone skips:
-
-- **A deterministic gate, not a prompt.** Position caps, symbol allowlists and
-  sizing rules are Python that runs after the model proposes and before an
-  order leaves. A model cannot talk its way past it.
-- **A real broker on the other side.** Twelve integrations, the same strategy
-  code in backtest, paper and live.
-- **A record you can open.** Every prompt, tool call, tool result and piece of
-  model reasoning lands in a parquet trace next to the run.
-
-The 2026 governance frameworks converge on three requirements for an agent that
-moves money: **identity**, **traceability** and **stoppability**. Singapore's
-IMDA Model AI Governance Framework for Agentic AI (January 2026) and the NIST AI
-Agent Standards Initiative (February 2026) both name them. Those are their
-requirements, not our certification, and LumiBot gives you the primitives to
-meet them: per-agent credentials and trading permissions, a complete decision
-trace, and a kill switch.
-
-**[See the record for yourself](https://lumibot.lumiwealth.com/execution_gap.html)**
+**[See the record for yourself](https://lumibot.lumiwealth.com/execution_gap.html)**, including the identity, traceability and stoppability primitives the 2026 governance frameworks ask for.
 
 ## Why LumiBot?
 

@@ -2,18 +2,38 @@
 
 import fcntl
 import json
+import os
 import threading
 import time
 from pathlib import Path
 
 _LOCK = threading.Lock()
 
+# The old 200_000 default was a Gemini free-tier leftover. Measured against the
+# botspot-dev-ci-evals OpenAI project on 2026-09-24, gpt-6-luna reports
+# x-ratelimit-limit-tokens of 180,000,000 per minute, so pacing at 200k
+# throttled the suite about 900x below what the account allows. This default
+# leaves an order of magnitude of headroom for anything else sharing the key.
+# Override with LUMIBOT_EVAL_INPUT_TPM when an account's real limit differs.
+DEFAULT_INPUT_TOKENS_PER_MINUTE = 20_000_000
+
+
+def _default_tokens_per_minute() -> int:
+    raw = os.environ.get("LUMIBOT_EVAL_INPUT_TPM")
+    if raw is None:
+        return DEFAULT_INPUT_TOKENS_PER_MINUTE
+    try:
+        value = int(str(raw).strip())
+    except (TypeError, ValueError):
+        return DEFAULT_INPUT_TOKENS_PER_MINUTE
+    return value if value > 0 else DEFAULT_INPUT_TOKENS_PER_MINUTE
+
 
 class InputPacer:
-    def __init__(self, path, *, tokens_per_minute=200_000, clock=time.time, sleep=time.sleep):
+    def __init__(self, path, *, tokens_per_minute=None, clock=time.time, sleep=time.sleep):
         self.path = Path(path)
         self.path.parent.mkdir(parents=True, exist_ok=True)
-        self.limit = tokens_per_minute
+        self.limit = _default_tokens_per_minute() if tokens_per_minute is None else tokens_per_minute
         self.clock = clock
         self.sleep = sleep
 

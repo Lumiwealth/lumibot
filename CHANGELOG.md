@@ -2,6 +2,9 @@
 
 ## 4.6.1 - Unreleased
 
+### Fixed
+- IBKR 1-minute stock history now pages across weekends, holidays and overnight gaps. The backward pager asks IBKR in 1000-minute pages (16.7 hours); a weekend is about 56 closed hours, so the page ending Monday 04:00 ET is always empty and the pager used to stop there. Multi-week minute backtests only ever saw the last few sessions, reported "IBKR cached history remained underfilled" on every bar, and strategies that need intraday bars never traded. An empty page whose whole window is closed-market time is now stepped over without a request; an empty page during trading time keeps the old stop behavior.
+
 ## 4.6.0 - 2026-09-24
 
 4.6.0 is the first published release of this work. Tag `v4.5.92` was created but its release run stopped at the agent eval gate, so 4.5.92 was never published to PyPI. Everything planned for 4.5.92 ships here, renamed 4.6.0 because of the size of the AI agent changes.

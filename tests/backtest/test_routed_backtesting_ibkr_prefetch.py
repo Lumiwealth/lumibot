@@ -1094,3 +1094,52 @@ def test_daily_strategy_quote_still_uses_daily_bars_without_intraday_series(monk
     router.get_quote(asset, quote=quote)
     router.get_last_price(asset, quote=quote)
     assert "minute" not in requested, requested
+
+
+def test_ibkr_thin_stock_minute_paging_still_uses_one_request_per_session(monkeypatch, tmp_path):
+    """Live 2026-09-24: XLK's first pre-market print is often 04:01 or later, so "only closed time
+    before the oldest bar" never held and its pages kept stepping at 08:01 and 15:21 UTC (about
+    1.8 requests per session). A page whose window already covered the session start has every
+    bar that exists before its oldest bar, so the next page can start at the previous close."""
+    import lumibot.tools.ibkr_helper as ibkr_helper
+
+    monkeypatch.setenv("DATADOWNLOADER_BASE_URL", "http://localhost:8080")
+    monkeypatch.setenv("DATADOWNLOADER_API_KEY", "<redacted>")
+    monkeypatch.delenv("IBKR_HISTORY_SOURCE", raising=False)
+    monkeypatch.setattr(ibkr_helper, "LUMIBOT_CACHE_FOLDER", tmp_path.as_posix())
+    monkeypatch.setattr(ibkr_helper, "_RUNTIME_HISTORY_NO_DATA_WINDOWS", {})
+    monkeypatch.setattr(ibkr_helper, "_RUNTIME_ATTEMPTED_HISTORY_SEGMENTS", {}, raising=False)
+    monkeypatch.setattr(ibkr_helper, "_resolve_conid", lambda **_: 4215230)
+
+    sessions = ["2026-08-31", "2026-09-01", "2026-09-02", "2026-09-03", "2026-09-04", "2026-09-08",
+                "2026-09-09", "2026-09-10", "2026-09-11", "2026-09-14", "2026-09-15", "2026-09-16",
+                "2026-09-17", "2026-09-18"]
+    vendor = _ibkr_1min_extended_hours(sessions)
+    # Thin pre-market: no prints before 04:07 ET and a sparse after-hours tail.
+    local = vendor.index.tz_convert("America/New_York")
+    keep = ~((local.hour == 4) & (local.minute < 7)) & ~((local.hour >= 19) & (local.minute % 3 != 0))
+    vendor = vendor[keep]
+    requests: list[dict] = []
+
+    def fake_queue_request(url, querystring=None, headers=None, timeout=None, **_):
+        requests.append(dict(querystring))
+        window_end = pd.Timestamp(datetime.strptime(querystring["startTime"], "%Y%m%d-%H:%M:%S"), tz="UTC")
+        window_start = window_end - pd.Timedelta(minutes=int(str(querystring["period"]).removesuffix("min")))
+        rows = vendor.loc[(vendor.index > window_start) & (vendor.index <= window_end)].tail(1000)
+        return {"data": [{"t": int(ts.timestamp() * 1000), "o": float(r["open"]), "h": float(r["high"]),
+                          "l": float(r["low"]), "c": float(r["close"]), "v": float(r["volume"])}
+                         for ts, r in rows.iterrows()]}
+
+    monkeypatch.setattr(ibkr_helper, "queue_request", fake_queue_request)
+
+    frame = ibkr_helper.get_price_data(
+        asset=Asset("XLK", asset_type=Asset.AssetType.STOCK),
+        quote=Asset("USD", asset_type=Asset.AssetType.FOREX),
+        timestep="minute",
+        start_dt=datetime(2026, 8, 31, 8, 0, tzinfo=timezone.utc),
+        end_dt=datetime(2026, 9, 19, 0, 0, tzinfo=timezone.utc),
+        include_after_hours=True,
+    )
+
+    assert len(frame) == len(vendor), "every real bar must still arrive"
+    assert len(requests) <= len(sessions) + 1, f"{len(requests)} requests for {len(sessions)} sessions: {[r['startTime'] for r in requests]}"

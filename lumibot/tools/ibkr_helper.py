@@ -565,7 +565,13 @@ def _cursor_before_closed_equity_page(
 
 
 def _previous_equity_session_close_before(
-    *, asset_type: str, bar: str, earliest: datetime, include_after_hours: bool
+    *,
+    asset_type: str,
+    bar: str,
+    earliest: datetime,
+    include_after_hours: bool,
+    page_start: Optional[datetime] = None,
+    page_was_capped: bool = False,
 ) -> Optional[datetime]:
     """Close of the last US equity session before ``earliest`` when only closed time lies between.
 
@@ -593,9 +599,30 @@ def _previous_equity_session_close_before(
         if idx < 0:
             return None
         previous_close = pd.Timestamp(int(closes[idx]), unit="ns", tz="UTC").to_pydatetime()
-        if not _us_equity_closed_interval(previous_close, earliest_ts.to_pydatetime(), include_after_hours=extended):
+        if _us_equity_closed_interval(previous_close, earliest_ts.to_pydatetime(), include_after_hours=extended):
+            return previous_close
+        # Thin symbols often have no print at the session open (XLK's first pre-market trade is
+        # frequently 04:01 or later). If this page's window already reached back to the open of
+        # the session holding the oldest bar, and IBKR did not cut the page at its point cap,
+        # every bar that exists before the oldest bar in that session is already here.
+        if page_start is None or page_was_capped:
             return None
-        return previous_close
+        opens = np.concatenate(
+            [
+                _us_equity_session_bounds_for_year(year - 1, extended)[0],
+                _us_equity_session_bounds_for_year(year, extended)[0],
+            ]
+        )
+        open_idx = int(np.searchsorted(opens, earliest_ns, side="right")) - 1
+        if open_idx < 0:
+            return None
+        session_open_ns = int(opens[open_idx])
+        page_start_ts = pd.Timestamp(page_start)
+        if page_start_ts.tzinfo is None:
+            page_start_ts = page_start_ts.tz_localize("UTC")
+        if int(page_start_ts.tz_convert("UTC").value) <= session_open_ns:
+            return previous_close
+        return None
     except Exception:
         return None
 
@@ -2439,8 +2466,14 @@ def _fetch_history_between_dates(
         next_cursor_end = earliest
         if next_cursor_end >= cursor_end:
             next_cursor_end = earliest - pd.Timedelta(seconds=bar_seconds)
+        page_span = _period_to_timedelta(period)
         session_close = _previous_equity_session_close_before(
-            asset_type=asset_type, bar=bar, earliest=earliest, include_after_hours=include_after_hours
+            asset_type=asset_type,
+            bar=bar,
+            earliest=earliest,
+            include_after_hours=include_after_hours,
+            page_start=(cursor_end - page_span) if page_span is not None else None,
+            page_was_capped=len(df) >= IBKR_HISTORY_MAX_POINTS,
         )
         if session_close is not None and session_close < _to_utc(next_cursor_end):
             next_cursor_end = session_close

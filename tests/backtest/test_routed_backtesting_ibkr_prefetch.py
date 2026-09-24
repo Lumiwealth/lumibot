@@ -752,3 +752,55 @@ def test_ibkr_stock_minute_request_ending_now_stays_behind_the_delayed_feed(monk
     assert frame.index.max() >= now - pd.Timedelta(minutes=25)
     assert frame.index.max() <= now - feed_lag
     assert pd.Timestamp("2026-09-22 09:30", tz="America/New_York") in set(frame.index)
+
+
+def test_ibkr_index_minute_history_pages_across_overnight_and_weekend_gaps(monkeypatch, tmp_path):
+    """SPX 1-minute bars exist 09:30 to 16:00 ET only (verified live 2026-09-24: the page ending
+    Fri 21:00 UTC held 09:30 to 15:59). The overnight gap is 17.5 hours, longer than a
+    1000-minute page, so the page ending at 09:30 was empty and paging stopped after ONE
+    session. A production SPX options backtest logged "remained underfilled" 3,240 times."""
+    import lumibot.tools.ibkr_helper as ibkr_helper
+
+    monkeypatch.setenv("DATADOWNLOADER_BASE_URL", "http://localhost:8080")
+    monkeypatch.setenv("DATADOWNLOADER_API_KEY", "<redacted>")
+    monkeypatch.delenv("IBKR_HISTORY_SOURCE", raising=False)
+    monkeypatch.setattr(ibkr_helper, "LUMIBOT_CACHE_FOLDER", tmp_path.as_posix())
+    monkeypatch.setattr(ibkr_helper, "_RUNTIME_HISTORY_NO_DATA_WINDOWS", {})
+    monkeypatch.setattr(ibkr_helper, "_RUNTIME_ATTEMPTED_HISTORY_SEGMENTS", {}, raising=False)
+    monkeypatch.setattr(ibkr_helper, "_resolve_conid", lambda **_: 416904)
+
+    sessions = ["2026-07-23", "2026-07-24", "2026-07-27", "2026-07-28", "2026-07-29", "2026-07-30", "2026-07-31"]
+    frames = []
+    for i, day in enumerate(sessions):
+        idx = pd.date_range(pd.Timestamp(f"{day} 09:30", tz="America/New_York"),
+                            pd.Timestamp(f"{day} 15:59", tz="America/New_York"), freq="1min")
+        px = 6400.0 + i + pd.Series(range(len(idx)), index=idx, dtype="float64") * 0.01
+        frames.append(pd.DataFrame({"open": px, "high": px + 1, "low": px - 1, "close": px, "volume": 0.0}, index=idx))
+    vendor = pd.concat(frames)
+    requests: list[dict] = []
+
+    def fake_queue_request(url, querystring=None, headers=None, timeout=None, **_):
+        requests.append(dict(querystring))
+        window_end = pd.Timestamp(datetime.strptime(querystring["startTime"], "%Y%m%d-%H:%M:%S"), tz="UTC")
+        window_start = window_end - pd.Timedelta(minutes=int(str(querystring["period"]).removesuffix("min")))
+        rows = vendor.loc[(vendor.index > window_start) & (vendor.index <= window_end)].tail(1000)
+        return {"data": [{"t": int(ts.timestamp() * 1000), "o": float(r["open"]), "h": float(r["high"]),
+                          "l": float(r["low"]), "c": float(r["close"]), "v": float(r["volume"])}
+                         for ts, r in rows.iterrows()]}
+
+    monkeypatch.setattr(ibkr_helper, "queue_request", fake_queue_request)
+
+    frame = ibkr_helper.get_price_data(
+        asset=Asset("SPX", asset_type=Asset.AssetType.INDEX),
+        quote=Asset("USD", asset_type=Asset.AssetType.FOREX),
+        timestep="minute",
+        start_dt=datetime(2026, 7, 24, 13, 0, tzinfo=timezone.utc),
+        end_dt=datetime(2026, 7, 31, 21, 0, tzinfo=timezone.utc),
+        include_after_hours=True,
+    )
+
+    days = sorted(set(frame.index.tz_convert("America/New_York").strftime("%Y-%m-%d")))
+    assert days == sessions[1:], f"sessions returned {days}; requests={[r['startTime'] for r in requests]}"
+    assert len(frame) == 390 * len(sessions[1:])
+    request_keys = [tuple(sorted(r.items())) for r in requests]
+    assert len(request_keys) == len(set(request_keys))

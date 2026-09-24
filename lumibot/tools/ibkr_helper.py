@@ -523,7 +523,7 @@ def _smaller_daily_period_after_chart_unavailable(
     return f"{days}d"
 
 
-def _cursor_before_closed_stock_page(
+def _cursor_before_closed_equity_page(
     *,
     asset_type: str,
     bar: str,
@@ -537,17 +537,22 @@ def _cursor_before_closed_stock_page(
     is closed-market time. That is not the start of history. Returns the end of the next
     page that can hold bars (stepping over further closed pages without a request), or
     None when the empty page covered trading time and the old stop behavior applies.
-    Only stocks: index and futures sessions differ from the NYSE equity calendar.
+    Stocks use the NYSE calendar with the request's extended-hours flag. US indexes (SPX,
+    NDX, VIX) only print during the regular session (verified live 2026-09-24: an SPX page
+    ending Friday 21:00 UTC held 09:30 to 15:59 ET), so their overnight gap (17.5 hours) is
+    longer than a 1000-minute page too; they use the regular-session calendar. Futures
+    sessions differ and keep the old behavior.
     """
-    if asset_type != "stock" or (bar or "").strip().lower().endswith("d"):
+    if asset_type not in {"stock", "index"} or (bar or "").strip().lower().endswith("d"):
         return None
     step = _period_to_timedelta(period)
     if step is None:
         return None
+    calendar_extended_hours = bool(include_after_hours) if asset_type == "stock" else False
     page_end = cursor_end
     for _ in range(64):
         page_start = page_end - step
-        if not _us_equity_closed_interval(page_start, page_end, include_after_hours=include_after_hours):
+        if not _us_equity_closed_interval(page_start, page_end, include_after_hours=calendar_extended_hours):
             return None if page_end == cursor_end else page_end
         page_end = page_start
     return page_end
@@ -2299,7 +2304,7 @@ def _fetch_history_between_dates(
         data = payload.get("data") if isinstance(payload, dict) else None
         df = _history_payload_to_frame(data, source_was_explicit=source_was_explicit) if data else pd.DataFrame()
         if df.empty:
-            skipped_to = _cursor_before_closed_stock_page(
+            skipped_to = _cursor_before_closed_equity_page(
                 asset_type=asset_type,
                 bar=bar,
                 period=period,

@@ -594,6 +594,11 @@ df = df[~all_zero]
    paginated), for expirations from the simulated date through 90 days (or the
    `OptionsHelper` hint). One listing is reused across simulated days; each day's chain is
    cached in memory and as JSON in `LUMIBOT_CACHE_FOLDER/alpaca/option_chains`.
+   The listing is not point-in-time. Alpaca's contracts API has no listing or first-trade date,
+   so a strike or expiration listed after the simulated date can appear in that day's chain.
+   Chain membership is therefore not proof that a contract existed on that date. A
+   point-in-time chain needs an authoritative availability date or a historical chain source;
+   until one exists, the guard is item 4: a contract cannot fill before its first real print.
 4. `BacktestingBroker` requires an Alpaca option bar that printed in the current minute/day
    to fill (`_requires_current_execution_bar`). Orders wait for the next real print.
 5. Environment mode (no `config`, which is how `BACKTESTING_DATA_SOURCE=alpaca` builds it in
@@ -604,9 +609,10 @@ df = df[~all_zero]
    bars at midnight. `_newest_bar_position()` decides the newest bar `get_historical_prices()`
    returns: with `remove_incomplete_current_bar` only bars whose label plus length is at or
    before the simulated time (daily: earlier dates), which is the `Data` contract IBKR,
-   ThetaData and Polygon follow. Environment mode defaults it to True; an explicit config keeps
-   the documented False (the forming bar is included, a lookahead of up to one bar; the 2025
-   apitests pin it). `get_last_price()` and the broker's Alpaca fill branch read the bar that
+   ThetaData and Polygon follow. It defaults to True in both environment and explicit-config
+   mode (since 4.5.92; before that an explicit config defaulted to False). False is an opt-in:
+   the forming bar is included with its final OHLCV, a lookahead of up to one bar. The 2025
+   apitests that pin that lookback pass False explicitly. `get_last_price()` and the broker's Alpaca fill branch read the bar that
    starts now with `remove_incomplete_current_bar=False` and use its open, like the Pandas
    branch with `timeshift=-1`. When nothing has finished yet, history returns `None`.
 7. History before `backtesting_start` (2026-09-23). `history_before_start` (True in environment

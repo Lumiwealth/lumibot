@@ -594,6 +594,8 @@ class TestAlpacaBacktesting:
             refresh_cache=refresh_cache,
             warm_up_trading_days=warm_up_trading_days,
             auto_adjust=auto_adjust,
+            # Pins the opt-in forming-bar lookback (the pre-2026-09-24 explicit-config default).
+            remove_incomplete_current_bar=False,
         )
         assert results
         assert strategy
@@ -764,6 +766,8 @@ class TestAlpacaBacktesting:
             refresh_cache=refresh_cache,
             warm_up_trading_days=warm_up_trading_days,
             auto_adjust=auto_adjust,
+            # Pins the opt-in forming-bar lookback (the pre-2026-09-24 explicit-config default).
+            remove_incomplete_current_bar=False,
         )
         assert results
         assert strategy
@@ -864,6 +868,8 @@ class TestAlpacaBacktesting:
             refresh_cache=refresh_cache,
             warm_up_trading_days=warm_up_trading_days,
             auto_adjust=auto_adjust,
+            # Pins the opt-in forming-bar lookback (the pre-2026-09-24 explicit-config default).
+            remove_incomplete_current_bar=False,
         )
         assert results
         assert strategy

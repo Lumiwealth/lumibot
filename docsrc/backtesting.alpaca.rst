@@ -122,11 +122,12 @@ request for more bars than the window holds raises "Not enough historical data".
 ``history_before_start=True`` to reach back as in environment mode, or ``warm_up_trading_days``
 to download a fixed number of earlier sessions.
 
-An explicit ``config`` also keeps the original ``remove_incomplete_current_bar=False`` default:
-history then includes the bar that is still forming at the simulated time, with its final
-close, high, low and volume (for example today's daily bar at 09:30). In a backtest that is a
-look into the future of up to one bar. Pass ``remove_incomplete_current_bar=True`` to get
-finished bars only. With all three options an explicit config behaves like environment mode:
+History returns finished bars only in both modes (``remove_incomplete_current_bar=True`` is the
+default). Passing ``remove_incomplete_current_bar=False`` opts in to the old explicit-config
+behavior: history then includes the bar that is still forming at the simulated time, with its
+final close, high, low and volume (for example today's daily bar at 09:30). In a backtest that
+is a look into the future of up to one bar. With these options an explicit config behaves like
+environment mode:
 
 .. code-block:: python
 
@@ -160,8 +161,10 @@ Known limits
 ------------
 
 - Alpaca option history starts around February 2024.
-- The contract list has no "as of" date. A strike listed after the simulated date can appear
-  in that day's chain. A contract with no trade yet has no price.
+- The contract list is today's list, not a point-in-time chain. Alpaca gives no listing date,
+  so a strike listed after the simulated date can appear in that day's chain. Do not treat
+  chain membership as proof the contract existed then. A contract with no trade yet has no
+  price, so it cannot fill before its first real trade.
 - There is no historical bid/ask for options, so fills use trade prices and do not model the
   spread. ``get_greeks()`` still works: greeks are computed from the last trade and the
   underlying price.

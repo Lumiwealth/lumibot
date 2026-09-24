@@ -883,8 +883,8 @@ def test_explicit_config_alpaca_history_keeps_the_window_unless_asked(monkeypatc
     legacy = AlpacaBacktesting(**window)
     legacy._datetime = now
     bars = legacy.get_historical_prices(Asset("SPY"), 250, "5minute")
-    # Only the window's bars at or before 09:35 (the documented default includes the forming bar).
-    assert list(bars.df.index) == [_NY_TZ.localize(datetime(2026, 8, 3, 9, 30)), now]
+    # Only the window's bars that closed by 09:35; the 09:35 bar is still forming.
+    assert list(bars.df.index) == [_NY_TZ.localize(datetime(2026, 8, 3, 9, 30))]
     with pytest.raises(ValueError, match="Not enough historical data"):
         legacy.get_historical_prices(Asset("SPY"), 15, "day")
     assert not [r for r in _FakeStockHistoricalClient.requests if _as_new_york(r.start) < window["datetime_start"]]
@@ -1177,3 +1177,18 @@ def test_options_helper_validates_alpaca_option_marks_from_real_trades():
     mark, bid, ask = helper._get_option_mark_from_quote(_SPY_CALL, snapshot=True)
     assert mark == 1.25
     assert bid is None and ask is None
+
+
+@pytest.mark.parametrize("config", [None, {"API_KEY": "test-key", "API_SECRET": "test-secret", "PAPER": True}])
+def test_alpaca_history_defaults_to_completed_bars_in_both_modes(monkeypatch, tmp_path, config):
+    """A forming bar carries its final OHLCV, a lookahead, so it is opt-in in every mode."""
+    _select_alpaca_through_environment(monkeypatch, tmp_path)
+    window = dict(
+        datetime_start=_NY_TZ.localize(datetime(2026, 8, 3)),
+        datetime_end=_NY_TZ.localize(datetime(2026, 8, 7)),
+        config=config,
+        timestep="minute",
+    )
+
+    assert AlpacaBacktesting(**window)._remove_incomplete_current_bar is True
+    assert AlpacaBacktesting(**window, remove_incomplete_current_bar=False)._remove_incomplete_current_bar is False

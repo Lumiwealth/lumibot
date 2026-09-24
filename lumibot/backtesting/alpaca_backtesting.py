@@ -67,9 +67,10 @@ class AlpacaBacktesting(DataSourceBacktesting):
     Known limits:
 
     - Alpaca option history starts around February 2024. Earlier contracts return no bars.
-    - The contract listing has no as-of date. A strike or expiration listed after the
-      simulated date can appear in that date's chain (a small lookahead). Contracts with
-      no trade before the simulated date simply have no price yet.
+    - The contract listing is not point-in-time: Alpaca's contracts API has no listing
+      date, so a strike or expiration listed after the simulated date can appear in that
+      date's chain (a small lookahead). Chain membership is not proof the contract existed
+      then. Contracts with no trade before the simulated date have no price and cannot fill.
     - No historical bid/ask or greeks for options. Fills use trade bars, so spreads are
       not modeled. ``Strategy.get_greeks()`` still works: LumiBot computes greeks locally
       from the last trade and the underlying price, which is only as fresh as the prints.
@@ -167,12 +168,12 @@ class AlpacaBacktesting(DataSourceBacktesting):
                 - auto_adjust (bool): Determines whether to auto-adjust data, such as stock splits. Defaults 
                   to True.
                 - remove_incomplete_current_bar (bool): Return only bars that have closed by the simulated
-                  time. Defaults to True in environment mode, the contract IBKR, ThetaData and Polygon
-                  backtests follow, and to False with an explicit config (the original default, kept for
-                  existing scripts). With False, history includes the bar that is still forming at the
-                  simulated time (for example today's daily bar at 09:30, or the 10:00 five-minute bar at
-                  10:02) with its final close, high, low and volume. In a backtest that is a lookahead of
-                  up to one bar. get_last_price and order fills use the open of the current bar either way.
+                  time. Defaults to True in both environment and explicit-config mode, the contract IBKR,
+                  ThetaData and Polygon backtests follow. Pass False only to opt in to the old behavior:
+                  history then includes the bar that is still forming at the simulated time (for example
+                  today's daily bar at 09:30, or the 10:00 five-minute bar at 10:02) with its final close,
+                  high, low and volume. In a backtest that is a lookahead of up to one bar. get_last_price
+                  and order fills use the open of the current bar either way.
 
         Raises:
             ValueError: If the credentials are missing or the config is not a paper account.
@@ -226,14 +227,14 @@ class AlpacaBacktesting(DataSourceBacktesting):
         self._data_store: dict[str, pd.DataFrame] = {}
         self._refreshed_keys = {}
         self._refresh_cache: bool = kwargs.get('refresh_cache', False)
-        # History never shows the bar that is still forming, in environment mode (BotSpot):
-        # a bar is returned only after it has closed, like IBKR, ThetaData and Polygon
-        # backtests. The explicit-config default stays False as documented above (the 2025
-        # apitests pin it). An explicit value wins in both modes. get_last_price and order
-        # fills always use the open of the bar that starts now, whatever this is set to.
+        # History never shows the bar that is still forming: a bar is returned only after it
+        # has closed, like IBKR, ThetaData and Polygon backtests, in both environment and
+        # explicit-config mode. Its final OHLCV would be a lookahead. An explicit False opts in
+        # to the old behavior. get_last_price and order fills always use the open of the bar
+        # that starts now, whatever this is set to.
         requested_remove_incomplete = kwargs.get('remove_incomplete_current_bar')
         self._remove_incomplete_current_bar = (
-            environment_mode if requested_remove_incomplete is None else bool(requested_remove_incomplete)
+            True if requested_remove_incomplete is None else bool(requested_remove_incomplete)
         )
         # History before backtesting_start: a strategy that asks at its first bars for N bars
         # gets real earlier bars in environment mode, like IBKR and ThetaData. An explicit config

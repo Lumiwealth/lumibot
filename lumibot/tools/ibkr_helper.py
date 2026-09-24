@@ -10,7 +10,7 @@ from dataclasses import dataclass
 from datetime import date, datetime, timedelta, timezone
 from functools import lru_cache
 from pathlib import Path
-from typing import Any, Dict, Optional, Tuple
+from typing import Any, Callable, Dict, Optional, Tuple
 
 import numpy as np
 import pandas as pd
@@ -88,6 +88,9 @@ IBKR_DAILY_MIN_PAGE_DAYS = 5
 # Daily windows up to this many days are requested as one exact "<N>d" page (N <= 1000,
 # which IBKR accepts); longer windows page with IBKR_STOCK_INDEX_DAILY_MAX_PERIOD.
 IBKR_DAILY_EXACT_PERIOD_MAX_DAYS = 993
+# Backward pagination writes collected pages to the cache every N pages, so a run that is
+# stopped mid-walk keeps its progress (a cold 8-month minute series takes hours).
+IBKR_PAGE_CHECKPOINT_EVERY = 10
 # How far behind real time IBKR stock/index intraday history can lag on the shared account
 # (observed 13 to 17 minutes). Intraday requests never ask for bars newer than this.
 IBKR_INTRADAY_HISTORY_DELAY = timedelta(minutes=20)
@@ -1149,6 +1152,13 @@ def get_price_data(
                 continue
             _remember_attempted_history_segment(runtime_no_data_key, seg_start, seg_end)
             prev_max = df_cache.index.max() if not df_cache.empty else None
+            checkpoint_state = {"frame": df_cache}
+
+            def _checkpoint_pages(pages: pd.DataFrame, _state=checkpoint_state) -> None:
+                merged_so_far = _merge_frames(_state["frame"], pages)
+                _write_cache_frame(cache_file, merged_so_far)
+                _state["frame"] = merged_so_far
+
             try:
                 fetched = _fetch_history_between_dates(
                     asset=asset,
@@ -1160,6 +1170,7 @@ def get_price_data(
                     include_after_hours=include_after_hours,
                     source=history_source,
                     source_was_explicit=source_was_explicit,
+                    _page_checkpoint=_checkpoint_pages,
                 )
             except Exception as exc:
                 # Avoid crashing the entire backtest on entitlement/session issues. Return an empty
@@ -2202,6 +2213,7 @@ def _fetch_history_between_dates(
     _queue_timeout: Optional[float] = None,
     _max_timeout_attempts: Optional[int] = None,
     _deadline_monotonic: Optional[float] = None,
+    _page_checkpoint: Optional[Callable[[pd.DataFrame], None]] = None,
 ) -> pd.DataFrame:
     conid = _resolve_conid(asset=asset, quote=quote, exchange=exchange)
     conid_refreshed = False
@@ -2220,6 +2232,7 @@ def _fetch_history_between_dates(
     start_dt = _to_utc(start_dt)
     chunks: list[pd.DataFrame] = []
     closed_pages_skipped = 0
+    checkpointed_pages = 0
 
     # Opt-in trace: log every real network fetch + caller, to audit cache-miss root causes.
     if os.environ.get("LUMIBOT_CACHE_MISS_DEBUG"):
@@ -2403,6 +2416,14 @@ def _fetch_history_between_dates(
             return pd.DataFrame()
 
         chunks.append(df)
+        if _page_checkpoint is not None and len(chunks) - checkpointed_pages >= IBKR_PAGE_CHECKPOINT_EVERY:
+            # Long cold walks take hours on the shared downloader. Hand the new pages to the
+            # caller now so a stopped or timed-out run keeps its progress for the next run.
+            try:
+                _page_checkpoint(pd.concat(chunks[checkpointed_pages:], axis=0).sort_index())
+                checkpointed_pages = len(chunks)
+            except Exception:
+                logger.debug("IBKR page checkpoint failed", exc_info=True)
 
         earliest = df.index.min()
         if earliest is None:

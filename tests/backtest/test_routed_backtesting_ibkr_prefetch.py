@@ -3,6 +3,7 @@ from __future__ import annotations
 from datetime import datetime, timedelta, timezone
 
 import pandas as pd
+import pytest
 
 from lumibot.backtesting.routed_backtesting import RoutedBacktestingPandas
 from lumibot.constants import LUMIBOT_DEFAULT_PYTZ
@@ -849,3 +850,58 @@ def test_ibkr_stock_minute_paging_uses_one_request_per_session(monkeypatch, tmp_
 
     assert len(frame) == len(vendor), "every real bar must still arrive"
     assert len(requests) <= len(sessions) + 1, f"{len(requests)} requests for {len(sessions)} sessions: {[r['startTime'] for r in requests]}"
+
+
+class _SimulatedStop(BaseException):
+    """Stands in for a force-stopped or timed-out backtest process."""
+
+
+def test_ibkr_minute_paging_checkpoints_pages_so_a_stopped_run_keeps_its_progress(monkeypatch, tmp_path):
+    """2026-09-24: a cold 8-month 1-minute series takes hours on the shared downloader. The cache
+    was written only after the whole backward walk finished, so a customer who force-stopped
+    after an hour (or a run that hit its time limit) kept nothing and every retry started over.
+    Pages must reach the cache while the walk is in progress."""
+    import lumibot.tools.ibkr_helper as ibkr_helper
+
+    monkeypatch.setenv("DATADOWNLOADER_BASE_URL", "http://localhost:8080")
+    monkeypatch.setenv("DATADOWNLOADER_API_KEY", "<redacted>")
+    monkeypatch.delenv("IBKR_HISTORY_SOURCE", raising=False)
+    monkeypatch.setattr(ibkr_helper, "LUMIBOT_CACHE_FOLDER", tmp_path.as_posix())
+    monkeypatch.setattr(ibkr_helper, "_RUNTIME_HISTORY_NO_DATA_WINDOWS", {})
+    monkeypatch.setattr(ibkr_helper, "_RUNTIME_ATTEMPTED_HISTORY_SEGMENTS", {}, raising=False)
+    monkeypatch.setattr(ibkr_helper, "_resolve_conid", lambda **_: 756733)
+
+    days = [d.strftime("%Y-%m-%d") for d in pd.bdate_range("2026-07-01", "2026-09-18")
+            if d.strftime("%Y-%m-%d") not in {"2026-07-03", "2026-09-07"}]
+    vendor = _ibkr_1min_extended_hours(days)
+    served = {"pages": 0}
+
+    def fake_queue_request(url, querystring=None, headers=None, timeout=None, **_):
+        served["pages"] += 1
+        if served["pages"] > 25:
+            raise _SimulatedStop()
+        window_end = pd.Timestamp(datetime.strptime(querystring["startTime"], "%Y%m%d-%H:%M:%S"), tz="UTC")
+        window_start = window_end - pd.Timedelta(minutes=int(str(querystring["period"]).removesuffix("min")))
+        rows = vendor.loc[(vendor.index > window_start) & (vendor.index <= window_end)].tail(1000)
+        return {"data": [{"t": int(ts.timestamp() * 1000), "o": float(r["open"]), "h": float(r["high"]),
+                          "l": float(r["low"]), "c": float(r["close"]), "v": float(r["volume"])}
+                         for ts, r in rows.iterrows()]}
+
+    monkeypatch.setattr(ibkr_helper, "queue_request", fake_queue_request)
+    asset = Asset("SPY", asset_type=Asset.AssetType.STOCK)
+    quote = Asset("USD", asset_type=Asset.AssetType.FOREX)
+
+    with pytest.raises(_SimulatedStop):
+        ibkr_helper.get_price_data(asset=asset, quote=quote, timestep="minute",
+            start_dt=datetime(2026, 7, 1, 8, 0, tzinfo=timezone.utc),
+            end_dt=datetime(2026, 9, 19, 0, 0, tzinfo=timezone.utc), include_after_hours=True)
+
+    cache_file = ibkr_helper._cache_file_for(asset=asset, quote=quote, timestep="minute", exchange=None,
+                                             source="Trades", include_after_hours=True)
+    assert cache_file.exists(), "nothing reached the cache before the run stopped"
+    cached = pd.read_parquet(cache_file)
+    cached_days = set(cached.index.tz_convert("America/New_York").strftime("%Y-%m-%d"))
+    # 25 pages served, one session each; at least the first 20 must be kept.
+    assert len(cached_days) >= 20, f"only {len(cached_days)} sessions kept"
+    # Everything kept is a real vendor bar.
+    assert set(cached.index).issubset(set(vendor.index))

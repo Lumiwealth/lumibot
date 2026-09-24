@@ -1,6 +1,6 @@
 # IBKR paging across closed markets and listing boundaries
 
-One-line description: six IBKR history defects that made routed stock and index backtests underfilled, empty or slow, fixed on `version/4.6.1`.
+One-line description: seven IBKR history defects that made routed stock and index backtests underfilled, empty or slow, fixed on `version/4.6.1`.
 
 Last Updated: 2026-09-24
 Status: Fixed on `version/4.6.1`, not released
@@ -71,15 +71,23 @@ lies between. Live: 9 requests for 9 SPY sessions (pages end at 20:00 ET), no em
 Test: `tests/backtest/test_routed_backtesting_ibkr_prefetch.py::test_ibkr_stock_minute_paging_uses_one_request_per_session`
 (red: 25 requests for 14 sessions).
 
+## 7. A stopped walk lost all its pages
+
+`get_price_data` wrote the cache only after `_fetch_history_between_dates` returned. A cold 8-month 1-minute walk
+takes hours on the shared downloader, so a force-stopped or timed-out run kept nothing and every retry started over.
+The pager now hands every `IBKR_PAGE_CHECKPOINT_EVERY` (10) pages to a checkpoint that merges them into the cache file.
+Test: `tests/backtest/test_routed_backtesting_ibkr_prefetch.py::test_ibkr_minute_paging_checkpoints_pages_so_a_stopped_run_keeps_its_progress`
+(red: no cache file after 25 served pages).
+
 ## Test results
 
 `LUMIBOT_DISABLE_DOTENV_LOCAL=1 LUMIBOT_CACHE_BACKEND=local LUMIBOT_CACHE_MODE=disabled`:
 
 | Command | Result |
 | --- | --- |
-| `pytest tests -k "ibkr or IBKR or routed" -m "not apitest and not downloader"` | 271 passed, 2 skipped |
+| `pytest tests -k "ibkr or IBKR or routed" -m "not apitest and not downloader"` | 272 passed, 2 skipped |
 | `pytest tests/test_ibkr_helper_unit.py` | 41 passed |
-| `pytest tests/backtest/test_routed_backtesting_ibkr_prefetch.py` | 16 passed |
+| `pytest tests/backtest/test_routed_backtesting_ibkr_prefetch.py` | 17 passed |
 
 ## Open items
 

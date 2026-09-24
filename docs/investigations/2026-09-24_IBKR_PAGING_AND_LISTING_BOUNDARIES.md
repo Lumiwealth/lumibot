@@ -1,0 +1,82 @@
+# IBKR paging across closed markets and listing boundaries
+
+One-line description: five IBKR history defects that made routed stock and index backtests underfilled, empty or slow, fixed on `version/4.6.1`.
+
+Last Updated: 2026-09-24
+Status: Fixed on `version/4.6.1`, not released
+Audience: LumiBot maintainers, BotSpot release captain
+
+## Overview
+
+Production BotSpot backtests routed to IBKR were found failing in five ways during a 30-day review of failed,
+force-stopped and zero-trade runs. Customer-level detail lives in private BotSpot operations notes. This page
+records the LumiBot mechanics, the live evidence (IBKR payload shapes only) and the fixes.
+
+All fixes are in `lumibot/tools/ibkr_helper.py`, red-first tests are named below, and nothing fabricates bars
+(RULE #1): missing history stays missing and is logged.
+
+## 1. Minute paging stopped at the first closed gap
+
+`_fetch_history_between_dates` pages backwards with `period=1000min` for 1-minute bars (16.7 hours). IBKR answers
+`points=0` for a page with no bars (live: SPY `startTime=20260914-08:00:00`, Monday 04:00 ET). The loop treated the
+first empty page after data as the start of history. Every weekend (about 56 closed hours) ended a stock series, and
+every night (17.5 hours for indexes, which print 09:30 to 16:00 ET only) ended an index series. Multi-week minute
+backtests saw the last few sessions and logged "IBKR cached history remained underfilled" on every bar.
+
+Fix: `_cursor_before_closed_equity_page()`. When a page is empty and its whole window is closed-market time on the
+NYSE calendar (extended hours per request for stocks, regular session for indexes), step the cursor over it and over
+further closed pages without a request. An empty page during trading time keeps the old stop. Futures are unchanged.
+
+Tests: `tests/backtest/test_routed_backtesting_ibkr_prefetch.py::test_router_ibkr_stock_minute_prefetch_pages_across_weekends`,
+`::test_ibkr_index_minute_history_pages_across_overnight_and_weekend_gaps`.
+
+## 2. `Chart data unavailable` discarded real daily history
+
+A daily page reaching before the first bar IBKR holds for a contract gets HTTP 500 `{"error":"Chart data unavailable"}`.
+Live, a 2022 listing: `5y` failed, `4y` returned 1,002 bars, `1000d` 684. The pager raised, so a recent listing got
+no bars (first page) and a long backtest lost every page it had (later page).
+
+Fix: `_smaller_daily_period_after_chart_unavailable()` halves the daily page (days) and retries the same cursor, down
+to 5 days; after that the collected bars are kept. Test: `tests/test_ibkr_helper_unit.py::test_ibkr_daily_history_keeps_real_bars_when_a_page_reaches_before_the_first_bar`.
+
+## 3. A failed older page discarded newer pages
+
+Any exception on a later page (for example the downloader's "remained invalid after rebuild") re-raised and threw
+away the pages already collected. Now the collected pages are kept, a warning names the reason and the oldest bar
+kept, and nothing is negatively cached. A failure on the first page still raises.
+Tests: `tests/test_ibkr_helper_unit.py::test_ibkr_later_page_failure_keeps_the_real_pages_already_collected`,
+`::test_ibkr_first_page_failure_still_raises`.
+
+## 4. Requests ending "now" hit the delayed feed
+
+IBKR stock/index history on the shared account lagged 13 to 17 minutes. A request ending at the current time was
+rejected by the downloader as `stale_tail`, and that newest page is the first page. Intraday stock/index requests now
+end `IBKR_INTRADAY_HISTORY_DELAY` (20 minutes) before now (`_ibkr_history_now_utc()` is the test seam).
+Test: `tests/backtest/test_routed_backtesting_ibkr_prefetch.py::test_ibkr_stock_minute_request_ending_now_stays_behind_the_delayed_feed`.
+
+## 5. Daily windows just over a year used 5-year pages
+
+`_history_period_for_request` sized daily pages exactly only up to 365 days. A one-year backtest plus an indicator
+lookback (~390 days) asked for `5y`, which the downloader's validation rebuilt every time (~35 s per symbol). Exact
+`<N>d` pages now cover spans up to `IBKR_DAILY_EXACT_PERIOD_MAX_DAYS` (993, so N <= 1000). Live: XLK and XSW
+Aug 2025 to Sep 2026 are one `402d` request each, 11 to 14 s.
+Test: `tests/test_ibkr_helper_unit.py::test_daily_fetch_sizes_windows_up_to_1000_days_exactly`.
+
+## Test results
+
+`LUMIBOT_DISABLE_DOTENV_LOCAL=1 LUMIBOT_CACHE_BACKEND=local LUMIBOT_CACHE_MODE=disabled`:
+
+| Command | Result |
+| --- | --- |
+| `pytest tests -k "ibkr or IBKR or routed" -m "not apitest and not downloader"` | 270 passed, 2 skipped |
+| `pytest tests/test_ibkr_helper_unit.py` | 41 passed |
+| `pytest tests/backtest/test_routed_backtesting_ibkr_prefetch.py` | 15 passed |
+
+## Open items
+
+- Each IBKR page costs the downloader one request plus three validation probes under a 48-per-minute limit, so a
+  cold 8-month 1-minute series takes tens of minutes per symbol. The probes guard data integrity; reducing them is a
+  downloader design decision.
+- Stock minute history is always fetched with extended hours (`_ibkr_include_after_hours`), even when a strategy
+  asks for regular hours only, which doubles the pages.
+- A daily-cadence routed strategy asking for minute bars can get daily bars; tracked separately.

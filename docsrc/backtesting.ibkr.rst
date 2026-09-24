@@ -46,6 +46,24 @@ IBKR day-bar payloads do not include corporate-action columns directly. LumiBot 
 daily equity bars with ``dividend`` and ``stock_splits`` values using Yahoo actions as a best-effort
 source so split/dividend accounting remains available in backtests.
 
+How History Is Downloaded (stocks and indexes)
+----------------------------------------------
+
+IBKR returns at most about 1,000 bars per request, so LumiBot walks backwards page by page.
+
+- **Weekends, holidays and nights.** A 1-minute page covers 1,000 minutes (16.7 hours). A page that falls
+  entirely inside closed-market time comes back empty; LumiBot steps over it and keeps going instead of treating it
+  as the start of history. US indexes such as SPX only print 09:30 to 16:00 ET, so the same applies every night.
+- **New listings.** When a daily page reaches back before the first bar IBKR holds, IBKR answers
+  ``Chart data unavailable``. LumiBot retries with a smaller page and keeps the real bars it already has, so a
+  fund listed last year still gets its full daily history.
+- **A failed older page** keeps the newer real bars already downloaded; the missing older part is not faked and is
+  retried by a later run.
+- **Delayed feed.** IBKR stock and index history can run about 15 minutes behind real time, so intraday requests
+  stop 20 minutes before the current time. A backtest that ends today during market hours simply ends a little
+  earlier.
+- **Daily windows** up to 993 days are one request sized to the window; longer windows use 5-year pages.
+
 Futures Exchange Routing (auto + override)
 ------------------------------------------
 

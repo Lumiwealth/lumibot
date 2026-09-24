@@ -4,8 +4,8 @@ Every AI example strategy was rerun on `openai/gpt-6-luna` (high reasoning), the
 new LumiBot default. Each run was inspected trade by trade for lookahead, sizing,
 entries and exits, and cash. Artifacts (`*_trades.csv`, `*_settings.json`,
 `*_tearsheet_metrics.json`, logs) sit in this folder; `stats.csv` files are in
-`/Users/robertgrzesik/Development/lumibot/logs/`. The runner is
-`/Users/robertgrzesik/Development/lumibot/scripts/run_ai_strategy_flash_backtests.py`
+`logs/`. The runner is
+`scripts/run_ai_strategy_flash_backtests.py`
 (`--wave N --already <spent>`), with a $25 cap. Total model spend for the day
 was about $22.72 before the evening reruns and about $24 after them (the spend.txt figure is slightly higher because each wave started from a padded baseline).
 
@@ -31,7 +31,7 @@ real Alpaca prices.
 
 ## General fixes made (no strategy-specific hacks)
 
-All in `/Users/robertgrzesik/Development/lumibot/lumibot/example_strategies/`:
+All in `lumibot/example_strategies/`:
 
 1. `agent_cycle.py` `trader_prompt`: plan every order from one account read,
    leave holdings within 2 points of target, never buy and sell the same

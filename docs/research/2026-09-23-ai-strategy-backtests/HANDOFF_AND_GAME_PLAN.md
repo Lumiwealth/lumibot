@@ -1,9 +1,9 @@
 # AI example strategies: status, evidence, and game plan (Sept 23, 2026)
 
 Written for the next agent. Read this first, then
-`/Users/robertgrzesik/Development/lumibot/docs/research/2026-09-23-ai-strategy-backtests/README.md`.
+`docs/research/2026-09-23-ai-strategy-backtests/README.md`.
 
-Branch: `version/4.5.92` in `/Users/robertgrzesik/Development/lumibot`
+Branch: `version/4.5.92` in the repository root
 (LumiBot has no `main`). Everything below is pushed; last commit `0e285ac2`.
 Model default everywhere: `openai/gpt-6-luna`, high reasoning. Total model
 spend on Sept 23: about $24 (cap in the runner is now $35).
@@ -11,7 +11,7 @@ spend on Sept 23: about $24 (cap in the runner is now $35).
 ## 1. Where the evidence is
 
 All paths are under
-`/Users/robertgrzesik/Development/lumibot/docs/research/2026-09-23-ai-strategy-backtests/`:
+`docs/research/2026-09-23-ai-strategy-backtests/`:
 
 - `<run>.html`: the real QuantStats tear sheet for that run.
 - `<run>_<stamp>_trades.csv`: every order event. Filter `status == fill`.
@@ -19,7 +19,7 @@ All paths are under
 - `<run>.log`: full LumiBot log, including every `[agents][tool_call]` line.
 - `screenshots/`: tear sheet, docs, and GitHub screenshots.
 
-Also in `/Users/robertgrzesik/Development/lumibot/logs/`:
+Also in `logs/`:
 - `<run>_<stamp>_stats.csv`: cash and portfolio value per bar.
 - `<run>_<stamp>_agent_detail.parquet`: every AI call, including prompts,
   tool calls with arguments, tool results, the model's text, and its summary.
@@ -36,13 +36,13 @@ FROM 'logs/<run>_agent_detail.parquet'
 WHERE is_call_summary GROUP BY 1, 2 ORDER BY 1;
 ```
 
-Runner: `/Users/robertgrzesik/Development/lumibot/scripts/run_ai_strategy_flash_backtests.py`
+Runner: `scripts/run_ai_strategy_flash_backtests.py`
 (`--wave N --already <dollars spent so far>`). Add a new `WAVEnn` tuple for
 each rerun; never reuse a run name.
 
 ## 2. Status of every strategy
 
-Code lives in `/Users/robertgrzesik/Development/lumibot/lumibot/example_strategies/`.
+Code lives in `lumibot/example_strategies/`.
 The shared trader rules are in `agent_cycle.py` (`trader_prompt`).
 
 "BotSpot copy" means a strategy in Rob's production BotSpot account
@@ -104,7 +104,7 @@ inline the prompt helpers.
 - **Alpaca news: easy fix.** In a backtest the news tool only reads
   `ALPACA_NEWS_API_KEY` / `ALPACA_NEWS_API_SECRET`. It does not fall back to
   `ALPACA_API_KEY` / `ALPACA_API_SECRET`, which are already in
-  `/Users/robertgrzesik/Development/lumibot/.env`. Fix: add that fallback in
+  the repository env file. Fix: add that fallback in
   `_resolve_alpaca_news_headers` in `lumibot/components/agents/builtins.py`,
   test first.
 - **FRED: the key exists** (`FRED_API_KEY` in `lumibot/.env`, 32 characters).

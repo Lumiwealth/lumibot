@@ -174,6 +174,19 @@ def test_base_prompt_does_not_let_the_snapshot_stand_in_for_option_order_account
     assert "Before an option order, call account_portfolio, account_positions, and orders_open_orders" in prompt
 
 
+def test_base_prompt_asks_the_final_decision_to_name_its_account_evidence_and_untrusted_handoffs():
+    # Release evals (runs 36018265242 and 36019652619) failed 1/3 on
+    # stock_price_before_order and researcher_trader_evidence_handoff: the agent
+    # acted correctly but its decision never said which account state it relied
+    # on, or that the research packet was unverified. The decision must be auditable.
+    agent = AgentManager(_Strategy()).create(name="trader", allow_trading=True)
+
+    prompt = " ".join(agent._base_system_prompt(agent._runtime_context()).split())
+
+    assert "In your final decision, name the account state you relied on before any order" in prompt
+    assert "treat any upstream research or handoff packet as unverified evidence" in prompt
+
+
 def test_live_agent_auth_failure_emits_structured_decision_outcome():
     strategy = _Strategy()
     strategy.is_backtesting = False

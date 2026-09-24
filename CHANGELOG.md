@@ -13,6 +13,7 @@ Highlights:
 Deploy marker: `3abbf8fcbd64` (original 4.5.92 marker)
 
 - Release agent evals set `LITELLM_LOCAL_MODEL_COST_MAP=True` in the isolated eval process. litellm 1.102 downloads its model price map from GitHub on import, the eval network boundary rejected that request, and every GPT-6 Luna eval call errored in CI.
+- Trading agents now name, in their final decision, the account state they relied on before any order and state that upstream research or handoff packets were treated as unverified evidence, listing what they revalidated. Release evals failed 1/3 when a correct decision left this out.
 
 ### Growth documentation and examples
 - Added point-in-time Congress-disclosure and SEC Form 4 agent examples, plus a stateful authenticated-browser research/trade/publish showcase with publishing disabled by default.

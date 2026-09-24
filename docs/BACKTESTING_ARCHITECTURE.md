@@ -449,6 +449,21 @@ For example, SPX index minute OHLC typically yields ~391 bars/day and ends at th
 See:
 - `docs/investigations/2026-01-13_SPX_INTRADAY_STALE_LOOP_FIX.md`
 
+## Requested Timestep Is Binding (CRITICAL)
+
+A history request for `minute` (or `hour`, `second`) returns intraday bars or nothing. It never returns daily bars.
+
+**Failure mode (fixed 2026-09-24, 4.6.1):**
+- A strategy with `sleeptime="1D"` makes `StrategyExecutor` prime the data source with `_timestep="day"` so internal price and quote lookups stay on daily bars.
+- `ThetaDataBacktestingPandas._pull_source_symbol_bars` (inherited by `RoutedBacktestingPandas`) also rewrote an explicit `get_historical_prices(asset, 1440, "minute")` into a day request. A routed IBKR SPCX backtest got 52 daily bars back for a minute request.
+
+**Rule now:**
+- Only an implicit request (`timestep=None`) follows the day cadence.
+- An explicit intraday request is fetched as intraday. If the provider has no intraday bars, the result is empty.
+- Internal lookups (`get_last_price`, `get_quote`, `get_price_snapshot`) may still align to day bars in daily runs; those are not history requests.
+
+Tests: `tests/backtest/test_routed_backtesting_ibkr_prefetch.py` (`test_daily_sleeptime_*`) and `tests/test_thetadata_helper.py::test_minute_request_in_day_mode_never_returns_day_bars`.
+
 ## ThetaData Coverage Gap: NDX Underlying (CRITICAL)
 
 ThetaData provides **NDX options** history, but does **not** provide the **NDX index underlying** (price/OHLC) history.

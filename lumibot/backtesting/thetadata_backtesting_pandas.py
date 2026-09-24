@@ -2581,22 +2581,12 @@ class ThetaDataBacktestingPandas(PandasData):
         exchange=None,
         include_after_hours=True,
     ):
-        # Align requests to the current backtesting mode to avoid accidental intraday downloads
-        # during day-cadence backtests.
+        # Align only implicit requests to the current backtesting mode. An explicit intraday
+        # request ("minute", "hour", "second") is honored even in day-cadence backtests (for
+        # example sleeptime="1D"): it returns intraday bars or nothing, never daily bars
+        # relabeled as minute data. See RULE #1 in docs/BACKTESTING_ARCHITECTURE.md.
         current_mode = getattr(self, "_timestep", None)
-        if (
-            current_mode == "day"
-            and isinstance(timestep, str)
-            and timestep.lower() in {"minute", "hour", "second"}
-        ):
-            logger.debug(
-                "[THETA][DEBUG][TIMESTEP_ALIGN] Aligning %s request to day mode for asset=%s length=%s",
-                timestep,
-                asset,
-                length,
-            )
-            timestep = "day"
-        elif timestep is None and current_mode == "day":
+        if timestep is None and current_mode == "day":
             timestep = "day"
             logger.debug(
                 "[THETA][DEBUG][TIMESTEP_ALIGN] Implicit request aligned to day mode for asset=%s length=%s",

@@ -905,3 +905,118 @@ def test_ibkr_minute_paging_checkpoints_pages_so_a_stopped_run_keeps_its_progres
     assert len(cached_days) >= 20, f"only {len(cached_days)} sessions kept"
     # Everything kept is a real vendor bar.
     assert set(cached.index).issubset(set(vendor.index))
+
+
+# ---------------------------------------------------------------------------
+# A minute request must never be served daily bars (routed IBKR, daily sleeptime).
+#
+# Bug (2026-09-24, SPCX replay on 4.6.1): a strategy with sleeptime="1D" called
+# get_historical_prices(Asset("SPCX", STOCK), 1440, "minute") in a routed IBKR
+# backtest and got 52 DAILY bars back. The executor primes daily cadence for
+# "1D" sleeptimes (`_timestep="day"`), and the Theta base `_pull_source_symbol_bars`
+# then rewrote the explicit "minute" request into "day". Rule: a minute request
+# returns minute bars or nothing, never daily bars.
+# ---------------------------------------------------------------------------
+
+
+def _session_minute_ohlc(start_dt: datetime, end_dt: datetime) -> pd.DataFrame:
+    """Regular-session (09:30-16:00 ET) weekday minute bars between two datetimes."""
+    frame = _minute_ohlc(start_dt, end_dt)
+    idx = frame.index
+    mask = (idx.dayofweek < 5) & (idx.time >= datetime(2000, 1, 1, 9, 30).time()) & (
+        idx.time < datetime(2000, 1, 1, 16, 0).time()
+    )
+    return frame[mask]
+
+
+def _daily_ohlc(start_dt: datetime, end_dt: datetime) -> pd.DataFrame:
+    start_ts = pd.Timestamp(start_dt).tz_convert(LUMIBOT_DEFAULT_PYTZ).normalize()
+    end_ts = pd.Timestamp(end_dt).tz_convert(LUMIBOT_DEFAULT_PYTZ).normalize()
+    idx = pd.date_range(start_ts, end_ts, freq="B")
+    px = pd.Series(range(len(idx)), index=idx, dtype="float64") + 50.0
+    return pd.DataFrame(
+        {"open": px, "high": px + 1, "low": px - 1, "close": px, "volume": 10_000},
+        index=idx,
+    )
+
+
+def _prime_daily_sleeptime_cadence(router: RoutedBacktestingPandas) -> None:
+    """Mirror StrategyExecutor's priming for a sleeptime ending in "d" (e.g. "1D")."""
+    router._timestep = "day"
+    router._effective_day_mode = True
+    router._observed_intraday_cadence = False
+
+
+def _assert_intraday_spacing(df: pd.DataFrame) -> None:
+    gaps = df.index[1:] - df.index[:-1]
+    positive = gaps[gaps > pd.Timedelta(0)]
+    assert len(positive) > 0
+    assert positive.min() < pd.Timedelta(hours=1), f"expected minute spacing, got min gap {positive.min()}"
+
+
+def test_daily_sleeptime_minute_request_returns_minute_bars_not_daily(monkeypatch):
+    import lumibot.tools.ibkr_helper as ibkr_helper
+
+    monkeypatch.setenv("DATADOWNLOADER_BASE_URL", "http://localhost:8080")
+    monkeypatch.setenv("DATADOWNLOADER_API_KEY", "<redacted>")
+
+    start = LUMIBOT_DEFAULT_PYTZ.localize(datetime(2026, 8, 28, 0, 0))
+    end = LUMIBOT_DEFAULT_PYTZ.localize(datetime(2026, 8, 29, 0, 0))
+    router = _make_router(start, end, {"default": "thetadata", "stock": "ibkr"})
+    _prime_daily_sleeptime_cadence(router)
+
+    asset = Asset("SPCX", asset_type=Asset.AssetType.STOCK)
+    quote = Asset("USD", asset_type=Asset.AssetType.FOREX)
+    requested_timesteps: list[str] = []
+
+    def fake_get_price_data(*, asset, quote, timestep, start_dt, end_dt, **_):
+        requested_timesteps.append(timestep)
+        if timestep == "day":
+            return _daily_ohlc(start_dt, end_dt)
+        return _session_minute_ohlc(start_dt, end_dt)
+
+    monkeypatch.setattr(ibkr_helper, "get_price_data", fake_get_price_data)
+
+    # First daily iteration of the SPCX replay: market open on 2026-08-28.
+    router._datetime = LUMIBOT_DEFAULT_PYTZ.localize(datetime(2026, 8, 28, 9, 30))
+    bars = router.get_historical_prices(asset, 1440, "minute", quote=quote)
+
+    assert "day" not in requested_timesteps, f"minute request fetched daily bars: {requested_timesteps}"
+    assert bars is not None
+    df = bars.df
+    assert df is not None and not df.empty
+    _assert_intraday_spacing(df)
+    assert len(df) <= 1440
+    assert df.index.max() <= pd.Timestamp(router.get_datetime())
+
+
+def test_daily_sleeptime_minute_request_without_minute_data_returns_nothing(monkeypatch):
+    import lumibot.tools.ibkr_helper as ibkr_helper
+
+    monkeypatch.setenv("DATADOWNLOADER_BASE_URL", "http://localhost:8080")
+    monkeypatch.setenv("DATADOWNLOADER_API_KEY", "<redacted>")
+
+    start = LUMIBOT_DEFAULT_PYTZ.localize(datetime(2026, 8, 28, 0, 0))
+    end = LUMIBOT_DEFAULT_PYTZ.localize(datetime(2026, 8, 29, 0, 0))
+    router = _make_router(start, end, {"default": "thetadata", "stock": "ibkr"})
+    _prime_daily_sleeptime_cadence(router)
+
+    asset = Asset("SPCX", asset_type=Asset.AssetType.STOCK)
+    quote = Asset("USD", asset_type=Asset.AssetType.FOREX)
+
+    def fake_get_price_data(*, asset, quote, timestep, start_dt, end_dt, **_):
+        # Only daily history exists for this symbol.
+        if timestep == "day":
+            return _daily_ohlc(start_dt, end_dt)
+        return pd.DataFrame()
+
+    monkeypatch.setattr(ibkr_helper, "get_price_data", fake_get_price_data)
+
+    # Daily bars already warmed by an earlier daily lookup must not answer a minute request.
+    router._datetime = LUMIBOT_DEFAULT_PYTZ.localize(datetime(2026, 8, 28, 9, 30))
+    daily = router.get_historical_prices(asset, 20, "day", quote=quote)
+    assert daily is not None and not daily.df.empty
+
+    bars = router.get_historical_prices(asset, 1440, "minute", quote=quote)
+    df = getattr(bars, "df", None) if bars is not None else None
+    assert df is None or df.empty, f"minute request returned {len(df)} non-minute bars"

@@ -1,6 +1,9 @@
 Design Your AI Trading Team
 ===========================
 
+.. meta::
+   :description: Start with agents_quickstart: one researcher gathers evidence and one trading agent owns risk review, order submission, and status reconciliation.
+
 Start with :doc:`agents_quickstart`: one researcher gathers evidence and one
 trading agent owns risk review, order submission, and status reconciliation.
 Add researchers ahead of that trader when the strategy needs more perspectives.

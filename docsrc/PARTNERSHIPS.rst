@@ -1,6 +1,9 @@
 Partner with LumiBot
 ====================
 
+.. meta::
+   :description: Partner with LumiBot. Build trading products with the team behind LumiBot.
+
 Build trading products with the team behind LumiBot.
 
 :Last updated: September 8, 2026

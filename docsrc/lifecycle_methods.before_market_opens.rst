@@ -1,6 +1,9 @@
 def before_market_opens
 ===================================
 
+.. meta::
+   :description: This lifecycle method is executed each day before market opens. If the strategy is first run when the market is already open, this method will be skipped the first day.
+
 This lifecycle method is executed each day before market opens. If the strategy is first run when the market is already open, this method will be skipped the first day. Use this lifecycle methods to execute business logic before starting trading like canceling all open orders.
 
 .. code-block:: python

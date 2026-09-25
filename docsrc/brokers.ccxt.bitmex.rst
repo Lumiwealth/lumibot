@@ -1,6 +1,9 @@
 BitMEX CCXT Configuration
 =========================
 
+.. meta::
+   :description: BitMEX has documented Lumibot CCXT examples, but it is not currently one of the global auto-detected credential paths.
+
 BitMEX has documented Lumibot CCXT examples, but it is not currently one of the
 global auto-detected credential paths. Use an explicit ``Ccxt`` config and
 validate exchange-specific behavior carefully.

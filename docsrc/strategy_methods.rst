@@ -1,6 +1,9 @@
 Strategy Methods
 ===================================
 
+.. meta::
+   :description: Strategy methods are the methods that you will use inside of a strategy to do things such as submit orders, get pricing data and more.
+
 Strategy methods are the methods that you will use inside of a strategy to do things such as submit orders, get pricing data and more. We have divided them into sections for you so that you get get a sense of what each one is used for.
 
 For a copy-and-run introduction to the most common methods, start with

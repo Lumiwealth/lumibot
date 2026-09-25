@@ -1,6 +1,9 @@
 Common Mistakes and How to Avoid Them
 ======================================
 
+.. meta::
+   :description: This page documents the most common mistakes made when writing Lumibot strategies, along with the correct patterns to use instead.
+
 This page documents the most common mistakes made when writing Lumibot strategies, along with the correct patterns to use instead.
 
 Restoring Asset Variables After a Restart

@@ -1,6 +1,9 @@
 Bars
 ----------------------------
 
+.. meta::
+   :description: This object contains all pricing data over time, including open, close, high, low, etc prices. You can get the raw pandas DataFrame by using bars.df.
+
 This object contains all pricing data over time, including open, close, high, low, etc prices. You can get the raw pandas DataFrame by using ``bars.df``. The dataframe has the following columns:
 
 * open

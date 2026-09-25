@@ -1,6 +1,9 @@
 AI Trading Examples
 ===================
 
+.. meta::
+   :description: Start with a complete strategy, run a historical backtest, and inspect what the agents decided. Model calls require a provider key.
+
 Start with a complete strategy, run a historical backtest, and inspect what the
 agents decided. Model calls require a provider key. Each example states its
 data requirements and whether the displayed result is a recorded run.

@@ -1,6 +1,9 @@
 Bill Ackman Concentrated AI Trading Team
 ========================================
 
+.. meta::
+   :description: This strategy is inspired by Bill Ackman and Pershing Square-style concentrated investing: do deep work on a small number of understandable, high-quality businesses.
+
 .. image:: ../docs/assets/ai-trading-team-workflows/bill-ackman-concentrated.png
    :alt: AI trading team workflow for Bill Ackman concentrated style investing
    :width: 100%

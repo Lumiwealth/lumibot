@@ -1,6 +1,9 @@
 Lumibot vs ai-hedge-fund
 ========================
 
+.. meta::
+   :description: ai-hedge-fund is a compelling educational project because it makes AI investing easy to understand: different investor-style agents debate ideas from different.
+
 ai-hedge-fund is a compelling educational project because it makes AI investing
 easy to understand: different investor-style agents debate ideas from different
 perspectives.

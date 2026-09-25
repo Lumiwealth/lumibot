@@ -1,6 +1,9 @@
 Lumibot vs TradingAgents
 ========================
 
+.. meta::
+   :description: TradingAgents helped prove that people want multi-agent financial research workflows.
+
 TradingAgents helped prove that people want multi-agent financial research
 workflows. It is a strong research/demo project for showing how analyst,
 trader, and risk-style agents can reason together.

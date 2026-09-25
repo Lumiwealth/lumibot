@@ -1,6 +1,9 @@
 Ray Dalio Idea Meritocracy AI Trading Team
 ==========================================
 
+.. meta::
+   :description: This strategy is inspired by Ray Dalio's public writing about idea meritocracy and thoughtful disagreement. It is not an "All Weather" clone.
+
 .. image:: ../docs/assets/ai-trading-team-workflows/ray-dalio-idea-meritocracy.png
    :alt: AI trading team workflow for Ray Dalio idea-meritocracy style macro debate
    :width: 100%

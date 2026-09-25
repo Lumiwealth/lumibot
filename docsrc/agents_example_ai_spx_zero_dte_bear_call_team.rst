@@ -1,6 +1,9 @@
 Two-Agent SPX 0 DTE Bear Call Experiment
 ========================================
 
+.. meta::
+   :description: ai_spx_zero_dte_bear_call_team.py tests a strict two-agent architecture: LumiBot documentation.
+
 .. image:: ../docs/assets/ai-agent-workflows/ai-spx-zero-dte-bear-call-team.png
    :alt: SPX zero-day bear call AI trading team workflow
    :width: 100%

@@ -1,6 +1,9 @@
 Indicators
 ==========
 
+.. meta::
+   :description: self.indicators is a per-strategy technical-indicator accessor. It computes against history at or before strategy time, returning the current value.
+
 ``self.indicators`` is a per-strategy technical-indicator accessor. It computes
 against history **at or before strategy time**, returning the current value.
 Repeated calls with identical observed bars and parameters reuse their result.

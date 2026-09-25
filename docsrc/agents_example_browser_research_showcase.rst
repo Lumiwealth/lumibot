@@ -1,6 +1,9 @@
 Authenticated Browser Research Showcase
 =======================================
 
+.. meta::
+   :description: This example demonstrates the full handoff: an authenticated browser researcher reads a JavaScript application, a dedicated trading/risk agent decides whether to trade.
+
 .. image:: ../docs/assets/ai-agent-workflows/ai-browser-research-showcase.png
    :alt: Authenticated browser research AI trading team workflow
    :width: 100%

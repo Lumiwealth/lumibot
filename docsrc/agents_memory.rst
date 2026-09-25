@@ -1,6 +1,9 @@
 Agent Memory
 ============
 
+.. meta::
+   :description: Lumibot includes native local memory for agentic strategies. Memory lets an agent record why it made a decision, search prior lessons, keep an open thesis.
+
 Lumibot includes native local memory for agentic strategies. Memory lets an
 agent record why it made a decision, search prior lessons, keep an open thesis,
 and leave artifacts that a human can inspect after a backtest or live run.

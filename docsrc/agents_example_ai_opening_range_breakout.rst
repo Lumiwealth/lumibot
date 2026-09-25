@@ -1,6 +1,9 @@
 AI Opening Range Breakout
 =========================
 
+.. meta::
+   :description: ai_opening_range_breakout.py is a two-agent equity strategy. A research-only agent scans completed opening ranges and ranks valid breakouts.
+
 .. image:: ../docs/assets/ai-agent-workflows/ai-opening-range-breakout.png
    :alt: AI opening-range breakout workflow using LumiBot runtime skills, rules, market evidence, and execution
    :width: 100%

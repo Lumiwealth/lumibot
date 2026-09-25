@@ -66,3 +66,62 @@ def test_comparison_docs_are_publicly_discoverable():
     assert "https://github.com/HKUDS/AI-Trader" in hub
     assert "https://github.com/OpenBB-finance/OpenBB" in hub
     assert "https://github.com/microsoft/qlib" in hub
+
+
+DOCSRC = Path(__file__).resolve().parents[1] / "docsrc"
+
+
+def test_open_graph_tags_are_configured():
+    """A shared docs link must render a card, not a bare URL.
+
+    Without Open Graph tags every share on X, LinkedIn, Discord or Slack shows
+    the URL alone. For a library that grows by being shared, that is free reach
+    thrown away.
+    """
+    config = _load_docs_config()
+    assert "sphinxext.opengraph" in config.extensions
+    assert config.ogp_site_url == "https://lumibot.lumiwealth.com/"
+    assert config.ogp_site_name
+    # An absolute image URL, because scrapers do not resolve relative paths.
+    assert str(config.ogp_image).startswith("https://")
+    assert config.ogp_description_length >= 150
+
+
+def test_docs_workflow_installs_the_opengraph_extension():
+    workflow = (Path(__file__).resolve().parents[1] / ".github/workflows/docs.yml").read_text()
+    assert "sphinxext-opengraph" in workflow
+
+
+def _pages_missing_meta_description():
+    missing = []
+    for page in sorted(DOCSRC.glob("*.rst")):
+        text = page.read_text(encoding="utf-8", errors="replace")
+        if ":description:" not in text:
+            missing.append(page.name)
+    return missing
+
+
+def test_every_top_level_docs_page_has_a_meta_description():
+    """Google writes its own snippet when a page has none, and writes a worse one.
+
+    24 of 129 pages carried a description before 2026-09-25. This test keeps
+    new pages from reopening the gap.
+    """
+    missing = _pages_missing_meta_description()
+    assert not missing, f"{len(missing)} docs pages have no meta description: {missing[:10]}"
+
+
+def test_meta_descriptions_are_useful_lengths():
+    """Too short says nothing; past about 160 characters Google truncates."""
+    import re
+
+    bad = []
+    for page in sorted(DOCSRC.glob("*.rst")):
+        text = page.read_text(encoding="utf-8", errors="replace")
+        match = re.search(r":description:\s*(.+)", text)
+        if not match:
+            continue
+        description = match.group(1).strip()
+        if not (60 <= len(description) <= 200):
+            bad.append((page.name, len(description)))
+    assert not bad, f"descriptions outside 60-200 chars: {bad[:10]}"

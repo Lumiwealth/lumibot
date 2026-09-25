@@ -1,6 +1,9 @@
 AI Agent Observability
 ======================
 
+.. meta::
+   :description: LumiBot's AI agent runtime is only useful if every run is fully inspectable. The observability system records everything the agent did so you can audit reasoning.
+
 LumiBot's AI agent runtime is only useful if every run is fully inspectable. The observability system records everything the agent did so you can audit reasoning, validate data integrity, and debug surprising behavior.
 
 The file to open

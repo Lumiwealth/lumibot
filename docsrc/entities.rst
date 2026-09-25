@@ -1,6 +1,9 @@
 Entities
 ===================================
 
+.. meta::
+   :description: Entities are the main object types that are passed around within Lumibot to place orders, get to know your positions, load data and more.
+
 Entities are the main object types that are passed around within Lumibot to place orders, get to know your positions, load data and more.
 
 Here's a list of the main entities in Lumibot:

@@ -1,6 +1,9 @@
 Coinbase Crypto Broker
 ======================
 
+.. meta::
+   :description: Coinbase is one of Lumibot's auto-detected CCXT credential paths. It is a good starting point for users who want regulated spot crypto access and relatively simple.
+
 Coinbase is one of Lumibot's auto-detected CCXT credential paths. It is a good
 starting point for users who want regulated spot crypto access and relatively
 simple account setup.

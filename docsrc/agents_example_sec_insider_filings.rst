@@ -1,6 +1,9 @@
 SEC Form 4 Insider-Filing Agent
 ===============================
 
+.. meta::
+   :description: This example reads public SEC Form 4 filings for a fixed watchlist. It uses no material non-public information.
+
 .. image:: ../docs/assets/ai-agent-workflows/ai-sec-insider-filings.png
    :alt: SEC Form 4 insider-filing AI trading team workflow
    :width: 100%

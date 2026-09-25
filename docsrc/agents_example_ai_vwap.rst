@@ -1,6 +1,9 @@
 AI VWAP Strategy
 ================
 
+.. meta::
+   :description: ai_vwap.py is a two-agent equity strategy. A research-only agent computes and explains the point-in-time VWAP setup.
+
 .. image:: ../docs/assets/ai-agent-workflows/ai-vwap.png
    :alt: AI VWAP workflow using LumiBot runtime skills, rules, market evidence, and execution
    :width: 100%

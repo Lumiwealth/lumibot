@@ -1,6 +1,9 @@
 WEEX Crypto Broker
 ==================
 
+.. meta::
+   :description: WEEX is one of Lumibot's auto-detected CCXT credential paths. Treat it as an advanced crypto path because jurisdiction, sandbox.
+
 WEEX is one of Lumibot's auto-detected CCXT credential paths. Treat it as an
 advanced crypto path because jurisdiction, sandbox, and product support differ
 from more common spot exchanges.

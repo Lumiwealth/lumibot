@@ -1,6 +1,9 @@
 Congressional Disclosure Agent
 ===============================
 
+.. meta::
+   :description: This example reads the public House Clerk periodic transaction report. It downloads the yearly index at the House financial-pdfs ZIP, then the member PDF.
+
 .. image:: ../docs/assets/ai-agent-workflows/ai-congress-disclosures.png
    :alt: Congressional disclosure AI trading team workflow
    :width: 100%

@@ -1,6 +1,9 @@
 AI Iron Condor
 ==============
 
+.. meta::
+   :description: ai_iron_condor.py is a two-agent options strategy. A research-only agent finds and documents an exact four-contract candidate.
+
 .. image:: ../docs/assets/ai-agent-workflows/ai-iron-condor.png
    :alt: AI iron-condor workflow using LumiBot runtime skills, rules, tools, and execution
    :width: 100%

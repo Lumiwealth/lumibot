@@ -1,6 +1,9 @@
 Tradovate
 ===================================
 
+.. meta::
+   :description: Tradovate does not provide market data. You must use a separate data source for live trading.
+
 .. important::
    
    **Tradovate does not provide market data.** You must use a separate data source for live trading. Recommended data sources include DataBento, ProjectX, or Interactive Brokers (all support futures data).

@@ -1,6 +1,9 @@
 def on_canceled_order
 ===================================
 
+.. meta::
+   :description: The lifecycle callback method called after LumiBot observes that an order has been terminally canceled by the broker.
+
 The lifecycle callback method called after LumiBot observes that an order has
 been terminally canceled by the broker. Use this callback to reconcile terminal
 cancellation state.

@@ -1,6 +1,9 @@
 def on_filled_order
 ===================================
 
+.. meta::
+   :description: The lifecycle callback method is called after LumiBot observes that an order has been fully filled by the broker. Use it as the fast path for fill-dependent work.
+
 The lifecycle callback method is called after LumiBot observes that an order
 has been fully filled by the broker. Use it as the fast path for fill-dependent
 work.

@@ -1,6 +1,9 @@
 Migrating from Backtrader to LumiBot
 ====================================
 
+.. meta::
+   :description: Move a strategy one behavior at a time: data timing, indicators, position sizing, orders, and execution.
+
 Move a strategy one behavior at a time: data timing, indicators, position sizing,
 orders, and execution. Both libraries support strategy lifecycles and broker
 abstractions. Choosing LumiBot does not make two backtests numerically equivalent.

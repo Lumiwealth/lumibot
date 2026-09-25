@@ -1,6 +1,9 @@
 Warren Buffett Value AI Trading Team
 ====================================
 
+.. meta::
+   :description: This strategy is inspired by Warren Buffett's public investing style: understand the business first, read the filings, care about durability, avoid overpaying.
+
 .. image:: ../docs/assets/ai-trading-team-workflows/warren-buffett-value.png
    :alt: AI trading team workflow for Warren Buffett value style investing
    :width: 100%

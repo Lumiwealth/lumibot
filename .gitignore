@@ -94,3 +94,23 @@ context*.json
 
 # Local scratch / diagnostics (never commit)
 tmp/
+
+# ---------------------------------------------------------------------------
+# Backtest and eval run artifacts never go in the repo (Rob, 2026-09-25)
+# ---------------------------------------------------------------------------
+# A single research folder reached 134 MB of tear sheets, trade CSVs, parquet
+# traces, logs and stdout captures. Committing those bloats every clone of a
+# public repo forever and git will not let you take it back. Keep the written
+# findings (.md) and ignore the generated evidence next to them.
+docs/research/**/*.csv
+docs/research/**/*.parquet
+docs/research/**/*.html
+docs/research/**/*.log
+docs/research/**/*.stdout
+docs/research/**/*.png
+docs/research/**/*.jpg
+docs/research/**/*.zip
+docs/research/**/*_settings.json
+docs/research/**/*_tearsheet_metrics.json
+docs/research/**/*_indicators.json
+artifacts/agent_evals/

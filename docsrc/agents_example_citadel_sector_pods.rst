@@ -1,6 +1,9 @@
 Citadel Sector Pods AI Trading Team
 ===================================
 
+.. meta::
+   :description: This strategy is inspired by the pod-style structure associated with Ken Griffin's Citadel and other multi-manager platforms.
+
 .. image:: ../docs/assets/ai-trading-team-workflows/citadel-sector-pods.png
    :alt: AI trading team workflow for Citadel-style sector pods
    :width: 100%

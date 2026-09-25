@@ -1,6 +1,9 @@
 Agent Built-In Tools
 ====================
 
+.. meta::
+   :description: LumiBot agents are useful because they can inspect the same strategy state that your Python code can inspect.
+
 LumiBot agents are useful because they can inspect the same strategy state that
 your Python code can inspect. Built-in tools are added automatically when an
 agent is created, so a strategy author does not need to manually wire common

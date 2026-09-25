@@ -3,6 +3,9 @@
 Traders
 =======================
 
+.. meta::
+   :description: Traders. Trader LumiBot documentation in the LumiBot Python trading framework.
+
 Trader
 -----------------------------
 

@@ -1,6 +1,9 @@
 AI Trading Project Comparison
 =============================
 
+.. meta::
+   :description: AI trading projects have proved that people want agentic trading workflows. Lumibot's edge is that those workflows run inside a real Python trading framework.
+
 AI trading projects have proved that people want agentic trading workflows.
 Lumibot's edge is that those workflows run inside a real Python trading
 framework. You can backtest the agent decisions, inspect artifacts, add

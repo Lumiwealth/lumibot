@@ -1,6 +1,9 @@
 Reference
 =========
 
+.. meta::
+   :description: Reference. Reference documentation for specialized Lumibot features.
+
 Reference documentation for specialized Lumibot features.
 
 Start with :doc:`strategy_api_overview` for the small set of Strategy methods

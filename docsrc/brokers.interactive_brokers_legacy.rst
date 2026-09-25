@@ -1,6 +1,9 @@
 Interactive Brokers Legacy
 ===================================
 
+.. meta::
+   :description: This method has been deprecated. Please use the other Interactive Brokers tutorial. LumiBot documentation.
+
 .. note::
     This method has been deprecated. Please use the other Interactive Brokers tutorial.
 

@@ -51,6 +51,24 @@ extensions = [
     "sphinx.ext.autosummary",
     "sphinx.ext.autodoc",
     "sphinx_llms_txt",  # Generates llms.txt and llms-full.txt for AI assistants
+    "sphinxext.opengraph",  # Open Graph and Twitter cards for shared links
+]
+
+# ============================================================================
+# Open Graph / Twitter cards
+# ----------------------------------------------------------------------------
+# Without these, every docs link shared on X, LinkedIn, Discord or Slack
+# renders as a bare URL with no title, image or description.
+# ============================================================================
+ogp_site_url = "https://lumibot.lumiwealth.com/"
+ogp_site_name = "LumiBot"
+ogp_image = "https://lumibot.lumiwealth.com/_static/lumibot-social-card.png"
+ogp_image_alt = "LumiBot: AI trading agents that actually place the trade"
+ogp_description_length = 200
+ogp_type = "website"
+ogp_enable_meta_description = True
+ogp_custom_meta_tags = [
+    '<meta name="twitter:card" content="summary_large_image" />',
 ]
 
 # ============================================================================

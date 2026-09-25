@@ -1,6 +1,9 @@
 Bybit CCXT Backtesting
 ======================
 
+.. meta::
+   :description: Bybit is documented as a CCXT backtesting exchange id in Lumibot. It is not currently one of the global auto-detected live credential paths.
+
 Bybit is documented as a CCXT backtesting exchange id in Lumibot. It is not
 currently one of the global auto-detected live credential paths.
 

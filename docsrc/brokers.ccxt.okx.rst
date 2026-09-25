@@ -1,6 +1,9 @@
 OKX CCXT Backtesting
 ====================
 
+.. meta::
+   :description: OKX is documented as a CCXT backtesting exchange id in Lumibot. It is not currently one of the global auto-detected live credential paths.
+
 OKX is documented as a CCXT backtesting exchange id in Lumibot. It is not
 currently one of the global auto-detected live credential paths.
 

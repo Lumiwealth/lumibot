@@ -1,6 +1,9 @@
 Futures Trading
 ***************
 
+.. meta::
+   :description: Lumibot provides robust support for futures trading, offering both specific expiry futures and continuous futures contracts.
+
 Lumibot provides robust support for futures trading, offering both specific expiry futures and continuous futures contracts. This guide covers how to create futures assets, understand the different types, and best practices for backtesting and live trading.
 
 Types of Futures Assets

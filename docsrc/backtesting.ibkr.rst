@@ -1,6 +1,9 @@
 Interactive Brokers (REST) Backtesting
 ======================================
 
+.. meta::
+   :description: LumiBot supports backtesting with Interactive Brokers data providers.
+
 LumiBot supports backtesting with **Interactive Brokers data providers**.
 
 The primary data path uses Client Portal (REST) via the LumiBot Data Downloader.

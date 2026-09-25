@@ -1,6 +1,9 @@
 Asset
 -----------------------------
 
+.. meta::
+   :description: An asset object represents securities such as stocks or options in Lumibot. Attributes that are tracked for assets are:.
+
 An asset object represents securities such as stocks or options in Lumibot. Attributes that are tracked for assets are:
 
 * symbol(str): Ticker symbol representing the stock or underlying for options. So for example if trading IBM calls the symbol would just be IBM.

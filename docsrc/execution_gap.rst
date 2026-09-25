@@ -1,6 +1,9 @@
 The Execution Gap
 =================
 
+.. meta::
+   :description: Most agentic trading projects end at the decision. The model reasons, prints a recommendation, and stops.
+
 Most agentic trading projects end at the decision. The model reasons, prints a
 recommendation, and stops. Everything after that, the sizing, the gate, the
 order and the record, is left to you.

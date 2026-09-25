@@ -1,6 +1,9 @@
 Polymarket
 ===================================
 
+.. meta::
+   :description: LumiBot supports Polymarket prediction-contract trading and backtesting through the Polymarket broker, PolymarketData data source.
+
 LumiBot supports Polymarket prediction-contract trading and backtesting through the ``Polymarket`` broker,
 ``PolymarketData`` data source, and ``PolymarketBacktesting`` historical data source. A Polymarket outcome token is a
 ``prediction_contract`` asset priced between ``0`` and ``1`` in USD collateral. The same strategy structure can discover

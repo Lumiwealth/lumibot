@@ -1,6 +1,9 @@
 Miscellaneous
 ===================================
 
+.. meta::
+   :description: Miscellaneous methods are the methods that do not fit into other categories. You can use these methods to log messages to your log files.
+
 Miscellaneous methods are the methods that do not fit into other categories. You can use these methods to log messages to your log files, sleep for a few seconds and more. You can see a list of them below:
 
 .. currentmodule:: lumibot.strategies.strategy

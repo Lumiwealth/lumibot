@@ -1,6 +1,9 @@
 Bull/Bear Leveraged ETF AI Trading Team
 =======================================
 
+.. meta::
+   :description: This is a fast, dramatic AI trading team demo. It gives the agents a universe of leveraged long and inverse ETFs, turns a bull and bear debate into account weights.
+
 .. image:: ../docs/assets/ai-trading-team-workflows/bull-bear-leveraged-etf.png
    :alt: AI trading team workflow for bull/bear leveraged ETFs
    :width: 100%

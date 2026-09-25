@@ -1,6 +1,9 @@
 Imports and Startup
 ===================
 
+.. meta::
+   :description: LumiBot package initializers use lazy exports for high-level namespaces such as lumibot, lumibot.brokers, lumibot.data_sources, lumibot.entities, lumibot.tools.
+
 LumiBot package initializers use lazy exports for high-level namespaces such as
 ``lumibot``, ``lumibot.brokers``, ``lumibot.data_sources``,
 ``lumibot.entities``, ``lumibot.tools``, and ``lumibot.traders``.

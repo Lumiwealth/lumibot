@@ -1,6 +1,9 @@
 Stateful Browser Tools
 ======================
 
+.. meta::
+   :description: Use LumiBot's browser tools when HTTP is not enough: JavaScript-rendered pages, interactive login flows, multiple tabs, controlled uploads or downloads.
+
 Use LumiBot's browser tools when HTTP is not enough: JavaScript-rendered pages,
 interactive login flows, multiple tabs, controlled uploads or downloads, and
 authenticated research sessions. The optional runtime uses Patchright and a

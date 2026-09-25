@@ -3,6 +3,9 @@
 Strategies
 ==========================
 
+.. meta::
+   :description: All user defined strategies should inherit from the Strategy class. LumiBot documentation.
+
 All user defined strategies should inherit from the Strategy class.
 
 from strategies import Strategy

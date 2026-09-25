@@ -1,6 +1,9 @@
 Lumibot vs QuantDinger
 ======================
 
+.. meta::
+   :description: QuantDinger is positioned as a private AI quant operating system. Its appeal is the broad self-hosted stack: charting, AI-assisted research, Python strategies.
+
 QuantDinger is positioned as a private AI quant operating system. Its appeal is
 the broad self-hosted stack: charting, AI-assisted research, Python strategies,
 backtests, and live execution surfaces.

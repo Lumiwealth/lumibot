@@ -1,6 +1,9 @@
 Options
 ===================================
 
+.. meta::
+   :description: Options methods are meant for managing options, including getting option chains, greeks and more. You can see a list of them below:.
+
 Options methods are meant for managing options, including getting option chains, greeks and more. You can see a list of them below:
 
 For high-level option selection (expirations/strikes/deltas) and multi-leg spread helpers, see :doc:`options_helper`.

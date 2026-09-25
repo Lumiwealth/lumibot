@@ -1,6 +1,9 @@
 Smart Limit Orders
 ==================
 
+.. meta::
+   :description: SMART_LIMIT orders are midpoint-chasing limit orders that walk the bid/ask spread using a timed ladder (Option Alpha “SmartPricing” parity).
+
 SMART_LIMIT orders are midpoint-chasing limit orders that walk the bid/ask spread
 using a timed ladder (Option Alpha “SmartPricing” parity). They are meant to model
 realistic execution without forcing market orders through wide option spreads.

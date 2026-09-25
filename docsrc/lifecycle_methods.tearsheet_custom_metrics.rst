@@ -1,6 +1,9 @@
 def tearsheet_custom_metrics
 ============================
 
+.. meta::
+   :description: tearsheet_custom_metrics is a strategy lifecycle hook that runs during backtest analysis, immediately before LumiBot writes:.
+
 ``tearsheet_custom_metrics`` is a strategy lifecycle hook that runs during backtest
 analysis, immediately before LumiBot writes:
 

@@ -3,6 +3,9 @@
 Backtesting Performance (Speed + Parity)
 ========================================
 
+.. meta::
+   :description: This page explains how to make backtests faster without changing strategy correctness. Performance issues are usually dominated by one of:.
+
 This page explains how to make backtests faster **without changing strategy correctness**. Performance issues are usually dominated by one of:
 
 - **Startup** (python import time, environment loading, first progress update)

@@ -1,6 +1,9 @@
 Canonical AI Agent Demos
 ========================
 
+.. meta::
+   :description: LumiBot includes six canonical AI agent demo strategies that serve as both reference implementations and end-to-end acceptance tests for agentic backtesting.
+
 LumiBot includes six canonical AI agent demo strategies that serve as both reference implementations and end-to-end acceptance tests for agentic backtesting. These examples cover both custom ``@agent_tool`` wrappers and built-in agent tools, the full built-in tool set, replay caching, and benchmarked tearsheet output.
 
 These are complete, runnable strategies -- not snippets. They demonstrate how to backtest an AI trading agent with real external data sources, and they validate that LumiBot's AI-driven trading strategy backtest pipeline works end to end. All demo files are located in ``lumibot/example_strategies/``.

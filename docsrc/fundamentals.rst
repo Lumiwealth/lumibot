@@ -1,6 +1,9 @@
 SEC Fundamentals
 ================
 
+.. meta::
+   :description: LumiBot includes native SEC EDGAR fundamentals for US equities. These are core strategy data tools.
+
 LumiBot includes native SEC EDGAR fundamentals for US equities. These are core
 strategy data tools, not AI-only tools: deterministic Python strategies can call
 them directly, and AI agents receive the same point-in-time tools as built-ins.

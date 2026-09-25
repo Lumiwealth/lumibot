@@ -1,6 +1,9 @@
 Parameters
 ===================================
 
+.. meta::
+   :description: Parameters are an important part of any lumibot program and allow you to customize your strategy to your liking.
+
 Parameters are an important part of any lumibot program and allow you to customize your strategy to your liking. Parameters are defined in the strategy file and can be accessed by the strategy methods. Parameters can be accessed by the strategy methods by using the get_parameters() method. The get_parameters() method returns a dictionary of all the parameters defined in the strategy file. The parameters can be accessed by using the parameter name as the key. For example, here's a typical strategy file that defines several parameters:
 
 .. code-block:: python

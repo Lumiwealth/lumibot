@@ -3,6 +3,9 @@
 Environment Variables
 =====================
 
+.. meta::
+   :description: LumiBot supports configuring many behaviors via environment variables. This page documents the variables most commonly used for backtesting, ThetaData.
+
 LumiBot supports configuring many behaviors via environment variables. This page documents the variables most commonly used for **backtesting**, **ThetaData**, and **remote caching**.
 
 .. important::

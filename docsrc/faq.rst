@@ -1,6 +1,9 @@
 Frequently Asked Questions (FAQ)
 =================================
 
+.. meta::
+   :description: This page answers common questions about LumiBot. If you're new, start with the getting_started guide.
+
 This page answers common questions about LumiBot. If you're new, start with the :doc:`getting_started` guide.
 
 Getting Started

@@ -1,6 +1,9 @@
 KuCoin CCXT Configuration
 =========================
 
+.. meta::
+   :description: KuCoin has selected Lumibot/CCXT handling, but it is not currently one of the global auto-detected credential paths.
+
 KuCoin has selected Lumibot/CCXT handling, but it is not currently one of the
 global auto-detected credential paths. Use an explicit ``Ccxt`` broker config
 and validate behavior with small quantities.

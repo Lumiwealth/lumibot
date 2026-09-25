@@ -1,6 +1,9 @@
 def on_partially_filled_order
 ===================================
 
+.. meta::
+   :description: The lifecycle callback method called after LumiBot observes a partial broker fill. Use it for quantity-sensitive work such as incremental hedging.
+
 The lifecycle callback method called after LumiBot observes a partial broker
 fill. Use it for quantity-sensitive work such as incremental hedging.
 

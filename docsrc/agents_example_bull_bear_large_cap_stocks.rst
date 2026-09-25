@@ -1,6 +1,9 @@
 Bull/Bear Large-Cap Stocks AI Trading Team
 ==========================================
 
+.. meta::
+   :description: This strategy uses the same simple bull/bear pattern as the leveraged ETF demo, but applies it to familiar large-cap stocks.
+
 .. image:: ../docs/assets/ai-trading-team-workflows/bull-bear-large-cap-stocks.png
    :alt: AI trading team workflow for bull/bear large-cap stocks
    :width: 100%

@@ -1,6 +1,9 @@
 AI Credit Spread
 ================
 
+.. meta::
+   :description: ai_credit_spread.py is a two-agent options strategy. A research-only agent finds and documents an exact listed spread candidate.
+
 .. image:: ../docs/assets/ai-agent-workflows/ai-credit-spread.png
    :alt: AI credit-spread workflow using LumiBot runtime skills, rules, tools, and execution
    :width: 100%

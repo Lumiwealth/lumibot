@@ -1398,8 +1398,14 @@ def _ibkr_page_end_feed(vendor: pd.DataFrame, bar: pd.Timedelta):
     def _fake_queue_request(url, querystring=None, headers=None, timeout=None, **_):
         end = pd.Timestamp(datetime.strptime(querystring["startTime"], "%Y%m%d-%H:%M:%S"), tz="UTC")
         requests.append(end)
-        minutes = int(str(querystring["period"]).removesuffix("min"))
-        rows = vendor.loc[(vendor.index > end - pd.Timedelta(minutes=minutes)) & (vendor.index <= end - 2 * bar)].tail(1000)
+        period = str(querystring["period"])
+        if period.endswith("min"):
+            span = pd.Timedelta(minutes=int(period.removesuffix("min")))
+        elif period.endswith("h"):
+            span = pd.Timedelta(hours=int(period.removesuffix("h")))
+        else:
+            span = pd.Timedelta(days=int(period.removesuffix("d")))
+        rows = vendor.loc[(vendor.index > end - span) & (vendor.index <= end - 2 * bar)].tail(1000)
         return {"data": [{"t": int(ts.timestamp() * 1000), "o": float(r["open"]), "h": float(r["high"]),
                           "l": float(r["low"]), "c": float(r["close"]), "v": float(r["volume"])}
                          for ts, r in rows.iterrows()]}
@@ -1492,3 +1498,44 @@ def test_ibkr_capped_5minute_pages_do_not_drop_the_bar_before_each_page(monkeypa
     missing = vendor.index.difference(df.index)
     assert [str(ts.tz_convert(_NY)) for ts in missing] == []
     assert len(requests) >= 5
+
+
+def test_ibkr_shifted_page_end_never_passes_the_delayed_feed_limit(monkeypatch, tmp_path):
+    """CodeRabbit on PR #1180: get_price_data ends stock and index intraday requests 20 minutes
+    before now (the delayed shared feed), then the pager asks one bar later. For hourly bars the
+    first page ended about 40 minutes AFTER now, a page the downloader can reject as stale_tail,
+    and a failed first page leaves the series empty."""
+    now = datetime(2026, 9, 25, 15, 0, tzinfo=timezone.utc)  # 11:00 ET, market open
+    ibkr_helper = _page_end_setup(monkeypatch, tmp_path, 756733)
+    monkeypatch.setattr(ibkr_helper, "_ibkr_history_now_utc", lambda: now)
+    vendor = _session_minute_bars(["2026-09-24", "2026-09-25"], first="04:00", last="10:30", freq="1h")
+    feed, requests = _ibkr_page_end_feed(vendor, pd.Timedelta(hours=1))
+    monkeypatch.setattr(ibkr_helper, "queue_request", feed)
+
+    ibkr_helper.get_price_data(
+        asset=Asset("SPY", asset_type=Asset.AssetType.STOCK),
+        quote=Asset("USD", asset_type=Asset.AssetType.FOREX),
+        timestep="hour",
+        start_dt=datetime(2026, 9, 24, 8, 0, tzinfo=timezone.utc),
+        end_dt=now,
+        include_after_hours=True,
+    )
+
+    latest_allowed = pd.Timestamp(now) - pd.Timedelta(minutes=20)
+    assert requests, "expected at least one history request"
+    assert max(requests) <= latest_allowed, [str(r) for r in requests]
+
+
+def test_ibkr_page_request_end_keeps_the_one_bar_shift_for_futures_and_old_windows(monkeypatch):
+    import lumibot.tools.ibkr_helper as ibkr_helper
+
+    now = datetime(2026, 9, 25, 15, 0, tzinfo=timezone.utc)
+    monkeypatch.setattr(ibkr_helper, "_ibkr_history_now_utc", lambda: now)
+    old_cursor = datetime(2026, 9, 18, 20, 0, tzinfo=timezone.utc)
+    assert ibkr_helper._ibkr_page_request_end(old_cursor, 60, "stock") == old_cursor + timedelta(minutes=1)
+    assert ibkr_helper._ibkr_page_request_end(old_cursor, 86400, "stock") == old_cursor
+    # Futures are not on the delayed stock/index feed: the shift is never clamped.
+    recent = now - timedelta(minutes=20)
+    assert ibkr_helper._ibkr_page_request_end(recent, 3600, "future") == recent + timedelta(hours=1)
+    # Stock at the delayed-feed limit stays at the limit.
+    assert ibkr_helper._ibkr_page_request_end(recent, 3600, "stock") == recent

@@ -2354,7 +2354,7 @@ def _fetch_history_between_dates(
                 conid=conid,
                 period=period,
                 bar=bar,
-                start_time=_ibkr_page_request_end(cursor_end, bar_seconds),
+                start_time=_ibkr_page_request_end(cursor_end, bar_seconds, asset_type),
                 exchange=exchange,
                 include_after_hours=include_after_hours,
                 continuous=continuous,
@@ -2569,7 +2569,7 @@ def _fetch_history_between_dates(
     return merged
 
 
-def _ibkr_page_request_end(cursor_end: datetime, bar_seconds: int) -> datetime:
+def _ibkr_page_request_end(cursor_end: datetime, bar_seconds: int, asset_type: str = "") -> datetime:
     """Return the IBKR ``startTime`` for a page that must hold every bar starting before ``cursor_end``.
 
     An IBKR history page ending at T holds bars up to T minus two bars: the bar that starts
@@ -2580,10 +2580,21 @@ def _ibkr_page_request_end(cursor_end: datetime, bar_seconds: int) -> datetime:
     the previous page's earliest bar lost the bar just before it. Asking one bar later keeps
     that bar; if IBKR ever includes the bar at T as well, the merge drops the duplicate.
     Daily bars keep their request end unchanged.
+
+    US stock and index intraday requests never ask past the delayed-feed limit
+    (IBKR_INTRADAY_HISTORY_DELAY, see get_price_data): the shift used to put the first hourly
+    page about 40 minutes after now, which the downloader can reject as stale_tail. At the
+    limit the page keeps the old end; the bar it leaves out is too recent to be served yet.
+    Futures and crypto are not on that feed and keep the full shift.
     """
     if not bar_seconds or bar_seconds >= 24 * 60 * 60:
         return cursor_end
-    return cursor_end + timedelta(seconds=int(bar_seconds))
+    shifted = cursor_end + timedelta(seconds=int(bar_seconds))
+    if asset_type in {"stock", "index"}:
+        latest_available = _ibkr_history_now_utc() - IBKR_INTRADAY_HISTORY_DELAY
+        if shifted > latest_available:
+            shifted = max(cursor_end, latest_available)
+    return shifted
 
 
 def _history_health_series_id(*, asset, quote, timestep, exchange, source, include_after_hours) -> str:

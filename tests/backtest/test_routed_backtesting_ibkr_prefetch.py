@@ -1143,3 +1143,56 @@ def test_ibkr_thin_stock_minute_paging_still_uses_one_request_per_session(monkey
 
     assert len(frame) == len(vendor), "every real bar must still arrive"
     assert len(requests) <= len(sessions) + 1, f"{len(requests)} requests for {len(sessions)} sessions: {[r['startTime'] for r in requests]}"
+
+
+def test_ibkr_thin_stock_resume_from_a_quiet_monday_open_backfills_older_sessions(monkeypatch, tmp_path):
+    """Live 2026-09-24: a thin ETF's cache started at Monday 04:19 ET (no prints before 04:19). The
+    resume request for older bars ended there; its 1000-minute window held Sunday plus Monday
+    04:00 to 04:19, open minutes without trades, so IBKR answered empty, the window was not
+    "fully closed" and paging stopped on the first page. The older sessions never loaded."""
+    import lumibot.tools.ibkr_helper as ibkr_helper
+
+    monkeypatch.setenv("DATADOWNLOADER_BASE_URL", "http://localhost:8080")
+    monkeypatch.setenv("DATADOWNLOADER_API_KEY", "<redacted>")
+    monkeypatch.delenv("IBKR_HISTORY_SOURCE", raising=False)
+    monkeypatch.setattr(ibkr_helper, "LUMIBOT_CACHE_FOLDER", tmp_path.as_posix())
+    monkeypatch.setattr(ibkr_helper, "_RUNTIME_HISTORY_NO_DATA_WINDOWS", {})
+    monkeypatch.setattr(ibkr_helper, "_RUNTIME_ATTEMPTED_HISTORY_SEGMENTS", {}, raising=False)
+    monkeypatch.setattr(ibkr_helper, "_resolve_conid", lambda **_: 4215205)
+
+    asset = Asset("XLV", asset_type=Asset.AssetType.STOCK)
+    quote = Asset("USD", asset_type=Asset.AssetType.FOREX)
+    sessions = ["2026-07-20", "2026-07-21", "2026-07-22", "2026-07-23", "2026-07-24", "2026-07-27",
+                "2026-07-28", "2026-07-29", "2026-07-30", "2026-07-31", "2026-08-03", "2026-08-04",
+                "2026-08-05"]
+    vendor = _ibkr_1min_extended_hours(sessions)
+    local = vendor.index.tz_convert("America/New_York")
+    vendor = vendor[~((local.hour == 4) & (local.minute < 19))]  # thin: first print 04:19
+
+    cached = vendor.loc[vendor.index >= pd.Timestamp("2026-08-03 04:19", tz="America/New_York")].copy()
+    cached["missing"] = False
+    cache_file = ibkr_helper._cache_file_for(asset=asset, quote=quote, timestep="minute", exchange=None,
+                                             source="Trades", include_after_hours=True)
+    ibkr_helper._write_cache_frame(cache_file, cached)
+    requests: list[dict] = []
+
+    def fake_queue_request(url, querystring=None, headers=None, timeout=None, **_):
+        requests.append(dict(querystring))
+        window_end = pd.Timestamp(datetime.strptime(querystring["startTime"], "%Y%m%d-%H:%M:%S"), tz="UTC")
+        window_start = window_end - pd.Timedelta(minutes=int(str(querystring["period"]).removesuffix("min")))
+        # Live IBKR leaves out the bar stamped at the page end (a page ending 00:00 UTC returned 23:58
+        # as its last bar), so the resume page ending at the cached 04:19 bar comes back empty.
+        rows = vendor.loc[(vendor.index > window_start) & (vendor.index < window_end)].tail(1000)
+        return {"data": [{"t": int(ts.timestamp() * 1000), "o": float(r["open"]), "h": float(r["high"]),
+                          "l": float(r["low"]), "c": float(r["close"]), "v": float(r["volume"])}
+                         for ts, r in rows.iterrows()]}
+
+    monkeypatch.setattr(ibkr_helper, "queue_request", fake_queue_request)
+
+    frame = ibkr_helper.get_price_data(asset=asset, quote=quote, timestep="minute",
+        start_dt=datetime(2026, 7, 20, 8, 0, tzinfo=timezone.utc),
+        end_dt=datetime(2026, 8, 6, 0, 0, tzinfo=timezone.utc), include_after_hours=True)
+
+    days = sorted(set(frame.index.tz_convert("America/New_York").strftime("%Y-%m-%d")))
+    assert days == sessions, f"sessions {days}; requests {[r['startTime'] for r in requests]}"
+    assert len(requests) <= 12, f"{len(requests)} requests: {[r['startTime'] for r in requests]}"

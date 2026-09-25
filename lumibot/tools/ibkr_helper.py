@@ -559,9 +559,40 @@ def _cursor_before_closed_equity_page(
     for _ in range(64):
         page_start = page_end - step
         if not _us_equity_closed_interval(page_start, page_end, include_after_hours=calendar_extended_hours):
-            return None if page_end == cursor_end else page_end
+            if page_end != cursor_end:
+                return page_end
+            # The only open time in this empty page may be the quiet start of the session it ends
+            # in: a thin symbol's cache began at Monday 04:19 ET, the page ending there held Sunday
+            # plus 04:00 to 04:19 with no trades, and paging stopped (live, 2026-09-24). An empty
+            # answer there means "no trades yet", so continue from the previous session's close.
+            return _previous_close_if_only_session_start_is_open(
+                page_start=page_start, page_end=page_end, extended=calendar_extended_hours
+            )
         page_end = page_start
     return page_end
+
+
+def _previous_close_if_only_session_start_is_open(
+    *, page_start: datetime, page_end: datetime, extended: bool
+) -> Optional[datetime]:
+    try:
+        end_ts = pd.Timestamp(page_end)
+        if end_ts.tzinfo is None:
+            end_ts = end_ts.tz_localize("UTC")
+        end_ns = int(end_ts.tz_convert("UTC").value)
+        year = int(end_ts.tz_convert("America/New_York").year)
+        bounds = [_us_equity_session_bounds_for_year(y, extended) for y in (year - 1, year)]
+        opens = np.concatenate([b[0] for b in bounds])
+        closes = np.concatenate([b[1] for b in bounds])
+        idx = int(np.searchsorted(opens, end_ns, side="left")) - 1
+        if idx < 1 or not (int(opens[idx]) < end_ns <= int(closes[idx])):
+            return None
+        session_open = pd.Timestamp(int(opens[idx]), unit="ns", tz="UTC").to_pydatetime()
+        if not _us_equity_closed_interval(page_start, session_open, include_after_hours=extended):
+            return None
+        return pd.Timestamp(int(closes[idx - 1]), unit="ns", tz="UTC").to_pydatetime()
+    except Exception:
+        return None
 
 
 def _previous_equity_session_close_before(

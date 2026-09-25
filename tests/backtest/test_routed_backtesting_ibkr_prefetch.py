@@ -1096,9 +1096,31 @@ def test_daily_strategy_quote_still_uses_daily_bars_without_intraday_series(monk
     assert "minute" not in requested, requested
 
 
-def _router_with_minute_store(frame: pd.DataFrame, now: datetime):
+@pytest.fixture
+def no_local_theta_terminal(monkeypatch):
+    """Fail a test that would touch a developer's local ThetaTerminal.
+
+    CodeRabbit on PR #1180: without DATADOWNLOADER_BASE_URL (a clean CI box or a shell
+    without the lumibot .env), constructing the router reaches ThetaDataBacktestingPandas.__init__,
+    which kills every local ThetaTerminal.jar process. The variable is removed here so the
+    guard sees the worst case.
+    """
+    from lumibot.backtesting.thetadata_backtesting_pandas import ThetaDataBacktestingPandas
+
+    def _refuse(self, keyword):
+        raise AssertionError(f"test tried to kill local processes matching {keyword!r}")
+
+    monkeypatch.delenv("DATADOWNLOADER_BASE_URL", raising=False)
+    monkeypatch.setattr(ThetaDataBacktestingPandas, "kill_processes_by_name", _refuse)
+    return monkeypatch
+
+
+def _router_with_minute_store(frame: pd.DataFrame, now: datetime, monkeypatch):
     from types import SimpleNamespace
 
+    # A configured downloader keeps router construction away from local ThetaTerminal processes.
+    monkeypatch.setenv("DATADOWNLOADER_BASE_URL", "http://localhost:8080")
+    monkeypatch.setenv("DATADOWNLOADER_API_KEY", "<redacted>")
     start = LUMIBOT_DEFAULT_PYTZ.localize(datetime(2026, 1, 2, 0, 0))
     end = LUMIBOT_DEFAULT_PYTZ.localize(datetime(2026, 1, 20, 0, 0))
     router = _make_router(start, end, {"default": "ibkr", "stock": "ibkr", "index": "ibkr"})
@@ -1118,17 +1140,17 @@ def _router_with_minute_store(frame: pd.DataFrame, now: datetime):
         (datetime(2026, 1, 5, 9, 0), False),    # only bars after the simulated time
     ],
 )
-def test_loaded_intraday_series_check_edges(now, expected):
+def test_loaded_intraday_series_check_edges(now, expected, no_local_theta_terminal):
     frame = _flat_minute_ohlc(
         LUMIBOT_DEFAULT_PYTZ.localize(datetime(2026, 1, 6, 9, 30)),
         LUMIBOT_DEFAULT_PYTZ.localize(datetime(2026, 1, 7, 10, 29)),
         69.67,
     )
-    router, asset, quote = _router_with_minute_store(frame, now)
+    router, asset, quote = _router_with_minute_store(frame, now, no_local_theta_terminal)
     assert router._has_loaded_intraday_series(asset, quote) is expected
 
 
-def test_loaded_intraday_series_check_uses_binary_search_not_a_full_index_scan(monkeypatch):
+def test_loaded_intraday_series_check_uses_binary_search_not_a_full_index_scan(monkeypatch, no_local_theta_terminal):
     """The check runs on every quote and last-price lookup. A full-index boolean mask over an
     8-month minute series cost about 0.4 ms per call (7x the binary search) in the SEH Simple
     replay; with 58 symbols that is seconds per backtest spent re-scanning the same index."""
@@ -1137,7 +1159,7 @@ def test_loaded_intraday_series_check_uses_binary_search_not_a_full_index_scan(m
         LUMIBOT_DEFAULT_PYTZ.localize(datetime(2026, 1, 7, 10, 29)),
         69.67,
     )
-    router, asset, quote = _router_with_minute_store(frame, datetime(2026, 1, 7, 10, 30))
+    router, asset, quote = _router_with_minute_store(frame, datetime(2026, 1, 7, 10, 30), monkeypatch)
 
     def _no_full_scan(self, other):
         raise AssertionError("full-index comparison")
@@ -1260,7 +1282,7 @@ def _daily_with_dividends(start_dt: datetime, end_dt: datetime, dividends: dict[
     return frame
 
 
-def test_ibkr_routed_stock_dividends_come_from_ibkr_daily_bars_not_thetadata(monkeypatch):
+def test_ibkr_routed_stock_dividends_come_from_ibkr_daily_bars_not_thetadata(monkeypatch, no_local_theta_terminal):
     """2026-09-25: a BotSpot Auto backtest holding 400 TLT and 50 SPY from June to August 2026 kept
     its cash flat. RoutedBacktestingPandas inherited ThetaData's dividend lookup, which asks the
     ThetaData corporate-actions API even for stocks whose bars come from IBKR. ThetaData is switched
@@ -1299,9 +1321,11 @@ def test_ibkr_routed_stock_dividends_come_from_ibkr_daily_bars_not_thetadata(mon
     assert theta_calls == []
 
 
-def test_thetadata_routed_stock_dividends_still_use_thetadata(monkeypatch):
+def test_thetadata_routed_stock_dividends_still_use_thetadata(monkeypatch, no_local_theta_terminal):
     import lumibot.tools.thetadata_helper as thetadata_helper
 
+    monkeypatch.setenv("DATADOWNLOADER_BASE_URL", "http://localhost:8080")
+    monkeypatch.setenv("DATADOWNLOADER_API_KEY", "<redacted>")
     start = LUMIBOT_DEFAULT_PYTZ.localize(datetime(2026, 6, 1, 0, 0))
     end = LUMIBOT_DEFAULT_PYTZ.localize(datetime(2026, 8, 31, 0, 0))
     router = _make_router(start, end, {"default": "thetadata", "stock": "thetadata"})

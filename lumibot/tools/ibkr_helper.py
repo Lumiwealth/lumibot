@@ -2354,7 +2354,7 @@ def _fetch_history_between_dates(
                 conid=conid,
                 period=period,
                 bar=bar,
-                start_time=cursor_end,
+                start_time=_ibkr_page_request_end(cursor_end, bar_seconds),
                 exchange=exchange,
                 include_after_hours=include_after_hours,
                 continuous=continuous,
@@ -2567,6 +2567,23 @@ def _fetch_history_between_dates(
     #
     # The caller (`get_price_data`) performs the final slice for the requested time range.
     return merged
+
+
+def _ibkr_page_request_end(cursor_end: datetime, bar_seconds: int) -> datetime:
+    """Return the IBKR ``startTime`` for a page that must hold every bar starting before ``cursor_end``.
+
+    An IBKR history page ending at T holds bars up to T minus two bars: the bar that starts
+    one bar before T (and ends at T) is left out. Recorded live on 2026-09-25: SPY 1-minute
+    ending 20:00 ET stopped at 19:58, SPX 1-minute pages ending at the 16:00 ET close held
+    389 bars ending 15:58, and a QQQ 5-minute page ending 13:40 UTC stopped at 13:30. Pages
+    anchored at a session close lost every session's final bar, and a page continuing from
+    the previous page's earliest bar lost the bar just before it. Asking one bar later keeps
+    that bar; if IBKR ever includes the bar at T as well, the merge drops the duplicate.
+    Daily bars keep their request end unchanged.
+    """
+    if not bar_seconds or bar_seconds >= 24 * 60 * 60:
+        return cursor_end
+    return cursor_end + timedelta(seconds=int(bar_seconds))
 
 
 def _history_health_series_id(*, asset, quote, timestep, exchange, source, include_after_hours) -> str:

@@ -1377,3 +1377,118 @@ def test_daily_fetch_sizes_windows_up_to_1000_days_exactly(monkeypatch, days, ex
         start_dt=start, end_dt=end, exchange=None, include_after_hours=False, source="Trades",
         source_was_explicit=True)
     assert [c["period"] for c in calls] == [expected_period]
+
+
+# ---------------------------------------------------------------------------
+# IBKR page ends (2026-09-25)
+#
+# A history page with startTime=T holds bars up to T minus TWO bars: the bar that starts one
+# bar before T (and ends at T) is not in the answer. Recorded live on the production
+# downloader: SPY 1-minute startTime=20260918-00:00 (20:00 ET) ended at 19:58 ET,
+# startTime=20260918-08:00 held the 19:59 bar; SPX 1-minute pages ending at the 16:00 ET close
+# held 389 bars ending 15:58; QQQ 5-minute startTime=20260302-13:40 ended at 13:30 UTC.
+# Anchoring a page at the session close (4.6.1) lost every session's final bar, and a page
+# continuing from the previous page's earliest bar lost the bar just before it.
+# ---------------------------------------------------------------------------
+
+
+def _ibkr_page_end_feed(vendor: pd.DataFrame, bar: pd.Timedelta):
+    requests = []
+
+    def _fake_queue_request(url, querystring=None, headers=None, timeout=None, **_):
+        end = pd.Timestamp(datetime.strptime(querystring["startTime"], "%Y%m%d-%H:%M:%S"), tz="UTC")
+        requests.append(end)
+        minutes = int(str(querystring["period"]).removesuffix("min"))
+        rows = vendor.loc[(vendor.index > end - pd.Timedelta(minutes=minutes)) & (vendor.index <= end - 2 * bar)].tail(1000)
+        return {"data": [{"t": int(ts.timestamp() * 1000), "o": float(r["open"]), "h": float(r["high"]),
+                          "l": float(r["low"]), "c": float(r["close"]), "v": float(r["volume"])}
+                         for ts, r in rows.iterrows()]}
+
+    return _fake_queue_request, requests
+
+
+def _page_end_setup(monkeypatch, tmp_path, conid):
+    import lumibot.tools.ibkr_helper as ibkr_helper
+
+    monkeypatch.setenv("DATADOWNLOADER_BASE_URL", "http://localhost:8080")
+    monkeypatch.setenv("DATADOWNLOADER_API_KEY", "x")
+    monkeypatch.delenv("IBKR_HISTORY_SOURCE", raising=False)
+    monkeypatch.setattr(ibkr_helper, "LUMIBOT_CACHE_FOLDER", tmp_path.as_posix())
+    monkeypatch.setattr(ibkr_helper, "_RUNTIME_HISTORY_NO_DATA_WINDOWS", {})
+    monkeypatch.setattr(ibkr_helper, "_RUNTIME_ATTEMPTED_HISTORY_SEGMENTS", {}, raising=False)
+    monkeypatch.setattr(ibkr_helper, "_RUNTIME_MINUTE_GAP_CHECKED_SERIES", {}, raising=False)
+    monkeypatch.setattr(ibkr_helper, "_resolve_conid", lambda **_: conid)
+    monkeypatch.setattr(ibkr_helper, "_ibkr_history_now_utc", lambda: datetime(2026, 9, 25, tzinfo=timezone.utc))
+    return ibkr_helper
+
+
+def _session_minute_bars(days, *, first, last, freq="1min"):
+    frames = []
+    for i, day in enumerate(days):
+        idx = pd.date_range(pd.Timestamp(f"{day} {first}", tz=_NY), pd.Timestamp(f"{day} {last}", tz=_NY), freq=freq)
+        px = 600.0 + i + pd.Series(range(len(idx)), index=idx, dtype="float64") * 0.001
+        frames.append(pd.DataFrame({"open": px, "high": px + 0.05, "low": px - 0.05, "close": px + 0.01, "volume": 1000.0}, index=idx))
+    return pd.concat(frames).sort_index()
+
+
+def test_ibkr_index_minute_history_keeps_every_sessions_closing_bar(monkeypatch, tmp_path):
+    ibkr_helper = _page_end_setup(monkeypatch, tmp_path, 416904)
+    days = ["2026-09-14", "2026-09-15", "2026-09-16", "2026-09-17", "2026-09-18"]
+    vendor = _session_minute_bars(days, first="09:30", last="15:59")
+    feed, _ = _ibkr_page_end_feed(vendor, pd.Timedelta(minutes=1))
+    monkeypatch.setattr(ibkr_helper, "queue_request", feed)
+
+    df = ibkr_helper.get_price_data(
+        asset=Asset("SPX", asset_type=Asset.AssetType.INDEX),
+        quote=Asset("USD", asset_type=Asset.AssetType.FOREX),
+        timestep="minute",
+        start_dt=datetime(2026, 9, 14, 13, 30, tzinfo=timezone.utc),
+        end_dt=datetime(2026, 9, 18, 21, 0, tzinfo=timezone.utc),
+        include_after_hours=False,
+    )
+
+    local = df.index.tz_convert(_NY)
+    last_bar = pd.Series(local, index=local).groupby(local.normalize()).max().dt.strftime("%H:%M")
+    assert last_bar.tolist() == ["15:59"] * 5
+    assert len(df) == len(vendor)
+
+
+def test_ibkr_stock_minute_history_keeps_every_sessions_last_extended_hours_bar(monkeypatch, tmp_path):
+    ibkr_helper = _page_end_setup(monkeypatch, tmp_path, 756733)
+    days = ["2026-09-14", "2026-09-15", "2026-09-16", "2026-09-17", "2026-09-18"]
+    vendor = _session_minute_bars(days, first="04:00", last="19:59")
+    feed, _ = _ibkr_page_end_feed(vendor, pd.Timedelta(minutes=1))
+    monkeypatch.setattr(ibkr_helper, "queue_request", feed)
+
+    df = ibkr_helper.get_price_data(
+        asset=Asset("SPY", asset_type=Asset.AssetType.STOCK),
+        quote=Asset("USD", asset_type=Asset.AssetType.FOREX),
+        timestep="minute",
+        start_dt=datetime(2026, 9, 14, 8, 0, tzinfo=timezone.utc),
+        end_dt=datetime(2026, 9, 19, 0, 1, tzinfo=timezone.utc),
+        include_after_hours=True,
+    )
+
+    missing = vendor.index.difference(df.index)
+    assert [str(ts.tz_convert(_NY)) for ts in missing] == []
+
+
+def test_ibkr_capped_5minute_pages_do_not_drop_the_bar_before_each_page(monkeypatch, tmp_path):
+    ibkr_helper = _page_end_setup(monkeypatch, tmp_path, 320227571)
+    days = [d.strftime("%Y-%m-%d") for d in pd.bdate_range("2026-03-02", "2026-03-27")]
+    vendor = _session_minute_bars(days, first="04:00", last="19:55", freq="5min")
+    feed, requests = _ibkr_page_end_feed(vendor, pd.Timedelta(minutes=5))
+    monkeypatch.setattr(ibkr_helper, "queue_request", feed)
+
+    df = ibkr_helper.get_price_data(
+        asset=Asset("QQQ", asset_type=Asset.AssetType.STOCK),
+        quote=Asset("USD", asset_type=Asset.AssetType.FOREX),
+        timestep="5minute",
+        start_dt=datetime(2026, 3, 2, 9, 0, tzinfo=timezone.utc),
+        end_dt=datetime(2026, 3, 28, 0, 1, tzinfo=timezone.utc),
+        include_after_hours=True,
+    )
+
+    missing = vendor.index.difference(df.index)
+    assert [str(ts.tz_convert(_NY)) for ts in missing] == []
+    assert len(requests) >= 5

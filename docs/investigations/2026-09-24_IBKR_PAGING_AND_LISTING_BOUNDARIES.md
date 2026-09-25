@@ -100,6 +100,24 @@ stock files has a hole (SPY 5-minute, 2026-08-17 to 08-19). The older `prod/cach
 has 5 of 78 files with holes (SPX, APP, QQQ, SPY, TQQQ minute; 233 sessions). With this fix those holes are fetched the
 next time a backtest reads the file, so no manual cleanup is required.
 
+## 9. Every page lost the bar just before its end (2026-09-25)
+
+An IBKR page with `startTime=T` holds bars only up to `T - 2 bars`; the bar that starts one bar before T (and ends at
+T) is left out. The downloader keeps every row it gets inside the window, so this is IBKR's answer. Recorded on the
+production downloader: SPY 1-minute `startTime=20260918-00:00` (20:00 ET) ended at 19:58 ET; SPX 1-minute pages ending
+at the 16:00 ET close held 389 bars ending 15:58; QQQ 5-minute `startTime=20260302-13:40` ended at 13:30 UTC.
+
+Effect: section 6 anchors pages at a session close, so 4.6.1 lost every session's final bar (SPX 15:59, the closing
+minute that close-of-day and 0DTE strategies read; stock extended-hours 19:59; NVDA hourly 19:00). A page continuing from
+the previous page's earliest bar lost the bar just before it (both 4.6.0 and 4.6.1; QQQ 5-minute about every 3.5 days).
+
+`_fetch_history_between_dates` now sends `startTime = cursor + one bar` for intraday bars (`_ibkr_page_request_end`), so
+the page holds every bar that starts before the cursor. If IBKR ever includes the bar at T too, the merge drops the
+duplicate. Daily requests are unchanged. The downloader's tail check (3-bar tolerance) still sees a 2-bar gap.
+Tests: `tests/test_ibkr_helper_unit.py -k "closing_bar or last_extended_hours_bar or capped_5minute"` (red: SPX
+15:58 in 4 of 5 sessions, SPY 19:59 missing in 4 sessions, 8 QQQ 5-minute bars missing). Live after the fix: 5 SPX
+sessions, 390 bars each, every one ending 15:59.
+
 ## Test results
 
 `LUMIBOT_DISABLE_DOTENV_LOCAL=1 LUMIBOT_CACHE_BACKEND=local LUMIBOT_CACHE_MODE=disabled`:

@@ -1189,6 +1189,15 @@ class RoutedBacktestingPandas(ThetaDataBacktestingPandas):
             raw = self._routing.get(asset_type) or self._routing.get("default") or "thetadata"
         return self._registry.resolve_provider_spec(raw)
 
+    @staticmethod
+    def _frame_last_date(frame):
+        if frame is None or not len(getattr(frame, "index", [])):
+            return None
+        index = pd.DatetimeIndex(frame.index)
+        if index.tz is not None:
+            index = index.tz_convert(LUMIBOT_DEFAULT_PYTZ)
+        return index.max().date()
+
     def get_yesterday_dividends(self, assets, quote=None):
         """Return each asset's dividend for the current backtest date from the provider of its bars.
 
@@ -1199,6 +1208,10 @@ class RoutedBacktestingPandas(ThetaDataBacktestingPandas):
         2026 kept its cash flat. IBKR daily bars already carry the dividend on its ex-date
         (`ibkr_helper._append_equity_corporate_actions_daily`), so only assets routed to
         ThetaData still ask ThetaData.
+
+        Alpaca-routed stocks correctly get no cash dividend: the routed Alpaca source keeps
+        AlpacaBacktesting's default auto_adjust=True, which requests adjustment="all" bars, so
+        dividends are already in the price series. Crediting cash on top would count them twice.
         """
         theta_assets = []
         routed_assets = []
@@ -1221,12 +1234,18 @@ class RoutedBacktestingPandas(ThetaDataBacktestingPandas):
             cache = self._routed_dividend_cache = {}
         for asset in routed_assets:
             cached = cache.get(asset)
-            # Rebuild when the loaded daily frame did not reach today yet.
-            if cached is None or cached[1] is None or current_date > cached[1]:
+            # Rebuild when nothing is cached, or when the cached daily frame ended before today
+            # and it has not been refreshed today yet. Checking once per simulated day matters:
+            # an intraday strategy asks on every iteration, and a frame that stays short (IBKR has
+            # no newer daily bar yet) was rescanned in full on every call (CodeRabbit, PR #1180).
+            stale = cached is not None and (cached["last_date"] is None or current_date > cached["last_date"])
+            if cached is None or (stale and cached["checked_date"] != current_date):
                 frame = self._get_backtest_daily_corporate_action_frame(asset, quote=quote)
-                if frame is None or "dividend" not in frame.columns:
+                frame_last = self._frame_last_date(frame)
+                if frame is None or "dividend" not in frame.columns or frame_last is None or frame_last < current_date:
                     try:
-                        # Loads the native daily series; routed IBKR prefetches the whole window.
+                        # Loads or extends the native daily series; routed IBKR prefetches the
+                        # whole window, so this is a cheap no-op once the series is fully loaded.
                         self.get_bars(
                             [asset], self._backtest_daily_corporate_action_length(), timestep="day", quote=quote
                         )
@@ -1234,7 +1253,6 @@ class RoutedBacktestingPandas(ThetaDataBacktestingPandas):
                         logger.debug("Routed dividend bars unavailable for %s: %s", getattr(asset, "symbol", asset), exc)
                     frame = self._get_backtest_daily_corporate_action_frame(asset, quote=quote)
                 by_date = {}
-                last_date = None
                 if frame is not None and "dividend" in frame.columns and len(frame.index):
                     index = pd.DatetimeIndex(frame.index)
                     if index.tz is not None:
@@ -1243,10 +1261,13 @@ class RoutedBacktestingPandas(ThetaDataBacktestingPandas):
                     for ts, amount in zip(index, amounts):
                         if amount > 0:
                             by_date[ts.date()] = float(amount)
-                    last_date = index.max().date()
-                cached = (by_date, last_date)
+                cached = {
+                    "by_date": by_date,
+                    "last_date": self._frame_last_date(frame),
+                    "checked_date": current_date,
+                }
                 cache[asset] = cached
-            dividend = cached[0].get(current_date, 0.0)
+            dividend = cached["by_date"].get(current_date, 0.0)
             if dividend:
                 logger.info(
                     "[ROUTED][DIVIDENDS] %s dividend on %s = %.6f",

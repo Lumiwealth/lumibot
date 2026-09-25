@@ -1278,7 +1278,9 @@ def _daily_with_dividends(start_dt: datetime, end_dt: datetime, dividends: dict[
     frame["dividend"] = 0.0
     frame["stock_splits"] = 0.0
     for day, amount in dividends.items():
-        frame.loc[pd.Timestamp(f"{day} 16:00", tz=LUMIBOT_DEFAULT_PYTZ), "dividend"] = amount
+        ts = pd.Timestamp(f"{day} 16:00", tz=LUMIBOT_DEFAULT_PYTZ)
+        if ts in frame.index:  # never add rows outside the window
+            frame.loc[ts, "dividend"] = amount
     return frame
 
 
@@ -1340,3 +1342,110 @@ def test_thetadata_routed_stock_dividends_still_use_thetadata(monkeypatch, no_lo
 
     router._datetime = LUMIBOT_DEFAULT_PYTZ.localize(datetime(2026, 6, 18, 9, 30))
     assert float(router.get_yesterday_dividends([spy], quote=quote).get(spy)) == 1.904
+
+
+def _ibkr_dividend_router(monkeypatch, *, frame_end: str):
+    import lumibot.tools.ibkr_helper as ibkr_helper
+    import lumibot.tools.thetadata_helper as thetadata_helper
+
+    monkeypatch.setenv("DATADOWNLOADER_BASE_URL", "http://localhost:8080")
+    monkeypatch.setenv("DATADOWNLOADER_API_KEY", "<redacted>")
+    start = LUMIBOT_DEFAULT_PYTZ.localize(datetime(2026, 6, 1, 0, 0))
+    end = LUMIBOT_DEFAULT_PYTZ.localize(datetime(2026, 8, 31, 0, 0))
+    router = _make_router(start, end, {"default": "ibkr", "stock": "ibkr", "index": "ibkr"})
+    fetches = []
+
+    def fake_get_price_data(*, asset, quote, timestep, start_dt, end_dt, **_):
+        fetches.append((start_dt, end_dt))
+        stop = min(pd.Timestamp(end_dt), pd.Timestamp(frame_end, tz=LUMIBOT_DEFAULT_PYTZ))
+        return _daily_with_dividends(start_dt, stop, {"2026-07-01": 0.318, "2026-08-03": 0.330})
+
+    monkeypatch.setattr(ibkr_helper, "get_price_data", fake_get_price_data)
+    monkeypatch.setattr(thetadata_helper, "_get_theta_dividends", lambda *_a, **_k: pytest.fail("ThetaData called"))
+    monkeypatch.setattr(thetadata_helper, "_get_theta_splits", lambda *_a, **_k: pytest.fail("ThetaData called"))
+    return router, fetches
+
+
+def test_routed_dividend_lookup_does_not_rescan_a_daily_frame_that_ends_before_today(monkeypatch, no_local_theta_terminal):
+    """CodeRabbit on PR #1180 (routed_backtesting.py:1227): when the daily frame ends before the
+    current date (IBKR has no newer daily bar yet), every lookup rebuilt the whole dividend map.
+    An intraday strategy asks on every iteration, so this rescanned each held asset's full daily
+    frame hundreds of times per simulated day."""
+    router, _ = _ibkr_dividend_router(monkeypatch, frame_end="2026-07-31")
+    tlt = Asset("TLT", asset_type=Asset.AssetType.STOCK)
+    quote = Asset("USD", asset_type=Asset.AssetType.FOREX)
+    router._datetime = LUMIBOT_DEFAULT_PYTZ.localize(datetime(2026, 7, 1, 9, 30))
+    assert float(router.get_yesterday_dividends([tlt], quote=quote).get(tlt)) == 0.318
+
+    lookups = []
+    original = router._get_backtest_daily_corporate_action_frame
+    monkeypatch.setattr(router, "_get_backtest_daily_corporate_action_frame",
+                        lambda *a, **k: lookups.append(1) or original(*a, **k))
+    for day in (3, 4):
+        for minute in range(60):
+            router._datetime = LUMIBOT_DEFAULT_PYTZ.localize(datetime(2026, 8, day, 9, 30 + minute // 2))
+            assert float(router.get_yesterday_dividends([tlt], quote=quote).get(tlt) or 0.0) == 0.0
+    assert len(lookups) <= 4, f"{len(lookups)} daily-frame lookups for 2 simulated days"
+
+
+def test_routed_dividend_lookup_refreshes_a_stale_daily_frame_once(monkeypatch, no_local_theta_terminal):
+    """A daily frame loaded before the newer bars existed must be refreshed, not reused: the Aug 3
+    dividend is only in the newer bars."""
+    from lumibot.entities import Data
+
+    router, fetches = _ibkr_dividend_router(monkeypatch, frame_end="2026-08-31")
+    tlt = Asset("TLT", asset_type=Asset.AssetType.STOCK)
+    quote = Asset("USD", asset_type=Asset.AssetType.FOREX)
+    stale = _daily_with_dividends(
+        LUMIBOT_DEFAULT_PYTZ.localize(datetime(2026, 6, 1)),
+        LUMIBOT_DEFAULT_PYTZ.localize(datetime(2026, 7, 31)),
+        {"2026-07-01": 0.318},
+    )
+    canonical_key, _ = router._build_dataset_keys(tlt, quote, "day")
+    router._data_store[canonical_key] = Data(tlt, stale, timestep="day", quote=quote)
+
+    router._datetime = LUMIBOT_DEFAULT_PYTZ.localize(datetime(2026, 7, 1, 9, 30))
+    assert float(router.get_yesterday_dividends([tlt], quote=quote).get(tlt)) == 0.318
+    router._datetime = LUMIBOT_DEFAULT_PYTZ.localize(datetime(2026, 8, 3, 9, 30))
+    assert float(router.get_yesterday_dividends([tlt], quote=quote).get(tlt) or 0.0) == 0.330
+    fetched = len(fetches)
+    for minute in range(28):
+        router._datetime = LUMIBOT_DEFAULT_PYTZ.localize(datetime(2026, 8, 3, 9, 31 + minute))
+        router.get_yesterday_dividends([tlt], quote=quote)
+    assert len(fetches) == fetched
+
+
+def test_alpaca_routed_stocks_get_no_cash_dividend_because_prices_are_dividend_adjusted(monkeypatch, no_local_theta_terminal):
+    """CodeRabbit on PR #1180 (routed_backtesting.py:1210) suggested sending Alpaca-routed stocks to
+    the ThetaData dividend lookup. That would count dividends twice: the routed Alpaca source keeps
+    AlpacaBacktesting's default auto_adjust=True, which requests adjustment="all" bars (splits AND
+    dividends already in the price). This test pins both halves so a change to either is deliberate."""
+    import lumibot.backtesting.routed_backtesting as routed
+    import lumibot.tools.thetadata_helper as thetadata_helper
+    from lumibot.backtesting.alpaca_backtesting import AlpacaBacktesting
+
+    monkeypatch.setenv("DATADOWNLOADER_BASE_URL", "http://localhost:8080")
+    monkeypatch.setenv("DATADOWNLOADER_API_KEY", "<redacted>")
+    monkeypatch.setattr(routed, "ALPACA_CONFIG", {"API_KEY": "test", "API_SECRET": "test", "PAPER": True})
+    monkeypatch.setattr(thetadata_helper, "_get_theta_dividends", lambda *_a, **_k: pytest.fail("ThetaData called"))
+    monkeypatch.setattr(thetadata_helper, "_get_theta_splits", lambda *_a, **_k: pytest.fail("ThetaData called"))
+    sources = []
+
+    def fake_between_dates(self, *, base_asset, quote_asset, timestep, data_datetime_start, data_datetime_end, **_):
+        sources.append(self)
+        frame = _daily_ohlc(data_datetime_start, data_datetime_end)
+        frame.index = frame.index + pd.Timedelta(hours=16)
+        return frame
+
+    monkeypatch.setattr(AlpacaBacktesting, "get_historical_prices_between_dates", fake_between_dates)
+
+    start = LUMIBOT_DEFAULT_PYTZ.localize(datetime(2026, 6, 1, 0, 0))
+    end = LUMIBOT_DEFAULT_PYTZ.localize(datetime(2026, 8, 31, 0, 0))
+    router = _make_router(start, end, {"default": "alpaca", "stock": "alpaca"})
+    spy = Asset("SPY", asset_type=Asset.AssetType.STOCK)
+    quote = Asset("USD", asset_type=Asset.AssetType.FOREX)
+    router._datetime = LUMIBOT_DEFAULT_PYTZ.localize(datetime(2026, 6, 18, 9, 30))
+
+    assert float(router.get_yesterday_dividends([spy], quote=quote).get(spy) or 0.0) == 0.0
+    assert sources, "the Alpaca source was never asked for daily bars"
+    assert sources[0]._auto_adjust is True  # adjustment="all": dividends are in the prices

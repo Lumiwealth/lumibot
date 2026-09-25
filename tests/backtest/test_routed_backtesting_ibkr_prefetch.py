@@ -1096,6 +1096,57 @@ def test_daily_strategy_quote_still_uses_daily_bars_without_intraday_series(monk
     assert "minute" not in requested, requested
 
 
+def _router_with_minute_store(frame: pd.DataFrame, now: datetime):
+    from types import SimpleNamespace
+
+    start = LUMIBOT_DEFAULT_PYTZ.localize(datetime(2026, 1, 2, 0, 0))
+    end = LUMIBOT_DEFAULT_PYTZ.localize(datetime(2026, 1, 20, 0, 0))
+    router = _make_router(start, end, {"default": "ibkr", "stock": "ibkr", "index": "ibkr"})
+    asset = Asset("SLV", asset_type=Asset.AssetType.STOCK)
+    quote = Asset("USD", asset_type=Asset.AssetType.FOREX)
+    router._data_store = {(asset, quote, "minute"): SimpleNamespace(df=frame)}
+    router._datetime = LUMIBOT_DEFAULT_PYTZ.localize(now)
+    return router, asset, quote
+
+
+@pytest.mark.parametrize(
+    "now, expected",
+    [
+        (datetime(2026, 1, 7, 10, 30), True),   # last bar one minute ago
+        (datetime(2026, 1, 7, 10, 29), True),   # a bar exactly at the simulated time
+        (datetime(2026, 1, 12, 10, 30), False),  # last bar more than 4 days old
+        (datetime(2026, 1, 5, 9, 0), False),    # only bars after the simulated time
+    ],
+)
+def test_loaded_intraday_series_check_edges(now, expected):
+    frame = _flat_minute_ohlc(
+        LUMIBOT_DEFAULT_PYTZ.localize(datetime(2026, 1, 6, 9, 30)),
+        LUMIBOT_DEFAULT_PYTZ.localize(datetime(2026, 1, 7, 10, 29)),
+        69.67,
+    )
+    router, asset, quote = _router_with_minute_store(frame, now)
+    assert router._has_loaded_intraday_series(asset, quote) is expected
+
+
+def test_loaded_intraday_series_check_uses_binary_search_not_a_full_index_scan(monkeypatch):
+    """The check runs on every quote and last-price lookup. A full-index boolean mask over an
+    8-month minute series cost about 0.4 ms per call (7x the binary search) in the SEH Simple
+    replay; with 58 symbols that is seconds per backtest spent re-scanning the same index."""
+    frame = _flat_minute_ohlc(
+        LUMIBOT_DEFAULT_PYTZ.localize(datetime(2026, 1, 6, 9, 30)),
+        LUMIBOT_DEFAULT_PYTZ.localize(datetime(2026, 1, 7, 10, 29)),
+        69.67,
+    )
+    router, asset, quote = _router_with_minute_store(frame, datetime(2026, 1, 7, 10, 30))
+
+    def _no_full_scan(self, other):
+        raise AssertionError("full-index comparison")
+
+    monkeypatch.setattr(pd.DatetimeIndex, "__le__", _no_full_scan)
+    monkeypatch.setattr(pd.DatetimeIndex, "__gt__", _no_full_scan)
+    assert router._has_loaded_intraday_series(asset, quote) is True
+
+
 def test_ibkr_thin_stock_minute_paging_still_uses_one_request_per_session(monkeypatch, tmp_path):
     """Live 2026-09-24: XLK's first pre-market print is often 04:01 or later, so "only closed time
     before the oldest bar" never held and its pages kept stepping at 08:01 and 15:21 UTC (about

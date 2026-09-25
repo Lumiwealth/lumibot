@@ -1247,3 +1247,72 @@ def test_ibkr_thin_stock_resume_from_a_quiet_monday_open_backfills_older_session
     days = sorted(set(frame.index.tz_convert("America/New_York").strftime("%Y-%m-%d")))
     assert days == sessions, f"sessions {days}; requests {[r['startTime'] for r in requests]}"
     assert len(requests) <= 12, f"{len(requests)} requests: {[r['startTime'] for r in requests]}"
+
+
+def _daily_with_dividends(start_dt: datetime, end_dt: datetime, dividends: dict[str, float]) -> pd.DataFrame:
+    """Daily bars shaped like ibkr_helper's output: 16:00 ET rows plus the corporate-action columns."""
+    frame = _daily_ohlc(start_dt, end_dt)
+    frame.index = frame.index + pd.Timedelta(hours=16)
+    frame["dividend"] = 0.0
+    frame["stock_splits"] = 0.0
+    for day, amount in dividends.items():
+        frame.loc[pd.Timestamp(f"{day} 16:00", tz=LUMIBOT_DEFAULT_PYTZ), "dividend"] = amount
+    return frame
+
+
+def test_ibkr_routed_stock_dividends_come_from_ibkr_daily_bars_not_thetadata(monkeypatch):
+    """2026-09-25: a BotSpot Auto backtest holding 400 TLT and 50 SPY from June to August 2026 kept
+    its cash flat. RoutedBacktestingPandas inherited ThetaData's dividend lookup, which asks the
+    ThetaData corporate-actions API even for stocks whose bars come from IBKR. ThetaData is switched
+    off (2026-09-23), every lookup failed quietly, and every dividend was zero. The IBKR daily bars
+    already carry the dividend on its ex-date."""
+    import lumibot.tools.ibkr_helper as ibkr_helper
+    import lumibot.tools.thetadata_helper as thetadata_helper
+
+    monkeypatch.setenv("DATADOWNLOADER_BASE_URL", "http://localhost:8080")
+    monkeypatch.setenv("DATADOWNLOADER_API_KEY", "<redacted>")
+
+    start = LUMIBOT_DEFAULT_PYTZ.localize(datetime(2026, 6, 1, 0, 0))
+    end = LUMIBOT_DEFAULT_PYTZ.localize(datetime(2026, 8, 31, 0, 0))
+    router = _make_router(start, end, {"default": "ibkr", "stock": "ibkr", "index": "ibkr"})
+    tlt = Asset("TLT", asset_type=Asset.AssetType.STOCK)
+    quote = Asset("USD", asset_type=Asset.AssetType.FOREX)
+    theta_calls: list[str] = []
+
+    def fake_get_price_data(*, asset, quote, timestep, start_dt, end_dt, **_):
+        return _daily_with_dividends(start_dt, end_dt, {"2026-07-01": 0.318, "2026-08-03": 0.330})
+
+    def theta_disabled(asset, *_args, **_kwargs):
+        theta_calls.append(asset.symbol)
+        raise RuntimeError("thetadata_disabled: ThetaData is disabled on this data downloader")
+
+    monkeypatch.setattr(ibkr_helper, "get_price_data", fake_get_price_data)
+    monkeypatch.setattr(thetadata_helper, "_get_theta_dividends", theta_disabled)
+    monkeypatch.setattr(thetadata_helper, "_get_theta_splits", theta_disabled)
+
+    paid = {}
+    for day in ("2026-06-30", "2026-07-01", "2026-07-02", "2026-08-03"):
+        router._datetime = LUMIBOT_DEFAULT_PYTZ.localize(datetime.fromisoformat(f"{day}T09:30"))
+        paid[day] = float(router.get_yesterday_dividends([tlt], quote=quote).get(tlt) or 0.0)
+
+    assert paid == {"2026-06-30": 0.0, "2026-07-01": 0.318, "2026-07-02": 0.0, "2026-08-03": 0.330}
+    assert theta_calls == []
+
+
+def test_thetadata_routed_stock_dividends_still_use_thetadata(monkeypatch):
+    import lumibot.tools.thetadata_helper as thetadata_helper
+
+    start = LUMIBOT_DEFAULT_PYTZ.localize(datetime(2026, 6, 1, 0, 0))
+    end = LUMIBOT_DEFAULT_PYTZ.localize(datetime(2026, 8, 31, 0, 0))
+    router = _make_router(start, end, {"default": "thetadata", "stock": "thetadata"})
+    spy = Asset("SPY", asset_type=Asset.AssetType.STOCK)
+    quote = Asset("USD", asset_type=Asset.AssetType.FOREX)
+
+    def theta_dividends(asset, *_args, **_kwargs):
+        return pd.DataFrame({"event_date": [pd.Timestamp("2026-06-18")], "cash_amount": [1.904]})
+
+    monkeypatch.setattr(thetadata_helper, "_get_theta_dividends", theta_dividends)
+    monkeypatch.setattr(thetadata_helper, "_get_theta_splits", lambda *_a, **_k: pd.DataFrame())
+
+    router._datetime = LUMIBOT_DEFAULT_PYTZ.localize(datetime(2026, 6, 18, 9, 30))
+    assert float(router.get_yesterday_dividends([spy], quote=quote).get(spy)) == 1.904

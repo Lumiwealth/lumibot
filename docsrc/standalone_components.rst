@@ -33,6 +33,39 @@ Inspect the returned data and metadata rather than assuming missing values are
 zero. The helper uses its cache and rate pacing; see :doc:`macro_data` for the
 full response and historical-data contract.
 
+Read price history
+------------------
+
+You can pull bars without a ``Strategy``, a broker, or a backtest. Pass the
+dates. This is the part that catches people:
+
+.. code-block:: python
+
+   from datetime import datetime
+
+   from lumibot.data_sources import YahooData
+   from lumibot.entities import Asset
+
+   data = YahooData(datetime_start=datetime.now(), datetime_end=datetime.now())
+   bars = data.get_historical_prices(Asset("SPY"), 5, "day")
+   print(bars.df[["open", "high", "low", "close", "volume"]])
+   print(data.get_last_price(Asset("SPY")))
+
+``YahooData`` is a backtesting data source, so it holds a simulated clock and
+answers every request **as of that clock**. Construct it with no dates and
+``datetime_start`` defaults to now minus 365 days, the clock sits at the start of
+that window, and ``get_historical_prices`` hands back bars from a year ago
+without warning you. The numbers look plausible and are twelve months stale.
+
+Pass ``datetime_start=datetime.now()`` for a present-day read, or pass the exact
+historical date you mean to study. Either way, state it; never rely on the
+default.
+
+The same applies to every backtesting data source, including
+:doc:`Polygon <backtesting.polygon>` and :doc:`DataBento <backtesting.databento>`.
+For a live broker feed instead, use the broker's own data source; see
+:doc:`brokers`.
+
 Read SEC submissions
 ---------------------
 

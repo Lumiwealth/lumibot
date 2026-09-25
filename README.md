@@ -38,17 +38,10 @@ lumibot run my-bot --paper
 
 **[Python quickstart](#backtest-a-strategy)** · **[AI quickstart](#run-your-first-ai-backtest)** · [Python examples](https://lumibot.lumiwealth.com/examples.html) · [AI examples](https://lumibot.lumiwealth.com/agents_examples.html)
 
-## The part everyone else skips
-
-Most agentic trading projects end at the decision. The model reasons, prints a recommendation, and stops. LumiBot carries it through a **deterministic Python gate** the model cannot talk past, into a **real broker**, and leaves a **trace you can open**.
-
-That is the gap the research names. The survey *Agentic Quantitative Trading* ([arXiv 2608.31041](https://arxiv.org/abs/2608.31041)) finds these systems "remain concentrated on signal discovery, while complete integration with portfolio construction, execution, and risk control is still uncommon." A 2026 review of 20+ open-source trading agents put it bluntly: nothing checks anything *"between 'model said yes' and 'transaction broadcasted'."*
-
-**[See the record for yourself](https://lumibot.lumiwealth.com/execution_gap.html)**, including the identity, traceability and stoppability primitives the 2026 governance frameworks ask for.
-
 ## Why LumiBot?
 
 - **Use Python rules, AI agents, or both.** Keep one familiar `Strategy` lifecycle.
+- **The decision reaches a broker.** A deterministic Python gate the model cannot talk past, real broker orders, and a trace you can open. [How it works](https://lumibot.lumiwealth.com/execution_gap.html)
 - **Backtest before connecting a broker.** Run historical simulations and view trades and results.
 - **Reuse your strategy across supported brokers.** Keep strategy logic separate from broker configuration.
 - **Start from working examples.** Choose stocks, macro, options, or a traditional buy-and-hold strategy.

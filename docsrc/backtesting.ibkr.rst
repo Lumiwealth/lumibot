@@ -66,6 +66,9 @@ IBKR returns at most about 1,000 bars per request, so LumiBot walks backwards pa
   stop 20 minutes before the current time. A backtest that ends today during market hours simply ends a little
   earlier.
 - **Daily windows** up to 993 days are one request sized to the window; longer windows use 5-year pages.
+- **Holes in cached minute bars.** When the cache has bars on both sides of a missing session (for example from two
+  earlier backtests, or a download that was stopped), LumiBot downloads each missing session instead of skipping it.
+  A session with no trades at all is remembered for a day so it is not requested again by every backtest.
 
 Futures Exchange Routing (auto + override)
 ------------------------------------------

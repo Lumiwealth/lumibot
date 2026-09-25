@@ -79,6 +79,27 @@ The pager now hands every `IBKR_PAGE_CHECKPOINT_EVERY` (10) pages to a checkpoin
 Test: `tests/backtest/test_routed_backtesting_ibkr_prefetch.py::test_ibkr_minute_paging_checkpoints_pages_so_a_stopped_run_keeps_its_progress`
 (red: no cache file after 25 served pages).
 
+## 8. Holes inside a cached minute series were never fetched (2026-09-25)
+
+Found by the 4.6.1 release gate. `get_price_data` compared only the edges of the requested window with the minute
+cache. A cache holding June and September (two earlier backtests on the same symbol) served a June-to-September
+backtest with July and August missing: zero requests, no error, one stale bar for weeks, zero trades. The same holes
+come from sections 3 and 7 (kept newer pages, page checkpoints) and from LumiBot 4.6.0, which stopped at every weekend
+and wrote those holes into the shared S3 cache. Daily and hourly series already had hole repair; minute did not.
+
+`_repair_us_stock_index_minute_gaps` now runs after the edge checks for US stock and index minute series. It lists NYSE
+sessions strictly between the first and last real bar of the window that have no bar, and fetches each one (one
+request per session, the same cost as a cold walk). A session IBKR answers with no bars (a thin symbol with no prints)
+gets a `minute_session_gap_empty` marker for `IBKR_GAP_RETRY_TTL_SECONDS`, so later backtests do not ask again. A failed
+request writes nothing and is retried by the next process; each series and window is checked once per process.
+Tests: `tests/test_ibkr_daily_gap_self_healing.py -k minute` (6 tests; red before the fix: 43 July/August sessions
+missing, 24 and 19 sessions missing after an interrupted download, 10 SPX sessions missing).
+
+Read-only scan of the shared cache on 2026-09-25 (`prod/cache/v44`, the namespace written this week): 1 of 29 intraday
+stock files has a hole (SPY 5-minute, 2026-08-17 to 08-19). The older `prod/cache/v1` namespace (last written 2026-09-08)
+has 5 of 78 files with holes (SPX, APP, QQQ, SPY, TQQQ minute; 233 sessions). With this fix those holes are fetched the
+next time a backtest reads the file, so no manual cleanup is required.
+
 ## Test results
 
 `LUMIBOT_DISABLE_DOTENV_LOCAL=1 LUMIBOT_CACHE_BACKEND=local LUMIBOT_CACHE_MODE=disabled`:

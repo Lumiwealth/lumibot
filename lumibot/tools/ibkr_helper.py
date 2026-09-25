@@ -77,6 +77,11 @@ IBKR_DAILY_GAP_REPAIR_MAX_SESSIONS_PER_SEGMENT = 10
 IBKR_HOURLY_GAP_REPAIR_TIMEOUT_SECONDS = 300.0
 IBKR_HOURLY_INTERNAL_GAP_THRESHOLD = timedelta(days=7)
 IBKR_HOURLY_GAP_REPAIR_MAX_SEGMENTS_PER_SERIES = 4
+# Minute cache holes are repaired one missing session per request (one 1000-minute page
+# covers a whole extended-hours session). Repair stops for the process after this many
+# consecutive failed requests, because the downloader is then down, not the data missing.
+IBKR_MINUTE_GAP_REPAIR_MAX_CONSECUTIVE_FAILURES = 3
+IBKR_MINUTE_GAP_MARKER_REASON = "minute_session_gap_empty"
 # Backward pagination of US stock intraday history steps over closed-market pages
 # (weekends, holidays, overnight) instead of treating their empty answer as the start
 # of history. A 1000-minute page is 16.7 hours, a weekend is about 56 closed hours.
@@ -126,6 +131,10 @@ _RUNTIME_HISTORY_NO_DATA_WINDOWS: Dict[str, Tuple[datetime, datetime]] = {}
 _RUNTIME_ATTEMPTED_HISTORY_SEGMENTS: Dict[str, list[Tuple[datetime, datetime]]] = {}
 _RUNTIME_DAILY_GAP_CHECKED_WINDOWS: set[tuple[str, str, str]] = set()
 _RUNTIME_HOURLY_GAP_CHECKED_SERIES: Dict[
+    str,
+    tuple[tuple[int, str, str, int], datetime, datetime],
+] = {}
+_RUNTIME_MINUTE_GAP_CHECKED_SERIES: Dict[
     str,
     tuple[tuple[int, str, str, int], datetime, datetime],
 ] = {}
@@ -1387,6 +1396,25 @@ def get_price_data(
         and str(timestep_component).endswith("hour")
     ):
         df_cache = _repair_us_stock_index_hourly_gaps(
+            df_cache,
+            cache_file=cache_file,
+            asset=asset,
+            quote=quote,
+            timestep=timestep,
+            start_dt=start_utc,
+            end_dt=end_utc,
+            exchange=effective_exchange,
+            include_after_hours=include_after_hours,
+            source=history_source,
+            source_was_explicit=source_was_explicit,
+        )
+
+    elif (
+        not df_cache.empty
+        and asset_type in {"stock", "index"}
+        and str(timestep_component).endswith("minute")
+    ):
+        df_cache = _repair_us_stock_index_minute_gaps(
             df_cache,
             cache_file=cache_file,
             asset=asset,
@@ -3496,6 +3524,304 @@ def _repair_us_stock_index_hourly_gaps(
         "IBKR hourly cache repair completed for %s with %d unresolved large gap(s)",
         getattr(asset, "symbol", None),
         len(unresolved),
+    )
+    return working
+
+
+def _us_minute_session_fetch_window(
+    session_open: pd.Timestamp,
+    session_close: pd.Timestamp,
+    *,
+    asset_type: str,
+    include_after_hours: bool,
+) -> tuple[datetime, datetime]:
+    """Return the UTC window that holds every minute bar IBKR can have for one session."""
+    if asset_type == "stock" and include_after_hours:
+        day = pd.Timestamp(session_open).tz_convert(LUMIBOT_DEFAULT_PYTZ).normalize()
+        start = day + pd.Timedelta(hours=4)
+        end = day + pd.Timedelta(hours=20)
+    else:
+        start = pd.Timestamp(session_open)
+        end = pd.Timestamp(session_close)
+    return start.tz_convert(timezone.utc).to_pydatetime(), end.tz_convert(timezone.utc).to_pydatetime()
+
+
+def _missing_us_minute_sessions(
+    df_cache: pd.DataFrame,
+    *,
+    start_dt: datetime,
+    end_dt: datetime,
+    now: Optional[datetime] = None,
+) -> list[tuple[pd.Timestamp, pd.Timestamp]]:
+    """Return NYSE sessions inside the cached part of the window that have no minute bar.
+
+    Only sessions strictly between the first and the last real bar of the requested window
+    count: the window edges are handled by the edge checks in `get_price_data`. A session
+    with an unexpired `minute_session_gap_empty` marker (IBKR answered and had no bars for
+    it) is not returned again until the marker expires.
+    """
+    if df_cache is None or df_cache.empty:
+        return []
+
+    idx = pd.DatetimeIndex(df_cache.index)
+    if idx.tz is None:
+        idx = idx.tz_localize(LUMIBOT_DEFAULT_PYTZ)
+    else:
+        idx = idx.tz_convert(LUMIBOT_DEFAULT_PYTZ)
+
+    if "missing" in df_cache.columns:
+        missing_mask = df_cache["missing"].fillna(False).astype(bool).to_numpy()
+    else:
+        missing_mask = np.zeros(len(idx), dtype=bool)
+
+    start_local = pd.Timestamp(_to_utc(start_dt)).tz_convert(LUMIBOT_DEFAULT_PYTZ)
+    end_local = pd.Timestamp(_to_utc(end_dt)).tz_convert(LUMIBOT_DEFAULT_PYTZ)
+    in_window = (idx >= start_local) & (idx <= end_local)
+    real = idx[in_window & ~missing_mask]
+    if len(real) < 2:
+        return []
+
+    real_days = set(real.normalize().unique())
+    first_day = real.min().normalize()
+    last_day = real.max().normalize()
+    if (last_day - first_day) <= pd.Timedelta(days=1):
+        return []
+
+    from lumibot.tools.helpers import get_trading_days
+
+    schedule = get_trading_days(
+        market="NYSE",
+        start_date=first_day.date(),
+        end_date=(last_day + pd.Timedelta(days=1)).date(),
+        tzinfo=LUMIBOT_DEFAULT_PYTZ,
+    )
+    if schedule is None or schedule.empty:
+        return []
+
+    fresh_marker_days: set[pd.Timestamp] = set()
+    if bool(missing_mask.any()) and {"missing_reason", "missing_retry_after"}.issubset(df_cache.columns):
+        reasons = df_cache["missing_reason"].fillna("").astype(str).to_numpy()
+        marker_mask = missing_mask & (reasons == IBKR_MINUTE_GAP_MARKER_REASON)
+        if bool(marker_mask.any()):
+            now_utc = pd.Timestamp(now or datetime.now(timezone.utc))
+            now_utc = now_utc.tz_localize(timezone.utc) if now_utc.tzinfo is None else now_utc.tz_convert(timezone.utc)
+            retry_after = pd.to_datetime(
+                df_cache.loc[marker_mask, "missing_retry_after"], utc=True, errors="coerce"
+            ).to_numpy()
+            for marker_day, retry in zip(idx[marker_mask].normalize(), retry_after):
+                if not pd.isna(retry) and pd.Timestamp(retry) > now_utc:
+                    fresh_marker_days.add(marker_day)
+
+    missing: list[tuple[pd.Timestamp, pd.Timestamp]] = []
+    opens = pd.DatetimeIndex(schedule["market_open"]).tz_convert(LUMIBOT_DEFAULT_PYTZ)
+    closes = pd.DatetimeIndex(schedule["market_close"]).tz_convert(LUMIBOT_DEFAULT_PYTZ)
+    for session_open, session_close in zip(opens, closes):
+        day = session_open.normalize()
+        if day <= first_day or day >= last_day:
+            continue
+        if day in real_days or day in fresh_marker_days:
+            continue
+        missing.append((session_open, session_close))
+    return missing
+
+
+def _minute_session_markers(
+    sessions: list[tuple[pd.Timestamp, pd.Timestamp]],
+    *,
+    retry_after: datetime,
+) -> pd.DataFrame:
+    if not sessions:
+        return pd.DataFrame()
+    count = len(sessions)
+    return pd.DataFrame(
+        {
+            "open": [pd.NA] * count,
+            "high": [pd.NA] * count,
+            "low": [pd.NA] * count,
+            "close": [pd.NA] * count,
+            "volume": [pd.NA] * count,
+            "missing": [True] * count,
+            "missing_retry_after": [retry_after.isoformat()] * count,
+            "missing_reason": [IBKR_MINUTE_GAP_MARKER_REASON] * count,
+        },
+        index=pd.DatetimeIndex([session_open for session_open, _ in sessions]),
+    )
+
+
+def _repair_us_stock_index_minute_gaps(
+    df_cache: pd.DataFrame,
+    *,
+    cache_file: Path,
+    asset: Asset,
+    quote: Optional[Asset],
+    timestep: str,
+    start_dt: datetime,
+    end_dt: datetime,
+    exchange: Optional[str],
+    include_after_hours: bool,
+    source: str,
+    source_was_explicit: bool,
+) -> pd.DataFrame:
+    """Fetch whole sessions missing inside a cached US stock/index minute series.
+
+    WHY (2026-09-25): the minute path only compared the edges of the requested window with
+    the cache. A cache holding June and September (two earlier backtests) served a June to
+    September backtest with July and August silently missing: no request, no error, and the
+    strategy saw one stale bar for weeks and made no trades. The same holes come from an
+    interrupted download (page checkpoints), from a failed older page (newer pages are
+    kept), and from LumiBot 4.6.0, which stopped paging at every weekend and wrote those
+    holes into the shared S3 cache.
+
+    Each missing session costs one request, the same as a cold walk. A session IBKR answers
+    with no bars (a thin symbol with no prints that day) gets a marker so later backtests do
+    not ask again until the marker expires. A failed request writes nothing, so the next
+    process retries it.
+    """
+    quote_symbol = str(getattr(quote, "symbol", "USD") or "USD").strip().upper()
+    normalized_exchange = str(exchange or "").strip().upper()
+    if quote_symbol != "USD" or normalized_exchange not in {
+        "",
+        "SMART",
+        "NYSE",
+        "NASDAQ",
+        "ARCA",
+        "AMEX",
+        "IEX",
+        "CBOE",
+    }:
+        return df_cache
+
+    series_key = str(cache_file)
+    request_start = _to_utc(start_dt)
+    request_end = _to_utc(end_dt)
+    previous_check = _RUNTIME_MINUTE_GAP_CHECKED_SERIES.get(series_key)
+    if previous_check is not None:
+        checked_signature, checked_start, checked_end = previous_check
+        if (
+            checked_signature == _hourly_cache_signature(df_cache)
+            and checked_start <= request_start
+            and checked_end >= request_end
+        ):
+            return df_cache
+
+    missing = _missing_us_minute_sessions(df_cache, start_dt=start_dt, end_dt=end_dt)
+    if not missing:
+        _RUNTIME_MINUTE_GAP_CHECKED_SERIES[series_key] = (
+            _hourly_cache_signature(df_cache),
+            request_start,
+            request_end,
+        )
+        return df_cache
+
+    asset_type = _normalize_asset_type(getattr(asset, "asset_type", ""))
+    logger.info(
+        "IBKR minute cache repair: %d session(s) missing inside the cached window for %s (%s to %s)",
+        len(missing),
+        getattr(asset, "symbol", None),
+        missing[0][0].date(),
+        missing[-1][0].date(),
+    )
+
+    working = df_cache
+    remaining = {session_open.normalize() for session_open, _ in missing}
+    empty_sessions: list[tuple[pd.Timestamp, pd.Timestamp]] = []
+    requests = 0
+    failed_requests = 0
+    consecutive_failures = 0
+    unsaved_pages = 0
+    # Newest first, like a cold walk. A page for multi-minute bars can cover several
+    # sessions; sessions it filled are skipped.
+    for session_open, session_close in reversed(missing):
+        day = session_open.normalize()
+        if day not in remaining:
+            continue
+        fetch_start, fetch_end = _us_minute_session_fetch_window(
+            session_open, session_close, asset_type=asset_type, include_after_hours=include_after_hours
+        )
+        requests += 1
+        try:
+            fetched = _fetch_history_between_dates(
+                asset=asset,
+                quote=quote,
+                timestep=timestep,
+                start_dt=fetch_start,
+                end_dt=fetch_end,
+                exchange=exchange,
+                include_after_hours=include_after_hours,
+                source=source,
+                source_was_explicit=source_was_explicit,
+                _record_missing_on_empty=False,
+            )
+        except Exception as exc:
+            failed_requests += 1
+            consecutive_failures += 1
+            logger.warning(
+                "IBKR minute cache repair could not fetch %s session %s: %s",
+                getattr(asset, "symbol", None),
+                day.date(),
+                exc,
+            )
+            if consecutive_failures >= IBKR_MINUTE_GAP_REPAIR_MAX_CONSECUTIVE_FAILURES:
+                break
+            continue
+        consecutive_failures = 0
+        if fetched is not None and not fetched.empty:
+            working = _merge_frames(working, fetched)
+            unsaved_pages += 1
+            fetched_idx = pd.DatetimeIndex(fetched.index)
+            fetched_idx = (
+                fetched_idx.tz_localize(LUMIBOT_DEFAULT_PYTZ)
+                if fetched_idx.tz is None
+                else fetched_idx.tz_convert(LUMIBOT_DEFAULT_PYTZ)
+            )
+            remaining.difference_update(fetched_idx.normalize().unique())
+        if day in remaining:
+            # IBKR answered for this session and had no bars in it.
+            remaining.discard(day)
+            empty_sessions.append((session_open, session_close))
+        if unsaved_pages >= IBKR_PAGE_CHECKPOINT_EVERY:
+            # Keep progress if the process is stopped during a long repair.
+            _write_cache_frame(cache_file, working)
+            unsaved_pages = 0
+
+    if empty_sessions:
+        retry_after = datetime.now(timezone.utc) + timedelta(seconds=IBKR_GAP_RETRY_TTL_SECONDS)
+        working = _merge_frames(working, _minute_session_markers(empty_sessions, retry_after=retry_after))
+
+    if not working.equals(df_cache):
+        _write_cache_frame(cache_file, working)
+
+    unresolved = _missing_us_minute_sessions(working, start_dt=start_dt, end_dt=end_dt)
+    record_history_health(
+        series_id=_history_health_series_id(asset=asset, quote=quote, timestep=timestep,
+            exchange=exchange, source=source, include_after_hours=include_after_hours),
+        symbol=str(getattr(asset, "symbol", "") or ""),
+        asset_type=asset_type,
+        timestep=timestep,
+        requested_start=request_start,
+        requested_end=request_end,
+        outcome=HistoryOutcome.COMPLETE if not unresolved else HistoryOutcome.PARTIAL,
+        expected_sessions=len(missing),
+        returned_sessions=len(missing) - len(unresolved),
+        missing_sessions=[session_open.date().isoformat() for session_open, _ in unresolved],
+        repair_attempts=requests,
+        transient_failures=failed_requests,
+        reason=None if not unresolved else "minute_sessions_missing_after_repair",
+    )
+    if unresolved:
+        logger.warning(
+            "IBKR minute cache for %s still misses %d session(s) inside the window after repair (first %s); "
+            "the next backtest retries them",
+            getattr(asset, "symbol", None),
+            len(unresolved),
+            unresolved[0][0].date(),
+        )
+    # One repair attempt per series and window per process: a failed session is retried by
+    # the next process, never on every bar of this one.
+    _RUNTIME_MINUTE_GAP_CHECKED_SERIES[series_key] = (
+        _hourly_cache_signature(working),
+        request_start,
+        request_end,
     )
     return working
 

@@ -187,6 +187,20 @@ def test_base_prompt_asks_the_final_decision_to_name_its_account_evidence_and_un
     assert "treat any upstream research or handoff packet as unverified evidence" in prompt
 
 
+def test_base_prompt_reports_actual_fills_not_the_planned_price():
+    # Release eval options_iron_condor_atomic_open on 4.6.1 (run 36188985101,
+    # repetition 1) reported the planned $1.00 credit and $100 max loss while the
+    # verified fills gave $0.80 and $120. Real-money summaries must use fills.
+    agent = AgentManager(_Strategy()).create(name="trader", allow_trading=True)
+
+    prompt = " ".join(agent._base_system_prompt(agent._runtime_context()).split())
+
+    assert (
+        "After an order fills, report the actual fill prices, credit or debit, cash change, and resulting risk "
+        "from orders_get_status and fresh account reads, never the planned limit or pre-trade estimate" in prompt
+    )
+
+
 def test_base_prompt_asks_a_hold_to_name_the_order_or_position_that_already_covers_it():
     # Release eval stock_pending_exit_no_duplicate (run 36028079841, repetition 3)
     # correctly placed no duplicate exit but never said the pending exit already

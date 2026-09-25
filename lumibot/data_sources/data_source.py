@@ -503,10 +503,12 @@ class DataSource(ABC):
 
         # A duplicate key could otherwise be processed by different futures and
         # leave a successful result paired with an error from another attempt.
-        # Reject duplicates before starting any provider work so each returned
-        # asset has exactly one outcome.
+        # Fetch each distinct asset once (first occurrence order) so each returned
+        # asset has exactly one outcome. This used to raise, which crashed whole
+        # backtests whose strategy listed an asset twice (for example a holding that
+        # is also its own group's proxy).
         if len(set(assets)) != len(assets):
-            raise ValueError("assets must not contain duplicate entries")
+            assets = list(dict.fromkeys(assets))
 
         # Chunk the assets
         chunks = [assets[i : i + chunk_size] for i in range(0, len(assets), chunk_size)]

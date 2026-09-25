@@ -143,24 +143,29 @@ def test_get_bars_preserves_tuple_string_failures_as_partial_results(
     assert "Error retrieving data for str" in caplog.text
 
 
-def test_get_bars_rejects_duplicate_assets_before_provider_work(monkeypatch):
+def test_get_bars_fetches_each_duplicate_asset_once(monkeypatch):
+    """Duplicates used to raise "assets must not contain duplicate entries" (2026-07-29) so one
+    asset could never get two outcomes from different futures. A real strategy passed
+    [holding, group proxy, SPY] where the holding was its own group's proxy, and the whole
+    backtest crashed mid-run (2026-09-24). Fetch each distinct asset exactly once instead: one
+    provider call and one outcome per asset, and no crash."""
     ds = _DummyDataSource(backtesting=True)
-    provider_called = False
+    calls = []
 
-    def _history(**_kwargs):
-        nonlocal provider_called
-        provider_called = True
+    def _history(**kwargs):
+        calls.append(kwargs.get("asset"))
         return {"ok": True}
 
     monkeypatch.setattr(ds, "get_historical_prices", _history)
 
-    with pytest.raises(ValueError, match="duplicate entries"):
-        ds.get_bars(
-            ["SPY", "SPY"],
-            length=10,
-            timestep="day",
-            chunk_size=1,
-            sleep_time=0,
-        )
+    result = ds.get_bars(
+        ["SPY", "XLI", "SPY"],
+        length=10,
+        timestep="day",
+        chunk_size=1,
+        sleep_time=0,
+    )
 
-    assert provider_called is False
+    assert sorted(getattr(a, "symbol", a) for a in calls) == ["SPY", "XLI"]
+    assert set(getattr(a, "symbol", a) for a in result.keys()) == {"SPY", "XLI"}
+    assert result[Asset("SPY")] == {"ok": True}

@@ -196,9 +196,10 @@ def test_base_prompt_reports_actual_fills_not_the_planned_price():
     prompt = " ".join(agent._base_system_prompt(agent._runtime_context()).split())
 
     assert (
-        "After an order fills, report the actual fill prices, credit or debit, cash change, and resulting risk "
-        "from orders_get_status and fresh account reads, never the planned limit or pre-trade estimate" in prompt
+        "After an order fills, report the actual fill prices (avg_fill_price from orders_get_status), credit or debit, "
+        "cash change, and resulting risk from fresh account reads, never the planned limit or pre-trade estimate" in prompt
     )
+    assert "If a fill price or cash change is not available, say so instead of estimating it." in prompt
 
 
 def test_base_prompt_asks_a_hold_to_name_the_order_or_position_that_already_covers_it():

@@ -493,3 +493,29 @@ def test_changed_position_membership_with_same_count_invalidates_paginated_readi
     assert blocked["tool_error"] is True
     assert "complete account_positions pagination" in blocked["error"]["message"]
     assert strategy.submitted_orders == []
+
+
+def test_order_agent_projection_reports_the_fill_price_once_filled():
+    # The agent prompt requires reporting actual fill prices after an order fills
+    # (CodeRabbit on PR #1180: orders_get_status exposed no fill price, so the
+    # agent could not honor it). Unfilled orders keep the compact shape.
+    short_put = _option_position(480, -1).asset
+    leg = Order("Test", short_put, 1, "sell_to_open", order_type="limit", limit_price=2.15)
+    assert "avg_fill_price" not in _order_to_dict(leg)
+
+    leg.avg_fill_price = 2.1
+    parent = Order(
+        "Test",
+        Asset("QQQ", asset_type=Asset.AssetType.MULTILEG),
+        1,
+        "buy",
+        order_type="limit",
+        limit_price=-1.05,
+        child_orders=[leg],
+    )
+    parent.avg_fill_price = -0.8
+
+    payload = _order_to_dict(parent)
+
+    assert payload["avg_fill_price"] == -0.8
+    assert payload["legs"][0]["avg_fill_price"] == 2.1

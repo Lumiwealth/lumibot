@@ -734,6 +734,7 @@ def _order_to_dict(order: Any, *, include_legs: bool = True) -> dict[str, Any]:
         payload["quote"] = _asset_to_dict(quote)
     _put_if_present(payload, "limit_price", _optional_finite_number(getattr(order, "limit_price", None)))
     _put_if_present(payload, "stop_price", _optional_finite_number(getattr(order, "stop_price", None)))
+    _put_if_present(payload, "avg_fill_price", _optional_finite_number(getattr(order, "avg_fill_price", None)))
     if include_legs:
         child_orders = getattr(order, "child_orders", None)
         if isinstance(child_orders, list) and child_orders:

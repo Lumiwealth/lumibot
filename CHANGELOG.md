@@ -1,6 +1,6 @@
 # Changelog
 
-## 4.6.1 - Unreleased
+## 4.6.1 - 2026-09-25
 
 ### Fixed
 - IBKR intraday history no longer drops the bar just before each page end. An IBKR page ending at T holds bars only up to two bars before T, so pages anchored at a session close lost every session's final bar (SPX 1-minute lost the 15:59 closing bar of every session but the last, verified live; stock extended hours lost 19:59) and pages continuing from the previous page's first bar lost the bar before it (QQQ 5-minute lost a bar about every 3.5 days). Each intraday page now asks one bar later; daily requests are unchanged.

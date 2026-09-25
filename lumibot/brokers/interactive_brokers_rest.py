@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import os
 import re
+import time
+from hashlib import sha256
 from math import gcd
 
 from lumibot._lazy_imports import LazyLogger, LazyModule, lazy_class
@@ -65,6 +67,9 @@ ORDERTYPE_MAPPING = dict(
     stop_limit="STP LMT",
     trailing_stop="TRAIL",
 )
+
+_ADVANCED_ACK_RECONCILIATION_SECONDS = 10.0
+_ADVANCED_ACK_POLL_INTERVAL_SECONDS = 0.5
 
 SPREAD_CONID_MAP = {
     "AUD": 61227077,
@@ -221,6 +226,10 @@ class InteractiveBrokersREST(Broker):
         """Parse a broker order representation
         to an order object"""
 
+        order_id = self._normalize_ibkr_order_identifier(response.get("orderId"))
+        if order_id is None:
+            raise ValueError("IBKR REST order response is missing a valid orderId.")
+
         asset_type = [k for k, v in TYPE_MAP.items() if v == response["secType"]][0]
         totalQuantity = response["totalSize"]
 
@@ -232,7 +241,7 @@ class InteractiveBrokersREST(Broker):
             order.quantity = totalQuantity
             order.asset = Asset(symbol=response['ticker'], asset_type="multileg")
             order.side = response['side']
-            order.identifier = response['orderId']
+            order.identifier = order_id
 
             order.child_orders = []
 
@@ -262,7 +271,7 @@ class InteractiveBrokersREST(Broker):
             )
 
         order._transmitted = True
-        order.set_identifier(response["orderId"])
+        order.set_identifier(order_id)
         # Map IB order status to Lumibot status
         order.status = response["status"].lower()
 
@@ -371,7 +380,9 @@ class InteractiveBrokersREST(Broker):
                 if isinstance(order, dict)
                 else getattr(order, "orderId", None)
             )
-            if order_id is not None and str(order_id) == str(identifier):
+            normalized_order_id = self._normalize_ibkr_order_identifier(order_id)
+            normalized_identifier = self._normalize_ibkr_order_identifier(identifier)
+            if normalized_order_id is not None and normalized_order_id == normalized_identifier:
                 return order
 
         logger.warning(
@@ -719,7 +730,270 @@ class InteractiveBrokersREST(Broker):
                     )
                 )
 
+    @classmethod
+    def _get_acknowledged_order_ids(cls, response) -> list[str]:
+        """Collect every usable broker ID from a response for cleanup purposes."""
+        entries = response if isinstance(response, list) else [response]
+        acknowledged_ids = []
+        for entry in entries:
+            if not isinstance(entry, dict):
+                continue
+            # Client Portal can return placeholders such as ``-1`` for an
+            # unaccepted package member. Only a positive numeric ID identifies
+            # a ticket that can be compensated, polled, or canceled.
+            order_id = cls._normalize_broker_order_id(entry.get("order_id"))
+            if order_id is not None and order_id not in acknowledged_ids:
+                acknowledged_ids.append(order_id)
+        return acknowledged_ids
+
+    def _validate_order_acknowledgements(
+        self,
+        response,
+        expected_count: int,
+        submitted_tickets: list[dict] | None = None,
+        require_unambiguous_correlation: bool = False,
+    ) -> list[tuple[str, dict]]:
+        """Validate an atomic Client Portal acknowledgement package."""
+        errors = []
+        if not isinstance(response, list):
+            errors.append(f"response must be a list, received {type(response).__name__}")
+            entries = []
+        else:
+            entries = response
+            if len(entries) != expected_count:
+                errors.append(
+                    f"expected {expected_count} acknowledgement entries, received {len(entries)}"
+                )
+
+        acknowledgements = []
+        for index, entry in enumerate(entries):
+            if not isinstance(entry, dict):
+                errors.append(f"entry {index} must be an object")
+                continue
+            if "error" in entry or "message" in entry:
+                errors.append(f"entry {index} contains an error or message instead of a clean acknowledgement")
+
+            order_id = self._normalize_broker_order_id(entry.get("order_id"))
+            if order_id is None:
+                errors.append(f"entry {index} is missing a valid order_id")
+                continue
+            acknowledgements.append((order_id, entry))
+
+        acknowledged_ids = [order_id for order_id, _ in acknowledgements]
+        if len(set(acknowledged_ids)) != len(acknowledged_ids):
+            errors.append("response contains duplicate order_id acknowledgements")
+
+        if not errors and submitted_tickets is not None:
+            ticket_indexes_by_coid = {
+                str(ticket["cOID"]): index
+                for index, ticket in enumerate(submitted_tickets)
+                if ticket.get("cOID") is not None
+            }
+            correlated = [None] * expected_count
+            uncorrelated = []
+            for acknowledgement in acknowledgements:
+                local_order_id = acknowledgement[1].get("local_order_id")
+                local_order_id = (
+                    str(local_order_id) if local_order_id is not None else None
+                )
+                ticket_index = ticket_indexes_by_coid.get(local_order_id)
+                if ticket_index is None:
+                    uncorrelated.append(acknowledgement)
+                elif correlated[ticket_index] is not None:
+                    errors.append(
+                        f"response contains duplicate local_order_id {local_order_id!r}"
+                    )
+                else:
+                    correlated[ticket_index] = acknowledgement
+
+            open_indexes = [
+                index for index, acknowledgement in enumerate(correlated)
+                if acknowledgement is None
+            ]
+            if require_unambiguous_correlation and len(open_indexes) > 1:
+                errors.append(
+                    "response does not identify enough acknowledgements by local_order_id"
+                )
+            elif len(open_indexes) != len(uncorrelated):
+                errors.append("response acknowledgement correlation is inconsistent")
+            else:
+                for ticket_index, acknowledgement in zip(open_indexes, uncorrelated):
+                    correlated[ticket_index] = acknowledgement
+                acknowledgements = correlated
+
+        if errors:
+            raise ValueError("Invalid IBKR REST order acknowledgement package: " + "; ".join(errors))
+        return acknowledgements
+
+    @staticmethod
+    def _get_order_correlation_id(record: dict) -> str | None:
+        """Read a Client Portal client-order correlation value without logging it."""
+        for field in ("local_order_id", "order_ref", "orderRef", "cOID"):
+            value = record.get(field)
+            if value is not None and str(value).strip():
+                return str(value).strip()
+        return None
+
+    def _reconcile_advanced_order_acknowledgements(
+        self,
+        response,
+        submitted_tickets: list[dict],
+        acknowledged_ids: list[str],
+    ) -> list[tuple[str, dict]]:
+        """Resolve an incomplete BRACKET/OTO response through bounded polling.
+
+        Client Portal can submit three bracket tickets while returning fewer
+        immediate acknowledgement rows.  Every native ticket has a unique cOID,
+        so account-order polling can complete the mapping without relying on
+        response position or accidentally adopting another account order.
+        """
+        entries = response if isinstance(response, list) else []
+        if not isinstance(response, list):
+            raise ValueError(
+                "Invalid IBKR REST order acknowledgement package: "
+                f"response must be a list, received {type(response).__name__}"
+            )
+        if any(
+            not isinstance(entry, dict) or "error" in entry or "message" in entry
+            for entry in entries
+        ):
+            raise ValueError(
+                "Invalid IBKR REST order acknowledgement package: "
+                "response contains a malformed entry, error, or message"
+            )
+
+        ticket_indexes_by_coid = {
+            str(ticket["cOID"]): index
+            for index, ticket in enumerate(submitted_tickets)
+            if ticket.get("cOID") is not None
+        }
+        expected_count = len(submitted_tickets)
+        if len(entries) > expected_count:
+            raise ValueError(
+                "Invalid IBKR REST order acknowledgement package: "
+                f"received {len(entries)} entries for {expected_count} native tickets"
+            )
+        if len(ticket_indexes_by_coid) != expected_count:
+            raise ValueError(
+                "Invalid IBKR REST order acknowledgement package: "
+                "advanced tickets do not have unique client order IDs"
+            )
+
+        correlated: list[tuple[str, dict] | None] = [None] * expected_count
+
+        def collect(records, *, polled: bool) -> None:
+            for record in records:
+                if not isinstance(record, dict):
+                    continue
+                raw_order_id = record.get("orderId") if polled else record.get("order_id")
+                order_id = self._normalize_broker_order_id(raw_order_id)
+                correlation_id = self._get_order_correlation_id(record)
+                ticket_index = ticket_indexes_by_coid.get(correlation_id)
+                if order_id is None or ticket_index is None:
+                    continue
+                current = correlated[ticket_index]
+                if current is not None and current[0] != order_id:
+                    raise ValueError(
+                        "Invalid IBKR REST order acknowledgement package: "
+                        "one client order ID resolved to multiple broker IDs"
+                    )
+                correlated[ticket_index] = (order_id, record)
+                if order_id not in acknowledged_ids:
+                    acknowledged_ids.append(order_id)
+
+        collect(entries, polled=False)
+        deadline = time.monotonic() + _ADVANCED_ACK_RECONCILIATION_SECONDS
+        while any(acknowledgement is None for acknowledgement in correlated):
+            collect(self.data_source.get_broker_all_orders_once(), polled=True)
+            if all(acknowledgement is not None for acknowledgement in correlated):
+                break
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                break
+            time.sleep(min(_ADVANCED_ACK_POLL_INTERVAL_SECONDS, remaining))
+
+        resolved_count = sum(acknowledgement is not None for acknowledgement in correlated)
+        if resolved_count != expected_count:
+            raise ValueError(
+                "Invalid IBKR REST order acknowledgement package: "
+                f"resolved {resolved_count} of {expected_count} native tickets "
+                "within the bounded reconciliation window"
+            )
+
+        resolved = [acknowledgement for acknowledgement in correlated if acknowledgement is not None]
+        resolved_ids = [order_id for order_id, _ in resolved]
+        if len(set(resolved_ids)) != expected_count:
+            raise ValueError(
+                "Invalid IBKR REST order acknowledgement package: "
+                "reconciliation returned duplicate broker IDs"
+            )
+        if set(acknowledged_ids) != set(resolved_ids):
+            raise ValueError(
+                "Invalid IBKR REST order acknowledgement package: "
+                "submission returned a broker ID outside the reconciled package"
+            )
+        return resolved
+
+    def _cancel_acknowledged_order_ids(self, package_order, acknowledged_ids: list[str]) -> None:
+        """Best-effort compensation for a package that IBKR only partly acknowledged."""
+        for order_id in acknowledged_ids:
+            cleanup_order = Order(strategy=package_order.strategy, identifier=order_id)
+            try:
+                self.cancel_order(cleanup_order)
+            except Exception:
+                logger.error(
+                    f"Failed to cancel acknowledged IBKR REST order {order_id} during package cleanup.",
+                    exc_info=True,
+                )
+
+    def _mark_order_package_error(self, order, message: str) -> None:
+        """Mark a failed local order tree without generating per-leg error callbacks."""
+        affected_orders = [order, *order.child_orders]
+        seen = set()
+        for affected_order in affected_orders:
+            object_id = id(affected_order)
+            if object_id in seen:
+                continue
+            seen.add(object_id)
+            affected_order.set_error(message)
+
+        self._log_order_status(order, "failed", success=False)
+        self._safe_stream_dispatch(self.ERROR_ORDER, order=order, error_msg=message)
+
+    def _track_acknowledged_order_package(self, order, native_orders, acknowledgements) -> None:
+        """Apply broker acknowledgements and register every native order exactly once."""
+        for native_order, (order_id, raw_response) in zip(native_orders, acknowledgements):
+            native_order.identifier = order_id
+            native_order.update_raw(raw_response)
+            native_order.status = Order.OrderStatus.SUBMITTED
+
+        if order.order_class in (Order.OrderClass.BRACKET, Order.OrderClass.OTO):
+            broker_parent_id = native_orders[0].identifier
+            for child_order in order.child_orders:
+                child_order.parent_identifier = broker_parent_id
+        elif order.order_class is Order.OrderClass.OCO:
+            local_parent_id = order.identifier
+            for child_order in order.child_orders:
+                child_order.parent_identifier = local_parent_id
+            order.status = Order.OrderStatus.SUBMITTED
+            self._unprocessed_orders.append(order)
+
+        # Add the complete package before dispatching events so callbacks cannot
+        # observe a partially registered native order tree.
+        for native_order in native_orders:
+            self._unprocessed_orders.append(native_order)
+
+        if order.order_class is Order.OrderClass.OCO:
+            self._safe_stream_dispatch(self.PLACEHOLDER_ORDER, order=order)
+        for native_order in native_orders:
+            self._safe_stream_dispatch(self.NEW_ORDER, order=native_order)
+
     def _submit_order(self, order: Order) -> Order:
+        # Validate before the futures fallback can perform a conid lookup.  The
+        # Client Portal schema does not document an exact-date GTD field, so a
+        # REST submission must never silently discard LumiBot's expiration.
+        self._validate_rest_order_time_in_force([order, *order.child_orders])
+
         # Ensure futures orders have expiration set
         if (
             hasattr(order.asset, "asset_type")
@@ -742,29 +1016,52 @@ class InteractiveBrokersREST(Broker):
                     logger.info(colored(f"Auto-filled expiration for {order.asset.symbol}: {order.asset.expiration}", "yellow"))
 
         try:
-            order_data = self.get_order_data_from_orders([order])
-            response = self.data_source.execute_order(order_data)
+            order_data, native_orders = self._build_order_submission(order)
+            response = self.data_source.execute_order(order_data, return_raw_response=True)
 
-            if response is None:
-                self._log_order_status(order, "failed", success=False)
-                msg = "Broker returned no response"
-                self._safe_stream_dispatch(self.ERROR_ORDER, order=order, error_msg=msg)
-                return order
+            acknowledged_ids = self._get_acknowledged_order_ids(response)
+            try:
+                acknowledgements = self._validate_order_acknowledgements(
+                    response,
+                    expected_count=len(native_orders),
+                    submitted_tickets=order_data["orders"],
+                    require_unambiguous_correlation=(
+                        order.order_class
+                        in (
+                            Order.OrderClass.BRACKET,
+                            Order.OrderClass.OTO,
+                            Order.OrderClass.OCO,
+                        )
+                    ),
+                )
+            except Exception:
+                if order.order_class in (Order.OrderClass.BRACKET, Order.OrderClass.OTO):
+                    try:
+                        acknowledgements = self._reconcile_advanced_order_acknowledgements(
+                            response,
+                            order_data["orders"],
+                            acknowledged_ids,
+                        )
+                    except Exception:
+                        self._cancel_acknowledged_order_ids(order, acknowledged_ids)
+                        raise
+                else:
+                    self._cancel_acknowledged_order_ids(order, acknowledged_ids)
+                    raise
+
+            try:
+                self._track_acknowledged_order_package(order, native_orders, acknowledgements)
+            except Exception:
+                self._cancel_acknowledged_order_ids(order, acknowledged_ids)
+                raise
 
             self._log_order_status(order, "executed", success=True)
-
-            order.identifier = response[0]["order_id"]
-            self._unprocessed_orders.append(order)
-            order.status=Order.OrderStatus.SUBMITTED
-
-            self._safe_stream_dispatch(self.NEW_ORDER, order=order)
-
             return order
 
         except Exception as e:
-            msg = colored(f"Error submitting order {order}: {e}", color="red")
+            msg = f"Error submitting IBKR REST order package {order}: {e}"
             logger.error(colored("Error details:", "red"), exc_info=True)
-            self._safe_stream_dispatch(self.ERROR_ORDER, order=order, error_msg=msg)
+            self._mark_order_package_error(order, msg)
             return order
 
     def _submit_orders(
@@ -775,6 +1072,8 @@ class InteractiveBrokersREST(Broker):
         duration: str = "day",
         price=None,
     ):
+        self._validate_rest_order_time_in_force(orders, duration=duration)
+
         try:
             if is_multileg:
                 if order_type == "credit":
@@ -860,8 +1159,59 @@ class InteractiveBrokersREST(Broker):
 
             logger.error(colored("Error details:", "red"), exc_info=True)
 
+    @staticmethod
+    def _normalize_ibkr_order_identifier(identifier) -> str | None:
+        """Normalize Client Portal IDs across integer and string responses."""
+        if isinstance(identifier, bool) or not isinstance(identifier, (str, int)):
+            return None
+        order_id = str(identifier).strip()
+        return order_id or None
+
+    @classmethod
+    def _normalize_broker_order_id(cls, identifier) -> str | None:
+        """Return a usable Client Portal order ID, excluding local identifiers."""
+        order_id = cls._normalize_ibkr_order_identifier(identifier)
+        if order_id is None:
+            return None
+        if not re.fullmatch(r"[0-9]+", order_id) or int(order_id) <= 0:
+            return None
+        return order_id
+
+    def _get_cancel_order_targets(self, order: Order) -> list[Order]:
+        """Return unique broker-backed cancellation targets in dependency order."""
+        if order.order_class is Order.OrderClass.OCO:
+            # An OCO parent is a LumiBot-only container and must never be sent
+            # to Client Portal, even if its local identifier looks numeric.
+            candidates = list(order.child_orders)
+        elif order.order_class in (Order.OrderClass.BRACKET, Order.OrderClass.OTO):
+            candidates = [order, *order.child_orders]
+        else:
+            # Explicit cancellation of an individual child remains scoped to
+            # that child because children are SIMPLE Order objects.
+            candidates = [order]
+
+        targets = []
+        seen_order_ids = set()
+        for candidate in candidates:
+            order_id = self._normalize_broker_order_id(candidate.identifier)
+            if order_id is None or order_id in seen_order_ids:
+                continue
+            seen_order_ids.add(order_id)
+            targets.append(candidate)
+        return targets
+
     def cancel_order(self, order: Order) -> None:
-        self.data_source.delete_order(order)
+        """Cancel every known native IBKR order represented by a LumiBot Order."""
+        for target in self._get_cancel_order_targets(order):
+            try:
+                # An explicit broker cancellation must not be suppressed by
+                # local LumiBot status. Let IBKR accept or reject each request.
+                self.data_source.delete_order(target)
+            except Exception:
+                logger.error(
+                    f"Failed to cancel IBKR REST order {target.identifier}; continuing package cancellation.",
+                    exc_info=True,
+                )
 
     def _modify_order(self, order: Order, limit_price: Union[float, None] = None,
                       stop_price: Union[float, None] = None):
@@ -885,11 +1235,181 @@ class InteractiveBrokersREST(Broker):
 
         return legs_dict
 
-    def get_order_data_from_order(self, order):
+    def _get_ibkr_client_order_id(self, order) -> str:
+        """Return an IBKR-safe, stable client order ID for a parent ticket.
+
+        LumiBot identifiers are UUIDs by default, so they can normally be sent
+        directly.  A caller may supply a different identifier, however, and
+        Client Portal requires a cOID no longer than 64 characters.  Hashing
+        non-safe identifiers keeps the REST-only requirement out of Order
+        while preserving a stable link for this submission.
+        """
+        identifier = str(getattr(order, "identifier", "") or "")
+        if not identifier:
+            raise ValueError("IBKR REST advanced-order parent is missing an identifier for cOID.")
+
+        if re.fullmatch(r"[A-Za-z0-9_-]{1,64}", identifier):
+            return identifier
+
+        return f"lumibot-{sha256(identifier.encode('utf-8')).hexdigest()[:56]}"
+
+    @staticmethod
+    def _validate_rest_order_time_in_force(orders: list[Order], duration: str | None = None) -> None:
+        """Reject unverified Client Portal exact-date GTD submissions.
+
+        IBKR's socket API supports ``goodTillDate``, but Client Portal's order
+        schema does not document an equivalent field.  Keeping this check in
+        the REST adapter prevents the generic Order's ``good_till_date`` from
+        being silently omitted from either a single ticket or an order package.
+        """
+        if duration is not None and str(duration).upper() == "GTD":
+            raise NotImplementedError(
+                "IBKR REST exact-date GTD submission is not supported because "
+                "the Client Portal expiration field is not verified."
+            )
+
+        for order in orders:
+            time_in_force = str(getattr(order, "time_in_force", "") or "").upper()
+            good_till_date = getattr(order, "good_till_date", None)
+            if time_in_force == "GTD":
+                raise NotImplementedError(
+                    "IBKR REST exact-date GTD submission is not supported because "
+                    "the Client Portal expiration field is not verified."
+                )
+            if good_till_date is not None:
+                raise ValueError(
+                    "IBKR REST good_till_date requires time_in_force='gtd'; "
+                    f"received time_in_force={getattr(order, 'time_in_force', None)!r}."
+                )
+
+    def _get_order_data_for_submission(self, order):
+        order_data, _ = self._build_order_submission(order)
+        return order_data
+
+    def _build_order_submission(self, order):
+        """Build one atomic Client Portal order-ticket package for an Order tree.
+
+        The generic Order tree models the relationships.  This adapter maps
+        those relationships to the Client Portal-specific cOID, parentId, and
+        isSingleGroup ticket fields without changing the Order API.  The
+        returned native-order list is in exactly the same order as the REST
+        tickets so acknowledgements can be mapped without inference.
+        """
+        self._validate_rest_order_time_in_force([order, *order.child_orders])
+        order_class = order.order_class
+
+        if order_class is Order.OrderClass.SIMPLE:
+            return self.get_order_data_from_orders([order]), [order]
+
+        children = list(order.child_orders)
+        if order_class is Order.OrderClass.BRACKET:
+            if len(children) not in (1, 2):
+                raise ValueError(
+                    "IBKR REST BRACKET orders must contain one or two child orders. "
+                    f"Found {len(children)}."
+                )
+            parent_coid = self._get_ibkr_client_order_id(order)
+            native_orders = [order, *children]
+            tickets = [(order, None, parent_coid, None, None)]
+            tickets.extend(
+                (
+                    child,
+                    order.exchange,
+                    self._get_ibkr_client_order_id(child),
+                    parent_coid,
+                    None,
+                )
+                for child in children
+            )
+        elif order_class is Order.OrderClass.OTO:
+            if len(children) != 1:
+                raise ValueError(
+                    "IBKR REST OTO orders must contain exactly one child order. "
+                    f"Found {len(children)}."
+                )
+            parent_coid = self._get_ibkr_client_order_id(order)
+            native_orders = [order, children[0]]
+            tickets = [
+                (order, None, parent_coid, None, None),
+                (
+                    children[0],
+                    order.exchange,
+                    self._get_ibkr_client_order_id(children[0]),
+                    parent_coid,
+                    None,
+                ),
+            ]
+        elif order_class is Order.OrderClass.OCO:
+            if len(children) != 2:
+                raise ValueError(
+                    "IBKR REST OCO orders must contain exactly two child orders. "
+                    f"Found {len(children)}."
+                )
+            # The LumiBot OCO parent is conceptual; IBKR receives only its
+            # two executable children as one single-group package.
+            native_orders = children
+            child_coids = [self._get_ibkr_client_order_id(child) for child in children]
+            if len(set(child_coids)) != len(child_coids):
+                raise ValueError(
+                    "IBKR REST OCO child orders must have distinct identifiers for cOID correlation."
+                )
+            tickets = [
+                (
+                    child,
+                    order.exchange,
+                    child_coid,
+                    None,
+                    True,
+                )
+                for child, child_coid in zip(children, child_coids)
+            ]
+        else:
+            raise ValueError(
+                f"IBKR REST advanced-order package construction does not support {order_class!r}."
+            )
+
+        package_coids = [ticket[2] for ticket in tickets if ticket[2] is not None]
+        if len(set(package_coids)) != len(package_coids):
+            raise ValueError(
+                "IBKR REST advanced-order tickets must have distinct identifiers for cOID correlation."
+            )
+
+        order_data = {"orders": []}
+        for index, (ticket_order, inherited_exchange, c_oid, parent_id, is_single_group) in enumerate(tickets):
+            effective_exchange = ticket_order.exchange or inherited_exchange
+            ticket = self.get_order_data_from_order(
+                ticket_order,
+                exchange=effective_exchange,
+                c_oid=c_oid,
+                parent_id=parent_id,
+                is_single_group=is_single_group,
+            )
+            if ticket is None:
+                role = "parent" if index == 0 and order_class is not Order.OrderClass.OCO else "child"
+                raise ValueError(
+                    f"Unable to serialize IBKR REST {order_class.value} {role} ticket; "
+                    "the complete order package was not built."
+                )
+            order_data["orders"].append(ticket)
+
+        return order_data, native_orders
+
+    def get_order_data_from_order(
+        self,
+        order,
+        *,
+        exchange=None,
+        c_oid: str | None = None,
+        parent_id: str | None = None,
+        is_single_group: bool | None = None,
+    ):
+        self._validate_rest_order_time_in_force([order])
+
         try:
             conid = None
             side = None
             orderType = None
+            effective_exchange = order.exchange if exchange is None else exchange
 
             if order.is_buy_order():
                 side = "BUY"
@@ -901,7 +1421,7 @@ class InteractiveBrokersREST(Broker):
 
             orderType = ORDERTYPE_MAPPING[order.order_type]
 
-            conid = self.data_source.get_conid_from_asset(order.asset, exchange=order.exchange)
+            conid = self.data_source.get_conid_from_asset(order.asset, exchange=effective_exchange)
 
             if conid is None:
                 asset_type = order.asset.asset_type
@@ -920,8 +1440,28 @@ class InteractiveBrokersREST(Broker):
 
             rules = self.data_source.get_contract_rules(conid)
             increment = rules['rules']['increment'] # 0.05 for example
-            price = (order.limit_price // increment) * increment if order.limit_price is not None else None
-            aux_price = (order.stop_price // increment) * increment if order.stop_price is not None else None
+            limit_price = (
+                (order.limit_price // increment) * increment
+                if order.limit_price is not None
+                else None
+            )
+            stop_price = (
+                (order.stop_price // increment) * increment
+                if order.stop_price is not None
+                else None
+            )
+            # Client Portal REST uses ``price`` for an STP trigger. ``auxPrice``
+            # is the trigger only for STP LMT; sending an STP trigger as auxPrice
+            # can produce a placeholder acknowledgement instead of a ticket.
+            if order.order_type == Order.OrderType.STOP:
+                price = stop_price
+                aux_price = None
+            elif order.order_type == Order.OrderType.STOP_LIMIT:
+                price = limit_price
+                aux_price = stop_price
+            else:
+                price = limit_price
+                aux_price = None
 
             data = {
                 "conid": conid,
@@ -931,7 +1471,7 @@ class InteractiveBrokersREST(Broker):
                 "tif": order.time_in_force.upper(),
                 "price": price,
                 "auxPrice": aux_price,
-                "listingExchange": order.exchange,
+                "listingExchange": effective_exchange,
             }
 
             if order.trail_percent:
@@ -941,6 +1481,13 @@ class InteractiveBrokersREST(Broker):
             if order.trail_price:
                 data["trailingType"] = "amt"
                 data["trailingAmt"] = order.trail_price
+
+            if c_oid is not None:
+                data["cOID"] = c_oid
+            if parent_id is not None:
+                data["parentId"] = parent_id
+            if is_single_group is not None:
+                data["isSingleGroup"] = is_single_group
 
             # Remove items with value None from order_data
             data = {k: v for k, v in data.items() if v is not None}
@@ -987,6 +1534,7 @@ class InteractiveBrokersREST(Broker):
         dict
             A dictionary containing the order data for the multileg order.
         """
+        self._validate_rest_order_time_in_force(orders, duration=duration)
 
         # Initialize the order data dictionary
         order_data = {"orders": []}
@@ -1118,6 +1666,17 @@ class InteractiveBrokersREST(Broker):
             except:
                 logger.error(_format_exc())
 
+        @broker.stream.add_action(broker.PLACEHOLDER_ORDER)
+        def on_trade_event_placeholder(order):
+            try:
+                broker._process_trade_event(
+                    order,
+                    broker.PLACEHOLDER_ORDER,
+                )
+                return True
+            except:
+                logger.error(_format_exc())
+
         @broker.stream.add_action(broker.FILLED_ORDER)
         def on_trade_event_fill(order, price, filled_quantity):
             # Log that the order was filled
@@ -1206,7 +1765,11 @@ class InteractiveBrokersREST(Broker):
 
         # Get current orders from IB and dispatch them to the stream for processing
         raw_orders = self.data_source.get_broker_all_orders()
-        stored_orders = {x.identifier: x for x in self.get_all_orders()}
+        stored_orders = {}
+        for stored_order in self.get_all_orders():
+            order_id = self._normalize_ibkr_order_identifier(stored_order.identifier)
+            if order_id is not None:
+                stored_orders[order_id] = stored_order
 
         for order_raw in raw_orders:
             order = self._parse_broker_order(order_raw, self._strategy_name)
@@ -1216,8 +1779,12 @@ class InteractiveBrokersREST(Broker):
 
             # Process all parent and child orders
             for order in all_orders:
+                order_id = self._normalize_ibkr_order_identifier(order.identifier)
+                if order_id is None:
+                    logger.warning("Ignoring IBKR REST poll order without a valid order identifier.")
+                    continue
                 # First time seeing this order
-                if order.identifier not in stored_orders:
+                if order_id not in stored_orders:
                     if self._first_iteration:
                         # Process existing orders on first poll
                         if order.status == Order.OrderStatus.FILLED:
@@ -1239,27 +1806,34 @@ class InteractiveBrokersREST(Broker):
                         self._process_new_order(order)
                 else:
                     # Update existing order
-                    stored_order = stored_orders[order.identifier]
+                    stored_order = stored_orders[order_id]
                     stored_order.quantity = order.quantity
-                    stored_children = [stored_orders[o.identifier] if o.identifier in stored_orders else o
-                                    for o in order.child_orders]
+                    stored_order.avg_fill_price = order.avg_fill_price
+                    stored_order.update_raw(order._raw)
 
-                    if stored_children:
+                    # Flat Client Portal responses for a known native child do
+                    # not describe its LumiBot parent tree.  Only replace child
+                    # links when IBKR actually returned nested child data.
+                    if order.child_orders:
+                        stored_children = []
+                        for child_order in order.child_orders:
+                            child_id = self._normalize_ibkr_order_identifier(child_order.identifier)
+                            stored_children.append(stored_orders.get(child_id, child_order))
                         stored_order.child_orders = stored_children
 
                     # Handle status changes
                     if not order.equivalent_status(stored_order):
                         match order.status.lower():
-                            case "submitted" | "open":
+                            case "submitted" | "open" | "new":
                                 self._safe_stream_dispatch(self.NEW_ORDER, order=stored_order)
-                            case "fill":
+                            case "fill" | "filled":
                                 self._safe_stream_dispatch(
                                     self.FILLED_ORDER,
                                     order=stored_order,
                                     price=order.avg_fill_price,
                                     filled_quantity=order.quantity
                                 )
-                            case "canceled":
+                            case "cancel" | "canceled" | "cancelled":
                                 self._safe_stream_dispatch(self.CANCELED_ORDER, order=stored_order)
                             case "error":
                                 msg = f"IB encountered an error with order {order.identifier}"
@@ -1268,7 +1842,11 @@ class InteractiveBrokersREST(Broker):
                         stored_order.status = order.status
 
         # Check for disappeared orders
-        tracked_orders = {x.identifier: x for x in self.get_tracked_orders()}
+        tracked_orders = {}
+        for tracked_order in self.get_tracked_orders():
+            order_id = self._normalize_ibkr_order_identifier(tracked_order.identifier)
+            if order_id is not None:
+                tracked_orders[order_id] = tracked_order
         broker_ids = self._get_broker_id_from_raw_orders(raw_orders)
         for order_id, order in tracked_orders.items():
             if order_id not in broker_ids:
@@ -1288,9 +1866,13 @@ class InteractiveBrokersREST(Broker):
         ids = []
         for o in raw_orders:
             if "orderId" in o:
-                ids.append(str(o["orderId"]))
+                order_id = self._normalize_ibkr_order_identifier(o["orderId"])
+                if order_id is not None:
+                    ids.append(order_id)
             if "leg" in o and isinstance(o["leg"], list):
                 for leg in o["leg"]:
                     if "orderId" in leg:
-                        ids.append(str(leg["orderId"]))
+                        order_id = self._normalize_ibkr_order_identifier(leg["orderId"])
+                        if order_id is not None:
+                            ids.append(order_id)
         return ids

@@ -23,6 +23,7 @@ _NAME_TO_MODULE = {
     "PolygonDataBacktesting": "polygon_backtesting",
     "ProjectXData": "projectx_data",
     "SchwabData": "schwab_data",
+    "TickerAllData": "tickerall_data",
     "TradierData": "tradier_data",
     "TradovateData": "tradovate_data",
     "UnavailabeTimestep": "exceptions",

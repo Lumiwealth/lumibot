@@ -138,6 +138,11 @@ _RUNTIME_MINUTE_GAP_CHECKED_SERIES: Dict[
     str,
     tuple[tuple[int, str, str, int], datetime, datetime],
 ] = {}
+# Per-process memory for the minute-hole repair (in memory only; the next process retries):
+# sessions whose request failed, and series whose repair stopped after consecutive failures.
+# Without it a sliding-window caller asked the same failing session on every bar.
+_RUNTIME_MINUTE_GAP_FAILED_SESSIONS: Dict[str, set] = {}
+_RUNTIME_MINUTE_GAP_REPAIR_STOPPED: set[str] = set()
 _DISABLE_CONIDS_REMOTE_UPLOAD = False
 _LOGGED_CONIDS_REMOTE_UPLOAD_DISABLE = False
 _LOGGED_HISTORY_ALIASES: set[str] = set()
@@ -3604,16 +3609,28 @@ def _missing_us_minute_sessions(
 
     start_local = pd.Timestamp(_to_utc(start_dt)).tz_convert(LUMIBOT_DEFAULT_PYTZ)
     end_local = pd.Timestamp(_to_utc(end_dt)).tz_convert(LUMIBOT_DEFAULT_PYTZ)
-    in_window = (idx >= start_local) & (idx <= end_local)
-    real = idx[in_window & ~missing_mask]
-    if len(real) < 2:
+    real = idx[~missing_mask] if bool(missing_mask.any()) else idx
+    if not real.is_monotonic_increasing:
+        real = real.sort_values()
+    # Binary searches instead of per-row date math: this runs once per series and window, and
+    # a year of extended-hours minute bars is about 250,000 rows.
+    real_ns = real.asi8
+    lo = int(np.searchsorted(real_ns, start_local.value, side="left"))
+    hi = int(np.searchsorted(real_ns, end_local.value, side="right"))
+    if hi - lo < 2:
         return []
+    real_ns = real_ns[lo:hi]
 
-    real_days = set(real.normalize().unique())
-    first_day = real.min().normalize()
-    last_day = real.max().normalize()
+    first_day = pd.Timestamp(int(real_ns[0]), unit="ns", tz="UTC").tz_convert(LUMIBOT_DEFAULT_PYTZ).normalize()
+    last_day = pd.Timestamp(int(real_ns[-1]), unit="ns", tz="UTC").tz_convert(LUMIBOT_DEFAULT_PYTZ).normalize()
     if (last_day - first_day) <= pd.Timedelta(days=1):
         return []
+
+    def _has_real_bar_on(day: pd.Timestamp) -> bool:
+        day_start = day.value
+        day_end = (day + pd.DateOffset(days=1)).value  # next local midnight, DST-safe
+        pos = int(np.searchsorted(real_ns, day_start, side="left"))
+        return pos < len(real_ns) and int(real_ns[pos]) < day_end
 
     from lumibot.tools.helpers import get_trading_days
 
@@ -3647,7 +3664,7 @@ def _missing_us_minute_sessions(
         day = session_open.normalize()
         if day <= first_day or day >= last_day:
             continue
-        if day in real_days or day in fresh_marker_days:
+        if day in fresh_marker_days or _has_real_bar_on(day):
             continue
         missing.append((session_open, session_close))
     return missing
@@ -3704,6 +3721,14 @@ def _repair_us_stock_index_minute_gaps(
     with no bars (a thin symbol with no prints that day) gets a marker so later backtests do
     not ask again until the marker expires. A failed request writes nothing, so the next
     process retries it.
+
+    Cost bound (CodeRabbit on PR #1180 asked for a timer): at most one request per session in
+    the requested window, once per process, which is never more than downloading that window
+    cold (live 2026-09-25: a 10-session SPY hole took 10 requests, 52 s; the next call made
+    none). A session whose request failed is not asked again in this process, and repair stops
+    for the series after IBKR_MINUTE_GAP_REPAIR_MAX_CONSECUTIVE_FAILURES in a row. There is
+    deliberately no wall-clock limit: it would leave July missing on a busy downloader and not
+    on a quiet one, which is the silent-hole bug this repair exists to fix.
     """
     quote_symbol = str(getattr(quote, "symbol", "USD") or "USD").strip().upper()
     normalized_exchange = str(exchange or "").strip().upper()
@@ -3732,7 +3757,15 @@ def _repair_us_stock_index_minute_gaps(
         ):
             return df_cache
 
-    missing = _missing_us_minute_sessions(df_cache, start_dt=start_dt, end_dt=end_dt)
+    if series_key in _RUNTIME_MINUTE_GAP_REPAIR_STOPPED:
+        return df_cache
+
+    failed_before = _RUNTIME_MINUTE_GAP_FAILED_SESSIONS.setdefault(series_key, set())
+    missing = [
+        (session_open, session_close)
+        for session_open, session_close in _missing_us_minute_sessions(df_cache, start_dt=start_dt, end_dt=end_dt)
+        if session_open.normalize() not in failed_before
+    ]
     if not missing:
         _RUNTIME_MINUTE_GAP_CHECKED_SERIES[series_key] = (
             _hourly_cache_signature(df_cache),
@@ -3783,6 +3816,7 @@ def _repair_us_stock_index_minute_gaps(
         except Exception as exc:
             failed_requests += 1
             consecutive_failures += 1
+            failed_before.add(day)
             logger.warning(
                 "IBKR minute cache repair could not fetch %s session %s: %s",
                 getattr(asset, "symbol", None),
@@ -3790,6 +3824,7 @@ def _repair_us_stock_index_minute_gaps(
                 exc,
             )
             if consecutive_failures >= IBKR_MINUTE_GAP_REPAIR_MAX_CONSECUTIVE_FAILURES:
+                _RUNTIME_MINUTE_GAP_REPAIR_STOPPED.add(series_key)
                 break
             continue
         consecutive_failures = 0

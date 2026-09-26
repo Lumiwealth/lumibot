@@ -629,6 +629,8 @@ def _new_minute_process(monkeypatch, feed) -> None:
     monkeypatch.setattr(ibkr_helper, "_RUNTIME_ATTEMPTED_HISTORY_SEGMENTS", {}, raising=False)
     monkeypatch.setattr(ibkr_helper, "_RUNTIME_HISTORY_NO_DATA_WINDOWS", {})
     monkeypatch.setattr(ibkr_helper, "_RUNTIME_MINUTE_GAP_CHECKED_SERIES", {}, raising=False)
+    monkeypatch.setattr(ibkr_helper, "_RUNTIME_MINUTE_GAP_FAILED_SESSIONS", {}, raising=False)
+    monkeypatch.setattr(ibkr_helper, "_RUNTIME_MINUTE_GAP_REPAIR_STOPPED", set(), raising=False)
     monkeypatch.setattr(ibkr_helper, "queue_request", feed)
 
 
@@ -789,3 +791,94 @@ def test_minute_hole_scan_runs_once_per_series_and_window(monkeypatch, tmp_path)
                                    end_dt=datetime(2026, 8, 14, 23, 59, tzinfo=timezone.utc), **_MINUTE_KW)
     assert served["pages"] == 0
     assert len(scans) == 1
+
+
+def _failing_minute_feed(vendor: pd.DataFrame, failing_days: set[str] | None = None):
+    """IBKR feed whose requests for the given sessions (or all, when None) raise."""
+    ok_feed, _ = _minute_feed(vendor)
+    served = {"pages": 0}
+
+    def _feed(url, querystring=None, headers=None, timeout=None, **kw):
+        served["pages"] += 1
+        end = pd.Timestamp(datetime.strptime(querystring["startTime"], "%Y%m%d-%H:%M:%S"), tz="UTC")
+        day = end.tz_convert(_NY).strftime("%Y-%m-%d")
+        if failing_days is None or day in failing_days:
+            raise RuntimeError("history payload remained invalid after rebuild")
+        return ok_feed(url, querystring=querystring, headers=headers, timeout=timeout, **kw)
+
+    return _feed, served
+
+
+def _cache_two_weeks_with_a_hole(monkeypatch, vendor):
+    feed, _ = _minute_feed(vendor)
+    _new_minute_process(monkeypatch, feed)
+    ibkr_helper.get_price_data(start_dt=datetime(2026, 8, 3, 8, tzinfo=timezone.utc),
+                               end_dt=datetime(2026, 8, 5, 23, 59, tzinfo=timezone.utc), **_MINUTE_KW)
+    _new_minute_process(monkeypatch, feed)
+    ibkr_helper.get_price_data(start_dt=datetime(2026, 8, 12, 8, tzinfo=timezone.utc),
+                               end_dt=datetime(2026, 8, 14, 23, 59, tzinfo=timezone.utc), **_MINUTE_KW)
+
+
+def test_minute_hole_session_that_failed_is_not_requested_again_in_the_same_process(monkeypatch, tmp_path) -> None:
+    """CodeRabbit on PR #1180 worried the minute repair can stall a backtest. Its cost is one request
+    per missing session, the same as downloading that window cold, but a session whose request
+    FAILED was asked again by every later call with a different window in the same process (a
+    sliding-window strategy asks with a new window on every bar)."""
+    _minute_setup(monkeypatch, tmp_path)
+    vendor = _minute_vendor(_minute_days("2026-08-03", "2026-08-14"))
+    _cache_two_weeks_with_a_hole(monkeypatch, vendor)
+
+    feed, served = _failing_minute_feed(vendor, failing_days={"2026-08-07"})
+    _new_minute_process(monkeypatch, feed)
+    for minute in range(10):  # ten calls, each with a slightly wider window
+        ibkr_helper.get_price_data(start_dt=datetime(2026, 8, 3, 8, tzinfo=timezone.utc),
+                                   end_dt=datetime(2026, 8, 14, 23, minute, tzinfo=timezone.utc), **_MINUTE_KW)
+    # Aug 6, 10 and 11 are fetched once; Aug 7 is asked once and not again this process.
+    assert served["pages"] == 4
+
+
+def test_minute_hole_repair_stops_for_the_process_when_the_downloader_keeps_failing(monkeypatch, tmp_path) -> None:
+    _minute_setup(monkeypatch, tmp_path)
+    vendor = _minute_vendor(_minute_days("2026-08-03", "2026-08-14"))
+    _cache_two_weeks_with_a_hole(monkeypatch, vendor)
+
+    feed, served = _failing_minute_feed(vendor, failing_days=None)
+    _new_minute_process(monkeypatch, feed)
+    for minute in range(10):
+        ibkr_helper.get_price_data(start_dt=datetime(2026, 8, 3, 8, tzinfo=timezone.utc),
+                                   end_dt=datetime(2026, 8, 14, 23, minute, tzinfo=timezone.utc), **_MINUTE_KW)
+    assert served["pages"] == ibkr_helper.IBKR_MINUTE_GAP_REPAIR_MAX_CONSECUTIVE_FAILURES
+
+
+def test_minute_hole_repair_never_costs_more_than_a_cold_download_of_the_window(monkeypatch, tmp_path) -> None:
+    """The bound that replaces a timer: at most one request per session in the window, once per
+    process. A timer would leave July missing on a busy downloader and not on a quiet one."""
+    _minute_setup(monkeypatch, tmp_path)
+    days = _minute_days("2026-06-01", "2026-09-18")
+    vendor = _minute_vendor(days)
+    feed, _ = _minute_feed(vendor)
+    # Only the first and last sessions are cached: every session between them is a hole.
+    _new_minute_process(monkeypatch, feed)
+    ibkr_helper.get_price_data(start_dt=datetime(2026, 6, 1, 8, tzinfo=timezone.utc),
+                               end_dt=datetime(2026, 6, 1, 23, 59, tzinfo=timezone.utc), **_MINUTE_KW)
+    _new_minute_process(monkeypatch, feed)
+    ibkr_helper.get_price_data(start_dt=datetime(2026, 9, 18, 8, tzinfo=timezone.utc),
+                               end_dt=datetime(2026, 9, 18, 23, 59, tzinfo=timezone.utc), **_MINUTE_KW)
+
+    feed, served = _minute_feed(vendor)
+    _new_minute_process(monkeypatch, feed)
+    df = ibkr_helper.get_price_data(start_dt=datetime(2026, 6, 1, 8, tzinfo=timezone.utc),
+                                    end_dt=datetime(2026, 9, 19, tzinfo=timezone.utc), **_MINUTE_KW)
+    assert sorted(set(days) - _sessions(df)) == []
+    assert served["pages"] <= len(days) - 2
+
+
+def test_minute_hole_scan_finds_no_false_holes_across_daylight_saving_switches() -> None:
+    for first, last, end in (("2026-03-02", "2026-03-13", datetime(2026, 3, 14, tzinfo=timezone.utc)),
+                             ("2026-10-26", "2026-11-06", datetime(2026, 11, 7, tzinfo=timezone.utc))):
+        frame = _minute_vendor(_minute_days(first, last))
+        start = pd.Timestamp(f"{first} 04:00", tz=_NY).to_pydatetime()
+        assert ibkr_helper._missing_us_minute_sessions(frame, start_dt=start, end_dt=end) == []
+        holey = frame.loc[~frame.index.tz_convert(_NY).strftime("%Y-%m-%d").isin([_minute_days(first, last)[5]])]
+        found = ibkr_helper._missing_us_minute_sessions(holey, start_dt=start, end_dt=end)
+        assert [open_.date().isoformat() for open_, _ in found] == [_minute_days(first, last)[5]]

@@ -576,6 +576,7 @@ Table of Contents
 
    Home <self>
    Start Here / Python Setup <getting_started>
+   The lumibot Command <cli>
    Python Strategy Examples <examples>
    AI Quickstart <agents_quickstart>
    AI Examples <agents_examples>

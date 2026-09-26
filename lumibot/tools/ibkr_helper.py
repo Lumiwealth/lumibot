@@ -82,6 +82,12 @@ IBKR_HOURLY_GAP_REPAIR_MAX_SEGMENTS_PER_SERIES = 4
 # consecutive failed requests, because the downloader is then down, not the data missing.
 IBKR_MINUTE_GAP_REPAIR_MAX_CONSECUTIVE_FAILURES = 3
 IBKR_MINUTE_GAP_MARKER_REASON = "minute_session_gap_empty"
+# A failed repair request, or a series given up after consecutive failures, is retried after
+# this long in the same process (a notebook or multi-backtest service outlives an outage).
+IBKR_MINUTE_GAP_RETRY_COOLDOWN_SECONDS = 300.0
+# Serving a minute series with known unrepaired sessions logs a WARNING, at most this often
+# per series so a sliding-window caller does not log one per bar.
+IBKR_MINUTE_GAP_WARNING_INTERVAL_SECONDS = 60.0
 # Backward pagination of US stock intraday history steps over closed-market pages
 # (weekends, holidays, overnight) instead of treating their empty answer as the start
 # of history. A 1000-minute page is 16.7 hours, a weekend is about 56 closed hours.
@@ -138,11 +144,14 @@ _RUNTIME_MINUTE_GAP_CHECKED_SERIES: Dict[
     str,
     tuple[tuple[int, str, str, int], datetime, datetime],
 ] = {}
-# Per-process memory for the minute-hole repair (in memory only; the next process retries):
-# sessions whose request failed, and series whose repair stopped after consecutive failures.
-# Without it a sliding-window caller asked the same failing session on every bar.
-_RUNTIME_MINUTE_GAP_FAILED_SESSIONS: Dict[str, set] = {}
-_RUNTIME_MINUTE_GAP_REPAIR_STOPPED: set[str] = set()
+# Per-process memory for the minute-hole repair, in memory only, with monotonic timestamps so
+# it expires after IBKR_MINUTE_GAP_RETRY_COOLDOWN_SECONDS: sessions whose request failed, and
+# series whose repair stopped after consecutive failures. Without it a sliding-window caller
+# asked the same failing session on every bar; without the expiry a long-lived process kept a
+# hole after the downloader recovered.
+_RUNTIME_MINUTE_GAP_FAILED_SESSIONS: Dict[str, Dict[pd.Timestamp, float]] = {}
+_RUNTIME_MINUTE_GAP_REPAIR_STOPPED: Dict[str, float] = {}
+_RUNTIME_MINUTE_GAP_LAST_WARNING: Dict[str, float] = {}
 _DISABLE_CONIDS_REMOTE_UPLOAD = False
 _LOGGED_CONIDS_REMOTE_UPLOAD_DISABLE = False
 _LOGGED_HISTORY_ALIASES: set[str] = set()
@@ -514,6 +523,11 @@ def _period_to_timedelta(period: str) -> Optional[timedelta]:
 def _ibkr_history_now_utc() -> datetime:
     """Wall clock for history requests (a seam so tests can pin "now")."""
     return datetime.now(timezone.utc)
+
+
+def _ibkr_monotonic() -> float:
+    """Monotonic clock for in-process cooldowns (a seam so tests can advance it)."""
+    return time.monotonic()
 
 
 def _is_chart_data_unavailable(exc: BaseException) -> bool:
@@ -3725,8 +3739,10 @@ def _repair_us_stock_index_minute_gaps(
     Cost bound (CodeRabbit on PR #1180 asked for a timer): at most one request per session in
     the requested window, once per process, which is never more than downloading that window
     cold (live 2026-09-25: a 10-session SPY hole took 10 requests, 52 s; the next call made
-    none). A session whose request failed is not asked again in this process, and repair stops
-    for the series after IBKR_MINUTE_GAP_REPAIR_MAX_CONSECUTIVE_FAILURES in a row. There is
+    none). A session whose request failed is not asked again in this process until
+    IBKR_MINUTE_GAP_RETRY_COOLDOWN_SECONDS pass, repair pauses for the series for the same
+    cooldown after IBKR_MINUTE_GAP_REPAIR_MAX_CONSECUTIVE_FAILURES in a row, and every serve
+    of a series with known unrepaired sessions logs a WARNING (at most once a minute). There is
     deliberately no wall-clock limit: it would leave July missing on a busy downloader and not
     on a quiet one, which is the silent-hole bug this repair exists to fix.
     """
@@ -3757,21 +3773,31 @@ def _repair_us_stock_index_minute_gaps(
         ):
             return df_cache
 
-    if series_key in _RUNTIME_MINUTE_GAP_REPAIR_STOPPED:
-        return df_cache
-
-    failed_before = _RUNTIME_MINUTE_GAP_FAILED_SESSIONS.setdefault(series_key, set())
-    missing = [
-        (session_open, session_close)
-        for session_open, session_close in _missing_us_minute_sessions(df_cache, start_dt=start_dt, end_dt=end_dt)
-        if session_open.normalize() not in failed_before
-    ]
-    if not missing:
+    all_missing = _missing_us_minute_sessions(df_cache, start_dt=start_dt, end_dt=end_dt)
+    if not all_missing:
         _RUNTIME_MINUTE_GAP_CHECKED_SERIES[series_key] = (
             _hourly_cache_signature(df_cache),
             request_start,
             request_end,
         )
+        return df_cache
+
+    now_mono = _ibkr_monotonic()
+    cooldown = IBKR_MINUTE_GAP_RETRY_COOLDOWN_SECONDS
+    stopped_at = _RUNTIME_MINUTE_GAP_REPAIR_STOPPED.get(series_key)
+    if stopped_at is not None and now_mono - stopped_at < cooldown:
+        _warn_minute_series_served_with_holes(series_key, asset, timestep, all_missing, now_mono)
+        return df_cache
+    _RUNTIME_MINUTE_GAP_REPAIR_STOPPED.pop(series_key, None)
+
+    failed_before = _RUNTIME_MINUTE_GAP_FAILED_SESSIONS.setdefault(series_key, {})
+    missing = [
+        (session_open, session_close)
+        for session_open, session_close in all_missing
+        if now_mono - failed_before.get(session_open.normalize(), float("-inf")) >= cooldown
+    ]
+    if not missing:
+        _warn_minute_series_served_with_holes(series_key, asset, timestep, all_missing, now_mono)
         return df_cache
 
     asset_type = _normalize_asset_type(getattr(asset, "asset_type", ""))
@@ -3816,7 +3842,7 @@ def _repair_us_stock_index_minute_gaps(
         except Exception as exc:
             failed_requests += 1
             consecutive_failures += 1
-            failed_before.add(day)
+            failed_before[day] = _ibkr_monotonic()
             logger.warning(
                 "IBKR minute cache repair could not fetch %s session %s: %s",
                 getattr(asset, "symbol", None),
@@ -3824,10 +3850,11 @@ def _repair_us_stock_index_minute_gaps(
                 exc,
             )
             if consecutive_failures >= IBKR_MINUTE_GAP_REPAIR_MAX_CONSECUTIVE_FAILURES:
-                _RUNTIME_MINUTE_GAP_REPAIR_STOPPED.add(series_key)
+                _RUNTIME_MINUTE_GAP_REPAIR_STOPPED[series_key] = _ibkr_monotonic()
                 break
             continue
         consecutive_failures = 0
+        failed_before.pop(day, None)
         if fetched is not None and not fetched.empty:
             working = _merge_frames(working, fetched)
             unsaved_pages += 1
@@ -3872,21 +3899,52 @@ def _repair_us_stock_index_minute_gaps(
         reason=None if not unresolved else "minute_sessions_missing_after_repair",
     )
     if unresolved:
-        logger.warning(
-            "IBKR minute cache for %s still misses %d session(s) inside the window after repair (first %s); "
-            "the next backtest retries them",
-            getattr(asset, "symbol", None),
-            len(unresolved),
-            unresolved[0][0].date(),
+        # Not marked checked: a later call re-scans (milliseconds), warns, and retries the
+        # failed sessions once their cooldown has passed.
+        _warn_minute_series_served_with_holes(series_key, asset, timestep, unresolved, _ibkr_monotonic())
+    else:
+        _RUNTIME_MINUTE_GAP_CHECKED_SERIES[series_key] = (
+            _hourly_cache_signature(working),
+            request_start,
+            request_end,
         )
-    # One repair attempt per series and window per process: a failed session is retried by
-    # the next process, never on every bar of this one.
-    _RUNTIME_MINUTE_GAP_CHECKED_SERIES[series_key] = (
-        _hourly_cache_signature(working),
-        request_start,
-        request_end,
-    )
     return working
+
+
+def _warn_minute_series_served_with_holes(
+    series_key: str,
+    asset: Asset,
+    timestep: str,
+    missing: list[tuple[pd.Timestamp, pd.Timestamp]],
+    now_mono: float,
+) -> None:
+    """Say loudly that bars are being served with sessions missing inside the window.
+
+    At most once a minute per series within one backtest. Each backtest data source sets its
+    own downloader queue client id, so a new backtest in the same process always warns.
+    """
+    try:
+        from lumibot.tools import data_downloader_queue_client as _queue
+
+        backtest_id = str(getattr(getattr(_queue, "_queue_client", None), "client_id", "") or "")
+    except Exception:
+        backtest_id = ""
+    warning_key = f"{series_key}|{backtest_id}"
+    last = _RUNTIME_MINUTE_GAP_LAST_WARNING.get(warning_key)
+    if last is not None and now_mono - last < IBKR_MINUTE_GAP_WARNING_INTERVAL_SECONDS:
+        return
+    _RUNTIME_MINUTE_GAP_LAST_WARNING[warning_key] = now_mono
+    logger.warning(
+        "IBKR %s %s history is missing %d session(s) inside the requested window (first %s, last %s); "
+        "the downloader could not supply them. They are retried after %.0f s in this process and by the "
+        "next backtest.",
+        getattr(asset, "symbol", None),
+        timestep,
+        len(missing),
+        missing[0][0].date(),
+        missing[-1][0].date(),
+        IBKR_MINUTE_GAP_RETRY_COOLDOWN_SECONDS,
+    )
 
 
 def _window_is_placeholder_covered(

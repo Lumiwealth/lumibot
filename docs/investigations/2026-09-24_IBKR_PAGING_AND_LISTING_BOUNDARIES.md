@@ -94,9 +94,13 @@ gets a `minute_session_gap_empty` marker for `IBKR_GAP_RETRY_TTL_SECONDS`, so la
 request writes nothing and is retried by the next process; each series and window is checked once per process.
 
 Cost (CodeRabbit on PR #1180 asked for a time limit): at most one request per session in the window, once per process,
-never more than a cold download of that window. A failed session is not asked again in the same process (a
-sliding-window caller used to ask it on every bar: 13 requests instead of 4 in the test), and repair stops for the
-series after 3 failures in a row (30 requests instead of 3). No wall-clock limit on purpose: results would depend on
+never more than a cold download of that window. A failed session is not asked again for 5 minutes in the same
+process (a sliding-window caller used to ask it on every bar: 13 requests instead of 4 in the test), and repair pauses
+for the series for 5 minutes after 3 failures in a row (30 requests instead of 3). The pause expires, so a long-lived
+process (notebook, local script, multi-backtest service) repairs the hole once the downloader recovers; the release gate
+found that a permanent give-up served a later backtest 34 of 77 sessions silently. Every serve of a series with known
+unrepaired sessions logs a WARNING naming the symbol, timestep and missing-session count (at most once a minute per
+series within one backtest; every new backtest warns). No wall-clock limit on purpose: results would depend on
 downloader load. Live on the production downloader: a 10-session SPY hole took 10 requests, 52 s (median 5.1 s); the
 next call made none. The session scan uses binary searches: 3 ms for a year of extended-hours minute bars (27 ms with
 per-row date math).

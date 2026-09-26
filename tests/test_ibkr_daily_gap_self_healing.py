@@ -630,7 +630,8 @@ def _new_minute_process(monkeypatch, feed) -> None:
     monkeypatch.setattr(ibkr_helper, "_RUNTIME_HISTORY_NO_DATA_WINDOWS", {})
     monkeypatch.setattr(ibkr_helper, "_RUNTIME_MINUTE_GAP_CHECKED_SERIES", {}, raising=False)
     monkeypatch.setattr(ibkr_helper, "_RUNTIME_MINUTE_GAP_FAILED_SESSIONS", {}, raising=False)
-    monkeypatch.setattr(ibkr_helper, "_RUNTIME_MINUTE_GAP_REPAIR_STOPPED", set(), raising=False)
+    monkeypatch.setattr(ibkr_helper, "_RUNTIME_MINUTE_GAP_REPAIR_STOPPED", {}, raising=False)
+    monkeypatch.setattr(ibkr_helper, "_RUNTIME_MINUTE_GAP_LAST_WARNING", {}, raising=False)
     monkeypatch.setattr(ibkr_helper, "queue_request", feed)
 
 
@@ -819,7 +820,7 @@ def _cache_two_weeks_with_a_hole(monkeypatch, vendor):
                                end_dt=datetime(2026, 8, 14, 23, 59, tzinfo=timezone.utc), **_MINUTE_KW)
 
 
-def test_minute_hole_session_that_failed_is_not_requested_again_in_the_same_process(monkeypatch, tmp_path) -> None:
+def test_minute_hole_session_that_failed_is_not_requested_again_within_the_cooldown(monkeypatch, tmp_path) -> None:
     """CodeRabbit on PR #1180 worried the minute repair can stall a backtest. Its cost is one request
     per missing session, the same as downloading that window cold, but a session whose request
     FAILED was asked again by every later call with a different window in the same process (a
@@ -833,11 +834,11 @@ def test_minute_hole_session_that_failed_is_not_requested_again_in_the_same_proc
     for minute in range(10):  # ten calls, each with a slightly wider window
         ibkr_helper.get_price_data(start_dt=datetime(2026, 8, 3, 8, tzinfo=timezone.utc),
                                    end_dt=datetime(2026, 8, 14, 23, minute, tzinfo=timezone.utc), **_MINUTE_KW)
-    # Aug 6, 10 and 11 are fetched once; Aug 7 is asked once and not again this process.
+    # Aug 6, 10 and 11 are fetched once; Aug 7 is asked once and not again within the cooldown.
     assert served["pages"] == 4
 
 
-def test_minute_hole_repair_stops_for_the_process_when_the_downloader_keeps_failing(monkeypatch, tmp_path) -> None:
+def test_minute_hole_repair_pauses_while_the_downloader_keeps_failing(monkeypatch, tmp_path) -> None:
     _minute_setup(monkeypatch, tmp_path)
     vendor = _minute_vendor(_minute_days("2026-08-03", "2026-08-14"))
     _cache_two_weeks_with_a_hole(monkeypatch, vendor)
@@ -882,3 +883,82 @@ def test_minute_hole_scan_finds_no_false_holes_across_daylight_saving_switches()
         holey = frame.loc[~frame.index.tz_convert(_NY).strftime("%Y-%m-%d").isin([_minute_days(first, last)[5]])]
         found = ibkr_helper._missing_us_minute_sessions(holey, start_dt=start, end_dt=end)
         assert [open_.date().isoformat() for open_, _ in found] == [_minute_days(first, last)[5]]
+
+
+class _Clock:
+    def __init__(self):
+        self.now = 1000.0
+
+    def __call__(self):
+        return self.now
+
+
+def test_minute_hole_repair_retries_in_the_same_process_after_the_downloader_recovers(monkeypatch, tmp_path) -> None:
+    """Release gate probe, 2026-09-25: after 3 failed repair requests the series was given up for the
+    life of the process. A second backtest in the same long-lived process (a notebook, a local
+    script, a multi-backtest service) ran after the downloader recovered and silently got 34 of 77
+    sessions, with no request and no warning. Failed marks now expire after a cooldown."""
+    _minute_setup(monkeypatch, tmp_path)
+    clock = _Clock()
+    monkeypatch.setattr(ibkr_helper, "_ibkr_monotonic", clock, raising=False)
+    vendor = _minute_vendor(_minute_days("2026-08-03", "2026-08-14"))
+    _cache_two_weeks_with_a_hole(monkeypatch, vendor)
+    window = dict(start_dt=datetime(2026, 8, 3, 8, tzinfo=timezone.utc),
+                  end_dt=datetime(2026, 8, 14, 23, 59, tzinfo=timezone.utc))
+
+    feed, _ = _failing_minute_feed(vendor, failing_days=None)
+    _new_minute_process(monkeypatch, feed)
+    ibkr_helper.get_price_data(**window, **_MINUTE_KW)  # backtest A: downloader down
+
+    feed, served = _minute_feed(vendor)
+    monkeypatch.setattr(ibkr_helper, "queue_request", feed)
+    monkeypatch.setattr(ibkr_helper, "_RUNTIME_ATTEMPTED_HISTORY_SEGMENTS", {}, raising=False)
+    monkeypatch.setattr(ibkr_helper, "_RUNTIME_HISTORY_NO_DATA_WINDOWS", {})
+    clock.now += ibkr_helper.IBKR_MINUTE_GAP_RETRY_COOLDOWN_SECONDS + 1
+    df = ibkr_helper.get_price_data(**window, **_MINUTE_KW)  # backtest B: downloader back
+    assert sorted(set(_minute_days("2026-08-03", "2026-08-14")) - _sessions(df)) == []
+    assert served["pages"] == 4
+
+
+def test_minute_series_served_with_unrepaired_sessions_logs_a_warning_each_time(monkeypatch, tmp_path, caplog) -> None:
+    _minute_setup(monkeypatch, tmp_path)
+    clock = _Clock()
+    monkeypatch.setattr(ibkr_helper, "_ibkr_monotonic", clock, raising=False)
+    vendor = _minute_vendor(_minute_days("2026-08-03", "2026-08-14"))
+    _cache_two_weeks_with_a_hole(monkeypatch, vendor)
+    feed, _ = _failing_minute_feed(vendor, failing_days=None)
+    _new_minute_process(monkeypatch, feed)
+
+    for backtest in range(3):
+        caplog.clear()
+        with caplog.at_level("WARNING", logger=ibkr_helper.logger.name):
+            ibkr_helper.get_price_data(start_dt=datetime(2026, 8, 3, 8, tzinfo=timezone.utc),
+                                       end_dt=datetime(2026, 8, 14, 23, 59, tzinfo=timezone.utc), **_MINUTE_KW)
+        served_with_holes = [r.getMessage() for r in caplog.records if "missing 4 session" in r.getMessage()]
+        assert served_with_holes and "SPY" in served_with_holes[0] and "minute" in served_with_holes[0], (
+            backtest, [r.getMessage() for r in caplog.records])
+        clock.now += ibkr_helper.IBKR_MINUTE_GAP_WARNING_INTERVAL_SECONDS + 1
+
+
+def test_each_new_backtest_in_the_process_warns_about_unrepaired_sessions(monkeypatch, tmp_path, caplog) -> None:
+    """Release gate probe: backtest B started seconds after backtest A in the same process and was
+    served the same holes without a word, because the once-a-minute limit belonged to A. Every
+    backtest data source sets its own downloader queue client id, so the limit is per backtest."""
+    from types import SimpleNamespace
+
+    import lumibot.tools.data_downloader_queue_client as queue_client
+
+    _minute_setup(monkeypatch, tmp_path)
+    monkeypatch.setattr(ibkr_helper, "_ibkr_monotonic", _Clock(), raising=False)
+    vendor = _minute_vendor(_minute_days("2026-08-03", "2026-08-14"))
+    _cache_two_weeks_with_a_hole(monkeypatch, vendor)
+    feed, _ = _failing_minute_feed(vendor, failing_days=None)
+    _new_minute_process(monkeypatch, feed)
+
+    for backtest_id in ("Backtest_aaaa1111", "Backtest_bbbb2222"):
+        monkeypatch.setattr(queue_client, "_queue_client", SimpleNamespace(client_id=backtest_id))
+        caplog.clear()
+        with caplog.at_level("WARNING", logger=ibkr_helper.logger.name):
+            ibkr_helper.get_price_data(start_dt=datetime(2026, 8, 3, 8, tzinfo=timezone.utc),
+                                       end_dt=datetime(2026, 8, 14, 23, 59, tzinfo=timezone.utc), **_MINUTE_KW)
+        assert any("missing 4 session" in r.getMessage() for r in caplog.records), backtest_id

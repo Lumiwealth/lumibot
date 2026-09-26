@@ -27,14 +27,16 @@ _DATA_QUOTE_COLS = (
     "bid_exchange",
     "ask_exchange",
 )
+# Price fields keep the provider's precision (None = no rounding). They were rounded to 2 decimals,
+# so a sub-cent crypto quote (SHIB 0.0000124) became 0.0 and was then dropped as non-positive.
 _DATA_QUOTE_FIELDS = {
-    "open": ("open", 2),
-    "high": ("high", 2),
-    "low": ("low", 2),
-    "close": ("close", 2),
+    "open": ("open", None),
+    "high": ("high", None),
+    "low": ("low", None),
+    "close": ("close", None),
     "volume": ("volume", 0),
-    "bid": ("bid", 2),
-    "ask": ("ask", 2),
+    "bid": ("bid", None),
+    "ask": ("ask", None),
     "bid_size": ("bid_size", 0),
     "bid_condition": ("bid_condition", 0),
     "bid_exchange": ("bid_exchange", 0),

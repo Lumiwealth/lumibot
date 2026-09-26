@@ -57,7 +57,8 @@ Strategies change only when they decide from `get_last_price()` or `get_quote()`
 `tests/test_data_get_bars_day_includes_latest_completed_bar.py -k forming_bar` (pandas and polars). Red on the code
 before the fix; green after.
 
-## Open
+## Follow-up done
 
-- `Data.get_quote` / `DataPolars.get_quote` round bid, ask, open and close to 2 decimals, so a sub-cent crypto quote
-  becomes 0.0 and is dropped as non-positive (same class as the `Order.avg_fill_price` fix `fa631fb8`).
+- `Data.get_quote` / `DataPolars.get_quote` rounded bid, ask, open and close to 2 decimals, so a sub-cent crypto quote
+  became 0.0 and was dropped as non-positive (same class as the `Order.avg_fill_price` fix `fa631fb8`). Fixed right
+  after this one; SEH Simple and min_mkt unchanged.

@@ -483,3 +483,54 @@ class TestDataGetLastPriceTradeOnly:
         assert quote["ask"] == 70512.75
         assert quote["bar_timestamp"] == bar_dt
         assert quote["bar_timestep"] == "minute"
+
+
+def _sub_cent_quote_data(kind: str):
+    """SHIB/USD minute bars with real quotes around $0.0000123 (closed bars at the asked time)."""
+    tz = pytz.timezone("America/New_York")
+    idx = pd.DatetimeIndex([tz.localize(datetime(2026, 9, 15, 10, m)) for m in range(3)], name="datetime")
+    frame = pd.DataFrame(
+        {
+            "open": [0.00001230, 0.00001232, 0.00001234],
+            "high": [0.00001236, 0.00001238, 0.00001240],
+            "low": [0.00001229, 0.00001231, 0.00001233],
+            "close": [0.00001233, 0.00001235, 0.00001237],
+            "volume": [1e9, 1e9, 1e9],
+            "bid": [0.00001232, 0.00001234, 0.00001236],
+            "ask": [0.00001234, 0.00001236, 0.00001238],
+        },
+        index=idx,
+    )
+    asset = Asset("SHIB", asset_type=Asset.AssetType.CRYPTO)
+    quote = Asset("USD", asset_type=Asset.AssetType.FOREX)
+    if kind == "pandas":
+        return Data(asset, frame, timestep="minute", quote=quote), tz
+    import polars as pl
+
+    from lumibot.entities.data_polars import DataPolars
+
+    return DataPolars(asset=asset, df=pl.from_pandas(frame.reset_index()), timestep="minute", quote=quote), tz
+
+
+@pytest.mark.parametrize("kind", ["pandas", "polars"])
+def test_quote_keeps_sub_cent_crypto_prices(kind):
+    """Data.get_quote / DataPolars.get_quote rounded open/high/low/close/bid/ask to 2 decimals, so a
+    SHIB quote of 0.00001236 became 0.0 (and PandasData then dropped it as non-positive)."""
+    data, tz = _sub_cent_quote_data(kind)
+    quote = data.get_quote(tz.localize(datetime(2026, 9, 15, 10, 3)))  # the 10:02 bar has closed
+    assert quote["bid"] == 0.00001236
+    assert quote["ask"] == 0.00001238
+    assert quote["close"] == 0.00001237
+    assert quote["open"] == 0.00001234
+
+
+def test_stock_quote_values_are_unchanged_by_keeping_precision():
+    """Two-decimal stock prices come back exactly as before."""
+    tz = pytz.timezone("America/New_York")
+    idx = pd.DatetimeIndex([tz.localize(datetime(2026, 9, 15, 10, 0)), tz.localize(datetime(2026, 9, 15, 10, 1))])
+    frame = pd.DataFrame({"open": [650.12, 650.2], "high": [650.5, 650.4], "low": [650.0, 650.1],
+                          "close": [650.33, 650.25], "volume": [100.0, 120.0], "bid": [650.32, 650.24],
+                          "ask": [650.34, 650.26]}, index=idx)
+    data = Data(Asset("SPY"), frame, timestep="minute")
+    quote = data.get_quote(tz.localize(datetime(2026, 9, 15, 10, 2)))
+    assert (quote["open"], quote["close"], quote["bid"], quote["ask"]) == (650.2, 650.25, 650.24, 650.26)

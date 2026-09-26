@@ -503,13 +503,13 @@ class DataPolars:
             return {}
 
         quote_fields = {
-            "open": ("open", 2),
-            "high": ("high", 2),
-            "low": ("low", 2),
-            "close": ("close", 2),
+            "open": ("open", None),
+            "high": ("high", None),
+            "low": ("low", None),
+            "close": ("close", None),
             "volume": ("volume", 0),
-            "bid": ("bid", 2),
-            "ask": ("ask", 2),
+            "bid": ("bid", None),
+            "ask": ("ask", None),
             "bid_size": ("bid_size", 0),
             "bid_condition": ("bid_condition", 0),
             "bid_exchange": ("bid_exchange", 0),

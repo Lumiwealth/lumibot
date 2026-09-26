@@ -1446,6 +1446,73 @@ def test_alpaca_routed_stocks_get_no_cash_dividend_because_prices_are_dividend_a
     quote = Asset("USD", asset_type=Asset.AssetType.FOREX)
     router._datetime = LUMIBOT_DEFAULT_PYTZ.localize(datetime(2026, 6, 18, 9, 30))
 
-    assert float(router.get_yesterday_dividends([spy], quote=quote).get(spy) or 0.0) == 0.0
+    router.get_historical_prices(spy, 5, "day", quote=quote)  # the strategy's own daily bars
     assert sources, "the Alpaca source was never asked for daily bars"
     assert sources[0]._auto_adjust is True  # adjustment="all": dividends are in the prices
+    asked = len(sources)
+    assert float(router.get_yesterday_dividends([spy], quote=quote).get(spy) or 0.0) == 0.0
+    assert len(sources) == asked  # the dividend lookup itself fetches nothing for Alpaca
+
+
+def test_routed_dividend_lookup_never_downloads_bars_for_futures_or_crypto(monkeypatch, no_local_theta_terminal):
+    """Only stocks pay dividends. The routed lookup asked for daily bars for every held asset
+    without a dividend column, so a futures or crypto position made the router download daily
+    history the strategy never asked for (futures daily bars are derived from hourly downloads)."""
+    from datetime import date as _date
+
+    import lumibot.tools.ibkr_helper as ibkr_helper
+
+    monkeypatch.setenv("DATADOWNLOADER_BASE_URL", "http://localhost:8080")
+    monkeypatch.setenv("DATADOWNLOADER_API_KEY", "<redacted>")
+    start = LUMIBOT_DEFAULT_PYTZ.localize(datetime(2026, 6, 1, 0, 0))
+    end = LUMIBOT_DEFAULT_PYTZ.localize(datetime(2026, 8, 31, 0, 0))
+    router = _make_router(start, end, {"default": "ibkr", "stock": "ibkr", "future": "ibkr", "crypto": "ibkr"})
+    fetches = []
+    monkeypatch.setattr(ibkr_helper, "get_price_data", lambda **kw: fetches.append(kw) or pd.DataFrame())
+    mes = Asset("MES", asset_type=Asset.AssetType.FUTURE, expiration=_date(2026, 12, 18))
+    btc = Asset("BTC", asset_type=Asset.AssetType.CRYPTO)
+    quote = Asset("USD", asset_type=Asset.AssetType.FOREX)
+
+    for day in (1, 2, 3):
+        router._datetime = LUMIBOT_DEFAULT_PYTZ.localize(datetime(2026, 7, day, 9, 30))
+        result = router.get_yesterday_dividends([mes, btc], quote=quote)
+        assert float(result.get(mes) or 0.0) == 0.0 and float(result.get(btc) or 0.0) == 0.0
+    assert fetches == []
+
+
+def test_polygon_routed_stocks_get_dividends_from_corporate_actions(monkeypatch, no_local_theta_terminal):
+    """CodeRabbit on PR #1180 (4.6.2 follow-up): Polygon bars are split-adjusted only (dividends are
+    not in the price) and carry no dividend column, so Polygon-routed stocks got no dividends. They
+    now use the same free corporate-actions source that enriches IBKR daily bars."""
+    import lumibot.backtesting.routed_backtesting as routed
+    import lumibot.tools.ibkr_helper as ibkr_helper
+    import lumibot.tools.polygon_helper as polygon_helper
+
+    monkeypatch.setenv("DATADOWNLOADER_BASE_URL", "http://localhost:8080")
+    monkeypatch.setenv("DATADOWNLOADER_API_KEY", "<redacted>")
+    monkeypatch.setenv("POLYGON_API_KEY", "test")
+    monkeypatch.setattr(routed, "POLYGON_API_KEY", "test")
+
+    def fake_polygon(*, start, end, **_):
+        frame = _daily_ohlc(start, end)
+        frame.index = frame.index + pd.Timedelta(hours=16)
+        return frame
+
+    monkeypatch.setattr(polygon_helper, "get_price_data_from_polygon", fake_polygon)
+    actions = pd.DataFrame(
+        {"Dividends": [0.318, 0.330], "Stock Splits": [0.0, 0.0]},
+        index=pd.DatetimeIndex([pd.Timestamp("2026-07-01", tz=LUMIBOT_DEFAULT_PYTZ),
+                                pd.Timestamp("2026-08-03", tz=LUMIBOT_DEFAULT_PYTZ)]),
+    )
+    monkeypatch.setattr(ibkr_helper, "_get_cached_equity_actions", lambda symbol, **_: actions if symbol == "TLT" else actions.iloc[0:0])
+
+    start = LUMIBOT_DEFAULT_PYTZ.localize(datetime(2026, 6, 1, 0, 0))
+    end = LUMIBOT_DEFAULT_PYTZ.localize(datetime(2026, 8, 31, 0, 0))
+    router = _make_router(start, end, {"default": "polygon", "stock": "polygon"})
+    tlt = Asset("TLT", asset_type=Asset.AssetType.STOCK)
+    quote = Asset("USD", asset_type=Asset.AssetType.FOREX)
+    paid = {}
+    for day in ("2026-06-30", "2026-07-01", "2026-07-02", "2026-08-03"):
+        router._datetime = LUMIBOT_DEFAULT_PYTZ.localize(datetime.fromisoformat(f"{day}T09:30"))
+        paid[day] = float(router.get_yesterday_dividends([tlt], quote=quote).get(tlt) or 0.0)
+    assert paid == {"2026-06-30": 0.0, "2026-07-01": 0.318, "2026-07-02": 0.0, "2026-08-03": 0.330}

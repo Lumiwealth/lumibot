@@ -316,7 +316,12 @@ class YahooHelper:
                         df.index = df.index.tz_localize(tz_name)
                     else:
                         df.index = df.index.tz_convert(tz_name)
-                    df.index = df.index.map(lambda t: t.replace(hour=16, minute=0))
+                    # Daily bars are stamped at the session close (16:00 ET) so the
+                    # latest bar counts as "closed". Intraday bars must keep their
+                    # real timestamps: stamping every bar to 16:00 would collapse
+                    # the whole intraday series onto a single (duplicated) index.
+                    if interval == "1d":
+                        df.index = df.index.map(lambda t: t.replace(hour=16, minute=0))
 
                 # Crypto/CCC market
                 elif market == "ccc_market" and tz_name:
@@ -324,7 +329,8 @@ class YahooHelper:
                         df.index = df.index.tz_localize(tz_name)
                     else:
                         df.index = df.index.tz_convert(tz_name)
-                    df.index = df.index.map(lambda t: t.replace(hour=23, minute=59))
+                    if interval == "1d":
+                        df.index = df.index.map(lambda t: t.replace(hour=23, minute=59))
 
         # Finally, run any custom DataFrame processing
         df = YahooHelper.process_df(df, asset_info=info)

@@ -488,5 +488,8 @@ def test_routed_ccxt_refresh_replaces_stale_legacy_alias_and_lookup_cache(monkey
     bars = ds.get_historical_prices(asset, length=1, timestep="minute", quote=quote)
 
     assert bars is not None
-    assert bars.df["close"].iloc[-1] == 200.5
-    assert bars.df.index[-1].tz_convert("UTC") == pd.Timestamp("2026-06-23 19:58:00+00:00")
+    # The 19:59 UTC bar closes at 20:00, the simulated time, and no later bar exists, so it is the
+    # newest completed bar (4.6.2: a closed bar is visible without waiting for a later bar; this
+    # used to return the 19:58 bar). The refreshed frame, not the stale 2026-06-16 alias, serves it.
+    assert bars.df["close"].iloc[-1] == 201.5
+    assert bars.df.index[-1].tz_convert("UTC") == pd.Timestamp("2026-06-23 19:59:00+00:00")

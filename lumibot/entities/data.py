@@ -55,6 +55,55 @@ except (pd._config.config.OptionError, AttributeError):
     pass
 
 
+def _intraday_bar_closed_at(index_ns, i, dt, *, timestep, index_tz, cache_owner) -> bool:
+    """True when the intraday bar at row ``i`` (the last bar at or before ``dt``) has closed by ``dt``.
+
+    Intraday history hides the bar at ``dt``'s row because it may still be forming. When no later
+    bar exists yet (after a session close, overnight, across a gap) that bar may already be
+    complete: the 19:59 bar closes at 20:00, but it stayed hidden until the 04:00 bar existed
+    (release gate 2026-09-25). A bar counts as closed when ``bar_start + length <= dt``, where the
+    length is the larger of the nominal step (1 minute or 1 hour) and the smallest spacing in the
+    series, so 5-minute bars stored as "minute" and hourly bars after a 09:30 half-hour bar are
+    never shown before they close.
+    """
+    nominal_ns = 60_000_000_000 if timestep == "minute" else 3_600_000_000_000 if timestep == "hour" else None
+    if nominal_ns is None or index_ns is None:
+        return False
+    n = len(index_ns)
+    try:
+        i = int(i)
+    except Exception:
+        return False
+    if i < 0 or i >= n:
+        return False
+    try:
+        ts = pd.Timestamp(dt)
+        if ts.tzinfo is None and index_tz is not None:
+            ts = ts.tz_localize(index_tz)
+        elif ts.tzinfo is not None and index_tz is None:
+            ts = ts.tz_localize(None)
+        dt_ns = int(ts.value)
+    except Exception:
+        return False
+    bar_start = int(index_ns[i])
+    if bar_start > dt_ns or (i + 1 < n and int(index_ns[i + 1]) <= dt_ns):
+        return False
+    cached = getattr(cache_owner, "_closed_bar_length_cache", None)
+    if cached is None or cached[0] != n or cached[1] != timestep:
+        spacing_ns = 0
+        if n > 1:
+            diffs = np.diff(np.asarray(index_ns, dtype="int64"))
+            positive = diffs[diffs > 0]
+            if positive.size:
+                spacing_ns = int(positive.min())
+        cached = (n, timestep, max(nominal_ns, spacing_ns))
+        try:
+            cache_owner._closed_bar_length_cache = cached
+        except Exception:
+            pass
+    return bar_start + cached[2] <= dt_ns
+
+
 class Data:
     """Input and manage Pandas dataframes for backtesting.
 
@@ -1193,7 +1242,10 @@ class Data:
         if self.timestep == "day":
             end_row = iter_count + 1 - timeshift
         else:
-            end_row = iter_count - timeshift
+            visible_end = iter_count
+            if timeshift >= 0 and self._last_bar_closed_at(iter_count, dt):
+                visible_end = iter_count + 1
+            end_row = visible_end - timeshift
 
         data_len = len(next(iter(self.datalines.values())).dataline) if self.datalines else 0
         if end_row > data_len:
@@ -1269,6 +1321,22 @@ class Data:
 
         return int(timeshift or 0)
 
+    def _last_bar_closed_at(self, iter_count, dt) -> bool:
+        index_ns = getattr(self, "_index_values_ns", None)
+        if index_ns is None:
+            try:
+                index_ns = pd.DatetimeIndex(self.df.index).asi8
+            except Exception:
+                return False
+        return _intraday_bar_closed_at(
+            index_ns,
+            iter_count,
+            dt,
+            timestep=self.timestep,
+            index_tz=getattr(self.df.index, "tz", None),
+            cache_owner=self,
+        )
+
     def _get_bars_row_bounds(self, dt, length=1, timeshift=0):
         timeshift = self._normalize_timeshift_to_rows(timeshift)
 
@@ -1282,7 +1350,10 @@ class Data:
         if self.timestep == "day":
             end_row = int(iter_count) + 1 - timeshift
         else:
-            end_row = int(iter_count) - timeshift
+            visible_end = int(iter_count)
+            if timeshift >= 0 and self._last_bar_closed_at(iter_count, dt):
+                visible_end += 1
+            end_row = visible_end - timeshift
 
         data_len = getattr(self, "_data_len", None)
         if data_len is None:

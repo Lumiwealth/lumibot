@@ -2,6 +2,9 @@
 
 ## 4.6.2 - Unreleased
 
+### Fixed
+- IBKR minute backtests in a long-running process (a notebook, a local script, a service that runs many backtests) ask again for a session that had no trades once its one-day marker expires. The series was remembered as checked for the life of the process, so the marker never expired in practice.
+
 ## 4.6.1 - 2026-09-25
 
 ### Fixed

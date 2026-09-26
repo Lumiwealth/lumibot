@@ -140,9 +140,12 @@ _RUNTIME_HOURLY_GAP_CHECKED_SERIES: Dict[
     str,
     tuple[tuple[int, str, str, int], datetime, datetime],
 ] = {}
+# series -> (cache signature, checked window start, end, recheck_at). recheck_at is the earliest
+# expiry of an empty-session marker in that window (None when there is none): after it the
+# window is scanned again, so a long-lived process asks for the session again.
 _RUNTIME_MINUTE_GAP_CHECKED_SERIES: Dict[
     str,
-    tuple[tuple[int, str, str, int], datetime, datetime],
+    tuple[tuple[int, str, str, int], datetime, datetime, Optional[datetime]],
 ] = {}
 # Per-process memory for the minute-hole repair, in memory only, with monotonic timestamps so
 # it expires after IBKR_MINUTE_GAP_RETRY_COOLDOWN_SECONDS: sessions whose request failed, and
@@ -3662,7 +3665,7 @@ def _missing_us_minute_sessions(
         reasons = df_cache["missing_reason"].fillna("").astype(str).to_numpy()
         marker_mask = missing_mask & (reasons == IBKR_MINUTE_GAP_MARKER_REASON)
         if bool(marker_mask.any()):
-            now_utc = pd.Timestamp(now or datetime.now(timezone.utc))
+            now_utc = pd.Timestamp(now or _ibkr_history_now_utc())
             now_utc = now_utc.tz_localize(timezone.utc) if now_utc.tzinfo is None else now_utc.tz_convert(timezone.utc)
             retry_after = pd.to_datetime(
                 df_cache.loc[marker_mask, "missing_retry_after"], utc=True, errors="coerce"
@@ -3765,11 +3768,12 @@ def _repair_us_stock_index_minute_gaps(
     request_end = _to_utc(end_dt)
     previous_check = _RUNTIME_MINUTE_GAP_CHECKED_SERIES.get(series_key)
     if previous_check is not None:
-        checked_signature, checked_start, checked_end = previous_check
+        checked_signature, checked_start, checked_end, recheck_at = previous_check
         if (
             checked_signature == _hourly_cache_signature(df_cache)
             and checked_start <= request_start
             and checked_end >= request_end
+            and (recheck_at is None or _ibkr_history_now_utc() < recheck_at)
         ):
             return df_cache
 
@@ -3779,6 +3783,7 @@ def _repair_us_stock_index_minute_gaps(
             _hourly_cache_signature(df_cache),
             request_start,
             request_end,
+            _minute_marker_recheck_at(df_cache, start_dt=start_dt, end_dt=end_dt),
         )
         return df_cache
 
@@ -3875,7 +3880,7 @@ def _repair_us_stock_index_minute_gaps(
             unsaved_pages = 0
 
     if empty_sessions:
-        retry_after = datetime.now(timezone.utc) + timedelta(seconds=IBKR_GAP_RETRY_TTL_SECONDS)
+        retry_after = _ibkr_history_now_utc() + timedelta(seconds=IBKR_GAP_RETRY_TTL_SECONDS)
         working = _merge_frames(working, _minute_session_markers(empty_sessions, retry_after=retry_after))
 
     if not working.equals(df_cache):
@@ -3907,8 +3912,31 @@ def _repair_us_stock_index_minute_gaps(
             _hourly_cache_signature(working),
             request_start,
             request_end,
+            _minute_marker_recheck_at(working, start_dt=start_dt, end_dt=end_dt),
         )
     return working
+
+
+def _minute_marker_recheck_at(df_cache: pd.DataFrame, *, start_dt: datetime, end_dt: datetime) -> Optional[datetime]:
+    """Earliest future expiry of an empty-session marker inside the window, or None."""
+    if df_cache is None or df_cache.empty or not {"missing", "missing_reason", "missing_retry_after"}.issubset(df_cache.columns):
+        return None
+    try:
+        idx = pd.DatetimeIndex(df_cache.index)
+        idx = idx.tz_localize(LUMIBOT_DEFAULT_PYTZ) if idx.tz is None else idx.tz_convert(LUMIBOT_DEFAULT_PYTZ)
+        mask = (
+            df_cache["missing"].fillna(False).astype(bool).to_numpy()
+            & (df_cache["missing_reason"].fillna("").astype(str).to_numpy() == IBKR_MINUTE_GAP_MARKER_REASON)
+            & (idx >= pd.Timestamp(_to_utc(start_dt))) & (idx <= pd.Timestamp(_to_utc(end_dt)))
+        )
+        if not bool(mask.any()):
+            return None
+        expiries = pd.to_datetime(df_cache.loc[mask, "missing_retry_after"], utc=True, errors="coerce").dropna()
+        now = pd.Timestamp(_ibkr_history_now_utc())
+        future = expiries[expiries > now]
+        return future.min().to_pydatetime() if len(future) else None
+    except Exception:
+        return None
 
 
 def _warn_minute_series_served_with_holes(

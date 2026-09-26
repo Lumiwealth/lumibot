@@ -376,7 +376,9 @@ def test_routed_ccxt_crypto_last_price_stays_minute_even_when_day_mode_is_inferr
     quote = Asset(symbol="USDT", asset_type=Asset.AssetType.CRYPTO)
     price = ds.get_last_price(asset, quote=quote)
 
-    assert price == 100.5
+    # The 04:00 UTC minute bar starts at the simulated time, so its close (100.5) is the price at
+    # 04:01. 4.6.2: the price known at 04:00 is that bar's open (still minute data, not daily).
+    assert price == 100.0
     assert calls
     assert calls[0]["exchange_id"] == "coinbase"
     assert calls[0]["symbol"] == "BTC/USDT"
@@ -391,7 +393,8 @@ def test_routed_ccxt_crypto_quote_stays_minute_even_when_day_mode_is_inferred(mo
     quote_asset = Asset(symbol="USDT", asset_type=Asset.AssetType.CRYPTO)
     quote = ds.get_quote(asset, quote=quote_asset)
 
-    assert quote.price == 100.5
+    # Same as the last-price test above: the 04:00 bar is forming at 04:00; its open is the price.
+    assert quote.price == 100.0
     assert calls
     assert calls[0]["exchange_id"] == "coinbase"
     assert calls[0]["symbol"] == "BTC/USDT"

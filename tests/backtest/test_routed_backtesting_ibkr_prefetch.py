@@ -1516,3 +1516,129 @@ def test_polygon_routed_stocks_get_dividends_from_corporate_actions(monkeypatch,
         router._datetime = LUMIBOT_DEFAULT_PYTZ.localize(datetime.fromisoformat(f"{day}T09:30"))
         paid[day] = float(router.get_yesterday_dividends([tlt], quote=quote).get(tlt) or 0.0)
     assert paid == {"2026-06-30": 0.0, "2026-07-01": 0.318, "2026-07-02": 0.0, "2026-08-03": 0.330}
+
+
+# ---------------------------------------------------------------------------
+# One-minute lookahead in last price and quotes (2026-09-25)
+#
+# IBKR and ThetaData stamp minute TRADE bars at their start (verified: SPY 2024-01-30 09:30 has
+# open 490.56 / close 490.92 in both). At simulated time T the bar stamped T is still forming,
+# so its close is the price at T + 1 minute. get_last_price() and IBKR get_quote() (whose
+# bid/ask are synthesized from the close) returned that close, while a market order at T
+# fills at the bar's OPEN: a strategy could see where the minute closes and buy at its open.
+# ---------------------------------------------------------------------------
+
+
+def _hhmm_minute_bars(start_dt: datetime, end_dt: datetime) -> pd.DataFrame:
+    """Extended-hours minute bars whose prices name their bar: open HHMM.00, close HHMM.99."""
+    idx = pd.date_range(pd.Timestamp(start_dt).tz_convert(LUMIBOT_DEFAULT_PYTZ).floor("min"),
+                        pd.Timestamp(end_dt).tz_convert(LUMIBOT_DEFAULT_PYTZ), freq="1min")
+    idx = idx[(idx.dayofweek < 5) & (idx.hour >= 4) & (idx.hour < 20)]
+    hhmm = pd.Series(idx.hour * 100 + idx.minute, index=idx, dtype="float64")
+    frame = pd.DataFrame({"open": hhmm, "high": hhmm + 0.99, "low": hhmm, "close": hhmm + 0.99, "volume": 1000.0}, index=idx)
+    frame["bid"] = frame["close"]  # what ibkr_helper synthesizes when IBKR history has no bid/ask
+    frame["ask"] = frame["close"]
+    return frame
+
+
+def _hhmm_router(monkeypatch):
+    import lumibot.tools.ibkr_helper as ibkr_helper
+
+    monkeypatch.setenv("DATADOWNLOADER_BASE_URL", "http://localhost:8080")
+    monkeypatch.setenv("DATADOWNLOADER_API_KEY", "<redacted>")
+    start = LUMIBOT_DEFAULT_PYTZ.localize(datetime(2026, 9, 14, 0, 0))
+    end = LUMIBOT_DEFAULT_PYTZ.localize(datetime(2026, 9, 19, 0, 0))
+    router = _make_router(start, end, {"default": "ibkr", "stock": "ibkr", "index": "ibkr"})
+
+    def fake_get_price_data(*, asset, quote, timestep, start_dt, end_dt, **_):
+        if timestep == "day":
+            return _daily_ohlc(start_dt, end_dt)
+        return _hhmm_minute_bars(start_dt, end_dt)
+
+    monkeypatch.setattr(ibkr_helper, "get_price_data", fake_get_price_data)
+    asset = Asset("SPY", asset_type=Asset.AssetType.STOCK)
+    quote = Asset("USD", asset_type=Asset.AssetType.FOREX)
+    router._datetime = LUMIBOT_DEFAULT_PYTZ.localize(datetime(2026, 9, 15, 9, 0))
+    router.get_historical_prices(asset, 30, "minute", quote=quote)  # the strategy loaded minute bars
+    return router, asset, quote
+
+
+@pytest.mark.parametrize(
+    "hh, mm, expected",
+    [
+        (10, 0, 1000.00),   # 10:00 bar forming: its open, never its close (1000.99)
+        (10, 1, 1001.00),
+        (15, 59, 1559.00),
+        (20, 0, 1959.99),   # after the close the 19:59 bar has closed: its close
+    ],
+)
+def test_minute_last_price_at_t_never_uses_the_close_of_the_bar_starting_at_t(monkeypatch, no_local_theta_terminal, hh, mm, expected):
+    router, asset, quote = _hhmm_router(monkeypatch)
+    router._datetime = LUMIBOT_DEFAULT_PYTZ.localize(datetime(2026, 9, 15, hh, mm))
+    assert float(router.get_last_price(asset, quote=quote)) == expected
+
+
+@pytest.mark.parametrize("hh, mm, expected", [(10, 0, 1000.00), (15, 59, 1559.00)])
+def test_minute_quote_at_t_never_uses_the_close_of_the_bar_starting_at_t(monkeypatch, no_local_theta_terminal, hh, mm, expected):
+    router, asset, quote = _hhmm_router(monkeypatch)
+    router._datetime = LUMIBOT_DEFAULT_PYTZ.localize(datetime(2026, 9, 15, hh, mm))
+    q = router.get_quote(asset, quote=quote)
+    assert (float(q.bid), float(q.ask)) == (expected, expected)
+
+
+def test_market_order_decided_at_t_fills_at_the_price_the_strategy_saw(monkeypatch, no_local_theta_terminal):
+    """End to end on a BotSpot Auto router backtest: at 10:00 the strategy reads the last price and
+    quote, then buys at market. It must not see 10:00's close (1000.99, known at 10:01) while the
+    order fills at 10:00's open (1000.00)."""
+    import json
+    from datetime import time as _time
+
+    import lumibot.tools.ibkr_helper as ibkr_helper
+    from lumibot.strategies.strategy import Strategy
+
+    monkeypatch.setenv("DATADOWNLOADER_BASE_URL", "http://localhost:8080")
+    monkeypatch.setenv("DATADOWNLOADER_API_KEY", "<redacted>")
+    monkeypatch.setenv("IS_BACKTESTING", "True")
+    monkeypatch.setenv("BACKTESTING_DATA_SOURCE", json.dumps({"default": "ibkr", "stock": "ibkr", "index": "ibkr"}))
+
+    def fake_get_price_data(*, asset, quote, timestep, start_dt, end_dt, **_):
+        if timestep == "day":
+            daily = _daily_ohlc(start_dt, end_dt)
+            daily.index = daily.index + pd.Timedelta(hours=16)
+            return daily
+        return _hhmm_minute_bars(start_dt, end_dt)
+
+    monkeypatch.setattr(ibkr_helper, "get_price_data", fake_get_price_data)
+    seen = {}
+
+    class _BuyAtTen(Strategy):
+        def initialize(self):
+            self.sleeptime = "1M"
+
+        def on_trading_iteration(self):
+            if self.get_datetime().time() == _time(10, 0) and "last_price" not in seen:
+                spy = Asset("SPY")
+                self.get_historical_prices(spy, 5, "minute")
+                seen["last_price"] = float(self.get_last_price(spy))
+                q = self.get_quote(spy)
+                seen["quote"] = (float(q.bid), float(q.ask))
+                self.submit_order(self.create_order(spy, 1, "buy"))
+
+        def on_filled_order(self, position, order, price, quantity, multiplier):
+            seen["fill"] = (self.get_datetime().strftime("%H:%M"), float(price))
+
+    _BuyAtTen.backtest(
+        datasource_class=None,
+        backtesting_start=datetime(2026, 9, 15),
+        backtesting_end=datetime(2026, 9, 16),
+        benchmark_asset=None,
+        show_plot=False,
+        show_tearsheet=False,
+        show_indicators=False,
+        save_tearsheet=False,
+        quiet_logs=True,
+    )
+
+    assert seen["fill"] == ("10:00", 1000.00)
+    assert seen["last_price"] == 1000.00
+    assert seen["quote"] == (1000.00, 1000.00)

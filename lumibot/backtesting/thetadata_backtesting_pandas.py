@@ -2932,12 +2932,42 @@ class ThetaDataBacktestingPandas(PandasData):
 
             try:
                 iter_count = data_obj.get_iter_count(dt)
-                closes = close_series.iloc[: iter_count + 1]
+                # Minute/hour bars are stamped at their start. While the bar at dt is still
+                # forming its close is the price one bar later (2026-09-25: at 10:00 this
+                # returned 10:00's close, known at 10:01, while a market order at 10:00 fills at
+                # 10:00's open). Use that bar's open, the price at dt, or the last closed close.
+                state_fn = getattr(data_obj, "_intraday_state_at", None)
+                if callable(state_fn) and state_fn(iter_count, dt) == "forming":
+                    open_series = df.get("open")
+                    bar_open = None
+                    if open_series is not None:
+                        try:
+                            bar_open = float(open_series.iloc[iter_count])
+                        except Exception:
+                            bar_open = None
+                    bar_missing = False
+                    if "missing" in df.columns:
+                        try:
+                            bar_missing = bool(df["missing"].iloc[iter_count])
+                        except Exception:
+                            bar_missing = False
+                    if bar_open is not None and bar_open > 0 and not bar_missing and bar_open == bar_open:
+                        frame_last_dt = df.index[iter_count]
+                        frame_last_close = bar_open
+                        try:
+                            frame_last_dt = frame_last_dt.isoformat()
+                        except AttributeError:
+                            frame_last_dt = str(frame_last_dt)
+                        return float(self._adjust_stale_daily_price_for_stock_split(data_obj, bar_open, dt))
+                    closes = close_series.iloc[:iter_count]
+                else:
+                    closes = close_series.iloc[: iter_count + 1]
                 if "missing" in df.columns:
+                    rows = len(closes)
                     try:
-                        missing_mask = df["missing"].iloc[: iter_count + 1].astype(bool)
+                        missing_mask = df["missing"].iloc[:rows].astype(bool)
                     except Exception:
-                        missing_mask = df["missing"].iloc[: iter_count + 1] == 1
+                        missing_mask = df["missing"].iloc[:rows] == 1
                     closes = closes[~missing_mask.fillna(True)]
             except Exception:
                 # Defensive fallback: filter by timestamp if iter lookup fails.
@@ -3880,6 +3910,18 @@ class ThetaDataBacktestingPandas(PandasData):
                 bid_size = _get("bid_size")
                 ask_size = _get("ask_size")
                 volume = _get("volume")
+
+                # The bar stamped at dt is still forming: its close is the price one bar later
+                # (2026-09-25). Report its open, the price at dt; bid/ask synthesized from that
+                # close (IBKR/Polygon history) follow it. Real quote snapshots are kept.
+                state_fn = getattr(fast_data, "_intraday_state_at", None)
+                if callable(state_fn) and state_fn(iter_count, dt) == "forming":
+                    bar_open = _get("open")
+                    if bar_open is not None:
+                        if bid == close and ask == close:
+                            bid = bar_open
+                            ask = bar_open
+                        close = bar_open
 
                 # Match PandasData.get_quote(): treat non-positive bid/ask as missing.
                 for side_key, side_val in (("bid", bid), ("ask", ask)):

@@ -55,27 +55,26 @@ except (pd._config.config.OptionError, AttributeError):
     pass
 
 
-def _intraday_bar_closed_at(index_ns, i, dt, *, timestep, index_tz, cache_owner) -> bool:
-    """True when the intraday bar at row ``i`` (the last bar at or before ``dt``) has closed by ``dt``.
+def _intraday_bar_state(index_ns, i, dt, *, timestep, index_tz, cache_owner):
+    """Return "closed", "forming" or None for the intraday bar at row ``i`` at time ``dt``.
 
-    Intraday history hides the bar at ``dt``'s row because it may still be forming. When no later
-    bar exists yet (after a session close, overnight, across a gap) that bar may already be
-    complete: the 19:59 bar closes at 20:00, but it stayed hidden until the 04:00 bar existed
-    (release gate 2026-09-25). A bar counts as closed when ``bar_start + length <= dt``, where the
-    length is the larger of the nominal step (1 minute or 1 hour) and the smallest spacing in the
-    series, so 5-minute bars stored as "minute" and hourly bars after a 09:30 half-hour bar are
-    never shown before they close.
+    Minute and hour bars are stamped at their start (verified for IBKR and ThetaData trade bars:
+    SPY 2024-01-30 09:30 has open 490.56 and close 490.92 in both). A bar is closed once
+    ``bar_start + length <= dt``; before that its close, high, low and volume are the future.
+    The length is the larger of the nominal step (1 minute or 1 hour) and the most common spacing
+    in the series, so 5-minute bars stored as "minute" and hourly bars after a 09:30 half-hour bar
+    are never treated as closed early. None means not an intraday bar at or before ``dt``.
     """
     nominal_ns = 60_000_000_000 if timestep == "minute" else 3_600_000_000_000 if timestep == "hour" else None
     if nominal_ns is None or index_ns is None:
-        return False
+        return None
     n = len(index_ns)
     try:
         i = int(i)
     except Exception:
-        return False
+        return None
     if i < 0 or i >= n:
-        return False
+        return None
     try:
         ts = pd.Timestamp(dt)
         if ts.tzinfo is None and index_tz is not None:
@@ -84,10 +83,10 @@ def _intraday_bar_closed_at(index_ns, i, dt, *, timestep, index_tz, cache_owner)
             ts = ts.tz_localize(None)
         dt_ns = int(ts.value)
     except Exception:
-        return False
+        return None
     bar_start = int(index_ns[i])
     if bar_start > dt_ns or (i + 1 < n and int(index_ns[i + 1]) <= dt_ns):
-        return False
+        return None
     cached = getattr(cache_owner, "_closed_bar_length_cache", None)
     if cached is None or cached[0] != n or cached[1] != timestep:
         spacing_ns = 0
@@ -95,13 +94,27 @@ def _intraday_bar_closed_at(index_ns, i, dt, *, timestep, index_tz, cache_owner)
             diffs = np.diff(np.asarray(index_ns, dtype="int64"))
             positive = diffs[diffs > 0]
             if positive.size:
-                spacing_ns = int(positive.min())
+                # Most common spacing: robust to a few odd rows inside 5-minute data and to the
+                # gaps of a sparse 1-minute series.
+                values, counts = np.unique(positive, return_counts=True)
+                spacing_ns = int(values[int(np.argmax(counts))])
         cached = (n, timestep, max(nominal_ns, spacing_ns))
         try:
             cache_owner._closed_bar_length_cache = cached
         except Exception:
             pass
-    return bar_start + cached[2] <= dt_ns
+    return "closed" if bar_start + cached[2] <= dt_ns else "forming"
+
+
+def _intraday_bar_closed_at(index_ns, i, dt, *, timestep, index_tz, cache_owner) -> bool:
+    """True when the intraday bar at row ``i`` (the last bar at or before ``dt``) has closed by ``dt``.
+
+    Intraday history hides the bar at ``dt``'s row because it may still be forming. When no later
+    bar exists yet (after a session close, overnight, across a gap) that bar may already be
+    complete: the 19:59 bar closes at 20:00, but it stayed hidden until the 04:00 bar existed
+    (release gate 2026-09-25). See `_intraday_bar_state` for the bar length rule.
+    """
+    return _intraday_bar_state(index_ns, i, dt, timestep=timestep, index_tz=index_tz, cache_owner=cache_owner) == "closed"
 
 
 class Data:
@@ -1077,7 +1090,13 @@ class Data:
         if self.timestep == "day":
             price = close_price
         else:
-            price = close_price if dt > self.datalines["datetime"].dataline[iter_count] else open_price
+            # A bar stamped at its start is still forming until start + length: its close is the
+            # future. Use its open (the price at dt) until it has closed.
+            state = self._intraday_state_at(iter_count, dt)
+            if state is None:
+                price = close_price if dt > self.datalines["datetime"].dataline[iter_count] else open_price
+            else:
+                price = close_price if state == "closed" else open_price
 
         if price is None:
             return None
@@ -1189,6 +1208,18 @@ class Data:
                 return value
 
         quote_dict = {name: _get_value(column, digits) for name, (column, digits) in _DATA_QUOTE_FIELDS.items()}
+        if self.timestep != "day" and self._intraday_state_at(iter_count, dt) == "forming":
+            # 2026-09-25: the bar stamped at dt is still forming, so its close (the Quote price)
+            # is the price one bar later. Bid/ask synthesized from that close (IBKR and Polygon
+            # history have no quotes) leaked it too, while a market order at dt fills at the
+            # bar's open. Report the open, the price at dt. Real quote snapshots are kept.
+            open_value = quote_dict.get("open")
+            close_value = quote_dict.get("close")
+            if open_value is not None and not pd.isna(open_value):
+                if quote_dict.get("bid") == close_value and quote_dict.get("ask") == close_value:
+                    quote_dict["bid"] = open_value
+                    quote_dict["ask"] = open_value
+                quote_dict["close"] = open_value
         bar_timestamp = self._timestamp_for_iter_count(iter_count)
         quote_dict["bar_timestamp"] = bar_timestamp.to_pydatetime() if bar_timestamp is not None else None
         quote_dict["bar_timestep"] = getattr(self, "timestep", None)
@@ -1321,14 +1352,14 @@ class Data:
 
         return int(timeshift or 0)
 
-    def _last_bar_closed_at(self, iter_count, dt) -> bool:
+    def _intraday_state_at(self, iter_count, dt):
         index_ns = getattr(self, "_index_values_ns", None)
         if index_ns is None:
             try:
                 index_ns = pd.DatetimeIndex(self.df.index).asi8
             except Exception:
-                return False
-        return _intraday_bar_closed_at(
+                return None
+        return _intraday_bar_state(
             index_ns,
             iter_count,
             dt,
@@ -1336,6 +1367,9 @@ class Data:
             index_tz=getattr(self.df.index, "tz", None),
             cache_owner=self,
         )
+
+    def _last_bar_closed_at(self, iter_count, dt) -> bool:
+        return self._intraday_state_at(iter_count, dt) == "closed"
 
     def _get_bars_row_bounds(self, dt, length=1, timeshift=0):
         timeshift = self._normalize_timeshift_to_rows(timeshift)

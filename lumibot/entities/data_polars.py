@@ -461,13 +461,32 @@ class DataPolars:
 
         return checker
 
+    def _intraday_state_at(self, iter_count, dt):
+        """"closed", "forming" or None for the intraday bar at iter_count (see data._intraday_bar_state)."""
+        if self.timestep == "day":
+            return None
+        from lumibot.entities.data import _intraday_bar_state
+
+        try:
+            index = pd.DatetimeIndex(self.iter_index.index)
+        except Exception:
+            return None
+        return _intraday_bar_state(
+            index.asi8, iter_count, dt, timestep=self.timestep, index_tz=index.tz, cache_owner=self
+        )
+
     @check_data
     def get_last_price(self, dt, length=1, timeshift=0) -> Union[float, Decimal, None]:
         """Returns the last known price of the data."""
         iter_count = self.get_iter_count(dt)
         open_price = self.datalines["open"].dataline[iter_count]
         close_price = self.datalines["close"].dataline[iter_count]
-        price = close_price if dt > self.datalines["datetime"].dataline[iter_count] else open_price
+        state = self._intraday_state_at(iter_count, dt)
+        if state is None:
+            price = close_price if dt > self.datalines["datetime"].dataline[iter_count] else open_price
+        else:
+            # A bar stamped at its start is forming until start + length: its close is the future.
+            price = close_price if state == "closed" else open_price
         return price
 
     @check_data
@@ -527,6 +546,15 @@ class DataPolars:
         quote_dict = {
             name: _get_value(column, digits) for name, (column, digits) in quote_fields.items()
         }
+        if self._intraday_state_at(iter_count, dt) == "forming":
+            # Same rule as Data.get_quote: the forming bar's close is the future.
+            open_value = quote_dict.get("open")
+            close_value = quote_dict.get("close")
+            if open_value is not None and not pd.isna(open_value):
+                if quote_dict.get("bid") == close_value and quote_dict.get("ask") == close_value:
+                    quote_dict["bid"] = open_value
+                    quote_dict["ask"] = open_value
+                quote_dict["close"] = open_value
 
         return quote_dict
 

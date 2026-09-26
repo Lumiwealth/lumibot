@@ -72,8 +72,7 @@ def _data(kind: str, frame: pd.DataFrame, timestep: str):
 
     from lumibot.entities.data_polars import DataPolars
 
-    flat = frame.reset_index()
-    flat.columns = ["datetime", "open", "high", "low", "close", "volume"]
+    flat = frame.reset_index().rename(columns={frame.index.name or "index": "datetime"})
     return DataPolars(asset=asset, df=pl.from_pandas(flat), timestep=timestep, quote=asset)
 
 
@@ -126,3 +125,27 @@ def test_hourly_bar_after_an_irregular_first_bar_is_not_visible_early(kind, at, 
     frame = _intraday_frame(["2026-09-15 09:30", "2026-09-15 10:00", "2026-09-15 11:00", "2026-09-15 12:00",
                              "2026-09-15 13:00", "2026-09-15 14:00", "2026-09-15 15:00", "2026-09-16 09:30"])
     assert _last_visible(_data(kind, frame, "hour"), at) == expected
+
+
+@pytest.mark.parametrize("kind", ["pandas", "polars"])
+@pytest.mark.parametrize(
+    "at, expected_price",
+    [
+        ("2026-09-15 10:00", 102.0),   # 10:00 five-minute bar starts: its open
+        ("2026-09-15 10:02", 102.0),   # still forming (runs to 10:05): never its close
+        ("2026-09-15 10:05", 102.5),   # closed, no 10:05 bar yet: its close
+    ],
+)
+def test_last_price_and_quote_never_use_the_close_of_a_forming_bar(kind, at, expected_price):
+    """2026-09-25: a bar stamped at its start is still forming until start + length. Its close
+    is the future; the last price and quote price at dt must come from its open."""
+    frame = _intraday_frame(["2026-09-15 09:50", "2026-09-15 09:55", "2026-09-15 10:00", "2026-09-15 10:15"])
+    frame["close"] = frame["open"] + 0.5
+    frame["bid"] = frame["close"]  # synthesized from the close, as IBKR/Polygon history does
+    frame["ask"] = frame["close"]
+    data = _data(kind, frame, "minute")
+    dt = _NY.localize(datetime.datetime.fromisoformat(at))
+    assert float(data.get_last_price(dt)) == expected_price
+    quote = data.get_quote(dt)
+    assert float(quote["close"]) == expected_price
+    assert (float(quote["bid"]), float(quote["ask"])) == (expected_price, expected_price)

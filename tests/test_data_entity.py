@@ -210,7 +210,11 @@ class TestDataGetLastPriceTradeOnly:
         data = Data(asset, df, timestep="minute", quote=Asset("USD", asset_type=Asset.AssetType.FOREX))
         data.strict_end_check = True
 
-        assert data.get_last_price(request_dt) == 70511.75
+        # The recent bar is accepted (not treated as stale), which is what this test protects.
+        # 4.6.2: bars are stamped at their start, and this two-row series has 5-minute spacing, so
+        # the 00:00 bar is forming until 00:05 and its close (70511.75) is still the future at
+        # 00:02. The price known at 00:02 is its open.
+        assert data.get_last_price(request_dt) == 70500.0
 
     def test_strict_crypto_snapshot_allows_short_coinbase_edge_gap(self):
         asset = Asset("BTC", asset_type=Asset.AssetType.CRYPTO)

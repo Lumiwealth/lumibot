@@ -3,6 +3,7 @@
 ## 4.6.2 - Unreleased
 
 ### Fixed
+- Backtests no longer pay a dividend on shares bought on the ex-dividend date. The dividend check runs before every iteration, so a position opened during the ex-date was credited by the next check (a BotSpot Auto backtest bought XBI at 11:31 on its ex-date and was credited $11.32). Only shares held when the day began are entitled.
 - `Order.avg_fill_price` keeps the broker's full precision. Setting it rounded to 2 decimals (the constructor never did), so a sub-cent crypto fill such as 0.0000123 became 0.0, forex and sub-penny option fills moved (1.08765 became 1.09), and live brokers passed the rounded value into fill processing for cash and positions.
 - IBKR futures intraday history no longer stops at the first weekend. The backward pager ended at the first empty page, and a 1000-minute page ending at the Sunday 18:00 ET open is all weekend, so an MES 1-minute backtest for Sep 1 to 18, 2026 only had data from Sep 6. Pages that are closed by the CME weekend and daily-break rules are now stepped over without a request, and up to three empty pages during rule-calendar trading time (holiday closes such as Good Friday) are stepped over before the walk stops.
 - IBKR minute backtests in a long-running process (a notebook, a local script, a service that runs many backtests) ask again for a session that had no trades once its one-day marker expires. The series was remembered as checked for the life of the process, so the marker never expired in practice.

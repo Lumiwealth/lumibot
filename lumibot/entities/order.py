@@ -1093,7 +1093,10 @@ class Order:
 
     @avg_fill_price.setter
     def avg_fill_price(self, value):
-        self._avg_fill_price = round(float(value), 2) if value is not None else None
+        # Keep the broker's precision (the constructor always did). Rounding to 2 decimals turned
+        # a sub-cent crypto fill into 0.0 and moved forex and sub-penny option fills, and live
+        # brokers pass this value into _process_filled_order, so cash and positions booked it.
+        self._avg_fill_price = float(value) if value is not None else None
 
     @property
     def identifier(self):

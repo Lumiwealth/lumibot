@@ -2807,6 +2807,14 @@ class ThetaDataBacktestingPandas(PandasData):
                     now = now.tz_localize(None)
                 elif index.tz is not None:
                     now = now.tz_convert(index.tz) if now.tzinfo is not None else now.tz_localize(index.tz)
+                if index.is_monotonic_increasing:
+                    # Binary search, not a mask: this runs on every quote and last-price
+                    # lookup, and a full-index mask over an 8-month minute series cost
+                    # about 0.4 ms per call.
+                    pos = int(index.searchsorted(now, side="right"))
+                    if pos > 0 and index[pos - 1] > now - pd.Timedelta(days=4):
+                        return True
+                    continue
                 recent = index[(index <= now) & (index > now - pd.Timedelta(days=4))]
                 if len(recent) > 0:
                     return True

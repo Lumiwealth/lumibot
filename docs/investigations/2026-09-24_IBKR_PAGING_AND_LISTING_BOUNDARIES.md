@@ -79,6 +79,57 @@ The pager now hands every `IBKR_PAGE_CHECKPOINT_EVERY` (10) pages to a checkpoin
 Test: `tests/backtest/test_routed_backtesting_ibkr_prefetch.py::test_ibkr_minute_paging_checkpoints_pages_so_a_stopped_run_keeps_its_progress`
 (red: no cache file after 25 served pages).
 
+## 8. Holes inside a cached minute series were never fetched (2026-09-25)
+
+Found by the 4.6.1 release gate. `get_price_data` compared only the edges of the requested window with the minute
+cache. A cache holding June and September (two earlier backtests on the same symbol) served a June-to-September
+backtest with July and August missing: zero requests, no error, one stale bar for weeks, zero trades. The same holes
+come from sections 3 and 7 (kept newer pages, page checkpoints) and from LumiBot 4.6.0, which stopped at every weekend
+and wrote those holes into the shared S3 cache. Daily and hourly series already had hole repair; minute did not.
+
+`_repair_us_stock_index_minute_gaps` now runs after the edge checks for US stock and index minute series. It lists NYSE
+sessions strictly between the first and last real bar of the window that have no bar, and fetches each one (one
+request per session, the same cost as a cold walk). A session IBKR answers with no bars (a thin symbol with no prints)
+gets a `minute_session_gap_empty` marker for `IBKR_GAP_RETRY_TTL_SECONDS`, so later backtests do not ask again. A failed
+request writes nothing and is retried by the next process; each series and window is checked once per process.
+
+Cost (CodeRabbit on PR #1180 asked for a time limit): at most one request per session in the window, once per process,
+never more than a cold download of that window. A failed session is not asked again for 5 minutes in the same
+process (a sliding-window caller used to ask it on every bar: 13 requests instead of 4 in the test), and repair pauses
+for the series for 5 minutes after 3 failures in a row (30 requests instead of 3). The pause expires, so a long-lived
+process (notebook, local script, multi-backtest service) repairs the hole once the downloader recovers; the release gate
+found that a permanent give-up served a later backtest 34 of 77 sessions silently. Every serve of a series with known
+unrepaired sessions logs a WARNING naming the symbol, timestep and missing-session count (at most once a minute per
+series within one backtest; every new backtest warns). No wall-clock limit on purpose: results would depend on
+downloader load. Live on the production downloader: a 10-session SPY hole took 10 requests, 52 s (median 5.1 s); the
+next call made none. The session scan uses binary searches: 3 ms for a year of extended-hours minute bars (27 ms with
+per-row date math).
+Tests: `tests/test_ibkr_daily_gap_self_healing.py -k minute` (6 tests; red before the fix: 43 July/August sessions
+missing, 24 and 19 sessions missing after an interrupted download, 10 SPX sessions missing).
+
+Read-only scan of the shared cache on 2026-09-25 (`prod/cache/v44`, the namespace written this week): 1 of 29 intraday
+stock files has a hole (SPY 5-minute, 2026-08-17 to 08-19). The older `prod/cache/v1` namespace (last written 2026-09-08)
+has 5 of 78 files with holes (SPX, APP, QQQ, SPY, TQQQ minute; 233 sessions). With this fix those holes are fetched the
+next time a backtest reads the file, so no manual cleanup is required.
+
+## 9. Every page lost the bar just before its end (2026-09-25)
+
+An IBKR page with `startTime=T` holds bars only up to `T - 2 bars`; the bar that starts one bar before T (and ends at
+T) is left out. The downloader keeps every row it gets inside the window, so this is IBKR's answer. Recorded on the
+production downloader: SPY 1-minute `startTime=20260918-00:00` (20:00 ET) ended at 19:58 ET; SPX 1-minute pages ending
+at the 16:00 ET close held 389 bars ending 15:58; QQQ 5-minute `startTime=20260302-13:40` ended at 13:30 UTC.
+
+Effect: section 6 anchors pages at a session close, so 4.6.1 lost every session's final bar (SPX 15:59, the closing
+minute that close-of-day and 0DTE strategies read; stock extended-hours 19:59; NVDA hourly 19:00). A page continuing from
+the previous page's earliest bar lost the bar just before it (both 4.6.0 and 4.6.1; QQQ 5-minute about every 3.5 days).
+
+`_fetch_history_between_dates` now sends `startTime = cursor + one bar` for intraday bars (`_ibkr_page_request_end`), so
+the page holds every bar that starts before the cursor. If IBKR ever includes the bar at T too, the merge drops the
+duplicate. Daily requests are unchanged. The downloader's tail check (3-bar tolerance) still sees a 2-bar gap.
+Tests: `tests/test_ibkr_helper_unit.py -k "closing_bar or last_extended_hours_bar or capped_5minute"` (red: SPX
+15:58 in 4 of 5 sessions, SPY 19:59 missing in 4 sessions, 8 QQQ 5-minute bars missing). Live after the fix: 5 SPX
+sessions, 390 bars each, every one ending 15:59.
+
 ## Test results
 
 `LUMIBOT_DISABLE_DOTENV_LOCAL=1 LUMIBOT_CACHE_BACKEND=local LUMIBOT_CACHE_MODE=disabled`:

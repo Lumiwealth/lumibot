@@ -962,3 +962,35 @@ def test_each_new_backtest_in_the_process_warns_about_unrepaired_sessions(monkey
             ibkr_helper.get_price_data(start_dt=datetime(2026, 8, 3, 8, tzinfo=timezone.utc),
                                        end_dt=datetime(2026, 8, 14, 23, 59, tzinfo=timezone.utc), **_MINUTE_KW)
         assert any("missing 4 session" in r.getMessage() for r in caplog.records), backtest_id
+
+
+def test_empty_session_marker_is_rechecked_after_it_expires_in_a_long_lived_process(monkeypatch, tmp_path) -> None:
+    """CodeRabbit on PR #1180: a series whose only missing session carried a fresh
+    minute_session_gap_empty marker was remembered as "checked". In a process that outlives the
+    marker (24 h: a notebook or a multi-backtest service), that memory skipped the scan, so the
+    session was never asked again after the marker expired."""
+    _minute_setup(monkeypatch, tmp_path)
+    days = _minute_days("2026-08-03", "2026-08-14")
+    quiet_day = "2026-08-07"
+    vendor = _minute_vendor([d for d in days if d != quiet_day])
+    feed, _ = _minute_feed(vendor)
+    _new_minute_process(monkeypatch, feed)
+    ibkr_helper.get_price_data(start_dt=datetime(2026, 8, 3, 8, tzinfo=timezone.utc),
+                               end_dt=datetime(2026, 8, 6, 23, 59, tzinfo=timezone.utc), **_MINUTE_KW)
+    _new_minute_process(monkeypatch, feed)
+    ibkr_helper.get_price_data(start_dt=datetime(2026, 8, 10, 8, tzinfo=timezone.utc),
+                               end_dt=datetime(2026, 8, 14, 23, 59, tzinfo=timezone.utc), **_MINUTE_KW)
+
+    window = dict(start_dt=datetime(2026, 8, 3, 8, tzinfo=timezone.utc),
+                  end_dt=datetime(2026, 8, 14, 23, 59, tzinfo=timezone.utc))
+    feed, served = _minute_feed(vendor)
+    _new_minute_process(monkeypatch, feed)
+    ibkr_helper.get_price_data(**window, **_MINUTE_KW)  # asks once, writes the empty marker
+    assert served["pages"] == 1
+    ibkr_helper.get_price_data(**window, **_MINUTE_KW)  # marker fresh: no request
+    assert served["pages"] == 1
+
+    later = datetime(2026, 9, 25, tzinfo=timezone.utc) + timedelta(seconds=ibkr_helper.IBKR_GAP_RETRY_TTL_SECONDS + 60)
+    monkeypatch.setattr(ibkr_helper, "_ibkr_history_now_utc", lambda: later)
+    ibkr_helper.get_price_data(**window, **_MINUTE_KW)  # same process, marker expired: ask again
+    assert served["pages"] == 2

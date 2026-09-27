@@ -1170,7 +1170,11 @@ class TestAlpacaBacktesting:
         assert order_tracker["iteration_at"].isoformat() == '2025-01-13T00:00:00-06:00'
         assert order_tracker["submitted_at"].isoformat() == '2025-01-13T00:00:00-06:00'
         assert order_tracker["filled_at"].isoformat() == '2025-01-13T00:00:00-06:00'
-        assert order_tracker["avg_fill_price"] == 94153.05  # Open of '2025-01-13T00:00:00-06:00'
+        # LEGACY TEST (2025-03-11). The fill is the open of '2025-01-13T00:00:00-06:00', which the
+        # last_prices assertion above pins at 94153.0455. 94153.05 was that open rounded by the old
+        # 2-decimal Order.avg_fill_price setter (removed in 4.6.2: it turned sub-cent crypto fills
+        # into 0.0). The expected value is now the exact open, not a looser check.
+        assert order_tracker["avg_fill_price"] == 94153.0455  # Open of '2025-01-13T00:00:00-06:00'
 
     def test_btc_minute_30m_5(
             self,
@@ -1250,7 +1254,11 @@ class TestAlpacaBacktesting:
         assert order_tracker["iteration_at"].isoformat() == '2025-01-13T00:00:00-06:00'
         assert order_tracker["submitted_at"].isoformat() == '2025-01-13T00:00:00-06:00'
         assert order_tracker["filled_at"].isoformat() == '2025-01-13T00:00:00-06:00'
-        assert order_tracker["avg_fill_price"] == 94153.05  # Open of '2025-01-13T00:00:00-06:00'
+        # LEGACY TEST (2025-03-11). The fill is the open of '2025-01-13T00:00:00-06:00', which the
+        # last_prices assertion above pins at 94153.0455. 94153.05 was that open rounded by the old
+        # 2-decimal Order.avg_fill_price setter (removed in 4.6.2: it turned sub-cent crypto fills
+        # into 0.0). The expected value is now the exact open, not a looser check.
+        assert order_tracker["avg_fill_price"] == 94153.0455  # Open of '2025-01-13T00:00:00-06:00'
 
     def test_amzn_day_1d_dump_benchmark_stats(
             self,

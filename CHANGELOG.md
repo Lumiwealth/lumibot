@@ -1,5 +1,22 @@
 # Changelog
 
+## 4.6.2 - 2026-09-27
+
+### Changed
+- `lumibot backtest` and `lumibot demo` print the total return, CAGR, max drawdown and the tearsheet path when the run finishes. They used to print nothing after the progress bar, which read as a hang.
+- `lumibot init` writes a strategy file with the same `IS_BACKTESTING`/`Trader` runner block a BotSpot strategy workspace uses, so `python strategy.py` runs it and the file moves between LumiBot and BotSpot without a rewrite. The file used to have no runner block and did nothing when run directly.
+- New docs page for the `lumibot` command (`docsrc/cli.rst`), linked second in Start here. `standalone_components.rst` documents that `YahooData()` with no dates answers as of a year ago. The README is shorter.
+
+### Fixed
+- Backtest quotes keep the data's full price precision. `Data.get_quote()` and `DataPolars.get_quote()` rounded open, high, low, close, bid and ask to 2 decimals, so a sub-cent crypto quote (SHIB near 0.0000124) became 0.0 and was then dropped as non-positive.
+- Intraday backtests no longer see one bar into the future through `get_last_price()` and `get_quote()`. Minute and hour trade bars are stamped at their start (verified for IBKR and ThetaData), so at simulated time T the bar stamped T is still forming and its close is the price at T plus one bar. The ThetaData and BotSpot Auto (routed) data sources returned that close as the last price and quote price, and IBKR/Polygon quotes, whose bid and ask are built from the close, did too, while a market order at T fills at the bar's open. A strategy could see where the minute would close and buy at its open. The price at T is now the forming bar's open (or the last closed bar's close); real quote snapshots (ThetaData NBBO, which is stamped at the snapshot time) are unchanged.
+- Intraday history shows a bar as soon as it has closed, even when no later bar exists yet. After a session close, overnight or across a gap, the last bar stayed hidden until the next bar existed (at 03:00 the newest visible 1-minute bar was 19:58, not 19:59). A bar counts as closed when its start plus its length has passed; the length is at least the nominal step and at least the smallest spacing in the series, so 5-minute bars stored as minute bars and hourly bars after a half-hour first bar never show early.
+- Polygon-routed stocks in `BACKTESTING_DATA_SOURCE` router backtests credit dividends. Polygon bars are split-adjusted only and carry no dividend column, so they got none; they now read dividends from the same free corporate-actions source that enriches IBKR daily bars. Routed dividend lookups now skip futures, crypto and other non-stock assets, which pay no dividends: a held futures or crypto position made the router download daily bars the strategy never asked for.
+- Backtests no longer pay a dividend on shares bought on the ex-dividend date. The dividend check runs before every iteration, so a position opened during the ex-date was credited by the next check (a BotSpot Auto backtest bought XBI at 11:31 on its ex-date and was credited $11.32). Only shares held when the day began are entitled.
+- `Order.avg_fill_price` keeps the broker's full precision. Setting it rounded to 2 decimals (the constructor never did), so a sub-cent crypto fill such as 0.0000123 became 0.0, forex and sub-penny option fills moved (1.08765 became 1.09), and live brokers passed the rounded value into fill processing for cash and positions.
+- IBKR futures intraday history no longer stops at the first weekend. The backward pager ended at the first empty page, and a 1000-minute page ending at the Sunday 18:00 ET open is all weekend, so an MES 1-minute backtest for Sep 1 to 18, 2026 only had data from Sep 6. Pages that are closed by the CME weekend and daily-break rules are now stepped over without a request, and up to three empty pages during rule-calendar trading time (holiday closes such as Good Friday) are stepped over before the walk stops.
+- IBKR minute backtests in a long-running process (a notebook, a local script, a service that runs many backtests) ask again for a session that had no trades once its one-day marker expires. The series was remembered as checked for the life of the process, so the marker never expired in practice.
+
 ## 4.6.1 - 2026-09-25
 
 ### Fixed

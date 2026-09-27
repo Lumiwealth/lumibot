@@ -2161,10 +2161,22 @@ class _Strategy:
 
             positions = self.broker.get_tracked_positions(self._name)
 
+            # ENTITLEMENT: only shares held when the day began earn that day's dividend. This runs
+            # before every iteration, so a position bought on the ex-date existed by the next one
+            # and used to be credited (release gate 2026-09-25: XBI bought 2026-06-22 11:31 on
+            # its ex-date got 82 x 0.138). The first call of each date snapshots the holdings.
+            if getattr(self, "_dividend_entitlement_date", None) != current_date:
+                self._dividend_entitlement_date = current_date
+                self._dividend_entitled_quantity = {
+                    getattr(p.asset, "symbol", str(p.asset)): p.quantity for p in positions
+                }
+            entitled_quantity = self._dividend_entitled_quantity
+
             assets = []
             for position in positions:
                 if position.asset != self._quote_asset and position.asset.asset_type != "option":
-                    assets.append(position.asset)
+                    if getattr(position.asset, "symbol", str(position.asset)) in entitled_quantity:
+                        assets.append(position.asset)
 
             # Early return if no assets - avoid expensive dividend API calls
             if not assets:
@@ -2178,7 +2190,9 @@ class _Strategy:
 
             for position in positions:
                 asset = position.asset
-                quantity = position.quantity
+                quantity = entitled_quantity.get(getattr(asset, "symbol", str(asset)))
+                if quantity is None:
+                    continue  # opened today: not entitled to today's dividend
                 dividend_per_share = 0 if dividends_per_share is None else dividends_per_share.get(asset, 0)
 
                 # Skip if no dividend or already applied for this (date, asset) combination

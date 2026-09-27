@@ -100,6 +100,32 @@ class TestInit:
                     f"which Strategy does not define"
                 )
 
+    def test_generated_projects_also_run_with_plain_python(self, tmp_path):
+        """`python strategy.py` must work, the same way BotSpot's main.py does.
+
+        Rob, 2026-09-25: a BotSpot strategy workspace ships the
+        IS_BACKTESTING/Trader runner block, so the file runs on its own. A file
+        that silently does nothing when you run it is the most common way a
+        beginner gets stuck, so `lumibot init` writes the same block. The CLI is
+        unaffected: runpy.run_path names the module "<run_path>", never
+        "__main__", so the block does not fire when the CLI imports the class.
+        """
+        for template in cli.TEMPLATES:
+            target = tmp_path / f"bot-{template}"
+            assert cli.main(["init", str(target), "--template", template]) == 0
+            source = (target / "strategy.py").read_text()
+            assert 'if __name__ == "__main__":' in source, template
+            assert "IS_BACKTESTING" in source, template
+            assert ".backtest(" in source, template
+            assert "Trader()" in source, template
+
+    def test_the_runner_block_does_not_fire_when_the_cli_loads_the_class(self, tmp_path):
+        """Loading the class must never start a backtest as a side effect."""
+        target = tmp_path / "bot"
+        cli.main(["init", str(target)])
+        strategy_class = cli._load_strategy_class(target / "strategy.py")
+        assert strategy_class.__name__ == "Bot"
+
     def test_init_writes_a_readme_naming_the_next_command(self, tmp_path):
         target = tmp_path / "bot"
         cli.main(["init", str(target)])
@@ -138,6 +164,64 @@ class TestBacktestAndRunResolveTheStrategyFile:
         rc = cli.main(["run", str(target)])
         assert rc != 0, "run must not default to touching a broker"
         assert "--paper" in capsys.readouterr().err
+
+    def test_backtest_tells_the_user_where_the_tearsheet_landed(self, tmp_path, capsys, monkeypatch):
+        """A finished backtest that says nothing looks like a hung progress bar.
+
+        Observed on a clean `pip install lumibot` 4.6.0: `lumibot backtest`
+        exits 0, writes twelve files, and prints no result and no path. The
+        first thing a new user wants is the return and the file to open.
+        """
+        target = tmp_path / "bot"
+        cli.main(["init", str(target)])
+
+        logs = tmp_path / "logs"
+        logs.mkdir()
+        tearsheet = logs / "MyBot_2026-09-25_17-38_abc123_tearsheet.html"
+        tearsheet.write_text("<html></html>")
+
+        def fake_backtest(cls, datasource, start, end, **kwargs):
+            return {"cagr": 0.1234, "total_return": 0.0567, "max_drawdown": {"drawdown": 0.0891}}
+
+        from lumibot.strategies.strategy import Strategy
+
+        monkeypatch.setattr(Strategy, "backtest", classmethod(fake_backtest))
+        monkeypatch.chdir(tmp_path)
+
+        assert cli.main(["backtest", str(target)]) == 0
+        out = capsys.readouterr().out
+        assert "5.67%" in out, "the total return must be on screen"
+        assert tearsheet.name in out, "the tearsheet path must be on screen"
+        assert "open" in out.lower()
+
+    def test_backtest_still_succeeds_when_no_tearsheet_is_found(self, tmp_path, capsys, monkeypatch):
+        """Never fail a good backtest because the report path could not be guessed."""
+        target = tmp_path / "bot"
+        cli.main(["init", str(target)])
+
+        from lumibot.strategies.strategy import Strategy
+
+        monkeypatch.setattr(Strategy, "backtest", classmethod(lambda cls, *a, **k: None))
+        monkeypatch.chdir(tmp_path)
+
+        assert cli.main(["backtest", str(target)]) == 0
+        assert "Traceback" not in capsys.readouterr().out
+
+    def test_demo_reports_its_numbers_too(self, tmp_path, capsys, monkeypatch):
+        """`lumibot demo` is the very first thing a new user runs. It must show a result."""
+        from lumibot.strategies.strategy import Strategy
+
+        monkeypatch.setattr(
+            Strategy,
+            "backtest",
+            classmethod(lambda cls, *a, **k: {"total_return": 0.0567, "cagr": 0.1234}),
+        )
+        monkeypatch.chdir(tmp_path)
+
+        assert cli.main(["demo"]) == 0
+        out = capsys.readouterr().out
+        assert "5.67%" in out
+        assert "lumibot init" in out, "the demo must still point at the next command"
 
 
 class TestModuleEntryPoint:

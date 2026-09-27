@@ -75,6 +75,32 @@ class {class_name}(Strategy):
         elif price < average and held > 0:
             self.submit_order(self.create_order(symbol, held, "sell"))
             self.log_message(f"SELL {{held}} {{symbol}} at {{price:.2f}}")
+
+
+# This block only runs when you run the file directly:  python strategy.py
+# The `lumibot` CLI imports the class instead, so it never fires there. Edit the
+# class above; this is just the harness that starts it.
+if __name__ == "__main__":
+    from lumibot.credentials import IS_BACKTESTING
+
+    if IS_BACKTESTING:
+        from datetime import datetime, timedelta
+
+        from lumibot.backtesting import YahooDataBacktesting
+
+        end = datetime.now()
+        {class_name}.backtest(
+            YahooDataBacktesting,
+            end - timedelta(days=365),
+            end,
+            budget=100000,
+        )
+    else:
+        from lumibot.traders import Trader
+
+        trader = Trader()
+        trader.add_strategy({class_name}())
+        trader.run_all()
 '''
 
 _AI_TEMPLATE = '''"""{class_name}: a LumiBot AI strategy.
@@ -155,6 +181,32 @@ class {class_name}(Strategy):
             context={{**context, "research_evidence": research.summary}},
         )
         self.log_message(f"Trader: {{decision.summary}}")
+
+
+# This block only runs when you run the file directly:  python strategy.py
+# The `lumibot` CLI imports the class instead, so it never fires there. Edit the
+# class above; this is just the harness that starts it.
+if __name__ == "__main__":
+    from lumibot.credentials import IS_BACKTESTING
+
+    if IS_BACKTESTING:
+        from datetime import datetime, timedelta
+
+        from lumibot.backtesting import YahooDataBacktesting
+
+        end = datetime.now()
+        {class_name}.backtest(
+            YahooDataBacktesting,
+            end - timedelta(days=365),
+            end,
+            budget=100000,
+        )
+    else:
+        from lumibot.traders import Trader
+
+        trader = Trader()
+        trader.add_strategy({class_name}())
+        trader.run_all()
 '''
 
 _PROJECT_README = """# {project}
@@ -324,7 +376,7 @@ def cmd_backtest(args) -> int:
     start = end - timedelta(days=args.days)
 
     print(f"Backtesting {strategy_class.__name__} over the last {args.days} days...")
-    strategy_class.backtest(
+    results = strategy_class.backtest(
         YahooDataBacktesting,
         start,
         end,
@@ -334,7 +386,64 @@ def cmd_backtest(args) -> int:
         save_tearsheet=True,
         show_indicators=False,
     )
+    _report_backtest(results)
     return 0
+
+
+def _percent(value) -> "str | None":
+    """Format a fraction as a percentage, or return None when it is not a number."""
+    try:
+        return f"{float(value) * 100:.2f}%"
+    except (TypeError, ValueError):
+        return None
+
+
+def _latest_tearsheet() -> "Path | None":
+    """Find the newest saved tearsheet so the user has something to open.
+
+    The path is a convenience, never a correctness requirement, so every failure
+    here is swallowed: a finished backtest must not be reported as broken
+    because its report could not be located.
+    """
+    try:
+        candidates = sorted(
+            Path("logs").glob("*_tearsheet.html"),
+            key=lambda path: path.stat().st_mtime,
+        )
+    except OSError:
+        return None
+    return candidates[-1] if candidates else None
+
+
+def _report_backtest(results) -> None:
+    """Print the headline numbers and the report path after a backtest.
+
+    Without this the command exits 0 and prints nothing after the progress bar,
+    which reads as a hang. Observed on a clean install of 4.6.0.
+    """
+    metrics = results if isinstance(results, dict) else {}
+    drawdown = metrics.get("max_drawdown")
+    if isinstance(drawdown, dict):
+        drawdown = drawdown.get("drawdown")
+
+    lines = [
+        ("Total return", _percent(metrics.get("total_return"))),
+        ("CAGR", _percent(metrics.get("cagr"))),
+        ("Max drawdown", _percent(drawdown)),
+    ]
+    reported = [(label, value) for label, value in lines if value is not None]
+
+    print()
+    if reported:
+        width = max(len(label) for label, _ in reported)
+        for label, value in reported:
+            print(f"  {label.ljust(width)}  {value}")
+    else:
+        print("  Backtest finished. No metrics were returned.")
+
+    tearsheet = _latest_tearsheet()
+    if tearsheet is not None:
+        print(f"\nOpen the report:  open {tearsheet}")
 
 
 def cmd_run(args) -> int:
@@ -426,7 +535,7 @@ def cmd_demo(args) -> int:
 
         end = datetime.now()
         start = end - timedelta(days=args.days)
-        strategy_class.backtest(
+        results = strategy_class.backtest(
             YahooDataBacktesting,
             start,
             end,
@@ -437,6 +546,7 @@ def cmd_demo(args) -> int:
             show_indicators=False,
         )
 
+    _report_backtest(results)
     print("\nNow make it yours:  lumibot init my-bot --template ai")
     return 0
 

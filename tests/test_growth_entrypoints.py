@@ -220,27 +220,38 @@ def test_creator_campaign_placements_have_distinct_tracking():
     assert len(bootcamp) >= 3
 
 
-def test_execution_gap_claim_is_on_the_first_screen_with_citations():
-    """The one claim no competitor can copy quickly must be above the fold.
+def test_execution_gap_claim_is_one_readme_line_and_lives_in_the_docs():
+    """Rob, 2026-09-25: the long version of this belongs in the docs, not the README.
 
-    Every agentic trading framework stops at the decision. LumiBot carries it
-    through a deterministic gate into a broker and leaves a record. That is the
-    gap the 2026 literature names, so the README states it and cites the
-    sources rather than boasting.
+    A reader meeting the library for the first time does not care what a study
+    found, and a cited survey goes stale. The README keeps the claim as one
+    bullet with a link; the argument and the citations live on the docs page.
     """
     readme = (ROOT / "README.md").read_text()
     head = readme.split("## Why LumiBot?")[0]
 
-    assert "The part everyone else skips" in head
-    # The arXiv survey and the DeFi agent review are what make this credible.
-    assert "2608.31041" in head
-    assert "model said yes" in head
-    # Named requirements from the 2026 frameworks, stated as theirs, not ours.
+    # Never reintroduce the section or the citations above the fold.
+    assert "The part everyone else skips" not in readme
+    assert "2608.31041" not in readme
+    assert "model said yes" not in readme
+    assert "arxiv" not in head.lower()
+
+    # The claim itself survives, as one line that points at the docs.
+    why = readme.split("## Why LumiBot?")[1].split("## How LumiBot compares")[0]
+    assert "The decision reaches a broker." in why
+    assert "execution_gap.html" in why
+    assert why.count("execution_gap.html") == 1
+
+    # The full argument and its citations move to the docs page.
+    page = (ROOT / "docsrc/execution_gap.rst").read_text()
+    assert "2608.31041" in page
     for requirement in ("identity", "traceability", "stoppability"):
-        assert requirement in head.lower()
+        assert requirement in page.lower()
+
     # Never claim compliance with a framework we have not been assessed against.
     for forbidden in ("we are compliant", "fully compliant", "certified"):
         assert forbidden not in readme.lower()
+        assert forbidden not in page.lower()
 
 
 def test_the_record_is_shown_not_just_described():
@@ -250,3 +261,49 @@ def test_the_record_is_shown_not_just_described():
     assert "risk" in page.lower()
     index = (ROOT / "docsrc/index.rst").read_text()
     assert "execution_gap" in index
+
+
+def test_the_cli_is_documented_and_the_template_is_explained():
+    """4.6.0 shipped a CLI that no docs page mentioned.
+
+    Rob, 2026-09-25: people are always confused about how to start, so the file
+    `lumibot init` writes must be explained where a beginner will find it, and
+    the page must name the runner block that lets `python strategy.py` work.
+    """
+    page = ROOT / "docsrc/cli.rst"
+    assert page.exists(), "docsrc/cli.rst must exist"
+    text = page.read_text()
+
+    for command in ("lumibot demo", "lumibot init", "lumibot backtest", "lumibot run"):
+        assert command in text, command
+
+    # The template itself, not just the command that writes it.
+    assert "strategy.py" in text
+    assert 'if __name__ == "__main__":' in text
+    assert "IS_BACKTESTING" in text
+    assert "--template ai" in text
+    # A beginner must be told the CLI is optional, or they will think it is a wrapper.
+    assert "Strategy" in text
+
+    index = (ROOT / "docsrc/index.rst").read_text()
+    start_here = index.split(":caption: Start here")[1].split(".. toctree::")[0]
+    assert "<cli>" in start_here, "the CLI page belongs in Start here"
+
+
+def test_standalone_page_teaches_the_datetime_trap_for_price_history():
+    """`YahooData()` with no dates silently answers as of a year ago.
+
+    Observed 2026-09-25: `YahooData().get_historical_prices(Asset("SPY"), 5, "day")`
+    returned bars ending 2025-09-24, because a backtesting data source starts
+    simulated time at datetime_start, which defaults to now minus 365 days. A
+    reader using LumiBot outside a Strategy must be told to pass the dates, or
+    they will silently analyse year-old prices.
+    """
+    page = (ROOT / "docsrc/standalone_components.rst").read_text()
+    assert "get_historical_prices" in page
+    assert "datetime_start=datetime.now()" in page
+    assert "365" in page, "say why the default window is wrong for live reads"
+    # The warning must sit with the code, not in a footnote somewhere else.
+    section = page.split("Read price history")[1].split("Read SEC submissions")[0]
+    assert "datetime_start=datetime.now()" in section
+    assert "365" in section

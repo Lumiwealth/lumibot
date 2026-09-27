@@ -1539,3 +1539,87 @@ def test_ibkr_page_request_end_keeps_the_one_bar_shift_for_futures_and_old_windo
     assert ibkr_helper._ibkr_page_request_end(recent, 3600, "future") == recent + timedelta(hours=1)
     # Stock at the delayed-feed limit stays at the limit.
     assert ibkr_helper._ibkr_page_request_end(recent, 3600, "stock") == recent
+
+
+# ---------------------------------------------------------------------------
+# Futures paging across closed weekends and holidays (2026-09-25 data matrix)
+# ---------------------------------------------------------------------------
+
+
+def _cme_minute_bars(first_day: str, last_day: str, *, halts=()) -> pd.DataFrame:
+    """CME equity-futures 1-minute bars: Sunday 18:00 ET to Friday 17:00 ET, daily 17:00-18:00 break.
+
+    `halts` are (start, end) ET strings with no trading (holiday closes).
+    """
+    idx = pd.date_range(pd.Timestamp(f"{first_day} 00:00", tz=_NY), pd.Timestamp(f"{last_day} 23:59", tz=_NY), freq="1min")
+    dow = idx.weekday
+    hour = idx.hour
+    open_mask = (
+        ((dow <= 3) & (hour != 17))
+        | ((dow == 4) & (hour < 17))
+        | ((dow == 6) & (hour >= 18))
+    )
+    for halt_start, halt_end in halts:
+        open_mask &= ~((idx >= pd.Timestamp(halt_start, tz=_NY)) & (idx < pd.Timestamp(halt_end, tz=_NY)))
+    idx = idx[open_mask]
+    px = 6500.0 + pd.Series(range(len(idx)), index=idx, dtype="float64") * 0.01
+    return pd.DataFrame({"open": px, "high": px + 0.25, "low": px - 0.25, "close": px, "volume": 10.0}, index=idx)
+
+
+def _futures_page_fake(vendor: pd.DataFrame, calls: list):
+    def _fake_history_request(*, conid, period, bar, start_time, **_):
+        end = pd.Timestamp(start_time)
+        end = end.tz_localize("UTC") if end.tzinfo is None else end.tz_convert("UTC")
+        calls.append(end)
+        span = pd.Timedelta(minutes=int(str(period).removesuffix("min")))
+        rows = vendor.loc[(vendor.index > end - span) & (vendor.index <= end - pd.Timedelta(minutes=2))].tail(1000)
+        return {"data": [{"t": int(ts.timestamp() * 1000), "o": float(r["open"]), "h": float(r["high"]),
+                          "l": float(r["low"]), "c": float(r["close"]), "v": float(r["volume"])}
+                         for ts, r in rows.iterrows()]}
+
+    return _fake_history_request
+
+
+def _mes_contract():
+    from datetime import date as _date
+
+    return Asset("MES", asset_type=Asset.AssetType.FUTURE, expiration=_date(2026, 12, 18))
+
+
+@pytest.mark.parametrize(
+    "first_day, last_day, halts, label",
+    [
+        # Labor Day 2026: equity futures halt Monday Sep 7 13:00 to 18:00 ET.
+        ("2026-08-31", "2026-09-18", [("2026-09-07 13:00", "2026-09-07 18:00")], "labor_day_weekend"),
+        # A full holiday close (Good Friday style): no trading Thursday 17:00 to Sunday 18:00 ET.
+        ("2026-03-30", "2026-04-10", [("2026-04-02 17:00", "2026-04-05 18:00")], "holiday_close"),
+    ],
+)
+def test_ibkr_futures_minute_paging_continues_across_closed_weekends_and_holidays(monkeypatch, first_day, last_day, halts, label):
+    """Data matrix 2026-09-25 (both 4.6.0 and 4.6.1): MES 1-minute for Sep 1 to 18 started at the
+    Sunday Sep 6 18:00 open; Sep 1 to 4 were missing. The backward pager stops at the first empty
+    page, and a 1000-minute page ending at the Sunday open is all weekend. Stocks already step
+    over closed pages; futures did not."""
+    import lumibot.tools.ibkr_helper as ibkr_helper
+
+    monkeypatch.setattr(ibkr_helper, "_resolve_conid", lambda **_: 793356217)
+    vendor = _cme_minute_bars(first_day, last_day, halts=halts).tz_convert("UTC")
+    calls: list = []
+    monkeypatch.setattr(ibkr_helper, "_ibkr_history_request", _futures_page_fake(vendor, calls))
+
+    result = ibkr_helper._fetch_history_between_dates(
+        asset=_mes_contract(),
+        quote=Asset("USD", asset_type=Asset.AssetType.FOREX),
+        timestep="minute",
+        start_dt=vendor.index.min().to_pydatetime(),
+        end_dt=(vendor.index.max() + pd.Timedelta(minutes=1)).to_pydatetime(),
+        exchange="CME",
+        include_after_hours=True,
+        source="Trades",
+        source_was_explicit=True,
+    )
+
+    missing = vendor.index.difference(result.index)
+    assert len(missing) == 0, f"{label}: {len(missing)} bars missing, first {missing[:3].tolist()}"
+    # Closed pages are stepped without requests: about one request per 1000 open minutes.
+    assert len(calls) <= len(vendor) // 900 + 8, f"{label}: {len(calls)} requests"

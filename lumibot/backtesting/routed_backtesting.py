@@ -1212,19 +1212,36 @@ class RoutedBacktestingPandas(ThetaDataBacktestingPandas):
         Alpaca-routed stocks correctly get no cash dividend: the routed Alpaca source keeps
         AlpacaBacktesting's default auto_adjust=True, which requests adjustment="all" bars, so
         dividends are already in the price series. Crediting cash on top would count them twice.
+        Polygon bars are split-adjusted only and carry no dividend column, so Polygon-routed stocks
+        read dividends from corporate actions. Assets other than stocks pay none and are not looked up.
         """
         theta_assets = []
         routed_assets = []
+        corporate_action_assets = []
+        result = {}
         for asset in assets:
+            # Only stocks (and ETFs) pay dividends. Looking up anything else made the router
+            # download daily bars nobody asked for (futures daily bars come from hourly downloads).
+            if _normalize_asset_type(getattr(asset, "asset_type", "")) != "stock":
+                result[asset] = 0.0
+                continue
             try:
                 provider = self._provider_spec_for_asset(asset).provider
             except Exception:
                 provider = "thetadata"
-            (theta_assets if provider == "thetadata" else routed_assets).append(asset)
+            if provider == "thetadata":
+                theta_assets.append(asset)
+            elif provider == "alpaca":
+                result[asset] = 0.0  # adjustment="all": dividends are already in the prices
+            elif provider == "polygon":
+                corporate_action_assets.append(asset)  # split-adjusted only, no dividend column
+            else:
+                routed_assets.append(asset)
 
-        result = {}
         if theta_assets:
             result.update(dict(super().get_yesterday_dividends(theta_assets, quote=quote).items()))
+        if corporate_action_assets:
+            result.update(self._corporate_action_dividends(corporate_action_assets))
         if not routed_assets:
             return AssetsMapping(result)
 
@@ -1277,6 +1294,39 @@ class RoutedBacktestingPandas(ThetaDataBacktestingPandas):
                 )
             result[asset] = dividend
         return AssetsMapping(result)
+
+    def _corporate_action_dividends(self, assets) -> dict:
+        """Dividends for assets whose bars carry none (Polygon: split-adjusted prices only).
+
+        Uses the same free corporate-actions source that enriches IBKR daily stock bars
+        (`ibkr_helper._get_cached_equity_actions`, split-adjusted cash amounts by ex-date).
+        Only the current date's amount is read, so the full table is no lookahead.
+        """
+        current_date = self._datetime.date() if hasattr(self._datetime, "date") else self._datetime
+        cache = getattr(self, "_corporate_action_dividend_cache", None)
+        if cache is None:
+            cache = self._corporate_action_dividend_cache = {}
+        out = {}
+        for asset in assets:
+            symbol = str(getattr(asset, "symbol", "") or "").upper()
+            by_date = cache.get(symbol)
+            if by_date is None:
+                by_date = {}
+                try:
+                    end = getattr(self, "datetime_end", None)
+                    actions = ibkr_helper._get_cached_equity_actions(symbol, last_needed_datetime=end)
+                    if actions is not None and not actions.empty and "Dividends" in actions.columns:
+                        index = pd.DatetimeIndex(actions.index)
+                        index = index.tz_localize(LUMIBOT_DEFAULT_PYTZ) if index.tz is None else index.tz_convert(LUMIBOT_DEFAULT_PYTZ)
+                        amounts = pd.to_numeric(actions["Dividends"], errors="coerce").fillna(0.0).to_numpy()
+                        for ts, amount in zip(index, amounts):
+                            if amount > 0:
+                                by_date[ts.date()] = by_date.get(ts.date(), 0.0) + float(amount)
+                except Exception as exc:
+                    logger.warning("Corporate-action dividends unavailable for %s: %s", symbol, exc)
+                cache[symbol] = by_date
+            out[asset] = by_date.get(current_date, 0.0)
+        return out
 
     def _update_pandas_data(
         self,

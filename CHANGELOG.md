@@ -1,6 +1,11 @@
 # Changelog
 
-## 4.6.2 - Unreleased
+## 4.6.2 - 2026-09-27
+
+### Changed
+- `lumibot backtest` and `lumibot demo` print the total return, CAGR, max drawdown and the tearsheet path when the run finishes. They used to print nothing after the progress bar, which read as a hang.
+- `lumibot init` writes a strategy file with the same `IS_BACKTESTING`/`Trader` runner block a BotSpot strategy workspace uses, so `python strategy.py` runs it and the file moves between LumiBot and BotSpot without a rewrite. The file used to have no runner block and did nothing when run directly.
+- New docs page for the `lumibot` command (`docsrc/cli.rst`), linked second in Start here. `standalone_components.rst` documents that `YahooData()` with no dates answers as of a year ago. The README is shorter.
 
 ### Fixed
 - Backtest quotes keep the data's full price precision. `Data.get_quote()` and `DataPolars.get_quote()` rounded open, high, low, close, bid and ask to 2 decimals, so a sub-cent crypto quote (SHIB near 0.0000124) became 0.0 and was then dropped as non-positive.

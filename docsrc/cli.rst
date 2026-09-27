@@ -1,6 +1,9 @@
 The ``lumibot`` Command
 =======================
 
+.. meta::
+   :description: Use the lumibot command to go from pip install lumibot to a backtest result on screen, then keep the generated Strategy file as your own.
+
 The ``lumibot`` command exists for one reason: to get you from
 ``pip install lumibot`` to a result on screen without first designing a
 strategy. It is optional. It is not a wrapper, a framework, or a new API. It

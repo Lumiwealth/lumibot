@@ -76,7 +76,9 @@ FXMacroData agents receive these read-only built-ins automatically:
 
 USD announcement data is public. Set `FXMD_API_KEY` or `FXMACRODATA_API_KEY` for non-USD and paid endpoint access. Lumibot sends the key as an `X-API-Key` header, not as an `api_key` query parameter.
 
-In a backtest, `as_of` defaults to `self.get_datetime()`. Lumibot filters release rows by `announcement_datetime` so the strategy does not see macro releases after the simulated datetime.
+In a backtest, `as_of` defaults to `self.get_datetime()`. Lumibot drops rows whose `announcement_datetime` is after `as_of`. Rows the API returns without an announcement datetime are gated on their period date instead, which usually precedes the real release, and rows with no parseable date at all are dropped.
+
+This is not a blanket point-in-time guarantee. Each result includes a `publication_time` summary with counts of rows with and without an announcement datetime, rows dropped as undated, and `publication_time_status` values. Each row keeps the API's `publication_time_status`; only `confirmed` means the timestamp was taken from the publisher's own release.
 
 In backtests, FXMacroData responses are cached under:
 

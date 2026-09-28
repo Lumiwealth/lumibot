@@ -78,8 +78,14 @@ def test_fxmacrodata_uses_x_api_key_header_and_filters_future_rows(fxmacrodata_f
     result = fxmd.get_series("eur", "inflation", start="2024-01-01")
 
     assert result["source"] == "fxmacrodata_api"
-    assert result["point_in_time_safe"] is True
+    assert "point_in_time_safe" not in result
     assert [row["date"] for row in result["observations"]] == ["2024-12-01"]
+    assert result["publication_time"] == {
+        "rows_with_announcement_datetime": 1,
+        "rows_without_announcement_datetime": 0,
+        "rows_dropped_undated": 0,
+        "publication_time_status_counts": {"not_reported": 1},
+    }
 
     url, kwargs = calls[0]
     assert url == "https://api.fxmacrodata.com/v1/announcements/eur/inflation"
@@ -99,6 +105,46 @@ def test_fxmacrodata_drops_rows_without_parseable_dates(fxmacrodata_factory):
 
     assert [row["date"] for row in result["observations"]] == ["2025-01-01"]
     assert result["observations"][0]["value"] == 3.0
+    assert result["publication_time"]["rows_dropped_undated"] == 1
+    assert result["publication_time"]["rows_without_announcement_datetime"] == 1
+
+
+def test_fxmacrodata_gates_on_epoch_announcement_datetime(fxmacrodata_factory):
+    # December data released 2025-01-15 11:30 UTC; January data released 2025-02-14.
+    released = int(datetime(2025, 1, 15, 11, 30, tzinfo=timezone.utc).timestamp())
+    not_yet_released = int(datetime(2025, 2, 14, 13, 30, tzinfo=timezone.utc).timestamp())
+
+    def fake_get(url, **kwargs):
+        return _Response(
+            payload={
+                "data": [
+                    {
+                        "date": "2025-01-01",
+                        "val": 2.9,
+                        "announcement_datetime": not_yet_released,
+                        "publication_time_status": "confirmed",
+                    },
+                    {
+                        "date": "2024-12-01",
+                        "val": 2.7,
+                        "announcement_datetime": released,
+                        "publication_time_status": "unverified",
+                        "publication_time_precision": "unknown",
+                    },
+                ]
+            }
+        )
+
+    fxmd = fxmacrodata_factory(_Strategy(), fake_get)
+
+    result = fxmd.get_series("usd", "inflation")
+
+    assert [row["date"] for row in result["observations"]] == ["2024-12-01"]
+    row = result["observations"][0]
+    assert row["announcement_datetime"] == "2025-01-15T11:30:00+00:00"
+    assert row["publication_time_status"] == "unverified"
+    assert row["publication_time_precision"] == "unknown"
+    assert result["publication_time"]["publication_time_status_counts"] == {"unverified": 1}
 
 
 def test_fxmacrodata_live_requests_bypass_disk_cache(fxmacrodata_factory, tmp_path):

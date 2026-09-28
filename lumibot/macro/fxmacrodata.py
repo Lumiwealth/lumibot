@@ -27,14 +27,24 @@ CURATED_FXMACRODATA_INDICATORS: dict[str, dict[str, str]] = {
 
 
 def _parse_dt(value: Any) -> datetime | None:
+    if isinstance(value, bool):
+        return None
     if isinstance(value, datetime):
         parsed = value
     elif isinstance(value, date):
         parsed = datetime(value.year, value.month, value.day, tzinfo=timezone.utc)
+    elif isinstance(value, (int, float)):
+        # The API sends announcement_datetime as Unix epoch seconds.
+        try:
+            return datetime.fromtimestamp(float(value), tz=timezone.utc)
+        except (OverflowError, OSError, ValueError):
+            return None
     else:
         text = str(value or "").strip()
         if not text:
             return None
+        if re.fullmatch(r"\d{9,11}(\.\d+)?", text):
+            return _parse_dt(float(text))
         text = text.replace("Z", "+00:00")
         try:
             parsed = datetime.fromisoformat(text)
@@ -72,6 +82,30 @@ def _safe_float(value: Any) -> float | None:
         return float(text)
     except Exception:
         return None
+
+
+def _publication_time_summary(
+    observations: list[dict[str, Any]],
+    dropped_undated: int,
+) -> dict[str, Any]:
+    """Count how each returned row was dated.
+
+    Rows without an announcement datetime were gated on their period date only,
+    which usually precedes the actual release. ``publication_time_status`` is
+    passed through from the API as-is; only ``confirmed`` is evidence of when a
+    value became public.
+    """
+    status_counts: dict[str, int] = {}
+    for row in observations:
+        status = row.get("publication_time_status") or "not_reported"
+        status_counts[status] = status_counts.get(status, 0) + 1
+    with_announcement = sum(1 for row in observations if row.get("announcement_datetime"))
+    return {
+        "rows_with_announcement_datetime": with_announcement,
+        "rows_without_announcement_datetime": len(observations) - with_announcement,
+        "rows_dropped_undated": dropped_undated,
+        "publication_time_status_counts": dict(sorted(status_counts.items())),
+    }
 
 
 def _first_present(row: dict[str, Any], keys: tuple[str, ...]) -> Any:
@@ -217,7 +251,14 @@ class FXMacroData:
         as_of: Any | None = None,
         limit: int | None = None,
     ) -> dict[str, Any]:
-        """Fetch a point-in-time-safe FXMacroData announcement series."""
+        """Fetch an FXMacroData announcement series gated to ``as_of``.
+
+        Rows are filtered by ``announcement_datetime`` when the API supplies
+        one, otherwise by their period date. Rows with neither are dropped.
+        ``publication_time`` reports how many returned rows fell into each
+        case; check each row's ``publication_time_status`` before treating a
+        timestamp as proof of when the value became public.
+        """
         currency_code = str(currency or "").strip().lower()
         indicator_slug = str(indicator or "").strip().lower()
         if not currency_code:
@@ -254,7 +295,7 @@ class FXMacroData:
                 f"{hashlib.sha256(cache_key.encode()).hexdigest()}.json",
             ),
         )
-        observations = self._normalize_observations(
+        observations, dropped_undated = self._normalize_observations(
             payload,
             currency_code,
             indicator_slug,
@@ -267,7 +308,7 @@ class FXMacroData:
             "currency": currency_code,
             "indicator": indicator_slug,
             "as_of": as_of_dt.isoformat(),
-            "point_in_time_safe": True,
+            "publication_time": _publication_time_summary(observations, dropped_undated),
             "observations": observations,
         }
 
@@ -282,7 +323,16 @@ class FXMacroData:
         payload = self.get_series(currency, indicator, as_of=as_of, limit=20)
         observations = payload.get("observations", [])
         latest = observations[-1] if observations else None
-        return {**payload, "latest": latest, "observations": observations[-10:]}
+        observations = observations[-10:]
+        return {
+            **payload,
+            "publication_time": _publication_time_summary(
+                observations,
+                payload.get("publication_time", {}).get("rows_dropped_undated", 0),
+            ),
+            "latest": latest,
+            "observations": observations,
+        }
 
     def get_snapshot(
         self,
@@ -319,7 +369,7 @@ class FXMacroData:
         currency: str,
         indicator: str,
         as_of_dt: datetime,
-    ) -> list[dict[str, Any]]:
+    ) -> tuple[list[dict[str, Any]], int]:
         rows = payload.get("data")
         if not isinstance(rows, list):
             rows = payload.get("observations")
@@ -329,6 +379,7 @@ class FXMacroData:
             rows = []
 
         observations = []
+        dropped_undated = 0
         for row in rows:
             if not isinstance(row, dict):
                 continue
@@ -348,6 +399,7 @@ class FXMacroData:
             )
             comparison_dt = announcement_dt or _parse_dt(row_date)
             if comparison_dt is None:
+                dropped_undated += 1
                 continue
             if comparison_dt > as_of_dt:
                 continue
@@ -361,7 +413,16 @@ class FXMacroData:
                 "currency": str(row.get("currency") or currency).lower(),
                 "indicator": str(row.get("indicator") or indicator).lower(),
             }
-            for key in ("forecast", "previous", "revision", "unit", "source", "event_name"):
+            for key in (
+                "publication_time_status",
+                "publication_time_precision",
+                "forecast",
+                "previous",
+                "revision",
+                "unit",
+                "source",
+                "event_name",
+            ):
                 if key in row:
                     normalized[key] = row.get(key)
             observations.append(normalized)
@@ -369,4 +430,4 @@ class FXMacroData:
         observations.sort(
             key=lambda row: (row.get("announcement_datetime") or row.get("date") or "")
         )
-        return observations
+        return observations, dropped_undated

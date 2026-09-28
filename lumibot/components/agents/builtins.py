@@ -3674,7 +3674,8 @@ def _bind_get_fxmacrodata_series(strategy: Any, manager: Any) -> BoundTool:
         name="get_fxmacrodata_series",
         description=(
             "Get an FXMacroData macro announcement series for a currency and indicator. "
-            "In backtests, as_of defaults to the strategy datetime and release rows are gated by announcement time. "
+            "In backtests, as_of defaults to the strategy datetime. Rows are gated by announcement_datetime, or by "
+            "period date when a row has none; check publication_time and each row's publication_time_status. "
             "USD is public; set FXMD_API_KEY or FXMACRODATA_API_KEY for non-USD and paid endpoint access."
         ),
         function=get_fxmacrodata_series,

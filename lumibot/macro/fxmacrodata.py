@@ -10,6 +10,9 @@ from typing import Any
 import requests
 
 FXMACRODATA_API_BASE_URL = "https://api.fxmacrodata.com/v1"
+FXMACRODATA_MAX_PAGE_SIZE = 100
+FXMACRODATA_MAX_PAGES = 500
+FXMACRODATA_MAX_PAGINATION_RESTARTS = 2
 
 
 CURATED_FXMACRODATA_INDICATORS: dict[str, dict[str, str]] = {
@@ -202,10 +205,23 @@ class FXMacroData:
                 "USD announcement data can be fetched without credentials."
             )
 
-    def _get_json(self, path: str, params: dict[str, Any], cache_path: Path) -> dict[str, Any]:
+    def _get_json(
+        self,
+        path: str,
+        params: dict[str, Any],
+        cache_path: Path,
+        *,
+        max_rows: int | None = None,
+    ) -> dict[str, Any]:
         use_cache = self._use_cache()
         if use_cache and cache_path.exists():
             return json.loads(cache_path.read_text(encoding="utf-8"))
+        payload = self._get_all_pages(path, params, max_rows=max_rows)
+        if use_cache:
+            self._write_cache(cache_path, payload)
+        return payload
+
+    def _request_page(self, path: str, params: dict[str, Any]) -> tuple[int, dict[str, Any] | None]:
         self._rate_limit()
         response = requests.get(
             f"{self.base_url}{path}",
@@ -213,11 +229,73 @@ class FXMacroData:
             headers=self._headers() or None,
             timeout=30,
         )
+        status_code = getattr(response, "status_code", 200)
+        if status_code == 409:
+            return status_code, None
         response.raise_for_status()
-        payload = response.json()
-        if use_cache:
-            self._write_cache(cache_path, payload)
-        return payload
+        return status_code, response.json()
+
+    def _get_all_pages(
+        self,
+        path: str,
+        params: dict[str, Any],
+        *,
+        max_rows: int | None = None,
+    ) -> dict[str, Any]:
+        """Follow the API's offset pagination and return one combined payload.
+
+        Rows come back most recent first. Pages after the first are pinned to
+        the first page's ``dataset_version``; if the dataset changes mid-way
+        (HTTP 409), pagination restarts from the first page.
+        """
+        for _attempt in range(FXMACRODATA_MAX_PAGINATION_RESTARTS + 1):
+            first_payload: dict[str, Any] | None = None
+            rows: list[Any] = []
+            dataset_version = None
+            offset = 0
+            conflict = False
+            for _page in range(FXMACRODATA_MAX_PAGES):
+                page_size = FXMACRODATA_MAX_PAGE_SIZE
+                if max_rows is not None:
+                    page_size = max(min(page_size, max_rows - len(rows)), 1)
+                page_params = {
+                    **params,
+                    "limit": page_size,
+                    "offset": offset or None,
+                    "dataset_version": dataset_version,
+                }
+                status_code, payload = self._request_page(path, page_params)
+                if status_code == 409 or payload is None:
+                    conflict = True
+                    break
+                if first_payload is None:
+                    first_payload = payload
+                    dataset_version = payload.get("dataset_version")
+                page_rows = payload.get("data")
+                if not isinstance(page_rows, list):
+                    # Not a paginated announcement payload; return it unchanged.
+                    return payload
+                rows.extend(page_rows)
+                pagination = payload.get("pagination")
+                if not isinstance(pagination, dict) or not pagination.get("has_more") or not page_rows:
+                    break
+                if max_rows is not None and len(rows) >= max_rows:
+                    break
+                next_offset = pagination.get("next_offset")
+                if next_offset is None:
+                    next_offset = offset + len(page_rows)
+                if int(next_offset) <= offset:
+                    break
+                offset = int(next_offset)
+            if conflict:
+                continue
+            combined = dict(first_payload or {})
+            combined["data"] = rows if max_rows is None else rows[:max_rows]
+            combined.pop("pagination", None)
+            return combined
+        raise RuntimeError(
+            f"FXMacroData dataset for {path} kept changing during pagination; retry the request."
+        )
 
     def list_indicators(self, category: str | None = None) -> dict[str, Any]:
         """Return curated FXMacroData indicators, optionally filtered by category."""
@@ -258,6 +336,9 @@ class FXMacroData:
         ``publication_time`` reports how many returned rows fell into each
         case; check each row's ``publication_time_status`` before treating a
         timestamp as proof of when the value became public.
+
+        The full ``start``..``end`` window is fetched page by page; ``limit``
+        keeps only the most recent rows.
         """
         currency_code = str(currency or "").strip().lower()
         indicator_slug = str(indicator or "").strip().lower()
@@ -274,14 +355,17 @@ class FXMacroData:
             end_text = as_of_dt.date().isoformat()
 
         params: dict[str, Any] = {"start_date": start_text, "end_date": end_text}
-        if limit is not None:
-            params["limit"] = max(int(limit), 1)
+        max_rows = max(int(limit), 1) if limit is not None else None
         cache_key = json.dumps(
             {
                 "authenticated": bool(self.api_key),
                 "currency": currency_code,
                 "indicator": indicator_slug,
-                "params": {key: value for key, value in params.items() if value is not None},
+                "params": {
+                    key: value
+                    for key, value in {**params, "limit": max_rows}.items()
+                    if value is not None
+                },
             },
             sort_keys=True,
         )
@@ -294,6 +378,7 @@ class FXMacroData:
                 indicator_slug,
                 f"{hashlib.sha256(cache_key.encode()).hexdigest()}.json",
             ),
+            max_rows=max_rows,
         )
         observations, dropped_undated = self._normalize_observations(
             payload,

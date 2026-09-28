@@ -10,8 +10,9 @@ from lumibot.macro import FXMacroData, MacroData
 
 
 class _Response:
-    def __init__(self, *, payload=None):
+    def __init__(self, *, payload=None, status_code=200):
         self._payload = payload
+        self.status_code = status_code
 
     def raise_for_status(self):
         return None
@@ -145,6 +146,89 @@ def test_fxmacrodata_gates_on_epoch_announcement_datetime(fxmacrodata_factory):
     assert row["publication_time_status"] == "unverified"
     assert row["publication_time_precision"] == "unknown"
     assert result["publication_time"]["publication_time_status_counts"] == {"unverified": 1}
+
+
+def _monthly_rows(count):
+    """Most-recent-first monthly rows, like the API returns them."""
+    rows = []
+    for index in range(count):
+        year, month = divmod(12 * 2024 - index - 1, 12)
+        rows.append({"date": f"{year}-{month + 1:02d}-01", "val": str(index)})
+    return rows
+
+
+def _paged_fake_get(rows, calls, *, dataset_version="v1"):
+    def fake_get(url, **kwargs):
+        calls.append(kwargs["params"])
+        params = kwargs["params"]
+        if params.get("dataset_version") not in (None, dataset_version):
+            return _Response(status_code=409)
+        limit = params["limit"]
+        offset = params.get("offset", 0)
+        page = rows[offset:offset + limit]
+        has_more = offset + len(page) < len(rows)
+        return _Response(
+            payload={
+                "dataset_version": dataset_version,
+                "data": page,
+                "pagination": {
+                    "limit": limit,
+                    "offset": offset,
+                    "returned_count": len(page),
+                    "total_count": len(rows),
+                    "has_more": has_more,
+                    "next_offset": offset + len(page) if has_more else None,
+                },
+            }
+        )
+
+    return fake_get
+
+
+def test_fxmacrodata_follows_pagination_for_long_windows(fxmacrodata_factory):
+    calls = []
+    rows = _monthly_rows(250)
+    fxmd = fxmacrodata_factory(_Strategy(), _paged_fake_get(rows, calls))
+
+    result = fxmd.get_series("usd", "inflation", start="2000-01-01")
+
+    assert len(result["observations"]) == 250
+    assert result["observations"][0]["date"] == rows[-1]["date"]
+    assert result["observations"][-1]["date"] == rows[0]["date"]
+    assert [call["limit"] for call in calls] == [100, 100, 100]
+    assert [call.get("offset") for call in calls] == [None, 100, 200]
+    assert [call.get("dataset_version") for call in calls] == [None, "v1", "v1"]
+
+
+def test_fxmacrodata_limit_stops_paging_early(fxmacrodata_factory):
+    calls = []
+    rows = _monthly_rows(250)
+    fxmd = fxmacrodata_factory(_Strategy(), _paged_fake_get(rows, calls))
+
+    result = fxmd.get_series("usd", "inflation", start="2000-01-01", limit=120)
+
+    assert len(result["observations"]) == 120
+    assert result["observations"][-1]["date"] == rows[0]["date"]
+    assert [call["limit"] for call in calls] == [100, 20]
+
+
+def test_fxmacrodata_restarts_pagination_when_dataset_changes(fxmacrodata_factory):
+    calls = []
+    rows = _monthly_rows(150)
+    current = {"version": "v1"}
+
+    def fake_get(url, **kwargs):
+        if kwargs["params"].get("dataset_version") == "v1":
+            # A new release lands between the first and second page.
+            current["version"] = "v2"
+        return _paged_fake_get(rows, calls, dataset_version=current["version"])(url, **kwargs)
+
+    fxmd = fxmacrodata_factory(_Strategy(), fake_get)
+
+    result = fxmd.get_series("usd", "inflation", start="2000-01-01")
+
+    assert len(result["observations"]) == 150
+    assert [call.get("dataset_version") for call in calls] == [None, "v1", None, "v2"]
 
 
 def test_fxmacrodata_live_requests_bypass_disk_cache(fxmacrodata_factory, tmp_path):

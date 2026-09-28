@@ -6,11 +6,11 @@ for historical price bars and market movers, then lets the AI decide
 between TQQQ (risk-on) and SHV (risk-off) based on market trends.
 
 Requirements:
-    - GEMINI_API_KEY (for Gemini model)
+    - OPENAI_API_KEY (for the default GPT-6 Luna model)
     - ALPACA_API_KEY and ALPACA_API_SECRET (for Alpaca market data API)
 
 Usage:
-    export GEMINI_API_KEY='your-gemini-key'
+    export OPENAI_API_KEY='your-openai-key'
     export ALPACA_API_KEY='your-alpaca-key'
     export ALPACA_API_SECRET='your-alpaca-secret'
     python agent_macro_risk.py
@@ -116,7 +116,7 @@ class MacroRiskStrategy(Strategy):
         self.vars.iteration_count = 0
         self.agents.create(
             name="macro_allocator",
-            default_model="gemini-3.1-flash-lite-preview",
+            default_model="openai/gpt-6-luna",
             system_prompt=(
                 "You must be fully invested at all times. Never leave cash idle. "
                 "Check TQQQ and SPY price trends using historical bars. "
@@ -141,10 +141,10 @@ class MacroRiskStrategy(Strategy):
 if __name__ == "__main__":
     import os
 
-    if not os.environ.get("GEMINI_API_KEY"):
-        print("ERROR: GEMINI_API_KEY environment variable is required.")
-        print("Get a free API key from https://aistudio.google.com/apikey")
-        print("Then set it: export GEMINI_API_KEY='your-key-here'")
+    if not os.environ.get("OPENAI_API_KEY"):
+        print("ERROR: OPENAI_API_KEY environment variable is required.")
+        print("Get an API key from https://platform.openai.com/api-keys")
+        print("Then set it: export OPENAI_API_KEY='your-key-here'")
         raise SystemExit(1)
 
     if not os.environ.get("ALPACA_API_KEY") or not os.environ.get("ALPACA_API_SECRET"):

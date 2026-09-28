@@ -1,26 +1,60 @@
 {% extends "!base.html" %}
 
+{% block htmltitle %}
+{% if pagename == master_doc %}
+<title>Lumibot: Python Algorithmic Trading and AI Agents</title>
+{% else %}
+<title>{{ title|striptags|e }} - Lumibot</title>
+{% endif %}
+{% endblock %}
+
 {% block extrahead %}
 {{ super() }}
 {% set page_url = 'https://lumibot.lumiwealth.com/' if pagename == 'index' else 'https://lumibot.lumiwealth.com/' ~ pagename ~ '.html' %}
-{% set page_description = 'Lumibot is a Python framework for deterministic trading strategies, AI trading teams, and hybrid trading systems that backtest, paper trade, and run live with real brokers.' %}
+{% set descriptions = {
+  'index': 'Build Python trading bots and AI trading agents with LumiBot. Backtest strategies, inspect decisions, and connect stocks, options, crypto, and futures brokers.',
+  'agents': 'Build AI trading agents inside LumiBot strategies. Explore tools, multi-agent teams, historical backtests, memory, and broker execution in Python.',
+  'agents_quickstart': 'Run your first LumiBot AI agent with a complete Python example, installation steps, model credentials, daily stock data, and a short research backtest.',
+  'agents_examples': 'Explore LumiBot AI trading examples for stocks, options, macro research, and multi-agent teams, with source code and documented data requirements.',
+  'agents_example_ai_opening_range_breakout': 'Opening-range breakout example that reads Alpaca minute bars. The January 5, 2026 proof bought and sold 1 SPY.',
+  'agents_example_ai_vwap': 'VWAP example that reads Alpaca minute bars. The January 5, 2026 proof bought 1 SPY at 686.54 and sold it at 687.29.',
+  'agents_example_ai_iron_condor': 'Iron condor example that opens and closes one four-leg order on Alpaca option history. A row is one contract, held long enough for the tear sheet to move.',
+  'agents_example_ai_credit_spread': 'Credit spread example that opens and closes one vertical on Alpaca option history. One contract, then a close after prices can move.',
+  'agents_example_warren_buffett_value': 'Buffett value example. The source proof calls get_filings and get_filing_section on a real EDGAR 10-K, then holds.',
+  'agents_example_bill_ackman_concentrated': 'Ackman example. The source proof fetches the live Pershing Square SEC company atom feed, then holds.',
+  'agents_example_bull_bear_leveraged_etf': 'Leveraged ETF team for pairs such as TQQQ against SQQQ. The January 2026 Yahoo price proof bought 1 TQQQ.',
+  'agents_example_sec_insider_filings': 'SEC insider example. It reads the live Form 4 Atom feed and may act only on entries already public at the backtest clock.',
+  'agents_example_congress_disclosures': 'Trade a public House Clerk PTR after the filing is public. Stock mode needs a ticker and side. Option mode also needs call or put, strike, and expiration, and skips a row that lacks them. Amounts are ranges, and a report can be up to 45 days late.',
+  'agents_example_bull_bear_large_cap_stocks': 'Build a Python AI stock-trading team with bull, bear, and trader agents that debate large-cap stocks inside the LumiBot strategy lifecycle.',
+  'agents_example_citadel_sector_pods': 'Explore a Citadel-inspired AI sector-pod team in LumiBot, with research agents, portfolio decisions, Python source, and hosted BotSpot examples.',
+  'agents_example_ray_dalio_idea_meritocracy': 'Explore a Ray Dalio-inspired AI macro team in LumiBot, with specialist debate, portfolio decisions, Python source, and hosted BotSpot examples.',
+  'backtesting': 'Backtest Python trading strategies in LumiBot. Compare historical data sources and learn how strategy logic, orders, fees, and results fit together.',
+  'macro_data': 'Use FRED and ALFRED economic data in LumiBot strategies and AI agents. Configure credentials and query macro series with historical vintage handling.',
+  'fundamentals': 'Use company fundamentals and SEC filings in LumiBot strategies and AI research agents. Explore data access, examples, and historical-data limitations.',
+  'MIGRATING_FROM_BACKTRADER': 'Migrate a Backtrader strategy to LumiBot: map lifecycle methods, port a Python allocation example, compare orders and data, and configure the broker runner.',
+  'PARTNERSHIPS': 'Partner with the LumiBot team on funded integrations, open-source maintenance, developer tutorials, and strategic product collaboration.'
+} %}
+{% set page_description = descriptions.get(pagename, (title|striptags|trim) ~ ': setup, usage, and reference documentation for the LumiBot Python trading framework.') %}
 <link rel="icon" type="image/png" sizes="192x192" href="{{ pathto('_static/lumibot_favicon_192.png', 1) }}">
 <link rel="icon" type="image/png" sizes="512x512" href="{{ pathto('_static/lumibot_favicon_512.png', 1) }}">
 <link rel="apple-touch-icon" sizes="192x192" href="{{ pathto('_static/lumibot_favicon_192.png', 1) }}">
-<meta name="description" content="{{ page_description }}">
+{% if 'name="description"' not in metatags %}
+<meta name="description" content="{{ page_description|e }}">
+{% endif %}
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="Lumibot">
-<meta property="og:title" content="{{ title|striptags|trim }} - Lumibot">
-<meta property="og:description" content="{{ page_description }}">
+<meta property="og:title" content="{% if pagename == master_doc %}Lumibot: Python Algorithmic Trading and AI Agents{% else %}{{ title|striptags|trim }} - Lumibot{% endif %}">
+<meta property="og:description" content="{{ page_description|e }}">
 <meta property="og:url" content="{{ page_url }}">
-<meta property="og:image" content="https://lumibot.lumiwealth.com/_static/lumibot_spot_logo.png">
-<meta property="og:image:width" content="852">
-<meta property="og:image:height" content="852">
-<meta property="og:image:alt" content="Lumibot AI trading robot logo">
+{% set share_image = {'index': 'benefit-hero.png', 'agents_examples': 'example-gallery.png', 'agents_quickstart': 'backtest-benefit.png', 'standalone_components': 'component-research.png'}.get(pagename) %}
+<meta property="og:image" content="https://lumibot.lumiwealth.com/{{ '_images/' ~ share_image if share_image else '_static/lumibot_spot_logo.png' }}">
+<meta property="og:image:width" content="{{ 1536 if share_image else 852 }}">
+<meta property="og:image:height" content="{{ 864 if share_image else 852 }}">
+<meta property="og:image:alt" content="{{ title|striptags|e }}">
 <meta name="twitter:card" content="summary_large_image">
-<meta name="twitter:title" content="{{ title|striptags|trim }} - Lumibot">
-<meta name="twitter:description" content="{{ page_description }}">
-<meta name="twitter:image" content="https://lumibot.lumiwealth.com/_static/lumibot_spot_logo.png">
+<meta name="twitter:title" content="{% if pagename == master_doc %}Lumibot: Python Algorithmic Trading and AI Agents{% else %}{{ title|striptags|trim }} - Lumibot{% endif %}">
+<meta name="twitter:description" content="{{ page_description|e }}">
+<meta name="twitter:image" content="https://lumibot.lumiwealth.com/{{ '_images/' ~ share_image if share_image else '_static/lumibot_spot_logo.png' }}">
 <script type="application/ld+json">
 {
   "@context": "https://schema.org",
@@ -37,7 +71,9 @@
         "height": 852
       },
       "sameAs": [
-        "https://github.com/Lumiwealth/lumibot"
+        "https://github.com/Lumiwealth/lumibot",
+        "https://www.reddit.com/r/BotSpotTrade/",
+        "https://discord.gg/4R9j6T3PN8"
       ]
     },
     {

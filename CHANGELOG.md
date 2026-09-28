@@ -1,19 +1,915 @@
 # Changelog
 
-## 4.5.66 - Unreleased
+## 4.6.2 - 2026-09-27
+
+### Changed
+- `lumibot backtest` and `lumibot demo` print the total return, CAGR, max drawdown and the tearsheet path when the run finishes. They used to print nothing after the progress bar, which read as a hang.
+- `lumibot init` writes a strategy file with the same `IS_BACKTESTING`/`Trader` runner block a BotSpot strategy workspace uses, so `python strategy.py` runs it and the file moves between LumiBot and BotSpot without a rewrite. The file used to have no runner block and did nothing when run directly.
+- New docs page for the `lumibot` command (`docsrc/cli.rst`), linked second in Start here. `standalone_components.rst` documents that `YahooData()` with no dates answers as of a year ago. The README is shorter.
 
 ### Fixed
-- **Tradier live polling now throttles repeated broker reads and backs off after
-  transient provider 5xx failures.** Account balances, positions, and orders
-  reuse recent good reads during short polling windows or transient-backoff
-  windows, reducing provider retry storms in managed live bots while preserving
-  auth failures as hard errors.
+- Backtest quotes keep the data's full price precision. `Data.get_quote()` and `DataPolars.get_quote()` rounded open, high, low, close, bid and ask to 2 decimals, so a sub-cent crypto quote (SHIB near 0.0000124) became 0.0 and was then dropped as non-positive.
+- Intraday backtests no longer see one bar into the future through `get_last_price()` and `get_quote()`. Minute and hour trade bars are stamped at their start (verified for IBKR and ThetaData), so at simulated time T the bar stamped T is still forming and its close is the price at T plus one bar. The ThetaData and BotSpot Auto (routed) data sources returned that close as the last price and quote price, and IBKR/Polygon quotes, whose bid and ask are built from the close, did too, while a market order at T fills at the bar's open. A strategy could see where the minute would close and buy at its open. The price at T is now the forming bar's open (or the last closed bar's close); real quote snapshots (ThetaData NBBO, which is stamped at the snapshot time) are unchanged.
+- Intraday history shows a bar as soon as it has closed, even when no later bar exists yet. After a session close, overnight or across a gap, the last bar stayed hidden until the next bar existed (at 03:00 the newest visible 1-minute bar was 19:58, not 19:59). A bar counts as closed when its start plus its length has passed; the length is at least the nominal step and at least the smallest spacing in the series, so 5-minute bars stored as minute bars and hourly bars after a half-hour first bar never show early.
+- Polygon-routed stocks in `BACKTESTING_DATA_SOURCE` router backtests credit dividends. Polygon bars are split-adjusted only and carry no dividend column, so they got none; they now read dividends from the same free corporate-actions source that enriches IBKR daily bars. Routed dividend lookups now skip futures, crypto and other non-stock assets, which pay no dividends: a held futures or crypto position made the router download daily bars the strategy never asked for.
+- Backtests no longer pay a dividend on shares bought on the ex-dividend date. The dividend check runs before every iteration, so a position opened during the ex-date was credited by the next check (a BotSpot Auto backtest bought XBI at 11:31 on its ex-date and was credited $11.32). Only shares held when the day began are entitled.
+- `Order.avg_fill_price` keeps the broker's full precision. Setting it rounded to 2 decimals (the constructor never did), so a sub-cent crypto fill such as 0.0000123 became 0.0, forex and sub-penny option fills moved (1.08765 became 1.09), and live brokers passed the rounded value into fill processing for cash and positions.
+- IBKR futures intraday history no longer stops at the first weekend. The backward pager ended at the first empty page, and a 1000-minute page ending at the Sunday 18:00 ET open is all weekend, so an MES 1-minute backtest for Sep 1 to 18, 2026 only had data from Sep 6. Pages that are closed by the CME weekend and daily-break rules are now stepped over without a request, and up to three empty pages during rule-calendar trading time (holiday closes such as Good Friday) are stepped over before the walk stops.
+- IBKR minute backtests in a long-running process (a notebook, a local script, a service that runs many backtests) ask again for a session that had no trades once its one-day marker expires. The series was remembered as checked for the life of the process, so the marker never expired in practice.
+
+## 4.6.1 - 2026-09-25
+
+### Fixed
+- IBKR intraday history no longer drops the bar just before each page end. An IBKR page ending at T holds bars only up to two bars before T, so pages anchored at a session close lost every session's final bar (SPX 1-minute lost the 15:59 closing bar of every session but the last, verified live; stock extended hours lost 19:59) and pages continuing from the previous page's first bar lost the bar before it (QQQ 5-minute lost a bar about every 3.5 days). Each intraday page now asks one bar later, never past the delayed-feed limit for stocks and indexes; daily requests are unchanged.
+- Routed (BotSpot Auto) stock backtests credit dividends again. The router inherited ThetaData's dividend lookup, which asked the ThetaData corporate-actions API even for stocks whose bars come from IBKR. ThetaData is switched off, every lookup failed quietly, and every dividend was zero (a 400 TLT + 50 SPY hold from June to August 2026 missed $354.40). Assets routed to IBKR now read the dividend on its ex-date from the IBKR daily bars, which already carry it; only assets routed to ThetaData still ask ThetaData. This also removes two failing ThetaData requests per held stock per backtest. A daily frame that ends before the current date is refreshed at most once per simulated day instead of being rescanned on every lookup. Alpaca-routed stocks correctly get no cash dividend, because their prices are dividend-adjusted (Alpaca adjustment="all").
+- IBKR 1-minute stock and index backtests no longer skip sessions missing inside a cached series. The cache check only compared the edges of the requested window, so a cache holding June and September (two earlier backtests) served a June-to-September backtest with July and August missing: no request, no error, and the strategy saw one stale bar for weeks. Interrupted downloads and LumiBot 4.6.0 (which stopped paging at every weekend) left the same holes in the shared cache. Missing sessions inside the window are now downloaded, one request per session; a session IBKR has no bars for is remembered for a day.
+- Trading agents report the actual fill prices, credit or debit, cash change and resulting risk from the order status and fresh account reads, not the planned limit. A 4.6.1 release eval reported a planned $1.00 condor credit when the fills gave $0.80.
+- `get_historical_prices_for_assets()` / `get_bars()` fetch each distinct asset once when the list repeats an asset, instead of raising "assets must not contain duplicate entries" and crashing the backtest (a real strategy listed a holding that was also its own group's proxy).
+- A minute history request in a daily-cadence backtest (for example `sleeptime="1D"`) now returns minute bars or nothing, never daily bars. The ThetaData and routed (`BACKTESTING_DATA_SOURCE` router map) data sources rewrote an explicit `get_historical_prices(asset, 1440, "minute")` into a day request once the backtest ran on a daily sleeptime, so a routed IBKR SPCX backtest got 52 daily bars labeled as a minute answer. Only implicit requests (no timestep) still follow the daily cadence.
+- IBKR 1-minute stock history now pages across weekends, holidays and overnight gaps. The backward pager asks IBKR in 1000-minute pages (16.7 hours); a weekend is about 56 closed hours, so the page ending Monday 04:00 ET is always empty and the pager used to stop there. Multi-week minute backtests only ever saw the last few sessions, reported "IBKR cached history remained underfilled" on every bar, and strategies that need intraday bars never traded. An empty page whose whole window is closed-market time is now stepped over without a request; an empty page during trading time keeps the old stop behavior.
+- IBKR stock and index 1-minute paging now anchors each older page at the previous session's close, so one request covers one whole session. Pages used to straddle the closed overnight gap: about 1.8 downloader requests per session, roughly 20 minutes of wall time per calendar month of minute history per symbol on the shared downloader. Live: 9 requests for 9 SPY sessions. Thin symbols whose first pre-market print comes after the open (XLK at 04:01) also get one page per session, and no longer stop at a weekend page that holds a few open minutes without trades, including when a resumed download starts at a quiet Monday open.
+- The check for loaded minute or hour bars that runs on every routed and ThetaData quote and last-price lookup now uses a binary search instead of scanning the whole bar index (about 0.4 ms down to 0.05 ms per call on an 8-month minute series).
+- Routed (BotSpot Auto) and ThetaData stock backtests that trade intraday no longer fill market orders at yesterday's daily close. Quotes and last prices for stocks were forced to daily bars (a shortcut for daily strategies), so an order filled at the prior session's close even when the strategy had current minute bars loaded (a stop that triggered at 69.67 filled at 73.71). Daily bars are now used only when no current minute or hour series is loaded for the asset.
+- IBKR backward paging now writes collected pages to the cache every 10 pages. The cache used to be written only when the whole walk finished, so a cold multi-month minute download that was force-stopped or timed out after an hour kept nothing and every retry started over.
+- The same fix for US index 1-minute history (SPX, NDX, VIX). Index bars only print 09:30 to 16:00 ET, so the 17.5-hour overnight gap is longer than a 1000-minute page and index minute history stopped after a single session. SPX options backtests logged "remained underfilled" thousands of times.
+- IBKR daily history no longer loses a symbol when a page reaches back before the first bar IBKR holds. IBKR answers such a page with HTTP 500 "Chart data unavailable" (verified live: a 2022 listing failed with a 5-year page and returned 1002 bars with a 4-year page). The pager now halves the daily page and retries, and keeps the real bars it already has once no smaller page works. Recent listings (JEPQ, leveraged single-stock ETFs, new IPOs) and long backtests that start before a listing used to get no daily bars at all.
+- IBKR history paging keeps the real pages it already collected when an older page fails (for example the downloader's "remained invalid after rebuild"). It used to raise and discard every page, so the strategy saw no bars for that symbol. Nothing is negatively cached; the missing older part stays retryable.
+- IBKR daily requests up to 993 days are now one exact "<N>d" page (IBKR accepts up to 1000d). The limit was 365 days, so a one-year backtest plus an indicator lookback asked for a 5-year page, which the downloader's validation always rebuilt (about 35 seconds per symbol instead of about 11).
+- IBKR stock and index intraday requests now end at least 20 minutes before the current time. IBKR history on the shared account runs 13 to 17 minutes behind, so a backtest whose end date is today, run during market hours, asked for bars the feed did not have yet; the downloader rejected that newest page as `stale_tail` and the symbol got no intraday bars at all.
+
+## 4.6.0 - 2026-09-24
+
+4.6.0 is the first published release of this work. Tag `v4.5.92` was created but its release run stopped at the agent eval gate, so 4.5.92 was never published to PyPI. Everything planned for 4.5.92 ships here, renamed 4.6.0 because of the size of the AI agent changes.
+
+Highlights:
+- `BACKTESTING_DATA_SOURCE=alpaca` backtests no longer crash with "Config cannot be None" (see Fixed).
+- IBKR intraday backtests no longer loop on the same downloader request across clamped or holiday windows.
+- Alpaca and IBKR history returns closed bars only, and history before the backtest start is downloaded.
+- New agents default to GPT-6 Luna on medium reasoning; agent network tools are opt-in.
+
+Deploy marker: `3abbf8fcbd64` (original 4.5.92 marker)
+
+- Release agent evals set `LITELLM_LOCAL_MODEL_COST_MAP=True` in the isolated eval process. litellm 1.102 downloads its model price map from GitHub on import, the eval network boundary rejected that request, and every GPT-6 Luna eval call errored in CI.
+- The options skill now tells agents to wait briefly (bounded) for their own pending package in backtests and never cancel or replace it to restart the decision, matching the stock skill. Release eval options_iron_condor_atomic_open failed 1/3 when the agent cancelled its own valid condor.
+- Trading agents now name, in their final decision, the account state they relied on before any order and state that upstream research or handoff packets were treated as unverified evidence, listing what they revalidated. A decision not to order must also name the existing position or pending order that already covers it, or the condition that blocks it, after reading account_positions and orders_open_orders fresh in that run. Release evals failed 1/3 when a correct decision left this out.
+
+### Growth documentation and examples
+- Added point-in-time Congress-disclosure and SEC Form 4 agent examples, plus a stateful authenticated-browser research/trade/publish showcase with publishing disabled by default.
+- Documented the recommended two-or-more-agent architecture with a dedicated trading/risk agent while preserving deterministic-Python and hybrid alternatives.
+- Upgraded the example-art direction to simple, mascot-led workflow diagrams from the approved Image Generator and recorded inspection evidence for every regenerated asset.
+- Restored prominent traditional Python quickstart and example routes alongside AI, with explicit no-model requirements and direct lifecycle/broker guidance.
+- Replaced rejected hero/challenge art, added three workflow illustrations, and centered responsive image placements with consistent proportions.
+- Put the executable AI quickstart in the homepage and README opening, with compact artwork and a smaller navigation logo.
+- Refined AI trading entry points with a runnable README example, grouped navigation, compact brand artwork, and a free challenge invitation after useful content.
+- Added a canonical researcher/trader Strategy example with Gemini 3.5 Flash-Lite, explicit position limits, and order-observation guidance.
+- Promoted AI quickstart and examples to top-level navigation; added reusable-component and coding-agent entry pages.
+- Added creator-led challenge imagery, preserved classic Strategy entry points, and introduced contributor intake and a read-only PR triage utility.
+
+
+### Changed
+- Added full authenticated ``http_request`` and conditional ``rss_fetch`` tools, including all standard HTTP methods, host-scoped secret profiles, redirect revalidation, response bounds, persistent cookies, and private-network/metadata protections.
+- Added an optional Patchright browser runtime with persistent profiles, JavaScript interaction, multi-tab control, scoped login credentials, managed uploads/downloads, storage-state export, screenshots, and action receipts.
+- Added an optional Camoufox browser engine plus reproducible lifecycle,
+  fingerprint, latency, and memory qualification. No hosted default is selected
+  until an engine passes the exact Linux ARM64 Bot Manager gate.
+- Added independently allowlisted Resend email and Slack communication tools.
+  Historical runs use explicit fixtures for reads and can never force a live
+  send; attempted writes produce structured simulation receipts.
+- Agent evaluation resume rebuilds missing freshness receipts from matching completed ledger entries without repeating paid calls or changing their original timestamps.
+- Managed AI agents can select a reviewed provider reasoning effort end to end;
+  unsupported provider/effort combinations fail visibly instead of being
+  silently ignored. Stable Anthropic Opus/Fable family identifiers are also
+  recognized alongside Sonnet.
+- Agent evidence guidance now asks for the smallest thesis-relevant evidence
+  set, reuses fresh account and handoff context, and avoids unrelated tool
+  categories while retaining mandatory account, risk, and current-price checks
+  before an order.
+- Indicator tools preserve complete instrument identity, including asset type,
+  quote asset, and exchange, so a crypto pair cannot be silently treated as a
+  same-ticker stock.
+- Fibonacci range retracements support explicit up/down direction, bounded
+  lookback and independent monthly/annual windows through the agent indicator
+  tools. Numerical contracts cover RSI, VWAP, SMA50/200, MACD, Bollinger and ATR.
+- AI documentation opens with complete workflow routes and a grouped example
+  directory. Stock/ORB setup documents exact prerequisites and validation limits;
+  the public Backtrader migration guide replaces the duplicate internal guide.
+- Documentation analytics distinguish Python, AI, options and partnership entry
+  choices, with duplicate-event and destination-classification coverage.
+- Backtest progress and settings retain per-run initialization, callback, first
+  price, simulation and report timestamps, separately from heartbeat updates.
+- ⚠️ New agents without an explicit model now use OpenAI GPT-6 Luna
+  (`openai/gpt-6-luna`) with medium reasoning effort, replacing the retired preview
+  default. Medium reasoning applies only when the resolved model is the default and
+  the caller passed no `reasoning_effort`. Explicit model pins and managed
+  families remain unchanged; existing agent instances are not migrated during a
+  decision. Native calls need `OPENAI_API_KEY`. The CLI AI template, examples and
+  docs use the new default (see `docs/AGENT_DEFAULT_MODEL.md`).
+- Agent indicator queries accept independent, explicitly zoned historical
+  windows. Bounds cannot exceed strategy time; missing warmup remains missing,
+  and monthly or annual requests cannot borrow bars from another window.
+- Short daily IBKR stock/index history requests size the provider page from the
+  complete required window, including lookback and calendar padding. Requests
+  longer than one year retain the five-year cap and backward pagination.
+- Added partnership information, direct AI example routes, and hosted marketplace links to the public documentation and README.
+- Corrected README and package license labels to match the existing GPLv3 LICENSE file; the license text is unchanged.
+
+### Added
+- Alpaca options backtesting with your own key: `AlpacaBacktesting.get_chains()` now lists
+  real contracts (expired and live, paginated) for the simulated date, within 90 days or the
+  `OptionsHelper` expiration hint, cached per day in memory and on disk. Requests stay under
+  the free-tier limit and wait on HTTP 429 with a bounded retry. New public page
+  `docsrc/backtesting.alpaca.rst`; proof runs in `docs/research/2026-09-23-alpaca-options-backtests/`.
+- Managed agents accept OpenAI GPT-6 Luna (`gpt-6-luna` or `openai/gpt-6-luna`) with a
+  reasoning effort. Its model information is registered with LiteLLM, which has no GPT-6
+  entry yet, so reasoning is accepted and tool calls with reasoning use the Responses API.
+
+### Fixed
+- `lumibot version` printed "unknown" from a source checkout or CI, where no installed package
+  metadata exists. It now reports `lumibot.__version__` (setup.py in a checkout, then installed
+  metadata), the same value the startup log prints.
+- Agent `market_historical_prices(..., table_name=...)` stores bars in their own market wall-clock time and reports that zone in `datetime_timezone`. It used the strategy clock's zone, so with a UTC clock and New York bars the 09:30 ET open landed at 13:30 in the table and an opening-range query read pre-market rows (release eval `stock_orb_completed_bars`).
+- Agent `market_load_history_table` no longer serves raw 1-minute source rows for a `5minute` (or other multi-minute) request; it aggregates through `get_historical_prices`. For minute and hour bars it also excludes the bar that starts at the current time, which has not finished yet (a one-bar lookahead).
+- The `stock-trading` skill tells agents to price limit orders from `market_last_price`, not a historical bar close, and to load rule-interval bars with `market_historical_prices`. An ORB eval run priced a buy limit at 228.60 with the stock at 230.00 and never filled. The rule covers new orders only: the skill also says not to reprice a pending order to make it fill sooner, since an earlier wording led agents to modify a pending exit.
+- Release eval freshness now fingerprints `lumibot/components/agents/duckdb_tools.py`, so DuckDB tool changes rerun the agent evals.
+- `get_filings` (and the agent tool) returns an empty `filings` list with `available: false` and `reason: "no_sec_cik"` for a symbol the SEC ticker map does not list, instead of raising. The raised error became an agent tool error that marked a research decision blocked even after the agent read the filing from the managed research source (release eval `research_sec_prompt_injection`). `ticker_to_cik` still raises, now as `SECTickerNotFoundError`, a `ValueError` subclass.
+- The release-eval production fixture gives the built-in SEC tools a private recorded cache in backtest mode. They used to read the developer's `~/.lumibot/cache/sec` locally and hit the network boundary on CI, so the same eval saw different SEC evidence in each place.
+- Agent `market_historical_prices` accepts a single `symbol` argument like every other market tool. `symbol="AAPL"` used to be dropped and the call raised, and that unrecovered tool error blocked a whole decision (release eval `rules_active_override_strategy_prompt`).
+- Agent order tools require a successful `options_get_chain` for the underlying before opening an option position; closing a held contract is exempt. An agent had opened a call found only through the expiration and delta helpers (release eval `options_single_leg_chain_and_quote`).
+- The `stock-trading` skill and `market_load_history_table` description tell agents to read stock and ETF history with `market_historical_prices` (with `table_name` for SQL) before an order. Its opening-range reference now says a higher-volume check compares the candidate with the opening-range bars (not pre-market or later bars) and that the first qualifying breakout stays valid at a later evaluation while price holds.
+- ⚠️ Release agent evals now run on GPT-6 Luna (`openai/gpt-6-luna`) on medium reasoning for both the acting agent and the judge, and need only `OPENAI_API_KEY` (the release and agent-evals workflows pass `secrets.OPENAI_API_KEY`). All 12 eval cases name the Luna model; their prompts, contracts and rubrics are unchanged. Gemini remains an explicit opt-in. Eval prices for Luna come from the model information registered in the runtime, and the eval network boundary allows only the OpenAI Responses and Chat Completions endpoints besides Gemini inference.
+- First GPT-6 Luna eval runs exposed three guidance and fixture gaps, fixed without touching case prompts, contracts or rubrics: the `options-trading` skill and `options_evaluate_market` description say to pass `max_spread_pct` only when the user sets a spread limit (Luna invented a 20% limit and declined a condor whose legs were all usable); the `stock-trading` skill says to leave a pending exit in place rather than cancel and replace it; and the eval fixture's AAPL daily closes now step up to today's price, so the "above its five-day average" premise of `stock_price_before_order` holds on the evidence instead of price equalling the average. Tool guidance also tells agents to take indicator values such as an SMA from `get_indicator`, `get_indicators` or `duckdb_query`, never from mental arithmetic (Luna misstated a five-day average and hand-computed a crypto SMA).
+- A call to a tool that does not exist no longer ends the agent run. ADK raised `ValueError` and the whole decision was lost (release eval `options_iron_condor_atomic_open`, where the model invented a tool name); the model now gets a structured `UnknownTool` error listing the real tools, and such a call does not mark the decision blocked because nothing ran.
+- Release eval harness: order calls the tool rejected are recorded separately and no longer count as broker submissions (a no-order contract still fails on them); a malformed leg is a named failure instead of crashing the scorer; harness error rows record the file and line of the error without its message. GitHub run 35930118229 had logged only a bare `KeyError`.
+- Alpaca option bars are no longer reindexed and forward/back filled like stock bars. That
+  invented prices between sparse trades and back-filled a later trade into the past (a price
+  before the first print). Options now use real prints only; `get_last_price` is `None`
+  before the first trade, `BacktestingBroker` fills Alpaca options only on a bar that printed
+  in the current minute or day, and a contract with no bars logs one clear error instead of
+  crashing. Option cache files carry a new `_TRADES` key so old filled files are not reused.
+- `BACKTESTING_DATA_SOURCE=alpaca` with `backtest(datasource_class=None)` (how BotSpot runs Alpaca
+  backtests) failed with "Config cannot be None". Without a config, `AlpacaBacktesting` now reads
+  `ALPACA_API_KEY`/`ALPACA_API_SECRET`/`ALPACA_OAUTH_TOKEN`/`ALPACA_IS_PAPER`, defaults to minute bars
+  (daily-cadence strategies still get day bars), runs through `backtesting_end` (new `full_window`
+  option; an explicit config keeps the old stop three sessions early), and writes progress.csv. The
+  option contract list retries once on the other Trading API endpoint after a 401, and bar requests
+  stop 16 minutes before now (free keys refuse the latest 15 minutes of SIP data).
+- IBKR option contract lookup returned the first contract with a matching expiration. On monthly
+  expirations IBKR lists AM-settled `SPX` and PM-settled `SPXW` with the same date, so an `SPXW`
+  request could price the `SPX` contract. The lookup now prefers the requested trading class.
+- Polygon option chains fetched with `LUMIBOT_OPTION_CHAIN_MAX_DAYS` were cached under the normal
+  name and reused for up to 14 days, and by runs without the limit, so later dates saw almost no
+  expirations. A limited chain now has its own cache name and is reused only on the same day with
+  the same limit. An invalid value such as `21d` is ignored with a warning instead of crashing.
+  The variable is now documented in `docsrc/environment_variables.rst`.
+- `AlpacaBacktesting` had no `get_quote()`, so `OptionsHelper` failed every expiration probe on
+  Alpaca option backtests. It now returns the last real trade as the price with bid and ask `None`
+  (Alpaca historical option data is trade bars only), and option last price at the first bars of
+  the window reaches back for real prints from before the start.
+- Lookahead: `AlpacaBacktesting.get_historical_prices()` returned the bar that was still forming
+  at the simulated time, with its final close, high, low and volume (the 10:00 five-minute bar at
+  10:00, today's daily bar at 09:30). In environment mode (`BACKTESTING_DATA_SOURCE=alpaca`, the
+  BotSpot path) history now holds finished bars only, like IBKR, ThetaData and Polygon, for stocks,
+  crypto and options at every bar size, and returns `None` when nothing has finished yet. The
+  documented `remove_incomplete_current_bar=True` option now also drops a multi-minute bar that is
+  still forming (it only dropped a bar labeled exactly now). With an explicit config the documented
+  default stays `False`. `get_last_price()` and fills are unchanged: the open of the bar that starts
+  now, which the broker's Alpaca branch now requests explicitly.
+- `AlpacaBacktesting` downloaded nothing before `backtesting_start` unless `warm_up_trading_days` was
+  passed, so on the BotSpot path a strategy that asked at its first bars for 250 five-minute bars got a
+  few pre-market bars, and one that asked for 15 daily bars (an ATR(14) filter) stopped with "Not enough
+  historical data". New `history_before_start` option (default True in environment mode, False with an
+  explicit config): a history request that needs more finished bars than the window holds fetches the
+  real earlier bars once, sized to the request, cached on disk, never filled in, and never asked for
+  again on every bar. The closed-bar rule still applies and fills are unchanged.
+- `AlpacaBacktesting.LUMIBOT_DEFAULT_QUOTE_ASSET` was `None` after the lazy AlpacaData quote
+  change, which broke `_get_asset_key(quote_asset=None)` in the legacy Alpaca backtest tests.
+- An explicit `AlpacaBacktesting(timestep="minute")` is no longer switched to day bars when
+  the strategy sleeps a day. The daily-cadence priming added in 4.4.53 now skips data sources
+  whose bar size the caller set; four legacy Alpaca minute tests pass again.
+- IBKR stock intraday backtests no longer re-submit the same downloader request on
+  every bar when a window edge is market-closed time (a lookback that starts on a
+  weekend or holiday, or a backtest end clamped to "now" before the next session
+  opens). Coverage checks now use the last session that opened before the window end
+  and the first session that had not closed by its start, closed-market edges are not
+  fetched, and a segment already requested in the process is not requested again.
+  A production SPY 5-minute backtest sent `startTime=20260908-08:00:00` 77 times; the same
+  loop reproduces on 4.5.91 code, so it is a latent bug rather than a 4.5.92 change.
+  No bars are synthesized; cached real bars are returned.
+- SEC mutable indexes, submissions, and company facts now expire in live mode while remaining deterministic in backtests; raw facts, filings, and filing documents enforce point-in-time availability boundaries.
+- Overlapping broker position reads no longer let an older response delete,
+  resurrect, or overwrite a newer applied snapshot. Network reads remain outside
+  the tracker lock, and a failed newer request does not discard older success.
+  Positions added during a read also keep their newer fields and strategy owner.
+- Failed or malformed Bitunix position snapshots preserve tracked positions
+  and remain retryable instead of making the account appear flat. Successful
+  empty broker snapshots now remove every stale non-cash position.
+  Ambiguous same-symbol active positions are rejected instead of overwriting
+  each other according to response order.
+- Strategy variable backups retain `Asset` objects across scheduled-file and
+  database restarts, including nested instruments and option underlyings.
+- Bitunix reduce-only closes no longer request a leverage change from a
+  reconstructed asset's default, preserving the existing position's leverage
+  for full and fractional closes, including after broker restarts.
+- A failed tool attempt followed by a successful retry of the same tool is
+  classified as recovered. Unrecovered or final tool failures still produce a
+  structured ``tool_error`` outcome.
+- Production eval fixtures now execute a real non-trading researcher followed
+  by a separately instantiated trading/risk agent, preserving both actors'
+  tool evidence and usage instead of simulating the handoff with a paragraph.
+- Managed-gateway protocol and hard provider-quota errors retain their typed
+  cause. Backtests now fail visibly on invalid provider tool contracts or
+  exhausted billing/quota instead of recording repeated no-action iterations.
+- CCXT research history and last-price queries no longer expose unfinished
+  candles' future OHLCV values. Minute/hour/day completion boundaries and
+  shifted history are covered; execution retains current-candle fills and
+  existing sparse-gap/future-timestamp safeguards.
+- Cloud telemetry no longer logs listener credentials, authentication headers,
+  echoed response bodies or transport exception text. Status diagnostics remain.
+- Scheduled-order contracts exercise actual process exit and fresh-process
+  reconciliation, including terminal states and duplicate broker observations.
+- Eval startup imports only its approved inference credential and disables
+  automatic broker/dotenv discovery. Non-inference HTTP requests fail before
+  transport, including accidental background broker initialization.
+- Release evals use the real AgentManager and built-in trading tools instead of
+  simplified replacement functions. Fixture data and real simulated broker fills
+  now expose tool-schema drift and missing execution outcomes before publication.
+- Native evals pace exact provider-counted input across concurrent workers and
+  resumes. This avoids bursts over the observed free-tier input limit without
+  changing customer/provider quotas or discarding prior spend reservations.
+- Multi-leg price calculation requires valid quotes for every option leg.
+  Missing, failed, nonfinite, negative or crossed quotes no longer produce a
+  partial package price. Unknown price styles fail visibly.
+- **Indicator batch metadata rejects non-string and oversized fields before
+  data work.** Result ids, indicator names and timesteps are never coerced from
+  arrays or objects into misleading strings.
+- **Managed AI family selection pins one exact model per decision.** A compatible
+  gateway resolves the family once; tool continuations retain that id and reject
+  inconsistent resolution without falling back from personal credentials.
+- **Indicator timeframes do not silently substitute a different cached series.**
+  A request for minute data cannot reuse and relabel a daily store entry.
+- **Agent eval spending survives tool continuations, errors and process resumes.**
+  Durable reservations precede each actor/judge call, unknown usage retains its
+  reserved cost, and budgeted native Gemini requests disable hidden SDK retries.
+  Freshness now includes indicator/broker code and installed SDK versions without
+  renewing the timestamps of unchanged skipped passes.
+- IBKR history diagnostics retain structured downloader causes and distinguish
+  data sources and requested windows. A failed fetch is no longer overwritten
+  or double-counted as an empty payload. Diagnostics do not fail a backtest.
+- Downloader provider cooldowns remain attached to their original queued
+  request instead of forcing duplicate submissions after repeated wait
+  timeouts. Provider waiting is exposed separately from simulated progress.
+- **Indicators cannot calculate against future backtest rows.** Input is copied
+  and restricted to strategy time before computation; negative offsets and
+  explicit noncausal parameters fail visibly. Observed bar corrections invalidate
+  memoized results and custom functions cannot mutate the source frame.
+- **Agent indicator batches support independent parameters and timeframes.**
+  Requests carry unique result IDs and retain individual calculation errors,
+  allowing different moving-average lengths in one call.
+- **Serialized broker order IDs remain queryable during live tool loops.**
+  Broker-native identifiers such as Alpaca ``uuid.UUID`` values now compare
+  losslessly with the string form carried by JSON, agent tools, and scheduled
+  runtime state. Exact ``get_order`` and filtered ``get_orders`` calls can
+  therefore observe the submitted order through its terminal lifecycle without
+  confusing a type mismatch with a missing order.
+- **Remote MCP tools expose their authoritative argument contracts to agents.**
+  LumiBot now loads each allowlisted tool's description and input schema through
+  ``tools/list`` and projects the exact field names into the model-facing
+  callable. Hosted research agents no longer have to guess between names such as
+  ``datasetId`` and ``dataset_id`` before calling BotSpot's strict MCP server.
+
+- `AgentManager.run_together` no longer runs whole agent runs unsynchronized. Model calls still overlap, but every tool call and each run's bookkeeping (self.vars run state, strategy memory, `agent_run_summaries.jsonl`, traces, the tool-result cache, observability rows and the DuckDB query layer) now take one manager lock, so parallel agents cannot lose or duplicate those rows.
+- IBKR REST intraday backtests value options from minute bars. `get_last_price()` and `get_quote()` sent options to the daily dataset in every run, so an intraday strategy could mark an option at a stale daily close while its fills used minute bars. Daily-cadence runs (for example `sleeptime="1D"`) still use day bars.
+- Agent `market_historical_prices` never labels daily bars as intraday. `YahooData` kept one bar series per asset, so after daily bars were loaded a `timestep="minute"` request returned those daily bars. The store is now kept per interval. The tool also checks the bars it gets back: when an intraday request comes back daily, that symbol is listed as missing and in `symbols_interval_mismatch` with an `interval_note`, for every data source.
+- ⚠️ `AlpacaBacktesting` with an explicit `config` now also defaults `remove_incomplete_current_bar` to `True`, like environment mode. Before, history included the bar still forming at the simulated time with its final OHLCV, a lookahead of up to one bar. Pass `remove_incomplete_current_bar=False` to keep the old behavior. The docs now also say plainly that Alpaca option chains are today's contract listing, not a point-in-time chain: Alpaca gives no listing date, so chain membership is not proof a contract existed on the simulated date (a contract still cannot fill before its first real trade).
+- ⚠️ The public AI examples ship conservative risk limits again. `ai_opening_range_breakout` and `ai_vwap` use `risk_fraction=0.01`, meaning stop risk as a share of portfolio value, capped at `max_shares`; `ai_credit_spread` and `ai_iron_condor` use `max_risk_pct=0.02` and 10 contracts; `ai_spx_zero_dte_bear_call_team` uses `max_risk_pct=0.01` and 2 contracts. They had been raised to 25% stop risk and up to 15% / 40 contracts. The ORB trader now uses `build_orb_trading_prompt` (range verification, stop placement, share cap), and the VWAP trader prompt now carries `deviation_pct`, the dip-low stop and the share cap. Raise the limits through strategy parameters.
+
+### Security
+
+- Agent `fetch_feed` sends the SEC contact User-Agent only when the URL host is `sec.gov` or a subdomain. A substring check also matched hosts such as `sec.gov.example.com` and URLs that only mention `sec.gov` in a path or query.
+- The SEC filing text extractor now removes `<script>` and `<style>` blocks whose end tags carry spaces or attributes (for example `</script >`), so their contents no longer leak into filing text.
+- Agent `http_request` and `rss_fetch` stream response bodies and stop reading as soon as the response size limit is passed. Before, the whole body was read into memory first, so a URL returning a multi-gigabyte body could exhaust a live bot's memory.
+- Agent `http_request` and `rss_fetch` connect to the exact address the SSRF check approved, including on every redirect hop, instead of resolving the hostname again. This closes a DNS rebinding path where a domain could pass the check with a public address and then connect to `127.0.0.1` or the cloud metadata address `169.254.169.254`. The original `Host` header and TLS server name are kept, so certificate checks still verify the real hostname, and cookies stay scoped to the hostname rather than a shared IP.
+- Email and Slack `COMMUNICATION` log lines no longer contain recipient addresses, subjects, bodies, HTML, or Slack blocks. Those can hold account balances and positions, and strategy logs are shipped to log sinks. The log line now records only the provider, status, channel, message id, idempotency key, recipient count, and short hashes and lengths of the content. The payload returned to the caller is unchanged.
+- Browser profile directories are created with `0700` permissions and `storage-state.json` with `0600` on POSIX, because the exported cookies and local storage work like a login for the sites in that profile.
+- `browser_login` scrubs the username and password from engine errors before they reach the agent or logs (a browser call log can echo the filled value), and `BrowserCredentialProfile` no longer shows the username or password in its `repr`. The browser tools docs now describe storage state as a secret instead of a harmless artifact.
+- ⚠️ Agent outbound network tools are now off by default. `http_request`, `rss_fetch`, and every `browser_*` tool join an agent only when it is created with `allow_network=True`, or for the specific tools listed in `tools=[...]`. `allow_network=False` removes them even when listed. Before, every agent got them by default, so a prompt-injected page could make any agent, including the trader, send its context to an outside URL. The shipped web examples (`ai_public_web_fetch`, `ai_congress_disclosures`, `ai_browser_research_showcase`) opt in only the agent that fetches pages. Strategies whose agents fetch the web must add `allow_network=True`. The 13 extra tools also crowded the default trading toolset: the `options_iron_condor_atomic_open` release eval fell from 3/3 to 1/3 with them.
+- Option agents now call `account_portfolio`, `account_positions`, and `orders_open_orders` before any option order, even when the injected account snapshot is complete (agent prompt and `options-trading` skill). The `options-trading` skill also tells the agent to use only the expiration, delta, and width limits the user or rules state, and to measure deltas with the Greek tools before declining. The `options_iron_condor_atomic_open` release eval caught one run that ordered without the account reads and others that declined a supported condor by inventing a 30-day expiration minimum.
+- Bitunix request signing no longer writes the API key or secret key to logs. `BitUnixClient._sign` logged the digest input (which holds the API key) and the sign input (digest plus the secret key) at DEBUG level, so any strategy run with debug logging leaked the Bitunix secret to its log sinks. Signing now logs nothing. The double SHA-256 signature is unchanged because Bitunix's API spec requires it.
+
+## 4.5.91 - 2026-09-06
+
+Deploy marker: `d007efed231d`
+
+### Fixed
+- **Bitunix futures orders obey exchange quantity and price rules.** Decimal
+  quantities and prices round down using cached trading-pair precision and
+  serialize as strings; below-minimum quantities fail locally. Crypto-futures
+  assets retain requested constructor leverage. Hedge-mode initialization
+  failures block submission, and reduce-only closes use `CLOSE`, the matching
+  position ID, and the correct hedge side. Fractional Bitunix closes use
+  Decimal arithmetic, with close responses mapped back to execution sides and
+  exchange `SHORT` positions retaining their negative quantity.
+- **Live order reconciliation no longer loses a submitted broker identifier.**
+  When submit and callback copies of the same order race with a broker refresh,
+  reconciliation now collapses them atomically into one strategy-owned order
+  while preserving authoritative open, partial, filled, canceled, expired, and
+  error lifecycle state. New-order callbacks now perform lookup and transition
+  under the same lock, broker-driven closes retain the strategy quote asset,
+  and a later scheduled process can recover a terminal order from the broker
+  snapshot after the submitting process exits.
+- **Hosted agents can use deployment-bound BotSpot public research safely.**
+  BotSpot runtimes auto-attach a short-lived, read-only macro and SEC research
+  MCP capability; external users receive one optional linking notice. Historical
+  runs enforce their simulated date as a hard ceiling, SEC text is explicitly
+  untrusted, expired capabilities renew once on the same origin, and a built-in
+  research skill defines provenance, fallback, and researcher-to-trader handoff
+  requirements.
+- **Real-model release evals choose the intended Gemini credential
+  deterministically.** When both supported environment-variable names exist,
+  the release-scoped Gemini key wins instead of allowing an older Google key to
+  silently shadow it.
+- **Release tags can reuse compatible real-model eval evidence from a prior
+  version-branch qualification.** The release gate restores the newest
+  repository-scoped standalone eval artifact after the branch-scoped cache,
+  while the existing case/runtime/model fingerprints and freshness policy
+  remain authoritative. Cross-workflow evidence is accepted only when its
+  source commit is the exact release commit or an ancestor, targeted case IDs
+  are normalized, recorded research fixtures are fingerprinted, and unsupported
+  research datasets fail closed instead of silently substituting a different
+  data source. Stale or incompatible cases still run normally.
+- **Live Bitunix and Coinbase/CCXT history requests return complete bar
+  windows.** Bitunix requests native mapped intervals, respects the exchange's
+  200-candle page limit, and walks bounded timestamp windows. The live CCXT
+  cursor now advances by one full timeframe after the last returned candle.
+  Both paths raise a clear short-history error instead of silently returning an
+  undersized frame.
+- **Crypto-futures positions can be closed safely in backtests.** The shared
+  broker close path now builds a side-correct reduce-only order when
+  ``Position.get_selling_order()`` intentionally returns ``None``. ``sell_all``
+  filters null orders, submission rejects null orders explicitly, and ordinary
+  stock/option close behavior is unchanged.
+
+## 4.5.90 - 2026-09-02
+
+Deploy marker: `d5a2d1629580`
+
+### Fixed
+- **Live fill handling now enforces strategy ownership before hedge callbacks.**
+  Shared-account broker activity with a foreign order tag (for example MOS
+  option fills while an STM strategy is the sole local subscriber) is no longer
+  ingested or delivered to ``on_filled_order``. Tag matching is ground truth over
+  a wrongly attributed ``order.strategy``, sole-subscriber fallback no longer
+  claims foreign tags, Tradier polling skips foreign-tagged rows, Schwab no
+  longer seeds untracked foreign NEW snapshots into the local strategy, and
+  executor/broker fill paths skip foreign fills so an unrelated option fill
+  cannot trigger a 100-share stock hedge. Helper APIs:
+  ``Broker.normalize_broker_strategy_tag``, ``strategy_tag_matches``,
+  ``order_belongs_to_local_strategy``, ``order_is_foreign_to_local_strategy``,
+  and ``fills_match_underlying``.
+- **Managed agents now preserve correctness across compound safety boundaries.**
+  Duplicate option-closing legs are validated against the remaining signed
+  position, stale broker snapshots cannot prune positions created while the
+  snapshot was in flight, fixture snapshot identifiers change when position
+  content changes, and stock sizing guidance requires a verified positive
+  whole-share quantity even when the built-in sizing tool is unavailable.
+- **Priority trade events are now isolated from normal executor backlog.** Fill,
+  partial-fill, cancel, and error events use a dedicated nonblocking queue that
+  is drained before ordinary order events, eliminating the prior
+  ``Queue.empty()``/blocking-``get()`` race and preserving hedge responsiveness.
+- **Crypto symbol normalization preserves the requested quote asset.** Compact
+  symbols prefer the longest recognized suffix (for example ``BTCBUSD`` parses
+  as ``BTC/BUSD``), and Coinbase lookup no longer silently substitutes a USD
+  market for an explicitly requested USDT market.
+- **Release tests no longer inherit developer credentials into lazy-import
+  subprocesses or classify live Alpaca shorting checks as deterministic unit
+  coverage.** The isolated import checks strip broker/data-provider runtime
+  variables, the no-broker test now explicitly suppresses the dynamic default
+  broker factory, and network-backed shorting tests are correctly marked as API
+  tests. This keeps local and GitHub release gates equivalent without exposing
+  credential-bearing state in failure traces.
+- **Built distributions exclude generated Python bytecode.** The resource
+  manifest still includes the optional ThetaData runtime files while pruning
+  ``__pycache__`` directories and ``*.pyc``/``*.pyo`` artifacts from public
+  wheels.
+- **Option close tools now reject exposure-increasing closing legs before broker
+  submission.** Single-leg and atomic multi-leg closes validate every contract
+  against the latest signed position, reject reversed closing sides and oversized
+  quantities with a visible error, and allow the agent to correct the package
+  without creating a duplicate order.
+- **Agent release fixtures now exercise the same compact account-pagination
+  contract as production.** Positions and open orders expose totals, returned and
+  omitted counts, completeness, next offsets, snapshot identifiers, and as-of
+  timestamps, preventing agents from repeatedly polling legacy count-only fixture
+  results that could never prove account readiness.
+- **Stock agents now keep opening-range boundaries and reported order state
+  consistent.** The stock skill defines bar timestamps as interval starts,
+  excludes the first post-window bar from the opening range, requires exact
+  interval aggregation when necessary, verifies share quantity against notional
+  and cash caps through the deterministic ``risk_calculate_stock_quantity`` tool,
+  and requires final narratives to match submitted order
+  identifiers and final account reads. This fixes real-model release-gate
+  failures where an order filled but the final response claimed no trade occurred
+  and where a tenfold sizing error exceeded the strategy's allocation cap.
+  Historical-price tool guidance now advertises supported multi-minute aliases,
+  and agents may not treat a one-minute constituent as a completed five-minute
+  confirmation bar.
+- **Live fill/hedge callbacks are no longer gated behind a long
+  ``on_trading_iteration``.** During live scans the executor drains priority
+  fill/cancel events on the OTIM thread while user strategy code runs on a
+  helper thread, ``check_queue`` wakes immediately on fill/cancel/error events
+  instead of sleeping up to 0.5s, and ``sync_broker`` no longer holds fill or
+  partial-fill trade events. Target: hedge submission must not wait for a
+  100s+ scan (2026-09-02 regression: option fill while a 122s iteration was
+  running). Covered by ``tests/test_priority_fill_during_iteration.py``.
+- **Coinbase/CCXT crypto backtests no longer silently complete with zero trades
+  when strategies use pair-string base symbols.** Hyphen and concatenated forms
+  such as `BTC-USD`, `BTCUSD`, and redundant `BTC-USD/USD` now normalize to the
+  CCXT unified USD form `BTC/USD` before market lookup. If a market still cannot
+  be resolved after alias attempts, CCXT history raises a clear diagnostic
+  instead of returning empty candles that produce `completed_no_trades`.
+
+
+## 4.5.89 - 2026-09-02
+
+Deploy marker: `04ef8d417189`
+
+### Added
+
+- **BotSpot managed AI requests now use a lossless structured v2 protocol.**
+  Ordered text, native function calls, native function responses, exact call
+  identifiers, thought flags, and base64 thought signatures survive the
+  LumiBot-to-gateway round trip. Unsupported or malformed parts fail visibly
+  with ``protocol_integrity_error`` instead of being silently converted to
+  prose. The released v1 route remains available only for older LumiBot
+  callers.
+- **Managed Agent artifacts now expose typed outcomes and exact runtime
+  provenance.** Decision results distinguish completed decisions, completed
+  no-action decisions, provider errors, tool errors, protocol-integrity errors,
+  and runtime errors. ``agent_detail`` records native tool-call linkage,
+  gateway protocol version, LumiBot version, and a gateway-component
+  fingerprint so the served implementation can be verified from artifacts.
+- **Agent account tools now support bounded pagination and exact contract
+  lookup.** ``account_positions`` and ``orders_open_orders`` return 50 compact,
+  deterministically ordered records by default (maximum 100), report explicit
+  total/included/omitted/completeness metadata, and accept exact symbol, asset
+  type, expiration, strike, and option-right filters. Open-order lookup also
+  matches multi-leg child contracts.
+
+### Fixed
+
+- **Agent account context stays compact and cannot silently hide omitted
+  exposure.** Injected snapshots and account tools share a strict projection
+  built from ``Asset.to_minimal_dict()`` rather than expanding raw broker or
+  Python objects. Missing optional values are omitted instead of becoming fake
+  zeroes, prompts state that truncated positions and orders still exist, and
+  order readiness now requires complete unfiltered position and open-order
+  pagination whenever the initial snapshot is incomplete or an earlier order
+  mutated account state. Pagination pages must also share one content-derived
+  account snapshot identifier, so an order cannot pass readiness by combining
+  pages from changing position or open-order collections.
+- **Managed continuation and decision outcomes are conversation-safe.** Opaque
+  provider continuation identifiers now travel through ADK's request/response
+  interaction fields instead of shared model-instance state, and read-only
+  order inspection no longer records a false completed trading decision.
+
+## 4.5.88 - 2026-09-01
+
+### Fixed
+
+- Schwab account-activity streaming now receives the same refreshable OAuth
+  token metadata as the manually constructed REST client. Stream login and
+  reconnect no longer fail with a missing ``client.token_metadata`` while REST
+  trading continues to work.
+
+## 4.5.87 - 2026-08-30
+
+Deploy marker: `79fdbd23938c`
+
+### Fixed
+
+- Strategy parameter overrides now use the mode-neutral
+  `LUMIBOT_STRATEGY_PARAMETERS` contract in both backtests and live execution,
+  so a validated parameter set can be deployed unchanged. The former
+  `BACKTESTING_PARAMETERS` name remains a deprecated compatibility alias, and
+  logs expose parameter keys without values.
+- Backtests now record a safe `logs/data_provenance.json` artifact with the
+  versioned routing policy and data adapters actually observed, without
+  credentials or signed URLs.
+
+- Schwab order lifecycle observations now converge through one serialized,
+  idempotent reducer shared by account-activity streaming and REST healing.
+  Cancel HTTP acceptance remains non-terminal, partial fills preserve delta
+  quantities, reconnects reconcile active orders, duplicate/out-of-order
+  observations do not repeat callbacks, and HTTP 429 responses honor bounded
+  endpoint-family backoff instead of inventing order state.
+- Define `Strategy.initial_budget` for live strategies as the first broker-verified
+  portfolio equity snapshot, while preserving configured starting cash semantics in
+  backtests.
+
+### Documentation
+- **Lifecycle methods are documented as callbacks with precise live semantics.**
+  The Schwab and lifecycle references now define callback triggers, partial/full
+  fill quantity deltas, cancel acceptance versus terminal observation,
+  streaming-first reconciliation, reconnect behavior, and rate-limit handling.
+- **Fast order lifecycle guidance now separates strategy policy, broker constraints, and reusable state-machine invariants.** The new guide documents configurable monotonic deadlines, callback races, risk-scoped blocking, bounded reconciliation, Schwab request budgeting and measured cancel-response observations, plus a redacted telemetry contract for deadline and hedge diagnosis.
+
+## 4.5.86 - Unreleased
+
+### Fixed
+- **Documentation configuration tests no longer leak mocked broker packages.**
+  Loading the Sphinx configuration in-process now restores `sys.modules`, so
+  later broker tests and runtime imports see the installed Tradier package.
+
+## 4.5.85 - Unreleased
+
+### Fixed
+- **Option orders now preserve open/close intent across brokers.** Generic
+  single-leg option buys and sells resolve centrally from signed positions and
+  active close quantities, high-level close helpers emit explicit close intent,
+  and ambiguous duplicate or zero-crossing closes fail before submission.
+  Alpaca now sends and restores `position_intent` for single-leg orders and
+  raises rejected submissions after marking the order errored.
+
+## 4.5.84 - Unreleased
+
+### Added
+- **BotSpot managed AI access for strategy agents.** BotSpot deployments and
+  backtests can use a renewable, deployment-bound Node gateway capability for
+  Gemini, OpenAI, Anthropic, and xAI without exposing provider credentials to
+  strategy code. User-supplied provider keys remain authoritative and never
+  fall back to managed credits after an authentication failure.
+- **AI agents now load reusable runtime skills through ADK `SkillToolset`.**
+  New built-in `options-trading` and `stock-trading` skills teach generic market
+  evidence, contract, multi-leg, signed-position, intraday, sizing, and order
+  verification mechanics. Strategy examples keep their entry, exit, and risk
+  policy in concise prompts instead of repeating generic trading instructions.
+- **Canonical `rules.json` files can govern every agent call.** Agents accept a
+  `rules_path`, reload active rules before each call, reject malformed rules
+  before model spend, invalidate replay state when rules change, and persist
+  only a safe file name and content hash in runtime metadata.
+- **Real-model LumiBot evals now gate PyPI publication.** The resumable runner
+  provides fixture-backed production tool contracts, a separate LLM judge,
+  three-repeat qualification, fsynced per-case ledgers, model/token/timing/cost
+  reporting, explicit spend limits, 90-day freshness, and release-candidate
+  fingerprinting. The initial catalog covers options, stocks, ORB, and rules.
+- **AI agents gain generic order-status and option-lifecycle builtins.**
+  ``orders_get_status`` and ``orders_wait_for_terminal`` verify fills after
+  submits. ``options_find_expiration`` and ``options_check_spread_profit`` wrap
+  OptionsHelper helpers without naming a structure. ``ai_iron_condor.py`` is
+  parameterized (wing, delta, DTE, exits, risk), and new AI-only scaffolds
+  ``ai_opening_range_breakout.py``, ``ai_vwap.py``, and ``ai_credit_spread.py``
+  keep all trading policy in system prompts.
+- **``market_last_prices`` batch market tool for universe scans.** Agents can
+  request last prices for up to 150 symbols in one JSON-friendly call. Order
+  readiness accepts a successful batch that includes the ordered symbol.
+  Multi-ticker ``ai_opening_range_breakout.py`` defaults to ~100 liquid
+  names, uses ``AI_ORB_*`` env overrides, and requires ``market_last_prices``
+  plus 09:30 ET opening ranges. VWAP and credit-spread prompts prefer
+  fill-friendly market/credit limits with the same post-trade status checks.
+  VWAP default deviation is ``0.15%`` with a dip-buy / reclaim entry rule and
+  ``AI_VWAP_*`` overrides (including underlying).
+- **``market_historical_prices`` batch history tool for agents.** Wraps
+  ``Strategy.get_historical_prices_for_assets`` so agents can request OHLCV bars
+  for up to 150 symbols in one call and read ``bars_by_symbol`` instead of
+  looping ``market_load_history_table``. ORB prompts prefer this path for minute
+  opening-range history after a ``market_last_prices`` scan.
+
+### Fixed
+- **Multi-leg submissions now fail closed when a broker lacks atomic package
+  support.** Every market, limit, credit, debit, and even-price package is
+  rejected before any child leg is submitted. LumiBot no longer degrades an
+  unsupported package into independent orders that can leave orphan exposure.
+- **Short-lived read-only strategies can skip redundant startup broker syncs.**
+  ``Strategy(..., synchronize_broker_on_start=False)`` avoids automatic balance
+  and position reads when an integration will immediately refresh only its
+  requested state. Default live-strategy startup behavior remains unchanged.
+- **Broker history timesteps accept common aliases on every data source.**
+  ``canonicalize_timestep`` / ``parse_canonical_timestep`` normalize spellings
+  such as ``5Min``, ``5 min``, ``5minutes``, ``5Mins``, ``5T``, ``30S``,
+  ``2H``, and ``1Day`` before ``TIMESTEP_MAPPING`` and Alpaca reverse
+  ``TimeFrame`` lookup. This keeps the public Strategy/broker-data interface
+  provider-neutral when agents or analysis code pass pandas-style or
+  CamelCase timesteps. Covered by ``tests/test_timestep_aliases.py``.
+- **Backtesting ``Strategy.sleep(process_pending_orders=True)`` now fills pending
+  orders.** Agent ``orders_wait_for_terminal`` advanced the sim clock through
+  ``broker.sleep`` / ``safe_sleep`` without calling ``process_pending_orders``,
+  so stock market orders and credit-spread multileg children stayed ``new``
+  until end-of-backtest cancel (flat tearsheets). Sleep now processes pending
+  fills around clock advances, wait polls are bounded in backtests, and
+  multileg parents retain the submitted net limit price. Covered by
+  ``tests/backtest/test_backtesting_broker_processing.py``.
+- **Gemini agent runs no longer register space-typo tool-name aliases as
+  ``function_declarations``.** Underscore/space aliases such as
+  ``options_find_ expiration`` caused 400 INVALID_ARGUMENT and aborted every
+  AI example strategy before the first tool call. Only provider-safe canonical
+  names are registered; inbound typos are normalized on lookup. Covered by
+  ``tests/test_agent_runtime_provider_keys.py``.
+- **Schwab connections no longer silently die ~30 minutes after
+  authentication.** A background refresher now rotates the access token before
+  expiry (instead of the OAuth handshake landing inside an arbitrary broker
+  call), a missing ``SCHWAB_APP_SECRET`` is reported loudly at startup,
+  transient initialization errors no longer delete a valid token file, and
+  parent-managed (external refresh mode) token files are never deleted by the
+  child.
+- **Schwab cancel path pays for one HTTP round trip instead of two.** The
+  post-cancel diagnostic direct read is now gated behind
+  ``SCHWAB_CANCEL_DIAGNOSTICS``, and all requests through the Schwab OAuth
+  session carry a 30-second default timeout so a stalled connection cannot
+  block the trading loop indefinitely.
+- **Slow live iterations are now flagged.** When ``on_trading_iteration`` runs
+  longer than 120 seconds, the executor logs a warning explaining that
+  sleeptime cannot interrupt a running iteration and order-management deadline
+  checks only run between iterations.
+
+## 4.5.83 - 2026-08-05
+
+Deploy marker: `deploy 4.5.83`
+
+### Added
+- **AI agents can now operate generic option and multi-leg workflows through
+  built-in LumiBot tools.** Agents can retrieve chains and strikes, inspect
+  exact-contract Greeks and market quality, find listed strikes by delta,
+  calculate signed multi-leg prices, and submit atomic multi-leg orders. The
+  new ``ai_iron_condor.py`` example keeps all selection, sizing, construction,
+  execution, and management decisions inside one agent system prompt.
+
+### Changed
+- **Model requests no longer send a temperature parameter.** LumiBot now uses
+  each provider model's current default behavior instead of maintaining a
+  provider-specific temperature compatibility branch.
+
+## 4.5.82 - 2026-08-03
+
+Deploy marker: `deploy 4.5.82`
+
+### Fixed
+- **IBKR history caches now distinguish confirmed absence from incomplete or
+  transient responses.** Only confirmed no-data results create expiring
+  cross-process markers. Partial payloads and downloader failures retain an
+  in-process cooldown without poisoning later backtests. Daily stock and index
+  gaps repair in small bounded segments, all-placeholder caches can recover,
+  stale stock/index contract identifiers receive one validated refresh, and
+  `settings.json` records a credential-free `data_health` summary. Health
+  evidence caps missing-session details, uses typed reasons instead of provider
+  error text, and keeps cache-only marker columns out of strategy dataframes.
+- **Agent runtime state no longer duplicates unbounded model summaries.**
+  Bounded memory notes continue to provide cross-iteration context, while run
+  metadata archives legacy duplicate summaries once before removing them from
+  ``self.vars``. Full memory and observability history remains in JSONL, SQLite,
+  and Parquet artifacts.
+- **The README star-history integration now has an end-to-end health check.**
+  A scheduled workflow verifies the real rendered chart instead of treating a
+  configured but unauthorized GitHub token as healthy. The rotation runbook now
+  records the required organization owner, repository scope, and permissions.
+  Worker failures now remain valid SVG after long escaped error messages, and
+  the README chart URLs bypass GitHub's cached broken response after rotation.
+
+## 4.5.81 - 2026-07-30
+
+Deploy marker: `deploy 4.5.81`
+
+### Fixed
+- **IBKR stock and index hourly caches now repair large internal holes lazily.**
+  LumiBot detects gaps longer than a normal market closure, downloads the
+  missing hourly range in bounded pages, merges real bars without deleting the
+  shared cache, and preserves partial progress for a later run. Complete warm
+  caches make no repair requests.
+- **IBKR cache repair no longer lets one symbol starve later symbols.** Daily
+  repair uses a per-series deadline and one bounded range request. Hourly repair
+  has its own deadline, and partial hourly progress is not mislabeled as a
+  24-hour no-data window.
+- **Closed-market request boundaries no longer create false underfill
+  warnings.** Weekend and overnight stock/index boundaries are evaluated
+  against the first market open and last market close.
+
+## 4.5.80 - 2026-07-30
+
+Deploy marker: `deploy 4.5.80`
+
+### Fixed
+- **Release validation now uses the same isolated test shards as protected pull
+  requests.** Unit and backtest tests no longer share one process that can leak
+  global state across unrelated files or consume the entire release timeout
+  before reporting failures.
+
+## 4.5.79 - 2026-07-29
+
+Deploy marker: `deploy 4.5.79`
+
+### Added
+- **Public framework comparisons now include QuantConnect LEAN and primary
+  sources.** The documentation comparison hub identifies the verification date,
+  links to official project documentation, and explains the product roles and
+  limitations without claiming a universal winner.
+- **Multi-asset market-data reads now preserve safe per-asset failures.**
+  Successful assets remain available while unavailable assets include a
+  normalized category, error type, and retryability without exposing provider
+  response bodies or credentials.
+
+### Fixed
+- **Scheduled `run_once()` strategies now publish their final cloud snapshot from
+  LumiBot after broker-event draining and strategy shutdown hooks complete.**
+  Account balances, positions, and terminal order state are captured before the
+  broker connection closes, and a listener publication failure remains
+  non-fatal to the completed trading run.
+- **Bulk historical reads now pass session selection through the provider-neutral
+  data-source interface.** Every supported broker receives the same
+  `include_after_hours` option through LumiBot rather than requiring a
+  provider-specific caller.
+- **Scheduled closed-market preparation remains protected.** The explicit
+  `closed_market_prepare` lifecycle continues to block broker submission,
+  cancellation, and modification APIs while preparation code runs.
+- **IBKR daily cache gaps repair themselves without blocking backtests.**
+  Completed missing US stock and index sessions are fetched in bounded monthly
+  requests, merged into the available series, and protected by expiring retry
+  markers when the downloader has no data.
+- **Concurrent IBKR remote-cache writers no longer discard newer bars.**
+  Conditional S3 writes merge the current remote parquet with the local update
+  after a conflict, while real bars take precedence over no-data placeholders.
+
+### Changed
+- **Documentation sitemap dates now reflect source changes.** Each public page
+  uses its latest committed source date instead of making every page appear
+  updated whenever the documentation build runs.
+
+## 4.5.78 - 2026-07-16
+
+Deploy marker: this release's `deploy 4.5.78` commit.
+
+### Added
+- **Live portfolio updates can target an environment-specific listener.**
+  `LISTENER_WRITE_URL` allows account observations to be published to a custom
+  listener while preserving the existing production endpoint as the
+  compatibility default.
+- **Scheduled strategies can prepare data safely while markets are closed.**
+  An explicit `closed_market_prepare` target event invokes a dedicated strategy
+  lifecycle with supported broker order mutations blocked, allowing a later
+  market-open task to consume externally persisted plans without enabling
+  after-hours trading.
+- **Public project and community navigation is easier to use.**
+  The README and documentation home page now expose the source repository,
+  Reddit community, and Discord community more clearly, including responsive
+  mobile navigation improvements.
+
+## 4.5.77 - Unreleased
+
+### Fixed
+- **IBKR Client Portal order refresh now reads returned JSON order rows.**
+  Direct lookup normalizes numeric and string order IDs instead of treating
+  response dictionaries like TWS objects or fabricating a placeholder order
+  when no broker row exists.
+- **Alpaca live option chains preserve executable quote data.**
+  `get_chain_full_info()` now consumes Alpaca's native option snapshots so
+  strategies receive current bid, ask, quote size, latest trade, implied
+  volatility, and greeks instead of synthetic zero bid/ask fields. This keeps
+  option-credit guards and worked-order logic tied to broker-visible quotes.
+
+## 4.5.76 - 2026-07-13
+
+Deploy marker: `deploy 4.5.76`
+
+### Added
+- **IBKR Client Portal REST now has a replaceable gateway and HTTP transport
+  boundary.** Local IBeam, externally managed Client Portal Gateway, and future
+  OAuth-signed sessions can share the same broker, order, position, contract,
+  and market-data implementation.
+
+### Fixed
+- **Local IBKR REST startup is isolated and bounded.** IBeam now defaults to
+  versioned release `0.5.12`, uses instance-scoped container names, binds only to
+  localhost, fails closed when Docker is unavailable, stops waiting after the
+  configured authentication deadline, and cleans up only its owned container.
+- **Option expiration settlement retries a real daily close when the current
+  underlying mark is unavailable.** Backtests no longer abort an otherwise
+  valid option lifecycle merely because `get_last_price()` returns no value at
+  expiration. Settlement now uses the latest provider-backed daily close and
+  still fails explicitly when neither source has a valid positive price.
+- **Scheduled lazy credentials preserve legacy lowercase exports.** Explicit
+  imports of `broker` and `data_source` now resolve through the same cached lazy
+  getters as `BROKER` and `DATA_SOURCE`, so existing scheduled Bot Manager
+  workloads no longer capture `None` while import-only startup remains lazy.
+- **Temporary broker balance-read failures no longer look like strategy failures.**
+  A skipped cloud account snapshot is now logged as a warning that explains no
+  stale/default balances were published and the next cloud update retries
+  automatically. Cross-broker regression coverage verifies the safe skip and
+  subsequent recovery behavior for Alpaca- and Tradier-shaped runtimes.
+
+### Security
+- **IBKR credentials no longer appear in Docker command arguments.** Local
+  IBeam receives named environment values through the Docker client process,
+  temporary gateway configuration is mode `0600`, and documentation explicitly
+  limits this third-party wrapper to controlled individual/internal proof-of-concept use.
+- **Public repository changes have stronger leak and review gates.** Changed-file
+  hygiene checks, CODEOWNERS coverage, and AI review policy now catch private
+  paths, credentials, account details, and other non-public operational content
+  before merge.
+
+### Documentation
+- **Release operations now require explicit publishing authority and verifiable
+  downstream rebuilds.** The deployment runbook records the release approval
+  boundary, mandatory next-version checkout verification, and forced Bot Manager
+  image rebuild requirement for every LumiBot version bump.
+- **The README Star History chart renders correctly in light and dark themes.**
+
+## 4.5.75 - Unreleased
+
+## 4.5.74 - 2026-07-08
+
+Deploy marker: `deploy 4.5.74`
+
+### Fixed
+- **Live strategies no longer sleep through an already-open market because of
+  stale startup calendars.** Live startup now initializes a bounded market
+  calendar around the current session instead of defaulting to a calendar that
+  ends before today, and broker market-open checks fall back to direct calendar
+  logic when a preloaded calendar does not cover the current date. Regression
+  coverage now includes `NASDAQ`, `NYSE`, `24/5`, `24/7`, `us_futures`,
+  futures Saturday-night versus Monday-night sessions, equity holidays,
+  weekend behavior, premarket/after-hours, overnight sessions, extended trading
+  minutes, and an Alpaca-shaped no-order broker path. A read-only Alpaca paper
+  broker smoke verified authentication, balance reads, position reads, order
+  reads, and the fixed initialized-calendar path without submitting orders.
+
+## 4.5.73 - 2026-07-08
+
+Deploy marker: `deploy 4.5.73`
+
+### Fixed
+- **Tradier order refresh now parses returned OTOCO bracket rows and preserves
+  unsupported asset rows during broker-state reads.** Tradier bracket submits are
+  sent as `otoco`; returned rows now map back to LumiBot bracket orders with
+  attached exit children, `combo` maps to multileg, and future-like or unknown
+  account rows are preserved instead of being forced through stock parsing.
+  Parser failures now log only sanitized row shapes.
+- **AI agent Gemini examples and runtime checks now use `GEMINI_API_KEY` as the
+  explicit public contract.** Native Gemini model resolution no longer mutates
+  `GOOGLE_API_KEY` behind the scenes, and the bundled Alpaca news agent example
+  only treats `GEMINI_API_KEY` as satisfying Gemini credential readiness.
+- **AI-agent context pruning no longer expands small tool results or prunes far
+  below the model's real context window.** Gemini 3.1 data-on BotSpot strategy
+  smokes exposed a pruning loop where compact tool payloads were replaced by
+  longer pruning notices and the serialized request grew past its own budget.
+  LumiBot now skips non-shrinking replacements, avoids repeatedly pruning
+  already-pruned function responses, and uses a realistic character budget from
+  the model context registry before pruning.
+
+### Security
+- **Public-repo hygiene guardrails now block private local details and credential
+  leakage in tracked files.** Repo instructions, SECURITY guidance, CODEOWNERS,
+  and regression coverage now keep machine-specific/private operational details
+  out of public docs, tests, and examples.
+
+## 4.5.72 - 2026-07-07
+
+### Fixed
+- **Handle duplicate stats timestamps while avoiding missing portfolio-value
+  crashes.** Duplicate timestamp rows can make external-flow lookup return a
+  Series; LumiBot now normalizes that base flow to a scalar before building
+  cash-adjusted portfolio values.
+
+## 4.5.71 - 2026-07-07
+
+### Fixed
+- **Narrowed the missing portfolio-value stats guard to avoid changing normal
+  backtest return math.** LumiBot still avoids crashing when live broker auth
+  failures leave portfolio value or cash-flow totals missing, but valid
+  first-row portfolio values now keep the existing cash-flow-adjusted return
+  behavior used by acceptance backtests.
+
+## 4.5.70 - 2026-07-07
+
+### Fixed
+- **Release lint cleanup for Schwab token reload and stats crash fixes.**
+  Keeps the externally managed Schwab token reload and missing portfolio-value
+  guards from 4.5.69 while satisfying the production CI Ruff gate.
+
+## 4.5.69 - 2026-07-07
+
+## 4.5.68 - 2026-07-07
+
+### Fixed
+- **Schwab stock market orders now use the normal session instead of seamless.**
+  Schwab's seamless/Day+Extended session is valid for eligible equity limit
+  orders, but live Schwab rejects seamless market orders with HTTP 400 invalid
+  request data. Stock limit orders continue to use `SEAMLESS`; stock market
+  orders, stop orders, options, and futures use `NORMAL`.
 
 ### Tests
-- **Tradier transient-read regression coverage now proves cached balance,
-  position, and order behavior.** The focused tests cover cache reuse after
-  retry-exhausted 5xx responses and ensure OAuth/external-mode polling
-  regressions still pass.
+- **Alpaca-backed DriftRebalancer crypto tests are marked as API tests.** These
+  tests require authenticated access to Alpaca's live crypto data endpoint and
+  should not run in the normal release unit suite selected by
+  `-m "not apitest and not downloader"`.
+
+## 4.5.67 - 2026-07-07
+
+### Fixed
+- **Schwab stock market orders now use the normal session instead of seamless.**
+  Schwab's seamless/Day+Extended session is valid for eligible equity limit
+  orders, but live Schwab rejects seamless market orders with HTTP 400 invalid
+  request data. Stock limit orders continue to use `SEAMLESS`; stock market
+  orders, stop orders, options, and futures use `NORMAL`.
+
+## 4.5.66 - Unreleased
 
 ## 4.5.65 - Unreleased
 
@@ -737,7 +1633,7 @@ Deploy marker: 4.5.11 release commit (`deploy 4.5.11`)
 - **Agent built-in tools are included by default when available.** Account, positions, open orders, history, docs search, indicators, SEC, FRED, memory, notifications, and order tools are available by default; `allow_trading=False` removes only mutating order tools.
 - **Alpaca news tool availability now depends on credentials.** The built-in Alpaca news tool is hidden when no Alpaca credentials are configured and uses the standard Alpaca credential environment variables when present.
 - **FRED no longer uses public CSV fallbacks.** Revised/no-key CSV access was removed from examples, docs, tests, and implementation; official FRED/ALFRED API access is the only supported macro-data fetch path.
-- **AI-agent docs and deployment guidance now require high-quality generated visuals.** Lumibot/BotSpot/Lumiwealth documentation visuals must use Nano Banana/GPT Image 2 quality and the canonical Spot brand reference when a mascot is helpful.
+- **AI-agent docs and deployment guidance now require high-quality generated visuals.** Lumibot/BotSpot/Lumiwealth final documentation visuals must use the approved GPT Image 2.5 Sunburst generator and the canonical Spot brand reference when a mascot is helpful.
 
 ### Fixed
 - **BotSpot cloud account snapshots are marked verified before use.** This prevents unverified broker/account reads from being treated as trusted performance data.

@@ -196,6 +196,16 @@ class QueuedRequestInfo:
     result: Optional[Any] = None
     result_status_code: Optional[int] = None
     error: Optional[str] = None
+    error_details: Optional[dict] = None
+    next_attempt_at: Optional[float] = None
+
+
+class DownloaderQueueTimeout(TimeoutError):
+    """A queue deadline that retains provider diagnostics without changing retry policy."""
+
+    def __init__(self, message: str, *, provider_details: Optional[dict] = None):
+        super().__init__(message)
+        self.provider_details = dict(provider_details) if isinstance(provider_details, dict) else None
 
 
 class QueueClient:
@@ -669,6 +679,8 @@ class QueueClient:
                     info.estimated_wait = data.get("estimated_wait")
                     info.attempts = data.get("attempts", info.attempts)
                     info.error = data.get("last_error")
+                    info.error_details = data.get("error_details") if isinstance(data.get("error_details"), dict) else None
+                    info.next_attempt_at = data.get("next_attempt_at")
                     info.last_checked = time.time()
                     # Best-effort: surface queue status into the progress UI.
                     try:  # pragma: no cover - UI plumbing
@@ -682,6 +694,7 @@ class QueueClient:
                             estimated_wait=info.estimated_wait,
                             attempts=info.attempts,
                             last_error=info.error,
+                            provider_wait=info.error_details,
                         )
                     except Exception:
                         pass
@@ -767,7 +780,7 @@ class QueueClient:
                     last_attempts = None
                     last_estimated_wait = None
 
-                raise TimeoutError(
+                raise DownloaderQueueTimeout(
                     "Timed out waiting for %s after %.1fs (status=%s position=%s attempts=%s est_wait=%s error=%s)"
                     % (
                         request_id,
@@ -777,7 +790,8 @@ class QueueClient:
                         last_attempts,
                         last_estimated_wait,
                         last_error,
-                    )
+                    ),
+                    provider_details=info.error_details if info else None,
                 )
 
             # Refresh status
@@ -822,6 +836,26 @@ class QueueClient:
                     # no-data failures to avoid multi-minute dead loops.
                     if status == "failed":
                         err_text = str(info.error or "").lower()
+                        terminal_auth_error = (
+                            ("401" in err_text or "403" in err_text)
+                            and any(
+                                marker in err_text
+                                for marker in (
+                                    "auth",
+                                    "credential",
+                                    "forbidden",
+                                    "session invalid",
+                                    "unauthorized",
+                                )
+                            )
+                        )
+                        if terminal_auth_error:
+                            with self._lock:
+                                if info.correlation_id in self._pending_requests:
+                                    self._pending_requests[info.correlation_id].status = "dead"
+                            raise RuntimeError(
+                                f"Request {request_id} terminal authentication failure: {info.error}"
+                            )
                         if (
                             "ibkr/iserver/marketdata/history" in str(info.path or "")
                             and "chart data unavailable" in err_text
@@ -913,6 +947,7 @@ class QueueClient:
         headers: Optional[Dict[str, str]] = None,
         body: Optional[bytes] = None,
         timeout: Optional[float] = None,
+        max_timeout_attempts: Optional[int] = None,
     ) -> Tuple[Optional[Any], int]:
         """Submit a request and wait for result.
 
@@ -928,6 +963,8 @@ class QueueClient:
             headers: Optional headers
             body: Optional body
             timeout: Max seconds to wait
+            max_timeout_attempts: Optional cap on per-attempt timeouts. The default keeps the
+                normal self-healing retry behavior. Best-effort callers may set a finite cap.
 
         Returns:
             Tuple of (result_data, status_code)
@@ -943,6 +980,10 @@ class QueueClient:
             if self._concurrency_semaphore.acquire(timeout=1.0):
                 break
             waited = time.monotonic() - start_wait
+            if max_timeout_attempts is not None and timeout and timeout > 0 and waited >= timeout:
+                raise TimeoutError(
+                    f"Timed out waiting {waited:.1f}s for a downloader request slot"
+                )
             if waited >= 10 and (time.monotonic() - last_wait_log) > 30:
                 with self._in_flight_lock:
                     current = self._in_flight_count
@@ -996,7 +1037,11 @@ class QueueClient:
                     return self.wait_for_result(request_id=request_id, timeout=attempt_timeout)
                 except TimeoutError as exc:
                     timeout_count += 1
-                    self._invalidate_sessions("wait timeout")
+                    provider_details = getattr(exc, "provider_details", None)
+                    provider_wait = (isinstance(provider_details, dict)
+                                     and provider_details.get("classification") == "rate_limited")
+                    if not provider_wait:
+                        self._invalidate_sessions("wait timeout")
 
                     # Best-effort: surface the failure into the backtest status payload so the UI
                     # can show what we're stuck on.
@@ -1011,10 +1056,16 @@ class QueueClient:
                     except Exception:
                         pass
 
+                    if (
+                        max_timeout_attempts is not None
+                        and timeout_count >= max(1, int(max_timeout_attempts))
+                    ):
+                        raise
+
                     # First few timeouts: keep waiting on the same logical request (idempotent).
                     # After repeated timeouts, force a resubmit with a new correlation id so we can
                     # recover from a wedged downloader queue entry.
-                    if timeout_count >= 3:
+                    if timeout_count >= 3 and not provider_wait:
                         correlation_override = (
                             f"{base_correlation_id}-retry-{timeout_count}-{int(time.time())}"
                         )
@@ -1172,6 +1223,7 @@ def queue_request(
     querystring: Optional[Dict[str, Any]],
     headers: Optional[Dict[str, str]] = None,
     timeout: Optional[float] = None,
+    max_timeout_attempts: Optional[int] = None,
 ) -> Optional[Dict[str, Any]]:
     """Submit a request via queue and wait for result.
 
@@ -1185,6 +1237,8 @@ def queue_request(
         querystring: Query parameters
         headers: Optional headers
         timeout: Max seconds to wait (0 = wait forever)
+        max_timeout_attempts: Optional cap on per-attempt timeouts. Omit for normal
+            self-healing retries.
 
     Returns:
         Response data if request completed successfully
@@ -1212,6 +1266,7 @@ def queue_request(
         query_params=merged_query_params,
         headers=headers,
         timeout=timeout,
+        max_timeout_attempts=max_timeout_attempts,
     )
 
     # Handle status codes

@@ -1,5 +1,8 @@
-How To Backtest
-===================================
+How to Backtest a Python Trading Strategy with LumiBot
+======================================================
+
+.. meta::
+   :description: Run a Python trading strategy backtest with LumiBot, choose a historical data source, and inspect trades, logs, charts, and tear sheets.
 
 Backtesting is a vital step in validating your trading strategies using historical data. With LumiBot, you can backtest strategies across various data sources such as **ThetaData** (our recommended vendor), **Polygon.io**, **Yahoo Finance**, **Polymarket CLOB prediction-contract history**, or even your own custom **CSV** files. This guide will walk you through each step of backtesting, explain the data sources, and introduce the files that LumiBot generates during backtesting.
 

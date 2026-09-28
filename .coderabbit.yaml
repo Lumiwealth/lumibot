@@ -1,0 +1,76 @@
+language: "en-US"
+
+reviews:
+  profile: "chill"
+  request_changes_workflow: false
+  high_level_summary: true
+  review_status: true
+  review_details: true
+  auto_review:
+    enabled: true
+    auto_incremental_review: true
+    drafts: false
+  path_filters:
+    - "**"
+    - "!logs/**"
+    - "!artifacts/**"
+    - "!build/**"
+    - "!dist/**"
+    - "!*.egg-info/**"
+    - "!**/__pycache__/**"
+    - "!**/.pytest_cache/**"
+    - "!**/.ruff_cache/**"
+  path_instructions:
+    - path: "**"
+      instructions: |
+        Review every pull request as if LumiBot is a public open-source trading framework.
+        Prioritize real bugs, security/privacy issues, user-facing regressions, and release risk.
+
+        Always check changed lines for:
+        - hardcoded credentials, API keys, tokens, account emails, private URLs, private hostnames, local credential paths, or personal filesystem paths;
+        - accidental leakage of BotSpot, Lumiwealth, customer, broker, paid-vendor, CI, or maintainer-only operational details into public code/docs/tests;
+        - code that logs, prints, persists, screenshots, or commits secrets or customer/broker data;
+        - test fixtures or docs that look fake but could be copied into real usage as credentials or private endpoints;
+        - changes that weaken authentication, authorization, data-source safety, broker/order safety, or CI/release gates.
+
+        If a finding depends on repository context, explain the specific source file and invariant instead of giving generic advice.
+    - path: "AGENTS.md"
+      instructions: |
+        Treat this as a public open-source instruction file. Flag any private local paths,
+        credentials, account emails, private runbooks, Rob-specific folders, customer details,
+        or BotSpot/Lumiwealth-only operational instructions.
+    - path: "CLAUDE.md"
+      instructions: |
+        Treat this as a public open-source instruction file. Flag any private local paths,
+        credentials, account emails, private runbooks, Rob-specific folders, customer details,
+        or BotSpot/Lumiwealth-only operational instructions.
+    - path: "SECURITY.md"
+      instructions: |
+        Verify that the public security policy does not publish private contact details unless
+        they are already intended as public security reporting channels.
+    - path: ".github/**"
+      instructions: |
+        Review GitHub workflows and repository policy files for security posture. Flag changes
+        that weaken required checks, expose secrets to pull requests, use overly broad
+        permissions, or allow untrusted code to access sensitive CI contexts.
+    - path: "docs/**"
+      instructions: |
+        Documentation is public. Flag private paths, credential examples, internal account
+        emails, private endpoints, stale security claims, or operational details that should
+        live only in private runbooks.
+    - path: "docsrc/**"
+      instructions: |
+        Sphinx documentation is public. Flag private paths, credential examples, internal
+        account emails, private endpoints, stale security claims, or operational details that
+        should live only in private runbooks.
+    - path: "tests/**"
+      instructions: |
+        Tests are public. Flag hardcoded real-looking credentials, account emails, personal
+        paths, private endpoints, and fixtures that could accidentally exercise production or
+        paid-vendor resources without explicit opt-in.
+    - path: "lumibot/**"
+      instructions: |
+        Review runtime/library changes for trading safety, broker/account isolation, data
+        correctness, secret handling, and public/private boundary violations. Flag hardcoded
+        BotSpot-specific behavior unless it is clearly provider-generic and appropriate for
+        open-source LumiBot.

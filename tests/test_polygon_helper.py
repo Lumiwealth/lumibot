@@ -643,6 +643,72 @@ class TestPolygonPriceData:
         assert normalize_option_chains(result_second) == normalized_first
         assert mock_polyclient.list_options_contracts.call_count == 0
 
+    def _limited_chain_client(self, mocker):
+        mock_polyclient = mocker.MagicMock()
+        contract = mocker.MagicMock()
+        contract.shares_per_contract = 100
+        contract.primary_exchange = "NYSE"
+        contract.contract_type = "call"
+        contract.expiration_date = "2023-08-15"
+        contract.strike_price = 400
+        put = mocker.MagicMock()
+        put.shares_per_contract = 100
+        put.primary_exchange = "NYSE"
+        put.contract_type = "put"
+        put.expiration_date = "2023-08-15"
+        put.strike_price = 395
+        mock_polyclient.list_options_contracts.side_effect = lambda **kwargs: [contract, put]
+        return mock_polyclient
+
+    def test_limited_chain_is_never_reused_as_a_full_chain(self, mocker, tmpdir, monkeypatch):
+        """A chain fetched with LUMIBOT_OPTION_CHAIN_MAX_DAYS only holds expirations up to
+        current_date + N. Reusing it days later, or in a run without the limit, hides
+        expirations the strategy needs (CodeRabbit on PR #1174)."""
+        mocker.patch.object(ph, "LUMIBOT_CACHE_FOLDER", tmpdir)
+        client = self._limited_chain_client(mocker)
+        asset = Asset("SPY")
+        day = datetime.date(2023, 8, 1)
+
+        monkeypatch.setenv("LUMIBOT_OPTION_CHAIN_MAX_DAYS", "21")
+        ph.get_chains_cached(api_key="K", asset=asset, current_date=day, polygon_client=client)
+        assert client.list_options_contracts.call_count == 2
+        assert all(
+            call.kwargs["expiration_date_lte"] == day + datetime.timedelta(days=21)
+            for call in client.list_options_contracts.call_args_list
+        )
+
+        # Same limit, same day: the limited file is reused.
+        client.list_options_contracts.reset_mock()
+        ph.get_chains_cached(api_key="K", asset=asset, current_date=day, polygon_client=client)
+        assert client.list_options_contracts.call_count == 0
+
+        # Same limit, a week later: the old file stops at day+21, so it must be refetched.
+        client.list_options_contracts.reset_mock()
+        later = day + datetime.timedelta(days=7)
+        ph.get_chains_cached(api_key="K", asset=asset, current_date=later, polygon_client=client)
+        assert client.list_options_contracts.call_count == 2
+
+        # No limit: a limited file is never reused as a full chain.
+        monkeypatch.delenv("LUMIBOT_OPTION_CHAIN_MAX_DAYS")
+        client.list_options_contracts.reset_mock()
+        ph.get_chains_cached(api_key="K", asset=asset, current_date=later, polygon_client=client)
+        assert client.list_options_contracts.call_count == 2
+        assert all(
+            "expiration_date_lte" not in call.kwargs
+            for call in client.list_options_contracts.call_args_list
+        )
+
+    def test_invalid_chain_limit_is_ignored_instead_of_crashing(self, mocker, tmpdir, monkeypatch):
+        mocker.patch.object(ph, "LUMIBOT_CACHE_FOLDER", tmpdir)
+        client = self._limited_chain_client(mocker)
+        monkeypatch.setenv("LUMIBOT_OPTION_CHAIN_MAX_DAYS", "21d")
+        result = ph.get_chains_cached(
+            api_key="K", asset=Asset("SPY"), current_date=datetime.date(2023, 8, 1), polygon_client=client
+        )
+        # The mock answers both expired=True and expired=False with the same contract.
+        assert set(result["Chains"]["CALL"]["2023-08-15"]) == {400}
+        assert all("expiration_date_lte" not in c.kwargs for c in client.list_options_contracts.call_args_list)
+
     def test_polygon_no_future_bars_before_open(self, monkeypatch):
         tz = pytz.timezone('America/New_York')
         now = tz.localize(datetime.datetime(2023, 11, 1, 9, 30))

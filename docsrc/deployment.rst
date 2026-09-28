@@ -1,14 +1,25 @@
 .. _secrets-configuration:
 
-Deployment Guide
-================
+Deploy a LumiBot Trading Strategy
+=================================
 
-This guide walks you through the options for running your Lumibot trading strategy outside your local machine. You have two paths:
+.. meta::
+   :description: Deploy a LumiBot Python trading strategy with BotSpot managed hosting or a self-managed server, including monitoring, logs, alerts, and broker setup.
 
-- **Option A — BotSpot (recommended):** Managed Lumibot cloud. Hosted backtesting data, parallel backtests, broker connections, cheaper scheduled deployment, monitoring, logs, alerts, audit history, and kill switches are already wired together. Best for most users.
-- **Option B — Self-hosted (Render or Replit):** Deploy it yourself on a general-purpose cloud host. Full control, you manage everything. Best for developers who want to own the infrastructure.
+Choose the path that matches how long the strategy must run and who will own its
+infrastructure:
 
-Pick the option that matches how much infrastructure you want to manage. Both run the exact same Lumibot strategy code.
+- **Local process:** Start with :doc:`the complete backtest <getting_started>`,
+  then run the broker-connected strategy from a supervised terminal when you
+  need a short local test.
+- **Option A, BotSpot (recommended):** Open the managed `BotSpot setup
+  <https://botspot.trade/sales?showLogin=1&utm_source=documentation&utm_medium=deployment_guide&utm_campaign=lumibot&utm_content=deployment_chooser>`_
+  for hosting, broker connections, schedules, logs, alerts, and controls.
+- **Option B, self-hosted:** Continue to the Render or Replit instructions below
+  when you want to own the server, scheduler, credentials, monitoring, and
+  uptime.
+
+All three paths use the same LumiBot strategy code.
 
 Option A — Deploy on BotSpot (Recommended)
 ------------------------------------------

@@ -1,6 +1,9 @@
 def initialize
 ===================================
 
+.. meta::
+   :description: This lifecycle methods is executed only once, when the strategy execution starts. Use this lifecycle method to initialize parameters like:.
+
 This lifecycle methods is executed only once, when the strategy execution starts. Use this lifecycle method to initialize parameters like:
 
 .. code-block:: python

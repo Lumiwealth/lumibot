@@ -8,6 +8,20 @@
 
 ---
 
+## BotSpot integration release boundary
+
+This runbook owns publishing LumiBot itself. It does not replace BotSpot's
+coordinated pre-Dev qualification when a BotSpot release consumes a new LumiBot
+version. Before any BotSpot Dev branch move or deployment, the exact combined
+candidate must pass all scoped deterministic checks, the entire formal
+Playwright inventory locally on Rob's Mac, and, when Agent is scoped, every
+case selected by mandatory local Agent freshness plus its required targeted
+repeats. Focused Playwright tests never qualify a release. GitHub release gates
+remain blocking for the exact candidate before publication; live Dev reruns
+the already-green candidate as environment proof, not as the first full test
+loop. LumiBot publication, Bot Manager Dev deployment, and Bot Manager
+production deployment each retain their own explicit authorization boundary.
+
 ## TL;DR (do this in order)
 
 1) **Run the release preflight first.** If branch, `setup.py`, `CHANGELOG.md`, tag, or `dev` state is inconsistent, stop. Do not tag. Do not deploy BotManager. Fix the branch first.
@@ -453,13 +467,18 @@ Publishing is **tag-driven** via `.github/workflows/release.yml`.
      gh variable list -R Lumiwealth/bot_manager | rg ‘^LUMIBOT_VERSION’
 
      gh workflow run -R Lumiwealth/bot_manager "CI/CD - Development Environment" --ref main \
-       -f force_rebuild_images=false -f skip_tests=false
+       -f force_rebuild_images=true -f skip_tests=false
 
      gh workflow run -R Lumiwealth/bot_manager "CI/CD - Production Environment" --ref prod \
-       -f force_rebuild_images=false -f skip_tests=false
+       -f force_rebuild_images=true
 
      gh run list -R Lumiwealth/bot_manager -L 10
      ```
+   - Use `force_rebuild_images=true` for every LumiBot version bump. BotManager only bakes
+     `LUMIBOT_VERSION` into the base/backtest Docker dependency images when those images rebuild;
+     a non-forced deploy can go green while production backtests still report the previous
+     `settings.json.lumibot_version`. Use `false` only for BotManager-only deploys where the
+     pinned LumiBot version is intentionally unchanged.
 
 8) **Post-deployment verification (REQUIRED)**
    - After BotManager deploys finish, verify the new version is actually running in production.

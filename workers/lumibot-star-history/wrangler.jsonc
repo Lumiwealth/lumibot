@@ -1,0 +1,10 @@
+{
+  "name": "lumibot-star-history",
+  "main": "src/index.mjs",
+  "compatibility_date": "2026-07-15",
+  "workers_dev": true,
+  "preview_urls": false,
+  "observability": {
+    "enabled": true
+  }
+}

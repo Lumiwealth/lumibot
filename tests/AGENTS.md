@@ -2,6 +2,17 @@
 
 These rules apply to all files under `tests/`.
 
+## BotSpot integration release qualification
+
+Passing LumiBot unit tests is necessary but does not qualify a combined BotSpot
+release. Before any BotSpot Dev branch move or deployment, the exact combined
+candidate must pass every formal Playwright test owned by the release scope
+locally on Rob's Mac. Focused Playwright tests are repair-only. When Agent is
+scoped, mandatory local freshness must select and pass every stale, missing,
+failed, incomplete, or incompatible case, with a second unchanged selection of
+zero. GitHub reruns are blocking release validation for the exact candidate;
+the hosted Dev rerun additionally supplies final environment proof.
+
 ## Legacy tests are high-authority
 
 - Treat any test whose **earliest commit date is before 2025-06-01** as **LEGACY**.

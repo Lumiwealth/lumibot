@@ -1,6 +1,9 @@
 AI Trading Project Comparison
 =============================
 
+.. meta::
+   :description: AI trading projects have proved that people want agentic trading workflows. Lumibot's edge is that those workflows run inside a real Python trading framework.
+
 AI trading projects have proved that people want agentic trading workflows.
 Lumibot's edge is that those workflows run inside a real Python trading
 framework. You can backtest the agent decisions, inspect artifacts, add
@@ -38,15 +41,15 @@ Quick Comparison
    * - TradingAgents
      - Multi-agent LLM trading research framework
      - Yes, with a specific research/debate structure
-     - Research/demo oriented
+     - Ticker/date analysis; inspect the research setup
      - Not the main focus
      - Limited
      - No
    * - ai-hedge-fund
-     - Educational AI hedge fund with named investor-style agents
+     - Investor-style agents and saved fund mandates
      - Yes, with investor-style personas
-     - Demo/backtest oriented
-     - Not the main focus
+     - Saved-fund backtest command documented
+     - Roadmap; README says no actual trades
      - Limited
      - No
    * - OpenAlice
@@ -66,15 +69,15 @@ Quick Comparison
    * - Vibe-Trading
      - Personal trading agent
      - Yes
-     - Yes
-     - Agent trading platform focus
-     - Limited
+     - Backtest tools and evidence tracking documented
+     - Broker connectors; support varies by connector
+     - Strategy artifacts documented
      - Platform-specific
    * - AI-Trader
      - Agent-native trading platform
      - Yes
-     - Platform focus
-     - Platform focus
+     - Inspect platform experiment/simulation workflow
+     - Broker-sync and simulated-trading workflows documented
      - Limited
      - Platform-specific
    * - OpenBB
@@ -102,12 +105,14 @@ Detailed Comparisons
    lumibot_vs_ai_hedge_fund
    lumibot_vs_openalice
    lumibot_vs_quantdinger
+   lumibot_vs_lean
 
 Why Lumibot Is Different
 ************************
 
-Most AI trading demos stop at research, a notebook, or a simulated agent
-conversation. Lumibot is built around the strategy lifecycle:
+Projects overlap, and several offer backtesting and execution-related workflows.
+Choose by the interface, market-data contract, supported broker operations, and
+evidence you need. LumiBot is built around the Strategy lifecycle:
 
 - **Design the agent flow you want:** single agent, research-to-trade,
   bull/bear/neutral team, specialist desk, model debate, or a hybrid flow.
@@ -130,3 +135,24 @@ Backtesting does not prove that a strategy will make money in the future. It
 does something more practical: it forces the agent, tools, prompts, Python
 guardrails, and broker-facing order logic to run through a repeatable trading
 lifecycle before you trust it with real execution.
+
+Source And Verification Method
+******************************
+
+This page compares product roles and documented capabilities, not investment
+returns. The TradingAgents, ai-hedge-fund, Vibe-Trading and AI-Trader rows were refreshed
+from their primary repository READMEs on September 12, 2026. These are documented
+capabilities, not integrations independently executed for this comparison.
+Other rows retain the July 28, 2026 review. Capabilities can change; check the
+linked source and the exact revision before making a technical decision.
+
+- `Lumibot documentation <https://lumibot.lumiwealth.com/>`_
+- `TradingAgents source repository <https://github.com/TauricResearch/TradingAgents>`_
+- `ai-hedge-fund source repository <https://github.com/virattt/ai-hedge-fund>`_
+- `OpenAlice documentation <https://www.openalice.ai/docs/getting-started/what-is-openalice>`_
+- `QuantDinger source repository <https://github.com/brokermr810/QuantDinger>`_
+- `Vibe-Trading source repository <https://github.com/HKUDS/Vibe-Trading>`_
+- `AI-Trader source repository <https://github.com/HKUDS/AI-Trader>`_
+- `OpenBB source repository <https://github.com/OpenBB-finance/OpenBB>`_
+- `Qlib source repository <https://github.com/microsoft/qlib>`_
+- `QuantConnect LEAN documentation <https://www.quantconnect.com/docs/v2/lean-engine>`_

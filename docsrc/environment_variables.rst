@@ -3,6 +3,9 @@
 Environment Variables
 =====================
 
+.. meta::
+   :description: LumiBot supports configuring many behaviors via environment variables. This page documents the variables most commonly used for backtesting, ThetaData.
+
 LumiBot supports configuring many behaviors via environment variables. This page documents the variables most commonly used for **backtesting**, **ThetaData**, and **remote caching**.
 
 .. important::
@@ -63,16 +66,24 @@ BACKTESTING_BUDGET
   - When set, this value is preferred over any ``budget=`` passed in strategy code, so it can be controlled per-run via injected environment variables.
   - Default (when unset and no code budget is provided): ``100000``.
 
-BACKTESTING_PARAMETERS
-^^^^^^^^^^^^^^^^^^^^^^
+LUMIBOT_STRATEGY_PARAMETERS
+^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-- Purpose: Override or inject strategy parameters via environment variable, without modifying strategy code.
+- Purpose: Override or inject strategy parameters without modifying strategy code. The same parameter contract applies to backtests and live strategy execution.
 - Format: JSON string representing a dictionary. Example: ``{"symbol": "AAPL", "quantity": 10}``
 - Notes:
   - When set, the parsed dict is merged on top of the strategy's existing ``parameters`` dict with highest priority (wins over both class-level defaults and code-level overrides).
-  - Useful for parameter sweeps: run the same strategy code with different parameter sets per backtest.
+  - Useful for parameter sweeps and for deploying the exact parameter set validated by a backtest.
   - Nested dicts are supported (e.g. ``{"ALLOCATION": {"SPY": 0.50, "IWM": 0.50}}``).
   - Invalid JSON or non-dict values are ignored with a warning.
+  - ``BACKTESTING_PARAMETERS`` remains a deprecated compatibility alias for older external runners. If both are present, ``LUMIBOT_STRATEGY_PARAMETERS`` wins.
+
+BOTSPOT_DATA_ROUTING_POLICY
+^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+- Purpose: Attach the non-secret version of the routing policy that selected a backtest datasource.
+- Format: JSON object containing a ``version`` field.
+- Notes: LumiBot writes the policy version and the adapters actually observed during the run to ``logs/data_provenance.json``. Credentials, tokens, and signed URLs are never included.
 
 BACKTESTING_DATA_SOURCE
 ^^^^^^^^^^^^^^^^^^^^^^^
@@ -112,11 +123,23 @@ Live scheduled execution (BotSpot/BotManager)
 - ``LUMIBOT_START_ORDERS_THREAD``: overrides whether live brokers start their orders thread during broker construction. Truthy values enable the orders thread; any other set value disables it. Defaults to disabled for scheduled execution and enabled otherwise. Queue-based brokers that require the worker to submit orders, such as legacy Interactive Brokers, keep the worker enabled even when this flag is false.
 - ``LUMIBOT_SCHEDULED_TARGET_RUN_AT``: UTC ISO-8601 target time for exact scheduled runs. When present, LumiBot initializes the strategy/broker first, waits locally until this timestamp immediately before ``on_trading_iteration()``, and skips the iteration if the drift budget is exceeded.
 - ``LUMIBOT_SCHEDULED_PRE_START_AT``: UTC ISO-8601 pre-start time used by BotManager telemetry to compare scheduler launch timing with the requested target.
+- ``LUMIBOT_SCHEDULED_TARGET_EVENT``: internal lifecycle selector for a scheduled task. ``closed_market_prepare`` runs ``on_closed_market_iteration()`` only while the market is closed and blocks supported broker order submission, cancellation, and modification APIs for that lifecycle.
 - ``LUMIBOT_SCHEDULED_MAX_TARGET_DRIFT_MS``: maximum allowed late drift in milliseconds for exact scheduled runs. Defaults to ``1000``.
 - ``LUMIBOT_SCHEDULED_POST_ITERATION_SECONDS``: drain window after the one live iteration. During this window LumiBot continues processing broker/order queue events before exiting.
 - ``LUMIBOT_SCHEDULED_TIMING_FILE``: local JSON timing file written by LumiBot for BotManager bootstrap telemetry.
 - ``LUMIBOT_SCHEDULED_STATE_BACKEND``: external state backend prepared by BotManager: ``s3``, ``dynamodb``, or ``none``. ``none`` disables scheduled ``self.vars`` file load/save.
 - ``LUMIBOT_SCHEDULED_STATE_FILE``: local JSON file managed by BotManager/bootstrap code to restore and persist ``self.vars`` for one scheduled live run. State is restored before scheduled lifecycle hooks.
+
+BotSpot managed research
+------------------------
+
+- ``BOTSPOT_RESEARCH_MCP_URL``: optional BotSpot Research MCP endpoint.
+- ``BOTSPOT_RESEARCH_MCP_TOKEN``: secret, short-lived bearer capability bound to an authenticated user or hosted deployment.
+- ``BOTSPOT_RESEARCH_MCP_RENEW_URL``: optional HTTPS renewal endpoint. Localhost is permitted for local development; otherwise its origin must match the MCP endpoint.
+- All three variables are required for automatic attachment. BotSpot-hosted runtimes inject them; external users can link a BotSpot account and configure the same contract.
+- Missing or incomplete configuration preserves ordinary LumiBot strategy and agent behavior and emits one deduplicated capability notice.
+
+``GITHUB_TOKEN`` is used only in tagged release CI with repository ``actions: read`` permission to restore compatible agent-eval freshness evidence. The source workflow commit must be an ancestor of the exact tagged candidate. If no trustworthy artifact is available, stale cases run normally. Never log or commit token values.
 
 Backtest artifacts + UX flags
 -----------------------------
@@ -574,8 +597,8 @@ Interactive Brokers REST
 IB_USERNAME / IB_PASSWORD
 ^^^^^^^^^^^^^^^^^^^^^^^^^
 
-- Purpose: Credentials for IB REST API authentication.
-- Values: IB credentials (**do not hardcode**).
+- Purpose: Individual Client Portal credentials used only by the local IBeam transport.
+- Values: Secrets; **never log, commit, or hardcode them**.
 
 IB_ACCOUNT_ID
 ^^^^^^^^^^^^^
@@ -588,6 +611,55 @@ IB_API_URL
 
 - Purpose: Base URL for IB REST API endpoint.
 - Values: URL string.
+
+IB_GATEWAY_PORT
+^^^^^^^^^^^^^^^
+
+- Purpose: Host port for local IBeam or externally managed Client Portal Gateway.
+- Values: Integer from ``1`` through ``65535``.
+- Default: ``4234``.
+
+IB_GATEWAY_INSTANCE_ID
+^^^^^^^^^^^^^^^^^^^^^^
+
+- Purpose: Non-secret identifier used to isolate local IBeam container names.
+- Values: Letters, numbers, ``_``, ``-``, and ``.``.
+- Default: Random value generated for each gateway instance.
+
+IB_USE_PAPER_ACCOUNT
+^^^^^^^^^^^^^^^^^^^^
+
+- Purpose: Select paper login when LumiBot starts local IBeam.
+- Values: Boolean string.
+- Default: ``true``.
+
+IBEAM_DOCKER_TAG
+^^^^^^^^^^^^^^^^
+
+- Purpose: Select a versioned local IBeam Docker release.
+- Values: Docker tag only, not an image/repository reference.
+- Default: ``0.5.12``.
+
+IB_AUTH_TIMEOUT / IB_AUTH_POLL_INTERVAL
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+- Purpose: Bound gateway authentication and control status polling.
+- Values: Positive seconds.
+- Defaults: ``300`` / ``5``.
+
+IB_REQUEST_TIMEOUT
+^^^^^^^^^^^^^^^^^^
+
+- Purpose: Timeout for one IBKR REST request.
+- Values: Positive seconds.
+- Default: ``30``.
+
+IB_VERIFY_SSL
+^^^^^^^^^^^^^
+
+- Purpose: Override TLS certificate verification for IBKR REST requests.
+- Values: Boolean string.
+- Default: disabled for localhost gateways; enabled for non-local hosts.
 
 IBKR_HISTORY_SOURCE
 ^^^^^^^^^^^^^^^^^^^
@@ -643,6 +715,13 @@ SCHWAB_BACKEND_CALLBACK_URL
 
 - Purpose: OAuth callback URL for authentication flow.
 - Values: URL string.
+
+SCHWAB_CANCEL_DIAGNOSTICS
+^^^^^^^^^^^^^^^^^^^^^^^^^
+
+- Purpose: Re-enable the post-cancel direct order read used for Schwab cancel incident diagnostics.
+- Values: ``true``/``false`` (or ``1``/``0``).
+- Default: disabled. The diagnostic read doubles the round trips on every cancel; enable it only while investigating a cancel issue.
 
 Tradovate broker
 ----------------
@@ -771,6 +850,17 @@ POLYGON_MAX_MEMORY_BYTES
 - Purpose: Hard limit on memory Polygon can use for caching.
 - Values: Integer (bytes).
 
+LUMIBOT_OPTION_CHAIN_MAX_DAYS
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+- Purpose: Polygon backtests only. Limits each option chain request to expirations from the
+  simulated date through that many days ahead, which keeps a free Polygon key under its rate
+  limit. A limited chain is cached under its own name (``<SYMBOL>_<date>_max<N>d.parquet``) and is
+  only reused on the same day with the same limit, never as a full chain.
+- Values: Positive whole number of days (for example ``21``). Unset means no limit. Invalid values
+  are ignored with a warning.
+- Example: ``LUMIBOT_OPTION_CHAIN_MAX_DAYS=21``
+
 THETADATA_USERNAME / THETADATA_PASSWORD
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
@@ -812,6 +902,15 @@ LUMIWEALTH_API_KEY
 - Purpose: LumiWealth platform API key (for enterprise features).
 - Values: Obtain from LumiWealth (**do not hardcode**).
 
+LISTENER_WRITE_URL
+^^^^^^^^^^^^^^^^^^
+
+- Purpose: Portfolio-listener write endpoint used by live cloud account updates.
+- Values: HTTPS URL supplied by the deployment environment.
+- Default: ``https://listener.lumiwealth.com/portfolio_events``.
+- Note: Custom or isolated deployments can set this explicitly to keep account
+  observations separate from the default listener.
+
 Runtime telemetry (memory/health)
 ---------------------------------
 
@@ -844,21 +943,33 @@ Notes:
 AI agent model providers
 ------------------------
 
-LumiBot's AI agent subsystem (``self.agents.create(model=...)`` or ``default_model=...``) supports multiple LLM providers. You only need the key matching the provider id you pass for each agent. Non-Gemini ids are routed through LiteLLM, which ships as a LumiBot dependency.
+LumiBot's AI agent subsystem (``self.agents.create(model=...)`` or ``default_model=...``) supports multiple LLM providers. You only need the key matching the provider id you pass for each agent. Non-Gemini ids are routed through LiteLLM, which ships as a LumiBot dependency. In BotSpot managed runtimes, an owner-bound managed AI capability may be supplied when no provider key is present. A user-provided key always takes precedence and provider errors never fall back to managed credits.
+
+LUMIBOT_AI_GATEWAY_URL and LUMIBOT_AI_GATEWAY_TOKEN
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+- Purpose: BotSpot-managed model access for a specific deployment or backtest.
+- These values are issued and renewed by BotSpot. Users should not create or save them manually.
+- The token is short-lived and deployment-bound. LumiBot renews it through the gateway so always-on bots can continue without receiving a long-lived provider credential.
+- Supported managed providers are Gemini, OpenAI, Anthropic, and xAI. Other providers continue to require their normal provider key.
+- Any configured provider key below takes precedence for that provider.
 
 GEMINI_API_KEY
 ^^^^^^^^^^^^^^
 
-- Purpose: Auth for Gemini models (the default provider).
+- Purpose: Auth for Gemini models.
 - Values: Obtain from https://aistudio.google.com/apikey.
 - Required when ``default_model`` starts with ``gemini-`` (e.g. ``gemini-3.1-flash-lite-preview``).
+- LumiBot's public contract is ``GEMINI_API_KEY``. Do not rely on Google SDK
+  alias names in strategy examples or downstream products that infer required
+  runtime secrets.
 
 OPENAI_API_KEY
 ^^^^^^^^^^^^^^
 
-- Purpose: Auth for OpenAI models (GPT-5.4 family and others).
+- Purpose: Auth for OpenAI models, including the default ``openai/gpt-6-luna``.
 - Values: Obtain from https://platform.openai.com/api-keys.
-- Required when ``default_model`` looks like ``openai/gpt-5.4-mini`` or any other ``openai/...`` id.
+- Required for the default model and whenever ``default_model`` is any other ``openai/...`` id.
 
 XAI_API_KEY or GROK_API_KEY
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^

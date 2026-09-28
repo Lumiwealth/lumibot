@@ -52,6 +52,7 @@ If you’re assessing whether backtests should be sped up via parallelism, start
 | `THETADATA_CACHE_VALIDATION.md` | How ThetaData caching works, cache invalidation, version bumping | When debugging stale data or cache issues |
 | `REMOTE_CACHE.md` | S3 remote cache architecture and configuration | When debugging cache sync or S3 issues |
 | `AI_TRADING_AGENTS.md` | Architecture, roadmap, prompt model, observability model, external MCP strategy, and acceptance-test plan for LumiBot's AI trading agent runtime | When documenting or planning LumiBot's AI trading agent feature set |
+| `AGENT_EVALS.md` | Real-model case format, three-repeat qualification, cost ledger, freshness contract, and PyPI release gate | When changing built-in agent prompts, skills, tools, rules, models, or eval behavior |
 | `AI_AGENT_RUNTIME_PLAN.md` | Research summary, implementation notes, and follow-on plan for agentic strategies | When planning runtime internals, replay caching, memory, and tool plumbing |
 | `AI_AGENT_FLOWS.md` | General agent-flow patterns: single-agent, multi-agent, committee, debate, and deterministic hybrid workflows | When designing an agent strategy shape before choosing specific tools |
 | `AI_TRADING_TEAM_EXAMPLES.md` | Copy-paste AI trading team examples: leveraged ETF, large-cap stocks, Ray Dalio idea meritocracy, Warren Buffett value, Bill Ackman concentrated, and Citadel sector-pod teams | When adding or modifying agent strategy examples |

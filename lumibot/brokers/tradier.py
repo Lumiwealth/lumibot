@@ -141,75 +141,10 @@ class Tradier(Broker):
         r"(?:too many 5\d\d error responses|status(?: code)?[=: ]+5\d\d|\b5\d\d\b|internal server error)",
         re.IGNORECASE,
     )
-    _DEFAULT_READ_MIN_INTERVAL_SECONDS = 15.0
-    _DEFAULT_TRANSIENT_READ_BACKOFF_SECONDS = 30.0
 
     @classmethod
     def _is_transient_broker_read_error(cls, error: Exception) -> bool:
         return bool(cls._TRANSIENT_READ_ERROR_RE.search(str(error)))
-
-    @staticmethod
-    def _coerce_non_negative_seconds(value, default: float) -> float:
-        if value in (None, ""):
-            return float(default)
-        try:
-            coerced = float(value)
-        except (TypeError, ValueError):
-            return float(default)
-        return max(0.0, coerced)
-
-    @staticmethod
-    def _copy_tradier_read_value(value):
-        if isinstance(value, list):
-            copied = []
-            for item in value:
-                copied.append(dict(item) if isinstance(item, dict) else item)
-            return copied
-        if isinstance(value, dict):
-            return dict(value)
-        return value
-
-    def _ensure_tradier_read_control_state(self) -> None:
-        if not hasattr(self, "_tradier_read_cache"):
-            self._tradier_read_cache = {}
-        if not hasattr(self, "_tradier_read_backoff_until"):
-            self._tradier_read_backoff_until = {}
-        if not hasattr(self, "_tradier_read_min_interval_seconds"):
-            self._tradier_read_min_interval_seconds = self._DEFAULT_READ_MIN_INTERVAL_SECONDS
-        if not hasattr(self, "_tradier_transient_read_backoff_seconds"):
-            self._tradier_transient_read_backoff_seconds = self._DEFAULT_TRANSIENT_READ_BACKOFF_SECONDS
-
-    def _get_cached_tradier_read(self, endpoint: str):
-        self._ensure_tradier_read_control_state()
-        cached = self._tradier_read_cache.get(endpoint)
-        if not cached:
-            return None
-
-        now = time.monotonic()
-        cached_at = cached.get("monotonic_at", 0.0)
-        backoff_until = self._tradier_read_backoff_until.get(endpoint, 0.0)
-        min_interval = float(getattr(self, "_tradier_read_min_interval_seconds", 0.0) or 0.0)
-
-        if now < backoff_until or (min_interval and now - cached_at < min_interval):
-            return self._copy_tradier_read_value(cached.get("value"))
-        return None
-
-    def _tradier_read_is_in_backoff(self, endpoint: str) -> bool:
-        self._ensure_tradier_read_control_state()
-        return time.monotonic() < self._tradier_read_backoff_until.get(endpoint, 0.0)
-
-    def _cache_tradier_read(self, endpoint: str, value) -> None:
-        self._ensure_tradier_read_control_state()
-        self._tradier_read_cache[endpoint] = {
-            "monotonic_at": time.monotonic(),
-            "value": self._copy_tradier_read_value(value),
-        }
-
-    def _start_tradier_read_backoff(self, endpoint: str) -> None:
-        self._ensure_tradier_read_control_state()
-        backoff_seconds = float(getattr(self, "_tradier_transient_read_backoff_seconds", 0.0) or 0.0)
-        if backoff_seconds > 0:
-            self._tradier_read_backoff_until[endpoint] = time.monotonic() + backoff_seconds
 
     def _current_lumibot_positions_snapshot(self) -> list[Position]:
         filled_positions = getattr(self, "_filled_positions", None)
@@ -681,25 +616,6 @@ class Tradier(Broker):
         self._tradier_account_number = account_number
         self._tradier_paper = paper
         self.polling_interval = polling_interval
-        self._tradier_read_cache = {}
-        self._tradier_read_backoff_until = {}
-        read_min_interval = None
-        transient_read_backoff = None
-        if isinstance(config, dict):
-            read_min_interval = config.get("TRADIER_READ_MIN_INTERVAL_SECONDS")
-            transient_read_backoff = config.get("TRADIER_TRANSIENT_READ_BACKOFF_SECONDS")
-        self._tradier_read_min_interval_seconds = self._coerce_non_negative_seconds(
-            os.environ.get("LUMIBOT_TRADIER_READ_MIN_INTERVAL_SECONDS")
-            or os.environ.get("TRADIER_READ_MIN_INTERVAL_SECONDS")
-            or read_min_interval,
-            self._DEFAULT_READ_MIN_INTERVAL_SECONDS,
-        )
-        self._tradier_transient_read_backoff_seconds = self._coerce_non_negative_seconds(
-            os.environ.get("LUMIBOT_TRADIER_TRANSIENT_READ_BACKOFF_SECONDS")
-            or os.environ.get("TRADIER_TRANSIENT_READ_BACKOFF_SECONDS")
-            or transient_read_backoff,
-            self._DEFAULT_TRANSIENT_READ_BACKOFF_SECONDS,
-        )
 
         # If this is an OAuth token, refresh before building API clients. Snapshot
         # runtimes can force this so BotSpot receives fresh token material to persist.
@@ -1096,13 +1012,6 @@ class Tradier(Broker):
         return order
 
     def _get_balances_at_broker(self, quote_asset: Asset, strategy):
-        cached_balances = self._get_cached_tradier_read("balances")
-        if cached_balances is not None:
-            return cached_balances
-        if self._tradier_read_is_in_backoff("balances"):
-            logger.warning("Skipping Tradier balances read during transient broker backoff; no cached balances available")
-            return None
-
         try:
             df = self.tradier.account.get_account_balance()
         except _get_tradier_api_error_class() as e:
@@ -1122,34 +1031,8 @@ class Tradier(Broker):
                                           f"Your account number is: {self._tradier_account_number} and your "
                                           f"access token is: {access_token}", color="red")
                 raise ValueError(colored_message) from e
-            if self._is_transient_broker_read_error(e):
-                self._start_tradier_read_backoff("balances")
-                cached_balances = self._get_cached_tradier_read("balances")
-                if cached_balances is not None:
-                    logger.warning(
-                        "Transient Tradier balances read failure; reusing cached balances for this poll: %s",
-                        e,
-                        exc_info=True,
-                    )
-                    return cached_balances
             raise e
         except Exception as e:
-            if self._is_transient_broker_read_error(e):
-                self._start_tradier_read_backoff("balances")
-                cached_balances = self._get_cached_tradier_read("balances")
-                if cached_balances is not None:
-                    logger.warning(
-                        "Transient Tradier balances read failure; reusing cached balances for this poll: %s",
-                        e,
-                        exc_info=True,
-                    )
-                    return cached_balances
-                logger.warning(
-                    "Transient Tradier balances read failure without cached balances; skipping balance update: %s",
-                    e,
-                    exc_info=True,
-                )
-                return None
             logger.error(f"Error pulling balances from Tradier: {e}")
             # Add traceback to the error message
             logger.error(_format_exc())
@@ -1164,9 +1047,7 @@ class Tradier(Broker):
         # Calculate the gross positions value
         positions_value = portfolio_value - cash
 
-        balances = (cash, positions_value, portfolio_value)
-        self._cache_tradier_read("balances", balances)
-        return balances
+        return cash, positions_value, portfolio_value
 
     def get_historical_account_value(self):
         logger.error("The function get_historical_account_value is not implemented yet for Tradier.")
@@ -1498,12 +1379,6 @@ class Tradier(Broker):
         return normalized_events
 
     def _pull_positions(self, strategy):
-        cached_positions = self._get_cached_tradier_read("positions")
-        if cached_positions is not None:
-            return cached_positions
-        if self._tradier_read_is_in_backoff("positions"):
-            return self._current_lumibot_positions_snapshot()
-
         try:
             positions_df = self.tradier.account.get_positions()
         except _get_tradier_api_error_class() as e:
@@ -1519,34 +1394,9 @@ class Tradier(Broker):
                 access_token = self._tradier_access_token[:7] + "*" * 7
                 colored_message = colored(f"Your TRADIER_ACCOUNT_NUMBER or TRADIER_ACCESS_TOKEN are invalid. Your account number is: {self._tradier_account_number} and your access token is: {access_token}", color="red")
                 raise ValueError(colored_message) from e
-            if self._is_transient_broker_read_error(e):
-                self._start_tradier_read_backoff("positions")
-                cached_positions = self._get_cached_tradier_read("positions")
-                if cached_positions is not None:
-                    logger.warning(
-                        "Transient Tradier positions read failure; reusing cached positions for this poll: %s",
-                        e,
-                        exc_info=True,
-                    )
-                    return cached_positions
-                logger.warning(
-                    "Transient Tradier positions read failure; preserving existing Lumibot positions for this poll: %s",
-                    e,
-                    exc_info=True,
-                )
-                return self._current_lumibot_positions_snapshot()
             raise e
         except Exception as e:
             if self._is_transient_broker_read_error(e):
-                self._start_tradier_read_backoff("positions")
-                cached_positions = self._get_cached_tradier_read("positions")
-                if cached_positions is not None:
-                    logger.warning(
-                        "Transient Tradier positions read failure; reusing cached positions for this poll: %s",
-                        e,
-                        exc_info=True,
-                    )
-                    return cached_positions
                 logger.warning(
                     "Transient Tradier positions read failure; preserving existing Lumibot positions for this poll: %s",
                     e,
@@ -1569,9 +1419,15 @@ class Tradier(Broker):
         # Loop through each row in the dataframe
         for _, row in positions_df.iterrows():
             # Get the symbol/quantity and create the position asset
-            symbol = self._normalize_symbol_for_internal(row["symbol"], asset_type=Asset.AssetType.STOCK)
+            symbol = row.get("symbol") if hasattr(row, "get") else row["symbol"]
             quantity = row["quantity"]
-            asset = Asset.symbol2asset(symbol)  # Parse the symbol. Handles 'stock' and 'option' types
+            asset = self._asset_from_tradier_row(row, symbol=symbol, context="position")
+            if asset is None:
+                logger.warning(
+                    "Skipping Tradier position with no usable symbol; shape=%s",
+                    self._tradier_position_shape_for_log(row),
+                )
+                continue
 
             # Create the position
             position = Position(
@@ -1579,9 +1435,15 @@ class Tradier(Broker):
                 asset=asset,
                 quantity=quantity,
             )
+            self._attach_tradier_parse_metadata(
+                position,
+                raw_asset_type=getattr(asset, "raw_asset_type", None),
+                raw_symbol=getattr(asset, "raw_symbol", None),
+                broker_parse_warning=getattr(asset, "broker_parse_warning", None),
+                broker_parse_degraded=getattr(asset, "broker_parse_degraded", False),
+            )
             positions_ret.append(position)  # Add the position to the list
 
-        self._cache_tradier_read("positions", positions_ret)
         return positions_ret
 
     def _pull_position(self, strategy, asset):
@@ -1631,26 +1493,93 @@ class Tradier(Broker):
             The Lumibot order object created from the response. For multileg orders, the parent order will be returned
             with child orders internally attached.
         """
-        # First try to parse the parent order
-        parent_order = self._parse_broker_order(response, strategy_name, strategy_object)
+        try:
+            order_class = self._tradier_class2lumi(response.get("class"))
+            legs = response["leg"] if "leg" in response and isinstance(response["leg"], list) else []
+            if order_class is Order.OrderClass.BRACKET and legs:
+                return self._parse_tradier_bracket_order_dict(response, legs, strategy_name, strategy_object)
 
-        # Check if the order is a multileg order
-        if "leg" in response and isinstance(response["leg"], list):
-            # Reset child orders and replace them with the parsed child orders from broker
-            parent_order.child_orders = []
+            # First try to parse the parent order
+            parent_order = self._parse_broker_order(response, strategy_name, strategy_object)
 
-            # Loop through each leg in the response
-            for leg in response["leg"]:
-                # Create the order object
-                child_order = self._parse_broker_order(leg, strategy_name, strategy_object)
-                child_order.parent_identifier = parent_order.identifier
+            # Check if the order is a multileg order
+            if "leg" in response and isinstance(response["leg"], list):
+                # Reset child orders and replace them with the parsed child orders from broker
+                parent_order.child_orders = []
 
-                # Add the order to the list
-                parent_order.add_child_order(child_order)
+                # Loop through each leg in the response
+                for leg in response["leg"]:
+                    # Create the order object
+                    child_order = self._parse_broker_order(leg, strategy_name, strategy_object)
+                    child_order.parent_identifier = parent_order.identifier
 
+                    # Add the order to the list
+                    parent_order.add_child_order(child_order)
+
+            return parent_order
+        except Exception:
+            self._log_tradier_order_parse_failure(response)
+            raise
+
+    def _parse_tradier_bracket_order_dict(self, response: dict, legs: list, strategy_name: str, strategy_object=None):
+        """
+        Tradier returns bracket orders as OTOCO: the entry leg first, then the limit/stop exits.
+        LumiBot represents that as one BRACKET parent with the exit legs attached as children.
+        """
+        entry_leg = self._select_tradier_bracket_entry_leg(legs)
+        exit_legs = [leg for leg in legs if leg is not entry_leg]
+        child_orders = []
+        for leg in exit_legs:
+            child_order = self._parse_broker_order(
+                leg,
+                strategy_name,
+                strategy_object,
+                order_class_override=Order.OrderClass.SIMPLE,
+            )
+            child_orders.append(child_order)
+
+        parent_response = self._merge_tradier_parent_with_entry_leg(response, entry_leg)
+        parent_order = self._parse_broker_order(
+            parent_response,
+            strategy_name,
+            strategy_object,
+            child_orders=child_orders,
+            order_class_override=Order.OrderClass.BRACKET,
+        )
+        for child_order in parent_order.child_orders:
+            child_order.parent_identifier = parent_order.identifier
         return parent_order
 
-    def _parse_broker_order(self, response: dict, strategy_name: str, strategy_object=None):
+    @staticmethod
+    def _select_tradier_bracket_entry_leg(legs: list):
+        if not legs:
+            return {}
+        for leg in legs:
+            leg_type = str(leg.get("type") or "").strip().lower() if isinstance(leg, dict) else ""
+            if leg_type not in {"limit", "stop", "stop_limit"}:
+                return leg
+        return legs[0]
+
+    @classmethod
+    def _merge_tradier_parent_with_entry_leg(cls, response: dict, entry_leg: dict):
+        parent_response = dict(response)
+        parent_response.pop("leg", None)
+        for key in ("symbol", "option_symbol", "side", "type", "quantity", "duration", "price", "stop_price"):
+            if key in entry_leg and not cls._is_missing_broker_value(entry_leg.get(key)):
+                parent_response[key] = entry_leg.get(key)
+        for key in ("status", "create_date", "transaction_date", "avg_fill_price"):
+            if cls._is_missing_broker_value(parent_response.get(key)) and key in entry_leg:
+                parent_response[key] = entry_leg.get(key)
+        return parent_response
+
+    def _parse_broker_order(
+        self,
+        response: dict,
+        strategy_name: str,
+        strategy_object=None,
+        child_orders: list | None = None,
+        order_class_override=None,
+    ):
         """
         Parse a broker order representation to a Lumi order object. Once the Lumi order has been created, it will
         be dispatched to our "stream" queue for processing until a time when Live Streaming can be implemented.
@@ -1666,20 +1595,29 @@ class Tradier(Broker):
             strategy_name if strategy_name else strategy_object.name if strategy_object else None
         )
 
-        # For OCO orders, tradier leaves lots of fields empty (float nan). Pull values from the children if needed
+        order_class = order_class_override or self._tradier_class2lumi(response.get("class")) or Order.OrderClass.SIMPLE
+
+        # For OCO/OTOCO orders, Tradier leaves many parent fields empty. Pull values from legs where needed.
         legs = response["leg"] if "leg" in response and isinstance(response["leg"], list) else []
-        limit_order = next((o for o in legs if o["type"] == "limit"), {})
-        stop_order = next((o for o in legs if o["type"] == "stop"), {})
+        entry_order = self._select_tradier_bracket_entry_leg(legs) if order_class in {
+            Order.OrderClass.BRACKET,
+            Order.OrderClass.OTO,
+        } else {}
+        exit_legs = [leg for leg in legs if leg is not entry_order] if entry_order else legs
+        limit_order = next((o for o in exit_legs if o.get("type") == "limit"), {})
+        stop_order = next((o for o in exit_legs if o.get("type") in {"stop", "stop_limit"}), {})
+        value_order = limit_order if order_class is Order.OrderClass.OCO else entry_order
+        stop_value_order = stop_order if order_class is Order.OrderClass.OCO else entry_order
 
         # Parse the symbol & side
-        symbol = self._extract_order_value(response, limit_order, "symbol")
-        option_symbol = self._extract_order_value(response, limit_order, "option_symbol")
-        side = self._extract_order_value(response, limit_order, "side")
-
-        asset = (
-            Asset.symbol2asset(option_symbol)
-            if option_symbol and not pd.isna(option_symbol)
-            else Asset.symbol2asset(self._normalize_symbol_for_internal(symbol, asset_type=Asset.AssetType.STOCK))
+        symbol = self._extract_order_value(response, value_order, "symbol")
+        option_symbol = self._extract_order_value(response, value_order, "option_symbol")
+        side = self._extract_order_value(response, value_order, "side")
+        asset = self._asset_from_tradier_row(
+            response,
+            symbol=symbol,
+            option_symbol=option_symbol,
+            context="order row",
         )
 
         # Get the reason_description if it exists
@@ -1696,7 +1634,7 @@ class Tradier(Broker):
             avg_fill_price = None
 
         # Map Tradier order types to Lumi order types
-        lumi_order_type = self._tradier_type2lumi(self._extract_order_value(response, {}, "type"))
+        lumi_order_type = self._tradier_type2lumi(self._extract_order_value(response, value_order, "type"))
 
         # Create the order object
         order = Order(
@@ -1705,22 +1643,184 @@ class Tradier(Broker):
             status=response["status"],  # Status conversion happens automatically in Order
             asset=asset,
             side=self._tradier_side2lumi(side),
-            quantity=self._extract_order_value(response, limit_order, "quantity"),
+            quantity=self._extract_order_value(response, value_order, "quantity"),
             order_type=lumi_order_type,
-            time_in_force=self._extract_order_value(response, limit_order, "duration"),
-            limit_price=self._extract_order_value(response, limit_order, "price"),
-            stop_price=self._extract_order_value(response, stop_order, "stop_price"),
+            time_in_force=self._extract_order_value(response, value_order, "duration"),
+            limit_price=self._extract_order_value(response, value_order, "price"),
+            stop_price=self._extract_order_value(response, stop_value_order, "stop_price"),
+            secondary_limit_price=limit_order.get("price") if not child_orders else None,
+            secondary_stop_price=stop_order.get("stop_price") if not child_orders else None,
             tag=response["tag"] if "tag" in response and response["tag"] else None,
             date_created=response["create_date"],
             avg_fill_price=avg_fill_price,
             error_message=reason_description,
-            order_class=self._tradier_class2lumi(response["class"] if "class" in response else None) or Order.OrderClass.SIMPLE,
+            child_orders=child_orders,
+            order_class=order_class,
+        )
+        self._attach_tradier_parse_metadata(
+            order,
+            raw_asset_type=getattr(asset, "raw_asset_type", None),
+            raw_symbol=getattr(asset, "raw_symbol", None),
+            broker_parse_warning=getattr(asset, "broker_parse_warning", None),
+            broker_parse_degraded=getattr(asset, "broker_parse_degraded", False),
         )
         # Example Tradier Date Value: '2024-10-04T15:46:14.946Z'
         order.broker_create_date = response["create_date"] if "create_date" in response else None
         order.broker_update_date = response["transaction_date"] if "transaction_date" in response else None
         order.update_raw(response)  # This marks order as 'transmitted'
         return order
+
+    @staticmethod
+    def _attach_tradier_parse_metadata(entity, **metadata):
+        entity.broker_parse_warning = metadata.pop("broker_parse_warning", None)
+        entity.broker_parse_degraded = metadata.pop("broker_parse_degraded", False)
+        for key, value in metadata.items():
+            if value is not None:
+                setattr(entity, key, value)
+        return entity
+
+    def _asset_from_tradier_row(self, row, *, symbol=None, option_symbol=None, context: str = "broker row"):
+        raw_symbol = self._clean_tradier_symbol(symbol if symbol is not None else row.get("symbol"))
+        raw_option_symbol = self._clean_tradier_symbol(
+            option_symbol if option_symbol is not None else row.get("option_symbol")
+        )
+        raw_asset_type = self._extract_tradier_asset_type(row)
+        raw_asset_type_key = str(raw_asset_type or "").strip().lower().replace(" ", "_")
+
+        if raw_option_symbol:
+            try:
+                asset = Asset.symbol2asset(raw_option_symbol)
+            except Exception:
+                asset = Asset(raw_symbol or raw_option_symbol, asset_type=Asset.AssetType.UNKNOWN)
+                self._attach_tradier_parse_metadata(
+                    asset,
+                    raw_asset_type=raw_asset_type or "option",
+                    raw_symbol=raw_symbol or raw_option_symbol,
+                    broker_parse_warning=f"Could not parse Tradier option symbol for {context}",
+                    broker_parse_degraded=True,
+                )
+            else:
+                self._attach_tradier_parse_metadata(
+                    asset,
+                    raw_asset_type=raw_asset_type or "option",
+                    raw_symbol=raw_symbol or raw_option_symbol,
+                )
+            return asset
+
+        if not raw_symbol:
+            return None
+
+        if raw_asset_type_key == "option":
+            try:
+                asset = Asset.symbol2asset(raw_symbol)
+            except Exception:
+                logger.warning(
+                    "Could not parse Tradier option symbol for %s; preserving broker row as unknown.",
+                    context,
+                )
+                return self._attach_tradier_parse_metadata(
+                    Asset(raw_symbol, asset_type=Asset.AssetType.UNKNOWN),
+                    raw_asset_type=raw_asset_type,
+                    raw_symbol=raw_symbol,
+                    broker_parse_warning=f"Could not parse Tradier option symbol: {raw_symbol}",
+                    broker_parse_degraded=True,
+                )
+            return self._attach_tradier_parse_metadata(
+                asset,
+                raw_asset_type=raw_asset_type,
+                raw_symbol=raw_symbol,
+            )
+
+        future_asset_types = {"future", "futures", "cont_future", "continuous_future", "future_contract"}
+        if raw_asset_type_key in future_asset_types or raw_symbol.startswith("/"):
+            future_symbol = raw_symbol[1:] if raw_symbol.startswith("/") else raw_symbol
+            is_continuous = raw_asset_type_key in {"cont_future", "continuous_future"}
+            if not is_continuous:
+                try:
+                    from lumibot.tools.futures_symbols import parse_contract_symbol
+
+                    is_continuous = parse_contract_symbol(future_symbol) is None
+                except Exception:
+                    is_continuous = True
+            asset_type = Asset.AssetType.CONT_FUTURE if is_continuous else Asset.AssetType.FUTURE
+            return self._attach_tradier_parse_metadata(
+                Asset(future_symbol, asset_type=asset_type),
+                raw_asset_type=raw_asset_type or "future",
+                raw_symbol=raw_symbol,
+            )
+
+        known_asset_types = {
+            "equity": Asset.AssetType.STOCK,
+            "stock": Asset.AssetType.STOCK,
+            "option": Asset.AssetType.OPTION,
+            "index": Asset.AssetType.INDEX,
+            "forex": Asset.AssetType.FOREX,
+            "cash": Asset.AssetType.FOREX,
+            "crypto": Asset.AssetType.CRYPTO,
+        }
+        if (
+            raw_asset_type_key in known_asset_types
+            and known_asset_types[raw_asset_type_key] is not Asset.AssetType.OPTION
+        ):
+            asset_type = known_asset_types[raw_asset_type_key]
+            normalized_symbol = (
+                self._normalize_symbol_for_internal(raw_symbol, asset_type=asset_type)
+                if asset_type in {Asset.AssetType.STOCK, Asset.AssetType.INDEX}
+                else raw_symbol
+            )
+            return self._attach_tradier_parse_metadata(
+                Asset(normalized_symbol, asset_type=asset_type),
+                raw_asset_type=raw_asset_type,
+                raw_symbol=raw_symbol,
+            )
+
+        if raw_asset_type_key and raw_asset_type_key not in {"equity", "stock"}:
+            logger.warning(
+                "Unknown Tradier asset type %r for %s; preserving broker row as unknown.",
+                raw_asset_type,
+                context,
+            )
+            return self._attach_tradier_parse_metadata(
+                Asset(raw_symbol, asset_type=Asset.AssetType.UNKNOWN),
+                raw_asset_type=raw_asset_type,
+                raw_symbol=raw_symbol,
+                broker_parse_warning=f"Unknown Tradier asset type: {raw_asset_type}",
+                broker_parse_degraded=True,
+            )
+
+        normalized_symbol = self._normalize_symbol_for_internal(raw_symbol, asset_type=Asset.AssetType.STOCK)
+        asset = Asset.symbol2asset(normalized_symbol)
+        return self._attach_tradier_parse_metadata(
+            asset,
+            raw_asset_type=raw_asset_type,
+            raw_symbol=raw_symbol,
+        )
+
+    @classmethod
+    def _extract_tradier_asset_type(cls, row):
+        for key in (
+            "asset_type",
+            "assetType",
+            "asset_class",
+            "assetClass",
+            "security_type",
+            "securityType",
+            "instrument_type",
+            "instrumentType",
+        ):
+            value = row.get(key) if hasattr(row, "get") else None
+            if not cls._is_missing_broker_value(value):
+                return str(value).strip()
+        broker_class = row.get("class") if hasattr(row, "get") else None
+        if isinstance(broker_class, str) and broker_class.strip().lower() in {"equity", "option"}:
+            return broker_class.strip()
+        return None
+
+    @classmethod
+    def _clean_tradier_symbol(cls, value):
+        if cls._is_missing_broker_value(value):
+            return None
+        return str(value).strip().upper() or None
 
     @staticmethod
     def _tradier_type2lumi(order_type):
@@ -1732,14 +1832,68 @@ class Tradier(Broker):
             return "limit"
         return order_type
 
-    @staticmethod
-    def _extract_order_value(response, child_response, key):
+    @classmethod
+    def _extract_order_value(cls, response, child_response, key):
         """
         OCO orders have empty values for many fields. This function will pull the value from the child order if
         the value is empty in the parent order.
         """
-        is_oco = response["class"] == "oco"
-        return response[key] if key in response and not is_oco else child_response.get(key, None)
+        order_class = response.get("class")
+        is_oco = isinstance(order_class, str) and order_class.strip().lower() == "oco"
+        value = response.get(key)
+        if not is_oco and not cls._is_missing_broker_value(value):
+            return value
+        return child_response.get(key, None)
+
+    @staticmethod
+    def _is_missing_broker_value(value):
+        if value is None:
+            return True
+        if isinstance(value, (dict, list, tuple)):
+            return False
+        try:
+            return bool(pd.isna(value))
+        except Exception:
+            return False
+
+    @classmethod
+    def _tradier_position_shape_for_log(cls, row):
+        return {
+            "symbol_present": not cls._is_missing_broker_value(row.get("symbol") if hasattr(row, "get") else None),
+            "asset_type": cls._extract_tradier_asset_type(row),
+            "quantity_present": not cls._is_missing_broker_value(row.get("quantity") if hasattr(row, "get") else None),
+        }
+
+    @classmethod
+    def _tradier_order_shape_for_log(cls, row):
+        legs = row.get("leg") if isinstance(row, dict) and isinstance(row.get("leg"), list) else []
+
+        def one_shape(order_row):
+            return {
+                "class": order_row.get("class"),
+                "type": order_row.get("type"),
+                "status": order_row.get("status"),
+                "symbol_present": not cls._is_missing_broker_value(order_row.get("symbol")),
+                "option_symbol_present": not cls._is_missing_broker_value(order_row.get("option_symbol")),
+                "side_present": not cls._is_missing_broker_value(order_row.get("side")),
+                "duration_present": not cls._is_missing_broker_value(order_row.get("duration")),
+                "price_present": not cls._is_missing_broker_value(order_row.get("price")),
+                "stop_price_present": not cls._is_missing_broker_value(order_row.get("stop_price")),
+            }
+
+        return {
+            **one_shape(row),
+            "leg_count": len(legs),
+            "legs": [one_shape(leg) for leg in legs if isinstance(leg, dict)],
+        }
+
+    @classmethod
+    def _log_tradier_order_parse_failure(cls, response):
+        logger.warning(
+            "Failed to parse Tradier order row; sanitized_shape=%s",
+            cls._tradier_order_shape_for_log(response),
+            exc_info=True,
+        )
 
     def _pull_broker_order(self, identifier):
         """
@@ -1757,25 +1911,10 @@ class Tradier(Broker):
         and then returned. It is expected that the caller will convert each dictionary to an Order object by
         calling parse_broker_order() on the dictionary.
         """
-        cached_orders = self._get_cached_tradier_read("orders")
-        if cached_orders is not None:
-            return cached_orders
-        if self._tradier_read_is_in_backoff("orders"):
-            raise TradierTransientBrokerReadError("Tradier orders read is in transient backoff")
-
         try:
             df = self.tradier.orders.get_orders()
         except Exception as e:
             if self._is_transient_broker_read_error(e):
-                self._start_tradier_read_backoff("orders")
-                cached_orders = self._get_cached_tradier_read("orders")
-                if cached_orders is not None:
-                    logger.warning(
-                        "Transient Tradier orders read failure; reusing cached orders for this poll: %s",
-                        e,
-                        exc_info=True,
-                    )
-                    return cached_orders
                 logger.warning(
                     "Transient Tradier orders read failure; skipping order reconciliation for this poll: %s",
                     e,
@@ -1787,12 +1926,9 @@ class Tradier(Broker):
 
         # Check if the dataframe is empty or None
         if df is None or df.empty:
-            self._cache_tradier_read("orders", [])
             return []
 
-        orders = self._clean_order_records(df)
-        self._cache_tradier_read("orders", orders)
-        return orders
+        return self._clean_order_records(df)
 
     @staticmethod
     def _clean_order_records(df):
@@ -1836,9 +1972,6 @@ class Tradier(Broker):
         return cleaned
 
     def _lumi_side2tradier(self, order: Order) -> str:
-        # Make a copy of the side because we will modify it
-        original_side = order.side
-
         # Set the side that we will return
         side = order.side
 
@@ -1856,33 +1989,8 @@ class Tradier(Broker):
 
         # Convert the side to the Tradier side for options orders if necessary
         if side == Order.OrderSide.BUY or side == Order.OrderSide.SELL:
-            # Check if we currently own the option
-            position = self.get_tracked_position(order.strategy, order.asset)
-
-            # Check if we own the option then we need to sell to close or buy to close
-            if position is not None:
-                if position.quantity > 0 and side == Order.OrderSide.SELL:
-                    side = "sell_to_close"
-                elif position.quantity >= 0 and side == Order.OrderSide.BUY:
-                    side = "buy_to_open"
-                elif position.quantity < 0 and side == Order.OrderSide.BUY:
-                    side = "buy_to_close"
-                elif position.quantity <= 0 and side == Order.OrderSide.SELL:
-                    side = "sell_to_open"
-                else:
-                    logger.error(
-                        f"Unable to determine the correct side for the order. " f"Position: {position}, Order: {order}"
-                    )
-
-            # Otherwise, we don't own the option so we need to buy to open or sell to open
-            else:
-                side = "buy_to_open" if side == Order.OrderSide.BUY else "sell_to_open"
-
-        # Stoploss and limit orders are usually used to close positions, even if they are submitted "before" the
-        # position is technically open (i.e. buy and stoploss order are submitted simultaneously)
-        if (order.order_type in [Order.OrderType.STOP, Order.OrderType.TRAIL] and
-                (original_side == Order.OrderSide.BUY or original_side == Order.OrderSide.SELL)):
-            side = str(side).replace("to_open", "to_close")
+            self.resolve_option_order_intent(order)
+            side = order.side
 
         # Check if the side is a valid Tradier side
         if side not in ["buy_to_open", "buy_to_close", "sell_to_open", "sell_to_close"]:
@@ -1901,8 +2009,13 @@ class Tradier(Broker):
         if order_class is None or not isinstance(order_class, str):
             return None
 
+        order_class = order_class.strip().lower()
         if order_class in ['equity', 'option']:
             return Order.OrderClass.SIMPLE
+        if order_class == "otoco":
+            return Order.OrderClass.BRACKET
+        if order_class == "combo":
+            return Order.OrderClass.MULTILEG
 
         # Check if the order class is a valid Lumi order class
         try:
@@ -1960,7 +2073,36 @@ class Tradier(Broker):
         if not strategy_name and len(self._subscribers) == 1:
             strategy_name = self._subscribers[0].name
         for order_row in raw_orders:
-            order = self._parse_broker_order_dict(order_row, strategy_name=strategy_name)
+            row_id = order_row.get("id")
+            row_tag = order_row.get("tag")
+            # Shared-account safety: never ingest foreign-tagged activity into this
+            # strategy. A sole local subscriber must not claim MOS fills as STM.
+            already_tracked = row_id in stored_orders
+            if (
+                strategy_name
+                and row_tag
+                and not self.strategy_tag_matches(row_tag, strategy_name)
+                and not already_tracked
+            ):
+                if logger.isEnabledFor(20):
+                    logger.info(
+                        "Skipping foreign Tradier order id=%s tag=%r for local strategy %r",
+                        row_id,
+                        row_tag,
+                        strategy_name,
+                    )
+                continue
+
+            parse_strategy = strategy_name
+            if already_tracked and stored_orders[row_id].strategy:
+                parse_strategy = stored_orders[row_id].strategy
+            elif row_tag and strategy_name and self.strategy_tag_matches(row_tag, strategy_name):
+                parse_strategy = strategy_name
+            elif row_tag and strategy_name and not self.strategy_tag_matches(row_tag, strategy_name):
+                # Tracked-but-foreign should not rewrite strategy to local name.
+                parse_strategy = stored_orders[row_id].strategy if already_tracked else None
+
+            order = self._parse_broker_order_dict(order_row, strategy_name=parse_strategy)
             # Process child orders first so they are tracked in the Lumi system before the parent order
             all_orders = [child for child in order.child_orders] + [order]
 
@@ -1990,13 +2132,23 @@ class Tradier(Broker):
                     # Tradier stores the order tag as the strategy name with underscores replaced by hyphens.
                     if not stored_order.strategy:
                         tag = getattr(stored_order, 'tag', None) or getattr(order, 'tag', None)
+                        matched_sub = False
                         if tag and hasattr(self, '_subscribers') and self._subscribers:
                             for sub in self._subscribers:
                                 sub_name = getattr(sub, 'name', '') or str(sub)
-                                if re.sub(r'[^a-zA-Z0-9-]', '-', sub_name) == tag or sub_name == tag:
+                                if self.strategy_tag_matches(tag, sub_name) or sub_name == tag:
                                     stored_order.strategy = sub_name
+                                    matched_sub = True
                                     break
-                        if not stored_order.strategy and hasattr(self, '_subscribers') and len(self._subscribers) == 1:
+                        # Only claim untagged orders via sole-subscriber fallback.
+                        # Foreign tags must never be attributed to the local strategy.
+                        if (
+                            not stored_order.strategy
+                            and not tag
+                            and not matched_sub
+                            and hasattr(self, '_subscribers')
+                            and len(self._subscribers) == 1
+                        ):
                             only_sub = self._subscribers[0]
                             stored_order.strategy = getattr(only_sub, 'name', '') or str(only_sub)
 

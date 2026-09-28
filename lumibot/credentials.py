@@ -63,11 +63,11 @@ _BROKER_CLASS_NAMES = {
 
 
 def __getattr__(name: str):
-    if name == "BROKER":
+    if name in {"BROKER", "broker"}:
         value = get_default_broker()
         globals()[name] = value
         return value
-    if name == "DATA_SOURCE":
+    if name in {"DATA_SOURCE", "data_source"}:
         value = get_default_data_source()
         globals()[name] = value
         return value
@@ -210,31 +210,36 @@ if backtesting_end:
 # Get the backtesting data source
 BACKTESTING_DATA_SOURCE = os.environ.get("BACKTESTING_DATA_SOURCE", "ThetaData")
 
-# Get backtesting parameters override (JSON string -> dict)
-# Allows injecting strategy parameters via environment variable without code changes.
-# Example: BACKTESTING_PARAMETERS='{"symbol": "AAPL", "quantity": 10}'
-BACKTESTING_PARAMETERS = None
-_bt_params_raw = os.environ.get("BACKTESTING_PARAMETERS")
-if _bt_params_raw is not None:
-    _bt_params_raw = _bt_params_raw.strip()
-    if _bt_params_raw and _bt_params_raw.lower() not in ("none", "null", "{}"):
+# Get mode-neutral strategy parameter overrides (JSON string -> dict). The
+# BACKTESTING_PARAMETERS alias is retained temporarily for verified external
+# strategy runners; new callers must use LUMIBOT_STRATEGY_PARAMETERS.
+STRATEGY_PARAMETERS = None
+_strategy_params_raw = os.environ.get("LUMIBOT_STRATEGY_PARAMETERS")
+if _strategy_params_raw is None:
+    _strategy_params_raw = os.environ.get("BACKTESTING_PARAMETERS")
+if _strategy_params_raw is not None:
+    _strategy_params_raw = _strategy_params_raw.strip()
+    if _strategy_params_raw and _strategy_params_raw.lower() not in ("none", "null", "{}"):
         try:
             import json as _json
-            _parsed_params = _json.loads(_bt_params_raw)
+            _parsed_params = _json.loads(_strategy_params_raw)
             if isinstance(_parsed_params, dict):
-                BACKTESTING_PARAMETERS = _parsed_params
+                STRATEGY_PARAMETERS = _parsed_params
             else:
                 colored_message = _colored(
-                    f"BACKTESTING_PARAMETERS must be a JSON object/dict, got {type(_parsed_params).__name__}. Ignoring.",
+                    f"LUMIBOT_STRATEGY_PARAMETERS must be a JSON object/dict, got {type(_parsed_params).__name__}. Ignoring.",
                     "yellow",
                 )
                 logger.warning(colored_message)
         except Exception as _e:
             colored_message = _colored(
-                f"Failed to parse BACKTESTING_PARAMETERS: {_e}. Expected valid JSON dict. Ignoring.",
+                f"Failed to parse LUMIBOT_STRATEGY_PARAMETERS: {_e}. Expected valid JSON dict. Ignoring.",
                 "yellow",
             )
             logger.warning(colored_message)
+
+# Compatibility readback for external code that imports the old constant.
+BACKTESTING_PARAMETERS = STRATEGY_PARAMETERS
 
 # Check if we should hide trades
 hide_trades = os.environ.get("HIDE_TRADES")
@@ -463,7 +468,15 @@ INTERACTIVE_BROKERS_REST_CONFIG = {
     "IB_PASSWORD": os.environ.get("IB_PASSWORD"),
     "IB_ACCOUNT_ID": os.environ.get("IB_ACCOUNT_ID"),
     "API_URL": os.environ.get("IB_API_URL"),
-    "RUNNING_ON_SERVER": os.environ.get("RUNNING_ON_SERVER")
+    "RUNNING_ON_SERVER": os.environ.get("RUNNING_ON_SERVER"),
+    "GATEWAY_PORT": os.environ.get("IB_GATEWAY_PORT"),
+    "GATEWAY_INSTANCE_ID": os.environ.get("IB_GATEWAY_INSTANCE_ID"),
+    "USE_PAPER_ACCOUNT": os.environ.get("IB_USE_PAPER_ACCOUNT", "true"),
+    "IBEAM_DOCKER_TAG": os.environ.get("IBEAM_DOCKER_TAG"),
+    "AUTH_TIMEOUT": os.environ.get("IB_AUTH_TIMEOUT"),
+    "AUTH_POLL_INTERVAL": os.environ.get("IB_AUTH_POLL_INTERVAL"),
+    "REQUEST_TIMEOUT": os.environ.get("IB_REQUEST_TIMEOUT"),
+    "VERIFY_SSL": os.environ.get("IB_VERIFY_SSL"),
 }
 
 # Tradovate Configuration
@@ -1180,6 +1193,11 @@ else:
 # lazily so importing strategy modules remains config-only until a live broker
 # is actually needed.
 if _defer_default_credentials() and not IS_BACKTESTING:
+    # PEP 562 only calls module __getattr__ for missing names. Remove both
+    # legacy lowercase exports and canonical uppercase exports so explicit
+    # imports resolve the lazy broker instead of capturing the None sentinel.
+    globals().pop("broker", None)
+    globals().pop("data_source", None)
     globals().pop("BROKER", None)
     globals().pop("DATA_SOURCE", None)
 else:

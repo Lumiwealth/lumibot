@@ -1,6 +1,9 @@
 ProjectX / TopstepX
 ===================
 
+.. meta::
+   :description: Lumibot's ProjectX path is a futures-only broker integration currently documented for TopstepX.
+
 Lumibot's ProjectX path is a **futures-only broker integration** currently documented for TopstepX. The lower-level adapter contains firm-specific ProjectX environment-variable prefixes, but new firms should be treated as advanced and validation-required until they are tested in Lumibot.
 
 Features

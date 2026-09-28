@@ -1,0 +1,527 @@
+{
+  "accounts": {
+    "status": 200,
+    "count": 4,
+    "rows": [
+      {
+        "last4": "3164",
+        "type": "MARGIN",
+        "roundTrips": 0,
+        "isDayTrader": false
+      },
+      {
+        "last4": "4530",
+        "type": "MARGIN",
+        "roundTrips": 0,
+        "isDayTrader": false
+      },
+      {
+        "last4": "6553",
+        "type": "MARGIN",
+        "roundTrips": 3,
+        "isDayTrader": false
+      },
+      {
+        "last4": "4364",
+        "type": "MARGIN",
+        "roundTrips": 5,
+        "isDayTrader": false
+      }
+    ],
+    "number_status": 200,
+    "number_count": 4
+  },
+  "option_contract": {
+    "expiration": "2026-09-22",
+    "strike": 775.0
+  },
+  "direct_daily_SPY_7d": {
+    "count": 6,
+    "first": "2026-09-15",
+    "last": "2026-09-22",
+    "status": 200,
+    "detail": ""
+  },
+  "direct_daily_SPY_1y": {
+    "count": 252,
+    "first": "2025-09-22",
+    "last": "2026-09-22",
+    "status": 200,
+    "detail": ""
+  },
+  "direct_daily_SPY_2y": {
+    "count": 501,
+    "first": "2024-09-23",
+    "last": "2026-09-22",
+    "status": 200,
+    "detail": ""
+  },
+  "direct_daily_SPY_5y": {
+    "count": 1254,
+    "first": "2021-09-23",
+    "last": "2026-09-22",
+    "status": 200,
+    "detail": ""
+  },
+  "direct_daily_SPY_10y": {
+    "count": 2511,
+    "first": "2016-09-26",
+    "last": "2026-09-22",
+    "status": 200,
+    "detail": ""
+  },
+  "direct_daily_SPY_20y": {
+    "count": 5027,
+    "first": "2006-09-27",
+    "last": "2026-09-22",
+    "status": 200,
+    "detail": ""
+  },
+  "direct_1min_SPY_1d": {
+    "count": 1237,
+    "first": "2026-09-21",
+    "last": "2026-09-22",
+    "status": 200,
+    "detail": ""
+  },
+  "direct_1min_SPY_10d": {
+    "count": 8313,
+    "first": "2026-09-14",
+    "last": "2026-09-22",
+    "status": 200,
+    "detail": ""
+  },
+  "direct_1min_SPY_48d": {
+    "count": 39454,
+    "first": "2026-08-07",
+    "last": "2026-09-22",
+    "status": 200,
+    "detail": ""
+  },
+  "direct_1min_SPY_90d": {
+    "count": 39454,
+    "first": "2026-08-07",
+    "last": "2026-09-22",
+    "status": 200,
+    "detail": ""
+  },
+  "direct_30min_SPY_30d": {
+    "count": 977,
+    "first": "2026-08-24",
+    "last": "2026-09-22",
+    "status": 200,
+    "detail": ""
+  },
+  "direct_30min_SPY_180d": {
+    "count": 5899,
+    "first": "2026-03-26",
+    "last": "2026-09-22",
+    "status": 200,
+    "detail": ""
+  },
+  "direct_30min_SPY_365d": {
+    "count": 8601,
+    "first": "2026-01-05",
+    "last": "2026-09-22",
+    "status": 200,
+    "detail": ""
+  },
+  "direct_60min_SPY": {
+    "status": null,
+    "count": 0,
+    "first": null,
+    "last": null,
+    "detail": "ValueError"
+  },
+  "direct_second_SPY": {
+    "status": null,
+    "count": 0,
+    "first": null,
+    "last": null,
+    "detail": "ValueError"
+  },
+  "direct_daily_option_7d": {
+    "count": 6,
+    "first": "2026-09-15",
+    "last": "2026-09-22",
+    "status": 200,
+    "detail": ""
+  },
+  "direct_daily_option_1y": {
+    "count": 11,
+    "first": "2026-09-08",
+    "last": "2026-09-22",
+    "status": 200,
+    "detail": ""
+  },
+  "direct_daily_option_2y": {
+    "count": 11,
+    "first": "2026-09-08",
+    "last": "2026-09-22",
+    "status": 200,
+    "detail": ""
+  },
+  "direct_daily_option_5y": {
+    "count": 11,
+    "first": "2026-09-08",
+    "last": "2026-09-22",
+    "status": 200,
+    "detail": ""
+  },
+  "direct_daily_option_10y": {
+    "count": 11,
+    "first": "2026-09-08",
+    "last": "2026-09-22",
+    "status": 200,
+    "detail": ""
+  },
+  "direct_daily_option_20y": {
+    "count": 11,
+    "first": "2026-09-08",
+    "last": "2026-09-22",
+    "status": 200,
+    "detail": ""
+  },
+  "direct_1min_option_1d": {
+    "count": 749,
+    "first": "2026-09-21",
+    "last": "2026-09-22",
+    "status": 200,
+    "detail": ""
+  },
+  "direct_1min_option_10d": {
+    "count": 1178,
+    "first": "2026-09-14",
+    "last": "2026-09-22",
+    "status": 200,
+    "detail": ""
+  },
+  "direct_1min_option_48d": {
+    "count": 1369,
+    "first": "2026-09-08",
+    "last": "2026-09-22",
+    "status": 200,
+    "detail": ""
+  },
+  "direct_1min_option_90d": {
+    "count": 1369,
+    "first": "2026-09-08",
+    "last": "2026-09-22",
+    "status": 200,
+    "detail": ""
+  },
+  "direct_30min_option_30d": {
+    "count": 145,
+    "first": "2026-09-08",
+    "last": "2026-09-22",
+    "status": 200,
+    "detail": ""
+  },
+  "direct_30min_option_180d": {
+    "count": 145,
+    "first": "2026-09-08",
+    "last": "2026-09-22",
+    "status": 200,
+    "detail": ""
+  },
+  "direct_30min_option_365d": {
+    "count": 145,
+    "first": "2026-09-08",
+    "last": "2026-09-22",
+    "status": 200,
+    "detail": ""
+  },
+  "direct_60min_option": {
+    "status": null,
+    "count": 0,
+    "first": null,
+    "last": null,
+    "detail": "ValueError"
+  },
+  "direct_second_option": {
+    "status": null,
+    "count": 0,
+    "first": null,
+    "last": null,
+    "detail": "ValueError"
+  },
+  "direct_daily_BTC_7d": {
+    "count": 6,
+    "first": "2026-09-15",
+    "last": "2026-09-22",
+    "status": 200,
+    "detail": ""
+  },
+  "direct_daily_BTC_1y": {
+    "count": 252,
+    "first": "2025-09-22",
+    "last": "2026-09-22",
+    "status": 200,
+    "detail": ""
+  },
+  "direct_daily_BTC_2y": {
+    "count": 501,
+    "first": "2024-09-23",
+    "last": "2026-09-22",
+    "status": 200,
+    "detail": ""
+  },
+  "direct_daily_BTC_5y": {
+    "count": 538,
+    "first": "2024-07-31",
+    "last": "2026-09-22",
+    "status": 200,
+    "detail": ""
+  },
+  "direct_daily_BTC_10y": {
+    "count": 538,
+    "first": "2024-07-31",
+    "last": "2026-09-22",
+    "status": 200,
+    "detail": ""
+  },
+  "direct_daily_BTC_20y": {
+    "count": 538,
+    "first": "2024-07-31",
+    "last": "2026-09-22",
+    "status": 200,
+    "detail": ""
+  },
+  "direct_1min_BTC_1d": {
+    "count": 899,
+    "first": "2026-09-21",
+    "last": "2026-09-22",
+    "status": 200,
+    "detail": ""
+  },
+  "direct_1min_BTC_10d": {
+    "count": 3151,
+    "first": "2026-09-14",
+    "last": "2026-09-22",
+    "status": 200,
+    "detail": ""
+  },
+  "direct_1min_BTC_48d": {
+    "count": 14433,
+    "first": "2026-08-06",
+    "last": "2026-09-22",
+    "status": 200,
+    "detail": ""
+  },
+  "direct_1min_BTC_90d": {
+    "count": 14433,
+    "first": "2026-08-06",
+    "last": "2026-09-22",
+    "status": 200,
+    "detail": ""
+  },
+  "direct_30min_BTC_30d": {
+    "count": 726,
+    "first": "2026-08-24",
+    "last": "2026-09-22",
+    "status": 200,
+    "detail": ""
+  },
+  "direct_30min_BTC_180d": {
+    "count": 4400,
+    "first": "2026-03-26",
+    "last": "2026-09-22",
+    "status": 200,
+    "detail": ""
+  },
+  "direct_30min_BTC_365d": {
+    "count": 6695,
+    "first": "2026-01-05",
+    "last": "2026-09-22",
+    "status": 200,
+    "detail": ""
+  },
+  "direct_60min_BTC": {
+    "status": null,
+    "count": 0,
+    "first": null,
+    "last": null,
+    "detail": "ValueError"
+  },
+  "direct_second_BTC": {
+    "status": null,
+    "count": 0,
+    "first": null,
+    "last": null,
+    "detail": "ValueError"
+  },
+  "lumibot_SPY_day_2500": {
+    "status": 200,
+    "count": 2501,
+    "first": "2016-10-10",
+    "last": "2026-09-22",
+    "detail": ""
+  },
+  "lumibot_SPY_minute_100": {
+    "status": 200,
+    "count": 492,
+    "first": "2026-09-22",
+    "last": "2026-09-22",
+    "detail": ""
+  },
+  "lumibot_SPY_hour_40": {
+    "status": 200,
+    "count": 65,
+    "first": "2026-09-21",
+    "last": "2026-09-22",
+    "detail": ""
+  },
+  "lumibot_SPY_second_10": {
+    "status": null,
+    "count": 0,
+    "first": null,
+    "last": null,
+    "detail": "none"
+  },
+  "lumibot_option_day_30": {
+    "status": 200,
+    "count": 11,
+    "first": "2026-09-08",
+    "last": "2026-09-22",
+    "detail": ""
+  },
+  "lumibot_option_minute_30": {
+    "status": 200,
+    "count": 349,
+    "first": "2026-09-22",
+    "last": "2026-09-22",
+    "detail": ""
+  },
+  "lumibot_option_hour_20": {
+    "status": 200,
+    "count": 26,
+    "first": "2026-09-21",
+    "last": "2026-09-22",
+    "detail": ""
+  },
+  "lumibot_BTC_day_2500": {
+    "status": 200,
+    "count": 538,
+    "first": "2024-07-31",
+    "last": "2026-09-22",
+    "detail": ""
+  },
+  "lumibot_BTC_minute_100": {
+    "status": 200,
+    "count": 386,
+    "first": "2026-09-22",
+    "last": "2026-09-22",
+    "detail": ""
+  },
+  "lumibot_BTC_hour_40": {
+    "status": 200,
+    "count": 62,
+    "first": "2026-09-21",
+    "last": "2026-09-22",
+    "detail": ""
+  },
+  "lumibot_BTCUSD_day_20": {
+    "status": 200,
+    "count": 21,
+    "first": "2026-08-24",
+    "last": "2026-09-22",
+    "detail": ""
+  },
+  "lumibot_ETH_day_20": {
+    "status": 200,
+    "count": 21,
+    "first": "2026-08-24",
+    "last": "2026-09-22",
+    "detail": ""
+  },
+  "lumibot_future_day_5": {
+    "status": null,
+    "count": 0,
+    "first": null,
+    "last": null,
+    "detail": "none"
+  },
+  "quote_SPY": {
+    "price": 774.21,
+    "bid": 774.21,
+    "ask": 774.23,
+    "last_price": 774.23
+  },
+  "quote_option": {
+    "price": 0.1,
+    "bid": 0.1,
+    "ask": 0.11,
+    "last_price": 0.1
+  },
+  "quote_BTC": {
+    "price": 38.269,
+    "bid": 38.26,
+    "ask": 38.27,
+    "last_price": 38.269
+  },
+  "quote_BTCUSD": {
+    "price": 38.269,
+    "bid": 38.26,
+    "ask": 38.27,
+    "last_price": 38.269
+  },
+  "quote_ETH": {
+    "price": 26.35,
+    "bid": 26.35,
+    "ask": 26.36,
+    "last_price": 26.35
+  },
+  "instrument_BTC": {
+    "status": 200,
+    "instruments": [
+      {
+        "symbol": "BTC",
+        "assetType": "ETF",
+        "description": "GRAYSCALE BITCOIN MINI TR ETF"
+      }
+    ]
+  },
+  "instrument_ETH": {
+    "status": 200,
+    "instruments": [
+      {
+        "symbol": "ETH",
+        "assetType": "ETF",
+        "description": "GRAYSCALE ETHEREUM STAKING MINI ETF"
+      }
+    ]
+  },
+  "instrument_DOGE": {
+    "status": 200,
+    "instruments": []
+  },
+  "instrument_SOL": {
+    "status": 200,
+    "instruments": []
+  },
+  "instrument_LTC": {
+    "status": 200,
+    "instruments": [
+      {
+        "symbol": "LTC",
+        "assetType": "EQUITY",
+        "description": "LTC PPTYS INC REIT"
+      }
+    ]
+  },
+  "instrument_BCH": {
+    "status": 200,
+    "instruments": [
+      {
+        "symbol": "BCH",
+        "assetType": "EQUITY",
+        "description": "BANCO DE CHILE ADR"
+      }
+    ]
+  },
+  "crypto_order_preview": {
+    "status": 200,
+    "detail": "{\"orderId\":0,\"orderStrategy\":{\"accountNumber\":\"####\",\"advancedOrderType\":\"NONE\",\"enteredTime\":\"2026-09-22T19:18:38+0000\",\"orderBalance\":{\"orderValue\":38.28,\"projectedAvailableFund\"",
+    "placed": false
+  }
+}

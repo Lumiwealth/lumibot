@@ -12,7 +12,7 @@ import pandas as pd
 from lumibot.backtesting.thetadata_backtesting_pandas import ThetaDataBacktestingPandas
 from lumibot.constants import LUMIBOT_DEFAULT_PYTZ
 from lumibot.credentials import ALPACA_CONFIG, COINBASE_CONFIG, KRAKEN_CONFIG, POLYGON_API_KEY
-from lumibot.entities import Asset, Data
+from lumibot.entities import Asset, AssetsMapping, Data
 from lumibot.tools import ibkr_helper
 from lumibot.tools import polygon_helper
 from lumibot.tools.helpers import parse_timestep_qty_and_unit
@@ -964,7 +964,17 @@ class _CcxtRoutingAdapter(_DataFrameRoutingAdapter):
         else:
             raise RoutingProviderError(f"CCXT routing only supports minute/hour/day timesteps, got {ts_unit!r}.")
 
-        symbol = f"{asset.symbol.upper()}/{quote_asset.symbol.upper()}"
+        from lumibot.tools.symbol_normalization import build_ccxt_crypto_symbol
+
+        symbol = build_ccxt_crypto_symbol(
+            getattr(asset, "symbol", asset),
+            getattr(quote_asset, "symbol", quote_asset),
+            exchange_id=exchange_id,
+        )
+        if not symbol:
+            raise RoutingProviderError(
+                f"Unable to build a CCXT crypto symbol from asset={asset!r} quote={quote_asset!r}."
+            )
         if ts_unit in {"minute", "hour"}:
             try:
                 prefetch_start = min(start_datetime, self._router.datetime_start)
@@ -1086,6 +1096,39 @@ class RoutedBacktestingPandas(ThetaDataBacktestingPandas):
         self._registry = _ProviderRegistry(self)
         self._routing = self._normalize_routing(self._extract_routing_config(getattr(self, "_config", None)))
         self._registry.validate_routing(self._routing)
+        self._observed_data_routes: Dict[tuple, Dict[str, str]] = {}
+
+    def _record_observed_route(
+        self,
+        asset: Asset,
+        provider_spec: ProviderSpec,
+        *,
+        timestep: Optional[str] = None,
+        feed_type: Optional[str] = None,
+    ) -> None:
+        asset_type = _normalize_asset_type(getattr(asset, "asset_type", "")) or "unknown"
+        symbol = str(getattr(asset, "symbol", "") or "").strip()
+        adapter = type(self._registry.adapter_for_spec(provider_spec)).__name__
+        route = {
+            "assetClass": asset_type,
+            "symbol": symbol,
+            "adapter": adapter,
+            "vendor": provider_spec.provider,
+        }
+        if provider_spec.ccxt_exchange_id:
+            route["exchange"] = provider_spec.ccxt_exchange_id
+        if feed_type:
+            route["feedType"] = feed_type
+        if timestep:
+            route["resolution"] = str(timestep)
+        key = (asset_type, symbol, provider_spec.provider, provider_spec.ccxt_exchange_id, feed_type, str(timestep or ""))
+        if not isinstance(getattr(self, "_observed_data_routes", None), dict):
+            self._observed_data_routes = {}
+        self._observed_data_routes[key] = route
+
+    def get_data_provenance(self) -> Dict[str, Any]:
+        observed = getattr(self, "_observed_data_routes", {})
+        return {"observedRoutes": list(observed.values()) if isinstance(observed, dict) else []}
 
     @staticmethod
     def _extract_routing_config(config: Any) -> Optional[Dict[str, str]]:
@@ -1146,6 +1189,145 @@ class RoutedBacktestingPandas(ThetaDataBacktestingPandas):
             raw = self._routing.get(asset_type) or self._routing.get("default") or "thetadata"
         return self._registry.resolve_provider_spec(raw)
 
+    @staticmethod
+    def _frame_last_date(frame):
+        if frame is None or not len(getattr(frame, "index", [])):
+            return None
+        index = pd.DatetimeIndex(frame.index)
+        if index.tz is not None:
+            index = index.tz_convert(LUMIBOT_DEFAULT_PYTZ)
+        return index.max().date()
+
+    def get_yesterday_dividends(self, assets, quote=None):
+        """Return each asset's dividend for the current backtest date from the provider of its bars.
+
+        WHY (2026-09-25): this class inherited ThetaData's override, which asks the ThetaData
+        corporate-actions API for every stock, including stocks whose bars come from IBKR.
+        ThetaData is switched off (2026-09-23), every lookup failed quietly, and every BotSpot
+        Auto stock backtest got zero dividends: a 400 TLT + 50 SPY hold from June to August
+        2026 kept its cash flat. IBKR daily bars already carry the dividend on its ex-date
+        (`ibkr_helper._append_equity_corporate_actions_daily`), so only assets routed to
+        ThetaData still ask ThetaData.
+
+        Alpaca-routed stocks correctly get no cash dividend: the routed Alpaca source keeps
+        AlpacaBacktesting's default auto_adjust=True, which requests adjustment="all" bars, so
+        dividends are already in the price series. Crediting cash on top would count them twice.
+        Polygon bars are split-adjusted only and carry no dividend column, so Polygon-routed stocks
+        read dividends from corporate actions. Assets other than stocks pay none and are not looked up.
+        """
+        theta_assets = []
+        routed_assets = []
+        corporate_action_assets = []
+        result = {}
+        for asset in assets:
+            # Only stocks (and ETFs) pay dividends. Looking up anything else made the router
+            # download daily bars nobody asked for (futures daily bars come from hourly downloads).
+            if _normalize_asset_type(getattr(asset, "asset_type", "")) != "stock":
+                result[asset] = 0.0
+                continue
+            try:
+                provider = self._provider_spec_for_asset(asset).provider
+            except Exception:
+                provider = "thetadata"
+            if provider == "thetadata":
+                theta_assets.append(asset)
+            elif provider == "alpaca":
+                result[asset] = 0.0  # adjustment="all": dividends are already in the prices
+            elif provider == "polygon":
+                corporate_action_assets.append(asset)  # split-adjusted only, no dividend column
+            else:
+                routed_assets.append(asset)
+
+        if theta_assets:
+            result.update(dict(super().get_yesterday_dividends(theta_assets, quote=quote).items()))
+        if corporate_action_assets:
+            result.update(self._corporate_action_dividends(corporate_action_assets))
+        if not routed_assets:
+            return AssetsMapping(result)
+
+        current_date = self._datetime.date() if hasattr(self._datetime, "date") else self._datetime
+        cache = getattr(self, "_routed_dividend_cache", None)
+        if cache is None:
+            cache = self._routed_dividend_cache = {}
+        for asset in routed_assets:
+            cached = cache.get(asset)
+            # Rebuild when nothing is cached, or when the cached daily frame ended before today
+            # and it has not been refreshed today yet. Checking once per simulated day matters:
+            # an intraday strategy asks on every iteration, and a frame that stays short (IBKR has
+            # no newer daily bar yet) was rescanned in full on every call (CodeRabbit, PR #1180).
+            stale = cached is not None and (cached["last_date"] is None or current_date > cached["last_date"])
+            if cached is None or (stale and cached["checked_date"] != current_date):
+                frame = self._get_backtest_daily_corporate_action_frame(asset, quote=quote)
+                frame_last = self._frame_last_date(frame)
+                if frame is None or "dividend" not in frame.columns or frame_last is None or frame_last < current_date:
+                    try:
+                        # Loads or extends the native daily series; routed IBKR prefetches the
+                        # whole window, so this is a cheap no-op once the series is fully loaded.
+                        self.get_bars(
+                            [asset], self._backtest_daily_corporate_action_length(), timestep="day", quote=quote
+                        )
+                    except Exception as exc:
+                        logger.debug("Routed dividend bars unavailable for %s: %s", getattr(asset, "symbol", asset), exc)
+                    frame = self._get_backtest_daily_corporate_action_frame(asset, quote=quote)
+                by_date = {}
+                if frame is not None and "dividend" in frame.columns and len(frame.index):
+                    index = pd.DatetimeIndex(frame.index)
+                    if index.tz is not None:
+                        index = index.tz_convert(LUMIBOT_DEFAULT_PYTZ)
+                    amounts = pd.to_numeric(frame["dividend"], errors="coerce").fillna(0.0).to_numpy()
+                    for ts, amount in zip(index, amounts):
+                        if amount > 0:
+                            by_date[ts.date()] = float(amount)
+                cached = {
+                    "by_date": by_date,
+                    "last_date": self._frame_last_date(frame),
+                    "checked_date": current_date,
+                }
+                cache[asset] = cached
+            dividend = cached["by_date"].get(current_date, 0.0)
+            if dividend:
+                logger.info(
+                    "[ROUTED][DIVIDENDS] %s dividend on %s = %.6f",
+                    getattr(asset, "symbol", asset),
+                    current_date,
+                    dividend,
+                )
+            result[asset] = dividend
+        return AssetsMapping(result)
+
+    def _corporate_action_dividends(self, assets) -> dict:
+        """Dividends for assets whose bars carry none (Polygon: split-adjusted prices only).
+
+        Uses the same free corporate-actions source that enriches IBKR daily stock bars
+        (`ibkr_helper._get_cached_equity_actions`, split-adjusted cash amounts by ex-date).
+        Only the current date's amount is read, so the full table is no lookahead.
+        """
+        current_date = self._datetime.date() if hasattr(self._datetime, "date") else self._datetime
+        cache = getattr(self, "_corporate_action_dividend_cache", None)
+        if cache is None:
+            cache = self._corporate_action_dividend_cache = {}
+        out = {}
+        for asset in assets:
+            symbol = str(getattr(asset, "symbol", "") or "").upper()
+            by_date = cache.get(symbol)
+            if by_date is None:
+                by_date = {}
+                try:
+                    end = getattr(self, "datetime_end", None)
+                    actions = ibkr_helper._get_cached_equity_actions(symbol, last_needed_datetime=end)
+                    if actions is not None and not actions.empty and "Dividends" in actions.columns:
+                        index = pd.DatetimeIndex(actions.index)
+                        index = index.tz_localize(LUMIBOT_DEFAULT_PYTZ) if index.tz is None else index.tz_convert(LUMIBOT_DEFAULT_PYTZ)
+                        amounts = pd.to_numeric(actions["Dividends"], errors="coerce").fillna(0.0).to_numpy()
+                        for ts, amount in zip(index, amounts):
+                            if amount > 0:
+                                by_date[ts.date()] = by_date.get(ts.date(), 0.0) + float(amount)
+                except Exception as exc:
+                    logger.warning("Corporate-action dividends unavailable for %s: %s", symbol, exc)
+                cache[symbol] = by_date
+            out[asset] = by_date.get(current_date, 0.0)
+        return out
+
     def _update_pandas_data(
         self,
         asset,
@@ -1164,6 +1346,12 @@ class RoutedBacktestingPandas(ThetaDataBacktestingPandas):
 
         provider_spec = self._provider_spec_for_asset(asset_separated)
         adapter = self._registry.adapter_for_spec(provider_spec)
+        self._record_observed_route(
+            asset_separated,
+            provider_spec,
+            timestep=timestep,
+            feed_type="quote" if require_quote_data and not require_ohlc_data else "ohlc",
+        )
         return adapter.update_pandas_data(
             asset=asset_separated,
             quote_asset=quote_asset,
@@ -1201,7 +1389,7 @@ class RoutedBacktestingPandas(ThetaDataBacktestingPandas):
                 asset_type = asset_type.split(".")[-1]
             prefer_native_day = bool(getattr(self, "PREFER_NATIVE_DAY_BARS_FOR_STOCK_INDEX", False))
             source_timestep = str(getattr(self, "_timestep", "") or "").strip().lower()
-            if asset_type not in {"crypto", "crypto_future"}:
+            if asset_type not in {"crypto", "crypto_future"} and not self._has_loaded_intraday_series(asset_obj, quote):
                 if prefer_native_day and asset_type in {"stock", "equity", "index"}:
                     timestep = "day"
                 elif _is_day_like_timestep(source_timestep):
@@ -1238,7 +1426,7 @@ class RoutedBacktestingPandas(ThetaDataBacktestingPandas):
                 asset_type = asset_type.split(".")[-1]
             prefer_native_day = bool(getattr(self, "PREFER_NATIVE_DAY_BARS_FOR_STOCK_INDEX", False))
             source_timestep = str(getattr(self, "_timestep", "") or "").strip().lower()
-            if asset_type not in {"crypto", "crypto_future"}:
+            if asset_type not in {"crypto", "crypto_future"} and not self._has_loaded_intraday_series(asset_obj, quote):
                 if prefer_native_day and asset_type in {"stock", "equity", "index"}:
                     timestep = "day"
                 elif _is_day_like_timestep(source_timestep):

@@ -15,6 +15,11 @@
 
 ## Overview
 
+Technical indicator calculations restrict input to strategy-time history before
+computing, rather than trimming a result calculated over future bars. See
+[indicator temporal safety](indicator-temporal-safety.md) for the regression,
+cache contract and the separate adapter bar-completion qualification boundary.
+
 LumiBot is a trading and backtesting framework. This document focuses on the **backtesting architecture**, specifically how data flows from external sources (Yahoo, ThetaData, IBKR Client Portal REST, Polygon) into the backtesting engine.
 
 **CORE PRINCIPLE: Backtesting must mimic live broker behavior.**
@@ -148,6 +153,20 @@ Where parallelism **does** fit today:
 - provider/data hydration (parallel chunk downloads, async prefetch, multi-asset bar fanout),
 - independent backtest runs (parameter sweeps, window sweeps, strategy comparisons),
 - and some bounded batching opportunities inside one run (for example grouped price lookups).
+
+Runtime strategy parameters are also mode-neutral. BotSpot and other runners
+pass one JSON object through ``LUMIBOT_STRATEGY_PARAMETERS``; LumiBot merges it
+over class and constructor defaults in both backtests and live execution. This
+keeps each run internally serial while allowing independent parameter sets to
+run in parallel at the process/container layer. ``BACKTESTING_PARAMETERS`` is
+only a deprecated compatibility alias for verified older runners and must not
+be used by new integrations.
+
+Completed runs also write ``logs/data_provenance.json``. The artifact records
+the versioned selection policy plus the adapter, vendor, exchange, symbol,
+feed, and resolution actually observed where the datasource can report those
+facts. Its schema is allowlisted so credentials, tokens, and signed URLs cannot
+enter the artifact.
 
 Practical guidance:
 
@@ -430,6 +449,21 @@ For example, SPX index minute OHLC typically yields ~391 bars/day and ends at th
 See:
 - `docs/investigations/2026-01-13_SPX_INTRADAY_STALE_LOOP_FIX.md`
 
+## Requested Timestep Is Binding (CRITICAL)
+
+A history request for `minute` (or `hour`, `second`) returns intraday bars or nothing. It never returns daily bars.
+
+**Failure mode (fixed 2026-09-24, 4.6.1):**
+- A strategy with `sleeptime="1D"` makes `StrategyExecutor` prime the data source with `_timestep="day"` so internal price and quote lookups stay on daily bars.
+- `ThetaDataBacktestingPandas._pull_source_symbol_bars` (inherited by `RoutedBacktestingPandas`) also rewrote an explicit `get_historical_prices(asset, 1440, "minute")` into a day request. A routed IBKR SPCX backtest got 52 daily bars back for a minute request.
+
+**Rule now:**
+- Only an implicit request (`timestep=None`) follows the day cadence.
+- An explicit intraday request is fetched as intraday. If the provider has no intraday bars, the result is empty.
+- Internal lookups (`get_last_price`, `get_quote`, `get_price_snapshot`) may still align to day bars in daily runs; those are not history requests.
+
+Tests: `tests/backtest/test_routed_backtesting_ibkr_prefetch.py` (`test_daily_sleeptime_*`) and `tests/test_thetadata_helper.py::test_minute_request_in_day_mode_never_returns_day_bars`.
+
 ## ThetaData Coverage Gap: NDX Underlying (CRITICAL)
 
 ThetaData provides **NDX options** history, but does **not** provide the **NDX index underlying** (price/OHLC) history.
@@ -561,6 +595,58 @@ df = df[~all_zero]
 4. Handles split adjustments via `validate_cache()`
 
 **Key Function:** `get_price_data_from_polygon()` (line 80)
+
+### 6. Alpaca (`alpaca_backtesting.py`, bring your own key)
+
+**Flow:**
+1. `AlpacaBacktesting` inherits from `DataSourceBacktesting` and downloads one bar series per
+   asset for the whole backtest window (stock, crypto and option clients), cached as CSV in
+   `LUMIBOT_CACHE_FOLDER/alpaca`.
+2. Stock and crypto minute/day bars are reindexed to the trading calendar and filled
+   (legacy behavior, see the RULE #1 note below). Option bars are NOT: they are trade prints
+   and stay sparse. Option cache keys end in `_TRADES` so older filled files are never reused.
+3. `get_chains()` lists contracts from the Trading API (`status=inactive` plus `active`,
+   paginated), for expirations from the simulated date through 90 days (or the
+   `OptionsHelper` hint). One listing is reused across simulated days; each day's chain is
+   cached in memory and as JSON in `LUMIBOT_CACHE_FOLDER/alpaca/option_chains`.
+   The listing is not point-in-time. Alpaca's contracts API has no listing or first-trade date,
+   so a strike or expiration listed after the simulated date can appear in that day's chain.
+   Chain membership is therefore not proof that a contract existed on that date. A
+   point-in-time chain needs an authoritative availability date or a historical chain source;
+   until one exists, the guard is item 4: a contract cannot fill before its first real print.
+4. `BacktestingBroker` requires an Alpaca option bar that printed in the current minute/day
+   to fill (`_requires_current_execution_bar`). Orders wait for the next real print.
+5. Environment mode (no `config`, which is how `BACKTESTING_DATA_SOURCE=alpaca` builds it in
+   BotSpot): credentials from `ALPACA_*` variables, minute bars by default (daily-cadence
+   strategies are still primed to day bars), and the run goes through `backtesting_end`. An
+   explicit config keeps the legacy daily default and the stop three sessions early.
+6. History versus execution (2026-09-23). Alpaca labels bars with their start time and daily
+   bars at midnight. `_newest_bar_position()` decides the newest bar `get_historical_prices()`
+   returns: with `remove_incomplete_current_bar` only bars whose label plus length is at or
+   before the simulated time (daily: earlier dates), which is the `Data` contract IBKR,
+   ThetaData and Polygon follow. It defaults to True in both environment and explicit-config
+   mode (since 4.5.92; before that an explicit config defaulted to False). False is an opt-in:
+   the forming bar is included with its final OHLCV, a lookahead of up to one bar. The 2025
+   apitests that pin that lookback pass False explicitly. `get_last_price()` and the broker's Alpaca fill branch read the bar that
+   starts now with `remove_incomplete_current_bar=False` and use its open, like the Pandas
+   branch with `timeshift=-1`. When nothing has finished yet, history returns `None`.
+7. History before `backtesting_start` (2026-09-23). `history_before_start` (True in environment
+   mode, False with an explicit config) lets a history request that needs more finished bars
+   than the loaded series holds fetch the real bars before it: `_reach_back_for_history()` sizes
+   one segment from the market calendar (`_history_start_needed()`: sessions for `length` bars
+   plus a quarter plus two, capped at 260 intraday and 2520 daily), `_history_segment()` fetches
+   it once, caches it as `<key>_HISTORY.csv` (empty ones too) and never fills it; 1-minute stock
+   bars keep the window's regular-session minutes. A reach already covered, or tried that day for
+   the same request, never asks Alpaca again. `get_last_price()` and the broker fill lookup pass
+   `_extend_history=False`. This mirrors how IBKR and ThetaData fetch history for the request.
+
+**Limits:** option history from about February 2024; the contract listing has no as-of date
+(small lookahead in listed strikes); no historical option bid/ask or vendor greeks; free-tier
+rate limit about 200 requests per minute. Evidence and details:
+`docs/investigations/2026-09-23_alpaca-options-backtesting-and-ibkr-4592-window-regression.md`.
+
+RULE #1 note: the stock/crypto calendar fill in `_reindex_and_fill` predates this rule and is
+covered by legacy tests. It is a known follow-up, not something to copy into new paths.
 
 ## Progress Logging and Download Status Tracking
 
@@ -715,6 +801,16 @@ IBKR backtesting uses the shared Data Downloader and is cached locally (and opti
 For `Asset.AssetType.CRYPTO_FUTURE`, routed backtesting fetches spot crypto history as the price source while storing bars against the original futures asset. Quote assets are preserved exactly. USDT contracts such as `BTCUSDT`, `ETHUSDT`, and `SOLUSDT` use `BTC/USDT`, `ETH/USDT`, and `SOL/USDT`; if the exact pair has no provider data, LumiBot treats that as missing data instead of silently falling back to USD.
 
 #### Crypto daily bars (important semantics)
+
+CCXT OHLCV timestamps mark candle opens. Default research history and last-price
+queries expose only candles whose full minute/hour/day interval has closed at
+the simulated time (after any explicit timeshift). The broker execution path
+uses an explicit one-interval offset to retrieve the current execution candle;
+its existing timestamp checks still reject future bars and sparse-gap fills.
+Do not share that execution offset with AI research: a current candle's eventual
+high, low, close and volume are not known at its opening time. Coverage lives in
+`tests/test_backtesting_ccxt_execution_semantics.py` and includes actual adapter
+history plus broker execution against the same synthetic cached candles.
 
 IBKR's `bar=1d` history for crypto is not a clean midnight-to-midnight 24/7 day series, and its timestamps can lag the
 simulation clock used by daily-cadence strategies. To keep daily backtests stable (no “stale end of data” refresh loops),

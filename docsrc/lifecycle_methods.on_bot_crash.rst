@@ -1,6 +1,9 @@
 def on_bot_crash
 ===================================
 
+.. meta::
+   :description: This lifecycle method runs when the strategy crashes. By default, if not overloaded, it calls on_abrupt_closing. LumiBot documentation.
+
 This lifecycle method runs when the strategy crashes. By default, if not overloaded, it calls on_abrupt_closing.
 
 .. code-block:: python

@@ -3,6 +3,9 @@
 Indicators Files
 ================
 
+.. meta::
+   :description: The Indicators HTML and Indicators CSV files contain data on the indicators used in the strategy. These files are unique because they use two key functions:.
+
 The **Indicators HTML** and **Indicators CSV** files contain data on the indicators used in the strategy. These files are unique because they use two key functions:
 
 - **add_marker()**: Adds markers to the indicators. For more details, refer to `add_marker <../docs/strategy_methods.chart/strategies.strategy.Strategy.add_marker.html>`_.

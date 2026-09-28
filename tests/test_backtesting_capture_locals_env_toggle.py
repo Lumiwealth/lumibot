@@ -1,3 +1,6 @@
+from collections.abc import Mapping
+
+
 class DummyBroker:
     IS_BACKTESTING_BROKER = True
 
@@ -37,4 +40,6 @@ def test_backtesting_capture_locals_enabled(monkeypatch):
 
     executor._on_trading_iteration_callable()
     assert hasattr(executor._on_trading_iteration_callable, "locals")
-    assert isinstance(executor._on_trading_iteration_callable.locals, (dict, type(None)))
+    captured_locals = executor._on_trading_iteration_callable.locals
+    assert isinstance(captured_locals, (Mapping, type(None)))
+    assert captured_locals is None or captured_locals["local_value"] == 123

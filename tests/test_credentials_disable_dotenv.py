@@ -166,6 +166,7 @@ def test_eager_credentials_polymarket_respects_connect_stream_env():
                 "import lumibot.credentials as credentials; "
                 "print('broker_global=' + str('BROKER' in credentials.__dict__)); "
                 "broker = credentials.BROKER; "
+                "print('lower_is_upper=' + str(credentials.broker is broker)); "
                 "print('broker_class=' + broker.__class__.__name__); "
                 "print('broker_name=' + broker.name); "
                 "print('stream_exists=' + str(hasattr(broker, 'stream'))); "
@@ -179,6 +180,7 @@ def test_eager_credentials_polymarket_respects_connect_stream_env():
     )
 
     assert "broker_global=True" in result.stdout
+    assert "lower_is_upper=True" in result.stdout
     assert "broker_class=Polymarket" in result.stdout
     assert "broker_name=Polymarket" in result.stdout
     assert "stream_exists=False" in result.stdout

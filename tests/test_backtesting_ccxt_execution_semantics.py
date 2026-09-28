@@ -4,8 +4,10 @@ from types import SimpleNamespace
 from unittest.mock import MagicMock
 
 import pandas as pd
+import pytest
 
 from lumibot.backtesting.backtesting_broker import BacktestingBroker
+from lumibot.data_sources.ccxt_backtesting_data import CcxtBacktestingData
 from lumibot.entities import Asset, Order
 from lumibot.tools.lumibot_logger import get_logger
 
@@ -91,6 +93,67 @@ def _market_order(asset, quote, *, tif="day"):
     return order
 
 
+def _cached_ccxt_source(now, bars, timestep="minute"):
+    # Exercise the real adapter with in-memory provider candles, never credentials.
+    source = CcxtBacktestingData.__new__(CcxtBacktestingData)
+    source._datetime = now
+    source._tzinfo = now.tzinfo
+    source._timestep = timestep
+    native = {"minute": "1m", "hour": "1h", "day": "1d"}[timestep]
+    source._data_store = {f"BTC/USD_{native}": bars}
+    return source
+
+
+@pytest.mark.parametrize("timestep,delta", [
+    ("minute", datetime.timedelta(minutes=1)),
+    ("hour", datetime.timedelta(hours=1)),
+    ("day", datetime.timedelta(days=1)),
+])
+def test_ccxt_research_history_excludes_unfinished_candle(timestep, delta):
+    start = pd.Timestamp("2026-03-15T00:00:00Z")
+    bars = _bars([start - delta, start, start + delta], [100, 999, 9999])
+    asset = Asset("BTC", asset_type=Asset.AssetType.CRYPTO)
+    quote = Asset("USD", asset_type=Asset.AssetType.FOREX)
+    source = _cached_ccxt_source(start.tz_convert("America/New_York"), bars, timestep)
+    # The current candle's eventual close cannot inform a decision at its open.
+    history = source.get_historical_prices((asset, quote), 5)
+    assert list(history.df["close"]) == [100.5]
+    assert source.get_last_price((asset, quote)) == 100.5
+    source._datetime = start + delta / 2
+    assert source.get_last_price((asset, quote)) == 100.5
+    source._datetime = start + delta
+    assert source.get_last_price((asset, quote)) == 999.5
+    shifted = source.get_historical_prices((asset, quote), 1, timeshift=delta)
+    assert list(shifted.df["close"]) == [100.5]
+
+
+@pytest.mark.parametrize("timestep,delta", [
+    ("minute", datetime.timedelta(minutes=1)),
+    ("hour", datetime.timedelta(hours=1)),
+    ("day", datetime.timedelta(days=1)),
+])
+def test_ccxt_broker_can_fill_current_open_without_exposing_current_close_to_research(timestep, delta):
+    now = pd.Timestamp("2026-03-15T09:00:00Z")
+    bars = _bars([now - delta, now], [100, 101])
+    asset = Asset("BTC", asset_type=Asset.AssetType.CRYPTO)
+    quote = Asset("USD", asset_type=Asset.AssetType.FOREX)
+    order = _market_order(asset, quote)
+    broker, _ = _broker_for_ccxt(now, bars, order)
+    broker.data_source = _cached_ccxt_source(now, bars, timestep)
+    assert broker.data_source.get_last_price((asset, quote)) == 100.5
+    broker.process_pending_orders(_DummyStrategy())
+    broker._execute_filled_order.assert_called_once()
+    assert broker._execute_filled_order.call_args.kwargs["price"] == 101
+
+
+def test_ccxt_last_price_is_missing_when_no_candle_has_closed():
+    now = pd.Timestamp("2026-03-15T09:00:00Z")
+    source = _cached_ccxt_source(now, _bars([now], [999]))
+    asset = Asset("BTC", asset_type=Asset.AssetType.CRYPTO)
+    quote = Asset("USD", asset_type=Asset.AssetType.FOREX)
+    assert source.get_last_price((asset, quote)) is None
+
+
 def _typed_order(asset, quote, *, order_type, tif="day", **prices):
     return Order(
         strategy="TestStrategy",
@@ -116,7 +179,9 @@ def test_ccxt_market_order_waits_when_only_future_bar_is_available():
 
     broker._execute_filled_order.assert_not_called()
     broker.cancel_order.assert_not_called()
-    assert data_source.calls[0]["timeshift"] is None
+    # Offset cancels the adapter's closed-candle cutoff for execution only;
+    # the future-bar guard still prevents a fill before its real timestamp.
+    assert data_source.calls[0]["timeshift"] == -datetime.timedelta(minutes=1)
 
 
 def test_ccxt_market_order_fills_at_real_next_bar_timestamp_not_original_gap_time():

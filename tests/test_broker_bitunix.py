@@ -1,14 +1,15 @@
 import unittest
-from unittest.mock import MagicMock, patch
 from decimal import Decimal
 from types import SimpleNamespace
+from unittest.mock import MagicMock, patch
 
 from lumibot.brokers.bitunix import Bitunix
+from lumibot.brokers.broker import LumibotBrokerAPIError
 from lumibot.brokers.schwab import Schwab
 from lumibot.entities import Asset, Order, Position, SmartLimitConfig, SmartLimitPreset
 from lumibot.strategies.strategy import Strategy
 from lumibot.tools.bitunix_helpers import BitUnixClient
-from lumibot.brokers.broker import LumibotBrokerAPIError
+
 
 class TestBitunixBroker(unittest.TestCase):
     def setUp(self):
@@ -19,6 +20,25 @@ class TestBitunixBroker(unittest.TestCase):
         }
         # Mock the BitUnixClient to prevent actual API calls
         self.mock_bitunix_client = MagicMock(spec=BitUnixClient)
+        # Submission now validates exchange rules before sending an order; keep the
+        # existing broker lifecycle assertions exercising their original API paths.
+        self.mock_bitunix_client.get_trading_pairs.return_value = {
+            "code": 0,
+            "data": [{"symbol": "BTCUSDT", "basePrecision": 4,
+                      "quotePrecision": 1, "minTradeVolume": "0.0001"}],
+        }
+
+    def _stop_stream_after_test(self, broker):
+        """Stop the polling thread a default Bitunix broker starts, when the test ends.
+
+        Those threads outlived the tests and kept polling. Since 4.5.92 a failed
+        position snapshot logs an ERROR on every poll, which leaked into later tests
+        that assert no ERROR records (test_cloud_update_warning, CI unit shard 3).
+        """
+        stream = getattr(broker, "stream", None)
+        if stream is not None and hasattr(stream, "stop"):
+            self.addCleanup(stream.stop)
+        return broker
 
     @patch("lumibot.brokers.bitunix.BitUnixClient")
     @patch("lumibot.brokers.bitunix.BitunixData")
@@ -27,7 +47,7 @@ class TestBitunixBroker(unittest.TestCase):
         mock_data_source = MockBitunixData.return_value
         mock_data_source.client_symbols = set()
 
-        broker = Bitunix(self.config)
+        broker = self._stop_stream_after_test(Bitunix(self.config))
         self.assertIsNotNone(broker.api)
         self.assertEqual(broker.api, self.mock_bitunix_client)
         MockBitUnixClientInstance.assert_called_once_with(api_key="test_api_key", secret_key="test_api_secret")
@@ -119,6 +139,58 @@ class TestBitunixBroker(unittest.TestCase):
             json_body={"symbol": "BTCUSDT", "orderList": ["2048802184602955776"]},
         )
 
+    def test_client_sign_never_logs_secret_or_api_key(self):
+        """Signing at DEBUG level must not write the secret key or API key to any log record.
+
+        The signature itself follows Bitunix's required double SHA-256 scheme, so this test
+        also pins that algorithm: sign = SHA256(SHA256(nonce + ts + apiKey + qp + body) + secret).
+        """
+        import hashlib
+        import json
+        import logging
+
+        api_key = "FAKE-BITUNIX-API-KEY-7c1d"
+        secret_key = "FAKE-BITUNIX-SECRET-9f3e2a"
+        client = BitUnixClient(api_key=api_key, secret_key=secret_key)
+
+        records = []
+
+        class _Capture(logging.Handler):
+            def emit(self, record):
+                records.append(record)
+
+        handler = _Capture(level=logging.DEBUG)
+        module_logger = logging.getLogger("test_bitunix_sign_capture")
+        module_logger.setLevel(logging.DEBUG)
+        module_logger.propagate = False
+        module_logger.addHandler(handler)
+        root_logger = logging.getLogger()
+        previous_root_level = root_logger.level
+        root_logger.setLevel(logging.DEBUG)
+        root_logger.addHandler(handler)
+        try:
+            with patch("lumibot.tools.bitunix_helpers.logger", module_logger):
+                params = {"symbol": "BTCUSDT", "marginCoin": "USDT"}
+                body = {"side": "BUY", "qty": "0.01"}
+                signature = client._sign(params, body, nonce="abc123nonce", timestamp="1700000000000")
+        finally:
+            module_logger.removeHandler(handler)
+            root_logger.removeHandler(handler)
+            root_logger.setLevel(previous_root_level)
+
+        qp = "marginCoinUSDTsymbolBTCUSDT"
+        body_str = json.dumps(body, separators=(",", ":"), ensure_ascii=False)
+        digest = hashlib.sha256(("abc123nonce" + "1700000000000" + api_key + qp + body_str).encode("utf-8")).hexdigest()
+        expected = hashlib.sha256((digest + secret_key).encode("utf-8")).hexdigest()
+        self.assertEqual(signature, expected)
+
+        for record in records:
+            text = record.getMessage()
+            self.assertNotIn(secret_key, text)
+            self.assertNotIn(api_key, text)
+            self.assertNotIn(digest, text)
+            self.assertNotIn(signature, text)
+
     def test_client_cancel_order_accepts_order_object(self):
         client = BitUnixClient(api_key="test_api_key", secret_key="test_api_secret")
         client._request = MagicMock(return_value={"code": 0})
@@ -141,7 +213,7 @@ class TestBitunixBroker(unittest.TestCase):
         mock_data_source = MockBitunixData.return_value
         mock_data_source.client_symbols = set()
 
-        broker = Bitunix(self.config)
+        broker = self._stop_stream_after_test(Bitunix(self.config))
         broker._process_trade_event = MagicMock()
         asset = Asset("BTCUSDT", Asset.AssetType.CRYPTO_FUTURE)
         order = Order("test_strategy", asset, Decimal("0.1"))
@@ -162,7 +234,7 @@ class TestBitunixBroker(unittest.TestCase):
         mock_data_source = MockBitunixData.return_value
         mock_data_source.client_symbols = set()
 
-        broker = Bitunix(self.config)
+        broker = self._stop_stream_after_test(Bitunix(self.config))
         mock_strategy = MagicMock()
         mock_strategy.name = "test_strategy"
 
@@ -185,7 +257,7 @@ class TestBitunixBroker(unittest.TestCase):
         }
         positions = broker._pull_positions(mock_strategy)
         self.assertEqual(len(positions), 2)
-        
+
         btc_pos = next(p for p in positions if p.asset.symbol == "BTCUSDT")
         eth_pos = next(p for p in positions if p.asset.symbol == "ETHUSDT")
 
@@ -201,7 +273,7 @@ class TestBitunixBroker(unittest.TestCase):
         mock_data_source = MockBitunixData.return_value
         mock_data_source.client_symbols = set()
 
-        broker = Bitunix(self.config)
+        broker = self._stop_stream_after_test(Bitunix(self.config))
         mock_strategy = MagicMock()
         mock_strategy.name = "test_strategy"
 
@@ -216,11 +288,20 @@ class TestBitunixBroker(unittest.TestCase):
             }
         }
         # Mock _pull_positions as it's called by _get_balances_at_broker
-        broker._pull_positions = MagicMock(return_value=[
-            Position("test_strategy", Asset("BTCUSDT", Asset.AssetType.CRYPTO_FUTURE), Decimal("0.1"), avg_fill_price=Decimal("50000"))
-        ])
+        broker._pull_positions = MagicMock(
+            return_value=[
+                Position(
+                    "test_strategy",
+                    Asset("BTCUSDT", Asset.AssetType.CRYPTO_FUTURE),
+                    Decimal("0.1"),
+                    avg_fill_price=Decimal("50000"),
+                )
+            ]
+        )
 
-        cash, positions_value, net_liquidation = broker._get_balances_at_broker(Asset("USDT", Asset.AssetType.CRYPTO), mock_strategy)
+        cash, positions_value, net_liquidation = broker._get_balances_at_broker(
+            Asset("USDT", Asset.AssetType.CRYPTO), mock_strategy
+        )
 
         self.assertEqual(cash, 10000.00)
         self.assertEqual(positions_value, 5000.0) # 0.1 * 50000
@@ -244,9 +325,9 @@ class TestBitunixBroker(unittest.TestCase):
         MockBitUnixClientInstance.return_value = self.mock_bitunix_client
         mock_data_source = MockBitunixData.return_value
         mock_data_source.client_symbols = set()
-        
-        broker = Bitunix(self.config)
-        
+
+        broker = self._stop_stream_after_test(Bitunix(self.config))
+
         raw_order_data = {
             "orderId": "98765",
             "symbol": "ETHUSDT",
@@ -260,9 +341,9 @@ class TestBitunixBroker(unittest.TestCase):
             "leverage": "5",
             "time": 1678886400000 # Example timestamp
         }
-        
+
         parsed_order = broker._parse_broker_order(raw_order_data, "test_strategy")
-        
+
         self.assertIsNotNone(parsed_order)
         self.assertEqual(parsed_order.identifier, "98765")
         self.assertEqual(parsed_order.asset.symbol, "ETHUSDT")
@@ -281,7 +362,7 @@ class TestBitunixBroker(unittest.TestCase):
         mock_data_source = MockBitunixData.return_value
         mock_data_source.client_symbols = set()
 
-        broker = Bitunix(self.config)
+        broker = self._stop_stream_after_test(Bitunix(self.config))
 
         # Test all supported timesteps
         self.assertEqual(broker._parse_source_timestep("1m"), "1m")

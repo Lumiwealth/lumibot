@@ -1,6 +1,9 @@
 Canonical AI Agent Demos
 ========================
 
+.. meta::
+   :description: LumiBot includes six canonical AI agent demo strategies that serve as both reference implementations and end-to-end acceptance tests for agentic backtesting.
+
 LumiBot includes six canonical AI agent demo strategies that serve as both reference implementations and end-to-end acceptance tests for agentic backtesting. These examples cover both custom ``@agent_tool`` wrappers and built-in agent tools, the full built-in tool set, replay caching, and benchmarked tearsheet output.
 
 These are complete, runnable strategies -- not snippets. They demonstrate how to backtest an AI trading agent with real external data sources, and they validate that LumiBot's AI-driven trading strategy backtest pipeline works end to end. All demo files are located in ``lumibot/example_strategies/``.
@@ -8,14 +11,14 @@ These are complete, runnable strategies -- not snippets. They demonstrate how to
 The Six Demos
 ---------------
 
-- **Discretionary Trader** (``lumibot/example_strategies/agent_discretionary.py``) -- **maximum-discretion agent** with a one-sentence prompt, no asset whitelist, broad tool surface, and an ``AGENT_MODEL`` env var for multi-provider comparisons (Gemini, GPT, Grok, Claude)
+- **Discretionary Trader** (``lumibot/example_strategies/agent_discretionary.py``) -- **maximum-discretion agent** with a one-sentence prompt, no asset whitelist, broad tool surface, and an ``AGENT_MODEL`` env var that defaults to ``openai/gpt-6-luna`` (medium reasoning) and can be switched to other providers (Gemini, Grok, Claude) for comparisons
 - **Alpaca News Built-in Strategy** (``lumibot/example_strategies/agent_alpaca_news_builtin.py``) -- recommended built-in-tool pattern for Alpaca/Benzinga news: scan headlines/summaries first, fetch full article bodies on demand, and use pagination when needed
 - **News Sentiment Strategy** (``lumibot/example_strategies/agent_news_sentiment.py``) -- event-driven stock selection using Alpaca news data
 - **Macro Risk Strategy** (``lumibot/example_strategies/agent_macro_risk.py``) -- macro regime allocation using Alpaca market data
 - **Momentum Allocator Strategy** (``lumibot/example_strategies/agent_momentum_allocator.py``) -- momentum and sentiment allocation using Alpaca price bars and news
 - **M2 Liquidity Strategy** (``lumibot/example_strategies/agent_m2_liquidity.py``) -- liquidity-driven allocation using FRED money supply data
 
-The first demo (Discretionary Trader) intentionally gives the AI maximum latitude so you can compare how different frontier models (Gemini 3.1 Pro, GPT-5.4, Grok 4.2) perform with minimal guidance. The Alpaca News Built-in Strategy is the recommended news-tool template for new code. The older News Sentiment Strategy intentionally remains as a custom ``@agent_tool`` example for users who need to wrap their own REST APIs.
+The first demo (Discretionary Trader) intentionally gives the AI maximum latitude so you can compare how different frontier models perform with minimal guidance. It runs on GPT-6 Luna by default; Gemini, Grok, and Claude are available as alternatives. The Alpaca News Built-in Strategy is the recommended news-tool template for new code. The older News Sentiment Strategy intentionally remains as a custom ``@agent_tool`` example for users who need to wrap their own REST APIs.
 
 Discretionary Trader
 --------------------
@@ -50,21 +53,21 @@ Maximum-discretion AI trader. The user system prompt is literally one sentence: 
 
 .. code-block:: bash
 
-    # Google Gemini 3.1 Pro (default)
-    export GEMINI_API_KEY='your-key'
+    # OpenAI GPT-6 Luna, medium reasoning (default)
+    export OPENAI_API_KEY='your-key'
     export BACKTESTING_START='2026-03-01'
     export BACKTESTING_END='2026-03-31'
+    AGENT_MODEL="openai/gpt-6-luna" python agent_discretionary.py
+
+    # Alternative: Google Gemini 3.1 Pro
+    export GEMINI_API_KEY='your-key'
     AGENT_MODEL="gemini-3.1-pro-preview" python agent_discretionary.py
 
-    # OpenAI GPT-5.4
-    export OPENAI_API_KEY='your-key'
-    AGENT_MODEL="openai/gpt-5.4" python agent_discretionary.py
-
-    # xAI Grok 4.2 (reasoning)
+    # Alternative: xAI Grok 4.2 (reasoning)
     export XAI_API_KEY='your-key'
     AGENT_MODEL="xai/grok-4.20-0309-reasoning" python agent_discretionary.py
 
-    # Anthropic Claude
+    # Alternative: Anthropic Claude
     export ANTHROPIC_API_KEY='your-key'
     AGENT_MODEL="anthropic/claude-opus-4-7" python agent_discretionary.py
 
@@ -243,7 +246,7 @@ Start with ``agent_m2_liquidity.py`` if you want the simplest macro setup. It ne
 
 **Do these demos work out of the box?**
 
-Yes. Set the required model provider key for the demo you are running (for example ``GEMINI_API_KEY`` for Gemini, ``OPENAI_API_KEY`` for OpenAI, ``XAI_API_KEY`` or ``GROK_API_KEY`` for Grok, or ``ANTHROPIC_API_KEY`` for Claude), plus ``ALPACA_API_KEY`` and ``ALPACA_API_SECRET`` for the Alpaca-based demos, and run the file directly with ``python3 agent_m2_liquidity.py``. Each demo is a complete, self-contained strategy file.
+Yes. Set the required model provider key for the demo you are running (for example ``OPENAI_API_KEY`` for OpenAI, the default, ``GEMINI_API_KEY`` for Gemini, ``XAI_API_KEY`` or ``GROK_API_KEY`` for Grok, or ``ANTHROPIC_API_KEY`` for Claude), plus ``ALPACA_API_KEY`` and ``ALPACA_API_SECRET`` for the Alpaca-based demos, and run the file directly with ``python3 agent_m2_liquidity.py``. Each demo is a complete, self-contained strategy file.
 
 **Can I modify the demos?**
 
@@ -287,4 +290,4 @@ TQQQ (3x leveraged Nasdaq) and SHV (short-term Treasury ETF) form a simple binar
 
 **Can I use a different model with the demos?**
 
-Yes. Change the ``default_model`` parameter in the ``self.agents.create(...)`` call. The default is ``gemini-3.1-flash-lite-preview`` if not specified. You can use any model supported by the model router, though you may need to clear the replay cache when switching models since the cache key includes the model name.
+Yes. Change the ``default_model`` parameter in the ``self.agents.create(...)`` call. The default is ``openai/gpt-6-luna`` on medium reasoning if not specified. Explicit model pins are preserved. The replay-cache key includes the model name, so another model selects a different cache entry without deleting previous evidence.

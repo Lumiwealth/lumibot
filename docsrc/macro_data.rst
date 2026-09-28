@@ -1,6 +1,9 @@
 FRED Macro Data
 ===============
 
+.. meta::
+   :description: LumiBot includes native Federal Reserve Economic Data (FRED) macro tools for strategies and AI agents.
+
 LumiBot includes native Federal Reserve Economic Data (FRED) macro tools for
 strategies and AI agents. Use these tools for interest rates, inflation,
 employment, growth, liquidity, credit spreads, and market-risk context.
@@ -65,6 +68,8 @@ Cache
 
 FRED data is cached under ``~/.lumibot/cache/fred`` by default. Override this
 with ``LUMIBOT_FRED_CACHE_DIR``.
+
+See :doc:`standalone_components` for use in scripts and notebooks.
 
 FXMacroData Macro Releases
 ==========================

@@ -1,0 +1,36 @@
+{
+  "caseId": "options_credit_spread_close_signed_quantities",
+  "capturedAt": "2026-08-06T20:34:00Z",
+  "source": "Preserved local synthetic LumiBot credit-spread backtest before the runtime options skill existed",
+  "status": "red",
+  "observedFailure": {
+    "description": "The agent repeatedly reversed closing sides and then escalated quantities instead of reconstructing signed positions.",
+    "openingExample": [
+      {"strike": 713.0, "side": "sell_to_open", "filledQuantity": 10.0},
+      {"strike": 708.0, "side": "buy_to_open", "filledQuantity": 10.0}
+    ],
+    "firstInvalidCloseExample": [
+      {"strike": 713.0, "side": "sell_to_close", "filledQuantity": 10.0},
+      {"strike": 708.0, "side": "buy_to_close", "filledQuantity": 10.0}
+    ],
+    "filledQuantityCounts": {
+      "7": 8,
+      "10": 42,
+      "20": 6,
+      "30": 2,
+      "60": 2,
+      "120": 2,
+      "240": 2,
+      "480": 2
+    },
+    "maximumFilledQuantity": 480,
+    "filledTradeRows": 66,
+    "totalTradeRows": 165
+  },
+  "sourceArtifactHashes": {
+    "tradesCsvSha256": "4084e53c8e1735c6d50a4b178b83a475935fbcbe0aca6b267705172a6d4b1ba2",
+    "tradeEventsCsvSha256": "db6316a40be33401b6f771432241b546e9b118124f21a36b556e1fd136b03b6c",
+    "agentDetailParquetSha256": "24a57de082adc5d7c2be9fc2256614abdf567ac2f19c92588173c71f5198fc6e"
+  },
+  "protectedRegression": "A valid close must buy to close the exact absolute quantity of each negative position, sell to close the exact quantity of each positive position, submit one atomic package, reread positions, and never repeat after flat."
+}

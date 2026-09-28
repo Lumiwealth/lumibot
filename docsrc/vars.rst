@@ -1,6 +1,9 @@
 Variable Backup & Restore
 =========================
 
+.. meta::
+   :description: Every `Strategy` object has a `vars` attribute (`self.vars`), an instance of the `Vars` class.
+
 Every `Strategy` object has a `vars` attribute (`self.vars`), an instance of the `Vars` class. It stores runtime variables and is periodically backed up to the database specified by the `DB_CONNECTION_STR` environment variable.
 
 How It Works

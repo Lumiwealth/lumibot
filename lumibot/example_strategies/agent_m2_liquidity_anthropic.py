@@ -2,12 +2,12 @@
 M2 Liquidity Strategy - AI Agent Demo (Anthropic Claude)
 --------------------------------------------------------
 Same strategy intent as agent_m2_liquidity.py, but uses Anthropic Claude
-instead of Gemini. This demonstrates Lumibot's multi-provider AI agent
-support via the LiteLLM bridge.
+instead of the default GPT-6 Luna. This demonstrates Lumibot's
+multi-provider AI agent support via the LiteLLM bridge.
 
-The only differences vs the Gemini version:
+The only differences vs the default version:
     - default_model is an Anthropic id ("anthropic/claude-sonnet-4-6")
-    - ANTHROPIC_API_KEY is required instead of GEMINI_API_KEY
+    - ANTHROPIC_API_KEY is required instead of OPENAI_API_KEY
     - The litellm package must be installed (it ships with Lumibot)
 
 All other agent mechanics (built-in tools, replay cache, backtesting

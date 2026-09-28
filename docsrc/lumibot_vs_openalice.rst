@@ -1,5 +1,8 @@
-Lumibot vs OpenAlice
+LumiBot vs OpenAlice
 ====================
+
+.. meta::
+   :description: Compare LumiBot and OpenAlice for Python trading strategies, AI agents, agentic backtesting, broker integrations, and inspectable execution.
 
 OpenAlice has a strong "one-person Wall Street" concept: an AI agent that
 researches, sizes, manages, and exits trades across markets.
@@ -52,3 +55,6 @@ Short Version
 OpenAlice is a strong agent-product concept. Lumibot is the Python trading
 framework for developers who want code control, backtests, artifacts,
 guardrails, and broker paths behind an AI trading agent.
+
+Continue with the :doc:`complete AI-agent quick start <agents_quickstart>` or
+compare the :doc:`broker integrations supported by LumiBot <brokers>`.

@@ -3,6 +3,9 @@
 Trades Files
 ============
 
+.. meta::
+   :description: The Trades HTML and Trades CSV files provide detailed information about each trade executed by the strategy. This includes: LumiBot documentation.
+
 The **Trades HTML** and **Trades CSV** files provide detailed information about each trade executed by the strategy. This includes:
 
 - **Buy and Sell Orders:** The times and prices at which buy or sell orders were placed, along with the asset involved (e.g., option strike price or stock ticker).

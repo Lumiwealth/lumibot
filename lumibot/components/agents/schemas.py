@@ -1,5 +1,6 @@
 from dataclasses import dataclass, field
 from typing import Any, Callable
+from urllib.parse import urlparse
 
 
 @dataclass(frozen=True)
@@ -15,6 +16,7 @@ class MCPServer:
     allowed_tools: list[str] | None = None
     headers: dict[str, str] | None = None
     auth_token_env: str | None = None
+    auth_token_refresh_url: str | None = None
     timeout_seconds: float = 30.0
     sse_read_timeout_seconds: float = 300.0
     terminate_on_close: bool = True
@@ -30,6 +32,20 @@ class MCPServer:
             raise ValueError(f"MCP server {self.name!r} uses HTTP transport but no url was provided.")
         if resolved_transport not in {"stdio", "http", "streamable_http", "streamablehttp"}:
             raise ValueError(f"Unsupported MCP transport {resolved_transport!r} for server {self.name!r}.")
+        if self.auth_token_refresh_url:
+            if not self.auth_token_env or not self.url or resolved_transport == "stdio":
+                raise ValueError("MCP token refresh requires an authenticated HTTP transport.")
+            service_url = urlparse(self.url)
+            refresh_url = urlparse(self.auth_token_refresh_url)
+            localhost = refresh_url.hostname in {"127.0.0.1", "localhost", "::1"}
+            if refresh_url.scheme != "https" and not (localhost and refresh_url.scheme == "http"):
+                raise ValueError("MCP token refresh URL must use HTTPS (or HTTP on localhost).")
+            if (service_url.scheme, service_url.hostname, service_url.port) != (
+                refresh_url.scheme,
+                refresh_url.hostname,
+                refresh_url.port,
+            ):
+                raise ValueError("MCP token refresh URL must use the same origin as the MCP server.")
         object.__setattr__(self, "transport", resolved_transport)
         object.__setattr__(self, "exposed_tools", list(resolved_tools))
         object.__setattr__(self, "allowed_tools", list(resolved_tools))
@@ -40,6 +56,7 @@ class AgentTraceEvent:
     kind: str
     text: str | None = None
     tool_name: str | None = None
+    call_id: str | None = None
     payload: dict[str, Any] | None = None
     timestamp: str | None = None
 

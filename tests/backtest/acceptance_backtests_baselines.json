@@ -124,20 +124,21 @@
     },
     {
       "backtest_time_seconds": 641.7320420742035,
-      "baseline_run_id": "BackdoorButterfly0DTESmartLimit_2026-02-11_07-30_cj3SET",
+      "baseline_run_id": "BackdoorButterfly0DTESmartLimit_2026-07-13_09-09_dqdCoT",
       "data_source": "thetadata",
       "end_date": "2025-12-01",
       "lumibot_version": "4.4.50",
       "max_backtest_time_seconds": 900,
+      "_rebaseline_note": "2026-07-13 ThetaData/cache refresh. Two independent full CI runs (paper-broker gate branch and market-clock/lazy-export branch) produced identical metrics: total return -12.00%, CAGR -13.07%, max drawdown -24.22%. Rebaseline the deterministic repeated output without widening the 500-centipercent tolerance.",
       "metrics_centipercent": {
-        "cagr": -1947,
-        "max_drawdown": -2499,
-        "total_return": -1782
+        "cagr": -1307,
+        "max_drawdown": -2422,
+        "total_return": -1200
       },
       "metrics_raw": {
-        "cagr": "-19.47%",
-        "max_drawdown": "-24.99%",
-        "total_return": "-17.82%"
+        "cagr": "-13.07%",
+        "max_drawdown": "-24.22%",
+        "total_return": "-12.00%"
       },
       "script_filename": "Backdoor Butterfly 0 DTE (Copy) - with SMART LIMITS.py",
       "settings_backtesting_end": "2025-11-30 23:59:00-05:00",

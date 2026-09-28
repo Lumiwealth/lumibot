@@ -128,11 +128,43 @@ This page documents environment variables used by LumiBot, with an emphasis on *
 - `LUMIBOT_START_ORDERS_THREAD`: overrides whether live brokers start their orders thread during broker construction. Truthy values enable the orders thread; any other set value disables it. Defaults to disabled for scheduled execution and enabled otherwise. Queue-based brokers that require the worker to submit orders, such as legacy Interactive Brokers, keep the worker enabled even when this flag is false.
 - `LUMIBOT_SCHEDULED_TARGET_RUN_AT`: UTC ISO-8601 target time for exact scheduled runs. When present, LumiBot initializes the strategy/broker first, waits locally until this timestamp immediately before `on_trading_iteration()`, and skips the iteration if the drift budget is exceeded.
 - `LUMIBOT_SCHEDULED_PRE_START_AT`: UTC ISO-8601 pre-start time used by BotManager telemetry to compare scheduler launch timing with the requested target.
+- `LUMIBOT_SCHEDULED_TARGET_EVENT`: internal lifecycle selector for a scheduled task. `closed_market_prepare` runs `on_closed_market_iteration()` only while the market is closed and blocks supported broker order submission, cancellation, and modification APIs for that lifecycle.
 - `LUMIBOT_SCHEDULED_MAX_TARGET_DRIFT_MS`: maximum allowed late drift in milliseconds for exact scheduled runs. Defaults to `1000`.
 - `LUMIBOT_SCHEDULED_POST_ITERATION_SECONDS`: drain window after the one live iteration. During this window LumiBot continues processing broker/order queue events before exiting.
 - `LUMIBOT_SCHEDULED_TIMING_FILE`: local JSON timing file written by LumiBot for BotManager bootstrap telemetry.
 - `LUMIBOT_SCHEDULED_STATE_BACKEND`: external state backend prepared by BotManager: `s3`, `dynamodb`, or `none`. `none` disables scheduled `self.vars` file load/save.
 - `LUMIBOT_SCHEDULED_STATE_FILE`: local JSON file managed by BotManager/bootstrap code to restore and persist `self.vars` for one scheduled live run. State is restored before scheduled lifecycle hooks.
+
+## BotSpot managed research
+
+- `BOTSPOT_RESEARCH_MCP_URL`: optional BotSpot Research MCP endpoint.
+- `BOTSPOT_RESEARCH_MCP_TOKEN`: secret, short-lived bearer capability bound to an authenticated user or hosted deployment.
+- `BOTSPOT_RESEARCH_MCP_RENEW_URL`: optional HTTPS renewal endpoint. Localhost is permitted for local development; otherwise its origin must match the MCP endpoint.
+- All three variables are required for automatic attachment. BotSpot-hosted runtimes inject them; external users can link a BotSpot account and configure the same contract.
+- Missing or incomplete configuration preserves ordinary LumiBot strategy and agent behavior and emits one deduplicated capability notice.
+
+### `GITHUB_TOKEN` in release CI
+
+- Used only by tagged release CI with repository `actions: read` permission to restore compatible agent-eval freshness evidence.
+- The source workflow commit must be an ancestor of the exact tagged candidate. Newer, divergent, malformed, and expired artifacts are rejected.
+- If no trustworthy artifact is available, no case is silently accepted as fresh; the release gate runs stale cases normally. Token values must never be logged or committed.
+
+## Interactive Brokers REST gateway
+
+- `IB_USERNAME` / `IB_PASSWORD`: individual Client Portal credentials used only by the local IBeam transport. Secrets; never log or commit them.
+- `IB_ACCOUNT_ID`: optional account selection override.
+- `IB_API_URL`: externally managed Client Portal or approved REST transport URL. May include `/v1/api`.
+- `RUNNING_ON_SERVER=true`: use an externally managed localhost sidecar instead of starting Docker inside LumiBot.
+- `IB_GATEWAY_PORT`: local/sidecar host port. Defaults to `4234`.
+- `IB_GATEWAY_INSTANCE_ID`: non-secret local container identity. LumiBot generates a random value when unset.
+- `IB_USE_PAPER_ACCOUNT`: IBeam paper-login toggle. Defaults to `true`.
+- `IBEAM_DOCKER_TAG`: versioned IBeam release tag. Defaults to `0.5.12`; avoid `latest`.
+- `IB_AUTH_TIMEOUT`: bounded gateway-authentication wait in seconds. Defaults to `300`.
+- `IB_AUTH_POLL_INTERVAL`: authentication polling interval in seconds. Defaults to `5`.
+- `IB_REQUEST_TIMEOUT`: REST request timeout in seconds. Defaults to `30`.
+- `IB_VERIFY_SSL`: optional TLS verification override. Defaults off for localhost and on for non-local hosts.
+
+IBeam is an unsupported third-party authentication wrapper and is suitable only for controlled individual/internal proof-of-concept use. Third-party products should use an IBKR-approved OAuth integration. See `docs/IBKR_REST_GATEWAY.md`.
 
 ## Backtest output + UX flags
 
@@ -316,6 +348,15 @@ These env vars are used by the ThetaData chain cache/builder in `lumibot/tools/t
 
 For cache key layout and validation workflow, see `docs/remote_cache.md`.
 
+## Portfolio listener
+
+### `LISTENER_WRITE_URL`
+- Purpose: Select the portfolio-listener write endpoint for live account updates.
+- Values: An HTTPS URL controlled by the deployment environment.
+- Default: `https://listener.lumiwealth.com/portfolio_events`.
+- Custom or isolated deployments can set this endpoint explicitly; otherwise,
+  runs rely on the default.
+
 ## Runtime telemetry (memory/health)
 
 LumiBot can emit lightweight, vendor-neutral telemetry lines to stdout so you can debug OOMs in any environment
@@ -344,6 +385,25 @@ Notes:
 - Deep snapshots trigger above ~90% with a ~1 hour cooldown (these thresholds are fixed defaults today).
 
 ## AI agent fundamentals, memory, and notifications
+
+BotSpot managed runtimes may inject `LUMIBOT_AI_GATEWAY_URL` and a short-lived
+`LUMIBOT_AI_GATEWAY_TOKEN`. LumiBot uses these only when the selected Gemini,
+OpenAI, Anthropic, or xAI model has no user-provided provider key. A BYOK key is
+always authoritative, including when it is invalid, so provider failures never
+silently consume BotSpot credits. The managed token renews through Node and is
+bound to one deployment or backtest.
+
+### `LUMIBOT_AI_GATEWAY_URL`
+- Purpose: Base URL for the managed AI inference and capability-renewal gateway.
+- Values: HTTPS URL supplied by the deployment runtime.
+- Default: unset.
+- Notes: Used only with a deployment-bound managed capability; it does not override BYOK.
+
+### `LUMIBOT_AI_GATEWAY_TOKEN`
+- Purpose: Short-lived deployment-bound capability for managed AI inference.
+- Values: Opaque bearer token supplied and renewed by the deployment runtime.
+- Default: unset.
+- Notes: Never place a provider API key in this variable. A configured BYOK provider key remains authoritative.
 
 ### `LUMIBOT_SEC_USER_AGENT`
 - Purpose: Contact-style SEC EDGAR user agent header.

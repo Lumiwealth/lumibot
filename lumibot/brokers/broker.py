@@ -461,6 +461,8 @@ class Broker(ABC):
         # Shared Variables between threads
         self.name = name
         self._lock = RLock()
+        self._positions_snapshot_started = 0
+        self._positions_snapshot_applied = 0
         self._stop_event = threading.Event()  # Add stop event for clean shutdown
         self._runtime_telemetry = None
         # PERF: Backtesting is single-threaded, but SafeList lock acquisition shows up as
@@ -1051,49 +1053,72 @@ class Broker(ABC):
         """
         Sync the broker positions with the lumibot positions. Remove any lumibot positions that are not at the broker.
         """
+        # Sequence requests under the tracker lock, but never hold it across
+        # network I/O: fills and newer accessor reads must remain able to run.
+        with self._lock:
+            self._positions_snapshot_started += 1
+            snapshot_id = self._positions_snapshot_started
+            # Only pre-existing positions are eligible for stale pruning.
+            positions_before_snapshot = {id(position) for position in self._filled_positions.get_list()}
         positions_broker = self._pull_positions(strategy)
-        for position in positions_broker:
-            # Check if the position is None
-            if position is None:
-                continue
+        with self._lock:
+            # A slow response cannot erase or overwrite a newer applied snapshot.
+            # Failed newer reads do not supersede an older successful response.
+            if snapshot_id < self._positions_snapshot_applied:
+                return
+            for position in positions_broker:
+                # Check if the position is None
+                if position is None:
+                    continue
 
-            # Check against existing position.
-            position_lumi = [
-                pos_lumi
-                for pos_lumi in self._filled_positions.get_list()
-                if pos_lumi.asset == position.asset
-            ]
-            position_lumi = position_lumi[0] if len(position_lumi) > 0 else None
+                # Check against existing position.
+                position_lumi = [
+                    pos_lumi
+                    for pos_lumi in self._filled_positions.get_list()
+                    if pos_lumi.asset == position.asset
+                ]
+                position_lumi = position_lumi[0] if len(position_lumi) > 0 else None
 
-            if position_lumi:
-                self._sync_position_fields_from_broker(position_lumi, position)
+                if position_lumi:
+                    # A streamed fill added while the read was in flight is
+                    # newer than this snapshot, including its fields and owner.
+                    if id(position_lumi) not in positions_before_snapshot:
+                        continue
+                    self._sync_position_fields_from_broker(position_lumi, position)
 
-                # No current brokers have any way to distinguish between strategies for an open position.
-                # Therefore, we will just update the strategy to the current strategy.
-                # This is added here because with initial polling, no strategy is set for the positions so we
-                # can create ones that have no strategy attached. This will ensure that all stored positions have a
-                # strategy with subsequent updates.
-                if strategy:
-                    strategy_name = strategy.name if not isinstance(strategy, str) else strategy
-                    if position_lumi.strategy != strategy_name:
-                        position_lumi.strategy = strategy_name
-                        self._filled_positions.revision += 1
-            else:
-                # Add to positions in lumibot, position does not exist
-                # in lumibot.
-                if position.quantity != 0.0:
-                    self._filled_positions.append(position)
+                    # No current brokers have any way to distinguish between strategies for an open position.
+                    # Therefore, we will just update the strategy to the current strategy.
+                    # This is added here because with initial polling, no strategy is set for the positions so we
+                    # can create ones that have no strategy attached. This will ensure that all stored positions have a
+                    # strategy with subsequent updates.
+                    if strategy:
+                        strategy_name = strategy.name if not isinstance(strategy, str) else strategy
+                        if position_lumi.strategy != strategy_name:
+                            position_lumi.strategy = strategy_name
+                            self._filled_positions.revision += 1
+                else:
+                    # Add to positions in lumibot, position does not exist
+                    # in lumibot.
+                    if position.quantity != 0.0:
+                        self._filled_positions.append(position)
 
-        # Now iterate through lumibot positions.
-        # Remove lumibot position if not at the broker.
-        for position in self._filled_positions.get_list():
-            found = False
-            for position_broker in positions_broker:
-                if position_broker.asset == position.asset:
-                    found = True
-                    break
-            if not found and (position.asset not in self.quote_assets):
-                self._filled_positions.remove(position)
+            # Now iterate through lumibot positions.
+            # Remove lumibot position if not at the broker.
+            # get_list() exposes the live list; removing from it while iterating
+            # skips consecutive stale positions.
+            for position in list(self._filled_positions.get_list()):
+                found = False
+                for position_broker in positions_broker:
+                    if position_broker.asset == position.asset:
+                        found = True
+                        break
+                if (
+                    not found
+                    and id(position) in positions_before_snapshot
+                    and (position.asset not in self.quote_assets)
+                ):
+                    self._filled_positions.remove(position)
+            self._positions_snapshot_applied = snapshot_id
 
     def refresh_positions(self, strategy, ttl_seconds: float = 0.0):
         """Refresh live broker positions with a short throttle.
@@ -1455,35 +1480,54 @@ class Broker(ABC):
     # ================================ Common functions ================================
     @property
     def _tracked_orders(self):
-        cache_key = (
-            getattr(self._unprocessed_orders, "revision", 0),
-            getattr(self._new_orders, "revision", 0),
-            getattr(self._partially_filled_orders, "revision", 0),
-            getattr(self._filled_orders, "revision", 0),
-            getattr(self._error_orders, "revision", 0),
-            getattr(self._canceled_orders, "revision", 0),
-            getattr(self._placeholder_orders, "revision", 0),
-        )
-        if self._tracked_orders_cache_key == cache_key:
-            return self._tracked_orders_cache_value
+        # Every live tracker uses this same RLock.  Holding it for the complete
+        # snapshot prevents readers from observing the intentional remove/append
+        # gap while a broker callback moves an order between lifecycle buckets.
+        with self._lock:
+            cache_key = (
+                getattr(self._unprocessed_orders, "revision", 0),
+                getattr(self._new_orders, "revision", 0),
+                getattr(self._partially_filled_orders, "revision", 0),
+                getattr(self._filled_orders, "revision", 0),
+                getattr(self._error_orders, "revision", 0),
+                getattr(self._canceled_orders, "revision", 0),
+                getattr(self._placeholder_orders, "revision", 0),
+            )
+            if self._tracked_orders_cache_key == cache_key:
+                return self._tracked_orders_cache_value
 
-        orders: list[Order] = []
-        orders.extend(self._unprocessed_orders.get_list())
-        orders.extend(self._new_orders.get_list())
-        orders.extend(self._partially_filled_orders.get_list())
-        orders.extend(self._filled_orders.get_list())
-        orders.extend(self._error_orders.get_list())
-        orders.extend(self._canceled_orders.get_list())
-        orders.extend(self._placeholder_orders.get_list())
-        self._tracked_orders_cache_key = cache_key
-        self._tracked_orders_cache_value = orders
-        return orders
+            orders: list[Order] = []
+            orders.extend(self._unprocessed_orders.get_list())
+            orders.extend(self._new_orders.get_list())
+            orders.extend(self._partially_filled_orders.get_list())
+            orders.extend(self._filled_orders.get_list())
+            orders.extend(self._error_orders.get_list())
+            orders.extend(self._canceled_orders.get_list())
+            orders.extend(self._placeholder_orders.get_list())
+            self._tracked_orders_cache_key = cache_key
+            self._tracked_orders_cache_value = orders
+            return orders
 
     @staticmethod
     def _strategy_name_from_input(strategy):
         if strategy is not None and not isinstance(strategy, str):
             return getattr(strategy, "name", getattr(strategy, "_name", None))
         return strategy
+
+    @staticmethod
+    def identifiers_equal(left, right) -> bool:
+        """Compare broker identifiers across native and serialized boundaries.
+
+        Alpaca returns ``uuid.UUID`` identifiers, while agent tools, JSON, and
+        scheduled-runtime state necessarily carry the same value as text. Keep
+        the broker-native value on the order, but make lookup tolerant of its
+        lossless string representation.
+        """
+        if left == right:
+            return True
+        if left is None or right is None:
+            return False
+        return str(left) == str(right)
 
     @staticmethod
     def _cache_result(cache: dict, key, value):
@@ -1900,59 +1944,107 @@ class Broker(ABC):
         Keep orders that are completed (i.e. filled, canceled, error) and remove any duplicates from the 'new' and
         'unprocessed' trackers.
         """
-        if not broker_order.is_active():
-            self._new_orders.remove(broker_order.identifier, key="identifier")
-            self._unprocessed_orders.remove(broker_order.identifier, key="identifier")
-            self._partially_filled_orders.remove(broker_order.identifier, key="identifier")
-        elif broker_order in self._partially_filled_orders:
-            self._new_orders.remove(broker_order.identifier, key="identifier")
-            self._unprocessed_orders.remove(broker_order.identifier, key="identifier")
-        elif broker_order in self._new_orders:
-            self._unprocessed_orders.remove(broker_order.identifier, key="identifier")
+        buckets = (
+            self._unprocessed_orders,
+            self._new_orders,
+            self._partially_filled_orders,
+            self._filled_orders,
+            self._error_orders,
+            self._canceled_orders,
+            self._placeholder_orders,
+        )
+        with self._lock:
+            matches = [
+                order
+                for bucket in buckets
+                for order in bucket.get_list()
+                if order.identifier == broker_order.identifier
+            ]
+            survivor = matches[0] if matches else broker_order
+
+            # Keep the original strategy-owned object so decision provenance and
+            # local metadata survive, while applying the broker's authoritative
+            # lifecycle fields.
+            survivor.status = broker_order.status
+            survivor.quantity = broker_order.quantity
+            for attr in ("limit_price", "stop_price", "avg_fill_price", "error_message"):
+                broker_value = getattr(broker_order, attr, None)
+                if broker_value is not None:
+                    setattr(survivor, attr, broker_value)
+            raw = getattr(broker_order, "_raw", None)
+            if raw is not None:
+                survivor.update_raw(raw)
+
+            for bucket in buckets:
+                while any(
+                    order.identifier == broker_order.identifier
+                    for order in bucket.get_list()
+                ):
+                    bucket.remove(broker_order.identifier, key="identifier")
+
+            if survivor.is_filled():
+                destination = self._filled_orders
+            elif survivor.status == Order.OrderStatus.ERROR:
+                destination = self._error_orders
+            elif survivor.is_canceled():
+                destination = self._canceled_orders
+            elif survivor.status == Order.OrderStatus.PARTIALLY_FILLED:
+                destination = self._partially_filled_orders
+            elif survivor.is_active():
+                destination = self._new_orders
+            else:
+                destination = self._unprocessed_orders
+            destination.append(survivor)
+            self._invalidate_order_caches()
+            return survivor
 
     def _process_new_order(self, order):
-        # Don't duplicate orders in the new orders tracker. Check if an order with the same identifier already exists
-        # in the tracked orders.
-        existing_order = self.get_tracked_order(order.identifier)
-        if existing_order:
-            # Check if this order already exists in self._new_orders based on the identifier - Do nothing
-            if existing_order in self._new_orders:
-                return existing_order
-            if existing_order not in self._unprocessed_orders:
-                return existing_order  # Exists in another tracker, return it without adding to prevent duplicates
-            else:
-                order = existing_order  # Use the existing order object from unprocessed and update status
+        with self._lock:
+            # The lookup and transition are one atomic operation. Broker stream
+            # callbacks can deliver the same NEW event concurrently; checking
+            # before taking the lock lets both callbacks believe the order is
+            # absent and return different local objects for one broker id.
+            existing_order = self.get_tracked_order(order.identifier)
+            if existing_order:
+                if existing_order in self._new_orders:
+                    return existing_order
+                if existing_order not in self._unprocessed_orders:
+                    return existing_order
+                order = existing_order
 
-        self._unprocessed_orders.remove(order.identifier, key="identifier")
-        order.status = self.NEW_ORDER
-        order.set_new()
-        self._new_orders.append(order)
+            self._unprocessed_orders.remove(order.identifier, key="identifier")
+            order.status = self.NEW_ORDER
+            order.set_new()
+            self._new_orders.append(order)
         return order
 
     def _process_placeholder_order(self, order):
         """Used to track a placeholder order that never gets filled. I.e. OCO parent order"""
-        self._unprocessed_orders.remove(order.identifier, key="identifier")
-        order.status = self.NEW_ORDER
-        order.set_new()
-        self._placeholder_orders.append(order)
+        with self._lock:
+            self._unprocessed_orders.remove(order.identifier, key="identifier")
+            order.status = self.NEW_ORDER
+            order.set_new()
+            self._placeholder_orders.append(order)
         return order
 
     def _process_canceled_order(self, order):
-        self._new_orders.remove(order.identifier, key="identifier")
-        self._unprocessed_orders.remove(order.identifier, key="identifier")
-        self._partially_filled_orders.remove(order.identifier, key="identifier")
-        order.status = self.CANCELED_ORDER
-        order.set_canceled()
-        self._canceled_orders.append(order)
+        with self._lock:
+            self._new_orders.remove(order.identifier, key="identifier")
+            self._unprocessed_orders.remove(order.identifier, key="identifier")
+            self._partially_filled_orders.remove(order.identifier, key="identifier")
+            order.status = self.CANCELED_ORDER
+            order.set_canceled()
+            self._canceled_orders.append(order)
         return order
 
     def _process_partially_filled_order(self, order, price, quantity):
-        self._new_orders.remove(order.identifier, key="identifier")
-        order.add_transaction(price, quantity)
-        order.status = self.PARTIALLY_FILLED_ORDER
-        order.set_partially_filled()
-        if order not in self._partially_filled_orders:
-            self._partially_filled_orders.append(order)
+        with self._lock:
+            self._new_orders.remove(order.identifier, key="identifier")
+            order.add_transaction(price, quantity)
+            order.status = self.PARTIALLY_FILLED_ORDER
+            order.set_partially_filled()
+            if order not in self._partially_filled_orders:
+                self._partially_filled_orders.append(order)
 
         position = self.get_tracked_position(order.strategy, order.asset)
         if position is None:
@@ -1968,13 +2060,14 @@ class Broker(ABC):
         return order, position
 
     def _process_filled_order(self, order, price, quantity):
-        self._new_orders.remove(order.identifier, key="identifier")
-        self._unprocessed_orders.remove(order.identifier, key="identifier")
-        self._partially_filled_orders.remove(order.identifier, key="identifier")
-        order.add_transaction(price, quantity)
-        order.status = self.FILLED_ORDER
-        order.set_filled()
-        self._filled_orders.append(order)
+        with self._lock:
+            self._new_orders.remove(order.identifier, key="identifier")
+            self._unprocessed_orders.remove(order.identifier, key="identifier")
+            self._partially_filled_orders.remove(order.identifier, key="identifier")
+            order.add_transaction(price, quantity)
+            order.status = self.FILLED_ORDER
+            order.set_filled()
+            self._filled_orders.append(order)
 
         position = self.get_tracked_position(order.strategy, order.asset)
         if position is None:
@@ -1994,13 +2087,14 @@ class Broker(ABC):
         return position
 
     def _process_error_order(self, order, error):
-        self._new_orders.remove(order.identifier, key="identifier")
-        self._unprocessed_orders.remove(order.identifier, key="identifier")
-        self._partially_filled_orders.remove(order.identifier, key="identifier")
-        self._filled_orders.remove(order.identifier, key="identifier")
-        order.status = self.ERROR_ORDER
-        order.set_error(error)
-        self._error_orders.append(order)
+        with self._lock:
+            self._new_orders.remove(order.identifier, key="identifier")
+            self._unprocessed_orders.remove(order.identifier, key="identifier")
+            self._partially_filled_orders.remove(order.identifier, key="identifier")
+            self._filled_orders.remove(order.identifier, key="identifier")
+            order.status = self.ERROR_ORDER
+            order.set_error(error)
+            self._error_orders.append(order)
         return order
 
     def _process_option_lifecycle_event(self, order, price, quantity, lifecycle_status, lifecycle_label):
@@ -2013,13 +2107,14 @@ class Broker(ABC):
                 color="green",
             )
         )
-        self._new_orders.remove(order.identifier, key="identifier")
-        self._unprocessed_orders.remove(order.identifier, key="identifier")
-        self._partially_filled_orders.remove(order.identifier, key="identifier")
-        order.add_transaction(price_value, quantity_value)
-        order.status = lifecycle_status
-        order.set_filled()
-        self._filled_orders.append(order)
+        with self._lock:
+            self._new_orders.remove(order.identifier, key="identifier")
+            self._unprocessed_orders.remove(order.identifier, key="identifier")
+            self._partially_filled_orders.remove(order.identifier, key="identifier")
+            order.add_transaction(price_value, quantity_value)
+            order.status = lifecycle_status
+            order.set_filled()
+            self._filled_orders.append(order)
 
         position = self.get_tracked_position(order.strategy, order.asset)
         if position is not None:
@@ -2177,6 +2272,8 @@ class Broker(ABC):
             if "market_close" not in getattr(rows, "columns", ()):
                 rows = rows.reset_index()
 
+            earliest_calendar_date = None
+            latest_calendar_date = None
             for row in rows.itertuples(index=False):
                 market_open = getattr(row, "market_open", None)
                 market_close = getattr(row, "market_close", None)
@@ -2198,10 +2295,27 @@ class Broker(ABC):
                     market_close = market_close.astimezone(timezone.utc)
 
                 market_close = market_close + timedelta(minutes=self.extended_trading_minutes)
+                open_date = market_open.date()
+                close_date = market_close.date()
+                earliest_calendar_date = (
+                    open_date
+                    if earliest_calendar_date is None
+                    else min(earliest_calendar_date, open_date)
+                )
+                latest_calendar_date = (
+                    close_date
+                    if latest_calendar_date is None
+                    else max(latest_calendar_date, close_date)
+                )
                 if market_open <= now_utc <= market_close:
                     return True
 
-            return False
+            if (
+                earliest_calendar_date is not None
+                and earliest_calendar_date <= now_utc.date() <= latest_calendar_date
+            ):
+                return False
+            return None
         except Exception:
             return None
 
@@ -2246,14 +2360,14 @@ class Broker(ABC):
                 
                 return True
                 
-            # Get market calendar
-            import pandas as pd
-            import pandas_market_calendars as mcal
             cal = mcal.get_calendar(market_name)
-            
-            # Test with a recent Monday (typical trading day)
-            test_date = pd.Timestamp('2025-01-13', tz='UTC')  # Monday
-            schedule = cal.schedule(start_date=test_date, end_date=test_date)
+
+            # Sample ~1.5 weeks so weekend/maintenance gaps are not misclassified as always-open.
+            reference_day = pd.Timestamp('2025-01-13', tz='UTC')  # Monday
+            schedule = cal.schedule(
+                start_date=(reference_day - timedelta(days=3)),
+                end_date=(reference_day + timedelta(days=7)),
+            )
             
             if schedule.empty:
                 # No trading on this date, assume it's not continuous
@@ -2261,14 +2375,20 @@ class Broker(ABC):
                 
                 return False
                 
-            # Calculate trading hours duration
-            market_open = schedule.iloc[0, 0]
-            market_close = schedule.iloc[0, 1]
-            duration_hours = (market_close - market_open).total_seconds() / 3600
+            durations = schedule["market_close"] - schedule["market_open"]
+            avg_duration = durations.mean()
+            duration_hours = avg_duration.total_seconds() / 3600 if avg_duration is not pd.NaT else 0
+
+            if len(schedule) >= 2:
+                next_opens = schedule["market_open"].iloc[1:].reset_index(drop=True)
+                prev_closes = schedule["market_close"].iloc[:-1].reset_index(drop=True)
+                gaps = next_opens - prev_closes
+                max_gap = gaps.max()
+                gap_hours = max_gap.total_seconds() / 3600 if isinstance(max_gap, pd.Timedelta) else 0
+            else:
+                gap_hours = 0
             
-            # Consider markets with 20+ hours per day as continuous
-            # This catches futures markets that trade ~22-24 hours
-            is_continuous = duration_hours >= 20.0
+            is_continuous = (duration_hours >= 20.0) and (gap_hours < 6.0)
             
             self._market_type_cache[market_name] = is_continuous
             
@@ -2434,7 +2554,7 @@ class Broker(ABC):
         if use_placeholders:
             tracked_orders.extend(self._placeholder_orders.get_list())
         for order in tracked_orders:
-            if order.identifier == identifier:
+            if self.identifiers_equal(order.identifier, identifier):
                 return order
         return None
 
@@ -2466,35 +2586,36 @@ class Broker(ABC):
         plus placeholders), avoiding the much larger filled/canceled/error histories.
         """
         strategy_name = self._strategy_name_from_input(strategy)
-        active_cache_key = (
-            getattr(self._unprocessed_orders, "revision", 0),
-            getattr(self._new_orders, "revision", 0),
-            getattr(self._partially_filled_orders, "revision", 0),
-            getattr(self._placeholder_orders, "revision", 0),
-            strategy_name,
-            asset,
-        )
-        cached = self._active_tracked_orders_filter_cache.get(active_cache_key)
-        if cached is not None or active_cache_key in self._active_tracked_orders_filter_cache:
-            return list(cached)
+        with self._lock:
+            active_cache_key = (
+                getattr(self._unprocessed_orders, "revision", 0),
+                getattr(self._new_orders, "revision", 0),
+                getattr(self._partially_filled_orders, "revision", 0),
+                getattr(self._placeholder_orders, "revision", 0),
+                strategy_name,
+                asset,
+            )
+            cached = self._active_tracked_orders_filter_cache.get(active_cache_key)
+            if cached is not None or active_cache_key in self._active_tracked_orders_filter_cache:
+                return list(cached)
 
-        result: list[Order] = []
-        for bucket in (
-            self._unprocessed_orders,
-            self._new_orders,
-            self._partially_filled_orders,
-            self._placeholder_orders,
-        ):
-            for order in bucket.get_list():
-                if not order.is_active():
-                    continue
-                if strategy_name is not None and order.strategy != strategy_name:
-                    continue
-                if asset is not None and order.asset != asset:
-                    continue
-                result.append(order)
-        self._cache_result(self._active_tracked_orders_filter_cache, active_cache_key, result)
-        return list(result)
+            result: list[Order] = []
+            for bucket in (
+                self._unprocessed_orders,
+                self._new_orders,
+                self._partially_filled_orders,
+                self._placeholder_orders,
+            ):
+                for order in bucket.get_list():
+                    if not order.is_active():
+                        continue
+                    if strategy_name is not None and order.strategy != strategy_name:
+                        continue
+                    if asset is not None and order.asset != asset:
+                        continue
+                    result.append(order)
+            self._cache_result(self._active_tracked_orders_filter_cache, active_cache_key, result)
+            return list(result)
 
     def get_all_orders(self) -> list[Order]:
         """get all tracked and completed orders"""
@@ -2503,7 +2624,7 @@ class Broker(ABC):
     def get_order(self, identifier) -> Order:
         """get a tracked order given an identifier"""
         for order in self.get_all_orders():
-            if order.identifier == identifier:
+            if self.identifiers_equal(order.identifier, identifier):
                 return order
         return None
 
@@ -2610,8 +2731,108 @@ class Broker(ABC):
 
     def submit_order(self, order) -> Order:
         """Conform an order for an asset to broker constraints and submit it."""
+        if order is None:
+            raise ValueError("Cannot submit a null order")
+        self.resolve_option_order_intent(order)
         self._conform_order(order)
         return self._submit_order(order)
+
+    def resolve_option_order_intent(
+        self,
+        order: Order,
+        additional_active_orders: list[Order] | None = None,
+    ) -> Order:
+        """Resolve a single-leg option order to an explicit open/close side.
+
+        Explicit ``*_to_open``/``*_to_close`` sides are preserved. Generic
+        ``buy``/``sell`` sides remain supported for backwards compatibility,
+        but are resolved here once using the tracked position and active orders.
+        An order that would over-close or duplicate a fully reserved close is
+        rejected instead of silently crossing through zero into a new position.
+        """
+        if getattr(getattr(order, "asset", None), "asset_type", None) != "option":
+            return order
+
+        side = Order.OrderSide(order.side)
+        explicit_sides = {
+            Order.OrderSide.BUY_TO_OPEN,
+            Order.OrderSide.BUY_TO_CLOSE,
+            Order.OrderSide.SELL_TO_OPEN,
+            Order.OrderSide.SELL_TO_CLOSE,
+        }
+        if side not in explicit_sides and side not in {
+            Order.OrderSide.BUY,
+            Order.OrderSide.SELL,
+        }:
+            raise ValueError(f"Unsupported option order side: {side}")
+
+        position = self.get_tracked_position(order.strategy, order.asset)
+        position_quantity = float(position.quantity) if position is not None else 0.0
+        close_side = None
+        open_side = None
+        if position_quantity > 0:
+            close_side = Order.OrderSide.SELL_TO_CLOSE
+            open_side = Order.OrderSide.BUY_TO_OPEN
+        elif position_quantity < 0:
+            close_side = Order.OrderSide.BUY_TO_CLOSE
+            open_side = Order.OrderSide.SELL_TO_OPEN
+
+        if side in {Order.OrderSide.BUY, Order.OrderSide.SELL}:
+            if position_quantity == 0:
+                order.side = (
+                    Order.OrderSide.BUY_TO_OPEN
+                    if side == Order.OrderSide.BUY
+                    else Order.OrderSide.SELL_TO_OPEN
+                )
+                return order
+
+            generic_closes_position = (
+                position_quantity > 0 and side == Order.OrderSide.SELL
+            ) or (
+                position_quantity < 0 and side == Order.OrderSide.BUY
+            )
+            order.side = close_side if generic_closes_position else open_side
+
+        if order.side != close_side:
+            return order
+
+        reserved_quantity = 0.0
+        active_orders = self.get_active_tracked_orders(order.strategy, order.asset)
+        if additional_active_orders:
+            active_orders.extend(
+                candidate
+                for candidate in additional_active_orders
+                if candidate.strategy == order.strategy and candidate.asset == order.asset
+            )
+        for active_order in active_orders:
+            try:
+                active_side = Order.OrderSide(active_order.side)
+            except (TypeError, ValueError):
+                continue
+            active_is_close = active_side == close_side
+            if not active_is_close:
+                active_is_close = (
+                    position_quantity > 0 and active_side == Order.OrderSide.SELL
+                ) or (
+                    position_quantity < 0 and active_side == Order.OrderSide.BUY
+                )
+            if not active_is_close:
+                continue
+
+            filled_quantity = sum(
+                float(transaction.quantity)
+                for transaction in getattr(active_order, "transactions", [])
+            )
+            reserved_quantity += max(0.0, float(active_order.quantity) - filled_quantity)
+
+        remaining_closable = max(0.0, abs(position_quantity) - reserved_quantity)
+        requested_quantity = float(order.quantity)
+        if requested_quantity > remaining_closable + 1e-9:
+            raise ValueError(
+                f"Option close quantity {requested_quantity:g} exceeds remaining closable quantity "
+                f"{remaining_closable:g} after active close orders"
+            )
+        return order
 
     def _conform_order(self, order):
         """Conform an order to broker constraints. Derived brokers should implement this method."""
@@ -2619,12 +2840,22 @@ class Broker(ABC):
 
     def submit_orders(self, orders, **kwargs) -> Union[Order, list[Order]]:
         """Submit orders"""
+        resolved_orders = []
+        for order in orders:
+            if order is None:
+                raise ValueError("Cannot submit a null order")
+            self.resolve_option_order_intent(order, additional_active_orders=resolved_orders)
+            resolved_orders.append(order)
         if hasattr(self, '_submit_orders'):
             return self._submit_orders(orders, **kwargs)
         else:
-            #if kwargs indicates multileg orders with a limit price, and broker does not support it, we should error out instead of submitting legs individually
-            if kwargs.get('is_multileg') and kwargs.get('order_type') == Order.OrderType.LIMIT:
-                raise NotImplementedError("Multileg limit orders are not supported by this broker")
+            # Atomic packages must never degrade into independent leg submissions.
+            # A partial fill would change the intended risk and can leave an orphan leg.
+            if kwargs.get('is_multileg'):
+                raise NotImplementedError(
+                    f"{self.name} does not support atomic multi-leg order submission; "
+                    "no legs were submitted"
+                )
 
             from concurrent.futures import ThreadPoolExecutor, as_completed
 
@@ -2738,15 +2969,32 @@ class Broker(ABC):
             if position.quantity == 0:
                 continue
 
+            order = None
             if strategy is not None:
                 if strategy.quote_asset != position.asset:
-                    order = position.get_selling_order(quote_asset=strategy.quote_asset)
-                    orders.append(order)
+                    order = self._create_position_closing_order(position, quote_asset=strategy.quote_asset)
             else:
-                order = position.get_selling_order()
+                order = self._create_position_closing_order(position)
+            if order is not None:
                 orders.append(order)
 
         self.submit_orders(orders, is_multileg=is_multileg)
+
+    def _create_position_closing_order(self, position, quote_asset=None):
+        """Build a close order, including reduce-only crypto-futures fallback."""
+        order = position.get_selling_order(quote_asset=quote_asset)
+        if order is not None or position.quantity == 0:
+            return order
+
+        order = Order(
+            position.strategy,
+            position.asset,
+            abs(position.quantity),
+            side=Order.OrderSide.SELL if position.quantity > 0 else Order.OrderSide.BUY,
+            quote=quote_asset,
+        )
+        order.reduce_only = True
+        return order
 
     def close_position(self, strategy_name: str, asset: Asset, fraction: float = 1.00):
         """
@@ -2767,6 +3015,10 @@ class Broker(ABC):
             The sell order submitted to close the position, or None if no open position exists
             or the position quantity is zero.
         """
+        fraction_value = float(fraction)
+        if not 0 < fraction_value <= 1:
+            raise ValueError("fraction must be greater than 0 and no more than 1")
+
         pos = self.get_tracked_position(strategy_name, asset)
         if pos and pos.quantity != 0:
             self.logger.info(
@@ -2776,9 +3028,22 @@ class Broker(ABC):
                 fraction,
                 pos.quantity,
             )
-            order = pos.get_selling_order(quote_asset=self.quote_assets and next(iter(self.quote_assets)))
+            subscriber = self._get_subscriber(strategy_name)
+            quote_asset = getattr(subscriber, "quote_asset", None)
+            if quote_asset is None:
+                # Compatibility fallback for callers that do not register a
+                # strategy subscriber (for example, small broker unit tests).
+                quote_asset = next(iter(self.quote_assets), None)
+            order = self._create_position_closing_order(pos, quote_asset=quote_asset)
+            if order is None:
+                self.logger.warning(
+                    "close_position(strategy=%s, asset=%s) could not build a close order",
+                    strategy_name,
+                    getattr(asset, "symbol", asset),
+                )
+                return None
             if fraction != 1.00:
-                order.quantity = order.quantity * fraction
+                order.quantity = order.quantity * fraction_value
             order_id = getattr(order, "identifier", None) or getattr(order, "id", None) or getattr(order, "order_id", None)
             self.logger.info(
                 "close_position(strategy=%s) submitting order %s qty=%s side=%s type=%s",
@@ -2809,6 +3074,98 @@ class Broker(ABC):
                 return subscriber
 
         return None
+
+    @staticmethod
+    def normalize_broker_strategy_tag(value) -> str:
+        """Normalize strategy names the way Tradier tags do (non-alnum -> '-')."""
+        import re
+
+        if value is None:
+            return ""
+        text = str(value).strip()
+        if not text:
+            return ""
+        return re.sub(r"[^a-zA-Z0-9-]", "-", text)
+
+    @classmethod
+    def strategy_tag_matches(cls, tag, strategy_name) -> bool:
+        """True when a broker order tag matches a strategy name under tag normalization."""
+        if not tag or not strategy_name:
+            return False
+        return cls.normalize_broker_strategy_tag(tag) == cls.normalize_broker_strategy_tag(strategy_name)
+
+    @staticmethod
+    def option_underlying_symbol(asset) -> str | None:
+        """Best-effort underlying symbol for option (or stock) assets used in hedge gates."""
+        if asset is None:
+            return None
+        underlying = getattr(asset, "underlying_asset", None)
+        if underlying is not None and getattr(underlying, "symbol", None):
+            return str(underlying.symbol).upper()
+        symbol = getattr(asset, "symbol", None)
+        return str(symbol).upper() if symbol else None
+
+    @classmethod
+    def fills_match_underlying(cls, asset, underlyings) -> bool:
+        """True when asset underlying/symbol is in the allowed underlying set (case-insensitive)."""
+        if underlyings is None:
+            return False
+        allowed = {str(u).upper() for u in underlyings if u}
+        if not allowed:
+            return False
+        symbol = cls.option_underlying_symbol(asset)
+        return bool(symbol) and symbol in allowed
+
+    def order_belongs_to_local_strategy(self, order, local_strategy_name: str | None = None) -> bool:
+        """Return True only when this order is owned by the local strategy.
+
+        Shared broker accounts can expose other strategies' activity. Broker tags are
+        ground truth and must win over a wrongly attributed ``order.strategy`` so a
+        sole local subscriber never hedges off foreign fills (Titus STM/MOS bug).
+        """
+        local_name = local_strategy_name or getattr(self, "_strategy_name", None) or ""
+        if not local_name and hasattr(self, "_subscribers") and len(self._subscribers) == 1:
+            only = self._subscribers[0]
+            local_name = getattr(only, "name", "") or str(only)
+
+        if not local_name:
+            # No local identity — cannot safely claim ownership.
+            return False
+
+        tag = getattr(order, "tag", None)
+        if tag:
+            # Explicit tag always wins: foreign tags must never be claimed locally.
+            return self.strategy_tag_matches(tag, local_name)
+
+        order_strategy = getattr(order, "strategy", None) or ""
+        if order_strategy:
+            return self.strategy_tag_matches(order_strategy, local_name)
+
+        # Untagged with empty strategy: do not claim.
+        return False
+
+    def order_is_foreign_to_local_strategy(self, order, local_strategy_name: str | None = None) -> bool:
+        """True only when tag/strategy evidence shows the order belongs to someone else.
+
+        Absence of tag/strategy is not treated as foreign so untagged sole-subscriber
+        fills keep working; explicit foreign tags still block hedge delivery.
+        """
+        local_name = local_strategy_name or getattr(self, "_strategy_name", None) or ""
+        if not local_name and hasattr(self, "_subscribers") and len(self._subscribers) == 1:
+            only = self._subscribers[0]
+            local_name = getattr(only, "name", "") or str(only)
+        if not local_name:
+            return False
+
+        tag = getattr(order, "tag", None)
+        if tag:
+            return not self.strategy_tag_matches(tag, local_name)
+
+        order_strategy = getattr(order, "strategy", None) or ""
+        if order_strategy:
+            return not self.strategy_tag_matches(order_strategy, local_name)
+
+        return False
 
     def _resolve_subscriber(self, strategy_name):
         """Get subscriber by name, falling back to the sole registered subscriber when strategy_name is falsy."""
@@ -2876,6 +3233,21 @@ class Broker(ABC):
             multiplier=multiplier,
         )
         subscriber = self._resolve_subscriber(order.strategy)
+        if (
+            subscriber
+            and not self.IS_BACKTESTING_BROKER
+            and self.order_is_foreign_to_local_strategy(order, getattr(subscriber, "name", None))
+        ):
+            if self.logger.isEnabledFor(20):
+                self.logger.info(
+                    colored(
+                        f"Skipping partial fill for foreign order {getattr(order, 'identifier', None)} "
+                        f"(order.strategy={order.strategy!r}, tag={getattr(order, 'tag', None)!r}) "
+                        f"vs subscriber {getattr(subscriber, 'name', None)!r}",
+                        color="yellow",
+                    )
+                )
+            return
         if subscriber:
             subscriber.add_event(subscriber.PARTIALLY_FILLED_ORDER, payload)
         else:
@@ -2896,6 +3268,23 @@ class Broker(ABC):
             multiplier=multiplier,
         )
         subscriber = self._resolve_subscriber(order.strategy)
+        # Defense in depth: never deliver fills that are not owned by the subscriber.
+        # Prevents shared-account MOS activity from triggering STM on_filled_order hedges.
+        if (
+            subscriber
+            and not self.IS_BACKTESTING_BROKER
+            and self.order_is_foreign_to_local_strategy(order, getattr(subscriber, "name", None))
+        ):
+            if self.logger.isEnabledFor(20):
+                self.logger.info(
+                    colored(
+                        f"Skipping fill for foreign order {getattr(order, 'identifier', None)} "
+                        f"(order.strategy={order.strategy!r}, tag={getattr(order, 'tag', None)!r}) "
+                        f"vs subscriber {getattr(subscriber, 'name', None)!r}",
+                        color="yellow",
+                    )
+                )
+            return
         if subscriber:
             subscriber.add_event(subscriber.FILLED_ORDER, payload)
         else:
@@ -2984,7 +3373,13 @@ class Broker(ABC):
                 f"{stored_order.symbol} ID={stored_order.identifier}, processed by broker {self.name}"
             )
 
-        if self._hold_trade_events and not is_backtesting:
+        from lumibot.brokers.trade_event_priority import should_hold_trade_event_for_sync
+
+        if should_hold_trade_event_for_sync(
+            hold_trade_events=bool(self._hold_trade_events),
+            is_backtesting=bool(is_backtesting),
+            type_event=type_event,
+        ):
             if self.logger.isEnabledFor(20):
                 self.logger.info(
                     f"Trade event held for {stored_order.strategy} strategy: {type_event} {stored_order.symbol} "
@@ -2992,7 +3387,8 @@ class Broker(ABC):
                     f"self._hold_trade_events is {self._hold_trade_events}"
                 )
 
-            # Hold the trade event
+            # Hold the trade event (non-fill). Fills take the priority path so
+            # hedges are not delayed by sync_broker or a long trading iteration.
             self._held_trades.append(
                 (
                     stored_order,

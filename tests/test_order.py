@@ -137,6 +137,40 @@ class TestOrderBasics:
         buy_order.avg_fill_price = 50.0
         assert buy_order.get_fill_price() == 50.0
 
+    @pytest.mark.parametrize(
+        "asset, price",
+        [
+            (Asset("SHIB", asset_type="crypto"), 0.0000123456),  # sub-cent coin
+            (Asset("BTC", asset_type="crypto"), 94558.7512),
+            (Asset("EUR", asset_type="forex"), 1.08765),
+            (Asset("SPY", asset_type="option", expiration=__import__("datetime").date(2026, 10, 16), strike=650, right="CALL"), 1.235),
+            (Asset("MES", asset_type="future", expiration=__import__("datetime").date(2026, 12, 18)), 6612.25),
+        ],
+    )
+    def test_avg_fill_price_setter_keeps_the_broker_precision(self, asset, price):
+        """The setter rounded every fill to 2 decimals (since 2024), while the constructor kept the
+        exact value. A sub-cent crypto fill became 0.0, forex and sub-penny option fills moved, and
+        live brokers pass order.avg_fill_price into _process_filled_order, so cash and positions
+        booked the rounded price (CodeRabbit on PR #1180)."""
+        quote = Asset("USD", asset_type="forex")
+        order = Order(strategy="abc", asset=asset, side="buy", quantity=10, quote=quote)
+        order.avg_fill_price = price
+        assert order.avg_fill_price == price
+        assert order.get_fill_price() == price
+        constructed = Order(strategy="abc", asset=asset, side="buy", quantity=10, quote=quote, avg_fill_price=price)
+        assert constructed.avg_fill_price == price
+
+    def test_avg_fill_price_setter_accepts_strings_decimals_and_none(self):
+        from decimal import Decimal
+
+        order = Order(strategy="abc", asset=Asset("SPY"), side="buy", quantity=1)
+        order.avg_fill_price = "412.3456"
+        assert order.avg_fill_price == 412.3456
+        order.avg_fill_price = Decimal("0.00012345")
+        assert order.avg_fill_price == 0.00012345
+        order.avg_fill_price = None
+        assert order.avg_fill_price is None
+
     def test_smart_limit_order_type_in_str(self):
         asset = Asset("SPY")
         order = Order(

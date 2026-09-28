@@ -1,15 +1,56 @@
 .. _ccxt backtesting:
 
-Crypto Brokers (Using CCXT)
-===========================
+CCXT Crypto Trading and Backtesting with LumiBot
+================================================
+
+.. meta::
+   :description: Use CCXT crypto exchanges with LumiBot for trading and backtesting. Compare verified exchange integrations, credentials, order handling, and example setup.
 
 This is the guide for Lumibot's CCXT-based cryptocurrency broker integrations. CCXT is a popular library for cryptocurrency trading. If you are interested (but not required!), you can find the documentation for CCXT here: https://ccxt.readthedocs.io/en/latest/
 
-Lumibot does **not** automatically support every exchange in the CCXT ecosystem. The selected CCXT paths documented in Lumibot include Coinbase, Kraken, KuCoin, Binance, BitMEX, WEEX, Bybit, and OKX, but they do not all have the same status:
+Lumibot does **not** automatically support every exchange in the CCXT ecosystem.
+The documented paths do not all have the same validation level:
 
-* **Auto-detected CCXT credential paths**: Coinbase, Kraken, and WEEX.
-* **Exchange-specific CCXT order handling in the shared broker**: Coinbase/Coinbase Pro, Kraken, KuCoin, and Binance.
-* **Documented CCXT backtesting examples**: Kraken, Binance, KuCoin, BitMEX, Bybit, and OKX.
+.. list-table:: Documented CCXT exchange paths
+   :header-rows: 1
+   :widths: 22 26 27 25
+
+   * - Exchange
+     - Credential auto-detection
+     - Exchange-specific order handling
+     - Backtesting example
+   * - Coinbase
+     - Yes
+     - Yes
+     - No dedicated example
+   * - Kraken
+     - Yes
+     - Yes
+     - Yes
+   * - KuCoin
+     - Manual configuration
+     - Yes
+     - Yes
+   * - Binance
+     - Manual configuration
+     - Yes
+     - Yes
+   * - BitMEX
+     - Manual configuration
+     - Shared CCXT path
+     - Yes
+   * - WEEX
+     - Yes
+     - Shared CCXT path
+     - No dedicated example
+   * - Bybit
+     - Manual configuration
+     - Backtesting or custom config only
+     - Yes
+   * - OKX
+     - Manual configuration
+     - Backtesting or custom config only
+     - Yes
 
 Other CCXT exchanges may be possible with additional adapter/config work, but they should not be assumed to work until they are tested in Lumibot.
 

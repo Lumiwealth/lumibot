@@ -2,12 +2,12 @@
 M2 Liquidity Strategy - AI Agent Demo (xAI Grok)
 ------------------------------------------------
 Same strategy intent as agent_m2_liquidity.py, but uses xAI's Grok model
-instead of Google's Gemini. This demonstrates Lumibot's multi-provider
-AI agent support via the LiteLLM bridge.
+instead of the default GPT-6 Luna. This demonstrates Lumibot's
+multi-provider AI agent support via the LiteLLM bridge.
 
-The only differences vs the Gemini version:
+The only differences vs the default version:
     - default_model is an xAI id ("xai/grok-4.20-0309-reasoning")
-    - XAI_API_KEY or GROK_API_KEY is required instead of GEMINI_API_KEY
+    - XAI_API_KEY or GROK_API_KEY is required instead of OPENAI_API_KEY
     - The litellm package must be installed (it ships with Lumibot)
 
 Model choice note:

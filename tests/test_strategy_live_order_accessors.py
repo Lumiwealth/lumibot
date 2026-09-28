@@ -1,5 +1,6 @@
-from datetime import datetime, timedelta
-from threading import RLock
+from datetime import datetime
+from threading import Event, RLock, Thread
+from uuid import UUID
 
 import pytest
 
@@ -116,6 +117,37 @@ def _strategy():
     return strategy, broker
 
 
+def test_live_strategy_synchronizes_broker_state_on_start_by_default():
+    broker = _LiveBroker()
+
+    _AccessorStrategy(broker=broker, budget=100_000.0, analyze_backtest=False, parameters={})
+
+    # Default remains safe for trading strategies: balances and positions are ready at startup.
+    assert broker.balance_pull_count == 1
+    assert broker.position_pull_count == 1
+
+
+def test_read_only_live_strategy_can_defer_startup_sync_until_requested():
+    broker = _LiveBroker()
+    strategy = _AccessorStrategy(
+        broker=broker,
+        budget=100_000.0,
+        analyze_backtest=False,
+        parameters={},
+        synchronize_broker_on_start=False,
+    )
+
+    # Read-only one-shot clients must avoid unrelated network calls at construction.
+    assert broker.balance_pull_count == 0
+    assert broker.position_pull_count == 0
+
+    strategy.get_positions()
+
+    # Requested data remains fresh and incurs exactly one provider refresh.
+    assert broker.balance_pull_count == 0
+    assert broker.position_pull_count == 1
+
+
 def _order(strategy_name, identifier, status, symbol="SPY", order_type=Order.OrderType.LIMIT):
     return Order(
         strategy=strategy_name,
@@ -126,6 +158,11 @@ def _order(strategy_name, identifier, status, symbol="SPY", order_type=Order.Ord
         identifier=identifier,
         status=status,
     )
+
+
+def _age_past_market_order_grace(order):
+    order.created_at = datetime(2000, 1, 1)
+    return order
 
 
 def test_get_orders_filters_by_order_status_enum_and_identifiers():
@@ -141,6 +178,17 @@ def test_get_orders_filters_by_order_status_enum_and_identifiers():
     )
 
     assert [order.identifier for order in active_orders] == ["open-1"]
+
+
+def test_get_orders_active_statuses_include_cancel_pending_orders():
+    strategy, broker = _strategy()
+    cancel_pending = _order(strategy.name, "cancel-pending-1", Order.OrderStatus.CANCELLING)
+    broker._new_orders.append(cancel_pending)
+
+    active_orders = strategy.get_orders(statuses=Order.ACTIVE_STATUSES, broker_refresh=False)
+
+    assert [order.identifier for order in active_orders] == ["cancel-pending-1"]
+    assert cancel_pending.is_active() is True
 
 
 def test_get_orders_accepts_single_enum_status():
@@ -207,6 +255,158 @@ def test_live_get_order_refreshes_existing_order_status():
     assert strategy.get_orders(statuses=Order.ACTIVE_STATUSES) == []
 
 
+def test_live_get_order_survives_submit_callback_duplicate_then_terminal_sync():
+    """A fast broker callback must not make a just-submitted identifier disappear.
+
+    The submit response and the broker callback can race, briefly leaving the same
+    identifier in the unprocessed and new buckets.  A following broker refresh may
+    already report the order as filled.  Reconciliation must collapse the duplicate
+    into one terminal record instead of deleting both local copies.
+    """
+    strategy, broker = _strategy()
+    submitted = _order(strategy.name, "fast-fill-1", Order.OrderStatus.SUBMITTED)
+    callback_copy = _order(strategy.name, "fast-fill-1", Order.OrderStatus.OPEN)
+    broker._unprocessed_orders.append(submitted)
+    broker._new_orders.append(callback_copy)
+    broker.broker_orders = [
+        _order(strategy.name, "fast-fill-1", Order.OrderStatus.FILLED),
+    ]
+
+    refreshed = strategy.get_order("fast-fill-1")
+
+    assert refreshed is not None
+    assert refreshed.identifier == "fast-fill-1"
+    assert refreshed.status == Order.OrderStatus.FILLED
+    assert [order.identifier for order in broker.get_all_orders()] == ["fast-fill-1"]
+
+
+def test_live_get_order_accepts_string_form_of_uuid_broker_identifier():
+    """Tool/API boundaries serialize Alpaca UUID identifiers to strings."""
+    strategy, broker = _strategy()
+    broker_identifier = UUID("383d1a74-79ec-4e58-a35e-b1df71833cfa")
+    tracked = _order(strategy.name, broker_identifier, Order.OrderStatus.OPEN)
+    broker._new_orders.append(tracked)
+    broker.broker_orders = [
+        _order(strategy.name, broker_identifier, Order.OrderStatus.FILLED),
+    ]
+
+    refreshed = strategy.get_order(str(broker_identifier))
+
+    assert refreshed is tracked
+    assert refreshed.status == Order.OrderStatus.FILLED
+    assert strategy.get_orders(
+        identifiers=[str(broker_identifier)],
+        broker_refresh=False,
+    ) == [tracked]
+
+
+def test_live_get_order_does_not_match_a_different_serialized_uuid():
+    strategy, broker = _strategy()
+    tracked_identifier = UUID("383d1a74-79ec-4e58-a35e-b1df71833cfa")
+    broker._new_orders.append(
+        _order(strategy.name, tracked_identifier, Order.OrderStatus.OPEN)
+    )
+    broker.broker_orders = []
+
+    assert strategy.get_order(
+        "00000000-0000-0000-0000-000000000001",
+        broker_refresh=False,
+    ) is None
+
+
+def test_fresh_process_imports_terminal_broker_order_for_durable_reconciliation():
+    """A later scheduled process must recover an order that filled after prior exit."""
+    strategy, broker = _strategy()
+    broker._first_iteration = True
+    broker.broker_orders = [
+        _order(strategy.name, "filled-after-exit-1", Order.OrderStatus.FILLED),
+    ]
+
+    broker.sync_orders(strategy)
+
+    recovered = broker.get_tracked_order("filled-after-exit-1")
+    assert recovered is not None
+    assert recovered.status == Order.OrderStatus.FILLED
+    assert broker._filled_orders.get_list() == [recovered]
+
+
+@pytest.mark.parametrize(
+    ("broker_status", "expected_bucket"),
+    [
+        (Order.OrderStatus.OPEN, "_new_orders"),
+        (Order.OrderStatus.PARTIALLY_FILLED, "_partially_filled_orders"),
+        (Order.OrderStatus.FILLED, "_filled_orders"),
+        (Order.OrderStatus.CASH_SETTLED, "_filled_orders"),
+        (Order.OrderStatus.CANCELED, "_canceled_orders"),
+        (Order.OrderStatus.EXPIRED, "_canceled_orders"),
+        (Order.OrderStatus.ERROR, "_error_orders"),
+    ],
+)
+def test_clean_order_trackers_collapses_duplicates_without_losing_lifecycle_or_provenance(
+    broker_status,
+    expected_bucket,
+):
+    strategy, broker = _strategy()
+    submitted = _order(strategy.name, "duplicate-1", Order.OrderStatus.SUBMITTED)
+    submitted.decision_provenance = {"agent": "trader", "cycle": 7}
+    callback_copy = _order(strategy.name, "duplicate-1", Order.OrderStatus.OPEN)
+    authoritative = _order(strategy.name, "duplicate-1", broker_status)
+    authoritative.limit_price = 99.25
+    broker._unprocessed_orders.append(submitted)
+    broker._new_orders.append(callback_copy)
+
+    survivor = broker._clean_order_trackers(authoritative)
+
+    assert survivor is submitted
+    assert survivor.status == broker_status
+    assert survivor.limit_price == 99.25
+    assert survivor.decision_provenance == {"agent": "trader", "cycle": 7}
+    assert getattr(broker, expected_bucket).get_list() == [submitted]
+    assert [order.identifier for order in broker.get_all_orders()] == ["duplicate-1"]
+
+
+def test_tracker_transition_is_atomic_for_concurrent_identifier_lookup(monkeypatch):
+    strategy, broker = _strategy()
+    submitted = _order(strategy.name, "atomic-1", Order.OrderStatus.SUBMITTED)
+    callback_copy = _order(strategy.name, "atomic-1", Order.OrderStatus.OPEN)
+    authoritative = _order(strategy.name, "atomic-1", Order.OrderStatus.FILLED)
+    broker._unprocessed_orders.append(submitted)
+    broker._new_orders.append(callback_copy)
+
+    append_entered = Event()
+    allow_append = Event()
+    original_append = broker._filled_orders.append
+
+    def paused_append(order):
+        append_entered.set()
+        assert allow_append.wait(timeout=2)
+        original_append(order)
+
+    monkeypatch.setattr(broker._filled_orders, "append", paused_append)
+    cleanup = Thread(target=broker._clean_order_trackers, args=(authoritative,))
+    cleanup.start()
+    assert append_entered.wait(timeout=2)
+
+    observed = []
+    lookup_done = Event()
+
+    def lookup():
+        observed.append(broker.get_tracked_order("atomic-1"))
+        lookup_done.set()
+
+    reader = Thread(target=lookup)
+    reader.start()
+    assert lookup_done.wait(timeout=0.05) is False
+    allow_append.set()
+    cleanup.join(timeout=2)
+    reader.join(timeout=2)
+
+    assert cleanup.is_alive() is False
+    assert reader.is_alive() is False
+    assert observed == [submitted]
+    assert submitted.status == Order.OrderStatus.FILLED
+
+
 def test_live_order_list_miss_uses_direct_lookup_before_terminal_update():
     strategy, broker = _strategy()
     tracked = _order(strategy.name, "order-1", Order.OrderStatus.OPEN)
@@ -234,13 +434,14 @@ def test_live_order_list_miss_without_direct_match_does_not_fake_cancel():
 
 def test_live_market_order_list_miss_uses_direct_lookup_before_terminal_update():
     strategy, broker = _strategy()
-    tracked = _order(
-        strategy.name,
-        "market-1",
-        Order.OrderStatus.OPEN,
-        order_type=Order.OrderType.MARKET,
+    tracked = _age_past_market_order_grace(
+        _order(
+            strategy.name,
+            "market-1",
+            Order.OrderStatus.OPEN,
+            order_type=Order.OrderType.MARKET,
+        )
     )
-    tracked.created_at = datetime.now() - timedelta(seconds=30)
     broker._new_orders.append(tracked)
     broker.broker_orders = [_order(strategy.name, "other-order", Order.OrderStatus.OPEN)]
     broker.direct_orders["market-1"] = _order(strategy.name, "market-1", Order.OrderStatus.FILLED)
@@ -253,13 +454,14 @@ def test_live_market_order_list_miss_uses_direct_lookup_before_terminal_update()
 
 def test_live_market_order_list_miss_without_direct_match_becomes_non_active_unknown():
     strategy, broker = _strategy()
-    tracked = _order(
-        strategy.name,
-        "market-1",
-        Order.OrderStatus.OPEN,
-        order_type=Order.OrderType.MARKET,
+    tracked = _age_past_market_order_grace(
+        _order(
+            strategy.name,
+            "market-1",
+            Order.OrderStatus.OPEN,
+            order_type=Order.OrderType.MARKET,
+        )
     )
-    tracked.created_at = datetime.now() - timedelta(seconds=30)
     broker._new_orders.append(tracked)
     broker.broker_orders = [_order(strategy.name, "other-order", Order.OrderStatus.OPEN)]
 
@@ -271,13 +473,14 @@ def test_live_market_order_list_miss_without_direct_match_becomes_non_active_unk
 
 def test_live_market_order_list_miss_with_empty_broad_list_is_reconciled():
     strategy, broker = _strategy()
-    tracked = _order(
-        strategy.name,
-        "market-1",
-        Order.OrderStatus.OPEN,
-        order_type=Order.OrderType.MARKET,
+    tracked = _age_past_market_order_grace(
+        _order(
+            strategy.name,
+            "market-1",
+            Order.OrderStatus.OPEN,
+            order_type=Order.OrderType.MARKET,
+        )
     )
-    tracked.created_at = datetime.now() - timedelta(seconds=30)
     broker._new_orders.append(tracked)
     broker.broker_orders = []
 

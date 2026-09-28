@@ -50,7 +50,9 @@ else:
 # This ensures environment variables are available for all tests
 project_root = Path(__file__).parent.parent
 env_file = project_root / ".env"
-if env_file.exists():
+if os.environ.get("LUMIBOT_DISABLE_DOTENV", "").lower() in {"1", "true", "yes", "on"}:
+    print("Local dotenv discovery disabled for this test process")
+elif env_file.exists():
     load_dotenv(env_file)
     print(f"Loaded .env file from: {env_file}")
 else:
@@ -320,6 +322,7 @@ def pytest_runtest_setup(item: pytest.Item):
 
     Markers:
       - apitest: general external API usage
+      - public_http: public unauthenticated HTTP proof; requires no provider credentials
       - downloader: tests that hit remote/downloader services
       - polygon: requires Polygon credentials
       - thetadata: requires ThetaData credentials
@@ -347,9 +350,10 @@ def pytest_runtest_setup(item: pytest.Item):
     requires_polymarket = item.get_closest_marker("polymarket") is not None
     requires_polymarket_credentials = item.get_closest_marker("polymarket_credentials") is not None
     requires_polymarket_live_trading = item.get_closest_marker("polymarket_live_trading") is not None
+    requires_public_http = item.get_closest_marker("public_http") is not None
 
     # Determine which providers are required
-    if requires_ibkr or requires_polymarket:
+    if requires_public_http or requires_ibkr or requires_polymarket:
         need_polygon = False
         need_theta = False
     elif requires_polygon or requires_theta:

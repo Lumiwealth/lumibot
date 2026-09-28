@@ -2002,6 +2002,7 @@ class TestDriftRebalancer:
         assert filled_orders.iloc[1]["side"] == "buy"
         assert filled_orders.iloc[1]["symbol"] == "ETH"
 
+    @pytest.mark.apitest
     @pytest.mark.skipif(
         not ALPACA_TEST_CONFIG['API_KEY'] or ALPACA_TEST_CONFIG['API_KEY'] == '<your key here>',
         reason="This test requires an alpaca API key"
@@ -2072,6 +2073,7 @@ class TestDriftRebalancer:
         assert filled_orders.iloc[1]["side"] == "buy"
         assert filled_orders.iloc[1]["symbol"] == "ETH"
 
+    @pytest.mark.apitest
     @pytest.mark.skipif(
         not ALPACA_TEST_CONFIG['API_KEY'] or ALPACA_TEST_CONFIG['API_KEY'] == '<your key here>',
         reason="This test requires an alpaca API key"
@@ -2153,6 +2155,7 @@ class TestDriftRebalancer:
         assert strat_obj.cash > 0
         assert strat_obj.cash / final_value < 0.01
 
+    @pytest.mark.apitest
     @pytest.mark.skipif(
         not ALPACA_TEST_CONFIG['API_KEY'] or ALPACA_TEST_CONFIG['API_KEY'] == '<your key here>',
         reason="This test requires an alpaca API key"

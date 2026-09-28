@@ -199,13 +199,22 @@ class Position:
             logger.warning("get_selling_order is not supported for crypto futures. Use the broker's close_position method instead.")
             return None
         order = None
+        is_option = getattr(self.asset, "asset_type", None) == "option"
         if self.quantity < 0:
             order = entities.Order(
-                self.strategy, self.asset, abs(self.quantity), "buy", quote=quote_asset
+                self.strategy,
+                self.asset,
+                abs(self.quantity),
+                "buy_to_close" if is_option else "buy",
+                quote=quote_asset,
             )
         else:
             order = entities.Order(
-                self.strategy, self.asset, self.quantity, "sell", quote=quote_asset
+                self.strategy,
+                self.asset,
+                self.quantity,
+                "sell_to_close" if is_option else "sell",
+                quote=quote_asset,
             )
         return order
 

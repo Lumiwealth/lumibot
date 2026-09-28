@@ -1,6 +1,15 @@
 Design Your AI Trading Team
 ===========================
 
+.. meta::
+   :description: Start with agents_quickstart: one researcher gathers evidence and one trading agent owns risk review, order submission, and status reconciliation.
+
+Start with :doc:`agents_quickstart`: one researcher gathers evidence and one
+trading agent owns risk review, order submission, and status reconciliation.
+Add researchers ahead of that trader when the strategy needs more perspectives.
+Research is evidence to evaluate, not permission to override the trading mandate.
+
+
 An AI trading team is the way your strategy calls one or more agents during normal
 LumiBot lifecycle methods such as ``on_trading_iteration()``. It is just Python.
 There is no required graph framework, no fixed team structure, and no
@@ -79,13 +88,13 @@ Minimal Two-Agent Flow
    def initialize(self):
        self.agents.create(
            name="researcher",
-           model="openai/gpt-5.4-mini",
+           model="openai/gpt-6-luna",
            allow_trading=False,
            system_prompt="Gather evidence. Do not trade.",
        )
        self.agents.create(
            name="trader",
-           model="openai/gpt-5.5",
+           model="openai/gpt-6-luna",
            allow_trading=True,
            system_prompt="Review evidence, check risk, and trade only when justified.",
        )
@@ -120,14 +129,14 @@ and pass the outputs forward.
        }.items():
            self.agents.create(
                name=name,
-               model="openai/gpt-5.4-mini",
+               model="openai/gpt-6-luna",
                allow_trading=False,
                system_prompt=prompt,
            )
 
        self.agents.create(
            name="portfolio_manager",
-           model="openai/gpt-5.5",
+           model="openai/gpt-6-luna",
            allow_trading=True,
            system_prompt="Weigh the research, check risk limits, then place orders only if justified.",
        )
@@ -180,21 +189,19 @@ but still want deterministic order sizing and execution.
 Choosing Models Per Agent
 -------------------------
 
-Every agent can use its own model. That does not mean every strategy needs many
-models. The common pattern is:
-
-- cheaper model for data gathering and summarization
-- stronger model for adversarial reasoning or final trade decisions
-- different providers when you want independent perspectives
+Every agent can use its own model. The default is ``openai/gpt-6-luna`` on high
+reasoning, and it is a good choice for every role. Most strategies do not need
+many models. Override ``model=`` on one agent only when you have a reason, for
+example a different provider when you want an independent perspective.
 
 For a four-agent trading team, that can look like this:
 
 .. code-block:: python
 
-   self.agents.create(name="evidence_researcher", model="openai/gpt-5.4-mini", allow_trading=False)
-   self.agents.create(name="bull_researcher", model="openai/gpt-5.5", allow_trading=False)
-   self.agents.create(name="bear_researcher", model="google/gemini-3.1-pro", allow_trading=False)
-   self.agents.create(name="portfolio_manager", model="openai/gpt-5.5", allow_trading=True)
+   self.agents.create(name="evidence_researcher", model="openai/gpt-6-luna", allow_trading=False)
+   self.agents.create(name="bull_researcher", model="openai/gpt-6-luna", allow_trading=False)
+   self.agents.create(name="bear_researcher", model="openai/gpt-6-luna", allow_trading=False)
+   self.agents.create(name="portfolio_manager", model="openai/gpt-6-luna", allow_trading=True)
 
 Safety Defaults
 ---------------
@@ -211,3 +218,15 @@ Where To Go Next
 - :doc:`agents_examples` lists the copy-paste AI trading team examples.
 - :doc:`agents_memory` explains how agents can remember decisions and lessons.
 - :doc:`agents_observability` explains traces and replay artifacts.
+
+Learn AI trading with the creator of LumiBot
+--------------------------------------------
+
+Learn with Rob Grzesik, creator of LumiBot. Explore the AI Trading Bootcamp.
+
+.. image:: ../docs/assets/ai-trading/rob-bootcamp-teams.png
+   :alt: Rob Grzesik, creator of LumiBot. Explore the AI Trading Bootcamp.
+   :width: 640px
+   :align: center
+   :class: lumibot-learning-image
+   :target: https://botspot.trade/courses/ai-trading-bootcamp?utm_source=documentation&utm_medium=docs&utm_campaign=lumibot_ai_trading&utm_content=team_design_bootcamp_image

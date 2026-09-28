@@ -1,6 +1,8 @@
+import asyncio
 import logging
+import time
 from datetime import date
-from threading import RLock
+from threading import Barrier, BrokenBarrierError, Event, RLock, Thread
 from types import SimpleNamespace
 
 import pytest
@@ -63,6 +65,19 @@ class _OrderClient:
     def get_order(self, order_id, account_hash):
         self.get_order_calls.append((order_id, account_hash))
         return self.response
+
+
+class _RateLimitedOrderClient:
+    def __init__(self):
+        self.get_order_calls = []
+
+    def get_order(self, order_id, account_hash):
+        self.get_order_calls.append((order_id, account_hash))
+        return SimpleNamespace(
+            status_code=429,
+            headers={"Retry-After": "2"},
+            text="too many requests",
+        )
 
 
 class _OrderResponse:
@@ -132,6 +147,22 @@ class _Stream:
         self.dispatched.append((event, wait_until_complete, payload))
 
 
+class _AccountActivityStreamClient:
+    def __init__(self):
+        self.calls = []
+        self.handler = None
+
+    def add_account_activity_handler(self, handler):
+        self.calls.append("add_handler")
+        self.handler = handler
+
+    async def login(self):
+        self.calls.append("login")
+
+    async def account_activity_sub(self):
+        self.calls.append("subscribe")
+
+
 def _position(asset_type, symbol, quantity=1, **instrument):
     return {
         "instrument": {
@@ -182,6 +213,37 @@ def _order(status=Order.OrderStatus.SUBMITTED, identifier="order-123"):
         identifier=identifier,
         status=status,
     )
+
+
+def _observed_order(status, cumulative_filled=0, average_fill_price=None, identifier="order-123"):
+    order = _order(status=status, identifier=identifier)
+    order._schwab_cumulative_filled_quantity = float(cumulative_filled)
+    order._schwab_average_fill_price = average_fill_price
+    return order
+
+
+def _broker_for_lifecycle(stored_order):
+    broker = Schwab.__new__(Schwab)
+    broker._schwab_observed_fill_quantities = {}
+    broker._schwab_terminal_observations = set()
+    broker.get_tracked_order = lambda identifier: stored_order if identifier == stored_order.identifier else None
+    broker.get_all_orders = lambda: [stored_order]
+    broker._process_new_order = lambda order: order
+    broker._lifecycle_events = []
+
+    def process_trade_event(order, event, **payload):
+        broker._lifecycle_events.append((event, payload))
+        if event == broker.PARTIALLY_FILLED_ORDER:
+            order.status = Order.OrderStatus.PARTIALLY_FILLED
+        elif event == broker.FILLED_ORDER:
+            order.status = Order.OrderStatus.FILLED
+        elif event == broker.CANCELED_ORDER:
+            order.status = Order.OrderStatus.CANCELED
+        elif event == broker.ERROR_ORDER:
+            order.status = Order.OrderStatus.ERROR
+
+    broker._process_trade_event = process_trade_event
+    return broker
 
 
 def _option_asset():
@@ -408,7 +470,31 @@ def test_schwab_option_replacement_uses_option_builder_and_updates_identifier():
     assert order.limit_price == 4.75
 
 
-def test_schwab_stock_submit_uses_seamless_session():
+def test_schwab_stock_market_submit_uses_normal_session():
+    client = _PlaceClient()
+    stream = _Stream()
+    broker = Schwab.__new__(Schwab)
+    broker.name = "Schwab"
+    broker.schwab_authorization_error = False
+    broker.client = client
+    broker.hash_value = "account-hash"
+    broker.stream = stream
+    broker._unprocessed_orders = SafeList(RLock())
+    order = _stock_market_order(side=Order.OrderSide.BUY, quantity=12)
+
+    submitted = broker._submit_order(order)
+
+    assert submitted is order
+    assert client.place_calls[0][0] == "account-hash"
+    order_spec = client.place_calls[0][1]
+    assert order_spec["session"] == "NORMAL"
+    assert order_spec["duration"] == "DAY"
+    assert order_spec["orderType"] == "MARKET"
+    assert order.identifier == "submitted-123"
+    assert stream.dispatched[-1][0] == broker.NEW_ORDER
+
+
+def test_schwab_stock_limit_submit_uses_seamless_session():
     client = _PlaceClient()
     stream = _Stream()
     broker = Schwab.__new__(Schwab)
@@ -431,6 +517,18 @@ def test_schwab_stock_submit_uses_seamless_session():
     assert stream.dispatched[-1][0] == broker.NEW_ORDER
 
 
+def test_schwab_stock_market_replacement_spec_uses_normal_session():
+    broker = Schwab.__new__(Schwab)
+    broker.name = "Schwab"
+    order = _stock_market_order(side=Order.OrderSide.SELL, quantity=1)
+
+    order_spec = broker._prepare_stock_order_spec(order)
+
+    assert order_spec["session"] == "NORMAL"
+    assert order_spec["duration"] == "DAY"
+    assert order_spec["orderType"] == "MARKET"
+
+
 def test_schwab_stock_submit_succeeds_without_stream():
     client = _PlaceClient()
     broker = Schwab.__new__(Schwab)
@@ -449,7 +547,7 @@ def test_schwab_stock_submit_succeeds_without_stream():
     assert order.status == Order.OrderStatus.SUBMITTED
 
 
-def test_schwab_stock_replacement_spec_uses_seamless_session():
+def test_schwab_stock_limit_replacement_spec_uses_seamless_session():
     broker = Schwab.__new__(Schwab)
     broker.name = "Schwab"
     order = _stock_limit_order(side=Order.OrderSide.SELL, limit_price=20.0)
@@ -964,9 +1062,26 @@ def test_schwab_cancel_order_calls_client_with_order_id_then_account_hash():
     broker.cancel_order(order)
 
     assert client.cancel_calls == [("order-123", "account-hash")]
-    assert stream.dispatched == [
-        (broker.CANCELED_ORDER, True, {"order": order}),
-    ]
+    # A successful DELETE only accepts the request. Terminal cancellation must
+    # arrive later from a broker-observed order transition so a late fill cannot
+    # be hidden behind a premature on_canceled_order callback.
+    assert stream.dispatched == []
+    assert order.status == Order.OrderStatus.CANCELLING
+
+
+def test_schwab_cancel_lifecycle_telemetry_uses_opaque_order_reference(caplog):
+    caplog.set_level(logging.INFO, logger="lumibot.brokers.schwab")
+    client = _CancelClient()
+    broker = _broker_for_cancel(client=client, stream=None)
+    order = _order(identifier="sensitive-order-123")
+
+    broker.cancel_order(order)
+
+    lifecycle_rows = [record.message for record in caplog.records if "[SchwabLifecycle]" in record.message]
+    assert any("event=order.cancel.request" in row for row in lifecycle_rows)
+    assert any("event=order.cancel.response" in row and "elapsed_ms=" in row for row in lifecycle_rows)
+    assert all("sensitive-order-123" not in row for row in lifecycle_rows)
+    assert all("body=" not in row for row in lifecycle_rows)
 
 
 def test_schwab_cancel_order_calls_client_even_when_local_status_is_cancelling():
@@ -992,7 +1107,25 @@ def test_schwab_pull_broker_order_calls_client_with_order_id_then_account_hash()
     assert raw["orderId"] == "order-123"
 
 
-def test_schwab_cancel_order_marks_canceled_without_stream_after_success():
+def test_schwab_exact_order_read_honors_retry_after_without_inventing_state():
+    client = _RateLimitedOrderClient()
+    broker = _broker_for_order_pull(client=client)
+    now = {"value": 100.0}
+    broker._schwab_now = lambda: now["value"]
+
+    assert broker._pull_broker_order("order-123") is None
+    assert broker._pull_broker_order("order-123") is None
+    assert client.get_order_calls == [("order-123", "account-hash")]
+
+    now["value"] = 103.0
+    assert broker._pull_broker_order("order-123") is None
+    assert client.get_order_calls == [
+        ("order-123", "account-hash"),
+        ("order-123", "account-hash"),
+    ]
+
+
+def test_schwab_cancel_order_acceptance_is_non_terminal_without_stream():
     client = _CancelClient()
     broker = _broker_for_cancel(client=client, stream=None)
     order = _order()
@@ -1000,11 +1133,11 @@ def test_schwab_cancel_order_marks_canceled_without_stream_after_success():
     broker.cancel_order(order)
 
     assert client.cancel_calls == [("order-123", "account-hash")]
-    assert order.status == broker.CANCELED_ORDER
-    assert order.is_canceled()
+    assert order.status == Order.OrderStatus.CANCELLING
+    assert not order.is_canceled()
 
 
-def test_schwab_cancel_order_marks_advanced_order_children_canceled():
+def test_schwab_cancel_order_does_not_mark_advanced_order_children_terminal_on_acceptance():
     client = _CancelClient()
     stream = _Stream()
     broker = _broker_for_cancel(client=client, stream=stream)
@@ -1025,9 +1158,197 @@ def test_schwab_cancel_order_marks_advanced_order_children_canceled():
     broker.cancel_order(order)
 
     assert client.cancel_calls == [("oco-parent", "account-hash")]
-    assert order.is_canceled()
-    assert all(child.is_canceled() for child in order.child_orders)
-    assert not order.is_active()
+    assert not order.is_canceled()
+    assert all(not child.is_canceled() for child in order.child_orders)
+    assert order.is_active()
+
+
+def test_schwab_status_maps_partial_fill_without_degrading_to_unknown():
+    broker = Schwab.__new__(Schwab)
+
+    assert broker._schwab_status_to_lumibot("PARTIALLY_FILLED") == Order.OrderStatus.PARTIALLY_FILLED
+
+
+def test_schwab_healing_poll_stays_slow_when_account_activity_stream_is_primary():
+    broker = Schwab.__new__(Schwab)
+
+    stream = broker._get_stream_object()
+
+    assert stream.polling_interval == 30.0
+
+
+def test_schwab_account_activity_handler_is_registered_before_login_and_subscription():
+    broker = Schwab.__new__(Schwab)
+    broker._schwab_activity_wakeup = Event()
+    client = _AccountActivityStreamClient()
+
+    asyncio.run(broker._configure_schwab_account_activity_stream(client))
+
+    assert client.calls == ["add_handler", "login", "subscribe"]
+    assert callable(client.handler)
+    assert broker._schwab_activity_wakeup.is_set()
+
+
+def test_schwab_account_activity_callback_only_wakes_bounded_reconciliation():
+    broker = Schwab.__new__(Schwab)
+    broker._schwab_activity_wakeup = Event()
+
+    broker._handle_schwab_account_activity(
+        {"service": "ACCT_ACTIVITY", "content": [{"MESSAGE_TYPE": "OrderFill"}]}
+    )
+
+    assert broker._schwab_activity_wakeup.is_set()
+
+
+def test_schwab_account_activity_log_sanitizes_provider_message_type(caplog):
+    broker = Schwab.__new__(Schwab)
+    broker._schwab_activity_wakeup = Event()
+    caplog.set_level(logging.INFO, logger="lumibot.brokers.schwab")
+
+    broker._handle_schwab_account_activity(
+        {"content": [{"MESSAGE_TYPE": "OrderFill\nraw-account-data"}]}
+    )
+
+    rows = [record.message for record in caplog.records if "account_activity_received" in record.message]
+    assert rows == ["[SchwabLifecycle] account_activity_received type=OrderFill_raw-account-data"]
+    assert all("\n" not in row for row in rows)
+
+
+def test_schwab_execution_activity_parses_cumulative_quantity_and_vwap():
+    broker = Schwab.__new__(Schwab)
+    payload = {
+        "orderId": "order-123",
+        "orderType": "LIMIT",
+        "status": "PARTIALLY_FILLED",
+        "price": 11,
+        "orderLegCollection": [
+            {
+                "legId": 1,
+                "instruction": "BUY",
+                "quantity": 3,
+                "orderLegType": "EQUITY",
+                "instrument": {"symbol": "SPY", "assetType": "EQUITY"},
+            }
+        ],
+        "orderActivityCollection": [
+            {
+                "activityType": "EXECUTION",
+                "executionLegs": [
+                    {"legId": 1, "quantity": 1, "price": 10},
+                    {"legId": 1, "quantity": 1, "price": 11},
+                ],
+            }
+        ],
+    }
+
+    observed = broker._parse_broker_order(payload, "unit-test")
+
+    assert observed.status == Order.OrderStatus.PARTIALLY_FILLED
+    assert observed._schwab_cumulative_filled_quantity == 2
+    assert observed._schwab_average_fill_price == 10.5
+
+
+def test_schwab_account_activity_reconciliation_reads_only_active_tracked_orders():
+    active = _order(status=Order.OrderStatus.CANCELLING, identifier="active-1")
+    broker = Schwab.__new__(Schwab)
+    broker.get_active_tracked_orders = lambda: [active]
+    broker._pull_broker_order_calls = []
+    broker._pull_broker_order = (
+        lambda identifier: broker._pull_broker_order_calls.append(identifier) or {"orderId": identifier}
+    )
+    observed = _observed_order(Order.OrderStatus.CANCELED, identifier="active-1")
+    broker._parse_broker_order = lambda raw, strategy: observed
+    broker._processed_snapshots = []
+    broker._process_schwab_order_snapshot = broker._processed_snapshots.append
+
+    broker._reconcile_active_schwab_orders()
+
+    assert broker._pull_broker_order_calls == ["active-1"]
+    assert broker._processed_snapshots == [observed]
+
+
+def test_schwab_snapshot_reducer_emits_incremental_partial_and_final_fill_once():
+    stored = _order(status=Order.OrderStatus.SUBMITTED)
+    broker = _broker_for_lifecycle(stored)
+
+    observations = [
+        _observed_order(Order.OrderStatus.PARTIALLY_FILLED, 1, 10.0),
+        _observed_order(Order.OrderStatus.PARTIALLY_FILLED, 1, 10.0),
+        _observed_order(Order.OrderStatus.PARTIALLY_FILLED, 2, 10.5),
+        _observed_order(Order.OrderStatus.PARTIALLY_FILLED, 1, 10.0),
+        _observed_order(Order.OrderStatus.FILLED, 3, 11.0),
+        _observed_order(Order.OrderStatus.FILLED, 3, 11.0),
+    ]
+    for observation in observations:
+        broker._process_schwab_order_snapshot(observation)
+
+    assert broker._lifecycle_events == [
+        (broker.PARTIALLY_FILLED_ORDER, {"price": 10.0, "filled_quantity": 1.0, "multiplier": 1}),
+        (broker.PARTIALLY_FILLED_ORDER, {"price": 10.5, "filled_quantity": 1.0, "multiplier": 1}),
+        (broker.FILLED_ORDER, {"price": 11.0, "filled_quantity": 1.0, "multiplier": 1}),
+    ]
+
+
+def test_schwab_snapshot_reducer_serializes_duplicate_stream_and_rest_observations():
+    stored = _order(status=Order.OrderStatus.SUBMITTED)
+    broker = _broker_for_lifecycle(stored)
+    simultaneous_gets = Barrier(2)
+
+    class _RacingHighWater(dict):
+        def get(self, key, default=None):
+            value = super().get(key, default)
+            try:
+                simultaneous_gets.wait(timeout=0.1)
+            except BrokenBarrierError:
+                pass
+            return value
+
+    broker._schwab_observed_fill_quantities = _RacingHighWater()
+    observation = _observed_order(Order.OrderStatus.PARTIALLY_FILLED, 1, 10.0)
+    workers = [Thread(target=broker._process_schwab_order_snapshot, args=(observation,)) for _ in range(2)]
+
+    for worker in workers:
+        worker.start()
+    for worker in workers:
+        worker.join(timeout=2)
+
+    assert broker._lifecycle_events == [
+        (broker.PARTIALLY_FILLED_ORDER, {"price": 10.0, "filled_quantity": 1.0, "multiplier": 1}),
+    ]
+
+
+def test_schwab_snapshot_reducer_waits_for_terminal_cancel_and_dispatches_once():
+    stored = _order(status=Order.OrderStatus.CANCELLING)
+    broker = _broker_for_lifecycle(stored)
+
+    broker._process_schwab_order_snapshot(_observed_order(Order.OrderStatus.CANCELLING))
+    broker._process_schwab_order_snapshot(_observed_order(Order.OrderStatus.CANCELED))
+    broker._process_schwab_order_snapshot(_observed_order(Order.OrderStatus.CANCELED))
+
+    assert broker._lifecycle_events == [(broker.CANCELED_ORDER, {})]
+
+
+def test_schwab_snapshot_reducer_prefers_late_fill_over_local_cancel_pending():
+    stored = _order(status=Order.OrderStatus.CANCELLING)
+    broker = _broker_for_lifecycle(stored)
+
+    broker._process_schwab_order_snapshot(_observed_order(Order.OrderStatus.FILLED, 1, 25.0))
+
+    assert broker._lifecycle_events == [
+        (broker.FILLED_ORDER, {"price": 25.0, "filled_quantity": 1.0, "multiplier": 1}),
+    ]
+
+
+@pytest.mark.parametrize("terminal_status", [Order.OrderStatus.ERROR, Order.OrderStatus.EXPIRED])
+def test_schwab_snapshot_reducer_emits_terminal_error_once(terminal_status):
+    stored = _order(status=Order.OrderStatus.SUBMITTED)
+    broker = _broker_for_lifecycle(stored)
+
+    broker._process_schwab_order_snapshot(_observed_order(terminal_status))
+    broker._process_schwab_order_snapshot(_observed_order(terminal_status))
+
+    assert len(broker._lifecycle_events) == 1
+    assert broker._lifecycle_events[0][0] == broker.ERROR_ORDER
 
 
 @pytest.mark.parametrize(
@@ -1103,3 +1424,100 @@ def test_schwab_run_stream_without_stream_returns_without_traceback(caplog):
 
     assert "skipping stream runner" in caplog.text
     assert "Traceback" not in caplog.text
+
+
+class _DirectReadClient(_CancelClient):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.get_order_calls = []
+
+    def get_order(self, order_id, account_hash):
+        self.get_order_calls.append((order_id, account_hash))
+        return SimpleNamespace(status_code=200, text="OK", json=lambda: {"status": "CANCELED"})
+
+
+def test_schwab_cancel_order_skips_diagnostic_direct_read_by_default(monkeypatch):
+    # The post-cancel direct read doubles round trips on the cancel hot path;
+    # it must only run when SCHWAB_CANCEL_DIAGNOSTICS is enabled.
+    monkeypatch.delenv("SCHWAB_CANCEL_DIAGNOSTICS", raising=False)
+    client = _DirectReadClient()
+    broker = _broker_for_cancel(client=client)
+
+    broker.cancel_order(_order())
+
+    assert client.cancel_calls == [("order-123", "account-hash")]
+    assert client.get_order_calls == []
+
+
+def test_schwab_cancel_order_runs_diagnostic_direct_read_when_enabled(monkeypatch):
+    monkeypatch.setenv("SCHWAB_CANCEL_DIAGNOSTICS", "1")
+    client = _DirectReadClient()
+    broker = _broker_for_cancel(client=client)
+
+    broker.cancel_order(_order())
+
+    assert client.cancel_calls == [("order-123", "account-hash")]
+    assert client.get_order_calls == [("order-123", "account-hash")]
+
+
+def test_schwab_oauth_session_requests_get_default_timeout():
+    from lumibot.brokers.schwab import _apply_default_request_timeout
+
+    captured = {}
+
+    class _Session:
+        def request(self, *args, **kwargs):
+            captured.update(kwargs)
+            return "ok"
+
+    session = _Session()
+    _apply_default_request_timeout(session, timeout_seconds=42.0)
+
+    assert session.request("GET", "https://example.com") == "ok"
+    assert captured["timeout"] == 42.0
+
+    session.request("GET", "https://example.com", timeout=5.0)
+    assert captured["timeout"] == 5.0
+
+
+def test_schwab_proactive_token_refresh_rotates_before_expiry():
+    from lumibot.brokers.schwab import _start_schwab_proactive_token_refresh
+
+    token = {"refresh_token": "refresh-1", "expires_at": time.time() - 10}
+    refresh_calls = []
+
+    class _FakeOAuthSession:
+        auto_refresh_url = "https://api.schwabapi.com/v1/oauth/token"
+
+        def refresh_token(self, url, refresh_token=None, **kwargs):
+            refresh_calls.append({"url": url, "refresh_token": refresh_token})
+            return {"access_token": "access-2", "refresh_token": "refresh-2"}
+
+    updated = {}
+
+    def _update_token(updated_token):
+        updated.update(updated_token)
+
+    stop = _start_schwab_proactive_token_refresh(_FakeOAuthSession(), token, {}, _update_token)
+    try:
+        deadline = time.time() + 5
+        while not updated and time.time() < deadline:
+            time.sleep(0.01)
+    finally:
+        stop.set()
+
+    assert len(refresh_calls) >= 1
+    assert refresh_calls[0]["refresh_token"] == "refresh-1"
+    assert updated.get("access_token") == "access-2"
+
+
+def test_schwab_cleanup_stops_proactive_token_refresh():
+    broker = Schwab.__new__(Schwab)
+    refresh_stop = Event()
+    broker._schwab_token_refresh_stop = refresh_stop
+    broker.stream = None
+
+    broker.cleanup_streams()
+
+    assert refresh_stop.is_set()
+    assert broker._schwab_token_refresh_stop is None

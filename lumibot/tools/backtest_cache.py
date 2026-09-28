@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import io
 import os
 import threading
 import time
@@ -107,6 +108,8 @@ class BacktestCacheManager:
         # cold-local/warm-S3 production runs.
         self._missing_remote_keys: set[str] = set()
         self._missing_remote_keys_lock = threading.Lock()
+        self._remote_etags: Dict[str, str] = {}
+        self._remote_etags_lock = threading.Lock()
 
         # Lightweight per-process accounting so we can quantify S3 hydration cost in production.
         # NOTE: This deliberately avoids logging per-object at INFO (too spammy); we log a single
@@ -216,6 +219,10 @@ class BacktestCacheManager:
                 # for small objects. We still write via a temp file + atomic rename to keep the cache
                 # consistent if a download is interrupted.
                 response = client.get_object(Bucket=self._settings.bucket, Key=remote_key)
+                etag = response.get("ETag")
+                if isinstance(etag, str) and etag:
+                    with self._remote_etags_lock:
+                        self._remote_etags[remote_key] = etag
                 body = response.get("Body")
                 if body is None:
                     raise RuntimeError(f"S3 get_object missing Body for key={remote_key!r}")
@@ -308,7 +315,23 @@ class BacktestCacheManager:
 
         client = self._get_client()
         started = time.perf_counter()
-        client.upload_file(str(local_path), self._settings.bucket, remote_key)
+        is_ibkr_parquet = bool(
+            isinstance(payload, dict)
+            and payload.get("provider") == "ibkr"
+            and local_path.suffix.lower() == ".parquet"
+        )
+        if (
+            is_ibkr_parquet
+            and hasattr(client, "get_object")
+            and hasattr(client, "put_object")
+        ):
+            self._conditional_upload_ibkr_parquet(
+                client=client,
+                local_path=local_path,
+                remote_key=remote_key,
+            )
+        else:
+            client.upload_file(str(local_path), self._settings.bucket, remote_key)
         elapsed = time.perf_counter() - started
         uploaded_bytes = 0
         try:
@@ -333,6 +356,89 @@ class BacktestCacheManager:
             self._stats["upload_s"] += float(elapsed)
             self._stats["upload_bytes"] += float(uploaded_bytes)
         return True
+
+    def _conditional_upload_ibkr_parquet(
+        self,
+        *,
+        client: object,
+        local_path: Path,
+        remote_key: str,
+    ) -> None:
+        """Upload one IBKR parquet without allowing a stale writer to erase newer rows."""
+        local_bytes = local_path.read_bytes()
+        with self._remote_etags_lock:
+            etag = self._remote_etags.get(remote_key)
+
+        if etag is None:
+            with self._missing_remote_keys_lock:
+                known_missing = remote_key in self._missing_remote_keys
+            if not known_missing:
+                try:
+                    remote_bytes, etag = self._download_object_bytes(client, remote_key)
+                    local_bytes = self._merge_parquet_bytes(remote_bytes, local_bytes)
+                    local_path.write_bytes(local_bytes)
+                except Exception as exc:
+                    if not self._is_not_found_error(exc):
+                        raise
+
+        for _attempt in range(3):
+            conditions = {"IfMatch": etag} if etag else {"IfNoneMatch": "*"}
+            try:
+                response = client.put_object(
+                    Bucket=self._settings.bucket,
+                    Key=remote_key,
+                    Body=local_bytes,
+                    **conditions,
+                )
+                new_etag = response.get("ETag") if isinstance(response, dict) else None
+                if isinstance(new_etag, str) and new_etag:
+                    with self._remote_etags_lock:
+                        self._remote_etags[remote_key] = new_etag
+                with self._missing_remote_keys_lock:
+                    self._missing_remote_keys.discard(remote_key)
+                return
+            except Exception as exc:
+                if not self._is_precondition_failed_error(exc):
+                    raise
+                remote_bytes, etag = self._download_object_bytes(client, remote_key)
+                local_bytes = self._merge_parquet_bytes(remote_bytes, local_bytes)
+                local_path.write_bytes(local_bytes)
+
+        raise RuntimeError(
+            f"IBKR remote cache changed repeatedly while updating key={remote_key!r}"
+        )
+
+    def _download_object_bytes(self, client: object, remote_key: str) -> tuple[bytes, Optional[str]]:
+        response = client.get_object(Bucket=self._settings.bucket, Key=remote_key)
+        body = response.get("Body")
+        if body is None:
+            raise RuntimeError(f"S3 get_object missing Body for key={remote_key!r}")
+        try:
+            payload = body.read()
+        finally:
+            try:
+                body.close()
+            except Exception:
+                pass
+        etag = response.get("ETag")
+        return payload, etag if isinstance(etag, str) and etag else None
+
+    @staticmethod
+    def _merge_parquet_bytes(remote_bytes: bytes, local_bytes: bytes) -> bytes:
+        import pandas as pd
+
+        remote = pd.read_parquet(io.BytesIO(remote_bytes))
+        local = pd.read_parquet(io.BytesIO(local_bytes))
+        merged = pd.concat([remote, local], axis=0).sort_index(kind="mergesort")
+        if "missing" in merged.columns:
+            missing = merged["missing"].fillna(False).astype(bool)
+            real_indexes = merged.index[~missing]
+            if len(real_indexes):
+                merged = merged[~(missing & merged.index.isin(real_indexes))]
+        merged = merged[~merged.index.duplicated(keep="last")]
+        output = io.BytesIO()
+        merged.to_parquet(output)
+        return output.getvalue()
 
     def stats_snapshot(self) -> Dict[str, float]:
         """Return a copy of the current in-process stats (numbers only; safe for logs)."""
@@ -457,6 +563,17 @@ class BacktestCacheManager:
             if token in message:
                 return True
         return False
+
+    @staticmethod
+    def _is_precondition_failed_error(exc: Exception) -> bool:
+        response = getattr(exc, "response", None)
+        if isinstance(response, dict):
+            error = response.get("Error") or {}
+            code = str(error.get("Code") or "")
+            if code in {"412", "PreconditionFailed", "ConditionalRequestConflict"}:
+                return True
+        message = str(exc)
+        return "PreconditionFailed" in message or "precondition" in message.lower()
 
     @staticmethod
     def _describe_error(exc: Exception) -> str:

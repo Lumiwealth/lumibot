@@ -3,6 +3,9 @@
 Strategies
 ==========================
 
+.. meta::
+   :description: All user defined strategies should inherit from the Strategy class. LumiBot documentation.
+
 All user defined strategies should inherit from the Strategy class.
 
 from strategies import Strategy
@@ -13,6 +16,11 @@ from strategies import Strategy
       pass
 
 The abstract class Strategy has global parameters with default values, and some properties that can be used as helpers to build trading logic.
+
+Short-lived read-only clients
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Normal live strategies synchronize balances and positions during construction. This is the safe default before trading. A short-lived read-only integration that explicitly refreshes only its requested broker data can pass ``synchronize_broker_on_start=False`` to avoid unrelated startup API calls. Such clients must call a fresh broker-backed accessor, such as ``get_positions()``, ``get_orders()``, or ``update_broker_balances(force_update=True)``, before using that state.
 
 The methods of this class can be split into several categories:
 
@@ -25,6 +33,10 @@ The methods of this class can be split into several categories:
 **Data Methods** How to get price data easily
 
 All the methods in each of these categories are described below.
+
+Start with :doc:`strategy_api_overview` for a copy-and-run example and the
+small set of methods used in most strategies. The generated class reference
+below remains the complete source-level API.
 
 Documentation
 """""""""""""""""""

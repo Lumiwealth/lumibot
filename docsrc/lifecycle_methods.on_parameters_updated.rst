@@ -1,6 +1,9 @@
 def on_parameters_updated
 ===================================
 
+.. meta::
+   :description: This lifecycle method gets called when the strategy's parameters were updated using the `self.update_parameters()` function LumiBot documentation.
+
 This lifecycle method gets called when the strategy's parameters were updated using the `self.update_parameters()` function
 
 .. code-block:: python

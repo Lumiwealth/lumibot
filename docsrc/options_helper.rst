@@ -1,6 +1,9 @@
 OptionsHelper
 =============
 
+.. meta::
+   :description: OptionsHelper is LumiBot's high-level helper for options selection (expirations, strikes, deltas) and multi-leg order building/execution.
+
 ``OptionsHelper`` is LumiBot's high-level helper for **options selection** (expirations, strikes, deltas) and **multi-leg order building/execution**.
 For most options strategies, using ``OptionsHelper`` is both **more reliable** (avoids non-existent expiries/strikes during backtests) and **much faster** than brute-force approaches that scan large strike lists and call ``get_greeks()`` per strike.
 
@@ -329,3 +332,11 @@ API Reference
 .. autoclass:: OptionsHelper
    :members:
    :member-order: bysource
+Package quote integrity
+-----------------------
+
+``calculate_multileg_limit_price`` requires valid bid/ask quotes for every
+option leg. Missing, failed, nonfinite, negative or crossed quotes return
+``None`` for the entire package, never a partial-leg price. The supported
+styles are ``best``, ``mid`` and ``fastest``; other styles raise ``ValueError``.
+The result remains a signed per-unit price, not a fill guarantee.

@@ -1,6 +1,9 @@
 Trading Slippage
 -------------------------------
 
+.. meta::
+   :description: TradingSlippage is a backtesting-only execution cost used by SMART_LIMIT fills. You can provide slippage at the strategy level: LumiBot documentation.
+
 TradingSlippage is a backtesting-only execution cost used by SMART_LIMIT fills.
 You can provide slippage at the strategy level:
 

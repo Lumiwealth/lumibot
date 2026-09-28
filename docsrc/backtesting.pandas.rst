@@ -3,6 +3,9 @@
 Pandas (CSV or other data)
 ===================================
 
+.. meta::
+   :description: NOTE: Please ensure you have installed the latest lumibot version using pip install lumibot --upgrade before proceeding as there have been some major changes to the.
+
 **NOTE: Please ensure you have installed the latest lumibot version using ``pip install lumibot --upgrade`` before proceeding as there have been some major changes to the backtesting module in the latest version.**
 
 **For most situations, you will want to use the Polygon backtester or the Yahoo backtester instead, they are much easier to use and get started with. The Pandas backtester is intended for advanced users who have their own data and want to use it with Lumibot.**

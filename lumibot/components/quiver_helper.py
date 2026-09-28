@@ -10,13 +10,6 @@ from dotenv import load_dotenv
 # Load the .env file where the API key is stored
 load_dotenv()
 
-# Get the API key from the environment variable
-api_token = os.getenv("QUIVER_API_KEY")
-
-# Check if the API key is available
-if api_token is None:
-    raise ValueError("Quiver Quant API key not found. Please set the QUIVER_API_KEY environment variable.")
-
 # QuiverQuant API URL
 bulk_congress_trading_url = "https://api.quiverquant.com/beta/bulk/congresstrading"
 bulk_congress_trading_data_csv = "bulk_congress_trading_data.csv"
@@ -26,7 +19,7 @@ bulk_congress_trading_data_csv = "bulk_congress_trading_data.csv"
     -----------
     This module interacts with QuiverQuant's bulk Congress trading endpoint to fetch,
     store, and process congressional trading data for specific Bioguide IDs.
-    
+
     The `QuiverHelper` class helps download data from QuiverQuant, caches the data in a CSV file,
     and provides methods for retrieving and calculating portfolios based on transaction histories.
 """
@@ -41,15 +34,15 @@ class QuiverHelper:
     strategy : Strategy
         The parent strategy that this helper is part of.
     bulk_congress_trading_downloads : list
-        A list that keeps track of dictionary objects representing 
-        downloaded Congress trading data (including bioguide_id, 
+        A list that keeps track of dictionary objects representing
+        downloaded Congress trading data (including bioguide_id,
         download datetime, and the list of transaction data).
     bulk_congress_trading_df : pd.DataFrame
-        A pandas DataFrame that stores all downloaded Congress trading data 
+        A pandas DataFrame that stores all downloaded Congress trading data
         from CSV or newly fetched from QuiverQuant.
     """
 
-    def __init__(self, strategy):
+    def __init__(self, strategy, *, api_token=None, cache_path=None):
         """
         Initialize the QuiverHelper component.
 
@@ -57,12 +50,14 @@ class QuiverHelper:
         ----------
         strategy : Strategy
             The strategy that this component belongs to.
-        
+
         Returns
         -------
         None
         """
         self.strategy = strategy
+        self.api_token = api_token or os.getenv("QUIVER_API_KEY")
+        self.cache_path = str(cache_path or bulk_congress_trading_data_csv)
 
         # Set the initial state of the component
         # This list will store metadata about downloads for quick checks.
@@ -73,7 +68,7 @@ class QuiverHelper:
             #     "download_datetime": datetime.datetime.now(),
             #     "data": [
             #         {
-            #             "Representative": "Nancy Pelosi",
+            #             "Representative": "Example Member",
             #             "BioGuideID": "P000197",
             #             "ReportDate": "2024-07-30",
             #             "TransactionDate": "2024-07-26",
@@ -107,10 +102,10 @@ class QuiverHelper:
         None
         """
         # Check if the CSV file exists in the current directory
-        if os.path.exists(bulk_congress_trading_data_csv):
+        if os.path.exists(self.cache_path):
             # Read the CSV file into a DataFrame; parse 'download_datetime' as dates
             self.bulk_congress_trading_df = pd.read_csv(
-                bulk_congress_trading_data_csv,
+                self.cache_path,
                 parse_dates=["download_datetime"]
             )
         else:
@@ -144,8 +139,10 @@ class QuiverHelper:
         Exception
             If the data cannot be fetched successfully after all retries are exhausted.
         """
+        if not self.api_token:
+            raise ValueError("QUIVER_API_KEY is required when fetching Quiver Quant data.")
         headers = {
-            "Authorization": f"Bearer {api_token}",
+            "Authorization": f"Bearer {self.api_token}",
             "Accept": "application/json"
         }
 
@@ -206,8 +203,8 @@ class QuiverHelper:
 
     def get_trading_data_for_bioguide(self, bioguide_id, as_of_date):
         """
-        Fetch paginated results for a specific congressperson by bioguide_id and 
-        filter transactions by 'as_of_date'. Uses local caching to avoid repeated 
+        Fetch paginated results for a specific congressperson by bioguide_id and
+        filter transactions by 'as_of_date'. Uses local caching to avoid repeated
         downloads within a 24-hour window.
 
         Parameters
@@ -239,13 +236,7 @@ class QuiverHelper:
                 data = pd.read_json(json_data, typ="series").to_list()
 
                 # Filter based on the 'as_of_date'
-                data = [
-                    result for result in data
-                    if datetime.datetime.strptime(
-                        result["TransactionDate"], "%Y-%m-%d"
-                    ).date() <= as_of_date
-                ]
-                return data
+                return self.filter_disclosures_as_of(data, as_of_date)
 
         # If the data is older than 24 hours or not found, we fetch from the API
         page = 1
@@ -297,27 +288,43 @@ class QuiverHelper:
             )
 
         # Save the updated DataFrame to CSV
-        self.bulk_congress_trading_df.to_csv(bulk_congress_trading_data_csv, index=False)
+        self.bulk_congress_trading_df.to_csv(self.cache_path, index=False)
 
         # Filter total_results based on 'as_of_date'
-        total_results = [
-            result for result in total_results
-            if datetime.datetime.strptime(
-                result["TransactionDate"], "%Y-%m-%d"
-            ).date() <= as_of_date
-        ]
+        return self.filter_disclosures_as_of(total_results, as_of_date)
 
-        return total_results
+    @staticmethod
+    def filter_disclosures_as_of(records, as_of_date):
+        """Return only records that were public by ``as_of_date``.
+
+        Congressional transactions can be reported weeks after they occur. The
+        disclosure/report date is therefore the availability boundary for a
+        backtest; filtering on TransactionDate would leak future knowledge.
+        """
+        if not isinstance(as_of_date, datetime.date):
+            raise ValueError("as_of_date must be a datetime.date object")
+        visible = []
+        for record in records:
+            report_date = record.get("ReportDate") or record.get("DisclosureDate")
+            if not report_date:
+                continue
+            try:
+                published = datetime.datetime.fromisoformat(str(report_date).replace("Z", "+00:00")).date()
+            except ValueError:
+                continue
+            if published <= as_of_date:
+                visible.append(record)
+        return visible
 
     def calculate_portfolio(self, transactions, as_of_date):
         """
-        Calculate the portfolio of a given congressperson (or set of transactions) 
+        Calculate the portfolio of a given congressperson (or set of transactions)
         up to a specified date. Only includes tickers with positive holdings.
 
         Parameters
         ----------
         transactions : list
-            A list of dictionaries, each representing a single transaction 
+            A list of dictionaries, each representing a single transaction
             with keys like 'Ticker', 'TransactionDate', 'Transaction', and 'Amount'.
         as_of_date : datetime.date
             Only include transactions on or before this date.
@@ -325,9 +332,9 @@ class QuiverHelper:
         Returns
         -------
         dict
-            A dictionary where the keys are tickers and the values are the 
+            A dictionary where the keys are tickers and the values are the
             cumulative holding amounts (only if positive).
-        
+
         Raises
         ------
         ValueError
@@ -341,13 +348,14 @@ class QuiverHelper:
         portfolio = {}
 
         # Go through each transaction
-        for transaction in transactions:
+        for transaction in self.filter_disclosures_as_of(transactions, as_of_date):
             # Convert the string date into an actual date object
             transaction_date = datetime.datetime.strptime(
                 transaction["TransactionDate"], "%Y-%m-%d"
             ).date()
 
-            # Only consider transactions on or before the specified date
+            # ReportDate is the information boundary; TransactionDate remains
+            # useful only for reconstructing holdings after disclosure.
             if transaction_date <= as_of_date:
                 ticker = transaction["Ticker"]
                 amount = float(transaction["Amount"])

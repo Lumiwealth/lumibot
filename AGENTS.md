@@ -1,18 +1,70 @@
+# Public Repo Secret Hygiene (CRITICAL)
+
+LumiBot is open source. Never put private, incriminating, account-specific, or
+machine-specific information in this file or any other tracked repo file.
+
+- Do not include usernames, passwords, API keys, tokens, account emails,
+  customer identifiers, broker credentials, paid vendor credentials, private
+  hostnames, private URLs, cookies, local profile paths, or absolute personal
+  filesystem paths.
+- Do not document real local `.env` locations, credential-file paths, secret
+  store values, or commands that write real credentials to disk.
+- Use placeholders such as `<your-vendor-username>`,
+  `<your-downloader-host>`, `<repo>`, and `$TMPDIR`, and point contributors to
+  the public environment variable names or their own secret manager.
+- If sensitive data is needed for private BotSpot/Lumiwealth operations, keep it
+  in the private repo/docs/secret store, not in this public LumiBot checkout.
+- If sensitive data is found in tracked files, remove it immediately, scan for
+  nearby leaks, and treat exposed credentials as needing rotation.
+
+# Express Authorization Required For LumiBot Changes
+
+- Treat this repository, its code, tests, documentation, dependencies, changelog, version, branches, and release artifacts as read-only unless Rob explicitly authorizes a LumiBot change in the current turn.
+- The authorization must name LumiBot or otherwise unambiguously identify this repository or package as the requested change target. A request to fix a BotSpot strategy, bot, deployment, backtest, broker connection, or customer incident is not permission to edit LumiBot.
+- When a strategy owned by Rob calls a nonexistent or hallucinated method, fix the owned strategy through the authenticated BotSpot MCP server. Never add the invented method to LumiBot merely to make that strategy run.
+- Instructions that provider-specific broker behavior belongs in LumiBot describe architecture ownership. They do not grant permission to edit LumiBot. Diagnose shared defects read-only, present the exact proposed change, and wait for Rob's explicit authorization before modifying this repository.
+- Never edit another customer's strategy or account as an alternative. Rob-owned strategies may be edited only through the owner-scoped regular, development, or local BotSpot MCP server that Rob selected for the task.
+- If authorization is ambiguous, keep LumiBot unchanged. Do not make a speculative compatibility shim, helper method, fallback, documentation change, test change, version bump, or release change.
+
+# BotSpot integration release qualification
+
+- LumiBot keeps its independent package/release cycle. When an explicitly
+  authorized BotSpot release includes a changed LumiBot artifact or contract,
+  the exact package candidate must pass its complete locally runnable LumiBot
+  tests before any downstream Dev deployment.
+- The BotSpot candidate consuming that package must then pass every formal
+  Playwright test owned by its scope locally before Dev. If BotSpot Agent is
+  scoped, its mandatory local freshness selector and required targeted repeats
+  must also be green locally. Focused tests are repair evidence only.
+- Hosted qualification reruns the same committed BotSpot inventory against the
+  exact Dev-served tuple. A hosted-only failure blocks production and requires
+  local environment-parity, contention, or nondeterminism diagnosis.
+
+# Broker Data Ownership
+
+- LumiBot broker and data-source adapters are the sole owners of provider-specific broker market-data and trading API behavior.
+- Public strategy and data-source methods must remain provider-generic. Provider batching, request construction, response parsing, and provider error normalization belong inside the relevant LumiBot adapter.
+- Never add BotSpot credential IDs, Vault references, Node service credentials, or Bot Manager runtime internals to LumiBot public contracts.
+- Multi-asset reads must preserve per-symbol success or failure so callers can distinguish returned and missing symbols without substituting another provider.
+
 # LumiBot Agent Instructions (Theta / Downloader Focus)
 
 These rules are mandatory whenever you work on ThetaData integrations.
 
 ## Image Generation Rule (CRITICAL)
 
-- For any generated or AI-edited image, infographic, diagram, marketing visual, README visual, documentation visual, or repo asset image, use Nano Banana MCP only (`mcp__nano_banana__generate_image` / `mcp__nano_banana__edit_image`).
-- This is non-negotiable for flow diagrams, architecture diagrams, sequence diagrams, screenshots-as-illustrations, and documentation visuals. Use Nano Banana with reference images/profiles strong enough for readable labels, arrows, branding, and layout.
-- Never use generic image generators, cheaper/lower-quality image models, local SVG/HTML/canvas placeholders, Python drawing scripts, Mermaid screenshots, manually assembled box diagrams, or other fallback image pipelines for generated documentation/product images.
-- For Lumibot, BotSpot, and Lumiwealth visuals, use the canonical Spot mascot reference through Nano Banana (`reference_profile="botspot_spot"` or the approved brand reference images). Spot should usually be doing something relevant to the concept being explained, such as reviewing filings, managing agents, guarding risk, or filing memories. Do not accept off-brand mascot variants or generic static poses when a topic-specific Spot action would make the visual clearer.
+- For any generated or AI-edited image, infographic, diagram, marketing visual, README visual, documentation visual, or repo asset image, use the approved Image Generator only.
+- `Nano Banana` is a compatibility phrase for the approved Image Generator. It does not select Google or Gemini unless Rob explicitly insists on that provider after rejecting the approved default result.
+- The approved Image Generator uses server-controlled GPT Image 2.5 Sunburst for final documentation/product artwork. Follow the current parent-workspace generator policy for supported quality, purpose, aspect ratio, and references; never select another provider/model or post-process an output without Rob's explicit current-turn exception.
+- Never use local SVG/HTML/canvas placeholders, Python drawing scripts, Mermaid screenshots, manually assembled box diagrams, or other fallback pipelines for generated documentation/product images.
+- For agent workflow diagrams, use the approved official LumiBot head as a reference for actual agent cards only. Do not invent a new body, pose, or face, and never use the head to represent a broker order or another non-agent step. Other illustration types can remain character-free. Never reuse a rejected output as a reference or describe it as approved.
+- Every education promotion featuring Rob must include the legible attribution "Rob Grzesik, creator of LumiBot" and a relevant challenge or bootcamp CTA. Preserve tracked clickable image links.
+- Keep generated illustration code and invented trading results out of instructional examples. Runnable code and actual result evidence belong in the page itself.
 - Every generated image must be visually inspected before it is shown to Rob, committed, or used in the repo/docs/README. Open the actual output image, inspect the text, arrows, mascot, spacing, and overall visual hierarchy, and reject outputs with broken/missing text, awkward arrows, cluttered layouts, inaccurate product claims, off-brand mascot variants, or anything that looks like a placeholder.
-- If an image is not good enough, regenerate or edit it with Nano Banana and inspect again. Iterate until the asset is genuinely usable. Do not hand Rob a low-quality image and expect him to catch the problem.
+- If an image is not good enough, regenerate it through the approved Image Generator and inspect again. Iterate until the asset is genuinely usable. Do not hand Rob a low-quality image and expect him to catch the problem.
 - Do not confuse visual asset types. A clickable banner or hero graphic can be a strong marketing asset, but it is not the same thing as a clear CTA button. README/docs pages should usually have one dominant primary CTA; additional CTAs must be visibly secondary and must not look like status badges.
 - When reporting generated visual work, include the generator used and the full absolute paths for the inspected output files.
-- If Nano Banana MCP access is unavailable or broken, stop and report that blocker instead of making replacement images another way.
+- If the Image Generator is unavailable or broken, stop and report that blocker instead of making replacement images another way.
 
 ## Backtesting Accuracy (Definition)
 
@@ -53,27 +105,57 @@ call.
 ## Multi-Agent Collaboration (CRITICAL)
 This repo is frequently edited by **multiple AI sessions**. To avoid lost work:
 
-- **Canonical checkout (STRICT):** normal LumiBot work happens in
-  `/Users/robertgrzesik/Development/lumibot`. Keep that checkout on the active
-  `version/X.Y.Z` branch, clean, and deploy-ready. Do not create sibling
+- **Canonical checkout (STRICT):** normal LumiBot work happens in this repository
+  checkout. Keep it on the active `version/X.Y.Z` branch, clean, and
+  deploy-ready. Do not create sibling
   worktrees like `lumibot-version-X.Y.Z` for normal feature/doc/test work.
   Temporary worktrees outside this folder are allowed only for isolated review
   of unusually large or risky external PRs, and must not become the active
   release workspace.
+  The parent workspace's BotSpot `main`-only development rule does not apply to
+  LumiBot. This repository has no `main` branch; never create one or move normal
+  LumiBot work to `dev` to satisfy that rule.
 
 - **Release workflow (STRICT):**
-  - **Never push directly to `dev`.** All work must land via a PR (usually from `version/X.Y.Z` → `dev`).
+  - **Implementation authority is not release authority.** Normal coding agents
+    work and commit directly on the existing active `version/X.Y.Z` branch. Do
+    not create, open, update, merge, close, or take over a pull request unless
+    the user explicitly requests that exact PR action. An existing
+    version-branch release PR may be managed by a separately authorized release
+    captain; pushing normal commits to the shared branch does not make the
+    coding agent the PR or release owner.
+  - **Publishing and downstream deployment always require explicit approval.**
+    Do not create a deploy marker, change the package version for release, tag,
+    publish to PyPI, create a GitHub Release, invoke a release workflow, update a
+    downstream LumiBot pin, rebuild downstream dependency images, or trigger dev
+    or production deployment unless the user explicitly authorizes that exact
+    release/deployment in the current turn. Read `docs/DEPLOYMENT.md` first when
+    that approval is given.
+  - **Never push directly to `dev`.** An explicitly authorized release captain
+    later moves version-branch work to `dev` through the approved release flow.
+    Ordinary coding agents stop after their version-branch commits and tests.
   - **Stay on the current branch.** If you start on a `version/*` branch, keep all commits on that branch and push that branch.
   - **Never switch branches without explicit user instruction.** If you suspect you are on the wrong branch, stop and ask.
-  - **Post-release branch switch is a mandatory exception.** After a Lumibot release is tagged/published and the release workflow creates `version/X.Y.(Z+1)`, immediately move the canonical checkout to that next version branch with `git switch` and verify `git branch --show-current`, `setup.py`, and `git status`. Do this before reporting the release complete or triggering BotManager work. Never leave `/Users/robertgrzesik/Development/lumibot` on the just-released branch.
+  - **Post-release branch switch is a mandatory exception for the authorized
+    release captain.** After a Lumibot release is tagged/published and the
+    release workflow creates `version/X.Y.(Z+1)`, immediately move the canonical
+    checkout to that next version branch with `git switch` and verify
+    `git branch --show-current`, `setup.py`, and `git status`. Do this before
+    reporting the release complete or triggering BotManager work. Never leave
+    the canonical checkout on the just-released branch.
   - **Never update an old version branch to make a stale GitHub URL look current.** If Rob or a browser is viewing an older `version/X.Y.Z` branch, do not push current work to that old branch and do not switch to it. Give Rob the correct latest version branch URL instead. Historical version branches are release records, not redirect targets.
-  - **Always keep the canonical checkout on the latest active `version/X.Y.Z` branch.** If you discover `/Users/robertgrzesik/Development/lumibot` is on an older version branch, stop and report it unless Rob explicitly tells you to move it with `git switch` after verifying the tree is clean.
-  - **PRs must be version-scoped.** If a PR is needed for review/release, the PR head must be the existing `version/X.Y.Z` branch.
-  - **PR title must be release-scoped.** Use `vX.Y.Z - <summary>` and include all notable changes shipped in that version (not just one feature).
+  - **Always keep the canonical checkout on the latest active `version/X.Y.Z` branch.** If you discover this checkout is on an older version branch, stop and report it unless Rob explicitly tells you to move it with `git switch` after verifying the tree is clean.
+  - **Only explicitly authorized release PRs may be created or managed.** If the
+    user appoints the agent release captain and requests a PR, its head must be
+    the existing `version/X.Y.Z` branch.
+  - **An authorized release PR title must be release-scoped.** Use
+    `vX.Y.Z - <summary>` and include all notable changes shipped in that version
+    (not just one feature).
 
 - **Branch etiquette (STRICT):** if you are on a version branch (e.g., `version/4.4.31`), treat it as the shared collaboration branch.
   - **Do not create additional branches** (no `git switch -c`, no `git branch`, no `version/4.4.31-foo`, no `version/4.4.31/<topic>`), unless the user explicitly asks.
-  - If a PR is needed for review, **the PR head must be the existing version branch** (e.g., `version/4.4.31`), not a new feature branch.
+  - If the user explicitly requests a release PR, **the PR head must be the
+    existing version branch** (e.g., `version/4.4.31`), not a new feature branch.
   - Do not switch branches unless explicitly instructed; if you suspect you're on the wrong branch, stop and ask.
 - **No “feature branch chaining”:** if you’re already on a feature/WIP or version branch (e.g., `feature/*`, `fix/*`, `wip/*`, `version/*`, `release/*`, or a version-named branch like `X.Y.Z`), keep working there; don’t create another feature branch from it unless explicitly instructed.
 - **Branch naming (LumiBot convention):** prefer version-scoped branches so multiple agents can collaborate without “feature branch naming drift”. Use the repo’s existing convention (e.g., `4.4.25` or `version/X.Y.Z`).
@@ -98,41 +180,30 @@ This repo is frequently edited by **multiple AI sessions**. To avoid lost work:
 - **Test gating (STRICT):** do not introduce new environment variables just to skip/disable tests or to paper over CI failures.
   - Prefer existing pytest markers (`apitest`, `acceptance_backtest`, etc.) and normal test skips with clear reasons.
   - If a new env var is truly required for a user-facing feature, document it in `docsrc/environment_variables.rst` in the same PR.
+  - Hidden provider credential loading is an anti-pattern for user-facing
+    components. If LumiBot needs a provider key because a model, broker, data
+    tool, or component is selected, make the required env var explicit in docs,
+    examples, errors, and component metadata. Do not silently depend on an SDK
+    alias or behind-the-scenes env-var mutation that makes downstream products
+    unable to infer the required key.
 - **Full suite verification:** prefer pushing commits to GitHub on the shared `version/X.Y.Z` branch so sharded CI validates the full suite. Local runs should focus on targeted tests or marker-filtered subsets.
 
 1. **Never launch ThetaTerminal locally WITH PRODUCTION CREDENTIALS.** Production has the only licensed session for that account. Starting the jar with prod credentials (even briefly or via Docker) instantly terminates the prod connection and halts all customers.
 2. **Use the downloader for backtests.** All tests/backtests must set `DATADOWNLOADER_BASE_URL` and `DATADOWNLOADER_API_KEY` via the runtime environment. Do not short-cut by hitting Theta directly.
 3. **Never hardcode or share private downloader URLs.** Do not paste real downloader hostnames/URLs into code, docs, tests, logs, AGENTS, or CLAUDE; use placeholders (e.g., `http://localhost:8080` or `https://<your-downloader-host>:8080`) and refer to `DATADOWNLOADER_BASE_URL`.
 
-### Dev Credentials for Local ThetaTerminal Testing (SAFE)
+### Local ThetaTerminal Testing Credentials
 
-There is a **separate dev account** that CAN be used for local debugging without affecting production:
+Do not put ThetaData usernames, passwords, account emails, bundles, or local
+credential-file locations in this public repo. For rare local ThetaTerminal
+debugging, load credentials from your own secret manager or untracked local
+environment, use a disposable `$TMPDIR` file, and delete that file when the
+process exits. Do not use local ThetaTerminal credentials for backtests; use the
+configured Data Downloader path for consistent results.
 
-| Field | Value |
-|-------|-------|
-| Username | `rob-dev@lumiwealth.com` |
-| Password | `TestTestTest` |
-| Bundle | STOCK.PRO, OPTION.PRO, INDEX.PRO |
-| Location | `Strategy Library/Demos/.env` (commented out) |
-
-**Verified working:** Dec 7, 2025
-
-```bash
-# Quick test with dev credentials
-mkdir -p "/Users/robertgrzesik/Documents/Development/tmp/theta-dev-test"
-echo -e "rob-dev@lumiwealth.com\nTestTestTest" > "/Users/robertgrzesik/Documents/Development/tmp/theta-dev-test/creds.txt"
-java -jar $(python -c "import lumibot; import os; print(os.path.join(os.path.dirname(lumibot.__file__), 'tools', 'ThetaTerminal.jar'))") "/Users/robertgrzesik/Documents/Development/tmp/theta-dev-test/creds.txt" &
-sleep 10
-curl "http://127.0.0.1:25510/v2/status"  # Should show CONNECTED
-pkill -f "ThetaTerminal.jar"  # Clean up
-rm -rf "/Users/robertgrzesik/Documents/Development/tmp/theta-dev-test"
-```
-
-**Use dev credentials ONLY for:** Debugging ThetaTerminal itself, testing API endpoints, investigating data issues.
-**Do NOT use for:** Running backtests (always use prod Data Downloader for consistent results).
 3. **Respect the queue/backoff contract.** LumiBot no longer enforces a 30 s client timeout; instead it listens for the downloader’s `{"error":"queue_full"}` responses and retries with exponential backoff. If you add new downloader
    integrations, reuse that helper so we never DDoS the server.
-4. **Long commands = safe-timeout (20m default max).** Wrap backtests/pytest/stress jobs with `/Users/robertgrzesik/bin/safe-timeout 1200s …` and break work into smaller chunks if it would run longer. Only use longer timeouts when absolutely necessary (e.g., explicit full-window acceptance backtests).
+4. **Long commands = safe-timeout (20m default max).** Wrap backtests/pytest/stress jobs with `bin/safe-timeout 1200s ...` when available, or another timeout wrapper, and break work into smaller chunks if it would run longer. Only use longer timeouts when absolutely necessary (e.g., explicit full-window acceptance backtests).
 5. **Artifacts.** When demonstrating fixes, capture `Strategy\ Library/logs/*.log`, tear sheets, and downloader stress JSONs so the accuracy/dividend/resilience story stays reproducible.
 6. **Write Location Policy (no “code files” outside Development).** Do not create helper scripts (e.g., `*.py`) under `/tmp` or other non-Development locations. Put LumiBot helpers under `scripts/` in this repo.
 
@@ -428,4 +499,39 @@ This philosophy applies to ALL projects, not just LumiBot.
 
 - Track leading indicators weekly. Create dashboards and graphs to visualize progress.
 - When starting any task, check: does this move a North Star metric? If not, question its priority.
-- See `/Users/robertgrzesik/Documents/Development/CLAUDE.md` for the full framework.
+- See the private workspace operating instructions for the full framework when
+  working inside Rob's local BotSpot/Lumiwealth environment.
+
+# Agent evals are part of "done" (2026-09-24)
+
+LumiBot's agent runtime now ships 78 builtin tools against 16 eval cases.
+Twenty-seven of those tools landed in a single day and one of them got an eval.
+That is the gap these rules close.
+
+- **Every new agent tool ships with at least one eval.** A tool with no eval is
+  not done. Put the case in `agent_eval_cases/` next to the others.
+- **Every eval must fail first**, for the reason a customer would actually hit,
+  and the red artifact is saved in `agent_eval_baselines/` with the date in the
+  filename. An eval that was green from birth proves nothing.
+- **Repeat policy.** A new or changed case must reach three consecutive passes
+  before it is recorded as established; the runner enforces this itself through
+  `target_passes()`, so you do not need to pass `--repeat 3`. An established
+  case then runs once on the ordinary gate. Prior passes carry forward, so an
+  interrupted run resumes rather than restarting.
+- **Run it:**
+
+  ```bash
+  python3 scripts/run_agent_evals.py --max-cost-usd 10
+  ```
+
+  Defaults are `--repeat 1` and `--max-workers 8`. Evals are network-bound, not
+  CPU-bound, so raising workers is the cheapest speedup available.
+- **Highest-value gaps right now**, in order: order lifecycle (market vs limit
+  vs bracket, limit walking, wait-for-terminal, partial fills, rejections),
+  look-ahead discipline when the agent reads the open web through
+  `browser_*`, `http_request` or `rss_fetch`, then indicators, futures and
+  forex. See `docs/research/2026-09-24_lumibot-4.6.1-game-plan.md`.
+- **Look-ahead is special.** LumiBot blocks look-ahead mechanically where it
+  owns the data path. It cannot once the agent reaches an arbitrary page or
+  API, so those cases are the only protection that exists there. When you add a
+  look-ahead eval, teach the rule in the matching skill in the same change.

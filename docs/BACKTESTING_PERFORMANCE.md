@@ -2,7 +2,7 @@
 
 > A practical, evidence-driven guide to **measuring**, **debugging**, and **improving** backtesting performance end‑to‑end (strategy → data → cache → artifacts → UI), while preserving broker‑like correctness.
 
-**Last Updated:** 2026-01-26  
+**Last Updated:** 2026-08-03
 **Status:** Active  
 **Audience:** Developers, AI Agents (engineering docs)  
 
@@ -371,6 +371,28 @@ Production containers are ephemeral. Even if S3 is warm:
 - Changing cache folder paths such that the relative key layout changes (S3 key includes relative path).
 - Incomplete cache coverage: you cached EOD but not quote snapshots, or vice versa.
 - Many small objects: even “warm” runs are slow because S3 has to read thousands of tiny files.
+
+IBKR US stock and index caches are checked lazily for missing history. Daily
+series compare real bars with completed NYSE sessions, group exact missing
+sessions, and repair at most four segments of at most ten sessions each under a
+45-second per-series deadline. Hourly series look only for internal holes longer
+than seven days, then fetch the missing range in 2000-hour pages under a
+five-minute per-series deadline. The repair budgets apply only when a damaged
+cache is detected.
+
+A complete cache stays on the normal warm path with no downloader call, no
+contract lookup, and no S3 write. A partial or transient response receives an
+in-process cooldown, so repeated calls in one backtest perform no extra
+downloader work. It is not persisted as confirmed absence, which allows a later
+process to repair it. Only typed `confirmed_no_data` results receive an expiring
+cross-process marker with a reason. Legacy, ambiguous, or expired markers are
+eligible for lazy repair.
+
+`settings.json` includes a sanitized `data_health` summary with the requested
+period, expected and returned sessions, up to 100 missing-session dates, the
+full missing-session count, repair attempts,
+transient failures, contract refreshes, and final completeness. This is
+diagnostic evidence only. It does not add a new backtest failure condition.
 
 ### 5.4 Cache design principle: fewer, larger objects
 

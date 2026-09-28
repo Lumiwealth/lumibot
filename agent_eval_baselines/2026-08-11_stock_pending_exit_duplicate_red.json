@@ -1,0 +1,16 @@
+{
+  "caseId": "stock_pending_exit_no_duplicate",
+  "status": "red",
+  "observedAt": "2026-08-11",
+  "sourceRun": "AIVWAPStrategy_2026-08-11_23-25_G7q2rq",
+  "observedFailure": {
+    "description": "The agent submitted an exit late Friday, then submitted repeated exits on the next trading day while the position and prior orders remained unresolved.",
+    "closingSubmissionsObserved": 6,
+    "finalPositionQuantity": 129,
+    "terminalOutcome": "unfilled exits canceled at end of backtest"
+  },
+  "sourceArtifactHashes": {
+    "tradesCsvSha256": "0f617ee6587dd44e22646062444d891c965d9de879f7cccf021e961fc6397a4f",
+    "agentDetailParquetSha256": "cd5ada9a8930ce4222d8285b7b9969a63d76dfed68602a8018470c849a18681f"
+  }
+}

@@ -1,6 +1,9 @@
 Cash Accounting
 ===============
 
+.. meta::
+   :description: Cash Accounting. Lumibot supports explicit cash accounting for both:.
+
 Lumibot supports explicit cash accounting for both:
 
 - backtests inside a strategy

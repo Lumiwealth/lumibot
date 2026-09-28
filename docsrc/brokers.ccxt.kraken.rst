@@ -1,6 +1,9 @@
 Kraken Crypto Broker
 ====================
 
+.. meta::
+   :description: Kraken is one of Lumibot's auto-detected CCXT credential paths. It is useful for spot crypto strategies that need a long-running exchange account and simple API-key.
+
 Kraken is one of Lumibot's auto-detected CCXT credential paths. It is useful for
 spot crypto strategies that need a long-running exchange account and simple
 API-key based setup.

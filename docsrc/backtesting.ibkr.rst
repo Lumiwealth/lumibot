@@ -1,6 +1,9 @@
 Interactive Brokers (REST) Backtesting
 ======================================
 
+.. meta::
+   :description: LumiBot supports backtesting with Interactive Brokers data providers.
+
 LumiBot supports backtesting with **Interactive Brokers data providers**.
 
 The primary data path uses Client Portal (REST) via the LumiBot Data Downloader.
@@ -46,6 +49,30 @@ IBKR day-bar payloads do not include corporate-action columns directly. LumiBot 
 daily equity bars with ``dividend`` and ``stock_splits`` values using Yahoo actions as a best-effort
 source so split/dividend accounting remains available in backtests.
 
+How History Is Downloaded (stocks and indexes)
+----------------------------------------------
+
+IBKR returns at most about 1,000 bars per request, so LumiBot walks backwards page by page.
+
+- **Weekends, holidays and nights.** A 1-minute page covers 1,000 minutes (16.7 hours). A page that falls
+  entirely inside closed-market time comes back empty; LumiBot steps over it and keeps going instead of treating it
+  as the start of history. US indexes such as SPX only print 09:30 to 16:00 ET, so the same applies every night.
+- **New listings.** When a daily page reaches back before the first bar IBKR holds, IBKR answers
+  ``Chart data unavailable``. LumiBot retries with a smaller page and keeps the real bars it already has, so a
+  fund listed last year still gets its full daily history.
+- **A failed older page** keeps the newer real bars already downloaded; the missing older part is not faked and is
+  retried by a later run.
+- **Delayed feed.** IBKR stock and index history can run about 15 minutes behind real time, so intraday requests
+  stop 20 minutes before the current time. A backtest that ends today during market hours simply ends a little
+  earlier.
+- **Daily windows** up to 993 days are one request sized to the window; longer windows use 5-year pages.
+- **Dividends.** IBKR history has no corporate actions, so LumiBot adds dividends and splits to IBKR daily stock bars
+  from a free corporate-actions source. BotSpot Auto backtests credit a held stock's dividend on its ex-date from
+  those daily bars.
+- **Holes in cached minute bars.** When the cache has bars on both sides of a missing session (for example from two
+  earlier backtests, or a download that was stopped), LumiBot downloads each missing session instead of skipping it.
+  A session with no trades at all is remembered for a day so it is not requested again by every backtest.
+
 Futures Exchange Routing (auto + override)
 ------------------------------------------
 
@@ -82,6 +109,28 @@ IBKR backtests cache historical bars as Parquet:
 
 - Local: ``LUMIBOT_CACHE_FOLDER/ibkr/...``
 - Optional S3 mirroring: configured via the standard ``LUMIBOT_CACHE_*`` variables (see :ref:`environment_variables`).
+
+For US stock and index bars, LumiBot checks for cache gaps after loading the
+series. Daily bars are compared with completed NYSE sessions and exact missing
+session groups are repaired in small bounded windows under a 45-second
+per-series deadline. Hourly bars are checked for internal holes longer than
+seven days and repaired in bounded 2000-hour pages under a five-minute
+per-series deadline. These checks never turn partial data into a backtest
+exception, and complete warm caches do not call the downloader.
+
+History health is classified as ``complete``, ``partial``,
+``confirmed_no_data``, or ``transient_failure``. Only confirmed absence may
+create a durable no-data marker. That marker includes a reason and retry
+timestamp. Partial and transient responses receive an in-process cooldown so
+one backtest does not repeat the same downloader request, while a later process
+remains able to retry. Legacy, ambiguous, and expired markers are eligible for
+lazy repair. When a real bar and a no-data marker share a timestamp, the real
+bar always wins.
+
+Backtest ``settings.json`` artifacts include a credential-free ``data_health``
+summary with up to 100 missing-session dates, the full missing-session count,
+and repair outcomes. Free-form provider errors remain in logs. The summary is
+diagnostic evidence and does not add a new backtest failure condition.
 
 Conid lookups also maintain cache files under ``LUMIBOT_CACHE_FOLDER/ibkr``:
 

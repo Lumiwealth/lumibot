@@ -1,0 +1,8 @@
+{
+  "version": 1,
+  "rules": [
+    {"id": "one-position", "status": "active", "interpretation": "Hold at most one SPY stock position at a time."},
+    {"id": "one-entry-daily", "status": "active", "interpretation": "Open at most one new SPY position per trading day and do not re-enter on the same day after an exit."},
+    {"id": "completed-bars", "status": "active", "interpretation": "Make VWAP and reclaim decisions only from completed bars and a current price."}
+  ]
+}

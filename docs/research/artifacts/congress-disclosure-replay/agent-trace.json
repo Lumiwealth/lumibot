@@ -1,0 +1,57 @@
+[
+  {
+    "at": "2026-02-14T00:00:00+00:00",
+    "disclosure_id": "fixture-pelosi-nvda-2026-02-14",
+    "evidence": {
+      "published_at": "2026-02-14T00:00:00+00:00",
+      "source": "congress_disclosure",
+      "ticker": "NVDA",
+      "transaction": "Purchase",
+      "transaction_date": "2026-01-05"
+    },
+    "role": "disclosure_researcher"
+  },
+  {
+    "at": "2026-02-14T00:00:00+00:00",
+    "decision": "order",
+    "disclosure_id": "fixture-pelosi-nvda-2026-02-14",
+    "order_id": "c14aff6898c80a4ac860",
+    "reason": "accepted",
+    "risk": {
+      "available_cash_before": 100000.0,
+      "average_dollar_volume": 32500000000.0,
+      "max_position_pct": 5.0,
+      "max_total_exposure_pct": 20.0,
+      "price": 130.0
+    },
+    "role": "trading_risk_manager",
+    "ticker": "NVDA"
+  },
+  {
+    "at": "2026-03-15T00:00:00+00:00",
+    "disclosure_id": "fixture-pelosi-aapl-2026-03-15",
+    "evidence": {
+      "published_at": "2026-03-15T00:00:00+00:00",
+      "source": "congress_disclosure",
+      "ticker": "AAPL",
+      "transaction": "Sale",
+      "transaction_date": "2026-02-01"
+    },
+    "role": "disclosure_researcher"
+  },
+  {
+    "at": "2026-03-15T00:00:00+00:00",
+    "decision": "hold",
+    "disclosure_id": "fixture-pelosi-aapl-2026-03-15",
+    "reason": "no_long_position_to_sell",
+    "risk": {
+      "available_cash_before": 95060.0,
+      "average_dollar_volume": 13200000000.0,
+      "max_position_pct": 5.0,
+      "max_total_exposure_pct": 20.0,
+      "price": 240.0
+    },
+    "role": "trading_risk_manager",
+    "ticker": "AAPL"
+  }
+]

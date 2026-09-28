@@ -4191,8 +4191,13 @@ def test_no_data_fetch_raises_once(monkeypatch, tmp_path):
     assert len(calls) == 1
 
 
-def test_minute_request_aligned_in_day_mode(monkeypatch):
-    """When source is in day mode, minute/hour requests are silently aligned to day mode."""
+def test_minute_request_in_day_mode_never_returns_day_bars(monkeypatch):
+    """An explicit minute request in day mode stays a minute request.
+
+    Before 2026-09-24 this path rewrote "minute" to "day" and returned daily bars for a
+    minute request (SPCX routed IBKR replay, sleeptime="1D"). A minute request must return
+    minute bars or nothing, never daily bars.
+    """
     monkeypatch.setattr(ThetaDataBacktestingPandas, "kill_processes_by_name", lambda *args, **kwargs: None)
     start = pd.Timestamp("2024-01-02", tz="UTC")
     end = pd.Timestamp("2024-01-05", tz="UTC")
@@ -4210,11 +4215,23 @@ def test_minute_request_aligned_in_day_mode(monkeypatch):
     )
     ds._timestep = "day"
 
-    # Minute requests in day mode should work silently - they get aligned to day mode
-    # instead of raising ValueError. This prevents unnecessary minute data downloads.
+    requested_timesteps = []
+
+    def fake_update(_asset, _quote, _length, timestep, *_args, **_kwargs):
+        # Only daily data exists; the minute fetch finds nothing.
+        requested_timesteps.append(timestep)
+
+    monkeypatch.setattr(ds, "_update_pandas_data", fake_update)
+
     result = ds._pull_source_symbol_bars(asset, length=2, timestep="minute", quote=quote)
-    # Should return day data since we're in day mode
-    assert result is not None or result is None  # May be None if cache doesn't have enough bars
+
+    assert requested_timesteps == ["minute"]
+    assert result is None
+
+    # Implicit requests still follow the day cadence.
+    requested_timesteps.clear()
+    ds._pull_source_symbol_bars(asset, length=2, timestep=None, quote=quote)
+    assert requested_timesteps == ["day"]
 
 
 def test_day_cache_reuse_aligns_end_without_refetch(monkeypatch):

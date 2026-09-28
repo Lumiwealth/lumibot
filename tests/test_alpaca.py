@@ -8,7 +8,8 @@ from lumibot.data_sources.alpaca_data import AlpacaData
 from lumibot.example_strategies.stock_buy_and_hold import BuyAndHold
 from lumibot.credentials import ALPACA_TEST_CONFIG
 
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
+from types import SimpleNamespace
 
 import math
 
@@ -84,6 +85,7 @@ class TestAlpacaBroker:
     def test_submit_order_calls_conform_order(self):
         broker = Alpaca(ALPACA_UNIT_CONFIG, connect_stream=False)
         broker._conform_order = MagicMock()
+        broker._submit_order = MagicMock(side_effect=lambda submitted: submitted)
         order = Order(asset=Asset("SPY"), quantity=10, side=Order.OrderSide.BUY, strategy='abc')
         broker.submit_order(order=order)
         broker._conform_order.assert_called_once()
@@ -99,6 +101,50 @@ class TestAlpacaBroker:
         order = Order(asset=Asset("SPY"), quantity=10, side=Order.OrderSide.BUY, limit_price=0.12345, strategy='abc')
         broker._conform_order(order)
         assert order.limit_price == 0.1235
+
+    def test_market_open_falls_back_when_initialized_calendar_is_stale(self, mocker):
+        """Use an aware local clock when the initialized calendar is stale."""
+        broker = Alpaca(ALPACA_UNIT_CONFIG, connect_stream=False)
+        broker.market = "NASDAQ"
+        broker.initialize_market_calendars(
+            pd.DataFrame(
+                {
+                    "market_open": [datetime(2026, 7, 7, 13, 30, tzinfo=timezone.utc)],
+                    "market_close": [datetime(2026, 7, 7, 20, 0, tzinfo=timezone.utc)],
+                }
+            )
+        )
+
+        class FixedDatetime(datetime):
+            @classmethod
+            def now(cls, tz=None):
+                """Return a fixed instant expressed in the requested timezone."""
+                # The old path created an intermediate naive wall time whose
+                # meaning depended on the runner timezone. Requesting the local
+                # timezone directly keeps market-hour comparisons deterministic.
+                assert tz is not None, "market-open fallback must request an aware clock"
+                value = datetime(2026, 7, 8, 14, 7, 54, tzinfo=timezone.utc)
+                return value.astimezone(tz)
+
+        def fake_market_hours(close=False, next=False):
+            """Return deterministic UTC market boundaries for the fallback."""
+            if close:
+                return datetime(2026, 7, 8, 20, 0, tzinfo=timezone.utc)
+            return datetime(2026, 7, 8, 13, 30, tzinfo=timezone.utc)
+
+        # Patch Alpaca's lazy module reference, not ``datetime.datetime`` through
+        # the LazyModule proxy. The latter mutates the shared stdlib module and
+        # leaks FixedDatetime into tests collected later in the same process.
+        mocker.patch(
+            "lumibot.brokers.alpaca.datetime",
+            SimpleNamespace(datetime=FixedDatetime),
+        )
+        mocker.patch.object(broker, "market_hours", side_effect=fake_market_hours)
+
+        assert broker._is_market_open_from_initialized_calendar(
+            datetime(2026, 7, 8, 14, 7, 54, tzinfo=timezone.utc)
+        ) is None
+        assert broker.is_market_open() is True
 
     # The tests below exist to make sure the BROKER calls pass through the data source correctly.
     # Testing that the DATA is CORRECT (vs just existing) happens in test_alpaca_data.

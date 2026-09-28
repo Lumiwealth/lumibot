@@ -1,6 +1,9 @@
 SEC Fundamentals
 ================
 
+.. meta::
+   :description: LumiBot includes native SEC EDGAR fundamentals for US equities. These are core strategy data tools.
+
 LumiBot includes native SEC EDGAR fundamentals for US equities. These are core
 strategy data tools, not AI-only tools: deterministic Python strategies can call
 them directly, and AI agents receive the same point-in-time tools as built-ins.
@@ -55,6 +58,9 @@ Agents receive these built-ins:
 - ``search_filing``
 - ``get_filing_document``
 
+``get_filings`` for a symbol the SEC ticker map does not list (ETFs, foreign listings, crypto, private names) returns an empty ``filings`` list with ``available: false`` and ``reason: "no_sec_cik"`` instead of an error.
+The absence is reported, never filled in.
+
 Prefer ``search_filing`` before reading a full filing document. Annual reports
 and quarterly filings can be long, and search keeps the model context focused.
 
@@ -75,3 +81,5 @@ Filing search is useful for agent workflows modeled after real fundamental
 research. A researcher can identify a relevant annual report, search for risk
 factors or accounting details, and only open the full filing when it needs more
 context.
+
+See :doc:`standalone_components` for use in scripts and notebooks.

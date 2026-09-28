@@ -186,10 +186,14 @@ class Strategy(_Strategy):
 
     @property
     def initial_budget(self):
-        """Returns the initial budget for the strategy.
+        """Returns the strategy's starting value.
+
+        In backtests this is the configured starting cash. In live trading it is
+        the first broker-verified portfolio equity snapshot, including existing
+        positions; it is not merely the account's cash balance.
 
         Returns:
-            float: The initial budget for the strategy.
+            float: Starting backtest cash or live account equity.
 
         Example
         -------
@@ -936,7 +940,11 @@ class Strategy(_Strategy):
         sleeptime : float
             Time in seconds the program will be paused.
         process_pending_orders : bool
-            If True, the broker will process any pending orders.
+            If True, process pending broker fills around the sleep. In backtesting
+            this calls ``broker.process_pending_orders`` before and after advancing
+            the simulation clock. Required for agent tools such as
+            ``orders_wait_for_terminal`` so market orders can fill without waiting
+            for the next strategy bar.
 
         Returns
         -------
@@ -948,10 +956,33 @@ class Strategy(_Strategy):
         >>> self.sleep(5)
         """
 
-        if not self.is_backtesting:
-            # Sleep for the sleeptime in seconds.
-            time.sleep(sleeptime)
+        # Backtesting must advance the broker clock and process fills. The older
+        # path only called broker.sleep (safe_sleep), which advances datetime via
+        # _update_datetime but never runs process_pending_orders. Agent waits then
+        # raced the clock for hundreds of thousands of 1s steps while market
+        # orders stayed `new` until end-of-backtest cancel.
+        if self.is_backtesting:
+            try:
+                seconds = float(sleeptime)
+            except Exception:
+                seconds = 0.0
+            broker = self.broker
+            if process_pending_orders and hasattr(broker, "process_pending_orders"):
+                try:
+                    broker.process_pending_orders(strategy=self)
+                except TypeError:
+                    broker.process_pending_orders(self)
+            if seconds > 0 and hasattr(broker, "_update_datetime"):
+                broker._update_datetime(seconds)
+            if process_pending_orders and hasattr(broker, "process_pending_orders"):
+                try:
+                    broker.process_pending_orders(strategy=self)
+                except TypeError:
+                    broker.process_pending_orders(self)
+            self._apply_pending_backtest_trade_events()
+            return None
 
+        time.sleep(sleeptime)
         return self.broker.sleep(sleeptime)
 
     def get_selling_order(self, position: Position):
@@ -1758,8 +1789,11 @@ class Strategy(_Strategy):
         self._refresh_live_orders(broker_refresh=broker_refresh, broker_refresh_ttl_seconds=broker_refresh_ttl_seconds)
         all_orders = self.broker.get_tracked_orders(self.name)
         if identifiers:
-            identifier_set = set(identifiers)
-            all_orders = [order for order in all_orders if order.identifier in identifier_set]
+            all_orders = [
+                order
+                for order in all_orders
+                if any(self.broker.identifiers_equal(order.identifier, identifier) for identifier in identifiers)
+            ]
         if normalized_statuses is not None:
             all_orders = [order for order in all_orders if self._order_matches_statuses(order, normalized_statuses)]
         return all_orders
@@ -1941,6 +1975,8 @@ class Strategy(_Strategy):
             default_multileg = True
 
             for o in order:
+                if o is None:
+                    raise ValueError("Cannot submit a null order")
                 if not self._validate_order(o):
                     return
 
@@ -2730,6 +2766,8 @@ class Strategy(_Strategy):
             if cache_key in cache:
                 return cache[cache_key]
 
+        if is_backtesting_run:
+            self._record_backtest_runtime_milestone("first_price_lookup_at")
         try:
             # For daily-cadence backtests, prefer day bars for sources where minute-level
             # fetches are expensive (ThetaData/IBKR/routed backtesting). Keep Yahoo/Polygon
@@ -2770,6 +2808,7 @@ class Strategy(_Strategy):
                     if bars is not None and getattr(bars, "df", None) is not None and not bars.df.empty:
                         result = float(bars.df["close"].iloc[-1])
                         cache[cache_key] = result
+                        self._record_usable_backtest_price(result)
                         return result
 
                     # Forward-fill retry (v4.5.1): when the length=1 slice comes
@@ -2811,6 +2850,7 @@ class Strategy(_Strategy):
                                 if not pre_sim.empty:
                                     result = float(pre_sim["close"].iloc[-1])
                                     cache[cache_key] = result
+                                    self._record_usable_backtest_price(result)
                                     return result
                             except Exception:
                                 pass
@@ -2825,11 +2865,30 @@ class Strategy(_Strategy):
             )
             if is_backtesting_run:
                 cache[cache_key] = result
+                self._record_usable_backtest_price(result)
             return result
         except Exception as e:
             self.log_message(f"Could not get last price for {asset}", color="red")
             self.log_message(f"{e}")
             return None
+
+    def _record_backtest_runtime_milestone(self, name):
+        try:
+            source = self.broker.data_source
+            recorder = getattr(source, "record_runtime_milestone", None)
+            if callable(recorder):
+                recorder(name)
+        except Exception:
+            pass
+
+    def _record_usable_backtest_price(self, price):
+        try:
+            import math
+
+            if price is not None and math.isfinite(float(price)):
+                self._record_backtest_runtime_milestone("first_usable_price_at")
+        except (TypeError, ValueError, OverflowError):
+            pass
 
     def _supports_daily_last_price_optimization(self) -> bool:
         data_source = getattr(getattr(self, "broker", None), "data_source", None)
@@ -4432,6 +4491,16 @@ class Strategy(_Strategy):
             settings["thetadata_queue_telemetry"] = queue_telemetry_snapshot()
         except Exception:
             pass
+        try:
+            from lumibot.tools.ibkr_history_health import ibkr_history_health_snapshot
+
+            settings["data_health"] = ibkr_history_health_snapshot()
+        except Exception:
+            pass
+        try:
+            settings["runtime_timings"] = self.broker.data_source.get_runtime_timings()
+        except Exception:
+            pass
         os.makedirs(os.path.dirname(settings_file), exist_ok=True)
         with open(settings_file, "w") as outfile:
             import jsonpickle
@@ -4443,69 +4512,31 @@ class Strategy(_Strategy):
         """Parse various timestep formats into (multiplier, base_unit).
 
         Examples:
-            "5min", "5m", "5 minutes" -> (5, "minute")
+            "5min", "5m", "5 minutes", "5Min", "5T" -> (5, "minute")
             "1h", "1hour" -> (60, "minute")
-            "2d", "2 days" -> (2, "day")
+            "2d", "2 days", "1Day" -> (2, "day") or (1, "day")
             "minute" -> (1, "minute")
             "day" -> (1, "day")
+            "30S", "30 seconds" -> (30, "second")
 
         Returns None if unparseable.
         """
-        if not timestep:
+        from lumibot.tools.helpers import parse_canonical_timestep
+
+        parsed = parse_canonical_timestep(timestep)
+        if parsed is None:
             return None
 
-        # Normalize: lowercase, strip whitespace
-        timestep = str(timestep).lower().strip()
-
-        # Handle standard formats first
-        if timestep in ["minute", "minutes", "min", "m"]:
-            return (1, "minute")
-        if timestep in ["day", "days", "d"]:
-            return (1, "day")
-
-        # Try to extract number and unit
-        import re
-
-        # Match patterns like "5min", "5 min", "5 minutes", "5m"
-        pattern = r'^(\d+)\s*([a-z]+)$'
-        match = re.match(pattern, timestep)
-
-        if not match:
-            # Try without number (e.g., "hour" -> 1 hour)
-            pattern = r'^([a-z]+)$'
-            match = re.match(pattern, timestep)
-            if match:
-                unit = match.group(1)
-                multiplier = 1
-            else:
-                return None
-        else:
-            multiplier = int(match.group(1))
-            unit = match.group(2)
-
-        # Map unit aliases to base units
-        minute_aliases = ["m", "min", "mins", "minute", "minutes"]
-        hour_aliases = ["h", "hr", "hrs", "hour", "hours"]
-        day_aliases = ["d", "day", "days"]
-        week_aliases = ["w", "wk", "week", "weeks"]
-        month_aliases = ["mo", "month", "months"]
-
-        if unit in minute_aliases:
-            return (multiplier, "minute")
-        elif unit in hour_aliases:
-            # Convert hours to minutes
+        multiplier, unit = parsed
+        if unit == "hour":
+            # Convert hours to minutes for the Strategy resample path.
             return (multiplier * 60, "minute")
-        elif unit in day_aliases:
-            return (multiplier, "day")
-        elif unit in week_aliases:
-            # Convert weeks to days
+        if unit == "week":
             return (multiplier * 7, "day")
-        elif unit in month_aliases:
+        if unit == "month":
             # Approximate months as 30 days
             return (multiplier * 30, "day")
-
-        # If we can't parse it, return None
-        return None
+        return (multiplier, unit)
 
     def get_historical_prices(
         self,
@@ -4545,8 +4576,9 @@ class Strategy(_Strategy):
                 - Days: ``"2d"``, ``"2 days"``, ``"1 week"``, ``"1w"``, etc.
                 - Flexible formatting: Case-insensitive, with/without spaces
 
-            When using multi-timeframe formats, the method automatically fetches the
-            underlying minute or day data and resamples it to your desired timeframe.
+            When using multi-timeframe formats, the method asks capable live data
+            sources for native bars. Other sources automatically fetch the underlying
+            minute or day data and resample it to your desired timeframe.
             Default value depends on the data_source (minute for alpaca, day for yahoo, ...)
         timeshift : int, timedelta, or None
             ``None`` by default. When provided it shifts the data window relative to
@@ -4676,7 +4708,13 @@ class Strategy(_Strategy):
             # the backtesting data source so it can slice/aggregate efficiently and cache
             # results internally.
             multiplier, base_unit = parsed
+            live_data_source = getattr(getattr(self, "broker", None), "data_source", None)
+            supports_native_timestep = getattr(live_data_source, "supports_native_timestep", None)
             if getattr(self, "is_backtesting", False) or getattr(getattr(self, "broker", None), "IS_BACKTESTING_BROKER", False):
+                actual_timestep = original_timestep
+                actual_length = length
+                needs_resampling = False
+            elif callable(supports_native_timestep) and supports_native_timestep(original_timestep):
                 actual_timestep = original_timestep
                 actual_length = length
                 needs_resampling = False
@@ -4804,6 +4842,8 @@ class Strategy(_Strategy):
 
                     if base_unit == "minute":
                         resample_rule = f"{multiplier}min"
+                    elif base_unit == "second":
+                        resample_rule = f"{multiplier}s"
                     elif base_unit == "day":
                         resample_rule = f"{multiplier}D"
                     else:
@@ -4949,6 +4989,7 @@ class Strategy(_Strategy):
             chunk_size=chunk_size,
             max_workers=max_workers,
             exchange=exchange,
+            include_after_hours=include_after_hours,
             sleep_time=effective_sleep_time
         )
 
@@ -5324,6 +5365,17 @@ class Strategy(_Strategy):
         >>>     self.log_message("Hello")
         >>>     order = self.create_order("SPY", 10, "buy")
         >>>     self.submit_order(order)
+        """
+        pass
+
+    def on_closed_market_iteration(self):
+        """Prepare data during an explicitly scheduled closed-market run.
+
+        This lifecycle is only called for scheduled one-shot runs whose internal
+        target event is ``closed_market_prepare`` and whose broker reports the
+        market closed. LumiBot blocks supported broker order submission,
+        cancellation, and modification APIs for the duration of this method.
+        Use it to fetch data and persist a plan for a later market-open run.
         """
         pass
 

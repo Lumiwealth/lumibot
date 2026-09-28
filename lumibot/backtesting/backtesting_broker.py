@@ -1130,6 +1130,9 @@ class BacktestingBroker(Broker):
     def _submit_order(self, order):
         """Submit an order for an asset"""
 
+        if order is None:
+            raise ValueError("BacktestingBroker cannot submit a null order")
+
         self._validate_data_source_order(order)
 
         # Optional audit trail (submission-time context).
@@ -1235,6 +1238,21 @@ class BacktestingBroker(Broker):
                         )
                     except ValueError:
                         parent_order_type = Order.OrderType.MARKET
+            # Credit/debit/even multileg submits pass `price` as the absolute net
+            # limit. Persist it on the parent so wait/status tools and audit logs
+            # see the package limit the agent calculated (children still fill as
+            # their own order types).
+            parent_limit_price = kwargs.get("price", None)
+            if parent_limit_price is None:
+                parent_limit_price = kwargs.get("limit_price", None)
+            if parent_limit_price is not None:
+                try:
+                    parent_limit_price = float(parent_limit_price)
+                    if not math.isfinite(parent_limit_price):
+                        parent_limit_price = None
+                except Exception:
+                    parent_limit_price = None
+
             parent_order = Order(
                 asset=parent_asset,
                 strategy=orders[0].strategy,
@@ -1242,6 +1260,7 @@ class BacktestingBroker(Broker):
                 side=orders[0].side,
                 quantity=orders[0].quantity,
                 order_type=parent_order_type,
+                limit_price=parent_limit_price if parent_order_type == Order.OrderType.LIMIT else None,
                 tag=orders[0].tag,
                 status=Order.OrderStatus.SUBMITTED
             )
@@ -1356,6 +1375,12 @@ class BacktestingBroker(Broker):
         last_price_error = None
         resolved_asset = underlying_asset
 
+        def _valid_price(value) -> bool:
+            try:
+                return math.isfinite(float(value)) and float(value) > 0
+            except (TypeError, ValueError):
+                return False
+
         def _try_last_price(asset: Asset) -> None:
             nonlocal underlying_price, last_price_error, resolved_asset
             try:
@@ -1368,30 +1393,32 @@ class BacktestingBroker(Broker):
 
         _try_last_price(underlying_asset)
 
-        if underlying_price is None and getattr(resolved_asset, "asset_type", None) == Asset.AssetType.STOCK:
+        if not _valid_price(underlying_price) and getattr(resolved_asset, "asset_type", None) == Asset.AssetType.STOCK:
             symbol_upper = str(getattr(resolved_asset, "symbol", "") or "").upper()
             index_root = INDEX_ROOT_ALIASES.get(symbol_upper, symbol_upper)
             if symbol_upper in INDEX_LIKE_SYMBOLS:
                 _try_last_price(Asset(symbol=index_root, asset_type="index"))
 
-        if underlying_price is None and last_price_error is not None:
-            message = str(last_price_error)
-            if "[THETA][COVERAGE]" in message:
-                try:
-                    bars = strategy.get_historical_prices(resolved_asset, length=1, timestep="day")
-                    df = getattr(bars, "df", None)
-                    if df is not None and not df.empty and "close" in df.columns:
-                        underlying_price = float(df["close"].iloc[-1])
+        if not _valid_price(underlying_price):
+            try:
+                bars = strategy.get_historical_prices(resolved_asset, length=1, timestep="day")
+                df = getattr(bars, "df", None)
+                if df is not None and not df.empty and "close" in df.columns:
+                    historical_close = df["close"].iloc[-1]
+                    if _valid_price(historical_close):
+                        underlying_price = float(historical_close)
+                        reason = str(last_price_error).splitlines()[0] if last_price_error else "no current price"
                         logger.warning(
-                            "[OPTION_SETTLEMENT][FALLBACK] get_last_price(%s) failed (%s); settling using daily close=%s",
+                            "[OPTION_SETTLEMENT][FALLBACK] get_last_price(%s) failed (%s); "
+                            "settling using daily close=%s",
                             resolved_asset,
-                            message.splitlines()[0],
+                            reason,
                             underlying_price,
                         )
-                except Exception:
-                    pass
+            except Exception:
+                pass
 
-        if underlying_price is None:
+        if not _valid_price(underlying_price):
             if last_price_error is not None:
                 raise last_price_error
             raise ValueError(f"Unable to price underlying {resolved_asset} for settlement")
@@ -2450,10 +2477,15 @@ class BacktestingBroker(Broker):
                 # passing -1 minute yields an effective +1 minute guard that keeps us on the previously
                 # completed bar. See tests/*_lookahead for regression coverage.
                 timeshift = timedelta(minutes=-1)
+                execution_bar_kwargs = {}
                 if data_source_name == "CCXT":
-                    # Crypto candles can be legitimately sparse. Do not look ahead to the
-                    # next provider candle and record the fill at the older sim timestamp.
-                    timeshift = None
+                    # Research history excludes the unclosed CCXT candle. Execution
+                    # alone requests the current interval to simulate its open/range.
+                    # The timestamp check below still rejects future/sparse-gap bars.
+                    bar_duration, _ = DataSourceBacktesting.convert_timestep_str_to_timedelta(
+                        getattr(self.data_source, "_timestep", None) or "minute"
+                    )
+                    timeshift = -bar_duration
                 elif data_source_name in {"DATABENTO", "DATABENTO_POLARS"}:
                     # DataBento feeds can skip minutes around maintenance windows. Giving it a two-minute
                     # cushion mirrors the legacy Polygon behaviour and avoids falling through gaps.
@@ -2465,12 +2497,22 @@ class BacktestingBroker(Broker):
                 elif data_source_name == "ALPACA":
                     # Alpaca minute bars line up with our clock already; no offset needed.
                     timeshift = None
+                    # Execution is simulated on the bar that starts now (market orders at its
+                    # open, limit and stop orders against its range), the same bar the Pandas
+                    # path reads with timeshift=-1. AlpacaBacktesting history returns finished
+                    # bars only in environment mode (the BotSpot path), so ask for the current
+                    # bar explicitly. The timestamp check below still rejects a bar that is not
+                    # current where the fill policy requires one (options). The fill never needs
+                    # bars from before the backtest window, so it does not reach back for them.
+                    execution_bar_kwargs["remove_incomplete_current_bar"] = False
+                    execution_bar_kwargs["_extend_history"] = False
 
                 ohlc = self.data_source.get_historical_prices(
                     asset=asset,
                     length=1,
                     quote=order.quote,
                     timeshift=timeshift,
+                    **execution_bar_kwargs,
                 )
 
                 if (
@@ -3341,6 +3383,15 @@ class BacktestingBroker(Broker):
         timestep: Optional[str],
         data_source_name: Optional[str] = None,
     ) -> bool:
+        # Alpaca option history is trade prints with no forward fill, for minute and day
+        # bars alike. Fill only on a bar that printed in the current bucket; an older print
+        # is a stale price, so the order keeps working until a real trade prints.
+        source = getattr(self, "data_source", None)
+        if self._is_option_asset(getattr(order, "asset", None) if order is not None else None) and (
+            str(data_source_name or getattr(source, "SOURCE", "") or "").upper() == "ALPACA"
+            or (source is not None and source.__class__.__name__ == "AlpacaBacktesting")
+        ):
+            return True
         try:
             _, unit = parse_timestep_qty_and_unit(timestep or getattr(getattr(self, "data_source", None), "_timestep", None))
         except Exception:

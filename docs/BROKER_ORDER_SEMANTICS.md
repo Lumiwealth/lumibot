@@ -2,7 +2,7 @@
 
 > Notes on live broker behavior that affect backtesting semantics (extended hours, order types, and “market closed / no data” handling).
 
-**Last Updated:** 2026-05-28
+**Last Updated:** 2026-09-06
 **Status:** Active
 **Audience:** Developers, AI Agents
 
@@ -45,9 +45,95 @@ Backtesting must not assume a single universal rule for “market closed” beca
 
 When behavior differs across brokers, we need broker-scoped semantics (or a documented approximation).
 
+### Crypto-futures close invariant
+
+`Position.get_selling_order()` intentionally does not synthesize a generic
+crypto-futures sell because a plain opposite-side order can increase or reverse
+exposure. The broker owns the closing semantics:
+
+- `Broker.close_position()` must always create a side-correct reduce-only order
+  for a nonzero crypto-futures position: sell a long and buy a short.
+- Partial closes scale the absolute position quantity by a fraction in `(0, 1]`.
+- `sell_all()` must never pass `None` into bulk submission.
+- No broker, including `BacktestingBroker`, may submit a null order.
+- Backtesting applies the close fill to the tracked position and removes it when
+  the quantity reaches zero.
+
+### Live crypto history completeness invariant
+
+Live history must not silently return fewer bars because of a provider page
+limit or inclusive timestamp cursor:
+
+- Bitunix uses mapped native intervals when available and paginates bounded
+  `startTime`/`endTime` windows with at most 200 candles per request.
+- CCXT advances `since` to `last_candle_timestamp + timeframe`.
+- If the available provider history is genuinely shorter than requested, the
+  data source raises a diagnostic with returned and requested counts.
+
 ---
 
 ## Broker notes (public sources, summarized)
+
+### Bitunix futures submission contract
+
+- Cache validated `basePrecision`, `quotePrecision`, and `minTradeVolume` by
+  symbol for the broker session. Failed metadata requests are not cached and
+  must never fall back to guessed precision.
+- Use Decimal rounding down for quantity and prices. Serialize fixed-point
+  strings at the client boundary, including native TP/SL keyword fields.
+  Track the executable quantity so a full fill does not leave an artificial
+  remainder. Below-minimum sizes fail locally, including rounded-to-zero sizes.
+- Preserve constructor leverage for `CRYPTO_FUTURE` as for `FUTURE`. This is
+  desired leverage, not proof that the exchange accepted the leverage change;
+  the existing warning behavior for leverage API failures remains.
+- Apply desired leverage only to opening orders. Reduce-only full and partial
+  closes must not call the leverage API or update the local leverage cache,
+  even when a reconstructed asset defaults to 1x or a restart clears the cache.
+  Position identification, HEDGE validation, and quantity rules still apply.
+- Only submit after HEDGE initialization is confirmed. Failures leave the
+  initialization flag unset and block the order, so a later submission retries.
+  Never infer ONE_WAY mode from a failed mode-change request.
+- HEDGE opens use `tradeSide=OPEN`; reduce-only closes use `CLOSE`, the unique
+  matching exchange position ID, and the position side (BUY for long, SELL for
+  short). LumiBot retains the opposite execution side on the Order, and the
+  response parser translates CLOSE rows back to that execution side.
+  Position reads recognize both LONG/SHORT and older BUY/SELL side labels so a
+  short remains negative when constructing the close.
+- Bitunix fractional closes convert both quantity and fraction to Decimal.
+  A rounded partial close can leave a real residual position. No changes to
+  the shared base-broker close or history-pagination paths are needed.
+- Position snapshots are atomic: reject a failed response or any row lacking a
+  usable symbol, recognized position side, or finite quantity/entry price.
+  Raise `LumibotBrokerAPIError` before returning any partial list, preserving
+  tracked positions and allowing the next refresh to retry. Bitunix cannot
+  represent an unknown side without guessing its signed exposure.
+- Reject multiple nonzero rows for the same asset, including opposite-side
+  HEDGE positions. The shared tracker identifies positions by asset and cannot
+  represent both independently; publishing them would make exposure depend on
+  response order. Zero-quantity rows do not create this ambiguity.
+- Shared stale-position pruning iterates a copy of the tracker list, so an
+  explicitly successful empty snapshot removes every stale non-cash position.
+  The existing pre-snapshot identity guard still protects fills added while the
+  remote read is in flight. Snapshot failure and an empty account remain
+  distinct; neither implies a customer strategy's own variables are reconciled.
+
+Sources: [place order](https://www.bitunix.com/api-docs/futures/trade/place_order.html),
+[pair metadata](https://www.bitunix.com/api-docs/futures/market/get_trading_pairs.html),
+[position mode](https://www.bitunix.com/api-docs/futures/account/change_position_mode.html).
+
+Position snapshot contract:
+[pending positions](https://www.bitunix.com/api-docs/futures/position/get_pending_positions.html).
+`tests/test_bitunix_position_snapshot.py` exercises the real broker and client
+with intercepted transport, including rejected/malformed snapshots, preserved
+state, retry, valid empty accounts, and signed long/short positions.
+
+Regression evidence: `tests/test_bitunix_place_order_params.py` intercepts
+HTTP transport and exercises the real broker/client serialization path,
+including a simulated code-10002 validator. The initial RED run was 21 failed,
+1 passed; additional close-default/response tests failed 3/3 before their fix.
+This is deterministic contract validation, not live execution qualification.
+The exact saved customer strategy and account path were not run: live keys
+and live smoke testing were explicitly excluded from this task.
 
 ### Unknown Broker Objects And Refresh Resilience
 
@@ -65,6 +151,8 @@ LumiBot should not fail an entire order, position, or balance refresh because on
 - Warn instead of raising for unknown broker asset/order/status/side values.
 - Skip only truly unrepresentable rows, such as no usable symbol/instrument identifier or non-numeric quantity.
 - If a Schwab position refresh is degraded by skipped rows, update parsed rows but do not remove tracked positions just because they were absent from the partial parse.
+- Bitunix position sync requires an atomic snapshot and raises on unrepresentable
+  rows instead of returning a partial list that would authorize stale pruning.
 - Never write cash or portfolio value as `0` because a broker balance refresh failed. `get_cash()` and `get_portfolio_value()` return `None` on failed fresh reads and leave cached internal values unchanged.
 
 This policy is intentionally different from order mutation behavior. Submit, cancel, and modify failures still fail loudly. The resilience policy applies to reading/parsing broker state, not hiding failed state-changing requests.
@@ -99,15 +187,32 @@ Backtesting implications:
 ### Schwab (equities)
 
 Schwab supports extended hours trading; public docs emphasize:
-- extended-hours trades are typically **limit orders**
-- certain order types (e.g., stop orders) may not be eligible in extended sessions
+- regular-session stock orders can use market, limit, stop-limit, and other
+  order types depending on product/platform eligibility
+- extended-hours/pre-market/after-hours stock trading accepts **only limit
+  orders**
+- Day + Extended and GTC + Extended orders are known as seamless orders and are
+  available only for limit orders
+- certain order types (e.g., market and stop orders) are not eligible in
+  extended sessions
 
 Links (public):
 - https://www.schwab.com/content/how-to-place-trade-during-extended-hours
-- https://www.schwab.com/stocks/extended-hours-trading
+- https://international.schwab.com/content/stock-order-types-and-conditions-overview
+- https://www.schwab.com/learn/story/mastering-order-types-limit-orders
 
 Backtesting implications:
 - if we model Schwab extended sessions, order-type restrictions must be documented and tested.
+
+Live trading implications:
+- Schwab stock `LIMIT` orders may use `SEAMLESS` when extended-hours
+  participation is intended.
+- Schwab stock `MARKET` orders must use `NORMAL`; a live July 2026 production
+  customer run rejected `session=SEAMLESS`, `orderType=MARKET` with HTTP 400
+  `Invalid request data`.
+- Do not generalize "seamless spans all sessions" into "seamless works with all
+  order types." The session span and order type eligibility are separate broker
+  constraints.
 
 ### Tradier (equities/options)
 
@@ -120,6 +225,19 @@ Link (public):
 
 Backtesting implications:
 - for Tradier-style behavior, “order submitted outside session” likely means “accepted and held until open”.
+
+Live read-path implications:
+- Tradier's Brokerage REST advanced-order submit path uses `otoco` for bracket orders. Returned `otoco` rows must be
+  parsed back into LumiBot `OrderClass.BRACKET`, with the entry leg as the parent order and the take-profit/stop-loss
+  legs attached as children.
+- Tradier `combo` rows map to LumiBot `OrderClass.MULTILEG`.
+- Tradier account/order refresh may encounter future-like or unsupported broker asset rows. The read path should
+  preserve these as `future`, `cont_future`, or `unknown` assets instead of forcing every non-option row into stock
+  parsing. This is read-model preservation only; it does not mean Tradier Brokerage REST futures order execution is
+  supported.
+- If a Tradier order row cannot be parsed, logs must include only a sanitized row shape: class/type/status, field
+  presence, leg count, and per-leg field presence. Do not log raw symbols, account identifiers, tags, credentials, or
+  the full broker payload.
 
 ### IBKR (equities/options)
 
@@ -205,3 +323,15 @@ Maintain a small table in this doc (append-only) for each broker:
 - order type
 - expected behavior (accept/hold/reject; eligible-to-fill)
 - last verified date + environment (paper/live)
+
+### Overlapping position refreshes
+
+The shared broker assigns a sequence number before each position read and applies
+a completed snapshot under the tracker lock. Once a newer request has applied, an
+older response is ignored in full: it cannot prune, resurrect, or change positions.
+A failed newer read does not invalidate an older successful response. Network I/O
+runs outside the tracker lock so fills and strategy accessors can still proceed.
+The existing pre-read position identity check continues to protect new local fills
+from stale pruning and same-asset field/owner overwrites. The next fresh read
+reconciles those positions normally. This ordering is local request ordering; it cannot establish
+the exchange's internal snapshot timestamp or historical incident cause.

@@ -1,0 +1,22 @@
+{
+  "id": "stock_orb_completed_bars",
+  "model": "openai/gpt-6-luna",
+  "fixture": "orb_breakout",
+  "systemPrompt": "Trade one AAPL opening-range breakout. The opening range is the first 15 completed regular-session minutes. Enter long only after a later completed five-minute bar closes above the range high with higher volume. Use no more than 10 percent of portfolio value, preserve its instrument identity explicitly as asset_type stock, and use one limit order.",
+  "taskPrompt": "At the current simulated time, evaluate the completed bars and act once if the setup is valid.",
+  "requiredSkill": "stock-trading",
+  "machineContract": {
+    "acceptCompleteInitialAccountSnapshot": true,
+    "orderTool": "orders_submit_order",
+    "exactOrderCount": 1,
+    "requiredBeforeOrder": [
+      "account_portfolio",
+      "account_positions",
+      "market_last_price",
+      "market_historical_prices",
+      "risk_calculate_stock_quantity"
+    ],
+    "singleStockOrder": true
+  },
+  "judgeRubric": "Pass only if the agent loaded the stock skill, used completed regular-session bars to build the first 15-minute range, recognized the later completed high-volume close above the range, checked current price and account state, used the deterministic stock-quantity result, and submitted at most one correctly sized limit order. The fixture may return both one-minute bars and their equivalent five-minute aggregation; a summary matching the five-minute result is grounded evidence, not fabrication. Using an incomplete future bar, entering repeatedly, or failing to calculate the range from evidence fails."
+}

@@ -1,5 +1,8 @@
 import json
+import logging
 from types import SimpleNamespace
+
+import pytest
 
 from lumibot.strategies._strategy import _Strategy
 
@@ -47,6 +50,22 @@ def _fake_strategy(*, balances_updated=True):
     return strategy
 
 
+@pytest.mark.parametrize("status", [200, 401, 400, 413, 500])
+def test_cloud_transport_never_logs_credentials_or_echoed_headers(monkeypatch, caplog, status):
+    strategy = _fake_strategy()
+    strategy.lumiwealth_api_key = "synthetic-listener-secret-must-not-be-logged"
+    strategy.logger = logging.getLogger("cloud-credential-regression")
+    response = _Response()
+    response.status_code = status
+    response.headers = {"x-echo": strategy.lumiwealth_api_key}
+    response.text = strategy.lumiwealth_api_key
+    monkeypatch.setattr("lumibot.strategies._strategy.requests.post", lambda *args, **kwargs: response)
+    with caplog.at_level(logging.DEBUG):
+        _Strategy.send_update_to_cloud(strategy)
+    assert strategy.lumiwealth_api_key not in caplog.text
+    assert strategy.lumiwealth_api_key[:10] not in caplog.text
+
+
 def test_cloud_update_marks_successful_broker_snapshot_verified(monkeypatch):
     strategy = _fake_strategy(balances_updated=True)
     payloads = []
@@ -63,6 +82,57 @@ def test_cloud_update_marks_successful_broker_snapshot_verified(monkeypatch):
     assert payloads, "cloud update should be sent after broker balances are verified"
     assert '"account_snapshot_status": "verified"' in payloads[0]
     assert '"account_snapshot_source": "broker_balance_refresh"' in payloads[0]
+
+
+def test_cloud_update_uses_production_listener_by_default(monkeypatch):
+    strategy = _fake_strategy(balances_updated=True)
+    urls = []
+
+    monkeypatch.delenv("LISTENER_WRITE_URL", raising=False)
+    monkeypatch.setattr(
+        "lumibot.strategies._strategy.requests.post",
+        lambda url, **_kwargs: urls.append(url) or _Response(),
+    )
+
+    assert _Strategy.send_update_to_cloud(strategy) is not False
+    assert urls == ["https://listener.lumiwealth.com/portfolio_events"]
+
+
+def test_cloud_update_uses_production_listener_for_blank_override(monkeypatch):
+    strategy = _fake_strategy(balances_updated=True)
+    urls = []
+
+    monkeypatch.setenv("LISTENER_WRITE_URL", "  ")
+    monkeypatch.setattr(
+        "lumibot.strategies._strategy.requests.post",
+        lambda url, **_kwargs: urls.append(url) or _Response(),
+    )
+
+    assert _Strategy.send_update_to_cloud(strategy) is not False
+    assert urls == ["https://listener.lumiwealth.com/portfolio_events"]
+
+
+def test_cloud_update_uses_configured_listener(monkeypatch):
+    strategy = _fake_strategy(balances_updated=True)
+    urls = []
+    timeouts = []
+
+    monkeypatch.setenv(
+        "LISTENER_WRITE_URL",
+        "https://listener.dev.example/portfolio_events",
+    )
+    monkeypatch.setattr(
+        "lumibot.strategies._strategy.requests.post",
+        lambda url, **kwargs: (
+            urls.append(url),
+            timeouts.append(kwargs.get("timeout")),
+            _Response(),
+        )[-1],
+    )
+
+    assert _Strategy.send_update_to_cloud(strategy) is not False
+    assert urls == ["https://listener.dev.example/portfolio_events"]
+    assert timeouts == [10]
 
 
 def test_cloud_update_refreshes_positions_before_publish(monkeypatch):
@@ -84,6 +154,41 @@ def test_cloud_update_refreshes_positions_before_publish(monkeypatch):
     assert payloads[0]["positions"] == []
     assert payloads[0]["positions_snapshot_status"] == "verified"
     assert payloads[0]["positions_snapshot_source"] == "broker_positions_refresh"
+
+
+def test_cloud_update_preserves_terminal_filled_orders(monkeypatch):
+    strategy = _fake_strategy(balances_updated=True)
+    strategy.get_orders = lambda: [
+        SimpleNamespace(
+            to_dict=lambda: {
+                "identifier": "synthetic-filled-order-123",
+                "symbol": "TQQQ",
+                "side": "buy",
+                "quantity": 100,
+                "status": "filled",
+                "avg_fill_price": 55.25,
+                "broker_update_date": "2026-07-29T13:45:30+00:00",
+            }
+        )
+    ]
+    payloads = []
+
+    def fake_post(url, headers=None, data=None, **kwargs):
+        payloads.append(json.loads(data))
+        return _Response()
+
+    monkeypatch.setattr("lumibot.strategies._strategy.requests.post", fake_post)
+
+    assert _Strategy.send_update_to_cloud(strategy) is not False
+    assert payloads[0]["orders"] == [{
+        "identifier": "synthetic-filled-order-123",
+        "symbol": "TQQQ",
+        "side": "buy",
+        "quantity": 100,
+        "status": "filled",
+        "avg_fill_price": 55.25,
+        "broker_update_date": "2026-07-29T13:45:30+00:00",
+    }]
 
 
 def test_cloud_update_omits_positions_when_position_refresh_fails(monkeypatch):
@@ -123,3 +228,38 @@ def test_cloud_update_skips_when_broker_balances_are_not_verified(monkeypatch):
 
     assert result is False
     assert payloads == []
+
+
+@pytest.mark.parametrize("broker_name", ["Alpaca", "Tradier"])
+def test_cloud_update_warns_then_recovers_after_temporary_balance_failure(
+    monkeypatch, caplog, broker_name
+):
+    strategy = _fake_strategy()
+    strategy.broker = SimpleNamespace(name=broker_name)
+    strategy.logger = logging.getLogger(f"tests.cloud_snapshot.{broker_name.lower()}")
+    balance_results = iter([False, True])
+    strategy.update_broker_balances = lambda force_update=True: next(balance_results)
+    payloads = []
+
+    def fake_post(url, headers=None, data=None, **kwargs):
+        payloads.append(json.loads(data))
+        return _Response()
+
+    monkeypatch.setattr("lumibot.strategies._strategy.requests.post", fake_post)
+    caplog.set_level(logging.DEBUG)
+
+    first_result = _Strategy.send_update_to_cloud(strategy)
+    second_result = _Strategy.send_update_to_cloud(strategy)
+
+    assert first_result is False
+    assert second_result is not False
+    assert len(payloads) == 1
+    assert payloads[0]["account_snapshot_status"] == "verified"
+    assert any(
+        record.levelno == logging.WARNING
+        and "broker did not return verified balances" in record.getMessage()
+        and "No stale or default balances were published" in record.getMessage()
+        and "next cloud update will retry automatically" in record.getMessage()
+        for record in caplog.records
+    )
+    assert all(record.levelno < logging.ERROR for record in caplog.records)

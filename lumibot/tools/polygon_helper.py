@@ -783,7 +783,19 @@ def get_chains_cached(
     chain_folder = Path(LUMIBOT_CACHE_FOLDER) / "polygon" / "option_chains"
     chain_folder.mkdir(parents=True, exist_ok=True)
 
-    # 4) Attempt to find a suitable recent file (reuse it if found)
+    # LUMIBOT_OPTION_CHAIN_MAX_DAYS bounds the Polygon query to expirations up to
+    # current_date + N (keeps free keys under the rate limit). A bounded chain is only
+    # complete for the day it was fetched, so it gets its own cache name and is never
+    # reused on a later day or by a run without the same bound.
+    max_days = _option_chain_max_days()
+    if max_days is not None:
+        limited_file = chain_folder / f"{asset.symbol}_{current_date.isoformat()}_max{max_days}d.parquet"
+        if limited_file.exists():
+            logger.debug(f"Reusing bounded chain file {limited_file} for {current_date}.")
+            return _read_cached_chain(limited_file)
+
+    # 4) Attempt to find a suitable recent full-chain file (reuse it if found).
+    #    Bounded files do not parse as a date here, so they are skipped.
     earliest_okay_date = current_date - timedelta(days=RECENT_FILE_TOLERANCE_DAYS)
     pattern = f"{asset.symbol}_*.parquet"
     potential_files = sorted(chain_folder.glob(pattern), reverse=True)
@@ -808,15 +820,7 @@ def get_chains_cached(
                 f"Reusing chain file {fpath} (file_date={file_date}), "
                 f"within {RECENT_FILE_TOLERANCE_DAYS} days of {current_date}."
             )
-            df_cached = pd.read_parquet(fpath, engine='pyarrow')
-
-            # Convert the data back to a dictionary of lists instead of NP arrays to match original return types
-            data = df_cached["data"][0]
-            for right in data["Chains"]:
-                for exp_date in data["Chains"][right]:
-                    data["Chains"][right][exp_date] = list(data["Chains"][right][exp_date])
-
-            return data
+            return _read_cached_chain(fpath)
 
     # 5) No suitable file => must fetch from Polygon
     logger.debug(
@@ -835,14 +839,21 @@ def get_chains_cached(
     #    to ensure we get all relevant strikes near that historical date.
     expired_list = [True, False]
 
+    expiration_lte = None
+    if max_days is not None:
+        expiration_lte = current_date + timedelta(days=max_days)
+
     polygon_contracts = []
     for expired in expired_list:
-        contracts_gen = polygon_client.list_options_contracts(
-            underlying_ticker=asset.symbol,
-            expiration_date_gte=current_date,
-            expired=expired,
-            limit=1000,
-        )
+        chain_kwargs = {
+            "underlying_ticker": asset.symbol,
+            "expiration_date_gte": current_date,
+            "expired": expired,
+            "limit": 1000,
+        }
+        if expiration_lte is not None:
+            chain_kwargs["expiration_date_lte"] = expiration_lte
+        contracts_gen = polygon_client.list_options_contracts(**chain_kwargs)
         polygon_contracts.extend(list(contracts_gen))
 
     # 7) Build the dictionary
@@ -860,7 +871,10 @@ def get_chains_cached(
         option_contracts["Chains"][right][exp_date].append(strike)
 
     # 8) Save to a new file for future reuse
-    cache_file = chain_folder / f"{asset.symbol}_{current_date.isoformat()}.parquet"
+    if max_days is not None:
+        cache_file = chain_folder / f"{asset.symbol}_{current_date.isoformat()}_max{max_days}d.parquet"
+    else:
+        cache_file = chain_folder / f"{asset.symbol}_{current_date.isoformat()}.parquet"
     df_to_cache = pd.DataFrame({"data": [option_contracts]})
     df_to_cache.to_parquet(cache_file, compression='snappy', engine='pyarrow')
     logger.debug(
@@ -869,6 +883,32 @@ def get_chains_cached(
     )
 
     return option_contracts
+
+
+def _option_chain_max_days():
+    """Parse LUMIBOT_OPTION_CHAIN_MAX_DAYS. Returns a positive int, or None when unset or invalid."""
+    raw = os.environ.get("LUMIBOT_OPTION_CHAIN_MAX_DAYS", "").strip()
+    if not raw:
+        return None
+    try:
+        value = int(raw)
+    except ValueError:
+        logger.warning(f"Ignoring LUMIBOT_OPTION_CHAIN_MAX_DAYS={raw!r}: expected a whole number of days.")
+        return None
+    if value <= 0:
+        logger.warning(f"Ignoring LUMIBOT_OPTION_CHAIN_MAX_DAYS={raw!r}: expected a positive number of days.")
+        return None
+    return value
+
+
+def _read_cached_chain(fpath):
+    df_cached = pd.read_parquet(fpath, engine='pyarrow')
+    # Convert the data back to a dictionary of lists instead of NP arrays to match original return types
+    data = df_cached["data"][0]
+    for right in data["Chains"]:
+        for exp_date in data["Chains"][right]:
+            data["Chains"][right][exp_date] = list(data["Chains"][right][exp_date])
+    return data
 
 
 class PolygonClient(RESTClient):

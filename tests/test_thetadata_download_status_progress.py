@@ -6,6 +6,24 @@ from lumibot.entities import Asset
 from lumibot.tools import thetadata_helper
 
 
+def test_structured_provider_wait_is_visible_and_clears_after_recovery(monkeypatch):
+    clock = [1000.0]
+    monkeypatch.setattr(thetadata_helper.time, "time", lambda: clock[0])
+    thetadata_helper.clear_download_status()
+    thetadata_helper.set_download_status(Asset("TQQQ"), "USD", "ohlc", "day", 0, 1)
+    thetadata_helper.update_download_status_queue_info(request_id="synthetic", queue_status="pending",
+        submitted_at=1000, provider_wait={"provider": "ibkr", "classification": "rate_limited",
+                                        "status_code": 429, "retry_at": 1900, "secret": "not-public"})
+    status = thetadata_helper.get_download_status()
+    assert status["provider_wait"]["retry_at"] == 1900
+    assert "not-public" not in str(status)
+    assert status["current"] == 0
+    clock[0] = 1901
+    thetadata_helper.update_download_status_queue_info(request_id="synthetic", queue_status="processing")
+    assert thetadata_helper.get_download_status()["provider_wait"] is None
+    thetadata_helper.clear_download_status()
+
+
 def test_advance_download_status_progress_is_contract_specific_for_options():
     thetadata_helper.clear_download_status()
 

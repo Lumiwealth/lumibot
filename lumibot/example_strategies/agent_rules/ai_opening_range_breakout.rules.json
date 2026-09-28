@@ -1,0 +1,8 @@
+{
+  "version": 1,
+  "rules": [
+    {"id": "completed-opening-range", "status": "active", "interpretation": "Build the opening range only from completed regular-session bars beginning at 09:30 America/New_York."},
+    {"id": "completed-breakout", "status": "active", "interpretation": "Enter only when a completed bar closes beyond the opening range. An intrabar touch is not a breakout."},
+    {"id": "daily-symbol-entry", "status": "active", "interpretation": "Open at most one new position per symbol per trading day."}
+  ]
+}

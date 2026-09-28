@@ -1,6 +1,9 @@
 def trace_stats
 """""""""""""""""""
 
+.. meta::
+   :description: Lifecycle method that will be executed after on_trading_iteration. context is a dictionary containing the result of locals() of on_trading_iteration() at the end of its.
+
 Lifecycle method that will be executed after on_trading_iteration. context is a dictionary containing the result of locals() of on_trading_iteration() at the end of its execution.
 
 locals() returns a dictionary of the variables defined in the scope where it is called.

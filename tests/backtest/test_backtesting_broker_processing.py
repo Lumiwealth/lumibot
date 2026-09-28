@@ -1334,3 +1334,173 @@ def test_future_end_date_stops_backtest_cleanly():
     assert broker._end_of_trading_days_reached is True
     assert broker.should_continue() is False
     assert broker.data_source.datetime_end <= broker.datetime
+
+
+def test_strategy_sleep_fills_stock_market_order_when_ohlc_exists():
+    """Regression: agent waits used strategy.sleep without processing fills.
+
+    Evidence (2026-08-06 AI ORB/VWAP/credit-spread): orders_wait_for_terminal
+    called strategy.sleep(process_pending_orders=True), but Strategy.sleep in
+    backtesting only advanced the clock via broker.sleep/safe_sleep and never
+    called process_pending_orders. Market stock orders stayed `new` until
+    end-of-backtest cancel (flat tearsheet). This test fails if sleep no longer
+    fills a market equity order when minute OHLC exists at the sim clock.
+    """
+    asset = Asset("SPY", asset_type=Asset.AssetType.STOCK)
+    quote = Asset("USD", asset_type=Asset.AssetType.FOREX)
+    strategy, broker, _ = setup_strategy_with_prices(
+        asset,
+        quote,
+        bars=[
+            (735.0, 736.0, 734.0, 735.5),
+            (735.5, 736.5, 735.0, 736.0),
+            (736.0, 737.0, 735.5, 736.5),
+        ],
+        start="2026-06-24 10:00",
+    )
+
+    order = strategy.create_order(
+        asset,
+        34,
+        Order.OrderSide.BUY,
+        order_type=Order.OrderType.MARKET,
+    )
+    strategy.submit_order(order)
+    assert order.status in {Order.OrderStatus.NEW, Order.OrderStatus.SUBMITTED, "new", "submitted"}
+
+    # Mimic orders_wait_for_terminal: sleep with process_pending_orders=True and
+    # do not call process_pending_orders directly.
+    strategy.sleep(1.0, process_pending_orders=True)
+    strategy._executor.process_queue()
+
+    assert order.is_filled(), (
+        f"Expected market stock order to fill via strategy.sleep; status={order.status}"
+    )
+    assert order.get_fill_price() is not None
+    assert float(order.get_fill_price()) > 0
+    assert position_quantity(broker, strategy, asset) == pytest.approx(34.0)
+
+
+def test_orders_wait_for_terminal_fills_stock_market_order_in_backtest():
+    """Agent wait tool must process pending fills instead of racing the clock."""
+    from lumibot.components.agents import BuiltinTools
+    from lumibot.components.agents.runtime import _wrap_tool_callable
+    from lumibot.components.agents import AgentManager
+
+    asset = Asset("SPY", asset_type=Asset.AssetType.STOCK)
+    quote = Asset("USD", asset_type=Asset.AssetType.FOREX)
+    strategy, broker, _ = setup_strategy_with_prices(
+        asset,
+        quote,
+        bars=[
+            (100.0, 101.0, 99.0, 100.5),
+            (100.5, 101.5, 100.0, 101.0),
+            (101.0, 102.0, 100.5, 101.5),
+        ],
+        start="2026-06-24 13:30",
+    )
+
+    order = strategy.create_order(
+        asset,
+        10,
+        Order.OrderSide.BUY,
+        order_type=Order.OrderType.MARKET,
+    )
+    strategy.submit_order(order)
+
+    manager = AgentManager(strategy)
+    context = {
+        "agent_name": "fill-regression",
+        "model_call_id": "fill-regression-call",
+        "enforce_order_readiness": False,
+        "tool_calls": [],
+    }
+    wait = _wrap_tool_callable(
+        BuiltinTools.orders.wait_for_terminal().binder(strategy, manager),
+        context,
+    )
+    result = wait(identifier=order.identifier, timeout_seconds=5, poll_interval_seconds=1)
+    strategy._executor.process_queue()
+
+    assert order.is_filled(), (
+        f"orders_wait_for_terminal left market order unfilled; status={order.status} result={result}"
+    )
+    assert result.get("all_filled") is True or result.get("all_terminal") is True
+    assert result.get("timed_out") is False
+    # Must not race through days of sim time while failing to fill.
+    assert result.get("polls", 0) <= 5
+    assert broker.datetime.date().isoformat() == "2026-06-24"
+
+
+@pytest.mark.parametrize("first_iteration", [False, True])
+def test_strategy_sleep_applies_fill_to_cash_and_value_mid_iteration(first_iteration):
+    """Regression: a mid-iteration backtest fill updated positions but not cash.
+
+    Evidence (2026-09-23 sec-insider-luna-v3): after AAPL and MSFT market buys
+    filled through orders_wait_for_terminal, account_positions showed the shares
+    while account_portfolio still reported cash 100000. The FILLED_ORDER event
+    waited in the executor queue until on_trading_iteration returned, so any
+    sizing after a fill in the same iteration read stale cash.
+    """
+    asset = Asset("SPY", asset_type=Asset.AssetType.STOCK)
+    quote = Asset("USD", asset_type=Asset.AssetType.FOREX)
+    strategy, broker, _ = setup_strategy_with_prices(
+        asset,
+        quote,
+        bars=[
+            (100.0, 101.0, 99.0, 100.0),
+            (100.0, 101.0, 99.0, 100.0),
+            (100.0, 101.0, 99.0, 100.0),
+        ],
+        start="2026-06-24 13:30",
+    )
+    strategy._first_iteration = first_iteration
+    broker._first_iteration = first_iteration
+
+    order = strategy.create_order(asset, 100, Order.OrderSide.BUY, order_type=Order.OrderType.MARKET)
+    strategy.submit_order(order)
+    strategy.sleep(60, process_pending_orders=True)
+
+    assert order.is_filled()
+    fill_cost = 100 * float(order.get_fill_price())
+    assert strategy.get_cash() == pytest.approx(100000.0 - fill_cost)
+    assert strategy.get_portfolio_value() == pytest.approx(100000.0, rel=1e-3)
+
+
+def test_orders_wait_then_account_portfolio_reports_post_fill_cash():
+    from lumibot.components.agents import AgentManager, BuiltinTools
+    from lumibot.components.agents.runtime import _wrap_tool_callable
+
+    asset = Asset("AAPL", asset_type=Asset.AssetType.STOCK)
+    quote = Asset("USD", asset_type=Asset.AssetType.FOREX)
+    strategy, broker, _ = setup_strategy_with_prices(
+        asset,
+        quote,
+        bars=[
+            (200.0, 201.0, 199.0, 200.0),
+            (200.0, 201.0, 199.0, 200.0),
+            (200.0, 201.0, 199.0, 200.0),
+        ],
+        start="2026-06-24 13:30",
+    )
+    strategy._first_iteration = True
+    broker._first_iteration = True
+
+    order = strategy.create_order(asset, 36, Order.OrderSide.BUY, order_type=Order.OrderType.MARKET)
+    strategy.submit_order(order)
+
+    manager = AgentManager(strategy)
+    context = {
+        "agent_name": "cash-regression",
+        "model_call_id": "cash-regression-call",
+        "enforce_order_readiness": False,
+        "tool_calls": [],
+    }
+    wait = _wrap_tool_callable(BuiltinTools.orders.wait_for_terminal().binder(strategy, manager), context)
+    wait(identifier=order.identifier, timeout_seconds=5, poll_interval_seconds=1)
+    portfolio = _wrap_tool_callable(BuiltinTools.account.portfolio().binder(strategy, manager), context)()
+
+    assert order.is_filled()
+    fill_cost = 36 * float(order.get_fill_price())
+    assert float(portfolio["cash"]) == pytest.approx(100000.0 - fill_cost)
+    assert float(portfolio["portfolio_value"]) == pytest.approx(100000.0, rel=1e-3)

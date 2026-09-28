@@ -1,12 +1,18 @@
 from __future__ import annotations
 
 import base64
+import hashlib
 import os
 import re
+import threading
+import time
+from pathlib import Path
 from threading import Thread
 
 from lumibot._lazy_imports import LazyLogger, lazy_class
+
 from .broker import Broker, LumibotBrokerAPIError
+from .oauth_refresh_mode import is_external_oauth_refresh_mode
 
 logger = LazyLogger(__name__)
 TYPE_CHECKING = False
@@ -14,11 +20,6 @@ datetime = lazy_class("datetime", "datetime")
 timedelta = lazy_class("datetime", "timedelta")
 Asset = lazy_class("lumibot.entities", "Asset")
 Order = lazy_class("lumibot.entities", "Order")
-
-import time
-from pathlib import Path
-
-from .oauth_refresh_mode import is_external_oauth_refresh_mode
 
 Client = None
 StreamClient = None
@@ -102,6 +103,106 @@ def _botspot_force_broker_token_refresh() -> bool:
     }
 
 
+def _schwab_cancel_diagnostics_enabled() -> bool:
+    """Post-cancel direct order reads double the round trips on every cancel.
+
+    They were added as always-on incident diagnostics; they now run only when
+    explicitly enabled so latency-sensitive cancels pay for one HTTP call.
+    """
+    return (os.environ.get("SCHWAB_CANCEL_DIAGNOSTICS") or "").strip().lower() in {
+        "1",
+        "true",
+        "yes",
+        "on",
+    }
+
+
+# Refresh this many seconds before the access token actually expires so no
+# latency-sensitive broker call (quotes, cancels) absorbs the OAuth handshake.
+_SCHWAB_PROACTIVE_REFRESH_MARGIN_SECONDS = 300
+_SCHWAB_PROACTIVE_REFRESH_POLL_SECONDS = 30
+_SCHWAB_PROACTIVE_REFRESH_RETRY_SECONDS = 60
+_SCHWAB_HTTP_TIMEOUT_SECONDS = 30.0
+
+
+def _apply_default_request_timeout(oauth_session, timeout_seconds: float = _SCHWAB_HTTP_TIMEOUT_SECONDS) -> None:
+    """Give every request through the OAuth session an explicit default timeout.
+
+    requests has no default timeout, so a stalled TLS/proxy connection would
+    block the trading loop indefinitely (including cancels).
+    """
+    original_request = getattr(oauth_session, "request", None)
+    if not callable(original_request):
+        # Some supported schwab-py transports and test doubles expose the
+        # request path through their client wrapper instead of directly on the
+        # OAuth session. Do not turn the timeout safety enhancement into an
+        # initialization failure for those sessions.
+        return
+
+    def _request_with_default_timeout(*args, **kwargs):
+        if kwargs.get("timeout") is None:
+            kwargs["timeout"] = timeout_seconds
+        return original_request(*args, **kwargs)
+
+    oauth_session.request = _request_with_default_timeout
+
+
+def _start_schwab_proactive_token_refresh(
+    oauth_session,
+    token_dict_for_session: dict,
+    refresh_kwargs: dict,
+    update_token_callback,
+) -> threading.Event:
+    """Refresh the Schwab access token in the background before it expires.
+
+    Schwab access tokens live ~30 minutes and oauthlib only refreshes lazily
+    inside whatever request first crosses the expiry boundary. That made the
+    refresh handshake (and any transient failure) land on an arbitrary broker
+    call - historically a cancel or quote - and could take seconds. This daemon
+    thread rotates the token ahead of expiry instead. The stop event is returned
+    so owners can shut the thread down with the broker.
+    """
+    stop_event = threading.Event()
+
+    def _seconds_until_expiry():
+        expires_at = token_dict_for_session.get("expires_at")
+        try:
+            return float(expires_at) - time.time()
+        except (TypeError, ValueError):
+            # Unknown expiry: poll periodically and let oauthlib decide lazily.
+            return None
+
+    def _refresh_once():
+        refresh_token_value = token_dict_for_session.get("refresh_token")
+        if not refresh_token_value:
+            raise RuntimeError("missing refresh_token")
+        refreshed = oauth_session.refresh_token(
+            oauth_session.auto_refresh_url,
+            refresh_token=refresh_token_value,
+            **refresh_kwargs,
+        )
+        if not isinstance(refreshed, dict) or not refreshed.get("access_token"):
+            raise RuntimeError("refresh response did not include access_token")
+        update_token_callback(refreshed)
+
+    def _run():
+        while not stop_event.is_set():
+            remaining = _seconds_until_expiry()
+            if remaining is None or remaining <= _SCHWAB_PROACTIVE_REFRESH_MARGIN_SECONDS:
+                try:
+                    _refresh_once()
+                    logger.info("[Schwab] Proactive background token refresh completed.")
+                except Exception as exc:
+                    logger.warning(f"[Schwab] Proactive background token refresh failed, will retry: {exc}")
+                stop_event.wait(_SCHWAB_PROACTIVE_REFRESH_RETRY_SECONDS)
+            else:
+                stop_event.wait(min(remaining - _SCHWAB_PROACTIVE_REFRESH_MARGIN_SECONDS, _SCHWAB_PROACTIVE_REFRESH_POLL_SECONDS))
+
+    thread = Thread(target=_run, name="schwab-token-refresher", daemon=True)
+    thread.start()
+    return stop_event
+
+
 def _is_external_schwab_token_file_valid(token_path: Path) -> bool:
     if not token_path.exists():
         return False
@@ -128,6 +229,58 @@ def _strip_external_schwab_token(token: dict) -> dict:
     ):
         sanitized.pop(secret_key, None)
     return sanitized
+
+
+def _schwab_token_issued_at_seconds(value):
+    if value is None:
+        return None
+    try:
+        raw = float(value)
+    except (TypeError, ValueError):
+        return None
+    return raw / 1000.0 if raw > 1_000_000_000_000 else raw
+
+
+def _normalize_schwab_token_expiry_metadata(token: dict) -> None:
+    if not isinstance(token, dict):
+        return
+    issued_at = _schwab_token_issued_at_seconds(token.get("issued_at") or token.get("creation_timestamp"))
+    try:
+        expires_in = float(token.get("expires_in"))
+    except (TypeError, ValueError):
+        expires_in = None
+    if issued_at is not None and expires_in is not None:
+        token["expires_at"] = int(issued_at + expires_in - 30)
+
+
+def _apply_external_schwab_token_to_session(oauth_session, token: dict) -> None:
+    """Synchronize requests-oauthlib's public token and oauthlib client cache."""
+    if not isinstance(token, dict):
+        return
+    oauth_session.token = dict(token)
+    client = getattr(oauth_session, "_client", None)
+    if client is None:
+        return
+    if token.get("access_token"):
+        try:
+            client.access_token = token.get("access_token")
+        except Exception:
+            pass
+    if token.get("token_type"):
+        try:
+            client.token_type = token.get("token_type")
+        except Exception:
+            pass
+    if token.get("scope"):
+        try:
+            client.scope = token.get("scope")
+        except Exception:
+            pass
+    if token.get("expires_at") is not None:
+        try:
+            client.expires_at = float(token.get("expires_at"))
+        except (TypeError, ValueError):
+            pass
 
 
 class SchwabTokenPersistenceError(RuntimeError):
@@ -176,6 +329,61 @@ class Schwab(Broker):
         if len(hash_value) <= 10:
             return "<set>"
         return f"{hash_value[:6]}...{hash_value[-4:]}"
+
+    def _schwab_order_ref(self, order_or_identifier) -> str:
+        """Return a per-broker-process opaque order reference for shared logs."""
+        identifier = getattr(order_or_identifier, "identifier", order_or_identifier)
+        if not hasattr(self, "_schwab_telemetry_salt"):
+            self._schwab_telemetry_salt = os.urandom(16)
+        return hashlib.sha256(self._schwab_telemetry_salt + str(identifier).encode("utf-8")).hexdigest()[:16]
+
+    def _log_schwab_lifecycle_event(self, event: str, order_or_identifier, **fields) -> None:
+        safe_fields = " ".join(
+            f"{key}={value}"
+            for key, value in fields.items()
+            if value is not None
+        )
+        logger.info(
+            f"[SchwabLifecycle] event={event} order_ref={self._schwab_order_ref(order_or_identifier)}"
+            + (f" {safe_fields}" if safe_fields else "")
+        )
+
+    def _schwab_now_value(self) -> float:
+        clock = getattr(self, "_schwab_now", None)
+        return float(clock()) if callable(clock) else time.monotonic()
+
+    def _schwab_request_allowed(self, endpoint_family: str) -> bool:
+        deadlines = getattr(self, "_schwab_rate_limit_deadlines", {})
+        return self._schwab_now_value() >= float(deadlines.get(endpoint_family, 0.0))
+
+    def _record_schwab_rate_limit(self, response, endpoint_family: str) -> None:
+        import random
+
+        if not hasattr(self, "_schwab_rate_limit_deadlines"):
+            self._schwab_rate_limit_deadlines = {}
+        if not hasattr(self, "_schwab_rate_limit_attempts"):
+            self._schwab_rate_limit_attempts = {}
+
+        retry_after = None
+        headers = getattr(response, "headers", {}) or {}
+        try:
+            retry_after = float(headers.get("Retry-After"))
+        except (TypeError, ValueError):
+            retry_after = None
+        attempts = int(self._schwab_rate_limit_attempts.get(endpoint_family, 0)) + 1
+        self._schwab_rate_limit_attempts[endpoint_family] = attempts
+        if retry_after is None:
+            retry_after = min(2 ** min(attempts, 5), 30) + random.uniform(0, 1)
+        retry_after = max(0.25, min(float(retry_after), 60.0))
+        self._schwab_rate_limit_deadlines[endpoint_family] = self._schwab_now_value() + retry_after
+        logger.warning(
+            f"[SchwabLifecycle] event=broker.rate_limited endpoint_family={endpoint_family} "
+            f"retry_after_seconds={retry_after:.3f}"
+        )
+
+    def _clear_schwab_rate_limit(self, endpoint_family: str) -> None:
+        getattr(self, "_schwab_rate_limit_attempts", {}).pop(endpoint_family, None)
+        getattr(self, "_schwab_rate_limit_deadlines", {}).pop(endpoint_family, None)
 
     @classmethod
     def _redact_schwab_payload(cls, payload):
@@ -246,6 +454,15 @@ class Schwab(Broker):
         self.account_number = None
         self.stream_client = None
         self.stream = None
+        # Broker observations from REST snapshots and the Schwab account stream
+        # converge through one monotonic reducer.  These high-water marks keep
+        # duplicate/replayed snapshots from emitting duplicate strategy callbacks.
+        self._schwab_observed_fill_quantities = {}
+        self._schwab_terminal_observations = set()
+        self._schwab_order_transition_lock = threading.RLock()
+        self._schwab_telemetry_salt = os.urandom(16)
+        self._schwab_activity_wakeup = threading.Event()
+        self._schwab_activity_stop = threading.Event()
         # Store if SchwabData was the goal for later client assignment
         self._is_schwab_data_intended = is_schwab_data_intended
 
@@ -411,10 +628,7 @@ class Schwab(Broker):
                     latest_token = _strip_external_schwab_token(latest_token)
                 elif not latest_token.get("refresh_token") and token_dict_for_session.get("refresh_token"):
                     latest_token["refresh_token"] = token_dict_for_session["refresh_token"]
-                if latest_token.get("issued_at") and latest_token.get("expires_in"):
-                    latest_token["expires_at"] = int(
-                        int(latest_token["issued_at"]) / 1000 + int(float(latest_token["expires_in"])) - 30
-                    )
+                _normalize_schwab_token_expiry_metadata(latest_token)
                 token_dict_for_session.clear()
                 token_dict_for_session.update(latest_token)
                 token_file_state["signature"] = _token_file_signature()
@@ -481,11 +695,12 @@ class Schwab(Broker):
             if client_secret_env:
                 refresh_kwargs["client_secret"] = client_secret_env
 
-            #add expires_at to token_dict_for_session. This is needed for the auto_refresh to work. Otherwise oauth2session always thinks it expires 30min from startup
-            token_dict_for_session['expires_at'] = int(token_dict_for_session['issued_at']/1000 + (token_dict_for_session['expires_in']) - 30) #30 second buffer
+            # Add expires_at so OAuth2Session sees externally issued tokens as current.
+            _normalize_schwab_token_expiry_metadata(token_dict_for_session)
 
             if external_token_refresh:
                 oauth_session = _OAS(client_id=api_key, token=token_dict_for_session)
+                _apply_external_schwab_token_to_session(oauth_session, token_dict_for_session)
             else:
                 oauth_session = _OAS(
                     client_id=api_key,
@@ -494,6 +709,7 @@ class Schwab(Broker):
                     auto_refresh_kwargs=refresh_kwargs,
                     token_updater=_update_token,
                 )
+            _apply_default_request_timeout(oauth_session)
             token_file_state["signature"] = _token_file_signature()
 
             if api_key and client_secret_env and not external_token_refresh:
@@ -505,31 +721,63 @@ class Schwab(Broker):
                 #create refresh hook. This is beacuse oa2session does not perform refreshes with auth headers, only with json bodies. 
                 oauth_session.register_compliance_hook("refresh_token_request", _refresh_token_hook)
 
+            # Rotate the access token before expiry so the OAuth handshake never
+            # lands inside a latency-sensitive broker call. Without SCHWAB_APP_SECRET
+            # Schwab rejects refresh exchanges, so the thread would only spin and warn.
+            prior_refresh_stop = getattr(self, "_schwab_token_refresh_stop", None)
+            if prior_refresh_stop is not None:
+                prior_refresh_stop.set()
+            self._schwab_token_refresh_stop = None
+            if (
+                not external_token_refresh
+                and not _botspot_force_broker_token_refresh()
+                and client_secret_env
+                and token_dict_for_session.get("refresh_token")
+            ):
+                try:
+                    self._schwab_token_refresh_stop = _start_schwab_proactive_token_refresh(
+                        oauth_session,
+                        token_dict_for_session,
+                        refresh_kwargs,
+                        _update_token,
+                    )
+                except Exception as exc:
+                    logger.warning(f"[Schwab] Could not start proactive token refresher: {exc}")
+            elif not external_token_refresh and not client_secret_env:
+                logger.error(
+                    "[Schwab] SCHWAB_APP_SECRET is not configured; automatic token refresh is NOT possible "
+                    "and the connection will fail ~30 minutes after each re-authentication. Configure "
+                    "SCHWAB_APP_SECRET or plan to re-authenticate before then."
+                )
+
             if external_token_refresh:
                 original_request = oauth_session.request
 
-                def _reload_if_token_file_changed():
+                def _reload_external_token_file(force=False):
                     try:
                         current_signature = _token_file_signature()
                     except Exception:
                         return False
-                    if current_signature == token_file_state.get("signature"):
+                    if not force and current_signature == token_file_state.get("signature"):
                         return False
                     try:
                         _load_token_file_for_session()
-                        oauth_session.token = token_dict_for_session
+                        _apply_external_schwab_token_to_session(oauth_session, token_dict_for_session)
                         logger.info(f"[Schwab] Reloaded externally managed token file from {token_path}")
                         return True
                     except Exception as reload_error:
                         logger.warning(f"[Schwab] Failed to reload externally managed token file: {reload_error}")
                         return False
 
+                def _reload_if_token_file_changed():
+                    return _reload_external_token_file(force=False)
+
                 def _request_with_external_token_reload(*args, **kwargs):
                     _reload_if_token_file_changed()
                     try:
                         response = original_request(*args, **kwargs)
                     except Exception as request_error:
-                        if request_error.__class__.__name__ == "TokenExpiredError" and _reload_if_token_file_changed():
+                        if request_error.__class__.__name__ == "TokenExpiredError" and _reload_external_token_file(force=True):
                             return original_request(*args, **kwargs)
                         raise
                     status_code = getattr(response, "status_code", None)
@@ -562,7 +810,25 @@ class Schwab(Broker):
             # Passing it raises: TypeError: BaseClient.__init__() got an unexpected keyword argument 'app_secret'.
             # The secret is only needed when REFRESHING a token via the auth helpers, not when we already
             # have a full token dict and build the OAuth2Session ourselves, so we can safely omit it here.
-            self.client = _get_client_class()(api_key=api_key, session=oauth_session)
+            # schwab-py's REST client accepts a raw OAuth session, but its
+            # StreamClient login reads ``client.token_metadata.token``. Keep
+            # metadata attached when constructing the manual REST client so
+            # REST and account-activity streaming share the same live token.
+            # The metadata references token_dict_for_session itself; refresh
+            # updates mutate that dict in place, so stream reconnects see the
+            # latest access token without creating a competing token owner.
+            from schwab.auth import TokenMetadata as _TokenMetadata
+
+            token_metadata = _TokenMetadata(
+                token=token_dict_for_session,
+                creation_timestamp=wrapped_token_data.get("creation_timestamp", int(time.time())),
+                unwrapped_token_write_func=_update_token,
+            )
+            self.client = _get_client_class()(
+                api_key=api_key,
+                session=oauth_session,
+                token_metadata=token_metadata,
+            )
             logger.info(f"[Schwab] Successfully initialized Schwab client from {token_path} (app_secret not used).")
             # Check if SCHWAB_APP_SECRET is available for auto-refresh warning
             app_secret_for_refresh = config.get("SCHWAB_APP_SECRET") or os.environ.get("SCHWAB_APP_SECRET")
@@ -574,9 +840,22 @@ class Schwab(Broker):
         except Exception as e:
             logger.error(colored(f"[Schwab] Error initializing Schwab client from token file {token_path}: {e}", "red"))
             logger.error(_format_exc())
+            # Only delete the token file when it is genuinely corrupt (unreadable
+            # JSON or structurally missing its token). A transient network/API
+            # error during startup must not destroy a valid refresh_token, which
+            # would force an interactive re-authentication.
+            token_file_corrupt = isinstance(e, _json_module().JSONDecodeError) or (
+                isinstance(e, ValueError) and "token" in str(e).lower()
+            )
             if token_path.exists() and not external_token_refresh and not isinstance(e, SchwabTokenPersistenceError):
-                logger.warning(f"[Schwab] Deleting potentially corrupt token file: {token_path}")
-                token_path.unlink(missing_ok=True)
+                if token_file_corrupt:
+                    logger.warning(f"[Schwab] Deleting corrupt token file: {token_path}")
+                    token_path.unlink(missing_ok=True)
+                else:
+                    logger.warning(
+                        f"[Schwab] Keeping token file {token_path} after a transient initialization error "
+                        "(the file itself looks intact); it can be reused on the next start."
+                    )
             self.schwab_authorization_error = True
             raise ConnectionError(
                 f"Failed to initialize Schwab client: {e}. "
@@ -647,8 +926,10 @@ class Schwab(Broker):
             else:
                 code = getattr(resp_accounts, 'status_code', 'n/a')
                 logger.error(f"[Schwab] Failed to fetch account numbers. HTTP status {code}")
-                if code == 401:
-                    # Token is invalid, delete it so user will be prompted to re-authenticate
+                if code == 401 and not external_token_refresh:
+                    # Token is invalid, delete it so user will be prompted to re-authenticate.
+                    # In external mode the file is parent-managed; deleting it here would
+                    # destroy the refresh token the parent process rotates.
                     if token_path.exists(): token_path.unlink(missing_ok=True)
                     logger.warning(f"[Schwab] Deleted invalid token file {token_path} due to 401 error.")
                     raise ConnectionError("Schwab authentication failed (401 Unauthorized). Token deleted. Please restart to re-authenticate.")
@@ -657,6 +938,19 @@ class Schwab(Broker):
             logger.error(colored(f"[Schwab] Exception while fetching account numbers: {e_acc}", "red"))
             logger.error(_format_exc())
             self.schwab_authorization_error = True
+
+    def cleanup_streams(self):
+        activity_stop = getattr(self, "_schwab_activity_stop", None)
+        if activity_stop is not None:
+            activity_stop.set()
+        activity_wakeup = getattr(self, "_schwab_activity_wakeup", None)
+        if activity_wakeup is not None:
+            activity_wakeup.set()
+        refresh_stop = getattr(self, "_schwab_token_refresh_stop", None)
+        if refresh_stop is not None:
+            refresh_stop.set()
+            self._schwab_token_refresh_stop = None
+        super().cleanup_streams()
 
     # Account and balance methods
     def _get_balances_at_broker(self, quote_asset: Asset, strategy) -> tuple:
@@ -1053,6 +1347,9 @@ class Schwab(Broker):
             logger.error(colored("Schwab client or account hash not initialized. Cannot pull all orders.", "red"))
             return [] # Return empty list
 
+        if not self._schwab_request_allowed("order_history"):
+            return []
+
         try:
             # Get orders from last 7 days
             from pytz import timezone
@@ -1064,10 +1361,14 @@ class Schwab(Broker):
                 from_entered_datetime=seek_start
             )
 
+            if response.status_code == 429:
+                self._record_schwab_rate_limit(response, "order_history")
+                return []
             if response.status_code != 200:
                 logger.error(colored(f"Error fetching orders from Schwab: {response.status_code}", "red"))
                 return []
 
+            self._clear_schwab_rate_limit("order_history")
             schwab_orders = response.json()
 
             return schwab_orders
@@ -1101,16 +1402,23 @@ class Schwab(Broker):
             logger.error(colored(f"Schwab client or account hash not initialized. Cannot pull order {identifier}.", "red"))
             return None # Return None
 
+        if not self._schwab_request_allowed("order_read"):
+            return None
+
         try:
             response = self.client.get_order(
                 identifier,
                 self.hash_value,
             )
 
+            if response.status_code == 429:
+                self._record_schwab_rate_limit(response, "order_read")
+                return None
             if response.status_code != 200:
                 logger.error(colored(f"Error fetching Schwab order {identifier}: {response.status_code}", "red"))
                 return None
 
+            self._clear_schwab_rate_limit("order_read")
             return response.json()
 
         except Exception as e:
@@ -1273,6 +1581,7 @@ class Schwab(Broker):
             "PENDING_REPLACE": Order.OrderStatus.CANCELLING,
             "REPLACED": Order.OrderStatus.CANCELED,
             "EXPIRED": Order.OrderStatus.EXPIRED,
+            "PARTIALLY_FILLED": Order.OrderStatus.PARTIALLY_FILLED,
             "FILLED": Order.OrderStatus.FILLED,
             "UNKNOWN": Order.OrderStatus.UNKNOWN,
         }
@@ -1284,6 +1593,47 @@ class Schwab(Broker):
             "yellow",
         ))
         return Order.OrderStatus.UNKNOWN
+
+    @staticmethod
+    def _schwab_execution_summary(schwab_order: dict, leg_id=None):
+        """Return cumulative executed quantity and VWAP from a Schwab snapshot.
+
+        Schwab order-history responses describe executions as cumulative activity.
+        LumiBot callbacks require the newly observed delta, so parsing keeps the
+        cumulative broker value on the observed Order and the reducer calculates
+        the delta against a per-order high-water mark.
+        """
+        execution_rows = []
+        for activity in schwab_order.get("orderActivityCollection") or schwab_order.get("activityCollection") or []:
+            if str(activity.get("activityType", "")).upper() not in {"EXECUTION", "ORDER_EXECUTION"}:
+                continue
+            for execution in activity.get("executionLegs") or []:
+                execution_leg_id = execution.get("legId")
+                if leg_id is not None and execution_leg_id is not None and str(execution_leg_id) != str(leg_id):
+                    continue
+                try:
+                    quantity = float(execution.get("quantity") or 0)
+                    price = float(execution.get("price"))
+                except (TypeError, ValueError):
+                    continue
+                if quantity > 0:
+                    execution_rows.append((quantity, price))
+
+        if execution_rows:
+            cumulative = sum(quantity for quantity, _ in execution_rows)
+            average_price = sum(quantity * price for quantity, price in execution_rows) / cumulative
+            return cumulative, average_price
+
+        try:
+            cumulative = float(schwab_order.get("filledQuantity") or 0)
+        except (TypeError, ValueError):
+            cumulative = 0.0
+        average_price = schwab_order.get("averagePrice") or schwab_order.get("price")
+        try:
+            average_price = float(average_price) if average_price is not None else None
+        except (TypeError, ValueError):
+            average_price = None
+        return cumulative, average_price
 
     def _schwab_instruction_to_side(self, instruction):
         side_mapping = {
@@ -1382,7 +1732,7 @@ class Schwab(Broker):
 
             # Process each leg as a separate order
             order_objects = []
-            for schwab_leg in schwab_legs:
+            for leg_index, schwab_leg in enumerate(schwab_legs):
                 # Get the asset information
                 instrument = schwab_leg.get("instrument", {})
 
@@ -1437,6 +1787,15 @@ class Schwab(Broker):
                     identifier=order_id,
                 )
 
+                cumulative_filled, average_fill_price = self._schwab_execution_summary(
+                    schwab_order,
+                    leg_id=schwab_leg.get("legId", leg_index + 1),
+                )
+                order._schwab_cumulative_filled_quantity = cumulative_filled
+                order._schwab_average_fill_price = average_fill_price
+                if average_fill_price is not None:
+                    order.avg_fill_price = average_fill_price
+
                 # Set the status and timestamps
                 order.status = status
                 order.broker_create_date = entered_time
@@ -1475,6 +1834,159 @@ class Schwab(Broker):
             logger.warning(colored(f"Skipping malformed Schwab simple order: {str(e)}", "yellow"))
             logger.debug(_format_exc())
             return []
+
+    def _process_schwab_order_snapshot(self, observed_order: Order) -> None:
+        """Serialize every REST/stream observation through one reducer."""
+        if not hasattr(self, "_schwab_order_transition_lock"):
+            self._schwab_order_transition_lock = threading.RLock()
+        with self._schwab_order_transition_lock:
+            self._reduce_schwab_order_snapshot(observed_order)
+
+    def _reduce_schwab_order_snapshot(self, observed_order: Order) -> None:
+        """Reduce one broker-observed Schwab order snapshot into lifecycle events.
+
+        HTTP submit/cancel acceptance is deliberately excluded: only a later
+        broker snapshot or stream observation may make an order terminal.
+        """
+        identifier = getattr(observed_order, "identifier", None)
+        if not identifier:
+            return
+
+        if not hasattr(self, "_schwab_observed_fill_quantities"):
+            self._schwab_observed_fill_quantities = {}
+        if not hasattr(self, "_schwab_terminal_observations"):
+            self._schwab_terminal_observations = set()
+
+        stored_order = self.get_tracked_order(identifier)
+        observed_status = getattr(observed_order, "status", Order.OrderStatus.UNKNOWN)
+
+        # A seven-day healing snapshot contains unrelated historical orders.
+        # Never adopt untracked account orders into this strategy. Locally
+        # submitted orders are tracked at submit time; seeding foreign NEW
+        # orders previously let a shared-account MOS fill reach an STM
+        # on_filled_order hedge path.
+        if stored_order is None:
+            if self.order_is_foreign_to_local_strategy(observed_order, getattr(self, "_strategy_name", None)):
+                return
+            local_name = getattr(self, "_strategy_name", None)
+            tag = getattr(observed_order, "tag", None)
+            # Only re-bind untracked active orders when the broker tag proves
+            # ownership. Untagged snapshots are ignored so shared-account
+            # activity cannot become this strategy's tracked order.
+            if (
+                local_name
+                and tag
+                and self.strategy_tag_matches(tag, local_name)
+                and (
+                    Order.is_equivalent_status(observed_status, self.NEW_ORDER)
+                    or Order.is_equivalent_status(observed_status, Order.OrderStatus.CANCELLING)
+                )
+            ):
+                self._process_new_order(observed_order)
+                if Order.is_equivalent_status(observed_status, Order.OrderStatus.CANCELLING):
+                    observed_order.status = Order.OrderStatus.CANCELLING
+            return
+
+        if (
+            stored_order.is_filled()
+            or stored_order.is_canceled()
+            or Order.is_equivalent_status(stored_order.status, self.ERROR_ORDER)
+            or Order.is_equivalent_status(stored_order.status, Order.OrderStatus.EXPIRED)
+        ):
+            return
+
+        if Order.is_equivalent_status(observed_status, self.NEW_ORDER):
+            # Never regress a local/broker cancel-pending order back to NEW when
+            # an older snapshot arrives out of order.
+            if not Order.is_equivalent_status(stored_order.status, Order.OrderStatus.CANCELLING):
+                stored_order.status = Order.OrderStatus.NEW
+            return
+
+        if Order.is_equivalent_status(observed_status, Order.OrderStatus.CANCELLING):
+            stored_order.status = Order.OrderStatus.CANCELLING
+            return
+
+        if Order.is_equivalent_status(observed_status, self.PARTIALLY_FILLED_ORDER) or Order.is_equivalent_status(
+            observed_status, self.FILLED_ORDER
+        ):
+            try:
+                cumulative_filled = float(getattr(observed_order, "_schwab_cumulative_filled_quantity", 0) or 0)
+            except (TypeError, ValueError):
+                cumulative_filled = 0.0
+            if Order.is_equivalent_status(observed_status, self.FILLED_ORDER) and cumulative_filled <= 0:
+                cumulative_filled = float(stored_order.quantity or observed_order.quantity or 0)
+
+            prior_filled = float(self._schwab_observed_fill_quantities.get(identifier, 0.0))
+            if cumulative_filled <= prior_filled:
+                return
+            fill_delta = cumulative_filled - prior_filled
+            price = (
+                getattr(observed_order, "_schwab_average_fill_price", None)
+                or getattr(observed_order, "avg_fill_price", None)
+                or getattr(observed_order, "limit_price", None)
+            )
+            if price is None:
+                logger.warning(
+                    "[SchwabLifecycle] event=order.lifecycle.deferred "
+                    f"order_ref={self._schwab_order_ref(identifier)} reason=missing_fill_price"
+                )
+                return
+
+            self._schwab_observed_fill_quantities[identifier] = cumulative_filled
+            event = (
+                self.FILLED_ORDER
+                if Order.is_equivalent_status(observed_status, self.FILLED_ORDER)
+                else self.PARTIALLY_FILLED_ORDER
+            )
+            self._process_trade_event(
+                stored_order,
+                event,
+                price=price,
+                filled_quantity=fill_delta,
+                multiplier=getattr(getattr(stored_order, "asset", None), "multiplier", 1) or 1,
+            )
+            self._log_schwab_lifecycle_event(
+                "order.lifecycle.callback",
+                stored_order,
+                callback=event,
+                broker_status=observed_status,
+                local_status=stored_order.status,
+            )
+            return
+
+        if Order.is_equivalent_status(observed_status, self.CANCELED_ORDER):
+            terminal_key = (identifier, self.CANCELED_ORDER)
+            if terminal_key not in self._schwab_terminal_observations:
+                self._schwab_terminal_observations.add(terminal_key)
+                self._process_trade_event(stored_order, self.CANCELED_ORDER)
+                self._log_schwab_lifecycle_event(
+                    "order.lifecycle.callback",
+                    stored_order,
+                    callback=self.CANCELED_ORDER,
+                    broker_status=observed_status,
+                    local_status=stored_order.status,
+                )
+            return
+
+        if Order.is_equivalent_status(observed_status, self.ERROR_ORDER) or Order.is_equivalent_status(
+            observed_status, Order.OrderStatus.EXPIRED
+        ):
+            terminal_key = (identifier, str(observed_status))
+            if terminal_key not in self._schwab_terminal_observations:
+                self._schwab_terminal_observations.add(terminal_key)
+                raw_status = getattr(observed_order, "_raw_order_status", None) or str(observed_status)
+                self._process_trade_event(
+                    stored_order,
+                    self.ERROR_ORDER,
+                    error=LumibotBrokerAPIError(f"Schwab order became terminal: {raw_status}"),
+                )
+                self._log_schwab_lifecycle_event(
+                    "order.lifecycle.callback",
+                    stored_order,
+                    callback=self.ERROR_ORDER,
+                    broker_status=observed_status,
+                    local_status=stored_order.status,
+                )
 
     def _finish_initialization(self, config, data_source, account_number, hash_value):
         """
@@ -1535,11 +2047,99 @@ class Schwab(Broker):
 
     # Unimplemented methods with stubs
     def _get_stream_object(self):
-        """Get the broker stream connection"""
+        """Return the slow REST healing stream used behind account activity."""
         from lumibot.trading_builtins import PollingStream
 
-        stream = PollingStream(5.0)  # 5 seconds polling interval
+        stream = PollingStream(30.0)
         return stream
+
+    def _handle_schwab_account_activity(self, message) -> None:
+        """Wake exact-order reconciliation without logging opaque account data."""
+        message_type = "unknown"
+        try:
+            content = message.get("content") or []
+            if content and isinstance(content[0], dict):
+                message_type = content[0].get("MESSAGE_TYPE") or content[0].get("message_type") or "unknown"
+        except Exception:
+            pass
+        message_type = re.sub(r"[^A-Za-z0-9_.:-]", "_", str(message_type))[:64] or "unknown"
+        logger.info(f"[SchwabLifecycle] account_activity_received type={message_type}")
+        wakeup = getattr(self, "_schwab_activity_wakeup", None)
+        if wakeup is not None:
+            wakeup.set()
+
+    async def _configure_schwab_account_activity_stream(self, stream_client) -> None:
+        """Register the handler before login/subscription so no event is dropped."""
+        stream_client.add_account_activity_handler(self._handle_schwab_account_activity)
+        await stream_client.login()
+        await stream_client.account_activity_sub()
+        # A reconnect may have missed events. Reconcile currently tracked active
+        # orders immediately instead of waiting for the next activity message or
+        # the slow broad-history healing poll.
+        self._schwab_activity_wakeup.set()
+
+    def _reconcile_active_schwab_orders(self) -> None:
+        """Re-read only locally active orders after an account-activity event."""
+        for stored_order in list(self.get_active_tracked_orders()):
+            identifier = getattr(stored_order, "identifier", None)
+            if not identifier:
+                continue
+            raw_order = self._pull_broker_order(identifier)
+            if not raw_order:
+                continue
+            observed_order = self._parse_broker_order(raw_order, stored_order.strategy)
+            if observed_order is not None:
+                self._process_schwab_order_snapshot(observed_order)
+
+    def _run_schwab_activity_reconciler(self) -> None:
+        stop_event = self._schwab_activity_stop
+        wakeup = self._schwab_activity_wakeup
+        while not stop_event.is_set():
+            wakeup.wait(1.0)
+            if stop_event.is_set():
+                return
+            if not wakeup.is_set():
+                continue
+            wakeup.clear()
+            try:
+                self._reconcile_active_schwab_orders()
+            except Exception:
+                logger.error(_format_exc())
+
+    async def _run_schwab_account_activity_async(self) -> None:
+        import asyncio
+
+        backoff_seconds = 1.0
+        while not self._schwab_activity_stop.is_set():
+            stream_client = self.stream_client
+            try:
+                await self._configure_schwab_account_activity_stream(stream_client)
+                logger.info("[SchwabLifecycle] account_activity_stream_connected")
+                backoff_seconds = 1.0
+                while not self._schwab_activity_stop.is_set():
+                    await stream_client.handle_message()
+            except Exception as exc:
+                if self._schwab_activity_stop.is_set():
+                    return
+                logger.warning(
+                    f"[SchwabLifecycle] account_activity_stream_disconnected retry_seconds={backoff_seconds:g} "
+                    f"error_type={type(exc).__name__}"
+                )
+                await asyncio.sleep(backoff_seconds)
+                backoff_seconds = min(backoff_seconds * 2, 30.0)
+                try:
+                    self.stream_client = _get_stream_client_class()(self.client, account_id=self.account_number)
+                except Exception:
+                    logger.error(_format_exc())
+
+    def _run_schwab_account_activity_stream(self) -> None:
+        import asyncio
+
+        try:
+            asyncio.run(self._run_schwab_account_activity_async())
+        except Exception:
+            if not self._schwab_activity_stop.is_set():
+                logger.error(_format_exc())
 
     def _register_stream_events(self):
         """Register callbacks for broker stream events"""
@@ -1560,9 +2160,12 @@ class Schwab(Broker):
                 orders = broker._pull_broker_all_orders()
                 for order_data in orders:
                     order = broker._parse_broker_order(order_data, broker._strategy_name)
-                    if order:
-                        # Process each new order without checking against a nonexistent _orders attribute
-                        broker._process_new_order(order)
+                    if not order:
+                        continue
+                    # Shared-account safety: skip foreign-tagged snapshots early.
+                    if broker.order_is_foreign_to_local_strategy(order, broker._strategy_name):
+                        continue
+                    broker._process_schwab_order_snapshot(order)
             except Exception:
                 logger.error(_format_exc())
 
@@ -1573,6 +2176,21 @@ class Schwab(Broker):
                 broker._process_trade_event(
                     order,
                     broker.FILLED_ORDER,
+                    price=price,
+                    filled_quantity=filled_quantity,
+                    multiplier=order.asset.multiplier,
+                )
+                return True
+            except Exception:
+                logger.error(_format_exc())
+
+        @broker.stream.add_action(broker.PARTIALLY_FILLED_ORDER)
+        def on_trade_event_partial_fill(order, price, filled_quantity):
+            logger.info(f"Processing action for partially filled order {order} | {price} | {filled_quantity}")
+            try:
+                broker._process_trade_event(
+                    order,
+                    broker.PARTIALLY_FILLED_ORDER,
                     price=price,
                     filled_quantity=filled_quantity,
                     multiplier=order.asset.multiplier,
@@ -1593,10 +2211,11 @@ class Schwab(Broker):
         def on_trade_event_error(order, error_msg):
             logger.error(f"Processing action for error order {order} | {error_msg}")
             try:
-                if order.is_active():
-                    broker._process_trade_event(order, broker.CANCELED_ORDER)
-                logger.error(error_msg)
-                order.set_error(error_msg)
+                broker._process_trade_event(
+                    order,
+                    broker.ERROR_ORDER,
+                    error=LumibotBrokerAPIError(str(error_msg)),
+                )
             except Exception:
                 logger.error(_format_exc())
 
@@ -2012,6 +2631,8 @@ class Schwab(Broker):
         OrderBuilder
             The order builder object for Schwab API
         """
+        if order.side in (Order.OrderSide.BUY, Order.OrderSide.SELL):
+            self.resolve_option_order_intent(order)
         try:
             # Get order parameters
             quantity = int(order.quantity)
@@ -2155,7 +2776,20 @@ class Schwab(Broker):
             logger.error(colored("Failed to import Schwab order enums. Make sure the schwab-py library is installed.", "red"))
             return None
 
-        if order and getattr(order, "asset", None) and order.asset.asset_type == Asset.AssetType.STOCK:
+        order_type = getattr(order, "order_type", None)
+        order_type_value = getattr(order_type, "value", order_type)
+        if isinstance(order_type_value, str):
+            order_type_value = order_type_value.lower()
+
+        if (
+            order
+            and getattr(order, "asset", None)
+            and order.asset.asset_type == Asset.AssetType.STOCK
+            and (
+                order_type == Order.OrderType.LIMIT
+                or order_type_value == "limit"
+            )
+        ):
             return Session.SEAMLESS
 
         return Session.NORMAL
@@ -2579,16 +3213,10 @@ class Schwab(Broker):
             logger.error(colored(error_msg, "red"))
             raise LumibotBrokerAPIError(error_msg)
 
-        logger.info(
-            "[SchwabCancelTelemetry] request "
-            f"order_id={order.identifier} "
-            f"symbol={getattr(getattr(order, 'asset', None), 'symbol', '<missing>')} "
-            f"asset_type={getattr(getattr(order, 'asset', None), 'asset_type', '<missing>')} "
-            f"side={getattr(order, 'side', '<missing>')} "
-            f"quantity={getattr(order, 'quantity', '<missing>')} "
-            f"order_type={getattr(order, 'order_type', '<missing>')} "
-            f"local_status={getattr(order, 'status', '<missing>')} "
-            f"account_hash={self._mask_hash_value(self.hash_value)}"
+        self._log_schwab_lifecycle_event(
+            "order.cancel.request",
+            order,
+            local_status=getattr(order, "status", "<missing>"),
         )
         cancel_started = time.perf_counter()
         try:
@@ -2614,12 +3242,12 @@ class Schwab(Broker):
             raise LumibotBrokerAPIError(error_msg)
 
         response_text = getattr(response, "text", "")
-        logger.info(
-            "[SchwabCancelTelemetry] response "
-            f"order_id={order.identifier} "
-            f"http_status={status_code} "
-            f"elapsed_ms={elapsed_ms} "
-            f"body={response_text[:500] if response_text else '<empty>'}"
+        self._log_schwab_lifecycle_event(
+            "order.cancel.response",
+            order,
+            http_status=status_code,
+            elapsed_ms=elapsed_ms,
+            result="accepted" if 200 <= int(status_code) < 300 else "rejected",
         )
 
         if not 200 <= int(status_code) < 300:
@@ -2630,14 +3258,21 @@ class Schwab(Broker):
             raise LumibotBrokerAPIError(error_msg)
 
         logger.info(colored(f"Schwab cancel accepted for order {order.identifier}.", "green"))
-        self._log_cancel_direct_read(order.identifier, "after_cancel_accept")
+        if _schwab_cancel_diagnostics_enabled():
+            # Incident diagnostics only: this is an extra full round trip on the
+            # cancel hot path. Enable SCHWAB_CANCEL_DIAGNOSTICS to restore it.
+            self._log_cancel_direct_read(order.identifier, "after_cancel_accept")
 
-        self._mark_order_tree_canceled(order)
-
-        if getattr(self, "stream", None) and hasattr(self.stream, "dispatch"):
-            self.stream.dispatch(self.CANCELED_ORDER, wait_until_complete=True, order=order)
-        else:
-            order.set_canceled()
+        # A successful DELETE means Schwab accepted the request, not that the
+        # order is terminal.  Preserve cancel-pending state and let a later
+        # broker snapshot/stream observation emit CANCELED_ORDER or FILLED_ORDER.
+        if (
+            not order.is_filled()
+            and not order.is_canceled()
+            and not Order.is_equivalent_status(order.status, self.ERROR_ORDER)
+            and not Order.is_equivalent_status(order.status, Order.OrderStatus.EXPIRED)
+        ):
+            order.status = Order.OrderStatus.CANCELLING
         return None
 
     def _log_cancel_direct_read(self, order_id: str, context: str) -> None:
@@ -2701,6 +3336,18 @@ class Schwab(Broker):
         self._register_stream_events()
         t = Thread(target=self._run_stream, daemon=True, name=f"broker_{self.name}_thread")
         t.start()
+        activity_worker = Thread(
+            target=self._run_schwab_activity_reconciler,
+            daemon=True,
+            name=f"broker_{self.name}_activity_reconciler",
+        )
+        activity_worker.start()
+        activity_stream = Thread(
+            target=self._run_schwab_account_activity_stream,
+            daemon=True,
+            name=f"broker_{self.name}_account_activity",
+        )
+        activity_stream.start()
         # Removed blocking wait for stream connection establishment
         return
 

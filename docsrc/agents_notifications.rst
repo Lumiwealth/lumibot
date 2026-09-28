@@ -1,6 +1,9 @@
 Agent Notifications
 ===================
 
+.. meta::
+   :description: LumiBot strategies can send notifications through self.notify(...) or self.notifications.notify(...). Telegram is the first native notification provider.
+
 LumiBot strategies can send notifications through ``self.notify(...)`` or
 ``self.notifications.notify(...)``. Telegram is the first native notification
 provider.

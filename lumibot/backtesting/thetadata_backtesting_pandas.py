@@ -14,6 +14,7 @@ from lumibot.credentials import THETADATA_CONFIG
 from lumibot.data_sources import PandasData
 from lumibot.entities import Asset, AssetsMapping, Data
 from lumibot.tools import thetadata_helper
+from lumibot.tools.helpers import parse_timestep_qty_and_unit
 
 logger = logging.getLogger(__name__)
 
@@ -2581,22 +2582,12 @@ class ThetaDataBacktestingPandas(PandasData):
         exchange=None,
         include_after_hours=True,
     ):
-        # Align requests to the current backtesting mode to avoid accidental intraday downloads
-        # during day-cadence backtests.
+        # Align only implicit requests to the current backtesting mode. An explicit intraday
+        # request ("minute", "hour", "second") is honored even in day-cadence backtests (for
+        # example sleeptime="1D"): it returns intraday bars or nothing, never daily bars
+        # relabeled as minute data. See RULE #1 in docs/BACKTESTING_ARCHITECTURE.md.
         current_mode = getattr(self, "_timestep", None)
-        if (
-            current_mode == "day"
-            and isinstance(timestep, str)
-            and timestep.lower() in {"minute", "hour", "second"}
-        ):
-            logger.debug(
-                "[THETA][DEBUG][TIMESTEP_ALIGN] Aligning %s request to day mode for asset=%s length=%s",
-                timestep,
-                asset,
-                length,
-            )
-            timestep = "day"
-        elif timestep is None and current_mode == "day":
+        if timestep is None and current_mode == "day":
             timestep = "day"
             logger.debug(
                 "[THETA][DEBUG][TIMESTEP_ALIGN] Implicit request aligned to day mode for asset=%s length=%s",
@@ -2777,6 +2768,60 @@ class ThetaDataBacktestingPandas(PandasData):
 
         return AssetsMapping(result)
 
+    def _has_loaded_intraday_series(self, asset, quote=None) -> bool:
+        """True when current minute or hour bars for this asset are already in the data store.
+
+        Only a series with a bar in the 4 days up to the current simulated time counts.
+        Daily bars are a shortcut so a daily strategy's quotes and fills never download minute
+        history. When the strategy already loaded intraday bars for the asset, the daily "quote"
+        is yesterday's close: an intraday market order then filled at that stale price
+        (2026-09-24: SLV sold at the prior day's 73.71 daily close while minute bars showed 69.67).
+        """
+        if isinstance(asset, tuple) and asset:
+            asset, quote = asset[0], (asset[1] if len(asset) > 1 and quote is None else quote)
+        store = getattr(self, "_data_store", None)
+        if not isinstance(store, dict):
+            return False
+        for key in store:
+            if not isinstance(key, tuple) or len(key) < 3 or not isinstance(key[2], str):
+                continue
+            if key[0] is not asset and key[0] != asset:
+                continue
+            if quote is not None and key[1] is not None and key[1] != quote:
+                continue
+            try:
+                _, unit = parse_timestep_qty_and_unit(key[2])
+            except Exception:
+                unit = key[2]
+            if str(unit).strip().lower() not in {"minute", "hour"}:
+                continue
+            # Only a series that reaches the current simulated time counts. A stale intraday
+            # frame from another date must not beat the daily bars (daily-mode contract).
+            try:
+                frame = getattr(store[key], "df", None)
+                now = pd.Timestamp(self.get_datetime())
+                if frame is None or frame.empty:
+                    continue
+                index = frame.index
+                if index.tz is None and now.tzinfo is not None:
+                    now = now.tz_localize(None)
+                elif index.tz is not None:
+                    now = now.tz_convert(index.tz) if now.tzinfo is not None else now.tz_localize(index.tz)
+                if index.is_monotonic_increasing:
+                    # Binary search, not a mask: this runs on every quote and last-price
+                    # lookup, and a full-index mask over an 8-month minute series cost
+                    # about 0.4 ms per call.
+                    pos = int(index.searchsorted(now, side="right"))
+                    if pos > 0 and index[pos - 1] > now - pd.Timedelta(days=4):
+                        return True
+                    continue
+                recent = index[(index <= now) & (index > now - pd.Timedelta(days=4))]
+                if len(recent) > 0:
+                    return True
+            except Exception:
+                continue
+        return False
+
     def get_last_price(self, asset, timestep="minute", quote=None, exchange=None, **kwargs) -> Union[float, Decimal, None]:
         allow_stale_option_last = bool(kwargs.pop("allow_stale_option_last", True))
         dt = self.get_datetime()
@@ -2799,6 +2844,7 @@ class ThetaDataBacktestingPandas(PandasData):
                     asset_type_token in {"stock", "equity", "index"}
                     and effective_day_mode
                     and not bool(getattr(self, "_observed_intraday_cadence", False))
+                    and not self._has_loaded_intraday_series(asset, quote)
                 )
             )
         ):
@@ -2886,12 +2932,42 @@ class ThetaDataBacktestingPandas(PandasData):
 
             try:
                 iter_count = data_obj.get_iter_count(dt)
-                closes = close_series.iloc[: iter_count + 1]
+                # Minute/hour bars are stamped at their start. While the bar at dt is still
+                # forming its close is the price one bar later (2026-09-25: at 10:00 this
+                # returned 10:00's close, known at 10:01, while a market order at 10:00 fills at
+                # 10:00's open). Use that bar's open, the price at dt, or the last closed close.
+                state_fn = getattr(data_obj, "_intraday_state_at", None)
+                if callable(state_fn) and state_fn(iter_count, dt) == "forming":
+                    open_series = df.get("open")
+                    bar_open = None
+                    if open_series is not None:
+                        try:
+                            bar_open = float(open_series.iloc[iter_count])
+                        except Exception:
+                            bar_open = None
+                    bar_missing = False
+                    if "missing" in df.columns:
+                        try:
+                            bar_missing = bool(df["missing"].iloc[iter_count])
+                        except Exception:
+                            bar_missing = False
+                    if bar_open is not None and bar_open > 0 and not bar_missing and bar_open == bar_open:
+                        frame_last_dt = df.index[iter_count]
+                        frame_last_close = bar_open
+                        try:
+                            frame_last_dt = frame_last_dt.isoformat()
+                        except AttributeError:
+                            frame_last_dt = str(frame_last_dt)
+                        return float(self._adjust_stale_daily_price_for_stock_split(data_obj, bar_open, dt))
+                    closes = close_series.iloc[:iter_count]
+                else:
+                    closes = close_series.iloc[: iter_count + 1]
                 if "missing" in df.columns:
+                    rows = len(closes)
                     try:
-                        missing_mask = df["missing"].iloc[: iter_count + 1].astype(bool)
+                        missing_mask = df["missing"].iloc[:rows].astype(bool)
                     except Exception:
-                        missing_mask = df["missing"].iloc[: iter_count + 1] == 1
+                        missing_mask = df["missing"].iloc[:rows] == 1
                     closes = closes[~missing_mask.fillna(True)]
             except Exception:
                 # Defensive fallback: filter by timestamp if iter lookup fails.
@@ -3442,6 +3518,7 @@ class ThetaDataBacktestingPandas(PandasData):
                     asset_type_token in {"stock", "equity", "index"}
                     and effective_day_mode
                     and not bool(getattr(self, "_observed_intraday_cadence", False))
+                    and not self._has_loaded_intraday_series(asset, quote)
                 )
             )
         ):
@@ -3833,6 +3910,18 @@ class ThetaDataBacktestingPandas(PandasData):
                 bid_size = _get("bid_size")
                 ask_size = _get("ask_size")
                 volume = _get("volume")
+
+                # The bar stamped at dt is still forming: its close is the price one bar later
+                # (2026-09-25). Report its open, the price at dt; bid/ask synthesized from that
+                # close (IBKR/Polygon history) follow it. Real quote snapshots are kept.
+                state_fn = getattr(fast_data, "_intraday_state_at", None)
+                if callable(state_fn) and state_fn(iter_count, dt) == "forming":
+                    bar_open = _get("open")
+                    if bar_open is not None:
+                        if bid == close and ask == close:
+                            bid = bar_open
+                            ask = bar_open
+                        close = bar_open
 
                 # Match PandasData.get_quote(): treat non-positive bid/ask as missing.
                 for side_key, side_val in (("bid", bid), ("ask", ask)):

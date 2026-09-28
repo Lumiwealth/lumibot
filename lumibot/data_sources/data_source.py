@@ -24,12 +24,6 @@ if TYPE_CHECKING:
     from lumibot.entities import Bars, Quote
 
 
-def _format_exc():
-    import traceback
-
-    return traceback.format_exc()
-
-
 def _create_options_symbol(*args, **kwargs):
     from lumibot.tools import create_options_symbol
 
@@ -40,6 +34,32 @@ def _black_scholes():
     from lumibot.tools import black_scholes
 
     return black_scholes
+
+
+class MultiAssetBarsResult(dict):
+    """Asset-to-bars mapping with sanitized per-asset error metadata."""
+
+    def __init__(self, *args, errors=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.errors = errors or {}
+
+
+def _normalized_data_error(error):
+    """Return a provider-neutral error for the generic multi-asset boundary.
+
+    Provider adapters may translate their SDK failures before they reach this
+    boundary. The generic data source deliberately does not inspect provider
+    response objects, status codes, exception names, or response bodies.
+    """
+    if isinstance(error, NotImplementedError):
+        category = "unsupported"
+    else:
+        category = "unavailable"
+    return {
+        "category": category,
+        "errorType": "unsupported_operation" if category == "unsupported" else "data_unavailable",
+        "retryable": category == "unavailable",
+    }
 
 
 class DataSource(ABC):
@@ -336,7 +356,8 @@ class DataSource(ABC):
         Parameters
         ----------
         timestep : str
-            The timestep string to convert. For example, "1minute" or "1hour" or "1day".
+            The timestep string to convert. For example, "1minute", "5Min", "5T",
+            "1hour", or "1Day".
 
         Returns
         -------
@@ -345,55 +366,27 @@ class DataSource(ABC):
         unit : str
             The unit of the timestep. For example, "minute" or "hour" or "day".
         """
-        timestep = timestep.lower()
+        from lumibot.tools.helpers import parse_canonical_timestep
 
-        # Define mapping from timestep units to equivalent minutes
-        time_unit_map = {
-            "minute": 1,
-            "min": 1,  # Common shorthand (e.g., "15min")
-            "hour": 60,
-            "day": 24 * 60,
-            "m": 1,  # "M" is for minutes
-            "h": 60,  # "H" is for hours
-            "d": 24 * 60,  # "D" is for days
+        parsed = parse_canonical_timestep(timestep)
+        if parsed is None:
+            raise ValueError(
+                f"Unknown timestep: {timestep}. Valid examples include minute, "
+                "5Min, 5T, 15 minutes, hour, 1Day, day, 30S."
+            )
+
+        quantity, unit = parsed
+        unit_to_timedelta = {
+            "second": timedelta(seconds=quantity),
+            "minute": timedelta(minutes=quantity),
+            "hour": timedelta(hours=quantity),
+            "day": timedelta(days=quantity),
+            "week": timedelta(weeks=quantity),
+            "month": timedelta(days=30 * quantity),
         }
-
-        # Define default values
-        quantity = 1
-        unit = ""
-
-        # Check if timestep string has a number at the beginning
-        if timestep[0].isdigit():
-            for i, char in enumerate(timestep):
-                if not char.isdigit():
-                    # Get the quantity (number of units)
-                    quantity = int(timestep[:i])
-                    # Get the unit (minute, hour, or day)
-                    # IBRK uses "minutes" instead of "minute" when 'quantity' > 1, for some reason, so handle
-                    # that behavior here so backtest is comptiable with IBRK
-                    unit = timestep[i:].strip().rstrip("s")  # Remove extra whitespace and IBKR's extra pluralization
-                    break
-        else:
-            unit = timestep
-
-        # Check if the unit is valid
-        if unit in time_unit_map:
-            # Convert quantity to minutes
-            quantity_in_minutes = quantity * time_unit_map[unit]
-            # Convert minutes to timedelta
-            delta = timedelta(minutes=quantity_in_minutes)
-            canonical_unit = {
-                "m": "minute",
-                "min": "minute",
-                "minute": "minute",
-                "h": "hour",
-                "hour": "hour",
-                "d": "day",
-                "day": "day",
-            }.get(unit, unit)
-            return delta, canonical_unit
-        else:
-            raise ValueError(f"Unknown unit: {unit}. Valid units are minute, hour, day, M, H, D")
+        if unit not in unit_to_timedelta:
+            raise ValueError(f"Unknown unit: {unit}. Valid units are second, minute, hour, day, week, month")
+        return unit_to_timedelta[unit], unit
 
     # ========Internal Market Data Methods===================
 
@@ -401,13 +394,34 @@ class DataSource(ABC):
         """transform the data source timestep variable
         into lumibot representation. set reverse to True
         for opposite direction"""
+        from lumibot.tools.helpers import canonicalize_timestep
+
+        # Accept broker/user aliases ("5Min", "5T", "1Day", etc.) before the
+        # per-source TIMESTEP_MAPPING lookup so every broker inherits the same
+        # forgiving public interface.
+        canonical = canonicalize_timestep(timestep)
+        candidates = []
+        for value in (canonical, timestep):
+            if value is None:
+                continue
+            text = str(value)
+            if text not in candidates:
+                candidates.append(text)
+            lowered = text.strip().lower()
+            if lowered and lowered not in candidates:
+                candidates.append(lowered)
+
         for item in self.TIMESTEP_MAPPING:
+            representations = list(item.get("representations") or [])
+            lumibot_name = item.get("timestep")
             if reverse:
-                if timestep == item["timestep"]:
-                    return item["representations"][0]
+                for candidate in candidates:
+                    if candidate == lumibot_name or candidate in representations:
+                        return representations[0]
             else:
-                if timestep in item["representations"]:
-                    return item["timestep"]
+                for candidate in candidates:
+                    if candidate in representations or candidate == lumibot_name:
+                        return lumibot_name
 
         raise UnavailabeTimestep(self.SOURCE, timestep)
 
@@ -445,6 +459,7 @@ class DataSource(ABC):
 
         def process_chunk(chunk):
             chunk_result = {}
+            chunk_errors = {}
             for asset in chunk:
                 if isinstance(asset, tuple):
                     base_asset = asset[0]
@@ -467,29 +482,50 @@ class DataSource(ABC):
                     if effective_sleep_time:
                         time.sleep(effective_sleep_time)
                 except Exception as e:
-                    # Log once per asset to avoid spamming with a huge traceback
-                    logger.warning(f"Error retrieving data for {base_asset.symbol}: {e}")
-                    tb = _format_exc()
-                    logger.warning(tb)  # This prints the traceback
+                    normalized_error = _normalized_data_error(e)
+                    asset_label = (
+                        getattr(base_asset, "symbol", None)
+                        or type(base_asset).__name__
+                    )
+                    logger.warning(
+                        "Error retrieving data for %s: category=%s error_type=%s retryable=%s",
+                        asset_label,
+                        normalized_error["category"],
+                        normalized_error["errorType"],
+                        normalized_error["retryable"],
+                    )
                     chunk_result[asset] = None
-            return chunk_result
+                    chunk_errors[asset] = normalized_error
+            return chunk_result, chunk_errors
 
         # Convert strings to Asset objects
         assets = [Asset(symbol=a) if isinstance(a, str) else a for a in assets]
+
+        # A duplicate key could otherwise be processed by different futures and
+        # leave a successful result paired with an error from another attempt.
+        # Fetch each distinct asset once (first occurrence order) so each returned
+        # asset has exactly one outcome. This used to raise, which crashed whole
+        # backtests whose strategy listed an asset twice (for example a holding that
+        # is also its own group's proxy).
+        if len(set(assets)) != len(assets):
+            assets = list(dict.fromkeys(assets))
 
         # Chunk the assets
         chunks = [assets[i : i + chunk_size] for i in range(0, len(assets), chunk_size)]
 
         results = {}
+        errors = {}
         # Reuse thread pool to avoid creation/destruction overhead
         from concurrent.futures import as_completed
 
         executor = self._get_or_create_thread_pool()
         futures = [executor.submit(process_chunk, chunk) for chunk in chunks]
         for future in as_completed(futures):
-            results.update(future.result())
+            chunk_result, chunk_errors = future.result()
+            results.update(chunk_result)
+            errors.update(chunk_errors)
 
-        return results
+        return MultiAssetBarsResult(results, errors=errors)
 
     def get_last_prices(self, assets, quote=None, exchange=None):
         """Takes a list of assets and returns the last known prices"""

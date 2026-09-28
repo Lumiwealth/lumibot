@@ -353,7 +353,6 @@ Return only valid JSON following the schema.
         system_msg: str,
         user_query: str,
         model: str = "sonar",
-        temperature: int = 0,
         retries: int = 3,
         max_tokens: int = 35000,
         stream: bool = None,
@@ -381,7 +380,6 @@ Return only valid JSON following the schema.
                         {"role": "system", "content": system_msg},
                         {"role": "user", "content": user_query}
                     ],
-                    "temperature": temperature,
                     "max_tokens": safe_max_tokens,
                     "top_p": 0.9,
                     "stream": stream,

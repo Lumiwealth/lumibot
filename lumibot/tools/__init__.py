@@ -106,6 +106,8 @@ _HELPER_EXPORTS = {
     "mcal",
     "os",
     "parse_symbol",
+    "canonicalize_timestep",
+    "parse_canonical_timestep",
     "parse_timestep_qty_and_unit",
     "pd",
     "prettify_dataframe_with_decimals",

@@ -12,16 +12,19 @@ from lumibot.components.agents.runtime import (
     _aggregate_usage_metadata,
     _resolve_model_for_adk,
     _strip_thought_parts_from_litellm_request,
-    _supports_explicit_temperature_for_adk_model,
-    _sync_gemini_api_key_alias,
     _sync_together_api_key_alias,
     _sync_xai_api_key_alias,
     _classify_agent_error,
     _model_context_limit_tokens,
     _model_context_string_limit_chars,
+    _tool_name_space_aliases,
+    _function_tools_with_name_aliases,
+    _is_provider_safe_function_name,
+    _normalize_tool_name_typo,
     _wrap_tool_callable,
 )
 from lumibot.components.agents.schemas import BoundTool
+from lumibot.components.agents.managed_gateway import BotSpotManagedLlm, managed_gateway_available_for
 
 
 def test_grok_api_key_alias_populates_xai_api_key(monkeypatch):
@@ -42,22 +45,83 @@ def test_xai_api_key_wins_over_grok_alias(monkeypatch):
     assert os.environ["XAI_API_KEY"] == "xai-test-key"
 
 
-def test_gemini_api_key_alias_populates_google_api_key(monkeypatch):
+def test_native_gemini_model_does_not_mutate_google_api_key(monkeypatch):
     monkeypatch.delenv("GOOGLE_API_KEY", raising=False)
     monkeypatch.setenv("GEMINI_API_KEY", "gemini-test-key")
 
-    _sync_gemini_api_key_alias()
+    resolved = _resolve_model_for_adk("gemini-3.1-flash-lite-preview")
 
-    assert os.environ["GOOGLE_API_KEY"] == "gemini-test-key"
+    assert resolved == "gemini-3.1-flash-lite-preview"
+    assert "GOOGLE_API_KEY" not in os.environ
 
 
-def test_google_api_key_wins_over_gemini_alias(monkeypatch):
-    monkeypatch.setenv("GOOGLE_API_KEY", "google-test-key")
-    monkeypatch.setenv("GEMINI_API_KEY", "gemini-test-key")
+def test_managed_family_never_falls_back_to_direct_provider_or_ignores_byok(monkeypatch):
+    monkeypatch.setenv("LUMIBOT_AI_GATEWAY_URL", "https://gateway.example.test")
+    monkeypatch.setenv("LUMIBOT_AI_GATEWAY_TOKEN", "managed-token")
+    monkeypatch.setenv("GEMINI_API_KEY", "personal-test-key")
+    with pytest.raises(RuntimeError, match="select an exact provider model id"):
+        _resolve_model_for_adk("google/gemini-pro")
+    monkeypatch.delenv("GEMINI_API_KEY")
+    monkeypatch.delenv("GOOGLE_API_KEY", raising=False)
+    assert isinstance(_resolve_model_for_adk("google/gemini-pro"), BotSpotManagedLlm)
+    monkeypatch.delenv("LUMIBOT_AI_GATEWAY_TOKEN")
+    with pytest.raises(RuntimeError, match="Model families require BotSpot"):
+        _resolve_model_for_adk("google/gemini-pro")
 
-    _sync_gemini_api_key_alias()
 
-    assert os.environ["GOOGLE_API_KEY"] == "google-test-key"
+@pytest.mark.parametrize(
+    ("model", "key_name"),
+    [
+        ("gemini-3.1-flash-lite", "GEMINI_API_KEY"),
+        ("openai/gpt-5.6-luna", "OPENAI_API_KEY"),
+        ("anthropic/claude-sonnet-5", "ANTHROPIC_API_KEY"),
+        ("xai/grok-4.5", "XAI_API_KEY"),
+    ],
+)
+def test_byok_always_wins_over_managed_gateway(monkeypatch, model, key_name):
+    for name in (
+        "GEMINI_API_KEY",
+        "GOOGLE_API_KEY",
+        "OPENAI_API_KEY",
+        "ANTHROPIC_API_KEY",
+        "XAI_API_KEY",
+        "GROK_API_KEY",
+    ):
+        monkeypatch.delenv(name, raising=False)
+    monkeypatch.setenv(key_name, "customer-key")
+    monkeypatch.setenv("LUMIBOT_AI_GATEWAY_URL", "https://gateway.example.test")
+    monkeypatch.setenv("LUMIBOT_AI_GATEWAY_TOKEN", "managed-token")
+
+    assert not managed_gateway_available_for(model)
+    result = _resolve_model_for_adk(model)
+    assert not isinstance(result, BotSpotManagedLlm)
+
+
+def test_missing_byok_uses_managed_gateway_without_exposing_token(monkeypatch):
+    for name in (
+        "GEMINI_API_KEY",
+        "GOOGLE_API_KEY",
+        "OPENAI_API_KEY",
+        "ANTHROPIC_API_KEY",
+        "XAI_API_KEY",
+        "GROK_API_KEY",
+    ):
+        monkeypatch.delenv(name, raising=False)
+    monkeypatch.setenv("LUMIBOT_AI_GATEWAY_URL", "https://gateway.example.test")
+    monkeypatch.setenv("LUMIBOT_AI_GATEWAY_TOKEN", "managed-token")
+
+    result = _resolve_model_for_adk("gemini-3.1-flash-lite")
+
+    assert isinstance(result, BotSpotManagedLlm)
+    assert "managed-token" not in repr(result)
+
+
+def test_invalid_byok_cannot_fall_back_to_managed_gateway(monkeypatch):
+    monkeypatch.setenv("OPENAI_API_KEY", "invalid-customer-key")
+    monkeypatch.setenv("LUMIBOT_AI_GATEWAY_URL", "https://gateway.example.test")
+    monkeypatch.setenv("LUMIBOT_AI_GATEWAY_TOKEN", "managed-token")
+
+    assert not managed_gateway_available_for("openai/gpt-5.6-luna")
 
 
 def test_together_api_key_alias_populates_litellm_key(monkeypatch):
@@ -101,6 +165,7 @@ def test_model_context_registry_uses_known_provider_overrides(monkeypatch):
 
     assert _model_context_limit_tokens("gemini-3.1-flash-lite") == 1_048_576
     assert _model_context_limit_tokens("openai/gpt-4.1-mini") == 1_047_576
+    assert _model_context_limit_tokens("openai/gpt-6-luna") == 922_000
     assert _model_context_limit_tokens("anthropic/claude-sonnet-4-6") == 200_000
     assert _model_context_limit_tokens("xai/grok-4.20-0309-reasoning") == 2_000_000
 
@@ -127,6 +192,39 @@ def test_wrapped_tool_does_not_block_repeated_calls():
     assert wrapped()["value"] == 1
     assert wrapped()["value"] == 2
     assert calls["count"] == 2
+
+
+def test_tool_name_space_aliases_cover_common_llm_typos():
+    aliases = _tool_name_space_aliases("options_find_expiration")
+    assert "options_find_ expiration" in aliases
+    assert "options_ find_expiration" in aliases
+
+
+def test_normalize_tool_name_typo_collapses_space_after_underscore():
+    assert _normalize_tool_name_typo("options_find_ expiration") == "options_find_expiration"
+    assert _normalize_tool_name_typo("options_ find_expiration") == "options_find_expiration"
+    assert _is_provider_safe_function_name("options_find_expiration")
+    assert not _is_provider_safe_function_name("options_find_ expiration")
+
+
+def test_function_tools_register_only_provider_safe_canonical_names():
+    """Gemini rejects function_declarations names that contain spaces (400)."""
+
+    def sample_tool(symbol: str = "SPY"):
+        return {"symbol": symbol}
+
+    bound = BoundTool(name="options_find_expiration", description="find expiration", function=sample_tool)
+
+    class FakeFunctionTool:
+        def __init__(self, fn):
+            self.fn = fn
+            self.name = fn.__name__
+
+    tools = _function_tools_with_name_aliases(FakeFunctionTool, [bound], None)
+    names = {tool.name for tool in tools}
+    assert names == {"options_find_expiration"}
+    assert "options_find_ expiration" not in names
+    assert tools[0].fn(symbol="QQQ")["symbol"] == "QQQ"
 
 
 def test_wrapped_tool_coerces_uuid_payloads_before_provider_serialization():
@@ -214,6 +312,50 @@ def test_openai_model_forwards_prompt_cache_key_and_24h_retention(monkeypatch):
     assert created["model"] == "openai/gpt-5.4-mini"
     assert created["prompt_cache_key"] == "stable-prefix-key"
     assert created["prompt_cache_retention"] == "24h"
+
+
+def test_gpt6_luna_forwards_reasoning_effort_and_routes_to_responses_api(monkeypatch):
+    import litellm
+
+    created: dict[str, object] = {}
+
+    class FakeLiteLlm:
+        def __init__(self, **kwargs):
+            created.update(kwargs)
+
+    fake_module = types.ModuleType("google.adk.models.lite_llm")
+    fake_module.LiteLlm = FakeLiteLlm
+    monkeypatch.setitem(sys.modules, "google.adk.models.lite_llm", fake_module)
+
+    result = _resolve_model_for_adk(
+        "openai/gpt-6-luna", prompt_cache_key="stable-prefix-key", reasoning_effort="high"
+    )
+
+    assert isinstance(result, FakeLiteLlm)
+    assert created["model"] == "openai/gpt-6-luna"
+    assert created["reasoning_effort"] == "high"
+    assert "reasoning_effort" in created["allowed_openai_params"]
+    info = litellm.get_model_info("openai/gpt-6-luna")
+    assert info["mode"] == "responses"
+    assert info["supports_function_calling"] is True
+    assert info["input_cost_per_token"] == 0.10e-6
+    assert info["output_cost_per_token"] == 0.50e-6
+
+
+def test_reasoning_effort_is_not_forwarded_when_unset(monkeypatch):
+    created: dict[str, object] = {}
+
+    class FakeLiteLlm:
+        def __init__(self, **kwargs):
+            created.update(kwargs)
+
+    fake_module = types.ModuleType("google.adk.models.lite_llm")
+    fake_module.LiteLlm = FakeLiteLlm
+    monkeypatch.setitem(sys.modules, "google.adk.models.lite_llm", fake_module)
+
+    _resolve_model_for_adk("openai/gpt-5.4-mini")
+
+    assert "reasoning_effort" not in created
 
 
 def test_litellm_model_forwards_model_request_timeout(monkeypatch):
@@ -365,6 +507,8 @@ def test_runtime_prompt_only_names_available_tools():
     assert "Momentum holds." in user_text
     assert "list_fred_series" not in user_text
     assert "alpaca_news" not in user_text
+    assert "Specifically, include calls" not in user_text
+    assert "Do not call every available data category by default" in user_text
 
 
 def test_runtime_enforces_agent_run_timeout(monkeypatch):
@@ -472,18 +616,3 @@ def test_gemini_native_path_uses_plain_model_id_for_implicit_or_adk_context_cach
     # only for LiteLLM providers; Gemini implicit caching and ADK explicit
     # ContextCacheConfig are configured outside the LiteLLM wrapper.
     assert _resolve_model_for_adk("gemini-3.1-pro-preview", prompt_cache_key="stable-prefix-key") == "gemini-3.1-pro-preview"
-
-
-def test_explicit_temperature_only_sent_to_gemini_native_models():
-    assert _supports_explicit_temperature_for_adk_model("gemini-3.1-pro-preview") is True
-    assert _supports_explicit_temperature_for_adk_model("models/gemini-3.1-pro-preview") is True
-
-    # GPT-5/reasoning-class OpenAI models reject custom temperature values; the
-    # provider default is the only accepted value.
-    assert _supports_explicit_temperature_for_adk_model("openai/gpt-5.4") is False
-    assert _supports_explicit_temperature_for_adk_model("openai/gpt-5.4-mini") is False
-    assert _supports_explicit_temperature_for_adk_model("xai/grok-4.20-0309-reasoning") is False
-    assert _supports_explicit_temperature_for_adk_model("anthropic/claude-opus-4-7") is False
-    assert _supports_explicit_temperature_for_adk_model("deepseek/deepseek-v4-flash") is False
-    assert _supports_explicit_temperature_for_adk_model("together_ai/moonshotai/Kimi-K2.6") is False
-    assert _supports_explicit_temperature_for_adk_model("cerebras/gpt-oss-120b") is False

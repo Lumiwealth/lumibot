@@ -1,6 +1,9 @@
 Agent Memory
 ============
 
+.. meta::
+   :description: Lumibot includes native local memory for agentic strategies. Memory lets an agent record why it made a decision, search prior lessons, keep an open thesis.
+
 Lumibot includes native local memory for agentic strategies. Memory lets an
 agent record why it made a decision, search prior lessons, keep an open thesis,
 and leave artifacts that a human can inspect after a backtest or live run.
@@ -145,6 +148,11 @@ This injected state is intentionally compact. It gives the model the current
 state of memory without flooding the prompt. Deeper history should be retrieved
 with ``search_memory``.
 
+The separate ``_agent_runtime_state`` entry in ``self.vars`` keeps bounded
+prompt notes and run metadata for lifecycle continuity. It does not duplicate
+full model summaries. Full history belongs in SQLite memory and agent
+observability artifacts.
+
 Lumibot also records execution-side memory. When an agent submits an order with
 ``orders_submit_order``, Lumibot writes an append-only ``order.submitted``
 event after the order is submitted. Open theses receive a best-effort daily
@@ -193,7 +201,7 @@ Example Prompt
 
    self.agents.create(
        name="portfolio_manager",
-       model="openai/gpt-5.4-mini",
+       model="openai/gpt-6-luna",
        allow_trading=True,
        system_prompt=(
            "Review evidence and risk before trading. "

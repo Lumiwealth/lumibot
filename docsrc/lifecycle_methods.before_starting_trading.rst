@@ -1,6 +1,9 @@
 def before_starting_trading
 ===================================
 
+.. meta::
+   :description: Use this lifecycle method to reinitialize variables for day trading like resetting the list of blacklisted shares. LumiBot documentation.
+
 Use this lifecycle method to reinitialize variables for day trading like resetting the list of blacklisted shares.
 
 .. code-block:: python

@@ -1,10 +1,11 @@
-import hashlib
 import functools
+import hashlib
 import inspect
 import json
 import os
 import re
 import sys
+import threading
 import time
 from datetime import datetime, timezone
 from pathlib import Path
@@ -13,15 +14,51 @@ from typing import Any
 from lumibot import LUMIBOT_CACHE_FOLDER
 
 from .schemas import AgentRunResult, AgentTraceEvent, BoundTool, MCPServer, ToolDefinition
+from .skills import BUILTIN_SKILL_LOADING_INSTRUCTION
 from .tool_context import agent_tool_context
 from .tools import bind_callable_tool
-
 
 _TIMESTAMP_HINT_RE = re.compile(
     r"(time|date|datetime|published|updated|created|accepted|released|release|as_of|realtime)",
     re.IGNORECASE,
 )
 _DEFAULT_MEMORY_NOTE_MAX_CHARS = 2000
+DEFAULT_AGENT_MODEL = "openai/gpt-6-luna"
+DEFAULT_AGENT_REASONING_EFFORT = "medium"
+_BOTSPOT_RESEARCH_TOOLS = [
+    "search_data_catalog",
+    "query_data",
+    "search_documents",
+    "get_document",
+]
+# Outbound network tools are default-deny. An agent gets them only with
+# allow_network=True, or by listing one explicitly in tools=[...]. Fetched
+# pages are untrusted input, and a network tool is the channel that could send
+# agent context out. Keeping them out of the default toolset also keeps trading
+# agents focused on account and market tools.
+NETWORK_TOOL_NAMES = frozenset(
+    {
+        "http_request",
+        "rss_fetch",
+        "web_search",
+        "browser_session_open",
+        "browser_session_close",
+        "browser_session_recover",
+        "browser_navigate",
+        "browser_observe",
+        "browser_act",
+        "browser_tabs",
+        "browser_extract",
+        "browser_login",
+        "browser_storage_state",
+        "browser_screenshot",
+    }
+)
+
+
+def _is_network_tool(tool: Any) -> bool:
+    metadata = getattr(tool, "metadata", {}) or {}
+    return bool(metadata.get("network")) or str(getattr(tool, "name", "")) in NETWORK_TOOL_NAMES
 
 
 class AgentModelCallLimitExceeded(RuntimeError):
@@ -48,7 +85,8 @@ def _get_pandas():
 def _get_replay_imports():
     global _REPLAY_IMPORTS
     if _REPLAY_IMPORTS is None:
-        from .replay_cache import AgentReplayCache, _normalize_json as normalize_json
+        from .replay_cache import AgentReplayCache
+        from .replay_cache import _normalize_json as normalize_json
 
         _REPLAY_IMPORTS = (AgentReplayCache, normalize_json)
     return _REPLAY_IMPORTS
@@ -74,6 +112,54 @@ def _get_runtime_imports():
 
         _RUNTIME_IMPORTS = (GoogleADKRuntime, RuntimeRequest, StubAgentRuntime, call_mcp_tool)
     return _RUNTIME_IMPORTS
+
+
+def _list_remote_mcp_tools(server: MCPServer) -> list[dict[str, Any]]:
+    """Load the authoritative MCP tool contracts without importing ADK eagerly."""
+    from .runtime import list_mcp_tools
+
+    return list_mcp_tools(server)
+
+
+def _python_annotation_for_json_schema(schema: Any) -> Any:
+    if not isinstance(schema, dict):
+        return Any
+    schema_type = schema.get("type")
+    if isinstance(schema_type, list):
+        schema_type = next((item for item in schema_type if item != "null"), None)
+    return {
+        "string": str,
+        "integer": int,
+        "number": float,
+        "boolean": bool,
+        "array": list,
+        "object": dict,
+    }.get(schema_type, Any)
+
+
+def _signature_from_json_schema(schema: Any) -> inspect.Signature | None:
+    """Project an MCP object schema into a callable signature for model tooling."""
+    if not isinstance(schema, dict) or schema.get("type") != "object":
+        return None
+    properties = schema.get("properties")
+    if not isinstance(properties, dict):
+        return None
+    required = set(schema.get("required") or [])
+    ordered_names = [name for name in properties if name in required]
+    ordered_names.extend(name for name in properties if name not in required)
+    parameters: list[inspect.Parameter] = []
+    for name in ordered_names:
+        if not isinstance(name, str) or not name.isidentifier():
+            return None
+        parameters.append(
+            inspect.Parameter(
+                name,
+                inspect.Parameter.POSITIONAL_OR_KEYWORD,
+                default=inspect.Parameter.empty if name in required else None,
+                annotation=_python_annotation_for_json_schema(properties.get(name)),
+            )
+        )
+    return inspect.Signature(parameters=parameters, return_annotation=dict)
 
 
 def _get_parquet_utils():
@@ -113,6 +199,40 @@ def _current_strategy_datetime(strategy: Any) -> Any:
     if hasattr(strategy, "get_datetime"):
         return _safe_call(strategy.get_datetime)
     return None
+
+
+def _botspot_research_server_from_environment() -> tuple[MCPServer | None, str | None]:
+    url = str(os.environ.get("BOTSPOT_RESEARCH_MCP_URL") or "").strip()
+    token = str(os.environ.get("BOTSPOT_RESEARCH_MCP_TOKEN") or "").strip()
+    renew_url = str(os.environ.get("BOTSPOT_RESEARCH_MCP_RENEW_URL") or "").strip()
+    configured = [bool(url), bool(token), bool(renew_url)]
+    if not any(configured):
+        return (
+            None,
+            "BotSpot managed public macro and SEC research are not linked. This optional capability "
+            "is attached automatically on BotSpot; external LumiBot users can link a BotSpot account. "
+            "Ordinary LumiBot tools and strategy execution remain available.",
+        )
+    if not all(configured):
+        return (
+            None,
+            "BotSpot research is only partially configured. Link a BotSpot account or run on BotSpot "
+            "to use the managed public macro and SEC research catalog.",
+        )
+    try:
+        return (
+            MCPServer(
+                name="botspot_research",
+                transport="streamable_http",
+                url=url,
+                exposed_tools=_BOTSPOT_RESEARCH_TOOLS,
+                auth_token_env="BOTSPOT_RESEARCH_MCP_TOKEN",
+                auth_token_refresh_url=renew_url,
+            ),
+            None,
+        )
+    except ValueError as exc:
+        return None, f"BotSpot research configuration is invalid: {exc}"
 
 
 def _iso_or_none(value: Any) -> str | None:
@@ -337,10 +457,15 @@ _AGENT_DETAIL_COLUMNS = [
     "agent_name",
     "model",
     "mode",
+    "runtime_version",
+    "ai_access_mode",
+    "gateway_protocol_version",
+    "gateway_component_sha256",
     "cache_hit",
     "event_kind",
     "is_call_summary",
     "tool_name",
+    "tool_call_id",
     "event_detail",
     "event_payload_json",
     "event_text",
@@ -360,6 +485,15 @@ _AGENT_DETAIL_COLUMNS = [
     "memory_state_text",
     "memory_retrieval_ids",
     "warning_messages",
+    "outcome_operation",
+    "outcome_requiredness",
+    "outcome_retryability",
+    "outcome_fallback_used",
+    "outcome_status",
+    "outcome_decision_completed",
+    "outcome_broker_state_certainty",
+    "outcome_impact",
+    "outcome_error_category",
     "event_input_tokens",
     "event_output_tokens",
     "event_total_tokens",
@@ -439,6 +573,53 @@ def _unwrap_tool_payload(payload: Any) -> Any:
     return payload
 
 
+def _structured_operation_outcomes(result: AgentRunResult) -> list[dict[str, Any]]:
+    """Return runtime-authored operation outcomes without interpreting log text."""
+
+    outcomes: list[dict[str, Any]] = []
+    primary: dict[str, Any] = {}
+    if isinstance(result.payload, dict):
+        primary_candidate = result.payload.get("execution_outcome")
+        primary = primary_candidate if isinstance(primary_candidate, dict) else {}
+        if isinstance(primary, dict) and primary.get("operation"):
+            outcomes.append(primary)
+    for event in result.tool_results:
+        payload = _unwrap_tool_payload(event.payload)
+        if not isinstance(payload, dict):
+            continue
+        outcome = payload.get("execution_outcome")
+        if isinstance(outcome, dict) and outcome.get("operation"):
+            outcomes.append(outcome)
+        elif payload.get("tool_error") is True:
+            error = payload.get("error") if isinstance(payload.get("error"), dict) else {}
+            outcomes.append(
+                {
+                    "operation": f"tool:{event.tool_name or 'unknown'}",
+                    "requiredness": "optional",
+                    "retryability": "unknown",
+                    "fallback_used": True,
+                    "decision_completed": primary.get("decision_completed") is True,
+                    "broker_state_certainty": "not_observed",
+                    "impact": "optional_component_failed",
+                    "error_category": error.get("type") or "ToolError",
+                }
+            )
+        else:
+            outcomes.append(
+                {
+                    "operation": f"tool:{event.tool_name or 'unknown'}",
+                    "requiredness": "optional",
+                    "retryability": "not_applicable",
+                    "fallback_used": False,
+                    "decision_completed": primary.get("decision_completed") is True,
+                    "broker_state_certainty": "not_observed",
+                    "impact": "completed",
+                    "error_category": None,
+                }
+            )
+    return outcomes
+
+
 def _sanitize_csv_text(value: Any) -> str:
     if value is None:
         return ""
@@ -492,25 +673,29 @@ def _summarize_tool_payload(tool_name: str | None, payload: Any) -> str:
             headline = article.get("headline") or "untitled"
             prefix = f"{symbols} " if symbols else ""
             headline_parts.append(f"{prefix}@ {published_at}: {headline}")
-        return _sanitize_csv_text(_truncate_text(
-            f"count={payload.get('count', len(articles))} "
-            f"window=({payload.get('window_start')} -> {payload.get('window_end')}) "
-            f"headlines={headline_parts}"
-        ))
+        return _sanitize_csv_text(
+            _truncate_text(
+                f"count={payload.get('count', len(articles))} "
+                f"window=({payload.get('window_start')} -> {payload.get('window_end')}) "
+                f"headlines={headline_parts}"
+            )
+        )
 
     if "row_count" in payload and "table_name" in payload:
-        return _sanitize_csv_text(_truncate_text(
-            f"table={payload.get('table_name')} symbol={payload.get('symbol')} "
-            f"rows={payload.get('row_count')} timestep={payload.get('timestep')} "
-            f"loaded_at={payload.get('loaded_at')}"
-        ))
+        return _sanitize_csv_text(
+            _truncate_text(
+                f"table={payload.get('table_name')} symbol={payload.get('symbol')} "
+                f"rows={payload.get('row_count')} timestep={payload.get('timestep')} "
+                f"loaded_at={payload.get('loaded_at')}"
+            )
+        )
 
     if "rows" in payload and "row_count" in payload:
         rows = payload.get("rows") or []
         sample = rows[0] if rows else {}
-        return _sanitize_csv_text(_truncate_text(
-            f"rows={payload.get('row_count')} sample={_compact_json(sample, limit=140)}"
-        ))
+        return _sanitize_csv_text(
+            _truncate_text(f"rows={payload.get('row_count')} sample={_compact_json(sample, limit=140)}")
+        )
 
     if "positions" in payload and isinstance(payload["positions"], list):
         labels: list[str] = []
@@ -523,16 +708,20 @@ def _summarize_tool_payload(tool_name: str | None, payload: Any) -> str:
         return _sanitize_csv_text(_truncate_text(f"positions={labels}"))
 
     if "cash" in payload and "portfolio_value" in payload:
-        return _sanitize_csv_text(_truncate_text(
-            f"cash={payload.get('cash')} portfolio_value={payload.get('portfolio_value')} "
-            f"datetime={payload.get('datetime')}"
-        ))
+        return _sanitize_csv_text(
+            _truncate_text(
+                f"cash={payload.get('cash')} portfolio_value={payload.get('portfolio_value')} "
+                f"datetime={payload.get('datetime')}"
+            )
+        )
 
     if "identifier" in payload or "status" in payload:
-        return _sanitize_csv_text(_truncate_text(
-            f"identifier={payload.get('identifier')} status={payload.get('status')} "
-            f"symbol={payload.get('symbol')} side={payload.get('side')} quantity={payload.get('quantity')}"
-        ))
+        return _sanitize_csv_text(
+            _truncate_text(
+                f"identifier={payload.get('identifier')} status={payload.get('status')} "
+                f"symbol={payload.get('symbol')} side={payload.get('side')} quantity={payload.get('quantity')}"
+            )
+        )
 
     return _flatten_csv_value(payload) or _sanitize_csv_text(_compact_json(payload))
 
@@ -548,6 +737,32 @@ def _visible_model_texts(result: AgentRunResult) -> list[str]:
         and event.text.strip()
         and event.text.strip() != summary
     ]
+
+
+def _coalesce_trace_events(events: list[AgentTraceEvent]) -> list[AgentTraceEvent]:
+    """Coalesce adjacent streamed text/thinking deltas for bounded artifacts."""
+
+    coalesced: list[AgentTraceEvent] = []
+    for event in events:
+        previous = coalesced[-1] if coalesced else None
+        if (
+            previous is not None
+            and event.kind in {"text", "thinking"}
+            and previous.kind == event.kind
+            and previous.tool_name == event.tool_name
+            and previous.call_id == event.call_id
+            and isinstance(previous.text, str)
+            and isinstance(event.text, str)
+        ):
+            left = previous.text
+            right = event.text
+            separator = ""
+            if len(left) > 2 and len(right) > 2 and left[-1:].isalnum() and right[:1].isalnum():
+                separator = " "
+            previous.text = f"{left}{separator}{right}"
+            continue
+        coalesced.append(event)
+    return coalesced
 
 
 def _thinking_texts(result: AgentRunResult) -> list[str]:
@@ -574,6 +789,113 @@ def _runtime_timing_payload(result: AgentRunResult) -> dict[str, Any]:
             result.first_event_latency_ms if result.first_event_latency_ms is not None else ""
         ),
     }
+
+
+@functools.lru_cache(maxsize=1)
+def _managed_gateway_component_sha256() -> str:
+    from . import managed_gateway
+
+    return hashlib.sha256(Path(managed_gateway.__file__).read_bytes()).hexdigest()
+
+
+def _managed_ai_provenance(model: str) -> dict[str, Any]:
+    from lumibot import __version__
+
+    from .managed_gateway import managed_gateway_available_for
+
+    managed = managed_gateway_available_for(model)
+    return {
+        "runtime_version": str(__version__),
+        "ai_access_mode": "botspot_managed" if managed else "byok",
+        "gateway_protocol_version": 2 if managed else None,
+        "gateway_component_sha256": _managed_gateway_component_sha256() if managed else None,
+    }
+
+
+def _managed_ai_execution_outcome(
+    *,
+    required_for_decision: bool,
+    decision_completed: bool,
+    decision_status: str,
+    error_category: str | None = None,
+    fallback_used: bool = False,
+) -> dict[str, Any]:
+    return {
+        "operation": "managed_ai_inference",
+        "requiredness": "decision_critical" if required_for_decision else "optional",
+        "retryability": (
+            "retryable"
+            if error_category in {"transient", "unknown"}
+            else "non_retryable"
+            if error_category
+            else "not_applicable"
+        ),
+        "fallback_used": bool(fallback_used),
+        "status": decision_status,
+        "decision_completed": bool(decision_completed),
+        "broker_state_certainty": "not_observed",
+        "impact": (
+            "completed"
+            if decision_completed
+            else "decision_blocked"
+            if required_for_decision
+            else "optional_component_failed"
+        ),
+        "error_category": error_category,
+    }
+
+
+def _managed_ai_terminal_status(result: AgentRunResult, *, allow_trading: bool) -> str:
+    """Classify a successful ADK run from structural tool events only."""
+
+    mutating_order_tools = {
+        "orders_submit_order",
+        "orders_submit_multileg",
+        "orders_cancel_order",
+        "orders_modify_order",
+    }
+    tool_results = result.tool_results
+    successful_order = any(
+        str(event.tool_name or "") in mutating_order_tools
+        and not (
+            isinstance(_unwrap_tool_payload(event.payload), dict)
+            and _unwrap_tool_payload(event.payload).get("tool_error") is True
+        )
+        for event in tool_results
+    )
+    if successful_order:
+        return "completed_decision"
+    later_successes: set[str] = set()
+    has_unrecovered_tool_error = False
+    for event in reversed(tool_results):
+        tool_name = str(event.tool_name or "")
+        payload = _unwrap_tool_payload(event.payload)
+        is_error = isinstance(payload, dict) and payload.get("tool_error") is True
+        # A call to a tool that does not exist ran nothing; it cannot leave the
+        # decision incomplete.
+        if is_error and payload.get("unknown_tool") is True:
+            continue
+        if is_error:
+            if tool_name not in later_successes:
+                has_unrecovered_tool_error = True
+        else:
+            later_successes.add(tool_name)
+    if has_unrecovered_tool_error:
+        return "tool_error"
+    return "completed_no_action" if allow_trading else "completed_decision"
+
+
+def _managed_ai_error_status(exc: BaseException) -> str:
+    """Classify a failed run from typed exception metadata, never response text."""
+
+    code = str(getattr(exc, "code", "") or "").strip().lower()
+    if code == "protocol_integrity_error":
+        return "protocol_integrity_error"
+    if code == "tool_error" or code.startswith("tool_"):
+        return "tool_error"
+    if code.startswith("provider_") or code in {"gateway_error", "renewal_failed"}:
+        return "provider_error"
+    return "runtime_error"
 
 
 def _iter_timestamp_candidates(value: Any, *, path: str = "payload", hinted: bool = False):
@@ -624,11 +946,13 @@ def _provider_prompt_cache_key(
     model: str,
     effective_system_prompt: str,
     bound_tools: list[BoundTool],
+    builtin_skill_fingerprint: str | None,
 ) -> str:
     payload = {
         "agent": agent_name,
         "model": model,
         "effective_system_prompt": effective_system_prompt,
+        "builtin_skill_fingerprint": builtin_skill_fingerprint,
         "tool_surface": [
             {
                 "name": tool.name,
@@ -655,37 +979,95 @@ class AgentHandle:
         mcp_servers: list[MCPServer] | None = None,
         runtime: Any | None = None,
         allow_trading: bool = True,
+        allow_communication_reads: bool = False,
+        allow_communication_writes: bool = False,
+        allow_network: bool | None = None,
         include_builtin_tools: bool = True,
+        include_builtin_skills: bool = True,
+        skill_dirs: list[str | Path] | tuple[str | Path, ...] | None = None,
+        rules_path: str | Path | None = None,
         model_request_timeout_seconds: float | None = None,
         run_timeout_seconds: float | None = None,
+        reasoning_effort: str | None = None,
     ) -> None:
         self.manager = manager
         self.name = name
         self.system_prompt = system_prompt
         self.default_model = default_model
         self.allow_trading = bool(allow_trading)
+        self.allow_communication_reads = bool(allow_communication_reads)
+        self.allow_communication_writes = bool(allow_communication_writes)
         self.model_request_timeout_seconds = model_request_timeout_seconds
         self.run_timeout_seconds = run_timeout_seconds
+        if reasoning_effort not in {None, "none", "low", "medium", "high", "xhigh", "max"}:
+            raise ValueError("Unsupported agent reasoning_effort.")
+        self.reasoning_effort = reasoning_effort
+        self.include_builtin_skills = bool(include_builtin_skills)
+        self.skill_dirs = tuple(skill_dirs or ())
+        self.rules_path = rules_path
         from .builtins import BuiltinTools
-        builtin_tools = self._filter_tools_for_trading_permission(BuiltinTools.all())
+
+        # Network permission has three states. True: every built-in network
+        # tool joins the default set. None (default): the default set has none,
+        # but a network tool the caller lists explicitly is kept, because
+        # listing it is the opt-in. False: network tools are removed even when
+        # listed explicitly.
+        explicit_tools = list(tools) if tools is not None else []
+        self.allow_network = bool(allow_network) or (
+            allow_network is None and any(_is_network_tool(tool) for tool in explicit_tools)
+        )
+        builtin_tools = self._filter_tools_for_permissions(
+            BuiltinTools.all(), allow_network=bool(allow_network)
+        )
+        explicit_allowed = self._filter_tools_for_permissions(
+            explicit_tools, allow_network=allow_network is not False
+        )
         if tools is None:
             self._tool_inputs = builtin_tools
         elif include_builtin_tools:
-            self._tool_inputs = builtin_tools + self._filter_tools_for_trading_permission(list(tools))
+            self._tool_inputs = builtin_tools + explicit_allowed
         else:
-            self._tool_inputs = self._filter_tools_for_trading_permission(list(tools))
-        self._mcp_servers = mcp_servers or []
+            self._tool_inputs = explicit_allowed
+        self._mcp_servers = list(mcp_servers or [])
+        hosted_research, research_warning = _botspot_research_server_from_environment()
+        if hosted_research and all(server.name != hosted_research.name for server in self._mcp_servers):
+            self._mcp_servers.append(hosted_research)
+        if research_warning:
+            self.manager._warn_once("botspot_research_configuration", research_warning)
         google_runtime, _RuntimeRequest, _StubAgentRuntime, _call_mcp_tool = _get_runtime_imports()
         self._runtime = runtime or google_runtime(mcp_servers=self._mcp_servers)
         self._bound_tools: list[BoundTool] | None = None
 
-    def _filter_tools_for_trading_permission(self, tools: list[Any]) -> list[Any]:
-        if self.allow_trading:
-            return list(tools)
+    def _filter_tools_for_permissions(self, tools: list[Any], *, allow_network: bool) -> list[Any]:
+        communication_write_tools = {"send_email", "send_slack_message"}
+        communication_read_tools = {
+            "list_sent_emails",
+            "get_sent_email",
+            "get_email_status",
+            "list_received_emails",
+            "get_received_email",
+            "list_received_email_attachments",
+            "get_received_email_attachment",
+            "list_slack_channels",
+            "list_slack_messages",
+            "get_slack_message",
+            "list_slack_thread",
+        }
         filtered: list[Any] = []
         for tool in tools:
             metadata = getattr(tool, "metadata", {}) or {}
-            if bool(metadata.get("mutates_trading")):
+            name = str(getattr(tool, "name", ""))
+            if not self.allow_trading and bool(metadata.get("mutates_trading")):
+                continue
+            if not allow_network and _is_network_tool(tool):
+                continue
+            if not self.allow_communication_reads and (
+                bool(metadata.get("communication_read")) or name in communication_read_tools
+            ):
+                continue
+            if not self.allow_communication_writes and (
+                bool(metadata.get("communication_write")) or name in communication_write_tools
+            ):
                 continue
             filtered.append(tool)
         return filtered
@@ -741,20 +1123,31 @@ class AgentHandle:
             return current_dt.isoformat()
         return datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
 
-    def _serialize_positions(self) -> list[dict[str, Any]]:
+    def _serialize_positions(self, limit: int = 50) -> tuple[list[dict[str, Any]], int, bool]:
         if not hasattr(self.manager.strategy, "get_positions"):
-            return []
-        positions = _safe_call(lambda: self.manager.strategy.get_positions(include_cash_positions=True), default=[]) or []
+            return [], 0, False
+        try:
+            positions = self.manager.strategy.get_positions(include_cash_positions=True) or []
+        except Exception:
+            return [], 0, False
         _order_to_dict, _position_to_dict = _get_builtin_serializers()
-        return [_position_to_dict(position) for position in positions]
+        serialized = sorted(
+            (_position_to_dict(position) for position in positions),
+            key=lambda payload: json.dumps(payload.get("asset", {}), sort_keys=True, default=str),
+        )
+        return serialized[:limit], len(serialized), len(serialized) <= limit
 
-    def _serialize_account_state(self) -> dict[str, Any]:
-        return {
-            "cash": _safe_call(self.manager.strategy.get_cash) if hasattr(self.manager.strategy, "get_cash") else None,
-            "portfolio_value": _safe_call(self.manager.strategy.get_portfolio_value)
+    def _serialize_account_state(self) -> tuple[dict[str, Any], bool]:
+        cash = _safe_call(self.manager.strategy.get_cash) if hasattr(self.manager.strategy, "get_cash") else None
+        portfolio_value = (
+            _safe_call(self.manager.strategy.get_portfolio_value)
             if hasattr(self.manager.strategy, "get_portfolio_value")
-            else None,
-        }
+            else None
+        )
+        return {
+            "cash": cash,
+            "portfolio_value": portfolio_value,
+        }, cash is not None and portfolio_value is not None
 
     def _serialize_orders(self, limit: int = 10) -> list[dict[str, Any]]:
         if not hasattr(self.manager.strategy, "get_orders"):
@@ -763,33 +1156,113 @@ class AgentHandle:
         _order_to_dict, _position_to_dict = _get_builtin_serializers()
         return [_order_to_dict(order) for order in orders[-limit:]]
 
+    def _serialize_open_orders(self, limit: int = 50) -> tuple[list[dict[str, Any]], int, bool]:
+        if not hasattr(self.manager.strategy, "get_orders"):
+            return [], 0, False
+        try:
+            orders = self.manager.strategy.get_orders() or []
+        except Exception:
+            return [], 0, False
+        _order_to_dict, _position_to_dict = _get_builtin_serializers()
+        active_statuses = {"unprocessed", "submitted", "open", "new", "cancelling", "partial_fill"}
+        active_orders = []
+        for order in orders:
+            is_active = getattr(order, "is_active", None)
+            if callable(is_active):
+                try:
+                    if not is_active():
+                        continue
+                except Exception:
+                    pass
+            elif str(getattr(order, "status", "") or "").strip().lower() not in active_statuses:
+                continue
+            active_orders.append(order)
+        serialized = sorted(
+            (_order_to_dict(order) for order in active_orders),
+            key=lambda payload: (
+                json.dumps(payload.get("asset", {}), sort_keys=True, default=str),
+                str(payload.get("identifier") or ""),
+            ),
+        )
+        return serialized[:limit], len(serialized), len(serialized) <= limit
+
     def _runtime_mode(self) -> str:
         return "backtesting" if bool(getattr(self.manager.strategy, "is_backtesting", False)) else "live"
 
     def _runtime_context(self) -> dict[str, Any]:
         strategy = self.manager.strategy
         current_dt = _current_strategy_datetime(strategy)
+        from .rules import load_strategy_rules
+
+        strategy_rules = load_strategy_rules(strategy, self.rules_path)
+        positions, positions_count, positions_complete = self._serialize_positions()
+        account, account_complete = self._serialize_account_state()
+        open_orders, open_orders_count, open_orders_complete = self._serialize_open_orders()
+        as_of = _iso_or_none(current_dt)
         return {
             "agent_name": self.name,
             "mode": self._runtime_mode(),
-            "current_datetime": _iso_or_none(current_dt),
+            "current_datetime": as_of,
             "timezone": _strategy_timezone_name(strategy, current_dt),
             "strategy_name": getattr(strategy, "name", None) or strategy.__class__.__name__,
             "market": getattr(strategy, "market", None),
-            "positions": self._serialize_positions(),
-            "account": self._serialize_account_state(),
+            "positions": positions,
+            "account": account,
+            "open_orders": open_orders,
+            "account_snapshot": {
+                "as_of": as_of,
+                "account_complete": account_complete,
+                "positions_total": positions_count,
+                "positions_included": len(positions),
+                "positions_omitted": max(positions_count - len(positions), 0),
+                "positions_complete": positions_complete,
+                "open_orders_total": open_orders_count,
+                "open_orders_included": len(open_orders),
+                "open_orders_omitted": max(open_orders_count - len(open_orders), 0),
+                "open_orders_complete": open_orders_complete,
+            },
             "recent_orders": self._serialize_orders(),
             "recent_trades": _serialize_recent_trade_events(strategy),
+            "strategy_rules": strategy_rules.runtime_context(),
         }
 
     def _base_system_prompt(self, runtime_context: dict[str, Any]) -> str:
         mode = runtime_context.get("mode") or "live"
+        account_snapshot = runtime_context.get("account_snapshot") or {}
+        omitted_warnings: list[str] = []
+        positions_omitted = int(account_snapshot.get("positions_omitted") or 0)
+        open_orders_omitted = int(account_snapshot.get("open_orders_omitted") or 0)
+        if positions_omitted:
+            omitted_warnings.append(
+                f"{positions_omitted} positions are omitted from the injected snapshot; they still exist. "
+                "Use complete unfiltered account_positions pagination before treating the portfolio as fully inspected."
+            )
+        if open_orders_omitted:
+            omitted_warnings.append(
+                f"{open_orders_omitted} open orders are omitted from the injected snapshot; they still exist. "
+                "Use complete unfiltered orders_open_orders pagination before concluding no other open orders exist."
+            )
+        available_tool_names = {tool.name for tool in self._ensure_bound_tools()}
+        if "risk_calculate_stock_quantity" in available_tool_names:
+            stock_sizing_instruction = (
+                "For a stock order constrained by a notional or portfolio-percentage cap, use "
+                "risk_calculate_stock_quantity and submit its returned whole-share quantity unchanged only when "
+                "quantity is greater than zero; otherwise make a no-trade decision."
+            )
+        else:
+            stock_sizing_instruction = (
+                "risk_calculate_stock_quantity is unavailable. Do not submit a stock order constrained by a "
+                "notional or portfolio-percentage cap unless another available tool produces a verified positive "
+                "whole-share quantity within both the cap and available cash; otherwise make a no-trade decision."
+            )
         lines = [
             "You are operating as a trading agent inside LumiBot.",
             "Use the provided runtime context and tool outputs as the ground truth for the current state of the strategy.",
             "Ground claims in tool results or runtime context instead of unsupported prior knowledge or vague market memory.",
             "If evidence is weak, conflicting, stale, or incomplete, prefer doing nothing and explain why.",
             "Execution mode, current datetime, current timezone, current positions, cash, equity/portfolio value, recent orders, and recent trades are provided in Runtime Context JSON.",
+            "Runtime Context JSON includes account_snapshot freshness, counts, and completeness flags. Treat truncated or incomplete snapshots as insufficient and call the relevant account tool before acting.",
+            *omitted_warnings,
             "Review current exposure, available cash, and recent activity before proposing any new trade.",
             "",
             "DEFAULT INVESTOR POLICY - FOLLOW THIS UNLESS THE USER'S SYSTEM PROMPT CLEARLY ASKS FOR A DIFFERENT STYLE:",
@@ -802,8 +1275,12 @@ class AgentHandle:
             "Diversify when the strategy is broad and multiple opportunities compete for capital.",
             "Assume this strategy may be one component of a broader portfolio unless the user says otherwise.",
             "Do not resist intentional concentration when the user's strategy clearly calls for concentrated or single-asset exposure.",
-            "If you are not deploying capital into risk assets, explain why a high-quality short-duration defensive parking choice is preferable right now.",
-            "Avoid leaving raw cash idle unless there is a specific reason the defensive parking asset is unavailable or inappropriate.",
+            "Stay inside the strategy's allowed universe. When the user's system prompt lists allowed symbols, a universe, or a book, trade only those symbols.",
+            "Only use a defensive parking asset when the strategy allows it: either it is in the allowed universe or the user's prompt permits parking. Otherwise hold the allowed assets or cash.",
+            "If a proposed allocation includes a symbol outside the allowed universe, drop that weight and rescale the remaining allowed weights. Do not skip the whole rebalance because one symbol is not allowed.",
+            "A symbol outside the allowed universe is never a weight or an order, including cash, Treasury, or money-market funds.",
+            "If you are not deploying capital into risk assets and parking is allowed, explain why a high-quality short-duration defensive parking choice is preferable right now.",
+            "Avoid leaving raw cash idle unless there is a specific reason, such as parking not being allowed or no allowed asset being attractive.",
             "When rotating, compare the new idea against the current holdings or current defensive posture and only switch if the new opportunity is clearly better.",
             "Be aware that trading has costs. Commissions, spreads, and slippage add up, especially for thinly traded assets.",
             "Prefer limit orders over market orders when the asset is not highly liquid.",
@@ -820,26 +1297,34 @@ class AgentHandle:
             "POSITION SIZING AND ORDER EXECUTION:",
             "Do not buy token one-share positions. Use account cash, portfolio value, current position size, and last price to calculate a sensible whole-share quantity.",
             "Round down to whole shares when sizing positions.",
-            "Before every order, check current cash, portfolio value, current positions, and the latest price of the asset you are ordering. Lumibot rejects agent order submissions that skip those checks in the current agent run.",
+            "Before every order, check current cash, portfolio value, current positions, open orders, and the latest price of the asset you are ordering. A complete current injected snapshot satisfies the initial account and open-order checks for non-option orders. Before an option order, call account_portfolio, account_positions, and orders_open_orders in this run even when the snapshot is complete, as the options-trading skill requires. After any order mutation, Lumibot requires fresh complete account_positions and orders_open_orders pagination plus account_portfolio before another order.",
+            "In your final decision, name the account state you relied on before any order (the injected snapshot's cash and portfolio value, or the account tools you called), and treat any upstream research or handoff packet as unverified evidence: say so and name what you independently revalidated. When you decide not to order, name the existing position or pending order that already covers the decision, or the missing condition that blocks it. Before relying on an existing position or pending order, call account_positions and orders_open_orders in this run; the injected snapshot can be stale about fills.",
+            "After an order fills, report the actual fill prices (avg_fill_price from orders_get_status), credit or debit, cash change, and resulting risk from fresh account reads, never the planned limit or pre-trade estimate. If a fill price or cash change is not available, say so instead of estimating it.",
             "Estimate the order's cash impact before submitting it. Ask whether the order is likely to create negative cash or additional leverage, and only do that when it is intentional for the strategy and suitable for the asset class.",
             "Margin and leverage behave differently across stocks, ETFs, options, futures, forex, crypto, brokers, and jurisdictions. Use judgment instead of assuming the same sizing rule works for every asset class.",
             "When switching from one asset to another, close or reduce the current position first to free up capital before buying the replacement.",
-            "If the strategy holds a defensive parking asset (like SHV, BIL, or SGOV) and a better opportunity appears, sell the parking asset first to free the cash, then buy the new position. Do not assume parked capital is unavailable.",
+            "If the strategy holds an allowed defensive parking asset and a better opportunity appears, sell the parking asset first to free the cash, then buy the new position. Do not assume parked capital is unavailable.",
             "",
             "TOOL USAGE:",
             "Use your available tools to gather evidence before making any trading decision. Do not guess when a tool can give you the answer.",
             "Before placing any trade, use tools to check current positions, available cash, and portfolio value.",
+            stock_sizing_instruction,
             "Load recent price history for any asset you are considering and inspect it before deciding.",
             "If you already hold a position and are considering adding, reducing, or selling it, call search_memory for the open thesis first and compare the current evidence against that thesis.",
-            "When available, use the built-in evidence stack before making a material equity decision: account/portfolio tools, current market prices, recent price history, DuckDB analysis, technical indicators, relevant news, macro/FRED data, SEC financial statements, SEC company facts, and SEC filings.",
-            "Do not submit a material equity order until you have called account/portfolio tools, market price/history tools, at least one technical indicator tool, a relevant news tool when configured, a macro/FRED tool when configured, and SEC financial/filing tools for relevant single-stock candidates.",
-            "For ETFs, indexes, or broad-market trades, use SEC financial/filing tools on the most relevant single-stock candidates, holdings, or alternatives you are considering; do not skip the category just because the final instrument is an ETF.",
+            "Choose the smallest relevant evidence set for the strategy's thesis and decision. Do not call every available data category by default. Use technical, news, macro, or SEC evidence when it can materially confirm or break the thesis, and explicitly identify important evidence that is unavailable.",
+            "Before a material order, the account/risk checks and a current price needed to size that order are mandatory. Other evidence categories are thesis-dependent: do not fetch unrelated SEC filings for an index or ETF merely to satisfy a generic checklist.",
             "Do not repeat identical read-only evidence calls if the current task context already includes fresh results from another agent; reference those results and call again only when they are missing, stale, or conflicting.",
             "If the user asks for an aggressive or concentrated strategy, let that user strategy prompt override the default investor style, but still ground the decision in tool evidence, position sizing, broker constraints, and backtesting look-ahead safety.",
             "When querying DuckDB tables, use datetime for timestamp columns and close for price columns unless the loaded sample rows clearly show different column names.",
-            "When you have access to external MCP tools, explore what they offer and use them. You do not need to be told which specific tool to call.",
+            "Use external MCP tools only when their evidence is relevant to the current task; availability alone is not a reason to call them.",
+            "Before your final response, reconcile every state-changing tool result with the latest account and order reads. Never claim that no order was submitted after an order tool returned a submitted identifier; report the exact observed order status, even if your later analysis changes.",
             "Finish every run with a short summary sentence starting with RESULT: that explains what you did and why.",
         ]
+        if self.include_builtin_skills:
+            lines.insert(
+                -1,
+                BUILTIN_SKILL_LOADING_INSTRUCTION,
+            )
         if mode == "backtesting":
             lines.extend(
                 [
@@ -859,6 +1344,7 @@ class AgentHandle:
                     "Correct example: if the current simulated date is 2024-01-22 and a tool accepts end, end_date, time_to, or observation_end, pass 2024-01-22 (or the current simulated datetime) in that field.",
                     "Incorrect example: calling a news, macro, or data tool with only a start parameter and no end parameter, allowing it to return future data by default.",
                     "If a tool response seems to include future timestamps, treat that as suspicious. Do not rely on those records without calling out the risk in your reasoning.",
+                    "Some backtest data sources have option trade bars but no bid/ask history. When a tool result or another agent's research reports price_basis='last_trade', that last traded price is the price this backtest fills at. Missing bid/ask alone is not a reason to pass, and it does not make that price unverified or unexecutable. A recent trade bar for the exact contract is the liquidity evidence.",
                     "If you are unsure whether information was available yet, say the evidence is insufficient and do nothing.",
                     "Backtesting accuracy is more important than being clever. A cautious no-trade is better than a future-biased trade.",
                 ]
@@ -875,12 +1361,21 @@ class AgentHandle:
         return "\n".join(lines).strip()
 
     def _compose_system_prompt(self, runtime_context: dict[str, Any]) -> str:
+        strategy_rules = runtime_context.get("strategy_rules") or {
+            "document": {"version": 1, "rules": []},
+            "content_hash": None,
+            "source": "missing",
+            "file_name": None,
+        }
         return "\n\n".join(
             [
                 self._base_system_prompt(runtime_context),
                 "USER SYSTEM PROMPT:",
-                "Treat this as the strategy-specific trading objective. It may override the default investor style, but not hard safety, broker, or look-ahead-bias rules.",
+                "Treat this as the strategy-specific trading objective. It may override the default investor style, but not hard safety, broker, look-ahead-bias, or active strategy rules.",
                 self.system_prompt.strip(),
+                "ACTIVE STRATEGY RULES JSON:",
+                "These are the user's current cross-agent instructions. Follow every active rule on every call. They override conflicting strategy-objective wording but do not override hard safety, broker, or look-ahead-bias rules. An empty rules array means no additional active rules.",
+                json.dumps(strategy_rules.get("document"), sort_keys=True, ensure_ascii=True),
             ]
         ).strip()
 
@@ -902,11 +1397,26 @@ class AgentHandle:
         runs = state.get("runs", [])
         if not isinstance(runs, list):
             runs = []
+        # The bounded memory note already carries the summary used by later
+        # prompts. Archive legacy duplicate summaries before removing them from
+        # self.vars so an upgrade cannot discard older run evidence.
+        compacted_runs = []
+        for run in runs:
+            if not isinstance(run, dict) or "summary" not in run:
+                compacted_runs.append(run)
+                continue
+            try:
+                self._append_legacy_run_artifact_summary(run)
+            except Exception as exc:
+                self.manager._log_warning(f"Could not archive legacy agent run summary for {self.name}: {exc}")
+                compacted_runs.append(run)
+                continue
+            compacted_runs.append({key: value for key, value in run.items() if key != "summary"})
+        runs = compacted_runs
         runs.append(
             {
                 "cache_key": result.cache_key,
                 "cache_hit": result.cache_hit,
-                "summary": result.summary,
                 "model": result.model,
                 "warnings": result.warning_messages,
                 "timestamp": event_timestamp,
@@ -918,13 +1428,33 @@ class AgentHandle:
     def _build_remote_tools(self) -> list[BoundTool]:
         remote_tools: list[BoundTool] = []
         for server in self._mcp_servers:
+            contracts = self.manager._remote_mcp_tool_contracts(server)
             for exposed_name in server.exposed_tools or []:
-                description = f"Remote MCP tool {exposed_name} on server {server.name}."
+                contract = contracts.get(exposed_name) or {}
+                input_schema = contract.get("inputSchema") or contract.get("input_schema")
+                description = str(contract.get("description") or "").strip()
+                if not description:
+                    description = f"Remote MCP tool {exposed_name} on server {server.name}."
+                if isinstance(input_schema, dict):
+                    description = (
+                        f"{description}\n\nInput JSON schema (use these exact field names):\n"
+                        f"{json.dumps(input_schema, sort_keys=True, ensure_ascii=True)}"
+                    )
 
                 def make_remote_tool(_server: MCPServer, _tool_name: str):
-                    def remote_tool(payload: dict[str, Any]) -> dict[str, Any]:
+                    def remote_tool(payload: dict[str, Any] | None = None, **arguments: Any) -> dict[str, Any]:
+                        resolved_arguments = dict(payload or {})
+                        resolved_arguments.update(arguments)
+                        payload = self._bound_remote_tool_payload(
+                            _server,
+                            _tool_name,
+                            resolved_arguments,
+                        )
                         warning_key = (_server.name, _tool_name)
-                        if bool(getattr(self.manager.strategy, "is_backtesting", False)) and warning_key not in self.manager._warned_backtest_mcp_tools:
+                        if (
+                            bool(getattr(self.manager.strategy, "is_backtesting", False))
+                            and warning_key not in self.manager._warned_backtest_mcp_tools
+                        ):
                             log_message = getattr(self.manager.strategy, "log_message", None)
                             if callable(log_message):
                                 log_message(
@@ -939,6 +1469,17 @@ class AgentHandle:
                     return remote_tool
 
                 remote_tool = make_remote_tool(server, exposed_name)
+                signature = _signature_from_json_schema(input_schema)
+                remote_tool.__signature__ = signature or inspect.Signature(
+                    parameters=[
+                        inspect.Parameter(
+                            "payload",
+                            inspect.Parameter.POSITIONAL_OR_KEYWORD,
+                            annotation=dict,
+                        )
+                    ],
+                    return_annotation=dict,
+                )
                 remote_tools.append(
                     BoundTool(
                         name=exposed_name,
@@ -955,6 +1496,28 @@ class AgentHandle:
                     )
                 )
         return remote_tools
+
+    def _bound_remote_tool_payload(
+        self, server: MCPServer, tool_name: str, payload: dict[str, Any]
+    ) -> dict[str, Any]:
+        arguments = dict(payload or {})
+        if server.name != "botspot_research" or not bool(
+            getattr(self.manager.strategy, "is_backtesting", False)
+        ):
+            return arguments
+        current_dt = _current_strategy_datetime(self.manager.strategy)
+        if current_dt is None:
+            raise RuntimeError("BotSpot research requires a current simulated datetime during backtests.")
+        as_of = current_dt.date().isoformat() if hasattr(current_dt, "date") else str(current_dt)[:10]
+        if tool_name in {"query_data", "search_documents"}:
+            time_range = dict(arguments.get("timeRange") or {})
+            requested_end = str(time_range.get("endDate") or "").strip()
+            if not requested_end or requested_end[:10] > as_of:
+                time_range["endDate"] = as_of
+            arguments["timeRange"] = time_range
+        elif tool_name == "get_document":
+            arguments["asOf"] = as_of
+        return arguments
 
     def _ensure_bound_tools(self) -> list[BoundTool]:
         if self._bound_tools is not None:
@@ -976,7 +1539,7 @@ class AgentHandle:
         deduped: dict[str, BoundTool] = {}
         for tool in bound:
             deduped[tool.name] = tool
-        self._bound_tools = list(deduped.values())
+        self._bound_tools = [self.manager._with_shared_state_lock(tool) for tool in deduped.values()]
         return self._bound_tools
 
     @staticmethod
@@ -987,14 +1550,38 @@ class AgentHandle:
         without decoding a raw provider stack trace."""
         # Map provider prefix -> (env var, billing url).
         provider_hints = {
-            "openai/": ("OPENAI_API_KEY", "https://platform.openai.com/api-keys", "https://platform.openai.com/account/billing"),
+            "openai/": (
+                "OPENAI_API_KEY",
+                "https://platform.openai.com/api-keys",
+                "https://platform.openai.com/account/billing",
+            ),
             "xai/": ("XAI_API_KEY or GROK_API_KEY", "https://console.x.ai/", "https://console.x.ai/team"),
-            "anthropic/": ("ANTHROPIC_API_KEY", "https://console.anthropic.com/", "https://console.anthropic.com/settings/billing"),
-            "deepseek/": ("DEEPSEEK_API_KEY", "https://platform.deepseek.com/api_keys", "https://platform.deepseek.com/usage"),
-            "together_ai/": ("TOGETHER_API_KEY or TOGETHERAI_API_KEY", "https://api.together.ai/settings/api-keys", "https://api.together.ai/settings/billing"),
-            "cerebras/": ("CEREBRAS_API_KEY", "https://cloud.cerebras.ai/platform/", "https://cloud.cerebras.ai/platform/billing"),
+            "anthropic/": (
+                "ANTHROPIC_API_KEY",
+                "https://console.anthropic.com/",
+                "https://console.anthropic.com/settings/billing",
+            ),
+            "deepseek/": (
+                "DEEPSEEK_API_KEY",
+                "https://platform.deepseek.com/api_keys",
+                "https://platform.deepseek.com/usage",
+            ),
+            "together_ai/": (
+                "TOGETHER_API_KEY or TOGETHERAI_API_KEY",
+                "https://api.together.ai/settings/api-keys",
+                "https://api.together.ai/settings/billing",
+            ),
+            "cerebras/": (
+                "CEREBRAS_API_KEY",
+                "https://cloud.cerebras.ai/platform/",
+                "https://cloud.cerebras.ai/platform/billing",
+            ),
         }
-        env_var, key_url, billing_url = ("GEMINI_API_KEY", "https://aistudio.google.com/apikey", "https://aistudio.google.com/")
+        env_var, key_url, billing_url = (
+            "GEMINI_API_KEY",
+            "https://aistudio.google.com/apikey",
+            "https://aistudio.google.com/",
+        )
         for prefix, (ev, ku, bu) in provider_hints.items():
             if isinstance(model, str) and model.startswith(prefix):
                 env_var, key_url, billing_url = ev, ku, bu
@@ -1010,31 +1597,39 @@ class AgentHandle:
             "",
         ]
         if category == "auth":
-            lines.extend([
-                f"Likely cause: {env_var} is missing or invalid.",
-                f"  Get a key at: {key_url}",
-                f"  Then:         export {env_var}='your-key-here'",
-            ])
+            lines.extend(
+                [
+                    f"Likely cause: {env_var} is missing or invalid.",
+                    f"  Get a key at: {key_url}",
+                    f"  Then:         export {env_var}='your-key-here'",
+                ]
+            )
         elif category == "billing":
-            lines.extend([
-                f"Likely cause: provider billing issue (out of credits, quota exceeded).",
-                f"  Check billing at: {billing_url}",
-            ])
+            lines.extend(
+                [
+                    "Likely cause: provider billing issue (out of credits, quota exceeded).",
+                    f"  Check billing at: {billing_url}",
+                ]
+            )
         elif category == "config":
-            lines.extend([
-                "Likely cause: bad model id, malformed request, or context-window exceeded.",
-                f"  Current model:      {model}",
-                "  Verify the model id is on your provider's /models list.",
-                "  If context-window: reduce runtime context / memory / tool count.",
-            ])
-        lines.extend([
-            "",
-            "Backtest stopped intentionally so you can fix this and re-run.",
-            "Note: live trading does NOT stop on this error category — it logs and",
-            "skips the iteration so the bot stays alive for operator intervention.",
-            "=" * 78,
-            "",
-        ])
+            lines.extend(
+                [
+                    "Likely cause: bad model id, malformed request, or context-window exceeded.",
+                    f"  Current model:      {model}",
+                    "  Verify the model id is on your provider's /models list.",
+                    "  If context-window: reduce runtime context / memory / tool count.",
+                ]
+            )
+        lines.extend(
+            [
+                "",
+                "Backtest stopped intentionally so you can fix this and re-run.",
+                "Note: live trading does NOT stop on this error category — it logs and",
+                "skips the iteration so the bot stays alive for operator intervention.",
+                "=" * 78,
+                "",
+            ]
+        )
         try:
             sys.stderr.write("\n".join(lines))
             sys.stderr.flush()
@@ -1051,17 +1646,21 @@ class AgentHandle:
         memory_state: dict[str, Any] | None,
         effective_system_prompt: str,
         base_system_prompt: str,
+        builtin_skill_fingerprint: str | None,
+        reasoning_effort: str | None,
     ) -> dict[str, Any]:
         bound_tools = self._ensure_bound_tools()
         return {
             "user_system_prompt": self.system_prompt,
             "base_system_prompt": base_system_prompt,
             "effective_system_prompt": effective_system_prompt,
+            "builtin_skill_fingerprint": builtin_skill_fingerprint,
             "task_prompt": task_prompt,
             "context": context or {},
             "runtime_context": runtime_context,
             "memory_state": memory_state or {},
             "model": model,
+            "reasoning_effort": reasoning_effort,
             "tool_surface": [
                 {
                     "name": tool.name,
@@ -1089,7 +1688,10 @@ class AgentHandle:
         return trace_dir
 
     def _write_trace(self, result: AgentRunResult, trace_payload: dict[str, Any]) -> Path:
-        trace_path = self._trace_dir() / f"{result.cache_key or 'live'}-{datetime.now(timezone.utc).strftime('%Y%m%d%H%M%S%f')}.json"
+        trace_path = (
+            self._trace_dir()
+            / f"{result.cache_key or 'live'}-{datetime.now(timezone.utc).strftime('%Y%m%d%H%M%S%f')}.json"
+        )
         trace_path.write_text(json.dumps(_normalize_json(trace_payload), indent=2, sort_keys=True), encoding="utf-8")
         return trace_path
 
@@ -1098,6 +1700,12 @@ class AgentHandle:
         trace_path = ""
         if isinstance(result.payload, dict):
             trace_path = str(result.payload.get("trace_path") or "")
+        execution_outcome = (
+            result.payload.get("execution_outcome")
+            if isinstance(result.payload, dict) and isinstance(result.payload.get("execution_outcome"), dict)
+            else {}
+        )
+        operation_outcomes = _structured_operation_outcomes(result)
         cache_root = self._cache_root()
         trace_relative_path = trace_path
         if trace_path:
@@ -1107,6 +1715,8 @@ class AgentHandle:
                 trace_relative_path = trace_path
         record = {
             "timestamp": self._event_timestamp(),
+            "deployment_id": os.environ.get("BOTSPOT_DEPLOYMENT_ID") or "",
+            "run_id": os.environ.get("BOTSPOT_RUN_ID") or "",
             "agent_name": self.name,
             "mode": runtime_context.get("mode"),
             "model": result.model,
@@ -1117,8 +1727,29 @@ class AgentHandle:
             "timing": _runtime_timing_payload(result),
             "tool_calls": [event.tool_name for event in result.tool_calls if event.tool_name],
             "warning_messages": result.warning_messages,
+            "execution_outcome": execution_outcome,
+            "operation_outcomes": operation_outcomes,
             "trace_path": trace_path,
             "trace_relative_path": trace_relative_path,
+        }
+        with summary_path.open("a", encoding="utf-8") as handle:
+            handle.write(json.dumps(_normalize_json(record), sort_keys=True))
+            handle.write("\n")
+
+    def _append_legacy_run_artifact_summary(self, run: dict[str, Any]) -> None:
+        """Archive one pre-v4.5.82 runtime summary before compacting self.vars."""
+
+        summary_path = self._runtime_artifact_dir() / "agent_run_summaries.jsonl"
+        record = {
+            "timestamp": run.get("timestamp") or self._event_timestamp(),
+            "agent_name": self.name,
+            "mode": self._runtime_context().get("mode"),
+            "model": run.get("model"),
+            "summary": run.get("summary") or "",
+            "cache_hit": bool(run.get("cache_hit")),
+            "cache_key": run.get("cache_key"),
+            "warning_messages": run.get("warnings") or [],
+            "migrated_from_runtime_state": True,
         }
         with summary_path.open("a", encoding="utf-8") as handle:
             handle.write(json.dumps(_normalize_json(record), sort_keys=True))
@@ -1130,6 +1761,7 @@ class AgentHandle:
                 kind=str(event.get("kind")),
                 text=event.get("text"),
                 tool_name=event.get("tool_name"),
+                call_id=event.get("call_id"),
                 payload=event.get("payload"),
                 timestamp=event.get("timestamp"),
             )
@@ -1186,7 +1818,8 @@ class AgentHandle:
             name.startswith("market_")
             or name.startswith("duckdb_")
             or name.startswith("account_")
-            or name in {
+            or name
+            in {
                 "get_news",
                 "alpaca_news",
                 "list_fred_series",
@@ -1304,9 +1937,7 @@ class AgentHandle:
         )
         log_message(message, color="yellow")
         if result.tool_calls:
-            tool_sequence = " -> ".join(
-                event.tool_name or "unknown_tool" for event in result.tool_calls
-            )
+            tool_sequence = " -> ".join(event.tool_name or "unknown_tool" for event in result.tool_calls)
             log_message(f"[agents][tools] {tool_sequence}", color="yellow")
         for idx, event in enumerate(result.tool_calls, start=1):
             preview = _summarize_tool_payload(event.tool_name, event.payload)
@@ -1371,6 +2002,7 @@ class AgentHandle:
         model: str | None = None,
         model_request_timeout_seconds: float | None = None,
         run_timeout_seconds: float | None = None,
+        reasoning_effort: str | None = None,
         **kwargs: Any,
     ) -> AgentRunResult:
         if "task" in kwargs and task_prompt is None:
@@ -1388,60 +2020,102 @@ class AgentHandle:
         resolved_run_timeout_seconds = (
             run_timeout_seconds if run_timeout_seconds is not None else self.run_timeout_seconds
         )
-        runtime_context = self._runtime_context()
-        memory_state = self._memory_state(runtime_context)
-        base_system_prompt = self._base_system_prompt(runtime_context)
-        effective_system_prompt = self._compose_system_prompt(runtime_context)
-        cache_payload = self._cache_payload(
-            task_prompt=task_prompt,
-            context=context,
-            model=model_name,
-            runtime_context=runtime_context,
-            memory_state=memory_state,
-            effective_system_prompt=effective_system_prompt,
-            base_system_prompt=base_system_prompt,
-        )
-        cache_key = self.manager.replay_cache.compute_key(cache_payload)
-        strategy = self.manager.strategy
-        should_replay = bool(getattr(strategy, "is_backtesting", False))
-        if should_replay:
-            cached = self.manager.replay_cache.load(cache_key)
-            if cached is not None:
-                result = self._result_from_cached(cached, cache_key)
-                self._replay_cached_side_effects(result)
-                self.manager._record_agent_observability(
-                    handle=self,
-                    result=result,
-                    runtime_context=runtime_context,
-                    cache_payload=cache_payload,
-                )
-                self._append_memory(result)
-                self._append_run_artifact_summary(result, runtime_context)
-                self._log_run_summary(result, runtime_context)
-                return result
+        resolved_reasoning_effort = reasoning_effort if reasoning_effort is not None else self.reasoning_effort
+        if resolved_reasoning_effort not in {None, "none", "low", "medium", "high", "xhigh", "max"}:
+            raise ValueError("Unsupported agent reasoning_effort.")
+        # Shared run state (self.vars, memory, artifacts, caches) is locked;
+        # only the model call below runs unlocked so run_together stays parallel.
+        with self.manager._shared_state_lock:
+            runtime_context = self._runtime_context()
+            memory_state = self._memory_state(runtime_context)
+            base_system_prompt = self._base_system_prompt(runtime_context)
+            effective_system_prompt = self._compose_system_prompt(runtime_context)
+            if self.skill_dirs:
+                # User skills are in play, so the fingerprint must span both
+                # sets or a cache hit or eval receipt would claim a run used
+                # skills it did not.
+                from .skills import resolve_skill_directories
+                from .skills import skill_fingerprint as _skill_fingerprint
 
-        _GoogleADKRuntime, runtime_request_class, _StubAgentRuntime, _call_mcp_tool = _get_runtime_imports()
-        request = runtime_request_class(
-            agent_name=self.name,
-            model=model_name,
-            system_prompt=effective_system_prompt,
-            task_prompt=task_prompt,
-            context=context,
-            runtime_context=runtime_context,
-            memory_state=memory_state,
-            memory_notes=self._memory_prompt_notes(),
-            bound_tools=self._ensure_bound_tools(),
-            model_call_id=cache_key,
-            provider_prompt_cache_key=_provider_prompt_cache_key(
+                skill_fingerprint = _skill_fingerprint(
+                    resolve_skill_directories(
+                        skill_dirs=self.skill_dirs,
+                        include_builtin=self.include_builtin_skills,
+                    )
+                )
+            elif self.include_builtin_skills:
+                from .skills import builtin_skill_fingerprint
+
+                skill_fingerprint = builtin_skill_fingerprint()
+            else:
+                skill_fingerprint = None
+            cache_payload = self._cache_payload(
+                task_prompt=task_prompt,
+                context=context,
+                model=model_name,
+                runtime_context=runtime_context,
+                memory_state=memory_state,
+                effective_system_prompt=effective_system_prompt,
+                base_system_prompt=base_system_prompt,
+                builtin_skill_fingerprint=skill_fingerprint,
+                reasoning_effort=resolved_reasoning_effort,
+            )
+            cache_key = self.manager.replay_cache.compute_key(cache_payload)
+            strategy = self.manager.strategy
+            should_replay = bool(getattr(strategy, "is_backtesting", False))
+            if should_replay:
+                cached = self.manager.replay_cache.load(cache_key)
+                if cached is not None:
+                    result = self._result_from_cached(cached, cache_key)
+                    result.payload = {
+                        **(result.payload or {}),
+                        "execution_outcome": _managed_ai_execution_outcome(
+                            required_for_decision=self.allow_trading,
+                            decision_completed=(
+                                _managed_ai_terminal_status(result, allow_trading=self.allow_trading)
+                                in {"completed_decision", "completed_no_action"}
+                            ),
+                            decision_status=_managed_ai_terminal_status(result, allow_trading=self.allow_trading),
+                        ),
+                    }
+                    self._replay_cached_side_effects(result)
+                    self.manager._record_agent_observability(
+                        handle=self,
+                        result=result,
+                        runtime_context=runtime_context,
+                        cache_payload=cache_payload,
+                    )
+                    self._append_memory(result)
+                    self._append_run_artifact_summary(result, runtime_context)
+                    self._log_run_summary(result, runtime_context)
+                    return result
+
+            _GoogleADKRuntime, runtime_request_class, _StubAgentRuntime, _call_mcp_tool = _get_runtime_imports()
+            request = runtime_request_class(
                 agent_name=self.name,
                 model=model_name,
-                effective_system_prompt=effective_system_prompt,
+                system_prompt=effective_system_prompt,
+                task_prompt=task_prompt,
+                context=context,
+                runtime_context=runtime_context,
+                memory_state=memory_state,
+                memory_notes=self._memory_prompt_notes(),
                 bound_tools=self._ensure_bound_tools(),
-            ),
-            model_request_timeout_seconds=resolved_model_request_timeout_seconds,
-            run_timeout_seconds=resolved_run_timeout_seconds,
-        )
-        self.manager._reserve_model_call(agent_name=self.name, model=model_name)
+                include_builtin_skills=self.include_builtin_skills,
+                builtin_skill_fingerprint=skill_fingerprint,
+                model_call_id=cache_key,
+                provider_prompt_cache_key=_provider_prompt_cache_key(
+                    agent_name=self.name,
+                    model=model_name,
+                    effective_system_prompt=effective_system_prompt,
+                    bound_tools=self._ensure_bound_tools(),
+                    builtin_skill_fingerprint=skill_fingerprint,
+                ),
+                model_request_timeout_seconds=resolved_model_request_timeout_seconds,
+                run_timeout_seconds=resolved_run_timeout_seconds,
+                reasoning_effort=resolved_reasoning_effort,
+            )
+            self.manager._reserve_model_call(agent_name=self.name, model=model_name)
         # Strategy-level safety net with live-vs-backtest branching.
         #
         # Scope: this behavior is ONLY for AI agent calls. The rest of
@@ -1468,70 +2142,99 @@ class AgentHandle:
         except (KeyboardInterrupt, SystemExit):
             raise
         except BaseException as exc:  # noqa: BLE001 - intentional broad catch
-            import traceback as _tb
-            from .runtime import _classify_agent_error
-            from .schemas import AgentRunResult, AgentTraceEvent
+            with self.manager._shared_state_lock:
+                import traceback as _tb
 
-            category = _classify_agent_error(exc)
-            is_backtesting = bool(getattr(self.manager.strategy, "is_backtesting", False))
+                from .runtime import _classify_agent_error
+                from .schemas import AgentRunResult, AgentTraceEvent
 
-            # Backtest crashes loud on permanent config errors so user notices + fixes.
-            # Live never crashes, regardless of category.
-            if is_backtesting and category in ("auth", "config", "billing"):
-                self._log_fatal_backtest_error(exc, category, model_name)
-                raise
+                category = _classify_agent_error(exc)
+                is_backtesting = bool(getattr(self.manager.strategy, "is_backtesting", False))
 
-            error_detail = f"{exc.__class__.__name__}: {str(exc)[:400]}"
-            try:
-                sys.stderr.write(
-                    f"[lumibot.agents] agent '{self.name}' (model={model_name!r}) call failed: "
-                    f"category={category} mode={'backtest' if is_backtesting else 'live'}. "
-                    f"Skipping this iteration (no trades placed). Error: {error_detail}\n"
+                # Backtest crashes loud on permanent config errors so user notices + fixes.
+                # Live never crashes, regardless of category.
+                if is_backtesting and category in ("auth", "config", "billing"):
+                    self._log_fatal_backtest_error(exc, category, model_name)
+                    raise
+
+                error_detail = f"{exc.__class__.__name__}: {str(exc)[:400]}"
+                try:
+                    sys.stderr.write(
+                        f"[lumibot.agents] agent '{self.name}' (model={model_name!r}) call failed: "
+                        f"category={category} mode={'backtest' if is_backtesting else 'live'}. "
+                        f"Skipping this iteration (no trades placed). Error: {error_detail}\n"
+                    )
+                    sys.stderr.flush()
+                except Exception:
+                    pass
+                now_iso = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+                fallback_summary = (
+                    f"RESULT: Skipped this iteration. Agent call failed "
+                    f"(category={category}): {error_detail}. "
+                    f"Strategy continues with no-op decision; no trades placed."
                 )
-                sys.stderr.flush()
-            except Exception:
-                pass
-            now_iso = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
-            fallback_summary = (
-                f"RESULT: Skipped this iteration. Agent call failed "
-                f"(category={category}): {error_detail}. "
-                f"Strategy continues with no-op decision; no trades placed."
-            )
-            error_event = AgentTraceEvent(
-                kind="text",
-                text=fallback_summary,
-                timestamp=now_iso,
-                payload={
+                error_event = AgentTraceEvent(
+                    kind="text",
+                    text=fallback_summary,
+                    timestamp=now_iso,
+                    payload={
+                        "runtime_error": True,
+                        "error_category": category,
+                        "error_class": exc.__class__.__name__,
+                        "error_message": str(exc)[:800],
+                        "traceback": "".join(_tb.format_exception(type(exc), exc, exc.__traceback__))[-2000:],
+                    },
+                )
+                result = AgentRunResult(
+                    summary=fallback_summary,
+                    model=model_name,
+                    events=[error_event],
+                    usage=None,
+                )
+                # Mark it so downstream code and the user can easily filter/count
+                # skipped iterations in the warnings stream.
+                result.warnings.append(
+                    {
+                        "kind": "agent_runtime_failure_skipped",
+                        "category": category,
+                        "message": f"agent_runtime_failure_skipped: {error_detail}",
+                        "timestamp": now_iso,
+                    }
+                )
+                result.cache_key = None  # never cache a failure
+                result.payload = {
+                    "trace_path": None,
                     "runtime_error": True,
-                    "error_category": category,
                     "error_class": exc.__class__.__name__,
                     "error_message": str(exc)[:800],
-                    "traceback": "".join(_tb.format_exception(type(exc), exc, exc.__traceback__))[-2000:],
-                },
-            )
-            result = AgentRunResult(
-                summary=fallback_summary,
-                model=model_name,
-                events=[error_event],
-                usage=None,
-            )
-            # Mark it so downstream code and the user can easily filter/count
-            # skipped iterations in the warnings stream.
-            result.warnings.append(
-                {
-                    "kind": "agent_runtime_failure_skipped",
-                    "category": category,
-                    "message": f"agent_runtime_failure_skipped: {error_detail}",
-                    "timestamp": now_iso,
+                    "execution_outcome": _managed_ai_execution_outcome(
+                        required_for_decision=self.allow_trading,
+                        decision_completed=False,
+                        decision_status=_managed_ai_error_status(exc),
+                        error_category=category,
+                        fallback_used=True,
+                    ),
                 }
-            )
-            result.cache_key = None  # never cache a failure
-            result.payload = {
-                "trace_path": None,
-                "runtime_error": True,
-                "error_class": exc.__class__.__name__,
-                "error_message": str(exc)[:800],
-            }
+                self._finalize_runtime_timing(
+                    result,
+                    started_at=started_at,
+                    started_perf=started_perf,
+                    ended_at=datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
+                    ended_perf=time.perf_counter(),
+                )
+                # Record this skipped run in the agent's memory so the model on
+                # the next iteration knows the previous cycle was skipped.
+                self.manager._record_agent_observability(
+                    handle=self,
+                    result=result,
+                    runtime_context=runtime_context,
+                    cache_payload=cache_payload,
+                )
+                self._append_memory(result)
+                self._append_run_artifact_summary(result, runtime_context)
+                self._log_run_summary(result, runtime_context)
+                return result
+        with self.manager._shared_state_lock:
             self._finalize_runtime_timing(
                 result,
                 started_at=started_at,
@@ -1539,8 +2242,73 @@ class AgentHandle:
                 ended_at=datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
                 ended_perf=time.perf_counter(),
             )
-            # Record this skipped run in the agent's memory so the model on
-            # the next iteration knows the previous cycle was skipped.
+            result.cache_key = cache_key
+            result.warnings = self._derive_warnings(result, runtime_context)
+            decision_status = _managed_ai_terminal_status(result, allow_trading=self.allow_trading)
+            execution_outcome = _managed_ai_execution_outcome(
+                required_for_decision=self.allow_trading,
+                decision_completed=decision_status in {"completed_decision", "completed_no_action"},
+                decision_status=decision_status,
+            )
+            trace_payload = {
+                "agent": self.name,
+                "model": model_name,
+                "request": cache_payload,
+                "tool_calls": [
+                    {
+                        "tool_name": event.tool_name,
+                        "call_id": event.call_id,
+                        "payload": event.payload,
+                        "timestamp": event.timestamp,
+                    }
+                    for event in result.tool_calls
+                ],
+                "tool_results": [
+                    {
+                        "tool_name": event.tool_name,
+                        "call_id": event.call_id,
+                        "payload": event.payload,
+                        "timestamp": event.timestamp,
+                    }
+                    for event in result.tool_results
+                ],
+                "events": [
+                    {
+                        "kind": event.kind,
+                        "text": event.text,
+                        "tool_name": event.tool_name,
+                        "call_id": event.call_id,
+                        "payload": event.payload,
+                        "timestamp": event.timestamp,
+                    }
+                    for event in result.events
+                ],
+                "warnings": result.warnings,
+                "summary": result.summary,
+                "usage": result.usage,
+                "timing": _runtime_timing_payload(result),
+                "duckdb_metrics": self.manager.duckdb.get_metrics(),
+                "execution_outcome": execution_outcome,
+            }
+            trace_path = self._write_trace(result, trace_payload)
+            result.payload = {
+                "trace_path": trace_path.as_posix(),
+                "warnings": result.warnings,
+                "execution_outcome": execution_outcome,
+            }
+            if should_replay:
+                self.manager.replay_cache.save(
+                    cache_key,
+                    {
+                        "summary": result.summary,
+                        "model": model_name,
+                        "events": trace_payload["events"],
+                        "warnings": result.warnings,
+                        "usage": result.usage,
+                        "payload": result.payload,
+                        "timing": _runtime_timing_payload(result),
+                    },
+                )
             self.manager._record_agent_observability(
                 handle=self,
                 result=result,
@@ -1551,79 +2319,6 @@ class AgentHandle:
             self._append_run_artifact_summary(result, runtime_context)
             self._log_run_summary(result, runtime_context)
             return result
-        self._finalize_runtime_timing(
-            result,
-            started_at=started_at,
-            started_perf=started_perf,
-            ended_at=datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
-            ended_perf=time.perf_counter(),
-        )
-        result.cache_key = cache_key
-        result.warnings = self._derive_warnings(result, runtime_context)
-        trace_payload = {
-            "agent": self.name,
-            "model": model_name,
-            "request": cache_payload,
-            "tool_calls": [
-                {
-                    "tool_name": event.tool_name,
-                    "payload": event.payload,
-                    "timestamp": event.timestamp,
-                }
-                for event in result.tool_calls
-            ],
-            "tool_results": [
-                {
-                    "tool_name": event.tool_name,
-                    "payload": event.payload,
-                    "timestamp": event.timestamp,
-                }
-                for event in result.tool_results
-            ],
-            "events": [
-                {
-                    "kind": event.kind,
-                    "text": event.text,
-                    "tool_name": event.tool_name,
-                    "payload": event.payload,
-                    "timestamp": event.timestamp,
-                }
-                for event in result.events
-            ],
-            "warnings": result.warnings,
-            "summary": result.summary,
-            "usage": result.usage,
-            "timing": _runtime_timing_payload(result),
-            "duckdb_metrics": self.manager.duckdb.get_metrics(),
-        }
-        trace_path = self._write_trace(result, trace_payload)
-        result.payload = {
-            "trace_path": trace_path.as_posix(),
-            "warnings": result.warnings,
-        }
-        if should_replay:
-            self.manager.replay_cache.save(
-                cache_key,
-                {
-                    "summary": result.summary,
-                    "model": model_name,
-                    "events": trace_payload["events"],
-                    "warnings": result.warnings,
-                    "usage": result.usage,
-                    "payload": result.payload,
-                    "timing": _runtime_timing_payload(result),
-                },
-            )
-        self.manager._record_agent_observability(
-            handle=self,
-            result=result,
-            runtime_context=runtime_context,
-            cache_payload=cache_payload,
-        )
-        self._append_memory(result)
-        self._append_run_artifact_summary(result, runtime_context)
-        self._log_run_summary(result, runtime_context)
-        return result
 
 
 class AgentManager:
@@ -1631,7 +2326,15 @@ class AgentManager:
         self.strategy = strategy
         self._agents: dict[str, AgentHandle] = {}
         self._warned_backtest_mcp_tools: set[tuple[str, str]] = set()
+        self._warning_keys: set[str] = set()
+        self._remote_mcp_contract_cache: dict[tuple[str, str], dict[str, dict[str, Any]]] = {}
         self._model_call_count = 0
+        self._model_call_lock = threading.Lock()
+        # run_together runs agents on worker threads. Model calls stay parallel,
+        # but tool calls and run bookkeeping share strategy state, memory,
+        # artifact files, the tool-result cache, and the DuckDB layer, so they
+        # take this lock one at a time.
+        self._shared_state_lock = threading.RLock()
         agent_replay_cache_class, _ = _get_replay_imports()
         self.replay_cache = agent_replay_cache_class()
         self.duckdb = _get_duckdb_query_layer_class()(strategy)
@@ -1641,23 +2344,99 @@ class AgentManager:
         self._observability_all_rows: list[dict[str, Any]] = []
         self._tool_result_cache: dict[str, Any] = {}
 
+    def _remote_mcp_tool_contracts(self, server: MCPServer) -> dict[str, dict[str, Any]]:
+        cache_key = (server.name, str(server.url or server.command or ""))
+        cached = self._remote_mcp_contract_cache.get(cache_key)
+        if cached is not None:
+            return cached
+        contracts: dict[str, dict[str, Any]] = {}
+        try:
+            for item in _list_remote_mcp_tools(server):
+                if not isinstance(item, dict):
+                    continue
+                name = item.get("name")
+                if isinstance(name, str) and name in (server.exposed_tools or []):
+                    contracts[name] = item
+        except Exception as exc:
+            self._warn_once(
+                f"mcp_contract:{server.name}",
+                f"Could not load tool contracts from MCP server {server.name!r}: {exc}",
+            )
+        self._remote_mcp_contract_cache[cache_key] = contracts
+        return contracts
+
     def __getitem__(self, item: str) -> AgentHandle:
         return self._agents[item]
+
+    def _warn_once(self, key: str, message: str) -> None:
+        if key in self._warning_keys:
+            return
+        self._warning_keys.add(key)
+        logger = getattr(self.strategy, "logger", None)
+        if logger is not None and hasattr(logger, "warning"):
+            self._log_warning(message)
+            return
+        log_message = getattr(self.strategy, "log_message", None)
+        if callable(log_message):
+            log_message(f"[agents] {message}", color="yellow")
 
     def _reserve_model_call(self, *, agent_name: str, model: str) -> None:
         limit = _agent_model_call_limit(self.strategy)
         params = getattr(self.strategy, "parameters", None)
-        if limit is not None and self._model_call_count >= limit:
-            raise AgentModelCallLimitExceeded(
-                f"LUMIBOT_AGENT_MAX_MODEL_CALLS/agent_max_model_calls limit reached "
-                f"before agent={agent_name!r} model={model!r}. "
-                f"Configured limit={limit}, attempted_call={self._model_call_count + 1}."
-            )
-        self._model_call_count += 1
-        if isinstance(params, dict):
-            params["agent_model_calls"] = self._model_call_count
-            if limit is not None:
-                params["agent_max_model_calls"] = limit
+        with self._model_call_lock:
+            if limit is not None and self._model_call_count >= limit:
+                raise AgentModelCallLimitExceeded(
+                    f"LUMIBOT_AGENT_MAX_MODEL_CALLS/agent_max_model_calls limit reached "
+                    f"before agent={agent_name!r} model={model!r}. "
+                    f"Configured limit={limit}, attempted_call={self._model_call_count + 1}."
+                )
+            self._model_call_count += 1
+            if isinstance(params, dict):
+                params["agent_model_calls"] = self._model_call_count
+                if limit is not None:
+                    params["agent_max_model_calls"] = limit
+
+    def run_together(self, jobs: list[tuple[str, str, dict[str, Any] | None]]) -> dict[str, Any]:
+        """Run named agents at the same time. Each job is (name, task_prompt, context).
+
+        Only the model calls overlap. Tool calls and each run's bookkeeping
+        (self.vars state, memory, summaries, caches, DuckDB) run one at a time
+        under the manager's shared-state lock.
+        """
+        from concurrent.futures import ThreadPoolExecutor
+
+        def _one(job: tuple[str, str, dict[str, Any] | None]) -> tuple[str, Any]:
+            name, task_prompt, context = job
+            return name, self._agents[name].run(task_prompt=task_prompt, context=context)
+
+        if len(jobs) <= 1:
+            if not jobs:
+                return {}
+            name, result = _one(jobs[0])
+            return {name: result}
+        with ThreadPoolExecutor(max_workers=len(jobs)) as pool:
+            return dict(pool.map(_one, jobs))
+
+    def _with_shared_state_lock(self, tool: BoundTool) -> BoundTool:
+        lock = self._shared_state_lock
+
+        @functools.wraps(tool.function)
+        def locked_function(*args: Any, **kwargs: Any) -> Any:
+            with lock:
+                return tool.function(*args, **kwargs)
+
+        try:
+            locked_function.__signature__ = inspect.signature(tool.function)  # type: ignore[attr-defined]
+        except (TypeError, ValueError):
+            pass
+
+        return BoundTool(
+            name=tool.name,
+            description=tool.description,
+            function=locked_function,
+            source=tool.source,
+            metadata=dict(tool.metadata or {}),
+        )
 
     def _with_tool_result_cache(self, tool: BoundTool) -> BoundTool:
         metadata = dict(tool.metadata or {})
@@ -1753,11 +2532,20 @@ class AgentManager:
         trace_path = ""
         if isinstance(result.payload, dict):
             trace_path = str(result.payload.get("trace_path") or "")
+        execution_outcome = (
+            result.payload.get("execution_outcome")
+            if isinstance(result.payload, dict) and isinstance(result.payload.get("execution_outcome"), dict)
+            else {}
+        )
         warning_messages = " | ".join(_sanitize_csv_text(message) for message in result.warning_messages if message)
-        normalized_events = result.events or [AgentTraceEvent(kind="text", text=result.summary or "")]
+        normalized_events = _coalesce_trace_events(
+            result.events or [AgentTraceEvent(kind="text", text=result.summary or "")]
+        )
         thinking_texts = _thinking_texts(result)
         final_texts = _visible_model_texts(result)
-        final_text = " || ".join(final_texts) if final_texts else _sanitize_csv_text(result.summary or result.text or "")
+        final_text = (
+            " || ".join(final_texts) if final_texts else _sanitize_csv_text(result.summary or result.text or "")
+        )
         thinking_text = " || ".join(thinking_texts)
         tool_sequence = " -> ".join(event.tool_name or "unknown_tool" for event in result.tool_calls)
         task_prompt = _sanitize_csv_text(cache_payload.get("task_prompt") or "")
@@ -1769,12 +2557,14 @@ class AgentManager:
         memory_state_text = _flatten_csv_value(cache_payload.get("memory_state") or {})
         memory_retrieval_ids = ", ".join(_memory_retrieval_ids(result))
         timing = _runtime_timing_payload(result)
+        provenance = _managed_ai_provenance(str(result.model or handle.default_model))
         common: dict[str, Any] = {
             "timestamp": result.ended_at or handle._event_timestamp(),
             "call_index": call_index,
             "agent_name": handle.name,
             "model": result.model,
             "mode": runtime_context.get("mode"),
+            **provenance,
             "cache_hit": bool(result.cache_hit),
             "summary": _sanitize_csv_text(result.summary or result.text or ""),
             "final_text": final_text,
@@ -1792,6 +2582,15 @@ class AgentManager:
             "memory_state_text": memory_state_text,
             "memory_retrieval_ids": memory_retrieval_ids,
             "warning_messages": warning_messages,
+            "outcome_operation": execution_outcome.get("operation"),
+            "outcome_requiredness": execution_outcome.get("requiredness"),
+            "outcome_retryability": execution_outcome.get("retryability"),
+            "outcome_fallback_used": execution_outcome.get("fallback_used"),
+            "outcome_status": execution_outcome.get("status"),
+            "outcome_decision_completed": execution_outcome.get("decision_completed"),
+            "outcome_broker_state_certainty": execution_outcome.get("broker_state_certainty"),
+            "outcome_impact": execution_outcome.get("impact"),
+            "outcome_error_category": execution_outcome.get("error_category"),
             **timing,
             "trace_path": trace_path,
         }
@@ -1804,6 +2603,7 @@ class AgentManager:
                 "event_kind": "call_summary",
                 "is_call_summary": True,
                 "tool_name": "",
+                "tool_call_id": "",
                 "event_detail": (
                     f"events={len(normalized_events)} tool_calls={len(result.tool_calls)} "
                     f"cache_hit={bool(result.cache_hit)}"
@@ -1844,6 +2644,7 @@ class AgentManager:
                     "event_kind": event.kind,
                     "is_call_summary": False,
                     "tool_name": event.tool_name or "",
+                    "tool_call_id": event.call_id or "",
                     "event_detail": _summarize_tool_payload(event.tool_name, event.payload),
                     "event_payload_json": _payload_json_text(event.payload),
                     "event_text": _sanitize_csv_text(event.text or ""),
@@ -1868,7 +2669,9 @@ class AgentManager:
         agent_rows = self._observability_rows.setdefault(handle.name, [])
         agent_rows.extend(rows)
         self._observability_all_rows.extend(rows)
-        configured_stats_file = getattr(self.strategy, "stats_file", None) or getattr(self.strategy, "_stats_file", None)
+        configured_stats_file = getattr(self.strategy, "stats_file", None) or getattr(
+            self.strategy, "_stats_file", None
+        )
         if isinstance(configured_stats_file, str) and configured_stats_file:
             detail_rows = self._observability_all_rows
         else:
@@ -2063,17 +2866,26 @@ class AgentManager:
         prompt: str | None = None,
         cadence: str | None = None,
         allow_trading: bool | None = None,
+        allow_communication_reads: bool = False,
+        allow_communication_writes: bool = False,
+        allow_network: bool | None = None,
         _runtime: Any | None = None,
         include_builtin_tools: bool = True,
+        include_builtin_skills: bool = True,
+        skill_dirs: list[str | Path] | tuple[str | Path, ...] | None = None,
+        rules_path: str | Path | None = None,
         model_request_timeout_seconds: float | None = None,
         run_timeout_seconds: float | None = None,
+        reasoning_effort: str | None = None,
     ) -> AgentHandle:
         if name in self._agents:
             raise ValueError(f"Agent with name {name!r} already exists.")
         resolved_system_prompt = system_prompt or prompt or "You are a LumiBot trading agent."
         if model is not None and default_model is not None and model != default_model:
             raise ValueError("Pass either model or default_model, not both with different values.")
-        resolved_model = model or default_model or "gemini-3.1-flash-lite-preview"
+        resolved_model = model or default_model or DEFAULT_AGENT_MODEL
+        if reasoning_effort is None and resolved_model == DEFAULT_AGENT_MODEL:
+            reasoning_effort = DEFAULT_AGENT_REASONING_EFFORT
         resolved_allow_trading = True if allow_trading is None else bool(allow_trading)
         handle = AgentHandle(
             manager=self,
@@ -2084,9 +2896,16 @@ class AgentManager:
             mcp_servers=mcp_servers,
             runtime=_runtime,
             allow_trading=resolved_allow_trading,
+            allow_communication_reads=allow_communication_reads,
+            allow_communication_writes=allow_communication_writes,
+            allow_network=allow_network,
             include_builtin_tools=include_builtin_tools,
+            include_builtin_skills=include_builtin_skills,
+            skill_dirs=skill_dirs,
+            rules_path=rules_path,
             model_request_timeout_seconds=model_request_timeout_seconds,
             run_timeout_seconds=run_timeout_seconds,
+            reasoning_effort=reasoning_effort,
         )
         if cadence is not None:
             self.strategy.log_message(

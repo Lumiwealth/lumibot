@@ -7,6 +7,18 @@ import pytest
 from lumibot.entities.asset import Asset
 
 
+def test_option_expiration_string_becomes_a_date():
+    asset = Asset(
+        "AAPL",
+        asset_type=Asset.AssetType.OPTION,
+        expiration="2027-01-15",
+        strike=100,
+        right="CALL",
+    )
+    assert asset.expiration == datetime.date(2027, 1, 15)
+    assert asset.expiration.strftime("%Y%m%d") == "20270115"
+
+
 def test_check_default_asset_name():
     asset = Asset(symbol="ABC")
     assert asset.symbol == "ABC"

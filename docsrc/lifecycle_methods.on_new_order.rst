@@ -1,5 +1,8 @@
 def on_new_order
 ===================================
+
+.. meta::
+   :description: This lifecycle method runs when a new order has been successfully submitted to the broker. Use this lifecycle event to execute code when the broker processes a new order.
     
 This lifecycle method runs when a new order has been successfully submitted to the broker. Use this lifecycle event to execute code when the broker processes a new order.
 

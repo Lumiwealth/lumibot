@@ -4,6 +4,11 @@ Bill Ackman Concentrated AI Trading Team
 .. meta::
    :description: This strategy is inspired by Bill Ackman and Pershing Square-style concentrated investing: do deep work on a small number of understandable, high-quality businesses.
 
+Run mode
+--------
+
+**Direct file execution:** backtest and broker. This file contains both a historical backtest and an Alpaca broker runner. Its runner-local ``IS_BACKTESTING`` assignment chooses the path when the file is executed directly; exporting an environment variable with the same name does not change that assignment. The broker configuration chooses paper or live. See :doc:`strategy_run_modes` for the difference between a strategy class, a backtest runner, and a broker runner.
+
 .. image:: ../docs/assets/ai-trading-team-workflows/bill-ackman-concentrated.png
    :alt: AI trading team workflow for Bill Ackman concentrated style investing
    :width: 100%

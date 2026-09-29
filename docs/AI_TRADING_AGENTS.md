@@ -2,6 +2,12 @@
 
 > LumiBot backtests AI trading agents with real external tools, replay caching, and the same code for backtest and live.
 
+The same `Strategy` class can be reused. Its startup code must select
+`Strategy.backtest(...)` for a historical run or a configured broker plus
+`run_live()` / `Trader.run_all()` for broker execution. The quickstart file
+below only starts a backtest when run directly. See the
+[AI example run-mode inventory](https://lumibot.lumiwealth.com/strategy_run_modes.html).
+
 **Last Updated:** 2026-09-12
 **Status:** Active
 **Audience:** Both
@@ -48,7 +54,7 @@ Start with a researcher and a separate trading agent using the existing Strategy
 [Complete canonical Python source](../lumibot/example_strategies/ai_researcher_trader.py) · [Walkthrough and requirements](https://lumibot.lumiwealth.com/agents_quickstart.html)
 
 ```bash
-python -m pip install "git+https://github.com/Lumiwealth/lumibot.git@version/4.5.92"
+python -m pip install "git+https://github.com/Lumiwealth/lumibot.git@version/4.6.3"
 export OPENAI_API_KEY="your-openai-api-key"
 export BACKTESTING_DATA_SOURCE=yahoo
 python -m lumibot.example_strategies.ai_researcher_trader
@@ -287,7 +293,12 @@ Create a `.env` file in your project directory with your API keys (e.g., `OPENAI
 
 **Can I use this for live trading?**
 
-Yes. The same strategy code runs in both backtest and live modes. For live trading, connect to a supported broker (Alpaca, Interactive Brokers, Tradier, Schwab, and others). No code changes are required -- LumiBot handles the broker integration.
+The same `Strategy` class can be used for backtesting and broker execution.
+The startup code must select the path: call `Strategy.backtest(...)` for
+historical data, or construct the strategy with a supported broker and call
+`run_live()` or `Trader.run_all()`. A backtest-only example file does not gain a
+broker runner when an environment flag changes. See the
+[run-mode guide](https://lumibot.lumiwealth.com/strategy_run_modes.html).
 
 **Does it work with my broker?**
 

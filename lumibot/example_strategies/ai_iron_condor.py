@@ -1,4 +1,7 @@
-"""Two-agent iron-condor strategy with dedicated trading risk."""
+"""Two-agent iron-condor strategy with dedicated trading risk.
+
+Direct run: backtest only.
+"""
 
 import os
 from datetime import datetime, timedelta

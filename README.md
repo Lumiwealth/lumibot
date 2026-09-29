@@ -30,6 +30,12 @@ lumibot run my-bot --paper
 
 `lumibot init` writes the same Python you would have written by hand. Nothing is hidden behind the CLI, and you keep an editable file.
 
+**The strategy class can stay the same. The code that starts it must select a
+backtest or a broker run.** `Strategy.backtest(...)` always backtests;
+`Trader.run_all()` or `strategy.run_live()` starts a configured broker. Setting
+`IS_BACKTESTING=false` alone cannot turn a backtest-only example into a broker
+runner. [Check every AI example's run mode](https://lumibot.lumiwealth.com/strategy_run_modes.html)
+
 <p align="center">
   <img src="docs/assets/ai-trading/benefit-hero.png" alt="LumiBot: Python rules or AI agents, historical backtests and broker connections" width="640">
 </p>
@@ -93,13 +99,15 @@ Start with SPY. A research agent analyzes its trend; a trading agent checks the 
 **You need Python 3.10+ and an OpenAI API key (`OPENAI_API_KEY`).** The default model is `openai/gpt-6-luna` on medium reasoning. Historical prices come from Yahoo; this backtest does not connect to a broker account. Model usage may incur charges.
 
 ```bash
-python -m pip install "git+https://github.com/Lumiwealth/lumibot.git@version/4.5.92"
+python -m pip install "git+https://github.com/Lumiwealth/lumibot.git@version/4.6.3"
 export OPENAI_API_KEY="your-openai-api-key"
 export BACKTESTING_DATA_SOURCE=yahoo
 python -m lumibot.example_strategies.ai_researcher_trader
 ```
 
-The command runs the complete SPY example. Watch the research and trading decisions, then inspect the generated order records. [Open its source](lumibot/example_strategies/ai_researcher_trader.py).
+The command runs a historical backtest of the complete SPY example. Watch the
+research and trading decisions, then inspect the generated simulated order
+records. [Open its source](lumibot/example_strategies/ai_researcher_trader.py).
 
 ### Customize the backtest
 

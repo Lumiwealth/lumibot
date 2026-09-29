@@ -4,6 +4,11 @@ AI Credit Spread
 .. meta::
    :description: ai_credit_spread.py is a two-agent options strategy. A research-only agent finds and documents an exact listed spread candidate.
 
+Run mode
+--------
+
+**Direct file execution:** backtest only. Running this file directly calls ``Strategy.backtest()``. It does not create a broker or start paper/live trading, regardless of ``IS_BACKTESTING`` in the environment. The strategy class can be used by a separate broker runner. See :doc:`strategy_run_modes` for the difference between a strategy class, a backtest runner, and a broker runner.
+
 .. image:: ../docs/assets/ai-agent-workflows/ai-credit-spread.png
    :alt: AI credit-spread workflow using LumiBot runtime skills, rules, tools, and execution
    :width: 100%

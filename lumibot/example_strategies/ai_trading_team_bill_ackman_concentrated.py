@@ -1,5 +1,7 @@
 """Bill Ackman-inspired concentrated team.
 
+Direct run: backtest and broker.
+
 This example is inspired by public descriptions of concentrated large-cap investing.
 It is not affiliated with or endorsed by Bill Ackman or Pershing Square.
 

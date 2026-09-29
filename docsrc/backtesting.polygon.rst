@@ -126,7 +126,7 @@ Instead of specifying `backtesting_start` and `backtesting_end` in your code, yo
      - **Description**
      - **Example**
    * - IS_BACKTESTING
-     - (Optional) **"True"** to enable backtesting mode, **"False"** for live (defaults to False).
+     - (Optional) Read only by startup code that checks it. It does not change a ``backtest()`` call into a broker run; see :doc:`strategy_run_modes`.
      - False
    * - BACKTESTING_START
      - (Optional) The start date (YYYY-MM-DD).

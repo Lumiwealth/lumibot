@@ -1,6 +1,8 @@
 """
 Macro Risk Strategy - AI Agent Demo
 ------------------------------------
+
+Direct run: backtest only.
 This strategy uses @agent_tool to call the Alpaca market data API
 for historical price bars and market movers, then lets the AI decide
 between TQQQ (risk-on) and SHV (risk-off) based on market trends.

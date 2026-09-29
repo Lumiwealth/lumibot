@@ -4,6 +4,11 @@ Congressional Disclosure Agent
 .. meta::
    :description: This example reads the public House Clerk periodic transaction report. It downloads the yearly index at the House financial-pdfs ZIP, then the member PDF.
 
+Run mode
+--------
+
+**Direct file execution:** no direct runner. This file defines an importable strategy but has no ``__main__`` runner. Executing the file directly does not start a backtest or broker. See :doc:`strategy_run_modes` for the difference between a strategy class, a backtest runner, and a broker runner.
+
 .. image:: ../docs/assets/ai-agent-workflows/ai-congress-disclosures.png
    :alt: Congressional disclosure AI trading team workflow
    :width: 100%

@@ -1,5 +1,7 @@
 """Stateful-browser research → trade → optional publish showcase.
 
+Direct run: backtest only.
+
 Configure only accounts and sites you are authorized to automate. Publishing is
 disabled by default and should target an owned test/community account first.
 """

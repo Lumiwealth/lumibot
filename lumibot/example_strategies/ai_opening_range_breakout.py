@@ -1,6 +1,8 @@
-"""Two-agent multi-ticker opening-range breakout strategy.
+"""Five-agent multi-ticker opening-range breakout strategy.
 
-Python coordinates a research agent and a dedicated trading/risk agent. All
+Direct run: backtest only.
+
+Python coordinates research, bull, bear, interpretation, and trading/risk agents. All
 entry, exit, sizing, and ticker selection live in their prompts. Prefer minute
 bars when available.
 

@@ -4,6 +4,11 @@ SEC Form 4 Insider-Filing Agent
 .. meta::
    :description: This example reads public SEC Form 4 filings for a fixed watchlist. It uses no material non-public information.
 
+Run mode
+--------
+
+**Direct file execution:** no direct runner. This file defines an importable strategy but has no ``__main__`` runner. Executing the file directly does not start a backtest or broker. See :doc:`strategy_run_modes` for the difference between a strategy class, a backtest runner, and a broker runner.
+
 .. image:: ../docs/assets/ai-agent-workflows/ai-sec-insider-filings.png
    :alt: SEC Form 4 insider-filing AI trading team workflow
    :width: 100%

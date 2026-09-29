@@ -12,6 +12,11 @@ Build trading strategies with Python rules, AI agents, or both. Backtest on
 historical data, view trades and results, and connect a supported broker through
 the same strategy interface.
 
+**The strategy class can stay the same. The code that starts it must select a
+backtest or a broker run.** See :doc:`strategy_run_modes` before running an
+example: ``IS_BACKTESTING=false`` alone cannot turn a backtest-only file into
+paper or live trading.
+
 .. container:: lumibot-start-routes
 
    :ref:`Python quickstart <first-python-backtest>` · :doc:`AI quickstart <agents_quickstart>` ·
@@ -33,7 +38,7 @@ account; model calls use your provider billing.
 
 .. code-block:: bash
 
-   python -m pip install "git+https://github.com/Lumiwealth/lumibot.git@version/4.5.92"
+   python -m pip install "git+https://github.com/Lumiwealth/lumibot.git@version/4.6.3"
    export OPENAI_API_KEY="your-openai-api-key"
    export BACKTESTING_DATA_SOURCE=yahoo
    python -m lumibot.example_strategies.ai_researcher_trader
@@ -204,7 +209,7 @@ LumiBot remains free and open source.
 AI Trading Team
 ***************
 
-LumiBot is built for **AI agents that reason, call external tools, and make trading decisions on every bar during a backtest** -- then run the exact same code live. This is real agentic backtesting: the LLM is inside the simulation loop, not bolted onto the side.
+LumiBot is built for **AI agents that reason, call external tools, and make trading decisions during a backtest**. The same strategy class can then run through a separately configured broker runner. This is agentic backtesting: the LLM is inside the simulation loop, not bolted onto the side. See :doc:`strategy_run_modes` for the startup distinction.
 
 Classic Python strategies are still first-class. LumiBot lets you choose the right level of intelligence: fixed rules, AI agents, or a hybrid where Python handles the hard gates and agents reason through evidence.
 
@@ -580,6 +585,7 @@ Table of Contents
    Python Strategy Examples <examples>
    AI Quickstart <agents_quickstart>
    AI Examples <agents_examples>
+   Backtest, Paper, or Live <strategy_run_modes>
    For Coding Agents <agent_start_here>
 
 .. toctree::

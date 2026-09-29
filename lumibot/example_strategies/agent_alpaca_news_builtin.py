@@ -1,6 +1,8 @@
 """
 Alpaca News Built-in Strategy - AI Agent Demo
 ---------------------------------------------
+
+Direct run: backtest only.
 This demo shows the recommended built-in-tool pattern for news-driven AI
 agents. It uses BuiltinTools.news.alpaca_news() instead of writing a custom
 Alpaca wrapper in the strategy.

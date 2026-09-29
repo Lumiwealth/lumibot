@@ -1,5 +1,7 @@
 """Bull and bear large-cap stock team.
 
+Direct run: backtest and broker.
+
 Python only creates the agents and runs them. Bull and bear run together.
 The interpreter reads both. The trader is the only order path.
 """

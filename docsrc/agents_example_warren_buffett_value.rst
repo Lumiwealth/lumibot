@@ -4,6 +4,11 @@ Warren Buffett Value AI Trading Team
 .. meta::
    :description: This strategy is inspired by Warren Buffett's public investing style: understand the business first, read the filings, care about durability, avoid overpaying.
 
+Run mode
+--------
+
+**Direct file execution:** backtest and broker. This file contains both a historical backtest and an Alpaca broker runner. Its runner-local ``IS_BACKTESTING`` assignment chooses the path when the file is executed directly; exporting an environment variable with the same name does not change that assignment. The broker configuration chooses paper or live. See :doc:`strategy_run_modes` for the difference between a strategy class, a backtest runner, and a broker runner.
+
 .. image:: ../docs/assets/ai-trading-team-workflows/warren-buffett-value.png
    :alt: AI trading team workflow for Warren Buffett value style investing
    :width: 100%

@@ -1,5 +1,7 @@
 """Nancy Pelosi congressional-disclosure strategy.
 
+Direct run: no direct runner.
+
 Python creates the agents and runs them. It does not download filings or place orders.
 The research agent fetches the public House reports. The trading agent places the orders.
 """

@@ -4,6 +4,11 @@ Ray Dalio Idea Meritocracy AI Trading Team
 .. meta::
    :description: This strategy is inspired by Ray Dalio's public writing about idea meritocracy and thoughtful disagreement. It is not an "All Weather" clone.
 
+Run mode
+--------
+
+**Direct file execution:** backtest and broker. This file contains both a historical backtest and an Alpaca broker runner. It reads ``IS_BACKTESTING`` from the environment via ``lumibot.credentials``; set it to ``true`` for the historical branch. The broker configuration chooses paper or live. See :doc:`strategy_run_modes` for the difference between a strategy class, a backtest runner, and a broker runner.
+
 .. image:: ../docs/assets/ai-trading-team-workflows/ray-dalio-idea-meritocracy.png
    :alt: AI trading team workflow for Ray Dalio idea-meritocracy style macro debate
    :width: 100%
@@ -53,11 +58,13 @@ mode unless you set ``ALPACA_IS_PAPER=false``.
 Backtest it
 -----------
 
-Use the same strategy class and change ``IS_BACKTESTING = False`` to ``IS_BACKTESTING = True`` in the runner:
+Use the same strategy class and select the historical branch with
+``IS_BACKTESTING=true``:
 
 .. code-block:: bash
 
    export OPENAI_API_KEY='your-key-here'
+   export IS_BACKTESTING=true
    python lumibot/example_strategies/ai_trading_team_ray_dalio_idea_meritocracy.py
 
 Example code

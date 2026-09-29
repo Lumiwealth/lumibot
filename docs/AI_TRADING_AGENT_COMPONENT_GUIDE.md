@@ -20,6 +20,12 @@ The core usage pattern is:
 4. Run the agent from the lifecycle method that needs it
 5. Inspect `result.summary`, warnings, traces, and cache behavior
 
+The strategy class can stay the same for a historical backtest and a broker
+run. Startup code must call `Strategy.backtest(...)` for the first path or
+construct a strategy with a broker and call `run_live()` / `Trader.run_all()`
+for the broker runner. A flag only selects a path when that runner contains
+both branches. See the [AI example run-mode guide](https://lumibot.lumiwealth.com/strategy_run_modes.html).
+
 ---
 
 ## Public API Surface
@@ -130,6 +136,8 @@ Key points for generated strategies:
 - No `sys.executable` or script paths
 - No explicit `BuiltinTools.xxx()` listing (they are default)
 - `datasource_class=None` reads from `.env` config
-- Flat `if __name__ == "__main__"` with `IS_BACKTESTING`
+- If a direct runner supports both paths, use an explicit branch that reads
+  `IS_BACKTESTING`; a backtest-only runner must not imply that changing the
+  flag starts a broker
 - `@agent_tool` functions should always have docstrings with `Args` sections
 - Source code is automatically included in tool descriptions -- the AI can see parameters and defaults

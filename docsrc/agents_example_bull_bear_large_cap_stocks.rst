@@ -4,6 +4,11 @@ Bull/Bear Large-Cap Stocks AI Trading Team
 .. meta::
    :description: This strategy uses the same simple bull/bear pattern as the leveraged ETF demo, but applies it to familiar large-cap stocks.
 
+Run mode
+--------
+
+**Direct file execution:** backtest and broker. This file contains both a historical backtest and an Alpaca broker runner. Its runner-local ``IS_BACKTESTING`` assignment chooses the path when the file is executed directly; exporting an environment variable with the same name does not change that assignment. The broker configuration chooses paper or live. See :doc:`strategy_run_modes` for the difference between a strategy class, a backtest runner, and a broker runner.
+
 .. image:: ../docs/assets/ai-trading-team-workflows/bull-bear-large-cap-stocks.png
    :alt: AI trading team workflow for bull/bear large-cap stocks
    :width: 100%

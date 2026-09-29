@@ -442,13 +442,14 @@ Can I set backtest parameters via environment variables?
 
 Yes. LumiBot supports several environment variables for backtest configuration:
 
-- ``IS_BACKTESTING`` -- ``True`` to enable backtesting mode
+- ``IS_BACKTESTING`` -- available to a runner that explicitly checks it; it does not choose a runner by itself
 - ``BACKTESTING_START`` / ``BACKTESTING_END`` -- date range (``YYYY-MM-DD``)
 - ``BACKTESTING_BUDGET`` -- starting cash (e.g., ``100000``)
 - ``BACKTESTING_DATA_SOURCE`` -- data source (``yahoo``, ``polygon``, ``thetadata``, etc.)
 - ``LUMIBOT_STRATEGY_PARAMETERS`` -- JSON string of reusable strategy parameters (backtest and live)
 
-See :doc:`environment_variables` for the full list.
+See :doc:`environment_variables` for the full list and
+:doc:`strategy_run_modes` for the backtest/broker distinction.
 
 How do I benchmark my strategy against an index?
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~

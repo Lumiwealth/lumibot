@@ -1,5 +1,7 @@
 """SEC Form 4 insider-filings strategy for a fixed watchlist.
 
+Direct run: no direct runner.
+
 Python creates the agents and runs them. It does not download filings or place orders.
 The research agent reads point-in-time Form 4 filings with the SEC tools. The trading agent
 places the orders.

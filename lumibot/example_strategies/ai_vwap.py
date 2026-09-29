@@ -1,5 +1,7 @@
 """Two-agent VWAP mean-reversion / reclaim strategy.
 
+Direct run: backtest only.
+
 Python coordinates a research agent and a dedicated trading/risk agent. All
 trading policy lives in their prompts. Prefer minute bars and the
 get_indicator('vwap') tool when available.

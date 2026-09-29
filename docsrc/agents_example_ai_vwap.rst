@@ -4,6 +4,11 @@ AI VWAP Strategy
 .. meta::
    :description: ai_vwap.py is a two-agent equity strategy. A research-only agent computes and explains the point-in-time VWAP setup.
 
+Run mode
+--------
+
+**Direct file execution:** backtest only. Running this file directly calls ``Strategy.backtest()``. It does not create a broker or start paper/live trading, regardless of ``IS_BACKTESTING`` in the environment. The strategy class can be used by a separate broker runner. See :doc:`strategy_run_modes` for the difference between a strategy class, a backtest runner, and a broker runner.
+
 .. image:: ../docs/assets/ai-agent-workflows/ai-vwap.png
    :alt: AI VWAP workflow using LumiBot runtime skills, rules, market evidence, and execution
    :width: 100%

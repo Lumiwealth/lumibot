@@ -1,6 +1,8 @@
 """
 News Sentiment Strategy - AI Agent Demo
 ----------------------------------------
+
+Direct run: backtest only.
 This strategy uses an @agent_tool to call the Alpaca News API for
 historical news headlines, then lets the AI decide what to trade.
 

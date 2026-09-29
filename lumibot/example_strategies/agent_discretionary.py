@@ -1,6 +1,8 @@
 """
 Discretionary AI Trader - Maximum Discretion Agent Demo
 --------------------------------------------------------
+
+Direct run: backtest only.
 This strategy gives the AI agent maximum discretion: minimal user prompt,
 broad tool surface, no asset whitelist, no thesis in the system prompt.
 

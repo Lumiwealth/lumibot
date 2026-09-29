@@ -4,6 +4,11 @@ Citadel Sector Pods AI Trading Team
 .. meta::
    :description: This strategy is inspired by the pod-style structure associated with Ken Griffin's Citadel and other multi-manager platforms.
 
+Run mode
+--------
+
+**Direct file execution:** backtest and broker. This file contains both a historical backtest and an Alpaca broker runner. It reads ``IS_BACKTESTING`` from the environment via ``lumibot.credentials``; set it to ``true`` for the historical branch. The broker configuration chooses paper or live. See :doc:`strategy_run_modes` for the difference between a strategy class, a backtest runner, and a broker runner.
+
 .. image:: ../docs/assets/ai-trading-team-workflows/citadel-sector-pods.png
    :alt: AI trading team workflow for Citadel-style sector pods
    :width: 100%
@@ -56,12 +61,14 @@ mode unless you set ``ALPACA_IS_PAPER=false``.
 Backtest it
 -----------
 
-Use the same strategy class and change ``IS_BACKTESTING = False`` to ``IS_BACKTESTING = True`` in the runner:
+Use the same strategy class and select the historical branch with
+``IS_BACKTESTING=true``:
 
 .. code-block:: bash
 
    export OPENAI_API_KEY='your-key-here'
    export AI_TRADING_TEAM_MODEL='openai/gpt-6-luna'
+   export IS_BACKTESTING=true
    python lumibot/example_strategies/ai_trading_team_citadel_sector_pods.py
 
 Example code

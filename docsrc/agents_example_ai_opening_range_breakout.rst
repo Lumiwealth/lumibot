@@ -2,14 +2,24 @@ AI Opening Range Breakout
 =========================
 
 .. meta::
-   :description: ai_opening_range_breakout.py is a two-agent equity strategy. A research-only agent scans completed opening ranges and ranks valid breakouts.
+   :description: ai_opening_range_breakout.py is a five-agent equity strategy. A research-only agent scans completed opening ranges and ranks valid breakouts.
+
+Run mode
+--------
+
+**Direct file execution:** backtest only. Running this file directly calls ``Strategy.backtest()``. It does not create a broker or start paper/live trading, regardless of ``IS_BACKTESTING`` in the environment. The strategy class can be used by a separate broker runner. See :doc:`strategy_run_modes` for the difference between a strategy class, a backtest runner, and a broker runner.
 
 .. image:: ../docs/assets/ai-agent-workflows/ai-opening-range-breakout.png
    :alt: AI opening-range breakout workflow using LumiBot runtime skills, rules, market evidence, and execution
    :width: 100%
 
-``ai_opening_range_breakout.py`` is a two-agent equity strategy. A research-only
-agent scans completed opening ranges and ranks valid breakouts. A dedicated
+The diagram groups the five source-code agents into research and execution
+stages. The bull, bear, and interpreter roles sit between the two pictured
+agents; the list below names all five roles.
+
+``ai_opening_range_breakout.py`` is a five-agent equity strategy. A research-only
+agent scans completed opening ranges and ranks valid breakouts. Bull and bear
+agents challenge the setup, an interpreter selects one candidate or none, and a dedicated
 trading-and-risk agent independently verifies that evidence, sizes the position,
 and is the only agent allowed to place a broker order. The built-in
 ``stock-trading`` skill provides reusable market-evidence, stock-order, and
@@ -20,6 +30,7 @@ How it works
 
 * The research agent scans the configured universe with batch prices and history.
 * It builds ranges only from completed regular-session bars beginning at 09:30 ET.
+* Bull and bear agents assess the strongest setup; an interpreter chooses one candidate or none.
 * The trading-and-risk agent rechecks the strongest completed breakout and account state.
 * Only that final agent can size, submit, reconcile, and manage a broker order.
 
@@ -91,6 +102,44 @@ continuation or dollar of spend. In the verified one-day run, seven agent
 decisions resulted in 58 provider calls. Model and data charges depend on your
 accounts; use a separately enforced budget for paid verification. Reaching the
 limit is an incomplete run, not a passing demonstration.
+
+Start the same class with an Alpaca paper broker
+------------------------------------------------
+
+The packaged file above has **no broker runner**. To run the same strategy
+class against a broker, save the following as ``run_orb_paper.py`` in a current
+LumiBot source checkout. This starts the configured Alpaca **paper** account;
+it does not rerun the historical proof or establish live-broker qualification.
+Use a small universe and review the broker's supported minute bars, order
+behavior, and account permissions before relying on the strategy.
+
+.. code-block:: python
+
+   import os
+
+   from lumibot.brokers import Alpaca
+   from lumibot.example_strategies.ai_opening_range_breakout import (
+       AIOpeningRangeBreakoutStrategy,
+       _parameters_from_env,
+   )
+
+   broker = Alpaca({
+       "API_KEY": os.environ["ALPACA_API_KEY"],
+       "API_SECRET": os.environ["ALPACA_API_SECRET"],
+       "PAPER": True,
+   })
+   strategy = AIOpeningRangeBreakoutStrategy(
+       broker=broker,
+       parameters=_parameters_from_env(AIOpeningRangeBreakoutStrategy.parameters),
+   )
+   strategy.run_live()
+
+Set ``OPENAI_API_KEY`` and the two Alpaca credential variables in your own
+environment, then run ``python run_orb_paper.py``. The ``AI_ORB_*`` parameter
+overrides used by the historical example are passed to this runner too. The
+``_parameters_from_env`` function is an example helper, not a public LumiBot
+API. See :doc:`strategy_run_modes` for the distinction between the strategy
+class and its runner.
 
 Inspect the output
 ------------------

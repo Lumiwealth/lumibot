@@ -1089,7 +1089,7 @@ In addition to broker-specific secrets, the following environment variables are 
      - Your live config file, only needed for strategies that have multiple configurations (there will be a folder named "configurations" in the src/ folder) and if you are running the strategy live.
      - paper_1
    * - IS_BACKTESTING
-     - **(Optional)** Set to **"True"** to run the strategy in backtesting mode, set to **"False"** to run the strategy live (defaults to False).
+     - **(Optional)** Available to startup code that explicitly checks it. A broker runner and broker configuration are still required for paper or live execution; see :doc:`strategy_run_modes`.
      - False
    * - BACKTESTING_START
      - **(Optional)** The start date for backtesting in the format "YYYY-MM-DD". Only needed if you are backtesting.

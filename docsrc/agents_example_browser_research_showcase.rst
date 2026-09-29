@@ -4,6 +4,11 @@ Authenticated Browser Research Showcase
 .. meta::
    :description: This example demonstrates the full handoff: an authenticated browser researcher reads a JavaScript application, a dedicated trading/risk agent decides whether to trade.
 
+Run mode
+--------
+
+**Direct file execution:** backtest only. Running this file directly calls ``Strategy.backtest()``. It does not create a broker or start paper/live trading, regardless of ``IS_BACKTESTING`` in the environment. The strategy class can be used by a separate broker runner. See :doc:`strategy_run_modes` for the difference between a strategy class, a backtest runner, and a broker runner.
+
 .. image:: ../docs/assets/ai-agent-workflows/ai-browser-research-showcase.png
    :alt: Authenticated browser research AI trading team workflow
    :width: 100%

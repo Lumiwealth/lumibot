@@ -1,6 +1,8 @@
 """
 M2 Liquidity Strategy - AI Agent Demo
 --------------------------------------
+
+Direct run: backtest only.
 This strategy uses @agent_tool to fetch real M2 money supply data
 from FRED (Federal Reserve Economic Data) and lets the AI decide
 between TQQQ (risk-on) and SHV (risk-off) based on whether

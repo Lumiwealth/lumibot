@@ -1,5 +1,7 @@
 """Two-agent SPX 0 DTE bear-call-spread experiment.
 
+Direct run: backtest only.
+
 The researcher is read only. The trader independently validates the evidence,
 places any order through LumiBot tools, and verifies the resulting broker state.
 """

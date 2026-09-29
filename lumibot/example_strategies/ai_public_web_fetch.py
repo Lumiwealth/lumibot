@@ -1,5 +1,7 @@
 """Public-page research strategy.
 
+Direct run: no direct runner.
+
 Python creates the agents and runs them. It does not download the page or place orders.
 The research agent fetches the page. When the published page reports purchases, the trading
 agent follows them, sized from the account.

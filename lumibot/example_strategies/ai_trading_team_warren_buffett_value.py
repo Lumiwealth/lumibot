@@ -1,5 +1,7 @@
 """Warren Buffett-inspired value team.
 
+Direct run: backtest and broker.
+
 This example is inspired by public Berkshire Hathaway shareholder letters.
 It is not affiliated with or endorsed by Warren Buffett or Berkshire Hathaway.
 

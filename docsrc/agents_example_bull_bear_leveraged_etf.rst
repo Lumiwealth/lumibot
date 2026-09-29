@@ -4,6 +4,11 @@ Bull/Bear Leveraged ETF AI Trading Team
 .. meta::
    :description: This is a fast, dramatic AI trading team demo. It gives the agents a universe of leveraged long and inverse ETFs, turns a bull and bear debate into account weights.
 
+Run mode
+--------
+
+**Direct file execution:** backtest and broker. This file contains both a historical backtest and an Alpaca broker runner. Its runner-local ``IS_BACKTESTING`` assignment chooses the path when the file is executed directly; exporting an environment variable with the same name does not change that assignment. The broker configuration chooses paper or live. See :doc:`strategy_run_modes` for the difference between a strategy class, a backtest runner, and a broker runner.
+
 .. image:: ../docs/assets/ai-trading-team-workflows/bull-bear-leveraged-etf.png
    :alt: AI trading team workflow for bull/bear leveraged ETFs
    :width: 100%

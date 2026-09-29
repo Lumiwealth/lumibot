@@ -1,6 +1,8 @@
 """
 M2 Liquidity Strategy - AI Agent Demo (OpenAI GPT)
 --------------------------------------------------
+
+Direct run: backtest only.
 Same strategy intent as agent_m2_liquidity.py, with the OpenAI model named
 explicitly. agent_m2_liquidity.py already defaults to GPT-6 Luna, so this
 file only shows where to pin an OpenAI model id.

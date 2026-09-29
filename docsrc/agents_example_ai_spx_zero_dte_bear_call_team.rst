@@ -4,6 +4,11 @@ Two-Agent SPX 0 DTE Bear Call Experiment
 .. meta::
    :description: ai_spx_zero_dte_bear_call_team.py tests a strict two-agent architecture: LumiBot documentation.
 
+Run mode
+--------
+
+**Direct file execution:** backtest only. Running this file directly calls ``Strategy.backtest()``. It does not create a broker or start paper/live trading, regardless of ``IS_BACKTESTING`` in the environment. The strategy class can be used by a separate broker runner. See :doc:`strategy_run_modes` for the difference between a strategy class, a backtest runner, and a broker runner.
+
 .. image:: ../docs/assets/ai-agent-workflows/ai-spx-zero-dte-bear-call-team.png
    :alt: SPX zero-day bear call AI trading team workflow
    :width: 100%

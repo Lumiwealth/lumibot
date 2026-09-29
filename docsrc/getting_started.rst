@@ -9,6 +9,11 @@ Traditional strategies are fully supported: define your own Python rules in a
 See :doc:`Python strategy examples <examples>` for buy-and-hold, momentum, and
 bracket-order starting points.
 
+**The strategy class can stay the same. The code that starts it must select a
+backtest or a broker run.** See :doc:`strategy_run_modes` before copying an
+example's runner. The AI examples are labeled by what direct file execution
+actually does.
+
 Choose what you want to build
 -----------------------------
 
@@ -39,7 +44,7 @@ prices and makes no model, market-data, or broker requests:
 
 .. code-block:: bash
 
-   python -m pip install "git+https://github.com/Lumiwealth/lumibot.git@version/4.5.92"
+   python -m pip install "git+https://github.com/Lumiwealth/lumibot.git@version/4.6.3"
    BACKTESTING_DATA_SOURCE=none python -m lumibot.example_strategies.first_backtest
 
 It prints a simulated order and ending value so you can check the installation.
@@ -143,14 +148,18 @@ Create a strategy class (See strategy section) e.g. class MyStrategy(Strategy) o
 Step 6: Instantiate the Trader, Alpaca, and Strategy Classes
 ------------------------------------------------------------
 
+This is broker setup for Step 8. You can skip Steps 3, 4, and 6 while learning
+with the historical backtest in Step 7; backtesting does not need an Alpaca
+trading account or ``Trader`` instance.
+
 .. code-block:: python
 
     trader = Trader()
     broker = Alpaca(ALPACA_CONFIG)
     strategy = MyStrategy(name="My Strategy", budget=10000, broker=broker, symbol="SPY")
 
-Step 7: Backtest the Strategy (Optional)
-----------------------------------------
+Step 7: Backtest the Strategy
+-----------------------------
 
 .. note::
 
@@ -163,7 +172,7 @@ Step 7: Backtest the Strategy (Optional)
 
     backtesting_start = datetime(2020, 1, 1)
     backtesting_end = datetime(2020, 12, 31)
-    strategy.run_backtest(
+    MyStrategy.run_backtest(
         YahooDataBacktesting,
         backtesting_start,
         backtesting_end,
@@ -172,38 +181,14 @@ Step 7: Backtest the Strategy (Optional)
         },
     )
 
-Step 8: Run the Strategy
-------------------------
-
-.. note::
-
-   **Running a strategy live** carries real financial risks. Start with paper trading to get familiar with the process and ensure your strategy works as expected.
-
-.. code-block:: python
-
-    trader.add_strategy(strategy)
-    trader.run_all()
-
-.. important::
-
-   **And that's it!** Now try modifying the strategy to do what you want it to do.
-
-Here it is all together:
+Here is the historical backtest as a complete file. It ends after the
+backtest; it does not start the broker runner from Step 8:
 
 .. code-block:: python
 
     from datetime import datetime
     from lumibot.backtesting import YahooDataBacktesting
-    from lumibot.brokers import Alpaca
     from lumibot.strategies.strategy import Strategy
-    from lumibot.traders import Trader
-
-    ALPACA_CONFIG = {
-        "API_KEY": "YOUR_ALPACA_API_KEY",
-        "API_SECRET": "YOUR_ALPACA_SECRET",
-        # Set this to False to use a live account
-        "PAPER": True
-    }
 
     class MyStrategy(Strategy):
         parameters = {
@@ -222,23 +207,32 @@ Here it is all together:
             order = self.create_order(symbol, quantity, side)
             self.submit_order(order)
 
-    trader = Trader()
-    broker = Alpaca(ALPACA_CONFIG)
-    strategy = MyStrategy(broker=broker, parameters={"symbol": "SPY"})
-
     backtesting_start = datetime(2020, 1, 1)
     backtesting_end = datetime(2020, 12, 31)
-    strategy.run_backtest(
+    MyStrategy.run_backtest(
         YahooDataBacktesting,
         backtesting_start,
         backtesting_end,
         parameters={"symbol": "SPY"}
     )
 
+Step 8: Start the Broker Runner
+-------------------------------
+
+.. note::
+
+   **Running a strategy live** carries real financial risks. Start with paper trading to get familiar with the process and ensure your strategy works as expected.
+
+.. code-block:: python
+
     trader.add_strategy(strategy)
     trader.run_all()
 
-Or you can download the file here: `https://github.com/Lumiwealth/lumibot/blob/dev/lumibot/example_strategies/simple_start_single_file.py <https://github.com/Lumiwealth/lumibot/blob/dev/lumibot/example_strategies/simple_start_single_file.py>`_.
+.. important::
+
+   **And that's it!** Now try modifying the strategy to do what you want it to do.
+
+For an alternative file with both runner paths, inspect `simple_start_single_file.py <https://github.com/Lumiwealth/lumibot/blob/version/4.6.3/lumibot/example_strategies/simple_start_single_file.py>`_ and select its backtest or broker branch explicitly.
 
 Adding Trading Fees
 ===================

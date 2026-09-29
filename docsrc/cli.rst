@@ -78,6 +78,11 @@ is generated around it and nothing is hidden from you.
 
 That block is why the file works three ways:
 
+The generated template explicitly checks the imported ``IS_BACKTESTING``
+value. Other example files may assign a local value or have only a backtest
+runner. See :doc:`strategy_run_modes` before applying this template's behavior
+to another file.
+
 .. list-table::
    :header-rows: 1
    :widths: 38 62

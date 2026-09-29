@@ -1,6 +1,8 @@
 """
 M2 Liquidity Strategy - AI Agent Demo (Anthropic Claude)
 --------------------------------------------------------
+
+Direct run: backtest only.
 Same strategy intent as agent_m2_liquidity.py, but uses Anthropic Claude
 instead of the default GPT-6 Luna. This demonstrates Lumibot's
 multi-provider AI agent support via the LiteLLM bridge.

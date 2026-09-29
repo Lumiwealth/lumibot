@@ -1,4 +1,7 @@
-"""Two-agent vertical credit-spread strategy with dedicated trading risk."""
+"""Two-agent vertical credit-spread strategy with dedicated trading risk.
+
+Direct run: backtest only.
+"""
 
 import os
 from datetime import datetime, timedelta

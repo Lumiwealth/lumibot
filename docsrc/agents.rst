@@ -355,7 +355,12 @@ Create a ``.env`` file in your project directory with your API keys (e.g., ``OPE
 
 **Can I use this for live trading?**
 
-Yes. The same strategy code runs in both backtest and live modes. For live trading, connect to a supported broker (Alpaca, Interactive Brokers, Tradier, Schwab, and others). No code changes are required -- LumiBot handles the broker integration.
+The same ``Strategy`` class can be used in a backtest and with a supported
+broker (Alpaca, Interactive Brokers, Tradier, Schwab, and others). The startup
+code must select the path: ``Strategy.backtest(...)`` for history, or construct
+the strategy with a broker and call ``run_live()`` or ``Trader.run_all()`` for
+broker execution. Some example files include only a backtest runner. See
+:doc:`strategy_run_modes` before running one directly.
 
 **Does it work with my broker?**
 

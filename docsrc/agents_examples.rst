@@ -8,6 +8,11 @@ Start with a complete strategy, run a historical backtest, and inspect what the
 agents decided. Model calls require a provider key. Each example states its
 data requirements and whether the displayed result is a recorded run.
 
+**The strategy class can stay the same. The code that starts it selects a
+backtest or a broker run.** Each page below labels what happens when its file
+is executed directly. See :doc:`strategy_run_modes` for all AI example entry
+points, including demos outside this gallery.
+
 .. image:: ../docs/assets/ai-trading/example-gallery.png
    :alt: AI trading with LumiBot: one agent, agents that debate, or AI combined with Python rules.
    :width: 640px
@@ -60,7 +65,7 @@ Stocks
      - GPT-6 Luna, January 5 to 15, 2026: split the account across four names, rebalanced daily without churn, kept cash positive, and ended down 2.16% while SPY rose about 1%.
    * - :doc:`Opening range breakout <agents_example_ai_opening_range_breakout>`
      - Inspect completed opening bars and trade a confirmed breakout.
-     - Alpaca minute bars, evaluated every two hours.
+     - Alpaca minute bars, evaluated hourly by default.
      - GPT-6 Luna, January 5 to 6, 2026: traded DE, DIS, and SPGI at about 10% of the account and finished down 0.08%. One SPGI buy and sell landed in the same bar.
    * - :doc:`VWAP <agents_example_ai_vwap>`
      - Explore VWAP reclaim and mean reversion.
@@ -152,8 +157,10 @@ Before running a strategy
 
 The original team files default to a broker runner. The stock tutorial supplies
 a separate complete backtest runner so learning does not require editing that
-mode flag or supplying broker keys. Other examples may use an explicit backtest
-runner; read each page before executing its module.
+mode flag or supplying broker keys. Other examples have only a backtest runner
+or no direct runner; read the run-mode label on each page before executing its
+module. A backtest-only file does not become a broker runner when an environment
+flag changes.
 
 A successful historical run verifies software behavior for that source, data,
 and window. It does not establish investment performance. An LLM may know future

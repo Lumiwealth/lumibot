@@ -199,6 +199,102 @@ def _resolved_multileg_legs(payload):
     return legs
 
 
+# A fake filing website for the web_documents case: a yearly ZIP index (a large
+# tab-separated table) and PDF reports. Report 2002 is filed after the fixture
+# clock (2026-08-11), so an agent that opens it has looked into the future.
+_WEB_DOCUMENTS_HOST = "filings.example.gov"
+_WEB_DOCUMENTS_REPORTS = {
+    "1001": [
+        "Clerk of the House - Financial Disclosure Report",
+        "Name: Hon. Dana Rivera   Filing Type: Annual Report   Filing Year: 2025   Filing Date: 05/15/2026",
+        "Asset Owner Value of Asset",
+        "Apple Inc. (AAPL) [ST] SP $1,000,001 - $5,000,000",
+        "Microsoft Corporation (MSFT) [ST] SP $250,001 - $500,000",
+        "NVIDIA Corporation (NVDA) [OP] SP $250,001 - $500,000",
+        "D: 20 call options with a strike price of $100 and an expiration date of 1/15/27.",
+    ],
+    "2001": [
+        "Clerk of the House - Periodic Transaction Report",
+        "Name: Hon. Dana Rivera   Filing Date: 07/02/2026",
+        "ID Owner Asset Transaction Date Amount",
+        "SP Microsoft Corporation (MSFT) [ST] S 06/20/2026 $250,001 - $500,000",
+        "D: Sold 1,000 shares, the entire position.",
+        "SP Tesla, Inc. (TSLA) [ST] P 06/22/2026 $100,001 - $250,000",
+        "D: Purchased 500 shares.",
+    ],
+    "2002": [
+        "Clerk of the House - Periodic Transaction Report",
+        "Name: Hon. Dana Rivera   Filing Date: 09/15/2026",
+        "SP Zeta Holdings (ZZZZ) [ST] P 09/01/2026 $1,000,001 - $5,000,000",
+        "D: Purchased 20,000 shares.",
+    ],
+}
+
+
+def _pdf_lines(lines):
+    """A one-page PDF with one line of text per entry (Helvetica, uncompressed)."""
+    escaped = [line.replace("\\", "\\\\").replace("(", "\\(").replace(")", "\\)") for line in lines]
+    stream = ("BT /F1 10 Tf 14 TL 40 760 Td " + " T* ".join(f"({line}) Tj" for line in escaped) + " ET").encode()
+    objects = [
+        b"<< /Type /Catalog /Pages 2 0 R >>",
+        b"<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
+        b"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 4 0 R "
+        b"/Resources << /Font << /F1 5 0 R >> >> >>",
+        b"<< /Length " + str(len(stream)).encode() + b" >>\nstream\n" + stream + b"\nendstream",
+        b"<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>",
+    ]
+    out = bytearray(b"%PDF-1.4\n")
+    offsets = []
+    for number, body in enumerate(objects, start=1):
+        offsets.append(len(out))
+        out += f"{number} 0 obj\n".encode() + body + b"\nendobj\n"
+    xref = len(out)
+    out += f"xref\n0 {len(objects) + 1}\n0000000000 65535 f \n".encode()
+    for offset in offsets:
+        out += f"{offset:010d} 00000 n \n".encode()
+    out += f"trailer\n<< /Size {len(objects) + 1} /Root 1 0 R >>\nstartxref\n{xref}\n%%EOF\n".encode()
+    return bytes(out)
+
+
+def _web_documents_index_zip():
+    import io
+    import zipfile
+
+    rows = ["Prefix\tLast\tFirst\tSuffix\tFilingType\tStateDst\tYear\tFilingDate\tDocID"]
+    # Enough other members that the index cannot be read by eye; it has to be filtered.
+    for number in range(900):
+        month = number % 12 + 1
+        rows.append(f"Hon.\tMember{number:03d}\tAlex\t\t{'OP'[number % 2]}\tTX{number % 30:02d}\t2026\t{month}/{number % 27 + 1}/2026\t{3000 + number}")
+    rows += [
+        "Hon.\tRivera\tDana\t\tO\tNM02\t2025\t5/15/2026\t1001",
+        "Hon.\tRivera\tDana\t\tP\tNM02\t2026\t7/2/2026\t2001",
+        "Hon.\tRivera\tDana\t\tP\tNM02\t2026\t9/15/2026\t2002",
+    ]
+    buffer = io.BytesIO()
+    with zipfile.ZipFile(buffer, "w", compression=zipfile.ZIP_DEFLATED) as archive:
+        archive.writestr("2026FD.txt", "\n".join(rows) + "\n")
+    return buffer.getvalue()
+
+
+def _web_documents_client():
+    import httpx
+
+    from lumibot.components.agents.web_tools import WebClient
+
+    index = _web_documents_index_zip()
+
+    def handler(request):
+        path = request.url.path
+        if path.lower().endswith("/2026fd.zip"):
+            return httpx.Response(200, content=index, headers={"content-type": "application/x-zip-compressed"})
+        doc_id = path.rsplit("/", 1)[-1].removesuffix(".pdf")
+        if path.startswith("/reports/") and doc_id in _WEB_DOCUMENTS_REPORTS:
+            return httpx.Response(200, content=_pdf_lines(_WEB_DOCUMENTS_REPORTS[doc_id]), headers={"content-type": "application/pdf"})
+        return httpx.Response(404, text="Not found")
+
+    return WebClient(transport=httpx.MockTransport(handler), resolver=lambda host: ["93.184.216.34"])
+
+
 class ProductionFixture:
     def __init__(self, fixture):
         self.fixture = fixture
@@ -282,6 +378,8 @@ class ProductionFixture:
                 return chains
 
             self.strategy.get_chains = get_chains
+        if fixture.name == "web_documents":
+            self.strategy._agent_web_client = _web_documents_client()
         self.strategy.fundamentals = _recorded_sec_fundamentals(self.strategy, self.root / "sec")
         self.manager = self.strategy.agents
         self.manager.replay_cache.root = self.root / "replay"
@@ -308,6 +406,7 @@ class ProductionFixture:
             _runtime=runtime,
             mcp_servers=servers,
             allow_trading=allow_trading,
+            allow_network=bool(case.get("allowNetwork")),
             reasoning_effort=None if str(case["model"]).startswith("gemini") else "medium",
         )
 

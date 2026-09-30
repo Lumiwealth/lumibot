@@ -2408,6 +2408,83 @@ def _bind_http_request(strategy: Any, manager: Any) -> BoundTool:
     )
 
 
+def _bind_read_document(strategy: Any, manager: Any) -> BoundTool:
+    def read_document(
+        url: str,
+        find: str | None = None,
+        start: int = 0,
+        max_chars: int = 20_000,
+        credential_profile: str | None = None,
+    ) -> dict[str, Any]:
+        from .documents import read_document_bytes
+
+        url = _require_non_empty_text("url", url)
+        fetched = _web_client_for_strategy(strategy).request(
+            "GET", url, credential_profile=credential_profile, max_response_bytes=25_000_000, return_content=True
+        )
+        content = fetched.pop("content", b"") or b""
+        # No download time here: a page or file read now shows its current version,
+        # and agents mistook the download time for the document's date.
+        result = {key: fetched[key] for key in ("ok", "status_code", "url", "error") if key in fetched}
+        result["dates"] = (
+            "This is the live, current copy. Its download time is not its date. Use the dates written in it "
+            "(filing, published, or row dates): parts dated on or before the current time are usable, later parts are not."
+        )
+        if not fetched.get("ok"):
+            result["text"] = content[:2_000].decode("utf-8", errors="replace")
+            return result
+        document = read_document_bytes(
+            content,
+            name=str(fetched.get("url") or url).rsplit("/", 1)[-1],
+            content_type=str(fetched.get("content_type") or ""),
+            url=str(fetched.get("url") or url),
+        )
+        text = document["text"]
+        if find:
+            needle = str(find).lower()
+            matched = [line for line in text.splitlines() if needle in line.lower()]
+            result["matched_lines"] = len(matched)
+            text = "\n".join(matched)
+        start = max(int(start or 0), 0)
+        max_chars = max(int(max_chars or 20_000), 1)
+        end = start + max_chars
+        result.update(
+            {
+                "kind": document["kind"],
+                "text": text[start:end],
+                "text_chars": len(text),
+                "start": start,
+                "next_start": end if end < len(text) else None,
+            }
+        )
+        for key in ("files", "links", "unsupported", "files_truncated"):
+            if document.get(key):
+                result[key] = document[key]
+        result["tables"] = [
+            manager.duckdb.register_document_table(label, frame, source=str(result.get("url") or url))
+            for label, frame in document["tables"]
+        ]
+        return result
+
+    return BoundTool(
+        name="read_document",
+        description=(
+            "Read any file or web page at a URL: PDF, Word, Excel, CSV, tab-separated text, ZIP (every file "
+            "inside), HTML (text plus every link on the page), JSON, or plain text. Arguments: url, optional "
+            "find (keep only lines that contain this text), start and max_chars to page through long text "
+            "(next_start says where to continue; null means you reached the end). Every table in the file "
+            "(a CSV, an Excel sheet, a table file inside a ZIP) is loaded for duckdb_query: the result lists "
+            "each table_name, its columns and sample rows, so filter, sort and add up rows with SQL instead of "
+            "by hand. To find a document on a website, read the page and follow its links. In a backtest, use "
+            "each document's own date (for example a filing date) and ignore anything dated after the current "
+            "backtest time. Example: read_document(url='https://example.com/reports/2025.zip')."
+        ),
+        function=read_document,
+        source="builtin",
+        metadata={"kind": "web", "network": True, "temporal": "response_time"},
+    )
+
+
 def _bind_rss_fetch(strategy: Any, manager: Any) -> BoundTool:
     def rss_fetch(
         url: str,
@@ -4435,6 +4512,13 @@ class _WebTools:
             binder=_bind_http_request,
         )
 
+    def read_document(self) -> ToolDefinition:
+        return ToolDefinition(
+            name="read_document",
+            description="Read any file at a URL (PDF, Word, Excel, CSV, ZIP, HTML) as text and tables.",
+            binder=_bind_read_document,
+        )
+
     def rss_fetch(self) -> ToolDefinition:
         return ToolDefinition(
             name="rss_fetch",
@@ -4806,6 +4890,7 @@ class _BuiltinTools:
             self.duckdb.query(),
             self.docs.search(),
             self.web.http_request(),
+            self.web.read_document(),
             self.web.rss_fetch(),
             self.web.web_search(),
             self.browser.session_open(),

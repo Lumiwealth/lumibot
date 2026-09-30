@@ -1,0 +1,4 @@
+interface:
+  display_name: "Web Documents"
+  short_description: "Read any web page or file, do table math with SQL, and respect backtest dates."
+  default_prompt: "Use $web-documents before reading websites, PDFs, spreadsheets, or ZIP files."

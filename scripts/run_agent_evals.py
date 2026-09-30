@@ -95,6 +95,8 @@ def runtime_fingerprint() -> str:
         REPO_ROOT / "lumibot/components/agents/skills.py",
         REPO_ROOT / "lumibot/components/agents/builtins.py",
         REPO_ROOT / "lumibot/components/agents/duckdb_tools.py",
+        REPO_ROOT / "lumibot/components/agents/documents.py",
+        REPO_ROOT / "lumibot/components/agents/web_tools.py",
         REPO_ROOT / "lumibot/components/agents/asset_resolution.py",
         REPO_ROOT / "lumibot/components/agents/managed_gateway.py",
         REPO_ROOT / "lumibot/indicators/indicators.py",
@@ -469,6 +471,12 @@ def score_machine_contract(case: dict[str, Any], transcript: dict[str, Any]) -> 
     if contract.get("forbidOrderTools") and (submissions or transcript.get("rejected_submissions")):
         failures.append("submitted an order despite a no-order contract")
 
+    # A document dated after the simulated clock must never be opened, even to discard it.
+    for forbidden in contract.get("forbiddenFetchedUrls") or []:
+        for call in calls:
+            if forbidden in stable_json(call.get("arguments") or {}):
+                failures.append(f"{call.get('name')} fetched {forbidden}, which was filed after the simulated date")
+                break
     for required in contract.get("requiredTools") or []:
         if required not in sequence:
             failures.append(f"required tool {required} was not called")

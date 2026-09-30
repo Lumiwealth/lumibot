@@ -39,6 +39,7 @@ _BOTSPOT_RESEARCH_TOOLS = [
 NETWORK_TOOL_NAMES = frozenset(
     {
         "http_request",
+        "read_document",
         "rss_fetch",
         "web_search",
         "browser_session_open",

@@ -1292,6 +1292,25 @@ def test_expiration_scoring_rejects_the_unpriced_expiration():
     assert any("2026-08-28" in failure for failure in score["failures"])
 
 
+def test_web_documents_case_fails_when_the_agent_opens_a_report_filed_after_the_simulated_date():
+    case = evals.load_cases({"web_documents_holdings_from_yearly_and_trade_reports"})[0]
+
+    def transcript(urls):
+        calls = [{"name": "read_document", "arguments": {"url": url}} for url in urls]
+        return {
+            "tool_calls": [{"name": "load_skill", "payload": {"skill_name": "web-documents"}}],
+            "fixture_calls": calls + [{"name": "duckdb_query", "arguments": {"sql": "SELECT 1"}}],
+            "submissions": [],
+        }
+
+    index = "https://filings.example.gov/public_disc/financial-pdfs/2026FD.zip"
+    honest = [index, "https://filings.example.gov/reports/1001.pdf", "https://filings.example.gov/reports/2001.pdf"]
+    assert evals.score_machine_contract(case, transcript(honest))["pass"] is True
+    peeked = evals.score_machine_contract(case, transcript(honest + ["https://filings.example.gov/reports/2002.pdf"]))
+    assert peeked["pass"] is False
+    assert any("2002.pdf" in failure for failure in peeked["failures"])
+
+
 class TestRepeatPolicy:
     """A new eval proves itself three times. The ongoing gate runs it once.
 

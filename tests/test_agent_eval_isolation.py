@@ -138,3 +138,21 @@ def test_fixture_process_uses_litellm_bundled_price_map(monkeypatch, tmp_path):
     monkeypatch.delenv("LITELLM_LOCAL_MODEL_COST_MAP", raising=False)
     configure_fixture_environment(tmp_path)
     assert os.environ["LITELLM_LOCAL_MODEL_COST_MAP"] == "True"
+
+
+def test_boundary_lets_an_in_memory_fixture_website_answer_but_not_the_real_web():
+    # The web_documents eval serves a fake filing site from memory. Those
+    # requests never leave the process; a real HTTP transport stays blocked.
+    import httpx
+
+    from lumibot.components.agents.web_tools import WebClient
+
+    fake_site = WebClient(
+        transport=httpx.MockTransport(lambda request: httpx.Response(200, text="index")),
+        resolver=lambda host: ["93.184.216.34"],
+    )
+    real_web = WebClient(resolver=lambda host: ["93.184.216.34"])
+    with fixture_network_boundary():
+        assert fake_site.request("GET", "https://filings.example.gov/2026FD.zip")["text"] == "index"
+        with pytest.raises(RuntimeError, match="external boundary"):
+            real_web.request("GET", "https://filings.example.gov/2026FD.zip")

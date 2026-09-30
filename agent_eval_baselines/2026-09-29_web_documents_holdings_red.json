@@ -1,0 +1,75 @@
+{
+  "case_id": "web_documents_holdings_from_yearly_and_trade_reports",
+  "date": "2026-09-29",
+  "acting_model": "openai/gpt-6-luna",
+  "judge_model": "openai/gpt-6-luna",
+  "method": "Run on the tools as they were before read_document existed (builtins.py, web_tools.py and skills.py from commit 88737b3f). http_request returned the ZIP as base64 and no web-documents skill existed. The case's requiredTools was set to http_request for this run only, because the preflight refuses a case whose required read_document tool is missing (that preflight refusal is itself red).",
+  "customer_reason": "An agent given a website with a ZIP index and PDF reports could not read the ZIP, and treated the download time (today) as the document date, so it refused to answer.",
+  "repetitions": [
+    {
+      "repetition": 3,
+      "machine": {
+        "failures": [
+          "did not load required skill web-documents"
+        ],
+        "pass": false,
+        "tool_sequence": [
+          "http_request",
+          "http_request"
+        ]
+      },
+      "judge": {
+        "pass": false,
+        "reason": "The answer reports no holdings and does not apply reports 1001 and 2001 or show the required ending holdings."
+      },
+      "final_answer": "I can\u2019t reliably determine Dana Rivera\u2019s holdings from the supplied index in this run. The filing index request returned data fetched on **2026-09-30**, after the strategy\u2019s **2026-08-11** cutoff. Using it to identify the newest annual report or newer trade reports could introduce future information, so I won\u2019t infer or list holdings from it.\n\nI placed no trades, as requested. To complete the holdings reconstruction, I\u2019d need an index snapshot available on or before 2026-08-11, or the relevant reports and their dates.\n\nRESULT: No holdings were reported because the available index post-dates the cutoff; no orders were submitted."
+    },
+    {
+      "repetition": 1,
+      "machine": {
+        "failures": [
+          "production AgentManager did not report a completed decision",
+          "did not load required skill web-documents"
+        ],
+        "pass": false,
+        "tool_sequence": [
+          "http_request",
+          "http_request",
+          "browser_session_open",
+          "browser_navigate",
+          "http_request"
+        ]
+      },
+      "judge": {
+        "pass": false,
+        "reason": "The answer does not apply yearly report 1001 or trade report 2001 and does not show the required holdings or MSFT sale."
+      },
+      "final_answer": "I couldn\u2019t reliably determine Dana Rivera\u2019s holdings. The archive request returned a ZIP, but its recorded fetch time was **September 30, 2026**, after the strategy\u2019s **August 11, 2026** as-of time. Using it could introduce future information, so I did not apply its reports or infer any holdings.\n\nRESULT: No trading action taken; the available filing evidence was not safe to use for an August 11, 2026 answer."
+    },
+    {
+      "repetition": 2,
+      "machine": {
+        "failures": [
+          "production AgentManager did not report a completed decision",
+          "did not load required skill web-documents"
+        ],
+        "pass": false,
+        "tool_sequence": [
+          "http_request",
+          "http_request",
+          "load_skill",
+          "web_search",
+          "http_request",
+          "browser_session_open",
+          "browser_navigate",
+          "browser_session_close"
+        ]
+      },
+      "judge": {
+        "pass": false,
+        "reason": "The answer produced no holdings list and did not apply reports 1001 and 2001."
+      },
+      "final_answer": "I couldn\u2019t determine Dana Rivera\u2019s holdings from the supplied index. The ZIP request succeeded, but its contents arrived only as base64 and I couldn\u2019t extract the filing index; the direct `.txt` URL returned 404, and the browser could not resolve the host. Without the index and the referenced report PDFs, I can\u2019t reliably identify the newest yearly report or apply newer trade reports, so I won\u2019t guess at holdings or dollar ranges. No trade was made, consistent with your instruction.\n\nRESULT: No holdings list produced; the filing data could not be accessed in a usable form."
+    }
+  ]
+}

@@ -7,7 +7,7 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Any
 
-BUILTIN_SKILL_NAMES = ("options-trading", "research-data", "stock-trading")
+BUILTIN_SKILL_NAMES = ("options-trading", "research-data", "stock-trading", "web-documents")
 BUILTIN_SKILLS_ROOT = Path(__file__).with_name("skills")
 
 BUILTIN_SKILL_LOADING_INSTRUCTION = (
@@ -20,7 +20,8 @@ BUILTIN_SKILL_LOADING_INSTRUCTION = (
     "SEC research tools, you MUST load the research-data skill and follow it. Call "
     "load_skill with the exact name: `stock-trading` for stocks and ETFs, "
     "`options-trading` for options, and `research-data` for managed research "
-    "tools. Skill loading supplies knowledge; it does not choose a trade or "
+    "tools. Before reading websites or files (PDF, Word, Excel, CSV, ZIP) with "
+    "network tools, load `web-documents` and follow it. Skill loading supplies knowledge; it does not choose a trade or "
     "override active strategy rules."
 )
 

@@ -1102,6 +1102,7 @@ def test_agent_model_call_limit_stops_before_runtime_call(monkeypatch):
 # iron-condor eval regressed from 3/3 to 1/3 when they joined every agent.
 _NETWORK_TOOL_NAMES = {
     "http_request",
+    "read_document",
     "rss_fetch",
     "web_search",
     "browser_session_open",

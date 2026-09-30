@@ -2,6 +2,11 @@
 
 ## 4.6.3 - Unreleased
 
+### Added
+- `read_document` agent tool: reads any file or page at a URL (PDF, Word, Excel, CSV, tab-separated text, JSON, HTML with its links, and ZIP archives with every file inside). Every table in the file is loaded for `duckdb_query`, so agents filter and add up rows with SQL. `find` keeps matching lines and `start`/`next_start` page through long text. ZIPs that unpack past 100 MB are refused. The result does not report the download time as a date, because agents treated it as the document's date and refused to use documents in backtests.
+- `web-documents` built-in skill: how to find a document on a website, read it, do table math with SQL, and in backtests skip every document dated after the backtest time.
+- Agent eval `web_documents_holdings_from_yearly_and_trade_reports`: from a ZIP filing index and PDF reports, work out a member's holdings from the yearly report plus newer trade reports, and never open the report filed after the simulated date. Red on the old tools (3/3), green with `read_document` (3/3).
+
 ### Removed
 - The `house_public_disclosures` agent tool and the House-only code behind it (`lumibot/components/house_ptr.py`, `lumibot/components/disclosure_signals.py`, `lumibot/example_strategies/disclosure_replay.py`). They were built for one example. The Nancy Pelosi example reads the House Clerk website with the generic browser and `http_request` tools, the way any strategy reads any website.
 

@@ -47,6 +47,39 @@ Every demo ends with the same block as a BotSpot ``main.py``: with
 ``BACKTESTING_END`` for the dates), otherwise it trades with the broker in your
 ``.env`` file. See :doc:`strategy_run_modes`.
 
+Backtest tear sheets
+--------------------
+
+GPT-6 Luna, January 5 to 16, 2026, Yahoo daily prices, $100,000 start. SPY rose
+about 1% over the same days. A two-week backtest shows each bot works as written;
+it is not a promise of future returns.
+
+.. list-table::
+   :header-rows: 1
+   :widths: 22 58 20
+
+   * - Demo
+     - What it did
+     - Tear sheet
+   * - M2 Liquidity
+     - Read the Federal Reserve's M2 data, saw it growing, and held TQQQ. Ended at $101,096 (+1.1%).
+     - `Open <tearsheets/m2-liquidity-ai-trading-bot.html>`__
+   * - Trend
+     - Switched between TQQQ and SHV with the trend. Ended at $101,413 (+1.4%). One switch left cash $751 below zero for a moment.
+     - `Open <tearsheets/trend-ai-trading-bot.html>`__
+   * - Momentum and News
+     - Held TQQQ while momentum was up, then SHV. Ended at $99,512 (-0.5%). One switch left cash $751 below zero for a moment.
+     - `Open <tearsheets/momentum-and-news-ai-trading-bot.html>`__
+   * - News Sentiment
+     - Bought stocks with strong news, such as AMZN, BAC, JPM, TMO, and UNH. Ended at $100,884 (+0.9%).
+     - `Open <tearsheets/news-sentiment-ai-trading-bot.html>`__
+   * - Market News
+     - Read the market news, judged it weak, and held SHV. Ended at $100,063 (+0.1%).
+     - `Open <tearsheets/market-news-ai-trading-bot.html>`__
+   * - Make Me Money
+     - Chose the chip ETF SMH on its own and held it. Ended at $100,782 (+0.8%).
+     - `Open <tearsheets/make-me-money-ai-trading-bot.html>`__
+
 What to look at after a run
 ---------------------------
 

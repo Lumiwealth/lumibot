@@ -25,7 +25,7 @@ Run this bot on `BotSpot <https://botspot.trade/marketplace?utm_source=documenta
 Backtest tear sheet
 -------------------
 
-GPT-6 Luna, January 5 to 16, 2026, Yahoo daily prices, $100,000 start. The debate picked AMZN, GOOGL, JPM, LLY, and XOM, and the bot ended at $100,521 (+1%), about even with SPY. Cash never went below $996.
+GPT-6 Luna, January 5 to 16, 2026, Yahoo daily prices, $100,000 start. The debate rotated between AMZN, GOOGL, JPM, LLY, NVDA, V, and XOM, and the bot ended at $99,691 (-0.3%) while SPY rose 1%. Cash never went below $539.
 
 .. image:: ../docs/assets/ai-bot-backtests/bull-vs-bear-ai-stock-trading-bot.png
    :alt: Backtest tear sheet for the Bull vs Bear AI Stock Trading Bot

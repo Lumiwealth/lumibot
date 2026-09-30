@@ -25,7 +25,7 @@ Run this bot on `BotSpot <https://botspot.trade/marketplace?utm_source=documenta
 Backtest tear sheet
 -------------------
 
-GPT-6 Luna, January 5 to 23, 2026, Yahoo daily prices, $100,000 start. Each day the research agent opened CNN's score history in a browser and used the prior day's score. Neutral scores (45 to 55) put 50% in SPY; when the score rose to 58 (greed) on January 12, the bot cut SPY to 25%. It ended at $100,074, about even with SPY. Cash never went below $50,460.
+GPT-6 Luna, January 5 to 23, 2026, Yahoo daily prices, $100,000 start. Each day the research agent opened CNN's score history in a real browser and used the score from the day before. Neutral scores put 50% in SPY; when greed pushed the score above 55, the bot cut SPY to 25%. It ended at $100,074, about even with SPY. Cash never went below $50,460.
 
 .. image:: ../docs/assets/ai-bot-backtests/fear-and-greed-index-trading-bot.png
    :alt: Backtest tear sheet for the Fear and Greed Index Trading Bot

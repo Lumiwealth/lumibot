@@ -25,7 +25,7 @@ Run this bot on `BotSpot <https://botspot.trade/marketplace?utm_source=documenta
 Backtest tear sheet
 -------------------
 
-GPT-6 Luna, January 5 to 9, 2026, Alpaca minute bars, checked hourly, $100,000 start. The bot made real SPY round trips on VWAP bounces (6 fills) and ended at $100,080, about flat, while SPY rose 1%. On the other checks no bounce formed, so it stayed in cash. Cash never went below $1,003.
+GPT-6 Luna, January 5 to 9, 2026, Alpaca minute prices checked hourly, $100,000 start. The bot made three SPY round trips on VWAP bounces and ended at $100,080 (+0.1%) while SPY rose 1%. When no bounce formed it stayed in cash.
 
 .. image:: ../docs/assets/ai-bot-backtests/vwap-strategy-ai-trading-bot.png
    :alt: Backtest tear sheet for the VWAP Strategy AI Trading Bot

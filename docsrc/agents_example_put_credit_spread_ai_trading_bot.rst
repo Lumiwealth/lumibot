@@ -25,7 +25,7 @@ Run this bot on `BotSpot <https://botspot.trade/marketplace?utm_source=documenta
 Backtest tear sheet
 -------------------
 
-GPT-6 Luna, January 5 to 23, 2026, Alpaca option prices, $100,000 start. The bot opened SPY put credit spreads as single two-leg orders, closed them at its rules, and rolled into new ones (14 option fills). It ended at $100,080, about flat, while SPY was about flat too.
+GPT-6 Luna, January 5 to 23, 2026, Alpaca option prices, $100,000 start. The bot sold a 4-contract SPY put spread for $0.44, closed it for $0.24 (about half the credit kept), sold a new one, closed that at its 2x loss limit, and sold a third. Each spread went in as one order and risked about 2% of the account. It ended at $99,976, about flat, while SPY was flat too.
 
 .. image:: ../docs/assets/ai-bot-backtests/put-credit-spread-ai-trading-bot.png
    :alt: Backtest tear sheet for the Put Credit Spread AI Trading Bot

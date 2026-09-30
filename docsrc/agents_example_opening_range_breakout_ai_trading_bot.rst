@@ -27,7 +27,7 @@ Run this bot on `BotSpot <https://botspot.trade/marketplace?utm_source=documenta
 Backtest tear sheet
 -------------------
 
-GPT-6 Luna, January 5 to 9, 2026, Alpaca minute bars, checked hourly, $100,000 start. The bot traded breakouts in TSLA, AMZN, AVGO, COST, DIS, JPM, and UBER with a target and a stop on each (14 fills) and ended at $99,502 (-0.5%) while SPY rose 1%. It held one stock at a time; cash never went below $63,880.
+GPT-6 Luna, January 5 to 9, 2026, Alpaca minute prices checked hourly, $100,000 start. The bot traded breakouts in TSLA, AMZN, MSFT, and NVDA, one stock at a time with a target and a stop, and ended at $100,127 (+0.1%) while SPY rose 1%.
 
 .. image:: ../docs/assets/ai-bot-backtests/opening-range-breakout-ai-trading-bot.png
    :alt: Backtest tear sheet for the Opening Range Breakout AI Trading Bot

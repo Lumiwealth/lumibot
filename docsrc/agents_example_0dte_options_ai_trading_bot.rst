@@ -24,6 +24,18 @@ Run it on BotSpot
 
 Run this bot on `BotSpot <https://botspot.trade/marketplace?utm_source=documentation&utm_medium=docs&utm_campaign=lumibot_ai_examples&utm_content=agents_example_0dte_options_ai_trading_bot>`_ without installing anything. BotSpot runs LumiBot in the cloud, backtests it, and connects it to your broker.
 
+Backtest tear sheet
+-------------------
+
+GPT-6 Luna, January 5 to 6, 2026, Alpaca option prices, $100,000 start. Each morning the bot sold a 2-contract SPY bear call spread that expired that day, for about $0.27 a share. Both days SPY rallied into the short strike, and the bot closed the spread early at its loss limit, near 2 to 3 times the credit because it checks every 15 minutes. It ended at $99,826 (-0.2%). A losing window, shown as it happened.
+
+.. image:: ../docs/assets/ai-bot-backtests/0dte-options-ai-trading-bot.png
+   :alt: Backtest tear sheet for the 0DTE Options AI Trading Bot
+   :width: 100%
+   :target: tearsheets/0dte-options-ai-trading-bot.html
+
+`Open the full tear sheet <tearsheets/0dte-options-ai-trading-bot.html>`__. A short backtest shows the bot works as written. It is not a promise of future returns.
+
 The code
 --------
 

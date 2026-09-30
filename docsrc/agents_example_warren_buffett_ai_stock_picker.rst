@@ -5,7 +5,7 @@ Warren Buffett AI Stock Picker
    :description: An AI stock picker that thinks like Warren Buffett. It reads company filings, hunts for great companies at fair prices, and holds them. Free Python code for LumiBot.
 
 .. image:: ../docs/assets/ai-agent-workflows/warren-buffett-ai-stock-picker.png
-   :alt: Research agent reads company reports and prices, trading agent owns great companies at fair prices, then buys and holds
+   :alt: Research agent reads company reports and prices, skeptic agent attacks each pick, trading agent owns the picks that survive, then buys and holds
    :width: 100%
 
 This bot picks stocks the way Warren Buffett describes in his Berkshire Hathaway letters: buy wonderful businesses at fair prices and hold them for a long time. Why copy that? From 1965 through 2025, Berkshire's stock grew 19.7% a year, versus 10.5% for the S&P 500 (`Berkshire 2025 letter <https://www.berkshirehathaway.com/letters/2025ltr.pdf>`__).
@@ -13,8 +13,9 @@ This bot picks stocks the way Warren Buffett describes in his Berkshire Hathaway
 How it works
 ------------
 
-1. **Research agent** reads each company's latest SEC filings and financial statements. It checks for steady profits, high returns on capital, and a lasting edge, then checks the price: earnings yield, free cash flow yield, P/E, and debt.
-2. **Trading agent** owns the companies the research calls great businesses at a fair price, split about evenly. It holds for the long run and only sells when the business gets worse or the price gets far too high.
+1. **Research agent** reads each company's latest SEC filings and financial statements. It checks for steady profits, high returns on capital, and a lasting edge, then checks the price: earnings yield, free cash flow yield, P/E, and debt. It names the 3 to 5 best mixes of quality and price.
+2. **Skeptic agent**, like Buffett's partner Charlie Munger, attacks each pick: a price that is too high, a shrinking edge, too much debt, or numbers that do not add up. It keeps only the picks that survive.
+3. **Trading agent** owns the survivors, split about evenly. It holds for the long run and only sells when the skeptic drops a stock because the business got worse or the price got far too high.
 
 Change ``universe`` to pick from different companies.
 

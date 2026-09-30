@@ -718,6 +718,13 @@ WAVE32 = (_job("buffett-2agent-v2", "ai_trading_team_warren_buffett_value", "AIT
 WAVE33 = (_job("fear-greed-2agent-v2", "ai_fear_and_greed_trading_bot", "FearAndGreedTradingBot", "2026-01-05", "2026-01-23", calls=80),)
 
 
+# Rob, 2026-09-29: Buffett and Ackman get their challenger back (skeptic / short seller).
+WAVE34 = (
+    _job("buffett-3agent", "ai_trading_team_warren_buffett_value", "AITradingTeamWarrenBuffettValueStrategy", "2026-01-05", "2026-01-16", calls=160),
+    _job("ackman-3agent", "ai_trading_team_bill_ackman_concentrated", "AITradingTeamBillAckmanConcentratedStrategy", "2026-01-05", "2026-01-16", calls=160),
+)
+
+
 def _jobs(wave: str) -> tuple[dict, ...]:
     # "7,8" runs several waves under one parent so the spend cap is shared.
     if "," in wave:

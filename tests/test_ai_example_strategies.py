@@ -65,7 +65,11 @@ def _created_agents(name: str) -> list[dict]:
     agents = []
     for node in ast.walk(_tree(name)):
         if isinstance(node, ast.Call) and ast.unparse(node.func) == "self.agents.create":
-            agents.append({kw.arg: ast.literal_eval(kw.value) if kw.arg != "system_prompt" else None for kw in node.keywords})
+            # Only the name and permission flags matter here; prompts may be any expression.
+            agents.append(
+                {kw.arg: ast.literal_eval(kw.value) for kw in node.keywords
+                 if kw.arg in {"name", "allow_trading", "allow_network"}}
+            )
     return agents
 
 

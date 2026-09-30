@@ -5,7 +5,7 @@ Bill Ackman Portfolio AI Trading Bot
    :description: An AI bot that invests like Bill Ackman. It holds a few big, high-conviction stocks and drops ideas that stop making the cut. Free Python code for LumiBot.
 
 .. image:: ../docs/assets/ai-agent-workflows/bill-ackman-portfolio-ai-trading-bot.png
-   :alt: Research agent finds and attacks the best ideas, trading agent holds the best 3 to 5 stocks, then the trade order
+   :alt: Research agent finds the best ideas, short seller agent attacks each idea, trading agent holds the best 3 to 5, then the trade order
    :width: 100%
 
 This bot invests the way Bill Ackman describes his style at Pershing Square: own a small number of simple, high-quality companies and put real money behind each one. Pershing Square usually keeps most of its money in just 8 to 12 core holdings (`Pershing Square Holdings <https://pershingsquareholdings.com/about-us/>`__), and its value rose 70.2% in 2020, its best year (`2020 annual report <https://assets.pershingsquareholdings.com/2021/04/12201719/Pershing-Square-Holdings-Ltd.-2020-Annual-Report-1.pdf-Letter-Only.pdf>`__).
@@ -13,8 +13,9 @@ This bot invests the way Bill Ackman describes his style at Pershing Square: own
 How it works
 ------------
 
-1. **Research agent** studies each company for simple, predictable businesses that make lots of cash. Then it attacks each idea: too much debt, weak management, strong rivals, or a price that is too high.
-2. **Trading agent** holds the 3 to 5 stocks that survive, with bigger weights on the best ideas. It sells a stock when it drops out of the top 5.
+1. **Research agent** studies each company for simple, predictable businesses that make lots of cash and are priced well, and ranks its top 5 ideas.
+2. **Short seller agent** attacks each idea the way a short seller would: too much debt, weak management, strong rivals, accounting that looks off, or a price that is too high. It says which ideas survive.
+3. **Trading agent** holds the 3 to 5 ideas that survived, with bigger weights on the best ones. It sells a stock when it no longer survives the attack.
 
 Change ``universe`` to pick from different companies.
 

@@ -49,7 +49,7 @@ Good to know
 
 * Members of Congress can take up to 45 days to report a trade, so the bot always sees trades late.
 * Reports show dollar ranges, such as $1,000,001 to $5,000,000. The bot uses the middle of each range.
-* In a backtest the website also shows reports from after the test date. So in backtests, and anywhere a browser is not installed, the research agent uses LumiBot's built-in ``house_public_disclosures`` tool instead. It reads the same House data but only returns reports that were public on each test day.
+* In a backtest the website also shows reports from after the test date. The research agent reads the date on each report and skips any report filed after the test day.
 * Pelosi said on November 6, 2025 that she will not run for re-election in 2026 (`NBC News <https://www.nbcnews.com/politics/congress/nancy-pelosi-first-female-speaker-house-wont-seek-re-election-congress-rcna239324>`__). Her reports stop after she leaves office, so change ``last_name`` to keep the bot trading.
 
 See :doc:`agents_examples` for more AI trading bots and :doc:`strategy_run_modes` for backtest and live runs.

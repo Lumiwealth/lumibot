@@ -48,7 +48,7 @@ def test_new_flagship_examples_are_in_navigation_with_historical_data_warnings()
     ):
         assert slug in examples
     assert "45 days" in pelosi
-    assert "house_public_disclosures" in pelosi and "public on each test day" in pelosi
+    assert "skips any report filed after the test day" in pelosi
     assert "disclosures-clerk.house.gov" in pelosi
     assert "SEC" in insider and "before each test day" in insider
     assert "only shows today" in fear_greed and "day before each test day" in fear_greed
@@ -112,7 +112,6 @@ def test_every_external_data_agent_tool_declares_temporal_behavior():
         "options_find_expiration",
         "options_check_spread_profit",
         "alpaca_news",
-        "house_public_disclosures",
         "http_request",
         "rss_fetch",
         "get_indicator",

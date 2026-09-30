@@ -282,33 +282,6 @@ class ProductionFixture:
                 return chains
 
             self.strategy.get_chains = get_chains
-        if fixture.name == "congress_public_filings":
-            self.strategy.house_disclosure_records = [
-                {
-                    "Ticker": "AAPL",
-                    "Politician": "Nancy Pelosi",
-                    "Transaction": "P",
-                    "TransactionDate": "2026-07-28",
-                    "ReportDate": "2026-08-01",
-                    "Amount": "$1,001 - $15,000",
-                    "side": "buy",
-                    "asset_code": "ST",
-                    "doc_id": "111",
-                    "source": "house_ptr",
-                },
-                {
-                    "Ticker": "ZZZZ",
-                    "Politician": "Nancy Pelosi",
-                    "Transaction": "P",
-                    "TransactionDate": "2026-09-10",
-                    "ReportDate": "2026-09-15",
-                    "Amount": "$1,001 - $15,000",
-                    "side": "buy",
-                    "asset_code": "ST",
-                    "doc_id": "222",
-                    "source": "house_ptr",
-                },
-            ]
         self.strategy.fundamentals = _recorded_sec_fundamentals(self.strategy, self.root / "sec")
         self.manager = self.strategy.agents
         self.manager.replay_cache.root = self.root / "replay"

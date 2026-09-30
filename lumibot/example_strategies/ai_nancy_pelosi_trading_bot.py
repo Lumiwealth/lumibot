@@ -25,8 +25,6 @@ class NancyPelosiTradingBot(Strategy):
                 "https://disclosures-clerk.house.gov/FinancialDisclosure. Click Search, type the last name "
                 "from the context, pick the filing year, and press Search. Search this year and last year. "
                 "Each 'PTR' row is a trade report. Get each report's PDF link and read it with http_request. "
-                "In a backtest, or if the browser is not available, call house_public_disclosures(last_name) "
-                "for each year instead; it only returns reports that were public by today. "
                 "A trade line shows the ticker in parentheses, P for a buy or S for a sell, and a dollar "
                 "range. Skip options [OP], gifts, and exchanges. Skip any report filed after today's date. "
                 "Return one line per ticker: dollars bought, dollars sold (use range midpoints), and the "

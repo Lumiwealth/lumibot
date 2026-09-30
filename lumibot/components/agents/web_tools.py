@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import base64
 import hashlib
+import io
 import ipaddress
 import json
 import os
@@ -236,6 +237,14 @@ class _PinnedAddressTransport(httpx.BaseTransport):
         self._host_transports.clear()
         if self._shared_transport is not None:
             self._shared_transport.close()
+
+
+def _pdf_text(content: bytes) -> str:
+    """Plain text of a PDF, page by page, so an agent can read any PDF it fetches."""
+    from pypdf import PdfReader
+
+    reader = PdfReader(io.BytesIO(content))
+    return "\n".join((page.extract_text() or "") for page in reader.pages).replace("\x00", "")
 
 
 class WebClient:
@@ -493,10 +502,8 @@ class WebClient:
             elif content_type.startswith("text/") or "xml" in content_type or "html" in content_type:
                 result["text"] = content.decode(text_encoding, errors="replace")
             elif "pdf" in content_type.lower() or content.startswith(b"%PDF"):
-                from lumibot.components.house_ptr import pdf_bytes_to_text, reflow_ptr_text
-
                 try:
-                    extracted = reflow_ptr_text(pdf_bytes_to_text(content)).strip()
+                    extracted = _pdf_text(content).strip()
                 except Exception as exc:
                     result["text_error"] = f"Could not extract PDF text: {type(exc).__name__}: {exc}"
                     result["body_base64"] = base64.b64encode(content).decode("ascii")

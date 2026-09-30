@@ -1292,32 +1292,6 @@ def test_expiration_scoring_rejects_the_unpriced_expiration():
     assert any("2026-08-28" in failure for failure in score["failures"])
 
 
-def test_public_filings_scoring_rejects_a_future_filing_in_the_tool_result():
-    case = evals.load_cases({"congress_public_filings_only"})[0]
-    transcript = {
-        "tool_calls": [],
-        "fixture_calls": [{"name": "house_public_disclosures"}],
-        "submissions": [],
-        "tool_results": [
-            {
-                "name": "house_public_disclosures",
-                "payload": {
-                    "ok": True,
-                    "as_of": "2026-08-11T14:35:00+00:00",
-                    "filings": [
-                        {"ticker": "AAPL", "published_at": "2026-08-01T00:00:00+00:00", "doc_id": "111"},
-                        {"ticker": "ZZZZ", "published_at": "2026-09-15T00:00:00+00:00", "doc_id": "222"},
-                    ],
-                },
-            }
-        ],
-        "final_positions": [],
-    }
-    score = evals.score_machine_contract(case, transcript)
-    assert score["pass"] is False
-    assert any("222" in failure or "after as_of" in failure for failure in score["failures"])
-
-
 class TestRepeatPolicy:
     """A new eval proves itself three times. The ongoing gate runs it once.
 

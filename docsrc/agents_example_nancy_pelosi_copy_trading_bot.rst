@@ -2,13 +2,13 @@ Nancy Pelosi Copy Trading Bot
 =============================
 
 .. meta::
-   :description: This AI bot copies Nancy Pelosi's whole portfolio, call options included: same stocks, same strike, same expiration, scaled to your account. Free Python code for LumiBot.
+   :description: This AI bot copies Nancy Pelosi's whole portfolio, call options included: her stocks plus calls on the same stocks with the same expiration, sized to your account. Free Python code for LumiBot.
 
 .. image:: ../docs/assets/ai-agent-workflows/nancy-pelosi-copy-trading-bot.png
    :alt: Research agent reads Pelosi's stocks and call options, portfolio agent scales them to your account, trading agent buys the same stocks and call options
    :width: 100%
 
-Most Pelosi copy bots only buy her stocks. But much of her trading is call options: in her January 23, 2026 report alone she bought call options on Alphabet, Amazon, Apple and Nvidia that expire in January 2027 (`House Clerk report <https://disclosures-clerk.house.gov/public_disc/ptr-pdfs/2026/20033725.pdf>`__). This bot copies those too. It holds the same stocks and the same call options, with the same strike price and the same expiration date, scaled to the size of your account.
+Most Pelosi copy bots only buy her stocks. But much of her trading is call options: in her January 23, 2026 report alone she bought call options on Alphabet, Amazon, Apple and Nvidia that expire in January 2027 (`House Clerk report <https://disclosures-clerk.house.gov/public_disc/ptr-pdfs/2026/20033725.pdf>`__). This bot copies those too: it holds her stocks, plus calls on the same stocks with the same expiration dates, sized to your account.
 
 Only want her stocks? Use the :doc:`agents_example_nancy_pelosi_trading_bot`.
 
@@ -17,8 +17,8 @@ How it works
 
 1. **Research agent** goes to the House Clerk website (disclosures-clerk.house.gov) and opens the yearly list of filings. It finds Pelosi's newest yearly report, which lists every stock and call option she owned on December 31, and every trade report filed since.
 2. The research agent works out what she owns today: every stock, and every call option with its number of contracts, strike price and expiration date. It skips options that have already expired and only uses reports filed before today.
-3. **Portfolio agent** scales her holdings to your account. If a stock is 10% of her portfolio, the bot puts 10% of your account into it. Her calls are a small slice of her money but control a lot of stock, so the bot always holds at least one contract of each call she owns, as long as one contract costs less than 5% of your account.
-4. **Trading agent** buys and sells the same stocks and call options, with the same strike price and expiration date, and checks that every order filled.
+3. **Portfolio agent** sizes everything to your account. By default 20% goes to her calls and the rest to her stocks, in her proportions. Her calls cost $9,000 to $18,000 a contract, more than a normal account can spread around, so the bot uses her exact strike when it fits and otherwise the nearest cheaper strike with the same expiration date.
+4. **Trading agent** buys and sells the stocks and calls in the plan, and checks that every order filled.
 5. The bot checks once a day, but it only trades when she files a new report, so it does not trade every day.
 
 Want a different member of Congress? Change ``last_name`` from ``"Pelosi"`` to any House member's last name.
@@ -49,8 +49,9 @@ Put these in your ``.env`` file: ``OPENAI_API_KEY``, and your broker keys (for e
 Good to know
 ------------
 
-* Her calls are expensive: in January 2026 one contract of her January 2027 calls cost $9,400 to $18,500. Under the 5% rule, you need an account of about $400,000 to hold one of each. A smaller account copies her stocks and skips the calls it cannot afford.
-* Call options can lose all their value by the expiration date. The bot copies her options exactly, so it takes the same risk she does.
+* Change ``options_share`` to put more or less of your account into calls. Set it to ``0`` to copy only her stocks.
+* A cheaper strike is a bigger bet on the stock going up than her strike: it is cheaper because it pays off only above a higher price.
+* Call options can lose all their value by the expiration date.
 * Members of Congress can take up to 45 days to report a trade, so the bot always buys late, often at a different price than she paid.
 * Reports show dollar ranges, such as $1,000,001 to $5,000,000. The bot uses the middle of each range.
 * The yearly report comes out in May and shows what she owned on December 31. Until the new one is filed, the bot starts from the year before and adds every trade since.

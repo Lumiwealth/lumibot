@@ -801,6 +801,14 @@ WAVE97 = (
 )
 
 
+# Copy bot with an options slice (options_share 20%) and the nearest affordable strike,
+# at the account sizes customers actually use.
+WAVE98 = (
+    _job("pelosi-copy-2026-100k", "ai_nancy_pelosi_copy_trading_bot", "NancyPelosiCopyTradingBot", "2026-01-02", "2026-09-25", "alpaca", 4000),
+    {**_job("pelosi-copy-2026-10k", "ai_nancy_pelosi_copy_trading_bot", "NancyPelosiCopyTradingBot", "2026-01-02", "2026-09-25", "alpaca", 4000), "budget": 10_000},
+)
+
+
 def _jobs(wave: str) -> tuple[dict, ...]:
     # "7,8" runs several waves under one parent so the spend cap is shared.
     if "," in wave:

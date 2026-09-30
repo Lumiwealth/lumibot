@@ -22,6 +22,18 @@ Run it on BotSpot
 
 Run this bot on `BotSpot <https://botspot.trade/marketplace?utm_source=documentation&utm_medium=docs&utm_campaign=lumibot_ai_examples&utm_content=agents_example_vwap_strategy_ai_trading_bot>`_ without installing anything. BotSpot runs LumiBot in the cloud, backtests it, and connects it to your broker.
 
+Backtest tear sheet
+-------------------
+
+GPT-6 Luna, January 5 to 9, 2026, Alpaca minute bars, checked hourly, $100,000 start. The bot made real SPY round trips on VWAP bounces (6 fills) and ended at $100,080, about flat, while SPY rose 1%. On the other checks no bounce formed, so it stayed in cash. Cash never went below $1,003.
+
+.. image:: ../docs/assets/ai-bot-backtests/vwap-strategy-ai-trading-bot.png
+   :alt: Backtest tear sheet for the VWAP Strategy AI Trading Bot
+   :width: 100%
+   :target: tearsheets/vwap-strategy-ai-trading-bot.html
+
+`Open the full tear sheet <tearsheets/vwap-strategy-ai-trading-bot.html>`__. A short backtest shows the bot works as written. It is not a promise of future returns.
+
 The code
 --------
 

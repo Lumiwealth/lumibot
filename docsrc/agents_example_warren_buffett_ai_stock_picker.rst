@@ -23,6 +23,18 @@ Run it on BotSpot
 
 Run this bot on `BotSpot <https://botspot.trade/marketplace?utm_source=documentation&utm_medium=docs&utm_campaign=lumibot_ai_examples&utm_content=agents_example_warren_buffett_ai_stock_picker>`_ without installing anything. BotSpot runs LumiBot in the cloud, backtests it, and connects it to your broker.
 
+Backtest tear sheet
+-------------------
+
+GPT-6 Luna, January 5 to 16, 2026, Yahoo daily prices and SEC filings, $100,000 start. The bot bought AXP, GOOGL, JPM, PG, and V and held them, ending at $97,542 (-2.5%) while SPY rose 1%. Two weeks is far too short to judge a buy-and-hold stock picker. Cash never went below $1,920.
+
+.. image:: ../docs/assets/ai-bot-backtests/warren-buffett-ai-stock-picker.png
+   :alt: Backtest tear sheet for the Warren Buffett AI Stock Picker
+   :width: 100%
+   :target: tearsheets/warren-buffett-ai-stock-picker.html
+
+`Open the full tear sheet <tearsheets/warren-buffett-ai-stock-picker.html>`__. A short backtest shows the bot works as written. It is not a promise of future returns.
+
 The code
 --------
 

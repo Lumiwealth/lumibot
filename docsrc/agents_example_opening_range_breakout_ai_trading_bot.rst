@@ -24,6 +24,18 @@ Run it on BotSpot
 
 Run this bot on `BotSpot <https://botspot.trade/marketplace?utm_source=documentation&utm_medium=docs&utm_campaign=lumibot_ai_examples&utm_content=agents_example_opening_range_breakout_ai_trading_bot>`_ without installing anything. BotSpot runs LumiBot in the cloud, backtests it, and connects it to your broker.
 
+Backtest tear sheet
+-------------------
+
+GPT-6 Luna, January 5 to 9, 2026, Alpaca minute bars, checked hourly, $100,000 start. The bot traded breakouts in TSLA, AMZN, AVGO, COST, DIS, JPM, and UBER with a target and a stop on each (14 fills) and ended at $99,502 (-0.5%) while SPY rose 1%. It held one stock at a time; cash never went below $63,880.
+
+.. image:: ../docs/assets/ai-bot-backtests/opening-range-breakout-ai-trading-bot.png
+   :alt: Backtest tear sheet for the Opening Range Breakout AI Trading Bot
+   :width: 100%
+   :target: tearsheets/opening-range-breakout-ai-trading-bot.html
+
+`Open the full tear sheet <tearsheets/opening-range-breakout-ai-trading-bot.html>`__. A short backtest shows the bot works as written. It is not a promise of future returns.
+
 The code
 --------
 

@@ -2557,6 +2557,8 @@ def _bind_read_document(strategy: Any, manager: Any) -> BoundTool:
             result["files"] = [{"name": entry["name"], "kind": entry["kind"]} for entry in document["files"][:15]]
         if document.get("unsupported"):
             result["unsupported"] = document["unsupported"]
+        if document.get("table_error"):
+            result["table_error"] = document["table_error"]
         tables = [
             manager.duckdb.register_document_table(label, frame, source=str(result.get("url") or url))
             for label, frame in document["tables"]

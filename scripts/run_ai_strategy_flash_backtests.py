@@ -192,7 +192,7 @@ def _child_env(source: str) -> dict[str, str]:
     else:
         env["BACKTESTING_DATA_SOURCE"] = "yahoo"
     # Generic data tools (Federal Reserve data, market news) read their own keys.
-    for key in ("FRED_API_KEY", "ALPACA_API_KEY", "ALPACA_API_SECRET"):
+    for key in ("FRED_API_KEY",):
         if not env.get(key) and _env_file_value(".env", key):
             env[key] = _env_file_value(".env", key)
     return env

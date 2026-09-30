@@ -22,6 +22,11 @@ The primary way to give your agent access to external data is the `@agent_tool` 
 
 LumiBot also includes built-in FRED tools for macro research. Those tools require `FRED_API_KEY` and use official FRED/ALFRED realtime parameters so backtests do not accidentally see future macro revisions.
 
+The generic `read_document` tool reads web pages, PDF, Word, Excel, CSV/TSV, JSON and ZIP files. Word,
+Excel and ZIP archives share a 100 MB unpacked-size ceiling. Loaded tables have distinct names even
+when sheets or files share a label, so later reads cannot overwrite earlier holdings. Malformed
+CSV/TSV remains readable as text and returns `table_error`; it does not silently discard rows.
+
 LumiBot combines agent reasoning with simulated time, account state, orders, and inspectable backtest artifacts. See the [current project comparison](https://lumibot.lumiwealth.com/ai_trading_project_comparison.html) for overlapping capabilities and source links.
 
 Related docs:
@@ -179,8 +184,8 @@ record only the file name and content hash, never an absolute personal path.
 
 ## 0DTE Options AI Trading Bot
 
-`ai_0dte_options_trading_bot.py` sells a same-day SPX bear call spread with two
-agents. The research agent checks SPX and today's expiring calls every 5
+`ai_0dte_options_trading_bot.py` sells a same-day SPY bear call spread with two
+agents. The research agent checks SPY and today's expiring calls every 15
 minutes. The trading agent opens one spread a day as one multi-leg order and
 closes it early at the profit target, the loss limit, a strike breach, or the
 last 10 minutes. The rules live in the two prompts; the example does not load

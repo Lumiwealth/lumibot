@@ -179,3 +179,10 @@ Known limits
   returns the previous session as the newest daily bar.
 - On a free key, stock history comes from SIP (all US exchanges), but the latest 15 minutes
   are not available. End backtests at least one full day before today.
+.. note::
+
+   LumiBot's portable release tests exercise the Alpaca adapter, backtest orders,
+   fills and cash accounting with SDK-response fixtures. These tests need no API
+   subscription. Live historical-data integration tests are marked ``apitest``
+   and require your own authorized Alpaca credentials; fixture tests do not
+   establish live-provider availability.

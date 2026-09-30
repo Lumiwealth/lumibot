@@ -83,7 +83,8 @@ class NancyPelosiCopyTradingBot(Strategy):
             context={"holdings": research.summary, "options_share": self.parameters["options_share"]},
         )
         self.agents["trader"].run(task_prompt="Rebalance to the plan.", context={"plan": plan.summary})
-        self.vars.set("newest_filing", newest)
+        if newest:
+            self.vars.set("newest_filing", newest)
 
 
 if __name__ == "__main__":

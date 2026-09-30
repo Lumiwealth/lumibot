@@ -361,3 +361,6 @@ def test_pelosi_bots_rebalance_only_when_her_newest_filing_changes(name):
     assert run_day("RESULT: NOTHING NEW") == ["researcher"]
     assert run_day("Newest filing: May 15, 2026 — DocID 10075701. NOTHING NEW.") == ["researcher", "portfolio", "trader"]
     assert run_day("Newest filing: May 15, 2026 — DocID 10075701. NOTHING NEW.") == ["researcher"]
+    # A partial answer without an ID must not erase the last known filing.
+    assert run_day("Holdings: AAPL. The filing ID could not be read.") == ["researcher", "portfolio", "trader"]
+    assert run_day("Newest filing: May 15, 2026 — DocID 10075701. NOTHING NEW.") == ["researcher"]

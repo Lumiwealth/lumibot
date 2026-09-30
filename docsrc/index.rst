@@ -390,7 +390,7 @@ Each page says in plain English what the bot does, how its agents work together,
 3. :doc:`agents_example_warren_buffett_ai_stock_picker` -- reads company reports and owns great businesses at fair prices.
 4. :doc:`agents_example_bill_ackman_portfolio_ai_trading_bot` -- holds a few high-conviction stocks after attacking each idea.
 5. :doc:`agents_example_fear_and_greed_index_trading_bot` -- reads CNN's Fear & Greed Index in a browser, then buys fear and sells greed.
-6. :doc:`agents_example_0dte_options_ai_trading_bot` -- sells a same-day SPX call spread and watches it every 5 minutes.
+6. :doc:`agents_example_0dte_options_ai_trading_bot` -- sells a same-day SPY call spread and watches it every 15 minutes.
 7. :doc:`agents_example_citadel_sector_pods` -- sector agents pitch ideas to a risk manager and a portfolio manager.
 8. :doc:`agents_example_ray_dalio_idea_meritocracy` -- growth, inflation, and debt agents argue before a trader builds a macro ETF basket.
 9. :doc:`agents_example_tqqq_strategy_ai_trading_bot` -- a bull agent and a bear agent debate leveraged ETFs like TQQQ and SQQQ.

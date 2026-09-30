@@ -148,6 +148,14 @@ def test_csv_becomes_a_table():
     assert dict(result["tables"])["holdings.csv"]["shares"].sum() == 15
 
 
+def test_malformed_csv_keeps_text_without_publishing_a_partial_table():
+    content = b"ticker,shares\nAAPL,10\nMSFT,5,unexpected\n"
+    result = read_document_bytes(content, name="holdings.csv")
+    assert result["text"] == content.decode()
+    assert result["tables"] == []
+    assert result["table_error"]
+
+
 def test_html_page_becomes_text_and_absolute_links():
     page = b"""<html><head><script>var x=1;</script></head><body><h1>Reports</h1>
       <a href="/public_disc/ptr-pdfs/2026/20033725.pdf">Pelosi PTR</a></body></html>"""
@@ -165,6 +173,26 @@ def test_zip_bomb_is_refused():
         archive.writestr("huge.txt", b"0" * (120 * 1024 * 1024))
     with pytest.raises(ValueError, match="too large"):
         read_document_bytes(buffer.getvalue(), name="bomb.zip")
+
+
+@pytest.mark.parametrize("factory,name", [(_docx, "letter.docx"), (_xlsx, "book.xlsx")])
+def test_office_archives_obey_the_unpacked_size_limit(factory, name, monkeypatch):
+    from lumibot.components.agents import documents
+
+    monkeypatch.setattr(documents, "MAX_UNPACKED_BYTES", 100)
+    with pytest.raises(ValueError, match="too large"):
+        read_document_bytes(factory(), name=name)
+
+
+def test_document_tables_with_the_same_label_remain_independently_queryable():
+    import pandas as pd
+
+    layer = DuckDBQueryLayer(SimpleNamespace())
+    first = layer.register_document_table("Holdings", pd.DataFrame({"shares": [10]}), source="https://example.com/a.xlsx")
+    second = layer.register_document_table("Holdings", pd.DataFrame({"shares": [20]}), source="https://example.com/b.xlsx")
+    assert first["table_name"] != second["table_name"]
+    assert layer.query(sql=f"SELECT shares FROM {first['table_name']}")["rows"] == [{"shares": 10}]
+    assert layer.query(sql=f"SELECT shares FROM {second['table_name']}")["rows"] == [{"shares": 20}]
 
 
 def _bound_tool():

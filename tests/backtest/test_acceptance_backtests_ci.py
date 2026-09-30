@@ -1,5 +1,12 @@
 """
-CI acceptance backtests (ThetaData) — runs the *same Strategy Library demo scripts* we use locally.
+Optional API benchmarks — runs the original Strategy Library demo scripts.
+
+These are remote historical-data integrations, not portable release tests.
+They require active vendor subscriptions plus downloader/S3 credentials. An
+inactive service must not block the normal offline gate. Select them explicitly
+with ``-m apitest`` only when those services are available. Stock acceptance
+coverage using the Alpaca adapter is in test_alpaca_release_backtest.py; options
+execution and fees remain covered by the portable broker regression tests.
 
 User requirement (non-negotiable):
 - These tests must execute the Strategy Library acceptance demos (copied verbatim into
@@ -31,9 +38,9 @@ from pathlib import Path
 import pandas as pd
 import pytest
 
-# Acceptance backtests are regular backtests that must be queue-free (warm S3 invariant)
-# and run in CI.
-pytestmark = [pytest.mark.acceptance_backtest]
+# Classification corrected in 4.6.3: mutable remote data and paid subscriptions
+# are API dependencies, even when most of the data happens to be cached in S3.
+pytestmark = [pytest.mark.acceptance_backtest, pytest.mark.apitest]
 
 # Headline metrics are written at 0.01% resolution in `*_tearsheet.csv`.
 #

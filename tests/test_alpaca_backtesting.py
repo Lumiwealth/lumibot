@@ -23,7 +23,8 @@ if not ALPACA_TEST_CONFIG['API_KEY'] or ALPACA_TEST_CONFIG['API_KEY'] == '<your 
     pytest.skip("These tests requires an Alpaca API key", allow_module_level=True)
 
 logger = logging.getLogger(__name__)
-pytestmark = pytest.mark.apitest
+# 4.6.3: retain legacy assertions, require only the provider under test.
+pytestmark = [pytest.mark.apitest, pytest.mark.alpaca]
 
 
 # LEGACY TEST CLASS (created Feb 2025)

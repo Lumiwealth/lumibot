@@ -67,7 +67,14 @@ def read_document_bytes(
     elif kind in {"csv", "tsv"}:
         text = content.decode("utf-8-sig", errors="replace")
         result["text"] = text
-        result["tables"].append((name or f"data.{kind}", pd.read_csv(io.StringIO(text), sep="\t" if kind == "tsv" else ",")))
+        try:
+            frame = pd.read_csv(io.StringIO(text), sep="\t" if kind == "tsv" else ",")
+        except (pd.errors.ParserError, pd.errors.EmptyDataError) as error:
+            # Keep the readable source, but never silently drop malformed rows
+            # and present an incomplete holdings table as complete.
+            result["table_error"] = str(error)
+        else:
+            result["tables"].append((name or f"data.{kind}", frame))
     elif kind == "text":
         result["text"] = content.decode("utf-8-sig", errors="replace")
     else:
@@ -119,7 +126,9 @@ def _pdf_text(content: bytes) -> str:
 
 
 def _docx_text(content: bytes) -> str:
-    root = ET.fromstring(zipfile.ZipFile(io.BytesIO(content)).read("word/document.xml"))
+    archive = zipfile.ZipFile(io.BytesIO(content))
+    _check_unpacked_size(archive)
+    root = ET.fromstring(archive.read("word/document.xml"))
     body = root.find(f"{_W}body")
     lines = []
     for block in list(body) if body is not None else []:
@@ -142,6 +151,7 @@ def _column_index(ref: str) -> int:
 
 def _xlsx_tables(content: bytes) -> list[tuple[str, pd.DataFrame]]:
     archive = zipfile.ZipFile(io.BytesIO(content))
+    _check_unpacked_size(archive)
     names = set(archive.namelist())
     shared = []
     if "xl/sharedStrings.xml" in names:
@@ -191,11 +201,16 @@ def _number(text: str | None) -> Any:
     return int(number) if number.is_integer() else number
 
 
+def _check_unpacked_size(archive: zipfile.ZipFile) -> None:
+    # Office documents are ZIPs too; check before any XML is decompressed.
+    if sum(info.file_size for info in archive.infolist()) > MAX_UNPACKED_BYTES:
+        raise ValueError(f"Archive is too large to unpack (over {MAX_UNPACKED_BYTES // (1024 * 1024)} MB).")
+
+
 def _read_zip(content: bytes, result: dict[str, Any], *, depth: int) -> None:
     archive = zipfile.ZipFile(io.BytesIO(content))
+    _check_unpacked_size(archive)
     members = [info for info in archive.infolist() if not info.is_dir()]
-    if sum(info.file_size for info in members) > MAX_UNPACKED_BYTES:
-        raise ValueError(f"ZIP is too large to unpack (over {MAX_UNPACKED_BYTES // (1024 * 1024)} MB).")
     parts = []
     for info in members[:MAX_ZIP_FILES]:
         data = archive.read(info.filename)

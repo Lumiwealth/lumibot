@@ -308,7 +308,10 @@ link on it, so an agent can find a report on a website and follow its link.
 returned ``next_start`` pages through long text. Every table in the file (a
 CSV, an Excel sheet, a table file inside a ZIP) is loaded for ``duckdb_query``,
 so the agent filters and adds up rows with SQL instead of by hand. A ZIP that
-unpacks to more than 100 MB is refused. No tool is built for one website: the
+unpacks to more than 100 MB is refused; the same limit applies to Word and Excel
+archives. Tables with the same label receive distinct names so earlier reads
+remain queryable. A malformed CSV/TSV retains its text and returns
+``table_error`` instead of silently dropping rows. No tool is built for one website: the
 :doc:`agents_example_nancy_pelosi_trading_bot` reads the House Clerk's yearly ZIP
 index and PDF reports with ``read_document``. The ``web-documents`` skill tells
 agents how, including the backtest rule: use each document's own date and skip

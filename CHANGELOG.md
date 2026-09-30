@@ -1,6 +1,6 @@
 # Changelog
 
-## 4.6.3 - Unreleased
+## 4.6.3 - 2026-09-30
 
 ### Changed
 - AI example runners explicitly distinguish `Strategy.backtest(...)` from broker execution with `Trader.run_all()` / `strategy.run_live()`, with a new execution-mode guide and updated onboarding.
@@ -23,6 +23,9 @@
 - `http_request` turns any PDF into plain page text. It used to run House trade-report cleanup on every PDF.
 
 ### Fixed
+- Document readers apply the unpacked-size limit to Word and Excel archives as well as ZIPs; tables with identical sheet/file labels stay independently queryable. Malformed CSV/TSV keeps readable text and exposes a parse error instead of losing the document or silently dropping rows.
+- Pelosi examples preserve the last known filing ID when a partial research answer omits it. Historical research runner jobs receive Alpaca credentials only when Alpaca is selected and its account mode has been validated.
+- The standard release gate no longer runs paid-service historical benchmarks as offline tests. Those integrations use the existing `apitest` marker; portable Alpaca adapter/backtest acceptance covers real orders, fills and cash without vendor subscriptions, and existing options limit/fee regressions remain required. CI and publishing no longer inject ThetaData/downloader/S3 credentials into the portable test gate.
 - Multi-leg option limit backtests fill every leg together only when the package's net price meets the credit/debit limit. Missing quotes use current-bar opens for all legs; stale or future bars cannot partially fill a package.
 - Backtests charge the buy fee when closing a short option (`buy_to_close`). That side was in neither fee list, so the short legs of every closing spread or iron condor paid no commission and option backtests looked cheaper than live trading.
 

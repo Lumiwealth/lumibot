@@ -58,7 +58,12 @@ def test_every_ai_source_states_what_direct_execution_does():
     for path in _ai_sources():
         # Four exact bytes are published as BotSpot main.py; their run-mode
         # labels live in the Sphinx pages so this docs fix cannot change them.
-        if path.name in PUBLISHED_SOURCE_FILES or path.name in ONE_SWITCH_FILES:
+        # Files with the standard IS_BACKTESTING block say what they do in code.
+        if (
+            path.name in PUBLISHED_SOURCE_FILES
+            or path.name in ONE_SWITCH_FILES
+            or "from lumibot.credentials import IS_BACKTESTING" in path.read_text()
+        ):
             continue
         docstring = ast.get_docstring(ast.parse(path.read_text())) or ""
         assert f"Direct run: {_direct_mode(path)}." in docstring, path.name

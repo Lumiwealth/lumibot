@@ -44,6 +44,19 @@ REBUILT = {
         "AITradingTeamBullBearLeveragedETFStrategy", ["researcher", "bull", "bear", "trader"], set()
     ),
 }
+# Older one-agent demos, rebuilt 2026-09-29 on LumiBot's generic tools (they
+# used to hand-write their own FRED, price, and news tools with requests).
+REBUILT.update({
+    "agent_m2_liquidity.py": ("M2LiquidityStrategy", ["trader"], set()),
+    "agent_m2_liquidity_openai.py": ("M2LiquidityOpenAIStrategy", ["trader"], set()),
+    "agent_m2_liquidity_anthropic.py": ("M2LiquidityAnthropicStrategy", ["trader"], set()),
+    "agent_m2_liquidity_grok.py": ("M2LiquidityGrokStrategy", ["trader"], set()),
+    "agent_macro_risk.py": ("MacroRiskStrategy", ["trader"], set()),
+    "agent_momentum_allocator.py": ("MomentumAllocatorStrategy", ["trader"], set()),
+    "agent_news_sentiment.py": ("NewsSentimentStrategy", ["trader"], set()),
+    "agent_alpaca_news_builtin.py": ("AlpacaNewsBuiltinStrategy", ["trader"], set()),
+    "agent_discretionary.py": ("DiscretionaryTraderStrategy", ["trader"], set()),
+})
 BULL_BEAR_FILES = {"ai_trading_team_bull_bear_large_cap_stocks.py", "ai_trading_team_bull_bear_leveraged_etf.py"}
 
 # Citadel and Ray Dalio run on BotSpot with a live track record and stay
@@ -71,6 +84,15 @@ def _created_agents(name: str) -> list[dict]:
                  if kw.arg in {"name", "allow_trading", "allow_network"}}
             )
     return agents
+
+
+def test_no_ai_example_writes_its_own_tools():
+    # Rob, 2026-09-29: examples show off LumiBot's generic tools. A tool written
+    # for one example (or one website) is never allowed, in the example or in core.
+    for path in [*EXAMPLES.glob("ai_*.py"), *EXAMPLES.glob("agent_*.py")]:
+        source = path.read_text()
+        for banned in ("@agent_tool", "agent_tool(", "import requests", "tools=[", "mcp_servers="):
+            assert banned not in source, (path.name, banned)
 
 
 def test_no_ai_example_imports_example_helpers():
@@ -104,7 +126,7 @@ def test_rebuilt_example_is_short_and_imports_only_lumibot(name):
 def test_rebuilt_example_has_exactly_one_trading_agent(name):
     _, _, browsing = REBUILT[name]
     agents = _created_agents(name)
-    assert len(agents) >= 2, name
+    assert agents, name
     traders = [agent["name"] for agent in agents if agent["allow_trading"]]
     assert len(traders) == 1, (name, traders)
     web = {agent["name"] for agent in agents if agent.get("allow_network")}
@@ -193,7 +215,7 @@ def test_research_is_handed_to_the_trader(name):
     strategy = object.__new__(strategy_class)
     agents = _Agents()
     strategy._agents_for_test = agents
-    strategy.__dict__["parameters"] = dict(strategy_class.parameters)
+    strategy.__dict__["parameters"] = dict(getattr(strategy_class, "parameters", {}) or {})
     strategy.get_datetime = lambda: datetime(2026, 1, 6, 11, 30, tzinfo=ZoneInfo("America/New_York"))
     type(strategy).agents = property(lambda self: self._agents_for_test)
     try:
@@ -203,9 +225,10 @@ def test_research_is_handed_to_the_trader(name):
 
     trader = next(agent["name"] for agent in _created_agents(name) if agent["allow_trading"])
     called = [call[0] for call in agents.calls]
-    assert called[-1] == trader and len(called) >= 2, called
-    earlier = {f"{agent} summary" for agent in called[:-1]}
-    assert earlier & set(map(str, agents.calls[-1][1].values())), "the trader must get the other agents' work"
+    assert called[-1] == trader, called
+    if len(called) > 1:
+        earlier = {f"{agent} summary" for agent in called[:-1]}
+        assert earlier & set(map(str, agents.calls[-1][1].values())), "the trader must get the other agents' work"
     if name in BULL_BEAR_FILES:
         assert {"bull", "bear"} <= set(called)
 
@@ -218,7 +241,7 @@ def test_intraday_bots_wait_for_the_first_bars(name):
     strategy = object.__new__(strategy_class)
     agents = _Agents()
     strategy._agents_for_test = agents
-    strategy.__dict__["parameters"] = dict(strategy_class.parameters)
+    strategy.__dict__["parameters"] = dict(getattr(strategy_class, "parameters", {}) or {})
     strategy.get_datetime = lambda: datetime(2026, 1, 6, 9, 30, tzinfo=ZoneInfo("America/New_York"))
     type(strategy).agents = property(lambda self: self._agents_for_test)
     try:

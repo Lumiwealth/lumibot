@@ -191,6 +191,10 @@ def _child_env(source: str) -> dict[str, str]:
             raise SystemExit("POLYGON_API_KEY is missing from .env")
     else:
         env["BACKTESTING_DATA_SOURCE"] = "yahoo"
+    # Generic data tools (Federal Reserve data, market news) read their own keys.
+    for key in ("FRED_API_KEY", "ALPACA_API_KEY", "ALPACA_API_SECRET"):
+        if not env.get(key) and _env_file_value(".env", key):
+            env[key] = _env_file_value(".env", key)
     return env
 
 
@@ -737,6 +741,20 @@ WAVE35 = (
     _job("ackman-plain", "ai_trading_team_bill_ackman_concentrated", "AITradingTeamBillAckmanConcentratedStrategy", "2026-01-05", "2026-01-16", calls=160),
     _job("large-cap-plain", "ai_trading_team_bull_bear_large_cap_stocks", "AITradingTeamBullBearLargeCapStocksStrategy", "2026-01-05", "2026-01-16", calls=200),
     _job("tqqq-plain", "ai_trading_team_bull_bear_leveraged_etf", "AITradingTeamBullBearLeveragedETFStrategy", "2026-01-05", "2026-01-16", calls=200),
+)
+
+
+# Older one-agent demos rebuilt on generic tools (no hand-written FRED/price/news tools).
+WAVE36 = tuple(
+    _job(f"{name}-generic", module, cls, "2026-01-05", "2026-01-16", calls=40)
+    for name, module, cls in (
+        ("m2", "agent_m2_liquidity", "M2LiquidityStrategy"),
+        ("trend", "agent_macro_risk", "MacroRiskStrategy"),
+        ("momentum-news", "agent_momentum_allocator", "MomentumAllocatorStrategy"),
+        ("news-sentiment", "agent_news_sentiment", "NewsSentimentStrategy"),
+        ("market-news", "agent_alpaca_news_builtin", "AlpacaNewsBuiltinStrategy"),
+        ("make-money", "agent_discretionary", "DiscretionaryTraderStrategy"),
+    )
 )
 
 

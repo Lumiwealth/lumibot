@@ -55,14 +55,14 @@ The following list covers the AI strategy source files in
 ``lumibot/example_strategies``. These labels describe **direct file
 execution**, not the capability of the importable strategy class.
 
-**Backtest only:** ``agent_alpaca_news_builtin.py``,
+**Backtest only:** ``ai_researcher_trader.py``.
+
+**Backtest or live, chosen by the environment:** ``agent_alpaca_news_builtin.py``,
 ``agent_discretionary.py``, ``agent_m2_liquidity.py``,
 ``agent_m2_liquidity_anthropic.py``, ``agent_m2_liquidity_grok.py``,
 ``agent_m2_liquidity_openai.py``, ``agent_macro_risk.py``,
-``agent_momentum_allocator.py``, ``agent_news_sentiment.py``, and
-``ai_researcher_trader.py``.
-
-**Backtest or live, chosen by the environment:** ``ai_nancy_pelosi_trading_bot.py``,
+``agent_momentum_allocator.py``, ``agent_news_sentiment.py``,
+``ai_nancy_pelosi_trading_bot.py``,
 ``ai_insider_trading_bot.py``, ``ai_fear_and_greed_trading_bot.py``,
 ``ai_iron_condor.py``, ``ai_credit_spread.py``,
 ``ai_0dte_options_trading_bot.py``, ``ai_vwap.py``,

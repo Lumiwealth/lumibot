@@ -2,6 +2,8 @@
 
 ## 4.6.3 - 2026-09-30
 
+Deploy marker: `950916e438598b66e8bca0540f2b7c321c182cb3`
+
 ### Changed
 - AI example runners explicitly distinguish `Strategy.backtest(...)` from broker execution with `Trader.run_all()` / `strategy.run_live()`, with a new execution-mode guide and updated onboarding.
 - AI examples use reusable agents and plain-language prompts, with dedicated trading/risk ownership where the strategy needs it. Shared trading-agent guidance covers target weights, sell-before-buy cash budgeting, existing positions and pending orders, and bounded option risk.

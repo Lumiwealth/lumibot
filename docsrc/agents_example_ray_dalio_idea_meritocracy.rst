@@ -26,6 +26,18 @@ Run it on BotSpot
 
 Run this team on `BotSpot <https://botspot.trade/marketplace?utm_source=documentation&utm_medium=docs&utm_campaign=lumibot_ai_examples&utm_content=agents_example_ray_dalio_idea_meritocracy>`_ without installing anything. BotSpot runs LumiBot in the cloud, backtests it, and connects it to your broker.
 
+Backtest tear sheet
+-------------------
+
+GPT-6 Luna, January 5 to 16, 2026, Yahoo daily prices, $100,000 start. The team built a macro mix of SPY, EEM, GLD, IEF, and SHV and ended at $101,483 (+1%), about even with SPY. Cash never went below $262. The live paper track record on BotSpot runs the Gemini model shown in the code.
+
+.. image:: ../docs/assets/ai-bot-backtests/ray-dalio-idea-meritocracy.png
+   :alt: Backtest tear sheet for the Ray Dalio Idea Meritocracy AI Trading Team
+   :width: 100%
+   :target: tearsheets/ray-dalio-idea-meritocracy.html
+
+`Open the full tear sheet <tearsheets/ray-dalio-idea-meritocracy.html>`__. A short backtest shows the team works as written. It is not a promise of future returns.
+
 The code
 --------
 

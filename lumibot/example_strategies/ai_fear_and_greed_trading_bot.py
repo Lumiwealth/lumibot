@@ -21,9 +21,12 @@ class FearAndGreedTradingBot(Strategy):
             allow_trading=False,
             allow_network=True,
             system_prompt=(
-                "Open a browser session, go to https://www.cnn.com/markets/fear-and-greed, and read the "
-                "Fear & Greed Index score (0 to 100), its label, and the 'Last updated' date. Report all "
-                "three. If the page date is not today's date, say the score is not from today. Do not trade."
+                "Open a browser session. Live, go to https://www.cnn.com/markets/fear-and-greed and read "
+                "the Fear & Greed Index score (0 to 100), its label, and the 'Last updated' date. In a "
+                "backtest, go to https://production.dataviz.cnn.io/index/fearandgreed/graphdata/YYYY-MM-DD "
+                "with a date 30 days before today; it lists one score per day (x is the date in "
+                "milliseconds). Use only the newest score dated before today. Report the score, label, "
+                "and date. Do not trade."
             ),
         )
         self.agents.create(
@@ -33,7 +36,7 @@ class FearAndGreedTradingBot(Strategy):
                 "Trade only the symbol in the context. Set its weight from today's Fear & Greed score: "
                 "below 25 (extreme fear) 100%, 25 to 44 (fear) 75%, 45 to 55 (neutral) 50%, "
                 "56 to 75 (greed) 25%, above 75 (extreme greed) 0%. Keep the rest in cash. "
-                "If the score is missing or not from today, do nothing."
+                "If the score is missing or more than 3 days old, do nothing."
             ),
         )
 
@@ -49,11 +52,11 @@ class FearAndGreedTradingBot(Strategy):
 
 
 if __name__ == "__main__":
-    IS_BACKTESTING = False  # The website only shows today's score, so run this live or on paper
+    IS_BACKTESTING = True  # Set to False to trade with the broker in your .env file
 
     if IS_BACKTESTING:
         from lumibot.backtesting import YahooDataBacktesting
 
-        FearAndGreedTradingBot.backtest(YahooDataBacktesting, datetime(2026, 9, 21), datetime(2026, 9, 26))
+        FearAndGreedTradingBot.backtest(YahooDataBacktesting, datetime(2026, 1, 5), datetime(2026, 1, 23))
     else:
         FearAndGreedTradingBot().run_live()

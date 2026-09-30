@@ -25,6 +25,18 @@ Run it on BotSpot
 
 Run this bot on `BotSpot <https://botspot.trade/marketplace?utm_source=documentation&utm_medium=docs&utm_campaign=lumibot_ai_examples&utm_content=agents_example_insider_trading_bot>`_ without installing anything. BotSpot runs LumiBot in the cloud, backtests it, and connects it to your broker.
 
+Backtest tear sheet
+-------------------
+
+GPT-6 Luna, January 5 to 23, 2026, Yahoo daily prices, $100,000 start. The bot bought all ten watchlist stocks and ended at $100,926 (+1%) while SPY was about flat. Cash never went below $389. The research agent read the SEC reports each day and found no open-market insider buys in that window, so the bot held the watchlist evenly.
+
+.. image:: ../docs/assets/ai-bot-backtests/insider-trading-bot.png
+   :alt: Backtest tear sheet for the Insider Trading Bot
+   :width: 100%
+   :target: tearsheets/insider-trading-bot.html
+
+`Open the full tear sheet <tearsheets/insider-trading-bot.html>`__. A short backtest shows the bot works as written. It is not a promise of future returns.
+
 The code
 --------
 

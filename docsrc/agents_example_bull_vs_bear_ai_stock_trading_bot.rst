@@ -22,6 +22,18 @@ Run it on BotSpot
 
 Run this bot on `BotSpot <https://botspot.trade/marketplace?utm_source=documentation&utm_medium=docs&utm_campaign=lumibot_ai_examples&utm_content=agents_example_bull_vs_bear_ai_stock_trading_bot>`_ without installing anything. BotSpot runs LumiBot in the cloud, backtests it, and connects it to your broker.
 
+Backtest tear sheet
+-------------------
+
+GPT-6 Luna, January 5 to 16, 2026, Yahoo daily prices, $100,000 start. The debate picked AMZN, GOOGL, JPM, LLY, and XOM, and the bot ended at $100,521 (+1%), about even with SPY. Cash never went below $996.
+
+.. image:: ../docs/assets/ai-bot-backtests/bull-vs-bear-ai-stock-trading-bot.png
+   :alt: Backtest tear sheet for the Bull vs Bear AI Stock Trading Bot
+   :width: 100%
+   :target: tearsheets/bull-vs-bear-ai-stock-trading-bot.html
+
+`Open the full tear sheet <tearsheets/bull-vs-bear-ai-stock-trading-bot.html>`__. A short backtest shows the bot works as written. It is not a promise of future returns.
+
 The code
 --------
 

@@ -23,6 +23,18 @@ Run it on BotSpot
 
 Run this bot on `BotSpot <https://botspot.trade/marketplace?utm_source=documentation&utm_medium=docs&utm_campaign=lumibot_ai_examples&utm_content=agents_example_bill_ackman_portfolio_ai_trading_bot>`_ without installing anything. BotSpot runs LumiBot in the cloud, backtests it, and connects it to your broker.
 
+Backtest tear sheet
+-------------------
+
+GPT-6 Luna, January 5 to 16, 2026, Yahoo daily prices, $100,000 start. The bot held GOOGL and MSFT, later added UBER, and traded BKNG and CMG, ending at $101,486 (+1%), about even with SPY. Cash never went below $490.
+
+.. image:: ../docs/assets/ai-bot-backtests/bill-ackman-portfolio-ai-trading-bot.png
+   :alt: Backtest tear sheet for the Bill Ackman Portfolio AI Trading Bot
+   :width: 100%
+   :target: tearsheets/bill-ackman-portfolio-ai-trading-bot.html
+
+`Open the full tear sheet <tearsheets/bill-ackman-portfolio-ai-trading-bot.html>`__. A short backtest shows the bot works as written. It is not a promise of future returns.
+
 The code
 --------
 

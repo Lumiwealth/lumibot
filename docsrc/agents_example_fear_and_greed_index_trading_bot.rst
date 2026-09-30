@@ -15,7 +15,7 @@ How it works
 
 1. **Research agent** opens a real Chrome browser, goes to cnn.com/markets/fear-and-greed, and reads the score from 0 (extreme fear) to 100 (extreme greed) and the date it was last updated.
 2. **Trading agent** sets how much of your account is in SPY: 100% below 25, 75% from 25 to 44, 50% from 45 to 55, 25% from 56 to 75, and 0% above 75. The rest stays in cash.
-3. If the score is missing or is not from today, the trading agent does nothing. The bot repeats this once a day.
+3. If the score is missing or more than 3 days old, the trading agent does nothing. The bot repeats this once a day.
 
 Run it on BotSpot
 -----------------
@@ -39,12 +39,12 @@ Run it yourself
    patchright install chromium
    python -m lumibot.example_strategies.ai_fear_and_greed_trading_bot
 
-Add ``OPENAI_API_KEY`` and your broker keys to your ``.env`` file, for example ``ALPACA_API_KEY``, ``ALPACA_API_SECRET``, and ``ALPACA_IS_PAPER=true``. This file starts live (``IS_BACKTESTING = False``), because the website only shows today's score.
+Add ``OPENAI_API_KEY`` to your ``.env`` file. The file runs a backtest first. To trade, set ``IS_BACKTESTING = False``: the bot then trades with the broker in your ``.env`` file, for example ``ALPACA_API_KEY``, ``ALPACA_API_SECRET``, and ``ALPACA_IS_PAPER=true`` for paper trading.
 
 Good to know
 ------------
 
-* A backtest cannot see the score from past days, because the website only shows today's number. In a backtest the bot reads today's page, sees the date does not match, and holds cash. Use paper trading to test it.
+* CNN's page only shows today's score. In a backtest the research agent opens CNN's daily score history in the browser instead and uses only the score from the day before each test day. The history also shows later days, so this rule lives in the prompt, not in code.
 * Change the percentages in the trading agent's prompt to make the bot more or less aggressive.
 
 See :doc:`agents_examples` for more AI trading bots and :doc:`strategy_run_modes` for backtest and live runs.

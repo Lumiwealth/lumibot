@@ -22,6 +22,18 @@ Run it on BotSpot
 
 Run this bot on `BotSpot <https://botspot.trade/marketplace?utm_source=documentation&utm_medium=docs&utm_campaign=lumibot_ai_examples&utm_content=agents_example_put_credit_spread_ai_trading_bot>`_ without installing anything. BotSpot runs LumiBot in the cloud, backtests it, and connects it to your broker.
 
+Backtest tear sheet
+-------------------
+
+GPT-6 Luna, January 5 to 23, 2026, Alpaca option prices, $100,000 start. The bot opened and managed real SPY put credit spreads as single multi-leg orders (10 option fills) and ended at $99,840, about flat, while SPY was about flat too. Cash never went below $99,940.
+
+.. image:: ../docs/assets/ai-bot-backtests/put-credit-spread-ai-trading-bot.png
+   :alt: Backtest tear sheet for the Put Credit Spread AI Trading Bot
+   :width: 100%
+   :target: tearsheets/put-credit-spread-ai-trading-bot.html
+
+`Open the full tear sheet <tearsheets/put-credit-spread-ai-trading-bot.html>`__. A short backtest shows the bot works as written. It is not a promise of future returns.
+
 The code
 --------
 

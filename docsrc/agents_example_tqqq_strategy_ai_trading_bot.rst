@@ -22,6 +22,18 @@ Run it on BotSpot
 
 Run this bot on `BotSpot <https://botspot.trade/marketplace?utm_source=documentation&utm_medium=docs&utm_campaign=lumibot_ai_examples&utm_content=agents_example_tqqq_strategy_ai_trading_bot>`_ without installing anything. BotSpot runs LumiBot in the cloud, backtests it, and connects it to your broker.
 
+Backtest tear sheet
+-------------------
+
+GPT-6 Luna, January 5 to 16, 2026, Yahoo daily prices, $100,000 start. The bot rotated between UPRO, UDOW, TNA, SOXL, FAS, ERX, and LABU, never holding an ETF and its opposite together, and ended at $102,836 (+3%) while SPY rose 1%. Cash never went below $543.
+
+.. image:: ../docs/assets/ai-bot-backtests/tqqq-strategy-ai-trading-bot.png
+   :alt: Backtest tear sheet for the TQQQ Strategy AI Trading Bot
+   :width: 100%
+   :target: tearsheets/tqqq-strategy-ai-trading-bot.html
+
+`Open the full tear sheet <tearsheets/tqqq-strategy-ai-trading-bot.html>`__. A short backtest shows the bot works as written. It is not a promise of future returns.
+
 The code
 --------
 

@@ -51,7 +51,7 @@ def test_new_flagship_examples_are_in_navigation_with_historical_data_warnings()
     assert "house_public_disclosures" in pelosi and "public on each test day" in pelosi
     assert "disclosures-clerk.house.gov" in pelosi
     assert "SEC" in insider and "before each test day" in insider
-    assert "only shows today" in fear_greed and "holds cash" in fear_greed
+    assert "only shows today" in fear_greed and "day before each test day" in fear_greed
 
 
 def test_old_handoff_is_explicitly_superseded_by_implemented_architecture():

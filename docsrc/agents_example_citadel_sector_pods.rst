@@ -24,6 +24,18 @@ Run it on BotSpot
 
 Run this team on `BotSpot <https://botspot.trade/marketplace?utm_source=documentation&utm_medium=docs&utm_campaign=lumibot_ai_examples&utm_content=agents_example_citadel_sector_pods>`_ without installing anything. BotSpot runs LumiBot in the cloud, backtests it, and connects it to your broker.
 
+Backtest tear sheet
+-------------------
+
+GPT-6 Luna (set with ``AI_TRADING_TEAM_MODEL``), January 5 to 16, 2026, Yahoo daily prices, $100,000 start. The team rotated across sector ETFs such as XLC, XLE, XLF, XLI, XLV, and XLB and ended at $101,680 (+2%) while SPY rose 1%. Cash stayed near zero, lowest $33 in the daily stats. The live paper track record on BotSpot runs the Gemini model shown in the code.
+
+.. image:: ../docs/assets/ai-bot-backtests/citadel-sector-pods.png
+   :alt: Backtest tear sheet for the Citadel Sector Pods AI Trading Team
+   :width: 100%
+   :target: tearsheets/citadel-sector-pods.html
+
+`Open the full tear sheet <tearsheets/citadel-sector-pods.html>`__. A short backtest shows the team works as written. It is not a promise of future returns.
+
 The code
 --------
 

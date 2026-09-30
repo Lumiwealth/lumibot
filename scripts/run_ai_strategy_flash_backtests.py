@@ -714,6 +714,10 @@ WAVE32 = (_job("buffett-2agent-v2", "ai_trading_team_warren_buffett_value", "AIT
 )
 
 
+# Fear and Greed v1 read only today's page in backtests; v2 reads CNN's daily history in the browser.
+WAVE33 = (_job("fear-greed-2agent-v2", "ai_fear_and_greed_trading_bot", "FearAndGreedTradingBot", "2026-01-05", "2026-01-23", calls=80),)
+
+
 def _jobs(wave: str) -> tuple[dict, ...]:
     # "7,8" runs several waves under one parent so the spend cap is shared.
     if "," in wave:

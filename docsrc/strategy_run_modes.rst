@@ -72,8 +72,7 @@ execution**, not the capability of the importable strategy class.
 ``ai_trading_team_bull_bear_leveraged_etf.py``. Each ends with
 ``IS_BACKTESTING = True``. Leave it ``True`` to run the backtest dates in the
 file. Set it to ``False`` to call ``run_live()``, which trades with the broker
-named in your ``.env`` file (paper or live, as that file says). The Fear and
-Greed bot starts with ``False`` because the website only shows today's score.
+named in your ``.env`` file (paper or live, as that file says).
 
 **Backtest and broker, chosen by the environment:**
 ``ai_trading_team_citadel_sector_pods.py``,

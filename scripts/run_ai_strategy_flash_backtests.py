@@ -824,6 +824,13 @@ WAVE100 = (
 )
 
 
+# v2 read "newest filing of any kind" as anyone's filing; now the member's own newest filing.
+WAVE101 = (
+    _job("pelosi-stocks-switches-v3", "ai_nancy_pelosi_trading_bot", "NancyPelosiTradingBot", "2026-05-04", "2026-08-28", calls=3000),
+    _job("pelosi-copy-switches-v3", "ai_nancy_pelosi_copy_trading_bot", "NancyPelosiCopyTradingBot", "2026-05-04", "2026-08-28", "alpaca", 3000),
+)
+
+
 def _jobs(wave: str) -> tuple[dict, ...]:
     # "7,8" runs several waves under one parent so the spend cap is shared.
     if "," in wave:

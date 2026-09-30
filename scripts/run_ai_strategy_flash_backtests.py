@@ -245,7 +245,7 @@ def _run_one(job: dict) -> int:
         datasource,
         backtesting_start=start,
         backtesting_end=end,
-        budget=100_000,
+        budget=job.get("budget", 100_000),
         parameters=job["parameters"],
         show_plot=False,
         show_tearsheet=False,
@@ -789,7 +789,9 @@ WAVE93 = (_job("pelosi-copy-3agent-smoke-v2", "ai_nancy_pelosi_copy_trading_bot"
 # After the option-window and calculator fixes: final code for the tear sheets.
 WAVE94 = (_job("pelosi-copy-3agent-smoke-v3", "ai_nancy_pelosi_copy_trading_bot", "NancyPelosiCopyTradingBot", "2026-01-26", "2026-01-29", "alpaca", 400),)
 WAVE95 = (_job("pelosi-stocks-2026-final", "ai_nancy_pelosi_trading_bot", "NancyPelosiTradingBot", "2026-01-02", "2026-09-25", calls=4000),)
-WAVE96 = (_job("pelosi-copy-2026-final", "ai_nancy_pelosi_copy_trading_bot", "NancyPelosiCopyTradingBot", "2026-01-02", "2026-09-25", "alpaca", 4000),)
+# One contract of her January 2027 calls costs $9,400 to $18,500, over 5% of a $100k account,
+# so the copy bot needs about $1M to hold them.
+WAVE96 = ({**_job("pelosi-copy-2026-final", "ai_nancy_pelosi_copy_trading_bot", "NancyPelosiCopyTradingBot", "2026-01-02", "2026-09-25", "alpaca", 4000), "budget": 1_000_000},)
 
 
 def _jobs(wave: str) -> tuple[dict, ...]:

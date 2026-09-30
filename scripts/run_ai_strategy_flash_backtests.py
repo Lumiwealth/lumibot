@@ -782,6 +782,16 @@ WAVE91 = (_job("pelosi-stocks-2026", "ai_nancy_pelosi_trading_bot", "NancyPelosi
 WAVE92 = (_job("pelosi-copy-2026", "ai_nancy_pelosi_copy_trading_bot", "NancyPelosiCopyTradingBot", "2026-01-02", "2026-09-25", "alpaca", 4000),)
 
 
+# Copy bot smoke after the option sizing fix: first run builds stocks and her 1/23/2026 calls.
+WAVE93 = (_job("pelosi-copy-3agent-smoke-v2", "ai_nancy_pelosi_copy_trading_bot", "NancyPelosiCopyTradingBot", "2026-01-26", "2026-01-29", "alpaca", 400),)
+
+
+# After the option-window and calculator fixes: final code for the tear sheets.
+WAVE94 = (_job("pelosi-copy-3agent-smoke-v3", "ai_nancy_pelosi_copy_trading_bot", "NancyPelosiCopyTradingBot", "2026-01-26", "2026-01-29", "alpaca", 400),)
+WAVE95 = (_job("pelosi-stocks-2026-final", "ai_nancy_pelosi_trading_bot", "NancyPelosiTradingBot", "2026-01-02", "2026-09-25", calls=4000),)
+WAVE96 = (_job("pelosi-copy-2026-final", "ai_nancy_pelosi_copy_trading_bot", "NancyPelosiCopyTradingBot", "2026-01-02", "2026-09-25", "alpaca", 4000),)
+
+
 def _jobs(wave: str) -> tuple[dict, ...]:
     # "7,8" runs several waves under one parent so the spend cap is shared.
     if "," in wave:

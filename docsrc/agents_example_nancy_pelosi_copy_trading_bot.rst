@@ -17,8 +17,8 @@ How it works
 
 1. **Research agent** goes to the House Clerk website (disclosures-clerk.house.gov) and opens the yearly list of filings. It finds Pelosi's newest yearly report, which lists every stock and call option she owned on December 31, and every trade report filed since.
 2. The research agent works out what she owns today: every stock, and every call option with its number of contracts, strike price and expiration date. It skips options that have already expired and only uses reports filed before today.
-3. **Portfolio agent** scales her holdings to your account. If a call option is 5% of her portfolio, the bot puts 5% of your account into the same call.
-4. **Trading agent** buys and sells the same stocks and call options, and checks that every order filled. If one contract costs more than its share of your account, it skips that option.
+3. **Portfolio agent** scales her holdings to your account. If a stock is 10% of her portfolio, the bot puts 10% of your account into it. Her calls are a small slice of her money but control a lot of stock, so the bot always holds at least one contract of each call she owns, as long as one contract costs less than 5% of your account.
+4. **Trading agent** buys and sells the same stocks and call options, with the same strike price and expiration date, and checks that every order filled.
 5. The bot checks once a day, but it only trades when she files a new report, so it does not trade every day.
 
 Want a different member of Congress? Change ``last_name`` from ``"Pelosi"`` to any House member's last name.

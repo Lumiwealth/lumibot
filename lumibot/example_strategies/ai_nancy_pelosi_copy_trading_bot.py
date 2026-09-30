@@ -31,7 +31,8 @@ class NancyPelosiCopyTradingBot(Strategy):
                 "only use filings dated before today. Start from the newest yearly report, then apply every stock "
                 "and option trade dated after the December 31 it covers. List every stock and call option the "
                 "member still owns with its dollar value range; for each call option give the number of contracts, "
-                "the strike price, and the expiration date. Leave out options that have expired, real estate, "
+                "the strike price, the expiration date, and its dollar range (from the yearly report, or the trade "
+                "amount in the trade report that bought it). Leave out options that have expired, real estate, "
                 "private companies, funds, and bonds. End with the date of the newest report you used. If your "
                 "notes show you already reported that same newest report, reply only NOTHING NEW. Do not trade."
             ),
@@ -44,7 +45,9 @@ class NancyPelosiCopyTradingBot(Strategy):
                 "that holding. Each holding's weight is its value divided by the total value of all holdings. For "
                 "a stock, the target is that percent of the account in shares. For a call option, the target is "
                 "that percent of the account spent on the same call: same stock, same strike price, same expiration "
-                "date, as many contracts as fit. Return one line per holding with its target percent. Do not trade."
+                "date. Her calls are a small share of her money but control a lot of stock, so always hold at least "
+                "one contract of each call she owns when one contract costs less than 5% of the account. Do the math "
+                "with a calculator, not in your head. Return one line per holding with its target. Do not trade."
             ),
         )
         self.agents.create(
@@ -55,9 +58,8 @@ class NancyPelosiCopyTradingBot(Strategy):
                 "(same strike price and expiration date) for options. Sell every holding that is not in the plan "
                 "and buy every holding in the plan you do not own yet. Only change a holding you already own when "
                 "it is more than 2 percentage points away from its target, so the account does not trade every "
-                "day. If a call costs more than its target, skip it. Sell before you "
-                "buy, never short, never sell options you do not own, and never spend more cash than you have. "
-                "Check that every order filled."
+                "day. Sell before you buy, never short, never sell options you do not own, and never spend more "
+                "cash than you have. Check that every order filled."
             ),
         )
 

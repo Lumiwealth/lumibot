@@ -240,3 +240,16 @@ def test_read_document_results_fit_the_agent_tool_result_limit():
 
     found = tool.function(url="https://clerk.example/list", find="Report 12")
     assert [link["text"] for link in found["links"]] == [f"Report {n}" for n in (12, 120, 121, 122, 123, 124, 125, 126, 127, 128, 129)]
+
+
+def test_the_table_tool_is_a_calculator_for_portfolio_weights():
+    # A portfolio agent once scaled stocks 1,000x too small doing the math in its head.
+    strategy = SimpleNamespace()
+    tool = BuiltinTools.duckdb.query().binder(strategy, SimpleNamespace(duckdb=DuckDBQueryLayer(strategy)))
+    assert "VALUES" in tool.description and "calculator" in tool.description.lower()
+
+    rows = tool.function(
+        sql="SELECT ticker, ROUND(100 * mid / SUM(mid) OVER (), 2) AS pct "
+        "FROM (VALUES ('AAPL', 15000000.5), ('GOOGL', 15000000.5), ('AB', 3000000.5)) AS h(ticker, mid) ORDER BY ticker"
+    )["rows"]
+    assert rows == [{"ticker": "AAPL", "pct": 45.45}, {"ticker": "AB", "pct": 9.09}, {"ticker": "GOOGL", "pct": 45.45}]

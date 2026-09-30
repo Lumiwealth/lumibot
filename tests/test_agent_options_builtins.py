@@ -1058,3 +1058,44 @@ def test_close_mode_is_documented_on_both_multileg_tools():
     for definition in (BuiltinTools.options.calculate_multileg_price(), BuiltinTools.orders.submit_multileg()):
         description = " ".join(definition.binder(strategy, manager).description.split())
         assert "action='close'" in description
+
+
+class _NinetyDayChainSource:
+    """Like AlpacaBacktesting: lists 90 days of expirations unless a window hint is set."""
+
+    def __init__(self):
+        self.windows = []
+
+    def get_chains(self, asset):
+        constraints = getattr(self, "_chain_constraints", None) or {}
+        last = constraints.get("max_expiration_date") or date(2026, 4, 30)
+        self.windows.append(last)
+        expirations = [day for day in (date(2026, 2, 20), date(2026, 4, 17), date(2027, 1, 15)) if day <= last]
+        return {"Multiplier": 100, "Exchange": "SMART",
+                "Chains": {"CALL": {day.isoformat(): [100.0, 150.0] for day in expirations}, "PUT": {}}}
+
+
+class _LeapStrategy(_OptionsStrategy):
+    def __init__(self):
+        super().__init__()
+        self.broker = SimpleNamespace(data_source=_NinetyDayChainSource())
+
+    def get_datetime(self):
+        return datetime(2026, 1, 26, 15, tzinfo=timezone.utc)
+
+    def get_chains(self, asset):
+        return self.broker.data_source.get_chains(asset)
+
+
+def test_option_tools_can_see_expirations_more_than_90_days_out_in_a_backtest():
+    # Backtest chains list 90 days by default, so a copy of a January 2027 LEAP
+    # found no contract in January 2026. The tools now widen the window on request.
+    strategy = _LeapStrategy()
+    chain_tool = BuiltinTools.options.get_chain().binder(strategy, None)
+    strikes_tool = BuiltinTools.options.get_strikes().binder(strategy, None)
+
+    assert "2027-01-15" not in chain_tool.function(symbol="GOOGL")["call_expirations"]
+    wide = chain_tool.function(symbol="GOOGL", max_expiration="2027-06-30")
+    assert "2027-01-15" in wide["call_expirations"]
+    assert strikes_tool.function(symbol="GOOGL", expiration="2027-01-15", right="call")["strikes"] == [100.0, 150.0]
+    assert not hasattr(strategy.broker.data_source, "_chain_constraints")

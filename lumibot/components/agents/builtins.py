@@ -2,6 +2,7 @@ import hashlib
 import json
 import math
 import os
+from contextlib import contextmanager
 from datetime import date, datetime, timedelta, timezone
 from importlib import import_module
 from typing import Any, Literal
@@ -1537,15 +1538,52 @@ def _bind_historical_prices(strategy: Any, manager: Any) -> BoundTool:
     )
 
 
+@contextmanager
+def _chain_window(strategy: Any, max_expiration: date | None):
+    """Let a backtest chain list expirations out to ``max_expiration``.
+
+    Backtest data sources list about 90 days of expirations by default, so a
+    one-year option (a LEAP) is invisible unless the window is widened. Live
+    brokers list every expiration and ignore the hint.
+    """
+    broker = getattr(strategy, "broker", None)
+    data_source = getattr(broker, "data_source", None)
+    if max_expiration is None or data_source is None:
+        yield
+        return
+    missing = object()
+    previous = getattr(data_source, "_chain_constraints", missing)
+    constraints = dict(previous) if isinstance(previous, dict) else {}
+    current = constraints.get("max_expiration_date")
+    if current is None or current < max_expiration:
+        constraints["max_expiration_date"] = max_expiration
+    data_source._chain_constraints = constraints
+    try:
+        yield
+    finally:
+        if previous is missing:
+            try:
+                delattr(data_source, "_chain_constraints")
+            except AttributeError:
+                pass
+        else:
+            data_source._chain_constraints = previous
+
+
 def _bind_options_get_chain(strategy: Any, manager: Any) -> BoundTool:
     def get_chain(
         *,
         symbol: str,
         underlying_asset_type: Literal["stock", "index"] = "stock",
         include_strikes: bool = False,
+        max_expiration: str | None = None,
     ) -> dict[str, Any]:
         underlying = _underlying_asset(strategy, symbol=symbol, asset_type=underlying_asset_type)
-        chains = strategy.get_chains(underlying)
+        window = _coerce_expiration(max_expiration) if max_expiration else None
+        if max_expiration and not isinstance(window, date):
+            raise ValueError("max_expiration must use YYYY-MM-DD format.")
+        with _chain_window(strategy, window):
+            chains = strategy.get_chains(underlying)
         if not chains:
             return {
                 "symbol": symbol.upper(),
@@ -1596,7 +1634,8 @@ def _bind_options_get_chain(strategy: Any, manager: Any) -> BoundTool:
         name="options_get_chain",
         description=(
             "Retrieve the option chain available for one underlying through LumiBot's configured broker or backtest data source. "
-            "Arguments: symbol, optional underlying_asset_type='stock' or 'index', optional include_strikes. "
+            "Arguments: symbol, optional underlying_asset_type='stock' or 'index', optional include_strikes, optional "
+            "max_expiration (YYYY-MM-DD) to list expirations further out than about 90 days, for example a one-year call. "
             "The default compact response lists call and put expirations plus strike counts and ranges. Set include_strikes=true only when you need every strike for every expiration. "
             "Use this before choosing option contracts. Never invent an expiration or strike that is absent from this result. "
             "Example: options_get_chain(symbol='SPY', include_strikes=false)."
@@ -1618,7 +1657,8 @@ def _bind_options_get_strikes(strategy: Any, manager: Any) -> BoundTool:
         expiration_value = _coerce_expiration(_require_non_empty_text("expiration", expiration))
         if not isinstance(expiration_value, date):
             raise ValueError("expiration must use YYYY-MM-DD format.")
-        chains = strategy.get_chains(underlying)
+        with _chain_window(strategy, expiration_value):
+            chains = strategy.get_chains(underlying)
         if not chains:
             strikes: list[float] = []
         elif hasattr(chains, "strikes"):
@@ -1715,7 +1755,8 @@ def _bind_options_find_strike_for_delta(strategy: Any, manager: Any) -> BoundToo
             underlying_price = strategy.get_last_price(underlying)
         if underlying_price is None:
             raise ValueError(f"No underlying price is available for {symbol.upper()}.")
-        chains = strategy.get_chains(underlying)
+        with _chain_window(strategy, expiration_value):
+            chains = strategy.get_chains(underlying)
         strike = _options_helper_for_strategy(strategy).find_strike_for_delta(
             underlying,
             float(underlying_price),
@@ -1936,7 +1977,8 @@ def _bind_options_find_expiration(strategy: Any, manager: Any) -> BoundTool:
                 target = earliest
 
         underlying = _underlying_asset(strategy, symbol=symbol, asset_type=underlying_asset_type)
-        chains = strategy.get_chains(underlying)
+        with _chain_window(strategy, target + timedelta(days=45)):
+            chains = strategy.get_chains(underlying)
         expiration = _options_helper_for_strategy(strategy).get_expiration_on_or_after_date(
             target,
             chains,
@@ -2317,6 +2359,9 @@ def _bind_duckdb_query(strategy: Any, manager: Any) -> BoundTool:
             "Load a table first with market_load_history_table, then analyze it here. "
             "For LumiBot price tables, prefer datetime for timestamps and close for prices unless the loaded sample rows show different column names. "
             "Caveat: only read-only SQL is allowed. "
+            "It is also your calculator: never add up, divide, or scale more than a few numbers in your head. Put "
+            "them in a VALUES list, for example SELECT t, v / SUM(v) OVER () AS weight FROM (VALUES ('AAPL', 15.0), "
+            "('AB', 3.0)) AS h(t, v). "
             "Example: duckdb_query(sql='SELECT AVG(close) AS avg_close FROM recent_prices')."
         ),
         function=duckdb_query,

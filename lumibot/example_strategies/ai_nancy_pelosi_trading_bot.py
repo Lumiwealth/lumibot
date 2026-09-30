@@ -41,7 +41,8 @@ class NancyPelosiTradingBot(Strategy):
             system_prompt=(
                 "You turn a member's holdings into target weights for our account. Use the middle of each dollar "
                 "range as the value of that stock. Each stock's weight is its value divided by the total value of "
-                "all the stocks. Return one line per ticker with its target percent of the account. Do not trade."
+                "all the stocks. Do the math with a calculator, not in your head. Return one line per ticker with its "
+                "target percent of the account. Do not trade."
             ),
         )
         self.agents.create(

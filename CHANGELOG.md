@@ -11,6 +11,8 @@
 - The `house_public_disclosures` agent tool and the House-only code behind it (`lumibot/components/house_ptr.py`, `lumibot/components/disclosure_signals.py`, `lumibot/example_strategies/disclosure_replay.py`). They were built for one example. The Nancy Pelosi example reads the House Clerk website with the generic browser and `http_request` tools, the way any strategy reads any website.
 
 ### Changed
+- Agent option tools can see expirations more than 90 days out in backtests. `options_get_chain` takes an optional `max_expiration`, and `options_get_strikes`, `options_find_strike_for_delta` and `options_find_expiration` widen the chain window to the expiration they are asked about. Backtest chains list about 90 days by default, so a copy of a January 2027 call found no contract in January 2026. Live brokers already list every expiration.
+- The `duckdb_query` description tells agents it is also their calculator (a `VALUES` list), after a portfolio agent scaled holdings 1,000x wrong doing the math in its head.
 - `http_request` turns any PDF into plain page text. It used to run House trade-report cleanup on every PDF.
 
 ### Fixed

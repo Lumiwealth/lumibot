@@ -2,19 +2,16 @@
 
 Two AI agents argue about the biggest US stocks before any money moves. A
 research agent ranks the stocks. A bull agent makes the case for buying and a
-bear agent makes the case against, at the same time. A trading agent weighs both
+bear agent makes the case against, at the same time. A judge agent weighs both
 sides and splits the account across the stocks that win the debate.
 """
-
-from datetime import datetime
 
 from lumibot.strategies import Strategy
 
 
 class AITradingTeamBullBearLargeCapStocksStrategy(Strategy):
     parameters = {
-        "universe": ["AAPL", "MSFT", "NVDA", "AMZN", "META", "GOOGL", "TSLA", "AVGO",
-                     "COST", "JPM", "V", "MA", "LLY", "UNH", "XOM"],
+        "universe": ["AAPL", "MSFT", "NVDA", "AMZN", "META", "GOOGL", "TSLA", "AVGO", "COST", "JPM", "V", "LLY", "XOM"]
     }
 
     def initialize(self):
@@ -22,21 +19,24 @@ class AITradingTeamBullBearLargeCapStocksStrategy(Strategy):
         self.agents.create(
             name="researcher",
             allow_trading=False,
-            system_prompt="Rank the universe from recent prices, trends, and news. Do not trade.",
+            system_prompt=("Rank the stocks in the universe from recent prices, trends, and news. Do not trade."),
         )
         self.agents.create(
-            name="bull", allow_trading=False, system_prompt="Argue for buying the strongest stocks. Do not trade."
+            name="bull",
+            allow_trading=False,
+            system_prompt=("Argue for buying the strongest stocks. Do not trade."),
         )
         self.agents.create(
-            name="bear", allow_trading=False, system_prompt="Argue the biggest risks in each stock. Do not trade."
+            name="bear",
+            allow_trading=False,
+            system_prompt=("Argue the biggest risks in each stock. Do not trade."),
         )
         self.agents.create(
             name="trader",
             allow_trading=True,
             system_prompt=(
-                "You are the judge and the only agent that trades. Weigh the bull and bear cases, pick the "
-                "stocks from the universe that win the debate, and split the account across them, near "
-                "100% invested. Sell stocks that lost the debate."
+                "You are the judge. Weigh the bull and bear cases, pick the stocks that win the debate, and "
+                "split the account across them. Sell the stocks that lose."
             ),
         )
 
@@ -54,11 +54,11 @@ class AITradingTeamBullBearLargeCapStocksStrategy(Strategy):
 
 
 if __name__ == "__main__":
-    IS_BACKTESTING = True  # Set to False to trade with the broker in your .env file
+    from lumibot.credentials import IS_BACKTESTING
 
     if IS_BACKTESTING:
         from lumibot.backtesting import YahooDataBacktesting
 
-        AITradingTeamBullBearLargeCapStocksStrategy.backtest(YahooDataBacktesting, datetime(2026, 1, 5), datetime(2026, 1, 16))
+        AITradingTeamBullBearLargeCapStocksStrategy.backtest(YahooDataBacktesting)
     else:
         AITradingTeamBullBearLargeCapStocksStrategy().run_live()

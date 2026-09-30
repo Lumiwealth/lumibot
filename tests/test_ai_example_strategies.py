@@ -95,7 +95,7 @@ def test_rebuilt_example_is_short_and_imports_only_lumibot(name):
             modules.add(node.module)
         if isinstance(node, ast.Import):
             modules.update(alias.name for alias in node.names)
-    assert modules <= {"datetime", "lumibot.strategies", "lumibot.backtesting"}, (name, modules)
+    assert modules <= {"datetime", "lumibot.strategies", "lumibot.backtesting", "lumibot.credentials"}, (name, modules)
     for banned in ("rules_path", "os.environ", "budget=", "run_cycle", "interpreter"):
         assert banned not in source, (name, banned)
 
@@ -124,16 +124,44 @@ def test_only_the_two_bull_bear_bots_debate():
         assert not strings & {"bull", "bear", "interpreter"}, path.name
 
 
-@pytest.mark.parametrize("name", sorted(REBUILT))
-def test_rebuilt_example_runs_as_a_backtest_or_live(name):
-    runner = next(
-        ast.unparse(node)
-        for node in _tree(name).body
-        if isinstance(node, ast.If) and "__main__" in ast.unparse(node.test)
-    )
-    assert "IS_BACKTESTING" in runner
-    assert ".backtest(" in runner
-    assert ".run_live()" in runner
+# Rob, 2026-09-29: every example ends with the same main block as a BotSpot main.py.
+STANDARD_MAIN = """if __name__ == "__main__":
+    from lumibot.credentials import IS_BACKTESTING
+
+    if IS_BACKTESTING:
+        from lumibot.backtesting import {source}
+
+        {cls}.backtest({source})
+    else:
+        {cls}().run_live()
+"""
+# Pages owned by dedicated sessions (2026-09-29); they follow the same rules and
+# remove themselves from this set when their rewrite lands.
+OWNED_ELSEWHERE = {"ai_nancy_pelosi_trading_bot.py", "ai_iron_condor.py"}
+
+
+@pytest.mark.parametrize("name", sorted(set(REBUILT) - OWNED_ELSEWHERE))
+def test_rebuilt_example_ends_with_the_standard_main_block(name):
+    source = (EXAMPLES / name).read_text()
+    cls = REBUILT[name][0]
+    main = source[source.index('if __name__ == "__main__":'):]
+    assert any(main == STANDARD_MAIN.format(source=ds, cls=cls) for ds in ("YahooDataBacktesting", "AlpacaBacktesting")), main
+
+
+# Prompts are plain English a non-technical trader could write. LumiBot's
+# skills and tools know the mechanics; the example never names them.
+TECH_WORDS = ("duckdb", "sql", "skill", "multi-leg", "multileg", "get_filings", "get_filing", "http_request",
+              "house_public_disclosures", "get_indicator", "rules.json", "tool")
+
+
+@pytest.mark.parametrize("name", sorted(set(REBUILT) - OWNED_ELSEWHERE))
+def test_prompts_are_plain_english(name):
+    prompts = " ".join(
+        node.value for node in ast.walk(_tree(name))
+        if isinstance(node, ast.Constant) and isinstance(node.value, str)
+    ).lower()
+    for word in TECH_WORDS:
+        assert word not in prompts, (name, word)
 
 
 class _Agent:

@@ -5,7 +5,7 @@
    :description: Two AI agents team up to trade SPY 0DTE options with bear call spreads that expire the same day. Free Python code you can backtest in LumiBot.
 
 .. image:: ../docs/assets/ai-agent-workflows/0dte-options-ai-trading-bot.png
-   :alt: Research agent checks SPY every 5 minutes, trading agent sells today's call spread, then the trade that expires the same day
+   :alt: Research agent checks SPY every 15 minutes, trading agent sells today's call spread, then the trade that expires the same day
    :width: 100%
 
 This bot trades 0DTE options: options that expire the same day. It sells a bear call spread on SPY, the S&P 500 ETF, and keeps the premium if SPY stays below the short strike by the close. 0DTE is now the biggest part of the index options market: in August 2025 it was a record 62.4% of all SPX options trading (`Cboe <https://www.cboe.com/insights/posts/spx-0-dte-options-jump-to-record-62-share-in-august>`__).
@@ -13,9 +13,9 @@ This bot trades 0DTE options: options that expire the same day. It sells a bear 
 How it works
 ------------
 
-1. **Research agent** checks SPY and today's expiring calls every 5 minutes. It finds the call closest to 0.20 delta and the call 5 points higher, with their prices.
-2. **Trading agent** sells that spread once a day as a single 2-leg order for a credit, risking about 1% of the account and at most 2 contracts.
-3. The trading agent watches the spread every 5 minutes and closes it early when you have kept 50% of the premium, the loss hits 2 times the premium, SPY rises above the short strike, or 10 minutes remain before the close.
+1. **Research agent** checks SPY and the calls that expire today every 15 minutes. It finds the call near 0.20 delta and the call 5 points higher, with their prices.
+2. **Trading agent** sells that spread once a day, risking about 1% of the account.
+3. The trading agent keeps watching and closes the spread early when you have kept half the credit, when closing costs twice the credit, or when SPY rises above the short strike. It never opens a new spread in the last 30 minutes of the day.
 
 Change ``symbol`` to ``"SPX"`` to trade S&P 500 index options, if your broker offers them.
 
@@ -27,7 +27,7 @@ Run this bot on `BotSpot <https://botspot.trade/marketplace?utm_source=documenta
 The code
 --------
 
-The whole bot is one short file. The two prompts are the strategy.
+The whole bot is one short file. The prompts are plain English, and they are the strategy.
 
 .. literalinclude:: ../lumibot/example_strategies/ai_0dte_options_trading_bot.py
    :language: python
@@ -40,12 +40,12 @@ Run it yourself
    pip install lumibot
    python -m lumibot.example_strategies.ai_0dte_options_trading_bot
 
-Add ``OPENAI_API_KEY`` to your ``.env`` file. The file runs a backtest first. To trade, set ``IS_BACKTESTING = False``: the bot then trades with the broker in your ``.env`` file, for example ``ALPACA_API_KEY``, ``ALPACA_API_SECRET``, and ``ALPACA_IS_PAPER=true`` for paper trading. The backtest uses Alpaca's minute and option history, so it also needs free Alpaca paper keys.
+Put these in your ``.env`` file: ``OPENAI_API_KEY``, and your broker keys (for example ``ALPACA_API_KEY``, ``ALPACA_API_SECRET``, and ``ALPACA_IS_PAPER=true`` for paper trading). With ``IS_BACKTESTING=false`` the bot trades. With ``IS_BACKTESTING=true`` it backtests instead; set ``BACKTESTING_START`` and ``BACKTESTING_END`` to pick the dates, and start with a week or two, because every AI call costs a little. Option and minute-bar backtests use Alpaca's free history, so paper Alpaca keys are enough.
 
 Good to know
 ------------
 
 * 0DTE options move very fast. Paper trade first.
-* The bot checks every 5 minutes, so it makes many AI calls per day.
+* The bot checks every 15 minutes, so it makes a lot of AI calls per day.
 
 See :doc:`agents_examples` for more AI trading bots and :doc:`strategy_run_modes` for backtest and live runs.

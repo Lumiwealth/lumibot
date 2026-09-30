@@ -1190,7 +1190,7 @@ def test_every_example_that_uses_network_tools_is_covered_by_the_opt_in_contract
     from pathlib import Path
 
     examples = Path(__file__).resolve().parents[1] / "lumibot" / "example_strategies"
-    pattern = re.compile(r"\b(http_request|rss_fetch|browser_[a-z_]+|persistent browser|browser session)\b")
+    pattern = re.compile(r"\b(http_request|rss_fetch|browser_[a-z_]+|persistent browser|browser session|web browser)\b")
     users = {path.name for path in examples.glob("*.py") if pattern.search(path.read_text(encoding="utf-8"))}
 
     assert users == set(_example_network_agents())

@@ -14,8 +14,8 @@ How it works
 ------------
 
 1. **Research agent** checks SPY's price, trend, and the live option chain. It picks an expiration 30 to 45 days out, a short put near 0.16 delta, and a long put 5 points lower.
-2. **Trading agent** first manages any spread you hold. It closes it when you have kept 50% of the premium, when the loss hits 2 times the premium, with 21 days left, or when the short put gets too close to the money.
-3. If you hold no spread, the trading agent opens the new one as a single 2-leg order for a net credit, risking about 2% of the account and at most 10 contracts. The bot checks once a day.
+2. **Trading agent** first manages any spread you hold. It closes it when you have kept half the premium, when closing costs twice the premium, or when 21 days are left.
+3. If you hold no spread, the trading agent sells the new one, risking about 2% of the account. The bot checks once a day.
 
 Run it on BotSpot
 -----------------
@@ -37,7 +37,7 @@ GPT-6 Luna, January 5 to 23, 2026, Alpaca option prices, $100,000 start. The bot
 The code
 --------
 
-The whole bot is one short file. The two prompts are the strategy.
+The whole bot is one short file. The prompts are plain English, and they are the strategy.
 
 .. literalinclude:: ../lumibot/example_strategies/ai_credit_spread.py
    :language: python
@@ -50,7 +50,7 @@ Run it yourself
    pip install lumibot
    python -m lumibot.example_strategies.ai_credit_spread
 
-Add ``OPENAI_API_KEY`` to your ``.env`` file. The file runs a backtest first. To trade, set ``IS_BACKTESTING = False``: the bot then trades with the broker in your ``.env`` file, for example ``ALPACA_API_KEY``, ``ALPACA_API_SECRET``, and ``ALPACA_IS_PAPER=true`` for paper trading. The backtest uses Alpaca's minute and option history, so it also needs free Alpaca paper keys.
+Put these in your ``.env`` file: ``OPENAI_API_KEY``, and your broker keys (for example ``ALPACA_API_KEY``, ``ALPACA_API_SECRET``, and ``ALPACA_IS_PAPER=true`` for paper trading). With ``IS_BACKTESTING=false`` the bot trades. With ``IS_BACKTESTING=true`` it backtests instead; set ``BACKTESTING_START`` and ``BACKTESTING_END`` to pick the dates, and start with a week or two, because every AI call costs a little. Option and minute-bar backtests use Alpaca's free history, so paper Alpaca keys are enough.
 
 Good to know
 ------------

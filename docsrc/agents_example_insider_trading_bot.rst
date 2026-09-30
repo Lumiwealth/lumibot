@@ -40,7 +40,7 @@ GPT-6 Luna, January 5 to 23, 2026, Yahoo daily prices, $100,000 start. The bot b
 The code
 --------
 
-The whole bot is one short file. The two prompts are the strategy.
+The whole bot is one short file. The prompts are plain English, and they are the strategy.
 
 .. literalinclude:: ../lumibot/example_strategies/ai_insider_trading_bot.py
    :language: python
@@ -53,12 +53,12 @@ Run it yourself
    pip install lumibot
    python -m lumibot.example_strategies.ai_insider_trading_bot
 
-Add ``OPENAI_API_KEY`` to your ``.env`` file. The file runs a backtest first. To trade, set ``IS_BACKTESTING = False``: the bot then trades with the broker in your ``.env`` file, for example ``ALPACA_API_KEY``, ``ALPACA_API_SECRET``, and ``ALPACA_IS_PAPER=true`` for paper trading.
+Put these in your ``.env`` file: ``OPENAI_API_KEY``, and your broker keys (for example ``ALPACA_API_KEY``, ``ALPACA_API_SECRET``, and ``ALPACA_IS_PAPER=true`` for paper trading). With ``IS_BACKTESTING=false`` the bot trades. With ``IS_BACKTESTING=true`` it backtests instead; set ``BACKTESTING_START`` and ``BACKTESTING_END`` to pick the dates, and start with a week or two, because every AI call costs a little.
 
 Good to know
 ------------
 
-* The SEC blocks automated web browsers, so this bot reads the reports through LumiBot's built-in SEC connection (``get_filings`` and ``get_filing_document``) instead of a browser. In a backtest it only sees reports filed before each test day.
-* Big companies often go weeks with no open-market insider buys. Then the bot simply holds the watchlist evenly.
+* The SEC blocks automated web browsers, so the research agent reads the reports straight from the SEC's data feed through LumiBot. In a backtest it only sees reports filed before each test day.
+* Big companies often go weeks with no insider buys on the open market. Then the bot simply holds the watchlist evenly.
 
 See :doc:`agents_examples` for more AI trading bots and :doc:`strategy_run_modes` for backtest and live runs.

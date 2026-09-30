@@ -13,7 +13,7 @@ This bot trades leveraged ETFs like TQQQ, which moves about 3 times the Nasdaq-1
 How it works
 ------------
 
-1. **Research agent** ranks 20 leveraged ETFs, like TQQQ, SQQQ, UPRO, and SOXL, from recent prices and trends.
+1. **Research agent** ranks 12 leveraged ETFs, like TQQQ, SQQQ, UPRO, and SOXL, from recent prices and trends.
 2. **Bull agent** and **bear agent** read the same research and argue at the same time.
 3. **Judge and trading agent** weighs both sides and splits the account across the winners. It never holds an ETF and its opposite on the same index, like TQQQ with SQQQ, and sells the old side before it switches. The bot repeats this once a day.
 
@@ -37,7 +37,7 @@ GPT-6 Luna, January 5 to 16, 2026, Yahoo daily prices, $100,000 start. The bot r
 The code
 --------
 
-The whole bot is one short file. The two prompts are the strategy.
+The whole bot is one short file. The prompts are plain English, and they are the strategy.
 
 .. literalinclude:: ../lumibot/example_strategies/ai_trading_team_bull_bear_leveraged_etf.py
    :language: python
@@ -50,7 +50,7 @@ Run it yourself
    pip install lumibot
    python -m lumibot.example_strategies.ai_trading_team_bull_bear_leveraged_etf
 
-Add ``OPENAI_API_KEY`` to your ``.env`` file. The file runs a backtest first. To trade, set ``IS_BACKTESTING = False``: the bot then trades with the broker in your ``.env`` file, for example ``ALPACA_API_KEY``, ``ALPACA_API_SECRET``, and ``ALPACA_IS_PAPER=true`` for paper trading.
+Put these in your ``.env`` file: ``OPENAI_API_KEY``, and your broker keys (for example ``ALPACA_API_KEY``, ``ALPACA_API_SECRET``, and ``ALPACA_IS_PAPER=true`` for paper trading). With ``IS_BACKTESTING=false`` the bot trades. With ``IS_BACKTESTING=true`` it backtests instead; set ``BACKTESTING_START`` and ``BACKTESTING_END`` to pick the dates, and start with a week or two, because every AI call costs a little.
 
 Good to know
 ------------

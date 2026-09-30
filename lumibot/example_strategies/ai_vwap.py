@@ -2,11 +2,9 @@
 
 Day trades SPY around VWAP, the average price big funds watch all day. When SPY
 dips below VWAP and then climbs back above it, the bot buys the bounce. A
-research agent checks the minute bars every hour. A trading agent sizes the
-trade from a stop just under the dip and sells on the way back up.
+research agent checks the price every hour. A trading agent sizes the trade from
+a stop just under the dip and is out by the close.
 """
-
-from datetime import datetime
 
 from lumibot.strategies import Strategy
 
@@ -20,41 +18,35 @@ class AIVWAPStrategy(Strategy):
             name="researcher",
             allow_trading=False,
             system_prompt=(
-                "You research a VWAP bounce on the symbol in the context. Use today's completed minute bars "
-                "and get_indicator('vwap'). Report the last price, VWAP, and whether since the last hourly "
-                "check the price dipped at least 0.15% below VWAP and then closed back above it. Report the "
-                "dip's lowest price and any position we hold with its entry time. Do not trade."
+                "Compare the symbol's price today with its VWAP. Say whether, since the last hourly check, "
+                "the price dipped at least 0.15% below VWAP and then closed back above it, and how low the "
+                "dip went. Do not trade."
             ),
         )
         self.agents.create(
             name="trader",
             allow_trading=True,
             system_prompt=(
-                "You day trade the symbol in the context. First, sell a position bought at an earlier check. "
-                "If we hold nothing, have not traded today, and the research shows a dip at least 0.15% "
-                "below VWAP followed by a close back above it, buy. Put the stop just under the dip's low and "
-                "size so hitting the stop loses at most 1% of the account, at most 200 shares. Sell "
-                "everything before the close."
+                "Day trade the symbol. If that bounce happened, we hold nothing, and we have not traded "
+                "today, buy. Put a stop just under the dip's low and size the trade so the stop loses at most "
+                "1% of the account. Sell at the next hourly check and always before the close."
             ),
         )
 
     def on_trading_iteration(self):
-        if self.get_datetime().hour < 10:  # VWAP needs some of today's bars first
+        if self.get_datetime().hour < 10:  # VWAP needs some of today's prices first
             return
         facts = {"symbol": self.parameters["symbol"]}
         research = self.agents["researcher"].run(task_prompt="Check the VWAP setup.", context=facts)
-        self.agents["trader"].run(
-            task_prompt="Trade the VWAP bounce.",
-            context={**facts, "research": research.summary},
-        )
+        self.agents["trader"].run(task_prompt="Trade the VWAP bounce.", context={**facts, "research": research.summary})
 
 
 if __name__ == "__main__":
-    IS_BACKTESTING = True  # Set to False to trade with the broker in your .env file
+    from lumibot.credentials import IS_BACKTESTING
 
     if IS_BACKTESTING:
         from lumibot.backtesting import AlpacaBacktesting
 
-        AIVWAPStrategy.backtest(AlpacaBacktesting, datetime(2026, 1, 5), datetime(2026, 1, 16))
+        AIVWAPStrategy.backtest(AlpacaBacktesting)
     else:
         AIVWAPStrategy().run_live()

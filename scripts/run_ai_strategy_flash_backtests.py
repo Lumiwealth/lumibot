@@ -725,6 +725,21 @@ WAVE34 = (
 )
 
 
+# Rob, 2026-09-29: plain-English prompts, no LumiBot internals, standard main block.
+WAVE35 = (
+    _job("insider-plain", "ai_insider_trading_bot", "InsiderTradingBot", "2026-01-05", "2026-01-23"),
+    _job("fear-greed-plain", "ai_fear_and_greed_trading_bot", "FearAndGreedTradingBot", "2026-01-05", "2026-01-23"),
+    _job("credit-spread-plain", "ai_credit_spread", "AICreditSpreadStrategy", "2026-01-05", "2026-01-23", "alpaca"),
+    _job("0dte-plain", "ai_0dte_options_trading_bot", "ZeroDTEOptionsTradingBot", "2026-01-05", "2026-01-07", "alpaca", 200),
+    _job("vwap-plain", "ai_vwap", "AIVWAPStrategy", "2026-01-05", "2026-01-10", "alpaca"),
+    _job("orb-plain", "ai_opening_range_breakout", "AIOpeningRangeBreakoutStrategy", "2026-01-05", "2026-01-10", "alpaca"),
+    _job("buffett-plain", "ai_trading_team_warren_buffett_value", "AITradingTeamWarrenBuffettValueStrategy", "2026-01-05", "2026-01-16", calls=160),
+    _job("ackman-plain", "ai_trading_team_bill_ackman_concentrated", "AITradingTeamBillAckmanConcentratedStrategy", "2026-01-05", "2026-01-16", calls=160),
+    _job("large-cap-plain", "ai_trading_team_bull_bear_large_cap_stocks", "AITradingTeamBullBearLargeCapStocksStrategy", "2026-01-05", "2026-01-16", calls=200),
+    _job("tqqq-plain", "ai_trading_team_bull_bear_leveraged_etf", "AITradingTeamBullBearLeveragedETFStrategy", "2026-01-05", "2026-01-16", calls=200),
+)
+
+
 def _jobs(wave: str) -> tuple[dict, ...]:
     # "7,8" runs several waves under one parent so the spend cap is shared.
     if "," in wave:

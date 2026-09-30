@@ -13,9 +13,9 @@ This bot buys the S&P 500 when investors are scared and sells when they get gree
 How it works
 ------------
 
-1. **Research agent** opens a real Chrome browser, goes to cnn.com/markets/fear-and-greed, and reads the score from 0 (extreme fear) to 100 (extreme greed) and the date it was last updated.
+1. **Research agent** opens a real Chrome browser and finds the Fear & Greed score (0 is extreme fear, 100 is extreme greed) for the most recent day before today, on CNN's page or CNN's list of past scores.
 2. **Trading agent** sets how much of your account is in SPY: 100% below 25, 75% from 25 to 44, 50% from 45 to 55, 25% from 56 to 75, and 0% above 75. The rest stays in cash.
-3. If the score is missing or more than 3 days old, the trading agent does nothing. The bot repeats this once a day.
+3. If there is no score from the last few days, the trading agent does nothing. The bot repeats this once a day.
 
 Run it on BotSpot
 -----------------
@@ -37,7 +37,7 @@ GPT-6 Luna, January 5 to 23, 2026, Yahoo daily prices, $100,000 start. Each day 
 The code
 --------
 
-The whole bot is one short file. The two prompts are the strategy.
+The whole bot is one short file. The prompts are plain English, and they are the strategy.
 
 .. literalinclude:: ../lumibot/example_strategies/ai_fear_and_greed_trading_bot.py
    :language: python
@@ -51,12 +51,12 @@ Run it yourself
    patchright install chromium
    python -m lumibot.example_strategies.ai_fear_and_greed_trading_bot
 
-Add ``OPENAI_API_KEY`` to your ``.env`` file. The file runs a backtest first. To trade, set ``IS_BACKTESTING = False``: the bot then trades with the broker in your ``.env`` file, for example ``ALPACA_API_KEY``, ``ALPACA_API_SECRET``, and ``ALPACA_IS_PAPER=true`` for paper trading.
+Put these in your ``.env`` file: ``OPENAI_API_KEY``, and your broker keys (for example ``ALPACA_API_KEY``, ``ALPACA_API_SECRET``, and ``ALPACA_IS_PAPER=true`` for paper trading). With ``IS_BACKTESTING=false`` the bot trades. With ``IS_BACKTESTING=true`` it backtests instead; set ``BACKTESTING_START`` and ``BACKTESTING_END`` to pick the dates, and start with a week or two, because every AI call costs a little.
 
 Good to know
 ------------
 
-* CNN's page only shows today's score. In a backtest the research agent opens CNN's daily score history in the browser instead and uses only the score from the day before each test day. The history also shows later days, so this rule lives in the prompt, not in code.
+* CNN's page only shows today's score, so in a backtest the research agent uses CNN's list of past scores and takes the day before each test day. The list also shows later days, so this rule lives in the prompt.
 * Change the percentages in the trading agent's prompt to make the bot more or less aggressive.
 
 See :doc:`agents_examples` for more AI trading bots and :doc:`strategy_run_modes` for backtest and live runs.

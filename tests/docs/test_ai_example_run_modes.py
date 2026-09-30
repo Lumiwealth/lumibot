@@ -94,7 +94,8 @@ def test_getting_started_never_starts_a_broker_after_backtesting_in_one_snippet(
 
 def test_marketplace_team_pages_explain_the_environment_switch():
     guide = " ".join((DOCS / "strategy_run_modes.rst").read_text().split())
-    assert "Backtest or live, one switch:" in guide
+    assert "Backtest or live, chosen by the environment:" in guide
+    assert "from lumibot.credentials import IS_BACKTESTING" in guide
     for name in ("citadel_sector_pods", "ray_dalio_idea_meritocracy"):
         source = (EXAMPLES / f"ai_trading_team_{name}.py").read_text()
         page = (DOCS / f"agents_example_{name}.rst").read_text()

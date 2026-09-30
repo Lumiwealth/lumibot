@@ -62,19 +62,34 @@ execution**, not the capability of the importable strategy class.
 ``agent_momentum_allocator.py``, ``agent_news_sentiment.py``, and
 ``ai_researcher_trader.py``.
 
-**Backtest or live, one switch:** ``ai_nancy_pelosi_trading_bot.py``,
+**Backtest or live, chosen by the environment:** ``ai_nancy_pelosi_trading_bot.py``,
 ``ai_insider_trading_bot.py``, ``ai_fear_and_greed_trading_bot.py``,
 ``ai_iron_condor.py``, ``ai_credit_spread.py``,
 ``ai_0dte_options_trading_bot.py``, ``ai_vwap.py``,
 ``ai_opening_range_breakout.py``, ``ai_trading_team_warren_buffett_value.py``,
 ``ai_trading_team_bill_ackman_concentrated.py``,
 ``ai_trading_team_bull_bear_large_cap_stocks.py``, and
-``ai_trading_team_bull_bear_leveraged_etf.py``. Each ends with
-``IS_BACKTESTING = True``. Leave it ``True`` to run the backtest dates in the
-file. Set it to ``False`` to call ``run_live()``, which trades with the broker
-named in your ``.env`` file (paper or live, as that file says).
+``ai_trading_team_bull_bear_leveraged_etf.py``. Each ends with the same block
+as a BotSpot ``main.py``:
 
-**Backtest and broker, chosen by the environment:**
+.. code-block:: python
+
+   if __name__ == "__main__":
+       from lumibot.credentials import IS_BACKTESTING
+
+       if IS_BACKTESTING:
+           from lumibot.backtesting import YahooDataBacktesting
+
+           MyBot.backtest(YahooDataBacktesting)
+       else:
+           MyBot().run_live()
+
+Set ``IS_BACKTESTING=true`` in your ``.env`` file to backtest, with
+``BACKTESTING_START`` and ``BACKTESTING_END`` for the dates. Otherwise
+``run_live()`` trades with the broker in your ``.env`` file (paper or live, as
+that file says).
+
+**Backtest and broker, chosen by the environment (BotSpot copies):**
 ``ai_trading_team_citadel_sector_pods.py``,
 ``ai_trading_team_citadel_sector_pods_leveraged.py``,
 ``ai_trading_team_ray_dalio_idea_meritocracy.py``, and

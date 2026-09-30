@@ -13,7 +13,7 @@ This bot picks stocks the way Warren Buffett describes in his Berkshire Hathaway
 How it works
 ------------
 
-1. **Research agent** reads each company's latest SEC filings and financial statements. It checks for steady profits, high returns on capital, and a lasting edge, then checks the price: earnings yield, free cash flow yield, P/E, and debt. It names the 3 to 5 best mixes of quality and price.
+1. **Research agent** reads each company's latest financial reports and checks its price today. It picks the 3 to 5 companies with the best mix of steady profits, a lasting edge over rivals, and a fair price.
 2. **Skeptic agent**, like Buffett's partner Charlie Munger, attacks each pick: a price that is too high, a shrinking edge, too much debt, or numbers that do not add up. It keeps only the picks that survive.
 3. **Trading agent** owns the survivors, split about evenly. It holds for the long run and only sells when the skeptic drops a stock because the business got worse or the price got far too high.
 
@@ -39,7 +39,7 @@ GPT-6 Luna, January 5 to 16, 2026, Yahoo daily prices and SEC filings, $100,000 
 The code
 --------
 
-The whole bot is one short file. The two prompts are the strategy.
+The whole bot is one short file. The prompts are plain English, and they are the strategy.
 
 .. literalinclude:: ../lumibot/example_strategies/ai_trading_team_warren_buffett_value.py
    :language: python
@@ -52,7 +52,7 @@ Run it yourself
    pip install lumibot
    python -m lumibot.example_strategies.ai_trading_team_warren_buffett_value
 
-Add ``OPENAI_API_KEY`` to your ``.env`` file. The file runs a backtest first. To trade, set ``IS_BACKTESTING = False``: the bot then trades with the broker in your ``.env`` file, for example ``ALPACA_API_KEY``, ``ALPACA_API_SECRET``, and ``ALPACA_IS_PAPER=true`` for paper trading.
+Put these in your ``.env`` file: ``OPENAI_API_KEY``, and your broker keys (for example ``ALPACA_API_KEY``, ``ALPACA_API_SECRET``, and ``ALPACA_IS_PAPER=true`` for paper trading). With ``IS_BACKTESTING=false`` the bot trades. With ``IS_BACKTESTING=true`` it backtests instead; set ``BACKTESTING_START`` and ``BACKTESTING_END`` to pick the dates, and start with a week or two, because every AI call costs a little.
 
 Good to know
 ------------

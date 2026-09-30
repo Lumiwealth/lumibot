@@ -13,7 +13,7 @@ Before this bot puts money into a stock, two AI agents argue about it. A bull ag
 How it works
 ------------
 
-1. **Research agent** ranks 15 of the biggest US stocks, like Apple, Microsoft, and Nvidia, from recent prices, trends, and news.
+1. **Research agent** ranks 13 of the biggest US stocks, like Apple, Microsoft, and Nvidia, from recent prices, trends, and news.
 2. **Bull agent** and **bear agent** read the same research and argue at the same time: one for buying, one about the risks.
 3. **Judge and trading agent** weighs both sides, picks the stocks that win the debate, and splits the account across them. It sells stocks that lost the debate. The bot repeats this once a day.
 
@@ -37,7 +37,7 @@ GPT-6 Luna, January 5 to 16, 2026, Yahoo daily prices, $100,000 start. The debat
 The code
 --------
 
-The whole bot is one short file. The two prompts are the strategy.
+The whole bot is one short file. The prompts are plain English, and they are the strategy.
 
 .. literalinclude:: ../lumibot/example_strategies/ai_trading_team_bull_bear_large_cap_stocks.py
    :language: python
@@ -50,6 +50,6 @@ Run it yourself
    pip install lumibot
    python -m lumibot.example_strategies.ai_trading_team_bull_bear_large_cap_stocks
 
-Add ``OPENAI_API_KEY`` to your ``.env`` file. The file runs a backtest first. To trade, set ``IS_BACKTESTING = False``: the bot then trades with the broker in your ``.env`` file, for example ``ALPACA_API_KEY``, ``ALPACA_API_SECRET``, and ``ALPACA_IS_PAPER=true`` for paper trading.
+Put these in your ``.env`` file: ``OPENAI_API_KEY``, and your broker keys (for example ``ALPACA_API_KEY``, ``ALPACA_API_SECRET``, and ``ALPACA_IS_PAPER=true`` for paper trading). With ``IS_BACKTESTING=false`` the bot trades. With ``IS_BACKTESTING=true`` it backtests instead; set ``BACKTESTING_START`` and ``BACKTESTING_END`` to pick the dates, and start with a week or two, because every AI call costs a little.
 
 See :doc:`agents_examples` for more AI trading bots and :doc:`strategy_run_modes` for backtest and live runs.

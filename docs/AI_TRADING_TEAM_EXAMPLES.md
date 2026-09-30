@@ -11,9 +11,9 @@ strategy code intentionally simple:
 
 The strategy class can stay the same. The code that starts it selects the
 backtest or broker path. The four Citadel and Ray Dalio files read `IS_BACKTESTING` from the environment;
-set `IS_BACKTESTING=true` to backtest them. The other team files end with
-`IS_BACKTESTING = True`; set it to `False` to call `run_live()` with the broker
-in your `.env` file.
+set `IS_BACKTESTING=true` to backtest them. The other team files use the same
+switch: `IS_BACKTESTING=true` backtests, anything else calls `run_live()` with
+the broker in your `.env` file.
 See the [complete AI example run-mode inventory](https://lumibot.lumiwealth.com/strategy_run_modes.html).
 
 These examples are inspired by public investing styles and firms. They are not

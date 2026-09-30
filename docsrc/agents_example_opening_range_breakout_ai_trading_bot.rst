@@ -13,9 +13,9 @@ This day trading bot trades the opening range breakout (ORB). It marks each stoc
 How it works
 ------------
 
-1. **Research agent** scans 20 big, liquid stocks and ETFs once an hour, starting at 10:00 ET. It loads their 5-minute bars in one call, finds each opening range, and ranks the stocks that closed above their range high.
+1. **Research agent** checks 10 big, liquid stocks and ETFs once an hour, starting at 10:00 ET. It finds each stock's opening range (the high and low from 9:30 to 9:45) and lists the stocks that closed above their range high, best first.
 2. **Trading agent** buys the best breakout if the bot holds nothing. The stop is the range low, sized so hitting it loses at most 1% of the account.
-3. Right after buying, the trading agent places a take-profit order at 1.5 times the risk and a stop order at the range low. It sells if the price falls back into the range and always before the close.
+3. The trading agent also places a profit target at 1.5 times the risk. It sells if the price falls back into the range, and always before the close.
 
 Change ``universe`` to scan different stocks.
 
@@ -39,7 +39,7 @@ GPT-6 Luna, January 5 to 9, 2026, Alpaca minute bars, checked hourly, $100,000 s
 The code
 --------
 
-The whole bot is one short file. The two prompts are the strategy.
+The whole bot is one short file. The prompts are plain English, and they are the strategy.
 
 .. literalinclude:: ../lumibot/example_strategies/ai_opening_range_breakout.py
    :language: python
@@ -52,6 +52,6 @@ Run it yourself
    pip install lumibot
    python -m lumibot.example_strategies.ai_opening_range_breakout
 
-Add ``OPENAI_API_KEY`` to your ``.env`` file. The file runs a backtest first. To trade, set ``IS_BACKTESTING = False``: the bot then trades with the broker in your ``.env`` file, for example ``ALPACA_API_KEY``, ``ALPACA_API_SECRET``, and ``ALPACA_IS_PAPER=true`` for paper trading. The backtest uses Alpaca's minute and option history, so it also needs free Alpaca paper keys.
+Put these in your ``.env`` file: ``OPENAI_API_KEY``, and your broker keys (for example ``ALPACA_API_KEY``, ``ALPACA_API_SECRET``, and ``ALPACA_IS_PAPER=true`` for paper trading). With ``IS_BACKTESTING=false`` the bot trades. With ``IS_BACKTESTING=true`` it backtests instead; set ``BACKTESTING_START`` and ``BACKTESTING_END`` to pick the dates, and start with a week or two, because every AI call costs a little. Option and minute-bar backtests use Alpaca's free history, so paper Alpaca keys are enough.
 
 See :doc:`agents_examples` for more AI trading bots and :doc:`strategy_run_modes` for backtest and live runs.

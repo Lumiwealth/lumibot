@@ -2,11 +2,9 @@
 
 Buys more of the stocks whose CEOs and directors are buying their own company's
 shares, and less of the stocks they are selling. A research agent reads the
-insider trade reports that executives must file with the SEC. A trading agent
-then moves the account toward the stocks insiders are buying.
+insider trade reports executives file with the SEC. A trading agent then moves
+the account toward the stocks insiders are buying.
 """
-
-from datetime import datetime
 
 from lumibot.strategies import Strategy
 
@@ -20,42 +18,35 @@ class InsiderTradingBot(Strategy):
             name="researcher",
             allow_trading=False,
             system_prompt=(
-                "You track insider trades. For each ticker in the watchlist, call "
-                "get_filings(symbol, form='4', limit=20) and open the reports from the last 30 days with "
-                "get_filing_document. Code P is an insider buying shares on the open market with their own "
-                "money. Code S is an insider selling. Ignore stock awards, gifts, option exercises, tax "
-                "withholding, and sales under a pre-set 10b5-1 plan. For each ticker, report the dollars "
-                "bought, the dollars sold, and who traded (CEO, CFO, director). Do not trade."
+                "For each stock in the watchlist, look up the insider trades its executives reported to the "
+                "SEC in the last 30 days. Count only real buys and sells on the open market, not stock "
+                "awards, gifts, or option exercises. Report the dollars bought and sold for each stock and "
+                "who traded. Do not trade."
             ),
         )
         self.agents.create(
             name="trader",
             allow_trading=True,
             system_prompt=(
-                "You own the watchlist stocks. Start with equal weights. Give more weight to stocks that "
-                "insiders are buying and less to stocks with large insider sales. Weights add up to about "
-                "100% of the account. Move the account to those weights. Only trade watchlist stocks and "
-                "never short."
+                "Hold every stock in the watchlist. Put more money in the stocks insiders are buying and less "
+                "in the stocks they are selling. Never short."
             ),
         )
 
     def on_trading_iteration(self):
         facts = {"watchlist": self.parameters["watchlist"]}
-        research = self.agents["researcher"].run(
-            task_prompt="Find this month's insider buys and sells.", context=facts
-        )
+        research = self.agents["researcher"].run(task_prompt="Find this month's insider buys and sells.", context=facts)
         self.agents["trader"].run(
-            task_prompt="Lean the account toward insider buying.",
-            context={**facts, "research": research.summary},
+            task_prompt="Lean the account toward insider buying.", context={**facts, "research": research.summary}
         )
 
 
 if __name__ == "__main__":
-    IS_BACKTESTING = True  # Set to False to trade with the broker in your .env file
+    from lumibot.credentials import IS_BACKTESTING
 
     if IS_BACKTESTING:
         from lumibot.backtesting import YahooDataBacktesting
 
-        InsiderTradingBot.backtest(YahooDataBacktesting, datetime(2026, 1, 5), datetime(2026, 2, 13))
+        InsiderTradingBot.backtest(YahooDataBacktesting)
     else:
         InsiderTradingBot().run_live()

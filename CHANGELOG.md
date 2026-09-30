@@ -3,6 +3,9 @@
 ## 4.6.3 - Unreleased
 
 ### Changed
+- AI example runners explicitly distinguish `Strategy.backtest(...)` from broker execution with `Trader.run_all()` / `strategy.run_live()`, with a new execution-mode guide and updated onboarding.
+- AI examples use reusable agents and plain-language prompts, with dedicated trading/risk ownership where the strategy needs it. Shared trading-agent guidance covers target weights, sell-before-buy cash budgeting, existing positions and pending orders, and bounded option risk.
+- AI examples include actual historical tear sheets, refreshed workflow artwork, searchable page titles and redirects from their previous documentation URLs. Pelosi research distinguishes annual holdings reports, transaction reports, partial sales and exercised calls; the copy example supports smaller accounts with a bounded options allocation.
 - Agent price tools (`market_last_price`, `market_last_prices`, `market_historical_prices`) say where to find a market index they have no data for. Broker data often has no indexes (Alpaca has no VIX), and agents told to "skip the day if the VIX closed above 25" refused to trade because they never looked at FRED. A miss on VIX, VIX3M, VXN, OVX, GVZ, SPX, DJIA or the Nasdaq Composite now returns a `fred_hint` naming the FRED series (VIX is `VIXCLS`). The research-data skill says the same. New eval `research_vix_from_fred`.
 - The AI Iron Condor example sells a one-day SPY iron condor at 3:45 PM and holds it to expiry, with a plain-Python early close when SPY runs 40% of the way toward a short strike. It copies the core of the older options_condor_martingale bot, without the martingale.
 
@@ -20,6 +23,7 @@
 - `http_request` turns any PDF into plain page text. It used to run House trade-report cleanup on every PDF.
 
 ### Fixed
+- Multi-leg option limit backtests fill every leg together only when the package's net price meets the credit/debit limit. Missing quotes use current-bar opens for all legs; stale or future bars cannot partially fill a package.
 - Backtests charge the buy fee when closing a short option (`buy_to_close`). That side was in neither fee list, so the short legs of every closing spread or iron condor paid no commission and option backtests looked cheaper than live trading.
 
 ## 4.6.2 - 2026-09-27

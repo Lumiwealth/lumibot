@@ -15,7 +15,7 @@ Want her call options too? The :doc:`agents_example_nancy_pelosi_copy_trading_bo
 How it works
 ------------
 
-1. **Research agent** goes to the House Clerk website (disclosures-clerk.house.gov) and opens the yearly list of filings. It finds Pelosi's newest yearly report, which lists every stock she owned on December 31, and every trade report filed since.
+1. **Research agent** goes to the `House Clerk website <https://disclosures-clerk.house.gov/>`__ and opens the yearly list of filings. It finds Pelosi's newest yearly report, which lists every stock she owned on December 31, and every trade report filed since.
 2. The research agent reads those reports and works out what she owns today: the yearly report, plus every stock she bought or sold after it. It only uses reports filed before today.
 3. **Portfolio agent** turns her holdings into your target mix. A stock she holds $5 million to $25 million of gets a bigger share of your account than one she holds $1 million to $5 million of.
 4. **Trading agent** buys and sells to match that mix, and checks that every order filled.

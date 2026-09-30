@@ -46,3 +46,10 @@ def test_scanner_blocks_credential_tables_in_public_docs():
 
     assert violations
     assert violations[0][2] == "credential-table"
+
+
+def test_release_holdings_helper_does_not_publish_private_paths():
+    violations = scanner.scan_lines(
+        scanner.iter_file_lines(["docs/research/2026-09-29-pelosi-bots/grade_holdings.py"])
+    )
+    assert violations == []

@@ -1,6 +1,7 @@
 import csv, glob, sys
 from collections import defaultdict
-D="/Users/robertgrzesik/Development/lumibot/docs/research/2026-09-23-ai-strategy-backtests"
+from pathlib import Path
+D = Path(__file__).resolve().parents[1] / "2026-09-23-ai-strategy-backtests"
 A=set("AAPL AB AMZN AVGO AXP CLNE CMCSA CRM CRWD DBX DIS GOOGL IBKR MORN MSFT NFLX NVDA PANW PYPL QCOM RBLX SQ T TEM V VST WBD".split())
 B=set(A)            # 2025 yearly (5/15/2026) + Jan 2026 exercises: same names, new weights
 Dset=B|{"BE","INTC"}   # 8/21/2026 report adds Bloom Energy and Intel shares

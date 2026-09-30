@@ -2,7 +2,7 @@ AI Iron Condor Trading Bot
 ==========================
 
 .. meta::
-   :description: An AI iron condor bot for SPY. Every day at 3:45 PM the AI sells an iron condor that expires the next day, skips days when the VIX is high, and closes early if SPY runs toward a strike. Free Python code for LumiBot.
+   :description: Build an AI iron condor bot for SPY with LumiBot. Sell next-day spreads at 3:45 PM, skip high-VIX days, and check a Python early exit. Free strategy code and backtest results.
 
 .. image:: ../docs/assets/ai-agent-workflows/iron-condor-ai-trading-bot.png
    :alt: At 3:45 PM the trading agent sells a one-day SPY iron condor; plain Python watches SPY and wakes the agent to close early

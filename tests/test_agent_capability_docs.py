@@ -1,6 +1,7 @@
 import re
 from pathlib import Path
 from types import SimpleNamespace
+from urllib.parse import urlsplit
 
 from lumibot.components.agents.builtins import BuiltinTools
 
@@ -49,7 +50,9 @@ def test_new_flagship_examples_are_in_navigation_with_historical_data_warnings()
         assert slug in examples
     assert "45 days" in pelosi
     assert "skips any report filed after the test day" in pelosi
-    assert "disclosures-clerk.house.gov" in pelosi
+    # Check the actual link host; a matching substring can belong to another URL.
+    urls = re.findall(r"https?://[^\s<>`]+", pelosi)
+    assert any(urlsplit(url).hostname == "disclosures-clerk.house.gov" for url in urls)
     assert "SEC" in insider and "before each test day" in insider
     assert "only shows today" in fear_greed and "day before each test day" in fear_greed
 

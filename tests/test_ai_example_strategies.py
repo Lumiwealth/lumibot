@@ -19,6 +19,8 @@ from zoneinfo import ZoneInfo
 
 import pytest
 
+from lumibot.strategies._strategy import Vars
+
 EXAMPLES = Path(__file__).resolve().parents[1] / "lumibot" / "example_strategies"
 
 # file -> (class, agent names in run order, agents that may browse the web)
@@ -222,6 +224,7 @@ def test_research_is_handed_to_the_trader(name):
     strategy = object.__new__(strategy_class)
     agents = _Agents()
     strategy._agents_for_test = agents
+    strategy.vars = Vars()
     strategy.__dict__["parameters"] = dict(getattr(strategy_class, "parameters", {}) or {})
     strategy.get_datetime = lambda: datetime(2026, 1, 6, 11, 30, tzinfo=ZoneInfo("America/New_York"))
     type(strategy).agents = property(lambda self: self._agents_for_test)
@@ -320,12 +323,17 @@ def test_iron_condor_stop_is_plain_python_and_wakes_the_ai_only_near_a_short_str
 
 
 @pytest.mark.parametrize("name", ["ai_nancy_pelosi_trading_bot.py", "ai_nancy_pelosi_copy_trading_bot.py"])
-def test_pelosi_bots_rebalance_unless_the_answer_starts_with_nothing_new(name):
-    # 2026-09-30 switch-window backtest: the first day's full answer mentioned
-    # "NOTHING NEW" in passing, so the bot skipped the day and bought nothing.
+def test_pelosi_bots_rebalance_only_when_her_newest_filing_changes(name):
+    # 2026-09-30 switch-window backtests: a full answer that mentioned "NOTHING NEW"
+    # in passing skipped day one, and answers like "Newest filing: May 15, 2026,
+    # DocID 10075701. NOTHING NEW." triggered a rebalance and option churn. The
+    # bot now remembers her newest filing's DocID and rebalances only when it changes.
     class_name = REBUILT[name][0]
     module = __import__(f"lumibot.example_strategies.{name[:-3]}", fromlist=[class_name])
     strategy_class = getattr(module, class_name)
+    strategy = object.__new__(strategy_class)
+    strategy.vars = Vars()
+    strategy.__dict__["parameters"] = dict(strategy_class.parameters)
 
     def run_day(answer):
         calls = []
@@ -339,9 +347,7 @@ def test_pelosi_bots_rebalance_unless_the_answer_starts_with_nothing_new(name):
             def __getitem__(self, agent_name):
                 return _Named(agent_name, [])
 
-        strategy = object.__new__(strategy_class)
         strategy._agents_for_test = _Team()
-        strategy.__dict__["parameters"] = dict(strategy_class.parameters)
         type(strategy).agents = property(lambda self: self._agents_for_test)
         try:
             strategy.on_trading_iteration()
@@ -349,6 +355,9 @@ def test_pelosi_bots_rebalance_unless_the_answer_starts_with_nothing_new(name):
             del type(strategy).agents
         return calls
 
-    full = "Newest filing: January 23, 2026. My notes had nothing, so this is not NOTHING NEW. Holdings: AAPL."
-    assert run_day(full) == ["researcher", "portfolio", "trader"]
+    first = "Newest filing: January 23, 2026, DocID 20033725. This is not NOTHING NEW for me yet. Holdings: AAPL."
+    assert run_day(first) == ["researcher", "portfolio", "trader"]
+    assert run_day("Newest filing: January 23, 2026, DocID 20033725. Holdings: AAPL.") == ["researcher"]
     assert run_day("RESULT: NOTHING NEW") == ["researcher"]
+    assert run_day("Newest filing: May 15, 2026 — DocID 10075701. NOTHING NEW.") == ["researcher", "portfolio", "trader"]
+    assert run_day("Newest filing: May 15, 2026 — DocID 10075701. NOTHING NEW.") == ["researcher"]

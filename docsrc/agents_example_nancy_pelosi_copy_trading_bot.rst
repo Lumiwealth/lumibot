@@ -49,6 +49,7 @@ Put these in your ``.env`` file: ``OPENAI_API_KEY``, and your broker keys (for e
 Good to know
 ------------
 
+* Her calls are expensive: in January 2026 one contract of her January 2027 calls cost $9,400 to $18,500. Under the 5% rule, you need an account of about $400,000 to hold one of each. A smaller account copies her stocks and skips the calls it cannot afford.
 * Call options can lose all their value by the expiration date. The bot copies her options exactly, so it takes the same risk she does.
 * Members of Congress can take up to 45 days to report a trade, so the bot always buys late, often at a different price than she paid.
 * Reports show dollar ranges, such as $1,000,001 to $5,000,000. The bot uses the middle of each range.

@@ -809,6 +809,14 @@ WAVE98 = (
 )
 
 
+# Rob, 2026-09-30: not a full year. A window that forces switches: her 5/15/2026 yearly report,
+# 6/23 call buys, and 8/21 Bloom Energy and Intel buys. Check holdings after each one.
+WAVE99 = (
+    _job("pelosi-stocks-switches", "ai_nancy_pelosi_trading_bot", "NancyPelosiTradingBot", "2026-05-04", "2026-08-28", calls=3000),
+    _job("pelosi-copy-switches", "ai_nancy_pelosi_copy_trading_bot", "NancyPelosiCopyTradingBot", "2026-05-04", "2026-08-28", "alpaca", 3000),
+)
+
+
 def _jobs(wave: str) -> tuple[dict, ...]:
     # "7,8" runs several waves under one parent so the spend cap is shared.
     if "," in wave:

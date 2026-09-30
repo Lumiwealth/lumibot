@@ -1208,6 +1208,42 @@ def _bind_calculate_stock_quantity(strategy: Any, manager: Any) -> BoundTool:
     )
 
 
+# Market indexes that broker price data often lacks (Alpaca has no VIX) and FRED
+# publishes as daily closes. A price-tool miss on one of these says so, so an
+# agent checks FRED instead of calling its rule unverifiable.
+_FRED_INDEX_SERIES = {
+    "VIX": "VIXCLS",
+    "VIX3M": "VXVCLS",
+    "VXV": "VXVCLS",
+    "VXN": "VXNCLS",
+    "OVX": "OVXCLS",
+    "GVZ": "GVZCLS",
+    "SPX": "SP500",
+    "DJI": "DJIA",
+    "DJIA": "DJIA",
+    "COMP": "NASDAQCOM",
+    "IXIC": "NASDAQCOM",
+}
+
+
+def _fred_hint(missing: Any) -> dict[str, str]:
+    found = {}
+    for symbol in missing or []:
+        key = str(symbol or "").upper().lstrip("^$.")
+        if key in _FRED_INDEX_SERIES:
+            found[str(symbol)] = _FRED_INDEX_SERIES[key]
+    if not found:
+        return {}
+    pairs = ", ".join(f"{symbol} is FRED series {series}" for symbol, series in found.items())
+    return {
+        "fred_hint": (
+            f"No price data here for {', '.join(found)}. Broker data often has no market indexes. "
+            f"FRED has their daily closes ({pairs}): use get_fred_latest or get_fred_series, which return "
+            "only what was published by the strategy date."
+        )
+    }
+
+
 def _bind_last_price(strategy: Any, manager: Any) -> BoundTool:
     def last_price(
         *,
@@ -1235,6 +1271,7 @@ def _bind_last_price(strategy: Any, manager: Any) -> BoundTool:
             "asset_type": asset_type,
             "price": float(price) if price is not None else None,
             "datetime": strategy.get_datetime().isoformat(),
+            **(_fred_hint([symbol]) if price is None else {}),
         }
 
     return BoundTool(
@@ -1333,6 +1370,7 @@ def _bind_last_prices(strategy: Any, manager: Any) -> BoundTool:
             "count_available": len(available),
             "asset_type": asset_type,
             "datetime": strategy.get_datetime().isoformat(),
+            **_fred_hint(missing),
         }
 
     return BoundTool(
@@ -1484,6 +1522,7 @@ def _bind_historical_prices(strategy: Any, manager: Any) -> BoundTool:
                 "symbols_requested": symbol_list,
                 "symbols_available": available,
                 "symbols_missing": missing,
+                **_fred_hint(missing),
                 **interval_fields,
                 "count_requested": len(symbol_list),
                 "count_available": len(available),
@@ -1498,6 +1537,7 @@ def _bind_historical_prices(strategy: Any, manager: Any) -> BoundTool:
             "symbols_requested": symbol_list,
             "symbols_available": available,
             "symbols_missing": missing,
+            **_fred_hint(missing),
             **interval_fields,
             "count_requested": len(symbol_list),
             "count_available": len(available),

@@ -1,0 +1,90 @@
+{
+  "case_id": "research_vix_from_fred",
+  "date": "2026-09-30",
+  "acting_model": "openai/gpt-6-luna",
+  "judge_model": "openai/gpt-6-luna",
+  "method": "Official runner, 3 repetitions, on the skills as they were before this change (research-data had no guidance on market indexes missing from broker data).",
+  "customer_reason": "AI Iron Condor backtests on Alpaca: the prompt says skip the day if the VIX closed above 25. Alpaca price data has no VIX, and the agent never looked at FRED (VIXCLS), so it refused to trade every day because it could not verify the VIX.",
+  "repetitions": [
+    {
+      "repetition": 3,
+      "machine": {
+        "pass": false,
+        "failures": [
+          "none of the required alternative tools were called: ['get_fred_latest', 'get_fred_series', 'get_fred_snapshot']"
+        ],
+        "tool_sequence": [
+          "load_skill",
+          "load_skill",
+          "account_portfolio",
+          "account_positions",
+          "orders_open_orders",
+          "market_last_price",
+          "options_get_chain",
+          "market_historical_prices",
+          "market_historical_prices",
+          "remember_decision"
+        ]
+      },
+      "judge": {
+        "pass": false,
+        "reason": "The agent could not retrieve VIX history and did not state that the 2026-08-10 close was 27.30 and above 25; it declined for unverified conditions instead."
+      }
+    },
+    {
+      "repetition": 1,
+      "machine": {
+        "pass": false,
+        "failures": [
+          "none of the required alternative tools were called: ['get_fred_latest', 'get_fred_series', 'get_fred_snapshot']"
+        ],
+        "tool_sequence": [
+          "load_skill",
+          "load_skill",
+          "account_portfolio",
+          "account_positions",
+          "orders_open_orders",
+          "market_last_price",
+          "market_historical_prices",
+          "market_historical_prices",
+          "options_get_chain",
+          "market_last_price",
+          "remember_decision"
+        ]
+      },
+      "judge": {
+        "pass": false,
+        "reason": "The agent did not find the 2026-08-10 VIX close of 27.30 or state that it is above 25; it declined because VIX could not be verified."
+      }
+    },
+    {
+      "repetition": 2,
+      "machine": {
+        "pass": false,
+        "failures": [
+          "none of the required alternative tools were called: ['get_fred_latest', 'get_fred_series', 'get_fred_snapshot']"
+        ],
+        "tool_sequence": [
+          "load_skill",
+          "load_skill_resource",
+          "account_portfolio",
+          "account_positions",
+          "orders_open_orders",
+          "market_last_price",
+          "market_last_price",
+          "options_get_chain",
+          "load_skill",
+          "market_historical_prices",
+          "options_get_strikes",
+          "options_get_strikes",
+          "remember_decision"
+        ]
+      },
+      "judge": {
+        "pass": false,
+        "reason": "The agent could not verify the VIX close and declined for that reason; it did not find or state that 27.30 was above 25."
+      }
+    }
+  ],
+  "cost_usd": 0.011184
+}

@@ -1099,3 +1099,23 @@ def test_option_tools_can_see_expirations_more_than_90_days_out_in_a_backtest():
     assert "2027-01-15" in wide["call_expirations"]
     assert strikes_tool.function(symbol="GOOGL", expiration="2027-01-15", right="call")["strikes"] == [100.0, 150.0]
     assert not hasattr(strategy.broker.data_source, "_chain_constraints")
+
+
+def test_missing_market_index_points_the_agent_to_fred():
+    """Broker data often has no market indexes (Alpaca has no VIX). On 2026-09-30 the AI Iron
+    Condor refused to trade every day because it looked for the VIX in price data only and never
+    tried FRED, which has the daily close (VIXCLS). A miss must say where the index lives."""
+    strategy = _OptionsStrategy()
+    strategy.get_historical_prices_for_assets = None
+    strategy.get_last_price = lambda *args, **kwargs: None
+    tools = _wrapped_tools(
+        strategy,
+        [BuiltinTools.market.historical_prices(), BuiltinTools.market.last_price(), BuiltinTools.market.last_prices()],
+    )
+
+    history = tools["market_historical_prices"](symbols=["VIX", "SPY"], length=2, timestep="day", asset_type="index")
+    assert "VIX" in history["symbols_missing"]
+    assert "VIXCLS" in history["fred_hint"]
+    assert "VIXCLS" in tools["market_last_price"](symbol="^VIX", asset_type="index")["fred_hint"]
+    assert "VIXCLS" in tools["market_last_prices"](symbols=["VIX"], asset_type="index")["fred_hint"]
+    assert "fred_hint" not in tools["market_last_price"](symbol="MSFT")

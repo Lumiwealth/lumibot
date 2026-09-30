@@ -295,6 +295,27 @@ def _web_documents_client():
     return WebClient(transport=httpx.MockTransport(handler), resolver=lambda host: ["93.184.216.34"])
 
 
+def _recorded_fred(strategy, cache_dir):
+    """Real FRED client and point-in-time filtering, fed recorded VIX closes instead of the network.
+
+    The price data has no VIX (like Alpaca), so the agent must find the VIX close on FRED.
+    """
+    from lumibot.macro.fred import FREDMacroData
+
+    closes = {"2026-08-05": 22.10, "2026-08-06": 23.45, "2026-08-07": 24.90, "2026-08-10": 27.30, "2026-08-12": 31.00}
+
+    class _RecordedFRED(FREDMacroData):
+        def _get_json(self, url, params, cache_path):
+            if params.get("series_id") != "VIXCLS":
+                raise ValueError(f"Recorded FRED fixture has no series {params.get('series_id')!r}.")
+            return {"observations": [
+                {"date": day, "value": f"{value:.2f}", "realtime_start": day, "realtime_end": "9999-12-31"}
+                for day, value in closes.items()
+            ]}
+
+    return _RecordedFRED(strategy, cache_dir=cache_dir, api_key="recorded-fixture")
+
+
 class ProductionFixture:
     def __init__(self, fixture):
         self.fixture = fixture
@@ -380,6 +401,8 @@ class ProductionFixture:
             self.strategy.get_chains = get_chains
         if fixture.name == "web_documents":
             self.strategy._agent_web_client = _web_documents_client()
+        if fixture.name == "vix_from_fred":
+            self.strategy.macro = _recorded_fred(self.strategy, self.root / "fred")
         self.strategy.fundamentals = _recorded_sec_fundamentals(self.strategy, self.root / "sec")
         self.manager = self.strategy.agents
         self.manager.replay_cache.root = self.root / "replay"

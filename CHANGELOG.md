@@ -2,6 +2,10 @@
 
 ## 4.6.3 - Unreleased
 
+### Changed
+- Agent price tools (`market_last_price`, `market_last_prices`, `market_historical_prices`) say where to find a market index they have no data for. Broker data often has no indexes (Alpaca has no VIX), and agents told to "skip the day if the VIX closed above 25" refused to trade because they never looked at FRED. A miss on VIX, VIX3M, VXN, OVX, GVZ, SPX, DJIA or the Nasdaq Composite now returns a `fred_hint` naming the FRED series (VIX is `VIXCLS`). The research-data skill says the same. New eval `research_vix_from_fred`.
+- The AI Iron Condor example sells a one-day SPY iron condor at 3:45 PM and holds it to expiry, with a plain-Python early close when SPY runs 40% of the way toward a short strike. It copies the core of the older options_condor_martingale bot, without the martingale.
+
 ### Added
 - `read_document` agent tool: reads any file or page at a URL (PDF, Word, Excel, CSV, tab-separated text, JSON, HTML with its links, and ZIP archives with every file inside). Every table in the file is loaded for `duckdb_query`, so agents filter and add up rows with SQL. `find` keeps matching lines and `start`/`next_start` page through long text. ZIPs that unpack past 100 MB are refused. The result does not report the download time as a date, because agents treated it as the document's date and refused to use documents in backtests.
 - `web-documents` built-in skill: how to find a document on a website, read it, do table math with SQL, and in backtests skip every document dated after the backtest time.

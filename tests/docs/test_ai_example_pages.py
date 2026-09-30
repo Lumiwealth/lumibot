@@ -28,7 +28,7 @@ PAGES = {
     "agents_example_fear_and_greed_index_trading_bot": (
         "Fear and Greed Index Trading Bot", "ai_fear_and_greed_trading_bot.py"
     ),
-    "agents_example_iron_condor_ai_trading_bot": ("Iron Condor AI Trading Bot", "ai_iron_condor.py"),
+    "agents_example_iron_condor_ai_trading_bot": ("AI Iron Condor Trading Bot", "ai_iron_condor.py"),
     "agents_example_put_credit_spread_ai_trading_bot": ("Put Credit Spread AI Trading Bot", "ai_credit_spread.py"),
     "agents_example_0dte_options_ai_trading_bot": ("0DTE Options AI Trading Bot", "ai_0dte_options_trading_bot.py"),
     "agents_example_vwap_strategy_ai_trading_bot": ("VWAP Strategy AI Trading Bot", "ai_vwap.py"),

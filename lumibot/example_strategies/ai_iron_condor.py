@@ -1,61 +1,55 @@
-"""Iron Condor AI Trading Bot.
+"""AI Iron Condor.
 
-Sells an iron condor on SPY about a month out and collects the premium while SPY
-stays in a range. A research agent picks the four option contracts from the live
-option chain. A trading agent opens the condor as one order and closes it at the
-profit target, the loss limit, or the time stop.
+Every afternoon at 3:45 PM the AI sells a SPY iron condor that expires the next
+trading day and lets it expire. Between those runs, plain Python checks SPY every
+5 minutes for free and wakes the AI only when SPY runs too close to one of the
+short strikes, so the AI can close the condor early.
 """
-
-from datetime import datetime
 
 from lumibot.strategies import Strategy
 
 
 class AIIronCondorStrategy(Strategy):
-    parameters = {"symbol": "SPY"}
+    parameters = {"symbol": "SPY", "stop_at": 0.4}
 
     def initialize(self):
-        self.sleeptime = "1D"
-        self.agents.create(
-            name="researcher",
-            allow_trading=False,
-            system_prompt=(
-                "You research an iron condor on the symbol in the context. Check its price, recent moves, "
-                "and option chain. Pick one expiration 30 to 45 days out. Choose a short put near -0.16 "
-                "delta and a short call near +0.16 delta, each with a long option exactly 5 points farther "
-                "out. Report the four exact contracts, their deltas, bid and ask, and the net credit. Also "
-                "report any iron condor we already hold, with its cost to close and its short deltas. "
-                "Do not trade."
-            ),
-        )
+        self.sleeptime = "5M"  # how often plain Python checks the stop (no AI call)
+        self.minutes_before_closing = 15  # before_market_closes runs at 3:45 PM
         self.agents.create(
             name="trader",
             allow_trading=True,
             system_prompt=(
-                "You trade one iron condor at a time on the symbol in the context. Use the options-trading "
-                "skill. First manage the condor we hold. Close it as one order when we have kept 50% of the "
-                "credit, the cost to close reaches 2x the credit, 21 days or less are left, the price "
-                "crosses a short strike, or a short option reaches 0.30 delta. If we hold none, open the "
-                "researched condor as one multi-leg order for a net credit. Risk about 2% of the account, "
-                "at most 10 contracts."
+                "You trade SPY iron condors that expire the next trading day. When it is time to open one, "
+                "first check the VIX: if it closed above 25 yesterday, do not trade today. Otherwise sell an "
+                "iron condor on SPY that expires the next trading day: sell a put and a call near 0.14 delta, "
+                "and buy a put and a call one dollar farther out to cap the loss. Size it so the most we can "
+                "lose is about 3% of the account. Then hold it until it expires. If we ever hold SPY shares "
+                "because an option was exercised, sell them."
             ),
         )
 
+    def before_market_closes(self):
+        self.agents["trader"].run(task_prompt="It is 3:45 PM. Open today's iron condor.")
+
     def on_trading_iteration(self):
-        facts = {"symbol": self.parameters["symbol"]}
-        research = self.agents["researcher"].run(task_prompt="Find today's iron condor.", context=facts)
-        self.agents["trader"].run(
-            task_prompt="Manage or open the iron condor.",
-            context={**facts, "research": research.summary},
-        )
+        # The stop, in plain Python: how far SPY has moved from the middle of the condor toward a short strike.
+        shorts = [p.asset.strike for p in self.get_positions() if p.asset.asset_type == "option" and p.quantity < 0]
+        if len(shorts) != 2 or any(order.is_active() for order in self.get_orders()):
+            return
+        middle, half_width = (max(shorts) + min(shorts)) / 2, (max(shorts) - min(shorts)) / 2
+        price = self.get_last_price(self.parameters["symbol"])
+        if price and abs(price - middle) >= self.parameters["stop_at"] * half_width:
+            self.agents["trader"].run(
+                task_prompt=f"SPY is at {price}, close to one of our short strikes. Close the whole iron condor now."
+            )
 
 
 if __name__ == "__main__":
-    IS_BACKTESTING = True  # Set to False to trade with the broker in your .env file
+    from lumibot.credentials import IS_BACKTESTING
 
     if IS_BACKTESTING:
         from lumibot.backtesting import AlpacaBacktesting
 
-        AIIronCondorStrategy.backtest(AlpacaBacktesting, datetime(2026, 1, 5), datetime(2026, 1, 16))
+        AIIronCondorStrategy.backtest(AlpacaBacktesting)
     else:
         AIIronCondorStrategy().run_live()

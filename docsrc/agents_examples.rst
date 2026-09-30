@@ -41,7 +41,7 @@ AI agents that debate
 Options
 -------
 
-* :doc:`agents_example_iron_condor_ai_trading_bot`: sells a SPY iron condor about a month out and manages the exit.
+* :doc:`agents_example_iron_condor_ai_trading_bot`: sells a one-day SPY iron condor at 3:45 PM and closes early if SPY runs toward a strike.
 * :doc:`agents_example_put_credit_spread_ai_trading_bot`: sells a SPY put credit spread about a month out and manages the exit.
 * :doc:`agents_example_0dte_options_ai_trading_bot`: sells a same-day SPX call spread and watches it every 5 minutes.
 

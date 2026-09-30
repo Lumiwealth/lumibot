@@ -29,7 +29,7 @@ REBUILT = {
     ),
     "ai_insider_trading_bot.py": ("InsiderTradingBot", ["researcher", "trader"], set()),
     "ai_fear_and_greed_trading_bot.py": ("FearAndGreedTradingBot", ["researcher", "trader"], {"researcher"}),
-    "ai_iron_condor.py": ("AIIronCondorStrategy", ["researcher", "trader"], set()),
+    "ai_iron_condor.py": ("AIIronCondorStrategy", ["trader"], set()),
     "ai_credit_spread.py": ("AICreditSpreadStrategy", ["researcher", "trader"], set()),
     "ai_0dte_options_trading_bot.py": ("ZeroDTEOptionsTradingBot", ["researcher", "trader"], set()),
     "ai_vwap.py": ("AIVWAPStrategy", ["researcher", "trader"], set()),
@@ -162,7 +162,7 @@ STANDARD_MAIN = """if __name__ == "__main__":
 """
 # Pages owned by dedicated sessions (2026-09-29); they follow the same rules and
 # remove themselves from this set when their rewrite lands.
-OWNED_ELSEWHERE = {"ai_iron_condor.py"}
+OWNED_ELSEWHERE: set[str] = set()
 
 
 @pytest.mark.parametrize("name", sorted(set(REBUILT) - OWNED_ELSEWHERE))
@@ -210,7 +210,11 @@ class _Agents:
         return {name: _Agent(name, self.calls).run(task, context) for name, task, context in jobs}
 
 
-@pytest.mark.parametrize("name", sorted(REBUILT))
+# Bots that run the AI at set times (not every iteration) have their own tests below.
+TIMED = {"ai_iron_condor.py"}
+
+
+@pytest.mark.parametrize("name", sorted(set(REBUILT) - TIMED))
 def test_research_is_handed_to_the_trader(name):
     class_name, _, _ = REBUILT[name]
     module = __import__(f"lumibot.example_strategies.{name[:-3]}", fromlist=[class_name])
@@ -252,3 +256,64 @@ def test_intraday_bots_wait_for_the_first_bars(name):
     finally:
         del type(strategy).agents
     assert agents.calls == []
+
+
+def _iron_condor(when, positions=(), orders=(), price=595.0):
+    from lumibot.example_strategies.ai_iron_condor import AIIronCondorStrategy
+
+    strategy = object.__new__(AIIronCondorStrategy)
+    agents = _Agents()
+    strategy._agents_for_test = agents
+    strategy.__dict__["parameters"] = dict(AIIronCondorStrategy.parameters)
+    strategy.get_datetime = lambda: when
+    strategy.get_positions = lambda: list(positions)
+    strategy.get_orders = lambda: list(orders)
+    strategy.get_last_price = lambda asset: price
+    return strategy, agents
+
+
+def _option(strike, quantity):
+    return SimpleNamespace(asset=SimpleNamespace(asset_type="option", strike=strike), quantity=quantity)
+
+
+def _condor(put=590.0, call=600.0):
+    return [_option(put, -10), _option(put - 1, 10), _option(call, -10), _option(call + 1, 10)]
+
+
+def _run(strategy, method):
+    type(strategy).agents = property(lambda self: self._agents_for_test)
+    try:
+        getattr(strategy, method)()
+    finally:
+        del type(strategy).agents
+
+
+def test_iron_condor_opens_once_a_day_at_345():
+    """The AI runs once a day to open the condor, at 3:45 PM, not on every 5-minute check."""
+    from lumibot.example_strategies.ai_iron_condor import AIIronCondorStrategy
+
+    tz = ZoneInfo("America/New_York")
+    strategy, agents = _iron_condor(datetime(2026, 1, 6, 11, 30, tzinfo=tz))
+    _run(strategy, "on_trading_iteration")
+    assert agents.calls == [], "no condor held: the 5-minute check never calls the AI"
+    _run(strategy, "before_market_closes")
+    assert [call[0] for call in agents.calls] == ["trader"]
+    source = (EXAMPLES / "ai_iron_condor.py").read_text()
+    assert "self.minutes_before_closing = 15" in source and 'self.sleeptime = "5M"' in source
+    assert AIIronCondorStrategy.parameters["stop_at"] == 0.4
+
+
+def test_iron_condor_stop_is_plain_python_and_wakes_the_ai_only_near_a_short_strike():
+    """Old 1DTE condor backtests only made money with this stop (close when SPY runs 40% of the way
+    from the middle toward a short strike). It is checked in Python every 5 minutes at no AI cost."""
+    tz = ZoneInfo("America/New_York")
+    when = datetime(2026, 1, 7, 11, 30, tzinfo=tz)
+    # Shorts at 590 and 600: middle 595, halfway to a short strike is 5 points; 40% of that is 2 points.
+    for price, woken in ((595.0, False), (596.9, False), (597.0, True), (592.5, True)):
+        strategy, agents = _iron_condor(when, positions=_condor(), price=price)
+        _run(strategy, "on_trading_iteration")
+        assert bool(agents.calls) is woken, price
+    strategy, agents = _iron_condor(when, positions=_condor(), price=599.0,
+                                    orders=[SimpleNamespace(is_active=lambda: True)])
+    _run(strategy, "on_trading_iteration")
+    assert agents.calls == [], "a close order is already working: do not call the AI again"

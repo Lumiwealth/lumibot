@@ -269,6 +269,125 @@ class TestBacktestingBroker:
 
         assert broker._resolve_order_fill_timestep(order, "minute") == "minute"
 
+    def test_resolve_order_fill_timestep_prefers_loaded_minute_over_day_fallback(self):
+        # Regression test for https://github.com/Lumiwealth/lumibot/issues/1175
+        # A day-timestep fill priced off minute data goes stale: the minute->day
+        # resample drops the current (partial) session, so fills land on the
+        # previous session's bar. When the minute frame is already loaded for
+        # the asset (e.g. via get_last_price), fill from it instead.
+        broker = BacktestingBroker.__new__(BacktestingBroker)
+        asset = Asset("PLTR", asset_type="stock")
+        quote = Asset("USD", asset_type="forex")
+
+        class _StubDataSource:
+            @staticmethod
+            def _provider_spec_for_asset(_asset):
+                return SimpleNamespace(provider="polygon")
+
+        data_source = _StubDataSource()
+        data_source._data_store = {
+            (asset, quote, "day"): SimpleNamespace(timestep="day"),
+            (asset, quote, "minute"): SimpleNamespace(timestep="minute"),
+        }
+        broker.data_source = data_source
+        order = Order(
+            asset=asset,
+            quote=quote,
+            quantity=1,
+            side="buy",
+            order_type=Order.OrderType.MARKET,
+            strategy="test",
+        )
+
+        assert broker._resolve_order_fill_timestep(order, "day") == "minute"
+
+    def test_resolve_order_fill_timestep_keeps_day_when_no_intraday_loaded(self):
+        broker = BacktestingBroker.__new__(BacktestingBroker)
+        asset = Asset("PLTR", asset_type="stock")
+        quote = Asset("USD", asset_type="forex")
+
+        class _StubDataSource:
+            @staticmethod
+            def _provider_spec_for_asset(_asset):
+                return SimpleNamespace(provider="polygon")
+
+        data_source = _StubDataSource()
+        data_source._data_store = {
+            (asset, quote, "day"): SimpleNamespace(timestep="day"),
+        }
+        broker.data_source = data_source
+        order = Order(
+            asset=asset,
+            quote=quote,
+            quantity=1,
+            side="buy",
+            order_type=Order.OrderType.MARKET,
+            strategy="test",
+        )
+
+        assert broker._resolve_order_fill_timestep(order, "day") == "day"
+
+    def test_resolve_order_fill_timestep_prefers_loaded_hour_over_day_fallback(self):
+        broker = BacktestingBroker.__new__(BacktestingBroker)
+        asset = Asset("PLTR", asset_type="stock")
+        quote = Asset("USD", asset_type="forex")
+
+        class _StubDataSource:
+            @staticmethod
+            def _provider_spec_for_asset(_asset):
+                return SimpleNamespace(provider="polygon")
+
+        data_source = _StubDataSource()
+        data_source._data_store = {
+            (asset, quote, "day"): SimpleNamespace(timestep="day"),
+            (asset, quote, "hour"): SimpleNamespace(timestep="hour"),
+        }
+        broker.data_source = data_source
+        order = Order(
+            asset=asset,
+            quote=quote,
+            quantity=1,
+            side="buy",
+            order_type=Order.OrderType.MARKET,
+            strategy="test",
+        )
+
+        assert broker._resolve_order_fill_timestep(order, "day") == "hour"
+
+    def test_resolve_order_fill_timestep_ibkr_native_day_contract_wins_over_warmed_minute(self):
+        # The IBKR stock/index daily-data contract pins day lookups to native
+        # day bars: a warmed minute frame must not satisfy them, so the #1175
+        # intraday preference must not apply here.
+        broker = BacktestingBroker.__new__(BacktestingBroker)
+        asset = Asset("SPY", asset_type="stock")
+        quote = Asset("USD", asset_type="forex")
+
+        class _StubDataSource:
+            PREFER_NATIVE_DAY_BARS_FOR_STOCK_INDEX = True
+            _effective_day_mode = True
+            _observed_intraday_cadence = True
+
+            @staticmethod
+            def _provider_spec_for_asset(_asset):
+                return SimpleNamespace(provider="ibkr")
+
+        data_source = _StubDataSource()
+        data_source._data_store = {
+            (asset, quote, "day"): SimpleNamespace(timestep="day"),
+            (asset, quote, "minute"): SimpleNamespace(timestep="minute"),
+        }
+        broker.data_source = data_source
+        order = Order(
+            asset=asset,
+            quote=quote,
+            quantity=1,
+            side="buy",
+            order_type=Order.OrderType.MARKET,
+            strategy="test",
+        )
+
+        assert broker._resolve_order_fill_timestep(order, "day") == "day"
+
     def test_fast_ibkr_bid_ask_rejects_stale_sparse_intraday_bar(self):
         broker = BacktestingBroker.__new__(BacktestingBroker)
         broker.logger = MagicMock()

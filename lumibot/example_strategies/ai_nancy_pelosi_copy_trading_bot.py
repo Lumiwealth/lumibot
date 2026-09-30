@@ -24,19 +24,22 @@ class NancyPelosiCopyTradingBot(Strategy):
             allow_trading=False,
             allow_network=True,
             system_prompt=(
-                "You find out which stocks and call options a member of Congress owns today, from the House Clerk "
-                f"website. Each year's list of filings is a ZIP file such as {HOUSE}/financial-pdfs/2026FD.ZIP "
-                "(change 2026 to the year). Each row is one filing with its filing date. FilingType O is a yearly "
-                "report of everything the member owned on December 31 of that Year; P is a trade report. Yearly "
-                f"reports are at {HOUSE}/financial-pdfs/YEAR/DOCID.pdf and trade reports at "
-                f"{HOUSE}/ptr-pdfs/YEAR/DOCID.pdf. Look at the lists for this year and the two years before, and "
-                "only use filings dated before today. Start from the newest yearly report, then apply every stock "
-                "and option trade dated after the December 31 it covers. List every stock and call option the "
-                "member still owns with its dollar value range; for each call option give the number of contracts, "
-                "the strike price, the expiration date, and its dollar range (from the yearly report, or the trade "
-                "amount in the trade report that bought it). Leave out options that have expired, real estate, "
-                "private companies, funds, and bonds. End with the date of the newest report you used. If your "
-                "notes show you already reported that same newest report, reply only NOTHING NEW. Do not trade."
+                "You find out which stocks and call options a member of Congress owns today, from the House "
+                "Clerk website. "
+                f"Each year's list of filings is a ZIP file such as {HOUSE}/financial-pdfs/2026FD.ZIP (change "
+                "2026 to the year). Each row is one filing with its filing date. FilingType O is a yearly report of "
+                "everything the member owned on December 31 of that Year; P is a trade report. Yearly reports are "
+                f"at {HOUSE}/financial-pdfs/YEAR/DOCID.pdf and trade reports at {HOUSE}/ptr-pdfs/YEAR/DOCID.pdf. "
+                "Every day, first check the lists for this year and the two years before, using only filings dated "
+                "before today. Start your answer with \"Newest filing:\" and the date and DocID of the newest "
+                "filing of any kind. If your notes start with that same newest filing, reply only NOTHING NEW. "
+                "Otherwise start from the newest yearly report and apply every trade dated after the December 31 "
+                "it covers. Shares bought, including shares from exercised call options, add to a stock. A sale "
+                "removes a stock only when the report says the whole position was sold. Partnership units with a "
+                "ticker, such as AB, count as stocks. List every stock the member still owns with a dollar "
+                "range: the yearly report's range, or the trade amount for a stock bought since. List every call "
+                "option she still owns with the number of contracts, strike price, expiration date, and dollar range. "
+                "Leave out expired options, real estate, private companies, funds, and bonds. Do not trade."
             ),
         )
         self.agents.create(
@@ -59,11 +62,11 @@ class NancyPelosiCopyTradingBot(Strategy):
             allow_trading=True,
             system_prompt=(
                 "You move the account to the targets in the plan: shares for stocks, and the exact call options "
-                "in the plan (its strike price, expiration date, and number of contracts). Sell every holding that is not in the plan "
-                "and buy every holding in the plan you do not own yet. Only change a holding you already own when "
-                "it is more than 2 percentage points away from its target, so the account does not trade every "
-                "day. Sell before you buy, never short, never sell options you do not own, and never spend more "
-                "cash than you have. Check that every order filled."
+                "in the plan (its strike price, expiration date, and number of contracts). Sell every holding that is "
+                "not in the plan and buy every holding in the plan you do not own yet. Only change a holding you "
+                "already own when it is more than 2 percentage points away from its target, so the account does not "
+                "trade every day. Sell before you buy, never short, never sell options you do not own, and never "
+                "spend more cash than you have. Check that every order filled."
             ),
         )
 

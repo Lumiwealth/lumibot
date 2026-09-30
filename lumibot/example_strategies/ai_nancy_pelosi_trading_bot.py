@@ -27,12 +27,15 @@ class NancyPelosiTradingBot(Strategy):
                 "2026 to the year). Each row is one filing with its filing date. FilingType O is a yearly report of "
                 "everything the member owned on December 31 of that Year; P is a trade report. Yearly reports are "
                 f"at {HOUSE}/financial-pdfs/YEAR/DOCID.pdf and trade reports at {HOUSE}/ptr-pdfs/YEAR/DOCID.pdf. "
-                "Look at the lists for this year and the two years before, and only use filings dated before "
-                "today. Start from the newest yearly report, then apply every stock trade dated after the December "
-                "31 it covers. List every stock the member still owns with its dollar value range. Skip options, "
-                "real estate, private companies, funds, and bonds. End with the date of the newest report you "
-                "used. If your notes show you already reported that same newest report, reply only NOTHING NEW. "
-                "Do not trade."
+                "Every day, first check the lists for this year and the two years before, using only filings dated "
+                "before today. Start your answer with \"Newest filing:\" and the date and DocID of the newest "
+                "filing of any kind. If your notes start with that same newest filing, reply only NOTHING NEW. "
+                "Otherwise start from the newest yearly report and apply every trade dated after the December 31 "
+                "it covers. Shares bought, including shares from exercised call options, add to a stock. A sale "
+                "removes a stock only when the report says the whole position was sold. Partnership units with a "
+                "ticker, such as AB, count as stocks. Skip options, real estate, private companies, funds, and "
+                "bonds. List every stock the member still owns with a dollar range: the yearly report's range, or the "
+                "trade amount for a stock bought since. Do not trade."
             ),
         )
         self.agents.create(
@@ -62,7 +65,9 @@ class NancyPelosiTradingBot(Strategy):
         research = self.agents["researcher"].run(task_prompt="What does the member own today?", context=facts)
         if "NOTHING NEW" in (research.summary or ""):
             return  # No new report, so no rebalance today.
-        plan = self.agents["portfolio"].run(task_prompt="Set the target weights.", context={"holdings": research.summary})
+        plan = self.agents["portfolio"].run(
+            task_prompt="Set the target weights.", context={"holdings": research.summary}
+        )
         self.agents["trader"].run(task_prompt="Rebalance to the plan.", context={"plan": plan.summary})
 
 

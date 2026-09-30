@@ -18,3 +18,11 @@ All twelve images are unedited outputs of the approved Image Generator (GPT Imag
 | `bill-ackman-portfolio-ai-trading-bot.png` | Research Agent -> Trading Agent -> Trade Order (bull/bear bots: Research Agent -> Bull Agent + Bear Agent -> Judge & Trader -> Trade Order) | `7629ea91ed1d09e5736edbe4a7ec16dd51722dce4084654f6831fdd1fdf7ecb2` |
 | `bull-vs-bear-ai-stock-trading-bot.png` | Research Agent -> Trading Agent -> Trade Order (bull/bear bots: Research Agent -> Bull Agent + Bear Agent -> Judge & Trader -> Trade Order) | `278919ff52661d3cc0c2c9a943bcebf44092c7940b0ce648eef4e93013bb9929` |
 | `tqqq-strategy-ai-trading-bot.png` | Research Agent -> Trading Agent -> Trade Order (bull/bear bots: Research Agent -> Bull Agent + Bear Agent -> Judge & Trader -> Trade Order) | `cd74c5efb992800efc6e5b55e3ff321bd3564ff107f1fa7aee3af1e873333afd` |
+
+## 2026-09-30: AI Iron Condor redrawn
+
+The bot became one trading agent plus a plain-Python stop, so its image was regenerated with the approved Image Generator (GPT Image 2.5 Sunburst, max), using the previous iron condor image as the style reference and the official mascot close-up for the agent card only. Unedited output, inspected at full size.
+
+| Asset | Visible flow | SHA-256 |
+|---|---|---|
+| `iron-condor-ai-trading-bot.png` | Trading Agent (sells a SPY iron condor at 3:45 PM) -> Python Stop Check (checks SPY every 5 minutes, free) -> Close Early (wakes the agent near a strike) | `d41114528640986730c66e321381fb616edc0e7a9186525230a8c326e1d650fa` |

@@ -2413,7 +2413,7 @@ def _bind_read_document(strategy: Any, manager: Any) -> BoundTool:
         url: str,
         find: str | None = None,
         start: int = 0,
-        max_chars: int = 20_000,
+        max_chars: int = 2_500,
         credential_profile: str | None = None,
     ) -> dict[str, Any]:
         from .documents import read_document_bytes
@@ -2428,7 +2428,8 @@ def _bind_read_document(strategy: Any, manager: Any) -> BoundTool:
         result = {key: fetched[key] for key in ("ok", "status_code", "url", "error") if key in fetched}
         result["dates"] = (
             "This is the live, current copy. Its download time is not its date. Use the dates written in it "
-            "(filing, published, or row dates): parts dated on or before the current time are usable, later parts are not."
+            "(filing, published, or row dates): parts dated on or before the current time are usable, later parts are "
+            "not. Never open a document an index lists with a date after the current time, not even to check it."
         )
         if not fetched.get("ok"):
             result["text"] = content[:2_000].decode("utf-8", errors="replace")
@@ -2440,13 +2441,17 @@ def _bind_read_document(strategy: Any, manager: Any) -> BoundTool:
             url=str(fetched.get("url") or url),
         )
         text = document["text"]
+        links = document.get("links") or []
         if find:
             needle = str(find).lower()
             matched = [line for line in text.splitlines() if needle in line.lower()]
             result["matched_lines"] = len(matched)
             text = "\n".join(matched)
+            links = [link for link in links if needle in f"{link['text']} {link['url']}".lower()]
+        # The agent runtime cuts any tool result over 4,000 characters to its head and
+        # tail, so each call returns one small page and says where the next one starts.
         start = max(int(start or 0), 0)
-        max_chars = max(int(max_chars or 20_000), 1)
+        max_chars = min(max(int(max_chars or 2_500), 1), 2_500)
         end = start + max_chars
         result.update(
             {
@@ -2457,12 +2462,28 @@ def _bind_read_document(strategy: Any, manager: Any) -> BoundTool:
                 "next_start": end if end < len(text) else None,
             }
         )
-        for key in ("files", "links", "unsupported", "files_truncated"):
-            if document.get(key):
-                result[key] = document[key]
-        result["tables"] = [
+        if document.get("links"):
+            result["links_total"] = len(document["links"])
+            result["links"] = links[:12]
+            if len(links) > 12:
+                result["links_note"] = "Only 12 links shown. Pass find to pick links by their text or URL."
+        if document.get("files"):
+            result["files_total"] = len(document["files"])
+            result["files"] = [{"name": entry["name"], "kind": entry["kind"]} for entry in document["files"][:15]]
+        if document.get("unsupported"):
+            result["unsupported"] = document["unsupported"]
+        tables = [
             manager.duckdb.register_document_table(label, frame, source=str(result.get("url") or url))
             for label, frame in document["tables"]
+        ]
+        result["tables"] = [
+            {
+                "table_name": table["table_name"],
+                "row_count": table["row_count"],
+                "columns": table["columns"][:30],
+                "sample_row": {key: str(value)[:60] for key, value in list((table["sample_rows"] or [{}])[0].items())[:30]},
+            }
+            for table in tables[:5]
         ]
         return result
 
@@ -2470,9 +2491,9 @@ def _bind_read_document(strategy: Any, manager: Any) -> BoundTool:
         name="read_document",
         description=(
             "Read any file or web page at a URL: PDF, Word, Excel, CSV, tab-separated text, ZIP (every file "
-            "inside), HTML (text plus every link on the page), JSON, or plain text. Arguments: url, optional "
-            "find (keep only lines that contain this text), start and max_chars to page through long text "
-            "(next_start says where to continue; null means you reached the end). Every table in the file "
+            "inside), HTML (text plus the links on the page), JSON, or plain text. Arguments: url, optional "
+            "find (keep only the lines and links that contain this text), start and max_chars (at most 2500) "
+            "to page through long text: call again with start=next_start until next_start is null. Every table in the file "
             "(a CSV, an Excel sheet, a table file inside a ZIP) is loaded for duckdb_query: the result lists "
             "each table_name, its columns and sample rows, so filter, sort and add up rows with SQL instead of "
             "by hand. To find a document on a website, read the page and follow its links. In a backtest, use "

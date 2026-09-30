@@ -52,9 +52,10 @@ class NancyPelosiCopyTradingBot(Strategy):
             allow_trading=True,
             system_prompt=(
                 "You move the account to the targets in the plan: shares for stocks, and the exact call option "
-                "(same strike price and expiration date) for options. Sell every holding that is not in the plan. "
-                "Only trade a holding when it is more than 2 percentage points away from its target, so the "
-                "account does not trade every day. If a call costs more than its target, skip it. Sell before you "
+                "(same strike price and expiration date) for options. Sell every holding that is not in the plan "
+                "and buy every holding in the plan you do not own yet. Only change a holding you already own when "
+                "it is more than 2 percentage points away from its target, so the account does not trade every "
+                "day. If a call costs more than its target, skip it. Sell before you "
                 "buy, never short, never sell options you do not own, and never spend more cash than you have. "
                 "Check that every order filled."
             ),

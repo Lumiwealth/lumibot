@@ -24,7 +24,7 @@ import pandas as pd
 MAX_UNPACKED_BYTES = 100 * 1024 * 1024
 MAX_ZIP_FILES = 50
 MAX_ZIP_DEPTH = 2
-MAX_LINKS = 300
+MAX_LINKS = 5000
 
 _W = "{http://schemas.openxmlformats.org/wordprocessingml/2006/main}"
 _S = "{http://schemas.openxmlformats.org/spreadsheetml/2006/main}"

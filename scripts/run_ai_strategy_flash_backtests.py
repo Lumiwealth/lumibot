@@ -777,6 +777,11 @@ WAVE90 = (
 )
 
 
+# Full 2026 run for the tear sheets: covers her 1/23 report, her 5/15 yearly report, and the 6/23 and 8/21 reports.
+WAVE91 = (_job("pelosi-stocks-2026", "ai_nancy_pelosi_trading_bot", "NancyPelosiTradingBot", "2026-01-02", "2026-09-25", calls=4000),)
+WAVE92 = (_job("pelosi-copy-2026", "ai_nancy_pelosi_copy_trading_bot", "NancyPelosiCopyTradingBot", "2026-01-02", "2026-09-25", "alpaca", 4000),)
+
+
 def _jobs(wave: str) -> tuple[dict, ...]:
     # "7,8" runs several waves under one parent so the spend cap is shared.
     if "," in wave:

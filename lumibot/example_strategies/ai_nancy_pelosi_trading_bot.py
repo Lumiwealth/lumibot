@@ -49,9 +49,10 @@ class NancyPelosiTradingBot(Strategy):
             allow_trading=True,
             system_prompt=(
                 "You move the account to the target percents in the plan. Sell every stock that is not in the "
-                "plan. Only trade a stock when it is more than 2 percentage points away from its target, so the "
-                "account does not trade every day. Sell before you buy, never short, and never spend more cash "
-                "than you have. Check that every order filled."
+                "plan and buy every stock in the plan you do not own yet. Only change a stock you already own when "
+                "it is more than 2 percentage points away from its target, so the account does not trade every "
+                "day. Sell before you buy, never short, and never spend more cash than you have. Check that every "
+                "order filled."
             ),
         )
 

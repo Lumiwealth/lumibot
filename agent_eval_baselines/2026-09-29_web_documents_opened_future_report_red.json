@@ -1,0 +1,69 @@
+{
+  "case_id": "web_documents_holdings_from_yearly_and_trade_reports",
+  "date": "2026-09-29",
+  "method": "read_document capped at 2,500 characters per call, skill said to skip later documents but did not forbid opening them.",
+  "customer_reason": "Two of three runs opened the report filed after the simulated date to check it before discarding it. The answer was right, but opening it is look-ahead in a backtest.",
+  "fix": "The web-documents skill and the read_document result now say never to open a document an index dates after the current time, not even to check it. 6/6 runs then passed without opening it.",
+  "repetitions": [
+    {
+      "repetition": 3,
+      "machine": {
+        "failures": [],
+        "pass": true,
+        "tool_sequence": [
+          "load_skill",
+          "read_document",
+          "duckdb_query",
+          "read_document",
+          "read_document"
+        ]
+      },
+      "judge": {
+        "pass": true,
+        "reason": "Uses report 1001 and applies report 2001; lists the required AAPL, NVDA options, and TSLA holdings, shows MSFT sold, and places no order."
+      }
+    },
+    {
+      "repetition": 1,
+      "machine": {
+        "failures": [
+          "read_document fetched /reports/2002.pdf, which was filed after the simulated date"
+        ],
+        "pass": false,
+        "tool_sequence": [
+          "load_skill",
+          "read_document",
+          "duckdb_query",
+          "read_document",
+          "read_document",
+          "read_document"
+        ]
+      },
+      "judge": {
+        "pass": false,
+        "reason": "The run opened report 2002, which was filed after the simulated date; the rubric requires skipping it."
+      }
+    },
+    {
+      "repetition": 2,
+      "machine": {
+        "failures": [
+          "read_document fetched /reports/2002.pdf, which was filed after the simulated date"
+        ],
+        "pass": false,
+        "tool_sequence": [
+          "load_skill",
+          "read_document",
+          "duckdb_query",
+          "read_document",
+          "read_document",
+          "read_document"
+        ]
+      },
+      "judge": {
+        "pass": false,
+        "reason": "The run opened and read report 2002, which was filed after the simulated date."
+      }
+    }
+  ]
+}

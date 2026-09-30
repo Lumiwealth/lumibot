@@ -213,3 +213,30 @@ def test_read_document_tool_finds_lines_and_pages_through_long_text():
 def test_read_document_is_a_network_tool_listed_with_the_builtins():
     assert "read_document" in NETWORK_TOOL_NAMES
     assert "read_document" in {tool.name for tool in BuiltinTools.all()}
+
+
+def test_read_document_results_fit_the_agent_tool_result_limit():
+    # The agent runtime cuts any tool result over 4,000 characters down to its
+    # head and tail, so a long default page silently hid the middle of a report.
+    import json
+
+    from lumibot.components.agents.runtime import _prune_tool_response_for_context_window
+
+    links = "".join(f'<a href="/r/{i}.pdf">Report {i}</a>' for i in range(400))
+    page = f"<html><body><p>{'word ' * 3000}</p>{links}</body></html>".encode()
+
+    def handler(request):
+        return httpx.Response(200, content=page, headers={"content-type": "text/html"})
+
+    strategy = SimpleNamespace()
+    strategy._agent_web_client = WebClient(
+        transport=httpx.MockTransport(handler), resolver=lambda host: ["93.184.216.34"]
+    )
+    tool = BuiltinTools.web.read_document().binder(strategy, SimpleNamespace(duckdb=DuckDBQueryLayer(strategy)))
+
+    result = tool.function(url="https://clerk.example/list")
+    assert _prune_tool_response_for_context_window(result, tool_name="read_document") is None, len(json.dumps(result))
+    assert result["next_start"] and result["links_total"] == 400
+
+    found = tool.function(url="https://clerk.example/list", find="Report 12")
+    assert [link["text"] for link in found["links"]] == [f"Report {n}" for n in (12, 120, 121, 122, 123, 124, 125, 126, 127, 128, 129)]

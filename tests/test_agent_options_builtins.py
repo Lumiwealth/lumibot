@@ -489,37 +489,6 @@ def test_market_historical_prices_rejects_unsafe_table_name():
         tool.function(symbols="SPY", length=2, table_name="bars; DROP TABLE x")
 
 
-def test_orb_prompt_keeps_strategy_policy_without_repeating_tool_instructions():
-    from lumibot.example_strategies.ai_opening_range_breakout import (
-        build_orb_system_prompt,
-        _parse_universe,
-        _DEFAULT_ORB_UNIVERSE,
-    )
-
-    universe = _parse_universe(_DEFAULT_ORB_UNIVERSE)
-    assert len(universe) >= 90
-    prompt = build_orb_system_prompt(
-        {
-            "universe": universe,
-            "opening_range_minutes": 15,
-            "max_positions": 1,
-        }
-    )
-    assert "Scan the full provided universe" in prompt
-    assert "market_last_prices" not in prompt
-    assert "market_historical_prices" not in prompt
-    assert "09:30" in prompt
-    assert "at most 100 completed bars" in prompt
-    assert "one bounded multi-symbol history call that passes a\n   table_name" in prompt
-    assert "with SQL over that table" in prompt
-    assert "evidence is missing or invalid" in prompt
-    assert "breakout candidate is the latest completed" in prompt
-    assert "12 bars at 10:30, then 24, 36, 48, 60" in prompt
-    assert "Do not\n   round those counts up to 100" in prompt
-    assert str(len(universe)) in prompt
-    assert "SPY" in prompt and "AAPL" in prompt
-
-
 def test_option_chain_and_contract_tools_return_exact_listed_contract_data():
     strategy = _OptionsStrategy()
     tools = _wrapped_tools(
@@ -828,34 +797,6 @@ def test_orders_get_status_reports_missing_and_known_identifiers():
     assert waited["all_filled"] is True
     assert waited["timed_out"] is False
     assert waited["polls"] >= 1
-
-
-def test_iron_condor_prompt_includes_parameterized_wing_and_delta():
-    from lumibot.example_strategies.ai_iron_condor import build_iron_condor_system_prompt
-
-    prompt = build_iron_condor_system_prompt(
-        {
-            "underlying": "QQQ",
-            "wing_width": 7.0,
-            "target_delta": 0.18,
-            "delta_band": 0.03,
-            "min_dte": 28,
-            "max_dte": 40,
-            "preferred_dte": 33,
-            "profit_take_fraction": 0.4,
-            "loss_multiple": 1.8,
-            "time_stop_dte": 18,
-            "max_risk_pct": 0.015,
-            "max_contracts": 4,
-        }
-    )
-
-    assert "QQQ iron-condor" in prompt
-    assert "7.0 points" in prompt
-    assert "-0.18 delta" in prompt
-    assert "0.03 of the target" in prompt
-    assert "orders_get_status" not in prompt
-    assert "options_find_expiration" not in prompt
 
 
 def _opening_option_tools(strategy):

@@ -125,7 +125,6 @@ setuptools.setup(
             "components/agents/skills/*/SKILL.md",
             "components/agents/skills/*/agents/*.yaml",
             "components/agents/skills/*/references/*.md",
-            "example_strategies/agent_rules/*.json",
             "example_strategies/fixtures/*.json",
         ] + (["resources/ThetaTerminal.jar"] if theta_jar_path.exists() else []),
     },

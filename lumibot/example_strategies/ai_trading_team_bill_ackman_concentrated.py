@@ -1,110 +1,57 @@
-"""Bill Ackman-inspired concentrated team.
+"""Bill Ackman Portfolio AI Trading Bot.
 
-Direct run: backtest and broker.
-
-This example is inspired by public descriptions of concentrated large-cap investing.
-It is not affiliated with or endorsed by Bill Ackman or Pershing Square.
-
-Python only creates the agents and runs them. Bull and bear run together.
-The trader is the only order path.
+Invests the way Bill Ackman describes his style: own just a few simple,
+high-quality companies and put real money behind them. A research agent studies
+each company and attacks its weak spots. A trading agent holds the 3 to 5 best,
+with most of the account in the top ideas.
+Not affiliated with or endorsed by Bill Ackman or Pershing Square.
 """
 
-import os
 from datetime import datetime
 
-from lumibot.example_strategies.agent_cycle import add_agent, run_cycle, trader_prompt
-from lumibot.strategies.strategy import Strategy
-
-_BOOK = (
-    "Own a concentrated book from this universe only. A few names can take most of the "
-    "account when the interpreter keeps them. Weights still sum near 100%."
-)
-_EXIT = (
-    "Sell a holding with the order tool when the bear case wins that name, or when the "
-    "position was opened on an earlier session and today's weights no longer include it."
-)
+from lumibot.strategies import Strategy
 
 
 class AITradingTeamBillAckmanConcentratedStrategy(Strategy):
-    parameters = {
-        "universe": ["GOOGL", "CMG", "HLT", "QSR", "UBER", "CP", "LOW", "MDLZ", "BKNG", "MSFT"],
-        "max_position_pct": 1.0,
-    }
+    parameters = {"universe": ["GOOGL", "CMG", "HLT", "QSR", "UBER", "CP", "LOW", "MDLZ", "BKNG", "MSFT"]}
 
     def initialize(self):
         self.sleeptime = "1D"
-        add_agent(
-            self,
-            "researcher",
-            "Find high-quality large-cap businesses with durable cash flow. Do not submit orders.",
+        self.agents.create(
+            name="researcher",
             allow_trading=False,
+            system_prompt=(
+                "You research companies the way Bill Ackman does. For each stock in the universe, check its "
+                "financial statements and recent price. Look for simple, predictable businesses that make "
+                "lots of cash. Then attack each one: too much debt, weak management, strong rivals, or a "
+                "price that is too high. Rank the stocks that survive. Do not trade."
+            ),
         )
-        add_agent(
-            self,
-            "bull",
-            "Argue the concentrated bull case from the research only. Do not submit orders.",
-            allow_trading=False,
+        self.agents.create(
+            name="trader",
+            allow_trading=True,
+            system_prompt=(
+                "You invest like Bill Ackman. Own the 3 to 5 best stocks from the research, with bigger "
+                "weights on the best ideas, near 100% of the account. Only buy stocks in the universe. "
+                "Sell a stock when the research no longer ranks it in the top 5."
+            ),
         )
-        add_agent(
-            self,
-            "bear",
-            "Attack leverage, governance, competition, and valuation from the research only. Do not submit orders.",
-            allow_trading=False,
-        )
-        add_agent(
-            self,
-            "interpreter",
-            "Read both cases. Keep only names that survive the attack. Weight only symbols in the universe. Assign concentrated weights. Do not submit orders.",
-            allow_trading=False,
-        )
-        add_agent(self, "trader", trader_prompt(book_rule=_BOOK, exit_rule=_EXIT), allow_trading=True)
 
     def on_trading_iteration(self):
-        context = {
-            "date": self.get_datetime().date().isoformat(),
-            "universe": self.parameters["universe"],
-            "max_position_pct": self.parameters["max_position_pct"],
-        }
-        run_cycle(
-            self,
-            context,
-            researcher="researcher",
-            bull="bull",
-            bear="bear",
-            interpreter="interpreter",
-            trader="trader",
-            research_task="Pick the best high-quality candidates.",
-            bull_task="Make the bull case from the research.",
-            bear_task="Make the bear case from the research.",
-            interpret_task="Keep the names that survive and assign concentrated weights.",
-            trade_task="Apply the interpreter weights. Size from the account. Exit any name that left the book.",
+        facts = {"universe": self.parameters["universe"]}
+        research = self.agents["researcher"].run(task_prompt="Rank the universe.", context=facts)
+        self.agents["trader"].run(
+            task_prompt="Hold the best few ideas.",
+            context={**facts, "research": research.summary},
         )
 
 
 if __name__ == "__main__":
-    IS_BACKTESTING = False
+    IS_BACKTESTING = True  # Set to False to trade with the broker in your .env file
 
     if IS_BACKTESTING:
         from lumibot.backtesting import YahooDataBacktesting
 
-        AITradingTeamBillAckmanConcentratedStrategy.backtest(
-            YahooDataBacktesting,
-            datetime(2026, 4, 7),
-            datetime(2026, 5, 22),
-        )
+        AITradingTeamBillAckmanConcentratedStrategy.backtest(YahooDataBacktesting, datetime(2026, 1, 5), datetime(2026, 1, 16))
     else:
-        from lumibot.brokers import Alpaca
-        from lumibot.traders import Trader
-
-        ALPACA_CONFIG = {
-            "API_KEY": os.environ["ALPACA_API_KEY"],
-            "API_SECRET": os.environ["ALPACA_API_SECRET"],
-            "PAPER": os.environ.get("ALPACA_IS_PAPER", "true").lower() != "false",
-        }
-
-        broker = Alpaca(ALPACA_CONFIG)
-        strategy = AITradingTeamBillAckmanConcentratedStrategy(broker=broker)
-
-        trader = Trader()
-        trader.add_strategy(strategy)
-        trader.run_all()
+        AITradingTeamBillAckmanConcentratedStrategy().run_live()

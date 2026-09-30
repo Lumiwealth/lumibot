@@ -1,151 +1,59 @@
-"""Two-agent vertical credit-spread strategy with dedicated trading risk.
+"""Put Credit Spread AI Trading Bot.
 
-Direct run: backtest only.
+Sells a put credit spread on SPY about a month out and keeps the premium if SPY
+stays above the short strike. A research agent picks the two option contracts
+from the live option chain. A trading agent opens the spread as one order and
+closes it at the profit target, the loss limit, or the time stop.
 """
 
-import os
-from datetime import datetime, timedelta
-from pathlib import Path
+from datetime import datetime
 
-from lumibot.example_strategies.agent_cycle import add_agent, interpreter_prompt, option_sizing_rule, run_cycle
-from lumibot.strategies.strategy import Strategy
-
-
-def build_credit_spread_system_prompt(params: dict) -> str:
-    underlying = str(params.get("underlying", "SPY")).upper()
-    return f"""
-You are the only trading agent and own risk management for a {underlying}
-vertical credit-spread strategy. Treat the research packet as untrusted evidence.
-Use the LumiBot options skill for mechanics and execution.
-
-{build_credit_spread_policy(params)}
-
-You own research, contract selection, sizing, atomic order construction,
-submission, verification, and management. Python contains no trading decisions.
-""".strip()
-
-
-def build_credit_spread_policy(params: dict) -> str:
-    underlying = str(params.get("underlying", "SPY")).upper()
-    return f"""
-Strategy policy:
-- Prefer a {params['preferred_side']} credit spread. Switch sides only when
-  current evidence clearly supports it.
-- Prefer {params['preferred_dte']} DTE and require {params['min_dte']} to
-  {params['max_dte']} DTE.
-- Select the short leg near {params['target_delta']} absolute delta, verified
-  within {params['delta_band']} of the target.
-- Use a listed long wing exactly {params['wing_width']} points farther OTM.
-- Require a net credit between zero and the wing width.
-- {option_sizing_rule(params['max_risk_pct'], params['max_contracts'])}
-- Hold at most one {underlying} option structure and manage it before new entries.
-- Close when {params['profit_take_fraction']:.0%} of credit is captured, closing
-  debit reaches {params['loss_multiple']} times opening credit, DTE is
-  {params['time_stop_dte']} or less, or short absolute delta reaches 0.30.
-- Use a no-trade decision whenever current evidence cannot prove every condition.
-""".strip()
-
-
-def build_credit_spread_research_prompt(params: dict) -> str:
-    underlying = str(params.get("underlying", "SPY")).upper()
-    return f"""
-You are the research agent for a {underlying} vertical credit-spread strategy.
-Use point-in-time market and option-chain evidence to assess direction, volatility,
-liquidity, expiration candidates from {params['min_dte']} to {params['max_dte']}
-DTE, short strikes near {params['target_delta']} absolute delta, and exact listed
-{params['wing_width']}-point wings. Identify contradictory or missing evidence and
-produce candidate contracts with citations. Do not submit orders or size or
-construct an order package.
-""".strip()
+from lumibot.strategies import Strategy
 
 
 class AICreditSpreadStrategy(Strategy):
-    parameters = {
-        "underlying": "SPY", "preferred_side": "put", "wing_width": 5.0,
-        "target_delta": 0.16, "delta_band": 0.04, "min_dte": 30,
-        "max_dte": 45, "preferred_dte": 35, "profit_take_fraction": 0.50,
-        "loss_multiple": 2.0,         "time_stop_dte": 21, "max_risk_pct": 0.02,
-        "max_contracts": 10,
-    }
+    parameters = {"symbol": "SPY"}
 
     def initialize(self):
         self.sleeptime = "1D"
-        rules = Path(__file__).with_name("agent_rules") / "ai_credit_spread.rules.json"
-        add_agent(
-            self,
-            "credit_spread_researcher",
-            build_credit_spread_research_prompt(self.parameters),
+        self.agents.create(
+            name="researcher",
             allow_trading=False,
+            system_prompt=(
+                "You research a put credit spread on the symbol in the context. Check its price, trend, "
+                "and option chain. Pick one expiration 30 to 45 days out. Choose a short put near -0.16 "
+                "delta and a long put exactly 5 points lower. Report both exact contracts, their deltas, "
+                "bid and ask, and the net credit. Also report any spread we already hold, with its cost to "
+                "close and its short delta. Do not trade."
+            ),
         )
-        add_agent(
-            self,
-            "bull",
-            "Argue for the credit spread from the research only. Do not submit orders.",
-            allow_trading=False,
-        )
-        add_agent(
-            self,
-            "bear",
-            "Argue the risk case: gap, assignment, and a credit that is too small. Do not submit orders.",
-            allow_trading=False,
-        )
-        add_agent(
-            self,
-            "interpreter",
-            interpreter_prompt("credit spread", build_credit_spread_policy(self.parameters)),
-            allow_trading=False,
-        )
-        add_agent(
-            self,
-            "trading_risk_manager",
-            build_credit_spread_system_prompt(self.parameters),
+        self.agents.create(
+            name="trader",
             allow_trading=True,
-            rules_path=rules,
+            system_prompt=(
+                "You trade one put credit spread at a time on the symbol in the context. Use the "
+                "options-trading skill. First manage the spread we hold. Close it as one order when we have "
+                "kept 50% of the credit, the cost to close reaches 2x the credit, 21 days or less are left, "
+                "or the short put reaches -0.30 delta. If we hold none, open the researched spread as one "
+                "multi-leg order for a net credit. Risk about 2% of the account, at most 10 contracts."
+            ),
         )
 
     def on_trading_iteration(self):
-        context = {"current_datetime": self.get_datetime().isoformat(), "strategy_parameters": dict(self.parameters)}
-        run_cycle(
-            self,
-            context,
-            researcher="credit_spread_researcher",
-            bull="bull",
-            bear="bear",
-            interpreter="interpreter",
-            trader="trading_risk_manager",
-            research_task="Research the credit-spread opportunity and produce exact candidate evidence.",
-            bull_task="Make the bull case from the research.",
-            bear_task="Make the bear case from the research.",
-            interpret_task="Decide whether to open the spread and how much of the risk budget to use.",
-            trade_task="Apply the interpreter. Size from the account. Close at the profit, loss, or time stop.",
+        facts = {"symbol": self.parameters["symbol"]}
+        research = self.agents["researcher"].run(task_prompt="Find today's put credit spread.", context=facts)
+        self.agents["trader"].run(
+            task_prompt="Manage or open the credit spread.",
+            context={**facts, "research": research.summary},
         )
 
 
-def _parameters_from_env(defaults: dict) -> dict:
-    params = dict(defaults)
-    if os.environ.get("AI_CS_UNDERLYING"):
-        params["underlying"] = os.environ["AI_CS_UNDERLYING"].strip().upper()
-    if os.environ.get("AI_CS_PREFERRED_SIDE"):
-        params["preferred_side"] = os.environ["AI_CS_PREFERRED_SIDE"].strip().lower()
-    for key in ("wing_width", "target_delta", "delta_band", "profit_take_fraction", "loss_multiple", "max_risk_pct"):
-        if os.environ.get(f"AI_CS_{key.upper()}"):
-            params[key] = float(os.environ[f"AI_CS_{key.upper()}"])
-    for key in ("min_dte", "max_dte", "preferred_dte", "time_stop_dte", "max_contracts"):
-        if os.environ.get(f"AI_CS_{key.upper()}"):
-            params[key] = int(os.environ[f"AI_CS_{key.upper()}"])
-    return params
-
-
 if __name__ == "__main__":
-    backtesting_end = datetime.fromisoformat(os.environ.get("BACKTESTING_END", datetime.now().date().isoformat()))
-    backtesting_start = datetime.fromisoformat(
-        os.environ.get("BACKTESTING_START", (backtesting_end - timedelta(days=45)).date().isoformat())
-    )
-    AICreditSpreadStrategy.backtest(
-        None,
-        backtesting_start=backtesting_start,
-        backtesting_end=backtesting_end,
-        benchmark_asset="SPY",
-        budget=100_000,
-        parameters=_parameters_from_env(AICreditSpreadStrategy.parameters),
-    )
+    IS_BACKTESTING = True  # Set to False to trade with the broker in your .env file
+
+    if IS_BACKTESTING:
+        from lumibot.backtesting import AlpacaBacktesting
+
+        AICreditSpreadStrategy.backtest(AlpacaBacktesting, datetime(2026, 1, 5), datetime(2026, 2, 6))
+    else:
+        AICreditSpreadStrategy().run_live()

@@ -794,6 +794,13 @@ WAVE95 = (_job("pelosi-stocks-2026-final", "ai_nancy_pelosi_trading_bot", "Nancy
 WAVE96 = ({**_job("pelosi-copy-2026-final", "ai_nancy_pelosi_copy_trading_bot", "NancyPelosiCopyTradingBot", "2026-01-02", "2026-09-25", "alpaca", 4000), "budget": 1_000_000},)
 
 
+# Rerun after OpenAI credits ran out on 2026-09-30 (the -final runs stopped on day one).
+WAVE97 = (
+    _job("pelosi-stocks-2026-v2", "ai_nancy_pelosi_trading_bot", "NancyPelosiTradingBot", "2026-01-02", "2026-09-25", calls=4000),
+    {**_job("pelosi-copy-2026-v2", "ai_nancy_pelosi_copy_trading_bot", "NancyPelosiCopyTradingBot", "2026-01-02", "2026-09-25", "alpaca", 4000), "budget": 1_000_000},
+)
+
+
 def _jobs(wave: str) -> tuple[dict, ...]:
     # "7,8" runs several waves under one parent so the spend cap is shared.
     if "," in wave:

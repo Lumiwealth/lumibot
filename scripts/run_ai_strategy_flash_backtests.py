@@ -831,6 +831,14 @@ WAVE101 = (
 )
 
 
+# v3 sold DIS and PYPL (December sales already inside the 2025 yearly report) and skipped day one
+# (a full answer mentioned NOTHING NEW). Both fixed.
+WAVE102 = (
+    _job("pelosi-stocks-switches-v4", "ai_nancy_pelosi_trading_bot", "NancyPelosiTradingBot", "2026-05-04", "2026-08-28", calls=3000),
+    _job("pelosi-copy-switches-v4", "ai_nancy_pelosi_copy_trading_bot", "NancyPelosiCopyTradingBot", "2026-05-04", "2026-08-28", "alpaca", 3000),
+)
+
+
 def _jobs(wave: str) -> tuple[dict, ...]:
     # "7,8" runs several waves under one parent so the spend cap is shared.
     if "," in wave:

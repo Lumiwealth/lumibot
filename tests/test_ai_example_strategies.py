@@ -317,3 +317,38 @@ def test_iron_condor_stop_is_plain_python_and_wakes_the_ai_only_near_a_short_str
                                     orders=[SimpleNamespace(is_active=lambda: True)])
     _run(strategy, "on_trading_iteration")
     assert agents.calls == [], "a close order is already working: do not call the AI again"
+
+
+@pytest.mark.parametrize("name", ["ai_nancy_pelosi_trading_bot.py", "ai_nancy_pelosi_copy_trading_bot.py"])
+def test_pelosi_bots_rebalance_unless_the_answer_starts_with_nothing_new(name):
+    # 2026-09-30 switch-window backtest: the first day's full answer mentioned
+    # "NOTHING NEW" in passing, so the bot skipped the day and bought nothing.
+    class_name = REBUILT[name][0]
+    module = __import__(f"lumibot.example_strategies.{name[:-3]}", fromlist=[class_name])
+    strategy_class = getattr(module, class_name)
+
+    def run_day(answer):
+        calls = []
+
+        class _Named(_Agent):
+            def run(self, task_prompt, context=None):
+                calls.append(self.name)
+                return SimpleNamespace(summary=answer if self.name == "researcher" else f"{self.name} summary")
+
+        class _Team(_Agents):
+            def __getitem__(self, agent_name):
+                return _Named(agent_name, [])
+
+        strategy = object.__new__(strategy_class)
+        strategy._agents_for_test = _Team()
+        strategy.__dict__["parameters"] = dict(strategy_class.parameters)
+        type(strategy).agents = property(lambda self: self._agents_for_test)
+        try:
+            strategy.on_trading_iteration()
+        finally:
+            del type(strategy).agents
+        return calls
+
+    full = "Newest filing: January 23, 2026. My notes had nothing, so this is not NOTHING NEW. Holdings: AAPL."
+    assert run_day(full) == ["researcher", "portfolio", "trader"]
+    assert run_day("RESULT: NOTHING NEW") == ["researcher"]

@@ -28,15 +28,15 @@ class NancyPelosiTradingBot(Strategy):
                 "everything the member owned on December 31 of that Year; P is a trade report. Yearly reports are "
                 f"at {HOUSE}/financial-pdfs/YEAR/DOCID.pdf and trade reports at {HOUSE}/ptr-pdfs/YEAR/DOCID.pdf. "
                 "Every day, first check the lists for this year and the two years before, using only filings dated "
-                "before today. Start your answer with \"Newest filing:\" and the date and DocID of the member's "
-                "own newest filing, yearly or trade report (other people's filings do not count). If your notes "
-                "start with that same newest filing, reply only NOTHING NEW. "
-                "Otherwise start from the newest yearly report and apply every trade dated after the December 31 "
-                "it covers. Shares bought, including shares from exercised call options, add to a stock. A sale "
-                "removes a stock only when the report says the whole position was sold. Partnership units with a "
-                "ticker, such as AB, count as stocks. Skip options, real estate, private companies, funds, and "
-                "bonds. List every stock the member still owns with a dollar range: the yearly report's range, or the "
-                "trade amount for a stock bought since. Do not trade."
+                "before today. Start your answer with \"Newest filing:\" and the date and DocID of the member's own "
+                "newest filing, yearly or trade report (other people's filings do not count). If your notes start with "
+                "that same newest filing, reply only NOTHING NEW. Otherwise start from the newest yearly report and "
+                "apply every trade dated after the December 31 it covers; ignore earlier trades, because the yearly "
+                "report already includes them. Shares bought, including shares from exercised call options, add to a "
+                "stock. A sale removes a stock only when the report says the whole position was sold. Partnership "
+                "units with a ticker, such as AB, count as stocks. Skip options, real estate, private companies, "
+                "funds, and bonds. List every stock the member still owns with a dollar range: the yearly report's "
+                "range, or the trade amount for a stock bought since. Do not trade."
             ),
         )
         self.agents.create(
@@ -64,8 +64,8 @@ class NancyPelosiTradingBot(Strategy):
     def on_trading_iteration(self):
         facts = {"last_name": self.parameters["last_name"]}
         research = self.agents["researcher"].run(task_prompt="What does the member own today?", context=facts)
-        if "NOTHING NEW" in (research.summary or ""):
-            return  # No new report, so no rebalance today.
+        if "NOTHING NEW" in (research.summary or "")[:40]:
+            return  # No new report, so no rebalance today. A full answer starts with "Newest filing:".
         plan = self.agents["portfolio"].run(
             task_prompt="Set the target weights.", context={"holdings": research.summary}
         )

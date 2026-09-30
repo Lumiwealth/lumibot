@@ -25,6 +25,8 @@ built for one website.
    its columns, and sample rows. Filter, sort, count, and add up rows with SQL,
    never by hand. Check the sample rows first: dates such as `5/15/2026` are
    text, so compare them with `strptime(FilingDate, '%m/%d/%Y')`.
+   To sort a `UNION` of several tables, wrap it first:
+   `SELECT * FROM (... UNION ALL ...) AS t ORDER BY ...`.
 5. Backtests: the simulated time is a hard wall. A website shows everything
    published up to the real today, including documents from after the backtest
    time. The time you downloaded a file is not its date, so never discard a

@@ -131,6 +131,11 @@ Market-price tools:
   provided universe.
 - ``market_load_history_table`` still loads one symbol per call; load finalists
   after the batch scan.
+- Broker price data often has no market indexes (Alpaca has no VIX). When a
+  price tool has no data for an index such as VIX, VXN, OVX, GVZ, SPX or DJIA,
+  its result includes a ``fred_hint`` naming the FRED series with the daily
+  close (the VIX is ``VIXCLS``). ``get_fred_latest`` returns only what was
+  published by the strategy date, so it is safe in backtests.
 
 Market And Account State
 ------------------------

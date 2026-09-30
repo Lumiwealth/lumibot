@@ -1,6 +1,6 @@
 ---
 name: research-data
-description: Use before relying on BotSpot public macro, regulatory, Treasury, labor, economic, funding, positioning, or SEC document research tools in an investment decision.
+description: Use before relying on BotSpot public macro, regulatory, Treasury, labor, economic, funding, positioning, or SEC document research tools in an investment decision, and whenever a market index such as the VIX is missing from the broker's price data.
 ---
 
 # Research Data
@@ -35,6 +35,15 @@ broker accounts, live prices, premium news, trading actions, or private user dat
 7. A researcher may summarize this evidence for a trader, but the trader must
    independently revalidate current account, price, order, and risk state before
    execution.
+
+## Market indexes missing from price data
+
+Broker price data often has no market indexes. Alpaca, for example, has no VIX.
+Before calling a rule unverifiable, look for the index on FRED with the FRED
+tools: the VIX daily close is series `VIXCLS`, and `list_fred_series` lists the
+others. FRED returns only what was published by the simulated date, so in a
+backtest "yesterday's close" is the latest observation it returns. Say which date
+the value is for. Only if FRED also has no value, report the missing evidence.
 
 LumiBot can use these managed tools automatically when running on BotSpot. An
 external LumiBot installation can link a BotSpot account and configure the remote

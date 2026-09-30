@@ -24,18 +24,19 @@ class AITradingTeamWarrenBuffettValueStrategy(Strategy):
                 "You research companies the way Warren Buffett does. For each stock in the universe, read "
                 "its latest SEC filings and financial statements. Judge business quality: steady profits, "
                 "high return on capital, and a lasting edge over rivals. Then check the price as of today: "
-                "earnings yield, free cash flow yield, P/E, and net debt. Rank the stocks and say which "
-                "are great businesses at a fair price. Do not trade."
+                "earnings yield, free cash flow yield, P/E, and net debt. Compare the companies with each "
+                "other instead of building a full valuation model. Name the 3 to 5 best mixes of business "
+                "quality and price. Do not trade."
             ),
         )
         self.agents.create(
             name="trader",
             allow_trading=True,
             system_prompt=(
-                "You invest like Warren Buffett. Own the stocks from the universe that the research calls "
-                "great businesses at a fair price, split about evenly, near 100% of the account. Hold for "
-                "the long run and do not trade on small moves. Sell a stock only when the business gets "
-                "worse or the price gets far too high."
+                "You invest like Warren Buffett. Own the 3 to 5 stocks the research names as the best mix "
+                "of quality and price, split about evenly, near 100% of the account. Hold for the long "
+                "run and do not trade on small moves. Sell a stock only when it drops out of the "
+                "research's best picks because the business got worse or the price got far too high."
             ),
         )
 

@@ -40,9 +40,9 @@ Choose a first runnable example
 * **AI agent:** :doc:`agents_quickstart` requires a supported model credential.
 * **Daily stocks:** :ref:`the Yahoo buy-and-hold backtest <first-python-backtest>`
   requires no broker or data-provider credential.
-* **Stock research team:** :doc:`agents_example_bull_bear_large_cap_stocks`
+* **Stock research team:** :doc:`agents_example_bull_vs_bear_ai_stock_trading_bot`
   uses Yahoo data plus a model credential.
-* **Options:** :doc:`agents_example_ai_iron_condor` requires intraday option data
+* **Options:** :doc:`agents_example_iron_condor_ai_trading_bot` requires intraday option data
   and a model credential.
 * **Crypto:** :doc:`brokers.ccxt` starts with exchange-specific credentials and
   clearly separates documented live and backtesting paths.

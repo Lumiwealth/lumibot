@@ -678,6 +678,42 @@ WAVE29 = (
 )
 
 
+# 2026-09-29: the rebuilt two-agent examples (agent_cycle deleted).
+def _job(name, module, cls, start, end, source="yahoo", calls=120):
+    return {
+        "name": name,
+        "class_path": f"{_EX}{module}:{cls}",
+        "start": start,
+        "end": end,
+        "source": source,
+        "parameters": {"agent_max_model_calls": calls},
+    }
+
+
+WAVE30 = (
+    _job("pelosi-2agent", "ai_nancy_pelosi_trading_bot", "NancyPelosiTradingBot", "2026-01-20", "2026-02-13"),
+    _job("insider-2agent", "ai_insider_trading_bot", "InsiderTradingBot", "2026-01-05", "2026-01-23"),
+    _job("fear-greed-2agent", "ai_fear_and_greed_trading_bot", "FearAndGreedTradingBot", "2026-01-05", "2026-01-08", calls=20),
+    _job("iron-condor-2agent", "ai_iron_condor", "AIIronCondorStrategy", "2026-01-05", "2026-01-16", "alpaca"),
+    _job("credit-spread-2agent", "ai_credit_spread", "AICreditSpreadStrategy", "2026-01-05", "2026-01-23", "alpaca"),
+    _job("vwap-2agent", "ai_vwap", "AIVWAPStrategy", "2026-01-05", "2026-01-10", "alpaca"),
+    _job("orb-2agent", "ai_opening_range_breakout", "AIOpeningRangeBreakoutStrategy", "2026-01-05", "2026-01-10", "alpaca"),
+    _job("ackman-2agent", "ai_trading_team_bill_ackman_concentrated", "AITradingTeamBillAckmanConcentratedStrategy", "2026-01-05", "2026-01-16"),
+    _job("large-cap-bullbear", "ai_trading_team_bull_bear_large_cap_stocks", "AITradingTeamBullBearLargeCapStocksStrategy", "2026-01-05", "2026-01-16", calls=200),
+    _job("leveraged-bullbear", "ai_trading_team_bull_bear_leveraged_etf", "AITradingTeamBullBearLeveragedETFStrategy", "2026-01-05", "2026-01-16", calls=200),
+)
+
+
+# SPX index data is not in Alpaca history; the 0DTE bot now defaults to SPY.
+WAVE31 = (_job("0dte-spy-2agent", "ai_0dte_options_trading_bot", "ZeroDTEOptionsTradingBot", "2026-01-05", "2026-01-07", "alpaca", 260),
+)
+
+
+# Buffett v1 held cash: the trader waited for proof of fair value. Prompts now compare and pick 3 to 5.
+WAVE32 = (_job("buffett-2agent-v2", "ai_trading_team_warren_buffett_value", "AITradingTeamWarrenBuffettValueStrategy", "2026-01-05", "2026-01-16"),
+)
+
+
 def _jobs(wave: str) -> tuple[dict, ...]:
     # "7,8" runs several waves under one parent so the spend cap is shared.
     if "," in wave:

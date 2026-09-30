@@ -59,36 +59,34 @@ execution**, not the capability of the importable strategy class.
 ``agent_discretionary.py``, ``agent_m2_liquidity.py``,
 ``agent_m2_liquidity_anthropic.py``, ``agent_m2_liquidity_grok.py``,
 ``agent_m2_liquidity_openai.py``, ``agent_macro_risk.py``,
-``agent_momentum_allocator.py``, ``agent_news_sentiment.py``,
-``ai_browser_research_showcase.py``, ``ai_credit_spread.py``,
-``ai_iron_condor.py``, ``ai_opening_range_breakout.py``,
-``ai_researcher_trader.py``, ``ai_spx_zero_dte_bear_call_team.py``, and
-``ai_vwap.py``.
+``agent_momentum_allocator.py``, ``agent_news_sentiment.py``, and
+``ai_researcher_trader.py``.
 
-**Backtest and broker:** ``ai_trading_team_bill_ackman_concentrated.py``,
-``ai_trading_team_bull_bear_large_cap_stocks.py``,
-``ai_trading_team_bull_bear_leveraged_etf.py``,
+**Backtest or live, one switch:** ``ai_nancy_pelosi_trading_bot.py``,
+``ai_insider_trading_bot.py``, ``ai_fear_and_greed_trading_bot.py``,
+``ai_iron_condor.py``, ``ai_credit_spread.py``,
+``ai_0dte_options_trading_bot.py``, ``ai_vwap.py``,
+``ai_opening_range_breakout.py``, ``ai_trading_team_warren_buffett_value.py``,
+``ai_trading_team_bill_ackman_concentrated.py``,
+``ai_trading_team_bull_bear_large_cap_stocks.py``, and
+``ai_trading_team_bull_bear_leveraged_etf.py``. Each ends with
+``IS_BACKTESTING = True``. Leave it ``True`` to run the backtest dates in the
+file. Set it to ``False`` to call ``run_live()``, which trades with the broker
+named in your ``.env`` file (paper or live, as that file says). The Fear and
+Greed bot starts with ``False`` because the website only shows today's score.
+
+**Backtest and broker, chosen by the environment:**
 ``ai_trading_team_citadel_sector_pods.py``,
 ``ai_trading_team_citadel_sector_pods_leveraged.py``,
-``ai_trading_team_ray_dalio_idea_meritocracy.py``,
-``ai_trading_team_ray_dalio_idea_meritocracy_leveraged.py``, and
-``ai_trading_team_warren_buffett_value.py``. Four team files import
-``IS_BACKTESTING`` from ``lumibot.credentials``: the two Citadel files and the
-two Ray Dalio files. They read ``IS_BACKTESTING`` from the environment, so set
-``IS_BACKTESTING=true`` to run their historical branch. Four other team files
-assign a local ``IS_BACKTESTING`` Boolean in ``__main__``: the Bill Ackman,
-bull/bear large-cap, bull/bear leveraged ETF, and Warren Buffett files. Edit
-that assignment to choose their historical branch. All eight default to the
-broker branch, and their Alpaca configuration defaults to paper unless
-explicitly changed.
+``ai_trading_team_ray_dalio_idea_meritocracy.py``, and
+``ai_trading_team_ray_dalio_idea_meritocracy_leveraged.py``. These four files
+are the exact code running on BotSpot. They import ``IS_BACKTESTING`` from
+``lumibot.credentials``, so set ``IS_BACKTESTING=true`` in the environment to
+run their historical branch.
 
-**No direct runner:** ``ai_congress_disclosures.py``,
-``ai_public_web_fetch.py``, and ``ai_sec_insider_filings.py``. Import their
-strategy classes into a separate runner. ``agent_cycle.py`` is a helper, and
-``ai_trading_team.py`` is an import alias; neither is a standalone example
-runner. The saved ``docs/assets/ai-trading/spy-20260913/strategy.py`` is a
-historical proof artifact, not the current quickstart source.
+The saved ``docs/assets/ai-trading/spy-20260913/strategy.py`` is a historical
+proof artifact, not the current quickstart source.
 
 For a complete backtest-to-broker walkthrough, see :doc:`getting_started`.
 For the specific opening-range example, see
-:doc:`agents_example_ai_opening_range_breakout`.
+:doc:`agents_example_opening_range_breakout_ai_trading_bot`.

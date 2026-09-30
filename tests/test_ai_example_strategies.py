@@ -9,7 +9,6 @@ a new trade. Rob asked for the opposite: two agents, only LumiBot imports, about
 """
 
 import ast
-import hashlib
 from datetime import datetime
 from pathlib import Path
 from types import SimpleNamespace
@@ -44,15 +43,14 @@ REBUILT = {
 }
 BULL_BEAR_FILES = {"ai_trading_team_bull_bear_large_cap_stocks.py", "ai_trading_team_bull_bear_leveraged_etf.py"}
 
-# Citadel and Ray Dalio run on BotSpot with a live track record. Rob wants the
-# LumiBot copies to stay byte-for-byte the BotSpot revision (mainFileHash).
+# Citadel and Ray Dalio run on BotSpot with a live track record and stay
+# byte-for-byte the BotSpot revision; tests/test_public_docs_community_links.py
+# checks their hashes.
 MARKETPLACE_COPIES = {
-    "ai_trading_team_citadel_sector_pods.py": "50e78b923a9548994ba593f91a792c34f2d3ed384cc405ca3d2abecf5166a758",
-    "ai_trading_team_citadel_sector_pods_leveraged.py": "3e9bc4330b0d8bab021f7844fa41541bcd86a7b24b67f371c4967bcf8e36f915",
-    "ai_trading_team_ray_dalio_idea_meritocracy.py": "a2a02db9ad0db1b8ce8d9e339fe0f0cd8b0698b1ce36281c077291fa077e2914",
-    "ai_trading_team_ray_dalio_idea_meritocracy_leveraged.py": (
-        "7f8f2d4ef5363669926080d86504f68bdbd7ab30618fbac94dc2f0e469a304f1"
-    ),
+    "ai_trading_team_citadel_sector_pods.py",
+    "ai_trading_team_citadel_sector_pods_leveraged.py",
+    "ai_trading_team_ray_dalio_idea_meritocracy.py",
+    "ai_trading_team_ray_dalio_idea_meritocracy_leveraged.py",
 }
 
 
@@ -189,12 +187,3 @@ def test_intraday_bots_wait_for_the_first_bars(name):
     finally:
         del type(strategy).agents
     assert agents.calls == []
-
-
-@pytest.mark.parametrize("name", sorted(MARKETPLACE_COPIES))
-def test_citadel_and_dalio_match_the_botspot_marketplace_revision(name):
-    digest = hashlib.sha256((EXAMPLES / name).read_bytes()).hexdigest()
-    assert digest == MARKETPLACE_COPIES[name], (
-        f"{name} no longer matches the BotSpot revision with the live track record. "
-        "Change it on BotSpot first, then copy that exact file here."
-    )

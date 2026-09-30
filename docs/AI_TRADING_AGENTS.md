@@ -177,21 +177,14 @@ non-deleted rules are injected. A malformed file fails before the model runs.
 The replay fingerprint changes when active rules change, and runtime artifacts
 record only the file name and content hash, never an absolute personal path.
 
-## Two-Agent SPX Experiment
+## 0DTE Options AI Trading Bot
 
-`ai_spx_zero_dte_bear_call_team.py` implements the first Rules-driven SPX
-comparison as two agents, not as an Agent-to-Python execution handoff:
-
-1. A read-only researcher gathers exact account, SPX, chain, Greek, quote, and
-   package-price evidence.
-2. A trading-enabled validator independently refreshes that evidence, checks
-   every active Rule, decides whether to trade, calls
-   `orders_submit_multileg`, and verifies the resulting order and positions.
-
-The experiment uses an SPX 0 DTE bear call spread with a short call near 0.20
-delta and a long call exactly five points higher. Both entry and exit are one
-atomic package. Missing evidence produces a no-trade decision. Unsupported
-atomic execution fails before any child leg is submitted.
+`ai_0dte_options_trading_bot.py` sells a same-day SPX bear call spread with two
+agents. The research agent checks SPX and today's expiring calls every 5
+minutes. The trading agent opens one spread a day as one multi-leg order and
+closes it early at the profit target, the loss limit, a strike breach, or the
+last 10 minutes. The rules live in the two prompts; the example does not load
+a rules file.
 
 ---
 

@@ -380,17 +380,21 @@ Save this as ``ai_trading_team_bull_bear_leveraged_etf.py``. If an AI key is mis
 
 The point is that the full AI trading team runs inside Lumibot's normal broker and backtest loops, so the decisions, orders, and artifacts are inspectable before you connect real money. Backtests are not expected future performance.
 
-More AI Trading Team Examples
-*****************************
+More AI Trading Bot Examples
+****************************
 
-These examples show different ways to organize an AI trading team. Each page explains the inspiration, the agent flow, how to run it with a broker in paper mode, and how to backtest it.
+Each page says in plain English what the bot does, how its agents work together, and shows the full code. See :doc:`agents_examples` for the full list.
 
-1. :doc:`agents_example_citadel_sector_pods` -- inspired by the pod-style structure associated with Ken Griffin's Citadel: sector specialists pitch their best ideas, a risk manager challenges crowding and drawdown risk, and a portfolio manager rotates into the strongest sector ETF.
-2. :doc:`agents_example_warren_buffett_value` -- uses AI agents like a patient value-investing desk: one agent digs into business quality and annual reports, one demands valuation discipline, and the portfolio manager only buys the best long-term compounder.
-3. :doc:`agents_example_ray_dalio_idea_meritocracy` -- turns Bridgewater-style thoughtful disagreement into a macro ETF workflow, with growth, inflation, liquidity, and disagreement agents arguing before the trader acts.
-4. :doc:`agents_example_bill_ackman_concentrated` -- inspired by Pershing Square-style concentrated investing: find one great business, make the activist bull case, attack it like a short seller, then let the portfolio manager take a focused position if the thesis survives.
-5. :doc:`agents_example_bull_bear_leveraged_etf` -- a fast, aggressive demo where bull and bear agents debate leveraged long and inverse ETFs before the trader rebalances to one direction per index.
-6. :doc:`agents_example_bull_bear_large_cap_stocks` -- the same debate structure applied to familiar large-cap stocks, which makes it easier to inspect each agent's reasoning before using more volatile instruments.
+1. :doc:`agents_example_nancy_pelosi_trading_bot` -- copies the stock trades Nancy Pelosi reports to Congress, read straight from the House website with a real browser.
+2. :doc:`agents_example_insider_trading_bot` -- buys more of the stocks that CEOs and directors are buying with their own money.
+3. :doc:`agents_example_warren_buffett_ai_stock_picker` -- reads company reports and owns great businesses at fair prices.
+4. :doc:`agents_example_bill_ackman_portfolio_ai_trading_bot` -- holds a few high-conviction stocks after attacking each idea.
+5. :doc:`agents_example_fear_and_greed_index_trading_bot` -- reads CNN's Fear & Greed Index in a browser, then buys fear and sells greed.
+6. :doc:`agents_example_0dte_options_ai_trading_bot` -- sells a same-day SPX call spread and watches it every 5 minutes.
+7. :doc:`agents_example_citadel_sector_pods` -- sector agents pitch ideas to a risk manager and a portfolio manager.
+8. :doc:`agents_example_ray_dalio_idea_meritocracy` -- growth, inflation, and debt agents argue before a trader builds a macro ETF basket.
+9. :doc:`agents_example_tqqq_strategy_ai_trading_bot` -- a bull agent and a bear agent debate leveraged ETFs like TQQQ and SQQQ.
+10. :doc:`agents_example_bull_vs_bear_ai_stock_trading_bot` -- the same debate for the biggest US stocks.
 
 Cash Accounting
 ***************

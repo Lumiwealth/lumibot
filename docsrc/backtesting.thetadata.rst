@@ -17,9 +17,9 @@ Supported timesteps:
 - ``"minute"`` and ``"day"`` are supported directly.
 - ``"hour"`` (and multi-hour like ``"4h"``) is supported when minute bars are available; LumiBot aggregates minute bars into hourly bars for you.
 
-Use this data source with the :doc:`AI iron condor <agents_example_ai_iron_condor>`
+Use this data source with the :doc:`AI iron condor <agents_example_iron_condor_ai_trading_bot>`
 options tutorial or the :doc:`AI opening range breakout
-<agents_example_ai_opening_range_breakout>` intraday stock tutorial.
+<agents_example_opening_range_breakout_ai_trading_bot>` intraday stock tutorial.
 
 As of this writing, ThetaData provides historical data for free. If you pay for an API you can get many years of data and the backtesting will download data much faster because it won't be rate limited.
 

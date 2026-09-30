@@ -11,10 +11,9 @@ strategy code intentionally simple:
 
 The strategy class can stay the same. The code that starts it selects the
 backtest or broker path. The four Citadel and Ray Dalio files read `IS_BACKTESTING` from the environment;
-set `IS_BACKTESTING=true` to backtest them. The other four team files assign
-`IS_BACKTESTING = False` locally in their runners, so edit that assignment
-for a backtest; an exported variable cannot override it. Other AI examples
-are backtest-only or have no direct runner.
+set `IS_BACKTESTING=true` to backtest them. The other team files end with
+`IS_BACKTESTING = True`; set it to `False` to call `run_live()` with the broker
+in your `.env` file.
 See the [complete AI example run-mode inventory](https://lumibot.lumiwealth.com/strategy_run_modes.html).
 
 These examples are inspired by public investing styles and firms. They are not
@@ -79,11 +78,11 @@ python lumibot/example_strategies/ai_trading_team_citadel_sector_pods.py
 
 ## Workflow diagrams
 
-- `docs/assets/ai-trading-team-workflows/bull-bear-leveraged-etf.png`
-- `docs/assets/ai-trading-team-workflows/bull-bear-large-cap-stocks.png`
+- `docs/assets/ai-agent-workflows/tqqq-strategy-ai-trading-bot.png`
+- `docs/assets/ai-agent-workflows/bull-vs-bear-ai-stock-trading-bot.png`
 - `docs/assets/ai-trading-team-workflows/ray-dalio-idea-meritocracy.png`
-- `docs/assets/ai-trading-team-workflows/warren-buffett-value.png`
-- `docs/assets/ai-trading-team-workflows/bill-ackman-concentrated.png`
+- `docs/assets/ai-agent-workflows/warren-buffett-ai-stock-picker.png`
+- `docs/assets/ai-agent-workflows/bill-ackman-portfolio-ai-trading-bot.png`
 - `docs/assets/ai-trading-team-workflows/citadel-sector-pods.png`
 
 ## Backtest snapshots

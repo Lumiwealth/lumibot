@@ -1,8 +1,8 @@
 """0DTE Options AI Trading Bot.
 
-Sells a same-day (0DTE) bear call spread on the S&P 500 index (SPX) and lets it
+Sells a same-day (0DTE) bear call spread on SPY, the S&P 500 ETF, and lets it
 expire worthless when the market stays below the short strike. A research agent
-checks SPX and today's expiring calls every 5 minutes. A trading agent opens one
+checks SPY and today's expiring calls every 5 minutes. A trading agent opens one
 spread a day as one order and closes it early when the trade goes wrong.
 """
 
@@ -12,7 +12,7 @@ from lumibot.strategies import Strategy
 
 
 class ZeroDTEOptionsTradingBot(Strategy):
-    parameters = {"symbol": "SPX"}
+    parameters = {"symbol": "SPY"}
 
     def initialize(self):
         self.sleeptime = "5M"
@@ -20,8 +20,8 @@ class ZeroDTEOptionsTradingBot(Strategy):
             name="researcher",
             allow_trading=False,
             system_prompt=(
-                "You research a bear call spread on the index in the context that expires today. Check the "
-                "index price and today's expiring calls. Find the call with delta closest to +0.20 and the "
+                "You research a bear call spread on the symbol in the context that expires today. Check its "
+                "price and today's expiring calls. Find the call with delta closest to +0.20 and the "
                 "call exactly 5 points higher. Report both exact contracts, their deltas, bid and ask, and "
                 "the net credit. Also report any spread we already hold, with its cost to close. Do not trade."
             ),
@@ -30,9 +30,9 @@ class ZeroDTEOptionsTradingBot(Strategy):
             name="trader",
             allow_trading=True,
             system_prompt=(
-                "You trade a bear call spread that expires today on the index in the context. Use the "
+                "You trade a bear call spread that expires today on the symbol in the context. Use the "
                 "options-trading skill. First manage the spread we hold. Close it as one order when we have "
-                "kept 50% of the credit, the cost to close reaches 2x the credit, the index rises above the "
+                "kept 50% of the credit, the cost to close reaches 2x the credit, the price rises above the "
                 "short strike, or less than 10 minutes remain before the close. If we hold none and have not "
                 "opened one today, sell the researched spread as one multi-leg order for a net credit. Risk "
                 "about 1% of the account, at most 2 contracts. Never open a new spread in the last 10 minutes."

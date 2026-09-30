@@ -758,6 +758,10 @@ WAVE36 = tuple(
 )
 
 
+# Fear and Greed plain v1 used the history URL without a start date and saw only recent scores.
+WAVE37 = (_job("fear-greed-plain-v2", "ai_fear_and_greed_trading_bot", "FearAndGreedTradingBot", "2026-01-05", "2026-01-23"),)
+
+
 def _jobs(wave: str) -> tuple[dict, ...]:
     # "7,8" runs several waves under one parent so the spend cap is shared.
     if "," in wave:

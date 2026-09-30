@@ -20,9 +20,9 @@ class FearAndGreedTradingBot(Strategy):
             allow_network=True,
             system_prompt=(
                 "Find the CNN Fear & Greed Index score from 0 to 100 for the most recent day before today. "
-                "Use a web browser: today's score is at https://www.cnn.com/markets/fear-and-greed and past "
-                "scores are at https://production.dataviz.cnn.io/index/fearandgreed/graphdata. Report the "
-                "score and its date. Do not trade."
+                "Use a web browser. Today's score is at https://www.cnn.com/markets/fear-and-greed. Past "
+                "scores are listed day by day at https://production.dataviz.cnn.io/index/fearandgreed/graphdata/ "
+                "followed by a start date, such as 2026-01-01. Report the score and its date. Do not trade."
             ),
         )
         self.agents.create(

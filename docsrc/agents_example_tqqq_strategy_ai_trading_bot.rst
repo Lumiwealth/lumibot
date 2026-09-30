@@ -25,7 +25,7 @@ Run this bot on `BotSpot <https://botspot.trade/marketplace?utm_source=documenta
 Backtest tear sheet
 -------------------
 
-GPT-6 Luna, January 5 to 16, 2026, Yahoo daily prices, $100,000 start. The bot rotated between UPRO, UDOW, TNA, SOXL, FAS, ERX, and LABU, never holding an ETF and its opposite together, and ended at $102,836 (+3%) while SPY rose 1%. Cash never went below $543.
+GPT-6 Luna, January 5 to 16, 2026, Yahoo daily prices, $100,000 start. The debate picked leveraged long ETFs (UPRO, UDOW, TNA, SOXL), never holding an ETF and its opposite together, and the bot ended at $103,475 (+3.5%) while SPY rose 1%. Cash never went below $22,809.
 
 .. image:: ../docs/assets/ai-bot-backtests/tqqq-strategy-ai-trading-bot.png
    :alt: Backtest tear sheet for the TQQQ Strategy AI Trading Bot

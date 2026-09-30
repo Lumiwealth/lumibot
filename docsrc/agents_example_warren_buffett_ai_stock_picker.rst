@@ -27,7 +27,7 @@ Run this bot on `BotSpot <https://botspot.trade/marketplace?utm_source=documenta
 Backtest tear sheet
 -------------------
 
-GPT-6 Luna, January 5 to 16, 2026, Yahoo daily prices and SEC filings, $100,000 start. The bot bought AXP, GOOGL, JPM, PG, and V and held them, ending at $97,542 (-2.5%) while SPY rose 1%. Two weeks is far too short to judge a buy-and-hold stock picker. Cash never went below $1,920.
+GPT-6 Luna, January 5 to 16, 2026, Yahoo daily prices and company reports, $100,000 start. After the skeptic's review the bot bought AXP, GOOGL, KO, and PG and held them, ending at $101,660 (+1.7%) while SPY rose 1%. Cash never went below $5,145.
 
 .. image:: ../docs/assets/ai-bot-backtests/warren-buffett-ai-stock-picker.png
    :alt: Backtest tear sheet for the Warren Buffett AI Stock Picker

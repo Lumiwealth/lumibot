@@ -27,7 +27,7 @@ Run this bot on `BotSpot <https://botspot.trade/marketplace?utm_source=documenta
 Backtest tear sheet
 -------------------
 
-GPT-6 Luna, January 5 to 16, 2026, Yahoo daily prices, $100,000 start. The bot held GOOGL and MSFT, later added UBER, and traded BKNG and CMG, ending at $101,486 (+1%), about even with SPY. Cash never went below $490.
+GPT-6 Luna, January 5 to 16, 2026, Yahoo daily prices, $100,000 start. After the short seller's attack the bot held four survivors, CMG, GOOGL, MSFT, and UBER, and ended at $99,083 (-0.9%) while SPY rose 1%. Two weeks is far too short to judge a concentrated long-term portfolio. Cash never went below $2,453.
 
 .. image:: ../docs/assets/ai-bot-backtests/bill-ackman-portfolio-ai-trading-bot.png
    :alt: Backtest tear sheet for the Bill Ackman Portfolio AI Trading Bot

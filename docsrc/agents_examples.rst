@@ -4,12 +4,13 @@ AI Trading Bot Examples
 .. meta::
    :description: Free AI trading bot examples in Python: copy Nancy Pelosi's trades, follow insider buying, trade 0DTE options, and more. Each bot is two AI agents.
 
-Pick a bot, read how it works, and run it. Most bots are two AI agents: a
-research agent that finds the information, and a trading agent that places the
-trades. Each page shows the full code, usually about 60 lines.
+Pick a bot, read how it works, and run it. Each bot is a few sentences of plain
+English. The agents fit the strategy: one agent for simple rules, a researcher
+and a trader for most bots, and a debate or a team where that is the point.
+Every page shows the full code and a real backtest tear sheet.
 
-Every file runs a backtest first. Change ``IS_BACKTESTING`` to ``False`` to trade
-with the broker in your ``.env`` file. See :doc:`strategy_run_modes` for details.
+Every file ends the same way: with ``IS_BACKTESTING=true`` in your ``.env`` file
+it backtests, otherwise it trades with your broker. See :doc:`strategy_run_modes`.
 
 .. image:: ../docs/assets/ai-trading/example-gallery.png
    :alt: AI trading with LumiBot: one agent, agents that debate, or AI combined with Python rules.

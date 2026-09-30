@@ -28,7 +28,7 @@ Run this bot on `BotSpot <https://botspot.trade/marketplace?utm_source=documenta
 Backtest tear sheet
 -------------------
 
-GPT-6 Luna, January 5 to 23, 2026, Yahoo daily prices, $100,000 start. The bot bought all ten watchlist stocks and ended at $100,926 (+1%) while SPY was about flat. Cash never went below $389. The research agent read the SEC reports each day and found no open-market insider buys in that window, so the bot held the watchlist evenly.
+GPT-6 Luna, January 5 to 23, 2026, Yahoo daily prices, $100,000 start. The bot bought all ten watchlist stocks and ended at $100,542 (+0.5%) while SPY was about flat. It found no open-market insider buys in that window, so it held the watchlist evenly. Cash never went below $2,168.
 
 .. image:: ../docs/assets/ai-bot-backtests/insider-trading-bot.png
    :alt: Backtest tear sheet for the Insider Trading Bot

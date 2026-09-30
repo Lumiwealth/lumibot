@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+### Fixed
+- IBKR minute history repairs missing cached sessions when Parquet timestamps use microsecond, millisecond, or second resolution. Cache and calendar timestamps now use consistent units before gap and market-hours searches, so open sessions are not mistaken for closed intervals on pandas 3.
+
 ## 4.6.3 - 2026-09-30
 
 Deploy marker: `950916e438598b66e8bca0540f2b7c321c182cb3`

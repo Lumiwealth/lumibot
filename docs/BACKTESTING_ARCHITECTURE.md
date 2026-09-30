@@ -789,6 +789,15 @@ BACKTESTING_DATA_SOURCE=thetadata  # Options: yahoo, thetadata, ibkr, router, po
 
 IBKR backtesting uses the shared Data Downloader and is cached locally (and optionally mirrored to S3) just like ThetaData.
 
+Minute-session gap detection normalizes the cache index to nanoseconds before
+comparing integer timestamps with session boundaries. `DatetimeIndex.asi8`
+retains the index's resolution, including microseconds after a Parquet round
+trip; it cannot be compared directly with `Timestamp.value` without this
+normalization. The public history regression covers persisted caches at all
+four supported resolutions and verifies that the missing session is fetched.
+Calendar open/close arrays are normalized at their boundary for the same reason;
+otherwise closed-interval checks can skip valid market hours on pandas 3.
+
 - Single-provider: `BACKTESTING_DATA_SOURCE=ibkr`
 - Multi-provider routing (Theta for stock/option/index; IBKR for futures/crypto):
   ```bash

@@ -7,7 +7,8 @@ Rob's page contract (2026-09-29):
    say what each agent does. Jargon such as "Run mode" or "Availability" never
    comes first.
 4. A "Run it on BotSpot" section.
-5. "The code" section with the full example file.
+5. A "Backtest tear sheet" section with the real tear sheet, before the code.
+6. "The code" section with the full example file.
 """
 
 import re
@@ -64,6 +65,12 @@ OLD_SLUGS = {
     "agents_example_bull_bear_large_cap_stocks": "agents_example_bull_vs_bear_ai_stock_trading_bot",
     "agents_example_bull_bear_leveraged_etf": "agents_example_tqqq_strategy_ai_trading_bot",
 }
+# Tear sheet still being produced, or page owned by a dedicated agent (2026-09-29).
+TEAR_SHEET_PENDING = {
+    "agents_example_0dte_options_ai_trading_bot",
+    "agents_example_nancy_pelosi_trading_bot",
+    "agents_example_iron_condor_ai_trading_bot",
+}
 JARGON = ("form 4", "disclosure agent", "congressional disclosure", "experiment", "two-agent", "showcase",
           "authenticated", "interpreter", "agent_cycle", "run_cycle")
 
@@ -101,6 +108,15 @@ def test_page_follows_the_contract(slug):
     how = how.split("\nRun it on BotSpot\n", 1)[0]
     assert re.search(r"^1\. ", how, re.M) and re.search(r"^2\. ", how, re.M)
     assert "agent" in how.lower()
+
+    if slug not in TEAR_SHEET_PENDING:
+        assert "Backtest tear sheet" in sections
+        assert sections.index("Backtest tear sheet") < sections.index("The code")
+        sheet = text.split("\nBacktest tear sheet\n", 1)[1].split("\nThe code\n", 1)[0]
+        target = re.search(r":target: tearsheets/(.+\.html)", sheet).group(1)
+        assert (DOCS / "_extra" / "tearsheets" / target).is_file(), target
+        shot = re.search(r"\.\. image:: (\S+)", sheet).group(1)
+        assert (DOCS / shot).resolve().is_file(), shot
 
     code = text.split("\nThe code\n", 1)[1]
     assert f".. literalinclude:: ../lumibot/example_strategies/{source}" in code

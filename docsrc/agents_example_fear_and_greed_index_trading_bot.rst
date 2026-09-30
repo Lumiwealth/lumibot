@@ -22,6 +22,18 @@ Run it on BotSpot
 
 Run this bot on `BotSpot <https://botspot.trade/marketplace?utm_source=documentation&utm_medium=docs&utm_campaign=lumibot_ai_examples&utm_content=agents_example_fear_and_greed_index_trading_bot>`_ without installing anything. BotSpot runs LumiBot in the cloud, backtests it, and connects it to your broker.
 
+Backtest tear sheet
+-------------------
+
+GPT-6 Luna, January 5 to 23, 2026, Yahoo daily prices, $100,000 start. Each day the research agent opened CNN's score history in a browser and used the prior day's score. Neutral scores (45 to 55) put 50% in SPY; when the score rose to 58 (greed) on January 12, the bot cut SPY to 25%. It ended at $100,074, about even with SPY. Cash never went below $50,460.
+
+.. image:: ../docs/assets/ai-bot-backtests/fear-and-greed-index-trading-bot.png
+   :alt: Backtest tear sheet for the Fear and Greed Index Trading Bot
+   :width: 100%
+   :target: tearsheets/fear-and-greed-index-trading-bot.html
+
+`Open the full tear sheet <tearsheets/fear-and-greed-index-trading-bot.html>`__. A short backtest shows the bot works as written. It is not a promise of future returns.
+
 The code
 --------
 

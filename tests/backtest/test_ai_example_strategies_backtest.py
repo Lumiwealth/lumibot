@@ -18,6 +18,7 @@ from lumibot.components.agents.manager import AgentManager
 from lumibot.entities import Asset, Data
 from lumibot.example_strategies.ai_fear_and_greed_trading_bot import FearAndGreedTradingBot
 from lumibot.example_strategies.ai_insider_trading_bot import InsiderTradingBot
+from lumibot.example_strategies.ai_nancy_pelosi_copy_trading_bot import NancyPelosiCopyTradingBot
 from lumibot.example_strategies.ai_nancy_pelosi_trading_bot import NancyPelosiTradingBot
 from lumibot.example_strategies.ai_trading_team_bill_ackman_concentrated import (
     AITradingTeamBillAckmanConcentratedStrategy,
@@ -33,6 +34,7 @@ from tests.backtest.test_agent_runtime_backtest import _invoke_tool
 
 CASES = [
     (NancyPelosiTradingBot, "NVDA"),
+    (NancyPelosiCopyTradingBot, "NVDA"),
     (InsiderTradingBot, "AAPL"),
     (FearAndGreedTradingBot, "SPY"),
     (AITradingTeamWarrenBuffettValueStrategy, "KO"),

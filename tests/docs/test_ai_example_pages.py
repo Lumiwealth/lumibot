@@ -21,6 +21,9 @@ DOCS = ROOT / "docsrc"
 
 PAGES = {
     "agents_example_nancy_pelosi_trading_bot": ("Nancy Pelosi Stock Trading Bot", "ai_nancy_pelosi_trading_bot.py"),
+    "agents_example_nancy_pelosi_copy_trading_bot": (
+        "Nancy Pelosi Copy Trading Bot", "ai_nancy_pelosi_copy_trading_bot.py"
+    ),
     "agents_example_insider_trading_bot": ("Insider Trading Bot", "ai_insider_trading_bot.py"),
     "agents_example_fear_and_greed_index_trading_bot": (
         "Fear and Greed Index Trading Bot", "ai_fear_and_greed_trading_bot.py"
@@ -69,6 +72,7 @@ OLD_SLUGS = {
 TEAR_SHEET_PENDING = {
     "agents_example_0dte_options_ai_trading_bot",
     "agents_example_nancy_pelosi_trading_bot",
+    "agents_example_nancy_pelosi_copy_trading_bot",
     "agents_example_iron_condor_ai_trading_bot",
 }
 JARGON = ("form 4", "disclosure agent", "congressional disclosure", "experiment", "two-agent", "showcase",

@@ -21,7 +21,8 @@ it backtests, otherwise it trades with your broker. See :doc:`strategy_run_modes
 Copy famous investors and insiders
 ----------------------------------
 
-* :doc:`agents_example_nancy_pelosi_trading_bot`: copies the stock trades Nancy Pelosi reports to Congress, straight from the House website.
+* :doc:`agents_example_nancy_pelosi_trading_bot`: owns the same stocks as Nancy Pelosi, rebuilt from her reports on the House website.
+* :doc:`agents_example_nancy_pelosi_copy_trading_bot`: copies her whole portfolio, call options included: same strike, same expiration.
 * :doc:`agents_example_insider_trading_bot`: buys more of the stocks that CEOs and directors are buying with their own money.
 * :doc:`agents_example_warren_buffett_ai_stock_picker`: owns great companies at fair prices, the way Warren Buffett describes it.
 * :doc:`agents_example_bill_ackman_portfolio_ai_trading_bot`: holds a few high-conviction stocks, the way Bill Ackman invests.
@@ -64,6 +65,7 @@ not affiliated with or endorsed by the people or firms they are named after.
    :hidden:
 
    agents_example_nancy_pelosi_trading_bot
+   agents_example_nancy_pelosi_copy_trading_bot
    agents_example_insider_trading_bot
    agents_example_warren_buffett_ai_stock_picker
    agents_example_bill_ackman_portfolio_ai_trading_bot

@@ -62,7 +62,7 @@ execution**, not the capability of the importable strategy class.
 ``agent_m2_liquidity_anthropic.py``, ``agent_m2_liquidity_grok.py``,
 ``agent_m2_liquidity_openai.py``, ``agent_macro_risk.py``,
 ``agent_momentum_allocator.py``, ``agent_news_sentiment.py``,
-``ai_nancy_pelosi_trading_bot.py``,
+``ai_nancy_pelosi_trading_bot.py``, ``ai_nancy_pelosi_copy_trading_bot.py``,
 ``ai_insider_trading_bot.py``, ``ai_fear_and_greed_trading_bot.py``,
 ``ai_iron_condor.py``, ``ai_credit_spread.py``,
 ``ai_0dte_options_trading_bot.py``, ``ai_vwap.py``,

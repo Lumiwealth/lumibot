@@ -23,7 +23,10 @@ EXAMPLES = Path(__file__).resolve().parents[1] / "lumibot" / "example_strategies
 
 # file -> (class, agent names in run order, agents that may browse the web)
 REBUILT = {
-    "ai_nancy_pelosi_trading_bot.py": ("NancyPelosiTradingBot", ["researcher", "trader"], {"researcher"}),
+    "ai_nancy_pelosi_trading_bot.py": ("NancyPelosiTradingBot", ["researcher", "portfolio", "trader"], {"researcher"}),
+    "ai_nancy_pelosi_copy_trading_bot.py": (
+        "NancyPelosiCopyTradingBot", ["researcher", "portfolio", "trader"], {"researcher"}
+    ),
     "ai_insider_trading_bot.py": ("InsiderTradingBot", ["researcher", "trader"], set()),
     "ai_fear_and_greed_trading_bot.py": ("FearAndGreedTradingBot", ["researcher", "trader"], {"researcher"}),
     "ai_iron_condor.py": ("AIIronCondorStrategy", ["researcher", "trader"], set()),
@@ -159,7 +162,7 @@ STANDARD_MAIN = """if __name__ == "__main__":
 """
 # Pages owned by dedicated sessions (2026-09-29); they follow the same rules and
 # remove themselves from this set when their rewrite lands.
-OWNED_ELSEWHERE = {"ai_nancy_pelosi_trading_bot.py", "ai_iron_condor.py"}
+OWNED_ELSEWHERE = {"ai_iron_condor.py"}
 
 
 @pytest.mark.parametrize("name", sorted(set(REBUILT) - OWNED_ELSEWHERE))

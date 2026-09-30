@@ -385,7 +385,7 @@ More AI Trading Bot Examples
 
 Each page says in plain English what the bot does, how its agents work together, and shows the full code. See :doc:`agents_examples` for the full list.
 
-1. :doc:`agents_example_nancy_pelosi_trading_bot` -- copies the stock trades Nancy Pelosi reports to Congress, read straight from the House website with a real browser.
+1. :doc:`agents_example_nancy_pelosi_trading_bot` -- owns the same stocks as Nancy Pelosi, rebuilt from her yearly report and trade reports on the House website. The :doc:`agents_example_nancy_pelosi_copy_trading_bot` copies her call options too.
 2. :doc:`agents_example_insider_trading_bot` -- buys more of the stocks that CEOs and directors are buying with their own money.
 3. :doc:`agents_example_warren_buffett_ai_stock_picker` -- reads company reports and owns great businesses at fair prices.
 4. :doc:`agents_example_bill_ackman_portfolio_ai_trading_bot` -- holds a few high-conviction stocks after attacking each idea.

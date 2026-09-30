@@ -1,14 +1,15 @@
 """Nancy Pelosi Stock Trading Bot.
 
-Copies the stock trades Nancy Pelosi reports to Congress. A research agent opens a
-real web browser, searches the House Clerk website for her newest trade reports,
-and reads them. A trading agent then buys and sells to match her trades.
-Change "last_name" to copy any other member of the House.
+Holds the same stocks Nancy Pelosi owns, in the same proportions. A research
+agent reads her reports on the House Clerk website: the yearly report of
+everything she owns, plus every newer trade report. A portfolio agent turns that
+into target weights, and a trading agent rebalances only when a new report
+appears. Change "last_name" to copy any other member of the House.
 """
 
-from datetime import datetime
-
 from lumibot.strategies import Strategy
+
+HOUSE = "https://disclosures-clerk.house.gov/public_disc"
 
 
 class NancyPelosiTradingBot(Strategy):
@@ -21,45 +22,54 @@ class NancyPelosiTradingBot(Strategy):
             allow_trading=False,
             allow_network=True,
             system_prompt=(
-                "You find the latest stock trades of a member of Congress. Open a browser session and go to "
-                "https://disclosures-clerk.house.gov/FinancialDisclosure. Click Search, type the last name "
-                "from the context, pick the filing year, and press Search. Search this year and last year. "
-                "Each 'PTR' row is a trade report. Get each report's PDF link and read it with http_request. "
-                "A trade line shows the ticker in parentheses, P for a buy or S for a sell, and a dollar "
-                "range. Skip options [OP], gifts, and exchanges. Skip any report filed after today's date. "
-                "Return one line per ticker: dollars bought, dollars sold (use range midpoints), and the "
-                "date of the newest report. Do not trade."
+                "You find out which stocks a member of Congress owns today, from the House Clerk website. "
+                f"Each year's list of filings is a ZIP file such as {HOUSE}/financial-pdfs/2026FD.ZIP (change "
+                "2026 to the year). Each row is one filing with its filing date. FilingType O is a yearly report of "
+                "everything the member owned on December 31 of that Year; P is a trade report. Yearly reports are "
+                f"at {HOUSE}/financial-pdfs/YEAR/DOCID.pdf and trade reports at {HOUSE}/ptr-pdfs/YEAR/DOCID.pdf. "
+                "Look at the lists for this year and the two years before, and only use filings dated before "
+                "today. Start from the newest yearly report, then apply every stock trade dated after the December "
+                "31 it covers. List every stock the member still owns with its dollar value range. Skip options, "
+                "real estate, private companies, funds, and bonds. End with the date of the newest report you "
+                "used. If your notes show you already reported that same newest report, reply only NOTHING NEW. "
+                "Do not trade."
+            ),
+        )
+        self.agents.create(
+            name="portfolio",
+            allow_trading=False,
+            system_prompt=(
+                "You turn a member's holdings into target weights for our account. Use the middle of each dollar "
+                "range as the value of that stock. Each stock's weight is its value divided by the total value of "
+                "all the stocks. Return one line per ticker with its target percent of the account. Do not trade."
             ),
         )
         self.agents.create(
             name="trader",
             allow_trading=True,
             system_prompt=(
-                "You copy the member's stock portfolio from the research. For each ticker, net dollars are "
-                "dollars bought minus dollars sold. Give every ticker with positive net dollars a weight "
-                "equal to its net dollars divided by the total of all positive net dollars. Move the account "
-                "to those weights. Sell any holding whose net is zero or negative. Only buy stocks, never "
-                "options, and never short. If the research found no trades, do nothing."
+                "You move the account to the target percents in the plan. Sell every stock that is not in the "
+                "plan. Only trade a stock when it is more than 2 percentage points away from its target, so the "
+                "account does not trade every day. Sell before you buy, never short, and never spend more cash "
+                "than you have. Check that every order filled."
             ),
         )
 
     def on_trading_iteration(self):
         facts = {"last_name": self.parameters["last_name"]}
-        research = self.agents["researcher"].run(
-            task_prompt="Find the member's newest stock trades.", context=facts
-        )
-        self.agents["trader"].run(
-            task_prompt="Copy the member's portfolio.",
-            context={**facts, "research": research.summary},
-        )
+        research = self.agents["researcher"].run(task_prompt="What does the member own today?", context=facts)
+        if "NOTHING NEW" in (research.summary or ""):
+            return  # No new report, so no rebalance today.
+        plan = self.agents["portfolio"].run(task_prompt="Set the target weights.", context={"holdings": research.summary})
+        self.agents["trader"].run(task_prompt="Rebalance to the plan.", context={"plan": plan.summary})
 
 
 if __name__ == "__main__":
-    IS_BACKTESTING = True  # Set to False to trade with the broker in your .env file
+    from lumibot.credentials import IS_BACKTESTING
 
     if IS_BACKTESTING:
         from lumibot.backtesting import YahooDataBacktesting
 
-        NancyPelosiTradingBot.backtest(YahooDataBacktesting, datetime(2026, 1, 20), datetime(2026, 2, 13))
+        NancyPelosiTradingBot.backtest(YahooDataBacktesting)
     else:
         NancyPelosiTradingBot().run_live()

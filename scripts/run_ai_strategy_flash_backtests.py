@@ -769,6 +769,14 @@ WAVE38 = (
 )
 
 
+# Pelosi bots rebuilt on read_document (2026-09-29): yearly report plus newer trade reports,
+# three agents. Short smoke window over her 1/23/2026 report.
+WAVE90 = (
+    _job("pelosi-stocks-3agent-smoke", "ai_nancy_pelosi_trading_bot", "NancyPelosiTradingBot", "2026-01-20", "2026-01-29", calls=400),
+    _job("pelosi-copy-3agent-smoke", "ai_nancy_pelosi_copy_trading_bot", "NancyPelosiCopyTradingBot", "2026-01-20", "2026-01-29", "alpaca", 400),
+)
+
+
 def _jobs(wave: str) -> tuple[dict, ...]:
     # "7,8" runs several waves under one parent so the spend cap is shared.
     if "," in wave:

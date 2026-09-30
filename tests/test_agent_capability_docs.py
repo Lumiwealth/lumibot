@@ -65,7 +65,7 @@ def test_old_handoff_is_explicitly_superseded_by_implemented_architecture():
 
 def test_every_agent_example_has_a_simple_workflow_image_asset():
     pages = sorted(path.name for path in (ROOT / "docsrc").glob("agents_example_*.rst"))
-    assert len(pages) == 14
+    assert len(pages) == 15
 
     for page in pages:
         page_path = ROOT / "docsrc" / page

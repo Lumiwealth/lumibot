@@ -95,3 +95,19 @@ class TestPerContractFeeCalculation:
         cost = broker.calculate_trade_cost(order, strategy, price=1.50)
         # flat_fee is per-order, so $0.65 regardless of quantity
         assert cost == Decimal("0.65")
+
+    def test_every_option_side_pays_its_fee(self):
+        """Closing a short option (buy_to_close) is a buy and pays the buy fee.
+
+        Found 2026-09-29 on the AI Iron Condor: the two short legs of every
+        closing package were charged nothing, so option backtests looked cheaper
+        than live trading.
+        """
+        from lumibot.backtesting.backtesting_broker import BacktestingBroker
+
+        broker = BacktestingBroker.__new__(BacktestingBroker)
+        fee = TradingFee(per_contract_fee=0.65)
+        strategy = self._make_strategy(buy_fees=[fee], sell_fees=[fee])
+        for side in ("buy_to_open", "buy_to_close", "sell_to_open", "sell_to_close"):
+            order = self._make_order(side=side, order_type="market", quantity=10)
+            assert broker.calculate_trade_cost(order, strategy, price=1.0) == Decimal("6.50"), side

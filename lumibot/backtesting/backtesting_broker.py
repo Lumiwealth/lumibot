@@ -2046,7 +2046,7 @@ class BacktestingBroker(Broker):
             order_type_value = str(order_type_attr.value).lower()
         else:
             order_type_value = str(order_type_attr).lower() if order_type_attr is not None else ""
-        if side_value in ("buy", "buy_to_open", "buy_to_cover"):
+        if side_value in ("buy", "buy_to_open", "buy_to_close", "buy_to_cover"):
             trading_fees = buy_fees
         elif side_value in ("sell", "sell_to_close", "sell_short", "sell_to_open"):
             trading_fees = sell_fees

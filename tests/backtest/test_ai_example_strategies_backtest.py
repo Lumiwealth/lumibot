@@ -50,12 +50,12 @@ class _ScriptedRuntime:
         type(self).requests.append(request)
         tools = {tool.name for tool in request.bound_tools}
         events = []
-        if request.agent_name != "trader":
-            assert "orders_submit_order" not in tools
+        if "orders_submit_order" not in tools:
             summary = json.dumps({"ticker": type(self).symbol})
             return AgentRunResult(summary=summary, model=request.model, events=events)
 
-        research = json.loads(request.context["research"])
+        # The trading agent gets the other agents' work under whatever key the example uses.
+        research = next(json.loads(v) for v in request.context.values() if isinstance(v, str) and '"ticker"' in v)
         _invoke_tool(request, events, "account_positions")
         _invoke_tool(request, events, "orders_open_orders")
         portfolio = _invoke_tool(request, events, "account_portfolio")
@@ -110,8 +110,12 @@ def test_example_trades_from_the_research_in_a_real_backtest(strategy_class, sym
         quiet_logs=True,
     )
 
-    trader_calls = [request for request in scripted_agents.requests if request.agent_name == "trader"]
-    assert trader_calls and all("research" in request.context for request in trader_calls)
+    trader_calls = [
+        request for request in scripted_agents.requests
+        if "orders_submit_order" in {tool.name for tool in request.bound_tools}
+    ]
+    assert trader_calls
+    assert {request.agent_name for request in trader_calls} != {request.agent_name for request in scripted_agents.requests}
     fills = strategy.broker._trade_event_log_df
     fills = fills[fills["status"] == "fill"]
     assert list(fills["symbol"]) == [symbol]

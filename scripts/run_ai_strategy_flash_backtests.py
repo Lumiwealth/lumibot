@@ -762,6 +762,13 @@ WAVE36 = tuple(
 WAVE37 = (_job("fear-greed-plain-v2", "ai_fear_and_greed_trading_bot", "FearAndGreedTradingBot", "2026-01-05", "2026-01-23"),)
 
 
+# Rerun options bots after bc8bda25: multileg packages now fill only when the net meets the limit.
+WAVE38 = (
+    _job("credit-spread-plain-v2", "ai_credit_spread", "AICreditSpreadStrategy", "2026-01-05", "2026-01-23", "alpaca"),
+    _job("0dte-plain-v2", "ai_0dte_options_trading_bot", "ZeroDTEOptionsTradingBot", "2026-01-05", "2026-01-07", "alpaca", 200),
+)
+
+
 def _jobs(wave: str) -> tuple[dict, ...]:
     # "7,8" runs several waves under one parent so the spend cap is shared.
     if "," in wave:

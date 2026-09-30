@@ -2,6 +2,9 @@
 
 ## 4.6.3 - Unreleased
 
+### Fixed
+- `house_public_disclosures` no longer shows a House trade report on the morning it is filed. The Clerk index and the report carry only a date, and the tool treated that date as public from midnight UTC, so a daily backtest running at the 9:30 AM open saw a report the Clerk posted later that day (Pelosi's 1/23/2026 report was visible at 9:30 AM on 1/23). A date-only House date is now public from the start of the next day in Washington, for both the downloaded and the recorded-row paths.
+
 ## 4.6.2 - 2026-09-27
 
 ### Changed

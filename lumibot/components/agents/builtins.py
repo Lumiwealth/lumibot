@@ -4541,8 +4541,9 @@ def _house_disclosure_payload(
     asset_mode: str,
 ) -> dict[str, Any]:
     from lumibot.components.disclosure_signals import visible_congress_disclosures
+    from lumibot.components.house_ptr import with_house_public_time
 
-    matched = [record for record in records if _house_last_name_matches(record, last_name)]
+    matched = [with_house_public_time(record) for record in records if _house_last_name_matches(record, last_name)]
     if str(asset_mode or "stock").lower().strip() == "stock":
         matched = [record for record in matched if str(record.get("asset_code") or "").upper() != "OP"]
     ceiling = as_of if as_of.tzinfo else as_of.replace(tzinfo=timezone.utc)

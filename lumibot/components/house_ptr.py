@@ -10,8 +10,9 @@ from __future__ import annotations
 import io
 import re
 import zipfile
-from datetime import date, datetime, time, timezone
+from datetime import date, datetime, time, timedelta, timezone
 from typing import Any
+from zoneinfo import ZoneInfo
 
 import httpx
 
@@ -436,6 +437,34 @@ def _public_datetime(value: Any) -> datetime | None:
     return parsed.astimezone(timezone.utc)
 
 
+_EASTERN = ZoneInfo("America/New_York")
+
+
+def house_public_at(value: Any) -> datetime | None:
+    """When a House filing is safe to use.
+
+    The Clerk index and the PDF signature carry only a date, and the report can
+    be posted any time that day. A date-only value is therefore public from the
+    start of the next day in Washington, never at midnight of the filing day.
+    A value with a real time is used as given.
+    """
+    text = str(value or "").strip()
+    if isinstance(value, datetime) or "T" in text or " " in text:
+        return _public_datetime(value)
+    day = _public_datetime(value)
+    if day is None:
+        return None
+    return datetime.combine(day.date() + timedelta(days=1), time.min, _EASTERN).astimezone(timezone.utc)
+
+
+def with_house_public_time(record: dict[str, Any]) -> dict[str, Any]:
+    """Copy a PTR row with ReportDate moved to the moment it became safe to use."""
+    public_at = house_public_at(record.get("ReportDate"))
+    if public_at is None:
+        return dict(record)
+    return {**record, "ReportDate": public_at.isoformat()}
+
+
 def public_house_filings(
     year: int,
     *,
@@ -460,7 +489,7 @@ def public_house_filings(
     for row in index_rows:
         if row["last"].strip().lower() not in wanted:
             continue
-        published = _public_datetime(row["filing_date"])
+        published = house_public_at(row["filing_date"])
         if published is None or published > ceiling:
             omitted_future_count += 1
             continue
@@ -472,7 +501,7 @@ def public_house_filings(
         text = pdf_bytes_to_text(pdf)
         source_url = house_pdf_url(filing_year, row["doc_id"])
         parsed.extend(tradeable_rows(parse_house_ptr_text(text, source_url=source_url), asset_mode=asset_mode))
-    filings = visible_congress_disclosures(parsed, as_of=ceiling)
+    filings = visible_congress_disclosures([with_house_public_time(row) for row in parsed], as_of=ceiling)
     return {
         "ok": True,
         "as_of": ceiling.isoformat(),

@@ -2,6 +2,9 @@
 
 ## 4.6.4 - Unreleased
 
+### Fixed
+- Polars-backed intraday history and quotes normalize timestamp resolution before checking whether a bar has closed. Microsecond and millisecond data now expose completed bars across gaps and keep unfinished bars' future closing prices out of last-price and synthesized quote values.
+
 ## Unreleased
 
 ### Fixed

@@ -468,7 +468,8 @@ class DataPolars:
         from lumibot.entities.data import _intraday_bar_state
 
         try:
-            index = pd.DatetimeIndex(self.iter_index.index)
+            # Polars preserves ns/us/ms resolution; the shared state helper compares nanoseconds.
+            index = pd.DatetimeIndex(self.iter_index.index).as_unit("ns")
         except Exception:
             return None
         return _intraday_bar_state(
@@ -584,16 +585,8 @@ class DataPolars:
         iter_count = self.get_iter_count(dt)
         visible_end = iter_count
         if self.timestep != "day" and timeshift >= 0:
-            from lumibot.entities.data import _intraday_bar_closed_at
-
-            try:
-                index = pd.DatetimeIndex(self.iter_index.index)
-                if _intraday_bar_closed_at(
-                    index.asi8, iter_count, dt, timestep=self.timestep, index_tz=index.tz, cache_owner=self
-                ):
-                    visible_end = iter_count + 1
-            except Exception:
-                pass
+            if self._intraday_state_at(iter_count, dt) == "closed":
+                visible_end = iter_count + 1
         end_row = visible_end - timeshift
         start_row = end_row - length
 

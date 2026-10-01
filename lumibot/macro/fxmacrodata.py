@@ -5,7 +5,7 @@ import re
 import time
 from datetime import date, datetime, timezone
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable
 
 import requests
 
@@ -13,6 +13,7 @@ FXMACRODATA_API_BASE_URL = "https://api.fxmacrodata.com/v1"
 FXMACRODATA_MAX_PAGE_SIZE = 100
 FXMACRODATA_MAX_PAGES = 500
 FXMACRODATA_MAX_PAGINATION_RESTARTS = 2
+FXMACRODATA_LATEST_FIRST_PAGE_SIZE = 20
 
 
 CURATED_FXMACRODATA_INDICATORS: dict[str, dict[str, str]] = {
@@ -89,24 +90,29 @@ def _safe_float(value: Any) -> float | None:
 
 def _publication_time_summary(
     observations: list[dict[str, Any]],
-    dropped_undated: int,
+    dropped: dict[str, int] | None = None,
 ) -> dict[str, Any]:
     """Count how each returned row was dated.
 
-    Rows without an announcement datetime were gated on their period date only,
-    which usually precedes the actual release. ``publication_time_status`` is
-    passed through from the API as-is; only ``confirmed`` is evidence of when a
-    value became public.
+    Rows without an announcement datetime are gated on their period date only
+    (``gated_on == "period_date"``), which usually precedes the actual release,
+    so such results are approximate. Backtests drop those rows instead.
+    ``publication_time_status`` is passed through from the API as-is; only
+    ``confirmed`` is evidence of when a value became public.
     """
+    dropped = dropped or {}
     status_counts: dict[str, int] = {}
     for row in observations:
         status = row.get("publication_time_status") or "not_reported"
         status_counts[status] = status_counts.get(status, 0) + 1
     with_announcement = sum(1 for row in observations if row.get("announcement_datetime"))
+    without_announcement = len(observations) - with_announcement
     return {
         "rows_with_announcement_datetime": with_announcement,
-        "rows_without_announcement_datetime": len(observations) - with_announcement,
-        "rows_dropped_undated": dropped_undated,
+        "rows_without_announcement_datetime": without_announcement,
+        "rows_dropped_undated": dropped.get("undated", 0),
+        "rows_dropped_without_announcement_datetime": dropped.get("no_announcement", 0),
+        "approximate": without_announcement > 0,
         "publication_time_status_counts": dict(sorted(status_counts.items())),
     }
 
@@ -212,11 +218,28 @@ class FXMacroData:
         cache_path: Path,
         *,
         max_rows: int | None = None,
+        first_page_size: int | None = None,
+        until: Callable[[list[Any]], bool] | None = None,
     ) -> dict[str, Any]:
         use_cache = self._use_cache()
         if use_cache and cache_path.exists():
-            return json.loads(cache_path.read_text(encoding="utf-8"))
-        payload = self._get_all_pages(path, params, max_rows=max_rows)
+            cached = json.loads(cache_path.read_text(encoding="utf-8"))
+            # An entry written while paging ``until`` a condition held may have
+            # stopped early for a different strategy time; reuse it only if it
+            # satisfies this call or already holds the whole window.
+            if (
+                until is None
+                or cached.get("pages_exhausted", True)
+                or until(cached.get("data") or [])
+            ):
+                return cached
+        payload = self._get_all_pages(
+            path,
+            params,
+            max_rows=max_rows,
+            first_page_size=first_page_size,
+            until=until,
+        )
         if use_cache:
             self._write_cache(cache_path, payload)
         return payload
@@ -241,12 +264,19 @@ class FXMacroData:
         params: dict[str, Any],
         *,
         max_rows: int | None = None,
+        first_page_size: int | None = None,
+        until: Callable[[list[Any]], bool] | None = None,
     ) -> dict[str, Any]:
         """Follow the API's offset pagination and return one combined payload.
 
         Rows come back most recent first. Pages after the first are pinned to
         the first page's ``dataset_version``; if the dataset changes mid-way
         (HTTP 409), pagination restarts from the first page.
+
+        ``max_rows`` stops after that many rows. ``until`` stops as soon as it
+        returns true for the rows fetched so far; ``first_page_size`` then sets
+        the first request's limit and later pages use the API maximum. With
+        ``until``, the combined payload records ``pages_exhausted``.
         """
         for _attempt in range(FXMACRODATA_MAX_PAGINATION_RESTARTS + 1):
             first_payload: dict[str, Any] | None = None
@@ -254,10 +284,13 @@ class FXMacroData:
             dataset_version = None
             offset = 0
             conflict = False
+            exhausted = True
             for _page in range(FXMACRODATA_MAX_PAGES):
                 page_size = FXMACRODATA_MAX_PAGE_SIZE
                 if max_rows is not None:
                     page_size = max(min(page_size, max_rows - len(rows)), 1)
+                elif first_page_size is not None and first_payload is None:
+                    page_size = max(min(page_size, first_page_size), 1)
                 page_params = {
                     **params,
                     "limit": page_size,
@@ -281,6 +314,9 @@ class FXMacroData:
                     break
                 if max_rows is not None and len(rows) >= max_rows:
                     break
+                if until is not None and until(rows):
+                    exhausted = False
+                    break
                 next_offset = pagination.get("next_offset")
                 if next_offset is None:
                     next_offset = offset + len(page_rows)
@@ -292,6 +328,8 @@ class FXMacroData:
             combined = dict(first_payload or {})
             combined["data"] = rows if max_rows is None else rows[:max_rows]
             combined.pop("pagination", None)
+            if until is not None:
+                combined["pages_exhausted"] = exhausted
             return combined
         raise RuntimeError(
             f"FXMacroData dataset for {path} kept changing during pagination; retry the request."
@@ -332,14 +370,32 @@ class FXMacroData:
         """Fetch an FXMacroData announcement series gated to ``as_of``.
 
         Rows are filtered by ``announcement_datetime`` when the API supplies
-        one, otherwise by their period date. Rows with neither are dropped.
-        ``publication_time`` reports how many returned rows fell into each
-        case; check each row's ``publication_time_status`` before treating a
-        timestamp as proof of when the value became public.
+        one. Outside backtests a row without one is gated on its period date
+        instead and marked ``gated_on == "period_date"``; that is approximate,
+        because the period date usually precedes the release. Backtests drop
+        such rows so they cannot reach a simulation before publication. Rows
+        with no parseable date are always dropped. ``publication_time`` counts
+        each case; check each row's ``publication_time_status`` before treating
+        a timestamp as proof of when the value became public.
 
         The full ``start``..``end`` window is fetched page by page; ``limit``
         keeps only the most recent rows.
         """
+        return self._series(
+            currency, indicator, start=start, end=end, as_of=as_of, limit=limit
+        )
+
+    def _series(
+        self,
+        currency: str,
+        indicator: str,
+        *,
+        start: Any | None = None,
+        end: Any | None = None,
+        as_of: Any | None = None,
+        limit: int | None = None,
+        latest_only: bool = False,
+    ) -> dict[str, Any]:
         currency_code = str(currency or "").strip().lower()
         indicator_slug = str(indicator or "").strip().lower()
         if not currency_code:
@@ -355,12 +411,13 @@ class FXMacroData:
             end_text = as_of_dt.date().isoformat()
 
         params: dict[str, Any] = {"start_date": start_text, "end_date": end_text}
-        max_rows = max(int(limit), 1) if limit is not None else None
+        max_rows = max(int(limit), 1) if limit is not None and not latest_only else None
         cache_key = json.dumps(
             {
                 "authenticated": bool(self.api_key),
                 "currency": currency_code,
                 "indicator": indicator_slug,
+                **({"mode": "latest"} if latest_only else {}),
                 "params": {
                     key: value
                     for key, value in {**params, "limit": max_rows}.items()
@@ -369,6 +426,13 @@ class FXMacroData:
             },
             sort_keys=True,
         )
+        def has_eligible_row(rows: list[Any]) -> bool:
+            return bool(
+                self._normalize_observations(
+                    {"data": rows}, currency_code, indicator_slug, as_of_dt
+                )[0]
+            )
+
         payload = self._get_json(
             f"/announcements/{currency_code}/{indicator_slug}",
             params,
@@ -379,8 +443,10 @@ class FXMacroData:
                 f"{hashlib.sha256(cache_key.encode()).hexdigest()}.json",
             ),
             max_rows=max_rows,
+            first_page_size=FXMACRODATA_LATEST_FIRST_PAGE_SIZE if latest_only else None,
+            until=has_eligible_row if latest_only else None,
         )
-        observations, dropped_undated = self._normalize_observations(
+        observations, dropped = self._normalize_observations(
             payload,
             currency_code,
             indicator_slug,
@@ -393,7 +459,7 @@ class FXMacroData:
             "currency": currency_code,
             "indicator": indicator_slug,
             "as_of": as_of_dt.isoformat(),
-            "publication_time": _publication_time_summary(observations, dropped_undated),
+            "publication_time": _publication_time_summary(observations, dropped),
             "observations": observations,
         }
 
@@ -404,19 +470,19 @@ class FXMacroData:
         *,
         as_of: Any | None = None,
     ) -> dict[str, Any]:
-        """Return the latest FXMacroData observation for an indicator."""
-        payload = self.get_series(currency, indicator, as_of=as_of, limit=20)
+        """Return the latest FXMacroData observation for an indicator.
+
+        The newest rows can all still be unpublished at ``as_of``, so this
+        pages back until an eligible observation is found or the data runs
+        out. Gating follows :meth:`get_series`.
+        """
+        payload = self._series(
+            currency, indicator, as_of=as_of, limit=10, latest_only=True
+        )
         observations = payload.get("observations", [])
-        latest = observations[-1] if observations else None
-        observations = observations[-10:]
         return {
             **payload,
-            "publication_time": _publication_time_summary(
-                observations,
-                payload.get("publication_time", {}).get("rows_dropped_undated", 0),
-            ),
-            "latest": latest,
-            "observations": observations,
+            "latest": observations[-1] if observations else None,
         }
 
     def get_snapshot(
@@ -454,7 +520,7 @@ class FXMacroData:
         currency: str,
         indicator: str,
         as_of_dt: datetime,
-    ) -> tuple[list[dict[str, Any]], int]:
+    ) -> tuple[list[dict[str, Any]], dict[str, int]]:
         rows = payload.get("data")
         if not isinstance(rows, list):
             rows = payload.get("observations")
@@ -464,7 +530,10 @@ class FXMacroData:
             rows = []
 
         observations = []
-        dropped_undated = 0
+        dropped = {"undated": 0, "no_announcement": 0}
+        # A period date usually precedes the release, so gating on it is not
+        # point-in-time safe: in a backtest such a row could be seen early.
+        backtesting = self._use_cache()
         for row in rows:
             if not isinstance(row, dict):
                 continue
@@ -482,9 +551,12 @@ class FXMacroData:
             row_date = _date_text(
                 _first_present(row, ("date", "release_date", "observation_date", "period"))
             )
+            if announcement_dt is None and backtesting:
+                dropped["no_announcement"] += 1
+                continue
             comparison_dt = announcement_dt or _parse_dt(row_date)
             if comparison_dt is None:
-                dropped_undated += 1
+                dropped["undated"] += 1
                 continue
             if comparison_dt > as_of_dt:
                 continue
@@ -497,6 +569,9 @@ class FXMacroData:
                 ),
                 "currency": str(row.get("currency") or currency).lower(),
                 "indicator": str(row.get("indicator") or indicator).lower(),
+                "gated_on": (
+                    "announcement_datetime" if announcement_dt is not None else "period_date"
+                ),
             }
             for key in (
                 "publication_time_status",
@@ -515,4 +590,4 @@ class FXMacroData:
         observations.sort(
             key=lambda row: (row.get("announcement_datetime") or row.get("date") or "")
         )
-        return observations, dropped_undated
+        return observations, dropped

@@ -76,9 +76,9 @@ FXMacroData agents receive these read-only built-ins automatically:
 
 USD announcement data is public. Set `FXMD_API_KEY` or `FXMACRODATA_API_KEY` for non-USD and paid endpoint access. Lumibot sends the key as an `X-API-Key` header, not as an `api_key` query parameter.
 
-In a backtest, `as_of` defaults to `self.get_datetime()`. Lumibot drops rows whose `announcement_datetime` is after `as_of`. Rows the API returns without an announcement datetime are gated on their period date instead, which usually precedes the real release, and rows with no parseable date at all are dropped.
+In a backtest, `as_of` defaults to `self.get_datetime()`. Lumibot drops rows whose `announcement_datetime` is after `as_of`, and also drops rows the API returns without an announcement datetime, because their period date usually precedes the real release. Outside backtests those rows are kept, gated on their period date, and marked `gated_on: "period_date"` (other rows carry `gated_on: "announcement_datetime"`); treat them as approximate. Rows with no parseable date at all are dropped. `get_latest` keeps paging back until it finds a row published by `as_of` or the data runs out.
 
-This is not a blanket point-in-time guarantee. Each result includes a `publication_time` summary with counts of rows with and without an announcement datetime, rows dropped as undated, and `publication_time_status` values. Each row keeps the API's `publication_time_status`; only `confirmed` means the timestamp was taken from the publisher's own release.
+This is not a blanket point-in-time guarantee. Each result includes a `publication_time` summary with counts of rows with and without an announcement datetime, rows dropped as undated or (in backtests) for lacking an announcement datetime, an `approximate` flag that is true when any returned row was gated on its period date, and `publication_time_status` values. Each row keeps the API's `publication_time_status`; only `confirmed` means the timestamp was taken from the publisher's own release.
 
 In backtests, FXMacroData responses are cached under:
 

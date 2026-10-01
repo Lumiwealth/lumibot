@@ -85,8 +85,11 @@ def test_fxmacrodata_uses_x_api_key_header_and_filters_future_rows(fxmacrodata_f
         "rows_with_announcement_datetime": 1,
         "rows_without_announcement_datetime": 0,
         "rows_dropped_undated": 0,
+        "rows_dropped_without_announcement_datetime": 0,
+        "approximate": False,
         "publication_time_status_counts": {"not_reported": 1},
     }
+    assert result["observations"][0]["gated_on"] == "announcement_datetime"
 
     url, kwargs = calls[0]
     assert url == "https://api.fxmacrodata.com/v1/announcements/eur/inflation"
@@ -108,6 +111,130 @@ def test_fxmacrodata_drops_rows_without_parseable_dates(fxmacrodata_factory):
     assert result["observations"][0]["value"] == 3.0
     assert result["publication_time"]["rows_dropped_undated"] == 1
     assert result["publication_time"]["rows_without_announcement_datetime"] == 1
+    # Outside a backtest the period-date fallback is kept but marked approximate.
+    assert result["observations"][0]["gated_on"] == "period_date"
+    assert result["publication_time"]["approximate"] is True
+
+
+def test_fxmacrodata_backtests_exclude_rows_without_announcement_datetime(
+    fxmacrodata_factory,
+):
+    def fake_get(url, **kwargs):
+        return _Response(
+            payload={
+                "data": [
+                    # Period 2025-01-01, release time unknown: in a backtest this
+                    # could be seen before it was actually published.
+                    {"date": "2025-01-01", "val": "3.0"},
+                    {
+                        "date": "2024-12-01",
+                        "val": "2.7",
+                        "announcement_datetime": "2025-01-10T13:30:00Z",
+                    },
+                ]
+            }
+        )
+
+    fxmd = fxmacrodata_factory(_BacktestingStrategy(), fake_get)
+
+    series = fxmd.get_series("usd", "inflation")
+    latest = fxmd.get_latest("usd", "inflation")
+
+    assert [row["date"] for row in series["observations"]] == ["2024-12-01"]
+    assert series["observations"][0]["gated_on"] == "announcement_datetime"
+    assert series["publication_time"]["rows_dropped_without_announcement_datetime"] == 1
+    assert series["publication_time"]["approximate"] is False
+    assert latest["latest"]["value"] == 2.7
+
+
+def test_fxmacrodata_get_latest_pages_past_unpublished_rows(fxmacrodata_factory):
+    calls = []
+    # 25 rows whose period is before the strategy date but whose release is
+    # still in the future, then the newest row actually published by as_of.
+    unpublished = [
+        {
+            "date": "2025-01-14",
+            "val": str(index),
+            "announcement_datetime": "2025-01-20T13:30:00Z",
+        }
+        for index in range(25)
+    ]
+    published = {
+        "date": "2024-12-01",
+        "val": "2.7",
+        "announcement_datetime": "2025-01-10T13:30:00Z",
+    }
+    older = {
+        "date": "2024-11-01",
+        "val": "2.6",
+        "announcement_datetime": "2024-12-10T13:30:00Z",
+    }
+    rows = [*unpublished, published, older]
+    fxmd = fxmacrodata_factory(_Strategy(), _paged_fake_get(rows, calls))
+
+    result = fxmd.get_latest("usd", "inflation")
+
+    assert result["latest"]["value"] == 2.7
+    assert result["latest"]["date"] == "2024-12-01"
+    assert [row["value"] for row in result["observations"]] == [2.6, 2.7]
+    # First page keeps the old 20-row request, later pages use the API maximum.
+    assert [call["limit"] for call in calls] == [20, 100]
+    assert [call.get("offset") for call in calls] == [None, 20]
+
+
+def test_fxmacrodata_get_latest_stops_after_first_eligible_page(fxmacrodata_factory):
+    calls = []
+    rows = _monthly_rows(250)
+    fxmd = fxmacrodata_factory(_Strategy(), _paged_fake_get(rows, calls))
+
+    result = fxmd.get_latest("usd", "inflation")
+
+    assert result["latest"]["date"] == rows[0]["date"]
+    assert len(result["observations"]) == 10
+    assert [call["limit"] for call in calls] == [20]
+
+
+def test_fxmacrodata_get_latest_returns_none_when_nothing_is_published(
+    fxmacrodata_factory,
+):
+    calls = []
+    rows = [
+        {"date": "2025-01-14", "val": "1", "announcement_datetime": "2025-01-20T13:30:00Z"}
+        for _ in range(30)
+    ]
+    fxmd = fxmacrodata_factory(_Strategy(), _paged_fake_get(rows, calls))
+
+    result = fxmd.get_latest("usd", "inflation")
+
+    assert result["latest"] is None
+    assert result["observations"] == []
+    assert [call["limit"] for call in calls] == [20, 100]
+
+
+def test_fxmacrodata_backtest_latest_cache_is_refetched_if_it_stopped_early(
+    fxmacrodata_factory,
+):
+    calls = []
+    unpublished = [
+        {"date": "2025-01-14", "val": "9", "announcement_datetime": "2025-01-15T13:00:00Z"}
+        for _ in range(20)
+    ]
+    published = {
+        "date": "2024-12-01",
+        "val": "2.7",
+        "announcement_datetime": "2025-01-10T13:30:00Z",
+    }
+    rows = [*unpublished, published]
+    fxmd = fxmacrodata_factory(_BacktestingStrategy(), _paged_fake_get(rows, calls))
+
+    # Later in the day the first page already holds a published row ...
+    later = fxmd.get_latest("usd", "inflation", as_of="2025-01-15T14:00:00Z")
+    # ... but earlier the same day that cached page is not enough.
+    earlier = fxmd.get_latest("usd", "inflation", as_of="2025-01-15T12:00:00Z")
+
+    assert later["latest"]["value"] == 9.0
+    assert earlier["latest"]["value"] == 2.7
+    assert [call["limit"] for call in calls] == [20, 20, 100]
 
 
 def test_fxmacrodata_gates_on_epoch_announcement_datetime(fxmacrodata_factory):
@@ -258,7 +385,17 @@ def test_fxmacrodata_backtests_use_disk_cache(fxmacrodata_factory, tmp_path):
 
     def fake_get(url, **kwargs):
         calls.append((url, kwargs))
-        return _Response(payload={"data": [{"date": "2025-01-01", "val": str(len(calls))}]})
+        return _Response(
+            payload={
+                "data": [
+                    {
+                        "date": "2025-01-01",
+                        "val": str(len(calls)),
+                        "announcement_datetime": "2025-01-10T13:30:00Z",
+                    }
+                ]
+            }
+        )
 
     fxmd = fxmacrodata_factory(_BacktestingStrategy(), fake_get)
 

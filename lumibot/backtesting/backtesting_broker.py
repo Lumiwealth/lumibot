@@ -3843,14 +3843,28 @@ class BacktestingBroker(Broker):
     def _resolve_order_fill_timestep(self, order: Optional[Order], default_timestep: Optional[str]) -> str:
         """Resolve the OHLC timestep for pending-order fills.
 
-        The default remains the data source timestep. The narrow exception is the
-        IBKR stock/index daily-data contract: routed/direct IBKR stock and index
-        backtests explicitly prefer native daily bars so a warmed minute frame
-        cannot satisfy daily lookups. If an intraday series is already loaded for
-        the same asset, preserve the data source's intraday timestep.
+        The default remains the data source timestep. When the native-day
+        contract does not apply and the fallback is daily, fill from an
+        intraday series already loaded for the same asset: a day-timestep
+        fill priced off minute data goes stale because the minute->day
+        resample drops the current (partial) session, so the fill would land
+        on the previous session's bar (see issue #1175). The narrow exception
+        is the IBKR stock/index daily-data contract: routed/direct IBKR stock
+        and index backtests explicitly prefer native daily bars so a warmed
+        minute frame cannot satisfy daily lookups.
         """
         fallback = str(default_timestep or "minute")
+
         if not self._should_use_native_day_stock_index_fill(order):
+            try:
+                _, fallback_unit = parse_timestep_qty_and_unit(fallback)
+                fallback_unit = str(fallback_unit or "").strip().lower()
+            except Exception:
+                fallback_unit = str(fallback or "").strip().lower()
+            if fallback_unit == "day":
+                intraday_unit = self._loaded_intraday_fill_unit(order)
+                if intraday_unit is not None:
+                    return intraday_unit
             return fallback
 
         if self._has_loaded_order_fill_series(order, {"minute", "hour"}):
@@ -3942,6 +3956,13 @@ class BacktestingBroker(Broker):
                 return True
 
         return False
+
+    def _loaded_intraday_fill_unit(self, order: Optional[Order]) -> Optional[str]:
+        """Return the intraday unit ("minute" or "hour") already loaded for the order's asset, if any."""
+        for unit in ("minute", "hour"):
+            if self._has_loaded_order_fill_series(order, {unit}):
+                return unit
+        return None
 
     def _is_option_asset(self, asset) -> bool:
         if asset is None:

@@ -15,6 +15,14 @@
 
 ## Overview
 
+Intraday bar-completion checks consume nanosecond timestamps. `DataPolars`
+normalizes its native nanosecond, microsecond, or millisecond index before the
+shared state calculation used by history, last-price, and quote reads. A bar
+becomes visible when its full interval has elapsed, including across session
+gaps; a forming bar's close must not become its current price. Regression
+coverage exercises each Polars resolution alongside the pandas path in
+`tests/test_data_get_bars_day_includes_latest_completed_bar.py`.
+
 Technical indicator calculations restrict input to strategy-time history before
 computing, rather than trimming a result calculated over future bars. See
 [indicator temporal safety](indicator-temporal-safety.md) for the regression,

@@ -315,12 +315,12 @@ Yes, this is a core design principle. Your strategy code is identical for backte
 What are the canonical demo strategies for AI agents?
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-LumiBot ships four reference demo strategies in ``lumibot/example_strategies/``:
+LumiBot ships short one-agent demos in ``lumibot/example_strategies/``, each a few sentences of plain English using only built-in tools:
 
-1. **News Sentiment** (``agent_news_sentiment.py``) -- event-driven stock selection using Alpaca news
-2. **Macro Risk** (``agent_macro_risk.py``) -- macro regime allocation using Alpaca market data
-3. **Momentum Allocator** (``agent_momentum_allocator.py``) -- momentum + sentiment using price bars and news
-4. **M2 Liquidity** (``agent_m2_liquidity.py``) -- liquidity-driven allocation using FRED money supply data
+1. **News Sentiment** (``agent_news_sentiment.py``) -- buys stocks with strong good news
+2. **Trend** (``agent_macro_risk.py``) -- holds TQQQ or SHV based on the price trend
+3. **Momentum and News** (``agent_momentum_allocator.py``) -- holds TQQQ or SHV based on trend and news
+4. **M2 Liquidity** (``agent_m2_liquidity.py``) -- holds TQQQ or SHV based on money supply data
 
 Start with a demo that only uses built-in market data if you want the fewest credentials. FRED macro tools require ``FRED_API_KEY`` because LumiBot uses official FRED/ALFRED vintage parameters for point-in-time macro backtests instead of revised public CSV data.
 
@@ -442,13 +442,14 @@ Can I set backtest parameters via environment variables?
 
 Yes. LumiBot supports several environment variables for backtest configuration:
 
-- ``IS_BACKTESTING`` -- ``True`` to enable backtesting mode
+- ``IS_BACKTESTING`` -- available to a runner that explicitly checks it; it does not choose a runner by itself
 - ``BACKTESTING_START`` / ``BACKTESTING_END`` -- date range (``YYYY-MM-DD``)
 - ``BACKTESTING_BUDGET`` -- starting cash (e.g., ``100000``)
 - ``BACKTESTING_DATA_SOURCE`` -- data source (``yahoo``, ``polygon``, ``thetadata``, etc.)
 - ``LUMIBOT_STRATEGY_PARAMETERS`` -- JSON string of reusable strategy parameters (backtest and live)
 
-See :doc:`environment_variables` for the full list.
+See :doc:`environment_variables` for the full list and
+:doc:`strategy_run_modes` for the backtest/broker distinction.
 
 How do I benchmark my strategy against an index?
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~

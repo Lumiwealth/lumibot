@@ -102,8 +102,16 @@ def fixture_network_boundary():
         assert_fixture_request(request.url, request.method)
         return requests_send(session, request, **kwargs)
 
+    def serves_fixture_data(client):
+        # A MockTransport answers from memory; the request never leaves the process.
+        transport = getattr(client, "_transport", None)
+        return isinstance(transport, httpx.MockTransport) or isinstance(
+            getattr(transport, "_shared_transport", None), httpx.MockTransport
+        )
+
     def sync_only(client, request, **kwargs):
-        assert_fixture_request(request.url, request.method)
+        if not serves_fixture_data(client):
+            assert_fixture_request(request.url, request.method)
         return sync_send(client, request, **kwargs)
 
     async def async_only(client, request, **kwargs):

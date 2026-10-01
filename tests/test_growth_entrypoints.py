@@ -51,6 +51,12 @@ def _example_model_defaults():
 PROVIDER_DEMO_MODELS = {
     "agent_m2_liquidity_anthropic.py": "anthropic/claude-sonnet-4-6",
     "agent_m2_liquidity_grok.py": "xai/grok-4.20-0309-reasoning",
+    # Rob, 2026-09-29: these four must stay byte-for-byte the BotSpot revisions
+    # that hold the live paper track record, and those run Gemini Flash Lite.
+    "ai_trading_team_citadel_sector_pods.py": "gemini-3.1-flash-lite",
+    "ai_trading_team_citadel_sector_pods_leveraged.py": "gemini-3.1-flash-lite",
+    "ai_trading_team_ray_dalio_idea_meritocracy.py": "gemini-3.1-flash-lite",
+    "ai_trading_team_ray_dalio_idea_meritocracy_leveraged.py": "gemini-3.1-flash-lite",
 }
 
 

@@ -55,7 +55,7 @@ manager or trader agent.
 Network Permissions
 -------------------
 
-The outbound network tools (``http_request``, ``rss_fetch``, and every
+The outbound network tools (``http_request``, ``read_document``, ``rss_fetch``, and every
 ``browser_*`` tool) are off by default. Fetched pages are untrusted input, and
 a network tool is the channel a prompt-injected page could use to send agent
 context somewhere else. Keeping them out of the default set also keeps trading
@@ -131,6 +131,11 @@ Market-price tools:
   provided universe.
 - ``market_load_history_table`` still loads one symbol per call; load finalists
   after the batch scan.
+- Broker price data often has no market indexes (Alpaca has no VIX). When a
+  price tool has no data for an index such as VIX, VXN, OVX, GVZ, SPX or DJIA,
+  its result includes a ``fred_hint`` naming the FRED series with the daily
+  close (the VIX is ``VIXCLS``). ``get_fred_latest`` returns only what was
+  published by the strategy date, so it is safe in backtests.
 
 Market And Account State
 ------------------------
@@ -274,8 +279,8 @@ read a filing before it existed. Use ``search_filing`` before
 ``get_filing_document`` when the filing is large and the agent only needs a
 specific section.
 
-HTTP And RSS
-------------
+HTTP, Documents, And RSS
+------------------------
 
 These tools require the network opt-in described in `Network Permissions`_.
 
@@ -294,6 +299,32 @@ cloud-metadata destinations; a trusted internal host must be explicitly
 allowlisted by the application that creates the client. This guard preserves
 the full HTTP method set while preventing an untrusted page or prompt from
 silently reaching internal infrastructure.
+
+``read_document`` reads any file or page at a URL: PDF, Word (``.docx``),
+Excel (``.xlsx``), CSV, tab-separated text, JSON, HTML, and ZIP archives (it
+lists and reads every file inside). An HTML page comes back as text plus every
+link on it, so an agent can find a report on a website and follow its link.
+``find`` keeps only the lines that contain a word, and ``start`` with the
+returned ``next_start`` pages through long text. Every table in the file (a
+CSV, an Excel sheet, a table file inside a ZIP) is loaded for ``duckdb_query``,
+so the agent filters and adds up rows with SQL instead of by hand. A ZIP that
+unpacks to more than 100 MB is refused; the same limit applies to Word and Excel
+archives. Tables with the same label receive distinct names so earlier reads
+remain queryable. A malformed CSV/TSV retains its text and returns
+``table_error`` instead of silently dropping rows. No tool is built for one website: the
+:doc:`agents_example_nancy_pelosi_trading_bot` reads the House Clerk's yearly ZIP
+index and PDF reports with ``read_document``. The ``web-documents`` skill tells
+agents how, including the backtest rule: use each document's own date and skip
+anything dated after the backtest time.
+
+.. code-block:: python
+
+   self.agents.create(
+       name="researcher",
+       allow_trading=False,
+       allow_network=True,
+       system_prompt="Read https://example.com/reports/2025.zip and total the amounts by ticker.",
+   )
 
 ``rss_fetch`` reads RSS and Atom feeds through the same network and credential
 policy. It normalizes feed metadata and entries and supports conditional

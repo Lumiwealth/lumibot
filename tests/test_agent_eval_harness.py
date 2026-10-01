@@ -1292,30 +1292,23 @@ def test_expiration_scoring_rejects_the_unpriced_expiration():
     assert any("2026-08-28" in failure for failure in score["failures"])
 
 
-def test_public_filings_scoring_rejects_a_future_filing_in_the_tool_result():
-    case = evals.load_cases({"congress_public_filings_only"})[0]
-    transcript = {
-        "tool_calls": [],
-        "fixture_calls": [{"name": "house_public_disclosures"}],
-        "submissions": [],
-        "tool_results": [
-            {
-                "name": "house_public_disclosures",
-                "payload": {
-                    "ok": True,
-                    "as_of": "2026-08-11T14:35:00+00:00",
-                    "filings": [
-                        {"ticker": "AAPL", "published_at": "2026-08-01T00:00:00+00:00", "doc_id": "111"},
-                        {"ticker": "ZZZZ", "published_at": "2026-09-15T00:00:00+00:00", "doc_id": "222"},
-                    ],
-                },
-            }
-        ],
-        "final_positions": [],
-    }
-    score = evals.score_machine_contract(case, transcript)
-    assert score["pass"] is False
-    assert any("222" in failure or "after as_of" in failure for failure in score["failures"])
+def test_web_documents_case_fails_when_the_agent_opens_a_report_filed_after_the_simulated_date():
+    case = evals.load_cases({"web_documents_holdings_from_yearly_and_trade_reports"})[0]
+
+    def transcript(urls):
+        calls = [{"name": "read_document", "arguments": {"url": url}} for url in urls]
+        return {
+            "tool_calls": [{"name": "load_skill", "payload": {"skill_name": "web-documents"}}],
+            "fixture_calls": calls + [{"name": "duckdb_query", "arguments": {"sql": "SELECT 1"}}],
+            "submissions": [],
+        }
+
+    index = "https://filings.example.gov/public_disc/financial-pdfs/2026FD.zip"
+    honest = [index, "https://filings.example.gov/reports/1001.pdf", "https://filings.example.gov/reports/2001.pdf"]
+    assert evals.score_machine_contract(case, transcript(honest))["pass"] is True
+    peeked = evals.score_machine_contract(case, transcript(honest + ["https://filings.example.gov/reports/2002.pdf"]))
+    assert peeked["pass"] is False
+    assert any("2002.pdf" in failure for failure in peeked["failures"])
 
 
 class TestRepeatPolicy:

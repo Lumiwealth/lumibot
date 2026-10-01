@@ -1270,6 +1270,17 @@ class BacktestingBroker(Broker):
             for o in orders:
                 o.parent_identifier = parent_order.identifier
 
+            # A credit/debit/even package with a net limit and no bid/ask in the data
+            # (Alpaca option history is trades only) fills as one package: every leg on
+            # the same bar, only when the net of the leg prices meets the limit. With
+            # quotes, legs keep filling individually at the bid/ask as before.
+            if parent_smart_limit is None:
+                package_limit = self._signed_package_limit(kwargs.get("order_type"), parent_limit_price)
+                if package_limit is not None and not self._every_leg_has_quote(orders):
+                    parent_order._package_net_limit = package_limit
+                    for child in orders:
+                        setattr(child, "_package_limit_managed_by_parent", True)
+
             parent_order.child_orders = orders
             self._unprocessed_orders.append(parent_order)
             # Backtesting must be deterministic: process the NEW_ORDER event inline so the parent
@@ -2046,7 +2057,7 @@ class BacktestingBroker(Broker):
             order_type_value = str(order_type_attr.value).lower()
         else:
             order_type_value = str(order_type_attr).lower() if order_type_attr is not None else ""
-        if side_value in ("buy", "buy_to_open", "buy_to_cover"):
+        if side_value in ("buy", "buy_to_open", "buy_to_close", "buy_to_cover"):
             trading_fees = buy_fees
         elif side_value in ("sell", "sell_to_close", "sell_short", "sell_to_open"):
             trading_fees = sell_fees
@@ -2196,10 +2207,15 @@ class BacktestingBroker(Broker):
             # SMART_LIMIT multileg children should be filled atomically by their parent order.
             if getattr(order, "_smart_limit_managed_by_parent", False):
                 continue
+            if getattr(order, "_package_limit_managed_by_parent", False):
+                continue
 
             # Multileg parent orders are placeholders unless they are explicitly
             # configured as a package SMART_LIMIT (i.e. have a SmartLimitConfig).
             if order.order_class is Order.OrderClass.MULTILEG and getattr(order, "smart_limit", None) is None:
+                if getattr(order, "_package_net_limit", None) is not None and order.child_orders:
+                    if not any(o.is_filled() for o in order.child_orders):
+                        self._fill_package_at_net_limit(order, strategy)
                 # If this is the final fill for a multileg order, mark the parent order as filled
                 if all([o.is_filled() for o in order.child_orders]):
                     parent_qty = sum([abs(o.quantity) for o in order.child_orders])
@@ -2473,40 +2489,7 @@ class BacktestingBroker(Broker):
 
             # Get the OHLCV data for the asset if we're using the YAHOO, CCXT data source
             if data_source_name in ["CCXT", "YAHOO", "ALPACA", "DATABENTO", "DATABENTO_POLARS"]:
-                # Negative deltas here are intentional: _pull_source_symbol_bars subtracts the offset, so
-                # passing -1 minute yields an effective +1 minute guard that keeps us on the previously
-                # completed bar. See tests/*_lookahead for regression coverage.
-                timeshift = timedelta(minutes=-1)
-                execution_bar_kwargs = {}
-                if data_source_name == "CCXT":
-                    # Research history excludes the unclosed CCXT candle. Execution
-                    # alone requests the current interval to simulate its open/range.
-                    # The timestamp check below still rejects future/sparse-gap bars.
-                    bar_duration, _ = DataSourceBacktesting.convert_timestep_str_to_timedelta(
-                        getattr(self.data_source, "_timestep", None) or "minute"
-                    )
-                    timeshift = -bar_duration
-                elif data_source_name in {"DATABENTO", "DATABENTO_POLARS"}:
-                    # DataBento feeds can skip minutes around maintenance windows. Giving it a two-minute
-                    # cushion mirrors the legacy Polygon behaviour and avoids falling through gaps.
-                    timeshift = timedelta(minutes=-2)
-                elif data_source_name == "YAHOO":
-                    # Yahoo daily bars are stamped at the close (16:00). A one-day backstep keeps fills on
-                    # the previous session so we never peek at the in-progress bar.
-                    timeshift = timedelta(days=-1)
-                elif data_source_name == "ALPACA":
-                    # Alpaca minute bars line up with our clock already; no offset needed.
-                    timeshift = None
-                    # Execution is simulated on the bar that starts now (market orders at its
-                    # open, limit and stop orders against its range), the same bar the Pandas
-                    # path reads with timeshift=-1. AlpacaBacktesting history returns finished
-                    # bars only in environment mode (the BotSpot path), so ask for the current
-                    # bar explicitly. The timestamp check below still rejects a bar that is not
-                    # current where the fill policy requires one (options). The fill never needs
-                    # bars from before the backtest window, so it does not reach back for them.
-                    execution_bar_kwargs["remove_incomplete_current_bar"] = False
-                    execution_bar_kwargs["_extend_history"] = False
-
+                timeshift, execution_bar_kwargs = self._execution_bar_request(data_source_name)
                 ohlc = self.data_source.get_historical_prices(
                     asset=asset,
                     length=1,
@@ -4722,6 +4705,131 @@ class BacktestingBroker(Broker):
                 strategy=strategy,
             )
 
+        return True
+
+    def _execution_bar_request(self, data_source_name):
+        """Timeshift and history kwargs that fetch the bar an order executes on."""
+        # Negative deltas here are intentional: _pull_source_symbol_bars subtracts the offset, so
+        # passing -1 minute yields an effective +1 minute guard that keeps us on the previously
+        # completed bar. See tests/*_lookahead for regression coverage.
+        timeshift = timedelta(minutes=-1)
+        execution_bar_kwargs = {}
+        if data_source_name == "CCXT":
+            # Research history excludes the unclosed CCXT candle. Execution
+            # alone requests the current interval to simulate its open/range.
+            # The timestamp check below still rejects future/sparse-gap bars.
+            bar_duration, _ = DataSourceBacktesting.convert_timestep_str_to_timedelta(
+                getattr(self.data_source, "_timestep", None) or "minute"
+            )
+            timeshift = -bar_duration
+        elif data_source_name in {"DATABENTO", "DATABENTO_POLARS"}:
+            # DataBento feeds can skip minutes around maintenance windows. Giving it a two-minute
+            # cushion mirrors the legacy Polygon behaviour and avoids falling through gaps.
+            timeshift = timedelta(minutes=-2)
+        elif data_source_name == "YAHOO":
+            # Yahoo daily bars are stamped at the close (16:00). A one-day backstep keeps fills on
+            # the previous session so we never peek at the in-progress bar.
+            timeshift = timedelta(days=-1)
+        elif data_source_name == "ALPACA":
+            # Alpaca minute bars line up with our clock already; no offset needed.
+            timeshift = None
+            # Execution is simulated on the bar that starts now (market orders at its
+            # open, limit and stop orders against its range), the same bar the Pandas
+            # path reads with timeshift=-1. AlpacaBacktesting history returns finished
+            # bars only in environment mode (the BotSpot path), so ask for the current
+            # bar explicitly. The timestamp check below still rejects a bar that is not
+            # current where the fill policy requires one (options). The fill never needs
+            # bars from before the backtest window, so it does not reach back for them.
+            execution_bar_kwargs["remove_incomplete_current_bar"] = False
+            execution_bar_kwargs["_extend_history"] = False
+
+        return timeshift, execution_bar_kwargs
+
+    @staticmethod
+    def _signed_package_limit(order_type, limit_price) -> Optional[float]:
+        """Signed net limit per package unit: a debit is positive, a credit is negative."""
+        kind = str(getattr(order_type, "value", order_type) or "").lower()
+        if kind not in {"credit", "debit", "even"}:
+            return None
+        if kind == "even":
+            return 0.0
+        if limit_price is None:
+            return None
+        return -abs(float(limit_price)) if kind == "credit" else abs(float(limit_price))
+
+    def _every_leg_has_quote(self, orders) -> bool:
+        for leg in orders:
+            try:
+                quote = self.get_quote(leg.asset, quote=leg.quote)
+            except Exception:
+                return False
+            bid = self._coerce_price(getattr(quote, "bid", None)) if quote is not None else None
+            ask = self._coerce_price(getattr(quote, "ask", None)) if quote is not None else None
+            if bid is None or ask is None or self._is_invalid_price(bid) or self._is_invalid_price(ask):
+                return False
+        return True
+
+    def _leg_bar_open_now(self, leg) -> Optional[float]:
+        """Open of the leg's bar at the current backtest time, or None when the leg has not
+        traded yet in this bar (an option with no print waits, the same as a single leg)."""
+        asset = leg.asset if getattr(leg.asset, "asset_type", None) != "crypto" else (leg.asset, leg.quote)
+        timestep = str(getattr(self.data_source, "_timestep", "minute"))
+        source_name = str(getattr(self.data_source, "SOURCE", "") or "").upper()
+        try:
+            if source_name in {"CCXT", "YAHOO", "ALPACA", "DATABENTO", "DATABENTO_POLARS"}:
+                timeshift, kwargs = self._execution_bar_request(source_name)
+                bars = self.data_source.get_historical_prices(
+                    asset=asset, length=1, quote=leg.quote, timeshift=timeshift, **kwargs
+                )
+            else:
+                bars = self.data_source.get_historical_prices(
+                    asset=asset, length=3, quote=leg.quote, timeshift=-1, timestep=timestep
+                )
+        except Exception:
+            return None
+        df = getattr(bars, "df", None)
+        if df is None or df.empty:
+            return None
+        # Use only the bar that starts at the current time: earlier bars are stale and
+        # later ones (which a shifted request can return) are the future.
+        now = pd.Timestamp(self.datetime)
+        index = pd.DatetimeIndex(df.index)
+        if index.tz is None:
+            index = index.tz_localize(now.tz or "America/New_York")
+        if now.tz is None:
+            now = now.tz_localize(index.tz)
+        index = index.tz_convert(now.tz)
+        if timestep == "day":
+            matches = [i for i, ts in enumerate(index) if ts.date() == now.date()]
+        else:
+            matches = [i for i, ts in enumerate(index) if ts.floor("min") == now.floor("min")]
+        if not matches:
+            return None
+        price = self._coerce_price(df["open"].iloc[matches[-1]])
+        if price is None or self._is_invalid_price(price):
+            return None
+        return float(price)
+
+    def _fill_package_at_net_limit(self, order: Order, strategy) -> bool:
+        """Fill every leg of a package limit order on this bar, or none of them."""
+        legs = order.child_orders
+        opens = []
+        for leg in legs:
+            price = self._leg_bar_open_now(leg)
+            if price is None:
+                return False
+            opens.append(price)
+        unit = min(abs(float(leg.quantity)) for leg in legs) or 1.0
+        net = sum(
+            (price if leg.is_buy_order() else -price) * abs(float(leg.quantity)) / unit
+            for leg, price in zip(legs, opens)
+        )
+        if net > float(order._package_net_limit) + 1e-9:
+            return False
+        for leg, price in zip(legs, opens):
+            leg.trade_slippage = 0.0
+            setattr(leg, "_price_source", "package_limit")
+            self._execute_filled_order(order=leg, price=price, filled_quantity=leg.quantity, strategy=strategy)
         return True
 
     def _fill_multileg_children_at_market_open(self, order: Order, strategy) -> bool:

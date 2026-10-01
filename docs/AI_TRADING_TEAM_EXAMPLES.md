@@ -6,8 +6,15 @@ strategy code intentionally simple:
 - create agents in `initialize()`
 - pass context through those agents in `on_trading_iteration()`
 - allow only the final trader or portfolio-manager agent to submit orders
-- run the same file with a broker by default, or set `IS_BACKTESTING = True`
-  in the runner for the historical demo window
+- run the same file with a broker by default, or select its historical branch
+  with the documented `IS_BACKTESTING` setting
+
+The strategy class can stay the same. The code that starts it selects the
+backtest or broker path. The four Citadel and Ray Dalio files read `IS_BACKTESTING` from the environment;
+set `IS_BACKTESTING=true` to backtest them. The other team files use the same
+switch: `IS_BACKTESTING=true` backtests, anything else calls `run_live()` with
+the broker in your `.env` file.
+See the [complete AI example run-mode inventory](https://lumibot.lumiwealth.com/strategy_run_modes.html).
 
 These examples are inspired by public investing styles and firms. They are not
 affiliated with or endorsed by the investors, firms, or companies named.
@@ -54,27 +61,28 @@ Each example defaults to broker-connected execution. With Alpaca, it runs in
 paper mode unless `ALPACA_IS_PAPER=false`.
 
 ```bash
-export GEMINI_API_KEY='your-key-here'
+export OPENAI_API_KEY='your-key-here'
 export ALPACA_API_KEY='your-alpaca-key'
 export ALPACA_API_SECRET='your-alpaca-secret'
 export ALPACA_IS_PAPER=true
 python lumibot/example_strategies/ai_trading_team_citadel_sector_pods.py
 ```
 
-Backtest the same file by changing `IS_BACKTESTING = False` to `IS_BACKTESTING = True` in the runner:
+Backtest this Citadel file by selecting its environment-controlled historical branch:
 
 ```bash
-export GEMINI_API_KEY='your-key-here'
+export OPENAI_API_KEY='your-key-here'
+export IS_BACKTESTING=true
 python lumibot/example_strategies/ai_trading_team_citadel_sector_pods.py
 ```
 
 ## Workflow diagrams
 
-- `docs/assets/ai-trading-team-workflows/bull-bear-leveraged-etf.png`
-- `docs/assets/ai-trading-team-workflows/bull-bear-large-cap-stocks.png`
+- `docs/assets/ai-agent-workflows/tqqq-strategy-ai-trading-bot.png`
+- `docs/assets/ai-agent-workflows/bull-vs-bear-ai-stock-trading-bot.png`
 - `docs/assets/ai-trading-team-workflows/ray-dalio-idea-meritocracy.png`
-- `docs/assets/ai-trading-team-workflows/warren-buffett-value.png`
-- `docs/assets/ai-trading-team-workflows/bill-ackman-concentrated.png`
+- `docs/assets/ai-agent-workflows/warren-buffett-ai-stock-picker.png`
+- `docs/assets/ai-agent-workflows/bill-ackman-portfolio-ai-trading-bot.png`
 - `docs/assets/ai-trading-team-workflows/citadel-sector-pods.png`
 
 ## Backtest snapshots

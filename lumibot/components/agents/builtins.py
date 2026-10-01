@@ -2,6 +2,7 @@ import hashlib
 import json
 import math
 import os
+from contextlib import contextmanager
 from datetime import date, datetime, timedelta, timezone
 from importlib import import_module
 from typing import Any, Literal
@@ -1207,6 +1208,42 @@ def _bind_calculate_stock_quantity(strategy: Any, manager: Any) -> BoundTool:
     )
 
 
+# Market indexes that broker price data often lacks (Alpaca has no VIX) and FRED
+# publishes as daily closes. A price-tool miss on one of these says so, so an
+# agent checks FRED instead of calling its rule unverifiable.
+_FRED_INDEX_SERIES = {
+    "VIX": "VIXCLS",
+    "VIX3M": "VXVCLS",
+    "VXV": "VXVCLS",
+    "VXN": "VXNCLS",
+    "OVX": "OVXCLS",
+    "GVZ": "GVZCLS",
+    "SPX": "SP500",
+    "DJI": "DJIA",
+    "DJIA": "DJIA",
+    "COMP": "NASDAQCOM",
+    "IXIC": "NASDAQCOM",
+}
+
+
+def _fred_hint(missing: Any) -> dict[str, str]:
+    found = {}
+    for symbol in missing or []:
+        key = str(symbol or "").upper().lstrip("^$.")
+        if key in _FRED_INDEX_SERIES:
+            found[str(symbol)] = _FRED_INDEX_SERIES[key]
+    if not found:
+        return {}
+    pairs = ", ".join(f"{symbol} is FRED series {series}" for symbol, series in found.items())
+    return {
+        "fred_hint": (
+            f"No price data here for {', '.join(found)}. Broker data often has no market indexes. "
+            f"FRED has their daily closes ({pairs}): use get_fred_latest or get_fred_series, which return "
+            "only what was published by the strategy date."
+        )
+    }
+
+
 def _bind_last_price(strategy: Any, manager: Any) -> BoundTool:
     def last_price(
         *,
@@ -1234,6 +1271,7 @@ def _bind_last_price(strategy: Any, manager: Any) -> BoundTool:
             "asset_type": asset_type,
             "price": float(price) if price is not None else None,
             "datetime": strategy.get_datetime().isoformat(),
+            **(_fred_hint([symbol]) if price is None else {}),
         }
 
     return BoundTool(
@@ -1332,6 +1370,7 @@ def _bind_last_prices(strategy: Any, manager: Any) -> BoundTool:
             "count_available": len(available),
             "asset_type": asset_type,
             "datetime": strategy.get_datetime().isoformat(),
+            **_fred_hint(missing),
         }
 
     return BoundTool(
@@ -1483,6 +1522,7 @@ def _bind_historical_prices(strategy: Any, manager: Any) -> BoundTool:
                 "symbols_requested": symbol_list,
                 "symbols_available": available,
                 "symbols_missing": missing,
+                **_fred_hint(missing),
                 **interval_fields,
                 "count_requested": len(symbol_list),
                 "count_available": len(available),
@@ -1497,6 +1537,7 @@ def _bind_historical_prices(strategy: Any, manager: Any) -> BoundTool:
             "symbols_requested": symbol_list,
             "symbols_available": available,
             "symbols_missing": missing,
+            **_fred_hint(missing),
             **interval_fields,
             "count_requested": len(symbol_list),
             "count_available": len(available),
@@ -1537,15 +1578,52 @@ def _bind_historical_prices(strategy: Any, manager: Any) -> BoundTool:
     )
 
 
+@contextmanager
+def _chain_window(strategy: Any, max_expiration: date | None):
+    """Let a backtest chain list expirations out to ``max_expiration``.
+
+    Backtest data sources list about 90 days of expirations by default, so a
+    one-year option (a LEAP) is invisible unless the window is widened. Live
+    brokers list every expiration and ignore the hint.
+    """
+    broker = getattr(strategy, "broker", None)
+    data_source = getattr(broker, "data_source", None)
+    if max_expiration is None or data_source is None:
+        yield
+        return
+    missing = object()
+    previous = getattr(data_source, "_chain_constraints", missing)
+    constraints = dict(previous) if isinstance(previous, dict) else {}
+    current = constraints.get("max_expiration_date")
+    if current is None or current < max_expiration:
+        constraints["max_expiration_date"] = max_expiration
+    data_source._chain_constraints = constraints
+    try:
+        yield
+    finally:
+        if previous is missing:
+            try:
+                delattr(data_source, "_chain_constraints")
+            except AttributeError:
+                pass
+        else:
+            data_source._chain_constraints = previous
+
+
 def _bind_options_get_chain(strategy: Any, manager: Any) -> BoundTool:
     def get_chain(
         *,
         symbol: str,
         underlying_asset_type: Literal["stock", "index"] = "stock",
         include_strikes: bool = False,
+        max_expiration: str | None = None,
     ) -> dict[str, Any]:
         underlying = _underlying_asset(strategy, symbol=symbol, asset_type=underlying_asset_type)
-        chains = strategy.get_chains(underlying)
+        window = _coerce_expiration(max_expiration) if max_expiration else None
+        if max_expiration and not isinstance(window, date):
+            raise ValueError("max_expiration must use YYYY-MM-DD format.")
+        with _chain_window(strategy, window):
+            chains = strategy.get_chains(underlying)
         if not chains:
             return {
                 "symbol": symbol.upper(),
@@ -1596,7 +1674,8 @@ def _bind_options_get_chain(strategy: Any, manager: Any) -> BoundTool:
         name="options_get_chain",
         description=(
             "Retrieve the option chain available for one underlying through LumiBot's configured broker or backtest data source. "
-            "Arguments: symbol, optional underlying_asset_type='stock' or 'index', optional include_strikes. "
+            "Arguments: symbol, optional underlying_asset_type='stock' or 'index', optional include_strikes, optional "
+            "max_expiration (YYYY-MM-DD) to list expirations further out than about 90 days, for example a one-year call. "
             "The default compact response lists call and put expirations plus strike counts and ranges. Set include_strikes=true only when you need every strike for every expiration. "
             "Use this before choosing option contracts. Never invent an expiration or strike that is absent from this result. "
             "Example: options_get_chain(symbol='SPY', include_strikes=false)."
@@ -1618,7 +1697,8 @@ def _bind_options_get_strikes(strategy: Any, manager: Any) -> BoundTool:
         expiration_value = _coerce_expiration(_require_non_empty_text("expiration", expiration))
         if not isinstance(expiration_value, date):
             raise ValueError("expiration must use YYYY-MM-DD format.")
-        chains = strategy.get_chains(underlying)
+        with _chain_window(strategy, expiration_value):
+            chains = strategy.get_chains(underlying)
         if not chains:
             strikes: list[float] = []
         elif hasattr(chains, "strikes"):
@@ -1715,7 +1795,8 @@ def _bind_options_find_strike_for_delta(strategy: Any, manager: Any) -> BoundToo
             underlying_price = strategy.get_last_price(underlying)
         if underlying_price is None:
             raise ValueError(f"No underlying price is available for {symbol.upper()}.")
-        chains = strategy.get_chains(underlying)
+        with _chain_window(strategy, expiration_value):
+            chains = strategy.get_chains(underlying)
         strike = _options_helper_for_strategy(strategy).find_strike_for_delta(
             underlying,
             float(underlying_price),
@@ -1936,7 +2017,8 @@ def _bind_options_find_expiration(strategy: Any, manager: Any) -> BoundTool:
                 target = earliest
 
         underlying = _underlying_asset(strategy, symbol=symbol, asset_type=underlying_asset_type)
-        chains = strategy.get_chains(underlying)
+        with _chain_window(strategy, target + timedelta(days=45)):
+            chains = strategy.get_chains(underlying)
         expiration = _options_helper_for_strategy(strategy).get_expiration_on_or_after_date(
             target,
             chains,
@@ -2317,6 +2399,9 @@ def _bind_duckdb_query(strategy: Any, manager: Any) -> BoundTool:
             "Load a table first with market_load_history_table, then analyze it here. "
             "For LumiBot price tables, prefer datetime for timestamps and close for prices unless the loaded sample rows show different column names. "
             "Caveat: only read-only SQL is allowed. "
+            "It is also your calculator: never add up, divide, or scale more than a few numbers in your head. Put "
+            "them in a VALUES list, for example SELECT t, v / SUM(v) OVER () AS weight FROM (VALUES ('AAPL', 15.0), "
+            "('AB', 3.0)) AS h(t, v). "
             "Example: duckdb_query(sql='SELECT AVG(close) AS avg_close FROM recent_prices')."
         ),
         function=duckdb_query,
@@ -2405,6 +2490,106 @@ def _bind_http_request(strategy: Any, manager: Any) -> BoundTool:
         function=http_request,
         source="builtin",
         metadata={"kind": "web", "temporal": "response_time"},
+    )
+
+
+def _bind_read_document(strategy: Any, manager: Any) -> BoundTool:
+    def read_document(
+        url: str,
+        find: str | None = None,
+        start: int = 0,
+        max_chars: int = 2_500,
+        credential_profile: str | None = None,
+    ) -> dict[str, Any]:
+        from .documents import read_document_bytes
+
+        url = _require_non_empty_text("url", url)
+        fetched = _web_client_for_strategy(strategy).request(
+            "GET", url, credential_profile=credential_profile, max_response_bytes=25_000_000, return_content=True
+        )
+        content = fetched.pop("content", b"") or b""
+        # No download time here: a page or file read now shows its current version,
+        # and agents mistook the download time for the document's date.
+        result = {key: fetched[key] for key in ("ok", "status_code", "url", "error") if key in fetched}
+        result["dates"] = (
+            "This is the live, current copy. Its download time is not its date. Use the dates written in it "
+            "(filing, published, or row dates): parts dated on or before the current time are usable, later parts are "
+            "not. Never open a document an index lists with a date after the current time, not even to check it."
+        )
+        if not fetched.get("ok"):
+            result["text"] = content[:2_000].decode("utf-8", errors="replace")
+            return result
+        document = read_document_bytes(
+            content,
+            name=str(fetched.get("url") or url).rsplit("/", 1)[-1],
+            content_type=str(fetched.get("content_type") or ""),
+            url=str(fetched.get("url") or url),
+        )
+        text = document["text"]
+        links = document.get("links") or []
+        if find:
+            needle = str(find).lower()
+            matched = [line for line in text.splitlines() if needle in line.lower()]
+            result["matched_lines"] = len(matched)
+            text = "\n".join(matched)
+            links = [link for link in links if needle in f"{link['text']} {link['url']}".lower()]
+        # The agent runtime cuts any tool result over 4,000 characters to its head and
+        # tail, so each call returns one small page and says where the next one starts.
+        start = max(int(start or 0), 0)
+        max_chars = min(max(int(max_chars or 2_500), 1), 2_500)
+        end = start + max_chars
+        result.update(
+            {
+                "kind": document["kind"],
+                "text": text[start:end],
+                "text_chars": len(text),
+                "start": start,
+                "next_start": end if end < len(text) else None,
+            }
+        )
+        if document.get("links"):
+            result["links_total"] = len(document["links"])
+            result["links"] = links[:12]
+            if len(links) > 12:
+                result["links_note"] = "Only 12 links shown. Pass find to pick links by their text or URL."
+        if document.get("files"):
+            result["files_total"] = len(document["files"])
+            result["files"] = [{"name": entry["name"], "kind": entry["kind"]} for entry in document["files"][:15]]
+        if document.get("unsupported"):
+            result["unsupported"] = document["unsupported"]
+        if document.get("table_error"):
+            result["table_error"] = document["table_error"]
+        tables = [
+            manager.duckdb.register_document_table(label, frame, source=str(result.get("url") or url))
+            for label, frame in document["tables"]
+        ]
+        result["tables"] = [
+            {
+                "table_name": table["table_name"],
+                "row_count": table["row_count"],
+                "columns": table["columns"][:30],
+                "sample_row": {key: str(value)[:60] for key, value in list((table["sample_rows"] or [{}])[0].items())[:30]},
+            }
+            for table in tables[:5]
+        ]
+        return result
+
+    return BoundTool(
+        name="read_document",
+        description=(
+            "Read any file or web page at a URL: PDF, Word, Excel, CSV, tab-separated text, ZIP (every file "
+            "inside), HTML (text plus the links on the page), JSON, or plain text. Arguments: url, optional "
+            "find (keep only the lines and links that contain this text), start and max_chars (at most 2500) "
+            "to page through long text: call again with start=next_start until next_start is null. Every table in the file "
+            "(a CSV, an Excel sheet, a table file inside a ZIP) is loaded for duckdb_query: the result lists "
+            "each table_name, its columns and sample rows, so filter, sort and add up rows with SQL instead of "
+            "by hand. To find a document on a website, read the page and follow its links. In a backtest, use "
+            "each document's own date (for example a filing date) and ignore anything dated after the current "
+            "backtest time. Example: read_document(url='https://example.com/reports/2025.zip')."
+        ),
+        function=read_document,
+        source="builtin",
+        metadata={"kind": "web", "network": True, "temporal": "response_time"},
     )
 
 
@@ -4435,6 +4620,13 @@ class _WebTools:
             binder=_bind_http_request,
         )
 
+    def read_document(self) -> ToolDefinition:
+        return ToolDefinition(
+            name="read_document",
+            description="Read any file at a URL (PDF, Word, Excel, CSV, ZIP, HTML) as text and tables.",
+            binder=_bind_read_document,
+        )
+
     def rss_fetch(self) -> ToolDefinition:
         return ToolDefinition(
             name="rss_fetch",
@@ -4521,86 +4713,6 @@ class _BrowserTools:
             name="browser_screenshot",
             description="Capture a browser screenshot.",
             binder=_bind_browser_screenshot,
-        )
-
-
-def _house_last_name_matches(record: dict[str, Any], last_name: str) -> bool:
-    needle = str(last_name or "").strip().lower()
-    if not needle:
-        return False
-    politician = str(record.get("Politician") or record.get("politician") or "").lower()
-    last = str(record.get("last") or record.get("Last") or "").lower()
-    return needle == last or needle in politician
-
-
-def _house_disclosure_payload(
-    records: list[dict[str, Any]],
-    *,
-    last_name: str,
-    as_of: datetime,
-    asset_mode: str,
-) -> dict[str, Any]:
-    from lumibot.components.disclosure_signals import visible_congress_disclosures
-
-    matched = [record for record in records if _house_last_name_matches(record, last_name)]
-    if str(asset_mode or "stock").lower().strip() == "stock":
-        matched = [record for record in matched if str(record.get("asset_code") or "").upper() != "OP"]
-    ceiling = as_of if as_of.tzinfo else as_of.replace(tzinfo=timezone.utc)
-    filings = visible_congress_disclosures(matched, as_of=ceiling)
-    visible_ids = {str(row.get("doc_id")) for row in filings}
-    omitted = sum(1 for row in matched if str(row.get("doc_id")) not in visible_ids)
-    return {
-        "ok": True,
-        "as_of": ceiling.isoformat(),
-        "last_name": last_name,
-        "filings": filings,
-        "count": len(filings),
-        "omitted_future_count": omitted,
-    }
-
-
-def _bind_house_public_disclosures(strategy: Any, manager: Any) -> BoundTool:
-    def house_public_disclosures(last_name: str, year: int | None = None, asset_mode: str = "stock") -> dict[str, Any]:
-        as_of = strategy.get_datetime()
-        if not isinstance(as_of, datetime):
-            as_of = datetime.now(timezone.utc)
-        recorded = getattr(strategy, "house_disclosure_records", None)
-        if recorded is not None:
-            return _house_disclosure_payload(list(recorded), last_name=last_name, as_of=as_of, asset_mode=asset_mode)
-        from lumibot.components.house_ptr import public_house_filings
-
-        result = public_house_filings(
-            int(year or as_of.year),
-            last_names=[last_name],
-            as_of=as_of,
-            asset_mode=asset_mode,
-        )
-        result["last_name"] = last_name
-        return result
-
-    return BoundTool(
-        name="house_public_disclosures",
-        description=(
-            "Return House periodic transaction filings for one last name that are already "
-            "public at the strategy clock. Filings dated after that clock are omitted and "
-            "are not downloaded."
-        ),
-        function=house_public_disclosures,
-        source="builtin",
-        metadata={"kind": "disclosure", "temporal": "published_at_on_or_before_strategy_clock"},
-    )
-
-
-class _DisclosureTools:
-    def house_public_disclosures(self) -> ToolDefinition:
-        return ToolDefinition(
-            name="house_public_disclosures",
-            description=(
-                "Return House periodic transaction filings for one last name that are already "
-                "public at the strategy clock. Filings dated after that clock are omitted and "
-                "are not downloaded."
-            ),
-            binder=_bind_house_public_disclosures,
         )
 
 
@@ -4857,7 +4969,6 @@ class _BuiltinTools:
     docs = _DocsTools()
     web = _WebTools()
     browser = _BrowserTools()
-    disclosures = _DisclosureTools()
     news = _NewsTools()
     indicators = _IndicatorTools()
     fundamentals = _FundamentalTools()
@@ -4887,6 +4998,7 @@ class _BuiltinTools:
             self.duckdb.query(),
             self.docs.search(),
             self.web.http_request(),
+            self.web.read_document(),
             self.web.rss_fetch(),
             self.web.web_search(),
             self.browser.session_open(),
@@ -4900,7 +5012,6 @@ class _BuiltinTools:
             self.browser.login(),
             self.browser.storage_state(),
             self.browser.screenshot(),
-            self.disclosures.house_public_disclosures(),
             self.news.alpaca_news(),
             self.indicators.list_indicators(),
             self.indicators.get_indicator(),

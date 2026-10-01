@@ -1,5 +1,7 @@
 """A researcher and a trading agent share one standard LumiBot Strategy.
 
+Direct run: backtest only.
+
 Run: python -m lumibot.example_strategies.ai_researcher_trader
 Requires OPENAI_API_KEY and Yahoo daily price access. Model calls incur charges.
 This module only starts a historical backtest when run as a program.

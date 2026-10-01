@@ -16,6 +16,8 @@ from urllib.parse import urljoin, urlsplit, urlunsplit
 
 import httpx
 
+from .documents import read_document_bytes
+
 _ALLOWED_METHODS = {"GET", "HEAD", "OPTIONS", "POST", "PUT", "PATCH", "DELETE"}
 _REDIRECT_STATUSES = {301, 302, 303, 307, 308}
 _SAFE_RESPONSE_HEADERS = {"content-type", "content-length", "date", "etag", "last-modified", "location", "retry-after"}
@@ -369,6 +371,7 @@ class WebClient:
         files: str | dict[str, Any] | None = None,
         credential_profile: str | None = None,
         max_response_bytes: int | None = None,
+        return_content: bool = False,
     ) -> dict[str, Any]:
         normalized_method = str(method).upper().strip()
         fetched_at = self._clock().astimezone(timezone.utc).isoformat()
@@ -482,6 +485,11 @@ class WebClient:
             "content_length": len(content),
             "content_sha256": content_sha256,
         }
+        if return_content:
+            # read_document parses the raw bytes itself.
+            result["content"] = content
+            result["content_type"] = content_type
+            return result
         if content:
             # The body was streamed, so decode it here instead of response.json()/.text.
             text_encoding = response.encoding or "utf-8"
@@ -492,13 +500,13 @@ class WebClient:
                     result["text"] = content.decode(text_encoding, errors="replace")
             elif content_type.startswith("text/") or "xml" in content_type or "html" in content_type:
                 result["text"] = content.decode(text_encoding, errors="replace")
-            elif "pdf" in content_type.lower() or content.startswith(b"%PDF"):
-                from lumibot.components.house_ptr import pdf_bytes_to_text, reflow_ptr_text
-
+            elif "pdf" in content_type.lower() or content.startswith((b"%PDF", b"PK\x03\x04")):
+                # PDFs, Office files and ZIPs come back as readable text; read_document also loads their tables.
                 try:
-                    extracted = reflow_ptr_text(pdf_bytes_to_text(content)).strip()
+                    extracted = read_document_bytes(content, content_type=content_type, url=response_url)["text"].strip()
                 except Exception as exc:
-                    result["text_error"] = f"Could not extract PDF text: {type(exc).__name__}: {exc}"
+                    label = "PDF" if "pdf" in content_type.lower() or content.startswith(b"%PDF") else "document"
+                    result["text_error"] = f"Could not extract {label} text: {type(exc).__name__}: {exc}"
                     result["body_base64"] = base64.b64encode(content).decode("ascii")
                     return result
                 if len(extracted) > 12_000:

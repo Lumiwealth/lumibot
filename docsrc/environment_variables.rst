@@ -48,8 +48,12 @@ LUMIBOT_LOG_LEVEL
 IS_BACKTESTING
 ^^^^^^^^^^^^^^
 
-- Purpose: Signals backtesting mode for certain code paths.
+- Purpose: Signals backtesting mode for code that explicitly reads this value.
 - Values: ``True`` / ``False`` (string).
+- It does not choose a runner by itself: a file that only calls
+  ``Strategy.backtest()`` still backtests when this is ``False``. A local
+  ``IS_BACKTESTING`` assignment in an example is independent of this variable.
+  See :doc:`strategy_run_modes`.
 
 BACKTESTING_START / BACKTESTING_END
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^

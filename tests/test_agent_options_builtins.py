@@ -489,37 +489,6 @@ def test_market_historical_prices_rejects_unsafe_table_name():
         tool.function(symbols="SPY", length=2, table_name="bars; DROP TABLE x")
 
 
-def test_orb_prompt_keeps_strategy_policy_without_repeating_tool_instructions():
-    from lumibot.example_strategies.ai_opening_range_breakout import (
-        build_orb_system_prompt,
-        _parse_universe,
-        _DEFAULT_ORB_UNIVERSE,
-    )
-
-    universe = _parse_universe(_DEFAULT_ORB_UNIVERSE)
-    assert len(universe) >= 90
-    prompt = build_orb_system_prompt(
-        {
-            "universe": universe,
-            "opening_range_minutes": 15,
-            "max_positions": 1,
-        }
-    )
-    assert "Scan the full provided universe" in prompt
-    assert "market_last_prices" not in prompt
-    assert "market_historical_prices" not in prompt
-    assert "09:30" in prompt
-    assert "at most 100 completed bars" in prompt
-    assert "one bounded multi-symbol history call that passes a\n   table_name" in prompt
-    assert "with SQL over that table" in prompt
-    assert "evidence is missing or invalid" in prompt
-    assert "breakout candidate is the latest completed" in prompt
-    assert "12 bars at 10:30, then 24, 36, 48, 60" in prompt
-    assert "Do not\n   round those counts up to 100" in prompt
-    assert str(len(universe)) in prompt
-    assert "SPY" in prompt and "AAPL" in prompt
-
-
 def test_option_chain_and_contract_tools_return_exact_listed_contract_data():
     strategy = _OptionsStrategy()
     tools = _wrapped_tools(
@@ -830,34 +799,6 @@ def test_orders_get_status_reports_missing_and_known_identifiers():
     assert waited["polls"] >= 1
 
 
-def test_iron_condor_prompt_includes_parameterized_wing_and_delta():
-    from lumibot.example_strategies.ai_iron_condor import build_iron_condor_system_prompt
-
-    prompt = build_iron_condor_system_prompt(
-        {
-            "underlying": "QQQ",
-            "wing_width": 7.0,
-            "target_delta": 0.18,
-            "delta_band": 0.03,
-            "min_dte": 28,
-            "max_dte": 40,
-            "preferred_dte": 33,
-            "profit_take_fraction": 0.4,
-            "loss_multiple": 1.8,
-            "time_stop_dte": 18,
-            "max_risk_pct": 0.015,
-            "max_contracts": 4,
-        }
-    )
-
-    assert "QQQ iron-condor" in prompt
-    assert "7.0 points" in prompt
-    assert "-0.18 delta" in prompt
-    assert "0.03 of the target" in prompt
-    assert "orders_get_status" not in prompt
-    assert "options_find_expiration" not in prompt
-
-
 def _opening_option_tools(strategy):
     return _wrapped_tools(
         strategy,
@@ -1117,3 +1058,64 @@ def test_close_mode_is_documented_on_both_multileg_tools():
     for definition in (BuiltinTools.options.calculate_multileg_price(), BuiltinTools.orders.submit_multileg()):
         description = " ".join(definition.binder(strategy, manager).description.split())
         assert "action='close'" in description
+
+
+class _NinetyDayChainSource:
+    """Like AlpacaBacktesting: lists 90 days of expirations unless a window hint is set."""
+
+    def __init__(self):
+        self.windows = []
+
+    def get_chains(self, asset):
+        constraints = getattr(self, "_chain_constraints", None) or {}
+        last = constraints.get("max_expiration_date") or date(2026, 4, 30)
+        self.windows.append(last)
+        expirations = [day for day in (date(2026, 2, 20), date(2026, 4, 17), date(2027, 1, 15)) if day <= last]
+        return {"Multiplier": 100, "Exchange": "SMART",
+                "Chains": {"CALL": {day.isoformat(): [100.0, 150.0] for day in expirations}, "PUT": {}}}
+
+
+class _LeapStrategy(_OptionsStrategy):
+    def __init__(self):
+        super().__init__()
+        self.broker = SimpleNamespace(data_source=_NinetyDayChainSource())
+
+    def get_datetime(self):
+        return datetime(2026, 1, 26, 15, tzinfo=timezone.utc)
+
+    def get_chains(self, asset):
+        return self.broker.data_source.get_chains(asset)
+
+
+def test_option_tools_can_see_expirations_more_than_90_days_out_in_a_backtest():
+    # Backtest chains list 90 days by default, so a copy of a January 2027 LEAP
+    # found no contract in January 2026. The tools now widen the window on request.
+    strategy = _LeapStrategy()
+    chain_tool = BuiltinTools.options.get_chain().binder(strategy, None)
+    strikes_tool = BuiltinTools.options.get_strikes().binder(strategy, None)
+
+    assert "2027-01-15" not in chain_tool.function(symbol="GOOGL")["call_expirations"]
+    wide = chain_tool.function(symbol="GOOGL", max_expiration="2027-06-30")
+    assert "2027-01-15" in wide["call_expirations"]
+    assert strikes_tool.function(symbol="GOOGL", expiration="2027-01-15", right="call")["strikes"] == [100.0, 150.0]
+    assert not hasattr(strategy.broker.data_source, "_chain_constraints")
+
+
+def test_missing_market_index_points_the_agent_to_fred():
+    """Broker data often has no market indexes (Alpaca has no VIX). On 2026-09-30 the AI Iron
+    Condor refused to trade every day because it looked for the VIX in price data only and never
+    tried FRED, which has the daily close (VIXCLS). A miss must say where the index lives."""
+    strategy = _OptionsStrategy()
+    strategy.get_historical_prices_for_assets = None
+    strategy.get_last_price = lambda *args, **kwargs: None
+    tools = _wrapped_tools(
+        strategy,
+        [BuiltinTools.market.historical_prices(), BuiltinTools.market.last_price(), BuiltinTools.market.last_prices()],
+    )
+
+    history = tools["market_historical_prices"](symbols=["VIX", "SPY"], length=2, timestep="day", asset_type="index")
+    assert "VIX" in history["symbols_missing"]
+    assert "VIXCLS" in history["fred_hint"]
+    assert "VIXCLS" in tools["market_last_price"](symbol="^VIX", asset_type="index")["fred_hint"]
+    assert "VIXCLS" in tools["market_last_prices"](symbols=["VIX"], asset_type="index")["fred_hint"]
+    assert "fred_hint" not in tools["market_last_price"](symbol="MSFT")

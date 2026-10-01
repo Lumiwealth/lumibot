@@ -72,6 +72,8 @@ IBKR returns at most about 1,000 bars per request, so LumiBot walks backwards pa
 - **Holes in cached minute bars.** When the cache has bars on both sides of a missing session (for example from two
   earlier backtests, or a download that was stopped), LumiBot downloads each missing session instead of skipping it.
   A session with no trades at all is remembered for a day so it is not requested again by every backtest.
+  Gap checks handle nanosecond, microsecond, millisecond and second cache timestamps consistently;
+  existing Parquet caches do not need to be deleted or rewritten.
 
 Futures Exchange Routing (auto + override)
 ------------------------------------------

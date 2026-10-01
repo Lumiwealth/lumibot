@@ -436,6 +436,22 @@ class DuckDBQueryLayer:
         self._table_meta[table_name] = dict(info)
         return info
 
+    def register_document_table(self, label: str, frame: pd.DataFrame, *, source: str) -> dict[str, Any]:
+        """Load a table read from a document (CSV, Excel sheet, file in a ZIP) for duckdb_query."""
+        stem = re.sub(r"\.[A-Za-z0-9]{1,5}$", "", str(label).rsplit("/", 1)[-1])
+        table_name = f"doc_{self._slugify(stem)[:48]}"
+        # Distinct documents/sheets can have the same label. Preserve each loaded
+        # snapshot instead of silently replacing a table the agent already saw.
+        base = table_name
+        while table_name in self._table_meta:
+            self._name_counters[base] += 1
+            table_name = f"{base}_{self._name_counters[base]}"
+        frame = frame.copy()
+        frame.columns = [str(column) for column in frame.columns]
+        info = self._register_frame(table_name, frame, {"source": source, "document_part": str(label)})
+        info["sample_rows"] = frame.head(3).astype(object).where(frame.head(3).notna(), None).to_dict(orient="records")
+        return info
+
     def query(self, *, sql: str, limit: int = 200) -> dict[str, Any]:
         if not sql or not _READ_ONLY_SQL_RE.match(sql):
             raise ValueError("DuckDB tool only allows read-only SQL statements.")

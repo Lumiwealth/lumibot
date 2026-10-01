@@ -165,7 +165,7 @@ If they are set, LumiBot will automatically pick them up. For example:
      - **Description**
      - **Example**
    * - IS_BACKTESTING
-     - Set to **"True"** to run in backtesting mode, or **"False"** for live (defaults to False).
+     - Read only by runners that explicitly check it. Setting it to **"False"** does not turn a ``backtest()`` call into a broker run; see :doc:`strategy_run_modes`.
      - False
    * - BACKTESTING_START
      - Start date in the format "YYYY-MM-DD".

@@ -466,8 +466,9 @@ def _us_equity_session_bounds_for_year(year: int, extended_hours: bool) -> tuple
     if schedule is None or schedule.empty:
         empty = np.array([], dtype="int64")
         return empty, empty
-    opens = pd.to_datetime(schedule[open_col], utc=True).astype("int64").to_numpy()
-    closes = pd.to_datetime(schedule[close_col], utc=True).astype("int64").to_numpy()
+    # Calendar Series also retain their datetime resolution on pandas 3.
+    opens = pd.DatetimeIndex(pd.to_datetime(schedule[open_col], utc=True)).as_unit("ns").asi8
+    closes = pd.DatetimeIndex(pd.to_datetime(schedule[close_col], utc=True)).as_unit("ns").asi8
     order = np.argsort(opens)
     return opens[order], closes[order]
 
@@ -3683,7 +3684,9 @@ def _missing_us_minute_sessions(
         real = real.sort_values()
     # Binary searches instead of per-row date math: this runs once per series and window, and
     # a year of extended-hours minute bars is about 250,000 rows.
-    real_ns = real.asi8
+    # Parquet/pandas can retain second, millisecond or microsecond resolution;
+    # Timestamp.value and the session boundaries below are always nanoseconds.
+    real_ns = real.as_unit("ns").asi8
     lo = int(np.searchsorted(real_ns, start_local.value, side="left"))
     hi = int(np.searchsorted(real_ns, end_local.value, side="right"))
     if hi - lo < 2:

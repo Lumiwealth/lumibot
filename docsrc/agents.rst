@@ -12,9 +12,9 @@ Choose your first workflow
 --------------------------
 
 * **Build your first agent:** :doc:`agents_quickstart` has installation, model credentials, daily data, and a complete researcher-and-trader backtest.
-* **Trade stocks:** start with :doc:`a large-cap stock team <agents_example_bull_bear_large_cap_stocks>` or :doc:`opening range breakout <agents_example_ai_opening_range_breakout>`.
+* **Trade stocks:** start with :doc:`a large-cap stock team <agents_example_bull_vs_bear_ai_stock_trading_bot>` or :doc:`opening range breakout <agents_example_opening_range_breakout_ai_trading_bot>`.
 * **Explore macro teams:** inspect :doc:`the idea-meritocracy example <agents_example_ray_dalio_idea_meritocracy>` and :doc:`FRED/ALFRED data setup <macro_data>`.
-* **Trade options:** :doc:`agents_example_ai_iron_condor` explains option-chain evidence, four-leg orders, and data limitations.
+* **Trade options:** :doc:`agents_example_iron_condor_ai_trading_bot` explains option-chain evidence, four-leg orders, and data limitations.
 
 Compare prerequisites and evidence in :doc:`agents_examples` before choosing a
 strategy. Start with regular stocks or ETFs; leveraged instruments and short-dated
@@ -306,14 +306,14 @@ A compact summary log line is emitted for every run. For deeper debugging, inspe
 Canonical Demos
 ---------------
 
-LumiBot ships four canonical demo strategies that serve as end-to-end reference implementations for the AI agent runtime. All four use the ``@agent_tool`` pattern with the ``requests`` library and are located in ``lumibot/example_strategies/``:
+LumiBot ships short one-agent demos in ``lumibot/example_strategies/agent_*.py``. Each is a few sentences of plain English, about 30 lines, and uses only LumiBot's built-in tools:
 
-1. **News Sentiment Strategy** (``lumibot/example_strategies/agent_news_sentiment.py``) -- Uses Alpaca News API to discover and trade on US stock news catalysts.
-2. **Macro Risk Strategy** (``lumibot/example_strategies/agent_macro_risk.py``) -- Uses Alpaca market data API to allocate between TQQQ and SHV based on price trends and market conditions.
-3. **Momentum Allocator Strategy** (``lumibot/example_strategies/agent_momentum_allocator.py``) -- Uses Alpaca price bars and news to allocate between TQQQ and SHV based on momentum and sentiment.
-4. **M2 Liquidity Strategy** (``lumibot/example_strategies/agent_m2_liquidity.py``) -- Uses FRED public data to allocate between TQQQ and SHV based on money supply and liquidity trends.
+1. **News Sentiment** (``agent_news_sentiment.py``) -- buys the well-known stocks with the strongest good news.
+2. **Trend** (``agent_macro_risk.py``) -- holds TQQQ or SHV based on the price trend.
+3. **Momentum and News** (``agent_momentum_allocator.py``) -- holds TQQQ or SHV based on trend and news.
+4. **M2 Liquidity** (``agent_m2_liquidity.py``) -- holds TQQQ or SHV based on the Federal Reserve's money supply data.
 
-Each demo validates tool usage, replay caching, trace quality, and benchmarked tearsheet output. See :doc:`agents_canonical_demos` for details on each strategy.
+See :doc:`agents_canonical_demos` for all of them.
 
 The demo files are located at ``lumibot/example_strategies/agent_*.py`` and can be run directly after setting the required environment variables.
 
@@ -355,7 +355,12 @@ Create a ``.env`` file in your project directory with your API keys (e.g., ``OPE
 
 **Can I use this for live trading?**
 
-Yes. The same strategy code runs in both backtest and live modes. For live trading, connect to a supported broker (Alpaca, Interactive Brokers, Tradier, Schwab, and others). No code changes are required -- LumiBot handles the broker integration.
+The same ``Strategy`` class can be used in a backtest and with a supported
+broker (Alpaca, Interactive Brokers, Tradier, Schwab, and others). The startup
+code must select the path: ``Strategy.backtest(...)`` for history, or construct
+the strategy with a broker and call ``run_live()`` or ``Trader.run_all()`` for
+broker execution. Some example files include only a backtest runner. See
+:doc:`strategy_run_modes` before running one directly.
 
 **Does it work with my broker?**
 
@@ -687,36 +692,12 @@ Use a two-step workflow:
 
 Do not trade from one weak or noisy article. News can be sparse for single stocks, so broaden from the stock to its sector or market ETF when needed, compare article timestamps against the simulated datetime, and use ``page_token`` when the first page does not provide enough evidence.
 
-Complete runnable example:
+Complete runnable example. The prompt is plain English; the agent finds and uses the news tool on its own:
 
-.. code-block:: python
+.. literalinclude:: ../lumibot/example_strategies/agent_alpaca_news_builtin.py
+   :language: python
 
-    import os
-    from lumibot.components.agents import BuiltinTools
-    from lumibot.strategies.strategy import Strategy
 
-    class AlpacaNewsBuiltinStrategy(Strategy):
-        def initialize(self):
-            self.sleeptime = "1D"
-            self.agents.create(
-                name="news_trader",
-                default_model=os.environ.get("AGENT_MODEL", "openai/gpt-6-luna"),
-                system_prompt=(
-                    "Use Alpaca news and market tools to decide whether to hold SPY, QQQ, or a defensive ETF. "
-                    "First call alpaca_news with symbols='SPY,QQQ,DIA,IWM', include_content=False, and limit=30. "
-                    "If a story looks market-moving, call alpaca_news again with include_content=True and "
-                    "exclude_contentless=True before trading. "
-                    "Use page_token when next_page_token is returned."
-                ),
-                tools=[BuiltinTools.news.alpaca_news()],
-            )
-
-        def on_trading_iteration(self):
-            self.agents["news_trader"].run(
-                context={"current_datetime": self.get_datetime().isoformat()}
-            )
-
-See ``lumibot/example_strategies/agent_alpaca_news_builtin.py`` for the full example including the backtest runner.
 
 To run the live proof that validates historical relevance, full-content retrieval, and the resulting ``*_agent_detail.parquet`` artifact:
 

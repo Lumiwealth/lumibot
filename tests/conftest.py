@@ -87,6 +87,7 @@ if os.getcwd() != str(project_root):
 
 
 def pytest_configure(config):
+    config.addinivalue_line("markers", "alpaca: requires only Alpaca test credentials, never ThetaData or Polygon")
     config.addinivalue_line("markers", "ibkr: downloader-only IBKR tests that do not require Polygon or ThetaData credentials")
     config.addinivalue_line("markers", "polymarket: Polymarket CLOB tests that do not require Polygon or ThetaData credentials")
     config.addinivalue_line("markers", "polymarket_credentials: Polymarket CLOB tests that require authenticated credentials")
@@ -344,6 +345,7 @@ def pytest_runtest_setup(item: pytest.Item):
         # Non-API tests are not gated
         return
 
+    requires_alpaca = item.get_closest_marker("alpaca") is not None
     requires_polygon = item.get_closest_marker("polygon") is not None
     requires_theta = item.get_closest_marker("thetadata") is not None
     requires_ibkr = item.get_closest_marker("ibkr") is not None
@@ -353,7 +355,7 @@ def pytest_runtest_setup(item: pytest.Item):
     requires_public_http = item.get_closest_marker("public_http") is not None
 
     # Determine which providers are required
-    if requires_public_http or requires_ibkr or requires_polymarket:
+    if requires_public_http or requires_ibkr or requires_polymarket or requires_alpaca:
         need_polygon = False
         need_theta = False
     elif requires_polygon or requires_theta:
@@ -365,6 +367,11 @@ def pytest_runtest_setup(item: pytest.Item):
         need_theta = True
 
     missing = []
+
+    if requires_alpaca:
+        for key in ("ALPACA_TEST_API_KEY", "ALPACA_TEST_API_SECRET"):
+            if _is_placeholder(os.environ.get(key)):
+                missing.append(key)
 
     # Validate only the required credentials
     if need_polygon:

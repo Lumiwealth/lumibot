@@ -2,6 +2,12 @@
 
 > LumiBot backtests AI trading agents with real external tools, replay caching, and the same code for backtest and live.
 
+The same `Strategy` class can be reused. Its startup code must select
+`Strategy.backtest(...)` for a historical run or a configured broker plus
+`run_live()` / `Trader.run_all()` for broker execution. The quickstart file
+below only starts a backtest when run directly. See the
+[AI example run-mode inventory](https://lumibot.lumiwealth.com/strategy_run_modes.html).
+
 **Last Updated:** 2026-09-12
 **Status:** Active
 **Audience:** Both
@@ -15,6 +21,11 @@ LumiBot has a first-class AI agent runtime inside the `Strategy` lifecycle. Call
 The primary way to give your agent access to external data is the `@agent_tool` decorator, which wraps any REST API as a callable tool using the `requests` library. This pattern works reliably in both backtests and live trading. MCP servers via URL are also supported for live trading or when you have a compatible server.
 
 LumiBot also includes built-in FRED tools for macro research. Those tools require `FRED_API_KEY` and use official FRED/ALFRED realtime parameters so backtests do not accidentally see future macro revisions.
+
+The generic `read_document` tool reads web pages, PDF, Word, Excel, CSV/TSV, JSON and ZIP files. Word,
+Excel and ZIP archives share a 100 MB unpacked-size ceiling. Loaded tables have distinct names even
+when sheets or files share a label, so later reads cannot overwrite earlier holdings. Malformed
+CSV/TSV remains readable as text and returns `table_error`; it does not silently discard rows.
 
 LumiBot combines agent reasoning with simulated time, account state, orders, and inspectable backtest artifacts. See the [current project comparison](https://lumibot.lumiwealth.com/ai_trading_project_comparison.html) for overlapping capabilities and source links.
 
@@ -48,7 +59,7 @@ Start with a researcher and a separate trading agent using the existing Strategy
 [Complete canonical Python source](../lumibot/example_strategies/ai_researcher_trader.py) · [Walkthrough and requirements](https://lumibot.lumiwealth.com/agents_quickstart.html)
 
 ```bash
-python -m pip install "git+https://github.com/Lumiwealth/lumibot.git@version/4.5.92"
+python -m pip install "git+https://github.com/Lumiwealth/lumibot.git@version/4.6.3"
 export OPENAI_API_KEY="your-openai-api-key"
 export BACKTESTING_DATA_SOURCE=yahoo
 python -m lumibot.example_strategies.ai_researcher_trader
@@ -171,21 +182,14 @@ non-deleted rules are injected. A malformed file fails before the model runs.
 The replay fingerprint changes when active rules change, and runtime artifacts
 record only the file name and content hash, never an absolute personal path.
 
-## Two-Agent SPX Experiment
+## 0DTE Options AI Trading Bot
 
-`ai_spx_zero_dte_bear_call_team.py` implements the first Rules-driven SPX
-comparison as two agents, not as an Agent-to-Python execution handoff:
-
-1. A read-only researcher gathers exact account, SPX, chain, Greek, quote, and
-   package-price evidence.
-2. A trading-enabled validator independently refreshes that evidence, checks
-   every active Rule, decides whether to trade, calls
-   `orders_submit_multileg`, and verifies the resulting order and positions.
-
-The experiment uses an SPX 0 DTE bear call spread with a short call near 0.20
-delta and a long call exactly five points higher. Both entry and exit are one
-atomic package. Missing evidence produces a no-trade decision. Unsupported
-atomic execution fails before any child leg is submitted.
+`ai_0dte_options_trading_bot.py` sells a same-day SPY bear call spread with two
+agents. The research agent checks SPY and today's expiring calls every 15
+minutes. The trading agent opens one spread a day as one multi-leg order and
+closes it early at the profit target, the loss limit, a strike breach, or the
+last 10 minutes. The rules live in the two prompts; the example does not load
+a rules file.
 
 ---
 
@@ -287,7 +291,12 @@ Create a `.env` file in your project directory with your API keys (e.g., `OPENAI
 
 **Can I use this for live trading?**
 
-Yes. The same strategy code runs in both backtest and live modes. For live trading, connect to a supported broker (Alpaca, Interactive Brokers, Tradier, Schwab, and others). No code changes are required -- LumiBot handles the broker integration.
+The same `Strategy` class can be used for backtesting and broker execution.
+The startup code must select the path: call `Strategy.backtest(...)` for
+historical data, or construct the strategy with a supported broker and call
+`run_live()` or `Trader.run_all()`. A backtest-only example file does not gain a
+broker runner when an environment flag changes. See the
+[run-mode guide](https://lumibot.lumiwealth.com/strategy_run_modes.html).
 
 **Does it work with my broker?**
 

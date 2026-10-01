@@ -1,6 +1,7 @@
 import re
 from pathlib import Path
 from types import SimpleNamespace
+from urllib.parse import urlsplit
 
 from lumibot.components.agents.builtins import BuiltinTools
 
@@ -37,22 +38,23 @@ def test_web_and_browser_tools_are_documented_with_full_capabilities():
 
 def test_new_flagship_examples_are_in_navigation_with_historical_data_warnings():
     examples = (ROOT / "docsrc" / "agents_examples.rst").read_text(encoding="utf-8")
-    congress = (ROOT / "docsrc" / "agents_example_congress_disclosures.rst").read_text(encoding="utf-8")
-    insider = (ROOT / "docsrc" / "agents_example_sec_insider_filings.rst").read_text(encoding="utf-8")
-    showcase = (ROOT / "docsrc" / "agents_example_browser_research_showcase.rst").read_text(encoding="utf-8")
+    pelosi = (ROOT / "docsrc" / "agents_example_nancy_pelosi_trading_bot.rst").read_text(encoding="utf-8")
+    insider = (ROOT / "docsrc" / "agents_example_insider_trading_bot.rst").read_text(encoding="utf-8")
+    fear_greed = (ROOT / "docsrc" / "agents_example_fear_and_greed_index_trading_bot.rst").read_text(encoding="utf-8")
 
-    assert "agents_example_congress_disclosures" in examples
-    assert "agents_example_sec_insider_filings" in examples
-    assert "agents_example_browser_research_showcase" in examples
-    assert "ReportDate" in congress and "TransactionDate" in congress
-    assert "45 days" in congress
-    assert "does not ship sample trades" in congress.lower()
-    assert "frozen synthetic fixture" not in congress.lower()
-    assert "licensed" not in congress.lower()
-    assert "Form 4" in insider and "acceptance" in insider.lower()
-    assert "does not ship sample trades" in insider.lower()
-    assert "frozen synthetic fixture" not in examples.lower()
-    assert "publish_enabled" in showcase and "owned" in showcase.lower()
+    for slug in (
+        "agents_example_nancy_pelosi_trading_bot",
+        "agents_example_insider_trading_bot",
+        "agents_example_fear_and_greed_index_trading_bot",
+    ):
+        assert slug in examples
+    assert "45 days" in pelosi
+    assert "skips any report filed after the test day" in pelosi
+    # Check the actual link host; a matching substring can belong to another URL.
+    urls = re.findall(r"https?://[^\s<>`]+", pelosi)
+    assert any(urlsplit(url).hostname == "disclosures-clerk.house.gov" for url in urls)
+    assert "SEC" in insider and "before each test day" in insider
+    assert "only shows today" in fear_greed and "day before each test day" in fear_greed
 
 
 def test_old_handoff_is_explicitly_superseded_by_implemented_architecture():
@@ -65,22 +67,8 @@ def test_old_handoff_is_explicitly_superseded_by_implemented_architecture():
 
 
 def test_every_agent_example_has_a_simple_workflow_image_asset():
-    pages = (
-        "agents_example_ai_credit_spread.rst",
-        "agents_example_ai_iron_condor.rst",
-        "agents_example_ai_opening_range_breakout.rst",
-        "agents_example_ai_spx_zero_dte_bear_call_team.rst",
-        "agents_example_ai_vwap.rst",
-        "agents_example_bill_ackman_concentrated.rst",
-        "agents_example_browser_research_showcase.rst",
-        "agents_example_bull_bear_large_cap_stocks.rst",
-        "agents_example_bull_bear_leveraged_etf.rst",
-        "agents_example_citadel_sector_pods.rst",
-        "agents_example_congress_disclosures.rst",
-        "agents_example_ray_dalio_idea_meritocracy.rst",
-        "agents_example_sec_insider_filings.rst",
-        "agents_example_warren_buffett_value.rst",
-    )
+    pages = sorted(path.name for path in (ROOT / "docsrc").glob("agents_example_*.rst"))
+    assert len(pages) == 15
 
     for page in pages:
         page_path = ROOT / "docsrc" / page
@@ -127,7 +115,6 @@ def test_every_external_data_agent_tool_declares_temporal_behavior():
         "options_find_expiration",
         "options_check_spread_profit",
         "alpaca_news",
-        "house_public_disclosures",
         "http_request",
         "rss_fetch",
         "get_indicator",

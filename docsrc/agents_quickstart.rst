@@ -8,6 +8,11 @@ One agent researches the market. A second agent reviews risk, decides whether
 to trade, and checks the result. Both run inside the same standard ``Strategy``
 class used by conventional LumiBot strategies.
 
+This example's file starts a historical backtest when run directly. **The
+strategy class can stay the same; the code that starts it must select a
+backtest or a broker run.** See :doc:`strategy_run_modes` before adapting it
+for a broker.
+
 Before you run
 --------------
 
@@ -19,7 +24,7 @@ use your provider account and incur charges; start with this short date range.
 
 .. code-block:: bash
 
-   python -m pip install "git+https://github.com/Lumiwealth/lumibot.git@version/4.5.92"
+   python -m pip install "git+https://github.com/Lumiwealth/lumibot.git@version/4.6.3"
    export OPENAI_API_KEY="your-openai-api-key"
    export BACKTESTING_DATA_SOURCE=yahoo
 
@@ -285,20 +290,20 @@ Working with the Result
 Running a Backtest
 ------------------
 
-Use the standard LumiBot backtest pattern. The agent runs on every bar just like it would in live trading:
+Use the standard LumiBot backtest pattern. The agent runs on each configured
+backtest iteration. This snippet starts a backtest only; a broker run needs a
+broker instance and ``run_live()`` or ``Trader.run_all()``:
 
 .. code-block:: python
 
     if __name__ == "__main__":
-        IS_BACKTESTING = True
-        if IS_BACKTESTING:
-            from datetime import datetime
-            M2LiquidityStrategy.backtest(
-                datasource_class=None,
-                backtesting_start=datetime(2020, 1, 1),
-                backtesting_end=datetime(2026, 3, 1),
-                benchmark_asset="SPY",
-            )
+        from datetime import datetime
+        M2LiquidityStrategy.backtest(
+            datasource_class=None,
+            backtesting_start=datetime(2020, 1, 1),
+            backtesting_end=datetime(2026, 3, 1),
+            benchmark_asset="SPY",
+        )
 
 Set ``datasource_class=None`` to use the data source configured in your ``.env`` file via ``BACKTESTING_DATA_SOURCE``.
 

@@ -191,6 +191,10 @@ def _child_env(source: str) -> dict[str, str]:
             raise SystemExit("POLYGON_API_KEY is missing from .env")
     else:
         env["BACKTESTING_DATA_SOURCE"] = "yahoo"
+    # Generic data tools (Federal Reserve data, market news) read their own keys.
+    for key in ("FRED_API_KEY",):
+        if not env.get(key) and _env_file_value(".env", key):
+            env[key] = _env_file_value(".env", key)
     return env
 
 
@@ -241,7 +245,7 @@ def _run_one(job: dict) -> int:
         datasource,
         backtesting_start=start,
         backtesting_end=end,
-        budget=100_000,
+        budget=job.get("budget", 100_000),
         parameters=job["parameters"],
         show_plot=False,
         show_tearsheet=False,
@@ -675,6 +679,171 @@ WAVE29 = (
         "end": "2026-02-06",
         "parameters": {"agent_max_model_calls": 140},
     },
+)
+
+
+# 2026-09-29: the rebuilt two-agent examples (agent_cycle deleted).
+def _job(name, module, cls, start, end, source="yahoo", calls=120):
+    return {
+        "name": name,
+        "class_path": f"{_EX}{module}:{cls}",
+        "start": start,
+        "end": end,
+        "source": source,
+        "parameters": {"agent_max_model_calls": calls},
+    }
+
+
+WAVE30 = (
+    _job("pelosi-2agent", "ai_nancy_pelosi_trading_bot", "NancyPelosiTradingBot", "2026-01-20", "2026-02-13"),
+    _job("insider-2agent", "ai_insider_trading_bot", "InsiderTradingBot", "2026-01-05", "2026-01-23"),
+    _job("fear-greed-2agent", "ai_fear_and_greed_trading_bot", "FearAndGreedTradingBot", "2026-01-05", "2026-01-08", calls=20),
+    _job("iron-condor-2agent", "ai_iron_condor", "AIIronCondorStrategy", "2026-01-05", "2026-01-16", "alpaca"),
+    _job("credit-spread-2agent", "ai_credit_spread", "AICreditSpreadStrategy", "2026-01-05", "2026-01-23", "alpaca"),
+    _job("vwap-2agent", "ai_vwap", "AIVWAPStrategy", "2026-01-05", "2026-01-10", "alpaca"),
+    _job("orb-2agent", "ai_opening_range_breakout", "AIOpeningRangeBreakoutStrategy", "2026-01-05", "2026-01-10", "alpaca"),
+    _job("ackman-2agent", "ai_trading_team_bill_ackman_concentrated", "AITradingTeamBillAckmanConcentratedStrategy", "2026-01-05", "2026-01-16"),
+    _job("large-cap-bullbear", "ai_trading_team_bull_bear_large_cap_stocks", "AITradingTeamBullBearLargeCapStocksStrategy", "2026-01-05", "2026-01-16", calls=200),
+    _job("leveraged-bullbear", "ai_trading_team_bull_bear_leveraged_etf", "AITradingTeamBullBearLeveragedETFStrategy", "2026-01-05", "2026-01-16", calls=200),
+)
+
+
+# SPX index data is not in Alpaca history; the 0DTE bot now defaults to SPY.
+WAVE31 = (_job("0dte-spy-2agent", "ai_0dte_options_trading_bot", "ZeroDTEOptionsTradingBot", "2026-01-05", "2026-01-07", "alpaca", 260),
+)
+
+
+# Buffett v1 held cash: the trader waited for proof of fair value. Prompts now compare and pick 3 to 5.
+WAVE32 = (_job("buffett-2agent-v2", "ai_trading_team_warren_buffett_value", "AITradingTeamWarrenBuffettValueStrategy", "2026-01-05", "2026-01-16"),
+)
+
+
+# Fear and Greed v1 read only today's page in backtests; v2 reads CNN's daily history in the browser.
+WAVE33 = (_job("fear-greed-2agent-v2", "ai_fear_and_greed_trading_bot", "FearAndGreedTradingBot", "2026-01-05", "2026-01-23", calls=80),)
+
+
+# Rob, 2026-09-29: Buffett and Ackman get their challenger back (skeptic / short seller).
+WAVE34 = (
+    _job("buffett-3agent", "ai_trading_team_warren_buffett_value", "AITradingTeamWarrenBuffettValueStrategy", "2026-01-05", "2026-01-16", calls=160),
+    _job("ackman-3agent", "ai_trading_team_bill_ackman_concentrated", "AITradingTeamBillAckmanConcentratedStrategy", "2026-01-05", "2026-01-16", calls=160),
+)
+
+
+# Rob, 2026-09-29: plain-English prompts, no LumiBot internals, standard main block.
+WAVE35 = (
+    _job("insider-plain", "ai_insider_trading_bot", "InsiderTradingBot", "2026-01-05", "2026-01-23"),
+    _job("fear-greed-plain", "ai_fear_and_greed_trading_bot", "FearAndGreedTradingBot", "2026-01-05", "2026-01-23"),
+    _job("credit-spread-plain", "ai_credit_spread", "AICreditSpreadStrategy", "2026-01-05", "2026-01-23", "alpaca"),
+    _job("0dte-plain", "ai_0dte_options_trading_bot", "ZeroDTEOptionsTradingBot", "2026-01-05", "2026-01-07", "alpaca", 200),
+    _job("vwap-plain", "ai_vwap", "AIVWAPStrategy", "2026-01-05", "2026-01-10", "alpaca"),
+    _job("orb-plain", "ai_opening_range_breakout", "AIOpeningRangeBreakoutStrategy", "2026-01-05", "2026-01-10", "alpaca"),
+    _job("buffett-plain", "ai_trading_team_warren_buffett_value", "AITradingTeamWarrenBuffettValueStrategy", "2026-01-05", "2026-01-16", calls=160),
+    _job("ackman-plain", "ai_trading_team_bill_ackman_concentrated", "AITradingTeamBillAckmanConcentratedStrategy", "2026-01-05", "2026-01-16", calls=160),
+    _job("large-cap-plain", "ai_trading_team_bull_bear_large_cap_stocks", "AITradingTeamBullBearLargeCapStocksStrategy", "2026-01-05", "2026-01-16", calls=200),
+    _job("tqqq-plain", "ai_trading_team_bull_bear_leveraged_etf", "AITradingTeamBullBearLeveragedETFStrategy", "2026-01-05", "2026-01-16", calls=200),
+)
+
+
+# Older one-agent demos rebuilt on generic tools (no hand-written FRED/price/news tools).
+WAVE36 = tuple(
+    _job(f"{name}-generic", module, cls, "2026-01-05", "2026-01-16", calls=40)
+    for name, module, cls in (
+        ("m2", "agent_m2_liquidity", "M2LiquidityStrategy"),
+        ("trend", "agent_macro_risk", "MacroRiskStrategy"),
+        ("momentum-news", "agent_momentum_allocator", "MomentumAllocatorStrategy"),
+        ("news-sentiment", "agent_news_sentiment", "NewsSentimentStrategy"),
+        ("market-news", "agent_alpaca_news_builtin", "AlpacaNewsBuiltinStrategy"),
+        ("make-money", "agent_discretionary", "DiscretionaryTraderStrategy"),
+    )
+)
+
+
+# Fear and Greed plain v1 used the history URL without a start date and saw only recent scores.
+WAVE37 = (_job("fear-greed-plain-v2", "ai_fear_and_greed_trading_bot", "FearAndGreedTradingBot", "2026-01-05", "2026-01-23"),)
+
+
+# Rerun options bots after bc8bda25: multileg packages now fill only when the net meets the limit.
+WAVE38 = (
+    _job("credit-spread-plain-v2", "ai_credit_spread", "AICreditSpreadStrategy", "2026-01-05", "2026-01-23", "alpaca"),
+    _job("0dte-plain-v2", "ai_0dte_options_trading_bot", "ZeroDTEOptionsTradingBot", "2026-01-05", "2026-01-07", "alpaca", 200),
+)
+
+
+# Pelosi bots rebuilt on read_document (2026-09-29): yearly report plus newer trade reports,
+# three agents. Short smoke window over her 1/23/2026 report.
+WAVE90 = (
+    _job("pelosi-stocks-3agent-smoke", "ai_nancy_pelosi_trading_bot", "NancyPelosiTradingBot", "2026-01-20", "2026-01-29", calls=400),
+    _job("pelosi-copy-3agent-smoke", "ai_nancy_pelosi_copy_trading_bot", "NancyPelosiCopyTradingBot", "2026-01-20", "2026-01-29", "alpaca", 400),
+)
+
+
+# Full 2026 run for the tear sheets: covers her 1/23 report, her 5/15 yearly report, and the 6/23 and 8/21 reports.
+WAVE91 = (_job("pelosi-stocks-2026", "ai_nancy_pelosi_trading_bot", "NancyPelosiTradingBot", "2026-01-02", "2026-09-25", calls=4000),)
+WAVE92 = (_job("pelosi-copy-2026", "ai_nancy_pelosi_copy_trading_bot", "NancyPelosiCopyTradingBot", "2026-01-02", "2026-09-25", "alpaca", 4000),)
+
+
+# Copy bot smoke after the option sizing fix: first run builds stocks and her 1/23/2026 calls.
+WAVE93 = (_job("pelosi-copy-3agent-smoke-v2", "ai_nancy_pelosi_copy_trading_bot", "NancyPelosiCopyTradingBot", "2026-01-26", "2026-01-29", "alpaca", 400),)
+
+
+# After the option-window and calculator fixes: final code for the tear sheets.
+WAVE94 = (_job("pelosi-copy-3agent-smoke-v3", "ai_nancy_pelosi_copy_trading_bot", "NancyPelosiCopyTradingBot", "2026-01-26", "2026-01-29", "alpaca", 400),)
+WAVE95 = (_job("pelosi-stocks-2026-final", "ai_nancy_pelosi_trading_bot", "NancyPelosiTradingBot", "2026-01-02", "2026-09-25", calls=4000),)
+# One contract of her January 2027 calls costs $9,400 to $18,500, over 5% of a $100k account,
+# so the copy bot needs about $1M to hold them.
+WAVE96 = ({**_job("pelosi-copy-2026-final", "ai_nancy_pelosi_copy_trading_bot", "NancyPelosiCopyTradingBot", "2026-01-02", "2026-09-25", "alpaca", 4000), "budget": 1_000_000},)
+
+
+# Rerun after OpenAI credits ran out on 2026-09-30 (the -final runs stopped on day one).
+WAVE97 = (
+    _job("pelosi-stocks-2026-v2", "ai_nancy_pelosi_trading_bot", "NancyPelosiTradingBot", "2026-01-02", "2026-09-25", calls=4000),
+    {**_job("pelosi-copy-2026-v2", "ai_nancy_pelosi_copy_trading_bot", "NancyPelosiCopyTradingBot", "2026-01-02", "2026-09-25", "alpaca", 4000), "budget": 1_000_000},
+)
+
+
+# Copy bot with an options slice (options_share 20%) and the nearest affordable strike,
+# at the account sizes customers actually use.
+WAVE98 = (
+    _job("pelosi-copy-2026-100k", "ai_nancy_pelosi_copy_trading_bot", "NancyPelosiCopyTradingBot", "2026-01-02", "2026-09-25", "alpaca", 4000),
+    {**_job("pelosi-copy-2026-10k", "ai_nancy_pelosi_copy_trading_bot", "NancyPelosiCopyTradingBot", "2026-01-02", "2026-09-25", "alpaca", 4000), "budget": 10_000},
+)
+
+
+# Rob, 2026-09-30: not a full year. A window that forces switches: her 5/15/2026 yearly report,
+# 6/23 call buys, and 8/21 Bloom Energy and Intel buys. Check holdings after each one.
+WAVE99 = (
+    _job("pelosi-stocks-switches", "ai_nancy_pelosi_trading_bot", "NancyPelosiTradingBot", "2026-05-04", "2026-08-28", calls=3000),
+    _job("pelosi-copy-switches", "ai_nancy_pelosi_copy_trading_bot", "NancyPelosiCopyTradingBot", "2026-05-04", "2026-08-28", "alpaca", 3000),
+)
+
+
+# Research prompt fixed (newest filing of any kind, partial sales, exercised calls, AB). Same switch window.
+WAVE100 = (
+    _job("pelosi-stocks-switches-v2", "ai_nancy_pelosi_trading_bot", "NancyPelosiTradingBot", "2026-05-04", "2026-08-28", calls=3000),
+    _job("pelosi-copy-switches-v2", "ai_nancy_pelosi_copy_trading_bot", "NancyPelosiCopyTradingBot", "2026-05-04", "2026-08-28", "alpaca", 3000),
+)
+
+
+# v2 read "newest filing of any kind" as anyone's filing; now the member's own newest filing.
+WAVE101 = (
+    _job("pelosi-stocks-switches-v3", "ai_nancy_pelosi_trading_bot", "NancyPelosiTradingBot", "2026-05-04", "2026-08-28", calls=3000),
+    _job("pelosi-copy-switches-v3", "ai_nancy_pelosi_copy_trading_bot", "NancyPelosiCopyTradingBot", "2026-05-04", "2026-08-28", "alpaca", 3000),
+)
+
+
+# v3 sold DIS and PYPL (December sales already inside the 2025 yearly report) and skipped day one
+# (a full answer mentioned NOTHING NEW). Both fixed.
+WAVE102 = (
+    _job("pelosi-stocks-switches-v4", "ai_nancy_pelosi_trading_bot", "NancyPelosiTradingBot", "2026-05-04", "2026-08-28", calls=3000),
+    _job("pelosi-copy-switches-v4", "ai_nancy_pelosi_copy_trading_bot", "NancyPelosiCopyTradingBot", "2026-05-04", "2026-08-28", "alpaca", 3000),
+)
+
+
+# v4: re-reads of unchanged filings caused AB flip-flops and option strike churn; DIS and PYPL still dropped.
+# Now: rebalance only when her newest DocID changes, partial-sale rule, keep a held call's strike.
+WAVE103 = (
+    _job("pelosi-stocks-switches-v5", "ai_nancy_pelosi_trading_bot", "NancyPelosiTradingBot", "2026-05-04", "2026-08-28", calls=3000),
+    _job("pelosi-copy-switches-v5", "ai_nancy_pelosi_copy_trading_bot", "NancyPelosiCopyTradingBot", "2026-05-04", "2026-08-28", "alpaca", 3000),
 )
 
 

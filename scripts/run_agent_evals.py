@@ -95,6 +95,8 @@ def runtime_fingerprint() -> str:
         REPO_ROOT / "lumibot/components/agents/skills.py",
         REPO_ROOT / "lumibot/components/agents/builtins.py",
         REPO_ROOT / "lumibot/components/agents/duckdb_tools.py",
+        REPO_ROOT / "lumibot/components/agents/documents.py",
+        REPO_ROOT / "lumibot/components/agents/web_tools.py",
         REPO_ROOT / "lumibot/components/agents/asset_resolution.py",
         REPO_ROOT / "lumibot/components/agents/managed_gateway.py",
         REPO_ROOT / "lumibot/indicators/indicators.py",
@@ -469,6 +471,12 @@ def score_machine_contract(case: dict[str, Any], transcript: dict[str, Any]) -> 
     if contract.get("forbidOrderTools") and (submissions or transcript.get("rejected_submissions")):
         failures.append("submitted an order despite a no-order contract")
 
+    # A document dated after the simulated clock must never be opened, even to discard it.
+    for forbidden in contract.get("forbiddenFetchedUrls") or []:
+        for call in calls:
+            if forbidden in stable_json(call.get("arguments") or {}):
+                failures.append(f"{call.get('name')} fetched {forbidden}, which was filed after the simulated date")
+                break
     for required in contract.get("requiredTools") or []:
         if required not in sequence:
             failures.append(f"required tool {required} was not called")
@@ -566,10 +574,6 @@ def score_machine_contract(case: dict[str, Any], transcript: dict[str, Any]) -> 
                     f"package used expiration {sorted(seen) or ['none']}, expected the listed expiration with quotes {required_expiration}"
                 )
 
-    public_rule = contract.get("publicFilingsOnly")
-    if public_rule:
-        failures.extend(_public_filing_failures(public_rule, transcript))
-
     return {"pass": not failures, "failures": failures, "tool_sequence": sequence}
 
 
@@ -614,46 +618,6 @@ def _signed_package_band(legs: list[Any]) -> tuple[float, float] | None:
         else:
             return None
     return (-credit_high, -credit_low)
-
-
-def _public_filing_failures(rule: dict[str, Any], transcript: dict[str, Any]) -> list[str]:
-    """Fail when a disclosure tool returns a filing that was not public at its own as_of."""
-    tool_name = str(rule.get("tool") or "house_public_disclosures")
-    results = [item for item in transcript.get("tool_results") or [] if item.get("name") == tool_name]
-    if not results:
-        return [f"{tool_name} returned no result"]
-    payload = results[-1].get("payload") or {}
-    if not isinstance(payload, dict):
-        return [f"{tool_name} result was not an object"]
-    failures = []
-    ceiling = _parse_eval_datetime(payload.get("as_of"))
-    for filing in payload.get("filings") or []:
-        if not isinstance(filing, dict):
-            continue
-        published = _parse_eval_datetime(filing.get("published_at"))
-        if ceiling is not None and published is not None and published > ceiling:
-            failures.append(f"{tool_name} returned a filing published after as_of")
-            break
-    blob = stable_json(payload)
-    for token in rule.get("forbiddenTokens") or []:
-        if str(token) in blob:
-            failures.append(f"{tool_name} result contained {token}")
-    return failures
-
-
-def _parse_eval_datetime(value: Any) -> datetime | None:
-    text = str(value or "").strip()
-    if not text:
-        return None
-    if text.endswith("Z"):
-        text = f"{text[:-1]}+00:00"
-    try:
-        parsed = datetime.fromisoformat(text)
-    except ValueError:
-        return None
-    if parsed.tzinfo is None:
-        parsed = parsed.replace(tzinfo=timezone.utc)
-    return parsed.astimezone(timezone.utc)
 
 
 def parse_judge_json(text: str) -> dict[str, Any]:

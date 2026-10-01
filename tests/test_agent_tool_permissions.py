@@ -1102,6 +1102,7 @@ def test_agent_model_call_limit_stops_before_runtime_call(monkeypatch):
 # iron-condor eval regressed from 3/3 to 1/3 when they joined every agent.
 _NETWORK_TOOL_NAMES = {
     "http_request",
+    "read_document",
     "rss_fetch",
     "web_search",
     "browser_session_open",
@@ -1176,17 +1177,14 @@ def test_allow_network_false_removes_even_explicit_network_tools():
 
 
 def _example_network_agents():
-    from lumibot.example_strategies.ai_browser_research_showcase import AIBrowserResearchShowcaseStrategy
-    from lumibot.example_strategies.ai_congress_disclosures import AICongressDisclosuresStrategy
-    from lumibot.example_strategies.ai_public_web_fetch import AIPublicWebFetchStrategy
+    from lumibot.example_strategies.ai_fear_and_greed_trading_bot import FearAndGreedTradingBot
+    from lumibot.example_strategies.ai_nancy_pelosi_copy_trading_bot import NancyPelosiCopyTradingBot
+    from lumibot.example_strategies.ai_nancy_pelosi_trading_bot import NancyPelosiTradingBot
 
     return {
-        "ai_public_web_fetch.py": (AIPublicWebFetchStrategy, {"page_researcher"}),
-        "ai_congress_disclosures.py": (AICongressDisclosuresStrategy, {"congress_researcher"}),
-        "ai_browser_research_showcase.py": (
-            AIBrowserResearchShowcaseStrategy,
-            {"browser_researcher", "trade_publisher"},
-        ),
+        "ai_nancy_pelosi_trading_bot.py": (NancyPelosiTradingBot, {"researcher"}),
+        "ai_nancy_pelosi_copy_trading_bot.py": (NancyPelosiCopyTradingBot, {"researcher"}),
+        "ai_fear_and_greed_trading_bot.py": (FearAndGreedTradingBot, {"researcher"}),
     }
 
 
@@ -1195,14 +1193,18 @@ def test_every_example_that_uses_network_tools_is_covered_by_the_opt_in_contract
     from pathlib import Path
 
     examples = Path(__file__).resolve().parents[1] / "lumibot" / "example_strategies"
-    pattern = re.compile(r"\b(http_request|rss_fetch|browser_[a-z_]+|persistent browser)\b")
+    # Plain-English prompts no longer name the tools, so the opt-in itself counts too.
+    pattern = re.compile(
+        r"\b(http_request|read_document|rss_fetch|browser_[a-z_]+|persistent browser|browser session|web browser)\b"
+        r"|allow_network=True"
+    )
     users = {path.name for path in examples.glob("*.py") if pattern.search(path.read_text(encoding="utf-8"))}
 
     assert users == set(_example_network_agents())
 
 
 @pytest.mark.parametrize(
-    "filename", ["ai_public_web_fetch.py", "ai_congress_disclosures.py", "ai_browser_research_showcase.py"]
+    "filename", ["ai_nancy_pelosi_trading_bot.py", "ai_nancy_pelosi_copy_trading_bot.py", "ai_fear_and_greed_trading_bot.py"]
 )
 def test_examples_that_use_the_web_opt_in_only_the_agents_that_fetch(filename):
     strategy_class, expected = _example_network_agents()[filename]

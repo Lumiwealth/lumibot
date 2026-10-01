@@ -994,3 +994,62 @@ def test_empty_session_marker_is_rechecked_after_it_expires_in_a_long_lived_proc
     monkeypatch.setattr(ibkr_helper, "_ibkr_history_now_utc", lambda: later)
     ibkr_helper.get_price_data(**window, **_MINUTE_KW)  # same process, marker expired: ask again
     assert served["pages"] == 2
+
+
+@pytest.mark.parametrize("index_unit", ["ns", "us", "ms", "s"])
+def test_public_minute_repair_accepts_timestamp_units(monkeypatch, tmp_path, index_unit):
+    """Identical Parquet timestamps must find the same missing session in every supported resolution."""
+    _minute_setup(monkeypatch, tmp_path)
+    _new_minute_process(monkeypatch, lambda **_: None)
+    vendor = _minute_vendor(["2026-08-06", "2026-08-07", "2026-08-10"])
+    vendor.index = vendor.index.as_unit(index_unit)
+    holey = vendor.loc[vendor.index.strftime("%Y-%m-%d") != "2026-08-07"]
+    path = tmp_path / "minute-cache.parquet"
+    holey.to_parquet(path)
+    monkeypatch.setattr(ibkr_helper, "_cache_file_for", lambda **_: path)
+    calls = []
+
+    def fetch(**kwargs):
+        calls.append(kwargs)
+        return vendor.loc[vendor.index.strftime("%Y-%m-%d") == "2026-08-07"]
+
+    monkeypatch.setattr(ibkr_helper, "_fetch_history_between_dates", fetch)
+    window = dict(start_dt=vendor.index[0].to_pydatetime(), end_dt=vendor.index[-1].to_pydatetime())
+    result = ibkr_helper.get_price_data(**window, **_MINUTE_KW)
+    pd.testing.assert_frame_equal(
+        result[vendor.columns], vendor, check_dtype=False, check_index_type=False, check_freq=False
+    )
+    assert len(calls) == 1
+    # Re-reading the repaired window must preserve the result without fetching again.
+    repeated = ibkr_helper.get_price_data(**window, **_MINUTE_KW)
+    pd.testing.assert_frame_equal(repeated, result)
+    assert len(calls) == 1
+
+
+@pytest.mark.parametrize("index_unit", ["ns", "us", "ms", "s"])
+@pytest.mark.parametrize("extended", [False, True])
+def test_session_calendar_resolution_preserves_open_intervals(monkeypatch, index_unit, extended):
+    """Open sessions must not become closed intervals when calendar timestamps change units."""
+    from types import SimpleNamespace
+
+    import pandas_market_calendars as mcal
+
+    schedule = pd.DataFrame({
+        name: pd.DatetimeIndex([pd.Timestamp(f"2026-08-07 {clock}", tz=_NY)]).as_unit(index_unit)
+        for name, clock in {
+            "pre": "04:00", "market_open": "09:30", "market_close": "16:00", "post": "20:00"
+        }.items()
+    })
+    monkeypatch.setattr(mcal, "get_calendar", lambda _: SimpleNamespace(schedule=lambda **_: schedule))
+    monkeypatch.setattr(
+        ibkr_helper, "_us_equity_session_bounds_for_year",
+        ibkr_helper._us_equity_session_bounds_for_year.__wrapped__,
+    )
+    opens, closes = ibkr_helper._us_equity_session_bounds_for_year(2026, extended)
+    assert opens.tolist() == [schedule["pre" if extended else "market_open"].iloc[0].value]
+    assert closes.tolist() == [schedule["post" if extended else "market_close"].iloc[0].value]
+    assert not ibkr_helper._us_equity_closed_interval(
+        pd.Timestamp("2026-08-07 10:00", tz=_NY),
+        pd.Timestamp("2026-08-07 11:00", tz=_NY),
+        include_after_hours=extended,
+    )

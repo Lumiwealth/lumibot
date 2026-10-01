@@ -155,7 +155,7 @@ def test_http_request_returns_pdf_text_instead_of_base64(monkeypatch):
         return httpx.Response(200, content=pdf, headers={"content-type": "application/pdf"})
 
     monkeypatch.setattr(
-        "lumibot.components.house_ptr.pdf_bytes_to_text",
+        "lumibot.components.agents.documents._pdf_text",
         lambda raw: "Nancy Pelosi GOOGL purchase " + ("x" * 20_000),
     )
     client = WebClient(transport=httpx.MockTransport(handler), resolver=_resolver)

@@ -1,107 +1,37 @@
-"""
-M2 Liquidity Strategy - AI Agent Demo (Anthropic Claude)
---------------------------------------------------------
-Same strategy intent as agent_m2_liquidity.py, but uses Anthropic Claude
-instead of the default GPT-6 Luna. This demonstrates Lumibot's
-multi-provider AI agent support via the LiteLLM bridge.
+"""M2 Liquidity AI Trading Bot (Anthropic).
 
-The only differences vs the default version:
-    - default_model is an Anthropic id ("anthropic/claude-sonnet-4-6")
-    - ANTHROPIC_API_KEY is required instead of OPENAI_API_KEY
-    - The litellm package must be installed (it ships with Lumibot)
-
-All other agent mechanics (built-in tools, replay cache, backtesting
-safety rules, base system prompt) are identical across providers. The
-cache key includes the model string, so swapping providers on the same
-backtest produces fresh runs rather than stale cross-model replays.
-
-Requirements:
-    - ANTHROPIC_API_KEY (get one at https://console.anthropic.com/)
-    - FRED_API_KEY (for official FRED/ALFRED macro data)
-
-Usage:
-    export ANTHROPIC_API_KEY='your-anthropic-key'
-    export FRED_API_KEY='your-fred-key'
-    python agent_m2_liquidity_anthropic.py
+Holds TQQQ when the money supply (M2) is growing and SHV, a short-term Treasury
+fund, when it is shrinking. One AI agent reads the Federal Reserve's M2 data each
+day and trades. This copy runs on Anthropic's Claude.
 """
 
-import os
-
-from lumibot.components.agents import agent_tool
-from lumibot.strategies.strategy import Strategy
-
-IS_BACKTESTING = True
+from lumibot.strategies import Strategy
 
 
 class M2LiquidityAnthropicStrategy(Strategy):
-
-    @agent_tool(
-        name="get_fred_series",
-        description=(
-            "Fetch economic data from FRED (Federal Reserve Economic Data). "
-            "Common series: M2SL (M2 money supply), FEDFUNDS (fed funds rate), "
-            "CPIAUCSL (CPI), UNRATE (unemployment), GDP (gross domestic product), "
-            "T10Y2Y (10Y-2Y yield spread), BOGMBASE (monetary base). "
-            "Returns date-value pairs. Use start_date and end_date in YYYY-MM-DD format."
-        ),
-    )
-    def get_fred_series(
-        self, series_id: str, start_date: str = "2020-01-01", end_date: str = ""
-    ) -> dict:
-        """Fetch a FRED series through Lumibot's point-in-time macro helper."""
-        return self.macro.get_series(
-            series_id,
-            start=start_date,
-            end=end_date or None,
-        )
-
     def initialize(self):
         self.sleeptime = "1D"
-        self.vars.iteration_count = 0
         self.agents.create(
-            name="m2_analyst",
-            default_model="anthropic/claude-sonnet-4-6",
+            name="trader",
+            allow_trading=True,
+            model="anthropic/claude-sonnet-4-6",
             system_prompt=(
-                "You must be fully invested at all times. Never leave cash idle. "
-                "Fetch M2 money supply data (M2SL) and check if liquidity is expanding "
-                "or contracting. Compare recent values to values from 3-6 months ago. "
-                "If M2 is growing (recent values higher than earlier), buy TQQQ. "
-                "If M2 is flat or shrinking, buy SHV. "
-                "You can also check FEDFUNDS and T10Y2Y for confirmation. "
-                "Always hold either TQQQ or SHV. Sell one before buying the other."
+                "Hold either TQQQ or SHV with the whole account. Each day, check whether the M2 money supply "
+                "is growing compared with 3 to 6 months ago, using official Federal Reserve data. If it is "
+                "growing, hold TQQQ. If it is flat or shrinking, hold SHV. Sell one before buying the other."
             ),
-            tools=[self.get_fred_series],
         )
 
     def on_trading_iteration(self):
-        # Run agent every 20 trading days
-        self.vars.iteration_count += 1
-        if self.vars.iteration_count != 1 and self.vars.iteration_count % 20 != 0:
-            return
-        result = self.agents["m2_analyst"].run()
-        self.log_message(f"[agent] {result.summary}")
+        self.agents["trader"].run(task_prompt="Check M2 and hold TQQQ or SHV.")
 
 
 if __name__ == "__main__":
-    if not os.environ.get("ANTHROPIC_API_KEY"):
-        print("ERROR: ANTHROPIC_API_KEY environment variable is required.")
-        print("Get an API key at https://console.anthropic.com/")
-        print("Then set it: export ANTHROPIC_API_KEY='your-key-here'")
-        raise SystemExit(1)
-
-    from datetime import datetime
-    from lumibot.backtesting import YahooDataBacktesting
-    from lumibot.entities import Asset, TradingFee
+    from lumibot.credentials import IS_BACKTESTING
 
     if IS_BACKTESTING:
-        trading_fee = TradingFee(percent_fee=0.001)
-        M2LiquidityAnthropicStrategy.backtest(
-            YahooDataBacktesting,
-            backtesting_start=datetime(2024, 1, 1),
-            backtesting_end=datetime(2025, 1, 1),
-            benchmark_asset=Asset("SPY", Asset.AssetType.STOCK),
-            buy_trading_fees=[trading_fee],
-            sell_trading_fees=[trading_fee],
-            quote_asset=Asset("USD", Asset.AssetType.FOREX),
-            quiet_logs=False,
-        )
+        from lumibot.backtesting import YahooDataBacktesting
+
+        M2LiquidityAnthropicStrategy.backtest(YahooDataBacktesting)
+    else:
+        M2LiquidityAnthropicStrategy().run_live()

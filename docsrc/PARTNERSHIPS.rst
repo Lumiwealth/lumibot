@@ -65,8 +65,8 @@ Explore the technology
 -----------------------
 
 * `AI agent runtime and tools <https://lumibot.lumiwealth.com/agents.html>`_
-* `Opening range breakout example <https://lumibot.lumiwealth.com/agents_example_ai_opening_range_breakout.html>`_
-* `Options iron condor example <https://lumibot.lumiwealth.com/agents_example_ai_iron_condor.html>`_
+* `Opening range breakout example <https://lumibot.lumiwealth.com/agents_example_opening_range_breakout_ai_trading_bot.html>`_
+* `Options iron condor example <https://lumibot.lumiwealth.com/agents_example_iron_condor_ai_trading_bot.html>`_
 * `Sector research pods <https://lumibot.lumiwealth.com/agents_example_citadel_sector_pods.html>`_
 * `Macro idea-meritocracy team <https://lumibot.lumiwealth.com/agents_example_ray_dalio_idea_meritocracy.html>`_
 * `Source code and contribution history <https://github.com/Lumiwealth/lumibot>`_

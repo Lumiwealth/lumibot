@@ -1,5 +1,41 @@
 # Changelog
 
+## Unreleased
+
+### Fixed
+- IBKR minute history repairs missing cached sessions when Parquet timestamps use microsecond, millisecond, or second resolution. Cache and calendar timestamps now use consistent units before gap and market-hours searches, so open sessions are not mistaken for closed intervals on pandas 3.
+
+## 4.6.3 - 2026-09-30
+
+Deploy marker: `950916e438598b66e8bca0540f2b7c321c182cb3`
+
+### Changed
+- AI example runners explicitly distinguish `Strategy.backtest(...)` from broker execution with `Trader.run_all()` / `strategy.run_live()`, with a new execution-mode guide and updated onboarding.
+- AI examples use reusable agents and plain-language prompts, with dedicated trading/risk ownership where the strategy needs it. Shared trading-agent guidance covers target weights, sell-before-buy cash budgeting, existing positions and pending orders, and bounded option risk.
+- AI examples include actual historical tear sheets, refreshed workflow artwork, searchable page titles and redirects from their previous documentation URLs. Pelosi research distinguishes annual holdings reports, transaction reports, partial sales and exercised calls; the copy example supports smaller accounts with a bounded options allocation.
+- Agent price tools (`market_last_price`, `market_last_prices`, `market_historical_prices`) say where to find a market index they have no data for. Broker data often has no indexes (Alpaca has no VIX), and agents told to "skip the day if the VIX closed above 25" refused to trade because they never looked at FRED. A miss on VIX, VIX3M, VXN, OVX, GVZ, SPX, DJIA or the Nasdaq Composite now returns a `fred_hint` naming the FRED series (VIX is `VIXCLS`). The research-data skill says the same. New eval `research_vix_from_fred`.
+- The AI Iron Condor example sells a one-day SPY iron condor at 3:45 PM and holds it to expiry, with a plain-Python early close when SPY runs 40% of the way toward a short strike. It copies the core of the older options_condor_martingale bot, without the martingale.
+
+### Added
+- `read_document` agent tool: reads any file or page at a URL (PDF, Word, Excel, CSV, tab-separated text, JSON, HTML with its links, and ZIP archives with every file inside). Every table in the file is loaded for `duckdb_query`, so agents filter and add up rows with SQL. `find` keeps matching lines and `start`/`next_start` page through long text. ZIPs that unpack past 100 MB are refused. The result does not report the download time as a date, because agents treated it as the document's date and refused to use documents in backtests.
+- `web-documents` built-in skill: how to find a document on a website, read it, do table math with SQL, and in backtests skip every document dated after the backtest time.
+- Agent eval `web_documents_holdings_from_yearly_and_trade_reports`: from a ZIP filing index and PDF reports, work out a member's holdings from the yearly report plus newer trade reports, and never open the report filed after the simulated date. Red on the old tools (3/3), green with `read_document` (3/3).
+
+### Removed
+- The `house_public_disclosures` agent tool and the House-only code behind it (`lumibot/components/house_ptr.py`, `lumibot/components/disclosure_signals.py`, `lumibot/example_strategies/disclosure_replay.py`). They were built for one example. The Nancy Pelosi example reads the House Clerk website with the generic browser and `http_request` tools, the way any strategy reads any website.
+
+### Changed
+- Agent option tools can see expirations more than 90 days out in backtests. `options_get_chain` takes an optional `max_expiration`, and `options_get_strikes`, `options_find_strike_for_delta` and `options_find_expiration` widen the chain window to the expiration they are asked about. Backtest chains list about 90 days by default, so a copy of a January 2027 call found no contract in January 2026. Live brokers already list every expiration.
+- The `duckdb_query` description tells agents it is also their calculator (a `VALUES` list), after a portfolio agent scaled holdings 1,000x wrong doing the math in its head.
+- `http_request` turns any PDF into plain page text. It used to run House trade-report cleanup on every PDF.
+
+### Fixed
+- Document readers apply the unpacked-size limit to Word and Excel archives as well as ZIPs; tables with identical sheet/file labels stay independently queryable. Malformed CSV/TSV keeps readable text and exposes a parse error instead of losing the document or silently dropping rows.
+- Pelosi examples preserve the last known filing ID when a partial research answer omits it. Historical research runner jobs receive Alpaca credentials only when Alpaca is selected and its account mode has been validated.
+- The standard release gate no longer runs paid-service historical benchmarks as offline tests. Those integrations use the existing `apitest` marker; portable Alpaca adapter/backtest acceptance covers real orders, fills and cash without vendor subscriptions, and existing options limit/fee regressions remain required. CI and publishing no longer inject ThetaData/downloader/S3 credentials into the portable test gate.
+- Multi-leg option limit backtests fill every leg together only when the package's net price meets the credit/debit limit. Missing quotes use current-bar opens for all legs; stale or future bars cannot partially fill a package.
+- Backtests charge the buy fee when closing a short option (`buy_to_close`). That side was in neither fee list, so the short legs of every closing spread or iron condor paid no commission and option backtests looked cheaper than live trading.
+
 ## 4.6.2 - 2026-09-27
 
 ### Changed

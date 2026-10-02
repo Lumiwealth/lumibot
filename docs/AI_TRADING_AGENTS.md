@@ -69,7 +69,7 @@ The example uses `openai/gpt-6-luna` on medium reasoning, Yahoo daily prices and
 
 For an installation check without credentials or paid calls, run `BACKTESTING_DATA_SOURCE=none python -m lumibot.example_strategies.first_backtest`. Its prices are synthetic and its simulated fill tests mechanics, not returns.
 
-Macro tools additionally require `FRED_API_KEY`. They use the strategy clock and FRED/ALFRED vintage parameters; inspect publication dates and missing data. Add ordinary `@agent_tool` functions when you need custom research services.
+FRED macro tools additionally require `FRED_API_KEY`. They use the strategy clock and FRED/ALFRED vintage parameters; inspect publication dates and missing data. FXMacroData tools such as `get_fxmacrodata_series` return FX-focused macro announcement rows; USD works without a key, other currencies need `FXMD_API_KEY` or `FXMACRODATA_API_KEY`. Add ordinary `@agent_tool` functions when you need custom research services.
 
 ---
 

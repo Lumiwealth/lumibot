@@ -4,7 +4,7 @@ Lumibot includes native Federal Reserve Economic Data (FRED) macro tools for str
 
 Use macro data for interest rates, inflation, employment, growth, liquidity, credit spreads, and market-risk context.
 
-## Strategy API
+## FRED Strategy API
 
 ```python
 self.macro.list_series()
@@ -13,9 +13,9 @@ self.macro.get_latest("UNRATE")
 self.macro.get_snapshot(["FEDFUNDS", "DGS10", "CPIAUCSL", "UNRATE"])
 ```
 
-## Agent Tools
+## FRED Agent Tools
 
-Agents receive these built-ins automatically:
+Agents receive these FRED built-ins automatically:
 
 - `list_fred_series`
 - `get_fred_series`
@@ -24,9 +24,11 @@ Agents receive these built-ins automatically:
 
 You do not need to manually attach these tools. They are included with the rest of the built-in agent tool surface.
 
-## API Key Behavior
+## FRED API Key Behavior
 
-`FRED_API_KEY` is required for the official FRED/ALFRED API path and for strict point-in-time macro backtests.
+`FRED_API_KEY` is required for the official FRED/ALFRED API path and for FRED macro data fetches.
+
+This FRED credential is not used by FXMacroData. FXMacroData access is described separately below.
 
 Lumibot uses the official FRED/ALFRED API and passes `realtime_start` and `realtime_end` based on the strategy datetime. This is the strict point-in-time path for macro backtests.
 
@@ -53,3 +55,39 @@ export LUMIBOT_FRED_CACHE_DIR=/path/to/cache
 ```
 
 Backtests should fetch each series once and reuse the local cache instead of hitting FRED on every trading iteration.
+
+## FXMacroData Macro Releases
+
+Lumibot also includes an FXMacroData provider for FX-focused macro announcement rows:
+
+```python
+self.macro.fxmacrodata.list_indicators()
+self.macro.fxmacrodata.get_series("eur", "inflation")
+self.macro.fxmacrodata.get_latest("jpy", "policy_rate")
+self.macro.fxmacrodata.get_snapshot("gbp", ["inflation", "policy_rate", "unemployment"])
+```
+
+FXMacroData agents receive these read-only built-ins automatically:
+
+- `list_fxmacrodata_indicators`
+- `get_fxmacrodata_series`
+- `get_fxmacrodata_latest`
+- `get_fxmacrodata_snapshot`
+
+USD announcement data is public. Set `FXMD_API_KEY` or `FXMACRODATA_API_KEY` for non-USD and paid endpoint access. Lumibot sends the key as an `X-API-Key` header, not as an `api_key` query parameter.
+
+In a backtest, `as_of` defaults to `self.get_datetime()`. Lumibot drops rows whose `announcement_datetime` is after `as_of`, and also drops rows the API returns without an announcement datetime, because their period date usually precedes the real release. Outside backtests those rows are kept, gated on their period date, and marked `gated_on: "period_date"` (other rows carry `gated_on: "announcement_datetime"`); treat them as approximate. Rows with no parseable date at all are dropped. `get_latest` keeps paging back until it finds a row published by `as_of` or the data runs out.
+
+This is not a blanket point-in-time guarantee. Each result includes a `publication_time` summary with counts of rows with and without an announcement datetime, rows dropped as undated or (in backtests) for lacking an announcement datetime, an `approximate` flag that is true when any returned row was gated on its period date, and `publication_time_status` values. Each row keeps the API's `publication_time_status`; only `confirmed` means the timestamp was taken from the publisher's own release.
+
+In backtests, FXMacroData responses are cached under:
+
+```text
+~/.lumibot/cache/fxmacrodata
+```
+
+Override with:
+
+```bash
+export LUMIBOT_FXMACRODATA_CACHE_DIR=/path/to/cache
+```

@@ -3492,6 +3492,8 @@ class ThetaDataBacktestingPandas(PandasData):
         Quote
             A Quote object with the quote information.
         """
+        from lumibot.entities.quote import _source_timestamp
+
         snapshot_only = bool(kwargs.pop("snapshot_only", False))
         dt = self.get_datetime()
         self._update_cadence_from_dt(dt)
@@ -3783,6 +3785,8 @@ class ThetaDataBacktestingPandas(PandasData):
                         timestamp=row_ts,
                         bid_size=bid_size,
                         ask_size=ask_size,
+                        bid_time=_source_timestamp(row.get("last_bid_time")),
+                        ask_time=_source_timestamp(row.get("last_ask_time")),
                         raw_data=None,
                     )
                 )
@@ -3946,6 +3950,8 @@ class ThetaDataBacktestingPandas(PandasData):
                     timestamp=dt,
                     bid_size=bid_size,
                     ask_size=ask_size,
+                    bid_time=_source_timestamp(_get("last_bid_time")),
+                    ask_time=_source_timestamp(_get("last_ask_time")),
                     raw_data=None,
                 )
             except Exception:
@@ -3968,6 +3974,8 @@ class ThetaDataBacktestingPandas(PandasData):
                         timestamp=dt,
                         bid_size=ohlcv_bid_ask_dict.get("bid_size"),
                         ask_size=ohlcv_bid_ask_dict.get("ask_size"),
+                        bid_time=_source_timestamp(ohlcv_bid_ask_dict.get("last_bid_time")),
+                        ask_time=_source_timestamp(ohlcv_bid_ask_dict.get("last_ask_time")),
                         raw_data=ohlcv_bid_ask_dict,
                     )
                 except Exception:

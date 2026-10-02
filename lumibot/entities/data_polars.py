@@ -517,6 +517,8 @@ class DataPolars:
             "ask_size": ("ask_size", 0),
             "ask_condition": ("ask_condition", 0),
             "ask_exchange": ("ask_exchange", 0),
+            "last_bid_time": ("last_bid_time", None),
+            "last_ask_time": ("last_ask_time", None),
         }
 
         missing_quote_cols = [

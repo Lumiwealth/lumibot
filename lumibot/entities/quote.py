@@ -1,6 +1,23 @@
 import datetime
+from typing import Optional
+
+import numpy as np
+import pandas as pd
 
 from lumibot.entities import Asset
+
+
+def _source_timestamp(value: object) -> Optional[datetime.datetime]:
+    """Normalize recorded source time without inventing an epoch unit or timezone."""
+    # Numeric values have no declared unit. Never interpret them as nanoseconds.
+    if not isinstance(value, (datetime.datetime, str, np.datetime64)):
+        return None
+    try:
+        timestamp = pd.Timestamp(value)
+        # Timestamp is datetime-compatible and preserves sub-microsecond source precision.
+        return None if pd.isna(timestamp) else timestamp
+    except (TypeError, ValueError, OverflowError):
+        return None
 
 
 class Quote:

@@ -15,6 +15,15 @@
 
 ## Overview
 
+Backtest quotes retain the stored `last_bid_time` and `last_ask_time` as
+`Quote.bid_time` and `Quote.ask_time`. Pandas and Polars data objects pass those
+columns through; ThetaData cached, snapshot-only, and daily paths use the same
+timestamp normalization. This preserves stale timestamps and their original
+timezone semantics rather than replacing them with the simulation clock.
+Absent, invalid, or numeric timestamps without an explicit unit remain `None`.
+`Quote.quote_time` is not inferred from separate bid/ask events. Parquet-backed
+and adapter regressions live in `tests/test_backtest_quote_source_times.py`.
+
 Intraday bar-completion checks consume nanosecond timestamps. `DataPolars`
 normalizes its native nanosecond, microsecond, or millisecond index before the
 shared state calculation used by history, last-price, and quote reads. A bar

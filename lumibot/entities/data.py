@@ -43,6 +43,8 @@ _DATA_QUOTE_FIELDS = {
     "ask_size": ("ask_size", 0),
     "ask_condition": ("ask_condition", 0),
     "ask_exchange": ("ask_exchange", 0),
+    "last_bid_time": ("last_bid_time", None),
+    "last_ask_time": ("last_ask_time", None),
 }
 
 # PERF: module-level sentinel used to avoid eager-evaluating fallbacks in `getattr()` hot paths.

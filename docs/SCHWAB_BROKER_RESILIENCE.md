@@ -39,6 +39,15 @@ When possible, unknown or degraded Schwab entities keep raw broker context:
 
 This lets BotSpot and support tooling show that an unfamiliar row exists without pretending it is a normal stock/option/future record.
 
+## Terminal Order Errors
+
+The terminal snapshot reducer uses the parser's `raw_order_status` and, when
+Schwab supplies it, `raw_broker_payload.statusDescription` in the error passed
+to the strategy. For example, a rejected order reports `REJECTED` and its
+broker-provided explanation, rather than only the normalized `error` status.
+Missing descriptions retain the status-only fallback. Repeated snapshots of
+the same terminal order must still emit exactly one error callback.
+
 ## Position Sync Safety
 
 Schwab position parsing should include unknown positions by default when there is enough information to represent them. A row with symbol plus quantity should return a `Position`, even if the asset type is unfamiliar.

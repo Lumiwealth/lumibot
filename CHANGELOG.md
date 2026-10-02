@@ -3,6 +3,7 @@
 ## 4.6.4 - Unreleased
 
 ### Fixed
+- Schwab terminal-order callbacks preserve the broker's raw status and supplied rejection description instead of reporting only the normalized `error` status. Repeated observations still dispatch one error callback.
 - Pandas, Polars, and ThetaData backtest quotes preserve recorded bid/ask source timestamps. Missing or invalid source times remain unavailable instead of being replaced by the simulation clock.
 - Scheduled/run-once execution advances SmartLimit orders through their configured ladder and waits for fills or confirmed cancellation before disconnecting. In-flight broker submissions, cancellation transitions, order callbacks, and work started by `on_strategy_end` also finish before the final snapshot and state backup. Resting limit/GTC orders do not block shutdown; an interrupted or timed-out drain is reported as a failure, not a completed run.
 - Polars-backed intraday history and quotes normalize timestamp resolution before checking whether a bar has closed. Microsecond and millisecond data now expose completed bars across gaps and keep unfinished bars' future closing prices out of last-price and synthesized quote values.

@@ -2,7 +2,7 @@
 
 ## 4.6.4 - 2026-10-02
 
-Deploy marker: `d9180bb0c2f81947bcc70c9aa40bdc1d2dc14019`
+Deploy marker: `8bbc892f818c3760f79303a2be769f69906ecaa6`
 
 ### Fixed
 - Stock agents distinguish an exit becoming due from permission to change an already-pending exit. They leave the existing exit in place unless the user's rules explicitly require changing that order, and tie lookback indicators to the requested latest completed-bar window rather than an earlier row.

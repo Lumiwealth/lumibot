@@ -1115,7 +1115,10 @@ def _resolve_model_for_adk(
         return model
     lower = model.strip().lower()
     from lumibot.components.agents.managed_gateway import (
-        MANAGED_MODEL_FAMILIES, ManagedAiGatewayError, managed_gateway_available_for, managed_gateway_model,
+        MANAGED_MODEL_FAMILIES,
+        ManagedAiGatewayError,
+        managed_gateway_available_for,
+        managed_gateway_model,
     )
 
     if managed_gateway_available_for(model):
@@ -1817,8 +1820,29 @@ def _mcp_headers(server: MCPServer) -> dict[str, str]:
 
 
 def _is_mcp_auth_failure(exc: Exception) -> bool:
-    response = getattr(exc, "response", None)
-    return getattr(response, "status_code", None) == 401 or "401" in str(exc)
+    # Streamable HTTP task groups can wrap the transport's HTTPStatusError.
+    # Inspect the original errors so a short-lived capability can still renew.
+    pending: list[BaseException] = [exc]
+    visited: set[int] = set()
+    while pending:
+        current = pending.pop()
+        if id(current) in visited:
+            continue
+        visited.add(id(current))
+        response = getattr(current, "response", None)
+        status = getattr(response, "status_code", None)
+        if status == 401:
+            return True
+        if status is None and "401" in str(current):
+            return True
+        children = getattr(current, "exceptions", ())
+        if isinstance(children, (list, tuple)):
+            pending.extend(child for child in children if isinstance(child, BaseException))
+        pending.extend(
+            child for child in (current.__cause__, current.__context__)
+            if isinstance(child, BaseException)
+        )
+    return False
 
 
 async def _refresh_mcp_auth_token(server: MCPServer, previous_token: str | None) -> bool:

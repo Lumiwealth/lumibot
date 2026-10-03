@@ -2,6 +2,9 @@
 
 ## 4.6.5 - Unreleased
 
+### Fixed
+- Remote MCP calls renew expired authentication when the transport wraps HTTP 401 in nested exception groups or chained exceptions. Permission denials and network failures still propagate without token renewal.
+
 ## 4.6.4 - 2026-10-02
 
 Deploy marker: `8bbc892f818c3760f79303a2be769f69906ecaa6`

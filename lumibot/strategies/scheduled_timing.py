@@ -151,31 +151,57 @@ class ScheduledRunTiming:
         )
         return True
 
-    def drain_after_iteration(self, stop_event, process_queue, now_utc=None, monotonic=None, sleep=None):
-        if not self.truthy(os.environ.get("LUMIBOT_SCHEDULED_EXECUTION")):
-            return
+    def drain_after_iteration(
+        self, stop_event, process_queue, now_utc=None, monotonic=None, sleep=None,
+        pending_work=None, work_timeout_seconds=None,
+    ):
+        """Finish runtime-owned work, not just a fixed post-iteration delay.
 
-        post_iteration_seconds = self.int_env("LUMIBOT_SCHEDULED_POST_ITERATION_SECONDS", 0)
-        if post_iteration_seconds <= 0:
-            return
-
+        The optional legacy delay is a minimum observation window. Pending work
+        can extend it, with a separate liveness deadline that must never be
+        reported as successful completion when broker work is unresolved.
+        """
         now_utc = now_utc or self.now_utc
         monotonic = monotonic or time.monotonic
         sleep = sleep or time.sleep
+        pending_work = pending_work or (lambda: False)
+        work_timeout_seconds = work_timeout_seconds or (lambda: 300)
+        post_iteration_seconds = 0
+        if self.truthy(os.environ.get("LUMIBOT_SCHEDULED_EXECUTION")):
+            post_iteration_seconds = max(self.int_env("LUMIBOT_SCHEDULED_POST_ITERATION_SECONDS", 0), 0)
+        if post_iteration_seconds == 0 and not pending_work():
+            return
 
         drain_started = now_utc()
-        deadline = monotonic() + post_iteration_seconds
+        monotonic_started = monotonic()
+        deadline = monotonic_started + post_iteration_seconds
+        work_deadline = monotonic_started + max(float(work_timeout_seconds()), post_iteration_seconds)
         self.record(
             drain_started_at=self.iso(drain_started),
             status="draining",
         )
-        while not stop_event.is_set():
+        while True:
+            if stop_event.is_set():
+                self.record(drain_finished_at=self.iso(now_utc()), status="drain_interrupted")
+                raise InterruptedError("Scheduled completion interrupted before runtime work finished")
             process_queue()
-            remaining_seconds = deadline - monotonic()
-            if remaining_seconds <= 0:
+            if stop_event.is_set():
+                self.record(drain_finished_at=self.iso(now_utc()), status="drain_interrupted")
+                raise InterruptedError("Scheduled completion interrupted before runtime work finished")
+            pending = pending_work()
+            now = monotonic()
+            # A callback can create a longer SmartLimit while draining. Extend
+            # for its configured duration, never by blindly resetting on each poll.
+            work_deadline = max(work_deadline, monotonic_started + float(work_timeout_seconds()))
+            if not pending and now >= deadline:
                 break
-            sleep(min(0.5, remaining_seconds))
-        process_queue()
+            if pending and now >= work_deadline:
+                self.record(
+                    drain_finished_at=self.iso(now_utc()), status="drain_failed", pending_work=pending,
+                )
+                raise TimeoutError(f"Scheduled runtime work did not finish before its deadline: {pending}")
+            next_deadline = work_deadline if pending else deadline
+            sleep(min(0.5, max(next_deadline - now, 0)))
         self.record(
             drain_finished_at=self.iso(now_utc()),
             status="drained",

@@ -44,6 +44,19 @@ import. No customer account or external broker writes are needed.
 
 ## Contract
 
+The `options_expiration_with_data` case lists an unpriced nearer expiration and
+a later expiration with complete contract data. Options agents must inspect
+other listed expirations within the user's constraints rather than treating
+one unavailable expiration as evidence that the entire chain is unusable.
+They still verify every leg and price one atomic package at one expiration.
+
+The `stock_pending_exit_no_duplicate` case protects the existing order's
+ownership of a due exit. A due condition or nonmarketable limit does not by
+itself authorize canceling and replacing that pending order. The case requires
+inspection of the exact pending exit and a no-mutation decision.
+The `stock_price_before_order` judge also requires the reported lookback
+condition to match the latest completed-bar window and its tool-computed value.
+
 - Every file under `agent_eval_cases/` calls the real LumiBot agent runtime.
 - Deterministic checks cover exact tool contracts, order count, ordering, IDs,
   safety boundaries, and artifact availability.

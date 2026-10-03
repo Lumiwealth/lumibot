@@ -1351,6 +1351,30 @@ def test_schwab_snapshot_reducer_emits_terminal_error_once(terminal_status):
     assert broker._lifecycle_events[0][0] == broker.ERROR_ORDER
 
 
+@pytest.mark.parametrize("description", ["Insufficient available margin.", None, ""])
+@pytest.mark.parametrize("raw_status", ["REJECTED", "EXPIRED"])
+def test_schwab_parsed_terminal_snapshot_preserves_broker_rejection_reason(raw_status, description):
+    stored = _order()
+    broker = _broker_for_lifecycle(stored)
+    payload = _OrderResponse().json()
+    payload["status"] = raw_status
+    if description is not None:
+        payload["statusDescription"] = description
+    observed = broker._parse_broker_order(payload, stored.strategy)
+
+    broker._process_schwab_order_snapshot(observed)
+    broker._process_schwab_order_snapshot(observed)
+
+    assert len(broker._lifecycle_events) == 1
+    event, details = broker._lifecycle_events[0]
+    assert event == broker.ERROR_ORDER
+    assert isinstance(details["error"], LumibotBrokerAPIError)
+    expected = f"Schwab order became terminal: {raw_status}"
+    if description:
+        expected += f" ({description})"
+    assert str(details["error"]) == expected
+
+
 @pytest.mark.parametrize(
     "status",
     [

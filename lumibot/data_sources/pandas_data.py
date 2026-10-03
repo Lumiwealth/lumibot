@@ -336,6 +336,7 @@ class PandasData(DataSourceBacktesting):
             A Quote object with the quote information.
         """
         from lumibot.entities import Quote
+        from lumibot.entities.quote import _source_timestamp
 
         # Takes an asset and returns the last known price
         tuple_to_find = self.find_asset_in_data_store(asset, quote)
@@ -378,6 +379,8 @@ class PandasData(DataSourceBacktesting):
                 timestamp=dt,
                 bid_size=ohlcv_bid_ask_dict.get('bid_size'),
                 ask_size=ohlcv_bid_ask_dict.get('ask_size'),
+                bid_time=_source_timestamp(ohlcv_bid_ask_dict.get('last_bid_time')),
+                ask_time=_source_timestamp(ohlcv_bid_ask_dict.get('last_ask_time')),
                 raw_data=ohlcv_bid_ask_dict
             )
         else:

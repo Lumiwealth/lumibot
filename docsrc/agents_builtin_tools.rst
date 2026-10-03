@@ -113,7 +113,19 @@ order, even when the injected snapshot is complete, because an option package
 depends on exact signed contract positions and pending packages. The skill also
 tells the agent to apply only the expiration, delta, and width limits the user
 or active rules state, and to measure deltas with the Greek tools instead of
-declining from strike distance alone.
+declining from strike distance alone. If one listed expiration has unavailable
+Greeks or quotes, the agent checks other listed expirations allowed by those
+constraints before declaring that data is unavailable. All legs are selected
+and verified for the chosen structure. Use one expiration when the structure
+requires it. Calendar legs may use distinct listed expirations only when the
+user or active rules allow them, without relaxing those limits.
+
+For stocks, a pending exit already owns that position change. A due exit
+condition or a limit away from the current market does not authorize replacing
+it. The agent changes an existing order only when the user's rules explicitly
+require that change.
+Lookback rules use the requested number of the latest completed bars. The
+reported indicator and date window must match the selected tool result.
 
 Opening an option position (``buy_to_open``, ``sell_to_open``, or a plain buy or
 sell that does not reduce a held contract) also requires a successful

@@ -1,5 +1,17 @@
 # Changelog
 
+## 4.6.4 - 2026-10-02
+
+Deploy marker: `8bbc892f818c3760f79303a2be769f69906ecaa6`
+
+### Fixed
+- Stock agents distinguish an exit becoming due from permission to change an already-pending exit. They leave the existing exit in place unless the user's rules explicitly require changing that order, and tie lookback indicators to the requested latest completed-bar window rather than an earlier row.
+- Options agents inspect other listed expirations within the user's constraints when one expiration has unavailable Greeks or quotes, instead of treating one missing expiration as evidence that the whole chain is unusable. Every leg still requires verification for its structure, including user-permitted calendars with distinct expirations.
+- Schwab terminal-order callbacks preserve the broker's raw status and supplied rejection description instead of reporting only the normalized `error` status. Repeated observations still dispatch one error callback.
+- Pandas, Polars, and ThetaData backtest quotes preserve recorded bid/ask source timestamps. Missing or invalid source times remain unavailable instead of being replaced by the simulation clock. Forward-filling a missing side carries its timestamp with its value, while a fresh side with no timestamp stays unavailable.
+- Scheduled/run-once execution advances SmartLimit orders through their configured ladder and waits for fills or confirmed cancellation before disconnecting. In-flight broker submissions, cancellation transitions, order callbacks, and work started by `on_strategy_end` also finish before the final snapshot and state backup. Resting limit/GTC orders do not block shutdown; an interrupted or timed-out drain is reported as a failure, not a completed run.
+- Polars-backed intraday history and quotes normalize timestamp resolution before checking whether a bar has closed. Microsecond and millisecond data now expose completed bars across gaps and keep unfinished bars' future closing prices out of last-price and synthesized quote values. Overnight gaps no longer establish bar duration in sparse intraday history.
+
 ## Unreleased
 
 ### Fixed

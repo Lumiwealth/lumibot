@@ -15,6 +15,28 @@
 
 ## Overview
 
+Backtest quotes retain the stored `last_bid_time` and `last_ask_time` as
+`Quote.bid_time` and `Quote.ask_time`. Pandas and Polars data objects pass those
+columns through; ThetaData cached, snapshot-only, and daily paths use the same
+timestamp normalization. This preserves stale timestamps and their original
+timezone semantics rather than replacing them with the simulation clock.
+Absent, invalid, or numeric timestamps without an explicit unit remain `None`.
+Missing quote sides carry their source times only with their forward-filled
+values. A fresh side without a source time remains unknown, including when
+that fresh value is later carried across missing rows.
+`Quote.quote_time` is not inferred from separate bid/ask events. Parquet-backed
+and adapter regressions live in `tests/test_backtest_quote_source_times.py`.
+
+Intraday bar-completion checks consume nanosecond timestamps. `DataPolars`
+normalizes its native nanosecond, microsecond, or millisecond index before the
+shared state calculation used by history, last-price, and quote reads. A bar
+becomes visible when its full interval has elapsed, including across session
+gaps; a forming bar's close must not become its current price.
+Cadence inference excludes overnight date boundaries; sparse samples with no
+intraday spacing use the nominal minute or hour interval. Regression
+coverage exercises each Polars resolution alongside the pandas path in
+`tests/test_data_get_bars_day_includes_latest_completed_bar.py`.
+
 Technical indicator calculations restrict input to strategy-time history before
 computing, rather than trimming a result calculated over future bars. See
 [indicator temporal safety](indicator-temporal-safety.md) for the regression,

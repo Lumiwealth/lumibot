@@ -57,3 +57,24 @@ def test_submission_exit_later_broker_transition_and_repeated_restart(tmp_path, 
         assert orders[0]["status"] == later_status
         assert orders[0]["quantity"] == 3
         assert orders[0]["strategy"] == first_orders[0]["strategy"]
+
+
+def test_scheduled_native_smart_limit_finishes_before_process_and_cloud_exit(tmp_path):
+    worker = Path(__file__).parent / "fixtures/scheduled_smart_limit_process.py"
+    output = tmp_path / "completion.json"
+    completed = subprocess.run(
+        [sys.executable, str(worker), str(output)],
+        env={
+            "PATH": os.environ.get("PATH", ""), "LUMIBOT_DISABLE_DOTENV": "true",
+            "AWS_EC2_METADATA_DISABLED": "true", "IS_BACKTESTING": "true",
+            "LUMIBOT_SCHEDULED_EXECUTION": "true", "LUMIBOT_SCHEDULED_POST_ITERATION_SECONDS": "0",
+        },
+        capture_output=True, text=True, timeout=45,
+    )
+    assert completed.returncode == 0, completed.stderr[-6000:]
+    result = json.loads(output.read_text())
+    assert result["completed"] and result["closed"] and result["fill_seen"], result
+    assert result["submitted_types"] == ["limit"]
+    assert result["reprices"] == [100.5]
+    assert result["payload"]["orders"][0]["status"] == "fill"
+    assert result["payload"]["orders"][0]["avg_fill_price"] == 100.5

@@ -12,6 +12,7 @@ from lumibot.tools.lumibot_logger import get_logger
 
 from .asset import Asset
 from .dataline import Dataline
+from .data import _repair_quote_source_times
 
 logger = get_logger(__name__)
 
@@ -335,11 +336,16 @@ class DataPolars:
         else:
             df["volume"] = None
 
+        quote_source_columns = ([col for col in ("bid", "ask", "last_bid_time", "last_ask_time") if col in df]
+                                if "last_bid_time" in df or "last_ask_time" in df else [])
+        quote_before_fill = df[quote_source_columns].copy()
+
         # OPTIMIZATION: More efficient column selection and forward fill
         ohlc_cols = ["open", "high", "low"]
-        non_ohlc_cols = [col for col in df.columns if col not in ohlc_cols]
+        non_ohlc_cols = [col for col in df.columns if col not in ohlc_cols and col not in {"last_bid_time", "last_ask_time"}]
         if non_ohlc_cols:
             df[non_ohlc_cols] = df[non_ohlc_cols].ffill()
+        _repair_quote_source_times(df, quote_before_fill)
 
         # If any of close, open, high, low columns are missing, add them with NaN.
         for col in ["close", "open", "high", "low"]:
@@ -468,7 +474,8 @@ class DataPolars:
         from lumibot.entities.data import _intraday_bar_state
 
         try:
-            index = pd.DatetimeIndex(self.iter_index.index)
+            # Polars preserves ns/us/ms resolution; the shared state helper compares nanoseconds.
+            index = pd.DatetimeIndex(self.iter_index.index).as_unit("ns")
         except Exception:
             return None
         return _intraday_bar_state(
@@ -516,6 +523,8 @@ class DataPolars:
             "ask_size": ("ask_size", 0),
             "ask_condition": ("ask_condition", 0),
             "ask_exchange": ("ask_exchange", 0),
+            "last_bid_time": ("last_bid_time", None),
+            "last_ask_time": ("last_ask_time", None),
         }
 
         missing_quote_cols = [
@@ -584,16 +593,8 @@ class DataPolars:
         iter_count = self.get_iter_count(dt)
         visible_end = iter_count
         if self.timestep != "day" and timeshift >= 0:
-            from lumibot.entities.data import _intraday_bar_closed_at
-
-            try:
-                index = pd.DatetimeIndex(self.iter_index.index)
-                if _intraday_bar_closed_at(
-                    index.asi8, iter_count, dt, timestep=self.timestep, index_tz=index.tz, cache_owner=self
-                ):
-                    visible_end = iter_count + 1
-            except Exception:
-                pass
+            if self._intraday_state_at(iter_count, dt) == "closed":
+                visible_end = iter_count + 1
         end_row = visible_end - timeshift
         start_row = end_row - length
 

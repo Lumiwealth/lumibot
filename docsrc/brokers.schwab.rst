@@ -153,6 +153,12 @@ Do not treat ``None`` as zero.
 Fast cancellation and request budgets
 -------------------------------------
 
+For rejected or expired orders, the strategy's error callback receives the
+original Schwab status and its rejection description when the broker supplies
+one. If no description is available, the error reports the status alone;
+LumiBot does not infer a rejection reason. Repeated terminal snapshots do not
+produce duplicate error callbacks.
+
 Separate three measurements when implementing a cancel-after deadline:
 
 * the local time at which the strategy dispatches ``cancel_order``;

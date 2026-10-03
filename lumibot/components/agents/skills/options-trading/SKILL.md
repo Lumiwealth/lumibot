@@ -30,7 +30,13 @@ submitting an option order.
    to decline. Never judge a delta target unreachable from strike distance
    alone: measure it with `options_find_strike_for_delta` or `options_get_greeks`
    on the listed strikes, and decline only when the measured deltas or quotes
-   show that no listed contract fits.
+   show that no listed contract fits. Missing Greeks or quotes for one listed
+   expiration do not establish that all expirations lack data. Check other
+   listed expirations that satisfy the user's constraints before declining for
+   unavailable data. Re-select and verify every leg for the chosen structure.
+   Keep one expiration when the structure requires it. Calendar legs may use
+   distinct listed expirations only when the user or active rules allow them.
+   Never relax the user's limits to find a trade.
 5. Verify every selected contract individually. Candidate-selection helpers narrow
    the search but do not prove the exact contract's Greeks or quote quality.
 6. Evaluate every leg. For every multi-leg order, explicitly call

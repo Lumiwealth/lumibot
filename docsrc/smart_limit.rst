@@ -63,3 +63,25 @@ SMART_LIMIT supports multi-leg orders as a package (net bid/ask/mid). In backtes
 the package fills atomically at the net midpoint plus slippage. For multi-leg SMART_LIMIT
 orders, build a parent Order with ``order_class=Order.OrderClass.MULTILEG`` and provide
 the child leg orders on ``child_orders``.
+
+Scheduled and run-once execution
+-------------------------------
+
+``Trader.run_all(run_once=True)`` runs one trading iteration, then continues
+advancing active SmartLimit orders until they fill or their configured final
+hold ends and cancellation is confirmed by the broker. A short or zero
+``LUMIBOT_SCHEDULED_POST_ITERATION_SECONDS`` does not cut off that work.
+
+The completion drain also waits for in-flight broker submissions, pending
+cancellation/replacement transitions, and queued order callbacks. Work started
+by ``on_strategy_end`` finishes before the final cloud snapshot, variable backup,
+and broker disconnect. Ordinary resting limit/GTC, stop and bracket orders do
+not keep a run alive waiting for a fill.
+
+The runner allows at least 300 seconds for unresolved work and extends that
+budget for the longest observed SmartLimit ladder and final hold plus 300 seconds
+of broker-response grace. This is a bounded total drain, not an unlimited chain
+of callback-created orders. Timeout or explicit stop fails the run with visible
+``drain_failed`` or ``drain_interrupted`` timing instead of claiming completion.
+Arbitrary application-created background tasks are not tracked automatically,
+and a library cannot prevent a host from forcibly terminating its process.

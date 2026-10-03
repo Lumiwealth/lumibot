@@ -43,6 +43,8 @@ _DATA_QUOTE_FIELDS = {
     "ask_size": ("ask_size", 0),
     "ask_condition": ("ask_condition", 0),
     "ask_exchange": ("ask_exchange", 0),
+    "last_bid_time": ("last_bid_time", None),
+    "last_ask_time": ("last_ask_time", None),
 }
 
 # PERF: module-level sentinel used to avoid eager-evaluating fallbacks in `getattr()` hot paths.
@@ -94,7 +96,13 @@ def _intraday_bar_state(index_ns, i, dt, *, timestep, index_tz, cache_owner):
         spacing_ns = 0
         if n > 1:
             diffs = np.diff(np.asarray(index_ns, dtype="int64"))
-            positive = diffs[diffs > 0]
+            dates = pd.DatetimeIndex(index_ns, tz="UTC")
+            if index_tz is not None:
+                dates = dates.tz_convert(index_tz)
+            session_dates = dates.normalize().asi8
+            # Overnight/session-separated samples do not establish an intraday cadence.
+            intraday = (session_dates[1:] == session_dates[:-1]) | (diffs <= 3_600_000_000_000)
+            positive = diffs[(diffs > 0) & intraday]
             if positive.size:
                 # Most common spacing: robust to a few odd rows inside 5-minute data and to the
                 # gaps of a sparse 1-minute series.
@@ -117,6 +125,22 @@ def _intraday_bar_closed_at(index_ns, i, dt, *, timestep, index_tz, cache_owner)
     (release gate 2026-09-25). See `_intraday_bar_state` for the bar length rule.
     """
     return _intraday_bar_state(index_ns, i, dt, timestep=timestep, index_tz=index_tz, cache_owner=cache_owner) == "closed"
+
+
+def _repair_quote_source_times(frame, before_fill, segment_ids=None):
+    """Carry a timestamp only with its quote event, including an unknown-time event."""
+    for side in ("bid", "ask"):
+        column = f"last_{side}_time"
+        if column not in before_fill:
+            continue
+        if side not in before_fill:
+            frame[column] = pd.NaT
+            continue
+        observed = before_fill[side].notna()
+        event_ids = observed.cumsum()
+        groups = event_ids if segment_ids is None else [event_ids, segment_ids]
+        times = before_fill[column].where(observed).groupby(groups).ffill()
+        frame[column] = times.where(frame[side].notna())
 
 
 class Data:
@@ -509,6 +533,10 @@ class Data:
                         if clear_mask.any():
                             df.loc[clear_mask, col] = float("nan")
 
+        quote_source_columns = ([col for col in ("bid", "ask", "last_bid_time", "last_ask_time") if col in df]
+                                if "last_bid_time" in df or "last_ask_time" in df else [])
+        quote_before_fill = df[quote_source_columns].copy()
+
         # OPTIMIZATION: More efficient column selection and forward fill
         ohlc_cols = ["open", "high", "low"]
         # MODIFIED: Exclude bid/ask from standard ffill - handle them separately
@@ -520,6 +548,7 @@ class Data:
             if col not in ohlc_cols
             and col not in quote_cols_set
             and col not in corporate_action_cols
+            and col not in {"last_bid_time", "last_ask_time"}
         ]
         if non_ohlc_cols:
             df[non_ohlc_cols] = df[non_ohlc_cols].ffill()
@@ -531,6 +560,7 @@ class Data:
                 df[col] = df[col].fillna(0)
 
         # For quote columns, do segment-wise ffill (don't fill across session boundaries)
+        segment_ids = None
         if apply_quote_session_boundaries and quote_cols_present and isinstance(df.index, pd.DatetimeIndex):
             time_diff = df.index.to_series().diff()
             max_gap_minutes = 120
@@ -541,6 +571,8 @@ class Data:
             for col in quote_cols_present:
                 # Group by segment and forward-fill within each group only
                 df[col] = df.groupby(segment_ids)[col].ffill()
+
+        _repair_quote_source_times(df, quote_before_fill, segment_ids)
 
         # If any of close, open, high, low columns are missing, add them with NaN.
         for col in ["close", "open", "high", "low"]:

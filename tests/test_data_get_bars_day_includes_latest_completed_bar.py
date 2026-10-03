@@ -73,7 +73,10 @@ def _data(kind: str, frame: pd.DataFrame, timestep: str):
     from lumibot.entities.data_polars import DataPolars
 
     flat = frame.reset_index().rename(columns={frame.index.name or "index": "datetime"})
-    return DataPolars(asset=asset, df=pl.from_pandas(flat), timestep=timestep, quote=asset)
+    # Exercise native Polars timestamp resolutions: .asi8 preserves their unit.
+    unit = kind.removeprefix("polars_")
+    polars_frame = pl.from_pandas(flat).with_columns(pl.col("datetime").dt.cast_time_unit(unit))
+    return DataPolars(asset=asset, df=polars_frame, timestep=timestep, quote=asset)
 
 
 def _last_visible(data, at: str, length: int = 3) -> str:
@@ -81,7 +84,7 @@ def _last_visible(data, at: str, length: int = 3) -> str:
     return bars.index[-1].tz_convert(_NY).strftime("%m-%d %H:%M")
 
 
-@pytest.mark.parametrize("kind", ["pandas", "polars"])
+@pytest.mark.parametrize("kind", ["pandas", "polars_ns", "polars_us", "polars_ms"])
 @pytest.mark.parametrize(
     "at, expected",
     [
@@ -98,7 +101,7 @@ def test_minute_bar_is_visible_once_closed_even_without_a_later_bar(kind, at, ex
     assert _last_visible(_data(kind, frame, "minute"), at) == expected
 
 
-@pytest.mark.parametrize("kind", ["pandas", "polars"])
+@pytest.mark.parametrize("kind", ["pandas", "polars_ns", "polars_us", "polars_ms"])
 @pytest.mark.parametrize(
     "at, expected",
     [
@@ -112,7 +115,7 @@ def test_multi_minute_bars_stored_as_minute_are_never_visible_before_they_close(
     assert _last_visible(_data(kind, frame, "minute"), at) == expected
 
 
-@pytest.mark.parametrize("kind", ["pandas", "polars"])
+@pytest.mark.parametrize("kind", ["pandas", "polars_ns", "polars_us", "polars_ms"])
 @pytest.mark.parametrize(
     "at, expected",
     [
@@ -127,7 +130,28 @@ def test_hourly_bar_after_an_irregular_first_bar_is_not_visible_early(kind, at, 
     assert _last_visible(_data(kind, frame, "hour"), at) == expected
 
 
-@pytest.mark.parametrize("kind", ["pandas", "polars"])
+@pytest.mark.parametrize("kind", ["pandas", "polars_ns", "polars_us", "polars_ms"])
+def test_sparse_hourly_history_ignores_overnight_spacing(kind):
+    frame = _intraday_frame(["2026-09-15 09:00", "2026-09-16 09:00"])
+    frame["close"] = frame["open"] + 0.5
+    data = _data(kind, frame, "hour")
+    dt = _NY.localize(datetime.datetime(2026, 9, 16, 10, 0))
+
+    assert _last_visible(data, "2026-09-16 10:00", length=1) == "09-16 09:00"
+    assert data.get_last_price(dt) == 101.5
+
+
+@pytest.mark.parametrize("kind", ["pandas", "polars_ns", "polars_us", "polars_ms"])
+def test_intraday_spacing_across_midnight_still_protects_forming_bar(kind):
+    frame = _intraday_frame(["2026-09-15 23:55", "2026-09-16 00:00"])
+    frame["close"] = frame["open"] + 0.5
+    data = _data(kind, frame, "minute")
+    dt = _NY.localize(datetime.datetime(2026, 9, 16, 0, 2))
+
+    assert data.get_last_price(dt) == 101.0
+
+
+@pytest.mark.parametrize("kind", ["pandas", "polars_ns", "polars_us", "polars_ms"])
 @pytest.mark.parametrize(
     "at, expected_price",
     [
@@ -149,3 +173,32 @@ def test_last_price_and_quote_never_use_the_close_of_a_forming_bar(kind, at, exp
     quote = data.get_quote(dt)
     assert float(quote["close"]) == expected_price
     assert (float(quote["bid"]), float(quote["ask"])) == (expected_price, expected_price)
+
+
+@pytest.mark.parametrize("unit", ["ns", "us", "ms"])
+def test_polars_parquet_history_preserves_completed_lookback_across_gap(tmp_path, unit):
+    import polars as pl
+
+    from lumibot.entities.data_polars import DataPolars
+
+    completed = pd.date_range("2026-09-01", periods=205, freq="h", tz=_NY)
+    index = completed.append(pd.DatetimeIndex([completed[-1] + datetime.timedelta(hours=3)]))
+    prices = [100.0 + i for i in range(len(index))]
+    frame = pl.DataFrame({
+        "datetime": index,
+        "open": prices,
+        "high": prices,
+        "low": prices,
+        "close": prices,
+        "volume": [1] * len(index),
+    }).with_columns(pl.col("datetime").dt.cast_time_unit(unit))
+    path = tmp_path / "hourly.parquet"
+    frame.write_parquet(path)
+    data = DataPolars(Asset("SPY", asset_type="stock"), pl.read_parquet(path), timestep="hour")
+
+    bars = data.get_bars(completed[-1] + datetime.timedelta(hours=1), length=205, timestep="hour")
+
+    assert len(bars) == 205
+    assert bars.index[0] == completed[0]
+    assert bars.index[-1] == completed[-1]
+    assert list(bars["close"]) == prices[:205]

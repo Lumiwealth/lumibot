@@ -1974,11 +1974,16 @@ class Schwab(Broker):
             terminal_key = (identifier, str(observed_status))
             if terminal_key not in self._schwab_terminal_observations:
                 self._schwab_terminal_observations.add(terminal_key)
-                raw_status = getattr(observed_order, "_raw_order_status", None) or str(observed_status)
+                raw_status = getattr(observed_order, "raw_order_status", None) or str(observed_status)
+                raw_payload = getattr(observed_order, "raw_broker_payload", None)
+                description = raw_payload.get("statusDescription") if isinstance(raw_payload, dict) else None
+                message = f"Schwab order became terminal: {raw_status}"
+                if isinstance(description, str) and description.strip():
+                    message += f" ({description.strip()})"
                 self._process_trade_event(
                     stored_order,
                     self.ERROR_ORDER,
-                    error=LumibotBrokerAPIError(f"Schwab order became terminal: {raw_status}"),
+                    error=LumibotBrokerAPIError(message),
                 )
                 self._log_schwab_lifecycle_event(
                     "order.lifecycle.callback",

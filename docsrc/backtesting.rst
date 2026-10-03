@@ -52,6 +52,11 @@ Use Yahoo for the simplest free daily-stock example. Use ThetaData when a stock
 or option strategy needs intraday history, and use Pandas when you already own
 the data and can prepare it in LumiBot's input format.
 
+Select the provider with ``BACKTESTING_DATA_SOURCE`` or pass a data-source class
+in Python. **An environment setting takes precedence over the class in code.**
+See :ref:`Choose your backtest data <backtest-data-source-selection>` for examples,
+defaults, and help with an unexpected provider.
+
 Managed Backtesting on BotSpot
 ==============================
 

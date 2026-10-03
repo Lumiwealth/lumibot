@@ -48,6 +48,12 @@ Once installed, you can use an IDE like **Visual Studio Code (VS Code)** or **Py
 Choosing a Data Source
 -----------------------------------
 
+Historical data is separate from the broker you use for paper or live trading.
+Set ``BACKTESTING_DATA_SOURCE`` to select a historical provider without changing
+your strategy. **This setting overrides a data-source class passed in Python.**
+See :ref:`Choose your backtest data <backtest-data-source-selection>` for the
+selection rules and setup examples.
+
 LumiBot supports several data sources for backtesting, each suited for different asset types and backtesting needs. Here's an overview of the available sources:
 
 **1. ThetaData (Recommended)**
@@ -174,7 +180,7 @@ If they are set, LumiBot will automatically pick them up. For example:
      - End date in the format "YYYY-MM-DD".
      - 2025-05-01
    * - BACKTESTING_DATA_SOURCE
-     - Backtesting data source. This value is case-insensitive and takes precedence even when your code passes a ``datasource_class`` argument. Set it to ``none`` (or leave it unset) if you prefer to control the data source from code. Valid options: **Polygon**, **ThetaData**, **Yahoo**, **Alpaca**, **CCXT**, **DataBento**, **Polymarket** (defaults to ThetaData).
+     - Selects the historical provider and overrides the class in code. Use ``none`` to keep an explicitly supplied class. See :ref:`supported values and defaults <backtest-data-source-selection>`.
      - Polygon
 
 Below is a short example showing how you might rely *entirely* on environment variables and **omit** any explicit date or data source definitions in code. Set ``BACKTESTING_DATA_SOURCE=Polygon`` in your environment to use Polygon.io (API key still required):

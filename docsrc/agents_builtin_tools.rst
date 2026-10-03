@@ -116,7 +116,9 @@ or active rules state, and to measure deltas with the Greek tools instead of
 declining from strike distance alone. If one listed expiration has unavailable
 Greeks or quotes, the agent checks other listed expirations allowed by those
 constraints before declaring that data is unavailable. All legs are selected
-and verified within one expiration; this does not relax the user's limits.
+and verified for the chosen structure. Use one expiration when the structure
+requires it. Calendar legs may use distinct listed expirations only when the
+user or active rules allow them, without relaxing those limits.
 
 Opening an option position (``buy_to_open``, ``sell_to_open``, or a plain buy or
 sell that does not reduce a held contract) also requires a successful

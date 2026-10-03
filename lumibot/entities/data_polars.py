@@ -12,6 +12,7 @@ from lumibot.tools.lumibot_logger import get_logger
 
 from .asset import Asset
 from .dataline import Dataline
+from .data import _repair_quote_source_times
 
 logger = get_logger(__name__)
 
@@ -335,11 +336,16 @@ class DataPolars:
         else:
             df["volume"] = None
 
+        quote_source_columns = ([col for col in ("bid", "ask", "last_bid_time", "last_ask_time") if col in df]
+                                if "last_bid_time" in df or "last_ask_time" in df else [])
+        quote_before_fill = df[quote_source_columns].copy()
+
         # OPTIMIZATION: More efficient column selection and forward fill
         ohlc_cols = ["open", "high", "low"]
-        non_ohlc_cols = [col for col in df.columns if col not in ohlc_cols]
+        non_ohlc_cols = [col for col in df.columns if col not in ohlc_cols and col not in {"last_bid_time", "last_ask_time"}]
         if non_ohlc_cols:
             df[non_ohlc_cols] = df[non_ohlc_cols].ffill()
+        _repair_quote_source_times(df, quote_before_fill)
 
         # If any of close, open, high, low columns are missing, add them with NaN.
         for col in ["close", "open", "high", "low"]:

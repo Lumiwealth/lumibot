@@ -8,9 +8,9 @@ Audience: Strategy authors and runtime operators
 ## Overview
 
 `Trader.run_all(run_once=True)` executes one trading iteration, then finishes
-runtime-owned work before calling `on_strategy_end`, publishing its final cloud
-snapshot, backing up variables, and closing the broker connection. Work started
-by the end hook is drained before publication and disconnect as well.
+runtime-owned work before calling `on_strategy_end`. Work started by the end
+hook is drained next. The runner then publishes its final cloud snapshot,
+closes the broker connection, and backs up variables.
 
 The drain runs without requiring `LUMIBOT_SCHEDULED_EXECUTION` or a nonzero
 `LUMIBOT_SCHEDULED_POST_ITERATION_SECONDS`. The latter still requests a minimum

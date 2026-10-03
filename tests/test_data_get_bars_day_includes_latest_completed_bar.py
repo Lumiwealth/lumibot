@@ -131,6 +131,27 @@ def test_hourly_bar_after_an_irregular_first_bar_is_not_visible_early(kind, at, 
 
 
 @pytest.mark.parametrize("kind", ["pandas", "polars_ns", "polars_us", "polars_ms"])
+def test_sparse_hourly_history_ignores_overnight_spacing(kind):
+    frame = _intraday_frame(["2026-09-15 09:00", "2026-09-16 09:00"])
+    frame["close"] = frame["open"] + 0.5
+    data = _data(kind, frame, "hour")
+    dt = _NY.localize(datetime.datetime(2026, 9, 16, 10, 0))
+
+    assert _last_visible(data, "2026-09-16 10:00", length=1) == "09-16 09:00"
+    assert data.get_last_price(dt) == 101.5
+
+
+@pytest.mark.parametrize("kind", ["pandas", "polars_ns", "polars_us", "polars_ms"])
+def test_intraday_spacing_across_midnight_still_protects_forming_bar(kind):
+    frame = _intraday_frame(["2026-09-15 23:55", "2026-09-16 00:00"])
+    frame["close"] = frame["open"] + 0.5
+    data = _data(kind, frame, "minute")
+    dt = _NY.localize(datetime.datetime(2026, 9, 16, 0, 2))
+
+    assert data.get_last_price(dt) == 101.0
+
+
+@pytest.mark.parametrize("kind", ["pandas", "polars_ns", "polars_us", "polars_ms"])
 @pytest.mark.parametrize(
     "at, expected_price",
     [

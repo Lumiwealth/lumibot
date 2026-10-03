@@ -33,8 +33,10 @@ submitting an option order.
    show that no listed contract fits. Missing Greeks or quotes for one listed
    expiration do not establish that all expirations lack data. Check other
    listed expirations that satisfy the user's constraints before declining for
-   unavailable data. Re-select and verify every leg within one expiration;
-   never mix expirations or relax the user's limits to find a trade.
+   unavailable data. Re-select and verify every leg for the chosen structure.
+   Keep one expiration when the structure requires it. Calendar legs may use
+   distinct listed expirations only when the user or active rules allow them.
+   Never relax the user's limits to find a trade.
 5. Verify every selected contract individually. Candidate-selection helpers narrow
    the search but do not prove the exact contract's Greeks or quote quality.
 6. Evaluate every leg. For every multi-leg order, explicitly call

@@ -84,6 +84,40 @@ def test_missing_source_times_stay_missing(engine, missing):
     assert quote.bid == 99.5
 
 
+@pytest.mark.parametrize("engine", ["pandas", "polars"])
+@pytest.mark.parametrize("side", ["bid", "ask"])
+@pytest.mark.parametrize("following_gap", [False, True])
+def test_fresh_side_without_source_time_does_not_inherit_old_timestamp(engine, side, following_gap):
+    frame = _history()
+    frame.loc[frame.index[1], side] += 1
+    frame.loc[frame.index[1], f"last_{side}_time"] = pd.NaT
+    if following_gap:
+        frame.loc[frame.index[2], side] = float("nan")
+        frame.loc[frame.index[2], f"last_{side}_time"] = pd.NaT
+    source, asset = _source(engine, frame)
+    if following_gap:
+        source._datetime = frame.index[2]
+
+    quote = source.get_quote(asset)
+
+    assert getattr(quote, side) == frame.iloc[1][side]
+    assert getattr(quote, f"{side}_time") is None
+
+
+@pytest.mark.parametrize("engine", ["pandas", "polars"])
+@pytest.mark.parametrize("side", ["bid", "ask"])
+def test_missing_side_carries_its_source_time_with_its_value(engine, side):
+    frame = _history()
+    frame.loc[frame.index[1], side] = float("nan")
+    frame.loc[frame.index[1], f"last_{side}_time"] = pd.NaT
+    source, asset = _source(engine, frame)
+
+    quote = source.get_quote(asset)
+
+    assert getattr(quote, side) == frame.iloc[0][side]
+    assert getattr(quote, f"{side}_time") == frame.iloc[0][f"last_{side}_time"]
+
+
 @pytest.mark.parametrize("path", ["cached", "snapshot", "daily"])
 def test_thetadata_quote_preserves_recorded_side_times(monkeypatch, path):
     from lumibot.backtesting.thetadata_backtesting_pandas import ThetaDataBacktestingPandas

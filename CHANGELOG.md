@@ -2,6 +2,8 @@
 
 ## 4.6.4 - 2026-10-02
 
+Deploy marker: `d9180bb0c2f81947bcc70c9aa40bdc1d2dc14019`
+
 ### Fixed
 - Options agents inspect other listed expirations within the user's constraints when one expiration has unavailable Greeks or quotes, instead of treating one missing expiration as evidence that the whole chain is unusable. Every leg still requires verification within the same expiration.
 - Schwab terminal-order callbacks preserve the broker's raw status and supplied rejection description instead of reporting only the normalized `error` status. Repeated observations still dispatch one error callback.

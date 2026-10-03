@@ -44,6 +44,12 @@ import. No customer account or external broker writes are needed.
 
 ## Contract
 
+The `options_expiration_with_data` case lists an unpriced nearer expiration and
+a later expiration with complete contract data. Options agents must inspect
+other listed expirations within the user's constraints rather than treating
+one unavailable expiration as evidence that the entire chain is unusable.
+They still verify every leg and price one atomic package at one expiration.
+
 - Every file under `agent_eval_cases/` calls the real LumiBot agent runtime.
 - Deterministic checks cover exact tool contracts, order count, ordering, IDs,
   safety boundaries, and artifact availability.

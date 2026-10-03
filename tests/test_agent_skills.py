@@ -168,7 +168,7 @@ def test_stock_skill_prices_limits_from_current_price_and_loads_rule_bars_with_h
     # The limit-price rule is for a new order. It made agents reprice an
     # already-pending exit (release eval stock_pending_exit_no_duplicate).
     assert "This is for a new order; it is never a reason to modify an order that is already pending" in instructions
-    assert "Do not cancel and replace a pending order, or modify it, to make it fill sooner" in instructions
+    assert "Modify or cancel and replace it only when the user's rules explicitly require changing an existing order" in instructions
     assert "Load the rule-interval bars with `market_historical_prices`" in intraday
     assert "pass `table_name` to query them with `duckdb_query`" in intraday
 
@@ -214,7 +214,7 @@ def test_stock_skill_leaves_a_pending_exit_in_place():
     stock_skill = next(skill for skill in load_builtin_skills() if skill.name == "stock-trading")
     instructions = " ".join(stock_skill.instructions.split())
 
-    assert "Do not cancel and replace a pending order, or modify it, to make it fill sooner" in instructions
+    assert "Modify or cancel and replace it only when the user's rules explicitly require changing an existing order" in instructions
     assert "Let it resolve or cancel it deliberately before replacing it" not in instructions
 
 

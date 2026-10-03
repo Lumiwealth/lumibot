@@ -120,6 +120,13 @@ and verified for the chosen structure. Use one expiration when the structure
 requires it. Calendar legs may use distinct listed expirations only when the
 user or active rules allow them, without relaxing those limits.
 
+For stocks, a pending exit already owns that position change. A due exit
+condition or a limit away from the current market does not authorize replacing
+it. The agent changes an existing order only when the user's rules explicitly
+require that change.
+Lookback rules use the requested number of the latest completed bars. The
+reported indicator and date window must match the selected tool result.
+
 Opening an option position (``buy_to_open``, ``sell_to_open``, or a plain buy or
 sell that does not reduce a held contract) also requires a successful
 ``options_get_chain`` for the underlying in the same run. Without it the order

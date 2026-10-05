@@ -39,6 +39,43 @@
     window.posthog.capture(name, Object.assign(baseProperties(), properties || {}));
   }
 
+  function isBrowserExtensionException(event) {
+    if (!event || event.event !== "$exception") {
+      return false;
+    }
+
+    var properties = event.properties || {};
+    var exceptions = properties.$exception_list || [];
+    var extensionPath = /^(webkit-masked-url|chrome-extension|moz-extension|safari-web-extension|safari-extension):/i;
+    var extensionMessage = /\b(?:chrome\.runtime|browser\.runtime|runtime\.(?:sendMessage|connect))\b|\btabs:outgoing\b|\bNo Listener: tabs:|\bExtension context invalidated\b|\bReceiving end does not exist\b|\b(?:chrome-extension|moz-extension|safari-web-extension|safari-extension|webkit-masked-url):\/\//i;
+    var hasNamedFrame = false;
+    var hasExtensionMessage = typeof properties.$exception_message === "string" &&
+      extensionMessage.test(properties.$exception_message);
+
+    for (var i = 0; i < exceptions.length; i++) {
+      var exception = exceptions[i] || {};
+      if (typeof exception.value === "string" && extensionMessage.test(exception.value)) {
+        hasExtensionMessage = true;
+      }
+      var frames = (exception.stacktrace && exception.stacktrace.frames) || [];
+      for (var j = 0; j < frames.length; j++) {
+        var frame = frames[j] || {};
+        var paths = [frame.filename, frame.abs_path, frame.url];
+        for (var k = 0; k < paths.length; k++) {
+          // Empty paths provide no evidence; any non-extension path keeps the event.
+          if (typeof paths[k] === "string" && paths[k]) {
+            hasNamedFrame = true;
+            if (!extensionPath.test(paths[k])) {
+              return false;
+            }
+          }
+        }
+      }
+    }
+
+    return hasNamedFrame || hasExtensionMessage;
+  }
+
   window.__lumibotDocsPostHogLoaded = window.__lumibotDocsPostHogLoaded || false;
   if (window.__lumibotDocsPostHogLoaded) {
     return;
@@ -60,6 +97,13 @@
       capture_pageleave: true,
       autocapture: true,
       persistence: "localStorage+cookie",
+      before_send: function (event) {
+        try {
+          return isBrowserExtensionException(event) ? null : event;
+        } catch (error) {
+          return event;
+        }
+      },
       loaded: function (posthog) {
         posthog.register({
           site: "lumibot_docs",

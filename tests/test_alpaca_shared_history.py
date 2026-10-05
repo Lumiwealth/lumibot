@@ -77,6 +77,9 @@ def history(tmp_path, monkeypatch):
             adjustment=kwargs.pop("adjustment", Adjustment.ALL),
             feed=kwargs.pop("feed", None),
             limit=kwargs.pop("limit", None),
+            currency=kwargs.pop("currency", None),
+            asof=kwargs.pop("asof", None),
+            sort=kwargs.pop("sort", None),
         )
         return fetch_alpaca_bars(client, request, read, now=kwargs.pop("now", "2025-06-10"), **kwargs).df
 
@@ -123,6 +126,8 @@ def test_add_symbol_downloads_only_new_symbol_and_preserves_existing(history):
         {"adjustment": Adjustment.RAW},
         {"feed": DataFeed.IEX},
         {"feed": DataFeed.SIP},
+        {"currency": "USD"},
+        {"asof": "2025-01-01"},
     ],
 )
 def test_data_contracts_cannot_share_bars(history, change):
@@ -154,6 +159,59 @@ def test_current_month_tail_is_read_again(history):
     fetch("2025-05-01", "2025-05-18", now="2025-05-20")
     assert len(calls) == 2
     assert calls[0].end == pd.Timestamp("2025-05-18", tz="UTC")
+
+
+def test_minute_overlap_preserves_utc_sessions_through_daylight_saving(tmp_path, monkeypatch):
+    from lumibot import constants
+
+    monkeypatch.setattr(constants, "LUMIBOT_CACHE_FOLDER", str(tmp_path))
+    # These are actual session-shaped observations. The UTC open changes when
+    # New York enters DST; gaps overnight/weekends must stay gaps.
+    sessions = pd.bdate_range("2025-01-02", "2025-04-30")
+    timestamps = (
+        pd.DatetimeIndex(
+            [
+                stamp
+                for day in sessions
+                for stamp in pd.date_range(day + pd.Timedelta(hours=9, minutes=30), periods=390, freq="min")
+            ]
+        )
+        .tz_localize("America/New_York")
+        .tz_convert("UTC")
+    )
+    values = pd.DataFrame(
+        {"open": 100.0, "high": 101.0, "low": 99.0, "close": 100.0, "volume": 500.0}, index=timestamps
+    )
+    bars = pd.concat([values], keys=["TSLA"], names=["symbol", "timestamp"])
+    client = SimpleNamespace(_api_key="synthetic-minute-key", _oauth_token=None)
+    calls = []
+
+    def provider(request):
+        calls.append(request)
+        times = bars.index.get_level_values("timestamp")
+        return SimpleNamespace(
+            df=bars[
+                (times >= pd.to_datetime(request.start, utc=True)) & (times <= pd.to_datetime(request.end, utc=True))
+            ]
+        )
+
+    def fetch(start, end):
+        request = StockBarsRequest(symbol_or_symbols=["TSLA"], start=start, end=end, timeframe=TimeFrame.Minute)
+        return fetch_alpaca_bars(client, request, provider, now="2025-06-10").df
+
+    original = fetch("2025-01-01", "2025-03-31T23:59:59Z")
+    overlapping = fetch("2025-02-01", "2025-04-30T23:59:59Z")
+    repeated = fetch("2025-02-01", "2025-04-30T23:59:59Z")
+    assert len(calls) == 2
+    assert calls[1].start == datetime(2025, 4, 1, tzinfo=timezone.utc)
+    pd.testing.assert_frame_equal(overlapping, repeated)
+    common = original.index.intersection(overlapping.index)
+    pd.testing.assert_frame_equal(original.loc[common], overlapping.loc[common])
+    assert len(common) > 15000
+    assert pd.Timestamp("2025-03-07T14:30:00Z") in overlapping.index.get_level_values("timestamp")
+    assert pd.Timestamp("2025-03-10T13:30:00Z") in overlapping.index.get_level_values("timestamp")
+    assert not overlapping.index.has_duplicates
+    assert len(overlapping) == len(values.loc["2025-02-01":"2025-04-30"])
 
 
 def test_corrupt_partition_is_fetched_again(history):

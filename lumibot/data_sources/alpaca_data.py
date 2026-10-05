@@ -21,6 +21,12 @@ if TYPE_CHECKING:
     from lumibot.entities import Bars, Quote
 
 
+def _shared_alpaca_bars(client, request, method):
+    from lumibot.tools.alpaca_history import fetch_alpaca_bars
+
+    return fetch_alpaca_bars(client, request, method)
+
+
 def _is_new_york_timezone(tzinfo) -> bool:
     return (getattr(tzinfo, "zone", None) or getattr(tzinfo, "key", None) or str(tzinfo)) == "America/New_York"
 
@@ -870,7 +876,7 @@ class AlpacaData(DataSource):
                     adjustment=adjustment,
                 )
                 try:
-                    barset = client.get_stock_bars(params)
+                    barset = _shared_alpaca_bars(client, params, client.get_stock_bars)
                     df_multi = getattr(barset, 'df', None)
                     if df_multi is None:
                         continue
@@ -918,7 +924,7 @@ class AlpacaData(DataSource):
                     end=end_dt,
                 )
                 try:
-                    barset = client.get_option_bars(params)
+                    barset = _shared_alpaca_bars(client, params, client.get_option_bars)
                     df_multi = getattr(barset, 'df', None)
                     if df_multi is None:
                         continue
@@ -972,7 +978,7 @@ class AlpacaData(DataSource):
                     end=end_dt,
                 )
                 try:
-                    barset = client.get_crypto_bars(params)
+                    barset = _shared_alpaca_bars(client, params, client.get_crypto_bars)
                     df_multi = getattr(barset, 'df', None)
                     if df_multi is None:
                         continue
@@ -1108,7 +1114,7 @@ class AlpacaData(DataSource):
                     start=start_dt,
                     end=end_dt,
                 )
-                barset = client.get_crypto_bars(params)
+                barset = _shared_alpaca_bars(client, params, client.get_crypto_bars)
 
             elif asset.asset_type == Asset.AssetType.OPTION:
                 strike_formatted = f"{asset.strike:08.3f}".replace('.', '').rjust(8, '0')
@@ -1123,7 +1129,7 @@ class AlpacaData(DataSource):
                     start=start_dt,
                     end=end_dt,
                 )
-                barset = client.get_option_bars(params)
+                barset = _shared_alpaca_bars(client, params, client.get_option_bars)
 
             else:  # Stock/ETF
                 symbol = asset.symbol
@@ -1137,7 +1143,7 @@ class AlpacaData(DataSource):
                     end=end_dt,
                     adjustment=Adjustment.ALL if self._auto_adjust else Adjustment.RAW
                 )
-                barset = client.get_stock_bars(params)
+                barset = _shared_alpaca_bars(client, params, client.get_stock_bars)
 
             df = barset.df
 

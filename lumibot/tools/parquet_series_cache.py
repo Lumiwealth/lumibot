@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import logging
+import os
+import tempfile
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Callable, Dict, Optional
@@ -81,7 +83,16 @@ class ParquetSeriesCache:
         df_to_save = df.copy()
         if not isinstance(df_to_save.index, pd.DatetimeIndex):
             raise ValueError("ParquetSeriesCache frames must be indexed by datetime")
-        df_to_save.to_parquet(self.path)
+        # Publish complete bytes atomically. Interrupted and concurrent writers
+        # must never expose a truncated partition to another reader.
+        fd, name = tempfile.mkstemp(prefix=self.path.name + ".", suffix=".tmp", dir=self.path.parent)
+        os.close(fd)
+        temporary = Path(name)
+        try:
+            df_to_save.to_parquet(temporary)
+            temporary.replace(self.path)
+        finally:
+            temporary.unlink(missing_ok=True)
         cache_manager = get_backtest_cache()
         if cache_manager is None:
             return

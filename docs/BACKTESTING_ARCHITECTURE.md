@@ -960,3 +960,29 @@ aws route53 list-resource-record-sets --hosted-zone-id <ZONEID>
 - `docsrc/` = Sphinx source for the public documentation site
 - `generated-docs/` = local build output from `docsrc/` (gitignored)
 - GitHub Pages should be built + deployed by GitHub Actions on pushes to `dev`
+
+### Shared Alpaca historical bars
+
+Live Alpaca reads and AlpacaBacktesting use `tools/alpaca_history.py` before any
+simulation reindexing. Raw UTC OHLCV observations are stored as Parquet through
+`ParquetSeriesCache` and the existing `BacktestCacheManager`, under
+`alpaca/bars/<request-identity>/<symbol-identity>/<YYYY-MM>.parquet`. The manager
+continues to own the S3 bucket, environment prefix, cache version, and credentials.
+Backtest CSV files remain derived local simulation data; charts never read those
+filled rows.
+
+Only complete calendar-month provider requests older than one day are persisted.
+A second overlapping request downloads only missing partitions. Sparse provider
+bars remain sparse. Explicit limits/sort orders and requests without a known
+credential scope use the provider directly. Feed, adjustment, currency, cadence,
+asset class, as-of symbol mapping and credential scope are part of identity. No
+credentials are stored in paths or metadata. Historical partitions expire after
+24 hours so corporate-action changes and provider corrections can be refreshed;
+current months always read the provider. Explicit backtest refresh bypasses reuse.
+
+Partition metadata records the original provider-fetch time and complete request
+coverage. Invalid cache data triggers a real provider read. Invalid provider
+OHLCV raises an error rather than fabricating prices. Local publication is atomic.
+Each concurrent writer publishes a complete month, never a partial window.
+`historyCache` dataframe attributes expose lookup, provider, and write timing
+separately from cache hits and original fetch time.

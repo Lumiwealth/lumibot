@@ -1,0 +1,27 @@
+{
+  "backtestId": "62aa21ea-7621-439d-a566-a3822956dbe2",
+  "revisionId": "8fba65cf-da7f-46ad-8fc0-7983fb41c654",
+  "status": "failed",
+  "error": "Saved main.py line136 reads .median_200 on a numpy.float64 scalar",
+  "runtimeProvenance": {
+    "status": "confirmed",
+    "runtimeVersion": "4.6.4",
+    "observedVersions": [
+      "4.6.4"
+    ],
+    "source": "cloudwatch_bootstrap_package_metadata",
+    "evidence": [
+      {
+        "source": "cloudwatch_bootstrap_package_metadata",
+        "observedVersions": [
+          "4.6.4"
+        ]
+      }
+    ]
+  },
+  "indicatorModuleUnchangedBetween": [
+    "v4.6.3",
+    "v4.6.4"
+  ],
+  "savedStrategyModified": false
+}

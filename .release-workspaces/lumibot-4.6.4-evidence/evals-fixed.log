@@ -1,0 +1,80 @@
+2026-10-02 23:18:21,444 | INFO | LumiBot v4.6.4 starting
+[lumibot.agents] starting agent 'trader' (model='openai/gpt-6-luna', model_request_timeout=240s, run_timeout=600s).
+/Users/robertgrzesik/Development/lumibot/.claude/worktrees/codex-release-4.6.4/.venv/lib/python3.10/site-packages/google/adk/features/_feature_decorator.py:72: UserWarning: [EXPERIMENTAL] feature SKILL_TOOLSET is enabled.
+  check_feature_enabled()
+[lumibot.agents] starting agent 'trader' (model='openai/gpt-6-luna', model_request_timeout=240s, run_timeout=600s).
+[lumibot.agents] starting agent 'trader' (model='openai/gpt-6-luna', model_request_timeout=240s, run_timeout=600s).
+/Users/robertgrzesik/Development/lumibot/.claude/worktrees/codex-release-4.6.4/.venv/lib/python3.10/site-packages/google/adk/tools/function_tool.py:95: UserWarning: [EXPERIMENTAL] feature JSON_SCHEMA_FOR_FUNC_DECL is enabled.
+  build_function_declaration(
+[lumibot.agents] first ADK event for agent 'trader' (model='openai/gpt-6-luna') after 4327ms.
+[lumibot.agents] first ADK event for agent 'trader' (model='openai/gpt-6-luna') after 4496ms.
+[lumibot.agents] first ADK event for agent 'trader' (model='openai/gpt-6-luna') after 5272ms.
+[lumibot.agents] starting agent 'eval_judge' (model='openai/gpt-6-luna', model_request_timeout=180s, run_timeout=300s).
+[lumibot.agents] starting agent 'eval_judge' (model='openai/gpt-6-luna', model_request_timeout=180s, run_timeout=300s).
+[lumibot.agents] starting agent 'eval_judge' (model='openai/gpt-6-luna', model_request_timeout=180s, run_timeout=300s).
+[lumibot.agents] first ADK event for agent 'eval_judge' (model='openai/gpt-6-luna') after 4838ms.
+[lumibot.agents] first ADK event for agent 'eval_judge' (model='openai/gpt-6-luna') after 6539ms.
+[lumibot.agents] first ADK event for agent 'eval_judge' (model='openai/gpt-6-luna') after 4840ms.
+[lumibot.agents] starting agent 'trader' (model='openai/gpt-6-luna', model_request_timeout=240s, run_timeout=600s).
+[lumibot.agents] starting agent 'trader' (model='openai/gpt-6-luna', model_request_timeout=240s, run_timeout=600s).
+[lumibot.agents] first ADK event for agent 'trader' (model='openai/gpt-6-luna') after 2274ms.
+[lumibot.agents] first ADK event for agent 'trader' (model='openai/gpt-6-luna') after 2678ms.
+[lumibot.agents] starting agent 'eval_judge' (model='openai/gpt-6-luna', model_request_timeout=180s, run_timeout=300s).
+[lumibot.agents] starting agent 'eval_judge' (model='openai/gpt-6-luna', model_request_timeout=180s, run_timeout=300s).
+[lumibot.agents] first ADK event for agent 'eval_judge' (model='openai/gpt-6-luna') after 4936ms.
+[lumibot.agents] first ADK event for agent 'eval_judge' (model='openai/gpt-6-luna') after 6835ms.
+{
+  "case_count": 1,
+  "completed_repetitions": 5,
+  "cumulative_estimated_cost_usd": 0.036277,
+  "error_count": 0,
+  "fail_count": 0,
+  "fixture_external_writes": 5,
+  "fresh_case_count": 1,
+  "fresh_case_ids": [
+    "options_expiration_with_data"
+  ],
+  "freshness_state_path": "/Users/robertgrzesik/Development/lumibot/.claude/worktrees/codex-release-4.6.4/.ci/agent-evals/freshness.json",
+  "incremental_estimated_cost_usd": 0.036277,
+  "judge_model": "openai/gpt-6-luna",
+  "ledger_path": "/Users/robertgrzesik/Development/lumibot/.claude/worktrees/codex-release-4.6.4/artifacts/release-4.6.4/evals-fixed/ledger.jsonl",
+  "max_cost_usd": 1.5,
+  "missing_count": 0,
+  "model_call_budget": {
+    "committed_usd": 0.03627696,
+    "reserved_calls": 0,
+    "settled_calls": 61,
+    "usage": {
+      "cached_input_tokens": 1032446,
+      "input_tokens": 1185291,
+      "output_tokens": 15194,
+      "thinking_tokens": 6142
+    }
+  },
+  "model_call_ledger_path": "/Users/robertgrzesik/Development/lumibot/.claude/worktrees/codex-release-4.6.4/artifacts/release-4.6.4/evals-fixed/model_calls.jsonl",
+  "models": [
+    "openai/gpt-6-luna"
+  ],
+  "pass_count": 5,
+  "real_external_writes": 0,
+  "refreshed_case_ids": [
+    "options_expiration_with_data"
+  ],
+  "required_case_ids": [
+    "options_expiration_with_data"
+  ],
+  "resumed_count": 0,
+  "runtime_fingerprint": "2f0a724983a1cf4f57cc2fc58a79ead7e014a56ee4ebcfb8ff5cb9bcc3c16b28",
+  "scheduled_repetitions": 5,
+  "skipped_fresh_count": 0,
+  "timestamp": "2026-10-03T03:20:07.678499Z",
+  "usage": {
+    "cached_input_tokens": 1032446,
+    "input_tokens": 1185291,
+    "output_tokens": 15194,
+    "thinking_tokens": 6142,
+    "total_tokens": 1206627,
+    "uncached_input_tokens": 152845
+  },
+  "wall_time_seconds": 105.501
+}

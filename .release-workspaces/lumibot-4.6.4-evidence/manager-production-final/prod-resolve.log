@@ -1,0 +1,211 @@
+﻿2026-10-03T05:53:09.8645694Z Current runner version: '2.337.0'
+2026-10-03T05:53:09.8654223Z Runner name: 'blacksmith-2vcpu-ubuntu-2404-arm-Runner-980dade51b'
+2026-10-03T05:53:09.8655467Z Runner group name: 'blacksmith scale sets - blacksmith-2vcpu-ubuntu-2404-arm'
+2026-10-03T05:53:09.8657026Z Machine name: 'ip-172-31-74-117'
+2026-10-03T05:53:09.8659538Z ##[group]GITHUB_TOKEN Permissions
+2026-10-03T05:53:09.8663606Z Contents: read
+2026-10-03T05:53:09.8664176Z Metadata: read
+2026-10-03T05:53:09.8664694Z ##[endgroup]
+2026-10-03T05:53:09.8667353Z Secret source: Actions
+2026-10-03T05:53:09.8668238Z Cache mode: write
+2026-10-03T05:53:09.8669442Z Prepare workflow directory
+2026-10-03T05:53:09.9112469Z Prepare all required actions
+2026-10-03T05:53:09.9176371Z Getting action download info
+2026-10-03T05:53:11.2096032Z Download action repository 'actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5' (SHA:34e114876b0b11c390a56381ad16ebd13914f8d5)
+2026-10-03T05:53:11.8950874Z Download action repository 'aws-actions/configure-aws-credentials@7474bc4690e29a8392af63c5b98e7449536d5c3a' (SHA:7474bc4690e29a8392af63c5b98e7449536d5c3a)
+2026-10-03T05:53:12.7564673Z Setting BLACKSMITH_ACTIONS_RESULTS_URL to https://results-receiver.actions.githubusercontent.com/
+2026-10-03T05:53:12.7656368Z Complete job name: Resolve Exact Development Manifest
+2026-10-03T05:53:12.8448973Z A job started hook has been configured by the self-hosted runner administrator
+2026-10-03T05:53:12.8632293Z ##[group]Run '/setup.sh'
+2026-10-03T05:53:12.8661236Z shell: /usr/bin/bash --noprofile --norc -e -o pipefail {0}
+2026-10-03T05:53:12.8662905Z env:
+2026-10-03T05:53:12.8663777Z   BLACKSMITH_RUNNER_MESSAGE_WAIT_MS: 212
+2026-10-03T05:53:12.8664939Z   BLACKSMITH_RUNNER_ACQUIRE_JOB_MS: 1154
+2026-10-03T05:53:12.8666456Z   BLACKSMITH_CHECK_RUN_ID: 111141057406
+2026-10-03T05:53:12.8667849Z   BLACKSMITH_JOB_DISPLAY_NAME: Resolve Exact Development Manifest
+2026-10-03T05:53:12.8669300Z   GITHUB_ACTIONS_CACHE_MODE: write
+2026-10-03T05:53:12.8670330Z ##[endgroup]
+2026-10-03T05:53:12.9492922Z Logging daemon started (blacksmithd for logs)
+2026-10-03T05:53:12.9797415Z Results daemon started (blacksmithd for results)
+2026-10-03T05:53:13.0342342Z Background adoption and SSH setup started (PID: 3204)
+2026-10-03T05:53:13.0353857Z 
+2026-10-03T05:53:13.0399556Z ----------------------------------------
+2026-10-03T05:53:13.0428999Z View this job: https://app.blacksmith.sh/Lumiwealth/runs/37101252446/jobs/111141057406
+2026-10-03T05:53:13.0489395Z SSH Access (using your GitHub SSH key):
+2026-10-03T05:53:13.0512674Z   ssh -p 64001 runner@blacksmith-2vcpu-ubuntu-2404-arm-runner-980dade51b.vm.blacksmith.sh
+2026-10-03T05:53:13.0568785Z 
+2026-10-03T05:53:13.0617197Z No GitHub SSH key? Add one at:
+2026-10-03T05:53:13.0653219Z https://docs.github.com/en/authentication/connecting-to-github-with-ssh/adding-a-new-ssh-key-to-your-github-account
+2026-10-03T05:53:13.0655598Z 
+2026-10-03T05:53:13.0660405Z ----------------------------------------
+2026-10-03T05:53:13.0662172Z 
+2026-10-03T05:53:13.0663421Z VM ID: blacksmith-2vcpu-ubuntu-2404-arm-Runner-980dade51b
+2026-10-03T05:53:13.0665440Z Host: production-192.240.237.188-aarch64
+2026-10-03T05:53:13.0667511Z Host Agent PID: 3620022
+2026-10-03T05:53:13.0668604Z Host Agent Git SHA: e97f83469
+2026-10-03T05:53:13.0669771Z Host CPU Manufacturer: Ampere
+2026-10-03T05:53:13.0671673Z Blacksmith Host Generation: gen 2
+2026-10-03T05:53:13.0673066Z Petname: production-suited-thrush-00242032-arm
+2026-10-03T05:53:13.0674425Z Region: us-west
+2026-10-03T05:53:13.0675545Z Rootfs Version: ubuntu24-full-aarch64-110625
+2026-10-03T05:53:13.0676921Z OS Version: Ubuntu 24.04.3 LTS
+2026-10-03T05:53:13.0678203Z 
+2026-10-03T05:53:13.0678821Z Enabling Blacksmith transparent cache
+2026-10-03T05:53:13.1545500Z ##[group]Run actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+2026-10-03T05:53:13.1547835Z with:
+2026-10-03T05:53:13.1548739Z   fetch-depth: 2
+2026-10-03T05:53:13.1549649Z   persist-credentials: false
+2026-10-03T05:53:13.1550735Z   repository: Lumiwealth/bot_manager
+2026-10-03T05:53:13.1560420Z   token: ***
+2026-10-03T05:53:13.1562471Z   ssh-strict: true
+2026-10-03T05:53:13.1563369Z   ssh-user: git
+2026-10-03T05:53:13.1564177Z   clean: true
+2026-10-03T05:53:13.1565036Z   sparse-checkout-cone-mode: true
+2026-10-03T05:53:13.1566229Z   fetch-tags: false
+2026-10-03T05:53:13.1567203Z   show-progress: true
+2026-10-03T05:53:13.1568083Z   lfs: false
+2026-10-03T05:53:13.1568879Z   submodules: false
+2026-10-03T05:53:13.1570101Z   set-safe-directory: true
+2026-10-03T05:53:13.1571434Z env:
+2026-10-03T05:53:13.1572295Z   BLACKSMITH_RUNNER_MESSAGE_WAIT_MS: 212
+2026-10-03T05:53:13.1573419Z   BLACKSMITH_RUNNER_ACQUIRE_JOB_MS: 1154
+2026-10-03T05:53:13.1574680Z   GITHUB_REPO_NAME: Lumiwealth/bot_manager
+2026-10-03T05:53:13.1576421Z ##[endgroup]
+2026-10-03T05:53:13.4719630Z Syncing repository: Lumiwealth/bot_manager
+2026-10-03T05:53:13.4723407Z ##[group]Getting Git version info
+2026-10-03T05:53:13.4737892Z Working directory is '/home/runner/_work/bot_manager/bot_manager'
+2026-10-03T05:53:13.4741459Z [command]/usr/local/bin/git version
+2026-10-03T05:53:13.4989971Z git version 2.51.2
+2026-10-03T05:53:13.5011010Z ##[endgroup]
+2026-10-03T05:53:13.5028811Z Temporarily overriding HOME='/home/runner/_work/_temp/9cea82dd-cda4-4374-82f2-b727f06a6e05' before making global git config changes
+2026-10-03T05:53:13.5037120Z Adding repository directory to the temporary git global config as a safe directory
+2026-10-03T05:53:13.5039940Z [command]/usr/local/bin/git config --global --add safe.directory /home/runner/_work/bot_manager/bot_manager
+2026-10-03T05:53:13.5114656Z Deleting the contents of '/home/runner/_work/bot_manager/bot_manager'
+2026-10-03T05:53:13.5119966Z ##[group]Initializing the repository
+2026-10-03T05:53:13.5125669Z [command]/usr/local/bin/git init /home/runner/_work/bot_manager/bot_manager
+2026-10-03T05:53:13.5260944Z hint: Using 'master' as the name for the initial branch. This default branch name
+2026-10-03T05:53:13.5268666Z hint: is subject to change. To configure the initial branch name to use in all
+2026-10-03T05:53:13.5271948Z hint: of your new repositories, which will suppress this warning, call:
+2026-10-03T05:53:13.5273622Z hint:
+2026-10-03T05:53:13.5275212Z hint: 	git config --global init.defaultBranch <name>
+2026-10-03T05:53:13.5276530Z hint:
+2026-10-03T05:53:13.5278065Z hint: Names commonly chosen instead of 'master' are 'main', 'trunk' and
+2026-10-03T05:53:13.5279985Z hint: 'development'. The just-created branch can be renamed via this command:
+2026-10-03T05:53:13.5281987Z hint:
+2026-10-03T05:53:13.5282932Z hint: 	git branch -m <name>
+2026-10-03T05:53:13.5285292Z hint:
+2026-10-03T05:53:13.5287426Z hint: Disable this message with "git config set advice.defaultBranchName false"
+2026-10-03T05:53:13.5303706Z Initialized empty Git repository in /home/runner/_work/bot_manager/bot_manager/.git/
+2026-10-03T05:53:13.5309016Z [command]/usr/local/bin/git remote add origin https://github.com/Lumiwealth/bot_manager
+2026-10-03T05:53:13.5344439Z ##[endgroup]
+2026-10-03T05:53:13.5346570Z ##[group]Disabling automatic garbage collection
+2026-10-03T05:53:13.5348588Z [command]/usr/local/bin/git config --local gc.auto 0
+2026-10-03T05:53:13.5423715Z ##[endgroup]
+2026-10-03T05:53:13.5425270Z ##[group]Setting up auth
+2026-10-03T05:53:13.5429773Z [command]/usr/local/bin/git config --local --name-only --get-regexp core\.sshCommand
+2026-10-03T05:53:13.5513203Z [command]/usr/local/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :"
+2026-10-03T05:53:13.5936480Z [command]/usr/local/bin/git config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+2026-10-03T05:53:13.6009478Z [command]/usr/local/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :"
+2026-10-03T05:53:13.6351397Z [command]/usr/local/bin/git config --local --name-only --get-regexp ^includeIf\.gitdir:
+2026-10-03T05:53:13.6411582Z [command]/usr/local/bin/git submodule foreach --recursive git config --local --show-origin --name-only --get-regexp remote.origin.url
+2026-10-03T05:53:13.6791115Z [command]/usr/local/bin/git config --local http.https://github.com/.extraheader AUTHORIZATION: basic ***
+2026-10-03T05:53:13.6843102Z ##[endgroup]
+2026-10-03T05:53:13.6844944Z ##[group]Fetching the repository
+2026-10-03T05:53:13.6872894Z [command]/usr/local/bin/git -c protocol.version=2 fetch --no-tags --prune --no-recurse-submodules --depth=2 origin +13edd12075d7f95ea205323c2805439c3b944716:refs/remotes/origin/production
+2026-10-03T05:53:14.9713559Z From https://github.com/Lumiwealth/bot_manager
+2026-10-03T05:53:14.9716658Z  * [new ref]         13edd12075d7f95ea205323c2805439c3b944716 -> origin/production
+2026-10-03T05:53:14.9796722Z ##[endgroup]
+2026-10-03T05:53:14.9797473Z ##[group]Determining the checkout info
+2026-10-03T05:53:14.9798206Z ##[endgroup]
+2026-10-03T05:53:14.9805967Z [command]/usr/local/bin/git sparse-checkout disable
+2026-10-03T05:53:14.9904250Z [command]/usr/local/bin/git config --local --unset-all extensions.worktreeConfig
+2026-10-03T05:53:14.9977160Z ##[group]Checking out the ref
+2026-10-03T05:53:14.9980842Z [command]/usr/local/bin/git checkout --progress --force -B production refs/remotes/origin/production
+2026-10-03T05:53:15.0830262Z Switched to a new branch 'production'
+2026-10-03T05:53:15.0836944Z branch 'production' set up to track 'origin/production'.
+2026-10-03T05:53:15.0840587Z ##[endgroup]
+2026-10-03T05:53:15.0960090Z [command]/usr/local/bin/git log -1 --format=%H
+2026-10-03T05:53:15.1060313Z 13edd12075d7f95ea205323c2805439c3b944716
+2026-10-03T05:53:15.1064005Z ##[group]Removing auth
+2026-10-03T05:53:15.1064957Z [command]/usr/local/bin/git config --local --name-only --get-regexp core\.sshCommand
+2026-10-03T05:53:15.1138318Z [command]/usr/local/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :"
+2026-10-03T05:53:15.1457903Z [command]/usr/local/bin/git config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+2026-10-03T05:53:15.1518702Z http.https://github.com/.extraheader
+2026-10-03T05:53:15.1543288Z [command]/usr/local/bin/git config --local --unset-all http.https://github.com/.extraheader
+2026-10-03T05:53:15.1662324Z [command]/usr/local/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :"
+2026-10-03T05:53:15.2068230Z [command]/usr/local/bin/git config --local --name-only --get-regexp ^includeIf\.gitdir:
+2026-10-03T05:53:15.2143414Z [command]/usr/local/bin/git submodule foreach --recursive git config --local --show-origin --name-only --get-regexp remote.origin.url
+2026-10-03T05:53:15.2555802Z ##[endgroup]
+2026-10-03T05:53:15.2921097Z ##[group]Run aws-actions/configure-aws-credentials@7474bc4690e29a8392af63c5b98e7449536d5c3a
+2026-10-03T05:53:15.2921675Z with:
+2026-10-03T05:53:15.2922284Z   role-to-assume: ***
+2026-10-03T05:53:15.2922530Z   aws-region: us-east-1
+2026-10-03T05:53:15.2922843Z   role-session-name: GitHubActionsResolveExactDevManifest
+2026-10-03T05:53:15.2923255Z   audience: sts.amazonaws.com
+2026-10-03T05:53:15.2923593Z   output-env-credentials: true
+2026-10-03T05:53:15.2923853Z env:
+2026-10-03T05:53:15.2924080Z   BLACKSMITH_RUNNER_MESSAGE_WAIT_MS: 212
+2026-10-03T05:53:15.2924385Z   BLACKSMITH_RUNNER_ACQUIRE_JOB_MS: 1154
+2026-10-03T05:53:15.2924695Z   GITHUB_REPO_NAME: Lumiwealth/bot_manager
+2026-10-03T05:53:15.2924990Z ##[endgroup]
+2026-10-03T05:53:15.6347046Z Assuming role with OIDC
+2026-10-03T05:53:15.8480746Z Authenticated as assumedRoleId AROAWAA66HBGMB55GEAXA:GitHubActionsResolveExactDevManifest
+2026-10-03T05:53:15.9446712Z ##[group]Run set -euo pipefail
+2026-10-03T05:53:15.9447523Z [36;1mset -euo pipefail[0m
+2026-10-03T05:53:15.9447859Z [36;1mif [[ -n "$SOURCE_MANIFEST_INPUT" ]]; then[0m
+2026-10-03T05:53:15.9448288Z [36;1m  release_manifest_s3_uri="$SOURCE_MANIFEST_INPUT"[0m
+2026-10-03T05:53:15.9448645Z [36;1melse[0m
+2026-10-03T05:53:15.9449005Z [36;1m  read -r -a commit_line <<< "$(git rev-list --parents -n 1 "$GITHUB_SHA")"[0m
+2026-10-03T05:53:15.9449481Z [36;1m  if [[ "${#commit_line[@]}" -ne 3 ]]; then[0m
+2026-10-03T05:53:15.9450162Z [36;1m    echo "Production deployment requires a merge commit whose second parent is the exact qualified develop SHA." >&2[0m
+2026-10-03T05:53:15.9450755Z [36;1m    exit 1[0m
+2026-10-03T05:53:15.9450984Z [36;1m  fi[0m
+2026-10-03T05:53:15.9451233Z [36;1m  candidate_sha="${commit_line[2]}"[0m
+2026-10-03T05:53:15.9451789Z [36;1m  pointer_uri="s3://bot-manager-tf-state/dev/releases/by-git-sha/${candidate_sha}.json"[0m
+2026-10-03T05:53:15.9452527Z [36;1m  pointer_json="$(aws s3 cp "$pointer_uri" - --no-progress)"[0m
+2026-10-03T05:53:15.9453369Z [36;1m  jq -e --arg candidate_sha "$candidate_sha" '.version == 1 and .git_sha == $candidate_sha and (.source_manifest_sha256 | test("^[a-f0-9]{64}$"))' <<< "$pointer_json" >/dev/null[0m
+2026-10-03T05:53:15.9454270Z [36;1m  release_manifest_s3_uri="$(jq -r .release_manifest_s3_uri <<< "$pointer_json")"[0m
+2026-10-03T05:53:15.9454721Z [36;1mfi[0m
+2026-10-03T05:53:15.9455165Z [36;1m[[ "$release_manifest_s3_uri" == s3://bot-manager-tf-state/*/releases/*/release-manifest.json ]][0m
+2026-10-03T05:53:15.9455816Z [36;1mecho "release_manifest_s3_uri=$release_manifest_s3_uri" >> "$GITHUB_OUTPUT"[0m
+2026-10-03T05:53:15.9488907Z shell: /usr/bin/bash -e {0}
+2026-10-03T05:53:15.9489324Z env:
+2026-10-03T05:53:15.9490004Z   BLACKSMITH_RUNNER_MESSAGE_WAIT_MS: 212
+2026-10-03T05:53:15.9490407Z   BLACKSMITH_RUNNER_ACQUIRE_JOB_MS: 1154
+2026-10-03T05:53:15.9491412Z   GITHUB_REPO_NAME: Lumiwealth/bot_manager
+2026-10-03T05:53:15.9491894Z   AWS_DEFAULT_REGION: us-east-1
+2026-10-03T05:53:15.9492185Z   AWS_REGION: us-east-1
+2026-10-03T05:53:15.9492867Z   AWS_ACCESS_KEY_ID: ***
+2026-10-03T05:53:15.9493234Z   AWS_SECRET_ACCESS_KEY: ***
+2026-10-03T05:53:15.9499774Z   AWS_SESSION_TOKEN: ***
+2026-10-03T05:53:15.9500082Z   SOURCE_MANIFEST_INPUT: 
+2026-10-03T05:53:15.9500340Z ##[endgroup]
+2026-10-03T05:53:17.3033518Z Post job cleanup.
+2026-10-03T05:53:17.4324928Z Post job cleanup.
+2026-10-03T05:53:17.5259791Z [command]/usr/local/bin/git version
+2026-10-03T05:53:17.5367542Z git version 2.51.2
+2026-10-03T05:53:17.5416771Z Temporarily overriding HOME='/home/runner/_work/_temp/200d221e-e257-478b-a9d9-b264c7315a93' before making global git config changes
+2026-10-03T05:53:17.5427225Z Adding repository directory to the temporary git global config as a safe directory
+2026-10-03T05:53:17.5428987Z [command]/usr/local/bin/git config --global --add safe.directory /home/runner/_work/bot_manager/bot_manager
+2026-10-03T05:53:17.5524716Z [command]/usr/local/bin/git config --local --name-only --get-regexp core\.sshCommand
+2026-10-03T05:53:17.5653342Z [command]/usr/local/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :"
+2026-10-03T05:53:17.6069740Z [command]/usr/local/bin/git config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+2026-10-03T05:53:17.6160634Z [command]/usr/local/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :"
+2026-10-03T05:53:17.6830032Z [command]/usr/local/bin/git config --local --name-only --get-regexp ^includeIf\.gitdir:
+2026-10-03T05:53:17.7151542Z [command]/usr/local/bin/git submodule foreach --recursive git config --local --show-origin --name-only --get-regexp remote.origin.url
+2026-10-03T05:53:17.8952616Z A job completed hook has been configured by the self-hosted runner administrator
+2026-10-03T05:53:17.9053531Z ##[group]Run '/job_completed.sh'
+2026-10-03T05:53:17.9074033Z shell: /usr/bin/bash --noprofile --norc -e -o pipefail {0}
+2026-10-03T05:53:17.9074414Z env:
+2026-10-03T05:53:17.9074751Z   BLACKSMITH_RUNNER_MESSAGE_WAIT_MS: 212
+2026-10-03T05:53:17.9075081Z   BLACKSMITH_RUNNER_ACQUIRE_JOB_MS: 1154
+2026-10-03T05:53:17.9075400Z   BLACKSMITH_CHECK_RUN_ID: 111141057406
+2026-10-03T05:53:17.9075801Z   BLACKSMITH_JOB_DISPLAY_NAME: Resolve Exact Development Manifest
+2026-10-03T05:53:17.9076217Z   GITHUB_ACTIONS_CACHE_MODE: write
+2026-10-03T05:53:17.9076507Z ##[endgroup]
+2026-10-03T05:53:17.9453017Z Docker container cache not activated, skipping hash computation.
+2026-10-03T05:53:18.0058581Z No active SSH sessions detected. Proceeding with shutdown immediately.
+2026-10-03T05:53:18.0167373Z Evaluate and set job outputs
+2026-10-03T05:53:18.0177628Z Set output 'release_manifest_s3_uri'
+2026-10-03T05:53:18.0199963Z Cleaning up orphan processes
+2026-10-03T05:53:18.0843885Z ##[warning]Node.js 20 is deprecated. The following actions target Node.js 20 but are being forced to run on Node.js 24: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5, aws-actions/configure-aws-credentials@7474bc4690e29a8392af63c5b98e7449536d5c3a. For more information see: https://github.blog/changelog/2025-09-19-deprecation-of-node-20-on-github-actions-runners/

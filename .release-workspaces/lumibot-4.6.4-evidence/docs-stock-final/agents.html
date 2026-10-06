@@ -1,0 +1,1309 @@
+<!doctype html>
+<html class="no-js" lang="en" data-content_root="./">
+  <head><meta charset="utf-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <meta name="color-scheme" content="light dark"><meta name="viewport" content="width=device-width, initial-scale=1" />
+<meta content="Build AI trading agents in Python with LumiBot. Start with a complete agentic backtest, then explore stock teams, macro research, and options agents." name="description" />
+<meta property="og:title" content="Build AI Trading Agents in Python with LumiBot" />
+<meta property="og:type" content="website" />
+<meta property="og:url" content="https://lumibot.lumiwealth.com/agents.html" />
+<meta property="og:site_name" content="LumiBot" />
+<meta property="og:description" content="Build AI trading agents in Python inside a LumiBot strategy. Agents can inspect market evidence, use research tools, and submit orders through the strategy’s broker. You choose when they run and wh..." />
+<meta property="og:image" content="https://lumibot.lumiwealth.com/_static/lumibot-social-card.png" />
+<meta property="og:image:alt" content="LumiBot: AI trading agents that actually place the trade" />
+<meta name="twitter:card" content="summary_large_image" />
+<link rel="index" title="Index" href="genindex.html"><link rel="search" title="Search" href="search.html"><link rel="next" title="Design Your AI Trading Team" href="agents_flows.html"><link rel="prev" title="LumiBot for coding agents" href="agent_start_here.html">
+        <link rel="canonical" href="https://lumibot.lumiwealth.com/agents.html">
+        <link rel="prefetch" href="_static/Lumibot_Logo.webp" as="image">
+        <link rel="prefetch" href="_static/Lumibot_Logo.webp" as="image">
+
+    <link rel="shortcut icon" href="_static/lumibot_favicon_192.png"><!-- Generated with Sphinx 8.1.3 and Furo 2025.12.19 -->
+
+<title>Build AI Trading Agents in Python with LumiBot - Lumibot</title>
+
+<link rel="stylesheet" type="text/css" href="_static/pygments.css?v=d111a655" />
+    <link rel="stylesheet" type="text/css" href="_static/styles/furo.css?v=7bdb33bb" />
+    <link rel="stylesheet" type="text/css" href="_static/styles/furo-extensions.css?v=8dab3a3b" />
+    <link rel="stylesheet" type="text/css" href="_static/custom.css?v=c3884bc6" />
+    
+    
+
+
+<style>
+  body {
+    --color-code-background: #f2f2f2;
+  --color-code-foreground: #1e1e1e;
+  
+  }
+  @media not print {
+    body[data-theme="dark"] {
+      --color-code-background: #202020;
+  --color-code-foreground: #d0d0d0;
+  
+    }
+    @media (prefers-color-scheme: dark) {
+      body:not([data-theme="light"]) {
+        --color-code-background: #202020;
+  --color-code-foreground: #d0d0d0;
+  
+      }
+    }
+  }
+</style>
+
+
+
+
+<link rel="icon" type="image/png" sizes="192x192" href="_static/lumibot_favicon_192.png">
+<link rel="icon" type="image/png" sizes="512x512" href="_static/lumibot_favicon_512.png">
+<link rel="apple-touch-icon" sizes="192x192" href="_static/lumibot_favicon_192.png">
+
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="Lumibot">
+<meta property="og:title" content="Build AI Trading Agents in Python with LumiBot - Lumibot">
+<meta property="og:description" content="Build AI trading agents inside LumiBot strategies. Explore tools, multi-agent teams, historical backtests, memory, and broker execution in Python.">
+<meta property="og:url" content="https://lumibot.lumiwealth.com/agents.html">
+
+<meta property="og:image" content="https://lumibot.lumiwealth.com/_static/lumibot_spot_logo.png">
+<meta property="og:image:width" content="852">
+<meta property="og:image:height" content="852">
+<meta property="og:image:alt" content="Build AI Trading Agents in Python with LumiBot">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Build AI Trading Agents in Python with LumiBot - Lumibot">
+<meta name="twitter:description" content="Build AI trading agents inside LumiBot strategies. Explore tools, multi-agent teams, historical backtests, memory, and broker execution in Python.">
+<meta name="twitter:image" content="https://lumibot.lumiwealth.com/_static/lumibot_spot_logo.png">
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@graph": [
+    {
+      "@type": "Organization",
+      "@id": "https://lumibot.lumiwealth.com/#organization",
+      "name": "Lumiwealth",
+      "url": "https://botspot.trade",
+      "logo": {
+        "@type": "ImageObject",
+        "url": "https://lumibot.lumiwealth.com/_static/lumibot_spot_logo.png",
+        "width": 852,
+        "height": 852
+      },
+      "sameAs": [
+        "https://github.com/Lumiwealth/lumibot",
+        "https://www.reddit.com/r/BotSpotTrade/",
+        "https://discord.gg/4R9j6T3PN8"
+      ]
+    },
+    {
+      "@type": "WebSite",
+      "@id": "https://lumibot.lumiwealth.com/#website",
+      "name": "Lumibot Documentation",
+      "alternateName": "Lumibot",
+      "url": "https://lumibot.lumiwealth.com/",
+      "publisher": {
+        "@id": "https://lumibot.lumiwealth.com/#organization"
+      }
+    },
+    {
+      "@type": "SoftwareSourceCode",
+      "@id": "https://lumibot.lumiwealth.com/#software",
+      "name": "Lumibot",
+      "alternateName": "LumiBot",
+      "description": "Python framework for deterministic trading strategies, AI trading teams, hybrid strategy logic, backtesting, paper trading, and live broker workflows.",
+      "codeRepository": "https://github.com/Lumiwealth/lumibot",
+      "programmingLanguage": "Python",
+      "url": "https://lumibot.lumiwealth.com/",
+      "image": "https://lumibot.lumiwealth.com/_static/lumibot_spot_logo.png",
+      "publisher": {
+        "@id": "https://lumibot.lumiwealth.com/#organization"
+      },
+      "keywords": [
+        "algorithmic trading",
+        "AI trading agents",
+        "AI trading teams",
+        "backtesting",
+        "paper trading",
+        "live trading",
+        "broker integration"
+      ]
+    }
+  ]
+}
+</script>
+</head>
+  <body>
+    
+    <script>
+      document.body.dataset.theme = localStorage.getItem("theme") || "auto";
+    </script>
+    
+
+<svg xmlns="http://www.w3.org/2000/svg" style="display: none;">
+  <symbol id="svg-toc" viewBox="0 0 24 24">
+    <title>Contents</title>
+    <svg stroke="currentColor" fill="currentColor" stroke-width="0" viewBox="0 0 1024 1024">
+      <path d="M408 442h480c4.4 0 8-3.6 8-8v-56c0-4.4-3.6-8-8-8H408c-4.4 0-8 3.6-8 8v56c0 4.4 3.6 8 8 8zm-8 204c0 4.4 3.6 8 8 8h480c4.4 0 8-3.6 8-8v-56c0-4.4-3.6-8-8-8H408c-4.4 0-8 3.6-8 8v56zm504-486H120c-4.4 0-8 3.6-8 8v56c0 4.4 3.6 8 8 8h784c4.4 0 8-3.6 8-8v-56c0-4.4-3.6-8-8-8zm0 632H120c-4.4 0-8 3.6-8 8v56c0 4.4 3.6 8 8 8h784c4.4 0 8-3.6 8-8v-56c0-4.4-3.6-8-8-8zM115.4 518.9L271.7 642c5.8 4.6 14.4.5 14.4-6.9V388.9c0-7.4-8.5-11.5-14.4-6.9L115.4 505.1a8.74 8.74 0 0 0 0 13.8z"/>
+    </svg>
+  </symbol>
+  <symbol id="svg-menu" viewBox="0 0 24 24">
+    <title>Menu</title>
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather-menu">
+      <line x1="3" y1="12" x2="21" y2="12"></line>
+      <line x1="3" y1="6" x2="21" y2="6"></line>
+      <line x1="3" y1="18" x2="21" y2="18"></line>
+    </svg>
+  </symbol>
+  <symbol id="svg-arrow-right" viewBox="0 0 24 24">
+    <title>Expand</title>
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather-chevron-right">
+      <polyline points="9 18 15 12 9 6"></polyline>
+    </svg>
+  </symbol>
+  <symbol id="svg-sun" viewBox="0 0 24 24">
+    <title>Light mode</title>
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="1" stroke-linecap="round" stroke-linejoin="round" class="feather-sun">
+      <circle cx="12" cy="12" r="5"></circle>
+      <line x1="12" y1="1" x2="12" y2="3"></line>
+      <line x1="12" y1="21" x2="12" y2="23"></line>
+      <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line>
+      <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>
+      <line x1="1" y1="12" x2="3" y2="12"></line>
+      <line x1="21" y1="12" x2="23" y2="12"></line>
+      <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>
+      <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
+    </svg>
+  </symbol>
+  <symbol id="svg-moon" viewBox="0 0 24 24">
+    <title>Dark mode</title>
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="1" stroke-linecap="round" stroke-linejoin="round" class="icon-tabler-moon">
+      <path stroke="none" d="M0 0h24v24H0z" fill="none" />
+      <path d="M12 3c.132 0 .263 0 .393 0a7.5 7.5 0 0 0 7.92 12.446a9 9 0 1 1 -8.313 -12.454z" />
+    </svg>
+  </symbol>
+  <symbol id="svg-sun-with-moon" viewBox="0 0 24 24">
+    <title>Auto light/dark, in light mode</title>
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="1" stroke-linecap="round" stroke-linejoin="round"
+      class="icon-custom-derived-from-feather-sun-and-tabler-moon">
+      <path style="opacity: 50%" d="M 5.411 14.504 C 5.471 14.504 5.532 14.504 5.591 14.504 C 3.639 16.319 4.383 19.569 6.931 20.352 C 7.693 20.586 8.512 20.551 9.25 20.252 C 8.023 23.207 4.056 23.725 2.11 21.184 C 0.166 18.642 1.702 14.949 4.874 14.536 C 5.051 14.512 5.231 14.5 5.411 14.5 L 5.411 14.504 Z"/>
+      <line x1="14.5" y1="3.25" x2="14.5" y2="1.25"/>
+      <line x1="14.5" y1="15.85" x2="14.5" y2="17.85"/>
+      <line x1="10.044" y1="5.094" x2="8.63" y2="3.68"/>
+      <line x1="19" y1="14.05" x2="20.414" y2="15.464"/>
+      <line x1="8.2" y1="9.55" x2="6.2" y2="9.55"/>
+      <line x1="20.8" y1="9.55" x2="22.8" y2="9.55"/>
+      <line x1="10.044" y1="14.006" x2="8.63" y2="15.42"/>
+      <line x1="19" y1="5.05" x2="20.414" y2="3.636"/>
+      <circle cx="14.5" cy="9.55" r="3.6"/>
+    </svg>
+  </symbol>
+  <symbol id="svg-moon-with-sun" viewBox="0 0 24 24">
+    <title>Auto light/dark, in dark mode</title>
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="1" stroke-linecap="round" stroke-linejoin="round"
+      class="icon-custom-derived-from-feather-sun-and-tabler-moon">
+      <path d="M 8.282 7.007 C 8.385 7.007 8.494 7.007 8.595 7.007 C 5.18 10.184 6.481 15.869 10.942 17.24 C 12.275 17.648 13.706 17.589 15 17.066 C 12.851 22.236 5.91 23.143 2.505 18.696 C -0.897 14.249 1.791 7.786 7.342 7.063 C 7.652 7.021 7.965 7 8.282 7 L 8.282 7.007 Z"/>
+      <line style="opacity: 50%" x1="18" y1="3.705" x2="18" y2="2.5"/>
+      <line style="opacity: 50%" x1="18" y1="11.295" x2="18" y2="12.5"/>
+      <line style="opacity: 50%" x1="15.316" y1="4.816" x2="14.464" y2="3.964"/>
+      <line style="opacity: 50%" x1="20.711" y1="10.212" x2="21.563" y2="11.063"/>
+      <line style="opacity: 50%" x1="14.205" y1="7.5" x2="13.001" y2="7.5"/>
+      <line style="opacity: 50%" x1="21.795" y1="7.5" x2="23" y2="7.5"/>
+      <line style="opacity: 50%" x1="15.316" y1="10.184" x2="14.464" y2="11.036"/>
+      <line style="opacity: 50%" x1="20.711" y1="4.789" x2="21.563" y2="3.937"/>
+      <circle style="opacity: 50%" cx="18" cy="7.5" r="2.169"/>
+    </svg>
+  </symbol>
+  <symbol id="svg-pencil" viewBox="0 0 24 24">
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="1" stroke-linecap="round" stroke-linejoin="round" class="icon-tabler-pencil-code">
+      <path d="M4 20h4l10.5 -10.5a2.828 2.828 0 1 0 -4 -4l-10.5 10.5v4" />
+      <path d="M13.5 6.5l4 4" />
+      <path d="M20 21l2 -2l-2 -2" />
+      <path d="M17 17l-2 2l2 2" />
+    </svg>
+  </symbol>
+  <symbol id="svg-eye" viewBox="0 0 24 24">
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="1" stroke-linecap="round" stroke-linejoin="round" class="icon-tabler-eye-code">
+      <path stroke="none" d="M0 0h24v24H0z" fill="none" />
+      <path d="M10 12a2 2 0 1 0 4 0a2 2 0 0 0 -4 0" />
+      <path
+        d="M11.11 17.958c-3.209 -.307 -5.91 -2.293 -8.11 -5.958c2.4 -4 5.4 -6 9 -6c3.6 0 6.6 2 9 6c-.21 .352 -.427 .688 -.647 1.008" />
+      <path d="M20 21l2 -2l-2 -2" />
+      <path d="M17 17l-2 2l2 2" />
+    </svg>
+  </symbol>
+</svg>
+
+<input type="checkbox" class="sidebar-toggle" name="__navigation" id="__navigation" aria-label="Toggle site navigation sidebar">
+<input type="checkbox" class="sidebar-toggle" name="__toc" id="__toc" aria-label="Toggle table of contents sidebar">
+<label class="overlay sidebar-overlay" for="__navigation"></label>
+<label class="overlay toc-overlay" for="__toc"></label>
+
+<a class="skip-to-content muted-link" href="#furo-main-content">Skip to content</a>
+
+
+
+<div class="page">
+  <header class="mobile-header">
+    <div class="header-left">
+      <label class="nav-overlay-icon" for="__navigation">
+        <span class="icon"><svg><use href="#svg-menu"></use></svg></span>
+      </label>
+    </div>
+    <div class="header-center">
+      <a href="index.html"><div class="brand">Lumibot</div></a>
+    </div>
+    <div class="header-right">
+      <div class="theme-toggle-container theme-toggle-header">
+        <button class="theme-toggle" aria-label="Toggle Light / Dark / Auto color theme">
+          <svg class="theme-icon-when-auto-light"><use href="#svg-sun-with-moon"></use></svg>
+          <svg class="theme-icon-when-auto-dark"><use href="#svg-moon-with-sun"></use></svg>
+          <svg class="theme-icon-when-dark"><use href="#svg-moon"></use></svg>
+          <svg class="theme-icon-when-light"><use href="#svg-sun"></use></svg>
+        </button>
+      </div>
+      <label class="toc-overlay-icon toc-header-icon" for="__toc">
+        <span class="icon"><svg><use href="#svg-toc"></use></svg></span>
+      </label>
+    </div>
+  </header>
+  <aside class="sidebar-drawer">
+    <div class="sidebar-container">
+      
+      <div class="sidebar-sticky"><a class="sidebar-brand" href="index.html">
+  <div class="sidebar-logo-container">
+    <img class="sidebar-logo only-light" src="_static/Lumibot_Logo.webp" alt="Light Logo"/>
+    <img class="sidebar-logo only-dark" src="_static/Lumibot_Logo.webp" alt="Dark Logo"/>
+  </div>
+  
+  
+</a><form class="sidebar-search-container" method="get" action="search.html" role="search">
+  <input class="sidebar-search" placeholder="Search" name="q" aria-label="Search">
+  <input type="hidden" name="check_keywords" value="yes">
+  <input type="hidden" name="area" value="default">
+</form>
+<div id="searchbox"></div><div class="sidebar-scroll"><div class="sidebar-tree">
+  <p class="caption" role="heading"><span class="caption-text">Start here</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="index.html">Home</a></li>
+<li class="toctree-l1"><a class="reference internal" href="getting_started.html">Start Here / Python Setup</a></li>
+<li class="toctree-l1"><a class="reference internal" href="cli.html">The lumibot Command</a></li>
+<li class="toctree-l1"><a class="reference internal" href="examples.html">Python Strategy Examples</a></li>
+<li class="toctree-l1"><a class="reference internal" href="agents_quickstart.html">AI Quickstart</a></li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="agents_examples.html">AI Examples</a><input aria-label="Toggle navigation of AI Examples" class="toctree-checkbox" id="toctree-checkbox-1" name="toctree-checkbox-1" role="switch" type="checkbox"/><label for="toctree-checkbox-1"><span class="icon"><svg><use href="#svg-arrow-right"></use></svg></span></label><ul>
+<li class="toctree-l2"><a class="reference internal" href="agents_example_nancy_pelosi_trading_bot.html">Nancy Pelosi Stock Trading Bot</a></li>
+<li class="toctree-l2"><a class="reference internal" href="agents_example_nancy_pelosi_copy_trading_bot.html">Nancy Pelosi Copy Trading Bot</a></li>
+<li class="toctree-l2"><a class="reference internal" href="agents_example_insider_trading_bot.html">Insider Trading Bot</a></li>
+<li class="toctree-l2"><a class="reference internal" href="agents_example_warren_buffett_ai_stock_picker.html">Warren Buffett AI Stock Picker</a></li>
+<li class="toctree-l2"><a class="reference internal" href="agents_example_bill_ackman_portfolio_ai_trading_bot.html">Bill Ackman Portfolio AI Trading Bot</a></li>
+<li class="toctree-l2"><a class="reference internal" href="agents_example_fear_and_greed_index_trading_bot.html">Fear and Greed Index Trading Bot</a></li>
+<li class="toctree-l2"><a class="reference internal" href="agents_example_bull_vs_bear_ai_stock_trading_bot.html">Bull vs Bear AI Stock Trading Bot</a></li>
+<li class="toctree-l2"><a class="reference internal" href="agents_example_tqqq_strategy_ai_trading_bot.html">TQQQ Strategy AI Trading Bot</a></li>
+<li class="toctree-l2"><a class="reference internal" href="agents_example_iron_condor_ai_trading_bot.html">AI Iron Condor Trading Bot</a></li>
+<li class="toctree-l2"><a class="reference internal" href="agents_example_put_credit_spread_ai_trading_bot.html">Put Credit Spread AI Trading Bot</a></li>
+<li class="toctree-l2"><a class="reference internal" href="agents_example_0dte_options_ai_trading_bot.html">0DTE Options AI Trading Bot</a></li>
+<li class="toctree-l2"><a class="reference internal" href="agents_example_vwap_strategy_ai_trading_bot.html">VWAP Strategy AI Trading Bot</a></li>
+<li class="toctree-l2"><a class="reference internal" href="agents_example_opening_range_breakout_ai_trading_bot.html">Opening Range Breakout AI Trading Bot</a></li>
+<li class="toctree-l2"><a class="reference internal" href="agents_example_citadel_sector_pods.html">Citadel Sector Pods AI Trading Team</a></li>
+<li class="toctree-l2"><a class="reference internal" href="agents_example_ray_dalio_idea_meritocracy.html">Ray Dalio Idea Meritocracy AI Trading Team</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="strategy_run_modes.html">Backtest, Paper, or Live</a></li>
+<li class="toctree-l1"><a class="reference internal" href="agent_start_here.html">For Coding Agents</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">AI trading</span></p>
+<ul class="current">
+<li class="toctree-l1 current has-children current-page"><a class="current reference internal" href="#">AI Agent Guide</a><input aria-label="Toggle navigation of AI Agent Guide" checked="" class="toctree-checkbox" id="toctree-checkbox-2" name="toctree-checkbox-2" role="switch" type="checkbox"/><label for="toctree-checkbox-2"><span class="icon"><svg><use href="#svg-arrow-right"></use></svg></span></label><ul>
+<li class="toctree-l2"><a class="reference internal" href="agents_flows.html">Design Your AI Trading Team</a></li>
+<li class="toctree-l2"><a class="reference internal" href="agents_builtin_tools.html">Agent Built-In Tools</a></li>
+<li class="toctree-l2"><a class="reference internal" href="agents_browser_tools.html">Stateful Browser Tools</a></li>
+<li class="toctree-l2"><a class="reference internal" href="agents_canonical_demos.html">One-Agent AI Trading Bot Demos</a></li>
+<li class="toctree-l2"><a class="reference internal" href="agents_observability.html">AI Agent Observability</a></li>
+<li class="toctree-l2"><a class="reference internal" href="agents_memory.html">Agent Memory</a></li>
+<li class="toctree-l2"><a class="reference internal" href="agents_notifications.html">Agent Notifications</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="execution_gap.html">The Execution Gap</a></li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="ai_trading_project_comparison.html">Compare AI Frameworks</a><input aria-label="Toggle navigation of Compare AI Frameworks" class="toctree-checkbox" id="toctree-checkbox-3" name="toctree-checkbox-3" role="switch" type="checkbox"/><label for="toctree-checkbox-3"><span class="icon"><svg><use href="#svg-arrow-right"></use></svg></span></label><ul>
+<li class="toctree-l2"><a class="reference internal" href="lumibot_vs_tradingagents.html">Lumibot vs TradingAgents</a></li>
+<li class="toctree-l2"><a class="reference internal" href="lumibot_vs_ai_hedge_fund.html">Lumibot vs ai-hedge-fund</a></li>
+<li class="toctree-l2"><a class="reference internal" href="lumibot_vs_openalice.html">LumiBot vs OpenAlice</a></li>
+<li class="toctree-l2"><a class="reference internal" href="lumibot_vs_quantdinger.html">Lumibot vs QuantDinger</a></li>
+<li class="toctree-l2"><a class="reference internal" href="lumibot_vs_lean.html">Lumibot vs QuantConnect LEAN</a></li>
+</ul>
+</li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Build strategies</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="strategy_api_overview.html">Strategy API</a></li>
+<li class="toctree-l1"><a class="reference internal" href="imports_and_startup.html">Imports and Startup</a></li>
+<li class="toctree-l1"><a class="reference internal" href="standalone_components.html">Reusable Components</a></li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="lifecycle_methods.html">Lifecycle Methods</a><input aria-label="Toggle navigation of Lifecycle Methods" class="toctree-checkbox" id="toctree-checkbox-4" name="toctree-checkbox-4" role="switch" type="checkbox"/><label for="toctree-checkbox-4"><span class="icon"><svg><use href="#svg-arrow-right"></use></svg></span></label><ul>
+<li class="toctree-l2"><a class="reference internal" href="lifecycle_methods.summary.html">Summary</a></li>
+<li class="toctree-l2"><a class="reference internal" href="lifecycle_methods.initialize.html">def initialize</a></li>
+<li class="toctree-l2"><a class="reference internal" href="lifecycle_methods.on_trading_iteration.html">def on_trading_iteration</a></li>
+<li class="toctree-l2"><a class="reference internal" href="lifecycle_methods.before_market_opens.html">def before_market_opens</a></li>
+<li class="toctree-l2"><a class="reference internal" href="lifecycle_methods.before_starting_trading.html">def before_starting_trading</a></li>
+<li class="toctree-l2"><a class="reference internal" href="lifecycle_methods.before_market_closes.html">def before_market_closes</a></li>
+<li class="toctree-l2"><a class="reference internal" href="lifecycle_methods.after_market_closes.html">def after_market_closes</a></li>
+<li class="toctree-l2"><a class="reference internal" href="lifecycle_methods.on_abrupt_closing.html">def on_abrupt_closing</a></li>
+<li class="toctree-l2"><a class="reference internal" href="lifecycle_methods.on_bot_crash.html">def on_bot_crash</a></li>
+<li class="toctree-l2"><a class="reference internal" href="lifecycle_methods.trace_stats.html">def trace_stats</a></li>
+<li class="toctree-l2"><a class="reference internal" href="lifecycle_methods.tearsheet_custom_metrics.html">def tearsheet_custom_metrics</a></li>
+<li class="toctree-l2"><a class="reference internal" href="lifecycle_methods.on_new_order.html">def on_new_order</a></li>
+<li class="toctree-l2"><a class="reference internal" href="lifecycle_methods.on_partially_filled_order.html">def on_partially_filled_order</a></li>
+<li class="toctree-l2"><a class="reference internal" href="lifecycle_methods.on_filled_order.html">def on_filled_order</a></li>
+<li class="toctree-l2"><a class="reference internal" href="lifecycle_methods.on_canceled_order.html">def on_canceled_order</a></li>
+<li class="toctree-l2"><a class="reference internal" href="lifecycle_methods.on_parameters_updated.html">def on_parameters_updated</a></li>
+</ul>
+</li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="strategy_methods.html">Strategy Methods</a><input aria-label="Toggle navigation of Strategy Methods" class="toctree-checkbox" id="toctree-checkbox-5" name="toctree-checkbox-5" role="switch" type="checkbox"/><label for="toctree-checkbox-5"><span class="icon"><svg><use href="#svg-arrow-right"></use></svg></span></label><ul>
+<li class="toctree-l2 has-children"><a class="reference internal" href="strategy_methods.orders.html">Order Management</a><input aria-label="Toggle navigation of Order Management" class="toctree-checkbox" id="toctree-checkbox-6" name="toctree-checkbox-6" role="switch" type="checkbox"/><label for="toctree-checkbox-6"><span class="icon"><svg><use href="#svg-arrow-right"></use></svg></span></label><ul>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.orders/lumibot.strategies.strategy.Strategy.create_order.html">self.create_order</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.orders/lumibot.strategies.strategy.Strategy.submit_order.html">self.submit_order</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.orders/lumibot.strategies.strategy.Strategy.submit_orders.html">self.submit_orders</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.orders/lumibot.strategies.strategy.Strategy.cancel_order.html">self.cancel_order</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.orders/lumibot.strategies.strategy.Strategy.cancel_orders.html">self.cancel_orders</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.orders/lumibot.strategies.strategy.Strategy.cancel_open_orders.html">self.cancel_open_orders</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.orders/lumibot.strategies.strategy.Strategy.get_selling_order.html">self.get_selling_order</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.orders/lumibot.strategies.strategy.Strategy.sell_all.html">self.sell_all</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.orders/lumibot.strategies.strategy.Strategy.get_order.html">self.get_order</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.orders/lumibot.strategies.strategy.Strategy.get_orders.html">self.get_orders</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.orders/lumibot.strategies.strategy.Strategy.get_asset_potential_total.html">self.get_asset_potential_total</a></li>
+</ul>
+</li>
+<li class="toctree-l2 has-children"><a class="reference internal" href="strategy_methods.account.html">Account Management</a><input aria-label="Toggle navigation of Account Management" class="toctree-checkbox" id="toctree-checkbox-7" name="toctree-checkbox-7" role="switch" type="checkbox"/><label for="toctree-checkbox-7"><span class="icon"><svg><use href="#svg-arrow-right"></use></svg></span></label><ul>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.account/lumibot.strategies.strategy.Strategy.adjust_cash.html">self.adjust_cash</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.account/lumibot.strategies.strategy.Strategy.configure_cash_financing.html">self.configure_cash_financing</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.account/lumibot.strategies.strategy.Strategy.deposit_cash.html">self.deposit_cash</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.account/lumibot.strategies.strategy.Strategy.get_portfolio_value.html">self.get_portfolio_value</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.account/lumibot.strategies.strategy.Strategy.get_cash.html">self.get_cash</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.account/lumibot.strategies.strategy.Strategy.get_position.html">self.get_position</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.account/lumibot.strategies.strategy.Strategy.get_positions.html">self.get_positions</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.account/lumibot.strategies.strategy.Strategy.set_cash_financing_rates.html">self.set_cash_financing_rates</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.account/lumibot.strategies.strategy.Strategy.withdraw_cash.html">self.withdraw_cash</a></li>
+</ul>
+</li>
+<li class="toctree-l2 has-children"><a class="reference internal" href="strategy_methods.data.html">Data</a><input aria-label="Toggle navigation of Data" class="toctree-checkbox" id="toctree-checkbox-8" name="toctree-checkbox-8" role="switch" type="checkbox"/><label for="toctree-checkbox-8"><span class="icon"><svg><use href="#svg-arrow-right"></use></svg></span></label><ul>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.data/lumibot.strategies.strategy.Strategy.get_last_price.html">self.get_last_price</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.data/lumibot.strategies.strategy.Strategy.get_last_prices.html">self.get_last_prices</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.data/lumibot.strategies.strategy.Strategy.get_historical_prices.html">self.get_historical_prices</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.data/lumibot.strategies.strategy.Strategy.get_historical_prices_for_assets.html">self.get_historical_prices_for_assets</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.data/lumibot.strategies.strategy.Strategy.get_quote.html">self.get_quote</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.data/lumibot.strategies.strategy.Strategy.get_yesterday_dividend.html">self.get_yesterday_dividend</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.data/lumibot.strategies.strategy.Strategy.get_next_trading_day.html">self.get_next_trading_day</a></li>
+</ul>
+</li>
+<li class="toctree-l2 has-children"><a class="reference internal" href="strategy_methods.chart.html">Chart Functions</a><input aria-label="Toggle navigation of Chart Functions" class="toctree-checkbox" id="toctree-checkbox-9" name="toctree-checkbox-9" role="switch" type="checkbox"/><label for="toctree-checkbox-9"><span class="icon"><svg><use href="#svg-arrow-right"></use></svg></span></label><ul>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.chart/lumibot.strategies.strategy.Strategy.add_marker.html">self.add_marker</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.chart/lumibot.strategies.strategy.Strategy.add_line.html">self.add_line</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.chart/lumibot.strategies.strategy.Strategy.get_markers_df.html">self.get_markers_df</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.chart/lumibot.strategies.strategy.Strategy.get_lines_df.html">self.get_lines_df</a></li>
+</ul>
+</li>
+<li class="toctree-l2 has-children"><a class="reference internal" href="strategy_methods.parameters.html">Parameters</a><input aria-label="Toggle navigation of Parameters" class="toctree-checkbox" id="toctree-checkbox-10" name="toctree-checkbox-10" role="switch" type="checkbox"/><label for="toctree-checkbox-10"><span class="icon"><svg><use href="#svg-arrow-right"></use></svg></span></label><ul>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.account/lumibot.strategies.strategy.Strategy.get_parameters.html">self.get_parameters</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.account/lumibot.strategies.strategy.Strategy.set_parameters.html">self.set_parameters</a></li>
+</ul>
+</li>
+<li class="toctree-l2 has-children"><a class="reference internal" href="strategy_methods.options.html">Options</a><input aria-label="Toggle navigation of Options" class="toctree-checkbox" id="toctree-checkbox-11" name="toctree-checkbox-11" role="switch" type="checkbox"/><label for="toctree-checkbox-11"><span class="icon"><svg><use href="#svg-arrow-right"></use></svg></span></label><ul>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.options/lumibot.strategies.strategy.Strategy.get_chain.html">self.get_chain</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.options/lumibot.strategies.strategy.Strategy.get_chains.html">self.get_chains</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.options/lumibot.strategies.strategy.Strategy.get_greeks.html">self.get_greeks</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.options/lumibot.strategies.strategy.Strategy.get_strikes.html">self.get_strikes</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.options/lumibot.strategies.strategy.Strategy.get_expiration.html">self.get_expiration</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.options/lumibot.strategies.strategy.Strategy.get_multiplier.html">self.get_multiplier</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.options/lumibot.strategies.strategy.Strategy.options_expiry_to_datetime_date.html">self.options_expiry_to_datetime_date</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.options/lumibot.strategies.strategy.Strategy.get_next_trading_day.html">self.get_next_trading_day</a></li>
+</ul>
+</li>
+<li class="toctree-l2 has-children"><a class="reference internal" href="strategy_methods.datetime.html">DateTime</a><input aria-label="Toggle navigation of DateTime" class="toctree-checkbox" id="toctree-checkbox-12" name="toctree-checkbox-12" role="switch" type="checkbox"/><label for="toctree-checkbox-12"><span class="icon"><svg><use href="#svg-arrow-right"></use></svg></span></label><ul>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.datetime/lumibot.strategies.strategy.Strategy.get_datetime.html">self.get_datetime</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.datetime/lumibot.strategies.strategy.Strategy.get_timestamp.html">self.get_timestamp</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.datetime/lumibot.strategies.strategy.Strategy.get_round_minute.html">self.get_round_minute</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.datetime/lumibot.strategies.strategy.Strategy.get_last_minute.html">self.get_last_minute</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.datetime/lumibot.strategies.strategy.Strategy.get_round_day.html">self.get_round_day</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.datetime/lumibot.strategies.strategy.Strategy.get_last_day.html">self.get_last_day</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.datetime/lumibot.strategies.strategy.Strategy.get_datetime_range.html">self.get_datetime_range</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.datetime/lumibot.strategies.strategy.Strategy.localize_datetime.html">self.localize_datetime</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.datetime/lumibot.strategies.strategy.Strategy.to_default_timezone.html">self.to_default_timezone</a></li>
+</ul>
+</li>
+<li class="toctree-l2 has-children"><a class="reference internal" href="strategy_methods.misc.html">Miscellaneous</a><input aria-label="Toggle navigation of Miscellaneous" class="toctree-checkbox" id="toctree-checkbox-13" name="toctree-checkbox-13" role="switch" type="checkbox"/><label for="toctree-checkbox-13"><span class="icon"><svg><use href="#svg-arrow-right"></use></svg></span></label><ul>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.misc/lumibot.strategies.strategy.Strategy.log_message.html">self.log_message</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.misc/lumibot.strategies.strategy.Strategy.sleep.html">self.sleep</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.misc/lumibot.strategies.strategy.Strategy.set_market.html">self.set_market</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.misc/lumibot.strategies.strategy.Strategy.update_parameters.html">self.update_parameters</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.misc/lumibot.strategies.strategy.Strategy.get_parameters.html">self.get_parameters</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.misc/lumibot.strategies.strategy.Strategy.await_market_to_close.html">self.await_market_to_close</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.misc/lumibot.strategies.strategy.Strategy.await_market_to_open.html">self.await_market_to_open</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.misc/lumibot.strategies.strategy.Strategy.wait_for_order_registration.html">self.wait_for_order_registration</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.misc/lumibot.strategies.strategy.Strategy.wait_for_order_execution.html">self.wait_for_order_execution</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.misc/lumibot.strategies.strategy.Strategy.wait_for_orders_registration.html">self.wait_for_orders_registration</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.misc/lumibot.strategies.strategy.Strategy.wait_for_orders_execution.html">self.wait_for_orders_execution</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.misc/lumibot.strategies.strategy.Strategy.register_cron_callback.html">self.register_cron_callback</a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="strategy_properties.html">Strategy Properties</a><input aria-label="Toggle navigation of Strategy Properties" class="toctree-checkbox" id="toctree-checkbox-14" name="toctree-checkbox-14" role="switch" type="checkbox"/><label for="toctree-checkbox-14"><span class="icon"><svg><use href="#svg-arrow-right"></use></svg></span></label><ul>
+<li class="toctree-l2"><a class="reference internal" href="strategy_properties/lumibot.strategies.strategy.Strategy.cash.html">self.cash</a></li>
+<li class="toctree-l2"><a class="reference internal" href="strategy_properties/lumibot.strategies.strategy.Strategy.portfolio_value.html">self.portfolio_value</a></li>
+<li class="toctree-l2"><a class="reference internal" href="strategy_properties/lumibot.strategies.strategy.Strategy.first_iteration.html">self.first_iteration</a></li>
+<li class="toctree-l2"><a class="reference internal" href="strategy_properties/lumibot.strategies.strategy.Strategy.is_backtesting.html">self.is_backtesting</a></li>
+<li class="toctree-l2"><a class="reference internal" href="strategy_properties/lumibot.strategies.strategy.Strategy.quote_asset.html">self.quote_asset</a></li>
+<li class="toctree-l2"><a class="reference internal" href="strategy_properties/lumibot.strategies.strategy.Strategy.name.html">self.name</a></li>
+<li class="toctree-l2"><a class="reference internal" href="strategy_properties/lumibot.strategies.strategy.Strategy.initial_budget.html">self.initial_budget</a></li>
+<li class="toctree-l2"><a class="reference internal" href="strategy_properties/lumibot.strategies.strategy.Strategy.minutes_before_closing.html">self.minutes_before_closing</a></li>
+<li class="toctree-l2"><a class="reference internal" href="strategy_properties/lumibot.strategies.strategy.Strategy.minutes_before_opening.html">self.minutes_before_opening</a></li>
+<li class="toctree-l2"><a class="reference internal" href="strategy_properties/lumibot.strategies.strategy.Strategy.sleeptime.html">self.sleeptime</a></li>
+<li class="toctree-l2"><a class="reference internal" href="strategy_properties/lumibot.strategies.strategy.Strategy.last_on_trading_iteration_datetime.html">self.last_on_trading_iteration_datetime</a></li>
+<li class="toctree-l2"><a class="reference internal" href="strategy_properties/lumibot.strategies.strategy.Strategy.timezone.html">self.timezone</a></li>
+<li class="toctree-l2"><a class="reference internal" href="strategy_properties/lumibot.strategies.strategy.Strategy.pytz.html">self.pytz</a></li>
+<li class="toctree-l2"><a class="reference internal" href="strategy_properties/lumibot.strategies.strategy.Strategy.unspent_money.html">self.unspent_money</a></li>
+</ul>
+</li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="entities.html">Assets and Orders</a><input aria-label="Toggle navigation of Assets and Orders" class="toctree-checkbox" id="toctree-checkbox-15" name="toctree-checkbox-15" role="switch" type="checkbox"/><label for="toctree-checkbox-15"><span class="icon"><svg><use href="#svg-arrow-right"></use></svg></span></label><ul>
+<li class="toctree-l2"><a class="reference internal" href="entities.asset.html">Asset</a></li>
+<li class="toctree-l2"><a class="reference internal" href="entities.bars.html">Bars</a></li>
+<li class="toctree-l2"><a class="reference internal" href="entities.data.html">Data</a></li>
+<li class="toctree-l2"><a class="reference internal" href="entities.order.html">Order</a></li>
+<li class="toctree-l2"><a class="reference internal" href="entities.position.html">Position</a></li>
+<li class="toctree-l2"><a class="reference internal" href="entities.trading_fee.html">Trading Fee</a></li>
+<li class="toctree-l2"><a class="reference internal" href="entities.trading_slippage.html">Trading Slippage</a></li>
+<li class="toctree-l2"><a class="reference internal" href="entities.smart_limit.html">Smart Limit Config</a></li>
+<li class="toctree-l2"><a class="reference internal" href="entities.chains.html">Chains Entity</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="indicators.html">Indicators</a></li>
+<li class="toctree-l1"><a class="reference internal" href="fundamentals.html">SEC Fundamentals</a></li>
+<li class="toctree-l1"><a class="reference internal" href="macro_data.html">Macro Data</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Backtest and trade</span></p>
+<ul>
+<li class="toctree-l1 has-children"><a class="reference internal" href="backtesting.html">Backtesting</a><input aria-label="Toggle navigation of Backtesting" class="toctree-checkbox" id="toctree-checkbox-16" name="toctree-checkbox-16" role="switch" type="checkbox"/><label for="toctree-checkbox-16"><span class="icon"><svg><use href="#svg-arrow-right"></use></svg></span></label><ul>
+<li class="toctree-l2"><a class="reference internal" href="backtesting.how_to_backtest.html">How to Backtest a Python Trading Strategy with LumiBot</a></li>
+<li class="toctree-l2"><a class="reference internal" href="backtesting.how_to_backtest.html#files-generated-from-backtesting">Files Generated from Backtesting</a></li>
+<li class="toctree-l2"><a class="reference internal" href="backtesting.backtesting_function.html">Backtesting Function</a></li>
+<li class="toctree-l2"><a class="reference internal" href="backtesting.performance.html">Backtesting Performance (Speed + Parity)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="backtesting.yahoo.html">Free Daily Stock Backtesting with Yahoo and LumiBot</a></li>
+<li class="toctree-l2"><a class="reference internal" href="backtesting.pandas.html">Pandas (CSV or other data)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="backtesting.polygon.html">Polygon.io Backtesting</a></li>
+<li class="toctree-l2"><a class="reference internal" href="backtesting.databento.html">Databento Backtesting with LumiBot</a></li>
+<li class="toctree-l2"><a class="reference internal" href="backtesting.thetadata.html">ThetaData Options and Stock Backtesting with LumiBot</a></li>
+<li class="toctree-l2"><a class="reference internal" href="backtesting.ibkr.html">Interactive Brokers (REST) Backtesting</a></li>
+<li class="toctree-l2"><a class="reference internal" href="backtesting.alpaca.html">Alpaca Backtesting</a></li>
+<li class="toctree-l2"><a class="reference internal" href="backtesting.tearsheet_html.html">LumiBot Backtest Tear Sheets and Performance Reports</a></li>
+<li class="toctree-l2"><a class="reference internal" href="backtesting.trades_files.html">Trades Files</a></li>
+<li class="toctree-l2"><a class="reference internal" href="backtesting.indicators_files.html">Indicators Files</a></li>
+<li class="toctree-l2"><a class="reference internal" href="backtesting.logs_csv.html">Logs CSV</a></li>
+</ul>
+</li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="brokers.html">Brokers</a><input aria-label="Toggle navigation of Brokers" class="toctree-checkbox" id="toctree-checkbox-17" name="toctree-checkbox-17" role="switch" type="checkbox"/><label for="toctree-checkbox-17"><span class="icon"><svg><use href="#svg-arrow-right"></use></svg></span></label><ul>
+<li class="toctree-l2"><a class="reference internal" href="brokers.alpaca.html">Alpaca API Trading with LumiBot</a></li>
+<li class="toctree-l2"><a class="reference internal" href="brokers.bitunix.html">Bitunix API Perpetual Futures Trading with LumiBot</a></li>
+<li class="toctree-l2 has-children"><a class="reference internal" href="brokers.ccxt.html">CCXT Crypto Trading and Backtesting with LumiBot</a><input aria-label="Toggle navigation of CCXT Crypto Trading and Backtesting with LumiBot" class="toctree-checkbox" id="toctree-checkbox-18" name="toctree-checkbox-18" role="switch" type="checkbox"/><label for="toctree-checkbox-18"><span class="icon"><svg><use href="#svg-arrow-right"></use></svg></span></label><ul>
+<li class="toctree-l3"><a class="reference internal" href="brokers.ccxt.coinbase.html">Coinbase Crypto Broker</a></li>
+<li class="toctree-l3"><a class="reference internal" href="brokers.ccxt.kraken.html">Kraken Crypto Broker</a></li>
+<li class="toctree-l3"><a class="reference internal" href="brokers.ccxt.weex.html">WEEX Crypto Broker</a></li>
+<li class="toctree-l3"><a class="reference internal" href="brokers.ccxt.kucoin.html">KuCoin CCXT Configuration</a></li>
+<li class="toctree-l3"><a class="reference internal" href="brokers.ccxt.binance.html">Binance CCXT Configuration</a></li>
+<li class="toctree-l3"><a class="reference internal" href="brokers.ccxt.bitmex.html">BitMEX CCXT Configuration</a></li>
+<li class="toctree-l3"><a class="reference internal" href="brokers.ccxt.bybit.html">Bybit CCXT Backtesting</a></li>
+<li class="toctree-l3"><a class="reference internal" href="brokers.ccxt.okx.html">OKX CCXT Backtesting</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="brokers.interactive_brokers.html">Interactive Brokers API Trading with LumiBot</a></li>
+<li class="toctree-l2"><a class="reference internal" href="brokers.interactive_brokers_legacy.html">Interactive Brokers Legacy</a></li>
+<li class="toctree-l2"><a class="reference internal" href="brokers.polymarket.html">Polymarket</a></li>
+<li class="toctree-l2"><a class="reference internal" href="brokers.projectx.html">ProjectX / TopstepX</a></li>
+<li class="toctree-l2"><a class="reference internal" href="brokers.schwab.html">Charles Schwab API Trading with LumiBot</a></li>
+<li class="toctree-l2"><a class="reference internal" href="brokers.tradier.html">Tradier</a></li>
+<li class="toctree-l2"><a class="reference internal" href="brokers.tradovate.html">Tradovate</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="cash_accounting.html">Cash Accounting</a></li>
+<li class="toctree-l1"><a class="reference internal" href="deployment.html">Deployment</a></li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="reference.html">Reference</a><input aria-label="Toggle navigation of Reference" class="toctree-checkbox" id="toctree-checkbox-19" name="toctree-checkbox-19" role="switch" type="checkbox"/><label for="toctree-checkbox-19"><span class="icon"><svg><use href="#svg-arrow-right"></use></svg></span></label><ul>
+<li class="toctree-l2"><a class="reference internal" href="vars.html">Variable Backup &amp; Restore</a></li>
+<li class="toctree-l2"><a class="reference internal" href="futures.html">Futures Trading</a></li>
+<li class="toctree-l2"><a class="reference internal" href="smart_limit.html">Smart Limit Orders</a></li>
+<li class="toctree-l2"><a class="reference internal" href="options_helper.html">OptionsHelper</a></li>
+<li class="toctree-l2"><a class="reference internal" href="environment_variables.html">Environment Variables</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="common_mistakes.html">Common Mistakes</a></li>
+<li class="toctree-l1"><a class="reference internal" href="faq.html">FAQ</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Community and learning</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference external" href="https://botspot.trade/challenges?utm_source=documentation&amp;utm_medium=sidebar&amp;utm_campaign=lumibot_ai_trading&amp;utm_content=free_challenge">Free AI Trading Challenge</a></li>
+<li class="toctree-l1"><a class="reference external" href="https://botspot.trade/sales?showLogin=1&amp;utm_source=documentation&amp;utm_medium=sidebar&amp;utm_campaign=lumibot&amp;utm_content=sidebar_build_bots&amp;sample=lumibot_deploy_sample">Build and Deploy with BotSpot</a></li>
+<li class="toctree-l1"><a class="reference internal" href="botspot_mcp.html">BotSpot MCP Integration</a></li>
+<li class="toctree-l1"><a class="reference internal" href="PARTNERSHIPS.html">Partnerships and Sponsorship</a></li>
+<li class="toctree-l1"><a class="reference internal" href="MIGRATING_FROM_BACKTRADER.html">Migrate from Backtrader</a></li>
+<li class="toctree-l1"><a class="reference external" href="https://github.com/Lumiwealth/lumibot">GitHub</a></li>
+<li class="toctree-l1"><a class="reference external" href="https://www.reddit.com/r/BotSpotTrade/">Reddit Community</a></li>
+<li class="toctree-l1"><a class="reference external" href="https://discord.gg/4R9j6T3PN8">Discord Community</a></li>
+<li class="toctree-l1"><a class="reference external" href="https://botspot.trade/marketplace?utm_source=documentation&amp;utm_medium=sidebar&amp;utm_campaign=lumibot&amp;utm_content=sidebar_marketplace">Get Pre-Built Strategies</a></li>
+</ul>
+
+</div>
+</div>
+
+      </div>
+      
+    </div>
+  </aside>
+  <div class="main">
+    <div class="content">
+      <div class="article-container">
+        <a href="#" class="back-to-top muted-link">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
+            <path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8v12z"></path>
+          </svg>
+          <span>Back to top</span>
+        </a>
+        <div class="content-icon-container">
+          <div class="view-this-page">
+  <a class="muted-link" href="_sources/agents.rst.txt" title="View this page">
+    <svg><use href="#svg-eye"></use></svg>
+    <span class="visually-hidden">View this page</span>
+  </a>
+</div>
+<div class="theme-toggle-container theme-toggle-content">
+            <button class="theme-toggle" aria-label="Toggle Light / Dark / Auto color theme">
+              <svg class="theme-icon-when-auto-light"><use href="#svg-sun-with-moon"></use></svg>
+              <svg class="theme-icon-when-auto-dark"><use href="#svg-moon-with-sun"></use></svg>
+              <svg class="theme-icon-when-dark"><use href="#svg-moon"></use></svg>
+              <svg class="theme-icon-when-light"><use href="#svg-sun"></use></svg>
+            </button>
+          </div>
+          <label class="toc-overlay-icon toc-content-icon" for="__toc">
+            <span class="icon"><svg><use href="#svg-toc"></use></svg></span>
+          </label>
+        </div>
+        <article role="main" id="furo-main-content">
+          <section id="build-ai-trading-agents-in-python-with-lumibot">
+<h1>Build AI Trading Agents in Python with LumiBot<a class="headerlink" href="#build-ai-trading-agents-in-python-with-lumibot" title="Link to this heading">¶</a></h1>
+<p>Build AI trading agents in Python inside a LumiBot strategy. Agents can inspect
+market evidence, use research tools, and submit orders through the strategy’s
+broker. You choose when they run and which agents can trade.</p>
+<section id="choose-your-first-workflow">
+<h2>Choose your first workflow<a class="headerlink" href="#choose-your-first-workflow" title="Link to this heading">¶</a></h2>
+<ul class="simple">
+<li><p><strong>Build your first agent:</strong> <a class="reference internal" href="agents_quickstart.html"><span class="doc">Run your first AI backtest</span></a> has installation, model credentials, daily data, and a complete researcher-and-trader backtest.</p></li>
+<li><p><strong>Trade stocks:</strong> start with <a class="reference internal" href="agents_example_bull_vs_bear_ai_stock_trading_bot.html"><span class="doc">a large-cap stock team</span></a> or <a class="reference internal" href="agents_example_opening_range_breakout_ai_trading_bot.html"><span class="doc">opening range breakout</span></a>.</p></li>
+<li><p><strong>Explore macro teams:</strong> inspect <a class="reference internal" href="agents_example_ray_dalio_idea_meritocracy.html"><span class="doc">the idea-meritocracy example</span></a> and <a class="reference internal" href="macro_data.html"><span class="doc">FRED/ALFRED data setup</span></a>.</p></li>
+<li><p><strong>Trade options:</strong> <a class="reference internal" href="agents_example_iron_condor_ai_trading_bot.html"><span class="doc">AI Iron Condor Trading Bot</span></a> explains option-chain evidence, four-leg orders, and data limitations.</p></li>
+</ul>
+<p>Compare prerequisites and evidence in <a class="reference internal" href="agents_examples.html"><span class="doc">AI Trading Bot Examples</span></a> before choosing a
+strategy. Start with regular stocks or ETFs; leveraged instruments and short-dated
+options are advanced examples.</p>
+</section>
+<section id="run-a-hosted-example">
+<h2>Run a hosted example<a class="headerlink" href="#run-a-hosted-example" title="Link to this heading">¶</a></h2>
+<p>The sector-pod and macro-team pages link to their regular and leveraged BotSpot
+marketplace variants. BotSpot provides the hosted backtest, broker-connection,
+artifact, and scheduling workflow around LumiBot. See <a class="reference internal" href="botspot_mcp.html"><span class="doc">BotSpot MCP Integration</span></a> for
+access from an AI coding assistant. Model, data, broker, and BotSpot plan
+requirements depend on the example.</p>
+<p><strong>Building a product on LumiBot?</strong> <a class="reference internal" href="PARTNERSHIPS.html"><span class="doc">Partner with LumiBot</span></a> explains funded
+integrations, maintenance, developer tutorials, and strategic collaboration.</p>
+<div class="toctree-wrapper compound">
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="agents_flows.html">Design Your AI Trading Team</a></li>
+<li class="toctree-l1"><a class="reference internal" href="agents_builtin_tools.html">Agent Built-In Tools</a></li>
+<li class="toctree-l1"><a class="reference internal" href="agents_browser_tools.html">Stateful Browser Tools</a></li>
+<li class="toctree-l1"><a class="reference internal" href="agents_canonical_demos.html">One-Agent AI Trading Bot Demos</a></li>
+<li class="toctree-l1"><a class="reference internal" href="agents_observability.html">AI Agent Observability</a></li>
+<li class="toctree-l1"><a class="reference internal" href="agents_memory.html">Agent Memory</a></li>
+<li class="toctree-l1"><a class="reference internal" href="agents_notifications.html">Agent Notifications</a></li>
+</ul>
+</div>
+</section>
+<section id="runtime-concepts">
+<h2>Runtime concepts<a class="headerlink" href="#runtime-concepts" title="Link to this heading">¶</a></h2>
+<p>Create agents in <code class="docutils literal notranslate"><span class="pre">initialize()</span></code> and call them from strategy lifecycle methods
+such as <code class="docutils literal notranslate"><span class="pre">on_trading_iteration()</span></code>. Separate research-only agents from those
+allowed to submit orders. The <a class="reference internal" href="agents_quickstart.html"><span class="doc">quick start</span></a> is the
+complete first-run example; the snippets below explain individual capabilities.</p>
+<ul class="simple">
+<li><p>Built-in tools provide market/account evidence and order workflows.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">&#64;agent_tool</span></code> exposes a Python function and its contract to the agent.</p></li>
+<li><p>Compatible MCP servers supply external tools; their authentication, schemas,
+and historical-data behavior must be checked for the intended task.</p></li>
+<li><p>Replay caching can reuse eligible prior agent results. A cache hit is not a
+new model decision or independent validation of a strategy.</p></li>
+<li><p>A broker-backed runner and a backtest runner can use the same strategy class,
+but still require different data, credentials, and execution configuration.</p></li>
+</ul>
+<section id="recommended-team-architecture">
+<h3>Recommended team architecture<a class="headerlink" href="#recommended-team-architecture" title="Link to this heading">¶</a></h3>
+<p>For fully agentic trading, we recommend <strong>two or more agents</strong>: one or more
+research agents and a <strong>dedicated trading and risk agent</strong> that alone can
+submit or change orders. Ten researchers and one trader are just as valid as
+one researcher and one trader. This is a recommendation, not a framework requirement;
+LumiBot does not impose a fixed team size.</p>
+<p>When risk rules must be mechanically fixed, keep execution and limits in
+<strong>deterministic Python</strong> instead. A hybrid can also use agents for research and
+Python for execution. Choose the ownership model deliberately, test it, and do
+not give research-only agents trading permission.</p>
+</section>
+</section>
+<section id="verification-and-historical-limits">
+<h2>Verification and historical limits<a class="headerlink" href="#verification-and-historical-limits" title="Link to this heading">¶</a></h2>
+<p>Market tools use the strategy clock where supported. An LLM may nevertheless
+know facts from after a historical window. Inspect source timestamps, revisions,
+orders, and artifacts; a successful run does not establish profitable trading.</p>
+<p>Release verification exercises the actual Strategy, AgentManager, built-in
+tools and backtesting broker. Market observations and research responses are
+fixtures; actor and judge calls use real models. Execution scenarios require a
+broker-observed simulated fill, not merely an order claim in model prose.
+Historical research fixtures also exercise MCP schema discovery and as-of binding.</p>
+</section>
+<section id="how-agent-tool-works">
+<h2>How <code class="docutils literal notranslate"><span class="pre">&#64;agent_tool</span></code> Works<a class="headerlink" href="#how-agent-tool-works" title="Link to this heading">¶</a></h2>
+<p>The <code class="docutils literal notranslate"><span class="pre">&#64;agent_tool</span></code> decorator is the primary way to give your AI agent access to external data. It wraps a Python method as a callable tool that the agent can invoke during its reasoning loop.</p>
+<p><strong>Key feature: automatic source code inclusion.</strong> When you decorate a method with <code class="docutils literal notranslate"><span class="pre">&#64;agent_tool</span></code>, LumiBot automatically includes the function’s source code in the tool description sent to the AI. This means the AI can see all parameters, default values, and implementation details without you having to describe them manually. Write a clear docstring with an <code class="docutils literal notranslate"><span class="pre">Args</span></code> section, and the AI will understand how to call your tool correctly.</p>
+<p>The introductory macro examples on this page use Lumibot’s built-in FRED tools. Those tools require <code class="docutils literal notranslate"><span class="pre">FRED_API_KEY</span></code> and use official FRED/ALFRED realtime parameters so backtests do not accidentally see future macro revisions.</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="nd">@agent_tool</span><span class="p">(</span>
+    <span class="n">name</span><span class="o">=</span><span class="s2">"search_news"</span><span class="p">,</span>
+    <span class="n">description</span><span class="o">=</span><span class="s2">"Search recent stock market news from Alpaca."</span><span class="p">,</span>
+<span class="p">)</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">search_news</span><span class="p">(</span>
+    <span class="bp">self</span><span class="p">,</span> <span class="n">start</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">""</span><span class="p">,</span> <span class="n">end</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">""</span><span class="p">,</span> <span class="n">symbols</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">""</span><span class="p">,</span> <span class="n">limit</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">10</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""Call the Alpaca News API for historical news.</span>
+
+<span class="sd">    Args:</span>
+<span class="sd">        start: Start timestamp in ISO format</span>
+<span class="sd">        end: End timestamp in ISO format</span>
+<span class="sd">        symbols: Comma-separated stock symbols to filter by</span>
+<span class="sd">        limit: Maximum number of articles to return</span>
+<span class="sd">    """</span>
+    <span class="c1"># The AI sees this entire function body automatically</span>
+    <span class="n">resp</span> <span class="o">=</span> <span class="n">requests</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"https://data.alpaca.markets/v1beta1/news"</span><span class="p">,</span> <span class="o">...</span><span class="p">)</span>
+    <span class="k">return</span> <span class="n">resp</span><span class="o">.</span><span class="n">json</span><span class="p">()</span>
+</pre></div>
+</div>
+<p>When you pass custom tools via <code class="docutils literal notranslate"><span class="pre">tools=[self.my_tool]</span></code>, they are added <strong>alongside</strong> the default built-in tools. You only need to list your custom tools – built-in tools are always included.</p>
+<p>The one exception is outbound network access. <code class="docutils literal notranslate"><span class="pre">http_request</span></code>, <code class="docutils literal notranslate"><span class="pre">rss_fetch</span></code>, and the <code class="docutils literal notranslate"><span class="pre">browser_*</span></code> tools are off by default; pass <code class="docutils literal notranslate"><span class="pre">allow_network=True</span></code> to the agent that fetches pages. See <a class="reference internal" href="agents_builtin_tools.html#agents-network-permissions"><span class="std std-ref">the network permissions section</span></a>.</p>
+</section>
+<section id="external-data-patterns">
+<h2>External Data Patterns<a class="headerlink" href="#external-data-patterns" title="Link to this heading">¶</a></h2>
+<p><strong>Pattern 1: &#64;agent_tool wrapping a REST API (recommended)</strong></p>
+<p>This is the primary and recommended approach. It works reliably in both backtests and live trading because you control the HTTP call directly.</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span><span class="w"> </span><span class="nn">os</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">requests</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">lumibot.components.agents</span><span class="w"> </span><span class="kn">import</span> <span class="n">agent_tool</span>
+
+<span class="nd">@agent_tool</span><span class="p">(</span>
+    <span class="n">name</span><span class="o">=</span><span class="s2">"get_stock_bars"</span><span class="p">,</span>
+    <span class="n">description</span><span class="o">=</span><span class="s2">"Get historical daily price bars for a stock from Alpaca."</span><span class="p">,</span>
+<span class="p">)</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">get_stock_bars</span><span class="p">(</span>
+    <span class="bp">self</span><span class="p">,</span> <span class="n">symbol</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">start</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">""</span><span class="p">,</span> <span class="n">end</span><span class="p">:</span> <span class="nb">str</span> <span class="o">=</span> <span class="s2">""</span><span class="p">,</span> <span class="n">limit</span><span class="p">:</span> <span class="nb">int</span> <span class="o">=</span> <span class="mi">30</span>
+<span class="p">)</span> <span class="o">-&gt;</span> <span class="nb">dict</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""Get historical OHLCV bars from the Alpaca market data API.</span>
+
+<span class="sd">    Args:</span>
+<span class="sd">        symbol: Stock ticker symbol (e.g., TQQQ, SPY, QQQ)</span>
+<span class="sd">        start: Start date in YYYY-MM-DD or ISO format</span>
+<span class="sd">        end: End date in YYYY-MM-DD or ISO format</span>
+<span class="sd">        limit: Maximum number of bars to return</span>
+<span class="sd">    """</span>
+    <span class="n">api_key</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">environ</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"ALPACA_API_KEY"</span><span class="p">,</span> <span class="s2">""</span><span class="p">)</span>
+    <span class="n">api_secret</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">environ</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"ALPACA_API_SECRET"</span><span class="p">,</span> <span class="s2">""</span><span class="p">)</span>
+    <span class="n">headers</span> <span class="o">=</span> <span class="p">{</span><span class="s2">"APCA-API-KEY-ID"</span><span class="p">:</span> <span class="n">api_key</span><span class="p">,</span> <span class="s2">"APCA-API-SECRET-KEY"</span><span class="p">:</span> <span class="n">api_secret</span><span class="p">}</span>
+    <span class="n">params</span> <span class="o">=</span> <span class="p">{</span><span class="s2">"timeframe"</span><span class="p">:</span> <span class="s2">"1Day"</span><span class="p">,</span> <span class="s2">"limit"</span><span class="p">:</span> <span class="n">limit</span><span class="p">,</span> <span class="s2">"sort"</span><span class="p">:</span> <span class="s2">"desc"</span><span class="p">}</span>
+    <span class="k">if</span> <span class="n">start</span><span class="p">:</span>
+        <span class="n">params</span><span class="p">[</span><span class="s2">"start"</span><span class="p">]</span> <span class="o">=</span> <span class="n">start</span>
+    <span class="k">if</span> <span class="n">end</span><span class="p">:</span>
+        <span class="n">params</span><span class="p">[</span><span class="s2">"end"</span><span class="p">]</span> <span class="o">=</span> <span class="n">end</span>
+    <span class="n">resp</span> <span class="o">=</span> <span class="n">requests</span><span class="o">.</span><span class="n">get</span><span class="p">(</span>
+        <span class="sa">f</span><span class="s2">"https://data.alpaca.markets/v2/stocks/</span><span class="si">{</span><span class="n">symbol</span><span class="si">}</span><span class="s2">/bars"</span><span class="p">,</span>
+        <span class="n">headers</span><span class="o">=</span><span class="n">headers</span><span class="p">,</span> <span class="n">params</span><span class="o">=</span><span class="n">params</span><span class="p">,</span> <span class="n">timeout</span><span class="o">=</span><span class="mi">15</span><span class="p">,</span>
+    <span class="p">)</span>
+    <span class="k">return</span> <span class="n">resp</span><span class="o">.</span><span class="n">json</span><span class="p">()</span>
+</pre></div>
+</div>
+<p>This pattern works with any REST API – Alpaca, FRED, Alpha Vantage, or your own internal services. All four demo strategies use this approach.</p>
+<p><strong>Pattern 2: MCP server via URL (for live trading or compatible servers)</strong></p>
+<p>If you have a compatible MCP server, you can connect it by URL. This is useful for live trading scenarios or when a third-party provides a dedicated MCP server.</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span><span class="w"> </span><span class="nn">lumibot.components.agents</span><span class="w"> </span><span class="kn">import</span> <span class="n">MCPServer</span>
+
+<span class="n">MCPServer</span><span class="p">(</span>
+    <span class="n">name</span><span class="o">=</span><span class="s2">"my-data-server"</span><span class="p">,</span>
+    <span class="n">url</span><span class="o">=</span><span class="s2">"https://my-mcp-server.example.com/mcp"</span><span class="p">,</span>
+    <span class="n">timeout_seconds</span><span class="o">=</span><span class="mi">120</span><span class="p">,</span>
+<span class="p">)</span>
+</pre></div>
+</div>
+<p>Any MCP server that speaks the Model Context Protocol over HTTP or Streamable HTTP works with LumiBot. There are over 20,000 MCP servers available today covering news, economic data, filings, social sentiment, and more.</p>
+</section>
+<section id="built-in-tools">
+<h2>Built-in Tools<a class="headerlink" href="#built-in-tools" title="Link to this heading">¶</a></h2>
+<p>LumiBot includes a full set of built-in trading tools that are available to every agent <strong>by default</strong>. You do not need to list them explicitly. Even when you add custom tools via <code class="docutils literal notranslate"><span class="pre">&#64;agent_tool</span></code> or MCP servers, the built-in tools remain available.</p>
+<p>The built-in tools cover everything a trading agent needs:</p>
+<ul class="simple">
+<li><p><strong>Account:</strong> <code class="docutils literal notranslate"><span class="pre">account.positions</span></code>, <code class="docutils literal notranslate"><span class="pre">account.portfolio</span></code> – current holdings and portfolio state</p></li>
+<li><p><strong>Market data:</strong> <code class="docutils literal notranslate"><span class="pre">market.last_price</span></code>, <code class="docutils literal notranslate"><span class="pre">market.load_history_table</span></code> – real-time quotes and historical bars</p></li>
+<li><p><strong>DuckDB:</strong> <code class="docutils literal notranslate"><span class="pre">duckdb.query</span></code> – SQL queries over time-series data loaded into DuckDB tables</p></li>
+<li><p><strong>Orders:</strong> <code class="docutils literal notranslate"><span class="pre">orders.submit</span></code>, <code class="docutils literal notranslate"><span class="pre">orders.cancel</span></code>, <code class="docutils literal notranslate"><span class="pre">orders.modify</span></code>, <code class="docutils literal notranslate"><span class="pre">orders.open_orders</span></code> – full order management</p></li>
+<li><p><strong>Documentation:</strong> <code class="docutils literal notranslate"><span class="pre">docs.search</span></code> – search LumiBot’s own API docs for guidance</p></li>
+</ul>
+<p>These tools give the agent access to positions, prices, history, and order execution without any setup. If you want to add external data on top of these, use <code class="docutils literal notranslate"><span class="pre">&#64;agent_tool</span></code> or add MCP servers.</p>
+</section>
+<section id="system-prompts">
+<h2>System Prompts<a class="headerlink" href="#system-prompts" title="Link to this heading">¶</a></h2>
+<p>LumiBot handles all the common instructions internally through its base prompt. The base prompt tells the agent:</p>
+<ul class="simple">
+<li><p>Whether the run is a backtest or live trading</p></li>
+<li><p>The current datetime and timezone</p></li>
+<li><p>Current positions, cash, and portfolio values</p></li>
+<li><p>Rules about look-ahead bias and backtesting safety</p></li>
+<li><p>Default investor policy (conviction over activity, no overtrading)</p></li>
+<li><p>Position sizing, order execution, and limit order preferences</p></li>
+<li><p>DuckDB conventions and tool usage guidance</p></li>
+</ul>
+<p><strong>Your system prompt should be 2-3 sentences about your strategy.</strong> LumiBot handles the rest.</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">system_prompt</span><span class="o">=</span><span class="p">(</span>
+    <span class="s2">"Use economic data to decide whether capital should be in TQQQ "</span>
+    <span class="s2">"or a defensive asset like SHV. Check interest rates, inflation, "</span>
+    <span class="s2">"and growth conditions. This is a binary allocator."</span>
+<span class="p">)</span>
+</pre></div>
+</div>
+<p>Do not repeat instructions about position sizing, time safety, or tool usage. LumiBot already covers those in the base prompt.</p>
+</section>
+<section id="agent-handoffs">
+<h2>Agent Handoffs<a class="headerlink" href="#agent-handoffs" title="Link to this heading">¶</a></h2>
+<p>Multi-agent strategies often pass one agent’s output into the next agent. For
+example, an evidence researcher may hand a research pack to a bull researcher,
+then a bear researcher, then a portfolio manager. These handoffs should be
+large enough to preserve useful evidence while still being concise enough for
+the next model call.</p>
+<p>Prefer prompt instructions and structured output requests:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">result</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">agents</span><span class="p">[</span><span class="s2">"evidence_researcher"</span><span class="p">]</span><span class="o">.</span><span class="n">run</span><span class="p">(</span>
+    <span class="n">task_prompt</span><span class="o">=</span><span class="p">(</span>
+        <span class="s2">"Build a structured evidence handoff. "</span>
+        <span class="s2">"Keep it under context.handoff_target_tokens tokens. "</span>
+        <span class="s2">"Do not pad the answer just to fill the budget."</span>
+    <span class="p">),</span>
+    <span class="n">context</span><span class="o">=</span><span class="p">{</span><span class="s2">"handoff_target_tokens"</span><span class="p">:</span> <span class="mi">24000</span><span class="p">},</span>
+<span class="p">)</span>
+
+<span class="n">evidence_pack</span> <span class="o">=</span> <span class="n">result</span><span class="o">.</span><span class="n">summary</span> <span class="ow">or</span> <span class="n">result</span><span class="o">.</span><span class="n">text</span>
+</pre></div>
+</div>
+<p><code class="docutils literal notranslate"><span class="pre">handoff_target_tokens</span></code> is the prompt target. It does not force the model to
+use that many tokens. It tells the model the upper bound for a complete,
+structured handoff. A good model can still return 5,000 or 8,000 tokens when
+that is enough.</p>
+<p>Do not silently truncate handoffs or tool results in order to make a backtest
+fit a provider context window. Silent truncation changes the evidence the next
+agent sees and can turn a trading-quality benchmark into a benchmark of the
+truncation policy. If a handoff is too large, prefer narrower tools, better
+role prompts, provider-appropriate model selection, or a clear failure with
+diagnostics.</p>
+<p>For 128K-context models, think about the combined context, not just one
+handoff. If the portfolio manager receives evidence, bull, and bear handoffs,
+three 32K-token handoffs can already consume roughly 96K tokens before the
+system prompt, tool schemas, runtime context, and the portfolio manager’s own
+output.</p>
+<p>Do not add hidden runtime tool-call budgets to trading benchmarks. Blocking
+tools can invalidate results by preventing execution tools, such as order
+submission, from running. If you need to control paid benchmark spend, use an
+explicit outer run cap such as <code class="docutils literal notranslate"><span class="pre">LUMIBOT_AGENT_MAX_MODEL_CALLS</span></code> and treat the
+run as failed when the cap is reached.</p>
+</section>
+<section id="duckdb-and-time-series-data">
+<h2>DuckDB and Time-Series Data<a class="headerlink" href="#duckdb-and-time-series-data" title="Link to this heading">¶</a></h2>
+<p>When the agent needs to analyze historical price data, LumiBot loads it into DuckDB tables automatically. The agent can then query these tables with SQL instead of reading raw bar data in the prompt.</p>
+<p>This is handled by the base prompt and the built-in <code class="docutils literal notranslate"><span class="pre">market.load_history_table</span></code> and <code class="docutils literal notranslate"><span class="pre">duckdb.query</span></code> tools. The agent loads a price history table by symbol and timeframe, then queries it with standard SQL for moving averages, volatility, or any other analysis. You do not need to configure DuckDB – it is part of the default agent runtime.</p>
+</section>
+<section id="replay-cache">
+<h2>Replay Cache<a class="headerlink" href="#replay-cache" title="Link to this heading">¶</a></h2>
+<p>In backtesting mode, LumiBot caches every agent run. When a subsequent backtest hits the same combination of prompt, context, model, tools, and simulated timestamp, the cached result is returned instantly without calling the LLM or any external tool.</p>
+<p>This means:</p>
+<ul class="simple">
+<li><p><strong>Deterministic backtests.</strong> The same inputs always produce the same outputs.</p></li>
+<li><p><strong>Fast warm reruns.</strong> A cached backtest that took 30 minutes on the first run can complete in seconds.</p></li>
+<li><p><strong>Cost control.</strong> No duplicate LLM API calls or external API calls on repeated runs.</p></li>
+</ul>
+<p>The replay cache is automatic. No configuration needed.</p>
+</section>
+<section id="observability">
+<h2>Observability<a class="headerlink" href="#observability" title="Link to this heading">¶</a></h2>
+<p>Every agent run produces a structured trace that records:</p>
+<ul class="simple">
+<li><p>The full prompt surface (base prompt + system prompt + context)</p></li>
+<li><p>Every tool call and tool result</p></li>
+<li><p>Any observability warnings (e.g., future-dated data in a backtest)</p></li>
+<li><p>The agent’s summary and reasoning</p></li>
+<li><p>Cache hit/miss status</p></li>
+<li><p>DuckDB query metrics</p></li>
+</ul>
+<p>A compact summary log line is emitted for every run. For deeper debugging, inspect the full JSON trace file. See <a class="reference internal" href="agents_observability.html"><span class="doc">AI Agent Observability</span></a> for the complete debugging workflow.</p>
+</section>
+<section id="canonical-demos">
+<h2>Canonical Demos<a class="headerlink" href="#canonical-demos" title="Link to this heading">¶</a></h2>
+<p>LumiBot ships short one-agent demos in <code class="docutils literal notranslate"><span class="pre">lumibot/example_strategies/agent_*.py</span></code>. Each is a few sentences of plain English, about 30 lines, and uses only LumiBot’s built-in tools:</p>
+<ol class="arabic simple">
+<li><p><strong>News Sentiment</strong> (<code class="docutils literal notranslate"><span class="pre">agent_news_sentiment.py</span></code>) – buys the well-known stocks with the strongest good news.</p></li>
+<li><p><strong>Trend</strong> (<code class="docutils literal notranslate"><span class="pre">agent_macro_risk.py</span></code>) – holds TQQQ or SHV based on the price trend.</p></li>
+<li><p><strong>Momentum and News</strong> (<code class="docutils literal notranslate"><span class="pre">agent_momentum_allocator.py</span></code>) – holds TQQQ or SHV based on trend and news.</p></li>
+<li><p><strong>M2 Liquidity</strong> (<code class="docutils literal notranslate"><span class="pre">agent_m2_liquidity.py</span></code>) – holds TQQQ or SHV based on the Federal Reserve’s money supply data.</p></li>
+</ol>
+<p>See <a class="reference internal" href="agents_canonical_demos.html"><span class="doc">One-Agent AI Trading Bot Demos</span></a> for all of them.</p>
+<p>The demo files are located at <code class="docutils literal notranslate"><span class="pre">lumibot/example_strategies/agent_*.py</span></code> and can be run directly after setting the required environment variables.</p>
+</section>
+<section id="frequently-asked-questions">
+<h2>Frequently Asked Questions<a class="headerlink" href="#frequently-asked-questions" title="Link to this heading">¶</a></h2>
+<p><strong>Can I backtest an AI trading agent?</strong></p>
+<p>Yes. LumiBot lets an AI agent reason, call tools, and execute trades on every bar during a backtest. The agent runs inside <code class="docutils literal notranslate"><span class="pre">on_trading_iteration()</span></code>, receives point-in-time market state, and uses tools to make decisions – all within the backtest simulation. A built-in replay cache makes warm reruns deterministic and fast.</p>
+<p><strong>What makes LumiBot different from other AI trading frameworks?</strong></p>
+<p>Most alternatives either put the LLM outside the backtest loop (QuantConnect), have no backtesting at all (CrewAI, AutoGen, LangGraph), or are hobby scripts with no infrastructure. LumiBot runs the AI agent inside the backtest simulation on every bar, with <code class="docutils literal notranslate"><span class="pre">&#64;agent_tool</span></code> for reliable external data, MCP server support, replay caching, DuckDB time-series queries, and full observability – all with the same code for backtest and live.</p>
+<p><strong>What AI models are supported?</strong></p>
+<p>LumiBot ships with first-class support for Gemini, OpenAI (GPT), xAI (Grok), Anthropic (Claude), and any other provider covered by LiteLLM (~100 providers). You pick the model per agent via the <code class="docutils literal notranslate"><span class="pre">default_model</span></code> parameter when creating your agent.</p>
+<p>The default is <code class="docutils literal notranslate"><span class="pre">&quot;openai/gpt-6-luna&quot;</span></code> with medium reasoning effort. Gemini ids (e.g. <code class="docutils literal notranslate"><span class="pre">&quot;gemini-3.5-flash-lite&quot;</span></code>) take Google ADK’s native fast path. Anything else is automatically routed through LiteLLM using the provider-prefixed id format:</p>
+<ul class="simple">
+<li><p>Gemini: <code class="docutils literal notranslate"><span class="pre">&quot;gemini-3.5-flash-lite&quot;</span></code> – requires <code class="docutils literal notranslate"><span class="pre">GEMINI_API_KEY</span></code> for native calls; managed calls use the configured gateway capability</p></li>
+<li><p>OpenAI: <code class="docutils literal notranslate"><span class="pre">&quot;openai/gpt-6-luna&quot;</span></code> (default, medium reasoning), <code class="docutils literal notranslate"><span class="pre">&quot;openai/gpt-5.4-mini&quot;</span></code>, <code class="docutils literal notranslate"><span class="pre">&quot;openai/gpt-5.4&quot;</span></code>, <code class="docutils literal notranslate"><span class="pre">&quot;openai/gpt-5.4-pro&quot;</span></code>, <code class="docutils literal notranslate"><span class="pre">&quot;openai/gpt-5.4-nano&quot;</span></code> – requires <code class="docutils literal notranslate"><span class="pre">OPENAI_API_KEY</span></code></p></li>
+<li><p>xAI Grok: <code class="docutils literal notranslate"><span class="pre">&quot;xai/grok-4.20-0309-reasoning&quot;</span></code> (Grok 4.2, reasoning on, 2M ctx), <code class="docutils literal notranslate"><span class="pre">&quot;xai/grok-4-1-fast-reasoning-latest&quot;</span></code> (cheap/fast), or <code class="docutils literal notranslate"><span class="pre">&quot;xai/grok-4-latest&quot;</span></code> (older) – requires <code class="docutils literal notranslate"><span class="pre">XAI_API_KEY</span></code> or <code class="docutils literal notranslate"><span class="pre">GROK_API_KEY</span></code></p></li>
+<li><p>Anthropic Claude: <code class="docutils literal notranslate"><span class="pre">&quot;anthropic/claude-opus-4-7&quot;</span></code>, <code class="docutils literal notranslate"><span class="pre">&quot;anthropic/claude-sonnet-4-6&quot;</span></code> – requires <code class="docutils literal notranslate"><span class="pre">ANTHROPIC_API_KEY</span></code></p></li>
+</ul>
+<p>The replay cache keys on the model id, so swapping providers on the same backtest produces fresh runs rather than stale cross-model replays. Tool calling is normalized across providers by LiteLLM, so your <code class="docutils literal notranslate"><span class="pre">&#64;agent_tool</span></code> functions work unchanged regardless of which model you pick.</p>
+<p><strong>How do I get started?</strong></p>
+<p>Install LumiBot, set <code class="docutils literal notranslate"><span class="pre">OPENAI_API_KEY</span></code> in your environment, copy the Quick Start example on this page, and run it. The M2 Liquidity Strategy example is a complete, runnable strategy file. Provider-specific variants are available for OpenAI, Grok, and Anthropic. See <a class="reference internal" href="agents_quickstart.html"><span class="doc">Run your first AI backtest</span></a> for additional patterns and <a class="reference internal" href="agents_canonical_demos.html"><span class="doc">One-Agent AI Trading Bot Demos</span></a> for the reference demo strategies.</p>
+<p><strong>What API keys do I need?</strong></p>
+<p>At minimum, one model provider key matching the <code class="docutils literal notranslate"><span class="pre">default_model</span></code> you set: <code class="docutils literal notranslate"><span class="pre">OPENAI_API_KEY</span></code> for GPT models (the default), <code class="docutils literal notranslate"><span class="pre">GEMINI_API_KEY</span></code> for Gemini, <code class="docutils literal notranslate"><span class="pre">XAI_API_KEY</span></code> or <code class="docutils literal notranslate"><span class="pre">GROK_API_KEY</span></code> for Grok, or <code class="docutils literal notranslate"><span class="pre">ANTHROPIC_API_KEY</span></code> for Claude. If your <code class="docutils literal notranslate"><span class="pre">&#64;agent_tool</span></code> functions call external APIs, you also need those keys – for example <code class="docutils literal notranslate"><span class="pre">ALPACA_API_KEY</span></code> and <code class="docutils literal notranslate"><span class="pre">ALPACA_API_SECRET</span></code> for Alpaca data APIs. Macro-data examples and built-in FRED tools require <code class="docutils literal notranslate"><span class="pre">FRED_API_KEY</span></code> so LumiBot can use the official FRED/ALFRED API and request point-in-time vintage observations in backtests.</p>
+<p><strong>How do I set up my environment?</strong></p>
+<p>Create a <code class="docutils literal notranslate"><span class="pre">.env</span></code> file in your project directory with your API keys (e.g., <code class="docutils literal notranslate"><span class="pre">OPENAI_API_KEY=your_key_here</span></code>). LumiBot reads environment variables at startup. You can also export them in your shell. For backtesting, set <code class="docutils literal notranslate"><span class="pre">BACKTESTING_DATA_SOURCE</span></code> in <code class="docutils literal notranslate"><span class="pre">.env</span></code> or use <code class="docutils literal notranslate"><span class="pre">datasource_class=None</span></code> to defer to the environment configuration.</p>
+<p><strong>Can I use this for live trading?</strong></p>
+<p>The same <code class="docutils literal notranslate"><span class="pre">Strategy</span></code> class can be used in a backtest and with a supported
+broker (Alpaca, Interactive Brokers, Tradier, Schwab, and others). The startup
+code must select the path: <code class="docutils literal notranslate"><span class="pre">Strategy.backtest(...)</span></code> for history, or construct
+the strategy with a broker and call <code class="docutils literal notranslate"><span class="pre">run_live()</span></code> or <code class="docutils literal notranslate"><span class="pre">Trader.run_all()</span></code> for
+broker execution. Some example files include only a backtest runner. See
+<a class="reference internal" href="strategy_run_modes.html"><span class="doc">Backtest, paper, or live: choose the runner</span></a> before running one directly.</p>
+<p><strong>Does it work with my broker?</strong></p>
+<p>LumiBot supports Alpaca, Interactive Brokers, Tradier, Schwab, Tradovate, TopstepX futures (via ProjectX), Bitunix, and selected CCXT crypto paths. Coinbase, Kraken, and WEEX have auto-detected credential paths; KuCoin, Binance, and BitMEX have documented manual CCXT setup paths; Kraken, Binance, KuCoin, BitMEX, Bybit, and OKX have documented backtesting examples. Lumibot does not claim support for every CCXT exchange. Any broker supported by LumiBot works with AI agents. The agent submits orders through the standard LumiBot order execution pipeline.</p>
+<p><strong>What is &#64;agent_tool?</strong></p>
+<p><code class="docutils literal notranslate"><span class="pre">&#64;agent_tool</span></code> is a decorator that wraps a Python method as a callable tool the AI agent can invoke during its reasoning loop. You provide a name and description, write a standard method with type hints and a docstring, and the decorator handles the rest. The function’s source code is automatically included in the tool description so the AI can see parameters, defaults, and implementation details.</p>
+<p><strong>How does the agent know what parameters my tool accepts?</strong></p>
+<p><code class="docutils literal notranslate"><span class="pre">&#64;agent_tool</span></code> automatically includes the function’s entire source code in the tool description sent to the AI model. The AI sees your type hints, default values, and docstring. Write a clear docstring with a Google-style <code class="docutils literal notranslate"><span class="pre">Args</span></code> section and the AI will understand how to call your tool.</p>
+<p><strong>Do I need to list built-in tools?</strong></p>
+<p>No. All built-in tools (positions, portfolio, prices, orders, DuckDB, docs) are always included automatically. When you pass custom tools via <code class="docutils literal notranslate"><span class="pre">tools=[self.my_tool]</span></code>, they are added alongside the built-in tools. You only need to list your custom <code class="docutils literal notranslate"><span class="pre">&#64;agent_tool</span></code> functions. Outbound web and browser tools are the exception: they need <code class="docutils literal notranslate"><span class="pre">allow_network=True</span></code>.</p>
+<p><strong>Can I use multiple custom tools?</strong></p>
+<p>Yes. Pass a list of tools when creating the agent: <code class="docutils literal notranslate"><span class="pre">tools=[self.tool_a,</span> <span class="pre">self.tool_b,</span> <span class="pre">self.tool_c]</span></code>. The Macro Risk and Momentum Allocator demos both use multiple <code class="docutils literal notranslate"><span class="pre">&#64;agent_tool</span></code> functions in a single strategy. There is no hard limit on the number of custom tools.</p>
+<p><strong>What REST APIs can I wrap with &#64;agent_tool?</strong></p>
+<p>Any REST API that returns JSON or text. The canonical demos wrap Alpaca News API, Alpaca Bars API, Alpaca Screener API, and other HTTP services. For FRED macro data, prefer Lumibot’s built-in FRED tools because they use the official API with realtime vintage parameters for point-in-time backtests. You can wrap Alpha Vantage, your own internal services, SEC EDGAR, social sentiment APIs, or anything else accessible over HTTP.</p>
+<p><strong>How do I add authentication to my tool?</strong></p>
+<p>Read API keys from environment variables inside your <code class="docutils literal notranslate"><span class="pre">&#64;agent_tool</span></code> function using <code class="docutils literal notranslate"><span class="pre">os.environ.get(&quot;MY_API_KEY&quot;)</span></code>. Pass them as headers or query parameters in your <code class="docutils literal notranslate"><span class="pre">requests</span></code> call. See the Alpaca demos for examples that use <code class="docutils literal notranslate"><span class="pre">APCA-API-KEY-ID</span></code> and <code class="docutils literal notranslate"><span class="pre">APCA-API-SECRET-KEY</span></code> headers.</p>
+<p><strong>What happens if my tool returns an error?</strong></p>
+<p>Return a dictionary with an <code class="docutils literal notranslate"><span class="pre">&quot;error&quot;</span></code> key (e.g., <code class="docutils literal notranslate"><span class="pre">return</span> <span class="pre">{&quot;error&quot;:</span> <span class="pre">str(e)}</span></code>). The agent sees the error and can decide to retry, try a different approach, or proceed without that data. An observability warning is also recorded in the trace. Wrap your HTTP call in a try/except block to handle network failures gracefully.</p>
+<p><strong>Can I use MCP servers instead of &#64;agent_tool?</strong></p>
+<p>Yes. Pass an <code class="docutils literal notranslate"><span class="pre">MCPServer</span></code> object with a URL when creating the agent. However, <code class="docutils literal notranslate"><span class="pre">&#64;agent_tool</span></code> is the recommended primary pattern because you control the HTTP call directly, it works reliably in both backtests and live trading, and it does not require external server infrastructure.</p>
+<p><strong>What is the difference between &#64;agent_tool and MCP servers?</strong></p>
+<p><code class="docutils literal notranslate"><span class="pre">&#64;agent_tool</span></code> wraps a Python method that makes HTTP calls via <code class="docutils literal notranslate"><span class="pre">requests</span></code> – you control the code, it runs in-process, and it works reliably in backtests. MCP servers are external services that speak the Model Context Protocol over HTTP. MCP servers are useful when a third party provides a dedicated server or you need access to one of the 20,000+ public MCP servers, but <code class="docutils literal notranslate"><span class="pre">&#64;agent_tool</span></code> is more reliable for backtesting and gives you full control.</p>
+<p><strong>How long should my system prompt be?</strong></p>
+<p>Two to three sentences describing your strategy intent. For example: what data to use, what assets to trade, and what the allocation logic should be. LumiBot handles position sizing, DuckDB guidance, backtesting safety, time-awareness, and the default investor policy in its base prompt.</p>
+<p><strong>What should I put in the system prompt?</strong></p>
+<p>Describe your strategy’s thesis and the assets it trades. Do not repeat instructions about position sizing, order execution, look-ahead bias, or tool usage – LumiBot covers all of that in the base prompt. A good example: <code class="docutils literal notranslate"><span class="pre">&quot;Use</span> <span class="pre">economic</span> <span class="pre">data</span> <span class="pre">to</span> <span class="pre">decide</span> <span class="pre">between</span> <span class="pre">TQQQ</span> <span class="pre">and</span> <span class="pre">SHV.</span> <span class="pre">Check</span> <span class="pre">interest</span> <span class="pre">rates,</span> <span class="pre">inflation,</span> <span class="pre">and</span> <span class="pre">growth</span> <span class="pre">conditions.&quot;</span></code></p>
+<p><strong>What does LumiBot handle automatically in the base prompt?</strong></p>
+<p>The base prompt tells the agent whether the run is a backtest or live, the current datetime and timezone, current positions and cash, rules about look-ahead bias, the default investor policy (conviction over activity, no overtrading), risk and drawdown discipline (risk-adjusted returns over raw returns, recovery math, cut losers, no chasing after drawdowns, Sharpe/Sortino/Calmar framing), position sizing and limit order preferences, and DuckDB conventions and tool usage guidance.</p>
+<p><strong>Can I override the default investor policy?</strong></p>
+<p>The base prompt includes a default policy favoring conviction over activity and discouraging overtrading. Your system prompt can direct the agent toward different behavior – for example, telling it to rebalance daily or trade more aggressively. The system prompt is added on top of the base prompt, so your instructions take priority for strategy-specific guidance.</p>
+<p><strong>How do I make the agent more aggressive or more conservative?</strong></p>
+<p>Add explicit direction in your system prompt. For a more aggressive agent: <code class="docutils literal notranslate"><span class="pre">&quot;Trade</span> <span class="pre">actively.</span> <span class="pre">Rebalance</span> <span class="pre">into</span> <span class="pre">high-conviction</span> <span class="pre">positions</span> <span class="pre">quickly.&quot;</span></code> For a more conservative agent: <code class="docutils literal notranslate"><span class="pre">&quot;Only</span> <span class="pre">trade</span> <span class="pre">when</span> <span class="pre">evidence</span> <span class="pre">is</span> <span class="pre">overwhelming.</span> <span class="pre">Prefer</span> <span class="pre">holding</span> <span class="pre">cash</span> <span class="pre">or</span> <span class="pre">SHV</span> <span class="pre">when</span> <span class="pre">uncertain.&quot;</span></code> The agent follows your prompt guidance.</p>
+<p><strong>How does backtesting work with AI agents?</strong></p>
+<p>The agent runs inside <code class="docutils literal notranslate"><span class="pre">on_trading_iteration()</span></code> on every bar (e.g., every trading day if <code class="docutils literal notranslate"><span class="pre">sleeptime=&quot;1D&quot;</span></code>). On each bar, the agent receives point-in-time market state, calls tools (both built-in and custom), reasons over the data, and submits orders. The backtest simulation processes those orders at simulated market prices. The replay cache makes warm reruns deterministic.</p>
+<p><strong>How does the agent avoid looking into the future during backtests?</strong></p>
+<p>LumiBot injects the simulated datetime into the agent’s context and the base prompt includes explicit rules about look-ahead bias. The observability system also flags future-dated data warnings if a tool result references data published after the simulated backtest time. Your <code class="docutils literal notranslate"><span class="pre">&#64;agent_tool</span></code> functions should respect date parameters to avoid requesting future data.</p>
+<p><strong>What is the replay cache?</strong></p>
+<p>In backtesting mode, LumiBot caches every agent run keyed by a SHA-256 hash of the prompt, context, model, tool surface, and simulated timestamp. When a subsequent backtest hits the same combination, the cached result is returned instantly without calling the LLM or any external tool. This makes warm reruns deterministic, fast, and cost-free.</p>
+<p><strong>How do I clear the cache for a fresh run?</strong></p>
+<p>Delete the replay cache directory. On macOS the default location is <code class="docutils literal notranslate"><span class="pre">~/Library/Caches/lumibot/1.0/agent_runtime/replay/</span></code>. Set <code class="docutils literal notranslate"><span class="pre">LUMIBOT_CACHE_FOLDER</span></code> before importing lumibot to store caches somewhere else. After clearing, the next run will make fresh LLM and tool calls.</p>
+<p><strong>How long does a backtest take?</strong></p>
+<p>A cold run (no cache) depends on the number of bars, the number of tool calls per bar, and the LLM response time. A six-year daily backtest with one tool call per bar might take 20-40 minutes on the first run. A warm run (fully cached) completes the same backtest in seconds because no LLM or external API calls are made.</p>
+<p><strong>Can I speed up backtests?</strong></p>
+<p>Use the replay cache – after the first cold run, all subsequent runs with the same inputs are near-instant. You can also reduce the date range, increase the <code class="docutils literal notranslate"><span class="pre">sleeptime</span></code> to trade less frequently, or use a faster model. Keeping your <code class="docutils literal notranslate"><span class="pre">&#64;agent_tool</span></code> functions fast (short timeouts, efficient parsing) also helps.</p>
+<p><strong>What data sources work for backtesting?</strong></p>
+<p>Set <code class="docutils literal notranslate"><span class="pre">datasource_class=None</span></code> to use the data source from your <code class="docutils literal notranslate"><span class="pre">.env</span></code> file (via <code class="docutils literal notranslate"><span class="pre">BACKTESTING_DATA_SOURCE</span></code>). For standalone examples, use <code class="docutils literal notranslate"><span class="pre">YahooDataBacktesting</span></code>. LumiBot also supports ThetaData, Polygon, and other data sources for backtesting. The data source controls price bars and market data; your <code class="docutils literal notranslate"><span class="pre">&#64;agent_tool</span></code> functions provide any additional external data.</p>
+<p><strong>How do I see what the agent is doing?</strong></p>
+<p>Every agent run emits a compact summary log line with the agent name, model, cache status, tool call count, warning count, and the agent’s summary conclusion. The queryable record is <code class="docutils literal notranslate"><span class="pre">*_agent_detail.parquet</span></code>. The <code class="docutils literal notranslate"><span class="pre">call_summary</span></code> row includes <code class="docutils literal notranslate"><span class="pre">effective_system_prompt</span></code>. Raising <code class="docutils literal notranslate"><span class="pre">LUMIBOT_LOG_LEVEL</span></code> only changes printed logs. See <a class="reference internal" href="agents_observability.html"><span class="doc">AI Agent Observability</span></a> for the full debugging workflow.</p>
+<p><strong>What are agent traces?</strong></p>
+<p><code class="docutils literal notranslate"><span class="pre">*_agent_detail.parquet</span></code> is one table for the whole run: a <code class="docutils literal notranslate"><span class="pre">call_summary</span></code> row per AI call, plus rows for thinking, text, tool calls, and tool results. A JSON trace is also written per call. Both record the prompt (<code class="docutils literal notranslate"><span class="pre">effective_system_prompt</span></code>), every tool call and result, the summary, warnings, and cache status.</p>
+<p><strong>Where are trace files stored?</strong></p>
+<p>A backtest writes <code class="docutils literal notranslate"><span class="pre">*_agent_detail.parquet</span></code> next to the tear sheet. Live and paper files are under <code class="docutils literal notranslate"><span class="pre">~/Library/Caches/lumibot/1.0/agent_runtime/</span></code> on macOS. Set <code class="docutils literal notranslate"><span class="pre">LUMIBOT_CACHE_FOLDER</span></code> before importing lumibot to move that folder. The per-call JSON path is <code class="docutils literal notranslate"><span class="pre">(result.payload</span> <span class="pre">or</span> <span class="pre">{}).get(&quot;trace_path&quot;)</span></code>. Summaries are also written to <code class="docutils literal notranslate"><span class="pre">agent_run_summaries.jsonl</span></code>. <code class="docutils literal notranslate"><span class="pre">LUMIBOT_LOG_LEVEL</span></code> does not change either location.</p>
+<p><strong>How do I debug a bad trade?</strong></p>
+<p>Open <code class="docutils literal notranslate"><span class="pre">*_agent_detail.parquet</span></code> for that run and read <code class="docutils literal notranslate"><span class="pre">effective_system_prompt</span></code>, the tool rows, and the summary. Look for warnings (future-dated data, no tools called, unsupported orders). Compare the summary to the trade. See <a class="reference internal" href="agents_observability.html"><span class="doc">AI Agent Observability</span></a>. Raising <code class="docutils literal notranslate"><span class="pre">LUMIBOT_LOG_LEVEL</span></code> will not add this record.</p>
+<p><strong>Why is my agent not trading?</strong></p>
+<p>Check the agent’s summary in the logs – it may have decided not to trade because conviction was low. The default investor policy in the base prompt encourages conviction over activity. If you want more frequent trading, adjust your system prompt to be more directive. Also verify that your tools are returning valid data by inspecting the trace.</p>
+<p><strong>Why is my agent only buying SHV?</strong></p>
+<p>SHV is a common defensive parking asset used in the demo strategies. If the agent only buys SHV, it means the agent is not finding enough conviction to take risk. Check whether your tool is returning useful data (inspect the trace), whether the system prompt is clear about when to be risk-on, and whether the market data covers the right date range.</p>
+<p><strong>How much does it cost to run?</strong></p>
+<p>Cost depends on the LLM provider and model, the number of bars in your backtest, and how many tool calls the agent makes per bar. The first cold run of a long backtest makes one or more model calls per bar, so check your provider’s current pricing and start with a short date range. Warm reruns cost nothing because the replay cache eliminates all LLM and external API calls.</p>
+<p><strong>How can I reduce API costs?</strong></p>
+<p>Use the replay cache – compatible cached decisions avoid another model call. Use cost-effective models (e.g., <code class="docutils literal notranslate"><span class="pre">openai/gpt-6-luna</span></code>). Keep your backtest date range focused during development. Reduce the number of tool calls by making your tools return comprehensive data in a single call rather than requiring multiple round trips.</p>
+<p><strong>How does replay caching reduce costs?</strong></p>
+<p>The replay cache stores every agent run result keyed by a hash of the inputs. When the same prompt, context, tools, model, and timestamp appear again, the cached result is returned with zero LLM calls, zero external API calls, and zero cost. A cold backtest that costs a few dollars becomes free on every subsequent warm run.</p>
+</section>
+<section id="error-handling-and-reliability">
+<h2>Error Handling and Reliability<a class="headerlink" href="#error-handling-and-reliability" title="Link to this heading">¶</a></h2>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>This section describes error handling <strong>specific to AI agent calls</strong>. The rest of LumiBot’s main-loop error handling (strategy executor, brokers, data sources) is unchanged. The behavior below is scoped to <code class="docutils literal notranslate"><span class="pre">AgentHandle.run()</span></code> and <code class="docutils literal notranslate"><span class="pre">GoogleADKRuntime.run()</span></code>; it does not alter how non-agent code paths react to exceptions.</p>
+</div>
+<p>LumiBot’s AI agent stack has four timeout/retry/safety layers that together keep live trading alive through provider outages and surface backtest-time bugs clearly:</p>
+<ol class="arabic simple">
+<li><p><strong>Provider request timeout.</strong> Each individual model request has a default <strong>10 minute</strong> timeout. Native Gemini models receive this as <code class="docutils literal notranslate"><span class="pre">google.genai.types.HttpOptions(timeout=...)</span></code>. LiteLLM-backed providers receive it as LiteLLM’s <code class="docutils literal notranslate"><span class="pre">timeout</span></code> argument. This prevents one wedged provider call from freezing an agent for the full run budget.</p></li>
+<li><p><strong>LiteLLM-level HTTP retries.</strong> When using non-Gemini providers, LiteLLM retries each individual HTTP call 3 times with provider-aware backoff (429 Retry-After awareness, capped exponential). Configured automatically in <code class="docutils literal notranslate"><span class="pre">_configure_litellm_quietly</span></code> (<code class="docutils literal notranslate"><span class="pre">num_retries=3</span></code>, <code class="docutils literal notranslate"><span class="pre">drop_params=True</span></code>, <code class="docutils literal notranslate"><span class="pre">suppress_debug_info=True</span></code>).</p></li>
+<li><p><strong>Runtime-level attempt retries.</strong> <code class="docutils literal notranslate"><span class="pre">GoogleADKRuntime.run()</span></code> retries the full agent call up to <strong>10 times</strong> with capped exponential backoff (2s, 3s, 5s, 10s, 20s, 30s, 45s, 60s, 60s, 60s — total budget ~5 minutes). This covers session-setup errors, ADK runner glitches, and provider 5xx storms that LiteLLM’s inner retry couldn’t fix. Only transient and unknown errors retry; auth/config/billing errors surface immediately so we do not waste 5 minutes retrying a wrong API key.</p></li>
+<li><p><strong>Strategy-level safety net with live-vs-backtest branch.</strong> <code class="docutils literal notranslate"><span class="pre">AgentHandle.run()</span></code> wraps the runtime call in a final catch. Behavior depends on two things: the error category and whether the strategy is in backtest mode or live.</p></li>
+</ol>
+<section id="timeout-configuration">
+<h3>Timeout configuration<a class="headerlink" href="#timeout-configuration" title="Link to this heading">¶</a></h3>
+<p>The provider request timeout is different from the full agent run timeout:</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">model_request_timeout_seconds</span></code> controls one model/API request. Default: <code class="docutils literal notranslate"><span class="pre">600</span></code> seconds.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">run_timeout_seconds</span></code> controls the whole agent run, including model calls, tool calls, and retries. Default: <code class="docutils literal notranslate"><span class="pre">1800</span></code> seconds.</p></li>
+</ul>
+<p>Set these when creating an agent:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="bp">self</span><span class="o">.</span><span class="n">agents</span><span class="o">.</span><span class="n">create</span><span class="p">(</span>
+    <span class="n">name</span><span class="o">=</span><span class="s2">"researcher"</span><span class="p">,</span>
+    <span class="n">model</span><span class="o">=</span><span class="s2">"openai/gpt-6-luna"</span><span class="p">,</span>
+    <span class="n">system_prompt</span><span class="o">=</span><span class="s2">"Research the best trade."</span><span class="p">,</span>
+    <span class="n">model_request_timeout_seconds</span><span class="o">=</span><span class="mi">600</span><span class="p">,</span>
+    <span class="n">run_timeout_seconds</span><span class="o">=</span><span class="mi">1800</span><span class="p">,</span>
+<span class="p">)</span>
+</pre></div>
+</div>
+<p>Or override them for one call:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="bp">self</span><span class="o">.</span><span class="n">agents</span><span class="p">[</span><span class="s2">"researcher"</span><span class="p">]</span><span class="o">.</span><span class="n">run</span><span class="p">(</span>
+    <span class="n">task_prompt</span><span class="o">=</span><span class="s2">"Run a deeper research pass."</span><span class="p">,</span>
+    <span class="n">model_request_timeout_seconds</span><span class="o">=</span><span class="mi">900</span><span class="p">,</span>
+    <span class="n">run_timeout_seconds</span><span class="o">=</span><span class="mi">2400</span><span class="p">,</span>
+<span class="p">)</span>
+</pre></div>
+</div>
+<p>Advanced operators can also set <code class="docutils literal notranslate"><span class="pre">LUMIBOT_AGENT_MODEL_REQUEST_TIMEOUT_SECONDS</span></code> and <code class="docutils literal notranslate"><span class="pre">LUMIBOT_AGENT_RUN_TIMEOUT_SECONDS</span></code>. A non-positive value disables that timeout. LumiBot logs every cold agent call with the effective timeout values and logs the latency to the first ADK event, which helps distinguish a stuck provider request from an agent that is actively calling tools.</p>
+</section>
+<section id="error-classifier-buckets">
+<h3>Error classifier buckets<a class="headerlink" href="#error-classifier-buckets" title="Link to this heading">¶</a></h3>
+<p>Every exception from an agent call is classified by <code class="docutils literal notranslate"><span class="pre">_classify_agent_error</span></code> into one of five buckets:</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">auth</span></code> – missing or invalid API key, permission denied (401, 403)</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">config</span></code> – bad model id, malformed prompt, context-window exceeded, invalid payload (400, 404, 422)</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">billing</span></code> – out of credits, payment required, quota exhausted (402, 429 with <code class="docutils literal notranslate"><span class="pre">insufficient_quota</span></code>, 403 with billing/credits keywords)</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">transient</span></code> – 5xx, rate-limit bursts, timeouts, connection errors</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">unknown</span></code> – anything not matched; treated as transient (safe default)</p></li>
+</ul>
+<p>The classifier looks at the exception class name, HTTP status code (if the provider SDK attached one), and message substring keywords (<code class="docutils literal notranslate"><span class="pre">insufficient_quota</span></code>, <code class="docutils literal notranslate"><span class="pre">credits</span></code>, <code class="docutils literal notranslate"><span class="pre">billing</span></code>, <code class="docutils literal notranslate"><span class="pre">payment</span></code>, <code class="docutils literal notranslate"><span class="pre">no</span> <span class="pre">credits</span></code>) so that a 403 returned with a billing message is correctly classified as <code class="docutils literal notranslate"><span class="pre">billing</span></code> rather than <code class="docutils literal notranslate"><span class="pre">auth</span></code>.</p>
+</section>
+<section id="backtest-vs-live-behavior">
+<h3>Backtest vs. live behavior<a class="headerlink" href="#backtest-vs-live-behavior" title="Link to this heading">¶</a></h3>
+<div class="table-wrapper docutils container">
+<table class="docutils align-default">
+<thead>
+<tr class="row-odd"><th class="head"><p>Category</p></th>
+<th class="head"><p>Backtest</p></th>
+<th class="head"><p>Live</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">auth</span></code></p></td>
+<td><p><strong>Crash loud</strong> with env-var guidance.</p></td>
+<td><p>Log + skip iteration.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">config</span></code></p></td>
+<td><p><strong>Crash loud</strong> with model/prompt hint.</p></td>
+<td><p>Log + skip iteration.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">billing</span></code></p></td>
+<td><p><strong>Crash loud</strong> with provider billing URL.</p></td>
+<td><p>Log + skip iteration.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">transient</span></code></p></td>
+<td><p>Log + skip iteration (silent).</p></td>
+<td><p>Log + skip iteration.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">unknown</span></code></p></td>
+<td><p>Log + skip iteration (safe default).</p></td>
+<td><p>Log + skip iteration.</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<p><strong>Live trading invariant</strong>: an AI agent call never stops a live trading bot. Ever. Even a completely missing API key will log an error and continue — the operator can fix the env var and the bot resumes on the next iteration without a process restart. This is intentional: shutting down a live bot with real money at risk because of a provider hiccup is unacceptable.</p>
+<p><strong>Backtest philosophy</strong>: surface bugs loudly. A silent +0% tearsheet caused by a wrong API key is worse than a clear error message — the user just started the run, can fix it, and re-run. Transient errors still skip silently because they are not bugs the user can act on.</p>
+</section>
+<section id="skipped-iteration-result-shape">
+<h3>Skipped iteration result shape<a class="headerlink" href="#skipped-iteration-result-shape" title="Link to this heading">¶</a></h3>
+<p>When the safety net returns a graceful skip, the <code class="docutils literal notranslate"><span class="pre">AgentRunResult</span></code> includes:</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">summary</span></code> starting with <code class="docutils literal notranslate"><span class="pre">&quot;RESULT:</span> <span class="pre">Skipped</span> <span class="pre">this</span> <span class="pre">iteration.</span> <span class="pre">Agent</span> <span class="pre">call</span> <span class="pre">failed</span> <span class="pre">(category=...)&quot;</span></code></p></li>
+<li><p>a text event with payload <code class="docutils literal notranslate"><span class="pre">{&quot;runtime_error&quot;:</span> <span class="pre">True,</span> <span class="pre">&quot;error_category&quot;:</span> <span class="pre">&quot;...&quot;,</span> <span class="pre">&quot;error_class&quot;:</span> <span class="pre">&quot;...&quot;,</span> <span class="pre">&quot;error_message&quot;:</span> <span class="pre">&quot;...&quot;,</span> <span class="pre">&quot;traceback&quot;:</span> <span class="pre">&quot;...&quot;}</span></code></p></li>
+<li><p>a warning in <code class="docutils literal notranslate"><span class="pre">result.warnings</span></code> with <code class="docutils literal notranslate"><span class="pre">kind=&quot;agent_runtime_failure_skipped&quot;</span></code> and the category</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">cache_key</span> <span class="pre">=</span> <span class="pre">None</span></code> (failures are never cached — next iteration retries fresh)</p></li>
+</ul>
+<p>Strategy authors can count skipped iterations with <code class="docutils literal notranslate"><span class="pre">len([w</span> <span class="pre">for</span> <span class="pre">w</span> <span class="pre">in</span> <span class="pre">result.warnings</span> <span class="pre">if</span> <span class="pre">w.get(&quot;kind&quot;)</span> <span class="pre">==</span> <span class="pre">&quot;agent_runtime_failure_skipped&quot;])</span></code> for post-run analysis.</p>
+</section>
+<section id="model-id-visibility-in-tearsheets">
+<h3>Model id visibility in tearsheets<a class="headerlink" href="#model-id-visibility-in-tearsheets" title="Link to this heading">¶</a></h3>
+<p>Every time you call <code class="docutils literal notranslate"><span class="pre">self.agents.create(name=...,</span> <span class="pre">default_model=...)</span></code>, the framework auto-populates <code class="docutils literal notranslate"><span class="pre">self.parameters[f&quot;agent_{name}_model&quot;]</span></code> with the resolved model id. This shows up automatically in the tearsheet’s <strong>Parameters Used</strong> panel so every AI backtest self-identifies which model produced which tearsheet. Multi-agent strategies get one key per agent.</p>
+</section>
+<section id="token-usage-and-audit-trail">
+<h3>Token usage and audit trail<a class="headerlink" href="#token-usage-and-audit-trail" title="Link to this heading">¶</a></h3>
+<p>LumiBot also writes AI usage details for every agent run during a backtest:</p>
+<ul class="simple">
+<li><p>The tearsheet’s <strong>Parameters Used</strong> panel shows running totals for each agent:</p>
+<ul>
+<li><p><code class="docutils literal notranslate"><span class="pre">agent_&lt;name&gt;_calls</span></code></p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">agent_&lt;name&gt;_input_tokens</span></code></p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">agent_&lt;name&gt;_output_tokens</span></code></p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">agent_&lt;name&gt;_total_tokens</span></code></p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">agent_&lt;name&gt;_thinking_tokens</span></code></p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">agent_&lt;name&gt;_cached_input_tokens</span></code></p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">agent_&lt;name&gt;_uncached_input_tokens</span></code></p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">agent_&lt;name&gt;_latency_ms_avg</span></code></p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">agent_&lt;name&gt;_tool_calls</span></code></p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">agent_&lt;name&gt;_cache_hits</span></code></p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">agent_&lt;name&gt;_detail_parquet</span></code></p></li>
+</ul>
+</li>
+<li><p>A single detailed tabular artifact is written beside the normal backtest artifacts using the same base filename pattern:</p>
+<ul>
+<li><p><code class="docutils literal notranslate"><span class="pre">&lt;run&gt;_agent_detail.parquet</span></code></p></li>
+</ul>
+</li>
+</ul>
+<p>The Parquet file is the canonical machine-readable audit artifact used by BotSpot/MCP query tooling. LumiBot does not estimate provider pricing in this file because model prices change; it records raw token usage only.</p>
+<p>Each agent call gets one <code class="docutils literal notranslate"><span class="pre">call_summary</span></code> row plus one row per model event inside the call. This avoids repeating call-level token totals on every tool row while still preserving the event timeline. The file includes:</p>
+<ul class="simple">
+<li><p>prompt/context fields (user system prompt, effective prompt, task prompt, runtime context)</p></li>
+<li><p>event kind (<code class="docutils literal notranslate"><span class="pre">call_summary</span></code>, <code class="docutils literal notranslate"><span class="pre">thinking</span></code>, <code class="docutils literal notranslate"><span class="pre">text</span></code>, <code class="docutils literal notranslate"><span class="pre">tool_call</span></code>, <code class="docutils literal notranslate"><span class="pre">tool_result</span></code>, <code class="docutils literal notranslate"><span class="pre">usage</span></code> when present)</p></li>
+<li><p>event text</p></li>
+<li><p>tool name</p></li>
+<li><p>flattened tool/event details in normal columns</p></li>
+<li><p>full event payload JSON for exact forensic inspection</p></li>
+<li><p>input/output/total token counts on the <code class="docutils literal notranslate"><span class="pre">call_summary</span></code> row</p></li>
+<li><p>cached/uncached input token counts when the provider reports them</p></li>
+<li><p>thinking token counts when the provider exposes them</p></li>
+<li><p>latency fields for the full call and first model event</p></li>
+<li><p>cache-hit flag and warnings</p></li>
+</ul>
+<p>This file is meant to answer practical debugging questions after a backtest:</p>
+<ul class="simple">
+<li><p>What exactly did the agent say?</p></li>
+<li><p>What tools did it call?</p></li>
+<li><p>What came back from those tools?</p></li>
+<li><p>How many tokens did that call use?</p></li>
+<li><p>How many input tokens were cached vs. uncached?</p></li>
+<li><p>How long did the call take?</p></li>
+</ul>
+<p>Thinking text is captured when the provider/SDK exposes it. Gemini thought summaries are requested automatically. Other providers may expose only thinking token counts and not the actual thought text.</p>
+</section>
+<section id="provider-prompt-caching">
+<h3>Provider prompt caching<a class="headerlink" href="#provider-prompt-caching" title="Link to this heading">¶</a></h3>
+<p>LumiBot has two separate cache layers:</p>
+<ul class="simple">
+<li><p>The LumiBot replay cache skips the entire agent call on identical warm backtests.</p></li>
+<li><p>Provider prompt caching reduces cost/latency during cold backtests and live trading when the static prompt prefix repeats.</p></li>
+</ul>
+<p>The agent runtime keeps the large, stable instructions and tool definitions at the beginning of the request and moves dynamic fields such as current datetime, runtime mode, positions, orders, memory, task prompt, and user context into later request sections. This improves provider prefix-cache hit rates without changing strategy behavior.</p>
+<p>Provider-specific routing:</p>
+<ul class="simple">
+<li><p>OpenAI models receive a stable <code class="docutils literal notranslate"><span class="pre">prompt_cache_key</span></code> plus <code class="docutils literal notranslate"><span class="pre">prompt_cache_retention=&quot;24h&quot;</span></code> through LiteLLM.</p></li>
+<li><p>xAI/Grok models receive a stable <code class="docutils literal notranslate"><span class="pre">x-grok-conv-id</span></code> header through LiteLLM.</p></li>
+<li><p>Gemini native models use Gemini’s implicit caching path. Explicit ADK context caching is a future optimization; the runtime already records Gemini <code class="docutils literal notranslate"><span class="pre">cached_content_token_count</span></code> when the provider reports it.</p></li>
+</ul>
+<p>Use <code class="docutils literal notranslate"><span class="pre">scripts/run_agent_prompt_cache_probe.py</span></code> to verify provider-reported cache behavior with real calls:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>python<span class="w"> </span>scripts/run_agent_prompt_cache_probe.py<span class="w"> </span>--model<span class="w"> </span>openai/gpt-6-luna
+<span class="c1"># Optional: compare another model</span>
+python<span class="w"> </span>scripts/run_agent_prompt_cache_probe.py<span class="w"> </span>--model<span class="w"> </span>openai/gpt-5.4-mini
+</pre></div>
+</div>
+<p>The probe bypasses LumiBot’s replay cache, sends repeated calls with the same long static prefix, and prints input tokens, cached input tokens, uncached input tokens, output tokens, and latency for each call.</p>
+</section>
+<section id="built-in-alpaca-news-tool">
+<h3>Built-in Alpaca news tool<a class="headerlink" href="#built-in-alpaca-news-tool" title="Link to this heading">¶</a></h3>
+<p>Strategies can use <code class="docutils literal notranslate"><span class="pre">BuiltinTools.news.alpaca_news()</span></code> to give an agent access to the Alpaca News API without writing a custom wrapper:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span><span class="w"> </span><span class="nn">lumibot.components.agents</span><span class="w"> </span><span class="kn">import</span> <span class="n">BuiltinTools</span>
+
+<span class="bp">self</span><span class="o">.</span><span class="n">agents</span><span class="o">.</span><span class="n">create</span><span class="p">(</span>
+    <span class="n">name</span><span class="o">=</span><span class="s2">"trader"</span><span class="p">,</span>
+    <span class="n">system_prompt</span><span class="o">=</span><span class="p">(</span>
+        <span class="s2">"Use Alpaca news and market tools to make trading decisions. "</span>
+        <span class="s2">"Scan headlines and summaries first. If a story matters, fetch full article content before trading."</span>
+    <span class="p">),</span>
+    <span class="n">tools</span><span class="o">=</span><span class="p">[</span><span class="n">BuiltinTools</span><span class="o">.</span><span class="n">news</span><span class="o">.</span><span class="n">alpaca_news</span><span class="p">()],</span>
+<span class="p">)</span>
+</pre></div>
+</div>
+<p>The tool uses the active Alpaca broker credentials when the strategy is running on Alpaca, including OAuth connections. If the active broker is not Alpaca, set bring-your-own-key news credentials with <code class="docutils literal notranslate"><span class="pre">ALPACA_NEWS_API_KEY</span></code> and <code class="docutils literal notranslate"><span class="pre">ALPACA_NEWS_API_SECRET</span></code>. If neither path is available, LumiBot logs a warning and does not expose <code class="docutils literal notranslate"><span class="pre">alpaca_news</span></code> to agents. It defaults <code class="docutils literal notranslate"><span class="pre">end</span></code> to the current simulated datetime in backtests and clamps future <code class="docutils literal notranslate"><span class="pre">end</span></code> values to avoid look-ahead. The response includes <code class="docutils literal notranslate"><span class="pre">requested_end</span></code>, <code class="docutils literal notranslate"><span class="pre">effective_end</span></code>, and <code class="docutils literal notranslate"><span class="pre">lookahead_clamped</span></code> so you can audit the exact window used.</p>
+<p>Alpaca news is historical symbol/date-window retrieval, not keyword search. The API supports <code class="docutils literal notranslate"><span class="pre">symbols</span></code>, <code class="docutils literal notranslate"><span class="pre">start</span></code>, <code class="docutils literal notranslate"><span class="pre">end</span></code>, <code class="docutils literal notranslate"><span class="pre">limit</span></code> (max 50), <code class="docutils literal notranslate"><span class="pre">sort</span></code>, <code class="docutils literal notranslate"><span class="pre">include_content</span></code>, <code class="docutils literal notranslate"><span class="pre">exclude_contentless</span></code>, and <code class="docutils literal notranslate"><span class="pre">page_token</span></code>. For broad market context, query market ETF proxies such as <code class="docutils literal notranslate"><span class="pre">SPY,QQQ,DIA,IWM</span></code>; for sector context, query sector ETFs such as <code class="docutils literal notranslate"><span class="pre">XLK,SMH</span></code> (tech/semis), <code class="docutils literal notranslate"><span class="pre">XLF,KRE</span></code> (financials/banks), <code class="docutils literal notranslate"><span class="pre">XLE,USO</span></code> (energy), <code class="docutils literal notranslate"><span class="pre">XLV,XBI</span></code> (healthcare/biotech), <code class="docutils literal notranslate"><span class="pre">TLT,IEF,SHY</span></code> (rates/bonds), or <code class="docutils literal notranslate"><span class="pre">GLD,SLV,DBC</span></code> (gold/commodities).</p>
+<p>Use a two-step workflow:</p>
+<ol class="arabic simple">
+<li><p>Scan with <code class="docutils literal notranslate"><span class="pre">include_content=False</span></code>. Use <code class="docutils literal notranslate"><span class="pre">limit=10</span></code> to <code class="docutils literal notranslate"><span class="pre">20</span></code> for focused single-symbol checks and <code class="docutils literal notranslate"><span class="pre">limit=30</span></code> to <code class="docutils literal notranslate"><span class="pre">50</span></code> for broad market or sector scans. This returns headlines, summaries, URLs, sources, timestamps, symbols, and <code class="docutils literal notranslate"><span class="pre">next_page_token</span></code> without dumping long article bodies into the model context.</p></li>
+<li><p>If a story looks important, call again for the same or narrower window with <code class="docutils literal notranslate"><span class="pre">include_content=True</span></code> and usually <code class="docutils literal notranslate"><span class="pre">exclude_contentless=True</span></code>. Full article content is returned without truncation unless you explicitly pass <code class="docutils literal notranslate"><span class="pre">content_max_chars</span></code>.</p></li>
+<li><p>If <code class="docutils literal notranslate"><span class="pre">next_page_token</span></code> is present and the first page does not provide enough evidence, call again with <code class="docutils literal notranslate"><span class="pre">page_token=next_page_token</span></code>.</p></li>
+</ol>
+<p>Do not trade from one weak or noisy article. News can be sparse for single stocks, so broaden from the stock to its sector or market ETF when needed, compare article timestamps against the simulated datetime, and use <code class="docutils literal notranslate"><span class="pre">page_token</span></code> when the first page does not provide enough evidence.</p>
+<p>Complete runnable example. The prompt is plain English; the agent finds and uses the news tool on its own:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="sd">"""Market News AI Trading Bot.</span>
+
+<span class="sd">Reads the day's broad market news and holds SPY, QQQ, or SHV, a short-term</span>
+<span class="sd">Treasury fund, depending on what the news says. One AI agent reads the headlines,</span>
+<span class="sd">opens the most important story, and trades.</span>
+<span class="sd">"""</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">lumibot.strategies</span><span class="w"> </span><span class="kn">import</span> <span class="n">Strategy</span>
+
+
+<span class="k">class</span><span class="w"> </span><span class="nc">AlpacaNewsBuiltinStrategy</span><span class="p">(</span><span class="n">Strategy</span><span class="p">):</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">initialize</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">sleeptime</span> <span class="o">=</span> <span class="s2">"1D"</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">agents</span><span class="o">.</span><span class="n">create</span><span class="p">(</span>
+            <span class="n">name</span><span class="o">=</span><span class="s2">"trader"</span><span class="p">,</span>
+            <span class="n">allow_trading</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+            <span class="n">system_prompt</span><span class="o">=</span><span class="p">(</span>
+                <span class="s2">"Read today's broad market news about the S&amp;P 500, the Nasdaq, the Dow, and small caps. Open "</span>
+                <span class="s2">"and read the most important story in full. If the news is good, hold SPY or QQQ, whichever "</span>
+                <span class="s2">"fits better. If it is bad, hold SHV. Use only news published before now."</span>
+            <span class="p">),</span>
+        <span class="p">)</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">on_trading_iteration</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">agents</span><span class="p">[</span><span class="s2">"trader"</span><span class="p">]</span><span class="o">.</span><span class="n">run</span><span class="p">(</span><span class="n">task_prompt</span><span class="o">=</span><span class="s2">"Read today's market news and decide."</span><span class="p">)</span>
+
+
+<span class="k">if</span> <span class="vm">__name__</span> <span class="o">==</span> <span class="s2">"__main__"</span><span class="p">:</span>
+    <span class="kn">from</span><span class="w"> </span><span class="nn">lumibot.credentials</span><span class="w"> </span><span class="kn">import</span> <span class="n">IS_BACKTESTING</span>
+
+    <span class="k">if</span> <span class="n">IS_BACKTESTING</span><span class="p">:</span>
+        <span class="kn">from</span><span class="w"> </span><span class="nn">lumibot.backtesting</span><span class="w"> </span><span class="kn">import</span> <span class="n">YahooDataBacktesting</span>
+
+        <span class="n">AlpacaNewsBuiltinStrategy</span><span class="o">.</span><span class="n">backtest</span><span class="p">(</span><span class="n">YahooDataBacktesting</span><span class="p">)</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="n">AlpacaNewsBuiltinStrategy</span><span class="p">()</span><span class="o">.</span><span class="n">run_live</span><span class="p">()</span>
+</pre></div>
+</div>
+<p>To run the live proof that validates historical relevance, full-content retrieval, and the resulting <code class="docutils literal notranslate"><span class="pre">*_agent_detail.parquet</span></code> artifact:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>python<span class="w"> </span>scripts/run_alpaca_news_ai_proof.py<span class="w"> </span>--model<span class="w"> </span>openai/gpt-6-luna
+</pre></div>
+</div>
+</section>
+</section>
+</section>
+
+        </article>
+      </div>
+      <footer>
+        
+        <div class="related-pages">
+          <a class="next-page" href="agents_flows.html">
+              <div class="page-info">
+                <div class="context">
+                  <span>Next</span>
+                </div>
+                <div class="title">Design Your AI Trading Team</div>
+              </div>
+              <svg class="furo-related-icon"><use href="#svg-arrow-right"></use></svg>
+            </a>
+          <a class="prev-page" href="agent_start_here.html">
+              <svg class="furo-related-icon"><use href="#svg-arrow-right"></use></svg>
+              <div class="page-info">
+                <div class="context">
+                  <span>Previous</span>
+                </div>
+                
+                <div class="title">LumiBot for coding agents</div>
+                
+              </div>
+            </a>
+        </div>
+        <div class="bottom-of-page">
+          <div class="left-details">
+            <div class="copyright">
+                Copyright &#169; 2021, Lumiwealth
+            </div>
+            Made with <a href="https://www.sphinx-doc.org/">Sphinx</a> and <a class="muted-link" href="https://pradyunsg.me">@pradyunsg</a>'s
+            
+            <a href="https://github.com/pradyunsg/furo">Furo</a>
+            <div class="last-updated">
+              Last updated on October 03, 2026</div>
+          </div>
+          <div class="right-details">
+            
+          </div>
+        </div>
+        
+      </footer>
+    </div>
+    <aside class="toc-drawer">
+      
+      
+      <div class="toc-sticky toc-scroll">
+        <div class="toc-title-container">
+          <span class="toc-title">
+            On this page
+          </span>
+        </div>
+        <div class="toc-tree-container">
+          <div class="toc-tree">
+            <ul>
+<li><a class="reference internal" href="#">Build AI Trading Agents in Python with LumiBot</a><ul>
+<li><a class="reference internal" href="#choose-your-first-workflow">Choose your first workflow</a></li>
+<li><a class="reference internal" href="#run-a-hosted-example">Run a hosted example</a></li>
+<li><a class="reference internal" href="#runtime-concepts">Runtime concepts</a><ul>
+<li><a class="reference internal" href="#recommended-team-architecture">Recommended team architecture</a></li>
+</ul>
+</li>
+<li><a class="reference internal" href="#verification-and-historical-limits">Verification and historical limits</a></li>
+<li><a class="reference internal" href="#how-agent-tool-works">How <code class="docutils literal notranslate"><span class="pre">&#64;agent_tool</span></code> Works</a></li>
+<li><a class="reference internal" href="#external-data-patterns">External Data Patterns</a></li>
+<li><a class="reference internal" href="#built-in-tools">Built-in Tools</a></li>
+<li><a class="reference internal" href="#system-prompts">System Prompts</a></li>
+<li><a class="reference internal" href="#agent-handoffs">Agent Handoffs</a></li>
+<li><a class="reference internal" href="#duckdb-and-time-series-data">DuckDB and Time-Series Data</a></li>
+<li><a class="reference internal" href="#replay-cache">Replay Cache</a></li>
+<li><a class="reference internal" href="#observability">Observability</a></li>
+<li><a class="reference internal" href="#canonical-demos">Canonical Demos</a></li>
+<li><a class="reference internal" href="#frequently-asked-questions">Frequently Asked Questions</a></li>
+<li><a class="reference internal" href="#error-handling-and-reliability">Error Handling and Reliability</a><ul>
+<li><a class="reference internal" href="#timeout-configuration">Timeout configuration</a></li>
+<li><a class="reference internal" href="#error-classifier-buckets">Error classifier buckets</a></li>
+<li><a class="reference internal" href="#backtest-vs-live-behavior">Backtest vs. live behavior</a></li>
+<li><a class="reference internal" href="#skipped-iteration-result-shape">Skipped iteration result shape</a></li>
+<li><a class="reference internal" href="#model-id-visibility-in-tearsheets">Model id visibility in tearsheets</a></li>
+<li><a class="reference internal" href="#token-usage-and-audit-trail">Token usage and audit trail</a></li>
+<li><a class="reference internal" href="#provider-prompt-caching">Provider prompt caching</a></li>
+<li><a class="reference internal" href="#built-in-alpaca-news-tool">Built-in Alpaca news tool</a></li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+
+          </div>
+        </div>
+      </div>
+      
+      
+    </aside>
+  </div>
+</div><script src="_static/documentation_options.js?v=5929fcd5"></script>
+    <script src="_static/doctools.js?v=9bcbadda"></script>
+    <script src="_static/sphinx_highlight.js?v=dc90522c"></script>
+    <script src="_static/scripts/furo.js?v=46bd48cc"></script>
+    <script src="_static/posthog.js?v=8090e602"></script>
+    </body>
+</html>

@@ -1,0 +1,15 @@
+{
+  "total_release_budget_usd": 6,
+  "estimated_settled_cost_usd": 1.2737854,
+  "conservative_unsettled_reservations_usd": 2.3240096,
+  "estimated_cumulative_commitment_usd": 3.597795,
+  "settled_calls": 2586,
+  "unsettled_calls": 21,
+  "usage": {
+    "input_tokens": 42090687,
+    "cached_input_tokens": 36863120,
+    "output_tokens": 516608,
+    "thinking_tokens": 248187
+  },
+  "note": "Deduplicated by immutable call id across resumptions and downloaded CI evidence. Unsettled reservations retained, including rejected-auth calls and the interrupted judge call. Those reservations are conservative, not confirmed provider charges."
+}

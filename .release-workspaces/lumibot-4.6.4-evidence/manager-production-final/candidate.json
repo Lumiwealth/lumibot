@@ -1,0 +1,101 @@
+{
+  "release_id": "codex-release-lumibot-4.6.4-promotion",
+  "worktree": "/Users/robertgrzesik/Development/bot_manager/.claude/worktrees/codex-release-lumibot-4.6.4-promotion",
+  "git_sha": "deec5696b41f12f332d337561080e0748930da5e",
+  "git_tree": "59fd80e2d37d4effe32ffcc04977932054be7dbb",
+  "lumibot_version": "4.6.4",
+  "state": "production_verified",
+  "develop_sha": "330bd1095c61852b4c7534a79ff387b2f6d9bed3",
+  "dev_workflow_run": 37099985602,
+  "predecessor_dev_sha": "32f2c5068412988ca2422b828b63417503007b35",
+  "change_from_predecessor": "one-line clearing of stale deleted scheduled status, with regression test; normal Dev PR551 tested locally before its merge",
+  "files": {
+    "uv.lock": "4abaf00e6df2b6408acdd8d170f5a26e953b31b69c55fca59fbc3dbd56e61e47",
+    "pyproject.toml": "39d97764accea499a804e6ba8b49bd0bcc3146e7e4beb2b5235a9baac937eb72",
+    "requirements.txt": "67ca6e2afe94d003fe252b7bab5a9d412081322d133e0e3b7f36a46dbde07553",
+    ".github/workflows/ci-dev.yml": "68cbe6fbe69207e97a8736b20b3dd2696a570e6448c7fb6df587e25b01e25e6b",
+    ".github/workflows/ci-prod.yml": "21f0bc66cbbd3339daad0d8da801611832fc8cda04e8dbdec3d94f2ab22ba36f",
+    "BotManager.py": "eeaf47cbdccf34901da7f3b25492ceb8ba5f03599535765b3c1e50354922ec57"
+  },
+  "managed_aws_only_gates": [
+    "GitHub OIDC",
+    "Terraform plan/apply",
+    "deployed integrations",
+    "immutable artifact promotion"
+  ],
+  "nat_qualification_enabled": false,
+  "qualification": {
+    "unit": "1822 passed, 6 warnings in 41.49s",
+    "static_package_terraform": "passed",
+    "nat_mock_plans": "4 passed",
+    "runtime_bundle_sha256": "48a35b66bd0d7cb40ff399c33e28c8156b74e987a9a66687a95aff9075dfa042"
+  },
+  "dev_artifacts": {
+    "environment": "dev",
+    "git_sha": "330bd1095c61852b4c7534a79ff387b2f6d9bed3",
+    "images": {
+      "backtest": "412381755468.dkr.ecr.us-east-1.amazonaws.com/dev-trading-bot-backtest@sha256:13ca1d8b2077a52b259ea36afe8d085ba66a2cf8159b23bf5b8c8357d374c64b",
+      "base": "412381755468.dkr.ecr.us-east-1.amazonaws.com/dev-trading-bot-base@sha256:38195d77128db9793518dd316cd34c92a48e47aa345d9a500e6301d19d92f748",
+      "single_trade_lambda": "412381755468.dkr.ecr.us-east-1.amazonaws.com/dev-single-trade-lambda@sha256:dd4c7a58105f42edff17bf35e40a663ad8d692f51a8f3c2ccd8a0919b0ed9fd7"
+    },
+    "lambda_assets": {},
+    "manifest_sha256": "a9ca4293dfc5a58abc4c32eb636167bc2fee0112ac01693c8677ec303f7db669",
+    "release_id": "330bd1095c61-37099985602-1",
+    "runtime_bundle_sha256": "48a35b66bd0d7cb40ff399c33e28c8156b74e987a9a66687a95aff9075dfa042",
+    "snapshots": {
+      "backtest_data_volume_snapshot_id": "snap-0f351d022ab4854dc",
+      "base_data_volume_snapshot_id": "snap-079e0cfb7167f7e0f",
+      "source": "skipped"
+    }
+  },
+  "image_provenance": "exact same base/backtest/single-trade digests built and proven lumibot4.6.4 in Dev run37098060587",
+  "production_sha": "13edd12075d7f95ea205323c2805439c3b944716",
+  "production_pr": 552,
+  "dev_integration_result": "12 passed in 793.34 seconds",
+  "production_readiness_run": 37100549152,
+  "production_workflow_run": 37101252446,
+  "production_artifacts": {
+    "manifest_sha256": "21dbdc4476f5e7f02b7db531721a08ef7c0487f675742593cfbe77c7164765bc",
+    "release_id": "13edd12075d7-37101252446-1-promoted",
+    "release_manifest_s3_uri": "s3://bot-manager-tf-state/prod/releases/13edd12075d7-37101252446-1-promoted/release-manifest.json",
+    "runtime_bundle_sha256": "48a35b66bd0d7cb40ff399c33e28c8156b74e987a9a66687a95aff9075dfa042"
+  },
+  "production_smoke": {
+    "backtestId": "e69b8716-c0a2-407b-9754-ec07c3acfab0",
+    "revisionId": "339b6b66-7cd9-4a04-a22b-b18032a3db97",
+    "strategy": "Buy Hold TQQQ",
+    "status": "completed",
+    "lumibot_version": "4.6.4",
+    "settings": {
+      "start": "2026-09-01 00:00:00-04:00",
+      "end": "2026-09-15 23:59:00-04:00",
+      "backtest_time_seconds": 1.7483893800000203
+    },
+    "artifactFormat": "parquet",
+    "tradeEventRows": 2,
+    "filledTrades": [
+      {
+        "time": {
+          "micros": 1788269400000000
+        },
+        "symbol": "TQQQ",
+        "side": "buy",
+        "status": "fill",
+        "filled_quantity": 1376,
+        "price": 71.44
+      }
+    ],
+    "mcpMatrix": {
+      "account": true,
+      "history": true,
+      "activeScheduleSample": true,
+      "queryCsv": true
+    },
+    "previousProbe": {
+      "id": "62aa21ea-7621-439d-a566-a3822956dbe2",
+      "status": "failed",
+      "reason": "pre-existing saved strategy indicator type error; unchanged API contract"
+    },
+    "savedStrategiesModified": false
+  }
+}

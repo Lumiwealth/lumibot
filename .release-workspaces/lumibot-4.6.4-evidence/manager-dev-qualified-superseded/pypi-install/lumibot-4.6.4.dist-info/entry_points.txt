@@ -1,0 +1,2 @@
+[console_scripts]
+lumibot = lumibot.cli:main

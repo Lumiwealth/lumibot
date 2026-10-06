@@ -1,0 +1,14 @@
+........................................................................ [ 39%]
+........................................................................ [ 79%]
+......................................                                   [100%]
+=============================== warnings summary ===============================
+../../../../LumiBot/.venv/lib/python3.10/site-packages/websockets/legacy/__init__.py:6
+  /Users/robertgrzesik/Development/LumiBot/.venv/lib/python3.10/site-packages/websockets/legacy/__init__.py:6: DeprecationWarning: websockets.legacy is deprecated; see https://websockets.readthedocs.io/en/stable/howto/upgrade.html for upgrade instructions
+    warnings.warn(  # deprecated in 14.0 - 2024-11-09
+
+tests/test_schwab_positions_unit.py: 13 warnings
+  /Users/robertgrzesik/Development/LumiBot/.venv/lib/python3.10/site-packages/schwab/orders/generic.py:38: UserWarning: passing floats to set_price and set_stop_price is deprecated and will be removed soon. Please update your code to pass prices as strings instead.
+    warnings.warn('passing floats to set_price and set_stop_price is '+
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+182 passed, 14 warnings in 20.00s

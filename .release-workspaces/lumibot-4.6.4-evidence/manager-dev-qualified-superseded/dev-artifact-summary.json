@@ -1,0 +1,6 @@
+{
+  "manifest_sha256": "4b7a7ea4a6499dc96dc1b9db24e8257d0f2ae484528f30f7a0323411fc68f8c8",
+  "release_id": "32f2c5068412-37098060587-1",
+  "release_manifest_s3_uri": "s3://bot-manager-tf-state/dev/releases/32f2c5068412-37098060587-1/release-manifest.json",
+  "runtime_bundle_sha256": "99e7123d325775b126b2c8c31bbd214c53e46d85b5104d9d7a3e9eb90426477a"
+}

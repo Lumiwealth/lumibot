@@ -1,0 +1,249 @@
+from __future__ import annotations
+
+import time
+from threading import Lock
+
+from lumibot._lazy_imports import LazyLogger, LazyModule, lazy_class
+
+from .data_source import DataSource
+
+logger = LazyLogger(__name__)
+datetime = LazyModule("datetime")
+pd = LazyModule("pandas")
+Asset = lazy_class("lumibot.entities", "Asset")
+
+
+class CcxtData(DataSource):
+    SOURCE = "CCXT"
+    MIN_TIMESTEP = "minute"
+    TIMESTEP_MAPPING = [
+        {"timestep": "minute", "representations": ["1m"]},
+        {"timestep": "day", "representations": ["1d"]},
+    ]
+    IS_BACKTESTING_DATA_SOURCE = False
+
+    """Common base class for data_sources/ccxt and brokers/ccxt"""
+
+    @staticmethod
+    def _format_datetime(dt):
+        return pd.Timestamp(dt).isoformat()
+
+    def __init__(self, config, max_workers=20, chunk_size=100, **kwargs):
+        super().__init__(**kwargs)
+        self.name = "ccxt"
+        self.max_workers = min(max_workers, 200)
+        self._markets_loaded = False
+        self._markets_lock = Lock()
+
+        # When requesting data for assets for example,
+        # if there is too many assets, the best thing to do would
+        # be to split it into chunks and request data for each chunk
+        self.chunk_size = min(chunk_size, 100)
+
+        try:
+            import ccxt
+
+            exchange_class = getattr(ccxt, config["exchange_id"])
+        except:
+            raise Exception(
+                "Could not find exchange named '{}'. Are you sure you are spelling the exchange_id correctly?".format(
+                    config["exchange_id"]
+                )
+            )
+
+        self.config = config
+        self.api = exchange_class(config)
+        is_sandbox = True if "sandbox" not in config else config["sandbox"]
+        self.api.set_sandbox_mode(is_sandbox)
+        # Recommended two or less api calls per second.
+        self.api.enableRateLimit = True
+
+    def _ensure_markets_loaded(self):
+        if self._markets_loaded:
+            return
+        with self._markets_lock:
+            if self._markets_loaded:
+                return
+            try:
+                self.api.load_markets()
+                self._markets_loaded = True
+            except Exception as exc:
+                logger.warning(
+                    "[CCXT] load_markets() failed for exchange_id=%s sandbox=%s: %s",
+                    self.config.get("exchange_id"),
+                    self.config.get("sandbox", True),
+                    exc,
+                )
+                raise
+
+    def _pull_source_symbol_bars(
+        self, asset, length, timestep=MIN_TIMESTEP, timeshift=None, quote=None, exchange=None, include_after_hours=True
+    ):
+        if exchange is not None:
+            logger.warning(
+                f"the exchange parameter is not implemented for CcxtData, but {exchange} was passed as the exchange"
+            )
+
+        """pull broker bars for a given asset"""
+        response = self._pull_source_bars([asset], length, timestep=timestep, timeshift=timeshift, quote=quote)
+        return response[asset]
+
+    def _pull_source_bars(
+        self, assets, length, timestep=MIN_TIMESTEP, timeshift=None, quote=None, include_after_hours=True
+    ):
+        """pull broker bars for a list assets"""
+        parsed_timestep = self._parse_source_timestep(timestep, reverse=True)
+        kwargs = dict(limit=length)
+        if timeshift:
+            end = datetime.datetime.now() - timeshift
+            kwargs["end"] = self.to_default_timezone(end)
+
+        result = {}
+        for asset in assets:
+            if isinstance(asset, tuple):
+                symbol = f"{asset[0].symbol.upper()}/{asset[1].symbol.upper()}"
+            elif quote is not None:
+                symbol = f"{asset.symbol.upper()}/{quote.symbol.upper()}"
+            else:
+                symbol = asset
+            data = self.get_barset_from_api(self.api, symbol, parsed_timestep, **kwargs)
+            result[asset] = data
+
+        return result
+
+    def get_chains(self, asset: Asset, quote: Asset = None, exchange: str = None):
+        raise NotImplementedError(
+            "Lumibot CcxtData does not support historical options data. If you need this "
+            "feature, please use a different data source."
+        )
+
+    def get_historical_prices(
+        self, asset, length, timestep="", timeshift=None, quote=None, exchange=None, include_after_hours=True, return_polars: bool = False
+    ):
+        """Get bars for a given asset"""
+        if isinstance(asset, str):
+            asset = Asset(symbol=asset)
+
+        if not timestep:
+            timestep = self.get_timestep()
+
+        response = self._pull_source_symbol_bars(
+            asset,
+            length,
+            timestep=timestep,
+            timeshift=timeshift,
+            quote=quote,
+            exchange=exchange,
+            include_after_hours=include_after_hours,
+        )
+        if isinstance(response, float):
+            return response
+        elif response is None:
+            return None
+
+        bars = self._parse_source_symbol_bars(response, asset, quote=quote, length=length)
+        return bars
+
+    def get_barset_from_api(self, api, symbol, freq, limit=None, end=None):
+        """
+        gets historical bar data for the given stock symbol
+        and time params.
+
+        outputs a dataframe open, high, low, close columns and
+        a UTC timezone aware index.
+        """
+        if not api.has["fetchOHLCV"]:
+            logger.error("Exchange does not support fetching OHLCV data")
+
+        self._ensure_markets_loaded()
+        market = self.api.markets.get(symbol, None)
+        if market is None:
+            logger.error(
+                f"A request for market data for {symbol} was submitted. " f"The market for that pair does not exist"
+            )
+            return None
+
+        if limit is None:
+            limit = 300
+
+        if end is None:
+            end = datetime.datetime.utcnow()
+
+        endunix = self.api.parse8601(end.strftime("%Y-%m-%d %H:%M:%S"))
+        buffer = 10  # A few extra datapoints in the download then trim the df.
+        timeframe_delta, _ = self.convert_timestep_str_to_timedelta(freq)
+        timeframe_ms = int(timeframe_delta.total_seconds() * 1000)
+        loop_limit = 300
+        rate_limit = 10  # Requests per second in burst.
+        page_span_ms = loop_limit * timeframe_ms
+        df_ret = None
+
+        for lookback_multiplier in (1, 4, 16, 64):
+            start = end - timeframe_delta * (limit + buffer) * lookback_multiplier
+            curr_start = self.api.parse8601(start.strftime("%Y-%m-%d %H:%M:%S"))
+            attempt = None
+            cnt = 0
+
+            while curr_start <= endunix:
+                cnt += 1
+                candles = self.api.fetch_ohlcv(symbol, freq, since=curr_start, limit=loop_limit, params={})
+                df = pd.DataFrame(candles, columns=["datetime", "open", "high", "low", "close", "volume"])
+                df["datetime"] = pd.to_datetime(df["datetime"], unit="ms")
+                df = df.set_index("datetime")
+
+                next_start = curr_start + page_span_ms
+                if len(df) > 0:
+                    last_curr_end = self.api.parse8601(df.index[-1].strftime("%Y-%m-%d %H:%M:%S"))
+                    next_start = max(last_curr_end + timeframe_ms, curr_start + timeframe_ms)
+                    attempt = df if attempt is None else pd.concat([attempt, df])
+                    attempt = attempt.sort_index()
+                else:
+                    last_curr_end = None
+
+                if last_curr_end is not None and last_curr_end >= endunix:
+                    break
+                if next_start <= curr_start:
+                    break
+                curr_start = next_start
+                if cnt % rate_limit == 0:
+                    time.sleep(1)
+                if cnt > 500:
+                    break
+
+            df_ret = attempt
+            if df_ret is not None:
+                candidate = df_ret[~df_ret.index.duplicated(keep="first")].loc[:end]
+                if len(candidate) >= limit:
+                    df_ret = candidate
+                    break
+
+        if df_ret is None:
+            raise ValueError(f"CCXT returned no {freq} bars for {symbol}; {limit} were requested")
+
+        df_ret = df_ret[~df_ret.index.duplicated(keep="first")]
+        df_ret = df_ret.loc[:end]
+        df_ret = df_ret.iloc[-limit:]
+        if len(df_ret) < limit:
+            raise ValueError(
+                f"CCXT returned only {len(df_ret)} of {limit} requested {freq} bars for {symbol}"
+            )
+
+        return df_ret
+
+    def _parse_source_symbol_bars(self, response, asset, quote=None, length=None):
+        from lumibot.entities import Bars
+
+        # Parse the dataframe returned from CCXT.
+        bars = Bars(response, self.SOURCE, asset, quote=quote, raw=response)
+        return bars
+
+    def get_last_price(self, asset, quote=None, exchange=None, **kwargs) -> Union[float, Decimal, None]:
+        if quote is not None:
+            symbol = f"{asset.symbol}/{quote.symbol}"
+        else:
+            symbol = asset.symbol
+
+        ticker = self.api.fetch_ticker(symbol)
+        price = ticker["last"]
+
+        return price

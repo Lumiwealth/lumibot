@@ -1,0 +1,42 @@
+FFFF                                                                     [100%]
+=================================== FAILURES ===================================
+___ test_intraday_spacing_across_midnight_still_protects_forming_bar[pandas] ___
+tests/test_data_get_bars_day_includes_latest_completed_bar.py:151: in test_intraday_spacing_across_midnight_still_protects_forming_bar
+    assert data.get_last_price(dt) == 101.0
+E   AssertionError: assert np.float64(101.5) == 101.0
+E    +  where np.float64(101.5) = checker(datetime.datetime(2026, 9, 16, 0, 2, tzinfo=<DstTzInfo 'America/New_York' EDT-1 day, 20:00:00 DST>))
+E    +    where checker = <lumibot.entities.data.Data object at 0x10b92c040>.get_last_price
+----------------------------- Captured stdout call -----------------------------
+2026-10-02 23:46:34,942 | WARNING | data.py:checker:1045 | The date you are looking for (2026-09-16 00:02:00-04:00) is after the available data's end (2026-09-16 00:00:00-04:00) by 0:02:00. Using the last available bar (within tolerance of 3 days, 0:00:00).
+------------------------------ Captured log call -------------------------------
+WARNING  lumibot.entities.data:data.py:1045 The date you are looking for (2026-09-16 00:02:00-04:00) is after the available data's end (2026-09-16 00:00:00-04:00) by 0:02:00. Using the last available bar (within tolerance of 3 days, 0:00:00).
+_ test_intraday_spacing_across_midnight_still_protects_forming_bar[polars_ns] __
+tests/test_data_get_bars_day_includes_latest_completed_bar.py:151: in test_intraday_spacing_across_midnight_still_protects_forming_bar
+    assert data.get_last_price(dt) == 101.0
+E   AssertionError: assert np.float64(101.5) == 101.0
+E    +  where np.float64(101.5) = checker(datetime.datetime(2026, 9, 16, 0, 2, tzinfo=<DstTzInfo 'America/New_York' EDT-1 day, 20:00:00 DST>))
+E    +    where checker = <lumibot.entities.data_polars.DataPolars object at 0x112ad37c0>.get_last_price
+_ test_intraday_spacing_across_midnight_still_protects_forming_bar[polars_us] __
+tests/test_data_get_bars_day_includes_latest_completed_bar.py:151: in test_intraday_spacing_across_midnight_still_protects_forming_bar
+    assert data.get_last_price(dt) == 101.0
+E   AssertionError: assert np.float64(101.5) == 101.0
+E    +  where np.float64(101.5) = checker(datetime.datetime(2026, 9, 16, 0, 2, tzinfo=<DstTzInfo 'America/New_York' EDT-1 day, 20:00:00 DST>))
+E    +    where checker = <lumibot.entities.data_polars.DataPolars object at 0x111cee4d0>.get_last_price
+_ test_intraday_spacing_across_midnight_still_protects_forming_bar[polars_ms] __
+tests/test_data_get_bars_day_includes_latest_completed_bar.py:151: in test_intraday_spacing_across_midnight_still_protects_forming_bar
+    assert data.get_last_price(dt) == 101.0
+E   AssertionError: assert np.float64(101.5) == 101.0
+E    +  where np.float64(101.5) = checker(datetime.datetime(2026, 9, 16, 0, 2, tzinfo=<DstTzInfo 'America/New_York' EDT-1 day, 20:00:00 DST>))
+E    +    where checker = <lumibot.entities.data_polars.DataPolars object at 0x112ad0bb0>.get_last_price
+=============================== warnings summary ===============================
+.venv/lib/python3.10/site-packages/websockets/legacy/__init__.py:6
+  /Users/robertgrzesik/Development/lumibot/.claude/worktrees/codex-release-4.6.4/.venv/lib/python3.10/site-packages/websockets/legacy/__init__.py:6: DeprecationWarning: websockets.legacy is deprecated; see https://websockets.readthedocs.io/en/stable/howto/upgrade.html for upgrade instructions
+    warnings.warn(  # deprecated in 14.0 - 2024-11-09
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ============================
+FAILED tests/test_data_get_bars_day_includes_latest_completed_bar.py::test_intraday_spacing_across_midnight_still_protects_forming_bar[pandas]
+FAILED tests/test_data_get_bars_day_includes_latest_completed_bar.py::test_intraday_spacing_across_midnight_still_protects_forming_bar[polars_ns]
+FAILED tests/test_data_get_bars_day_includes_latest_completed_bar.py::test_intraday_spacing_across_midnight_still_protects_forming_bar[polars_us]
+FAILED tests/test_data_get_bars_day_includes_latest_completed_bar.py::test_intraday_spacing_across_midnight_still_protects_forming_bar[polars_ms]
+4 failed, 60 deselected, 1 warning in 1.37s

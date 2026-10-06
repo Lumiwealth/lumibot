@@ -1,0 +1,201 @@
+﻿2026-10-03T04:54:47.4843180Z Current runner version: '2.337.0'
+2026-10-03T04:54:47.4851531Z Runner name: 'blacksmith-2vcpu-ubuntu-2404-arm-Runner-3df0911dc3'
+2026-10-03T04:54:47.4852855Z Runner group name: 'blacksmith scale sets - blacksmith-2vcpu-ubuntu-2404-arm'
+2026-10-03T04:54:47.4854311Z Machine name: 'ip-172-31-74-117'
+2026-10-03T04:54:47.4856916Z ##[group]GITHUB_TOKEN Permissions
+2026-10-03T04:54:47.4859839Z Contents: read
+2026-10-03T04:54:47.4860416Z Metadata: read
+2026-10-03T04:54:47.4860949Z ##[endgroup]
+2026-10-03T04:54:47.4863701Z Secret source: Actions
+2026-10-03T04:54:47.4864610Z Cache mode: write
+2026-10-03T04:54:47.4865314Z Prepare workflow directory
+2026-10-03T04:54:47.5297747Z Prepare all required actions
+2026-10-03T04:54:47.5358400Z Getting action download info
+2026-10-03T04:54:48.8615933Z Download action repository 'actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5' (SHA:34e114876b0b11c390a56381ad16ebd13914f8d5)
+2026-10-03T04:54:49.7795893Z Setting BLACKSMITH_ACTIONS_RESULTS_URL to https://results-receiver.actions.githubusercontent.com/
+2026-10-03T04:54:49.7895012Z Uses: Lumiwealth/bot_manager/.github/workflows/build-release-artifacts.yml@refs/heads/develop (32f2c5068412988ca2422b828b63417503007b35)
+2026-10-03T04:54:49.7903408Z ##[group] Inputs
+2026-10-03T04:54:49.7904710Z   environment: dev
+2026-10-03T04:54:49.7905945Z   runtime_environment: dev
+2026-10-03T04:54:49.7907146Z   python_version: 3.13
+2026-10-03T04:54:49.7908298Z   force_rebuild_images: true
+2026-10-03T04:54:49.7909485Z   skip_snapshot: true
+2026-10-03T04:54:49.7910595Z   lumibot_version: 4.6.4
+2026-10-03T04:54:49.7911777Z   existing_release_manifest_s3_uri: 
+2026-10-03T04:54:49.7913058Z ##[endgroup]
+2026-10-03T04:54:49.7914282Z Complete job name: Build Release Artifacts / classify
+2026-10-03T04:54:49.8789911Z A job started hook has been configured by the self-hosted runner administrator
+2026-10-03T04:54:49.9020149Z ##[group]Run '/setup.sh'
+2026-10-03T04:54:49.9078194Z shell: /usr/bin/bash --noprofile --norc -e -o pipefail {0}
+2026-10-03T04:54:49.9080373Z env:
+2026-10-03T04:54:49.9081406Z   BLACKSMITH_RUNNER_MESSAGE_WAIT_MS: 201
+2026-10-03T04:54:49.9082743Z   BLACKSMITH_RUNNER_ACQUIRE_JOB_MS: 1026
+2026-10-03T04:54:49.9084039Z   BLACKSMITH_CHECK_RUN_ID: 111132032384
+2026-10-03T04:54:49.9085619Z   BLACKSMITH_JOB_DISPLAY_NAME: Build Release Artifacts / classify
+2026-10-03T04:54:49.9087381Z   GITHUB_ACTIONS_CACHE_MODE: write
+2026-10-03T04:54:49.9089157Z ##[endgroup]
+2026-10-03T04:54:50.0147898Z Logging daemon started (blacksmithd for logs)
+2026-10-03T04:54:50.0647575Z Results daemon started (blacksmithd for results)
+2026-10-03T04:54:50.1052508Z Background adoption and SSH setup started (PID: 3206)
+2026-10-03T04:54:50.1091077Z 
+2026-10-03T04:54:50.1093172Z ----------------------------------------
+2026-10-03T04:54:50.1095877Z View this job: https://app.blacksmith.sh/Lumiwealth/runs/37098060587/jobs/111132032384
+2026-10-03T04:54:50.1098151Z SSH Access (using your GitHub SSH key):
+2026-10-03T04:54:50.1100545Z   ssh -p 64001 runner@blacksmith-2vcpu-ubuntu-2404-arm-runner-3df0911dc3.vm.blacksmith.sh
+2026-10-03T04:54:50.1103413Z 
+2026-10-03T04:54:50.1104527Z No GitHub SSH key? Add one at:
+2026-10-03T04:54:50.1108613Z https://docs.github.com/en/authentication/connecting-to-github-with-ssh/adding-a-new-ssh-key-to-your-github-account
+2026-10-03T04:54:50.1111992Z 
+2026-10-03T04:54:50.1112743Z ----------------------------------------
+2026-10-03T04:54:50.1113942Z 
+2026-10-03T04:54:50.1114830Z VM ID: blacksmith-2vcpu-ubuntu-2404-arm-Runner-3df0911dc3
+2026-10-03T04:54:50.1117889Z Host: production-192.240.237.165-aarch64
+2026-10-03T04:54:50.1119802Z Host Agent PID: 19570
+2026-10-03T04:54:50.1122669Z Host Agent Git SHA: e97f83469
+2026-10-03T04:54:50.1124235Z Host CPU Manufacturer: Ampere
+2026-10-03T04:54:50.1125850Z Blacksmith Host Generation: gen 2
+2026-10-03T04:54:50.1127490Z Petname: production-calm-shrimp-0da1217b-arm
+2026-10-03T04:54:50.1130175Z Region: us-west
+2026-10-03T04:54:50.1131510Z Rootfs Version: ubuntu24-full-aarch64-110625
+2026-10-03T04:54:50.1175437Z OS Version: Ubuntu 24.04.3 LTS
+2026-10-03T04:54:50.1180398Z 
+2026-10-03T04:54:50.1183269Z Enabling Blacksmith transparent cache
+2026-10-03T04:54:50.2630425Z ##[group]Run actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+2026-10-03T04:54:50.2633248Z with:
+2026-10-03T04:54:50.2634667Z   fetch-depth: 2
+2026-10-03T04:54:50.2635663Z   persist-credentials: false
+2026-10-03T04:54:50.2636877Z   repository: Lumiwealth/bot_manager
+2026-10-03T04:54:50.2653961Z   token: ***
+2026-10-03T04:54:50.2655178Z   ssh-strict: true
+2026-10-03T04:54:50.2656162Z   ssh-user: git
+2026-10-03T04:54:50.2657076Z   clean: true
+2026-10-03T04:54:50.2658089Z   sparse-checkout-cone-mode: true
+2026-10-03T04:54:50.2659235Z   fetch-tags: false
+2026-10-03T04:54:50.2660204Z   show-progress: true
+2026-10-03T04:54:50.2661237Z   lfs: false
+2026-10-03T04:54:50.2663248Z   submodules: false
+2026-10-03T04:54:50.2664341Z   set-safe-directory: true
+2026-10-03T04:54:50.2665406Z env:
+2026-10-03T04:54:50.2666367Z   BLACKSMITH_RUNNER_MESSAGE_WAIT_MS: 201
+2026-10-03T04:54:50.2668091Z   BLACKSMITH_RUNNER_ACQUIRE_JOB_MS: 1026
+2026-10-03T04:54:50.2669556Z   GITHUB_REPO_NAME: Lumiwealth/bot_manager
+2026-10-03T04:54:50.2671324Z ##[endgroup]
+2026-10-03T04:54:50.6212508Z Syncing repository: Lumiwealth/bot_manager
+2026-10-03T04:54:50.6217160Z ##[group]Getting Git version info
+2026-10-03T04:54:50.6218680Z Working directory is '/home/runner/_work/bot_manager/bot_manager'
+2026-10-03T04:54:50.6220792Z [command]/usr/local/bin/git version
+2026-10-03T04:54:50.6297017Z git version 2.51.2
+2026-10-03T04:54:50.6311197Z ##[endgroup]
+2026-10-03T04:54:50.6351848Z Temporarily overriding HOME='/home/runner/_work/_temp/207e73c3-47ae-40be-8dc0-dcb9bfe576ea' before making global git config changes
+2026-10-03T04:54:50.6355144Z Adding repository directory to the temporary git global config as a safe directory
+2026-10-03T04:54:50.6357743Z [command]/usr/local/bin/git config --global --add safe.directory /home/runner/_work/bot_manager/bot_manager
+2026-10-03T04:54:50.6451200Z Deleting the contents of '/home/runner/_work/bot_manager/bot_manager'
+2026-10-03T04:54:50.6466712Z ##[group]Initializing the repository
+2026-10-03T04:54:50.6468744Z [command]/usr/local/bin/git init /home/runner/_work/bot_manager/bot_manager
+2026-10-03T04:54:50.6592513Z hint: Using 'master' as the name for the initial branch. This default branch name
+2026-10-03T04:54:50.6595129Z hint: is subject to change. To configure the initial branch name to use in all
+2026-10-03T04:54:50.6597406Z hint: of your new repositories, which will suppress this warning, call:
+2026-10-03T04:54:50.6599024Z hint:
+2026-10-03T04:54:50.6600373Z hint: 	git config --global init.defaultBranch <name>
+2026-10-03T04:54:50.6601793Z hint:
+2026-10-03T04:54:50.6603222Z hint: Names commonly chosen instead of 'master' are 'main', 'trunk' and
+2026-10-03T04:54:50.6605372Z hint: 'development'. The just-created branch can be renamed via this command:
+2026-10-03T04:54:50.6607880Z hint:
+2026-10-03T04:54:50.6609554Z hint: 	git branch -m <name>
+2026-10-03T04:54:50.6610894Z hint:
+2026-10-03T04:54:50.6612448Z hint: Disable this message with "git config set advice.defaultBranchName false"
+2026-10-03T04:54:50.6615237Z Initialized empty Git repository in /home/runner/_work/bot_manager/bot_manager/.git/
+2026-10-03T04:54:50.6619684Z [command]/usr/local/bin/git remote add origin https://github.com/Lumiwealth/bot_manager
+2026-10-03T04:54:50.6707694Z ##[endgroup]
+2026-10-03T04:54:50.6709806Z ##[group]Disabling automatic garbage collection
+2026-10-03T04:54:50.6712453Z [command]/usr/local/bin/git config --local gc.auto 0
+2026-10-03T04:54:50.8120217Z ##[endgroup]
+2026-10-03T04:54:50.8123642Z ##[group]Setting up auth
+2026-10-03T04:54:50.8128309Z [command]/usr/local/bin/git config --local --name-only --get-regexp core\.sshCommand
+2026-10-03T04:54:50.8133949Z [command]/usr/local/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :"
+2026-10-03T04:54:50.8139595Z [command]/usr/local/bin/git config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+2026-10-03T04:54:50.8160396Z [command]/usr/local/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :"
+2026-10-03T04:54:50.8166712Z [command]/usr/local/bin/git config --local --name-only --get-regexp ^includeIf\.gitdir:
+2026-10-03T04:54:50.8171366Z [command]/usr/local/bin/git submodule foreach --recursive git config --local --show-origin --name-only --get-regexp remote.origin.url
+2026-10-03T04:54:50.8463274Z [command]/usr/local/bin/git config --local http.https://github.com/.extraheader AUTHORIZATION: basic ***
+2026-10-03T04:54:50.8543463Z ##[endgroup]
+2026-10-03T04:54:50.8546079Z ##[group]Fetching the repository
+2026-10-03T04:54:50.8583661Z [command]/usr/local/bin/git -c protocol.version=2 fetch --no-tags --prune --no-recurse-submodules --depth=2 origin +32f2c5068412988ca2422b828b63417503007b35:refs/remotes/origin/develop
+2026-10-03T04:54:52.0963058Z From https://github.com/Lumiwealth/bot_manager
+2026-10-03T04:54:52.0973449Z  * [new ref]         32f2c5068412988ca2422b828b63417503007b35 -> origin/develop
+2026-10-03T04:54:52.1088448Z ##[endgroup]
+2026-10-03T04:54:52.1089312Z ##[group]Determining the checkout info
+2026-10-03T04:54:52.1091244Z ##[endgroup]
+2026-10-03T04:54:52.1095126Z [command]/usr/local/bin/git sparse-checkout disable
+2026-10-03T04:54:52.1207228Z [command]/usr/local/bin/git config --local --unset-all extensions.worktreeConfig
+2026-10-03T04:54:52.1308987Z ##[group]Checking out the ref
+2026-10-03T04:54:52.1320601Z [command]/usr/local/bin/git checkout --progress --force -B develop refs/remotes/origin/develop
+2026-10-03T04:54:52.2222234Z Switched to a new branch 'develop'
+2026-10-03T04:54:52.2237544Z branch 'develop' set up to track 'origin/develop'.
+2026-10-03T04:54:52.2276445Z ##[endgroup]
+2026-10-03T04:54:52.2367185Z [command]/usr/local/bin/git log -1 --format=%H
+2026-10-03T04:54:52.2398066Z 32f2c5068412988ca2422b828b63417503007b35
+2026-10-03T04:54:52.2455860Z ##[group]Removing auth
+2026-10-03T04:54:52.2482272Z [command]/usr/local/bin/git config --local --name-only --get-regexp core\.sshCommand
+2026-10-03T04:54:52.2516072Z [command]/usr/local/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :"
+2026-10-03T04:54:52.2862530Z [command]/usr/local/bin/git config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+2026-10-03T04:54:52.2909586Z http.https://github.com/.extraheader
+2026-10-03T04:54:52.2960558Z [command]/usr/local/bin/git config --local --unset-all http.https://github.com/.extraheader
+2026-10-03T04:54:52.3008184Z [command]/usr/local/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :"
+2026-10-03T04:54:52.3369378Z [command]/usr/local/bin/git config --local --name-only --get-regexp ^includeIf\.gitdir:
+2026-10-03T04:54:52.3408932Z [command]/usr/local/bin/git submodule foreach --recursive git config --local --show-origin --name-only --get-regexp remote.origin.url
+2026-10-03T04:54:52.3771055Z ##[endgroup]
+2026-10-03T04:54:52.4089262Z ##[group]Run base="$(git rev-parse HEAD^ 2>/dev/null || true)"
+2026-10-03T04:54:52.4090046Z [36;1mbase="$(git rev-parse HEAD^ 2>/dev/null || true)"[0m
+2026-10-03T04:54:52.4090482Z [36;1mif [[ -z "$base" ]]; then[0m
+2026-10-03T04:54:52.4091057Z [36;1m  changed_json="$(python scripts/classify_release_changes.py .github/workflows/build-release-artifacts.yml)"[0m
+2026-10-03T04:54:52.4091648Z [36;1melse[0m
+2026-10-03T04:54:52.4092100Z [36;1m  changed_json="$(python scripts/classify_release_changes.py --base "$base" --head HEAD)"[0m
+2026-10-03T04:54:52.4092596Z [36;1mfi[0m
+2026-10-03T04:54:52.4092835Z [36;1mecho "$changed_json"[0m
+2026-10-03T04:54:52.4094197Z [36;1mfor key in runtime_bundle lambda_assets base_image backtest_image single_trade_lambda_image terraform snapshot force_all; do[0m
+2026-10-03T04:54:52.4094908Z [36;1m  value="$(printf '%s' "$changed_json" | jq -r ".${key}")"[0m
+2026-10-03T04:54:52.4095405Z [36;1m  echo "${key}=${value}" >> "$GITHUB_OUTPUT"[0m
+2026-10-03T04:54:52.4095786Z [36;1mdone[0m
+2026-10-03T04:54:52.4142984Z shell: /usr/bin/bash -e {0}
+2026-10-03T04:54:52.4143366Z env:
+2026-10-03T04:54:52.4143627Z   BLACKSMITH_RUNNER_MESSAGE_WAIT_MS: 201
+2026-10-03T04:54:52.4143958Z   BLACKSMITH_RUNNER_ACQUIRE_JOB_MS: 1026
+2026-10-03T04:54:52.4144289Z   GITHUB_REPO_NAME: Lumiwealth/bot_manager
+2026-10-03T04:54:52.4144596Z ##[endgroup]
+2026-10-03T04:54:52.4670190Z {"backtest_image": false, "base_image": false, "force_all": false, "lambda_assets": false, "runtime_bundle": false, "single_trade_lambda_image": false, "snapshot": false, "terraform": true}
+2026-10-03T04:54:52.5166012Z Post job cleanup.
+2026-10-03T04:54:52.6350544Z [command]/usr/local/bin/git version
+2026-10-03T04:54:52.6427043Z git version 2.51.2
+2026-10-03T04:54:52.6495856Z Temporarily overriding HOME='/home/runner/_work/_temp/28e9c9a0-2f79-4ebe-a0fa-d54f8d05d84d' before making global git config changes
+2026-10-03T04:54:52.6497248Z Adding repository directory to the temporary git global config as a safe directory
+2026-10-03T04:54:52.6526989Z [command]/usr/local/bin/git config --global --add safe.directory /home/runner/_work/bot_manager/bot_manager
+2026-10-03T04:54:52.6579321Z [command]/usr/local/bin/git config --local --name-only --get-regexp core\.sshCommand
+2026-10-03T04:54:52.6656543Z [command]/usr/local/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :"
+2026-10-03T04:54:52.7063900Z [command]/usr/local/bin/git config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+2026-10-03T04:54:52.7147106Z [command]/usr/local/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :"
+2026-10-03T04:54:52.7625967Z [command]/usr/local/bin/git config --local --name-only --get-regexp ^includeIf\.gitdir:
+2026-10-03T04:54:52.7680227Z [command]/usr/local/bin/git submodule foreach --recursive git config --local --show-origin --name-only --get-regexp remote.origin.url
+2026-10-03T04:54:52.8236238Z A job completed hook has been configured by the self-hosted runner administrator
+2026-10-03T04:54:52.8290071Z ##[group]Run '/job_completed.sh'
+2026-10-03T04:54:52.8319823Z shell: /usr/bin/bash --noprofile --norc -e -o pipefail {0}
+2026-10-03T04:54:52.8320222Z env:
+2026-10-03T04:54:52.8320471Z   BLACKSMITH_RUNNER_MESSAGE_WAIT_MS: 201
+2026-10-03T04:54:52.8320799Z   BLACKSMITH_RUNNER_ACQUIRE_JOB_MS: 1026
+2026-10-03T04:54:52.8321117Z   BLACKSMITH_CHECK_RUN_ID: 111132032384
+2026-10-03T04:54:52.8321510Z   BLACKSMITH_JOB_DISPLAY_NAME: Build Release Artifacts / classify
+2026-10-03T04:54:52.8321950Z   GITHUB_ACTIONS_CACHE_MODE: write
+2026-10-03T04:54:52.8322229Z ##[endgroup]
+2026-10-03T04:54:52.8546673Z Docker container cache not activated, skipping hash computation.
+2026-10-03T04:54:52.9120994Z No active SSH sessions detected. Proceeding with shutdown immediately.
+2026-10-03T04:54:52.9241027Z Evaluate and set job outputs
+2026-10-03T04:54:52.9617187Z Set output 'runtime_bundle'
+2026-10-03T04:54:52.9619412Z Set output 'lambda_assets'
+2026-10-03T04:54:52.9619865Z Set output 'base_image'
+2026-10-03T04:54:52.9620210Z Set output 'backtest_image'
+2026-10-03T04:54:52.9620584Z Set output 'single_trade_lambda_image'
+2026-10-03T04:54:52.9620975Z Set output 'terraform'
+2026-10-03T04:54:52.9621307Z Set output 'snapshot'
+2026-10-03T04:54:52.9621630Z Set output 'force_all'
+2026-10-03T04:54:52.9622294Z Cleaning up orphan processes
+2026-10-03T04:54:53.0156670Z ##[warning]Node.js 20 is deprecated. The following actions target Node.js 20 but are being forced to run on Node.js 24: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5. For more information see: https://github.blog/changelog/2025-09-19-deprecation-of-node-20-on-github-actions-runners/

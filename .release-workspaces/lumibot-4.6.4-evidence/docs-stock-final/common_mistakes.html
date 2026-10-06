@@ -1,0 +1,1100 @@
+<!doctype html>
+<html class="no-js" lang="en" data-content_root="./">
+  <head><meta charset="utf-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <meta name="color-scheme" content="light dark"><meta name="viewport" content="width=device-width, initial-scale=1" />
+<meta content="This page documents the most common mistakes made when writing Lumibot strategies, along with the correct patterns to use instead." name="description" />
+<meta property="og:title" content="Common Mistakes and How to Avoid Them" />
+<meta property="og:type" content="website" />
+<meta property="og:url" content="https://lumibot.lumiwealth.com/common_mistakes.html" />
+<meta property="og:site_name" content="LumiBot" />
+<meta property="og:description" content="This page documents the most common mistakes made when writing Lumibot strategies, along with the correct patterns to use instead. Restoring Asset Variables After a Restart: Keep instruments as Ass..." />
+<meta property="og:image" content="https://lumibot.lumiwealth.com/_static/lumibot-social-card.png" />
+<meta property="og:image:alt" content="LumiBot: AI trading agents that actually place the trade" />
+<meta name="twitter:card" content="summary_large_image" />
+<link rel="index" title="Index" href="genindex.html"><link rel="search" title="Search" href="search.html"><link rel="next" title="Frequently Asked Questions (FAQ)" href="faq.html"><link rel="prev" title="Environment Variables" href="environment_variables.html">
+        <link rel="canonical" href="https://lumibot.lumiwealth.com/common_mistakes.html">
+        <link rel="prefetch" href="_static/Lumibot_Logo.webp" as="image">
+        <link rel="prefetch" href="_static/Lumibot_Logo.webp" as="image">
+
+    <link rel="shortcut icon" href="_static/lumibot_favicon_192.png"><!-- Generated with Sphinx 8.1.3 and Furo 2025.12.19 -->
+
+<title>Common Mistakes and How to Avoid Them - Lumibot</title>
+
+<link rel="stylesheet" type="text/css" href="_static/pygments.css?v=d111a655" />
+    <link rel="stylesheet" type="text/css" href="_static/styles/furo.css?v=7bdb33bb" />
+    <link rel="stylesheet" type="text/css" href="_static/styles/furo-extensions.css?v=8dab3a3b" />
+    <link rel="stylesheet" type="text/css" href="_static/custom.css?v=c3884bc6" />
+    
+    
+
+
+<style>
+  body {
+    --color-code-background: #f2f2f2;
+  --color-code-foreground: #1e1e1e;
+  
+  }
+  @media not print {
+    body[data-theme="dark"] {
+      --color-code-background: #202020;
+  --color-code-foreground: #d0d0d0;
+  
+    }
+    @media (prefers-color-scheme: dark) {
+      body:not([data-theme="light"]) {
+        --color-code-background: #202020;
+  --color-code-foreground: #d0d0d0;
+  
+      }
+    }
+  }
+</style>
+
+
+
+
+<link rel="icon" type="image/png" sizes="192x192" href="_static/lumibot_favicon_192.png">
+<link rel="icon" type="image/png" sizes="512x512" href="_static/lumibot_favicon_512.png">
+<link rel="apple-touch-icon" sizes="192x192" href="_static/lumibot_favicon_192.png">
+
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="Lumibot">
+<meta property="og:title" content="Common Mistakes and How to Avoid Them - Lumibot">
+<meta property="og:description" content="Common Mistakes and How to Avoid Them: setup, usage, and reference documentation for the LumiBot Python trading framework.">
+<meta property="og:url" content="https://lumibot.lumiwealth.com/common_mistakes.html">
+
+<meta property="og:image" content="https://lumibot.lumiwealth.com/_static/lumibot_spot_logo.png">
+<meta property="og:image:width" content="852">
+<meta property="og:image:height" content="852">
+<meta property="og:image:alt" content="Common Mistakes and How to Avoid Them">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Common Mistakes and How to Avoid Them - Lumibot">
+<meta name="twitter:description" content="Common Mistakes and How to Avoid Them: setup, usage, and reference documentation for the LumiBot Python trading framework.">
+<meta name="twitter:image" content="https://lumibot.lumiwealth.com/_static/lumibot_spot_logo.png">
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@graph": [
+    {
+      "@type": "Organization",
+      "@id": "https://lumibot.lumiwealth.com/#organization",
+      "name": "Lumiwealth",
+      "url": "https://botspot.trade",
+      "logo": {
+        "@type": "ImageObject",
+        "url": "https://lumibot.lumiwealth.com/_static/lumibot_spot_logo.png",
+        "width": 852,
+        "height": 852
+      },
+      "sameAs": [
+        "https://github.com/Lumiwealth/lumibot",
+        "https://www.reddit.com/r/BotSpotTrade/",
+        "https://discord.gg/4R9j6T3PN8"
+      ]
+    },
+    {
+      "@type": "WebSite",
+      "@id": "https://lumibot.lumiwealth.com/#website",
+      "name": "Lumibot Documentation",
+      "alternateName": "Lumibot",
+      "url": "https://lumibot.lumiwealth.com/",
+      "publisher": {
+        "@id": "https://lumibot.lumiwealth.com/#organization"
+      }
+    },
+    {
+      "@type": "SoftwareSourceCode",
+      "@id": "https://lumibot.lumiwealth.com/#software",
+      "name": "Lumibot",
+      "alternateName": "LumiBot",
+      "description": "Python framework for deterministic trading strategies, AI trading teams, hybrid strategy logic, backtesting, paper trading, and live broker workflows.",
+      "codeRepository": "https://github.com/Lumiwealth/lumibot",
+      "programmingLanguage": "Python",
+      "url": "https://lumibot.lumiwealth.com/",
+      "image": "https://lumibot.lumiwealth.com/_static/lumibot_spot_logo.png",
+      "publisher": {
+        "@id": "https://lumibot.lumiwealth.com/#organization"
+      },
+      "keywords": [
+        "algorithmic trading",
+        "AI trading agents",
+        "AI trading teams",
+        "backtesting",
+        "paper trading",
+        "live trading",
+        "broker integration"
+      ]
+    }
+  ]
+}
+</script>
+</head>
+  <body>
+    
+    <script>
+      document.body.dataset.theme = localStorage.getItem("theme") || "auto";
+    </script>
+    
+
+<svg xmlns="http://www.w3.org/2000/svg" style="display: none;">
+  <symbol id="svg-toc" viewBox="0 0 24 24">
+    <title>Contents</title>
+    <svg stroke="currentColor" fill="currentColor" stroke-width="0" viewBox="0 0 1024 1024">
+      <path d="M408 442h480c4.4 0 8-3.6 8-8v-56c0-4.4-3.6-8-8-8H408c-4.4 0-8 3.6-8 8v56c0 4.4 3.6 8 8 8zm-8 204c0 4.4 3.6 8 8 8h480c4.4 0 8-3.6 8-8v-56c0-4.4-3.6-8-8-8H408c-4.4 0-8 3.6-8 8v56zm504-486H120c-4.4 0-8 3.6-8 8v56c0 4.4 3.6 8 8 8h784c4.4 0 8-3.6 8-8v-56c0-4.4-3.6-8-8-8zm0 632H120c-4.4 0-8 3.6-8 8v56c0 4.4 3.6 8 8 8h784c4.4 0 8-3.6 8-8v-56c0-4.4-3.6-8-8-8zM115.4 518.9L271.7 642c5.8 4.6 14.4.5 14.4-6.9V388.9c0-7.4-8.5-11.5-14.4-6.9L115.4 505.1a8.74 8.74 0 0 0 0 13.8z"/>
+    </svg>
+  </symbol>
+  <symbol id="svg-menu" viewBox="0 0 24 24">
+    <title>Menu</title>
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather-menu">
+      <line x1="3" y1="12" x2="21" y2="12"></line>
+      <line x1="3" y1="6" x2="21" y2="6"></line>
+      <line x1="3" y1="18" x2="21" y2="18"></line>
+    </svg>
+  </symbol>
+  <symbol id="svg-arrow-right" viewBox="0 0 24 24">
+    <title>Expand</title>
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather-chevron-right">
+      <polyline points="9 18 15 12 9 6"></polyline>
+    </svg>
+  </symbol>
+  <symbol id="svg-sun" viewBox="0 0 24 24">
+    <title>Light mode</title>
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="1" stroke-linecap="round" stroke-linejoin="round" class="feather-sun">
+      <circle cx="12" cy="12" r="5"></circle>
+      <line x1="12" y1="1" x2="12" y2="3"></line>
+      <line x1="12" y1="21" x2="12" y2="23"></line>
+      <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line>
+      <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>
+      <line x1="1" y1="12" x2="3" y2="12"></line>
+      <line x1="21" y1="12" x2="23" y2="12"></line>
+      <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>
+      <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
+    </svg>
+  </symbol>
+  <symbol id="svg-moon" viewBox="0 0 24 24">
+    <title>Dark mode</title>
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="1" stroke-linecap="round" stroke-linejoin="round" class="icon-tabler-moon">
+      <path stroke="none" d="M0 0h24v24H0z" fill="none" />
+      <path d="M12 3c.132 0 .263 0 .393 0a7.5 7.5 0 0 0 7.92 12.446a9 9 0 1 1 -8.313 -12.454z" />
+    </svg>
+  </symbol>
+  <symbol id="svg-sun-with-moon" viewBox="0 0 24 24">
+    <title>Auto light/dark, in light mode</title>
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="1" stroke-linecap="round" stroke-linejoin="round"
+      class="icon-custom-derived-from-feather-sun-and-tabler-moon">
+      <path style="opacity: 50%" d="M 5.411 14.504 C 5.471 14.504 5.532 14.504 5.591 14.504 C 3.639 16.319 4.383 19.569 6.931 20.352 C 7.693 20.586 8.512 20.551 9.25 20.252 C 8.023 23.207 4.056 23.725 2.11 21.184 C 0.166 18.642 1.702 14.949 4.874 14.536 C 5.051 14.512 5.231 14.5 5.411 14.5 L 5.411 14.504 Z"/>
+      <line x1="14.5" y1="3.25" x2="14.5" y2="1.25"/>
+      <line x1="14.5" y1="15.85" x2="14.5" y2="17.85"/>
+      <line x1="10.044" y1="5.094" x2="8.63" y2="3.68"/>
+      <line x1="19" y1="14.05" x2="20.414" y2="15.464"/>
+      <line x1="8.2" y1="9.55" x2="6.2" y2="9.55"/>
+      <line x1="20.8" y1="9.55" x2="22.8" y2="9.55"/>
+      <line x1="10.044" y1="14.006" x2="8.63" y2="15.42"/>
+      <line x1="19" y1="5.05" x2="20.414" y2="3.636"/>
+      <circle cx="14.5" cy="9.55" r="3.6"/>
+    </svg>
+  </symbol>
+  <symbol id="svg-moon-with-sun" viewBox="0 0 24 24">
+    <title>Auto light/dark, in dark mode</title>
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="1" stroke-linecap="round" stroke-linejoin="round"
+      class="icon-custom-derived-from-feather-sun-and-tabler-moon">
+      <path d="M 8.282 7.007 C 8.385 7.007 8.494 7.007 8.595 7.007 C 5.18 10.184 6.481 15.869 10.942 17.24 C 12.275 17.648 13.706 17.589 15 17.066 C 12.851 22.236 5.91 23.143 2.505 18.696 C -0.897 14.249 1.791 7.786 7.342 7.063 C 7.652 7.021 7.965 7 8.282 7 L 8.282 7.007 Z"/>
+      <line style="opacity: 50%" x1="18" y1="3.705" x2="18" y2="2.5"/>
+      <line style="opacity: 50%" x1="18" y1="11.295" x2="18" y2="12.5"/>
+      <line style="opacity: 50%" x1="15.316" y1="4.816" x2="14.464" y2="3.964"/>
+      <line style="opacity: 50%" x1="20.711" y1="10.212" x2="21.563" y2="11.063"/>
+      <line style="opacity: 50%" x1="14.205" y1="7.5" x2="13.001" y2="7.5"/>
+      <line style="opacity: 50%" x1="21.795" y1="7.5" x2="23" y2="7.5"/>
+      <line style="opacity: 50%" x1="15.316" y1="10.184" x2="14.464" y2="11.036"/>
+      <line style="opacity: 50%" x1="20.711" y1="4.789" x2="21.563" y2="3.937"/>
+      <circle style="opacity: 50%" cx="18" cy="7.5" r="2.169"/>
+    </svg>
+  </symbol>
+  <symbol id="svg-pencil" viewBox="0 0 24 24">
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="1" stroke-linecap="round" stroke-linejoin="round" class="icon-tabler-pencil-code">
+      <path d="M4 20h4l10.5 -10.5a2.828 2.828 0 1 0 -4 -4l-10.5 10.5v4" />
+      <path d="M13.5 6.5l4 4" />
+      <path d="M20 21l2 -2l-2 -2" />
+      <path d="M17 17l-2 2l2 2" />
+    </svg>
+  </symbol>
+  <symbol id="svg-eye" viewBox="0 0 24 24">
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="1" stroke-linecap="round" stroke-linejoin="round" class="icon-tabler-eye-code">
+      <path stroke="none" d="M0 0h24v24H0z" fill="none" />
+      <path d="M10 12a2 2 0 1 0 4 0a2 2 0 0 0 -4 0" />
+      <path
+        d="M11.11 17.958c-3.209 -.307 -5.91 -2.293 -8.11 -5.958c2.4 -4 5.4 -6 9 -6c3.6 0 6.6 2 9 6c-.21 .352 -.427 .688 -.647 1.008" />
+      <path d="M20 21l2 -2l-2 -2" />
+      <path d="M17 17l-2 2l2 2" />
+    </svg>
+  </symbol>
+</svg>
+
+<input type="checkbox" class="sidebar-toggle" name="__navigation" id="__navigation" aria-label="Toggle site navigation sidebar">
+<input type="checkbox" class="sidebar-toggle" name="__toc" id="__toc" aria-label="Toggle table of contents sidebar">
+<label class="overlay sidebar-overlay" for="__navigation"></label>
+<label class="overlay toc-overlay" for="__toc"></label>
+
+<a class="skip-to-content muted-link" href="#furo-main-content">Skip to content</a>
+
+
+
+<div class="page">
+  <header class="mobile-header">
+    <div class="header-left">
+      <label class="nav-overlay-icon" for="__navigation">
+        <span class="icon"><svg><use href="#svg-menu"></use></svg></span>
+      </label>
+    </div>
+    <div class="header-center">
+      <a href="index.html"><div class="brand">Lumibot</div></a>
+    </div>
+    <div class="header-right">
+      <div class="theme-toggle-container theme-toggle-header">
+        <button class="theme-toggle" aria-label="Toggle Light / Dark / Auto color theme">
+          <svg class="theme-icon-when-auto-light"><use href="#svg-sun-with-moon"></use></svg>
+          <svg class="theme-icon-when-auto-dark"><use href="#svg-moon-with-sun"></use></svg>
+          <svg class="theme-icon-when-dark"><use href="#svg-moon"></use></svg>
+          <svg class="theme-icon-when-light"><use href="#svg-sun"></use></svg>
+        </button>
+      </div>
+      <label class="toc-overlay-icon toc-header-icon" for="__toc">
+        <span class="icon"><svg><use href="#svg-toc"></use></svg></span>
+      </label>
+    </div>
+  </header>
+  <aside class="sidebar-drawer">
+    <div class="sidebar-container">
+      
+      <div class="sidebar-sticky"><a class="sidebar-brand" href="index.html">
+  <div class="sidebar-logo-container">
+    <img class="sidebar-logo only-light" src="_static/Lumibot_Logo.webp" alt="Light Logo"/>
+    <img class="sidebar-logo only-dark" src="_static/Lumibot_Logo.webp" alt="Dark Logo"/>
+  </div>
+  
+  
+</a><form class="sidebar-search-container" method="get" action="search.html" role="search">
+  <input class="sidebar-search" placeholder="Search" name="q" aria-label="Search">
+  <input type="hidden" name="check_keywords" value="yes">
+  <input type="hidden" name="area" value="default">
+</form>
+<div id="searchbox"></div><div class="sidebar-scroll"><div class="sidebar-tree">
+  <p class="caption" role="heading"><span class="caption-text">Start here</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="index.html">Home</a></li>
+<li class="toctree-l1"><a class="reference internal" href="getting_started.html">Start Here / Python Setup</a></li>
+<li class="toctree-l1"><a class="reference internal" href="cli.html">The lumibot Command</a></li>
+<li class="toctree-l1"><a class="reference internal" href="examples.html">Python Strategy Examples</a></li>
+<li class="toctree-l1"><a class="reference internal" href="agents_quickstart.html">AI Quickstart</a></li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="agents_examples.html">AI Examples</a><input aria-label="Toggle navigation of AI Examples" class="toctree-checkbox" id="toctree-checkbox-1" name="toctree-checkbox-1" role="switch" type="checkbox"/><label for="toctree-checkbox-1"><span class="icon"><svg><use href="#svg-arrow-right"></use></svg></span></label><ul>
+<li class="toctree-l2"><a class="reference internal" href="agents_example_nancy_pelosi_trading_bot.html">Nancy Pelosi Stock Trading Bot</a></li>
+<li class="toctree-l2"><a class="reference internal" href="agents_example_nancy_pelosi_copy_trading_bot.html">Nancy Pelosi Copy Trading Bot</a></li>
+<li class="toctree-l2"><a class="reference internal" href="agents_example_insider_trading_bot.html">Insider Trading Bot</a></li>
+<li class="toctree-l2"><a class="reference internal" href="agents_example_warren_buffett_ai_stock_picker.html">Warren Buffett AI Stock Picker</a></li>
+<li class="toctree-l2"><a class="reference internal" href="agents_example_bill_ackman_portfolio_ai_trading_bot.html">Bill Ackman Portfolio AI Trading Bot</a></li>
+<li class="toctree-l2"><a class="reference internal" href="agents_example_fear_and_greed_index_trading_bot.html">Fear and Greed Index Trading Bot</a></li>
+<li class="toctree-l2"><a class="reference internal" href="agents_example_bull_vs_bear_ai_stock_trading_bot.html">Bull vs Bear AI Stock Trading Bot</a></li>
+<li class="toctree-l2"><a class="reference internal" href="agents_example_tqqq_strategy_ai_trading_bot.html">TQQQ Strategy AI Trading Bot</a></li>
+<li class="toctree-l2"><a class="reference internal" href="agents_example_iron_condor_ai_trading_bot.html">AI Iron Condor Trading Bot</a></li>
+<li class="toctree-l2"><a class="reference internal" href="agents_example_put_credit_spread_ai_trading_bot.html">Put Credit Spread AI Trading Bot</a></li>
+<li class="toctree-l2"><a class="reference internal" href="agents_example_0dte_options_ai_trading_bot.html">0DTE Options AI Trading Bot</a></li>
+<li class="toctree-l2"><a class="reference internal" href="agents_example_vwap_strategy_ai_trading_bot.html">VWAP Strategy AI Trading Bot</a></li>
+<li class="toctree-l2"><a class="reference internal" href="agents_example_opening_range_breakout_ai_trading_bot.html">Opening Range Breakout AI Trading Bot</a></li>
+<li class="toctree-l2"><a class="reference internal" href="agents_example_citadel_sector_pods.html">Citadel Sector Pods AI Trading Team</a></li>
+<li class="toctree-l2"><a class="reference internal" href="agents_example_ray_dalio_idea_meritocracy.html">Ray Dalio Idea Meritocracy AI Trading Team</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="strategy_run_modes.html">Backtest, Paper, or Live</a></li>
+<li class="toctree-l1"><a class="reference internal" href="agent_start_here.html">For Coding Agents</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">AI trading</span></p>
+<ul>
+<li class="toctree-l1 has-children"><a class="reference internal" href="agents.html">AI Agent Guide</a><input aria-label="Toggle navigation of AI Agent Guide" class="toctree-checkbox" id="toctree-checkbox-2" name="toctree-checkbox-2" role="switch" type="checkbox"/><label for="toctree-checkbox-2"><span class="icon"><svg><use href="#svg-arrow-right"></use></svg></span></label><ul>
+<li class="toctree-l2"><a class="reference internal" href="agents_flows.html">Design Your AI Trading Team</a></li>
+<li class="toctree-l2"><a class="reference internal" href="agents_builtin_tools.html">Agent Built-In Tools</a></li>
+<li class="toctree-l2"><a class="reference internal" href="agents_browser_tools.html">Stateful Browser Tools</a></li>
+<li class="toctree-l2"><a class="reference internal" href="agents_canonical_demos.html">One-Agent AI Trading Bot Demos</a></li>
+<li class="toctree-l2"><a class="reference internal" href="agents_observability.html">AI Agent Observability</a></li>
+<li class="toctree-l2"><a class="reference internal" href="agents_memory.html">Agent Memory</a></li>
+<li class="toctree-l2"><a class="reference internal" href="agents_notifications.html">Agent Notifications</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="execution_gap.html">The Execution Gap</a></li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="ai_trading_project_comparison.html">Compare AI Frameworks</a><input aria-label="Toggle navigation of Compare AI Frameworks" class="toctree-checkbox" id="toctree-checkbox-3" name="toctree-checkbox-3" role="switch" type="checkbox"/><label for="toctree-checkbox-3"><span class="icon"><svg><use href="#svg-arrow-right"></use></svg></span></label><ul>
+<li class="toctree-l2"><a class="reference internal" href="lumibot_vs_tradingagents.html">Lumibot vs TradingAgents</a></li>
+<li class="toctree-l2"><a class="reference internal" href="lumibot_vs_ai_hedge_fund.html">Lumibot vs ai-hedge-fund</a></li>
+<li class="toctree-l2"><a class="reference internal" href="lumibot_vs_openalice.html">LumiBot vs OpenAlice</a></li>
+<li class="toctree-l2"><a class="reference internal" href="lumibot_vs_quantdinger.html">Lumibot vs QuantDinger</a></li>
+<li class="toctree-l2"><a class="reference internal" href="lumibot_vs_lean.html">Lumibot vs QuantConnect LEAN</a></li>
+</ul>
+</li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Build strategies</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="strategy_api_overview.html">Strategy API</a></li>
+<li class="toctree-l1"><a class="reference internal" href="imports_and_startup.html">Imports and Startup</a></li>
+<li class="toctree-l1"><a class="reference internal" href="standalone_components.html">Reusable Components</a></li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="lifecycle_methods.html">Lifecycle Methods</a><input aria-label="Toggle navigation of Lifecycle Methods" class="toctree-checkbox" id="toctree-checkbox-4" name="toctree-checkbox-4" role="switch" type="checkbox"/><label for="toctree-checkbox-4"><span class="icon"><svg><use href="#svg-arrow-right"></use></svg></span></label><ul>
+<li class="toctree-l2"><a class="reference internal" href="lifecycle_methods.summary.html">Summary</a></li>
+<li class="toctree-l2"><a class="reference internal" href="lifecycle_methods.initialize.html">def initialize</a></li>
+<li class="toctree-l2"><a class="reference internal" href="lifecycle_methods.on_trading_iteration.html">def on_trading_iteration</a></li>
+<li class="toctree-l2"><a class="reference internal" href="lifecycle_methods.before_market_opens.html">def before_market_opens</a></li>
+<li class="toctree-l2"><a class="reference internal" href="lifecycle_methods.before_starting_trading.html">def before_starting_trading</a></li>
+<li class="toctree-l2"><a class="reference internal" href="lifecycle_methods.before_market_closes.html">def before_market_closes</a></li>
+<li class="toctree-l2"><a class="reference internal" href="lifecycle_methods.after_market_closes.html">def after_market_closes</a></li>
+<li class="toctree-l2"><a class="reference internal" href="lifecycle_methods.on_abrupt_closing.html">def on_abrupt_closing</a></li>
+<li class="toctree-l2"><a class="reference internal" href="lifecycle_methods.on_bot_crash.html">def on_bot_crash</a></li>
+<li class="toctree-l2"><a class="reference internal" href="lifecycle_methods.trace_stats.html">def trace_stats</a></li>
+<li class="toctree-l2"><a class="reference internal" href="lifecycle_methods.tearsheet_custom_metrics.html">def tearsheet_custom_metrics</a></li>
+<li class="toctree-l2"><a class="reference internal" href="lifecycle_methods.on_new_order.html">def on_new_order</a></li>
+<li class="toctree-l2"><a class="reference internal" href="lifecycle_methods.on_partially_filled_order.html">def on_partially_filled_order</a></li>
+<li class="toctree-l2"><a class="reference internal" href="lifecycle_methods.on_filled_order.html">def on_filled_order</a></li>
+<li class="toctree-l2"><a class="reference internal" href="lifecycle_methods.on_canceled_order.html">def on_canceled_order</a></li>
+<li class="toctree-l2"><a class="reference internal" href="lifecycle_methods.on_parameters_updated.html">def on_parameters_updated</a></li>
+</ul>
+</li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="strategy_methods.html">Strategy Methods</a><input aria-label="Toggle navigation of Strategy Methods" class="toctree-checkbox" id="toctree-checkbox-5" name="toctree-checkbox-5" role="switch" type="checkbox"/><label for="toctree-checkbox-5"><span class="icon"><svg><use href="#svg-arrow-right"></use></svg></span></label><ul>
+<li class="toctree-l2 has-children"><a class="reference internal" href="strategy_methods.orders.html">Order Management</a><input aria-label="Toggle navigation of Order Management" class="toctree-checkbox" id="toctree-checkbox-6" name="toctree-checkbox-6" role="switch" type="checkbox"/><label for="toctree-checkbox-6"><span class="icon"><svg><use href="#svg-arrow-right"></use></svg></span></label><ul>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.orders/lumibot.strategies.strategy.Strategy.create_order.html">self.create_order</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.orders/lumibot.strategies.strategy.Strategy.submit_order.html">self.submit_order</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.orders/lumibot.strategies.strategy.Strategy.submit_orders.html">self.submit_orders</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.orders/lumibot.strategies.strategy.Strategy.cancel_order.html">self.cancel_order</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.orders/lumibot.strategies.strategy.Strategy.cancel_orders.html">self.cancel_orders</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.orders/lumibot.strategies.strategy.Strategy.cancel_open_orders.html">self.cancel_open_orders</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.orders/lumibot.strategies.strategy.Strategy.get_selling_order.html">self.get_selling_order</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.orders/lumibot.strategies.strategy.Strategy.sell_all.html">self.sell_all</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.orders/lumibot.strategies.strategy.Strategy.get_order.html">self.get_order</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.orders/lumibot.strategies.strategy.Strategy.get_orders.html">self.get_orders</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.orders/lumibot.strategies.strategy.Strategy.get_asset_potential_total.html">self.get_asset_potential_total</a></li>
+</ul>
+</li>
+<li class="toctree-l2 has-children"><a class="reference internal" href="strategy_methods.account.html">Account Management</a><input aria-label="Toggle navigation of Account Management" class="toctree-checkbox" id="toctree-checkbox-7" name="toctree-checkbox-7" role="switch" type="checkbox"/><label for="toctree-checkbox-7"><span class="icon"><svg><use href="#svg-arrow-right"></use></svg></span></label><ul>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.account/lumibot.strategies.strategy.Strategy.adjust_cash.html">self.adjust_cash</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.account/lumibot.strategies.strategy.Strategy.configure_cash_financing.html">self.configure_cash_financing</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.account/lumibot.strategies.strategy.Strategy.deposit_cash.html">self.deposit_cash</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.account/lumibot.strategies.strategy.Strategy.get_portfolio_value.html">self.get_portfolio_value</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.account/lumibot.strategies.strategy.Strategy.get_cash.html">self.get_cash</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.account/lumibot.strategies.strategy.Strategy.get_position.html">self.get_position</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.account/lumibot.strategies.strategy.Strategy.get_positions.html">self.get_positions</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.account/lumibot.strategies.strategy.Strategy.set_cash_financing_rates.html">self.set_cash_financing_rates</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.account/lumibot.strategies.strategy.Strategy.withdraw_cash.html">self.withdraw_cash</a></li>
+</ul>
+</li>
+<li class="toctree-l2 has-children"><a class="reference internal" href="strategy_methods.data.html">Data</a><input aria-label="Toggle navigation of Data" class="toctree-checkbox" id="toctree-checkbox-8" name="toctree-checkbox-8" role="switch" type="checkbox"/><label for="toctree-checkbox-8"><span class="icon"><svg><use href="#svg-arrow-right"></use></svg></span></label><ul>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.data/lumibot.strategies.strategy.Strategy.get_last_price.html">self.get_last_price</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.data/lumibot.strategies.strategy.Strategy.get_last_prices.html">self.get_last_prices</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.data/lumibot.strategies.strategy.Strategy.get_historical_prices.html">self.get_historical_prices</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.data/lumibot.strategies.strategy.Strategy.get_historical_prices_for_assets.html">self.get_historical_prices_for_assets</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.data/lumibot.strategies.strategy.Strategy.get_quote.html">self.get_quote</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.data/lumibot.strategies.strategy.Strategy.get_yesterday_dividend.html">self.get_yesterday_dividend</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.data/lumibot.strategies.strategy.Strategy.get_next_trading_day.html">self.get_next_trading_day</a></li>
+</ul>
+</li>
+<li class="toctree-l2 has-children"><a class="reference internal" href="strategy_methods.chart.html">Chart Functions</a><input aria-label="Toggle navigation of Chart Functions" class="toctree-checkbox" id="toctree-checkbox-9" name="toctree-checkbox-9" role="switch" type="checkbox"/><label for="toctree-checkbox-9"><span class="icon"><svg><use href="#svg-arrow-right"></use></svg></span></label><ul>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.chart/lumibot.strategies.strategy.Strategy.add_marker.html">self.add_marker</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.chart/lumibot.strategies.strategy.Strategy.add_line.html">self.add_line</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.chart/lumibot.strategies.strategy.Strategy.get_markers_df.html">self.get_markers_df</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.chart/lumibot.strategies.strategy.Strategy.get_lines_df.html">self.get_lines_df</a></li>
+</ul>
+</li>
+<li class="toctree-l2 has-children"><a class="reference internal" href="strategy_methods.parameters.html">Parameters</a><input aria-label="Toggle navigation of Parameters" class="toctree-checkbox" id="toctree-checkbox-10" name="toctree-checkbox-10" role="switch" type="checkbox"/><label for="toctree-checkbox-10"><span class="icon"><svg><use href="#svg-arrow-right"></use></svg></span></label><ul>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.account/lumibot.strategies.strategy.Strategy.get_parameters.html">self.get_parameters</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.account/lumibot.strategies.strategy.Strategy.set_parameters.html">self.set_parameters</a></li>
+</ul>
+</li>
+<li class="toctree-l2 has-children"><a class="reference internal" href="strategy_methods.options.html">Options</a><input aria-label="Toggle navigation of Options" class="toctree-checkbox" id="toctree-checkbox-11" name="toctree-checkbox-11" role="switch" type="checkbox"/><label for="toctree-checkbox-11"><span class="icon"><svg><use href="#svg-arrow-right"></use></svg></span></label><ul>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.options/lumibot.strategies.strategy.Strategy.get_chain.html">self.get_chain</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.options/lumibot.strategies.strategy.Strategy.get_chains.html">self.get_chains</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.options/lumibot.strategies.strategy.Strategy.get_greeks.html">self.get_greeks</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.options/lumibot.strategies.strategy.Strategy.get_strikes.html">self.get_strikes</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.options/lumibot.strategies.strategy.Strategy.get_expiration.html">self.get_expiration</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.options/lumibot.strategies.strategy.Strategy.get_multiplier.html">self.get_multiplier</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.options/lumibot.strategies.strategy.Strategy.options_expiry_to_datetime_date.html">self.options_expiry_to_datetime_date</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.options/lumibot.strategies.strategy.Strategy.get_next_trading_day.html">self.get_next_trading_day</a></li>
+</ul>
+</li>
+<li class="toctree-l2 has-children"><a class="reference internal" href="strategy_methods.datetime.html">DateTime</a><input aria-label="Toggle navigation of DateTime" class="toctree-checkbox" id="toctree-checkbox-12" name="toctree-checkbox-12" role="switch" type="checkbox"/><label for="toctree-checkbox-12"><span class="icon"><svg><use href="#svg-arrow-right"></use></svg></span></label><ul>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.datetime/lumibot.strategies.strategy.Strategy.get_datetime.html">self.get_datetime</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.datetime/lumibot.strategies.strategy.Strategy.get_timestamp.html">self.get_timestamp</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.datetime/lumibot.strategies.strategy.Strategy.get_round_minute.html">self.get_round_minute</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.datetime/lumibot.strategies.strategy.Strategy.get_last_minute.html">self.get_last_minute</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.datetime/lumibot.strategies.strategy.Strategy.get_round_day.html">self.get_round_day</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.datetime/lumibot.strategies.strategy.Strategy.get_last_day.html">self.get_last_day</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.datetime/lumibot.strategies.strategy.Strategy.get_datetime_range.html">self.get_datetime_range</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.datetime/lumibot.strategies.strategy.Strategy.localize_datetime.html">self.localize_datetime</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.datetime/lumibot.strategies.strategy.Strategy.to_default_timezone.html">self.to_default_timezone</a></li>
+</ul>
+</li>
+<li class="toctree-l2 has-children"><a class="reference internal" href="strategy_methods.misc.html">Miscellaneous</a><input aria-label="Toggle navigation of Miscellaneous" class="toctree-checkbox" id="toctree-checkbox-13" name="toctree-checkbox-13" role="switch" type="checkbox"/><label for="toctree-checkbox-13"><span class="icon"><svg><use href="#svg-arrow-right"></use></svg></span></label><ul>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.misc/lumibot.strategies.strategy.Strategy.log_message.html">self.log_message</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.misc/lumibot.strategies.strategy.Strategy.sleep.html">self.sleep</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.misc/lumibot.strategies.strategy.Strategy.set_market.html">self.set_market</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.misc/lumibot.strategies.strategy.Strategy.update_parameters.html">self.update_parameters</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.misc/lumibot.strategies.strategy.Strategy.get_parameters.html">self.get_parameters</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.misc/lumibot.strategies.strategy.Strategy.await_market_to_close.html">self.await_market_to_close</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.misc/lumibot.strategies.strategy.Strategy.await_market_to_open.html">self.await_market_to_open</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.misc/lumibot.strategies.strategy.Strategy.wait_for_order_registration.html">self.wait_for_order_registration</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.misc/lumibot.strategies.strategy.Strategy.wait_for_order_execution.html">self.wait_for_order_execution</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.misc/lumibot.strategies.strategy.Strategy.wait_for_orders_registration.html">self.wait_for_orders_registration</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.misc/lumibot.strategies.strategy.Strategy.wait_for_orders_execution.html">self.wait_for_orders_execution</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.misc/lumibot.strategies.strategy.Strategy.register_cron_callback.html">self.register_cron_callback</a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="strategy_properties.html">Strategy Properties</a><input aria-label="Toggle navigation of Strategy Properties" class="toctree-checkbox" id="toctree-checkbox-14" name="toctree-checkbox-14" role="switch" type="checkbox"/><label for="toctree-checkbox-14"><span class="icon"><svg><use href="#svg-arrow-right"></use></svg></span></label><ul>
+<li class="toctree-l2"><a class="reference internal" href="strategy_properties/lumibot.strategies.strategy.Strategy.cash.html">self.cash</a></li>
+<li class="toctree-l2"><a class="reference internal" href="strategy_properties/lumibot.strategies.strategy.Strategy.portfolio_value.html">self.portfolio_value</a></li>
+<li class="toctree-l2"><a class="reference internal" href="strategy_properties/lumibot.strategies.strategy.Strategy.first_iteration.html">self.first_iteration</a></li>
+<li class="toctree-l2"><a class="reference internal" href="strategy_properties/lumibot.strategies.strategy.Strategy.is_backtesting.html">self.is_backtesting</a></li>
+<li class="toctree-l2"><a class="reference internal" href="strategy_properties/lumibot.strategies.strategy.Strategy.quote_asset.html">self.quote_asset</a></li>
+<li class="toctree-l2"><a class="reference internal" href="strategy_properties/lumibot.strategies.strategy.Strategy.name.html">self.name</a></li>
+<li class="toctree-l2"><a class="reference internal" href="strategy_properties/lumibot.strategies.strategy.Strategy.initial_budget.html">self.initial_budget</a></li>
+<li class="toctree-l2"><a class="reference internal" href="strategy_properties/lumibot.strategies.strategy.Strategy.minutes_before_closing.html">self.minutes_before_closing</a></li>
+<li class="toctree-l2"><a class="reference internal" href="strategy_properties/lumibot.strategies.strategy.Strategy.minutes_before_opening.html">self.minutes_before_opening</a></li>
+<li class="toctree-l2"><a class="reference internal" href="strategy_properties/lumibot.strategies.strategy.Strategy.sleeptime.html">self.sleeptime</a></li>
+<li class="toctree-l2"><a class="reference internal" href="strategy_properties/lumibot.strategies.strategy.Strategy.last_on_trading_iteration_datetime.html">self.last_on_trading_iteration_datetime</a></li>
+<li class="toctree-l2"><a class="reference internal" href="strategy_properties/lumibot.strategies.strategy.Strategy.timezone.html">self.timezone</a></li>
+<li class="toctree-l2"><a class="reference internal" href="strategy_properties/lumibot.strategies.strategy.Strategy.pytz.html">self.pytz</a></li>
+<li class="toctree-l2"><a class="reference internal" href="strategy_properties/lumibot.strategies.strategy.Strategy.unspent_money.html">self.unspent_money</a></li>
+</ul>
+</li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="entities.html">Assets and Orders</a><input aria-label="Toggle navigation of Assets and Orders" class="toctree-checkbox" id="toctree-checkbox-15" name="toctree-checkbox-15" role="switch" type="checkbox"/><label for="toctree-checkbox-15"><span class="icon"><svg><use href="#svg-arrow-right"></use></svg></span></label><ul>
+<li class="toctree-l2"><a class="reference internal" href="entities.asset.html">Asset</a></li>
+<li class="toctree-l2"><a class="reference internal" href="entities.bars.html">Bars</a></li>
+<li class="toctree-l2"><a class="reference internal" href="entities.data.html">Data</a></li>
+<li class="toctree-l2"><a class="reference internal" href="entities.order.html">Order</a></li>
+<li class="toctree-l2"><a class="reference internal" href="entities.position.html">Position</a></li>
+<li class="toctree-l2"><a class="reference internal" href="entities.trading_fee.html">Trading Fee</a></li>
+<li class="toctree-l2"><a class="reference internal" href="entities.trading_slippage.html">Trading Slippage</a></li>
+<li class="toctree-l2"><a class="reference internal" href="entities.smart_limit.html">Smart Limit Config</a></li>
+<li class="toctree-l2"><a class="reference internal" href="entities.chains.html">Chains Entity</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="indicators.html">Indicators</a></li>
+<li class="toctree-l1"><a class="reference internal" href="fundamentals.html">SEC Fundamentals</a></li>
+<li class="toctree-l1"><a class="reference internal" href="macro_data.html">Macro Data</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Backtest and trade</span></p>
+<ul class="current">
+<li class="toctree-l1 has-children"><a class="reference internal" href="backtesting.html">Backtesting</a><input aria-label="Toggle navigation of Backtesting" class="toctree-checkbox" id="toctree-checkbox-16" name="toctree-checkbox-16" role="switch" type="checkbox"/><label for="toctree-checkbox-16"><span class="icon"><svg><use href="#svg-arrow-right"></use></svg></span></label><ul>
+<li class="toctree-l2"><a class="reference internal" href="backtesting.how_to_backtest.html">How to Backtest a Python Trading Strategy with LumiBot</a></li>
+<li class="toctree-l2"><a class="reference internal" href="backtesting.how_to_backtest.html#files-generated-from-backtesting">Files Generated from Backtesting</a></li>
+<li class="toctree-l2"><a class="reference internal" href="backtesting.backtesting_function.html">Backtesting Function</a></li>
+<li class="toctree-l2"><a class="reference internal" href="backtesting.performance.html">Backtesting Performance (Speed + Parity)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="backtesting.yahoo.html">Free Daily Stock Backtesting with Yahoo and LumiBot</a></li>
+<li class="toctree-l2"><a class="reference internal" href="backtesting.pandas.html">Pandas (CSV or other data)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="backtesting.polygon.html">Polygon.io Backtesting</a></li>
+<li class="toctree-l2"><a class="reference internal" href="backtesting.databento.html">Databento Backtesting with LumiBot</a></li>
+<li class="toctree-l2"><a class="reference internal" href="backtesting.thetadata.html">ThetaData Options and Stock Backtesting with LumiBot</a></li>
+<li class="toctree-l2"><a class="reference internal" href="backtesting.ibkr.html">Interactive Brokers (REST) Backtesting</a></li>
+<li class="toctree-l2"><a class="reference internal" href="backtesting.alpaca.html">Alpaca Backtesting</a></li>
+<li class="toctree-l2"><a class="reference internal" href="backtesting.tearsheet_html.html">LumiBot Backtest Tear Sheets and Performance Reports</a></li>
+<li class="toctree-l2"><a class="reference internal" href="backtesting.trades_files.html">Trades Files</a></li>
+<li class="toctree-l2"><a class="reference internal" href="backtesting.indicators_files.html">Indicators Files</a></li>
+<li class="toctree-l2"><a class="reference internal" href="backtesting.logs_csv.html">Logs CSV</a></li>
+</ul>
+</li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="brokers.html">Brokers</a><input aria-label="Toggle navigation of Brokers" class="toctree-checkbox" id="toctree-checkbox-17" name="toctree-checkbox-17" role="switch" type="checkbox"/><label for="toctree-checkbox-17"><span class="icon"><svg><use href="#svg-arrow-right"></use></svg></span></label><ul>
+<li class="toctree-l2"><a class="reference internal" href="brokers.alpaca.html">Alpaca API Trading with LumiBot</a></li>
+<li class="toctree-l2"><a class="reference internal" href="brokers.bitunix.html">Bitunix API Perpetual Futures Trading with LumiBot</a></li>
+<li class="toctree-l2 has-children"><a class="reference internal" href="brokers.ccxt.html">CCXT Crypto Trading and Backtesting with LumiBot</a><input aria-label="Toggle navigation of CCXT Crypto Trading and Backtesting with LumiBot" class="toctree-checkbox" id="toctree-checkbox-18" name="toctree-checkbox-18" role="switch" type="checkbox"/><label for="toctree-checkbox-18"><span class="icon"><svg><use href="#svg-arrow-right"></use></svg></span></label><ul>
+<li class="toctree-l3"><a class="reference internal" href="brokers.ccxt.coinbase.html">Coinbase Crypto Broker</a></li>
+<li class="toctree-l3"><a class="reference internal" href="brokers.ccxt.kraken.html">Kraken Crypto Broker</a></li>
+<li class="toctree-l3"><a class="reference internal" href="brokers.ccxt.weex.html">WEEX Crypto Broker</a></li>
+<li class="toctree-l3"><a class="reference internal" href="brokers.ccxt.kucoin.html">KuCoin CCXT Configuration</a></li>
+<li class="toctree-l3"><a class="reference internal" href="brokers.ccxt.binance.html">Binance CCXT Configuration</a></li>
+<li class="toctree-l3"><a class="reference internal" href="brokers.ccxt.bitmex.html">BitMEX CCXT Configuration</a></li>
+<li class="toctree-l3"><a class="reference internal" href="brokers.ccxt.bybit.html">Bybit CCXT Backtesting</a></li>
+<li class="toctree-l3"><a class="reference internal" href="brokers.ccxt.okx.html">OKX CCXT Backtesting</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="brokers.interactive_brokers.html">Interactive Brokers API Trading with LumiBot</a></li>
+<li class="toctree-l2"><a class="reference internal" href="brokers.interactive_brokers_legacy.html">Interactive Brokers Legacy</a></li>
+<li class="toctree-l2"><a class="reference internal" href="brokers.polymarket.html">Polymarket</a></li>
+<li class="toctree-l2"><a class="reference internal" href="brokers.projectx.html">ProjectX / TopstepX</a></li>
+<li class="toctree-l2"><a class="reference internal" href="brokers.schwab.html">Charles Schwab API Trading with LumiBot</a></li>
+<li class="toctree-l2"><a class="reference internal" href="brokers.tradier.html">Tradier</a></li>
+<li class="toctree-l2"><a class="reference internal" href="brokers.tradovate.html">Tradovate</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="cash_accounting.html">Cash Accounting</a></li>
+<li class="toctree-l1"><a class="reference internal" href="deployment.html">Deployment</a></li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="reference.html">Reference</a><input aria-label="Toggle navigation of Reference" class="toctree-checkbox" id="toctree-checkbox-19" name="toctree-checkbox-19" role="switch" type="checkbox"/><label for="toctree-checkbox-19"><span class="icon"><svg><use href="#svg-arrow-right"></use></svg></span></label><ul>
+<li class="toctree-l2"><a class="reference internal" href="vars.html">Variable Backup &amp; Restore</a></li>
+<li class="toctree-l2"><a class="reference internal" href="futures.html">Futures Trading</a></li>
+<li class="toctree-l2"><a class="reference internal" href="smart_limit.html">Smart Limit Orders</a></li>
+<li class="toctree-l2"><a class="reference internal" href="options_helper.html">OptionsHelper</a></li>
+<li class="toctree-l2"><a class="reference internal" href="environment_variables.html">Environment Variables</a></li>
+</ul>
+</li>
+<li class="toctree-l1 current current-page"><a class="current reference internal" href="#">Common Mistakes</a></li>
+<li class="toctree-l1"><a class="reference internal" href="faq.html">FAQ</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Community and learning</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference external" href="https://botspot.trade/challenges?utm_source=documentation&amp;utm_medium=sidebar&amp;utm_campaign=lumibot_ai_trading&amp;utm_content=free_challenge">Free AI Trading Challenge</a></li>
+<li class="toctree-l1"><a class="reference external" href="https://botspot.trade/sales?showLogin=1&amp;utm_source=documentation&amp;utm_medium=sidebar&amp;utm_campaign=lumibot&amp;utm_content=sidebar_build_bots&amp;sample=lumibot_deploy_sample">Build and Deploy with BotSpot</a></li>
+<li class="toctree-l1"><a class="reference internal" href="botspot_mcp.html">BotSpot MCP Integration</a></li>
+<li class="toctree-l1"><a class="reference internal" href="PARTNERSHIPS.html">Partnerships and Sponsorship</a></li>
+<li class="toctree-l1"><a class="reference internal" href="MIGRATING_FROM_BACKTRADER.html">Migrate from Backtrader</a></li>
+<li class="toctree-l1"><a class="reference external" href="https://github.com/Lumiwealth/lumibot">GitHub</a></li>
+<li class="toctree-l1"><a class="reference external" href="https://www.reddit.com/r/BotSpotTrade/">Reddit Community</a></li>
+<li class="toctree-l1"><a class="reference external" href="https://discord.gg/4R9j6T3PN8">Discord Community</a></li>
+<li class="toctree-l1"><a class="reference external" href="https://botspot.trade/marketplace?utm_source=documentation&amp;utm_medium=sidebar&amp;utm_campaign=lumibot&amp;utm_content=sidebar_marketplace">Get Pre-Built Strategies</a></li>
+</ul>
+
+</div>
+</div>
+
+      </div>
+      
+    </div>
+  </aside>
+  <div class="main">
+    <div class="content">
+      <div class="article-container">
+        <a href="#" class="back-to-top muted-link">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
+            <path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8v12z"></path>
+          </svg>
+          <span>Back to top</span>
+        </a>
+        <div class="content-icon-container">
+          <div class="view-this-page">
+  <a class="muted-link" href="_sources/common_mistakes.rst.txt" title="View this page">
+    <svg><use href="#svg-eye"></use></svg>
+    <span class="visually-hidden">View this page</span>
+  </a>
+</div>
+<div class="theme-toggle-container theme-toggle-content">
+            <button class="theme-toggle" aria-label="Toggle Light / Dark / Auto color theme">
+              <svg class="theme-icon-when-auto-light"><use href="#svg-sun-with-moon"></use></svg>
+              <svg class="theme-icon-when-auto-dark"><use href="#svg-moon-with-sun"></use></svg>
+              <svg class="theme-icon-when-dark"><use href="#svg-moon"></use></svg>
+              <svg class="theme-icon-when-light"><use href="#svg-sun"></use></svg>
+            </button>
+          </div>
+          <label class="toc-overlay-icon toc-content-icon" for="__toc">
+            <span class="icon"><svg><use href="#svg-toc"></use></svg></span>
+          </label>
+        </div>
+        <article role="main" id="furo-main-content">
+          <section id="common-mistakes-and-how-to-avoid-them">
+<h1>Common Mistakes and How to Avoid Them<a class="headerlink" href="#common-mistakes-and-how-to-avoid-them" title="Link to this heading">¶</a></h1>
+<p>This page documents the most common mistakes made when writing Lumibot strategies, along with the correct patterns to use instead.</p>
+<section id="restoring-asset-variables-after-a-restart">
+<h2>Restoring Asset Variables After a Restart<a class="headerlink" href="#restoring-asset-variables-after-a-restart" title="Link to this heading">¶</a></h2>
+<p>Keep instruments as <code class="docutils literal notranslate"><span class="pre">Asset</span></code> objects in <code class="docutils literal notranslate"><span class="pre">self.vars</span></code>. New scheduled-file and
+database backups preserve their type, including assets nested in lists,
+dictionaries, or tuples. Restored objects can be passed directly to
+<code class="docutils literal notranslate"><span class="pre">get_position()</span></code> and <code class="docutils literal notranslate"><span class="pre">add_ohlc()</span></code>.
+Sets still restore as lists, with their asset values preserved.</p>
+<p>Older backups may contain an untagged asset dictionary. Such dictionaries are
+not converted automatically because the same shape can be ordinary strategy
+metadata. When migrating a known instrument variable, reconstruct it explicitly
+with <code class="docutils literal notranslate"><span class="pre">Asset.from_dict(value)</span></code> after restoration and before using strategy APIs.
+Do not apply this conversion to arbitrary dictionaries or discard other saved
+strategy state. Backups written by the updated runtime should be restored by
+the updated runtime; older versions do not understand the asset type tag.</p>
+</section>
+<section id="critical-mistakes-will-break-your-strategy">
+<h2>Critical Mistakes (Will Break Your Strategy)<a class="headerlink" href="#critical-mistakes-will-break-your-strategy" title="Link to this heading">¶</a></h2>
+<section id="using-an-unfinished-crypto-candle-as-historical-evidence">
+<h3>Using an Unfinished Crypto Candle as Historical Evidence<a class="headerlink" href="#using-an-unfinished-crypto-candle-as-historical-evidence" title="Link to this heading">¶</a></h3>
+<p>CCXT candles are timestamped at their opening time. At 09:00, the eventual
+close of the 09:00–09:01 candle is not known. Default CCXT backtest history
+and last-price queries therefore use completed candles only. This applies to
+minute, hour and day bars, including AI research through those methods.</p>
+<p>Do not add a negative history <code class="docutils literal notranslate"><span class="pre">timeshift</span></code> to make that future closing price
+available to your strategy. The backtesting broker uses an execution-only
+offset to simulate orders against the current candle; this does not make the
+whole candle valid evidence for the preceding decision. When no candle has
+closed yet, missing history is expected, not permission to invent a price.</p>
+</section>
+<section id="using-datetime-now-instead-of-self-get-datetime">
+<h3>Using datetime.now() Instead of self.get_datetime()<a class="headerlink" href="#using-datetime-now-instead-of-self-get-datetime" title="Link to this heading">¶</a></h3>
+<p><strong>Impact:</strong> Backtest results will be completely wrong. Your strategy will think it’s the current date instead of the simulated date.</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="c1"># WRONG</span>
+<span class="n">current_time</span> <span class="o">=</span> <span class="n">datetime</span><span class="o">.</span><span class="n">now</span><span class="p">()</span>
+<span class="n">target_date</span> <span class="o">=</span> <span class="n">datetime</span><span class="o">.</span><span class="n">today</span><span class="p">()</span> <span class="o">+</span> <span class="n">timedelta</span><span class="p">(</span><span class="n">days</span><span class="o">=</span><span class="mi">30</span><span class="p">)</span>
+
+<span class="c1"># CORRECT</span>
+<span class="n">current_time</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_datetime</span><span class="p">()</span>
+<span class="n">target_date</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_datetime</span><span class="p">()</span> <span class="o">+</span> <span class="n">timedelta</span><span class="p">(</span><span class="n">days</span><span class="o">=</span><span class="mi">30</span><span class="p">)</span>
+</pre></div>
+</div>
+</section>
+<section id="adding-from-future-import-annotations">
+<h3>Adding ‘from __future__ import annotations’<a class="headerlink" href="#adding-from-future-import-annotations" title="Link to this heading">¶</a></h3>
+<p><strong>Impact:</strong> Causes immediate crash during backtesting.</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="c1"># NEVER DO THIS - WILL CRASH YOUR STRATEGY</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">__future__</span><span class="w"> </span><span class="kn">import</span> <span class="n">annotations</span>
+</pre></div>
+</div>
+<p>Simply remove this import. It’s not needed and will break everything.</p>
+</section>
+<section id="assigning-attributes-directly-on-self">
+<h3>Assigning Attributes Directly on self<a class="headerlink" href="#assigning-attributes-directly-on-self" title="Link to this heading">¶</a></h3>
+<p><strong>Impact:</strong> Overrides Lumibot internals, causing crashes or unexpected behavior.</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="c1"># WRONG - collides with framework</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">initialize</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+    <span class="bp">self</span><span class="o">.</span><span class="n">name</span> <span class="o">=</span> <span class="s2">"MyBot"</span>
+    <span class="bp">self</span><span class="o">.</span><span class="n">asset</span> <span class="o">=</span> <span class="n">Asset</span><span class="p">(</span><span class="s2">"SPY"</span><span class="p">)</span>
+    <span class="bp">self</span><span class="o">.</span><span class="n">symbol</span> <span class="o">=</span> <span class="s2">"SPY"</span>
+
+<span class="c1"># CORRECT - use self.vars</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">initialize</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+    <span class="bp">self</span><span class="o">.</span><span class="n">vars</span><span class="o">.</span><span class="n">strategy_label</span> <span class="o">=</span> <span class="s2">"MyBot"</span>
+    <span class="bp">self</span><span class="o">.</span><span class="n">vars</span><span class="o">.</span><span class="n">target_asset</span> <span class="o">=</span> <span class="n">Asset</span><span class="p">(</span><span class="s2">"SPY"</span><span class="p">,</span> <span class="n">asset_type</span><span class="o">=</span><span class="n">Asset</span><span class="o">.</span><span class="n">AssetType</span><span class="o">.</span><span class="n">STOCK</span><span class="p">)</span>
+    <span class="bp">self</span><span class="o">.</span><span class="n">vars</span><span class="o">.</span><span class="n">target_symbol</span> <span class="o">=</span> <span class="s2">"SPY"</span>
+</pre></div>
+</div>
+</section>
+<section id="forgetting-set-market-24-7-for-crypto">
+<h3>Forgetting set_market(“24/7”) for Crypto<a class="headerlink" href="#forgetting-set-market-24-7-for-crypto" title="Link to this heading">¶</a></h3>
+<p><strong>Impact:</strong> Crypto bot stops trading at 4pm EST every day.</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="c1"># WRONG - crypto bot stops at 4pm</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">initialize</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+    <span class="bp">self</span><span class="o">.</span><span class="n">sleeptime</span> <span class="o">=</span> <span class="s2">"1M"</span>
+
+<span class="c1"># CORRECT - crypto trades 24/7</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">initialize</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+    <span class="bp">self</span><span class="o">.</span><span class="n">set_market</span><span class="p">(</span><span class="s2">"24/7"</span><span class="p">)</span>  <span class="c1"># REQUIRED for crypto</span>
+    <span class="bp">self</span><span class="o">.</span><span class="n">sleeptime</span> <span class="o">=</span> <span class="s2">"1M"</span>
+</pre></div>
+</div>
+</section>
+</section>
+<section id="data-mistakes">
+<h2>Data Mistakes<a class="headerlink" href="#data-mistakes" title="Link to this heading">¶</a></h2>
+<section id="not-checking-if-get-last-price-returns-none">
+<h3>Not Checking if get_last_price() Returns None<a class="headerlink" href="#not-checking-if-get-last-price-returns-none" title="Link to this heading">¶</a></h3>
+<p><strong>Impact:</strong> Crashes with NoneType error when data is unavailable.</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="c1"># WRONG - will crash on None</span>
+<span class="n">price</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_last_price</span><span class="p">(</span><span class="n">asset</span><span class="p">)</span>
+<span class="n">quantity</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">portfolio_value</span> <span class="o">/</span> <span class="n">price</span>  <span class="c1"># Crashes if price is None</span>
+
+<span class="c1"># CORRECT - always check for None</span>
+<span class="n">price</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_last_price</span><span class="p">(</span><span class="n">asset</span><span class="p">)</span>
+<span class="k">if</span> <span class="n">price</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+    <span class="bp">self</span><span class="o">.</span><span class="n">log_message</span><span class="p">(</span><span class="sa">f</span><span class="s2">"No price for </span><span class="si">{</span><span class="n">asset</span><span class="o">.</span><span class="n">symbol</span><span class="si">}</span><span class="s2">"</span><span class="p">,</span> <span class="n">color</span><span class="o">=</span><span class="s2">"red"</span><span class="p">)</span>
+    <span class="k">return</span>
+<span class="n">quantity</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">portfolio_value</span> <span class="o">/</span> <span class="n">price</span>
+</pre></div>
+</div>
+</section>
+<section id="using-get-historical-prices-for-real-time-data">
+<h3>Using get_historical_prices() for Real-Time Data<a class="headerlink" href="#using-get-historical-prices-for-real-time-data" title="Link to this heading">¶</a></h3>
+<p><strong>Impact:</strong> Strategy uses stale data, missing current price movements.</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="c1"># WRONG - historical data can be 1 minute delayed</span>
+<span class="n">bars</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_historical_prices</span><span class="p">(</span><span class="n">asset</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="s2">"minute"</span><span class="p">)</span>
+<span class="n">current_price</span> <span class="o">=</span> <span class="n">bars</span><span class="o">.</span><span class="n">df</span><span class="o">.</span><span class="n">iloc</span><span class="p">[</span><span class="o">-</span><span class="mi">1</span><span class="p">][</span><span class="s2">"close"</span><span class="p">]</span>
+
+<span class="c1"># CORRECT - use get_last_price for real-time</span>
+<span class="n">current_price</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_last_price</span><span class="p">(</span><span class="n">asset</span><span class="p">)</span>
+
+<span class="c1"># BEST - use get_quote for bid/ask</span>
+<span class="n">quote</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_quote</span><span class="p">(</span><span class="n">asset</span><span class="p">)</span>
+<span class="k">if</span> <span class="n">quote</span> <span class="ow">and</span> <span class="n">quote</span><span class="o">.</span><span class="n">bid</span> <span class="ow">and</span> <span class="n">quote</span><span class="o">.</span><span class="n">ask</span><span class="p">:</span>
+    <span class="n">mid_price</span> <span class="o">=</span> <span class="n">quote</span><span class="o">.</span><span class="n">mid_price</span>
+</pre></div>
+</div>
+</section>
+<section id="returning-early-when-get-greeks-is-none">
+<h3>Returning Early When get_greeks() is None<a class="headerlink" href="#returning-early-when-get-greeks-is-none" title="Link to this heading">¶</a></h3>
+<p><strong>Impact:</strong> Strategy stops running for the entire iteration just because one option has no Greeks.</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="c1"># WRONG - blocks entire strategy</span>
+<span class="n">greeks</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_greeks</span><span class="p">(</span><span class="n">option_asset</span><span class="p">)</span>
+<span class="k">if</span> <span class="n">greeks</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+    <span class="k">return</span>  <span class="c1"># Strategy stops here!</span>
+
+<span class="c1"># CORRECT - continue with other logic</span>
+<span class="n">greeks</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_greeks</span><span class="p">(</span><span class="n">option_asset</span><span class="p">)</span>
+<span class="k">if</span> <span class="n">greeks</span> <span class="ow">is</span> <span class="ow">not</span> <span class="kc">None</span><span class="p">:</span>
+    <span class="n">delta</span> <span class="o">=</span> <span class="n">greeks</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"delta"</span><span class="p">)</span>
+    <span class="c1"># Use delta here</span>
+<span class="k">else</span><span class="p">:</span>
+    <span class="bp">self</span><span class="o">.</span><span class="n">log_message</span><span class="p">(</span><span class="s2">"Greeks unavailable, skipping delta check"</span><span class="p">,</span> <span class="n">color</span><span class="o">=</span><span class="s2">"yellow"</span><span class="p">)</span>
+
+<span class="c1"># Strategy continues with other logic...</span>
+</pre></div>
+</div>
+</section>
+</section>
+<section id="options-mistakes">
+<h2>Options Mistakes<a class="headerlink" href="#options-mistakes" title="Link to this heading">¶</a></h2>
+<section id="manually-selecting-option-expirations">
+<h3>Manually Selecting Option Expirations<a class="headerlink" href="#manually-selecting-option-expirations" title="Link to this heading">¶</a></h3>
+<p><strong>Impact:</strong> Selected expiration may not have tradeable data during backtesting.</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="c1"># WRONG - expiration may not exist</span>
+<span class="n">target_expiry</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_datetime</span><span class="p">()</span> <span class="o">+</span> <span class="n">timedelta</span><span class="p">(</span><span class="n">days</span><span class="o">=</span><span class="mi">30</span><span class="p">)</span>
+<span class="n">option</span> <span class="o">=</span> <span class="n">Asset</span><span class="p">(</span><span class="s2">"SPY"</span><span class="p">,</span> <span class="n">asset_type</span><span class="o">=</span><span class="n">Asset</span><span class="o">.</span><span class="n">AssetType</span><span class="o">.</span><span class="n">OPTION</span><span class="p">,</span>
+               <span class="n">expiration</span><span class="o">=</span><span class="n">target_expiry</span><span class="o">.</span><span class="n">date</span><span class="p">(),</span> <span class="n">strike</span><span class="o">=</span><span class="mi">400</span><span class="p">,</span> <span class="n">right</span><span class="o">=</span><span class="s2">"call"</span><span class="p">)</span>
+
+<span class="c1"># CORRECT - use OptionsHelper</span>
+<span class="n">chains</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_chains</span><span class="p">(</span><span class="n">underlying_asset</span><span class="p">)</span>
+<span class="n">target_expiry</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_datetime</span><span class="p">()</span> <span class="o">+</span> <span class="n">timedelta</span><span class="p">(</span><span class="n">days</span><span class="o">=</span><span class="mi">30</span><span class="p">)</span>
+<span class="n">valid_expiry</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">options_helper</span><span class="o">.</span><span class="n">get_expiration_on_or_after_date</span><span class="p">(</span>
+    <span class="n">target_expiry</span><span class="p">,</span> <span class="n">chains</span><span class="p">,</span> <span class="s2">"call"</span>
+<span class="p">)</span>
+</pre></div>
+</div>
+</section>
+<section id="brute-forcing-deltas-by-scanning-strikes">
+<h3>Brute-Forcing Deltas by Scanning Strikes<a class="headerlink" href="#brute-forcing-deltas-by-scanning-strikes" title="Link to this heading">¶</a></h3>
+<p><strong>Impact:</strong> Backtests become very slow because calling <code class="docutils literal notranslate"><span class="pre">get_greeks()</span></code> repeatedly can trigger many option quote-history downloads.</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="c1"># WRONG - brute-force scan (slow)</span>
+<span class="n">strikes</span> <span class="o">=</span> <span class="n">chains</span><span class="o">.</span><span class="n">strikes</span><span class="p">(</span><span class="n">expiry</span><span class="p">,</span> <span class="s2">"PUT"</span><span class="p">)</span>
+<span class="k">for</span> <span class="n">strike</span> <span class="ow">in</span> <span class="n">strikes</span><span class="p">:</span>
+    <span class="n">option</span> <span class="o">=</span> <span class="n">Asset</span><span class="p">(</span><span class="s2">"SPY"</span><span class="p">,</span> <span class="n">asset_type</span><span class="o">=</span><span class="n">Asset</span><span class="o">.</span><span class="n">AssetType</span><span class="o">.</span><span class="n">OPTION</span><span class="p">,</span> <span class="n">expiration</span><span class="o">=</span><span class="n">expiry</span><span class="p">,</span> <span class="n">strike</span><span class="o">=</span><span class="n">strike</span><span class="p">,</span> <span class="n">right</span><span class="o">=</span><span class="s2">"put"</span><span class="p">)</span>
+    <span class="n">greeks</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_greeks</span><span class="p">(</span><span class="n">option</span><span class="p">,</span> <span class="n">underlying_price</span><span class="o">=</span><span class="n">underlying_price</span><span class="p">)</span>
+    <span class="o">...</span>
+
+<span class="c1"># CORRECT - use OptionsHelper (bounded probing + caching)</span>
+<span class="n">strike</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">options_helper</span><span class="o">.</span><span class="n">find_strike_for_delta</span><span class="p">(</span>
+    <span class="n">underlying_asset</span><span class="o">=</span><span class="n">underlying_asset</span><span class="p">,</span>
+    <span class="n">underlying_price</span><span class="o">=</span><span class="nb">float</span><span class="p">(</span><span class="n">underlying_price</span><span class="p">),</span>
+    <span class="n">target_delta</span><span class="o">=-</span><span class="mf">0.20</span><span class="p">,</span>
+    <span class="n">expiry</span><span class="o">=</span><span class="n">expiry</span><span class="p">,</span>
+    <span class="n">right</span><span class="o">=</span><span class="s2">"put"</span><span class="p">,</span>
+<span class="p">)</span>
+</pre></div>
+</div>
+</section>
+<section id="forgetting-options-are-100x-multiplied">
+<h3>Forgetting Options are 100x Multiplied<a class="headerlink" href="#forgetting-options-are-100x-multiplied" title="Link to this heading">¶</a></h3>
+<p><strong>Impact:</strong> Position sizing is off by 100x.</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="c1"># WRONG - buys 100x too many contracts</span>
+<span class="n">option_price</span> <span class="o">=</span> <span class="mf">1.50</span>  <span class="c1"># $1.50 premium</span>
+<span class="n">contracts</span> <span class="o">=</span> <span class="mi">10000</span> <span class="o">/</span> <span class="n">option_price</span>  <span class="c1"># Wrong: 6666 contracts!</span>
+
+<span class="c1"># CORRECT - account for multiplier</span>
+<span class="n">option_price</span> <span class="o">=</span> <span class="mf">1.50</span>
+<span class="n">actual_cost_per_contract</span> <span class="o">=</span> <span class="n">option_price</span> <span class="o">*</span> <span class="mi">100</span>  <span class="c1"># $150</span>
+<span class="n">contracts</span> <span class="o">=</span> <span class="nb">int</span><span class="p">(</span><span class="mi">10000</span> <span class="o">/</span> <span class="n">actual_cost_per_contract</span><span class="p">)</span>  <span class="c1"># Correct: 66 contracts</span>
+</pre></div>
+</div>
+</section>
+<section id="using-get-last-price-for-options-pricing">
+<h3>Using get_last_price() for Options Pricing<a class="headerlink" href="#using-get-last-price-for-options-pricing" title="Link to this heading">¶</a></h3>
+<p><strong>Impact:</strong> Stale or missing prices for illiquid options.</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="c1"># WRONG - last trade can be very stale for options</span>
+<span class="n">price</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_last_price</span><span class="p">(</span><span class="n">option_asset</span><span class="p">)</span>
+
+<span class="c1"># CORRECT - use quote for bid/ask</span>
+<span class="n">quote</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_quote</span><span class="p">(</span><span class="n">option_asset</span><span class="p">)</span>
+<span class="k">if</span> <span class="n">quote</span> <span class="ow">and</span> <span class="n">quote</span><span class="o">.</span><span class="n">bid</span> <span class="ow">and</span> <span class="n">quote</span><span class="o">.</span><span class="n">ask</span><span class="p">:</span>
+    <span class="n">fair_price</span> <span class="o">=</span> <span class="n">quote</span><span class="o">.</span><span class="n">mid_price</span>
+<span class="k">else</span><span class="p">:</span>
+    <span class="bp">self</span><span class="o">.</span><span class="n">log_message</span><span class="p">(</span><span class="s2">"No valid quote for option"</span><span class="p">,</span> <span class="n">color</span><span class="o">=</span><span class="s2">"yellow"</span><span class="p">)</span>
+</pre></div>
+</div>
+</section>
+</section>
+<section id="order-mistakes">
+<h2>Order Mistakes<a class="headerlink" href="#order-mistakes" title="Link to this heading">¶</a></h2>
+<section id="expecting-immediate-position-updates-after-submit-order">
+<h3>Expecting Immediate Position Updates After submit_order()<a class="headerlink" href="#expecting-immediate-position-updates-after-submit-order" title="Link to this heading">¶</a></h3>
+<p><strong>Impact:</strong> Strategy logic based on outdated position data.</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="c1"># WRONG - position hasn't updated yet</span>
+<span class="bp">self</span><span class="o">.</span><span class="n">submit_order</span><span class="p">(</span><span class="n">order</span><span class="p">)</span>
+<span class="n">position</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_position</span><span class="p">(</span><span class="n">asset</span><span class="p">)</span>  <span class="c1"># Still shows old data!</span>
+
+<span class="c1"># CORRECT - check on next iteration</span>
+<span class="bp">self</span><span class="o">.</span><span class="n">submit_order</span><span class="p">(</span><span class="n">order</span><span class="p">)</span>
+<span class="c1"># In the NEXT on_trading_iteration():</span>
+<span class="n">position</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_position</span><span class="p">(</span><span class="n">asset</span><span class="p">)</span>  <span class="c1"># Now updated</span>
+</pre></div>
+</div>
+</section>
+<section id="using-submit-order-to-close-crypto-futures">
+<h3>Using submit_order() to Close Crypto Futures<a class="headerlink" href="#using-submit-order-to-close-crypto-futures" title="Link to this heading">¶</a></h3>
+<p><strong>Impact:</strong> Opens a new position instead of closing existing one.</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="c1"># WRONG - opens opposite position instead of closing</span>
+<span class="n">order</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">create_order</span><span class="p">(</span><span class="n">futures_asset</span><span class="p">,</span> <span class="n">quantity</span><span class="p">,</span> <span class="s2">"sell"</span><span class="p">)</span>
+<span class="bp">self</span><span class="o">.</span><span class="n">submit_order</span><span class="p">(</span><span class="n">order</span><span class="p">)</span>
+
+<span class="c1"># CORRECT - use close_position</span>
+<span class="bp">self</span><span class="o">.</span><span class="n">close_position</span><span class="p">(</span><span class="n">futures_asset</span><span class="p">)</span>
+</pre></div>
+</div>
+</section>
+<section id="using-deprecated-take-profit-price-stop-loss-price">
+<h3>Using Deprecated take_profit_price/stop_loss_price<a class="headerlink" href="#using-deprecated-take-profit-price-stop-loss-price" title="Link to this heading">¶</a></h3>
+<p><strong>Impact:</strong> May cause order errors or unexpected behavior.</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="c1"># WRONG - deprecated parameters</span>
+<span class="n">order</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">create_order</span><span class="p">(</span><span class="n">asset</span><span class="p">,</span> <span class="mi">100</span><span class="p">,</span> <span class="s2">"buy"</span><span class="p">,</span>
+    <span class="n">take_profit_price</span><span class="o">=</span><span class="mi">110</span><span class="p">,</span>
+    <span class="n">stop_loss_price</span><span class="o">=</span><span class="mi">90</span><span class="p">)</span>
+
+<span class="c1"># CORRECT - use secondary_ parameters</span>
+<span class="n">order</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">create_order</span><span class="p">(</span><span class="n">asset</span><span class="p">,</span> <span class="mi">100</span><span class="p">,</span> <span class="s2">"buy"</span><span class="p">,</span>
+    <span class="n">order_class</span><span class="o">=</span><span class="n">Order</span><span class="o">.</span><span class="n">OrderClass</span><span class="o">.</span><span class="n">BRACKET</span><span class="p">,</span>
+    <span class="n">secondary_limit_price</span><span class="o">=</span><span class="mi">110</span><span class="p">,</span>      <span class="c1"># Take profit</span>
+    <span class="n">secondary_stop_price</span><span class="o">=</span><span class="mi">90</span><span class="p">)</span>        <span class="c1"># Stop loss</span>
+</pre></div>
+</div>
+</section>
+</section>
+<section id="visualization-mistakes">
+<h2>Visualization Mistakes<a class="headerlink" href="#visualization-mistakes" title="Link to this heading">¶</a></h2>
+<section id="adding-markers-every-iteration">
+<h3>Adding Markers Every Iteration<a class="headerlink" href="#adding-markers-every-iteration" title="Link to this heading">¶</a></h3>
+<p><strong>Impact:</strong> Chart crashes or becomes unusable due to thousands of markers.</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="c1"># WRONG - adds marker every iteration</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">on_trading_iteration</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+    <span class="bp">self</span><span class="o">.</span><span class="n">add_marker</span><span class="p">(</span><span class="s2">"Price"</span><span class="p">,</span> <span class="n">price</span><span class="p">,</span> <span class="n">color</span><span class="o">=</span><span class="s2">"blue"</span><span class="p">)</span>  <span class="c1"># Chart explodes!</span>
+
+<span class="c1"># CORRECT - markers only for significant events</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">on_trading_iteration</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+    <span class="k">if</span> <span class="n">signal_detected</span><span class="p">:</span>  <span class="c1"># Only when something happens</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">add_marker</span><span class="p">(</span><span class="s2">"Buy Signal"</span><span class="p">,</span> <span class="n">price</span><span class="p">,</span> <span class="n">color</span><span class="o">=</span><span class="s2">"green"</span><span class="p">,</span> <span class="n">asset</span><span class="o">=</span><span class="n">my_asset</span><span class="p">)</span>
+
+    <span class="c1"># Use add_line for continuous data</span>
+    <span class="bp">self</span><span class="o">.</span><span class="n">add_line</span><span class="p">(</span><span class="s2">"SMA_20"</span><span class="p">,</span> <span class="n">sma_value</span><span class="p">,</span> <span class="n">color</span><span class="o">=</span><span class="s2">"blue"</span><span class="p">,</span> <span class="n">asset</span><span class="o">=</span><span class="n">my_asset</span><span class="p">)</span>
+</pre></div>
+</div>
+</section>
+<section id="using-text-parameter-in-add-marker-add-line-add-ohlc">
+<h3>Using ‘text’ Parameter in add_marker/add_line/add_ohlc<a class="headerlink" href="#using-text-parameter-in-add-marker-add-line-add-ohlc" title="Link to this heading">¶</a></h3>
+<p><strong>Impact:</strong> TypeError crash - there is no ‘text’ parameter.</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="c1"># WRONG - causes TypeError</span>
+<span class="bp">self</span><span class="o">.</span><span class="n">add_marker</span><span class="p">(</span><span class="s2">"Signal"</span><span class="p">,</span> <span class="n">price</span><span class="p">,</span> <span class="n">text</span><span class="o">=</span><span class="s2">"Buy now!"</span><span class="p">)</span>
+
+<span class="c1"># CORRECT - use detail_text for hover text</span>
+<span class="bp">self</span><span class="o">.</span><span class="n">add_marker</span><span class="p">(</span><span class="s2">"Signal"</span><span class="p">,</span> <span class="n">price</span><span class="p">,</span> <span class="n">detail_text</span><span class="o">=</span><span class="s2">"Buy signal triggered"</span><span class="p">,</span> <span class="n">asset</span><span class="o">=</span><span class="n">my_asset</span><span class="p">)</span>
+</pre></div>
+</div>
+</section>
+<section id="forgetting-to-pass-asset-parameter">
+<h3>Forgetting to Pass asset Parameter<a class="headerlink" href="#forgetting-to-pass-asset-parameter" title="Link to this heading">¶</a></h3>
+<p><strong>Impact:</strong> Indicators appear in separate subplot instead of overlaying price chart.</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="c1"># WRONG - indicator in separate subplot</span>
+<span class="bp">self</span><span class="o">.</span><span class="n">add_line</span><span class="p">(</span><span class="s2">"SMA_20"</span><span class="p">,</span> <span class="n">sma_value</span><span class="p">,</span> <span class="n">color</span><span class="o">=</span><span class="s2">"blue"</span><span class="p">)</span>
+
+<span class="c1"># CORRECT - overlays on asset's price chart</span>
+<span class="bp">self</span><span class="o">.</span><span class="n">add_line</span><span class="p">(</span><span class="s2">"SMA_20"</span><span class="p">,</span> <span class="n">sma_value</span><span class="p">,</span> <span class="n">color</span><span class="o">=</span><span class="s2">"blue"</span><span class="p">,</span> <span class="n">asset</span><span class="o">=</span><span class="n">spy_asset</span><span class="p">)</span>
+</pre></div>
+</div>
+</section>
+</section>
+<section id="code-organization-mistakes">
+<h2>Code Organization Mistakes<a class="headerlink" href="#code-organization-mistakes" title="Link to this heading">¶</a></h2>
+<section id="hardcoding-api-keys">
+<h3>Hardcoding API Keys<a class="headerlink" href="#hardcoding-api-keys" title="Link to this heading">¶</a></h3>
+<p><strong>Impact:</strong> Security risk and deployment problems.</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="c1"># WRONG - hardcoded fallback</span>
+<span class="n">api_key</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">getenv</span><span class="p">(</span><span class="s1">'PERPLEXITY_API_KEY'</span><span class="p">,</span> <span class="s1">'your_api_key_here'</span><span class="p">)</span>
+
+<span class="c1"># CORRECT - None fallback</span>
+<span class="n">api_key</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">getenv</span><span class="p">(</span><span class="s1">'PERPLEXITY_API_KEY'</span><span class="p">)</span>
+<span class="k">if</span> <span class="n">api_key</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+    <span class="bp">self</span><span class="o">.</span><span class="n">log_message</span><span class="p">(</span><span class="s2">"PERPLEXITY_API_KEY not set"</span><span class="p">,</span> <span class="n">color</span><span class="o">=</span><span class="s2">"red"</span><span class="p">)</span>
+</pre></div>
+</div>
+</section>
+<section id="setting-parameters-in-multiple-places">
+<h3>Setting Parameters in Multiple Places<a class="headerlink" href="#setting-parameters-in-multiple-places" title="Link to this heading">¶</a></h3>
+<p><strong>Impact:</strong> Confusing, parameters override each other unpredictably.</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="c1"># WRONG - parameters set in multiple places</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">MyStrategy</span><span class="p">(</span><span class="n">Strategy</span><span class="p">):</span>
+    <span class="n">parameters</span> <span class="o">=</span> <span class="p">{</span><span class="s2">"symbol"</span><span class="p">:</span> <span class="s2">"SPY"</span><span class="p">}</span>
+
+<span class="k">if</span> <span class="vm">__name__</span> <span class="o">==</span> <span class="s2">"__main__"</span><span class="p">:</span>
+    <span class="n">strategy</span> <span class="o">=</span> <span class="n">MyStrategy</span><span class="p">(</span><span class="n">parameters</span><span class="o">=</span><span class="p">{</span><span class="s2">"symbol"</span><span class="p">:</span> <span class="s2">"AAPL"</span><span class="p">})</span>  <span class="c1"># Which one wins?</span>
+
+<span class="c1"># CORRECT - one place only</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">MyStrategy</span><span class="p">(</span><span class="n">Strategy</span><span class="p">):</span>
+    <span class="n">parameters</span> <span class="o">=</span> <span class="p">{</span>
+        <span class="s2">"symbol"</span><span class="p">:</span> <span class="s2">"SPY"</span><span class="p">,</span>
+        <span class="s2">"period"</span><span class="p">:</span> <span class="mi">20</span>
+    <span class="p">}</span>
+    <span class="c1"># Never override parameters elsewhere</span>
+</pre></div>
+</div>
+</section>
+<section id="using-try-except-to-hide-errors">
+<h3>Using try/except to Hide Errors<a class="headerlink" href="#using-try-except-to-hide-errors" title="Link to this heading">¶</a></h3>
+<p><strong>Impact:</strong> Bugs are hidden, making debugging nearly impossible.</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="c1"># WRONG - hides real errors</span>
+<span class="k">try</span><span class="p">:</span>
+    <span class="n">price</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_last_price</span><span class="p">(</span><span class="n">asset</span><span class="p">)</span>
+    <span class="n">quantity</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">portfolio_value</span> <span class="o">/</span> <span class="n">price</span>
+<span class="k">except</span><span class="p">:</span>
+    <span class="k">pass</span>  <span class="c1"># What went wrong? No idea!</span>
+
+<span class="c1"># CORRECT - explicit error handling</span>
+<span class="n">price</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_last_price</span><span class="p">(</span><span class="n">asset</span><span class="p">)</span>
+<span class="k">if</span> <span class="n">price</span> <span class="ow">is</span> <span class="kc">None</span><span class="p">:</span>
+    <span class="bp">self</span><span class="o">.</span><span class="n">log_message</span><span class="p">(</span><span class="sa">f</span><span class="s2">"No price for </span><span class="si">{</span><span class="n">asset</span><span class="o">.</span><span class="n">symbol</span><span class="si">}</span><span class="s2">"</span><span class="p">,</span> <span class="n">color</span><span class="o">=</span><span class="s2">"red"</span><span class="p">)</span>
+    <span class="k">return</span>
+
+<span class="n">quantity</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">portfolio_value</span> <span class="o">/</span> <span class="n">price</span>
+</pre></div>
+</div>
+</section>
+<section id="using-sleep-in-strategy">
+<h3>Using sleep() in Strategy<a class="headerlink" href="#using-sleep-in-strategy" title="Link to this heading">¶</a></h3>
+<p><strong>Impact:</strong> Blocks the entire bot, preventing important code from running.</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="c1"># WRONG - blocks everything</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">on_trading_iteration</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+    <span class="bp">self</span><span class="o">.</span><span class="n">submit_order</span><span class="p">(</span><span class="n">order</span><span class="p">)</span>
+    <span class="n">time</span><span class="o">.</span><span class="n">sleep</span><span class="p">(</span><span class="mi">5</span><span class="p">)</span>  <span class="c1"># Bot frozen for 5 seconds!</span>
+
+<span class="c1"># CORRECT - check conditions next iteration</span>
+<span class="k">def</span><span class="w"> </span><span class="nf">on_trading_iteration</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+    <span class="k">if</span> <span class="ow">not</span> <span class="nb">hasattr</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">vars</span><span class="p">,</span> <span class="s2">"order_time"</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">submit_order</span><span class="p">(</span><span class="n">order</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">vars</span><span class="o">.</span><span class="n">order_time</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_datetime</span><span class="p">()</span>
+        <span class="k">return</span>
+
+    <span class="n">elapsed</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_datetime</span><span class="p">()</span> <span class="o">-</span> <span class="bp">self</span><span class="o">.</span><span class="n">vars</span><span class="o">.</span><span class="n">order_time</span>
+    <span class="k">if</span> <span class="n">elapsed</span> <span class="o">&gt;</span> <span class="n">timedelta</span><span class="p">(</span><span class="n">seconds</span><span class="o">=</span><span class="mi">5</span><span class="p">):</span>
+        <span class="c1"># Now do the next step</span>
+        <span class="k">pass</span>
+</pre></div>
+</div>
+</section>
+</section>
+<section id="ibkr-history-waits-and-data-health-diagnostics">
+<h2>IBKR history waits and data-health diagnostics<a class="headerlink" href="#ibkr-history-waits-and-data-health-diagnostics" title="Link to this heading">¶</a></h2>
+<p>A provider rate limit is a retryable wait, not evidence that an instrument has
+no prices. When the downloader supplies structured rate-limit information,
+LumiBot retains the request identity and exposes the provider wait in download
+status. Buying more simultaneous quotes does not automatically remove
+historical-data pacing restrictions.</p>
+<p>Inspect the <code class="docutils literal notranslate"><span class="pre">data_health</span></code> field in backtest settings alongside the requested
+window and provider error details. An incomplete diagnostic is not an automatic
+backtest failure; a legitimate strategy can also produce no trades. Short daily
+requests include the full required history and calendar padding. Longer
+stock/index windows retain the five-year page cap and backward pagination.</p>
+</section>
+</section>
+
+        </article>
+      </div>
+      <footer>
+        
+        <div class="related-pages">
+          <a class="next-page" href="faq.html">
+              <div class="page-info">
+                <div class="context">
+                  <span>Next</span>
+                </div>
+                <div class="title">Frequently Asked Questions (FAQ)</div>
+              </div>
+              <svg class="furo-related-icon"><use href="#svg-arrow-right"></use></svg>
+            </a>
+          <a class="prev-page" href="environment_variables.html">
+              <svg class="furo-related-icon"><use href="#svg-arrow-right"></use></svg>
+              <div class="page-info">
+                <div class="context">
+                  <span>Previous</span>
+                </div>
+                
+                <div class="title">Environment Variables</div>
+                
+              </div>
+            </a>
+        </div>
+        <div class="bottom-of-page">
+          <div class="left-details">
+            <div class="copyright">
+                Copyright &#169; 2021, Lumiwealth
+            </div>
+            Made with <a href="https://www.sphinx-doc.org/">Sphinx</a> and <a class="muted-link" href="https://pradyunsg.me">@pradyunsg</a>'s
+            
+            <a href="https://github.com/pradyunsg/furo">Furo</a>
+            <div class="last-updated">
+              Last updated on October 03, 2026</div>
+          </div>
+          <div class="right-details">
+            
+          </div>
+        </div>
+        
+      </footer>
+    </div>
+    <aside class="toc-drawer">
+      
+      
+      <div class="toc-sticky toc-scroll">
+        <div class="toc-title-container">
+          <span class="toc-title">
+            On this page
+          </span>
+        </div>
+        <div class="toc-tree-container">
+          <div class="toc-tree">
+            <ul>
+<li><a class="reference internal" href="#">Common Mistakes and How to Avoid Them</a><ul>
+<li><a class="reference internal" href="#restoring-asset-variables-after-a-restart">Restoring Asset Variables After a Restart</a></li>
+<li><a class="reference internal" href="#critical-mistakes-will-break-your-strategy">Critical Mistakes (Will Break Your Strategy)</a><ul>
+<li><a class="reference internal" href="#using-an-unfinished-crypto-candle-as-historical-evidence">Using an Unfinished Crypto Candle as Historical Evidence</a></li>
+<li><a class="reference internal" href="#using-datetime-now-instead-of-self-get-datetime">Using datetime.now() Instead of self.get_datetime()</a></li>
+<li><a class="reference internal" href="#adding-from-future-import-annotations">Adding ‘from __future__ import annotations’</a></li>
+<li><a class="reference internal" href="#assigning-attributes-directly-on-self">Assigning Attributes Directly on self</a></li>
+<li><a class="reference internal" href="#forgetting-set-market-24-7-for-crypto">Forgetting set_market(“24/7”) for Crypto</a></li>
+</ul>
+</li>
+<li><a class="reference internal" href="#data-mistakes">Data Mistakes</a><ul>
+<li><a class="reference internal" href="#not-checking-if-get-last-price-returns-none">Not Checking if get_last_price() Returns None</a></li>
+<li><a class="reference internal" href="#using-get-historical-prices-for-real-time-data">Using get_historical_prices() for Real-Time Data</a></li>
+<li><a class="reference internal" href="#returning-early-when-get-greeks-is-none">Returning Early When get_greeks() is None</a></li>
+</ul>
+</li>
+<li><a class="reference internal" href="#options-mistakes">Options Mistakes</a><ul>
+<li><a class="reference internal" href="#manually-selecting-option-expirations">Manually Selecting Option Expirations</a></li>
+<li><a class="reference internal" href="#brute-forcing-deltas-by-scanning-strikes">Brute-Forcing Deltas by Scanning Strikes</a></li>
+<li><a class="reference internal" href="#forgetting-options-are-100x-multiplied">Forgetting Options are 100x Multiplied</a></li>
+<li><a class="reference internal" href="#using-get-last-price-for-options-pricing">Using get_last_price() for Options Pricing</a></li>
+</ul>
+</li>
+<li><a class="reference internal" href="#order-mistakes">Order Mistakes</a><ul>
+<li><a class="reference internal" href="#expecting-immediate-position-updates-after-submit-order">Expecting Immediate Position Updates After submit_order()</a></li>
+<li><a class="reference internal" href="#using-submit-order-to-close-crypto-futures">Using submit_order() to Close Crypto Futures</a></li>
+<li><a class="reference internal" href="#using-deprecated-take-profit-price-stop-loss-price">Using Deprecated take_profit_price/stop_loss_price</a></li>
+</ul>
+</li>
+<li><a class="reference internal" href="#visualization-mistakes">Visualization Mistakes</a><ul>
+<li><a class="reference internal" href="#adding-markers-every-iteration">Adding Markers Every Iteration</a></li>
+<li><a class="reference internal" href="#using-text-parameter-in-add-marker-add-line-add-ohlc">Using ‘text’ Parameter in add_marker/add_line/add_ohlc</a></li>
+<li><a class="reference internal" href="#forgetting-to-pass-asset-parameter">Forgetting to Pass asset Parameter</a></li>
+</ul>
+</li>
+<li><a class="reference internal" href="#code-organization-mistakes">Code Organization Mistakes</a><ul>
+<li><a class="reference internal" href="#hardcoding-api-keys">Hardcoding API Keys</a></li>
+<li><a class="reference internal" href="#setting-parameters-in-multiple-places">Setting Parameters in Multiple Places</a></li>
+<li><a class="reference internal" href="#using-try-except-to-hide-errors">Using try/except to Hide Errors</a></li>
+<li><a class="reference internal" href="#using-sleep-in-strategy">Using sleep() in Strategy</a></li>
+</ul>
+</li>
+<li><a class="reference internal" href="#ibkr-history-waits-and-data-health-diagnostics">IBKR history waits and data-health diagnostics</a></li>
+</ul>
+</li>
+</ul>
+
+          </div>
+        </div>
+      </div>
+      
+      
+    </aside>
+  </div>
+</div><script src="_static/documentation_options.js?v=5929fcd5"></script>
+    <script src="_static/doctools.js?v=9bcbadda"></script>
+    <script src="_static/sphinx_highlight.js?v=dc90522c"></script>
+    <script src="_static/scripts/furo.js?v=46bd48cc"></script>
+    <script src="_static/posthog.js?v=8090e602"></script>
+    </body>
+</html>

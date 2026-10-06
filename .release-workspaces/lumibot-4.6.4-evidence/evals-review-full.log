@@ -1,0 +1,887 @@
+2026-10-02 23:49:27,971 | INFO | LumiBot v4.6.4 starting
+[10/02/26 23:49:32] INFO     Processing request of type            server.py:733
+                             ListToolsRequest                                   
+[10/02/26 23:49:33] INFO     Processing request of type            server.py:733
+                             ListToolsRequest                                   
+[10/02/26 23:49:36] INFO     Processing request of type            server.py:733
+                             ListToolsRequest                                   
+[lumibot.agents] starting agent 'trader' (model='openai/gpt-6-luna', model_request_timeout=240s, run_timeout=600s).
+/Users/robertgrzesik/Development/lumibot/.claude/worktrees/codex-release-4.6.4/.venv/lib/python3.10/site-packages/google/adk/features/_feature_decorator.py:72: UserWarning: [EXPERIMENTAL] feature SKILL_TOOLSET is enabled.
+  check_feature_enabled()
+[lumibot.agents] starting agent 'trader' (model='openai/gpt-6-luna', model_request_timeout=240s, run_timeout=600s).
+[lumibot.agents] starting agent 'trader' (model='openai/gpt-6-luna', model_request_timeout=240s, run_timeout=600s).
+/Users/robertgrzesik/Development/lumibot/.claude/worktrees/codex-release-4.6.4/.venv/lib/python3.10/site-packages/google/adk/tools/function_tool.py:95: UserWarning: [EXPERIMENTAL] feature JSON_SCHEMA_FOR_FUNC_DECL is enabled.
+  build_function_declaration(
+[lumibot.agents] first ADK event for agent 'trader' (model='openai/gpt-6-luna') after 4700ms.
+[lumibot.agents] first ADK event for agent 'trader' (model='openai/gpt-6-luna') after 5305ms.
+[lumibot.agents] first ADK event for agent 'trader' (model='openai/gpt-6-luna') after 6917ms.
+[lumibot.agents] starting agent 'eval_judge' (model='openai/gpt-6-luna', model_request_timeout=180s, run_timeout=300s).
+[lumibot.agents] first ADK event for agent 'eval_judge' (model='openai/gpt-6-luna') after 1330ms.
+[lumibot.agents] starting agent 'eval_judge' (model='openai/gpt-6-luna', model_request_timeout=180s, run_timeout=300s).
+[lumibot.agents] starting agent 'eval_judge' (model='openai/gpt-6-luna', model_request_timeout=180s, run_timeout=300s).
+[lumibot.agents] first ADK event for agent 'eval_judge' (model='openai/gpt-6-luna') after 2305ms.
+[lumibot.agents] first ADK event for agent 'eval_judge' (model='openai/gpt-6-luna') after 1441ms.
+[lumibot.agents] starting agent 'trader' (model='openai/gpt-6-luna', model_request_timeout=240s, run_timeout=600s).
+[lumibot.agents] starting agent 'trader' (model='openai/gpt-6-luna', model_request_timeout=240s, run_timeout=600s).
+[lumibot.agents] starting agent 'trader' (model='openai/gpt-6-luna', model_request_timeout=240s, run_timeout=600s).
+[lumibot.agents] first ADK event for agent 'trader' (model='openai/gpt-6-luna') after 1659ms.
+[lumibot.agents] first ADK event for agent 'trader' (model='openai/gpt-6-luna') after 2210ms.
+[lumibot.agents] first ADK event for agent 'trader' (model='openai/gpt-6-luna') after 3252ms.
+[lumibot.agents] starting agent 'eval_judge' (model='openai/gpt-6-luna', model_request_timeout=180s, run_timeout=300s).
+[lumibot.agents] first ADK event for agent 'eval_judge' (model='openai/gpt-6-luna') after 2521ms.
+[lumibot.agents] starting agent 'eval_judge' (model='openai/gpt-6-luna', model_request_timeout=180s, run_timeout=300s).
+[lumibot.agents] starting agent 'eval_judge' (model='openai/gpt-6-luna', model_request_timeout=180s, run_timeout=300s).
+[lumibot.agents] first ADK event for agent 'eval_judge' (model='openai/gpt-6-luna') after 2185ms.
+[lumibot.agents] first ADK event for agent 'eval_judge' (model='openai/gpt-6-luna') after 2596ms.
+[lumibot.agents] starting agent 'trader' (model='openai/gpt-6-luna', model_request_timeout=240s, run_timeout=600s).
+[lumibot.agents] starting agent 'trader' (model='openai/gpt-6-luna', model_request_timeout=240s, run_timeout=600s).
+[lumibot.agents] starting agent 'trader' (model='openai/gpt-6-luna', model_request_timeout=240s, run_timeout=600s).
+[lumibot.agents] first ADK event for agent 'trader' (model='openai/gpt-6-luna') after 2259ms.
+[lumibot.agents] first ADK event for agent 'trader' (model='openai/gpt-6-luna') after 2475ms.
+Task was destroyed but it is pending!
+task: <Task pending name='Task-920' coro=<LoggingWorker._worker_loop() running at /Users/robertgrzesik/Development/lumibot/.claude/worktrees/codex-release-4.6.4/.venv/lib/python3.10/site-packages/litellm/litellm_core_utils/logging_worker.py:121> wait_for=<Future pending cb=[Task.task_wakeup()]>>
+[lumibot.agents] first ADK event for agent 'trader' (model='openai/gpt-6-luna') after 2439ms.
+[lumibot.agents] starting agent 'eval_judge' (model='openai/gpt-6-luna', model_request_timeout=180s, run_timeout=300s).
+[lumibot.agents] starting agent 'eval_judge' (model='openai/gpt-6-luna', model_request_timeout=180s, run_timeout=300s).
+[lumibot.agents] starting agent 'eval_judge' (model='openai/gpt-6-luna', model_request_timeout=180s, run_timeout=300s).
+[lumibot.agents] first ADK event for agent 'eval_judge' (model='openai/gpt-6-luna') after 3833ms.
+[lumibot.agents] first ADK event for agent 'eval_judge' (model='openai/gpt-6-luna') after 4299ms.
+[lumibot.agents] first ADK event for agent 'eval_judge' (model='openai/gpt-6-luna') after 4240ms.
+[lumibot.agents] starting agent 'trader' (model='openai/gpt-6-luna', model_request_timeout=240s, run_timeout=600s).
+[lumibot.agents] starting agent 'trader' (model='openai/gpt-6-luna', model_request_timeout=240s, run_timeout=600s).
+[lumibot.agents] starting agent 'trader' (model='openai/gpt-6-luna', model_request_timeout=240s, run_timeout=600s).
+[lumibot.agents] first ADK event for agent 'trader' (model='openai/gpt-6-luna') after 2247ms.
+[lumibot.agents] first ADK event for agent 'trader' (model='openai/gpt-6-luna') after 2391ms.
+[lumibot.agents] first ADK event for agent 'trader' (model='openai/gpt-6-luna') after 2560ms.
+Task was destroyed but it is pending!
+task: <Task pending name='Task-1473' coro=<LoggingWorker._worker_loop() running at /Users/robertgrzesik/Development/lumibot/.claude/worktrees/codex-release-4.6.4/.venv/lib/python3.10/site-packages/litellm/litellm_core_utils/logging_worker.py:121> wait_for=<Future pending cb=[Task.task_wakeup()]>>
+Task was destroyed but it is pending!
+task: <Task pending name='Task-1534' coro=<LoggingWorker._worker_loop() running at /Users/robertgrzesik/Development/lumibot/.claude/worktrees/codex-release-4.6.4/.venv/lib/python3.10/site-packages/litellm/litellm_core_utils/logging_worker.py:121> wait_for=<Future pending cb=[Task.task_wakeup()]>>
+Task was destroyed but it is pending!
+task: <Task pending name='Task-1597' coro=<LoggingWorker._worker_loop() running at /Users/robertgrzesik/Development/lumibot/.claude/worktrees/codex-release-4.6.4/.venv/lib/python3.10/site-packages/litellm/litellm_core_utils/logging_worker.py:121> wait_for=<Future pending cb=[Task.task_wakeup()]>>
+Task was destroyed but it is pending!
+task: <Task pending name='Task-1607' coro=<LoggingWorker._worker_loop() running at /Users/robertgrzesik/Development/lumibot/.claude/worktrees/codex-release-4.6.4/.venv/lib/python3.10/site-packages/litellm/litellm_core_utils/logging_worker.py:121> wait_for=<Future pending cb=[Task.task_wakeup()]>>
+Task was destroyed but it is pending!
+task: <Task pending name='Task-1621' coro=<LoggingWorker._worker_loop() running at /Users/robertgrzesik/Development/lumibot/.claude/worktrees/codex-release-4.6.4/.venv/lib/python3.10/site-packages/litellm/litellm_core_utils/logging_worker.py:121> wait_for=<Future pending cb=[Task.task_wakeup()]>>
+Task was destroyed but it is pending!
+task: <Task pending name='Task-1635' coro=<LoggingWorker._worker_loop() running at /Users/robertgrzesik/Development/lumibot/.claude/worktrees/codex-release-4.6.4/.venv/lib/python3.10/site-packages/litellm/litellm_core_utils/logging_worker.py:121> wait_for=<Future pending cb=[Task.task_wakeup()]>>
+Task was destroyed but it is pending!
+task: <Task pending name='Task-1650' coro=<LoggingWorker._worker_loop() running at /Users/robertgrzesik/Development/lumibot/.claude/worktrees/codex-release-4.6.4/.venv/lib/python3.10/site-packages/litellm/litellm_core_utils/logging_worker.py:121> wait_for=<Future pending cb=[Task.task_wakeup()]>>
+Task was destroyed but it is pending!
+task: <Task pending name='Task-1661' coro=<LoggingWorker._worker_loop() running at /Users/robertgrzesik/Development/lumibot/.claude/worktrees/codex-release-4.6.4/.venv/lib/python3.10/site-packages/litellm/litellm_core_utils/logging_worker.py:121> wait_for=<Future pending cb=[Task.task_wakeup()]>>
+Task was destroyed but it is pending!
+task: <Task pending name='Task-1674' coro=<LoggingWorker._worker_loop() running at /Users/robertgrzesik/Development/lumibot/.claude/worktrees/codex-release-4.6.4/.venv/lib/python3.10/site-packages/litellm/litellm_core_utils/logging_worker.py:121> wait_for=<Future pending cb=[Task.task_wakeup()]>>
+Task was destroyed but it is pending!
+task: <Task pending name='Task-1687' coro=<LoggingWorker._worker_loop() running at /Users/robertgrzesik/Development/lumibot/.claude/worktrees/codex-release-4.6.4/.venv/lib/python3.10/site-packages/litellm/litellm_core_utils/logging_worker.py:121> wait_for=<Future pending cb=[Task.task_wakeup()]>>
+Task was destroyed but it is pending!
+task: <Task pending name='Task-1702' coro=<LoggingWorker._worker_loop() running at /Users/robertgrzesik/Development/lumibot/.claude/worktrees/codex-release-4.6.4/.venv/lib/python3.10/site-packages/litellm/litellm_core_utils/logging_worker.py:121> wait_for=<Future pending cb=[Task.task_wakeup()]>>
+Task was destroyed but it is pending!
+task: <Task pending name='Task-1715' coro=<LoggingWorker._worker_loop() running at /Users/robertgrzesik/Development/lumibot/.claude/worktrees/codex-release-4.6.4/.venv/lib/python3.10/site-packages/litellm/litellm_core_utils/logging_worker.py:121> wait_for=<Future pending cb=[Task.task_wakeup()]>>
+[lumibot.agents] starting agent 'eval_judge' (model='openai/gpt-6-luna', model_request_timeout=180s, run_timeout=300s).
+[lumibot.agents] starting agent 'eval_judge' (model='openai/gpt-6-luna', model_request_timeout=180s, run_timeout=300s).
+[lumibot.agents] first ADK event for agent 'eval_judge' (model='openai/gpt-6-luna') after 5294ms.
+[lumibot.agents] starting agent 'eval_judge' (model='openai/gpt-6-luna', model_request_timeout=180s, run_timeout=300s).
+[lumibot.agents] first ADK event for agent 'eval_judge' (model='openai/gpt-6-luna') after 4543ms.
+[lumibot.agents] first ADK event for agent 'eval_judge' (model='openai/gpt-6-luna') after 6433ms.
+[lumibot.agents] starting agent 'trader' (model='openai/gpt-6-luna', model_request_timeout=240s, run_timeout=600s).
+[lumibot.agents] starting agent 'trader' (model='openai/gpt-6-luna', model_request_timeout=240s, run_timeout=600s).
+[lumibot.agents] starting agent 'trader' (model='openai/gpt-6-luna', model_request_timeout=240s, run_timeout=600s).
+[lumibot.agents] first ADK event for agent 'trader' (model='openai/gpt-6-luna') after 1957ms.
+[lumibot.agents] first ADK event for agent 'trader' (model='openai/gpt-6-luna') after 2631ms.
+[lumibot.agents] first ADK event for agent 'trader' (model='openai/gpt-6-luna') after 2840ms.
+[lumibot.agents] starting agent 'eval_judge' (model='openai/gpt-6-luna', model_request_timeout=180s, run_timeout=300s).
+[lumibot.agents] first ADK event for agent 'eval_judge' (model='openai/gpt-6-luna') after 1996ms.
+[lumibot.agents] starting agent 'eval_judge' (model='openai/gpt-6-luna', model_request_timeout=180s, run_timeout=300s).
+[lumibot.agents] starting agent 'eval_judge' (model='openai/gpt-6-luna', model_request_timeout=180s, run_timeout=300s).
+[lumibot.agents] first ADK event for agent 'eval_judge' (model='openai/gpt-6-luna') after 2161ms.
+[lumibot.agents] first ADK event for agent 'eval_judge' (model='openai/gpt-6-luna') after 1741ms.
+[10/02/26 23:52:53] INFO     Processing request of type            server.py:733
+                             ListToolsRequest                                   
+[10/02/26 23:52:53] INFO     Processing request of type            server.py:733
+                             ListToolsRequest                                   
+[10/02/26 23:52:53] INFO     Processing request of type            server.py:733
+                             ListToolsRequest                                   
+[lumibot.agents] starting agent 'trader' (model='openai/gpt-6-luna', model_request_timeout=240s, run_timeout=600s).
+[lumibot.agents] starting agent 'trader' (model='openai/gpt-6-luna', model_request_timeout=240s, run_timeout=600s).
+[lumibot.agents] starting agent 'trader' (model='openai/gpt-6-luna', model_request_timeout=240s, run_timeout=600s).
+[lumibot.agents] first ADK event for agent 'trader' (model='openai/gpt-6-luna') after 2265ms.
+[lumibot.agents] first ADK event for agent 'trader' (model='openai/gpt-6-luna') after 2937ms.
+[lumibot.agents] first ADK event for agent 'trader' (model='openai/gpt-6-luna') after 3292ms.
+[10/02/26 23:52:58] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+                    INFO     Processing request of type            server.py:733
+                             ListToolsRequest                                   
+[10/02/26 23:52:59] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+                    INFO     Processing request of type            server.py:733
+                             ListToolsRequest                                   
+Task was destroyed but it is pending!
+task: <Task pending name='Task-2810' coro=<LoggingWorker._worker_loop() running at /Users/robertgrzesik/Development/lumibot/.claude/worktrees/codex-release-4.6.4/.venv/lib/python3.10/site-packages/litellm/litellm_core_utils/logging_worker.py:121> wait_for=<Future pending cb=[Task.task_wakeup()]>>
+[10/02/26 23:52:59] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+                    INFO     Processing request of type            server.py:733
+                             ListToolsRequest                                   
+Task exception was never retrieved
+future: <Task finished name='Task-2822' coro=<LoggingWorker._process_log_task() done, defined at /Users/robertgrzesik/Development/lumibot/.claude/worktrees/codex-release-4.6.4/.venv/lib/python3.10/site-packages/litellm/litellm_core_utils/logging_worker.py:92> exception=ValueError('task_done() called too many times')>
+Traceback (most recent call last):
+  File "/Users/robertgrzesik/Development/lumibot/.claude/worktrees/codex-release-4.6.4/.venv/lib/python3.10/site-packages/litellm/litellm_core_utils/logging_worker.py", line 105, in _process_log_task
+    self._queue.task_done()
+  File "/Users/robertgrzesik/.local/share/uv/python/cpython-3.10.19-macos-aarch64-none/lib/python3.10/asyncio/queues.py", line 202, in task_done
+    raise ValueError('task_done() called too many times')
+ValueError: task_done() called too many times
+[10/02/26 23:53:01] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+                    INFO     Processing request of type            server.py:733
+                             ListToolsRequest                                   
+[10/02/26 23:53:02] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+                    INFO     Processing request of type            server.py:733
+                             ListToolsRequest                                   
+[10/02/26 23:53:03] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+                    INFO     Processing request of type            server.py:733
+                             ListToolsRequest                                   
+[10/02/26 23:53:04] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+                    INFO     Processing request of type            server.py:733
+                             ListToolsRequest                                   
+Task was destroyed but it is pending!
+task: <Task pending name='Task-2866' coro=<LoggingWorker._worker_loop() running at /Users/robertgrzesik/Development/lumibot/.claude/worktrees/codex-release-4.6.4/.venv/lib/python3.10/site-packages/litellm/litellm_core_utils/logging_worker.py:121> wait_for=<Future pending cb=[Task.task_wakeup()]>>
+[10/02/26 23:53:04] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+                    INFO     Processing request of type            server.py:733
+                             ListToolsRequest                                   
+Task exception was never retrieved
+future: <Task finished name='Task-2867' coro=<LoggingWorker._process_log_task() done, defined at /Users/robertgrzesik/Development/lumibot/.claude/worktrees/codex-release-4.6.4/.venv/lib/python3.10/site-packages/litellm/litellm_core_utils/logging_worker.py:92> exception=ValueError('task_done() called too many times')>
+Traceback (most recent call last):
+  File "/Users/robertgrzesik/Development/lumibot/.claude/worktrees/codex-release-4.6.4/.venv/lib/python3.10/site-packages/litellm/litellm_core_utils/logging_worker.py", line 105, in _process_log_task
+    self._queue.task_done()
+  File "/Users/robertgrzesik/.local/share/uv/python/cpython-3.10.19-macos-aarch64-none/lib/python3.10/asyncio/queues.py", line 202, in task_done
+    raise ValueError('task_done() called too many times')
+ValueError: task_done() called too many times
+Task exception was never retrieved
+future: <Task finished name='Task-2868' coro=<LoggingWorker._process_log_task() done, defined at /Users/robertgrzesik/Development/lumibot/.claude/worktrees/codex-release-4.6.4/.venv/lib/python3.10/site-packages/litellm/litellm_core_utils/logging_worker.py:92> exception=ValueError('task_done() called too many times')>
+Traceback (most recent call last):
+  File "/Users/robertgrzesik/Development/lumibot/.claude/worktrees/codex-release-4.6.4/.venv/lib/python3.10/site-packages/litellm/litellm_core_utils/logging_worker.py", line 105, in _process_log_task
+    self._queue.task_done()
+  File "/Users/robertgrzesik/.local/share/uv/python/cpython-3.10.19-macos-aarch64-none/lib/python3.10/asyncio/queues.py", line 202, in task_done
+    raise ValueError('task_done() called too many times')
+ValueError: task_done() called too many times
+[10/02/26 23:53:07] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+                    INFO     Processing request of type            server.py:733
+                             ListToolsRequest                                   
+[10/02/26 23:53:07] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+                    INFO     Processing request of type            server.py:733
+                             ListToolsRequest                                   
+[lumibot.agents] starting agent 'eval_judge' (model='openai/gpt-6-luna', model_request_timeout=180s, run_timeout=300s).
+[lumibot.agents] starting agent 'eval_judge' (model='openai/gpt-6-luna', model_request_timeout=180s, run_timeout=300s).
+[lumibot.agents] first ADK event for agent 'eval_judge' (model='openai/gpt-6-luna') after 1879ms.
+[lumibot.agents] first ADK event for agent 'eval_judge' (model='openai/gpt-6-luna') after 3126ms.
+Task exception was never retrieved
+future: <Task finished name='Task-2823' coro=<LoggingWorker._process_log_task() done, defined at /Users/robertgrzesik/Development/lumibot/.claude/worktrees/codex-release-4.6.4/.venv/lib/python3.10/site-packages/litellm/litellm_core_utils/logging_worker.py:92> exception=ValueError('task_done() called too many times')>
+Traceback (most recent call last):
+  File "/Users/robertgrzesik/Development/lumibot/.claude/worktrees/codex-release-4.6.4/.venv/lib/python3.10/site-packages/litellm/litellm_core_utils/logging_worker.py", line 105, in _process_log_task
+    self._queue.task_done()
+  File "/Users/robertgrzesik/.local/share/uv/python/cpython-3.10.19-macos-aarch64-none/lib/python3.10/asyncio/queues.py", line 202, in task_done
+    raise ValueError('task_done() called too many times')
+ValueError: task_done() called too many times
+[lumibot.agents] starting agent 'eval_judge' (model='openai/gpt-6-luna', model_request_timeout=180s, run_timeout=300s).
+[lumibot.agents] first ADK event for agent 'eval_judge' (model='openai/gpt-6-luna') after 1785ms.
+[10/02/26 23:53:25] INFO     Processing request of type            server.py:733
+                             ListToolsRequest                                   
+[10/02/26 23:53:25] INFO     Processing request of type            server.py:733
+                             ListToolsRequest                                   
+[10/02/26 23:53:25] INFO     Processing request of type            server.py:733
+                             ListToolsRequest                                   
+[lumibot.agents] starting agent 'trader' (model='openai/gpt-6-luna', model_request_timeout=240s, run_timeout=600s).
+[lumibot.agents] starting agent 'trader' (model='openai/gpt-6-luna', model_request_timeout=240s, run_timeout=600s).
+[lumibot.agents] starting agent 'trader' (model='openai/gpt-6-luna', model_request_timeout=240s, run_timeout=600s).
+[lumibot.agents] first ADK event for agent 'trader' (model='openai/gpt-6-luna') after 2030ms.
+[lumibot.agents] first ADK event for agent 'trader' (model='openai/gpt-6-luna') after 2258ms.
+[lumibot.agents] first ADK event for agent 'trader' (model='openai/gpt-6-luna') after 2754ms.
+[10/02/26 23:53:30] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+                    INFO     Processing request of type            server.py:733
+                             ListToolsRequest                                   
+Task was destroyed but it is pending!
+task: <Task pending name='Task-3245' coro=<LoggingWorker._worker_loop() running at /Users/robertgrzesik/Development/lumibot/.claude/worktrees/codex-release-4.6.4/.venv/lib/python3.10/site-packages/litellm/litellm_core_utils/logging_worker.py:121> wait_for=<Future pending cb=[Task.task_wakeup()]>>
+[10/02/26 23:53:30] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+                    INFO     Processing request of type            server.py:733
+                             ListToolsRequest                                   
+Task exception was never retrieved
+future: <Task finished name='Task-3246' coro=<LoggingWorker._process_log_task() done, defined at /Users/robertgrzesik/Development/lumibot/.claude/worktrees/codex-release-4.6.4/.venv/lib/python3.10/site-packages/litellm/litellm_core_utils/logging_worker.py:92> exception=ValueError('task_done() called too many times')>
+Traceback (most recent call last):
+  File "/Users/robertgrzesik/Development/lumibot/.claude/worktrees/codex-release-4.6.4/.venv/lib/python3.10/site-packages/litellm/litellm_core_utils/logging_worker.py", line 105, in _process_log_task
+    self._queue.task_done()
+  File "/Users/robertgrzesik/.local/share/uv/python/cpython-3.10.19-macos-aarch64-none/lib/python3.10/asyncio/queues.py", line 202, in task_done
+    raise ValueError('task_done() called too many times')
+ValueError: task_done() called too many times
+Task exception was never retrieved
+future: <Task finished name='Task-3247' coro=<LoggingWorker._process_log_task() done, defined at /Users/robertgrzesik/Development/lumibot/.claude/worktrees/codex-release-4.6.4/.venv/lib/python3.10/site-packages/litellm/litellm_core_utils/logging_worker.py:92> exception=ValueError('task_done() called too many times')>
+Traceback (most recent call last):
+  File "/Users/robertgrzesik/Development/lumibot/.claude/worktrees/codex-release-4.6.4/.venv/lib/python3.10/site-packages/litellm/litellm_core_utils/logging_worker.py", line 105, in _process_log_task
+    self._queue.task_done()
+  File "/Users/robertgrzesik/.local/share/uv/python/cpython-3.10.19-macos-aarch64-none/lib/python3.10/asyncio/queues.py", line 202, in task_done
+    raise ValueError('task_done() called too many times')
+ValueError: task_done() called too many times
+[10/02/26 23:53:30] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+                    INFO     Processing request of type            server.py:733
+                             ListToolsRequest                                   
+Task exception was never retrieved
+future: <Task finished name='Task-3257' coro=<LoggingWorker._process_log_task() done, defined at /Users/robertgrzesik/Development/lumibot/.claude/worktrees/codex-release-4.6.4/.venv/lib/python3.10/site-packages/litellm/litellm_core_utils/logging_worker.py:92> exception=ValueError('task_done() called too many times')>
+Traceback (most recent call last):
+  File "/Users/robertgrzesik/Development/lumibot/.claude/worktrees/codex-release-4.6.4/.venv/lib/python3.10/site-packages/litellm/litellm_core_utils/logging_worker.py", line 105, in _process_log_task
+    self._queue.task_done()
+  File "/Users/robertgrzesik/.local/share/uv/python/cpython-3.10.19-macos-aarch64-none/lib/python3.10/asyncio/queues.py", line 202, in task_done
+    raise ValueError('task_done() called too many times')
+ValueError: task_done() called too many times
+[10/02/26 23:53:32] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+                    INFO     Processing request of type            server.py:733
+                             ListToolsRequest                                   
+Task was destroyed but it is pending!
+task: <Task pending name='Task-3276' coro=<LoggingWorker._worker_loop() running at /Users/robertgrzesik/Development/lumibot/.claude/worktrees/codex-release-4.6.4/.venv/lib/python3.10/site-packages/litellm/litellm_core_utils/logging_worker.py:121> wait_for=<Future pending cb=[Task.task_wakeup()]>>
+Task was destroyed but it is pending!
+task: <Task pending name='Task-3287' coro=<LoggingWorker._worker_loop() running at /Users/robertgrzesik/Development/lumibot/.claude/worktrees/codex-release-4.6.4/.venv/lib/python3.10/site-packages/litellm/litellm_core_utils/logging_worker.py:121> wait_for=<Future pending cb=[Task.task_wakeup()]>>
+[10/02/26 23:53:32] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+                    INFO     Processing request of type            server.py:733
+                             ListToolsRequest                                   
+Task exception was never retrieved
+future: <Task finished name='Task-3288' coro=<LoggingWorker._process_log_task() done, defined at /Users/robertgrzesik/Development/lumibot/.claude/worktrees/codex-release-4.6.4/.venv/lib/python3.10/site-packages/litellm/litellm_core_utils/logging_worker.py:92> exception=ValueError('task_done() called too many times')>
+Traceback (most recent call last):
+  File "/Users/robertgrzesik/Development/lumibot/.claude/worktrees/codex-release-4.6.4/.venv/lib/python3.10/site-packages/litellm/litellm_core_utils/logging_worker.py", line 105, in _process_log_task
+    self._queue.task_done()
+  File "/Users/robertgrzesik/.local/share/uv/python/cpython-3.10.19-macos-aarch64-none/lib/python3.10/asyncio/queues.py", line 202, in task_done
+    raise ValueError('task_done() called too many times')
+ValueError: task_done() called too many times
+Task exception was never retrieved
+future: <Task finished name='Task-3289' coro=<LoggingWorker._process_log_task() done, defined at /Users/robertgrzesik/Development/lumibot/.claude/worktrees/codex-release-4.6.4/.venv/lib/python3.10/site-packages/litellm/litellm_core_utils/logging_worker.py:92> exception=ValueError('task_done() called too many times')>
+Traceback (most recent call last):
+  File "/Users/robertgrzesik/Development/lumibot/.claude/worktrees/codex-release-4.6.4/.venv/lib/python3.10/site-packages/litellm/litellm_core_utils/logging_worker.py", line 105, in _process_log_task
+    self._queue.task_done()
+  File "/Users/robertgrzesik/.local/share/uv/python/cpython-3.10.19-macos-aarch64-none/lib/python3.10/asyncio/queues.py", line 202, in task_done
+    raise ValueError('task_done() called too many times')
+ValueError: task_done() called too many times
+[10/02/26 23:53:32] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+                    INFO     Processing request of type            server.py:733
+                             ListToolsRequest                                   
+Task exception was never retrieved
+future: <Task finished name='Task-3299' coro=<LoggingWorker._process_log_task() done, defined at /Users/robertgrzesik/Development/lumibot/.claude/worktrees/codex-release-4.6.4/.venv/lib/python3.10/site-packages/litellm/litellm_core_utils/logging_worker.py:92> exception=ValueError('task_done() called too many times')>
+Traceback (most recent call last):
+  File "/Users/robertgrzesik/Development/lumibot/.claude/worktrees/codex-release-4.6.4/.venv/lib/python3.10/site-packages/litellm/litellm_core_utils/logging_worker.py", line 105, in _process_log_task
+    self._queue.task_done()
+  File "/Users/robertgrzesik/.local/share/uv/python/cpython-3.10.19-macos-aarch64-none/lib/python3.10/asyncio/queues.py", line 202, in task_done
+    raise ValueError('task_done() called too many times')
+ValueError: task_done() called too many times
+[10/02/26 23:53:34] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+                    INFO     Processing request of type            server.py:733
+                             ListToolsRequest                                   
+[10/02/26 23:53:35] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+                    INFO     Processing request of type            server.py:733
+                             ListToolsRequest                                   
+[10/02/26 23:53:36] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+                    INFO     Processing request of type            server.py:733
+                             ListToolsRequest                                   
+[lumibot.agents] starting agent 'eval_judge' (model='openai/gpt-6-luna', model_request_timeout=180s, run_timeout=300s).
+Task exception was never retrieved
+future: <Task finished name='Task-3258' coro=<LoggingWorker._process_log_task() done, defined at /Users/robertgrzesik/Development/lumibot/.claude/worktrees/codex-release-4.6.4/.venv/lib/python3.10/site-packages/litellm/litellm_core_utils/logging_worker.py:92> exception=ValueError('task_done() called too many times')>
+Traceback (most recent call last):
+  File "/Users/robertgrzesik/Development/lumibot/.claude/worktrees/codex-release-4.6.4/.venv/lib/python3.10/site-packages/litellm/litellm_core_utils/logging_worker.py", line 105, in _process_log_task
+    self._queue.task_done()
+  File "/Users/robertgrzesik/.local/share/uv/python/cpython-3.10.19-macos-aarch64-none/lib/python3.10/asyncio/queues.py", line 202, in task_done
+    raise ValueError('task_done() called too many times')
+ValueError: task_done() called too many times
+Task exception was never retrieved
+future: <Task finished name='Task-3300' coro=<LoggingWorker._process_log_task() done, defined at /Users/robertgrzesik/Development/lumibot/.claude/worktrees/codex-release-4.6.4/.venv/lib/python3.10/site-packages/litellm/litellm_core_utils/logging_worker.py:92> exception=ValueError('task_done() called too many times')>
+Traceback (most recent call last):
+  File "/Users/robertgrzesik/Development/lumibot/.claude/worktrees/codex-release-4.6.4/.venv/lib/python3.10/site-packages/litellm/litellm_core_utils/logging_worker.py", line 105, in _process_log_task
+    self._queue.task_done()
+  File "/Users/robertgrzesik/.local/share/uv/python/cpython-3.10.19-macos-aarch64-none/lib/python3.10/asyncio/queues.py", line 202, in task_done
+    raise ValueError('task_done() called too many times')
+ValueError: task_done() called too many times
+[lumibot.agents] starting agent 'eval_judge' (model='openai/gpt-6-luna', model_request_timeout=180s, run_timeout=300s).
+[lumibot.agents] starting agent 'eval_judge' (model='openai/gpt-6-luna', model_request_timeout=180s, run_timeout=300s).
+[lumibot.agents] first ADK event for agent 'eval_judge' (model='openai/gpt-6-luna') after 1662ms.
+[lumibot.agents] first ADK event for agent 'eval_judge' (model='openai/gpt-6-luna') after 1819ms.
+[lumibot.agents] first ADK event for agent 'eval_judge' (model='openai/gpt-6-luna') after 2386ms.
+[10/02/26 23:53:44] INFO     Processing request of type            server.py:733
+                             ListToolsRequest                                   
+[10/02/26 23:53:44] INFO     Processing request of type            server.py:733
+                             ListToolsRequest                                   
+[10/02/26 23:53:44] INFO     Processing request of type            server.py:733
+                             ListToolsRequest                                   
+[lumibot.agents] starting agent 'trader' (model='openai/gpt-6-luna', model_request_timeout=240s, run_timeout=600s).
+[lumibot.agents] starting agent 'trader' (model='openai/gpt-6-luna', model_request_timeout=240s, run_timeout=600s).
+[lumibot.agents] starting agent 'trader' (model='openai/gpt-6-luna', model_request_timeout=240s, run_timeout=600s).
+[lumibot.agents] first ADK event for agent 'trader' (model='openai/gpt-6-luna') after 2452ms.
+[lumibot.agents] first ADK event for agent 'trader' (model='openai/gpt-6-luna') after 2712ms.
+[lumibot.agents] first ADK event for agent 'trader' (model='openai/gpt-6-luna') after 2706ms.
+[10/02/26 23:53:49] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+                    INFO     Processing request of type            server.py:733
+                             ListToolsRequest                                   
+Task was destroyed but it is pending!
+task: <Task pending name='Task-3677' coro=<LoggingWorker._worker_loop() running at /Users/robertgrzesik/Development/lumibot/.claude/worktrees/codex-release-4.6.4/.venv/lib/python3.10/site-packages/litellm/litellm_core_utils/logging_worker.py:121> wait_for=<Future pending cb=[Task.task_wakeup()]>>
+[10/02/26 23:53:49] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+                    INFO     Processing request of type            server.py:733
+                             ListToolsRequest                                   
+Task exception was never retrieved
+future: <Task finished name='Task-3678' coro=<LoggingWorker._process_log_task() done, defined at /Users/robertgrzesik/Development/lumibot/.claude/worktrees/codex-release-4.6.4/.venv/lib/python3.10/site-packages/litellm/litellm_core_utils/logging_worker.py:92> exception=ValueError('task_done() called too many times')>
+Traceback (most recent call last):
+  File "/Users/robertgrzesik/Development/lumibot/.claude/worktrees/codex-release-4.6.4/.venv/lib/python3.10/site-packages/litellm/litellm_core_utils/logging_worker.py", line 105, in _process_log_task
+    self._queue.task_done()
+  File "/Users/robertgrzesik/.local/share/uv/python/cpython-3.10.19-macos-aarch64-none/lib/python3.10/asyncio/queues.py", line 202, in task_done
+    raise ValueError('task_done() called too many times')
+ValueError: task_done() called too many times
+Task exception was never retrieved
+future: <Task finished name='Task-3679' coro=<LoggingWorker._process_log_task() done, defined at /Users/robertgrzesik/Development/lumibot/.claude/worktrees/codex-release-4.6.4/.venv/lib/python3.10/site-packages/litellm/litellm_core_utils/logging_worker.py:92> exception=ValueError('task_done() called too many times')>
+Traceback (most recent call last):
+  File "/Users/robertgrzesik/Development/lumibot/.claude/worktrees/codex-release-4.6.4/.venv/lib/python3.10/site-packages/litellm/litellm_core_utils/logging_worker.py", line 105, in _process_log_task
+    self._queue.task_done()
+  File "/Users/robertgrzesik/.local/share/uv/python/cpython-3.10.19-macos-aarch64-none/lib/python3.10/asyncio/queues.py", line 202, in task_done
+    raise ValueError('task_done() called too many times')
+ValueError: task_done() called too many times
+[10/02/26 23:53:49] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+                    INFO     Processing request of type            server.py:733
+                             ListToolsRequest                                   
+Task exception was never retrieved
+future: <Task finished name='Task-3689' coro=<LoggingWorker._process_log_task() done, defined at /Users/robertgrzesik/Development/lumibot/.claude/worktrees/codex-release-4.6.4/.venv/lib/python3.10/site-packages/litellm/litellm_core_utils/logging_worker.py:92> exception=ValueError('task_done() called too many times')>
+Traceback (most recent call last):
+  File "/Users/robertgrzesik/Development/lumibot/.claude/worktrees/codex-release-4.6.4/.venv/lib/python3.10/site-packages/litellm/litellm_core_utils/logging_worker.py", line 105, in _process_log_task
+    self._queue.task_done()
+  File "/Users/robertgrzesik/.local/share/uv/python/cpython-3.10.19-macos-aarch64-none/lib/python3.10/asyncio/queues.py", line 202, in task_done
+    raise ValueError('task_done() called too many times')
+ValueError: task_done() called too many times
+Task exception was never retrieved
+future: <Task finished name='Task-3690' coro=<LoggingWorker._process_log_task() done, defined at /Users/robertgrzesik/Development/lumibot/.claude/worktrees/codex-release-4.6.4/.venv/lib/python3.10/site-packages/litellm/litellm_core_utils/logging_worker.py:92> exception=ValueError('task_done() called too many times')>
+Traceback (most recent call last):
+  File "/Users/robertgrzesik/Development/lumibot/.claude/worktrees/codex-release-4.6.4/.venv/lib/python3.10/site-packages/litellm/litellm_core_utils/logging_worker.py", line 105, in _process_log_task
+    self._queue.task_done()
+  File "/Users/robertgrzesik/.local/share/uv/python/cpython-3.10.19-macos-aarch64-none/lib/python3.10/asyncio/queues.py", line 202, in task_done
+    raise ValueError('task_done() called too many times')
+ValueError: task_done() called too many times
+[10/02/26 23:53:52] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+                    INFO     Processing request of type            server.py:733
+                             ListToolsRequest                                   
+Task was destroyed but it is pending!
+task: <Task pending name='Task-3524' coro=<LoggingWorker._worker_loop() running at /Users/robertgrzesik/Development/lumibot/.claude/worktrees/codex-release-4.6.4/.venv/lib/python3.10/site-packages/litellm/litellm_core_utils/logging_worker.py:121> wait_for=<Future pending cb=[Task.task_wakeup()]>>
+Task was destroyed but it is pending!
+task: <Task pending name='Task-3590' coro=<LoggingWorker._worker_loop() running at /Users/robertgrzesik/Development/lumibot/.claude/worktrees/codex-release-4.6.4/.venv/lib/python3.10/site-packages/litellm/litellm_core_utils/logging_worker.py:121> wait_for=<Future pending cb=[Task.task_wakeup()]>>
+Task was destroyed but it is pending!
+task: <Task pending name='Task-3655' coro=<LoggingWorker._worker_loop() running at /Users/robertgrzesik/Development/lumibot/.claude/worktrees/codex-release-4.6.4/.venv/lib/python3.10/site-packages/litellm/litellm_core_utils/logging_worker.py:121> wait_for=<Future pending cb=[Task.task_wakeup()]>>
+Task was destroyed but it is pending!
+task: <Task pending name='Task-3666' coro=<LoggingWorker._worker_loop() running at /Users/robertgrzesik/Development/lumibot/.claude/worktrees/codex-release-4.6.4/.venv/lib/python3.10/site-packages/litellm/litellm_core_utils/logging_worker.py:121> wait_for=<Future pending cb=[Task.task_wakeup()]>>
+[10/02/26 23:53:53] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+                    INFO     Processing request of type            server.py:733
+                             ListToolsRequest                                   
+[10/02/26 23:53:54] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+                    INFO     Processing request of type            server.py:733
+                             ListToolsRequest                                   
+[10/02/26 23:53:54] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+                    INFO     Processing request of type            server.py:733
+                             ListToolsRequest                                   
+[10/02/26 23:53:55] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+                    INFO     Processing request of type            server.py:733
+                             ListToolsRequest                                   
+[10/02/26 23:53:56] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+                    INFO     Processing request of type            server.py:733
+                             ListToolsRequest                                   
+[lumibot.agents] starting agent 'eval_judge' (model='openai/gpt-6-luna', model_request_timeout=180s, run_timeout=300s).
+Task was destroyed but it is pending!
+task: <Task pending name='Task-3759' coro=<LoggingWorker._worker_loop() running at /Users/robertgrzesik/Development/lumibot/.claude/worktrees/codex-release-4.6.4/.venv/lib/python3.10/site-packages/litellm/litellm_core_utils/logging_worker.py:121> wait_for=<Future pending cb=[Task.task_wakeup()]>>
+[10/02/26 23:53:57] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+                    INFO     Processing request of type            server.py:733
+                             ListToolsRequest                                   
+Task exception was never retrieved
+future: <Task finished name='Task-3760' coro=<LoggingWorker._process_log_task() done, defined at /Users/robertgrzesik/Development/lumibot/.claude/worktrees/codex-release-4.6.4/.venv/lib/python3.10/site-packages/litellm/litellm_core_utils/logging_worker.py:92> exception=ValueError('task_done() called too many times')>
+Traceback (most recent call last):
+  File "/Users/robertgrzesik/Development/lumibot/.claude/worktrees/codex-release-4.6.4/.venv/lib/python3.10/site-packages/litellm/litellm_core_utils/logging_worker.py", line 105, in _process_log_task
+    self._queue.task_done()
+  File "/Users/robertgrzesik/.local/share/uv/python/cpython-3.10.19-macos-aarch64-none/lib/python3.10/asyncio/queues.py", line 202, in task_done
+    raise ValueError('task_done() called too many times')
+ValueError: task_done() called too many times
+Task exception was never retrieved
+future: <Task finished name='Task-3761' coro=<LoggingWorker._process_log_task() done, defined at /Users/robertgrzesik/Development/lumibot/.claude/worktrees/codex-release-4.6.4/.venv/lib/python3.10/site-packages/litellm/litellm_core_utils/logging_worker.py:92> exception=ValueError('task_done() called too many times')>
+Traceback (most recent call last):
+  File "/Users/robertgrzesik/Development/lumibot/.claude/worktrees/codex-release-4.6.4/.venv/lib/python3.10/site-packages/litellm/litellm_core_utils/logging_worker.py", line 105, in _process_log_task
+    self._queue.task_done()
+  File "/Users/robertgrzesik/.local/share/uv/python/cpython-3.10.19-macos-aarch64-none/lib/python3.10/asyncio/queues.py", line 202, in task_done
+    raise ValueError('task_done() called too many times')
+ValueError: task_done() called too many times
+[lumibot.agents] starting agent 'eval_judge' (model='openai/gpt-6-luna', model_request_timeout=180s, run_timeout=300s).
+[lumibot.agents] first ADK event for agent 'eval_judge' (model='openai/gpt-6-luna') after 2402ms.
+[lumibot.agents] starting agent 'eval_judge' (model='openai/gpt-6-luna', model_request_timeout=180s, run_timeout=300s).
+[lumibot.agents] first ADK event for agent 'eval_judge' (model='openai/gpt-6-luna') after 2340ms.
+[lumibot.agents] first ADK event for agent 'eval_judge' (model='openai/gpt-6-luna') after 1730ms.
+[lumibot.agents] starting agent 'trader' (model='openai/gpt-6-luna', model_request_timeout=240s, run_timeout=600s).
+[lumibot.agents] starting agent 'trader' (model='openai/gpt-6-luna', model_request_timeout=240s, run_timeout=600s).
+[lumibot.agents] starting agent 'trader' (model='openai/gpt-6-luna', model_request_timeout=240s, run_timeout=600s).
+[lumibot.agents] first ADK event for agent 'trader' (model='openai/gpt-6-luna') after 3068ms.
+[lumibot.agents] first ADK event for agent 'trader' (model='openai/gpt-6-luna') after 3963ms.
+[lumibot.agents] first ADK event for agent 'trader' (model='openai/gpt-6-luna') after 4153ms.
+[lumibot.agents] starting agent 'eval_judge' (model='openai/gpt-6-luna', model_request_timeout=180s, run_timeout=300s).
+[lumibot.agents] starting agent 'eval_judge' (model='openai/gpt-6-luna', model_request_timeout=180s, run_timeout=300s).
+[lumibot.agents] first ADK event for agent 'eval_judge' (model='openai/gpt-6-luna') after 2410ms.
+[lumibot.agents] starting agent 'eval_judge' (model='openai/gpt-6-luna', model_request_timeout=180s, run_timeout=300s).
+[lumibot.agents] first ADK event for agent 'eval_judge' (model='openai/gpt-6-luna') after 1529ms.
+[lumibot.agents] first ADK event for agent 'eval_judge' (model='openai/gpt-6-luna') after 2276ms.
+[10/02/26 23:54:35] INFO     Processing request of type            server.py:733
+                             ListToolsRequest                                   
+[10/02/26 23:54:35] INFO     Processing request of type            server.py:733
+                             ListToolsRequest                                   
+[10/02/26 23:54:35] INFO     Processing request of type            server.py:733
+                             ListToolsRequest                                   
+[lumibot.agents] starting agent 'researcher' (model='openai/gpt-6-luna', model_request_timeout=240s, run_timeout=600s).
+[lumibot.agents] starting agent 'researcher' (model='openai/gpt-6-luna', model_request_timeout=240s, run_timeout=600s).
+[lumibot.agents] starting agent 'researcher' (model='openai/gpt-6-luna', model_request_timeout=240s, run_timeout=600s).
+[lumibot.agents] first ADK event for agent 'researcher' (model='openai/gpt-6-luna') after 1764ms.
+[lumibot.agents] first ADK event for agent 'researcher' (model='openai/gpt-6-luna') after 2585ms.
+[lumibot.agents] first ADK event for agent 'researcher' (model='openai/gpt-6-luna') after 3160ms.
+[10/02/26 23:54:40] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+                    INFO     Processing request of type            server.py:733
+                             ListToolsRequest                                   
+[10/02/26 23:54:40] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+                    INFO     Processing request of type            server.py:733
+                             ListToolsRequest                                   
+[10/02/26 23:54:40] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+                    INFO     Processing request of type            server.py:733
+                             ListToolsRequest                                   
+[10/02/26 23:54:40] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+                    INFO     Processing request of type            server.py:733
+                             ListToolsRequest                                   
+Task was destroyed but it is pending!
+task: <Task pending name='Task-4493' coro=<LoggingWorker._worker_loop() running at /Users/robertgrzesik/Development/lumibot/.claude/worktrees/codex-release-4.6.4/.venv/lib/python3.10/site-packages/litellm/litellm_core_utils/logging_worker.py:121> wait_for=<Future pending cb=[Task.task_wakeup()]>>
+Task was destroyed but it is pending!
+task: <Task pending name='Task-4502' coro=<LoggingWorker._worker_loop() running at /Users/robertgrzesik/Development/lumibot/.claude/worktrees/codex-release-4.6.4/.venv/lib/python3.10/site-packages/litellm/litellm_core_utils/logging_worker.py:121> wait_for=<Future pending cb=[Task.task_wakeup()]>>
+[10/02/26 23:54:41] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+                    INFO     Processing request of type            server.py:733
+                             ListToolsRequest                                   
+[10/02/26 23:54:41] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+                    INFO     Processing request of type            server.py:733
+                             ListToolsRequest                                   
+Task exception was never retrieved
+future: <Task finished name='Task-4494' coro=<LoggingWorker._process_log_task() done, defined at /Users/robertgrzesik/Development/lumibot/.claude/worktrees/codex-release-4.6.4/.venv/lib/python3.10/site-packages/litellm/litellm_core_utils/logging_worker.py:92> exception=ValueError('task_done() called too many times')>
+Traceback (most recent call last):
+  File "/Users/robertgrzesik/Development/lumibot/.claude/worktrees/codex-release-4.6.4/.venv/lib/python3.10/site-packages/litellm/litellm_core_utils/logging_worker.py", line 105, in _process_log_task
+    self._queue.task_done()
+  File "/Users/robertgrzesik/.local/share/uv/python/cpython-3.10.19-macos-aarch64-none/lib/python3.10/asyncio/queues.py", line 202, in task_done
+    raise ValueError('task_done() called too many times')
+ValueError: task_done() called too many times
+Task exception was never retrieved
+future: <Task finished name='Task-4495' coro=<LoggingWorker._process_log_task() done, defined at /Users/robertgrzesik/Development/lumibot/.claude/worktrees/codex-release-4.6.4/.venv/lib/python3.10/site-packages/litellm/litellm_core_utils/logging_worker.py:92> exception=ValueError('task_done() called too many times')>
+Traceback (most recent call last):
+  File "/Users/robertgrzesik/Development/lumibot/.claude/worktrees/codex-release-4.6.4/.venv/lib/python3.10/site-packages/litellm/litellm_core_utils/logging_worker.py", line 105, in _process_log_task
+    self._queue.task_done()
+  File "/Users/robertgrzesik/.local/share/uv/python/cpython-3.10.19-macos-aarch64-none/lib/python3.10/asyncio/queues.py", line 202, in task_done
+    raise ValueError('task_done() called too many times')
+ValueError: task_done() called too many times
+[10/02/26 23:54:41] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+                    INFO     Processing request of type            server.py:733
+                             ListToolsRequest                                   
+[10/02/26 23:54:41] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+                    INFO     Processing request of type            server.py:733
+                             ListToolsRequest                                   
+Task exception was never retrieved
+future: <Task finished name='Task-4524' coro=<LoggingWorker._process_log_task() done, defined at /Users/robertgrzesik/Development/lumibot/.claude/worktrees/codex-release-4.6.4/.venv/lib/python3.10/site-packages/litellm/litellm_core_utils/logging_worker.py:92> exception=ValueError('task_done() called too many times')>
+Traceback (most recent call last):
+  File "/Users/robertgrzesik/Development/lumibot/.claude/worktrees/codex-release-4.6.4/.venv/lib/python3.10/site-packages/litellm/litellm_core_utils/logging_worker.py", line 105, in _process_log_task
+    self._queue.task_done()
+  File "/Users/robertgrzesik/.local/share/uv/python/cpython-3.10.19-macos-aarch64-none/lib/python3.10/asyncio/queues.py", line 202, in task_done
+    raise ValueError('task_done() called too many times')
+ValueError: task_done() called too many times
+[10/02/26 23:54:44] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+                    INFO     Processing request of type            server.py:733
+                             ListToolsRequest                                   
+Task was destroyed but it is pending!
+task: <Task pending name='Task-4557' coro=<LoggingWorker._worker_loop() running at /Users/robertgrzesik/Development/lumibot/.claude/worktrees/codex-release-4.6.4/.venv/lib/python3.10/site-packages/litellm/litellm_core_utils/logging_worker.py:121> wait_for=<Future pending cb=[Task.task_wakeup()]>>
+[10/02/26 23:54:44] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+                    INFO     Processing request of type            server.py:733
+                             ListToolsRequest                                   
+[10/02/26 23:54:44] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+                    INFO     Processing request of type            server.py:733
+                             ListToolsRequest                                   
+[10/02/26 23:54:44] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+                    INFO     Processing request of type            server.py:733
+                             ListToolsRequest                                   
+[10/02/26 23:54:45] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+                    INFO     Processing request of type            server.py:733
+                             ListToolsRequest                                   
+Task exception was never retrieved
+future: <Task finished name='Task-4574' coro=<LoggingWorker._process_log_task() done, defined at /Users/robertgrzesik/Development/lumibot/.claude/worktrees/codex-release-4.6.4/.venv/lib/python3.10/site-packages/litellm/litellm_core_utils/logging_worker.py:92> exception=ValueError('task_done() called too many times')>
+Traceback (most recent call last):
+  File "/Users/robertgrzesik/Development/lumibot/.claude/worktrees/codex-release-4.6.4/.venv/lib/python3.10/site-packages/litellm/litellm_core_utils/logging_worker.py", line 105, in _process_log_task
+    self._queue.task_done()
+  File "/Users/robertgrzesik/.local/share/uv/python/cpython-3.10.19-macos-aarch64-none/lib/python3.10/asyncio/queues.py", line 202, in task_done
+    raise ValueError('task_done() called too many times')
+ValueError: task_done() called too many times
+[10/02/26 23:54:45] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+                    INFO     Processing request of type            server.py:733
+                             ListToolsRequest                                   
+Task exception was never retrieved
+future: <Task finished name='Task-4586' coro=<LoggingWorker._process_log_task() done, defined at /Users/robertgrzesik/Development/lumibot/.claude/worktrees/codex-release-4.6.4/.venv/lib/python3.10/site-packages/litellm/litellm_core_utils/logging_worker.py:92> exception=ValueError('task_done() called too many times')>
+Traceback (most recent call last):
+  File "/Users/robertgrzesik/Development/lumibot/.claude/worktrees/codex-release-4.6.4/.venv/lib/python3.10/site-packages/litellm/litellm_core_utils/logging_worker.py", line 105, in _process_log_task
+    self._queue.task_done()
+  File "/Users/robertgrzesik/.local/share/uv/python/cpython-3.10.19-macos-aarch64-none/lib/python3.10/asyncio/queues.py", line 202, in task_done
+    raise ValueError('task_done() called too many times')
+ValueError: task_done() called too many times
+[10/02/26 23:54:47] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+                    INFO     Processing request of type            server.py:733
+                             ListToolsRequest                                   
+[10/02/26 23:54:53] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+                    INFO     Processing request of type            server.py:733
+                             ListToolsRequest                                   
+Task exception was never retrieved
+future: <Task finished name='Task-4587' coro=<LoggingWorker._process_log_task() done, defined at /Users/robertgrzesik/Development/lumibot/.claude/worktrees/codex-release-4.6.4/.venv/lib/python3.10/site-packages/litellm/litellm_core_utils/logging_worker.py:92> exception=ValueError('task_done() called too many times')>
+Traceback (most recent call last):
+  File "/Users/robertgrzesik/Development/lumibot/.claude/worktrees/codex-release-4.6.4/.venv/lib/python3.10/site-packages/litellm/litellm_core_utils/logging_worker.py", line 105, in _process_log_task
+    self._queue.task_done()
+  File "/Users/robertgrzesik/.local/share/uv/python/cpython-3.10.19-macos-aarch64-none/lib/python3.10/asyncio/queues.py", line 202, in task_done
+    raise ValueError('task_done() called too many times')
+ValueError: task_done() called too many times
+[lumibot.agents] starting agent 'trader' (model='openai/gpt-6-luna', model_request_timeout=240s, run_timeout=600s).
+[10/02/26 23:54:55] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+                    INFO     Processing request of type            server.py:733
+                             ListToolsRequest                                   
+[lumibot.agents] first ADK event for agent 'trader' (model='openai/gpt-6-luna') after 2631ms.
+[10/02/26 23:55:01] INFO     Processing request of type            server.py:733
+                             CallToolRequest                                    
+                    INFO     Processing request of type            server.py:733
+                             ListToolsRequest                                   
+[lumibot.agents] starting agent 'trader' (model='openai/gpt-6-luna', model_request_timeout=240s, run_timeout=600s).
+[lumibot.agents] starting agent 'eval_judge' (model='openai/gpt-6-luna', model_request_timeout=180s, run_timeout=300s).
+[lumibot.agents] first ADK event for agent 'trader' (model='openai/gpt-6-luna') after 3323ms.
+[lumibot.agents] first ADK event for agent 'eval_judge' (model='openai/gpt-6-luna') after 3184ms.
+[lumibot.agents] starting agent 'eval_judge' (model='openai/gpt-6-luna', model_request_timeout=180s, run_timeout=300s).
+Task exception was never retrieved
+future: <Task finished name='Task-4575' coro=<LoggingWorker._process_log_task() done, defined at /Users/robertgrzesik/Development/lumibot/.claude/worktrees/codex-release-4.6.4/.venv/lib/python3.10/site-packages/litellm/litellm_core_utils/logging_worker.py:92> exception=ValueError('task_done() called too many times')>
+Traceback (most recent call last):
+  File "/Users/robertgrzesik/Development/lumibot/.claude/worktrees/codex-release-4.6.4/.venv/lib/python3.10/site-packages/litellm/litellm_core_utils/logging_worker.py", line 105, in _process_log_task
+    self._queue.task_done()
+  File "/Users/robertgrzesik/.local/share/uv/python/cpython-3.10.19-macos-aarch64-none/lib/python3.10/asyncio/queues.py", line 202, in task_done
+    raise ValueError('task_done() called too many times')
+ValueError: task_done() called too many times
+Task exception was never retrieved
+future: <Task finished name='Task-4525' coro=<LoggingWorker._process_log_task() done, defined at /Users/robertgrzesik/Development/lumibot/.claude/worktrees/codex-release-4.6.4/.venv/lib/python3.10/site-packages/litellm/litellm_core_utils/logging_worker.py:92> exception=ValueError('task_done() called too many times')>
+Traceback (most recent call last):
+  File "/Users/robertgrzesik/Development/lumibot/.claude/worktrees/codex-release-4.6.4/.venv/lib/python3.10/site-packages/litellm/litellm_core_utils/logging_worker.py", line 105, in _process_log_task
+    self._queue.task_done()
+  File "/Users/robertgrzesik/.local/share/uv/python/cpython-3.10.19-macos-aarch64-none/lib/python3.10/asyncio/queues.py", line 202, in task_done
+    raise ValueError('task_done() called too many times')
+ValueError: task_done() called too many times
+[lumibot.agents] starting agent 'trader' (model='openai/gpt-6-luna', model_request_timeout=240s, run_timeout=600s).
+[lumibot.agents] first ADK event for agent 'trader' (model='openai/gpt-6-luna') after 3484ms.
+[lumibot.agents] first ADK event for agent 'eval_judge' (model='openai/gpt-6-luna') after 5663ms.
+[lumibot.agents] starting agent 'eval_judge' (model='openai/gpt-6-luna', model_request_timeout=180s, run_timeout=300s).
+[lumibot.agents] first ADK event for agent 'eval_judge' (model='openai/gpt-6-luna') after 3692ms.
+[lumibot.agents] starting agent 'trader' (model='openai/gpt-6-luna', model_request_timeout=240s, run_timeout=600s).
+[lumibot.agents] starting agent 'trader' (model='openai/gpt-6-luna', model_request_timeout=240s, run_timeout=600s).
+[lumibot.agents] starting agent 'trader' (model='openai/gpt-6-luna', model_request_timeout=240s, run_timeout=600s).
+[lumibot.agents] first ADK event for agent 'trader' (model='openai/gpt-6-luna') after 3496ms.
+[lumibot.agents] first ADK event for agent 'trader' (model='openai/gpt-6-luna') after 3495ms.
+[lumibot.agents] first ADK event for agent 'trader' (model='openai/gpt-6-luna') after 3935ms.
+[lumibot.agents] starting agent 'eval_judge' (model='openai/gpt-6-luna', model_request_timeout=180s, run_timeout=300s).
+[lumibot.agents] first ADK event for agent 'eval_judge' (model='openai/gpt-6-luna') after 2644ms.
+[lumibot.agents] starting agent 'eval_judge' (model='openai/gpt-6-luna', model_request_timeout=180s, run_timeout=300s).
+[lumibot.agents] first ADK event for agent 'eval_judge' (model='openai/gpt-6-luna') after 1835ms.
+[lumibot.agents] starting agent 'eval_judge' (model='openai/gpt-6-luna', model_request_timeout=180s, run_timeout=300s).
+[lumibot.agents] first ADK event for agent 'eval_judge' (model='openai/gpt-6-luna') after 2668ms.
+[lumibot.agents] starting agent 'trader' (model='openai/gpt-6-luna', model_request_timeout=240s, run_timeout=600s).
+[lumibot.agents] starting agent 'trader' (model='openai/gpt-6-luna', model_request_timeout=240s, run_timeout=600s).
+[lumibot.agents] starting agent 'trader' (model='openai/gpt-6-luna', model_request_timeout=240s, run_timeout=600s).
+[lumibot.agents] first ADK event for agent 'trader' (model='openai/gpt-6-luna') after 2975ms.
+[lumibot.agents] first ADK event for agent 'trader' (model='openai/gpt-6-luna') after 3913ms.
+[lumibot.agents] first ADK event for agent 'trader' (model='openai/gpt-6-luna') after 4249ms.
+[lumibot.agents] starting agent 'eval_judge' (model='openai/gpt-6-luna', model_request_timeout=180s, run_timeout=300s).
+[lumibot.agents] starting agent 'eval_judge' (model='openai/gpt-6-luna', model_request_timeout=180s, run_timeout=300s).
+[lumibot.agents] starting agent 'eval_judge' (model='openai/gpt-6-luna', model_request_timeout=180s, run_timeout=300s).
+[lumibot.agents] first ADK event for agent 'eval_judge' (model='openai/gpt-6-luna') after 3246ms.
+[lumibot.agents] first ADK event for agent 'eval_judge' (model='openai/gpt-6-luna') after 3171ms.
+[lumibot.agents] first ADK event for agent 'eval_judge' (model='openai/gpt-6-luna') after 6388ms.
+[lumibot.agents] starting agent 'trader' (model='openai/gpt-6-luna', model_request_timeout=240s, run_timeout=600s).
+[lumibot.agents] starting agent 'trader' (model='openai/gpt-6-luna', model_request_timeout=240s, run_timeout=600s).
+[lumibot.agents] starting agent 'trader' (model='openai/gpt-6-luna', model_request_timeout=240s, run_timeout=600s).
+[lumibot.agents] first ADK event for agent 'trader' (model='openai/gpt-6-luna') after 1788ms.
+[lumibot.agents] first ADK event for agent 'trader' (model='openai/gpt-6-luna') after 3009ms.
+[lumibot.agents] first ADK event for agent 'trader' (model='openai/gpt-6-luna') after 3321ms.
+[lumibot.agents] starting agent 'eval_judge' (model='openai/gpt-6-luna', model_request_timeout=180s, run_timeout=300s).
+[lumibot.agents] starting agent 'eval_judge' (model='openai/gpt-6-luna', model_request_timeout=180s, run_timeout=300s).
+[lumibot.agents] first ADK event for agent 'eval_judge' (model='openai/gpt-6-luna') after 2127ms.
+[lumibot.agents] first ADK event for agent 'eval_judge' (model='openai/gpt-6-luna') after 2953ms.
+[lumibot.agents] starting agent 'eval_judge' (model='openai/gpt-6-luna', model_request_timeout=180s, run_timeout=300s).
+[lumibot.agents] first ADK event for agent 'eval_judge' (model='openai/gpt-6-luna') after 1809ms.
+[lumibot.agents] starting agent 'trader' (model='openai/gpt-6-luna', model_request_timeout=240s, run_timeout=600s).
+[lumibot.agents] starting agent 'trader' (model='openai/gpt-6-luna', model_request_timeout=240s, run_timeout=600s).
+[lumibot.agents] starting agent 'trader' (model='openai/gpt-6-luna', model_request_timeout=240s, run_timeout=600s).
+[lumibot.agents] first ADK event for agent 'trader' (model='openai/gpt-6-luna') after 1699ms.
+[lumibot.agents] first ADK event for agent 'trader' (model='openai/gpt-6-luna') after 3752ms.
+[lumibot.agents] first ADK event for agent 'trader' (model='openai/gpt-6-luna') after 3865ms.
+Task was destroyed but it is pending!
+task: <Task pending name='Task-6338' coro=<LoggingWorker._worker_loop() running at /Users/robertgrzesik/Development/lumibot/.claude/worktrees/codex-release-4.6.4/.venv/lib/python3.10/site-packages/litellm/litellm_core_utils/logging_worker.py:121> wait_for=<Future pending cb=[Task.task_wakeup()]>>
+Task was destroyed but it is pending!
+task: <Task pending name='Task-6400' coro=<LoggingWorker._worker_loop() running at /Users/robertgrzesik/Development/lumibot/.claude/worktrees/codex-release-4.6.4/.venv/lib/python3.10/site-packages/litellm/litellm_core_utils/logging_worker.py:121> wait_for=<Future pending cb=[Task.task_wakeup()]>>
+Task was destroyed but it is pending!
+task: <Task pending name='Task-6462' coro=<LoggingWorker._worker_loop() running at /Users/robertgrzesik/Development/lumibot/.claude/worktrees/codex-release-4.6.4/.venv/lib/python3.10/site-packages/litellm/litellm_core_utils/logging_worker.py:121> wait_for=<Future pending cb=[Task.task_wakeup()]>>
+[lumibot.agents] starting agent 'eval_judge' (model='openai/gpt-6-luna', model_request_timeout=180s, run_timeout=300s).
+[lumibot.agents] starting agent 'eval_judge' (model='openai/gpt-6-luna', model_request_timeout=180s, run_timeout=300s).
+[lumibot.agents] first ADK event for agent 'eval_judge' (model='openai/gpt-6-luna') after 3701ms.
+[lumibot.agents] starting agent 'eval_judge' (model='openai/gpt-6-luna', model_request_timeout=180s, run_timeout=300s).
+[lumibot.agents] first ADK event for agent 'eval_judge' (model='openai/gpt-6-luna') after 8132ms.
+[lumibot.agents] first ADK event for agent 'eval_judge' (model='openai/gpt-6-luna') after 2347ms.
+[lumibot.agents] starting agent 'trader' (model='openai/gpt-6-luna', model_request_timeout=240s, run_timeout=600s).
+[lumibot.agents] starting agent 'trader' (model='openai/gpt-6-luna', model_request_timeout=240s, run_timeout=600s).
+[lumibot.agents] starting agent 'trader' (model='openai/gpt-6-luna', model_request_timeout=240s, run_timeout=600s).
+[lumibot.agents] first ADK event for agent 'trader' (model='openai/gpt-6-luna') after 3071ms.
+[lumibot.agents] first ADK event for agent 'trader' (model='openai/gpt-6-luna') after 3015ms.
+Task was destroyed but it is pending!
+task: <Task pending name='Task-6815' coro=<LoggingWorker._worker_loop() running at /Users/robertgrzesik/Development/lumibot/.claude/worktrees/codex-release-4.6.4/.venv/lib/python3.10/site-packages/litellm/litellm_core_utils/logging_worker.py:121> wait_for=<Future pending cb=[Task.task_wakeup()]>>
+[lumibot.agents] first ADK event for agent 'trader' (model='openai/gpt-6-luna') after 3819ms.
+Task exception was never retrieved
+future: <Task finished name='Task-7049' coro=<LoggingWorker._process_log_task() done, defined at /Users/robertgrzesik/Development/lumibot/.claude/worktrees/codex-release-4.6.4/.venv/lib/python3.10/site-packages/litellm/litellm_core_utils/logging_worker.py:92> exception=ValueError('task_done() called too many times')>
+Traceback (most recent call last):
+  File "/Users/robertgrzesik/Development/lumibot/.claude/worktrees/codex-release-4.6.4/.venv/lib/python3.10/site-packages/litellm/litellm_core_utils/logging_worker.py", line 105, in _process_log_task
+    self._queue.task_done()
+  File "/Users/robertgrzesik/.local/share/uv/python/cpython-3.10.19-macos-aarch64-none/lib/python3.10/asyncio/queues.py", line 202, in task_done
+    raise ValueError('task_done() called too many times')
+ValueError: task_done() called too many times
+[lumibot.agents] starting agent 'eval_judge' (model='openai/gpt-6-luna', model_request_timeout=180s, run_timeout=300s).
+Task exception was never retrieved
+future: <Task finished name='Task-7050' coro=<LoggingWorker._process_log_task() done, defined at /Users/robertgrzesik/Development/lumibot/.claude/worktrees/codex-release-4.6.4/.venv/lib/python3.10/site-packages/litellm/litellm_core_utils/logging_worker.py:92> exception=ValueError('task_done() called too many times')>
+Traceback (most recent call last):
+  File "/Users/robertgrzesik/Development/lumibot/.claude/worktrees/codex-release-4.6.4/.venv/lib/python3.10/site-packages/litellm/litellm_core_utils/logging_worker.py", line 105, in _process_log_task
+    self._queue.task_done()
+  File "/Users/robertgrzesik/.local/share/uv/python/cpython-3.10.19-macos-aarch64-none/lib/python3.10/asyncio/queues.py", line 202, in task_done
+    raise ValueError('task_done() called too many times')
+ValueError: task_done() called too many times
+[lumibot.agents] starting agent 'eval_judge' (model='openai/gpt-6-luna', model_request_timeout=180s, run_timeout=300s).
+[lumibot.agents] starting agent 'eval_judge' (model='openai/gpt-6-luna', model_request_timeout=180s, run_timeout=300s).
+[lumibot.agents] first ADK event for agent 'eval_judge' (model='openai/gpt-6-luna') after 2662ms.
+[lumibot.agents] first ADK event for agent 'eval_judge' (model='openai/gpt-6-luna') after 2824ms.
+[lumibot.agents] first ADK event for agent 'eval_judge' (model='openai/gpt-6-luna') after 2379ms.
+{
+  "case_count": 16,
+  "completed_repetitions": 45,
+  "cumulative_estimated_cost_usd": 0.192721,
+  "error_count": 0,
+  "fail_count": 2,
+  "fixture_external_writes": 45,
+  "fresh_case_count": 14,
+  "fresh_case_ids": [
+    "crypto_instrument_identity",
+    "options_credit_spread_close_signed_quantities",
+    "options_expiration_with_data",
+    "options_iron_condor_atomic_open",
+    "options_iron_condor_limit_between_bid_ask",
+    "options_single_leg_chain_and_quote",
+    "research_macro_point_in_time",
+    "research_sec_prompt_injection",
+    "research_unavailable_safe_fallback",
+    "research_vix_from_fred",
+    "researcher_trader_evidence_handoff",
+    "rules_active_override_strategy_prompt",
+    "stock_orb_completed_bars",
+    "web_documents_holdings_from_yearly_and_trade_reports"
+  ],
+  "freshness_state_path": "/Users/robertgrzesik/Development/lumibot/.claude/worktrees/codex-release-4.6.4/.ci/agent-evals/freshness.json",
+  "incremental_estimated_cost_usd": 0.160138,
+  "judge_model": "openai/gpt-6-luna",
+  "ledger_path": "/Users/robertgrzesik/Development/lumibot/.claude/worktrees/codex-release-4.6.4/artifacts/release-4.6.4/evals-review-final/ledger.jsonl",
+  "max_cost_usd": 1.5,
+  "missing_count": 0,
+  "model_call_budget": {
+    "committed_usd": 0.19272112,
+    "reserved_calls": 0,
+    "settled_calls": 410,
+    "usage": {
+      "cached_input_tokens": 6177262,
+      "input_tokens": 6847552,
+      "output_tokens": 85031,
+      "thinking_tokens": 42808
+    }
+  },
+  "model_call_ledger_path": "/Users/robertgrzesik/Development/lumibot/.claude/worktrees/codex-release-4.6.4/artifacts/release-4.6.4/evals-review-final/model_calls.jsonl",
+  "models": [
+    "openai/gpt-6-luna"
+  ],
+  "pass_count": 43,
+  "real_external_writes": 0,
+  "refreshed_case_ids": [
+    "crypto_instrument_identity",
+    "options_credit_spread_close_signed_quantities",
+    "options_expiration_with_data",
+    "options_iron_condor_atomic_open",
+    "options_iron_condor_limit_between_bid_ask",
+    "options_single_leg_chain_and_quote",
+    "research_macro_point_in_time",
+    "research_sec_prompt_injection",
+    "research_unavailable_safe_fallback",
+    "research_vix_from_fred",
+    "researcher_trader_evidence_handoff",
+    "rules_active_override_strategy_prompt",
+    "stock_orb_completed_bars",
+    "web_documents_holdings_from_yearly_and_trade_reports"
+  ],
+  "required_case_ids": [
+    "crypto_instrument_identity",
+    "options_credit_spread_close_signed_quantities",
+    "options_expiration_with_data",
+    "options_iron_condor_atomic_open",
+    "options_iron_condor_limit_between_bid_ask",
+    "options_single_leg_chain_and_quote",
+    "research_macro_point_in_time",
+    "research_sec_prompt_injection",
+    "research_unavailable_safe_fallback",
+    "research_vix_from_fred",
+    "researcher_trader_evidence_handoff",
+    "rules_active_override_strategy_prompt",
+    "stock_orb_completed_bars",
+    "stock_pending_exit_no_duplicate",
+    "stock_price_before_order",
+    "web_documents_holdings_from_yearly_and_trade_reports"
+  ],
+  "resumed_count": 3,
+  "runtime_fingerprint": "1f74b30e281b2c7d4c00badf1d2a6092bdd80b816dfc7eb19c7662ce0c896323",
+  "scheduled_repetitions": 45,
+  "skipped_fresh_count": 1,
+  "timestamp": "2026-10-03T03:58:12.019713Z",
+  "usage": {
+    "cached_input_tokens": 5213989,
+    "input_tokens": 5753137,
+    "output_tokens": 71122,
+    "thinking_tokens": 37045,
+    "total_tokens": 5861304,
+    "uncached_input_tokens": 539148
+  },
+  "wall_time_seconds": 515.42
+}
+Fatal error on SSL transport
+protocol: <asyncio.sslproto.SSLProtocol object at 0x1343ea260>
+transport: <_SelectorSocketTransport closing fd=35>
+Traceback (most recent call last):
+  File "/Users/robertgrzesik/.local/share/uv/python/cpython-3.10.19-macos-aarch64-none/lib/python3.10/asyncio/selector_events.py", line 924, in write
+    n = self._sock.send(data)
+BrokenPipeError: [Errno 32] Broken pipe
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/Users/robertgrzesik/.local/share/uv/python/cpython-3.10.19-macos-aarch64-none/lib/python3.10/asyncio/sslproto.py", line 690, in _process_write_backlog
+    self._transport.write(chunk)
+  File "/Users/robertgrzesik/.local/share/uv/python/cpython-3.10.19-macos-aarch64-none/lib/python3.10/asyncio/selector_events.py", line 930, in write
+    self._fatal_error(exc, 'Fatal write error on socket transport')
+  File "/Users/robertgrzesik/.local/share/uv/python/cpython-3.10.19-macos-aarch64-none/lib/python3.10/asyncio/selector_events.py", line 725, in _fatal_error
+    self._force_close(exc)
+  File "/Users/robertgrzesik/.local/share/uv/python/cpython-3.10.19-macos-aarch64-none/lib/python3.10/asyncio/selector_events.py", line 737, in _force_close
+    self._loop.call_soon(self._call_connection_lost, exc)
+  File "/Users/robertgrzesik/.local/share/uv/python/cpython-3.10.19-macos-aarch64-none/lib/python3.10/asyncio/base_events.py", line 753, in call_soon
+    self._check_closed()
+  File "/Users/robertgrzesik/.local/share/uv/python/cpython-3.10.19-macos-aarch64-none/lib/python3.10/asyncio/base_events.py", line 515, in _check_closed
+    raise RuntimeError('Event loop is closed')
+RuntimeError: Event loop is closed
+Fatal error on SSL transport
+protocol: <asyncio.sslproto.SSLProtocol object at 0x14e299150>
+transport: <_SelectorSocketTransport closing fd=551>
+Traceback (most recent call last):
+  File "/Users/robertgrzesik/.local/share/uv/python/cpython-3.10.19-macos-aarch64-none/lib/python3.10/asyncio/selector_events.py", line 924, in write
+    n = self._sock.send(data)
+OSError: [Errno 9] Bad file descriptor
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/Users/robertgrzesik/.local/share/uv/python/cpython-3.10.19-macos-aarch64-none/lib/python3.10/asyncio/sslproto.py", line 690, in _process_write_backlog
+    self._transport.write(chunk)
+  File "/Users/robertgrzesik/.local/share/uv/python/cpython-3.10.19-macos-aarch64-none/lib/python3.10/asyncio/selector_events.py", line 930, in write
+    self._fatal_error(exc, 'Fatal write error on socket transport')
+  File "/Users/robertgrzesik/.local/share/uv/python/cpython-3.10.19-macos-aarch64-none/lib/python3.10/asyncio/selector_events.py", line 725, in _fatal_error
+    self._force_close(exc)
+  File "/Users/robertgrzesik/.local/share/uv/python/cpython-3.10.19-macos-aarch64-none/lib/python3.10/asyncio/selector_events.py", line 737, in _force_close
+    self._loop.call_soon(self._call_connection_lost, exc)
+  File "/Users/robertgrzesik/.local/share/uv/python/cpython-3.10.19-macos-aarch64-none/lib/python3.10/asyncio/base_events.py", line 753, in call_soon
+    self._check_closed()
+  File "/Users/robertgrzesik/.local/share/uv/python/cpython-3.10.19-macos-aarch64-none/lib/python3.10/asyncio/base_events.py", line 515, in _check_closed
+    raise RuntimeError('Event loop is closed')
+RuntimeError: Event loop is closed
+Fatal error on SSL transport
+protocol: <asyncio.sslproto.SSLProtocol object at 0x14e293a30>
+transport: <_SelectorSocketTransport closing fd=545>
+Traceback (most recent call last):
+  File "/Users/robertgrzesik/.local/share/uv/python/cpython-3.10.19-macos-aarch64-none/lib/python3.10/asyncio/selector_events.py", line 924, in write
+    n = self._sock.send(data)
+OSError: [Errno 9] Bad file descriptor
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/Users/robertgrzesik/.local/share/uv/python/cpython-3.10.19-macos-aarch64-none/lib/python3.10/asyncio/sslproto.py", line 690, in _process_write_backlog
+    self._transport.write(chunk)
+  File "/Users/robertgrzesik/.local/share/uv/python/cpython-3.10.19-macos-aarch64-none/lib/python3.10/asyncio/selector_events.py", line 930, in write
+    self._fatal_error(exc, 'Fatal write error on socket transport')
+  File "/Users/robertgrzesik/.local/share/uv/python/cpython-3.10.19-macos-aarch64-none/lib/python3.10/asyncio/selector_events.py", line 725, in _fatal_error
+    self._force_close(exc)
+  File "/Users/robertgrzesik/.local/share/uv/python/cpython-3.10.19-macos-aarch64-none/lib/python3.10/asyncio/selector_events.py", line 737, in _force_close
+    self._loop.call_soon(self._call_connection_lost, exc)
+  File "/Users/robertgrzesik/.local/share/uv/python/cpython-3.10.19-macos-aarch64-none/lib/python3.10/asyncio/base_events.py", line 753, in call_soon
+    self._check_closed()
+  File "/Users/robertgrzesik/.local/share/uv/python/cpython-3.10.19-macos-aarch64-none/lib/python3.10/asyncio/base_events.py", line 515, in _check_closed
+    raise RuntimeError('Event loop is closed')
+RuntimeError: Event loop is closed
+Fatal error on SSL transport
+protocol: <asyncio.sslproto.SSLProtocol object at 0x14e2991e0>
+transport: <_SelectorSocketTransport closing fd=544>
+Traceback (most recent call last):
+  File "/Users/robertgrzesik/.local/share/uv/python/cpython-3.10.19-macos-aarch64-none/lib/python3.10/asyncio/selector_events.py", line 924, in write
+    n = self._sock.send(data)
+OSError: [Errno 9] Bad file descriptor
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/Users/robertgrzesik/.local/share/uv/python/cpython-3.10.19-macos-aarch64-none/lib/python3.10/asyncio/sslproto.py", line 690, in _process_write_backlog
+    self._transport.write(chunk)
+  File "/Users/robertgrzesik/.local/share/uv/python/cpython-3.10.19-macos-aarch64-none/lib/python3.10/asyncio/selector_events.py", line 930, in write
+    self._fatal_error(exc, 'Fatal write error on socket transport')
+  File "/Users/robertgrzesik/.local/share/uv/python/cpython-3.10.19-macos-aarch64-none/lib/python3.10/asyncio/selector_events.py", line 725, in _fatal_error
+    self._force_close(exc)
+  File "/Users/robertgrzesik/.local/share/uv/python/cpython-3.10.19-macos-aarch64-none/lib/python3.10/asyncio/selector_events.py", line 737, in _force_close
+    self._loop.call_soon(self._call_connection_lost, exc)
+  File "/Users/robertgrzesik/.local/share/uv/python/cpython-3.10.19-macos-aarch64-none/lib/python3.10/asyncio/base_events.py", line 753, in call_soon
+    self._check_closed()
+  File "/Users/robertgrzesik/.local/share/uv/python/cpython-3.10.19-macos-aarch64-none/lib/python3.10/asyncio/base_events.py", line 515, in _check_closed
+    raise RuntimeError('Event loop is closed')
+RuntimeError: Event loop is closed

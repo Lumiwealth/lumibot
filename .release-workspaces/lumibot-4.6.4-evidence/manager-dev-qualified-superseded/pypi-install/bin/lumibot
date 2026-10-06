@@ -1,0 +1,6 @@
+#!/Users/robertgrzesik/Development/LumiBot/.claude/worktrees/codex-release-4.6.4/.venv/bin/python
+import sys
+from lumibot.cli import main
+if __name__ == '__main__':
+    sys.argv[0] = sys.argv[0].removesuffix('.exe')
+    sys.exit(main())

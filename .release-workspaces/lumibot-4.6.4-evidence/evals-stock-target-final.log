@@ -1,0 +1,156 @@
+2026-10-03 00:05:10,685 | INFO | LumiBot v4.6.4 starting
+[lumibot.agents] starting agent 'trader' (model='openai/gpt-6-luna', model_request_timeout=240s, run_timeout=600s).
+/Users/robertgrzesik/Development/lumibot/.claude/worktrees/codex-release-4.6.4/.venv/lib/python3.10/site-packages/google/adk/features/_feature_decorator.py:72: UserWarning: [EXPERIMENTAL] feature SKILL_TOOLSET is enabled.
+  check_feature_enabled()
+[lumibot.agents] starting agent 'trader' (model='openai/gpt-6-luna', model_request_timeout=240s, run_timeout=600s).
+/Users/robertgrzesik/Development/lumibot/.claude/worktrees/codex-release-4.6.4/.venv/lib/python3.10/site-packages/google/adk/tools/function_tool.py:95: UserWarning: [EXPERIMENTAL] feature JSON_SCHEMA_FOR_FUNC_DECL is enabled.
+  build_function_declaration(
+[lumibot.agents] first ADK event for agent 'trader' (model='openai/gpt-6-luna') after 4403ms.
+[lumibot.agents] first ADK event for agent 'trader' (model='openai/gpt-6-luna') after 5189ms.
+[lumibot.agents] starting agent 'eval_judge' (model='openai/gpt-6-luna', model_request_timeout=180s, run_timeout=300s).
+[lumibot.agents] starting agent 'eval_judge' (model='openai/gpt-6-luna', model_request_timeout=180s, run_timeout=300s).
+[lumibot.agents] first ADK event for agent 'eval_judge' (model='openai/gpt-6-luna') after 2410ms.
+[lumibot.agents] first ADK event for agent 'eval_judge' (model='openai/gpt-6-luna') after 1834ms.
+[lumibot.agents] starting agent 'trader' (model='openai/gpt-6-luna', model_request_timeout=240s, run_timeout=600s).
+[lumibot.agents] starting agent 'trader' (model='openai/gpt-6-luna', model_request_timeout=240s, run_timeout=600s).
+[lumibot.agents] first ADK event for agent 'trader' (model='openai/gpt-6-luna') after 2922ms.
+[lumibot.agents] first ADK event for agent 'trader' (model='openai/gpt-6-luna') after 3707ms.
+[lumibot.agents] starting agent 'eval_judge' (model='openai/gpt-6-luna', model_request_timeout=180s, run_timeout=300s).
+[lumibot.agents] starting agent 'eval_judge' (model='openai/gpt-6-luna', model_request_timeout=180s, run_timeout=300s).
+[lumibot.agents] first ADK event for agent 'eval_judge' (model='openai/gpt-6-luna') after 2373ms.
+[lumibot.agents] first ADK event for agent 'eval_judge' (model='openai/gpt-6-luna') after 2218ms.
+[lumibot.agents] starting agent 'trader' (model='openai/gpt-6-luna', model_request_timeout=240s, run_timeout=600s).
+[lumibot.agents] starting agent 'trader' (model='openai/gpt-6-luna', model_request_timeout=240s, run_timeout=600s).
+[lumibot.agents] first ADK event for agent 'trader' (model='openai/gpt-6-luna') after 2099ms.
+[lumibot.agents] first ADK event for agent 'trader' (model='openai/gpt-6-luna') after 2603ms.
+[lumibot.agents] starting agent 'eval_judge' (model='openai/gpt-6-luna', model_request_timeout=180s, run_timeout=300s).
+[lumibot.agents] first ADK event for agent 'eval_judge' (model='openai/gpt-6-luna') after 2754ms.
+[lumibot.agents] starting agent 'eval_judge' (model='openai/gpt-6-luna', model_request_timeout=180s, run_timeout=300s).
+[lumibot.agents] first ADK event for agent 'eval_judge' (model='openai/gpt-6-luna') after 2876ms.
+[lumibot.agents] starting agent 'trader' (model='openai/gpt-6-luna', model_request_timeout=240s, run_timeout=600s).
+[lumibot.agents] starting agent 'trader' (model='openai/gpt-6-luna', model_request_timeout=240s, run_timeout=600s).
+[lumibot.agents] first ADK event for agent 'trader' (model='openai/gpt-6-luna') after 2792ms.
+[lumibot.agents] first ADK event for agent 'trader' (model='openai/gpt-6-luna') after 3837ms.
+Task was destroyed but it is pending!
+task: <Task pending name='Task-782' coro=<LoggingWorker._worker_loop() running at /Users/robertgrzesik/Development/lumibot/.claude/worktrees/codex-release-4.6.4/.venv/lib/python3.10/site-packages/litellm/litellm_core_utils/logging_worker.py:121> wait_for=<Future pending cb=[Task.task_wakeup()]>>
+Task was destroyed but it is pending!
+task: <Task pending name='Task-844' coro=<LoggingWorker._worker_loop() running at /Users/robertgrzesik/Development/lumibot/.claude/worktrees/codex-release-4.6.4/.venv/lib/python3.10/site-packages/litellm/litellm_core_utils/logging_worker.py:121> wait_for=<Future pending cb=[Task.task_wakeup()]>>
+[lumibot.agents] starting agent 'eval_judge' (model='openai/gpt-6-luna', model_request_timeout=180s, run_timeout=300s).
+[lumibot.agents] starting agent 'eval_judge' (model='openai/gpt-6-luna', model_request_timeout=180s, run_timeout=300s).
+[lumibot.agents] first ADK event for agent 'eval_judge' (model='openai/gpt-6-luna') after 2334ms.
+[lumibot.agents] first ADK event for agent 'eval_judge' (model='openai/gpt-6-luna') after 3263ms.
+[lumibot.agents] starting agent 'trader' (model='openai/gpt-6-luna', model_request_timeout=240s, run_timeout=600s).
+[lumibot.agents] starting agent 'trader' (model='openai/gpt-6-luna', model_request_timeout=240s, run_timeout=600s).
+[lumibot.agents] first ADK event for agent 'trader' (model='openai/gpt-6-luna') after 2783ms.
+[lumibot.agents] first ADK event for agent 'trader' (model='openai/gpt-6-luna') after 2852ms.
+[lumibot.agents] starting agent 'eval_judge' (model='openai/gpt-6-luna', model_request_timeout=180s, run_timeout=300s).
+[lumibot.agents] first ADK event for agent 'eval_judge' (model='openai/gpt-6-luna') after 2407ms.
+[lumibot.agents] starting agent 'eval_judge' (model='openai/gpt-6-luna', model_request_timeout=180s, run_timeout=300s).
+[lumibot.agents] first ADK event for agent 'eval_judge' (model='openai/gpt-6-luna') after 2547ms.
+{"case_count": 2, "fresh_case_ids": [], "paid_calls": 0, "runtime_fingerprint": "b452612b51b347683c00be3f38d096be2fd86a8972ed1fd636b3e973b50ba857", "selected_case_count": 2}
+{
+  "case_count": 2,
+  "completed_repetitions": 10,
+  "cumulative_estimated_cost_usd": 0.068078,
+  "error_count": 0,
+  "fail_count": 0,
+  "fixture_external_writes": 10,
+  "fresh_case_count": 2,
+  "fresh_case_ids": [
+    "stock_pending_exit_no_duplicate",
+    "stock_price_before_order"
+  ],
+  "freshness_state_path": "/Users/robertgrzesik/Development/lumibot/.claude/worktrees/codex-release-4.6.4/.ci/agent-evals/freshness.json",
+  "incremental_estimated_cost_usd": 0.026892,
+  "judge_model": "openai/gpt-6-luna",
+  "ledger_path": "/Users/robertgrzesik/Development/lumibot/.claude/worktrees/codex-release-4.6.4/artifacts/release-4.6.4/evals-stock-final/ledger.jsonl",
+  "max_cost_usd": 0.5,
+  "missing_count": 0,
+  "model_call_budget": {
+    "committed_usd": 0.06807803,
+    "reserved_calls": 0,
+    "settled_calls": 156,
+    "usage": {
+      "cached_input_tokens": 2063083,
+      "input_tokens": 2311490,
+      "output_tokens": 28847,
+      "thinking_tokens": 16366
+    }
+  },
+  "model_call_ledger_path": "/Users/robertgrzesik/Development/lumibot/.claude/worktrees/codex-release-4.6.4/artifacts/release-4.6.4/evals-stock-final/model_calls.jsonl",
+  "models": [
+    "openai/gpt-6-luna"
+  ],
+  "pass_count": 10,
+  "real_external_writes": 0,
+  "refreshed_case_ids": [
+    "stock_pending_exit_no_duplicate",
+    "stock_price_before_order"
+  ],
+  "required_case_ids": [
+    "stock_pending_exit_no_duplicate",
+    "stock_price_before_order"
+  ],
+  "resumed_count": 0,
+  "runtime_fingerprint": "b452612b51b347683c00be3f38d096be2fd86a8972ed1fd636b3e973b50ba857",
+  "scheduled_repetitions": 10,
+  "skipped_fresh_count": 0,
+  "timestamp": "2026-10-03T04:07:24.618021Z",
+  "usage": {
+    "cached_input_tokens": 839405,
+    "input_tokens": 932856,
+    "output_tokens": 11755,
+    "thinking_tokens": 6551,
+    "total_tokens": 951162,
+    "uncached_input_tokens": 93451
+  },
+  "wall_time_seconds": 131.712
+}
+Fatal error on SSL transport
+protocol: <asyncio.sslproto.SSLProtocol object at 0x142001d50>
+transport: <_SelectorSocketTransport closing fd=105>
+Traceback (most recent call last):
+  File "/Users/robertgrzesik/.local/share/uv/python/cpython-3.10.19-macos-aarch64-none/lib/python3.10/asyncio/selector_events.py", line 924, in write
+    n = self._sock.send(data)
+OSError: [Errno 9] Bad file descriptor
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/Users/robertgrzesik/.local/share/uv/python/cpython-3.10.19-macos-aarch64-none/lib/python3.10/asyncio/sslproto.py", line 690, in _process_write_backlog
+    self._transport.write(chunk)
+  File "/Users/robertgrzesik/.local/share/uv/python/cpython-3.10.19-macos-aarch64-none/lib/python3.10/asyncio/selector_events.py", line 930, in write
+    self._fatal_error(exc, 'Fatal write error on socket transport')
+  File "/Users/robertgrzesik/.local/share/uv/python/cpython-3.10.19-macos-aarch64-none/lib/python3.10/asyncio/selector_events.py", line 725, in _fatal_error
+    self._force_close(exc)
+  File "/Users/robertgrzesik/.local/share/uv/python/cpython-3.10.19-macos-aarch64-none/lib/python3.10/asyncio/selector_events.py", line 737, in _force_close
+    self._loop.call_soon(self._call_connection_lost, exc)
+  File "/Users/robertgrzesik/.local/share/uv/python/cpython-3.10.19-macos-aarch64-none/lib/python3.10/asyncio/base_events.py", line 753, in call_soon
+    self._check_closed()
+  File "/Users/robertgrzesik/.local/share/uv/python/cpython-3.10.19-macos-aarch64-none/lib/python3.10/asyncio/base_events.py", line 515, in _check_closed
+    raise RuntimeError('Event loop is closed')
+RuntimeError: Event loop is closed
+Fatal error on SSL transport
+protocol: <asyncio.sslproto.SSLProtocol object at 0x142003220>
+transport: <_SelectorSocketTransport closing fd=116>
+Traceback (most recent call last):
+  File "/Users/robertgrzesik/.local/share/uv/python/cpython-3.10.19-macos-aarch64-none/lib/python3.10/asyncio/selector_events.py", line 924, in write
+    n = self._sock.send(data)
+OSError: [Errno 9] Bad file descriptor
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/Users/robertgrzesik/.local/share/uv/python/cpython-3.10.19-macos-aarch64-none/lib/python3.10/asyncio/sslproto.py", line 690, in _process_write_backlog
+    self._transport.write(chunk)
+  File "/Users/robertgrzesik/.local/share/uv/python/cpython-3.10.19-macos-aarch64-none/lib/python3.10/asyncio/selector_events.py", line 930, in write
+    self._fatal_error(exc, 'Fatal write error on socket transport')
+  File "/Users/robertgrzesik/.local/share/uv/python/cpython-3.10.19-macos-aarch64-none/lib/python3.10/asyncio/selector_events.py", line 725, in _fatal_error
+    self._force_close(exc)
+  File "/Users/robertgrzesik/.local/share/uv/python/cpython-3.10.19-macos-aarch64-none/lib/python3.10/asyncio/selector_events.py", line 737, in _force_close
+    self._loop.call_soon(self._call_connection_lost, exc)
+  File "/Users/robertgrzesik/.local/share/uv/python/cpython-3.10.19-macos-aarch64-none/lib/python3.10/asyncio/base_events.py", line 753, in call_soon
+    self._check_closed()
+  File "/Users/robertgrzesik/.local/share/uv/python/cpython-3.10.19-macos-aarch64-none/lib/python3.10/asyncio/base_events.py", line 515, in _check_closed
+    raise RuntimeError('Event loop is closed')
+RuntimeError: Event loop is closed

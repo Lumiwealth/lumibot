@@ -1,0 +1,236 @@
+{
+  "schemaVersion": 2,
+  "releaseId": "codex-release-lumibot-4.6.4-promotion",
+  "generatedAt": "2026-10-03T06:22:51.506Z",
+  "currentStage": "closeout",
+  "currentStatus": "passed",
+  "targets": {
+    "lockToUnlockMinutes": 60,
+    "devDeploymentToProductionReadbackMinutes": 30
+  },
+  "clocks": {
+    "totalObserved": {
+      "durationMs": 2938440
+    },
+    "inventoryToCandidate": {
+      "durationMs": null
+    },
+    "lockToUnlock": {
+      "durationMs": null,
+      "targetMs": 3600000,
+      "withinTarget": null
+    },
+    "devDeploymentToProductionReadback": {
+      "durationMs": 1704120,
+      "targetMs": 1800000,
+      "withinTarget": true
+    }
+  },
+  "totals": {
+    "events": 88,
+    "failedAttempts": 3,
+    "retryAttempts": 3,
+    "executedAttempts": 43,
+    "reusedAttempts": 1
+  },
+  "classificationDurationsMs": {
+    "active": 4467710,
+    "queue": 39000
+  },
+  "reasonDurationsMs": {
+    "unknown": 728,
+    "environment": 219931
+  },
+  "slowestStages": [
+    {
+      "stage": "dev-deployment",
+      "durationMs": 2103941
+    },
+    {
+      "stage": "production-deployment",
+      "durationMs": 1169666
+    },
+    {
+      "stage": "main-reconciliation",
+      "durationMs": 541809
+    },
+    {
+      "stage": "production-readback",
+      "durationMs": 482488
+    },
+    {
+      "stage": "production-readiness",
+      "durationMs": 152000
+    }
+  ],
+  "stages": {
+    "deterministic-tests": {
+      "attempts": 1,
+      "latestStatus": "passed",
+      "totalDurationMs": 42408,
+      "failedAttempts": 0,
+      "components": [
+        "full-local-unit"
+      ],
+      "artifacts": [
+        "tmp/release-4.6.4/pytest.log"
+      ]
+    },
+    "local-preflight": {
+      "attempts": 3,
+      "latestStatus": "passed",
+      "totalDurationMs": 7749,
+      "failedAttempts": 1,
+      "components": [
+        "static-package-and-terraform",
+        "lambda-package-build"
+      ],
+      "artifacts": [
+        "tmp/release-4.6.4/static-qualified.log",
+        "tmp/release-4.6.4/lambda-local-packages.json"
+      ]
+    },
+    "dev-readback": {
+      "attempts": 3,
+      "latestStatus": "passed",
+      "totalDurationMs": 2695,
+      "failedAttempts": 0,
+      "components": [
+        "served-manifest",
+        "final-served-manifest",
+        "served-endpoint-readback"
+      ],
+      "artifacts": [
+        "tmp/release-4.6.4/dev-served-manifest.json",
+        "tmp/release-4.6.4/dev-deploy.log"
+      ]
+    },
+    "production-readiness": {
+      "attempts": 7,
+      "latestStatus": "passed",
+      "totalDurationMs": 152000,
+      "failedAttempts": 0,
+      "components": [
+        "github-queue-37100549152",
+        "github-111139061379-readiness-terraform",
+        "github-111139061495-python-quality / python-quality",
+        "github-111139159318-readiness-unit-tests",
+        "github-111139401188-production-readiness",
+        "github-queue-37100573513",
+        "github-111139127003-promotion-route"
+      ],
+      "artifacts": [
+        "tmp/release-4.6.4/run-37100549152.json",
+        "tmp/release-4.6.4/run-37100573513.json"
+      ]
+    },
+    "dev-deployment": {
+      "attempts": 12,
+      "latestStatus": "passed",
+      "totalDurationMs": 2103941,
+      "failedAttempts": 0,
+      "components": [
+        "github-queue-37099985602",
+        "github-111137465079-python-quality / python-quality",
+        "github-111137551641-Build Release Artifacts / classify",
+        "github-111137613805-Build Release Artifacts / lambda-assets",
+        "github-111137613810-Build Release Artifacts / runtime-bundle",
+        "github-111137723367-Build Release Artifacts / manifest",
+        "github-111137831725-Deploy to Development",
+        "terraform-plan-safety",
+        "terraform-apply-observed",
+        "runtime-release-reconciliation",
+        "deployed-integration-tests",
+        "synthetic-live-placement-smoke"
+      ],
+      "artifacts": [
+        "tmp/release-4.6.4/run-37099985602.json",
+        "tmp/release-4.6.4/dev-deploy.log"
+      ]
+    },
+    "production-authorization": {
+      "attempts": 1,
+      "latestStatus": "passed",
+      "totalDurationMs": 143,
+      "failedAttempts": 0,
+      "components": [
+        "current-turn-release-authority"
+      ],
+      "artifacts": [
+        "tmp/release-4.6.4/prod-pr.md"
+      ]
+    },
+    "production-deployment": {
+      "attempts": 10,
+      "latestStatus": "passed",
+      "totalDurationMs": 1169666,
+      "failedAttempts": 0,
+      "components": [
+        "rollout",
+        "github-queue-37101252446",
+        "github-111141057406-Resolve Exact Development Manifest",
+        "github-111141057584-python-quality / python-quality",
+        "github-111141150412-Build Release Artifacts / classify",
+        "github-111141202850-Build Release Artifacts / manifest",
+        "github-111141744002-Deploy to Production",
+        "terraform-plan-safety",
+        "terraform-apply-observed",
+        "runtime-release-reconciliation"
+      ],
+      "artifacts": [
+        "tmp/release-4.6.4/candidate.json",
+        "tmp/release-4.6.4/run-37101252446.json",
+        "tmp/release-4.6.4/prod-deploy.log"
+      ]
+    },
+    "production-readback": {
+      "attempts": 5,
+      "latestStatus": "passed",
+      "totalDurationMs": 482488,
+      "failedAttempts": 2,
+      "components": [
+        "served-manifest",
+        "served-endpoint-readback",
+        "production-mcp-backtest"
+      ],
+      "artifacts": [
+        "tmp/release-4.6.4/prod-served-manifest.json",
+        "tmp/release-4.6.4/prod-deploy.log",
+        "tmp/release-4.6.4/production-smoke.json",
+        "tmp/release-4.6.4/production-workflow-readback.json",
+        "tmp/release-4.6.4/production-smoke-failed.json",
+        "tmp/release-4.6.4/post-promotion-live-sample.json"
+      ]
+    },
+    "main-reconciliation": {
+      "attempts": 1,
+      "latestStatus": "passed",
+      "totalDurationMs": 541809,
+      "failedAttempts": 0,
+      "components": [
+        "release-record"
+      ],
+      "artifacts": [
+        "docs/handoffs/2026-10-03_lumibot-4-6-4-fully-deployed.md",
+        "/Users/robertgrzesik/Development/LumiBot/.claude/worktrees/codex-release-4.6.4/artifacts/release-4.6.4/closeout-readback.json"
+      ]
+    },
+    "closeout": {
+      "attempts": 1,
+      "latestStatus": "passed",
+      "totalDurationMs": 3811,
+      "failedAttempts": 0,
+      "components": [
+        "evidence-archive"
+      ],
+      "artifacts": [
+        "/Users/robertgrzesik/Development/LumiBot/.claude/worktrees/codex-release-4.6.4/artifacts/release-4.6.4/closeout-readback.json",
+        "/Users/robertgrzesik/Development/LumiBot/.release-workspaces/lumibot-4.6.4-evidence/closeout-readback.json"
+      ]
+    }
+  },
+  "recommendations": [
+    "Largest recorded rework cause: environment.",
+    "Strengthen the bounded local environment preflight before the complete Playwright tests."
+  ]
+}

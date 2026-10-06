@@ -1,0 +1,62 @@
+Packaging Lambda function: email-notification
+Including for email-notification: ['lambda/email_notification_lambda.py']
+Copying file: 'lambda/email_notification_lambda.py' to 'email_notification_lambda.py'
+Finished packaging email-notification
+Packaging Lambda function: bot-manager-api
+Including for bot-manager-api: ['flask_app.py', 'BotManager.py', 'bot_manager', 'configs']
+Copying file: 'flask_app.py' to 'flask_app.py'
+Copying file: 'BotManager.py' to 'BotManager.py'
+Copying directory: 'bot_manager'
+Copying directory: 'configs'
+Finished packaging bot-manager-api
+Packaging Lambda function: broker-token-authority
+Including for broker-token-authority: ['lambda/broker_token_authority.py', 'bot_manager']
+Copying file: 'lambda/broker_token_authority.py' to 'broker_token_authority.py'
+Copying directory: 'bot_manager'
+Finished packaging broker-token-authority
+Packaging Lambda function: scheduled-custom-launcher
+Including for scheduled-custom-launcher: ['lambda/scheduled_custom_launcher.py', 'bot_manager']
+Copying file: 'lambda/scheduled_custom_launcher.py' to 'scheduled_custom_launcher.py'
+Copying directory: 'bot_manager'
+Finished packaging scheduled-custom-launcher
+Packaging Lambda function: scheduled-run-task-state-recorder
+Including for scheduled-run-task-state-recorder: ['lambda/scheduled_run_task_state_recorder.py', 'bot_manager']
+Copying file: 'lambda/scheduled_run_task_state_recorder.py' to 'scheduled_run_task_state_recorder.py'
+Copying directory: 'bot_manager'
+Finished packaging scheduled-run-task-state-recorder
+Packaging Lambda function: unprotect-idle-backtest-instances
+Including for unprotect-idle-backtest-instances: ['lambda/unprotect_idle_backtest_instances.py']
+Copying file: 'lambda/unprotect_idle_backtest_instances.py' to 'unprotect_idle_backtest_instances.py'
+Finished packaging unprotect-idle-backtest-instances
+Packaging Lambda function: cleanup-scheduled-secrets
+Including for cleanup-scheduled-secrets: ['lambda/cleanup_scheduled_secrets.py', 'BotManager.py', 'bot_manager']
+Copying file: 'lambda/cleanup_scheduled_secrets.py' to 'cleanup_scheduled_secrets.py'
+Copying file: 'BotManager.py' to 'BotManager.py'
+Copying directory: 'bot_manager'
+Finished packaging cleanup-scheduled-secrets
+Packaging Lambda function: reconcile-idle-live-capacity
+Including for reconcile-idle-live-capacity: ['lambda/reconcile_idle_live_capacity.py']
+Copying file: 'lambda/reconcile_idle_live_capacity.py' to 'reconcile_idle_live_capacity.py'
+Finished packaging reconcile-idle-live-capacity
+Packaging Lambda function: cleanup-cost-leaks
+Including for cleanup-cost-leaks: ['lambda/cleanup_cost_leaks.py']
+Copying file: 'lambda/cleanup_cost_leaks.py' to 'cleanup_cost_leaks.py'
+Finished packaging cleanup-cost-leaks
+Packaging Lambda function: scheduled-test-backtest
+Including for scheduled-test-backtest: ['lambda/scheduled_test_backtest.py']
+Copying file: 'lambda/scheduled_test_backtest.py' to 'scheduled_test_backtest.py'
+Finished packaging scheduled-test-backtest
+Packaging Lambda function: scheduled-test-custom
+Including for scheduled-test-custom: ['lambda/scheduled_test_backtest.py']
+Copying file: 'lambda/scheduled_test_backtest.py' to 'scheduled_test_backtest.py'
+Finished packaging scheduled-test-custom
+Packaging Lambda function: kill-stale-backtests
+Including for kill-stale-backtests: ['lambda/kill_stale_backtests.py']
+Copying file: 'lambda/kill_stale_backtests.py' to 'kill_stale_backtests.py'
+Finished packaging kill-stale-backtests
+Packaging Lambda function: data-cache
+Including for data-cache: ['lambda/data_cache_lambda.py']
+Copying file: 'lambda/data_cache_lambda.py' to 'data_cache_lambda.py'
+Finished packaging data-cache
+{"packages": 13, "uploads": 0, "artifact": "/Users/robertgrzesik/Development/bot_manager/.claude/worktrees/codex-release-lumibot-4.6.4-promotion/tmp/release-4.6.4/lambda-local-packages.json"}
+{"schemaVersion":2,"sequence":11,"kind":"stage","releaseId":"codex-release-lumibot-4.6.4-promotion","at":"2026-10-03T05:38:59.072Z","stage":"local-preflight","status":"passed","component":"lambda-package-build","attempt":2,"classification":"active","durationMs":450,"reasonCode":null,"artifacts":["tmp/release-4.6.4/lambda-local-packages.json"],"runUrl":null,"inputFingerprint":"deec5696b41f12f332d337561080e0748930da5e","command":["env","PYTHONPATH=.",".venv/bin/python","tmp/release-4.6.4/package_lambdas_locally.py"],"playwright":null,"note":"Retry corrects an evidence wrapper module path; package source unchanged.","evidenceDisposition":"executed","reusedFromAt":null,"reusedFromFingerprint":null}

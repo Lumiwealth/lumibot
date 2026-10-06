@@ -1,0 +1,292 @@
+{
+  "conclusion": "success",
+  "createdAt": "2026-10-03T04:51:24Z",
+  "headSha": "34b74e7c7f97bb565bffb4260520988bc520f74d",
+  "jobs": [
+    {
+      "completedAt": "2026-10-03T04:52:00Z",
+      "conclusion": "success",
+      "databaseId": 111131539583,
+      "name": "python-quality / python-quality",
+      "startedAt": "2026-10-03T04:51:35Z",
+      "status": "completed",
+      "steps": [
+        {
+          "completedAt": "2026-10-03T04:51:40Z",
+          "conclusion": "success",
+          "name": "Set up job",
+          "number": 1,
+          "startedAt": "2026-10-03T04:51:37Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-03T04:51:41Z",
+          "conclusion": "success",
+          "name": "Set up runner",
+          "number": 2,
+          "startedAt": "2026-10-03T04:51:40Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-03T04:51:43Z",
+          "conclusion": "success",
+          "name": "Checkout exact candidate",
+          "number": 3,
+          "startedAt": "2026-10-03T04:51:41Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-03T04:51:52Z",
+          "conclusion": "success",
+          "name": "Setup Python 3.13",
+          "number": 4,
+          "startedAt": "2026-10-03T04:51:43Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-03T04:51:53Z",
+          "conclusion": "success",
+          "name": "Setup uv",
+          "number": 5,
+          "startedAt": "2026-10-03T04:51:52Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-03T04:51:55Z",
+          "conclusion": "success",
+          "name": "Sync locked dependencies",
+          "number": 6,
+          "startedAt": "2026-10-03T04:51:53Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-03T04:51:55Z",
+          "conclusion": "success",
+          "name": "Verify runtime requirements export",
+          "number": 7,
+          "startedAt": "2026-10-03T04:51:55Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-03T04:51:55Z",
+          "conclusion": "success",
+          "name": "Audit locked dependencies",
+          "number": 8,
+          "startedAt": "2026-10-03T04:51:55Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-03T04:51:55Z",
+          "conclusion": "success",
+          "name": "Lint Python",
+          "number": 9,
+          "startedAt": "2026-10-03T04:51:55Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-03T04:51:55Z",
+          "conclusion": "success",
+          "name": "Check Python formatting",
+          "number": 10,
+          "startedAt": "2026-10-03T04:51:55Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-03T04:51:56Z",
+          "conclusion": "success",
+          "name": "Type-check qualified gateway package",
+          "number": 11,
+          "startedAt": "2026-10-03T04:51:55Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-03T04:51:56Z",
+          "conclusion": "success",
+          "name": "Post Setup uv",
+          "number": 19,
+          "startedAt": "2026-10-03T04:51:56Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-03T04:51:56Z",
+          "conclusion": "success",
+          "name": "Post Setup Python 3.13",
+          "number": 20,
+          "startedAt": "2026-10-03T04:51:56Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-03T04:51:56Z",
+          "conclusion": "success",
+          "name": "Post Checkout exact candidate",
+          "number": 21,
+          "startedAt": "2026-10-03T04:51:56Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-03T04:51:57Z",
+          "conclusion": "success",
+          "name": "Complete runner",
+          "number": 22,
+          "startedAt": "2026-10-03T04:51:56Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-03T04:51:57Z",
+          "conclusion": "success",
+          "name": "Complete job",
+          "number": 23,
+          "startedAt": "2026-10-03T04:51:57Z",
+          "status": "completed"
+        }
+      ],
+      "url": "https://github.com/Lumiwealth/bot_manager/actions/runs/37097919050/job/111131539583"
+    },
+    {
+      "completedAt": "2026-10-03T04:53:29Z",
+      "conclusion": "success",
+      "databaseId": 111131636008,
+      "name": "Unit tests",
+      "startedAt": "2026-10-03T04:52:11Z",
+      "status": "completed",
+      "steps": [
+        {
+          "completedAt": "2026-10-03T04:52:15Z",
+          "conclusion": "success",
+          "name": "Set up job",
+          "number": 1,
+          "startedAt": "2026-10-03T04:52:11Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-03T04:52:15Z",
+          "conclusion": "success",
+          "name": "Set up runner",
+          "number": 2,
+          "startedAt": "2026-10-03T04:52:15Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-03T04:52:17Z",
+          "conclusion": "success",
+          "name": "Checkout code",
+          "number": 3,
+          "startedAt": "2026-10-03T04:52:15Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-03T04:52:26Z",
+          "conclusion": "success",
+          "name": "Setup Python 3.13",
+          "number": 4,
+          "startedAt": "2026-10-03T04:52:17Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-03T04:52:27Z",
+          "conclusion": "success",
+          "name": "Install UV",
+          "number": 5,
+          "startedAt": "2026-10-03T04:52:26Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-03T04:52:29Z",
+          "conclusion": "success",
+          "name": "Install dependencies",
+          "number": 6,
+          "startedAt": "2026-10-03T04:52:27Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-03T04:53:26Z",
+          "conclusion": "success",
+          "name": "Run unit tests",
+          "number": 7,
+          "startedAt": "2026-10-03T04:52:29Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-03T04:53:26Z",
+          "conclusion": "success",
+          "name": "Post Install UV",
+          "number": 11,
+          "startedAt": "2026-10-03T04:53:26Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-03T04:53:26Z",
+          "conclusion": "success",
+          "name": "Post Setup Python 3.13",
+          "number": 12,
+          "startedAt": "2026-10-03T04:53:26Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-03T04:53:27Z",
+          "conclusion": "success",
+          "name": "Post Checkout code",
+          "number": 13,
+          "startedAt": "2026-10-03T04:53:26Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-03T04:53:27Z",
+          "conclusion": "success",
+          "name": "Complete runner",
+          "number": 14,
+          "startedAt": "2026-10-03T04:53:27Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-03T04:53:27Z",
+          "conclusion": "success",
+          "name": "Complete job",
+          "number": 15,
+          "startedAt": "2026-10-03T04:53:27Z",
+          "status": "completed"
+        }
+      ],
+      "url": "https://github.com/Lumiwealth/bot_manager/actions/runs/37097919050/job/111131636008"
+    },
+    {
+      "completedAt": "2026-10-03T04:53:35Z",
+      "conclusion": "success",
+      "databaseId": 111131866970,
+      "name": "pr-tests",
+      "startedAt": "2026-10-03T04:53:32Z",
+      "status": "completed",
+      "steps": [
+        {
+          "completedAt": "2026-10-03T04:53:34Z",
+          "conclusion": "success",
+          "name": "Set up job",
+          "number": 1,
+          "startedAt": "2026-10-03T04:53:34Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-03T04:53:34Z",
+          "conclusion": "success",
+          "name": "Publish qualification result",
+          "number": 2,
+          "startedAt": "2026-10-03T04:53:34Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-03T04:53:34Z",
+          "conclusion": "success",
+          "name": "Complete job",
+          "number": 3,
+          "startedAt": "2026-10-03T04:53:34Z",
+          "status": "completed"
+        }
+      ],
+      "url": "https://github.com/Lumiwealth/bot_manager/actions/runs/37097919050/job/111131866970"
+    }
+  ],
+  "startedAt": "2026-10-03T04:51:24Z",
+  "status": "completed",
+  "updatedAt": "2026-10-03T04:53:36Z",
+  "url": "https://github.com/Lumiwealth/bot_manager/actions/runs/37097919050"
+}

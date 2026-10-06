@@ -1,0 +1,146 @@
+FFFFFFFF....FFFF                                                         [100%]
+=================================== FAILURES ===================================
+_ test_fresh_side_without_source_time_does_not_inherit_old_timestamp[False-bid-pandas] _
+tests/test_backtest_quote_source_times.py:104: in test_fresh_side_without_source_time_does_not_inherit_old_timestamp
+    assert getattr(quote, f"{side}_time") is None
+E   AssertionError: assert Timestamp('2024-05-01 09:29:40-0400', tz='America/New_York') is None
+E    +  where Timestamp('2024-05-01 09:29:40-0400', tz='America/New_York') = getattr(Quote(asset=SPY, price=100.0, bid=100.5, ask=100.5, volume=100, timestamp=2024-05-01 09:31:00-04:00), 'bid_time')
+----------------------------- Captured stdout call -----------------------------
+2026-10-02 23:43:00,436 | WARNING | pandas_data.py:_get_new_pandas_data_key:71 | No quote specified for SPY. Using USD as the quote.
+2026-10-02 23:43:00,444 | WARNING | data.py:get_quote:1194 | Data object SPY is missing quote columns ['bid_size', 'ask_size', 'bid_condition', 'ask_condition', 'bid_exchange', 'ask_exchange']; returning None for those values.
+------------------------------ Captured log call -------------------------------
+WARNING  lumibot.data_sources.pandas_data:pandas_data.py:71 No quote specified for SPY. Using USD as the quote.
+WARNING  lumibot.entities.data:data.py:1194 Data object SPY is missing quote columns ['bid_size', 'ask_size', 'bid_condition', 'ask_condition', 'bid_exchange', 'ask_exchange']; returning None for those values.
+_ test_fresh_side_without_source_time_does_not_inherit_old_timestamp[False-bid-polars] _
+tests/test_backtest_quote_source_times.py:104: in test_fresh_side_without_source_time_does_not_inherit_old_timestamp
+    assert getattr(quote, f"{side}_time") is None
+E   AssertionError: assert Timestamp('2024-05-01 09:29:40-0400', tz='America/New_York') is None
+E    +  where Timestamp('2024-05-01 09:29:40-0400', tz='America/New_York') = getattr(Quote(asset=SPY, price=100.0, bid=100.5, ask=100.5, volume=100, timestamp=2024-05-01 09:31:00-04:00), 'bid_time')
+----------------------------- Captured stdout call -----------------------------
+2026-10-02 23:43:00,587 | WARNING | polars_data.py:_get_new_pandas_data_key:348 | No quote specified for SPY. Using USD as the quote.
+2026-10-02 23:43:00,594 | WARNING | data_polars.py:get_quote:530 | DataPolars object SPY is missing quote columns ['bid_size', 'ask_size', 'bid_condition', 'ask_condition', 'bid_exchange', 'ask_exchange']; returning None for those values.
+------------------------------ Captured log call -------------------------------
+WARNING  lumibot.data_sources.polars_data:polars_data.py:348 No quote specified for SPY. Using USD as the quote.
+WARNING  lumibot.entities.data_polars:data_polars.py:530 DataPolars object SPY is missing quote columns ['bid_size', 'ask_size', 'bid_condition', 'ask_condition', 'bid_exchange', 'ask_exchange']; returning None for those values.
+_ test_fresh_side_without_source_time_does_not_inherit_old_timestamp[False-ask-pandas] _
+tests/test_backtest_quote_source_times.py:104: in test_fresh_side_without_source_time_does_not_inherit_old_timestamp
+    assert getattr(quote, f"{side}_time") is None
+E   AssertionError: assert Timestamp('2024-05-01 09:29:50-0400', tz='America/New_York') is None
+E    +  where Timestamp('2024-05-01 09:29:50-0400', tz='America/New_York') = getattr(Quote(asset=SPY, price=100.0, bid=99.5, ask=101.5, volume=100, timestamp=2024-05-01 09:31:00-04:00), 'ask_time')
+----------------------------- Captured stdout call -----------------------------
+2026-10-02 23:43:00,617 | WARNING | pandas_data.py:_get_new_pandas_data_key:71 | No quote specified for SPY. Using USD as the quote.
+2026-10-02 23:43:00,621 | WARNING | data.py:get_quote:1194 | Data object SPY is missing quote columns ['bid_size', 'ask_size', 'bid_condition', 'ask_condition', 'bid_exchange', 'ask_exchange']; returning None for those values.
+------------------------------ Captured log call -------------------------------
+WARNING  lumibot.data_sources.pandas_data:pandas_data.py:71 No quote specified for SPY. Using USD as the quote.
+WARNING  lumibot.entities.data:data.py:1194 Data object SPY is missing quote columns ['bid_size', 'ask_size', 'bid_condition', 'ask_condition', 'bid_exchange', 'ask_exchange']; returning None for those values.
+_ test_fresh_side_without_source_time_does_not_inherit_old_timestamp[False-ask-polars] _
+tests/test_backtest_quote_source_times.py:104: in test_fresh_side_without_source_time_does_not_inherit_old_timestamp
+    assert getattr(quote, f"{side}_time") is None
+E   AssertionError: assert Timestamp('2024-05-01 09:29:50-0400', tz='America/New_York') is None
+E    +  where Timestamp('2024-05-01 09:29:50-0400', tz='America/New_York') = getattr(Quote(asset=SPY, price=100.0, bid=99.5, ask=101.5, volume=100, timestamp=2024-05-01 09:31:00-04:00), 'ask_time')
+----------------------------- Captured stdout call -----------------------------
+2026-10-02 23:43:00,642 | WARNING | polars_data.py:_get_new_pandas_data_key:348 | No quote specified for SPY. Using USD as the quote.
+2026-10-02 23:43:00,646 | WARNING | data_polars.py:get_quote:530 | DataPolars object SPY is missing quote columns ['bid_size', 'ask_size', 'bid_condition', 'ask_condition', 'bid_exchange', 'ask_exchange']; returning None for those values.
+------------------------------ Captured log call -------------------------------
+WARNING  lumibot.data_sources.polars_data:polars_data.py:348 No quote specified for SPY. Using USD as the quote.
+WARNING  lumibot.entities.data_polars:data_polars.py:530 DataPolars object SPY is missing quote columns ['bid_size', 'ask_size', 'bid_condition', 'ask_condition', 'bid_exchange', 'ask_exchange']; returning None for those values.
+_ test_fresh_side_without_source_time_does_not_inherit_old_timestamp[True-bid-pandas] _
+tests/test_backtest_quote_source_times.py:104: in test_fresh_side_without_source_time_does_not_inherit_old_timestamp
+    assert getattr(quote, f"{side}_time") is None
+E   AssertionError: assert Timestamp('2024-05-01 09:29:40-0400', tz='America/New_York') is None
+E    +  where Timestamp('2024-05-01 09:29:40-0400', tz='America/New_York') = getattr(Quote(asset=SPY, price=100.0, bid=100.5, ask=100.5, volume=100, timestamp=2024-05-01 09:32:00-04:00), 'bid_time')
+----------------------------- Captured stdout call -----------------------------
+2026-10-02 23:43:00,667 | WARNING | pandas_data.py:_get_new_pandas_data_key:71 | No quote specified for SPY. Using USD as the quote.
+2026-10-02 23:43:00,671 | WARNING | data.py:get_quote:1194 | Data object SPY is missing quote columns ['bid_size', 'ask_size', 'bid_condition', 'ask_condition', 'bid_exchange', 'ask_exchange']; returning None for those values.
+------------------------------ Captured log call -------------------------------
+WARNING  lumibot.data_sources.pandas_data:pandas_data.py:71 No quote specified for SPY. Using USD as the quote.
+WARNING  lumibot.entities.data:data.py:1194 Data object SPY is missing quote columns ['bid_size', 'ask_size', 'bid_condition', 'ask_condition', 'bid_exchange', 'ask_exchange']; returning None for those values.
+_ test_fresh_side_without_source_time_does_not_inherit_old_timestamp[True-bid-polars] _
+tests/test_backtest_quote_source_times.py:104: in test_fresh_side_without_source_time_does_not_inherit_old_timestamp
+    assert getattr(quote, f"{side}_time") is None
+E   AssertionError: assert Timestamp('2024-05-01 09:29:40-0400', tz='America/New_York') is None
+E    +  where Timestamp('2024-05-01 09:29:40-0400', tz='America/New_York') = getattr(Quote(asset=SPY, price=100.0, bid=100.5, ask=100.5, volume=100, timestamp=2024-05-01 09:32:00-04:00), 'bid_time')
+----------------------------- Captured stdout call -----------------------------
+2026-10-02 23:43:00,691 | WARNING | polars_data.py:_get_new_pandas_data_key:348 | No quote specified for SPY. Using USD as the quote.
+2026-10-02 23:43:00,696 | WARNING | data_polars.py:get_quote:530 | DataPolars object SPY is missing quote columns ['bid_size', 'ask_size', 'bid_condition', 'ask_condition', 'bid_exchange', 'ask_exchange']; returning None for those values.
+------------------------------ Captured log call -------------------------------
+WARNING  lumibot.data_sources.polars_data:polars_data.py:348 No quote specified for SPY. Using USD as the quote.
+WARNING  lumibot.entities.data_polars:data_polars.py:530 DataPolars object SPY is missing quote columns ['bid_size', 'ask_size', 'bid_condition', 'ask_condition', 'bid_exchange', 'ask_exchange']; returning None for those values.
+_ test_fresh_side_without_source_time_does_not_inherit_old_timestamp[True-ask-pandas] _
+tests/test_backtest_quote_source_times.py:104: in test_fresh_side_without_source_time_does_not_inherit_old_timestamp
+    assert getattr(quote, f"{side}_time") is None
+E   AssertionError: assert Timestamp('2024-05-01 09:29:50-0400', tz='America/New_York') is None
+E    +  where Timestamp('2024-05-01 09:29:50-0400', tz='America/New_York') = getattr(Quote(asset=SPY, price=100.0, bid=99.5, ask=101.5, volume=100, timestamp=2024-05-01 09:32:00-04:00), 'ask_time')
+----------------------------- Captured stdout call -----------------------------
+2026-10-02 23:43:00,716 | WARNING | pandas_data.py:_get_new_pandas_data_key:71 | No quote specified for SPY. Using USD as the quote.
+2026-10-02 23:43:00,720 | WARNING | data.py:get_quote:1194 | Data object SPY is missing quote columns ['bid_size', 'ask_size', 'bid_condition', 'ask_condition', 'bid_exchange', 'ask_exchange']; returning None for those values.
+------------------------------ Captured log call -------------------------------
+WARNING  lumibot.data_sources.pandas_data:pandas_data.py:71 No quote specified for SPY. Using USD as the quote.
+WARNING  lumibot.entities.data:data.py:1194 Data object SPY is missing quote columns ['bid_size', 'ask_size', 'bid_condition', 'ask_condition', 'bid_exchange', 'ask_exchange']; returning None for those values.
+_ test_fresh_side_without_source_time_does_not_inherit_old_timestamp[True-ask-polars] _
+tests/test_backtest_quote_source_times.py:104: in test_fresh_side_without_source_time_does_not_inherit_old_timestamp
+    assert getattr(quote, f"{side}_time") is None
+E   AssertionError: assert Timestamp('2024-05-01 09:29:50-0400', tz='America/New_York') is None
+E    +  where Timestamp('2024-05-01 09:29:50-0400', tz='America/New_York') = getattr(Quote(asset=SPY, price=100.0, bid=99.5, ask=101.5, volume=100, timestamp=2024-05-01 09:32:00-04:00), 'ask_time')
+----------------------------- Captured stdout call -----------------------------
+2026-10-02 23:43:00,741 | WARNING | polars_data.py:_get_new_pandas_data_key:348 | No quote specified for SPY. Using USD as the quote.
+2026-10-02 23:43:00,745 | WARNING | data_polars.py:get_quote:530 | DataPolars object SPY is missing quote columns ['bid_size', 'ask_size', 'bid_condition', 'ask_condition', 'bid_exchange', 'ask_exchange']; returning None for those values.
+------------------------------ Captured log call -------------------------------
+WARNING  lumibot.data_sources.polars_data:polars_data.py:348 No quote specified for SPY. Using USD as the quote.
+WARNING  lumibot.entities.data_polars:data_polars.py:530 DataPolars object SPY is missing quote columns ['bid_size', 'ask_size', 'bid_condition', 'ask_condition', 'bid_exchange', 'ask_exchange']; returning None for those values.
+_________ test_sparse_hourly_history_ignores_overnight_spacing[pandas] _________
+tests/test_data_get_bars_day_includes_latest_completed_bar.py:140: in test_sparse_hourly_history_ignores_overnight_spacing
+    assert _last_visible(data, "2026-09-16 10:00", length=1) == "09-16 09:00"
+E   AssertionError: assert '09-15 09:00' == '09-16 09:00'
+E     
+E     - 09-16 09:00
+E     ?     ^
+E     + 09-15 09:00
+E     ?     ^
+_______ test_sparse_hourly_history_ignores_overnight_spacing[polars_ns] ________
+tests/test_data_get_bars_day_includes_latest_completed_bar.py:140: in test_sparse_hourly_history_ignores_overnight_spacing
+    assert _last_visible(data, "2026-09-16 10:00", length=1) == "09-16 09:00"
+E   AssertionError: assert '09-15 09:00' == '09-16 09:00'
+E     
+E     - 09-16 09:00
+E     ?     ^
+E     + 09-15 09:00
+E     ?     ^
+_______ test_sparse_hourly_history_ignores_overnight_spacing[polars_us] ________
+tests/test_data_get_bars_day_includes_latest_completed_bar.py:140: in test_sparse_hourly_history_ignores_overnight_spacing
+    assert _last_visible(data, "2026-09-16 10:00", length=1) == "09-16 09:00"
+E   AssertionError: assert '09-15 09:00' == '09-16 09:00'
+E     
+E     - 09-16 09:00
+E     ?     ^
+E     + 09-15 09:00
+E     ?     ^
+_______ test_sparse_hourly_history_ignores_overnight_spacing[polars_ms] ________
+tests/test_data_get_bars_day_includes_latest_completed_bar.py:140: in test_sparse_hourly_history_ignores_overnight_spacing
+    assert _last_visible(data, "2026-09-16 10:00", length=1) == "09-16 09:00"
+E   AssertionError: assert '09-15 09:00' == '09-16 09:00'
+E     
+E     - 09-16 09:00
+E     ?     ^
+E     + 09-15 09:00
+E     ?     ^
+=============================== warnings summary ===============================
+.venv/lib/python3.10/site-packages/websockets/legacy/__init__.py:6
+  /Users/robertgrzesik/Development/lumibot/.claude/worktrees/codex-release-4.6.4/.venv/lib/python3.10/site-packages/websockets/legacy/__init__.py:6: DeprecationWarning: websockets.legacy is deprecated; see https://websockets.readthedocs.io/en/stable/howto/upgrade.html for upgrade instructions
+    warnings.warn(  # deprecated in 14.0 - 2024-11-09
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ============================
+FAILED tests/test_backtest_quote_source_times.py::test_fresh_side_without_source_time_does_not_inherit_old_timestamp[False-bid-pandas]
+FAILED tests/test_backtest_quote_source_times.py::test_fresh_side_without_source_time_does_not_inherit_old_timestamp[False-bid-polars]
+FAILED tests/test_backtest_quote_source_times.py::test_fresh_side_without_source_time_does_not_inherit_old_timestamp[False-ask-pandas]
+FAILED tests/test_backtest_quote_source_times.py::test_fresh_side_without_source_time_does_not_inherit_old_timestamp[False-ask-polars]
+FAILED tests/test_backtest_quote_source_times.py::test_fresh_side_without_source_time_does_not_inherit_old_timestamp[True-bid-pandas]
+FAILED tests/test_backtest_quote_source_times.py::test_fresh_side_without_source_time_does_not_inherit_old_timestamp[True-bid-polars]
+FAILED tests/test_backtest_quote_source_times.py::test_fresh_side_without_source_time_does_not_inherit_old_timestamp[True-ask-pandas]
+FAILED tests/test_backtest_quote_source_times.py::test_fresh_side_without_source_time_does_not_inherit_old_timestamp[True-ask-polars]
+FAILED tests/test_data_get_bars_day_includes_latest_completed_bar.py::test_sparse_hourly_history_ignores_overnight_spacing[pandas]
+FAILED tests/test_data_get_bars_day_includes_latest_completed_bar.py::test_sparse_hourly_history_ignores_overnight_spacing[polars_ns]
+FAILED tests/test_data_get_bars_day_includes_latest_completed_bar.py::test_sparse_hourly_history_ignores_overnight_spacing[polars_us]
+FAILED tests/test_data_get_bars_day_includes_latest_completed_bar.py::test_sparse_hourly_history_ignores_overnight_spacing[polars_ms]
+12 failed, 4 passed, 75 deselected, 1 warning in 0.91s

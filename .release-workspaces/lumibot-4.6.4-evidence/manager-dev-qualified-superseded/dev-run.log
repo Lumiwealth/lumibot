@@ -1,0 +1,631 @@
+python-quality / python-quality	UNKNOWN STEP	﻿2026-10-03T04:54:11.8970239Z Current runner version: '2.337.0'
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:11.8977133Z Runner name: 'blacksmith-2vcpu-ubuntu-2404-arm-Runner-03f776e82d'
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:11.8979181Z Runner group name: 'blacksmith scale sets - blacksmith-2vcpu-ubuntu-2404-arm'
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:11.8980346Z Machine name: 'ip-172-31-74-117'
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:11.8982651Z ##[group]GITHUB_TOKEN Permissions
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:11.8985295Z Contents: read
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:11.8985755Z Metadata: read
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:11.8986176Z ##[endgroup]
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:11.8988871Z Secret source: Actions
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:11.8989611Z Cache mode: write
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:11.8990166Z Prepare workflow directory
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:11.9350158Z Prepare all required actions
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:11.9401025Z Getting action download info
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:13.0920753Z Download action repository 'actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5' (SHA:34e114876b0b11c390a56381ad16ebd13914f8d5)
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:13.6628520Z Download action repository 'actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065' (SHA:a26af69be951a213d495a4c3e4e4022e16d87065)
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:13.7565797Z Download action repository 'astral-sh/setup-uv@caf0cab7a618c569241d31dcd442f54681755d39' (SHA:caf0cab7a618c569241d31dcd442f54681755d39)
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:14.5637896Z Setting BLACKSMITH_ACTIONS_RESULTS_URL to https://results-receiver.actions.githubusercontent.com/
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:14.5733266Z Uses: Lumiwealth/bot_manager/.github/workflows/python-quality.yml@refs/heads/develop (32f2c5068412988ca2422b828b63417503007b35)
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:14.5740695Z Complete job name: python-quality / python-quality
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:14.6590075Z A job started hook has been configured by the self-hosted runner administrator
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:14.6934669Z ##[group]Run '/setup.sh'
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:14.6983704Z shell: /usr/bin/bash --noprofile --norc -e -o pipefail {0}
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:14.6985237Z env:
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:14.6985999Z   BLACKSMITH_RUNNER_MESSAGE_WAIT_MS: 195
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:14.6987007Z   BLACKSMITH_RUNNER_ACQUIRE_JOB_MS: 782
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:14.6988061Z   BLACKSMITH_CHECK_RUN_ID: 111131941493
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:14.6989251Z   BLACKSMITH_JOB_DISPLAY_NAME: python-quality / python-quality
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:14.6990508Z   GITHUB_ACTIONS_CACHE_MODE: write
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:14.6991416Z ##[endgroup]
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:14.7680842Z Logging daemon started (blacksmithd for logs)
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:14.8207517Z Results daemon started (blacksmithd for results)
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:14.8460654Z Background adoption and SSH setup started (PID: 3212)
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:14.8468665Z 
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:14.8517835Z ----------------------------------------
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:14.8534594Z View this job: https://app.blacksmith.sh/Lumiwealth/runs/37098060587/jobs/111131941493
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:14.8662605Z SSH Access (using your GitHub SSH key):
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:14.8664719Z   ssh -p 64003 runner@blacksmith-2vcpu-ubuntu-2404-arm-runner-03f776e82d.vm.blacksmith.sh
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:14.8666014Z 
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:14.8666421Z No GitHub SSH key? Add one at:
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:14.8668274Z https://docs.github.com/en/authentication/connecting-to-github-with-ssh/adding-a-new-ssh-key-to-your-github-account
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:14.8670041Z 
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:14.8670409Z ----------------------------------------
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:14.8671297Z 
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:14.8671935Z VM ID: blacksmith-2vcpu-ubuntu-2404-arm-Runner-03f776e82d
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:14.8673184Z Host: production-192.240.237.207-aarch64
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:14.8674182Z Host Agent PID: 1100376
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:14.8675033Z Host Agent Git SHA: e97f83469
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:14.8675973Z Host CPU Manufacturer: Ampere
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:14.8676954Z Blacksmith Host Generation: gen 2
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:14.8677993Z Petname: production-famous-stork-c350165e-arm
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:14.8679411Z Region: us-west
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:14.8696604Z Rootfs Version: ubuntu24-full-aarch64-110625
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:14.8697741Z OS Version: Ubuntu 24.04.3 LTS
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:14.8699871Z 
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:14.8700286Z Enabling Blacksmith transparent cache
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:14.9774865Z ##[group]Run actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:14.9777965Z with:
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:14.9779117Z   persist-credentials: false
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:14.9780020Z   repository: Lumiwealth/bot_manager
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:14.9788754Z   token: ***
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:14.9789540Z   ssh-strict: true
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:14.9790264Z   ssh-user: git
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:14.9790975Z   clean: true
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:14.9791716Z   sparse-checkout-cone-mode: true
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:14.9792599Z   fetch-depth: 1
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:14.9793318Z   fetch-tags: false
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:14.9794065Z   show-progress: true
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:14.9795128Z   lfs: false
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:14.9795828Z   submodules: false
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:14.9796627Z   set-safe-directory: true
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:14.9797449Z env:
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:14.9798162Z   BLACKSMITH_RUNNER_MESSAGE_WAIT_MS: 195
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:14.9799148Z   BLACKSMITH_RUNNER_ACQUIRE_JOB_MS: 782
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:14.9800563Z   GITHUB_REPO_NAME: Lumiwealth/bot_manager
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:14.9801721Z ##[endgroup]
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:15.2758274Z Syncing repository: Lumiwealth/bot_manager
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:15.2761476Z ##[group]Getting Git version info
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:15.2762942Z Working directory is '/home/runner/_work/bot_manager/bot_manager'
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:15.2765801Z [command]/usr/local/bin/git version
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:15.2916066Z git version 2.51.2
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:15.2923736Z ##[endgroup]
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:15.2937286Z Temporarily overriding HOME='/home/runner/_work/_temp/c5290558-e5e6-4ecd-8230-79c2f7288ae8' before making global git config changes
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:15.2940723Z Adding repository directory to the temporary git global config as a safe directory
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:15.2959468Z [command]/usr/local/bin/git config --global --add safe.directory /home/runner/_work/bot_manager/bot_manager
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:15.3034403Z Deleting the contents of '/home/runner/_work/bot_manager/bot_manager'
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:15.3037186Z ##[group]Initializing the repository
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:15.3042366Z [command]/usr/local/bin/git init /home/runner/_work/bot_manager/bot_manager
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:15.3156948Z hint: Using 'master' as the name for the initial branch. This default branch name
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:15.3162447Z hint: is subject to change. To configure the initial branch name to use in all
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:15.3164283Z hint: of your new repositories, which will suppress this warning, call:
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:15.3166390Z hint:
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:15.3167483Z hint: 	git config --global init.defaultBranch <name>
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:15.3168773Z hint:
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:15.3169973Z hint: Names commonly chosen instead of 'master' are 'main', 'trunk' and
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:15.3171852Z hint: 'development'. The just-created branch can be renamed via this command:
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:15.3173282Z hint:
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:15.3174223Z hint: 	git branch -m <name>
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:15.3176012Z hint:
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:15.3177170Z hint: Disable this message with "git config set advice.defaultBranchName false"
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:15.3179330Z Initialized empty Git repository in /home/runner/_work/bot_manager/bot_manager/.git/
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:15.3182378Z [command]/usr/local/bin/git remote add origin https://github.com/Lumiwealth/bot_manager
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:15.3231137Z ##[endgroup]
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:15.3232688Z ##[group]Disabling automatic garbage collection
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:15.3236401Z [command]/usr/local/bin/git config --local gc.auto 0
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:15.3298423Z ##[endgroup]
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:15.3299978Z ##[group]Setting up auth
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:15.3306885Z [command]/usr/local/bin/git config --local --name-only --get-regexp core\.sshCommand
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:15.3369130Z [command]/usr/local/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :"
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:15.3851438Z [command]/usr/local/bin/git config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:15.3861430Z [command]/usr/local/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :"
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:15.4139263Z [command]/usr/local/bin/git config --local --name-only --get-regexp ^includeIf\.gitdir:
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:15.4213783Z [command]/usr/local/bin/git submodule foreach --recursive git config --local --show-origin --name-only --get-regexp remote.origin.url
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:15.4497634Z [command]/usr/local/bin/git config --local http.https://github.com/.extraheader AUTHORIZATION: basic ***
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:15.4713711Z ##[endgroup]
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:15.4716325Z ##[group]Fetching the repository
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:15.4722267Z [command]/usr/local/bin/git -c protocol.version=2 fetch --no-tags --prune --no-recurse-submodules --depth=1 origin +32f2c5068412988ca2422b828b63417503007b35:refs/remotes/origin/develop
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:16.6199329Z From https://github.com/Lumiwealth/bot_manager
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:16.6201068Z  * [new ref]         32f2c5068412988ca2422b828b63417503007b35 -> origin/develop
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:16.6282223Z ##[endgroup]
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:16.6282786Z ##[group]Determining the checkout info
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:16.6283284Z ##[endgroup]
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:16.6305896Z [command]/usr/local/bin/git sparse-checkout disable
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:16.6394398Z [command]/usr/local/bin/git config --local --unset-all extensions.worktreeConfig
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:16.6445654Z ##[group]Checking out the ref
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:16.6448768Z [command]/usr/local/bin/git checkout --progress --force -B develop refs/remotes/origin/develop
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:16.7290805Z Switched to a new branch 'develop'
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:16.7299429Z branch 'develop' set up to track 'origin/develop'.
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:16.7301891Z ##[endgroup]
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:16.7392216Z [command]/usr/local/bin/git log -1 --format=%H
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:16.7444896Z 32f2c5068412988ca2422b828b63417503007b35
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:16.7454874Z ##[group]Removing auth
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:16.7466880Z [command]/usr/local/bin/git config --local --name-only --get-regexp core\.sshCommand
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:16.7558712Z [command]/usr/local/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :"
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:16.7902293Z [command]/usr/local/bin/git config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:16.7962760Z http.https://github.com/.extraheader
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:16.7975132Z [command]/usr/local/bin/git config --local --unset-all http.https://github.com/.extraheader
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:16.8102903Z [command]/usr/local/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :"
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:16.8464375Z [command]/usr/local/bin/git config --local --name-only --get-regexp ^includeIf\.gitdir:
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:16.8530443Z [command]/usr/local/bin/git submodule foreach --recursive git config --local --show-origin --name-only --get-regexp remote.origin.url
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:16.8868022Z ##[endgroup]
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:16.9218540Z ##[group]Run actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:16.9219442Z with:
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:16.9219665Z   python-version: 3.13
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:16.9219905Z   check-latest: false
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:16.9223298Z   token: ***
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:16.9223563Z   update-environment: true
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:16.9223876Z   allow-prereleases: false
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:16.9224137Z   freethreaded: false
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:16.9224369Z env:
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:16.9224593Z   BLACKSMITH_RUNNER_MESSAGE_WAIT_MS: 195
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:16.9224896Z   BLACKSMITH_RUNNER_ACQUIRE_JOB_MS: 782
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:16.9225216Z   GITHUB_REPO_NAME: Lumiwealth/bot_manager
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:16.9225508Z ##[endgroup]
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:17.0876063Z ##[group]Installed versions
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:17.0885312Z Version 3.13 was not found in the local cache
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:17.1039030Z (node:3622) [DEP0040] DeprecationWarning: The `punycode` module is deprecated. Please use a userland alternative instead.
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:17.1040277Z (Use `node --trace-deprecation ...` to show where the warning was created)
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:18.3799879Z Version 3.13 is available for downloading
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:18.3801486Z Download from "https://github.com/actions/python-versions/releases/download/3.13.16-36805956071/python-3.13.16-linux-24.04-arm64.tar.gz"
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:19.4447981Z Extract downloaded archive
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:19.4659063Z [command]/usr/bin/tar xz --warning=no-unknown-keyword --overwrite -C /home/runner/_work/_temp/4534abf5-9c75-484c-8f06-1eeb7515172c -f /home/runner/_work/_temp/c15c8ea9-59b1-4257-afcb-ae2f1cd7d190
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:21.4307821Z Execute installation script
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:21.4469280Z Check if Python hostedtoolcache folder exist...
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:21.4470537Z Creating Python hostedtoolcache folder...
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:21.4500386Z Create Python 3.13.16 folder
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:21.4526713Z Copy Python binaries to hostedtoolcache folder
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:22.8006877Z Create additional symlinks (Required for the UsePythonVersion Azure Pipelines task and the setup-python GitHub Action)
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:22.8070861Z Upgrading pip...
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:24.6993017Z Collecting pip
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:24.8027259Z Downloading pip-26.2.1-py3-none-any.whl.metadata (4.6 kB)
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:24.8259579Z Downloading pip-26.2.1-py3-none-any.whl (1.8 MB)
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:24.9804289Z ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 1.8/1.8 MB 14.1 MB/s  0:00:00
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:24.9826869Z 
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:25.0880515Z Installing collected packages: pip
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:25.0881368Z Attempting uninstall: pip
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:25.0906762Z Found existing installation: pip 26.2.1
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:25.1207357Z Uninstalling pip-26.2.1:
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:25.1269952Z Successfully uninstalled pip-26.2.1
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:26.1078417Z Successfully installed pip-26.2.1
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:26.2380300Z Create complete file
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:26.2434192Z Successfully set up CPython (3.13.16)
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:26.2436969Z ##[endgroup]
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:26.2734848Z ##[group]Run astral-sh/setup-uv@caf0cab7a618c569241d31dcd442f54681755d39
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:26.2735291Z with:
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:26.2735556Z   version: 0.11.8
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:26.2735772Z   enable-cache: true
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:26.2736015Z   cache-dependency-glob: uv.lock
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:26.2740337Z   github-token: ***
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:26.2740692Z   prune-cache: true
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:26.2740928Z env:
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:26.2741153Z   BLACKSMITH_RUNNER_MESSAGE_WAIT_MS: 195
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:26.2741462Z   BLACKSMITH_RUNNER_ACQUIRE_JOB_MS: 782
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:26.2741780Z   GITHUB_REPO_NAME: Lumiwealth/bot_manager
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:26.2742242Z   pythonLocation: /opt/hostedtoolcache/Python/3.13.16/arm64
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:26.2742771Z   PKG_CONFIG_PATH: /opt/hostedtoolcache/Python/3.13.16/arm64/lib/pkgconfig
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:26.2743239Z   Python_ROOT_DIR: /opt/hostedtoolcache/Python/3.13.16/arm64
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:26.2743724Z   Python2_ROOT_DIR: /opt/hostedtoolcache/Python/3.13.16/arm64
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:26.2744229Z   Python3_ROOT_DIR: /opt/hostedtoolcache/Python/3.13.16/arm64
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:26.2753851Z   LD_LIBRARY_PATH: /opt/hostedtoolcache/Python/3.13.16/arm64/lib
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:26.2754234Z ##[endgroup]
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:26.4535716Z (node:3678) [DEP0040] DeprecationWarning: The `punycode` module is deprecated. Please use a userland alternative instead.
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:26.4579812Z (Use `node --trace-deprecation ...` to show where the warning was created)
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:26.4839557Z Downloading uv from "https://github.com/astral-sh/uv/releases/download/0.11.8/uv-aarch64-unknown-linux-gnu.tar.gz" ...
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:26.9224895Z [command]/usr/bin/tar xz --warning=no-unknown-keyword --overwrite -C /home/runner/_work/_temp/ac001648-e8fc-4f98-94d5-d3c5f6ebebdd -f /home/runner/_work/_temp/1d214190-5ae7-4021-b116-57cc02ac2b15
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:27.4017045Z Added /opt/hostedtoolcache/uv/0.11.8/aarch64 to the path
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:27.4017478Z Added /home/runner/.local/bin to the path
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:27.4017867Z Successfully installed uv version 0.11.8
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:27.4036091Z Set UV_CACHE_DIR to /home/runner/_work/_temp/setup-uv-cache
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:27.4036628Z Searching files using cache dependency glob: uv.lock
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:27.4065269Z /home/runner/_work/bot_manager/bot_manager/uv.lock
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:27.4102978Z Found 1 files to hash.
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:27.4104467Z Trying to restore uv cache from GitHub Actions cache with key: setup-uv-1-aarch64-unknown-linux-gnu-0.11.8-b5a73c9e60b3d1f51a768b078414d58f1f3844dc53996b22f18be30091fb9ab8
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:27.5362368Z ##[warning]Failed to restore: Cache service responded with 400
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:27.5376499Z No GitHub Actions cache found for key: setup-uv-1-aarch64-unknown-linux-gnu-0.11.8-b5a73c9e60b3d1f51a768b078414d58f1f3844dc53996b22f18be30091fb9ab8
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:27.5559734Z ##[group]Run uv sync --locked --python 3.13
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:27.5560143Z [36;1muv sync --locked --python 3.13[0m
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:27.5605913Z shell: /usr/bin/bash -e {0}
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:27.5606195Z env:
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:27.5606438Z   BLACKSMITH_RUNNER_MESSAGE_WAIT_MS: 195
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:27.5606750Z   BLACKSMITH_RUNNER_ACQUIRE_JOB_MS: 782
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:27.5607561Z   GITHUB_REPO_NAME: Lumiwealth/bot_manager
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:27.5607935Z   pythonLocation: /opt/hostedtoolcache/Python/3.13.16/arm64
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:27.5608398Z   PKG_CONFIG_PATH: /opt/hostedtoolcache/Python/3.13.16/arm64/lib/pkgconfig
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:27.5608874Z   Python_ROOT_DIR: /opt/hostedtoolcache/Python/3.13.16/arm64
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:27.5609291Z   Python2_ROOT_DIR: /opt/hostedtoolcache/Python/3.13.16/arm64
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:27.5609743Z   Python3_ROOT_DIR: /opt/hostedtoolcache/Python/3.13.16/arm64
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:27.5610167Z   LD_LIBRARY_PATH: /opt/hostedtoolcache/Python/3.13.16/arm64/lib
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:27.5610643Z   UV_CACHE_DIR: /home/runner/_work/_temp/setup-uv-cache
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:27.5610967Z ##[endgroup]
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:27.6712605Z Using CPython 3.13.16 interpreter at: /opt/hostedtoolcache/Python/3.13.16/arm64/bin/python3.13
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:27.6713511Z Creating virtual environment at: .venv
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:27.6760894Z Resolved 39 packages in 1ms
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:27.6845250Z    Building bot-manager @ file:///home/runner/_work/bot_manager/bot_manager
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:27.7775917Z Downloading ruff (10.2MiB)
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:27.7786494Z Downloading zstandard (4.8MiB)
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:27.7793195Z Downloading pygments (1.2MiB)
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:27.7801759Z Downloading cryptography (4.5MiB)
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:27.7815339Z Downloading ty (11.6MiB)
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:27.7818908Z Downloading moto (6.3MiB)
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:27.7820952Z Downloading botocore (14.9MiB)
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:28.3700679Z  Downloaded zstandard
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:28.5407070Z  Downloaded ruff
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:28.5670265Z  Downloaded ty
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:28.5741427Z  Downloaded cryptography
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:28.6115710Z  Downloaded pygments
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:28.8443772Z       Built bot-manager @ file:///home/runner/_work/bot_manager/bot_manager
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:29.0785180Z  Downloaded moto
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:29.1405142Z  Downloaded botocore
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:29.1406894Z Prepared 38 packages in 1.46s
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:29.2578959Z Installed 38 packages in 113ms
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:29.2579489Z  + aws-wsgi==0.2.7
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:29.2580123Z  + blinker==1.9.0
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:29.2580589Z  + bot-manager==1.0.0 (from file:///home/runner/_work/bot_manager/bot_manager)
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:29.2581305Z  + boto3==1.43.1
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:29.2581755Z  + botocore==1.43.74
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:29.2583055Z  + certifi==2026.7.22
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:29.2583618Z  + cffi==2.1.1
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:29.2584435Z  + charset-normalizer==3.5.1
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:29.2584836Z  + click==8.4.2
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:29.2585575Z  + cryptography==50.0.0
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:29.2586060Z  + execnet==2.1.2
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:29.2586735Z  + flask==3.1.3
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:29.2587080Z  + idna==3.19
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:29.2587730Z  + iniconfig==2.3.0
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:29.2589233Z  + itsdangerous==2.2.0
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:29.2589694Z  + jinja2==3.1.6
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:29.2590261Z  + jmespath==1.1.0
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:29.2590585Z  + markupsafe==3.0.3
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:29.2591245Z  + moto==5.1.22
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:29.2591813Z  + packaging==25.0
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:29.2608625Z  + pluggy==1.6.0
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:29.2609193Z  + pycparser==3.0
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:29.2609991Z  + pygments==2.21.0
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:29.2610335Z  + pytest==9.0.3
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:29.2610960Z  + pytest-xdist==3.8.0
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:29.2611324Z  + python-dateutil==2.9.0.post0
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:29.2611994Z  + python-dotenv==1.2.2
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:29.2612350Z  + pyyaml==6.0.3
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:29.2612928Z  + requests==2.33.1
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:29.2613273Z  + responses==0.26.2
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:29.2613920Z  + ruff==0.16.3
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:29.2614279Z  + s3transfer==0.17.1
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:29.2616731Z  + six==1.17.0
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:29.2617313Z  + ty==0.0.73
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:29.2618225Z  + urllib3==2.8.0
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:29.2618591Z  + werkzeug==3.1.8
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:29.2619277Z  + xmltodict==1.0.4
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:29.2619703Z  + zstandard==0.25.0
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:29.2806240Z ##[group]Run uv export --locked --no-dev --no-emit-project --no-header --no-annotate --no-hashes --output-file /tmp/runtime-requirements.txt
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:29.2807441Z [36;1muv export --locked --no-dev --no-emit-project --no-header --no-annotate --no-hashes --output-file /tmp/runtime-requirements.txt[0m
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:29.2808151Z [36;1mdiff -u requirements.txt /tmp/runtime-requirements.txt[0m
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:29.2913984Z shell: /usr/bin/bash -e {0}
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:29.2914295Z env:
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:29.2914543Z   BLACKSMITH_RUNNER_MESSAGE_WAIT_MS: 195
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:29.2914974Z   BLACKSMITH_RUNNER_ACQUIRE_JOB_MS: 782
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:29.2915315Z   GITHUB_REPO_NAME: Lumiwealth/bot_manager
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:29.2915798Z   pythonLocation: /opt/hostedtoolcache/Python/3.13.16/arm64
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:29.2916380Z   PKG_CONFIG_PATH: /opt/hostedtoolcache/Python/3.13.16/arm64/lib/pkgconfig
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:29.2916862Z   Python_ROOT_DIR: /opt/hostedtoolcache/Python/3.13.16/arm64
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:29.2917526Z   Python2_ROOT_DIR: /opt/hostedtoolcache/Python/3.13.16/arm64
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:29.2918061Z   Python3_ROOT_DIR: /opt/hostedtoolcache/Python/3.13.16/arm64
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:29.2918484Z   LD_LIBRARY_PATH: /opt/hostedtoolcache/Python/3.13.16/arm64/lib
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:29.2919002Z   UV_CACHE_DIR: /home/runner/_work/_temp/setup-uv-cache
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:29.2919330Z ##[endgroup]
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:29.3627935Z Resolved 39 packages in 1ms
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:29.3628298Z aws-wsgi==0.2.7
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:29.3629042Z blinker==1.9.0
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:29.3665706Z boto3==1.43.1
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:29.3666415Z botocore==1.43.74
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:29.3667119Z certifi==2026.7.22
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:29.3669326Z cffi==2.1.1 ; platform_python_implementation != 'PyPy'
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:29.3670009Z charset-normalizer==3.5.1
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:29.3670260Z click==8.4.2
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:29.3670490Z colorama==0.4.6 ; sys_platform == 'win32'
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:29.3670818Z cryptography==50.0.0
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:29.3671090Z flask==3.1.3
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:29.3675585Z idna==3.19
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:29.3676226Z itsdangerous==2.2.0
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:29.3688579Z jinja2==3.1.6
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:29.3694152Z jmespath==1.1.0
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:29.3694921Z markupsafe==3.0.3
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:29.3695242Z packaging==25.0
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:29.3695790Z pycparser==3.0 ; implementation_name != 'PyPy' and platform_python_implementation != 'PyPy'
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:29.3696364Z python-dateutil==2.9.0.post0
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:29.3696939Z requests==2.33.1
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:29.3697912Z s3transfer==0.17.1
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:29.3698403Z six==1.17.0
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:29.3698641Z urllib3==2.8.0
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:29.3698923Z werkzeug==3.1.8
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:29.3700108Z zstandard==0.25.0
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:29.3753560Z ##[group]Run uv --preview-features audit audit --frozen
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:29.3754040Z [36;1muv --preview-features audit audit --frozen[0m
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:29.3794118Z shell: /usr/bin/bash -e {0}
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:29.3794438Z env:
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:29.3794682Z   BLACKSMITH_RUNNER_MESSAGE_WAIT_MS: 195
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:29.3794994Z   BLACKSMITH_RUNNER_ACQUIRE_JOB_MS: 782
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:29.3795315Z   GITHUB_REPO_NAME: Lumiwealth/bot_manager
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:29.3795688Z   pythonLocation: /opt/hostedtoolcache/Python/3.13.16/arm64
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:29.3796161Z   PKG_CONFIG_PATH: /opt/hostedtoolcache/Python/3.13.16/arm64/lib/pkgconfig
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:29.3796638Z   Python_ROOT_DIR: /opt/hostedtoolcache/Python/3.13.16/arm64
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:29.3797059Z   Python2_ROOT_DIR: /opt/hostedtoolcache/Python/3.13.16/arm64
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:29.3797486Z   Python3_ROOT_DIR: /opt/hostedtoolcache/Python/3.13.16/arm64
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:29.3798014Z   LD_LIBRARY_PATH: /opt/hostedtoolcache/Python/3.13.16/arm64/lib
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:29.3798442Z   UV_CACHE_DIR: /home/runner/_work/_temp/setup-uv-cache
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:29.3798785Z ##[endgroup]
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:29.6899896Z Found no known vulnerabilities and no adverse project statuses in 38 packages
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:29.6954711Z ##[group]Run uv run --locked ruff check --output-format=github .
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:29.6955240Z [36;1muv run --locked ruff check --output-format=github .[0m
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:29.6996591Z shell: /usr/bin/bash -e {0}
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:29.6996877Z env:
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:29.6997121Z   BLACKSMITH_RUNNER_MESSAGE_WAIT_MS: 195
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:29.6997433Z   BLACKSMITH_RUNNER_ACQUIRE_JOB_MS: 782
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:29.6997753Z   GITHUB_REPO_NAME: Lumiwealth/bot_manager
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:29.6998126Z   pythonLocation: /opt/hostedtoolcache/Python/3.13.16/arm64
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:29.6998594Z   PKG_CONFIG_PATH: /opt/hostedtoolcache/Python/3.13.16/arm64/lib/pkgconfig
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:29.6999068Z   Python_ROOT_DIR: /opt/hostedtoolcache/Python/3.13.16/arm64
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:29.6999572Z   Python2_ROOT_DIR: /opt/hostedtoolcache/Python/3.13.16/arm64
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:29.6999989Z   Python3_ROOT_DIR: /opt/hostedtoolcache/Python/3.13.16/arm64
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:29.7000479Z   LD_LIBRARY_PATH: /opt/hostedtoolcache/Python/3.13.16/arm64/lib
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:29.7000898Z   UV_CACHE_DIR: /home/runner/_work/_temp/setup-uv-cache
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:29.7001222Z ##[endgroup]
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:29.8433844Z ##[group]Run uv run --locked ruff format --check .
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:29.8434298Z [36;1muv run --locked ruff format --check .[0m
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:29.8475113Z shell: /usr/bin/bash -e {0}
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:29.8475440Z env:
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:29.8475679Z   BLACKSMITH_RUNNER_MESSAGE_WAIT_MS: 195
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:29.8475992Z   BLACKSMITH_RUNNER_ACQUIRE_JOB_MS: 782
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:29.8476315Z   GITHUB_REPO_NAME: Lumiwealth/bot_manager
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:29.8476696Z   pythonLocation: /opt/hostedtoolcache/Python/3.13.16/arm64
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:29.8477173Z   PKG_CONFIG_PATH: /opt/hostedtoolcache/Python/3.13.16/arm64/lib/pkgconfig
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:29.8477685Z   Python_ROOT_DIR: /opt/hostedtoolcache/Python/3.13.16/arm64
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:29.8478107Z   Python2_ROOT_DIR: /opt/hostedtoolcache/Python/3.13.16/arm64
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:29.8478528Z   Python3_ROOT_DIR: /opt/hostedtoolcache/Python/3.13.16/arm64
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:29.8478957Z   LD_LIBRARY_PATH: /opt/hostedtoolcache/Python/3.13.16/arm64/lib
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:29.8479502Z   UV_CACHE_DIR: /home/runner/_work/_temp/setup-uv-cache
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:29.8479828Z ##[endgroup]
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:29.9975937Z 264 files already formatted
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:30.0049723Z ##[group]Run uv run --locked ty check
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:30.0050108Z [36;1muv run --locked ty check[0m
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:30.0091131Z shell: /usr/bin/bash -e {0}
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:30.0091421Z env:
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:30.0091663Z   BLACKSMITH_RUNNER_MESSAGE_WAIT_MS: 195
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:30.0091978Z   BLACKSMITH_RUNNER_ACQUIRE_JOB_MS: 782
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:30.0092291Z   GITHUB_REPO_NAME: Lumiwealth/bot_manager
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:30.0093134Z   pythonLocation: /opt/hostedtoolcache/Python/3.13.16/arm64
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:30.0093601Z   PKG_CONFIG_PATH: /opt/hostedtoolcache/Python/3.13.16/arm64/lib/pkgconfig
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:30.0094067Z   Python_ROOT_DIR: /opt/hostedtoolcache/Python/3.13.16/arm64
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:30.0094499Z   Python2_ROOT_DIR: /opt/hostedtoolcache/Python/3.13.16/arm64
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:30.0094917Z   Python3_ROOT_DIR: /opt/hostedtoolcache/Python/3.13.16/arm64
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:30.0095343Z   LD_LIBRARY_PATH: /opt/hostedtoolcache/Python/3.13.16/arm64/lib
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:30.0095837Z   UV_CACHE_DIR: /home/runner/_work/_temp/setup-uv-cache
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:30.0096161Z ##[endgroup]
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:30.1744483Z All checks passed!
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:30.2027177Z Post job cleanup.
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:30.3614422Z (node:3785) [DEP0040] DeprecationWarning: The `punycode` module is deprecated. Please use a userland alternative instead.
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:30.3615048Z Pruning cache...
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:30.3621239Z (Use `node --trace-deprecation ...` to show where the warning was created)
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:30.5296513Z Saving cache path: /home/runner/_work/_temp/setup-uv-cache
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:30.5462768Z [command]/usr/bin/tar --posix -cf cache.tzst --exclude cache.tzst -P -C /home/runner/_work/bot_manager/bot_manager --files-from manifest.txt --use-compress-program zstdmt
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:30.6048464Z ##[warning]Failed to save: <h2>Our services aren't available right now</h2><p>We're working to restore all services as soon as possible. Please check back soon.</p>0horAagAAAACoY7cHU0GLR48SJOgcnGAKUEhYMzFFREdFMDIwNwBFZGdl
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:30.6050779Z cache saved with the key: setup-uv-1-aarch64-unknown-linux-gnu-0.11.8-b5a73c9e60b3d1f51a768b078414d58f1f3844dc53996b22f18be30091fb9ab8
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:30.6233197Z Post job cleanup.
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:30.7758348Z (node:3808) [DEP0040] DeprecationWarning: The `punycode` module is deprecated. Please use a userland alternative instead.
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:30.7762160Z (Use `node --trace-deprecation ...` to show where the warning was created)
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:30.7934972Z Post job cleanup.
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:30.8933903Z [command]/usr/local/bin/git version
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:30.9025392Z git version 2.51.2
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:30.9056986Z Temporarily overriding HOME='/home/runner/_work/_temp/e744f06b-f660-4123-9855-bfd04008e2b6' before making global git config changes
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:30.9060469Z Adding repository directory to the temporary git global config as a safe directory
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:30.9090847Z [command]/usr/local/bin/git config --global --add safe.directory /home/runner/_work/bot_manager/bot_manager
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:30.9155312Z [command]/usr/local/bin/git config --local --name-only --get-regexp core\.sshCommand
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:30.9232063Z [command]/usr/local/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :"
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:30.9864493Z [command]/usr/local/bin/git config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:30.9957219Z [command]/usr/local/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :"
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:31.0280883Z [command]/usr/local/bin/git config --local --name-only --get-regexp ^includeIf\.gitdir:
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:31.0369696Z [command]/usr/local/bin/git submodule foreach --recursive git config --local --show-origin --name-only --get-regexp remote.origin.url
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:31.0869806Z A job completed hook has been configured by the self-hosted runner administrator
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:31.0959142Z ##[group]Run '/job_completed.sh'
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:31.0995585Z shell: /usr/bin/bash --noprofile --norc -e -o pipefail {0}
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:31.0995968Z env:
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:31.0996238Z   BLACKSMITH_RUNNER_MESSAGE_WAIT_MS: 195
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:31.0996550Z   BLACKSMITH_RUNNER_ACQUIRE_JOB_MS: 782
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:31.0997402Z   BLACKSMITH_CHECK_RUN_ID: 111131941493
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:31.0997782Z   BLACKSMITH_JOB_DISPLAY_NAME: python-quality / python-quality
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:31.0998168Z   GITHUB_ACTIONS_CACHE_MODE: write
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:31.0998453Z ##[endgroup]
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:31.1222776Z Docker container cache not activated, skipping hash computation.
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:31.1771949Z No active SSH sessions detected. Proceeding with shutdown immediately.
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:31.1916919Z Cleaning up orphan processes
+python-quality / python-quality	UNKNOWN STEP	2026-10-03T04:54:31.2727398Z ##[warning]Node.js 20 is deprecated. The following actions target Node.js 20 but are being forced to run on Node.js 24: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5, actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065, astral-sh/setup-uv@caf0cab7a618c569241d31dcd442f54681755d39. For more information see: https://github.blog/changelog/2025-09-19-deprecation-of-node-20-on-github-actions-runners/
+Build Release Artifacts / classify	UNKNOWN STEP	﻿2026-10-03T04:54:47.4843180Z Current runner version: '2.337.0'
+Build Release Artifacts / classify	UNKNOWN STEP	2026-10-03T04:54:47.4851531Z Runner name: 'blacksmith-2vcpu-ubuntu-2404-arm-Runner-3df0911dc3'
+Build Release Artifacts / classify	UNKNOWN STEP	2026-10-03T04:54:47.4852855Z Runner group name: 'blacksmith scale sets - blacksmith-2vcpu-ubuntu-2404-arm'
+Build Release Artifacts / classify	UNKNOWN STEP	2026-10-03T04:54:47.4854311Z Machine name: 'ip-172-31-74-117'
+Build Release Artifacts / classify	UNKNOWN STEP	2026-10-03T04:54:47.4856916Z ##[group]GITHUB_TOKEN Permissions
+Build Release Artifacts / classify	UNKNOWN STEP	2026-10-03T04:54:47.4859839Z Contents: read
+Build Release Artifacts / classify	UNKNOWN STEP	2026-10-03T04:54:47.4860416Z Metadata: read
+Build Release Artifacts / classify	UNKNOWN STEP	2026-10-03T04:54:47.4860949Z ##[endgroup]
+Build Release Artifacts / classify	UNKNOWN STEP	2026-10-03T04:54:47.4863701Z Secret source: Actions
+Build Release Artifacts / classify	UNKNOWN STEP	2026-10-03T04:54:47.4864610Z Cache mode: write
+Build Release Artifacts / classify	UNKNOWN STEP	2026-10-03T04:54:47.4865314Z Prepare workflow directory
+Build Release Artifacts / classify	UNKNOWN STEP	2026-10-03T04:54:47.5297747Z Prepare all required actions
+Build Release Artifacts / classify	UNKNOWN STEP	2026-10-03T04:54:47.5358400Z Getting action download info
+Build Release Artifacts / classify	UNKNOWN STEP	2026-10-03T04:54:48.8615933Z Download action repository 'actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5' (SHA:34e114876b0b11c390a56381ad16ebd13914f8d5)
+Build Release Artifacts / classify	UNKNOWN STEP	2026-10-03T04:54:49.7795893Z Setting BLACKSMITH_ACTIONS_RESULTS_URL to https://results-receiver.actions.githubusercontent.com/
+Build Release Artifacts / classify	UNKNOWN STEP	2026-10-03T04:54:49.7895012Z Uses: Lumiwealth/bot_manager/.github/workflows/build-release-artifacts.yml@refs/heads/develop (32f2c5068412988ca2422b828b63417503007b35)
+Build Release Artifacts / classify	UNKNOWN STEP	2026-10-03T04:54:49.7903408Z ##[group] Inputs
+Build Release Artifacts / classify	UNKNOWN STEP	2026-10-03T04:54:49.7904710Z   environment: dev
+Build Release Artifacts / classify	UNKNOWN STEP	2026-10-03T04:54:49.7905945Z   runtime_environment: dev
+Build Release Artifacts / classify	UNKNOWN STEP	2026-10-03T04:54:49.7907146Z   python_version: 3.13
+Build Release Artifacts / classify	UNKNOWN STEP	2026-10-03T04:54:49.7908298Z   force_rebuild_images: true
+Build Release Artifacts / classify	UNKNOWN STEP	2026-10-03T04:54:49.7909485Z   skip_snapshot: true
+Build Release Artifacts / classify	UNKNOWN STEP	2026-10-03T04:54:49.7910595Z   lumibot_version: 4.6.4
+Build Release Artifacts / classify	UNKNOWN STEP	2026-10-03T04:54:49.7911777Z   existing_release_manifest_s3_uri: 
+Build Release Artifacts / classify	UNKNOWN STEP	2026-10-03T04:54:49.7913058Z ##[endgroup]
+Build Release Artifacts / classify	UNKNOWN STEP	2026-10-03T04:54:49.7914282Z Complete job name: Build Release Artifacts / classify
+Build Release Artifacts / classify	UNKNOWN STEP	2026-10-03T04:54:49.8789911Z A job started hook has been configured by the self-hosted runner administrator
+Build Release Artifacts / classify	UNKNOWN STEP	2026-10-03T04:54:49.9020149Z ##[group]Run '/setup.sh'
+Build Release Artifacts / classify	UNKNOWN STEP	2026-10-03T04:54:49.9078194Z shell: /usr/bin/bash --noprofile --norc -e -o pipefail {0}
+Build Release Artifacts / classify	UNKNOWN STEP	2026-10-03T04:54:49.9080373Z env:
+Build Release Artifacts / classify	UNKNOWN STEP	2026-10-03T04:54:49.9081406Z   BLACKSMITH_RUNNER_MESSAGE_WAIT_MS: 201
+Build Release Artifacts / classify	UNKNOWN STEP	2026-10-03T04:54:49.9082743Z   BLACKSMITH_RUNNER_ACQUIRE_JOB_MS: 1026
+Build Release Artifacts / classify	UNKNOWN STEP	2026-10-03T04:54:49.9084039Z   BLACKSMITH_CHECK_RUN_ID: 111132032384
+Build Release Artifacts / classify	UNKNOWN STEP	2026-10-03T04:54:49.9085619Z   BLACKSMITH_JOB_DISPLAY_NAME: Build Release Artifacts / classify
+Build Release Artifacts / classify	UNKNOWN STEP	2026-10-03T04:54:49.9087381Z   GITHUB_ACTIONS_CACHE_MODE: write
+Build Release Artifacts / classify	UNKNOWN STEP	2026-10-03T04:54:49.9089157Z ##[endgroup]
+Build Release Artifacts / classify	UNKNOWN STEP	2026-10-03T04:54:50.0147898Z Logging daemon started (blacksmithd for logs)
+Build Release Artifacts / classify	UNKNOWN STEP	2026-10-03T04:54:50.0647575Z Results daemon started (blacksmithd for results)
+Build Release Artifacts / classify	UNKNOWN STEP	2026-10-03T04:54:50.1052508Z Background adoption and SSH setup started (PID: 3206)
+Build Release Artifacts / classify	UNKNOWN STEP	2026-10-03T04:54:50.1091077Z 
+Build Release Artifacts / classify	UNKNOWN STEP	2026-10-03T04:54:50.1093172Z ----------------------------------------
+Build Release Artifacts / classify	UNKNOWN STEP	2026-10-03T04:54:50.1095877Z View this job: https://app.blacksmith.sh/Lumiwealth/runs/37098060587/jobs/111132032384
+Build Release Artifacts / classify	UNKNOWN STEP	2026-10-03T04:54:50.1098151Z SSH Access (using your GitHub SSH key):
+Build Release Artifacts / classify	UNKNOWN STEP	2026-10-03T04:54:50.1100545Z   ssh -p 64001 runner@blacksmith-2vcpu-ubuntu-2404-arm-runner-3df0911dc3.vm.blacksmith.sh
+Build Release Artifacts / classify	UNKNOWN STEP	2026-10-03T04:54:50.1103413Z 
+Build Release Artifacts / classify	UNKNOWN STEP	2026-10-03T04:54:50.1104527Z No GitHub SSH key? Add one at:
+Build Release Artifacts / classify	UNKNOWN STEP	2026-10-03T04:54:50.1108613Z https://docs.github.com/en/authentication/connecting-to-github-with-ssh/adding-a-new-ssh-key-to-your-github-account
+Build Release Artifacts / classify	UNKNOWN STEP	2026-10-03T04:54:50.1111992Z 
+Build Release Artifacts / classify	UNKNOWN STEP	2026-10-03T04:54:50.1112743Z ----------------------------------------
+Build Release Artifacts / classify	UNKNOWN STEP	2026-10-03T04:54:50.1113942Z 
+Build Release Artifacts / classify	UNKNOWN STEP	2026-10-03T04:54:50.1114830Z VM ID: blacksmith-2vcpu-ubuntu-2404-arm-Runner-3df0911dc3
+Build Release Artifacts / classify	UNKNOWN STEP	2026-10-03T04:54:50.1117889Z Host: production-192.240.237.165-aarch64
+Build Release Artifacts / classify	UNKNOWN STEP	2026-10-03T04:54:50.1119802Z Host Agent PID: 19570
+Build Release Artifacts / classify	UNKNOWN STEP	2026-10-03T04:54:50.1122669Z Host Agent Git SHA: e97f83469
+Build Release Artifacts / classify	UNKNOWN STEP	2026-10-03T04:54:50.1124235Z Host CPU Manufacturer: Ampere
+Build Release Artifacts / classify	UNKNOWN STEP	2026-10-03T04:54:50.1125850Z Blacksmith Host Generation: gen 2
+Build Release Artifacts / classify	UNKNOWN STEP	2026-10-03T04:54:50.1127490Z Petname: production-calm-shrimp-0da1217b-arm
+Build Release Artifacts / classify	UNKNOWN STEP	2026-10-03T04:54:50.1130175Z Region: us-west
+Build Release Artifacts / classify	UNKNOWN STEP	2026-10-03T04:54:50.1131510Z Rootfs Version: ubuntu24-full-aarch64-110625
+Build Release Artifacts / classify	UNKNOWN STEP	2026-10-03T04:54:50.1175437Z OS Version: Ubuntu 24.04.3 LTS
+Build Release Artifacts / classify	UNKNOWN STEP	2026-10-03T04:54:50.1180398Z 
+Build Release Artifacts / classify	UNKNOWN STEP	2026-10-03T04:54:50.1183269Z Enabling Blacksmith transparent cache
+Build Release Artifacts / classify	UNKNOWN STEP	2026-10-03T04:54:50.2630425Z ##[group]Run actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+Build Release Artifacts / classify	UNKNOWN STEP	2026-10-03T04:54:50.2633248Z with:
+Build Release Artifacts / classify	UNKNOWN STEP	2026-10-03T04:54:50.2634667Z   fetch-depth: 2
+Build Release Artifacts / classify	UNKNOWN STEP	2026-10-03T04:54:50.2635663Z   persist-credentials: false
+Build Release Artifacts / classify	UNKNOWN STEP	2026-10-03T04:54:50.2636877Z   repository: Lumiwealth/bot_manager
+Build Release Artifacts / classify	UNKNOWN STEP	2026-10-03T04:54:50.2653961Z   token: ***
+Build Release Artifacts / classify	UNKNOWN STEP	2026-10-03T04:54:50.2655178Z   ssh-strict: true
+Build Release Artifacts / classify	UNKNOWN STEP	2026-10-03T04:54:50.2656162Z   ssh-user: git
+Build Release Artifacts / classify	UNKNOWN STEP	2026-10-03T04:54:50.2657076Z   clean: true
+Build Release Artifacts / classify	UNKNOWN STEP	2026-10-03T04:54:50.2658089Z   sparse-checkout-cone-mode: true
+Build Release Artifacts / classify	UNKNOWN STEP	2026-10-03T04:54:50.2659235Z   fetch-tags: false
+Build Release Artifacts / classify	UNKNOWN STEP	2026-10-03T04:54:50.2660204Z   show-progress: true
+Build Release Artifacts / classify	UNKNOWN STEP	2026-10-03T04:54:50.2661237Z   lfs: false
+Build Release Artifacts / classify	UNKNOWN STEP	2026-10-03T04:54:50.2663248Z   submodules: false
+Build Release Artifacts / classify	UNKNOWN STEP	2026-10-03T04:54:50.2664341Z   set-safe-directory: true
+Build Release Artifacts / classify	UNKNOWN STEP	2026-10-03T04:54:50.2665406Z env:
+Build Release Artifacts / classify	UNKNOWN STEP	2026-10-03T04:54:50.2666367Z   BLACKSMITH_RUNNER_MESSAGE_WAIT_MS: 201
+Build Release Artifacts / classify	UNKNOWN STEP	2026-10-03T04:54:50.2668091Z   BLACKSMITH_RUNNER_ACQUIRE_JOB_MS: 1026
+Build Release Artifacts / classify	UNKNOWN STEP	2026-10-03T04:54:50.2669556Z   GITHUB_REPO_NAME: Lumiwealth/bot_manager
+Build Release Artifacts / classify	UNKNOWN STEP	2026-10-03T04:54:50.2671324Z ##[endgroup]
+Build Release Artifacts / classify	UNKNOWN STEP	2026-10-03T04:54:50.6212508Z Syncing repository: Lumiwealth/bot_manager
+Build Release Artifacts / classify	UNKNOWN STEP	2026-10-03T04:54:50.6217160Z ##[group]Getting Git version info
+Build Release Artifacts / classify	UNKNOWN STEP	2026-10-03T04:54:50.6218680Z Working directory is '/home/runner/_work/bot_manager/bot_manager'
+Build Release Artifacts / classify	UNKNOWN STEP	2026-10-03T04:54:50.6220792Z [command]/usr/local/bin/git version
+Build Release Artifacts / classify	UNKNOWN STEP	2026-10-03T04:54:50.6297017Z git version 2.51.2
+Build Release Artifacts / classify	UNKNOWN STEP	2026-10-03T04:54:50.6311197Z ##[endgroup]
+Build Release Artifacts / classify	UNKNOWN STEP	2026-10-03T04:54:50.6351848Z Temporarily overriding HOME='/home/runner/_work/_temp/207e73c3-47ae-40be-8dc0-dcb9bfe576ea' before making global git config changes
+Build Release Artifacts / classify	UNKNOWN STEP	2026-10-03T04:54:50.6355144Z Adding repository directory to the temporary git global config as a safe directory
+Build Release Artifacts / classify	UNKNOWN STEP	2026-10-03T04:54:50.6357743Z [command]/usr/local/bin/git config --global --add safe.directory /home/runner/_work/bot_manager/bot_manager
+Build Release Artifacts / classify	UNKNOWN STEP	2026-10-03T04:54:50.6451200Z Deleting the contents of '/home/runner/_work/bot_manager/bot_manager'
+Build Release Artifacts / classify	UNKNOWN STEP	2026-10-03T04:54:50.6466712Z ##[group]Initializing the repository
+Build Release Artifacts / classify	UNKNOWN STEP	2026-10-03T04:54:50.6468744Z [command]/usr/local/bin/git init /home/runner/_work/bot_manager/bot_manager
+Build Release Artifacts / classify	UNKNOWN STEP	2026-10-03T04:54:50.6592513Z hint: Using 'master' as the name for the initial branch. This default branch name
+Build Release Artifacts / classify	UNKNOWN STEP	2026-10-03T04:54:50.6595129Z hint: is subject to change. To configure the initial branch name to use in all
+Build Release Artifacts / classify	UNKNOWN STEP	2026-10-03T04:54:50.6597406Z hint: of your new repositories, which will suppress this warning, call:
+Build Release Artifacts / classify	UNKNOWN STEP	2026-10-03T04:54:50.6599024Z hint:
+Build Release Artifacts / classify	UNKNOWN STEP	2026-10-03T04:54:50.6600373Z hint: 	git config --global init.defaultBranch <name>
+Build Release Artifacts / classify	UNKNOWN STEP	2026-10-03T04:54:50.6601793Z hint:
+Build Release Artifacts / classify	UNKNOWN STEP	2026-10-03T04:54:50.6603222Z hint: Names commonly chosen instead of 'master' are 'main', 'trunk' and
+Build Release Artifacts / classify	UNKNOWN STEP	2026-10-03T04:54:50.6605372Z hint: 'development'. The just-created branch can be renamed via this command:
+Build Release Artifacts / classify	UNKNOWN STEP	2026-10-03T04:54:50.6607880Z hint:
+Build Release Artifacts / classify	UNKNOWN STEP	2026-10-03T04:54:50.6609554Z hint: 	git branch -m <name>
+Build Release Artifacts / classify	UNKNOWN STEP	2026-10-03T04:54:50.6610894Z hint:
+Build Release Artifacts / classify	UNKNOWN STEP	2026-10-03T04:54:50.6612448Z hint: Disable this message with "git config set advice.defaultBranchName false"
+Build Release Artifacts / classify	UNKNOWN STEP	2026-10-03T04:54:50.6615237Z Initialized empty Git repository in /home/runner/_work/bot_manager/bot_manager/.git/
+Build Release Artifacts / classify	UNKNOWN STEP	2026-10-03T04:54:50.6619684Z [command]/usr/local/bin/git remote add origin https://github.com/Lumiwealth/bot_manager
+Build Release Artifacts / classify	UNKNOWN STEP	2026-10-03T04:54:50.6707694Z ##[endgroup]
+Build Release Artifacts / classify	UNKNOWN STEP	2026-10-03T04:54:50.6709806Z ##[group]Disabling automatic garbage collection
+Build Release Artifacts / classify	UNKNOWN STEP	2026-10-03T04:54:50.6712453Z [command]/usr/local/bin/git config --local gc.auto 0
+Build Release Artifacts / classify	UNKNOWN STEP	2026-10-03T04:54:50.8120217Z ##[endgroup]
+Build Release Artifacts / classify	UNKNOWN STEP	2026-10-03T04:54:50.8123642Z ##[group]Setting up auth
+Build Release Artifacts / classify	UNKNOWN STEP	2026-10-03T04:54:50.8128309Z [command]/usr/local/bin/git config --local --name-only --get-regexp core\.sshCommand
+Build Release Artifacts / classify	UNKNOWN STEP	2026-10-03T04:54:50.8133949Z [command]/usr/local/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :"
+Build Release Artifacts / classify	UNKNOWN STEP	2026-10-03T04:54:50.8139595Z [command]/usr/local/bin/git config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+Build Release Artifacts / classify	UNKNOWN STEP	2026-10-03T04:54:50.8160396Z [command]/usr/local/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :"
+Build Release Artifacts / classify	UNKNOWN STEP	2026-10-03T04:54:50.8166712Z [command]/usr/local/bin/git config --local --name-only --get-regexp ^includeIf\.gitdir:
+Build Release Artifacts / classify	UNKNOWN STEP	2026-10-03T04:54:50.8171366Z [command]/usr/local/bin/git submodule foreach --recursive git config --local --show-origin --name-only --get-regexp remote.origin.url
+Build Release Artifacts / classify	UNKNOWN STEP	2026-10-03T04:54:50.8463274Z [command]/usr/local/bin/git config --local http.https://github.com/.extraheader AUTHORIZATION: basic ***
+Build Release Artifacts / classify	UNKNOWN STEP	2026-10-03T04:54:50.8543463Z ##[endgroup]
+Build Release Artifacts / classify	UNKNOWN STEP	2026-10-03T04:54:50.8546079Z ##[group]Fetching the repository
+Build Release Artifacts / classify	UNKNOWN STEP	2026-10-03T04:54:50.8583661Z [command]/usr/local/bin/git -c protocol.version=2 fetch --no-tags --prune --no-recurse-submodules --depth=2 origin +32f2c5068412988ca2422b828b63417503007b35:refs/remotes/origin/develop
+Build Release Artifacts / classify	UNKNOWN STEP	2026-10-03T04:54:52.0963058Z From https://github.com/Lumiwealth/bot_manager
+Build Release Artifacts / classify	UNKNOWN STEP	2026-10-03T04:54:52.0973449Z  * [new ref]         32f2c5068412988ca2422b828b63417503007b35 -> origin/develop
+Build Release Artifacts / classify	UNKNOWN STEP	2026-10-03T04:54:52.1088448Z ##[endgroup]
+Build Release Artifacts / classify	UNKNOWN STEP	2026-10-03T04:54:52.1089312Z ##[group]Determining the checkout info
+Build Release Artifacts / classify	UNKNOWN STEP	2026-10-03T04:54:52.1091244Z ##[endgroup]
+Build Release Artifacts / classify	UNKNOWN STEP	2026-10-03T04:54:52.1095126Z [command]/usr/local/bin/git sparse-checkout disable
+Build Release Artifacts / classify	UNKNOWN STEP	2026-10-03T04:54:52.1207228Z [command]/usr/local/bin/git config --local --unset-all extensions.worktreeConfig
+Build Release Artifacts / classify	UNKNOWN STEP	2026-10-03T04:54:52.1308987Z ##[group]Checking out the ref
+Build Release Artifacts / classify	UNKNOWN STEP	2026-10-03T04:54:52.1320601Z [command]/usr/local/bin/git checkout --progress --force -B develop refs/remotes/origin/develop
+Build Release Artifacts / classify	UNKNOWN STEP	2026-10-03T04:54:52.2222234Z Switched to a new branch 'develop'
+Build Release Artifacts / classify	UNKNOWN STEP	2026-10-03T04:54:52.2237544Z branch 'develop' set up to track 'origin/develop'.
+Build Release Artifacts / classify	UNKNOWN STEP	2026-10-03T04:54:52.2276445Z ##[endgroup]
+Build Release Artifacts / classify	UNKNOWN STEP	2026-10-03T04:54:52.2367185Z [command]/usr/local/bin/git log -1 --format=%H
+Build Release Artifacts / classify	UNKNOWN STEP	2026-10-03T04:54:52.2398066Z 32f2c5068412988ca2422b828b63417503007b35
+Build Release Artifacts / classify	UNKNOWN STEP	2026-10-03T04:54:52.2455860Z ##[group]Removing auth
+Build Release Artifacts / classify	UNKNOWN STEP	2026-10-03T04:54:52.2482272Z [command]/usr/local/bin/git config --local --name-only --get-regexp core\.sshCommand
+Build Release Artifacts / classify	UNKNOWN STEP	2026-10-03T04:54:52.2516072Z [command]/usr/local/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :"
+Build Release Artifacts / classify	UNKNOWN STEP	2026-10-03T04:54:52.2862530Z [command]/usr/local/bin/git config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+Build Release Artifacts / classify	UNKNOWN STEP	2026-10-03T04:54:52.2909586Z http.https://github.com/.extraheader
+Build Release Artifacts / classify	UNKNOWN STEP	2026-10-03T04:54:52.2960558Z [command]/usr/local/bin/git config --local --unset-all http.https://github.com/.extraheader
+Build Release Artifacts / classify	UNKNOWN STEP	2026-10-03T04:54:52.3008184Z [command]/usr/local/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :"
+Build Release Artifacts / classify	UNKNOWN STEP	2026-10-03T04:54:52.3369378Z [command]/usr/local/bin/git config --local --name-only --get-regexp ^includeIf\.gitdir:
+Build Release Artifacts / classify	UNKNOWN STEP	2026-10-03T04:54:52.3408932Z [command]/usr/local/bin/git submodule foreach --recursive git config --local --show-origin --name-only --get-regexp remote.origin.url
+Build Release Artifacts / classify	UNKNOWN STEP	2026-10-03T04:54:52.3771055Z ##[endgroup]
+Build Release Artifacts / classify	UNKNOWN STEP	2026-10-03T04:54:52.4089262Z ##[group]Run base="$(git rev-parse HEAD^ 2>/dev/null || true)"
+Build Release Artifacts / classify	UNKNOWN STEP	2026-10-03T04:54:52.4090046Z [36;1mbase="$(git rev-parse HEAD^ 2>/dev/null || true)"[0m
+Build Release Artifacts / classify	UNKNOWN STEP	2026-10-03T04:54:52.4090482Z [36;1mif [[ -z "$base" ]]; then[0m
+Build Release Artifacts / classify	UNKNOWN STEP	2026-10-03T04:54:52.4091057Z [36;1m  changed_json="$(python scripts/classify_release_changes.py .github/workflows/build-release-artifacts.yml)"[0m
+Build Release Artifacts / classify	UNKNOWN STEP	2026-10-03T04:54:52.4091648Z [36;1melse[0m
+Build Release Artifacts / classify	UNKNOWN STEP	2026-10-03T04:54:52.4092100Z [36;1m  changed_json="$(python scripts/classify_release_changes.py --base "$base" --head HEAD)"[0m
+Build Release Artifacts / classify	UNKNOWN STEP	2026-10-03T04:54:52.4092596Z [36;1mfi[0m
+Build Release Artifacts / classify	UNKNOWN STEP	2026-10-03T04:54:52.4092835Z [36;1mecho "$changed_json"[0m
+Build Release Artifacts / classify	UNKNOWN STEP	2026-10-03T04:54:52.4094197Z [36;1mfor key in runtime_bundle lambda_assets base_image backtest_image single_trade_lambda_image terraform snapshot force_all; do[0m
+Build Release Artifacts / classify	UNKNOWN STEP	2026-10-03T04:54:52.4094908Z [36;1m  value="$(printf '%s' "$changed_json" | jq -r ".${key}")"[0m
+Build Release Artifacts / classify	UNKNOWN STEP	2026-10-03T04:54:52.4095405Z [36;1m  echo "${key}=${value}" >> "$GITHUB_OUTPUT"[0m
+Build Release Artifacts / classify	UNKNOWN STEP	2026-10-03T04:54:52.4095786Z [36;1mdone[0m
+Build Release Artifacts / classify	UNKNOWN STEP	2026-10-03T04:54:52.4142984Z shell: /usr/bin/bash -e {0}
+Build Release Artifacts / classify	UNKNOWN STEP	2026-10-03T04:54:52.4143366Z env:
+Build Release Artifacts / classify	UNKNOWN STEP	2026-10-03T04:54:52.4143627Z   BLACKSMITH_RUNNER_MESSAGE_WAIT_MS: 201
+Build Release Artifacts / classify	UNKNOWN STEP	2026-10-03T04:54:52.4143958Z   BLACKSMITH_RUNNER_ACQUIRE_JOB_MS: 1026
+Build Release Artifacts / classify	UNKNOWN STEP	2026-10-03T04:54:52.4144289Z   GITHUB_REPO_NAME: Lumiwealth/bot_manager
+Build Release Artifacts / classify	UNKNOWN STEP	2026-10-03T04:54:52.4144596Z ##[endgroup]
+Build Release Artifacts / classify	UNKNOWN STEP	2026-10-03T04:54:52.4670190Z {"backtest_image": false, "base_image": false, "force_all": false, "lambda_assets": false, "runtime_bundle": false, "single_trade_lambda_image": false, "snapshot": false, "terraform": true}
+Build Release Artifacts / classify	UNKNOWN STEP	2026-10-03T04:54:52.5166012Z Post job cleanup.
+Build Release Artifacts / classify	UNKNOWN STEP	2026-10-03T04:54:52.6350544Z [command]/usr/local/bin/git version
+Build Release Artifacts / classify	UNKNOWN STEP	2026-10-03T04:54:52.6427043Z git version 2.51.2
+Build Release Artifacts / classify	UNKNOWN STEP	2026-10-03T04:54:52.6495856Z Temporarily overriding HOME='/home/runner/_work/_temp/28e9c9a0-2f79-4ebe-a0fa-d54f8d05d84d' before making global git config changes
+Build Release Artifacts / classify	UNKNOWN STEP	2026-10-03T04:54:52.6497248Z Adding repository directory to the temporary git global config as a safe directory
+Build Release Artifacts / classify	UNKNOWN STEP	2026-10-03T04:54:52.6526989Z [command]/usr/local/bin/git config --global --add safe.directory /home/runner/_work/bot_manager/bot_manager
+Build Release Artifacts / classify	UNKNOWN STEP	2026-10-03T04:54:52.6579321Z [command]/usr/local/bin/git config --local --name-only --get-regexp core\.sshCommand
+Build Release Artifacts / classify	UNKNOWN STEP	2026-10-03T04:54:52.6656543Z [command]/usr/local/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :"
+Build Release Artifacts / classify	UNKNOWN STEP	2026-10-03T04:54:52.7063900Z [command]/usr/local/bin/git config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+Build Release Artifacts / classify	UNKNOWN STEP	2026-10-03T04:54:52.7147106Z [command]/usr/local/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :"
+Build Release Artifacts / classify	UNKNOWN STEP	2026-10-03T04:54:52.7625967Z [command]/usr/local/bin/git config --local --name-only --get-regexp ^includeIf\.gitdir:
+Build Release Artifacts / classify	UNKNOWN STEP	2026-10-03T04:54:52.7680227Z [command]/usr/local/bin/git submodule foreach --recursive git config --local --show-origin --name-only --get-regexp remote.origin.url
+Build Release Artifacts / classify	UNKNOWN STEP	2026-10-03T04:54:52.8236238Z A job completed hook has been configured by the self-hosted runner administrator
+Build Release Artifacts / classify	UNKNOWN STEP	2026-10-03T04:54:52.8290071Z ##[group]Run '/job_completed.sh'
+Build Release Artifacts / classify	UNKNOWN STEP	2026-10-03T04:54:52.8319823Z shell: /usr/bin/bash --noprofile --norc -e -o pipefail {0}
+Build Release Artifacts / classify	UNKNOWN STEP	2026-10-03T04:54:52.8320222Z env:
+Build Release Artifacts / classify	UNKNOWN STEP	2026-10-03T04:54:52.8320471Z   BLACKSMITH_RUNNER_MESSAGE_WAIT_MS: 201
+Build Release Artifacts / classify	UNKNOWN STEP	2026-10-03T04:54:52.8320799Z   BLACKSMITH_RUNNER_ACQUIRE_JOB_MS: 1026
+Build Release Artifacts / classify	UNKNOWN STEP	2026-10-03T04:54:52.8321117Z   BLACKSMITH_CHECK_RUN_ID: 111132032384
+Build Release Artifacts / classify	UNKNOWN STEP	2026-10-03T04:54:52.8321510Z   BLACKSMITH_JOB_DISPLAY_NAME: Build Release Artifacts / classify
+Build Release Artifacts / classify	UNKNOWN STEP	2026-10-03T04:54:52.8321950Z   GITHUB_ACTIONS_CACHE_MODE: write
+Build Release Artifacts / classify	UNKNOWN STEP	2026-10-03T04:54:52.8322229Z ##[endgroup]
+Build Release Artifacts / classify	UNKNOWN STEP	2026-10-03T04:54:52.8546673Z Docker container cache not activated, skipping hash computation.
+Build Release Artifacts / classify	UNKNOWN STEP	2026-10-03T04:54:52.9120994Z No active SSH sessions detected. Proceeding with shutdown immediately.
+Build Release Artifacts / classify	UNKNOWN STEP	2026-10-03T04:54:52.9241027Z Evaluate and set job outputs
+Build Release Artifacts / classify	UNKNOWN STEP	2026-10-03T04:54:52.9617187Z Set output 'runtime_bundle'
+Build Release Artifacts / classify	UNKNOWN STEP	2026-10-03T04:54:52.9619412Z Set output 'lambda_assets'
+Build Release Artifacts / classify	UNKNOWN STEP	2026-10-03T04:54:52.9619865Z Set output 'base_image'
+Build Release Artifacts / classify	UNKNOWN STEP	2026-10-03T04:54:52.9620210Z Set output 'backtest_image'
+Build Release Artifacts / classify	UNKNOWN STEP	2026-10-03T04:54:52.9620584Z Set output 'single_trade_lambda_image'
+Build Release Artifacts / classify	UNKNOWN STEP	2026-10-03T04:54:52.9620975Z Set output 'terraform'
+Build Release Artifacts / classify	UNKNOWN STEP	2026-10-03T04:54:52.9621307Z Set output 'snapshot'
+Build Release Artifacts / classify	UNKNOWN STEP	2026-10-03T04:54:52.9621630Z Set output 'force_all'
+Build Release Artifacts / classify	UNKNOWN STEP	2026-10-03T04:54:52.9622294Z Cleaning up orphan processes
+Build Release Artifacts / classify	UNKNOWN STEP	2026-10-03T04:54:53.0156670Z ##[warning]Node.js 20 is deprecated. The following actions target Node.js 20 but are being forced to run on Node.js 24: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5. For more information see: https://github.blog/changelog/2025-09-19-deprecation-of-node-20-on-github-actions-runners/

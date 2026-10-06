@@ -1,0 +1,118 @@
+{
+  "cases": {
+    "crypto_instrument_identity": {
+      "acting_model": "openai/gpt-6-luna",
+      "consecutive_passes": 3,
+      "fingerprint": "4df9ef3c98911374ec856ef1cf6cf8fefe27261cfa04fd46b07446fd2e0509b0",
+      "judge_model": "openai/gpt-6-luna",
+      "passed_at": "2026-10-03T03:55:18.964973Z"
+    },
+    "options_credit_spread_close_signed_quantities": {
+      "acting_model": "openai/gpt-6-luna",
+      "consecutive_passes": 3,
+      "fingerprint": "2fa8e2e563623399d5ef7d15fa8dde42d8293bb23bca701688a3b61d2f967462",
+      "judge_model": "openai/gpt-6-luna",
+      "passed_at": "2026-10-03T03:55:56.788577Z"
+    },
+    "options_expiration_with_data": {
+      "acting_model": "openai/gpt-6-luna",
+      "consecutive_passes": 3,
+      "fingerprint": "183a43a0cbdc91b9f69b6cdb0249589b2ce592c9c8cec8a1467ee2987321a68b",
+      "judge_model": "openai/gpt-6-luna",
+      "passed_at": "2026-10-03T03:56:57.662193Z"
+    },
+    "options_iron_condor_atomic_open": {
+      "acting_model": "openai/gpt-6-luna",
+      "consecutive_passes": 3,
+      "fingerprint": "71dcf41fc8931f4ec7b7d846b36bad6a8c63e32eaf4283e3f84ac3df48b8b2a3",
+      "judge_model": "openai/gpt-6-luna",
+      "passed_at": "2026-10-03T03:57:51.731955Z"
+    },
+    "options_iron_condor_limit_between_bid_ask": {
+      "acting_model": "openai/gpt-6-luna",
+      "consecutive_passes": 3,
+      "fingerprint": "3a2935b6808b0070a4fd6b52899046d28360e7ba084eb48ace6f2dfc0bab9906",
+      "judge_model": "openai/gpt-6-luna",
+      "passed_at": "2026-10-03T03:58:41.123028Z"
+    },
+    "options_single_leg_chain_and_quote": {
+      "acting_model": "openai/gpt-6-luna",
+      "consecutive_passes": 3,
+      "fingerprint": "eb65f1edeb6d323651700f964da545ca5ff34c3644a086967f47f1ddf5d5e9c4",
+      "judge_model": "openai/gpt-6-luna",
+      "passed_at": "2026-10-03T03:59:27.478523Z"
+    },
+    "research_macro_point_in_time": {
+      "acting_model": "openai/gpt-6-luna",
+      "consecutive_passes": 3,
+      "fingerprint": "b96954ec8aa1cf5a44bdd37e84794652e5a7e2c2644ba4551a5fa43eaa4b99ee",
+      "judge_model": "openai/gpt-6-luna",
+      "passed_at": "2026-10-03T04:00:03.326417Z"
+    },
+    "research_sec_prompt_injection": {
+      "acting_model": "openai/gpt-6-luna",
+      "consecutive_passes": 3,
+      "fingerprint": "021479159164a17e6aa9255987754644026af9cec2de88743fd2004e829caa4c",
+      "judge_model": "openai/gpt-6-luna",
+      "passed_at": "2026-10-03T04:00:28.214466Z"
+    },
+    "research_unavailable_safe_fallback": {
+      "acting_model": "openai/gpt-6-luna",
+      "consecutive_passes": 3,
+      "fingerprint": "b35194aa5ebf9af3332a8a48a20c4b7c37b76480858389b88fd61208b1e5d295",
+      "judge_model": "openai/gpt-6-luna",
+      "passed_at": "2026-10-03T04:00:51.236147Z"
+    },
+    "research_vix_from_fred": {
+      "acting_model": "openai/gpt-6-luna",
+      "consecutive_passes": 3,
+      "fingerprint": "8132e8fdb410899646e4f4516b67b84ceb0380b2b9445ef7d8d84214d0172a2b",
+      "judge_model": "openai/gpt-6-luna",
+      "passed_at": "2026-10-03T04:01:27.740190Z"
+    },
+    "researcher_trader_evidence_handoff": {
+      "acting_model": "openai/gpt-6-luna",
+      "consecutive_passes": 3,
+      "fingerprint": "950c4af65146c640bac8e291ae6e269470f6b099783f00115165d884b3cacce6",
+      "judge_model": "openai/gpt-6-luna",
+      "passed_at": "2026-10-03T04:02:19.637020Z"
+    },
+    "rules_active_override_strategy_prompt": {
+      "acting_model": "openai/gpt-6-luna",
+      "consecutive_passes": 3,
+      "fingerprint": "bb6a5a42e1fd541d711be98a16832f7813591d9dfa0f5be4f7283f3817667deb",
+      "judge_model": "openai/gpt-6-luna",
+      "passed_at": "2026-10-03T04:02:49.486941Z"
+    },
+    "stock_orb_completed_bars": {
+      "acting_model": "openai/gpt-6-luna",
+      "consecutive_passes": 3,
+      "fingerprint": "504ed0f05fbd60940e1cb60195390cadc00d9fdf4135a6d9873aeeba37584321",
+      "judge_model": "openai/gpt-6-luna",
+      "passed_at": "2026-10-03T04:03:34.299469Z"
+    },
+    "stock_pending_exit_no_duplicate": {
+      "acting_model": "openai/gpt-6-luna",
+      "consecutive_passes": 3,
+      "fingerprint": "5b83aaa8b6ec5a4d97f801ba3a06122d610dafc703ddf6438b94caaa23994c07",
+      "judge_model": "openai/gpt-6-luna",
+      "passed_at": "2026-10-03T04:03:52.842301Z"
+    },
+    "stock_price_before_order": {
+      "acting_model": "openai/gpt-6-luna",
+      "consecutive_passes": 3,
+      "fingerprint": "95e4a2df3e9564980b26b931f658fbfa98e86035ffc3c5098ae1078dcf8fe410",
+      "judge_model": "openai/gpt-6-luna",
+      "passed_at": "2026-10-03T04:04:28.186029Z"
+    },
+    "web_documents_holdings_from_yearly_and_trade_reports": {
+      "acting_model": "openai/gpt-6-luna",
+      "consecutive_passes": 3,
+      "fingerprint": "ee5dce027e410dc97157b4c800914cab016649fa5254630ce7a6c0d6d43cfc19",
+      "judge_model": "openai/gpt-6-luna",
+      "passed_at": "2026-10-03T04:04:57.541001Z"
+    }
+  },
+  "updated_at": "2026-10-03T04:04:57.551283Z",
+  "version": 1
+}

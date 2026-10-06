@@ -1,0 +1,578 @@
+import csv
+import datetime as dt
+import json
+import os
+import threading
+from abc import ABC
+from collections import deque
+from datetime import datetime, timedelta
+
+from lumibot.data_sources import DataSource
+from lumibot.tools import print_progress_bar, to_datetime_aware
+from lumibot.tools.helpers import get_timezone_from_datetime
+
+
+class DataSourceBacktesting(DataSource, ABC):
+    """
+    This class is the base class for all backtesting data sources.  It is also an abstract class and should not be
+    instantiated directly because it does not define all necessary methods. Instead, instantiate one of the
+    child classes like PandasData.
+    """
+
+    IS_BACKTESTING_DATA_SOURCE = True
+
+    _PROGRESS_CSV_HEADER = (
+        "timestamp",
+        "percent",
+        "elapsed",
+        "eta",
+        "portfolio_value",
+        "simulation_date",
+        "cash",
+        "total_return_pct",
+        "positions_json",
+        "orders_json",
+        "download_status",
+        "runtime_timings",
+    )
+
+    def __init__(
+             self,
+            datetime_start: datetime | None = None,
+            datetime_end: datetime | None = None,
+            backtesting_started: datetime | None = None,
+            config: dict | None = None,
+            api_key: str | None = None,
+            show_progress_bar: bool = True,
+            log_backtest_progress_to_file = False,
+            progress_csv_path: str | None = None,
+            delay: int | None = None,
+            pandas_data: dict | list = None,
+            **kwargs
+    ):
+        # Pass only api_key to parent class, not datetime_start and datetime_end
+        # Remove any datetime_start or datetime_end from kwargs to avoid them being passed twice
+        if 'datetime_start' in kwargs:
+            # If datetime_start was also passed as a keyword arg, prioritize the keyword arg value
+            datetime_start = kwargs.pop('datetime_start')
+        if 'datetime_end' in kwargs:
+            # If datetime_end was also passed as a keyword arg, prioritize the keyword arg value
+            datetime_end = kwargs.pop('datetime_end')
+
+        # Initialize parent class
+        super().__init__(api_key=api_key, delay=delay, config=config, **kwargs)
+
+        if backtesting_started is None:
+            _backtesting_started = dt.datetime.now()
+        else:
+            _backtesting_started = backtesting_started
+
+        self.datetime_start = to_datetime_aware(datetime_start)
+        self.datetime_end = to_datetime_aware(datetime_end)
+        self._datetime = self.datetime_start
+        self._iter_count = None
+        self.backtesting_started = _backtesting_started
+        self.log_backtest_progress_to_file = log_backtest_progress_to_file
+        self.tzinfo = get_timezone_from_datetime(self.datetime_start)
+        self._eta_history = deque()
+        self._eta_window_seconds = 30
+        self._eta_calibration_seconds = 25
+        self._eta_calibration_progress = 4  # percent
+
+        # Subtract one minute from ``datetime_end`` for most providers so backtests stop
+        # *just before* the configured end bound.
+        #
+        # NOTE: *Pure* PandasDataBacktesting uses explicit bar timestamps provided by callers/tests.
+        # Making the end bound exclusive there commonly drops the final bar and breaks
+        # deterministic unit tests (fees/brackets/multileg cash, crypto cash regressions).
+        #
+        # Do NOT treat derived providers that inherit from PandasData (e.g., ThetaDataBacktestingPandas)
+        # as "pure pandas" here; those providers rely on the end-exclusive behavior for
+        # production-like backtests.
+        is_pure_pandas = type(self).__name__ in ("PandasData", "PandasDataBacktesting")
+        if self.datetime_end is not None and not is_pure_pandas:
+            self.datetime_end -= timedelta(minutes=1)
+
+        # Legacy strategy.backtest code will always pass in a config even for DataSources that don't need it, so
+        # catch it here and ignore it in this class. Child classes that need it should error check it themselves.
+        self._config = config
+
+        # Progress bar should always show when enabled, regardless of quiet_logs
+        # Quiet logs only affects INFO/WARNING/ERROR logging, not progress bar
+        self._show_progress_bar = show_progress_bar
+        self._progress_bar_interval_seconds = float(
+            os.environ.get("BACKTESTING_PROGRESS_BAR_INTERVAL_SECONDS", "0.25")
+        )
+        self._last_progress_bar_update = None
+
+        self._progress_csv_path = progress_csv_path or "logs/progress.csv"
+        # Add initialization for the logging timer attribute
+        self._last_logging_time = None
+        self._portfolio_value = None
+        self._progress_csv_lock = threading.Lock()
+        self._progress_snapshot_lock = threading.Lock()
+        self._runtime_timings_lock = threading.Lock()
+        self._runtime_timings = {}
+        self._last_progress_snapshot = {
+            "percent": 0.0,
+            "elapsed": timedelta(0),
+            "log_eta": None,
+            "portfolio_value": "",
+            "simulation_date": "",
+            "cash": None,
+            "total_return_pct": None,
+            "positions_json": "[]",
+            "orders_json": "[]",
+        }
+        self._progress_heartbeat_enabled = os.environ.get("BACKTESTING_PROGRESS_HEARTBEAT", "true").strip().lower() != "false"
+        self._progress_heartbeat_interval_seconds = float(
+            os.environ.get("BACKTESTING_PROGRESS_HEARTBEAT_SECONDS", "2.0")
+        )
+        self._progress_heartbeat_stop_event = threading.Event()
+        self._progress_heartbeat_thread = None
+
+        # Startup latency (production backtests):
+        #
+        # BotManager uploads backtest progress by watching `logs/progress.csv`. For fast backtests,
+        # time-to-first-progress can dominate user-perceived latency (often 20–30s) because this
+        # file historically was only created once the simulation loop advanced.
+        #
+        # Write an initial progress row immediately so:
+        # - the UI shows that the backtest has started, and
+        # - the metrics uploader doesn't spin waiting for the first file to appear.
+        #
+        # This must remain lightweight and avoid importing ThetaData helpers.
+        if self.log_backtest_progress_to_file:
+            self._write_initial_progress_csv()
+
+        if self.log_backtest_progress_to_file and self._progress_heartbeat_enabled:
+            self._start_progress_heartbeat_thread()
+
+    def record_runtime_milestone(self, name):
+        """Record bounded, per-run wall-clock observations without advancing simulation.
+
+        First observation wins. These are diagnostics, never billing or success
+        authority, and contain no strategy parameters or provider credentials.
+        """
+        if name not in {
+            "initialize_entered_at", "initialize_completed_at",
+            "first_callback_entered_at", "first_price_lookup_at",
+            "first_usable_price_at", "first_simulation_advance_at",
+            "reports_started_at", "reports_completed_at",
+        }:
+            return
+        try:
+            with self._runtime_timings_lock:
+                if name in self._runtime_timings:
+                    return
+                self._runtime_timings[name] = dt.datetime.now(dt.timezone.utc).isoformat()
+            # The existing progress writer carries the snapshot. Do not import
+            # downloader helpers or perform file I/O at callback entry merely
+            # to measure callback entry.
+        except Exception:
+            # Optional telemetry cannot change strategy execution or data validity.
+            pass
+
+    def get_runtime_timings(self):
+        with self._runtime_timings_lock:
+            return dict(self._runtime_timings)
+
+    def flush_runtime_timings(self):
+        """Publish final phases without inventing another simulation step."""
+        if not self.log_backtest_progress_to_file:
+            return False
+        with self._progress_snapshot_lock:
+            snapshot = dict(self._last_progress_snapshot)
+        self.log_backtest_progress_to_csv(**snapshot)
+        return True
+
+    def shutdown(self):
+        """Cleanup any background resources (thread pools, progress heartbeat)."""
+        self.stop_progress_heartbeat()
+        super().shutdown()
+
+    def _start_progress_heartbeat_thread(self) -> None:
+        if self._progress_heartbeat_thread is not None:
+            return
+
+        if self._progress_heartbeat_interval_seconds <= 0:
+            return
+
+        thread = threading.Thread(
+            target=self._progress_heartbeat_loop,
+            name=f"{type(self).__name__}-progress-heartbeat",
+            daemon=True,
+        )
+        self._progress_heartbeat_thread = thread
+        thread.start()
+
+    def _write_initial_progress_csv(self) -> None:
+        if not self.log_backtest_progress_to_file:
+            return
+
+        with self._progress_csv_lock:
+            dir_path = os.path.dirname(self._progress_csv_path)
+            if dir_path and not os.path.exists(dir_path):
+                os.makedirs(dir_path, exist_ok=True)
+
+            if os.path.exists(self._progress_csv_path):
+                return
+
+            current_time = dt.datetime.now().isoformat()
+            row = [
+                current_time,
+                "0.00",
+                "0:00:00",
+                "",
+                "",
+                "",
+                "",
+                "",
+                "[]",
+                "[]",
+                "{}",
+                "{}",
+            ]
+
+            with open(self._progress_csv_path, "w", newline="") as csvfile:
+                writer = csv.writer(csvfile)
+                writer.writerow(self._PROGRESS_CSV_HEADER)
+                writer.writerow(row)
+
+    def stop_progress_heartbeat(self) -> None:
+        event = getattr(self, "_progress_heartbeat_stop_event", None)
+        if event is None:
+            return
+        event.set()
+
+    def _progress_heartbeat_loop(self) -> None:
+        stop_event = self._progress_heartbeat_stop_event
+        while not stop_event.wait(self._progress_heartbeat_interval_seconds):
+            try:
+                self._write_progress_heartbeat_if_downloading()
+            except Exception:
+                # Heartbeat must never crash the backtest loop.
+                continue
+
+    def _write_progress_heartbeat_if_downloading(self) -> bool:
+        """Write `logs/progress.csv` while a ThetaData download is active.
+
+        Backtests can spend long stretches blocked inside data download calls, during which the
+        simulation datetime does not advance. The UI reads progress from `progress.csv`, so without
+        a heartbeat it looks "stuck". This method preserves the last known percent/metrics while
+        updating the download_status column via `thetadata_helper.get_download_status()`.
+        """
+        if not self.log_backtest_progress_to_file:
+            return False
+        if not self._progress_heartbeat_enabled:
+            return False
+
+        try:
+            from lumibot.tools.thetadata_helper import get_download_status
+        except ImportError:
+            return False
+
+        status = get_download_status()
+        if not status.get("active"):
+            return False
+
+        now_wall = dt.datetime.now()
+        if self._last_logging_time is not None:
+            if (now_wall - self._last_logging_time).total_seconds() < self._progress_heartbeat_interval_seconds:
+                return False
+
+        with self._progress_snapshot_lock:
+            snapshot = dict(self._last_progress_snapshot)
+
+        self._last_logging_time = now_wall
+        self.log_backtest_progress_to_csv(**snapshot)
+        return True
+
+    @staticmethod
+    def estimate_requested_length(length=None, start_date=None, end_date=None, timestep="minute"):
+        """
+        Infer the number of rows required to satisfy a backtest data request.
+        """
+        if length is not None:
+            try:
+                return max(int(length), 1)
+            except (TypeError, ValueError):
+                pass
+
+        if start_date is None or end_date is None:
+            return 1
+
+        try:
+            td, unit = DataSource.convert_timestep_str_to_timedelta(timestep)
+        except Exception:
+            return 1
+
+        if end_date < start_date:
+            start_date, end_date = end_date, start_date
+
+        if unit == "day":
+            delta_days = (end_date.date() - start_date.date()).days
+            return max(delta_days + 1, 1)
+
+        interval_seconds = max(td.total_seconds(), 1)
+        total_seconds = max((end_date - start_date).total_seconds(), 0)
+        return max(int(total_seconds // interval_seconds) + 1, 1)
+
+    def get_datetime(self, adjust_for_delay=False):
+        """
+        Get the current datetime of the backtest.
+
+        Parameters
+        ----------
+        adjust_for_delay: bool
+            Not used for backtesting data sources.  This parameter is only used for live data sources.
+
+        Returns
+        -------
+        datetime
+            The current datetime of the backtest.
+        """
+        return self._datetime
+
+    def get_datetime_range(self, length, timestep="minute", timeshift=None):
+        backtesting_timeshift = datetime.now() - self._datetime
+        if timeshift:
+            backtesting_timeshift += timeshift
+
+        if timestep == "minute":
+            period_length = length * timedelta(minutes=1)
+            end_date = self.get_last_minute() - backtesting_timeshift
+        else:
+            period_length = length * timedelta(days=1)
+            end_date = self.get_last_day() - backtesting_timeshift
+
+        start_date = end_date - period_length
+        return start_date, end_date
+
+    def _update_datetime(self, new_datetime, cash=None, portfolio_value=None, positions=None, initial_budget=None, orders=None):
+        """
+        Update the current datetime of the backtest and optionally log progress.
+
+        Parameters
+        ----------
+        new_datetime : datetime
+            The new datetime to set
+        cash : float, optional
+            Current cash balance
+        portfolio_value : float, optional
+            Current portfolio value
+        positions : list, optional
+            List of minimal position dicts from Position.to_minimal_dict():
+            [{"asset": {"symbol": "AAPL", "type": "stock"}, "qty": 100, "val": 15000.0, "pnl": 500.0}, ...]
+        initial_budget : float, optional
+            Initial budget for calculating return percentage
+        orders : list, optional
+            List of minimal order dicts from Order.to_minimal_dict():
+            [{"asset": {"symbol": "AAPL", "type": "stock"}, "side": "buy", "qty": 100, "type": "market", "status": "new"}, ...]
+        """
+        import json
+
+        if new_datetime > self._datetime:
+            self.record_runtime_milestone("first_simulation_advance_at")
+        self._datetime = new_datetime
+
+        if not self._show_progress_bar and not self.log_backtest_progress_to_file:
+            return
+
+        total_seconds = max((self.datetime_end - self.datetime_start).total_seconds(), 1)
+        current_seconds = max((new_datetime - self.datetime_start).total_seconds(), 0)
+        percent = min((current_seconds / total_seconds) * 100, 100)
+        now_wall = dt.datetime.now()
+        eta_override = None
+
+        if percent > 0:
+            self._eta_history.append((now_wall, percent))
+            while self._eta_history and (now_wall - self._eta_history[0][0]).total_seconds() > self._eta_window_seconds:
+                self._eta_history.popleft()
+
+            elapsed_seconds = (now_wall - self.backtesting_started).total_seconds()
+            if (
+                elapsed_seconds >= self._eta_calibration_seconds
+                or percent >= self._eta_calibration_progress
+            ) and len(self._eta_history) >= 2:
+                earliest_time, earliest_percent = self._eta_history[0]
+                delta_percent = percent - earliest_percent
+                delta_time = (now_wall - earliest_time).total_seconds()
+                if delta_percent > 0 and delta_time > 0:
+                    speed = delta_percent / delta_time  # percent per second
+                    remaining_percent = max(0.0, 100 - percent)
+                    eta_seconds = remaining_percent / speed
+                    if eta_seconds >= 0:
+                        eta_override = timedelta(seconds=eta_seconds)
+
+        should_print_progress_bar = self._show_progress_bar
+        if should_print_progress_bar and self._progress_bar_interval_seconds > 0:
+            last_progress_bar_update = getattr(self, "_last_progress_bar_update", None)
+            if last_progress_bar_update is not None:
+                should_print_progress_bar = (
+                    percent >= 100
+                    or (now_wall - last_progress_bar_update).total_seconds() >= self._progress_bar_interval_seconds
+                )
+
+        if should_print_progress_bar:
+            self._last_progress_bar_update = now_wall
+            print_progress_bar(
+                new_datetime,
+                self.datetime_start,
+                self.datetime_end,
+                self.backtesting_started,
+                cash=cash,
+                portfolio_value=portfolio_value,
+                eta_override=eta_override,
+            )
+
+        if self.log_backtest_progress_to_file:
+            if portfolio_value is None:
+                if hasattr(self, "_portfolio_value") and self._portfolio_value is not None:
+                    portfolio_value = self._portfolio_value
+            else:
+                self._portfolio_value = portfolio_value
+
+            if (self._last_logging_time is None) or ((now_wall - self._last_logging_time).total_seconds() >= 2):
+                self._last_logging_time = now_wall
+                elapsed = now_wall - self.backtesting_started
+                log_eta = eta_override
+                if portfolio_value is not None:
+                    if isinstance(portfolio_value, (int, float)):
+                        log_portfolio_value = f'{portfolio_value:,.2f}'
+                    else:
+                        try:
+                            log_portfolio_value = f'{float(portfolio_value):,.2f}'
+                        except (ValueError, TypeError):
+                            log_portfolio_value = str(portfolio_value)
+                else:
+                    log_portfolio_value = ""
+
+                # Calculate new fields - include both date AND time for minute-by-minute backtests
+                simulation_date = new_datetime.strftime("%Y-%m-%d %H:%M:%S") if new_datetime else None
+
+                # Calculate total return percentage
+                total_return_pct = None
+                if portfolio_value is not None and initial_budget is not None and initial_budget > 0:
+                    try:
+                        pv = float(str(portfolio_value).replace(',', ''))
+                        total_return_pct = ((pv / initial_budget) - 1) * 100
+                    except (ValueError, TypeError):
+                        pass
+
+                # Serialize positions and orders to JSON
+                positions_json = json.dumps(positions) if positions else "[]"
+                orders_json = json.dumps(orders) if orders else "[]"
+
+                with self._progress_snapshot_lock:
+                    self._last_progress_snapshot = {
+                        "percent": percent,
+                        "elapsed": elapsed,
+                        "log_eta": log_eta,
+                        "portfolio_value": log_portfolio_value,
+                        "simulation_date": simulation_date if simulation_date else "",
+                        "cash": cash,
+                        "total_return_pct": total_return_pct,
+                        "positions_json": positions_json if positions_json else "[]",
+                        "orders_json": orders_json if orders_json else "[]",
+                    }
+
+                self.log_backtest_progress_to_csv(
+                    percent,
+                    elapsed,
+                    log_eta,
+                    log_portfolio_value,
+                    simulation_date=simulation_date,
+                    cash=cash,
+                    total_return_pct=total_return_pct,
+                    positions_json=positions_json,
+                    orders_json=orders_json
+                )
+
+    def log_backtest_progress_to_csv(
+        self,
+        percent,
+        elapsed,
+        log_eta,
+        portfolio_value,
+        simulation_date=None,
+        cash=None,
+        total_return_pct=None,
+        positions_json=None,
+        orders_json=None
+    ):
+        """
+        Log backtest progress to CSV file.
+
+        Parameters
+        ----------
+        percent : float
+            Progress percentage (0-100)
+        elapsed : timedelta
+            Time elapsed since backtest started
+        log_eta : timedelta
+            Estimated time remaining
+        portfolio_value : str or float
+            Current portfolio value
+        simulation_date : str, optional
+            Current date/time in the backtest simulation (YYYY-MM-DD HH:MM:SS format)
+        cash : float, optional
+            Current cash balance
+        total_return_pct : float, optional
+            Running total return percentage
+        positions_json : str, optional
+            JSON string of minimal position data from Position.to_minimal_dict():
+            [{"asset": {"symbol": "AAPL", "type": "stock"}, "qty": 100, "val": 15000.0, "pnl": 500.0}, ...]
+        orders_json : str, optional
+            JSON string of minimal order data from Order.to_minimal_dict():
+            [{"asset": {"symbol": "AAPL", "type": "stock"}, "side": "buy", "qty": 100, "type": "market", "status": "new"}, ...]
+        """
+        # If portfolio_value is None, use the last known value if available.
+        if portfolio_value is None and hasattr(self, "_portfolio_value") and self._portfolio_value is not None:
+            portfolio_value = self._portfolio_value
+
+        elif portfolio_value is not None:
+            self._portfolio_value = portfolio_value
+
+        current_time = dt.datetime.now().isoformat()
+
+        # Get download status from ThetaData helper (if available)
+        download_status_json = "{}"
+        try:
+            from lumibot.tools.thetadata_helper import get_download_status
+            download_status = get_download_status()
+            if download_status.get("active"):
+                download_status_json = json.dumps(download_status)
+        except ImportError:
+            # ThetaData helper not available, skip download status
+            pass
+        except Exception:
+            # Any other error, skip download status
+            pass
+
+        # Build row with all columns
+        row = [
+            current_time,
+            f"{percent:.2f}",
+            str(elapsed).split('.')[0],
+            str(log_eta).split('.')[0] if log_eta else "",
+            portfolio_value,
+            simulation_date if simulation_date else "",
+            f"{cash:.2f}" if cash is not None else "",
+            f"{total_return_pct:.2f}" if total_return_pct is not None else "",
+            positions_json if positions_json else "[]",
+            orders_json if orders_json else "[]",
+            download_status_json,
+            json.dumps(self.get_runtime_timings()),
+        ]
+
+        with self._progress_csv_lock:
+            # Ensure the directory exists before opening the file.
+            dir_path = os.path.dirname(self._progress_csv_path)
+            if not os.path.exists(dir_path):
+                os.makedirs(dir_path, exist_ok=True)
+            with open(self._progress_csv_path, "w", newline="") as csvfile:
+                writer = csv.writer(csvfile)
+                # Header with all columns including orders and download status
+                writer.writerow(self._PROGRESS_CSV_HEADER)
+                writer.writerow(row)

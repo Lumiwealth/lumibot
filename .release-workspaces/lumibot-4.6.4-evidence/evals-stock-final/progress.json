@@ -1,0 +1,16 @@
+{
+  "budget": {
+    "committed_usd": 0.21325186,
+    "reserved_calls": 0,
+    "settled_calls": 467,
+    "usage": {
+      "cached_input_tokens": 6765836,
+      "input_tokens": 7544121,
+      "output_tokens": 90418,
+      "thinking_tokens": 45112
+    }
+  },
+  "completed_repetitions": 38,
+  "ledger_path": "/Users/robertgrzesik/Development/lumibot/.claude/worktrees/codex-release-4.6.4/artifacts/release-4.6.4/evals-stock-final/ledger.jsonl",
+  "remaining_repetitions": 4
+}

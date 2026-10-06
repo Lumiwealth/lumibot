@@ -1,0 +1,2083 @@
+<!doctype html>
+<html class="no-js" lang="en" data-content_root="./">
+  <head><meta charset="utf-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <meta name="color-scheme" content="light dark"><meta name="viewport" content="width=device-width, initial-scale=1" />
+<meta content="LumiBot supports configuring many behaviors via environment variables. This page documents the variables most commonly used for backtesting, ThetaData." name="description" />
+<meta property="og:title" content="Environment Variables" />
+<meta property="og:type" content="website" />
+<meta property="og:url" content="https://lumibot.lumiwealth.com/environment_variables.html" />
+<meta property="og:site_name" content="LumiBot" />
+<meta property="og:description" content="LumiBot supports configuring many behaviors via environment variables. This page documents the variables most commonly used for backtesting, ThetaData, and remote caching. Backtesting configuration..." />
+<meta property="og:image" content="https://lumibot.lumiwealth.com/_static/lumibot-social-card.png" />
+<meta property="og:image:alt" content="LumiBot: AI trading agents that actually place the trade" />
+<meta name="twitter:card" content="summary_large_image" />
+<link rel="index" title="Index" href="genindex.html"><link rel="search" title="Search" href="search.html"><link rel="next" title="Common Mistakes and How to Avoid Them" href="common_mistakes.html"><link rel="prev" title="OptionsHelper" href="options_helper.html">
+        <link rel="canonical" href="https://lumibot.lumiwealth.com/environment_variables.html">
+        <link rel="prefetch" href="_static/Lumibot_Logo.webp" as="image">
+        <link rel="prefetch" href="_static/Lumibot_Logo.webp" as="image">
+
+    <link rel="shortcut icon" href="_static/lumibot_favicon_192.png"><!-- Generated with Sphinx 8.1.3 and Furo 2025.12.19 -->
+
+<title>Environment Variables - Lumibot</title>
+
+<link rel="stylesheet" type="text/css" href="_static/pygments.css?v=d111a655" />
+    <link rel="stylesheet" type="text/css" href="_static/styles/furo.css?v=7bdb33bb" />
+    <link rel="stylesheet" type="text/css" href="_static/styles/furo-extensions.css?v=8dab3a3b" />
+    <link rel="stylesheet" type="text/css" href="_static/custom.css?v=c3884bc6" />
+    
+    
+
+
+<style>
+  body {
+    --color-code-background: #f2f2f2;
+  --color-code-foreground: #1e1e1e;
+  
+  }
+  @media not print {
+    body[data-theme="dark"] {
+      --color-code-background: #202020;
+  --color-code-foreground: #d0d0d0;
+  
+    }
+    @media (prefers-color-scheme: dark) {
+      body:not([data-theme="light"]) {
+        --color-code-background: #202020;
+  --color-code-foreground: #d0d0d0;
+  
+      }
+    }
+  }
+</style>
+
+
+
+
+<link rel="icon" type="image/png" sizes="192x192" href="_static/lumibot_favicon_192.png">
+<link rel="icon" type="image/png" sizes="512x512" href="_static/lumibot_favicon_512.png">
+<link rel="apple-touch-icon" sizes="192x192" href="_static/lumibot_favicon_192.png">
+
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="Lumibot">
+<meta property="og:title" content="Environment Variables - Lumibot">
+<meta property="og:description" content="Environment Variables: setup, usage, and reference documentation for the LumiBot Python trading framework.">
+<meta property="og:url" content="https://lumibot.lumiwealth.com/environment_variables.html">
+
+<meta property="og:image" content="https://lumibot.lumiwealth.com/_static/lumibot_spot_logo.png">
+<meta property="og:image:width" content="852">
+<meta property="og:image:height" content="852">
+<meta property="og:image:alt" content="Environment Variables">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Environment Variables - Lumibot">
+<meta name="twitter:description" content="Environment Variables: setup, usage, and reference documentation for the LumiBot Python trading framework.">
+<meta name="twitter:image" content="https://lumibot.lumiwealth.com/_static/lumibot_spot_logo.png">
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@graph": [
+    {
+      "@type": "Organization",
+      "@id": "https://lumibot.lumiwealth.com/#organization",
+      "name": "Lumiwealth",
+      "url": "https://botspot.trade",
+      "logo": {
+        "@type": "ImageObject",
+        "url": "https://lumibot.lumiwealth.com/_static/lumibot_spot_logo.png",
+        "width": 852,
+        "height": 852
+      },
+      "sameAs": [
+        "https://github.com/Lumiwealth/lumibot",
+        "https://www.reddit.com/r/BotSpotTrade/",
+        "https://discord.gg/4R9j6T3PN8"
+      ]
+    },
+    {
+      "@type": "WebSite",
+      "@id": "https://lumibot.lumiwealth.com/#website",
+      "name": "Lumibot Documentation",
+      "alternateName": "Lumibot",
+      "url": "https://lumibot.lumiwealth.com/",
+      "publisher": {
+        "@id": "https://lumibot.lumiwealth.com/#organization"
+      }
+    },
+    {
+      "@type": "SoftwareSourceCode",
+      "@id": "https://lumibot.lumiwealth.com/#software",
+      "name": "Lumibot",
+      "alternateName": "LumiBot",
+      "description": "Python framework for deterministic trading strategies, AI trading teams, hybrid strategy logic, backtesting, paper trading, and live broker workflows.",
+      "codeRepository": "https://github.com/Lumiwealth/lumibot",
+      "programmingLanguage": "Python",
+      "url": "https://lumibot.lumiwealth.com/",
+      "image": "https://lumibot.lumiwealth.com/_static/lumibot_spot_logo.png",
+      "publisher": {
+        "@id": "https://lumibot.lumiwealth.com/#organization"
+      },
+      "keywords": [
+        "algorithmic trading",
+        "AI trading agents",
+        "AI trading teams",
+        "backtesting",
+        "paper trading",
+        "live trading",
+        "broker integration"
+      ]
+    }
+  ]
+}
+</script>
+</head>
+  <body>
+    
+    <script>
+      document.body.dataset.theme = localStorage.getItem("theme") || "auto";
+    </script>
+    
+
+<svg xmlns="http://www.w3.org/2000/svg" style="display: none;">
+  <symbol id="svg-toc" viewBox="0 0 24 24">
+    <title>Contents</title>
+    <svg stroke="currentColor" fill="currentColor" stroke-width="0" viewBox="0 0 1024 1024">
+      <path d="M408 442h480c4.4 0 8-3.6 8-8v-56c0-4.4-3.6-8-8-8H408c-4.4 0-8 3.6-8 8v56c0 4.4 3.6 8 8 8zm-8 204c0 4.4 3.6 8 8 8h480c4.4 0 8-3.6 8-8v-56c0-4.4-3.6-8-8-8H408c-4.4 0-8 3.6-8 8v56zm504-486H120c-4.4 0-8 3.6-8 8v56c0 4.4 3.6 8 8 8h784c4.4 0 8-3.6 8-8v-56c0-4.4-3.6-8-8-8zm0 632H120c-4.4 0-8 3.6-8 8v56c0 4.4 3.6 8 8 8h784c4.4 0 8-3.6 8-8v-56c0-4.4-3.6-8-8-8zM115.4 518.9L271.7 642c5.8 4.6 14.4.5 14.4-6.9V388.9c0-7.4-8.5-11.5-14.4-6.9L115.4 505.1a8.74 8.74 0 0 0 0 13.8z"/>
+    </svg>
+  </symbol>
+  <symbol id="svg-menu" viewBox="0 0 24 24">
+    <title>Menu</title>
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather-menu">
+      <line x1="3" y1="12" x2="21" y2="12"></line>
+      <line x1="3" y1="6" x2="21" y2="6"></line>
+      <line x1="3" y1="18" x2="21" y2="18"></line>
+    </svg>
+  </symbol>
+  <symbol id="svg-arrow-right" viewBox="0 0 24 24">
+    <title>Expand</title>
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather-chevron-right">
+      <polyline points="9 18 15 12 9 6"></polyline>
+    </svg>
+  </symbol>
+  <symbol id="svg-sun" viewBox="0 0 24 24">
+    <title>Light mode</title>
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="1" stroke-linecap="round" stroke-linejoin="round" class="feather-sun">
+      <circle cx="12" cy="12" r="5"></circle>
+      <line x1="12" y1="1" x2="12" y2="3"></line>
+      <line x1="12" y1="21" x2="12" y2="23"></line>
+      <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line>
+      <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>
+      <line x1="1" y1="12" x2="3" y2="12"></line>
+      <line x1="21" y1="12" x2="23" y2="12"></line>
+      <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>
+      <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
+    </svg>
+  </symbol>
+  <symbol id="svg-moon" viewBox="0 0 24 24">
+    <title>Dark mode</title>
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="1" stroke-linecap="round" stroke-linejoin="round" class="icon-tabler-moon">
+      <path stroke="none" d="M0 0h24v24H0z" fill="none" />
+      <path d="M12 3c.132 0 .263 0 .393 0a7.5 7.5 0 0 0 7.92 12.446a9 9 0 1 1 -8.313 -12.454z" />
+    </svg>
+  </symbol>
+  <symbol id="svg-sun-with-moon" viewBox="0 0 24 24">
+    <title>Auto light/dark, in light mode</title>
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="1" stroke-linecap="round" stroke-linejoin="round"
+      class="icon-custom-derived-from-feather-sun-and-tabler-moon">
+      <path style="opacity: 50%" d="M 5.411 14.504 C 5.471 14.504 5.532 14.504 5.591 14.504 C 3.639 16.319 4.383 19.569 6.931 20.352 C 7.693 20.586 8.512 20.551 9.25 20.252 C 8.023 23.207 4.056 23.725 2.11 21.184 C 0.166 18.642 1.702 14.949 4.874 14.536 C 5.051 14.512 5.231 14.5 5.411 14.5 L 5.411 14.504 Z"/>
+      <line x1="14.5" y1="3.25" x2="14.5" y2="1.25"/>
+      <line x1="14.5" y1="15.85" x2="14.5" y2="17.85"/>
+      <line x1="10.044" y1="5.094" x2="8.63" y2="3.68"/>
+      <line x1="19" y1="14.05" x2="20.414" y2="15.464"/>
+      <line x1="8.2" y1="9.55" x2="6.2" y2="9.55"/>
+      <line x1="20.8" y1="9.55" x2="22.8" y2="9.55"/>
+      <line x1="10.044" y1="14.006" x2="8.63" y2="15.42"/>
+      <line x1="19" y1="5.05" x2="20.414" y2="3.636"/>
+      <circle cx="14.5" cy="9.55" r="3.6"/>
+    </svg>
+  </symbol>
+  <symbol id="svg-moon-with-sun" viewBox="0 0 24 24">
+    <title>Auto light/dark, in dark mode</title>
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="1" stroke-linecap="round" stroke-linejoin="round"
+      class="icon-custom-derived-from-feather-sun-and-tabler-moon">
+      <path d="M 8.282 7.007 C 8.385 7.007 8.494 7.007 8.595 7.007 C 5.18 10.184 6.481 15.869 10.942 17.24 C 12.275 17.648 13.706 17.589 15 17.066 C 12.851 22.236 5.91 23.143 2.505 18.696 C -0.897 14.249 1.791 7.786 7.342 7.063 C 7.652 7.021 7.965 7 8.282 7 L 8.282 7.007 Z"/>
+      <line style="opacity: 50%" x1="18" y1="3.705" x2="18" y2="2.5"/>
+      <line style="opacity: 50%" x1="18" y1="11.295" x2="18" y2="12.5"/>
+      <line style="opacity: 50%" x1="15.316" y1="4.816" x2="14.464" y2="3.964"/>
+      <line style="opacity: 50%" x1="20.711" y1="10.212" x2="21.563" y2="11.063"/>
+      <line style="opacity: 50%" x1="14.205" y1="7.5" x2="13.001" y2="7.5"/>
+      <line style="opacity: 50%" x1="21.795" y1="7.5" x2="23" y2="7.5"/>
+      <line style="opacity: 50%" x1="15.316" y1="10.184" x2="14.464" y2="11.036"/>
+      <line style="opacity: 50%" x1="20.711" y1="4.789" x2="21.563" y2="3.937"/>
+      <circle style="opacity: 50%" cx="18" cy="7.5" r="2.169"/>
+    </svg>
+  </symbol>
+  <symbol id="svg-pencil" viewBox="0 0 24 24">
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="1" stroke-linecap="round" stroke-linejoin="round" class="icon-tabler-pencil-code">
+      <path d="M4 20h4l10.5 -10.5a2.828 2.828 0 1 0 -4 -4l-10.5 10.5v4" />
+      <path d="M13.5 6.5l4 4" />
+      <path d="M20 21l2 -2l-2 -2" />
+      <path d="M17 17l-2 2l2 2" />
+    </svg>
+  </symbol>
+  <symbol id="svg-eye" viewBox="0 0 24 24">
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="1" stroke-linecap="round" stroke-linejoin="round" class="icon-tabler-eye-code">
+      <path stroke="none" d="M0 0h24v24H0z" fill="none" />
+      <path d="M10 12a2 2 0 1 0 4 0a2 2 0 0 0 -4 0" />
+      <path
+        d="M11.11 17.958c-3.209 -.307 -5.91 -2.293 -8.11 -5.958c2.4 -4 5.4 -6 9 -6c3.6 0 6.6 2 9 6c-.21 .352 -.427 .688 -.647 1.008" />
+      <path d="M20 21l2 -2l-2 -2" />
+      <path d="M17 17l-2 2l2 2" />
+    </svg>
+  </symbol>
+</svg>
+
+<input type="checkbox" class="sidebar-toggle" name="__navigation" id="__navigation" aria-label="Toggle site navigation sidebar">
+<input type="checkbox" class="sidebar-toggle" name="__toc" id="__toc" aria-label="Toggle table of contents sidebar">
+<label class="overlay sidebar-overlay" for="__navigation"></label>
+<label class="overlay toc-overlay" for="__toc"></label>
+
+<a class="skip-to-content muted-link" href="#furo-main-content">Skip to content</a>
+
+
+
+<div class="page">
+  <header class="mobile-header">
+    <div class="header-left">
+      <label class="nav-overlay-icon" for="__navigation">
+        <span class="icon"><svg><use href="#svg-menu"></use></svg></span>
+      </label>
+    </div>
+    <div class="header-center">
+      <a href="index.html"><div class="brand">Lumibot</div></a>
+    </div>
+    <div class="header-right">
+      <div class="theme-toggle-container theme-toggle-header">
+        <button class="theme-toggle" aria-label="Toggle Light / Dark / Auto color theme">
+          <svg class="theme-icon-when-auto-light"><use href="#svg-sun-with-moon"></use></svg>
+          <svg class="theme-icon-when-auto-dark"><use href="#svg-moon-with-sun"></use></svg>
+          <svg class="theme-icon-when-dark"><use href="#svg-moon"></use></svg>
+          <svg class="theme-icon-when-light"><use href="#svg-sun"></use></svg>
+        </button>
+      </div>
+      <label class="toc-overlay-icon toc-header-icon" for="__toc">
+        <span class="icon"><svg><use href="#svg-toc"></use></svg></span>
+      </label>
+    </div>
+  </header>
+  <aside class="sidebar-drawer">
+    <div class="sidebar-container">
+      
+      <div class="sidebar-sticky"><a class="sidebar-brand" href="index.html">
+  <div class="sidebar-logo-container">
+    <img class="sidebar-logo only-light" src="_static/Lumibot_Logo.webp" alt="Light Logo"/>
+    <img class="sidebar-logo only-dark" src="_static/Lumibot_Logo.webp" alt="Dark Logo"/>
+  </div>
+  
+  
+</a><form class="sidebar-search-container" method="get" action="search.html" role="search">
+  <input class="sidebar-search" placeholder="Search" name="q" aria-label="Search">
+  <input type="hidden" name="check_keywords" value="yes">
+  <input type="hidden" name="area" value="default">
+</form>
+<div id="searchbox"></div><div class="sidebar-scroll"><div class="sidebar-tree">
+  <p class="caption" role="heading"><span class="caption-text">Start here</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="index.html">Home</a></li>
+<li class="toctree-l1"><a class="reference internal" href="getting_started.html">Start Here / Python Setup</a></li>
+<li class="toctree-l1"><a class="reference internal" href="cli.html">The lumibot Command</a></li>
+<li class="toctree-l1"><a class="reference internal" href="examples.html">Python Strategy Examples</a></li>
+<li class="toctree-l1"><a class="reference internal" href="agents_quickstart.html">AI Quickstart</a></li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="agents_examples.html">AI Examples</a><input aria-label="Toggle navigation of AI Examples" class="toctree-checkbox" id="toctree-checkbox-1" name="toctree-checkbox-1" role="switch" type="checkbox"/><label for="toctree-checkbox-1"><span class="icon"><svg><use href="#svg-arrow-right"></use></svg></span></label><ul>
+<li class="toctree-l2"><a class="reference internal" href="agents_example_nancy_pelosi_trading_bot.html">Nancy Pelosi Stock Trading Bot</a></li>
+<li class="toctree-l2"><a class="reference internal" href="agents_example_nancy_pelosi_copy_trading_bot.html">Nancy Pelosi Copy Trading Bot</a></li>
+<li class="toctree-l2"><a class="reference internal" href="agents_example_insider_trading_bot.html">Insider Trading Bot</a></li>
+<li class="toctree-l2"><a class="reference internal" href="agents_example_warren_buffett_ai_stock_picker.html">Warren Buffett AI Stock Picker</a></li>
+<li class="toctree-l2"><a class="reference internal" href="agents_example_bill_ackman_portfolio_ai_trading_bot.html">Bill Ackman Portfolio AI Trading Bot</a></li>
+<li class="toctree-l2"><a class="reference internal" href="agents_example_fear_and_greed_index_trading_bot.html">Fear and Greed Index Trading Bot</a></li>
+<li class="toctree-l2"><a class="reference internal" href="agents_example_bull_vs_bear_ai_stock_trading_bot.html">Bull vs Bear AI Stock Trading Bot</a></li>
+<li class="toctree-l2"><a class="reference internal" href="agents_example_tqqq_strategy_ai_trading_bot.html">TQQQ Strategy AI Trading Bot</a></li>
+<li class="toctree-l2"><a class="reference internal" href="agents_example_iron_condor_ai_trading_bot.html">AI Iron Condor Trading Bot</a></li>
+<li class="toctree-l2"><a class="reference internal" href="agents_example_put_credit_spread_ai_trading_bot.html">Put Credit Spread AI Trading Bot</a></li>
+<li class="toctree-l2"><a class="reference internal" href="agents_example_0dte_options_ai_trading_bot.html">0DTE Options AI Trading Bot</a></li>
+<li class="toctree-l2"><a class="reference internal" href="agents_example_vwap_strategy_ai_trading_bot.html">VWAP Strategy AI Trading Bot</a></li>
+<li class="toctree-l2"><a class="reference internal" href="agents_example_opening_range_breakout_ai_trading_bot.html">Opening Range Breakout AI Trading Bot</a></li>
+<li class="toctree-l2"><a class="reference internal" href="agents_example_citadel_sector_pods.html">Citadel Sector Pods AI Trading Team</a></li>
+<li class="toctree-l2"><a class="reference internal" href="agents_example_ray_dalio_idea_meritocracy.html">Ray Dalio Idea Meritocracy AI Trading Team</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="strategy_run_modes.html">Backtest, Paper, or Live</a></li>
+<li class="toctree-l1"><a class="reference internal" href="agent_start_here.html">For Coding Agents</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">AI trading</span></p>
+<ul>
+<li class="toctree-l1 has-children"><a class="reference internal" href="agents.html">AI Agent Guide</a><input aria-label="Toggle navigation of AI Agent Guide" class="toctree-checkbox" id="toctree-checkbox-2" name="toctree-checkbox-2" role="switch" type="checkbox"/><label for="toctree-checkbox-2"><span class="icon"><svg><use href="#svg-arrow-right"></use></svg></span></label><ul>
+<li class="toctree-l2"><a class="reference internal" href="agents_flows.html">Design Your AI Trading Team</a></li>
+<li class="toctree-l2"><a class="reference internal" href="agents_builtin_tools.html">Agent Built-In Tools</a></li>
+<li class="toctree-l2"><a class="reference internal" href="agents_browser_tools.html">Stateful Browser Tools</a></li>
+<li class="toctree-l2"><a class="reference internal" href="agents_canonical_demos.html">One-Agent AI Trading Bot Demos</a></li>
+<li class="toctree-l2"><a class="reference internal" href="agents_observability.html">AI Agent Observability</a></li>
+<li class="toctree-l2"><a class="reference internal" href="agents_memory.html">Agent Memory</a></li>
+<li class="toctree-l2"><a class="reference internal" href="agents_notifications.html">Agent Notifications</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="execution_gap.html">The Execution Gap</a></li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="ai_trading_project_comparison.html">Compare AI Frameworks</a><input aria-label="Toggle navigation of Compare AI Frameworks" class="toctree-checkbox" id="toctree-checkbox-3" name="toctree-checkbox-3" role="switch" type="checkbox"/><label for="toctree-checkbox-3"><span class="icon"><svg><use href="#svg-arrow-right"></use></svg></span></label><ul>
+<li class="toctree-l2"><a class="reference internal" href="lumibot_vs_tradingagents.html">Lumibot vs TradingAgents</a></li>
+<li class="toctree-l2"><a class="reference internal" href="lumibot_vs_ai_hedge_fund.html">Lumibot vs ai-hedge-fund</a></li>
+<li class="toctree-l2"><a class="reference internal" href="lumibot_vs_openalice.html">LumiBot vs OpenAlice</a></li>
+<li class="toctree-l2"><a class="reference internal" href="lumibot_vs_quantdinger.html">Lumibot vs QuantDinger</a></li>
+<li class="toctree-l2"><a class="reference internal" href="lumibot_vs_lean.html">Lumibot vs QuantConnect LEAN</a></li>
+</ul>
+</li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Build strategies</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="strategy_api_overview.html">Strategy API</a></li>
+<li class="toctree-l1"><a class="reference internal" href="imports_and_startup.html">Imports and Startup</a></li>
+<li class="toctree-l1"><a class="reference internal" href="standalone_components.html">Reusable Components</a></li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="lifecycle_methods.html">Lifecycle Methods</a><input aria-label="Toggle navigation of Lifecycle Methods" class="toctree-checkbox" id="toctree-checkbox-4" name="toctree-checkbox-4" role="switch" type="checkbox"/><label for="toctree-checkbox-4"><span class="icon"><svg><use href="#svg-arrow-right"></use></svg></span></label><ul>
+<li class="toctree-l2"><a class="reference internal" href="lifecycle_methods.summary.html">Summary</a></li>
+<li class="toctree-l2"><a class="reference internal" href="lifecycle_methods.initialize.html">def initialize</a></li>
+<li class="toctree-l2"><a class="reference internal" href="lifecycle_methods.on_trading_iteration.html">def on_trading_iteration</a></li>
+<li class="toctree-l2"><a class="reference internal" href="lifecycle_methods.before_market_opens.html">def before_market_opens</a></li>
+<li class="toctree-l2"><a class="reference internal" href="lifecycle_methods.before_starting_trading.html">def before_starting_trading</a></li>
+<li class="toctree-l2"><a class="reference internal" href="lifecycle_methods.before_market_closes.html">def before_market_closes</a></li>
+<li class="toctree-l2"><a class="reference internal" href="lifecycle_methods.after_market_closes.html">def after_market_closes</a></li>
+<li class="toctree-l2"><a class="reference internal" href="lifecycle_methods.on_abrupt_closing.html">def on_abrupt_closing</a></li>
+<li class="toctree-l2"><a class="reference internal" href="lifecycle_methods.on_bot_crash.html">def on_bot_crash</a></li>
+<li class="toctree-l2"><a class="reference internal" href="lifecycle_methods.trace_stats.html">def trace_stats</a></li>
+<li class="toctree-l2"><a class="reference internal" href="lifecycle_methods.tearsheet_custom_metrics.html">def tearsheet_custom_metrics</a></li>
+<li class="toctree-l2"><a class="reference internal" href="lifecycle_methods.on_new_order.html">def on_new_order</a></li>
+<li class="toctree-l2"><a class="reference internal" href="lifecycle_methods.on_partially_filled_order.html">def on_partially_filled_order</a></li>
+<li class="toctree-l2"><a class="reference internal" href="lifecycle_methods.on_filled_order.html">def on_filled_order</a></li>
+<li class="toctree-l2"><a class="reference internal" href="lifecycle_methods.on_canceled_order.html">def on_canceled_order</a></li>
+<li class="toctree-l2"><a class="reference internal" href="lifecycle_methods.on_parameters_updated.html">def on_parameters_updated</a></li>
+</ul>
+</li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="strategy_methods.html">Strategy Methods</a><input aria-label="Toggle navigation of Strategy Methods" class="toctree-checkbox" id="toctree-checkbox-5" name="toctree-checkbox-5" role="switch" type="checkbox"/><label for="toctree-checkbox-5"><span class="icon"><svg><use href="#svg-arrow-right"></use></svg></span></label><ul>
+<li class="toctree-l2 has-children"><a class="reference internal" href="strategy_methods.orders.html">Order Management</a><input aria-label="Toggle navigation of Order Management" class="toctree-checkbox" id="toctree-checkbox-6" name="toctree-checkbox-6" role="switch" type="checkbox"/><label for="toctree-checkbox-6"><span class="icon"><svg><use href="#svg-arrow-right"></use></svg></span></label><ul>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.orders/lumibot.strategies.strategy.Strategy.create_order.html">self.create_order</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.orders/lumibot.strategies.strategy.Strategy.submit_order.html">self.submit_order</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.orders/lumibot.strategies.strategy.Strategy.submit_orders.html">self.submit_orders</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.orders/lumibot.strategies.strategy.Strategy.cancel_order.html">self.cancel_order</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.orders/lumibot.strategies.strategy.Strategy.cancel_orders.html">self.cancel_orders</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.orders/lumibot.strategies.strategy.Strategy.cancel_open_orders.html">self.cancel_open_orders</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.orders/lumibot.strategies.strategy.Strategy.get_selling_order.html">self.get_selling_order</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.orders/lumibot.strategies.strategy.Strategy.sell_all.html">self.sell_all</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.orders/lumibot.strategies.strategy.Strategy.get_order.html">self.get_order</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.orders/lumibot.strategies.strategy.Strategy.get_orders.html">self.get_orders</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.orders/lumibot.strategies.strategy.Strategy.get_asset_potential_total.html">self.get_asset_potential_total</a></li>
+</ul>
+</li>
+<li class="toctree-l2 has-children"><a class="reference internal" href="strategy_methods.account.html">Account Management</a><input aria-label="Toggle navigation of Account Management" class="toctree-checkbox" id="toctree-checkbox-7" name="toctree-checkbox-7" role="switch" type="checkbox"/><label for="toctree-checkbox-7"><span class="icon"><svg><use href="#svg-arrow-right"></use></svg></span></label><ul>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.account/lumibot.strategies.strategy.Strategy.adjust_cash.html">self.adjust_cash</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.account/lumibot.strategies.strategy.Strategy.configure_cash_financing.html">self.configure_cash_financing</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.account/lumibot.strategies.strategy.Strategy.deposit_cash.html">self.deposit_cash</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.account/lumibot.strategies.strategy.Strategy.get_portfolio_value.html">self.get_portfolio_value</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.account/lumibot.strategies.strategy.Strategy.get_cash.html">self.get_cash</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.account/lumibot.strategies.strategy.Strategy.get_position.html">self.get_position</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.account/lumibot.strategies.strategy.Strategy.get_positions.html">self.get_positions</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.account/lumibot.strategies.strategy.Strategy.set_cash_financing_rates.html">self.set_cash_financing_rates</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.account/lumibot.strategies.strategy.Strategy.withdraw_cash.html">self.withdraw_cash</a></li>
+</ul>
+</li>
+<li class="toctree-l2 has-children"><a class="reference internal" href="strategy_methods.data.html">Data</a><input aria-label="Toggle navigation of Data" class="toctree-checkbox" id="toctree-checkbox-8" name="toctree-checkbox-8" role="switch" type="checkbox"/><label for="toctree-checkbox-8"><span class="icon"><svg><use href="#svg-arrow-right"></use></svg></span></label><ul>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.data/lumibot.strategies.strategy.Strategy.get_last_price.html">self.get_last_price</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.data/lumibot.strategies.strategy.Strategy.get_last_prices.html">self.get_last_prices</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.data/lumibot.strategies.strategy.Strategy.get_historical_prices.html">self.get_historical_prices</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.data/lumibot.strategies.strategy.Strategy.get_historical_prices_for_assets.html">self.get_historical_prices_for_assets</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.data/lumibot.strategies.strategy.Strategy.get_quote.html">self.get_quote</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.data/lumibot.strategies.strategy.Strategy.get_yesterday_dividend.html">self.get_yesterday_dividend</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.data/lumibot.strategies.strategy.Strategy.get_next_trading_day.html">self.get_next_trading_day</a></li>
+</ul>
+</li>
+<li class="toctree-l2 has-children"><a class="reference internal" href="strategy_methods.chart.html">Chart Functions</a><input aria-label="Toggle navigation of Chart Functions" class="toctree-checkbox" id="toctree-checkbox-9" name="toctree-checkbox-9" role="switch" type="checkbox"/><label for="toctree-checkbox-9"><span class="icon"><svg><use href="#svg-arrow-right"></use></svg></span></label><ul>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.chart/lumibot.strategies.strategy.Strategy.add_marker.html">self.add_marker</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.chart/lumibot.strategies.strategy.Strategy.add_line.html">self.add_line</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.chart/lumibot.strategies.strategy.Strategy.get_markers_df.html">self.get_markers_df</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.chart/lumibot.strategies.strategy.Strategy.get_lines_df.html">self.get_lines_df</a></li>
+</ul>
+</li>
+<li class="toctree-l2 has-children"><a class="reference internal" href="strategy_methods.parameters.html">Parameters</a><input aria-label="Toggle navigation of Parameters" class="toctree-checkbox" id="toctree-checkbox-10" name="toctree-checkbox-10" role="switch" type="checkbox"/><label for="toctree-checkbox-10"><span class="icon"><svg><use href="#svg-arrow-right"></use></svg></span></label><ul>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.account/lumibot.strategies.strategy.Strategy.get_parameters.html">self.get_parameters</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.account/lumibot.strategies.strategy.Strategy.set_parameters.html">self.set_parameters</a></li>
+</ul>
+</li>
+<li class="toctree-l2 has-children"><a class="reference internal" href="strategy_methods.options.html">Options</a><input aria-label="Toggle navigation of Options" class="toctree-checkbox" id="toctree-checkbox-11" name="toctree-checkbox-11" role="switch" type="checkbox"/><label for="toctree-checkbox-11"><span class="icon"><svg><use href="#svg-arrow-right"></use></svg></span></label><ul>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.options/lumibot.strategies.strategy.Strategy.get_chain.html">self.get_chain</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.options/lumibot.strategies.strategy.Strategy.get_chains.html">self.get_chains</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.options/lumibot.strategies.strategy.Strategy.get_greeks.html">self.get_greeks</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.options/lumibot.strategies.strategy.Strategy.get_strikes.html">self.get_strikes</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.options/lumibot.strategies.strategy.Strategy.get_expiration.html">self.get_expiration</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.options/lumibot.strategies.strategy.Strategy.get_multiplier.html">self.get_multiplier</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.options/lumibot.strategies.strategy.Strategy.options_expiry_to_datetime_date.html">self.options_expiry_to_datetime_date</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.options/lumibot.strategies.strategy.Strategy.get_next_trading_day.html">self.get_next_trading_day</a></li>
+</ul>
+</li>
+<li class="toctree-l2 has-children"><a class="reference internal" href="strategy_methods.datetime.html">DateTime</a><input aria-label="Toggle navigation of DateTime" class="toctree-checkbox" id="toctree-checkbox-12" name="toctree-checkbox-12" role="switch" type="checkbox"/><label for="toctree-checkbox-12"><span class="icon"><svg><use href="#svg-arrow-right"></use></svg></span></label><ul>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.datetime/lumibot.strategies.strategy.Strategy.get_datetime.html">self.get_datetime</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.datetime/lumibot.strategies.strategy.Strategy.get_timestamp.html">self.get_timestamp</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.datetime/lumibot.strategies.strategy.Strategy.get_round_minute.html">self.get_round_minute</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.datetime/lumibot.strategies.strategy.Strategy.get_last_minute.html">self.get_last_minute</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.datetime/lumibot.strategies.strategy.Strategy.get_round_day.html">self.get_round_day</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.datetime/lumibot.strategies.strategy.Strategy.get_last_day.html">self.get_last_day</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.datetime/lumibot.strategies.strategy.Strategy.get_datetime_range.html">self.get_datetime_range</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.datetime/lumibot.strategies.strategy.Strategy.localize_datetime.html">self.localize_datetime</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.datetime/lumibot.strategies.strategy.Strategy.to_default_timezone.html">self.to_default_timezone</a></li>
+</ul>
+</li>
+<li class="toctree-l2 has-children"><a class="reference internal" href="strategy_methods.misc.html">Miscellaneous</a><input aria-label="Toggle navigation of Miscellaneous" class="toctree-checkbox" id="toctree-checkbox-13" name="toctree-checkbox-13" role="switch" type="checkbox"/><label for="toctree-checkbox-13"><span class="icon"><svg><use href="#svg-arrow-right"></use></svg></span></label><ul>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.misc/lumibot.strategies.strategy.Strategy.log_message.html">self.log_message</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.misc/lumibot.strategies.strategy.Strategy.sleep.html">self.sleep</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.misc/lumibot.strategies.strategy.Strategy.set_market.html">self.set_market</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.misc/lumibot.strategies.strategy.Strategy.update_parameters.html">self.update_parameters</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.misc/lumibot.strategies.strategy.Strategy.get_parameters.html">self.get_parameters</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.misc/lumibot.strategies.strategy.Strategy.await_market_to_close.html">self.await_market_to_close</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.misc/lumibot.strategies.strategy.Strategy.await_market_to_open.html">self.await_market_to_open</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.misc/lumibot.strategies.strategy.Strategy.wait_for_order_registration.html">self.wait_for_order_registration</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.misc/lumibot.strategies.strategy.Strategy.wait_for_order_execution.html">self.wait_for_order_execution</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.misc/lumibot.strategies.strategy.Strategy.wait_for_orders_registration.html">self.wait_for_orders_registration</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.misc/lumibot.strategies.strategy.Strategy.wait_for_orders_execution.html">self.wait_for_orders_execution</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.misc/lumibot.strategies.strategy.Strategy.register_cron_callback.html">self.register_cron_callback</a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="strategy_properties.html">Strategy Properties</a><input aria-label="Toggle navigation of Strategy Properties" class="toctree-checkbox" id="toctree-checkbox-14" name="toctree-checkbox-14" role="switch" type="checkbox"/><label for="toctree-checkbox-14"><span class="icon"><svg><use href="#svg-arrow-right"></use></svg></span></label><ul>
+<li class="toctree-l2"><a class="reference internal" href="strategy_properties/lumibot.strategies.strategy.Strategy.cash.html">self.cash</a></li>
+<li class="toctree-l2"><a class="reference internal" href="strategy_properties/lumibot.strategies.strategy.Strategy.portfolio_value.html">self.portfolio_value</a></li>
+<li class="toctree-l2"><a class="reference internal" href="strategy_properties/lumibot.strategies.strategy.Strategy.first_iteration.html">self.first_iteration</a></li>
+<li class="toctree-l2"><a class="reference internal" href="strategy_properties/lumibot.strategies.strategy.Strategy.is_backtesting.html">self.is_backtesting</a></li>
+<li class="toctree-l2"><a class="reference internal" href="strategy_properties/lumibot.strategies.strategy.Strategy.quote_asset.html">self.quote_asset</a></li>
+<li class="toctree-l2"><a class="reference internal" href="strategy_properties/lumibot.strategies.strategy.Strategy.name.html">self.name</a></li>
+<li class="toctree-l2"><a class="reference internal" href="strategy_properties/lumibot.strategies.strategy.Strategy.initial_budget.html">self.initial_budget</a></li>
+<li class="toctree-l2"><a class="reference internal" href="strategy_properties/lumibot.strategies.strategy.Strategy.minutes_before_closing.html">self.minutes_before_closing</a></li>
+<li class="toctree-l2"><a class="reference internal" href="strategy_properties/lumibot.strategies.strategy.Strategy.minutes_before_opening.html">self.minutes_before_opening</a></li>
+<li class="toctree-l2"><a class="reference internal" href="strategy_properties/lumibot.strategies.strategy.Strategy.sleeptime.html">self.sleeptime</a></li>
+<li class="toctree-l2"><a class="reference internal" href="strategy_properties/lumibot.strategies.strategy.Strategy.last_on_trading_iteration_datetime.html">self.last_on_trading_iteration_datetime</a></li>
+<li class="toctree-l2"><a class="reference internal" href="strategy_properties/lumibot.strategies.strategy.Strategy.timezone.html">self.timezone</a></li>
+<li class="toctree-l2"><a class="reference internal" href="strategy_properties/lumibot.strategies.strategy.Strategy.pytz.html">self.pytz</a></li>
+<li class="toctree-l2"><a class="reference internal" href="strategy_properties/lumibot.strategies.strategy.Strategy.unspent_money.html">self.unspent_money</a></li>
+</ul>
+</li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="entities.html">Assets and Orders</a><input aria-label="Toggle navigation of Assets and Orders" class="toctree-checkbox" id="toctree-checkbox-15" name="toctree-checkbox-15" role="switch" type="checkbox"/><label for="toctree-checkbox-15"><span class="icon"><svg><use href="#svg-arrow-right"></use></svg></span></label><ul>
+<li class="toctree-l2"><a class="reference internal" href="entities.asset.html">Asset</a></li>
+<li class="toctree-l2"><a class="reference internal" href="entities.bars.html">Bars</a></li>
+<li class="toctree-l2"><a class="reference internal" href="entities.data.html">Data</a></li>
+<li class="toctree-l2"><a class="reference internal" href="entities.order.html">Order</a></li>
+<li class="toctree-l2"><a class="reference internal" href="entities.position.html">Position</a></li>
+<li class="toctree-l2"><a class="reference internal" href="entities.trading_fee.html">Trading Fee</a></li>
+<li class="toctree-l2"><a class="reference internal" href="entities.trading_slippage.html">Trading Slippage</a></li>
+<li class="toctree-l2"><a class="reference internal" href="entities.smart_limit.html">Smart Limit Config</a></li>
+<li class="toctree-l2"><a class="reference internal" href="entities.chains.html">Chains Entity</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="indicators.html">Indicators</a></li>
+<li class="toctree-l1"><a class="reference internal" href="fundamentals.html">SEC Fundamentals</a></li>
+<li class="toctree-l1"><a class="reference internal" href="macro_data.html">Macro Data</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Backtest and trade</span></p>
+<ul class="current">
+<li class="toctree-l1 has-children"><a class="reference internal" href="backtesting.html">Backtesting</a><input aria-label="Toggle navigation of Backtesting" class="toctree-checkbox" id="toctree-checkbox-16" name="toctree-checkbox-16" role="switch" type="checkbox"/><label for="toctree-checkbox-16"><span class="icon"><svg><use href="#svg-arrow-right"></use></svg></span></label><ul>
+<li class="toctree-l2"><a class="reference internal" href="backtesting.how_to_backtest.html">How to Backtest a Python Trading Strategy with LumiBot</a></li>
+<li class="toctree-l2"><a class="reference internal" href="backtesting.how_to_backtest.html#files-generated-from-backtesting">Files Generated from Backtesting</a></li>
+<li class="toctree-l2"><a class="reference internal" href="backtesting.backtesting_function.html">Backtesting Function</a></li>
+<li class="toctree-l2"><a class="reference internal" href="backtesting.performance.html">Backtesting Performance (Speed + Parity)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="backtesting.yahoo.html">Free Daily Stock Backtesting with Yahoo and LumiBot</a></li>
+<li class="toctree-l2"><a class="reference internal" href="backtesting.pandas.html">Pandas (CSV or other data)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="backtesting.polygon.html">Polygon.io Backtesting</a></li>
+<li class="toctree-l2"><a class="reference internal" href="backtesting.databento.html">Databento Backtesting with LumiBot</a></li>
+<li class="toctree-l2"><a class="reference internal" href="backtesting.thetadata.html">ThetaData Options and Stock Backtesting with LumiBot</a></li>
+<li class="toctree-l2"><a class="reference internal" href="backtesting.ibkr.html">Interactive Brokers (REST) Backtesting</a></li>
+<li class="toctree-l2"><a class="reference internal" href="backtesting.alpaca.html">Alpaca Backtesting</a></li>
+<li class="toctree-l2"><a class="reference internal" href="backtesting.tearsheet_html.html">LumiBot Backtest Tear Sheets and Performance Reports</a></li>
+<li class="toctree-l2"><a class="reference internal" href="backtesting.trades_files.html">Trades Files</a></li>
+<li class="toctree-l2"><a class="reference internal" href="backtesting.indicators_files.html">Indicators Files</a></li>
+<li class="toctree-l2"><a class="reference internal" href="backtesting.logs_csv.html">Logs CSV</a></li>
+</ul>
+</li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="brokers.html">Brokers</a><input aria-label="Toggle navigation of Brokers" class="toctree-checkbox" id="toctree-checkbox-17" name="toctree-checkbox-17" role="switch" type="checkbox"/><label for="toctree-checkbox-17"><span class="icon"><svg><use href="#svg-arrow-right"></use></svg></span></label><ul>
+<li class="toctree-l2"><a class="reference internal" href="brokers.alpaca.html">Alpaca API Trading with LumiBot</a></li>
+<li class="toctree-l2"><a class="reference internal" href="brokers.bitunix.html">Bitunix API Perpetual Futures Trading with LumiBot</a></li>
+<li class="toctree-l2 has-children"><a class="reference internal" href="brokers.ccxt.html">CCXT Crypto Trading and Backtesting with LumiBot</a><input aria-label="Toggle navigation of CCXT Crypto Trading and Backtesting with LumiBot" class="toctree-checkbox" id="toctree-checkbox-18" name="toctree-checkbox-18" role="switch" type="checkbox"/><label for="toctree-checkbox-18"><span class="icon"><svg><use href="#svg-arrow-right"></use></svg></span></label><ul>
+<li class="toctree-l3"><a class="reference internal" href="brokers.ccxt.coinbase.html">Coinbase Crypto Broker</a></li>
+<li class="toctree-l3"><a class="reference internal" href="brokers.ccxt.kraken.html">Kraken Crypto Broker</a></li>
+<li class="toctree-l3"><a class="reference internal" href="brokers.ccxt.weex.html">WEEX Crypto Broker</a></li>
+<li class="toctree-l3"><a class="reference internal" href="brokers.ccxt.kucoin.html">KuCoin CCXT Configuration</a></li>
+<li class="toctree-l3"><a class="reference internal" href="brokers.ccxt.binance.html">Binance CCXT Configuration</a></li>
+<li class="toctree-l3"><a class="reference internal" href="brokers.ccxt.bitmex.html">BitMEX CCXT Configuration</a></li>
+<li class="toctree-l3"><a class="reference internal" href="brokers.ccxt.bybit.html">Bybit CCXT Backtesting</a></li>
+<li class="toctree-l3"><a class="reference internal" href="brokers.ccxt.okx.html">OKX CCXT Backtesting</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="brokers.interactive_brokers.html">Interactive Brokers API Trading with LumiBot</a></li>
+<li class="toctree-l2"><a class="reference internal" href="brokers.interactive_brokers_legacy.html">Interactive Brokers Legacy</a></li>
+<li class="toctree-l2"><a class="reference internal" href="brokers.polymarket.html">Polymarket</a></li>
+<li class="toctree-l2"><a class="reference internal" href="brokers.projectx.html">ProjectX / TopstepX</a></li>
+<li class="toctree-l2"><a class="reference internal" href="brokers.schwab.html">Charles Schwab API Trading with LumiBot</a></li>
+<li class="toctree-l2"><a class="reference internal" href="brokers.tradier.html">Tradier</a></li>
+<li class="toctree-l2"><a class="reference internal" href="brokers.tradovate.html">Tradovate</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="cash_accounting.html">Cash Accounting</a></li>
+<li class="toctree-l1"><a class="reference internal" href="deployment.html">Deployment</a></li>
+<li class="toctree-l1 current has-children"><a class="reference internal" href="reference.html">Reference</a><input aria-label="Toggle navigation of Reference" checked="" class="toctree-checkbox" id="toctree-checkbox-19" name="toctree-checkbox-19" role="switch" type="checkbox"/><label for="toctree-checkbox-19"><span class="icon"><svg><use href="#svg-arrow-right"></use></svg></span></label><ul class="current">
+<li class="toctree-l2"><a class="reference internal" href="vars.html">Variable Backup &amp; Restore</a></li>
+<li class="toctree-l2"><a class="reference internal" href="futures.html">Futures Trading</a></li>
+<li class="toctree-l2"><a class="reference internal" href="smart_limit.html">Smart Limit Orders</a></li>
+<li class="toctree-l2"><a class="reference internal" href="options_helper.html">OptionsHelper</a></li>
+<li class="toctree-l2 current current-page"><a class="current reference internal" href="#">Environment Variables</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="common_mistakes.html">Common Mistakes</a></li>
+<li class="toctree-l1"><a class="reference internal" href="faq.html">FAQ</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Community and learning</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference external" href="https://botspot.trade/challenges?utm_source=documentation&amp;utm_medium=sidebar&amp;utm_campaign=lumibot_ai_trading&amp;utm_content=free_challenge">Free AI Trading Challenge</a></li>
+<li class="toctree-l1"><a class="reference external" href="https://botspot.trade/sales?showLogin=1&amp;utm_source=documentation&amp;utm_medium=sidebar&amp;utm_campaign=lumibot&amp;utm_content=sidebar_build_bots&amp;sample=lumibot_deploy_sample">Build and Deploy with BotSpot</a></li>
+<li class="toctree-l1"><a class="reference internal" href="botspot_mcp.html">BotSpot MCP Integration</a></li>
+<li class="toctree-l1"><a class="reference internal" href="PARTNERSHIPS.html">Partnerships and Sponsorship</a></li>
+<li class="toctree-l1"><a class="reference internal" href="MIGRATING_FROM_BACKTRADER.html">Migrate from Backtrader</a></li>
+<li class="toctree-l1"><a class="reference external" href="https://github.com/Lumiwealth/lumibot">GitHub</a></li>
+<li class="toctree-l1"><a class="reference external" href="https://www.reddit.com/r/BotSpotTrade/">Reddit Community</a></li>
+<li class="toctree-l1"><a class="reference external" href="https://discord.gg/4R9j6T3PN8">Discord Community</a></li>
+<li class="toctree-l1"><a class="reference external" href="https://botspot.trade/marketplace?utm_source=documentation&amp;utm_medium=sidebar&amp;utm_campaign=lumibot&amp;utm_content=sidebar_marketplace">Get Pre-Built Strategies</a></li>
+</ul>
+
+</div>
+</div>
+
+      </div>
+      
+    </div>
+  </aside>
+  <div class="main">
+    <div class="content">
+      <div class="article-container">
+        <a href="#" class="back-to-top muted-link">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
+            <path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8v12z"></path>
+          </svg>
+          <span>Back to top</span>
+        </a>
+        <div class="content-icon-container">
+          <div class="view-this-page">
+  <a class="muted-link" href="_sources/environment_variables.rst.txt" title="View this page">
+    <svg><use href="#svg-eye"></use></svg>
+    <span class="visually-hidden">View this page</span>
+  </a>
+</div>
+<div class="theme-toggle-container theme-toggle-content">
+            <button class="theme-toggle" aria-label="Toggle Light / Dark / Auto color theme">
+              <svg class="theme-icon-when-auto-light"><use href="#svg-sun-with-moon"></use></svg>
+              <svg class="theme-icon-when-auto-dark"><use href="#svg-moon-with-sun"></use></svg>
+              <svg class="theme-icon-when-dark"><use href="#svg-moon"></use></svg>
+              <svg class="theme-icon-when-light"><use href="#svg-sun"></use></svg>
+            </button>
+          </div>
+          <label class="toc-overlay-icon toc-content-icon" for="__toc">
+            <span class="icon"><svg><use href="#svg-toc"></use></svg></span>
+          </label>
+        </div>
+        <article role="main" id="furo-main-content">
+          <section id="environment-variables">
+<span id="id1"></span><h1>Environment Variables<a class="headerlink" href="#environment-variables" title="Link to this heading">¶</a></h1>
+<p>LumiBot supports configuring many behaviors via environment variables. This page documents the variables most commonly used for <strong>backtesting</strong>, <strong>ThetaData</strong>, and <strong>remote caching</strong>.</p>
+<div class="admonition important">
+<p class="admonition-title">Important</p>
+<p><strong>Never commit secrets</strong> (API keys, passwords, AWS secret keys) into any repo or docs. Document variable names and semantics only.</p>
+</div>
+<section id="backtesting-configuration">
+<h2>Backtesting configuration<a class="headerlink" href="#backtesting-configuration" title="Link to this heading">¶</a></h2>
+<section id="lumibot-disable-dotenv">
+<h3>LUMIBOT_DISABLE_DOTENV<a class="headerlink" href="#lumibot-disable-dotenv" title="Link to this heading">¶</a></h3>
+<ul class="simple">
+<li><p>Purpose: Disable automatic <code class="docutils literal notranslate"><span class="pre">.env</span></code> discovery and loading at startup.</p></li>
+<li><p>Values: truthy enables (<code class="docutils literal notranslate"><span class="pre">1</span></code>, <code class="docutils literal notranslate"><span class="pre">true</span></code>, <code class="docutils literal notranslate"><span class="pre">yes</span></code>); unset/<code class="docutils literal notranslate"><span class="pre">0</span></code> disables.</p></li>
+<li><p>Default: disabled.</p></li>
+<li><p>Notes:
+- When dotenv loading is enabled, LumiBot looks upward from the running script directory for the nearest <code class="docutils literal notranslate"><span class="pre">.env</span></code> file. If none is found there, it also checks upward from the current working directory.
+- LumiBot no longer recursively scans every nested directory under the start path. This reduces startup latency and lowers the chance of loading an unrelated nested repo’s <code class="docutils literal notranslate"><span class="pre">.env</span></code> file.
+- In production/BotManager/BotSpot runs, prefer injected environment variables and set <code class="docutils literal notranslate"><span class="pre">LUMIBOT_DISABLE_DOTENV=1</span></code> so local files cannot override runtime secrets.</p></li>
+</ul>
+</section>
+<section id="lumibot-disable-dotenv-local">
+<h3>LUMIBOT_DISABLE_DOTENV_LOCAL<a class="headerlink" href="#lumibot-disable-dotenv-local" title="Link to this heading">¶</a></h3>
+<ul class="simple">
+<li><p>Purpose: Skip the optional <code class="docutils literal notranslate"><span class="pre">.env.local</span></code> override file while still allowing the primary <code class="docutils literal notranslate"><span class="pre">.env</span></code> file.</p></li>
+<li><p>Values: truthy enables (<code class="docutils literal notranslate"><span class="pre">1</span></code>, <code class="docutils literal notranslate"><span class="pre">true</span></code>, <code class="docutils literal notranslate"><span class="pre">yes</span></code>, <code class="docutils literal notranslate"><span class="pre">on</span></code>); unset/<code class="docutils literal notranslate"><span class="pre">0</span></code> disables.</p></li>
+<li><p>Default: disabled.</p></li>
+<li><p>Notes:
+- When dotenv loading is enabled and a <code class="docutils literal notranslate"><span class="pre">.env</span></code> file is found, LumiBot also loads a sibling <code class="docutils literal notranslate"><span class="pre">.env.local</span></code> after <code class="docutils literal notranslate"><span class="pre">.env</span></code> with override behavior.
+- Use <code class="docutils literal notranslate"><span class="pre">.env.local</span></code> only for local developer overrides. Do not commit it.
+- Set <code class="docutils literal notranslate"><span class="pre">LUMIBOT_DISABLE_DOTENV_LOCAL=1</span></code> in repeatable test or deployment contexts where the base <code class="docutils literal notranslate"><span class="pre">.env</span></code> should be loaded but local overrides must be ignored.</p></li>
+</ul>
+</section>
+<section id="lumibot-log-level">
+<h3>LUMIBOT_LOG_LEVEL<a class="headerlink" href="#lumibot-log-level" title="Link to this heading">¶</a></h3>
+<ul class="simple">
+<li><p>Purpose: Control LumiBot startup logging before full logger setup.</p></li>
+<li><p>Values: <code class="docutils literal notranslate"><span class="pre">DEBUG</span></code>, <code class="docutils literal notranslate"><span class="pre">INFO</span></code>, <code class="docutils literal notranslate"><span class="pre">WARNING</span></code>, <code class="docutils literal notranslate"><span class="pre">ERROR</span></code>, <code class="docutils literal notranslate"><span class="pre">CRITICAL</span></code>.</p></li>
+<li><p>Default: <code class="docutils literal notranslate"><span class="pre">INFO</span></code>.</p></li>
+<li><p>Example: set <code class="docutils literal notranslate"><span class="pre">LUMIBOT_LOG_LEVEL=ERROR</span></code> to suppress the import-time <code class="docutils literal notranslate"><span class="pre">LumiBot</span> <span class="pre">v...</span> <span class="pre">starting</span></code> message and skip import-time console logger setup.</p></li>
+</ul>
+</section>
+<section id="is-backtesting">
+<h3>IS_BACKTESTING<a class="headerlink" href="#is-backtesting" title="Link to this heading">¶</a></h3>
+<ul class="simple">
+<li><p>Purpose: Signals backtesting mode for code that explicitly reads this value.</p></li>
+<li><p>Values: <code class="docutils literal notranslate"><span class="pre">True</span></code> / <code class="docutils literal notranslate"><span class="pre">False</span></code> (string).</p></li>
+<li><p>It does not choose a runner by itself: a file that only calls
+<code class="docutils literal notranslate"><span class="pre">Strategy.backtest()</span></code> still backtests when this is <code class="docutils literal notranslate"><span class="pre">False</span></code>. A local
+<code class="docutils literal notranslate"><span class="pre">IS_BACKTESTING</span></code> assignment in an example is independent of this variable.
+See <a class="reference internal" href="strategy_run_modes.html"><span class="doc">Backtest, paper, or live: choose the runner</span></a>.</p></li>
+</ul>
+</section>
+<section id="backtesting-start-backtesting-end">
+<h3>BACKTESTING_START / BACKTESTING_END<a class="headerlink" href="#backtesting-start-backtesting-end" title="Link to this heading">¶</a></h3>
+<ul class="simple">
+<li><p>Purpose: Default date range used when dates are not passed in code.</p></li>
+<li><p>Format: <code class="docutils literal notranslate"><span class="pre">YYYY-MM-DD</span></code></p></li>
+</ul>
+</section>
+<section id="backtesting-budget">
+<h3>BACKTESTING_BUDGET<a class="headerlink" href="#backtesting-budget" title="Link to this heading">¶</a></h3>
+<ul class="simple">
+<li><p>Purpose: Override the starting cash used for backtests (initial portfolio cash).</p></li>
+<li><p>Format: Positive number. Accepted examples: <code class="docutils literal notranslate"><span class="pre">500</span></code>, <code class="docutils literal notranslate"><span class="pre">5000</span></code>, <code class="docutils literal notranslate"><span class="pre">5k</span></code>, <code class="docutils literal notranslate"><span class="pre">1_000_000</span></code>, <code class="docutils literal notranslate"><span class="pre">$10,000</span></code>.</p></li>
+<li><p>Notes:
+- When set, this value is preferred over any <code class="docutils literal notranslate"><span class="pre">budget=</span></code> passed in strategy code, so it can be controlled per-run via injected environment variables.
+- Default (when unset and no code budget is provided): <code class="docutils literal notranslate"><span class="pre">100000</span></code>.</p></li>
+</ul>
+</section>
+<section id="lumibot-strategy-parameters">
+<h3>LUMIBOT_STRATEGY_PARAMETERS<a class="headerlink" href="#lumibot-strategy-parameters" title="Link to this heading">¶</a></h3>
+<ul class="simple">
+<li><p>Purpose: Override or inject strategy parameters without modifying strategy code. The same parameter contract applies to backtests and live strategy execution.</p></li>
+<li><p>Format: JSON string representing a dictionary. Example: <code class="docutils literal notranslate"><span class="pre">{&quot;symbol&quot;:</span> <span class="pre">&quot;AAPL&quot;,</span> <span class="pre">&quot;quantity&quot;:</span> <span class="pre">10}</span></code></p></li>
+<li><p>Notes:
+- When set, the parsed dict is merged on top of the strategy’s existing <code class="docutils literal notranslate"><span class="pre">parameters</span></code> dict with highest priority (wins over both class-level defaults and code-level overrides).
+- Useful for parameter sweeps and for deploying the exact parameter set validated by a backtest.
+- Nested dicts are supported (e.g. <code class="docutils literal notranslate"><span class="pre">{&quot;ALLOCATION&quot;:</span> <span class="pre">{&quot;SPY&quot;:</span> <span class="pre">0.50,</span> <span class="pre">&quot;IWM&quot;:</span> <span class="pre">0.50}}</span></code>).
+- Invalid JSON or non-dict values are ignored with a warning.
+- <code class="docutils literal notranslate"><span class="pre">BACKTESTING_PARAMETERS</span></code> remains a deprecated compatibility alias for older external runners. If both are present, <code class="docutils literal notranslate"><span class="pre">LUMIBOT_STRATEGY_PARAMETERS</span></code> wins.</p></li>
+</ul>
+</section>
+<section id="botspot-data-routing-policy">
+<h3>BOTSPOT_DATA_ROUTING_POLICY<a class="headerlink" href="#botspot-data-routing-policy" title="Link to this heading">¶</a></h3>
+<ul class="simple">
+<li><p>Purpose: Attach the non-secret version of the routing policy that selected a backtest datasource.</p></li>
+<li><p>Format: JSON object containing a <code class="docutils literal notranslate"><span class="pre">version</span></code> field.</p></li>
+<li><p>Notes: LumiBot writes the policy version and the adapters actually observed during the run to <code class="docutils literal notranslate"><span class="pre">logs/data_provenance.json</span></code>. Credentials, tokens, and signed URLs are never included.</p></li>
+</ul>
+</section>
+<section id="backtesting-data-source">
+<h3>BACKTESTING_DATA_SOURCE<a class="headerlink" href="#backtesting-data-source" title="Link to this heading">¶</a></h3>
+<ul>
+<li><p>Purpose: Select the backtesting datasource <strong>even if your code passes a `datasource_class`</strong>.</p></li>
+<li><p>Values (case-insensitive):
+- <code class="docutils literal notranslate"><span class="pre">thetadata</span></code>, <code class="docutils literal notranslate"><span class="pre">yahoo</span></code>, <code class="docutils literal notranslate"><span class="pre">polygon</span></code>, <code class="docutils literal notranslate"><span class="pre">alpaca</span></code>, <code class="docutils literal notranslate"><span class="pre">ccxt</span></code>, <code class="docutils literal notranslate"><span class="pre">databento</span></code>, <code class="docutils literal notranslate"><span class="pre">polymarket</span></code>, <code class="docutils literal notranslate"><span class="pre">polymarket_clob</span></code>
+- <code class="docutils literal notranslate"><span class="pre">ibkr</span></code> / <code class="docutils literal notranslate"><span class="pre">interactivebrokersrest</span></code> / <code class="docutils literal notranslate"><span class="pre">interactive_brokers_rest</span></code> (IBKR Client Portal REST)
+- <code class="docutils literal notranslate"><span class="pre">router</span></code> (multi-provider routing; defaults to Theta for stock/option/index and IBKR for futures/crypto)
+- JSON mapping (multi-provider routing by asset type), e.g. <code class="docutils literal notranslate"><span class="pre">{&quot;default&quot;:&quot;thetadata&quot;,&quot;stock&quot;:&quot;thetadata&quot;,&quot;option&quot;:&quot;thetadata&quot;,&quot;index&quot;:&quot;thetadata&quot;,&quot;future&quot;:&quot;ibkr&quot;,&quot;crypto&quot;:&quot;ibkr&quot;}</span></code></p>
+<blockquote>
+<div><ul class="simple">
+<li><p>Provider values are case/whitespace/_/- insensitive.</p></li>
+<li><p>Supported values include <code class="docutils literal notranslate"><span class="pre">thetadata</span></code>, <code class="docutils literal notranslate"><span class="pre">ibkr</span></code>, <code class="docutils literal notranslate"><span class="pre">polygon</span></code>, <code class="docutils literal notranslate"><span class="pre">alpaca</span></code>, <code class="docutils literal notranslate"><span class="pre">ccxt</span></code>, and <code class="docutils literal notranslate"><span class="pre">polymarket</span></code>.</p></li>
+<li><p>For CCXT backtesting, you may use <code class="docutils literal notranslate"><span class="pre">ccxt</span></code> (auto-select exchange from existing env/credentials) <strong>or</strong> specify a supported CCXT backtesting exchange id directly. Documented backtesting examples are <code class="docutils literal notranslate"><span class="pre">kraken</span></code>, <code class="docutils literal notranslate"><span class="pre">binance</span></code>, <code class="docutils literal notranslate"><span class="pre">kucoin</span></code>, <code class="docutils literal notranslate"><span class="pre">bitmex</span></code>, <code class="docutils literal notranslate"><span class="pre">bybit</span></code>, and <code class="docutils literal notranslate"><span class="pre">okx</span></code>.</p></li>
+<li><p>Routing keys are the canonical asset types (<code class="docutils literal notranslate"><span class="pre">future</span></code>, <code class="docutils literal notranslate"><span class="pre">cont_future</span></code>, <code class="docutils literal notranslate"><span class="pre">crypto</span></code>, etc.). Common plural aliases like <code class="docutils literal notranslate"><span class="pre">futures</span></code>/<code class="docutils literal notranslate"><span class="pre">cont_futures</span></code> are accepted.</p></li>
+</ul>
+</div></blockquote>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">none</span></code> to disable the env override and rely on code.</p></li>
+</ul>
+</li>
+</ul>
+</section>
+</section>
+<section id="testing-ci-guardrails">
+<h2>Testing / CI guardrails<a class="headerlink" href="#testing-ci-guardrails" title="Link to this heading">¶</a></h2>
+<section id="lumibot-acceptance-tripwire">
+<h3>LUMIBOT_ACCEPTANCE_TRIPWIRE<a class="headerlink" href="#lumibot-acceptance-tripwire" title="Link to this heading">¶</a></h3>
+<ul class="simple">
+<li><p>Purpose: <strong>Acceptance backtests only</strong> — when truthy, a Python startup hook aborts the subprocess the moment it attempts to call a remote data service.</p></li>
+<li><p>Values: truthy enables (<code class="docutils literal notranslate"><span class="pre">1</span></code>, <code class="docutils literal notranslate"><span class="pre">true</span></code>, <code class="docutils literal notranslate"><span class="pre">yes</span></code>); unset/<code class="docutils literal notranslate"><span class="pre">0</span></code> disables.</p></li>
+<li><p>Notes:
+- This is an engineering/CI guardrail to enforce “warm-cache” acceptance backtests. It should not be used for normal production backtests.
+- When triggered, it prints a marker and exits the subprocess with a non-zero code so the test fails reliably.</p></li>
+</ul>
+</section>
+</section>
+<section id="live-scheduled-execution-botspot-botmanager">
+<h2>Live scheduled execution (BotSpot/BotManager)<a class="headerlink" href="#live-scheduled-execution-botspot-botmanager" title="Link to this heading">¶</a></h2>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">LUMIBOT_SCHEDULED_EXECUTION</span></code>: internal BotManager flag. Truthy values (<code class="docutils literal notranslate"><span class="pre">1</span></code>, <code class="docutils literal notranslate"><span class="pre">true</span></code>, <code class="docutils literal notranslate"><span class="pre">yes</span></code>, <code class="docutils literal notranslate"><span class="pre">y</span></code>, <code class="docutils literal notranslate"><span class="pre">on</span></code>) make <code class="docutils literal notranslate"><span class="pre">Strategy.run_live()</span></code> run one live iteration and exit.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">LUMIBOT_LAZY_CREDENTIALS</span></code>: defers default broker/data-source credential materialization during live startup when truthy. Defaults to enabled when <code class="docutils literal notranslate"><span class="pre">LUMIBOT_SCHEDULED_EXECUTION</span></code> is truthy.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">LUMIBOT_CONNECT_STREAM</span></code>: overrides whether live brokers start their stream during broker construction. Truthy values enable stream startup; any other set value disables it. Defaults to disabled for scheduled execution and enabled otherwise.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">LUMIBOT_START_ORDERS_THREAD</span></code>: overrides whether live brokers start their orders thread during broker construction. Truthy values enable the orders thread; any other set value disables it. Defaults to disabled for scheduled execution and enabled otherwise. Queue-based brokers that require the worker to submit orders, such as legacy Interactive Brokers, keep the worker enabled even when this flag is false.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">LUMIBOT_SCHEDULED_TARGET_RUN_AT</span></code>: UTC ISO-8601 target time for exact scheduled runs. When present, LumiBot initializes the strategy/broker first, waits locally until this timestamp immediately before <code class="docutils literal notranslate"><span class="pre">on_trading_iteration()</span></code>, and skips the iteration if the drift budget is exceeded.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">LUMIBOT_SCHEDULED_PRE_START_AT</span></code>: UTC ISO-8601 pre-start time used by BotManager telemetry to compare scheduler launch timing with the requested target.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">LUMIBOT_SCHEDULED_TARGET_EVENT</span></code>: internal lifecycle selector for a scheduled task. <code class="docutils literal notranslate"><span class="pre">closed_market_prepare</span></code> runs <code class="docutils literal notranslate"><span class="pre">on_closed_market_iteration()</span></code> only while the market is closed and blocks supported broker order submission, cancellation, and modification APIs for that lifecycle.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">LUMIBOT_SCHEDULED_MAX_TARGET_DRIFT_MS</span></code>: maximum allowed late drift in milliseconds for exact scheduled runs. Defaults to <code class="docutils literal notranslate"><span class="pre">1000</span></code>.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">LUMIBOT_SCHEDULED_POST_ITERATION_SECONDS</span></code>: drain window after the one live iteration. During this window LumiBot continues processing broker/order queue events before exiting.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">LUMIBOT_SCHEDULED_TIMING_FILE</span></code>: local JSON timing file written by LumiBot for BotManager bootstrap telemetry.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">LUMIBOT_SCHEDULED_STATE_BACKEND</span></code>: external state backend prepared by BotManager: <code class="docutils literal notranslate"><span class="pre">s3</span></code>, <code class="docutils literal notranslate"><span class="pre">dynamodb</span></code>, or <code class="docutils literal notranslate"><span class="pre">none</span></code>. <code class="docutils literal notranslate"><span class="pre">none</span></code> disables scheduled <code class="docutils literal notranslate"><span class="pre">self.vars</span></code> file load/save.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">LUMIBOT_SCHEDULED_STATE_FILE</span></code>: local JSON file managed by BotManager/bootstrap code to restore and persist <code class="docutils literal notranslate"><span class="pre">self.vars</span></code> for one scheduled live run. State is restored before scheduled lifecycle hooks.</p></li>
+</ul>
+</section>
+<section id="botspot-managed-research">
+<h2>BotSpot managed research<a class="headerlink" href="#botspot-managed-research" title="Link to this heading">¶</a></h2>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">BOTSPOT_RESEARCH_MCP_URL</span></code>: optional BotSpot Research MCP endpoint.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">BOTSPOT_RESEARCH_MCP_TOKEN</span></code>: secret, short-lived bearer capability bound to an authenticated user or hosted deployment.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">BOTSPOT_RESEARCH_MCP_RENEW_URL</span></code>: optional HTTPS renewal endpoint. Localhost is permitted for local development; otherwise its origin must match the MCP endpoint.</p></li>
+<li><p>All three variables are required for automatic attachment. BotSpot-hosted runtimes inject them; external users can link a BotSpot account and configure the same contract.</p></li>
+<li><p>Missing or incomplete configuration preserves ordinary LumiBot strategy and agent behavior and emits one deduplicated capability notice.</p></li>
+</ul>
+<p><code class="docutils literal notranslate"><span class="pre">GITHUB_TOKEN</span></code> is used only in tagged release CI with repository <code class="docutils literal notranslate"><span class="pre">actions:</span> <span class="pre">read</span></code> permission to restore compatible agent-eval freshness evidence. The source workflow commit must be an ancestor of the exact tagged candidate. If no trustworthy artifact is available, stale cases run normally. Never log or commit token values.</p>
+</section>
+<section id="backtest-artifacts-ux-flags">
+<h2>Backtest artifacts + UX flags<a class="headerlink" href="#backtest-artifacts-ux-flags" title="Link to this heading">¶</a></h2>
+<section id="show-plot-show-indicators-show-tearsheet">
+<h3>SHOW_PLOT / SHOW_INDICATORS / SHOW_TEARSHEET<a class="headerlink" href="#show-plot-show-indicators-show-tearsheet" title="Link to this heading">¶</a></h3>
+<ul class="simple">
+<li><p>Purpose: Enable/disable artifact generation.</p></li>
+<li><p>Values: <code class="docutils literal notranslate"><span class="pre">True</span></code> / <code class="docutils literal notranslate"><span class="pre">False</span></code> (string).</p></li>
+</ul>
+</section>
+<section id="lumibot-backtest-parquet-mode">
+<h3>LUMIBOT_BACKTEST_PARQUET_MODE<a class="headerlink" href="#lumibot-backtest-parquet-mode" title="Link to this heading">¶</a></h3>
+<ul class="simple">
+<li><p>Purpose: Control parquet export semantics for backtest artifacts (indicators/trades/stats/trade events).</p></li>
+<li><p>Values:
+- <code class="docutils literal notranslate"><span class="pre">best_effort</span></code> (default): parquet failures log warnings; CSV remains the compatibility layer.
+- <code class="docutils literal notranslate"><span class="pre">required</span></code>: parquet export failures raise and should fail the backtest (artifact contract mode).</p></li>
+<li><p>Notes:
+- This is primarily intended for BotManager/BotSpot backtests where downstream tools depend on Parquet for performance.
+- When set to <code class="docutils literal notranslate"><span class="pre">required</span></code>, a parquet export error should fail the backtest so missing artifacts are never silently ignored.</p></li>
+</ul>
+</section>
+<section id="backtesting-quiet-logs">
+<h3>BACKTESTING_QUIET_LOGS<a class="headerlink" href="#backtesting-quiet-logs" title="Link to this heading">¶</a></h3>
+<ul class="simple">
+<li><p>Purpose: Reduce log noise during backtests.</p></li>
+<li><p>Values: <code class="docutils literal notranslate"><span class="pre">true</span></code> / <code class="docutils literal notranslate"><span class="pre">false</span></code> (string).</p></li>
+</ul>
+</section>
+<section id="backtesting-show-progress-bar">
+<h3>BACKTESTING_SHOW_PROGRESS_BAR<a class="headerlink" href="#backtesting-show-progress-bar" title="Link to this heading">¶</a></h3>
+<ul class="simple">
+<li><p>Purpose: Enable progress bar updates.</p></li>
+<li><p>Values: <code class="docutils literal notranslate"><span class="pre">true</span></code> / <code class="docutils literal notranslate"><span class="pre">false</span></code> (string).</p></li>
+</ul>
+</section>
+</section>
+<section id="backtest-progress-file-botspot-botmanager-ui">
+<h2>Backtest progress file (BotSpot/BotManager UI)<a class="headerlink" href="#backtest-progress-file-botspot-botmanager-ui" title="Link to this heading">¶</a></h2>
+<section id="log-backtest-progress-to-file">
+<h3>LOG_BACKTEST_PROGRESS_TO_FILE<a class="headerlink" href="#log-backtest-progress-to-file" title="Link to this heading">¶</a></h3>
+<ul class="simple">
+<li><p>Purpose: When truthy, write <code class="docutils literal notranslate"><span class="pre">logs/progress.csv</span></code> during backtests so BotManager/BotSpot can show live progress.</p></li>
+<li><p>Values: truthy enables (<code class="docutils literal notranslate"><span class="pre">1</span></code>, <code class="docutils literal notranslate"><span class="pre">true</span></code>, <code class="docutils literal notranslate"><span class="pre">yes</span></code>); unset/<code class="docutils literal notranslate"><span class="pre">0</span></code> disables.</p></li>
+<li><p>Notes:
+- On startup, LumiBot writes an initial <code class="docutils literal notranslate"><span class="pre">progress.csv</span></code> row immediately to reduce “time-to-first-progress” latency for short backtests.
+- In BotManager, a background thread watches <code class="docutils literal notranslate"><span class="pre">/app/logs/*progress.csv</span></code> and uploads the most recent row to DynamoDB.</p></li>
+</ul>
+</section>
+<section id="backtesting-progress-heartbeat">
+<h3>BACKTESTING_PROGRESS_HEARTBEAT<a class="headerlink" href="#backtesting-progress-heartbeat" title="Link to this heading">¶</a></h3>
+<ul class="simple">
+<li><p>Purpose: Enable periodic <code class="docutils literal notranslate"><span class="pre">progress.csv</span></code> updates while a ThetaData download is active (prevents the UI appearing stuck when simulation datetime is not advancing).</p></li>
+<li><p>Values: <code class="docutils literal notranslate"><span class="pre">true</span></code> / <code class="docutils literal notranslate"><span class="pre">false</span></code> (string).</p></li>
+<li><p>Default: enabled (<code class="docutils literal notranslate"><span class="pre">true</span></code>).</p></li>
+</ul>
+</section>
+<section id="backtesting-progress-heartbeat-seconds">
+<h3>BACKTESTING_PROGRESS_HEARTBEAT_SECONDS<a class="headerlink" href="#backtesting-progress-heartbeat-seconds" title="Link to this heading">¶</a></h3>
+<ul class="simple">
+<li><p>Purpose: Heartbeat interval (seconds) for writing <code class="docutils literal notranslate"><span class="pre">progress.csv</span></code> while downloading.</p></li>
+<li><p>Values: float seconds (string).</p></li>
+<li><p>Default: <code class="docutils literal notranslate"><span class="pre">2.0</span></code></p></li>
+</ul>
+</section>
+</section>
+<section id="trade-audit-telemetry-accuracy-investigations">
+<h2>Trade audit telemetry (accuracy investigations)<a class="headerlink" href="#trade-audit-telemetry-accuracy-investigations" title="Link to this heading">¶</a></h2>
+<section id="lumibot-backtest-audit">
+<h3>LUMIBOT_BACKTEST_AUDIT<a class="headerlink" href="#lumibot-backtest-audit" title="Link to this heading">¶</a></h3>
+<ul class="simple">
+<li><p>Purpose: Emit <strong>per-fill audit telemetry</strong> into the trade-event CSV as <code class="docutils literal notranslate"><span class="pre">audit.*</span></code> columns.</p></li>
+<li><p>Values: <code class="docutils literal notranslate"><span class="pre">1</span></code> enables (any truthy value); unset/<code class="docutils literal notranslate"><span class="pre">0</span></code> disables.</p></li>
+<li><p>Output:
+- Writes a full trade-event export <code class="docutils literal notranslate"><span class="pre">*_trade_events.csv</span></code> with <code class="docutils literal notranslate"><span class="pre">audit.*</span></code> columns (for example, quote bid/ask snapshots, bar OHLC, SMART_LIMIT inputs, and multileg linkage).</p></li>
+<li><p>Notes:
+- This increases CSV width and can add overhead; keep it enabled only when you need a full audit trail.</p></li>
+</ul>
+</section>
+</section>
+<section id="profiling-performance-parity-investigations">
+<h2>Profiling (performance + parity investigations)<a class="headerlink" href="#profiling-performance-parity-investigations" title="Link to this heading">¶</a></h2>
+<section id="backtesting-profile">
+<h3>BACKTESTING_PROFILE<a class="headerlink" href="#backtesting-profile" title="Link to this heading">¶</a></h3>
+<ul class="simple">
+<li><p>Purpose: Enable profiling during backtests to attribute runtime (S3 IO vs compute vs artifacts).</p></li>
+<li><p>Values:
+- <code class="docutils literal notranslate"><span class="pre">yappi</span></code> (supported)</p></li>
+<li><p>Output:
+- Produces a <code class="docutils literal notranslate"><span class="pre">*_profile_yappi.csv</span></code> artifact alongside other backtest artifacts.</p></li>
+</ul>
+</section>
+<section id="lumibot-cache-miss-debug">
+<h3>LUMIBOT_CACHE_MISS_DEBUG<a class="headerlink" href="#lumibot-cache-miss-debug" title="Link to this heading">¶</a></h3>
+<ul class="simple">
+<li><p>Purpose: Opt-in diagnostic logging for the IBKR history cache path. Emits <code class="docutils literal notranslate"><span class="pre">[CACHE_MISS]</span></code> (why a cache miss fired) and <code class="docutils literal notranslate"><span class="pre">[FETCH]</span></code> (including a short Python traceback of the caller) at WARNING level.</p></li>
+<li><p>Values: truthy enables (<code class="docutils literal notranslate"><span class="pre">1</span></code>, <code class="docutils literal notranslate"><span class="pre">true</span></code>); unset/<code class="docutils literal notranslate"><span class="pre">0</span></code> disables.</p></li>
+<li><p>Default: disabled. Zero runtime cost when unset — the check is gated before any logging work.</p></li>
+<li><p>When to use: diagnosing unexpected IBKR roundtrips in warm-cache backtests (e.g., when profiling shows time in <code class="docutils literal notranslate"><span class="pre">_fetch_history_between_dates</span></code> that you expected to be cached).</p></li>
+</ul>
+</section>
+</section>
+<section id="thetadata-option-chain-building-performance">
+<h2>ThetaData option-chain building (performance)<a class="headerlink" href="#thetadata-option-chain-building-performance" title="Link to this heading">¶</a></h2>
+<section id="thetadata-chain-default-max-days-out">
+<h3>THETADATA_CHAIN_DEFAULT_MAX_DAYS_OUT<a class="headerlink" href="#thetadata-chain-default-max-days-out" title="Link to this heading">¶</a></h3>
+<ul class="simple">
+<li><p>Purpose: Bounds the default option-chain expiration window for equity underlyings to reduce strike-list fanout in cold caches/backtests.</p></li>
+<li><p>Values: integer days.</p></li>
+<li><p>Default: <code class="docutils literal notranslate"><span class="pre">730</span></code> (2 years).</p></li>
+<li><p>Notes: set to <code class="docutils literal notranslate"><span class="pre">0</span></code> to disable the default bound (fetch all expirations).</p></li>
+</ul>
+</section>
+<section id="thetadata-chain-default-max-days-out-index">
+<h3>THETADATA_CHAIN_DEFAULT_MAX_DAYS_OUT_INDEX<a class="headerlink" href="#thetadata-chain-default-max-days-out-index" title="Link to this heading">¶</a></h3>
+<ul class="simple">
+<li><p>Purpose: Same as <code class="docutils literal notranslate"><span class="pre">THETADATA_CHAIN_DEFAULT_MAX_DAYS_OUT</span></code>, but for index-like underlyings (SPX/NDX/VIX/etc) with dense expiration schedules.</p></li>
+<li><p>Values: integer days.</p></li>
+<li><p>Default: <code class="docutils literal notranslate"><span class="pre">180</span></code>.</p></li>
+<li><p>Notes: set to <code class="docutils literal notranslate"><span class="pre">0</span></code> to disable the default bound.</p></li>
+</ul>
+</section>
+<section id="thetadata-chain-recent-file-tolerance-days">
+<h3>THETADATA_CHAIN_RECENT_FILE_TOLERANCE_DAYS<a class="headerlink" href="#thetadata-chain-recent-file-tolerance-days" title="Link to this heading">¶</a></h3>
+<ul class="simple">
+<li><p>Purpose: Local chain cache file reuse window (equities) when no chain hints are in effect.</p></li>
+<li><p>Values: integer days.</p></li>
+<li><p>Default: <code class="docutils literal notranslate"><span class="pre">7</span></code>.</p></li>
+</ul>
+</section>
+<section id="thetadata-chain-strikes-timeout">
+<h3>THETADATA_CHAIN_STRIKES_TIMEOUT<a class="headerlink" href="#thetadata-chain-strikes-timeout" title="Link to this heading">¶</a></h3>
+<ul class="simple">
+<li><p>Purpose: Downloader wait timeout per strike-list request when building chains.</p></li>
+<li><p>Values: seconds (float).</p></li>
+<li><p>Default: <code class="docutils literal notranslate"><span class="pre">300</span></code>.</p></li>
+</ul>
+</section>
+<section id="thetadata-chain-strikes-batch-size">
+<h3>THETADATA_CHAIN_STRIKES_BATCH_SIZE<a class="headerlink" href="#thetadata-chain-strikes-batch-size" title="Link to this heading">¶</a></h3>
+<ul class="simple">
+<li><p>Purpose: Number of in-flight strike-list requests when building chains.</p></li>
+<li><p>Values: integer.</p></li>
+<li><p>Default: <code class="docutils literal notranslate"><span class="pre">0</span></code> (use queue client concurrency).</p></li>
+</ul>
+</section>
+</section>
+<section id="thetadata-corporate-action-normalization-accuracy">
+<h2>ThetaData corporate action normalization (accuracy)<a class="headerlink" href="#thetadata-corporate-action-normalization-accuracy" title="Link to this heading">¶</a></h2>
+<section id="thetadata-apply-corporate-actions-intraday">
+<h3>THETADATA_APPLY_CORPORATE_ACTIONS_INTRADAY<a class="headerlink" href="#thetadata-apply-corporate-actions-intraday" title="Link to this heading">¶</a></h3>
+<ul class="simple">
+<li><p>Purpose: Apply split/dividend adjustments to <strong>intraday</strong> frames (minute/second/hour) in backtests so intraday prices match daily split-adjusted prices and option-chain strike normalization stays consistent.</p></li>
+<li><p>Values: <code class="docutils literal notranslate"><span class="pre">1</span></code> / <code class="docutils literal notranslate"><span class="pre">true</span></code> enable; <code class="docutils literal notranslate"><span class="pre">0</span></code> / <code class="docutils literal notranslate"><span class="pre">false</span></code> disable.</p></li>
+<li><p>Default:
+- enabled when <code class="docutils literal notranslate"><span class="pre">IS_BACKTESTING</span></code> is truthy
+- disabled otherwise</p></li>
+<li><p>Notes:
+- Disabling can break options strike selection around splits (example: NVDA 10-for-1 split on 2024-06-10).</p></li>
+</ul>
+</section>
+</section>
+<section id="remote-cache-s3">
+<h2>Remote cache (S3)<a class="headerlink" href="#remote-cache-s3" title="Link to this heading">¶</a></h2>
+<section id="lumibot-cache-backend-lumibot-cache-mode">
+<h3>LUMIBOT_CACHE_BACKEND / LUMIBOT_CACHE_MODE<a class="headerlink" href="#lumibot-cache-backend-lumibot-cache-mode" title="Link to this heading">¶</a></h3>
+<ul class="simple">
+<li><p>Purpose: Enable remote cache mirroring (for example, mirroring parquet cache files to S3).</p></li>
+<li><p>Common values:
+- <code class="docutils literal notranslate"><span class="pre">LUMIBOT_CACHE_BACKEND=s3</span></code>
+- <code class="docutils literal notranslate"><span class="pre">LUMIBOT_CACHE_MODE=readwrite</span></code> (or <code class="docutils literal notranslate"><span class="pre">readonly</span></code>)</p></li>
+</ul>
+</section>
+<section id="lumibot-cache-folder">
+<h3>LUMIBOT_CACHE_FOLDER<a class="headerlink" href="#lumibot-cache-folder" title="Link to this heading">¶</a></h3>
+<ul class="simple">
+<li><p>Purpose: Override the local cache folder (useful to simulate a fresh container/task).</p></li>
+</ul>
+</section>
+<section id="lumibot-cache-s3-bucket-lumibot-cache-s3-prefix-lumibot-cache-s3-region">
+<h3>LUMIBOT_CACHE_S3_BUCKET / LUMIBOT_CACHE_S3_PREFIX / LUMIBOT_CACHE_S3_REGION<a class="headerlink" href="#lumibot-cache-s3-bucket-lumibot-cache-s3-prefix-lumibot-cache-s3-region" title="Link to this heading">¶</a></h3>
+<ul class="simple">
+<li><p>Purpose: S3 target configuration.</p></li>
+</ul>
+</section>
+<section id="lumibot-cache-s3-version">
+<h3>LUMIBOT_CACHE_S3_VERSION<a class="headerlink" href="#lumibot-cache-s3-version" title="Link to this heading">¶</a></h3>
+<ul class="simple">
+<li><p>Purpose: Namespace/version the remote cache without deleting anything.</p></li>
+<li><p>Practical use: set a unique version to simulate a “cold S3” run safely.</p></li>
+</ul>
+</section>
+<section id="lumibot-cache-s3-access-key-id-lumibot-cache-s3-secret-access-key-lumibot-cache-s3-session-token">
+<h3>LUMIBOT_CACHE_S3_ACCESS_KEY_ID / LUMIBOT_CACHE_S3_SECRET_ACCESS_KEY / LUMIBOT_CACHE_S3_SESSION_TOKEN<a class="headerlink" href="#lumibot-cache-s3-access-key-id-lumibot-cache-s3-secret-access-key-lumibot-cache-s3-session-token" title="Link to this heading">¶</a></h3>
+<ul class="simple">
+<li><p>Purpose: Credentials for S3 access when not using an instance/task role.</p></li>
+<li><p>Values: provided by your runtime environment (<strong>do not hardcode</strong>).</p></li>
+</ul>
+<p>For cache key layout and validation workflow, see <a class="reference internal" href="backtesting.html"><span class="doc">Backtesting</span></a> and the engineering notes in <code class="docutils literal notranslate"><span class="pre">docs/remote_cache.md</span></code>.</p>
+</section>
+</section>
+<section id="strategy-configuration">
+<h2>Strategy configuration<a class="headerlink" href="#strategy-configuration" title="Link to this heading">¶</a></h2>
+<section id="strategy-name">
+<h3>STRATEGY_NAME<a class="headerlink" href="#strategy-name" title="Link to this heading">¶</a></h3>
+<ul class="simple">
+<li><p>Purpose: Name for the strategy to be used in database logging and identification.</p></li>
+<li><p>Values: Any string.</p></li>
+</ul>
+</section>
+<section id="market">
+<h3>MARKET<a class="headerlink" href="#market" title="Link to this heading">¶</a></h3>
+<ul class="simple">
+<li><p>Purpose: Market to be traded (used for market calendar selection).</p></li>
+<li><p>Values: <code class="docutils literal notranslate"><span class="pre">NYSE</span></code>, <code class="docutils literal notranslate"><span class="pre">NASDAQ</span></code>, <code class="docutils literal notranslate"><span class="pre">24/7</span></code> (crypto), etc.</p></li>
+</ul>
+</section>
+<section id="hide-trades-hide-positions">
+<h3>HIDE_TRADES / HIDE_POSITIONS<a class="headerlink" href="#hide-trades-hide-positions" title="Link to this heading">¶</a></h3>
+<ul class="simple">
+<li><p>Purpose: Hide trade and position information in logs/output.</p></li>
+<li><p>Values: <code class="docutils literal notranslate"><span class="pre">true</span></code> / <code class="docutils literal notranslate"><span class="pre">false</span></code> (string).</p></li>
+<li><p>Default: <code class="docutils literal notranslate"><span class="pre">false</span></code>.</p></li>
+</ul>
+</section>
+<section id="discord-webhook-url">
+<h3>DISCORD_WEBHOOK_URL<a class="headerlink" href="#discord-webhook-url" title="Link to this heading">¶</a></h3>
+<ul class="simple">
+<li><p>Purpose: Discord webhook URL for notifications.</p></li>
+<li><p>Values: Full Discord webhook URL (<strong>do not hardcode in public repos</strong>).</p></li>
+</ul>
+</section>
+</section>
+<section id="database-configuration">
+<h2>Database configuration<a class="headerlink" href="#database-configuration" title="Link to this heading">¶</a></h2>
+<section id="db-connection-str">
+<h3>DB_CONNECTION_STR<a class="headerlink" href="#db-connection-str" title="Link to this heading">¶</a></h3>
+<ul class="simple">
+<li><p>Purpose: PostgreSQL connection string for account history and strategy persistence.</p></li>
+<li><p>Values: <code class="docutils literal notranslate"><span class="pre">postgresql://user:password&#64;host:port/database</span></code> (<strong>do not hardcode</strong>).</p></li>
+<li><p>Note: Replaces deprecated <code class="docutils literal notranslate"><span class="pre">ACCOUNT_HISTORY_DB_CONNECTION_STR</span></code>.</p></li>
+</ul>
+</section>
+<section id="id2">
+<h3>LOG_BACKTEST_PROGRESS_TO_FILE<a class="headerlink" href="#id2" title="Link to this heading">¶</a></h3>
+<ul class="simple">
+<li><p>Purpose: Log backtest progress to a file instead of stdout.</p></li>
+<li><p>Values: <code class="docutils literal notranslate"><span class="pre">true</span></code> / <code class="docutils literal notranslate"><span class="pre">false</span></code> (string).</p></li>
+</ul>
+</section>
+</section>
+<section id="broker-selection">
+<h2>Broker selection<a class="headerlink" href="#broker-selection" title="Link to this heading">¶</a></h2>
+<section id="trading-broker">
+<h3>TRADING_BROKER<a class="headerlink" href="#trading-broker" title="Link to this heading">¶</a></h3>
+<ul class="simple">
+<li><p>Purpose: Explicitly specify which broker to use for live trading.</p></li>
+<li><p>Values (case-insensitive):
+- <code class="docutils literal notranslate"><span class="pre">alpaca</span></code>, <code class="docutils literal notranslate"><span class="pre">tradier</span></code>, <code class="docutils literal notranslate"><span class="pre">ccxt</span></code>, <code class="docutils literal notranslate"><span class="pre">coinbase</span></code>, <code class="docutils literal notranslate"><span class="pre">kraken</span></code>, <code class="docutils literal notranslate"><span class="pre">weex</span></code>
+- <code class="docutils literal notranslate"><span class="pre">ib</span></code>, <code class="docutils literal notranslate"><span class="pre">interactivebrokers</span></code>, <code class="docutils literal notranslate"><span class="pre">ibrest</span></code>, <code class="docutils literal notranslate"><span class="pre">interactivebrokersrest</span></code>
+- <code class="docutils literal notranslate"><span class="pre">tradovate</span></code>, <code class="docutils literal notranslate"><span class="pre">schwab</span></code>, <code class="docutils literal notranslate"><span class="pre">bitunix</span></code>, <code class="docutils literal notranslate"><span class="pre">polymarket</span></code>, <code class="docutils literal notranslate"><span class="pre">polymarket_clob</span></code>
+- <code class="docutils literal notranslate"><span class="pre">projectx</span></code> / <code class="docutils literal notranslate"><span class="pre">projectx-topstepx</span></code> for TopstepX futures (via ProjectX)</p></li>
+<li><p>Note: If not set, broker is auto-detected based on available credentials.</p></li>
+</ul>
+</section>
+<section id="data-source">
+<h3>DATA_SOURCE<a class="headerlink" href="#data-source" title="Link to this heading">¶</a></h3>
+<ul class="simple">
+<li><p>Purpose: Explicitly specify which data source to use.</p></li>
+<li><p>Values (case-insensitive):
+- <code class="docutils literal notranslate"><span class="pre">alpaca</span></code>, <code class="docutils literal notranslate"><span class="pre">tradier</span></code>, <code class="docutils literal notranslate"><span class="pre">polygon</span></code>, <code class="docutils literal notranslate"><span class="pre">yahoo</span></code>, <code class="docutils literal notranslate"><span class="pre">thetadata</span></code>, <code class="docutils literal notranslate"><span class="pre">databento</span></code>
+- <code class="docutils literal notranslate"><span class="pre">ccxt</span></code>, <code class="docutils literal notranslate"><span class="pre">coinbase</span></code>, <code class="docutils literal notranslate"><span class="pre">kraken</span></code>, <code class="docutils literal notranslate"><span class="pre">weex</span></code>, <code class="docutils literal notranslate"><span class="pre">schwab</span></code>, <code class="docutils literal notranslate"><span class="pre">bitunix</span></code>, <code class="docutils literal notranslate"><span class="pre">projectx</span></code>, <code class="docutils literal notranslate"><span class="pre">polymarket</span></code>, <code class="docutils literal notranslate"><span class="pre">polymarket_clob</span></code></p></li>
+<li><p>Note: If not set, uses broker’s default data source.</p></li>
+</ul>
+</section>
+</section>
+<section id="alpaca-broker">
+<h2>Alpaca broker<a class="headerlink" href="#alpaca-broker" title="Link to this heading">¶</a></h2>
+<section id="alpaca-api-key-alpaca-api-secret">
+<h3>ALPACA_API_KEY / ALPACA_API_SECRET<a class="headerlink" href="#alpaca-api-key-alpaca-api-secret" title="Link to this heading">¶</a></h3>
+<ul class="simple">
+<li><p>Purpose: Alpaca API credentials for trading.</p></li>
+<li><p>Values: Obtain from Alpaca dashboard (<strong>do not hardcode</strong>).</p></li>
+</ul>
+</section>
+<section id="alpaca-oauth-token">
+<h3>ALPACA_OAUTH_TOKEN<a class="headerlink" href="#alpaca-oauth-token" title="Link to this heading">¶</a></h3>
+<ul class="simple">
+<li><p>Purpose: OAuth token (alternative to API key/secret).</p></li>
+<li><p>Values: OAuth token (<strong>do not hardcode</strong>).</p></li>
+<li><p>Note: Either OAuth token OR API key/secret must be provided, not both.</p></li>
+</ul>
+</section>
+<section id="alpaca-is-paper">
+<h3>ALPACA_IS_PAPER<a class="headerlink" href="#alpaca-is-paper" title="Link to this heading">¶</a></h3>
+<ul class="simple">
+<li><p>Purpose: Toggle between paper and live trading.</p></li>
+<li><p>Values: <code class="docutils literal notranslate"><span class="pre">true</span></code> (paper) / <code class="docutils literal notranslate"><span class="pre">false</span></code> (live).</p></li>
+<li><p>Default: <code class="docutils literal notranslate"><span class="pre">true</span></code> (paper trading).</p></li>
+</ul>
+</section>
+<section id="alpaca-news-api-key-alpaca-news-api-secret">
+<h3>ALPACA_NEWS_API_KEY / ALPACA_NEWS_API_SECRET<a class="headerlink" href="#alpaca-news-api-key-alpaca-news-api-secret" title="Link to this heading">¶</a></h3>
+<ul class="simple">
+<li><p>Purpose: Optional bring-your-own-key credentials for <code class="docutils literal notranslate"><span class="pre">BuiltinTools.news.alpaca_news()</span></code> when the active broker is not Alpaca.</p></li>
+<li><p>Values: Alpaca API credentials with news/data access (<strong>do not hardcode</strong>).</p></li>
+<li><p>Note: When the active broker is Alpaca, the built-in news tool reuses that broker’s OAuth token or API key/secret instead. If the active broker is not Alpaca and these news-specific variables are absent, the built-in news tool is not exposed to agents.</p></li>
+</ul>
+</section>
+</section>
+<section id="polymarket-clob-broker">
+<h2>Polymarket CLOB broker<a class="headerlink" href="#polymarket-clob-broker" title="Link to this heading">¶</a></h2>
+<section id="polymarket-private-key">
+<h3>POLYMARKET_PRIVATE_KEY<a class="headerlink" href="#polymarket-private-key" title="Link to this heading">¶</a></h3>
+<ul class="simple">
+<li><p>Purpose: Wallet private key or session signer used to sign Polymarket CLOB orders and derive API credentials.</p></li>
+<li><p>Values: Provider/wallet secret (<strong>do not hardcode</strong>).</p></li>
+<li><p>Note: Required for authenticated CLOB reads and trading. Treat this as a high-risk wallet credential.</p></li>
+</ul>
+</section>
+<section id="polymarket-wallet-address">
+<h3>POLYMARKET_WALLET_ADDRESS<a class="headerlink" href="#polymarket-wallet-address" title="Link to this heading">¶</a></h3>
+<ul class="simple">
+<li><p>Purpose: Polymarket proxy wallet, deposit wallet, Safe, or other funder address passed to the CLOB client.</p></li>
+<li><p>Values: Wallet address.</p></li>
+</ul>
+</section>
+<section id="polymarket-owner-address">
+<h3>POLYMARKET_OWNER_ADDRESS<a class="headerlink" href="#polymarket-owner-address" title="Link to this heading">¶</a></h3>
+<ul class="simple">
+<li><p>Purpose: Optional owner/signer address for Magic/proxy accounts. LumiBot uses it as a fallback for Data API position
+and value reads when it differs from <code class="docutils literal notranslate"><span class="pre">POLYMARKET_WALLET_ADDRESS</span></code>.</p></li>
+<li><p>Values: Wallet address.</p></li>
+</ul>
+</section>
+<section id="polymarket-signature-type">
+<h3>POLYMARKET_SIGNATURE_TYPE<a class="headerlink" href="#polymarket-signature-type" title="Link to this heading">¶</a></h3>
+<ul class="simple">
+<li><p>Purpose: Polymarket CLOB signature type used by the authenticated client.</p></li>
+<li><p>Values: <code class="docutils literal notranslate"><span class="pre">0</span></code> for EOA, <code class="docutils literal notranslate"><span class="pre">1</span></code> for existing Polymarket proxy/Magic wallets, <code class="docutils literal notranslate"><span class="pre">2</span></code> for Gnosis Safe, <code class="docutils literal notranslate"><span class="pre">3</span></code> for deposit
+wallet / <code class="docutils literal notranslate"><span class="pre">POLY_1271</span></code>.</p></li>
+<li><p>Default: <code class="docutils literal notranslate"><span class="pre">1</span></code> when <code class="docutils literal notranslate"><span class="pre">POLYMARKET_OWNER_ADDRESS</span></code> and <code class="docutils literal notranslate"><span class="pre">POLYMARKET_WALLET_ADDRESS</span></code> differ, otherwise <code class="docutils literal notranslate"><span class="pre">3</span></code>. Set this
+explicitly for live testing and Bot Manager deployments.</p></li>
+</ul>
+</section>
+<section id="polymarket-clob-api-key-polymarket-clob-api-secret-polymarket-clob-api-passphrase">
+<h3>POLYMARKET_CLOB_API_KEY / POLYMARKET_CLOB_API_SECRET / POLYMARKET_CLOB_API_PASSPHRASE<a class="headerlink" href="#polymarket-clob-api-key-polymarket-clob-api-secret-polymarket-clob-api-passphrase" title="Link to this heading">¶</a></h3>
+<ul class="simple">
+<li><p>Purpose: Optional derived/generated CLOB API credentials for authenticated order, trade, cancel, and balance requests.</p></li>
+<li><p>Values: CLOB API credentials (<strong>do not hardcode</strong>).</p></li>
+<li><p>Note: If omitted, LumiBot attempts to derive/create credentials in memory through <code class="docutils literal notranslate"><span class="pre">py-clob-client-v2</span></code> when a private key is available.</p></li>
+</ul>
+</section>
+<section id="polymarket-api-credentials-json">
+<h3>POLYMARKET_API_CREDENTIALS_JSON<a class="headerlink" href="#polymarket-api-credentials-json" title="Link to this heading">¶</a></h3>
+<ul class="simple">
+<li><p>Purpose: Optional JSON wrapper for CLOB API credentials.</p></li>
+<li><p>Values: JSON object containing key/secret/passphrase fields (<strong>do not hardcode</strong>).</p></li>
+<li><p>Note: Prefer separate env vars for readability unless a secret store provides one JSON payload.</p></li>
+</ul>
+</section>
+<section id="polymarket-relayer-api-key-polymarket-relayer-api-key-address">
+<h3>POLYMARKET_RELAYER_API_KEY / POLYMARKET_RELAYER_API_KEY_ADDRESS<a class="headerlink" href="#polymarket-relayer-api-key-polymarket-relayer-api-key-address" title="Link to this heading">¶</a></h3>
+<ul class="simple">
+<li><p>Purpose: Relayer credentials for wallet deployment/approval flows when required by the Polymarket account setup.</p></li>
+<li><p>Values: Relayer credential fields (<strong>do not hardcode</strong>).</p></li>
+<li><p>Note: Relayer credentials are not the same as CLOB trading credentials. The CLOB client still needs L2 API key,
+secret, and passphrase fields for private order/balance/trade endpoints and WebSocket user streams.</p></li>
+</ul>
+</section>
+<section id="polymarket-builder-code">
+<h3>POLYMARKET_BUILDER_CODE<a class="headerlink" href="#polymarket-builder-code" title="Link to this heading">¶</a></h3>
+<ul class="simple">
+<li><p>Purpose: Optional Polymarket builder attribution code.</p></li>
+<li><p>Values: Builder code.</p></li>
+</ul>
+</section>
+<section id="polymarket-auto-approve">
+<h3>POLYMARKET_AUTO_APPROVE<a class="headerlink" href="#polymarket-auto-approve" title="Link to this heading">¶</a></h3>
+<ul class="simple">
+<li><p>Purpose: When truthy, attempt CLOB collateral approval setup before live trading.</p></li>
+<li><p>Values: truthy enables (<code class="docutils literal notranslate"><span class="pre">1</span></code>, <code class="docutils literal notranslate"><span class="pre">true</span></code>, <code class="docutils literal notranslate"><span class="pre">yes</span></code>, <code class="docutils literal notranslate"><span class="pre">on</span></code>); unset disables.</p></li>
+<li><p>Default: disabled.</p></li>
+</ul>
+</section>
+<section id="polymarket-max-market-order-notional">
+<h3>POLYMARKET_MAX_MARKET_ORDER_NOTIONAL<a class="headerlink" href="#polymarket-max-market-order-notional" title="Link to this heading">¶</a></h3>
+<ul class="simple">
+<li><p>Purpose: Hard cap for Polymarket market BUY order dollar amount.</p></li>
+<li><p>Values: Positive decimal.</p></li>
+<li><p>Default: <code class="docutils literal notranslate"><span class="pre">5</span></code>.</p></li>
+</ul>
+</section>
+<section id="polymarket-test-token-id-polymarket-live-trading-enabled-polymarket-test-max-notional">
+<h3>POLYMARKET_TEST_TOKEN_ID / POLYMARKET_LIVE_TRADING_ENABLED / POLYMARKET_TEST_MAX_NOTIONAL<a class="headerlink" href="#polymarket-test-token-id-polymarket-live-trading-enabled-polymarket-test-max-notional" title="Link to this heading">¶</a></h3>
+<ul class="simple">
+<li><p>Purpose: Test-only gates for Polymarket live smoke tests.</p></li>
+<li><p>Values: Explicit CLOB token id; <code class="docutils literal notranslate"><span class="pre">POLYMARKET_LIVE_TRADING_ENABLED=true</span></code> to allow live submit/cancel tests; decimal max notional.</p></li>
+<li><p>Note: Live tests are skipped unless the required env vars are present. Default live-test max notional is capped at <code class="docutils literal notranslate"><span class="pre">5</span></code>.</p></li>
+<li><p>Smoke helpers: <code class="docutils literal notranslate"><span class="pre">scripts/polymarket_smoke.py</span></code> and <code class="docutils literal notranslate"><span class="pre">scripts/polymarket_lumibot_smoke.py</span></code> load local <code class="docutils literal notranslate"><span class="pre">.env.local</span></code>
+values, redact output, and only submit live orders when the live gate and caps are present. The LumiBot smoke helper
+supports explicit order-matrix cases such as <code class="docutils literal notranslate"><span class="pre">fak-buy</span></code>, <code class="docutils literal notranslate"><span class="pre">fok-buy</span></code>, <code class="docutils literal notranslate"><span class="pre">fak-sell</span></code>, <code class="docutils literal notranslate"><span class="pre">fok-sell</span></code>, <code class="docutils literal notranslate"><span class="pre">gtc-buy</span></code>,
+<code class="docutils literal notranslate"><span class="pre">gtd-buy</span></code>, <code class="docutils literal notranslate"><span class="pre">post-only-buy</span></code>, <code class="docutils literal notranslate"><span class="pre">cancel-single</span></code>, <code class="docutils literal notranslate"><span class="pre">cancel-multiple</span></code>, <code class="docutils literal notranslate"><span class="pre">cancel-all</span></code>, <code class="docutils literal notranslate"><span class="pre">cancel-market</span></code>, and
+<code class="docutils literal notranslate"><span class="pre">--websocket</span></code>.</p></li>
+</ul>
+</section>
+<section id="polymarket-clob-implementation-notes">
+<h3>Polymarket CLOB implementation notes<a class="headerlink" href="#polymarket-clob-implementation-notes" title="Link to this heading">¶</a></h3>
+<ul class="simple">
+<li><p>Set <code class="docutils literal notranslate"><span class="pre">TRADING_BROKER=polymarket</span></code> for the normal live broker path. <code class="docutils literal notranslate"><span class="pre">DATA_SOURCE=polymarket</span></code> is only the optional
+separate public-market-data override.</p></li>
+<li><p>CLOB collateral balances are returned in 6-decimal raw units by balance/allowance reads. LumiBot scales those values
+into dollars before returning account cash.</p></li>
+<li><p>The current international CLOB adapter supports read-only account state, market discovery, token resolution, order
+books, quotes, last price, supported price history, public market WebSockets, and authenticated user WebSocket
+subscription. Live submit/cancel is implemented and has been proven through the LumiBot broker with a funded deposit
+wallet, pUSD approvals, and conditional-token sell approvals. Existing Magic/proxy accounts may still be rejected by
+Polymarket with a deposit-wallet/API-key binding error until migrated through the supported deposit-wallet flow.</p></li>
+<li><p>SELL orders need conditional-token approvals from the deposit wallet. The local setup helper can submit these approvals
+with <code class="docutils literal notranslate"><span class="pre">scripts/polymarket_deposit_wallet_setup.py</span> <span class="pre">--approve-conditional</span></code>.</p></li>
+</ul>
+</section>
+</section>
+<section id="tradier-broker">
+<h2>Tradier broker<a class="headerlink" href="#tradier-broker" title="Link to this heading">¶</a></h2>
+<section id="tradier-access-token">
+<h3>TRADIER_ACCESS_TOKEN<a class="headerlink" href="#tradier-access-token" title="Link to this heading">¶</a></h3>
+<ul class="simple">
+<li><p>Purpose: Tradier API access token.</p></li>
+<li><p>Values: Obtain from Tradier dashboard (<strong>do not hardcode</strong>).</p></li>
+</ul>
+</section>
+<section id="tradier-token-path">
+<h3>TRADIER_TOKEN_PATH<a class="headerlink" href="#tradier-token-path" title="Link to this heading">¶</a></h3>
+<ul class="simple">
+<li><p>Purpose: Path to a Tradier OAuth token JSON file.</p></li>
+<li><p>Values: A local file containing provider token fields such as <code class="docutils literal notranslate"><span class="pre">access_token</span></code>,
+<code class="docutils literal notranslate"><span class="pre">refresh_token</span></code>, <code class="docutils literal notranslate"><span class="pre">expires_in</span></code>, and <code class="docutils literal notranslate"><span class="pre">issued_at</span></code>.</p></li>
+<li><p>Note: When LumiBot refreshes an OAuth token, it writes the updated provider
+token payload back to this file atomically. If the file cannot be written,
+refresh fails instead of silently continuing with only in-memory token state.</p></li>
+</ul>
+</section>
+<section id="lumibot-oauth-refresh-mode">
+<h3>LUMIBOT_OAUTH_REFRESH_MODE<a class="headerlink" href="#lumibot-oauth-refresh-mode" title="Link to this heading">¶</a></h3>
+<ul class="simple">
+<li><p>Purpose: Controls who calls the broker OAuth refresh endpoint for Schwab and
+Tradier token-file integrations.</p></li>
+<li><p>Values: <code class="docutils literal notranslate"><span class="pre">auto</span></code> (default) lets LumiBot refresh the provider OAuth token and write the updated token payload back to
+the configured token file. <code class="docutils literal notranslate"><span class="pre">external</span></code> means LumiBot does not call the provider OAuth refresh endpoint; a trusted
+parent process must atomically replace the configured token file, and LumiBot reloads it before broker requests and
+after auth failures.</p></li>
+<li><p>Note: Use <code class="docutils literal notranslate"><span class="pre">external</span></code> only when another trusted process owns refresh-token
+handling. The token file still needs a valid access token for broker API calls.</p></li>
+</ul>
+</section>
+<section id="tradier-account-number">
+<h3>TRADIER_ACCOUNT_NUMBER<a class="headerlink" href="#tradier-account-number" title="Link to this heading">¶</a></h3>
+<ul class="simple">
+<li><p>Purpose: Tradier account number for trading.</p></li>
+<li><p>Values: Your Tradier account number.</p></li>
+</ul>
+</section>
+<section id="tradier-is-paper">
+<h3>TRADIER_IS_PAPER<a class="headerlink" href="#tradier-is-paper" title="Link to this heading">¶</a></h3>
+<ul class="simple">
+<li><p>Purpose: Toggle between paper and live trading.</p></li>
+<li><p>Values: <code class="docutils literal notranslate"><span class="pre">true</span></code> (paper) / <code class="docutils literal notranslate"><span class="pre">false</span></code> (live).</p></li>
+<li><p>Default: <code class="docutils literal notranslate"><span class="pre">true</span></code> (paper trading).</p></li>
+</ul>
+</section>
+</section>
+<section id="interactive-brokers">
+<h2>Interactive Brokers<a class="headerlink" href="#interactive-brokers" title="Link to this heading">¶</a></h2>
+<section id="interactive-brokers-port">
+<h3>INTERACTIVE_BROKERS_PORT<a class="headerlink" href="#interactive-brokers-port" title="Link to this heading">¶</a></h3>
+<ul class="simple">
+<li><p>Purpose: Socket port for IB Gateway/TWS connection.</p></li>
+<li><p>Values: Integer (e.g., <code class="docutils literal notranslate"><span class="pre">7497</span></code> for paper, <code class="docutils literal notranslate"><span class="pre">7496</span></code> for live).</p></li>
+</ul>
+</section>
+<section id="interactive-brokers-client-id">
+<h3>INTERACTIVE_BROKERS_CLIENT_ID<a class="headerlink" href="#interactive-brokers-client-id" title="Link to this heading">¶</a></h3>
+<ul class="simple">
+<li><p>Purpose: Client ID for IB connection (must be unique per connection).</p></li>
+<li><p>Values: Integer.</p></li>
+</ul>
+</section>
+<section id="interactive-brokers-ip">
+<h3>INTERACTIVE_BROKERS_IP<a class="headerlink" href="#interactive-brokers-ip" title="Link to this heading">¶</a></h3>
+<ul class="simple">
+<li><p>Purpose: IP address of IB Gateway/TWS.</p></li>
+<li><p>Values: IP address string.</p></li>
+<li><p>Default: <code class="docutils literal notranslate"><span class="pre">127.0.0.1</span></code>.</p></li>
+</ul>
+</section>
+<section id="ib-subaccount">
+<h3>IB_SUBACCOUNT<a class="headerlink" href="#ib-subaccount" title="Link to this heading">¶</a></h3>
+<ul class="simple">
+<li><p>Purpose: Sub-account identifier for IB multi-account setups.</p></li>
+<li><p>Values: Account identifier string.</p></li>
+</ul>
+</section>
+</section>
+<section id="interactive-brokers-rest">
+<h2>Interactive Brokers REST<a class="headerlink" href="#interactive-brokers-rest" title="Link to this heading">¶</a></h2>
+<section id="ib-username-ib-password">
+<h3>IB_USERNAME / IB_PASSWORD<a class="headerlink" href="#ib-username-ib-password" title="Link to this heading">¶</a></h3>
+<ul class="simple">
+<li><p>Purpose: Individual Client Portal credentials used only by the local IBeam transport.</p></li>
+<li><p>Values: Secrets; <strong>never log, commit, or hardcode them</strong>.</p></li>
+</ul>
+</section>
+<section id="ib-account-id">
+<h3>IB_ACCOUNT_ID<a class="headerlink" href="#ib-account-id" title="Link to this heading">¶</a></h3>
+<ul class="simple">
+<li><p>Purpose: Account ID for IB REST API.</p></li>
+<li><p>Values: Account identifier string.</p></li>
+</ul>
+</section>
+<section id="ib-api-url">
+<h3>IB_API_URL<a class="headerlink" href="#ib-api-url" title="Link to this heading">¶</a></h3>
+<ul class="simple">
+<li><p>Purpose: Base URL for IB REST API endpoint.</p></li>
+<li><p>Values: URL string.</p></li>
+</ul>
+</section>
+<section id="ib-gateway-port">
+<h3>IB_GATEWAY_PORT<a class="headerlink" href="#ib-gateway-port" title="Link to this heading">¶</a></h3>
+<ul class="simple">
+<li><p>Purpose: Host port for local IBeam or externally managed Client Portal Gateway.</p></li>
+<li><p>Values: Integer from <code class="docutils literal notranslate"><span class="pre">1</span></code> through <code class="docutils literal notranslate"><span class="pre">65535</span></code>.</p></li>
+<li><p>Default: <code class="docutils literal notranslate"><span class="pre">4234</span></code>.</p></li>
+</ul>
+</section>
+<section id="ib-gateway-instance-id">
+<h3>IB_GATEWAY_INSTANCE_ID<a class="headerlink" href="#ib-gateway-instance-id" title="Link to this heading">¶</a></h3>
+<ul class="simple">
+<li><p>Purpose: Non-secret identifier used to isolate local IBeam container names.</p></li>
+<li><p>Values: Letters, numbers, <code class="docutils literal notranslate"><span class="pre">_</span></code>, <code class="docutils literal notranslate"><span class="pre">-</span></code>, and <code class="docutils literal notranslate"><span class="pre">.</span></code>.</p></li>
+<li><p>Default: Random value generated for each gateway instance.</p></li>
+</ul>
+</section>
+<section id="ib-use-paper-account">
+<h3>IB_USE_PAPER_ACCOUNT<a class="headerlink" href="#ib-use-paper-account" title="Link to this heading">¶</a></h3>
+<ul class="simple">
+<li><p>Purpose: Select paper login when LumiBot starts local IBeam.</p></li>
+<li><p>Values: Boolean string.</p></li>
+<li><p>Default: <code class="docutils literal notranslate"><span class="pre">true</span></code>.</p></li>
+</ul>
+</section>
+<section id="ibeam-docker-tag">
+<h3>IBEAM_DOCKER_TAG<a class="headerlink" href="#ibeam-docker-tag" title="Link to this heading">¶</a></h3>
+<ul class="simple">
+<li><p>Purpose: Select a versioned local IBeam Docker release.</p></li>
+<li><p>Values: Docker tag only, not an image/repository reference.</p></li>
+<li><p>Default: <code class="docutils literal notranslate"><span class="pre">0.5.12</span></code>.</p></li>
+</ul>
+</section>
+<section id="ib-auth-timeout-ib-auth-poll-interval">
+<h3>IB_AUTH_TIMEOUT / IB_AUTH_POLL_INTERVAL<a class="headerlink" href="#ib-auth-timeout-ib-auth-poll-interval" title="Link to this heading">¶</a></h3>
+<ul class="simple">
+<li><p>Purpose: Bound gateway authentication and control status polling.</p></li>
+<li><p>Values: Positive seconds.</p></li>
+<li><p>Defaults: <code class="docutils literal notranslate"><span class="pre">300</span></code> / <code class="docutils literal notranslate"><span class="pre">5</span></code>.</p></li>
+</ul>
+</section>
+<section id="ib-request-timeout">
+<h3>IB_REQUEST_TIMEOUT<a class="headerlink" href="#ib-request-timeout" title="Link to this heading">¶</a></h3>
+<ul class="simple">
+<li><p>Purpose: Timeout for one IBKR REST request.</p></li>
+<li><p>Values: Positive seconds.</p></li>
+<li><p>Default: <code class="docutils literal notranslate"><span class="pre">30</span></code>.</p></li>
+</ul>
+</section>
+<section id="ib-verify-ssl">
+<h3>IB_VERIFY_SSL<a class="headerlink" href="#ib-verify-ssl" title="Link to this heading">¶</a></h3>
+<ul class="simple">
+<li><p>Purpose: Override TLS certificate verification for IBKR REST requests.</p></li>
+<li><p>Values: Boolean string.</p></li>
+<li><p>Default: disabled for localhost gateways; enabled for non-local hosts.</p></li>
+</ul>
+</section>
+<section id="ibkr-history-source">
+<h3>IBKR_HISTORY_SOURCE<a class="headerlink" href="#ibkr-history-source" title="Link to this heading">¶</a></h3>
+<ul class="simple">
+<li><p>Purpose: Select which IBKR Client Portal history source to use for OHLC bars in IBKR REST backtests.</p></li>
+<li><p>Values: <code class="docutils literal notranslate"><span class="pre">Trades</span></code> / <code class="docutils literal notranslate"><span class="pre">Midpoint</span></code> / <code class="docutils literal notranslate"><span class="pre">Bid_Ask</span></code> (case-insensitive; hyphen/underscore variants accepted).</p></li>
+<li><p>Default: <code class="docutils literal notranslate"><span class="pre">Trades</span></code>.</p></li>
+</ul>
+</section>
+<section id="ibkr-futures-exchange">
+<h3>IBKR_FUTURES_EXCHANGE<a class="headerlink" href="#ibkr-futures-exchange" title="Link to this heading">¶</a></h3>
+<ul class="simple">
+<li><p>Purpose: Fallback futures exchange for IBKR REST when <code class="docutils literal notranslate"><span class="pre">exchange=</span></code> is not provided and automatic exchange routing cannot resolve a unique venue.</p></li>
+<li><p>Values: Exchange code string (for example: <code class="docutils literal notranslate"><span class="pre">CME</span></code>, <code class="docutils literal notranslate"><span class="pre">CBOT</span></code>, <code class="docutils literal notranslate"><span class="pre">COMEX</span></code>, <code class="docutils literal notranslate"><span class="pre">NYMEX</span></code>).</p></li>
+<li><p>Default: <code class="docutils literal notranslate"><span class="pre">CME</span></code>.</p></li>
+</ul>
+</section>
+<section id="ibkr-crypto-venue">
+<h3>IBKR_CRYPTO_VENUE<a class="headerlink" href="#ibkr-crypto-venue" title="Link to this heading">¶</a></h3>
+<ul class="simple">
+<li><p>Purpose: Default IBKR crypto venue when backtesting spot crypto via IBKR REST.</p></li>
+<li><p>Values: Venue/exchange string (for example: <code class="docutils literal notranslate"><span class="pre">ZEROHASH</span></code>).</p></li>
+<li><p>Default: <code class="docutils literal notranslate"><span class="pre">ZEROHASH</span></code>.</p></li>
+</ul>
+</section>
+<section id="lumibot-ibkr-enable-futures-bid-ask">
+<h3>LUMIBOT_IBKR_ENABLE_FUTURES_BID_ASK<a class="headerlink" href="#lumibot-ibkr-enable-futures-bid-ask" title="Link to this heading">¶</a></h3>
+<ul class="simple">
+<li><p>Purpose: Opt-in derivation of per-bar futures bid/ask quotes using IBKR <code class="docutils literal notranslate"><span class="pre">Bid_Ask</span></code> + <code class="docutils literal notranslate"><span class="pre">Midpoint</span></code> history sources.</p></li>
+<li><p>Values: <code class="docutils literal notranslate"><span class="pre">true</span></code>/<code class="docutils literal notranslate"><span class="pre">false</span></code> (or <code class="docutils literal notranslate"><span class="pre">1</span></code>/<code class="docutils literal notranslate"><span class="pre">0</span></code>).</p></li>
+<li><p>Default: disabled.</p></li>
+</ul>
+</section>
+</section>
+<section id="schwab-broker">
+<h2>Schwab broker<a class="headerlink" href="#schwab-broker" title="Link to this heading">¶</a></h2>
+<section id="schwab-account-number">
+<h3>SCHWAB_ACCOUNT_NUMBER<a class="headerlink" href="#schwab-account-number" title="Link to this heading">¶</a></h3>
+<ul class="simple">
+<li><p>Purpose: Schwab account number (required).</p></li>
+<li><p>Values: Account number string.</p></li>
+</ul>
+</section>
+<section id="schwab-app-key-schwab-app-secret">
+<h3>SCHWAB_APP_KEY / SCHWAB_APP_SECRET<a class="headerlink" href="#schwab-app-key-schwab-app-secret" title="Link to this heading">¶</a></h3>
+<ul class="simple">
+<li><p>Purpose: Schwab API application credentials.</p></li>
+<li><p>Values: Obtain from Schwab developer portal (<strong>do not hardcode</strong>).</p></li>
+</ul>
+</section>
+<section id="schwab-token">
+<h3>SCHWAB_TOKEN<a class="headerlink" href="#schwab-token" title="Link to this heading">¶</a></h3>
+<ul class="simple">
+<li><p>Purpose: Optional pre-existing OAuth token.</p></li>
+<li><p>Values: Token string (<strong>do not hardcode</strong>).</p></li>
+</ul>
+</section>
+<section id="schwab-backend-callback-url">
+<h3>SCHWAB_BACKEND_CALLBACK_URL<a class="headerlink" href="#schwab-backend-callback-url" title="Link to this heading">¶</a></h3>
+<ul class="simple">
+<li><p>Purpose: OAuth callback URL for authentication flow.</p></li>
+<li><p>Values: URL string.</p></li>
+</ul>
+</section>
+<section id="schwab-cancel-diagnostics">
+<h3>SCHWAB_CANCEL_DIAGNOSTICS<a class="headerlink" href="#schwab-cancel-diagnostics" title="Link to this heading">¶</a></h3>
+<ul class="simple">
+<li><p>Purpose: Re-enable the post-cancel direct order read used for Schwab cancel incident diagnostics.</p></li>
+<li><p>Values: <code class="docutils literal notranslate"><span class="pre">true</span></code>/<code class="docutils literal notranslate"><span class="pre">false</span></code> (or <code class="docutils literal notranslate"><span class="pre">1</span></code>/<code class="docutils literal notranslate"><span class="pre">0</span></code>).</p></li>
+<li><p>Default: disabled. The diagnostic read doubles the round trips on every cancel; enable it only while investigating a cancel issue.</p></li>
+</ul>
+</section>
+</section>
+<section id="tradovate-broker">
+<h2>Tradovate broker<a class="headerlink" href="#tradovate-broker" title="Link to this heading">¶</a></h2>
+<section id="tradovate-username-tradovate-dedicated-password">
+<h3>TRADOVATE_USERNAME / TRADOVATE_DEDICATED_PASSWORD<a class="headerlink" href="#tradovate-username-tradovate-dedicated-password" title="Link to this heading">¶</a></h3>
+<ul class="simple">
+<li><p>Purpose: Tradovate credentials.</p></li>
+<li><p>Values: Tradovate credentials (<strong>do not hardcode</strong>).</p></li>
+</ul>
+</section>
+<section id="tradovate-app-id-tradovate-app-version">
+<h3>TRADOVATE_APP_ID / TRADOVATE_APP_VERSION<a class="headerlink" href="#tradovate-app-id-tradovate-app-version" title="Link to this heading">¶</a></h3>
+<ul class="simple">
+<li><p>Purpose: Application identification for Tradovate API.</p></li>
+<li><p>Values: String identifiers.</p></li>
+<li><p>Default: <code class="docutils literal notranslate"><span class="pre">Lumibot</span></code> / <code class="docutils literal notranslate"><span class="pre">1.0</span></code>.</p></li>
+</ul>
+</section>
+<section id="tradovate-cid-tradovate-secret">
+<h3>TRADOVATE_CID / TRADOVATE_SECRET<a class="headerlink" href="#tradovate-cid-tradovate-secret" title="Link to this heading">¶</a></h3>
+<ul class="simple">
+<li><p>Purpose: Client credentials for Tradovate OAuth.</p></li>
+<li><p>Values: Obtain from Tradovate (<strong>do not hardcode</strong>).</p></li>
+</ul>
+</section>
+<section id="tradovate-is-paper">
+<h3>TRADOVATE_IS_PAPER<a class="headerlink" href="#tradovate-is-paper" title="Link to this heading">¶</a></h3>
+<ul class="simple">
+<li><p>Purpose: Toggle between paper and live trading.</p></li>
+<li><p>Values: <code class="docutils literal notranslate"><span class="pre">true</span></code> (paper) / <code class="docutils literal notranslate"><span class="pre">false</span></code> (live).</p></li>
+<li><p>Default: <code class="docutils literal notranslate"><span class="pre">true</span></code>.</p></li>
+</ul>
+</section>
+<section id="tradovate-md-url">
+<h3>TRADOVATE_MD_URL<a class="headerlink" href="#tradovate-md-url" title="Link to this heading">¶</a></h3>
+<ul class="simple">
+<li><p>Purpose: Market data URL override.</p></li>
+<li><p>Values: URL string.</p></li>
+<li><p>Default: <code class="docutils literal notranslate"><span class="pre">https://md.tradovateapi.com/v1</span></code>.</p></li>
+</ul>
+</section>
+</section>
+<section id="crypto-brokers-ccxt">
+<h2>Crypto brokers (CCXT)<a class="headerlink" href="#crypto-brokers-ccxt" title="Link to this heading">¶</a></h2>
+<section id="kraken-api-key-kraken-api-secret">
+<h3>KRAKEN_API_KEY / KRAKEN_API_SECRET<a class="headerlink" href="#kraken-api-key-kraken-api-secret" title="Link to this heading">¶</a></h3>
+<ul class="simple">
+<li><p>Purpose: Kraken exchange API credentials.</p></li>
+<li><p>Values: Obtain from Kraken (<strong>do not hardcode</strong>).</p></li>
+</ul>
+</section>
+<section id="coinbase-api-key-name-coinbase-private-key">
+<h3>COINBASE_API_KEY_NAME / COINBASE_PRIVATE_KEY<a class="headerlink" href="#coinbase-api-key-name-coinbase-private-key" title="Link to this heading">¶</a></h3>
+<ul class="simple">
+<li><p>Purpose: Coinbase Advanced Trade API credentials.</p></li>
+<li><p>Values: Obtain from Coinbase (<strong>do not hardcode</strong>).</p></li>
+</ul>
+</section>
+<section id="coinbase-api-passphrase">
+<h3>COINBASE_API_PASSPHRASE<a class="headerlink" href="#coinbase-api-passphrase" title="Link to this heading">¶</a></h3>
+<ul class="simple">
+<li><p>Purpose: API passphrase (if required by Coinbase).</p></li>
+<li><p>Values: Passphrase string (<strong>do not hardcode</strong>).</p></li>
+</ul>
+</section>
+<section id="coinbase-sandbox">
+<h3>COINBASE_SANDBOX<a class="headerlink" href="#coinbase-sandbox" title="Link to this heading">¶</a></h3>
+<ul class="simple">
+<li><p>Purpose: Use Coinbase sandbox environment.</p></li>
+<li><p>Values: <code class="docutils literal notranslate"><span class="pre">true</span></code> / <code class="docutils literal notranslate"><span class="pre">false</span></code>.</p></li>
+<li><p>Default: <code class="docutils literal notranslate"><span class="pre">false</span></code>.</p></li>
+</ul>
+</section>
+</section>
+<section id="bitunix-broker">
+<h2>Bitunix broker<a class="headerlink" href="#bitunix-broker" title="Link to this heading">¶</a></h2>
+<section id="bitunix-api-key-bitunix-api-secret">
+<h3>BITUNIX_API_KEY / BITUNIX_API_SECRET<a class="headerlink" href="#bitunix-api-key-bitunix-api-secret" title="Link to this heading">¶</a></h3>
+<ul class="simple">
+<li><p>Purpose: Bitunix exchange API credentials.</p></li>
+<li><p>Values: Obtain from Bitunix (<strong>do not hardcode</strong>).</p></li>
+</ul>
+</section>
+<section id="bitunix-trading-mode">
+<h3>BITUNIX_TRADING_MODE<a class="headerlink" href="#bitunix-trading-mode" title="Link to this heading">¶</a></h3>
+<ul class="simple">
+<li><p>Purpose: Trading mode selection.</p></li>
+<li><p>Values: <code class="docutils literal notranslate"><span class="pre">FUTURES</span></code> / <code class="docutils literal notranslate"><span class="pre">SPOT</span></code>.</p></li>
+<li><p>Default: <code class="docutils literal notranslate"><span class="pre">FUTURES</span></code>.</p></li>
+</ul>
+</section>
+</section>
+<section id="projectx-brokers">
+<h2>ProjectX brokers<a class="headerlink" href="#projectx-brokers" title="Link to this heading">¶</a></h2>
+<p>ProjectX support is primarily documented for TopstepX futures. The lower-level adapter can read firm-specific ProjectX environment variable prefixes, but new firms should be tested before being treated as production-ready.</p>
+<section id="projectx-firm">
+<h3>PROJECTX_FIRM<a class="headerlink" href="#projectx-firm" title="Link to this heading">¶</a></h3>
+<ul class="simple">
+<li><p>Purpose: Select which ProjectX firm to use.</p></li>
+<li><p>Values: <code class="docutils literal notranslate"><span class="pre">TOPSTEPX</span></code> for the documented TopstepX path. Additional ProjectX firm ids may exist in the adapter, but require validation before use.</p></li>
+</ul>
+</section>
+<section id="projectx-firm-api-key">
+<h3>PROJECTX_{FIRM}_API_KEY<a class="headerlink" href="#projectx-firm-api-key" title="Link to this heading">¶</a></h3>
+<ul class="simple">
+<li><p>Purpose: API key for the specified firm.</p></li>
+<li><p>Example: <code class="docutils literal notranslate"><span class="pre">PROJECTX_TOPSTEPX_API_KEY</span></code>, <code class="docutils literal notranslate"><span class="pre">PROJECTX_TOPONE_API_KEY</span></code></p></li>
+<li><p>Values: Obtain from firm’s platform (<strong>do not hardcode</strong>).</p></li>
+</ul>
+</section>
+<section id="projectx-firm-username">
+<h3>PROJECTX_{FIRM}_USERNAME<a class="headerlink" href="#projectx-firm-username" title="Link to this heading">¶</a></h3>
+<ul class="simple">
+<li><p>Purpose: Username for the specified firm.</p></li>
+<li><p>Example: <code class="docutils literal notranslate"><span class="pre">PROJECTX_TOPSTEPX_USERNAME</span></code></p></li>
+<li><p>Values: Your username on the firm’s platform.</p></li>
+</ul>
+</section>
+<section id="projectx-firm-preferred-account-name">
+<h3>PROJECTX_{FIRM}_PREFERRED_ACCOUNT_NAME<a class="headerlink" href="#projectx-firm-preferred-account-name" title="Link to this heading">¶</a></h3>
+<ul class="simple">
+<li><p>Purpose: Preferred account name when multiple accounts exist.</p></li>
+<li><p>Example: <code class="docutils literal notranslate"><span class="pre">PROJECTX_TOPSTEPX_PREFERRED_ACCOUNT_NAME</span></code></p></li>
+<li><p>Values: Account name string.</p></li>
+</ul>
+</section>
+</section>
+<section id="data-source-credentials">
+<h2>Data source credentials<a class="headerlink" href="#data-source-credentials" title="Link to this heading">¶</a></h2>
+<section id="polygon-api-key">
+<h3>POLYGON_API_KEY<a class="headerlink" href="#polygon-api-key" title="Link to this heading">¶</a></h3>
+<ul class="simple">
+<li><p>Purpose: Polygon.io API key for market data.</p></li>
+<li><p>Values: Obtain from Polygon.io (<strong>do not hardcode</strong>).</p></li>
+</ul>
+</section>
+<section id="polygon-max-memory-bytes">
+<h3>POLYGON_MAX_MEMORY_BYTES<a class="headerlink" href="#polygon-max-memory-bytes" title="Link to this heading">¶</a></h3>
+<ul class="simple">
+<li><p>Purpose: Hard limit on memory Polygon can use for caching.</p></li>
+<li><p>Values: Integer (bytes).</p></li>
+</ul>
+</section>
+<section id="lumibot-option-chain-max-days">
+<h3>LUMIBOT_OPTION_CHAIN_MAX_DAYS<a class="headerlink" href="#lumibot-option-chain-max-days" title="Link to this heading">¶</a></h3>
+<ul class="simple">
+<li><p>Purpose: Polygon backtests only. Limits each option chain request to expirations from the
+simulated date through that many days ahead, which keeps a free Polygon key under its rate
+limit. A limited chain is cached under its own name (<code class="docutils literal notranslate"><span class="pre">&lt;SYMBOL&gt;_&lt;date&gt;_max&lt;N&gt;d.parquet</span></code>) and is
+only reused on the same day with the same limit, never as a full chain.</p></li>
+<li><p>Values: Positive whole number of days (for example <code class="docutils literal notranslate"><span class="pre">21</span></code>). Unset means no limit. Invalid values
+are ignored with a warning.</p></li>
+<li><p>Example: <code class="docutils literal notranslate"><span class="pre">LUMIBOT_OPTION_CHAIN_MAX_DAYS=21</span></code></p></li>
+</ul>
+</section>
+<section id="thetadata-username-thetadata-password">
+<h3>THETADATA_USERNAME / THETADATA_PASSWORD<a class="headerlink" href="#thetadata-username-thetadata-password" title="Link to this heading">¶</a></h3>
+<ul class="simple">
+<li><p>Purpose: ThetaData API credentials.</p></li>
+<li><p>Values: Obtain from ThetaData (<strong>do not hardcode</strong>).</p></li>
+<li><p>Note: Required for ThetaData backtesting and live data.</p></li>
+</ul>
+</section>
+<section id="thetadata-base-url">
+<h3>THETADATA_BASE_URL<a class="headerlink" href="#thetadata-base-url" title="Link to this heading">¶</a></h3>
+<ul class="simple">
+<li><p>Purpose: Base URL for the local ThetaTerminal REST API.</p></li>
+<li><p>Default: <code class="docutils literal notranslate"><span class="pre">http://127.0.0.1:25503</span></code></p></li>
+<li><p>Values: URL string.</p></li>
+<li><p>Note: You typically do not need to set this; LumiBot auto-manages a local ThetaTerminal for ThetaData usage.</p></li>
+</ul>
+</section>
+<section id="databento-api-key">
+<h3>DATABENTO_API_KEY<a class="headerlink" href="#databento-api-key" title="Link to this heading">¶</a></h3>
+<ul class="simple">
+<li><p>Purpose: DataBento API key for market data.</p></li>
+<li><p>Values: Obtain from DataBento (<strong>do not hardcode</strong>).</p></li>
+</ul>
+</section>
+<section id="databento-timeout">
+<h3>DATABENTO_TIMEOUT<a class="headerlink" href="#databento-timeout" title="Link to this heading">¶</a></h3>
+<ul class="simple">
+<li><p>Purpose: Request timeout for DataBento API calls.</p></li>
+<li><p>Values: Integer (seconds).</p></li>
+<li><p>Default: <code class="docutils literal notranslate"><span class="pre">30</span></code>.</p></li>
+</ul>
+</section>
+<section id="databento-max-retries">
+<h3>DATABENTO_MAX_RETRIES<a class="headerlink" href="#databento-max-retries" title="Link to this heading">¶</a></h3>
+<ul class="simple">
+<li><p>Purpose: Maximum retry attempts for failed DataBento requests.</p></li>
+<li><p>Values: Integer.</p></li>
+<li><p>Default: <code class="docutils literal notranslate"><span class="pre">3</span></code>.</p></li>
+</ul>
+</section>
+<section id="lumiwealth-api-key">
+<h3>LUMIWEALTH_API_KEY<a class="headerlink" href="#lumiwealth-api-key" title="Link to this heading">¶</a></h3>
+<ul class="simple">
+<li><p>Purpose: LumiWealth platform API key (for enterprise features).</p></li>
+<li><p>Values: Obtain from LumiWealth (<strong>do not hardcode</strong>).</p></li>
+</ul>
+</section>
+<section id="listener-write-url">
+<h3>LISTENER_WRITE_URL<a class="headerlink" href="#listener-write-url" title="Link to this heading">¶</a></h3>
+<ul class="simple">
+<li><p>Purpose: Portfolio-listener write endpoint used by live cloud account updates.</p></li>
+<li><p>Values: HTTPS URL supplied by the deployment environment.</p></li>
+<li><p>Default: <code class="docutils literal notranslate"><span class="pre">https://listener.lumiwealth.com/portfolio_events</span></code>.</p></li>
+<li><p>Note: Custom or isolated deployments can set this explicitly to keep account
+observations separate from the default listener.</p></li>
+</ul>
+</section>
+</section>
+<section id="runtime-telemetry-memory-health">
+<h2>Runtime telemetry (memory/health)<a class="headerlink" href="#runtime-telemetry-memory-health" title="Link to this heading">¶</a></h2>
+<section id="lumibot-telemetry">
+<h3>LUMIBOT_TELEMETRY<a class="headerlink" href="#lumibot-telemetry" title="Link to this heading">¶</a></h3>
+<ul class="simple">
+<li><p>Purpose: Enable/disable runtime telemetry emission (single-line JSON to stdout prefixed with <code class="docutils literal notranslate"><span class="pre">LUMIBOT_TELEMETRY</span></code>).</p></li>
+<li><p>Values: truthy enables (<code class="docutils literal notranslate"><span class="pre">1</span></code>, <code class="docutils literal notranslate"><span class="pre">true</span></code>, <code class="docutils literal notranslate"><span class="pre">yes</span></code>); falsy disables (<code class="docutils literal notranslate"><span class="pre">0</span></code>, <code class="docutils literal notranslate"><span class="pre">false</span></code>).</p></li>
+<li><p>Default: enabled for live runs; disabled for backtests and pytest.</p></li>
+</ul>
+</section>
+<section id="lumibot-telemetry-interval-seconds">
+<h3>LUMIBOT_TELEMETRY_INTERVAL_SECONDS<a class="headerlink" href="#lumibot-telemetry-interval-seconds" title="Link to this heading">¶</a></h3>
+<ul class="simple">
+<li><p>Purpose: Base telemetry cadence.</p></li>
+<li><p>Values: seconds (float).</p></li>
+<li><p>Default: <code class="docutils literal notranslate"><span class="pre">300</span></code>.</p></li>
+</ul>
+</section>
+<section id="lumibot-telemetry-deep">
+<h3>LUMIBOT_TELEMETRY_DEEP<a class="headerlink" href="#lumibot-telemetry-deep" title="Link to this heading">¶</a></h3>
+<ul class="simple">
+<li><p>Purpose: Enable deep snapshot mode for diagnosing unknown memory sources.</p></li>
+<li><p>Values: truthy enables; falsy disables.</p></li>
+<li><p>Default: disabled.</p></li>
+</ul>
+<p>Notes:</p>
+<ul class="simple">
+<li><p>Burst mode (more frequent telemetry logs) turns on automatically above ~80% of container memory.</p></li>
+<li><p>Deep snapshots trigger above ~90% with a ~1 hour cooldown (these thresholds are fixed defaults today).</p></li>
+</ul>
+</section>
+</section>
+<section id="ai-agent-model-providers">
+<h2>AI agent model providers<a class="headerlink" href="#ai-agent-model-providers" title="Link to this heading">¶</a></h2>
+<p>LumiBot’s AI agent subsystem (<code class="docutils literal notranslate"><span class="pre">self.agents.create(model=...)</span></code> or <code class="docutils literal notranslate"><span class="pre">default_model=...</span></code>) supports multiple LLM providers. You only need the key matching the provider id you pass for each agent. Non-Gemini ids are routed through LiteLLM, which ships as a LumiBot dependency. In BotSpot managed runtimes, an owner-bound managed AI capability may be supplied when no provider key is present. A user-provided key always takes precedence and provider errors never fall back to managed credits.</p>
+<section id="lumibot-ai-gateway-url-and-lumibot-ai-gateway-token">
+<h3>LUMIBOT_AI_GATEWAY_URL and LUMIBOT_AI_GATEWAY_TOKEN<a class="headerlink" href="#lumibot-ai-gateway-url-and-lumibot-ai-gateway-token" title="Link to this heading">¶</a></h3>
+<ul class="simple">
+<li><p>Purpose: BotSpot-managed model access for a specific deployment or backtest.</p></li>
+<li><p>These values are issued and renewed by BotSpot. Users should not create or save them manually.</p></li>
+<li><p>The token is short-lived and deployment-bound. LumiBot renews it through the gateway so always-on bots can continue without receiving a long-lived provider credential.</p></li>
+<li><p>Supported managed providers are Gemini, OpenAI, Anthropic, and xAI. Other providers continue to require their normal provider key.</p></li>
+<li><p>Any configured provider key below takes precedence for that provider.</p></li>
+</ul>
+</section>
+<section id="gemini-api-key">
+<h3>GEMINI_API_KEY<a class="headerlink" href="#gemini-api-key" title="Link to this heading">¶</a></h3>
+<ul class="simple">
+<li><p>Purpose: Auth for Gemini models.</p></li>
+<li><p>Values: Obtain from <a class="reference external" href="https://aistudio.google.com/apikey">https://aistudio.google.com/apikey</a>.</p></li>
+<li><p>Required when <code class="docutils literal notranslate"><span class="pre">default_model</span></code> starts with <code class="docutils literal notranslate"><span class="pre">gemini-</span></code> (e.g. <code class="docutils literal notranslate"><span class="pre">gemini-3.1-flash-lite-preview</span></code>).</p></li>
+<li><p>LumiBot’s public contract is <code class="docutils literal notranslate"><span class="pre">GEMINI_API_KEY</span></code>. Do not rely on Google SDK
+alias names in strategy examples or downstream products that infer required
+runtime secrets.</p></li>
+</ul>
+</section>
+<section id="openai-api-key">
+<h3>OPENAI_API_KEY<a class="headerlink" href="#openai-api-key" title="Link to this heading">¶</a></h3>
+<ul class="simple">
+<li><p>Purpose: Auth for OpenAI models, including the default <code class="docutils literal notranslate"><span class="pre">openai/gpt-6-luna</span></code>.</p></li>
+<li><p>Values: Obtain from <a class="reference external" href="https://platform.openai.com/api-keys">https://platform.openai.com/api-keys</a>.</p></li>
+<li><p>Required for the default model and whenever <code class="docutils literal notranslate"><span class="pre">default_model</span></code> is any other <code class="docutils literal notranslate"><span class="pre">openai/...</span></code> id.</p></li>
+</ul>
+</section>
+<section id="xai-api-key-or-grok-api-key">
+<h3>XAI_API_KEY or GROK_API_KEY<a class="headerlink" href="#xai-api-key-or-grok-api-key" title="Link to this heading">¶</a></h3>
+<ul class="simple">
+<li><p>Purpose: Auth for xAI Grok models.</p></li>
+<li><p>Values: Obtain from <a class="reference external" href="https://console.x.ai/">https://console.x.ai/</a>.</p></li>
+<li><p>Required when <code class="docutils literal notranslate"><span class="pre">default_model</span></code> looks like <code class="docutils literal notranslate"><span class="pre">xai/grok-4.20-0309-reasoning</span></code> or any other <code class="docutils literal notranslate"><span class="pre">xai/...</span></code> id.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">XAI_API_KEY</span></code> is the canonical provider env var; <code class="docutils literal notranslate"><span class="pre">GROK_API_KEY</span></code> is also accepted for user-facing Grok naming.</p></li>
+</ul>
+</section>
+<section id="anthropic-api-key">
+<h3>ANTHROPIC_API_KEY<a class="headerlink" href="#anthropic-api-key" title="Link to this heading">¶</a></h3>
+<ul class="simple">
+<li><p>Purpose: Auth for Anthropic Claude models.</p></li>
+<li><p>Values: Obtain from <a class="reference external" href="https://console.anthropic.com/">https://console.anthropic.com/</a>.</p></li>
+<li><p>Required when <code class="docutils literal notranslate"><span class="pre">default_model</span></code> looks like <code class="docutils literal notranslate"><span class="pre">anthropic/claude-opus-4-7</span></code> or any other <code class="docutils literal notranslate"><span class="pre">anthropic/...</span></code> id.</p></li>
+</ul>
+<p>Other providers (Groq, Mistral, Cohere, Fireworks, Together, etc.) use the provider-prefixed id format and the corresponding provider env var; see the LiteLLM documentation for the full list.</p>
+</section>
+</section>
+<section id="sec-fundamentals-and-agent-memory">
+<h2>SEC fundamentals and agent memory<a class="headerlink" href="#sec-fundamentals-and-agent-memory" title="Link to this heading">¶</a></h2>
+<section id="lumibot-sec-user-agent">
+<h3>LUMIBOT_SEC_USER_AGENT<a class="headerlink" href="#lumibot-sec-user-agent" title="Link to this heading">¶</a></h3>
+<ul class="simple">
+<li><p>Purpose: Contact-style SEC EDGAR user agent header.</p></li>
+<li><p>Values: Human-readable app/contact string.</p></li>
+<li><p>Default: LumiBot support contact.</p></li>
+</ul>
+</section>
+<section id="lumibot-sec-cache-dir">
+<h3>LUMIBOT_SEC_CACHE_DIR<a class="headerlink" href="#lumibot-sec-cache-dir" title="Link to this heading">¶</a></h3>
+<ul class="simple">
+<li><p>Purpose: Override local SEC fundamentals and filing cache.</p></li>
+<li><p>Default: <code class="docutils literal notranslate"><span class="pre">~/.lumibot/cache/sec</span></code>.</p></li>
+</ul>
+</section>
+<section id="fred-api-key">
+<h3>FRED_API_KEY<a class="headerlink" href="#fred-api-key" title="Link to this heading">¶</a></h3>
+<ul class="simple">
+<li><p>Purpose: Required official FRED/ALFRED API key for macro data tools.</p></li>
+<li><p>Default: unset.</p></li>
+<li><p>Notes: When set, LumiBot requests vintage observations with
+<code class="docutils literal notranslate"><span class="pre">realtime_start</span></code> and <code class="docutils literal notranslate"><span class="pre">realtime_end</span></code> for point-in-time backtests.
+Built-in FRED agent tools are not exposed during backtests without this key
+because LumiBot does not use revised public CSV fallbacks for macro data.</p></li>
+</ul>
+</section>
+<section id="lumibot-fred-cache-dir">
+<h3>LUMIBOT_FRED_CACHE_DIR<a class="headerlink" href="#lumibot-fred-cache-dir" title="Link to this heading">¶</a></h3>
+<ul class="simple">
+<li><p>Purpose: Override local FRED macro data cache.</p></li>
+<li><p>Default: <code class="docutils literal notranslate"><span class="pre">~/.lumibot/cache/fred</span></code>.</p></li>
+</ul>
+</section>
+<section id="lumibot-memory-dir">
+<h3>LUMIBOT_MEMORY_DIR<a class="headerlink" href="#lumibot-memory-dir" title="Link to this heading">¶</a></h3>
+<ul class="simple">
+<li><p>Purpose: Override local SQLite agent memory root.</p></li>
+<li><p>Default: <code class="docutils literal notranslate"><span class="pre">.lumibot/memory</span></code> under the current working directory.</p></li>
+</ul>
+</section>
+<section id="lumibot-memory-export-parquet">
+<h3>LUMIBOT_MEMORY_EXPORT_PARQUET<a class="headerlink" href="#lumibot-memory-export-parquet" title="Link to this heading">¶</a></h3>
+<ul class="simple">
+<li><p>Purpose: Enable or disable best-effort Parquet exports for agent memory
+events, retrievals, and current state.</p></li>
+<li><p>Default: <code class="docutils literal notranslate"><span class="pre">1</span></code>.</p></li>
+<li><p>Notes: SQLite is still the live memory store. Parquet exports are derived
+artifacts for DuckDB queries, BotSpot uploads, and post-run inspection.</p></li>
+</ul>
+</section>
+<section id="lumibot-agent-memory-note-max-chars">
+<h3>LUMIBOT_AGENT_MEMORY_NOTE_MAX_CHARS<a class="headerlink" href="#lumibot-agent-memory-note-max-chars" title="Link to this heading">¶</a></h3>
+<ul class="simple">
+<li><p>Purpose: Limit how much prior agent-run memory is injected back into the next
+agent prompt.</p></li>
+<li><p>Default: <code class="docutils literal notranslate"><span class="pre">2000</span></code>.</p></li>
+<li><p>Notes: Full run traces and artifacts are still written separately. This only
+compacts the lightweight runtime notes so repeated backtest iterations do not
+blow up the model context window.</p></li>
+</ul>
+</section>
+<section id="lumibot-agent-max-model-calls">
+<h3>LUMIBOT_AGENT_MAX_MODEL_CALLS<a class="headerlink" href="#lumibot-agent-max-model-calls" title="Link to this heading">¶</a></h3>
+<ul class="simple">
+<li><p>Purpose: Hard cap uncached agent model calls in a single strategy run.</p></li>
+<li><p>Default: unset.</p></li>
+<li><p>Notes: When set, LumiBot raises before making the next provider call once the
+cap is reached. Use this for expensive AI backtests and smoke runs where
+accidental spend matters.</p></li>
+</ul>
+</section>
+<section id="lumibot-agent-max-run-attempts">
+<h3>LUMIBOT_AGENT_MAX_RUN_ATTEMPTS<a class="headerlink" href="#lumibot-agent-max-run-attempts" title="Link to this heading">¶</a></h3>
+<ul class="simple">
+<li><p>Purpose: Override the retry budget for a single agent model call.</p></li>
+<li><p>Default: <code class="docutils literal notranslate"><span class="pre">2</span></code> in backtests, <code class="docutils literal notranslate"><span class="pre">10</span></code> in live trading.</p></li>
+<li><p>Notes: Backtests default to a lower retry budget so a bad provider window does
+not multiply model spend across many simulated iterations.</p></li>
+</ul>
+</section>
+</section>
+<section id="telegram-notifications">
+<h2>Telegram notifications<a class="headerlink" href="#telegram-notifications" title="Link to this heading">¶</a></h2>
+<section id="telegram-bot-token">
+<h3>TELEGRAM_BOT_TOKEN<a class="headerlink" href="#telegram-bot-token" title="Link to this heading">¶</a></h3>
+<ul class="simple">
+<li><p>Purpose: Telegram Bot API token for <code class="docutils literal notranslate"><span class="pre">self.notifications.configure_telegram()</span></code>.</p></li>
+<li><p>Values: Bot token from BotFather.</p></li>
+</ul>
+</section>
+<section id="telegram-chat-id">
+<h3>TELEGRAM_CHAT_ID<a class="headerlink" href="#telegram-chat-id" title="Link to this heading">¶</a></h3>
+<ul class="simple">
+<li><p>Purpose: Telegram chat/channel/user id for strategy notifications.</p></li>
+<li><p>Values: Telegram chat id.</p></li>
+</ul>
+</section>
+</section>
+</section>
+
+        </article>
+      </div>
+      <footer>
+        
+        <div class="related-pages">
+          <a class="next-page" href="common_mistakes.html">
+              <div class="page-info">
+                <div class="context">
+                  <span>Next</span>
+                </div>
+                <div class="title">Common Mistakes and How to Avoid Them</div>
+              </div>
+              <svg class="furo-related-icon"><use href="#svg-arrow-right"></use></svg>
+            </a>
+          <a class="prev-page" href="options_helper.html">
+              <svg class="furo-related-icon"><use href="#svg-arrow-right"></use></svg>
+              <div class="page-info">
+                <div class="context">
+                  <span>Previous</span>
+                </div>
+                
+                <div class="title">OptionsHelper</div>
+                
+              </div>
+            </a>
+        </div>
+        <div class="bottom-of-page">
+          <div class="left-details">
+            <div class="copyright">
+                Copyright &#169; 2021, Lumiwealth
+            </div>
+            Made with <a href="https://www.sphinx-doc.org/">Sphinx</a> and <a class="muted-link" href="https://pradyunsg.me">@pradyunsg</a>'s
+            
+            <a href="https://github.com/pradyunsg/furo">Furo</a>
+            <div class="last-updated">
+              Last updated on October 02, 2026</div>
+          </div>
+          <div class="right-details">
+            
+          </div>
+        </div>
+        
+      </footer>
+    </div>
+    <aside class="toc-drawer">
+      
+      
+      <div class="toc-sticky toc-scroll">
+        <div class="toc-title-container">
+          <span class="toc-title">
+            On this page
+          </span>
+        </div>
+        <div class="toc-tree-container">
+          <div class="toc-tree">
+            <ul>
+<li><a class="reference internal" href="#">Environment Variables</a><ul>
+<li><a class="reference internal" href="#backtesting-configuration">Backtesting configuration</a><ul>
+<li><a class="reference internal" href="#lumibot-disable-dotenv">LUMIBOT_DISABLE_DOTENV</a></li>
+<li><a class="reference internal" href="#lumibot-disable-dotenv-local">LUMIBOT_DISABLE_DOTENV_LOCAL</a></li>
+<li><a class="reference internal" href="#lumibot-log-level">LUMIBOT_LOG_LEVEL</a></li>
+<li><a class="reference internal" href="#is-backtesting">IS_BACKTESTING</a></li>
+<li><a class="reference internal" href="#backtesting-start-backtesting-end">BACKTESTING_START / BACKTESTING_END</a></li>
+<li><a class="reference internal" href="#backtesting-budget">BACKTESTING_BUDGET</a></li>
+<li><a class="reference internal" href="#lumibot-strategy-parameters">LUMIBOT_STRATEGY_PARAMETERS</a></li>
+<li><a class="reference internal" href="#botspot-data-routing-policy">BOTSPOT_DATA_ROUTING_POLICY</a></li>
+<li><a class="reference internal" href="#backtesting-data-source">BACKTESTING_DATA_SOURCE</a></li>
+</ul>
+</li>
+<li><a class="reference internal" href="#testing-ci-guardrails">Testing / CI guardrails</a><ul>
+<li><a class="reference internal" href="#lumibot-acceptance-tripwire">LUMIBOT_ACCEPTANCE_TRIPWIRE</a></li>
+</ul>
+</li>
+<li><a class="reference internal" href="#live-scheduled-execution-botspot-botmanager">Live scheduled execution (BotSpot/BotManager)</a></li>
+<li><a class="reference internal" href="#botspot-managed-research">BotSpot managed research</a></li>
+<li><a class="reference internal" href="#backtest-artifacts-ux-flags">Backtest artifacts + UX flags</a><ul>
+<li><a class="reference internal" href="#show-plot-show-indicators-show-tearsheet">SHOW_PLOT / SHOW_INDICATORS / SHOW_TEARSHEET</a></li>
+<li><a class="reference internal" href="#lumibot-backtest-parquet-mode">LUMIBOT_BACKTEST_PARQUET_MODE</a></li>
+<li><a class="reference internal" href="#backtesting-quiet-logs">BACKTESTING_QUIET_LOGS</a></li>
+<li><a class="reference internal" href="#backtesting-show-progress-bar">BACKTESTING_SHOW_PROGRESS_BAR</a></li>
+</ul>
+</li>
+<li><a class="reference internal" href="#backtest-progress-file-botspot-botmanager-ui">Backtest progress file (BotSpot/BotManager UI)</a><ul>
+<li><a class="reference internal" href="#log-backtest-progress-to-file">LOG_BACKTEST_PROGRESS_TO_FILE</a></li>
+<li><a class="reference internal" href="#backtesting-progress-heartbeat">BACKTESTING_PROGRESS_HEARTBEAT</a></li>
+<li><a class="reference internal" href="#backtesting-progress-heartbeat-seconds">BACKTESTING_PROGRESS_HEARTBEAT_SECONDS</a></li>
+</ul>
+</li>
+<li><a class="reference internal" href="#trade-audit-telemetry-accuracy-investigations">Trade audit telemetry (accuracy investigations)</a><ul>
+<li><a class="reference internal" href="#lumibot-backtest-audit">LUMIBOT_BACKTEST_AUDIT</a></li>
+</ul>
+</li>
+<li><a class="reference internal" href="#profiling-performance-parity-investigations">Profiling (performance + parity investigations)</a><ul>
+<li><a class="reference internal" href="#backtesting-profile">BACKTESTING_PROFILE</a></li>
+<li><a class="reference internal" href="#lumibot-cache-miss-debug">LUMIBOT_CACHE_MISS_DEBUG</a></li>
+</ul>
+</li>
+<li><a class="reference internal" href="#thetadata-option-chain-building-performance">ThetaData option-chain building (performance)</a><ul>
+<li><a class="reference internal" href="#thetadata-chain-default-max-days-out">THETADATA_CHAIN_DEFAULT_MAX_DAYS_OUT</a></li>
+<li><a class="reference internal" href="#thetadata-chain-default-max-days-out-index">THETADATA_CHAIN_DEFAULT_MAX_DAYS_OUT_INDEX</a></li>
+<li><a class="reference internal" href="#thetadata-chain-recent-file-tolerance-days">THETADATA_CHAIN_RECENT_FILE_TOLERANCE_DAYS</a></li>
+<li><a class="reference internal" href="#thetadata-chain-strikes-timeout">THETADATA_CHAIN_STRIKES_TIMEOUT</a></li>
+<li><a class="reference internal" href="#thetadata-chain-strikes-batch-size">THETADATA_CHAIN_STRIKES_BATCH_SIZE</a></li>
+</ul>
+</li>
+<li><a class="reference internal" href="#thetadata-corporate-action-normalization-accuracy">ThetaData corporate action normalization (accuracy)</a><ul>
+<li><a class="reference internal" href="#thetadata-apply-corporate-actions-intraday">THETADATA_APPLY_CORPORATE_ACTIONS_INTRADAY</a></li>
+</ul>
+</li>
+<li><a class="reference internal" href="#remote-cache-s3">Remote cache (S3)</a><ul>
+<li><a class="reference internal" href="#lumibot-cache-backend-lumibot-cache-mode">LUMIBOT_CACHE_BACKEND / LUMIBOT_CACHE_MODE</a></li>
+<li><a class="reference internal" href="#lumibot-cache-folder">LUMIBOT_CACHE_FOLDER</a></li>
+<li><a class="reference internal" href="#lumibot-cache-s3-bucket-lumibot-cache-s3-prefix-lumibot-cache-s3-region">LUMIBOT_CACHE_S3_BUCKET / LUMIBOT_CACHE_S3_PREFIX / LUMIBOT_CACHE_S3_REGION</a></li>
+<li><a class="reference internal" href="#lumibot-cache-s3-version">LUMIBOT_CACHE_S3_VERSION</a></li>
+<li><a class="reference internal" href="#lumibot-cache-s3-access-key-id-lumibot-cache-s3-secret-access-key-lumibot-cache-s3-session-token">LUMIBOT_CACHE_S3_ACCESS_KEY_ID / LUMIBOT_CACHE_S3_SECRET_ACCESS_KEY / LUMIBOT_CACHE_S3_SESSION_TOKEN</a></li>
+</ul>
+</li>
+<li><a class="reference internal" href="#strategy-configuration">Strategy configuration</a><ul>
+<li><a class="reference internal" href="#strategy-name">STRATEGY_NAME</a></li>
+<li><a class="reference internal" href="#market">MARKET</a></li>
+<li><a class="reference internal" href="#hide-trades-hide-positions">HIDE_TRADES / HIDE_POSITIONS</a></li>
+<li><a class="reference internal" href="#discord-webhook-url">DISCORD_WEBHOOK_URL</a></li>
+</ul>
+</li>
+<li><a class="reference internal" href="#database-configuration">Database configuration</a><ul>
+<li><a class="reference internal" href="#db-connection-str">DB_CONNECTION_STR</a></li>
+<li><a class="reference internal" href="#id2">LOG_BACKTEST_PROGRESS_TO_FILE</a></li>
+</ul>
+</li>
+<li><a class="reference internal" href="#broker-selection">Broker selection</a><ul>
+<li><a class="reference internal" href="#trading-broker">TRADING_BROKER</a></li>
+<li><a class="reference internal" href="#data-source">DATA_SOURCE</a></li>
+</ul>
+</li>
+<li><a class="reference internal" href="#alpaca-broker">Alpaca broker</a><ul>
+<li><a class="reference internal" href="#alpaca-api-key-alpaca-api-secret">ALPACA_API_KEY / ALPACA_API_SECRET</a></li>
+<li><a class="reference internal" href="#alpaca-oauth-token">ALPACA_OAUTH_TOKEN</a></li>
+<li><a class="reference internal" href="#alpaca-is-paper">ALPACA_IS_PAPER</a></li>
+<li><a class="reference internal" href="#alpaca-news-api-key-alpaca-news-api-secret">ALPACA_NEWS_API_KEY / ALPACA_NEWS_API_SECRET</a></li>
+</ul>
+</li>
+<li><a class="reference internal" href="#polymarket-clob-broker">Polymarket CLOB broker</a><ul>
+<li><a class="reference internal" href="#polymarket-private-key">POLYMARKET_PRIVATE_KEY</a></li>
+<li><a class="reference internal" href="#polymarket-wallet-address">POLYMARKET_WALLET_ADDRESS</a></li>
+<li><a class="reference internal" href="#polymarket-owner-address">POLYMARKET_OWNER_ADDRESS</a></li>
+<li><a class="reference internal" href="#polymarket-signature-type">POLYMARKET_SIGNATURE_TYPE</a></li>
+<li><a class="reference internal" href="#polymarket-clob-api-key-polymarket-clob-api-secret-polymarket-clob-api-passphrase">POLYMARKET_CLOB_API_KEY / POLYMARKET_CLOB_API_SECRET / POLYMARKET_CLOB_API_PASSPHRASE</a></li>
+<li><a class="reference internal" href="#polymarket-api-credentials-json">POLYMARKET_API_CREDENTIALS_JSON</a></li>
+<li><a class="reference internal" href="#polymarket-relayer-api-key-polymarket-relayer-api-key-address">POLYMARKET_RELAYER_API_KEY / POLYMARKET_RELAYER_API_KEY_ADDRESS</a></li>
+<li><a class="reference internal" href="#polymarket-builder-code">POLYMARKET_BUILDER_CODE</a></li>
+<li><a class="reference internal" href="#polymarket-auto-approve">POLYMARKET_AUTO_APPROVE</a></li>
+<li><a class="reference internal" href="#polymarket-max-market-order-notional">POLYMARKET_MAX_MARKET_ORDER_NOTIONAL</a></li>
+<li><a class="reference internal" href="#polymarket-test-token-id-polymarket-live-trading-enabled-polymarket-test-max-notional">POLYMARKET_TEST_TOKEN_ID / POLYMARKET_LIVE_TRADING_ENABLED / POLYMARKET_TEST_MAX_NOTIONAL</a></li>
+<li><a class="reference internal" href="#polymarket-clob-implementation-notes">Polymarket CLOB implementation notes</a></li>
+</ul>
+</li>
+<li><a class="reference internal" href="#tradier-broker">Tradier broker</a><ul>
+<li><a class="reference internal" href="#tradier-access-token">TRADIER_ACCESS_TOKEN</a></li>
+<li><a class="reference internal" href="#tradier-token-path">TRADIER_TOKEN_PATH</a></li>
+<li><a class="reference internal" href="#lumibot-oauth-refresh-mode">LUMIBOT_OAUTH_REFRESH_MODE</a></li>
+<li><a class="reference internal" href="#tradier-account-number">TRADIER_ACCOUNT_NUMBER</a></li>
+<li><a class="reference internal" href="#tradier-is-paper">TRADIER_IS_PAPER</a></li>
+</ul>
+</li>
+<li><a class="reference internal" href="#interactive-brokers">Interactive Brokers</a><ul>
+<li><a class="reference internal" href="#interactive-brokers-port">INTERACTIVE_BROKERS_PORT</a></li>
+<li><a class="reference internal" href="#interactive-brokers-client-id">INTERACTIVE_BROKERS_CLIENT_ID</a></li>
+<li><a class="reference internal" href="#interactive-brokers-ip">INTERACTIVE_BROKERS_IP</a></li>
+<li><a class="reference internal" href="#ib-subaccount">IB_SUBACCOUNT</a></li>
+</ul>
+</li>
+<li><a class="reference internal" href="#interactive-brokers-rest">Interactive Brokers REST</a><ul>
+<li><a class="reference internal" href="#ib-username-ib-password">IB_USERNAME / IB_PASSWORD</a></li>
+<li><a class="reference internal" href="#ib-account-id">IB_ACCOUNT_ID</a></li>
+<li><a class="reference internal" href="#ib-api-url">IB_API_URL</a></li>
+<li><a class="reference internal" href="#ib-gateway-port">IB_GATEWAY_PORT</a></li>
+<li><a class="reference internal" href="#ib-gateway-instance-id">IB_GATEWAY_INSTANCE_ID</a></li>
+<li><a class="reference internal" href="#ib-use-paper-account">IB_USE_PAPER_ACCOUNT</a></li>
+<li><a class="reference internal" href="#ibeam-docker-tag">IBEAM_DOCKER_TAG</a></li>
+<li><a class="reference internal" href="#ib-auth-timeout-ib-auth-poll-interval">IB_AUTH_TIMEOUT / IB_AUTH_POLL_INTERVAL</a></li>
+<li><a class="reference internal" href="#ib-request-timeout">IB_REQUEST_TIMEOUT</a></li>
+<li><a class="reference internal" href="#ib-verify-ssl">IB_VERIFY_SSL</a></li>
+<li><a class="reference internal" href="#ibkr-history-source">IBKR_HISTORY_SOURCE</a></li>
+<li><a class="reference internal" href="#ibkr-futures-exchange">IBKR_FUTURES_EXCHANGE</a></li>
+<li><a class="reference internal" href="#ibkr-crypto-venue">IBKR_CRYPTO_VENUE</a></li>
+<li><a class="reference internal" href="#lumibot-ibkr-enable-futures-bid-ask">LUMIBOT_IBKR_ENABLE_FUTURES_BID_ASK</a></li>
+</ul>
+</li>
+<li><a class="reference internal" href="#schwab-broker">Schwab broker</a><ul>
+<li><a class="reference internal" href="#schwab-account-number">SCHWAB_ACCOUNT_NUMBER</a></li>
+<li><a class="reference internal" href="#schwab-app-key-schwab-app-secret">SCHWAB_APP_KEY / SCHWAB_APP_SECRET</a></li>
+<li><a class="reference internal" href="#schwab-token">SCHWAB_TOKEN</a></li>
+<li><a class="reference internal" href="#schwab-backend-callback-url">SCHWAB_BACKEND_CALLBACK_URL</a></li>
+<li><a class="reference internal" href="#schwab-cancel-diagnostics">SCHWAB_CANCEL_DIAGNOSTICS</a></li>
+</ul>
+</li>
+<li><a class="reference internal" href="#tradovate-broker">Tradovate broker</a><ul>
+<li><a class="reference internal" href="#tradovate-username-tradovate-dedicated-password">TRADOVATE_USERNAME / TRADOVATE_DEDICATED_PASSWORD</a></li>
+<li><a class="reference internal" href="#tradovate-app-id-tradovate-app-version">TRADOVATE_APP_ID / TRADOVATE_APP_VERSION</a></li>
+<li><a class="reference internal" href="#tradovate-cid-tradovate-secret">TRADOVATE_CID / TRADOVATE_SECRET</a></li>
+<li><a class="reference internal" href="#tradovate-is-paper">TRADOVATE_IS_PAPER</a></li>
+<li><a class="reference internal" href="#tradovate-md-url">TRADOVATE_MD_URL</a></li>
+</ul>
+</li>
+<li><a class="reference internal" href="#crypto-brokers-ccxt">Crypto brokers (CCXT)</a><ul>
+<li><a class="reference internal" href="#kraken-api-key-kraken-api-secret">KRAKEN_API_KEY / KRAKEN_API_SECRET</a></li>
+<li><a class="reference internal" href="#coinbase-api-key-name-coinbase-private-key">COINBASE_API_KEY_NAME / COINBASE_PRIVATE_KEY</a></li>
+<li><a class="reference internal" href="#coinbase-api-passphrase">COINBASE_API_PASSPHRASE</a></li>
+<li><a class="reference internal" href="#coinbase-sandbox">COINBASE_SANDBOX</a></li>
+</ul>
+</li>
+<li><a class="reference internal" href="#bitunix-broker">Bitunix broker</a><ul>
+<li><a class="reference internal" href="#bitunix-api-key-bitunix-api-secret">BITUNIX_API_KEY / BITUNIX_API_SECRET</a></li>
+<li><a class="reference internal" href="#bitunix-trading-mode">BITUNIX_TRADING_MODE</a></li>
+</ul>
+</li>
+<li><a class="reference internal" href="#projectx-brokers">ProjectX brokers</a><ul>
+<li><a class="reference internal" href="#projectx-firm">PROJECTX_FIRM</a></li>
+<li><a class="reference internal" href="#projectx-firm-api-key">PROJECTX_{FIRM}_API_KEY</a></li>
+<li><a class="reference internal" href="#projectx-firm-username">PROJECTX_{FIRM}_USERNAME</a></li>
+<li><a class="reference internal" href="#projectx-firm-preferred-account-name">PROJECTX_{FIRM}_PREFERRED_ACCOUNT_NAME</a></li>
+</ul>
+</li>
+<li><a class="reference internal" href="#data-source-credentials">Data source credentials</a><ul>
+<li><a class="reference internal" href="#polygon-api-key">POLYGON_API_KEY</a></li>
+<li><a class="reference internal" href="#polygon-max-memory-bytes">POLYGON_MAX_MEMORY_BYTES</a></li>
+<li><a class="reference internal" href="#lumibot-option-chain-max-days">LUMIBOT_OPTION_CHAIN_MAX_DAYS</a></li>
+<li><a class="reference internal" href="#thetadata-username-thetadata-password">THETADATA_USERNAME / THETADATA_PASSWORD</a></li>
+<li><a class="reference internal" href="#thetadata-base-url">THETADATA_BASE_URL</a></li>
+<li><a class="reference internal" href="#databento-api-key">DATABENTO_API_KEY</a></li>
+<li><a class="reference internal" href="#databento-timeout">DATABENTO_TIMEOUT</a></li>
+<li><a class="reference internal" href="#databento-max-retries">DATABENTO_MAX_RETRIES</a></li>
+<li><a class="reference internal" href="#lumiwealth-api-key">LUMIWEALTH_API_KEY</a></li>
+<li><a class="reference internal" href="#listener-write-url">LISTENER_WRITE_URL</a></li>
+</ul>
+</li>
+<li><a class="reference internal" href="#runtime-telemetry-memory-health">Runtime telemetry (memory/health)</a><ul>
+<li><a class="reference internal" href="#lumibot-telemetry">LUMIBOT_TELEMETRY</a></li>
+<li><a class="reference internal" href="#lumibot-telemetry-interval-seconds">LUMIBOT_TELEMETRY_INTERVAL_SECONDS</a></li>
+<li><a class="reference internal" href="#lumibot-telemetry-deep">LUMIBOT_TELEMETRY_DEEP</a></li>
+</ul>
+</li>
+<li><a class="reference internal" href="#ai-agent-model-providers">AI agent model providers</a><ul>
+<li><a class="reference internal" href="#lumibot-ai-gateway-url-and-lumibot-ai-gateway-token">LUMIBOT_AI_GATEWAY_URL and LUMIBOT_AI_GATEWAY_TOKEN</a></li>
+<li><a class="reference internal" href="#gemini-api-key">GEMINI_API_KEY</a></li>
+<li><a class="reference internal" href="#openai-api-key">OPENAI_API_KEY</a></li>
+<li><a class="reference internal" href="#xai-api-key-or-grok-api-key">XAI_API_KEY or GROK_API_KEY</a></li>
+<li><a class="reference internal" href="#anthropic-api-key">ANTHROPIC_API_KEY</a></li>
+</ul>
+</li>
+<li><a class="reference internal" href="#sec-fundamentals-and-agent-memory">SEC fundamentals and agent memory</a><ul>
+<li><a class="reference internal" href="#lumibot-sec-user-agent">LUMIBOT_SEC_USER_AGENT</a></li>
+<li><a class="reference internal" href="#lumibot-sec-cache-dir">LUMIBOT_SEC_CACHE_DIR</a></li>
+<li><a class="reference internal" href="#fred-api-key">FRED_API_KEY</a></li>
+<li><a class="reference internal" href="#lumibot-fred-cache-dir">LUMIBOT_FRED_CACHE_DIR</a></li>
+<li><a class="reference internal" href="#lumibot-memory-dir">LUMIBOT_MEMORY_DIR</a></li>
+<li><a class="reference internal" href="#lumibot-memory-export-parquet">LUMIBOT_MEMORY_EXPORT_PARQUET</a></li>
+<li><a class="reference internal" href="#lumibot-agent-memory-note-max-chars">LUMIBOT_AGENT_MEMORY_NOTE_MAX_CHARS</a></li>
+<li><a class="reference internal" href="#lumibot-agent-max-model-calls">LUMIBOT_AGENT_MAX_MODEL_CALLS</a></li>
+<li><a class="reference internal" href="#lumibot-agent-max-run-attempts">LUMIBOT_AGENT_MAX_RUN_ATTEMPTS</a></li>
+</ul>
+</li>
+<li><a class="reference internal" href="#telegram-notifications">Telegram notifications</a><ul>
+<li><a class="reference internal" href="#telegram-bot-token">TELEGRAM_BOT_TOKEN</a></li>
+<li><a class="reference internal" href="#telegram-chat-id">TELEGRAM_CHAT_ID</a></li>
+</ul>
+</li>
+</ul>
+</li>
+</ul>
+
+          </div>
+        </div>
+      </div>
+      
+      
+    </aside>
+  </div>
+</div><script src="_static/documentation_options.js?v=5929fcd5"></script>
+    <script src="_static/doctools.js?v=9bcbadda"></script>
+    <script src="_static/sphinx_highlight.js?v=dc90522c"></script>
+    <script src="_static/scripts/furo.js?v=46bd48cc"></script>
+    <script src="_static/posthog.js?v=8090e602"></script>
+    </body>
+</html>

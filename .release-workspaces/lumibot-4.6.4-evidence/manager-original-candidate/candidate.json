@@ -1,0 +1,65 @@
+{
+  "release_id": "botmanager-lumibot-4.6.4-20261002",
+  "worktree": "/Users/robertgrzesik/Development/bot_manager/.claude/worktrees/codex-release-lumibot-4.6.4",
+  "git_sha": "e43ecfb973a0cd371b4c642d38cd054bfc4537bb",
+  "git_tree": "0db536e59da6a00bac9a5af20ebdb9508c48c121",
+  "lumibot_version": "4.6.4",
+  "state": "abandoned",
+  "scoped_components": [
+    "bot_manager",
+    "lumibot"
+  ],
+  "managed_aws_only_gates": [
+    "GitHub OIDC",
+    "Terraform plan/apply",
+    "deployed integration smoke",
+    "immutable ECR/S3 promotion"
+  ],
+  "files": {
+    "uv.lock": "4abaf00e6df2b6408acdd8d170f5a26e953b31b69c55fca59fbc3dbd56e61e47",
+    "pyproject.toml": "39d97764accea499a804e6ba8b49bd0bcc3146e7e4beb2b5235a9baac937eb72",
+    "requirements.txt": "67ca6e2afe94d003fe252b7bab5a9d412081322d133e0e3b7f36a46dbde07553",
+    ".github/workflows/ci-dev.yml": "68cbe6fbe69207e97a8736b20b3dd2696a570e6448c7fb6df587e25b01e25e6b",
+    ".github/workflows/ci-prod.yml": "21f0bc66cbbd3339daad0d8da801611832fc8cda04e8dbdec3d94f2ab22ba36f"
+  },
+  "evidence": {
+    "tests": "1812 passed, 6 warnings in 39.13s",
+    "commands": [
+      "uv sync --locked --python 3.13",
+      "uv run --locked pytest -q tests/unit",
+      "uv run --locked ruff check .",
+      "uv run --locked ruff format --check .",
+      "uv run --locked ty check",
+      "uv export --locked --no-dev --no-emit-project --no-header --no-annotate --no-hashes",
+      "uv --preview-features audit audit --frozen",
+      "uv build",
+      "python scripts/build_runtime_bundle.py --env dev",
+      "terraform fmt -check -recursive terraform",
+      "terraform -chdir=terraform init -backend=false",
+      "terraform -chdir=terraform validate"
+    ],
+    "runtime_bundle_sha256": "99e7123d325775b126b2c8c31bbd214c53e46d85b5104d9d7a3e9eb90426477a",
+    "node_served_sha": "6398856d276488aad9c17ac850896b6c2374ec71",
+    "logs": [
+      "pytest-reconciled.log",
+      "build-reconciled.log",
+      "bundle-marker.log"
+    ]
+  },
+  "note": "Unique empty deploy marker prevents reuse of immutable 4.6.3 develop artifact pointer. Product tree remains unchanged.",
+  "remote_main_sha": "e43ecfb973a0cd371b4c642d38cd054bfc4537bb",
+  "qualification_exit_codes": {
+    "unit": 0,
+    "ruff": 0,
+    "format": 0,
+    "ty": 0,
+    "audit": 0,
+    "export-parity": 0,
+    "build": 0,
+    "runtime-bundle": 0,
+    "terraform-fmt": 0,
+    "terraform-validate": 0,
+    "promotion-route-contract": 0
+  },
+  "reason": "main advanced with unrelated NAT qualification source before Dev promotion; no deployment used this sealed receipt. A new isolated candidate will receive complete gates."
+}

@@ -1,0 +1,7 @@
+Deploy LumiBot 4.6.4 to Bot Manager production using the exact artifacts qualified in Development. The source includes the narrow scheduled-revision restart fix that clears stale deleted schedule status.
+
+Development run [37099985602](https://github.com/Lumiwealth/bot_manager/actions/runs/37099985602) passed all 12 integrations. Local qualification passed 1,822 unit tests, static/format/type checks, locked dependency audit/export, package and 13 Lambda archive builds, Terraform validation and 4 mocked safety plans. Production Readiness [37100549152](https://github.com/Lumiwealth/bot_manager/actions/runs/37100549152) passed all gates, including 1,822 unit tests.
+
+The served Development manifest is `330bd1095c61-37099985602-1`, SHA256 `a9ca4293dfc5a58abc4c32eb636167bc2fee0112ac01693c8677ec303f7db669`. Its base, backtest and single-trade image digests match the fresh images whose install logs prove LumiBot 4.6.4. The runtime bundle SHA256 `48a35b66bd0d7cb40ff399c33e28c8156b74e987a9a66687a95aff9075dfa042` matches the local build. Production promotes these bytes and digests without rebuilding.
+
+Rob explicitly authorized this production deployment in the release request. After deployment, verify a new owner-account production backtest completes with `settings.json.lumibot_version == 4.6.4`, then verify account/history/live inventory and saved trade-artifact queries. Existing customer bots are not restarted or modified. The disabled NAT qualification module remains disabled.

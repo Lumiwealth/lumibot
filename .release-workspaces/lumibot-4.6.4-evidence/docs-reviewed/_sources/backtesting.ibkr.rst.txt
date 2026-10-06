@@ -1,0 +1,190 @@
+Interactive Brokers (REST) Backtesting
+======================================
+
+.. meta::
+   :description: LumiBot supports backtesting with Interactive Brokers data providers.
+
+LumiBot supports backtesting with **Interactive Brokers data providers**.
+
+The primary data path uses Client Portal (REST) via the LumiBot Data Downloader.
+
+Note: second-level and tick-level history are not yet a fully-supported end-to-end workflow in the open-source
+distribution. (Some internal deployments may have additional adapters behind the same external ``/ibkr/*`` contract.)
+
+For **expired futures** contract discovery (conids), IBKR Client Portal cannot reliably discover old contracts. In that
+case, LumiBot relies on an **offline conid registry** (populated via a one-time TWS backfill in internal deployments).
+
+Status
+------
+
+IBKR REST backtesting is under active development and is not yet a fully-supported public workflow in the open-source
+distribution.
+
+If you want early access or have a specific use case, please open an issue (or contact the maintainers) so we can
+prioritize it.
+
+Quick Start
+-----------
+
+Select IBKR as the backtesting data source:
+
+.. code-block:: bash
+
+   export BACKTESTING_DATA_SOURCE="ibkr"
+
+Supported Data
+--------------
+
+- **Futures**: US futures across CME/CBOT/COMEX/NYMEX via IBKR historical endpoints (minute/hour/day bars).
+- **Spot crypto**: IBKR crypto bars (availability depends on region and IBKR product support).
+- **Stocks / Indexes (day bars)**: supported in routed backtests (for example mixed Theta+IBKR routing).
+
+Daily Stocks/Indexes: Warmup + Corporate Actions
+------------------------------------------------
+
+For routed daily stock/index backtests, LumiBot prefetches the full computed lookback window so long
+lookbacks (for example 200-day SMA signals) are not under-warmed near the backtest start.
+
+IBKR day-bar payloads do not include corporate-action columns directly. LumiBot enriches cached IBKR
+daily equity bars with ``dividend`` and ``stock_splits`` values using Yahoo actions as a best-effort
+source so split/dividend accounting remains available in backtests.
+
+How History Is Downloaded (stocks and indexes)
+----------------------------------------------
+
+IBKR returns at most about 1,000 bars per request, so LumiBot walks backwards page by page.
+
+- **Weekends, holidays and nights.** A 1-minute page covers 1,000 minutes (16.7 hours). A page that falls
+  entirely inside closed-market time comes back empty; LumiBot steps over it and keeps going instead of treating it
+  as the start of history. US indexes such as SPX only print 09:30 to 16:00 ET, so the same applies every night.
+- **New listings.** When a daily page reaches back before the first bar IBKR holds, IBKR answers
+  ``Chart data unavailable``. LumiBot retries with a smaller page and keeps the real bars it already has, so a
+  fund listed last year still gets its full daily history.
+- **A failed older page** keeps the newer real bars already downloaded; the missing older part is not faked and is
+  retried by a later run.
+- **Delayed feed.** IBKR stock and index history can run about 15 minutes behind real time, so intraday requests
+  stop 20 minutes before the current time. A backtest that ends today during market hours simply ends a little
+  earlier.
+- **Daily windows** up to 993 days are one request sized to the window; longer windows use 5-year pages.
+- **Dividends.** IBKR history has no corporate actions, so LumiBot adds dividends and splits to IBKR daily stock bars
+  from a free corporate-actions source. BotSpot Auto backtests credit a held stock's dividend on its ex-date from
+  those daily bars.
+- **Holes in cached minute bars.** When the cache has bars on both sides of a missing session (for example from two
+  earlier backtests, or a download that was stopped), LumiBot downloads each missing session instead of skipping it.
+  A session with no trades at all is remembered for a day so it is not requested again by every backtest.
+  Gap checks handle nanosecond, microsecond, millisecond and second cache timestamps consistently;
+  existing Parquet caches do not need to be deleted or rewritten.
+
+Futures Exchange Routing (auto + override)
+------------------------------------------
+
+For futures and continuous futures (``asset_type="future"`` / ``asset_type="cont_future"``), LumiBot supports an
+optional ``exchange=...`` parameter on the Strategy data methods:
+
+- ``get_historical_prices(..., exchange=...)``
+- ``get_last_price(..., exchange=...)``
+- ``get_quote(..., exchange=...)``
+
+When ``exchange`` is omitted, LumiBot attempts to resolve the correct futures exchange automatically via IBKR secdef
+search (preferring USD + US venues). If results are ambiguous, you must pass ``exchange=...`` explicitly.
+
+Expired Futures Contracts (conids)
+----------------------------------
+
+IBKR futures history requires a contract identifier (``conid``). IBKR Client Portal cannot reliably discover ``conid``
+values for **expired** futures contracts, which makes explicit-contract backtests fail unless the mapping is already
+known.
+
+LumiBot supports an offline conid registry (cache-backed, optionally S3-mirrored):
+
+- ``LUMIBOT_CACHE_FOLDER/ibkr/conids.json``
+
+The registry is expected to **grow automatically over time** for new contracts as backtests run (using IBKR REST
+endpoints). Very old expired contracts may still require a one-time offline backfill in internal deployments.
+
+Internal runbook (engineering): ``docs/investigations/2026-01-18_IBKR_EXPIRED_FUTURES_CONID_BACKFILL.md``.
+
+Caching
+-------
+
+IBKR backtests cache historical bars as Parquet:
+
+- Local: ``LUMIBOT_CACHE_FOLDER/ibkr/...``
+- Optional S3 mirroring: configured via the standard ``LUMIBOT_CACHE_*`` variables (see :ref:`environment_variables`).
+
+For US stock and index bars, LumiBot checks for cache gaps after loading the
+series. Daily bars are compared with completed NYSE sessions and exact missing
+session groups are repaired in small bounded windows under a 45-second
+per-series deadline. Hourly bars are checked for internal holes longer than
+seven days and repaired in bounded 2000-hour pages under a five-minute
+per-series deadline. These checks never turn partial data into a backtest
+exception, and complete warm caches do not call the downloader.
+
+History health is classified as ``complete``, ``partial``,
+``confirmed_no_data``, or ``transient_failure``. Only confirmed absence may
+create a durable no-data marker. That marker includes a reason and retry
+timestamp. Partial and transient responses receive an in-process cooldown so
+one backtest does not repeat the same downloader request, while a later process
+remains able to retry. Legacy, ambiguous, and expired markers are eligible for
+lazy repair. When a real bar and a no-data marker share a timestamp, the real
+bar always wins.
+
+Backtest ``settings.json`` artifacts include a credential-free ``data_health``
+summary with up to 100 missing-session dates, the full missing-session count,
+and repair outcomes. Free-form provider errors remain in logs. The summary is
+diagnostic evidence and does not add a new backtest failure condition.
+
+Conid lookups also maintain cache files under ``LUMIBOT_CACHE_FOLDER/ibkr``:
+
+- ``conids.json`` stores successful conid resolutions.
+- ``conids_negative.json`` stores short-lived negative markers for symbols IBKR cannot resolve.
+
+Negative conid markers prevent long backtests from repeatedly retrying permanently unavailable symbols, such as
+defunct equities returned by an external universe API. These lookup failures are treated as terminal no-data
+conditions for the affected request window, not as synthetic price data.
+
+Multi-provider routing (Theta + IBKR)
+-------------------------------------
+
+To use multiple providers in a single backtest (example: ThetaData for options/stocks/indexes and IBKR for futures/crypto), set a JSON mapping in ``BACKTESTING_DATA_SOURCE``:
+
+.. code-block:: bash
+
+   export BACKTESTING_DATA_SOURCE='{"default":"thetadata","stock":"thetadata","option":"thetadata","index":"thetadata","future":"ibkr","cont_future":"ibkr","crypto":"ibkr","crypto_future":"ibkr"}'
+
+Routing values are case/whitespace/_/- insensitive. For crypto, you may also route to documented CCXT backtesting paths by using either ``"ccxt"`` (auto-select exchange) or a supported CCXT backtesting exchange id directly (for example: ``"kraken"`` or ``"binance"``).
+
+Crypto futures and perpetuals
+-----------------------------
+
+For ``Asset.AssetType.CRYPTO_FUTURE`` backtests, LumiBot can load spot crypto history as a price proxy while preserving the strategy-facing futures asset for orders and positions. USDT contracts such as ``BTCUSDT``, ``ETHUSDT``, and ``SOLUSDT`` resolve to the corresponding USD spot proxy (``BTC/USD``, ``ETH/USD``, ``SOL/USD``) because common crypto perpetual venues keep the futures price close to spot. The log will state when a USD spot proxy is used.
+
+Market Data Subscriptions (IBKR)
+--------------------------------
+
+IBKR requires appropriate **market data entitlements** to access market data via the API. IBKR notes that historical bars are part of Level 1 entitlements and that **crypto does not require additional market data subscriptions**:
+
+- https://www.interactivebrokers.com/campus/ibkr-api-page/market-data-subscriptions/
+
+For **CME futures** (ES/MES/NQ/MNQ), note that the cheap **CME S&P Indices** subscription is for index data, not futures contracts. Professional subscriber pricing and package availability can differ, so confirm your exact costs in the IBKR Market Data Subscriptions page and pricing table:
+
+- https://www.interactivebrokers.com/en/pricing/market-data-pricing.php
+
+Authentication / Session Behavior
+---------------------------------
+
+The Client Portal Gateway is session-based; if the session becomes unauthenticated, the gateway must be re-authenticated. IBKR documents the expected authentication lifecycle and recommends using ``/iserver/auth/ssodh/init`` to re-authenticate in most scenarios:
+
+- https://www.interactivebrokers.com/campus/trading-lessons/launching-and-authenticating-the-gateway/
+
+Configuration Notes
+-------------------
+
+Common environment variables for IBKR REST backtesting:
+
+- ``IBKR_HISTORY_SOURCE`` (default: ``Trades``)
+- ``IBKR_FUTURES_EXCHANGE`` (default: ``CME``; fallback when auto-routing fails)
+- ``IBKR_CRYPTO_VENUE`` (default: ``ZEROHASH``)
+- ``LUMIBOT_IBKR_ENABLE_FUTURES_BID_ASK`` (default: disabled; opt-in quote derivation for futures)
+
+See :ref:`environment_variables` for details.

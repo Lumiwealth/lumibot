@@ -1,0 +1,7 @@
+{
+  "module": "lumibot/indicators/indicators.py",
+  "byte_identical": true,
+  "sha256": "f6c2bf7fbaa19dac40854c0ed3820b6fd6f571ec0c1410764cfd9e5171bc11fc",
+  "contract": "Series result returns latest scalar; DataFrame result returns IndicatorRow",
+  "failed_saved_code": "TQQQMedian v5 returns Series, then accesses .median_200 attribute on scalar"
+}

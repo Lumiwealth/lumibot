@@ -1,0 +1,152 @@
+2026-10-02 23:47:00,293 | INFO | LumiBot v4.6.4 starting
+[lumibot.agents] starting agent 'trader' (model='openai/gpt-6-luna', model_request_timeout=240s, run_timeout=600s).
+[lumibot.agents] starting agent 'trader' (model='openai/gpt-6-luna', model_request_timeout=240s, run_timeout=600s).
+/Users/robertgrzesik/Development/lumibot/.claude/worktrees/codex-release-4.6.4/.venv/lib/python3.10/site-packages/google/adk/features/_feature_decorator.py:72: UserWarning: [EXPERIMENTAL] feature SKILL_TOOLSET is enabled.
+  check_feature_enabled()
+[lumibot.agents] starting agent 'trader' (model='openai/gpt-6-luna', model_request_timeout=240s, run_timeout=600s).
+/Users/robertgrzesik/Development/lumibot/.claude/worktrees/codex-release-4.6.4/.venv/lib/python3.10/site-packages/google/adk/tools/function_tool.py:95: UserWarning: [EXPERIMENTAL] feature JSON_SCHEMA_FOR_FUNC_DECL is enabled.
+  build_function_declaration(
+[lumibot.agents] first ADK event for agent 'trader' (model='openai/gpt-6-luna') after 4851ms.
+[lumibot.agents] first ADK event for agent 'trader' (model='openai/gpt-6-luna') after 5374ms.
+[lumibot.agents] first ADK event for agent 'trader' (model='openai/gpt-6-luna') after 5418ms.
+[lumibot.agents] starting agent 'eval_judge' (model='openai/gpt-6-luna', model_request_timeout=180s, run_timeout=300s).
+[lumibot.agents] starting agent 'eval_judge' (model='openai/gpt-6-luna', model_request_timeout=180s, run_timeout=300s).
+[lumibot.agents] starting agent 'eval_judge' (model='openai/gpt-6-luna', model_request_timeout=180s, run_timeout=300s).
+[lumibot.agents] first ADK event for agent 'eval_judge' (model='openai/gpt-6-luna') after 4481ms.
+[lumibot.agents] first ADK event for agent 'eval_judge' (model='openai/gpt-6-luna') after 4810ms.
+[lumibot.agents] first ADK event for agent 'eval_judge' (model='openai/gpt-6-luna') after 4995ms.
+[lumibot.agents] starting agent 'trader' (model='openai/gpt-6-luna', model_request_timeout=240s, run_timeout=600s).
+[lumibot.agents] starting agent 'trader' (model='openai/gpt-6-luna', model_request_timeout=240s, run_timeout=600s).
+[lumibot.agents] first ADK event for agent 'trader' (model='openai/gpt-6-luna') after 2877ms.
+[lumibot.agents] first ADK event for agent 'trader' (model='openai/gpt-6-luna') after 3535ms.
+[lumibot.agents] starting agent 'eval_judge' (model='openai/gpt-6-luna', model_request_timeout=180s, run_timeout=300s).
+[lumibot.agents] starting agent 'eval_judge' (model='openai/gpt-6-luna', model_request_timeout=180s, run_timeout=300s).
+[lumibot.agents] first ADK event for agent 'eval_judge' (model='openai/gpt-6-luna') after 2921ms.
+[lumibot.agents] first ADK event for agent 'eval_judge' (model='openai/gpt-6-luna') after 5135ms.
+{
+  "case_count": 1,
+  "completed_repetitions": 5,
+  "cumulative_estimated_cost_usd": 0.032583,
+  "error_count": 0,
+  "fail_count": 0,
+  "fixture_external_writes": 5,
+  "fresh_case_count": 1,
+  "fresh_case_ids": [
+    "options_expiration_with_data"
+  ],
+  "freshness_state_path": "/Users/robertgrzesik/Development/lumibot/.claude/worktrees/codex-release-4.6.4/.ci/agent-evals/freshness.json",
+  "incremental_estimated_cost_usd": 0.032583,
+  "judge_model": "openai/gpt-6-luna",
+  "ledger_path": "/Users/robertgrzesik/Development/lumibot/.claude/worktrees/codex-release-4.6.4/artifacts/release-4.6.4/evals-review-final/ledger.jsonl",
+  "max_cost_usd": 1.5,
+  "missing_count": 0,
+  "model_call_budget": {
+    "committed_usd": 0.03258293,
+    "reserved_calls": 0,
+    "settled_calls": 58,
+    "usage": {
+      "cached_input_tokens": 963273,
+      "input_tokens": 1094415,
+      "output_tokens": 13909,
+      "thinking_tokens": 5763
+    }
+  },
+  "model_call_ledger_path": "/Users/robertgrzesik/Development/lumibot/.claude/worktrees/codex-release-4.6.4/artifacts/release-4.6.4/evals-review-final/model_calls.jsonl",
+  "models": [
+    "openai/gpt-6-luna"
+  ],
+  "pass_count": 5,
+  "real_external_writes": 0,
+  "refreshed_case_ids": [
+    "options_expiration_with_data"
+  ],
+  "required_case_ids": [
+    "options_expiration_with_data"
+  ],
+  "resumed_count": 0,
+  "runtime_fingerprint": "1f74b30e281b2c7d4c00badf1d2a6092bdd80b816dfc7eb19c7662ce0c896323",
+  "scheduled_repetitions": 5,
+  "skipped_fresh_count": 0,
+  "timestamp": "2026-10-03T03:48:44.231675Z",
+  "usage": {
+    "cached_input_tokens": 963273,
+    "input_tokens": 1094415,
+    "output_tokens": 13909,
+    "thinking_tokens": 5763,
+    "total_tokens": 1114087,
+    "uncached_input_tokens": 131142
+  },
+  "wall_time_seconds": 103.136
+}
+Fatal error on SSL transport
+protocol: <asyncio.sslproto.SSLProtocol object at 0x138067df0>
+transport: <_SelectorSocketTransport closing fd=56>
+Traceback (most recent call last):
+  File "/Users/robertgrzesik/.local/share/uv/python/cpython-3.10.19-macos-aarch64-none/lib/python3.10/asyncio/selector_events.py", line 924, in write
+    n = self._sock.send(data)
+OSError: [Errno 9] Bad file descriptor
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/Users/robertgrzesik/.local/share/uv/python/cpython-3.10.19-macos-aarch64-none/lib/python3.10/asyncio/sslproto.py", line 690, in _process_write_backlog
+    self._transport.write(chunk)
+  File "/Users/robertgrzesik/.local/share/uv/python/cpython-3.10.19-macos-aarch64-none/lib/python3.10/asyncio/selector_events.py", line 930, in write
+    self._fatal_error(exc, 'Fatal write error on socket transport')
+  File "/Users/robertgrzesik/.local/share/uv/python/cpython-3.10.19-macos-aarch64-none/lib/python3.10/asyncio/selector_events.py", line 725, in _fatal_error
+    self._force_close(exc)
+  File "/Users/robertgrzesik/.local/share/uv/python/cpython-3.10.19-macos-aarch64-none/lib/python3.10/asyncio/selector_events.py", line 737, in _force_close
+    self._loop.call_soon(self._call_connection_lost, exc)
+  File "/Users/robertgrzesik/.local/share/uv/python/cpython-3.10.19-macos-aarch64-none/lib/python3.10/asyncio/base_events.py", line 753, in call_soon
+    self._check_closed()
+  File "/Users/robertgrzesik/.local/share/uv/python/cpython-3.10.19-macos-aarch64-none/lib/python3.10/asyncio/base_events.py", line 515, in _check_closed
+    raise RuntimeError('Event loop is closed')
+RuntimeError: Event loop is closed
+Fatal error on SSL transport
+protocol: <asyncio.sslproto.SSLProtocol object at 0x138075060>
+transport: <_SelectorSocketTransport closing fd=50>
+Traceback (most recent call last):
+  File "/Users/robertgrzesik/.local/share/uv/python/cpython-3.10.19-macos-aarch64-none/lib/python3.10/asyncio/selector_events.py", line 924, in write
+    n = self._sock.send(data)
+OSError: [Errno 9] Bad file descriptor
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/Users/robertgrzesik/.local/share/uv/python/cpython-3.10.19-macos-aarch64-none/lib/python3.10/asyncio/sslproto.py", line 690, in _process_write_backlog
+    self._transport.write(chunk)
+  File "/Users/robertgrzesik/.local/share/uv/python/cpython-3.10.19-macos-aarch64-none/lib/python3.10/asyncio/selector_events.py", line 930, in write
+    self._fatal_error(exc, 'Fatal write error on socket transport')
+  File "/Users/robertgrzesik/.local/share/uv/python/cpython-3.10.19-macos-aarch64-none/lib/python3.10/asyncio/selector_events.py", line 725, in _fatal_error
+    self._force_close(exc)
+  File "/Users/robertgrzesik/.local/share/uv/python/cpython-3.10.19-macos-aarch64-none/lib/python3.10/asyncio/selector_events.py", line 737, in _force_close
+    self._loop.call_soon(self._call_connection_lost, exc)
+  File "/Users/robertgrzesik/.local/share/uv/python/cpython-3.10.19-macos-aarch64-none/lib/python3.10/asyncio/base_events.py", line 753, in call_soon
+    self._check_closed()
+  File "/Users/robertgrzesik/.local/share/uv/python/cpython-3.10.19-macos-aarch64-none/lib/python3.10/asyncio/base_events.py", line 515, in _check_closed
+    raise RuntimeError('Event loop is closed')
+RuntimeError: Event loop is closed
+Fatal error on SSL transport
+protocol: <asyncio.sslproto.SSLProtocol object at 0x138059f30>
+transport: <_SelectorSocketTransport closing fd=68>
+Traceback (most recent call last):
+  File "/Users/robertgrzesik/.local/share/uv/python/cpython-3.10.19-macos-aarch64-none/lib/python3.10/asyncio/selector_events.py", line 924, in write
+    n = self._sock.send(data)
+OSError: [Errno 9] Bad file descriptor
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/Users/robertgrzesik/.local/share/uv/python/cpython-3.10.19-macos-aarch64-none/lib/python3.10/asyncio/sslproto.py", line 690, in _process_write_backlog
+    self._transport.write(chunk)
+  File "/Users/robertgrzesik/.local/share/uv/python/cpython-3.10.19-macos-aarch64-none/lib/python3.10/asyncio/selector_events.py", line 930, in write
+    self._fatal_error(exc, 'Fatal write error on socket transport')
+  File "/Users/robertgrzesik/.local/share/uv/python/cpython-3.10.19-macos-aarch64-none/lib/python3.10/asyncio/selector_events.py", line 725, in _fatal_error
+    self._force_close(exc)
+  File "/Users/robertgrzesik/.local/share/uv/python/cpython-3.10.19-macos-aarch64-none/lib/python3.10/asyncio/selector_events.py", line 737, in _force_close
+    self._loop.call_soon(self._call_connection_lost, exc)
+  File "/Users/robertgrzesik/.local/share/uv/python/cpython-3.10.19-macos-aarch64-none/lib/python3.10/asyncio/base_events.py", line 753, in call_soon
+    self._check_closed()
+  File "/Users/robertgrzesik/.local/share/uv/python/cpython-3.10.19-macos-aarch64-none/lib/python3.10/asyncio/base_events.py", line 515, in _check_closed
+    raise RuntimeError('Event loop is closed')
+RuntimeError: Event loop is closed

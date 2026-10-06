@@ -1,0 +1,4 @@
+interface:
+  display_name: "Stock Trading"
+  short_description: "Research and execute stock trades safely"
+  default_prompt: "Use $stock-trading before researching, placing, or managing a stock or ETF trade."

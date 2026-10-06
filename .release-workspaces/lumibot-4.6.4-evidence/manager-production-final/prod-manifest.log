@@ -1,0 +1,466 @@
+﻿2026-10-03T05:54:07.2873620Z Current runner version: '2.337.0'
+2026-10-03T05:54:07.2881452Z Runner name: 'blacksmith-2vcpu-ubuntu-2404-arm-Runner-d38705e534'
+2026-10-03T05:54:07.2882587Z Runner group name: 'blacksmith scale sets - blacksmith-2vcpu-ubuntu-2404-arm'
+2026-10-03T05:54:07.2883852Z Machine name: 'ip-172-31-74-117'
+2026-10-03T05:54:07.2886105Z ##[group]GITHUB_TOKEN Permissions
+2026-10-03T05:54:07.2889461Z Contents: read
+2026-10-03T05:54:07.2889988Z Metadata: read
+2026-10-03T05:54:07.2890540Z ##[endgroup]
+2026-10-03T05:54:07.2893070Z Secret source: Actions
+2026-10-03T05:54:07.2893851Z Cache mode: write
+2026-10-03T05:54:07.2895196Z Prepare workflow directory
+2026-10-03T05:54:07.3295285Z Prepare all required actions
+2026-10-03T05:54:07.3349776Z Getting action download info
+2026-10-03T05:54:08.4423931Z Download action repository 'actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5' (SHA:34e114876b0b11c390a56381ad16ebd13914f8d5)
+2026-10-03T05:54:09.0064544Z Download action repository 'actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093' (SHA:d3f86a106a0bac45b974a628896c90dbdf5c8093)
+2026-10-03T05:54:09.7657695Z Download action repository 'aws-actions/configure-aws-credentials@7474bc4690e29a8392af63c5b98e7449536d5c3a' (SHA:7474bc4690e29a8392af63c5b98e7449536d5c3a)
+2026-10-03T05:54:10.3304123Z Download action repository 'actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065' (SHA:a26af69be951a213d495a4c3e4e4022e16d87065)
+2026-10-03T05:54:10.4292182Z Download action repository 'astral-sh/setup-uv@caf0cab7a618c569241d31dcd442f54681755d39' (SHA:caf0cab7a618c569241d31dcd442f54681755d39)
+2026-10-03T05:54:11.1906479Z Setting BLACKSMITH_ACTIONS_RESULTS_URL to https://results-receiver.actions.githubusercontent.com/
+2026-10-03T05:54:11.2100408Z Uses: Lumiwealth/bot_manager/.github/workflows/build-release-artifacts.yml@refs/heads/production (13edd12075d7f95ea205323c2805439c3b944716)
+2026-10-03T05:54:11.2104701Z ##[group] Inputs
+2026-10-03T05:54:11.2105000Z   environment: production
+2026-10-03T05:54:11.2105316Z   runtime_environment: prod
+2026-10-03T05:54:11.2105594Z   python_version: 3.13
+2026-10-03T05:54:11.2105847Z   force_rebuild_images: false
+2026-10-03T05:54:11.2106111Z   skip_snapshot: true
+2026-10-03T05:54:11.2106339Z   lumibot_version: 4.6.4
+2026-10-03T05:54:11.2106919Z   existing_release_manifest_s3_uri: s3://bot-manager-tf-state/dev/releases/330bd1095c61-37099985602-1/release-manifest.json
+2026-10-03T05:54:11.2107518Z ##[endgroup]
+2026-10-03T05:54:11.2107798Z Complete job name: Build Release Artifacts / manifest
+2026-10-03T05:54:11.2826475Z A job started hook has been configured by the self-hosted runner administrator
+2026-10-03T05:54:11.3192083Z ##[group]Run '/setup.sh'
+2026-10-03T05:54:11.3236632Z shell: /usr/bin/bash --noprofile --norc -e -o pipefail {0}
+2026-10-03T05:54:11.3237604Z env:
+2026-10-03T05:54:11.3237840Z   BLACKSMITH_RUNNER_MESSAGE_WAIT_MS: 201
+2026-10-03T05:54:11.3238142Z   BLACKSMITH_RUNNER_ACQUIRE_JOB_MS: 1090
+2026-10-03T05:54:11.3238432Z   BLACKSMITH_CHECK_RUN_ID: 111141202850
+2026-10-03T05:54:11.3238830Z   BLACKSMITH_JOB_DISPLAY_NAME: Build Release Artifacts / manifest
+2026-10-03T05:54:11.3239211Z   GITHUB_ACTIONS_CACHE_MODE: write
+2026-10-03T05:54:11.3239544Z ##[endgroup]
+2026-10-03T05:54:11.3918532Z Logging daemon started (blacksmithd for logs)
+2026-10-03T05:54:11.4289286Z Results daemon started (blacksmithd for results)
+2026-10-03T05:54:11.4679358Z Background adoption and SSH setup started (PID: 3219)
+2026-10-03T05:54:11.4689123Z 
+2026-10-03T05:54:11.4690151Z ----------------------------------------
+2026-10-03T05:54:11.4690931Z View this job: https://app.blacksmith.sh/Lumiwealth/runs/37101252446/jobs/111141202850
+2026-10-03T05:54:11.4691546Z SSH Access (using your GitHub SSH key):
+2026-10-03T05:54:11.4692212Z   ssh -p 64002 runner@blacksmith-2vcpu-ubuntu-2404-arm-runner-d38705e534.vm.blacksmith.sh
+2026-10-03T05:54:11.4692763Z 
+2026-10-03T05:54:11.4692993Z No GitHub SSH key? Add one at:
+2026-10-03T05:54:11.4693709Z https://docs.github.com/en/authentication/connecting-to-github-with-ssh/adding-a-new-ssh-key-to-your-github-account
+2026-10-03T05:54:11.4695122Z 
+2026-10-03T05:54:11.4695342Z ----------------------------------------
+2026-10-03T05:54:11.4695675Z 
+2026-10-03T05:54:11.4695953Z VM ID: blacksmith-2vcpu-ubuntu-2404-arm-Runner-d38705e534
+2026-10-03T05:54:11.4696463Z Host: production-192.240.240.199-aarch64
+2026-10-03T05:54:11.4696889Z Host Agent PID: 4093681
+2026-10-03T05:54:11.4697248Z Host Agent Git SHA: e97f83469
+2026-10-03T05:54:11.4697646Z Host CPU Manufacturer: Ampere
+2026-10-03T05:54:11.4698074Z Blacksmith Host Generation: gen 2
+2026-10-03T05:54:11.4698559Z Petname: production-set-troll-b7eb92f0-arm
+2026-10-03T05:54:11.4699004Z Region: us-west
+2026-10-03T05:54:11.4699461Z Rootfs Version: ubuntu24-full-aarch64-110625
+2026-10-03T05:54:11.4793842Z OS Version: Ubuntu 24.04.3 LTS
+2026-10-03T05:54:11.4906071Z 
+2026-10-03T05:54:11.4906463Z Enabling Blacksmith transparent cache
+2026-10-03T05:54:11.5551724Z ##[group]Run actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+2026-10-03T05:54:11.5552488Z with:
+2026-10-03T05:54:11.5552830Z   persist-credentials: false
+2026-10-03T05:54:11.5553116Z   repository: Lumiwealth/bot_manager
+2026-10-03T05:54:11.5556302Z   token: ***
+2026-10-03T05:54:11.5556580Z   ssh-strict: true
+2026-10-03T05:54:11.5556809Z   ssh-user: git
+2026-10-03T05:54:11.5557026Z   clean: true
+2026-10-03T05:54:11.5557264Z   sparse-checkout-cone-mode: true
+2026-10-03T05:54:11.5557553Z   fetch-depth: 1
+2026-10-03T05:54:11.5557779Z   fetch-tags: false
+2026-10-03T05:54:11.5558011Z   show-progress: true
+2026-10-03T05:54:11.5558447Z   lfs: false
+2026-10-03T05:54:11.5594442Z   submodules: false
+2026-10-03T05:54:11.5594752Z   set-safe-directory: true
+2026-10-03T05:54:11.5595033Z env:
+2026-10-03T05:54:11.5595263Z   BLACKSMITH_RUNNER_MESSAGE_WAIT_MS: 201
+2026-10-03T05:54:11.5595578Z   BLACKSMITH_RUNNER_ACQUIRE_JOB_MS: 1090
+2026-10-03T05:54:11.5595986Z   GITHUB_REPO_NAME: Lumiwealth/bot_manager
+2026-10-03T05:54:11.5596284Z ##[endgroup]
+2026-10-03T05:54:11.8829320Z Syncing repository: Lumiwealth/bot_manager
+2026-10-03T05:54:11.8831902Z ##[group]Getting Git version info
+2026-10-03T05:54:11.8832398Z Working directory is '/home/runner/_work/bot_manager/bot_manager'
+2026-10-03T05:54:11.8833131Z [command]/usr/local/bin/git version
+2026-10-03T05:54:11.8868072Z git version 2.51.2
+2026-10-03T05:54:11.8904814Z ##[endgroup]
+2026-10-03T05:54:11.8914503Z Temporarily overriding HOME='/home/runner/_work/_temp/3c77afed-500d-4e1d-9348-3396049c013e' before making global git config changes
+2026-10-03T05:54:11.8915705Z Adding repository directory to the temporary git global config as a safe directory
+2026-10-03T05:54:11.8941350Z [command]/usr/local/bin/git config --global --add safe.directory /home/runner/_work/bot_manager/bot_manager
+2026-10-03T05:54:11.9006448Z Deleting the contents of '/home/runner/_work/bot_manager/bot_manager'
+2026-10-03T05:54:11.9012262Z ##[group]Initializing the repository
+2026-10-03T05:54:11.9017746Z [command]/usr/local/bin/git init /home/runner/_work/bot_manager/bot_manager
+2026-10-03T05:54:11.9123488Z hint: Using 'master' as the name for the initial branch. This default branch name
+2026-10-03T05:54:11.9124422Z hint: is subject to change. To configure the initial branch name to use in all
+2026-10-03T05:54:11.9125524Z hint: of your new repositories, which will suppress this warning, call:
+2026-10-03T05:54:11.9126092Z hint:
+2026-10-03T05:54:11.9126901Z hint: 	git config --global init.defaultBranch <name>
+2026-10-03T05:54:11.9127390Z hint:
+2026-10-03T05:54:11.9128160Z hint: Names commonly chosen instead of 'master' are 'main', 'trunk' and
+2026-10-03T05:54:11.9128862Z hint: 'development'. The just-created branch can be renamed via this command:
+2026-10-03T05:54:11.9129776Z hint:
+2026-10-03T05:54:11.9130152Z hint: 	git branch -m <name>
+2026-10-03T05:54:11.9130831Z hint:
+2026-10-03T05:54:11.9131353Z hint: Disable this message with "git config set advice.defaultBranchName false"
+2026-10-03T05:54:11.9132754Z Initialized empty Git repository in /home/runner/_work/bot_manager/bot_manager/.git/
+2026-10-03T05:54:11.9140417Z [command]/usr/local/bin/git remote add origin https://github.com/Lumiwealth/bot_manager
+2026-10-03T05:54:11.9229877Z ##[endgroup]
+2026-10-03T05:54:11.9230614Z ##[group]Disabling automatic garbage collection
+2026-10-03T05:54:11.9234390Z [command]/usr/local/bin/git config --local gc.auto 0
+2026-10-03T05:54:11.9308395Z ##[endgroup]
+2026-10-03T05:54:11.9309026Z ##[group]Setting up auth
+2026-10-03T05:54:11.9318316Z [command]/usr/local/bin/git config --local --name-only --get-regexp core\.sshCommand
+2026-10-03T05:54:11.9384990Z [command]/usr/local/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :"
+2026-10-03T05:54:11.9789461Z [command]/usr/local/bin/git config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+2026-10-03T05:54:11.9859743Z [command]/usr/local/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :"
+2026-10-03T05:54:12.0201804Z [command]/usr/local/bin/git config --local --name-only --get-regexp ^includeIf\.gitdir:
+2026-10-03T05:54:12.0267526Z [command]/usr/local/bin/git submodule foreach --recursive git config --local --show-origin --name-only --get-regexp remote.origin.url
+2026-10-03T05:54:12.0589950Z [command]/usr/local/bin/git config --local http.https://github.com/.extraheader AUTHORIZATION: basic ***
+2026-10-03T05:54:12.0672496Z ##[endgroup]
+2026-10-03T05:54:12.0673180Z ##[group]Fetching the repository
+2026-10-03T05:54:12.0710894Z [command]/usr/local/bin/git -c protocol.version=2 fetch --no-tags --prune --no-recurse-submodules --depth=1 origin +13edd12075d7f95ea205323c2805439c3b944716:refs/remotes/origin/production
+2026-10-03T05:54:13.2810886Z From https://github.com/Lumiwealth/bot_manager
+2026-10-03T05:54:13.2813784Z  * [new ref]         13edd12075d7f95ea205323c2805439c3b944716 -> origin/production
+2026-10-03T05:54:13.2926364Z ##[endgroup]
+2026-10-03T05:54:13.2926995Z ##[group]Determining the checkout info
+2026-10-03T05:54:13.2927676Z ##[endgroup]
+2026-10-03T05:54:13.2928260Z [command]/usr/local/bin/git sparse-checkout disable
+2026-10-03T05:54:13.3025258Z [command]/usr/local/bin/git config --local --unset-all extensions.worktreeConfig
+2026-10-03T05:54:13.3098738Z ##[group]Checking out the ref
+2026-10-03T05:54:13.3099966Z [command]/usr/local/bin/git checkout --progress --force -B production refs/remotes/origin/production
+2026-10-03T05:54:13.3913948Z Switched to a new branch 'production'
+2026-10-03T05:54:13.3920275Z branch 'production' set up to track 'origin/production'.
+2026-10-03T05:54:13.3930885Z ##[endgroup]
+2026-10-03T05:54:13.4011782Z [command]/usr/local/bin/git log -1 --format=%H
+2026-10-03T05:54:13.4083575Z 13edd12075d7f95ea205323c2805439c3b944716
+2026-10-03T05:54:13.4115059Z ##[group]Removing auth
+2026-10-03T05:54:13.4137829Z [command]/usr/local/bin/git config --local --name-only --get-regexp core\.sshCommand
+2026-10-03T05:54:13.4229114Z [command]/usr/local/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :"
+2026-10-03T05:54:13.4758567Z [command]/usr/local/bin/git config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+2026-10-03T05:54:13.4850488Z http.https://github.com/.extraheader
+2026-10-03T05:54:13.4860959Z [command]/usr/local/bin/git config --local --unset-all http.https://github.com/.extraheader
+2026-10-03T05:54:13.4954608Z [command]/usr/local/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :"
+2026-10-03T05:54:13.5271990Z [command]/usr/local/bin/git config --local --name-only --get-regexp ^includeIf\.gitdir:
+2026-10-03T05:54:13.5337450Z [command]/usr/local/bin/git submodule foreach --recursive git config --local --show-origin --name-only --get-regexp remote.origin.url
+2026-10-03T05:54:13.5679449Z ##[endgroup]
+2026-10-03T05:54:13.6219063Z ##[group]Run aws-actions/configure-aws-credentials@7474bc4690e29a8392af63c5b98e7449536d5c3a
+2026-10-03T05:54:13.6219647Z with:
+2026-10-03T05:54:13.6220404Z   role-to-assume: ***
+2026-10-03T05:54:13.6220660Z   aws-region: us-east-1
+2026-10-03T05:54:13.6220951Z   role-session-name: GitHubActionsReleaseArtifacts
+2026-10-03T05:54:13.6221387Z   audience: sts.amazonaws.com
+2026-10-03T05:54:13.6221743Z   output-env-credentials: true
+2026-10-03T05:54:13.6222015Z env:
+2026-10-03T05:54:13.6222424Z   BLACKSMITH_RUNNER_MESSAGE_WAIT_MS: 201
+2026-10-03T05:54:13.6222734Z   BLACKSMITH_RUNNER_ACQUIRE_JOB_MS: 1090
+2026-10-03T05:54:13.6223048Z   GITHUB_REPO_NAME: Lumiwealth/bot_manager
+2026-10-03T05:54:13.6223342Z ##[endgroup]
+2026-10-03T05:54:13.9757207Z Assuming role with OIDC
+2026-10-03T05:54:14.2112734Z Authenticated as assumedRoleId AROAWAA66HBGMB55GEAXA:GitHubActionsReleaseArtifacts
+2026-10-03T05:54:14.3006584Z ##[group]Run actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
+2026-10-03T05:54:14.3007040Z with:
+2026-10-03T05:54:14.3007256Z   python-version: 3.13
+2026-10-03T05:54:14.3007507Z   check-latest: false
+2026-10-03T05:54:14.3010328Z   token: ***
+2026-10-03T05:54:14.3010565Z   update-environment: true
+2026-10-03T05:54:14.3010834Z   allow-prereleases: false
+2026-10-03T05:54:14.3011097Z   freethreaded: false
+2026-10-03T05:54:14.3011340Z env:
+2026-10-03T05:54:14.3011566Z   BLACKSMITH_RUNNER_MESSAGE_WAIT_MS: 201
+2026-10-03T05:54:14.3011889Z   BLACKSMITH_RUNNER_ACQUIRE_JOB_MS: 1090
+2026-10-03T05:54:14.3012206Z   GITHUB_REPO_NAME: Lumiwealth/bot_manager
+2026-10-03T05:54:14.3012516Z   AWS_DEFAULT_REGION: us-east-1
+2026-10-03T05:54:14.3012792Z   AWS_REGION: us-east-1
+2026-10-03T05:54:14.3013074Z   AWS_ACCESS_KEY_ID: ***
+2026-10-03T05:54:14.3013477Z   AWS_SECRET_ACCESS_KEY: ***
+2026-10-03T05:54:14.3019016Z   AWS_SESSION_TOKEN: ***
+2026-10-03T05:54:14.3019260Z ##[endgroup]
+2026-10-03T05:54:14.4968835Z (node:3639) [DEP0040] DeprecationWarning: The `punycode` module is deprecated. Please use a userland alternative instead.
+2026-10-03T05:54:14.4969630Z (Use `node --trace-deprecation ...` to show where the warning was created)
+2026-10-03T05:54:14.4970635Z ##[group]Installed versions
+2026-10-03T05:54:14.4971662Z Version 3.13 was not found in the local cache
+2026-10-03T05:54:15.9867332Z Version 3.13 is available for downloading
+2026-10-03T05:54:15.9868063Z Download from "https://github.com/actions/python-versions/releases/download/3.13.16-36805956071/python-3.13.16-linux-24.04-arm64.tar.gz"
+2026-10-03T05:54:17.0457842Z Extract downloaded archive
+2026-10-03T05:54:17.0663858Z [command]/usr/bin/tar xz --warning=no-unknown-keyword --overwrite -C /home/runner/_work/_temp/c752504f-0d49-497f-9660-70addd4b59b0 -f /home/runner/_work/_temp/c3fd70b5-688e-4e5a-9a97-970320999320
+2026-10-03T05:54:19.0374287Z Execute installation script
+2026-10-03T05:54:19.0536996Z Check if Python hostedtoolcache folder exist...
+2026-10-03T05:54:19.0537814Z Creating Python hostedtoolcache folder...
+2026-10-03T05:54:19.0581752Z Create Python 3.13.16 folder
+2026-10-03T05:54:19.0610185Z Copy Python binaries to hostedtoolcache folder
+2026-10-03T05:54:20.4426235Z Create additional symlinks (Required for the UsePythonVersion Azure Pipelines task and the setup-python GitHub Action)
+2026-10-03T05:54:20.4515996Z Upgrading pip...
+2026-10-03T05:54:22.3954027Z Collecting pip
+2026-10-03T05:54:22.4561161Z Downloading pip-26.2.1-py3-none-any.whl.metadata (4.6 kB)
+2026-10-03T05:54:22.4656978Z Downloading pip-26.2.1-py3-none-any.whl (1.8 MB)
+2026-10-03T05:54:22.5265273Z ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 1.8/1.8 MB 88.8 MB/s  0:00:00
+2026-10-03T05:54:22.5265870Z 
+2026-10-03T05:54:22.6251291Z Installing collected packages: pip
+2026-10-03T05:54:22.6252164Z Attempting uninstall: pip
+2026-10-03T05:54:22.6291070Z Found existing installation: pip 26.2.1
+2026-10-03T05:54:22.6594720Z Uninstalling pip-26.2.1:
+2026-10-03T05:54:22.6656858Z Successfully uninstalled pip-26.2.1
+2026-10-03T05:54:23.6148392Z Successfully installed pip-26.2.1
+2026-10-03T05:54:23.7385410Z Create complete file
+2026-10-03T05:54:23.7437768Z Successfully set up CPython (3.13.16)
+2026-10-03T05:54:23.7438702Z ##[endgroup]
+2026-10-03T05:54:23.7691203Z ##[group]Run astral-sh/setup-uv@caf0cab7a618c569241d31dcd442f54681755d39
+2026-10-03T05:54:23.7691685Z with:
+2026-10-03T05:54:23.7691898Z   version: 0.11.8
+2026-10-03T05:54:23.7692131Z   enable-cache: true
+2026-10-03T05:54:23.7692400Z   cache-dependency-glob: requirements.txt
+2026-10-03T05:54:23.7692721Z   cache-suffix: release-manifest
+2026-10-03T05:54:23.7695605Z   github-token: ***
+2026-10-03T05:54:23.7695846Z   prune-cache: true
+2026-10-03T05:54:23.7696081Z env:
+2026-10-03T05:54:23.7696311Z   BLACKSMITH_RUNNER_MESSAGE_WAIT_MS: 201
+2026-10-03T05:54:23.7696636Z   BLACKSMITH_RUNNER_ACQUIRE_JOB_MS: 1090
+2026-10-03T05:54:23.7696953Z   GITHUB_REPO_NAME: Lumiwealth/bot_manager
+2026-10-03T05:54:23.7697341Z   AWS_DEFAULT_REGION: us-east-1
+2026-10-03T05:54:23.7697617Z   AWS_REGION: us-east-1
+2026-10-03T05:54:23.7697890Z   AWS_ACCESS_KEY_ID: ***
+2026-10-03T05:54:23.7698236Z   AWS_SECRET_ACCESS_KEY: ***
+2026-10-03T05:54:23.7703935Z   AWS_SESSION_TOKEN: ***
+2026-10-03T05:54:23.7704363Z   pythonLocation: /opt/hostedtoolcache/Python/3.13.16/arm64
+2026-10-03T05:54:23.7704857Z   PKG_CONFIG_PATH: /opt/hostedtoolcache/Python/3.13.16/arm64/lib/pkgconfig
+2026-10-03T05:54:23.7705348Z   Python_ROOT_DIR: /opt/hostedtoolcache/Python/3.13.16/arm64
+2026-10-03T05:54:23.7705779Z   Python2_ROOT_DIR: /opt/hostedtoolcache/Python/3.13.16/arm64
+2026-10-03T05:54:23.7706213Z   Python3_ROOT_DIR: /opt/hostedtoolcache/Python/3.13.16/arm64
+2026-10-03T05:54:23.7706653Z   LD_LIBRARY_PATH: /opt/hostedtoolcache/Python/3.13.16/arm64/lib
+2026-10-03T05:54:23.7707029Z ##[endgroup]
+2026-10-03T05:54:23.9597714Z (node:3695) [DEP0040] DeprecationWarning: The `punycode` module is deprecated. Please use a userland alternative instead.
+2026-10-03T05:54:23.9598995Z (Use `node --trace-deprecation ...` to show where the warning was created)
+2026-10-03T05:54:23.9705953Z Downloading uv from "https://github.com/astral-sh/uv/releases/download/0.11.8/uv-aarch64-unknown-linux-gnu.tar.gz" ...
+2026-10-03T05:54:24.4286716Z [command]/usr/bin/tar xz --warning=no-unknown-keyword --overwrite -C /home/runner/_work/_temp/73b07d71-0d35-4c85-b53e-a254b9028abe -f /home/runner/_work/_temp/acdac8e9-1ccc-462f-a9e5-68b3571c524b
+2026-10-03T05:54:24.9628487Z Added /opt/hostedtoolcache/uv/0.11.8/aarch64 to the path
+2026-10-03T05:54:24.9630510Z Added /home/runner/.local/bin to the path
+2026-10-03T05:54:24.9634173Z Successfully installed uv version 0.11.8
+2026-10-03T05:54:24.9672559Z Set UV_CACHE_DIR to /home/runner/_work/_temp/setup-uv-cache
+2026-10-03T05:54:24.9673332Z Searching files using cache dependency glob: requirements.txt
+2026-10-03T05:54:24.9675911Z /home/runner/_work/bot_manager/bot_manager/requirements.txt
+2026-10-03T05:54:24.9684044Z Found 1 files to hash.
+2026-10-03T05:54:24.9686122Z Trying to restore uv cache from GitHub Actions cache with key: setup-uv-1-aarch64-unknown-linux-gnu-0.11.8-91334449181a567ff3260c292a87f6a99b7d2f78bd736b6cddbed21e236e8d52-release-manifest
+2026-10-03T05:54:25.0332476Z ##[warning]Failed to restore: Cache service responded with 400
+2026-10-03T05:54:25.0346129Z No GitHub Actions cache found for key: setup-uv-1-aarch64-unknown-linux-gnu-0.11.8-91334449181a567ff3260c292a87f6a99b7d2f78bd736b6cddbed21e236e8d52-release-manifest
+2026-10-03T05:54:25.0538885Z ##[group]Run uv pip install --system -r requirements.txt
+2026-10-03T05:54:25.0539445Z [36;1muv pip install --system -r requirements.txt[0m
+2026-10-03T05:54:25.0600042Z shell: /usr/bin/bash -e {0}
+2026-10-03T05:54:25.0600363Z env:
+2026-10-03T05:54:25.0600608Z   BLACKSMITH_RUNNER_MESSAGE_WAIT_MS: 201
+2026-10-03T05:54:25.0600949Z   BLACKSMITH_RUNNER_ACQUIRE_JOB_MS: 1090
+2026-10-03T05:54:25.0601283Z   GITHUB_REPO_NAME: Lumiwealth/bot_manager
+2026-10-03T05:54:25.0601605Z   AWS_DEFAULT_REGION: us-east-1
+2026-10-03T05:54:25.0601886Z   AWS_REGION: us-east-1
+2026-10-03T05:54:25.0602387Z   AWS_ACCESS_KEY_ID: ***
+2026-10-03T05:54:25.0602750Z   AWS_SECRET_ACCESS_KEY: ***
+2026-10-03T05:54:25.0608354Z   AWS_SESSION_TOKEN: ***
+2026-10-03T05:54:25.0608690Z   pythonLocation: /opt/hostedtoolcache/Python/3.13.16/arm64
+2026-10-03T05:54:25.0609174Z   PKG_CONFIG_PATH: /opt/hostedtoolcache/Python/3.13.16/arm64/lib/pkgconfig
+2026-10-03T05:54:25.0609771Z   Python_ROOT_DIR: /opt/hostedtoolcache/Python/3.13.16/arm64
+2026-10-03T05:54:25.0610234Z   Python2_ROOT_DIR: /opt/hostedtoolcache/Python/3.13.16/arm64
+2026-10-03T05:54:25.0610670Z   Python3_ROOT_DIR: /opt/hostedtoolcache/Python/3.13.16/arm64
+2026-10-03T05:54:25.0611108Z   LD_LIBRARY_PATH: /opt/hostedtoolcache/Python/3.13.16/arm64/lib
+2026-10-03T05:54:25.0611533Z   UV_CACHE_DIR: /home/runner/_work/_temp/setup-uv-cache
+2026-10-03T05:54:25.0611881Z ##[endgroup]
+2026-10-03T05:54:25.1257619Z Using Python 3.13.16 environment at: /opt/hostedtoolcache/Python/3.13.16/arm64
+2026-10-03T05:54:25.3569739Z Resolved 24 packages in 230ms
+2026-10-03T05:54:25.3720339Z Downloading cryptography (4.5MiB)
+2026-10-03T05:54:25.3797507Z Downloading botocore (14.9MiB)
+2026-10-03T05:54:25.3833329Z Downloading zstandard (4.8MiB)
+2026-10-03T05:54:25.5742061Z  Downloaded zstandard
+2026-10-03T05:54:25.5956689Z  Downloaded cryptography
+2026-10-03T05:54:25.9516208Z  Downloaded botocore
+2026-10-03T05:54:25.9524353Z Prepared 24 packages in 594ms
+2026-10-03T05:54:26.0583679Z Installed 24 packages in 105ms
+2026-10-03T05:54:26.0584398Z  + aws-wsgi==0.2.7
+2026-10-03T05:54:26.0584838Z  + blinker==1.9.0
+2026-10-03T05:54:26.0585175Z  + boto3==1.43.1
+2026-10-03T05:54:26.0585511Z  + botocore==1.43.74
+2026-10-03T05:54:26.0585841Z  + certifi==2026.7.22
+2026-10-03T05:54:26.0586165Z  + cffi==2.1.1
+2026-10-03T05:54:26.0586491Z  + charset-normalizer==3.5.1
+2026-10-03T05:54:26.0586972Z  + click==8.4.2
+2026-10-03T05:54:26.0587299Z  + cryptography==50.0.0
+2026-10-03T05:54:26.0587635Z  + flask==3.1.3
+2026-10-03T05:54:26.0587942Z  + idna==3.19
+2026-10-03T05:54:26.0588248Z  + itsdangerous==2.2.0
+2026-10-03T05:54:26.0588577Z  + jinja2==3.1.6
+2026-10-03T05:54:26.0588893Z  + jmespath==1.1.0
+2026-10-03T05:54:26.0589208Z  + markupsafe==3.0.3
+2026-10-03T05:54:26.0589536Z  + packaging==25.0
+2026-10-03T05:54:26.0589856Z  + pycparser==3.0
+2026-10-03T05:54:26.0590187Z  + python-dateutil==2.9.0.post0
+2026-10-03T05:54:26.0590546Z  + requests==2.33.1
+2026-10-03T05:54:26.0590868Z  + s3transfer==0.17.1
+2026-10-03T05:54:26.0591205Z  + six==1.17.0
+2026-10-03T05:54:26.0591720Z  + urllib3==2.8.0
+2026-10-03T05:54:26.0592514Z  + werkzeug==3.1.8
+2026-10-03T05:54:26.0592845Z  + zstandard==0.25.0
+2026-10-03T05:54:26.0763669Z ##[group]Run source_environment=""
+2026-10-03T05:54:26.0764142Z [36;1msource_environment=""[0m
+2026-10-03T05:54:26.0764734Z [36;1mif [[ -n "s3://bot-manager-tf-state/dev/releases/330bd1095c61-37099985602-1/release-manifest.json" ]]; then[0m
+2026-10-03T05:54:26.0765665Z [36;1m  aws s3 cp "s3://bot-manager-tf-state/dev/releases/330bd1095c61-37099985602-1/release-manifest.json" source_release_manifest.json[0m
+2026-10-03T05:54:26.0766462Z [36;1m  source_environment="$(jq -r .environment source_release_manifest.json)"[0m
+2026-10-03T05:54:26.0767026Z [36;1m  if [[ "$source_environment" == "prod" ]]; then[0m
+2026-10-03T05:54:26.0767448Z [36;1m    cp source_release_manifest.json release_manifest.json[0m
+2026-10-03T05:54:26.0767954Z [36;1m    summary="$(python scripts/assemble_release_manifest.py validate \[0m
+2026-10-03T05:54:26.0768774Z [36;1m      --env "prod" \[0m
+2026-10-03T05:54:26.0769073Z [36;1m      --manifest release_manifest.json \[0m
+2026-10-03T05:54:26.0769495Z [36;1m      --preflight)"[0m
+2026-10-03T05:54:26.0769865Z [36;1m  elif [[ "$source_environment" == "dev" && "prod" == "prod" ]]; then[0m
+2026-10-03T05:54:26.0770419Z [36;1m    release_id="${GITHUB_SHA:0:12}-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}-promoted"[0m
+2026-10-03T05:54:26.0770986Z [36;1m    summary="$(python scripts/assemble_release_manifest.py promote \[0m
+2026-10-03T05:54:26.0771472Z [36;1m      --source-manifest source_release_manifest.json \[0m
+2026-10-03T05:54:26.0771844Z [36;1m      --target-env "prod" \[0m
+2026-10-03T05:54:26.0772159Z [36;1m      --release-id "$release_id" \[0m
+2026-10-03T05:54:26.0772501Z [36;1m      --output release_manifest.json \[0m
+2026-10-03T05:54:26.0772819Z [36;1m      --upload)"[0m
+2026-10-03T05:54:26.0773069Z [36;1m  else[0m
+2026-10-03T05:54:26.0773479Z [36;1m    echo "Unsupported release manifest transition: ${source_environment} -> prod" >&2[0m
+2026-10-03T05:54:26.0773956Z [36;1m    exit 1[0m
+2026-10-03T05:54:26.0774185Z [36;1m  fi[0m
+2026-10-03T05:54:26.0774401Z [36;1melse[0m
+2026-10-03T05:54:26.0774734Z [36;1m  release_id="${GITHUB_SHA:0:12}-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"[0m
+2026-10-03T05:54:26.0775167Z [36;1m  snapshot_source="current"[0m
+2026-10-03T05:54:26.0775471Z [36;1m  if [[ "true" == "true" ]]; then[0m
+2026-10-03T05:54:26.0775786Z [36;1m    snapshot_source="skipped"[0m
+2026-10-03T05:54:26.0776068Z [36;1m  fi[0m
+2026-10-03T05:54:26.0776293Z [36;1m  manifest_args=([0m
+2026-10-03T05:54:26.0776552Z [36;1m    create[0m
+2026-10-03T05:54:26.0776839Z [36;1m    --env "prod"[0m
+2026-10-03T05:54:26.0777113Z [36;1m    --release-id "$release_id"[0m
+2026-10-03T05:54:26.0777420Z [36;1m    --git-sha "$GITHUB_SHA"[0m
+2026-10-03T05:54:26.0777801Z [36;1m    --runtime-bundle-manifest runtime_bundle_manifest.json[0m
+2026-10-03T05:54:26.0778279Z [36;1m    --lambda-assets-manifest lambda_assets_manifest.json[0m
+2026-10-03T05:54:26.0778699Z [36;1m    --snapshot-source "$snapshot_source"[0m
+2026-10-03T05:54:26.0779047Z [36;1m    --output release_manifest.json[0m
+2026-10-03T05:54:26.0779553Z [36;1m    --upload[0m
+2026-10-03T05:54:26.0779850Z [36;1m  )[0m
+2026-10-03T05:54:26.0780087Z [36;1m  single_trade_image_uri=""[0m
+2026-10-03T05:54:26.0780408Z [36;1m  if [[ -n "$single_trade_image_uri" ]]; then[0m
+2026-10-03T05:54:26.0780900Z [36;1m    manifest_args+=(--single-trade-lambda-image-uri "$single_trade_image_uri")[0m
+2026-10-03T05:54:26.0781361Z [36;1m  fi[0m
+2026-10-03T05:54:26.0781747Z [36;1m  summary="$(python scripts/assemble_release_manifest.py "${manifest_args[@]}")"[0m
+2026-10-03T05:54:26.0800592Z [36;1mfi[0m
+2026-10-03T05:54:26.0800861Z [36;1mecho "$summary"[0m
+2026-10-03T05:54:26.0801115Z [36;1m[0m
+2026-10-03T05:54:26.0811811Z [36;1mreused_release_manifest_s3_uri=""[0m
+2026-10-03T05:54:26.0812521Z [36;1mif [[ "prod" == "dev" && -z "s3://bot-manager-tf-state/dev/releases/330bd1095c61-37099985602-1/release-manifest.json" ]]; then[0m
+2026-10-03T05:54:26.0842385Z [36;1m  release_manifest_s3_uri="$(printf '%s' "$summary" | jq -r .release_manifest_s3_uri)"[0m
+2026-10-03T05:54:26.0843390Z [36;1m  source_manifest_sha256="$(printf '%s' "$summary" | jq -r .manifest_sha256)"[0m
+2026-10-03T05:54:26.0844025Z [36;1m  pointer_uri="s3://bot-manager-tf-state/dev/releases/by-git-sha/${GITHUB_SHA}.json"[0m
+2026-10-03T05:54:26.0844558Z [36;1m  jq -n \[0m
+2026-10-03T05:54:26.0844834Z [36;1m    --arg git_sha "$GITHUB_SHA" \[0m
+2026-10-03T05:54:26.0845235Z [36;1m    --arg release_manifest_s3_uri "$release_manifest_s3_uri" \[0m
+2026-10-03T05:54:26.0845725Z [36;1m    --arg source_manifest_sha256 "$source_manifest_sha256" \[0m
+2026-10-03T05:54:26.0846450Z [36;1m    '{version: 1, git_sha: $git_sha, release_manifest_s3_uri: $release_manifest_s3_uri, source_manifest_sha256: $source_manifest_sha256}' \[0m
+2026-10-03T05:54:26.0847163Z [36;1m    > release_pointer.json[0m
+2026-10-03T05:54:26.0848208Z [36;1m  if aws s3api head-object --bucket bot-manager-tf-state --key "dev/releases/by-git-sha/${GITHUB_SHA}.json" >/dev/null 2>&1; then[0m
+2026-10-03T05:54:26.0848971Z [36;1m    aws s3 cp "$pointer_uri" existing_release_pointer.json --no-progress[0m
+2026-10-03T05:54:26.0849511Z [36;1m    if ! cmp -s release_pointer.json existing_release_pointer.json; then[0m
+2026-10-03T05:54:26.0850049Z [36;1m      # This SHA already published a dev manifest. Artifacts are not[0m
+2026-10-03T05:54:26.0850568Z [36;1m      # byte-reproducible, so a re-run always computes a different[0m
+2026-10-03T05:54:26.0851097Z [36;1m      # manifest_sha256; failing here would strand the commit, which is[0m
+2026-10-03T05:54:26.0851631Z [36;1m      # exactly what happened on 2026-09-16 and 2026-09-18. Immutability[0m
+2026-10-03T05:54:26.0852172Z [36;1m      # means one manifest per SHA, so honour the first one and deploy it.[0m
+2026-10-03T05:54:26.0852944Z [36;1m      reused_release_manifest_s3_uri="$(jq -r '.release_manifest_s3_uri // empty' existing_release_pointer.json)"[0m
+2026-10-03T05:54:26.0853557Z [36;1m      case "$reused_release_manifest_s3_uri" in[0m
+2026-10-03T05:54:26.0854032Z [36;1m        s3://bot-manager-tf-state/dev/releases/*/release-manifest.json) ;;[0m
+2026-10-03T05:54:26.0854464Z [36;1m        *)[0m
+2026-10-03T05:54:26.0854909Z [36;1m          echo "Existing dev release pointer is malformed, refusing to reuse it: $pointer_uri" >&2[0m
+2026-10-03T05:54:26.0855420Z [36;1m          exit 1[0m
+2026-10-03T05:54:26.0855668Z [36;1m          ;;[0m
+2026-10-03T05:54:26.0855904Z [36;1m      esac[0m
+2026-10-03T05:54:26.0856410Z [36;1m      echo "Reusing the release manifest already published for ${GITHUB_SHA}: $reused_release_manifest_s3_uri" >&2[0m
+2026-10-03T05:54:26.0857057Z [36;1m    fi[0m
+2026-10-03T05:54:26.0857278Z [36;1m  else[0m
+2026-10-03T05:54:26.0857561Z [36;1m    aws s3 cp release_pointer.json "$pointer_uri" \[0m
+2026-10-03T05:54:26.0857953Z [36;1m      --content-type application/json \[0m
+2026-10-03T05:54:26.0858283Z [36;1m      --sse aws:kms \[0m
+2026-10-03T05:54:26.0858594Z [36;1m      --sse-kms-key-id alias/dev-s3-cmk \[0m
+2026-10-03T05:54:26.0858927Z [36;1m      --no-progress[0m
+2026-10-03T05:54:26.0859181Z [36;1m  fi[0m
+2026-10-03T05:54:26.0859390Z [36;1mfi[0m
+2026-10-03T05:54:26.0859600Z [36;1m[0m
+2026-10-03T05:54:26.0859804Z [36;1m{[0m
+2026-10-03T05:54:26.0860407Z [36;1m  if [[ -n "s3://bot-manager-tf-state/dev/releases/330bd1095c61-37099985602-1/release-manifest.json" && "$source_environment" == "prod" ]]; then[0m
+2026-10-03T05:54:26.0861417Z [36;1m    echo "release_manifest_s3_uri=s3://bot-manager-tf-state/dev/releases/330bd1095c61-37099985602-1/release-manifest.json"[0m
+2026-10-03T05:54:26.0863101Z [36;1m  elif [[ -n "$reused_release_manifest_s3_uri" ]]; then[0m
+2026-10-03T05:54:26.0863635Z [36;1m    echo "release_manifest_s3_uri=$reused_release_manifest_s3_uri"[0m
+2026-10-03T05:54:26.0864023Z [36;1m  else[0m
+2026-10-03T05:54:26.0864454Z [36;1m    echo "release_manifest_s3_uri=$(printf '%s' "$summary" | jq -r .release_manifest_s3_uri)"[0m
+2026-10-03T05:54:26.0865782Z [36;1m  fi[0m
+2026-10-03T05:54:26.0866159Z [36;1m  echo "release_id=$(printf '%s' "$summary" | jq -r .release_id)"[0m
+2026-10-03T05:54:26.0866772Z [36;1m  echo "manifest_sha256=$(printf '%s' "$summary" | jq -r .manifest_sha256)"[0m
+2026-10-03T05:54:26.0867376Z [36;1m  echo "runtime_bundle_sha256=$(printf '%s' "$summary" | jq -r .runtime_bundle_sha256)"[0m
+2026-10-03T05:54:26.0867854Z [36;1m} >> "$GITHUB_OUTPUT"[0m
+2026-10-03T05:54:26.0918547Z shell: /usr/bin/bash -e {0}
+2026-10-03T05:54:26.0918849Z env:
+2026-10-03T05:54:26.0919089Z   BLACKSMITH_RUNNER_MESSAGE_WAIT_MS: 201
+2026-10-03T05:54:26.0919416Z   BLACKSMITH_RUNNER_ACQUIRE_JOB_MS: 1090
+2026-10-03T05:54:26.0919743Z   GITHUB_REPO_NAME: Lumiwealth/bot_manager
+2026-10-03T05:54:26.0920056Z   AWS_DEFAULT_REGION: us-east-1
+2026-10-03T05:54:26.0920334Z   AWS_REGION: us-east-1
+2026-10-03T05:54:26.0921171Z   AWS_ACCESS_KEY_ID: ***
+2026-10-03T05:54:26.0921553Z   AWS_SECRET_ACCESS_KEY: ***
+2026-10-03T05:54:26.0927105Z   AWS_SESSION_TOKEN: ***
+2026-10-03T05:54:26.0927443Z   pythonLocation: /opt/hostedtoolcache/Python/3.13.16/arm64
+2026-10-03T05:54:26.0927927Z   PKG_CONFIG_PATH: /opt/hostedtoolcache/Python/3.13.16/arm64/lib/pkgconfig
+2026-10-03T05:54:26.0928413Z   Python_ROOT_DIR: /opt/hostedtoolcache/Python/3.13.16/arm64
+2026-10-03T05:54:26.0928846Z   Python2_ROOT_DIR: /opt/hostedtoolcache/Python/3.13.16/arm64
+2026-10-03T05:54:26.0929270Z   Python3_ROOT_DIR: /opt/hostedtoolcache/Python/3.13.16/arm64
+2026-10-03T05:54:26.0929707Z   LD_LIBRARY_PATH: /opt/hostedtoolcache/Python/3.13.16/arm64/lib
+2026-10-03T05:54:26.0930139Z   UV_CACHE_DIR: /home/runner/_work/_temp/setup-uv-cache
+2026-10-03T05:54:26.0930481Z ##[endgroup]
+2026-10-03T05:54:27.3112096Z Completed 5.3 KiB/5.3 KiB (20.3 KiB/s) with 1 file(s) remaining
+2026-10-03T05:54:27.3113066Z download: s3://bot-manager-tf-state/dev/releases/330bd1095c61-37099985602-1/release-manifest.json to ./source_release_manifest.json
+2026-10-03T05:57:31.8881478Z {"manifest_sha256": "21dbdc4476f5e7f02b7db531721a08ef7c0487f675742593cfbe77c7164765bc", "release_id": "13edd12075d7-37101252446-1-promoted", "release_manifest_s3_uri": "s3://bot-manager-tf-state/prod/releases/13edd12075d7-37101252446-1-promoted/release-manifest.json", "runtime_bundle_sha256": "48a35b66bd0d7cb40ff399c33e28c8156b74e987a9a66687a95aff9075dfa042"}
+2026-10-03T05:57:31.9272614Z Post job cleanup.
+2026-10-03T05:57:32.1016781Z (node:3818) [DEP0040] DeprecationWarning: The `punycode` module is deprecated. Please use a userland alternative instead.
+2026-10-03T05:57:32.1017491Z Pruning cache...
+2026-10-03T05:57:32.1018011Z (Use `node --trace-deprecation ...` to show where the warning was created)
+2026-10-03T05:57:32.2092852Z Saving cache path: /home/runner/_work/_temp/setup-uv-cache
+2026-10-03T05:57:32.2611287Z [command]/usr/bin/tar --posix -cf cache.tzst --exclude cache.tzst -P -C /home/runner/_work/bot_manager/bot_manager --files-from manifest.txt --use-compress-program zstdmt
+2026-10-03T05:57:32.3622991Z ##[warning]Failed to save: <h2>Our services aren't available right now</h2><p>We're working to restore all services as soon as possible. Please check back soon.</p>0TJnAagAAAABqcCN6XuLOTLr7IbacEL4gUEhYMzFFREdFMDUxNwBFZGdl
+2026-10-03T05:57:32.3644831Z cache saved with the key: setup-uv-1-aarch64-unknown-linux-gnu-0.11.8-91334449181a567ff3260c292a87f6a99b7d2f78bd736b6cddbed21e236e8d52-release-manifest
+2026-10-03T05:57:32.3889237Z Post job cleanup.
+2026-10-03T05:57:32.5588798Z (node:3841) [DEP0040] DeprecationWarning: The `punycode` module is deprecated. Please use a userland alternative instead.
+2026-10-03T05:57:32.5589943Z (Use `node --trace-deprecation ...` to show where the warning was created)
+2026-10-03T05:57:32.5929843Z Post job cleanup.
+2026-10-03T05:57:32.7677500Z Post job cleanup.
+2026-10-03T05:57:32.8745508Z [command]/usr/local/bin/git version
+2026-10-03T05:57:32.8862703Z git version 2.51.2
+2026-10-03T05:57:32.8905148Z Temporarily overriding HOME='/home/runner/_work/_temp/5031df91-ee69-4b7e-ac5e-49a817606ef3' before making global git config changes
+2026-10-03T05:57:32.8906606Z Adding repository directory to the temporary git global config as a safe directory
+2026-10-03T05:57:32.8939579Z [command]/usr/local/bin/git config --global --add safe.directory /home/runner/_work/bot_manager/bot_manager
+2026-10-03T05:57:32.9029613Z [command]/usr/local/bin/git config --local --name-only --get-regexp core\.sshCommand
+2026-10-03T05:57:32.9139831Z [command]/usr/local/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :"
+2026-10-03T05:57:32.9694634Z [command]/usr/local/bin/git config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+2026-10-03T05:57:32.9762014Z [command]/usr/local/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :"
+2026-10-03T05:57:33.0146372Z [command]/usr/local/bin/git config --local --name-only --get-regexp ^includeIf\.gitdir:
+2026-10-03T05:57:33.0241516Z [command]/usr/local/bin/git submodule foreach --recursive git config --local --show-origin --name-only --get-regexp remote.origin.url
+2026-10-03T05:57:33.0899434Z A job completed hook has been configured by the self-hosted runner administrator
+2026-10-03T05:57:33.1035383Z ##[group]Run '/job_completed.sh'
+2026-10-03T05:57:33.1105491Z shell: /usr/bin/bash --noprofile --norc -e -o pipefail {0}
+2026-10-03T05:57:33.1105928Z env:
+2026-10-03T05:57:33.1106209Z   BLACKSMITH_RUNNER_MESSAGE_WAIT_MS: 201
+2026-10-03T05:57:33.1106542Z   BLACKSMITH_RUNNER_ACQUIRE_JOB_MS: 1090
+2026-10-03T05:57:33.1106859Z   BLACKSMITH_CHECK_RUN_ID: 111141202850
+2026-10-03T05:57:33.1107265Z   BLACKSMITH_JOB_DISPLAY_NAME: Build Release Artifacts / manifest
+2026-10-03T05:57:33.1107676Z   GITHUB_ACTIONS_CACHE_MODE: write
+2026-10-03T05:57:33.1107972Z ##[endgroup]
+2026-10-03T05:57:33.1448851Z Docker container cache not activated, skipping hash computation.
+2026-10-03T05:57:33.2075193Z No active SSH sessions detected. Proceeding with shutdown immediately.
+2026-10-03T05:57:33.2230810Z Evaluate and set job outputs
+2026-10-03T05:57:33.2243757Z Set output 'release_manifest_s3_uri'
+2026-10-03T05:57:33.2246346Z Set output 'release_id'
+2026-10-03T05:57:33.2248749Z Set output 'manifest_sha256'
+2026-10-03T05:57:33.2249323Z Set output 'runtime_bundle_sha256'
+2026-10-03T05:57:33.2251023Z Cleaning up orphan processes
+2026-10-03T05:57:33.3607803Z ##[warning]Node.js 20 is deprecated. The following actions target Node.js 20 but are being forced to run on Node.js 24: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5, actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065, astral-sh/setup-uv@caf0cab7a618c569241d31dcd442f54681755d39, aws-actions/configure-aws-credentials@7474bc4690e29a8392af63c5b98e7449536d5c3a. For more information see: https://github.blog/changelog/2025-09-19-deprecation-of-node-20-on-github-actions-runners/

@@ -1,0 +1,12 @@
+{
+  "verifiedAt": "2026-10-03T06:22:18.942084+00:00",
+  "managerMain": "98a82cf13ca77aeece694b006a0124391f628b76",
+  "closeoutDocumentSha256": "b2c4d8555c96590fd81f2b52ac7920763f012ce967556942958227ac86b2b0b8",
+  "managerDevelop": "330bd1095c61852b4c7534a79ff387b2f6d9bed3",
+  "managerProduction": "13edd12075d7f95ea205323c2805439c3b944716",
+  "lumibotTag": "v4.6.4",
+  "lumibotTagCommit": "4280719f6ab3a8ca63510c94e0447cff01931050",
+  "nextVersionBranch": "version/4.6.5",
+  "ownLumiWorktreeClean": true,
+  "ownOutstandingCommits": 0
+}

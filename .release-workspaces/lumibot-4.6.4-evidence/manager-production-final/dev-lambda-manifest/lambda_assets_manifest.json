@@ -1,0 +1,83 @@
+{
+  "dependency_layer_arn": "arn:aws:lambda:us-east-1:412381755468:layer:dev-bot-manager-api-dependencies:11",
+  "dependency_layer_source_code_hash": "f1XLwruHH8X33Zvh3bmlngPgMmiCSECRsLHDII+4eYk=",
+  "assets_bucket": "bot-manager-tf-state",
+  "email-notification": {
+    "bucket": "bot-manager-tf-state",
+    "key": "dev/lambda-assets/email-notification/0ddd5ec1.zip",
+    "sha256": "0ddd5ec1e612c05888f8e03fd5aac12211020055c7fb114b2b25e05f5f7dbb9f",
+    "source_code_hash": "Dd1eweYSwFiI+OA/1arBIhECAFXH+xFLKyXgX199u58="
+  },
+  "scheduled-run-task-state-recorder": {
+    "bucket": "bot-manager-tf-state",
+    "key": "dev/lambda-assets/scheduled-run-task-state-recorder/a47dc9ef.zip",
+    "sha256": "a47dc9ef002d3379e1d650c53bdd81db6bbf579813bf01196675ad654cb4fefc",
+    "source_code_hash": "pH3J7wAtM3nh1lDFO92B22u/V5gTvwEZZnWtZUy0/vw="
+  },
+  "broker-token-authority": {
+    "bucket": "bot-manager-tf-state",
+    "key": "dev/lambda-assets/broker-token-authority/778f0600.zip",
+    "sha256": "778f0600c1a8c0561b632e0279892a8a94857337ef7f73b938474483b3d213e1",
+    "source_code_hash": "d48GAMGowFYbYy4CeYkqipSFczfvf3O5OEdEg7PSE+E="
+  },
+  "scheduled-custom-launcher": {
+    "bucket": "bot-manager-tf-state",
+    "key": "dev/lambda-assets/scheduled-custom-launcher/bdf1a8a8.zip",
+    "sha256": "bdf1a8a81cfe0702b3997ccb62d138bf6cdae455cb558cea12fb4e88052c4df5",
+    "source_code_hash": "vfGoqBz+BwKzmXzLYtE4v2za5FXLVYzqEvtOiAUsTfU="
+  },
+  "unprotect-idle-backtest-instances": {
+    "bucket": "bot-manager-tf-state",
+    "key": "dev/lambda-assets/unprotect-idle-backtest-instances/9de100fe.zip",
+    "sha256": "9de100fe10ff24175dd0cc207913b2e9a7c624751d6b13b106d83c2401adc79c",
+    "source_code_hash": "neEA/hD/JBdd0MwgeROy6afGJHUdaxOxBtg8JAGtx5w="
+  },
+  "reconcile-idle-live-capacity": {
+    "bucket": "bot-manager-tf-state",
+    "key": "dev/lambda-assets/reconcile-idle-live-capacity/3bc89e10.zip",
+    "sha256": "3bc89e10cbaa3fa92085d6c6562e9fea92290d763d1f9e7321af9ad684931501",
+    "source_code_hash": "O8ieEMuqP6kghdbGVi6f6pIpDXY9H55zIa+a1oSTFQE="
+  },
+  "bot-manager-api": {
+    "bucket": "bot-manager-tf-state",
+    "key": "dev/lambda-assets/bot-manager-api/23a8b011.zip",
+    "sha256": "23a8b011178c62396bc5f5515ee868d76269863edc0b5ece326b248fcf971883",
+    "source_code_hash": "I6iwEReMYjlrxfVRXuho12Jphj7cC17OMmskj8+XGIM="
+  },
+  "cleanup-cost-leaks": {
+    "bucket": "bot-manager-tf-state",
+    "key": "dev/lambda-assets/cleanup-cost-leaks/21398ec4.zip",
+    "sha256": "21398ec418697c4ea6cb0fdab827f3265336c89dcb5c332c167ff8ad4a9f9d83",
+    "source_code_hash": "ITmOxBhpfE6myw/auCfzJlM2yJ3LXDMsFn/4rUqfnYM="
+  },
+  "scheduled-test-backtest": {
+    "bucket": "bot-manager-tf-state",
+    "key": "dev/lambda-assets/scheduled-test-backtest/c227fbed.zip",
+    "sha256": "c227fbed4af1156c895d196be719c0189cbfed94cf0da1b9c137e1b72bd8fdca",
+    "source_code_hash": "wif77UrxFWyJXRlr5xnAGJy/7ZTPDaG5wTfhtyvY/co="
+  },
+  "cleanup-scheduled-secrets": {
+    "bucket": "bot-manager-tf-state",
+    "key": "dev/lambda-assets/cleanup-scheduled-secrets/76ba57fd.zip",
+    "sha256": "76ba57fd321adcde655beb83a52c48815fa29a33d8938c918781295604d994ca",
+    "source_code_hash": "drpX/TIa3N5lW+uDpSxIgV+imjPYk4yRh4EpVgTZlMo="
+  },
+  "scheduled-test-custom": {
+    "bucket": "bot-manager-tf-state",
+    "key": "dev/lambda-assets/scheduled-test-custom/c227fbed.zip",
+    "sha256": "c227fbed4af1156c895d196be719c0189cbfed94cf0da1b9c137e1b72bd8fdca",
+    "source_code_hash": "wif77UrxFWyJXRlr5xnAGJy/7ZTPDaG5wTfhtyvY/co="
+  },
+  "kill-stale-backtests": {
+    "bucket": "bot-manager-tf-state",
+    "key": "dev/lambda-assets/kill-stale-backtests/86177df4.zip",
+    "sha256": "86177df4b83c8cc8d942ffb1340b0ef7ba77c12e46b047c21cab217ae6851d6c",
+    "source_code_hash": "hhd99Lg8jMjZQv+xNAsO97p3wS5GsEfCHKsheuaFHWw="
+  },
+  "data-cache": {
+    "bucket": "bot-manager-tf-state",
+    "key": "dev/lambda-assets/data-cache/9bbcb4ae.zip",
+    "sha256": "9bbcb4ae2fa5934a36858a58b0427592b75dde1dd6d8973aedb1c91ee6987546",
+    "source_code_hash": "m7y0ri+lk0o2hYpYsEJ1krdd3h3W2Jc67bHJHuaYdUY="
+  }
+}

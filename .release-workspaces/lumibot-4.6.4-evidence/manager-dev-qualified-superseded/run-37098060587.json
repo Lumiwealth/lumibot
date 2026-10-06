@@ -1,0 +1,1109 @@
+{
+  "conclusion": "success",
+  "createdAt": "2026-10-03T04:53:58Z",
+  "headSha": "32f2c5068412988ca2422b828b63417503007b35",
+  "jobs": [
+    {
+      "completedAt": "2026-10-03T04:54:34Z",
+      "conclusion": "success",
+      "databaseId": 111131941493,
+      "name": "python-quality / python-quality",
+      "startedAt": "2026-10-03T04:54:10Z",
+      "status": "completed",
+      "steps": [
+        {
+          "completedAt": "2026-10-03T04:54:14Z",
+          "conclusion": "success",
+          "name": "Set up job",
+          "number": 1,
+          "startedAt": "2026-10-03T04:54:11Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-03T04:54:14Z",
+          "conclusion": "success",
+          "name": "Set up runner",
+          "number": 2,
+          "startedAt": "2026-10-03T04:54:14Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-03T04:54:16Z",
+          "conclusion": "success",
+          "name": "Checkout exact candidate",
+          "number": 3,
+          "startedAt": "2026-10-03T04:54:14Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-03T04:54:26Z",
+          "conclusion": "success",
+          "name": "Setup Python 3.13",
+          "number": 4,
+          "startedAt": "2026-10-03T04:54:16Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-03T04:54:27Z",
+          "conclusion": "success",
+          "name": "Setup uv",
+          "number": 5,
+          "startedAt": "2026-10-03T04:54:26Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-03T04:54:29Z",
+          "conclusion": "success",
+          "name": "Sync locked dependencies",
+          "number": 6,
+          "startedAt": "2026-10-03T04:54:27Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-03T04:54:29Z",
+          "conclusion": "success",
+          "name": "Verify runtime requirements export",
+          "number": 7,
+          "startedAt": "2026-10-03T04:54:29Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-03T04:54:29Z",
+          "conclusion": "success",
+          "name": "Audit locked dependencies",
+          "number": 8,
+          "startedAt": "2026-10-03T04:54:29Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-03T04:54:29Z",
+          "conclusion": "success",
+          "name": "Lint Python",
+          "number": 9,
+          "startedAt": "2026-10-03T04:54:29Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-03T04:54:30Z",
+          "conclusion": "success",
+          "name": "Check Python formatting",
+          "number": 10,
+          "startedAt": "2026-10-03T04:54:29Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-03T04:54:30Z",
+          "conclusion": "success",
+          "name": "Type-check qualified gateway package",
+          "number": 11,
+          "startedAt": "2026-10-03T04:54:30Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-03T04:54:30Z",
+          "conclusion": "success",
+          "name": "Post Setup uv",
+          "number": 19,
+          "startedAt": "2026-10-03T04:54:30Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-03T04:54:30Z",
+          "conclusion": "success",
+          "name": "Post Setup Python 3.13",
+          "number": 20,
+          "startedAt": "2026-10-03T04:54:30Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-03T04:54:31Z",
+          "conclusion": "success",
+          "name": "Post Checkout exact candidate",
+          "number": 21,
+          "startedAt": "2026-10-03T04:54:30Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-03T04:54:31Z",
+          "conclusion": "success",
+          "name": "Complete runner",
+          "number": 22,
+          "startedAt": "2026-10-03T04:54:31Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-03T04:54:31Z",
+          "conclusion": "success",
+          "name": "Complete job",
+          "number": 23,
+          "startedAt": "2026-10-03T04:54:31Z",
+          "status": "completed"
+        }
+      ],
+      "url": "https://github.com/Lumiwealth/bot_manager/actions/runs/37098060587/job/111131941493"
+    },
+    {
+      "completedAt": "2026-10-03T04:54:55Z",
+      "conclusion": "success",
+      "databaseId": 111132032384,
+      "name": "Build Release Artifacts / classify",
+      "startedAt": "2026-10-03T04:54:46Z",
+      "status": "completed",
+      "steps": [
+        {
+          "completedAt": "2026-10-03T04:54:49Z",
+          "conclusion": "success",
+          "name": "Set up job",
+          "number": 1,
+          "startedAt": "2026-10-03T04:54:47Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-03T04:54:50Z",
+          "conclusion": "success",
+          "name": "Set up runner",
+          "number": 2,
+          "startedAt": "2026-10-03T04:54:49Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-03T04:54:52Z",
+          "conclusion": "success",
+          "name": "Run actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5",
+          "number": 3,
+          "startedAt": "2026-10-03T04:54:50Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-03T04:54:52Z",
+          "conclusion": "success",
+          "name": "Run base=\"$(git rev-parse HEAD^ 2>/dev/null || true)\"",
+          "number": 4,
+          "startedAt": "2026-10-03T04:54:52Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-03T04:54:52Z",
+          "conclusion": "success",
+          "name": "Post Run actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5",
+          "number": 7,
+          "startedAt": "2026-10-03T04:54:52Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-03T04:54:52Z",
+          "conclusion": "success",
+          "name": "Complete runner",
+          "number": 8,
+          "startedAt": "2026-10-03T04:54:52Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-03T04:54:53Z",
+          "conclusion": "success",
+          "name": "Complete job",
+          "number": 9,
+          "startedAt": "2026-10-03T04:54:52Z",
+          "status": "completed"
+        }
+      ],
+      "url": "https://github.com/Lumiwealth/bot_manager/actions/runs/37098060587/job/111132032384"
+    },
+    {
+      "completedAt": "2026-10-03T04:54:35Z",
+      "conclusion": "skipped",
+      "databaseId": 111132033252,
+      "name": "Build Release Artifacts / snapshot-bake",
+      "startedAt": "2026-10-03T04:54:35Z",
+      "status": "completed",
+      "steps": [],
+      "url": "https://github.com/Lumiwealth/bot_manager/actions/runs/37098060587/job/111132033252"
+    },
+    {
+      "completedAt": "2026-10-03T04:55:36Z",
+      "conclusion": "success",
+      "databaseId": 111132084168,
+      "name": "Build Release Artifacts / lambda-assets",
+      "startedAt": "2026-10-03T04:55:07Z",
+      "status": "completed",
+      "steps": [
+        {
+          "completedAt": "2026-10-03T04:55:13Z",
+          "conclusion": "success",
+          "name": "Set up job",
+          "number": 1,
+          "startedAt": "2026-10-03T04:55:08Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-03T04:55:13Z",
+          "conclusion": "success",
+          "name": "Set up runner",
+          "number": 2,
+          "startedAt": "2026-10-03T04:55:13Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-03T04:55:15Z",
+          "conclusion": "success",
+          "name": "Run actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5",
+          "number": 3,
+          "startedAt": "2026-10-03T04:55:13Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-03T04:55:16Z",
+          "conclusion": "success",
+          "name": "Run aws-actions/configure-aws-credentials@7474bc4690e29a8392af63c5b98e7449536d5c3a",
+          "number": 4,
+          "startedAt": "2026-10-03T04:55:15Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-03T04:55:25Z",
+          "conclusion": "success",
+          "name": "Run actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065",
+          "number": 5,
+          "startedAt": "2026-10-03T04:55:16Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-03T04:55:26Z",
+          "conclusion": "success",
+          "name": "Run astral-sh/setup-uv@caf0cab7a618c569241d31dcd442f54681755d39",
+          "number": 6,
+          "startedAt": "2026-10-03T04:55:25Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-03T04:55:27Z",
+          "conclusion": "success",
+          "name": "Run uv pip install --system -r requirements.txt",
+          "number": 7,
+          "startedAt": "2026-10-03T04:55:26Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-03T04:55:30Z",
+          "conclusion": "success",
+          "name": "Build Lambda assets",
+          "number": 8,
+          "startedAt": "2026-10-03T04:55:27Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-03T04:55:32Z",
+          "conclusion": "success",
+          "name": "Run actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02",
+          "number": 9,
+          "startedAt": "2026-10-03T04:55:30Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-03T04:55:32Z",
+          "conclusion": "success",
+          "name": "Post Run astral-sh/setup-uv@caf0cab7a618c569241d31dcd442f54681755d39",
+          "number": 14,
+          "startedAt": "2026-10-03T04:55:32Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-03T04:55:32Z",
+          "conclusion": "success",
+          "name": "Post Run actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065",
+          "number": 15,
+          "startedAt": "2026-10-03T04:55:32Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-03T04:55:32Z",
+          "conclusion": "success",
+          "name": "Post Run aws-actions/configure-aws-credentials@7474bc4690e29a8392af63c5b98e7449536d5c3a",
+          "number": 16,
+          "startedAt": "2026-10-03T04:55:32Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-03T04:55:33Z",
+          "conclusion": "success",
+          "name": "Post Run actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5",
+          "number": 17,
+          "startedAt": "2026-10-03T04:55:32Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-03T04:55:33Z",
+          "conclusion": "success",
+          "name": "Complete runner",
+          "number": 18,
+          "startedAt": "2026-10-03T04:55:33Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-03T04:55:33Z",
+          "conclusion": "success",
+          "name": "Complete job",
+          "number": 19,
+          "startedAt": "2026-10-03T04:55:33Z",
+          "status": "completed"
+        }
+      ],
+      "url": "https://github.com/Lumiwealth/bot_manager/actions/runs/37098060587/job/111132084168"
+    },
+    {
+      "completedAt": "2026-10-03T04:55:34Z",
+      "conclusion": "success",
+      "databaseId": 111132084191,
+      "name": "Build Release Artifacts / runtime-bundle",
+      "startedAt": "2026-10-03T04:55:08Z",
+      "status": "completed",
+      "steps": [
+        {
+          "completedAt": "2026-10-03T04:55:12Z",
+          "conclusion": "success",
+          "name": "Set up job",
+          "number": 1,
+          "startedAt": "2026-10-03T04:55:09Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-03T04:55:13Z",
+          "conclusion": "success",
+          "name": "Set up runner",
+          "number": 2,
+          "startedAt": "2026-10-03T04:55:12Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-03T04:55:15Z",
+          "conclusion": "success",
+          "name": "Run actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5",
+          "number": 3,
+          "startedAt": "2026-10-03T04:55:13Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-03T04:55:15Z",
+          "conclusion": "success",
+          "name": "Run aws-actions/configure-aws-credentials@7474bc4690e29a8392af63c5b98e7449536d5c3a",
+          "number": 4,
+          "startedAt": "2026-10-03T04:55:15Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-03T04:55:25Z",
+          "conclusion": "success",
+          "name": "Run actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065",
+          "number": 5,
+          "startedAt": "2026-10-03T04:55:15Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-03T04:55:26Z",
+          "conclusion": "success",
+          "name": "Run astral-sh/setup-uv@caf0cab7a618c569241d31dcd442f54681755d39",
+          "number": 6,
+          "startedAt": "2026-10-03T04:55:25Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-03T04:55:27Z",
+          "conclusion": "success",
+          "name": "Run uv pip install --system -r requirements.txt",
+          "number": 7,
+          "startedAt": "2026-10-03T04:55:26Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-03T04:55:28Z",
+          "conclusion": "success",
+          "name": "Run python scripts/build_runtime_bundle.py \\",
+          "number": 8,
+          "startedAt": "2026-10-03T04:55:27Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-03T04:55:30Z",
+          "conclusion": "success",
+          "name": "Run actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02",
+          "number": 9,
+          "startedAt": "2026-10-03T04:55:28Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-03T04:55:30Z",
+          "conclusion": "success",
+          "name": "Post Run astral-sh/setup-uv@caf0cab7a618c569241d31dcd442f54681755d39",
+          "number": 14,
+          "startedAt": "2026-10-03T04:55:30Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-03T04:55:30Z",
+          "conclusion": "success",
+          "name": "Post Run actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065",
+          "number": 15,
+          "startedAt": "2026-10-03T04:55:30Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-03T04:55:30Z",
+          "conclusion": "success",
+          "name": "Post Run aws-actions/configure-aws-credentials@7474bc4690e29a8392af63c5b98e7449536d5c3a",
+          "number": 16,
+          "startedAt": "2026-10-03T04:55:30Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-03T04:55:31Z",
+          "conclusion": "success",
+          "name": "Post Run actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5",
+          "number": 17,
+          "startedAt": "2026-10-03T04:55:30Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-03T04:55:31Z",
+          "conclusion": "success",
+          "name": "Complete runner",
+          "number": 18,
+          "startedAt": "2026-10-03T04:55:31Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-03T04:55:31Z",
+          "conclusion": "success",
+          "name": "Complete job",
+          "number": 19,
+          "startedAt": "2026-10-03T04:55:31Z",
+          "status": "completed"
+        }
+      ],
+      "url": "https://github.com/Lumiwealth/bot_manager/actions/runs/37098060587/job/111132084191"
+    },
+    {
+      "completedAt": "2026-10-03T04:58:26Z",
+      "conclusion": "success",
+      "databaseId": 111132084197,
+      "name": "Build Release Artifacts / image-single-trade",
+      "startedAt": "2026-10-03T04:55:07Z",
+      "status": "completed",
+      "steps": [
+        {
+          "completedAt": "2026-10-03T04:55:14Z",
+          "conclusion": "success",
+          "name": "Set up job",
+          "number": 1,
+          "startedAt": "2026-10-03T04:55:09Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-03T04:55:15Z",
+          "conclusion": "success",
+          "name": "Set up runner",
+          "number": 2,
+          "startedAt": "2026-10-03T04:55:14Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-03T04:55:17Z",
+          "conclusion": "success",
+          "name": "Run actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5",
+          "number": 3,
+          "startedAt": "2026-10-03T04:55:15Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-03T04:55:17Z",
+          "conclusion": "success",
+          "name": "Run aws-actions/configure-aws-credentials@7474bc4690e29a8392af63c5b98e7449536d5c3a",
+          "number": 4,
+          "startedAt": "2026-10-03T04:55:17Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-03T04:55:27Z",
+          "conclusion": "success",
+          "name": "Run actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065",
+          "number": 5,
+          "startedAt": "2026-10-03T04:55:17Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-03T04:55:28Z",
+          "conclusion": "success",
+          "name": "Run astral-sh/setup-uv@caf0cab7a618c569241d31dcd442f54681755d39",
+          "number": 6,
+          "startedAt": "2026-10-03T04:55:27Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-03T04:55:29Z",
+          "conclusion": "success",
+          "name": "Run uv pip install --system -r requirements.txt",
+          "number": 7,
+          "startedAt": "2026-10-03T04:55:28Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-03T04:55:34Z",
+          "conclusion": "success",
+          "name": "Run docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f",
+          "number": 8,
+          "startedAt": "2026-10-03T04:55:29Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-03T04:55:34Z",
+          "conclusion": "skipped",
+          "name": "Run depot/use-action@9bda29f1fc3163c06fc15f375887a341096a5639",
+          "number": 9,
+          "startedAt": "2026-10-03T04:55:34Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-03T04:58:20Z",
+          "conclusion": "success",
+          "name": "Run python docker_build/build_single_trade_lambda_image.py",
+          "number": 10,
+          "startedAt": "2026-10-03T04:55:34Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-03T04:58:21Z",
+          "conclusion": "success",
+          "name": "Post Run docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f",
+          "number": 15,
+          "startedAt": "2026-10-03T04:58:20Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-03T04:58:21Z",
+          "conclusion": "success",
+          "name": "Post Run astral-sh/setup-uv@caf0cab7a618c569241d31dcd442f54681755d39",
+          "number": 16,
+          "startedAt": "2026-10-03T04:58:21Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-03T04:58:21Z",
+          "conclusion": "success",
+          "name": "Post Run actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065",
+          "number": 17,
+          "startedAt": "2026-10-03T04:58:21Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-03T04:58:22Z",
+          "conclusion": "success",
+          "name": "Post Run aws-actions/configure-aws-credentials@7474bc4690e29a8392af63c5b98e7449536d5c3a",
+          "number": 18,
+          "startedAt": "2026-10-03T04:58:21Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-03T04:58:22Z",
+          "conclusion": "success",
+          "name": "Post Run actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5",
+          "number": 19,
+          "startedAt": "2026-10-03T04:58:22Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-03T04:58:23Z",
+          "conclusion": "success",
+          "name": "Complete runner",
+          "number": 20,
+          "startedAt": "2026-10-03T04:58:22Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-03T04:58:23Z",
+          "conclusion": "success",
+          "name": "Complete job",
+          "number": 21,
+          "startedAt": "2026-10-03T04:58:23Z",
+          "status": "completed"
+        }
+      ],
+      "url": "https://github.com/Lumiwealth/bot_manager/actions/runs/37098060587/job/111132084197"
+    },
+    {
+      "completedAt": "2026-10-03T05:07:11Z",
+      "conclusion": "success",
+      "databaseId": 111132084251,
+      "name": "Build Release Artifacts / images-base-backtest",
+      "startedAt": "2026-10-03T04:55:08Z",
+      "status": "completed",
+      "steps": [
+        {
+          "completedAt": "2026-10-03T04:55:15Z",
+          "conclusion": "success",
+          "name": "Set up job",
+          "number": 1,
+          "startedAt": "2026-10-03T04:55:10Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-03T04:55:15Z",
+          "conclusion": "success",
+          "name": "Set up runner",
+          "number": 2,
+          "startedAt": "2026-10-03T04:55:15Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-03T04:55:17Z",
+          "conclusion": "success",
+          "name": "Run actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5",
+          "number": 3,
+          "startedAt": "2026-10-03T04:55:15Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-03T04:55:18Z",
+          "conclusion": "success",
+          "name": "Run aws-actions/configure-aws-credentials@7474bc4690e29a8392af63c5b98e7449536d5c3a",
+          "number": 4,
+          "startedAt": "2026-10-03T04:55:17Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-03T04:55:27Z",
+          "conclusion": "success",
+          "name": "Run actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065",
+          "number": 5,
+          "startedAt": "2026-10-03T04:55:18Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-03T04:55:28Z",
+          "conclusion": "success",
+          "name": "Run astral-sh/setup-uv@caf0cab7a618c569241d31dcd442f54681755d39",
+          "number": 6,
+          "startedAt": "2026-10-03T04:55:27Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-03T04:55:29Z",
+          "conclusion": "success",
+          "name": "Run uv pip install --system -r requirements.txt",
+          "number": 7,
+          "startedAt": "2026-10-03T04:55:28Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-03T04:55:34Z",
+          "conclusion": "success",
+          "name": "Run docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f",
+          "number": 8,
+          "startedAt": "2026-10-03T04:55:29Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-03T04:55:34Z",
+          "conclusion": "skipped",
+          "name": "Run depot/use-action@9bda29f1fc3163c06fc15f375887a341096a5639",
+          "number": 9,
+          "startedAt": "2026-10-03T04:55:34Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-03T05:03:59Z",
+          "conclusion": "success",
+          "name": "Run python docker_build/build_dependencies_image.py",
+          "number": 10,
+          "startedAt": "2026-10-03T04:55:34Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-03T05:05:22Z",
+          "conclusion": "success",
+          "name": "Run python docker_build/build_base_image.py",
+          "number": 11,
+          "startedAt": "2026-10-03T05:03:59Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-03T05:06:47Z",
+          "conclusion": "success",
+          "name": "Run python docker_build/build_backtest_image.py",
+          "number": 12,
+          "startedAt": "2026-10-03T05:05:22Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-03T05:07:03Z",
+          "conclusion": "success",
+          "name": "Post Run docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f",
+          "number": 19,
+          "startedAt": "2026-10-03T05:06:47Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-03T05:07:04Z",
+          "conclusion": "success",
+          "name": "Post Run astral-sh/setup-uv@caf0cab7a618c569241d31dcd442f54681755d39",
+          "number": 20,
+          "startedAt": "2026-10-03T05:07:03Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-03T05:07:04Z",
+          "conclusion": "success",
+          "name": "Post Run actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065",
+          "number": 21,
+          "startedAt": "2026-10-03T05:07:04Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-03T05:07:04Z",
+          "conclusion": "success",
+          "name": "Post Run aws-actions/configure-aws-credentials@7474bc4690e29a8392af63c5b98e7449536d5c3a",
+          "number": 22,
+          "startedAt": "2026-10-03T05:07:04Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-03T05:07:05Z",
+          "conclusion": "success",
+          "name": "Post Run actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5",
+          "number": 23,
+          "startedAt": "2026-10-03T05:07:04Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-03T05:07:09Z",
+          "conclusion": "success",
+          "name": "Complete runner",
+          "number": 24,
+          "startedAt": "2026-10-03T05:07:05Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-03T05:07:09Z",
+          "conclusion": "success",
+          "name": "Complete job",
+          "number": 25,
+          "startedAt": "2026-10-03T05:07:09Z",
+          "status": "completed"
+        }
+      ],
+      "url": "https://github.com/Lumiwealth/bot_manager/actions/runs/37098060587/job/111132084251"
+    },
+    {
+      "completedAt": "2026-10-03T05:07:56Z",
+      "conclusion": "success",
+      "databaseId": 111134031800,
+      "name": "Build Release Artifacts / manifest",
+      "startedAt": "2026-10-03T05:07:24Z",
+      "status": "completed",
+      "steps": [
+        {
+          "completedAt": "2026-10-03T05:07:29Z",
+          "conclusion": "success",
+          "name": "Set up job",
+          "number": 1,
+          "startedAt": "2026-10-03T05:07:25Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-03T05:07:30Z",
+          "conclusion": "success",
+          "name": "Set up runner",
+          "number": 2,
+          "startedAt": "2026-10-03T05:07:29Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-03T05:07:32Z",
+          "conclusion": "success",
+          "name": "Run actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5",
+          "number": 3,
+          "startedAt": "2026-10-03T05:07:30Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-03T05:07:33Z",
+          "conclusion": "success",
+          "name": "Run actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093",
+          "number": 4,
+          "startedAt": "2026-10-03T05:07:32Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-03T05:07:34Z",
+          "conclusion": "success",
+          "name": "Run actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093",
+          "number": 5,
+          "startedAt": "2026-10-03T05:07:33Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-03T05:07:35Z",
+          "conclusion": "success",
+          "name": "Run aws-actions/configure-aws-credentials@7474bc4690e29a8392af63c5b98e7449536d5c3a",
+          "number": 6,
+          "startedAt": "2026-10-03T05:07:34Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-03T05:07:44Z",
+          "conclusion": "success",
+          "name": "Run actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065",
+          "number": 7,
+          "startedAt": "2026-10-03T05:07:35Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-03T05:07:46Z",
+          "conclusion": "success",
+          "name": "Run astral-sh/setup-uv@caf0cab7a618c569241d31dcd442f54681755d39",
+          "number": 8,
+          "startedAt": "2026-10-03T05:07:44Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-03T05:07:47Z",
+          "conclusion": "success",
+          "name": "Run uv pip install --system -r requirements.txt",
+          "number": 9,
+          "startedAt": "2026-10-03T05:07:46Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-03T05:07:52Z",
+          "conclusion": "success",
+          "name": "Run source_environment=\"\"",
+          "number": 10,
+          "startedAt": "2026-10-03T05:07:47Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-03T05:07:53Z",
+          "conclusion": "success",
+          "name": "Post Run astral-sh/setup-uv@caf0cab7a618c569241d31dcd442f54681755d39",
+          "number": 16,
+          "startedAt": "2026-10-03T05:07:52Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-03T05:07:53Z",
+          "conclusion": "success",
+          "name": "Post Run actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065",
+          "number": 17,
+          "startedAt": "2026-10-03T05:07:53Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-03T05:07:53Z",
+          "conclusion": "success",
+          "name": "Post Run aws-actions/configure-aws-credentials@7474bc4690e29a8392af63c5b98e7449536d5c3a",
+          "number": 18,
+          "startedAt": "2026-10-03T05:07:53Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-03T05:07:53Z",
+          "conclusion": "success",
+          "name": "Post Run actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5",
+          "number": 19,
+          "startedAt": "2026-10-03T05:07:53Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-03T05:07:53Z",
+          "conclusion": "success",
+          "name": "Complete runner",
+          "number": 20,
+          "startedAt": "2026-10-03T05:07:53Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-03T05:07:54Z",
+          "conclusion": "success",
+          "name": "Complete job",
+          "number": 21,
+          "startedAt": "2026-10-03T05:07:53Z",
+          "status": "completed"
+        }
+      ],
+      "url": "https://github.com/Lumiwealth/bot_manager/actions/runs/37098060587/job/111134031800"
+    },
+    {
+      "completedAt": "2026-10-03T05:28:34Z",
+      "conclusion": "success",
+      "databaseId": 111134152264,
+      "name": "Deploy to Development",
+      "startedAt": "2026-10-03T05:08:08Z",
+      "status": "completed",
+      "steps": [
+        {
+          "completedAt": "2026-10-03T05:08:14Z",
+          "conclusion": "success",
+          "name": "Set up job",
+          "number": 1,
+          "startedAt": "2026-10-03T05:08:09Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-03T05:08:14Z",
+          "conclusion": "success",
+          "name": "Set up runner",
+          "number": 2,
+          "startedAt": "2026-10-03T05:08:14Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-03T05:08:16Z",
+          "conclusion": "success",
+          "name": "Checkout code",
+          "number": 3,
+          "startedAt": "2026-10-03T05:08:14Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-03T05:08:17Z",
+          "conclusion": "success",
+          "name": "Configure AWS credentials",
+          "number": 4,
+          "startedAt": "2026-10-03T05:08:16Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-03T05:08:27Z",
+          "conclusion": "success",
+          "name": "Setup Python 3.13",
+          "number": 5,
+          "startedAt": "2026-10-03T05:08:17Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-03T05:08:31Z",
+          "conclusion": "success",
+          "name": "Cache Terraform providers and modules",
+          "number": 6,
+          "startedAt": "2026-10-03T05:08:27Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-03T05:08:31Z",
+          "conclusion": "success",
+          "name": "Cache Lambda build artifacts",
+          "number": 7,
+          "startedAt": "2026-10-03T05:08:31Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-03T05:08:33Z",
+          "conclusion": "success",
+          "name": "Install UV",
+          "number": 8,
+          "startedAt": "2026-10-03T05:08:31Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-03T05:08:34Z",
+          "conclusion": "success",
+          "name": "Install Terraform",
+          "number": 9,
+          "startedAt": "2026-10-03T05:08:33Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-03T05:08:34Z",
+          "conclusion": "success",
+          "name": "Setup Terraform plugin cache",
+          "number": 10,
+          "startedAt": "2026-10-03T05:08:34Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-03T05:08:36Z",
+          "conclusion": "success",
+          "name": "Setup virtual environment with dependencies",
+          "number": 11,
+          "startedAt": "2026-10-03T05:08:34Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-03T05:28:25Z",
+          "conclusion": "success",
+          "name": "Run setup script",
+          "number": 12,
+          "startedAt": "2026-10-03T05:08:36Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-03T05:28:26Z",
+          "conclusion": "success",
+          "name": "Post Install UV",
+          "number": 18,
+          "startedAt": "2026-10-03T05:28:25Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-03T05:28:26Z",
+          "conclusion": "success",
+          "name": "Post Cache Lambda build artifacts",
+          "number": 19,
+          "startedAt": "2026-10-03T05:28:26Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-03T05:28:30Z",
+          "conclusion": "success",
+          "name": "Post Cache Terraform providers and modules",
+          "number": 20,
+          "startedAt": "2026-10-03T05:28:26Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-03T05:28:30Z",
+          "conclusion": "success",
+          "name": "Post Setup Python 3.13",
+          "number": 21,
+          "startedAt": "2026-10-03T05:28:30Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-03T05:28:30Z",
+          "conclusion": "success",
+          "name": "Post Configure AWS credentials",
+          "number": 22,
+          "startedAt": "2026-10-03T05:28:30Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-03T05:28:31Z",
+          "conclusion": "success",
+          "name": "Post Checkout code",
+          "number": 23,
+          "startedAt": "2026-10-03T05:28:30Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-03T05:28:31Z",
+          "conclusion": "success",
+          "name": "Complete runner",
+          "number": 24,
+          "startedAt": "2026-10-03T05:28:31Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-03T05:28:31Z",
+          "conclusion": "success",
+          "name": "Complete job",
+          "number": 25,
+          "startedAt": "2026-10-03T05:28:31Z",
+          "status": "completed"
+        }
+      ],
+      "url": "https://github.com/Lumiwealth/bot_manager/actions/runs/37098060587/job/111134152264"
+    }
+  ],
+  "startedAt": "2026-10-03T04:53:58Z",
+  "status": "completed",
+  "updatedAt": "2026-10-03T05:28:35Z",
+  "url": "https://github.com/Lumiwealth/bot_manager/actions/runs/37098060587"
+}

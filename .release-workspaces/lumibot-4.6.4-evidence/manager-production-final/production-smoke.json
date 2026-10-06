@@ -1,0 +1,38 @@
+{
+  "backtestId": "e69b8716-c0a2-407b-9754-ec07c3acfab0",
+  "revisionId": "339b6b66-7cd9-4a04-a22b-b18032a3db97",
+  "strategy": "Buy Hold TQQQ",
+  "status": "completed",
+  "lumibot_version": "4.6.4",
+  "settings": {
+    "start": "2026-09-01 00:00:00-04:00",
+    "end": "2026-09-15 23:59:00-04:00",
+    "backtest_time_seconds": 1.7483893800000203
+  },
+  "artifactFormat": "parquet",
+  "tradeEventRows": 2,
+  "filledTrades": [
+    {
+      "time": {
+        "micros": 1788269400000000
+      },
+      "symbol": "TQQQ",
+      "side": "buy",
+      "status": "fill",
+      "filled_quantity": 1376,
+      "price": 71.44
+    }
+  ],
+  "mcpMatrix": {
+    "account": true,
+    "history": true,
+    "activeScheduleSample": true,
+    "queryCsv": true
+  },
+  "previousProbe": {
+    "id": "62aa21ea-7621-439d-a566-a3822956dbe2",
+    "status": "failed",
+    "reason": "pre-existing saved strategy indicator type error; unchanged API contract"
+  },
+  "savedStrategiesModified": false
+}

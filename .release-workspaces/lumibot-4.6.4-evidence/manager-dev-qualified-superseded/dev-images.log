@@ -1,0 +1,2248 @@
+﻿2026-10-03T04:55:10.2122791Z Current runner version: '2.337.0'
+2026-10-03T04:55:10.2130715Z Runner name: 'blacksmith-2vcpu-ubuntu-2404-arm-Runner-ccf095872c'
+2026-10-03T04:55:10.2131928Z Runner group name: 'blacksmith scale sets - blacksmith-2vcpu-ubuntu-2404-arm'
+2026-10-03T04:55:10.2133304Z Machine name: 'ip-172-31-74-117'
+2026-10-03T04:55:10.2135910Z ##[group]GITHUB_TOKEN Permissions
+2026-10-03T04:55:10.2139257Z Contents: read
+2026-10-03T04:55:10.2139828Z Metadata: read
+2026-10-03T04:55:10.2140349Z ##[endgroup]
+2026-10-03T04:55:10.2143617Z Secret source: Actions
+2026-10-03T04:55:10.2144562Z Cache mode: write
+2026-10-03T04:55:10.2147463Z Prepare workflow directory
+2026-10-03T04:55:10.2801416Z Prepare all required actions
+2026-10-03T04:55:10.2860732Z Getting action download info
+2026-10-03T04:55:11.6460922Z Download action repository 'actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5' (SHA:34e114876b0b11c390a56381ad16ebd13914f8d5)
+2026-10-03T04:55:12.2900684Z Download action repository 'aws-actions/configure-aws-credentials@7474bc4690e29a8392af63c5b98e7449536d5c3a' (SHA:7474bc4690e29a8392af63c5b98e7449536d5c3a)
+2026-10-03T04:55:12.9299556Z Download action repository 'actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065' (SHA:a26af69be951a213d495a4c3e4e4022e16d87065)
+2026-10-03T04:55:13.0417261Z Download action repository 'astral-sh/setup-uv@caf0cab7a618c569241d31dcd442f54681755d39' (SHA:caf0cab7a618c569241d31dcd442f54681755d39)
+2026-10-03T04:55:13.7409176Z Download action repository 'docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f' (SHA:8d2750c68a42422c14e847fe6c8ac0403b4cbd6f)
+2026-10-03T04:55:14.5342379Z Download action repository 'depot/use-action@9bda29f1fc3163c06fc15f375887a341096a5639' (SHA:9bda29f1fc3163c06fc15f375887a341096a5639)
+2026-10-03T04:55:15.1194249Z Setting BLACKSMITH_ACTIONS_RESULTS_URL to https://results-receiver.actions.githubusercontent.com/
+2026-10-03T04:55:15.1246746Z Uses: Lumiwealth/bot_manager/.github/workflows/build-release-artifacts.yml@refs/heads/develop (32f2c5068412988ca2422b828b63417503007b35)
+2026-10-03T04:55:15.1250456Z ##[group] Inputs
+2026-10-03T04:55:15.1250737Z   environment: dev
+2026-10-03T04:55:15.1250956Z   runtime_environment: dev
+2026-10-03T04:55:15.1251201Z   python_version: 3.13
+2026-10-03T04:55:15.1251428Z   force_rebuild_images: true
+2026-10-03T04:55:15.1251666Z   skip_snapshot: true
+2026-10-03T04:55:15.1251910Z   lumibot_version: 4.6.4
+2026-10-03T04:55:15.1252152Z   existing_release_manifest_s3_uri: 
+2026-10-03T04:55:15.1252417Z ##[endgroup]
+2026-10-03T04:55:15.1252718Z Complete job name: Build Release Artifacts / images-base-backtest
+2026-10-03T04:55:15.2008928Z A job started hook has been configured by the self-hosted runner administrator
+2026-10-03T04:55:15.2172975Z ##[group]Run '/setup.sh'
+2026-10-03T04:55:15.2210062Z shell: /usr/bin/bash --noprofile --norc -e -o pipefail {0}
+2026-10-03T04:55:15.2210668Z env:
+2026-10-03T04:55:15.2210895Z   BLACKSMITH_RUNNER_MESSAGE_WAIT_MS: 212
+2026-10-03T04:55:15.2211186Z   BLACKSMITH_RUNNER_ACQUIRE_JOB_MS: 1062
+2026-10-03T04:55:15.2211470Z   BLACKSMITH_CHECK_RUN_ID: 111132084251
+2026-10-03T04:55:15.2211949Z   BLACKSMITH_JOB_DISPLAY_NAME: Build Release Artifacts / images-base-backtest
+2026-10-03T04:55:15.2212363Z   GITHUB_ACTIONS_CACHE_MODE: write
+2026-10-03T04:55:15.2212622Z ##[endgroup]
+2026-10-03T04:55:15.2859282Z Logging daemon started (blacksmithd for logs)
+2026-10-03T04:55:15.3197162Z Results daemon started (blacksmithd for results)
+2026-10-03T04:55:15.3673858Z Background adoption and SSH setup started (PID: 3211)
+2026-10-03T04:55:15.3698034Z 
+2026-10-03T04:55:15.3821024Z ----------------------------------------
+2026-10-03T04:55:15.3830004Z View this job: https://app.blacksmith.sh/Lumiwealth/runs/37098060587/jobs/111132084251
+2026-10-03T04:55:15.3847392Z SSH Access (using your GitHub SSH key):
+2026-10-03T04:55:15.3848529Z   ssh -p 64001 runner@blacksmith-2vcpu-ubuntu-2404-arm-runner-ccf095872c.vm.blacksmith.sh
+2026-10-03T04:55:15.3888535Z 
+2026-10-03T04:55:15.3889662Z No GitHub SSH key? Add one at:
+2026-10-03T04:55:15.3917009Z https://docs.github.com/en/authentication/connecting-to-github-with-ssh/adding-a-new-ssh-key-to-your-github-account
+2026-10-03T04:55:15.3932488Z 
+2026-10-03T04:55:15.3949830Z ----------------------------------------
+2026-10-03T04:55:15.3950391Z 
+2026-10-03T04:55:15.3950659Z VM ID: blacksmith-2vcpu-ubuntu-2404-arm-Runner-ccf095872c
+2026-10-03T04:55:15.3951136Z Host: production-192.240.255.216-aarch64
+2026-10-03T04:55:15.3952049Z Host Agent PID: 3109848
+2026-10-03T04:55:15.3952971Z Host Agent Git SHA: e97f83469
+2026-10-03T04:55:15.3953491Z Host CPU Manufacturer: Ampere
+2026-10-03T04:55:15.3953937Z Blacksmith Host Generation: gen 2
+2026-10-03T04:55:15.3954320Z Petname: production-equal-loon-b1350441-arm
+2026-10-03T04:55:15.3954699Z Region: us-west
+2026-10-03T04:55:15.3955049Z Rootfs Version: ubuntu24-full-aarch64-110625
+2026-10-03T04:55:15.3955451Z OS Version: Ubuntu 24.04.3 LTS
+2026-10-03T04:55:15.3955690Z 
+2026-10-03T04:55:15.3955902Z Enabling Blacksmith transparent cache
+2026-10-03T04:55:15.4579793Z ##[group]Run actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+2026-10-03T04:55:15.4580347Z with:
+2026-10-03T04:55:15.4580595Z   persist-credentials: false
+2026-10-03T04:55:15.4580867Z   repository: Lumiwealth/bot_manager
+2026-10-03T04:55:15.4597130Z   token: ***
+2026-10-03T04:55:15.4597543Z   ssh-strict: true
+2026-10-03T04:55:15.4597758Z   ssh-user: git
+2026-10-03T04:55:15.4597966Z   clean: true
+2026-10-03T04:55:15.4598187Z   sparse-checkout-cone-mode: true
+2026-10-03T04:55:15.4599048Z   fetch-depth: 1
+2026-10-03T04:55:15.4599401Z   fetch-tags: false
+2026-10-03T04:55:15.4614983Z   show-progress: true
+2026-10-03T04:55:15.4615448Z   lfs: false
+2026-10-03T04:55:15.4615649Z   submodules: false
+2026-10-03T04:55:15.4615872Z   set-safe-directory: true
+2026-10-03T04:55:15.4616827Z env:
+2026-10-03T04:55:15.4617075Z   ENVIRONMENT: dev
+2026-10-03T04:55:15.4617299Z   LUMIBOT_VERSION: 4.6.4
+2026-10-03T04:55:15.4617552Z   SKIP_DATA_VOLUME_SNAPSHOT: true
+2026-10-03T04:55:15.4617922Z   DOCKER_BUILDKIT: 1
+2026-10-03T04:55:15.4618157Z   BUILDKIT_PROGRESS: plain
+2026-10-03T04:55:15.4618409Z   GITHUB_ACTIONS_CACHE: true
+2026-10-03T04:55:15.4618700Z   BUILDX_CACHE_FROM: type=local,src=/tmp/.buildx-cache
+2026-10-03T04:55:15.4619428Z   BUILDX_CACHE_TO: type=local,dest=/tmp/.buildx-cache-new,mode=max
+2026-10-03T04:55:15.4619875Z   DEPOT_PROJECT_ID: 
+2026-10-03T04:55:15.4620119Z   BLACKSMITH_RUNNER_MESSAGE_WAIT_MS: 212
+2026-10-03T04:55:15.4620416Z   BLACKSMITH_RUNNER_ACQUIRE_JOB_MS: 1062
+2026-10-03T04:55:15.4620989Z   GITHUB_REPO_NAME: Lumiwealth/bot_manager
+2026-10-03T04:55:15.4621482Z ##[endgroup]
+2026-10-03T04:55:15.7606299Z Syncing repository: Lumiwealth/bot_manager
+2026-10-03T04:55:15.7608325Z ##[group]Getting Git version info
+2026-10-03T04:55:15.7608945Z Working directory is '/home/runner/_work/bot_manager/bot_manager'
+2026-10-03T04:55:15.7612522Z [command]/usr/local/bin/git version
+2026-10-03T04:55:15.7879268Z git version 2.51.2
+2026-10-03T04:55:15.7904288Z ##[endgroup]
+2026-10-03T04:55:15.7926084Z Temporarily overriding HOME='/home/runner/_work/_temp/3957bc84-fc9f-4181-9c55-13b9b5fc65eb' before making global git config changes
+2026-10-03T04:55:15.7927257Z Adding repository directory to the temporary git global config as a safe directory
+2026-10-03T04:55:15.7953977Z [command]/usr/local/bin/git config --global --add safe.directory /home/runner/_work/bot_manager/bot_manager
+2026-10-03T04:55:15.8034510Z Deleting the contents of '/home/runner/_work/bot_manager/bot_manager'
+2026-10-03T04:55:15.8043407Z ##[group]Initializing the repository
+2026-10-03T04:55:15.8050378Z [command]/usr/local/bin/git init /home/runner/_work/bot_manager/bot_manager
+2026-10-03T04:55:15.8149536Z hint: Using 'master' as the name for the initial branch. This default branch name
+2026-10-03T04:55:15.8150431Z hint: is subject to change. To configure the initial branch name to use in all
+2026-10-03T04:55:15.8153533Z hint: of your new repositories, which will suppress this warning, call:
+2026-10-03T04:55:15.8154131Z hint:
+2026-10-03T04:55:15.8154893Z hint: 	git config --global init.defaultBranch <name>
+2026-10-03T04:55:15.8155374Z hint:
+2026-10-03T04:55:15.8156289Z hint: Names commonly chosen instead of 'master' are 'main', 'trunk' and
+2026-10-03T04:55:15.8156949Z hint: 'development'. The just-created branch can be renamed via this command:
+2026-10-03T04:55:15.8157755Z hint:
+2026-10-03T04:55:15.8158114Z hint: 	git branch -m <name>
+2026-10-03T04:55:15.8158764Z hint:
+2026-10-03T04:55:15.8159235Z hint: Disable this message with "git config set advice.defaultBranchName false"
+2026-10-03T04:55:15.8160485Z Initialized empty Git repository in /home/runner/_work/bot_manager/bot_manager/.git/
+2026-10-03T04:55:15.8173245Z [command]/usr/local/bin/git remote add origin https://github.com/Lumiwealth/bot_manager
+2026-10-03T04:55:15.8248885Z ##[endgroup]
+2026-10-03T04:55:15.8249453Z ##[group]Disabling automatic garbage collection
+2026-10-03T04:55:15.8250294Z [command]/usr/local/bin/git config --local gc.auto 0
+2026-10-03T04:55:15.8327615Z ##[endgroup]
+2026-10-03T04:55:15.8328989Z ##[group]Setting up auth
+2026-10-03T04:55:15.8340781Z [command]/usr/local/bin/git config --local --name-only --get-regexp core\.sshCommand
+2026-10-03T04:55:15.8401369Z [command]/usr/local/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :"
+2026-10-03T04:55:15.8913513Z [command]/usr/local/bin/git config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+2026-10-03T04:55:15.8919367Z [command]/usr/local/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :"
+2026-10-03T04:55:15.9211197Z [command]/usr/local/bin/git config --local --name-only --get-regexp ^includeIf\.gitdir:
+2026-10-03T04:55:15.9289578Z [command]/usr/local/bin/git submodule foreach --recursive git config --local --show-origin --name-only --get-regexp remote.origin.url
+2026-10-03T04:55:15.9735874Z [command]/usr/local/bin/git config --local http.https://github.com/.extraheader AUTHORIZATION: basic ***
+2026-10-03T04:55:15.9738031Z ##[endgroup]
+2026-10-03T04:55:15.9738853Z ##[group]Fetching the repository
+2026-10-03T04:55:15.9739883Z [command]/usr/local/bin/git -c protocol.version=2 fetch --no-tags --prune --no-recurse-submodules --depth=1 origin +32f2c5068412988ca2422b828b63417503007b35:refs/remotes/origin/develop
+2026-10-03T04:55:17.1084282Z From https://github.com/Lumiwealth/bot_manager
+2026-10-03T04:55:17.1085593Z  * [new ref]         32f2c5068412988ca2422b828b63417503007b35 -> origin/develop
+2026-10-03T04:55:17.1187462Z ##[endgroup]
+2026-10-03T04:55:17.1188317Z ##[group]Determining the checkout info
+2026-10-03T04:55:17.1189097Z ##[endgroup]
+2026-10-03T04:55:17.1189776Z [command]/usr/local/bin/git sparse-checkout disable
+2026-10-03T04:55:17.1259253Z [command]/usr/local/bin/git config --local --unset-all extensions.worktreeConfig
+2026-10-03T04:55:17.1314272Z ##[group]Checking out the ref
+2026-10-03T04:55:17.1323391Z [command]/usr/local/bin/git checkout --progress --force -B develop refs/remotes/origin/develop
+2026-10-03T04:55:17.2036396Z Switched to a new branch 'develop'
+2026-10-03T04:55:17.2044336Z branch 'develop' set up to track 'origin/develop'.
+2026-10-03T04:55:17.2065566Z ##[endgroup]
+2026-10-03T04:55:17.2126753Z [command]/usr/local/bin/git log -1 --format=%H
+2026-10-03T04:55:17.2183730Z 32f2c5068412988ca2422b828b63417503007b35
+2026-10-03T04:55:17.2212733Z ##[group]Removing auth
+2026-10-03T04:55:17.2226135Z [command]/usr/local/bin/git config --local --name-only --get-regexp core\.sshCommand
+2026-10-03T04:55:17.2283086Z [command]/usr/local/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :"
+2026-10-03T04:55:17.2718417Z [command]/usr/local/bin/git config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+2026-10-03T04:55:17.2783441Z http.https://github.com/.extraheader
+2026-10-03T04:55:17.2803069Z [command]/usr/local/bin/git config --local --unset-all http.https://github.com/.extraheader
+2026-10-03T04:55:17.2878304Z [command]/usr/local/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :"
+2026-10-03T04:55:17.3185298Z [command]/usr/local/bin/git config --local --name-only --get-regexp ^includeIf\.gitdir:
+2026-10-03T04:55:17.3326191Z [command]/usr/local/bin/git submodule foreach --recursive git config --local --show-origin --name-only --get-regexp remote.origin.url
+2026-10-03T04:55:17.3640918Z ##[endgroup]
+2026-10-03T04:55:17.3959793Z ##[group]Run aws-actions/configure-aws-credentials@7474bc4690e29a8392af63c5b98e7449536d5c3a
+2026-10-03T04:55:17.3960495Z with:
+2026-10-03T04:55:17.3960954Z   role-to-assume: ***
+2026-10-03T04:55:17.3961199Z   aws-region: us-east-1
+2026-10-03T04:55:17.3961496Z   role-session-name: GitHubActionsReleaseArtifacts
+2026-10-03T04:55:17.3961888Z   audience: sts.amazonaws.com
+2026-10-03T04:55:17.3962216Z   output-env-credentials: true
+2026-10-03T04:55:17.3962491Z env:
+2026-10-03T04:55:17.3962699Z   ENVIRONMENT: dev
+2026-10-03T04:55:17.3962932Z   LUMIBOT_VERSION: 4.6.4
+2026-10-03T04:55:17.3963198Z   SKIP_DATA_VOLUME_SNAPSHOT: true
+2026-10-03T04:55:17.3963489Z   DOCKER_BUILDKIT: 1
+2026-10-03T04:55:17.3963730Z   BUILDKIT_PROGRESS: plain
+2026-10-03T04:55:17.3964000Z   GITHUB_ACTIONS_CACHE: true
+2026-10-03T04:55:17.3964313Z   BUILDX_CACHE_FROM: type=local,src=/tmp/.buildx-cache
+2026-10-03T04:55:17.3964758Z   BUILDX_CACHE_TO: type=local,dest=/tmp/.buildx-cache-new,mode=max
+2026-10-03T04:55:17.3965198Z   DEPOT_PROJECT_ID: 
+2026-10-03T04:55:17.3965462Z   BLACKSMITH_RUNNER_MESSAGE_WAIT_MS: 212
+2026-10-03T04:55:17.3965784Z   BLACKSMITH_RUNNER_ACQUIRE_JOB_MS: 1062
+2026-10-03T04:55:17.3966104Z   GITHUB_REPO_NAME: Lumiwealth/bot_manager
+2026-10-03T04:55:17.3966405Z ##[endgroup]
+2026-10-03T04:55:17.7541672Z Assuming role with OIDC
+2026-10-03T04:55:17.9668913Z Authenticated as assumedRoleId AROAWAA66HBGH5FHPPNXI:GitHubActionsReleaseArtifacts
+2026-10-03T04:55:18.0593188Z ##[group]Run actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
+2026-10-03T04:55:18.0593676Z with:
+2026-10-03T04:55:18.0593914Z   python-version: 3.13
+2026-10-03T04:55:18.0594178Z   check-latest: false
+2026-10-03T04:55:18.0597301Z   token: ***
+2026-10-03T04:55:18.0597547Z   update-environment: true
+2026-10-03T04:55:18.0597837Z   allow-prereleases: false
+2026-10-03T04:55:18.0598107Z   freethreaded: false
+2026-10-03T04:55:18.0598352Z env:
+2026-10-03T04:55:18.0598578Z   ENVIRONMENT: dev
+2026-10-03T04:55:18.0598823Z   LUMIBOT_VERSION: 4.6.4
+2026-10-03T04:55:18.0599136Z   SKIP_DATA_VOLUME_SNAPSHOT: true
+2026-10-03T04:55:18.0599431Z   DOCKER_BUILDKIT: 1
+2026-10-03T04:55:18.0599679Z   BUILDKIT_PROGRESS: plain
+2026-10-03T04:55:18.0599957Z   GITHUB_ACTIONS_CACHE: true
+2026-10-03T04:55:18.0600362Z   BUILDX_CACHE_FROM: type=local,src=/tmp/.buildx-cache
+2026-10-03T04:55:18.0600813Z   BUILDX_CACHE_TO: type=local,dest=/tmp/.buildx-cache-new,mode=max
+2026-10-03T04:55:18.0601271Z   DEPOT_PROJECT_ID: 
+2026-10-03T04:55:18.0601534Z   BLACKSMITH_RUNNER_MESSAGE_WAIT_MS: 212
+2026-10-03T04:55:18.0601861Z   BLACKSMITH_RUNNER_ACQUIRE_JOB_MS: 1062
+2026-10-03T04:55:18.0602191Z   GITHUB_REPO_NAME: Lumiwealth/bot_manager
+2026-10-03T04:55:18.0602510Z   AWS_DEFAULT_REGION: us-east-1
+2026-10-03T04:55:18.0602794Z   AWS_REGION: us-east-1
+2026-10-03T04:55:18.0603080Z   AWS_ACCESS_KEY_ID: ***
+2026-10-03T04:55:18.0603473Z   AWS_SECRET_ACCESS_KEY: ***
+2026-10-03T04:55:18.0608813Z   AWS_SESSION_TOKEN: ***
+2026-10-03T04:55:18.0609066Z ##[endgroup]
+2026-10-03T04:55:18.2636702Z ##[group]Installed versions
+2026-10-03T04:55:18.2641462Z (node:3633) [DEP0040] DeprecationWarning: The `punycode` module is deprecated. Please use a userland alternative instead.
+2026-10-03T04:55:18.2642597Z (Use `node --trace-deprecation ...` to show where the warning was created)
+2026-10-03T04:55:18.2644195Z Version 3.13 was not found in the local cache
+2026-10-03T04:55:19.4711431Z Version 3.13 is available for downloading
+2026-10-03T04:55:19.4712348Z Download from "https://github.com/actions/python-versions/releases/download/3.13.16-36805956071/python-3.13.16-linux-24.04-arm64.tar.gz"
+2026-10-03T04:55:20.6688837Z Extract downloaded archive
+2026-10-03T04:55:20.6880827Z [command]/usr/bin/tar xz --warning=no-unknown-keyword --overwrite -C /home/runner/_work/_temp/9fd4a8c6-7628-494c-995b-b8e6279f0678 -f /home/runner/_work/_temp/409d70b9-831d-4413-85d7-1a75e9ce8e2d
+2026-10-03T04:55:22.6794509Z Execute installation script
+2026-10-03T04:55:22.6937845Z Check if Python hostedtoolcache folder exist...
+2026-10-03T04:55:22.6950923Z Creating Python hostedtoolcache folder...
+2026-10-03T04:55:22.7000975Z Create Python 3.13.16 folder
+2026-10-03T04:55:22.7001513Z Copy Python binaries to hostedtoolcache folder
+2026-10-03T04:55:23.9933862Z Create additional symlinks (Required for the UsePythonVersion Azure Pipelines task and the setup-python GitHub Action)
+2026-10-03T04:55:23.9988534Z Upgrading pip...
+2026-10-03T04:55:25.7469195Z Collecting pip
+2026-10-03T04:55:25.8180619Z Downloading pip-26.2.1-py3-none-any.whl.metadata (4.6 kB)
+2026-10-03T04:55:25.8287890Z Downloading pip-26.2.1-py3-none-any.whl (1.8 MB)
+2026-10-03T04:55:25.8930736Z ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 1.8/1.8 MB 84.3 MB/s  0:00:00
+2026-10-03T04:55:25.8931562Z 
+2026-10-03T04:55:25.9784494Z Installing collected packages: pip
+2026-10-03T04:55:25.9785035Z Attempting uninstall: pip
+2026-10-03T04:55:25.9810082Z Found existing installation: pip 26.2.1
+2026-10-03T04:55:26.0106248Z Uninstalling pip-26.2.1:
+2026-10-03T04:55:26.0166406Z Successfully uninstalled pip-26.2.1
+2026-10-03T04:55:26.9191775Z Successfully installed pip-26.2.1
+2026-10-03T04:55:27.0326223Z Create complete file
+2026-10-03T04:55:27.0375857Z Successfully set up CPython (3.13.16)
+2026-10-03T04:55:27.0376685Z ##[endgroup]
+2026-10-03T04:55:27.0697108Z ##[group]Run astral-sh/setup-uv@caf0cab7a618c569241d31dcd442f54681755d39
+2026-10-03T04:55:27.0697569Z with:
+2026-10-03T04:55:27.0697791Z   version: 0.11.8
+2026-10-03T04:55:27.0698033Z   enable-cache: true
+2026-10-03T04:55:27.0698349Z   cache-dependency-glob: requirements.txt
+2026-10-03T04:55:27.0698711Z   cache-suffix: release-images-base-backtest
+2026-10-03T04:55:27.0701995Z   github-token: ***
+2026-10-03T04:55:27.0726994Z   prune-cache: true
+2026-10-03T04:55:27.0727545Z env:
+2026-10-03T04:55:27.0727783Z   ENVIRONMENT: dev
+2026-10-03T04:55:27.0728036Z   LUMIBOT_VERSION: 4.6.4
+2026-10-03T04:55:27.0728323Z   SKIP_DATA_VOLUME_SNAPSHOT: true
+2026-10-03T04:55:27.0728621Z   DOCKER_BUILDKIT: 1
+2026-10-03T04:55:27.0728970Z   BUILDKIT_PROGRESS: plain
+2026-10-03T04:55:27.0729255Z   GITHUB_ACTIONS_CACHE: true
+2026-10-03T04:55:27.0729590Z   BUILDX_CACHE_FROM: type=local,src=/tmp/.buildx-cache
+2026-10-03T04:55:27.0730049Z   BUILDX_CACHE_TO: type=local,dest=/tmp/.buildx-cache-new,mode=max
+2026-10-03T04:55:27.0730592Z   DEPOT_PROJECT_ID: 
+2026-10-03T04:55:27.0730865Z   BLACKSMITH_RUNNER_MESSAGE_WAIT_MS: 212
+2026-10-03T04:55:27.0731194Z   BLACKSMITH_RUNNER_ACQUIRE_JOB_MS: 1062
+2026-10-03T04:55:27.0731527Z   GITHUB_REPO_NAME: Lumiwealth/bot_manager
+2026-10-03T04:55:27.0741651Z   AWS_DEFAULT_REGION: us-east-1
+2026-10-03T04:55:27.0741959Z   AWS_REGION: us-east-1
+2026-10-03T04:55:27.0742715Z   AWS_ACCESS_KEY_ID: ***
+2026-10-03T04:55:27.0743180Z   AWS_SECRET_ACCESS_KEY: ***
+2026-10-03T04:55:27.0749547Z   AWS_SESSION_TOKEN: ***
+2026-10-03T04:55:27.0749960Z   pythonLocation: /opt/hostedtoolcache/Python/3.13.16/arm64
+2026-10-03T04:55:27.0750478Z   PKG_CONFIG_PATH: /opt/hostedtoolcache/Python/3.13.16/arm64/lib/pkgconfig
+2026-10-03T04:55:27.0751053Z   Python_ROOT_DIR: /opt/hostedtoolcache/Python/3.13.16/arm64
+2026-10-03T04:55:27.0751570Z   Python2_ROOT_DIR: /opt/hostedtoolcache/Python/3.13.16/arm64
+2026-10-03T04:55:27.0752015Z   Python3_ROOT_DIR: /opt/hostedtoolcache/Python/3.13.16/arm64
+2026-10-03T04:55:27.0752495Z   LD_LIBRARY_PATH: /opt/hostedtoolcache/Python/3.13.16/arm64/lib
+2026-10-03T04:55:27.0752887Z ##[endgroup]
+2026-10-03T04:55:27.2342767Z (node:3688) [DEP0040] DeprecationWarning: The `punycode` module is deprecated. Please use a userland alternative instead.
+2026-10-03T04:55:27.2346972Z (Use `node --trace-deprecation ...` to show where the warning was created)
+2026-10-03T04:55:27.2348461Z Downloading uv from "https://github.com/astral-sh/uv/releases/download/0.11.8/uv-aarch64-unknown-linux-gnu.tar.gz" ...
+2026-10-03T04:55:27.6905409Z [command]/usr/bin/tar xz --warning=no-unknown-keyword --overwrite -C /home/runner/_work/_temp/8578fdb8-dd48-454a-a470-1641a3e13bea -f /home/runner/_work/_temp/f19f04fd-41d4-4168-b9c0-26a6fbad6959
+2026-10-03T04:55:28.2387945Z Added /opt/hostedtoolcache/uv/0.11.8/aarch64 to the path
+2026-10-03T04:55:28.2393817Z Added /home/runner/.local/bin to the path
+2026-10-03T04:55:28.2394293Z Successfully installed uv version 0.11.8
+2026-10-03T04:55:28.2407023Z Set UV_CACHE_DIR to /home/runner/_work/_temp/setup-uv-cache
+2026-10-03T04:55:28.2407920Z Searching files using cache dependency glob: requirements.txt
+2026-10-03T04:55:28.2480685Z /home/runner/_work/bot_manager/bot_manager/requirements.txt
+2026-10-03T04:55:28.2510192Z Found 1 files to hash.
+2026-10-03T04:55:28.2512628Z Trying to restore uv cache from GitHub Actions cache with key: setup-uv-1-aarch64-unknown-linux-gnu-0.11.8-91334449181a567ff3260c292a87f6a99b7d2f78bd736b6cddbed21e236e8d52-release-images-base-backtest
+2026-10-03T04:55:28.3329233Z ##[warning]Failed to restore: Cache service responded with 400
+2026-10-03T04:55:28.3382969Z No GitHub Actions cache found for key: setup-uv-1-aarch64-unknown-linux-gnu-0.11.8-91334449181a567ff3260c292a87f6a99b7d2f78bd736b6cddbed21e236e8d52-release-images-base-backtest
+2026-10-03T04:55:28.3515875Z ##[group]Run uv pip install --system -r requirements.txt
+2026-10-03T04:55:28.3516455Z [36;1muv pip install --system -r requirements.txt[0m
+2026-10-03T04:55:28.3556242Z shell: /usr/bin/bash -e {0}
+2026-10-03T04:55:28.3556590Z env:
+2026-10-03T04:55:28.3556838Z   ENVIRONMENT: dev
+2026-10-03T04:55:28.3557089Z   LUMIBOT_VERSION: 4.6.4
+2026-10-03T04:55:28.3557380Z   SKIP_DATA_VOLUME_SNAPSHOT: true
+2026-10-03T04:55:28.3557683Z   DOCKER_BUILDKIT: 1
+2026-10-03T04:55:28.3557971Z   BUILDKIT_PROGRESS: plain
+2026-10-03T04:55:28.3558254Z   GITHUB_ACTIONS_CACHE: true
+2026-10-03T04:55:28.3558590Z   BUILDX_CACHE_FROM: type=local,src=/tmp/.buildx-cache
+2026-10-03T04:55:28.3559127Z   BUILDX_CACHE_TO: type=local,dest=/tmp/.buildx-cache-new,mode=max
+2026-10-03T04:55:28.3559546Z   DEPOT_PROJECT_ID: 
+2026-10-03T04:55:28.3559830Z   BLACKSMITH_RUNNER_MESSAGE_WAIT_MS: 212
+2026-10-03T04:55:28.3560162Z   BLACKSMITH_RUNNER_ACQUIRE_JOB_MS: 1062
+2026-10-03T04:55:28.3560560Z   GITHUB_REPO_NAME: Lumiwealth/bot_manager
+2026-10-03T04:55:28.3560889Z   AWS_DEFAULT_REGION: us-east-1
+2026-10-03T04:55:28.3561178Z   AWS_REGION: us-east-1
+2026-10-03T04:55:28.3561640Z   AWS_ACCESS_KEY_ID: ***
+2026-10-03T04:55:28.3562006Z   AWS_SECRET_ACCESS_KEY: ***
+2026-10-03T04:55:28.3567354Z   AWS_SESSION_TOKEN: ***
+2026-10-03T04:55:28.3567697Z   pythonLocation: /opt/hostedtoolcache/Python/3.13.16/arm64
+2026-10-03T04:55:28.3568204Z   PKG_CONFIG_PATH: /opt/hostedtoolcache/Python/3.13.16/arm64/lib/pkgconfig
+2026-10-03T04:55:28.3568767Z   Python_ROOT_DIR: /opt/hostedtoolcache/Python/3.13.16/arm64
+2026-10-03T04:55:28.3569221Z   Python2_ROOT_DIR: /opt/hostedtoolcache/Python/3.13.16/arm64
+2026-10-03T04:55:28.3569668Z   Python3_ROOT_DIR: /opt/hostedtoolcache/Python/3.13.16/arm64
+2026-10-03T04:55:28.3570128Z   LD_LIBRARY_PATH: /opt/hostedtoolcache/Python/3.13.16/arm64/lib
+2026-10-03T04:55:28.3570575Z   UV_CACHE_DIR: /home/runner/_work/_temp/setup-uv-cache
+2026-10-03T04:55:28.3570925Z ##[endgroup]
+2026-10-03T04:55:28.4276586Z Using Python 3.13.16 environment at: /opt/hostedtoolcache/Python/3.13.16/arm64
+2026-10-03T04:55:28.6459480Z Resolved 24 packages in 217ms
+2026-10-03T04:55:28.6564335Z Downloading zstandard (4.8MiB)
+2026-10-03T04:55:28.6564736Z Downloading botocore (14.9MiB)
+2026-10-03T04:55:28.6598329Z Downloading cryptography (4.5MiB)
+2026-10-03T04:55:28.8822012Z  Downloaded zstandard
+2026-10-03T04:55:28.8922606Z  Downloaded cryptography
+2026-10-03T04:55:29.2180971Z  Downloaded botocore
+2026-10-03T04:55:29.2186695Z Prepared 24 packages in 572ms
+2026-10-03T04:55:29.3229043Z Installed 24 packages in 104ms
+2026-10-03T04:55:29.3229683Z  + aws-wsgi==0.2.7
+2026-10-03T04:55:29.3230184Z  + blinker==1.9.0
+2026-10-03T04:55:29.3230565Z  + boto3==1.43.1
+2026-10-03T04:55:29.3230899Z  + botocore==1.43.74
+2026-10-03T04:55:29.3231247Z  + certifi==2026.7.22
+2026-10-03T04:55:29.3231590Z  + cffi==2.1.1
+2026-10-03T04:55:29.3231936Z  + charset-normalizer==3.5.1
+2026-10-03T04:55:29.3232299Z  + click==8.4.2
+2026-10-03T04:55:29.3232640Z  + cryptography==50.0.0
+2026-10-03T04:55:29.3233030Z  + flask==3.1.3
+2026-10-03T04:55:29.3233399Z  + idna==3.19
+2026-10-03T04:55:29.3233728Z  + itsdangerous==2.2.0
+2026-10-03T04:55:29.3234078Z  + jinja2==3.1.6
+2026-10-03T04:55:29.3234398Z  + jmespath==1.1.0
+2026-10-03T04:55:29.3234739Z  + markupsafe==3.0.3
+2026-10-03T04:55:29.3235081Z  + packaging==25.0
+2026-10-03T04:55:29.3235414Z  + pycparser==3.0
+2026-10-03T04:55:29.3235766Z  + python-dateutil==2.9.0.post0
+2026-10-03T04:55:29.3236826Z  + requests==2.33.1
+2026-10-03T04:55:29.3237167Z  + s3transfer==0.17.1
+2026-10-03T04:55:29.3237694Z  + six==1.17.0
+2026-10-03T04:55:29.3238134Z  + urllib3==2.8.0
+2026-10-03T04:55:29.3238870Z  + werkzeug==3.1.8
+2026-10-03T04:55:29.3239205Z  + zstandard==0.25.0
+2026-10-03T04:55:29.3480907Z ##[group]Run docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f
+2026-10-03T04:55:29.3481598Z with:
+2026-10-03T04:55:29.3481928Z   driver: docker-container
+2026-10-03T04:55:29.3482215Z   platforms: linux/arm64
+2026-10-03T04:55:29.3482551Z   use: true
+2026-10-03T04:55:29.3482787Z   keep-state: false
+2026-10-03T04:55:29.3483037Z   cache-binary: true
+2026-10-03T04:55:29.3483353Z   cleanup: true
+2026-10-03T04:55:29.3483594Z   install: false
+2026-10-03T04:55:29.3483831Z env:
+2026-10-03T04:55:29.3484048Z   ENVIRONMENT: dev
+2026-10-03T04:55:29.3484372Z   LUMIBOT_VERSION: 4.6.4
+2026-10-03T04:55:29.3484654Z   SKIP_DATA_VOLUME_SNAPSHOT: true
+2026-10-03T04:55:29.3485015Z   DOCKER_BUILDKIT: 1
+2026-10-03T04:55:29.3485307Z   BUILDKIT_PROGRESS: plain
+2026-10-03T04:55:29.3485584Z   GITHUB_ACTIONS_CACHE: true
+2026-10-03T04:55:29.3599191Z   BUILDX_CACHE_FROM: type=local,src=/tmp/.buildx-cache
+2026-10-03T04:55:29.3599741Z   BUILDX_CACHE_TO: type=local,dest=/tmp/.buildx-cache-new,mode=max
+2026-10-03T04:55:29.3600142Z   DEPOT_PROJECT_ID: 
+2026-10-03T04:55:29.3600414Z   BLACKSMITH_RUNNER_MESSAGE_WAIT_MS: 212
+2026-10-03T04:55:29.3600744Z   BLACKSMITH_RUNNER_ACQUIRE_JOB_MS: 1062
+2026-10-03T04:55:29.3601070Z   GITHUB_REPO_NAME: Lumiwealth/bot_manager
+2026-10-03T04:55:29.3601400Z   AWS_DEFAULT_REGION: us-east-1
+2026-10-03T04:55:29.3601685Z   AWS_REGION: us-east-1
+2026-10-03T04:55:29.3602125Z   AWS_ACCESS_KEY_ID: ***
+2026-10-03T04:55:29.3602479Z   AWS_SECRET_ACCESS_KEY: ***
+2026-10-03T04:55:29.3607820Z   AWS_SESSION_TOKEN: ***
+2026-10-03T04:55:29.3608162Z   pythonLocation: /opt/hostedtoolcache/Python/3.13.16/arm64
+2026-10-03T04:55:29.3608710Z   PKG_CONFIG_PATH: /opt/hostedtoolcache/Python/3.13.16/arm64/lib/pkgconfig
+2026-10-03T04:55:29.3609217Z   Python_ROOT_DIR: /opt/hostedtoolcache/Python/3.13.16/arm64
+2026-10-03T04:55:29.3609664Z   Python2_ROOT_DIR: /opt/hostedtoolcache/Python/3.13.16/arm64
+2026-10-03T04:55:29.3610109Z   Python3_ROOT_DIR: /opt/hostedtoolcache/Python/3.13.16/arm64
+2026-10-03T04:55:29.3610565Z   LD_LIBRARY_PATH: /opt/hostedtoolcache/Python/3.13.16/arm64/lib
+2026-10-03T04:55:29.3610999Z   UV_CACHE_DIR: /home/runner/_work/_temp/setup-uv-cache
+2026-10-03T04:55:29.3611355Z ##[endgroup]
+2026-10-03T04:55:29.6709116Z (node:3748) [DEP0040] DeprecationWarning: The `punycode` module is deprecated. Please use a userland alternative instead.
+2026-10-03T04:55:29.6730288Z (Use `node --trace-deprecation ...` to show where the warning was created)
+2026-10-03T04:55:29.6777645Z ##[group]Docker info
+2026-10-03T04:55:29.6803209Z [command]/usr/bin/docker version
+2026-10-03T04:55:31.4597961Z Client: Docker Engine - Community
+2026-10-03T04:55:31.4599979Z  Version:           28.0.4
+2026-10-03T04:55:31.4605599Z  API version:       1.48
+2026-10-03T04:55:31.4606082Z  Go version:        go1.23.7
+2026-10-03T04:55:31.4606456Z  Git commit:        b8034c0
+2026-10-03T04:55:31.4606836Z  Built:             Tue Mar 25 15:07:55 2025
+2026-10-03T04:55:31.4607248Z  OS/Arch:           linux/arm64
+2026-10-03T04:55:31.4607636Z  Context:           default
+2026-10-03T04:55:31.4607885Z 
+2026-10-03T04:55:31.4608205Z Server: Docker Engine - Community
+2026-10-03T04:55:31.4608756Z  Engine:
+2026-10-03T04:55:31.4609052Z   Version:          28.0.4
+2026-10-03T04:55:31.4609431Z   API version:      1.48 (minimum version 1.24)
+2026-10-03T04:55:31.4609853Z   Go version:       go1.23.7
+2026-10-03T04:55:31.4610211Z   Git commit:       6430e49
+2026-10-03T04:55:31.4610578Z   Built:            Tue Mar 25 15:07:55 2025
+2026-10-03T04:55:31.4610978Z   OS/Arch:          linux/arm64
+2026-10-03T04:55:31.4611343Z   Experimental:     false
+2026-10-03T04:55:31.4611685Z  containerd:
+2026-10-03T04:55:31.4612017Z   Version:          v1.7.28
+2026-10-03T04:55:31.4612438Z   GitCommit:        b98a3aace656320842a23f4a392a33f46af97866
+2026-10-03T04:55:31.4612889Z  runc:
+2026-10-03T04:55:31.4613191Z   Version:          1.3.3
+2026-10-03T04:55:31.4613544Z   GitCommit:        v1.3.3-0-gd842d771
+2026-10-03T04:55:31.4613934Z  docker-init:
+2026-10-03T04:55:31.4632172Z   Version:          0.19.0
+2026-10-03T04:55:31.4633231Z   GitCommit:        de40ad0
+2026-10-03T04:55:31.4663945Z [command]/usr/bin/docker info
+2026-10-03T04:55:31.7280684Z Client: Docker Engine - Community
+2026-10-03T04:55:31.7295649Z  Version:    28.0.4
+2026-10-03T04:55:31.7296091Z  Context:    default
+2026-10-03T04:55:31.7296585Z  Debug Mode: false
+2026-10-03T04:55:31.7296968Z  Plugins:
+2026-10-03T04:55:31.7297306Z   buildx: Docker Buildx (Docker Inc.)
+2026-10-03T04:55:31.7297704Z     Version:  v0.23.0
+2026-10-03T04:55:31.7298129Z     Path:     /usr/local/lib/docker/cli-plugins/docker-buildx
+2026-10-03T04:55:31.7298705Z   compose: Docker Compose (Docker Inc.)
+2026-10-03T04:55:31.7299168Z     Version:  v2.38.2
+2026-10-03T04:55:31.7299579Z     Path:     /usr/libexec/docker/cli-plugins/docker-compose
+2026-10-03T04:55:31.7299949Z 
+2026-10-03T04:55:31.7300125Z Server:
+2026-10-03T04:55:31.7300421Z  Containers: 0
+2026-10-03T04:55:31.7300728Z   Running: 0
+2026-10-03T04:55:31.7301037Z   Paused: 0
+2026-10-03T04:55:31.7301359Z   Stopped: 0
+2026-10-03T04:55:31.7301658Z  Images: 9
+2026-10-03T04:55:31.7301965Z  Server Version: 28.0.4
+2026-10-03T04:55:31.7302672Z  Storage Driver: overlay2
+2026-10-03T04:55:31.7303147Z   Backing Filesystem: extfs
+2026-10-03T04:55:31.7303507Z   Supports d_type: true
+2026-10-03T04:55:31.7303859Z   Using metacopy: false
+2026-10-03T04:55:31.7304205Z   Native Overlay Diff: true
+2026-10-03T04:55:31.7304551Z   userxattr: false
+2026-10-03T04:55:31.7304892Z  Logging Driver: json-file
+2026-10-03T04:55:31.7305253Z  Cgroup Driver: systemd
+2026-10-03T04:55:31.7305588Z  Cgroup Version: 2
+2026-10-03T04:55:31.7305900Z  Plugins:
+2026-10-03T04:55:31.7306203Z   Volume: local
+2026-10-03T04:55:31.7306589Z   Network: bridge host ipvlan macvlan null overlay
+2026-10-03T04:55:31.7307142Z   Log: awslogs fluentd gcplogs gelf journald json-file local splunk syslog
+2026-10-03T04:55:31.7307654Z  Swarm: inactive
+2026-10-03T04:55:31.7307996Z  Runtimes: runc io.containerd.runc.v2
+2026-10-03T04:55:31.7308485Z  Default Runtime: runc
+2026-10-03T04:55:31.7308827Z  Init Binary: docker-init
+2026-10-03T04:55:31.7309259Z  containerd version: b98a3aace656320842a23f4a392a33f46af97866
+2026-10-03T04:55:31.7309746Z  runc version: v1.3.3-0-gd842d771
+2026-10-03T04:55:31.7310119Z  init version: de40ad0
+2026-10-03T04:55:31.7311304Z  Security Options:
+2026-10-03T04:55:31.7311620Z   seccomp
+2026-10-03T04:55:31.7311852Z    Profile: builtin
+2026-10-03T04:55:31.7312091Z   cgroupns
+2026-10-03T04:55:31.7312346Z  Kernel Version: 6.6.141
+2026-10-03T04:55:31.7312649Z  Operating System: Ubuntu 24.04.3 LTS
+2026-10-03T04:55:31.7312955Z  OSType: linux
+2026-10-03T04:55:31.7313209Z  Architecture: aarch64
+2026-10-03T04:55:31.7313511Z  CPUs: 2
+2026-10-03T04:55:31.7313734Z  Total Memory: 5.778GiB
+2026-10-03T04:55:31.7314002Z  Name: ip-172-31-74-117
+2026-10-03T04:55:31.7314278Z  ID: e87c21c4-8fa7-4fa8-8782-11244a49168b
+2026-10-03T04:55:31.7314606Z  Docker Root Dir: /var/lib/docker
+2026-10-03T04:55:31.7314902Z  Debug Mode: false
+2026-10-03T04:55:31.7315167Z  Experimental: false
+2026-10-03T04:55:31.7315423Z  Insecure Registries:
+2026-10-03T04:55:31.7315677Z   192.168.127.1:5000
+2026-10-03T04:55:31.7315977Z   ::1/128
+2026-10-03T04:55:31.7316189Z   127.0.0.0/8
+2026-10-03T04:55:31.7316421Z  Registry Mirrors:
+2026-10-03T04:55:31.7316772Z   http://192.168.127.1:5000/
+2026-10-03T04:55:31.7317056Z  Live Restore Enabled: false
+2026-10-03T04:55:31.7317236Z 
+2026-10-03T04:55:31.7318051Z ##[endgroup]
+2026-10-03T04:55:31.8173449Z ##[group]Buildx version
+2026-10-03T04:55:31.8234139Z [command]/usr/bin/docker buildx version
+2026-10-03T04:55:31.8856237Z github.com/docker/buildx v0.23.0 28c90eadc4c12cc78155ad59ca5f486220241d2a
+2026-10-03T04:55:31.8910609Z ##[endgroup]
+2026-10-03T04:55:31.9171762Z ##[group]Inspecting default docker context
+2026-10-03T04:55:31.9358428Z [
+2026-10-03T04:55:31.9359020Z   {
+2026-10-03T04:55:31.9359579Z     "Name": "default",
+2026-10-03T04:55:31.9360533Z     "Metadata": {},
+2026-10-03T04:55:31.9360906Z     "Endpoints": {
+2026-10-03T04:55:31.9362109Z       "docker": {
+2026-10-03T04:55:31.9363055Z         "Host": "unix:///var/run/docker.sock",
+2026-10-03T04:55:31.9363610Z         "SkipTLSVerify": false
+2026-10-03T04:55:31.9364070Z       }
+2026-10-03T04:55:31.9364391Z     },
+2026-10-03T04:55:31.9364751Z     "TLSMaterial": {},
+2026-10-03T04:55:31.9365493Z     "Storage": {
+2026-10-03T04:55:31.9365866Z       "MetadataPath": "<IN MEMORY>",
+2026-10-03T04:55:31.9366264Z       "TLSPath": "<IN MEMORY>"
+2026-10-03T04:55:31.9366641Z     }
+2026-10-03T04:55:31.9367179Z   }
+2026-10-03T04:55:31.9367488Z ]
+2026-10-03T04:55:31.9368620Z ##[endgroup]
+2026-10-03T04:55:31.9369405Z ##[group]Creating a new builder instance
+2026-10-03T04:55:32.0810293Z [command]/usr/bin/docker buildx create --name builder-ddff77ce-f8bf-47c5-9d1e-c5c17a1bf64c --driver docker-container --buildkitd-flags --allow-insecure-entitlement security.insecure --allow-insecure-entitlement network.host --platform linux/arm64 --use
+2026-10-03T04:55:32.1439034Z builder-ddff77ce-f8bf-47c5-9d1e-c5c17a1bf64c
+2026-10-03T04:55:32.1495589Z ##[endgroup]
+2026-10-03T04:55:32.1504275Z ##[group]Booting builder
+2026-10-03T04:55:32.1564343Z [command]/usr/bin/docker buildx inspect --bootstrap --builder builder-ddff77ce-f8bf-47c5-9d1e-c5c17a1bf64c
+2026-10-03T04:55:32.2237256Z #1 [internal] booting buildkit
+2026-10-03T04:55:32.3736609Z #1 pulling image moby/buildkit:buildx-stable-1
+2026-10-03T04:55:33.3325038Z #1 pulling image moby/buildkit:buildx-stable-1 1.1s done
+2026-10-03T04:55:33.4826047Z #1 creating container buildx_buildkit_builder-ddff77ce-f8bf-47c5-9d1e-c5c17a1bf64c0
+2026-10-03T04:55:34.4971909Z #1 creating container buildx_buildkit_builder-ddff77ce-f8bf-47c5-9d1e-c5c17a1bf64c0 1.2s done
+2026-10-03T04:55:34.5018768Z #1 DONE 2.3s
+2026-10-03T04:55:34.5579333Z Name:          builder-ddff77ce-f8bf-47c5-9d1e-c5c17a1bf64c
+2026-10-03T04:55:34.5587591Z Driver:        docker-container
+2026-10-03T04:55:34.5588189Z Last Activity: 2026-10-03 04:55:32 +0000 UTC
+2026-10-03T04:55:34.5588477Z 
+2026-10-03T04:55:34.5588622Z Nodes:
+2026-10-03T04:55:34.5589249Z Name:                  builder-ddff77ce-f8bf-47c5-9d1e-c5c17a1bf64c0
+2026-10-03T04:55:34.5589863Z Endpoint:              unix:///var/run/docker.sock
+2026-10-03T04:55:34.5590335Z Status:                running
+2026-10-03T04:55:34.5591023Z BuildKit daemon flags: --allow-insecure-entitlement security.insecure --allow-insecure-entitlement network.host
+2026-10-03T04:55:34.5591794Z BuildKit version:      v0.33.1
+2026-10-03T04:55:34.5592317Z Platforms:             linux/arm64*
+2026-10-03T04:55:34.5592735Z Labels:
+2026-10-03T04:55:34.5593119Z  org.mobyproject.buildkit.worker.executor:         oci
+2026-10-03T04:55:34.5593807Z  org.mobyproject.buildkit.worker.hostname:         ea05d65fcbbe
+2026-10-03T04:55:34.5594470Z  org.mobyproject.buildkit.worker.network:          host
+2026-10-03T04:55:34.5595083Z  org.mobyproject.buildkit.worker.oci.process-mode: sandbox
+2026-10-03T04:55:34.5626613Z  org.mobyproject.buildkit.worker.selinux.enabled:  false
+2026-10-03T04:55:34.5627306Z  org.mobyproject.buildkit.worker.snapshotter:      overlayfs
+2026-10-03T04:55:34.5628067Z GC Policy rule#0:
+2026-10-03T04:55:34.5628416Z  All:            false
+2026-10-03T04:55:34.5628998Z  Filters:        type==source.local type==exec.cachemount type==source.git.checkout
+2026-10-03T04:55:34.5629646Z  Keep Duration:  48h0m0s
+2026-10-03T04:55:34.5630014Z  Max Used Space: 488.3MiB
+2026-10-03T04:55:34.5630431Z GC Policy rule#1:
+2026-10-03T04:55:34.5630827Z  All:            false
+2026-10-03T04:55:34.5631179Z  Keep Duration:  1440h0m0s
+2026-10-03T04:55:34.5631577Z  Reserved Space: 9.313GiB
+2026-10-03T04:55:34.5631947Z  Max Used Space: 91.27GiB
+2026-10-03T04:55:34.5632328Z  Min Free Space: 23.28GiB
+2026-10-03T04:55:34.5633998Z GC Policy rule#2:
+2026-10-03T04:55:34.5635837Z  All:            false
+2026-10-03T04:55:34.5639195Z  Reserved Space: 9.313GiB
+2026-10-03T04:55:34.5639620Z  Max Used Space: 91.27GiB
+2026-10-03T04:55:34.5640807Z  Min Free Space: 23.28GiB
+2026-10-03T04:55:34.5642266Z GC Policy rule#3:
+2026-10-03T04:55:34.5643128Z  All:            true
+2026-10-03T04:55:34.5643508Z  Reserved Space: 9.313GiB
+2026-10-03T04:55:34.5644884Z  Max Used Space: 91.27GiB
+2026-10-03T04:55:34.5645312Z  Min Free Space: 23.28GiB
+2026-10-03T04:55:34.5668324Z ##[endgroup]
+2026-10-03T04:55:34.6938038Z ##[group]Inspect builder
+2026-10-03T04:55:34.6946721Z {
+2026-10-03T04:55:34.6952381Z   "nodes": [
+2026-10-03T04:55:34.6952819Z     {
+2026-10-03T04:55:34.6953262Z       "name": "builder-ddff77ce-f8bf-47c5-9d1e-c5c17a1bf64c0",
+2026-10-03T04:55:34.6954092Z       "endpoint": "unix:///var/run/docker.sock",
+2026-10-03T04:55:34.6956656Z       "status": "running",
+2026-10-03T04:55:34.6957554Z       "buildkitd-flags": "--allow-insecure-entitlement security.insecure --allow-insecure-entitlement network.host",
+2026-10-03T04:55:34.6958420Z       "buildkit": "v0.33.1",
+2026-10-03T04:55:34.6958805Z       "platforms": "linux/arm64",
+2026-10-03T04:55:34.6959911Z       "features": {
+2026-10-03T04:55:34.6966663Z         "Automatically load images to the Docker Engine image store": true,
+2026-10-03T04:55:34.6971496Z         "Cache export": true,
+2026-10-03T04:55:34.6976359Z         "Direct push": true,
+2026-10-03T04:55:34.6980060Z         "Docker exporter": true,
+2026-10-03T04:55:34.6982497Z         "Multi-platform build": true,
+2026-10-03T04:55:34.6985499Z         "OCI exporter": true
+2026-10-03T04:55:34.6985892Z       },
+2026-10-03T04:55:34.6986191Z       "labels": {
+2026-10-03T04:55:34.6986594Z         "org.mobyproject.buildkit.worker.executor": "oci",
+2026-10-03T04:55:34.6989306Z         "org.mobyproject.buildkit.worker.hostname": "ea05d65fcbbe",
+2026-10-03T04:55:34.6994060Z         "org.mobyproject.buildkit.worker.network": "host",
+2026-10-03T04:55:34.7002513Z         "org.mobyproject.buildkit.worker.oci.process-mode": "sandbox",
+2026-10-03T04:55:34.7005111Z         "org.mobyproject.buildkit.worker.selinux.enabled": "false",
+2026-10-03T04:55:34.7019275Z         "org.mobyproject.buildkit.worker.snapshotter": "overlayfs"
+2026-10-03T04:55:34.7019829Z       },
+2026-10-03T04:55:34.7020048Z       "gcPolicy": [
+2026-10-03T04:55:34.7020291Z         {
+2026-10-03T04:55:34.7020516Z           "all": false,
+2026-10-03T04:55:34.7020767Z           "filter": [
+2026-10-03T04:55:34.7021154Z             "type==source.local type==exec.cachemount type==source.git.checkout"
+2026-10-03T04:55:34.7021594Z           ],
+2026-10-03T04:55:34.7021839Z           "keepDuration": "48h0m0s",
+2026-10-03T04:55:34.7022155Z           "maxUsedSpace": "488.3MiB"
+2026-10-03T04:55:34.7024101Z         },
+2026-10-03T04:55:34.7024322Z         {
+2026-10-03T04:55:34.7024545Z           "all": false,
+2026-10-03T04:55:34.7024824Z           "keepDuration": "1440h0m0s",
+2026-10-03T04:55:34.7029125Z           "reservedSpace": "9.313GiB",
+2026-10-03T04:55:34.7030313Z           "maxUsedSpace": "91.27GiB",
+2026-10-03T04:55:34.7044189Z           "minFreeSpace": "23.28GiB"
+2026-10-03T04:55:34.7044885Z         },
+2026-10-03T04:55:34.7045307Z         {
+2026-10-03T04:55:34.7045978Z           "all": false,
+2026-10-03T04:55:34.7046666Z           "reservedSpace": "9.313GiB",
+2026-10-03T04:55:34.7047422Z           "maxUsedSpace": "91.27GiB",
+2026-10-03T04:55:34.7048219Z           "minFreeSpace": "23.28GiB"
+2026-10-03T04:55:34.7048904Z         },
+2026-10-03T04:55:34.7049529Z         {
+2026-10-03T04:55:34.7050153Z           "all": true,
+2026-10-03T04:55:34.7050892Z           "reservedSpace": "9.313GiB",
+2026-10-03T04:55:34.7051556Z           "maxUsedSpace": "91.27GiB",
+2026-10-03T04:55:34.7052158Z           "minFreeSpace": "23.28GiB"
+2026-10-03T04:55:34.7052774Z         }
+2026-10-03T04:55:34.7053309Z       ]
+2026-10-03T04:55:34.7053811Z     }
+2026-10-03T04:55:34.7054416Z   ],
+2026-10-03T04:55:34.7055079Z   "name": "builder-ddff77ce-f8bf-47c5-9d1e-c5c17a1bf64c",
+2026-10-03T04:55:34.7057503Z   "driver": "docker-container",
+2026-10-03T04:55:34.7058266Z   "lastActivity": "2026-10-03T04:55:32.000Z"
+2026-10-03T04:55:34.7058944Z }
+2026-10-03T04:55:34.7060067Z ##[endgroup]
+2026-10-03T04:55:34.7060882Z ##[group]BuildKit version
+2026-10-03T04:55:34.7061561Z builder-ddff77ce-f8bf-47c5-9d1e-c5c17a1bf64c0: v0.33.1
+2026-10-03T04:55:34.7063313Z ##[endgroup]
+2026-10-03T04:55:34.7269905Z ##[group]Run python docker_build/build_dependencies_image.py
+2026-10-03T04:55:34.7270628Z [36;1mpython docker_build/build_dependencies_image.py[0m
+2026-10-03T04:55:34.7309687Z shell: /usr/bin/bash -e {0}
+2026-10-03T04:55:34.7310016Z env:
+2026-10-03T04:55:34.7310255Z   ENVIRONMENT: dev
+2026-10-03T04:55:34.7310504Z   LUMIBOT_VERSION: 4.6.4
+2026-10-03T04:55:34.7310788Z   SKIP_DATA_VOLUME_SNAPSHOT: true
+2026-10-03T04:55:34.7311085Z   DOCKER_BUILDKIT: 1
+2026-10-03T04:55:34.7311341Z   BUILDKIT_PROGRESS: plain
+2026-10-03T04:55:34.7311625Z   GITHUB_ACTIONS_CACHE: true
+2026-10-03T04:55:34.7311994Z   BUILDX_CACHE_FROM: type=local,src=/tmp/.buildx-cache
+2026-10-03T04:55:34.7312453Z   BUILDX_CACHE_TO: type=local,dest=/tmp/.buildx-cache-new,mode=max
+2026-10-03T04:55:34.7312868Z   DEPOT_PROJECT_ID: 
+2026-10-03T04:55:34.7313146Z   BLACKSMITH_RUNNER_MESSAGE_WAIT_MS: 212
+2026-10-03T04:55:34.7313477Z   BLACKSMITH_RUNNER_ACQUIRE_JOB_MS: 1062
+2026-10-03T04:55:34.7313912Z   GITHUB_REPO_NAME: Lumiwealth/bot_manager
+2026-10-03T04:55:34.7314239Z   AWS_DEFAULT_REGION: us-east-1
+2026-10-03T04:55:34.7314527Z   AWS_REGION: us-east-1
+2026-10-03T04:55:34.7315009Z   AWS_ACCESS_KEY_ID: ***
+2026-10-03T04:55:34.7315371Z   AWS_SECRET_ACCESS_KEY: ***
+2026-10-03T04:55:34.7320797Z   AWS_SESSION_TOKEN: ***
+2026-10-03T04:55:34.7321136Z   pythonLocation: /opt/hostedtoolcache/Python/3.13.16/arm64
+2026-10-03T04:55:34.7321633Z   PKG_CONFIG_PATH: /opt/hostedtoolcache/Python/3.13.16/arm64/lib/pkgconfig
+2026-10-03T04:55:34.7322128Z   Python_ROOT_DIR: /opt/hostedtoolcache/Python/3.13.16/arm64
+2026-10-03T04:55:34.7322583Z   Python2_ROOT_DIR: /opt/hostedtoolcache/Python/3.13.16/arm64
+2026-10-03T04:55:34.7323029Z   Python3_ROOT_DIR: /opt/hostedtoolcache/Python/3.13.16/arm64
+2026-10-03T04:55:34.7323481Z   LD_LIBRARY_PATH: /opt/hostedtoolcache/Python/3.13.16/arm64/lib
+2026-10-03T04:55:34.7323926Z   UV_CACHE_DIR: /home/runner/_work/_temp/setup-uv-cache
+2026-10-03T04:55:34.7324273Z ##[endgroup]
+2026-10-03T04:55:35.3954116Z INFO:botocore.credentials:Found credentials in environment variables.
+2026-10-03T04:55:35.4613247Z INFO:image_builder:Using environment prefix: dev
+2026-10-03T04:55:35.4614196Z INFO:image_builder:================================================================================
+2026-10-03T04:55:35.4615002Z INFO:image_builder:Building LIVE TRADING dependencies image (distroless, no Java)...
+2026-10-03T04:55:35.4615700Z INFO:image_builder:================================================================================
+2026-10-03T04:55:35.4617126Z INFO:image_builder:Building dependencies image locally with buildx for arm64...
+2026-10-03T04:55:35.4617927Z INFO:image_builder:Using GitHub Actions local cache
+2026-10-03T04:55:35.4619454Z INFO:image_builder:Running build command: docker buildx build --platform linux/arm64 --provenance=false --cache-from type=local,src=/tmp/.buildx-cache --cache-to type=local,dest=/tmp/.buildx-cache-new,mode=max --build-arg LUMIBOT_VERSION=4.6.4 -t dev-trading-bot-dependencies:latest --load /tmp/tmptthsmpm8
+2026-10-03T04:55:35.8079789Z #0 building with "builder-ddff77ce-f8bf-47c5-9d1e-c5c17a1bf64c" instance using docker-container driver
+2026-10-03T04:55:35.8099032Z 
+2026-10-03T04:55:35.8099471Z #1 [internal] load build definition from Dockerfile
+2026-10-03T04:55:35.8099921Z #1 transferring dockerfile: 1.62kB done
+2026-10-03T04:55:35.8100247Z #1 DONE 0.0s
+2026-10-03T04:55:35.8100387Z 
+2026-10-03T04:55:35.8100637Z #2 [internal] load metadata for ghcr.io/astral-sh/uv:python3.13-trixie-slim
+2026-10-03T04:55:36.4388928Z #2 ...
+2026-10-03T04:55:36.4390965Z 
+2026-10-03T04:55:36.4391402Z #3 [internal] load metadata for docker.io/library/python:3.13-slim-trixie
+2026-10-03T04:55:36.4394016Z #3 DONE 0.8s
+2026-10-03T04:55:36.5444945Z 
+2026-10-03T04:55:36.5451752Z #2 [internal] load metadata for ghcr.io/astral-sh/uv:python3.13-trixie-slim
+2026-10-03T04:55:36.5453115Z #2 DONE 0.9s
+2026-10-03T04:55:36.5453318Z 
+2026-10-03T04:55:36.5453490Z #4 [internal] load .dockerignore
+2026-10-03T04:55:36.5455023Z #4 transferring context: 2B done
+2026-10-03T04:55:36.5456356Z #4 DONE 0.0s
+2026-10-03T04:55:36.5460620Z 
+2026-10-03T04:55:36.5461433Z #5 [stage-1 1/5] FROM docker.io/library/python:3.13-slim-trixie@sha256:bb2988715db2cf7ace7b53f38f3cffbef7c7046a656bee66245eb0ed386e2e81
+2026-10-03T04:55:36.5463376Z #5 resolve docker.io/library/python:3.13-slim-trixie@sha256:bb2988715db2cf7ace7b53f38f3cffbef7c7046a656bee66245eb0ed386e2e81 done
+2026-10-03T04:55:36.5464194Z #5 DONE 0.0s
+2026-10-03T04:55:36.5464380Z 
+2026-10-03T04:55:36.5465055Z #6 [builder 1/3] FROM ghcr.io/astral-sh/uv:python3.13-trixie-slim@sha256:4cf2255999bc7e6112abfdfda19492e05e1e1c2d1c6e0c5076d0e768e9925032
+2026-10-03T04:55:36.5470271Z #6 resolve ghcr.io/astral-sh/uv:python3.13-trixie-slim@sha256:4cf2255999bc7e6112abfdfda19492e05e1e1c2d1c6e0c5076d0e768e9925032 done
+2026-10-03T04:55:36.5471037Z #6 DONE 0.0s
+2026-10-03T04:55:36.7204190Z 
+2026-10-03T04:55:36.7209797Z #5 [stage-1 1/5] FROM docker.io/library/python:3.13-slim-trixie@sha256:bb2988715db2cf7ace7b53f38f3cffbef7c7046a656bee66245eb0ed386e2e81
+2026-10-03T04:55:36.7215106Z #5 sha256:8ca6b81b20b196574b5f404d06fe32edf0e3a47e2559214c53996a9fe3e8c555 249B / 249B 0.1s done
+2026-10-03T04:55:36.7217012Z #5 sha256:8cd4cf3fa73d47ef3380c9d02066e0498dd64cdefe513b40e5f0b106b8993d91 5.24MB / 11.85MB 0.2s
+2026-10-03T04:55:36.8728096Z #5 sha256:8cd4cf3fa73d47ef3380c9d02066e0498dd64cdefe513b40e5f0b106b8993d91 11.85MB / 11.85MB 0.2s done
+2026-10-03T04:55:36.8735586Z #5 sha256:824667651933e4e4c6cbdf39e0173f891fc98d4af45d17d1a4cfcb299dc9e79c 4.61MB / 4.61MB 0.2s done
+2026-10-03T04:55:36.8745398Z #5 sha256:bd36565c0fdebaf0f3af5c3b4ce610ca085ced32e9e9da850d95912f5f18f47b 21.67MB / 30.19MB 0.3s
+2026-10-03T04:55:37.0228555Z #5 sha256:bd36565c0fdebaf0f3af5c3b4ce610ca085ced32e9e9da850d95912f5f18f47b 30.19MB / 30.19MB 0.4s done
+2026-10-03T04:55:37.0232512Z #5 extracting sha256:bd36565c0fdebaf0f3af5c3b4ce610ca085ced32e9e9da850d95912f5f18f47b
+2026-10-03T04:55:37.6931383Z #5 ...
+2026-10-03T04:55:37.6932067Z 
+2026-10-03T04:55:37.6932901Z #6 [builder 1/3] FROM ghcr.io/astral-sh/uv:python3.13-trixie-slim@sha256:4cf2255999bc7e6112abfdfda19492e05e1e1c2d1c6e0c5076d0e768e9925032
+2026-10-03T04:55:37.6934027Z #6 sha256:3f6d18b15a0ebb13cb258a9deee5cbfc21ce048ecbce6381fc51ef1d8cf53037 22.31MB / 22.31MB 1.0s done
+2026-10-03T04:55:37.6935480Z #6 DONE 1.0s
+2026-10-03T04:55:37.8426713Z 
+2026-10-03T04:55:37.8429458Z #5 [stage-1 1/5] FROM docker.io/library/python:3.13-slim-trixie@sha256:bb2988715db2cf7ace7b53f38f3cffbef7c7046a656bee66245eb0ed386e2e81
+2026-10-03T04:55:37.9009268Z #5 extracting sha256:bd36565c0fdebaf0f3af5c3b4ce610ca085ced32e9e9da850d95912f5f18f47b 1.0s done
+2026-10-03T04:55:37.9009952Z #5 DONE 1.4s
+2026-10-03T04:55:38.0190438Z 
+2026-10-03T04:55:38.0191935Z #5 [stage-1 1/5] FROM docker.io/library/python:3.13-slim-trixie@sha256:bb2988715db2cf7ace7b53f38f3cffbef7c7046a656bee66245eb0ed386e2e81
+2026-10-03T04:55:38.0192944Z #5 extracting sha256:824667651933e4e4c6cbdf39e0173f891fc98d4af45d17d1a4cfcb299dc9e79c 0.1s done
+2026-10-03T04:55:38.0193492Z #5 DONE 1.5s
+2026-10-03T04:55:38.1697054Z 
+2026-10-03T04:55:38.1699047Z #5 [stage-1 1/5] FROM docker.io/library/python:3.13-slim-trixie@sha256:bb2988715db2cf7ace7b53f38f3cffbef7c7046a656bee66245eb0ed386e2e81
+2026-10-03T04:55:38.1700445Z #5 extracting sha256:8cd4cf3fa73d47ef3380c9d02066e0498dd64cdefe513b40e5f0b106b8993d91
+2026-10-03T04:55:38.4289365Z #5 extracting sha256:8cd4cf3fa73d47ef3380c9d02066e0498dd64cdefe513b40e5f0b106b8993d91 0.4s done
+2026-10-03T04:55:38.4290378Z #5 DONE 1.9s
+2026-10-03T04:55:38.5881825Z 
+2026-10-03T04:55:38.5884682Z #5 [stage-1 1/5] FROM docker.io/library/python:3.13-slim-trixie@sha256:bb2988715db2cf7ace7b53f38f3cffbef7c7046a656bee66245eb0ed386e2e81
+2026-10-03T04:55:38.5886347Z #5 extracting sha256:8ca6b81b20b196574b5f404d06fe32edf0e3a47e2559214c53996a9fe3e8c555 done
+2026-10-03T04:55:38.5888161Z #5 DONE 1.9s
+2026-10-03T04:55:38.5888426Z 
+2026-10-03T04:55:38.5890242Z #6 [builder 1/3] FROM ghcr.io/astral-sh/uv:python3.13-trixie-slim@sha256:4cf2255999bc7e6112abfdfda19492e05e1e1c2d1c6e0c5076d0e768e9925032
+2026-10-03T04:55:38.5894696Z #6 extracting sha256:3f6d18b15a0ebb13cb258a9deee5cbfc21ce048ecbce6381fc51ef1d8cf53037
+2026-10-03T04:55:38.8563273Z #6 extracting sha256:3f6d18b15a0ebb13cb258a9deee5cbfc21ce048ecbce6381fc51ef1d8cf53037 0.4s done
+2026-10-03T04:55:38.8568168Z #6 DONE 1.4s
+2026-10-03T04:55:38.8568755Z 
+2026-10-03T04:55:38.8569766Z #7 [stage-1 2/5] RUN --mount=type=cache,target=/var/cache/apt,sharing=locked     --mount=type=cache,target=/var/lib/apt,sharing=locked     apt-get update && apt-get install -y --no-install-recommends openssl zstd && rm -rf /var/lib/apt/lists/*
+2026-10-03T04:55:38.8571077Z #7 0.194 Get:1 http://deb.debian.org/debian trixie InRelease [140 kB]
+2026-10-03T04:55:38.8573726Z #7 0.210 Get:2 http://deb.debian.org/debian trixie-updates InRelease [47.3 kB]
+2026-10-03T04:55:38.8575645Z #7 0.210 Get:3 http://deb.debian.org/debian-security trixie-security InRelease [43.4 kB]
+2026-10-03T04:55:38.8576274Z #7 0.235 Get:4 http://deb.debian.org/debian trixie/main arm64 Packages [9614 kB]
+2026-10-03T04:55:38.8576904Z #7 0.312 Get:5 http://deb.debian.org/debian trixie-updates/main arm64 Packages [4424 B]
+2026-10-03T04:55:38.8577681Z #7 0.318 Get:6 http://deb.debian.org/debian-security trixie-security/main arm64 Packages [265 kB]
+2026-10-03T04:55:39.1902724Z #7 ...
+2026-10-03T04:55:39.1904022Z 
+2026-10-03T04:55:39.1904324Z #8 [builder 2/3] WORKDIR /build_context
+2026-10-03T04:55:39.1905936Z #8 DONE 0.3s
+2026-10-03T04:55:39.3462867Z 
+2026-10-03T04:55:39.3465372Z #9 [builder 3/3] RUN --mount=type=cache,target=/root/.cache/uv     --mount=type=cache,target=/var/cache/apt,sharing=locked     --mount=type=cache,target=/var/lib/apt,sharing=locked     UV_COMPILE_BYTECODE=1 UV_LINK_MODE=copy     uv pip install --system --refresh-package lumibot         "lumibot==4.6.4"         boto3         requests         packaging==25.0         uv==0.9.22         zstandard==0.25.0         pandas-ta-classic         thetadata==0.9.11         scikit-learn
+2026-10-03T04:55:43.2683140Z #9 ...
+2026-10-03T04:55:43.2686161Z 
+2026-10-03T04:55:43.2687529Z #7 [stage-1 2/5] RUN --mount=type=cache,target=/var/cache/apt,sharing=locked     --mount=type=cache,target=/var/lib/apt,sharing=locked     apt-get update && apt-get install -y --no-install-recommends openssl zstd && rm -rf /var/lib/apt/lists/*
+2026-10-03T04:55:43.2688823Z #7 1.193 Fetched 10.1 MB in 1s (9930 kB/s)
+2026-10-03T04:55:43.2689271Z #7 1.193 Reading package lists...
+2026-10-03T04:55:43.2689674Z #7 1.956 Reading package lists...
+2026-10-03T04:55:43.2690059Z #7 2.641 Building dependency tree...
+2026-10-03T04:55:43.2690535Z #7 3.609 openssl is already the newest version (3.5.7-1~deb13u3).
+2026-10-03T04:55:43.2691065Z #7 3.609 The following NEW packages will be installed:
+2026-10-03T04:55:43.2691496Z #7 3.609   zstd
+2026-10-03T04:55:43.2691920Z #7 3.684 0 upgraded, 1 newly installed, 0 to remove and 1 not upgraded.
+2026-10-03T04:55:43.2692441Z #7 3.684 Need to get 635 kB of archives.
+2026-10-03T04:55:43.2692980Z #7 3.684 After this operation, 2163 kB of additional disk space will be used.
+2026-10-03T04:55:43.2693721Z #7 3.684 Get:1 http://deb.debian.org/debian trixie/main arm64 zstd arm64 1.5.7+dfsg-1 [635 kB]
+2026-10-03T04:55:43.2694342Z #7 3.879 debconf: unable to initialize frontend: Dialog
+2026-10-03T04:55:43.2694885Z #7 3.879 debconf: (TERM is not set, so the dialog frontend is not usable.)
+2026-10-03T04:55:43.2695429Z #7 3.879 debconf: falling back to frontend: Readline
+2026-10-03T04:55:43.2695916Z #7 3.879 debconf: unable to initialize frontend: Readline
+2026-10-03T04:55:43.2698027Z #7 3.879 debconf: (Can't locate Term/ReadLine.pm in @INC (you may need to install the Term::ReadLine module) (@INC entries checked: /etc/perl /usr/local/lib/aarch64-linux-gnu/perl/5.40.1 /usr/local/share/perl/5.40.1 /usr/lib/aarch64-linux-gnu/perl5/5.40 /usr/share/perl5 /usr/lib/aarch64-linux-gnu/perl-base /usr/lib/aarch64-linux-gnu/perl/5.40 /usr/share/perl/5.40 /usr/local/lib/site_perl) at /usr/share/perl5/Debconf/FrontEnd/Readline.pm line 8, <STDIN> line 1.)
+2026-10-03T04:55:43.2699985Z #7 3.879 debconf: falling back to frontend: Teletype
+2026-10-03T04:55:43.2700486Z #7 3.886 debconf: unable to initialize frontend: Teletype
+2026-10-03T04:55:43.2701117Z #7 3.886 debconf: (This frontend requires a controlling tty.)
+2026-10-03T04:55:43.2701638Z #7 3.886 debconf: falling back to frontend: Noninteractive
+2026-10-03T04:55:43.2702097Z #7 4.721 Fetched 635 kB in 0s (14.6 MB/s)
+2026-10-03T04:55:43.2704454Z #7 4.739 Selecting previously unselected package zstd.
+2026-10-03T04:55:43.2704911Z #7 4.739 (Reading database ... 
+2026-10-03T04:55:43.2705283Z (Reading database ... 5%
+2026-10-03T04:55:43.2705641Z (Reading database ... 10%
+2026-10-03T04:55:43.2705996Z (Reading database ... 15%
+2026-10-03T04:55:43.2706338Z (Reading database ... 20%
+2026-10-03T04:55:43.2706690Z (Reading database ... 25%
+2026-10-03T04:55:43.2707083Z (Reading database ... 30%
+2026-10-03T04:55:43.2707435Z (Reading database ... 35%
+2026-10-03T04:55:43.2707783Z (Reading database ... 40%
+2026-10-03T04:55:43.2708151Z (Reading database ... 45%
+2026-10-03T04:55:43.2708502Z (Reading database ... 50%
+2026-10-03T04:55:43.2708840Z (Reading database ... 55%
+2026-10-03T04:55:43.2709212Z (Reading database ... 60%
+2026-10-03T04:55:43.2709562Z (Reading database ... 65%
+2026-10-03T04:55:43.2709901Z (Reading database ... 70%
+2026-10-03T04:55:43.2710253Z (Reading database ... 75%
+2026-10-03T04:55:43.2710600Z (Reading database ... 80%
+2026-10-03T04:55:43.2720917Z (Reading database ... 85%
+2026-10-03T04:55:43.2721210Z (Reading database ... 90%
+2026-10-03T04:55:43.2721480Z (Reading database ... 95%
+2026-10-03T04:55:43.2721752Z (Reading database ... 100%
+2026-10-03T04:55:43.2722139Z (Reading database ... 5657 files and directories currently installed.)
+2026-10-03T04:55:43.2722671Z #7 4.745 Preparing to unpack .../zstd_1.5.7+dfsg-1_arm64.deb ...
+2026-10-03T04:55:43.2723091Z #7 4.746 Unpacking zstd (1.5.7+dfsg-1) ...
+2026-10-03T04:55:43.2723429Z #7 4.797 Setting up zstd (1.5.7+dfsg-1) ...
+2026-10-03T04:55:43.2723748Z #7 DONE 4.8s
+2026-10-03T04:55:43.4191613Z 
+2026-10-03T04:55:43.4193639Z #9 [builder 3/3] RUN --mount=type=cache,target=/root/.cache/uv     --mount=type=cache,target=/var/cache/apt,sharing=locked     --mount=type=cache,target=/var/lib/apt,sharing=locked     UV_COMPILE_BYTECODE=1 UV_LINK_MODE=copy     uv pip install --system --refresh-package lumibot         "lumibot==4.6.4"         boto3         requests         packaging==25.0         uv==0.9.22         zstandard==0.25.0         pandas-ta-classic         thetadata==0.9.11         scikit-learn
+2026-10-03T04:55:43.5515823Z #9 4.356 Using Python 3.13.16 environment at: /usr/local
+2026-10-03T04:55:46.1904278Z #9 6.995 Resolved 270 packages in 2.63s
+2026-10-03T04:55:46.2934510Z #9 7.081 Downloading setuptools (1.0MiB)
+2026-10-03T04:55:46.2943282Z #9 7.082 Downloading openai (1.6MiB)
+2026-10-03T04:55:46.2944644Z #9 7.083 Downloading curl-cffi (12.2MiB)
+2026-10-03T04:55:46.2945147Z #9 7.083 Downloading google-genai (1.1MiB)
+2026-10-03T04:55:46.2946539Z #9 7.083 Downloading scikit-learn (8.4MiB)
+2026-10-03T04:55:46.2948570Z #9 7.084 Downloading pygments (1.2MiB)
+2026-10-03T04:55:46.2949011Z #9 7.085 Downloading kubernetes (4.4MiB)
+2026-10-03T04:55:46.2949428Z #9 7.097 Downloading anthropic (1.6MiB)
+2026-10-03T04:55:46.2949848Z #9 7.097 Downloading holidays (1.6MiB)
+2026-10-03T04:55:46.2950830Z #9 7.097 Downloading polars-runtime-32 (44.4MiB)
+2026-10-03T04:55:46.3968350Z #9 7.101 Downloading botocore (15.3MiB)
+2026-10-03T04:55:46.3969107Z #9 7.101 Downloading pillow (6.0MiB)
+2026-10-03T04:55:46.3969516Z #9 7.101 Downloading grpcio (6.7MiB)
+2026-10-03T04:55:46.3969905Z #9 7.101 Downloading pandas (11.2MiB)
+2026-10-03T04:55:46.3970295Z #9 7.101 Downloading lumibot (36.2MiB)
+2026-10-03T04:55:46.3970689Z #9 7.102 Downloading ccxt (6.1MiB)
+2026-10-03T04:55:46.3971017Z #9 7.102 Downloading fonttools (5.1MiB)
+2026-10-03T04:55:46.3971340Z #9 7.103 Downloading numpy (14.9MiB)
+2026-10-03T04:55:46.3971750Z #9 7.104 Downloading google-adk (4.6MiB)
+2026-10-03T04:55:46.3972222Z #9 7.104 Downloading pydantic-core (1.9MiB)
+2026-10-03T04:55:46.3972683Z #9 7.108 Downloading psycopg2-binary (5.6MiB)
+2026-10-03T04:55:46.3973048Z #9 7.109 Downloading tiktoken (1.1MiB)
+2026-10-03T04:55:46.3973696Z #9 7.109 Downloading matplotlib (10.2MiB)
+2026-10-03T04:55:46.3974097Z #9 7.111 Downloading nltk (1.7MiB)
+2026-10-03T04:55:46.3974436Z #9 7.111 Downloading kiwisolver (1.2MiB)
+2026-10-03T04:55:46.3974834Z #9 7.112 Downloading networkx (2.0MiB)
+2026-10-03T04:55:46.3975224Z #9 7.115 Downloading scipy (32.4MiB)
+2026-10-03T04:55:46.3976515Z #9 7.115 Downloading pyarrow (44.6MiB)
+2026-10-03T04:55:46.3977613Z #9 7.119 Downloading plotly (9.2MiB)
+2026-10-03T04:55:46.3978866Z #9 7.121 Downloading jedi (4.7MiB)
+2026-10-03T04:55:46.3983626Z #9 7.123 Downloading cytoolz (2.7MiB)
+2026-10-03T04:55:46.3984056Z #9 7.124 Downloading duckdb (18.6MiB)
+2026-10-03T04:55:46.3984472Z #9 7.125 Downloading sqlalchemy (4.4MiB)
+2026-10-03T04:55:46.3984890Z #9 7.130 Downloading coincurve (1.5MiB)
+2026-10-03T04:55:46.3985349Z #9 7.136 Downloading databento-dbn (1.4MiB)
+2026-10-03T04:55:46.3985823Z #9 7.138 Downloading llama-index-core (11.4MiB)
+2026-10-03T04:55:46.3986263Z #9 7.140 Downloading uv (20.0MiB)
+2026-10-03T04:55:46.4011817Z #9 7.143 Downloading pycryptodome (2.1MiB)
+2026-10-03T04:55:46.4012326Z #9 7.144 Downloading zstandard (4.8MiB)
+2026-10-03T04:55:46.4012751Z #9 7.145 Downloading tokenizers (3.4MiB)
+2026-10-03T04:55:46.4013163Z #9 7.146 Downloading aiohttp (1.7MiB)
+2026-10-03T04:55:46.4013572Z #9 7.146 Downloading lxml (4.8MiB)
+2026-10-03T04:55:46.4013980Z #9 7.193 Downloading cryptography (4.5MiB)
+2026-10-03T04:55:46.4014405Z #9 7.198 Downloading hf-xet (4.1MiB)
+2026-10-03T04:55:46.4014801Z #9 7.202 Downloading litellm (26.3MiB)
+2026-10-03T04:55:47.3138500Z #9 7.966  Downloaded setuptools
+2026-10-03T04:55:47.5004621Z #9 8.147  Downloaded tiktoken
+2026-10-03T04:55:47.5007098Z #9 8.152  Downloaded google-genai
+2026-10-03T04:55:47.5007612Z #9 8.167  Downloaded pygments
+2026-10-03T04:55:47.6992590Z #9 8.305  Downloaded kiwisolver
+2026-10-03T04:55:47.6993343Z #9 8.352  Downloaded openai
+2026-10-03T04:55:47.7517890Z #9 8.556  Downloaded databento-dbn
+2026-10-03T04:55:47.8826985Z #9 8.558  Downloaded holidays
+2026-10-03T04:55:47.8829113Z #9 8.558  Downloaded coincurve
+2026-10-03T04:55:47.8829585Z #9 8.633  Downloaded nltk
+2026-10-03T04:55:48.1083476Z #9 8.686  Downloaded anthropic
+2026-10-03T04:55:48.1084853Z #9 8.749  Downloaded aiohttp
+2026-10-03T04:55:48.1085497Z #9 8.754  Downloaded pydantic-core
+2026-10-03T04:55:48.2291427Z #9 9.031  Downloaded networkx
+2026-10-03T04:55:48.2292045Z #9 9.031  Downloaded pycryptodome
+2026-10-03T04:55:48.6359058Z #9 9.439  Downloaded cytoolz
+2026-10-03T04:55:48.8611492Z #9 9.513    Building wget==3.2
+2026-10-03T04:55:49.2742843Z #9 9.925  Downloaded tokenizers
+2026-10-03T04:55:49.6647883Z #9 10.36  Downloaded hf-xet
+2026-10-03T04:55:49.6648293Z #9 10.38  Downloaded sqlalchemy
+2026-10-03T04:55:49.7805256Z #9 10.47  Downloaded kubernetes
+2026-10-03T04:55:49.7806195Z #9 10.55  Downloaded cryptography
+2026-10-03T04:55:49.7808064Z #9 10.58  Downloaded jedi
+2026-10-03T04:55:49.8848631Z #9 10.68       Built wget==3.2
+2026-10-03T04:55:49.8852099Z #9 10.68  Downloaded zstandard
+2026-10-03T04:55:50.0387735Z #9 10.68  Downloaded google-adk
+2026-10-03T04:55:50.0388137Z #9 10.69  Downloaded lxml
+2026-10-03T04:55:50.1332995Z #9 10.93  Downloaded fonttools
+2026-10-03T04:55:50.2308922Z #9 11.03  Downloaded psycopg2-binary
+2026-10-03T04:55:50.2309433Z #9 11.03    Building ibapi==9.81.1.post1
+2026-10-03T04:55:50.6484139Z #9 11.28  Downloaded pillow
+2026-10-03T04:55:50.6484861Z #9 11.34  Downloaded ccxt
+2026-10-03T04:55:50.6485162Z #9 11.45  Downloaded grpcio
+2026-10-03T04:55:51.0605615Z #9 11.86  Downloaded scikit-learn
+2026-10-03T04:55:51.2408351Z #9 12.04  Downloaded plotly
+2026-10-03T04:55:51.3420985Z #9 12.15  Downloaded matplotlib
+2026-10-03T04:55:51.8473662Z #9 12.55  Downloaded curl-cffi
+2026-10-03T04:55:51.8482057Z #9 12.60  Downloaded llama-index-core
+2026-10-03T04:55:51.8485292Z #9 12.60       Built ibapi==9.81.1.post1
+2026-10-03T04:55:51.9671877Z #9 12.65  Downloaded pandas
+2026-10-03T04:55:52.1357734Z #9 12.77  Downloaded numpy
+2026-10-03T04:55:52.1359486Z #9 12.81  Downloaded botocore
+2026-10-03T04:55:52.2897609Z #9 12.94  Downloaded duckdb
+2026-10-03T04:55:52.4050468Z #9 13.21  Downloaded uv
+2026-10-03T04:55:52.9484695Z #9 13.64  Downloaded litellm
+2026-10-03T04:55:52.9487894Z #9 13.73  Downloaded lumibot
+2026-10-03T04:55:53.0988638Z #9 13.75  Downloaded scipy
+2026-10-03T04:55:53.2187083Z #9 14.02  Downloaded polars-runtime-32
+2026-10-03T04:55:53.4037514Z #9 14.21  Downloaded pyarrow
+2026-10-03T04:55:53.5554007Z #9 14.21 Prepared 270 packages in 7.20s
+2026-10-03T04:56:01.2861296Z #9 22.09 Installed 270 packages in 7.87s
+2026-10-03T04:56:31.3550186Z #9 52.16 Bytecode compiled 25685 files in 30.07s
+2026-10-03T04:56:31.5233716Z #9 52.16  + aiodns==4.0.4
+2026-10-03T04:56:31.5234375Z #9 52.16  + aiohappyeyeballs==2.7.1
+2026-10-03T04:56:31.5235054Z #9 52.16  + aiohttp==3.14.3
+2026-10-03T04:56:31.5235494Z #9 52.16  + aiosignal==1.4.0
+2026-10-03T04:56:31.5235876Z #9 52.16  + aiosqlite==0.22.1
+2026-10-03T04:56:31.5236271Z #9 52.16  + alpaca-py==0.44.0
+2026-10-03T04:56:31.5236647Z #9 52.16  + alpha-vantage==3.0.0
+2026-10-03T04:56:31.5237045Z #9 52.16  + annotated-doc==0.0.5
+2026-10-03T04:56:31.5237450Z #9 52.16  + annotated-types==0.8.0
+2026-10-03T04:56:31.5237841Z #9 52.16  + anthropic==1.11.0
+2026-10-03T04:56:31.5238223Z #9 52.16  + anyio==4.15.1
+2026-10-03T04:56:31.5238582Z #9 52.16  + appdirs==1.4.4
+2026-10-03T04:56:31.5238949Z #9 52.16  + apscheduler==3.11.3
+2026-10-03T04:56:31.5239328Z #9 52.16  + asttokens==3.0.2
+2026-10-03T04:56:31.5239694Z #9 52.16  + attrs==26.1.0
+2026-10-03T04:56:31.5240052Z #9 52.16  + authlib==1.8.0
+2026-10-03T04:56:31.5240408Z #9 52.16  + autopep8==2.3.2
+2026-10-03T04:56:31.5240913Z #9 52.16  + banks==2.5.1
+2026-10-03T04:56:31.5241297Z #9 52.16  + bcrypt==5.0.0
+2026-10-03T04:56:31.5241654Z #9 52.16  + beautifulsoup4==4.15.0
+2026-10-03T04:56:31.5242038Z #9 52.16  + bitarray==3.11.0
+2026-10-03T04:56:31.5242488Z #9 52.16  + blinker==1.9.0
+2026-10-03T04:56:31.5242863Z #9 52.16  + boto3==1.43.108
+2026-10-03T04:56:31.5243220Z #9 52.16  + botocore==1.43.108
+2026-10-03T04:56:31.5243583Z #9 52.16  + ccxt==4.5.64
+2026-10-03T04:56:31.5243936Z #9 52.16  + certifi==2025.11.12
+2026-10-03T04:56:31.5244304Z #9 52.16  + cffi==2.1.1
+2026-10-03T04:56:31.5244669Z #9 52.16  + charset-normalizer==3.5.2
+2026-10-03T04:56:31.5245066Z #9 52.16  + ckzg==2.1.8
+2026-10-03T04:56:31.5245412Z #9 52.16  + click==8.5.0
+2026-10-03T04:56:31.5245764Z #9 52.16  + cloudpickle==3.1.2
+2026-10-03T04:56:31.5246267Z #9 52.16  + coincurve==21.0.0
+2026-10-03T04:56:31.5246646Z #9 52.16  + colorama==0.4.6
+2026-10-03T04:56:31.5247008Z #9 52.16  + contourpy==1.4.0
+2026-10-03T04:56:31.5247409Z #9 52.16  + cryptography==50.0.2
+2026-10-03T04:56:31.5247796Z #9 52.16  + curl-cffi==0.16.3
+2026-10-03T04:56:31.5248158Z #9 52.16  + cycler==0.12.1
+2026-10-03T04:56:31.5248509Z #9 52.16  + cytoolz==1.1.0
+2026-10-03T04:56:31.5248867Z #9 52.16  + databento==0.87.0
+2026-10-03T04:56:31.5249243Z #9 52.16  + databento-dbn==0.70.0
+2026-10-03T04:56:31.5249630Z #9 52.16  + dataclasses-json==0.6.7
+2026-10-03T04:56:31.5250025Z #9 52.16  + defusedxml==0.7.1
+2026-10-03T04:56:31.5250407Z #9 52.16  + deprecated==1.3.1
+2026-10-03T04:56:31.5250829Z #9 52.16  + dill==0.4.1
+2026-10-03T04:56:31.5251189Z #9 52.16  + dirtyjson==1.0.8
+2026-10-03T04:56:31.5251556Z #9 52.16  + distro==1.9.0
+2026-10-03T04:56:31.5251909Z #9 52.16  + docker==7.2.0
+2026-10-03T04:56:31.5252269Z #9 52.16  + docstring-parser==0.18.0
+2026-10-03T04:56:31.5252659Z #9 52.16  + duckdb==1.5.6
+2026-10-03T04:56:31.5253009Z #9 52.16  + durationpy==0.11
+2026-10-03T04:56:31.5253366Z #9 52.16  + eth-abi==6.0.0
+2026-10-03T04:56:31.5253735Z #9 52.16  + eth-account==0.14.0
+2026-10-03T04:56:31.5254110Z #9 52.16  + eth-hash==0.8.0
+2026-10-03T04:56:31.5254476Z #9 52.16  + eth-keyfile==0.10.0
+2026-10-03T04:56:31.5254838Z #9 52.16  + eth-keys==0.8.0
+2026-10-03T04:56:31.5255200Z #9 52.16  + eth-rlp==3.0.0
+2026-10-03T04:56:31.5255557Z #9 52.16  + eth-typing==6.0.0
+2026-10-03T04:56:31.5255921Z #9 52.16  + eth-utils==6.0.0
+2026-10-03T04:56:31.5256322Z #9 52.16  + exchange-calendars==4.13.2
+2026-10-03T04:56:31.5256713Z #9 52.16  + executing==2.2.1
+2026-10-03T04:56:31.5257077Z #9 52.16  + fastapi==0.141.1
+2026-10-03T04:56:31.5257442Z #9 52.16  + fastuuid==0.14.0
+2026-10-03T04:56:31.5295134Z #9 52.16  + filelock==4.0.9
+2026-10-03T04:56:31.5296142Z #9 52.16  + filetype==1.2.0
+2026-10-03T04:56:31.5299216Z #9 52.16  + flask==3.1.3
+2026-10-03T04:56:31.5299743Z #9 52.16  + fonttools==4.66.1
+2026-10-03T04:56:31.5300125Z #9 52.16  + free-proxy==1.3.0
+2026-10-03T04:56:31.5300503Z #9 52.16  + frozenlist==1.8.0
+2026-10-03T04:56:31.5300970Z #9 52.16  + fsspec==2026.9.0
+2026-10-03T04:56:31.5301346Z #9 52.16  + google-adk==2.11.0
+2026-10-03T04:56:31.5301770Z #9 52.16  + google-api-core==2.34.0
+2026-10-03T04:56:31.5302537Z #9 52.16  + google-auth==2.59.1
+2026-10-03T04:56:31.5302966Z #9 52.16  + google-auth-oauthlib==1.5.0
+2026-10-03T04:56:31.5303383Z #9 52.16  + google-cloud-core==2.8.0
+2026-10-03T04:56:31.5303807Z #9 52.16  + google-cloud-firestore==2.34.0
+2026-10-03T04:56:31.5304251Z #9 52.16  + google-genai==2.28.0
+2026-10-03T04:56:31.5304673Z #9 52.16  + googleapis-common-protos==1.75.5
+2026-10-03T04:56:31.5305102Z #9 52.17  + graphviz==0.21
+2026-10-03T04:56:31.5305469Z #9 52.17  + greenlet==3.5.6
+2026-10-03T04:56:31.5305833Z #9 52.17  + griffe==2.3.0
+2026-10-03T04:56:31.5306189Z #9 52.17  + griffecli==2.3.0
+2026-10-03T04:56:31.5306561Z #9 52.17  + griffelib==2.3.0
+2026-10-03T04:56:31.5306929Z #9 52.17  + grpcio==1.84.0
+2026-10-03T04:56:31.5307300Z #9 52.17  + grpcio-status==1.84.0
+2026-10-03T04:56:31.5307675Z #9 52.17  + h11==0.16.0
+2026-10-03T04:56:31.5308019Z #9 52.17  + h2==4.4.1
+2026-10-03T04:56:31.5308368Z #9 52.17  + hexbytes==2.0.0
+2026-10-03T04:56:31.5309683Z #9 52.17  + hf-xet==1.6.0
+2026-10-03T04:56:31.5310513Z #9 52.17  + holidays==0.105
+2026-10-03T04:56:31.5310957Z #9 52.17  + hpack==4.2.0
+2026-10-03T04:56:31.5311318Z #9 52.17  + httpcore==1.0.9
+2026-10-03T04:56:31.5311680Z #9 52.17  + httpcore2==2.13.1
+2026-10-03T04:56:31.5312056Z #9 52.17  + httpx==0.28.1
+2026-10-03T04:56:31.5312417Z #9 52.17  + httpx-sse==0.4.3
+2026-10-03T04:56:31.5312784Z #9 52.17  + httpx2==2.13.1
+2026-10-03T04:56:31.5313164Z #9 52.17  + huggingface-hub==1.33.0
+2026-10-03T04:56:31.5313559Z #9 52.17  + hyperframe==6.1.0
+2026-10-03T04:56:31.5313929Z #9 52.17  + ibapi==9.81.1.post1
+2026-10-03T04:56:31.5314303Z #9 52.17  + idna==3.20
+2026-10-03T04:56:31.5314653Z #9 52.17  + ijson==3.5.1
+2026-10-03T04:56:31.5315021Z #9 52.17  + importlib-metadata==8.9.0
+2026-10-03T04:56:31.5315420Z #9 52.17  + inflection==0.5.1
+2026-10-03T04:56:31.5315793Z #9 52.17  + iniconfig==2.3.0
+2026-10-03T04:56:31.5316165Z #9 52.17  + ipython==9.17.1
+2026-10-03T04:56:31.5316553Z #9 52.17  + ipython-pygments-lexers==1.1.1
+2026-10-03T04:56:31.5316983Z #9 52.17  + itsdangerous==2.2.0
+2026-10-03T04:56:31.5317354Z #9 52.17  + jedi==0.20.0
+2026-10-03T04:56:31.5317708Z #9 52.17  + jinja2==3.1.6
+2026-10-03T04:56:31.5318064Z #9 52.17  + jiter==0.17.0
+2026-10-03T04:56:31.5318429Z #9 52.17  + jmespath==1.1.0
+2026-10-03T04:56:31.5318798Z #9 52.17  + joblib==1.6.0
+2026-10-03T04:56:31.5319149Z #9 52.17  + joserfc==1.7.5
+2026-10-03T04:56:31.5319510Z #9 52.17  + jsonpatch==1.33
+2026-10-03T04:56:31.5319881Z #9 52.17  + jsonpickle==4.1.3
+2026-10-03T04:56:31.5320261Z #9 52.17  + jsonpointer==3.1.1
+2026-10-03T04:56:31.5320691Z #9 52.17  + jsonschema==4.26.0
+2026-10-03T04:56:31.5321113Z #9 52.17  + jsonschema-specifications==2025.9.1
+2026-10-03T04:56:31.5321562Z #9 52.17  + k8s-agent-sandbox==1.0.4
+2026-10-03T04:56:31.5321957Z #9 52.17  + kiwisolver==1.5.1
+2026-10-03T04:56:31.5322350Z #9 52.17  + korean-lunar-calendar==0.4.0
+2026-10-03T04:56:31.5322826Z #9 52.17  + kubernetes==36.0.3
+2026-10-03T04:56:31.5323215Z #9 52.17  + langchain-core==1.6.6
+2026-10-03T04:56:31.5323616Z #9 52.17  + langchain-protocol==0.0.19
+2026-10-03T04:56:31.5324023Z #9 52.17  + langgraph==1.2.12
+2026-10-03T04:56:31.5324421Z #9 52.17  + langgraph-checkpoint==4.2.0
+2026-10-03T04:56:31.5324851Z #9 52.17  + langgraph-prebuilt==1.1.0
+2026-10-03T04:56:31.5325257Z #9 52.17  + langgraph-sdk==0.4.5
+2026-10-03T04:56:31.5325638Z #9 52.17  + langsmith==0.14.4
+2026-10-03T04:56:31.5326011Z #9 52.17  + litellm==1.103.2
+2026-10-03T04:56:31.5326493Z #9 52.17  + llama-index-core==0.14.25
+2026-10-03T04:56:31.5333185Z #9 52.17  + llama-index-embeddings-google-genai==0.6.0
+2026-10-03T04:56:31.5333720Z #9 52.17  + llama-index-instrumentation==0.6.0
+2026-10-03T04:56:31.5334185Z #9 52.17  + llama-index-readers-file==0.7.0
+2026-10-03T04:56:31.5334621Z #9 52.17  + llama-index-workflows==2.25.0
+2026-10-03T04:56:31.5335026Z #9 52.17  + lumibot==4.6.4
+2026-10-03T04:56:31.5335403Z #9 52.17  + lumiwealth-tradier==0.1.18
+2026-10-03T04:56:31.5335808Z #9 52.17  + lxml==6.1.3
+2026-10-03T04:56:31.5336178Z #9 52.17  + markupsafe==3.0.4
+2026-10-03T04:56:31.5336563Z #9 52.17  + marshmallow==3.26.2
+2026-10-03T04:56:31.5336943Z #9 52.17  + matplotlib==3.11.2
+2026-10-03T04:56:31.5337327Z #9 52.17  + matplotlib-inline==0.2.2
+2026-10-03T04:56:31.5337713Z #9 52.17  + mcp==1.30.0
+2026-10-03T04:56:31.5338070Z #9 52.17  + more-itertools==11.1.0
+2026-10-03T04:56:31.5338467Z #9 52.17  + msgpack==1.2.3
+2026-10-03T04:56:31.5338825Z #9 52.17  + multidict==6.9.1
+2026-10-03T04:56:31.5339202Z #9 52.17  + multiprocess==0.70.19
+2026-10-03T04:56:31.5339589Z #9 52.17  + multitasking==0.0.13
+2026-10-03T04:56:31.5339980Z #9 52.17  + mypy-extensions==1.1.0
+2026-10-03T04:56:31.5340530Z #9 52.17  + narwhals==2.26.0
+2026-10-03T04:56:31.5340958Z #9 52.17  + nest-asyncio==1.6.0
+2026-10-03T04:56:31.5341326Z #9 52.17  + networkx==3.7
+2026-10-03T04:56:31.5341674Z #9 52.17  + nltk==3.10.3
+2026-10-03T04:56:31.5342025Z #9 52.17  + numpy==2.4.6
+2026-10-03T04:56:31.5342749Z #9 52.17  + oauthlib==4.0.0
+2026-10-03T04:56:31.5343935Z #9 52.17  + openai==2.54.0
+2026-10-03T04:56:31.5344649Z #9 52.17  + opentelemetry-api==1.42.1
+2026-10-03T04:56:31.5345061Z #9 52.17  + opentelemetry-sdk==1.42.1
+2026-10-03T04:56:31.5345521Z #9 52.17  + opentelemetry-semantic-conventions==0.63b1
+2026-10-03T04:56:31.5345977Z #9 52.17  + orjson==3.12.0
+2026-10-03T04:56:31.5346339Z #9 52.17  + ormsgpack==1.12.2
+2026-10-03T04:56:31.5346713Z #9 52.17  + packaging==25.0
+2026-10-03T04:56:31.5347074Z #9 52.17  + pandas==2.3.3
+2026-10-03T04:56:31.5347652Z #9 52.17  + pandas-market-calendars==5.4.0
+2026-10-03T04:56:31.5348086Z #9 52.17  + pandas-ta-classic==0.8.32
+2026-10-03T04:56:31.5348494Z #9 52.17  + parsimonious==0.10.0
+2026-10-03T04:56:31.5348866Z #9 52.17  + parso==0.8.7
+2026-10-03T04:56:31.5349224Z #9 52.17  + peewee==4.5.2
+2026-10-03T04:56:31.5349580Z #9 52.17  + pexpect==4.9.0
+2026-10-03T04:56:31.5349934Z #9 52.17  + pillow==12.3.0
+2026-10-03T04:56:31.5350290Z #9 52.17  + platformdirs==4.12.2
+2026-10-03T04:56:31.5350768Z #9 52.17  + plotly==7.1.0
+2026-10-03T04:56:31.5351135Z #9 52.17  + pluggy==1.6.0
+2026-10-03T04:56:31.5351486Z #9 52.17  + polars==1.44.2
+2026-10-03T04:56:31.5351854Z #9 52.17  + polars-runtime-32==1.44.2
+2026-10-03T04:56:31.5352265Z #9 52.17  + poly-eip712-structs==0.0.1
+2026-10-03T04:56:31.5352672Z #9 52.17  + polygon-api-client==1.16.3
+2026-10-03T04:56:31.5353085Z #9 52.17  + prometheus-client==0.26.0
+2026-10-03T04:56:31.5353502Z #9 52.17  + prompt-toolkit==3.0.53
+2026-10-03T04:56:31.5353893Z #9 52.17  + propcache==0.5.4
+2026-10-03T04:56:31.5354265Z #9 52.17  + proto-plus==1.29.0
+2026-10-03T04:56:31.5354640Z #9 52.17  + protobuf==7.36.2
+2026-10-03T04:56:31.5355010Z #9 52.17  + psutil==7.2.2
+2026-10-03T04:56:31.5355366Z #9 52.17  + psycopg2-binary==2.9.13
+2026-10-03T04:56:31.5355770Z #9 52.17  + ptyprocess==0.7.0
+2026-10-03T04:56:31.5356138Z #9 52.17  + pure-eval==0.2.4
+2026-10-03T04:56:31.5356515Z #9 52.17  + py-clob-client-v2==1.2.0
+2026-10-03T04:56:31.5356900Z #9 52.17  + py-ecc==8.0.0
+2026-10-03T04:56:31.5357268Z #9 52.17  + py-order-utils==0.3.2
+2026-10-03T04:56:31.5357659Z #9 52.17  + pyarrow==25.0.1
+2026-10-03T04:56:31.5358014Z #9 52.17  + pyasn1==0.6.4
+2026-10-03T04:56:31.5358378Z #9 52.17  + pyasn1-modules==0.4.2
+2026-10-03T04:56:31.5358759Z #9 52.17  + pycares==5.0.1
+2026-10-03T04:56:31.5359124Z #9 52.17  + pycodestyle==2.15.0
+2026-10-03T04:56:31.5359501Z #9 52.17  + pycparser==3.0
+2026-10-03T04:56:31.5359865Z #9 52.17  + pycryptodome==3.23.0
+2026-10-03T04:56:31.5360243Z #9 52.17  + pydantic==2.13.5
+2026-10-03T04:56:31.5360707Z #9 52.17  + pydantic-core==2.46.5
+2026-10-03T04:56:31.5361105Z #9 52.17  + pydantic-settings==2.15.0
+2026-10-03T04:56:31.5366786Z #9 52.17  + pygments==2.21.0
+2026-10-03T04:56:31.5367370Z #9 52.17  + pyjwt==2.15.1
+2026-10-03T04:56:31.5367731Z #9 52.17  + pyluach==2.3.0
+2026-10-03T04:56:31.5368088Z #9 52.17  + pyparsing==3.3.3
+2026-10-03T04:56:31.5368452Z #9 52.17  + pypdf==6.19.0
+2026-10-03T04:56:31.5368801Z #9 52.17  + pypika==0.51.1
+2026-10-03T04:56:31.5369232Z #9 52.17  + pytest==9.1.1
+2026-10-03T04:56:31.5369645Z #9 52.17  + python-dateutil==2.9.0.post0
+2026-10-03T04:56:31.5370064Z #9 52.17  + python-dotenv==1.2.4
+2026-10-03T04:56:31.5370457Z #9 52.17  + python-multipart==0.0.32
+2026-10-03T04:56:31.5370914Z #9 52.17  + pytz==2026.4
+2026-10-03T04:56:31.5371269Z #9 52.17  + pyyaml==6.0.3
+2026-10-03T04:56:31.5371618Z #9 52.17  + quandl==3.7.0
+2026-10-03T04:56:31.5371994Z #9 52.17  + quantstats-lumi==1.1.5
+2026-10-03T04:56:31.5372385Z #9 52.17  + referencing==0.37.0
+2026-10-03T04:56:31.5372754Z #9 52.17  + regex==2026.9.29
+2026-10-03T04:56:31.5373118Z #9 52.17  + requests==2.34.2
+2026-10-03T04:56:31.5373489Z #9 52.17  + requests-oauthlib==2.0.0
+2026-10-03T04:56:31.5373889Z #9 52.17  + requests-toolbelt==1.0.0
+2026-10-03T04:56:31.5374275Z #9 52.17  + rlp==5.0.0
+2026-10-03T04:56:31.5374623Z #9 52.17  + rpds-py==2026.6.3
+2026-10-03T04:56:31.5374994Z #9 52.17  + s3transfer==0.19.2
+2026-10-03T04:56:31.5375359Z #9 52.17  + schwab-py==1.5.1
+2026-10-03T04:56:31.5375724Z #9 52.17  + scikit-learn==1.9.1
+2026-10-03T04:56:31.5376657Z #9 52.17  + scipy==1.18.1
+2026-10-03T04:56:31.5377292Z #9 52.17  + seaborn==0.13.2
+2026-10-03T04:56:31.5377655Z #9 52.17  + setuptools==80.10.2
+2026-10-03T04:56:31.5378023Z #9 52.17  + six==1.17.0
+2026-10-03T04:56:31.5378369Z #9 52.17  + sniffio==1.3.1
+2026-10-03T04:56:31.5378720Z #9 52.17  + soupsieve==2.10
+2026-10-03T04:56:31.5379085Z #9 52.17  + sqlalchemy==2.1.3
+2026-10-03T04:56:31.5379461Z #9 52.17  + sse-starlette==3.5.0
+2026-10-03T04:56:31.5379843Z #9 52.17  + sseclient-py==1.9.0
+2026-10-03T04:56:31.5380223Z #9 52.17  + stack-data==0.6.3
+2026-10-03T04:56:31.5380591Z #9 52.17  + starlette==1.7.0
+2026-10-03T04:56:31.5381026Z #9 52.17  + striprtf==0.0.26
+2026-10-03T04:56:31.5381386Z #9 52.17  + tabulate==0.10.0
+2026-10-03T04:56:31.5381747Z #9 52.17  + tenacity==9.1.4
+2026-10-03T04:56:31.5382103Z #9 52.17  + termcolor==3.3.0
+2026-10-03T04:56:31.5382833Z #9 52.17  + thetadata==0.9.11
+2026-10-03T04:56:31.5383205Z #9 52.17  + threadpoolctl==3.7.0
+2026-10-03T04:56:31.5383588Z #9 52.17  + tiktoken==0.14.0
+2026-10-03T04:56:31.5383955Z #9 52.17  + tinytag==2.3.2
+2026-10-03T04:56:31.5384314Z #9 52.17  + tokenizers==0.23.2
+2026-10-03T04:56:31.5384687Z #9 52.17  + toolbox-adk==1.4.0
+2026-10-03T04:56:31.5385063Z #9 52.17  + toolbox-core==1.4.0
+2026-10-03T04:56:31.5385427Z #9 52.17  + toolz==1.1.0
+2026-10-03T04:56:31.5385784Z #9 52.17  + tqdm==4.70.1
+2026-10-03T04:56:31.5386139Z #9 52.17  + traitlets==5.16.1
+2026-10-03T04:56:31.5386511Z #9 52.17  + truststore==0.10.4
+2026-10-03T04:56:31.5386890Z #9 52.17  + typing-extensions==4.16.0
+2026-10-03T04:56:31.5387294Z #9 52.17  + typing-inspect==0.9.0
+2026-10-03T04:56:31.5387688Z #9 52.17  + typing-inspection==0.4.4
+2026-10-03T04:56:31.5388096Z #9 52.17  + tzdata==2026.4
+2026-10-03T04:56:31.5388452Z #9 52.17  + tzlocal==5.4.4
+2026-10-03T04:56:31.5388804Z #9 52.17  + urllib3==2.8.0
+2026-10-03T04:56:31.5389163Z #9 52.17  + uuid-utils==0.17.1
+2026-10-03T04:56:31.5389521Z #9 52.17  + uv==0.9.22
+2026-10-03T04:56:31.5389864Z #9 52.17  + uvicorn==0.54.0
+2026-10-03T04:56:31.5390226Z #9 52.17  + watchdog==6.0.0
+2026-10-03T04:56:31.5390583Z #9 52.17  + wcwidth==0.9.1
+2026-10-03T04:56:31.5391036Z #9 52.17  + websocket-client==1.9.2
+2026-10-03T04:56:31.5391432Z #9 52.17  + websockets==15.0.1
+2026-10-03T04:56:31.5391803Z #9 52.17  + werkzeug==3.1.9
+2026-10-03T04:56:31.5392149Z #9 52.17  + wget==3.2
+2026-10-03T04:56:31.5392485Z #9 52.17  + wrapt==2.5.0
+2026-10-03T04:56:31.5392838Z #9 52.17  + xxhash==4.0.1
+2026-10-03T04:56:31.5393189Z #9 52.17  + yappi==1.7.6
+2026-10-03T04:56:31.5400449Z #9 52.17  + yarl==1.25.1
+2026-10-03T04:56:31.5401668Z #9 52.17  + yfinance==1.7.0
+2026-10-03T04:56:31.5402332Z #9 52.17  + zipp==4.1.0
+2026-10-03T04:56:31.5403022Z #9 52.17  + zstandard==0.25.0
+2026-10-03T04:56:31.5403589Z #9 52.17 warning: `thetadata==0.9.11` is yanked
+2026-10-03T04:56:32.0398669Z #9 DONE 52.8s
+2026-10-03T04:56:39.7777888Z 
+2026-10-03T04:56:39.7781613Z #10 [stage-1 3/5] COPY --from=builder /usr/local/lib/python3.13/site-packages /usr/local/lib/python3.13/site-packages
+2026-10-03T04:56:52.2157476Z #10 DONE 12.4s
+2026-10-03T04:56:52.3673539Z 
+2026-10-03T04:56:52.3676777Z #11 [stage-1 4/5] COPY --from=builder /usr/local/bin/uv /usr/local/bin/uv
+2026-10-03T04:56:53.0368686Z #11 DONE 0.8s
+2026-10-03T04:56:53.2865757Z 
+2026-10-03T04:56:53.2869183Z #12 [stage-1 5/5] RUN groupadd -r nonroot && useradd -r -g nonroot -m -d /home/nonroot nonroot
+2026-10-03T04:56:53.2870487Z #12 DONE 0.1s
+2026-10-03T04:56:53.2870734Z 
+2026-10-03T04:56:53.2871848Z #13 exporting to docker image format
+2026-10-03T04:56:53.2872423Z #13 exporting layers
+2026-10-03T04:57:44.5706674Z #13 exporting layers 51.4s done
+2026-10-03T04:57:44.7396116Z #13 exporting manifest sha256:f988b5176e47921c9165db13839c1d371dfe175bb15f669ba3c068a298033751 done
+2026-10-03T04:57:44.7402229Z #13 exporting config sha256:1a1ae8fb98f5bb3435367783410d03bf821f48fa26e096c8dbe761a47f480a34 done
+2026-10-03T04:57:44.7417726Z #13 sending tarball
+2026-10-03T04:57:51.7209796Z #13 ...
+2026-10-03T04:57:51.7211051Z 
+2026-10-03T04:57:51.7211735Z #14 importing to docker
+2026-10-03T04:57:51.8703578Z #14 loading layer 28947ef2e9b8 65.54kB / 4.61MB
+2026-10-03T04:57:51.8709055Z #14 loading layer 521e12be4160 131.07kB / 11.85MB
+2026-10-03T04:57:52.4292078Z #14 loading layer 4a65f022c09a 249B / 249B
+2026-10-03T04:57:52.6367492Z #14 loading layer 5019edc7c46c 32.77kB / 954.18kB
+2026-10-03T04:57:52.6369254Z #14 loading layer b32c04396f40 557.06kB / 551.28MB
+2026-10-03T04:57:54.5277110Z #14 loading layer b32c04396f40 81.89MB / 551.28MB 2.0s
+2026-10-03T04:57:56.5285706Z #14 loading layer b32c04396f40 118.10MB / 551.28MB 4.0s
+2026-10-03T04:57:58.6697577Z #14 loading layer b32c04396f40 166.56MB / 551.28MB 6.2s
+2026-10-03T04:58:02.8695926Z #14 loading layer b32c04396f40 215.02MB / 551.28MB 10.4s
+2026-10-03T04:58:04.9362067Z #14 loading layer b32c04396f40 294.13MB / 551.28MB 12.4s
+2026-10-03T04:58:06.9375022Z #14 loading layer b32c04396f40 349.27MB / 551.28MB 14.5s
+2026-10-03T04:58:08.9562337Z #14 loading layer b32c04396f40 377.13MB / 551.28MB 16.5s
+2026-10-03T04:58:11.0463533Z #14 loading layer b32c04396f40 431.16MB / 551.28MB 18.6s
+2026-10-03T04:58:13.1184965Z #14 loading layer b32c04396f40 487.98MB / 551.28MB 20.6s
+2026-10-03T04:58:15.1689114Z #14 loading layer b32c04396f40 542.57MB / 551.28MB 22.7s
+2026-10-03T04:58:16.1183357Z #14 loading layer 5facefbd15a3 229.38kB / 21.79MB
+2026-10-03T04:58:16.4592689Z #14 loading layer ecb2502d9575 3.23kB / 3.23kB
+2026-10-03T04:58:16.6712205Z #14 loading layer 28947ef2e9b8 4.61MB / 4.61MB 24.8s done
+2026-10-03T04:58:16.6714237Z #14 loading layer 521e12be4160 11.85MB / 11.85MB 24.6s done
+2026-10-03T04:58:16.6716387Z #14 loading layer 4a65f022c09a 249B / 249B 24.1s done
+2026-10-03T04:58:16.6717915Z #14 loading layer 5019edc7c46c 954.18kB / 954.18kB 24.1s done
+2026-10-03T04:58:16.6721020Z #14 loading layer b32c04396f40 551.28MB / 551.28MB 24.0s done
+2026-10-03T04:58:16.6721459Z #14 loading layer 5facefbd15a3 21.79MB / 21.79MB 0.4s done
+2026-10-03T04:58:16.6721878Z #14 loading layer ecb2502d9575 3.23kB / 3.23kB 0.1s done
+2026-10-03T04:58:16.6722229Z #14 DONE 24.8s
+2026-10-03T04:58:16.6722375Z 
+2026-10-03T04:58:16.6722500Z #13 exporting to docker image format
+2026-10-03T04:58:16.6722821Z #13 sending tarball 31.9s done
+2026-10-03T04:58:16.6723105Z #13 DONE 83.4s
+2026-10-03T04:58:16.6723243Z 
+2026-10-03T04:58:16.6723429Z #15 exporting cache to client directory
+2026-10-03T04:58:16.6723785Z #15 preparing build cache for export
+2026-10-03T04:59:10.9916877Z #15 preparing build cache for export 54.5s done
+2026-10-03T04:59:10.9918456Z #15 sending cache export
+2026-10-03T04:59:11.2105062Z #15 writing layer sha256:3f6d18b15a0ebb13cb258a9deee5cbfc21ce048ecbce6381fc51ef1d8cf53037
+2026-10-03T04:59:11.2120368Z #15 writing layer sha256:1da02afe6a42c68d8350a622db6dfc96e1743cb24d3c4c37faa98ba68a7a3444 0.1s done
+2026-10-03T04:59:11.2121462Z #15 writing layer sha256:2eb2cf19fc5479898e18094aef514666e70d42e1179056f19b63f5c955819c4c
+2026-10-03T04:59:11.2122385Z #15 writing layer sha256:058410d7951a96b89b9a95d46323f5f26e4fbbd8857ce38c2cb583d5c5d06161
+2026-10-03T04:59:11.2123285Z #15 writing layer sha256:824667651933e4e4c6cbdf39e0173f891fc98d4af45d17d1a4cfcb299dc9e79c
+2026-10-03T04:59:11.3374276Z #15 writing layer sha256:824667651933e4e4c6cbdf39e0173f891fc98d4af45d17d1a4cfcb299dc9e79c 0.3s done
+2026-10-03T04:59:11.3382157Z #15 writing layer sha256:8ca6b81b20b196574b5f404d06fe32edf0e3a47e2559214c53996a9fe3e8c555
+2026-10-03T04:59:11.5350630Z #15 writing layer sha256:8ca6b81b20b196574b5f404d06fe32edf0e3a47e2559214c53996a9fe3e8c555 0.0s done
+2026-10-03T04:59:11.5386317Z #15 writing layer sha256:8cd4cf3fa73d47ef3380c9d02066e0498dd64cdefe513b40e5f0b106b8993d91
+2026-10-03T04:59:11.9068760Z #15 writing layer sha256:8cd4cf3fa73d47ef3380c9d02066e0498dd64cdefe513b40e5f0b106b8993d91 0.5s done
+2026-10-03T04:59:11.9070585Z #15 writing layer sha256:a1986bb90d8697c9a0c3428d77f52ef9622cc9757544e8ae68fb1eb95e67aaa3
+2026-10-03T04:59:12.0679296Z #15 writing layer sha256:3f6d18b15a0ebb13cb258a9deee5cbfc21ce048ecbce6381fc51ef1d8cf53037 1.0s done
+2026-10-03T04:59:12.0688289Z #15 writing layer sha256:a1986bb90d8697c9a0c3428d77f52ef9622cc9757544e8ae68fb1eb95e67aaa3 0.1s done
+2026-10-03T04:59:12.0743342Z #15 writing layer sha256:bd36565c0fdebaf0f3af5c3b4ce610ca085ced32e9e9da850d95912f5f18f47b
+2026-10-03T04:59:12.0765789Z #15 writing layer sha256:dfede6053d310b670020176c4dd81ad0ff7bb619cacc56c45fb8e115328cf805 0.1s done
+2026-10-03T04:59:12.0777806Z #15 writing layer sha256:fd5c1c78a8de95db7f73cdd4789fd0814d641a191c2b82919cc09874f8f49f50
+2026-10-03T04:59:13.1344144Z #15 writing layer sha256:fd5c1c78a8de95db7f73cdd4789fd0814d641a191c2b82919cc09874f8f49f50 1.1s done
+2026-10-03T04:59:13.3414963Z #15 writing layer sha256:bd36565c0fdebaf0f3af5c3b4ce610ca085ced32e9e9da850d95912f5f18f47b 1.4s done
+2026-10-03T04:59:24.1840784Z #15 writing layer sha256:058410d7951a96b89b9a95d46323f5f26e4fbbd8857ce38c2cb583d5c5d06161 13.2s done
+2026-10-03T04:59:24.2654550Z #15 sending cache export 13.2s done
+2026-10-03T04:59:24.2655291Z #15 writing layer sha256:2eb2cf19fc5479898e18094aef514666e70d42e1179056f19b63f5c955819c4c 13.2s done
+2026-10-03T04:59:24.2685496Z #15 writing config sha256:8803a5001e349c8fa64dc0190b6e60cb862fe126098c70b7329d2c23f257dd89 0.0s done
+2026-10-03T04:59:24.2686860Z #15 writing cache image manifest sha256:c49de4a78a81935cc55475036ce93efa4d724a9cd358134d65dc75088149c7f8 done
+2026-10-03T04:59:24.2687451Z #15 DONE 67.7s
+2026-10-03T04:59:24.2688259Z WARNING: local cache import at /tmp/.buildx-cache not found due to err: could not lock /tmp/.buildx-cache/index.json.lock: open /tmp/.buildx-cache/index.json.lock: no such file or directory
+2026-10-03T04:59:24.2856857Z INFO:image_builder:Docker build completed successfully
+2026-10-03T04:59:24.2858133Z INFO:image_builder:Successfully built local dependencies image: dev-trading-bot-dependencies:latest
+2026-10-03T04:59:24.3592514Z INFO:image_builder:✓ LIVE TRADING dependencies image dev-trading-bot-dependencies:latest available for base image builds
+2026-10-03T04:59:24.3593374Z INFO:image_builder:
+2026-10-03T04:59:24.3593768Z INFO:image_builder:================================================================================
+2026-10-03T04:59:24.3594428Z INFO:image_builder:Building BACKTEST dependencies image (with Temurin Java 21 for ThetaData)...
+2026-10-03T04:59:24.3595063Z INFO:image_builder:================================================================================
+2026-10-03T04:59:24.3595678Z INFO:image_builder:Building backtest dependencies image locally with buildx for arm64...
+2026-10-03T04:59:24.3596232Z INFO:image_builder:Using GitHub Actions local cache
+2026-10-03T04:59:24.3597730Z INFO:image_builder:Running build command: docker buildx build --platform linux/arm64 --provenance=false --cache-from type=local,src=/tmp/.buildx-cache --cache-to type=local,dest=/tmp/.buildx-cache-new,mode=max --build-arg LUMIBOT_VERSION=4.6.4 -t dev-trading-bot-dependencies-backtest:latest --load /tmp/tmpitlzkorv
+2026-10-03T04:59:24.8772612Z #0 building with "builder-ddff77ce-f8bf-47c5-9d1e-c5c17a1bf64c" instance using docker-container driver
+2026-10-03T04:59:24.8773477Z 
+2026-10-03T04:59:24.8774047Z #1 [internal] load build definition from Dockerfile
+2026-10-03T04:59:24.8774732Z #1 transferring dockerfile: 2.92kB done
+2026-10-03T04:59:24.8776068Z #1 DONE 0.0s
+2026-10-03T04:59:24.8776283Z 
+2026-10-03T04:59:24.8776553Z #2 [internal] load metadata for docker.io/library/python:3.13-slim-trixie
+2026-10-03T04:59:24.9709262Z #2 DONE 0.2s
+2026-10-03T04:59:24.9709752Z 
+2026-10-03T04:59:24.9710770Z #3 [internal] load metadata for ghcr.io/astral-sh/uv:python3.13-trixie-slim
+2026-10-03T04:59:25.2675377Z #3 DONE 0.5s
+2026-10-03T04:59:25.4471759Z 
+2026-10-03T04:59:25.4493967Z #4 [internal] load .dockerignore
+2026-10-03T04:59:25.4494432Z #4 transferring context: 2B done
+2026-10-03T04:59:25.4494752Z #4 DONE 0.0s
+2026-10-03T04:59:25.4494900Z 
+2026-10-03T04:59:25.4495562Z #5 [python_builder 1/3] FROM ghcr.io/astral-sh/uv:python3.13-trixie-slim@sha256:4cf2255999bc7e6112abfdfda19492e05e1e1c2d1c6e0c5076d0e768e9925032
+2026-10-03T04:59:25.4496657Z #5 resolve ghcr.io/astral-sh/uv:python3.13-trixie-slim@sha256:4cf2255999bc7e6112abfdfda19492e05e1e1c2d1c6e0c5076d0e768e9925032 done
+2026-10-03T04:59:25.4497427Z #5 DONE 0.0s
+2026-10-03T04:59:25.4497567Z 
+2026-10-03T04:59:25.4498046Z #6 [stage-1 1/8] FROM docker.io/library/python:3.13-slim-trixie@sha256:bb2988715db2cf7ace7b53f38f3cffbef7c7046a656bee66245eb0ed386e2e81
+2026-10-03T04:59:25.4499102Z #6 resolve docker.io/library/python:3.13-slim-trixie@sha256:bb2988715db2cf7ace7b53f38f3cffbef7c7046a656bee66245eb0ed386e2e81 0.0s done
+2026-10-03T04:59:25.4499783Z #6 CACHED
+2026-10-03T04:59:25.4499914Z 
+2026-10-03T04:59:25.4500053Z #7 [python_builder 2/3] WORKDIR /build_context
+2026-10-03T04:59:25.4500392Z #7 CACHED
+2026-10-03T04:59:25.4500522Z 
+2026-10-03T04:59:25.4504086Z #8 [python_builder 3/3] RUN --mount=type=cache,target=/root/.cache/uv     --mount=type=cache,target=/var/cache/apt,sharing=locked     --mount=type=cache,target=/var/lib/apt,sharing=locked     UV_COMPILE_BYTECODE=1 UV_LINK_MODE=copy     uv pip install --system --refresh-package lumibot "lumibot==4.6.4" boto3 requests pandas_ta thetadata==0.9.11 scikit-learn
+2026-10-03T04:59:25.9010373Z #8 0.454 Using Python 3.13.16 environment at: /usr/local
+2026-10-03T04:59:26.4286986Z #8 0.901 Resolved 272 packages in 434ms
+2026-10-03T04:59:26.4287782Z #8 0.981 Downloading numba (3.4MiB)
+2026-10-03T04:59:26.4288283Z #8 0.981 Downloading llvmlite (39.3MiB)
+2026-10-03T04:59:26.4288834Z #8 0.981 Downloading numpy (13.4MiB)
+2026-10-03T04:59:28.0854704Z #8 2.642  Downloaded numba
+2026-10-03T04:59:29.7821037Z #8 4.331  Downloaded numpy
+2026-10-03T04:59:31.2262695Z #8 ...
+2026-10-03T04:59:31.2263213Z 
+2026-10-03T04:59:31.2263947Z #9 [stage-1 2/8] RUN apt-get update && apt-get install -y --no-install-recommends     curl     ca-certificates     tzdata     && rm -rf /var/lib/apt/lists/*
+2026-10-03T04:59:31.2264774Z #9 0.240 Hit:1 http://deb.debian.org/debian trixie InRelease
+2026-10-03T04:59:31.2265355Z #9 0.257 Get:2 http://deb.debian.org/debian trixie-updates InRelease [47.3 kB]
+2026-10-03T04:59:31.2266026Z #9 0.271 Get:3 http://deb.debian.org/debian-security trixie-security InRelease [43.4 kB]
+2026-10-03T04:59:31.2266697Z #9 0.291 Get:4 http://deb.debian.org/debian trixie/main arm64 Packages [9614 kB]
+2026-10-03T04:59:31.2267550Z #9 0.427 Get:5 http://deb.debian.org/debian trixie-updates/main arm64 Packages [4424 B]
+2026-10-03T04:59:31.2268384Z #9 0.440 Get:6 http://deb.debian.org/debian-security trixie-security/main arm64 Packages [265 kB]
+2026-10-03T04:59:31.2269821Z #9 1.306 Fetched 9974 kB in 1s (8967 kB/s)
+2026-10-03T04:59:31.2270302Z #9 1.306 Reading package lists...
+2026-10-03T04:59:31.2270658Z #9 2.080 Reading package lists...
+2026-10-03T04:59:31.2272759Z #9 2.811 Building dependency tree...
+2026-10-03T04:59:31.2273550Z #9 3.192 Reading state information...
+2026-10-03T04:59:31.2274000Z #9 3.864 ca-certificates is already the newest version (20250419).
+2026-10-03T04:59:31.2274505Z #9 3.864 tzdata is already the newest version (2026c-0+deb13u1).
+2026-10-03T04:59:31.2275069Z #9 3.864 The following additional packages will be installed:
+2026-10-03T04:59:31.2275688Z #9 3.865   libbrotli1 libcom-err2 libcurl4t64 libgnutls30t64 libgssapi-krb5-2 libidn2-0
+2026-10-03T04:59:31.2277518Z #9 3.865   libk5crypto3 libkeyutils1 libkrb5-3 libkrb5support0 libldap2 libnghttp2-14
+2026-10-03T04:59:31.2313690Z #9 3.867   libnghttp3-9 libp11-kit0 libpsl5t64 librtmp1 libsasl2-2 libsasl2-modules-db
+2026-10-03T04:59:31.2314856Z #9 3.868   libssh2-1t64 libtasn1-6 libunistring5
+2026-10-03T04:59:31.2315234Z #9 3.872 Suggested packages:
+2026-10-03T04:59:31.2318705Z #9 3.872   gnutls-bin krb5-doc krb5-user
+2026-10-03T04:59:31.2319172Z #9 3.872 Recommended packages:
+2026-10-03T04:59:31.2319682Z #9 3.872   bash-completion krb5-locales libldap-common publicsuffix libsasl2-modules
+2026-10-03T04:59:31.2320267Z #9 4.047 The following NEW packages will be installed:
+2026-10-03T04:59:31.2320848Z #9 4.048   curl libbrotli1 libcom-err2 libcurl4t64 libgnutls30t64 libgssapi-krb5-2
+2026-10-03T04:59:31.2321508Z #9 4.048   libidn2-0 libk5crypto3 libkeyutils1 libkrb5-3 libkrb5support0 libldap2
+2026-10-03T04:59:31.2322154Z #9 4.050   libnghttp2-14 libnghttp3-9 libp11-kit0 libpsl5t64 librtmp1 libsasl2-2
+2026-10-03T04:59:31.2322760Z #9 4.051   libsasl2-modules-db libssh2-1t64 libtasn1-6 libunistring5
+2026-10-03T04:59:31.2323323Z #9 4.148 0 upgraded, 22 newly installed, 0 to remove and 1 not upgraded.
+2026-10-03T04:59:31.2323831Z #9 4.148 Need to get 4650 kB of archives.
+2026-10-03T04:59:31.2324340Z #9 4.148 After this operation, 15.6 MB of additional disk space will be used.
+2026-10-03T04:59:31.2334360Z #9 4.148 Get:1 http://deb.debian.org/debian trixie/main arm64 libbrotli1 arm64 1.1.0-2+b7 [308 kB]
+2026-10-03T04:59:31.2335500Z #9 4.158 Get:2 http://deb.debian.org/debian trixie/main arm64 libkrb5support0 arm64 1.21.3-5+deb13u1 [32.5 kB]
+2026-10-03T04:59:31.2338247Z #9 4.162 Get:3 http://deb.debian.org/debian trixie/main arm64 libcom-err2 arm64 1.47.2-3+b12 [24.9 kB]
+2026-10-03T04:59:31.2339244Z #9 4.162 Get:4 http://deb.debian.org/debian trixie/main arm64 libk5crypto3 arm64 1.21.3-5+deb13u1 [81.4 kB]
+2026-10-03T04:59:31.2343901Z #9 4.162 Get:5 http://deb.debian.org/debian trixie/main arm64 libkeyutils1 arm64 1.6.3-6 [9716 B]
+2026-10-03T04:59:31.2344872Z #9 4.162 Get:6 http://deb.debian.org/debian trixie/main arm64 libkrb5-3 arm64 1.21.3-5+deb13u1 [308 kB]
+2026-10-03T04:59:31.2345908Z #9 4.166 Get:7 http://deb.debian.org/debian trixie/main arm64 libgssapi-krb5-2 arm64 1.21.3-5+deb13u1 [128 kB]
+2026-10-03T04:59:31.2347582Z #9 4.169 Get:8 http://deb.debian.org/debian trixie/main arm64 libunistring5 arm64 1.3-2 [453 kB]
+2026-10-03T04:59:31.2349668Z #9 4.170 Get:9 http://deb.debian.org/debian trixie/main arm64 libidn2-0 arm64 2.3.8-2 [107 kB]
+2026-10-03T04:59:31.2356740Z #9 4.172 Get:10 http://deb.debian.org/debian trixie/main arm64 libsasl2-modules-db arm64 2.1.28+dfsg1-9 [20.1 kB]
+2026-10-03T04:59:31.2358144Z #9 4.173 Get:11 http://deb.debian.org/debian trixie/main arm64 libsasl2-2 arm64 2.1.28+dfsg1-9 [55.6 kB]
+2026-10-03T04:59:31.2358979Z #9 4.173 Get:12 http://deb.debian.org/debian trixie/main arm64 libldap2 arm64 2.6.10+dfsg-1 [179 kB]
+2026-10-03T04:59:31.2359798Z #9 4.175 Get:13 http://deb.debian.org/debian trixie/main arm64 libnghttp2-14 arm64 1.64.0-1.1+deb13u1 [71.6 kB]
+2026-10-03T04:59:31.2360628Z #9 4.176 Get:14 http://deb.debian.org/debian trixie/main arm64 libnghttp3-9 arm64 1.8.0-1 [63.2 kB]
+2026-10-03T04:59:31.2361415Z #9 4.178 Get:15 http://deb.debian.org/debian trixie/main arm64 libpsl5t64 arm64 0.21.2-1.1+b1 [57.1 kB]
+2026-10-03T04:59:31.2374034Z #9 4.178 Get:16 http://deb.debian.org/debian trixie/main arm64 libp11-kit0 arm64 0.25.5-3 [409 kB]
+2026-10-03T04:59:31.2376075Z #9 4.181 Get:17 http://deb.debian.org/debian trixie/main arm64 libtasn1-6 arm64 4.20.0-2+deb13u1 [47.3 kB]
+2026-10-03T04:59:31.2376870Z #9 4.182 Get:18 http://deb.debian.org/debian trixie/main arm64 libgnutls30t64 arm64 3.8.9-3+deb13u4 [1379 kB]
+2026-10-03T04:59:31.2386320Z #9 4.190 Get:19 http://deb.debian.org/debian trixie/main arm64 librtmp1 arm64 2.4+20151223.gitfa8646d.1-2+b5 [56.8 kB]
+2026-10-03T04:59:31.2387471Z #9 4.193 Get:20 http://deb.debian.org/debian trixie/main arm64 libssh2-1t64 arm64 1.11.1-1+deb13u2 [236 kB]
+2026-10-03T04:59:31.2388367Z #9 4.194 Get:21 http://deb.debian.org/debian trixie/main arm64 libcurl4t64 arm64 8.14.1-2+deb13u5 [360 kB]
+2026-10-03T04:59:31.2389118Z #9 4.196 Get:22 http://deb.debian.org/debian trixie/main arm64 curl arm64 8.14.1-2+deb13u5 [262 kB]
+2026-10-03T04:59:31.2393136Z #9 4.523 debconf: unable to initialize frontend: Dialog
+2026-10-03T04:59:31.2393744Z #9 4.523 debconf: (TERM is not set, so the dialog frontend is not usable.)
+2026-10-03T04:59:31.2394305Z #9 4.523 debconf: falling back to frontend: Readline
+2026-10-03T04:59:31.2394792Z #9 4.525 debconf: unable to initialize frontend: Readline
+2026-10-03T04:59:31.2396897Z #9 4.525 debconf: (Can't locate Term/ReadLine.pm in @INC (you may need to install the Term::ReadLine module) (@INC entries checked: /etc/perl /usr/local/lib/aarch64-linux-gnu/perl/5.40.1 /usr/local/share/perl/5.40.1 /usr/lib/aarch64-linux-gnu/perl5/5.40 /usr/share/perl5 /usr/lib/aarch64-linux-gnu/perl-base /usr/lib/aarch64-linux-gnu/perl/5.40 /usr/share/perl/5.40 /usr/local/lib/site_perl) at /usr/share/perl5/Debconf/FrontEnd/Readline.pm line 8, <STDIN> line 22.)
+2026-10-03T04:59:31.2398935Z #9 4.525 debconf: falling back to frontend: Teletype
+2026-10-03T04:59:31.2399431Z #9 4.536 debconf: unable to initialize frontend: Teletype
+2026-10-03T04:59:31.2399942Z #9 4.536 debconf: (This frontend requires a controlling tty.)
+2026-10-03T04:59:31.2400469Z #9 4.536 debconf: falling back to frontend: Noninteractive
+2026-10-03T04:59:31.2400929Z #9 5.441 Fetched 4650 kB in 0s (46.7 MB/s)
+2026-10-03T04:59:31.2401418Z #9 5.483 Selecting previously unselected package libbrotli1:arm64.
+2026-10-03T04:59:31.2401906Z #9 5.483 (Reading database ... 
+2026-10-03T04:59:31.2402219Z (Reading database ... 5%
+2026-10-03T04:59:31.2412211Z (Reading database ... 10%
+2026-10-03T04:59:31.2412539Z (Reading database ... 15%
+2026-10-03T04:59:31.2412808Z (Reading database ... 20%
+2026-10-03T04:59:31.2413075Z (Reading database ... 25%
+2026-10-03T04:59:31.2413341Z (Reading database ... 30%
+2026-10-03T04:59:31.2413607Z (Reading database ... 35%
+2026-10-03T04:59:31.2413868Z (Reading database ... 40%
+2026-10-03T04:59:31.2414137Z (Reading database ... 45%
+2026-10-03T04:59:31.2414412Z (Reading database ... 50%
+2026-10-03T04:59:31.2414684Z (Reading database ... 55%
+2026-10-03T04:59:31.2414948Z (Reading database ... 60%
+2026-10-03T04:59:31.2415223Z (Reading database ... 65%
+2026-10-03T04:59:31.2415533Z (Reading database ... 70%
+2026-10-03T04:59:31.2415812Z (Reading database ... 75%
+2026-10-03T04:59:31.2416083Z (Reading database ... 80%
+2026-10-03T04:59:31.2416355Z (Reading database ... 85%
+2026-10-03T04:59:31.2416621Z (Reading database ... 90%
+2026-10-03T04:59:31.2416894Z (Reading database ... 95%
+2026-10-03T04:59:31.2447608Z (Reading database ... 100%
+2026-10-03T04:59:31.2448499Z (Reading database ... 5657 files and directories currently installed.)
+2026-10-03T04:59:31.2449905Z #9 5.518 Preparing to unpack .../00-libbrotli1_1.1.0-2+b7_arm64.deb ...
+2026-10-03T04:59:31.2450407Z #9 5.521 Unpacking libbrotli1:arm64 (1.1.0-2+b7) ...
+2026-10-03T04:59:31.2450872Z #9 5.562 Selecting previously unselected package libkrb5support0:arm64.
+2026-10-03T04:59:31.2457432Z #9 5.564 Preparing to unpack .../01-libkrb5support0_1.21.3-5+deb13u1_arm64.deb ...
+2026-10-03T04:59:31.2458109Z #9 5.567 Unpacking libkrb5support0:arm64 (1.21.3-5+deb13u1) ...
+2026-10-03T04:59:31.2465822Z #9 5.588 Selecting previously unselected package libcom-err2:arm64.
+2026-10-03T04:59:31.2466715Z #9 5.590 Preparing to unpack .../02-libcom-err2_1.47.2-3+b12_arm64.deb ...
+2026-10-03T04:59:31.2473865Z #9 5.591 Unpacking libcom-err2:arm64 (1.47.2-3+b12) ...
+2026-10-03T04:59:31.2474523Z #9 5.612 Selecting previously unselected package libk5crypto3:arm64.
+2026-10-03T04:59:31.2475086Z #9 5.613 Preparing to unpack .../03-libk5crypto3_1.21.3-5+deb13u1_arm64.deb ...
+2026-10-03T04:59:31.2475599Z #9 5.615 Unpacking libk5crypto3:arm64 (1.21.3-5+deb13u1) ...
+2026-10-03T04:59:31.2476078Z #9 5.639 Selecting previously unselected package libkeyutils1:arm64.
+2026-10-03T04:59:31.2476592Z #9 5.640 Preparing to unpack .../04-libkeyutils1_1.6.3-6_arm64.deb ...
+2026-10-03T04:59:31.2477425Z #9 5.641 Unpacking libkeyutils1:arm64 (1.6.3-6) ...
+2026-10-03T04:59:31.2509417Z #9 5.663 Selecting previously unselected package libkrb5-3:arm64.
+2026-10-03T04:59:31.2510124Z #9 5.664 Preparing to unpack .../05-libkrb5-3_1.21.3-5+deb13u1_arm64.deb ...
+2026-10-03T04:59:31.2510705Z #9 5.665 Unpacking libkrb5-3:arm64 (1.21.3-5+deb13u1) ...
+2026-10-03T04:59:31.2511276Z #9 5.705 Selecting previously unselected package libgssapi-krb5-2:arm64.
+2026-10-03T04:59:31.2511932Z #9 5.707 Preparing to unpack .../06-libgssapi-krb5-2_1.21.3-5+deb13u1_arm64.deb ...
+2026-10-03T04:59:31.2512533Z #9 5.708 Unpacking libgssapi-krb5-2:arm64 (1.21.3-5+deb13u1) ...
+2026-10-03T04:59:31.2513089Z #9 5.734 Selecting previously unselected package libunistring5:arm64.
+2026-10-03T04:59:31.2513673Z #9 5.736 Preparing to unpack .../07-libunistring5_1.3-2_arm64.deb ...
+2026-10-03T04:59:31.2514188Z #9 5.738 Unpacking libunistring5:arm64 (1.3-2) ...
+2026-10-03T04:59:31.2514687Z #9 5.788 Selecting previously unselected package libidn2-0:arm64.
+2026-10-03T04:59:31.2515239Z #9 5.790 Preparing to unpack .../08-libidn2-0_2.3.8-2_arm64.deb ...
+2026-10-03T04:59:31.2515678Z #9 5.791 Unpacking libidn2-0:arm64 (2.3.8-2) ...
+2026-10-03T04:59:31.2545058Z #9 5.820 Selecting previously unselected package libsasl2-modules-db:arm64.
+2026-10-03T04:59:31.2545897Z #9 5.822 Preparing to unpack .../09-libsasl2-modules-db_2.1.28+dfsg1-9_arm64.deb ...
+2026-10-03T04:59:31.2547063Z #9 5.823 Unpacking libsasl2-modules-db:arm64 (2.1.28+dfsg1-9) ...
+2026-10-03T04:59:31.2548048Z #9 5.842 Selecting previously unselected package libsasl2-2:arm64.
+2026-10-03T04:59:31.2548721Z #9 5.845 Preparing to unpack .../10-libsasl2-2_2.1.28+dfsg1-9_arm64.deb ...
+2026-10-03T04:59:31.2549223Z #9 5.846 Unpacking libsasl2-2:arm64 (2.1.28+dfsg1-9) ...
+2026-10-03T04:59:31.2554020Z #9 5.869 Selecting previously unselected package libldap2:arm64.
+2026-10-03T04:59:31.2554605Z #9 5.871 Preparing to unpack .../11-libldap2_2.6.10+dfsg-1_arm64.deb ...
+2026-10-03T04:59:31.2555137Z #9 5.873 Unpacking libldap2:arm64 (2.6.10+dfsg-1) ...
+2026-10-03T04:59:31.2555661Z #9 5.927 Selecting previously unselected package libnghttp2-14:arm64.
+2026-10-03T04:59:31.2556250Z #9 5.927 Preparing to unpack .../12-libnghttp2-14_1.64.0-1.1+deb13u1_arm64.deb ...
+2026-10-03T04:59:31.3246510Z #9 5.935 Unpacking libnghttp2-14:arm64 (1.64.0-1.1+deb13u1) ...
+2026-10-03T04:59:31.3247338Z #9 5.975 Selecting previously unselected package libnghttp3-9:arm64.
+2026-10-03T04:59:31.3248026Z #9 5.975 Preparing to unpack .../13-libnghttp3-9_1.8.0-1_arm64.deb ...
+2026-10-03T04:59:31.3248549Z #9 5.975 Unpacking libnghttp3-9:arm64 (1.8.0-1) ...
+2026-10-03T04:59:31.3249078Z #9 6.000 Selecting previously unselected package libpsl5t64:arm64.
+2026-10-03T04:59:31.3249653Z #9 6.000 Preparing to unpack .../14-libpsl5t64_0.21.2-1.1+b1_arm64.deb ...
+2026-10-03T04:59:31.3250191Z #9 6.002 Unpacking libpsl5t64:arm64 (0.21.2-1.1+b1) ...
+2026-10-03T04:59:31.3250709Z #9 6.026 Selecting previously unselected package libp11-kit0:arm64.
+2026-10-03T04:59:31.3251283Z #9 6.026 Preparing to unpack .../15-libp11-kit0_0.25.5-3_arm64.deb ...
+2026-10-03T04:59:31.3251797Z #9 6.028 Unpacking libp11-kit0:arm64 (0.25.5-3) ...
+2026-10-03T04:59:31.4755021Z #9 6.067 Selecting previously unselected package libtasn1-6:arm64.
+2026-10-03T04:59:31.4757678Z #9 6.068 Preparing to unpack .../16-libtasn1-6_4.20.0-2+deb13u1_arm64.deb ...
+2026-10-03T04:59:31.4759660Z #9 6.070 Unpacking libtasn1-6:arm64 (4.20.0-2+deb13u1) ...
+2026-10-03T04:59:31.4760695Z #9 6.091 Selecting previously unselected package libgnutls30t64:arm64.
+2026-10-03T04:59:31.4763103Z #9 6.093 Preparing to unpack .../17-libgnutls30t64_3.8.9-3+deb13u4_arm64.deb ...
+2026-10-03T04:59:31.4763700Z #9 6.094 Unpacking libgnutls30t64:arm64 (3.8.9-3+deb13u4) ...
+2026-10-03T04:59:31.4764075Z #9 ...
+2026-10-03T04:59:31.4764211Z 
+2026-10-03T04:59:31.4769000Z #8 [python_builder 3/3] RUN --mount=type=cache,target=/root/.cache/uv     --mount=type=cache,target=/var/cache/apt,sharing=locked     --mount=type=cache,target=/var/lib/apt,sharing=locked     UV_COMPILE_BYTECODE=1 UV_LINK_MODE=copy     uv pip install --system --refresh-package lumibot "lumibot==4.6.4" boto3 requests pandas_ta thetadata==0.9.11 scikit-learn
+2026-10-03T04:59:31.5797010Z #8 6.178  Downloaded llvmlite
+2026-10-03T04:59:31.5799657Z #8 6.181 Prepared 6 packages in 5.22s
+2026-10-03T04:59:32.6073007Z #8 ...
+2026-10-03T04:59:32.6081586Z 
+2026-10-03T04:59:32.6083899Z #9 [stage-1 2/8] RUN apt-get update && apt-get install -y --no-install-recommends     curl     ca-certificates     tzdata     && rm -rf /var/lib/apt/lists/*
+2026-10-03T04:59:32.6084986Z #9 6.182 Selecting previously unselected package librtmp1:arm64.
+2026-10-03T04:59:32.6099632Z #9 6.185 Preparing to unpack .../18-librtmp1_2.4+20151223.gitfa8646d.1-2+b5_arm64.deb ...
+2026-10-03T04:59:32.6100313Z #9 6.188 Unpacking librtmp1:arm64 (2.4+20151223.gitfa8646d.1-2+b5) ...
+2026-10-03T04:59:32.6100844Z #9 6.217 Selecting previously unselected package libssh2-1t64:arm64.
+2026-10-03T04:59:32.6101387Z #9 6.220 Preparing to unpack .../19-libssh2-1t64_1.11.1-1+deb13u2_arm64.deb ...
+2026-10-03T04:59:32.6102726Z #9 6.223 Unpacking libssh2-1t64:arm64 (1.11.1-1+deb13u2) ...
+2026-10-03T04:59:32.6103215Z #9 6.281 Selecting previously unselected package libcurl4t64:arm64.
+2026-10-03T04:59:32.6103780Z #9 6.284 Preparing to unpack .../20-libcurl4t64_8.14.1-2+deb13u5_arm64.deb ...
+2026-10-03T04:59:32.6104301Z #9 6.286 Unpacking libcurl4t64:arm64 (8.14.1-2+deb13u5) ...
+2026-10-03T04:59:32.6104725Z #9 6.336 Selecting previously unselected package curl.
+2026-10-03T04:59:32.6105183Z #9 6.336 Preparing to unpack .../21-curl_8.14.1-2+deb13u5_arm64.deb ...
+2026-10-03T04:59:32.6105613Z #9 6.340 Unpacking curl (8.14.1-2+deb13u5) ...
+2026-10-03T04:59:32.6105987Z #9 6.408 Setting up libkeyutils1:arm64 (1.6.3-6) ...
+2026-10-03T04:59:32.6106376Z #9 6.411 Setting up libbrotli1:arm64 (1.1.0-2+b7) ...
+2026-10-03T04:59:32.6106797Z #9 6.417 Setting up libnghttp2-14:arm64 (1.64.0-1.1+deb13u1) ...
+2026-10-03T04:59:32.6107247Z #9 6.421 Setting up libcom-err2:arm64 (1.47.2-3+b12) ...
+2026-10-03T04:59:32.6107679Z #9 6.430 Setting up libkrb5support0:arm64 (1.21.3-5+deb13u1) ...
+2026-10-03T04:59:32.6108755Z #9 6.434 Setting up libsasl2-modules-db:arm64 (2.1.28+dfsg1-9) ...
+2026-10-03T04:59:32.6109237Z #9 6.438 Setting up libp11-kit0:arm64 (0.25.5-3) ...
+2026-10-03T04:59:32.6109639Z #9 6.489 Setting up libunistring5:arm64 (1.3-2) ...
+2026-10-03T04:59:32.6110064Z #9 6.506 Setting up libk5crypto3:arm64 (1.21.3-5+deb13u1) ...
+2026-10-03T04:59:32.6110985Z #9 6.523 Setting up libsasl2-2:arm64 (2.1.28+dfsg1-9) ...
+2026-10-03T04:59:32.6111396Z #9 6.532 Setting up libnghttp3-9:arm64 (1.8.0-1) ...
+2026-10-03T04:59:32.6111802Z #9 6.537 Setting up libtasn1-6:arm64 (4.20.0-2+deb13u1) ...
+2026-10-03T04:59:32.6112213Z #9 6.543 Setting up libkrb5-3:arm64 (1.21.3-5+deb13u1) ...
+2026-10-03T04:59:32.6112638Z #9 6.549 Setting up libssh2-1t64:arm64 (1.11.1-1+deb13u2) ...
+2026-10-03T04:59:32.6113064Z #9 6.557 Setting up libldap2:arm64 (2.6.10+dfsg-1) ...
+2026-10-03T04:59:32.6113439Z #9 6.560 Setting up libidn2-0:arm64 (2.3.8-2) ...
+2026-10-03T04:59:32.6113862Z #9 6.564 Setting up libgssapi-krb5-2:arm64 (1.21.3-5+deb13u1) ...
+2026-10-03T04:59:32.6114323Z #9 6.569 Setting up libgnutls30t64:arm64 (3.8.9-3+deb13u4) ...
+2026-10-03T04:59:32.6145240Z #9 6.571 Setting up libpsl5t64:arm64 (0.21.2-1.1+b1) ...
+2026-10-03T04:59:32.6146885Z #9 6.575 Setting up librtmp1:arm64 (2.4+20151223.gitfa8646d.1-2+b5) ...
+2026-10-03T04:59:32.6147359Z #9 6.578 Setting up libcurl4t64:arm64 (8.14.1-2+deb13u5) ...
+2026-10-03T04:59:32.6147764Z #9 6.581 Setting up curl (8.14.1-2+deb13u5) ...
+2026-10-03T04:59:32.6148245Z #9 6.584 Processing triggers for libc-bin (2.41-12+deb13u4) ...
+2026-10-03T04:59:32.6148631Z #9 DONE 7.3s
+2026-10-03T04:59:32.7578851Z 
+2026-10-03T04:59:32.7726646Z #10 [stage-1 3/8] RUN mkdir -p /opt/java/openjdk &&     curl -fsSL https://github.com/adoptium/temurin21-binaries/releases/download/jdk-21.0.3%2B9/OpenJDK21U-jre_aarch64_linux_hotspot_21.0.3_9.tar.gz     | tar -xz --strip-components=1 -C /opt/java/openjdk
+2026-10-03T04:59:34.9201367Z #10 DONE 2.3s
+2026-10-03T04:59:34.9206924Z 
+2026-10-03T04:59:34.9211612Z #8 [python_builder 3/3] RUN --mount=type=cache,target=/root/.cache/uv     --mount=type=cache,target=/var/cache/apt,sharing=locked     --mount=type=cache,target=/var/lib/apt,sharing=locked     UV_COMPILE_BYTECODE=1 UV_LINK_MODE=copy     uv pip install --system --refresh-package lumibot "lumibot==4.6.4" boto3 requests pandas_ta thetadata==0.9.11 scikit-learn
+2026-10-03T04:59:45.6837546Z #8 20.39 Installed 272 packages in 14.20s
+2026-10-03T05:00:23.0368195Z #8 57.74 Bytecode compiled 26672 files in 37.35s
+2026-10-03T05:00:23.1929562Z #8 57.74  + aiodns==4.0.4
+2026-10-03T05:00:23.1931238Z #8 57.74  + aiohappyeyeballs==2.7.1
+2026-10-03T05:00:23.1931647Z #8 57.74  + aiohttp==3.14.3
+2026-10-03T05:00:23.1931936Z #8 57.74  + aiosignal==1.4.0
+2026-10-03T05:00:23.1932238Z #8 57.74  + aiosqlite==0.22.1
+2026-10-03T05:00:23.1932534Z #8 57.74  + alpaca-py==0.44.0
+2026-10-03T05:00:23.1932839Z #8 57.74  + alpha-vantage==3.0.0
+2026-10-03T05:00:23.1933147Z #8 57.74  + annotated-doc==0.0.5
+2026-10-03T05:00:23.1933470Z #8 57.74  + annotated-types==0.8.0
+2026-10-03T05:00:23.1933792Z #8 57.74  + anthropic==1.11.0
+2026-10-03T05:00:23.1934080Z #8 57.74  + anyio==4.15.1
+2026-10-03T05:00:23.1948181Z #8 57.74  + appdirs==1.4.4
+2026-10-03T05:00:23.1948518Z #8 57.74  + apscheduler==3.11.3
+2026-10-03T05:00:23.1948810Z #8 57.74  + asttokens==3.0.2
+2026-10-03T05:00:23.1949112Z #8 57.74  + attrs==26.1.0
+2026-10-03T05:00:23.1949383Z #8 57.74  + authlib==1.8.0
+2026-10-03T05:00:23.1949650Z #8 57.74  + autopep8==2.3.2
+2026-10-03T05:00:23.1949996Z #8 57.74  + banks==2.5.1
+2026-10-03T05:00:23.1950395Z #8 57.74  + bcrypt==5.0.0
+2026-10-03T05:00:23.1950669Z #8 57.74  + beautifulsoup4==4.15.0
+2026-10-03T05:00:23.1950975Z #8 57.74  + bitarray==3.11.0
+2026-10-03T05:00:23.1951256Z #8 57.74  + blinker==1.9.0
+2026-10-03T05:00:23.1951521Z #8 57.74  + boto3==1.43.108
+2026-10-03T05:00:23.1951805Z #8 57.74  + botocore==1.43.108
+2026-10-03T05:00:23.1952087Z #8 57.74  + ccxt==4.5.64
+2026-10-03T05:00:23.1952351Z #8 57.74  + certifi==2025.11.12
+2026-10-03T05:00:23.1952632Z #8 57.74  + cffi==2.1.1
+2026-10-03T05:00:23.1952910Z #8 57.74  + charset-normalizer==3.5.2
+2026-10-03T05:00:23.1953210Z #8 57.74  + ckzg==2.1.8
+2026-10-03T05:00:23.1953467Z #8 57.74  + click==8.5.0
+2026-10-03T05:00:23.1953740Z #8 57.74  + cloudpickle==3.1.2
+2026-10-03T05:00:23.1954024Z #8 57.74  + coincurve==21.0.0
+2026-10-03T05:00:23.1954306Z #8 57.74  + colorama==0.4.6
+2026-10-03T05:00:23.1954580Z #8 57.74  + contourpy==1.4.0
+2026-10-03T05:00:23.1954864Z #8 57.74  + cryptography==50.0.2
+2026-10-03T05:00:23.1955170Z #8 57.74  + curl-cffi==0.16.3
+2026-10-03T05:00:23.1955454Z #8 57.74  + cycler==0.12.1
+2026-10-03T05:00:23.1955723Z #8 57.74  + cytoolz==1.1.0
+2026-10-03T05:00:23.1956001Z #8 57.74  + databento==0.87.0
+2026-10-03T05:00:23.1956292Z #8 57.74  + databento-dbn==0.70.0
+2026-10-03T05:00:23.1956594Z #8 57.74  + dataclasses-json==0.6.7
+2026-10-03T05:00:23.1956903Z #8 57.74  + defusedxml==0.7.1
+2026-10-03T05:00:23.1957195Z #8 57.74  + deprecated==1.3.1
+2026-10-03T05:00:23.1957471Z #8 57.74  + dill==0.4.1
+2026-10-03T05:00:23.1957734Z #8 57.74  + dirtyjson==1.0.8
+2026-10-03T05:00:23.1958013Z #8 57.74  + distro==1.9.0
+2026-10-03T05:00:23.1958267Z #8 57.74  + docker==7.2.0
+2026-10-03T05:00:23.1958545Z #8 57.74  + docstring-parser==0.18.0
+2026-10-03T05:00:23.1958862Z #8 57.74  + duckdb==1.5.6
+2026-10-03T05:00:23.1959119Z #8 57.74  + durationpy==0.11
+2026-10-03T05:00:23.1959395Z #8 57.74  + eth-abi==6.0.0
+2026-10-03T05:00:23.1959665Z #8 57.74  + eth-account==0.14.0
+2026-10-03T05:00:23.1959946Z #8 57.74  + eth-hash==0.8.0
+2026-10-03T05:00:23.1960297Z #8 57.74  + eth-keyfile==0.10.0
+2026-10-03T05:00:23.1960581Z #8 57.74  + eth-keys==0.8.0
+2026-10-03T05:00:23.1960847Z #8 57.74  + eth-rlp==3.0.0
+2026-10-03T05:00:23.1961118Z #8 57.74  + eth-typing==6.0.0
+2026-10-03T05:00:23.1961400Z #8 57.74  + eth-utils==6.0.0
+2026-10-03T05:00:23.1961685Z #8 57.74  + exchange-calendars==4.13.2
+2026-10-03T05:00:23.1961998Z #8 57.74  + executing==2.2.1
+2026-10-03T05:00:23.1962284Z #8 57.74  + fastapi==0.141.1
+2026-10-03T05:00:23.1962548Z #8 57.74  + fastuuid==0.14.0
+2026-10-03T05:00:23.1962820Z #8 57.74  + filelock==4.0.9
+2026-10-03T05:00:23.1963104Z #8 57.74  + filetype==1.2.0
+2026-10-03T05:00:23.1963365Z #8 57.74  + flask==3.1.3
+2026-10-03T05:00:23.1963631Z #8 57.74  + fonttools==4.66.1
+2026-10-03T05:00:23.1963913Z #8 57.74  + free-proxy==1.3.0
+2026-10-03T05:00:23.1964181Z #8 57.74  + frozenlist==1.8.0
+2026-10-03T05:00:23.1964450Z #8 57.74  + fsspec==2026.9.0
+2026-10-03T05:00:23.1964714Z #8 57.74  + google-adk==2.11.0
+2026-10-03T05:00:23.1964998Z #8 57.74  + google-api-core==2.34.0
+2026-10-03T05:00:23.1965302Z #8 57.74  + google-auth==2.59.1
+2026-10-03T05:00:23.1965596Z #8 57.74  + google-auth-oauthlib==1.5.0
+2026-10-03T05:00:23.1965913Z #8 57.74  + google-cloud-core==2.8.0
+2026-10-03T05:00:23.1966251Z #8 57.74  + google-cloud-firestore==2.34.0
+2026-10-03T05:00:23.1966744Z #8 57.74  + google-genai==2.28.0
+2026-10-03T05:00:23.1967083Z #8 57.74  + googleapis-common-protos==1.75.5
+2026-10-03T05:00:23.1969856Z #8 57.74  + graphviz==0.21
+2026-10-03T05:00:23.1970129Z #8 57.74  + greenlet==3.5.6
+2026-10-03T05:00:23.1971030Z #8 57.74  + griffe==2.3.0
+2026-10-03T05:00:23.1978283Z #8 57.74  + griffecli==2.3.0
+2026-10-03T05:00:23.1978568Z #8 57.74  + griffelib==2.3.0
+2026-10-03T05:00:23.1978835Z #8 57.74  + grpcio==1.84.0
+2026-10-03T05:00:23.1979127Z #8 57.74  + grpcio-status==1.84.0
+2026-10-03T05:00:23.1979402Z #8 57.74  + h11==0.16.0
+2026-10-03T05:00:23.1979646Z #8 57.74  + h2==4.4.1
+2026-10-03T05:00:23.1980115Z #8 57.74  + hexbytes==2.0.0
+2026-10-03T05:00:23.1981628Z #8 57.74  + hf-xet==1.6.0
+2026-10-03T05:00:23.1982540Z #8 57.74  + holidays==0.105
+2026-10-03T05:00:23.1985377Z #8 57.74  + hpack==4.2.0
+2026-10-03T05:00:23.1985651Z #8 57.74  + httpcore==1.0.9
+2026-10-03T05:00:23.1986046Z #8 57.74  + httpcore2==2.13.1
+2026-10-03T05:00:23.1986338Z #8 57.74  + httpx==0.28.1
+2026-10-03T05:00:23.1986780Z #8 57.74  + httpx-sse==0.4.3
+2026-10-03T05:00:23.1987081Z #8 57.74  + httpx2==2.13.1
+2026-10-03T05:00:23.1987410Z #8 57.74  + huggingface-hub==1.33.0
+2026-10-03T05:00:23.1987703Z #8 57.74  + hyperframe==6.1.0
+2026-10-03T05:00:23.1987982Z #8 57.74  + ibapi==9.81.1.post1
+2026-10-03T05:00:23.1988250Z #8 57.74  + idna==3.20
+2026-10-03T05:00:23.1988505Z #8 57.74  + ijson==3.5.1
+2026-10-03T05:00:23.1988769Z #8 57.74  + importlib-metadata==8.9.0
+2026-10-03T05:00:23.1989074Z #8 57.74  + inflection==0.5.1
+2026-10-03T05:00:23.1989348Z #8 57.74  + iniconfig==2.3.0
+2026-10-03T05:00:23.1989614Z #8 57.74  + ipython==9.17.1
+2026-10-03T05:00:23.1989930Z #8 57.74  + ipython-pygments-lexers==1.1.1
+2026-10-03T05:00:23.1990342Z #8 57.74  + itsdangerous==2.2.0
+2026-10-03T05:00:23.1990616Z #8 57.74  + jedi==0.20.0
+2026-10-03T05:00:23.1990878Z #8 57.74  + jinja2==3.1.6
+2026-10-03T05:00:23.1991138Z #8 57.74  + jiter==0.17.0
+2026-10-03T05:00:23.1991393Z #8 57.74  + jmespath==1.1.0
+2026-10-03T05:00:23.1991663Z #8 57.74  + joblib==1.6.0
+2026-10-03T05:00:23.1991925Z #8 57.74  + joserfc==1.7.5
+2026-10-03T05:00:23.1992189Z #8 57.74  + jsonpatch==1.33
+2026-10-03T05:00:23.1992461Z #8 57.74  + jsonpickle==4.1.3
+2026-10-03T05:00:23.1992747Z #8 57.74  + jsonpointer==3.1.1
+2026-10-03T05:00:23.1993021Z #8 57.74  + jsonschema==4.26.0
+2026-10-03T05:00:23.1993335Z #8 57.74  + jsonschema-specifications==2025.9.1
+2026-10-03T05:00:23.1993700Z #8 57.74  + k8s-agent-sandbox==1.0.4
+2026-10-03T05:00:23.1993997Z #8 57.74  + kiwisolver==1.5.1
+2026-10-03T05:00:23.1994290Z #8 57.74  + korean-lunar-calendar==0.4.0
+2026-10-03T05:00:23.1994603Z #8 57.74  + kubernetes==36.0.3
+2026-10-03T05:00:23.1994888Z #8 57.74  + langchain-core==1.6.6
+2026-10-03T05:00:23.1995199Z #8 57.74  + langchain-protocol==0.0.19
+2026-10-03T05:00:23.1995512Z #8 57.74  + langgraph==1.2.12
+2026-10-03T05:00:23.1995799Z #8 57.74  + langgraph-checkpoint==4.2.0
+2026-10-03T05:00:23.1996124Z #8 57.74  + langgraph-prebuilt==1.1.0
+2026-10-03T05:00:23.1996436Z #8 57.74  + langgraph-sdk==0.4.5
+2026-10-03T05:00:23.1996719Z #8 57.74  + langsmith==0.14.4
+2026-10-03T05:00:23.1996999Z #8 57.74  + litellm==1.103.2
+2026-10-03T05:00:23.1997285Z #8 57.74  + llama-index-core==0.14.25
+2026-10-03T05:00:23.1997639Z #8 57.74  + llama-index-embeddings-google-genai==0.6.0
+2026-10-03T05:00:23.1998038Z #8 57.74  + llama-index-instrumentation==0.6.0
+2026-10-03T05:00:23.1998400Z #8 57.74  + llama-index-readers-file==0.7.0
+2026-10-03T05:00:23.1998741Z #8 57.74  + llama-index-workflows==2.25.0
+2026-10-03T05:00:23.1999061Z #8 57.74  + llvmlite==0.44.0
+2026-10-03T05:00:23.1999329Z #8 57.74  + lumibot==4.6.4
+2026-10-03T05:00:23.1999606Z #8 57.74  + lumiwealth-tradier==0.1.18
+2026-10-03T05:00:23.1999915Z #8 57.74  + lxml==6.1.3
+2026-10-03T05:00:23.2000227Z #8 57.74  + markupsafe==3.0.4
+2026-10-03T05:00:23.2000504Z #8 57.74  + marshmallow==3.26.2
+2026-10-03T05:00:23.2000787Z #8 57.74  + matplotlib==3.11.2
+2026-10-03T05:00:23.2001082Z #8 57.74  + matplotlib-inline==0.2.2
+2026-10-03T05:00:23.2001376Z #8 57.74  + mcp==1.30.0
+2026-10-03T05:00:23.2001639Z #8 57.74  + more-itertools==11.1.0
+2026-10-03T05:00:23.2001929Z #8 57.74  + msgpack==1.2.3
+2026-10-03T05:00:23.2002208Z #8 57.74  + multidict==6.9.1
+2026-10-03T05:00:23.2002482Z #8 57.74  + multiprocess==0.70.19
+2026-10-03T05:00:23.2002783Z #8 57.74  + multitasking==0.0.13
+2026-10-03T05:00:23.2003079Z #8 57.74  + mypy-extensions==1.1.0
+2026-10-03T05:00:23.2009718Z #8 57.74  + narwhals==2.26.0
+2026-10-03T05:00:23.2010048Z #8 57.74  + nest-asyncio==1.6.0
+2026-10-03T05:00:23.2010433Z #8 57.74  + networkx==3.7
+2026-10-03T05:00:23.2010698Z #8 57.74  + nltk==3.10.3
+2026-10-03T05:00:23.2010953Z #8 57.74  + numba==0.61.2
+2026-10-03T05:00:23.2013384Z #8 57.74  + numpy==2.2.6
+2026-10-03T05:00:23.2014698Z #8 57.74  + oauthlib==4.0.0
+2026-10-03T05:00:23.2015104Z #8 57.74  + openai==2.54.0
+2026-10-03T05:00:23.2015385Z #8 57.74  + opentelemetry-api==1.42.1
+2026-10-03T05:00:23.2015693Z #8 57.74  + opentelemetry-sdk==1.42.1
+2026-10-03T05:00:23.2016054Z #8 57.74  + opentelemetry-semantic-conventions==0.63b1
+2026-10-03T05:00:23.2016418Z #8 57.74  + orjson==3.12.0
+2026-10-03T05:00:23.2016682Z #8 57.74  + ormsgpack==1.12.2
+2026-10-03T05:00:23.2016969Z #8 57.74  + packaging==26.3
+2026-10-03T05:00:23.2017235Z #8 57.74  + pandas==2.3.3
+2026-10-03T05:00:23.2017516Z #8 57.74  + pandas-market-calendars==5.4.0
+2026-10-03T05:00:23.2017838Z #8 57.74  + pandas-ta==0.4.71b0
+2026-10-03T05:00:23.2018127Z #8 57.74  + pandas-ta-classic==0.8.32
+2026-10-03T05:00:23.2018430Z #8 57.74  + parsimonious==0.10.0
+2026-10-03T05:00:23.2018712Z #8 57.74  + parso==0.8.7
+2026-10-03T05:00:23.2018970Z #8 57.74  + peewee==4.5.2
+2026-10-03T05:00:23.2019223Z #8 57.74  + pexpect==4.9.0
+2026-10-03T05:00:23.2019501Z #8 57.74  + pillow==12.3.0
+2026-10-03T05:00:23.2019768Z #8 57.74  + platformdirs==4.12.2
+2026-10-03T05:00:23.2020047Z #8 57.74  + plotly==7.1.0
+2026-10-03T05:00:23.2020384Z #8 57.74  + pluggy==1.6.0
+2026-10-03T05:00:23.2020639Z #8 57.74  + polars==1.44.2
+2026-10-03T05:00:23.2020907Z #8 57.74  + polars-runtime-32==1.44.2
+2026-10-03T05:00:23.2021218Z #8 57.74  + poly-eip712-structs==0.0.1
+2026-10-03T05:00:23.2021531Z #8 57.74  + polygon-api-client==1.16.3
+2026-10-03T05:00:23.2021839Z #8 57.74  + prometheus-client==0.26.0
+2026-10-03T05:00:23.2022144Z #8 57.74  + prompt-toolkit==3.0.53
+2026-10-03T05:00:23.2022664Z #8 57.74  + propcache==0.5.4
+2026-10-03T05:00:23.2022937Z #8 57.74  + proto-plus==1.29.0
+2026-10-03T05:00:23.2023218Z #8 57.74  + protobuf==7.36.2
+2026-10-03T05:00:23.2023485Z #8 57.74  + psutil==7.2.2
+2026-10-03T05:00:23.2023744Z #8 57.74  + psycopg2-binary==2.9.13
+2026-10-03T05:00:23.2024043Z #8 57.74  + ptyprocess==0.7.0
+2026-10-03T05:00:23.2024330Z #8 57.74  + pure-eval==0.2.4
+2026-10-03T05:00:23.2024611Z #8 57.74  + py-clob-client-v2==1.2.0
+2026-10-03T05:00:23.2024904Z #8 57.74  + py-ecc==8.0.0
+2026-10-03T05:00:23.2025171Z #8 57.74  + py-order-utils==0.3.2
+2026-10-03T05:00:23.2025457Z #8 57.74  + pyarrow==25.0.1
+2026-10-03T05:00:23.2025723Z #8 57.74  + pyasn1==0.6.4
+2026-10-03T05:00:23.2025989Z #8 57.74  + pyasn1-modules==0.4.2
+2026-10-03T05:00:23.2026269Z #8 57.74  + pycares==5.0.1
+2026-10-03T05:00:23.2026539Z #8 57.74  + pycodestyle==2.15.0
+2026-10-03T05:00:23.2026816Z #8 57.74  + pycparser==3.0
+2026-10-03T05:00:23.2027089Z #8 57.74  + pycryptodome==3.23.0
+2026-10-03T05:00:23.2027371Z #8 57.74  + pydantic==2.13.5
+2026-10-03T05:00:23.2027649Z #8 57.74  + pydantic-core==2.46.5
+2026-10-03T05:00:23.2027944Z #8 57.74  + pydantic-settings==2.15.0
+2026-10-03T05:00:23.2028240Z #8 57.74  + pygments==2.21.0
+2026-10-03T05:00:23.2028507Z #8 57.74  + pyjwt==2.15.1
+2026-10-03T05:00:23.2028767Z #8 57.74  + pyluach==2.3.0
+2026-10-03T05:00:23.2029021Z #8 57.74  + pyparsing==3.3.3
+2026-10-03T05:00:23.2029294Z #8 57.74  + pypdf==6.19.0
+2026-10-03T05:00:23.2029559Z #8 57.74  + pypika==0.51.1
+2026-10-03T05:00:23.2029816Z #8 57.74  + pytest==9.1.1
+2026-10-03T05:00:23.2030087Z #8 57.74  + python-dateutil==2.9.0.post0
+2026-10-03T05:00:23.2030463Z #8 57.74  + python-dotenv==1.2.4
+2026-10-03T05:00:23.2030754Z #8 57.74  + python-multipart==0.0.32
+2026-10-03T05:00:23.2031049Z #8 57.74  + pytz==2026.4
+2026-10-03T05:00:23.2031310Z #8 57.74  + pyyaml==6.0.3
+2026-10-03T05:00:23.2031562Z #8 57.74  + quandl==3.7.0
+2026-10-03T05:00:23.2031827Z #8 57.74  + quantstats-lumi==1.1.5
+2026-10-03T05:00:23.2032125Z #8 57.74  + referencing==0.37.0
+2026-10-03T05:00:23.2032403Z #8 57.74  + regex==2026.9.29
+2026-10-03T05:00:23.2032672Z #8 57.74  + requests==2.34.2
+2026-10-03T05:00:23.2038917Z #8 57.74  + requests-oauthlib==2.0.0
+2026-10-03T05:00:23.2039336Z #8 57.74  + requests-toolbelt==1.0.0
+2026-10-03T05:00:23.2039624Z #8 57.74  + rlp==5.0.0
+2026-10-03T05:00:23.2039886Z #8 57.74  + rpds-py==2026.6.3
+2026-10-03T05:00:23.2042252Z #8 57.74  + s3transfer==0.19.2
+2026-10-03T05:00:23.2043396Z #8 57.74  + schwab-py==1.5.1
+2026-10-03T05:00:23.2043675Z #8 57.74  + scikit-learn==1.9.1
+2026-10-03T05:00:23.2043944Z #8 57.74  + scipy==1.18.1
+2026-10-03T05:00:23.2044199Z #8 57.74  + seaborn==0.13.2
+2026-10-03T05:00:23.2044468Z #8 57.74  + setuptools==80.10.2
+2026-10-03T05:00:23.2044731Z #8 57.74  + six==1.17.0
+2026-10-03T05:00:23.2044982Z #8 57.74  + sniffio==1.3.1
+2026-10-03T05:00:23.2045252Z #8 57.74  + soupsieve==2.10
+2026-10-03T05:00:23.2045522Z #8 57.74  + sqlalchemy==2.1.3
+2026-10-03T05:00:23.2045801Z #8 57.74  + sse-starlette==3.5.0
+2026-10-03T05:00:23.2046087Z #8 57.74  + sseclient-py==1.9.0
+2026-10-03T05:00:23.2046357Z #8 57.74  + stack-data==0.6.3
+2026-10-03T05:00:23.2046627Z #8 57.74  + starlette==1.7.0
+2026-10-03T05:00:23.2046891Z #8 57.74  + striprtf==0.0.26
+2026-10-03T05:00:23.2047146Z #8 57.74  + tabulate==0.10.0
+2026-10-03T05:00:23.2047421Z #8 57.74  + tenacity==9.1.4
+2026-10-03T05:00:23.2047682Z #8 57.74  + termcolor==3.3.0
+2026-10-03T05:00:23.2047952Z #8 57.74  + thetadata==0.9.11
+2026-10-03T05:00:23.2048230Z #8 57.74  + threadpoolctl==3.7.0
+2026-10-03T05:00:23.2048511Z #8 57.74  + tiktoken==0.14.0
+2026-10-03T05:00:23.2048770Z #8 57.74  + tinytag==2.3.2
+2026-10-03T05:00:23.2049031Z #8 57.74  + tokenizers==0.23.2
+2026-10-03T05:00:23.2049309Z #8 57.74  + toolbox-adk==1.4.0
+2026-10-03T05:00:23.2049579Z #8 57.74  + toolbox-core==1.4.0
+2026-10-03T05:00:23.2049848Z #8 57.74  + toolz==1.1.0
+2026-10-03T05:00:23.2050101Z #8 57.74  + tqdm==4.70.1
+2026-10-03T05:00:23.2050448Z #8 57.74  + traitlets==5.16.1
+2026-10-03T05:00:23.2050728Z #8 57.74  + truststore==0.10.4
+2026-10-03T05:00:23.2051023Z #8 57.74  + typing-extensions==4.16.0
+2026-10-03T05:00:23.2051327Z #8 57.74  + typing-inspect==0.9.0
+2026-10-03T05:00:23.2051634Z #8 57.74  + typing-inspection==0.4.4
+2026-10-03T05:00:23.2051923Z #8 57.74  + tzdata==2026.4
+2026-10-03T05:00:23.2052173Z #8 57.74  + tzlocal==5.4.4
+2026-10-03T05:00:23.2052522Z #8 57.74  + urllib3==2.8.0
+2026-10-03T05:00:23.2052794Z #8 57.74  + uuid-utils==0.17.1
+2026-10-03T05:00:23.2053065Z #8 57.74  + uvicorn==0.54.0
+2026-10-03T05:00:23.2053322Z #8 57.74  + watchdog==6.0.0
+2026-10-03T05:00:23.2053588Z #8 57.74  + wcwidth==0.9.1
+2026-10-03T05:00:23.2053856Z #8 57.74  + websocket-client==1.9.2
+2026-10-03T05:00:23.2054148Z #8 57.74  + websockets==15.0.1
+2026-10-03T05:00:23.2054422Z #8 57.74  + werkzeug==3.1.9
+2026-10-03T05:00:23.2054682Z #8 57.74  + wget==3.2
+2026-10-03T05:00:23.2054925Z #8 57.74  + wrapt==2.5.0
+2026-10-03T05:00:23.2055178Z #8 57.74  + xxhash==4.0.1
+2026-10-03T05:00:23.2055432Z #8 57.74  + yappi==1.7.6
+2026-10-03T05:00:23.2055683Z #8 57.74  + yarl==1.25.1
+2026-10-03T05:00:23.2055939Z #8 57.74  + yfinance==1.7.0
+2026-10-03T05:00:23.2056197Z #8 57.74  + zipp==4.1.0
+2026-10-03T05:00:23.2056444Z #8 57.74  + zstandard==0.25.0
+2026-10-03T05:00:23.2056751Z #8 57.74 warning: `thetadata==0.9.11` is yanked
+2026-10-03T05:00:24.0795636Z #8 DONE 58.8s
+2026-10-03T05:00:35.9478410Z 
+2026-10-03T05:00:35.9481190Z #11 [stage-1 4/8] COPY --from=python_builder /usr/local/lib/python3.13/site-packages /usr/local/lib/python3.13/site-packages
+2026-10-03T05:00:54.4806009Z #11 DONE 18.5s
+2026-10-03T05:00:54.6347440Z 
+2026-10-03T05:00:54.6348595Z #12 [stage-1 5/8] COPY --from=python_builder /usr/local/bin/uv /usr/local/bin/uv
+2026-10-03T05:00:55.5101539Z #12 DONE 1.0s
+2026-10-03T05:00:55.6306818Z 
+2026-10-03T05:00:55.6307938Z #13 [stage-1 6/8] RUN groupadd -r nonroot && useradd -r -g nonroot -m -d /home/nonroot nonroot
+2026-10-03T05:00:55.6308501Z #13 DONE 0.1s
+2026-10-03T05:00:55.8048815Z 
+2026-10-03T05:00:55.8050648Z #14 [stage-1 7/8] WORKDIR /home/nonroot
+2026-10-03T05:00:55.8052449Z #14 DONE 0.0s
+2026-10-03T05:00:55.8052676Z 
+2026-10-03T05:00:55.8053209Z #15 [stage-1 8/8] RUN mkdir -p /home/nonroot/ThetaData/ThetaTerminal &&     mkdir -p /home/nonroot/.cache/lumibot &&     python - <<'PY'
+2026-10-03T05:00:56.1630766Z #15 0.509 2026-10-03 05:00:56,161 | INFO | LumiBot v4.6.4 starting
+2026-10-03T05:00:56.2803821Z #15 0.627 [ThetaTerminal] Copied bundled jar size=39187662 sha256=4f3b820fb22493f492d3f5850837f7b190ce417260804657e583631a7afac2d8
+2026-10-03T05:00:56.3875275Z #15 DONE 0.7s
+2026-10-03T05:00:56.5413941Z 
+2026-10-03T05:00:56.5414940Z #16 exporting to docker image format
+2026-10-03T05:00:56.5415375Z #16 exporting layers
+2026-10-03T05:01:58.6013301Z #16 exporting layers 62.2s done
+2026-10-03T05:01:58.7670717Z #16 exporting manifest sha256:209c88816f093c8f19835499e34ee514689c4ab43f4355ac5212f70e0f337b35 done
+2026-10-03T05:01:58.7671998Z #16 exporting config sha256:5ba5c1a70bc3ff6630fc32557a8d95a1871052682a8542afb61276c78b16e537 done
+2026-10-03T05:01:58.7695249Z #16 sending tarball
+2026-10-03T05:02:10.0894668Z #16 ...
+2026-10-03T05:02:10.0895738Z 
+2026-10-03T05:02:10.0898258Z #17 importing to docker
+2026-10-03T05:02:10.2415205Z #17 loading layer 83ae6b26de94 65.54kB / 4.99MB
+2026-10-03T05:02:10.2561040Z #17 loading layer 6379efcfd6cd 557.06kB / 52.59MB
+2026-10-03T05:02:11.4258960Z #17 loading layer 02d4fa69c3e0 557.06kB / 601.67MB
+2026-10-03T05:02:13.4344564Z #17 loading layer 02d4fa69c3e0 80.22MB / 601.67MB 2.0s
+2026-10-03T05:02:17.5712549Z #17 loading layer 02d4fa69c3e0 159.88MB / 601.67MB 6.1s
+2026-10-03T05:02:21.7810781Z #17 loading layer 02d4fa69c3e0 197.20MB / 601.67MB 10.4s
+2026-10-03T05:02:25.8799498Z #17 loading layer 02d4fa69c3e0 288.00MB / 601.67MB 14.5s
+2026-10-03T05:02:28.0019745Z #17 loading layer 02d4fa69c3e0 368.77MB / 601.67MB 16.6s
+2026-10-03T05:02:30.0646410Z #17 loading layer 02d4fa69c3e0 403.31MB / 601.67MB 18.6s
+2026-10-03T05:02:32.1899581Z #17 loading layer 02d4fa69c3e0 435.06MB / 601.67MB 20.8s
+2026-10-03T05:02:34.2256787Z #17 loading layer 02d4fa69c3e0 476.84MB / 601.67MB 22.8s
+2026-10-03T05:02:36.3067227Z #17 loading layer 02d4fa69c3e0 529.76MB / 601.67MB 24.9s
+2026-10-03T05:02:38.3743679Z #17 loading layer 02d4fa69c3e0 581.57MB / 601.67MB 26.9s
+2026-10-03T05:02:40.2682057Z #17 loading layer dc487ed16fc4 229.38kB / 21.87MB
+2026-10-03T05:02:40.5509466Z #17 loading layer ac1e7b1e1159 3.23kB / 3.23kB
+2026-10-03T05:02:40.7366249Z #17 loading layer 5f70bf18a086 32B / 32B
+2026-10-03T05:02:40.7369510Z #17 loading layer 53524a1e1798 393.22kB / 36.51MB
+2026-10-03T05:02:40.9562725Z #17 loading layer ac1e7b1e1159 3.23kB / 3.23kB 0.4s done
+2026-10-03T05:02:41.1114186Z #17 loading layer 83ae6b26de94 4.99MB / 4.99MB 30.9s done
+2026-10-03T05:02:41.1114919Z #17 loading layer 6379efcfd6cd 52.59MB / 52.59MB 30.7s done
+2026-10-03T05:02:41.1115369Z #17 loading layer 02d4fa69c3e0 601.67MB / 601.67MB 29.5s done
+2026-10-03T05:02:41.1116030Z #17 loading layer dc487ed16fc4 21.87MB / 21.87MB 0.7s done
+2026-10-03T05:02:41.1116569Z #17 loading layer 5f70bf18a086 32B / 32B 0.4s done
+2026-10-03T05:02:41.1116977Z #17 loading layer 53524a1e1798 36.51MB / 36.51MB 0.4s done
+2026-10-03T05:02:41.1117338Z #17 DONE 30.9s
+2026-10-03T05:02:41.1117488Z 
+2026-10-03T05:02:41.1117688Z #16 exporting to docker image format
+2026-10-03T05:02:41.1118041Z #16 sending tarball 42.3s done
+2026-10-03T05:02:41.1118316Z #16 DONE 104.6s
+2026-10-03T05:02:41.1118461Z 
+2026-10-03T05:02:41.1118592Z #18 exporting cache to client directory
+2026-10-03T05:02:41.1118925Z #18 preparing build cache for export
+2026-10-03T05:03:42.2771312Z #18 preparing build cache for export 61.3s done
+2026-10-03T05:03:42.2772803Z #18 sending cache export
+2026-10-03T05:03:42.4398007Z #18 writing layer sha256:321949187e2d0ce1d12cbbb340f8f4fbb58aec1b9eef6845020bfa80d3993ca6
+2026-10-03T05:03:42.4444332Z #18 writing layer sha256:0b310a8b78cd4974803b9b0978fc7fcf62b2424ee9388703865d2c833e2a8b9f
+2026-10-03T05:03:42.4461725Z #18 writing layer sha256:1da02afe6a42c68d8350a622db6dfc96e1743cb24d3c4c37faa98ba68a7a3444 0.0s done
+2026-10-03T05:03:42.4473602Z #18 writing layer sha256:04566a438a69f2e37a66c74e84afc8d128a1ab3b929fead3b47809917a015df0
+2026-10-03T05:03:42.4505490Z #18 writing layer sha256:36b8822f16b0fdc6ed97cbf78b163c3380d237afe90c3efb2ee81f29c2f1d7fb 0.0s done
+2026-10-03T05:03:42.4507032Z #18 writing layer sha256:3f6d18b15a0ebb13cb258a9deee5cbfc21ce048ecbce6381fc51ef1d8cf53037 0.0s done
+2026-10-03T05:03:42.4515980Z #18 writing layer sha256:4f4fb700ef54461cfa02571ae0db9a0dc1e0cdb5577484a6d75e68dc38e8acc1 0.1s done
+2026-10-03T05:03:42.4516878Z #18 writing layer sha256:529833d15da34878521fe7b10d098ec9501451646a3acc26494a0cd3d3ff10c1
+2026-10-03T05:03:42.7585056Z #18 writing layer sha256:529833d15da34878521fe7b10d098ec9501451646a3acc26494a0cd3d3ff10c1 0.3s done
+2026-10-03T05:03:42.7590895Z #18 writing layer sha256:75061fd3cc2ce9a3ac1f7e669846f5df093aa0e6b4dc5f980f42bee5fd6ce6cc
+2026-10-03T05:03:43.4159401Z #18 writing layer sha256:04566a438a69f2e37a66c74e84afc8d128a1ab3b929fead3b47809917a015df0 1.1s done
+2026-10-03T05:03:43.6201391Z #18 writing layer sha256:824667651933e4e4c6cbdf39e0173f891fc98d4af45d17d1a4cfcb299dc9e79c 0.0s done
+2026-10-03T05:03:43.6212137Z #18 writing layer sha256:8ca6b81b20b196574b5f404d06fe32edf0e3a47e2559214c53996a9fe3e8c555 done
+2026-10-03T05:03:43.6216830Z #18 writing layer sha256:8cd4cf3fa73d47ef3380c9d02066e0498dd64cdefe513b40e5f0b106b8993d91 0.0s done
+2026-10-03T05:03:43.6220930Z #18 writing layer sha256:bd36565c0fdebaf0f3af5c3b4ce610ca085ced32e9e9da850d95912f5f18f47b done
+2026-10-03T05:03:43.6224597Z #18 writing layer sha256:fc8bdc1e62520d19c487944d3d349b844e44da9c84f4fd62e9614c50750bbc22
+2026-10-03T05:03:44.6356055Z #18 writing layer sha256:75061fd3cc2ce9a3ac1f7e669846f5df093aa0e6b4dc5f980f42bee5fd6ce6cc 1.9s done
+2026-10-03T05:03:44.7937559Z #18 writing layer sha256:0b310a8b78cd4974803b9b0978fc7fcf62b2424ee9388703865d2c833e2a8b9f 2.5s done
+2026-10-03T05:03:59.3649413Z #18 writing layer sha256:fc8bdc1e62520d19c487944d3d349b844e44da9c84f4fd62e9614c50750bbc22 15.9s done
+2026-10-03T05:03:59.4787030Z #18 sending cache export 17.1s done
+2026-10-03T05:03:59.4788414Z #18 writing layer sha256:321949187e2d0ce1d12cbbb340f8f4fbb58aec1b9eef6845020bfa80d3993ca6 17.1s done
+2026-10-03T05:03:59.4789351Z #18 writing config sha256:efa858914f7c8958a6492dfa62e8c01bbda3a9336fed950d552d1c54570fccf9 done
+2026-10-03T05:03:59.4790149Z #18 writing cache image manifest sha256:71284cc43d11794553c35f43212c8f0a2b0f79ced79a66a06e01853dded974a2 done
+2026-10-03T05:03:59.4790724Z #18 DONE 78.5s
+2026-10-03T05:03:59.4793041Z WARNING: local cache import at /tmp/.buildx-cache not found due to err: could not lock /tmp/.buildx-cache/index.json.lock: open /tmp/.buildx-cache/index.json.lock: no such file or directory
+2026-10-03T05:03:59.5185845Z INFO:image_builder:Docker build completed successfully
+2026-10-03T05:03:59.5228671Z INFO:image_builder:Successfully built local backtest dependencies image: dev-trading-bot-dependencies-backtest:latest
+2026-10-03T05:03:59.6323506Z INFO:image_builder:✓ BACKTEST dependencies image dev-trading-bot-dependencies-backtest:latest available for backtest builds (ThetaTerminal.jar preloaded)
+2026-10-03T05:03:59.6324567Z INFO:image_builder:
+2026-10-03T05:03:59.6324975Z INFO:image_builder:================================================================================
+2026-10-03T05:03:59.6325596Z INFO:image_builder:✓ Both dependencies images built successfully:
+2026-10-03T05:03:59.6326191Z INFO:image_builder:  - Live trading (distroless): dev-trading-bot-dependencies:latest
+2026-10-03T05:03:59.6326873Z INFO:image_builder:  - Backtest (with Java):      dev-trading-bot-dependencies-backtest:latest
+2026-10-03T05:03:59.6327510Z INFO:image_builder:================================================================================
+2026-10-03T05:03:59.8141451Z ##[group]Run python docker_build/build_base_image.py
+2026-10-03T05:03:59.8143023Z [36;1mpython docker_build/build_base_image.py[0m
+2026-10-03T05:03:59.8305977Z shell: /usr/bin/bash -e {0}
+2026-10-03T05:03:59.8306619Z env:
+2026-10-03T05:03:59.8306888Z   ENVIRONMENT: dev
+2026-10-03T05:03:59.8307191Z   LUMIBOT_VERSION: 4.6.4
+2026-10-03T05:03:59.8307490Z   SKIP_DATA_VOLUME_SNAPSHOT: true
+2026-10-03T05:03:59.8307794Z   DOCKER_BUILDKIT: 1
+2026-10-03T05:03:59.8308053Z   BUILDKIT_PROGRESS: plain
+2026-10-03T05:03:59.8308350Z   GITHUB_ACTIONS_CACHE: true
+2026-10-03T05:03:59.8308704Z   BUILDX_CACHE_FROM: type=local,src=/tmp/.buildx-cache
+2026-10-03T05:03:59.8309184Z   BUILDX_CACHE_TO: type=local,dest=/tmp/.buildx-cache-new,mode=max
+2026-10-03T05:03:59.8309623Z   DEPOT_PROJECT_ID: 
+2026-10-03T05:03:59.8309917Z   BLACKSMITH_RUNNER_MESSAGE_WAIT_MS: 212
+2026-10-03T05:03:59.8310270Z   BLACKSMITH_RUNNER_ACQUIRE_JOB_MS: 1062
+2026-10-03T05:03:59.8310616Z   GITHUB_REPO_NAME: Lumiwealth/bot_manager
+2026-10-03T05:03:59.8311045Z   AWS_DEFAULT_REGION: us-east-1
+2026-10-03T05:03:59.8311337Z   AWS_REGION: us-east-1
+2026-10-03T05:03:59.8311828Z   AWS_ACCESS_KEY_ID: ***
+2026-10-03T05:03:59.8312217Z   AWS_SECRET_ACCESS_KEY: ***
+2026-10-03T05:03:59.8317677Z   AWS_SESSION_TOKEN: ***
+2026-10-03T05:03:59.8318047Z   pythonLocation: /opt/hostedtoolcache/Python/3.13.16/arm64
+2026-10-03T05:03:59.8318548Z   PKG_CONFIG_PATH: /opt/hostedtoolcache/Python/3.13.16/arm64/lib/pkgconfig
+2026-10-03T05:03:59.8319054Z   Python_ROOT_DIR: /opt/hostedtoolcache/Python/3.13.16/arm64
+2026-10-03T05:03:59.8319518Z   Python2_ROOT_DIR: /opt/hostedtoolcache/Python/3.13.16/arm64
+2026-10-03T05:03:59.8319968Z   Python3_ROOT_DIR: /opt/hostedtoolcache/Python/3.13.16/arm64
+2026-10-03T05:03:59.8320433Z   LD_LIBRARY_PATH: /opt/hostedtoolcache/Python/3.13.16/arm64/lib
+2026-10-03T05:03:59.8320884Z   UV_CACHE_DIR: /home/runner/_work/_temp/setup-uv-cache
+2026-10-03T05:03:59.8321243Z ##[endgroup]
+2026-10-03T05:04:00.1383224Z INFO:botocore.credentials:Found credentials in environment variables.
+2026-10-03T05:04:00.2344646Z INFO:image_builder:Using environment prefix: dev
+2026-10-03T05:04:00.5386004Z INFO:image_builder:ECR repository already exists: dev-trading-bot-base
+2026-10-03T05:04:00.6321510Z INFO:image_builder:Attempting ECR login (attempt 1/2)...
+2026-10-03T05:04:00.6324588Z INFO:image_builder:Getting ECR authentication token...
+2026-10-03T05:04:01.9807179Z INFO:image_builder:ECR token obtained successfully
+2026-10-03T05:04:01.9808452Z INFO:image_builder:Logging into ECR registry: 412381755468.dkr.ecr.us-east-1.amazonaws.com
+2026-10-03T05:04:02.4862512Z INFO:image_builder:ECR login successful
+2026-10-03T05:04:02.4864230Z INFO:image_builder:Docker login output: Login Succeeded
+2026-10-03T05:04:02.4865313Z INFO:image_builder:Verifying dependencies image exists: dev-trading-bot-dependencies:latest
+2026-10-03T05:04:02.5142529Z INFO:image_builder:✓ Dependencies image dev-trading-bot-dependencies:latest found locally
+2026-10-03T05:04:02.5144611Z INFO:image_builder:Building base image with local Docker engine for arm64...
+2026-10-03T05:04:02.5147616Z INFO:image_builder:Running build command: /usr/bin/docker build --platform linux/arm64 --build-arg DEPENDENCIES_IMAGE_URI=dev-trading-bot-dependencies:latest -t 412381755468.dkr.ecr.us-east-1.amazonaws.com/dev-trading-bot-base:20261003-050402 -t 412381755468.dkr.ecr.us-east-1.amazonaws.com/dev-trading-bot-base:latest /tmp/tmpf5_n6e9j
+2026-10-03T05:04:03.0539485Z #0 building with "default" instance using docker driver
+2026-10-03T05:04:03.0540130Z 
+2026-10-03T05:04:03.0540758Z #1 [internal] load build definition from Dockerfile
+2026-10-03T05:04:03.0558416Z #1 transferring dockerfile: 998B done
+2026-10-03T05:04:03.0559237Z #1 WARN: InvalidDefaultArgInFrom: Default value for ARG ${DEPENDENCIES_IMAGE_URI} results in empty or invalid base image name (line 5)
+2026-10-03T05:04:03.0559963Z #1 DONE 0.0s
+2026-10-03T05:04:03.0560107Z 
+2026-10-03T05:04:03.0561546Z #2 [internal] load metadata for docker.io/library/dev-trading-bot-dependencies:latest
+2026-10-03T05:04:03.0562128Z #2 DONE 0.0s
+2026-10-03T05:04:03.0562272Z 
+2026-10-03T05:04:03.0563097Z #3 [internal] load metadata for ghcr.io/astral-sh/uv:python3.13-trixie-slim
+2026-10-03T05:04:03.8277385Z #3 DONE 0.9s
+2026-10-03T05:04:03.9612945Z 
+2026-10-03T05:04:03.9614858Z #4 [internal] load .dockerignore
+2026-10-03T05:04:03.9615440Z #4 transferring context: 2B done
+2026-10-03T05:04:03.9615735Z #4 DONE 0.0s
+2026-10-03T05:04:03.9615876Z 
+2026-10-03T05:04:03.9616161Z #5 [dependencies 1/1] FROM docker.io/library/dev-trading-bot-dependencies:latest
+2026-10-03T05:04:03.9616648Z #5 DONE 0.0s
+2026-10-03T05:04:03.9616787Z 
+2026-10-03T05:04:03.9616900Z #6 [internal] load build context
+2026-10-03T05:04:03.9617223Z #6 transferring context: 6.88kB 0.0s done
+2026-10-03T05:04:03.9617546Z #6 DONE 0.0s
+2026-10-03T05:04:03.9617686Z 
+2026-10-03T05:04:03.9618197Z #7 [builder 1/4] FROM ghcr.io/astral-sh/uv:python3.13-trixie-slim@sha256:4cf2255999bc7e6112abfdfda19492e05e1e1c2d1c6e0c5076d0e768e9925032
+2026-10-03T05:04:03.9619266Z #7 resolve ghcr.io/astral-sh/uv:python3.13-trixie-slim@sha256:4cf2255999bc7e6112abfdfda19492e05e1e1c2d1c6e0c5076d0e768e9925032 done
+2026-10-03T05:04:03.9620162Z #7 sha256:4cf2255999bc7e6112abfdfda19492e05e1e1c2d1c6e0c5076d0e768e9925032 2.22kB / 2.22kB done
+2026-10-03T05:04:03.9620912Z #7 sha256:6b46bec53f6f7209db75154ca86a67d91a80e63313390fd309c54ced02290396 1.25kB / 1.25kB done
+2026-10-03T05:04:03.9621641Z #7 sha256:c3267cb9b9eb718bfd4b522c27bc862f4ad86c368da9c00fd855b36db42cc586 6.76kB / 6.76kB done
+2026-10-03T05:04:03.9622867Z #7 sha256:3f6d18b15a0ebb13cb258a9deee5cbfc21ce048ecbce6381fc51ef1d8cf53037 0B / 22.31MB 0.1s
+2026-10-03T05:04:04.4621551Z #7 sha256:3f6d18b15a0ebb13cb258a9deee5cbfc21ce048ecbce6381fc51ef1d8cf53037 10.49MB / 22.31MB 0.6s
+2026-10-03T05:04:04.7674742Z #7 sha256:3f6d18b15a0ebb13cb258a9deee5cbfc21ce048ecbce6381fc51ef1d8cf53037 22.06MB / 22.31MB 0.9s
+2026-10-03T05:04:04.9320081Z #7 sha256:3f6d18b15a0ebb13cb258a9deee5cbfc21ce048ecbce6381fc51ef1d8cf53037 22.31MB / 22.31MB 1.0s done
+2026-10-03T05:04:04.9326618Z #7 extracting sha256:3f6d18b15a0ebb13cb258a9deee5cbfc21ce048ecbce6381fc51ef1d8cf53037 0.1s
+2026-10-03T05:04:05.2360116Z #7 extracting sha256:3f6d18b15a0ebb13cb258a9deee5cbfc21ce048ecbce6381fc51ef1d8cf53037 0.3s done
+2026-10-03T05:04:05.2372092Z #7 DONE 1.3s
+2026-10-03T05:04:05.2383222Z 
+2026-10-03T05:04:05.2384088Z #8 [builder 2/4] WORKDIR /build_context
+2026-10-03T05:04:05.2384603Z #8 DONE 0.1s
+2026-10-03T05:04:05.3896971Z 
+2026-10-03T05:04:05.3898404Z #9 [builder 3/4] RUN mkdir -p /app_to_copy
+2026-10-03T05:04:05.6338982Z #9 DONE 0.4s
+2026-10-03T05:04:05.8301083Z 
+2026-10-03T05:04:05.8307917Z #10 [builder 4/4] COPY docker_build/runtime_loader.py /app_to_copy/runtime_loader.py
+2026-10-03T05:04:05.8316939Z #10 DONE 0.0s
+2026-10-03T05:04:06.0840340Z 
+2026-10-03T05:04:06.0845580Z #11 [stage-2 1/2] COPY --from=builder --chown=nonroot:nonroot /app_to_copy/ /app/
+2026-10-03T05:04:06.1840288Z #11 DONE 0.0s
+2026-10-03T05:04:06.1851410Z 
+2026-10-03T05:04:06.1861608Z #12 [stage-2 2/2] WORKDIR /app
+2026-10-03T05:04:06.1865036Z #12 DONE 0.0s
+2026-10-03T05:04:06.1865442Z 
+2026-10-03T05:04:06.1865664Z #13 exporting to image
+2026-10-03T05:04:06.1866083Z #13 exporting layers 0.0s done
+2026-10-03T05:04:06.1866703Z #13 writing image sha256:263f2f3022ae493a282b002b9c11505e365739d19d3c8239b767921d274a66b8 done
+2026-10-03T05:04:06.1867979Z #13 naming to 412381755468.dkr.ecr.us-east-1.amazonaws.com/dev-trading-bot-base:20261003-050402 done
+2026-10-03T05:04:06.1870474Z #13 naming to 412381755468.dkr.ecr.us-east-1.amazonaws.com/dev-trading-bot-base:latest done
+2026-10-03T05:04:06.1871120Z #13 DONE 0.0s
+2026-10-03T05:04:06.1871346Z 
+2026-10-03T05:04:06.1873237Z  [33m1 warning found (use docker --debug to expand):
+2026-10-03T05:04:06.1875949Z [0m - InvalidDefaultArgInFrom: Default value for ARG ${DEPENDENCIES_IMAGE_URI} results in empty or invalid base image name (line 5)
+2026-10-03T05:04:06.1971291Z INFO:image_builder:Docker build completed successfully
+2026-10-03T05:04:06.1979933Z INFO:image_builder:Pushing images to ECR...
+2026-10-03T05:04:06.1982102Z INFO:image_builder:Pushing 412381755468.dkr.ecr.us-east-1.amazonaws.com/dev-trading-bot-base:20261003-050402
+2026-10-03T05:04:06.2174117Z The push refers to repository [412381755468.dkr.ecr.us-east-1.amazonaws.com/dev-trading-bot-base]
+2026-10-03T05:04:06.4370354Z 5f70bf18a086: Preparing
+2026-10-03T05:04:06.4388015Z 6acc85efeb41: Preparing
+2026-10-03T05:04:06.4390311Z ecb2502d9575: Preparing
+2026-10-03T05:04:06.4390718Z 5facefbd15a3: Preparing
+2026-10-03T05:04:06.4394616Z b32c04396f40: Preparing
+2026-10-03T05:04:06.4395179Z 5019edc7c46c: Preparing
+2026-10-03T05:04:06.4395466Z 4a65f022c09a: Preparing
+2026-10-03T05:04:06.4395732Z 521e12be4160: Preparing
+2026-10-03T05:04:06.4396007Z 28947ef2e9b8: Preparing
+2026-10-03T05:04:06.4398202Z 8227a1264c7f: Preparing
+2026-10-03T05:04:06.6883586Z 8227a1264c7f: Layer already exists
+2026-10-03T05:04:06.6935883Z 5f70bf18a086: Layer already exists
+2026-10-03T05:04:08.0650179Z ecb2502d9575: Pushed
+2026-10-03T05:04:08.1450259Z 6acc85efeb41: Pushed
+2026-10-03T05:04:08.3131676Z 4a65f022c09a: Pushed
+2026-10-03T05:04:08.3676157Z 5019edc7c46c: Pushed
+2026-10-03T05:04:10.0175126Z 28947ef2e9b8: Pushed
+2026-10-03T05:04:10.2055814Z 5facefbd15a3: Pushed
+2026-10-03T05:04:11.6573921Z 521e12be4160: Pushed
+2026-10-03T05:05:19.8390858Z b32c04396f40: Pushed
+2026-10-03T05:05:21.8289920Z 20261003-050402: digest: sha256:38195d77128db9793518dd316cd34c92a48e47aa345d9a500e6301d19d92f748 size: 2416
+2026-10-03T05:05:21.8340588Z INFO:image_builder:Pushing 412381755468.dkr.ecr.us-east-1.amazonaws.com/dev-trading-bot-base:latest
+2026-10-03T05:05:21.8536465Z The push refers to repository [412381755468.dkr.ecr.us-east-1.amazonaws.com/dev-trading-bot-base]
+2026-10-03T05:05:22.0683181Z 5f70bf18a086: Preparing
+2026-10-03T05:05:22.0683841Z 6acc85efeb41: Preparing
+2026-10-03T05:05:22.0684223Z ecb2502d9575: Preparing
+2026-10-03T05:05:22.0684601Z 5facefbd15a3: Preparing
+2026-10-03T05:05:22.0684899Z b32c04396f40: Preparing
+2026-10-03T05:05:22.0685175Z 5019edc7c46c: Preparing
+2026-10-03T05:05:22.0685549Z 4a65f022c09a: Preparing
+2026-10-03T05:05:22.0685875Z 521e12be4160: Preparing
+2026-10-03T05:05:22.0686161Z 28947ef2e9b8: Preparing
+2026-10-03T05:05:22.0695510Z 8227a1264c7f: Preparing
+2026-10-03T05:05:22.2955030Z ecb2502d9575: Layer already exists
+2026-10-03T05:05:22.2956497Z 5facefbd15a3: Layer already exists
+2026-10-03T05:05:22.2976325Z 5f70bf18a086: Layer already exists
+2026-10-03T05:05:22.3037721Z 521e12be4160: Layer already exists
+2026-10-03T05:05:22.3049880Z b32c04396f40: Layer already exists
+2026-10-03T05:05:22.3107816Z 5019edc7c46c: Layer already exists
+2026-10-03T05:05:22.3110761Z 4a65f022c09a: Layer already exists
+2026-10-03T05:05:22.3131625Z 28947ef2e9b8: Layer already exists
+2026-10-03T05:05:22.3147911Z 6acc85efeb41: Layer already exists
+2026-10-03T05:05:22.3187751Z 8227a1264c7f: Layer already exists
+2026-10-03T05:05:22.8777482Z latest: digest: sha256:38195d77128db9793518dd316cd34c92a48e47aa345d9a500e6301d19d92f748 size: 2416
+2026-10-03T05:05:22.8808209Z INFO:image_builder:Successfully built & pushed arm64 412381755468.dkr.ecr.us-east-1.amazonaws.com/dev-trading-bot-base:latest
+2026-10-03T05:05:22.8809686Z WARNING:image_builder:Skipping data volume snapshot creation (SKIP_DATA_VOLUME_SNAPSHOT=true). Cold-starts may be slower until the next snapshot is created.
+2026-10-03T05:05:22.9920001Z ##[group]Run python docker_build/build_backtest_image.py
+2026-10-03T05:05:22.9920593Z [36;1mpython docker_build/build_backtest_image.py[0m
+2026-10-03T05:05:22.9973479Z shell: /usr/bin/bash -e {0}
+2026-10-03T05:05:22.9973856Z env:
+2026-10-03T05:05:22.9974116Z   ENVIRONMENT: dev
+2026-10-03T05:05:22.9974371Z   LUMIBOT_VERSION: 4.6.4
+2026-10-03T05:05:22.9974756Z   SKIP_DATA_VOLUME_SNAPSHOT: true
+2026-10-03T05:05:22.9975075Z   DOCKER_BUILDKIT: 1
+2026-10-03T05:05:22.9975346Z   BUILDKIT_PROGRESS: plain
+2026-10-03T05:05:22.9975643Z   GITHUB_ACTIONS_CACHE: true
+2026-10-03T05:05:22.9986528Z   BUILDX_CACHE_FROM: type=local,src=/tmp/.buildx-cache
+2026-10-03T05:05:22.9987238Z   BUILDX_CACHE_TO: type=local,dest=/tmp/.buildx-cache-new,mode=max
+2026-10-03T05:05:22.9987660Z   DEPOT_PROJECT_ID: 
+2026-10-03T05:05:22.9987932Z   BLACKSMITH_RUNNER_MESSAGE_WAIT_MS: 212
+2026-10-03T05:05:22.9988271Z   BLACKSMITH_RUNNER_ACQUIRE_JOB_MS: 1062
+2026-10-03T05:05:22.9988748Z   GITHUB_REPO_NAME: Lumiwealth/bot_manager
+2026-10-03T05:05:22.9989086Z   AWS_DEFAULT_REGION: us-east-1
+2026-10-03T05:05:22.9989396Z   AWS_REGION: us-east-1
+2026-10-03T05:05:22.9989973Z   AWS_ACCESS_KEY_ID: ***
+2026-10-03T05:05:22.9990348Z   AWS_SECRET_ACCESS_KEY: ***
+2026-10-03T05:05:22.9995797Z   AWS_SESSION_TOKEN: ***
+2026-10-03T05:05:22.9996146Z   pythonLocation: /opt/hostedtoolcache/Python/3.13.16/arm64
+2026-10-03T05:05:22.9996648Z   PKG_CONFIG_PATH: /opt/hostedtoolcache/Python/3.13.16/arm64/lib/pkgconfig
+2026-10-03T05:05:22.9997151Z   Python_ROOT_DIR: /opt/hostedtoolcache/Python/3.13.16/arm64
+2026-10-03T05:05:22.9997598Z   Python2_ROOT_DIR: /opt/hostedtoolcache/Python/3.13.16/arm64
+2026-10-03T05:05:22.9998061Z   Python3_ROOT_DIR: /opt/hostedtoolcache/Python/3.13.16/arm64
+2026-10-03T05:05:22.9998519Z   LD_LIBRARY_PATH: /opt/hostedtoolcache/Python/3.13.16/arm64/lib
+2026-10-03T05:05:22.9998969Z   UV_CACHE_DIR: /home/runner/_work/_temp/setup-uv-cache
+2026-10-03T05:05:22.9999327Z ##[endgroup]
+2026-10-03T05:05:23.1947472Z INFO:botocore.credentials:Found credentials in environment variables.
+2026-10-03T05:05:23.2615214Z INFO:image_builder:Using environment prefix: dev
+2026-10-03T05:05:23.5678507Z INFO:image_builder:ECR repository already exists: dev-trading-bot-backtest
+2026-10-03T05:05:23.6421399Z INFO:image_builder:Attempting ECR login (attempt 1/2)...
+2026-10-03T05:05:23.6439607Z INFO:image_builder:Getting ECR authentication token...
+2026-10-03T05:05:24.5735026Z INFO:image_builder:ECR token obtained successfully
+2026-10-03T05:05:24.5735920Z INFO:image_builder:Logging into ECR registry: 412381755468.dkr.ecr.us-east-1.amazonaws.com
+2026-10-03T05:05:25.0210567Z INFO:image_builder:ECR login successful
+2026-10-03T05:05:25.0227976Z INFO:image_builder:Docker login output: Login Succeeded
+2026-10-03T05:05:25.0229108Z INFO:image_builder:Verifying dependencies image exists: dev-trading-bot-dependencies-backtest:latest
+2026-10-03T05:05:25.0456134Z INFO:image_builder:✓ Dependencies image dev-trading-bot-dependencies-backtest:latest found locally
+2026-10-03T05:05:25.0457219Z INFO:image_builder:Building backtest image with buildx for arm64...
+2026-10-03T05:05:25.0457975Z INFO:image_builder:Switching to default Docker builder for local dependencies access...
+2026-10-03T05:05:25.1131154Z INFO:image_builder:Cache disabled: using default Docker builder for local dependencies
+2026-10-03T05:05:25.1139711Z INFO:image_builder:Running build command: docker build --platform linux/arm64 --build-arg DEPENDENCIES_IMAGE_URI=dev-trading-bot-dependencies-backtest:latest -t 412381755468.dkr.ecr.us-east-1.amazonaws.com/dev-trading-bot-backtest:20261003-050525 -t 412381755468.dkr.ecr.us-east-1.amazonaws.com/dev-trading-bot-backtest:latest /tmp/tmpdrl0mldp
+2026-10-03T05:05:25.4253089Z #0 building with "default" instance using docker driver
+2026-10-03T05:05:25.4253963Z 
+2026-10-03T05:05:25.4254483Z #1 [internal] load build definition from Dockerfile
+2026-10-03T05:05:25.4256289Z #1 transferring dockerfile: 998B done
+2026-10-03T05:05:25.4257897Z #1 WARN: InvalidDefaultArgInFrom: Default value for ARG ${DEPENDENCIES_IMAGE_URI} results in empty or invalid base image name (line 5)
+2026-10-03T05:05:25.4259512Z #1 DONE 0.0s
+2026-10-03T05:05:25.4259676Z 
+2026-10-03T05:05:25.4260002Z #2 [internal] load metadata for docker.io/library/dev-trading-bot-dependencies-backtest:latest
+2026-10-03T05:05:25.4260529Z #2 DONE 0.0s
+2026-10-03T05:05:25.4261798Z 
+2026-10-03T05:05:25.4262162Z #3 [internal] load metadata for ghcr.io/astral-sh/uv:python3.13-trixie-slim
+2026-10-03T05:05:25.7650059Z #3 DONE 0.5s
+2026-10-03T05:05:25.8604376Z 
+2026-10-03T05:05:25.8607161Z #4 [internal] load .dockerignore
+2026-10-03T05:05:25.8607928Z #4 transferring context: 2B done
+2026-10-03T05:05:25.8608405Z #4 DONE 0.0s
+2026-10-03T05:05:25.8608707Z 
+2026-10-03T05:05:25.8609569Z #5 [builder 1/4] FROM ghcr.io/astral-sh/uv:python3.13-trixie-slim@sha256:4cf2255999bc7e6112abfdfda19492e05e1e1c2d1c6e0c5076d0e768e9925032
+2026-10-03T05:05:25.8612339Z #5 DONE 0.0s
+2026-10-03T05:05:25.8612626Z 
+2026-10-03T05:05:25.8612851Z #6 [internal] load build context
+2026-10-03T05:05:25.8613251Z #6 transferring context: 6.88kB done
+2026-10-03T05:05:25.8613648Z #6 DONE 0.0s
+2026-10-03T05:05:25.8613961Z 
+2026-10-03T05:05:25.8614196Z #7 [builder 2/4] WORKDIR /build_context
+2026-10-03T05:05:25.8614740Z #7 CACHED
+2026-10-03T05:05:25.8614958Z 
+2026-10-03T05:05:25.8615187Z #8 [builder 3/4] RUN mkdir -p /app_to_copy
+2026-10-03T05:05:25.8621035Z #8 CACHED
+2026-10-03T05:05:25.8621580Z 
+2026-10-03T05:05:25.8621956Z #9 [builder 4/4] COPY docker_build/runtime_loader.py /app_to_copy/runtime_loader.py
+2026-10-03T05:05:25.8622832Z #9 CACHED
+2026-10-03T05:05:25.8623047Z 
+2026-10-03T05:05:25.8623444Z #10 [dependencies 1/1] FROM docker.io/library/dev-trading-bot-dependencies-backtest:latest
+2026-10-03T05:05:25.8624091Z #10 DONE 0.0s
+2026-10-03T05:05:25.8624321Z 
+2026-10-03T05:05:25.8624788Z #11 [stage-2 1/2] COPY --from=builder --chown=nonroot:nonroot /app_to_copy/ /app/
+2026-10-03T05:05:25.8625344Z #11 DONE 0.0s
+2026-10-03T05:05:25.8625564Z 
+2026-10-03T05:05:25.8625777Z #12 [stage-2 2/2] WORKDIR /app
+2026-10-03T05:05:25.8626145Z #12 DONE 0.0s
+2026-10-03T05:05:25.8626370Z 
+2026-10-03T05:05:25.8626571Z #13 exporting to image
+2026-10-03T05:05:25.8626935Z #13 exporting layers done
+2026-10-03T05:05:25.8627496Z #13 writing image sha256:0897a3b7c2b2850e44765519dac2c4a502a4b39b35898e4dfe18ac9a8c9595f0 done
+2026-10-03T05:05:25.8629281Z #13 naming to 412381755468.dkr.ecr.us-east-1.amazonaws.com/dev-trading-bot-backtest:20261003-050525 done
+2026-10-03T05:05:25.8630141Z #13 naming to 412381755468.dkr.ecr.us-east-1.amazonaws.com/dev-trading-bot-backtest:latest done
+2026-10-03T05:05:25.8630751Z #13 DONE 0.0s
+2026-10-03T05:05:25.8631099Z 
+2026-10-03T05:05:25.8632099Z  [33m1 warning found (use docker --debug to expand):
+2026-10-03T05:05:25.8635250Z [0m - InvalidDefaultArgInFrom: Default value for ARG ${DEPENDENCIES_IMAGE_URI} results in empty or invalid base image name (line 5)
+2026-10-03T05:05:25.8715381Z INFO:image_builder:Docker build completed successfully
+2026-10-03T05:05:25.8743953Z INFO:image_builder:Pushing images to ECR...
+2026-10-03T05:05:25.8744919Z INFO:image_builder:Pushing 412381755468.dkr.ecr.us-east-1.amazonaws.com/dev-trading-bot-backtest:20261003-050525
+2026-10-03T05:05:25.8910626Z The push refers to repository [412381755468.dkr.ecr.us-east-1.amazonaws.com/dev-trading-bot-backtest]
+2026-10-03T05:05:26.1106887Z 5f70bf18a086: Preparing
+2026-10-03T05:05:26.1107684Z 6acc85efeb41: Preparing
+2026-10-03T05:05:26.1108839Z 53524a1e1798: Preparing
+2026-10-03T05:05:26.1109177Z 5f70bf18a086: Preparing
+2026-10-03T05:05:26.1109445Z ac1e7b1e1159: Preparing
+2026-10-03T05:05:26.1109715Z dc487ed16fc4: Preparing
+2026-10-03T05:05:26.1109991Z 02d4fa69c3e0: Preparing
+2026-10-03T05:05:26.1110319Z 6379efcfd6cd: Preparing
+2026-10-03T05:05:26.1110595Z 83ae6b26de94: Preparing
+2026-10-03T05:05:26.1110865Z 4a65f022c09a: Preparing
+2026-10-03T05:05:26.1111120Z 521e12be4160: Preparing
+2026-10-03T05:05:26.1111378Z 28947ef2e9b8: Preparing
+2026-10-03T05:05:26.1111645Z 8227a1264c7f: Preparing
+2026-10-03T05:05:26.1127596Z 28947ef2e9b8: Waiting
+2026-10-03T05:05:26.1128224Z 8227a1264c7f: Waiting
+2026-10-03T05:05:26.3609440Z 5f70bf18a086: Layer already exists
+2026-10-03T05:05:28.2170354Z ac1e7b1e1159: Pushed
+2026-10-03T05:05:28.5112359Z 4a65f022c09a: Pushed
+2026-10-03T05:05:28.7340563Z 6acc85efeb41: Pushed
+2026-10-03T05:05:28.8672008Z 8227a1264c7f: Layer already exists
+2026-10-03T05:05:30.0483070Z 83ae6b26de94: Pushed
+2026-10-03T05:05:32.8190759Z 28947ef2e9b8: Pushed
+2026-10-03T05:05:33.2852370Z 53524a1e1798: Pushed
+2026-10-03T05:05:33.3474258Z dc487ed16fc4: Pushed
+2026-10-03T05:05:33.6998126Z 521e12be4160: Pushed
+2026-10-03T05:05:34.7359823Z 6379efcfd6cd: Pushed
+2026-10-03T05:06:44.1624943Z 02d4fa69c3e0: Pushed
+2026-10-03T05:06:46.1601387Z 20261003-050525: digest: sha256:13ca1d8b2077a52b259ea36afe8d085ba66a2cf8159b23bf5b8c8357d374c64b size: 3048
+2026-10-03T05:06:46.1656164Z INFO:image_builder:Pushing 412381755468.dkr.ecr.us-east-1.amazonaws.com/dev-trading-bot-backtest:latest
+2026-10-03T05:06:46.1863127Z The push refers to repository [412381755468.dkr.ecr.us-east-1.amazonaws.com/dev-trading-bot-backtest]
+2026-10-03T05:06:46.4002759Z 5f70bf18a086: Preparing
+2026-10-03T05:06:46.4003204Z 6acc85efeb41: Preparing
+2026-10-03T05:06:46.4003484Z 53524a1e1798: Preparing
+2026-10-03T05:06:46.4003748Z 5f70bf18a086: Preparing
+2026-10-03T05:06:46.4004016Z ac1e7b1e1159: Preparing
+2026-10-03T05:06:46.4004277Z dc487ed16fc4: Preparing
+2026-10-03T05:06:46.4004544Z 02d4fa69c3e0: Preparing
+2026-10-03T05:06:46.4004828Z 6379efcfd6cd: Preparing
+2026-10-03T05:06:46.4005187Z 83ae6b26de94: Preparing
+2026-10-03T05:06:46.4005471Z 4a65f022c09a: Preparing
+2026-10-03T05:06:46.4005733Z 521e12be4160: Preparing
+2026-10-03T05:06:46.4006063Z 28947ef2e9b8: Preparing
+2026-10-03T05:06:46.4006356Z 8227a1264c7f: Preparing
+2026-10-03T05:06:46.4006614Z 28947ef2e9b8: Waiting
+2026-10-03T05:06:46.4006858Z 8227a1264c7f: Waiting
+2026-10-03T05:06:46.6317640Z 5f70bf18a086: Layer already exists
+2026-10-03T05:06:46.6328443Z 02d4fa69c3e0: Layer already exists
+2026-10-03T05:06:46.6328956Z 6acc85efeb41: Layer already exists
+2026-10-03T05:06:46.6330223Z 83ae6b26de94: Layer already exists
+2026-10-03T05:06:46.6354756Z ac1e7b1e1159: Layer already exists
+2026-10-03T05:06:46.6358739Z 53524a1e1798: Layer already exists
+2026-10-03T05:06:46.6361026Z dc487ed16fc4: Layer already exists
+2026-10-03T05:06:46.6370677Z 521e12be4160: Layer already exists
+2026-10-03T05:06:46.6423609Z 4a65f022c09a: Layer already exists
+2026-10-03T05:06:46.6454208Z 6379efcfd6cd: Layer already exists
+2026-10-03T05:06:46.8594748Z 8227a1264c7f: Layer already exists
+2026-10-03T05:06:46.8723945Z 28947ef2e9b8: Layer already exists
+2026-10-03T05:06:47.4504233Z latest: digest: sha256:13ca1d8b2077a52b259ea36afe8d085ba66a2cf8159b23bf5b8c8357d374c64b size: 3048
+2026-10-03T05:06:47.5295958Z WARNING:image_builder:Could not restore bot-manager-builder context
+2026-10-03T05:06:47.5297343Z INFO:image_builder:Successfully built & pushed arm64 412381755468.dkr.ecr.us-east-1.amazonaws.com/dev-trading-bot-backtest:latest
+2026-10-03T05:06:47.5298688Z WARNING:image_builder:Skipping data volume snapshot creation (SKIP_DATA_VOLUME_SNAPSHOT=true). Cold-starts may be slower until the next snapshot is created.
+2026-10-03T05:06:47.6714986Z Post job cleanup.
+2026-10-03T05:06:48.0644999Z ##[group]Removing builder
+2026-10-03T05:06:48.0650585Z (node:6049) [DEP0040] DeprecationWarning: The `punycode` module is deprecated. Please use a userland alternative instead.
+2026-10-03T05:06:48.0651607Z (Use `node --trace-deprecation ...` to show where the warning was created)
+2026-10-03T05:06:48.3881146Z [command]/usr/bin/docker buildx rm builder-ddff77ce-f8bf-47c5-9d1e-c5c17a1bf64c
+2026-10-03T05:07:03.7630339Z builder-ddff77ce-f8bf-47c5-9d1e-c5c17a1bf64c removed
+2026-10-03T05:07:03.7692388Z ##[endgroup]
+2026-10-03T05:07:03.7693280Z ##[group]Cleaning up certificates
+2026-10-03T05:07:03.7706133Z ##[endgroup]
+2026-10-03T05:07:03.7707164Z ##[group]Post cache
+2026-10-03T05:07:03.7707593Z State not set
+2026-10-03T05:07:03.7708266Z ##[endgroup]
+2026-10-03T05:07:03.8076073Z Post job cleanup.
+2026-10-03T05:07:03.9758104Z Pruning cache...
+2026-10-03T05:07:03.9775530Z (node:6198) [DEP0040] DeprecationWarning: The `punycode` module is deprecated. Please use a userland alternative instead.
+2026-10-03T05:07:03.9776634Z (Use `node --trace-deprecation ...` to show where the warning was created)
+2026-10-03T05:07:04.2906781Z Saving cache path: /home/runner/_work/_temp/setup-uv-cache
+2026-10-03T05:07:04.3133604Z [command]/usr/bin/tar --posix -cf cache.tzst --exclude cache.tzst -P -C /home/runner/_work/bot_manager/bot_manager --files-from manifest.txt --use-compress-program zstdmt
+2026-10-03T05:07:04.4908272Z ##[warning]Failed to save: <h2>Our services aren't available right now</h2><p>We're working to restore all services as soon as possible. Please check back soon.</p>0eI3AagAAAAAE5LtSBILYSJVq3X5/i5u2UEhYMzFFREdFMDUxMwBFZGdl
+2026-10-03T05:07:04.4911663Z cache saved with the key: setup-uv-1-aarch64-unknown-linux-gnu-0.11.8-91334449181a567ff3260c292a87f6a99b7d2f78bd736b6cddbed21e236e8d52-release-images-base-backtest
+2026-10-03T05:07:04.5182084Z Post job cleanup.
+2026-10-03T05:07:04.6994231Z (node:6221) [DEP0040] DeprecationWarning: The `punycode` module is deprecated. Please use a userland alternative instead.
+2026-10-03T05:07:04.6996280Z (Use `node --trace-deprecation ...` to show where the warning was created)
+2026-10-03T05:07:04.7366574Z Post job cleanup.
+2026-10-03T05:07:04.9109484Z Post job cleanup.
+2026-10-03T05:07:05.0209851Z [command]/usr/local/bin/git version
+2026-10-03T05:07:05.0298875Z git version 2.51.2
+2026-10-03T05:07:05.0338359Z Temporarily overriding HOME='/home/runner/_work/_temp/37771193-fa72-4876-b7e9-8cfacf951ed8' before making global git config changes
+2026-10-03T05:07:05.0339417Z Adding repository directory to the temporary git global config as a safe directory
+2026-10-03T05:07:05.0348217Z [command]/usr/local/bin/git config --global --add safe.directory /home/runner/_work/bot_manager/bot_manager
+2026-10-03T05:07:05.0453052Z [command]/usr/local/bin/git config --local --name-only --get-regexp core\.sshCommand
+2026-10-03T05:07:05.0535592Z [command]/usr/local/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :"
+2026-10-03T05:07:05.1067081Z [command]/usr/local/bin/git config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+2026-10-03T05:07:05.1155862Z [command]/usr/local/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :"
+2026-10-03T05:07:05.1621857Z [command]/usr/local/bin/git config --local --name-only --get-regexp ^includeIf\.gitdir:
+2026-10-03T05:07:05.1714766Z [command]/usr/local/bin/git submodule foreach --recursive git config --local --show-origin --name-only --get-regexp remote.origin.url
+2026-10-03T05:07:05.2310553Z A job completed hook has been configured by the self-hosted runner administrator
+2026-10-03T05:07:05.2377560Z ##[group]Run '/job_completed.sh'
+2026-10-03T05:07:05.2416344Z shell: /usr/bin/bash --noprofile --norc -e -o pipefail {0}
+2026-10-03T05:07:05.2416794Z env:
+2026-10-03T05:07:05.2417064Z   BLACKSMITH_RUNNER_MESSAGE_WAIT_MS: 212
+2026-10-03T05:07:05.2417431Z   BLACKSMITH_RUNNER_ACQUIRE_JOB_MS: 1062
+2026-10-03T05:07:05.2417771Z   BLACKSMITH_CHECK_RUN_ID: 111132084251
+2026-10-03T05:07:05.2418240Z   BLACKSMITH_JOB_DISPLAY_NAME: Build Release Artifacts / images-base-backtest
+2026-10-03T05:07:05.2418722Z   GITHUB_ACTIONS_CACHE_MODE: write
+2026-10-03T05:07:05.2419054Z ##[endgroup]
+2026-10-03T05:07:05.2732871Z 
+2026-10-03T05:07:05.2734085Z Cleaning up Docker resources before commit...
+2026-10-03T05:07:05.7159166Z Docker cleanup phases:
+2026-10-03T05:07:05.7180865Z   containers       86ms
+2026-10-03T05:07:05.7182991Z   networks         26ms
+2026-10-03T05:07:05.7183392Z   volumes          27ms
+2026-10-03T05:07:05.7183703Z   builder         159ms
+2026-10-03T05:07:05.7193973Z   image_scan      138ms
+2026-10-03T05:07:05.7194510Z Docker cleanup complete: 0 container(s), 0 network(s), 0 volume(s), 0 image(s) removed
+2026-10-03T05:07:05.7199852Z 
+2026-10-03T05:07:05.7256518Z Docker container cache activated, computing hash...
+2026-10-03T05:07:05.7785465Z [docker-manifest] Image manifest: 13 image(s), 17655242188 bytes working set, 0 bytes evicted, 0 bytes reclaimable (deferred)
+2026-10-03T05:07:05.8747210Z Docker image hash computed:
+2026-10-03T05:07:05.8786052Z   current  e32431ab9f27d44ef7f35a67dac670bdf8ac7f84046964ec26a3fdb9535855ea
+2026-10-03T05:07:05.8787172Z   stored   cda23da35d445f931c8a009ab675e9403067fdce970531ad3ff62d0bec33df61
+2026-10-03T05:07:05.8787971Z Docker images to be cached:
+2026-10-03T05:07:05.8981502Z REPOSITORY                                                              TAG                                            SIZE
+2026-10-03T05:07:05.8983017Z 412381755468.dkr.ecr.us-east-1.amazonaws.com/dev-trading-bot-backtest   20261003-050525                                2.33GB
+2026-10-03T05:07:05.9012918Z 412381755468.dkr.ecr.us-east-1.amazonaws.com/dev-trading-bot-backtest   latest                                         2.33GB
+2026-10-03T05:07:05.9015366Z 412381755468.dkr.ecr.us-east-1.amazonaws.com/dev-trading-bot-base       20261003-050402                                1.96GB
+2026-10-03T05:07:05.9023899Z 412381755468.dkr.ecr.us-east-1.amazonaws.com/dev-trading-bot-base       latest                                         1.96GB
+2026-10-03T05:07:05.9024859Z dev-trading-bot-dependencies-backtest                                   latest                                         2.33GB
+2026-10-03T05:07:05.9025866Z dev-trading-bot-dependencies                                            latest                                         1.96GB
+2026-10-03T05:07:05.9026866Z 571698181033.dkr.ecr.us-east-1.amazonaws.com/botspot-agent              c8621298bca77d6007a8b0a09535e61c62e7c143       1.11GB
+2026-10-03T05:07:05.9028312Z 571698181033.dkr.ecr.us-east-1.amazonaws.com/botspot-agent              dev                                            1.11GB
+2026-10-03T05:07:05.9029465Z 571698181033.dkr.ecr.us-east-1.amazonaws.com/botspot-agent              dev-c8621298bca77d6007a8b0a09535e61c62e7c143   1.11GB
+2026-10-03T05:07:05.9030557Z 571698181033.dkr.ecr.us-east-1.amazonaws.com/lumivest                   dev-9515408-37092751751-1-arm64                1.92GB
+2026-10-03T05:07:05.9032102Z 571698181033.dkr.ecr.us-east-1.amazonaws.com/lumivest                   latest-arm64                                   1.92GB
+2026-10-03T05:07:05.9033311Z 571698181033.dkr.ecr.us-east-1.amazonaws.com/botspot-agent              19ce10c26ae5a277fcdd567b232c2b474bc2a224       1.11GB
+2026-10-03T05:07:05.9034309Z 571698181033.dkr.ecr.us-east-1.amazonaws.com/botspot-agent              dev-19ce10c26ae5a277fcdd567b232c2b474bc2a224   1.11GB
+2026-10-03T05:07:05.9036422Z 571698181033.dkr.ecr.us-east-1.amazonaws.com/botspot-agent              0244e1aa5d0be88ae8cc85f8f9ece7884f17de4d       1.11GB
+2026-10-03T05:07:05.9038400Z 571698181033.dkr.ecr.us-east-1.amazonaws.com/botspot-agent              dev-0244e1aa5d0be88ae8cc85f8f9ece7884f17de4d   1.11GB
+2026-10-03T05:07:05.9039304Z moby/buildkit                                                           buildx-stable-1                                248MB
+2026-10-03T05:07:05.9040051Z moby/buildkit                                                           <none>                                         241MB
+2026-10-03T05:07:05.9767466Z Stopping docker service...
+2026-10-03T05:07:07.8444681Z Syncing filesystem...
+2026-10-03T05:07:08.4157935Z Unmounting /var/lib/docker...
+2026-10-03T05:07:09.4374734Z Docker shutdown phases:
+2026-10-03T05:07:09.4376562Z   docker_stop     161ms
+2026-10-03T05:07:09.4376937Z   overlay_gc     1658ms
+2026-10-03T05:07:09.4377259Z   fstrim           34ms
+2026-10-03T05:07:09.4377573Z   sync            490ms
+2026-10-03T05:07:09.4377882Z   umount         1188ms
+2026-10-03T05:07:09.4378234Z   total          3533ms
+2026-10-03T05:07:09.4762621Z Docker container hash mismatch - committing
+2026-10-03T05:07:09.5514436Z No active SSH sessions detected. Proceeding with shutdown immediately.
+2026-10-03T05:07:09.5644044Z Cleaning up orphan processes
+2026-10-03T05:07:09.8227326Z ##[warning]Node.js 20 is deprecated. The following actions target Node.js 20 but are being forced to run on Node.js 24: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5, actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065, astral-sh/setup-uv@caf0cab7a618c569241d31dcd442f54681755d39, aws-actions/configure-aws-credentials@7474bc4690e29a8392af63c5b98e7449536d5c3a, docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f. For more information see: https://github.blog/changelog/2025-09-19-deprecation-of-node-20-on-github-actions-runners/

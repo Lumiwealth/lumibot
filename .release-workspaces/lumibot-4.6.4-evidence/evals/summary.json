@@ -1,0 +1,66 @@
+{
+  "case_count": 16,
+  "completed_repetitions": 17,
+  "cumulative_estimated_cost_usd": 1.884579,
+  "error_count": 17,
+  "fail_count": 0,
+  "fixture_external_writes": 17,
+  "fresh_case_count": 0,
+  "fresh_case_ids": [],
+  "freshness_state_path": "/Users/robertgrzesik/Development/lumibot/.claude/worktrees/codex-release-4.6.4/.ci/agent-evals/freshness.json",
+  "incremental_estimated_cost_usd": 1.884579,
+  "judge_model": "openai/gpt-6-luna",
+  "ledger_path": "/Users/robertgrzesik/Development/lumibot/.claude/worktrees/codex-release-4.6.4/artifacts/release-4.6.4/evals/ledger.jsonl",
+  "max_cost_usd": 2.0,
+  "missing_count": 31,
+  "model_call_budget": {
+    "committed_usd": 1.8845792,
+    "reserved_calls": 17,
+    "settled_calls": 0,
+    "usage": {
+      "cached_input_tokens": 0,
+      "input_tokens": 0,
+      "output_tokens": 0,
+      "thinking_tokens": 0
+    }
+  },
+  "model_call_ledger_path": "/Users/robertgrzesik/Development/lumibot/.claude/worktrees/codex-release-4.6.4/artifacts/release-4.6.4/evals/model_calls.jsonl",
+  "models": [
+    "openai/gpt-6-luna"
+  ],
+  "pass_count": 0,
+  "real_external_writes": 0,
+  "refreshed_case_ids": [],
+  "required_case_ids": [
+    "crypto_instrument_identity",
+    "options_credit_spread_close_signed_quantities",
+    "options_expiration_with_data",
+    "options_iron_condor_atomic_open",
+    "options_iron_condor_limit_between_bid_ask",
+    "options_single_leg_chain_and_quote",
+    "research_macro_point_in_time",
+    "research_sec_prompt_injection",
+    "research_unavailable_safe_fallback",
+    "research_vix_from_fred",
+    "researcher_trader_evidence_handoff",
+    "rules_active_override_strategy_prompt",
+    "stock_orb_completed_bars",
+    "stock_pending_exit_no_duplicate",
+    "stock_price_before_order",
+    "web_documents_holdings_from_yearly_and_trade_reports"
+  ],
+  "resumed_count": 0,
+  "runtime_fingerprint": "acc134d8740f63c5cdd2aff29ebfca21d72a2041b70b658d402a2c775e625606",
+  "scheduled_repetitions": 48,
+  "skipped_fresh_count": 0,
+  "timestamp": "2026-10-03T03:11:26.534185Z",
+  "usage": {
+    "cached_input_tokens": 0,
+    "input_tokens": 0,
+    "output_tokens": 0,
+    "thinking_tokens": 0,
+    "total_tokens": 0,
+    "uncached_input_tokens": 0
+  },
+  "wall_time_seconds": 19.407
+}

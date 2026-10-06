@@ -1,0 +1,44 @@
+{
+  "scope": "3 sampled owner-account deployments",
+  "items": [
+    {
+      "id": "8de84ad0-4e36-4f58-8f0f-860b39bed2d4",
+      "name": "Alpha Picks Calls Only",
+      "status": "scheduled",
+      "isActive": true,
+      "scheduleHealth": "healthy",
+      "backendStatus": "enabled",
+      "taskDefinition": "arn:aws:ecs:us-east-1:412381755468:task-definition/bot-8de84ad0-4e36-4f58-8f0f-860b39bed2d4:58",
+      "lastRunStatus": "succeeded",
+      "lastRunCompletedAt": "2026-10-02T19:32:01.000Z",
+      "lastUpdated": "2026-10-02T20:11:01.380171+00:00",
+      "statsPopulated": true
+    },
+    {
+      "id": "b3e868fa-9675-4cd7-adc2-fb4100d4366d",
+      "name": "TQQQ SMA 200",
+      "status": "scheduled",
+      "isActive": true,
+      "scheduleHealth": "healthy",
+      "backendStatus": "enabled",
+      "taskDefinition": "arn:aws:ecs:us-east-1:412381755468:task-definition/bot-b3e868fa-9675-4cd7-adc2-fb4100d4366d:18",
+      "lastRunStatus": "succeeded",
+      "lastRunCompletedAt": "2026-10-02T13:32:55.000Z",
+      "lastUpdated": "2026-10-02T14:13:18.406390+00:00",
+      "statsPopulated": true
+    },
+    {
+      "id": "6e746626-d657-4c98-8b75-36a4aa5f03c9",
+      "name": "Weekly Momentum Options Strategy",
+      "status": "scheduled",
+      "isActive": true,
+      "scheduleHealth": "healthy",
+      "backendStatus": "enabled",
+      "taskDefinition": "arn:aws:ecs:us-east-1:412381755468:task-definition/bot-6e746626-d657-4c98-8b75-36a4aa5f03c9:18",
+      "lastRunStatus": "succeeded",
+      "lastRunCompletedAt": "2026-10-02T13:32:59.000Z",
+      "lastUpdated": "2026-10-02T14:13:18.326074+00:00",
+      "statsPopulated": true
+    }
+  ]
+}

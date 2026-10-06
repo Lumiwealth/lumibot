@@ -1,0 +1,57 @@
+COMMAND ['uvx', '--from', 'uv==0.11.8', 'uv', 'run', '--locked', 'ruff', 'check', '.']
+All checks passed!
+COMMAND ['uvx', '--from', 'uv==0.11.8', 'uv', 'run', '--locked', 'ruff', 'format', '--check', '.']
+264 files already formatted
+COMMAND ['uvx', '--from', 'uv==0.11.8', 'uv', 'run', '--locked', 'ty', 'check']
+All checks passed!
+COMMAND ['uvx', '--from', 'uv==0.11.8', 'uv', 'export', '--locked', '--no-dev', '--no-emit-project', '--no-header', '--no-annotate', '--no-hashes', '--output-file', 'tmp/release-4.6.4/requirements-export.txt']
+Resolved 39 packages in 7ms
+aws-wsgi==0.2.7
+blinker==1.9.0
+boto3==1.43.1
+botocore==1.43.74
+certifi==2026.7.22
+cffi==2.1.1 ; platform_python_implementation != 'PyPy'
+charset-normalizer==3.5.1
+click==8.4.2
+colorama==0.4.6 ; sys_platform == 'win32'
+cryptography==50.0.0
+flask==3.1.3
+idna==3.19
+itsdangerous==2.2.0
+jinja2==3.1.6
+jmespath==1.1.0
+markupsafe==3.0.3
+packaging==25.0
+pycparser==3.0 ; implementation_name != 'PyPy' and platform_python_implementation != 'PyPy'
+python-dateutil==2.9.0.post0
+requests==2.33.1
+s3transfer==0.17.1
+six==1.17.0
+urllib3==2.8.0
+werkzeug==3.1.8
+zstandard==0.25.0
+COMMAND ['diff', '-u', 'requirements.txt', 'tmp/release-4.6.4/requirements-export.txt']
+COMMAND ['uvx', '--from', 'uv==0.11.8', 'uv', '--preview-features', 'audit', 'audit', '--frozen']
+Found no known vulnerabilities and no adverse project statuses in 38 packages
+COMMAND ['uvx', '--from', 'uv==0.11.8', 'uv', 'build']
+Building source distribution...
+Building wheel from source distribution...
+Successfully built dist/bot_manager-1.0.0.tar.gz
+Successfully built dist/bot_manager-1.0.0-py3-none-any.whl
+COMMAND ['terraform', 'fmt', '-check', '-recursive', 'terraform']
+COMMAND ['terraform', '-chdir=terraform', 'validate']
+[32m[1mSuccess![0m The configuration is valid.
+[0m
+COMMAND ['terraform', '-chdir=terraform/modules/private_nat_router', 'test']
+tests/security.tftest.hcl... [37min progress[0m
+[0m  run "isolated_router"... [32mpass[0m[0m
+  run "reject_public_ingress"... [32mpass[0m[0m
+  run "reject_other_account"... [32mpass[0m[0m
+  run "reject_other_region"... [32mpass[0m[0m
+tests/security.tftest.hcl... [37mtearing down[0m
+[0mtests/security.tftest.hcl... [32mpass[0m[0m
+
+[32mSuccess![0m[0m 4 passed, 0 failed.
+COMMAND ['.venv/bin/python', 'scripts/build_runtime_bundle.py', '--env', 'dev', '--output', 'tmp/release-4.6.4/runtime-bundle.tar.zst', '--metadata-output', 'tmp/release-4.6.4/runtime_bundle_manifest.json']
+{"entrypoints": {"backtest": "bootstrap_backtest.py", "base": "bootstrap_base.py", "ibkr_gateway_connector": "ibkr_gateway_connector_agent.py", "ibkr_gateway_relay": "ibkr_gateway_relay.py", "ibkr_gateway_secret_init": "ibkr_gateway_secret_init.py", "ibkr_ibeam_secret_init": "ibkr_ibeam_secret_init.py"}, "s3_uri": "", "sha256": "48a35b66bd0d7cb40ff399c33e28c8156b74e987a9a66687a95aff9075dfa042"}

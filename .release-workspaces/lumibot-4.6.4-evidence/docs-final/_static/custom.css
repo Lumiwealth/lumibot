@@ -1,0 +1,352 @@
+.center {
+    margin-left: auto;
+    margin-right: auto;
+    text-align: center;
+}
+
+.data-image {
+    display: block;
+    width: 100%;
+    max-width: 900px;
+    margin-left: auto;
+    margin-right: auto;
+    margin-top: 24px;
+    margin-bottom: 32px;
+}
+
+.title {
+    margin-bottom: 10px;
+}
+
+.lib-feature {
+    border: 1px solid #e3e3e3;
+    border-radius: 4px;
+    margin-bottom: 20px;
+    padding: 8px;
+}
+
+.bash {
+    font-size: large;
+    font-weight: bold;
+    border: 1px solid #e3e3e3;
+    border-radius: 6px;
+    text-align: center;
+    padding: 8px;
+    margin: 14px;
+}
+
+.course-list {
+    margin-bottom: 60px;
+    margin-top: 28px;
+}
+
+.course-list h3,
+.course-list p {
+    color: inherit;
+}
+
+.course-section + .course-section {
+    margin-top: 34px;
+}
+
+.course-benefits {
+    padding-left: 1.25rem;
+}
+
+.course-benefits li {
+    margin-bottom: 10px;
+    font-size: 1.05em;
+}
+
+.course-cta-row {
+    align-items: center;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    justify-content: center;
+    margin: 18px 0 30px;
+}
+
+.course-button,
+.course-button:visited {
+    align-items: center;
+    border: 1px solid transparent;
+    border-radius: 8px;
+    display: inline-flex;
+    font-size: 1rem;
+    font-weight: 700;
+    justify-content: center;
+    min-height: 46px;
+    padding: 12px 22px;
+    line-height: 1.2;
+    box-shadow: 0 10px 22px rgba(17, 24, 39, 0.18);
+    text-decoration: none;
+    transition: background-color 150ms ease, border-color 150ms ease, color 150ms ease, transform 150ms ease;
+}
+
+.course-button-primary,
+.course-button-primary:visited {
+    background: #c86f1f;
+    border-color: #c86f1f;
+    color: #ffffff;
+}
+
+.course-button-primary:hover,
+.course-button-primary:focus {
+    background: #a95816;
+    border-color: #a95816;
+    color: #ffffff;
+    transform: translateY(-1px);
+}
+
+.course-button-secondary,
+.course-button-secondary:visited {
+    background: #ffffff;
+    border-color: #2563eb;
+    color: #1d4ed8;
+}
+
+.course-button-secondary:hover,
+.course-button-secondary:focus {
+    background: #eff6ff;
+    border-color: #1d4ed8;
+    color: #1e40af;
+    transform: translateY(-1px);
+}
+
+.lumibot-doc-image {
+    display: block;
+    margin: 14px auto 18px;
+}
+
+.lumibot-hero-lead p {
+    font-size: clamp(1.15rem, 2vw, 1.35rem);
+    line-height: 1.45;
+    margin: 0;
+    max-width: 820px;
+}
+
+.community-links {
+    display: grid;
+    gap: 10px;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    margin: 0 auto 34px;
+}
+
+.community-link,
+.community-link:visited {
+    align-items: center;
+    background: var(--color-background-secondary);
+    border: 1px solid var(--color-background-border);
+    border-radius: 10px;
+    color: var(--color-foreground-primary);
+    display: flex;
+    font-size: 0.94rem;
+    font-weight: 700;
+    gap: 9px;
+    justify-content: center;
+    min-height: 48px;
+    padding: 10px 12px;
+    text-decoration: none;
+    transition: background-color 150ms ease, border-color 150ms ease, transform 150ms ease;
+}
+
+.community-link:hover,
+.community-link:focus {
+    background: var(--color-background-hover);
+    border-color: var(--color-foreground-border);
+    color: var(--color-foreground-primary);
+    transform: translateY(-1px);
+}
+
+.community-link-icon {
+    border-radius: 0;
+    flex: 0 0 auto;
+    height: 21px;
+    width: 21px;
+}
+
+/* Subtle rounding keeps diagrams and screenshots from looking harsh in dark
+   mode without changing the documentation layout. */
+.content img:not(.sidebar-logo):not(.only-light):not(.only-dark),
+article img:not(.sidebar-logo):not(.only-light):not(.only-dark),
+.bd-article img:not(.sidebar-logo):not(.only-light):not(.only-dark) {
+    border-radius: 8px;
+}
+
+@media (prefers-color-scheme: dark) {
+    .course-button {
+        box-shadow: 0 10px 22px rgba(0, 0, 0, 0.35);
+    }
+
+    .course-button-secondary,
+    .course-button-secondary:visited {
+        background: #111827;
+        border-color: #60a5fa;
+        color: #bfdbfe;
+    }
+
+    .course-button-secondary:hover,
+    .course-button-secondary:focus {
+        background: #1e3a8a;
+        color: #ffffff;
+    }
+}
+
+@media (max-width: 600px) {
+    .mobile-header .brand {
+        font-size: 1rem;
+        font-weight: 700;
+        white-space: nowrap;
+    }
+
+    article h1 {
+        font-size: clamp(2.25rem, 12vw, 2.8rem);
+        line-height: 1;
+        margin: 0.55rem 0 0.7rem;
+    }
+
+    .lumibot-hero-lead p {
+        font-size: 1.05rem;
+        line-height: 1.4;
+    }
+
+    .lumibot-doc-image {
+        margin: 12px auto 14px;
+    }
+
+    .community-links {
+        gap: 7px;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        margin-bottom: 24px;
+    }
+
+    .community-link {
+        flex-direction: column;
+        font-size: 0.78rem;
+        gap: 5px;
+        min-height: 62px;
+        padding: 8px 4px;
+    }
+
+    .community-link-icon {
+        height: 20px;
+        width: 20px;
+    }
+
+    .course-cta-row {
+        align-items: stretch;
+        flex-direction: column;
+    }
+
+    .course-button {
+        width: 100%;
+    }
+}
+
+/* Ensure the sidebar and other elements have padding/margin to avoid overlap */
+.sidebar-scroll {
+    padding-bottom: 110px; /* Adjust according to footer height */
+}
+.content {
+    margin-bottom: 110px; /* Adjust according to footer height */
+}
+
+/* Wide comparison tables should be readable on mobile instead of forcing the
+   whole documentation page to overflow horizontally. */
+.table-wrapper {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+}
+
+.table-wrapper table {
+    max-width: 100%;
+}
+
+.table-wrapper table.wide-comparison-table {
+    min-width: 900px;
+}
+
+.announcement {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    width: 100%;
+    z-index: 1000;
+    box-shadow: 0 -2px 5px rgba(0, 0, 0, 0.15);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    height: 76px; /* Default height for larger devices */
+    overflow-x: hidden; /* Prevent horizontal overflow */
+    box-sizing: border-box; /* Ensure padding is included in width */
+}
+
+/* Media query for very small devices */
+@media (max-width: 480px) {
+    .announcement {
+        height: 112px; /* Override height for very small devices */
+    }
+}
+
+.announcement-content {
+    padding: 0;
+    height: 76px;
+    width: 100%;
+    box-sizing: border-box; /* Ensure padding is included in width */
+}
+
+/* Media query for very small devices */
+@media (max-width: 480px) {
+    .announcement-content {
+        height: 112px; /* Override height for very small devices */
+    }
+}
+
+.footer-banner {
+    height: 100%;
+    width: 100%;
+    box-sizing: border-box; /* Ensure padding is included in width */
+}
+
+.footer-banner h5 {
+    margin: 0;
+    width: 100%;
+    box-sizing: border-box; /* Ensure padding is included in width */
+}
+
+.footer-banner p {
+    margin: 0;
+    word-wrap: break-word;
+    word-break: break-word; /* Add this for better word breaking */
+    padding: 0 15px; /* Add padding for better text wrapping */
+    width: 100%;
+    box-sizing: border-box; /* Ensure padding is included in width */
+}
+
+.footer-banner a {
+    text-decoration: underline;
+    width: 100%;
+    box-sizing: border-box; /* Ensure padding is included in width */
+}
+
+@media (max-width: 480px) {
+    .footer-banner p {
+        padding: 0 10px; /* Adjust padding for smaller screens */
+        white-space: normal; /* Ensure text wraps on small screens */
+    }
+}
+
+/* Entry routes are documentation UI; generated artwork is displayed unchanged. */
+.lumibot-entry-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; margin: 1.25rem 0; }
+[role="main"] .lumibot-entry-card { padding: 1rem; border: 1px solid var(--color-background-border); border-radius: 10px; background: var(--color-background-secondary); }
+.lumibot-entry-card p:first-child { margin-top: 0; }
+.lumibot-entry-card p:last-child { margin-bottom: 0; }
+.lumibot-entry-hero, .lumibot-learning-image { display: block; width: min(100%, 640px); max-width: 100%; height: auto; margin: 1.5rem auto; }
+/* Linked images need their wrapper centered too. Artwork corners are generator-rendered. */
+a.reference.image-reference:has(.lumibot-learning-image) { display: block; width: fit-content; max-width: 100%; margin: 1.5rem auto; }
+@media (max-width: 680px) { .lumibot-entry-grid { grid-template-columns: 1fr; } }
+
+/* Keep navigation visible near the top, including on narrow screens. */
+.sidebar-brand img.sidebar-logo { max-width: 128px; margin: 0 auto; }

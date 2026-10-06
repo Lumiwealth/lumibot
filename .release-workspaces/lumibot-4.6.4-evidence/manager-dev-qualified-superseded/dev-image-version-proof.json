@@ -1,0 +1,9 @@
+{
+  "expected_version": "4.6.4",
+  "successful_job": 111132084251,
+  "run": 37098060587,
+  "installed_live_and_backtest": [
+    "2026-10-03T04:56:31.5335026Z #9 52.17  + lumibot==4.6.4",
+    "2026-10-03T05:00:23.1999329Z #8 57.74  + lumibot==4.6.4"
+  ]
+}

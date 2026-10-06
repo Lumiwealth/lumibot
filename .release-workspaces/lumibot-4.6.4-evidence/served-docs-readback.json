@@ -1,0 +1,10 @@
+{
+  "url": "https://lumibot.lumiwealth.com/agents_builtin_tools.html?release=4.6.4&sha=4280719f6ab3a8ca63510c94e0447cff01931050",
+  "status": 200,
+  "checks": {
+    "a pending exit already owns that position change": true,
+    "other listed expirations allowed by those": true,
+    "Calendar legs may use distinct listed expirations": true,
+    "latest completed bars": true
+  }
+}

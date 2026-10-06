@@ -1,0 +1,1329 @@
+<!doctype html>
+<html class="no-js" lang="en" data-content_root="./">
+  <head><meta charset="utf-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <meta name="color-scheme" content="light dark"><meta name="viewport" content="width=device-width, initial-scale=1" />
+<meta content="Build AI-powered trading strategies in Python. Run an AI backtest, inspect its decisions and orders, then connect a supported broker with LumiBot." name="description" />
+<meta property="og:title" content="LumiBot AI Trading" />
+<meta property="og:type" content="website" />
+<meta property="og:url" content="https://lumibot.lumiwealth.com/index.html" />
+<meta property="og:site_name" content="LumiBot" />
+<meta property="og:description" content="Turn trading ideas into working strategies. Build trading strategies with Python rules, AI agents, or both. Backtest on historical data, view trades and results, and connect a supported broker thro..." />
+<meta property="og:image" content="https://lumibot.lumiwealth.com/_static/lumibot-social-card.png" />
+<meta property="og:image:alt" content="LumiBot: AI trading agents that actually place the trade" />
+<meta name="twitter:card" content="summary_large_image" />
+<link rel="index" title="Index" href="genindex.html"><link rel="search" title="Search" href="search.html"><link rel="next" title="Start with LumiBot" href="getting_started.html">
+        <link rel="canonical" href="https://lumibot.lumiwealth.com/index.html">
+        <link rel="prefetch" href="_static/Lumibot_Logo.webp" as="image">
+        <link rel="prefetch" href="_static/Lumibot_Logo.webp" as="image">
+
+    <link rel="shortcut icon" href="_static/lumibot_favicon_192.png"><!-- Generated with Sphinx 8.1.3 and Furo 2025.12.19 -->
+
+<title>Lumibot: Python Algorithmic Trading and AI Agents</title>
+
+<link rel="stylesheet" type="text/css" href="_static/pygments.css?v=d111a655" />
+    <link rel="stylesheet" type="text/css" href="_static/styles/furo.css?v=7bdb33bb" />
+    <link rel="stylesheet" type="text/css" href="_static/styles/furo-extensions.css?v=8dab3a3b" />
+    <link rel="stylesheet" type="text/css" href="_static/custom.css?v=c3884bc6" />
+    
+    
+
+
+<style>
+  body {
+    --color-code-background: #f2f2f2;
+  --color-code-foreground: #1e1e1e;
+  
+  }
+  @media not print {
+    body[data-theme="dark"] {
+      --color-code-background: #202020;
+  --color-code-foreground: #d0d0d0;
+  
+    }
+    @media (prefers-color-scheme: dark) {
+      body:not([data-theme="light"]) {
+        --color-code-background: #202020;
+  --color-code-foreground: #d0d0d0;
+  
+      }
+    }
+  }
+</style>
+
+
+
+
+<link rel="icon" type="image/png" sizes="192x192" href="_static/lumibot_favicon_192.png">
+<link rel="icon" type="image/png" sizes="512x512" href="_static/lumibot_favicon_512.png">
+<link rel="apple-touch-icon" sizes="192x192" href="_static/lumibot_favicon_192.png">
+
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="Lumibot">
+<meta property="og:title" content="Lumibot: Python Algorithmic Trading and AI Agents">
+<meta property="og:description" content="Build Python trading bots and AI trading agents with LumiBot. Backtest strategies, inspect decisions, and connect stocks, options, crypto, and futures brokers.">
+<meta property="og:url" content="https://lumibot.lumiwealth.com/">
+
+<meta property="og:image" content="https://lumibot.lumiwealth.com/_images/benefit-hero.png">
+<meta property="og:image:width" content="1536">
+<meta property="og:image:height" content="864">
+<meta property="og:image:alt" content="LumiBot AI Trading">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Lumibot: Python Algorithmic Trading and AI Agents">
+<meta name="twitter:description" content="Build Python trading bots and AI trading agents with LumiBot. Backtest strategies, inspect decisions, and connect stocks, options, crypto, and futures brokers.">
+<meta name="twitter:image" content="https://lumibot.lumiwealth.com/_images/benefit-hero.png">
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@graph": [
+    {
+      "@type": "Organization",
+      "@id": "https://lumibot.lumiwealth.com/#organization",
+      "name": "Lumiwealth",
+      "url": "https://botspot.trade",
+      "logo": {
+        "@type": "ImageObject",
+        "url": "https://lumibot.lumiwealth.com/_static/lumibot_spot_logo.png",
+        "width": 852,
+        "height": 852
+      },
+      "sameAs": [
+        "https://github.com/Lumiwealth/lumibot",
+        "https://www.reddit.com/r/BotSpotTrade/",
+        "https://discord.gg/4R9j6T3PN8"
+      ]
+    },
+    {
+      "@type": "WebSite",
+      "@id": "https://lumibot.lumiwealth.com/#website",
+      "name": "Lumibot Documentation",
+      "alternateName": "Lumibot",
+      "url": "https://lumibot.lumiwealth.com/",
+      "publisher": {
+        "@id": "https://lumibot.lumiwealth.com/#organization"
+      }
+    },
+    {
+      "@type": "SoftwareSourceCode",
+      "@id": "https://lumibot.lumiwealth.com/#software",
+      "name": "Lumibot",
+      "alternateName": "LumiBot",
+      "description": "Python framework for deterministic trading strategies, AI trading teams, hybrid strategy logic, backtesting, paper trading, and live broker workflows.",
+      "codeRepository": "https://github.com/Lumiwealth/lumibot",
+      "programmingLanguage": "Python",
+      "url": "https://lumibot.lumiwealth.com/",
+      "image": "https://lumibot.lumiwealth.com/_static/lumibot_spot_logo.png",
+      "publisher": {
+        "@id": "https://lumibot.lumiwealth.com/#organization"
+      },
+      "keywords": [
+        "algorithmic trading",
+        "AI trading agents",
+        "AI trading teams",
+        "backtesting",
+        "paper trading",
+        "live trading",
+        "broker integration"
+      ]
+    }
+  ]
+}
+</script>
+</head>
+  <body>
+    
+    <script>
+      document.body.dataset.theme = localStorage.getItem("theme") || "auto";
+    </script>
+    
+
+<svg xmlns="http://www.w3.org/2000/svg" style="display: none;">
+  <symbol id="svg-toc" viewBox="0 0 24 24">
+    <title>Contents</title>
+    <svg stroke="currentColor" fill="currentColor" stroke-width="0" viewBox="0 0 1024 1024">
+      <path d="M408 442h480c4.4 0 8-3.6 8-8v-56c0-4.4-3.6-8-8-8H408c-4.4 0-8 3.6-8 8v56c0 4.4 3.6 8 8 8zm-8 204c0 4.4 3.6 8 8 8h480c4.4 0 8-3.6 8-8v-56c0-4.4-3.6-8-8-8H408c-4.4 0-8 3.6-8 8v56zm504-486H120c-4.4 0-8 3.6-8 8v56c0 4.4 3.6 8 8 8h784c4.4 0 8-3.6 8-8v-56c0-4.4-3.6-8-8-8zm0 632H120c-4.4 0-8 3.6-8 8v56c0 4.4 3.6 8 8 8h784c4.4 0 8-3.6 8-8v-56c0-4.4-3.6-8-8-8zM115.4 518.9L271.7 642c5.8 4.6 14.4.5 14.4-6.9V388.9c0-7.4-8.5-11.5-14.4-6.9L115.4 505.1a8.74 8.74 0 0 0 0 13.8z"/>
+    </svg>
+  </symbol>
+  <symbol id="svg-menu" viewBox="0 0 24 24">
+    <title>Menu</title>
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather-menu">
+      <line x1="3" y1="12" x2="21" y2="12"></line>
+      <line x1="3" y1="6" x2="21" y2="6"></line>
+      <line x1="3" y1="18" x2="21" y2="18"></line>
+    </svg>
+  </symbol>
+  <symbol id="svg-arrow-right" viewBox="0 0 24 24">
+    <title>Expand</title>
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather-chevron-right">
+      <polyline points="9 18 15 12 9 6"></polyline>
+    </svg>
+  </symbol>
+  <symbol id="svg-sun" viewBox="0 0 24 24">
+    <title>Light mode</title>
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="1" stroke-linecap="round" stroke-linejoin="round" class="feather-sun">
+      <circle cx="12" cy="12" r="5"></circle>
+      <line x1="12" y1="1" x2="12" y2="3"></line>
+      <line x1="12" y1="21" x2="12" y2="23"></line>
+      <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line>
+      <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>
+      <line x1="1" y1="12" x2="3" y2="12"></line>
+      <line x1="21" y1="12" x2="23" y2="12"></line>
+      <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>
+      <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
+    </svg>
+  </symbol>
+  <symbol id="svg-moon" viewBox="0 0 24 24">
+    <title>Dark mode</title>
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="1" stroke-linecap="round" stroke-linejoin="round" class="icon-tabler-moon">
+      <path stroke="none" d="M0 0h24v24H0z" fill="none" />
+      <path d="M12 3c.132 0 .263 0 .393 0a7.5 7.5 0 0 0 7.92 12.446a9 9 0 1 1 -8.313 -12.454z" />
+    </svg>
+  </symbol>
+  <symbol id="svg-sun-with-moon" viewBox="0 0 24 24">
+    <title>Auto light/dark, in light mode</title>
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="1" stroke-linecap="round" stroke-linejoin="round"
+      class="icon-custom-derived-from-feather-sun-and-tabler-moon">
+      <path style="opacity: 50%" d="M 5.411 14.504 C 5.471 14.504 5.532 14.504 5.591 14.504 C 3.639 16.319 4.383 19.569 6.931 20.352 C 7.693 20.586 8.512 20.551 9.25 20.252 C 8.023 23.207 4.056 23.725 2.11 21.184 C 0.166 18.642 1.702 14.949 4.874 14.536 C 5.051 14.512 5.231 14.5 5.411 14.5 L 5.411 14.504 Z"/>
+      <line x1="14.5" y1="3.25" x2="14.5" y2="1.25"/>
+      <line x1="14.5" y1="15.85" x2="14.5" y2="17.85"/>
+      <line x1="10.044" y1="5.094" x2="8.63" y2="3.68"/>
+      <line x1="19" y1="14.05" x2="20.414" y2="15.464"/>
+      <line x1="8.2" y1="9.55" x2="6.2" y2="9.55"/>
+      <line x1="20.8" y1="9.55" x2="22.8" y2="9.55"/>
+      <line x1="10.044" y1="14.006" x2="8.63" y2="15.42"/>
+      <line x1="19" y1="5.05" x2="20.414" y2="3.636"/>
+      <circle cx="14.5" cy="9.55" r="3.6"/>
+    </svg>
+  </symbol>
+  <symbol id="svg-moon-with-sun" viewBox="0 0 24 24">
+    <title>Auto light/dark, in dark mode</title>
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="1" stroke-linecap="round" stroke-linejoin="round"
+      class="icon-custom-derived-from-feather-sun-and-tabler-moon">
+      <path d="M 8.282 7.007 C 8.385 7.007 8.494 7.007 8.595 7.007 C 5.18 10.184 6.481 15.869 10.942 17.24 C 12.275 17.648 13.706 17.589 15 17.066 C 12.851 22.236 5.91 23.143 2.505 18.696 C -0.897 14.249 1.791 7.786 7.342 7.063 C 7.652 7.021 7.965 7 8.282 7 L 8.282 7.007 Z"/>
+      <line style="opacity: 50%" x1="18" y1="3.705" x2="18" y2="2.5"/>
+      <line style="opacity: 50%" x1="18" y1="11.295" x2="18" y2="12.5"/>
+      <line style="opacity: 50%" x1="15.316" y1="4.816" x2="14.464" y2="3.964"/>
+      <line style="opacity: 50%" x1="20.711" y1="10.212" x2="21.563" y2="11.063"/>
+      <line style="opacity: 50%" x1="14.205" y1="7.5" x2="13.001" y2="7.5"/>
+      <line style="opacity: 50%" x1="21.795" y1="7.5" x2="23" y2="7.5"/>
+      <line style="opacity: 50%" x1="15.316" y1="10.184" x2="14.464" y2="11.036"/>
+      <line style="opacity: 50%" x1="20.711" y1="4.789" x2="21.563" y2="3.937"/>
+      <circle style="opacity: 50%" cx="18" cy="7.5" r="2.169"/>
+    </svg>
+  </symbol>
+  <symbol id="svg-pencil" viewBox="0 0 24 24">
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="1" stroke-linecap="round" stroke-linejoin="round" class="icon-tabler-pencil-code">
+      <path d="M4 20h4l10.5 -10.5a2.828 2.828 0 1 0 -4 -4l-10.5 10.5v4" />
+      <path d="M13.5 6.5l4 4" />
+      <path d="M20 21l2 -2l-2 -2" />
+      <path d="M17 17l-2 2l2 2" />
+    </svg>
+  </symbol>
+  <symbol id="svg-eye" viewBox="0 0 24 24">
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="1" stroke-linecap="round" stroke-linejoin="round" class="icon-tabler-eye-code">
+      <path stroke="none" d="M0 0h24v24H0z" fill="none" />
+      <path d="M10 12a2 2 0 1 0 4 0a2 2 0 0 0 -4 0" />
+      <path
+        d="M11.11 17.958c-3.209 -.307 -5.91 -2.293 -8.11 -5.958c2.4 -4 5.4 -6 9 -6c3.6 0 6.6 2 9 6c-.21 .352 -.427 .688 -.647 1.008" />
+      <path d="M20 21l2 -2l-2 -2" />
+      <path d="M17 17l-2 2l2 2" />
+    </svg>
+  </symbol>
+</svg>
+
+<input type="checkbox" class="sidebar-toggle" name="__navigation" id="__navigation" aria-label="Toggle site navigation sidebar">
+<input type="checkbox" class="sidebar-toggle" name="__toc" id="__toc" aria-label="Toggle table of contents sidebar">
+<label class="overlay sidebar-overlay" for="__navigation"></label>
+<label class="overlay toc-overlay" for="__toc"></label>
+
+<a class="skip-to-content muted-link" href="#furo-main-content">Skip to content</a>
+
+
+
+<div class="page">
+  <header class="mobile-header">
+    <div class="header-left">
+      <label class="nav-overlay-icon" for="__navigation">
+        <span class="icon"><svg><use href="#svg-menu"></use></svg></span>
+      </label>
+    </div>
+    <div class="header-center">
+      <a href="#"><div class="brand">Lumibot</div></a>
+    </div>
+    <div class="header-right">
+      <div class="theme-toggle-container theme-toggle-header">
+        <button class="theme-toggle" aria-label="Toggle Light / Dark / Auto color theme">
+          <svg class="theme-icon-when-auto-light"><use href="#svg-sun-with-moon"></use></svg>
+          <svg class="theme-icon-when-auto-dark"><use href="#svg-moon-with-sun"></use></svg>
+          <svg class="theme-icon-when-dark"><use href="#svg-moon"></use></svg>
+          <svg class="theme-icon-when-light"><use href="#svg-sun"></use></svg>
+        </button>
+      </div>
+      <label class="toc-overlay-icon toc-header-icon" for="__toc">
+        <span class="icon"><svg><use href="#svg-toc"></use></svg></span>
+      </label>
+    </div>
+  </header>
+  <aside class="sidebar-drawer">
+    <div class="sidebar-container">
+      
+      <div class="sidebar-sticky"><a class="sidebar-brand" href="#">
+  <div class="sidebar-logo-container">
+    <img class="sidebar-logo only-light" src="_static/Lumibot_Logo.webp" alt="Light Logo"/>
+    <img class="sidebar-logo only-dark" src="_static/Lumibot_Logo.webp" alt="Dark Logo"/>
+  </div>
+  
+  
+</a><form class="sidebar-search-container" method="get" action="search.html" role="search">
+  <input class="sidebar-search" placeholder="Search" name="q" aria-label="Search">
+  <input type="hidden" name="check_keywords" value="yes">
+  <input type="hidden" name="area" value="default">
+</form>
+<div id="searchbox"></div><div class="sidebar-scroll"><div class="sidebar-tree">
+  <p class="caption" role="heading"><span class="caption-text">Start here</span></p>
+<ul class="current">
+<li class="toctree-l1 current current-page"><a class="current reference internal" href="#">Home</a></li>
+<li class="toctree-l1"><a class="reference internal" href="getting_started.html">Start Here / Python Setup</a></li>
+<li class="toctree-l1"><a class="reference internal" href="cli.html">The lumibot Command</a></li>
+<li class="toctree-l1"><a class="reference internal" href="examples.html">Python Strategy Examples</a></li>
+<li class="toctree-l1"><a class="reference internal" href="agents_quickstart.html">AI Quickstart</a></li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="agents_examples.html">AI Examples</a><input aria-label="Toggle navigation of AI Examples" class="toctree-checkbox" id="toctree-checkbox-1" name="toctree-checkbox-1" role="switch" type="checkbox"/><label for="toctree-checkbox-1"><span class="icon"><svg><use href="#svg-arrow-right"></use></svg></span></label><ul>
+<li class="toctree-l2"><a class="reference internal" href="agents_example_nancy_pelosi_trading_bot.html">Nancy Pelosi Stock Trading Bot</a></li>
+<li class="toctree-l2"><a class="reference internal" href="agents_example_nancy_pelosi_copy_trading_bot.html">Nancy Pelosi Copy Trading Bot</a></li>
+<li class="toctree-l2"><a class="reference internal" href="agents_example_insider_trading_bot.html">Insider Trading Bot</a></li>
+<li class="toctree-l2"><a class="reference internal" href="agents_example_warren_buffett_ai_stock_picker.html">Warren Buffett AI Stock Picker</a></li>
+<li class="toctree-l2"><a class="reference internal" href="agents_example_bill_ackman_portfolio_ai_trading_bot.html">Bill Ackman Portfolio AI Trading Bot</a></li>
+<li class="toctree-l2"><a class="reference internal" href="agents_example_fear_and_greed_index_trading_bot.html">Fear and Greed Index Trading Bot</a></li>
+<li class="toctree-l2"><a class="reference internal" href="agents_example_bull_vs_bear_ai_stock_trading_bot.html">Bull vs Bear AI Stock Trading Bot</a></li>
+<li class="toctree-l2"><a class="reference internal" href="agents_example_tqqq_strategy_ai_trading_bot.html">TQQQ Strategy AI Trading Bot</a></li>
+<li class="toctree-l2"><a class="reference internal" href="agents_example_iron_condor_ai_trading_bot.html">AI Iron Condor Trading Bot</a></li>
+<li class="toctree-l2"><a class="reference internal" href="agents_example_put_credit_spread_ai_trading_bot.html">Put Credit Spread AI Trading Bot</a></li>
+<li class="toctree-l2"><a class="reference internal" href="agents_example_0dte_options_ai_trading_bot.html">0DTE Options AI Trading Bot</a></li>
+<li class="toctree-l2"><a class="reference internal" href="agents_example_vwap_strategy_ai_trading_bot.html">VWAP Strategy AI Trading Bot</a></li>
+<li class="toctree-l2"><a class="reference internal" href="agents_example_opening_range_breakout_ai_trading_bot.html">Opening Range Breakout AI Trading Bot</a></li>
+<li class="toctree-l2"><a class="reference internal" href="agents_example_citadel_sector_pods.html">Citadel Sector Pods AI Trading Team</a></li>
+<li class="toctree-l2"><a class="reference internal" href="agents_example_ray_dalio_idea_meritocracy.html">Ray Dalio Idea Meritocracy AI Trading Team</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="strategy_run_modes.html">Backtest, Paper, or Live</a></li>
+<li class="toctree-l1"><a class="reference internal" href="agent_start_here.html">For Coding Agents</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">AI trading</span></p>
+<ul>
+<li class="toctree-l1 has-children"><a class="reference internal" href="agents.html">AI Agent Guide</a><input aria-label="Toggle navigation of AI Agent Guide" class="toctree-checkbox" id="toctree-checkbox-2" name="toctree-checkbox-2" role="switch" type="checkbox"/><label for="toctree-checkbox-2"><span class="icon"><svg><use href="#svg-arrow-right"></use></svg></span></label><ul>
+<li class="toctree-l2"><a class="reference internal" href="agents_flows.html">Design Your AI Trading Team</a></li>
+<li class="toctree-l2"><a class="reference internal" href="agents_builtin_tools.html">Agent Built-In Tools</a></li>
+<li class="toctree-l2"><a class="reference internal" href="agents_browser_tools.html">Stateful Browser Tools</a></li>
+<li class="toctree-l2"><a class="reference internal" href="agents_canonical_demos.html">One-Agent AI Trading Bot Demos</a></li>
+<li class="toctree-l2"><a class="reference internal" href="agents_observability.html">AI Agent Observability</a></li>
+<li class="toctree-l2"><a class="reference internal" href="agents_memory.html">Agent Memory</a></li>
+<li class="toctree-l2"><a class="reference internal" href="agents_notifications.html">Agent Notifications</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="execution_gap.html">The Execution Gap</a></li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="ai_trading_project_comparison.html">Compare AI Frameworks</a><input aria-label="Toggle navigation of Compare AI Frameworks" class="toctree-checkbox" id="toctree-checkbox-3" name="toctree-checkbox-3" role="switch" type="checkbox"/><label for="toctree-checkbox-3"><span class="icon"><svg><use href="#svg-arrow-right"></use></svg></span></label><ul>
+<li class="toctree-l2"><a class="reference internal" href="lumibot_vs_tradingagents.html">Lumibot vs TradingAgents</a></li>
+<li class="toctree-l2"><a class="reference internal" href="lumibot_vs_ai_hedge_fund.html">Lumibot vs ai-hedge-fund</a></li>
+<li class="toctree-l2"><a class="reference internal" href="lumibot_vs_openalice.html">LumiBot vs OpenAlice</a></li>
+<li class="toctree-l2"><a class="reference internal" href="lumibot_vs_quantdinger.html">Lumibot vs QuantDinger</a></li>
+<li class="toctree-l2"><a class="reference internal" href="lumibot_vs_lean.html">Lumibot vs QuantConnect LEAN</a></li>
+</ul>
+</li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Build strategies</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="strategy_api_overview.html">Strategy API</a></li>
+<li class="toctree-l1"><a class="reference internal" href="imports_and_startup.html">Imports and Startup</a></li>
+<li class="toctree-l1"><a class="reference internal" href="standalone_components.html">Reusable Components</a></li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="lifecycle_methods.html">Lifecycle Methods</a><input aria-label="Toggle navigation of Lifecycle Methods" class="toctree-checkbox" id="toctree-checkbox-4" name="toctree-checkbox-4" role="switch" type="checkbox"/><label for="toctree-checkbox-4"><span class="icon"><svg><use href="#svg-arrow-right"></use></svg></span></label><ul>
+<li class="toctree-l2"><a class="reference internal" href="lifecycle_methods.summary.html">Summary</a></li>
+<li class="toctree-l2"><a class="reference internal" href="lifecycle_methods.initialize.html">def initialize</a></li>
+<li class="toctree-l2"><a class="reference internal" href="lifecycle_methods.on_trading_iteration.html">def on_trading_iteration</a></li>
+<li class="toctree-l2"><a class="reference internal" href="lifecycle_methods.before_market_opens.html">def before_market_opens</a></li>
+<li class="toctree-l2"><a class="reference internal" href="lifecycle_methods.before_starting_trading.html">def before_starting_trading</a></li>
+<li class="toctree-l2"><a class="reference internal" href="lifecycle_methods.before_market_closes.html">def before_market_closes</a></li>
+<li class="toctree-l2"><a class="reference internal" href="lifecycle_methods.after_market_closes.html">def after_market_closes</a></li>
+<li class="toctree-l2"><a class="reference internal" href="lifecycle_methods.on_abrupt_closing.html">def on_abrupt_closing</a></li>
+<li class="toctree-l2"><a class="reference internal" href="lifecycle_methods.on_bot_crash.html">def on_bot_crash</a></li>
+<li class="toctree-l2"><a class="reference internal" href="lifecycle_methods.trace_stats.html">def trace_stats</a></li>
+<li class="toctree-l2"><a class="reference internal" href="lifecycle_methods.tearsheet_custom_metrics.html">def tearsheet_custom_metrics</a></li>
+<li class="toctree-l2"><a class="reference internal" href="lifecycle_methods.on_new_order.html">def on_new_order</a></li>
+<li class="toctree-l2"><a class="reference internal" href="lifecycle_methods.on_partially_filled_order.html">def on_partially_filled_order</a></li>
+<li class="toctree-l2"><a class="reference internal" href="lifecycle_methods.on_filled_order.html">def on_filled_order</a></li>
+<li class="toctree-l2"><a class="reference internal" href="lifecycle_methods.on_canceled_order.html">def on_canceled_order</a></li>
+<li class="toctree-l2"><a class="reference internal" href="lifecycle_methods.on_parameters_updated.html">def on_parameters_updated</a></li>
+</ul>
+</li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="strategy_methods.html">Strategy Methods</a><input aria-label="Toggle navigation of Strategy Methods" class="toctree-checkbox" id="toctree-checkbox-5" name="toctree-checkbox-5" role="switch" type="checkbox"/><label for="toctree-checkbox-5"><span class="icon"><svg><use href="#svg-arrow-right"></use></svg></span></label><ul>
+<li class="toctree-l2 has-children"><a class="reference internal" href="strategy_methods.orders.html">Order Management</a><input aria-label="Toggle navigation of Order Management" class="toctree-checkbox" id="toctree-checkbox-6" name="toctree-checkbox-6" role="switch" type="checkbox"/><label for="toctree-checkbox-6"><span class="icon"><svg><use href="#svg-arrow-right"></use></svg></span></label><ul>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.orders/lumibot.strategies.strategy.Strategy.create_order.html">self.create_order</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.orders/lumibot.strategies.strategy.Strategy.submit_order.html">self.submit_order</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.orders/lumibot.strategies.strategy.Strategy.submit_orders.html">self.submit_orders</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.orders/lumibot.strategies.strategy.Strategy.cancel_order.html">self.cancel_order</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.orders/lumibot.strategies.strategy.Strategy.cancel_orders.html">self.cancel_orders</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.orders/lumibot.strategies.strategy.Strategy.cancel_open_orders.html">self.cancel_open_orders</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.orders/lumibot.strategies.strategy.Strategy.get_selling_order.html">self.get_selling_order</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.orders/lumibot.strategies.strategy.Strategy.sell_all.html">self.sell_all</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.orders/lumibot.strategies.strategy.Strategy.get_order.html">self.get_order</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.orders/lumibot.strategies.strategy.Strategy.get_orders.html">self.get_orders</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.orders/lumibot.strategies.strategy.Strategy.get_asset_potential_total.html">self.get_asset_potential_total</a></li>
+</ul>
+</li>
+<li class="toctree-l2 has-children"><a class="reference internal" href="strategy_methods.account.html">Account Management</a><input aria-label="Toggle navigation of Account Management" class="toctree-checkbox" id="toctree-checkbox-7" name="toctree-checkbox-7" role="switch" type="checkbox"/><label for="toctree-checkbox-7"><span class="icon"><svg><use href="#svg-arrow-right"></use></svg></span></label><ul>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.account/lumibot.strategies.strategy.Strategy.adjust_cash.html">self.adjust_cash</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.account/lumibot.strategies.strategy.Strategy.configure_cash_financing.html">self.configure_cash_financing</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.account/lumibot.strategies.strategy.Strategy.deposit_cash.html">self.deposit_cash</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.account/lumibot.strategies.strategy.Strategy.get_portfolio_value.html">self.get_portfolio_value</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.account/lumibot.strategies.strategy.Strategy.get_cash.html">self.get_cash</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.account/lumibot.strategies.strategy.Strategy.get_position.html">self.get_position</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.account/lumibot.strategies.strategy.Strategy.get_positions.html">self.get_positions</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.account/lumibot.strategies.strategy.Strategy.set_cash_financing_rates.html">self.set_cash_financing_rates</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.account/lumibot.strategies.strategy.Strategy.withdraw_cash.html">self.withdraw_cash</a></li>
+</ul>
+</li>
+<li class="toctree-l2 has-children"><a class="reference internal" href="strategy_methods.data.html">Data</a><input aria-label="Toggle navigation of Data" class="toctree-checkbox" id="toctree-checkbox-8" name="toctree-checkbox-8" role="switch" type="checkbox"/><label for="toctree-checkbox-8"><span class="icon"><svg><use href="#svg-arrow-right"></use></svg></span></label><ul>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.data/lumibot.strategies.strategy.Strategy.get_last_price.html">self.get_last_price</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.data/lumibot.strategies.strategy.Strategy.get_last_prices.html">self.get_last_prices</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.data/lumibot.strategies.strategy.Strategy.get_historical_prices.html">self.get_historical_prices</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.data/lumibot.strategies.strategy.Strategy.get_historical_prices_for_assets.html">self.get_historical_prices_for_assets</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.data/lumibot.strategies.strategy.Strategy.get_quote.html">self.get_quote</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.data/lumibot.strategies.strategy.Strategy.get_yesterday_dividend.html">self.get_yesterday_dividend</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.data/lumibot.strategies.strategy.Strategy.get_next_trading_day.html">self.get_next_trading_day</a></li>
+</ul>
+</li>
+<li class="toctree-l2 has-children"><a class="reference internal" href="strategy_methods.chart.html">Chart Functions</a><input aria-label="Toggle navigation of Chart Functions" class="toctree-checkbox" id="toctree-checkbox-9" name="toctree-checkbox-9" role="switch" type="checkbox"/><label for="toctree-checkbox-9"><span class="icon"><svg><use href="#svg-arrow-right"></use></svg></span></label><ul>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.chart/lumibot.strategies.strategy.Strategy.add_marker.html">self.add_marker</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.chart/lumibot.strategies.strategy.Strategy.add_line.html">self.add_line</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.chart/lumibot.strategies.strategy.Strategy.get_markers_df.html">self.get_markers_df</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.chart/lumibot.strategies.strategy.Strategy.get_lines_df.html">self.get_lines_df</a></li>
+</ul>
+</li>
+<li class="toctree-l2 has-children"><a class="reference internal" href="strategy_methods.parameters.html">Parameters</a><input aria-label="Toggle navigation of Parameters" class="toctree-checkbox" id="toctree-checkbox-10" name="toctree-checkbox-10" role="switch" type="checkbox"/><label for="toctree-checkbox-10"><span class="icon"><svg><use href="#svg-arrow-right"></use></svg></span></label><ul>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.account/lumibot.strategies.strategy.Strategy.get_parameters.html">self.get_parameters</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.account/lumibot.strategies.strategy.Strategy.set_parameters.html">self.set_parameters</a></li>
+</ul>
+</li>
+<li class="toctree-l2 has-children"><a class="reference internal" href="strategy_methods.options.html">Options</a><input aria-label="Toggle navigation of Options" class="toctree-checkbox" id="toctree-checkbox-11" name="toctree-checkbox-11" role="switch" type="checkbox"/><label for="toctree-checkbox-11"><span class="icon"><svg><use href="#svg-arrow-right"></use></svg></span></label><ul>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.options/lumibot.strategies.strategy.Strategy.get_chain.html">self.get_chain</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.options/lumibot.strategies.strategy.Strategy.get_chains.html">self.get_chains</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.options/lumibot.strategies.strategy.Strategy.get_greeks.html">self.get_greeks</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.options/lumibot.strategies.strategy.Strategy.get_strikes.html">self.get_strikes</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.options/lumibot.strategies.strategy.Strategy.get_expiration.html">self.get_expiration</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.options/lumibot.strategies.strategy.Strategy.get_multiplier.html">self.get_multiplier</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.options/lumibot.strategies.strategy.Strategy.options_expiry_to_datetime_date.html">self.options_expiry_to_datetime_date</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.options/lumibot.strategies.strategy.Strategy.get_next_trading_day.html">self.get_next_trading_day</a></li>
+</ul>
+</li>
+<li class="toctree-l2 has-children"><a class="reference internal" href="strategy_methods.datetime.html">DateTime</a><input aria-label="Toggle navigation of DateTime" class="toctree-checkbox" id="toctree-checkbox-12" name="toctree-checkbox-12" role="switch" type="checkbox"/><label for="toctree-checkbox-12"><span class="icon"><svg><use href="#svg-arrow-right"></use></svg></span></label><ul>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.datetime/lumibot.strategies.strategy.Strategy.get_datetime.html">self.get_datetime</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.datetime/lumibot.strategies.strategy.Strategy.get_timestamp.html">self.get_timestamp</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.datetime/lumibot.strategies.strategy.Strategy.get_round_minute.html">self.get_round_minute</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.datetime/lumibot.strategies.strategy.Strategy.get_last_minute.html">self.get_last_minute</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.datetime/lumibot.strategies.strategy.Strategy.get_round_day.html">self.get_round_day</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.datetime/lumibot.strategies.strategy.Strategy.get_last_day.html">self.get_last_day</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.datetime/lumibot.strategies.strategy.Strategy.get_datetime_range.html">self.get_datetime_range</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.datetime/lumibot.strategies.strategy.Strategy.localize_datetime.html">self.localize_datetime</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.datetime/lumibot.strategies.strategy.Strategy.to_default_timezone.html">self.to_default_timezone</a></li>
+</ul>
+</li>
+<li class="toctree-l2 has-children"><a class="reference internal" href="strategy_methods.misc.html">Miscellaneous</a><input aria-label="Toggle navigation of Miscellaneous" class="toctree-checkbox" id="toctree-checkbox-13" name="toctree-checkbox-13" role="switch" type="checkbox"/><label for="toctree-checkbox-13"><span class="icon"><svg><use href="#svg-arrow-right"></use></svg></span></label><ul>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.misc/lumibot.strategies.strategy.Strategy.log_message.html">self.log_message</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.misc/lumibot.strategies.strategy.Strategy.sleep.html">self.sleep</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.misc/lumibot.strategies.strategy.Strategy.set_market.html">self.set_market</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.misc/lumibot.strategies.strategy.Strategy.update_parameters.html">self.update_parameters</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.misc/lumibot.strategies.strategy.Strategy.get_parameters.html">self.get_parameters</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.misc/lumibot.strategies.strategy.Strategy.await_market_to_close.html">self.await_market_to_close</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.misc/lumibot.strategies.strategy.Strategy.await_market_to_open.html">self.await_market_to_open</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.misc/lumibot.strategies.strategy.Strategy.wait_for_order_registration.html">self.wait_for_order_registration</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.misc/lumibot.strategies.strategy.Strategy.wait_for_order_execution.html">self.wait_for_order_execution</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.misc/lumibot.strategies.strategy.Strategy.wait_for_orders_registration.html">self.wait_for_orders_registration</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.misc/lumibot.strategies.strategy.Strategy.wait_for_orders_execution.html">self.wait_for_orders_execution</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.misc/lumibot.strategies.strategy.Strategy.register_cron_callback.html">self.register_cron_callback</a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="strategy_properties.html">Strategy Properties</a><input aria-label="Toggle navigation of Strategy Properties" class="toctree-checkbox" id="toctree-checkbox-14" name="toctree-checkbox-14" role="switch" type="checkbox"/><label for="toctree-checkbox-14"><span class="icon"><svg><use href="#svg-arrow-right"></use></svg></span></label><ul>
+<li class="toctree-l2"><a class="reference internal" href="strategy_properties/lumibot.strategies.strategy.Strategy.cash.html">self.cash</a></li>
+<li class="toctree-l2"><a class="reference internal" href="strategy_properties/lumibot.strategies.strategy.Strategy.portfolio_value.html">self.portfolio_value</a></li>
+<li class="toctree-l2"><a class="reference internal" href="strategy_properties/lumibot.strategies.strategy.Strategy.first_iteration.html">self.first_iteration</a></li>
+<li class="toctree-l2"><a class="reference internal" href="strategy_properties/lumibot.strategies.strategy.Strategy.is_backtesting.html">self.is_backtesting</a></li>
+<li class="toctree-l2"><a class="reference internal" href="strategy_properties/lumibot.strategies.strategy.Strategy.quote_asset.html">self.quote_asset</a></li>
+<li class="toctree-l2"><a class="reference internal" href="strategy_properties/lumibot.strategies.strategy.Strategy.name.html">self.name</a></li>
+<li class="toctree-l2"><a class="reference internal" href="strategy_properties/lumibot.strategies.strategy.Strategy.initial_budget.html">self.initial_budget</a></li>
+<li class="toctree-l2"><a class="reference internal" href="strategy_properties/lumibot.strategies.strategy.Strategy.minutes_before_closing.html">self.minutes_before_closing</a></li>
+<li class="toctree-l2"><a class="reference internal" href="strategy_properties/lumibot.strategies.strategy.Strategy.minutes_before_opening.html">self.minutes_before_opening</a></li>
+<li class="toctree-l2"><a class="reference internal" href="strategy_properties/lumibot.strategies.strategy.Strategy.sleeptime.html">self.sleeptime</a></li>
+<li class="toctree-l2"><a class="reference internal" href="strategy_properties/lumibot.strategies.strategy.Strategy.last_on_trading_iteration_datetime.html">self.last_on_trading_iteration_datetime</a></li>
+<li class="toctree-l2"><a class="reference internal" href="strategy_properties/lumibot.strategies.strategy.Strategy.timezone.html">self.timezone</a></li>
+<li class="toctree-l2"><a class="reference internal" href="strategy_properties/lumibot.strategies.strategy.Strategy.pytz.html">self.pytz</a></li>
+<li class="toctree-l2"><a class="reference internal" href="strategy_properties/lumibot.strategies.strategy.Strategy.unspent_money.html">self.unspent_money</a></li>
+</ul>
+</li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="entities.html">Assets and Orders</a><input aria-label="Toggle navigation of Assets and Orders" class="toctree-checkbox" id="toctree-checkbox-15" name="toctree-checkbox-15" role="switch" type="checkbox"/><label for="toctree-checkbox-15"><span class="icon"><svg><use href="#svg-arrow-right"></use></svg></span></label><ul>
+<li class="toctree-l2"><a class="reference internal" href="entities.asset.html">Asset</a></li>
+<li class="toctree-l2"><a class="reference internal" href="entities.bars.html">Bars</a></li>
+<li class="toctree-l2"><a class="reference internal" href="entities.data.html">Data</a></li>
+<li class="toctree-l2"><a class="reference internal" href="entities.order.html">Order</a></li>
+<li class="toctree-l2"><a class="reference internal" href="entities.position.html">Position</a></li>
+<li class="toctree-l2"><a class="reference internal" href="entities.trading_fee.html">Trading Fee</a></li>
+<li class="toctree-l2"><a class="reference internal" href="entities.trading_slippage.html">Trading Slippage</a></li>
+<li class="toctree-l2"><a class="reference internal" href="entities.smart_limit.html">Smart Limit Config</a></li>
+<li class="toctree-l2"><a class="reference internal" href="entities.chains.html">Chains Entity</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="indicators.html">Indicators</a></li>
+<li class="toctree-l1"><a class="reference internal" href="fundamentals.html">SEC Fundamentals</a></li>
+<li class="toctree-l1"><a class="reference internal" href="macro_data.html">Macro Data</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Backtest and trade</span></p>
+<ul>
+<li class="toctree-l1 has-children"><a class="reference internal" href="backtesting.html">Backtesting</a><input aria-label="Toggle navigation of Backtesting" class="toctree-checkbox" id="toctree-checkbox-16" name="toctree-checkbox-16" role="switch" type="checkbox"/><label for="toctree-checkbox-16"><span class="icon"><svg><use href="#svg-arrow-right"></use></svg></span></label><ul>
+<li class="toctree-l2"><a class="reference internal" href="backtesting.how_to_backtest.html">How to Backtest a Python Trading Strategy with LumiBot</a></li>
+<li class="toctree-l2"><a class="reference internal" href="backtesting.how_to_backtest.html#files-generated-from-backtesting">Files Generated from Backtesting</a></li>
+<li class="toctree-l2"><a class="reference internal" href="backtesting.backtesting_function.html">Backtesting Function</a></li>
+<li class="toctree-l2"><a class="reference internal" href="backtesting.performance.html">Backtesting Performance (Speed + Parity)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="backtesting.yahoo.html">Free Daily Stock Backtesting with Yahoo and LumiBot</a></li>
+<li class="toctree-l2"><a class="reference internal" href="backtesting.pandas.html">Pandas (CSV or other data)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="backtesting.polygon.html">Polygon.io Backtesting</a></li>
+<li class="toctree-l2"><a class="reference internal" href="backtesting.databento.html">Databento Backtesting with LumiBot</a></li>
+<li class="toctree-l2"><a class="reference internal" href="backtesting.thetadata.html">ThetaData Options and Stock Backtesting with LumiBot</a></li>
+<li class="toctree-l2"><a class="reference internal" href="backtesting.ibkr.html">Interactive Brokers (REST) Backtesting</a></li>
+<li class="toctree-l2"><a class="reference internal" href="backtesting.alpaca.html">Alpaca Backtesting</a></li>
+<li class="toctree-l2"><a class="reference internal" href="backtesting.tearsheet_html.html">LumiBot Backtest Tear Sheets and Performance Reports</a></li>
+<li class="toctree-l2"><a class="reference internal" href="backtesting.trades_files.html">Trades Files</a></li>
+<li class="toctree-l2"><a class="reference internal" href="backtesting.indicators_files.html">Indicators Files</a></li>
+<li class="toctree-l2"><a class="reference internal" href="backtesting.logs_csv.html">Logs CSV</a></li>
+</ul>
+</li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="brokers.html">Brokers</a><input aria-label="Toggle navigation of Brokers" class="toctree-checkbox" id="toctree-checkbox-17" name="toctree-checkbox-17" role="switch" type="checkbox"/><label for="toctree-checkbox-17"><span class="icon"><svg><use href="#svg-arrow-right"></use></svg></span></label><ul>
+<li class="toctree-l2"><a class="reference internal" href="brokers.alpaca.html">Alpaca API Trading with LumiBot</a></li>
+<li class="toctree-l2"><a class="reference internal" href="brokers.bitunix.html">Bitunix API Perpetual Futures Trading with LumiBot</a></li>
+<li class="toctree-l2 has-children"><a class="reference internal" href="brokers.ccxt.html">CCXT Crypto Trading and Backtesting with LumiBot</a><input aria-label="Toggle navigation of CCXT Crypto Trading and Backtesting with LumiBot" class="toctree-checkbox" id="toctree-checkbox-18" name="toctree-checkbox-18" role="switch" type="checkbox"/><label for="toctree-checkbox-18"><span class="icon"><svg><use href="#svg-arrow-right"></use></svg></span></label><ul>
+<li class="toctree-l3"><a class="reference internal" href="brokers.ccxt.coinbase.html">Coinbase Crypto Broker</a></li>
+<li class="toctree-l3"><a class="reference internal" href="brokers.ccxt.kraken.html">Kraken Crypto Broker</a></li>
+<li class="toctree-l3"><a class="reference internal" href="brokers.ccxt.weex.html">WEEX Crypto Broker</a></li>
+<li class="toctree-l3"><a class="reference internal" href="brokers.ccxt.kucoin.html">KuCoin CCXT Configuration</a></li>
+<li class="toctree-l3"><a class="reference internal" href="brokers.ccxt.binance.html">Binance CCXT Configuration</a></li>
+<li class="toctree-l3"><a class="reference internal" href="brokers.ccxt.bitmex.html">BitMEX CCXT Configuration</a></li>
+<li class="toctree-l3"><a class="reference internal" href="brokers.ccxt.bybit.html">Bybit CCXT Backtesting</a></li>
+<li class="toctree-l3"><a class="reference internal" href="brokers.ccxt.okx.html">OKX CCXT Backtesting</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="brokers.interactive_brokers.html">Interactive Brokers API Trading with LumiBot</a></li>
+<li class="toctree-l2"><a class="reference internal" href="brokers.interactive_brokers_legacy.html">Interactive Brokers Legacy</a></li>
+<li class="toctree-l2"><a class="reference internal" href="brokers.polymarket.html">Polymarket</a></li>
+<li class="toctree-l2"><a class="reference internal" href="brokers.projectx.html">ProjectX / TopstepX</a></li>
+<li class="toctree-l2"><a class="reference internal" href="brokers.schwab.html">Charles Schwab API Trading with LumiBot</a></li>
+<li class="toctree-l2"><a class="reference internal" href="brokers.tradier.html">Tradier</a></li>
+<li class="toctree-l2"><a class="reference internal" href="brokers.tradovate.html">Tradovate</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="cash_accounting.html">Cash Accounting</a></li>
+<li class="toctree-l1"><a class="reference internal" href="deployment.html">Deployment</a></li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="reference.html">Reference</a><input aria-label="Toggle navigation of Reference" class="toctree-checkbox" id="toctree-checkbox-19" name="toctree-checkbox-19" role="switch" type="checkbox"/><label for="toctree-checkbox-19"><span class="icon"><svg><use href="#svg-arrow-right"></use></svg></span></label><ul>
+<li class="toctree-l2"><a class="reference internal" href="vars.html">Variable Backup &amp; Restore</a></li>
+<li class="toctree-l2"><a class="reference internal" href="futures.html">Futures Trading</a></li>
+<li class="toctree-l2"><a class="reference internal" href="smart_limit.html">Smart Limit Orders</a></li>
+<li class="toctree-l2"><a class="reference internal" href="options_helper.html">OptionsHelper</a></li>
+<li class="toctree-l2"><a class="reference internal" href="environment_variables.html">Environment Variables</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="common_mistakes.html">Common Mistakes</a></li>
+<li class="toctree-l1"><a class="reference internal" href="faq.html">FAQ</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Community and learning</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference external" href="https://botspot.trade/challenges?utm_source=documentation&amp;utm_medium=sidebar&amp;utm_campaign=lumibot_ai_trading&amp;utm_content=free_challenge">Free AI Trading Challenge</a></li>
+<li class="toctree-l1"><a class="reference external" href="https://botspot.trade/sales?showLogin=1&amp;utm_source=documentation&amp;utm_medium=sidebar&amp;utm_campaign=lumibot&amp;utm_content=sidebar_build_bots&amp;sample=lumibot_deploy_sample">Build and Deploy with BotSpot</a></li>
+<li class="toctree-l1"><a class="reference internal" href="botspot_mcp.html">BotSpot MCP Integration</a></li>
+<li class="toctree-l1"><a class="reference internal" href="PARTNERSHIPS.html">Partnerships and Sponsorship</a></li>
+<li class="toctree-l1"><a class="reference internal" href="MIGRATING_FROM_BACKTRADER.html">Migrate from Backtrader</a></li>
+<li class="toctree-l1"><a class="reference external" href="https://github.com/Lumiwealth/lumibot">GitHub</a></li>
+<li class="toctree-l1"><a class="reference external" href="https://www.reddit.com/r/BotSpotTrade/">Reddit Community</a></li>
+<li class="toctree-l1"><a class="reference external" href="https://discord.gg/4R9j6T3PN8">Discord Community</a></li>
+<li class="toctree-l1"><a class="reference external" href="https://botspot.trade/marketplace?utm_source=documentation&amp;utm_medium=sidebar&amp;utm_campaign=lumibot&amp;utm_content=sidebar_marketplace">Get Pre-Built Strategies</a></li>
+</ul>
+
+</div>
+</div>
+
+      </div>
+      
+    </div>
+  </aside>
+  <div class="main">
+    <div class="content">
+      <div class="article-container">
+        <a href="#" class="back-to-top muted-link">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
+            <path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8v12z"></path>
+          </svg>
+          <span>Back to top</span>
+        </a>
+        <div class="content-icon-container">
+          <div class="view-this-page">
+  <a class="muted-link" href="_sources/index.rst.txt" title="View this page">
+    <svg><use href="#svg-eye"></use></svg>
+    <span class="visually-hidden">View this page</span>
+  </a>
+</div>
+<div class="theme-toggle-container theme-toggle-content">
+            <button class="theme-toggle" aria-label="Toggle Light / Dark / Auto color theme">
+              <svg class="theme-icon-when-auto-light"><use href="#svg-sun-with-moon"></use></svg>
+              <svg class="theme-icon-when-auto-dark"><use href="#svg-moon-with-sun"></use></svg>
+              <svg class="theme-icon-when-dark"><use href="#svg-moon"></use></svg>
+              <svg class="theme-icon-when-light"><use href="#svg-sun"></use></svg>
+            </button>
+          </div>
+          <label class="toc-overlay-icon toc-content-icon" for="__toc">
+            <span class="icon"><svg><use href="#svg-toc"></use></svg></span>
+          </label>
+        </div>
+        <article role="main" id="furo-main-content">
+          <section id="lumibot-ai-trading">
+<h1>LumiBot AI Trading<a class="headerlink" href="#lumibot-ai-trading" title="Link to this heading">¶</a></h1>
+<div class="lumibot-hero-lead docutils container">
+<p><strong>Turn trading ideas into working strategies.</strong></p>
+</div>
+<p>Build trading strategies with Python rules, AI agents, or both. Backtest on
+historical data, view trades and results, and connect a supported broker through
+the same strategy interface.</p>
+<p><strong>The strategy class can stay the same. The code that starts it must select a
+backtest or a broker run.</strong> See <a class="reference internal" href="strategy_run_modes.html"><span class="doc">Backtest, paper, or live: choose the runner</span></a> before running an
+example: <code class="docutils literal notranslate"><span class="pre">IS_BACKTESTING=false</span></code> alone cannot turn a backtest-only file into
+paper or live trading.</p>
+<div class="lumibot-start-routes docutils container">
+<p><a class="reference internal" href="#first-python-backtest"><span class="std std-ref">Python quickstart</span></a> · <a class="reference internal" href="agents_quickstart.html"><span class="doc">AI quickstart</span></a> ·
+<a class="reference internal" href="examples.html"><span class="doc">Python examples</span></a> · <a class="reference internal" href="agents_examples.html"><span class="doc">AI examples</span></a> ·
+<a class="reference external" href="https://github.com/Lumiwealth/lumibot/blob/version/4.5.92/docs/assets/ai-trading/spy-20260913/README.md">Recorded run</a> ·
+<a class="reference external" href="https://github.com/Lumiwealth/lumibot">GitHub</a></p>
+</div>
+<p><strong>AI is optional.</strong> For traditional strategies, write your own rules and indicators
+in a normal <code class="docutils literal notranslate"><span class="pre">Strategy</span></code> subclass. <a class="reference internal" href="#first-python-backtest"><span class="std std-ref">Start with the complete Python backtest</span></a>; no AI model or model API key is required.</p>
+<section id="run-an-ai-strategy">
+<h2>Run an AI strategy<a class="headerlink" href="#run-an-ai-strategy" title="Link to this heading">¶</a></h2>
+<p>Start with a complete SPY strategy: research the trend, review risk, and let the
+trading agent decide whether to buy, hold, or sell. <strong>Python 3.10+ and an
+OpenAI API key (``OPENAI_API_KEY``) required.</strong> This historical backtest uses Yahoo prices and no broker
+account; model calls use your provider billing.</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>python<span class="w"> </span>-m<span class="w"> </span>pip<span class="w"> </span>install<span class="w"> </span><span class="s2">"git+https://github.com/Lumiwealth/lumibot.git@version/4.6.3"</span>
+<span class="nb">export</span><span class="w"> </span><span class="nv">OPENAI_API_KEY</span><span class="o">=</span><span class="s2">"your-openai-api-key"</span>
+<span class="nb">export</span><span class="w"> </span><span class="nv">BACKTESTING_DATA_SOURCE</span><span class="o">=</span>yahoo
+python<span class="w"> </span>-m<span class="w"> </span>lumibot.example_strategies.ai_researcher_trader
+</pre></div>
+</div>
+<p><a class="reference internal" href="agents_quickstart.html"><span class="doc">Read and customize the strategy</span></a> or
+<a class="reference external" href="https://github.com/Lumiwealth/lumibot/blob/version/4.5.92/docs/assets/ai-trading/spy-20260913/README.md">inspect the recorded decisions and fill</a>.
+The example uses <code class="docutils literal notranslate"><span class="pre">openai/gpt-6-luna</span></code> on medium reasoning. Fresh AI decisions can vary.</p>
+<a class="lumibot-entry-hero reference internal image-reference" href="_images/benefit-hero.png"><img alt="LumiBot: Python rules or AI agents, historical backtests and broker connections" class="lumibot-entry-hero align-center" src="_images/benefit-hero.png" style="width: 640px;" />
+</a>
+</section>
+<section id="why-build-with-lumibot">
+<h2>Why build with LumiBot?<a class="headerlink" href="#why-build-with-lumibot" title="Link to this heading">¶</a></h2>
+<ul class="simple">
+<li><p><strong>One strategy lifecycle:</strong> use your own Python rules, AI agents, or both.</p></li>
+<li><p><strong>Historical backtesting:</strong> test an idea before connecting a broker.</p></li>
+<li><p><strong>Broker adapters:</strong> keep trading logic separate from broker configuration.</p></li>
+<li><p><strong>Examples to build on:</strong> start with stocks, macro, options, or buy-and-hold.</p></li>
+</ul>
+</section>
+<section id="build-your-own-trading-system">
+<h2>Build your own trading system<a class="headerlink" href="#build-your-own-trading-system" title="Link to this heading">¶</a></h2>
+<div class="lumibot-entry-grid lumibot-start-routes docutils container">
+<div class="lumibot-entry-card docutils container">
+<p><strong>Run your first AI backtest</strong></p>
+<p>Start with Python, an OpenAI key, and a complete SPY strategy.</p>
+<p><a class="reference internal" href="agents_quickstart.html"><span class="doc">Start the AI quickstart →</span></a></p>
+</div>
+<div class="lumibot-entry-card docutils container">
+<p><strong>Explore AI strategies</strong></p>
+<p>Browse stock, macro, and options teams with code and recorded runs.</p>
+<p><a class="reference internal" href="agents_examples.html"><span class="doc">Browse the examples →</span></a></p>
+</div>
+<div class="lumibot-entry-card docutils container">
+<p><strong>Write a Python strategy</strong></p>
+<p>Use your own rules, indicators, and the same Strategy lifecycle.</p>
+<p><a class="reference internal" href="#first-python-backtest"><span class="std std-ref">Run a Python backtest →</span></a></p>
+</div>
+</div>
+<p>For coding assistants, start with <a class="reference internal" href="agent_start_here.html"><span class="doc">LumiBot for coding agents</span></a>.
+To use research and data inside another project, see <a class="reference internal" href="standalone_components.html"><span class="doc">Use LumiBot in another Python project</span></a>.</p>
+</section>
+<section id="getting-started">
+<span id="first-python-backtest"></span><h2>Getting Started<a class="headerlink" href="#getting-started" title="Link to this heading">¶</a></h2>
+<p>After you have installed Lumibot on your computer, you can create a strategy and backtest it using free data available from Yahoo Finance, or use your own data. Here’s how to get started:</p>
+<section id="step-1-install-lumibot">
+<h3>Step 1: Install Lumibot<a class="headerlink" href="#step-1-install-lumibot" title="Link to this heading">¶</a></h3>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p><strong>Ensure you have installed the latest version of Lumibot</strong>. Upgrade using the following command:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>pip<span class="w"> </span>install<span class="w"> </span>lumibot<span class="w"> </span>--upgrade
+</pre></div>
+</div>
+</div>
+<p>Install the package on your computer:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>pip<span class="w"> </span>install<span class="w"> </span>lumibot
+</pre></div>
+</div>
+</section>
+<section id="step-2-create-a-strategy-for-backtesting">
+<h3>Step 2: Create a Strategy for Backtesting<a class="headerlink" href="#step-2-create-a-strategy-for-backtesting" title="Link to this heading">¶</a></h3>
+<p>Here’s some code to get you started:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span><span class="w"> </span><span class="nn">datetime</span><span class="w"> </span><span class="kn">import</span> <span class="n">datetime</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">lumibot.backtesting</span><span class="w"> </span><span class="kn">import</span> <span class="n">YahooDataBacktesting</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">lumibot.strategies</span><span class="w"> </span><span class="kn">import</span> <span class="n">Strategy</span>
+
+<span class="c1"># A simple strategy that buys AAPL on the first day and holds it</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">MyStrategy</span><span class="p">(</span><span class="n">Strategy</span><span class="p">):</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">on_trading_iteration</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">first_iteration</span><span class="p">:</span>
+            <span class="n">aapl_price</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_last_price</span><span class="p">(</span><span class="s2">"AAPL"</span><span class="p">)</span>
+            <span class="n">quantity</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">portfolio_value</span> <span class="o">//</span> <span class="n">aapl_price</span>
+            <span class="n">order</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">create_order</span><span class="p">(</span><span class="s2">"AAPL"</span><span class="p">,</span> <span class="n">quantity</span><span class="p">,</span> <span class="s2">"buy"</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">submit_order</span><span class="p">(</span><span class="n">order</span><span class="p">)</span>
+
+<span class="c1"># Pick the dates that you want to start and end your backtest</span>
+<span class="n">backtesting_start</span> <span class="o">=</span> <span class="n">datetime</span><span class="p">(</span><span class="mi">2020</span><span class="p">,</span> <span class="mi">11</span><span class="p">,</span> <span class="mi">1</span><span class="p">)</span>
+<span class="n">backtesting_end</span> <span class="o">=</span> <span class="n">datetime</span><span class="p">(</span><span class="mi">2020</span><span class="p">,</span> <span class="mi">12</span><span class="p">,</span> <span class="mi">31</span><span class="p">)</span>
+
+<span class="c1"># Run the backtest</span>
+<span class="n">MyStrategy</span><span class="o">.</span><span class="n">backtest</span><span class="p">(</span>
+    <span class="n">YahooDataBacktesting</span><span class="p">,</span>
+    <span class="n">backtesting_start</span><span class="p">,</span>
+    <span class="n">backtesting_end</span><span class="p">,</span>
+<span class="p">)</span>
+</pre></div>
+</div>
+</section>
+<section id="step-3-take-your-bot-live">
+<h3>Step 3: Take Your Bot Live<a class="headerlink" href="#step-3-take-your-bot-live" title="Link to this heading">¶</a></h3>
+<p>Once you have backtested your strategy and understand how it behaves on historical data, you can take your bot to paper trading or live trading. Notice how the strategy code is exactly the same. Here’s an example using Alpaca (you can create a free Paper Trading account here in minutes: <a class="reference external" href="https://alpaca.markets/">https://alpaca.markets/</a>).</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span><span class="w"> </span><span class="nn">lumibot.brokers</span><span class="w"> </span><span class="kn">import</span> <span class="n">Alpaca</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">lumibot.strategies.strategy</span><span class="w"> </span><span class="kn">import</span> <span class="n">Strategy</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">lumibot.traders</span><span class="w"> </span><span class="kn">import</span> <span class="n">Trader</span>
+
+<span class="n">ALPACA_CONFIG</span> <span class="o">=</span> <span class="p">{</span>
+     <span class="s2">"API_KEY"</span><span class="p">:</span> <span class="s2">"YOUR_ALPACA_API_KEY"</span><span class="p">,</span>
+     <span class="s2">"API_SECRET"</span><span class="p">:</span> <span class="s2">"YOUR_ALPACA_SECRET"</span><span class="p">,</span>
+     <span class="s2">"PAPER"</span><span class="p">:</span> <span class="kc">True</span>  <span class="c1"># Set to True for paper trading, False for live trading</span>
+ <span class="p">}</span>
+
+<span class="c1"># A simple strategy that buys AAPL on the first day and holds it</span>
+<span class="k">class</span><span class="w"> </span><span class="nc">MyStrategy</span><span class="p">(</span><span class="n">Strategy</span><span class="p">):</span>
+   <span class="k">def</span><span class="w"> </span><span class="nf">on_trading_iteration</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+      <span class="k">if</span> <span class="bp">self</span><span class="o">.</span><span class="n">first_iteration</span><span class="p">:</span>
+            <span class="n">aapl_price</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_last_price</span><span class="p">(</span><span class="s2">"AAPL"</span><span class="p">)</span>
+            <span class="n">quantity</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">portfolio_value</span> <span class="o">//</span> <span class="n">aapl_price</span>
+            <span class="n">order</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">create_order</span><span class="p">(</span><span class="s2">"AAPL"</span><span class="p">,</span> <span class="n">quantity</span><span class="p">,</span> <span class="s2">"buy"</span><span class="p">)</span>
+            <span class="bp">self</span><span class="o">.</span><span class="n">submit_order</span><span class="p">(</span><span class="n">order</span><span class="p">)</span>
+
+<span class="n">trader</span> <span class="o">=</span> <span class="n">Trader</span><span class="p">()</span>
+<span class="n">broker</span> <span class="o">=</span> <span class="n">Alpaca</span><span class="p">(</span><span class="n">ALPACA_CONFIG</span><span class="p">)</span>
+<span class="n">strategy</span> <span class="o">=</span> <span class="n">MyStrategy</span><span class="p">(</span><span class="n">broker</span><span class="o">=</span><span class="n">broker</span><span class="p">)</span>
+
+<span class="c1"># Run the strategy live</span>
+<span class="n">trader</span><span class="o">.</span><span class="n">add_strategy</span><span class="p">(</span><span class="n">strategy</span><span class="p">)</span>
+<span class="n">trader</span><span class="o">.</span><span class="n">run_all</span><span class="p">()</span>
+</pre></div>
+</div>
+<div class="admonition important">
+<p class="admonition-title">Important</p>
+<p><strong>Remember to start with a paper trading account</strong> to ensure everything works as expected before moving to live trading.</p>
+</div>
+</section>
+<section id="want-help-building-your-first-ai-trading-bot">
+<h3>Want help building your first AI trading bot?<a class="headerlink" href="#want-help-building-your-first-ai-trading-bot" title="Link to this heading">¶</a></h3>
+<p><strong>Join the free challenge with Rob Grzesik, creator of LumiBot.</strong>
+Follow the training and learn how to turn an idea into an AI trading strategy.</p>
+<a class="reference external image-reference" href="https://botspot.trade/challenges?utm_source=documentation&amp;utm_medium=docs&amp;utm_campaign=lumibot_ai_trading&amp;utm_content=home_challenge_image"><img alt="Learn with Rob Grzesik, creator of LumiBot. Join the FREE challenge." class="lumibot-learning-image align-center" src="_images/rob-challenge-home.png" style="width: 640px;" />
+</a>
+<p><a class="reference external" href="https://botspot.trade/challenges?utm_source=documentation&amp;utm_medium=docs&amp;utm_campaign=lumibot_ai_trading&amp;utm_content=free_challenge">Join the free challenge →</a></p>
+<p>For deeper training, explore the <a class="reference external" href="https://botspot.trade/courses/ai-trading-bootcamp?utm_source=documentation&amp;utm_medium=docs&amp;utm_campaign=lumibot_ai_trading&amp;utm_content=bootcamp">AI Trading Bootcamp</a>.
+LumiBot remains free and open source.</p>
+</section>
+</section>
+<section id="ai-trading-team">
+<h2>AI Trading Team<a class="headerlink" href="#ai-trading-team" title="Link to this heading">¶</a></h2>
+<p>LumiBot is built for <strong>AI agents that reason, call external tools, and make trading decisions during a backtest</strong>. The same strategy class can then run through a separately configured broker runner. This is agentic backtesting: the LLM is inside the simulation loop, not bolted onto the side. See <a class="reference internal" href="strategy_run_modes.html"><span class="doc">Backtest, paper, or live: choose the runner</span></a> for the startup distinction.</p>
+<p>Classic Python strategies are still first-class. LumiBot lets you choose the right level of intelligence: fixed rules, AI agents, or a hybrid where Python handles the hard gates and agents reason through evidence.</p>
+<ul class="simple">
+<li><p><strong>Backtest AI trading agents</strong> with real external data from 20,000+ MCP servers</p></li>
+<li><p><strong>LLM in the loop on every bar</strong> – the agent reasons over point-in-time market state, calls tools, and submits orders</p></li>
+<li><p><strong>Replay caching</strong> makes warm backtest reruns deterministic and fast (zero LLM calls on rerun)</p></li>
+<li><p><strong>Any LLM provider per agent</strong> – use a cheaper model for evidence gathering and a stronger model for debate/trading</p></li>
+<li><p><strong>Built-in SEC fundamentals and filings</strong> – agents can inspect income statements, balance sheets, cash flow, company facts, and annual reports</p></li>
+<li><p><strong>Built-in FRED macro data</strong> – agents can inspect rates, inflation, labor, growth, liquidity, credit spreads, and market-risk series</p></li>
+<li><p><strong>Trading permissions</strong> – research agents can use read-only tools while portfolio-manager agents place orders</p></li>
+<li><p><strong>Same code for backtest and live</strong> – write once, backtest it, deploy it</p></li>
+<li><p><strong>External MCP servers are just a URL</strong> – no local scripts, no npm installs</p></li>
+</ul>
+<p>Key AI agent docs:</p>
+<ul class="simple">
+<li><p><a class="reference internal" href="agents.html"><span class="doc">Build AI Trading Agents in Python with LumiBot</span></a> – main guide: agentic backtesting framework, MCP trading tools, and competitive positioning</p></li>
+<li><p><a class="reference internal" href="agents_flows.html"><span class="doc">Design Your AI Trading Team</span></a> – design single-agent, multi-agent, debate, team, and hybrid flows</p></li>
+<li><p><a class="reference internal" href="agents_examples.html"><span class="doc">AI Trading Bot Examples</span></a> – copy-paste AI trading team examples, including leveraged ETFs, large-cap stocks, Ray Dalio idea meritocracy, Warren Buffett value, Bill Ackman concentrated, and Citadel sector pods</p></li>
+<li><p><a class="reference internal" href="fundamentals.html"><span class="doc">SEC Fundamentals</span></a> – SEC fundamentals and filing research tools</p></li>
+<li><p><a class="reference internal" href="macro_data.html"><span class="doc">FRED Macro Data</span></a> – FRED macro data tools and point-in-time behavior</p></li>
+<li><p><a class="reference internal" href="agents_builtin_tools.html"><span class="doc">Agent Built-In Tools</span></a> – built-in tools, indicators, and trading permissions</p></li>
+<li><p><a class="reference internal" href="agents_quickstart.html"><span class="doc">Run your first AI backtest</span></a> – quick start with code examples for AI agent backtesting</p></li>
+<li><p><a class="reference internal" href="agents_canonical_demos.html"><span class="doc">One-Agent AI Trading Bot Demos</span></a> – three reference demos: news sentiment, macro risk, and M2 liquidity</p></li>
+<li><p><a class="reference internal" href="agents_observability.html"><span class="doc">AI Agent Observability</span></a> – traces, replay cache, warnings, and debugging workflow</p></li>
+</ul>
+</section>
+<section id="design-your-ai-trading-team">
+<h2>Design Your AI Trading Team<a class="headerlink" href="#design-your-ai-trading-team" title="Link to this heading">¶</a></h2>
+<p>An AI trading team is just a group of agents with different jobs inside the same LumiBot strategy. You can build a single-agent strategy, a specialist research flow, bull/bear/neutral teams, model-vs-model debates, deterministic execution gates, or agent reviewers layered on top of normal Python logic.</p>
+<a class="lumibot-doc-image reference internal image-reference" href="_images/lumibot_agent_flows.png"><img alt="Design your AI trading team with Lumibot" class="lumibot-doc-image" src="_images/lumibot_agent_flows.png" style="width: 100%;" />
+</a>
+</section>
+<section id="example-research-bull-bear-and-trader-agents">
+<h2>Example: Research, Bull, Bear, and Trader Agents<a class="headerlink" href="#example-research-bull-bear-and-trader-agents" title="Link to this heading">¶</a></h2>
+<p>Here is one example pattern: a researcher gathers evidence, bull and bear agents debate the trade, and a trader agent decides what to buy or sell.</p>
+<a class="lumibot-doc-image reference internal image-reference" href="_images/lumibot_investment_committee_architecture.png"><img alt="Lumibot AI trading team workflow" class="lumibot-doc-image" src="_images/lumibot_investment_committee_architecture.png" style="width: 100%;" />
+</a>
+<p>In this pattern, each agent has a job:</p>
+<ol class="arabic simple">
+<li><p><strong>Research Agent:</strong> builds the evidence pack from market data, filings, fundamentals, news, macro data, and indicators.</p></li>
+<li><p><strong>Bull Agent:</strong> turns that evidence into the strongest long thesis.</p></li>
+<li><p><strong>Bear Agent:</strong> challenges the thesis, looks for risk, and argues for avoiding, delaying, or reducing the trade.</p></li>
+<li><p><strong>Trader / Portfolio Manager Agent:</strong> checks cash, positions, open orders, and risk limits, then decides whether to trade.</p></li>
+</ol>
+<p>The copy-paste example below implements that exact team. It uses GPT-6 Luna on medium reasoning, LumiBot’s default model.</p>
+<p>To run it with a broker in paper mode, set your AI and Alpaca credentials and run the file:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nb">export</span><span class="w"> </span><span class="nv">OPENAI_API_KEY</span><span class="o">=</span><span class="s1">'your-key-here'</span>
+<span class="nb">export</span><span class="w"> </span><span class="nv">ALPACA_API_KEY</span><span class="o">=</span><span class="s1">'your-alpaca-key'</span>
+<span class="nb">export</span><span class="w"> </span><span class="nv">ALPACA_API_SECRET</span><span class="o">=</span><span class="s1">'your-alpaca-secret'</span>
+<span class="nb">export</span><span class="w"> </span><span class="nv">ALPACA_IS_PAPER</span><span class="o">=</span><span class="nb">true</span>
+python<span class="w"> </span>ai_trading_team_bull_bear_leveraged_etf.py
+</pre></div>
+</div>
+<p>To backtest the same strategy instead, change <code class="docutils literal notranslate"><span class="pre">IS_BACKTESTING</span> <span class="pre">=</span> <span class="pre">False</span></code> to <code class="docutils literal notranslate"><span class="pre">IS_BACKTESTING</span> <span class="pre">=</span> <span class="pre">True</span></code> in the runner:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nb">export</span><span class="w"> </span><span class="nv">OPENAI_API_KEY</span><span class="o">=</span><span class="s1">'your-key-here'</span>
+python<span class="w"> </span>ai_trading_team_bull_bear_leveraged_etf.py
+</pre></div>
+</div>
+<p>Save this as <code class="docutils literal notranslate"><span class="pre">ai_trading_team_bull_bear_leveraged_etf.py</span></code>. If an AI key is missing or invalid, LumiBot stops and prints a clear provider key error with a link to create a key.</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">import</span><span class="w"> </span><span class="nn">os</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">datetime</span><span class="w"> </span><span class="kn">import</span> <span class="n">datetime</span>
+
+<span class="kn">from</span><span class="w"> </span><span class="nn">lumibot.strategies.strategy</span><span class="w"> </span><span class="kn">import</span> <span class="n">Strategy</span>
+
+
+<span class="k">class</span><span class="w"> </span><span class="nc">AITradingTeamBullBearLeveragedETFStrategy</span><span class="p">(</span><span class="n">Strategy</span><span class="p">):</span>
+    <span class="n">parameters</span> <span class="o">=</span> <span class="p">{</span>
+        <span class="s2">"universe"</span><span class="p">:</span> <span class="p">[</span><span class="s2">"TQQQ"</span><span class="p">,</span> <span class="s2">"SQQQ"</span><span class="p">,</span> <span class="s2">"UPRO"</span><span class="p">,</span> <span class="s2">"SPXU"</span><span class="p">,</span> <span class="s2">"UDOW"</span><span class="p">,</span> <span class="s2">"SDOW"</span><span class="p">,</span> <span class="s2">"TNA"</span><span class="p">,</span> <span class="s2">"TZA"</span><span class="p">,</span> <span class="s2">"TECL"</span><span class="p">,</span> <span class="s2">"TECS"</span><span class="p">,</span> <span class="s2">"SOXL"</span><span class="p">,</span> <span class="s2">"SOXS"</span><span class="p">,</span> <span class="s2">"WEBL"</span><span class="p">,</span> <span class="s2">"WEBS"</span><span class="p">,</span> <span class="s2">"FAS"</span><span class="p">,</span> <span class="s2">"FAZ"</span><span class="p">,</span> <span class="s2">"LABU"</span><span class="p">,</span> <span class="s2">"LABD"</span><span class="p">,</span> <span class="s2">"ERX"</span><span class="p">,</span> <span class="s2">"ERY"</span><span class="p">,</span> <span class="s2">"GUSH"</span><span class="p">,</span> <span class="s2">"DRIP"</span><span class="p">,</span> <span class="s2">"DRN"</span><span class="p">,</span> <span class="s2">"DRV"</span><span class="p">,</span> <span class="s2">"TMF"</span><span class="p">,</span> <span class="s2">"TMV"</span><span class="p">,</span> <span class="s2">"NUGT"</span><span class="p">,</span> <span class="s2">"DUST"</span><span class="p">],</span>
+    <span class="p">}</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">initialize</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">sleeptime</span> <span class="o">=</span> <span class="s2">"1D"</span>
+        <span class="n">model</span> <span class="o">=</span> <span class="n">os</span><span class="o">.</span><span class="n">environ</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"AI_TRADING_TEAM_MODEL"</span><span class="p">,</span> <span class="s2">"openai/gpt-6-luna"</span><span class="p">)</span>
+        <span class="c1"># The first three agents are read-only. They can reason, but cannot trade.</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">agents</span><span class="o">.</span><span class="n">create</span><span class="p">(</span>
+            <span class="n">name</span><span class="o">=</span><span class="s2">"researcher"</span><span class="p">,</span>
+            <span class="n">model</span><span class="o">=</span><span class="n">model</span><span class="p">,</span>
+            <span class="n">allow_trading</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
+            <span class="n">system_prompt</span><span class="o">=</span><span class="s2">"Rank the ETFs by upside. Be direct."</span><span class="p">,</span>
+        <span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">agents</span><span class="o">.</span><span class="n">create</span><span class="p">(</span>
+            <span class="n">name</span><span class="o">=</span><span class="s2">"bull"</span><span class="p">,</span>
+            <span class="n">model</span><span class="o">=</span><span class="n">model</span><span class="p">,</span>
+            <span class="n">allow_trading</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
+            <span class="n">system_prompt</span><span class="o">=</span><span class="s2">"Argue for the strongest money-making trade."</span><span class="p">,</span>
+        <span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">agents</span><span class="o">.</span><span class="n">create</span><span class="p">(</span>
+            <span class="n">name</span><span class="o">=</span><span class="s2">"bear"</span><span class="p">,</span>
+            <span class="n">model</span><span class="o">=</span><span class="n">model</span><span class="p">,</span>
+            <span class="n">allow_trading</span><span class="o">=</span><span class="kc">False</span><span class="p">,</span>
+            <span class="n">system_prompt</span><span class="o">=</span><span class="s2">"Point out the biggest risk, briefly."</span><span class="p">,</span>
+        <span class="p">)</span>
+        <span class="c1"># Only this final agent can submit orders through Lumibot.</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">agents</span><span class="o">.</span><span class="n">create</span><span class="p">(</span>
+            <span class="n">name</span><span class="o">=</span><span class="s2">"trader"</span><span class="p">,</span>
+            <span class="n">model</span><span class="o">=</span><span class="n">model</span><span class="p">,</span>
+            <span class="n">allow_trading</span><span class="o">=</span><span class="kc">True</span><span class="p">,</span>
+            <span class="n">system_prompt</span><span class="o">=</span><span class="s2">"Buy one ETF from the universe aggressively. Use nearly all cash."</span><span class="p">,</span>
+        <span class="p">)</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">on_trading_iteration</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="c1"># Each trading day, pass the same market context through the team.</span>
+        <span class="n">context</span> <span class="o">=</span> <span class="p">{</span>
+            <span class="s2">"date"</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_datetime</span><span class="p">()</span><span class="o">.</span><span class="n">date</span><span class="p">()</span><span class="o">.</span><span class="n">isoformat</span><span class="p">(),</span>
+            <span class="s2">"universe"</span><span class="p">:</span> <span class="bp">self</span><span class="o">.</span><span class="n">parameters</span><span class="p">[</span><span class="s2">"universe"</span><span class="p">],</span>
+        <span class="p">}</span>
+        <span class="n">research</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">agents</span><span class="p">[</span><span class="s2">"researcher"</span><span class="p">]</span><span class="o">.</span><span class="n">run</span><span class="p">(</span>
+            <span class="n">task_prompt</span><span class="o">=</span><span class="s2">"Pick the strongest ETF."</span><span class="p">,</span>
+            <span class="n">context</span><span class="o">=</span><span class="n">context</span><span class="p">,</span>
+        <span class="p">)</span>
+        <span class="n">bull</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">agents</span><span class="p">[</span><span class="s2">"bull"</span><span class="p">]</span><span class="o">.</span><span class="n">run</span><span class="p">(</span>
+            <span class="n">task_prompt</span><span class="o">=</span><span class="s2">"Make the bull case."</span><span class="p">,</span>
+            <span class="n">context</span><span class="o">=</span><span class="p">{</span><span class="o">**</span><span class="n">context</span><span class="p">,</span> <span class="s2">"research"</span><span class="p">:</span> <span class="n">research</span><span class="o">.</span><span class="n">summary</span><span class="p">},</span>
+        <span class="p">)</span>
+        <span class="n">bear</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">agents</span><span class="p">[</span><span class="s2">"bear"</span><span class="p">]</span><span class="o">.</span><span class="n">run</span><span class="p">(</span>
+            <span class="n">task_prompt</span><span class="o">=</span><span class="s2">"Make the bear case."</span><span class="p">,</span>
+            <span class="n">context</span><span class="o">=</span><span class="p">{</span><span class="o">**</span><span class="n">context</span><span class="p">,</span> <span class="s2">"research"</span><span class="p">:</span> <span class="n">research</span><span class="o">.</span><span class="n">summary</span><span class="p">,</span> <span class="s2">"bull"</span><span class="p">:</span> <span class="n">bull</span><span class="o">.</span><span class="n">summary</span><span class="p">},</span>
+        <span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">agents</span><span class="p">[</span><span class="s2">"trader"</span><span class="p">]</span><span class="o">.</span><span class="n">run</span><span class="p">(</span>
+            <span class="n">task_prompt</span><span class="o">=</span><span class="s2">"Sell anything that is not the pick, then buy the best ETF with nearly all available cash."</span><span class="p">,</span>
+            <span class="n">context</span><span class="o">=</span><span class="p">{</span><span class="o">**</span><span class="n">context</span><span class="p">,</span> <span class="s2">"research"</span><span class="p">:</span> <span class="n">research</span><span class="o">.</span><span class="n">summary</span><span class="p">,</span> <span class="s2">"bull"</span><span class="p">:</span> <span class="n">bull</span><span class="o">.</span><span class="n">summary</span><span class="p">,</span> <span class="s2">"bear"</span><span class="p">:</span> <span class="n">bear</span><span class="o">.</span><span class="n">summary</span><span class="p">},</span>
+        <span class="p">)</span>
+
+
+<span class="k">if</span> <span class="vm">__name__</span> <span class="o">==</span> <span class="s2">"__main__"</span><span class="p">:</span>
+    <span class="n">IS_BACKTESTING</span> <span class="o">=</span> <span class="kc">False</span>
+
+    <span class="k">if</span> <span class="n">IS_BACKTESTING</span><span class="p">:</span>
+        <span class="kn">from</span><span class="w"> </span><span class="nn">lumibot.backtesting</span><span class="w"> </span><span class="kn">import</span> <span class="n">YahooDataBacktesting</span>
+
+        <span class="n">AITradingTeamBullBearLeveragedETFStrategy</span><span class="o">.</span><span class="n">backtest</span><span class="p">(</span>
+            <span class="n">YahooDataBacktesting</span><span class="p">,</span>
+            <span class="n">datetime</span><span class="p">(</span><span class="mi">2026</span><span class="p">,</span> <span class="mi">4</span><span class="p">,</span> <span class="mi">7</span><span class="p">),</span>
+            <span class="n">datetime</span><span class="p">(</span><span class="mi">2026</span><span class="p">,</span> <span class="mi">5</span><span class="p">,</span> <span class="mi">22</span><span class="p">),</span>
+        <span class="p">)</span>
+    <span class="k">else</span><span class="p">:</span>
+        <span class="kn">from</span><span class="w"> </span><span class="nn">lumibot.brokers</span><span class="w"> </span><span class="kn">import</span> <span class="n">Alpaca</span>
+        <span class="kn">from</span><span class="w"> </span><span class="nn">lumibot.traders</span><span class="w"> </span><span class="kn">import</span> <span class="n">Trader</span>
+
+        <span class="n">ALPACA_CONFIG</span> <span class="o">=</span> <span class="p">{</span>
+            <span class="s2">"API_KEY"</span><span class="p">:</span> <span class="n">os</span><span class="o">.</span><span class="n">environ</span><span class="p">[</span><span class="s2">"ALPACA_API_KEY"</span><span class="p">],</span>
+            <span class="s2">"API_SECRET"</span><span class="p">:</span> <span class="n">os</span><span class="o">.</span><span class="n">environ</span><span class="p">[</span><span class="s2">"ALPACA_API_SECRET"</span><span class="p">],</span>
+            <span class="s2">"PAPER"</span><span class="p">:</span> <span class="n">os</span><span class="o">.</span><span class="n">environ</span><span class="o">.</span><span class="n">get</span><span class="p">(</span><span class="s2">"ALPACA_IS_PAPER"</span><span class="p">,</span> <span class="s2">"true"</span><span class="p">)</span><span class="o">.</span><span class="n">lower</span><span class="p">()</span> <span class="o">!=</span> <span class="s2">"false"</span><span class="p">,</span>
+        <span class="p">}</span>
+
+        <span class="n">broker</span> <span class="o">=</span> <span class="n">Alpaca</span><span class="p">(</span><span class="n">ALPACA_CONFIG</span><span class="p">)</span>
+        <span class="n">strategy</span> <span class="o">=</span> <span class="n">AITradingTeamBullBearLeveragedETFStrategy</span><span class="p">(</span><span class="n">broker</span><span class="o">=</span><span class="n">broker</span><span class="p">)</span>
+
+        <span class="n">trader</span> <span class="o">=</span> <span class="n">Trader</span><span class="p">()</span>
+        <span class="n">trader</span><span class="o">.</span><span class="n">add_strategy</span><span class="p">(</span><span class="n">strategy</span><span class="p">)</span>
+        <span class="n">trader</span><span class="o">.</span><span class="n">run_all</span><span class="p">()</span>
+</pre></div>
+</div>
+<p>The point is that the full AI trading team runs inside Lumibot’s normal broker and backtest loops, so the decisions, orders, and artifacts are inspectable before you connect real money. Backtests are not expected future performance.</p>
+</section>
+<section id="more-ai-trading-bot-examples">
+<h2>More AI Trading Bot Examples<a class="headerlink" href="#more-ai-trading-bot-examples" title="Link to this heading">¶</a></h2>
+<p>Each page says in plain English what the bot does, how its agents work together, and shows the full code. See <a class="reference internal" href="agents_examples.html"><span class="doc">AI Trading Bot Examples</span></a> for the full list.</p>
+<ol class="arabic simple">
+<li><p><a class="reference internal" href="agents_example_nancy_pelosi_trading_bot.html"><span class="doc">Nancy Pelosi Stock Trading Bot</span></a> – owns the same stocks as Nancy Pelosi, rebuilt from her yearly report and trade reports on the House website. The <a class="reference internal" href="agents_example_nancy_pelosi_copy_trading_bot.html"><span class="doc">Nancy Pelosi Copy Trading Bot</span></a> copies her call options too.</p></li>
+<li><p><a class="reference internal" href="agents_example_insider_trading_bot.html"><span class="doc">Insider Trading Bot</span></a> – buys more of the stocks that CEOs and directors are buying with their own money.</p></li>
+<li><p><a class="reference internal" href="agents_example_warren_buffett_ai_stock_picker.html"><span class="doc">Warren Buffett AI Stock Picker</span></a> – reads company reports and owns great businesses at fair prices.</p></li>
+<li><p><a class="reference internal" href="agents_example_bill_ackman_portfolio_ai_trading_bot.html"><span class="doc">Bill Ackman Portfolio AI Trading Bot</span></a> – holds a few high-conviction stocks after attacking each idea.</p></li>
+<li><p><a class="reference internal" href="agents_example_fear_and_greed_index_trading_bot.html"><span class="doc">Fear and Greed Index Trading Bot</span></a> – reads CNN’s Fear &amp; Greed Index in a browser, then buys fear and sells greed.</p></li>
+<li><p><a class="reference internal" href="agents_example_0dte_options_ai_trading_bot.html"><span class="doc">0DTE Options AI Trading Bot</span></a> – sells a same-day SPY call spread and watches it every 15 minutes.</p></li>
+<li><p><a class="reference internal" href="agents_example_citadel_sector_pods.html"><span class="doc">Citadel Sector Pods AI Trading Team</span></a> – sector agents pitch ideas to a risk manager and a portfolio manager.</p></li>
+<li><p><a class="reference internal" href="agents_example_ray_dalio_idea_meritocracy.html"><span class="doc">Ray Dalio Idea Meritocracy AI Trading Team</span></a> – growth, inflation, and debt agents argue before a trader builds a macro ETF basket.</p></li>
+<li><p><a class="reference internal" href="agents_example_tqqq_strategy_ai_trading_bot.html"><span class="doc">TQQQ Strategy AI Trading Bot</span></a> – a bull agent and a bear agent debate leveraged ETFs like TQQQ and SQQQ.</p></li>
+<li><p><a class="reference internal" href="agents_example_bull_vs_bear_ai_stock_trading_bot.html"><span class="doc">Bull vs Bear AI Stock Trading Bot</span></a> – the same debate for the biggest US stocks.</p></li>
+</ol>
+</section>
+<section id="cash-accounting">
+<h2>Cash Accounting<a class="headerlink" href="#cash-accounting" title="Link to this heading">¶</a></h2>
+<p>Lumibot supports explicit cash accounting for both backtests and live broker
+telemetry. Use the strategy cash methods for deposits, withdrawals, direct
+cash adjustments, and financing setup, then review the resulting
+cash-adjusted returns in the standard backtest artifacts.</p>
+<ul class="simple">
+<li><p>Backtests keep external cashflows out of strategy performance</p></li>
+<li><p>Live cloud payloads can include normalized broker <code class="docutils literal notranslate"><span class="pre">cash_events</span></code></p></li>
+<li><p>Listener storage keeps raw normalized events in a dedicated event table</p></li>
+</ul>
+<p>Start with <a class="reference internal" href="cash_accounting.html"><span class="doc">Cash Accounting</span></a> for the end-to-end guide.</p>
+</section>
+<section id="additional-resources">
+<h2>Additional Resources<a class="headerlink" href="#additional-resources" title="Link to this heading">¶</a></h2>
+<p>If you would like to learn how to modify your strategies, we suggest that you first learn about Lifecycle Methods, then Strategy Methods, and Strategy Properties. You can find the documentation for these in the menu, with the main pages describing what they are, then the sub-pages describing each method and property individually.</p>
+<p>We also have some more sample code that you can check out here: <a class="reference external" href="https://github.com/Lumiwealth/lumibot/tree/dev/lumibot/example_strategies">https://github.com/Lumiwealth/lumibot/tree/dev/lumibot/example_strategies</a></p>
+<p>Next, explore the AI agent docs if you want a strategy that researches evidence, debates bull and bear cases, checks risk, and trades from the same Python lifecycle.</p>
+</section>
+<section id="need-extra-help">
+<h2>Need Extra Help?<a class="headerlink" href="#need-extra-help" title="Link to this heading">¶</a></h2>
+<p>If you want a guided path instead of piecing everything together from docs, start with the AI Trading Bootcamp. It teaches the full workflow: turn an idea into a Lumibot strategy, backtest it, inspect the artifacts, connect a broker, and decide when it is ready for paper or live trading.</p>
+<p>BotSpot is the cheaper, easier way to run Lumibot once you want hosted data, parallel backtests, broker connections, monitoring, alerts, audit history, and scheduled deployment without maintaining your own trading server.</p>
+<section class="course-list">
+    <div class="course-section">
+        <h3>Learn the full workflow</h3>
+        <p>The AI Trading Bootcamp is the fastest path if you want guided help building Lumibot strategies with AI. Learn how to structure a strategy, run a backtest, read the artifacts, connect a broker, and decide what should happen before anything trades live.</p>
+    </div>
+    <div class="course-cta-row">
+        <a href="https://www.botspot.trade/ai-bot-builder-bootcamp?utm_source=documentation&utm_medium=home&utm_campaign=lumibot&utm_content=course_list_bootcamp" class="course-button course-button-primary" target="_blank">
+            Join the AI Trading Bootcamp
+        </a>
+    </div>
+    <div class="course-section">
+        <h3>Why run Lumibot on BotSpot?</h3>
+        <p>BotSpot removes the infrastructure work around the strategy when you are ready to build, test, or run it in the cloud:</p>
+        <ul class="course-benefits">
+            <li><strong>Hosted data and artifacts:</strong> backtest without assembling every data feed yourself.</li>
+            <li><strong>Parallel backtests:</strong> compare strategy variants on BotSpot servers instead of tying up your laptop.</li>
+            <li><strong>Cheaper scheduled runs:</strong> run periodic bots without paying for always-on infrastructure per strategy.</li>
+            <li><strong>Broker connections and monitoring:</strong> keep logs, charts, alerts, account checks, audit history, and kill switches in one place.</li>
+            <li><strong>MCP tools:</strong> let Codex, Claude Code, Cursor, and other coding agents launch backtests, inspect artifacts, and prepare runs.</li>
+        </ul>
+    </div>
+    <div class="course-cta-row">
+        <a href="https://botspot.trade/sales?showLogin=1&utm_source=documentation&utm_medium=home&utm_campaign=lumibot&utm_content=course_list_sample&sample=lumibot_deploy_sample" class="course-button course-button-secondary" target="_blank">
+            Try a sample strategy on BotSpot
+        </a>
+        <a href="https://botspot.trade/agents?utm_source=documentation&utm_medium=home&utm_campaign=lumibot&utm_content=course_list_mcp" class="course-button course-button-secondary" target="_blank">
+            Connect BotSpot MCP
+        </a>
+    </div>
+</section>
+</section>
+<section id="why-lumibot">
+<h2>Why Lumibot?<a class="headerlink" href="#why-lumibot" title="Link to this heading">¶</a></h2>
+<p>AI trading projects have proved that people want agentic trading workflows.
+Lumibot’s edge is that those workflows run inside a real Python trading
+framework. You can backtest the agent decisions, inspect the artifacts, add
+normal Python guardrails, paper trade, and connect to brokers without
+rewriting the strategy.</p>
+<p>That matters because an AI trading demo is not the same thing as a trading
+system. Without backtests and broker-aware strategy code, you are mostly
+trusting prompts. Lumibot lets you iterate faster: test the agent flow on
+historical data, see what it would have bought or sold, tighten the Python
+risk checks, then run the same lifecycle in paper or live trading.</p>
+<section id="compared-with-ai-trading-agent-projects">
+<h3>Compared With AI Trading Agent Projects<a class="headerlink" href="#compared-with-ai-trading-agent-projects" title="Link to this heading">¶</a></h3>
+<div class="table-wrapper colwidths-given docutils container">
+<table class="docutils align-default">
+<colgroup>
+<col style="width: 19.6%" />
+<col style="width: 19.6%" />
+<col style="width: 19.6%" />
+<col style="width: 21.7%" />
+<col style="width: 19.6%" />
+</colgroup>
+<thead>
+<tr class="row-odd"><th class="head"><p>Project</p></th>
+<th class="head"><p>AI trading teams</p></th>
+<th class="head"><p>Backtest decisions</p></th>
+<th class="head"><p>Paper/live broker path</p></th>
+<th class="head"><p>Hosted deploy/monitoring</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>Lumibot + BotSpot</p></td>
+<td><p>Flexible teams, single agents, debates, hybrid flows, and deterministic gates</p></td>
+<td><p>Yes: replayable decisions, orders, traces, artifacts, charts, logs</p></td>
+<td><p>Yes: Alpaca, IBKR, Tradier, Schwab, Tradovate, ProjectX, Bitunix, selected CCXT</p></td>
+<td><p>Yes: hosted data, parallel backtests, deployment, monitoring, MCP, alerts, kill switches</p></td>
+</tr>
+<tr class="row-odd"><td><p>TradingAgents</p></td>
+<td><p>Yes, focused on a specific multi-agent research structure</p></td>
+<td><p>Research/demo oriented</p></td>
+<td><p>Not the main focus</p></td>
+<td><p>No</p></td>
+</tr>
+<tr class="row-even"><td><p>ai-hedge-fund</p></td>
+<td><p>Yes, focused on named investor-style agents</p></td>
+<td><p>Demo/backtest oriented</p></td>
+<td><p>Not the main focus</p></td>
+<td><p>No</p></td>
+</tr>
+<tr class="row-odd"><td><p>OpenAlice</p></td>
+<td><p>Yes, one-person Wall Street agent concept</p></td>
+<td><p>Experimental</p></td>
+<td><p>Local/self-run focus</p></td>
+<td><p>No</p></td>
+</tr>
+<tr class="row-even"><td><p>QuantDinger</p></td>
+<td><p>Yes</p></td>
+<td><p>Yes</p></td>
+<td><p>Crypto, IBKR, MT5, Alpaca</p></td>
+<td><p>Self-hosted</p></td>
+</tr>
+<tr class="row-odd"><td><p>Vibe-Trading</p></td>
+<td><p>Yes, personal trading agent flow</p></td>
+<td><p>Yes</p></td>
+<td><p>Agent platform focus</p></td>
+<td><p>Platform-specific</p></td>
+</tr>
+<tr class="row-even"><td><p>AI-Trader</p></td>
+<td><p>Yes</p></td>
+<td><p>Platform focus</p></td>
+<td><p>Platform focus</p></td>
+<td><p>Platform-specific</p></td>
+</tr>
+<tr class="row-odd"><td><p>OpenBB</p></td>
+<td><p>Tooling for agents</p></td>
+<td><p>Not a strategy backtester</p></td>
+<td><p>No broker execution framework</p></td>
+<td><p>OpenBB platform</p></td>
+</tr>
+<tr class="row-even"><td><p>Qlib</p></td>
+<td><p>Research/ML agents</p></td>
+<td><p>Quant research backtests</p></td>
+<td><p>Limited live focus</p></td>
+<td><p>No</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<p>Read the detailed comparison page: <a class="reference internal" href="ai_trading_project_comparison.html"><span class="doc">AI Trading Project Comparison</span></a>.</p>
+</section>
+<section id="polymarket-trading-and-backtesting">
+<h3>Polymarket Trading And Backtesting<a class="headerlink" href="#polymarket-trading-and-backtesting" title="Link to this heading">¶</a></h3>
+<p>LumiBot supports Polymarket prediction-contract trading and backtesting through the normal broker, data-source, and
+backtesting abstractions. Strategies can search markets, resolve outcomes to CLOB token ids, read order books and
+quotes, inspect market rules and resolution status, backtest historical Polymarket prices, and submit live orders using
+<code class="docutils literal notranslate"><span class="pre">create_order</span></code> and <code class="docutils literal notranslate"><span class="pre">submit_order</span></code>.</p>
+<p>Start with the full setup and reference guide: <a class="reference internal" href="brokers.polymarket.html"><span class="doc">Polymarket</span></a>.</p>
+</section>
+<section id="compared-with-backtesting-libraries">
+<h3>Compared With Backtesting Libraries<a class="headerlink" href="#compared-with-backtesting-libraries" title="Link to this heading">¶</a></h3>
+<div class="table-wrapper colwidths-given docutils container">
+<table class="docutils align-default">
+<colgroup>
+<col style="width: 16.7%" />
+<col style="width: 16.7%" />
+<col style="width: 16.7%" />
+<col style="width: 16.7%" />
+<col style="width: 16.7%" />
+<col style="width: 16.7%" />
+</colgroup>
+<thead>
+<tr class="row-odd"><th class="head"><p>Library</p></th>
+<th class="head"><p>Same code: backtest + live</p></th>
+<th class="head"><p>Assets</p></th>
+<th class="head"><p>AI agent runtime</p></th>
+<th class="head"><p>Broker/live path</p></th>
+<th class="head"><p>Hosted deployment</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>Lumibot</p></td>
+<td><p>Yes</p></td>
+<td><p>Stocks, options, crypto, futures, forex, prediction markets</p></td>
+<td><p>Built-in</p></td>
+<td><p>Alpaca, IBKR, Tradier, Schwab, Tradovate, ProjectX, Bitunix, Polymarket, selected CCXT</p></td>
+<td><p>BotSpot</p></td>
+</tr>
+<tr class="row-odd"><td><p>Backtrader</p></td>
+<td><p>Yes</p></td>
+<td><p>Stocks, limited crypto/futures, outdated forex</p></td>
+<td><p>No</p></td>
+<td><p>IB only/outdated</p></td>
+<td><p>No</p></td>
+</tr>
+<tr class="row-even"><td><p>Freqtrade</p></td>
+<td><p>Crypto</p></td>
+<td><p>Crypto</p></td>
+<td><p>FreqAI/ML</p></td>
+<td><p>Crypto exchanges</p></td>
+<td><p>No</p></td>
+</tr>
+<tr class="row-odd"><td><p>Zipline</p></td>
+<td><p>No</p></td>
+<td><p>Stocks</p></td>
+<td><p>No</p></td>
+<td><p>None</p></td>
+<td><p>No</p></td>
+</tr>
+<tr class="row-even"><td><p>Backtesting.py</p></td>
+<td><p>No</p></td>
+<td><p>Stocks, crypto, futures, forex</p></td>
+<td><p>No</p></td>
+<td><p>None</p></td>
+<td><p>No</p></td>
+</tr>
+<tr class="row-odd"><td><p>vectorbt</p></td>
+<td><p>No</p></td>
+<td><p>Stocks, crypto, futures, forex</p></td>
+<td><p>No</p></td>
+<td><p>No</p></td>
+<td><p>No</p></td>
+</tr>
+<tr class="row-even"><td><p>NautilusTrader</p></td>
+<td><p>Yes</p></td>
+<td><p>Stocks, crypto, futures, forex, limited options</p></td>
+<td><p>No</p></td>
+<td><p>Exchange adapters</p></td>
+<td><p>No</p></td>
+</tr>
+<tr class="row-odd"><td><p>Hummingbot</p></td>
+<td><p>Crypto</p></td>
+<td><p>Crypto market making</p></td>
+<td><p>Scripts/controllers</p></td>
+<td><p>Crypto exchanges</p></td>
+<td><p>Ecosystem/enterprise options</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+</section>
+</section>
+<section id="table-of-contents">
+<h2>Table of Contents<a class="headerlink" href="#table-of-contents" title="Link to this heading">¶</a></h2>
+<div class="toctree-wrapper compound">
+<p class="caption" role="heading"><span class="caption-text">Start here</span></p>
+<ul class="current">
+<li class="toctree-l1 current"><a class="current reference internal" href="#">Home</a></li>
+<li class="toctree-l1"><a class="reference internal" href="getting_started.html">Start Here / Python Setup</a></li>
+<li class="toctree-l1"><a class="reference internal" href="cli.html">The lumibot Command</a></li>
+<li class="toctree-l1"><a class="reference internal" href="examples.html">Python Strategy Examples</a></li>
+<li class="toctree-l1"><a class="reference internal" href="agents_quickstart.html">AI Quickstart</a></li>
+<li class="toctree-l1"><a class="reference internal" href="agents_examples.html">AI Examples</a></li>
+<li class="toctree-l1"><a class="reference internal" href="strategy_run_modes.html">Backtest, Paper, or Live</a></li>
+<li class="toctree-l1"><a class="reference internal" href="agent_start_here.html">For Coding Agents</a></li>
+</ul>
+</div>
+<div class="toctree-wrapper compound">
+<p class="caption" role="heading"><span class="caption-text">AI trading</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="agents.html">AI Agent Guide</a></li>
+<li class="toctree-l1"><a class="reference internal" href="execution_gap.html">The Execution Gap</a></li>
+<li class="toctree-l1"><a class="reference internal" href="ai_trading_project_comparison.html">Compare AI Frameworks</a></li>
+</ul>
+</div>
+<div class="toctree-wrapper compound">
+<p class="caption" role="heading"><span class="caption-text">Build strategies</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="strategy_api_overview.html">Strategy API</a></li>
+<li class="toctree-l1"><a class="reference internal" href="imports_and_startup.html">Imports and Startup</a></li>
+<li class="toctree-l1"><a class="reference internal" href="standalone_components.html">Reusable Components</a></li>
+<li class="toctree-l1"><a class="reference internal" href="lifecycle_methods.html">Lifecycle Methods</a></li>
+<li class="toctree-l1"><a class="reference internal" href="strategy_methods.html">Strategy Methods</a></li>
+<li class="toctree-l1"><a class="reference internal" href="strategy_properties.html">Strategy Properties</a></li>
+<li class="toctree-l1"><a class="reference internal" href="entities.html">Assets and Orders</a></li>
+<li class="toctree-l1"><a class="reference internal" href="indicators.html">Indicators</a></li>
+<li class="toctree-l1"><a class="reference internal" href="fundamentals.html">SEC Fundamentals</a></li>
+<li class="toctree-l1"><a class="reference internal" href="macro_data.html">Macro Data</a></li>
+</ul>
+</div>
+<div class="toctree-wrapper compound">
+<p class="caption" role="heading"><span class="caption-text">Backtest and trade</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="backtesting.html">Backtesting</a></li>
+<li class="toctree-l1"><a class="reference internal" href="brokers.html">Brokers</a></li>
+<li class="toctree-l1"><a class="reference internal" href="cash_accounting.html">Cash Accounting</a></li>
+<li class="toctree-l1"><a class="reference internal" href="deployment.html">Deployment</a></li>
+<li class="toctree-l1"><a class="reference internal" href="reference.html">Reference</a></li>
+<li class="toctree-l1"><a class="reference internal" href="common_mistakes.html">Common Mistakes</a></li>
+<li class="toctree-l1"><a class="reference internal" href="faq.html">FAQ</a></li>
+</ul>
+</div>
+<div class="toctree-wrapper compound">
+<p class="caption" role="heading"><span class="caption-text">Community and learning</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference external" href="https://botspot.trade/challenges?utm_source=documentation&amp;utm_medium=sidebar&amp;utm_campaign=lumibot_ai_trading&amp;utm_content=free_challenge">Free AI Trading Challenge</a></li>
+<li class="toctree-l1"><a class="reference external" href="https://botspot.trade/sales?showLogin=1&amp;utm_source=documentation&amp;utm_medium=sidebar&amp;utm_campaign=lumibot&amp;utm_content=sidebar_build_bots&amp;sample=lumibot_deploy_sample">Build and Deploy with BotSpot</a></li>
+<li class="toctree-l1"><a class="reference internal" href="botspot_mcp.html">BotSpot MCP Integration</a></li>
+<li class="toctree-l1"><a class="reference internal" href="PARTNERSHIPS.html">Partnerships and Sponsorship</a></li>
+<li class="toctree-l1"><a class="reference internal" href="MIGRATING_FROM_BACKTRADER.html">Migrate from Backtrader</a></li>
+<li class="toctree-l1"><a class="reference external" href="https://github.com/Lumiwealth/lumibot">GitHub</a></li>
+<li class="toctree-l1"><a class="reference external" href="https://www.reddit.com/r/BotSpotTrade/">Reddit Community</a></li>
+<li class="toctree-l1"><a class="reference external" href="https://discord.gg/4R9j6T3PN8">Discord Community</a></li>
+<li class="toctree-l1"><a class="reference external" href="https://botspot.trade/marketplace?utm_source=documentation&amp;utm_medium=sidebar&amp;utm_campaign=lumibot&amp;utm_content=sidebar_marketplace">Get Pre-Built Strategies</a></li>
+</ul>
+</div>
+</section>
+</section>
+<section id="indices-and-tables">
+<h1>Indices and tables<a class="headerlink" href="#indices-and-tables" title="Link to this heading">¶</a></h1>
+<ul class="simple">
+<li><p><a class="reference internal" href="genindex.html"><span class="std std-ref">Index</span></a></p></li>
+<li><p><a class="reference internal" href="py-modindex.html"><span class="std std-ref">Module Index</span></a></p></li>
+<li><p><a class="reference internal" href="search.html"><span class="std std-ref">Search Page</span></a></p></li>
+</ul>
+</section>
+
+        </article>
+      </div>
+      <footer>
+        
+        <div class="related-pages">
+          <a class="next-page" href="getting_started.html">
+              <div class="page-info">
+                <div class="context">
+                  <span>Next</span>
+                </div>
+                <div class="title">Start with LumiBot</div>
+              </div>
+              <svg class="furo-related-icon"><use href="#svg-arrow-right"></use></svg>
+            </a>
+          
+        </div>
+        <div class="bottom-of-page">
+          <div class="left-details">
+            <div class="copyright">
+                Copyright &#169; 2021, Lumiwealth
+            </div>
+            Made with <a href="https://www.sphinx-doc.org/">Sphinx</a> and <a class="muted-link" href="https://pradyunsg.me">@pradyunsg</a>'s
+            
+            <a href="https://github.com/pradyunsg/furo">Furo</a>
+            <div class="last-updated">
+              Last updated on October 03, 2026</div>
+          </div>
+          <div class="right-details">
+            
+          </div>
+        </div>
+        
+      </footer>
+    </div>
+    <aside class="toc-drawer">
+      
+      
+      <div class="toc-sticky toc-scroll">
+        <div class="toc-title-container">
+          <span class="toc-title">
+            On this page
+          </span>
+        </div>
+        <div class="toc-tree-container">
+          <div class="toc-tree">
+            <ul>
+<li><a class="reference internal" href="#">LumiBot AI Trading</a><ul>
+<li><a class="reference internal" href="#run-an-ai-strategy">Run an AI strategy</a></li>
+<li><a class="reference internal" href="#why-build-with-lumibot">Why build with LumiBot?</a></li>
+<li><a class="reference internal" href="#build-your-own-trading-system">Build your own trading system</a></li>
+<li><a class="reference internal" href="#getting-started">Getting Started</a><ul>
+<li><a class="reference internal" href="#step-1-install-lumibot">Step 1: Install Lumibot</a></li>
+<li><a class="reference internal" href="#step-2-create-a-strategy-for-backtesting">Step 2: Create a Strategy for Backtesting</a></li>
+<li><a class="reference internal" href="#step-3-take-your-bot-live">Step 3: Take Your Bot Live</a></li>
+<li><a class="reference internal" href="#want-help-building-your-first-ai-trading-bot">Want help building your first AI trading bot?</a></li>
+</ul>
+</li>
+<li><a class="reference internal" href="#ai-trading-team">AI Trading Team</a></li>
+<li><a class="reference internal" href="#design-your-ai-trading-team">Design Your AI Trading Team</a></li>
+<li><a class="reference internal" href="#example-research-bull-bear-and-trader-agents">Example: Research, Bull, Bear, and Trader Agents</a></li>
+<li><a class="reference internal" href="#more-ai-trading-bot-examples">More AI Trading Bot Examples</a></li>
+<li><a class="reference internal" href="#cash-accounting">Cash Accounting</a></li>
+<li><a class="reference internal" href="#additional-resources">Additional Resources</a></li>
+<li><a class="reference internal" href="#need-extra-help">Need Extra Help?</a></li>
+<li><a class="reference internal" href="#why-lumibot">Why Lumibot?</a><ul>
+<li><a class="reference internal" href="#compared-with-ai-trading-agent-projects">Compared With AI Trading Agent Projects</a></li>
+<li><a class="reference internal" href="#polymarket-trading-and-backtesting">Polymarket Trading And Backtesting</a></li>
+<li><a class="reference internal" href="#compared-with-backtesting-libraries">Compared With Backtesting Libraries</a></li>
+</ul>
+</li>
+<li><a class="reference internal" href="#table-of-contents">Table of Contents</a><ul>
+</ul>
+</li>
+</ul>
+</li>
+<li><a class="reference internal" href="#indices-and-tables">Indices and tables</a></li>
+</ul>
+
+          </div>
+        </div>
+      </div>
+      
+      
+    </aside>
+  </div>
+</div><script src="_static/documentation_options.js?v=5929fcd5"></script>
+    <script src="_static/doctools.js?v=9bcbadda"></script>
+    <script src="_static/sphinx_highlight.js?v=dc90522c"></script>
+    <script src="_static/scripts/furo.js?v=46bd48cc"></script>
+    <script src="_static/posthog.js?v=8090e602"></script>
+    </body>
+</html>

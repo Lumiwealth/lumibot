@@ -1,0 +1,54 @@
+{
+  "email-notification": {
+    "sha256": "0ddd5ec1e612c05888f8e03fd5aac12211020055c7fb114b2b25e05f5f7dbb9f",
+    "matches_dev": true
+  },
+  "bot-manager-api": {
+    "sha256": "23a8b011178c62396bc5f5515ee868d76269863edc0b5ece326b248fcf971883",
+    "matches_dev": true
+  },
+  "broker-token-authority": {
+    "sha256": "778f0600c1a8c0561b632e0279892a8a94857337ef7f73b938474483b3d213e1",
+    "matches_dev": true
+  },
+  "scheduled-custom-launcher": {
+    "sha256": "bdf1a8a81cfe0702b3997ccb62d138bf6cdae455cb558cea12fb4e88052c4df5",
+    "matches_dev": true
+  },
+  "scheduled-run-task-state-recorder": {
+    "sha256": "a47dc9ef002d3379e1d650c53bdd81db6bbf579813bf01196675ad654cb4fefc",
+    "matches_dev": true
+  },
+  "unprotect-idle-backtest-instances": {
+    "sha256": "9de100fe10ff24175dd0cc207913b2e9a7c624751d6b13b106d83c2401adc79c",
+    "matches_dev": true
+  },
+  "cleanup-scheduled-secrets": {
+    "sha256": "76ba57fd321adcde655beb83a52c48815fa29a33d8938c918781295604d994ca",
+    "matches_dev": true
+  },
+  "reconcile-idle-live-capacity": {
+    "sha256": "3bc89e10cbaa3fa92085d6c6562e9fea92290d763d1f9e7321af9ad684931501",
+    "matches_dev": true
+  },
+  "cleanup-cost-leaks": {
+    "sha256": "21398ec418697c4ea6cb0fdab827f3265336c89dcb5c332c167ff8ad4a9f9d83",
+    "matches_dev": true
+  },
+  "scheduled-test-backtest": {
+    "sha256": "c227fbed4af1156c895d196be719c0189cbfed94cf0da1b9c137e1b72bd8fdca",
+    "matches_dev": true
+  },
+  "scheduled-test-custom": {
+    "sha256": "c227fbed4af1156c895d196be719c0189cbfed94cf0da1b9c137e1b72bd8fdca",
+    "matches_dev": true
+  },
+  "kill-stale-backtests": {
+    "sha256": "86177df4b83c8cc8d942ffb1340b0ef7ba77c12e46b047c21cab217ae6851d6c",
+    "matches_dev": true
+  },
+  "data-cache": {
+    "sha256": "9bbcb4ae2fa5934a36858a58b0427592b75dde1dd6d8973aedb1c91ee6987546",
+    "matches_dev": true
+  }
+}

@@ -1,0 +1,277 @@
+from __future__ import annotations
+
+from datetime import date, datetime, timedelta
+from threading import Lock
+from typing import Any, Callable, Dict, Iterable, List, Union
+
+
+class OptionsDataFormatError(ValueError):
+    """Raised when option chain payloads contain unsupported expiry formats."""
+
+
+class _LazyStrikeMap(dict):
+    """Expiration->strikes map that can populate missing strikes on demand."""
+
+    def __init__(self, initial: Dict[str, List[float]], parent: "Chains", option_type: str):
+        super().__init__(initial)
+        self._parent = parent
+        self._option_type = option_type.upper()
+
+    def _maybe_load(self, expiry_key: str) -> None:
+        try:
+            self._parent._ensure_strikes_loaded(expiry_key)
+        except Exception:
+            return
+
+    def __getitem__(self, key):  # type: ignore[override]
+        try:
+            expiry_key = _normalise_expiry_key(key)
+        except OptionsDataFormatError:
+            expiry_key = str(key)
+
+        value = super().get(expiry_key)
+        if value is None or value == []:
+            self._maybe_load(expiry_key)
+            value = super().get(expiry_key)
+        if value is None:
+            return []
+        return value
+
+    def get(self, key, default=None):  # type: ignore[override]
+        try:
+            expiry_key = _normalise_expiry_key(key)
+        except OptionsDataFormatError:
+            expiry_key = str(key)
+
+        value = super().get(expiry_key)
+        if value is None or value == []:
+            self._maybe_load(expiry_key)
+            value = super().get(expiry_key)
+        if value is None:
+            return default
+        return value
+
+
+class Chains(dict):
+    """Dictionary-like container for option chains.
+
+    Behaves exactly like the raw dict previously returned by ``get_chains`` but
+    also exposes convenience helpers and rich ``repr``.  Because it subclasses
+    ``dict`` the old code paths that index into the structure (e.g.
+    ``chains["Chains"]["PUT"]`` or ``chains.get("Chains")``) continue to work
+    unchanged.
+    """
+
+    def __init__(self, data: Dict[str, Any]):
+        # preserve original mapping
+        super().__init__(data)
+        # Keep commonly accessed fields as attributes for quick access
+        self.multiplier: int | None = data.get("Multiplier")
+        self.exchange: str | None = data.get("Exchange")
+        # Optional metadata (used by options helpers to validate historical expirations)
+        self.underlying_symbol: str | None = data.get("UnderlyingSymbol")
+
+        # Optional strike loader (used to avoid eager strike-list fanout during chain building).
+        self._strike_loader: Callable[[str], List[float]] | None = None
+        self._strike_loader_lock: Lock = Lock()
+        self._strike_loaded: set[str] = set()
+
+    # ------------------------------------------------------------------
+    # Convenience accessors
+    # ------------------------------------------------------------------
+    def calls(self) -> Dict[str, List[float]]:
+        """Return the CALL side of the chain {expiration (YYYY-MM-DD): [strikes]}"""
+        return self.get("Chains", {}).get("CALL", {})
+
+    def puts(self) -> Dict[str, List[float]]:
+        """Return the PUT side of the chain {expiration (YYYY-MM-DD): [strikes]}"""
+        return self.get("Chains", {}).get("PUT", {})
+
+    def enable_lazy_strikes(self, loader: Callable[[str], List[float]]) -> None:
+        """Enable on-demand strike fetching for expirations that have empty/missing strike lists."""
+        self._strike_loader = loader
+        chains_section = self.get("Chains")
+        if not isinstance(chains_section, dict):
+            return
+
+        call_map = chains_section.get("CALL")
+        put_map = chains_section.get("PUT")
+        if isinstance(call_map, dict) and not isinstance(call_map, _LazyStrikeMap):
+            chains_section["CALL"] = _LazyStrikeMap(dict(call_map), self, "CALL")
+        if isinstance(put_map, dict) and not isinstance(put_map, _LazyStrikeMap):
+            chains_section["PUT"] = _LazyStrikeMap(dict(put_map), self, "PUT")
+
+    def _ensure_strikes_loaded(self, expiry_key: str) -> None:
+        loader = self._strike_loader
+        if loader is None:
+            return
+
+        with self._strike_loader_lock:
+            if expiry_key in self._strike_loaded:
+                return
+            self._strike_loaded.add(expiry_key)
+
+        strikes = loader(expiry_key) or []
+        try:
+            strikes_norm = sorted({float(s) for s in strikes if s is not None})
+        except Exception:
+            strikes_norm = list(strikes)
+
+        chains_section = self.get("Chains", {})
+        call_map = chains_section.get("CALL")
+        put_map = chains_section.get("PUT")
+        if isinstance(call_map, dict):
+            call_map[expiry_key] = strikes_norm
+        if isinstance(put_map, dict):
+            put_map[expiry_key] = list(strikes_norm)
+
+    def expirations(self, option_type: str = "CALL") -> List[str]:
+        """List available expiration strings (YYYY-MM-DD) for the specified option type."""
+        opts = self.get("Chains", {}).get(option_type.upper(), {})
+        return sorted(opts.keys())
+
+    def strikes(self, expiration: Union[str, date, datetime], option_type: str = "CALL") -> List[float]:
+        """Return the strikes list for a given expiration (accepts string YYYY-MM-DD or date)."""
+        side_map = self.get("Chains", {}).get(option_type.upper(), {})
+
+        try:
+            expiry_key = _normalise_expiry_key(expiration)
+        except OptionsDataFormatError:
+            expiry_key = str(expiration)
+
+        strikes = side_map.get(expiry_key)
+        if strikes is not None:
+            return strikes
+
+        # Provider compatibility: Some chains report OCC "Saturday" expirations while the trading
+        # model uses the last tradable day (Friday). If the exact key isn't present, try the
+        # adjacent Friday/Saturday to recover the strike list.
+        try:
+            expiry_dt = _normalise_expiry(expiration)
+        except OptionsDataFormatError:
+            return []
+
+        fallback_dates: List[date] = []
+        if expiry_dt.weekday() == 4:
+            fallback_dates.append(expiry_dt + timedelta(days=1))
+        elif expiry_dt.weekday() == 5:
+            fallback_dates.append(expiry_dt - timedelta(days=1))
+        elif expiry_dt.weekday() == 6:
+            fallback_dates.extend([expiry_dt - timedelta(days=2), expiry_dt - timedelta(days=1)])
+
+        for candidate in fallback_dates:
+            candidate_key = candidate.strftime("%Y-%m-%d")
+            candidate_strikes = side_map.get(candidate_key)
+            if candidate_strikes is not None:
+                return candidate_strikes
+
+        return []
+
+    def to_dict(self) -> Dict[str, Any]:
+        """Return a shallow copy of the underlying dict."""
+        return dict(self)
+
+    # Internal helpers for date-based access
+    def expirations_as_dates(self, option_type: str = "CALL") -> List[date]:
+        """List expiration dates for internal use."""
+        opts = self.get("Chains", {}).get(option_type.upper(), {})
+        return sorted([_normalise_expiry(exp) for exp in opts.keys()])
+
+    def get_option_chain_by_date(self, expiry_date: date, option_type: str = "CALL") -> List[float]:
+        """Get strikes for a date object (internal helper)."""
+        expiry_str = expiry_date.strftime("%Y-%m-%d")
+        return self.get("Chains", {}).get(option_type.upper(), {}).get(expiry_str, [])
+
+    # ------------------------------------------------------------------
+    # Niceties
+    # ------------------------------------------------------------------
+    def __repr__(self) -> str:  # type: ignore[override]
+        expiry_cnt = len(self.expirations("CALL"))
+        call_cnt = sum(len(v) for v in self.calls().values())
+        put_cnt = sum(len(v) for v in self.puts().values())
+        return (
+            f"<Chains exchange={self.exchange} multiplier={self.multiplier} "
+            f"expirations={expiry_cnt} calls={call_cnt} puts={put_cnt}>"
+        )
+
+    def __bool__(self) -> bool:  # type: ignore[override]
+        return bool(self.calls()) or bool(self.puts())
+
+
+def _normalise_expiry(expiry: Any) -> date:
+    """Convert various expiry representations into a ``datetime.date``."""
+
+    if isinstance(expiry, datetime):
+        return expiry.date()
+    if isinstance(expiry, date):
+        return expiry
+    if isinstance(expiry, str):
+        cleaned = expiry.strip()
+        if not cleaned:
+            raise OptionsDataFormatError("Empty option expiry string encountered")
+        digits_only = cleaned.replace("-", "")
+        if len(digits_only) != 8 or not digits_only.isdigit():
+            raise OptionsDataFormatError(f"Unsupported option expiry format: {expiry!r}")
+        try:
+            return datetime.strptime(digits_only, "%Y%m%d").date()
+        except ValueError as exc:
+            raise OptionsDataFormatError(
+                f"Could not parse option expiry value {expiry!r}"
+            ) from exc
+    raise OptionsDataFormatError(
+        f"Unsupported option expiry type: {type(expiry).__name__}"
+    )
+
+
+def _normalise_expiry_key(expiry: Any) -> str:
+    """Convert expiry to canonical YYYY-MM-DD string format."""
+    return _normalise_expiry(expiry).strftime("%Y-%m-%d")
+
+
+def _copy_strike_map(strike_map: Any) -> Dict[str, List[float]]:
+    """Return a shallow copy of the expiration->strikes mapping with ISO string keys."""
+    if not isinstance(strike_map, dict):
+        return {}
+
+    copied: Dict[str, List[float]] = {}
+    for expiry, strikes in strike_map.items():
+        expiry_key = _normalise_expiry_key(expiry)
+        if isinstance(strikes, Iterable) and not isinstance(strikes, (str, bytes)):
+            strike_list = [float(s) for s in strikes]
+        elif strikes is None:
+            strike_list = []
+        else:
+            strike_list = [float(strikes)]
+        existing = copied.setdefault(expiry_key, [])
+        existing.extend(strike_list)
+
+    for expiry_key, strike_values in copied.items():
+        copied[expiry_key] = sorted(set(strike_values))
+
+    return copied
+
+
+def normalize_option_chains(data: Any) -> Chains:
+    """Normalise arbitrary option-chain payloads into the standard structure."""
+    if isinstance(data, Chains):
+        base: Dict[str, Any] = data.to_dict()
+    elif isinstance(data, dict):
+        base = dict(data)
+    else:
+        base = {}
+
+    chains_section = base.get("Chains")
+    if not isinstance(chains_section, dict):
+        chains_section = {}
+
+    normalized = {
+        "Multiplier": base.get("Multiplier"),
+        "Exchange": base.get("Exchange"),
+        "UnderlyingSymbol": base.get("UnderlyingSymbol"),
+        "Chains": {
+            "CALL": _copy_strike_map(chains_section.get("CALL")),
+            "PUT": _copy_strike_map(chains_section.get("PUT")),
+        },
+    }
+
+    return Chains(normalized)

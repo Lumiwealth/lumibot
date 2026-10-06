@@ -1,0 +1,1918 @@
+﻿2026-10-03T04:55:09.6878224Z Current runner version: '2.337.0'
+2026-10-03T04:55:09.6885097Z Runner name: 'blacksmith-2vcpu-ubuntu-2404-arm-Runner-136e78146a'
+2026-10-03T04:55:09.6886758Z Runner group name: 'blacksmith scale sets - blacksmith-2vcpu-ubuntu-2404-arm'
+2026-10-03T04:55:09.6888038Z Machine name: 'ip-172-31-74-117'
+2026-10-03T04:55:09.6890469Z ##[group]GITHUB_TOKEN Permissions
+2026-10-03T04:55:09.6893244Z Contents: read
+2026-10-03T04:55:09.6893799Z Metadata: read
+2026-10-03T04:55:09.6894289Z ##[endgroup]
+2026-10-03T04:55:09.6896607Z Secret source: Actions
+2026-10-03T04:55:09.6897441Z Cache mode: write
+2026-10-03T04:55:09.6898736Z Prepare workflow directory
+2026-10-03T04:55:09.7502264Z Prepare all required actions
+2026-10-03T04:55:09.7557414Z Getting action download info
+2026-10-03T04:55:11.3339077Z Download action repository 'actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5' (SHA:34e114876b0b11c390a56381ad16ebd13914f8d5)
+2026-10-03T04:55:12.0667587Z Download action repository 'aws-actions/configure-aws-credentials@7474bc4690e29a8392af63c5b98e7449536d5c3a' (SHA:7474bc4690e29a8392af63c5b98e7449536d5c3a)
+2026-10-03T04:55:12.7397904Z Download action repository 'actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065' (SHA:a26af69be951a213d495a4c3e4e4022e16d87065)
+2026-10-03T04:55:12.8430805Z Download action repository 'astral-sh/setup-uv@caf0cab7a618c569241d31dcd442f54681755d39' (SHA:caf0cab7a618c569241d31dcd442f54681755d39)
+2026-10-03T04:55:13.6212194Z Download action repository 'docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f' (SHA:8d2750c68a42422c14e847fe6c8ac0403b4cbd6f)
+2026-10-03T04:55:14.3705629Z Download action repository 'depot/use-action@9bda29f1fc3163c06fc15f375887a341096a5639' (SHA:9bda29f1fc3163c06fc15f375887a341096a5639)
+2026-10-03T04:55:14.8787107Z Setting BLACKSMITH_ACTIONS_RESULTS_URL to https://results-receiver.actions.githubusercontent.com/
+2026-10-03T04:55:14.8834095Z Uses: Lumiwealth/bot_manager/.github/workflows/build-release-artifacts.yml@refs/heads/develop (32f2c5068412988ca2422b828b63417503007b35)
+2026-10-03T04:55:14.8838786Z ##[group] Inputs
+2026-10-03T04:55:14.8839121Z   environment: dev
+2026-10-03T04:55:14.8839362Z   runtime_environment: dev
+2026-10-03T04:55:14.8839599Z   python_version: 3.13
+2026-10-03T04:55:14.8839822Z   force_rebuild_images: true
+2026-10-03T04:55:14.8840053Z   skip_snapshot: true
+2026-10-03T04:55:14.8840290Z   lumibot_version: 4.6.4
+2026-10-03T04:55:14.8840526Z   existing_release_manifest_s3_uri: 
+2026-10-03T04:55:14.8840794Z ##[endgroup]
+2026-10-03T04:55:14.8841080Z Complete job name: Build Release Artifacts / image-single-trade
+2026-10-03T04:55:14.9466607Z A job started hook has been configured by the self-hosted runner administrator
+2026-10-03T04:55:14.9786406Z ##[group]Run '/setup.sh'
+2026-10-03T04:55:14.9825278Z shell: /usr/bin/bash --noprofile --norc -e -o pipefail {0}
+2026-10-03T04:55:14.9826113Z env:
+2026-10-03T04:55:14.9826357Z   BLACKSMITH_RUNNER_MESSAGE_WAIT_MS: 213
+2026-10-03T04:55:14.9826680Z   BLACKSMITH_RUNNER_ACQUIRE_JOB_MS: 1021
+2026-10-03T04:55:14.9826948Z   BLACKSMITH_CHECK_RUN_ID: 111132084197
+2026-10-03T04:55:14.9827328Z   BLACKSMITH_JOB_DISPLAY_NAME: Build Release Artifacts / image-single-trade
+2026-10-03T04:55:14.9827722Z   GITHUB_ACTIONS_CACHE_MODE: write
+2026-10-03T04:55:14.9827982Z ##[endgroup]
+2026-10-03T04:55:15.0471888Z Logging daemon started (blacksmithd for logs)
+2026-10-03T04:55:15.0972352Z Results daemon started (blacksmithd for results)
+2026-10-03T04:55:15.1382854Z Background adoption and SSH setup started (PID: 3218)
+2026-10-03T04:55:15.1383678Z 
+2026-10-03T04:55:15.1384113Z ----------------------------------------
+2026-10-03T04:55:15.1385077Z View this job: https://app.blacksmith.sh/Lumiwealth/runs/37098060587/jobs/111132084197
+2026-10-03T04:55:15.1385718Z SSH Access (using your GitHub SSH key):
+2026-10-03T04:55:15.1386345Z   ssh -p 64002 runner@blacksmith-2vcpu-ubuntu-2404-arm-runner-136e78146a.vm.blacksmith.sh
+2026-10-03T04:55:15.1386940Z 
+2026-10-03T04:55:15.1387181Z No GitHub SSH key? Add one at:
+2026-10-03T04:55:15.1387893Z https://docs.github.com/en/authentication/connecting-to-github-with-ssh/adding-a-new-ssh-key-to-your-github-account
+2026-10-03T04:55:15.1388501Z 
+2026-10-03T04:55:15.1388699Z ----------------------------------------
+2026-10-03T04:55:15.1388999Z 
+2026-10-03T04:55:15.1389286Z VM ID: blacksmith-2vcpu-ubuntu-2404-arm-Runner-136e78146a
+2026-10-03T04:55:15.1389772Z Host: production-192.240.237.175-aarch64
+2026-10-03T04:55:15.1390167Z Host Agent PID: 1853969
+2026-10-03T04:55:15.1390527Z Host Agent Git SHA: e97f83469
+2026-10-03T04:55:15.1390925Z Host CPU Manufacturer: Ampere
+2026-10-03T04:55:15.1391399Z Blacksmith Host Generation: gen 2
+2026-10-03T04:55:15.1391806Z Petname: production-complete-elk-6f6c0f9e-arm
+2026-10-03T04:55:15.1392214Z Region: us-west
+2026-10-03T04:55:15.1392553Z Rootfs Version: ubuntu24-full-aarch64-110625
+2026-10-03T04:55:15.1539135Z OS Version: Ubuntu 24.04.3 LTS
+2026-10-03T04:55:15.1544076Z 
+2026-10-03T04:55:15.1544222Z Enabling Blacksmith transparent cache
+2026-10-03T04:55:15.2699184Z ##[group]Run actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+2026-10-03T04:55:15.2727270Z with:
+2026-10-03T04:55:15.2727751Z   persist-credentials: false
+2026-10-03T04:55:15.2728044Z   repository: Lumiwealth/bot_manager
+2026-10-03T04:55:15.2730968Z   token: ***
+2026-10-03T04:55:15.2731232Z   ssh-strict: true
+2026-10-03T04:55:15.2731439Z   ssh-user: git
+2026-10-03T04:55:15.2731648Z   clean: true
+2026-10-03T04:55:15.2731935Z   sparse-checkout-cone-mode: true
+2026-10-03T04:55:15.2732209Z   fetch-depth: 1
+2026-10-03T04:55:15.2732415Z   fetch-tags: false
+2026-10-03T04:55:15.2732628Z   show-progress: true
+2026-10-03T04:55:15.2732851Z   lfs: false
+2026-10-03T04:55:15.2733173Z   submodules: false
+2026-10-03T04:55:15.2734028Z   set-safe-directory: true
+2026-10-03T04:55:15.2734424Z env:
+2026-10-03T04:55:15.2734837Z   ENVIRONMENT: dev
+2026-10-03T04:55:15.2735266Z   LUMIBOT_VERSION: 4.6.4
+2026-10-03T04:55:15.2735577Z   DOCKER_BUILDKIT: 1
+2026-10-03T04:55:15.2735879Z   BUILDKIT_PROGRESS: plain
+2026-10-03T04:55:15.2736117Z   GITHUB_ACTIONS_CACHE: true
+2026-10-03T04:55:15.2736405Z   BUILDX_CACHE_FROM: type=local,src=/tmp/.buildx-cache
+2026-10-03T04:55:15.2736804Z   BUILDX_CACHE_TO: type=local,dest=/tmp/.buildx-cache-new,mode=max
+2026-10-03T04:55:15.2737165Z   DEPOT_PROJECT_ID: 
+2026-10-03T04:55:15.2737613Z   BLACKSMITH_RUNNER_MESSAGE_WAIT_MS: 213
+2026-10-03T04:55:15.2737913Z   BLACKSMITH_RUNNER_ACQUIRE_JOB_MS: 1021
+2026-10-03T04:55:15.2738205Z   GITHUB_REPO_NAME: Lumiwealth/bot_manager
+2026-10-03T04:55:15.2738802Z ##[endgroup]
+2026-10-03T04:55:15.5705182Z Syncing repository: Lumiwealth/bot_manager
+2026-10-03T04:55:15.5707062Z ##[group]Getting Git version info
+2026-10-03T04:55:15.5707485Z Working directory is '/home/runner/_work/bot_manager/bot_manager'
+2026-10-03T04:55:15.5708078Z [command]/usr/local/bin/git version
+2026-10-03T04:55:15.5937600Z git version 2.51.2
+2026-10-03T04:55:15.5966379Z ##[endgroup]
+2026-10-03T04:55:15.5989402Z Temporarily overriding HOME='/home/runner/_work/_temp/9147d314-571f-4fa6-8341-f1ec71bf3d21' before making global git config changes
+2026-10-03T04:55:15.5992575Z Adding repository directory to the temporary git global config as a safe directory
+2026-10-03T04:55:15.6000897Z [command]/usr/local/bin/git config --global --add safe.directory /home/runner/_work/bot_manager/bot_manager
+2026-10-03T04:55:15.6199302Z Deleting the contents of '/home/runner/_work/bot_manager/bot_manager'
+2026-10-03T04:55:15.6200228Z ##[group]Initializing the repository
+2026-10-03T04:55:15.6200795Z [command]/usr/local/bin/git init /home/runner/_work/bot_manager/bot_manager
+2026-10-03T04:55:15.6267480Z hint: Using 'master' as the name for the initial branch. This default branch name
+2026-10-03T04:55:15.6268488Z hint: is subject to change. To configure the initial branch name to use in all
+2026-10-03T04:55:15.6269340Z hint: of your new repositories, which will suppress this warning, call:
+2026-10-03T04:55:15.6269916Z hint:
+2026-10-03T04:55:15.6270774Z hint: 	git config --global init.defaultBranch <name>
+2026-10-03T04:55:15.6271272Z hint:
+2026-10-03T04:55:15.6271839Z hint: Names commonly chosen instead of 'master' are 'main', 'trunk' and
+2026-10-03T04:55:15.6273453Z hint: 'development'. The just-created branch can be renamed via this command:
+2026-10-03T04:55:15.6273845Z hint:
+2026-10-03T04:55:15.6274058Z hint: 	git branch -m <name>
+2026-10-03T04:55:15.6274299Z hint:
+2026-10-03T04:55:15.6274645Z hint: Disable this message with "git config set advice.defaultBranchName false"
+2026-10-03T04:55:15.6275837Z Initialized empty Git repository in /home/runner/_work/bot_manager/bot_manager/.git/
+2026-10-03T04:55:15.6281682Z [command]/usr/local/bin/git remote add origin https://github.com/Lumiwealth/bot_manager
+2026-10-03T04:55:15.6355477Z ##[endgroup]
+2026-10-03T04:55:15.6356129Z ##[group]Disabling automatic garbage collection
+2026-10-03T04:55:15.6358708Z [command]/usr/local/bin/git config --local gc.auto 0
+2026-10-03T04:55:15.6429594Z ##[endgroup]
+2026-10-03T04:55:15.6430035Z ##[group]Setting up auth
+2026-10-03T04:55:15.6436985Z [command]/usr/local/bin/git config --local --name-only --get-regexp core\.sshCommand
+2026-10-03T04:55:15.6515274Z [command]/usr/local/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :"
+2026-10-03T04:55:15.7097974Z [command]/usr/local/bin/git config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+2026-10-03T04:55:15.7105943Z [command]/usr/local/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :"
+2026-10-03T04:55:15.7381084Z [command]/usr/local/bin/git config --local --name-only --get-regexp ^includeIf\.gitdir:
+2026-10-03T04:55:15.7471048Z [command]/usr/local/bin/git submodule foreach --recursive git config --local --show-origin --name-only --get-regexp remote.origin.url
+2026-10-03T04:55:15.7762537Z [command]/usr/local/bin/git config --local http.https://github.com/.extraheader AUTHORIZATION: basic ***
+2026-10-03T04:55:15.7866318Z ##[endgroup]
+2026-10-03T04:55:15.7868364Z ##[group]Fetching the repository
+2026-10-03T04:55:15.7869650Z [command]/usr/local/bin/git -c protocol.version=2 fetch --no-tags --prune --no-recurse-submodules --depth=1 origin +32f2c5068412988ca2422b828b63417503007b35:refs/remotes/origin/develop
+2026-10-03T04:55:16.9827986Z From https://github.com/Lumiwealth/bot_manager
+2026-10-03T04:55:16.9829183Z  * [new ref]         32f2c5068412988ca2422b828b63417503007b35 -> origin/develop
+2026-10-03T04:55:16.9919602Z ##[endgroup]
+2026-10-03T04:55:16.9920248Z ##[group]Determining the checkout info
+2026-10-03T04:55:16.9920809Z ##[endgroup]
+2026-10-03T04:55:16.9931809Z [command]/usr/local/bin/git sparse-checkout disable
+2026-10-03T04:55:17.0025762Z [command]/usr/local/bin/git config --local --unset-all extensions.worktreeConfig
+2026-10-03T04:55:17.0083396Z ##[group]Checking out the ref
+2026-10-03T04:55:17.0086680Z [command]/usr/local/bin/git checkout --progress --force -B develop refs/remotes/origin/develop
+2026-10-03T04:55:17.0847398Z Switched to a new branch 'develop'
+2026-10-03T04:55:17.0858033Z branch 'develop' set up to track 'origin/develop'.
+2026-10-03T04:55:17.0866473Z ##[endgroup]
+2026-10-03T04:55:17.1081228Z [command]/usr/local/bin/git log -1 --format=%H
+2026-10-03T04:55:17.1123158Z 32f2c5068412988ca2422b828b63417503007b35
+2026-10-03T04:55:17.1180123Z ##[group]Removing auth
+2026-10-03T04:55:17.1181008Z [command]/usr/local/bin/git config --local --name-only --get-regexp core\.sshCommand
+2026-10-03T04:55:17.1239481Z [command]/usr/local/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :"
+2026-10-03T04:55:17.1738662Z [command]/usr/local/bin/git config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+2026-10-03T04:55:17.1755308Z http.https://github.com/.extraheader
+2026-10-03T04:55:17.1787658Z [command]/usr/local/bin/git config --local --unset-all http.https://github.com/.extraheader
+2026-10-03T04:55:17.1846274Z [command]/usr/local/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :"
+2026-10-03T04:55:17.2202079Z [command]/usr/local/bin/git config --local --name-only --get-regexp ^includeIf\.gitdir:
+2026-10-03T04:55:17.2395047Z [command]/usr/local/bin/git submodule foreach --recursive git config --local --show-origin --name-only --get-regexp remote.origin.url
+2026-10-03T04:55:17.2669712Z ##[endgroup]
+2026-10-03T04:55:17.2990777Z ##[group]Run aws-actions/configure-aws-credentials@7474bc4690e29a8392af63c5b98e7449536d5c3a
+2026-10-03T04:55:17.2991388Z with:
+2026-10-03T04:55:17.2991985Z   role-to-assume: ***
+2026-10-03T04:55:17.2992290Z   aws-region: us-east-1
+2026-10-03T04:55:17.2992582Z   role-session-name: GitHubActionsReleaseArtifacts
+2026-10-03T04:55:17.2992958Z   audience: sts.amazonaws.com
+2026-10-03T04:55:17.2993309Z   output-env-credentials: true
+2026-10-03T04:55:17.2993579Z env:
+2026-10-03T04:55:17.2993788Z   ENVIRONMENT: dev
+2026-10-03T04:55:17.2994027Z   LUMIBOT_VERSION: 4.6.4
+2026-10-03T04:55:17.2994272Z   DOCKER_BUILDKIT: 1
+2026-10-03T04:55:17.2994532Z   BUILDKIT_PROGRESS: plain
+2026-10-03T04:55:17.2994792Z   GITHUB_ACTIONS_CACHE: true
+2026-10-03T04:55:17.2995099Z   BUILDX_CACHE_FROM: type=local,src=/tmp/.buildx-cache
+2026-10-03T04:55:17.2995533Z   BUILDX_CACHE_TO: type=local,dest=/tmp/.buildx-cache-new,mode=max
+2026-10-03T04:55:17.2995917Z   DEPOT_PROJECT_ID: 
+2026-10-03T04:55:17.2996232Z   BLACKSMITH_RUNNER_MESSAGE_WAIT_MS: 213
+2026-10-03T04:55:17.2996550Z   BLACKSMITH_RUNNER_ACQUIRE_JOB_MS: 1021
+2026-10-03T04:55:17.2996861Z   GITHUB_REPO_NAME: Lumiwealth/bot_manager
+2026-10-03T04:55:17.2997162Z ##[endgroup]
+2026-10-03T04:55:17.6701955Z Assuming role with OIDC
+2026-10-03T04:55:17.8949167Z Authenticated as assumedRoleId AROAWAA66HBGH5FHPPNXI:GitHubActionsReleaseArtifacts
+2026-10-03T04:55:18.0028691Z ##[group]Run actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
+2026-10-03T04:55:18.0029172Z with:
+2026-10-03T04:55:18.0029400Z   python-version: 3.13
+2026-10-03T04:55:18.0029661Z   check-latest: false
+2026-10-03T04:55:18.0032475Z   token: ***
+2026-10-03T04:55:18.0032722Z   update-environment: true
+2026-10-03T04:55:18.0032997Z   allow-prereleases: false
+2026-10-03T04:55:18.0033266Z   freethreaded: false
+2026-10-03T04:55:18.0033515Z env:
+2026-10-03T04:55:18.0033725Z   ENVIRONMENT: dev
+2026-10-03T04:55:18.0033976Z   LUMIBOT_VERSION: 4.6.4
+2026-10-03T04:55:18.0034228Z   DOCKER_BUILDKIT: 1
+2026-10-03T04:55:18.0034483Z   BUILDKIT_PROGRESS: plain
+2026-10-03T04:55:18.0034756Z   GITHUB_ACTIONS_CACHE: true
+2026-10-03T04:55:18.0035072Z   BUILDX_CACHE_FROM: type=local,src=/tmp/.buildx-cache
+2026-10-03T04:55:18.0035520Z   BUILDX_CACHE_TO: type=local,dest=/tmp/.buildx-cache-new,mode=max
+2026-10-03T04:55:18.0036348Z   DEPOT_PROJECT_ID: 
+2026-10-03T04:55:18.0036682Z   BLACKSMITH_RUNNER_MESSAGE_WAIT_MS: 213
+2026-10-03T04:55:18.0037005Z   BLACKSMITH_RUNNER_ACQUIRE_JOB_MS: 1021
+2026-10-03T04:55:18.0037335Z   GITHUB_REPO_NAME: Lumiwealth/bot_manager
+2026-10-03T04:55:18.0037661Z   AWS_DEFAULT_REGION: us-east-1
+2026-10-03T04:55:18.0037941Z   AWS_REGION: us-east-1
+2026-10-03T04:55:18.0038248Z   AWS_ACCESS_KEY_ID: ***
+2026-10-03T04:55:18.0038642Z   AWS_SECRET_ACCESS_KEY: ***
+2026-10-03T04:55:18.0043769Z   AWS_SESSION_TOKEN: ***
+2026-10-03T04:55:18.0044024Z ##[endgroup]
+2026-10-03T04:55:18.1792581Z ##[group]Installed versions
+2026-10-03T04:55:18.1804327Z Version 3.13 was not found in the local cache
+2026-10-03T04:55:18.1957891Z (node:3638) [DEP0040] DeprecationWarning: The `punycode` module is deprecated. Please use a userland alternative instead.
+2026-10-03T04:55:18.1959631Z (Use `node --trace-deprecation ...` to show where the warning was created)
+2026-10-03T04:55:19.4566873Z Version 3.13 is available for downloading
+2026-10-03T04:55:19.4567854Z Download from "https://github.com/actions/python-versions/releases/download/3.13.16-36805956071/python-3.13.16-linux-24.04-arm64.tar.gz"
+2026-10-03T04:55:20.6535618Z Extract downloaded archive
+2026-10-03T04:55:20.6815078Z [command]/usr/bin/tar xz --warning=no-unknown-keyword --overwrite -C /home/runner/_work/_temp/3730b51f-b82f-4f72-ba85-d338412f9d48 -f /home/runner/_work/_temp/73a07731-dd75-4020-9ae7-57424f53011d
+2026-10-03T04:55:22.6458321Z Execute installation script
+2026-10-03T04:55:22.6671904Z Check if Python hostedtoolcache folder exist...
+2026-10-03T04:55:22.6680935Z Creating Python hostedtoolcache folder...
+2026-10-03T04:55:22.6963579Z Create Python 3.13.16 folder
+2026-10-03T04:55:22.6974503Z Copy Python binaries to hostedtoolcache folder
+2026-10-03T04:55:24.0303304Z Create additional symlinks (Required for the UsePythonVersion Azure Pipelines task and the setup-python GitHub Action)
+2026-10-03T04:55:24.0359540Z Upgrading pip...
+2026-10-03T04:55:25.8886389Z Collecting pip
+2026-10-03T04:55:25.9541154Z Downloading pip-26.2.1-py3-none-any.whl.metadata (4.6 kB)
+2026-10-03T04:55:25.9653669Z Downloading pip-26.2.1-py3-none-any.whl (1.8 MB)
+2026-10-03T04:55:26.0297842Z ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 1.8/1.8 MB 76.2 MB/s  0:00:00
+2026-10-03T04:55:26.0326576Z 
+2026-10-03T04:55:26.1296118Z Installing collected packages: pip
+2026-10-03T04:55:26.1297073Z Attempting uninstall: pip
+2026-10-03T04:55:26.1322323Z Found existing installation: pip 26.2.1
+2026-10-03T04:55:26.1633417Z Uninstalling pip-26.2.1:
+2026-10-03T04:55:26.1697033Z Successfully uninstalled pip-26.2.1
+2026-10-03T04:55:27.1269332Z Successfully installed pip-26.2.1
+2026-10-03T04:55:27.2547391Z Create complete file
+2026-10-03T04:55:27.2610821Z Successfully set up CPython (3.13.16)
+2026-10-03T04:55:27.2611930Z ##[endgroup]
+2026-10-03T04:55:27.3259817Z ##[group]Run astral-sh/setup-uv@caf0cab7a618c569241d31dcd442f54681755d39
+2026-10-03T04:55:27.3260889Z with:
+2026-10-03T04:55:27.3261143Z   version: 0.11.8
+2026-10-03T04:55:27.3262310Z   enable-cache: true
+2026-10-03T04:55:27.3262652Z   cache-dependency-glob: requirements.txt
+2026-10-03T04:55:27.3263098Z   cache-suffix: release-image-single-trade
+2026-10-03T04:55:27.3266421Z   github-token: ***
+2026-10-03T04:55:27.3266765Z   prune-cache: true
+2026-10-03T04:55:27.3267020Z env:
+2026-10-03T04:55:27.3267236Z   ENVIRONMENT: dev
+2026-10-03T04:55:27.3267570Z   LUMIBOT_VERSION: 4.6.4
+2026-10-03T04:55:27.3267841Z   DOCKER_BUILDKIT: 1
+2026-10-03T04:55:27.3269716Z   BUILDKIT_PROGRESS: plain
+2026-10-03T04:55:27.3270043Z   GITHUB_ACTIONS_CACHE: true
+2026-10-03T04:55:27.3272019Z   BUILDX_CACHE_FROM: type=local,src=/tmp/.buildx-cache
+2026-10-03T04:55:27.3272528Z   BUILDX_CACHE_TO: type=local,dest=/tmp/.buildx-cache-new,mode=max
+2026-10-03T04:55:27.3274819Z   DEPOT_PROJECT_ID: 
+2026-10-03T04:55:27.3276114Z   BLACKSMITH_RUNNER_MESSAGE_WAIT_MS: 213
+2026-10-03T04:55:27.3277359Z   BLACKSMITH_RUNNER_ACQUIRE_JOB_MS: 1021
+2026-10-03T04:55:27.3277735Z   GITHUB_REPO_NAME: Lumiwealth/bot_manager
+2026-10-03T04:55:27.3278983Z   AWS_DEFAULT_REGION: us-east-1
+2026-10-03T04:55:27.3279305Z   AWS_REGION: us-east-1
+2026-10-03T04:55:27.3279701Z   AWS_ACCESS_KEY_ID: ***
+2026-10-03T04:55:27.3280079Z   AWS_SECRET_ACCESS_KEY: ***
+2026-10-03T04:55:27.3285265Z   AWS_SESSION_TOKEN: ***
+2026-10-03T04:55:27.3285612Z   pythonLocation: /opt/hostedtoolcache/Python/3.13.16/arm64
+2026-10-03T04:55:27.3286104Z   PKG_CONFIG_PATH: /opt/hostedtoolcache/Python/3.13.16/arm64/lib/pkgconfig
+2026-10-03T04:55:27.3286590Z   Python_ROOT_DIR: /opt/hostedtoolcache/Python/3.13.16/arm64
+2026-10-03T04:55:27.3287033Z   Python2_ROOT_DIR: /opt/hostedtoolcache/Python/3.13.16/arm64
+2026-10-03T04:55:27.3287465Z   Python3_ROOT_DIR: /opt/hostedtoolcache/Python/3.13.16/arm64
+2026-10-03T04:55:27.3287921Z   LD_LIBRARY_PATH: /opt/hostedtoolcache/Python/3.13.16/arm64/lib
+2026-10-03T04:55:27.3288302Z ##[endgroup]
+2026-10-03T04:55:27.5149000Z (node:3694) [DEP0040] DeprecationWarning: The `punycode` module is deprecated. Please use a userland alternative instead.
+2026-10-03T04:55:27.5150005Z (Use `node --trace-deprecation ...` to show where the warning was created)
+2026-10-03T04:55:27.5150914Z Downloading uv from "https://github.com/astral-sh/uv/releases/download/0.11.8/uv-aarch64-unknown-linux-gnu.tar.gz" ...
+2026-10-03T04:55:27.9915117Z [command]/usr/bin/tar xz --warning=no-unknown-keyword --overwrite -C /home/runner/_work/_temp/cdaf1d36-99f8-4b53-b931-dd46e4820818 -f /home/runner/_work/_temp/989b9997-1cb4-46a2-9948-2fca34ea85ea
+2026-10-03T04:55:28.5422213Z Added /opt/hostedtoolcache/uv/0.11.8/aarch64 to the path
+2026-10-03T04:55:28.5444734Z Added /home/runner/.local/bin to the path
+2026-10-03T04:55:28.5456644Z Successfully installed uv version 0.11.8
+2026-10-03T04:55:28.5476603Z Set UV_CACHE_DIR to /home/runner/_work/_temp/setup-uv-cache
+2026-10-03T04:55:28.5477184Z Searching files using cache dependency glob: requirements.txt
+2026-10-03T04:55:28.5478720Z /home/runner/_work/bot_manager/bot_manager/requirements.txt
+2026-10-03T04:55:28.5490475Z Found 1 files to hash.
+2026-10-03T04:55:28.5492780Z Trying to restore uv cache from GitHub Actions cache with key: setup-uv-1-aarch64-unknown-linux-gnu-0.11.8-91334449181a567ff3260c292a87f6a99b7d2f78bd736b6cddbed21e236e8d52-release-image-single-trade
+2026-10-03T04:55:28.6597869Z ##[warning]Failed to restore: Cache service responded with 400
+2026-10-03T04:55:28.6626376Z No GitHub Actions cache found for key: setup-uv-1-aarch64-unknown-linux-gnu-0.11.8-91334449181a567ff3260c292a87f6a99b7d2f78bd736b6cddbed21e236e8d52-release-image-single-trade
+2026-10-03T04:55:28.6862262Z ##[group]Run uv pip install --system -r requirements.txt
+2026-10-03T04:55:28.6862816Z [36;1muv pip install --system -r requirements.txt[0m
+2026-10-03T04:55:28.6902784Z shell: /usr/bin/bash -e {0}
+2026-10-03T04:55:28.6903092Z env:
+2026-10-03T04:55:28.6903317Z   ENVIRONMENT: dev
+2026-10-03T04:55:28.6903565Z   LUMIBOT_VERSION: 4.6.4
+2026-10-03T04:55:28.6903829Z   DOCKER_BUILDKIT: 1
+2026-10-03T04:55:28.6904082Z   BUILDKIT_PROGRESS: plain
+2026-10-03T04:55:28.6904362Z   GITHUB_ACTIONS_CACHE: true
+2026-10-03T04:55:28.6904724Z   BUILDX_CACHE_FROM: type=local,src=/tmp/.buildx-cache
+2026-10-03T04:55:28.6905175Z   BUILDX_CACHE_TO: type=local,dest=/tmp/.buildx-cache-new,mode=max
+2026-10-03T04:55:28.6905577Z   DEPOT_PROJECT_ID: 
+2026-10-03T04:55:28.6905853Z   BLACKSMITH_RUNNER_MESSAGE_WAIT_MS: 213
+2026-10-03T04:55:28.6906176Z   BLACKSMITH_RUNNER_ACQUIRE_JOB_MS: 1021
+2026-10-03T04:55:28.6906507Z   GITHUB_REPO_NAME: Lumiwealth/bot_manager
+2026-10-03T04:55:28.6906875Z   AWS_DEFAULT_REGION: us-east-1
+2026-10-03T04:55:28.6907169Z   AWS_REGION: us-east-1
+2026-10-03T04:55:28.6907599Z   AWS_ACCESS_KEY_ID: ***
+2026-10-03T04:55:28.6907972Z   AWS_SECRET_ACCESS_KEY: ***
+2026-10-03T04:55:28.6913143Z   AWS_SESSION_TOKEN: ***
+2026-10-03T04:55:28.6913475Z   pythonLocation: /opt/hostedtoolcache/Python/3.13.16/arm64
+2026-10-03T04:55:28.6913960Z   PKG_CONFIG_PATH: /opt/hostedtoolcache/Python/3.13.16/arm64/lib/pkgconfig
+2026-10-03T04:55:28.6914444Z   Python_ROOT_DIR: /opt/hostedtoolcache/Python/3.13.16/arm64
+2026-10-03T04:55:28.6914885Z   Python2_ROOT_DIR: /opt/hostedtoolcache/Python/3.13.16/arm64
+2026-10-03T04:55:28.6915320Z   Python3_ROOT_DIR: /opt/hostedtoolcache/Python/3.13.16/arm64
+2026-10-03T04:55:28.6915762Z   LD_LIBRARY_PATH: /opt/hostedtoolcache/Python/3.13.16/arm64/lib
+2026-10-03T04:55:28.6916182Z   UV_CACHE_DIR: /home/runner/_work/_temp/setup-uv-cache
+2026-10-03T04:55:28.6916529Z ##[endgroup]
+2026-10-03T04:55:28.7553763Z Using Python 3.13.16 environment at: /opt/hostedtoolcache/Python/3.13.16/arm64
+2026-10-03T04:55:28.9754083Z Resolved 24 packages in 218ms
+2026-10-03T04:55:28.9875233Z Downloading cryptography (4.5MiB)
+2026-10-03T04:55:28.9916477Z Downloading botocore (14.9MiB)
+2026-10-03T04:55:28.9919434Z Downloading zstandard (4.8MiB)
+2026-10-03T04:55:29.1759356Z  Downloaded zstandard
+2026-10-03T04:55:29.1892904Z  Downloaded cryptography
+2026-10-03T04:55:29.7293222Z  Downloaded botocore
+2026-10-03T04:55:29.7299933Z Prepared 24 packages in 753ms
+2026-10-03T04:55:29.8346455Z Installed 24 packages in 104ms
+2026-10-03T04:55:29.8347323Z  + aws-wsgi==0.2.7
+2026-10-03T04:55:29.8347707Z  + blinker==1.9.0
+2026-10-03T04:55:29.8348143Z  + boto3==1.43.1
+2026-10-03T04:55:29.8348487Z  + botocore==1.43.74
+2026-10-03T04:55:29.8348826Z  + certifi==2026.7.22
+2026-10-03T04:55:29.8349145Z  + cffi==2.1.1
+2026-10-03T04:55:29.8349475Z  + charset-normalizer==3.5.1
+2026-10-03T04:55:29.8349830Z  + click==8.4.2
+2026-10-03T04:55:29.8350149Z  + cryptography==50.0.0
+2026-10-03T04:55:29.8351014Z  + flask==3.1.3
+2026-10-03T04:55:29.8351375Z  + idna==3.19
+2026-10-03T04:55:29.8351712Z  + itsdangerous==2.2.0
+2026-10-03T04:55:29.8352044Z  + jinja2==3.1.6
+2026-10-03T04:55:29.8352360Z  + jmespath==1.1.0
+2026-10-03T04:55:29.8352683Z  + markupsafe==3.0.3
+2026-10-03T04:55:29.8353007Z  + packaging==25.0
+2026-10-03T04:55:29.8353334Z  + pycparser==3.0
+2026-10-03T04:55:29.8353762Z  + python-dateutil==2.9.0.post0
+2026-10-03T04:55:29.8354122Z  + requests==2.33.1
+2026-10-03T04:55:29.8354448Z  + s3transfer==0.17.1
+2026-10-03T04:55:29.8354936Z  + six==1.17.0
+2026-10-03T04:55:29.8358036Z  + urllib3==2.8.0
+2026-10-03T04:55:29.8372904Z  + werkzeug==3.1.8
+2026-10-03T04:55:29.8376814Z  + zstandard==0.25.0
+2026-10-03T04:55:29.8639147Z ##[group]Run docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f
+2026-10-03T04:55:29.8639889Z with:
+2026-10-03T04:55:29.8640128Z   driver: docker-container
+2026-10-03T04:55:29.8640486Z   platforms: linux/arm64
+2026-10-03T04:55:29.8640746Z   use: true
+2026-10-03T04:55:29.8640965Z   keep-state: false
+2026-10-03T04:55:29.8641210Z   cache-binary: true
+2026-10-03T04:55:29.8641456Z   cleanup: true
+2026-10-03T04:55:29.8641683Z   install: false
+2026-10-03T04:55:29.8641918Z env:
+2026-10-03T04:55:29.8642137Z   ENVIRONMENT: dev
+2026-10-03T04:55:29.8642379Z   LUMIBOT_VERSION: 4.6.4
+2026-10-03T04:55:29.8642635Z   DOCKER_BUILDKIT: 1
+2026-10-03T04:55:29.8642881Z   BUILDKIT_PROGRESS: plain
+2026-10-03T04:55:29.8643157Z   GITHUB_ACTIONS_CACHE: true
+2026-10-03T04:55:29.8643530Z   BUILDX_CACHE_FROM: type=local,src=/tmp/.buildx-cache
+2026-10-03T04:55:29.8644023Z   BUILDX_CACHE_TO: type=local,dest=/tmp/.buildx-cache-new,mode=max
+2026-10-03T04:55:29.8644417Z   DEPOT_PROJECT_ID: 
+2026-10-03T04:55:29.8644724Z   BLACKSMITH_RUNNER_MESSAGE_WAIT_MS: 213
+2026-10-03T04:55:29.8645047Z   BLACKSMITH_RUNNER_ACQUIRE_JOB_MS: 1021
+2026-10-03T04:55:29.8645370Z   GITHUB_REPO_NAME: Lumiwealth/bot_manager
+2026-10-03T04:55:29.8645690Z   AWS_DEFAULT_REGION: us-east-1
+2026-10-03T04:55:29.8645963Z   AWS_REGION: us-east-1
+2026-10-03T04:55:29.8646385Z   AWS_ACCESS_KEY_ID: ***
+2026-10-03T04:55:29.8646756Z   AWS_SECRET_ACCESS_KEY: ***
+2026-10-03T04:55:29.8651904Z   AWS_SESSION_TOKEN: ***
+2026-10-03T04:55:29.8652239Z   pythonLocation: /opt/hostedtoolcache/Python/3.13.16/arm64
+2026-10-03T04:55:29.8652725Z   PKG_CONFIG_PATH: /opt/hostedtoolcache/Python/3.13.16/arm64/lib/pkgconfig
+2026-10-03T04:55:29.8653206Z   Python_ROOT_DIR: /opt/hostedtoolcache/Python/3.13.16/arm64
+2026-10-03T04:55:29.8653646Z   Python2_ROOT_DIR: /opt/hostedtoolcache/Python/3.13.16/arm64
+2026-10-03T04:55:29.8654075Z   Python3_ROOT_DIR: /opt/hostedtoolcache/Python/3.13.16/arm64
+2026-10-03T04:55:29.8654537Z   LD_LIBRARY_PATH: /opt/hostedtoolcache/Python/3.13.16/arm64/lib
+2026-10-03T04:55:29.8654966Z   UV_CACHE_DIR: /home/runner/_work/_temp/setup-uv-cache
+2026-10-03T04:55:29.8655303Z ##[endgroup]
+2026-10-03T04:55:30.1611276Z (node:3750) [DEP0040] DeprecationWarning: The `punycode` module is deprecated. Please use a userland alternative instead.
+2026-10-03T04:55:30.1612411Z (Use `node --trace-deprecation ...` to show where the warning was created)
+2026-10-03T04:55:30.1695947Z ##[group]Docker info
+2026-10-03T04:55:30.1734033Z [command]/usr/bin/docker version
+2026-10-03T04:55:31.8543919Z Client: Docker Engine - Community
+2026-10-03T04:55:31.8555124Z  Version:           28.0.4
+2026-10-03T04:55:31.8555839Z  API version:       1.48
+2026-10-03T04:55:31.8556224Z  Go version:        go1.23.7
+2026-10-03T04:55:31.8556601Z  Git commit:        b8034c0
+2026-10-03T04:55:31.8556976Z  Built:             Tue Mar 25 15:07:55 2025
+2026-10-03T04:55:31.8557403Z  OS/Arch:           linux/arm64
+2026-10-03T04:55:31.8557766Z  Context:           default
+2026-10-03T04:55:31.8558012Z 
+2026-10-03T04:55:31.8558270Z Server: Docker Engine - Community
+2026-10-03T04:55:31.8558660Z  Engine:
+2026-10-03T04:55:31.8558969Z   Version:          28.0.4
+2026-10-03T04:55:31.8559343Z   API version:      1.48 (minimum version 1.24)
+2026-10-03T04:55:31.8559763Z   Go version:       go1.23.7
+2026-10-03T04:55:31.8560279Z   Git commit:       6430e49
+2026-10-03T04:55:31.8560646Z   Built:            Tue Mar 25 15:07:55 2025
+2026-10-03T04:55:31.8561039Z   OS/Arch:          linux/arm64
+2026-10-03T04:55:31.8561408Z   Experimental:     false
+2026-10-03T04:55:31.8561750Z  containerd:
+2026-10-03T04:55:31.8562089Z   Version:          v1.7.28
+2026-10-03T04:55:31.8562512Z   GitCommit:        b98a3aace656320842a23f4a392a33f46af97866
+2026-10-03T04:55:31.8562960Z  runc:
+2026-10-03T04:55:31.8563252Z   Version:          1.3.3
+2026-10-03T04:55:31.8563608Z   GitCommit:        v1.3.3-0-gd842d771
+2026-10-03T04:55:31.8563997Z  docker-init:
+2026-10-03T04:55:31.8564312Z   Version:          0.19.0
+2026-10-03T04:55:31.8565619Z   GitCommit:        de40ad0
+2026-10-03T04:55:31.8631384Z [command]/usr/bin/docker info
+2026-10-03T04:55:32.1557728Z Client: Docker Engine - Community
+2026-10-03T04:55:32.1571612Z  Version:    28.0.4
+2026-10-03T04:55:32.1576429Z  Context:    default
+2026-10-03T04:55:32.1576839Z  Debug Mode: false
+2026-10-03T04:55:32.1577264Z  Plugins:
+2026-10-03T04:55:32.1577646Z   buildx: Docker Buildx (Docker Inc.)
+2026-10-03T04:55:32.1578047Z     Version:  v0.23.0
+2026-10-03T04:55:32.1578451Z     Path:     /usr/local/lib/docker/cli-plugins/docker-buildx
+2026-10-03T04:55:32.1578960Z   compose: Docker Compose (Docker Inc.)
+2026-10-03T04:55:32.1580353Z     Version:  v2.38.2
+2026-10-03T04:55:32.1580765Z     Path:     /usr/libexec/docker/cli-plugins/docker-compose
+2026-10-03T04:55:32.1581122Z 
+2026-10-03T04:55:32.1581298Z Server:
+2026-10-03T04:55:32.1581602Z  Containers: 0
+2026-10-03T04:55:32.1581913Z   Running: 0
+2026-10-03T04:55:32.1582210Z   Paused: 0
+2026-10-03T04:55:32.1582550Z   Stopped: 0
+2026-10-03T04:55:32.1592544Z  Images: 9
+2026-10-03T04:55:32.1594775Z  Server Version: 28.0.4
+2026-10-03T04:55:32.1595178Z  Storage Driver: overlay2
+2026-10-03T04:55:32.1595578Z   Backing Filesystem: extfs
+2026-10-03T04:55:32.1595949Z   Supports d_type: true
+2026-10-03T04:55:32.1596303Z   Using metacopy: false
+2026-10-03T04:55:32.1596641Z   Native Overlay Diff: true
+2026-10-03T04:55:32.1596999Z   userxattr: false
+2026-10-03T04:55:32.1597329Z  Logging Driver: json-file
+2026-10-03T04:55:32.1597682Z  Cgroup Driver: systemd
+2026-10-03T04:55:32.1598020Z  Cgroup Version: 2
+2026-10-03T04:55:32.1598337Z  Plugins:
+2026-10-03T04:55:32.1598647Z   Volume: local
+2026-10-03T04:55:32.1599028Z   Network: bridge host ipvlan macvlan null overlay
+2026-10-03T04:55:32.1599673Z   Log: awslogs fluentd gcplogs gelf journald json-file local splunk syslog
+2026-10-03T04:55:32.1600269Z  Swarm: inactive
+2026-10-03T04:55:32.1600616Z  Runtimes: io.containerd.runc.v2 runc
+2026-10-03T04:55:32.1600997Z  Default Runtime: runc
+2026-10-03T04:55:32.1601351Z  Init Binary: docker-init
+2026-10-03T04:55:32.1601795Z  containerd version: b98a3aace656320842a23f4a392a33f46af97866
+2026-10-03T04:55:32.1602265Z  runc version: v1.3.3-0-gd842d771
+2026-10-03T04:55:32.1602627Z  init version: de40ad0
+2026-10-03T04:55:32.1602955Z  Security Options:
+2026-10-03T04:55:32.1603266Z   seccomp
+2026-10-03T04:55:32.1603558Z    Profile: builtin
+2026-10-03T04:55:32.1603873Z   cgroupns
+2026-10-03T04:55:32.1604183Z  Kernel Version: 6.6.141
+2026-10-03T04:55:32.1604534Z  Operating System: Ubuntu 24.04.3 LTS
+2026-10-03T04:55:32.1604923Z  OSType: linux
+2026-10-03T04:55:32.1607763Z  Architecture: aarch64
+2026-10-03T04:55:32.1608155Z  CPUs: 2
+2026-10-03T04:55:32.1608475Z  Total Memory: 5.778GiB
+2026-10-03T04:55:32.1608832Z  Name: ip-172-31-74-117
+2026-10-03T04:55:32.1609189Z  ID: e87c21c4-8fa7-4fa8-8782-11244a49168b
+2026-10-03T04:55:32.1609587Z  Docker Root Dir: /var/lib/docker
+2026-10-03T04:55:32.1610088Z  Debug Mode: false
+2026-10-03T04:55:32.1610425Z  Experimental: false
+2026-10-03T04:55:32.1610752Z  Insecure Registries:
+2026-10-03T04:55:32.1611091Z   192.168.127.1:5000
+2026-10-03T04:55:32.1611482Z   ::1/128
+2026-10-03T04:55:32.1611764Z   127.0.0.0/8
+2026-10-03T04:55:32.1612065Z  Registry Mirrors:
+2026-10-03T04:55:32.1612500Z   http://192.168.127.1:5000/
+2026-10-03T04:55:32.1612858Z  Live Restore Enabled: false
+2026-10-03T04:55:32.1613113Z 
+2026-10-03T04:55:32.1614079Z ##[endgroup]
+2026-10-03T04:55:32.2461028Z ##[group]Buildx version
+2026-10-03T04:55:32.2487061Z [command]/usr/bin/docker buildx version
+2026-10-03T04:55:32.3068376Z github.com/docker/buildx v0.23.0 28c90eadc4c12cc78155ad59ca5f486220241d2a
+2026-10-03T04:55:32.3112488Z ##[endgroup]
+2026-10-03T04:55:32.3326415Z ##[group]Inspecting default docker context
+2026-10-03T04:55:32.3523224Z [
+2026-10-03T04:55:32.3523554Z   {
+2026-10-03T04:55:32.3523797Z     "Name": "default",
+2026-10-03T04:55:32.3524113Z     "Metadata": {},
+2026-10-03T04:55:32.3524363Z     "Endpoints": {
+2026-10-03T04:55:32.3524596Z       "docker": {
+2026-10-03T04:55:32.3525644Z         "Host": "unix:///var/run/docker.sock",
+2026-10-03T04:55:32.3526467Z         "SkipTLSVerify": false
+2026-10-03T04:55:32.3526852Z       }
+2026-10-03T04:55:32.3527080Z     },
+2026-10-03T04:55:32.3527311Z     "TLSMaterial": {},
+2026-10-03T04:55:32.3527569Z     "Storage": {
+2026-10-03T04:55:32.3535794Z       "MetadataPath": "<IN MEMORY>",
+2026-10-03T04:55:32.3536228Z       "TLSPath": "<IN MEMORY>"
+2026-10-03T04:55:32.3536634Z     }
+2026-10-03T04:55:32.3536845Z   }
+2026-10-03T04:55:32.3537041Z ]
+2026-10-03T04:55:32.3538888Z ##[endgroup]
+2026-10-03T04:55:32.3540147Z ##[group]Creating a new builder instance
+2026-10-03T04:55:32.5114474Z [command]/usr/bin/docker buildx create --name builder-83c762cd-6717-4926-ba0d-8937a6499971 --driver docker-container --buildkitd-flags --allow-insecure-entitlement security.insecure --allow-insecure-entitlement network.host --platform linux/arm64 --use
+2026-10-03T04:55:32.5745538Z builder-83c762cd-6717-4926-ba0d-8937a6499971
+2026-10-03T04:55:32.5801202Z ##[endgroup]
+2026-10-03T04:55:32.5802057Z ##[group]Booting builder
+2026-10-03T04:55:32.5836597Z [command]/usr/bin/docker buildx inspect --bootstrap --builder builder-83c762cd-6717-4926-ba0d-8937a6499971
+2026-10-03T04:55:32.6430071Z #1 [internal] booting buildkit
+2026-10-03T04:55:32.7937465Z #1 pulling image moby/buildkit:buildx-stable-1
+2026-10-03T04:55:33.4329019Z #1 pulling image moby/buildkit:buildx-stable-1 0.8s done
+2026-10-03T04:55:33.5831167Z #1 creating container buildx_buildkit_builder-83c762cd-6717-4926-ba0d-8937a64999710
+2026-10-03T04:55:34.4982829Z #1 creating container buildx_buildkit_builder-83c762cd-6717-4926-ba0d-8937a64999710 1.1s done
+2026-10-03T04:55:34.5034064Z #1 DONE 1.9s
+2026-10-03T04:55:34.5577194Z Name:          builder-83c762cd-6717-4926-ba0d-8937a6499971
+2026-10-03T04:55:34.5581996Z Driver:        docker-container
+2026-10-03T04:55:34.5582598Z Last Activity: 2026-10-03 04:55:32 +0000 UTC
+2026-10-03T04:55:34.5583021Z 
+2026-10-03T04:55:34.5583206Z Nodes:
+2026-10-03T04:55:34.5583655Z Name:                  builder-83c762cd-6717-4926-ba0d-8937a64999710
+2026-10-03T04:55:34.5584178Z Endpoint:              unix:///var/run/docker.sock
+2026-10-03T04:55:34.5584732Z Status:                running
+2026-10-03T04:55:34.5585630Z BuildKit daemon flags: --allow-insecure-entitlement security.insecure --allow-insecure-entitlement network.host
+2026-10-03T04:55:34.5586365Z BuildKit version:      v0.33.1
+2026-10-03T04:55:34.5586813Z Platforms:             linux/arm64*
+2026-10-03T04:55:34.5587188Z Labels:
+2026-10-03T04:55:34.5587578Z  org.mobyproject.buildkit.worker.executor:         oci
+2026-10-03T04:55:34.5588147Z  org.mobyproject.buildkit.worker.hostname:         e249711946ac
+2026-10-03T04:55:34.5588731Z  org.mobyproject.buildkit.worker.network:          host
+2026-10-03T04:55:34.5589286Z  org.mobyproject.buildkit.worker.oci.process-mode: sandbox
+2026-10-03T04:55:34.5589911Z  org.mobyproject.buildkit.worker.selinux.enabled:  false
+2026-10-03T04:55:34.5590475Z  org.mobyproject.buildkit.worker.snapshotter:      overlayfs
+2026-10-03T04:55:34.5590963Z GC Policy rule#0:
+2026-10-03T04:55:34.5591559Z  All:            false
+2026-10-03T04:55:34.5592066Z  Filters:        type==source.local type==exec.cachemount type==source.git.checkout
+2026-10-03T04:55:34.5592603Z  Keep Duration:  48h0m0s
+2026-10-03T04:55:34.5592959Z  Max Used Space: 488.3MiB
+2026-10-03T04:55:34.5593356Z GC Policy rule#1:
+2026-10-03T04:55:34.5593780Z  All:            false
+2026-10-03T04:55:34.5594137Z  Keep Duration:  1440h0m0s
+2026-10-03T04:55:34.5594616Z  Reserved Space: 9.313GiB
+2026-10-03T04:55:34.5594998Z  Max Used Space: 91.27GiB
+2026-10-03T04:55:34.5595458Z  Min Free Space: 23.28GiB
+2026-10-03T04:55:34.5599162Z GC Policy rule#2:
+2026-10-03T04:55:34.5599742Z  All:            false
+2026-10-03T04:55:34.5600132Z  Reserved Space: 9.313GiB
+2026-10-03T04:55:34.5600493Z  Max Used Space: 91.27GiB
+2026-10-03T04:55:34.5600847Z  Min Free Space: 23.28GiB
+2026-10-03T04:55:34.5601205Z GC Policy rule#3:
+2026-10-03T04:55:34.5601533Z  All:            true
+2026-10-03T04:55:34.5601878Z  Reserved Space: 9.313GiB
+2026-10-03T04:55:34.5602717Z  Max Used Space: 91.27GiB
+2026-10-03T04:55:34.5626060Z  Min Free Space: 23.28GiB
+2026-10-03T04:55:34.5693104Z ##[endgroup]
+2026-10-03T04:55:34.6876132Z ##[group]Inspect builder
+2026-10-03T04:55:34.6888195Z {
+2026-10-03T04:55:34.6901198Z   "nodes": [
+2026-10-03T04:55:34.6901708Z     {
+2026-10-03T04:55:34.6902266Z       "name": "builder-83c762cd-6717-4926-ba0d-8937a64999710",
+2026-10-03T04:55:34.6902812Z       "endpoint": "unix:///var/run/docker.sock",
+2026-10-03T04:55:34.6903254Z       "status": "running",
+2026-10-03T04:55:34.6904391Z       "buildkitd-flags": "--allow-insecure-entitlement security.insecure --allow-insecure-entitlement network.host",
+2026-10-03T04:55:34.6905850Z       "buildkit": "v0.33.1",
+2026-10-03T04:55:34.6906341Z       "platforms": "linux/arm64",
+2026-10-03T04:55:34.6906726Z       "features": {
+2026-10-03T04:55:34.6907178Z         "Automatically load images to the Docker Engine image store": true,
+2026-10-03T04:55:34.6907707Z         "Cache export": true,
+2026-10-03T04:55:34.6908110Z         "Direct push": true,
+2026-10-03T04:55:34.6908930Z         "Docker exporter": true,
+2026-10-03T04:55:34.6909971Z         "Multi-platform build": true,
+2026-10-03T04:55:34.6911089Z         "OCI exporter": true
+2026-10-03T04:55:34.6911989Z       },
+2026-10-03T04:55:34.6912912Z       "labels": {
+2026-10-03T04:55:34.6913999Z         "org.mobyproject.buildkit.worker.executor": "oci",
+2026-10-03T04:55:34.6915294Z         "org.mobyproject.buildkit.worker.hostname": "e249711946ac",
+2026-10-03T04:55:34.6916495Z         "org.mobyproject.buildkit.worker.network": "host",
+2026-10-03T04:55:34.6917267Z         "org.mobyproject.buildkit.worker.oci.process-mode": "sandbox",
+2026-10-03T04:55:34.6917879Z         "org.mobyproject.buildkit.worker.selinux.enabled": "false",
+2026-10-03T04:55:34.6918488Z         "org.mobyproject.buildkit.worker.snapshotter": "overlayfs"
+2026-10-03T04:55:34.6918965Z       },
+2026-10-03T04:55:34.6919758Z       "gcPolicy": [
+2026-10-03T04:55:34.6920113Z         {
+2026-10-03T04:55:34.6920443Z           "all": false,
+2026-10-03T04:55:34.6920786Z           "filter": [
+2026-10-03T04:55:34.6921257Z             "type==source.local type==exec.cachemount type==source.git.checkout"
+2026-10-03T04:55:34.6921766Z           ],
+2026-10-03T04:55:34.6922100Z           "keepDuration": "48h0m0s",
+2026-10-03T04:55:34.6922491Z           "maxUsedSpace": "488.3MiB"
+2026-10-03T04:55:34.6922865Z         },
+2026-10-03T04:55:34.6923164Z         {
+2026-10-03T04:55:34.6923475Z           "all": false,
+2026-10-03T04:55:34.6923832Z           "keepDuration": "1440h0m0s",
+2026-10-03T04:55:34.6924228Z           "reservedSpace": "9.313GiB",
+2026-10-03T04:55:34.6925468Z           "maxUsedSpace": "91.27GiB",
+2026-10-03T04:55:34.6926546Z           "minFreeSpace": "23.28GiB"
+2026-10-03T04:55:34.6927518Z         },
+2026-10-03T04:55:34.6928472Z         {
+2026-10-03T04:55:34.6929343Z           "all": false,
+2026-10-03T04:55:34.6930339Z           "reservedSpace": "9.313GiB",
+2026-10-03T04:55:34.6931470Z           "maxUsedSpace": "91.27GiB",
+2026-10-03T04:55:34.6932501Z           "minFreeSpace": "23.28GiB"
+2026-10-03T04:55:34.6933563Z         },
+2026-10-03T04:55:34.6934592Z         {
+2026-10-03T04:55:34.6935499Z           "all": true,
+2026-10-03T04:55:34.6936400Z           "reservedSpace": "9.313GiB",
+2026-10-03T04:55:34.6937634Z           "maxUsedSpace": "91.27GiB",
+2026-10-03T04:55:34.6938856Z           "minFreeSpace": "23.28GiB"
+2026-10-03T04:55:34.6941044Z         }
+2026-10-03T04:55:34.6941877Z       ]
+2026-10-03T04:55:34.6942894Z     }
+2026-10-03T04:55:34.6943822Z   ],
+2026-10-03T04:55:34.6944752Z   "name": "builder-83c762cd-6717-4926-ba0d-8937a6499971",
+2026-10-03T04:55:34.6946918Z   "driver": "docker-container",
+2026-10-03T04:55:34.6947813Z   "lastActivity": "2026-10-03T04:55:32.000Z"
+2026-10-03T04:55:34.6948838Z }
+2026-10-03T04:55:34.6950121Z ##[endgroup]
+2026-10-03T04:55:34.6963427Z ##[group]BuildKit version
+2026-10-03T04:55:34.6965105Z builder-83c762cd-6717-4926-ba0d-8937a64999710: v0.33.1
+2026-10-03T04:55:34.6967477Z ##[endgroup]
+2026-10-03T04:55:34.7124491Z ##[group]Run python docker_build/build_single_trade_lambda_image.py
+2026-10-03T04:55:34.7125067Z [36;1mpython docker_build/build_single_trade_lambda_image.py[0m
+2026-10-03T04:55:34.7166981Z shell: /usr/bin/bash -e {0}
+2026-10-03T04:55:34.7167294Z env:
+2026-10-03T04:55:34.7167530Z   ENVIRONMENT: dev
+2026-10-03T04:55:34.7167779Z   LUMIBOT_VERSION: 4.6.4
+2026-10-03T04:55:34.7176646Z   DOCKER_BUILDKIT: 1
+2026-10-03T04:55:34.7176922Z   BUILDKIT_PROGRESS: plain
+2026-10-03T04:55:34.7177199Z   GITHUB_ACTIONS_CACHE: true
+2026-10-03T04:55:34.7177519Z   BUILDX_CACHE_FROM: type=local,src=/tmp/.buildx-cache
+2026-10-03T04:55:34.7178002Z   BUILDX_CACHE_TO: type=local,dest=/tmp/.buildx-cache-new,mode=max
+2026-10-03T04:55:34.7178398Z   DEPOT_PROJECT_ID: 
+2026-10-03T04:55:34.7178659Z   BLACKSMITH_RUNNER_MESSAGE_WAIT_MS: 213
+2026-10-03T04:55:34.7178990Z   BLACKSMITH_RUNNER_ACQUIRE_JOB_MS: 1021
+2026-10-03T04:55:34.7180670Z   GITHUB_REPO_NAME: Lumiwealth/bot_manager
+2026-10-03T04:55:34.7181137Z   AWS_DEFAULT_REGION: us-east-1
+2026-10-03T04:55:34.7181412Z   AWS_REGION: us-east-1
+2026-10-03T04:55:34.7181900Z   AWS_ACCESS_KEY_ID: ***
+2026-10-03T04:55:34.7182268Z   AWS_SECRET_ACCESS_KEY: ***
+2026-10-03T04:55:34.7187339Z   AWS_SESSION_TOKEN: ***
+2026-10-03T04:55:34.7187679Z   pythonLocation: /opt/hostedtoolcache/Python/3.13.16/arm64
+2026-10-03T04:55:34.7188156Z   PKG_CONFIG_PATH: /opt/hostedtoolcache/Python/3.13.16/arm64/lib/pkgconfig
+2026-10-03T04:55:34.7188646Z   Python_ROOT_DIR: /opt/hostedtoolcache/Python/3.13.16/arm64
+2026-10-03T04:55:34.7189085Z   Python2_ROOT_DIR: /opt/hostedtoolcache/Python/3.13.16/arm64
+2026-10-03T04:55:34.7189526Z   Python3_ROOT_DIR: /opt/hostedtoolcache/Python/3.13.16/arm64
+2026-10-03T04:55:34.7190033Z   LD_LIBRARY_PATH: /opt/hostedtoolcache/Python/3.13.16/arm64/lib
+2026-10-03T04:55:34.7190463Z   UV_CACHE_DIR: /home/runner/_work/_temp/setup-uv-cache
+2026-10-03T04:55:34.7190804Z ##[endgroup]
+2026-10-03T04:55:35.3239864Z INFO:botocore.credentials:Found credentials in environment variables.
+2026-10-03T04:55:35.3869035Z INFO:image_builder:Using environment prefix: dev
+2026-10-03T04:55:35.6860752Z INFO:image_builder:ECR repository already exists: dev-single-trade-lambda
+2026-10-03T04:55:35.7575573Z INFO:image_builder:Attempting ECR login (attempt 1/2)...
+2026-10-03T04:55:35.7576297Z INFO:image_builder:Getting ECR authentication token...
+2026-10-03T04:55:36.8702758Z INFO:image_builder:ECR token obtained successfully
+2026-10-03T04:55:36.8706397Z INFO:image_builder:Logging into ECR registry: 412381755468.dkr.ecr.us-east-1.amazonaws.com
+2026-10-03T04:55:37.3676839Z INFO:image_builder:ECR login successful
+2026-10-03T04:55:37.3684770Z INFO:image_builder:Docker login output: Login Succeeded
+2026-10-03T04:55:37.4893339Z bot-manager-single-trade-builder
+2026-10-03T04:55:37.5492616Z #1 [internal] booting buildkit
+2026-10-03T04:55:37.7012696Z #1 pulling image moby/buildkit:buildx-stable-1
+2026-10-03T04:55:38.3148158Z #1 pulling image moby/buildkit:buildx-stable-1 0.8s done
+2026-10-03T04:55:38.4652528Z #1 creating container buildx_buildkit_bot-manager-single-trade-builder0
+2026-10-03T04:55:38.7849860Z #1 creating container buildx_buildkit_bot-manager-single-trade-builder0 0.5s done
+2026-10-03T04:55:38.7880944Z #1 DONE 1.2s
+2026-10-03T04:55:38.8354035Z Name:          bot-manager-single-trade-builder
+2026-10-03T04:55:38.8359167Z Driver:        docker-container
+2026-10-03T04:55:38.8359776Z Last Activity: 2026-10-03 04:55:37 +0000 UTC
+2026-10-03T04:55:38.8360096Z 
+2026-10-03T04:55:38.8360340Z Nodes:
+2026-10-03T04:55:38.8360726Z Name:                  bot-manager-single-trade-builder0
+2026-10-03T04:55:38.8361235Z Endpoint:              unix:///var/run/docker.sock
+2026-10-03T04:55:38.8361681Z Status:                running
+2026-10-03T04:55:38.8362164Z BuildKit daemon flags: --allow-insecure-entitlement=network.host
+2026-10-03T04:55:38.8362677Z BuildKit version:      v0.33.1
+2026-10-03T04:55:38.8363066Z Platforms:             linux/arm64
+2026-10-03T04:55:38.8363432Z Labels:
+2026-10-03T04:55:38.8365231Z  org.mobyproject.buildkit.worker.executor:         oci
+2026-10-03T04:55:38.8367011Z  org.mobyproject.buildkit.worker.hostname:         426f278dd987
+2026-10-03T04:55:38.8367759Z  org.mobyproject.buildkit.worker.network:          host
+2026-10-03T04:55:38.8368335Z  org.mobyproject.buildkit.worker.oci.process-mode: sandbox
+2026-10-03T04:55:38.8368912Z  org.mobyproject.buildkit.worker.selinux.enabled:  false
+2026-10-03T04:55:38.8369585Z  org.mobyproject.buildkit.worker.snapshotter:      overlayfs
+2026-10-03T04:55:38.8370093Z GC Policy rule#0:
+2026-10-03T04:55:38.8370441Z  All:            false
+2026-10-03T04:55:38.8370944Z  Filters:        type==source.local type==exec.cachemount type==source.git.checkout
+2026-10-03T04:55:38.8371509Z  Keep Duration:  48h0m0s
+2026-10-03T04:55:38.8371871Z  Max Used Space: 488.3MiB
+2026-10-03T04:55:38.8372226Z GC Policy rule#1:
+2026-10-03T04:55:38.8372560Z  All:            false
+2026-10-03T04:55:38.8372907Z  Keep Duration:  1440h0m0s
+2026-10-03T04:55:38.8373273Z  Reserved Space: 9.313GiB
+2026-10-03T04:55:38.8373642Z  Max Used Space: 91.27GiB
+2026-10-03T04:55:38.8374013Z  Min Free Space: 23.28GiB
+2026-10-03T04:55:38.8374365Z GC Policy rule#2:
+2026-10-03T04:55:38.8374698Z  All:            false
+2026-10-03T04:55:38.8375035Z  Reserved Space: 9.313GiB
+2026-10-03T04:55:38.8375398Z  Max Used Space: 91.27GiB
+2026-10-03T04:55:38.8375752Z  Min Free Space: 23.28GiB
+2026-10-03T04:55:38.8376102Z GC Policy rule#3:
+2026-10-03T04:55:38.8376444Z  All:            true
+2026-10-03T04:55:38.8376798Z  Reserved Space: 9.313GiB
+2026-10-03T04:55:38.8377147Z  Max Used Space: 91.27GiB
+2026-10-03T04:55:38.8377498Z  Min Free Space: 23.28GiB
+2026-10-03T04:55:38.8542611Z INFO:image_builder:Running build command: /usr/bin/docker buildx build --builder bot-manager-single-trade-builder --platform linux/arm64 --provenance=false --cache-from type=local,src=/tmp/.buildx-cache --cache-to type=local,dest=/tmp/.buildx-cache-new,mode=max --build-arg LUMIBOT_REQUIREMENT=lumibot==4.6.4 --build-arg LUMIBOT_DEPENDENCY_PROFILE=full -t 412381755468.dkr.ecr.us-east-1.amazonaws.com/dev-single-trade-lambda:32f2c5068412-37098060587-1 -t 412381755468.dkr.ecr.us-east-1.amazonaws.com/dev-single-trade-lambda:latest --push /tmp/tmpp7uqmbhg
+2026-10-03T04:55:39.1656909Z #0 building with "bot-manager-single-trade-builder" instance using docker-container driver
+2026-10-03T04:55:39.1658037Z 
+2026-10-03T04:55:39.1658253Z #1 [internal] load build definition from Dockerfile
+2026-10-03T04:55:39.1658631Z #1 transferring dockerfile: 1.92kB done
+2026-10-03T04:55:39.1659112Z #1 DONE 0.0s
+2026-10-03T04:55:39.1659954Z 
+2026-10-03T04:55:39.1660241Z #2 [internal] load metadata for public.ecr.aws/lambda/python:3.13
+2026-10-03T04:55:39.6777042Z #2 DONE 0.7s
+2026-10-03T04:55:39.8363435Z 
+2026-10-03T04:55:39.8366788Z #3 [internal] load .dockerignore
+2026-10-03T04:55:39.8367250Z #3 transferring context: 2B done
+2026-10-03T04:55:39.8367545Z #3 DONE 0.0s
+2026-10-03T04:55:39.8367683Z 
+2026-10-03T04:55:39.8367803Z #4 [internal] load build context
+2026-10-03T04:55:39.8380289Z #4 transferring context: 789.04kB 0.1s done
+2026-10-03T04:55:39.8380782Z #4 DONE 0.1s
+2026-10-03T04:55:39.8380931Z 
+2026-10-03T04:55:39.8381364Z #5 [ 1/10] FROM public.ecr.aws/lambda/python:3.13@sha256:1d975f579a9921b071293f75979f2a232f30889932bbdd59ee53a8dfa849198a
+2026-10-03T04:55:39.8382242Z #5 resolve public.ecr.aws/lambda/python:3.13@sha256:1d975f579a9921b071293f75979f2a232f30889932bbdd59ee53a8dfa849198a done
+2026-10-03T04:55:39.8383062Z #5 sha256:1bd7a610562b2f1679212e0e8498e67efeadf11bc26c1a389a8d03370897eae0 14.12kB / 14.12kB 0.1s done
+2026-10-03T04:55:39.9804234Z #5 sha256:6851a869ddae1ee0b7f6f1d1b564f41e532dc5eaefbb3469ba67639e8229f363 7.34MB / 157.13MB 0.2s
+2026-10-03T04:55:39.9805642Z #5 sha256:c207065814c02dc94565e631a8cc7d4633660336c54d23ed091385ff5f5ce5f4 0B / 3.45MB 0.2s
+2026-10-03T04:55:39.9812369Z #5 sha256:cf9b2d32cdc83598880092a81284c44740551d3ae7c236a902a17300a18d21d4 88.13kB / 88.13kB 0.2s done
+2026-10-03T04:55:40.0810008Z #5 sha256:6851a869ddae1ee0b7f6f1d1b564f41e532dc5eaefbb3469ba67639e8229f363 31.46MB / 157.13MB 0.3s
+2026-10-03T04:55:40.0828444Z #5 sha256:c207065814c02dc94565e631a8cc7d4633660336c54d23ed091385ff5f5ce5f4 3.45MB / 3.45MB 0.2s done
+2026-10-03T04:55:40.0833700Z #5 sha256:3ddb2aa63595876f5d065c607679e0e9f4667c8118a645934c81296e54703b5c 0B / 38.07MB 0.2s
+2026-10-03T04:55:40.0835953Z #5 sha256:e6e020cd3ead7263c85a6cbd526530c8d38012dced910ed8d24c05a3dcb8705b 414B / 414B 0.1s done
+2026-10-03T04:55:40.2253882Z #5 sha256:6851a869ddae1ee0b7f6f1d1b564f41e532dc5eaefbb3469ba67639e8229f363 62.91MB / 157.13MB 0.5s
+2026-10-03T04:55:40.2254877Z #5 sha256:3ddb2aa63595876f5d065c607679e0e9f4667c8118a645934c81296e54703b5c 18.87MB / 38.07MB 0.3s
+2026-10-03T04:55:40.3739218Z #5 sha256:6851a869ddae1ee0b7f6f1d1b564f41e532dc5eaefbb3469ba67639e8229f363 104.25MB / 157.13MB 0.6s
+2026-10-03T04:55:40.3740489Z #5 sha256:3ddb2aa63595876f5d065c607679e0e9f4667c8118a645934c81296e54703b5c 30.41MB / 38.07MB 0.5s
+2026-10-03T04:55:40.5255061Z #5 sha256:6851a869ddae1ee0b7f6f1d1b564f41e532dc5eaefbb3469ba67639e8229f363 135.40MB / 157.13MB 0.8s
+2026-10-03T04:55:40.5256094Z #5 sha256:3ddb2aa63595876f5d065c607679e0e9f4667c8118a645934c81296e54703b5c 38.07MB / 38.07MB 0.6s done
+2026-10-03T04:55:40.5256884Z #5 extracting sha256:3ddb2aa63595876f5d065c607679e0e9f4667c8118a645934c81296e54703b5c
+2026-10-03T04:55:40.6740709Z #5 sha256:6851a869ddae1ee0b7f6f1d1b564f41e532dc5eaefbb3469ba67639e8229f363 157.13MB / 157.13MB 0.9s
+2026-10-03T04:55:40.9967166Z #5 sha256:6851a869ddae1ee0b7f6f1d1b564f41e532dc5eaefbb3469ba67639e8229f363 157.13MB / 157.13MB 1.1s done
+2026-10-03T04:55:41.7503015Z #5 extracting sha256:3ddb2aa63595876f5d065c607679e0e9f4667c8118a645934c81296e54703b5c 1.3s done
+2026-10-03T04:55:41.7503846Z #5 DONE 2.0s
+2026-10-03T04:55:41.9667886Z 
+2026-10-03T04:55:41.9670572Z #5 [ 1/10] FROM public.ecr.aws/lambda/python:3.13@sha256:1d975f579a9921b071293f75979f2a232f30889932bbdd59ee53a8dfa849198a
+2026-10-03T04:55:41.9671787Z #5 extracting sha256:cf9b2d32cdc83598880092a81284c44740551d3ae7c236a902a17300a18d21d4 0.0s done
+2026-10-03T04:55:41.9672514Z #5 extracting sha256:e6e020cd3ead7263c85a6cbd526530c8d38012dced910ed8d24c05a3dcb8705b done
+2026-10-03T04:55:41.9673304Z #5 extracting sha256:c207065814c02dc94565e631a8cc7d4633660336c54d23ed091385ff5f5ce5f4 0.0s done
+2026-10-03T04:55:41.9680098Z #5 extracting sha256:6851a869ddae1ee0b7f6f1d1b564f41e532dc5eaefbb3469ba67639e8229f363
+2026-10-03T04:55:45.6095600Z #5 extracting sha256:6851a869ddae1ee0b7f6f1d1b564f41e532dc5eaefbb3469ba67639e8229f363 3.8s done
+2026-10-03T04:55:45.6097356Z #5 DONE 5.9s
+2026-10-03T04:55:45.7655969Z 
+2026-10-03T04:55:45.7657449Z #5 [ 1/10] FROM public.ecr.aws/lambda/python:3.13@sha256:1d975f579a9921b071293f75979f2a232f30889932bbdd59ee53a8dfa849198a
+2026-10-03T04:55:45.7658559Z #5 extracting sha256:1bd7a610562b2f1679212e0e8498e67efeadf11bc26c1a389a8d03370897eae0 done
+2026-10-03T04:55:45.7662319Z #5 DONE 5.9s
+2026-10-03T04:55:45.7663031Z 
+2026-10-03T04:55:45.7663379Z #6 [ 2/10] COPY docker_build/requirements.lambda-live-all.lock /tmp/requirements.lambda-live-all.lock
+2026-10-03T04:55:45.9180954Z #6 DONE 0.3s
+2026-10-03T04:55:46.0780438Z 
+2026-10-03T04:55:46.0782018Z #7 [ 3/10] COPY docker_build/requirements.lambda-live-all-lumibot.lock /tmp/requirements.lambda-live-all-lumibot.lock
+2026-10-03T04:55:46.0782839Z #7 DONE 0.0s
+2026-10-03T04:55:46.0783136Z 
+2026-10-03T04:55:46.0785752Z #8 [ 4/10] RUN python -m pip install --upgrade pip &&     if [ "full" = "live-all" ]; then         python -m pip install --no-cache-dir --require-hashes             -r /tmp/requirements.lambda-live-all.lock &&         python -m pip install --no-cache-dir --no-deps --require-hashes             -r /tmp/requirements.lambda-live-all-lumibot.lock;     elif [ "full" = "full" ]; then         python -m pip install --no-cache-dir             "lumibot==4.6.4"             boto3==1.43.1             requests==2.33.1             packaging==25.0             zstandard==0.25.0             pandas-ta-classic             thetadata==0.9.11             scikit-learn;     else         echo "Unsupported LumiBot dependency profile: full" >&2;         exit 2;     fi
+2026-10-03T04:55:46.3278544Z #8 0.400 Requirement already satisfied: pip in /var/lang/lib/python3.13/site-packages (26.2.1)
+2026-10-03T04:55:46.4770161Z #8 0.549 WARNING: Running pip as the 'root' user can result in broken permissions and conflicting behaviour with the system package manager, possibly rendering your system unusable. It is recommended to use a virtual environment instead: https://pip.pypa.io/warnings/venv. Use the --root-user-action option if you know what you are doing and want to suppress this warning.
+2026-10-03T04:55:46.9350883Z #8 1.007 Collecting lumibot==4.6.4
+2026-10-03T04:55:47.1798581Z #8 1.101   Downloading lumibot-4.6.4-py3-none-any.whl.metadata (46 kB)
+2026-10-03T04:55:47.1993840Z #8 1.272 Collecting boto3==1.43.1
+2026-10-03T04:55:47.3125903Z #8 1.278   Downloading boto3-1.43.1-py3-none-any.whl.metadata (6.5 kB)
+2026-10-03T04:55:47.3126504Z #8 1.292 Collecting requests==2.33.1
+2026-10-03T04:55:47.3126937Z #8 1.296   Downloading requests-2.33.1-py3-none-any.whl.metadata (4.8 kB)
+2026-10-03T04:55:47.3127383Z #8 1.305 Collecting packaging==25.0
+2026-10-03T04:55:47.3127803Z #8 1.309   Downloading packaging-25.0-py3-none-any.whl.metadata (3.3 kB)
+2026-10-03T04:55:47.3128330Z #8 1.355 Collecting zstandard==0.25.0
+2026-10-03T04:55:47.3128930Z #8 1.360   Downloading zstandard-0.25.0-cp313-cp313-manylinux2014_aarch64.manylinux_2_17_aarch64.whl.metadata (3.3 kB)
+2026-10-03T04:55:47.3129632Z #8 1.368 Collecting pandas-ta-classic
+2026-10-03T04:55:47.3130082Z #8 1.372   Downloading pandas_ta_classic-0.8.32-py3-none-any.whl.metadata (18 kB)
+2026-10-03T04:55:47.3130559Z #8 1.385 Collecting thetadata==0.9.11
+2026-10-03T04:55:47.4138808Z #8 1.390   Downloading thetadata-0.9.11-py3-none-any.whl.metadata (3.3 kB)
+2026-10-03T04:55:47.4143802Z #8 1.452 Collecting scikit-learn
+2026-10-03T04:55:47.4147065Z #8 1.457   Downloading scikit_learn-1.9.1-cp313-cp313-manylinux_2_27_aarch64.manylinux_2_28_aarch64.whl.metadata (9.3 kB)
+2026-10-03T04:55:47.4167163Z #8 1.469 Collecting polygon-api-client>=1.13.3 (from lumibot==4.6.4)
+2026-10-03T04:55:47.4173485Z #8 1.474   Downloading polygon_api_client-1.16.3-py3-none-any.whl.metadata (962 bytes)
+2026-10-03T04:55:47.4176187Z #8 1.487 Collecting alpaca-py>=0.42.0 (from lumibot==4.6.4)
+2026-10-03T04:55:47.6101320Z #8 1.490   Downloading alpaca_py-0.44.0-py3-none-any.whl.metadata (13 kB)
+2026-10-03T04:55:47.6102281Z #8 1.500 Collecting alpha_vantage (from lumibot==4.6.4)
+2026-10-03T04:55:47.6103045Z #8 1.504   Downloading alpha_vantage-3.0.0-py3-none-any.whl.metadata (12 kB)
+2026-10-03T04:55:47.6103671Z #8 1.512 Collecting ibapi==9.81.1.post1 (from lumibot==4.6.4)
+2026-10-03T04:55:47.6104208Z #8 1.517   Downloading ibapi-9.81.1.post1.tar.gz (61 kB)
+2026-10-03T04:55:47.6104830Z #8 1.532   Installing build dependencies: started
+2026-10-03T04:55:48.2228392Z #8 2.295   Installing build dependencies: finished with status 'done'
+2026-10-03T04:55:48.3745549Z #8 2.296   Getting requirements to build wheel: started
+2026-10-03T04:55:48.5596274Z #8 2.632   Getting requirements to build wheel: finished with status 'done'
+2026-10-03T04:55:48.7140280Z #8 2.634   Preparing metadata (pyproject.toml): started
+2026-10-03T04:55:48.7930184Z #8 2.865   Preparing metadata (pyproject.toml): finished with status 'done'
+2026-10-03T04:55:48.9260512Z #8 2.884 Collecting yfinance>=0.2.61 (from lumibot==4.6.4)
+2026-10-03T04:55:48.9261108Z #8 2.889   Downloading yfinance-1.7.0-py3-none-any.whl.metadata (6.7 kB)
+2026-10-03T04:55:48.9262905Z #8 2.998 Collecting matplotlib>=3.3.3 (from lumibot==4.6.4)
+2026-10-03T04:55:49.1109737Z #8 3.002   Downloading matplotlib-3.11.2-cp313-cp313-manylinux_2_26_aarch64.manylinux_2_28_aarch64.whl.metadata (80 kB)
+2026-10-03T04:55:49.1110876Z #8 3.029 Collecting quandl (from lumibot==4.6.4)
+2026-10-03T04:55:49.1112923Z #8 3.034   Downloading Quandl-3.7.0-py2.py3-none-any.whl.metadata (1.3 kB)
+2026-10-03T04:55:49.1113771Z #8 3.183 Collecting numpy<2.5.0,>=1.20.0 (from lumibot==4.6.4)
+2026-10-03T04:55:49.2118197Z #8 3.189   Downloading numpy-2.4.6-cp313-cp313-manylinux_2_27_aarch64.manylinux_2_28_aarch64.whl.metadata (6.6 kB)
+2026-10-03T04:55:49.2119357Z #8 3.279 Collecting pandas>=2.2.0 (from lumibot==4.6.4)
+2026-10-03T04:55:49.2120595Z #8 3.284   Downloading pandas-3.0.6-cp313-cp313-manylinux_2_24_aarch64.manylinux_2_28_aarch64.whl.metadata (79 kB)
+2026-10-03T04:55:49.3124671Z #8 3.385 Collecting polars>=1.32.3 (from lumibot==4.6.4)
+2026-10-03T04:55:49.5133077Z #8 3.389   Downloading polars-1.44.2-py3-none-any.whl.metadata (11 kB)
+2026-10-03T04:55:49.5134818Z #8 3.406 Collecting pandas_market_calendars>=5.1.0 (from lumibot==4.6.4)
+2026-10-03T04:55:49.5135647Z #8 3.410   Downloading pandas_market_calendars-5.4.0-py3-none-any.whl.metadata (8.8 kB)
+2026-10-03T04:55:49.5136287Z #8 3.432 Collecting plotly>=5.18.0 (from lumibot==4.6.4)
+2026-10-03T04:55:49.5136898Z #8 3.436   Downloading plotly-7.1.0-py3-none-any.whl.metadata (8.8 kB)
+2026-10-03T04:55:49.6694380Z #8 3.741 Collecting sqlalchemy (from lumibot==4.6.4)
+2026-10-03T04:55:49.8533558Z #8 3.747   Downloading sqlalchemy-2.1.3-cp313-cp313-manylinux2014_aarch64.manylinux_2_17_aarch64.manylinux_2_28_aarch64.whl.metadata (9.7 kB)
+2026-10-03T04:55:49.8541079Z #8 3.776 Collecting bcrypt (from lumibot==4.6.4)
+2026-10-03T04:55:49.8541656Z #8 3.780   Downloading bcrypt-5.0.0-cp39-abi3-manylinux_2_34_aarch64.whl.metadata (10 kB)
+2026-10-03T04:55:49.8542190Z #8 3.803 Collecting pytest (from lumibot==4.6.4)
+2026-10-03T04:55:49.8542706Z #8 3.807   Downloading pytest-9.1.1-py3-none-any.whl.metadata (7.6 kB)
+2026-10-03T04:55:49.8543167Z #8 3.832 Collecting yappi>=1.6.0 (from lumibot==4.6.4)
+2026-10-03T04:55:49.8543870Z #8 3.837   Downloading yappi-1.7.6-cp313-cp313-manylinux2014_aarch64.manylinux_2_17_aarch64.manylinux_2_28_aarch64.whl.metadata (11 kB)
+2026-10-03T04:55:49.8545743Z #8 3.926 Collecting scipy>=1.14.0 (from lumibot==4.6.4)
+2026-10-03T04:55:50.0497501Z #8 3.931   Downloading scipy-1.18.1-cp313-cp313-manylinux_2_27_aarch64.manylinux_2_28_aarch64.whl.metadata (62 kB)
+2026-10-03T04:55:50.0498588Z #8 3.952 Collecting quantstats-lumi<1.2.0,>=1.1.5 (from lumibot==4.6.4)
+2026-10-03T04:55:50.0499441Z #8 3.957   Downloading quantstats_lumi-1.1.5-py2.py3-none-any.whl.metadata (11 kB)
+2026-10-03T04:55:50.0500080Z #8 3.968 Collecting python-dotenv (from lumibot==4.6.4)
+2026-10-03T04:55:50.0501707Z #8 3.972   Downloading python_dotenv-1.2.4-py3-none-any.whl.metadata (29 kB)
+2026-10-03T04:55:50.0707002Z #8 4.143 Collecting ccxt>=4.5.50 (from lumibot==4.6.4)
+2026-10-03T04:55:50.1965876Z #8 4.149   Downloading ccxt-4.5.85-py3-none-any.whl.metadata (163 kB)
+2026-10-03T04:55:50.1971456Z #8 4.167 Collecting termcolor (from lumibot==4.6.4)
+2026-10-03T04:55:50.1973125Z #8 4.170   Downloading termcolor-3.3.0-py3-none-any.whl.metadata (6.5 kB)
+2026-10-03T04:55:50.1973736Z #8 4.181 Collecting jsonpickle (from lumibot==4.6.4)
+2026-10-03T04:55:50.1974303Z #8 4.185   Downloading jsonpickle-4.1.3-py3-none-any.whl.metadata (8.1 kB)
+2026-10-03T04:55:50.1974849Z #8 4.196 Collecting apscheduler>=3.10.4 (from lumibot==4.6.4)
+2026-10-03T04:55:50.1976612Z #8 4.200   Downloading apscheduler-3.11.3-py3-none-any.whl.metadata (6.5 kB)
+2026-10-03T04:55:50.1977185Z #8 4.207 Collecting appdirs (from lumibot==4.6.4)
+2026-10-03T04:55:50.1977767Z #8 4.211   Downloading appdirs-1.4.4-py2.py3-none-any.whl.metadata (9.0 kB)
+2026-10-03T04:55:50.1978314Z #8 4.269 Collecting pyarrow>=15.0.0 (from lumibot==4.6.4)
+2026-10-03T04:55:50.3306014Z #8 4.274   Downloading pyarrow-25.0.1-cp313-cp313-manylinux_2_28_aarch64.whl.metadata (3.0 kB)
+2026-10-03T04:55:50.3308063Z #8 4.293 Collecting tqdm (from lumibot==4.6.4)
+2026-10-03T04:55:50.3308749Z #8 4.296   Downloading tqdm-4.70.1-py3-none-any.whl.metadata (57 kB)
+2026-10-03T04:55:50.3309314Z #8 4.309 Collecting lumiwealth-tradier>=0.1.18 (from lumibot==4.6.4)
+2026-10-03T04:55:50.3309983Z #8 4.313   Downloading lumiwealth_tradier-0.1.18-py3-none-any.whl.metadata (6.4 kB)
+2026-10-03T04:55:50.3325994Z #8 4.321 Collecting py-clob-client-v2>=1.0.1 (from lumibot==4.6.4)
+2026-10-03T04:55:50.3329410Z #8 4.325   Downloading py_clob_client_v2-1.2.0-py3-none-any.whl.metadata (4.6 kB)
+2026-10-03T04:55:50.3330003Z #8 4.352 Collecting pytz (from lumibot==4.6.4)
+2026-10-03T04:55:50.3330529Z #8 4.355   Downloading pytz-2026.4-py2.py3-none-any.whl.metadata (22 kB)
+2026-10-03T04:55:50.3331126Z #8 4.403 Collecting psycopg2-binary (from lumibot==4.6.4)
+2026-10-03T04:55:50.4993968Z #8 4.408   Downloading psycopg2_binary-2.9.13-cp313-cp313-manylinux_2_27_aarch64.manylinux_2_28_aarch64.whl.metadata (4.9 kB)
+2026-10-03T04:55:50.4995009Z #8 4.418 Collecting exchange_calendars>=4.6.0 (from lumibot==4.6.4)
+2026-10-03T04:55:50.4995645Z #8 4.422   Downloading exchange_calendars-4.13.2-py3-none-any.whl.metadata (26 kB)
+2026-10-03T04:55:50.5498460Z #8 4.622 Collecting duckdb (from lumibot==4.6.4)
+2026-10-03T04:55:50.6695701Z #8 4.627   Downloading duckdb-1.5.6-cp313-cp313-manylinux_2_26_aarch64.manylinux_2_28_aarch64.whl.metadata (4.2 kB)
+2026-10-03T04:55:50.6745724Z #8 4.635 Collecting tabulate (from lumibot==4.6.4)
+2026-10-03T04:55:50.6785686Z #8 4.638   Downloading tabulate-0.10.0-py3-none-any.whl.metadata (40 kB)
+2026-10-03T04:55:50.6786892Z #8 4.657 Collecting databento>=0.42.0 (from lumibot==4.6.4)
+2026-10-03T04:55:50.6787627Z #8 4.661   Downloading databento-0.87.0-py3-none-any.whl.metadata (6.7 kB)
+2026-10-03T04:55:50.6788201Z #8 4.680 Collecting holidays (from lumibot==4.6.4)
+2026-10-03T04:55:50.6788742Z #8 4.684   Downloading holidays-0.105-py3-none-any.whl.metadata (55 kB)
+2026-10-03T04:55:50.6789281Z #8 4.738 Collecting psutil (from lumibot==4.6.4)
+2026-10-03T04:55:50.7944200Z #8 4.745   Downloading psutil-7.2.2-cp36-abi3-manylinux2014_aarch64.manylinux_2_17_aarch64.manylinux_2_28_aarch64.whl.metadata (22 kB)
+2026-10-03T04:55:50.7948323Z #8 4.788 Collecting openai (from lumibot==4.6.4)
+2026-10-03T04:55:50.7958352Z #8 4.793   Downloading openai-3.24.0-py3-none-any.whl.metadata (44 kB)
+2026-10-03T04:55:50.7959637Z #8 4.866 Collecting setuptools<81 (from lumibot==4.6.4)
+2026-10-03T04:55:50.9602915Z #8 4.871   Downloading setuptools-80.10.2-py3-none-any.whl.metadata (6.6 kB)
+2026-10-03T04:55:50.9604101Z #8 4.887 Collecting google-adk<3.0.0,>=2.9.1 (from google-adk[extensions]<3.0.0,>=2.9.1->lumibot==4.6.4)
+2026-10-03T04:55:50.9606129Z #8 4.891   Downloading google_adk-2.11.0-py3-none-any.whl.metadata (26 kB)
+2026-10-03T04:55:50.9606826Z #8 4.930 Collecting google-genai<3.0.0,>=2.24.0 (from lumibot==4.6.4)
+2026-10-03T04:55:50.9607381Z #8 4.933   Downloading google_genai-2.28.0-py3-none-any.whl.metadata (56 kB)
+2026-10-03T04:55:50.9608067Z #8 5.032 Collecting litellm>=1.101.0 (from lumibot==4.6.4)
+2026-10-03T04:55:51.0766894Z #8 5.037   Downloading litellm-1.103.2-cp310-abi3-manylinux_2_28_aarch64.whl.metadata (42 kB)
+2026-10-03T04:55:51.0767609Z #8 5.057 Collecting anyio>=4.10.0 (from lumibot==4.6.4)
+2026-10-03T04:55:51.0768180Z #8 5.061   Downloading anyio-4.15.1-py3-none-any.whl.metadata (4.7 kB)
+2026-10-03T04:55:51.0768685Z #8 5.072 Collecting mcp<2,>=1.26.0 (from lumibot==4.6.4)
+2026-10-03T04:55:51.0770274Z #8 5.076   Downloading mcp-1.30.0-py3-none-any.whl.metadata (9.3 kB)
+2026-10-03T04:55:51.0771001Z #8 5.087 Collecting schwab-py>=1.5.0 (from lumibot==4.6.4)
+2026-10-03T04:55:51.0771552Z #8 5.091   Downloading schwab_py-1.5.1-py2.py3-none-any.whl.metadata (7.3 kB)
+2026-10-03T04:55:51.0772396Z #8 5.101 Collecting Flask>=2.3 (from lumibot==4.6.4)
+2026-10-03T04:55:51.0773018Z #8 5.104   Downloading flask-3.1.3-py3-none-any.whl.metadata (3.2 kB)
+2026-10-03T04:55:51.0773474Z #8 5.112 Collecting free-proxy (from lumibot==4.6.4)
+2026-10-03T04:55:51.0773921Z #8 5.116   Downloading free_proxy-1.3.0-py3-none-any.whl.metadata (10 kB)
+2026-10-03T04:55:51.0774414Z #8 5.124 Collecting requests-oauthlib (from lumibot==4.6.4)
+2026-10-03T04:55:51.0774939Z #8 5.128   Downloading requests_oauthlib-2.0.0-py2.py3-none-any.whl.metadata (11 kB)
+2026-10-03T04:55:51.0775468Z #8 5.148 Collecting httpx (from lumibot==4.6.4)
+2026-10-03T04:55:51.2524515Z #8 5.152   Downloading httpx-0.28.1-py3-none-any.whl.metadata (7.1 kB)
+2026-10-03T04:55:51.2525456Z #8 5.171 Collecting pypdf>=5.0.0 (from lumibot==4.6.4)
+2026-10-03T04:55:51.2526291Z #8 5.175   Downloading pypdf-6.19.0-py3-none-any.whl.metadata (7.5 kB)
+2026-10-03T04:55:51.2860959Z #8 5.358 Collecting botocore<1.44.0,>=1.43.1 (from boto3==1.43.1)
+2026-10-03T04:55:51.4574452Z #8 5.363   Downloading botocore-1.43.108-py3-none-any.whl.metadata (5.6 kB)
+2026-10-03T04:55:51.4575718Z #8 5.366 Requirement already satisfied: jmespath<2.0.0,>=0.7.1 in /var/lang/lib/python3.13/site-packages (from boto3==1.43.1) (1.0.1)
+2026-10-03T04:55:51.4576625Z #8 5.375 Collecting s3transfer<0.18.0,>=0.17.0 (from boto3==1.43.1)
+2026-10-03T04:55:51.4577722Z #8 5.379   Downloading s3transfer-0.17.1-py3-none-any.whl.metadata (1.7 kB)
+2026-10-03T04:55:51.5446339Z #8 5.617 Collecting charset_normalizer<4,>=2 (from requests==2.33.1)
+2026-10-03T04:55:51.6478538Z #8 5.621   Downloading charset_normalizer-3.5.2-cp313-cp313-manylinux2014_aarch64.manylinux_2_17_aarch64.manylinux_2_28_aarch64.whl.metadata (46 kB)
+2026-10-03T04:55:51.6479395Z #8 5.633 Collecting idna<4,>=2.5 (from requests==2.33.1)
+2026-10-03T04:55:51.6479849Z #8 5.637   Downloading idna-3.20-py3-none-any.whl.metadata (7.2 kB)
+2026-10-03T04:55:51.6480554Z #8 5.640 Requirement already satisfied: urllib3<3,>=1.26 in /var/lang/lib/python3.13/site-packages (from requests==2.33.1) (2.8.0)
+2026-10-03T04:55:51.6481218Z #8 5.649 Collecting certifi>=2023.5.7 (from requests==2.33.1)
+2026-10-03T04:55:51.6481718Z #8 5.652   Downloading certifi-2026.7.22-py3-none-any.whl.metadata (2.5 kB)
+2026-10-03T04:55:51.6482189Z #8 5.703 Collecting ijson (from thetadata==0.9.11)
+2026-10-03T04:55:51.6482875Z #8 5.708   Downloading ijson-3.5.1-cp313-cp313-manylinux2014_aarch64.manylinux_2_17_aarch64.manylinux_2_28_aarch64.whl.metadata (23 kB)
+2026-10-03T04:55:51.6484613Z #8 5.716 Collecting wget (from thetadata==0.9.11)
+2026-10-03T04:55:51.6484972Z #8 5.720   Downloading wget-3.2.zip (10 kB)
+2026-10-03T04:55:51.8024974Z #8 5.724   Installing build dependencies: started
+2026-10-03T04:55:52.2095949Z #8 6.281   Installing build dependencies: finished with status 'done'
+2026-10-03T04:55:52.3605899Z #8 6.283   Getting requirements to build wheel: started
+2026-10-03T04:55:52.5706511Z #8 6.642   Getting requirements to build wheel: finished with status 'done'
+2026-10-03T04:55:52.7223811Z #8 6.644   Preparing metadata (pyproject.toml): started
+2026-10-03T04:55:52.7866791Z #8 6.858   Preparing metadata (pyproject.toml): finished with status 'done'
+2026-10-03T04:55:52.8888673Z #8 6.862 Requirement already satisfied: python-dateutil<3.0.0,>=2.1 in /var/lang/lib/python3.13/site-packages (from botocore<1.44.0,>=1.43.1->boto3==1.43.1) (2.9.0.post0)
+2026-10-03T04:55:52.8889747Z #8 6.870 Collecting aiosqlite>=0.21 (from google-adk<3.0.0,>=2.9.1->google-adk[extensions]<3.0.0,>=2.9.1->lumibot==4.6.4)
+2026-10-03T04:55:52.8890449Z #8 6.874   Downloading aiosqlite-0.22.1-py3-none-any.whl.metadata (4.3 kB)
+2026-10-03T04:55:52.8891199Z #8 6.887 Collecting authlib<2,>=1.6.6 (from google-adk<3.0.0,>=2.9.1->google-adk[extensions]<3.0.0,>=2.9.1->lumibot==4.6.4)
+2026-10-03T04:55:52.8891879Z #8 6.891   Downloading authlib-1.8.0-py2.py3-none-any.whl.metadata (10 kB)
+2026-10-03T04:55:52.8892568Z #8 6.902 Collecting click<9,>=8.1.8 (from google-adk<3.0.0,>=2.9.1->google-adk[extensions]<3.0.0,>=2.9.1->lumibot==4.6.4)
+2026-10-03T04:55:52.8893214Z #8 6.905   Downloading click-8.5.0-py3-none-any.whl.metadata (2.6 kB)
+2026-10-03T04:55:52.8893864Z #8 6.933 Collecting fastapi<1,>=0.133 (from google-adk<3.0.0,>=2.9.1->google-adk[extensions]<3.0.0,>=2.9.1->lumibot==4.6.4)
+2026-10-03T04:55:52.8894524Z #8 6.936   Downloading fastapi-0.142.2-py3-none-any.whl.metadata (27 kB)
+2026-10-03T04:55:52.8895577Z #8 6.959 Collecting google-auth>=2.47 (from google-auth[pyopenssl]>=2.47->google-adk<3.0.0,>=2.9.1->google-adk[extensions]<3.0.0,>=2.9.1->lumibot==4.6.4)
+2026-10-03T04:55:52.8896362Z #8 6.962   Downloading google_auth-2.59.1-py3-none-any.whl.metadata (6.0 kB)
+2026-10-03T04:55:53.0359072Z #8 6.977 Collecting graphviz<1,>=0.20.2 (from google-adk<3.0.0,>=2.9.1->google-adk[extensions]<3.0.0,>=2.9.1->lumibot==4.6.4)
+2026-10-03T04:55:53.0362052Z #8 6.981   Downloading graphviz-0.21-py3-none-any.whl.metadata (12 kB)
+2026-10-03T04:55:53.0364471Z #8 6.995 Collecting jsonschema<5,>=4.23 (from google-adk<3.0.0,>=2.9.1->google-adk[extensions]<3.0.0,>=2.9.1->lumibot==4.6.4)
+2026-10-03T04:55:53.0366048Z #8 6.998   Downloading jsonschema-4.26.0-py3-none-any.whl.metadata (7.6 kB)
+2026-10-03T04:55:53.0366876Z #8 7.010 Collecting opentelemetry-api<=1.42.1,>=1.39 (from google-adk<3.0.0,>=2.9.1->google-adk[extensions]<3.0.0,>=2.9.1->lumibot==4.6.4)
+2026-10-03T04:55:53.0367691Z #8 7.014   Downloading opentelemetry_api-1.42.1-py3-none-any.whl.metadata (1.4 kB)
+2026-10-03T04:55:53.0368460Z #8 7.025 Collecting opentelemetry-sdk<=1.42.1,>=1.39 (from google-adk<3.0.0,>=2.9.1->google-adk[extensions]<3.0.0,>=2.9.1->lumibot==4.6.4)
+2026-10-03T04:55:53.0374765Z #8 7.028   Downloading opentelemetry_sdk-1.42.1-py3-none-any.whl.metadata (1.7 kB)
+2026-10-03T04:55:53.0376638Z #8 7.108 Collecting pydantic<3,>=2.12 (from google-adk<3.0.0,>=2.9.1->google-adk[extensions]<3.0.0,>=2.9.1->lumibot==4.6.4)
+2026-10-03T04:55:53.1389630Z #8 7.112   Downloading pydantic-2.13.5-py3-none-any.whl.metadata (110 kB)
+2026-10-03T04:55:53.1408923Z #8 7.125 Collecting python-multipart<1,>=0.0.9 (from google-adk<3.0.0,>=2.9.1->google-adk[extensions]<3.0.0,>=2.9.1->lumibot==4.6.4)
+2026-10-03T04:55:53.1410024Z #8 7.130   Downloading python_multipart-0.0.32-py3-none-any.whl.metadata (2.1 kB)
+2026-10-03T04:55:53.1410728Z #8 7.156 Collecting pyyaml<7,>=6.0.2 (from google-adk<3.0.0,>=2.9.1->google-adk[extensions]<3.0.0,>=2.9.1->lumibot==4.6.4)
+2026-10-03T04:55:53.1411640Z #8 7.161   Downloading pyyaml-6.0.3-cp313-cp313-manylinux2014_aarch64.manylinux_2_17_aarch64.manylinux_2_28_aarch64.whl.metadata (2.4 kB)
+2026-10-03T04:55:53.1413532Z #8 7.178 Collecting starlette<2,>=1.3.1 (from google-adk<3.0.0,>=2.9.1->google-adk[extensions]<3.0.0,>=2.9.1->lumibot==4.6.4)
+2026-10-03T04:55:53.1414249Z #8 7.182   Downloading starlette-1.7.0-py3-none-any.whl.metadata (6.6 kB)
+2026-10-03T04:55:53.1414914Z #8 7.192 Collecting tenacity<10,>=9 (from google-adk<3.0.0,>=2.9.1->google-adk[extensions]<3.0.0,>=2.9.1->lumibot==4.6.4)
+2026-10-03T04:55:53.1415600Z #8 7.196   Downloading tenacity-9.1.4-py3-none-any.whl.metadata (1.2 kB)
+2026-10-03T04:55:53.1416306Z #8 7.207 Collecting typing-extensions<5,>=4.5 (from google-adk<3.0.0,>=2.9.1->google-adk[extensions]<3.0.0,>=2.9.1->lumibot==4.6.4)
+2026-10-03T04:55:53.1417044Z #8 7.211   Downloading typing_extensions-4.16.0-py3-none-any.whl.metadata (3.3 kB)
+2026-10-03T04:55:53.2753110Z #8 7.228 Collecting uvicorn<1,>=0.34 (from google-adk<3.0.0,>=2.9.1->google-adk[extensions]<3.0.0,>=2.9.1->lumibot==4.6.4)
+2026-10-03T04:55:53.2754099Z #8 7.233   Downloading uvicorn-0.54.0-py3-none-any.whl.metadata (6.6 kB)
+2026-10-03T04:55:53.2754901Z #8 7.265 Collecting watchdog<7,>=6 (from google-adk<3.0.0,>=2.9.1->google-adk[extensions]<3.0.0,>=2.9.1->lumibot==4.6.4)
+2026-10-03T04:55:53.2755697Z #8 7.269   Downloading watchdog-6.0.0-py3-none-manylinux2014_aarch64.whl.metadata (44 kB)
+2026-10-03T04:55:53.2756509Z #8 7.348 Collecting websockets<16,>=15.0.1 (from google-adk<3.0.0,>=2.9.1->google-adk[extensions]<3.0.0,>=2.9.1->lumibot==4.6.4)
+2026-10-03T04:55:53.4233530Z #8 7.354   Downloading websockets-15.0.1-cp313-cp313-manylinux_2_17_aarch64.manylinux2014_aarch64.whl.metadata (6.8 kB)
+2026-10-03T04:55:53.4241958Z #8 7.496 Collecting cryptography>=45.0.1 (from authlib<2,>=1.6.6->google-adk<3.0.0,>=2.9.1->google-adk[extensions]<3.0.0,>=2.9.1->lumibot==4.6.4)
+2026-10-03T04:55:53.5231767Z #8 7.501   Downloading cryptography-50.0.2-cp311-abi3-manylinux_2_34_aarch64.whl.metadata (4.4 kB)
+2026-10-03T04:55:53.5233249Z #8 7.511 Collecting joserfc>=1.6.1 (from authlib<2,>=1.6.6->google-adk<3.0.0,>=2.9.1->google-adk[extensions]<3.0.0,>=2.9.1->lumibot==4.6.4)
+2026-10-03T04:55:53.5234397Z #8 7.516   Downloading joserfc-1.7.5-py3-none-any.whl.metadata (3.1 kB)
+2026-10-03T04:55:53.5235355Z #8 7.528 Collecting typing-inspection>=0.4.2 (from fastapi<1,>=0.133->google-adk<3.0.0,>=2.9.1->google-adk[extensions]<3.0.0,>=2.9.1->lumibot==4.6.4)
+2026-10-03T04:55:53.5236287Z #8 7.531   Downloading typing_inspection-0.4.4-py3-none-any.whl.metadata (2.6 kB)
+2026-10-03T04:55:53.5237262Z #8 7.537 Collecting annotated-doc>=0.0.2 (from fastapi<1,>=0.133->google-adk<3.0.0,>=2.9.1->google-adk[extensions]<3.0.0,>=2.9.1->lumibot==4.6.4)
+2026-10-03T04:55:53.5238121Z #8 7.543   Downloading annotated_doc-0.0.5-py3-none-any.whl.metadata (6.5 kB)
+2026-10-03T04:55:53.5239044Z #8 7.544 INFO: pip is looking at multiple versions of fastapi to determine which version is compatible with other requirements. This could take a while.
+2026-10-03T04:55:53.5240076Z #8 7.544 Collecting fastapi<1,>=0.133 (from google-adk<3.0.0,>=2.9.1->google-adk[extensions]<3.0.0,>=2.9.1->lumibot==4.6.4)
+2026-10-03T04:55:53.5240835Z #8 7.548   Downloading fastapi-0.142.1-py3-none-any.whl.metadata (27 kB)
+2026-10-03T04:55:53.5241605Z #8 7.557   Downloading fastapi-0.142.0-py3-none-any.whl.metadata (27 kB)
+2026-10-03T04:55:53.5242287Z #8 7.564   Downloading fastapi-0.141.1-py3-none-any.whl.metadata (27 kB)
+2026-10-03T04:55:53.5242969Z #8 7.590 Collecting anthropic>=0.78 (from google-adk[extensions]<3.0.0,>=2.9.1->lumibot==4.6.4)
+2026-10-03T04:55:53.5243661Z #8 7.596   Downloading anthropic-1.11.0-py3-none-any.whl.metadata (3.3 kB)
+2026-10-03T04:55:53.6244569Z #8 7.607 Collecting beautifulsoup4>=3.2.2 (from google-adk[extensions]<3.0.0,>=2.9.1->lumibot==4.6.4)
+2026-10-03T04:55:53.6245819Z #8 7.610   Downloading beautifulsoup4-4.15.0-py3-none-any.whl.metadata (3.8 kB)
+2026-10-03T04:55:53.6246622Z #8 7.621 Collecting docker>=7 (from google-adk[extensions]<3.0.0,>=2.9.1->lumibot==4.6.4)
+2026-10-03T04:55:53.6247638Z #8 7.624   Downloading docker-7.2.0-py3-none-any.whl.metadata (3.8 kB)
+2026-10-03T04:55:53.6248509Z #8 7.637 Collecting google-cloud-firestore<3,>=2.11 (from google-adk[extensions]<3.0.0,>=2.9.1->lumibot==4.6.4)
+2026-10-03T04:55:53.6250298Z #8 7.641   Downloading google_cloud_firestore-2.34.0-py3-none-any.whl.metadata (9.5 kB)
+2026-10-03T04:55:53.6252434Z #8 7.649 Collecting k8s-agent-sandbox>=0.1.1.post3 (from google-adk[extensions]<3.0.0,>=2.9.1->lumibot==4.6.4)
+2026-10-03T04:55:53.6262993Z #8 7.653   Downloading k8s_agent_sandbox-1.0.4-py3-none-any.whl.metadata (18 kB)
+2026-10-03T04:55:53.6263709Z #8 7.668 Collecting kubernetes>=29 (from google-adk[extensions]<3.0.0,>=2.9.1->lumibot==4.6.4)
+2026-10-03T04:55:53.6264424Z #8 7.671   Downloading kubernetes-36.0.3-py2.py3-none-any.whl.metadata (1.8 kB)
+2026-10-03T04:55:53.6265689Z #8 7.694 Collecting langgraph<2,>=1.0.10 (from google-adk[extensions]<3.0.0,>=2.9.1->lumibot==4.6.4)
+2026-10-03T04:55:53.6266615Z #8 7.698   Downloading langgraph-1.2.12-py3-none-any.whl.metadata (4.9 kB)
+2026-10-03T04:55:53.8223693Z #8 7.708 Collecting langgraph-checkpoint<5,>=4.1.1 (from google-adk[extensions]<3.0.0,>=2.9.1->lumibot==4.6.4)
+2026-10-03T04:55:53.8224746Z #8 7.711   Downloading langgraph_checkpoint-4.2.0-py3-none-any.whl.metadata (6.7 kB)
+2026-10-03T04:55:53.8225593Z #8 7.722 Collecting llama-index-embeddings-google-genai>=0.3 (from google-adk[extensions]<3.0.0,>=2.9.1->lumibot==4.6.4)
+2026-10-03T04:55:53.8228681Z #8 7.727   Downloading llama_index_embeddings_google_genai-0.6.0-py3-none-any.whl.metadata (1.1 kB)
+2026-10-03T04:55:53.8229756Z #8 7.738 Collecting llama-index-readers-file>=0.4 (from google-adk[extensions]<3.0.0,>=2.9.1->lumibot==4.6.4)
+2026-10-03T04:55:53.8230675Z #8 7.743   Downloading llama_index_readers_file-0.7.0-py3-none-any.whl.metadata (5.7 kB)
+2026-10-03T04:55:53.8519467Z #8 7.924 Collecting lxml>=5.3 (from google-adk[extensions]<3.0.0,>=2.9.1->lumibot==4.6.4)
+2026-10-03T04:55:53.9557566Z #8 7.931   Downloading lxml-6.1.3-cp313-cp313-manylinux_2_26_aarch64.manylinux_2_28_aarch64.whl.metadata (3.3 kB)
+2026-10-03T04:55:53.9560868Z #8 7.943 Collecting nltk!=3.10.1 (from google-adk[extensions]<3.0.0,>=2.9.1->lumibot==4.6.4)
+2026-10-03T04:55:53.9561766Z #8 7.947   Downloading nltk-3.10.3-py3-none-any.whl.metadata (3.2 kB)
+2026-10-03T04:55:53.9562288Z #8 7.954 Collecting openai (from lumibot==4.6.4)
+2026-10-03T04:55:53.9562790Z #8 7.958   Downloading openai-2.54.0-py3-none-any.whl.metadata (40 kB)
+2026-10-03T04:55:53.9563450Z #8 7.973 Collecting pypika>=0.50 (from google-adk[extensions]<3.0.0,>=2.9.1->lumibot==4.6.4)
+2026-10-03T04:55:53.9564099Z #8 7.976   Downloading pypika-0.51.1-py2.py3-none-any.whl.metadata (51 kB)
+2026-10-03T04:55:53.9564758Z #8 7.989 Collecting toolbox-adk<2,>=1 (from google-adk[extensions]<3.0.0,>=2.9.1->lumibot==4.6.4)
+2026-10-03T04:55:53.9565414Z #8 7.994   Downloading toolbox_adk-1.4.0-py3-none-any.whl.metadata (3.4 kB)
+2026-10-03T04:55:53.9566352Z #8 8.012 Collecting google-api-core<3.0.0,>=2.28.0 (from google-api-core[grpc]<3.0.0,>=2.28.0->google-cloud-firestore<3,>=2.11->google-adk[extensions]<3.0.0,>=2.9.1->lumibot==4.6.4)
+2026-10-03T04:55:53.9567370Z #8 8.016   Downloading google_api_core-2.40.0-py3-none-any.whl.metadata (3.2 kB)
+2026-10-03T04:55:53.9568250Z #8 8.029 Collecting google-cloud-core<3.0.0,>=2.0.0 (from google-cloud-firestore<3,>=2.11->google-adk[extensions]<3.0.0,>=2.9.1->lumibot==4.6.4)
+2026-10-03T04:55:54.1104257Z #8 8.032   Downloading google_cloud_core-2.8.0-py3-none-any.whl.metadata (2.9 kB)
+2026-10-03T04:55:54.3424716Z #8 8.415 Collecting grpcio<2.0.0,>=1.59.0 (from google-cloud-firestore<3,>=2.11->google-adk[extensions]<3.0.0,>=2.9.1->lumibot==4.6.4)
+2026-10-03T04:55:54.4694724Z #8 8.423   Downloading grpcio-1.84.0-cp313-cp313-manylinux2014_aarch64.manylinux_2_17_aarch64.whl.metadata (3.8 kB)
+2026-10-03T04:55:54.4695953Z #8 8.431 Collecting proto-plus<2.0.0,>=1.26.1 (from google-cloud-firestore<3,>=2.11->google-adk[extensions]<3.0.0,>=2.9.1->lumibot==4.6.4)
+2026-10-03T04:55:54.4699156Z #8 8.435   Downloading proto_plus-1.29.0-py3-none-any.whl.metadata (2.2 kB)
+2026-10-03T04:55:54.4701857Z #8 8.542 Collecting protobuf<8.0.0,>=6.33.5 (from google-cloud-firestore<3,>=2.11->google-adk[extensions]<3.0.0,>=2.9.1->lumibot==4.6.4)
+2026-10-03T04:55:54.5743084Z #8 8.546   Downloading protobuf-7.36.2-cp310-abi3-manylinux2014_aarch64.whl.metadata (595 bytes)
+2026-10-03T04:55:54.5745119Z #8 8.559 Collecting googleapis-common-protos<2.0.0,>=1.69.2 (from google-api-core<3.0.0,>=2.28.0->google-api-core[grpc]<3.0.0,>=2.28.0->google-cloud-firestore<3,>=2.11->google-adk[extensions]<3.0.0,>=2.9.1->lumibot==4.6.4)
+2026-10-03T04:55:54.5746717Z #8 8.563   Downloading googleapis_common_protos-1.75.5-py3-none-any.whl.metadata (8.5 kB)
+2026-10-03T04:55:54.5749840Z #8 8.568 INFO: pip is looking at multiple versions of google-api-core to determine which version is compatible with other requirements. This could take a while.
+2026-10-03T04:55:54.5753382Z #8 8.569 Collecting google-api-core<3.0.0,>=2.28.0 (from google-api-core[grpc]<3.0.0,>=2.28.0->google-cloud-firestore<3,>=2.11->google-adk[extensions]<3.0.0,>=2.9.1->lumibot==4.6.4)
+2026-10-03T04:55:54.5755238Z #8 8.573   Downloading google_api_core-2.39.0-py3-none-any.whl.metadata (3.2 kB)
+2026-10-03T04:55:54.5755890Z #8 8.580   Downloading google_api_core-2.38.0-py3-none-any.whl.metadata (3.2 kB)
+2026-10-03T04:55:54.5756469Z #8 8.589   Downloading google_api_core-2.37.0-py3-none-any.whl.metadata (3.2 kB)
+2026-10-03T04:55:54.5758546Z #8 8.595   Downloading google_api_core-2.36.0-py3-none-any.whl.metadata (3.2 kB)
+2026-10-03T04:55:54.5759111Z #8 8.602   Downloading google_api_core-2.34.0-py3-none-any.whl.metadata (2.9 kB)
+2026-10-03T04:55:54.5759981Z #8 8.606 INFO: pip is looking at multiple versions of google-api-core[grpc] to determine which version is compatible with other requirements. This could take a while.
+2026-10-03T04:55:54.5761165Z #8 8.626 Collecting grpcio-status<2.0.0,>=1.59.0 (from google-api-core[grpc]<3.0.0,>=2.28.0->google-cloud-firestore<3,>=2.11->google-adk[extensions]<3.0.0,>=2.9.1->lumibot==4.6.4)
+2026-10-03T04:55:54.5762047Z #8 8.630   Downloading grpcio_status-1.84.0-py3-none-any.whl.metadata (1.3 kB)
+2026-10-03T04:55:54.5762943Z #8 8.647 Collecting pyasn1-modules>=0.2.1 (from google-auth>=2.47->google-auth[pyopenssl]>=2.47->google-adk<3.0.0,>=2.9.1->google-adk[extensions]<3.0.0,>=2.9.1->lumibot==4.6.4)
+2026-10-03T04:55:54.7649764Z #8 8.651   Downloading pyasn1_modules-0.4.2-py3-none-any.whl.metadata (3.5 kB)
+2026-10-03T04:55:54.7650969Z #8 8.674 Collecting distro<2,>=1.7.0 (from google-genai<3.0.0,>=2.24.0->lumibot==4.6.4)
+2026-10-03T04:55:54.7651754Z #8 8.677   Downloading distro-1.9.0-py3-none-any.whl.metadata (6.8 kB)
+2026-10-03T04:55:54.7652433Z #8 8.683 Collecting sniffio (from google-genai<3.0.0,>=2.24.0->lumibot==4.6.4)
+2026-10-03T04:55:54.7653190Z #8 8.687   Downloading sniffio-1.3.1-py3-none-any.whl.metadata (3.9 kB)
+2026-10-03T04:55:54.8162120Z #8 8.889 Collecting httpcore==1.* (from httpx->lumibot==4.6.4)
+2026-10-03T04:55:55.0241543Z #8 8.893   Downloading httpcore-1.0.9-py3-none-any.whl.metadata (21 kB)
+2026-10-03T04:55:55.0242445Z #8 8.902 Collecting h11>=0.16 (from httpcore==1.*->httpx->lumibot==4.6.4)
+2026-10-03T04:55:55.0243203Z #8 8.906   Downloading h11-0.16.0-py3-none-any.whl.metadata (8.3 kB)
+2026-10-03T04:55:55.0244091Z #8 8.917 Collecting attrs>=22.2.0 (from jsonschema<5,>=4.23->google-adk<3.0.0,>=2.9.1->google-adk[extensions]<3.0.0,>=2.9.1->lumibot==4.6.4)
+2026-10-03T04:55:55.0244937Z #8 8.920   Downloading attrs-26.1.0-py3-none-any.whl.metadata (8.8 kB)
+2026-10-03T04:55:55.0245952Z #8 8.928 Collecting jsonschema-specifications>=2023.03.6 (from jsonschema<5,>=4.23->google-adk<3.0.0,>=2.9.1->google-adk[extensions]<3.0.0,>=2.9.1->lumibot==4.6.4)
+2026-10-03T04:55:55.0247104Z #8 8.931   Downloading jsonschema_specifications-2025.9.1-py3-none-any.whl.metadata (2.9 kB)
+2026-10-03T04:55:55.0248043Z #8 8.943 Collecting referencing>=0.28.4 (from jsonschema<5,>=4.23->google-adk<3.0.0,>=2.9.1->google-adk[extensions]<3.0.0,>=2.9.1->lumibot==4.6.4)
+2026-10-03T04:55:55.0248899Z #8 8.947   Downloading referencing-0.37.0-py3-none-any.whl.metadata (2.8 kB)
+2026-10-03T04:55:55.0659608Z #8 9.139 Collecting rpds-py>=0.25.0 (from jsonschema<5,>=4.23->google-adk<3.0.0,>=2.9.1->google-adk[extensions]<3.0.0,>=2.9.1->lumibot==4.6.4)
+2026-10-03T04:55:55.2304032Z #8 9.144   Downloading rpds_py-2026.6.3-cp313-cp313-manylinux_2_17_aarch64.manylinux2014_aarch64.whl.metadata (4.1 kB)
+2026-10-03T04:55:55.2305819Z #8 9.172 Collecting langchain-core<2,>=1.4.7 (from langgraph<2,>=1.0.10->google-adk[extensions]<3.0.0,>=2.9.1->lumibot==4.6.4)
+2026-10-03T04:55:55.2307725Z #8 9.175   Downloading langchain_core-1.6.6-py3-none-any.whl.metadata (4.8 kB)
+2026-10-03T04:55:55.2309039Z #8 9.185 Collecting langgraph-prebuilt<1.2.0,>=1.1.0 (from langgraph<2,>=1.0.10->google-adk[extensions]<3.0.0,>=2.9.1->lumibot==4.6.4)
+2026-10-03T04:55:55.2310354Z #8 9.188   Downloading langgraph_prebuilt-1.1.0-py3-none-any.whl.metadata (5.2 kB)
+2026-10-03T04:55:55.2311389Z #8 9.200 Collecting langgraph-sdk<0.5.0,>=0.4.2 (from langgraph<2,>=1.0.10->google-adk[extensions]<3.0.0,>=2.9.1->lumibot==4.6.4)
+2026-10-03T04:55:55.2312699Z #8 9.204   Downloading langgraph_sdk-0.4.5-py3-none-any.whl.metadata (5.1 kB)
+2026-10-03T04:55:55.2313797Z #8 9.302 Collecting xxhash>=3.5.0 (from langgraph<2,>=1.0.10->google-adk[extensions]<3.0.0,>=2.9.1->lumibot==4.6.4)
+2026-10-03T04:55:55.4013098Z #8 9.307   Downloading xxhash-4.0.1-cp313-cp313-manylinux2014_aarch64.manylinux_2_17_aarch64.manylinux_2_28_aarch64.whl.metadata (17 kB)
+2026-10-03T04:55:55.4016158Z #8 9.319 Collecting jsonpatch<2.0.0,>=1.33.0 (from langchain-core<2,>=1.4.7->langgraph<2,>=1.0.10->google-adk[extensions]<3.0.0,>=2.9.1->lumibot==4.6.4)
+2026-10-03T04:55:55.4017240Z #8 9.322   Downloading jsonpatch-1.33-py2.py3-none-any.whl.metadata (3.0 kB)
+2026-10-03T04:55:55.4018328Z #8 9.331 Collecting langchain-protocol>=0.0.17 (from langchain-core<2,>=1.4.7->langgraph<2,>=1.0.10->google-adk[extensions]<3.0.0,>=2.9.1->lumibot==4.6.4)
+2026-10-03T04:55:55.4021247Z #8 9.334   Downloading langchain_protocol-0.0.19-py3-none-any.whl.metadata (2.4 kB)
+2026-10-03T04:55:55.4022610Z #8 9.381 Collecting langsmith<1.0.0,>=0.3.45 (from langchain-core<2,>=1.4.7->langgraph<2,>=1.0.10->google-adk[extensions]<3.0.0,>=2.9.1->lumibot==4.6.4)
+2026-10-03T04:55:55.4023530Z #8 9.384   Downloading langsmith-0.14.4-py3-none-any.whl.metadata (22 kB)
+2026-10-03T04:55:55.4024553Z #8 9.474 Collecting uuid-utils<1.0,>=0.12.0 (from langchain-core<2,>=1.4.7->langgraph<2,>=1.0.10->google-adk[extensions]<3.0.0,>=2.9.1->lumibot==4.6.4)
+2026-10-03T04:55:55.6174398Z #8 9.479   Downloading uuid_utils-0.17.1-cp313-cp313-manylinux_2_17_aarch64.manylinux2014_aarch64.whl.metadata (6.4 kB)
+2026-10-03T04:55:55.6177227Z #8 9.491 Collecting jsonpointer>=1.9 (from jsonpatch<2.0.0,>=1.33.0->langchain-core<2,>=1.4.7->langgraph<2,>=1.0.10->google-adk[extensions]<3.0.0,>=2.9.1->lumibot==4.6.4)
+2026-10-03T04:55:55.6179061Z #8 9.496   Downloading jsonpointer-3.1.1-py3-none-any.whl.metadata (2.4 kB)
+2026-10-03T04:55:55.6183057Z #8 9.535 Collecting ormsgpack>=1.12.0 (from langgraph-checkpoint<5,>=4.1.1->google-adk[extensions]<3.0.0,>=2.9.1->lumibot==4.6.4)
+2026-10-03T04:55:55.6184714Z #8 9.540   Downloading ormsgpack-1.12.2-cp313-cp313-manylinux_2_17_aarch64.manylinux2014_aarch64.whl.metadata (3.2 kB)
+2026-10-03T04:55:55.6677278Z #8 9.740 Collecting orjson>=3.11.5 (from langgraph-sdk<0.5.0,>=0.4.2->langgraph<2,>=1.0.10->google-adk[extensions]<3.0.0,>=2.9.1->lumibot==4.6.4)
+2026-10-03T04:55:55.7694155Z #8 9.745   Downloading orjson-3.12.0-cp313-cp313-manylinux_2_17_aarch64.manylinux2014_aarch64.whl.metadata (41 kB)
+2026-10-03T04:55:55.7696209Z #8 9.760 Collecting httpx2<3,>=2 (from langsmith<1.0.0,>=0.3.45->langchain-core<2,>=1.4.7->langgraph<2,>=1.0.10->google-adk[extensions]<3.0.0,>=2.9.1->lumibot==4.6.4)
+2026-10-03T04:55:55.7697640Z #8 9.765   Downloading httpx2-2.13.1-py3-none-any.whl.metadata (9.8 kB)
+2026-10-03T04:55:55.7698943Z #8 9.778 Collecting requests-toolbelt>=1.0.0 (from langsmith<1.0.0,>=0.3.45->langchain-core<2,>=1.4.7->langgraph<2,>=1.0.10->google-adk[extensions]<3.0.0,>=2.9.1->lumibot==4.6.4)
+2026-10-03T04:55:55.7700714Z #8 9.782   Downloading requests_toolbelt-1.0.0-py2.py3-none-any.whl.metadata (14 kB)
+2026-10-03T04:55:55.7702232Z #8 9.797 Collecting httpcore2==2.13.1 (from httpx2<3,>=2->langsmith<1.0.0,>=0.3.45->langchain-core<2,>=1.4.7->langgraph<2,>=1.0.10->google-adk[extensions]<3.0.0,>=2.9.1->lumibot==4.6.4)
+2026-10-03T04:55:55.7703684Z #8 9.801   Downloading httpcore2-2.13.1-py3-none-any.whl.metadata (26 kB)
+2026-10-03T04:55:55.7704966Z #8 9.810 Collecting truststore>=0.10 (from httpx2<3,>=2->langsmith<1.0.0,>=0.3.45->langchain-core<2,>=1.4.7->langgraph<2,>=1.0.10->google-adk[extensions]<3.0.0,>=2.9.1->lumibot==4.6.4)
+2026-10-03T04:55:55.7706442Z #8 9.814   Downloading truststore-0.10.4-py3-none-any.whl.metadata (4.4 kB)
+2026-10-03T04:55:55.7707545Z #8 9.823 Collecting httpx-sse>=0.4 (from mcp<2,>=1.26.0->lumibot==4.6.4)
+2026-10-03T04:55:55.7708642Z #8 9.826   Downloading httpx_sse-0.4.3-py3-none-any.whl.metadata (9.7 kB)
+2026-10-03T04:55:55.7709529Z #8 9.838 Collecting pydantic-settings>=2.5.2 (from mcp<2,>=1.26.0->lumibot==4.6.4)
+2026-10-03T04:55:55.7710800Z #8 9.841   Downloading pydantic_settings-2.15.0-py3-none-any.whl.metadata (3.9 kB)
+2026-10-03T04:55:55.8790990Z #8 9.855 Collecting pyjwt>=2.10.1 (from pyjwt[crypto]>=2.10.1->mcp<2,>=1.26.0->lumibot==4.6.4)
+2026-10-03T04:55:55.8793332Z #8 9.858   Downloading pyjwt-2.15.1-py3-none-any.whl.metadata (3.5 kB)
+2026-10-03T04:55:55.8799840Z #8 9.870 Collecting sse-starlette>=1.6.1 (from mcp<2,>=1.26.0->lumibot==4.6.4)
+2026-10-03T04:55:55.8801135Z #8 9.873   Downloading sse_starlette-3.5.0-py3-none-any.whl.metadata (15 kB)
+2026-10-03T04:55:55.8802522Z #8 9.951 Collecting jiter<1,>=0.10.0 (from openai->lumibot==4.6.4)
+2026-10-03T04:55:56.0784007Z #8 9.956   Downloading jiter-0.17.0-cp313-cp313-manylinux_2_17_aarch64.manylinux2014_aarch64.whl.metadata (5.2 kB)
+2026-10-03T04:55:56.0786515Z #8 9.977 Collecting opentelemetry-semantic-conventions==0.63b1 (from opentelemetry-sdk<=1.42.1,>=1.39->google-adk<3.0.0,>=2.9.1->google-adk[extensions]<3.0.0,>=2.9.1->lumibot==4.6.4)
+2026-10-03T04:55:56.0788231Z #8 9.981   Downloading opentelemetry_semantic_conventions-0.63b1-py3-none-any.whl.metadata (2.4 kB)
+2026-10-03T04:55:56.0790054Z #8 9.994 Collecting annotated-types>=0.6.0 (from pydantic<3,>=2.12->google-adk<3.0.0,>=2.9.1->google-adk[extensions]<3.0.0,>=2.9.1->lumibot==4.6.4)
+2026-10-03T04:55:56.0791558Z #8 9.997   Downloading annotated_types-0.8.0-py3-none-any.whl.metadata (15 kB)
+2026-10-03T04:55:56.4700569Z #8 10.54 Collecting pydantic-core==2.46.5 (from pydantic<3,>=2.12->google-adk<3.0.0,>=2.9.1->google-adk[extensions]<3.0.0,>=2.9.1->lumibot==4.6.4)
+2026-10-03T04:55:56.5744898Z #8 10.55   Downloading pydantic_core-2.46.5-cp313-cp313-manylinux_2_17_aarch64.manylinux2014_aarch64.whl.metadata (6.6 kB)
+2026-10-03T04:55:56.5747263Z #8 10.55 Requirement already satisfied: six>=1.5 in /var/lang/lib/python3.13/site-packages (from python-dateutil<3.0.0,>=2.1->botocore<1.44.0,>=1.43.1->boto3==1.43.1) (1.17.0)
+2026-10-03T04:55:56.5749190Z #8 10.57 Collecting seaborn>=0.13.2 (from quantstats-lumi<1.2.0,>=1.1.5->lumibot==4.6.4)
+2026-10-03T04:55:56.5751496Z #8 10.57   Downloading seaborn-0.13.2-py3-none-any.whl.metadata (5.4 kB)
+2026-10-03T04:55:56.5752498Z #8 10.60 Collecting ipython>=8.22.2 (from quantstats-lumi<1.2.0,>=1.1.5->lumibot==4.6.4)
+2026-10-03T04:55:56.5753245Z #8 10.60   Downloading ipython-9.17.1-py3-none-any.whl.metadata (4.6 kB)
+2026-10-03T04:55:56.5754241Z #8 10.64 Collecting toolbox-core==1.4.0 (from toolbox-adk<2,>=1->google-adk[extensions]<3.0.0,>=2.9.1->lumibot==4.6.4)
+2026-10-03T04:55:56.5755109Z #8 10.65   Downloading toolbox_core-1.4.0-py3-none-any.whl.metadata (6.1 kB)
+2026-10-03T04:55:56.7383559Z #8 10.66 Collecting google-auth-oauthlib<2.0.0,>=1.2.0 (from toolbox-adk<2,>=1->google-adk[extensions]<3.0.0,>=2.9.1->lumibot==4.6.4)
+2026-10-03T04:55:56.7384945Z #8 10.66   Downloading google_auth_oauthlib-1.5.0-py3-none-any.whl.metadata (2.6 kB)
+2026-10-03T04:55:57.2348165Z #8 11.31 Collecting aiohttp<4.0.0,>=3.8.6 (from toolbox-core==1.4.0->toolbox-adk<2,>=1->google-adk[extensions]<3.0.0,>=2.9.1->lumibot==4.6.4)
+2026-10-03T04:55:57.3380550Z #8 11.31   Downloading aiohttp-3.14.3-cp313-cp313-manylinux2014_aarch64.manylinux_2_17_aarch64.manylinux_2_28_aarch64.whl.metadata (8.3 kB)
+2026-10-03T04:55:57.3382178Z #8 11.32 Collecting deprecated<2.0.0,>=1.2.15 (from toolbox-core==1.4.0->toolbox-adk<2,>=1->google-adk[extensions]<3.0.0,>=2.9.1->lumibot==4.6.4)
+2026-10-03T04:55:57.3383497Z #8 11.33   Downloading deprecated-1.3.1-py2.py3-none-any.whl.metadata (5.9 kB)
+2026-10-03T04:55:57.3385719Z #8 11.34 Collecting aiohappyeyeballs>=2.5.0 (from aiohttp<4.0.0,>=3.8.6->toolbox-core==1.4.0->toolbox-adk<2,>=1->google-adk[extensions]<3.0.0,>=2.9.1->lumibot==4.6.4)
+2026-10-03T04:55:57.3399502Z #8 11.34   Downloading aiohappyeyeballs-2.7.1-py3-none-any.whl.metadata (5.9 kB)
+2026-10-03T04:55:57.3401298Z #8 11.35 Collecting aiosignal>=1.4.0 (from aiohttp<4.0.0,>=3.8.6->toolbox-core==1.4.0->toolbox-adk<2,>=1->google-adk[extensions]<3.0.0,>=2.9.1->lumibot==4.6.4)
+2026-10-03T04:55:57.3402239Z #8 11.35   Downloading aiosignal-1.4.0-py3-none-any.whl.metadata (3.7 kB)
+2026-10-03T04:55:57.3403209Z #8 11.40 Collecting frozenlist>=1.1.1 (from aiohttp<4.0.0,>=3.8.6->toolbox-core==1.4.0->toolbox-adk<2,>=1->google-adk[extensions]<3.0.0,>=2.9.1->lumibot==4.6.4)
+2026-10-03T04:55:57.3404364Z #8 11.41   Downloading frozenlist-1.8.0-cp313-cp313-manylinux2014_aarch64.manylinux_2_17_aarch64.manylinux_2_28_aarch64.whl.metadata (20 kB)
+2026-10-03T04:55:57.5425149Z #8 11.61 Collecting multidict<7.0,>=4.5 (from aiohttp<4.0.0,>=3.8.6->toolbox-core==1.4.0->toolbox-adk<2,>=1->google-adk[extensions]<3.0.0,>=2.9.1->lumibot==4.6.4)
+2026-10-03T04:55:57.7569785Z #8 11.62   Downloading multidict-6.9.1-cp313-cp313-manylinux2014_aarch64.manylinux_2_17_aarch64.manylinux_2_28_aarch64.whl.metadata (5.3 kB)
+2026-10-03T04:55:57.7571125Z #8 11.67 Collecting propcache>=0.2.0 (from aiohttp<4.0.0,>=3.8.6->toolbox-core==1.4.0->toolbox-adk<2,>=1->google-adk[extensions]<3.0.0,>=2.9.1->lumibot==4.6.4)
+2026-10-03T04:55:57.7572284Z #8 11.68   Downloading propcache-0.5.4-cp313-cp313-manylinux2014_aarch64.manylinux_2_17_aarch64.manylinux_2_28_aarch64.whl.metadata (25 kB)
+2026-10-03T04:55:57.8042926Z #8 11.88 Collecting yarl<2.0,>=1.17.0 (from aiohttp<4.0.0,>=3.8.6->toolbox-core==1.4.0->toolbox-adk<2,>=1->google-adk[extensions]<3.0.0,>=2.9.1->lumibot==4.6.4)
+2026-10-03T04:55:57.9590995Z #8 11.88   Downloading yarl-1.25.1-cp313-cp313-manylinux2014_aarch64.manylinux_2_17_aarch64.manylinux_2_28_aarch64.whl.metadata (111 kB)
+2026-10-03T04:55:58.0747120Z #8 12.15 Collecting wrapt<3,>=1.10 (from deprecated<2.0.0,>=1.2.15->toolbox-core==1.4.0->toolbox-adk<2,>=1->google-adk[extensions]<3.0.0,>=2.9.1->lumibot==4.6.4)
+2026-10-03T04:55:58.2325468Z #8 12.15   Downloading wrapt-2.5.0-cp313-cp313-manylinux2014_aarch64.manylinux_2_17_aarch64.manylinux_2_28_aarch64.whl.metadata (7.6 kB)
+2026-10-03T04:55:58.2326473Z #8 12.19 Collecting joblib>=1.4.0 (from scikit-learn)
+2026-10-03T04:55:58.2327114Z #8 12.20   Downloading joblib-1.6.0-py3-none-any.whl.metadata (6.5 kB)
+2026-10-03T04:55:58.2327661Z #8 12.22 Collecting narwhals>=2.0.1 (from scikit-learn)
+2026-10-03T04:55:58.2328301Z #8 12.23   Downloading narwhals-2.26.0-py3-none-any.whl.metadata (15 kB)
+2026-10-03T04:55:58.2328851Z #8 12.23 Collecting threadpoolctl>=3.5.0 (from scikit-learn)
+2026-10-03T04:55:58.2329430Z #8 12.24   Downloading threadpoolctl-3.7.0-py3-none-any.whl.metadata (24 kB)
+2026-10-03T04:55:58.2330074Z #8 12.30 Collecting msgpack<2.0.0,>=1.0.3 (from alpaca-py>=0.42.0->lumibot==4.6.4)
+2026-10-03T04:55:58.3386689Z #8 12.31   Downloading msgpack-1.2.3-cp313-cp313-manylinux2014_aarch64.manylinux_2_17_aarch64.manylinux_2_28_aarch64.whl.metadata (8.3 kB)
+2026-10-03T04:55:58.3388028Z #8 12.32 Collecting sseclient-py<2.0.0,>=1.7.2 (from alpaca-py>=0.42.0->lumibot==4.6.4)
+2026-10-03T04:55:58.3388639Z #8 12.33   Downloading sseclient_py-1.9.0-py3-none-any.whl.metadata (1.9 kB)
+2026-10-03T04:55:58.3389379Z #8 12.34 Collecting docstring-parser<1,>=0.15 (from anthropic>=0.78->google-adk[extensions]<3.0.0,>=2.9.1->lumibot==4.6.4)
+2026-10-03T04:55:58.3390099Z #8 12.35   Downloading docstring_parser-0.18.0-py3-none-any.whl.metadata (3.5 kB)
+2026-10-03T04:55:58.3390871Z #8 12.36 Collecting tzlocal>=3.0 (from apscheduler>=3.10.4->lumibot==4.6.4)
+2026-10-03T04:55:58.3391429Z #8 12.37   Downloading tzlocal-5.4.4-py3-none-any.whl.metadata (7.7 kB)
+2026-10-03T04:55:58.3392529Z #8 12.39 Collecting soupsieve>=1.6.1 (from beautifulsoup4>=3.2.2->google-adk[extensions]<3.0.0,>=2.9.1->lumibot==4.6.4)
+2026-10-03T04:55:58.3394132Z #8 12.39   Downloading soupsieve-2.10-py3-none-any.whl.metadata (4.4 kB)
+2026-10-03T04:55:58.3394759Z #8 12.39 Collecting certifi>=2023.5.7 (from requests==2.33.1)
+2026-10-03T04:55:58.3396709Z #8 12.40   Downloading certifi-2026.6.17-py3-none-any.whl.metadata (2.5 kB)
+2026-10-03T04:55:58.3397390Z #8 12.41 Collecting aiohttp-fast-zlib==0.3.0 (from ccxt>=4.5.50->lumibot==4.6.4)
+2026-10-03T04:55:58.4442048Z #8 12.42   Downloading aiohttp_fast_zlib-0.3.0-py3-none-any.whl.metadata (5.7 kB)
+2026-10-03T04:55:58.4443053Z #8 12.44 Collecting zlib-ng==1.0.0 (from ccxt>=4.5.50->lumibot==4.6.4)
+2026-10-03T04:55:58.4445148Z #8 12.44   Downloading zlib_ng-1.0.0-cp313-cp313-manylinux2014_aarch64.manylinux_2_17_aarch64.manylinux_2_28_aarch64.whl.metadata (6.8 kB)
+2026-10-03T04:55:58.4446075Z #8 12.47 Collecting uvloop==0.22.1 (from ccxt>=4.5.50->lumibot==4.6.4)
+2026-10-03T04:55:58.4448531Z #8 12.47   Downloading uvloop-0.22.1-cp313-cp313-manylinux2014_aarch64.manylinux_2_17_aarch64.manylinux_2_28_aarch64.whl.metadata (4.9 kB)
+2026-10-03T04:55:58.4449601Z #8 12.48 Collecting orjson>=3.11.5 (from langgraph-sdk<0.5.0,>=0.4.2->langgraph<2,>=1.0.10->google-adk[extensions]<3.0.0,>=2.9.1->lumibot==4.6.4)
+2026-10-03T04:55:58.4450540Z #8 12.48   Downloading orjson-3.11.9-cp313-cp313-manylinux_2_17_aarch64.manylinux2014_aarch64.whl.metadata (41 kB)
+2026-10-03T04:55:58.4451260Z #8 12.52 Collecting coincurve==21.0.0 (from ccxt>=4.5.50->lumibot==4.6.4)
+2026-10-03T04:55:58.5461768Z #8 12.52   Downloading coincurve-21.0.0-cp313-cp313-manylinux_2_17_aarch64.manylinux2014_aarch64.whl.metadata (4.0 kB)
+2026-10-03T04:55:58.5462880Z #8 12.53 Collecting multidict<7.0,>=4.5 (from aiohttp<4.0.0,>=3.8.6->toolbox-core==1.4.0->toolbox-adk<2,>=1->google-adk[extensions]<3.0.0,>=2.9.1->lumibot==4.6.4)
+2026-10-03T04:55:58.5463927Z #8 12.53   Downloading multidict-6.7.1-cp313-cp313-manylinux2014_aarch64.manylinux_2_17_aarch64.manylinux_2_28_aarch64.whl.metadata (5.3 kB)
+2026-10-03T04:55:58.5465012Z #8 12.53 Collecting propcache>=0.2.0 (from aiohttp<4.0.0,>=3.8.6->toolbox-core==1.4.0->toolbox-adk<2,>=1->google-adk[extensions]<3.0.0,>=2.9.1->lumibot==4.6.4)
+2026-10-03T04:55:58.5467563Z #8 12.54   Downloading propcache-0.5.2-cp313-cp313-manylinux2014_aarch64.manylinux_2_17_aarch64.manylinux_2_28_aarch64.whl.metadata (16 kB)
+2026-10-03T04:55:58.5468331Z #8 12.62 Collecting cffi==2.0.0 (from ccxt>=4.5.50->lumibot==4.6.4)
+2026-10-03T04:55:58.7262585Z #8 12.62   Downloading cffi-2.0.0-cp313-cp313-manylinux2014_aarch64.manylinux_2_17_aarch64.whl.metadata (2.6 kB)
+2026-10-03T04:55:58.7301059Z #8 12.63 Collecting pycparser==3.0 (from ccxt>=4.5.50->lumibot==4.6.4)
+2026-10-03T04:55:58.7301994Z #8 12.63   Downloading pycparser-3.0-py3-none-any.whl.metadata (8.2 kB)
+2026-10-03T04:55:58.7302719Z #8 12.64 Collecting charset_normalizer<4,>=2 (from requests==2.33.1)
+2026-10-03T04:55:58.7303746Z #8 12.64   Downloading charset_normalizer-3.4.7-cp313-cp313-manylinux2014_aarch64.manylinux_2_17_aarch64.manylinux_2_28_aarch64.whl.metadata (40 kB)
+2026-10-03T04:55:58.7304823Z #8 12.64 Collecting idna<4,>=2.5 (from requests==2.33.1)
+2026-10-03T04:55:58.7305374Z #8 12.65   Downloading idna-3.18-py3-none-any.whl.metadata (6.1 kB)
+2026-10-03T04:55:58.7404917Z #8 12.81 Collecting databento-dbn<0.71.0,>=0.70.0 (from databento>=0.42.0->lumibot==4.6.4)
+2026-10-03T04:55:58.8452040Z #8 12.82   Downloading databento_dbn-0.70.0-cp313-cp313-manylinux_2_17_aarch64.manylinux2014_aarch64.whl.metadata (2.3 kB)
+2026-10-03T04:55:58.8453722Z #8 12.84 Collecting pyluach>=2.3.0 (from exchange_calendars>=4.6.0->lumibot==4.6.4)
+2026-10-03T04:55:58.8454600Z #8 12.84   Downloading pyluach-2.3.0-py3-none-any.whl.metadata (4.3 kB)
+2026-10-03T04:55:58.8455315Z #8 12.85 Collecting toolz>=1.0.0 (from exchange_calendars>=4.6.0->lumibot==4.6.4)
+2026-10-03T04:55:58.8455959Z #8 12.86   Downloading toolz-1.1.0-py3-none-any.whl.metadata (5.1 kB)
+2026-10-03T04:55:58.8456692Z #8 12.86 Collecting tzdata>=2025.2 (from exchange_calendars>=4.6.0->lumibot==4.6.4)
+2026-10-03T04:55:58.8458188Z #8 12.87   Downloading tzdata-2026.4-py2.py3-none-any.whl.metadata (1.4 kB)
+2026-10-03T04:55:58.8460174Z #8 12.87 Collecting korean_lunar_calendar>=0.3.1 (from exchange_calendars>=4.6.0->lumibot==4.6.4)
+2026-10-03T04:55:58.8469523Z #8 12.88   Downloading korean_lunar_calendar-0.4.0-py3-none-any.whl.metadata (6.6 kB)
+2026-10-03T04:55:58.8470215Z #8 12.89 Collecting blinker>=1.9.0 (from Flask>=2.3->lumibot==4.6.4)
+2026-10-03T04:55:58.8470820Z #8 12.89   Downloading blinker-1.9.0-py3-none-any.whl.metadata (1.6 kB)
+2026-10-03T04:55:58.8471429Z #8 12.90 Collecting itsdangerous>=2.2.0 (from Flask>=2.3->lumibot==4.6.4)
+2026-10-03T04:55:58.8472772Z #8 12.90   Downloading itsdangerous-2.2.0-py3-none-any.whl.metadata (1.9 kB)
+2026-10-03T04:55:58.8473649Z #8 12.91 Collecting jinja2>=3.1.2 (from Flask>=2.3->lumibot==4.6.4)
+2026-10-03T04:55:58.8474267Z #8 12.92   Downloading jinja2-3.1.6-py3-none-any.whl.metadata (2.9 kB)
+2026-10-03T04:55:58.9477325Z #8 12.96 Collecting markupsafe>=2.1.1 (from Flask>=2.3->lumibot==4.6.4)
+2026-10-03T04:55:58.9478526Z #8 12.97   Downloading markupsafe-3.0.4-cp313-cp313-manylinux2014_aarch64.manylinux_2_17_aarch64.manylinux_2_28_aarch64.whl.metadata (2.7 kB)
+2026-10-03T04:55:58.9479403Z #8 12.98 Collecting werkzeug>=3.1.0 (from Flask>=2.3->lumibot==4.6.4)
+2026-10-03T04:55:58.9479987Z #8 12.99   Downloading werkzeug-3.1.9-py3-none-any.whl.metadata (4.1 kB)
+2026-10-03T04:55:58.9480755Z #8 13.01 Collecting ipython-pygments-lexers>=1.0.0 (from ipython>=8.22.2->quantstats-lumi<1.2.0,>=1.1.5->lumibot==4.6.4)
+2026-10-03T04:55:58.9481549Z #8 13.01   Downloading ipython_pygments_lexers-1.1.1-py3-none-any.whl.metadata (1.1 kB)
+2026-10-03T04:55:58.9482323Z #8 13.02 Collecting jedi>=0.18.2 (from ipython>=8.22.2->quantstats-lumi<1.2.0,>=1.1.5->lumibot==4.6.4)
+2026-10-03T04:55:59.1891976Z #8 13.02   Downloading jedi-0.20.0-py2.py3-none-any.whl.metadata (23 kB)
+2026-10-03T04:55:59.1892749Z #8 13.03 Collecting matplotlib-inline>=0.1.6 (from ipython>=8.22.2->quantstats-lumi<1.2.0,>=1.1.5->lumibot==4.6.4)
+2026-10-03T04:55:59.1893508Z #8 13.04   Downloading matplotlib_inline-0.2.2-py3-none-any.whl.metadata (2.4 kB)
+2026-10-03T04:55:59.1895115Z #8 13.04 Collecting pexpect>4.6 (from ipython>=8.22.2->quantstats-lumi<1.2.0,>=1.1.5->lumibot==4.6.4)
+2026-10-03T04:55:59.1896029Z #8 13.05   Downloading pexpect-4.9.0-py2.py3-none-any.whl.metadata (2.5 kB)
+2026-10-03T04:55:59.1896944Z #8 13.06 Collecting prompt_toolkit<3.1.0,>=3.0.41 (from ipython>=8.22.2->quantstats-lumi<1.2.0,>=1.1.5->lumibot==4.6.4)
+2026-10-03T04:55:59.1897733Z #8 13.07   Downloading prompt_toolkit-3.0.53-py3-none-any.whl.metadata (6.4 kB)
+2026-10-03T04:55:59.1898494Z #8 13.09 Collecting pygments>=2.14.0 (from ipython>=8.22.2->quantstats-lumi<1.2.0,>=1.1.5->lumibot==4.6.4)
+2026-10-03T04:55:59.1899599Z #8 13.09   Downloading pygments-2.21.0-py3-none-any.whl.metadata (2.5 kB)
+2026-10-03T04:55:59.1900374Z #8 13.10 Collecting stack_data>=0.6.0 (from ipython>=8.22.2->quantstats-lumi<1.2.0,>=1.1.5->lumibot==4.6.4)
+2026-10-03T04:55:59.1901109Z #8 13.10   Downloading stack_data-0.6.3-py3-none-any.whl.metadata (18 kB)
+2026-10-03T04:55:59.1901836Z #8 13.11 Collecting traitlets>=5.13.0 (from ipython>=8.22.2->quantstats-lumi<1.2.0,>=1.1.5->lumibot==4.6.4)
+2026-10-03T04:55:59.3090492Z #8 13.38   Downloading traitlets-5.16.1-py3-none-any.whl.metadata (10 kB)
+2026-10-03T04:55:59.4160733Z #8 13.40 Collecting wcwidth>=0.1.4 (from prompt_toolkit<3.1.0,>=3.0.41->ipython>=8.22.2->quantstats-lumi<1.2.0,>=1.1.5->lumibot==4.6.4)
+2026-10-03T04:55:59.4161742Z #8 13.40   Downloading wcwidth-0.9.1-cp310-abi3-manylinux2014_aarch64.manylinux_2_17_aarch64.whl.metadata (23 kB)
+2026-10-03T04:55:59.4162571Z #8 13.41 Collecting parso<0.9.0,>=0.8.6 (from jedi>=0.18.2->ipython>=8.22.2->quantstats-lumi<1.2.0,>=1.1.5->lumibot==4.6.4)
+2026-10-03T04:55:59.4163309Z #8 13.42   Downloading parso-0.8.7-py2.py3-none-any.whl.metadata (8.2 kB)
+2026-10-03T04:55:59.4163836Z #8 13.43 Collecting cloudpickle>=3.0 (from joblib>=1.4.0->scikit-learn)
+2026-10-03T04:55:59.4165174Z #8 13.44   Downloading cloudpickle-3.1.2-py3-none-any.whl.metadata (7.1 kB)
+2026-10-03T04:55:59.4165957Z #8 13.46 Collecting prometheus-client (from k8s-agent-sandbox>=0.1.1.post3->google-adk[extensions]<3.0.0,>=2.9.1->lumibot==4.6.4)
+2026-10-03T04:55:59.4166823Z #8 13.46   Downloading prometheus_client-0.26.0-py3-none-any.whl.metadata (2.1 kB)
+2026-10-03T04:55:59.4167612Z #8 13.48 Collecting websocket-client!=0.40.0,!=0.41.*,!=0.42.*,>=0.32.0 (from kubernetes>=29->google-adk[extensions]<3.0.0,>=2.9.1->lumibot==4.6.4)
+2026-10-03T04:55:59.4168380Z #8 13.48   Downloading websocket_client-1.9.2-py3-none-any.whl.metadata (8.3 kB)
+2026-10-03T04:55:59.4169053Z #8 13.49 Collecting durationpy>=0.7 (from kubernetes>=29->google-adk[extensions]<3.0.0,>=2.9.1->lumibot==4.6.4)
+2026-10-03T04:55:59.6277371Z #8 13.49   Downloading durationpy-0.11-py3-none-any.whl.metadata (474 bytes)
+2026-10-03T04:55:59.6278393Z #8 13.52 Collecting fastuuid<1.0,>=0.14.0 (from litellm>=1.101.0->lumibot==4.6.4)
+2026-10-03T04:55:59.6279322Z #8 13.53   Downloading fastuuid-0.14.0-cp313-cp313-manylinux_2_17_aarch64.manylinux2014_aarch64.whl.metadata (1.1 kB)
+2026-10-03T04:55:59.6280125Z #8 13.56 Collecting tiktoken<1.0,>=0.8.0 (from litellm>=1.101.0->lumibot==4.6.4)
+2026-10-03T04:55:59.6280840Z #8 13.56   Downloading tiktoken-0.14.0-cp313-cp313-manylinux_2_28_aarch64.whl.metadata (6.7 kB)
+2026-10-03T04:55:59.6293703Z #8 13.58 Collecting importlib-metadata<9.0,>=8.0.0 (from litellm>=1.101.0->lumibot==4.6.4)
+2026-10-03T04:55:59.6295063Z #8 13.58   Downloading importlib_metadata-8.9.0-py3-none-any.whl.metadata (4.5 kB)
+2026-10-03T04:55:59.6296086Z #8 13.70 Collecting tokenizers<1.0,>=0.21.0 (from litellm>=1.101.0->lumibot==4.6.4)
+2026-10-03T04:55:59.8634295Z #8 13.71   Downloading tokenizers-0.23.2-cp310-abi3-manylinux_2_17_aarch64.manylinux2014_aarch64.whl.metadata (9.8 kB)
+2026-10-03T04:55:59.8636173Z #8 13.74 Collecting h2<5,>=3 (from httpx[http2]<1.0,>=0.28.0->litellm>=1.101.0->lumibot==4.6.4)
+2026-10-03T04:55:59.8637127Z #8 13.74   Downloading h2-4.4.1-py3-none-any.whl.metadata (3.8 kB)
+2026-10-03T04:55:59.8637894Z #8 13.75 Collecting hyperframe<7,>=6.1 (from h2<5,>=3->httpx[http2]<1.0,>=0.28.0->litellm>=1.101.0->lumibot==4.6.4)
+2026-10-03T04:55:59.8638651Z #8 13.75   Downloading hyperframe-6.1.0-py3-none-any.whl.metadata (4.3 kB)
+2026-10-03T04:55:59.8639374Z #8 13.76 Collecting hpack<5,>=4.2 (from h2<5,>=3->httpx[http2]<1.0,>=0.28.0->litellm>=1.101.0->lumibot==4.6.4)
+2026-10-03T04:55:59.8640069Z #8 13.76   Downloading hpack-4.2.0-py3-none-any.whl.metadata (3.3 kB)
+2026-10-03T04:55:59.8640764Z #8 13.78 Collecting zipp>=3.20 (from importlib-metadata<9.0,>=8.0.0->litellm>=1.101.0->lumibot==4.6.4)
+2026-10-03T04:55:59.8641485Z #8 13.79   Downloading zipp-4.1.0-py3-none-any.whl.metadata (3.6 kB)
+2026-10-03T04:56:00.0291308Z #8 14.10 Collecting regex (from tiktoken<1.0,>=0.8.0->litellm>=1.101.0->lumibot==4.6.4)
+2026-10-03T04:56:00.1316431Z #8 14.11   Downloading regex-2026.9.29-cp313-cp313-manylinux2014_aarch64.manylinux_2_17_aarch64.manylinux_2_28_aarch64.whl.metadata (40 kB)
+2026-10-03T04:56:00.1342743Z #8 14.15 Collecting huggingface-hub<2.0,>=0.16.4 (from tokenizers<1.0,>=0.21.0->litellm>=1.101.0->lumibot==4.6.4)
+2026-10-03T04:56:00.1343964Z #8 14.15   Downloading huggingface_hub-1.33.0-py3-none-any.whl.metadata (16 kB)
+2026-10-03T04:56:00.1345101Z #8 14.18 Collecting filelock>=3.10.0 (from huggingface-hub<2.0,>=0.16.4->tokenizers<1.0,>=0.21.0->litellm>=1.101.0->lumibot==4.6.4)
+2026-10-03T04:56:00.1345997Z #8 14.19   Downloading filelock-4.0.9-py3-none-any.whl.metadata (2.0 kB)
+2026-10-03T04:56:00.1347125Z #8 14.20 Collecting fsspec>=2023.5.0 (from huggingface-hub<2.0,>=0.16.4->tokenizers<1.0,>=0.21.0->litellm>=1.101.0->lumibot==4.6.4)
+2026-10-03T04:56:00.1357279Z #8 14.20   Downloading fsspec-2026.9.0-py3-none-any.whl.metadata (10 kB)
+2026-10-03T04:56:00.2382349Z #8 14.25 Collecting hf-xet<2.0.0,>=1.6.0 (from huggingface-hub<2.0,>=0.16.4->tokenizers<1.0,>=0.21.0->litellm>=1.101.0->lumibot==4.6.4)
+2026-10-03T04:56:00.2384744Z #8 14.25   Downloading hf_xet-1.6.0-cp38-abi3-manylinux_2_28_aarch64.whl.metadata (4.9 kB)
+2026-10-03T04:56:00.2388799Z #8 14.29 Collecting llama-index-core<0.15,>=0.13.0 (from llama-index-embeddings-google-genai>=0.3->google-adk[extensions]<3.0.0,>=2.9.1->lumibot==4.6.4)
+2026-10-03T04:56:00.2390253Z #8 14.30   Downloading llama_index_core-0.14.25-py3-none-any.whl.metadata (2.6 kB)
+2026-10-03T04:56:00.2391723Z #8 14.31 Collecting banks<3,>=2.3.0 (from llama-index-core<0.15,>=0.13.0->llama-index-embeddings-google-genai>=0.3->google-adk[extensions]<3.0.0,>=2.9.1->lumibot==4.6.4)
+2026-10-03T04:56:00.4690202Z #8 14.32   Downloading banks-2.5.1-py3-none-any.whl.metadata (12 kB)
+2026-10-03T04:56:00.4694432Z #8 14.33 Collecting dataclasses-json (from llama-index-core<0.15,>=0.13.0->llama-index-embeddings-google-genai>=0.3->google-adk[extensions]<3.0.0,>=2.9.1->lumibot==4.6.4)
+2026-10-03T04:56:00.4695471Z #8 14.33   Downloading dataclasses_json-0.6.7-py3-none-any.whl.metadata (25 kB)
+2026-10-03T04:56:00.4696537Z #8 14.34 Collecting dirtyjson<2,>=1.0.8 (from llama-index-core<0.15,>=0.13.0->llama-index-embeddings-google-genai>=0.3->google-adk[extensions]<3.0.0,>=2.9.1->lumibot==4.6.4)
+2026-10-03T04:56:00.4697515Z #8 14.35   Downloading dirtyjson-1.0.8-py3-none-any.whl.metadata (11 kB)
+2026-10-03T04:56:00.4698443Z #8 14.35 Collecting filetype<2,>=1.2.0 (from llama-index-core<0.15,>=0.13.0->llama-index-embeddings-google-genai>=0.3->google-adk[extensions]<3.0.0,>=2.9.1->lumibot==4.6.4)
+2026-10-03T04:56:00.4699592Z #8 14.36   Downloading filetype-1.2.0-py2.py3-none-any.whl.metadata (6.5 kB)
+2026-10-03T04:56:00.4700616Z #8 14.37 Collecting llama-index-workflows<3,>=2.14.0 (from llama-index-core<0.15,>=0.13.0->llama-index-embeddings-google-genai>=0.3->google-adk[extensions]<3.0.0,>=2.9.1->lumibot==4.6.4)
+2026-10-03T04:56:00.4701667Z #8 14.38   Downloading llama_index_workflows-2.25.0-py3-none-any.whl.metadata (4.6 kB)
+2026-10-03T04:56:00.4702713Z #8 14.39 Collecting nest-asyncio<2,>=1.5.8 (from llama-index-core<0.15,>=0.13.0->llama-index-embeddings-google-genai>=0.3->google-adk[extensions]<3.0.0,>=2.9.1->lumibot==4.6.4)
+2026-10-03T04:56:00.4703671Z #8 14.39   Downloading nest_asyncio-1.6.0-py3-none-any.whl.metadata (2.8 kB)
+2026-10-03T04:56:00.4704606Z #8 14.40 Collecting networkx>=3.0 (from llama-index-core<0.15,>=0.13.0->llama-index-embeddings-google-genai>=0.3->google-adk[extensions]<3.0.0,>=2.9.1->lumibot==4.6.4)
+2026-10-03T04:56:00.4705512Z #8 14.41   Downloading networkx-3.7-py3-none-any.whl.metadata (6.7 kB)
+2026-10-03T04:56:00.4706440Z #8 14.54 Collecting pillow>=9.0.0 (from llama-index-core<0.15,>=0.13.0->llama-index-embeddings-google-genai>=0.3->google-adk[extensions]<3.0.0,>=2.9.1->lumibot==4.6.4)
+2026-10-03T04:56:00.5713444Z #8 14.55   Downloading pillow-12.3.0-cp313-cp313-manylinux_2_27_aarch64.manylinux_2_28_aarch64.whl.metadata (9.1 kB)
+2026-10-03T04:56:00.5714536Z #8 14.56 Collecting platformdirs (from llama-index-core<0.15,>=0.13.0->llama-index-embeddings-google-genai>=0.3->google-adk[extensions]<3.0.0,>=2.9.1->lumibot==4.6.4)
+2026-10-03T04:56:00.5715467Z #8 14.56   Downloading platformdirs-4.12.2-py3-none-any.whl.metadata (5.5 kB)
+2026-10-03T04:56:00.5716429Z #8 14.58 Collecting tinytag>=2.2.0 (from llama-index-core<0.15,>=0.13.0->llama-index-embeddings-google-genai>=0.3->google-adk[extensions]<3.0.0,>=2.9.1->lumibot==4.6.4)
+2026-10-03T04:56:00.5717277Z #8 14.59   Downloading tinytag-2.3.2-py3-none-any.whl.metadata (24 kB)
+2026-10-03T04:56:00.5718151Z #8 14.60 Collecting typing-inspect>=0.8.0 (from llama-index-core<0.15,>=0.13.0->llama-index-embeddings-google-genai>=0.3->google-adk[extensions]<3.0.0,>=2.9.1->lumibot==4.6.4)
+2026-10-03T04:56:00.5719056Z #8 14.60   Downloading typing_inspect-0.9.0-py3-none-any.whl.metadata (1.5 kB)
+2026-10-03T04:56:00.5721245Z #8 14.62 Collecting griffe (from banks<3,>=2.3.0->llama-index-core<0.15,>=0.13.0->llama-index-embeddings-google-genai>=0.3->google-adk[extensions]<3.0.0,>=2.9.1->lumibot==4.6.4)
+2026-10-03T04:56:00.5722172Z #8 14.63   Downloading griffe-2.3.0-py3-none-any.whl.metadata (11 kB)
+2026-10-03T04:56:00.5724224Z #8 14.64 Collecting llama-index-instrumentation>=0.4.3 (from llama-index-workflows<3,>=2.14.0->llama-index-core<0.15,>=0.13.0->llama-index-embeddings-google-genai>=0.3->google-adk[extensions]<3.0.0,>=2.9.1->lumibot==4.6.4)
+2026-10-03T04:56:00.7149247Z #8 14.65   Downloading llama_index_instrumentation-0.6.0-py3-none-any.whl.metadata (1.1 kB)
+2026-10-03T04:56:00.7152087Z #8 14.67 Collecting defusedxml>=0.7.1 (from llama-index-readers-file>=0.4->google-adk[extensions]<3.0.0,>=2.9.1->lumibot==4.6.4)
+2026-10-03T04:56:00.7152977Z #8 14.67   Downloading defusedxml-0.7.1-py2.py3-none-any.whl.metadata (32 kB)
+2026-10-03T04:56:00.7153542Z #8 14.67 Collecting pandas>=2.2.0 (from lumibot==4.6.4)
+2026-10-03T04:56:00.7156159Z #8 14.68   Downloading pandas-2.3.3-cp313-cp313-manylinux_2_24_aarch64.manylinux_2_28_aarch64.whl.metadata (91 kB)
+2026-10-03T04:56:00.7157186Z #8 14.71 Collecting striprtf<0.0.27,>=0.0.26 (from llama-index-readers-file>=0.4->google-adk[extensions]<3.0.0,>=2.9.1->lumibot==4.6.4)
+2026-10-03T04:56:00.7158060Z #8 14.72   Downloading striprtf-0.0.26-py3-none-any.whl.metadata (2.1 kB)
+2026-10-03T04:56:00.7158672Z #8 14.79 Collecting contourpy>=1.0.1 (from matplotlib>=3.3.3->lumibot==4.6.4)
+2026-10-03T04:56:00.8506961Z #8 14.79   Downloading contourpy-1.4.0-cp313-cp313-manylinux_2_26_aarch64.manylinux_2_28_aarch64.whl.metadata (3.8 kB)
+2026-10-03T04:56:00.8510311Z #8 14.80 Collecting cycler>=0.10 (from matplotlib>=3.3.3->lumibot==4.6.4)
+2026-10-03T04:56:00.8516859Z #8 14.80   Downloading cycler-0.12.1-py3-none-any.whl.metadata (3.8 kB)
+2026-10-03T04:56:00.8517871Z #8 14.92 Collecting fonttools>=4.28.2 (from matplotlib>=3.3.3->lumibot==4.6.4)
+2026-10-03T04:56:00.9806435Z #8 14.93   Downloading fonttools-4.66.1-cp313-cp313-manylinux2014_aarch64.manylinux_2_17_aarch64.manylinux_2_28_aarch64.whl.metadata (130 kB)
+2026-10-03T04:56:00.9808303Z #8 14.99 Collecting kiwisolver>=1.3.1 (from matplotlib>=3.3.3->lumibot==4.6.4)
+2026-10-03T04:56:00.9811092Z #8 14.99   Downloading kiwisolver-1.5.1-cp313-cp313-manylinux_2_24_aarch64.manylinux_2_28_aarch64.whl.metadata (5.2 kB)
+2026-10-03T04:56:00.9811890Z #8 15.01 Collecting pyparsing>=3 (from matplotlib>=3.3.3->lumibot==4.6.4)
+2026-10-03T04:56:00.9812442Z #8 15.02   Downloading pyparsing-3.3.3-py3-none-any.whl.metadata (5.9 kB)
+2026-10-03T04:56:00.9813234Z #8 15.05 Collecting ptyprocess>=0.5 (from pexpect>4.6->ipython>=8.22.2->quantstats-lumi<1.2.0,>=1.1.5->lumibot==4.6.4)
+2026-10-03T04:56:01.0832359Z #8 15.06   Downloading ptyprocess-0.7.0-py2.py3-none-any.whl.metadata (1.3 kB)
+2026-10-03T04:56:01.0834980Z #8 15.08 Collecting polars-runtime-32==1.44.2 (from polars>=1.32.3->lumibot==4.6.4)
+2026-10-03T04:56:01.0836380Z #8 15.09   Downloading polars_runtime_32-1.44.2-cp310-abi3-manylinux_2_17_aarch64.manylinux2014_aarch64.whl.metadata (1.5 kB)
+2026-10-03T04:56:01.0837686Z #8 15.09 INFO: pip is looking at multiple versions of polygon-api-client to determine which version is compatible with other requirements. This could take a while.
+2026-10-03T04:56:01.0838626Z #8 15.09 Collecting polygon-api-client>=1.13.3 (from lumibot==4.6.4)
+2026-10-03T04:56:01.0839289Z #8 15.10   Downloading polygon_api_client-1.16.2-py3-none-any.whl.metadata (962 bytes)
+2026-10-03T04:56:01.0840028Z #8 15.11   Downloading polygon_api_client-1.16.1-py3-none-any.whl.metadata (962 bytes)
+2026-10-03T04:56:01.0840753Z #8 15.11   Downloading polygon_api_client-1.16.0-py3-none-any.whl.metadata (962 bytes)
+2026-10-03T04:56:01.0841448Z #8 15.12   Downloading polygon_api_client-1.15.4-py3-none-any.whl.metadata (1.0 kB)
+2026-10-03T04:56:01.0842136Z #8 15.12   Downloading polygon_api_client-1.15.3-py3-none-any.whl.metadata (952 bytes)
+2026-10-03T04:56:01.0842839Z #8 15.13   Downloading polygon_api_client-1.15.2-py3-none-any.whl.metadata (952 bytes)
+2026-10-03T04:56:01.0843550Z #8 15.14   Downloading polygon_api_client-1.15.1-py3-none-any.whl.metadata (952 bytes)
+2026-10-03T04:56:01.0844901Z #8 15.14 INFO: pip is still looking at multiple versions of polygon-api-client to determine which version is compatible with other requirements. This could take a while.
+2026-10-03T04:56:01.0845891Z #8 15.14   Downloading polygon_api_client-1.15.0-py3-none-any.whl.metadata (952 bytes)
+2026-10-03T04:56:01.0846717Z #8 15.15   Downloading polygon_api_client-1.14.6-py3-none-any.whl.metadata (952 bytes)
+2026-10-03T04:56:01.0847423Z #8 15.16   Downloading polygon_api_client-1.14.5-py3-none-any.whl.metadata (952 bytes)
+2026-10-03T04:56:01.1938119Z #8 15.16   Downloading polygon_api_client-1.14.4-py3-none-any.whl.metadata (952 bytes)
+2026-10-03T04:56:01.1942130Z #8 15.17   Downloading polygon_api_client-1.14.3-py3-none-any.whl.metadata (940 bytes)
+2026-10-03T04:56:01.1948550Z #8 15.17 INFO: This is taking longer than usual. You might need to provide the dependency resolver with stricter constraints to reduce runtime. See https://pip.pypa.io/warnings/backtracking for guidance. If you want to abort this run, press Ctrl + C.
+2026-10-03T04:56:01.1952159Z #8 15.17   Downloading polygon_api_client-1.14.2-py3-none-any.whl.metadata (889 bytes)
+2026-10-03T04:56:01.1954406Z #8 15.18   Downloading polygon_api_client-1.14.1-py3-none-any.whl.metadata (889 bytes)
+2026-10-03T04:56:01.1955133Z #8 15.19   Downloading polygon_api_client-1.14.0-py3-none-any.whl.metadata (889 bytes)
+2026-10-03T04:56:01.1955757Z #8 15.20   Downloading polygon_api_client-1.13.7-py3-none-any.whl.metadata (889 bytes)
+2026-10-03T04:56:01.1956577Z #8 15.21   Downloading polygon_api_client-1.13.6-py3-none-any.whl.metadata (889 bytes)
+2026-10-03T04:56:01.1957191Z #8 15.22   Downloading polygon_api_client-1.13.5-py3-none-any.whl.metadata (889 bytes)
+2026-10-03T04:56:01.1957800Z #8 15.22   Downloading polygon_api_client-1.13.4-py3-none-any.whl.metadata (889 bytes)
+2026-10-03T04:56:01.1958432Z #8 15.23   Downloading polygon_api_client-1.13.3-py3-none-any.whl.metadata (889 bytes)
+2026-10-03T04:56:01.1959294Z #8 15.25 Collecting llama-index-core<0.15,>=0.13.0 (from llama-index-embeddings-google-genai>=0.3->google-adk[extensions]<3.0.0,>=2.9.1->lumibot==4.6.4)
+2026-10-03T04:56:01.1960137Z #8 15.25   Downloading llama_index_core-0.14.24-py3-none-any.whl.metadata (2.6 kB)
+2026-10-03T04:56:01.1960822Z #8 15.27 Collecting huggingface-hub<2.0,>=0.16.4 (from tokenizers<1.0,>=0.21.0->litellm>=1.101.0->lumibot==4.6.4)
+2026-10-03T04:56:01.3013677Z #8 15.27   Downloading huggingface_hub-1.32.0-py3-none-any.whl.metadata (16 kB)
+2026-10-03T04:56:01.3017392Z #8 15.29 Collecting tiktoken<1.0,>=0.8.0 (from litellm>=1.101.0->lumibot==4.6.4)
+2026-10-03T04:56:01.3018915Z #8 15.29   Downloading tiktoken-0.13.0-cp313-cp313-manylinux_2_28_aarch64.whl.metadata (6.7 kB)
+2026-10-03T04:56:01.3020026Z #8 15.31 Collecting litellm>=1.101.0 (from lumibot==4.6.4)
+2026-10-03T04:56:01.3020712Z #8 15.31   Downloading litellm-1.103.1-cp310-abi3-manylinux_2_28_aarch64.whl.metadata (42 kB)
+2026-10-03T04:56:01.3021496Z #8 15.33 Collecting kubernetes>=29 (from google-adk[extensions]<3.0.0,>=2.9.1->lumibot==4.6.4)
+2026-10-03T04:56:01.3022286Z #8 15.33   Downloading kubernetes-36.0.2-py2.py3-none-any.whl.metadata (1.8 kB)
+2026-10-03T04:56:01.3024301Z #8 15.35 Collecting k8s-agent-sandbox>=0.1.1.post3 (from google-adk[extensions]<3.0.0,>=2.9.1->lumibot==4.6.4)
+2026-10-03T04:56:01.3025433Z #8 15.35   Downloading k8s_agent_sandbox-1.0.3-py3-none-any.whl.metadata (16 kB)
+2026-10-03T04:56:01.3026238Z #8 15.36 Collecting docker>=7 (from google-adk[extensions]<3.0.0,>=2.9.1->lumibot==4.6.4)
+2026-10-03T04:56:01.3026937Z #8 15.37   Downloading docker-7.1.0-py3-none-any.whl.metadata (3.8 kB)
+2026-10-03T04:56:01.3027507Z #8 15.37 Collecting databento>=0.42.0 (from lumibot==4.6.4)
+2026-10-03T04:56:01.4016416Z #8 15.38   Downloading databento-0.86.0-py3-none-any.whl.metadata (6.7 kB)
+2026-10-03T04:56:01.4019760Z #8 15.39 Collecting ccxt>=4.5.50 (from lumibot==4.6.4)
+2026-10-03T04:56:01.4030426Z #8 15.39   Downloading ccxt-4.5.84-py3-none-any.whl.metadata (162 kB)
+2026-10-03T04:56:01.4030971Z #8 15.41 Collecting certifi>=2023.5.7 (from requests==2.33.1)
+2026-10-03T04:56:01.4031463Z #8 15.41   Downloading certifi-2025.11.12-py3-none-any.whl.metadata (2.5 kB)
+2026-10-03T04:56:01.4032287Z #8 15.41 INFO: pip is looking at multiple versions of ccxt to determine which version is compatible with other requirements. This could take a while.
+2026-10-03T04:56:01.4033011Z #8 15.42 Collecting ccxt>=4.5.50 (from lumibot==4.6.4)
+2026-10-03T04:56:01.4033487Z #8 15.42   Downloading ccxt-4.5.83-py3-none-any.whl.metadata (164 kB)
+2026-10-03T04:56:01.4033985Z #8 15.43   Downloading ccxt-4.5.82-py3-none-any.whl.metadata (164 kB)
+2026-10-03T04:56:01.4034478Z #8 15.45   Downloading ccxt-4.5.81-py3-none-any.whl.metadata (163 kB)
+2026-10-03T04:56:01.4034963Z #8 15.46   Downloading ccxt-4.5.78-py3-none-any.whl.metadata (162 kB)
+2026-10-03T04:56:01.4036573Z #8 15.47   Downloading ccxt-4.5.77-py3-none-any.whl.metadata (157 kB)
+2026-10-03T04:56:01.5017893Z #8 15.49   Downloading ccxt-4.5.76-py3-none-any.whl.metadata (156 kB)
+2026-10-03T04:56:01.5020179Z #8 15.50   Downloading ccxt-4.5.75-py3-none-any.whl.metadata (155 kB)
+2026-10-03T04:56:01.5021330Z #8 15.51 INFO: pip is still looking at multiple versions of ccxt to determine which version is compatible with other requirements. This could take a while.
+2026-10-03T04:56:01.5022303Z #8 15.51   Downloading ccxt-4.5.74-py3-none-any.whl.metadata (155 kB)
+2026-10-03T04:56:01.5022913Z #8 15.53   Downloading ccxt-4.5.73-py3-none-any.whl.metadata (155 kB)
+2026-10-03T04:56:01.5023578Z #8 15.55   Downloading ccxt-4.5.72-py3-none-any.whl.metadata (155 kB)
+2026-10-03T04:56:01.5024192Z #8 15.56   Downloading ccxt-4.5.71-py3-none-any.whl.metadata (154 kB)
+2026-10-03T04:56:01.5024793Z #8 15.57   Downloading ccxt-4.5.70-py3-none-any.whl.metadata (156 kB)
+2026-10-03T04:56:01.6252406Z #8 15.59 INFO: This is taking longer than usual. You might need to provide the dependency resolver with stricter constraints to reduce runtime. See https://pip.pypa.io/warnings/backtracking for guidance. If you want to abort this run, press Ctrl + C.
+2026-10-03T04:56:01.6254356Z #8 15.59   Downloading ccxt-4.5.69-py3-none-any.whl.metadata (156 kB)
+2026-10-03T04:56:01.6255071Z #8 15.61   Downloading ccxt-4.5.68-py3-none-any.whl.metadata (155 kB)
+2026-10-03T04:56:01.6255660Z #8 15.62   Downloading ccxt-4.5.67-py3-none-any.whl.metadata (155 kB)
+2026-10-03T04:56:01.6256364Z #8 15.64   Downloading ccxt-4.5.66-py3-none-any.whl.metadata (155 kB)
+2026-10-03T04:56:01.6258028Z #8 15.65   Downloading ccxt-4.5.65-py3-none-any.whl.metadata (152 kB)
+2026-10-03T04:56:01.6260734Z #8 15.66   Downloading ccxt-4.5.64-py2.py3-none-any.whl.metadata (151 kB)
+2026-10-03T04:56:01.6261519Z #8 15.69 Collecting aiodns>=1.1.1 (from ccxt>=4.5.50->lumibot==4.6.4)
+2026-10-03T04:56:01.8542805Z #8 15.70   Downloading aiodns-4.0.4-py3-none-any.whl.metadata (9.0 kB)
+2026-10-03T04:56:01.8544342Z #8 15.76 Collecting pycares<6,>=5.0.0 (from aiodns>=1.1.1->ccxt>=4.5.50->lumibot==4.6.4)
+2026-10-03T04:56:01.8545305Z #8 15.77   Downloading pycares-5.0.1-cp313-cp313-manylinux_2_26_aarch64.manylinux_2_28_aarch64.whl.metadata (4.1 kB)
+2026-10-03T04:56:01.8546259Z #8 15.77 Collecting cffi>=1.5.0 (from pycares<6,>=5.0.0->aiodns>=1.1.1->ccxt>=4.5.50->lumibot==4.6.4)
+2026-10-03T04:56:01.8547126Z #8 15.78   Downloading cffi-2.1.1-cp313-cp313-manylinux2014_aarch64.manylinux_2_17_aarch64.whl.metadata (2.5 kB)
+2026-10-03T04:56:01.9119504Z #8 15.98 Collecting eth-account>=0.13.0 (from py-clob-client-v2>=1.0.1->lumibot==4.6.4)
+2026-10-03T04:56:02.1470633Z #8 15.99   Downloading eth_account-0.14.0-py3-none-any.whl.metadata (2.4 kB)
+2026-10-03T04:56:02.1471775Z #8 16.00 Collecting eth-abi>=5.0.0 (from py-clob-client-v2>=1.0.1->lumibot==4.6.4)
+2026-10-03T04:56:02.1481193Z #8 16.00   Downloading eth_abi-6.0.0-py3-none-any.whl.metadata (2.4 kB)
+2026-10-03T04:56:02.1481853Z #8 16.01 Collecting eth-utils>=4.1.1 (from py-clob-client-v2>=1.0.1->lumibot==4.6.4)
+2026-10-03T04:56:02.1482447Z #8 16.02   Downloading eth_utils-6.0.0-py3-none-any.whl.metadata (5.6 kB)
+2026-10-03T04:56:02.1483045Z #8 16.03 Collecting poly_eip712_structs>=0.0.1 (from py-clob-client-v2>=1.0.1->lumibot==4.6.4)
+2026-10-03T04:56:02.1483677Z #8 16.03   Downloading poly_eip712_structs-0.0.1-py3-none-any.whl.metadata (7.2 kB)
+2026-10-03T04:56:02.1484293Z #8 16.04 Collecting py-order-utils>=0.3.2 (from py-clob-client-v2>=1.0.1->lumibot==4.6.4)
+2026-10-03T04:56:02.1484885Z #8 16.04   Downloading py_order_utils-0.3.2-py3-none-any.whl.metadata (1.6 kB)
+2026-10-03T04:56:02.1485524Z #8 16.05 Collecting eth-typing>=3.0.0 (from eth-abi>=5.0.0->py-clob-client-v2>=1.0.1->lumibot==4.6.4)
+2026-10-03T04:56:02.1486213Z #8 16.06   Downloading eth_typing-6.0.0-py3-none-any.whl.metadata (3.1 kB)
+2026-10-03T04:56:02.1486859Z #8 16.07 Collecting parsimonious<0.11.0,>=0.10.0 (from eth-abi>=5.0.0->py-clob-client-v2>=1.0.1->lumibot==4.6.4)
+2026-10-03T04:56:02.1489829Z #8 16.07   Downloading parsimonious-0.10.0-py3-none-any.whl.metadata (25 kB)
+2026-10-03T04:56:02.2411776Z #8 16.31 Collecting bitarray>=2.4 (from eth-account>=0.13.0->py-clob-client-v2>=1.0.1->lumibot==4.6.4)
+2026-10-03T04:56:02.4609325Z #8 16.32   Downloading bitarray-3.11.0-cp313-cp313-manylinux2014_aarch64.manylinux_2_17_aarch64.manylinux_2_28_aarch64.whl.metadata (38 kB)
+2026-10-03T04:56:02.4612687Z #8 16.33 Collecting eth-keyfile>=0.10 (from eth-account>=0.13.0->py-clob-client-v2>=1.0.1->lumibot==4.6.4)
+2026-10-03T04:56:02.4613747Z #8 16.33   Downloading eth_keyfile-0.10.0-py3-none-any.whl.metadata (9.8 kB)
+2026-10-03T04:56:02.4614544Z #8 16.34 Collecting eth-keys>=0.5 (from eth-account>=0.13.0->py-clob-client-v2>=1.0.1->lumibot==4.6.4)
+2026-10-03T04:56:02.4615378Z #8 16.35   Downloading eth_keys-0.8.0-py3-none-any.whl.metadata (12 kB)
+2026-10-03T04:56:02.4616160Z #8 16.35 Collecting eth-rlp>=3 (from eth-account>=0.13.0->py-clob-client-v2>=1.0.1->lumibot==4.6.4)
+2026-10-03T04:56:02.4616976Z #8 16.36   Downloading eth_rlp-3.0.0-py3-none-any.whl.metadata (2.2 kB)
+2026-10-03T04:56:02.4617700Z #8 16.37 Collecting hexbytes>=2 (from eth-account>=0.13.0->py-clob-client-v2>=1.0.1->lumibot==4.6.4)
+2026-10-03T04:56:02.4618520Z #8 16.37   Downloading hexbytes-2.0.0-py3-none-any.whl.metadata (2.1 kB)
+2026-10-03T04:56:02.4619266Z #8 16.38 Collecting rlp>=2 (from eth-account>=0.13.0->py-clob-client-v2>=1.0.1->lumibot==4.6.4)
+2026-10-03T04:56:02.4620335Z #8 16.38   Downloading rlp-5.0.0-py3-none-any.whl.metadata (2.1 kB)
+2026-10-03T04:56:02.7023224Z #8 16.77 Collecting ckzg>=2 (from eth-account>=0.13.0->py-clob-client-v2>=1.0.1->lumibot==4.6.4)
+2026-10-03T04:56:02.8090071Z #8 16.78   Downloading ckzg-2.1.8-cp313-cp313-manylinux2014_aarch64.manylinux_2_17_aarch64.manylinux_2_28_aarch64.whl.metadata (887 bytes)
+2026-10-03T04:56:02.8091307Z #8 16.80 Collecting py_ecc>=5.2.0 (from eth-keyfile>=0.10->eth-account>=0.13.0->py-clob-client-v2>=1.0.1->lumibot==4.6.4)
+2026-10-03T04:56:02.8092994Z #8 16.80   Downloading py_ecc-8.0.0-py3-none-any.whl.metadata (3.1 kB)
+2026-10-03T04:56:02.8094363Z #8 16.85 Collecting pycryptodome<4,>=3.6.6 (from eth-keyfile>=0.10->eth-account>=0.13.0->py-clob-client-v2>=1.0.1->lumibot==4.6.4)
+2026-10-03T04:56:02.8102077Z #8 16.86   Downloading pycryptodome-3.23.0-cp37-abi3-manylinux_2_17_aarch64.manylinux2014_aarch64.whl.metadata (3.4 kB)
+2026-10-03T04:56:02.8105881Z #8 16.88 Collecting eth-hash>=0.3.1 (from eth-utils>=4.1.1->py-clob-client-v2>=1.0.1->lumibot==4.6.4)
+2026-10-03T04:56:02.9437949Z #8 16.88   Downloading eth_hash-0.8.0-py3-none-any.whl.metadata (4.1 kB)
+2026-10-03T04:56:02.9438904Z #8 16.93 Collecting cytoolz>=0.10.1 (from eth-utils>=4.1.1->py-clob-client-v2>=1.0.1->lumibot==4.6.4)
+2026-10-03T04:56:02.9439874Z #8 16.94   Downloading cytoolz-1.1.0-cp313-cp313-manylinux2014_aarch64.manylinux_2_17_aarch64.manylinux_2_28_aarch64.whl.metadata (5.2 kB)
+2026-10-03T04:56:02.9442283Z #8 16.97 Collecting pyasn1<0.7.0,>=0.6.1 (from pyasn1-modules>=0.2.1->google-auth>=2.47->google-auth[pyopenssl]>=2.47->google-adk<3.0.0,>=2.9.1->google-adk[extensions]<3.0.0,>=2.9.1->lumibot==4.6.4)
+2026-10-03T04:56:02.9443622Z #8 16.98   Downloading pyasn1-0.6.4-py3-none-any.whl.metadata (8.4 kB)
+2026-10-03T04:56:02.9444498Z #8 17.02 Collecting oauthlib>=3.0.0 (from requests-oauthlib->lumibot==4.6.4)
+2026-10-03T04:56:03.1322822Z #8 17.02   Downloading oauthlib-4.0.0-py3-none-any.whl.metadata (8.6 kB)
+2026-10-03T04:56:03.1332399Z #8 17.05 Collecting autopep8 (from schwab-py>=1.5.0->lumibot==4.6.4)
+2026-10-03T04:56:03.1333410Z #8 17.05   Downloading autopep8-2.3.2-py2.py3-none-any.whl.metadata (16 kB)
+2026-10-03T04:56:03.1334397Z #8 17.07 Collecting multiprocess (from schwab-py>=1.5.0->lumibot==4.6.4)
+2026-10-03T04:56:03.1335091Z #8 17.07   Downloading multiprocess-0.70.19-py313-none-any.whl.metadata (7.5 kB)
+2026-10-03T04:56:03.1336430Z #8 17.20 Collecting greenlet>=1 (from sqlalchemy[asyncio]>=1.4.49->llama-index-core<0.15,>=0.13.0->llama-index-embeddings-google-genai>=0.3->google-adk[extensions]<3.0.0,>=2.9.1->lumibot==4.6.4)
+2026-10-03T04:56:03.2927804Z #8 17.21   Downloading greenlet-3.5.6-cp313-cp313-manylinux_2_24_aarch64.manylinux_2_28_aarch64.whl.metadata (3.8 kB)
+2026-10-03T04:56:03.2929348Z #8 17.23 Collecting executing>=1.2.0 (from stack_data>=0.6.0->ipython>=8.22.2->quantstats-lumi<1.2.0,>=1.1.5->lumibot==4.6.4)
+2026-10-03T04:56:03.2930556Z #8 17.23   Downloading executing-2.2.1-py2.py3-none-any.whl.metadata (8.9 kB)
+2026-10-03T04:56:03.2932340Z #8 17.24 Collecting asttokens>=2.1.0 (from stack_data>=0.6.0->ipython>=8.22.2->quantstats-lumi<1.2.0,>=1.1.5->lumibot==4.6.4)
+2026-10-03T04:56:03.2933110Z #8 17.24   Downloading asttokens-3.0.2-py3-none-any.whl.metadata (5.7 kB)
+2026-10-03T04:56:03.2933855Z #8 17.25 Collecting pure-eval (from stack_data>=0.6.0->ipython>=8.22.2->quantstats-lumi<1.2.0,>=1.1.5->lumibot==4.6.4)
+2026-10-03T04:56:03.2934542Z #8 17.25   Downloading pure_eval-0.2.4-py3-none-any.whl.metadata (6.4 kB)
+2026-10-03T04:56:03.2935525Z #8 17.28 Collecting mypy-extensions>=0.3.0 (from typing-inspect>=0.8.0->llama-index-core<0.15,>=0.13.0->llama-index-embeddings-google-genai>=0.3->google-adk[extensions]<3.0.0,>=2.9.1->lumibot==4.6.4)
+2026-10-03T04:56:03.2936596Z #8 17.29   Downloading mypy_extensions-1.1.0-py3-none-any.whl.metadata (1.1 kB)
+2026-10-03T04:56:03.2938378Z #8 17.36 Collecting curl_cffi>=0.15 (from yfinance>=0.2.61->lumibot==4.6.4)
+2026-10-03T04:56:03.4023251Z #8 17.37   Downloading curl_cffi-0.16.3-cp310-abi3-manylinux2014_aarch64.manylinux_2_17_aarch64.whl.metadata (17 kB)
+2026-10-03T04:56:03.4024658Z #8 17.38 Collecting multitasking>=0.0.7 (from yfinance>=0.2.61->lumibot==4.6.4)
+2026-10-03T04:56:03.4026048Z #8 17.38   Downloading multitasking-0.0.13-py3-none-any.whl.metadata (16 kB)
+2026-10-03T04:56:03.4026659Z #8 17.40 Collecting peewee>=3.16.2 (from yfinance>=0.2.61->lumibot==4.6.4)
+2026-10-03T04:56:03.4027174Z #8 17.41   Downloading peewee-4.5.2-py3-none-any.whl.metadata (10 kB)
+2026-10-03T04:56:03.4028742Z #8 17.44 Collecting pycodestyle>=2.12.0 (from autopep8->schwab-py>=1.5.0->lumibot==4.6.4)
+2026-10-03T04:56:03.4029448Z #8 17.45   Downloading pycodestyle-2.15.0-py2.py3-none-any.whl.metadata (4.5 kB)
+2026-10-03T04:56:03.4030465Z #8 17.47 Collecting marshmallow<4.0.0,>=3.18.0 (from dataclasses-json->llama-index-core<0.15,>=0.13.0->llama-index-embeddings-google-genai>=0.3->google-adk[extensions]<3.0.0,>=2.9.1->lumibot==4.6.4)
+2026-10-03T04:56:03.5049366Z #8 17.48   Downloading marshmallow-3.26.2-py3-none-any.whl.metadata (7.3 kB)
+2026-10-03T04:56:03.5050900Z #8 17.50 Collecting griffecli==2.3.0 (from griffe->banks<3,>=2.3.0->llama-index-core<0.15,>=0.13.0->llama-index-embeddings-google-genai>=0.3->google-adk[extensions]<3.0.0,>=2.9.1->lumibot==4.6.4)
+2026-10-03T04:56:03.5051946Z #8 17.50   Downloading griffecli-2.3.0-py3-none-any.whl.metadata (1.2 kB)
+2026-10-03T04:56:03.5073815Z #8 17.51 Collecting griffelib==2.3.0 (from griffe->banks<3,>=2.3.0->llama-index-core<0.15,>=0.13.0->llama-index-embeddings-google-genai>=0.3->google-adk[extensions]<3.0.0,>=2.9.1->lumibot==4.6.4)
+2026-10-03T04:56:03.5076225Z #8 17.51   Downloading griffelib-2.3.0-py3-none-any.whl.metadata (1.3 kB)
+2026-10-03T04:56:03.5077507Z #8 17.52 Collecting colorama>=0.4 (from griffecli==2.3.0->griffe->banks<3,>=2.3.0->llama-index-core<0.15,>=0.13.0->llama-index-embeddings-google-genai>=0.3->google-adk[extensions]<3.0.0,>=2.9.1->lumibot==4.6.4)
+2026-10-03T04:56:03.5078824Z #8 17.53   Downloading colorama-0.4.6-py2.py3-none-any.whl.metadata (17 kB)
+2026-10-03T04:56:03.5080402Z #8 17.55 Collecting dill>=0.4.1 (from multiprocess->schwab-py>=1.5.0->lumibot==4.6.4)
+2026-10-03T04:56:03.5081050Z #8 17.56   Downloading dill-0.4.1-py3-none-any.whl.metadata (10 kB)
+2026-10-03T04:56:03.5081678Z #8 17.58 Collecting iniconfig>=1.0.1 (from pytest->lumibot==4.6.4)
+2026-10-03T04:56:03.7391281Z #8 17.58   Downloading iniconfig-2.3.0-py3-none-any.whl.metadata (2.5 kB)
+2026-10-03T04:56:03.7393886Z #8 17.59 Collecting pluggy<2,>=1.5 (from pytest->lumibot==4.6.4)
+2026-10-03T04:56:03.7394612Z #8 17.59   Downloading pluggy-1.6.0-py3-none-any.whl.metadata (4.8 kB)
+2026-10-03T04:56:03.7395216Z #8 17.61 Collecting inflection>=0.3.1 (from quandl->lumibot==4.6.4)
+2026-10-03T04:56:03.7395950Z #8 17.62   Downloading inflection-0.5.1-py2.py3-none-any.whl.metadata (1.7 kB)
+2026-10-03T04:56:03.7396932Z #8 17.63 Collecting more-itertools (from quandl->lumibot==4.6.4)
+2026-10-03T04:56:03.7397673Z #8 17.63   Downloading more_itertools-11.1.0-py3-none-any.whl.metadata (41 kB)
+2026-10-03T04:56:03.7399406Z #8 17.65 WARNING: The candidate selected for download or install is a yanked version: 'thetadata' candidate (version 0.9.11 at https://files.pythonhosted.org/packages/e7/ca/6760de676f16764db82ed6224258b71d1cb1df5398073cd754bf7ce20123/thetadata-0.9.11-py3-none-any.whl (from https://pypi.org/simple/thetadata/) (requires-python:>=3.7))
+2026-10-03T04:56:03.7401130Z #8 17.65 Reason for being yanked: <none given>
+2026-10-03T04:56:03.7401624Z #8 17.66 Downloading lumibot-4.6.4-py3-none-any.whl (37.9 MB)
+2026-10-03T04:56:03.7432770Z #8 17.82    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 37.9/37.9 MB 252.6 MB/s  0:00:00
+2026-10-03T04:56:03.8443929Z #8 17.82 Downloading boto3-1.43.1-py3-none-any.whl (140 kB)
+2026-10-03T04:56:03.8444512Z #8 17.82 Downloading requests-2.33.1-py3-none-any.whl (64 kB)
+2026-10-03T04:56:03.8444981Z #8 17.83 Downloading packaging-25.0-py3-none-any.whl (66 kB)
+2026-10-03T04:56:03.8447031Z #8 17.83 Downloading zstandard-0.25.0-cp313-cp313-manylinux2014_aarch64.manylinux_2_17_aarch64.whl (5.1 MB)
+2026-10-03T04:56:03.8448219Z #8 17.85    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 5.1/5.1 MB 308.9 MB/s  0:00:00
+2026-10-03T04:56:03.8448690Z #8 17.86 Downloading thetadata-0.9.11-py3-none-any.whl (24 kB)
+2026-10-03T04:56:03.8449657Z #8 17.86 Downloading botocore-1.43.108-py3-none-any.whl (16.0 MB)
+2026-10-03T04:56:03.9643083Z #8 17.92    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 16.0/16.0 MB 299.3 MB/s  0:00:00
+2026-10-03T04:56:03.9650187Z #8 17.92 Downloading charset_normalizer-3.5.2-cp313-cp313-manylinux2014_aarch64.manylinux_2_17_aarch64.manylinux_2_28_aarch64.whl (244 kB)
+2026-10-03T04:56:03.9667856Z #8 17.93 Downloading google_adk-2.11.0-py3-none-any.whl (4.9 MB)
+2026-10-03T04:56:03.9669272Z #8 17.95    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 4.9/4.9 MB 306.8 MB/s  0:00:00
+2026-10-03T04:56:03.9670014Z #8 17.95 Downloading authlib-1.8.0-py2.py3-none-any.whl (260 kB)
+2026-10-03T04:56:03.9670811Z #8 17.95 Downloading click-8.5.0-py3-none-any.whl (125 kB)
+2026-10-03T04:56:03.9671411Z #8 17.96 Downloading fastapi-0.141.1-py3-none-any.whl (131 kB)
+2026-10-03T04:56:03.9672136Z #8 17.96 Downloading google_cloud_firestore-2.34.0-py3-none-any.whl (443 kB)
+2026-10-03T04:56:03.9672882Z #8 17.97 Downloading google_api_core-2.34.0-py3-none-any.whl (180 kB)
+2026-10-03T04:56:03.9673631Z #8 17.97 Downloading google_auth-2.59.1-py3-none-any.whl (263 kB)
+2026-10-03T04:56:03.9674371Z #8 17.98 Downloading google_cloud_core-2.8.0-py3-none-any.whl (31 kB)
+2026-10-03T04:56:03.9675085Z #8 17.98 Downloading google_genai-2.28.0-py3-none-any.whl (1.2 MB)
+2026-10-03T04:56:03.9675992Z #8 17.99    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 1.2/1.2 MB 288.0 MB/s  0:00:00
+2026-10-03T04:56:03.9676701Z #8 17.99 Downloading anyio-4.15.1-py3-none-any.whl (132 kB)
+2026-10-03T04:56:03.9677332Z #8 18.00 Downloading distro-1.9.0-py3-none-any.whl (20 kB)
+2026-10-03T04:56:03.9678048Z #8 18.00 Downloading googleapis_common_protos-1.75.5-py3-none-any.whl (307 kB)
+2026-10-03T04:56:03.9678789Z #8 18.01 Downloading graphviz-0.21-py3-none-any.whl (47 kB)
+2026-10-03T04:56:03.9679624Z #8 18.01 Downloading grpcio-1.84.0-cp313-cp313-manylinux2014_aarch64.manylinux_2_17_aarch64.whl (7.0 MB)
+2026-10-03T04:56:04.0882091Z #8 18.04    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 7.0/7.0 MB 307.3 MB/s  0:00:00
+2026-10-03T04:56:04.0892146Z #8 18.04 Downloading grpcio_status-1.84.0-py3-none-any.whl (14 kB)
+2026-10-03T04:56:04.0892823Z #8 18.04 Downloading httpx-0.28.1-py3-none-any.whl (73 kB)
+2026-10-03T04:56:04.0893630Z #8 18.05 Downloading httpcore-1.0.9-py3-none-any.whl (78 kB)
+2026-10-03T04:56:04.0895189Z #8 18.05 Downloading idna-3.20-py3-none-any.whl (69 kB)
+2026-10-03T04:56:04.0896315Z #8 18.06 Downloading jsonschema-4.26.0-py3-none-any.whl (90 kB)
+2026-10-03T04:56:04.0896900Z #8 18.06 Downloading langgraph-1.2.12-py3-none-any.whl (250 kB)
+2026-10-03T04:56:04.0897469Z #8 18.06 Downloading langchain_core-1.6.6-py3-none-any.whl (572 kB)
+2026-10-03T04:56:04.0901173Z #8 18.07    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 572.1/572.1 kB 306.5 MB/s  0:00:00
+2026-10-03T04:56:04.0913864Z #8 18.07 Downloading jsonpatch-1.33-py2.py3-none-any.whl (12 kB)
+2026-10-03T04:56:04.0921021Z #8 18.07 Downloading langgraph_checkpoint-4.2.0-py3-none-any.whl (56 kB)
+2026-10-03T04:56:04.0922789Z #8 18.08 Downloading langgraph_prebuilt-1.1.0-py3-none-any.whl (41 kB)
+2026-10-03T04:56:04.0923333Z #8 18.08 Downloading langgraph_sdk-0.4.5-py3-none-any.whl (162 kB)
+2026-10-03T04:56:04.0923826Z #8 18.09 Downloading langsmith-0.14.4-py3-none-any.whl (813 kB)
+2026-10-03T04:56:04.0924642Z #8 18.09    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 813.1/813.1 kB 297.6 MB/s  0:00:00
+2026-10-03T04:56:04.0925102Z #8 18.09 Downloading httpx2-2.13.1-py3-none-any.whl (95 kB)
+2026-10-03T04:56:04.0925557Z #8 18.10 Downloading httpcore2-2.13.1-py3-none-any.whl (83 kB)
+2026-10-03T04:56:04.0926088Z #8 18.10 Downloading mcp-1.30.0-py3-none-any.whl (234 kB)
+2026-10-03T04:56:04.0926710Z #8 18.11 Downloading numpy-2.4.6-cp313-cp313-manylinux_2_27_aarch64.manylinux_2_28_aarch64.whl (15.7 MB)
+2026-10-03T04:56:04.1907749Z #8 18.16    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 15.7/15.7 MB 297.3 MB/s  0:00:00
+2026-10-03T04:56:04.1918666Z #8 18.17 Downloading openai-2.54.0-py3-none-any.whl (1.7 MB)
+2026-10-03T04:56:04.1921028Z #8 18.17    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 1.7/1.7 MB 300.1 MB/s  0:00:00
+2026-10-03T04:56:04.1932934Z #8 18.18 Downloading jiter-0.17.0-cp313-cp313-manylinux_2_17_aarch64.manylinux2014_aarch64.whl (343 kB)
+2026-10-03T04:56:04.1933788Z #8 18.19 Downloading opentelemetry_api-1.42.1-py3-none-any.whl (61 kB)
+2026-10-03T04:56:04.1934533Z #8 18.19 Downloading opentelemetry_sdk-1.42.1-py3-none-any.whl (170 kB)
+2026-10-03T04:56:04.1935342Z #8 18.19 Downloading opentelemetry_semantic_conventions-0.63b1-py3-none-any.whl (203 kB)
+2026-10-03T04:56:04.1936108Z #8 18.20 Downloading proto_plus-1.29.0-py3-none-any.whl (50 kB)
+2026-10-03T04:56:04.1936860Z #8 18.20 Downloading protobuf-7.36.2-cp310-abi3-manylinux2014_aarch64.whl (344 kB)
+2026-10-03T04:56:04.1937522Z #8 18.21 Downloading pydantic-2.13.5-py3-none-any.whl (472 kB)
+2026-10-03T04:56:04.1939776Z #8 18.21 Downloading pydantic_core-2.46.5-cp313-cp313-manylinux_2_17_aarch64.manylinux2014_aarch64.whl (2.0 MB)
+2026-10-03T04:56:04.1941516Z #8 18.22    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 2.0/2.0 MB 267.2 MB/s  0:00:00
+2026-10-03T04:56:04.1943202Z #8 18.23 Downloading python_dotenv-1.2.4-py3-none-any.whl (23 kB)
+2026-10-03T04:56:04.1944031Z #8 18.23 Downloading python_multipart-0.0.32-py3-none-any.whl (30 kB)
+2026-10-03T04:56:04.1945429Z #8 18.24 Downloading pyyaml-6.0.3-cp313-cp313-manylinux2014_aarch64.manylinux_2_17_aarch64.manylinux_2_28_aarch64.whl (767 kB)
+2026-10-03T04:56:04.1946868Z #8 18.24    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 767.1/767.1 kB 284.5 MB/s  0:00:00
+2026-10-03T04:56:04.1947729Z #8 18.25 Downloading quantstats_lumi-1.1.5-py2.py3-none-any.whl (62 kB)
+2026-10-03T04:56:04.1948529Z #8 18.25 Downloading s3transfer-0.17.1-py3-none-any.whl (88 kB)
+2026-10-03T04:56:04.1949289Z #8 18.26 Downloading setuptools-80.10.2-py3-none-any.whl (1.1 MB)
+2026-10-03T04:56:04.3399833Z #8 18.26    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 1.1/1.1 MB 288.7 MB/s  0:00:00
+2026-10-03T04:56:04.3404006Z #8 18.27 Downloading starlette-1.7.0-py3-none-any.whl (78 kB)
+2026-10-03T04:56:04.3405921Z #8 18.27 Downloading tenacity-9.1.4-py3-none-any.whl (28 kB)
+2026-10-03T04:56:04.3415662Z #8 18.28 Downloading toolbox_adk-1.4.0-py3-none-any.whl (14 kB)
+2026-10-03T04:56:04.3416549Z #8 18.28 Downloading toolbox_core-1.4.0-py3-none-any.whl (66 kB)
+2026-10-03T04:56:04.3418798Z #8 18.29 Downloading aiohttp-3.14.3-cp313-cp313-manylinux2014_aarch64.manylinux_2_17_aarch64.manylinux_2_28_aarch64.whl (1.8 MB)
+2026-10-03T04:56:04.3420062Z #8 18.30    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 1.8/1.8 MB 375.4 MB/s  0:00:00
+2026-10-03T04:56:04.3420540Z #8 18.30 Downloading deprecated-1.3.1-py2.py3-none-any.whl (11 kB)
+2026-10-03T04:56:04.3421991Z #8 18.31 Downloading google_auth_oauthlib-1.5.0-py3-none-any.whl (20 kB)
+2026-10-03T04:56:04.3422738Z #8 18.31 Downloading multidict-6.9.1-cp313-cp313-manylinux2014_aarch64.manylinux_2_17_aarch64.manylinux_2_28_aarch64.whl (332 kB)
+2026-10-03T04:56:04.3423476Z #8 18.32 Downloading typing_extensions-4.16.0-py3-none-any.whl (45 kB)
+2026-10-03T04:56:04.3424150Z #8 18.32 Downloading uuid_utils-0.17.1-cp313-cp313-manylinux_2_17_aarch64.manylinux2014_aarch64.whl (321 kB)
+2026-10-03T04:56:04.3424767Z #8 18.33 Downloading uvicorn-0.54.0-py3-none-any.whl (87 kB)
+2026-10-03T04:56:04.3425276Z #8 18.33 Downloading watchdog-6.0.0-py3-none-manylinux2014_aarch64.whl (79 kB)
+2026-10-03T04:56:04.3426023Z #8 18.33 Downloading websockets-15.0.1-cp313-cp313-manylinux_2_17_aarch64.manylinux2014_aarch64.whl (183 kB)
+2026-10-03T04:56:04.3426888Z #8 18.34 Downloading wrapt-2.5.0-cp313-cp313-manylinux2014_aarch64.manylinux_2_17_aarch64.manylinux_2_28_aarch64.whl (248 kB)
+2026-10-03T04:56:04.3427804Z #8 18.34 Downloading yarl-1.25.1-cp313-cp313-manylinux2014_aarch64.manylinux_2_17_aarch64.manylinux_2_28_aarch64.whl (115 kB)
+2026-10-03T04:56:04.3428509Z #8 18.35 Downloading pandas_ta_classic-0.8.32-py3-none-any.whl (418 kB)
+2026-10-03T04:56:04.3429165Z #8 18.36 Downloading scikit_learn-1.9.1-cp313-cp313-manylinux_2_27_aarch64.manylinux_2_28_aarch64.whl (8.8 MB)
+2026-10-03T04:56:04.4516190Z #8 18.41    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 8.8/8.8 MB 171.7 MB/s  0:00:00
+2026-10-03T04:56:04.4518294Z #8 18.42 Downloading aiohappyeyeballs-2.7.1-py3-none-any.whl (15 kB)
+2026-10-03T04:56:04.4521440Z #8 18.42 Downloading aiosignal-1.4.0-py3-none-any.whl (7.5 kB)
+2026-10-03T04:56:04.4522074Z #8 18.42 Downloading aiosqlite-0.22.1-py3-none-any.whl (17 kB)
+2026-10-03T04:56:04.4522594Z #8 18.43 Downloading alpaca_py-0.44.0-py3-none-any.whl (128 kB)
+2026-10-03T04:56:04.4523370Z #8 18.43 Downloading msgpack-1.2.3-cp313-cp313-manylinux2014_aarch64.manylinux_2_17_aarch64.manylinux_2_28_aarch64.whl (454 kB)
+2026-10-03T04:56:04.4524212Z #8 18.44 Downloading sseclient_py-1.9.0-py3-none-any.whl (8.4 kB)
+2026-10-03T04:56:04.4524758Z #8 18.44 Downloading annotated_doc-0.0.5-py3-none-any.whl (5.3 kB)
+2026-10-03T04:56:04.4525314Z #8 18.45 Downloading annotated_types-0.8.0-py3-none-any.whl (13 kB)
+2026-10-03T04:56:04.4525910Z #8 18.45 Downloading anthropic-1.11.0-py3-none-any.whl (1.7 MB)
+2026-10-03T04:56:04.4526818Z #8 18.46    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 1.7/1.7 MB 263.7 MB/s  0:00:00
+2026-10-03T04:56:04.4527397Z #8 18.46 Downloading docstring_parser-0.18.0-py3-none-any.whl (22 kB)
+2026-10-03T04:56:04.4527930Z #8 18.47 Downloading sniffio-1.3.1-py3-none-any.whl (10 kB)
+2026-10-03T04:56:04.4528454Z #8 18.47 Downloading apscheduler-3.11.3-py3-none-any.whl (66 kB)
+2026-10-03T04:56:04.4528977Z #8 18.48 Downloading attrs-26.1.0-py3-none-any.whl (67 kB)
+2026-10-03T04:56:04.4529511Z #8 18.48 Downloading beautifulsoup4-4.15.0-py3-none-any.whl (109 kB)
+2026-10-03T04:56:04.4530086Z #8 18.49 Downloading polygon_api_client-1.16.3-py3-none-any.whl (61 kB)
+2026-10-03T04:56:04.4532594Z #8 18.49 Downloading certifi-2025.11.12-py3-none-any.whl (159 kB)
+2026-10-03T04:56:04.4533191Z #8 18.50 Downloading ccxt-4.5.64-py2.py3-none-any.whl (6.4 MB)
+2026-10-03T04:56:04.5516928Z #8 18.52    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 6.4/6.4 MB 301.6 MB/s  0:00:00
+2026-10-03T04:56:04.5518799Z #8 18.53 Downloading coincurve-21.0.0-cp313-cp313-manylinux_2_17_aarch64.manylinux2014_aarch64.whl (1.6 MB)
+2026-10-03T04:56:04.5523755Z #8 18.54    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 1.6/1.6 MB 277.2 MB/s  0:00:00
+2026-10-03T04:56:04.5524397Z #8 18.54 Downloading aiodns-4.0.4-py3-none-any.whl (12 kB)
+2026-10-03T04:56:04.5526857Z #8 18.55 Downloading pycares-5.0.1-cp313-cp313-manylinux_2_26_aarch64.manylinux_2_28_aarch64.whl (221 kB)
+2026-10-03T04:56:04.5527694Z #8 18.55 Downloading cffi-2.1.1-cp313-cp313-manylinux2014_aarch64.manylinux_2_17_aarch64.whl (222 kB)
+2026-10-03T04:56:04.5528408Z #8 18.56 Downloading cryptography-50.0.2-cp311-abi3-manylinux_2_34_aarch64.whl (4.7 MB)
+2026-10-03T04:56:04.5529521Z #8 18.59    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 4.7/4.7 MB 211.1 MB/s  0:00:00
+2026-10-03T04:56:04.5529990Z #8 18.59 Downloading databento-0.87.0-py3-none-any.whl (94 kB)
+2026-10-03T04:56:04.5530624Z #8 18.60 Downloading databento_dbn-0.70.0-cp313-cp313-manylinux_2_17_aarch64.manylinux2014_aarch64.whl (1.5 MB)
+2026-10-03T04:56:04.5531392Z #8 18.60    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 1.5/1.5 MB 290.0 MB/s  0:00:00
+2026-10-03T04:56:04.5531834Z #8 18.61 Downloading docker-7.2.0-py3-none-any.whl (148 kB)
+2026-10-03T04:56:04.5541080Z #8 18.61 Downloading exchange_calendars-4.13.2-py3-none-any.whl (213 kB)
+2026-10-03T04:56:04.5541591Z #8 18.62 Downloading flask-3.1.3-py3-none-any.whl (103 kB)
+2026-10-03T04:56:04.5542019Z #8 18.62 Downloading blinker-1.9.0-py3-none-any.whl (8.5 kB)
+2026-10-03T04:56:04.5542723Z #8 18.62 Downloading frozenlist-1.8.0-cp313-cp313-manylinux2014_aarch64.manylinux_2_17_aarch64.manylinux_2_28_aarch64.whl (233 kB)
+2026-10-03T04:56:04.6551600Z #8 18.63 Downloading h11-0.16.0-py3-none-any.whl (37 kB)
+2026-10-03T04:56:04.6552328Z #8 18.63 Downloading httpx_sse-0.4.3-py3-none-any.whl (9.0 kB)
+2026-10-03T04:56:04.6552858Z #8 18.64 Downloading ipython-9.17.1-py3-none-any.whl (639 kB)
+2026-10-03T04:56:04.6553954Z #8 18.64    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 639.0/639.0 kB 292.8 MB/s  0:00:00
+2026-10-03T04:56:04.6585976Z #8 18.65 Downloading prompt_toolkit-3.0.53-py3-none-any.whl (392 kB)
+2026-10-03T04:56:04.6605072Z #8 18.65 Downloading ipython_pygments_lexers-1.1.1-py3-none-any.whl (8.1 kB)
+2026-10-03T04:56:04.6605663Z #8 18.66 Downloading itsdangerous-2.2.0-py3-none-any.whl (16 kB)
+2026-10-03T04:56:04.6606203Z #8 18.66 Downloading jedi-0.20.0-py2.py3-none-any.whl (4.9 MB)
+2026-10-03T04:56:04.6612168Z #8 18.69    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 4.9/4.9 MB 223.5 MB/s  0:00:00
+2026-10-03T04:56:04.6612695Z #8 18.69 Downloading parso-0.8.7-py2.py3-none-any.whl (107 kB)
+2026-10-03T04:56:04.6613139Z #8 18.70 Downloading jinja2-3.1.6-py3-none-any.whl (134 kB)
+2026-10-03T04:56:04.6634533Z #8 18.70 Downloading joblib-1.6.0-py3-none-any.whl (306 kB)
+2026-10-03T04:56:04.6649573Z #8 18.71 Downloading cloudpickle-3.1.2-py3-none-any.whl (22 kB)
+2026-10-03T04:56:04.6650095Z #8 18.71 Downloading joserfc-1.7.5-py3-none-any.whl (71 kB)
+2026-10-03T04:56:04.6650555Z #8 18.71 Downloading jsonpointer-3.1.1-py3-none-any.whl (7.7 kB)
+2026-10-03T04:56:04.6651195Z #8 18.72 Downloading jsonschema_specifications-2025.9.1-py3-none-any.whl (18 kB)
+2026-10-03T04:56:04.6651757Z #8 18.72 Downloading k8s_agent_sandbox-1.0.4-py3-none-any.whl (107 kB)
+2026-10-03T04:56:04.6652273Z #8 18.73 Downloading korean_lunar_calendar-0.4.0-py3-none-any.whl (11 kB)
+2026-10-03T04:56:04.8308951Z #8 18.73 Downloading kubernetes-36.0.3-py2.py3-none-any.whl (4.6 MB)
+2026-10-03T04:56:04.8310961Z #8 18.75    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 4.6/4.6 MB 255.9 MB/s  0:00:00
+2026-10-03T04:56:04.8315093Z #8 18.76 Downloading durationpy-0.11-py3-none-any.whl (4.1 kB)
+2026-10-03T04:56:04.8320131Z #8 18.76 Downloading langchain_protocol-0.0.19-py3-none-any.whl (7.3 kB)
+2026-10-03T04:56:04.8321004Z #8 18.77 Downloading litellm-1.103.2-cp310-abi3-manylinux_2_28_aarch64.whl (27.5 MB)
+2026-10-03T04:56:04.8323015Z #8 18.90    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 27.5/27.5 MB 217.3 MB/s  0:00:00
+2026-10-03T04:56:04.9526529Z #8 18.91 Downloading fastuuid-0.14.0-cp313-cp313-manylinux_2_17_aarch64.manylinux2014_aarch64.whl (277 kB)
+2026-10-03T04:56:04.9532554Z #8 18.91 Downloading h2-4.4.1-py3-none-any.whl (62 kB)
+2026-10-03T04:56:04.9533643Z #8 18.92 Downloading hpack-4.2.0-py3-none-any.whl (34 kB)
+2026-10-03T04:56:04.9534514Z #8 18.92 Downloading hyperframe-6.1.0-py3-none-any.whl (13 kB)
+2026-10-03T04:56:04.9538029Z #8 18.93 Downloading importlib_metadata-8.9.0-py3-none-any.whl (27 kB)
+2026-10-03T04:56:04.9539184Z #8 18.93 Downloading pydantic_settings-2.15.0-py3-none-any.whl (69 kB)
+2026-10-03T04:56:04.9542570Z #8 18.94 Downloading tiktoken-0.14.0-cp313-cp313-manylinux_2_28_aarch64.whl (1.2 MB)
+2026-10-03T04:56:04.9550859Z #8 18.94    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 1.2/1.2 MB 287.1 MB/s  0:00:00
+2026-10-03T04:56:04.9551997Z #8 18.95 Downloading tokenizers-0.23.2-cp310-abi3-manylinux_2_17_aarch64.manylinux2014_aarch64.whl (3.5 MB)
+2026-10-03T04:56:04.9554967Z #8 18.97    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 3.5/3.5 MB 277.1 MB/s  0:00:00
+2026-10-03T04:56:04.9555846Z #8 18.97 Downloading huggingface_hub-1.33.0-py3-none-any.whl (846 kB)
+2026-10-03T04:56:04.9556503Z #8 18.98    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 846.4/846.4 kB 262.9 MB/s  0:00:00
+2026-10-03T04:56:04.9557034Z #8 18.99 Downloading hf_xet-1.6.0-cp38-abi3-manylinux_2_28_aarch64.whl (4.3 MB)
+2026-10-03T04:56:05.0530080Z #8 19.02    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 4.3/4.3 MB 111.6 MB/s  0:00:00
+2026-10-03T04:56:05.0530777Z #8 19.03 Downloading filelock-4.0.9-py3-none-any.whl (110 kB)
+2026-10-03T04:56:05.0531233Z #8 19.03 Downloading fsspec-2026.9.0-py3-none-any.whl (221 kB)
+2026-10-03T04:56:05.0531878Z #8 19.04 Downloading llama_index_embeddings_google_genai-0.6.0-py3-none-any.whl (5.7 kB)
+2026-10-03T04:56:05.0532461Z #8 19.05 Downloading llama_index_core-0.14.25-py3-none-any.whl (11.9 MB)
+2026-10-03T04:56:05.0533270Z #8 19.10    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 11.9/11.9 MB 255.9 MB/s  0:00:00
+2026-10-03T04:56:05.0533726Z #8 19.11 Downloading banks-2.5.1-py3-none-any.whl (39 kB)
+2026-10-03T04:56:05.0534194Z #8 19.11 Downloading dirtyjson-1.0.8-py3-none-any.whl (25 kB)
+2026-10-03T04:56:05.0534658Z #8 19.12 Downloading filetype-1.2.0-py2.py3-none-any.whl (19 kB)
+2026-10-03T04:56:05.0535172Z #8 19.12 Downloading llama_index_workflows-2.25.0-py3-none-any.whl (173 kB)
+2026-10-03T04:56:05.0535771Z #8 19.13 Downloading nest_asyncio-1.6.0-py3-none-any.whl (5.2 kB)
+2026-10-03T04:56:05.1539149Z #8 19.13 Downloading tqdm-4.70.1-py3-none-any.whl (80 kB)
+2026-10-03T04:56:05.1541336Z #8 19.13 Downloading llama_index_instrumentation-0.6.0-py3-none-any.whl (16 kB)
+2026-10-03T04:56:05.1543756Z #8 19.14 Downloading llama_index_readers_file-0.7.0-py3-none-any.whl (52 kB)
+2026-10-03T04:56:05.1545725Z #8 19.15 Downloading pandas-2.3.3-cp313-cp313-manylinux_2_24_aarch64.manylinux_2_28_aarch64.whl (11.7 MB)
+2026-10-03T04:56:05.1546945Z #8 19.19    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 11.7/11.7 MB 306.5 MB/s  0:00:00
+2026-10-03T04:56:05.1547407Z #8 19.19 Downloading pypdf-6.19.0-py3-none-any.whl (395 kB)
+2026-10-03T04:56:05.1548320Z #8 19.19 Downloading striprtf-0.0.26-py3-none-any.whl (6.9 kB)
+2026-10-03T04:56:05.1548825Z #8 19.20 Downloading defusedxml-0.7.1-py2.py3-none-any.whl (25 kB)
+2026-10-03T04:56:05.1549336Z #8 19.20 Downloading lumiwealth_tradier-0.1.18-py3-none-any.whl (29 kB)
+2026-10-03T04:56:05.1549962Z #8 19.21 Downloading lxml-6.1.3-cp313-cp313-manylinux_2_26_aarch64.manylinux_2_28_aarch64.whl (5.0 MB)
+2026-10-03T04:56:05.2603125Z #8 19.23    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 5.0/5.0 MB 319.5 MB/s  0:00:00
+2026-10-03T04:56:05.2604661Z #8 19.23 Downloading markupsafe-3.0.4-cp313-cp313-manylinux2014_aarch64.manylinux_2_17_aarch64.manylinux_2_28_aarch64.whl (24 kB)
+2026-10-03T04:56:05.2605731Z #8 19.24 Downloading matplotlib-3.11.2-cp313-cp313-manylinux_2_26_aarch64.manylinux_2_28_aarch64.whl (10.7 MB)
+2026-10-03T04:56:05.2606768Z #8 19.27    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 10.7/10.7 MB 313.6 MB/s  0:00:00
+2026-10-03T04:56:05.2607434Z #8 19.28 Downloading contourpy-1.4.0-cp313-cp313-manylinux_2_26_aarch64.manylinux_2_28_aarch64.whl (356 kB)
+2026-10-03T04:56:05.2608053Z #8 19.28 Downloading cycler-0.12.1-py3-none-any.whl (8.3 kB)
+2026-10-03T04:56:05.2608752Z #8 19.29 Downloading fonttools-4.66.1-cp313-cp313-manylinux2014_aarch64.manylinux_2_17_aarch64.manylinux_2_28_aarch64.whl (5.4 MB)
+2026-10-03T04:56:05.2609574Z #8 19.31    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 5.4/5.4 MB 309.9 MB/s  0:00:00
+2026-10-03T04:56:05.2610200Z #8 19.31 Downloading kiwisolver-1.5.1-cp313-cp313-manylinux_2_24_aarch64.manylinux_2_28_aarch64.whl (1.3 MB)
+2026-10-03T04:56:05.2611536Z #8 19.32    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 1.3/1.3 MB 305.0 MB/s  0:00:00
+2026-10-03T04:56:05.2612078Z #8 19.32 Downloading matplotlib_inline-0.2.2-py3-none-any.whl (9.5 kB)
+2026-10-03T04:56:05.2612570Z #8 19.32 Downloading narwhals-2.26.0-py3-none-any.whl (474 kB)
+2026-10-03T04:56:05.2613017Z #8 19.33 Downloading networkx-3.7-py3-none-any.whl (2.1 MB)
+2026-10-03T04:56:05.3756523Z #8 19.34    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 2.1/2.1 MB 257.6 MB/s  0:00:00
+2026-10-03T04:56:05.3764009Z #8 19.34 Downloading nltk-3.10.3-py3-none-any.whl (1.8 MB)
+2026-10-03T04:56:05.3765725Z #8 19.36    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 1.8/1.8 MB 312.5 MB/s  0:00:00
+2026-10-03T04:56:05.3766368Z #8 19.36 Downloading orjson-3.12.0-cp313-cp313-manylinux_2_17_aarch64.manylinux2014_aarch64.whl (130 kB)
+2026-10-03T04:56:05.3767153Z #8 19.37 Downloading ormsgpack-1.12.2-cp313-cp313-manylinux_2_17_aarch64.manylinux2014_aarch64.whl (203 kB)
+2026-10-03T04:56:05.3767825Z #8 19.37 Downloading pandas_market_calendars-5.4.0-py3-none-any.whl (134 kB)
+2026-10-03T04:56:05.3768383Z #8 19.38 Downloading pexpect-4.9.0-py2.py3-none-any.whl (63 kB)
+2026-10-03T04:56:05.3769471Z #8 19.38 Downloading pillow-12.3.0-cp313-cp313-manylinux_2_27_aarch64.manylinux_2_28_aarch64.whl (6.3 MB)
+2026-10-03T04:56:05.3770355Z #8 19.41    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 6.3/6.3 MB 283.7 MB/s  0:00:00
+2026-10-03T04:56:05.3770807Z #8 19.41 Downloading plotly-7.1.0-py3-none-any.whl (9.7 MB)
+2026-10-03T04:56:05.5384304Z #8 19.44    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 9.7/9.7 MB 309.9 MB/s  0:00:00
+2026-10-03T04:56:05.5386181Z #8 19.45 Downloading polars-1.44.2-py3-none-any.whl (865 kB)
+2026-10-03T04:56:05.5387082Z #8 19.46    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 865.8/865.8 kB 299.6 MB/s  0:00:00
+2026-10-03T04:56:05.5387888Z #8 19.46 Downloading polars_runtime_32-1.44.2-cp310-abi3-manylinux_2_17_aarch64.manylinux2014_aarch64.whl (46.6 MB)
+2026-10-03T04:56:05.7071921Z #8 19.68    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 46.6/46.6 MB 219.0 MB/s  0:00:00
+2026-10-03T04:56:05.7077057Z #8 19.68 Downloading propcache-0.5.4-cp313-cp313-manylinux2014_aarch64.manylinux_2_17_aarch64.manylinux_2_28_aarch64.whl (233 kB)
+2026-10-03T04:56:05.7080053Z #8 19.69 Downloading psutil-7.2.2-cp36-abi3-manylinux2014_aarch64.manylinux_2_17_aarch64.manylinux_2_28_aarch64.whl (156 kB)
+2026-10-03T04:56:05.7081023Z #8 19.69 Downloading ptyprocess-0.7.0-py2.py3-none-any.whl (13 kB)
+2026-10-03T04:56:05.7083956Z #8 19.70 Downloading py_clob_client_v2-1.2.0-py3-none-any.whl (51 kB)
+2026-10-03T04:56:05.7084642Z #8 19.70 Downloading eth_abi-6.0.0-py3-none-any.whl (53 kB)
+2026-10-03T04:56:05.7085106Z #8 19.70 Downloading parsimonious-0.10.0-py3-none-any.whl (48 kB)
+2026-10-03T04:56:05.7085624Z #8 19.71 Downloading eth_account-0.14.0-py3-none-any.whl (586 kB)
+2026-10-03T04:56:05.7086627Z #8 19.71    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 586.3/586.3 kB 264.0 MB/s  0:00:00
+2026-10-03T04:56:05.7087367Z #8 19.72 Downloading bitarray-3.11.0-cp313-cp313-manylinux2014_aarch64.manylinux_2_17_aarch64.manylinux_2_28_aarch64.whl (381 kB)
+2026-10-03T04:56:05.7088327Z #8 19.73 Downloading ckzg-2.1.8-cp313-cp313-manylinux2014_aarch64.manylinux_2_17_aarch64.manylinux_2_28_aarch64.whl (166 kB)
+2026-10-03T04:56:05.7089022Z #8 19.73 Downloading eth_keyfile-0.10.0-py3-none-any.whl (9.5 kB)
+2026-10-03T04:56:05.7089663Z #8 19.74 Downloading pycryptodome-3.23.0-cp37-abi3-manylinux_2_17_aarch64.manylinux2014_aarch64.whl (2.2 MB)
+2026-10-03T04:56:05.7090423Z #8 19.75    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 2.2/2.2 MB 287.3 MB/s  0:00:00
+2026-10-03T04:56:05.7090872Z #8 19.75 Downloading eth_keys-0.8.0-py3-none-any.whl (20 kB)
+2026-10-03T04:56:05.7091308Z #8 19.76 Downloading eth_rlp-3.0.0-py3-none-any.whl (15 kB)
+2026-10-03T04:56:05.7091743Z #8 19.76 Downloading eth_typing-6.0.0-py3-none-any.whl (19 kB)
+2026-10-03T04:56:05.7092185Z #8 19.76 Downloading eth_utils-6.0.0-py3-none-any.whl (102 kB)
+2026-10-03T04:56:05.7092876Z #8 19.77 Downloading cytoolz-1.1.0-cp313-cp313-manylinux2014_aarch64.manylinux_2_17_aarch64.manylinux_2_28_aarch64.whl (2.8 MB)
+2026-10-03T04:56:05.8908126Z #8 19.78    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 2.8/2.8 MB 303.6 MB/s  0:00:00
+2026-10-03T04:56:05.8920592Z #8 19.78 Downloading eth_hash-0.8.0-py3-none-any.whl (8.0 kB)
+2026-10-03T04:56:05.9048624Z #8 19.79 Downloading hexbytes-2.0.0-py3-none-any.whl (18 kB)
+2026-10-03T04:56:05.9049250Z #8 19.79 Downloading poly_eip712_structs-0.0.1-py3-none-any.whl (12 kB)
+2026-10-03T04:56:05.9049728Z #8 19.80 Downloading py_ecc-8.0.0-py3-none-any.whl (47 kB)
+2026-10-03T04:56:05.9050182Z #8 19.80 Downloading py_order_utils-0.3.2-py3-none-any.whl (12 kB)
+2026-10-03T04:56:05.9050731Z #8 19.81 Downloading pyarrow-25.0.1-cp313-cp313-manylinux_2_28_aarch64.whl (46.8 MB)
+2026-10-03T04:56:06.1777970Z #8 20.06    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 46.8/46.8 MB 183.8 MB/s  0:00:00
+2026-10-03T04:56:06.1778701Z #8 20.07 Downloading pyasn1_modules-0.4.2-py3-none-any.whl (181 kB)
+2026-10-03T04:56:06.1782132Z #8 20.07 Downloading pyasn1-0.6.4-py3-none-any.whl (84 kB)
+2026-10-03T04:56:06.1783850Z #8 20.07 Downloading pygments-2.21.0-py3-none-any.whl (1.3 MB)
+2026-10-03T04:56:06.1786240Z #8 20.08    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 1.3/1.3 MB 321.0 MB/s  0:00:00
+2026-10-03T04:56:06.1786786Z #8 20.08 Downloading pyjwt-2.15.1-py3-none-any.whl (33 kB)
+2026-10-03T04:56:06.1791792Z #8 20.09 Downloading pyluach-2.3.0-py3-none-any.whl (25 kB)
+2026-10-03T04:56:06.1795828Z #8 20.09 Downloading pyparsing-3.3.3-py3-none-any.whl (126 kB)
+2026-10-03T04:56:06.1797637Z #8 20.09 Downloading pypika-0.51.1-py2.py3-none-any.whl (60 kB)
+2026-10-03T04:56:06.1798304Z #8 20.10 Downloading pytz-2026.4-py2.py3-none-any.whl (506 kB)
+2026-10-03T04:56:06.1806185Z #8 20.10 Downloading referencing-0.37.0-py3-none-any.whl (26 kB)
+2026-10-03T04:56:06.1821899Z #8 20.11 Downloading regex-2026.9.29-cp313-cp313-manylinux2014_aarch64.manylinux_2_17_aarch64.manylinux_2_28_aarch64.whl (805 kB)
+2026-10-03T04:56:06.1825789Z #8 20.11    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 806.0/806.0 kB 328.0 MB/s  0:00:00
+2026-10-03T04:56:06.1826696Z #8 20.12 Downloading requests_oauthlib-2.0.0-py2.py3-none-any.whl (24 kB)
+2026-10-03T04:56:06.1827389Z #8 20.12 Downloading oauthlib-4.0.0-py3-none-any.whl (159 kB)
+2026-10-03T04:56:06.1828071Z #8 20.12 Downloading requests_toolbelt-1.0.0-py2.py3-none-any.whl (54 kB)
+2026-10-03T04:56:06.1828657Z #8 20.13 Downloading rlp-5.0.0-py3-none-any.whl (19 kB)
+2026-10-03T04:56:06.1829414Z #8 20.13 Downloading rpds_py-2026.6.3-cp313-cp313-manylinux_2_17_aarch64.manylinux2014_aarch64.whl (367 kB)
+2026-10-03T04:56:06.1830213Z #8 20.14 Downloading schwab_py-1.5.1-py2.py3-none-any.whl (100 kB)
+2026-10-03T04:56:06.1834093Z #8 20.14 Downloading scipy-1.18.1-cp313-cp313-manylinux_2_27_aarch64.manylinux_2_28_aarch64.whl (34.0 MB)
+2026-10-03T04:56:06.2814884Z #8 20.25    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 34.0/34.0 MB 324.4 MB/s  0:00:00
+2026-10-03T04:56:06.2815693Z #8 20.25 Downloading seaborn-0.13.2-py3-none-any.whl (294 kB)
+2026-10-03T04:56:06.2816231Z #8 20.26 Downloading soupsieve-2.10-py3-none-any.whl (38 kB)
+2026-10-03T04:56:06.2817174Z #8 20.26 Downloading sqlalchemy-2.1.3-cp313-cp313-manylinux2014_aarch64.manylinux_2_17_aarch64.manylinux_2_28_aarch64.whl (4.6 MB)
+2026-10-03T04:56:06.2818719Z #8 20.28    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 4.6/4.6 MB 297.3 MB/s  0:00:00
+2026-10-03T04:56:06.2819998Z #8 20.29 Downloading greenlet-3.5.6-cp313-cp313-manylinux_2_24_aarch64.manylinux_2_28_aarch64.whl (614 kB)
+2026-10-03T04:56:06.2820861Z #8 20.29    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 614.4/614.4 kB 297.2 MB/s  0:00:00
+2026-10-03T04:56:06.2821441Z #8 20.30 Downloading sse_starlette-3.5.0-py3-none-any.whl (17 kB)
+2026-10-03T04:56:06.2830578Z #8 20.30 Downloading stack_data-0.6.3-py3-none-any.whl (24 kB)
+2026-10-03T04:56:06.2831447Z #8 20.30 Downloading asttokens-3.0.2-py3-none-any.whl (28 kB)
+2026-10-03T04:56:06.2832937Z #8 20.31 Downloading executing-2.2.1-py2.py3-none-any.whl (28 kB)
+2026-10-03T04:56:06.2835081Z #8 20.31 Downloading tabulate-0.10.0-py3-none-any.whl (39 kB)
+2026-10-03T04:56:06.2839680Z #8 20.31 Downloading threadpoolctl-3.7.0-py3-none-any.whl (26 kB)
+2026-10-03T04:56:06.2846082Z #8 20.32 Downloading tinytag-2.3.2-py3-none-any.whl (37 kB)
+2026-10-03T04:56:06.2857794Z #8 20.32 Downloading toolz-1.1.0-py3-none-any.whl (58 kB)
+2026-10-03T04:56:06.2858439Z #8 20.32 Downloading traitlets-5.16.1-py3-none-any.whl (86 kB)
+2026-10-03T04:56:06.2859722Z #8 20.33 Downloading truststore-0.10.4-py3-none-any.whl (18 kB)
+2026-10-03T04:56:06.2860418Z #8 20.33 Downloading typing_inspect-0.9.0-py3-none-any.whl (8.8 kB)
+2026-10-03T04:56:06.2861025Z #8 20.33 Downloading mypy_extensions-1.1.0-py3-none-any.whl (5.0 kB)
+2026-10-03T04:56:06.2861630Z #8 20.34 Downloading typing_inspection-0.4.4-py3-none-any.whl (14 kB)
+2026-10-03T04:56:06.2862185Z #8 20.34 Downloading tzdata-2026.4-py2.py3-none-any.whl (347 kB)
+2026-10-03T04:56:06.2862686Z #8 20.34 Downloading tzlocal-5.4.4-py3-none-any.whl (18 kB)
+2026-10-03T04:56:06.2863340Z #8 20.35 Downloading wcwidth-0.9.1-cp310-abi3-manylinux2014_aarch64.manylinux_2_17_aarch64.whl (770 kB)
+2026-10-03T04:56:06.4624839Z #8 20.35    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 770.5/770.5 kB 302.2 MB/s  0:00:00
+2026-10-03T04:56:06.4626083Z #8 20.36 Downloading websocket_client-1.9.2-py3-none-any.whl (95 kB)
+2026-10-03T04:56:06.4628289Z #8 20.36 Downloading werkzeug-3.1.9-py3-none-any.whl (228 kB)
+2026-10-03T04:56:06.4629104Z #8 20.37 Downloading xxhash-4.0.1-cp313-cp313-manylinux2014_aarch64.manylinux_2_17_aarch64.manylinux_2_28_aarch64.whl (283 kB)
+2026-10-03T04:56:06.4630039Z #8 20.37 Downloading yappi-1.7.6-cp313-cp313-manylinux2014_aarch64.manylinux_2_17_aarch64.manylinux_2_28_aarch64.whl (83 kB)
+2026-10-03T04:56:06.4630744Z #8 20.38 Downloading yfinance-1.7.0-py3-none-any.whl (149 kB)
+2026-10-03T04:56:06.4632785Z #8 20.38 Downloading curl_cffi-0.16.3-cp310-abi3-manylinux2014_aarch64.manylinux_2_17_aarch64.whl (12.8 MB)
+2026-10-03T04:56:06.6578713Z #8 20.57    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 12.8/12.8 MB 68.9 MB/s  0:00:00
+2026-10-03T04:56:06.6583301Z #8 20.57 Downloading multitasking-0.0.13-py3-none-any.whl (16 kB)
+2026-10-03T04:56:06.6584395Z #8 20.58 Downloading peewee-4.5.2-py3-none-any.whl (194 kB)
+2026-10-03T04:56:06.6584960Z #8 20.58 Downloading platformdirs-4.12.2-py3-none-any.whl (32 kB)
+2026-10-03T04:56:06.6585555Z #8 20.59 Downloading zipp-4.1.0-py3-none-any.whl (10 kB)
+2026-10-03T04:56:06.6586114Z #8 20.59 Downloading alpha_vantage-3.0.0-py3-none-any.whl (35 kB)
+2026-10-03T04:56:06.6586703Z #8 20.60 Downloading appdirs-1.4.4-py2.py3-none-any.whl (9.6 kB)
+2026-10-03T04:56:06.6587258Z #8 20.60 Downloading autopep8-2.3.2-py2.py3-none-any.whl (45 kB)
+2026-10-03T04:56:06.6587825Z #8 20.60 Downloading pycodestyle-2.15.0-py2.py3-none-any.whl (31 kB)
+2026-10-03T04:56:06.6588459Z #8 20.61 Downloading bcrypt-5.0.0-cp39-abi3-manylinux_2_34_aarch64.whl (275 kB)
+2026-10-03T04:56:06.6589087Z #8 20.61 Downloading dataclasses_json-0.6.7-py3-none-any.whl (28 kB)
+2026-10-03T04:56:06.6589659Z #8 20.62 Downloading marshmallow-3.26.2-py3-none-any.whl (50 kB)
+2026-10-03T04:56:06.6590385Z #8 20.63 Downloading duckdb-1.5.6-cp313-cp313-manylinux_2_26_aarch64.manylinux_2_28_aarch64.whl (19.5 MB)
+2026-10-03T04:56:06.6591393Z #8 20.73    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 19.5/19.5 MB 193.5 MB/s  0:00:00
+2026-10-03T04:56:06.7891824Z #8 20.74 Downloading free_proxy-1.3.0-py3-none-any.whl (8.5 kB)
+2026-10-03T04:56:06.7899633Z #8 20.74 Downloading griffe-2.3.0-py3-none-any.whl (5.1 kB)
+2026-10-03T04:56:06.7900239Z #8 20.74 Downloading griffecli-2.3.0-py3-none-any.whl (11 kB)
+2026-10-03T04:56:06.7900697Z #8 20.75 Downloading griffelib-2.3.0-py3-none-any.whl (169 kB)
+2026-10-03T04:56:06.7901173Z #8 20.75 Downloading colorama-0.4.6-py2.py3-none-any.whl (25 kB)
+2026-10-03T04:56:06.7901641Z #8 20.76 Downloading holidays-0.105-py3-none-any.whl (1.6 MB)
+2026-10-03T04:56:06.7902611Z #8 20.77    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 1.6/1.6 MB 261.7 MB/s  0:00:00
+2026-10-03T04:56:06.7903349Z #8 20.78 Downloading ijson-3.5.1-cp313-cp313-manylinux2014_aarch64.manylinux_2_17_aarch64.manylinux_2_28_aarch64.whl (149 kB)
+2026-10-03T04:56:06.7905624Z #8 20.78 Downloading jsonpickle-4.1.3-py3-none-any.whl (49 kB)
+2026-10-03T04:56:06.7906726Z #8 20.78 Downloading multiprocess-0.70.19-py313-none-any.whl (156 kB)
+2026-10-03T04:56:06.7907205Z #8 20.79 Downloading dill-0.4.1-py3-none-any.whl (120 kB)
+2026-10-03T04:56:06.7907681Z #8 20.79 Downloading prometheus_client-0.26.0-py3-none-any.whl (64 kB)
+2026-10-03T04:56:06.7924532Z #8 20.80 Downloading psycopg2_binary-2.9.13-cp313-cp313-manylinux_2_27_aarch64.manylinux_2_28_aarch64.whl (5.9 MB)
+2026-10-03T04:56:06.9798986Z #8 20.86    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 5.9/5.9 MB 94.3 MB/s  0:00:00
+2026-10-03T04:56:06.9806190Z #8 20.87 Downloading pure_eval-0.2.4-py3-none-any.whl (11 kB)
+2026-10-03T04:56:06.9807008Z #8 20.87 Downloading pycparser-3.0-py3-none-any.whl (48 kB)
+2026-10-03T04:56:06.9807719Z #8 20.88 Downloading pytest-9.1.1-py3-none-any.whl (386 kB)
+2026-10-03T04:56:06.9808271Z #8 20.88 Downloading pluggy-1.6.0-py3-none-any.whl (20 kB)
+2026-10-03T04:56:06.9809063Z #8 20.88 Downloading iniconfig-2.3.0-py3-none-any.whl (7.5 kB)
+2026-10-03T04:56:06.9810022Z #8 20.89 Downloading Quandl-3.7.0-py2.py3-none-any.whl (26 kB)
+2026-10-03T04:56:06.9810686Z #8 20.89 Downloading inflection-0.5.1-py2.py3-none-any.whl (9.5 kB)
+2026-10-03T04:56:06.9811322Z #8 20.90 Downloading more_itertools-11.1.0-py3-none-any.whl (72 kB)
+2026-10-03T04:56:06.9811897Z #8 20.90 Downloading termcolor-3.3.0-py3-none-any.whl (7.7 kB)
+2026-10-03T04:56:07.9483839Z #8 22.02 Building wheels for collected packages: ibapi, wget
+2026-10-03T04:56:08.1004457Z #8 22.02   Building wheel for ibapi (pyproject.toml): started
+2026-10-03T04:56:08.2196461Z #8 22.29   Building wheel for ibapi (pyproject.toml): finished with status 'done'
+2026-10-03T04:56:08.2197833Z #8 22.29   Created wheel for ibapi: filename=ibapi-9.81.1.post1-py3-none-any.whl size=67998 sha256=fe7888f1b96d338a2f930a704a8f1e8e0682ca85160ac12058c5fff77b3a37ae
+2026-10-03T04:56:08.2199010Z #8 22.29   Stored in directory: /tmp/pip-ephem-wheel-cache-xw8_jcb3/wheels/92/cb/48/ba27d1a33f820c10ccc937815a1130eabeea6ac5026108e9f0
+2026-10-03T04:56:08.3737333Z #8 22.30   Building wheel for wget (pyproject.toml): started
+2026-10-03T04:56:08.4385687Z #8 22.51   Building wheel for wget (pyproject.toml): finished with status 'done'
+2026-10-03T04:56:08.5932655Z #8 22.51   Created wheel for wget: filename=wget-3.2-py3-none-any.whl size=9686 sha256=4d4f5ae17f4b167cd25d6523d590a9185d7a196ab45cadb8d3e4a1eb9665b716
+2026-10-03T04:56:08.5935032Z #8 22.51   Stored in directory: /tmp/pip-ephem-wheel-cache-xw8_jcb3/wheels/8a/b8/04/0c88fb22489b0c049bee4e977c5689c7fe597d6c4b0e7d0b6a
+2026-10-03T04:56:08.5937313Z #8 22.52 Successfully built ibapi wget
+2026-10-03T04:56:09.0014569Z #8 23.07 Installing collected packages: wget, striprtf, pytz, pypika, pure-eval, ptyprocess, multitasking, filetype, durationpy, dirtyjson, ckzg, appdirs, zstandard, zipp, yappi, xxhash, wrapt, websockets, websocket-client, wcwidth, watchdog, uuid-utils, tzlocal, tzdata, typing-extensions, truststore, traitlets, tqdm, toolz, tinytag, threadpoolctl, termcolor, tenacity, tabulate, sseclient-py, soupsieve, sniffio, setuptools, rpds-py, regex, pyyaml, python-multipart, python-dotenv, pypdf, pyparsing, pyluach, pyjwt, pygments, pycryptodome, pycparser, pycodestyle, pyasn1, pyarrow, psycopg2-binary, psutil, protobuf, propcache, prometheus-client, polars-runtime-32, pluggy, platformdirs, pillow, pexpect, peewee, parso, packaging, ormsgpack, orjson, oauthlib, numpy, networkx, nest-asyncio, narwhals, mypy-extensions, multidict, msgpack, more-itertools, markupsafe, lxml, korean_lunar_calendar, kiwisolver, jsonpointer, jsonpickle, jiter, itsdangerous, iniconfig, inflection, ijson, idna, ibapi, hyperframe, httpx-sse, hpack, hf-xet, hexbytes, h11, griffelib, greenlet, graphviz, fsspec, frozenlist, fonttools, filelock, fastuuid, executing, eth-hash, duckdb, docstring-parser, distro, dill, defusedxml, databento-dbn, cycler, colorama, coincurve, cloudpickle, click, charset_normalizer, certifi, blinker, bitarray, bcrypt, attrs, asttokens, annotated-types, annotated-doc, aiosqlite, aiohappyeyeballs, yarl, werkzeug, uvicorn, typing-inspection, typing-inspect, stack_data, sqlalchemy, scipy, requests, referencing, pytest, pydantic-core, pyasn1-modules, proto-plus, prompt_toolkit, polygon-api-client, polars, plotly, parsimonious, pandas, opentelemetry-api, multiprocess, matplotlib-inline, marshmallow, langchain-protocol, jsonpatch, joblib, jinja2, jedi, ipython-pygments-lexers, importlib-metadata, httpcore2, httpcore, holidays, h2, grpcio, griffecli, googleapis-common-protos, eth-typing, deprecated, cytoolz, contourpy, cffi, botocore, beautifulsoup4, autopep8, apscheduler, anyio, aiosignal, tiktoken, thetadata, starlette, scikit-learn, s3transfer, requests-toolbelt, requests-oauthlib, quandl, pydantic, pycares, pandas-ta-classic, opentelemetry-semantic-conventions, nltk, matplotlib, lumiwealth-tradier, jsonschema-specifications, ipython, httpx2, httpx, grpcio-status, griffe, free-proxy, Flask, exchange_calendars, docker, dataclasses-json, curl_cffi, cryptography, aiohttp, yfinance, sse-starlette, seaborn, pydantic-settings, pandas_market_calendars, opentelemetry-sdk, openai, llama-index-instrumentation, langsmith, kubernetes, jsonschema, joserfc, huggingface-hub, google-auth, fastapi, eth-utils, databento, boto3, banks, anthropic, alpha_vantage, alpaca-py, aiodns, toolbox-core, tokenizers, rlp, quantstats-lumi, py_ecc, poly_eip712_structs, mcp, llama-index-workflows, langchain-core, k8s-agent-sandbox, google-auth-oauthlib, google-api-core, eth-keys, eth-abi, ccxt, authlib, schwab-py, llama-index-core, litellm, langgraph-sdk, langgraph-checkpoint, google-genai, google-cloud-core, eth-rlp, eth-keyfile, llama-index-readers-file, llama-index-embeddings-google-genai, langgraph-prebuilt, google-cloud-firestore, google-adk, eth-account, toolbox-adk, py-order-utils, langgraph, py-clob-client-v2, lumibot
+2026-10-03T04:56:42.5031986Z #8 56.58   Attempting uninstall: botocore
+2026-10-03T04:56:42.7249950Z #8 56.58     Found existing installation: botocore 1.42.97
+2026-10-03T04:56:42.7250988Z #8 56.65     Uninstalling botocore-1.42.97:
+2026-10-03T04:56:43.2645839Z #8 57.34       Successfully uninstalled botocore-1.42.97
+2026-10-03T04:56:46.9353013Z #8 61.01   Attempting uninstall: s3transfer
+2026-10-03T04:56:47.1028403Z #8 61.01     Found existing installation: s3transfer 0.16.0
+2026-10-03T04:56:47.1030462Z #8 61.02     Uninstalling s3transfer-0.16.0:
+2026-10-03T04:56:47.1031099Z #8 61.03       Successfully uninstalled s3transfer-0.16.0
+2026-10-03T04:56:59.2851001Z #8 73.36   Attempting uninstall: boto3
+2026-10-03T04:56:59.4839457Z #8 73.36     Found existing installation: boto3 1.42.97
+2026-10-03T04:56:59.4840341Z #8 73.37     Uninstalling boto3-1.42.97:
+2026-10-03T04:56:59.4841039Z #8 73.41       Successfully uninstalled boto3-1.42.97
+2026-10-03T04:57:18.3872024Z #8 92.46 
+2026-10-03T04:57:18.5585066Z #8 92.48 Successfully installed Flask-3.1.3 aiodns-4.0.4 aiohappyeyeballs-2.7.1 aiohttp-3.14.3 aiosignal-1.4.0 aiosqlite-0.22.1 alpaca-py-0.44.0 alpha_vantage-3.0.0 annotated-doc-0.0.5 annotated-types-0.8.0 anthropic-1.11.0 anyio-4.15.1 appdirs-1.4.4 apscheduler-3.11.3 asttokens-3.0.2 attrs-26.1.0 authlib-1.8.0 autopep8-2.3.2 banks-2.5.1 bcrypt-5.0.0 beautifulsoup4-4.15.0 bitarray-3.11.0 blinker-1.9.0 boto3-1.43.1 botocore-1.43.108 ccxt-4.5.64 certifi-2025.11.12 cffi-2.1.1 charset_normalizer-3.5.2 ckzg-2.1.8 click-8.5.0 cloudpickle-3.1.2 coincurve-21.0.0 colorama-0.4.6 contourpy-1.4.0 cryptography-50.0.2 curl_cffi-0.16.3 cycler-0.12.1 cytoolz-1.1.0 databento-0.87.0 databento-dbn-0.70.0 dataclasses-json-0.6.7 defusedxml-0.7.1 deprecated-1.3.1 dill-0.4.1 dirtyjson-1.0.8 distro-1.9.0 docker-7.2.0 docstring-parser-0.18.0 duckdb-1.5.6 durationpy-0.11 eth-abi-6.0.0 eth-account-0.14.0 eth-hash-0.8.0 eth-keyfile-0.10.0 eth-keys-0.8.0 eth-rlp-3.0.0 eth-typing-6.0.0 eth-utils-6.0.0 exchange_calendars-4.13.2 executing-2.2.1 fastapi-0.141.1 fastuuid-0.14.0 filelock-4.0.9 filetype-1.2.0 fonttools-4.66.1 free-proxy-1.3.0 frozenlist-1.8.0 fsspec-2026.9.0 google-adk-2.11.0 google-api-core-2.34.0 google-auth-2.59.1 google-auth-oauthlib-1.5.0 google-cloud-core-2.8.0 google-cloud-firestore-2.34.0 google-genai-2.28.0 googleapis-common-protos-1.75.5 graphviz-0.21 greenlet-3.5.6 griffe-2.3.0 griffecli-2.3.0 griffelib-2.3.0 grpcio-1.84.0 grpcio-status-1.84.0 h11-0.16.0 h2-4.4.1 hexbytes-2.0.0 hf-xet-1.6.0 holidays-0.105 hpack-4.2.0 httpcore-1.0.9 httpcore2-2.13.1 httpx-0.28.1 httpx-sse-0.4.3 httpx2-2.13.1 huggingface-hub-1.33.0 hyperframe-6.1.0 ibapi-9.81.1.post1 idna-3.20 ijson-3.5.1 importlib-metadata-8.9.0 inflection-0.5.1 iniconfig-2.3.0 ipython-9.17.1 ipython-pygments-lexers-1.1.1 itsdangerous-2.2.0 jedi-0.20.0 jinja2-3.1.6 jiter-0.17.0 joblib-1.6.0 joserfc-1.7.5 jsonpatch-1.33 jsonpickle-4.1.3 jsonpointer-3.1.1 jsonschema-4.26.0 jsonschema-specifications-2025.9.1 k8s-agent-sandbox-1.0.4 kiwisolver-1.5.1 korean_lunar_calendar-0.4.0 kubernetes-36.0.3 langchain-core-1.6.6 langchain-protocol-0.0.19 langgraph-1.2.12 langgraph-checkpoint-4.2.0 langgraph-prebuilt-1.1.0 langgraph-sdk-0.4.5 langsmith-0.14.4 litellm-1.103.2 llama-index-core-0.14.25 llama-index-embeddings-google-genai-0.6.0 llama-index-instrumentation-0.6.0 llama-index-readers-file-0.7.0 llama-index-workflows-2.25.0 lumibot-4.6.4 lumiwealth-tradier-0.1.18 lxml-6.1.3 markupsafe-3.0.4 marshmallow-3.26.2 matplotlib-3.11.2 matplotlib-inline-0.2.2 mcp-1.30.0 more-itertools-11.1.0 msgpack-1.2.3 multidict-6.9.1 multiprocess-0.70.19 multitasking-0.0.13 mypy-extensions-1.1.0 narwhals-2.26.0 nest-asyncio-1.6.0 networkx-3.7 nltk-3.10.3 numpy-2.4.6 oauthlib-4.0.0 openai-2.54.0 opentelemetry-api-1.42.1 opentelemetry-sdk-1.42.1 opentelemetry-semantic-conventions-0.63b1 orjson-3.12.0 ormsgpack-1.12.2 packaging-25.0 pandas-2.3.3 pandas-ta-classic-0.8.32 pandas_market_calendars-5.4.0 parsimonious-0.10.0 parso-0.8.7 peewee-4.5.2 pexpect-4.9.0 pillow-12.3.0 platformdirs-4.12.2 plotly-7.1.0 pluggy-1.6.0 polars-1.44.2 polars-runtime-32-1.44.2 poly_eip712_structs-0.0.1 polygon-api-client-1.16.3 prometheus-client-0.26.0 prompt_toolkit-3.0.53 propcache-0.5.4 proto-plus-1.29.0 protobuf-7.36.2 psutil-7.2.2 psycopg2-binary-2.9.13 ptyprocess-0.7.0 pure-eval-0.2.4 py-clob-client-v2-1.2.0 py-order-utils-0.3.2 py_ecc-8.0.0 pyarrow-25.0.1 pyasn1-0.6.4 pyasn1-modules-0.4.2 pycares-5.0.1 pycodestyle-2.15.0 pycparser-3.0 pycryptodome-3.23.0 pydantic-2.13.5 pydantic-core-2.46.5 pydantic-settings-2.15.0 pygments-2.21.0 pyjwt-2.15.1 pyluach-2.3.0 pyparsing-3.3.3 pypdf-6.19.0 pypika-0.51.1 pytest-9.1.1 python-dotenv-1.2.4 python-multipart-0.0.32 pytz-2026.4 pyyaml-6.0.3 quandl-3.7.0 quantstats-lumi-1.1.5 referencing-0.37.0 regex-2026.9.29 requests-2.33.1 requests-oauthlib-2.0.0 requests-toolbelt-1.0.0 rlp-5.0.0 rpds-py-2026.6.3 s3transfer-0.17.1 schwab-py-1.5.1 scikit-learn-1.9.1 scipy-1.18.1 seaborn-0.13.2 setuptools-80.10.2 sniffio-1.3.1 soupsieve-2.10 sqlalchemy-2.1.3 sse-starlette-3.5.0 sseclient-py-1.9.0 stack_data-0.6.3 starlette-1.7.0 striprtf-0.0.26 tabulate-0.10.0 tenacity-9.1.4 termcolor-3.3.0 thetadata-0.9.11 threadpoolctl-3.7.0 tiktoken-0.14.0 tinytag-2.3.2 tokenizers-0.23.2 toolbox-adk-1.4.0 toolbox-core-1.4.0 toolz-1.1.0 tqdm-4.70.1 traitlets-5.16.1 truststore-0.10.4 typing-extensions-4.16.0 typing-inspect-0.9.0 typing-inspection-0.4.4 tzdata-2026.4 tzlocal-5.4.4 uuid-utils-0.17.1 uvicorn-0.54.0 watchdog-6.0.0 wcwidth-0.9.1 websocket-client-1.9.2 websockets-15.0.1 werkzeug-3.1.9 wget-3.2 wrapt-2.5.0 xxhash-4.0.1 yappi-1.7.6 yarl-1.25.1 yfinance-1.7.0 zipp-4.1.0 zstandard-0.25.0
+2026-10-03T04:57:18.5617757Z #8 92.48 WARNING: Running pip as the 'root' user can result in broken permissions and conflicting behaviour with the system package manager, possibly rendering your system unusable. It is recommended to use a virtual environment instead: https://pip.pypa.io/warnings/venv. Use the --root-user-action option if you know what you are doing and want to suppress this warning.
+2026-10-03T04:57:20.4125996Z #8 DONE 94.5s
+2026-10-03T04:57:20.5700664Z 
+2026-10-03T04:57:20.5702196Z #9 [ 5/10] COPY lambda/single_trade_executor.py /var/task/single_trade_executor.py
+2026-10-03T04:57:21.0419876Z #9 DONE 0.6s
+2026-10-03T04:57:21.2537876Z 
+2026-10-03T04:57:21.2539122Z #10 [ 6/10] COPY lambda/broker_data_fetcher.py /var/task/broker_data_fetcher.py
+2026-10-03T04:57:21.2540072Z #10 DONE 0.0s
+2026-10-03T04:57:21.2541114Z 
+2026-10-03T04:57:21.2541363Z #11 [ 7/10] COPY lambda/live_image_canary.py /var/task/live_image_canary.py
+2026-10-03T04:57:21.2541776Z #11 DONE 0.0s
+2026-10-03T04:57:21.2541918Z 
+2026-10-03T04:57:21.2542059Z #12 [ 8/10] COPY bot_manager /var/task/bot_manager
+2026-10-03T04:57:21.2542390Z #12 DONE 0.0s
+2026-10-03T04:57:21.2542532Z 
+2026-10-03T04:57:21.2542819Z #13 [ 9/10] COPY docker_build/bootstrap_runtime.py /var/task/docker_build/bootstrap_runtime.py
+2026-10-03T04:57:21.2543308Z #13 DONE 0.0s
+2026-10-03T04:57:21.2543441Z 
+2026-10-03T04:57:21.2543727Z #14 [10/10] COPY docker_build/__init__.py /var/task/docker_build/__init__.py
+2026-10-03T04:57:21.2544156Z #14 DONE 0.0s
+2026-10-03T04:57:21.2544286Z 
+2026-10-03T04:57:21.2544393Z #15 exporting to image
+2026-10-03T04:57:21.2544647Z #15 exporting layers
+2026-10-03T04:58:06.8408315Z #15 exporting layers 45.7s done
+2026-10-03T04:58:06.9690986Z #15 exporting manifest sha256:dd4c7a58105f42edff17bf35e40a663ad8d692f51a8f3c2ccd8a0919b0ed9fd7 done
+2026-10-03T04:58:06.9691986Z #15 exporting config sha256:c5cf42b341c52a806efb4921fa23463dfd78c1f195dde1fc7cdaf5c12a44b8b8 done
+2026-10-03T04:58:06.9692517Z #15 pushing layers
+2026-10-03T04:58:06.9692753Z #15 ...
+2026-10-03T04:58:06.9692878Z 
+2026-10-03T04:58:06.9693004Z #16 exporting cache to client directory
+2026-10-03T04:58:06.9693350Z #16 preparing build cache for export 0.0s done
+2026-10-03T04:58:06.9693687Z #16 sending cache export
+2026-10-03T04:58:06.9694175Z #16 writing layer sha256:1bd7a610562b2f1679212e0e8498e67efeadf11bc26c1a389a8d03370897eae0 0.0s done
+2026-10-03T04:58:06.9694924Z #16 writing layer sha256:0defe8943e64e5ef5398ed3e9e5c61ec25563d0b9b090ed790c5c3ed0e71359c 0.0s done
+2026-10-03T04:58:06.9695649Z #16 writing layer sha256:08edae733103f647118a5260c5573a8bab99c2f2b7935e39c6c8a4fd25b1d278 0.0s done
+2026-10-03T04:58:06.9696458Z #16 writing layer sha256:1af8e3125d73a9fd7dec2b6b43cd2dd0d15c6a5282f21aac1c9c46da9de2419d 0.0s done
+2026-10-03T04:58:06.9697202Z #16 writing layer sha256:2df5cc363782b3eb6117ea3317b92630112121b9b9485311ae9f9fdcc0707630 done
+2026-10-03T04:58:06.9697869Z #16 writing layer sha256:3ddb2aa63595876f5d065c607679e0e9f4667c8118a645934c81296e54703b5c
+2026-10-03T04:58:06.9698566Z #16 writing layer sha256:4fb925e5acfbb871c36d389d5b35d124ddcf38081b4398f33f531575c46694e3 0.0s done
+2026-10-03T04:58:06.9699273Z #16 writing layer sha256:6851a869ddae1ee0b7f6f1d1b564f41e532dc5eaefbb3469ba67639e8229f363
+2026-10-03T04:58:06.9745001Z #16 writing layer sha256:96dab440a01951c443250e04dce1166abeff2ea6dc640927c1181c9178b20b35 0.1s done
+2026-10-03T04:58:06.9746937Z #16 writing layer sha256:9dcaf7a8efcb32c0ef517ecc1962ea591d8cfd86611903bf0d551b344a1ff1f8
+2026-10-03T04:58:06.9748597Z #16 writing layer sha256:b4e5ebe43ada9ed9cf86ef3883648802420281c0bcf8364507c4cf4fb2c4a2dd
+2026-10-03T04:58:07.2057602Z #16 ...
+2026-10-03T04:58:07.2091619Z 
+2026-10-03T04:58:07.2108283Z #17 [auth] sharing credentials for 412381755468.dkr.ecr.us-east-1.amazonaws.com
+2026-10-03T04:58:07.2109258Z #17 DONE 0.0s
+2026-10-03T04:58:07.2109647Z 
+2026-10-03T04:58:07.2109879Z #16 exporting cache to client directory
+2026-10-03T04:58:07.2111055Z #16 writing layer sha256:9dcaf7a8efcb32c0ef517ecc1962ea591d8cfd86611903bf0d551b344a1ff1f8 0.1s done
+2026-10-03T04:58:07.2112026Z #16 writing layer sha256:c207065814c02dc94565e631a8cc7d4633660336c54d23ed091385ff5f5ce5f4
+2026-10-03T04:58:07.2120691Z #16 writing layer sha256:c207065814c02dc94565e631a8cc7d4633660336c54d23ed091385ff5f5ce5f4 0.2s done
+2026-10-03T04:58:07.2121666Z #16 writing layer sha256:cf9b2d32cdc83598880092a81284c44740551d3ae7c236a902a17300a18d21d4
+2026-10-03T04:58:07.3497190Z #16 writing layer sha256:cf9b2d32cdc83598880092a81284c44740551d3ae7c236a902a17300a18d21d4 0.1s done
+2026-10-03T04:58:07.3545456Z #16 writing layer sha256:d18a7da284e867afdd6c50f23c3e512f7e63cd682020f8dc3fb8c9570ed58dd7 0.1s done
+2026-10-03T04:58:07.3546785Z #16 writing layer sha256:e6e020cd3ead7263c85a6cbd526530c8d38012dced910ed8d24c05a3dcb8705b
+2026-10-03T04:58:07.5713198Z #16 writing layer sha256:e6e020cd3ead7263c85a6cbd526530c8d38012dced910ed8d24c05a3dcb8705b 0.1s done
+2026-10-03T04:58:08.1712631Z #16 writing layer sha256:3ddb2aa63595876f5d065c607679e0e9f4667c8118a645934c81296e54703b5c 1.3s done
+2026-10-03T04:58:10.9567554Z #16 writing layer sha256:6851a869ddae1ee0b7f6f1d1b564f41e532dc5eaefbb3469ba67639e8229f363 4.0s done
+2026-10-03T04:58:16.4946658Z #16 writing layer sha256:b4e5ebe43ada9ed9cf86ef3883648802420281c0bcf8364507c4cf4fb2c4a2dd 9.5s done
+2026-10-03T04:58:16.6592903Z #16 sending cache export 9.6s done
+2026-10-03T04:58:16.6596683Z #16 writing config sha256:8a22108e4967732f5d793e51d19c6415896899e230e5d0053f3c6bfcc26319a3 done
+2026-10-03T04:58:16.6597934Z #16 writing cache image manifest sha256:4d01e9c26636b81bae4afbd5c70eba0abc5dfd608e81addb3fd5b86bac4d7866 done
+2026-10-03T04:58:16.6602278Z #16 DONE 9.7s
+2026-10-03T04:58:16.6608803Z 
+2026-10-03T04:58:16.6609150Z #15 exporting to image
+2026-10-03T04:58:19.0434094Z #15 pushing layers 12.2s done
+2026-10-03T04:58:19.0435171Z #15 pushing manifest for 412381755468.dkr.ecr.us-east-1.amazonaws.com/dev-single-trade-lambda:32f2c5068412-37098060587-1@sha256:dd4c7a58105f42edff17bf35e40a663ad8d692f51a8f3c2ccd8a0919b0ed9fd7
+2026-10-03T04:58:19.4573412Z #15 pushing manifest for 412381755468.dkr.ecr.us-east-1.amazonaws.com/dev-single-trade-lambda:32f2c5068412-37098060587-1@sha256:dd4c7a58105f42edff17bf35e40a663ad8d692f51a8f3c2ccd8a0919b0ed9fd7 0.4s done
+2026-10-03T04:58:19.7796214Z #15 pushing layers 0.3s done
+2026-10-03T04:58:19.7798767Z #15 pushing manifest for 412381755468.dkr.ecr.us-east-1.amazonaws.com/dev-single-trade-lambda:latest@sha256:dd4c7a58105f42edff17bf35e40a663ad8d692f51a8f3c2ccd8a0919b0ed9fd7
+2026-10-03T04:58:19.9981717Z #15 pushing manifest for 412381755468.dkr.ecr.us-east-1.amazonaws.com/dev-single-trade-lambda:latest@sha256:dd4c7a58105f42edff17bf35e40a663ad8d692f51a8f3c2ccd8a0919b0ed9fd7 0.2s done
+2026-10-03T04:58:19.9993598Z #15 DONE 58.9s
+2026-10-03T04:58:20.0276143Z WARNING: local cache import at /tmp/.buildx-cache not found due to err: could not lock /tmp/.buildx-cache/index.json.lock: open /tmp/.buildx-cache/index.json.lock: no such file or directory
+2026-10-03T04:58:20.0367092Z INFO:image_builder:Docker build completed successfully
+2026-10-03T04:58:20.3343906Z INFO:image_builder:Successfully built and pushed single-trade Lambda image: 412381755468.dkr.ecr.us-east-1.amazonaws.com/dev-single-trade-lambda@sha256:dd4c7a58105f42edff17bf35e40a663ad8d692f51a8f3c2ccd8a0919b0ed9fd7
+2026-10-03T04:58:20.4640285Z Post job cleanup.
+2026-10-03T04:58:20.7905279Z ##[group]Removing builder
+2026-10-03T04:58:20.7910373Z (node:5182) [DEP0040] DeprecationWarning: The `punycode` module is deprecated. Please use a userland alternative instead.
+2026-10-03T04:58:20.7911588Z (Use `node --trace-deprecation ...` to show where the warning was created)
+2026-10-03T04:58:20.9570518Z [command]/usr/bin/docker buildx rm builder-83c762cd-6717-4926-ba0d-8937a6499971
+2026-10-03T04:58:21.2004311Z builder-83c762cd-6717-4926-ba0d-8937a6499971 removed
+2026-10-03T04:58:21.2052301Z ##[endgroup]
+2026-10-03T04:58:21.2053134Z ##[group]Cleaning up certificates
+2026-10-03T04:58:21.2056846Z ##[endgroup]
+2026-10-03T04:58:21.2058159Z ##[group]Post cache
+2026-10-03T04:58:21.2061615Z State not set
+2026-10-03T04:58:21.2062198Z ##[endgroup]
+2026-10-03T04:58:21.2352037Z Post job cleanup.
+2026-10-03T04:58:21.4102689Z Pruning cache...
+2026-10-03T04:58:21.4122438Z (node:5328) [DEP0040] DeprecationWarning: The `punycode` module is deprecated. Please use a userland alternative instead.
+2026-10-03T04:58:21.4135426Z (Use `node --trace-deprecation ...` to show where the warning was created)
+2026-10-03T04:58:21.5209798Z Saving cache path: /home/runner/_work/_temp/setup-uv-cache
+2026-10-03T04:58:21.5395614Z [command]/usr/bin/tar --posix -cf cache.tzst --exclude cache.tzst -P -C /home/runner/_work/bot_manager/bot_manager --files-from manifest.txt --use-compress-program zstdmt
+2026-10-03T04:58:21.6954439Z ##[warning]Failed to save: <h2>Our services aren't available right now</h2><p>We're working to restore all services as soon as possible. Please check back soon.</p>0bYvAagAAAADho9yHrIyZSYljWdIcoAiZUEhYMzFFREdFMDYyMQBFZGdl
+2026-10-03T04:58:21.6959232Z cache saved with the key: setup-uv-1-aarch64-unknown-linux-gnu-0.11.8-91334449181a567ff3260c292a87f6a99b7d2f78bd736b6cddbed21e236e8d52-release-image-single-trade
+2026-10-03T04:58:21.7152971Z Post job cleanup.
+2026-10-03T04:58:21.8746829Z (node:5352) [DEP0040] DeprecationWarning: The `punycode` module is deprecated. Please use a userland alternative instead.
+2026-10-03T04:58:21.8748129Z (Use `node --trace-deprecation ...` to show where the warning was created)
+2026-10-03T04:58:21.8974885Z Post job cleanup.
+2026-10-03T04:58:22.0415085Z Post job cleanup.
+2026-10-03T04:58:22.1793363Z [command]/usr/local/bin/git version
+2026-10-03T04:58:22.1957942Z git version 2.51.2
+2026-10-03T04:58:22.2030651Z Temporarily overriding HOME='/home/runner/_work/_temp/0eadfb09-7d50-4a27-ab6e-162d92788c20' before making global git config changes
+2026-10-03T04:58:22.2031535Z Adding repository directory to the temporary git global config as a safe directory
+2026-10-03T04:58:22.2052306Z [command]/usr/local/bin/git config --global --add safe.directory /home/runner/_work/bot_manager/bot_manager
+2026-10-03T04:58:22.2165784Z [command]/usr/local/bin/git config --local --name-only --get-regexp core\.sshCommand
+2026-10-03T04:58:22.2242670Z [command]/usr/local/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'core\.sshCommand' && git config --local --unset-all 'core.sshCommand' || :"
+2026-10-03T04:58:22.2671507Z [command]/usr/local/bin/git config --local --name-only --get-regexp http\.https\:\/\/github\.com\/\.extraheader
+2026-10-03T04:58:22.2755822Z [command]/usr/local/bin/git submodule foreach --recursive sh -c "git config --local --name-only --get-regexp 'http\.https\:\/\/github\.com\/\.extraheader' && git config --local --unset-all 'http.https://github.com/.extraheader' || :"
+2026-10-03T04:58:22.3181119Z [command]/usr/local/bin/git config --local --name-only --get-regexp ^includeIf\.gitdir:
+2026-10-03T04:58:22.3305701Z [command]/usr/local/bin/git submodule foreach --recursive git config --local --show-origin --name-only --get-regexp remote.origin.url
+2026-10-03T04:58:22.3951996Z A job completed hook has been configured by the self-hosted runner administrator
+2026-10-03T04:58:22.4032555Z ##[group]Run '/job_completed.sh'
+2026-10-03T04:58:22.4067556Z shell: /usr/bin/bash --noprofile --norc -e -o pipefail {0}
+2026-10-03T04:58:22.4067983Z env:
+2026-10-03T04:58:22.4068240Z   BLACKSMITH_RUNNER_MESSAGE_WAIT_MS: 213
+2026-10-03T04:58:22.4068573Z   BLACKSMITH_RUNNER_ACQUIRE_JOB_MS: 1021
+2026-10-03T04:58:22.4068889Z   BLACKSMITH_CHECK_RUN_ID: 111132084197
+2026-10-03T04:58:22.4069368Z   BLACKSMITH_JOB_DISPLAY_NAME: Build Release Artifacts / image-single-trade
+2026-10-03T04:58:22.4069823Z   GITHUB_ACTIONS_CACHE_MODE: write
+2026-10-03T04:58:22.4070113Z ##[endgroup]
+2026-10-03T04:58:22.4330391Z 
+2026-10-03T04:58:22.4337758Z Cleaning up Docker resources before commit...
+2026-10-03T04:58:22.4794217Z Stopping 1 running container(s)...
+2026-10-03T04:58:22.6906048Z Stopped 1 container(s) in 208ms
+2026-10-03T04:58:22.7639256Z Removing 1 dangling volume(s)...
+2026-10-03T04:58:22.9729916Z Docker cleanup phases:
+2026-10-03T04:58:22.9730858Z   containers      282ms
+2026-10-03T04:58:22.9731220Z   networks         21ms
+2026-10-03T04:58:22.9731566Z   volumes          41ms
+2026-10-03T04:58:22.9731924Z   builder         102ms
+2026-10-03T04:58:22.9732260Z   image_scan       89ms
+2026-10-03T04:58:22.9732783Z Docker cleanup complete: 1 container(s), 0 network(s), 1 volume(s), 0 image(s) removed
+2026-10-03T04:58:22.9733245Z 
+2026-10-03T04:58:22.9804288Z Docker container cache activated, computing hash...
+2026-10-03T04:58:23.0015729Z [docker-manifest] Image manifest: 9 image(s), 9059994120 bytes working set, 0 bytes evicted, 0 bytes reclaimable (deferred)
+2026-10-03T04:58:23.0756079Z Docker image hash computed:
+2026-10-03T04:58:23.0756902Z   current  cda23da35d445f931c8a009ab675e9403067fdce970531ad3ff62d0bec33df61
+2026-10-03T04:58:23.0757745Z   stored   cda23da35d445f931c8a009ab675e9403067fdce970531ad3ff62d0bec33df61
+2026-10-03T04:58:23.0758386Z Docker images to be cached:
+2026-10-03T04:58:23.0949089Z REPOSITORY                                                   TAG                                            SIZE
+2026-10-03T04:58:23.0977800Z 571698181033.dkr.ecr.us-east-1.amazonaws.com/botspot-agent   c8621298bca77d6007a8b0a09535e61c62e7c143       1.11GB
+2026-10-03T04:58:23.0994507Z 571698181033.dkr.ecr.us-east-1.amazonaws.com/botspot-agent   dev                                            1.11GB
+2026-10-03T04:58:23.0995825Z 571698181033.dkr.ecr.us-east-1.amazonaws.com/botspot-agent   dev-c8621298bca77d6007a8b0a09535e61c62e7c143   1.11GB
+2026-10-03T04:58:23.0999487Z 571698181033.dkr.ecr.us-east-1.amazonaws.com/lumivest        dev-9515408-37092751751-1-arm64                1.92GB
+2026-10-03T04:58:23.1000544Z 571698181033.dkr.ecr.us-east-1.amazonaws.com/lumivest        latest-arm64                                   1.92GB
+2026-10-03T04:58:23.1001614Z 571698181033.dkr.ecr.us-east-1.amazonaws.com/botspot-agent   19ce10c26ae5a277fcdd567b232c2b474bc2a224       1.11GB
+2026-10-03T04:58:23.1002557Z 571698181033.dkr.ecr.us-east-1.amazonaws.com/botspot-agent   dev-19ce10c26ae5a277fcdd567b232c2b474bc2a224   1.11GB
+2026-10-03T04:58:23.1003493Z 571698181033.dkr.ecr.us-east-1.amazonaws.com/botspot-agent   0244e1aa5d0be88ae8cc85f8f9ece7884f17de4d       1.11GB
+2026-10-03T04:58:23.1004418Z 571698181033.dkr.ecr.us-east-1.amazonaws.com/botspot-agent   dev-0244e1aa5d0be88ae8cc85f8f9ece7884f17de4d   1.11GB
+2026-10-03T04:58:23.1005242Z moby/buildkit                                                buildx-stable-1                                248MB
+2026-10-03T04:58:23.1005947Z moby/buildkit                                                <none>                                         241MB
+2026-10-03T04:58:23.1565704Z Stopping docker service...
+2026-10-03T04:58:23.2880347Z Syncing filesystem...
+2026-10-03T04:58:23.4506030Z Unmounting /var/lib/docker...
+2026-10-03T04:58:23.4924361Z Docker shutdown phases:
+2026-10-03T04:58:23.4925184Z   docker_stop     125ms
+2026-10-03T04:58:23.4925562Z   sync             71ms
+2026-10-03T04:58:23.4926811Z   umount          194ms
+2026-10-03T04:58:23.4927398Z   total           391ms
+2026-10-03T04:58:23.5308080Z Docker container hash match - not committing
+2026-10-03T04:58:23.5909048Z No active SSH sessions detected. Proceeding with shutdown immediately.
+2026-10-03T04:58:23.6015473Z Evaluate and set job outputs
+2026-10-03T04:58:23.6069358Z Set output 'single_trade_lambda_image_uri'
+2026-10-03T04:58:23.6073390Z Cleaning up orphan processes
+2026-10-03T04:58:23.7107270Z ##[warning]Node.js 20 is deprecated. The following actions target Node.js 20 but are being forced to run on Node.js 24: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5, actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065, astral-sh/setup-uv@caf0cab7a618c569241d31dcd442f54681755d39, aws-actions/configure-aws-credentials@7474bc4690e29a8392af63c5b98e7449536d5c3a, docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f. For more information see: https://github.blog/changelog/2025-09-19-deprecation-of-node-20-on-github-actions-runners/

@@ -1,0 +1,10 @@
+Resolved 39 packages in 5ms
+   Building bot-manager @ file:///Users/robertgrzesik/Development/bot_manager/.claude/worktrees/codex-release-lumibot-4.6.4-rollout
+      Built bot-manager @ file:///Users/robertgrzesik/Development/bot_manager/.claude/worktrees/codex-release-lumibot-4.6.4-rollout
+Prepared 1 package in 413ms
+Uninstalled 2 packages in 5ms
+Installed 2 packages in 2ms
+ - bot-manager==1.0.0 (from file:///Users/robertgrzesik/Development/bot_manager)
+ + bot-manager==1.0.0 (from file:///Users/robertgrzesik/Development/bot_manager/.claude/worktrees/codex-release-lumibot-4.6.4-rollout)
+ - urllib3==2.7.0
+ + urllib3==2.8.0

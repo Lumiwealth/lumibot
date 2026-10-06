@@ -1,0 +1,18 @@
+{
+  "environment": "dev",
+  "git_sha": "330bd1095c61852b4c7534a79ff387b2f6d9bed3",
+  "images": {
+    "backtest": "412381755468.dkr.ecr.us-east-1.amazonaws.com/dev-trading-bot-backtest@sha256:13ca1d8b2077a52b259ea36afe8d085ba66a2cf8159b23bf5b8c8357d374c64b",
+    "base": "412381755468.dkr.ecr.us-east-1.amazonaws.com/dev-trading-bot-base@sha256:38195d77128db9793518dd316cd34c92a48e47aa345d9a500e6301d19d92f748",
+    "single_trade_lambda": "412381755468.dkr.ecr.us-east-1.amazonaws.com/dev-single-trade-lambda@sha256:dd4c7a58105f42edff17bf35e40a663ad8d692f51a8f3c2ccd8a0919b0ed9fd7"
+  },
+  "lambda_assets": {},
+  "manifest_sha256": "a9ca4293dfc5a58abc4c32eb636167bc2fee0112ac01693c8677ec303f7db669",
+  "release_id": "330bd1095c61-37099985602-1",
+  "runtime_bundle_sha256": "48a35b66bd0d7cb40ff399c33e28c8156b74e987a9a66687a95aff9075dfa042",
+  "snapshots": {
+    "backtest_data_volume_snapshot_id": "snap-0f351d022ab4854dc",
+    "base_data_volume_snapshot_id": "snap-079e0cfb7167f7e0f",
+    "source": "skipped"
+  }
+}

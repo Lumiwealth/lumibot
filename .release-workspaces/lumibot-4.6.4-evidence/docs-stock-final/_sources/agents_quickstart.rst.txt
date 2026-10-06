@@ -1,0 +1,398 @@
+Run your first AI backtest
+==========================
+
+.. meta::
+   :description: Backtest a researcher and a trading agent with LumiBot. Inspect the evidence, risk decision, orders, and fills using a complete Python example.
+
+One agent researches the market. A second agent reviews risk, decides whether
+to trade, and checks the result. Both run inside the same standard ``Strategy``
+class used by conventional LumiBot strategies.
+
+This example's file starts a historical backtest when run directly. **The
+strategy class can stay the same; the code that starts it must select a
+backtest or a broker run.** See :doc:`strategy_run_modes` before adapting it
+for a broker.
+
+Before you run
+--------------
+
+Use Python 3.10 or later. Install the version-branch source below to get this
+example. It uses
+``openai/gpt-6-luna`` on medium reasoning, ``OPENAI_API_KEY``, and Yahoo daily prices.
+You do not need broker credentials for this historical backtest. Model calls
+use your provider account and incur charges; start with this short date range.
+
+.. code-block:: bash
+
+   python -m pip install "git+https://github.com/Lumiwealth/lumibot.git@version/4.6.3"
+   export OPENAI_API_KEY="your-openai-api-key"
+   export BACKTESTING_DATA_SOURCE=yahoo
+
+Save the complete code below as ``my_ai_strategy.py``, then run:
+
+.. code-block:: bash
+
+   python my_ai_strategy.py
+
+The researcher compares SPY's completed daily close with its 20-bar average.
+The trader can buy up to 10% of portfolio value, hold, or close the position
+when the trend condition turns negative. No short selling or leverage is part
+of this example. An agent may correctly decide not to trade.
+
+Your strategy code
+------------------
+
+.. literalinclude:: ../lumibot/example_strategies/ai_researcher_trader.py
+   :language: python
+   :linenos:
+
+.. image:: ../docs/assets/ai-trading/backtest-benefit.png
+   :alt: See how a strategy would have traded in a historical LumiBot backtest.
+   :width: 640px
+   :align: center
+   :class: lumibot-entry-hero
+
+.. _inspect-what-happened:
+
+See the example backtest
+------------------------
+
+An earlier recorded run of this workflow is saved with its exact source,
+decisions, trade CSV, and run receipt. That run was made before GPT-6 Luna
+became the default model, so its decisions are not output from the current
+default.
+
+`Inspect the recorded run
+<https://github.com/Lumiwealth/lumibot/blob/version/4.5.92/docs/assets/ai-trading/spy-20260913/README.md>`_.
+It shows the workflow end to end. Your own run can make different decisions.
+
+Read the ``Research:`` and ``Trader:`` log entries, then inspect the generated
+trade records and tear sheet. An agent's written claim is not a fill: compare
+the exact returned order identifier, status, filled quantity, and positions.
+
+The trader has trading enabled. Only the researcher is read-only. Python
+coordinates the two agents; the trading agent calls the order tools itself.
+``orders_wait_for_terminal`` is a bounded observation tool. In backtests it can
+advance simulation time; a timeout does not mean an order was rejected.
+Never blindly retry an unresolved order.
+
+See :doc:`agents_observability` for traces and replay, and
+:doc:`agents_examples` for recorded stock, macro, and options demonstrations.
+Historical model knowledge can include later events even when tools respect
+the strategy clock. Backtest returns are simulated, not a promise of returns.
+
+Change one thing
+----------------
+
+Change ``symbol`` or ``max_position_pct`` in ``parameters`` and rerun. Inspect
+how both the reasoning and orders changed. Keep the same ``Strategy`` class
+when adding researchers or moving to a configured broker runner. Existing
+Strategy subclasses do not need to migrate to another API.
+
+Keep building with the AI Trading Bootcamp
+---------------------------------------------
+
+**Learn to build AI trading bots with Rob Grzesik, creator of LumiBot.**
+Follow the training and learn how to turn an idea into an AI trading strategy.
+
+.. image:: ../docs/assets/ai-trading/rob-bootcamp.png
+   :alt: Learn to build AI trading bots with Rob Grzesik. Explore the AI Trading Bootcamp.
+   :width: 640px
+   :align: center
+   :class: lumibot-learning-image
+   :target: https://botspot.trade/courses/ai-trading-bootcamp?utm_source=documentation&utm_medium=docs&utm_campaign=lumibot_ai_trading&utm_content=quickstart_bootcamp_image
+
+
+`Join the free challenge → <https://botspot.trade/challenges?utm_source=documentation&utm_medium=docs&utm_campaign=lumibot_ai_trading&utm_content=free_challenge>`_
+
+For deeper training, explore the `AI Trading Bootcamp <https://botspot.trade/courses/ai-trading-bootcamp?utm_source=documentation&utm_medium=docs&utm_campaign=lumibot_ai_trading&utm_content=bootcamp>`_.
+LumiBot remains free and open source.
+
+
+Extend the team
+---------------
+
+Use :doc:`agents_flows` for larger teams, :doc:`agents_builtin_tools` for
+available tools, and :doc:`standalone_components` for research in another
+Python project. The following snippets illustrate extensions, not complete runners.
+
+``@agent_tool`` Example (Primary Pattern)
+-------------------------------------------
+
+The recommended way to give your agent access to custom external data is ``@agent_tool``. This wraps a normal Python method as a callable tool. It works reliably in both backtests and live trading.
+
+This short FRED example delegates to Lumibot's point-in-time macro helper. In most strategies you do not need to add this wrapper, because built-in FRED tools are included automatically when ``FRED_API_KEY`` is configured.
+
+.. code-block:: python
+
+    from lumibot.components.agents import agent_tool
+    from lumibot.strategies import Strategy
+
+
+    class M2LiquidityStrategy(Strategy):
+
+        @agent_tool(
+            name="get_fred_series",
+            description=(
+                "Fetch economic data from FRED (Federal Reserve Economic Data). "
+                "Common series: M2SL (M2 money supply), FEDFUNDS (fed funds rate), "
+                "CPIAUCSL (CPI), UNRATE (unemployment), GDP, T10Y2Y (yield spread). "
+                "Returns date-value pairs."
+            ),
+        )
+        def get_fred_series(
+            self, series_id: str, start_date: str = "2020-01-01", end_date: str = ""
+        ) -> dict:
+            """Fetch a FRED series through Lumibot's point-in-time macro helper."""
+            return self.macro.get_series(
+                series_id,
+                start=start_date,
+                end=end_date or None,
+            )
+
+        def initialize(self):
+            self.sleeptime = "1D"
+            self.agents.create(
+                name="liquidity_research",
+                default_model="openai/gpt-6-luna",
+                system_prompt=(
+                    "Use money supply and liquidity data to decide between "
+                    "TQQQ and SHV. Focus on whether M2 liquidity is expanding "
+                    "or contracting."
+                ),
+                tools=[self.get_fred_series],
+            )
+
+        def on_trading_iteration(self):
+            result = self.agents["liquidity_research"].run()
+            self.log_message(f"[liquidity_research] {result.summary}", color="yellow")
+
+**Source code auto-inclusion:** ``@agent_tool`` automatically includes the function's source code in the tool description sent to the AI. The AI can see all parameters, default values, and implementation details. Write a clear docstring with an ``Args`` section, and the AI will understand how to call your tool correctly.
+
+**Built-in tools stay included:** When you pass ``tools=[self.my_tool]``, those tools are added alongside the default built-in tools. You only need to list your custom tools.
+
+MCP Server Example (Alternative Pattern)
+------------------------------------------
+
+If you have a compatible MCP server, you can connect it by URL. This is useful for live trading or when a third-party provides a dedicated MCP server.
+
+.. code-block:: python
+
+    import os
+    from lumibot.components.agents import MCPServer
+    from lumibot.strategies import Strategy
+
+
+    class ExternalDataStrategy(Strategy):
+        def initialize(self):
+            self.sleeptime = "1D"
+            self.agents.create(
+                name="research",
+                default_model="openai/gpt-6-luna",
+                system_prompt=(
+                    "Use the available data tools to make informed trading decisions. "
+                    "This is a binary allocator between TQQQ and SHV."
+                ),
+                mcp_servers=[
+                    MCPServer(
+                        name="my-data-server",
+                        url="https://my-mcp-server.example.com/mcp",
+                        timeout_seconds=120,
+                    ),
+                ],
+            )
+
+        def on_trading_iteration(self):
+            result = self.agents["research"].run()
+            self.log_message(f"[research] {result.summary}", color="yellow")
+
+Any MCP server that speaks the Model Context Protocol over HTTP or Streamable HTTP works. There are over 20,000 MCP servers available today. The ``@agent_tool`` pattern is recommended for most use cases because it gives you full control over the HTTP call and works reliably in backtests.
+
+Custom Strategy Tools with ``@agent_tool``
+-------------------------------------------
+
+If your strategy needs a custom helper that the agent can call, decorate a method with ``@agent_tool``. Always include a docstring with an ``Args`` section so the AI knows how to use it:
+
+.. code-block:: python
+
+    from lumibot.components.agents import agent_tool
+    from lumibot.strategies import Strategy
+
+
+    class CustomToolStrategy(Strategy):
+
+        @agent_tool(
+            name="get_watchlist_bias",
+            description="Return a structured bias payload for one symbol.",
+        )
+        def get_watchlist_bias(self, symbol: str) -> dict:
+            """Look up the current bias for a symbol on the watchlist.
+
+            Args:
+                symbol: Stock ticker symbol to check (e.g., AAPL, MSFT)
+            """
+            return {"symbol": symbol, "bias": "neutral"}
+
+        def initialize(self):
+            self.sleeptime = "1D"
+            self.agents.create(
+                name="research",
+                default_model="openai/gpt-6-luna",
+                system_prompt="Analyze watchlist bias before trading.",
+                tools=[self.get_watchlist_bias],
+            )
+
+        def on_trading_iteration(self):
+            result = self.agents["research"].run()
+            self.log_message(f"[research] {result.summary}", color="yellow")
+
+Passing Context
+---------------
+
+Pass point-in-time context into the agent run. LumiBot automatically injects positions, cash, and datetime, but you can add strategy-specific context:
+
+.. code-block:: python
+
+    result = self.agents["research"].run(
+        context={
+            "symbol": "SPY",
+            "signal_state": self.vars.get("signal_state", "unknown"),
+        }
+    )
+
+Working with the Result
+-----------------------
+
+``run(...)`` returns an ``AgentRunResult`` with these useful fields:
+
+- ``result.summary`` -- the agent's concluding summary
+- ``result.text`` -- full text output from the agent
+- ``result.cache_hit`` -- whether the result was replayed from cache
+- ``result.warning_messages`` -- list of observability warnings
+- ``result.tool_calls`` -- list of tool call events
+- ``result.tool_results`` -- list of tool result events
+- ``(result.payload or {}).get("trace_path")`` -- path to one call's JSON trace
+- ``*_agent_detail.parquet`` -- the table for the whole run, next to the tear sheet in a backtest, or under ``~/Library/Caches/lumibot/1.0/agent_runtime/`` on macOS for live and paper. The ``call_summary`` row includes ``effective_system_prompt``. Raising ``LUMIBOT_LOG_LEVEL`` does not create this file. See :doc:`agents_observability`.
+
+.. code-block:: python
+
+    result = self.agents["research"].run()
+    self.log_message(f"summary={result.summary}", color="yellow")
+
+    trace_path = (result.payload or {}).get("trace_path")
+    if trace_path:
+        self.log_message(f"trace={trace_path}", color="blue")
+
+    if result.warning_messages:
+        for warning in result.warning_messages:
+            self.log_message(f"WARNING: {warning}", color="red")
+
+Running a Backtest
+------------------
+
+Use the standard LumiBot backtest pattern. The agent runs on each configured
+backtest iteration. This snippet starts a backtest only; a broker run needs a
+broker instance and ``run_live()`` or ``Trader.run_all()``:
+
+.. code-block:: python
+
+    if __name__ == "__main__":
+        from datetime import datetime
+        M2LiquidityStrategy.backtest(
+            datasource_class=None,
+            backtesting_start=datetime(2020, 1, 1),
+            backtesting_end=datetime(2026, 3, 1),
+            benchmark_asset="SPY",
+        )
+
+Set ``datasource_class=None`` to use the data source configured in your ``.env`` file via ``BACKTESTING_DATA_SOURCE``.
+
+Best Practices
+--------------
+
+- **Create the agent once in ``initialize()``.** Do not recreate it on every iteration.
+- **Keep system prompts short.** 2-3 sentences about your strategy intent. LumiBot handles the rest.
+- **Do not list built-in tools.** They are included by default, even when you add custom tools.
+- **Use ``@agent_tool`` for external data.** Wrap REST APIs with the ``requests`` library. This is the most reliable pattern.
+- **Write docstrings with Args sections.** The AI sees the source code automatically and uses the docstring to understand parameters.
+- **MCP servers are just URLs.** No local scripts, no npm installs. Use them for live trading or when you have a compatible server.
+- **Log the summary.** Always log ``result.summary`` so you can understand agent decisions.
+- **Inspect traces when surprised.** The JSON trace is the source of truth for debugging agent behavior.
+
+Where to Go Next
+-----------------
+
+- :doc:`agents` -- main guide with competitive positioning and architecture
+- :doc:`agents_canonical_demos` -- the four reference demo strategies
+- :doc:`agents_observability` -- traces, replay cache, and debugging workflow
+
+Frequently Asked Questions
+--------------------------
+
+**Do I need to list built-in tools?**
+
+No. All built-in tools (positions, portfolio, prices, orders, DuckDB, docs) are included automatically, even when you add custom tools. When you pass ``tools=[self.my_tool]``, your custom tools are added alongside the defaults. You never need to list built-in tools explicitly.
+
+**What API keys do I need?**
+
+At minimum, one model provider key matching your ``default_model``. The default is ``openai/gpt-6-luna`` on medium reasoning, which needs ``OPENAI_API_KEY``. LumiBot also supports Gemini ids (needs ``GEMINI_API_KEY``), ``xai/...`` ids for Grok (needs ``XAI_API_KEY`` or ``GROK_API_KEY``), and ``anthropic/...`` ids for Claude (needs ``ANTHROPIC_API_KEY``). If your ``@agent_tool`` functions call external APIs, you also need those keys -- for example ``ALPACA_API_KEY`` and ``ALPACA_API_SECRET`` for Alpaca-based demos. FRED macro tools require ``FRED_API_KEY`` so backtests can request official FRED/ALFRED observations with point-in-time vintage parameters instead of using revised CSV data.
+
+**How long should my system prompt be?**
+
+Two to three sentences describing your strategy intent. For example: what data to look at, what assets to trade, and what the decision logic should be. LumiBot handles position sizing, DuckDB guidance, backtesting safety, time-awareness, and the default investor policy in its base prompt. Do not repeat those instructions.
+
+**How do I get started with the minimal example?**
+
+Copy the Minimal Example from this page, set ``OPENAI_API_KEY`` in your environment, and run it. The agent will use only built-in tools (positions, prices, DuckDB, orders) to analyze the market and make decisions. No external APIs or custom tools are required for the minimal example.
+
+**What does datasource_class=None mean?**
+
+Setting ``datasource_class=None`` tells LumiBot to read the data source from your ``.env`` file via the ``BACKTESTING_DATA_SOURCE`` variable. This is the recommended approach for team projects. For standalone examples or quick experiments, use ``YahooDataBacktesting`` explicitly.
+
+**How do I create an @agent_tool?**
+
+Decorate a method on your Strategy class with ``@agent_tool(name="my_tool", description="What this tool does.")``. Add type hints to the parameters and write a docstring with a Google-style ``Args`` section. The decorator handles everything else -- the function's source code is automatically included in the tool description sent to the AI.
+
+**How does source code auto-inclusion work?**
+
+When you decorate a method with ``@agent_tool``, LumiBot reads the function's source code and appends it to the tool description. The AI model sees your parameter names, type hints, default values, docstring, and implementation logic. This means you do not need to manually describe every parameter -- just write clear code and a docstring.
+
+**Can I combine @agent_tool and MCP servers?**
+
+Yes. Pass custom tools via ``tools=[...]`` and MCP servers via ``mcp_servers=[...]`` when creating the agent. Both are added alongside the built-in tools. The ``@agent_tool`` pattern is recommended as the primary approach because it is more reliable for backtesting.
+
+**What goes in the context parameter of run()?**
+
+Pass any strategy-specific data the agent should see for this iteration. LumiBot automatically injects positions, cash, datetime, and timezone. You can add extra context like a target symbol, a signal state, or any other variable. The context is included in the prompt sent to the AI.
+
+**What fields are available on the result object?**
+
+``result.summary`` is the agent's concluding summary. ``result.text`` is the full output. ``result.cache_hit`` indicates whether the result came from the replay cache. ``result.warning_messages`` is a list of observability warnings. ``result.tool_calls`` and ``result.tool_results`` list tool interactions. ``(result.payload or {}).get("trace_path")`` gives the path to the full JSON trace file.
+
+**Why should I create the agent in initialize()?**
+
+Creating the agent once in ``initialize()`` is more efficient than recreating it on every iteration. The agent object holds configuration (model, system prompt, tools, MCP servers) that does not change between bars. Creating it once also ensures consistent configuration throughout the backtest.
+
+**Can I run multiple agents in a single strategy?**
+
+Yes. Call ``self.agents.create(...)`` multiple times with different names. Then run each agent separately in ``on_trading_iteration()`` using ``self.agents["agent_name"].run()``. Each agent can have its own system prompt, model, and tools.
+
+**How do I log the agent's output?**
+
+Use ``self.log_message(f"[agent_name] {result.summary}", color="yellow")``. Always log the summary so you can understand agent decisions in the backtest output. For debugging, also log the trace path: ``self.log_message(f"trace={trace_path}", color="blue")``.
+
+**What happens during a backtest iteration?**
+
+On each bar, ``on_trading_iteration()`` is called. You call ``self.agents["name"].run()`` inside it. The agent receives the current market state, reasons over it, optionally calls tools (both built-in and custom), and submits orders. The backtest simulation processes those orders at simulated prices. The result is cached for future warm reruns.
+
+**What if my @agent_tool function raises an exception?**
+
+Wrap your HTTP calls in try/except and return an error dictionary (e.g., ``return {"error": str(e)}``). The agent sees the error result and can adapt. If an unhandled exception propagates, the agent run will fail and an error will be logged. Always use try/except with a timeout for network calls.
+
+**How do I pass secrets to my @agent_tool?**
+
+Use ``os.environ.get("MY_SECRET_KEY")`` inside your tool function. Never hardcode secrets. Store them in your ``.env`` file or export them in your shell. The demos use this pattern for Alpaca API keys.
+
+**Can I use @agent_tool without any external API?**
+
+Yes. An ``@agent_tool`` function can do anything -- read a local file, compute a value, look up data from a dictionary, or run a calculation. It does not have to make HTTP calls. The decorator simply makes the function available as a tool the AI can call.

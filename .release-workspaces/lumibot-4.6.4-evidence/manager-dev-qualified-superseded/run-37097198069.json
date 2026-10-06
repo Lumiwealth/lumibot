@@ -1,0 +1,1069 @@
+{
+  "conclusion": "success",
+  "createdAt": "2026-10-03T04:38:14Z",
+  "headSha": "4280719f6ab3a8ca63510c94e0447cff01931050",
+  "jobs": [
+    {
+      "completedAt": "2026-10-03T04:40:26Z",
+      "conclusion": "success",
+      "databaseId": 111129432961,
+      "name": "Validate + Build",
+      "startedAt": "2026-10-03T04:38:17Z",
+      "status": "completed",
+      "steps": [
+        {
+          "completedAt": "2026-10-03T04:38:19Z",
+          "conclusion": "success",
+          "name": "Set up job",
+          "number": 1,
+          "startedAt": "2026-10-03T04:38:18Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-03T04:38:32Z",
+          "conclusion": "success",
+          "name": "Checkout",
+          "number": 2,
+          "startedAt": "2026-10-03T04:38:19Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-03T04:38:33Z",
+          "conclusion": "success",
+          "name": "Set up Python 3.10",
+          "number": 3,
+          "startedAt": "2026-10-03T04:38:32Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-03T04:40:17Z",
+          "conclusion": "success",
+          "name": "Install dependencies",
+          "number": 4,
+          "startedAt": "2026-10-03T04:38:33Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-03T04:40:17Z",
+          "conclusion": "success",
+          "name": "Validate tag version matches setup.py",
+          "number": 5,
+          "startedAt": "2026-10-03T04:40:17Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-03T04:40:20Z",
+          "conclusion": "success",
+          "name": "Build package",
+          "number": 6,
+          "startedAt": "2026-10-03T04:40:17Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-03T04:40:23Z",
+          "conclusion": "success",
+          "name": "Upload dist",
+          "number": 7,
+          "startedAt": "2026-10-03T04:40:20Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-03T04:40:24Z",
+          "conclusion": "success",
+          "name": "Post Set up Python 3.10",
+          "number": 13,
+          "startedAt": "2026-10-03T04:40:23Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-03T04:40:24Z",
+          "conclusion": "success",
+          "name": "Post Checkout",
+          "number": 14,
+          "startedAt": "2026-10-03T04:40:24Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-03T04:40:24Z",
+          "conclusion": "success",
+          "name": "Complete job",
+          "number": 15,
+          "startedAt": "2026-10-03T04:40:24Z",
+          "status": "completed"
+        }
+      ],
+      "url": "https://github.com/Lumiwealth/lumibot/actions/runs/37097198069/job/111129432961"
+    },
+    {
+      "completedAt": "2026-10-03T04:40:23Z",
+      "conclusion": "success",
+      "databaseId": 111129433015,
+      "name": "Real-Model Agent Evals",
+      "startedAt": "2026-10-03T04:38:17Z",
+      "status": "completed",
+      "steps": [
+        {
+          "completedAt": "2026-10-03T04:38:19Z",
+          "conclusion": "success",
+          "name": "Set up job",
+          "number": 1,
+          "startedAt": "2026-10-03T04:38:18Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-03T04:38:32Z",
+          "conclusion": "success",
+          "name": "Checkout",
+          "number": 2,
+          "startedAt": "2026-10-03T04:38:19Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-03T04:38:33Z",
+          "conclusion": "success",
+          "name": "Set up Python 3.10",
+          "number": 3,
+          "startedAt": "2026-10-03T04:38:32Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-03T04:39:52Z",
+          "conclusion": "success",
+          "name": "Install dependencies",
+          "number": 4,
+          "startedAt": "2026-10-03T04:38:33Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-03T04:39:52Z",
+          "conclusion": "success",
+          "name": "Restore passing eval freshness",
+          "number": 5,
+          "startedAt": "2026-10-03T04:39:52Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-03T04:39:55Z",
+          "conclusion": "success",
+          "name": "Restore cross-workflow passing eval freshness",
+          "number": 6,
+          "startedAt": "2026-10-03T04:39:52Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-03T04:40:16Z",
+          "conclusion": "success",
+          "name": "Run stale real-model evals",
+          "number": 7,
+          "startedAt": "2026-10-03T04:39:55Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-03T04:40:16Z",
+          "conclusion": "success",
+          "name": "Save passing eval freshness",
+          "number": 8,
+          "startedAt": "2026-10-03T04:40:16Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-03T04:40:17Z",
+          "conclusion": "success",
+          "name": "Upload eval evidence",
+          "number": 9,
+          "startedAt": "2026-10-03T04:40:16Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-03T04:40:20Z",
+          "conclusion": "success",
+          "name": "Post Set up Python 3.10",
+          "number": 17,
+          "startedAt": "2026-10-03T04:40:17Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-03T04:40:21Z",
+          "conclusion": "success",
+          "name": "Post Checkout",
+          "number": 18,
+          "startedAt": "2026-10-03T04:40:20Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-03T04:40:21Z",
+          "conclusion": "success",
+          "name": "Complete job",
+          "number": 19,
+          "startedAt": "2026-10-03T04:40:21Z",
+          "status": "completed"
+        }
+      ],
+      "url": "https://github.com/Lumiwealth/lumibot/actions/runs/37097198069/job/111129433015"
+    },
+    {
+      "completedAt": "2026-10-03T04:43:04Z",
+      "conclusion": "success",
+      "databaseId": 111129433107,
+      "name": "Backtest Tests (shard 1/4)",
+      "startedAt": "2026-10-03T04:38:17Z",
+      "status": "completed",
+      "steps": [
+        {
+          "completedAt": "2026-10-03T04:38:18Z",
+          "conclusion": "success",
+          "name": "Set up job",
+          "number": 1,
+          "startedAt": "2026-10-03T04:38:17Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-03T04:38:31Z",
+          "conclusion": "success",
+          "name": "Checkout",
+          "number": 2,
+          "startedAt": "2026-10-03T04:38:18Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-03T04:38:31Z",
+          "conclusion": "success",
+          "name": "Set up Python 3.10",
+          "number": 3,
+          "startedAt": "2026-10-03T04:38:31Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-03T04:39:56Z",
+          "conclusion": "success",
+          "name": "Install dependencies",
+          "number": 4,
+          "startedAt": "2026-10-03T04:38:31Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-03T04:43:02Z",
+          "conclusion": "success",
+          "name": "Run backtest tests",
+          "number": 5,
+          "startedAt": "2026-10-03T04:39:56Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-03T04:43:03Z",
+          "conclusion": "success",
+          "name": "Post Set up Python 3.10",
+          "number": 9,
+          "startedAt": "2026-10-03T04:43:02Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-03T04:43:03Z",
+          "conclusion": "success",
+          "name": "Post Checkout",
+          "number": 10,
+          "startedAt": "2026-10-03T04:43:03Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-03T04:43:03Z",
+          "conclusion": "success",
+          "name": "Complete job",
+          "number": 11,
+          "startedAt": "2026-10-03T04:43:03Z",
+          "status": "completed"
+        }
+      ],
+      "url": "https://github.com/Lumiwealth/lumibot/actions/runs/37097198069/job/111129433107"
+    },
+    {
+      "completedAt": "2026-10-03T04:41:27Z",
+      "conclusion": "success",
+      "databaseId": 111129433118,
+      "name": "Backtest Tests (shard 3/4)",
+      "startedAt": "2026-10-03T04:38:18Z",
+      "status": "completed",
+      "steps": [
+        {
+          "completedAt": "2026-10-03T04:38:20Z",
+          "conclusion": "success",
+          "name": "Set up job",
+          "number": 1,
+          "startedAt": "2026-10-03T04:38:19Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-03T04:38:33Z",
+          "conclusion": "success",
+          "name": "Checkout",
+          "number": 2,
+          "startedAt": "2026-10-03T04:38:20Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-03T04:38:34Z",
+          "conclusion": "success",
+          "name": "Set up Python 3.10",
+          "number": 3,
+          "startedAt": "2026-10-03T04:38:33Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-03T04:40:08Z",
+          "conclusion": "success",
+          "name": "Install dependencies",
+          "number": 4,
+          "startedAt": "2026-10-03T04:38:34Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-03T04:41:24Z",
+          "conclusion": "success",
+          "name": "Run backtest tests",
+          "number": 5,
+          "startedAt": "2026-10-03T04:40:08Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-03T04:41:25Z",
+          "conclusion": "success",
+          "name": "Post Set up Python 3.10",
+          "number": 9,
+          "startedAt": "2026-10-03T04:41:24Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-03T04:41:25Z",
+          "conclusion": "success",
+          "name": "Post Checkout",
+          "number": 10,
+          "startedAt": "2026-10-03T04:41:25Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-03T04:41:25Z",
+          "conclusion": "success",
+          "name": "Complete job",
+          "number": 11,
+          "startedAt": "2026-10-03T04:41:25Z",
+          "status": "completed"
+        }
+      ],
+      "url": "https://github.com/Lumiwealth/lumibot/actions/runs/37097198069/job/111129433118"
+    },
+    {
+      "completedAt": "2026-10-03T04:41:31Z",
+      "conclusion": "success",
+      "databaseId": 111129433120,
+      "name": "Backtest Tests (shard 2/4)",
+      "startedAt": "2026-10-03T04:38:17Z",
+      "status": "completed",
+      "steps": [
+        {
+          "completedAt": "2026-10-03T04:38:19Z",
+          "conclusion": "success",
+          "name": "Set up job",
+          "number": 1,
+          "startedAt": "2026-10-03T04:38:18Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-03T04:38:36Z",
+          "conclusion": "success",
+          "name": "Checkout",
+          "number": 2,
+          "startedAt": "2026-10-03T04:38:19Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-03T04:38:36Z",
+          "conclusion": "success",
+          "name": "Set up Python 3.10",
+          "number": 3,
+          "startedAt": "2026-10-03T04:38:36Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-03T04:40:15Z",
+          "conclusion": "success",
+          "name": "Install dependencies",
+          "number": 4,
+          "startedAt": "2026-10-03T04:38:36Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-03T04:41:27Z",
+          "conclusion": "success",
+          "name": "Run backtest tests",
+          "number": 5,
+          "startedAt": "2026-10-03T04:40:15Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-03T04:41:28Z",
+          "conclusion": "success",
+          "name": "Post Set up Python 3.10",
+          "number": 9,
+          "startedAt": "2026-10-03T04:41:27Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-03T04:41:28Z",
+          "conclusion": "success",
+          "name": "Post Checkout",
+          "number": 10,
+          "startedAt": "2026-10-03T04:41:28Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-03T04:41:28Z",
+          "conclusion": "success",
+          "name": "Complete job",
+          "number": 11,
+          "startedAt": "2026-10-03T04:41:28Z",
+          "status": "completed"
+        }
+      ],
+      "url": "https://github.com/Lumiwealth/lumibot/actions/runs/37097198069/job/111129433120"
+    },
+    {
+      "completedAt": "2026-10-03T04:42:59Z",
+      "conclusion": "success",
+      "databaseId": 111129433129,
+      "name": "Unit Tests (shard 0/6)",
+      "startedAt": "2026-10-03T04:38:20Z",
+      "status": "completed",
+      "steps": [
+        {
+          "completedAt": "2026-10-03T04:38:21Z",
+          "conclusion": "success",
+          "name": "Set up job",
+          "number": 1,
+          "startedAt": "2026-10-03T04:38:21Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-03T04:38:37Z",
+          "conclusion": "success",
+          "name": "Checkout",
+          "number": 2,
+          "startedAt": "2026-10-03T04:38:21Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-03T04:38:39Z",
+          "conclusion": "success",
+          "name": "Set up Python 3.10",
+          "number": 3,
+          "startedAt": "2026-10-03T04:38:37Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-03T04:40:16Z",
+          "conclusion": "success",
+          "name": "Install dependencies",
+          "number": 4,
+          "startedAt": "2026-10-03T04:38:39Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-03T04:42:55Z",
+          "conclusion": "success",
+          "name": "Run unit tests",
+          "number": 5,
+          "startedAt": "2026-10-03T04:40:16Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-03T04:42:57Z",
+          "conclusion": "success",
+          "name": "Post Set up Python 3.10",
+          "number": 9,
+          "startedAt": "2026-10-03T04:42:55Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-03T04:42:57Z",
+          "conclusion": "success",
+          "name": "Post Checkout",
+          "number": 10,
+          "startedAt": "2026-10-03T04:42:57Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-03T04:42:57Z",
+          "conclusion": "success",
+          "name": "Complete job",
+          "number": 11,
+          "startedAt": "2026-10-03T04:42:57Z",
+          "status": "completed"
+        }
+      ],
+      "url": "https://github.com/Lumiwealth/lumibot/actions/runs/37097198069/job/111129433129"
+    },
+    {
+      "completedAt": "2026-10-03T04:43:48Z",
+      "conclusion": "success",
+      "databaseId": 111129433152,
+      "name": "Unit Tests (shard 3/6)",
+      "startedAt": "2026-10-03T04:38:18Z",
+      "status": "completed",
+      "steps": [
+        {
+          "completedAt": "2026-10-03T04:38:19Z",
+          "conclusion": "success",
+          "name": "Set up job",
+          "number": 1,
+          "startedAt": "2026-10-03T04:38:19Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-03T04:38:32Z",
+          "conclusion": "success",
+          "name": "Checkout",
+          "number": 2,
+          "startedAt": "2026-10-03T04:38:20Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-03T04:38:33Z",
+          "conclusion": "success",
+          "name": "Set up Python 3.10",
+          "number": 3,
+          "startedAt": "2026-10-03T04:38:32Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-03T04:40:11Z",
+          "conclusion": "success",
+          "name": "Install dependencies",
+          "number": 4,
+          "startedAt": "2026-10-03T04:38:33Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-03T04:43:44Z",
+          "conclusion": "success",
+          "name": "Run unit tests",
+          "number": 5,
+          "startedAt": "2026-10-03T04:40:11Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-03T04:43:46Z",
+          "conclusion": "success",
+          "name": "Post Set up Python 3.10",
+          "number": 9,
+          "startedAt": "2026-10-03T04:43:44Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-03T04:43:46Z",
+          "conclusion": "success",
+          "name": "Post Checkout",
+          "number": 10,
+          "startedAt": "2026-10-03T04:43:46Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-03T04:43:46Z",
+          "conclusion": "success",
+          "name": "Complete job",
+          "number": 11,
+          "startedAt": "2026-10-03T04:43:46Z",
+          "status": "completed"
+        }
+      ],
+      "url": "https://github.com/Lumiwealth/lumibot/actions/runs/37097198069/job/111129433152"
+    },
+    {
+      "completedAt": "2026-10-03T04:43:47Z",
+      "conclusion": "success",
+      "databaseId": 111129433171,
+      "name": "Unit Tests (shard 5/6)",
+      "startedAt": "2026-10-03T04:38:18Z",
+      "status": "completed",
+      "steps": [
+        {
+          "completedAt": "2026-10-03T04:38:19Z",
+          "conclusion": "success",
+          "name": "Set up job",
+          "number": 1,
+          "startedAt": "2026-10-03T04:38:18Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-03T04:38:32Z",
+          "conclusion": "success",
+          "name": "Checkout",
+          "number": 2,
+          "startedAt": "2026-10-03T04:38:19Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-03T04:38:34Z",
+          "conclusion": "success",
+          "name": "Set up Python 3.10",
+          "number": 3,
+          "startedAt": "2026-10-03T04:38:32Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-03T04:40:39Z",
+          "conclusion": "success",
+          "name": "Install dependencies",
+          "number": 4,
+          "startedAt": "2026-10-03T04:38:34Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-03T04:43:43Z",
+          "conclusion": "success",
+          "name": "Run unit tests",
+          "number": 5,
+          "startedAt": "2026-10-03T04:40:39Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-03T04:43:44Z",
+          "conclusion": "success",
+          "name": "Post Set up Python 3.10",
+          "number": 9,
+          "startedAt": "2026-10-03T04:43:43Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-03T04:43:44Z",
+          "conclusion": "success",
+          "name": "Post Checkout",
+          "number": 10,
+          "startedAt": "2026-10-03T04:43:44Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-03T04:43:44Z",
+          "conclusion": "success",
+          "name": "Complete job",
+          "number": 11,
+          "startedAt": "2026-10-03T04:43:44Z",
+          "status": "completed"
+        }
+      ],
+      "url": "https://github.com/Lumiwealth/lumibot/actions/runs/37097198069/job/111129433171"
+    },
+    {
+      "completedAt": "2026-10-03T04:41:31Z",
+      "conclusion": "success",
+      "databaseId": 111129433179,
+      "name": "Backtest Tests (shard 0/4)",
+      "startedAt": "2026-10-03T04:38:17Z",
+      "status": "completed",
+      "steps": [
+        {
+          "completedAt": "2026-10-03T04:38:18Z",
+          "conclusion": "success",
+          "name": "Set up job",
+          "number": 1,
+          "startedAt": "2026-10-03T04:38:18Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-03T04:38:31Z",
+          "conclusion": "success",
+          "name": "Checkout",
+          "number": 2,
+          "startedAt": "2026-10-03T04:38:18Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-03T04:38:31Z",
+          "conclusion": "success",
+          "name": "Set up Python 3.10",
+          "number": 3,
+          "startedAt": "2026-10-03T04:38:31Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-03T04:40:04Z",
+          "conclusion": "success",
+          "name": "Install dependencies",
+          "number": 4,
+          "startedAt": "2026-10-03T04:38:31Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-03T04:41:28Z",
+          "conclusion": "success",
+          "name": "Run backtest tests",
+          "number": 5,
+          "startedAt": "2026-10-03T04:40:04Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-03T04:41:29Z",
+          "conclusion": "success",
+          "name": "Post Set up Python 3.10",
+          "number": 9,
+          "startedAt": "2026-10-03T04:41:28Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-03T04:41:29Z",
+          "conclusion": "success",
+          "name": "Post Checkout",
+          "number": 10,
+          "startedAt": "2026-10-03T04:41:29Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-03T04:41:29Z",
+          "conclusion": "success",
+          "name": "Complete job",
+          "number": 11,
+          "startedAt": "2026-10-03T04:41:29Z",
+          "status": "completed"
+        }
+      ],
+      "url": "https://github.com/Lumiwealth/lumibot/actions/runs/37097198069/job/111129433179"
+    },
+    {
+      "completedAt": "2026-10-03T04:42:17Z",
+      "conclusion": "success",
+      "databaseId": 111129433211,
+      "name": "Unit Tests (shard 1/6)",
+      "startedAt": "2026-10-03T04:38:17Z",
+      "status": "completed",
+      "steps": [
+        {
+          "completedAt": "2026-10-03T04:38:19Z",
+          "conclusion": "success",
+          "name": "Set up job",
+          "number": 1,
+          "startedAt": "2026-10-03T04:38:18Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-03T04:38:32Z",
+          "conclusion": "success",
+          "name": "Checkout",
+          "number": 2,
+          "startedAt": "2026-10-03T04:38:19Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-03T04:38:33Z",
+          "conclusion": "success",
+          "name": "Set up Python 3.10",
+          "number": 3,
+          "startedAt": "2026-10-03T04:38:32Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-03T04:40:08Z",
+          "conclusion": "success",
+          "name": "Install dependencies",
+          "number": 4,
+          "startedAt": "2026-10-03T04:38:33Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-03T04:42:14Z",
+          "conclusion": "success",
+          "name": "Run unit tests",
+          "number": 5,
+          "startedAt": "2026-10-03T04:40:08Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-03T04:42:15Z",
+          "conclusion": "success",
+          "name": "Post Set up Python 3.10",
+          "number": 9,
+          "startedAt": "2026-10-03T04:42:14Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-03T04:42:16Z",
+          "conclusion": "success",
+          "name": "Post Checkout",
+          "number": 10,
+          "startedAt": "2026-10-03T04:42:15Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-03T04:42:16Z",
+          "conclusion": "success",
+          "name": "Complete job",
+          "number": 11,
+          "startedAt": "2026-10-03T04:42:16Z",
+          "status": "completed"
+        }
+      ],
+      "url": "https://github.com/Lumiwealth/lumibot/actions/runs/37097198069/job/111129433211"
+    },
+    {
+      "completedAt": "2026-10-03T04:43:41Z",
+      "conclusion": "success",
+      "databaseId": 111129433215,
+      "name": "Unit Tests (shard 2/6)",
+      "startedAt": "2026-10-03T04:38:17Z",
+      "status": "completed",
+      "steps": [
+        {
+          "completedAt": "2026-10-03T04:38:19Z",
+          "conclusion": "success",
+          "name": "Set up job",
+          "number": 1,
+          "startedAt": "2026-10-03T04:38:18Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-03T04:38:33Z",
+          "conclusion": "success",
+          "name": "Checkout",
+          "number": 2,
+          "startedAt": "2026-10-03T04:38:19Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-03T04:38:34Z",
+          "conclusion": "success",
+          "name": "Set up Python 3.10",
+          "number": 3,
+          "startedAt": "2026-10-03T04:38:33Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-03T04:39:57Z",
+          "conclusion": "success",
+          "name": "Install dependencies",
+          "number": 4,
+          "startedAt": "2026-10-03T04:38:34Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-03T04:43:38Z",
+          "conclusion": "success",
+          "name": "Run unit tests",
+          "number": 5,
+          "startedAt": "2026-10-03T04:39:57Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-03T04:43:39Z",
+          "conclusion": "success",
+          "name": "Post Set up Python 3.10",
+          "number": 9,
+          "startedAt": "2026-10-03T04:43:38Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-03T04:43:40Z",
+          "conclusion": "success",
+          "name": "Post Checkout",
+          "number": 10,
+          "startedAt": "2026-10-03T04:43:39Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-03T04:43:40Z",
+          "conclusion": "success",
+          "name": "Complete job",
+          "number": 11,
+          "startedAt": "2026-10-03T04:43:40Z",
+          "status": "completed"
+        }
+      ],
+      "url": "https://github.com/Lumiwealth/lumibot/actions/runs/37097198069/job/111129433215"
+    },
+    {
+      "completedAt": "2026-10-03T04:42:56Z",
+      "conclusion": "success",
+      "databaseId": 111129433255,
+      "name": "Unit Tests (shard 4/6)",
+      "startedAt": "2026-10-03T04:38:17Z",
+      "status": "completed",
+      "steps": [
+        {
+          "completedAt": "2026-10-03T04:38:19Z",
+          "conclusion": "success",
+          "name": "Set up job",
+          "number": 1,
+          "startedAt": "2026-10-03T04:38:18Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-03T04:38:32Z",
+          "conclusion": "success",
+          "name": "Checkout",
+          "number": 2,
+          "startedAt": "2026-10-03T04:38:19Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-03T04:38:32Z",
+          "conclusion": "success",
+          "name": "Set up Python 3.10",
+          "number": 3,
+          "startedAt": "2026-10-03T04:38:32Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-03T04:39:46Z",
+          "conclusion": "success",
+          "name": "Install dependencies",
+          "number": 4,
+          "startedAt": "2026-10-03T04:38:32Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-03T04:42:53Z",
+          "conclusion": "success",
+          "name": "Run unit tests",
+          "number": 5,
+          "startedAt": "2026-10-03T04:39:46Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-03T04:42:54Z",
+          "conclusion": "success",
+          "name": "Post Set up Python 3.10",
+          "number": 9,
+          "startedAt": "2026-10-03T04:42:53Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-03T04:42:54Z",
+          "conclusion": "success",
+          "name": "Post Checkout",
+          "number": 10,
+          "startedAt": "2026-10-03T04:42:54Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-03T04:42:54Z",
+          "conclusion": "success",
+          "name": "Complete job",
+          "number": 11,
+          "startedAt": "2026-10-03T04:42:54Z",
+          "status": "completed"
+        }
+      ],
+      "url": "https://github.com/Lumiwealth/lumibot/actions/runs/37097198069/job/111129433255"
+    },
+    {
+      "completedAt": "2026-10-03T04:44:11Z",
+      "conclusion": "success",
+      "databaseId": 111130340204,
+      "name": "Publish to PyPI + Create GitHub Release",
+      "startedAt": "2026-10-03T04:43:51Z",
+      "status": "completed",
+      "steps": [
+        {
+          "completedAt": "2026-10-03T04:43:54Z",
+          "conclusion": "success",
+          "name": "Set up job",
+          "number": 1,
+          "startedAt": "2026-10-03T04:43:52Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-03T04:43:55Z",
+          "conclusion": "success",
+          "name": "Download dist",
+          "number": 2,
+          "startedAt": "2026-10-03T04:43:54Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-03T04:44:05Z",
+          "conclusion": "success",
+          "name": "Publish to PyPI",
+          "number": 3,
+          "startedAt": "2026-10-03T04:43:55Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-03T04:44:10Z",
+          "conclusion": "success",
+          "name": "Create GitHub Release",
+          "number": 4,
+          "startedAt": "2026-10-03T04:44:05Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-03T04:44:10Z",
+          "conclusion": "success",
+          "name": "Post Publish to PyPI",
+          "number": 8,
+          "startedAt": "2026-10-03T04:44:10Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-03T04:44:10Z",
+          "conclusion": "success",
+          "name": "Complete job",
+          "number": 9,
+          "startedAt": "2026-10-03T04:44:10Z",
+          "status": "completed"
+        }
+      ],
+      "url": "https://github.com/Lumiwealth/lumibot/actions/runs/37097198069/job/111130340204"
+    },
+    {
+      "completedAt": "2026-10-03T04:44:34Z",
+      "conclusion": "success",
+      "databaseId": 111130403830,
+      "name": "Start next version branch",
+      "startedAt": "2026-10-03T04:44:14Z",
+      "status": "completed",
+      "steps": [
+        {
+          "completedAt": "2026-10-03T04:44:16Z",
+          "conclusion": "success",
+          "name": "Set up job",
+          "number": 1,
+          "startedAt": "2026-10-03T04:44:15Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-03T04:44:29Z",
+          "conclusion": "success",
+          "name": "Checkout dev",
+          "number": 2,
+          "startedAt": "2026-10-03T04:44:16Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-03T04:44:32Z",
+          "conclusion": "success",
+          "name": "Compute next version and create branch",
+          "number": 3,
+          "startedAt": "2026-10-03T04:44:29Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-03T04:44:32Z",
+          "conclusion": "success",
+          "name": "Post Checkout dev",
+          "number": 6,
+          "startedAt": "2026-10-03T04:44:32Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-03T04:44:32Z",
+          "conclusion": "success",
+          "name": "Complete job",
+          "number": 7,
+          "startedAt": "2026-10-03T04:44:32Z",
+          "status": "completed"
+        }
+      ],
+      "url": "https://github.com/Lumiwealth/lumibot/actions/runs/37097198069/job/111130403830"
+    }
+  ],
+  "startedAt": "2026-10-03T04:38:14Z",
+  "status": "completed",
+  "updatedAt": "2026-10-03T04:44:35Z",
+  "url": "https://github.com/Lumiwealth/lumibot/actions/runs/37097198069"
+}

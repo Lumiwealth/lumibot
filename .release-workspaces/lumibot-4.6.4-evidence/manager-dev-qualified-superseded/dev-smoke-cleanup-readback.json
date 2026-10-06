@@ -1,0 +1,8 @@
+{
+  "http_status": 200,
+  "bot_id": "eeece336-0f9a-495c-bb26-76de0620f2aa",
+  "status": "stopped",
+  "taskArn": "arn:aws:ecs:us-east-1:412381755468:task/dev-trading-bots/8a0bf28fb6be41289085f15c9e5c89d9",
+  "ecs_task": null,
+  "message": null
+}

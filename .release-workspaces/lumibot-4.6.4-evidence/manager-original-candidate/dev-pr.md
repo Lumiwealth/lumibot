@@ -1,0 +1,5 @@
+Release LumiBot 4.6.4 into Bot Manager Development. The unique empty deploy marker creates a new develop SHA so the immutable release pointer cannot reuse the already-deployed 4.6.3 image set. The only accompanying source change is the verified prior-release documentation already on main; runtime source is unchanged.
+
+Exact main candidate: e43ecfb973a0cd371b4c642d38cd054bfc4537bb. Local qualification: 1812/1812 unit tests, Ruff, format, ty, dependency audit/export parity, package/runtime-bundle builds and read-only Terraform validation passed. The release manifest and maintained telemetry are preserved in the isolated release workspace. GitHub OIDC, Terraform plan/apply, immutable AWS publication and deployed integration smoke remain environment gates.
+
+After PyPI installation and canonical next-version checkout verification, pin LUMIBOT_VERSION to 4.6.4 and dispatch the maintained Development workflow with force_rebuild_images=true and skip_tests=false. Production may consume only the exact immutable artifact set that passes Development. Rob explicitly authorized Development and Production for this release. Existing customer deployments remain untouched.

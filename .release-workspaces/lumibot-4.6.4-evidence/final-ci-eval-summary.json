@@ -1,0 +1,36 @@
+{
+  "case_count": 16,
+  "passed": 48,
+  "failed": 0,
+  "errors": 0,
+  "missing": 0,
+  "skipped": 0,
+  "resumed": 0,
+  "wall_time_seconds": 1340.943,
+  "summed_case_timing_seconds": {
+    "queue": 0.0,
+    "setup": 89.396,
+    "model": 1369.034,
+    "judge": 151.022,
+    "total": 1609.458
+  },
+  "lock_seconds": null,
+  "lock_note": "Not separately reported by the evaluator. Queue time is reported separately; no zero lock-time claim.",
+  "models": [
+    "openai/gpt-6-luna"
+  ],
+  "judge_model": "openai/gpt-6-luna",
+  "usage": {
+    "cached_input_tokens": 5147369,
+    "input_tokens": 5986887,
+    "output_tokens": 76174,
+    "thinking_tokens": 36048,
+    "total_tokens": 6099109,
+    "uncached_input_tokens": 839518
+  },
+  "incremental_estimated_cost_usd": 0.191536,
+  "cumulative_estimated_cost_usd": 0.191536,
+  "fixture_external_writes": 48,
+  "real_external_writes": 0,
+  "runtime_fingerprint": "ad9b40ee8a80d63db510a18fe3c5368afb5623815dc30e88ca723d103f6872aa"
+}

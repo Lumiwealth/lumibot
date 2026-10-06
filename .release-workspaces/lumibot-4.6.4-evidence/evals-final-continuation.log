@@ -1,0 +1,192 @@
+2026-10-03 00:32:16,985 | INFO | LumiBot v4.6.4 starting
+[10/03/26 00:32:21] INFO     Processing request of type            server.py:733
+                             ListToolsRequest                                   
+[10/03/26 00:32:22] INFO     Processing request of type            server.py:733
+                             ListToolsRequest                                   
+[10/03/26 00:32:25] INFO     Processing request of type            server.py:733
+                             ListToolsRequest                                   
+[10/03/26 00:32:30] INFO     Processing request of type            server.py:733
+                             ListToolsRequest                                   
+[10/03/26 00:32:31] INFO     Processing request of type            server.py:733
+                             ListToolsRequest                                   
+[10/03/26 00:32:33] INFO     Processing request of type            server.py:733
+                             ListToolsRequest                                   
+[lumibot.agents] starting agent 'trader' (model='openai/gpt-6-luna', model_request_timeout=240s, run_timeout=600s).
+[lumibot.agents] starting agent 'trader' (model='openai/gpt-6-luna', model_request_timeout=240s, run_timeout=600s).
+/Users/robertgrzesik/Development/lumibot/.claude/worktrees/codex-release-4.6.4/.venv/lib/python3.10/site-packages/google/adk/features/_feature_decorator.py:72: UserWarning: [EXPERIMENTAL] feature SKILL_TOOLSET is enabled.
+  check_feature_enabled()
+[lumibot.agents] starting agent 'trader' (model='openai/gpt-6-luna', model_request_timeout=240s, run_timeout=600s).
+/Users/robertgrzesik/Development/lumibot/.claude/worktrees/codex-release-4.6.4/.venv/lib/python3.10/site-packages/google/adk/tools/function_tool.py:95: UserWarning: [EXPERIMENTAL] feature JSON_SCHEMA_FOR_FUNC_DECL is enabled.
+  build_function_declaration(
+[lumibot.agents] first ADK event for agent 'trader' (model='openai/gpt-6-luna') after 5096ms.
+[lumibot.agents] first ADK event for agent 'trader' (model='openai/gpt-6-luna') after 5291ms.
+[lumibot.agents] first ADK event for agent 'trader' (model='openai/gpt-6-luna') after 6141ms.
+[lumibot.agents] starting agent 'eval_judge' (model='openai/gpt-6-luna', model_request_timeout=180s, run_timeout=300s).
+[lumibot.agents] starting agent 'eval_judge' (model='openai/gpt-6-luna', model_request_timeout=180s, run_timeout=300s).
+[lumibot.agents] first ADK event for agent 'eval_judge' (model='openai/gpt-6-luna') after 4196ms.
+Task was destroyed but it is pending!
+task: <Task pending name='Task-237' coro=<LoggingWorker._worker_loop() running at /Users/robertgrzesik/Development/lumibot/.claude/worktrees/codex-release-4.6.4/.venv/lib/python3.10/site-packages/litellm/litellm_core_utils/logging_worker.py:121> wait_for=<Future pending cb=[Task.task_wakeup()]>>
+Task was destroyed but it is pending!
+task: <Task pending name='Task-257' coro=<LoggingWorker._worker_loop() running at /Users/robertgrzesik/Development/lumibot/.claude/worktrees/codex-release-4.6.4/.venv/lib/python3.10/site-packages/litellm/litellm_core_utils/logging_worker.py:121> wait_for=<Future pending cb=[Task.task_wakeup()]>>
+Task was destroyed but it is pending!
+task: <Task pending name='Task-297' coro=<LoggingWorker._worker_loop() running at /Users/robertgrzesik/Development/lumibot/.claude/worktrees/codex-release-4.6.4/.venv/lib/python3.10/site-packages/litellm/litellm_core_utils/logging_worker.py:121> wait_for=<Future pending cb=[Task.task_wakeup()]>>
+Task was destroyed but it is pending!
+task: <Task pending name='Task-342' coro=<LoggingWorker._worker_loop() running at /Users/robertgrzesik/Development/lumibot/.claude/worktrees/codex-release-4.6.4/.venv/lib/python3.10/site-packages/litellm/litellm_core_utils/logging_worker.py:121> wait_for=<Future pending cb=[Task.task_wakeup()]>>
+Task was destroyed but it is pending!
+task: <Task pending name='Task-362' coro=<LoggingWorker._worker_loop() running at /Users/robertgrzesik/Development/lumibot/.claude/worktrees/codex-release-4.6.4/.venv/lib/python3.10/site-packages/litellm/litellm_core_utils/logging_worker.py:121> wait_for=<Future pending cb=[Task.task_wakeup()]>>
+[lumibot.agents] first ADK event for agent 'eval_judge' (model='openai/gpt-6-luna') after 3405ms.
+[lumibot.agents] starting agent 'eval_judge' (model='openai/gpt-6-luna', model_request_timeout=180s, run_timeout=300s).
+[lumibot.agents] first ADK event for agent 'eval_judge' (model='openai/gpt-6-luna') after 2891ms.
+[lumibot.agents] starting agent 'trader' (model='openai/gpt-6-luna', model_request_timeout=240s, run_timeout=600s).
+[lumibot.agents] first ADK event for agent 'trader' (model='openai/gpt-6-luna') after 2562ms.
+[lumibot.agents] starting agent 'eval_judge' (model='openai/gpt-6-luna', model_request_timeout=180s, run_timeout=300s).
+[lumibot.agents] first ADK event for agent 'eval_judge' (model='openai/gpt-6-luna') after 2436ms.
+{"case_count": 16, "fresh_case_ids": ["crypto_instrument_identity", "options_credit_spread_close_signed_quantities", "options_expiration_with_data", "options_iron_condor_atomic_open", "options_iron_condor_limit_between_bid_ask", "options_single_leg_chain_and_quote", "research_macro_point_in_time", "research_sec_prompt_injection", "research_unavailable_safe_fallback", "research_vix_from_fred", "researcher_trader_evidence_handoff", "rules_active_override_strategy_prompt", "stock_pending_exit_no_duplicate", "stock_price_before_order"], "paid_calls": 0, "runtime_fingerprint": "b452612b51b347683c00be3f38d096be2fd86a8972ed1fd636b3e973b50ba857", "selected_case_count": 2}
+{
+  "case_count": 16,
+  "completed_repetitions": 4,
+  "cumulative_estimated_cost_usd": 0.339987,
+  "error_count": 0,
+  "fail_count": 0,
+  "fixture_external_writes": 4,
+  "fresh_case_count": 16,
+  "fresh_case_ids": [
+    "crypto_instrument_identity",
+    "options_credit_spread_close_signed_quantities",
+    "options_expiration_with_data",
+    "options_iron_condor_atomic_open",
+    "options_iron_condor_limit_between_bid_ask",
+    "options_single_leg_chain_and_quote",
+    "research_macro_point_in_time",
+    "research_sec_prompt_injection",
+    "research_unavailable_safe_fallback",
+    "research_vix_from_fred",
+    "researcher_trader_evidence_handoff",
+    "rules_active_override_strategy_prompt",
+    "stock_orb_completed_bars",
+    "stock_pending_exit_no_duplicate",
+    "stock_price_before_order",
+    "web_documents_holdings_from_yearly_and_trade_reports"
+  ],
+  "freshness_state_path": "/Users/robertgrzesik/Development/lumibot/.claude/worktrees/codex-release-4.6.4/.ci/agent-evals/freshness.json",
+  "incremental_estimated_cost_usd": 0.016734,
+  "judge_model": "openai/gpt-6-luna",
+  "ledger_path": "/Users/robertgrzesik/Development/lumibot/.claude/worktrees/codex-release-4.6.4/artifacts/release-4.6.4/evals-final-continuation/ledger.jsonl",
+  "max_cost_usd": 1.0,
+  "missing_count": 0,
+  "model_call_budget": {
+    "committed_usd": 0.33998742,
+    "reserved_calls": 1,
+    "settled_calls": 504,
+    "usage": {
+      "cached_input_tokens": 7280272,
+      "input_tokens": 8151433,
+      "output_tokens": 97478,
+      "thinking_tokens": 48944
+    }
+  },
+  "model_call_ledger_path": "/Users/robertgrzesik/Development/lumibot/.claude/worktrees/codex-release-4.6.4/artifacts/release-4.6.4/evals-final-continuation/model_calls.jsonl",
+  "models": [
+    "openai/gpt-6-luna"
+  ],
+  "pass_count": 4,
+  "real_external_writes": 0,
+  "refreshed_case_ids": [
+    "crypto_instrument_identity",
+    "options_credit_spread_close_signed_quantities",
+    "options_expiration_with_data",
+    "options_iron_condor_atomic_open",
+    "options_iron_condor_limit_between_bid_ask",
+    "options_single_leg_chain_and_quote",
+    "research_macro_point_in_time",
+    "research_sec_prompt_injection",
+    "research_unavailable_safe_fallback",
+    "research_vix_from_fred",
+    "researcher_trader_evidence_handoff",
+    "rules_active_override_strategy_prompt",
+    "stock_orb_completed_bars",
+    "stock_pending_exit_no_duplicate",
+    "stock_price_before_order",
+    "web_documents_holdings_from_yearly_and_trade_reports"
+  ],
+  "required_case_ids": [
+    "crypto_instrument_identity",
+    "options_credit_spread_close_signed_quantities",
+    "options_expiration_with_data",
+    "options_iron_condor_atomic_open",
+    "options_iron_condor_limit_between_bid_ask",
+    "options_single_leg_chain_and_quote",
+    "research_macro_point_in_time",
+    "research_sec_prompt_injection",
+    "research_unavailable_safe_fallback",
+    "research_vix_from_fred",
+    "researcher_trader_evidence_handoff",
+    "rules_active_override_strategy_prompt",
+    "stock_orb_completed_bars",
+    "stock_pending_exit_no_duplicate",
+    "stock_price_before_order",
+    "web_documents_holdings_from_yearly_and_trade_reports"
+  ],
+  "resumed_count": 44,
+  "runtime_fingerprint": "b452612b51b347683c00be3f38d096be2fd86a8972ed1fd636b3e973b50ba857",
+  "scheduled_repetitions": 4,
+  "skipped_fresh_count": 14,
+  "timestamp": "2026-10-03T04:33:37.531203Z",
+  "usage": {
+    "cached_input_tokens": 376482,
+    "input_tokens": 462747,
+    "output_tokens": 5644,
+    "thinking_tokens": 3042,
+    "total_tokens": 471433,
+    "uncached_input_tokens": 86265
+  },
+  "wall_time_seconds": 63.582
+}
+Fatal error on SSL transport
+protocol: <asyncio.sslproto.SSLProtocol object at 0x136b19a50>
+transport: <_SelectorSocketTransport closing fd=47>
+Traceback (most recent call last):
+  File "/Users/robertgrzesik/.local/share/uv/python/cpython-3.10.19-macos-aarch64-none/lib/python3.10/asyncio/selector_events.py", line 924, in write
+    n = self._sock.send(data)
+OSError: [Errno 9] Bad file descriptor
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/Users/robertgrzesik/.local/share/uv/python/cpython-3.10.19-macos-aarch64-none/lib/python3.10/asyncio/sslproto.py", line 690, in _process_write_backlog
+    self._transport.write(chunk)
+  File "/Users/robertgrzesik/.local/share/uv/python/cpython-3.10.19-macos-aarch64-none/lib/python3.10/asyncio/selector_events.py", line 930, in write
+    self._fatal_error(exc, 'Fatal write error on socket transport')
+  File "/Users/robertgrzesik/.local/share/uv/python/cpython-3.10.19-macos-aarch64-none/lib/python3.10/asyncio/selector_events.py", line 725, in _fatal_error
+    self._force_close(exc)
+  File "/Users/robertgrzesik/.local/share/uv/python/cpython-3.10.19-macos-aarch64-none/lib/python3.10/asyncio/selector_events.py", line 737, in _force_close
+    self._loop.call_soon(self._call_connection_lost, exc)
+  File "/Users/robertgrzesik/.local/share/uv/python/cpython-3.10.19-macos-aarch64-none/lib/python3.10/asyncio/base_events.py", line 753, in call_soon
+    self._check_closed()
+  File "/Users/robertgrzesik/.local/share/uv/python/cpython-3.10.19-macos-aarch64-none/lib/python3.10/asyncio/base_events.py", line 515, in _check_closed
+    raise RuntimeError('Event loop is closed')
+RuntimeError: Event loop is closed
+Fatal error on SSL transport
+protocol: <asyncio.sslproto.SSLProtocol object at 0x135220820>
+transport: <_SelectorSocketTransport closing fd=53>
+Traceback (most recent call last):
+  File "/Users/robertgrzesik/.local/share/uv/python/cpython-3.10.19-macos-aarch64-none/lib/python3.10/asyncio/selector_events.py", line 924, in write
+    n = self._sock.send(data)
+OSError: [Errno 9] Bad file descriptor
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/Users/robertgrzesik/.local/share/uv/python/cpython-3.10.19-macos-aarch64-none/lib/python3.10/asyncio/sslproto.py", line 690, in _process_write_backlog
+    self._transport.write(chunk)
+  File "/Users/robertgrzesik/.local/share/uv/python/cpython-3.10.19-macos-aarch64-none/lib/python3.10/asyncio/selector_events.py", line 930, in write
+    self._fatal_error(exc, 'Fatal write error on socket transport')
+  File "/Users/robertgrzesik/.local/share/uv/python/cpython-3.10.19-macos-aarch64-none/lib/python3.10/asyncio/selector_events.py", line 725, in _fatal_error
+    self._force_close(exc)
+  File "/Users/robertgrzesik/.local/share/uv/python/cpython-3.10.19-macos-aarch64-none/lib/python3.10/asyncio/selector_events.py", line 737, in _force_close
+    self._loop.call_soon(self._call_connection_lost, exc)
+  File "/Users/robertgrzesik/.local/share/uv/python/cpython-3.10.19-macos-aarch64-none/lib/python3.10/asyncio/base_events.py", line 753, in call_soon
+    self._check_closed()
+  File "/Users/robertgrzesik/.local/share/uv/python/cpython-3.10.19-macos-aarch64-none/lib/python3.10/asyncio/base_events.py", line 515, in _check_closed
+    raise RuntimeError('Event loop is closed')
+RuntimeError: Event loop is closed

@@ -1,0 +1,138 @@
+Refreshing run status every 15 seconds. Press Ctrl+C to quit.
+
+* main PR Tests Lumiwealth/bot_manager#550 · 37097919050
+Triggered via pull_request about 1 minute ago
+
+JOBS
+✓ python-quality / python-quality in 25s (ID 111131539583)
+  ✓ Set up job
+  ✓ Set up runner
+  ✓ Checkout exact candidate
+  ✓ Setup Python 3.13
+  ✓ Setup uv
+  ✓ Sync locked dependencies
+  ✓ Verify runtime requirements export
+  ✓ Audit locked dependencies
+  ✓ Lint Python
+  ✓ Check Python formatting
+  ✓ Type-check qualified gateway package
+  ✓ Post Setup uv
+  ✓ Post Setup Python 3.13
+  ✓ Post Checkout exact candidate
+  ✓ Complete runner
+  ✓ Complete job
+* Unit tests (ID 111131636008)
+  ✓ Set up job
+  ✓ Set up runner
+  ✓ Checkout code
+  ✓ Setup Python 3.13
+  ✓ Install UV
+  ✓ Install dependencies
+  * Run unit tests
+  * Post Install UV
+  * Post Setup Python 3.13
+  * Post Checkout code
+  * Complete runner
+
+ANNOTATIONS
+! Node.js 20 is deprecated. The following actions target Node.js 20 but are being forced to run on Node.js 24: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5, actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065, astral-sh/setup-uv@caf0cab7a618c569241d31dcd442f54681755d39. For more information see: https://github.blog/changelog/2025-09-19-deprecation-of-node-20-on-github-actions-runners/
+python-quality / python-quality: .github#2
+
+! Failed to save: <h2>Our services aren't available right now</h2><p>We're working to restore all services as soon as possible. Please check back soon.</p>07InAagAAAABjnqMzUNa1Q7S7Ip/JzUi+UEhYMzFFREdFMDYxNQBFZGdl
+python-quality / python-quality: .github#7
+
+! Failed to restore: Cache service responded with 400
+python-quality / python-quality: .github#31
+
+Refreshing run status every 15 seconds. Press Ctrl+C to quit.
+
+* main PR Tests Lumiwealth/bot_manager#550 · 37097919050
+Triggered via pull_request about 1 minute ago
+
+JOBS
+✓ python-quality / python-quality in 25s (ID 111131539583)
+  ✓ Set up job
+  ✓ Set up runner
+  ✓ Checkout exact candidate
+  ✓ Setup Python 3.13
+  ✓ Setup uv
+  ✓ Sync locked dependencies
+  ✓ Verify runtime requirements export
+  ✓ Audit locked dependencies
+  ✓ Lint Python
+  ✓ Check Python formatting
+  ✓ Type-check qualified gateway package
+  ✓ Post Setup uv
+  ✓ Post Setup Python 3.13
+  ✓ Post Checkout exact candidate
+  ✓ Complete runner
+  ✓ Complete job
+* Unit tests (ID 111131636008)
+  ✓ Set up job
+  ✓ Set up runner
+  ✓ Checkout code
+  ✓ Setup Python 3.13
+  ✓ Install UV
+  ✓ Install dependencies
+  * Run unit tests
+  * Post Install UV
+  * Post Setup Python 3.13
+  * Post Checkout code
+  * Complete runner
+
+ANNOTATIONS
+! Node.js 20 is deprecated. The following actions target Node.js 20 but are being forced to run on Node.js 24: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5, actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065, astral-sh/setup-uv@caf0cab7a618c569241d31dcd442f54681755d39. For more information see: https://github.blog/changelog/2025-09-19-deprecation-of-node-20-on-github-actions-runners/
+python-quality / python-quality: .github#2
+
+! Failed to save: <h2>Our services aren't available right now</h2><p>We're working to restore all services as soon as possible. Please check back soon.</p>07InAagAAAABjnqMzUNa1Q7S7Ip/JzUi+UEhYMzFFREdFMDYxNQBFZGdl
+python-quality / python-quality: .github#7
+
+! Failed to restore: Cache service responded with 400
+python-quality / python-quality: .github#31
+
+Refreshing run status every 15 seconds. Press Ctrl+C to quit.
+
+* main PR Tests Lumiwealth/bot_manager#550 · 37097919050
+Triggered via pull_request about 2 minutes ago
+
+JOBS
+✓ python-quality / python-quality in 25s (ID 111131539583)
+  ✓ Set up job
+  ✓ Set up runner
+  ✓ Checkout exact candidate
+  ✓ Setup Python 3.13
+  ✓ Setup uv
+  ✓ Sync locked dependencies
+  ✓ Verify runtime requirements export
+  ✓ Audit locked dependencies
+  ✓ Lint Python
+  ✓ Check Python formatting
+  ✓ Type-check qualified gateway package
+  ✓ Post Setup uv
+  ✓ Post Setup Python 3.13
+  ✓ Post Checkout exact candidate
+  ✓ Complete runner
+  ✓ Complete job
+* Unit tests (ID 111131636008)
+  ✓ Set up job
+  ✓ Set up runner
+  ✓ Checkout code
+  ✓ Setup Python 3.13
+  ✓ Install UV
+  ✓ Install dependencies
+  * Run unit tests
+  * Post Install UV
+  * Post Setup Python 3.13
+  * Post Checkout code
+  * Complete runner
+
+ANNOTATIONS
+! Node.js 20 is deprecated. The following actions target Node.js 20 but are being forced to run on Node.js 24: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5, actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065, astral-sh/setup-uv@caf0cab7a618c569241d31dcd442f54681755d39. For more information see: https://github.blog/changelog/2025-09-19-deprecation-of-node-20-on-github-actions-runners/
+python-quality / python-quality: .github#2
+
+! Failed to save: <h2>Our services aren't available right now</h2><p>We're working to restore all services as soon as possible. Please check back soon.</p>07InAagAAAABjnqMzUNa1Q7S7Ip/JzUi+UEhYMzFFREdFMDYxNQBFZGdl
+python-quality / python-quality: .github#7
+
+! Failed to restore: Cache service responded with 400
+python-quality / python-quality: .github#31
+

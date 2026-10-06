@@ -1,0 +1,1226 @@
+<!doctype html>
+<html class="no-js" lang="en" data-content_root="./">
+  <head><meta charset="utf-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1">
+    <meta name="color-scheme" content="light dark"><meta name="viewport" content="width=device-width, initial-scale=1" />
+<meta content="Connect LumiBot to the Charles Schwab Trader API for equities and options. Configure OAuth, callback URLs, account settings, and paper or live execution." name="description" />
+<meta property="og:title" content="Charles Schwab API Trading with LumiBot" />
+<meta property="og:type" content="website" />
+<meta property="og:url" content="https://lumibot.lumiwealth.com/brokers.schwab.html" />
+<meta property="og:site_name" content="LumiBot" />
+<meta property="og:description" content="Lumibot integrates directly with Charles Schwab’s Trader API for equities and options. Everything you need is built-in; no external wrapper is required. Go directly to Schwab prerequisites, credent..." />
+<meta property="og:image" content="https://lumibot.lumiwealth.com/_static/lumibot-social-card.png" />
+<meta property="og:image:alt" content="LumiBot: AI trading agents that actually place the trade" />
+<meta name="twitter:card" content="summary_large_image" />
+<link rel="index" title="Index" href="genindex.html"><link rel="search" title="Search" href="search.html"><link rel="next" title="Tradier" href="brokers.tradier.html"><link rel="prev" title="ProjectX / TopstepX" href="brokers.projectx.html">
+        <link rel="canonical" href="https://lumibot.lumiwealth.com/brokers.schwab.html">
+        <link rel="prefetch" href="_static/Lumibot_Logo.webp" as="image">
+        <link rel="prefetch" href="_static/Lumibot_Logo.webp" as="image">
+
+    <link rel="shortcut icon" href="_static/lumibot_favicon_192.png"><!-- Generated with Sphinx 8.1.3 and Furo 2025.12.19 -->
+
+<title>Charles Schwab API Trading with LumiBot - Lumibot</title>
+
+<link rel="stylesheet" type="text/css" href="_static/pygments.css?v=d111a655" />
+    <link rel="stylesheet" type="text/css" href="_static/styles/furo.css?v=7bdb33bb" />
+    <link rel="stylesheet" type="text/css" href="_static/styles/furo-extensions.css?v=8dab3a3b" />
+    <link rel="stylesheet" type="text/css" href="_static/custom.css?v=c3884bc6" />
+    
+    
+
+
+<style>
+  body {
+    --color-code-background: #f2f2f2;
+  --color-code-foreground: #1e1e1e;
+  
+  }
+  @media not print {
+    body[data-theme="dark"] {
+      --color-code-background: #202020;
+  --color-code-foreground: #d0d0d0;
+  
+    }
+    @media (prefers-color-scheme: dark) {
+      body:not([data-theme="light"]) {
+        --color-code-background: #202020;
+  --color-code-foreground: #d0d0d0;
+  
+      }
+    }
+  }
+</style>
+
+
+
+
+<link rel="icon" type="image/png" sizes="192x192" href="_static/lumibot_favicon_192.png">
+<link rel="icon" type="image/png" sizes="512x512" href="_static/lumibot_favicon_512.png">
+<link rel="apple-touch-icon" sizes="192x192" href="_static/lumibot_favicon_192.png">
+
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="Lumibot">
+<meta property="og:title" content="Charles Schwab API Trading with LumiBot - Lumibot">
+<meta property="og:description" content="Charles Schwab API Trading with LumiBot: setup, usage, and reference documentation for the LumiBot Python trading framework.">
+<meta property="og:url" content="https://lumibot.lumiwealth.com/brokers.schwab.html">
+
+<meta property="og:image" content="https://lumibot.lumiwealth.com/_static/lumibot_spot_logo.png">
+<meta property="og:image:width" content="852">
+<meta property="og:image:height" content="852">
+<meta property="og:image:alt" content="Charles Schwab API Trading with LumiBot">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Charles Schwab API Trading with LumiBot - Lumibot">
+<meta name="twitter:description" content="Charles Schwab API Trading with LumiBot: setup, usage, and reference documentation for the LumiBot Python trading framework.">
+<meta name="twitter:image" content="https://lumibot.lumiwealth.com/_static/lumibot_spot_logo.png">
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@graph": [
+    {
+      "@type": "Organization",
+      "@id": "https://lumibot.lumiwealth.com/#organization",
+      "name": "Lumiwealth",
+      "url": "https://botspot.trade",
+      "logo": {
+        "@type": "ImageObject",
+        "url": "https://lumibot.lumiwealth.com/_static/lumibot_spot_logo.png",
+        "width": 852,
+        "height": 852
+      },
+      "sameAs": [
+        "https://github.com/Lumiwealth/lumibot",
+        "https://www.reddit.com/r/BotSpotTrade/",
+        "https://discord.gg/4R9j6T3PN8"
+      ]
+    },
+    {
+      "@type": "WebSite",
+      "@id": "https://lumibot.lumiwealth.com/#website",
+      "name": "Lumibot Documentation",
+      "alternateName": "Lumibot",
+      "url": "https://lumibot.lumiwealth.com/",
+      "publisher": {
+        "@id": "https://lumibot.lumiwealth.com/#organization"
+      }
+    },
+    {
+      "@type": "SoftwareSourceCode",
+      "@id": "https://lumibot.lumiwealth.com/#software",
+      "name": "Lumibot",
+      "alternateName": "LumiBot",
+      "description": "Python framework for deterministic trading strategies, AI trading teams, hybrid strategy logic, backtesting, paper trading, and live broker workflows.",
+      "codeRepository": "https://github.com/Lumiwealth/lumibot",
+      "programmingLanguage": "Python",
+      "url": "https://lumibot.lumiwealth.com/",
+      "image": "https://lumibot.lumiwealth.com/_static/lumibot_spot_logo.png",
+      "publisher": {
+        "@id": "https://lumibot.lumiwealth.com/#organization"
+      },
+      "keywords": [
+        "algorithmic trading",
+        "AI trading agents",
+        "AI trading teams",
+        "backtesting",
+        "paper trading",
+        "live trading",
+        "broker integration"
+      ]
+    }
+  ]
+}
+</script>
+</head>
+  <body>
+    
+    <script>
+      document.body.dataset.theme = localStorage.getItem("theme") || "auto";
+    </script>
+    
+
+<svg xmlns="http://www.w3.org/2000/svg" style="display: none;">
+  <symbol id="svg-toc" viewBox="0 0 24 24">
+    <title>Contents</title>
+    <svg stroke="currentColor" fill="currentColor" stroke-width="0" viewBox="0 0 1024 1024">
+      <path d="M408 442h480c4.4 0 8-3.6 8-8v-56c0-4.4-3.6-8-8-8H408c-4.4 0-8 3.6-8 8v56c0 4.4 3.6 8 8 8zm-8 204c0 4.4 3.6 8 8 8h480c4.4 0 8-3.6 8-8v-56c0-4.4-3.6-8-8-8H408c-4.4 0-8 3.6-8 8v56zm504-486H120c-4.4 0-8 3.6-8 8v56c0 4.4 3.6 8 8 8h784c4.4 0 8-3.6 8-8v-56c0-4.4-3.6-8-8-8zm0 632H120c-4.4 0-8 3.6-8 8v56c0 4.4 3.6 8 8 8h784c4.4 0 8-3.6 8-8v-56c0-4.4-3.6-8-8-8zM115.4 518.9L271.7 642c5.8 4.6 14.4.5 14.4-6.9V388.9c0-7.4-8.5-11.5-14.4-6.9L115.4 505.1a8.74 8.74 0 0 0 0 13.8z"/>
+    </svg>
+  </symbol>
+  <symbol id="svg-menu" viewBox="0 0 24 24">
+    <title>Menu</title>
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather-menu">
+      <line x1="3" y1="12" x2="21" y2="12"></line>
+      <line x1="3" y1="6" x2="21" y2="6"></line>
+      <line x1="3" y1="18" x2="21" y2="18"></line>
+    </svg>
+  </symbol>
+  <symbol id="svg-arrow-right" viewBox="0 0 24 24">
+    <title>Expand</title>
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="feather-chevron-right">
+      <polyline points="9 18 15 12 9 6"></polyline>
+    </svg>
+  </symbol>
+  <symbol id="svg-sun" viewBox="0 0 24 24">
+    <title>Light mode</title>
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="1" stroke-linecap="round" stroke-linejoin="round" class="feather-sun">
+      <circle cx="12" cy="12" r="5"></circle>
+      <line x1="12" y1="1" x2="12" y2="3"></line>
+      <line x1="12" y1="21" x2="12" y2="23"></line>
+      <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line>
+      <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>
+      <line x1="1" y1="12" x2="3" y2="12"></line>
+      <line x1="21" y1="12" x2="23" y2="12"></line>
+      <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>
+      <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
+    </svg>
+  </symbol>
+  <symbol id="svg-moon" viewBox="0 0 24 24">
+    <title>Dark mode</title>
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="1" stroke-linecap="round" stroke-linejoin="round" class="icon-tabler-moon">
+      <path stroke="none" d="M0 0h24v24H0z" fill="none" />
+      <path d="M12 3c.132 0 .263 0 .393 0a7.5 7.5 0 0 0 7.92 12.446a9 9 0 1 1 -8.313 -12.454z" />
+    </svg>
+  </symbol>
+  <symbol id="svg-sun-with-moon" viewBox="0 0 24 24">
+    <title>Auto light/dark, in light mode</title>
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="1" stroke-linecap="round" stroke-linejoin="round"
+      class="icon-custom-derived-from-feather-sun-and-tabler-moon">
+      <path style="opacity: 50%" d="M 5.411 14.504 C 5.471 14.504 5.532 14.504 5.591 14.504 C 3.639 16.319 4.383 19.569 6.931 20.352 C 7.693 20.586 8.512 20.551 9.25 20.252 C 8.023 23.207 4.056 23.725 2.11 21.184 C 0.166 18.642 1.702 14.949 4.874 14.536 C 5.051 14.512 5.231 14.5 5.411 14.5 L 5.411 14.504 Z"/>
+      <line x1="14.5" y1="3.25" x2="14.5" y2="1.25"/>
+      <line x1="14.5" y1="15.85" x2="14.5" y2="17.85"/>
+      <line x1="10.044" y1="5.094" x2="8.63" y2="3.68"/>
+      <line x1="19" y1="14.05" x2="20.414" y2="15.464"/>
+      <line x1="8.2" y1="9.55" x2="6.2" y2="9.55"/>
+      <line x1="20.8" y1="9.55" x2="22.8" y2="9.55"/>
+      <line x1="10.044" y1="14.006" x2="8.63" y2="15.42"/>
+      <line x1="19" y1="5.05" x2="20.414" y2="3.636"/>
+      <circle cx="14.5" cy="9.55" r="3.6"/>
+    </svg>
+  </symbol>
+  <symbol id="svg-moon-with-sun" viewBox="0 0 24 24">
+    <title>Auto light/dark, in dark mode</title>
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="1" stroke-linecap="round" stroke-linejoin="round"
+      class="icon-custom-derived-from-feather-sun-and-tabler-moon">
+      <path d="M 8.282 7.007 C 8.385 7.007 8.494 7.007 8.595 7.007 C 5.18 10.184 6.481 15.869 10.942 17.24 C 12.275 17.648 13.706 17.589 15 17.066 C 12.851 22.236 5.91 23.143 2.505 18.696 C -0.897 14.249 1.791 7.786 7.342 7.063 C 7.652 7.021 7.965 7 8.282 7 L 8.282 7.007 Z"/>
+      <line style="opacity: 50%" x1="18" y1="3.705" x2="18" y2="2.5"/>
+      <line style="opacity: 50%" x1="18" y1="11.295" x2="18" y2="12.5"/>
+      <line style="opacity: 50%" x1="15.316" y1="4.816" x2="14.464" y2="3.964"/>
+      <line style="opacity: 50%" x1="20.711" y1="10.212" x2="21.563" y2="11.063"/>
+      <line style="opacity: 50%" x1="14.205" y1="7.5" x2="13.001" y2="7.5"/>
+      <line style="opacity: 50%" x1="21.795" y1="7.5" x2="23" y2="7.5"/>
+      <line style="opacity: 50%" x1="15.316" y1="10.184" x2="14.464" y2="11.036"/>
+      <line style="opacity: 50%" x1="20.711" y1="4.789" x2="21.563" y2="3.937"/>
+      <circle style="opacity: 50%" cx="18" cy="7.5" r="2.169"/>
+    </svg>
+  </symbol>
+  <symbol id="svg-pencil" viewBox="0 0 24 24">
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="1" stroke-linecap="round" stroke-linejoin="round" class="icon-tabler-pencil-code">
+      <path d="M4 20h4l10.5 -10.5a2.828 2.828 0 1 0 -4 -4l-10.5 10.5v4" />
+      <path d="M13.5 6.5l4 4" />
+      <path d="M20 21l2 -2l-2 -2" />
+      <path d="M17 17l-2 2l2 2" />
+    </svg>
+  </symbol>
+  <symbol id="svg-eye" viewBox="0 0 24 24">
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+      stroke-width="1" stroke-linecap="round" stroke-linejoin="round" class="icon-tabler-eye-code">
+      <path stroke="none" d="M0 0h24v24H0z" fill="none" />
+      <path d="M10 12a2 2 0 1 0 4 0a2 2 0 0 0 -4 0" />
+      <path
+        d="M11.11 17.958c-3.209 -.307 -5.91 -2.293 -8.11 -5.958c2.4 -4 5.4 -6 9 -6c3.6 0 6.6 2 9 6c-.21 .352 -.427 .688 -.647 1.008" />
+      <path d="M20 21l2 -2l-2 -2" />
+      <path d="M17 17l-2 2l2 2" />
+    </svg>
+  </symbol>
+</svg>
+
+<input type="checkbox" class="sidebar-toggle" name="__navigation" id="__navigation" aria-label="Toggle site navigation sidebar">
+<input type="checkbox" class="sidebar-toggle" name="__toc" id="__toc" aria-label="Toggle table of contents sidebar">
+<label class="overlay sidebar-overlay" for="__navigation"></label>
+<label class="overlay toc-overlay" for="__toc"></label>
+
+<a class="skip-to-content muted-link" href="#furo-main-content">Skip to content</a>
+
+
+
+<div class="page">
+  <header class="mobile-header">
+    <div class="header-left">
+      <label class="nav-overlay-icon" for="__navigation">
+        <span class="icon"><svg><use href="#svg-menu"></use></svg></span>
+      </label>
+    </div>
+    <div class="header-center">
+      <a href="index.html"><div class="brand">Lumibot</div></a>
+    </div>
+    <div class="header-right">
+      <div class="theme-toggle-container theme-toggle-header">
+        <button class="theme-toggle" aria-label="Toggle Light / Dark / Auto color theme">
+          <svg class="theme-icon-when-auto-light"><use href="#svg-sun-with-moon"></use></svg>
+          <svg class="theme-icon-when-auto-dark"><use href="#svg-moon-with-sun"></use></svg>
+          <svg class="theme-icon-when-dark"><use href="#svg-moon"></use></svg>
+          <svg class="theme-icon-when-light"><use href="#svg-sun"></use></svg>
+        </button>
+      </div>
+      <label class="toc-overlay-icon toc-header-icon" for="__toc">
+        <span class="icon"><svg><use href="#svg-toc"></use></svg></span>
+      </label>
+    </div>
+  </header>
+  <aside class="sidebar-drawer">
+    <div class="sidebar-container">
+      
+      <div class="sidebar-sticky"><a class="sidebar-brand" href="index.html">
+  <div class="sidebar-logo-container">
+    <img class="sidebar-logo only-light" src="_static/Lumibot_Logo.webp" alt="Light Logo"/>
+    <img class="sidebar-logo only-dark" src="_static/Lumibot_Logo.webp" alt="Dark Logo"/>
+  </div>
+  
+  
+</a><form class="sidebar-search-container" method="get" action="search.html" role="search">
+  <input class="sidebar-search" placeholder="Search" name="q" aria-label="Search">
+  <input type="hidden" name="check_keywords" value="yes">
+  <input type="hidden" name="area" value="default">
+</form>
+<div id="searchbox"></div><div class="sidebar-scroll"><div class="sidebar-tree">
+  <p class="caption" role="heading"><span class="caption-text">Start here</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="index.html">Home</a></li>
+<li class="toctree-l1"><a class="reference internal" href="getting_started.html">Start Here / Python Setup</a></li>
+<li class="toctree-l1"><a class="reference internal" href="cli.html">The lumibot Command</a></li>
+<li class="toctree-l1"><a class="reference internal" href="examples.html">Python Strategy Examples</a></li>
+<li class="toctree-l1"><a class="reference internal" href="agents_quickstart.html">AI Quickstart</a></li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="agents_examples.html">AI Examples</a><input aria-label="Toggle navigation of AI Examples" class="toctree-checkbox" id="toctree-checkbox-1" name="toctree-checkbox-1" role="switch" type="checkbox"/><label for="toctree-checkbox-1"><span class="icon"><svg><use href="#svg-arrow-right"></use></svg></span></label><ul>
+<li class="toctree-l2"><a class="reference internal" href="agents_example_nancy_pelosi_trading_bot.html">Nancy Pelosi Stock Trading Bot</a></li>
+<li class="toctree-l2"><a class="reference internal" href="agents_example_nancy_pelosi_copy_trading_bot.html">Nancy Pelosi Copy Trading Bot</a></li>
+<li class="toctree-l2"><a class="reference internal" href="agents_example_insider_trading_bot.html">Insider Trading Bot</a></li>
+<li class="toctree-l2"><a class="reference internal" href="agents_example_warren_buffett_ai_stock_picker.html">Warren Buffett AI Stock Picker</a></li>
+<li class="toctree-l2"><a class="reference internal" href="agents_example_bill_ackman_portfolio_ai_trading_bot.html">Bill Ackman Portfolio AI Trading Bot</a></li>
+<li class="toctree-l2"><a class="reference internal" href="agents_example_fear_and_greed_index_trading_bot.html">Fear and Greed Index Trading Bot</a></li>
+<li class="toctree-l2"><a class="reference internal" href="agents_example_bull_vs_bear_ai_stock_trading_bot.html">Bull vs Bear AI Stock Trading Bot</a></li>
+<li class="toctree-l2"><a class="reference internal" href="agents_example_tqqq_strategy_ai_trading_bot.html">TQQQ Strategy AI Trading Bot</a></li>
+<li class="toctree-l2"><a class="reference internal" href="agents_example_iron_condor_ai_trading_bot.html">AI Iron Condor Trading Bot</a></li>
+<li class="toctree-l2"><a class="reference internal" href="agents_example_put_credit_spread_ai_trading_bot.html">Put Credit Spread AI Trading Bot</a></li>
+<li class="toctree-l2"><a class="reference internal" href="agents_example_0dte_options_ai_trading_bot.html">0DTE Options AI Trading Bot</a></li>
+<li class="toctree-l2"><a class="reference internal" href="agents_example_vwap_strategy_ai_trading_bot.html">VWAP Strategy AI Trading Bot</a></li>
+<li class="toctree-l2"><a class="reference internal" href="agents_example_opening_range_breakout_ai_trading_bot.html">Opening Range Breakout AI Trading Bot</a></li>
+<li class="toctree-l2"><a class="reference internal" href="agents_example_citadel_sector_pods.html">Citadel Sector Pods AI Trading Team</a></li>
+<li class="toctree-l2"><a class="reference internal" href="agents_example_ray_dalio_idea_meritocracy.html">Ray Dalio Idea Meritocracy AI Trading Team</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="strategy_run_modes.html">Backtest, Paper, or Live</a></li>
+<li class="toctree-l1"><a class="reference internal" href="agent_start_here.html">For Coding Agents</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">AI trading</span></p>
+<ul>
+<li class="toctree-l1 has-children"><a class="reference internal" href="agents.html">AI Agent Guide</a><input aria-label="Toggle navigation of AI Agent Guide" class="toctree-checkbox" id="toctree-checkbox-2" name="toctree-checkbox-2" role="switch" type="checkbox"/><label for="toctree-checkbox-2"><span class="icon"><svg><use href="#svg-arrow-right"></use></svg></span></label><ul>
+<li class="toctree-l2"><a class="reference internal" href="agents_flows.html">Design Your AI Trading Team</a></li>
+<li class="toctree-l2"><a class="reference internal" href="agents_builtin_tools.html">Agent Built-In Tools</a></li>
+<li class="toctree-l2"><a class="reference internal" href="agents_browser_tools.html">Stateful Browser Tools</a></li>
+<li class="toctree-l2"><a class="reference internal" href="agents_canonical_demos.html">One-Agent AI Trading Bot Demos</a></li>
+<li class="toctree-l2"><a class="reference internal" href="agents_observability.html">AI Agent Observability</a></li>
+<li class="toctree-l2"><a class="reference internal" href="agents_memory.html">Agent Memory</a></li>
+<li class="toctree-l2"><a class="reference internal" href="agents_notifications.html">Agent Notifications</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="execution_gap.html">The Execution Gap</a></li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="ai_trading_project_comparison.html">Compare AI Frameworks</a><input aria-label="Toggle navigation of Compare AI Frameworks" class="toctree-checkbox" id="toctree-checkbox-3" name="toctree-checkbox-3" role="switch" type="checkbox"/><label for="toctree-checkbox-3"><span class="icon"><svg><use href="#svg-arrow-right"></use></svg></span></label><ul>
+<li class="toctree-l2"><a class="reference internal" href="lumibot_vs_tradingagents.html">Lumibot vs TradingAgents</a></li>
+<li class="toctree-l2"><a class="reference internal" href="lumibot_vs_ai_hedge_fund.html">Lumibot vs ai-hedge-fund</a></li>
+<li class="toctree-l2"><a class="reference internal" href="lumibot_vs_openalice.html">LumiBot vs OpenAlice</a></li>
+<li class="toctree-l2"><a class="reference internal" href="lumibot_vs_quantdinger.html">Lumibot vs QuantDinger</a></li>
+<li class="toctree-l2"><a class="reference internal" href="lumibot_vs_lean.html">Lumibot vs QuantConnect LEAN</a></li>
+</ul>
+</li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Build strategies</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="strategy_api_overview.html">Strategy API</a></li>
+<li class="toctree-l1"><a class="reference internal" href="imports_and_startup.html">Imports and Startup</a></li>
+<li class="toctree-l1"><a class="reference internal" href="standalone_components.html">Reusable Components</a></li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="lifecycle_methods.html">Lifecycle Methods</a><input aria-label="Toggle navigation of Lifecycle Methods" class="toctree-checkbox" id="toctree-checkbox-4" name="toctree-checkbox-4" role="switch" type="checkbox"/><label for="toctree-checkbox-4"><span class="icon"><svg><use href="#svg-arrow-right"></use></svg></span></label><ul>
+<li class="toctree-l2"><a class="reference internal" href="lifecycle_methods.summary.html">Summary</a></li>
+<li class="toctree-l2"><a class="reference internal" href="lifecycle_methods.initialize.html">def initialize</a></li>
+<li class="toctree-l2"><a class="reference internal" href="lifecycle_methods.on_trading_iteration.html">def on_trading_iteration</a></li>
+<li class="toctree-l2"><a class="reference internal" href="lifecycle_methods.before_market_opens.html">def before_market_opens</a></li>
+<li class="toctree-l2"><a class="reference internal" href="lifecycle_methods.before_starting_trading.html">def before_starting_trading</a></li>
+<li class="toctree-l2"><a class="reference internal" href="lifecycle_methods.before_market_closes.html">def before_market_closes</a></li>
+<li class="toctree-l2"><a class="reference internal" href="lifecycle_methods.after_market_closes.html">def after_market_closes</a></li>
+<li class="toctree-l2"><a class="reference internal" href="lifecycle_methods.on_abrupt_closing.html">def on_abrupt_closing</a></li>
+<li class="toctree-l2"><a class="reference internal" href="lifecycle_methods.on_bot_crash.html">def on_bot_crash</a></li>
+<li class="toctree-l2"><a class="reference internal" href="lifecycle_methods.trace_stats.html">def trace_stats</a></li>
+<li class="toctree-l2"><a class="reference internal" href="lifecycle_methods.tearsheet_custom_metrics.html">def tearsheet_custom_metrics</a></li>
+<li class="toctree-l2"><a class="reference internal" href="lifecycle_methods.on_new_order.html">def on_new_order</a></li>
+<li class="toctree-l2"><a class="reference internal" href="lifecycle_methods.on_partially_filled_order.html">def on_partially_filled_order</a></li>
+<li class="toctree-l2"><a class="reference internal" href="lifecycle_methods.on_filled_order.html">def on_filled_order</a></li>
+<li class="toctree-l2"><a class="reference internal" href="lifecycle_methods.on_canceled_order.html">def on_canceled_order</a></li>
+<li class="toctree-l2"><a class="reference internal" href="lifecycle_methods.on_parameters_updated.html">def on_parameters_updated</a></li>
+</ul>
+</li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="strategy_methods.html">Strategy Methods</a><input aria-label="Toggle navigation of Strategy Methods" class="toctree-checkbox" id="toctree-checkbox-5" name="toctree-checkbox-5" role="switch" type="checkbox"/><label for="toctree-checkbox-5"><span class="icon"><svg><use href="#svg-arrow-right"></use></svg></span></label><ul>
+<li class="toctree-l2 has-children"><a class="reference internal" href="strategy_methods.orders.html">Order Management</a><input aria-label="Toggle navigation of Order Management" class="toctree-checkbox" id="toctree-checkbox-6" name="toctree-checkbox-6" role="switch" type="checkbox"/><label for="toctree-checkbox-6"><span class="icon"><svg><use href="#svg-arrow-right"></use></svg></span></label><ul>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.orders/lumibot.strategies.strategy.Strategy.create_order.html">self.create_order</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.orders/lumibot.strategies.strategy.Strategy.submit_order.html">self.submit_order</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.orders/lumibot.strategies.strategy.Strategy.submit_orders.html">self.submit_orders</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.orders/lumibot.strategies.strategy.Strategy.cancel_order.html">self.cancel_order</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.orders/lumibot.strategies.strategy.Strategy.cancel_orders.html">self.cancel_orders</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.orders/lumibot.strategies.strategy.Strategy.cancel_open_orders.html">self.cancel_open_orders</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.orders/lumibot.strategies.strategy.Strategy.get_selling_order.html">self.get_selling_order</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.orders/lumibot.strategies.strategy.Strategy.sell_all.html">self.sell_all</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.orders/lumibot.strategies.strategy.Strategy.get_order.html">self.get_order</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.orders/lumibot.strategies.strategy.Strategy.get_orders.html">self.get_orders</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.orders/lumibot.strategies.strategy.Strategy.get_asset_potential_total.html">self.get_asset_potential_total</a></li>
+</ul>
+</li>
+<li class="toctree-l2 has-children"><a class="reference internal" href="strategy_methods.account.html">Account Management</a><input aria-label="Toggle navigation of Account Management" class="toctree-checkbox" id="toctree-checkbox-7" name="toctree-checkbox-7" role="switch" type="checkbox"/><label for="toctree-checkbox-7"><span class="icon"><svg><use href="#svg-arrow-right"></use></svg></span></label><ul>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.account/lumibot.strategies.strategy.Strategy.adjust_cash.html">self.adjust_cash</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.account/lumibot.strategies.strategy.Strategy.configure_cash_financing.html">self.configure_cash_financing</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.account/lumibot.strategies.strategy.Strategy.deposit_cash.html">self.deposit_cash</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.account/lumibot.strategies.strategy.Strategy.get_portfolio_value.html">self.get_portfolio_value</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.account/lumibot.strategies.strategy.Strategy.get_cash.html">self.get_cash</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.account/lumibot.strategies.strategy.Strategy.get_position.html">self.get_position</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.account/lumibot.strategies.strategy.Strategy.get_positions.html">self.get_positions</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.account/lumibot.strategies.strategy.Strategy.set_cash_financing_rates.html">self.set_cash_financing_rates</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.account/lumibot.strategies.strategy.Strategy.withdraw_cash.html">self.withdraw_cash</a></li>
+</ul>
+</li>
+<li class="toctree-l2 has-children"><a class="reference internal" href="strategy_methods.data.html">Data</a><input aria-label="Toggle navigation of Data" class="toctree-checkbox" id="toctree-checkbox-8" name="toctree-checkbox-8" role="switch" type="checkbox"/><label for="toctree-checkbox-8"><span class="icon"><svg><use href="#svg-arrow-right"></use></svg></span></label><ul>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.data/lumibot.strategies.strategy.Strategy.get_last_price.html">self.get_last_price</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.data/lumibot.strategies.strategy.Strategy.get_last_prices.html">self.get_last_prices</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.data/lumibot.strategies.strategy.Strategy.get_historical_prices.html">self.get_historical_prices</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.data/lumibot.strategies.strategy.Strategy.get_historical_prices_for_assets.html">self.get_historical_prices_for_assets</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.data/lumibot.strategies.strategy.Strategy.get_quote.html">self.get_quote</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.data/lumibot.strategies.strategy.Strategy.get_yesterday_dividend.html">self.get_yesterday_dividend</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.data/lumibot.strategies.strategy.Strategy.get_next_trading_day.html">self.get_next_trading_day</a></li>
+</ul>
+</li>
+<li class="toctree-l2 has-children"><a class="reference internal" href="strategy_methods.chart.html">Chart Functions</a><input aria-label="Toggle navigation of Chart Functions" class="toctree-checkbox" id="toctree-checkbox-9" name="toctree-checkbox-9" role="switch" type="checkbox"/><label for="toctree-checkbox-9"><span class="icon"><svg><use href="#svg-arrow-right"></use></svg></span></label><ul>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.chart/lumibot.strategies.strategy.Strategy.add_marker.html">self.add_marker</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.chart/lumibot.strategies.strategy.Strategy.add_line.html">self.add_line</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.chart/lumibot.strategies.strategy.Strategy.get_markers_df.html">self.get_markers_df</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.chart/lumibot.strategies.strategy.Strategy.get_lines_df.html">self.get_lines_df</a></li>
+</ul>
+</li>
+<li class="toctree-l2 has-children"><a class="reference internal" href="strategy_methods.parameters.html">Parameters</a><input aria-label="Toggle navigation of Parameters" class="toctree-checkbox" id="toctree-checkbox-10" name="toctree-checkbox-10" role="switch" type="checkbox"/><label for="toctree-checkbox-10"><span class="icon"><svg><use href="#svg-arrow-right"></use></svg></span></label><ul>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.account/lumibot.strategies.strategy.Strategy.get_parameters.html">self.get_parameters</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.account/lumibot.strategies.strategy.Strategy.set_parameters.html">self.set_parameters</a></li>
+</ul>
+</li>
+<li class="toctree-l2 has-children"><a class="reference internal" href="strategy_methods.options.html">Options</a><input aria-label="Toggle navigation of Options" class="toctree-checkbox" id="toctree-checkbox-11" name="toctree-checkbox-11" role="switch" type="checkbox"/><label for="toctree-checkbox-11"><span class="icon"><svg><use href="#svg-arrow-right"></use></svg></span></label><ul>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.options/lumibot.strategies.strategy.Strategy.get_chain.html">self.get_chain</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.options/lumibot.strategies.strategy.Strategy.get_chains.html">self.get_chains</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.options/lumibot.strategies.strategy.Strategy.get_greeks.html">self.get_greeks</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.options/lumibot.strategies.strategy.Strategy.get_strikes.html">self.get_strikes</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.options/lumibot.strategies.strategy.Strategy.get_expiration.html">self.get_expiration</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.options/lumibot.strategies.strategy.Strategy.get_multiplier.html">self.get_multiplier</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.options/lumibot.strategies.strategy.Strategy.options_expiry_to_datetime_date.html">self.options_expiry_to_datetime_date</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.options/lumibot.strategies.strategy.Strategy.get_next_trading_day.html">self.get_next_trading_day</a></li>
+</ul>
+</li>
+<li class="toctree-l2 has-children"><a class="reference internal" href="strategy_methods.datetime.html">DateTime</a><input aria-label="Toggle navigation of DateTime" class="toctree-checkbox" id="toctree-checkbox-12" name="toctree-checkbox-12" role="switch" type="checkbox"/><label for="toctree-checkbox-12"><span class="icon"><svg><use href="#svg-arrow-right"></use></svg></span></label><ul>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.datetime/lumibot.strategies.strategy.Strategy.get_datetime.html">self.get_datetime</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.datetime/lumibot.strategies.strategy.Strategy.get_timestamp.html">self.get_timestamp</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.datetime/lumibot.strategies.strategy.Strategy.get_round_minute.html">self.get_round_minute</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.datetime/lumibot.strategies.strategy.Strategy.get_last_minute.html">self.get_last_minute</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.datetime/lumibot.strategies.strategy.Strategy.get_round_day.html">self.get_round_day</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.datetime/lumibot.strategies.strategy.Strategy.get_last_day.html">self.get_last_day</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.datetime/lumibot.strategies.strategy.Strategy.get_datetime_range.html">self.get_datetime_range</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.datetime/lumibot.strategies.strategy.Strategy.localize_datetime.html">self.localize_datetime</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.datetime/lumibot.strategies.strategy.Strategy.to_default_timezone.html">self.to_default_timezone</a></li>
+</ul>
+</li>
+<li class="toctree-l2 has-children"><a class="reference internal" href="strategy_methods.misc.html">Miscellaneous</a><input aria-label="Toggle navigation of Miscellaneous" class="toctree-checkbox" id="toctree-checkbox-13" name="toctree-checkbox-13" role="switch" type="checkbox"/><label for="toctree-checkbox-13"><span class="icon"><svg><use href="#svg-arrow-right"></use></svg></span></label><ul>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.misc/lumibot.strategies.strategy.Strategy.log_message.html">self.log_message</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.misc/lumibot.strategies.strategy.Strategy.sleep.html">self.sleep</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.misc/lumibot.strategies.strategy.Strategy.set_market.html">self.set_market</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.misc/lumibot.strategies.strategy.Strategy.update_parameters.html">self.update_parameters</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.misc/lumibot.strategies.strategy.Strategy.get_parameters.html">self.get_parameters</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.misc/lumibot.strategies.strategy.Strategy.await_market_to_close.html">self.await_market_to_close</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.misc/lumibot.strategies.strategy.Strategy.await_market_to_open.html">self.await_market_to_open</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.misc/lumibot.strategies.strategy.Strategy.wait_for_order_registration.html">self.wait_for_order_registration</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.misc/lumibot.strategies.strategy.Strategy.wait_for_order_execution.html">self.wait_for_order_execution</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.misc/lumibot.strategies.strategy.Strategy.wait_for_orders_registration.html">self.wait_for_orders_registration</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.misc/lumibot.strategies.strategy.Strategy.wait_for_orders_execution.html">self.wait_for_orders_execution</a></li>
+<li class="toctree-l3"><a class="reference internal" href="strategy_methods.misc/lumibot.strategies.strategy.Strategy.register_cron_callback.html">self.register_cron_callback</a></li>
+</ul>
+</li>
+</ul>
+</li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="strategy_properties.html">Strategy Properties</a><input aria-label="Toggle navigation of Strategy Properties" class="toctree-checkbox" id="toctree-checkbox-14" name="toctree-checkbox-14" role="switch" type="checkbox"/><label for="toctree-checkbox-14"><span class="icon"><svg><use href="#svg-arrow-right"></use></svg></span></label><ul>
+<li class="toctree-l2"><a class="reference internal" href="strategy_properties/lumibot.strategies.strategy.Strategy.cash.html">self.cash</a></li>
+<li class="toctree-l2"><a class="reference internal" href="strategy_properties/lumibot.strategies.strategy.Strategy.portfolio_value.html">self.portfolio_value</a></li>
+<li class="toctree-l2"><a class="reference internal" href="strategy_properties/lumibot.strategies.strategy.Strategy.first_iteration.html">self.first_iteration</a></li>
+<li class="toctree-l2"><a class="reference internal" href="strategy_properties/lumibot.strategies.strategy.Strategy.is_backtesting.html">self.is_backtesting</a></li>
+<li class="toctree-l2"><a class="reference internal" href="strategy_properties/lumibot.strategies.strategy.Strategy.quote_asset.html">self.quote_asset</a></li>
+<li class="toctree-l2"><a class="reference internal" href="strategy_properties/lumibot.strategies.strategy.Strategy.name.html">self.name</a></li>
+<li class="toctree-l2"><a class="reference internal" href="strategy_properties/lumibot.strategies.strategy.Strategy.initial_budget.html">self.initial_budget</a></li>
+<li class="toctree-l2"><a class="reference internal" href="strategy_properties/lumibot.strategies.strategy.Strategy.minutes_before_closing.html">self.minutes_before_closing</a></li>
+<li class="toctree-l2"><a class="reference internal" href="strategy_properties/lumibot.strategies.strategy.Strategy.minutes_before_opening.html">self.minutes_before_opening</a></li>
+<li class="toctree-l2"><a class="reference internal" href="strategy_properties/lumibot.strategies.strategy.Strategy.sleeptime.html">self.sleeptime</a></li>
+<li class="toctree-l2"><a class="reference internal" href="strategy_properties/lumibot.strategies.strategy.Strategy.last_on_trading_iteration_datetime.html">self.last_on_trading_iteration_datetime</a></li>
+<li class="toctree-l2"><a class="reference internal" href="strategy_properties/lumibot.strategies.strategy.Strategy.timezone.html">self.timezone</a></li>
+<li class="toctree-l2"><a class="reference internal" href="strategy_properties/lumibot.strategies.strategy.Strategy.pytz.html">self.pytz</a></li>
+<li class="toctree-l2"><a class="reference internal" href="strategy_properties/lumibot.strategies.strategy.Strategy.unspent_money.html">self.unspent_money</a></li>
+</ul>
+</li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="entities.html">Assets and Orders</a><input aria-label="Toggle navigation of Assets and Orders" class="toctree-checkbox" id="toctree-checkbox-15" name="toctree-checkbox-15" role="switch" type="checkbox"/><label for="toctree-checkbox-15"><span class="icon"><svg><use href="#svg-arrow-right"></use></svg></span></label><ul>
+<li class="toctree-l2"><a class="reference internal" href="entities.asset.html">Asset</a></li>
+<li class="toctree-l2"><a class="reference internal" href="entities.bars.html">Bars</a></li>
+<li class="toctree-l2"><a class="reference internal" href="entities.data.html">Data</a></li>
+<li class="toctree-l2"><a class="reference internal" href="entities.order.html">Order</a></li>
+<li class="toctree-l2"><a class="reference internal" href="entities.position.html">Position</a></li>
+<li class="toctree-l2"><a class="reference internal" href="entities.trading_fee.html">Trading Fee</a></li>
+<li class="toctree-l2"><a class="reference internal" href="entities.trading_slippage.html">Trading Slippage</a></li>
+<li class="toctree-l2"><a class="reference internal" href="entities.smart_limit.html">Smart Limit Config</a></li>
+<li class="toctree-l2"><a class="reference internal" href="entities.chains.html">Chains Entity</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="indicators.html">Indicators</a></li>
+<li class="toctree-l1"><a class="reference internal" href="fundamentals.html">SEC Fundamentals</a></li>
+<li class="toctree-l1"><a class="reference internal" href="macro_data.html">Macro Data</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Backtest and trade</span></p>
+<ul class="current">
+<li class="toctree-l1 has-children"><a class="reference internal" href="backtesting.html">Backtesting</a><input aria-label="Toggle navigation of Backtesting" class="toctree-checkbox" id="toctree-checkbox-16" name="toctree-checkbox-16" role="switch" type="checkbox"/><label for="toctree-checkbox-16"><span class="icon"><svg><use href="#svg-arrow-right"></use></svg></span></label><ul>
+<li class="toctree-l2"><a class="reference internal" href="backtesting.how_to_backtest.html">How to Backtest a Python Trading Strategy with LumiBot</a></li>
+<li class="toctree-l2"><a class="reference internal" href="backtesting.how_to_backtest.html#files-generated-from-backtesting">Files Generated from Backtesting</a></li>
+<li class="toctree-l2"><a class="reference internal" href="backtesting.backtesting_function.html">Backtesting Function</a></li>
+<li class="toctree-l2"><a class="reference internal" href="backtesting.performance.html">Backtesting Performance (Speed + Parity)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="backtesting.yahoo.html">Free Daily Stock Backtesting with Yahoo and LumiBot</a></li>
+<li class="toctree-l2"><a class="reference internal" href="backtesting.pandas.html">Pandas (CSV or other data)</a></li>
+<li class="toctree-l2"><a class="reference internal" href="backtesting.polygon.html">Polygon.io Backtesting</a></li>
+<li class="toctree-l2"><a class="reference internal" href="backtesting.databento.html">Databento Backtesting with LumiBot</a></li>
+<li class="toctree-l2"><a class="reference internal" href="backtesting.thetadata.html">ThetaData Options and Stock Backtesting with LumiBot</a></li>
+<li class="toctree-l2"><a class="reference internal" href="backtesting.ibkr.html">Interactive Brokers (REST) Backtesting</a></li>
+<li class="toctree-l2"><a class="reference internal" href="backtesting.alpaca.html">Alpaca Backtesting</a></li>
+<li class="toctree-l2"><a class="reference internal" href="backtesting.tearsheet_html.html">LumiBot Backtest Tear Sheets and Performance Reports</a></li>
+<li class="toctree-l2"><a class="reference internal" href="backtesting.trades_files.html">Trades Files</a></li>
+<li class="toctree-l2"><a class="reference internal" href="backtesting.indicators_files.html">Indicators Files</a></li>
+<li class="toctree-l2"><a class="reference internal" href="backtesting.logs_csv.html">Logs CSV</a></li>
+</ul>
+</li>
+<li class="toctree-l1 current has-children"><a class="reference internal" href="brokers.html">Brokers</a><input aria-label="Toggle navigation of Brokers" checked="" class="toctree-checkbox" id="toctree-checkbox-17" name="toctree-checkbox-17" role="switch" type="checkbox"/><label for="toctree-checkbox-17"><span class="icon"><svg><use href="#svg-arrow-right"></use></svg></span></label><ul class="current">
+<li class="toctree-l2"><a class="reference internal" href="brokers.alpaca.html">Alpaca API Trading with LumiBot</a></li>
+<li class="toctree-l2"><a class="reference internal" href="brokers.bitunix.html">Bitunix API Perpetual Futures Trading with LumiBot</a></li>
+<li class="toctree-l2 has-children"><a class="reference internal" href="brokers.ccxt.html">CCXT Crypto Trading and Backtesting with LumiBot</a><input aria-label="Toggle navigation of CCXT Crypto Trading and Backtesting with LumiBot" class="toctree-checkbox" id="toctree-checkbox-18" name="toctree-checkbox-18" role="switch" type="checkbox"/><label for="toctree-checkbox-18"><span class="icon"><svg><use href="#svg-arrow-right"></use></svg></span></label><ul>
+<li class="toctree-l3"><a class="reference internal" href="brokers.ccxt.coinbase.html">Coinbase Crypto Broker</a></li>
+<li class="toctree-l3"><a class="reference internal" href="brokers.ccxt.kraken.html">Kraken Crypto Broker</a></li>
+<li class="toctree-l3"><a class="reference internal" href="brokers.ccxt.weex.html">WEEX Crypto Broker</a></li>
+<li class="toctree-l3"><a class="reference internal" href="brokers.ccxt.kucoin.html">KuCoin CCXT Configuration</a></li>
+<li class="toctree-l3"><a class="reference internal" href="brokers.ccxt.binance.html">Binance CCXT Configuration</a></li>
+<li class="toctree-l3"><a class="reference internal" href="brokers.ccxt.bitmex.html">BitMEX CCXT Configuration</a></li>
+<li class="toctree-l3"><a class="reference internal" href="brokers.ccxt.bybit.html">Bybit CCXT Backtesting</a></li>
+<li class="toctree-l3"><a class="reference internal" href="brokers.ccxt.okx.html">OKX CCXT Backtesting</a></li>
+</ul>
+</li>
+<li class="toctree-l2"><a class="reference internal" href="brokers.interactive_brokers.html">Interactive Brokers API Trading with LumiBot</a></li>
+<li class="toctree-l2"><a class="reference internal" href="brokers.interactive_brokers_legacy.html">Interactive Brokers Legacy</a></li>
+<li class="toctree-l2"><a class="reference internal" href="brokers.polymarket.html">Polymarket</a></li>
+<li class="toctree-l2"><a class="reference internal" href="brokers.projectx.html">ProjectX / TopstepX</a></li>
+<li class="toctree-l2 current current-page"><a class="current reference internal" href="#">Charles Schwab API Trading with LumiBot</a></li>
+<li class="toctree-l2"><a class="reference internal" href="brokers.tradier.html">Tradier</a></li>
+<li class="toctree-l2"><a class="reference internal" href="brokers.tradovate.html">Tradovate</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="cash_accounting.html">Cash Accounting</a></li>
+<li class="toctree-l1"><a class="reference internal" href="deployment.html">Deployment</a></li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="reference.html">Reference</a><input aria-label="Toggle navigation of Reference" class="toctree-checkbox" id="toctree-checkbox-19" name="toctree-checkbox-19" role="switch" type="checkbox"/><label for="toctree-checkbox-19"><span class="icon"><svg><use href="#svg-arrow-right"></use></svg></span></label><ul>
+<li class="toctree-l2"><a class="reference internal" href="vars.html">Variable Backup &amp; Restore</a></li>
+<li class="toctree-l2"><a class="reference internal" href="futures.html">Futures Trading</a></li>
+<li class="toctree-l2"><a class="reference internal" href="smart_limit.html">Smart Limit Orders</a></li>
+<li class="toctree-l2"><a class="reference internal" href="options_helper.html">OptionsHelper</a></li>
+<li class="toctree-l2"><a class="reference internal" href="environment_variables.html">Environment Variables</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="common_mistakes.html">Common Mistakes</a></li>
+<li class="toctree-l1"><a class="reference internal" href="faq.html">FAQ</a></li>
+</ul>
+<p class="caption" role="heading"><span class="caption-text">Community and learning</span></p>
+<ul>
+<li class="toctree-l1"><a class="reference external" href="https://botspot.trade/challenges?utm_source=documentation&amp;utm_medium=sidebar&amp;utm_campaign=lumibot_ai_trading&amp;utm_content=free_challenge">Free AI Trading Challenge</a></li>
+<li class="toctree-l1"><a class="reference external" href="https://botspot.trade/sales?showLogin=1&amp;utm_source=documentation&amp;utm_medium=sidebar&amp;utm_campaign=lumibot&amp;utm_content=sidebar_build_bots&amp;sample=lumibot_deploy_sample">Build and Deploy with BotSpot</a></li>
+<li class="toctree-l1"><a class="reference internal" href="botspot_mcp.html">BotSpot MCP Integration</a></li>
+<li class="toctree-l1"><a class="reference internal" href="PARTNERSHIPS.html">Partnerships and Sponsorship</a></li>
+<li class="toctree-l1"><a class="reference internal" href="MIGRATING_FROM_BACKTRADER.html">Migrate from Backtrader</a></li>
+<li class="toctree-l1"><a class="reference external" href="https://github.com/Lumiwealth/lumibot">GitHub</a></li>
+<li class="toctree-l1"><a class="reference external" href="https://www.reddit.com/r/BotSpotTrade/">Reddit Community</a></li>
+<li class="toctree-l1"><a class="reference external" href="https://discord.gg/4R9j6T3PN8">Discord Community</a></li>
+<li class="toctree-l1"><a class="reference external" href="https://botspot.trade/marketplace?utm_source=documentation&amp;utm_medium=sidebar&amp;utm_campaign=lumibot&amp;utm_content=sidebar_marketplace">Get Pre-Built Strategies</a></li>
+</ul>
+
+</div>
+</div>
+
+      </div>
+      
+    </div>
+  </aside>
+  <div class="main">
+    <div class="content">
+      <div class="article-container">
+        <a href="#" class="back-to-top muted-link">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
+            <path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8v12z"></path>
+          </svg>
+          <span>Back to top</span>
+        </a>
+        <div class="content-icon-container">
+          <div class="view-this-page">
+  <a class="muted-link" href="_sources/brokers.schwab.rst.txt" title="View this page">
+    <svg><use href="#svg-eye"></use></svg>
+    <span class="visually-hidden">View this page</span>
+  </a>
+</div>
+<div class="theme-toggle-container theme-toggle-content">
+            <button class="theme-toggle" aria-label="Toggle Light / Dark / Auto color theme">
+              <svg class="theme-icon-when-auto-light"><use href="#svg-sun-with-moon"></use></svg>
+              <svg class="theme-icon-when-auto-dark"><use href="#svg-moon-with-sun"></use></svg>
+              <svg class="theme-icon-when-dark"><use href="#svg-moon"></use></svg>
+              <svg class="theme-icon-when-light"><use href="#svg-sun"></use></svg>
+            </button>
+          </div>
+          <label class="toc-overlay-icon toc-content-icon" for="__toc">
+            <span class="icon"><svg><use href="#svg-toc"></use></svg></span>
+          </label>
+        </div>
+        <article role="main" id="furo-main-content">
+          <section id="charles-schwab-api-trading-with-lumibot">
+<h1>Charles Schwab API Trading with LumiBot<a class="headerlink" href="#charles-schwab-api-trading-with-lumibot" title="Link to this heading">¶</a></h1>
+<p>Lumibot integrates directly with Charles Schwab’s <em>Trader</em> API for equities and options.  Everything you need is built-in; no external wrapper is required.</p>
+<p>Go directly to <a class="reference internal" href="#schwab-prerequisites"><span class="std std-ref">Schwab prerequisites</span></a>,
+<a class="reference internal" href="#schwab-environment"><span class="std std-ref">credentials</span></a>, <a class="reference internal" href="#schwab-first-login"><span class="std std-ref">first-time OAuth login</span></a>, or <a class="reference internal" href="#schwab-token-lifecycle"><span class="std std-ref">token renewal</span></a>.</p>
+<p>If you want the managed path, <a class="reference external" href="https://botspot.trade/sales?showLogin=1&amp;utm_source=documentation&amp;utm_medium=schwab&amp;utm_campaign=lumibot&amp;utm_content=managed_schwab_text&amp;prompt=I%20want%20to%20connect%20Schwab%20and%20run%20a%20Lumibot%20strategy%20on%20BotSpot.%20Please%20help%20me%20set%20up%20broker%20connections%2C%20monitoring%2C%20and%20paper%20or%20live%20deployment.">BotSpot</a> can help you connect supported brokers through the website, run paper or live Lumibot strategies, and monitor logs, account state, alerts, audit history, and kill-switch controls without maintaining your own deployment server.</p>
+<section id="prerequisites">
+<span id="schwab-prerequisites"></span><h2>Prerequisites<a class="headerlink" href="#prerequisites" title="Link to this heading">¶</a></h2>
+<ol class="arabic simple">
+<li><p>A Schwab brokerage account that is <strong>approved for API access</strong> (apply once in the Schwab Developer Portal).</p></li>
+<li><p>A Schwab <strong>App Key</strong> (sometimes called <em>Consumer Key</em>) generated inside your Developer Portal application.</p></li>
+<li><p>The brokerage <strong>account number</strong> you want the bot to trade in.</p></li>
+<li><p>A <strong>callback URL</strong> (HTTPS) you entered when creating the app.  For local testing just use <code class="docutils literal notranslate"><span class="pre">https://127.0.0.1:8182</span></code>.</p></li>
+</ol>
+</section>
+<section id="environment-variables">
+<span id="schwab-environment"></span><h2>Environment variables<a class="headerlink" href="#environment-variables" title="Link to this heading">¶</a></h2>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p><strong>Easy Setup with .env File</strong></p>
+<p>LumiBot automatically loads your API credentials from a <cite>.env</cite> file! Simply create a <cite>.env</cite> file in the same folder as your trading strategy and add your Schwab credentials. LumiBot will automatically detect and use these credentials - no additional configuration required.</p>
+<p><strong>Example .env file:</strong></p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># Schwab Configuration</span>
+<span class="nv">SCHWAB_ACCOUNT_NUMBER</span><span class="o">=</span>your_account_number
+<span class="nv">SCHWAB_TOKEN</span><span class="o">=</span>your_token_if_needed
+<span class="nv">TRADING_BROKER</span><span class="o">=</span>schwab
+</pre></div>
+</div>
+<p>That’s it! LumiBot handles the rest automatically.</p>
+</div>
+<p>Set the following before running your strategy (<code class="docutils literal notranslate"><span class="pre">.env</span></code> file, Render secret, Replit secret, Docker env, etc.):</p>
+<div class="table-wrapper colwidths-given docutils container">
+<table class="docutils align-default">
+<colgroup>
+<col style="width: 30.0%" />
+<col style="width: 70.0%" />
+</colgroup>
+<thead>
+<tr class="row-odd"><th class="head"><p><strong>Variable</strong></p></th>
+<th class="head"><p><strong>Purpose</strong></p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">SCHWAB_ACCOUNT_NUMBER</span></code></p></td>
+<td><p>The brokerage account to trade.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">SCHWAB_TOKEN</span></code> <em>(optional)</em></p></td>
+<td><p>Base-64 payload pasted from the <strong>first</strong> OAuth login screen – only needed for headless deploys.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">TRADING_BROKER</span></code> <em>(optional)</em></p></td>
+<td><p>Force Lumibot to select Schwab (<code class="docutils literal notranslate"><span class="pre">schwab</span></code>) even when other creds are present.</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+</section>
+<section id="first-time-login">
+<span id="schwab-first-login"></span><h2>First-time login<a class="headerlink" href="#first-time-login" title="Link to this heading">¶</a></h2>
+<ul class="simple">
+<li><p><strong>Desktop</strong> – run your bot, a browser pops up, log in, click <em>Allow</em>.  A <code class="docutils literal notranslate"><span class="pre">token.json</span></code> file is written next to your strategy.  Restart and you’re done.</p></li>
+<li><p><strong>Headless / Render / Replit</strong> – the console prints a one-time URL.  Open it on any device, log in, copy the payload string that appears, set it as <code class="docutils literal notranslate"><span class="pre">SCHWAB_TOKEN</span></code> and restart.</p></li>
+</ul>
+</section>
+<section id="token-life-cycle">
+<span id="schwab-token-lifecycle"></span><h2>Token life-cycle<a class="headerlink" href="#token-life-cycle" title="Link to this heading">¶</a></h2>
+<ul class="simple">
+<li><p>Access token ≈ 30 min; refresh token ≈ 7 days.</p></li>
+<li><p>Lumibot automatically refreshes the token every ~25 min and rewrites <code class="docutils literal notranslate"><span class="pre">token.json</span></code>.</p></li>
+<li><p>As long as the bot is running (or restarted at least once a week) you will <strong>never see the login page again</strong>.</p></li>
+<li><p>If the bot is <strong>offline &gt; 7 days</strong> the refresh token expires – simply run the login flow once more.</p></li>
+</ul>
+</section>
+<section id="supported-functionality">
+<h2>Supported functionality<a class="headerlink" href="#supported-functionality" title="Link to this heading">¶</a></h2>
+<ul class="simple">
+<li><p>Equities and ETF trading (market, limit, stop, stop-limit).</p></li>
+<li><p>Single-leg options (buy/sell, open/close).</p></li>
+<li><p>OTO / one-triggers-other orders for single stock/ETF and option parent/child orders (experimental; live broker validation recommended before production use).</p></li>
+<li><p>OCO / one-cancels-other and bracket orders for single stock/ETF and option orders (experimental; live broker validation recommended before production use).</p></li>
+<li><p>Streaming quotes for equities/options.</p></li>
+<li><p>Historical bars for equities, ETFs, and option contracts (OCC symbol). Futures candle history is not requested. Crypto is not on this API.</p></li>
+</ul>
+<p>Multi-leg option spreads and futures trades are not yet implemented.</p>
+</section>
+<section id="order-and-position-freshness">
+<h2>Order and position freshness<a class="headerlink" href="#order-and-position-freshness" title="Link to this heading">¶</a></h2>
+<p>In live trading, LumiBot refreshes broker state before returning from:</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">self.get_order(order_id)</span></code></p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">self.get_orders(...)</span></code></p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">self.get_position(asset)</span></code></p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">self.get_positions()</span></code></p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">self.get_cash()</span></code></p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">self.get_portfolio_value()</span></code></p></li>
+</ul>
+<p>After submitting an order, use direct order lookup when checking that exact
+order:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">submitted</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">submit_order</span><span class="p">(</span><span class="n">order</span><span class="p">)</span>
+<span class="n">latest</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_order</span><span class="p">(</span><span class="n">submitted</span><span class="o">.</span><span class="n">identifier</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>Schwab can expose a just-submitted order through direct lookup before it appears
+in the broad account order list. If your strategy must use <code class="docutils literal notranslate"><span class="pre">self.get_orders(...)</span></code>
+immediately after submitting, add a short LumiBot sleep first:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">submitted</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">submit_order</span><span class="p">(</span><span class="n">order</span><span class="p">)</span>
+<span class="bp">self</span><span class="o">.</span><span class="n">sleep</span><span class="p">(</span><span class="mi">1</span><span class="p">,</span> <span class="n">process_pending_orders</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+<span class="n">active_orders</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_orders</span><span class="p">(</span><span class="n">statuses</span><span class="o">=</span><span class="n">Order</span><span class="o">.</span><span class="n">ACTIVE_STATUSES</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>Use enum status filters for active/open order checks:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">active_orders</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_orders</span><span class="p">(</span><span class="n">statuses</span><span class="o">=</span><span class="n">Order</span><span class="o">.</span><span class="n">ACTIVE_STATUSES</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>Do not use raw string status filters. For duplicate-order guards, filter by
+active status and by the exact asset or option contract.</p>
+<p>Simple stock and single-leg option <code class="docutils literal notranslate"><span class="pre">self.modify_order(...)</span></code> calls use Schwab’s
+replace-order endpoint. Schwab returns a new broker order id for the replacement;
+LumiBot updates the order object’s <code class="docutils literal notranslate"><span class="pre">identifier</span></code> and keeps the old id in
+<code class="docutils literal notranslate"><span class="pre">previous_identifiers</span></code>. For timeout logic where the intended behavior is to
+remove the order, prefer <code class="docutils literal notranslate"><span class="pre">self.cancel_order(order)</span></code> instead of modifying the
+order into a different price. A successful cancel response is acceptance, not
+terminal confirmation: the order remains active with <code class="docutils literal notranslate"><span class="pre">CANCELLING</span></code> status
+until Schwab later reports <code class="docutils literal notranslate"><span class="pre">CANCELED</span></code>, <code class="docutils literal notranslate"><span class="pre">FILLED</span></code>, <code class="docutils literal notranslate"><span class="pre">EXPIRED</span></code>, or a
+rejection/error. Do not put an immediate direct order read in front of the
+cancellation deadline.</p>
+<p>Schwab account history can include rows that are not ordinary strategy orders,
+such as mutual funds, sweep/cash-equivalent records, bonds, option exercise
+records, or future Schwab asset/order/status values. LumiBot preserves
+representable unknown Schwab records as <code class="docutils literal notranslate"><span class="pre">Asset.AssetType.UNKNOWN</span></code>,
+<code class="docutils literal notranslate"><span class="pre">Order.OrderType.UNKNOWN</span></code>, <code class="docutils literal notranslate"><span class="pre">Order.OrderSide.UNKNOWN</span></code>, or
+<code class="docutils literal notranslate"><span class="pre">Order.OrderStatus.UNKNOWN</span></code> instead of failing the whole broker refresh.</p>
+<p>If Schwab cannot return fresh cash or portfolio value, <code class="docutils literal notranslate"><span class="pre">self.get_cash()</span></code> and
+<code class="docutils literal notranslate"><span class="pre">self.get_portfolio_value()</span></code> return <code class="docutils literal notranslate"><span class="pre">None</span></code> and leave cached values unchanged.
+Do not treat <code class="docutils literal notranslate"><span class="pre">None</span></code> as zero.</p>
+</section>
+<section id="fast-cancellation-and-request-budgets">
+<h2>Fast cancellation and request budgets<a class="headerlink" href="#fast-cancellation-and-request-budgets" title="Link to this heading">¶</a></h2>
+<p>For rejected or expired orders, the strategy’s error callback receives the
+original Schwab status and its rejection description when the broker supplies
+one. If no description is available, the error reports the status alone;
+LumiBot does not infer a rejection reason. Repeated terminal snapshots do not
+produce duplicate error callbacks.</p>
+<p>Separate three measurements when implementing a cancel-after deadline:</p>
+<ul class="simple">
+<li><p>the local time at which the strategy dispatches <code class="docutils literal notranslate"><span class="pre">cancel_order</span></code>;</p></li>
+<li><p>the HTTP response time for the cancel request;</p></li>
+<li><p>the later broker-terminal outcome such as <code class="docutils literal notranslate"><span class="pre">CANCELED</span></code> or <code class="docutils literal notranslate"><span class="pre">FILLED</span></code>.</p></li>
+</ul>
+<p>The strategy controls the first measurement. It cannot guarantee the other two
+at an exact deadline.</p>
+<p>Use a configurable <code class="docutils literal notranslate"><span class="pre">cancel_after_seconds</span></code> policy and an absolute
+<code class="docutils literal notranslate"><span class="pre">time.monotonic()</span></code> deadline. Do not use one fixed timeout for every strategy.
+Finish expensive chain, quote, and liquidity work before submission; then
+process local pending order events while waiting for the deadline:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="n">deadline</span> <span class="o">=</span> <span class="n">time</span><span class="o">.</span><span class="n">monotonic</span><span class="p">()</span> <span class="o">+</span> <span class="n">cancel_after_seconds</span>
+<span class="k">while</span> <span class="n">time</span><span class="o">.</span><span class="n">monotonic</span><span class="p">()</span> <span class="o">&lt;</span> <span class="n">deadline</span> <span class="ow">and</span> <span class="n">order</span><span class="o">.</span><span class="n">is_active</span><span class="p">():</span>
+    <span class="n">remaining</span> <span class="o">=</span> <span class="n">deadline</span> <span class="o">-</span> <span class="n">time</span><span class="o">.</span><span class="n">monotonic</span><span class="p">()</span>
+    <span class="bp">self</span><span class="o">.</span><span class="n">sleep</span><span class="p">(</span><span class="nb">min</span><span class="p">(</span><span class="mf">0.05</span><span class="p">,</span> <span class="n">remaining</span><span class="p">),</span> <span class="n">process_pending_orders</span><span class="o">=</span><span class="kc">True</span><span class="p">)</span>
+
+<span class="k">if</span> <span class="n">order</span><span class="o">.</span><span class="n">is_active</span><span class="p">():</span>
+    <span class="bp">self</span><span class="o">.</span><span class="n">cancel_order</span><span class="p">(</span><span class="n">order</span><span class="p">)</span>
+</pre></div>
+</div>
+<p>The short <code class="docutils literal notranslate"><span class="pre">self.sleep</span></code> calls above process local queued events. They are not
+broker polls. Avoid calling <code class="docutils literal notranslate"><span class="pre">self.get_order</span></code> every fraction of a second or
+placing a broker read immediately before the deadline. Use a bounded exact-order
+read later for a missed callback, restart/reconnect, or ambiguous cancel result.</p>
+<p><code class="docutils literal notranslate"><span class="pre">on_filled_order</span></code> is the fast path for a fill and already includes the filled
+order. <code class="docutils literal notranslate"><span class="pre">on_canceled_order</span></code> reports terminal cancellation; it does not initiate
+the cancel. <code class="docutils literal notranslate"><span class="pre">cancel_order</span></code> may return before the queued
+<code class="docutils literal notranslate"><span class="pre">on_canceled_order</span></code> callback runs. Route callbacks and later reconciliation
+through one idempotent reducer keyed by the broker order identifier or a stable
+causal group.</p>
+<p>These <code class="docutils literal notranslate"><span class="pre">on_*</span></code> methods are lifecycle callback methods: LumiBot invokes them
+after broker observations. <code class="docutils literal notranslate"><span class="pre">on_partially_filled_order(position,</span> <span class="pre">order,</span> <span class="pre">price,</span>
+<span class="pre">quantity,</span> <span class="pre">multiplier)</span></code> receives the newly observed fill delta in <code class="docutils literal notranslate"><span class="pre">quantity</span></code>;
+it is not cumulative across callbacks. A later <code class="docutils literal notranslate"><span class="pre">on_filled_order</span></code> receives the
+remaining fill delta and must share the same idempotency state.</p>
+<p>LumiBot uses Schwab account-activity WebSocket messages to wake exact reads of
+locally tracked active orders. REST snapshots and stream-triggered observations
+feed one serialized transition reducer, including after login or reconnect. A
+30-second broad history poll remains as a healing fallback. This is deliberately
+not one-second broad polling: one-second polling multiplies request pressure and
+does not remove fill/cancel races.</p>
+<p>The REST and account-activity clients share the same refreshable OAuth token
+metadata. A token refresh updates the shared token object in place, so a later
+stream login or reconnect uses the current access token instead of maintaining
+a second credential owner.</p>
+<p>Scope blocking to the strategy’s actual risk invariant. A cancel-pending order
+must block a conflicting replacement for the same exposure. Independent symbols
+may continue when capital and risk policy permit. Unknown broker state is not
+terminal, but it does not automatically require a strategy-wide freeze.</p>
+<p>Schwab developer applications have an application-level order limit for make,
+cancel, and replace requests per minute. Treat throttling as an aggregate
+broker-call budget across market data, order lists, exact reads, submits,
+cancels, and replaces. Do not infer a universal requests-per-second guarantee.
+See the <a class="reference external" href="https://schwab-py.readthedocs.io/en/latest/getting-started.html#order-limit">schwab-py order-limit documentation</a>
+and <a class="reference internal" href="lifecycle_methods.on_canceled_order.html"><span class="doc">def on_canceled_order</span></a>.</p>
+<p>When Schwab returns HTTP 429, LumiBot honors <code class="docutils literal notranslate"><span class="pre">Retry-After</span></code> when present and
+otherwise applies bounded exponential backoff with jitter for that endpoint
+family. A throttled read returns no new observation and never converts the
+tracked order to a terminal status.</p>
+<p>An authorized local sample of 16 successful cancel HTTP responses ranged from
+228 ms to 444 ms, with a 302.5 ms median and 444 ms 95th percentile. This small
+sample is not a Schwab service-level guarantee and does not measure terminal
+callback visibility. Do not choose a strategy deadline by multiplying these
+observations.</p>
+</section>
+<section id="example-env">
+<h2>Example <code class="docutils literal notranslate"><span class="pre">.env</span></code><a class="headerlink" href="#example-env" title="Link to this heading">¶</a></h2>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nv">TRADING_BROKER</span><span class="o">=</span>schwab
+<span class="nv">SCHWAB_ACCOUNT_NUMBER</span><span class="o">=</span><span class="m">12345678</span>
+<span class="c1"># optional if deploying headless</span>
+<span class="nv">SCHWAB_TOKEN</span><span class="o">=</span>YOUR_TOKEN
+</pre></div>
+</div>
+</section>
+<section id="example-strategy-snippet">
+<h2>Example strategy snippet<a class="headerlink" href="#example-strategy-snippet" title="Link to this heading">¶</a></h2>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span><span class="w"> </span><span class="nn">lumibot.entities</span><span class="w"> </span><span class="kn">import</span> <span class="n">Asset</span>
+
+<span class="n">last</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_last_price</span><span class="p">(</span><span class="s2">"SPY"</span><span class="p">)</span>
+<span class="n">chains</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_chains</span><span class="p">(</span><span class="n">Asset</span><span class="p">(</span><span class="s2">"SPY"</span><span class="p">))</span>
+
+<span class="n">first_expiry</span> <span class="o">=</span> <span class="n">chains</span><span class="o">.</span><span class="n">expirations</span><span class="p">(</span><span class="s2">"CALL"</span><span class="p">)[</span><span class="mi">0</span><span class="p">]</span>
+<span class="n">atm_strike</span>  <span class="o">=</span> <span class="nb">min</span><span class="p">(</span><span class="n">chains</span><span class="o">.</span><span class="n">strikes</span><span class="p">(</span><span class="n">first_expiry</span><span class="p">),</span> <span class="n">key</span><span class="o">=</span><span class="k">lambda</span> <span class="n">s</span><span class="p">:</span> <span class="nb">abs</span><span class="p">(</span><span class="n">s</span><span class="o">-</span><span class="n">last</span><span class="p">))</span>
+
+<span class="n">contract</span> <span class="o">=</span> <span class="n">Asset</span><span class="p">(</span>
+    <span class="n">symbol</span><span class="o">=</span><span class="s2">"SPY"</span><span class="p">,</span>
+    <span class="n">asset_type</span><span class="o">=</span><span class="n">Asset</span><span class="o">.</span><span class="n">AssetType</span><span class="o">.</span><span class="n">OPTION</span><span class="p">,</span>
+    <span class="n">expiration</span><span class="o">=</span><span class="n">first_expiry</span><span class="p">,</span>
+    <span class="n">strike</span><span class="o">=</span><span class="n">atm_strike</span><span class="p">,</span>
+    <span class="n">right</span><span class="o">=</span><span class="n">Asset</span><span class="o">.</span><span class="n">OptionRight</span><span class="o">.</span><span class="n">CALL</span><span class="p">,</span>
+<span class="p">)</span>
+<span class="n">order</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">create_order</span><span class="p">(</span><span class="n">contract</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="n">side</span><span class="o">=</span><span class="s2">"buy"</span><span class="p">)</span>
+<span class="bp">self</span><span class="o">.</span><span class="n">submit_order</span><span class="p">(</span><span class="n">order</span><span class="p">)</span>
+</pre></div>
+</div>
+</section>
+<section id="troubleshooting">
+<h2>Troubleshooting<a class="headerlink" href="#troubleshooting" title="Link to this heading">¶</a></h2>
+<ul class="simple">
+<li><p><strong>401/400 errors</strong> at login usually mean your callback URL does not match the value in the Developer Portal <strong>exactly</strong>.</p></li>
+<li><p>Keep <code class="docutils literal notranslate"><span class="pre">token.json</span></code> out of version control.</p></li>
+<li><p>Schwab’s API still evolves; join the Lumibot Discord for the latest community fixes.</p></li>
+</ul>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>Schwab API access requires a developer account and application approval. You must apply for API access and set up your app in the Schwab Developer Portal.</p>
+</div>
+</section>
+<section id="api-credentials">
+<h2>API Credentials<a class="headerlink" href="#api-credentials" title="Link to this heading">¶</a></h2>
+<p>To use Schwab with Lumibot, you need to set the following environment variables in your <cite>.env</cite> file:</p>
+<div class="table-wrapper colwidths-given docutils container" id="id1">
+<table class="docutils align-default" id="id1">
+<caption><span class="caption-text">Schwab API Credentials</span><a class="headerlink" href="#id1" title="Link to this table">¶</a></caption>
+<colgroup>
+<col style="width: 30.0%" />
+<col style="width: 50.0%" />
+<col style="width: 20.0%" />
+</colgroup>
+<thead>
+<tr class="row-odd"><th class="head"><p><strong>Variable</strong></p></th>
+<th class="head"><p><strong>Description</strong></p></th>
+<th class="head"><p><strong>Example</strong></p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><cite>SCHWAB_API_KEY</cite></p></td>
+<td><p>(old name) – <strong>use `SCHWAB_APP_KEY` instead</strong>. Back-compat supported but
+new projects should switch.</p></td>
+<td><p><cite>abc123xyz</cite></p></td>
+</tr>
+<tr class="row-odd"><td><p><cite>SCHWAB_APP_SECRET</cite></p></td>
+<td><p>Your Schwab API secret (Consumer Secret).</p></td>
+<td><p><cite>supersecret</cite></p></td>
+</tr>
+<tr class="row-even"><td><p><cite>SCHWAB_ACCOUNT_NUMBER</cite></p></td>
+<td><p>Your Schwab brokerage account number.</p></td>
+<td><p><cite>12345678</cite></p></td>
+</tr>
+<tr class="row-odd"><td><p><cite>SCHWAB_BACKEND_CALLBACK_URL</cite></p></td>
+<td><p>The <strong>exact</strong> OAuth2 callback URL that you registered in the Developer
+Portal. Defaults to <cite>https://127.0.0.1:8182</cite> for local flows.</p></td>
+<td><p><cite>https://yourdomain.com/callback</cite></p></td>
+</tr>
+<tr class="row-even"><td><p><cite>TRADING_BROKER</cite></p></td>
+<td><p>(Optional) Set to <cite>schwab</cite> to force Schwab as the broker.</p></td>
+<td><p><cite>schwab</cite></p></td>
+</tr>
+<tr class="row-odd"><td><p><cite>SCHWAB_TOKEN</cite>
+<em>(optional)</em></p></td>
+<td><p>Base64url payload string returned by the <strong>first</strong> OAuth login.  Use it
+when running in head-less environments (Render, Replit, Docker) so the
+bot can bootstrap itself without an interactive prompt.</p></td>
+<td><p><cite>&lt;big-string&gt;</cite></p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<div class="admonition important">
+<p class="admonition-title">Important</p>
+<p><cite>SCHWAB_TOKEN</cite> is only read <strong>once</strong> (on first run) to build <cite>token.json</cite>.
+After that, automatic refresh keeps the file current; you do <strong>not</strong> need to
+rotate the env-var every 7 days.</p>
+</div>
+</section>
+<section id="token-life-cycle-auto-refresh">
+<h2>Token Life-cycle &amp; Auto-refresh<a class="headerlink" href="#token-life-cycle-auto-refresh" title="Link to this heading">¶</a></h2>
+<ul class="simple">
+<li><p>Access-token ≈ 30 min, refresh-token ≈ 7 days (per Schwab policy).</p></li>
+<li><p>Lumibot configures an <cite>OAuth2Session</cite> with <code class="docutils literal notranslate"><span class="pre">auto_refresh_url</span></code> so that tokens
+refresh themselves quietly in the background every ~25 min.</p></li>
+<li><p>The refreshed token is written back to <cite>token.json</cite>; it rolls the 7-day window
+forward.  As long as the bot is running (or restarted at least once a week)
+you never need to log in again.</p></li>
+<li><p>In managed environments where a trusted parent process owns broker OAuth
+refresh, set <code class="docutils literal notranslate"><span class="pre">LUMIBOT_OAUTH_REFRESH_MODE=external</span></code>. In that mode LumiBot does
+not call the Schwab OAuth refresh endpoint; it reloads an access-token-only
+token file when the parent atomically replaces it. Refresh-token fields are
+stripped from LumiBot’s child broker state in this mode.</p></li>
+<li><p>Only if the service is <strong>offline for &gt;7 days</strong> will the refresh-token expire.
+In that case repeat the browser login once and redeploy the new payload or
+token file.</p></li>
+</ul>
+</section>
+<section id="creating-an-app-getting-keys">
+<h2>Creating an App &amp; Getting Keys<a class="headerlink" href="#creating-an-app-getting-keys" title="Link to this heading">¶</a></h2>
+<ol class="arabic simple">
+<li><p>Register on the <a class="reference external" href="https://developer.schwab.com/">Schwab Developer Portal</a>.</p></li>
+<li><p>Go to <strong>Dashboard → Apps → Create App</strong>.</p></li>
+<li><p>Enter an app name and a <strong>Callback URL</strong> (must be HTTPS, ≤ 256 chars, matches exactly).</p></li>
+<li><p>Request the <strong>Trader API</strong> product, accept terms, and submit.</p></li>
+<li><p>Wait for manual approval (typically 1–3 business days).</p></li>
+<li><p>Once approved, copy your <strong>API Key (Consumer Key)</strong> and <strong>API Secret</strong> from the app details.</p></li>
+</ol>
+</section>
+<section id="oauth2-authentication-flow">
+<h2>OAuth2 Authentication Flow<a class="headerlink" href="#oauth2-authentication-flow" title="Link to this heading">¶</a></h2>
+<p>Schwab uses OAuth2 for authentication. The first time you run your strategy, a browser window will open for you to log in and approve access. A <cite>token.json</cite> file will be created in your strategy directory (or at <cite>SCHWAB_TOKEN_PATH</cite> if set).</p>
+<ul class="simple">
+<li><p><strong>Access tokens</strong> last 30 minutes; <strong>refresh tokens</strong> last 7 days.</p></li>
+<li><p>The <cite>schwab-py</cite> library will auto-refresh tokens as needed.</p></li>
+<li><p>If running on a server, run the login flow once locally and copy <cite>token.json</cite> to the server.</p></li>
+<li><p>For headless/cloud environments, use the CLI/manual login helper (<cite>schwab.auth.client_from_manual_flow</cite>), which prints a URL to paste into any browser.</p></li>
+<li><p>Keep <cite>token.json</cite> secure and out of version control.</p></li>
+<li><p>If you delete or move <cite>token.json</cite>, you will need to re-authorize.</p></li>
+</ul>
+<div class="admonition warning">
+<p class="admonition-title">Warning</p>
+<p>If your refresh token expires (after 7 days without re-auth), you must repeat the browser login flow.</p>
+</div>
+<p><strong>First-time Schwab login (cloud or local)</strong></p>
+<ul class="simple">
+<li><p><strong>Cloud (Replit, Render, etc.):</strong>
+Deploy the bot and watch the logs for a green line:
+<cite>Open https://…/schwab-login in your browser</cite>
+Click, sign in, hit <strong>Allow</strong>, wait for “✅ Schwab token saved”, then restart the bot.
+That’s it—no weekly re-login as long as the bot stays active.</p></li>
+<li><p><strong>Local laptop:</strong>
+Deploy the bot and Lumibot opens a browser window automatically (same as before).
+Complete the login and you’re set.</p></li>
+</ul>
+<p>As long as your bot checks Schwab at least once per day, the token
+auto-refreshes and you will <em>not</em> be asked to log in again.
+If the service is stopped for 7+ days, redeploy and repeat the link.</p>
+<p>(Optional) override the callback route with
+<cite>SCHWAB_REDIRECT_URI=https://YOUR_DOMAIN/schwab-login</cite>.</p>
+</section>
+<section id="sandbox-vs-production">
+<h2>Sandbox vs Production<a class="headerlink" href="#sandbox-vs-production" title="Link to this heading">¶</a></h2>
+<p>Schwab offers a <strong>Sandbox</strong> environment for safe testing with synthetic accounts and data.</p>
+<ul class="simple">
+<li><p>Enable Sandbox when creating your app, or promote your app later in the Developer Portal.</p></li>
+<li><p>Use the same credentials; only the API base URL changes.</p></li>
+<li><p>Use separate apps for production and sandbox to avoid confusion.</p></li>
+</ul>
+</section>
+<section id="supported-assets-order-types">
+<h2>Supported Assets &amp; Order Types<a class="headerlink" href="#supported-assets-order-types" title="Link to this heading">¶</a></h2>
+<div class="table-wrapper colwidths-given docutils container" id="id2">
+<table class="docutils align-default" id="id2">
+<caption><span class="caption-text">Supported Asset Classes and Order Types</span><a class="headerlink" href="#id2" title="Link to this table">¶</a></caption>
+<colgroup>
+<col style="width: 20.0%" />
+<col style="width: 15.0%" />
+<col style="width: 15.0%" />
+<col style="width: 15.0%" />
+<col style="width: 15.0%" />
+<col style="width: 20.0%" />
+</colgroup>
+<thead>
+<tr class="row-odd"><th class="head"><p><strong>Asset</strong></p></th>
+<th class="head"><p><strong>Market</strong></p></th>
+<th class="head"><p><strong>Limit</strong></p></th>
+<th class="head"><p><strong>Stop</strong></p></th>
+<th class="head"><p><strong>Stop-Limit</strong></p></th>
+<th class="head"><p><strong>Advanced</strong></p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>Stocks/ETFs</p></td>
+<td><p>✔</p></td>
+<td><p>✔</p></td>
+<td><p>✔</p></td>
+<td><p>✔</p></td>
+<td><p>OTO/OCO/bracket (experimental)</p></td>
+</tr>
+<tr class="row-odd"><td><p>Options</p></td>
+<td><p>✔ (buy/sell, open/close)</p></td>
+<td><p>✔</p></td>
+<td><p>—</p></td>
+<td><p>—</p></td>
+<td><p>OTO/OCO/bracket (experimental)</p></td>
+</tr>
+<tr class="row-even"><td><p>Futures</p></td>
+<td><p>✖ (quotes only)</p></td>
+<td><p>✖</p></td>
+<td><p>✖</p></td>
+<td><p>✖</p></td>
+<td><p>✖</p></td>
+</tr>
+<tr class="row-odd"><td><p>Crypto</p></td>
+<td><p>✖</p></td>
+<td><p>✖</p></td>
+<td><p>✖</p></td>
+<td><p>✖</p></td>
+<td><p>✖</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<ul class="simple">
+<li><p>Multi-leg/spread options are not yet implemented in Lumibot.</p></li>
+<li><p>Schwab OTO, OCO, and bracket orders use Schwab’s trigger and one-cancels-other support and should be live-tested with the target account and order shape before relying on them in production.</p></li>
+<li><p><strong>Futures trading is not supported; only streaming quotes are available.</strong></p></li>
+</ul>
+</section>
+<section id="market-data">
+<h2>Market Data<a class="headerlink" href="#market-data" title="Link to this heading">¶</a></h2>
+<ul class="simple">
+<li><p>Real-time quotes, last price, and option chains work for equities and options. A live read on 2026-09-22 returned SPY quotes around 774 and an SPY 775 call quote around 0.10. Current quotes include bid and ask. Price-history candles do not.</p></li>
+<li><p>Daily candles for SPY went back through a 20-year request (2006-09-27 to 2026-09-22, 5027 bars). The every-day helper, which asks for twenty years of daily bars, returned 8469 bars from 1993-01-29 through 2026-09-22. One-minute bars capped at 2026-08-07 even when 90 days were requested. Thirty-minute bars for a one-year request started 2026-01-05. Schwab has no 60-minute frequency and no second bars. LumiBot’s hour timestep asks for 30-minute candles and says so. A second timestep returns no bars.</p></li>
+<li><p>Price-history candles are last-trade OHLC plus volume and datetime. A live read of SPY stock daily bars and of an SPY option daily series returned only those keys. There is no historical bid or ask on the candle. Days with no trade come back as gaps. Live <code class="docutils literal notranslate"><span class="pre">get_quote</span></code> still returns bid and ask. LumiBot does not invent quote bars to fill those gaps.</p></li>
+<li><p>Option quotes, last price, chains, and candles work. History is the life of that contract, not a fixed bar cap and not the years requested. The request has to use the OCC symbol. The SPY 775 call expiring 2026-09-22 had 11 daily bars from 2026-09-08. The SPY 775 call expiring 2027-09-17 quoted at 68.31 (bid 67.75, ask 69.63). A 30-day daily request returned 20 bars from 2026-08-25. One-year, two-year, and five-year daily requests all stopped at 95 bars from 2026-03-26. One-minute bars existed and were thin: 227 bars back to 2026-08-06. The Jan 2029 775 call quoted at 126.11 and had 3 daily bars from 2026-09-18.</p></li>
+<li><p>A Tesla check on the same day showed less history, not more. The TSLA 380 call expiring 2027-09-17 quoted at bid 76.6, ask 77.3, last 77.14. A 30-day daily request returned 21 bars from 2026-08-24. One-year, two-year, and five-year daily requests all stopped at 72 bars from 2026-05-19. One-minute bars over 48 days returned 194 bars from 2026-08-06. The TSLA 380 call expiring 2029-01-19 quoted at bid 120.0, ask 126.0, last 124.58, and had 5 daily bars from 2026-09-16 plus 34 one-minute bars from the same day. The SPY 95-bar stop is that contract’s listing, not an API limit.</p></li>
+<li><p>Equity tickers stay equity tickers. <code class="docutils literal notranslate"><span class="pre">Asset(&quot;BTC&quot;)</span></code> and <code class="docutils literal notranslate"><span class="pre">Asset(&quot;ETH&quot;)</span></code> still request <code class="docutils literal notranslate"><span class="pre">BTC</span></code> and <code class="docutils literal notranslate"><span class="pre">ETH</span></code>, and those can be priced and traded as stocks. A live read on 2026-09-22 showed ticker <code class="docutils literal notranslate"><span class="pre">BTC</span></code> is the Grayscale Bitcoin Mini Trust ETF (last price 38.265, asset type EQUITY) and ticker <code class="docutils literal notranslate"><span class="pre">ETH</span></code> is the Grayscale Ethereum Staking Mini ETF (last price 26.355). <code class="docutils literal notranslate"><span class="pre">DOGE</span></code> and <code class="docutils literal notranslate"><span class="pre">SOL</span></code> had no instrument. <code class="docutils literal notranslate"><span class="pre">LTC</span></code> and <code class="docutils literal notranslate"><span class="pre">BCH</span></code> are unrelated stocks. Description search found no spot bitcoin or ethereum pair. The <code class="docutils literal notranslate"><span class="pre">$BLX</span></code> and <code class="docutils literal notranslate"><span class="pre">$ELX</span></code> indexes stopped on 2023-10-30.</p></li>
+<li><p>Only <code class="docutils literal notranslate"><span class="pre">asset_type</span></code> crypto is refused. <code class="docutils literal notranslate"><span class="pre">get_historical_prices</span></code> and <code class="docutils literal notranslate"><span class="pre">get_quote</span></code> for a crypto asset return no bars and do not call Schwab. Spot bitcoin cannot be quoted, charted, or bought through this API. LumiBot’s order builder rejects <code class="docutils literal notranslate"><span class="pre">asset_type</span></code> crypto before any order HTTP call. A stock order for ticker <code class="docutils literal notranslate"><span class="pre">BTC</span></code> is an ETF order. No order was sent.</p></li>
+<li><p>Futures quotes can stream. Futures candle history is not requested.</p></li>
+<li><p>No extra entitlements required for individual developers.</p></li>
+</ul>
+</section>
+<section id="rate-limits-token-expiry">
+<h2>Rate Limits &amp; Token Expiry<a class="headerlink" href="#rate-limits-token-expiry" title="Link to this heading">¶</a></h2>
+<ul class="simple">
+<li><p>Schwab developer applications expose a configurable <strong>order limit</strong>: the
+number of make, cancel, and replace requests the app may place per minute.
+The application’s configured value is authoritative for that app.</p></li>
+<li><p>Schwab may return HTTP 429 when a request budget or burst limit is exceeded.
+Respect <code class="docutils literal notranslate"><span class="pre">Retry-After</span></code> when present; otherwise use bounded exponential
+backoff with jitter.</p></li>
+<li><p>Do not rely on a universal data-requests-per-minute or trade-requests-per-second
+value. Budget all broker endpoint families and measure the target app’s
+actual behavior.</p></li>
+<li><p>Access tokens expire after 30 minutes; refresh tokens after 7 days.</p></li>
+</ul>
+</section>
+<section id="known-issues-best-practices">
+<h2>Known Issues &amp; Best Practices<a class="headerlink" href="#known-issues-best-practices" title="Link to this heading">¶</a></h2>
+<ul class="simple">
+<li><p>Initial OAuth requires browser login every 7 days.</p></li>
+<li><p><cite>token.json</cite> must be unique per account/app.</p></li>
+<li><p>OTO, OCO, and bracket advanced orders are experimental.</p></li>
+<li><p>Callback URL must match exactly (including trailing slash).</p></li>
+<li><p>Access tokens last about 30 minutes. While the process is running and <code class="docutils literal notranslate"><span class="pre">SCHWAB_APP_SECRET</span></code> is set, LumiBot refreshes in the background and writes the new token back to the token file. Do not also set <code class="docutils literal notranslate"><span class="pre">SCHWAB_TOKEN</span></code>: every start overwrites that file with the original payload. A live check on 2026-09-22 forced the access token to look expired, and LumiBot refreshed it without another login.</p></li>
+<li><p>Secure <cite>token.json</cite> (chmod 600) and rotate secrets regularly.</p></li>
+<li><p>Use separate apps for sandbox and production.</p></li>
+<li><p><strong>Attempting to place a futures order returns HTTP 400 “Unsupported instrument”.</strong></p></li>
+<li><p><strong>No official docs for futures endpoints—implementation subject to change.</strong></p></li>
+</ul>
+</section>
+<section id="example-strategy">
+<h2>Example Strategy<a class="headerlink" href="#example-strategy" title="Link to this heading">¶</a></h2>
+<p>You can provide your Schwab credentials in several ways:
+- By creating a <cite>.env</cite> file in the same directory as your strategy (recommended for local development).
+- By setting them as secrets in Replit, or as environment variables in cloud platforms like Render.
+- By exporting them as environment variables in your shell.</p>
+<p><strong>Example `.env` file:</strong></p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="c1"># .env</span>
+<span class="nv">TRADING_BROKER</span><span class="o">=</span>schwab
+<span class="nv">SCHWAB_ACCOUNT_NUMBER</span><span class="o">=</span>XXXXXXXX
+</pre></div>
+</div>
+<p>Then, create your <cite>main.py</cite> (or <cite>strategy.py</cite>) file:</p>
+<div class="highlight-python notranslate"><div class="highlight"><pre><span></span><span class="kn">from</span><span class="w"> </span><span class="nn">lumibot.traders</span><span class="w"> </span><span class="kn">import</span> <span class="n">Trader</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">lumibot.strategies.strategy</span><span class="w"> </span><span class="kn">import</span> <span class="n">Strategy</span>
+
+<span class="k">class</span><span class="w"> </span><span class="nc">MyStrategy</span><span class="p">(</span><span class="n">Strategy</span><span class="p">):</span>
+    <span class="k">def</span><span class="w"> </span><span class="nf">initialize</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">sleeptime</span> <span class="o">=</span> <span class="s2">"1D"</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">symbol</span> <span class="o">=</span> <span class="s2">"SPY"</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">on_trading_iteration</span><span class="p">(</span><span class="bp">self</span><span class="p">):</span>
+        <span class="n">last</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">get_last_price</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">symbol</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">log_message</span><span class="p">(</span><span class="sa">f</span><span class="s2">"Last price for </span><span class="si">{</span><span class="bp">self</span><span class="o">.</span><span class="n">symbol</span><span class="si">}</span><span class="s2">: </span><span class="si">{</span><span class="n">last</span><span class="si">}</span><span class="s2">"</span><span class="p">)</span>
+        <span class="n">asset</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">create_asset</span><span class="p">(</span><span class="bp">self</span><span class="o">.</span><span class="n">symbol</span><span class="p">)</span>
+        <span class="n">order</span> <span class="o">=</span> <span class="bp">self</span><span class="o">.</span><span class="n">create_order</span><span class="p">(</span><span class="n">asset</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="s2">"buy"</span><span class="p">)</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">submit_order</span><span class="p">(</span><span class="n">order</span><span class="p">)</span>
+
+<span class="n">trader</span> <span class="o">=</span> <span class="n">Trader</span><span class="p">()</span>
+<span class="n">strategy</span> <span class="o">=</span> <span class="n">MyStrategy</span><span class="p">()</span>
+<span class="n">trader</span><span class="o">.</span><span class="n">add_strategy</span><span class="p">(</span><span class="n">strategy</span><span class="p">)</span>
+<span class="n">trader</span><span class="o">.</span><span class="n">run_all</span><span class="p">()</span>
+</pre></div>
+</div>
+</section>
+<section id="support-contact">
+<h2>Support &amp; Contact<a class="headerlink" href="#support-contact" title="Link to this heading">¶</a></h2>
+<ul class="simple">
+<li><p>Schwab Developer Portal: <a class="reference external" href="https://developer.schwab.com/">https://developer.schwab.com/</a></p></li>
+<li><p>API Documentation: <a class="reference external" href="https://schwab-py.readthedocs.io/">https://schwab-py.readthedocs.io/</a></p></li>
+<li><p>Support: Developer Portal → Support → Create Ticket, or email <a class="reference external" href="mailto:api-development&#37;&#52;&#48;schwab&#46;com">api-development<span>&#64;</span>schwab<span>&#46;</span>com</a></p></li>
+</ul>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>For advanced usage and troubleshooting, see the <a class="reference external" href="https://schwab-py.readthedocs.io/">schwab-py documentation</a> and the Lumibot source code for <cite>Schwab</cite> broker and <cite>SchwabData</cite> data source.</p>
+</div>
+<div class="admonition important">
+<p class="admonition-title">Important</p>
+<p>The example above shows what <em>our strategy</em> did in a sandbox environment; it is <strong>not</strong> investment advice.</p>
+</div>
+<div class="admonition warning">
+<p class="admonition-title">Warning</p>
+<p>This integration is for educational purposes only. Consult a qualified financial advisor before trading real funds.</p>
+</div>
+</section>
+</section>
+
+        </article>
+      </div>
+      <footer>
+        
+        <div class="related-pages">
+          <a class="next-page" href="brokers.tradier.html">
+              <div class="page-info">
+                <div class="context">
+                  <span>Next</span>
+                </div>
+                <div class="title">Tradier</div>
+              </div>
+              <svg class="furo-related-icon"><use href="#svg-arrow-right"></use></svg>
+            </a>
+          <a class="prev-page" href="brokers.projectx.html">
+              <svg class="furo-related-icon"><use href="#svg-arrow-right"></use></svg>
+              <div class="page-info">
+                <div class="context">
+                  <span>Previous</span>
+                </div>
+                
+                <div class="title">ProjectX / TopstepX</div>
+                
+              </div>
+            </a>
+        </div>
+        <div class="bottom-of-page">
+          <div class="left-details">
+            <div class="copyright">
+                Copyright &#169; 2021, Lumiwealth
+            </div>
+            Made with <a href="https://www.sphinx-doc.org/">Sphinx</a> and <a class="muted-link" href="https://pradyunsg.me">@pradyunsg</a>'s
+            
+            <a href="https://github.com/pradyunsg/furo">Furo</a>
+            <div class="last-updated">
+              Last updated on October 03, 2026</div>
+          </div>
+          <div class="right-details">
+            
+          </div>
+        </div>
+        
+      </footer>
+    </div>
+    <aside class="toc-drawer">
+      
+      
+      <div class="toc-sticky toc-scroll">
+        <div class="toc-title-container">
+          <span class="toc-title">
+            On this page
+          </span>
+        </div>
+        <div class="toc-tree-container">
+          <div class="toc-tree">
+            <ul>
+<li><a class="reference internal" href="#">Charles Schwab API Trading with LumiBot</a><ul>
+<li><a class="reference internal" href="#prerequisites">Prerequisites</a></li>
+<li><a class="reference internal" href="#environment-variables">Environment variables</a></li>
+<li><a class="reference internal" href="#first-time-login">First-time login</a></li>
+<li><a class="reference internal" href="#token-life-cycle">Token life-cycle</a></li>
+<li><a class="reference internal" href="#supported-functionality">Supported functionality</a></li>
+<li><a class="reference internal" href="#order-and-position-freshness">Order and position freshness</a></li>
+<li><a class="reference internal" href="#fast-cancellation-and-request-budgets">Fast cancellation and request budgets</a></li>
+<li><a class="reference internal" href="#example-env">Example <code class="docutils literal notranslate"><span class="pre">.env</span></code></a></li>
+<li><a class="reference internal" href="#example-strategy-snippet">Example strategy snippet</a></li>
+<li><a class="reference internal" href="#troubleshooting">Troubleshooting</a></li>
+<li><a class="reference internal" href="#api-credentials">API Credentials</a></li>
+<li><a class="reference internal" href="#token-life-cycle-auto-refresh">Token Life-cycle &amp; Auto-refresh</a></li>
+<li><a class="reference internal" href="#creating-an-app-getting-keys">Creating an App &amp; Getting Keys</a></li>
+<li><a class="reference internal" href="#oauth2-authentication-flow">OAuth2 Authentication Flow</a></li>
+<li><a class="reference internal" href="#sandbox-vs-production">Sandbox vs Production</a></li>
+<li><a class="reference internal" href="#supported-assets-order-types">Supported Assets &amp; Order Types</a></li>
+<li><a class="reference internal" href="#market-data">Market Data</a></li>
+<li><a class="reference internal" href="#rate-limits-token-expiry">Rate Limits &amp; Token Expiry</a></li>
+<li><a class="reference internal" href="#known-issues-best-practices">Known Issues &amp; Best Practices</a></li>
+<li><a class="reference internal" href="#example-strategy">Example Strategy</a></li>
+<li><a class="reference internal" href="#support-contact">Support &amp; Contact</a></li>
+</ul>
+</li>
+</ul>
+
+          </div>
+        </div>
+      </div>
+      
+      
+    </aside>
+  </div>
+</div><script src="_static/documentation_options.js?v=5929fcd5"></script>
+    <script src="_static/doctools.js?v=9bcbadda"></script>
+    <script src="_static/sphinx_highlight.js?v=dc90522c"></script>
+    <script src="_static/scripts/furo.js?v=46bd48cc"></script>
+    <script src="_static/posthog.js?v=8090e602"></script>
+    </body>
+</html>

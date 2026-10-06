@@ -1,0 +1,12 @@
+{
+  "entrypoints": {
+    "backtest": "bootstrap_backtest.py",
+    "base": "bootstrap_base.py",
+    "ibkr_gateway_connector": "ibkr_gateway_connector_agent.py",
+    "ibkr_gateway_relay": "ibkr_gateway_relay.py",
+    "ibkr_gateway_secret_init": "ibkr_gateway_secret_init.py",
+    "ibkr_ibeam_secret_init": "ibkr_ibeam_secret_init.py"
+  },
+  "s3_uri": "",
+  "sha256": "48a35b66bd0d7cb40ff399c33e28c8156b74e987a9a66687a95aff9075dfa042"
+}

@@ -1,0 +1,9 @@
+tests/security.tftest.hcl... [37min progress[0m
+[0m  run "isolated_router"... [32mpass[0m[0m
+  run "reject_public_ingress"... [32mpass[0m[0m
+  run "reject_other_account"... [32mpass[0m[0m
+  run "reject_other_region"... [32mpass[0m[0m
+tests/security.tftest.hcl... [37mtearing down[0m
+[0mtests/security.tftest.hcl... [32mpass[0m[0m
+
+[32mSuccess![0m[0m 4 passed, 0 failed.

@@ -1,0 +1,29 @@
+{
+  "parent": "/Users/robertgrzesik/Development/lumibot/.claude/worktrees/codex-release-4.6.4/artifacts/release-4.6.4/evals-stock-final",
+  "original_budget_header": {
+    "cap_nano_usd": 500000000,
+    "kind": "budget",
+    "max_input_tokens": 1048576,
+    "prices": {
+      "gemini-3.1-flash-lite": {
+        "cached_input": 0.025,
+        "input": 0.25,
+        "output": 1.5
+      },
+      "gemini-3.5-flash-lite": {
+        "cached_input": 0.03,
+        "input": 0.3,
+        "output": 2.5
+      },
+      "openai/gpt-6-luna": {
+        "cached_input": 0.01,
+        "input": 0.1,
+        "output": 0.5
+      }
+    },
+    "version": 1
+  },
+  "release_total_cap_usd": 6,
+  "continuation_cumulative_cap_usd": 1,
+  "reason": "Interrupted call remains fully reserved. Extend run allocation within unchanged total release budget without resetting any prior cost or case evidence. Only missing repetitions may run."
+}

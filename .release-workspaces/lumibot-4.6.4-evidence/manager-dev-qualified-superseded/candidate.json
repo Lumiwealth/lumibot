@@ -1,0 +1,72 @@
+{
+  "release_id": "codex-release-lumibot-4.6.4-rollout",
+  "worktree": "/Users/robertgrzesik/Development/bot_manager/.claude/worktrees/codex-release-lumibot-4.6.4-rollout",
+  "git_sha": "34b74e7c7f97bb565bffb4260520988bc520f74d",
+  "git_tree": "e336d75f4f2851d5153705874527e0bbb47c3385",
+  "lumibot_version": "4.6.4",
+  "state": "superseded_after_green_dev",
+  "scope": [
+    "bot_manager",
+    "lumibot"
+  ],
+  "nat_qualification": {
+    "enabled": false,
+    "reason": "default false, Dev-only, workflow does not enable it. No NAT resources or customer route changes authorized in this release."
+  },
+  "managed_aws_only_gates": [
+    "GitHub OIDC",
+    "Terraform plan/apply",
+    "deployed integration smoke",
+    "immutable ECR/S3 promotion"
+  ],
+  "files": {
+    "uv.lock": "4abaf00e6df2b6408acdd8d170f5a26e953b31b69c55fca59fbc3dbd56e61e47",
+    "pyproject.toml": "39d97764accea499a804e6ba8b49bd0bcc3146e7e4beb2b5235a9baac937eb72",
+    "requirements.txt": "67ca6e2afe94d003fe252b7bab5a9d412081322d133e0e3b7f36a46dbde07553",
+    ".github/workflows/ci-dev.yml": "68cbe6fbe69207e97a8736b20b3dd2696a570e6448c7fb6df587e25b01e25e6b",
+    ".github/workflows/ci-prod.yml": "21f0bc66cbbd3339daad0d8da801611832fc8cda04e8dbdec3d94f2ab22ba36f",
+    "terraform/nat_router.tf": "35111d20e12bb096d8bedf073ed038a43a9c403cad0d91ff4a1f9d9dbf080b3d"
+  },
+  "qualification": {
+    "unit": "1822 passed, 6 warnings",
+    "ruff": "passed",
+    "format": "264 files formatted",
+    "ty": "passed",
+    "dependency_audit": "38 packages, no known vulnerabilities",
+    "export_parity": "passed",
+    "build": "passed",
+    "runtime_bundle": {
+      "entrypoints": {
+        "backtest": "bootstrap_backtest.py",
+        "base": "bootstrap_base.py",
+        "ibkr_gateway_connector": "ibkr_gateway_connector_agent.py",
+        "ibkr_gateway_relay": "ibkr_gateway_relay.py",
+        "ibkr_gateway_secret_init": "ibkr_gateway_secret_init.py",
+        "ibkr_ibeam_secret_init": "ibkr_ibeam_secret_init.py"
+      },
+      "s3_uri": "",
+      "sha256": "99e7123d325775b126b2c8c31bbd214c53e46d85b5104d9d7a3e9eb90426477a"
+    },
+    "terraform_fmt": "passed",
+    "terraform_validate": "passed",
+    "nat_mock_plans": "4 passed, 0 failed",
+    "promotion_route_contract": "included in full unit gate",
+    "published_lumibot": {
+      "distribution_version": "4.6.4",
+      "runtime_version": "4.6.4",
+      "module": "/Users/robertgrzesik/Development/bot_manager/.claude/worktrees/codex-release-lumibot-4.6.4-rollout/tmp/release-4.6.4/pypi-install/lumibot/__init__.py"
+    }
+  },
+  "develop_sha": "32f2c5068412988ca2422b828b63417503007b35",
+  "dev_workflow_run": 37098060587,
+  "force_rebuild_images": "true frozen reusable-workflow input; temporary repo default restored false after all image jobs entered",
+  "dev_artifacts": {
+    "manifest_sha256": "4b7a7ea4a6499dc96dc1b9db24e8257d0f2ae484528f30f7a0323411fc68f8c8",
+    "release_id": "32f2c5068412-37098060587-1",
+    "release_manifest_s3_uri": "s3://bot-manager-tf-state/dev/releases/32f2c5068412-37098060587-1/release-manifest.json",
+    "runtime_bundle_sha256": "99e7123d325775b126b2c8c31bbd214c53e46d85b5104d9d7a3e9eb90426477a"
+  },
+  "dev_integration_result": "12 passed in 950.95 seconds",
+  "superseded_by_develop_sha": "330bd1095c61852b4c7534a79ff387b2f6d9bed3",
+  "superseded_reason": "Concurrent normal Development promotion adds one-line scheduled restart status fix. Frozen candidate was not modified or sent to production."
+}

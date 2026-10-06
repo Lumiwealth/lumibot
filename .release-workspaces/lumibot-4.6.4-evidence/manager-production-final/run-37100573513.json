@@ -1,0 +1,72 @@
+{
+  "conclusion": "success",
+  "createdAt": "2026-10-03T05:40:25Z",
+  "headSha": "330bd1095c61852b4c7534a79ff387b2f6d9bed3",
+  "jobs": [
+    {
+      "completedAt": "2026-10-03T05:40:32Z",
+      "conclusion": "success",
+      "databaseId": 111139127003,
+      "name": "promotion-route",
+      "startedAt": "2026-10-03T05:40:28Z",
+      "status": "completed",
+      "steps": [
+        {
+          "completedAt": "2026-10-03T05:40:30Z",
+          "conclusion": "success",
+          "name": "Set up job",
+          "number": 1,
+          "startedAt": "2026-10-03T05:40:29Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-03T05:40:30Z",
+          "conclusion": "success",
+          "name": "Enforce protected-branch promotion order",
+          "number": 2,
+          "startedAt": "2026-10-03T05:40:30Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-03T05:40:30Z",
+          "conclusion": "skipped",
+          "name": "Configure AWS credentials for coordinated release proof",
+          "number": 3,
+          "startedAt": "2026-10-03T05:40:30Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-03T05:40:30Z",
+          "conclusion": "skipped",
+          "name": "Require the exact active development release session",
+          "number": 4,
+          "startedAt": "2026-10-03T05:40:30Z",
+          "status": "completed"
+        },
+        {
+          "completedAt": "2026-10-03T05:40:30Z",
+          "conclusion": "success",
+          "name": "Complete job",
+          "number": 5,
+          "startedAt": "2026-10-03T05:40:30Z",
+          "status": "completed"
+        }
+      ],
+      "url": "https://github.com/Lumiwealth/bot_manager/actions/runs/37100573513/job/111139127003"
+    },
+    {
+      "completedAt": "2026-10-03T05:40:25Z",
+      "conclusion": "skipped",
+      "databaseId": 111139127692,
+      "name": "promotion-route-preflight",
+      "startedAt": "2026-10-03T05:40:26Z",
+      "status": "completed",
+      "steps": [],
+      "url": "https://github.com/Lumiwealth/bot_manager/actions/runs/37100573513/job/111139127692"
+    }
+  ],
+  "startedAt": "2026-10-03T05:40:25Z",
+  "status": "completed",
+  "updatedAt": "2026-10-03T05:40:33Z",
+  "url": "https://github.com/Lumiwealth/bot_manager/actions/runs/37100573513"
+}

@@ -20,6 +20,7 @@ import numpy as np
 import pandas as pd
 
 from lumibot import constants
+from lumibot.data_sources.exceptions import InvalidBars
 from lumibot.tools.parquet_series_cache import ParquetSeriesCache
 
 logger = logging.getLogger(__name__)
@@ -43,7 +44,7 @@ def _frame(value, symbols):
     frame = value.df.copy()
     if not isinstance(frame.index, pd.MultiIndex):
         if len(symbols) != 1:
-            raise ValueError("Alpaca multi-symbol bars require a symbol/timestamp index")
+            raise InvalidBars("Alpaca multi-symbol bars require a symbol/timestamp index")
         frame = pd.concat([frame], keys=symbols, names=["symbol", "timestamp"])
     return frame
 
@@ -194,7 +195,7 @@ def fetch_alpaca_bars(client, request, method, *, now=None, refresh=False):
                 if rows.empty:
                     continue
                 if not _valid_rows(rows, month_start, month_stop):
-                    raise ValueError("Alpaca returned invalid OHLCV bars; shared cache was not written")
+                    raise InvalidBars("Alpaca returned invalid OHLCV bars; shared cache was not written")
                 if is_closed:
                     rows.attrs["alpacaPartition"] = {
                         "identity": identity_hash,

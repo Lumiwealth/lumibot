@@ -5,6 +5,7 @@ import os
 from lumibot._lazy_imports import LazyLogger, LazyModule, lazy_class
 
 from .data_source import DataSource
+from .exceptions import InvalidBars
 
 logger = LazyLogger(__name__)
 TYPE_CHECKING = False
@@ -909,6 +910,8 @@ class AlpacaData(DataSource):
                                 raw=cleaned,
                                 tzinfo=self.tzinfo,
                             )
+                except InvalidBars:
+                    raise
                 except Exception as e:
                     logger.error(f"Could not get stock pricing data from Alpaca for batch ({len(syms)} symbols): {e}")
 
@@ -956,6 +959,8 @@ class AlpacaData(DataSource):
                                 raw=cleaned,
                                 tzinfo=self.tzinfo,
                             )
+                except InvalidBars:
+                    raise
                 except Exception as e:
                     logger.error(f"Could not get option pricing data from Alpaca batch ({len(syms)} symbols): {e}")
 
@@ -1012,6 +1017,8 @@ class AlpacaData(DataSource):
                                 raw=cleaned,
                                 tzinfo=self.tzinfo,
                             )
+                except InvalidBars:
+                    raise
                 except Exception as e:
                     logger.error(f"Could not get crypto pricing data from Alpaca batch ({len(syms)} symbols): {e}")
 
@@ -1147,6 +1154,8 @@ class AlpacaData(DataSource):
 
             df = barset.df
 
+        except InvalidBars:
+            raise
         except Exception as e:
             logger.error(f"Could not get pricing data from Alpaca for {symbol} with error: {e}")
             return None

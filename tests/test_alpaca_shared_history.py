@@ -50,6 +50,48 @@ def test_real_alpaca_data_repeated_closed_history_uses_shared_provider_cache(tmp
     assert list(tmp_path.rglob("*.parquet")), "Cache must use backtest Parquet format"
 
 
+@pytest.mark.parametrize("bulk", [False, True])
+@pytest.mark.parametrize("kind", ["stock", "option", "crypto"])
+def test_real_alpaca_reader_does_not_hide_invalid_provider_bars(tmp_path, monkeypatch, bulk, kind):
+    from lumibot import constants
+
+    monkeypatch.setattr(constants, "LUMIBOT_CACHE_FOLDER", str(tmp_path))
+    source = AlpacaData(
+        {"API_KEY": "synthetic-key", "API_SECRET": "synthetic-secret"},
+        auto_adjust=True,
+        remove_incomplete_current_bar=False,
+    )
+    asset = Asset("TSLA")
+    symbol = "TSLA"
+    if kind == "option":
+        asset = Asset("TSLA", asset_type="option", expiration=datetime(2025, 4, 18).date(), strike=100, right="CALL")
+        symbol = "TSLA250418C00100000"
+    elif kind == "crypto":
+        asset = Asset("BTC", asset_type="crypto")
+        symbol = "BTC/USD"
+    frame = provider_frame(symbols=[symbol])
+    frame.iloc[0, frame.columns.get_loc("low")] = 500.0
+    client = Mock()
+    client._api_key = "synthetic-key"
+    client._oauth_token = None
+    client.get_stock_bars.return_value = SimpleNamespace(df=frame)
+    client.get_option_bars.return_value = SimpleNamespace(df=frame)
+    client.get_crypto_bars.return_value = SimpleNamespace(df=frame)
+    monkeypatch.setattr(source, "_get_stock_client", lambda: client)
+    monkeypatch.setattr(source, "_get_option_client", lambda: client)
+    monkeypatch.setattr(source, "_get_crypto_client", lambda: client)
+    monkeypatch.setattr(
+        "lumibot.data_sources.alpaca_data._date_n_trading_days_from_date", lambda **kwargs: datetime(2025, 1, 1).date()
+    )
+    shift = datetime.now(timezone.utc) - datetime(2025, 3, 31, tzinfo=timezone.utc)
+    with pytest.raises(ValueError, match="invalid OHLCV"):
+        if bulk:
+            source.get_bars([asset], 60, "day", timeshift=shift)
+        else:
+            source.get_historical_prices(asset, 60, "day", timeshift=shift)
+    assert not list(tmp_path.rglob("*.parquet"))
+
+
 @pytest.fixture
 def history(tmp_path, monkeypatch):
     from lumibot import constants

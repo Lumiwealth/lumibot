@@ -1,3 +1,7 @@
+class InvalidBars(ValueError):
+    """Provider observations violate the price contract; never treat them as missing data."""
+
+
 class NoDataFound(Exception):
     def __init__(self, source, asset):
         message = (

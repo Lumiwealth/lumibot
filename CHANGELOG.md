@@ -2,7 +2,7 @@
 
 ## 4.6.5 - 2026-10-07
 
-Deploy marker: `1f8aea334159e2fc57ff02278bf81f0b8ecdd303`
+Deploy marker: `d72af18aa4b168ec829035de5d04cf5be4b50e6b`
 
 ### Added
 - AI agents: no output length is sent by default, so the model answers as long as it needs (before, every call sent 65,535 whatever the model, 4x the 16,384 `openai/gpt-4o` allows). Anthropic models, which require one, get the model's real limit. New optional `max_output_tokens` on `agents.create()` and `run()`, capped at the model's real limit.

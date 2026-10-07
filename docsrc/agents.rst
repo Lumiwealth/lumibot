@@ -499,7 +499,9 @@ LumiBot's AI agent stack has four timeout/retry/safety layers that together keep
 
 2. **LiteLLM-level HTTP retries.** When using non-Gemini providers, LiteLLM retries each individual HTTP call 3 times with provider-aware backoff (429 Retry-After awareness, capped exponential). Configured automatically in ``_configure_litellm_quietly`` (``num_retries=3``, ``drop_params=True``, ``suppress_debug_info=True``).
 
-3. **Runtime-level attempt retries.** ``GoogleADKRuntime.run()`` retries the full agent call up to **10 times** with capped exponential backoff (2s, 3s, 5s, 10s, 20s, 30s, 45s, 60s, 60s, 60s — total budget ~5 minutes). This covers session-setup errors, ADK runner glitches, and provider 5xx storms that LiteLLM's inner retry couldn't fix. Only transient and unknown errors retry; auth/config/billing errors surface immediately so we do not waste 5 minutes retrying a wrong API key.
+3. **Runtime-level attempt retries.** ``GoogleADKRuntime.run()`` retries the full agent call up to **10 times** live (2 in backtests, 1 for agents with order tools) with capped exponential backoff (2s, 3s, 5s, 10s, 20s, 30s, 45s, 60s, 60s, 60s). This covers session-setup errors, ADK runner glitches, and provider 5xx storms that LiteLLM's inner retry couldn't fix. Only transient and unknown errors retry; auth/config/billing errors surface immediately so we do not waste 5 minutes retrying a wrong API key.
+
+   **Rate limits (HTTP 429)** get their own bounded budget of **6 attempts** in every mode, including backtests and trading agents. Each wait honors the provider's ``Retry-After`` header (or "try again in Ns" in the message), capped at 120 seconds per wait. A run is never retried after it already submitted, changed or cancelled an order, because a retry could duplicate the order; the next bar re-evaluates instead. An explicit ``LUMIBOT_AGENT_MAX_RUN_ATTEMPTS`` still caps everything.
 
 4. **Strategy-level safety net with live-vs-backtest branch.** ``AgentHandle.run()`` wraps the runtime call in a final catch. Behavior depends on two things: the error category and whether the strategy is in backtest mode or live.
 
@@ -533,6 +535,18 @@ Or override them for one call:
         run_timeout_seconds=2400,
     )
 
+Output token limit
+~~~~~~~~~~~~~~~~~~
+
+``max_output_tokens`` limits how many tokens one answer may use. The default is ``32768``. Every value, default or explicit, is capped at the model's real output limit (for example 16,384 for ``openai/gpt-4o``), so a request never asks for more than the model can produce. Set it on ``create()`` for every run, or on ``run()`` for one call:
+
+.. code-block:: python
+
+    self.agents.create(name="analyst", model="openai/gpt-6-luna", max_output_tokens=4000)
+    self.agents["analyst"].run(task_prompt="One-line verdict.", max_output_tokens=800)
+
+Reasoning models count their thinking tokens against this limit, so keep it generous for deep research agents.
+
 Advanced operators can also set ``LUMIBOT_AGENT_MODEL_REQUEST_TIMEOUT_SECONDS`` and ``LUMIBOT_AGENT_RUN_TIMEOUT_SECONDS``. A non-positive value disables that timeout. LumiBot logs every cold agent call with the effective timeout values and logs the latency to the first ADK event, which helps distinguish a stuck provider request from an agent that is actively calling tools.
 
 Error classifier buckets
@@ -560,14 +574,40 @@ Backtest vs. live behavior
 +--------------+------------------------------------------+----------------------------------+
 | ``billing``  | **Crash loud** with provider billing URL.| Log + skip iteration.            |
 +--------------+------------------------------------------+----------------------------------+
-| ``transient``| Log + skip iteration (silent).           | Log + skip iteration.            |
+| ``transient``| Log + skip iteration, counted and shown  | Log + skip iteration.            |
+|              | in ``agent_health`` (see below).         |                                  |
 +--------------+------------------------------------------+----------------------------------+
-| ``unknown``  | Log + skip iteration (safe default).     | Log + skip iteration.            |
+| ``unknown``  | Log + skip iteration, counted (safe      | Log + skip iteration.            |
+|              | default).                                |                                  |
 +--------------+------------------------------------------+----------------------------------+
 
 **Live trading invariant**: an AI agent call never stops a live trading bot. Ever. Even a completely missing API key will log an error and continue — the operator can fix the env var and the bot resumes on the next iteration without a process restart. This is intentional: shutting down a live bot with real money at risk because of a provider hiccup is unacceptable.
 
-**Backtest philosophy**: surface bugs loudly. A silent +0% tearsheet caused by a wrong API key is worse than a clear error message — the user just started the run, can fix it, and re-run. Transient errors still skip silently because they are not bugs the user can act on.
+**Backtest philosophy**: surface bugs loudly. A silent +0% tearsheet caused by a wrong API key is worse than a clear error message — the user just started the run, can fix it, and re-run. Transient errors (including rate limits that outlast their retries) skip the bar, but never silently: a backtest with skipped bars ran with missing AI decisions, and its results must say so.
+
+Skipped bars in backtest results
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Every skipped agent call is counted and reported in three places:
+
+- the log, as ``BACKTEST INCOMPLETE: agent '<name>' ... could not run at <time>``;
+- the tear sheet's **Parameters Used** panel, as ``agent_<name>_skipped_runs`` and ``agent_skipped_runs_total``;
+- the backtest ``settings.json``, as an ``agent_health`` block:
+
+.. code-block:: json
+
+    {
+      "agent_health": {
+        "complete": false,
+        "skipped_runs": 3,
+        "skipped_runs_by_agent": {"analyst": 3},
+        "by_category": {"transient": 3},
+        "skipped": [{"agent": "analyst", "datetime": "2026-09-23T10:00:00-04:00", "category": "transient", "error_class": "RateLimitError"}],
+        "model_calls": 120
+      }
+    }
+
+``complete: true`` means every agent call in the backtest produced a decision.
 
 Skipped iteration result shape
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~

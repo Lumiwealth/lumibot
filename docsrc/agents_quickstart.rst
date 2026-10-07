@@ -271,7 +271,9 @@ Working with the Result
 - ``result.warning_messages`` -- list of observability warnings
 - ``result.tool_calls`` -- list of tool call events
 - ``result.tool_results`` -- list of tool result events
-- ``(result.payload or {}).get("trace_path")`` -- path to one call's JSON trace
+- ``result.parsed`` -- the parsed, validated answer when you pass ``output_schema`` (see below)
+- ``result.parse_error`` -- why the answer did not match ``output_schema`` (``None`` when it did)
+- ``(result.payload or {}).get("trace_path")`` -- path to one call's JSON trace. ``result.payload`` is run bookkeeping, never the answer.
 - ``*_agent_detail.parquet`` -- the table for the whole run, next to the tear sheet in a backtest, or under ``~/Library/Caches/lumibot/1.0/agent_runtime/`` on macOS for live and paper. The ``call_summary`` row includes ``effective_system_prompt``. Raising ``LUMIBOT_LOG_LEVEL`` does not create this file. See :doc:`agents_observability`.
 
 .. code-block:: python
@@ -286,6 +288,34 @@ Working with the Result
     if result.warning_messages:
         for warning in result.warning_messages:
             self.log_message(f"WARNING: {warning}", color="red")
+
+Structured answers (``output_schema``)
+--------------------------------------
+
+When your code needs to act on the answer, ask for structured output instead of parsing free text. Pass a JSON Schema ``dict`` or a pydantic model class as ``output_schema`` on ``create()`` (every run) or ``run()`` (one call). LumiBot tells the model the exact format, removes markdown code fences, extracts the JSON, validates it, and puts it on ``result.parsed``:
+
+.. code-block:: python
+
+    VERDICT = {
+        "type": "object",
+        "properties": {
+            "symbol": {"type": "string"},
+            "verdict": {"type": "string", "enum": ["PASS", "VETO"]},
+            "confidence": {"type": "string", "enum": ["LOW", "MEDIUM", "HIGH"]},
+            "reason": {"type": "string"},
+        },
+        "required": ["symbol", "verdict", "confidence", "reason"],
+    }
+
+    self.agents.create(name="analyst", model="openai/gpt-6-luna", output_schema=VERDICT)
+
+    result = self.agents["analyst"].run(task_prompt="Review INTC for a swing entry.")
+    if result.parsed is None:
+        self.log_message(f"No usable verdict: {result.parse_error}", color="red")
+    elif result.parsed["verdict"] == "PASS":
+        ...
+
+With a pydantic model, ``result.parsed`` is an instance of that model. When the answer does not match, ``result.parsed`` is ``None``, ``result.parse_error`` explains why, and ``result.warnings`` contains a ``structured_output_invalid`` entry. No extra model call is made. Tools still work normally; the schema only shapes the final answer.
 
 Running a Backtest
 ------------------

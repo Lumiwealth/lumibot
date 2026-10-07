@@ -296,3 +296,12 @@ def test_streamable_mcp_does_not_renew_nested_forbidden_or_network_errors(monkey
         anyio.run(runtime._with_mcp_session, server, None)
     assert caught.value is failure
     assert calls == ["call"]
+
+
+def test_mcp_auth_failure_ignores_401_inside_urls_and_ids():
+    from lumibot.components.agents.runtime import _is_mcp_auth_failure
+
+    assert not _is_mcp_auth_failure(RuntimeError("POST https://example.test/mcp/401-records failed: reset"))
+    assert not _is_mcp_auth_failure(RuntimeError("order 84017 rejected"))
+    assert _is_mcp_auth_failure(RuntimeError("Client error '401 Unauthorized' for url 'https://example.test/mcp'"))
+    assert _is_mcp_auth_failure(RuntimeError("HTTP 401: capability expired"))

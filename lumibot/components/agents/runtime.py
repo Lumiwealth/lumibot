@@ -666,6 +666,74 @@ def _classify_agent_error(exc: BaseException) -> str:
     return "unknown"
 
 
+_RATE_LIMIT_CLASS_NAMES = {"RateLimitError", "ResourceExhausted", "TooManyRequests", "ResourceExhaustedError"}
+_RETRY_AFTER_MESSAGE_PATTERN = re.compile(
+    r"(?:try again|retry)\s+(?:in|after)\s+([0-9]+(?:\.[0-9]+)?)\s*(ms|milliseconds?|s|sec|secs|seconds?)\b",
+    re.IGNORECASE,
+)
+_RETRY_DELAY_FIELD_PATTERN = re.compile(r"retry_?delay[\"']?\s*[:=]\s*[\"']?([0-9]+(?:\.[0-9]+)?)s", re.IGNORECASE)
+
+
+def _is_rate_limit_error(exc: BaseException) -> bool:
+    """True for a provider rate limit (HTTP 429), not a quota/billing exhaustion."""
+    if _classify_agent_error(exc) not in ("transient", "unknown"):
+        return False
+    if exc.__class__.__name__ in _RATE_LIMIT_CLASS_NAMES:
+        return True
+    for attr in ("status_code", "http_status", "code", "status"):
+        value = getattr(exc, attr, None)
+        if value == 429 or str(value).strip() == "429":
+            return True
+    message = str(exc).lower()
+    return "rate limit" in message or "rate_limit" in message or "resource_exhausted" in message or "too many requests" in message
+
+
+def _retry_after_seconds(exc: BaseException) -> float | None:
+    """Read how long the provider asked us to wait (Retry-After header or message)."""
+    candidates: list[Any] = [getattr(exc, "retry_after", None)]
+    response = getattr(exc, "response", None)
+    headers = getattr(response, "headers", None)
+    if headers is not None:
+        try:
+            ms_value = headers.get("retry-after-ms")
+            if ms_value is not None:
+                return max(float(ms_value) / 1000.0, 0.0)
+        except Exception:
+            pass
+        try:
+            candidates.append(headers.get("retry-after"))
+        except Exception:
+            pass
+    for value in candidates:
+        if value is None:
+            continue
+        try:
+            seconds = float(value)
+        except (TypeError, ValueError):
+            # RFC 9110 also allows an HTTP-date ("Wed, 21 Oct 2026 07:28:00 GMT").
+            try:
+                from email.utils import parsedate_to_datetime
+
+                when = parsedate_to_datetime(str(value))
+                if when.tzinfo is None:
+                    when = when.replace(tzinfo=timezone.utc)
+                return max((when - datetime.now(timezone.utc)).total_seconds(), 0.0)
+            except Exception:
+                continue
+        if seconds >= 0:
+            return seconds
+    message = str(exc)
+    match = _RETRY_AFTER_MESSAGE_PATTERN.search(message)
+    if match:
+        amount = float(match.group(1))
+        unit = match.group(2).lower()
+        return amount / 1000.0 if unit.startswith("m") else amount
+    match = _RETRY_DELAY_FIELD_PATTERN.search(message)
+    if match:
+        return float(match.group(1))
+    return None
+
+
 def _configure_litellm_quietly() -> None:
     # LiteLLM's provider-lookup path in get_llm_provider_logic.py prints a
     # red "Provider List: https://docs.litellm.ai/docs/providers" banner to
@@ -802,6 +870,66 @@ def _model_context_limit_entry(model: Any) -> tuple[int, int] | None:
         _positive_int_env("LUMIBOT_AGENT_DEFAULT_CONTEXT_LIMIT_TOKENS", DEFAULT_MODEL_CONTEXT_LIMIT_TOKENS),
         _positive_int_env("LUMIBOT_AGENT_DEFAULT_CONTEXT_STRING_LIMIT_CHARS", DEFAULT_MODEL_CONTEXT_STRING_LIMIT_CHARS),
     )
+
+
+# Output-token limits (2026-10-07, customer investigation). Every agent call used to
+# send max_output_tokens=65535 whatever the model, which is 4x what
+# openai/gpt-4o can produce (16,384) and reserves far more than a short trading
+# verdict needs. The default is now 32,768 and every request (default or
+# explicit) is capped at the model's real output limit when it is known.
+DEFAULT_AGENT_MAX_OUTPUT_TOKENS = 32_768
+_MODEL_OUTPUT_LIMIT_CACHE: dict[str, int | None] = {}
+
+
+def _model_max_output_tokens(model: Any) -> int | None:
+    """Return the model's published output-token limit, or None when unknown."""
+    if not isinstance(model, str) or not model.strip():
+        return None
+    name = model.strip()
+    if name in _MODEL_OUTPUT_LIMIT_CACHE:
+        return _MODEL_OUTPUT_LIMIT_CACHE[name]
+    limit: int | None = None
+    bare = name[len("openai/"):] if name.startswith("openai/") else name
+    gpt6 = _OPENAI_GPT6_MODEL_INFO.get(bare)
+    if gpt6 is not None:
+        limit = int(gpt6["max_output_tokens"])
+    else:
+        candidates = [name]
+        if _is_native_gemini_model(name):
+            bare_gemini = name.split("/", 1)[-1] if name.startswith("models/") else name
+            candidates = [f"gemini/{bare_gemini}", bare_gemini]
+        try:
+            import litellm
+
+            for candidate in candidates:
+                try:
+                    info = litellm.get_model_info(candidate)
+                except Exception:
+                    continue
+                value = info.get("max_output_tokens") or info.get("max_tokens")
+                if isinstance(value, (int, float)) and value > 0:
+                    limit = int(value)
+                    break
+        except Exception:
+            limit = None
+    _MODEL_OUTPUT_LIMIT_CACHE[name] = limit
+    return limit
+
+
+def _effective_max_output_tokens(model: Any, requested: Any) -> int:
+    """Requested (or default) output tokens, capped at the model's real limit."""
+    value = DEFAULT_AGENT_MAX_OUTPUT_TOKENS
+    if requested is not None:
+        try:
+            parsed = int(requested)
+        except (TypeError, ValueError):
+            parsed = 0
+        if parsed > 0:
+            value = parsed
+    limit = _model_max_output_tokens(model)
+    if limit is not None and value > limit:
+        value = limit
+    return value
 
 
 def _model_context_limit_tokens(model: Any) -> int | None:
@@ -1186,6 +1314,30 @@ def _resolve_model_for_adk(
     return model_type(model=model, **kwargs)
 
 
+_BROKER_MUTATING_TOOLS = frozenset(
+    {"orders_submit_order", "orders_submit_multileg", "orders_cancel_order", "orders_modify_order"}
+)
+
+
+def _attempt_tool_call_log(request: Any) -> list[dict[str, Any]]:
+    """Per-attempt tool-call list shared between run() and _run_async()."""
+    calls = getattr(request, "_attempt_tool_calls", None)
+    if not isinstance(calls, list):
+        calls = []
+        try:
+            request._attempt_tool_calls = calls
+        except Exception:
+            pass
+    return calls
+
+
+def _attempt_touched_broker(request: Any) -> bool:
+    calls = getattr(request, "_attempt_tool_calls", None)
+    if not isinstance(calls, list):
+        return False
+    return any(isinstance(call, dict) and call.get("tool_name") in _BROKER_MUTATING_TOOLS for call in calls)
+
+
 class GoogleADKRuntime:
     def __init__(self, mcp_servers: list[MCPServer] | None = None) -> None:
         self.mcp_servers = mcp_servers or []
@@ -1315,7 +1467,9 @@ class GoogleADKRuntime:
                 before_request(request.model, llm_request)
             # An earlier request without usage remains reserved in the durable
             # ledger. A retry/continuation cannot spend that reservation again.
-            ticket = budget.reserve(request.model, request.max_output_tokens or 65535)
+            ticket = budget.reserve(
+                request.model, _effective_max_output_tokens(request.model, request.max_output_tokens)
+            )
 
         def after(*args, llm_response=None, **kwargs):
             nonlocal ticket
@@ -1463,7 +1617,9 @@ class GoogleADKRuntime:
             "account_snapshot": (
                 request.runtime_context.get("account_snapshot") if isinstance(request.runtime_context, dict) else None
             ),
-            "tool_calls": [],
+            # Shared with run() so a failed attempt can tell whether it already
+            # touched the broker before deciding to retry.
+            "tool_calls": _attempt_tool_call_log(request),
         }
         tools = _function_tools_with_name_aliases(
             function_tool_type,
@@ -1596,6 +1752,10 @@ class GoogleADKRuntime:
     _DEFAULT_RUN_TIMEOUT_SECONDS = 1800.0
     _DEFAULT_MODEL_REQUEST_TIMEOUT_SECONDS = 600.0
     _RETRY_BACKOFF_SECONDS = (2.0, 3.0, 5.0, 10.0, 20.0, 30.0, 45.0, 60.0, 60.0, 60.0)
+    # Rate limits (429): bounded retries that honor the provider's Retry-After,
+    # each wait capped so a backtest cannot stall for long on one bar.
+    _RATE_LIMIT_MAX_ATTEMPTS = 6
+    _RATE_LIMIT_MAX_WAIT_SECONDS = 120.0
 
     @staticmethod
     def _model_request_timeout_seconds_for_request(request: RuntimeRequest) -> float | None:
@@ -1614,7 +1774,7 @@ class GoogleADKRuntime:
     @staticmethod
     def _generate_content_config_kwargs_for_request(request: RuntimeRequest, genai_types: Any) -> dict[str, Any]:
         config_kwargs: dict[str, Any] = {
-            "max_output_tokens": request.max_output_tokens or 65535,
+            "max_output_tokens": _effective_max_output_tokens(request.model, request.max_output_tokens),
         }
         request_timeout_seconds = GoogleADKRuntime._model_request_timeout_seconds_for_request(request)
         if _is_native_gemini_model(request.model) and request_timeout_seconds is not None:
@@ -1644,8 +1804,7 @@ class GoogleADKRuntime:
                 return max(int(raw), 1)
             except Exception:
                 pass
-        mutating_order_tools = {"orders_submit_order", "orders_cancel_order", "orders_modify_order"}
-        if any(tool.name in mutating_order_tools for tool in request.bound_tools):
+        if any(tool.name in _BROKER_MUTATING_TOOLS for tool in request.bound_tools):
             # Retrying the whole agent run after a broker-side effect can duplicate orders.
             # Research-only agents keep the larger retry budget; trading agents fail fast
             # and let the next scheduled/bar iteration re-evaluate from current broker state.
@@ -1690,13 +1849,31 @@ class GoogleADKRuntime:
                 f"(model={request.model!r}, agent={request.agent_name!r})."
             ) from exc
 
+    @staticmethod
+    def _rate_limit_max_attempts_for_request(request: RuntimeRequest, default_attempts: int) -> int:
+        """Attempts allowed when the provider rate-limits (HTTP 429).
+
+        A rate limit is not billed and normally clears within seconds, so it gets
+        a larger bounded budget than other transient errors, even in backtests
+        and for trading agents. Before 2026-10-07 a 429 in a backtest got two
+        quick tries (one for trading agents) and the bar was silently skipped.
+        An explicit LUMIBOT_AGENT_MAX_RUN_ATTEMPTS still wins.
+        """
+        if os.environ.get("LUMIBOT_AGENT_MAX_RUN_ATTEMPTS"):
+            return default_attempts
+        return max(default_attempts, GoogleADKRuntime._RATE_LIMIT_MAX_ATTEMPTS)
+
     def run(self, request: RuntimeRequest) -> AgentRunResult:
         import time as _time
 
         last_exc: BaseException | None = None
         max_attempts = self._max_attempts_for_request(request)
         timeout_seconds = self._run_timeout_seconds_for_request(request)
-        for attempt in range(1, max_attempts + 1):
+        attempt = 0
+        while True:
+            attempt += 1
+            # Fresh per-attempt record of tool calls (see _attempt_tool_call_log).
+            request._attempt_tool_calls = []
             try:
                 if timeout_seconds is None:
                     return asyncio.run(self._run_async(request))
@@ -1707,14 +1884,27 @@ class GoogleADKRuntime:
                 last_exc = exc
                 if self._is_non_retryable(exc):
                     raise
-                if attempt >= max_attempts:
+                if _attempt_touched_broker(request):
+                    # Retrying a whole run after an order was submitted, changed
+                    # or cancelled could duplicate it. The next bar re-evaluates.
+                    raise
+                rate_limited = _is_rate_limit_error(exc)
+                allowed_attempts = (
+                    self._rate_limit_max_attempts_for_request(request, max_attempts) if rate_limited else max_attempts
+                )
+                if attempt >= allowed_attempts:
                     break
                 delay = self._RETRY_BACKOFF_SECONDS[min(attempt - 1, len(self._RETRY_BACKOFF_SECONDS) - 1)]
+                if rate_limited:
+                    retry_after = _retry_after_seconds(exc)
+                    if retry_after is not None:
+                        delay = max(delay, min(retry_after, self._RATE_LIMIT_MAX_WAIT_SECONDS))
                 try:
+                    kind = "rate limit" if rate_limited else "transient error"
                     sys.stderr.write(
-                        f"[lumibot.agents] transient error on attempt {attempt}/{max_attempts} "
+                        f"[lumibot.agents] {kind} on attempt {attempt}/{allowed_attempts} "
                         f"for model={request.model!r}: {exc.__class__.__name__}: {str(exc)[:240]}. "
-                        f"Retrying in {delay:.0f}s...\n"
+                        f"Retrying in {delay:g}s...\n"
                     )
                     sys.stderr.flush()
                 except Exception:
@@ -1819,6 +2009,12 @@ def _mcp_headers(server: MCPServer) -> dict[str, str]:
     return headers
 
 
+_MCP_HTTP_401_PATTERN = re.compile(
+    r"\b401\s+unauthori[sz]ed\b|\bunauthori[sz]ed\s*\(?401\b|\b(?:http|status(?:\s+code)?)[\s:=]+401\b",
+    re.IGNORECASE,
+)
+
+
 def _is_mcp_auth_failure(exc: Exception) -> bool:
     # Streamable HTTP task groups can wrap the transport's HTTPStatusError.
     # Inspect the original errors so a short-lived capability can still renew.
@@ -1833,7 +2029,9 @@ def _is_mcp_auth_failure(exc: Exception) -> bool:
         status = getattr(response, "status_code", None)
         if status == 401:
             return True
-        if status is None and "401" in str(current):
+        # Without a response object, only an explicit HTTP 401 phrase counts. A bare
+        # "401" inside a URL, id or port must not trigger a token renewal.
+        if status is None and _MCP_HTTP_401_PATTERN.search(str(current)):
             return True
         children = getattr(current, "exceptions", ())
         if isinstance(children, (list, tuple)):

@@ -69,6 +69,9 @@ def classify_history_failure(exc: BaseException) -> HistoryFailureClassification
         "invalid conid",
         "unknown conid",
         "contract not found",
+        # IBKR's answer for a conid it retired (company reorganized, ETF reverse split).
+        # Oct 7 2026: XOM 13977 -> 895178251, SOXS 854072548 -> 892340391.
+        "contract details are not available",
     )
     if any(token in normalized for token in identity_tokens):
         return HistoryFailureClassification(

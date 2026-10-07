@@ -2,6 +2,9 @@
 
 ## 4.6.6 - Unreleased
 
+### Fixed
+- IBKR: a stock or index whose IBKR contract id was retired (company reorganization, ETF reverse split) now refreshes its id and retries once when IBKR answers "Contract details are not available". Before, the stale id stayed in the shared registry and every backtest on that symbol failed (XOM and SOXS, October 2026). The new id carries the full price history.
+
 ## 4.6.5 - 2026-10-07
 
 Deploy marker: `d72af18aa4b168ec829035de5d04cf5be4b50e6b`

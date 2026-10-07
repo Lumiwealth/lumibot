@@ -89,11 +89,71 @@ BOTSPOT_DATA_ROUTING_POLICY
 - Format: JSON object containing a ``version`` field.
 - Notes: LumiBot writes the policy version and the adapters actually observed during the run to ``logs/data_provenance.json``. Credentials, tokens, and signed URLs are never included.
 
+.. _backtest-data-source-selection:
+
 BACKTESTING_DATA_SOURCE
 ^^^^^^^^^^^^^^^^^^^^^^^
 
-- Purpose: Select the backtesting datasource **even if your code passes a `datasource_class`**.
+Choose your backtest data
+""""""""""""""""""""""""""""""
+
+This setting selects historical market data for a backtest; it does not choose
+your paper/live broker. **A provider setting overrides the class in code**,
+including the ``datasource_class`` argument to ``backtest()`` or ``run_backtest()``.
+
+For daily stock and ETF backtests, select Yahoo in your project's ``.env``:
+
+.. code-block:: ini
+
+   BACKTESTING_DATA_SOURCE=yahoo
+
+Or set it in the shell before launching your strategy:
+
+.. code-block:: bash
+
+   # macOS / Linux
+   export BACKTESTING_DATA_SOURCE=yahoo
+   python my_strategy.py
+
+.. code-block:: powershell
+
+   # Windows PowerShell
+   $env:BACKTESTING_DATA_SOURCE = "yahoo"
+   python my_strategy.py
+
+Other providers may require credentials or a Data Downloader. See
+:doc:`the provider setup guides <backtesting>` for asset coverage and requirements.
+
+.. list-table:: How the data source is selected
+   :header-rows: 1
+   :widths: 45 55
+
+   * - Configuration
+     - Result
+   * - Provider name or routing JSON is set
+     - Uses that selection, even when Python supplies a class.
+   * - Unset; Python supplies a class
+     - Uses the class from code.
+   * - Unset; Python supplies no class
+     - Defaults to ThetaData, which requires its own setup.
+   * - ``none`` or an empty value
+     - Uses the class from code; raises an error if no class is supplied.
+
+To keep an explicit data-source class in your code, use
+``BACKTESTING_DATA_SOURCE=none``. This does not disable data requests or make a
+backtest offline.
+
+**Unexpected provider?** Check the variable in your shell, ``.env``, and
+``.env.local`` before launching. An exported value takes precedence over the
+primary ``.env`` file; ``.env.local`` can override both. See
+``LUMIBOT_DISABLE_DOTENV`` and ``LUMIBOT_DISABLE_DOTENV_LOCAL`` above for loading
+controls.
+
+Supported values
+""""""""""""""""
+
 - Values (case-insensitive):
+
   - ``thetadata``, ``yahoo``, ``polygon``, ``alpaca``, ``ccxt``, ``databento``, ``polymarket``, ``polymarket_clob``
   - ``ibkr`` / ``interactivebrokersrest`` / ``interactive_brokers_rest`` (IBKR Client Portal REST)
   - ``router`` (multi-provider routing; defaults to Theta for stock/option/index and IBKR for futures/crypto)

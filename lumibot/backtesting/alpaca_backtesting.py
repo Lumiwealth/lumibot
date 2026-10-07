@@ -33,6 +33,7 @@ from lumibot.tools.lumibot_logger import get_logger
 logger = get_logger(__name__)
 
 from lumibot.tools.alpaca_helpers import sanitize_base_and_quote_asset
+from lumibot.tools.alpaca_history import fetch_alpaca_bars
 
 
 class AlpacaOptionHistoryUnavailable(RuntimeError):
@@ -1367,11 +1368,23 @@ class AlpacaBacktesting(DataSourceBacktesting):
         is_option = self._is_option(base_asset)
         try:
             if isinstance(request_params, CryptoBarsRequest):
-                bars = self._alpaca_request(client.get_crypto_bars, request_params, what=key)
+                bars = fetch_alpaca_bars(
+                    client, request_params,
+                    lambda query: self._alpaca_request(client.get_crypto_bars, query, what=key),
+                    refresh=getattr(self, "_refresh_cache", False),
+                )
             elif isinstance(request_params, OptionBarsRequest):
-                bars = self._alpaca_request(client.get_option_bars, request_params, what=key)
+                bars = fetch_alpaca_bars(
+                    client, request_params,
+                    lambda query: self._alpaca_request(client.get_option_bars, query, what=key),
+                    refresh=getattr(self, "_refresh_cache", False),
+                )
             else:
-                bars = self._alpaca_request(client.get_stock_bars, request_params, what=key)
+                bars = fetch_alpaca_bars(
+                    client, request_params,
+                    lambda query: self._alpaca_request(client.get_stock_bars, query, what=key),
+                    refresh=getattr(self, "_refresh_cache", False),
+                )
         except Exception as e:
             raise RuntimeError(f"Failed to fetch data for {key}: {e}")
 
@@ -1581,7 +1594,7 @@ class AlpacaBacktesting(DataSourceBacktesting):
             data_datetime_start=segment_start,
             data_datetime_end=last_included,
             auto_adjust=self._auto_adjust,
-            request_end=segment_end,
+            request_end=last_included,
         )
         if isinstance(request, CryptoBarsRequest):
             fetch = client.get_crypto_bars
@@ -1590,7 +1603,10 @@ class AlpacaBacktesting(DataSourceBacktesting):
         else:
             fetch = client.get_stock_bars
         try:
-            bars = self._alpaca_request(fetch, request, what=key)
+            bars = fetch_alpaca_bars(
+                client, request, lambda query: self._alpaca_request(fetch, query, what=key),
+                refresh=refresh,
+            )
         except Exception as exc:
             raise RuntimeError(f"Failed to fetch history before the backtest window for {key}: {exc}")
 

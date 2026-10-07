@@ -57,6 +57,15 @@ NETWORK_TOOL_NAMES = frozenset(
 )
 
 
+def _validate_max_output_tokens(value: Any) -> int | None:
+    """User-facing output-token setting: None (use the default) or a positive int."""
+    if value is None:
+        return None
+    if isinstance(value, bool) or not isinstance(value, int) or value <= 0:
+        raise ValueError("max_output_tokens must be a positive integer (or None for the default).")
+    return value
+
+
 def _is_network_tool(tool: Any) -> bool:
     metadata = getattr(tool, "metadata", {}) or {}
     return bool(metadata.get("network")) or str(getattr(tool, "name", "")) in NETWORK_TOOL_NAMES
@@ -990,6 +999,8 @@ class AgentHandle:
         model_request_timeout_seconds: float | None = None,
         run_timeout_seconds: float | None = None,
         reasoning_effort: str | None = None,
+        max_output_tokens: int | None = None,
+        output_schema: Any | None = None,
     ) -> None:
         self.manager = manager
         self.name = name
@@ -1003,6 +1014,15 @@ class AgentHandle:
         if reasoning_effort not in {None, "none", "low", "medium", "high", "xhigh", "max"}:
             raise ValueError("Unsupported agent reasoning_effort.")
         self.reasoning_effort = reasoning_effort
+        # Output-token limit for every run of this agent (None = runtime default,
+        # always capped at the model's real output limit by the runtime).
+        self.max_output_tokens = _validate_max_output_tokens(max_output_tokens)
+        # Structured output: JSON Schema dict or pydantic model class.
+        self.output_schema = output_schema
+        if output_schema is not None:
+            from .structured_output import normalize_output_schema
+
+            normalize_output_schema(output_schema)
         self.include_builtin_skills = bool(include_builtin_skills)
         self.skill_dirs = tuple(skill_dirs or ())
         self.rules_path = rules_path
@@ -1657,6 +1677,24 @@ class AgentHandle:
         except Exception:
             pass
 
+    def _apply_structured_output(self, result: AgentRunResult, schema_json: Any, schema_model: Any) -> None:
+        """Fill result.parsed / result.parse_error when an output_schema was requested."""
+        if schema_json is None:
+            return
+        from .structured_output import parse_structured_output
+
+        parsed, error = parse_structured_output(result.summary or result.text, schema_json, schema_model)
+        result.parsed = parsed
+        result.parse_error = error
+        if error:
+            message = f"structured_output_invalid: {error}"
+            if not any(isinstance(w, dict) and w.get("kind") == "structured_output_invalid" for w in result.warnings):
+                result.warnings.append({"kind": "structured_output_invalid", "message": message})
+            self.manager._warn_once(
+                f"structured_output_invalid:{self.name}",
+                f"Agent {self.name!r} returned an answer that did not match its output_schema: {error}",
+            )
+
     def _cache_payload(
         self,
         *,
@@ -2020,8 +2058,17 @@ class AgentHandle:
         model_request_timeout_seconds: float | None = None,
         run_timeout_seconds: float | None = None,
         reasoning_effort: str | None = None,
+        max_output_tokens: int | None = None,
+        output_schema: Any | None = None,
         **kwargs: Any,
     ) -> AgentRunResult:
+        """Run the agent once.
+
+        ``max_output_tokens`` overrides the agent's output-token limit for this
+        run (capped at the model's real limit). ``output_schema`` (a JSON Schema
+        dict or a pydantic model class) asks for a structured final answer that
+        is returned, parsed and validated, on ``result.parsed``.
+        """
         if "task" in kwargs and task_prompt is None:
             task_prompt = kwargs["task"]
         if "model_request_timeout" in kwargs and model_request_timeout_seconds is None:
@@ -2040,6 +2087,16 @@ class AgentHandle:
         resolved_reasoning_effort = reasoning_effort if reasoning_effort is not None else self.reasoning_effort
         if resolved_reasoning_effort not in {None, "none", "low", "medium", "high", "xhigh", "max"}:
             raise ValueError("Unsupported agent reasoning_effort.")
+        resolved_max_output_tokens = _validate_max_output_tokens(max_output_tokens)
+        if resolved_max_output_tokens is None:
+            resolved_max_output_tokens = self.max_output_tokens
+        resolved_output_schema = output_schema if output_schema is not None else self.output_schema
+        schema_json: dict[str, Any] | None = None
+        schema_model: Any | None = None
+        if resolved_output_schema is not None:
+            from .structured_output import normalize_output_schema
+
+            schema_json, schema_model = normalize_output_schema(resolved_output_schema)
         # Shared run state (self.vars, memory, artifacts, caches) is locked;
         # only the model call below runs unlocked so run_together stays parallel.
         with self.manager._shared_state_lock:
@@ -2047,6 +2104,11 @@ class AgentHandle:
             memory_state = self._memory_state(runtime_context)
             base_system_prompt = self._base_system_prompt(runtime_context)
             effective_system_prompt = self._compose_system_prompt(runtime_context)
+            if schema_json is not None:
+                from .structured_output import structured_output_instruction
+
+                # Only schema runs change the prompt, so existing replay-cache keys stay valid.
+                effective_system_prompt = f"{effective_system_prompt}\n\n{structured_output_instruction(schema_json)}"
             if self.skill_dirs:
                 # User skills are in play, so the fingerprint must span both
                 # sets or a cache hit or eval receipt would claim a run used
@@ -2077,6 +2139,9 @@ class AgentHandle:
                 builtin_skill_fingerprint=skill_fingerprint,
                 reasoning_effort=resolved_reasoning_effort,
             )
+            if resolved_max_output_tokens is not None:
+                # Added only when set so existing replay-cache keys are unchanged.
+                cache_payload["max_output_tokens"] = resolved_max_output_tokens
             cache_key = self.manager.replay_cache.compute_key(cache_payload)
             strategy = self.manager.strategy
             should_replay = bool(getattr(strategy, "is_backtesting", False))
@@ -2096,6 +2161,7 @@ class AgentHandle:
                         ),
                     }
                     self._replay_cached_side_effects(result)
+                    self._apply_structured_output(result, schema_json, schema_model)
                     self.manager._record_agent_observability(
                         handle=self,
                         result=result,
@@ -2130,6 +2196,7 @@ class AgentHandle:
                 ),
                 model_request_timeout_seconds=resolved_model_request_timeout_seconds,
                 run_timeout_seconds=resolved_run_timeout_seconds,
+                max_output_tokens=resolved_max_output_tokens,
                 reasoning_effort=resolved_reasoning_effort,
             )
             self.manager._reserve_model_call(agent_name=self.name, model=model_name)
@@ -2148,8 +2215,11 @@ class AgentHandle:
         #   - BACKTEST: crash loud on config/auth/billing errors so the
         #     user can fix and re-run. Silent +0% tearsheets are worse
         #     than a clear error message. Transient errors (provider 5xx,
-        #     rate limits) still skip silently since they're not bugs the
-        #     user can act on.
+        #     rate limits that survived the runtime's Retry-After retries)
+        #     skip the bar, but never silently: every skipped bar is counted
+        #     in strategy.parameters (agent_<name>_skipped_runs,
+        #     agent_skipped_runs_total) and in settings.json "agent_health"
+        #     (2026-10-07: 429s quietly dropped bars in a customer backtest).
         #
         # The _classify_agent_error helper (runtime.py) handles the taxonomy.
         started_at = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
@@ -2219,6 +2289,13 @@ class AgentHandle:
                     }
                 )
                 result.cache_key = None  # never cache a failure
+                self.manager._record_skipped_run(
+                    agent_name=self.name,
+                    model=model_name,
+                    category=category,
+                    exc=exc,
+                    is_backtesting=is_backtesting,
+                )
                 result.payload = {
                     "trace_path": None,
                     "runtime_error": True,
@@ -2261,6 +2338,7 @@ class AgentHandle:
             )
             result.cache_key = cache_key
             result.warnings = self._derive_warnings(result, runtime_context)
+            self._apply_structured_output(result, schema_json, schema_model)
             decision_status = _managed_ai_terminal_status(result, allow_trading=self.allow_trading)
             execution_outcome = _managed_ai_execution_outcome(
                 required_for_decision=self.allow_trading,
@@ -2360,6 +2438,10 @@ class AgentManager:
         self._observability_rows: dict[str, list[dict[str, Any]]] = {}
         self._observability_all_rows: list[dict[str, Any]] = []
         self._tool_result_cache: dict[str, Any] = {}
+        # Bars where an agent call failed and the strategy continued without a
+        # decision. Surfaced in parameters and settings.json "agent_health".
+        self._skipped_runs: list[dict[str, Any]] = []
+        self._skipped_run_counts: dict[str, int] = {}
 
     def _remote_mcp_tool_contracts(self, server: MCPServer) -> dict[str, dict[str, Any]]:
         cache_key = (server.name, str(server.url or server.command or ""))
@@ -2412,6 +2494,60 @@ class AgentManager:
                 params["agent_model_calls"] = self._model_call_count
                 if limit is not None:
                     params["agent_max_model_calls"] = limit
+
+    _SKIPPED_RUN_DETAIL_LIMIT = 200
+
+    def _record_skipped_run(
+        self,
+        *,
+        agent_name: str,
+        model: str,
+        category: str,
+        exc: BaseException,
+        is_backtesting: bool,
+    ) -> None:
+        """Count an agent call that failed and was skipped, and make it visible."""
+        sim_dt = _current_strategy_datetime(self.strategy)
+        record = {
+            "agent": agent_name,
+            "model": model,
+            "category": category,
+            "error_class": exc.__class__.__name__,
+            "error_message": str(exc)[:300],
+            "datetime": _iso_or_none(sim_dt) or datetime.now(timezone.utc).isoformat(),
+            "mode": "backtest" if is_backtesting else "live",
+        }
+        self._skipped_run_counts[agent_name] = self._skipped_run_counts.get(agent_name, 0) + 1
+        if len(self._skipped_runs) < self._SKIPPED_RUN_DETAIL_LIMIT:
+            self._skipped_runs.append(record)
+        total = sum(self._skipped_run_counts.values())
+        params = getattr(self.strategy, "parameters", None)
+        if isinstance(params, dict):
+            params[f"agent_{agent_name}_skipped_runs"] = self._skipped_run_counts[agent_name]
+            params["agent_skipped_runs_total"] = total
+        if is_backtesting:
+            message = (
+                f"BACKTEST INCOMPLETE: agent {agent_name!r} (model={model!r}) could not run at "
+                f"{record['datetime']} ({category}: {record['error_class']}); this bar has no AI decision. "
+                f"Skipped bars so far: {total}. See settings.json agent_health."
+            )
+            self._log_warning(message)
+
+    def health_snapshot(self) -> dict[str, Any]:
+        """Summary of skipped agent runs for backtest settings.json ("agent_health")."""
+        by_category: dict[str, int] = {}
+        for record in self._skipped_runs:
+            by_category[record["category"]] = by_category.get(record["category"], 0) + 1
+        total = sum(self._skipped_run_counts.values())
+        return {
+            "complete": total == 0,
+            "skipped_runs": total,
+            "skipped_runs_by_agent": dict(self._skipped_run_counts),
+            "by_category": by_category,
+            "skipped": list(self._skipped_runs),
+            "skipped_detail_truncated": total > len(self._skipped_runs),
+            "model_calls": self._model_call_count,
+        }
 
     def run_together(self, jobs: list[tuple[str, str, dict[str, Any] | None]]) -> dict[str, Any]:
         """Run named agents at the same time. Each job is (name, task_prompt, context).
@@ -2894,7 +3030,17 @@ class AgentManager:
         model_request_timeout_seconds: float | None = None,
         run_timeout_seconds: float | None = None,
         reasoning_effort: str | None = None,
+        max_output_tokens: int | None = None,
+        output_schema: Any | None = None,
     ) -> AgentHandle:
+        """Create a named agent.
+
+        ``max_output_tokens`` limits how many tokens each answer may use (the
+        default sends none, so the model decides; Anthropic gets its real limit; an
+        explicit value is capped at the model's real output limit).
+        ``output_schema`` (JSON Schema dict or pydantic model class) makes every
+        run return a parsed, validated answer on ``result.parsed``.
+        """
         if name in self._agents:
             raise ValueError(f"Agent with name {name!r} already exists.")
         resolved_system_prompt = system_prompt or prompt or "You are a LumiBot trading agent."
@@ -2923,6 +3069,8 @@ class AgentManager:
             model_request_timeout_seconds=model_request_timeout_seconds,
             run_timeout_seconds=run_timeout_seconds,
             reasoning_effort=reasoning_effort,
+            max_output_tokens=max_output_tokens,
+            output_schema=output_schema,
         )
         if cadence is not None:
             self.strategy.log_message(

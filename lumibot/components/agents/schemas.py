@@ -76,6 +76,12 @@ class AgentRunResult:
     ended_at: str | None = None
     latency_ms: int | None = None
     first_event_latency_ms: int | None = None
+    # Structured output (output_schema=...). `parsed` is the model's final answer
+    # as a dict (JSON Schema) or a model instance (pydantic class). It is None
+    # when no schema was requested or when the answer did not match; then
+    # `parse_error` says why. `payload` stays run bookkeeping, never the answer.
+    parsed: Any = None
+    parse_error: str | None = None
 
     @property
     def text(self) -> str:

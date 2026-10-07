@@ -616,3 +616,66 @@ def test_gemini_native_path_uses_plain_model_id_for_implicit_or_adk_context_cach
     # only for LiteLLM providers; Gemini implicit caching and ADK explicit
     # ContextCacheConfig are configured outside the LiteLLM wrapper.
     assert _resolve_model_for_adk("gemini-3.1-pro-preview", prompt_cache_key="stable-prefix-key") == "gemini-3.1-pro-preview"
+
+
+# Customer investigation (2026-10-06): every agent call sent max_output_tokens=65535
+# whatever the model, so a strategy on openai/gpt-4o (16,384 output tokens max)
+# asked for four times what the model can produce. Rob (2026-10-07): do not set an
+# output length by default; let the model answer as long as it needs. Send one only
+# when the provider requires it (Anthropic requires max_tokens), and then use that
+# model's real limit. A customer may still set one; it is capped at the real limit.
+def _output_token_request(model: str, max_output_tokens: int | None = None) -> RuntimeRequest:
+    return RuntimeRequest(
+        agent_name="researcher",
+        model=model,
+        system_prompt="System prompt",
+        task_prompt="Do work",
+        context=None,
+        runtime_context={"mode": "backtesting"},
+        memory_state=None,
+        memory_notes=[],
+        bound_tools=[],
+        max_output_tokens=max_output_tokens,
+    )
+
+
+@pytest.mark.parametrize("model", ["openai/gpt-4o", "openai/gpt-6-luna", "gemini-3.5-flash", "xai/grok-4"])
+def test_no_output_length_is_sent_by_default(model):
+    from google.genai import types as genai_types
+
+    config = GoogleADKRuntime._generate_content_config_kwargs_for_request(
+        _output_token_request(model), genai_types
+    )
+
+    assert "max_output_tokens" not in config
+
+
+def test_anthropic_default_uses_the_model_real_output_limit():
+    from google.genai import types as genai_types
+
+    config = GoogleADKRuntime._generate_content_config_kwargs_for_request(
+        _output_token_request("anthropic/claude-sonnet-4-5"), genai_types
+    )
+
+    # Anthropic requires max_tokens; send the model's real limit, not a small default.
+    assert config["max_output_tokens"] == 64_000
+
+
+def test_explicit_max_output_tokens_is_capped_at_the_model_output_limit():
+    from google.genai import types as genai_types
+
+    config = GoogleADKRuntime._generate_content_config_kwargs_for_request(
+        _output_token_request("openai/gpt-4o", max_output_tokens=100_000), genai_types
+    )
+
+    assert config["max_output_tokens"] == 16_384
+
+
+def test_explicit_max_output_tokens_below_the_limit_is_sent_unchanged():
+    from google.genai import types as genai_types
+
+    config = GoogleADKRuntime._generate_content_config_kwargs_for_request(
+        _output_token_request("gemini-3.5-flash", max_output_tokens=2_000), genai_types
+    )
+
+    assert config["max_output_tokens"] == 2_000

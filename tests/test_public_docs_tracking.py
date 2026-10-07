@@ -90,3 +90,93 @@ console.log(JSON.stringify({home: home.events, listeners: home.listeners.length,
     assert contact[0]["properties"]["route"] == "email"
     assert "link_href" not in contact[0]["properties"]
     assert data["local"] == []
+
+
+def test_docs_tracking_filters_browser_extension_exceptions():
+    node = shutil.which("node")
+    assert node, "Node.js is required for the documentation JavaScript contract test"
+    source = Path(__file__).resolve().parents[1] / "docsrc/_html/posthog.js"
+    program = r'''
+const assert = require('assert');
+const fs = require('fs');
+const vm = require('vm');
+let config;
+const window = {
+  location: new URL('https://lumibot.lumiwealth.com/index.html'),
+  posthog: {init: (_key, options) => { config = options; }}
+};
+const document = {
+  createElement: () => ({}), head: {appendChild: script => script.onload()},
+  addEventListener: () => {}
+};
+vm.runInContext(fs.readFileSync(process.argv[1], 'utf8'),
+  vm.createContext({window, document, URLSearchParams}));
+assert.strictEqual(typeof config.before_send, 'function');
+function exception(value, frames) {
+  return {event: '$exception', properties: {
+    $exception_list: [{value, stacktrace: {frames}}]
+  }};
+}
+const safariMessage = 'No Listener: tabs:outgoing.message.ready';
+const genericMessage = 'TypeError: Cannot read properties of undefined';
+const extensionFrame = {filename: 'chrome-extension://example/content.js', in_app: false};
+const firstPartyFrame = {filename: 'https://lumibot.lumiwealth.com/_static/foo.js'};
+const dropped = [
+  exception(safariMessage, [
+    {filename: 'webkit-masked-url://hidden/', in_app: false},
+    {filename: 'webkit-masked-url://hidden/', in_app: false}
+  ]),
+  exception(genericMessage, [extensionFrame, extensionFrame]),
+  exception(genericMessage, [
+    {filename: 'moz-extension://example/a.js'}, {filename: 'moz-extension://example/b.js'}
+  ]),
+  exception(genericMessage, [{filename: 'SAFARI-WEB-EXTENSION://example/a.js'}]),
+  exception(genericMessage, [{filename: 'safari-extension://example/a.js'}]),
+  exception(genericMessage, [{filename: '', abs_path: 'CHROME-EXTENSION://example/a.js'}]),
+  exception(genericMessage, [{url: 'moz-extension://example/a.js'}, {}]),
+  exception(genericMessage, [extensionFrame, {filename: ''}]),
+  exception('Extension context invalidated.', []),
+  exception(safariMessage, undefined),
+  exception(safariMessage, [{filename: ''}, {}]),
+  {event: '$exception', properties: {$exception_message: safariMessage}},
+  {event: '$exception', properties: {$exception_list: [
+    {value: genericMessage}, {value: safariMessage}
+  ]}}
+];
+for (const message of [
+  'chrome.runtime failed', 'browser.runtime failed', 'runtime.sendMessage failed',
+  'runtime.connect failed', 'tabs:outgoing failed', 'Receiving end does not exist',
+  'chrome-extension://example/a.js', 'moz-extension://example/a.js',
+  'safari-web-extension://example/a.js', 'webkit-masked-url://hidden/'
+]) {
+  dropped.push(exception(message, []));
+}
+const kept = [
+  exception(safariMessage, [extensionFrame, firstPartyFrame]),
+  exception('Extension context invalidated.', [firstPartyFrame]),
+  exception(safariMessage, [{filename: 'https://us-assets.i.posthog.com/static/array.js'}]),
+  exception(genericMessage, []),
+  exception(genericMessage, [{filename: ''}, {}]),
+  exception('The extension failed to load', []),
+  exception(safariMessage, [{filename: extensionFrame.filename, abs_path: firstPartyFrame.filename}]),
+  {event: '$exception', properties: {$exception_list: [
+    {value: safariMessage, stacktrace: {frames: [extensionFrame]}},
+    {stacktrace: {frames: [{url: firstPartyFrame.filename}]}}
+  ]}},
+  {event: '$pageview', properties: {$exception_message: safariMessage}},
+  {event: '$exception'},
+  {event: '$exception', properties: {$exception_list: [null, {}]}},
+  undefined,
+  null
+];
+// Unexpected payload access errors must preserve the original event.
+const malformed = {event: '$exception'};
+Object.defineProperty(malformed, 'properties', {get() { throw new Error('bad payload'); }});
+kept.push(malformed);
+for (const event of dropped) assert.strictEqual(config.before_send(event), null);
+for (const event of kept) assert.strictEqual(config.before_send(event), event);
+'''
+    subprocess.run(
+        [node, "-e", program, str(source)], text=True, capture_output=True,
+        check=True, timeout=15,
+    )

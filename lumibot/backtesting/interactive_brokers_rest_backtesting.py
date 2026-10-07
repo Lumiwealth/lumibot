@@ -281,6 +281,18 @@ class InteractiveBrokersRESTBacktesting(PandasData):
                 except Exception:
                     pass
 
+        # Intraday stock/index runs: when intraday bars for this asset are already loaded
+        # (the strategy or its fills requested them), mark on them. The daily series only
+        # knows one price per session, so during the session it disagreed with the
+        # intraday bars the strategy saw and filled on (a 30-minute strategy valued two
+        # holdings about $250 away from its own 10:00 bars this way).
+        # No history is fetched here: with nothing intraday loaded, the day series below
+        # is still used, so daily-cadence runs and day-only runs are unchanged.
+        if asset_type in {"stock", "index"} and not self._is_daily_cadence():
+            intraday_price = self._loaded_intraday_last_price(base_asset, quote_asset, effective_exchange, now)
+            if intraday_price is not None:
+                return intraday_price
+
         # If a native daily stock/index series is already loaded, prefer it over triggering a
         # separate minute fetch. This preserves daily-cadence semantics and avoids unnecessary
         # intraday index requests such as VIX/USD midpoint history during daily backtests.
@@ -354,6 +366,66 @@ class InteractiveBrokersRESTBacktesting(PandasData):
             except Exception:
                 pass
         return None
+
+    def _loaded_intraday_last_price(self, asset, quote_asset, exchange, now):
+        """Last price from an intraday series already in the data store, or None.
+
+        Uses the finest loaded intraday series ("minute", "5minute", "30minute", "hour", ...)
+        whose bar at ``now`` belongs to the same session date. Never fetches history.
+        """
+        exchange_key = self._normalize_exchange_key(exchange)
+        candidates: list[tuple[int, Data]] = []
+        for key, data in list(self._data_store.items()):
+            if not (isinstance(key, tuple) and len(key) == 4):
+                continue
+            key_asset, key_quote, dataset_key, key_exchange = key
+            if key_asset != asset or key_quote != quote_asset or key_exchange != exchange_key:
+                continue
+            try:
+                qty, unit = parse_timestep_qty_and_unit(str(dataset_key))
+            except Exception:
+                continue
+            if unit == "minute":
+                interval_minutes = int(qty)
+            elif unit == "hour":
+                interval_minutes = int(qty) * 60
+            else:
+                continue
+            candidates.append((interval_minutes, data))
+        if not candidates:
+            return None
+        # Prefer the most recent eligible bar; break ties with the finer interval.
+        best = None
+        for interval_minutes, data in candidates:
+            try:
+                iter_count = data.get_iter_count(now)
+                bar_dt = data.datalines["datetime"].dataline[iter_count]
+            except Exception:
+                continue
+            if bar_dt is None or bar_dt > now:
+                continue
+            try:
+                same_session = bar_dt.astimezone(now.tzinfo).date() == now.date()
+            except Exception:
+                same_session = False
+            if not same_session:
+                # A stale intraday slice (another day's window) must not price today.
+                continue
+            try:
+                price = data.get_last_price(now)
+            except Exception:
+                continue
+            if price is None:
+                continue
+            try:
+                if price != price or float(price) <= 0:  # NaN or non-positive
+                    continue
+            except (TypeError, ValueError):
+                continue
+            rank = (bar_dt, -interval_minutes)
+            if best is None or rank > best[0]:
+                best = (rank, price)
+        return None if best is None else best[1]
 
     def get_quote(self, asset, quote=None, exchange=None, **kwargs):
         """Return the best available quote snapshot for IBKR backtests.

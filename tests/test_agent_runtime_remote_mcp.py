@@ -6,6 +6,11 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import pandas as pd
 import pytest
 
+try:
+    from builtins import ExceptionGroup
+except ImportError:  # Python 3.10 uses the same exception-group contract through AnyIO.
+    from exceptiongroup import ExceptionGroup
+
 from lumibot.backtesting import PandasDataBacktesting
 from lumibot.components.agents import AgentRunResult, MCPServer
 from lumibot.entities import Asset, Data
@@ -217,3 +222,86 @@ def test_external_mcp_warm_replay_avoids_second_provider_call(monkeypatch, tmp_p
         parameters={"mcp_url": mcp_server},
     )
     assert len(_MCPHandler.calls) == cold_call_count
+
+
+@pytest.mark.parametrize("wrapper", ["group", "nested_group", "cause", "context"])
+def test_streamable_mcp_renews_nested_unauthorized_transport_errors(monkeypatch, wrapper):
+    import anyio
+    import httpx
+
+    from lumibot.components.agents import runtime
+
+    request = httpx.Request("POST", "https://example.test/mcp")
+    unauthorized = httpx.HTTPStatusError(
+        "expired capability", request=request, response=httpx.Response(401, request=request)
+    )
+    if wrapper == "group":
+        failure = ExceptionGroup("unhandled errors in a TaskGroup", [unauthorized])
+    elif wrapper == "nested_group":
+        failure = ExceptionGroup("transport shutdown", [ExceptionGroup("task failure", [unauthorized])])
+    else:
+        failure = RuntimeError("transport failed")
+        setattr(failure, "__cause__" if wrapper == "cause" else "__context__", unauthorized)
+
+    calls, renewals = [], []
+    monkeypatch.setenv("TEST_MCP_TOKEN", "expired-capability")
+    server = MCPServer(
+        name="remote", url="https://example.test/mcp", transport="streamable_http",
+        exposed_tools=["echo_market_state"], auth_token_env="TEST_MCP_TOKEN", auth_token_refresh_url="https://example.test/renew",
+    )
+
+    async def once(_server, _callback):
+        calls.append(runtime._mcp_headers(_server)["Authorization"])
+        if len(calls) == 1:
+            raise failure
+        return {"structuredContent": {"accepted": True}}
+
+    async def renew(_server, previous_token):
+        renewals.append(previous_token)
+        monkeypatch.setenv("TEST_MCP_TOKEN", "renewed-capability")
+        return True
+
+    monkeypatch.setattr(runtime, "_with_mcp_session_once", once)
+    monkeypatch.setattr(runtime, "_refresh_mcp_auth_token", renew)
+    result = anyio.run(runtime._with_mcp_session, server, None)
+    assert result == {"structuredContent": {"accepted": True}}
+    assert renewals == ["expired-capability"]
+    assert calls == ["Bearer expired-capability", "Bearer renewed-capability"]
+
+
+def test_streamable_mcp_does_not_renew_nested_forbidden_or_network_errors(monkeypatch):
+    import anyio
+    import httpx
+
+    from lumibot.components.agents import runtime
+
+    request = httpx.Request("POST", "https://example.test/mcp/401-records")
+    forbidden = httpx.HTTPStatusError(
+        "forbidden", request=request, response=httpx.Response(403, request=request)
+    )
+    failure = ExceptionGroup("transport failed", [forbidden, httpx.ConnectError("offline", request=request)])
+    server = MCPServer(name="remote", url="https://example.test/mcp", transport="streamable_http", exposed_tools=["echo_market_state"])
+    calls = []
+
+    async def once(_server, _callback):
+        calls.append("call")
+        raise failure
+
+    async def renew(_server, previous_token):
+        pytest.fail("a 403 or network error must not renew authentication")
+
+    monkeypatch.setattr(runtime, "_with_mcp_session_once", once)
+    monkeypatch.setattr(runtime, "_refresh_mcp_auth_token", renew)
+    with pytest.raises(ExceptionGroup) as caught:
+        anyio.run(runtime._with_mcp_session, server, None)
+    assert caught.value is failure
+    assert calls == ["call"]
+
+
+def test_mcp_auth_failure_ignores_401_inside_urls_and_ids():
+    from lumibot.components.agents.runtime import _is_mcp_auth_failure
+
+    assert not _is_mcp_auth_failure(RuntimeError("POST https://example.test/mcp/401-records failed: reset"))
+    assert not _is_mcp_auth_failure(RuntimeError("order 84017 rejected"))
+    assert _is_mcp_auth_failure(RuntimeError("Client error '401 Unauthorized' for url 'https://example.test/mcp'"))
+    assert _is_mcp_auth_failure(RuntimeError("HTTP 401: capability expired"))

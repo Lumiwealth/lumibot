@@ -39,6 +39,15 @@ Supported Data
 - **Spot crypto**: IBKR crypto bars (availability depends on region and IBKR product support).
 - **Stocks / Indexes (day bars)**: supported in routed backtests (for example mixed Theta+IBKR routing).
 
+Portfolio Valuation (Stocks/Indexes)
+------------------------------------
+
+Daily-cadence backtests (for example ``sleeptime = "1D"``) value stock and index positions on the daily
+series. Intraday backtests value them on the finest intraday bars already loaded for that asset (the bars the
+strategy requested and its fills use), so the portfolio value moves during the session and agrees with the
+prices the strategy saw. If no intraday bars are loaded for that day, the daily series is used and no extra
+history is downloaded just for valuation.
+
 Daily Stocks/Indexes: Warmup + Corporate Actions
 ------------------------------------------------
 

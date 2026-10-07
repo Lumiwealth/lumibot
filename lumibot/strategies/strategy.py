@@ -4501,6 +4501,23 @@ class Strategy(_Strategy):
             settings["runtime_timings"] = self.broker.data_source.get_runtime_timings()
         except Exception:
             pass
+        # AI agent health (2026-10-07): bars where an agent call failed (for example a
+        # provider rate limit that outlasted its retries) and the strategy continued
+        # without an AI decision. Only written when the strategy actually used agents;
+        # the lazy agents component is never loaded just to report on it.
+        try:
+            agents = self.__dict__.get("agents")
+            manager = None
+            if agents is not None:
+                try:
+                    manager = object.__getattribute__(agents, "_instance")
+                except AttributeError:
+                    manager = agents
+            health_snapshot = getattr(manager, "health_snapshot", None) if manager is not None else None
+            if callable(health_snapshot):
+                settings["agent_health"] = health_snapshot()
+        except Exception:
+            pass
         os.makedirs(os.path.dirname(settings_file), exist_ok=True)
         with open(settings_file, "w") as outfile:
             import jsonpickle

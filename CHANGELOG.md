@@ -1,5 +1,25 @@
 # Changelog
 
+## 4.6.5 - 2026-10-07
+
+Deploy marker: `d72af18aa4b168ec829035de5d04cf5be4b50e6b`
+
+### Added
+- AI agents: no output length is sent by default, so the model answers as long as it needs (before, every call sent 65,535 whatever the model, 4x the 16,384 `openai/gpt-4o` allows). Anthropic models, which require one, get the model's real limit. New optional `max_output_tokens` on `agents.create()` and `run()`, capped at the model's real limit.
+- AI agents (optional): structured output for strategies whose Python code must read the answer. Pass `output_schema=` (a JSON Schema dict or a pydantic model class) to `create()` or `run()` and read the validated answer from `result.parsed`. Code fences are removed before parsing; a mismatch leaves `result.parsed` as `None` with `result.parse_error` and a `structured_output_invalid` warning. `result.payload` stays run bookkeeping.
+- Backtest `settings.json` gains an `agent_health` block, and the tear sheet parameters gain `agent_<name>_skipped_runs` and `agent_skipped_runs_total`, counting bars where an agent call failed and the strategy continued without an AI decision.
+
+### Changed
+- Alpaca live reads and Alpaca backtests share one raw-bar cache (Parquet series under the existing backtest cache namespace and credentials), so a live bot and a backtest of the same bars no longer download them twice. Invalid cached data triggers a real provider read, and cache lookup, provider and write timings are reported separately.
+- Documentation: clearer backtest data source selection; the docs site's analytics drop errors that come only from browser extensions.
+
+### Fixed
+- Alpaca price integrity failures stay visible as explicit errors instead of being treated as missing data.
+- Minute-cache overlap is preserved across daylight-saving transitions (regression test).
+- AI agent rate limits (HTTP 429) wait for the provider's `Retry-After` and retry up to 6 times in every mode, including backtests and trading agents (each wait capped at 120 s). A run that already submitted (including multileg), changed or cancelled an order is never retried. HTTP-date `Retry-After` values are honored. BotSpot's managed AI gateway answer `provider_rate_limited` (the gateway already retried the provider's 429) is treated as a rate limit too. Before, a backtest gave a 429 two quick tries (trading agents one) and then silently skipped the bar.
+- IBKR intraday backtests value stock and index positions on the intraday bars already loaded for that asset (minute, multi-minute or hourly) instead of the daily series, which holds one price per session. A 30-minute-cadence backtest valued two holdings about $250 away from the strategy's own bars. Daily-cadence runs, and runs with no intraday bars loaded, still use the daily series; no extra history is fetched.
+- Remote MCP calls renew expired authentication when the transport wraps HTTP 401 in nested exception groups or chained exceptions. Permission denials and network failures still propagate without token renewal. A bare `401` inside a URL or id no longer counts as an authentication failure.
+
 ## 4.6.4 - 2026-10-02
 
 Deploy marker: `8bbc892f818c3760f79303a2be769f69906ecaa6`

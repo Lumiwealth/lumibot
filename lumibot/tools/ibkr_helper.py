@@ -44,6 +44,18 @@ IBKR_HISTORY_MAX_POINTS = 1000
 IBKR_DEFAULT_CRYPTO_VENUE = "ZEROHASH"
 IBKR_DEFAULT_HISTORY_SOURCE = "Trades"
 IBKR_DEFAULT_FUTURES_EXCHANGE_FALLBACK = "CME"
+# IBKR lists CME FX futures under the currency, not the Globex code strategies use.
+# Registry keys keep the strategy's symbol; only the IBKR lookup uses the IBKR root.
+IBKR_FUTURES_ROOT_ALIASES: Dict[str, str] = {
+    "6A": "AUD",
+    "6B": "GBP",
+    "6C": "CAD",
+    "6E": "EUR",
+    "6J": "JPY",
+    "6M": "MXN",
+    "6N": "NZD",
+    "6S": "CHF",
+}
 IBKR_DEFAULT_INDEX_HISTORY_SOURCE = "Midpoint"
 # Per-request period cap for daily stock/index history.
 #
@@ -384,11 +396,12 @@ def _resolve_futures_exchange(symbol: str) -> str:
 
     base_url = _downloader_base_url()
     url = f"{base_url}/ibkr/iserver/secdef/search"
-    payload = queue_request(url=url, querystring={"symbol": symbol_upper, "secType": "FUT"}, headers=None, timeout=None)
+    search_symbol = IBKR_FUTURES_ROOT_ALIASES.get(symbol_upper, symbol_upper)
+    payload = queue_request(url=url, querystring={"symbol": search_symbol, "secType": "FUT"}, headers=None, timeout=None)
     if payload is None:
-        raise RuntimeError(f"IBKR secdef/search returned no payload for FUT symbol={symbol_upper!r}")
+        raise RuntimeError(f"IBKR secdef/search returned no payload for FUT symbol={search_symbol!r}")
 
-    exchange = select_futures_exchange_from_secdef_search_payload(symbol_upper, payload)
+    exchange = select_futures_exchange_from_secdef_search_payload(search_symbol, payload)
     _FUTURES_EXCHANGE_CACHE[symbol_upper] = exchange
     _persist_futures_exchange_cache()
     return exchange
@@ -5253,13 +5266,17 @@ def _lookup_conid_future(
             desired_exchange = (os.environ.get("IBKR_FUTURES_EXCHANGE") or IBKR_DEFAULT_FUTURES_EXCHANGE_FALLBACK).strip().upper()
 
     symbol_upper = str(getattr(asset, "symbol", "") or "").strip().upper()
+    ibkr_root = IBKR_FUTURES_ROOT_ALIASES.get(symbol_upper, str(asset.symbol))
     expiration = getattr(asset, "expiration", None)
     target = expiration.strftime("%Y%m%d") if expiration is not None else ""
 
-    # Negative cache: stop hammering IBKR for invalid roots/expirations.
+    # Negative cache: stop hammering IBKR for invalid roots/expirations. Aliased roots use
+    # the IBKR root in their negative keys, so misses recorded under the Globex code (before
+    # the alias existed) do not block the corrected lookup.
     _load_negative_conid_cache()
-    neg_root_key = IbkrConidKey("future", symbol_upper, "", desired_exchange, "").to_key()
-    neg_target_key = IbkrConidKey("future", symbol_upper, "", desired_exchange, target).to_key() if target else ""
+    neg_symbol = ibkr_root.upper() if symbol_upper in IBKR_FUTURES_ROOT_ALIASES else symbol_upper
+    neg_root_key = IbkrConidKey("future", neg_symbol, "", desired_exchange, "").to_key()
+    neg_target_key = IbkrConidKey("future", neg_symbol, "", desired_exchange, target).to_key() if target else ""
     neg_root_hit = _NEGATIVE_CONID_CACHE.get(neg_root_key)
     if isinstance(neg_root_hit, dict):
         cached_msg = str(neg_root_hit.get("message") or "").strip() or (
@@ -5278,20 +5295,20 @@ def _lookup_conid_future(
             logger.error("IBKR negative conid cache hit: %s", cached_msg)
             raise IbkrFuturesConidLookupError(cached_msg)
 
-    query = {"symbols": asset.symbol, "exchange": desired_exchange, "secType": "FUT"}
+    query = {"symbols": ibkr_root, "exchange": desired_exchange, "secType": "FUT"}
     payload = queue_request(url=url, querystring=query, headers=None, timeout=None)
     # Response shape: { "<symbol>": [ {conid, expirationDate, ...}, ... ] }
     if not isinstance(payload, dict):
         # Some gateways require secType=CONTFUT to list contracts.
         payload = queue_request(
             url=url,
-            querystring={"symbols": asset.symbol, "exchange": desired_exchange, "secType": "CONTFUT"},
+            querystring={"symbols": ibkr_root, "exchange": desired_exchange, "secType": "CONTFUT"},
             headers=None,
             timeout=None,
         )
     if not isinstance(payload, dict):
         raise RuntimeError(f"Unexpected IBKR trsrv/futures response: {payload}")
-    contracts = payload.get(asset.symbol) or payload.get(asset.symbol.upper()) or []
+    contracts = payload.get(ibkr_root) or payload.get(ibkr_root.upper()) or []
     if not isinstance(contracts, list) or not contracts:
         msg = f"No futures contracts returned for {symbol_upper} on {desired_exchange}"
         _record_negative_conid(key=neg_root_key, reason="no_contracts", message=msg)

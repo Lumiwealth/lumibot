@@ -446,8 +446,10 @@ def test_ibkr_intraday_backtest_marks_stocks_on_loaded_hourly_bars(monkeypatch):
     hours = pd.date_range("2026-09-23 09:00", "2026-09-23 12:00", freq="h", tz="America/New_York")
     hourly = _real_series(asset, quote, [(ts, 301.1, 301.1) for ts in hours], "minute", native=(1, "hour"))
     data_source._data_store[(asset, quote, "hour", "AUTO")] = hourly
-    # An hourly strategy steps on the hour; between bars Data reports the hourly bar as
-    # stale and valuation falls back to the day series (the previous behavior).
+    # 10:00 ET is the start of an hourly bar, so the loaded hourly series is fresh and the
+    # position is marked on it (301.1). Before hourly keys were accepted, valuation used the
+    # day series (299.0) all session. Between hourly bars Data reports the bar as stale and
+    # valuation falls back to the day series.
     data_source._update_datetime(datetime(2026, 9, 23, 14, 0, tzinfo=timezone.utc))
     monkeypatch.setattr(
         data_source,
@@ -456,3 +458,38 @@ def test_ibkr_intraday_backtest_marks_stocks_on_loaded_hourly_bars(monkeypatch):
     )
 
     assert data_source.get_last_price(asset) == pytest.approx(301.1)
+
+
+def test_ibkr_intraday_valuation_prefers_the_most_recent_bar_over_a_finer_interval(monkeypatch):
+    import pandas as pd
+
+    data_source = InteractiveBrokersRESTBacktesting(
+        datetime_start=datetime(2026, 9, 21, 13, 30, tzinfo=timezone.utc),
+        datetime_end=datetime(2026, 9, 25, 20, 0, tzinfo=timezone.utc),
+        market="NYSE",
+        show_progress_bar=False,
+        log_backtest_progress_to_file=False,
+    )
+    data_source.load_data()
+    asset = Asset("AAA", asset_type=Asset.AssetType.STOCK)
+    quote = Asset("USD", asset_type=Asset.AssetType.FOREX)
+    # The minute series has a gap after 09:59 (bars resume at 10:30); the 30-minute
+    # series has a 10:00 bar. At 10:01 the newer 10:00 bar must win over 09:59.
+    minutes = pd.date_range("2026-09-23 09:30", "2026-09-23 09:59", freq="min", tz="America/New_York").append(
+        pd.date_range("2026-09-23 10:30", "2026-09-23 11:00", freq="min", tz="America/New_York")
+    )
+    data_source._data_store[(asset, quote, "minute", "AUTO")] = _real_series(
+        asset, quote, [(ts, 300.0, 300.0) for ts in minutes], "minute"
+    )
+    halves = pd.date_range("2026-09-23 09:30", "2026-09-23 11:00", freq="30min", tz="America/New_York")
+    data_source._data_store[(asset, quote, "30minute", "AUTO")] = _real_series(
+        asset, quote, [(ts, 302.0, 302.5) for ts in halves], "minute", native=(30, "minute")
+    )
+    data_source._update_datetime(datetime(2026, 9, 23, 14, 1, tzinfo=timezone.utc))
+    monkeypatch.setattr(
+        data_source,
+        "_update_pandas_data",
+        lambda *a, **k: (_ for _ in ()).throw(AssertionError("no fetch expected")),
+    )
+
+    assert data_source.get_last_price(asset) == pytest.approx(302.0)

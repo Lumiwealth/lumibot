@@ -394,8 +394,9 @@ class InteractiveBrokersRESTBacktesting(PandasData):
             candidates.append((interval_minutes, data))
         if not candidates:
             return None
-        candidates.sort(key=lambda item: item[0])
-        for _qty, data in candidates:
+        # Prefer the most recent eligible bar; break ties with the finer interval.
+        best = None
+        for interval_minutes, data in candidates:
             try:
                 iter_count = data.get_iter_count(now)
                 bar_dt = data.datalines["datetime"].dataline[iter_count]
@@ -421,8 +422,10 @@ class InteractiveBrokersRESTBacktesting(PandasData):
                     continue
             except (TypeError, ValueError):
                 continue
-            return price
-        return None
+            rank = (bar_dt, -interval_minutes)
+            if best is None or rank > best[0]:
+                best = (rank, price)
+        return None if best is None else best[1]
 
     def get_quote(self, asset, quote=None, exchange=None, **kwargs):
         """Return the best available quote snapshot for IBKR backtests.

@@ -2,7 +2,7 @@
 
 ## 4.6.5 - 2026-10-07
 
-Deploy marker: `949b38d1cb391b762617be6e615917ef39b1d64d`
+Deploy marker: `1f8aea334159e2fc57ff02278bf81f0b8ecdd303`
 
 ### Added
 - AI agents: `max_output_tokens` on `agents.create()` and `run()`. The default is 32,768 and every request is capped at the model's real output limit (for example 16,384 for `openai/gpt-4o`). Before, every call sent 65,535 whatever the model.

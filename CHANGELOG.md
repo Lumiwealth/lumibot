@@ -1,6 +1,6 @@
 # Changelog
 
-## 4.6.6 - Unreleased
+## 4.6.6 - 2026-10-07
 
 ### Fixed
 - IBKR intraday backtests now really value stocks on intraday prices. 4.6.5 only used intraday bars that covered the current time, but the strategy's own minute history ends one bar earlier and is loaded after the portfolio is valued, so the value stayed on the previous daily close all session (a 30-minute strategy showed a flat value while its bars moved). Valuation now uses the just-completed bar's close (or a still-forming bar's open), and tops up a stale minute series with the same small request the strategy makes. Day-only strategies never trigger a minute fetch. Verified on real IBKR data: value equals cash plus shares times the bar close at every 30-minute step.

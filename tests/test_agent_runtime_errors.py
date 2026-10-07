@@ -191,3 +191,17 @@ def test_retry_after_http_date_is_honored():
 
     assert 25 <= _retry_after_seconds(RateLimitError(retry_after=future)) <= 31
     assert _retry_after_seconds(RateLimitError(retry_after=past)) == 0
+
+
+def test_managed_gateway_rate_limit_counts_as_a_rate_limit():
+    # BotSpot's managed AI gateway retries the provider's 429 itself (up to 3 times,
+    # honoring Retry-After) and then answers 503 with code provider_rate_limited.
+    # LumiBot must treat that as the provider's rate limit, not a generic error.
+    from lumibot.components.agents.managed_gateway import ManagedAiGatewayError
+    from lumibot.components.agents.runtime import _is_rate_limit_error
+
+    exc = ManagedAiGatewayError(
+        "Managed AI provider rejected the request.", status_code=503, code="provider_rate_limited"
+    )
+    assert _classify_agent_error(exc) == "transient"
+    assert _is_rate_limit_error(exc)

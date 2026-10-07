@@ -3036,7 +3036,8 @@ class AgentManager:
         """Create a named agent.
 
         ``max_output_tokens`` limits how many tokens each answer may use (the
-        default is 32,768, always capped at the model's real output limit).
+        default sends none, so the model decides; Anthropic gets its real limit; an
+        explicit value is capped at the model's real output limit).
         ``output_schema`` (JSON Schema dict or pydantic model class) makes every
         run return a parsed, validated answer on ``result.parsed``.
         """

@@ -680,6 +680,10 @@ def _is_rate_limit_error(exc: BaseException) -> bool:
         return False
     if exc.__class__.__name__ in _RATE_LIMIT_CLASS_NAMES:
         return True
+    # BotSpot's managed AI gateway already retried the provider's 429 and answers
+    # 503 with this code once its own bounded retries are used up.
+    if str(getattr(exc, "code", "") or "").strip().lower() == "provider_rate_limited":
+        return True
     for attr in ("status_code", "http_status", "code", "status"):
         value = getattr(exc, attr, None)
         if value == 429 or str(value).strip() == "429":
@@ -873,11 +877,14 @@ def _model_context_limit_entry(model: Any) -> tuple[int, int] | None:
 
 
 # Output-token limits (2026-10-07, customer investigation). Every agent call used to
-# send max_output_tokens=65535 whatever the model, which is 4x what
-# openai/gpt-4o can produce (16,384) and reserves far more than a short trading
-# verdict needs. The default is now 32,768 and every request (default or
-# explicit) is capped at the model's real output limit when it is known.
-DEFAULT_AGENT_MAX_OUTPUT_TOKENS = 32_768
+# send max_output_tokens=65535 whatever the model, which is 4x what openai/gpt-4o
+# can produce (16,384). Rob's rule: send no output length by default and let the
+# model answer as long as it needs. Only providers that require one (Anthropic's
+# max_tokens) get it, set to that model's real limit. An explicit value from the
+# strategy is honored, capped at the model's real limit.
+# Used only when an Anthropic model is missing from LiteLLM's registry (all
+# current Claude models allow at least this many output tokens).
+_ANTHROPIC_UNKNOWN_MODEL_OUTPUT_TOKENS = 32_000
 _MODEL_OUTPUT_LIMIT_CACHE: dict[str, int | None] = {}
 
 
@@ -916,20 +923,31 @@ def _model_max_output_tokens(model: Any) -> int | None:
     return limit
 
 
-def _effective_max_output_tokens(model: Any, requested: Any) -> int:
-    """Requested (or default) output tokens, capped at the model's real limit."""
-    value = DEFAULT_AGENT_MAX_OUTPUT_TOKENS
+def _model_requires_max_output_tokens(model: Any) -> bool:
+    """Providers whose API rejects a request without an output limit (Anthropic)."""
+    if not isinstance(model, str):
+        return False
+    lower = model.strip().lower()
+    return lower.startswith("anthropic/") or "claude" in lower
+
+
+def _effective_max_output_tokens(model: Any, requested: Any) -> int | None:
+    """Output-token limit to send, or None to send none (the model decides).
+
+    Explicit values are capped at the model's real limit. With no explicit value
+    only providers that require a limit get one: the model's real limit.
+    """
+    limit = _model_max_output_tokens(model)
     if requested is not None:
         try:
             parsed = int(requested)
         except (TypeError, ValueError):
             parsed = 0
         if parsed > 0:
-            value = parsed
-    limit = _model_max_output_tokens(model)
-    if limit is not None and value > limit:
-        value = limit
-    return value
+            return min(parsed, limit) if limit is not None else parsed
+    if _model_requires_max_output_tokens(model):
+        return limit if limit is not None else _ANTHROPIC_UNKNOWN_MODEL_OUTPUT_TOKENS
+    return None
 
 
 def _model_context_limit_tokens(model: Any) -> int | None:
@@ -1467,8 +1485,12 @@ class GoogleADKRuntime:
                 before_request(request.model, llm_request)
             # An earlier request without usage remains reserved in the durable
             # ledger. A retry/continuation cannot spend that reservation again.
+            # The eval budget reserves the worst case: the sent limit, else the model's limit.
             ticket = budget.reserve(
-                request.model, _effective_max_output_tokens(request.model, request.max_output_tokens)
+                request.model,
+                _effective_max_output_tokens(request.model, request.max_output_tokens)
+                or _model_max_output_tokens(request.model)
+                or 65535,
             )
 
         def after(*args, llm_response=None, **kwargs):
@@ -1773,9 +1795,10 @@ class GoogleADKRuntime:
 
     @staticmethod
     def _generate_content_config_kwargs_for_request(request: RuntimeRequest, genai_types: Any) -> dict[str, Any]:
-        config_kwargs: dict[str, Any] = {
-            "max_output_tokens": _effective_max_output_tokens(request.model, request.max_output_tokens),
-        }
+        config_kwargs: dict[str, Any] = {}
+        max_output_tokens = _effective_max_output_tokens(request.model, request.max_output_tokens)
+        if max_output_tokens is not None:
+            config_kwargs["max_output_tokens"] = max_output_tokens
         request_timeout_seconds = GoogleADKRuntime._model_request_timeout_seconds_for_request(request)
         if _is_native_gemini_model(request.model) and request_timeout_seconds is not None:
             timeout_millis = max(int(request_timeout_seconds * 1000), 1)

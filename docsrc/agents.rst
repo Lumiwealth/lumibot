@@ -538,7 +538,7 @@ Or override them for one call:
 Output token limit
 ~~~~~~~~~~~~~~~~~~
 
-``max_output_tokens`` limits how many tokens one answer may use. The default is ``32768``. Every value, default or explicit, is capped at the model's real output limit (for example 16,384 for ``openai/gpt-4o``), so a request never asks for more than the model can produce. Set it on ``create()`` for every run, or on ``run()`` for one call:
+By default LumiBot sends no output length, so the model answers as long as it needs. Anthropic models require one, so they get the model's real output limit. ``max_output_tokens`` lets a strategy set a limit anyway; it is capped at the model's real output limit (for example 16,384 for ``openai/gpt-4o``). Set it on ``create()`` for every run, or on ``run()`` for one call:
 
 .. code-block:: python
 

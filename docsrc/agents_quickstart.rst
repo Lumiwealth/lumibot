@@ -292,7 +292,7 @@ Working with the Result
 Structured answers (``output_schema``)
 --------------------------------------
 
-When your code needs to act on the answer, ask for structured output instead of parsing free text. Pass a JSON Schema ``dict`` or a pydantic model class as ``output_schema`` on ``create()`` (every run) or ``run()`` (one call). LumiBot tells the model the exact format, removes markdown code fences, extracts the JSON, validates it, and puts it on ``result.parsed``:
+Optional. Most AI strategies do not need this: agents pass plain-language notes to each other and the trading agent places trades itself. Use it only when your Python code must act on the answer; then ask for structured output instead of parsing free text. Pass a JSON Schema ``dict`` or a pydantic model class as ``output_schema`` on ``create()`` (every run) or ``run()`` (one call). LumiBot tells the model the exact format, removes markdown code fences, extracts the JSON, validates it, and puts it on ``result.parsed``:
 
 .. code-block:: python
 

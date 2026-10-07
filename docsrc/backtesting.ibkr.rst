@@ -43,10 +43,11 @@ Portfolio Valuation (Stocks/Indexes)
 ------------------------------------
 
 Daily-cadence backtests (for example ``sleeptime = "1D"``) value stock and index positions on the daily
-series. Intraday backtests value them on the finest intraday bars already loaded for that asset (the bars the
-strategy requested and its fills use), so the portfolio value moves during the session and agrees with the
-prices the strategy saw. If no intraday bars are loaded for that day, the daily series is used and no extra
-history is downloaded just for valuation.
+series. Intraday backtests value them on the finest intraday bars loaded for that asset (the bars the
+strategy requested and its fills use): the bar that has just completed marks at its close, a bar still forming
+marks at its open. If the strategy's minute history ends before the current time, a small window of minute bars
+is fetched first, the same request the strategy itself makes. Strategies that only use daily bars never fetch
+minute history for valuation.
 
 Daily Stocks/Indexes: Warmup + Corporate Actions
 ------------------------------------------------

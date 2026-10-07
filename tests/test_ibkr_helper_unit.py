@@ -715,6 +715,51 @@ def test_stock_history_identity_failure_refreshes_conid_once(monkeypatch):
     assert health["conid_refreshes"] == 1
 
 
+def test_stale_stock_conid_contract_details_error_refreshes_conid(monkeypatch):
+    """Oct 7 2026: IBKR gave XOM a new conid (ExxonMobil Holdings, 895178251) and the old
+    one (13977) answers 'Contract details are not available'. The shared registry kept the
+    old conid, so every XOM backtest failed until the conid was refreshed."""
+    import lumibot.tools.ibkr_helper as ibkr_helper
+
+    asset = Asset(symbol="XOM", asset_type=Asset.AssetType.STOCK)
+    quote = Asset(symbol="USD", asset_type=Asset.AssetType.FOREX)
+    resolve_calls = []
+    history_conids = []
+
+    def fake_resolve_conid(*, asset, quote, exchange, force_refresh=False):
+        resolve_calls.append(force_refresh)
+        return 895178251 if force_refresh else 13977
+
+    def fake_history_request(**kwargs):
+        history_conids.append(kwargs["conid"])
+        if kwargs["conid"] == 13977:
+            raise RuntimeError(
+                'Request x permanently failed: IBKR rest server error 500: '
+                '{"error":"Contract details are not available"}'
+            )
+        return {"data": [{"t": int(datetime(2026, 9, 30, tzinfo=timezone.utc).timestamp() * 1000),
+                          "o": 110.0, "h": 111.0, "l": 109.0, "c": 110.5, "v": 1000}]}
+
+    monkeypatch.setattr(ibkr_helper, "_resolve_conid", fake_resolve_conid)
+    monkeypatch.setattr(ibkr_helper, "_ibkr_history_request", fake_history_request)
+
+    result = ibkr_helper._fetch_history_between_dates(
+        asset=asset,
+        quote=quote,
+        timestep="day",
+        start_dt=datetime(2026, 9, 30, tzinfo=timezone.utc),
+        end_dt=datetime(2026, 10, 1, tzinfo=timezone.utc),
+        exchange=None,
+        include_after_hours=False,
+        source="Trades",
+        source_was_explicit=False,
+    )
+
+    assert not result.empty
+    assert resolve_calls == [False, True]
+    assert history_conids == [13977, 895178251]
+
+
 def test_failed_conid_refresh_preserves_transient_history_failure(monkeypatch):
     import lumibot.tools.ibkr_helper as ibkr_helper
     from lumibot.tools.ibkr_history_health import ibkr_history_health_snapshot

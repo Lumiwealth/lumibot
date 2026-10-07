@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 import pytest
 
@@ -493,3 +493,135 @@ def test_ibkr_intraday_valuation_prefers_the_most_recent_bar_over_a_finer_interv
     )
 
     assert data_source.get_last_price(asset) == pytest.approx(302.0)
+
+
+def test_ibkr_intraday_valuation_uses_the_just_completed_bar_when_history_ends_before_now(monkeypatch):
+    """Real IBKR shape (local probe, 2026-10-07): a 30-minute strategy that asks for the
+    last 5 minute bars at 10:00 gets bars 09:55-09:59. The series ends one bar before
+    the clock, so a lookup at exactly 10:00 is "after the data's end" and valuation fell
+    back to the daily series, flat all session. The 09:59 bar has closed by 10:00, so
+    its close is the price the strategy saw and the price to mark the position at."""
+    import pandas as pd
+
+    data_source = InteractiveBrokersRESTBacktesting(
+        datetime_start=datetime(2026, 9, 21, 13, 30, tzinfo=timezone.utc),
+        datetime_end=datetime(2026, 9, 25, 20, 0, tzinfo=timezone.utc),
+        market="NYSE",
+        show_progress_bar=False,
+        log_backtest_progress_to_file=False,
+    )
+    data_source.load_data()
+    asset = Asset("AAA", asset_type=Asset.AssetType.STOCK)
+    quote = Asset("USD", asset_type=Asset.AssetType.FOREX)
+    # Previous sessions' daily bars are stamped at the 16:00 close (IBKR shape).
+    day_rows = [
+        (pd.Timestamp("2026-09-21 16:00", tz="America/New_York"), 305.0, 306.0),
+        (pd.Timestamp("2026-09-22 16:00", tz="America/New_York"), 306.0, 310.5),
+    ]
+    data_source._data_store[(asset, quote, "day", "AUTO")] = _real_series(asset, quote, day_rows, "day")
+    minutes = pd.date_range("2026-09-23 09:55", "2026-09-23 09:59", freq="min", tz="America/New_York")
+    rows = [(ts, 300.0, 300.0) for ts in minutes[:-1]] + [(minutes[-1], 301.0, 301.1)]
+    data_source._data_store[(asset, quote, "minute", "AUTO")] = _real_series(asset, quote, rows, "minute")
+    data_source._update_datetime(datetime(2026, 9, 23, 14, 0, tzinfo=timezone.utc))
+    monkeypatch.setattr(
+        data_source,
+        "_update_pandas_data",
+        lambda *a, **k: (_ for _ in ()).throw(AssertionError("no fetch expected")),
+    )
+
+    assert data_source.get_last_price(asset) == pytest.approx(301.1)
+
+
+def test_ibkr_intraday_valuation_ignores_an_intraday_bar_that_is_too_old(monkeypatch):
+    import pandas as pd
+
+    data_source = InteractiveBrokersRESTBacktesting(
+        datetime_start=datetime(2026, 9, 21, 13, 30, tzinfo=timezone.utc),
+        datetime_end=datetime(2026, 9, 25, 20, 0, tzinfo=timezone.utc),
+        market="NYSE",
+        show_progress_bar=False,
+        log_backtest_progress_to_file=False,
+    )
+    data_source.load_data()
+    asset = Asset("AAA", asset_type=Asset.AssetType.STOCK)
+    quote = Asset("USD", asset_type=Asset.AssetType.FOREX)
+    day_rows = [(pd.Timestamp("2026-09-22 16:00", tz="America/New_York"), 306.0, 310.5)]
+    data_source._data_store[(asset, quote, "day", "AUTO")] = _real_series(asset, quote, day_rows, "day")
+    minutes = pd.date_range("2026-09-23 09:30", "2026-09-23 09:34", freq="min", tz="America/New_York")
+    data_source._data_store[(asset, quote, "minute", "AUTO")] = _real_series(
+        asset, quote, [(ts, 300.0, 300.0) for ts in minutes], "minute"
+    )
+    # 25 minutes after the last minute bar: too stale to mark on; use the day series.
+    data_source._update_datetime(datetime(2026, 9, 23, 14, 0, tzinfo=timezone.utc))
+    monkeypatch.setattr(
+        data_source,
+        "_update_pandas_data",
+        lambda *a, **k: (_ for _ in ()).throw(AssertionError("no fetch expected")),
+    )
+
+    assert data_source.get_last_price(asset) == pytest.approx(310.5)
+
+
+def test_ibkr_intraday_valuation_tops_up_a_stale_minute_series_before_marking(monkeypatch):
+    """Portfolio value is computed at the start of the 10:30 iteration, before the strategy
+    loads that bar's minutes, so its minute series still ends at 09:59 (local IBKR probe,
+    2026-10-07). Valuation must fetch the same small window the strategy would and mark
+    on the 10:29 bar, not fall back to yesterday's daily close."""
+    import pandas as pd
+
+    data_source = InteractiveBrokersRESTBacktesting(
+        datetime_start=datetime(2026, 9, 21, 13, 30, tzinfo=timezone.utc),
+        datetime_end=datetime(2026, 9, 25, 20, 0, tzinfo=timezone.utc),
+        market="NYSE",
+        show_progress_bar=False,
+        log_backtest_progress_to_file=False,
+    )
+    data_source.load_data()
+    asset = Asset("AAA", asset_type=Asset.AssetType.STOCK)
+    quote = Asset("USD", asset_type=Asset.AssetType.FOREX)
+    day_rows = [(pd.Timestamp("2026-09-22 16:00", tz="America/New_York"), 306.0, 310.5)]
+    data_source._data_store[(asset, quote, "day", "AUTO")] = _real_series(asset, quote, day_rows, "day")
+    minutes = pd.date_range("2026-09-23 09:55", "2026-09-23 09:59", freq="min", tz="America/New_York")
+    data_source._data_store[(asset, quote, "minute", "AUTO")] = _real_series(
+        asset, quote, [(ts, 300.0, 300.0) for ts in minutes], "minute"
+    )
+    data_source._update_datetime(datetime(2026, 9, 23, 14, 30, tzinfo=timezone.utc))
+    calls = []
+
+    def _fetch(fetch_asset, fetch_quote, dataset_key=None, start_dt=None, end_dt=None, **kwargs):
+        calls.append((dataset_key, start_dt, end_dt))
+        fresh = pd.date_range("2026-09-23 10:15", "2026-09-23 10:29", freq="min", tz="America/New_York")
+        data_source._data_store[(asset, quote, "minute", "AUTO")] = _real_series(
+            asset, quote, [(ts, 299.0, 299.5) for ts in fresh], "minute"
+        )
+
+    monkeypatch.setattr(data_source, "_update_pandas_data", _fetch)
+
+    assert data_source.get_last_price(asset) == pytest.approx(299.5)
+    assert len(calls) == 1 and calls[0][0] == "minute"
+    assert calls[0][2] - calls[0][1] <= timedelta(minutes=15)
+
+
+def test_ibkr_day_only_strategy_never_fetches_minutes_for_valuation(monkeypatch):
+    import pandas as pd
+
+    data_source = InteractiveBrokersRESTBacktesting(
+        datetime_start=datetime(2026, 9, 21, 13, 30, tzinfo=timezone.utc),
+        datetime_end=datetime(2026, 9, 25, 20, 0, tzinfo=timezone.utc),
+        market="NYSE",
+        show_progress_bar=False,
+        log_backtest_progress_to_file=False,
+    )
+    data_source.load_data()
+    asset = Asset("AAA", asset_type=Asset.AssetType.STOCK)
+    quote = Asset("USD", asset_type=Asset.AssetType.FOREX)
+    day_rows = [(pd.Timestamp("2026-09-22 16:00", tz="America/New_York"), 306.0, 310.5)]
+    data_source._data_store[(asset, quote, "day", "AUTO")] = _real_series(asset, quote, day_rows, "day")
+    data_source._update_datetime(datetime(2026, 9, 23, 14, 30, tzinfo=timezone.utc))
+    monkeypatch.setattr(
+        data_source,
+        "_update_pandas_data",
+        lambda *a, **k: (_ for _ in ()).throw(AssertionError("no minute fetch for a day-only strategy")),
+    )
+
+    assert data_source.get_last_price(asset) == pytest.approx(310.5)

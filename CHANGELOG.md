@@ -1,5 +1,14 @@
 # Changelog
 
+## 4.6.6 - 2026-10-07
+
+Deploy marker: `3ad90cf2ef071f9e34e9fb0c140618545624c4b2`
+
+### Fixed
+- IBKR intraday backtests now really value stocks on intraday prices. 4.6.5 only used intraday bars that covered the current time, but the strategy's own minute history ends one bar earlier and is loaded after the portfolio is valued, so the value stayed on the previous daily close all session (a 30-minute strategy showed a flat value while its bars moved). Valuation now uses the just-completed bar's close (or a still-forming bar's open), and tops up a stale minute series with the same small request the strategy makes. Day-only strategies never trigger a minute fetch. Verified on real IBKR data: value equals cash plus shares times the bar close at every 30-minute step.
+- IBKR: CME FX futures (6A, 6B, 6C, 6E, 6J, 6M, 6N, 6S) look up contracts under IBKR's currency root (AUD, GBP, CAD, EUR, JPY, MXN, NZD, CHF). Before, every 6E or 6J backtest failed with "No futures contracts returned for 6E on CME". Strategies keep using the Globex code.
+- IBKR: a stock or index whose IBKR contract id was retired (company reorganization, ETF reverse split) now refreshes its id and retries once when IBKR answers "Contract details are not available". Before, the stale id stayed in the shared registry and every backtest on that symbol failed (XOM and SOXS, October 2026). The new id carries the full price history.
+
 ## 4.6.5 - 2026-10-07
 
 Deploy marker: `d72af18aa4b168ec829035de5d04cf5be4b50e6b`

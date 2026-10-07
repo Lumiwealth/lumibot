@@ -290,6 +290,10 @@ class InteractiveBrokersRESTBacktesting(PandasData):
         # is still used, so daily-cadence runs and day-only runs are unchanged.
         if asset_type in {"stock", "index"} and not self._is_daily_cadence():
             intraday_price = self._loaded_intraday_last_price(base_asset, quote_asset, effective_exchange, now)
+            if intraday_price is None and self._refresh_stale_minute_series_for_valuation(
+                base_asset, quote_asset, effective_exchange, now
+            ):
+                intraday_price = self._loaded_intraday_last_price(base_asset, quote_asset, effective_exchange, now)
             if intraday_price is not None:
                 return intraday_price
 
@@ -367,6 +371,45 @@ class InteractiveBrokersRESTBacktesting(PandasData):
                 pass
         return None
 
+    def _refresh_stale_minute_series_for_valuation(self, asset, quote_asset, exchange, now) -> bool:
+        """Top up a loaded minute series that ends before ``now``; True when a fetch ran.
+
+        Portfolio value is computed at the start of an iteration, before the strategy
+        loads that bar's minute history, so the loaded series still ends at the previous
+        iteration (local IBKR probe, 2026-10-07: a 30-minute strategy's value stayed on the
+        prior close all session). Only assets whose minute series the strategy already
+        loads are refreshed, with the same small bounded request the strategy itself makes;
+        day-only strategies never trigger a minute fetch.
+        """
+        canonical_key, _legacy = self._build_dataset_keys(asset, quote_asset, "minute", exchange)
+        if canonical_key not in self._data_store:
+            return False
+        attempts = getattr(self, "_valuation_refresh_attempts", None)
+        if attempts is None:
+            attempts = set()
+            self._valuation_refresh_attempts = attempts
+        attempt_key = (canonical_key, now)
+        if attempt_key in attempts:
+            return False
+        attempts.add(attempt_key)
+        if len(attempts) > 10_000:
+            attempts.clear()
+            attempts.add(attempt_key)
+        try:
+            self._update_pandas_data(
+                asset,
+                quote_asset,
+                "minute",
+                start_dt=now - timedelta(minutes=15),
+                end_dt=now,
+                exchange=exchange,
+                include_after_hours=True,
+            )
+        except Exception as exc:  # valuation falls back to the day series
+            logger.debug("IBKR valuation minute refresh failed for %s: %s", getattr(asset, "symbol", asset), exc)
+            return False
+        return True
+
     def _loaded_intraday_last_price(self, asset, quote_asset, exchange, now):
         """Last price from an intraday series already in the data store, or None.
 
@@ -397,35 +440,65 @@ class InteractiveBrokersRESTBacktesting(PandasData):
         # Prefer the most recent eligible bar; break ties with the finer interval.
         best = None
         for interval_minutes, data in candidates:
-            try:
-                iter_count = data.get_iter_count(now)
-                bar_dt = data.datalines["datetime"].dataline[iter_count]
-            except Exception:
+            mark = self._intraday_mark_from_series(data, now, interval_minutes)
+            if mark is None:
                 continue
-            if bar_dt is None or bar_dt > now:
-                continue
-            try:
-                same_session = bar_dt.astimezone(now.tzinfo).date() == now.date()
-            except Exception:
-                same_session = False
-            if not same_session:
-                # A stale intraday slice (another day's window) must not price today.
-                continue
-            try:
-                price = data.get_last_price(now)
-            except Exception:
-                continue
-            if price is None:
-                continue
-            try:
-                if price != price or float(price) <= 0:  # NaN or non-positive
-                    continue
-            except (TypeError, ValueError):
-                continue
+            bar_dt, price = mark
             rank = (bar_dt, -interval_minutes)
             if best is None or rank > best[0]:
                 best = (rank, price)
         return None if best is None else best[1]
+
+    @staticmethod
+    def _intraday_mark_from_series(data, now, interval_minutes):
+        """(bar_start, price) for the bar at ``now`` in a loaded intraday series, or None.
+
+        Reads the frame directly instead of ``Data.get_iter_count``: a strategy that asks
+        for the last N minute bars at 10:00 gets bars ending 09:59, so a lookup at 10:00 is
+        "after the data's end" (local IBKR probe, 2026-10-07). Rules, with no look-ahead:
+        - a bar that is still forming at ``now`` marks at its open;
+        - the bar that has just completed (it ended at most one interval before ``now``)
+          marks at its close, the price the strategy saw;
+        - anything older, from another session date, or non-positive is not used.
+        """
+        df = getattr(data, "df", None)
+        if df is None or getattr(df, "empty", True) or "close" not in df.columns:
+            return None
+        try:
+            index = df.index
+            stamp = pd.Timestamp(now)
+            if index.tz is not None and stamp.tzinfo is None:
+                stamp = stamp.tz_localize(index.tz)
+            elif index.tz is not None:
+                stamp = stamp.tz_convert(index.tz)
+            position = int(index.searchsorted(stamp, side="right")) - 1
+        except Exception:
+            return None
+        if position < 0:
+            return None
+        bar_start = index[position]
+        interval = timedelta(minutes=max(int(interval_minutes), 1))
+        bar_end = bar_start + interval
+        try:
+            if bar_start.date() != stamp.date():
+                # Another session's slice must not price today.
+                return None
+        except Exception:
+            return None
+        row = df.iloc[position]
+        if stamp < bar_end:
+            price = row.get("open") if "open" in df.columns else None
+        elif stamp - bar_end <= interval:
+            price = row.get("close")
+        else:
+            return None
+        try:
+            price = float(price)
+        except (TypeError, ValueError):
+            return None
+        if price != price or price <= 0:  # NaN or non-positive
+            return None
+        return bar_start, price
 
     def get_quote(self, asset, quote=None, exchange=None, **kwargs):
         """Return the best available quote snapshot for IBKR backtests.

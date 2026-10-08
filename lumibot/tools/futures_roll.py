@@ -31,6 +31,7 @@ class RollRule:
     offset_business_days: int
     anchor: str
     contract_months: Optional[Tuple[int, ...]] = None
+    roll_anchor: Optional[str] = None
 
 
 _DEFAULT_CONTRACT_MONTHS: Tuple[int, ...] = (3, 6, 9, 12)
@@ -48,11 +49,13 @@ ROLL_RULES.update(
             offset_business_days=7,
             anchor="third_last_business_day",
             contract_months=(2, 4, 6, 8, 10, 12),
+            roll_anchor="metal_first_notice",
         ),
         "MGC": RollRule(
             offset_business_days=7,
             anchor="third_last_business_day",
             contract_months=(2, 4, 6, 8, 10, 12),
+            roll_anchor="metal_first_notice",
         ),
         "SI": RollRule(
             offset_business_days=7,
@@ -293,17 +296,36 @@ def _ng_last_trade_date(year: int, month: int) -> datetime:
 
 
 def _calculate_roll_trigger(year: int, month: int, rule: RollRule) -> datetime:
-    if rule.anchor == "third_friday":
+    roll_anchor = rule.roll_anchor or rule.anchor
+    if roll_anchor == "metal_first_notice":
+        # COMEX 706.C: first notice is the last business day of the prior
+        # month, well before the last trade in the delivery month. Keeping
+        # the latter as the roll anchor selects thin delivery-month gold.
+        # Seven business days is our synthetic roll convention, not a CME
+        # mandated roll date. Preserve actual expiry in rule.anchor.
+        import pandas_market_calendars as mcal
+
+        delivery_start = date(year, month, 1)
+        valid = mcal.get_calendar("CME_TradeDate").valid_days(
+            start_date=delivery_start - timedelta(days=60),
+            end_date=delivery_start - timedelta(days=1),
+        )
+        offset = max(0, rule.offset_business_days) + 1
+        if valid is None or len(valid) < offset:
+            raise ValueError("CME notice calendar did not provide enough prior business days")
+        roll = _to_timezone(datetime.combine(valid[-offset].date(), datetime.min.time()))
+        return roll + timedelta(minutes=5)
+    if roll_anchor == "third_friday":
         anchor = _third_friday(year, month)
-    elif rule.anchor == "last_friday":
+    elif roll_anchor == "last_friday":
         anchor = _last_friday_trading_day(year, month)
-    elif rule.anchor == "third_last_business_day":
+    elif roll_anchor == "third_last_business_day":
         anchor = _third_last_business_day(year, month)
-    elif rule.anchor == "cl_last_trade":
+    elif roll_anchor == "cl_last_trade":
         anchor = _cl_last_trade_date(year, month)
-    elif rule.anchor == "mcl_last_trade":
+    elif roll_anchor == "mcl_last_trade":
         anchor = _mcl_last_trade_date(year, month)
-    elif rule.anchor == "ng_last_trade":
+    elif roll_anchor == "ng_last_trade":
         anchor = _ng_last_trade_date(year, month)
     else:
         anchor = _to_timezone(datetime(year, month, 15))

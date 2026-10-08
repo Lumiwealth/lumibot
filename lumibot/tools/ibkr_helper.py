@@ -3240,6 +3240,11 @@ def _repair_us_stock_index_daily_gaps(
         if remaining <= 0:
             break
         repair_start, repair_end = padded_repair_window(group, padding_days=1)
+        # A current completed-session gap can pad into tomorrow. CPAPI's
+        # future-dated anchor may omit today's available close (live SPY,
+        # Oct 8), so cap the repair at actual provider time.
+        provider_now = _ibkr_history_now_utc()
+        repair_end = min(repair_end, provider_now)
         period_days = max(5, min(30, (repair_end - repair_start).days + 1))
         try:
             repair_attempts += 1
@@ -3262,6 +3267,9 @@ def _repair_us_stock_index_daily_gaps(
             attempted.extend(group)
             if fetched is not None and not fetched.empty:
                 fetched = _align_stock_index_daily_to_session_close(fetched)
+                # Do not persist a still-forming daily bar as a completed
+                # cache hit when CPAPI also returns the current open session.
+                fetched = fetched.loc[fetched.index <= provider_now]
                 working = _merge_frames(working, fetched)
         except Exception as exc:
             attempted.extend(group)

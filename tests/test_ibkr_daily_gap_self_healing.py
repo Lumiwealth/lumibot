@@ -140,6 +140,54 @@ def test_daily_gap_repair_replaces_legacy_marker_with_actual_completed_bar(monke
     pd.testing.assert_frame_equal(result.iloc[:4], frame.iloc[:4])
 
 
+def test_after_close_daily_repair_does_not_request_future_provider_anchor(monkeypatch, tmp_path):
+    # Actual SPY incident: the padded Oct 10 anchor omitted Oct 8, while the
+    # same provider returned Oct 8 at a current-time anchor after the close.
+    now = datetime(2026, 10, 8, 21, 50, tzinfo=timezone.utc)
+    frame = _daily_frame(["2026-10-02", "2026-10-05", "2026-10-06", "2026-10-07"])
+    calls = []
+    ibkr_helper._RUNTIME_DAILY_GAP_CHECKED_WINDOWS.clear()
+    monkeypatch.setattr(ibkr_helper, "_ibkr_history_now_utc", lambda: now)
+    monkeypatch.setattr(ibkr_helper, "_resolve_conid", lambda **kwargs: 756733)
+    monkeypatch.setattr(ibkr_helper, "_write_cache_frame", lambda *args: None)
+
+    def history(**kwargs):
+        calls.append(kwargs["start_time"])
+        days = ["2026-10-07"]
+        if now - timedelta(hours=2) <= kwargs["start_time"] <= now:
+            days.append("2026-10-08")
+        return {"data": [{"t": int(pd.Timestamp(day + " 09:30", tz="America/New_York").timestamp() * 1000),
+                          "o": 101.0, "h": 103.0, "l": 100.0, "c": 102.0, "v": 1000.0}
+                         for day in days]}
+
+    monkeypatch.setattr(ibkr_helper, "_ibkr_history_request", history)
+    result = ibkr_helper._repair_us_stock_index_daily_gaps(
+        frame, cache_file=tmp_path / "SPY.parquet", asset=Asset("SPY"),
+        quote=Asset("USD", asset_type="forex"), timestep="day",
+        start_dt=datetime(2026, 10, 1, 21, 32, tzinfo=timezone.utc), end_dt=now,
+        exchange=None, include_after_hours=False, source="Trades", source_was_explicit=True,
+    )
+    assert result.loc[pd.Timestamp("2026-10-08 16:00", tz="America/New_York"), "close"] == 102.0
+    assert calls and all(anchor <= now for anchor in calls)
+
+
+def test_daily_repair_does_not_cache_forming_today_bar(monkeypatch, tmp_path):
+    now = datetime(2026, 10, 8, 19, 50, tzinfo=timezone.utc)  # 15:50 ET
+    frame = _daily_frame(["2026-10-02", "2026-10-05", "2026-10-06"])
+    ibkr_helper._RUNTIME_DAILY_GAP_CHECKED_WINDOWS.clear()
+    monkeypatch.setattr(ibkr_helper, "_ibkr_history_now_utc", lambda: now)
+    monkeypatch.setattr(ibkr_helper, "_fetch_history_between_dates", lambda **kwargs: _daily_frame(["2026-10-07", "2026-10-08"]))
+    monkeypatch.setattr(ibkr_helper, "_write_cache_frame", lambda *args: None)
+    result = ibkr_helper._repair_us_stock_index_daily_gaps(
+        frame, cache_file=tmp_path / "SPY.parquet", asset=Asset("SPY"),
+        quote=Asset("USD", asset_type="forex"), timestep="day",
+        start_dt=datetime(2026, 10, 1, 21, 32, tzinfo=timezone.utc), end_dt=now,
+        exchange=None, include_after_hours=False, source="Trades", source_was_explicit=True,
+    )
+    assert result.index.max() <= now
+    assert len(result) == 4
+
+
 @pytest.mark.parametrize("reason,covered", [
     ("successful_history_response_confirmed_no_newer_bars", False),
     ("explicit_no_data", True),

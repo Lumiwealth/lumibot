@@ -127,14 +127,21 @@ def test_ibkr_conids_merge_before_upload_unions_remote_keys(tmp_path):
     class FakeS3:
         def __init__(self):
             self._objects = {remote_key: json.dumps(remote_initial).encode("utf-8")}
+            self._version = 1
 
         def get_object(self, Bucket, Key):
             assert Bucket == bucket
-            return {"Body": io.BytesIO(self._objects.get(Key, b"{}"))}
+            return {"Body": io.BytesIO(self._objects.get(Key, b"{}")), "ETag": str(self._version)}
 
         def upload_file(self, filename, Bucket, Key):
             assert Bucket == bucket
             self._objects[Key] = Path(filename).read_bytes()
+
+        def put_object(self, *, Bucket, Key, Body, IfMatch, ContentType):
+            assert Bucket == bucket
+            assert IfMatch == str(self._version)
+            self._objects[Key] = Body
+            self._version += 1
 
     fake_s3 = FakeS3()
 

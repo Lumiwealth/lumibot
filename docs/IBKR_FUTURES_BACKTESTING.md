@@ -5,7 +5,7 @@ This document describes LumiBot’s Interactive Brokers **Client Portal (REST)**
 ## Scope (Phase 3)
 
 - **Supported:** US futures across major venues (CME/CBOT/COMEX/NYMEX) via IBKR REST historical bars (1-minute+).
-- **Not in scope (current):** tick/second history guarantees, and “very old expired contract” recovery without a one-time backfill.
+- **Not in scope (current):** tick/second history guarantees and historical data outside IBKR's retention limits.
 - **Backtesting + live:** exchange routing and conid resolution logic is shared between:
   - backtesting (`lumibot/tools/ibkr_helper.py`)
   - live IBKR REST (`lumibot/data_sources/interactive_brokers_rest_data.py`)
@@ -95,12 +95,28 @@ IBKR’s futures root symbols can differ from spot tickers, especially for CME c
 
 ### Expired contracts (critical)
 
-IBKR Client Portal cannot reliably discover conids for **expired** futures. For backtests that reference expired
-contracts (or for `cont_future` stitching over expired months), LumiBot relies on a pre-populated conid registry:
+IBKR Client Portal cannot reliably discover conids for **expired** futures. LumiBot first uses the mirrored
+registry. If REST does not list an expired month, it requests that root, venue, USD currency and month through
+the downloader's read-only `GET /ibkr/tws/secdef/contracts` endpoint, using its existing TWS session.
+The response must identify one unambiguous FUT contract with the requested identity. Wrong or ambiguous
+identities fail visibly; discovery does not imply the provider still retains the requested bars.
 
 - `ibkr/conids.json` (S3-mirrored)
 
 See: `docs/investigations/2026-01-18_IBKR_EXPIRED_FUTURES_CONID_BACKFILL.md`.
+
+Registry publication uses an ETag-conditioned merge. Only identities resolved by the current lookup may
+replace remote entries; namespace seeds fill absent entries. Unrelated stale local values cannot replace
+corrected shared IDs. Conditional conflicts reload and merge again.
+
+A missing roll contract records `partial` in `ibkr_history_health` even when later contracts return bars.
+A nonempty tail is not proof of a complete continuous lookback. Friday 17:00 through Sunday 18:00 New York
+time is treated as closed, including daylight-saving transitions. Daily holidays still rely on provider/calendar
+evidence. Strategy warmup must count completed bars at its simulated decision time.
+
+Queue execution has a total deadline covering the local concurrency slot, submission, polling and retry
+backoff. Normal calls allow three configured timeout windows; a finite attempt cap sets that many windows.
+Resubmitting a request does not reset that deadline. Valid partial bars remain cached for subsequent retries.
 
 Operational note:
 - If `ibkr/conids.json` in the active S3 cache namespace is only a few hundred bytes (or missing keys like

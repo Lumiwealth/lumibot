@@ -433,16 +433,23 @@ def _us_futures_closed_interval(start_local: datetime, end_local: datetime) -> b
         dow = int(ts.weekday())  # Mon=0 .. Sun=6
         t = ts.time()
 
+        def wall_open(days: int) -> pd.Timestamp:
+            # Calendar days and local wall time, not elapsed hours across DST.
+            day = ts.date() + timedelta(days=days)
+            return pd.Timestamp(datetime.combine(day, datetime.min.replace(hour=18).time()),
+                                tz="America/New_York")
+
+        # Friday's maintenance window starts the weekend closure.
+        if dow == 4 and t >= datetime.min.replace(hour=17).time():
+            return wall_open(2)
+
         # Saturday: closed all day; next open is Sunday 18:00 ET.
         if dow == 5:
-            days = 1
-            candidate = (ts + pd.Timedelta(days=days)).normalize() + pd.Timedelta(hours=18)
-            return candidate.tz_localize("America/New_York") if candidate.tzinfo is None else candidate
+            return wall_open(1)
 
         # Sunday: closed until 18:00 ET.
         if dow == 6:
-            open_ts = ts.normalize() + pd.Timedelta(hours=18)
-            open_ts = open_ts.tz_localize("America/New_York") if open_ts.tzinfo is None else open_ts
+            open_ts = wall_open(0)
             return ts if ts >= open_ts else open_ts
 
         # Weekdays: closed daily 17:00–18:00 ET.
@@ -908,7 +915,8 @@ def get_price_data(
     # Rationale: backtests must match live semantics and must not depend on `date.today()` for
     # selecting a contract month.
     if is_roll_wrapper:
-        segments = _resolve_cont_future_segments(asset=asset, start_dt=start_utc, end_dt=end_utc, exchange=effective_exchange)
+        segments = _resolve_cont_future_segments(asset=asset, start_dt=start_utc, end_dt=end_utc,
+                                                exchange=effective_exchange, timestep=timestep)
         if not segments:
             logger.error(
                 "IBKR futures roll wrapper could not resolve any roll segments for %s (type=%s exchange=%s). Returning empty bars.",
@@ -1920,7 +1928,8 @@ def _repair_isolated_split_spikes_daily(df: pd.DataFrame) -> pd.DataFrame:
     return frame
 
 
-def _resolve_cont_future_segments(*, asset: Asset, start_dt: datetime, end_dt: datetime, exchange: Optional[str]) -> list[tuple[Asset, datetime, datetime]]:
+def _resolve_cont_future_segments(*, asset: Asset, start_dt: datetime, end_dt: datetime,
+                                  exchange: Optional[str], timestep: str = "day") -> list[tuple[Asset, datetime, datetime]]:
     """Resolve a `cont_future` asset into a list of explicit futures contract segments.
 
     This follows LumiBot's roll schedule (`lumibot.tools.futures_roll`) so that backtests
@@ -1963,6 +1972,13 @@ def _resolve_cont_future_segments(*, asset: Asset, start_dt: datetime, end_dt: d
                 expiration,
                 contract_symbol,
                 exc,
+            )
+            record_history_health(
+                symbol=asset.symbol, asset_type=_normalize_asset_type(asset.asset_type), timestep=timestep,
+                requested_start=max(start_utc, _to_utc(seg_start)),
+                requested_end=min(end_utc, _to_utc(seg_end)), outcome=HistoryOutcome.PARTIAL,
+                reason="unresolved_roll_contract", series_id=f"{exchange or 'AUTO'}:{contract_symbol}",
+                transient_failures=1,
             )
             continue
         resolved_expiration = _expiration_date_only(getattr(contract_asset, "_ibkr_resolved_expiration", None))
@@ -4752,7 +4768,12 @@ def _merge_upload_conids_json(
     required_keys: set[str],
     max_attempts: int = 3,
 ) -> None:
-    """Upload `ibkr/conids.json` with a merge-before-upload retry to reduce lost updates."""
+    """Publish authoritative identities without overwriting unrelated stale local keys.
+
+    Only required_keys were resolved by this lookup. An empty set denotes a
+    namespace seed, which may fill absent keys but cannot replace existing ones.
+    Conditional writes protect the read/merge/write from concurrent publishers.
+    """
     global _DISABLE_CONIDS_REMOTE_UPLOAD, _LOGGED_CONIDS_REMOTE_UPLOAD_DISABLE
 
     if _DISABLE_CONIDS_REMOTE_UPLOAD:
@@ -4782,49 +4803,49 @@ def _merge_upload_conids_json(
         cache_manager.on_local_update(local_path, payload={"provider": "ibkr", "type": "conids"})
         return
     s3 = client_fn()
-    if not hasattr(s3, "upload_file") or not hasattr(s3, "get_object"):
-        cache_manager.on_local_update(local_path, payload={"provider": "ibkr", "type": "conids"})
+    if not hasattr(s3, "put_object") or not hasattr(s3, "get_object"):
+        logger.warning("IBKR registry publication requires conditional object writes; keeping local identities.")
         return
 
-    # If this update didn't add anything new, a plain upload is fine.
-    if not required_keys:
-        try:
-            s3.upload_file(str(local_path), bucket, remote_key)
-        except Exception as exc:
-            if _is_access_denied_error(exc):
-                _DISABLE_CONIDS_REMOTE_UPLOAD = True
-                if not _LOGGED_CONIDS_REMOTE_UPLOAD_DISABLE:
-                    logger.warning("Disabling remote conids.json uploads due to AccessDenied: %s", exc)
-                    _LOGGED_CONIDS_REMOTE_UPLOAD_DISABLE = True
-                return
-            raise
-        _persist_s3_marker(local_path=local_path, remote_key=remote_key)
-        return
+    updates = {key: mapping[key] for key in required_keys if key in mapping}
+    seed = dict(mapping) if not required_keys else {}
 
     last_exc: Optional[Exception] = None
     for attempt in range(max_attempts):
         try:
-            # Pull the freshest remote, union, then upload.
+            # Read the contents and ETag together. Never upload an entire stale map.
+            conditions = {"IfNoneMatch": "*"}
             try:
-                remote = _download_remote_conids_json(cache_manager, bucket=bucket, key=remote_key)
+                response = s3.get_object(Bucket=bucket, Key=remote_key)
+                body = response["Body"]
+                try:
+                    remote = json.loads(body.read())
+                finally:
+                    body.close()
+                if not isinstance(remote, dict) or not response.get("ETag"):
+                    raise ValueError("IBKR registry object must contain a mapping and ETag")
+                conditions = {"IfMatch": response["ETag"]}
             except Exception as exc:
                 if _is_not_found_error(cache_manager, exc):
                     remote = {}
                 else:
                     raise
             merged = dict(remote)
-            merged.update(mapping)
-            if merged != mapping:
+            for key, value in seed.items():
+                merged.setdefault(key, value)
+            merged.update(updates)
+            if merged != remote:
+                s3.put_object(Bucket=bucket, Key=remote_key,
+                              Body=json.dumps(merged, indent=2, sort_keys=True).encode("utf-8"),
+                              ContentType="application/json", **conditions)
+
+            # A matching key with the wrong value is not successful publication.
+            verified = _download_remote_conids_json(cache_manager, bucket=bucket, key=remote_key)
+            if all(verified.get(key) == value for key, value in updates.items()) and set(seed).issubset(verified):
                 mapping.clear()
-                mapping.update(merged)
+                mapping.update(verified)
                 local_path.parent.mkdir(parents=True, exist_ok=True)
                 local_path.write_text(json.dumps(mapping, indent=2, sort_keys=True), encoding="utf-8")
-
-            s3.upload_file(str(local_path), bucket, remote_key)
-
-            # Verify: ensure the keys we just added are present remotely.
-            verified = _download_remote_conids_json(cache_manager, bucket=bucket, key=remote_key)
-            if required_keys.issubset(set(verified.keys())):
                 _persist_s3_marker(local_path=local_path, remote_key=remote_key)
                 return
 
@@ -5247,6 +5268,41 @@ def _lookup_same_month_future_conid_from_mapping(
     return None
 
 
+def _lookup_conid_future_tws(*, asset: Asset, exchange: str,
+                             mapping: Optional[Dict[str, int]], keys_added: Optional[set[str]]) -> Optional[int]:
+    """Discover one expired month through the shared downloader's existing TWS session."""
+    symbol = str(asset.symbol).upper()
+    root = IBKR_FUTURES_ROOT_ALIASES.get(symbol, symbol)
+    target = asset.expiration.strftime("%Y%m%d")
+    payload = queue_request(url=f"{_downloader_base_url()}/ibkr/tws/secdef/contracts",
+                            querystring={"symbol": root, "exchange": exchange, "currency": "USD",
+                                         "expiry": target[:6]}, timeout=45.0, max_timeout_attempts=1)
+    if not isinstance(payload, dict) or not isinstance(payload.get("contracts"), list):
+        raise RuntimeError("partial_history: malformed TWS futures identity payload")
+    contracts = payload["contracts"]
+    identities = {}
+    for contract in contracts:
+        if not isinstance(contract, dict):
+            raise RuntimeError("partial_history: malformed TWS futures identity")
+        expiry = str(contract.get("expiry") or "")
+        conid = _future_contract_conid(contract)
+        if (contract.get("symbol") != root or contract.get("exchange") != exchange
+                or contract.get("secType") != "FUT" or contract.get("currency") != "USD"
+                or len(expiry) != 8 or not expiry.isdigit() or not expiry.startswith(target[:6])
+                or _date_from_yyyymmdd(expiry) is None or conid is None):
+            raise RuntimeError("partial_history: mismatched TWS futures contract identity")
+        identities[(conid, expiry)] = contract
+    if not identities:
+        return None
+    if len(identities) != 1:
+        raise RuntimeError("partial_history: ambiguous TWS futures contract identity")
+    conid, expiry = next(iter(identities))
+    setattr(asset, "_ibkr_resolved_expiration", _date_from_yyyymmdd(expiry))
+    _remember_future_conid_mapping(mapping=mapping, keys_added=keys_added, symbol=symbol,
+                                   exchange=exchange, expiration=expiry, conid=conid)
+    return conid
+
+
 def _lookup_conid_future(
     *,
     asset: Asset,
@@ -5269,6 +5325,7 @@ def _lookup_conid_future(
     ibkr_root = IBKR_FUTURES_ROOT_ALIASES.get(symbol_upper, str(asset.symbol))
     expiration = getattr(asset, "expiration", None)
     target = expiration.strftime("%Y%m%d") if expiration is not None else ""
+    expired = expiration is not None and not _is_future_or_current_expiration(expiration)
 
     # Negative cache: stop hammering IBKR for invalid roots/expirations. Aliased roots use
     # the IBKR root in their negative keys, so misses recorded under the Globex code (before
@@ -5278,7 +5335,7 @@ def _lookup_conid_future(
     neg_root_key = IbkrConidKey("future", neg_symbol, "", desired_exchange, "").to_key()
     neg_target_key = IbkrConidKey("future", neg_symbol, "", desired_exchange, target).to_key() if target else ""
     neg_root_hit = _NEGATIVE_CONID_CACHE.get(neg_root_key)
-    if isinstance(neg_root_hit, dict):
+    if isinstance(neg_root_hit, dict) and not expired:
         cached_msg = str(neg_root_hit.get("message") or "").strip() or (
             f"IBKR futures conid lookup is negatively cached for {symbol_upper} on {desired_exchange} (target={target or 'front_month'})."
         )
@@ -5289,7 +5346,7 @@ def _lookup_conid_future(
         cached_msg = str(neg_target_hit.get("message") or "").strip() or (
             f"IBKR futures conid lookup is negatively cached for {symbol_upper} on {desired_exchange} (target={target})."
         )
-        if _is_future_or_current_expiration(expiration):
+        if _is_future_or_current_expiration(expiration) or expired:
             logger.warning("Ignoring future-dated IBKR negative conid cache entry and retrying: %s", cached_msg)
         else:
             logger.error("IBKR negative conid cache hit: %s", cached_msg)
@@ -5310,6 +5367,13 @@ def _lookup_conid_future(
         raise RuntimeError(f"Unexpected IBKR trsrv/futures response: {payload}")
     contracts = payload.get(ibkr_root) or payload.get(ibkr_root.upper()) or []
     if not isinstance(contracts, list) or not contracts:
+        if expired:
+            discovered = _lookup_conid_future_tws(asset=asset, exchange=desired_exchange,
+                                                  mapping=mapping, keys_added=keys_added)
+            if discovered is not None:
+                _clear_negative_conid(key=neg_target_key)
+                _clear_negative_conid(key=neg_root_key)
+                return discovered
         msg = f"No futures contracts returned for {symbol_upper} on {desired_exchange}"
         _record_negative_conid(key=neg_root_key, reason="no_contracts", message=msg)
         raise IbkrFuturesConidLookupError(msg)
@@ -5383,12 +5447,19 @@ def _lookup_conid_future(
                 if neg_target_key:
                     _clear_negative_conid(key=neg_target_key)
                 return int(conid_int)
+        if expired:
+            discovered = _lookup_conid_future_tws(asset=asset, exchange=desired_exchange,
+                                                  mapping=mapping, keys_added=keys_added)
+            if discovered is not None:
+                _clear_negative_conid(key=neg_target_key)
+                _clear_negative_conid(key=neg_root_key)
+                return discovered
         msg = (
             f"IBKR did not return a conid for {symbol_upper} expiring {target} on {desired_exchange}. "
             "If this is an expired contract, IBKR Client Portal cannot reliably discover it. "
             "Ensure the IBKR conid registry (`<cache>/ibkr/conids.json`, S3-mirrored) contains the "
             "missing expiration. New contracts are expected to auto-populate via REST; only older "
-            "historical gaps require a one-time TWS backfill."
+            "historical discovery also uses the shared TWS gateway when available."
         )
         if same_month_dates:
             msg += (

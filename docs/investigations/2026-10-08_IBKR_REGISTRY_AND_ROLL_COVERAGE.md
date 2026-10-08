@@ -31,3 +31,11 @@ positive bars without inferring tail absence. Whole-window and daily checks
 ignore the known legacy inferred-tail reason. Explicit no-data outcomes retain
 their retry delays. Regression coverage also proves one bounded repair replaces
 the affected marker, preserves prior real bars and creates no duplicate dates.
+
+The complete release suite exposed an old regression that required the inferred
+tail markers. Its replacement retains same-process request deduplication and
+proves a subsequent worker can fetch the omitted real bar. During that check,
+an unchanged provider page also exposed a non-advancing backward cursor. Two
+bounded red cases, hourly and daily futures, reproduced repeated requests.
+Paging now stops when its next cursor cannot move backwards, keeps real bars,
+and records partial history without persisting a no-data verdict.

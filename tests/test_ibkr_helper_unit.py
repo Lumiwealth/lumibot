@@ -210,6 +210,44 @@ def test_ibkr_fetch_history_between_dates_keeps_chunks_on_later_empty_page(monke
     assert calls["count"] == 2
 
 
+@pytest.mark.parametrize("timestep,bar_seconds", [("60minute", 3600), ("day", 86400)])
+def test_ibkr_repeated_history_page_stops_without_losing_real_bars(monkeypatch, timestep, bar_seconds):
+    import lumibot.tools.ibkr_helper as helper
+
+    asset = Asset("GC", asset_type="future", expiration=datetime(2026, 2, 25).date(), multiplier=100)
+    quote = Asset("USD", asset_type="forex")
+    end = datetime(2026, 1, 19, 23, tzinfo=timezone.utc)
+    start = end - timedelta(seconds=4 * bar_seconds)
+    monkeypatch.setattr(helper, "_resolve_conid", lambda **_kwargs: 123)
+    calls = []
+    health = []
+
+    def repeated_page(**kwargs):
+        calls.append(kwargs["start_time"])
+        # Keep the pre-fix failure bounded: the fourth repeated page would
+        # otherwise make the unchanged cursor loop forever.
+        if len(calls) > 3:
+            raise RuntimeError("test request ceiling after repeated page")
+        return {"data": [{"t": int(pd.Timestamp(end).value // 1_000_000),
+                          "o": 100, "h": 101, "l": 99, "c": 100, "v": 1000}]}
+
+    monkeypatch.setattr(helper, "_ibkr_history_request", repeated_page)
+    monkeypatch.setattr(helper, "record_history_health", lambda **event: health.append(event))
+    result = helper._fetch_history_between_dates(
+        asset=asset, quote=quote, timestep=timestep, start_dt=start, end_dt=end,
+        exchange="COMEX", include_after_hours=True, source="Trades", source_was_explicit=True,
+    )
+
+    assert len(calls) == 2
+    assert calls[1] < calls[0]
+    assert len(result) == 1
+    assert result.index[0] == pd.Timestamp(end)
+    assert result["close"].iloc[0] == 100
+    assert not result["missing"].any()
+    assert health[-1]["outcome"] is helper.HistoryOutcome.PARTIAL
+    assert health[-1]["reason"] == "non_advancing_history_page"
+
+
 def test_ibkr_bounded_repair_preserves_pages_before_a_later_error(monkeypatch):
     import lumibot.tools.ibkr_helper as ibkr_helper
 

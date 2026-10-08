@@ -2342,6 +2342,7 @@ def _fetch_history_between_dates(
     closed_pages_skipped = 0
     futures_empty_open_pages = 0
     checkpointed_pages = 0
+    paging_stalled = False
 
     # Opt-in trace: log every real network fetch + caller, to audit cache-miss root causes.
     if os.environ.get("LUMIBOT_CACHE_MISS_DEBUG"):
@@ -2567,6 +2568,16 @@ def _fetch_history_between_dates(
         next_cursor_end = earliest
         if next_cursor_end >= cursor_end:
             next_cursor_end = earliest - pd.Timedelta(seconds=bar_seconds)
+        if next_cursor_end >= cursor_end:
+            # IBKR can ignore an older anchor and resend the latest page. A
+            # repeated cursor would otherwise request that page indefinitely.
+            # Keep real bars, expose incomplete history and leave it retryable.
+            paging_stalled = True
+            logger.warning(
+                "IBKR history paging for %s timestep=%s did not advance before %s; keeping real bars",
+                getattr(asset, "symbol", None), timestep, cursor_end,
+            )
+            break
         page_span = _period_to_timedelta(period)
         session_close = _previous_equity_session_close_before(
             asset_type=asset_type,
@@ -2589,7 +2600,7 @@ def _fetch_history_between_dates(
 
     merged = pd.concat(chunks, axis=0).sort_index()
     merged = merged[~merged.index.duplicated(keep="last")]
-    if conid_refreshed:
+    if conid_refreshed or paging_stalled:
         record_history_health(
             series_id=_history_health_series_id(asset=asset, quote=quote, timestep=timestep,
                 exchange=exchange, source=source, include_after_hours=include_after_hours),
@@ -2598,8 +2609,9 @@ def _fetch_history_between_dates(
             timestep=timestep,
             requested_start=start_dt,
             requested_end=_to_utc(end_dt),
-            outcome=HistoryOutcome.COMPLETE,
-            conid_refreshes=1,
+            outcome=HistoryOutcome.PARTIAL if paging_stalled else HistoryOutcome.COMPLETE,
+            conid_refreshes=int(conid_refreshed),
+            reason="non_advancing_history_page" if paging_stalled else None,
         )
     # IMPORTANT: Do not clamp to the requested window here.
     #

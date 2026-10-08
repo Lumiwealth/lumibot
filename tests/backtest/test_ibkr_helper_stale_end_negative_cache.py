@@ -11,7 +11,7 @@ from lumibot.constants import LUMIBOT_DEFAULT_PYTZ
 from lumibot.entities import Asset
 
 
-def test_ibkr_stale_end_marks_missing_window_to_avoid_repeated_history_fetches(monkeypatch):
+def test_ibkr_stale_end_bounds_retries_without_persisting_inferred_absence(monkeypatch):
     import lumibot.tools.backtest_cache as backtest_cache
     import lumibot.tools.ibkr_helper as ibkr_helper
 
@@ -33,6 +33,8 @@ def test_ibkr_stale_end_marks_missing_window_to_avoid_repeated_history_fetches(m
         # Patch module-level cache root constants (ibkr_helper imports by value).
         monkeypatch.setattr(ibkr_helper, "LUMIBOT_CACHE_FOLDER", str(cache_root))
         monkeypatch.setattr(backtest_cache, "LUMIBOT_CACHE_FOLDER", str(cache_root))
+        monkeypatch.setattr(ibkr_helper, "_RUNTIME_HISTORY_NO_DATA_WINDOWS", {})
+        monkeypatch.setattr(ibkr_helper, "_RUNTIME_ATTEMPTED_HISTORY_SEGMENTS", {})
 
         # Avoid any contract resolution/network calls.
         monkeypatch.setattr(ibkr_helper, "_resolve_conid", lambda *args, **kwargs: 123)
@@ -71,14 +73,16 @@ def test_ibkr_stale_end_marks_missing_window_to_avoid_repeated_history_fetches(m
         ibkr_helper._write_cache_frame(cache_file, df_seed)  # type: ignore[attr-defined]
 
         calls: list[dict] = []
+        provider_has_tail = False
 
         def fake_queue_request(*, url, querystring, headers=None, timeout=None):
             calls.append({"url": url, "querystring": dict(querystring or {})})
-            ts = pd.Timestamp(last_bar).tz_convert("UTC")
-            ms = int(ts.value // 1_000_000)
+            available = [start, last_bar, end] if provider_has_tail else [last_bar]
             return {
                 "data": [
-                    {"t": ms, "o": 100.0, "h": 101.0, "l": 99.0, "c": 100.0, "v": 1000},
+                    {"t": int(pd.Timestamp(ts).value // 1_000_000),
+                     "o": 100.0, "h": 101.0, "l": 99.0, "c": 100.0, "v": 1000}
+                    for ts in available
                 ]
             }
 
@@ -102,10 +106,11 @@ def test_ibkr_stale_end_marks_missing_window_to_avoid_repeated_history_fetches(m
         assert list(df1.index) == [start, last_bar]
         cached_mid = pd.read_parquet(cache_file)
         assert last_bar in cached_mid.index
-        assert end in cached_mid.index
+        assert end not in cached_mid.index
+        assert not cached_mid["missing"].any()
 
-        # Second call should not re-fetch history; the stale-end negative cache should satisfy the
-        # requested bound without hitting the downloader again.
+        # Same-process attempted-segment tracking bounds identical requests without
+        # converting an underfilled response into a persisted no-data verdict.
         df2 = ibkr_helper.get_price_data(
             asset=asset,
             quote=quote,
@@ -122,14 +127,32 @@ def test_ibkr_stale_end_marks_missing_window_to_avoid_repeated_history_fetches(m
         assert list(df2.index) == [start, last_bar]
 
         cached = pd.read_parquet(cache_file)
-        # Placeholder rows are used only to extend coverage; they must not replace the real bar.
         assert last_bar in cached.index
         assert bool(cached.loc[last_bar, "missing"]) is False
-        assert end in cached.index
-        assert bool(cached.loc[end, "missing"]) is True
-        assert cached.loc[end, "missing_outcome"] == "confirmed_no_data"
-        assert cached.loc[end, "missing_reason"] == "successful_history_response_confirmed_no_newer_bars"
-        assert pd.Timestamp(cached.loc[end, "missing_retry_after"]) > pd.Timestamp.now(tz="UTC")
+        assert end not in cached.index
+        assert not cached["missing"].any()
+
+        # A subsequent worker must be able to obtain a bar that the earlier
+        # response omitted. This models the actual warmer restart boundary.
+        monkeypatch.setattr(ibkr_helper, "_RUNTIME_ATTEMPTED_HISTORY_SEGMENTS", {})
+        monkeypatch.setattr(ibkr_helper, "_RUNTIME_HISTORY_NO_DATA_WINDOWS", {})
+        provider_has_tail = True
+        repaired = ibkr_helper.get_price_data(
+            asset=asset,
+            quote=quote,
+            timestep=timestep,
+            start_dt=start,
+            end_dt=end,
+            exchange=exchange,
+            include_after_hours=True,
+            source=source,
+        )
+        history_calls = [c for c in calls if "/ibkr/iserver/marketdata/history" in c["url"]]
+        assert len(history_calls) == 2
+        assert list(repaired.index) == [start, last_bar, end]
+        cached_repaired = pd.read_parquet(cache_file)
+        assert bool(cached_repaired.loc[end, "missing"]) is False
+        assert not cached_repaired["missing"].any()
     finally:
         shutil.rmtree(cache_root, ignore_errors=True)
 

@@ -3,6 +3,7 @@
 ## 4.6.7 - Unreleased
 
 ### Fixed
+- Routed backtests (BotSpot's botspot_auto, IBKR stocks): an intraday strategy that loads minute bars is now valued on them. Portfolio valuation asks for a price snapshot first, and the snapshot switched to yesterday's daily close whenever any daily series existed (a benchmark or indicator history), so the value stayed flat all session. Strategies that never load intraday bars keep the daily shortcut and download no minutes. Real IBKR check: value equals cash plus 10 SPY at the current minute price at every 30-minute step on 2026-09-23.
 - All copyable AI examples now default to GPT-6 Luna. Ray Dalio examples use high reasoning to match the challenge and Marketplace copy; Citadel no longer overrides the framework default with Gemini. Legacy M2 provider-named examples also default to Luna. Setup instructions now require the matching OpenAI key, while historical results retain their original model labels.
 
 ## 4.6.6 - 2026-10-07

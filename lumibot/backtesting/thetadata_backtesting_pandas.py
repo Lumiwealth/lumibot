@@ -3093,7 +3093,20 @@ class ThetaDataBacktestingPandas(PandasData):
                 current_mode = "day"
         else:
             self._effective_day_mode = True
-        if current_mode == "day" and timestep == "minute":
+        # An intraday strategy that already loaded minute/hour bars for this stock or index must
+        # be valued on them, not on yesterday's daily close. Portfolio valuation asks for a
+        # snapshot first, and "any daily series exists" (a benchmark, indicator history) used to
+        # force every snapshot to daily bars, so the portfolio value stayed flat all session
+        # (routed IBKR, 2026-10-07). Mirrors the get_last_price/get_quote rule from 2026-09-24.
+        # An explicit daily run (_timestep == "day") keeps the daily shortcut.
+        keep_intraday = (
+            current_mode == "day"
+            and getattr(self, "_timestep", None) != "day"
+            and timestep == "minute"
+            and _asset_type_token(asset) in {"stock", "equity", "index"}
+            and self._has_loaded_intraday_series(asset, quote)
+        )
+        if current_mode == "day" and timestep == "minute" and not keep_intraday:
             timestep = "day"
             logger.debug(
                 "[THETA][DEBUG][TIMESTEP_ALIGN] get_price_snapshot aligned from minute to day for asset=%s",

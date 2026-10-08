@@ -1770,15 +1770,17 @@ def create_tearsheet(
         logger.error("Not enough data to create a tearsheet, at least 2 days of data are required. Skipping")
         return
     '''
-    # Set the name of the benchmark column so that quantstats can use it in the report
-    df_final["benchmark"].name = str(benchmark_asset)
+    # Set the name of the benchmark column so that quantstats can use it in the report.
+    # df_final["benchmark"] returns a new Series each time, so we must capture it;
+    # assigning to .name on a throwaway accessor is a no-op.
+    _benchmark_series = df_final["benchmark"].rename(str(benchmark_asset))
 
     # Run quantstats reports surpressing any logs because it can be noisy for no reason
     try:
         with open(os.devnull, "w") as f, contextlib.redirect_stdout(f), contextlib.redirect_stderr(f):
             result = qs.reports.html(
                 df_final["strategy"],
-                df_final["benchmark"],
+                _benchmark_series,
                 title=title,
                 output=tearsheet_file,
                 download_filename=tearsheet_file,  # Consider if you need a different name for clarity
@@ -1864,7 +1866,7 @@ def create_tearsheet(
                 with open(os.devnull, "w") as f, contextlib.redirect_stdout(f), contextlib.redirect_stderr(f):
                     result = qs.reports.html(
                         df_final["strategy"],
-                        df_final["benchmark"],
+                        _benchmark_series,
                         title=title,
                         output=tearsheet_file,
                         download_filename=tearsheet_file,
@@ -1948,7 +1950,7 @@ def create_tearsheet(
         with open(os.devnull, "w") as f, contextlib.redirect_stdout(f), contextlib.redirect_stderr(f):
             metrics_df = qs.reports.metrics(
                 df_final["strategy"],
-                df_final["benchmark"],
+                _benchmark_series,
                 rf=risk_free_rate,
                 display=False,
                 custom_metrics=custom_metrics,
@@ -2008,7 +2010,7 @@ def create_tearsheet(
                 with open(os.devnull, "w") as f, contextlib.redirect_stdout(f), contextlib.redirect_stderr(f):
                     metrics_json_fn(
                         df_final["strategy"],
-                        df_final["benchmark"],
+                        _benchmark_series,
                         rf=risk_free_rate,
                         output=tearsheet_metrics_file,
                         summary_only=True,

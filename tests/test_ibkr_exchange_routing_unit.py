@@ -227,3 +227,12 @@ def test_ibkr_contract_expiration_date_handles_cl_last_trade_rule():
     # Micro crude uses the same month codes but IBKR's expirationDate is typically 1 trading day earlier.
     assert ibkr_helper._contract_expiration_date("MCL", year=2026, month=5).isoformat() == "2026-04-20"
     assert ibkr_helper._contract_expiration_date("MCL", year=2026, month=3).isoformat() == "2026-02-19"
+
+
+@pytest.mark.parametrize("year,month,expected", [
+    (2026, 11, "2026-10-28"),
+    (2026, 12, "2026-11-25"),
+    (2027, 1, "2026-12-29"),
+])
+def test_ng_expiration_is_three_trading_days_before_delivery_month(year, month, expected):
+    assert ibkr_helper._contract_expiration_date("NG", year=year, month=month).isoformat() == expected

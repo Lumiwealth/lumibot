@@ -2014,6 +2014,8 @@ def _contract_expiration_date(root_symbol: str, *, year: int, month: int):
             expiry = futures_roll._cl_last_trade_date(year, month)
         elif anchor == "mcl_last_trade":
             expiry = futures_roll._mcl_last_trade_date(year, month)
+        elif anchor == "ng_last_trade":
+            expiry = futures_roll._ng_last_trade_date(year, month)
         else:
             # Default anchor for CME equity index futures is third Friday.
             expiry = futures_roll._third_friday(year, month)

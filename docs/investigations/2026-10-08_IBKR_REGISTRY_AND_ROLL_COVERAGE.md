@@ -45,3 +45,17 @@ contract could have no intraday bars for a completed session, and its derived
 daily series silently omitted that date. Two red cases cover a missing session
 and wholly empty history. Daily history now reports expected and returned
 completed-session counts and missing dates while retaining only provider data.
+
+Natural gas (NG) also lacked a roll rule and inherited quarterly equity-index
+months and third-Friday expiration dates. Five red cases exposed the wrong
+delivery month, roll boundary and three expirations. Its monthly delivery cycle
+and three-trading-day prior-month expiry now follow
+[CME/NYMEX rule 220102.F](https://www.cmegroup.com/rulebook/NYMEX/2/220.pdf).
+IBKR's current contract listing corroborated November 2026 expiry October 28,
+December expiry November 25 and January 2027 expiry December 29. The five-day
+roll offset is a synthetic energy convention shared with the existing oil
+rules; it is not an exchange-imposed expiry offset.
+The calendar dependency floor is 5.4.0, qualified locally, because expiry
+business days require `CME_TradeDate`. The general futures trading-session
+calendar includes Thanksgiving trading hours and incorrectly produced a
+November 26 expiry; the holiday regression remains November 25.

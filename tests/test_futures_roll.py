@@ -99,6 +99,21 @@ def test_nymex_micro_crude_oil_rolls_before_last_trade_date():
     assert (year, month) == (2025, 4)
 
 
+def test_natural_gas_uses_monthly_delivery_contracts():
+    assert futures_roll.determine_contract_year_month("NG", _dt(2026, 10, 8)) == (2026, 11)
+    asset = Asset("NG", asset_type=Asset.AssetType.CONT_FUTURE)
+    assert futures_roll.resolve_symbols_for_range(asset, _dt(2026, 10, 1), _dt(2026, 12, 31), year_digits=2) == [
+        "NGX26", "NGZ26", "NGF27", "NGG27",
+    ]
+
+
+def test_natural_gas_rolls_before_prior_month_last_trade_date():
+    # November delivery expires October 28; the five-business-day roll
+    # convention used for energy futures puts the transition on October 21.
+    assert futures_roll.determine_contract_year_month("NG", _dt(2026, 10, 21, 0, 4)) == (2026, 11)
+    assert futures_roll.determine_contract_year_month("NG", _dt(2026, 10, 21, 0, 6)) == (2026, 12)
+
+
 def test_cme_crypto_futures_roll_uses_last_friday_anchor():
     # MBT (Micro Bitcoin) expiries are last-Friday-trading-day; roll occurs 8 business days before.
     # April 2024 last Friday is 2024-04-26 -> roll trigger 2024-04-16 (plus a +5 minute shift).

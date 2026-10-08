@@ -1,5 +1,11 @@
 # Changelog
 
+## 4.6.8 - 2026-10-08
+
+Deploy marker: `f28456aed5d4e0ef5021d4a39055ad1aef7d2ed8`
+
+- Gold (GC/MGC) continuous futures roll seven exchange business days before first notice, instead of seven weekdays before the last trade inside the delivery month. COMEX first notice is the last business day of the prior month; the seven-day offset remains LumiBot's synthetic convention. Contract expiration dates and explicit dated-contract requests retain the actual last-trade rule. This prevents selecting the thin October delivery contract during October, which had no October 2 bars while December had real hourly trades.
+
 ## 4.6.7 - 2026-10-08
 
 - IBKR history no longer treats a positive page containing only older bars as confirmed absence of newer bars. Those old inferred tail markers and ambiguous daily markers are retryable, so available completed sessions replace placeholders while explicit no-data responses retain their retry delays and existing real bars are preserved.

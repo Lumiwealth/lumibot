@@ -1,6 +1,7 @@
 import datetime
 
 import pytz
+import pytest
 
 from lumibot.entities import Asset
 from lumibot.tools import futures_roll
@@ -38,16 +39,15 @@ def test_resolve_symbols_for_range_produces_sequential_contracts():
     assert symbols == ["MESU5", "MESZ5", "MESH6"], symbols
 
 
-def test_comex_gold_rolls_on_third_last_business_day_offset():
+def test_comex_gold_rolls_before_first_notice():
     asset_symbol = "GC"
 
-    year, month = futures_roll.determine_contract_year_month(asset_symbol, _dt(2025, 2, 14))
+    year, month = futures_roll.determine_contract_year_month(asset_symbol, _dt(2025, 1, 22, 0, 4))
     assert (year, month) == (2025, 2)
 
-    # Seven business days before the third last business day of February 2025 is Feb 17.
-    # Roll triggers are shifted slightly (see futures_roll._calculate_roll_trigger) to avoid
-    # edge-case midnight boundary issues.
-    year, month = futures_roll.determine_contract_year_month(asset_symbol, _dt(2025, 2, 17, 0, 6))
+    # The former last-trade expectation kept gold into the delivery month.
+    # Seven exchange business days before Jan 31 first notice is Jan 22.
+    year, month = futures_roll.determine_contract_year_month(asset_symbol, _dt(2025, 1, 22, 0, 6))
     assert (year, month) == (2025, 4)
 
 
@@ -57,16 +57,18 @@ def test_comex_gold_symbol_sequence_uses_even_month_cycle():
     end = _dt(2025, 8, 1)
 
     symbols = futures_roll.resolve_symbols_for_range(asset, start, end, year_digits=1)
-    assert symbols == ["GCG5", "GCJ5", "GCM5", "GCQ5"], symbols
+    # By August 1 the August delivery contract has already rolled before notice.
+    assert symbols == ["GCG5", "GCJ5", "GCM5", "GCQ5", "GCV5"], symbols
 
 
-def test_comex_micro_gold_rolls_on_third_last_business_day_offset():
+def test_comex_micro_gold_rolls_before_first_notice():
     asset_symbol = "MGC"
 
-    year, month = futures_roll.determine_contract_year_month(asset_symbol, _dt(2025, 2, 14))
+    year, month = futures_roll.determine_contract_year_month(asset_symbol, _dt(2025, 1, 22, 0, 4))
     assert (year, month) == (2025, 2)
 
-    year, month = futures_roll.determine_contract_year_month(asset_symbol, _dt(2025, 2, 17, 0, 6))
+    # Match the corrected pre-notice gold convention; the former date was in delivery.
+    year, month = futures_roll.determine_contract_year_month(asset_symbol, _dt(2025, 1, 22, 0, 6))
     assert (year, month) == (2025, 4)
 
 
@@ -76,7 +78,8 @@ def test_comex_micro_gold_symbol_sequence_uses_even_month_cycle():
     end = _dt(2025, 8, 1)
 
     symbols = futures_roll.resolve_symbols_for_range(asset, start, end, year_digits=1)
-    assert symbols == ["MGCG5", "MGCJ5", "MGCM5", "MGCQ5"], symbols
+    # By August 1 the August delivery contract has already rolled before notice.
+    assert symbols == ["MGCG5", "MGCJ5", "MGCM5", "MGCQ5", "MGCV5"], symbols
 
 
 def test_nymex_crude_oil_rolls_before_last_trade_date():
@@ -124,3 +127,29 @@ def test_cme_crypto_futures_roll_uses_last_friday_anchor():
 
     year, month = futures_roll.determine_contract_year_month(asset_symbol, _dt(2024, 4, 16, 0, 6))
     assert (year, month) == (2024, 5)
+
+
+@pytest.mark.parametrize("symbol", ["GC", "MGC"])
+def test_gold_continuous_history_rolls_before_delivery_notice(symbol):
+    # COMEX 706.C: first notice is the last business day before the delivery
+    # month. October's contract had no Oct 2 prints in the actual IBKR incident;
+    # December did. Keep the seven-day convention but anchor it before notice,
+    # rather than keeping the delivery-month contract until its last trade.
+    assert futures_roll.determine_contract_year_month(symbol, _dt(2026, 9, 21, 0, 4)) == (2026, 10)
+    assert futures_roll.determine_contract_year_month(symbol, _dt(2026, 9, 21, 0, 6)) == (2026, 12)
+    assert futures_roll.determine_contract_year_month(symbol, _dt(2026, 10, 2, 9, 30)) == (2026, 12)
+
+
+@pytest.mark.parametrize("symbol", ["GC", "MGC"])
+def test_gold_notice_roll_excludes_exchange_business_holidays(symbol):
+    # May 30 is first notice for June 2025. Memorial Day (May 26) is not
+    # an exchange business day, so seven prior business days ends May 20.
+    assert futures_roll.determine_contract_year_month(symbol, _dt(2025, 5, 20, 0, 4)) == (2025, 6)
+    assert futures_roll.determine_contract_year_month(symbol, _dt(2025, 5, 20, 0, 6)) == (2025, 8)
+
+
+@pytest.mark.parametrize("symbol", ["GC", "MGC"])
+def test_gold_roll_keeps_actual_contract_expiration(symbol):
+    from lumibot.tools.ibkr_helper import _contract_expiration_date
+
+    assert _contract_expiration_date(symbol, year=2026, month=10) == datetime.date(2026, 10, 28)

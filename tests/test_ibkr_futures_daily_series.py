@@ -8,6 +8,49 @@ import pytest
 from lumibot.entities import Asset
 
 
+@pytest.mark.parametrize("provider_empty", [False, True])
+def test_futures_daily_health_exposes_missing_completed_sessions(monkeypatch, provider_empty):
+    import pandas_market_calendars as mcal
+    import lumibot.tools.ibkr_helper as helper
+
+    asset = Asset("MGC", asset_type="future", expiration=date(2026, 10, 28))
+    schedule = mcal.get_calendar("us_futures").schedule(start_date="2026-10-01", end_date="2026-10-02")
+    first, missing = schedule.iloc[0], schedule.iloc[1]
+    idx = pd.date_range(first.market_open, first.market_close, freq="1h")
+    hourly = pd.DataFrame({"open": 100., "high": 101., "low": 99., "close": 100.5, "volume": 1}, index=idx)
+    # Leave the following completed session empty, as both cached and provider
+    # reads did for the October 2026 contract during the live investigation.
+    hourly = hourly.loc[hourly.index < first.market_close]
+    health = []
+    calls = []
+
+    def cached(**kwargs):
+        calls.append(kwargs["timestep"])
+        return hourly.copy() if kwargs["timestep"] == "hour" and not provider_empty else pd.DataFrame()
+
+    monkeypatch.setattr(helper, "_get_cached_bars_for_source", cached)
+    monkeypatch.setattr(helper, "_maybe_augment_futures_bid_ask", lambda **kwargs: (kwargs["df_cache"], False))
+    monkeypatch.setattr(helper, "record_history_health", lambda **event: health.append(event))
+    result = helper._get_futures_daily_bars(
+        asset=asset, quote=None, start_dt=(first.market_open + pd.Timedelta(minutes=1)).to_pydatetime(),
+        end_dt=missing.market_close.to_pydatetime(), exchange="COMEX", include_after_hours=True, source="Trades",
+    )
+
+    assert len(result) == (0 if provider_empty else 1)
+    assert "minute" in calls
+    assert health, "missing futures sessions must not silently disappear from history health"
+    event = health[-1]
+    assert event["outcome"] is helper.HistoryOutcome.PARTIAL
+    assert event["expected_sessions"] == 2
+    assert event["returned_sessions"] == len(result)
+    assert str(missing.market_close.date()) in event["missing_sessions"]
+    assert event["reason"] == "missing_futures_daily_sessions"
+    assert event["symbol"] == "MGC"
+    if not result.empty:
+        assert result.index[0] == first.market_close
+        assert result.close.iloc[0] == 100.5
+
+
 def test_ibkr_futures_daily_bars_are_session_aligned_not_midnight(monkeypatch):
     import pandas_market_calendars as mcal
     import lumibot.tools.ibkr_helper as ibkr_helper

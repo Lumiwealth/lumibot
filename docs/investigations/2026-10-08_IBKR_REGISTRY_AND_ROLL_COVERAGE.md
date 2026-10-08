@@ -39,3 +39,9 @@ an unchanged provider page also exposed a non-advancing backward cursor. Two
 bounded red cases, hourly and daily futures, reproduced repeated requests.
 Paging now stops when its next cursor cannot move backwards, keeps real bars,
 and records partial history without persisting a no-data verdict.
+
+A later real-reader check exposed another diagnostic gap: a resolved futures
+contract could have no intraday bars for a completed session, and its derived
+daily series silently omitted that date. Two red cases cover a missing session
+and wholly empty history. Daily history now reports expected and returned
+completed-session counts and missing dates while retaining only provider data.

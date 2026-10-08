@@ -4387,6 +4387,28 @@ def _get_futures_daily_bars(
     if schedule is None or schedule.empty:
         return pd.DataFrame()
 
+    completed_end = min(end_utc, _ibkr_history_now_utc())
+    requested_closes = pd.DatetimeIndex(schedule.loc[
+        (schedule["market_close"] >= start_utc) & (schedule["market_close"] <= completed_end),
+        "market_close",
+    ])
+
+    def with_daily_coverage(frame: pd.DataFrame) -> pd.DataFrame:
+        present = requested_closes.intersection(frame.index) if not frame.empty else requested_closes[:0]
+        missing = requested_closes.difference(present)
+        record_history_health(
+            series_id=_history_health_series_id(asset=asset, quote=quote, timestep="day",
+                exchange=exchange, source=source, include_after_hours=include_after_hours),
+            symbol=str(getattr(asset, "symbol", "") or ""),
+            asset_type=_normalize_asset_type(getattr(asset, "asset_type", "")),
+            timestep="day", requested_start=start_utc, requested_end=end_utc,
+            outcome=HistoryOutcome.PARTIAL if len(missing) else HistoryOutcome.COMPLETE,
+            expected_sessions=len(requested_closes), returned_sessions=len(present),
+            missing_sessions=[str(ts.tz_convert(LUMIBOT_DEFAULT_PYTZ).date()) for ts in missing],
+            reason="missing_futures_daily_sessions" if len(missing) else None,
+        )
+        return frame
+
     session_start = pd.Timestamp(schedule["market_open"].min()).tz_convert("UTC").to_pydatetime()
     session_end = pd.Timestamp(schedule["market_close"].max()).tz_convert("UTC").to_pydatetime()
     if session_start >= session_end:
@@ -4417,7 +4439,7 @@ def _get_futures_daily_bars(
         )
         intraday_timestep = "minute"
         if intraday is None or intraday.empty:
-            return pd.DataFrame()
+            return with_daily_coverage(pd.DataFrame())
 
     if _enable_futures_bid_ask_derivation():
         intraday, _ = _maybe_augment_futures_bid_ask(
@@ -4484,12 +4506,12 @@ def _get_futures_daily_bars(
         idx.append(close_local)
 
     if not rows:
-        return pd.DataFrame()
+        return with_daily_coverage(pd.DataFrame())
 
     df = pd.DataFrame(rows, index=pd.DatetimeIndex(idx))
     df = df.sort_index()
     df.index = df.index.tz_convert(LUMIBOT_DEFAULT_PYTZ)
-    return df.loc[(df.index >= start_local) & (df.index <= end_local)]
+    return with_daily_coverage(df.loc[(df.index >= start_local) & (df.index <= end_local)])
 
 
 def _resolve_conid(

@@ -4,6 +4,7 @@
 
 - IBKR history no longer treats a positive page containing only older bars as confirmed absence of newer bars. Those old inferred tail markers and ambiguous daily markers are retryable, so available completed sessions replace placeholders while explicit no-data responses retain their retry delays and existing real bars are preserved.
 - IBKR history paging stops if the provider keeps returning a page that cannot advance the requested cursor, preserves the real bars already received, and reports partial history instead of looping indefinitely.
+- Futures daily history reports missing completed sessions in history health, including an entirely empty result, instead of silently returning a shorter series with no coverage diagnostics.
 
 Deploy marker: `c3e02b504a08e41e6ec16cd0eb5a7627db69736b`
 

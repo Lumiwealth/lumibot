@@ -959,6 +959,8 @@ class Order:
                     limit_price=self.limit_price,
                     order_type=Order.OrderType.LIMIT,
                     quote=self.quote,
+                    time_in_force=self.time_in_force,
+                    good_till_date=self.good_till_date,
                 )
                 stop_order = Order(
                     # Stop Type will be filled in automatically for child based on the Stop Modifiers
@@ -971,6 +973,8 @@ class Order:
                     trail_price=self.trail_price,
                     trail_percent=self.trail_percent,
                     quote=self.quote,
+                    time_in_force=self.time_in_force,
+                    good_till_date=self.good_till_date,
                 )
                 # Set dependencies so that the two orders will cancel the other in BackTesting
                 limit_order.dependent_order = stop_order
@@ -1006,6 +1010,8 @@ class Order:
                             limit_price=secondary_limit_price,
                             order_type=Order.OrderType.LIMIT,
                             quote=self.quote,
+                            time_in_force=self.time_in_force,
+                            good_till_date=self.good_till_date,
                         )
                     )
                 if secondary_stop_price is not None:
@@ -1021,6 +1027,8 @@ class Order:
                             trail_price=secondary_trail_price,
                             trail_percent=secondary_trail_percent,
                             quote=self.quote,
+                            time_in_force=self.time_in_force,
+                            good_till_date=self.good_till_date,
                         )
                     )
 
@@ -1059,6 +1067,8 @@ class Order:
                             limit_price=secondary_limit_price,
                             order_type=Order.OrderType.LIMIT,
                             quote=self.quote,
+                            time_in_force=self.time_in_force,
+                            good_till_date=self.good_till_date,
                         )
                     )
                 elif secondary_stop_price is not None:
@@ -1074,6 +1084,8 @@ class Order:
                             trail_price=secondary_trail_price,
                             trail_percent=secondary_trail_percent,
                             quote=self.quote,
+                            time_in_force=self.time_in_force,
+                            good_till_date=self.good_till_date,
                         )
                     )
             elif len(self.child_orders) == 1:

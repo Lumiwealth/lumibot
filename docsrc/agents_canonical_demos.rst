@@ -19,7 +19,7 @@ The demos
 - **News Sentiment** (``agent_news_sentiment.py``): buys the 2 to 4 well-known stocks with the strongest good news, or SHV when the news is weak.
 - **Trend** (``agent_macro_risk.py``): holds TQQQ while it trends up and SHV while it trends down.
 - **Momentum and News** (``agent_momentum_allocator.py``): holds TQQQ when the trend is up and the news is not bad, otherwise SHV.
-- **M2 Liquidity** (``agent_m2_liquidity.py``): holds TQQQ when the money supply is growing and SHV when it is shrinking, using the Federal Reserve's M2 data. The ``_openai``, ``_anthropic``, and ``_grok`` copies are the same bot on other AI models.
+- **M2 Liquidity** (``agent_m2_liquidity.py``): holds TQQQ when the money supply is growing and SHV when it is shrinking, using the Federal Reserve's M2 data. The ``_openai``, ``_anthropic``, and ``_grok`` filenames remain compatible, but all these copies now default to GPT-6 Luna.
 
 Example: M2 Liquidity
 ---------------------

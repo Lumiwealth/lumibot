@@ -72,3 +72,10 @@ def test_documented_prompt_cache_probe_also_defaults_to_luna():
     assert len(arguments) == 1
     default = next(keyword.value for keyword in arguments[0].keywords if keyword.arg == "default")
     assert _default_model(default, {}) == LUNA
+
+
+def test_legacy_m2_filenames_are_not_documented_as_different_model_defaults():
+    text = (ROOT / "docsrc" / "agents_canonical_demos.rst").read_text()
+    m2_entry = next(line for line in text.splitlines() if line.startswith("- **M2 Liquidity**"))
+    assert "same bot on other AI models" not in m2_entry
+    assert "Luna" in m2_entry

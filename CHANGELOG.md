@@ -3,7 +3,6 @@
 ## 4.6.8 - Unreleased
 
 - Gold (GC/MGC) continuous futures roll seven exchange business days before first notice, instead of seven weekdays before the last trade inside the delivery month. COMEX first notice is the last business day of the prior month; the seven-day offset remains LumiBot's synthetic convention. Contract expiration dates and explicit dated-contract requests retain the actual last-trade rule. This prevents selecting the thin October delivery contract during October, which had no October 2 bars while December had real hourly trades.
-- Completed stock/index daily-session repair caps its padded request at current provider time. A future-dated repair anchor could omit today's already available close, leaving popular stocks partial after the market closed. Still-forming daily bars are excluded from the repair's cached result.
 
 ## 4.6.7 - 2026-10-08
 

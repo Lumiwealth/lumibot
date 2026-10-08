@@ -64,9 +64,9 @@ REBUILT.update({
 })
 BULL_BEAR_FILES = {"ai_trading_team_bull_bear_large_cap_stocks.py", "ai_trading_team_bull_bear_leveraged_etf.py"}
 
-# Citadel and Ray Dalio run on BotSpot with a live track record and stay
-# byte-for-byte the BotSpot revision; tests/test_public_docs_community_links.py
-# checks their hashes.
+# Copyable Citadel and Ray Dalio sources match the published Luna revisions;
+# historical paper results retain their original model attribution.
+# tests/test_public_docs_community_links.py checks the saved source hashes.
 MARKETPLACE_COPIES = {
     "ai_trading_team_citadel_sector_pods.py",
     "ai_trading_team_citadel_sector_pods_leveraged.py",

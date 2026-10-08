@@ -90,7 +90,7 @@ class AgentMomentumStrategy(Strategy):
 
         self.agents.create(
             name="research",
-            default_model="gemini-2.5-flash",
+            default_model="openai/gpt-6-luna",
             system_prompt=(
                 "You are a conservative trading agent. "
                 "Use DuckDB for time-series analysis. "
@@ -117,7 +117,7 @@ class AgentMomentumStrategy(Strategy):
 
         self.agents.create(
             name="post_fill",
-            default_model="gemini-2.5-flash",
+            default_model="openai/gpt-6-luna",
             system_prompt=(
                 "A fill just happened. Re-evaluate exposure and decide "
                 "whether any follow-up orders or stop adjustments are needed."
@@ -138,7 +138,7 @@ class AgentMomentumStrategy(Strategy):
                 "symbol": symbol,
                 "max_risk_pct": 0.01,
             },
-            model="gemini-2.5-flash",
+            model="openai/gpt-6-luna",
         )
 
         if result.summary:
@@ -152,7 +152,7 @@ class AgentMomentumStrategy(Strategy):
                 "price": price,
                 "quantity": quantity,
             },
-            model="gemini-2.5-pro",
+            model="openai/gpt-6-luna",
         )
 ```
 

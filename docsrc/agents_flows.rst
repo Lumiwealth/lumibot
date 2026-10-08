@@ -189,7 +189,7 @@ but still want deterministic order sizing and execution.
 Choosing Models Per Agent
 -------------------------
 
-Every agent can use its own model. The default is ``openai/gpt-6-luna`` on high
+Every agent can use its own model. The default is ``openai/gpt-6-luna`` on medium
 reasoning, and it is a good choice for every role. Most strategies do not need
 many models. Override ``model=`` on one agent only when you have a reason, for
 example a different provider when you want an independent perspective.

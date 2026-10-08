@@ -1,8 +1,8 @@
-"""M2 Liquidity AI Trading Bot (Grok).
+"""M2 Liquidity AI Trading Bot (GPT-6 Luna).
 
 Holds TQQQ when the money supply (M2) is growing and SHV, a short-term Treasury
 fund, when it is shrinking. One AI agent reads the Federal Reserve's M2 data each
-day and trades. This copy runs on xAI's Grok.
+day and trades. This legacy-named copy now uses GPT-6 Luna, like the other examples.
 """
 
 from lumibot.strategies import Strategy
@@ -14,7 +14,7 @@ class M2LiquidityGrokStrategy(Strategy):
         self.agents.create(
             name="trader",
             allow_trading=True,
-            model="xai/grok-4.20-0309-reasoning",
+            model="openai/gpt-6-luna",
             system_prompt=(
                 "Hold either TQQQ or SHV with the whole account. Each day, check whether the M2 money supply "
                 "is growing compared with 3 to 6 months ago, using official Federal Reserve data. If it is "

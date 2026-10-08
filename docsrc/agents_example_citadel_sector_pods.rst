@@ -17,7 +17,7 @@ How it works
 2. **Risk manager agent** reads all five pitches and challenges them: crowded trades, big drops, macro risk, and sudden reversals.
 3. **Portfolio manager agent** builds a portfolio across at least three sectors and is the only agent allowed to place orders. The team repeats this once a day.
 
-This file is the exact code running on BotSpot with a live paper track record, including its model, Gemini 3.1 Flash Lite. A leveraged version holds leveraged sector ETFs instead.
+The copyable example now defaults to GPT-6 Luna with medium reasoning. A leveraged version holds leveraged sector ETFs instead. Earlier BotSpot paper observations used Gemini; changing the model does not change those historical results.
 
 Run it on BotSpot
 -----------------
@@ -27,7 +27,7 @@ Run this team on `BotSpot <https://botspot.trade/marketplace?utm_source=document
 Backtest tear sheet
 -------------------
 
-GPT-6 Luna (set with ``AI_TRADING_TEAM_MODEL``), January 5 to 16, 2026, Yahoo daily prices, $100,000 start. The team rotated across sector ETFs such as XLC, XLE, XLF, XLI, XLV, and XLB and ended at $101,680 (+2%) while SPY rose 1%. Cash stayed near zero, lowest $33 in the daily stats. The live paper track record on BotSpot runs the Gemini model shown in the code.
+GPT-6 Luna, January 5 to 16, 2026, Yahoo daily prices, $100,000 start. The team rotated across sector ETFs such as XLC, XLE, XLF, XLI, XLV, and XLB and ended at $101,680 (+2%) while SPY rose 1%. Cash stayed near zero, lowest $33 in the daily stats. Earlier BotSpot paper observations used Gemini and are separate from these Luna backtest results and the current Luna example.
 
 .. image:: ../docs/assets/ai-bot-backtests/citadel-sector-pods.png
    :alt: Backtest tear sheet for the Citadel Sector Pods AI Trading Team
@@ -57,7 +57,7 @@ Run it yourself
    pip install lumibot
    python -m lumibot.example_strategies.ai_trading_team_citadel_sector_pods
 
-Add ``GEMINI_API_KEY`` and your broker keys (for example ``ALPACA_API_KEY``, ``ALPACA_API_SECRET``, and ``ALPACA_IS_PAPER=true``) to your ``.env`` file. This file trades by default. Set ``IS_BACKTESTING=true`` in your environment to backtest it instead. To use another model, set ``AI_TRADING_TEAM_MODEL``, for example ``openai/gpt-6-luna`` with ``OPENAI_API_KEY``.
+Add ``OPENAI_API_KEY`` for GPT-6 Luna and your broker keys (for example ``ALPACA_API_KEY``, ``ALPACA_API_SECRET``, and ``ALPACA_IS_PAPER=true``) to your ``.env`` file. This file trades by default. Set ``IS_BACKTESTING=true`` in your environment to backtest it instead. The default is ``openai/gpt-6-luna``. Set ``AI_TRADING_TEAM_MODEL`` only when deliberately choosing a different model, with its matching provider key.
 
 Good to know
 ------------

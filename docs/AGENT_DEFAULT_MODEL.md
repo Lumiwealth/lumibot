@@ -20,3 +20,16 @@ provider availability and billing checks.
 The regression in `tests/test_agent_skills.py` checks the new default alongside
 explicit model and family preservation. Availability must still be verified
 against the configured provider; a default string is not an availability claim.
+
+## Copyable examples
+
+All AI strategy examples use Luna, either explicitly or through the framework
+default. Citadel retains its explicit `AI_TRADING_TEAM_MODEL` user override, with
+Luna as the no-override choice. Ray Dalio regular and leveraged examples use
+`openai/gpt-6-luna` with explicit high reasoning to match the challenge copy.
+Other examples retain the framework default of medium reasoning. Legacy-named
+M2 Grok/Anthropic files also default to Luna; their filenames remain compatible.
+
+Published Marketplace code and GitHub examples are checked byte for byte.
+Historical provider benchmarks and recorded-run assets retain their original
+model labels and results; a new default does not rewrite earlier evidence.

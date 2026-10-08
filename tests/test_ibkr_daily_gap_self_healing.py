@@ -63,6 +63,9 @@ def test_retryable_daily_gaps_include_unmarked_and_legacy_markers_but_not_fresh_
     markers.loc[pd.Timestamp("2026-07-29 16:00", tz="America/New_York"), "missing_retry_after"] = (
         now + timedelta(hours=12)
     ).isoformat()
+    markers.loc[pd.Timestamp("2026-07-29 16:00", tz="America/New_York"), "missing_outcome"] = (
+        "confirmed_no_data"
+    )
     frame = pd.concat([frame, markers]).sort_index()
 
     gaps = ibkr_helper._retryable_us_daily_sessions(
@@ -73,6 +76,64 @@ def test_retryable_daily_gaps_include_unmarked_and_legacy_markers_but_not_fresh_
     )
 
     assert [ts.date().isoformat() for ts in gaps] == ["2026-07-28", "2026-07-30"]
+
+
+@pytest.mark.parametrize("outcome", [None, "partial", "transient_failure"])
+def test_legacy_daily_marker_cannot_suppress_a_healthy_provider_retry(outcome) -> None:
+    """Old daily repair markers suppressed available bars without confirmed NO_DATA."""
+    now = datetime(2026, 10, 8, 18, 6, tzinfo=timezone.utc)
+    frame = _daily_frame(["2026-10-01", "2026-10-02", "2026-10-05", "2026-10-06"])
+    marker = _daily_frame(["2026-10-07"], missing=True)
+    marker["missing_retry_after"] = (now + timedelta(hours=12)).isoformat()
+    if outcome is not None:
+        marker["missing_outcome"] = outcome
+    frame = pd.concat([frame, marker]).sort_index()
+
+    gaps = ibkr_helper._retryable_us_daily_sessions(
+        frame,
+        start_dt=datetime(2026, 10, 1, 18, 6, tzinfo=timezone.utc),
+        end_dt=now,
+        now=now,
+    )
+
+    assert [ts.date().isoformat() for ts in gaps] == ["2026-10-07"]
+
+
+def test_daily_gap_repair_replaces_legacy_marker_with_actual_completed_bar(monkeypatch, tmp_path):
+    ibkr_helper._RUNTIME_DAILY_GAP_CHECKED_WINDOWS.clear()
+    frame = _daily_frame(["2026-10-01", "2026-10-02", "2026-10-05", "2026-10-06"])
+    marker = _daily_frame(["2026-10-07"], missing=True)
+    marker["missing_retry_after"] = (datetime.now(timezone.utc) + timedelta(hours=12)).isoformat()
+    frame = pd.concat([frame, marker]).sort_index()
+    calls = []
+    writes = []
+
+    def fetch(**kwargs):
+        calls.append(kwargs)
+        return _daily_frame(["2026-10-07"])
+
+    monkeypatch.setattr(ibkr_helper, "_fetch_history_between_dates", fetch)
+    monkeypatch.setattr(ibkr_helper, "_write_cache_frame", lambda path, updated: writes.append(updated.copy()))
+    result = ibkr_helper._repair_us_stock_index_daily_gaps(
+        frame,
+        cache_file=tmp_path / "APP.parquet",
+        asset=Asset("APP", asset_type=Asset.AssetType.STOCK),
+        quote=Asset("USD", asset_type=Asset.AssetType.FOREX),
+        timestep="day",
+        start_dt=datetime(2026, 10, 1, 18, 6, tzinfo=timezone.utc),
+        end_dt=datetime(2026, 10, 8, 18, 6, tzinfo=timezone.utc),
+        exchange=None,
+        include_after_hours=True,
+        source="Trades",
+        source_was_explicit=False,
+    )
+
+    assert len(calls) == 1
+    assert len(writes) == 1
+    assert result.index.is_unique
+    assert len(result) == 5
+    assert result["missing"].fillna(False).astype(bool).sum() == 0
+    pd.testing.assert_frame_equal(result.iloc[:4], frame.iloc[:4])
 
 
 def test_retryable_daily_gap_scan_is_fast_for_three_year_warm_cache() -> None:

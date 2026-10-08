@@ -3094,8 +3094,9 @@ def _retryable_us_daily_sessions(
 ) -> list[pd.Timestamp]:
     """Find completed NYSE sessions without a real daily bar and eligible for retry.
 
-    Legacy placeholders have no retry timestamp, so they are eligible once. New placeholders
-    suppress another repair until their retry timestamp expires.
+    Only a confirmed no-data outcome may suppress a retry until its timestamp
+    expires. Older repair markers recorded a timestamp even for ambiguous empty
+    responses; honoring those timestamps hides bars after the provider recovers.
     """
     if df_cache is None or df_cache.empty:
         return []
@@ -3134,8 +3135,15 @@ def _retryable_us_daily_sessions(
 
     real_dates = {ts.date() for ts in pd.DatetimeIndex(real_frame.index)}
     marker_retry_after: Dict[date, pd.Timestamp] = {}
-    if bool(missing_mask.any()) and "missing_retry_after" in frame.columns:
-        marker_rows = frame.loc[missing_mask, ["missing_retry_after"]]
+    if (
+        bool(missing_mask.any())
+        and "missing_retry_after" in frame.columns
+        and "missing_outcome" in frame.columns
+    ):
+        confirmed = frame["missing_outcome"].fillna("").astype(str).eq(
+            HistoryOutcome.CONFIRMED_NO_DATA.value
+        )
+        marker_rows = frame.loc[missing_mask & confirmed, ["missing_retry_after"]]
         parsed = pd.to_datetime(marker_rows["missing_retry_after"], utc=True, errors="coerce")
         for marker_ts, retry_after in parsed.items():
             if pd.isna(retry_after):

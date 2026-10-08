@@ -16,3 +16,12 @@ safe partial-roll telemetry, local-wall-clock weekend reopening, bounded shared 
 queue deadline isolated between threads. No broker login, order, strategy substitution, manufactured fill,
 shared cache deletion or data-freshness relaxation is introduced. Publication and downstream deployment
 still require their normal qualification and release controls.
+
+An additional daily-cache regression was found during runtime verification.
+Legacy repair markers included future retry timestamps without a confirmed
+no-data outcome. The daily scan honored those timestamps after the provider
+already had the missing completed session. Four red cases reproduced that
+suppression. Daily repair now honors only confirmed-no-data markers, matching
+the existing whole-window negative-cache contract. The complete daily gap
+self-healing file passes 44 tests, including bounded actual-bar replacement,
+preservation of prior real bars and confirmed-no-data retry delays.

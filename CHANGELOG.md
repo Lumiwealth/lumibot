@@ -1,6 +1,6 @@
 # Changelog
 
-## 4.6.7 - Unreleased
+## 4.6.7 - 2026-10-08
 
 ### Fixed
 - Routed backtests (BotSpot's botspot_auto, IBKR stocks): an intraday strategy that loads minute bars is now valued on them. Portfolio valuation asks for a price snapshot first, and the snapshot switched to yesterday's daily close whenever any daily series existed (a benchmark or indicator history), so the value stayed flat all session. Strategies that never load intraday bars keep the daily shortcut and download no minutes. Real IBKR check: value equals cash plus 10 SPY at the current minute price at every 30-minute step on 2026-09-23.

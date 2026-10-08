@@ -1,5 +1,14 @@
 # Changelog
 
+## Unreleased
+
+### Fixed
+- **Alpaca live strategies no longer crash during the end-of-day market-close wait.** Alpaca now
+  inherits the generic live broker wait instead of calling the backtesting-only
+  ``process_pending_orders()`` method, and an already-closed session no longer waits for a future
+  session's close.
+- Documentation builds install the Open Graph extension required by the Sphinx configuration.
+
 ## 4.6.6 - 2026-10-07
 
 Deploy marker: `3ad90cf2ef071f9e34e9fb0c140618545624c4b2`

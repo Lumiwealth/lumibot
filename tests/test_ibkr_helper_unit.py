@@ -437,6 +437,45 @@ def test_cache_placeholder_metadata_never_reaches_strategy_frames():
     assert returned.columns.tolist() == ["close"]
 
 
+@pytest.mark.parametrize("source_reader", [False, True])
+def test_older_positive_history_does_not_confirm_missing_tail(monkeypatch, tmp_path, source_reader):
+    """An available older bar says nothing conclusive about a missing newer session."""
+    from types import SimpleNamespace
+    import lumibot.tools.ibkr_helper as helper
+
+    monkeypatch.setattr(helper, "LUMIBOT_CACHE_FOLDER", str(tmp_path))
+    monkeypatch.setattr(helper, "get_backtest_cache", lambda: SimpleNamespace(
+        ensure_local_file=lambda *args, **kwargs: None,
+        on_local_update=lambda *args, **kwargs: None,
+    ))
+    helper._RUNTIME_ATTEMPTED_HISTORY_SEGMENTS.clear()
+    helper._RUNTIME_HISTORY_NO_DATA_WINDOWS.clear()
+    asset = Asset("EUR", asset_type="forex")
+    quote = Asset("USD", asset_type="forex")
+    start = pd.Timestamp("2026-10-06 10:00", tz="America/New_York")
+    end = start + pd.Timedelta(hours=2)
+    frame = pd.DataFrame({"open": [1.1], "high": [1.1], "low": [1.1], "close": [1.1],
+                          "volume": [0], "missing": [False]}, index=pd.DatetimeIndex([start]))
+    path = helper._cache_file_for(asset=asset, quote=quote, timestep="minute", exchange="IDEALPRO",
+                                  source="Trades", include_after_hours=True)
+    helper._write_cache_frame(path, frame)
+    requests = []
+    negatives = []
+    monkeypatch.setattr(helper, "_fetch_history_between_dates", lambda **kwargs: (
+        requests.append(kwargs) or frame.copy()
+    ))
+    monkeypatch.setattr(helper, "_record_missing_window", lambda **kwargs: negatives.append(kwargs))
+    reader = helper._get_cached_bars_for_source if source_reader else helper.get_price_data
+    kwargs = dict(asset=asset, quote=quote, timestep="minute", start_dt=start.to_pydatetime(),
+                  end_dt=end.to_pydatetime(), exchange="IDEALPRO", include_after_hours=True, source="Trades")
+    result = reader(**kwargs)
+    assert len(result) == 1
+    assert len(requests) == 1
+    assert negatives == []
+    reader(**kwargs)
+    assert len(requests) == (2 if source_reader else 1)
+
+
 def test_ibkr_get_price_data_returns_real_cached_bars_when_window_stays_underfilled_after_refresh_error(monkeypatch, tmp_path):
     import lumibot.tools.ibkr_helper as ibkr_helper
 

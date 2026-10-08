@@ -78,7 +78,7 @@ def test_retryable_daily_gaps_include_unmarked_and_legacy_markers_but_not_fresh_
     assert [ts.date().isoformat() for ts in gaps] == ["2026-07-28", "2026-07-30"]
 
 
-@pytest.mark.parametrize("outcome", [None, "partial", "transient_failure"])
+@pytest.mark.parametrize("outcome", [None, "partial", "transient_failure", "confirmed_no_data"])
 def test_legacy_daily_marker_cannot_suppress_a_healthy_provider_retry(outcome) -> None:
     """Old daily repair markers suppressed available bars without confirmed NO_DATA."""
     now = datetime(2026, 10, 8, 18, 6, tzinfo=timezone.utc)
@@ -87,6 +87,8 @@ def test_legacy_daily_marker_cannot_suppress_a_healthy_provider_retry(outcome) -
     marker["missing_retry_after"] = (now + timedelta(hours=12)).isoformat()
     if outcome is not None:
         marker["missing_outcome"] = outcome
+    if outcome == "confirmed_no_data":
+        marker["missing_reason"] = "successful_history_response_confirmed_no_newer_bars"
     frame = pd.concat([frame, marker]).sort_index()
 
     gaps = ibkr_helper._retryable_us_daily_sessions(
@@ -104,6 +106,8 @@ def test_daily_gap_repair_replaces_legacy_marker_with_actual_completed_bar(monke
     frame = _daily_frame(["2026-10-01", "2026-10-02", "2026-10-05", "2026-10-06"])
     marker = _daily_frame(["2026-10-07"], missing=True)
     marker["missing_retry_after"] = (datetime.now(timezone.utc) + timedelta(hours=12)).isoformat()
+    marker["missing_outcome"] = "confirmed_no_data"
+    marker["missing_reason"] = "successful_history_response_confirmed_no_newer_bars"
     frame = pd.concat([frame, marker]).sort_index()
     calls = []
     writes = []
@@ -134,6 +138,24 @@ def test_daily_gap_repair_replaces_legacy_marker_with_actual_completed_bar(monke
     assert len(result) == 5
     assert result["missing"].fillna(False).astype(bool).sum() == 0
     pd.testing.assert_frame_equal(result.iloc[:4], frame.iloc[:4])
+
+
+@pytest.mark.parametrize("reason,covered", [
+    ("successful_history_response_confirmed_no_newer_bars", False),
+    ("explicit_no_data", True),
+])
+def test_inferred_tail_absence_is_not_a_confirmed_missing_window(reason, covered):
+    now = datetime(2026, 10, 8, 18, 6, tzinfo=timezone.utc)
+    frame = _daily_frame(["2026-10-06", "2026-10-08"], missing=True)
+    frame["missing_retry_after"] = (now + timedelta(hours=12)).isoformat()
+    frame["missing_outcome"] = "confirmed_no_data"
+    frame["missing_reason"] = reason
+    assert ibkr_helper._window_is_placeholder_covered(
+        frame,
+        start_local=pd.Timestamp("2026-10-07 09:30", tz="America/New_York"),
+        end_local=pd.Timestamp("2026-10-07 16:00", tz="America/New_York"),
+        now=now,
+    ) is covered
 
 
 def test_retryable_daily_gap_scan_is_fast_for_three_year_warm_cache() -> None:

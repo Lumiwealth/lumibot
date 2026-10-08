@@ -83,6 +83,9 @@ IBKR_DEFAULT_INDEX_HISTORY_SOURCE = "Midpoint"
 # tailored to the bar size rather than tightening this cap.
 IBKR_STOCK_INDEX_DAILY_MAX_PERIOD = "5y"
 IBKR_GAP_RETRY_TTL_SECONDS = 24 * 60 * 60
+# Older writers mistook a successful page of only older bars for confirmed
+# tail absence. Those persisted records must remain retryable after recovery.
+IBKR_LEGACY_INFERRED_TAIL_REASON = "successful_history_response_confirmed_no_newer_bars"
 IBKR_DAILY_GAP_REPAIR_TIMEOUT_SECONDS = 45.0
 IBKR_DAILY_GAP_REPAIR_MAX_SEGMENTS_PER_SERIES = 4
 IBKR_DAILY_GAP_REPAIR_MAX_SESSIONS_PER_SEGMENT = 10
@@ -1294,7 +1297,6 @@ def get_price_data(
                 )
                 continue
             _remember_attempted_history_segment(runtime_no_data_key, seg_start, seg_end)
-            prev_max = df_cache.index.max() if not df_cache.empty else None
             checkpoint_state = {"frame": df_cache}
 
             def _checkpoint_pages(pages: pd.DataFrame, _state=checkpoint_state) -> None:
@@ -1417,36 +1419,9 @@ def get_price_data(
                 merged = _merge_frames(df_cache, fetched)
                 _write_cache_frame(cache_file, merged)
                 df_cache = merged
-                # IBKR can return the "latest available" bars even when the requested cursor_end is
-                # beyond the true available range (holiday/early close/entitlement gaps). In that
-                # case, `fetched` may contain *no newer bars* than the existing cache. Without an
-                # explicit negative cache marker, the caller will keep re-submitting the same
-                # history request as the backtest clock advances.
-                try:
-                    new_max = df_cache.index.max() if not df_cache.empty else None
-                    if prev_max is not None and new_max is not None and new_max <= prev_max:
-                        prev_max_utc = _to_utc(prev_max.to_pydatetime() if hasattr(prev_max, "to_pydatetime") else prev_max)
-                        seg_start_utc = _to_utc(seg_start)
-                        seg_end_utc = _to_utc(seg_end)
-                        is_tail_extension = abs((seg_start_utc - prev_max_utc).total_seconds()) <= 1.0 and seg_end_utc > prev_max_utc
-                        if is_tail_extension:
-                            missing_start = prev_max_utc + timedelta(seconds=1)
-                            if missing_start < seg_end_utc:
-                                _record_missing_window(
-                                    asset=asset,
-                                    quote=quote,
-                                    timestep=timestep,
-                                    exchange=effective_exchange,
-                                    source=history_source,
-                                    include_after_hours=include_after_hours,
-                                    start_dt=missing_start,
-                                    end_dt=seg_end_utc,
-                                    reason="successful_history_response_confirmed_no_newer_bars",
-                                    outcome=HistoryOutcome.CONFIRMED_NO_DATA,
-                                )
-                                df_cache = _read_cache_frame(cache_file)
-                except Exception:
-                    pass
+                # Older positive bars do not establish that the requested tail
+                # has no data. Segment-attempt tracking already bounds repeated
+                # calls; only explicit NO_DATA may persist a negative window.
 
     if (
         not df_cache.empty
@@ -2160,7 +2135,6 @@ def _get_cached_bars_for_source(
         for seg_start, seg_end in segments:
             if seg_start >= seg_end:
                 continue
-            prev_max = df_cache.index.max() if not df_cache.empty else None
             try:
                 fetched = _fetch_history_between_dates(
                     asset=asset,
@@ -2188,44 +2162,8 @@ def _get_cached_bars_for_source(
                 merged = _merge_frames(df_cache, fetched)
                 _write_cache_frame(cache_file, merged)
                 df_cache = merged
-                # IBKR can return the "latest available" bars even when the requested cursor_end is
-                # beyond the true available range (holiday/early close/entitlement gaps). In that
-                # case, `fetched` may contain *no newer bars* than the existing cache, and if we do
-                # nothing we'll keep re-submitting the same history request in a loop as the
-                # backtest clock advances.
-                #
-                # Negative-cache this "stale end" by recording a missing window that extends
-                # coverage to the requested bound. The placeholder rows are filtered out before
-                # returning bars, so this does not create synthetic liquidity.
-                try:
-                    new_max = df_cache.index.max() if not df_cache.empty else None
-                    if prev_max is not None and new_max is not None and new_max <= prev_max:
-                        prev_max_utc = _to_utc(prev_max.to_pydatetime() if hasattr(prev_max, "to_pydatetime") else prev_max)
-                        seg_start_utc = _to_utc(seg_start)
-                        seg_end_utc = _to_utc(seg_end)
-                        is_tail_extension = abs((seg_start_utc - prev_max_utc).total_seconds()) <= 1.0 and seg_end_utc > prev_max_utc
-                        if is_tail_extension:
-                            # Start the missing window just *after* the last real bar to avoid
-                            # clobbering the bar at `prev_max` when merging placeholder rows.
-                            missing_start = prev_max_utc + timedelta(seconds=1)
-                            if missing_start >= seg_end_utc:
-                                continue
-                            _record_missing_window(
-                                asset=asset,
-                                quote=quote,
-                                timestep=timestep,
-                                exchange=exchange,
-                                source=history_source,
-                                include_after_hours=include_after_hours,
-                                start_dt=missing_start,
-                                end_dt=seg_end_utc,
-                                reason="successful_history_response_confirmed_no_newer_bars",
-                                outcome=HistoryOutcome.CONFIRMED_NO_DATA,
-                            )
-                            # Keep the in-memory view in sync for any further segment checks.
-                            df_cache = _read_cache_frame(cache_file)
-                except Exception:
-                    pass
+                # Older bars are available data, not confirmation that the
+                # newer requested interval is empty. Keep that tail retryable.
 
     if df_cache.empty:
         return df_cache
@@ -3143,6 +3081,10 @@ def _retryable_us_daily_sessions(
         confirmed = frame["missing_outcome"].fillna("").astype(str).eq(
             HistoryOutcome.CONFIRMED_NO_DATA.value
         )
+        if "missing_reason" in frame.columns:
+            confirmed &= ~frame["missing_reason"].fillna("").astype(str).eq(
+                IBKR_LEGACY_INFERRED_TAIL_REASON
+            )
         marker_rows = frame.loc[missing_mask & confirmed, ["missing_retry_after"]]
         parsed = pd.to_datetime(marker_rows["missing_retry_after"], utc=True, errors="coerce")
         for marker_ts, retry_after in parsed.items():
@@ -4113,6 +4055,12 @@ def _window_is_placeholder_covered(
             return False
         outcomes = between["missing_outcome"].fillna("").astype(str)
         if not bool((outcomes == HistoryOutcome.CONFIRMED_NO_DATA.value).all()):
+            return False
+        if "missing_reason" in between.columns and bool(
+            between["missing_reason"].fillna("").astype(str).eq(
+                IBKR_LEGACY_INFERRED_TAIL_REASON
+            ).any()
+        ):
             return False
         retry_after = pd.to_datetime(
             between["missing_retry_after"], utc=True, errors="coerce"

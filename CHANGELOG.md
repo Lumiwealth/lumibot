@@ -2,7 +2,7 @@
 
 ## 4.6.7 - 2026-10-08
 
-- IBKR daily gap repair retries legacy missing-bar markers that never recorded a confirmed no-data outcome. This lets available completed sessions replace old placeholders while preserving retry delays for confirmed no-data responses and existing real bars.
+- IBKR history no longer treats a positive page containing only older bars as confirmed absence of newer bars. Those old inferred tail markers and ambiguous daily markers are retryable, so available completed sessions replace placeholders while explicit no-data responses retain their retry delays and existing real bars are preserved.
 
 Deploy marker: `c3e02b504a08e41e6ec16cd0eb5a7627db69736b`
 

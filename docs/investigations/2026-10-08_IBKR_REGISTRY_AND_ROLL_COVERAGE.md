@@ -17,11 +17,17 @@ queue deadline isolated between threads. No broker login, order, strategy substi
 shared cache deletion or data-freshness relaxation is introduced. Publication and downstream deployment
 still require their normal qualification and release controls.
 
-An additional daily-cache regression was found during runtime verification.
-Legacy repair markers included future retry timestamps without a confirmed
-no-data outcome. The daily scan honored those timestamps after the provider
-already had the missing completed session. Four red cases reproduced that
-suppression. Daily repair now honors only confirmed-no-data markers, matching
-the existing whole-window negative-cache contract. The complete daily gap
-self-healing file passes 44 tests, including bounded actual-bar replacement,
-preservation of prior real bars and confirmed-no-data retry delays.
+Additional cache regressions were found during runtime verification. Ambiguous
+legacy daily markers included future retry timestamps without a confirmed
+no-data outcome. Older writers also labeled a successful page containing only
+older bars as confirmed absence of newer bars. Provider reads subsequently
+returned the missing completed session, while these persisted markers
+suppressed repairs for 24 hours.
+
+Four initial red cases reproduced ambiguous-marker suppression. Five more red
+cases reproduced the inferred-tail marker, both history-reader publication
+paths, and suppression of the bounded daily repair. Both readers now preserve
+positive bars without inferring tail absence. Whole-window and daily checks
+ignore the known legacy inferred-tail reason. Explicit no-data outcomes retain
+their retry delays. Regression coverage also proves one bounded repair replaces
+the affected marker, preserves prior real bars and creates no duplicate dates.

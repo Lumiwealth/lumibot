@@ -83,6 +83,9 @@ IBKR_DEFAULT_INDEX_HISTORY_SOURCE = "Midpoint"
 # tailored to the bar size rather than tightening this cap.
 IBKR_STOCK_INDEX_DAILY_MAX_PERIOD = "5y"
 IBKR_GAP_RETRY_TTL_SECONDS = 24 * 60 * 60
+# Older writers mistook a successful page of only older bars for confirmed
+# tail absence. Those persisted records must remain retryable after recovery.
+IBKR_LEGACY_INFERRED_TAIL_REASON = "successful_history_response_confirmed_no_newer_bars"
 IBKR_DAILY_GAP_REPAIR_TIMEOUT_SECONDS = 45.0
 IBKR_DAILY_GAP_REPAIR_MAX_SEGMENTS_PER_SERIES = 4
 IBKR_DAILY_GAP_REPAIR_MAX_SESSIONS_PER_SEGMENT = 10
@@ -433,16 +436,23 @@ def _us_futures_closed_interval(start_local: datetime, end_local: datetime) -> b
         dow = int(ts.weekday())  # Mon=0 .. Sun=6
         t = ts.time()
 
+        def wall_open(days: int) -> pd.Timestamp:
+            # Calendar days and local wall time, not elapsed hours across DST.
+            day = ts.date() + timedelta(days=days)
+            return pd.Timestamp(datetime.combine(day, datetime.min.replace(hour=18).time()),
+                                tz="America/New_York")
+
+        # Friday's maintenance window starts the weekend closure.
+        if dow == 4 and t >= datetime.min.replace(hour=17).time():
+            return wall_open(2)
+
         # Saturday: closed all day; next open is Sunday 18:00 ET.
         if dow == 5:
-            days = 1
-            candidate = (ts + pd.Timedelta(days=days)).normalize() + pd.Timedelta(hours=18)
-            return candidate.tz_localize("America/New_York") if candidate.tzinfo is None else candidate
+            return wall_open(1)
 
         # Sunday: closed until 18:00 ET.
         if dow == 6:
-            open_ts = ts.normalize() + pd.Timedelta(hours=18)
-            open_ts = open_ts.tz_localize("America/New_York") if open_ts.tzinfo is None else open_ts
+            open_ts = wall_open(0)
             return ts if ts >= open_ts else open_ts
 
         # Weekdays: closed daily 17:00–18:00 ET.
@@ -908,7 +918,8 @@ def get_price_data(
     # Rationale: backtests must match live semantics and must not depend on `date.today()` for
     # selecting a contract month.
     if is_roll_wrapper:
-        segments = _resolve_cont_future_segments(asset=asset, start_dt=start_utc, end_dt=end_utc, exchange=effective_exchange)
+        segments = _resolve_cont_future_segments(asset=asset, start_dt=start_utc, end_dt=end_utc,
+                                                exchange=effective_exchange, timestep=timestep)
         if not segments:
             logger.error(
                 "IBKR futures roll wrapper could not resolve any roll segments for %s (type=%s exchange=%s). Returning empty bars.",
@@ -1286,7 +1297,6 @@ def get_price_data(
                 )
                 continue
             _remember_attempted_history_segment(runtime_no_data_key, seg_start, seg_end)
-            prev_max = df_cache.index.max() if not df_cache.empty else None
             checkpoint_state = {"frame": df_cache}
 
             def _checkpoint_pages(pages: pd.DataFrame, _state=checkpoint_state) -> None:
@@ -1409,36 +1419,9 @@ def get_price_data(
                 merged = _merge_frames(df_cache, fetched)
                 _write_cache_frame(cache_file, merged)
                 df_cache = merged
-                # IBKR can return the "latest available" bars even when the requested cursor_end is
-                # beyond the true available range (holiday/early close/entitlement gaps). In that
-                # case, `fetched` may contain *no newer bars* than the existing cache. Without an
-                # explicit negative cache marker, the caller will keep re-submitting the same
-                # history request as the backtest clock advances.
-                try:
-                    new_max = df_cache.index.max() if not df_cache.empty else None
-                    if prev_max is not None and new_max is not None and new_max <= prev_max:
-                        prev_max_utc = _to_utc(prev_max.to_pydatetime() if hasattr(prev_max, "to_pydatetime") else prev_max)
-                        seg_start_utc = _to_utc(seg_start)
-                        seg_end_utc = _to_utc(seg_end)
-                        is_tail_extension = abs((seg_start_utc - prev_max_utc).total_seconds()) <= 1.0 and seg_end_utc > prev_max_utc
-                        if is_tail_extension:
-                            missing_start = prev_max_utc + timedelta(seconds=1)
-                            if missing_start < seg_end_utc:
-                                _record_missing_window(
-                                    asset=asset,
-                                    quote=quote,
-                                    timestep=timestep,
-                                    exchange=effective_exchange,
-                                    source=history_source,
-                                    include_after_hours=include_after_hours,
-                                    start_dt=missing_start,
-                                    end_dt=seg_end_utc,
-                                    reason="successful_history_response_confirmed_no_newer_bars",
-                                    outcome=HistoryOutcome.CONFIRMED_NO_DATA,
-                                )
-                                df_cache = _read_cache_frame(cache_file)
-                except Exception:
-                    pass
+                # Older positive bars do not establish that the requested tail
+                # has no data. Segment-attempt tracking already bounds repeated
+                # calls; only explicit NO_DATA may persist a negative window.
 
     if (
         not df_cache.empty
@@ -1920,7 +1903,8 @@ def _repair_isolated_split_spikes_daily(df: pd.DataFrame) -> pd.DataFrame:
     return frame
 
 
-def _resolve_cont_future_segments(*, asset: Asset, start_dt: datetime, end_dt: datetime, exchange: Optional[str]) -> list[tuple[Asset, datetime, datetime]]:
+def _resolve_cont_future_segments(*, asset: Asset, start_dt: datetime, end_dt: datetime,
+                                  exchange: Optional[str], timestep: str = "day") -> list[tuple[Asset, datetime, datetime]]:
     """Resolve a `cont_future` asset into a list of explicit futures contract segments.
 
     This follows LumiBot's roll schedule (`lumibot.tools.futures_roll`) so that backtests
@@ -1963,6 +1947,13 @@ def _resolve_cont_future_segments(*, asset: Asset, start_dt: datetime, end_dt: d
                 expiration,
                 contract_symbol,
                 exc,
+            )
+            record_history_health(
+                symbol=asset.symbol, asset_type=_normalize_asset_type(asset.asset_type), timestep=timestep,
+                requested_start=max(start_utc, _to_utc(seg_start)),
+                requested_end=min(end_utc, _to_utc(seg_end)), outcome=HistoryOutcome.PARTIAL,
+                reason="unresolved_roll_contract", series_id=f"{exchange or 'AUTO'}:{contract_symbol}",
+                transient_failures=1,
             )
             continue
         resolved_expiration = _expiration_date_only(getattr(contract_asset, "_ibkr_resolved_expiration", None))
@@ -2023,6 +2014,8 @@ def _contract_expiration_date(root_symbol: str, *, year: int, month: int):
             expiry = futures_roll._cl_last_trade_date(year, month)
         elif anchor == "mcl_last_trade":
             expiry = futures_roll._mcl_last_trade_date(year, month)
+        elif anchor == "ng_last_trade":
+            expiry = futures_roll._ng_last_trade_date(year, month)
         else:
             # Default anchor for CME equity index futures is third Friday.
             expiry = futures_roll._third_friday(year, month)
@@ -2144,7 +2137,6 @@ def _get_cached_bars_for_source(
         for seg_start, seg_end in segments:
             if seg_start >= seg_end:
                 continue
-            prev_max = df_cache.index.max() if not df_cache.empty else None
             try:
                 fetched = _fetch_history_between_dates(
                     asset=asset,
@@ -2172,44 +2164,8 @@ def _get_cached_bars_for_source(
                 merged = _merge_frames(df_cache, fetched)
                 _write_cache_frame(cache_file, merged)
                 df_cache = merged
-                # IBKR can return the "latest available" bars even when the requested cursor_end is
-                # beyond the true available range (holiday/early close/entitlement gaps). In that
-                # case, `fetched` may contain *no newer bars* than the existing cache, and if we do
-                # nothing we'll keep re-submitting the same history request in a loop as the
-                # backtest clock advances.
-                #
-                # Negative-cache this "stale end" by recording a missing window that extends
-                # coverage to the requested bound. The placeholder rows are filtered out before
-                # returning bars, so this does not create synthetic liquidity.
-                try:
-                    new_max = df_cache.index.max() if not df_cache.empty else None
-                    if prev_max is not None and new_max is not None and new_max <= prev_max:
-                        prev_max_utc = _to_utc(prev_max.to_pydatetime() if hasattr(prev_max, "to_pydatetime") else prev_max)
-                        seg_start_utc = _to_utc(seg_start)
-                        seg_end_utc = _to_utc(seg_end)
-                        is_tail_extension = abs((seg_start_utc - prev_max_utc).total_seconds()) <= 1.0 and seg_end_utc > prev_max_utc
-                        if is_tail_extension:
-                            # Start the missing window just *after* the last real bar to avoid
-                            # clobbering the bar at `prev_max` when merging placeholder rows.
-                            missing_start = prev_max_utc + timedelta(seconds=1)
-                            if missing_start >= seg_end_utc:
-                                continue
-                            _record_missing_window(
-                                asset=asset,
-                                quote=quote,
-                                timestep=timestep,
-                                exchange=exchange,
-                                source=history_source,
-                                include_after_hours=include_after_hours,
-                                start_dt=missing_start,
-                                end_dt=seg_end_utc,
-                                reason="successful_history_response_confirmed_no_newer_bars",
-                                outcome=HistoryOutcome.CONFIRMED_NO_DATA,
-                            )
-                            # Keep the in-memory view in sync for any further segment checks.
-                            df_cache = _read_cache_frame(cache_file)
-                except Exception:
-                    pass
+                # Older bars are available data, not confirmation that the
+                # newer requested interval is empty. Keep that tail retryable.
 
     if df_cache.empty:
         return df_cache
@@ -2388,6 +2344,7 @@ def _fetch_history_between_dates(
     closed_pages_skipped = 0
     futures_empty_open_pages = 0
     checkpointed_pages = 0
+    paging_stalled = False
 
     # Opt-in trace: log every real network fetch + caller, to audit cache-miss root causes.
     if os.environ.get("LUMIBOT_CACHE_MISS_DEBUG"):
@@ -2613,6 +2570,16 @@ def _fetch_history_between_dates(
         next_cursor_end = earliest
         if next_cursor_end >= cursor_end:
             next_cursor_end = earliest - pd.Timedelta(seconds=bar_seconds)
+        if next_cursor_end >= cursor_end:
+            # IBKR can ignore an older anchor and resend the latest page. A
+            # repeated cursor would otherwise request that page indefinitely.
+            # Keep real bars, expose incomplete history and leave it retryable.
+            paging_stalled = True
+            logger.warning(
+                "IBKR history paging for %s timestep=%s did not advance before %s; keeping real bars",
+                getattr(asset, "symbol", None), timestep, cursor_end,
+            )
+            break
         page_span = _period_to_timedelta(period)
         session_close = _previous_equity_session_close_before(
             asset_type=asset_type,
@@ -2635,7 +2602,7 @@ def _fetch_history_between_dates(
 
     merged = pd.concat(chunks, axis=0).sort_index()
     merged = merged[~merged.index.duplicated(keep="last")]
-    if conid_refreshed:
+    if conid_refreshed or paging_stalled:
         record_history_health(
             series_id=_history_health_series_id(asset=asset, quote=quote, timestep=timestep,
                 exchange=exchange, source=source, include_after_hours=include_after_hours),
@@ -2644,8 +2611,9 @@ def _fetch_history_between_dates(
             timestep=timestep,
             requested_start=start_dt,
             requested_end=_to_utc(end_dt),
-            outcome=HistoryOutcome.COMPLETE,
-            conid_refreshes=1,
+            outcome=HistoryOutcome.PARTIAL if paging_stalled else HistoryOutcome.COMPLETE,
+            conid_refreshes=int(conid_refreshed),
+            reason="non_advancing_history_page" if paging_stalled else None,
         )
     # IMPORTANT: Do not clamp to the requested window here.
     #
@@ -3078,8 +3046,9 @@ def _retryable_us_daily_sessions(
 ) -> list[pd.Timestamp]:
     """Find completed NYSE sessions without a real daily bar and eligible for retry.
 
-    Legacy placeholders have no retry timestamp, so they are eligible once. New placeholders
-    suppress another repair until their retry timestamp expires.
+    Only a confirmed no-data outcome may suppress a retry until its timestamp
+    expires. Older repair markers recorded a timestamp even for ambiguous empty
+    responses; honoring those timestamps hides bars after the provider recovers.
     """
     if df_cache is None or df_cache.empty:
         return []
@@ -3118,8 +3087,19 @@ def _retryable_us_daily_sessions(
 
     real_dates = {ts.date() for ts in pd.DatetimeIndex(real_frame.index)}
     marker_retry_after: Dict[date, pd.Timestamp] = {}
-    if bool(missing_mask.any()) and "missing_retry_after" in frame.columns:
-        marker_rows = frame.loc[missing_mask, ["missing_retry_after"]]
+    if (
+        bool(missing_mask.any())
+        and "missing_retry_after" in frame.columns
+        and "missing_outcome" in frame.columns
+    ):
+        confirmed = frame["missing_outcome"].fillna("").astype(str).eq(
+            HistoryOutcome.CONFIRMED_NO_DATA.value
+        )
+        if "missing_reason" in frame.columns:
+            confirmed &= ~frame["missing_reason"].fillna("").astype(str).eq(
+                IBKR_LEGACY_INFERRED_TAIL_REASON
+            )
+        marker_rows = frame.loc[missing_mask & confirmed, ["missing_retry_after"]]
         parsed = pd.to_datetime(marker_rows["missing_retry_after"], utc=True, errors="coerce")
         for marker_ts, retry_after in parsed.items():
             if pd.isna(retry_after):
@@ -3245,8 +3225,6 @@ def _repair_us_stock_index_daily_gaps(
 
     working = aligned
     attempted: list[pd.Timestamp] = []
-    first_gap = min(gaps)
-    last_gap = max(gaps)
     effective_end = min(_to_utc(end_dt), datetime.now(timezone.utc))
     expected = _expected_us_daily_sessions(start_dt=start_dt, end_dt=effective_end)
     groups = split_session_groups(
@@ -4092,6 +4070,12 @@ def _window_is_placeholder_covered(
         outcomes = between["missing_outcome"].fillna("").astype(str)
         if not bool((outcomes == HistoryOutcome.CONFIRMED_NO_DATA.value).all()):
             return False
+        if "missing_reason" in between.columns and bool(
+            between["missing_reason"].fillna("").astype(str).eq(
+                IBKR_LEGACY_INFERRED_TAIL_REASON
+            ).any()
+        ):
+            return False
         retry_after = pd.to_datetime(
             between["missing_retry_after"], utc=True, errors="coerce"
         )
@@ -4405,6 +4389,28 @@ def _get_futures_daily_bars(
     if schedule is None or schedule.empty:
         return pd.DataFrame()
 
+    completed_end = min(end_utc, _ibkr_history_now_utc())
+    requested_closes = pd.DatetimeIndex(schedule.loc[
+        (schedule["market_close"] >= start_utc) & (schedule["market_close"] <= completed_end),
+        "market_close",
+    ])
+
+    def with_daily_coverage(frame: pd.DataFrame) -> pd.DataFrame:
+        present = requested_closes.intersection(frame.index) if not frame.empty else requested_closes[:0]
+        missing = requested_closes.difference(present)
+        record_history_health(
+            series_id=_history_health_series_id(asset=asset, quote=quote, timestep="day",
+                exchange=exchange, source=source, include_after_hours=include_after_hours),
+            symbol=str(getattr(asset, "symbol", "") or ""),
+            asset_type=_normalize_asset_type(getattr(asset, "asset_type", "")),
+            timestep="day", requested_start=start_utc, requested_end=end_utc,
+            outcome=HistoryOutcome.PARTIAL if len(missing) else HistoryOutcome.COMPLETE,
+            expected_sessions=len(requested_closes), returned_sessions=len(present),
+            missing_sessions=[str(ts.tz_convert(LUMIBOT_DEFAULT_PYTZ).date()) for ts in missing],
+            reason="missing_futures_daily_sessions" if len(missing) else None,
+        )
+        return frame
+
     session_start = pd.Timestamp(schedule["market_open"].min()).tz_convert("UTC").to_pydatetime()
     session_end = pd.Timestamp(schedule["market_close"].max()).tz_convert("UTC").to_pydatetime()
     if session_start >= session_end:
@@ -4435,7 +4441,7 @@ def _get_futures_daily_bars(
         )
         intraday_timestep = "minute"
         if intraday is None or intraday.empty:
-            return pd.DataFrame()
+            return with_daily_coverage(pd.DataFrame())
 
     if _enable_futures_bid_ask_derivation():
         intraday, _ = _maybe_augment_futures_bid_ask(
@@ -4502,12 +4508,12 @@ def _get_futures_daily_bars(
         idx.append(close_local)
 
     if not rows:
-        return pd.DataFrame()
+        return with_daily_coverage(pd.DataFrame())
 
     df = pd.DataFrame(rows, index=pd.DatetimeIndex(idx))
     df = df.sort_index()
     df.index = df.index.tz_convert(LUMIBOT_DEFAULT_PYTZ)
-    return df.loc[(df.index >= start_local) & (df.index <= end_local)]
+    return with_daily_coverage(df.loc[(df.index >= start_local) & (df.index <= end_local)])
 
 
 def _resolve_conid(
@@ -4752,7 +4758,12 @@ def _merge_upload_conids_json(
     required_keys: set[str],
     max_attempts: int = 3,
 ) -> None:
-    """Upload `ibkr/conids.json` with a merge-before-upload retry to reduce lost updates."""
+    """Publish authoritative identities without overwriting unrelated stale local keys.
+
+    Only required_keys were resolved by this lookup. An empty set denotes a
+    namespace seed, which may fill absent keys but cannot replace existing ones.
+    Conditional writes protect the read/merge/write from concurrent publishers.
+    """
     global _DISABLE_CONIDS_REMOTE_UPLOAD, _LOGGED_CONIDS_REMOTE_UPLOAD_DISABLE
 
     if _DISABLE_CONIDS_REMOTE_UPLOAD:
@@ -4782,49 +4793,49 @@ def _merge_upload_conids_json(
         cache_manager.on_local_update(local_path, payload={"provider": "ibkr", "type": "conids"})
         return
     s3 = client_fn()
-    if not hasattr(s3, "upload_file") or not hasattr(s3, "get_object"):
-        cache_manager.on_local_update(local_path, payload={"provider": "ibkr", "type": "conids"})
+    if not hasattr(s3, "put_object") or not hasattr(s3, "get_object"):
+        logger.warning("IBKR registry publication requires conditional object writes; keeping local identities.")
         return
 
-    # If this update didn't add anything new, a plain upload is fine.
-    if not required_keys:
-        try:
-            s3.upload_file(str(local_path), bucket, remote_key)
-        except Exception as exc:
-            if _is_access_denied_error(exc):
-                _DISABLE_CONIDS_REMOTE_UPLOAD = True
-                if not _LOGGED_CONIDS_REMOTE_UPLOAD_DISABLE:
-                    logger.warning("Disabling remote conids.json uploads due to AccessDenied: %s", exc)
-                    _LOGGED_CONIDS_REMOTE_UPLOAD_DISABLE = True
-                return
-            raise
-        _persist_s3_marker(local_path=local_path, remote_key=remote_key)
-        return
+    updates = {key: mapping[key] for key in required_keys if key in mapping}
+    seed = dict(mapping) if not required_keys else {}
 
     last_exc: Optional[Exception] = None
     for attempt in range(max_attempts):
         try:
-            # Pull the freshest remote, union, then upload.
+            # Read the contents and ETag together. Never upload an entire stale map.
+            conditions = {"IfNoneMatch": "*"}
             try:
-                remote = _download_remote_conids_json(cache_manager, bucket=bucket, key=remote_key)
+                response = s3.get_object(Bucket=bucket, Key=remote_key)
+                body = response["Body"]
+                try:
+                    remote = json.loads(body.read())
+                finally:
+                    body.close()
+                if not isinstance(remote, dict) or not response.get("ETag"):
+                    raise ValueError("IBKR registry object must contain a mapping and ETag")
+                conditions = {"IfMatch": response["ETag"]}
             except Exception as exc:
                 if _is_not_found_error(cache_manager, exc):
                     remote = {}
                 else:
                     raise
             merged = dict(remote)
-            merged.update(mapping)
-            if merged != mapping:
+            for key, value in seed.items():
+                merged.setdefault(key, value)
+            merged.update(updates)
+            if merged != remote:
+                s3.put_object(Bucket=bucket, Key=remote_key,
+                              Body=json.dumps(merged, indent=2, sort_keys=True).encode("utf-8"),
+                              ContentType="application/json", **conditions)
+
+            # A matching key with the wrong value is not successful publication.
+            verified = _download_remote_conids_json(cache_manager, bucket=bucket, key=remote_key)
+            if all(verified.get(key) == value for key, value in updates.items()) and set(seed).issubset(verified):
                 mapping.clear()
-                mapping.update(merged)
+                mapping.update(verified)
                 local_path.parent.mkdir(parents=True, exist_ok=True)
                 local_path.write_text(json.dumps(mapping, indent=2, sort_keys=True), encoding="utf-8")
-
-            s3.upload_file(str(local_path), bucket, remote_key)
-
-            # Verify: ensure the keys we just added are present remotely.
-            verified = _download_remote_conids_json(cache_manager, bucket=bucket, key=remote_key)
-            if required_keys.issubset(set(verified.keys())):
                 _persist_s3_marker(local_path=local_path, remote_key=remote_key)
                 return
 
@@ -5247,6 +5258,41 @@ def _lookup_same_month_future_conid_from_mapping(
     return None
 
 
+def _lookup_conid_future_tws(*, asset: Asset, exchange: str,
+                             mapping: Optional[Dict[str, int]], keys_added: Optional[set[str]]) -> Optional[int]:
+    """Discover one expired month through the shared downloader's existing TWS session."""
+    symbol = str(asset.symbol).upper()
+    root = IBKR_FUTURES_ROOT_ALIASES.get(symbol, symbol)
+    target = asset.expiration.strftime("%Y%m%d")
+    payload = queue_request(url=f"{_downloader_base_url()}/ibkr/tws/secdef/contracts",
+                            querystring={"symbol": root, "exchange": exchange, "currency": "USD",
+                                         "expiry": target[:6]}, timeout=45.0, max_timeout_attempts=1)
+    if not isinstance(payload, dict) or not isinstance(payload.get("contracts"), list):
+        raise RuntimeError("partial_history: malformed TWS futures identity payload")
+    contracts = payload["contracts"]
+    identities = {}
+    for contract in contracts:
+        if not isinstance(contract, dict):
+            raise RuntimeError("partial_history: malformed TWS futures identity")
+        expiry = str(contract.get("expiry") or "")
+        conid = _future_contract_conid(contract)
+        if (contract.get("symbol") != root or contract.get("exchange") != exchange
+                or contract.get("secType") != "FUT" or contract.get("currency") != "USD"
+                or len(expiry) != 8 or not expiry.isdigit() or not expiry.startswith(target[:6])
+                or _date_from_yyyymmdd(expiry) is None or conid is None):
+            raise RuntimeError("partial_history: mismatched TWS futures contract identity")
+        identities[(conid, expiry)] = contract
+    if not identities:
+        return None
+    if len(identities) != 1:
+        raise RuntimeError("partial_history: ambiguous TWS futures contract identity")
+    conid, expiry = next(iter(identities))
+    setattr(asset, "_ibkr_resolved_expiration", _date_from_yyyymmdd(expiry))
+    _remember_future_conid_mapping(mapping=mapping, keys_added=keys_added, symbol=symbol,
+                                   exchange=exchange, expiration=expiry, conid=conid)
+    return conid
+
+
 def _lookup_conid_future(
     *,
     asset: Asset,
@@ -5269,6 +5315,7 @@ def _lookup_conid_future(
     ibkr_root = IBKR_FUTURES_ROOT_ALIASES.get(symbol_upper, str(asset.symbol))
     expiration = getattr(asset, "expiration", None)
     target = expiration.strftime("%Y%m%d") if expiration is not None else ""
+    expired = expiration is not None and not _is_future_or_current_expiration(expiration)
 
     # Negative cache: stop hammering IBKR for invalid roots/expirations. Aliased roots use
     # the IBKR root in their negative keys, so misses recorded under the Globex code (before
@@ -5278,7 +5325,7 @@ def _lookup_conid_future(
     neg_root_key = IbkrConidKey("future", neg_symbol, "", desired_exchange, "").to_key()
     neg_target_key = IbkrConidKey("future", neg_symbol, "", desired_exchange, target).to_key() if target else ""
     neg_root_hit = _NEGATIVE_CONID_CACHE.get(neg_root_key)
-    if isinstance(neg_root_hit, dict):
+    if isinstance(neg_root_hit, dict) and not expired:
         cached_msg = str(neg_root_hit.get("message") or "").strip() or (
             f"IBKR futures conid lookup is negatively cached for {symbol_upper} on {desired_exchange} (target={target or 'front_month'})."
         )
@@ -5289,7 +5336,7 @@ def _lookup_conid_future(
         cached_msg = str(neg_target_hit.get("message") or "").strip() or (
             f"IBKR futures conid lookup is negatively cached for {symbol_upper} on {desired_exchange} (target={target})."
         )
-        if _is_future_or_current_expiration(expiration):
+        if _is_future_or_current_expiration(expiration) or expired:
             logger.warning("Ignoring future-dated IBKR negative conid cache entry and retrying: %s", cached_msg)
         else:
             logger.error("IBKR negative conid cache hit: %s", cached_msg)
@@ -5310,6 +5357,13 @@ def _lookup_conid_future(
         raise RuntimeError(f"Unexpected IBKR trsrv/futures response: {payload}")
     contracts = payload.get(ibkr_root) or payload.get(ibkr_root.upper()) or []
     if not isinstance(contracts, list) or not contracts:
+        if expired:
+            discovered = _lookup_conid_future_tws(asset=asset, exchange=desired_exchange,
+                                                  mapping=mapping, keys_added=keys_added)
+            if discovered is not None:
+                _clear_negative_conid(key=neg_target_key)
+                _clear_negative_conid(key=neg_root_key)
+                return discovered
         msg = f"No futures contracts returned for {symbol_upper} on {desired_exchange}"
         _record_negative_conid(key=neg_root_key, reason="no_contracts", message=msg)
         raise IbkrFuturesConidLookupError(msg)
@@ -5383,12 +5437,19 @@ def _lookup_conid_future(
                 if neg_target_key:
                     _clear_negative_conid(key=neg_target_key)
                 return int(conid_int)
+        if expired:
+            discovered = _lookup_conid_future_tws(asset=asset, exchange=desired_exchange,
+                                                  mapping=mapping, keys_added=keys_added)
+            if discovered is not None:
+                _clear_negative_conid(key=neg_target_key)
+                _clear_negative_conid(key=neg_root_key)
+                return discovered
         msg = (
             f"IBKR did not return a conid for {symbol_upper} expiring {target} on {desired_exchange}. "
             "If this is an expired contract, IBKR Client Portal cannot reliably discover it. "
             "Ensure the IBKR conid registry (`<cache>/ibkr/conids.json`, S3-mirrored) contains the "
             "missing expiration. New contracts are expected to auto-populate via REST; only older "
-            "historical gaps require a one-time TWS backfill."
+            "historical discovery also uses the shared TWS gateway when available."
         )
         if same_month_dates:
             msg += (

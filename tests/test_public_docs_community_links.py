@@ -120,21 +120,21 @@ def test_agent_docs_name_the_parquet_audit_and_versioned_cache():
 
 
 def test_ray_and_citadel_examples_match_published_botspot_sources():
-    # Rob, 2026-09-29: these four files must match the BotSpot revisions that
-    # hold the live paper track record (Data-On strategies, Gemini Flash Lite),
-    # byte for byte. Change the strategy on BotSpot first, then copy it here.
+    # Rob, 2026-10-07: copyable examples now use Luna. These hashes were read
+    # back from the saved BotSpot Luna revisions before copying the files here.
+    # Historical Gemini paper results remain attributed to their original model.
     expected = {
         "ai_trading_team_ray_dalio_idea_meritocracy.py": (
-            "a2a02db9ad0db1b8ce8d9e339fe0f0cd8b0698b1ce36281c077291fa077e2914"
+            "838681783208055a558159d7ad73ca46cbcf29ea78bb773d6d13a83a78536a18"
         ),
         "ai_trading_team_ray_dalio_idea_meritocracy_leveraged.py": (
-            "7f8f2d4ef5363669926080d86504f68bdbd7ab30618fbac94dc2f0e469a304f1"
+            "1753691094cca5ec155c5fe985d284c96d7317cb1d59a36ee6f5b439fda9b1f0"
         ),
         "ai_trading_team_citadel_sector_pods.py": (
-            "50e78b923a9548994ba593f91a792c34f2d3ed384cc405ca3d2abecf5166a758"
+            "083286662fdbe9cc41b1f82e1336f75996388feba4eb825ec252f57ba037d64f"
         ),
         "ai_trading_team_citadel_sector_pods_leveraged.py": (
-            "3e9bc4330b0d8bab021f7844fa41541bcd86a7b24b67f371c4967bcf8e36f915"
+            "401b6454166828894aa1d6ea506fdc73e15de062c7ea485746efe27dc429d10b"
         ),
     }
     root = REPO_ROOT / "lumibot" / "example_strategies"

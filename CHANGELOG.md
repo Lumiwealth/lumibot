@@ -1,5 +1,20 @@
 # Changelog
 
+## 4.6.7 - 2026-10-08
+
+- IBKR history no longer treats a positive page containing only older bars as confirmed absence of newer bars. Those old inferred tail markers and ambiguous daily markers are retryable, so available completed sessions replace placeholders while explicit no-data responses retain their retry delays and existing real bars are preserved.
+- IBKR history paging stops if the provider keeps returning a page that cannot advance the requested cursor, preserves the real bars already received, and reports partial history instead of looping indefinitely.
+- Futures daily history reports missing completed sessions in history health, including an entirely empty result, instead of silently returning a shorter series with no coverage diagnostics.
+- Natural gas (NG) continuous futures use monthly delivery contracts and expire three trading days before the delivery month. They previously inherited quarterly equity-index months and a third-Friday expiry, which IBKR could not resolve. The shared roll schedule uses the existing five-business-day energy convention before expiry.
+- The calendar dependency requires `pandas_market_calendars>=5.4.0` for the CME expiry business-day calendar. This keeps Thanksgiving and other settlement holidays out of NG expiry calculations even when Globex trades a shortened session.
+
+Deploy marker: `c3e02b504a08e41e6ec16cd0eb5a7627db69736b`
+
+### Fixed
+- IBKR shared contract-registry publication uses conditional writes and preserves unrelated corrected remote IDs. Expired futures absent from REST can be discovered through the shared downloader's bounded TWS contract endpoint. Missing continuous-futures roll segments report partial history, and weekend closure uses Friday 17:00 through Sunday 18:00 New York wall time across daylight-saving changes. Downloader requests have one total deadline covering concurrency, submission, polling and retry waits, so resubmissions cannot wait indefinitely.
+- Routed backtests (BotSpot's botspot_auto, IBKR stocks): an intraday strategy that loads minute bars is now valued on them. Portfolio valuation asks for a price snapshot first, and the snapshot switched to yesterday's daily close whenever any daily series existed (a benchmark or indicator history), so the value stayed flat all session. Strategies that never load intraday bars keep the daily shortcut and download no minutes. Real IBKR check: value equals cash plus 10 SPY at the current minute price at every 30-minute step on 2026-09-23.
+- All copyable AI examples now default to GPT-6 Luna. Ray Dalio examples use high reasoning to match the challenge and Marketplace copy; Citadel no longer overrides the framework default with Gemini. Legacy M2 provider-named examples also default to Luna. Setup instructions now require the matching OpenAI key, while historical results retain their original model labels.
+
 ## 4.6.6 - 2026-10-07
 
 Deploy marker: `3ad90cf2ef071f9e34e9fb0c140618545624c4b2`

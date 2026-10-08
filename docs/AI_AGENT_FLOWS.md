@@ -144,7 +144,7 @@ For a four-agent committee:
 ```python
 self.agents.create(name="evidence_researcher", model="openai/gpt-5.4-mini", allow_trading=False)
 self.agents.create(name="bull_researcher", model="openai/gpt-5.5", allow_trading=False)
-self.agents.create(name="bear_researcher", model="google/gemini-3.1-pro", allow_trading=False)
+self.agents.create(name="bear_researcher", model="openai/gpt-6-luna", allow_trading=False)
 self.agents.create(name="portfolio_manager", model="openai/gpt-5.5", allow_trading=True)
 ```
 

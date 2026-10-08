@@ -1642,3 +1642,67 @@ def test_market_order_decided_at_t_fills_at_the_price_the_strategy_saw(monkeypat
     assert seen["fill"] == ("10:00", 1000.00)
     assert seen["last_price"] == 1000.00
     assert seen["quote"] == (1000.00, 1000.00)
+
+
+def test_intraday_stock_valuation_snapshot_uses_loaded_minute_bars_not_yesterdays_daily_close(monkeypatch):
+    """2026-10-07, routed IBKR (BotSpot's botspot_auto) on Dev: a 30-minute strategy holding
+    10 SPY that loads minute bars every iteration showed a portfolio value flat on the previous
+    daily close all session (stats.parquet 9:30-15:30 unchanged) while its own bars moved.
+    Portfolio valuation asks get_price_snapshot() first, and the snapshot switched every
+    lookup to daily bars as soon as any daily series existed (the SPY benchmark, indicator
+    history). get_quote/get_last_price were fixed for this on 2026-09-24; the snapshot was not."""
+    import lumibot.tools.ibkr_helper as ibkr_helper
+
+    monkeypatch.setenv("DATADOWNLOADER_BASE_URL", "http://localhost:8080")
+    monkeypatch.setenv("DATADOWNLOADER_API_KEY", "<redacted>")
+
+    start = LUMIBOT_DEFAULT_PYTZ.localize(datetime(2026, 1, 2, 0, 0))
+    end = LUMIBOT_DEFAULT_PYTZ.localize(datetime(2026, 1, 9, 0, 0))
+    router = _make_router(start, end, {"default": "ibkr", "stock": "ibkr", "index": "ibkr"})
+    asset = Asset("SLV", asset_type=Asset.AssetType.STOCK)
+    quote = Asset("USD", asset_type=Asset.AssetType.FOREX)
+
+    def fake_get_price_data(*, asset, quote, timestep, start_dt, end_dt, **_):
+        if timestep == "day":
+            daily = _daily_ohlc(start_dt, end_dt)
+            daily[["open", "high", "low", "close", "bid", "ask"]] = 73.71
+            return daily
+        return _flat_minute_ohlc(start_dt, end_dt, 69.67)
+
+    monkeypatch.setattr(ibkr_helper, "get_price_data", fake_get_price_data)
+
+    router._datetime = LUMIBOT_DEFAULT_PYTZ.localize(datetime(2026, 1, 7, 10, 30))
+    router.get_historical_prices(asset, 75, "day", quote=quote)
+    minute = router.get_historical_prices(asset, 8, "minute", quote=quote)
+    assert minute is not None and not minute.df.empty
+
+    snapshot = router.get_price_snapshot(asset, quote=quote)
+    assert snapshot is not None
+    prices = {k: snapshot.get(k) for k in ("close", "last_trade_price", "price", "open") if snapshot.get(k) is not None}
+    assert prices, snapshot
+    assert all(round(float(v), 2) == 69.67 for v in prices.values()), prices
+
+
+def test_daily_strategy_valuation_snapshot_still_uses_daily_bars(monkeypatch):
+    """No intraday bars loaded: the snapshot keeps the daily shortcut and downloads no minutes."""
+    import lumibot.tools.ibkr_helper as ibkr_helper
+
+    monkeypatch.setenv("DATADOWNLOADER_BASE_URL", "http://localhost:8080")
+    monkeypatch.setenv("DATADOWNLOADER_API_KEY", "<redacted>")
+
+    start = LUMIBOT_DEFAULT_PYTZ.localize(datetime(2026, 1, 2, 0, 0))
+    end = LUMIBOT_DEFAULT_PYTZ.localize(datetime(2026, 1, 9, 0, 0))
+    router = _make_router(start, end, {"default": "ibkr", "stock": "ibkr", "index": "ibkr"})
+    asset = Asset("SLV", asset_type=Asset.AssetType.STOCK)
+    quote = Asset("USD", asset_type=Asset.AssetType.FOREX)
+    requested: list[str] = []
+
+    def fake_get_price_data(*, asset, quote, timestep, start_dt, end_dt, **_):
+        requested.append(timestep)
+        return _daily_ohlc(start_dt, end_dt)
+
+    monkeypatch.setattr(ibkr_helper, "get_price_data", fake_get_price_data)
+    router._datetime = LUMIBOT_DEFAULT_PYTZ.localize(datetime(2026, 1, 7, 10, 30))
+    router.get_historical_prices(asset, 75, "day", quote=quote)
+    assert router.get_price_snapshot(asset, quote=quote) is not None
+    assert "minute" not in requested, requested

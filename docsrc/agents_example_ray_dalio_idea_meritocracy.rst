@@ -19,7 +19,7 @@ How it works
 4. **Disagreement agent** challenges all three and names the strongest idea.
 5. **Trading agent** builds a diversified macro ETF portfolio and is the only agent allowed to place orders. The team repeats this once a day.
 
-This file is the exact code running on BotSpot with a live paper track record, including its model, Gemini 3.1 Flash Lite. A leveraged version holds leveraged ETFs instead.
+The copyable example now uses GPT-6 Luna with high reasoning, matching the Luna challenge version. A leveraged version holds leveraged ETFs instead. Earlier BotSpot paper observations used Gemini; changing the model does not change those historical results.
 
 Run it on BotSpot
 -----------------
@@ -29,7 +29,7 @@ Run this team on `BotSpot <https://botspot.trade/marketplace?utm_source=document
 Backtest tear sheet
 -------------------
 
-GPT-6 Luna, January 5 to 16, 2026, Yahoo daily prices, $100,000 start. The team built a macro mix of SPY, EEM, GLD, IEF, and SHV and ended at $101,483 (+1%), about even with SPY. Cash never went below $262. The live paper track record on BotSpot runs the Gemini model shown in the code.
+GPT-6 Luna, January 5 to 16, 2026, Yahoo daily prices, $100,000 start. The team built a macro mix of SPY, EEM, GLD, IEF, and SHV and ended at $101,483 (+1%), about even with SPY. Cash never went below $262. Earlier BotSpot paper observations used Gemini and are separate from these Luna backtest results and the current Luna example.
 
 .. image:: ../docs/assets/ai-bot-backtests/ray-dalio-idea-meritocracy.png
    :alt: Backtest tear sheet for the Ray Dalio Idea Meritocracy AI Trading Team
@@ -59,7 +59,7 @@ Run it yourself
    pip install lumibot
    python -m lumibot.example_strategies.ai_trading_team_ray_dalio_idea_meritocracy
 
-Add ``GEMINI_API_KEY`` and your broker keys (for example ``ALPACA_API_KEY``, ``ALPACA_API_SECRET``, and ``ALPACA_IS_PAPER=true``) to your ``.env`` file. This file trades by default. Set ``IS_BACKTESTING=true`` in your environment to backtest it instead. For macro data, add a free ``FRED_API_KEY`` (see :doc:`macro_data`).
+Add ``OPENAI_API_KEY`` for GPT-6 Luna and your broker keys (for example ``ALPACA_API_KEY``, ``ALPACA_API_SECRET``, and ``ALPACA_IS_PAPER=true``) to your ``.env`` file. This file trades by default. Set ``IS_BACKTESTING=true`` in your environment to backtest it instead. For macro data, add a free ``FRED_API_KEY`` (see :doc:`macro_data`).
 
 Good to know
 ------------

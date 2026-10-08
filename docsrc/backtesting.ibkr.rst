@@ -11,8 +11,20 @@ The primary data path uses Client Portal (REST) via the LumiBot Data Downloader.
 Note: second-level and tick-level history are not yet a fully-supported end-to-end workflow in the open-source
 distribution. (Some internal deployments may have additional adapters behind the same external ``/ibkr/*`` contract.)
 
-For **expired futures** contract discovery (conids), IBKR Client Portal cannot reliably discover old contracts. In that
-case, LumiBot relies on an **offline conid registry** (populated via a one-time TWS backfill in internal deployments).
+For **expired futures** contract discovery (conids), LumiBot checks its mirrored contract registry first.
+When REST does not list the requested expired month, a downloader with the read-only
+``/ibkr/tws/secdef/contracts`` endpoint can resolve it through its existing TWS gateway.
+The root, venue, currency and expiration month must match one unambiguous futures contract.
+Discovery cannot extend IBKR's historical-data retention limits.
+
+Missing continuous-futures roll contracts are reported as partial history, even when later contracts supply bars.
+Check the actual number of completed bars at the simulated decision time before applying a lookback indicator.
+Shared registry writes preserve unrelated current identities and retry concurrent publication conflicts.
+Futures weekend closure runs from Friday 17:00 through Sunday 18:00 New York time, across daylight-saving changes.
+
+Downloader queue deadlines cover submission, polling, retry backoff and local concurrency waits together.
+Normal requests allow three configured timeout windows. Requests with a finite attempt cap use that many windows;
+resubmission does not restart the total deadline. Already downloaded valid bars remain available for a later retry.
 
 Status
 ------

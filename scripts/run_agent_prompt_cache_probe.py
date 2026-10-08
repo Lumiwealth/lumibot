@@ -131,7 +131,7 @@ def _run_probe(model: str, calls: int, repetitions: int) -> dict[str, Any]:
 
 def main() -> int:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--model", default=os.environ.get("AGENT_MODEL", "gemini-3.1-flash-lite-preview"))
+    parser.add_argument("--model", default=os.environ.get("AGENT_MODEL", "openai/gpt-6-luna"))
     parser.add_argument("--calls", type=int, default=3)
     parser.add_argument("--repetitions", type=int, default=120)
     args = parser.parse_args()

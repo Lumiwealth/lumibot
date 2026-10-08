@@ -46,27 +46,15 @@ def _example_model_defaults():
                 yield path.name, node.args[1].value
 
 
-# These files exist to show a second provider running the same strategy, so
-# their provider is the point of the example. Anything else must use the default.
-PROVIDER_DEMO_MODELS = {
-    "agent_m2_liquidity_anthropic.py": "anthropic/claude-sonnet-4-6",
-    "agent_m2_liquidity_grok.py": "xai/grok-4.20-0309-reasoning",
-    # Rob, 2026-09-29: these four must stay byte-for-byte the BotSpot revisions
-    # that hold the live paper track record, and those run Gemini Flash Lite.
-    "ai_trading_team_citadel_sector_pods.py": "gemini-3.1-flash-lite",
-    "ai_trading_team_citadel_sector_pods_leveraged.py": "gemini-3.1-flash-lite",
-    "ai_trading_team_ray_dalio_idea_meritocracy.py": "gemini-3.1-flash-lite",
-    "ai_trading_team_ray_dalio_idea_meritocracy_leveraged.py": "gemini-3.1-flash-lite",
-}
-
-
 def test_every_example_strategy_defaults_to_gpt_6_luna():
     defaults = list(_example_model_defaults())
     assert defaults
     wrong = [
         (name, model)
         for name, model in defaults
-        if model != PROVIDER_DEMO_MODELS.get(name, "openai/gpt-6-luna")
+        # Copyable examples now all use Luna, including legacy provider-named
+        # examples. Historical result labels are preserved separately.
+        if model != "openai/gpt-6-luna"
     ]
     assert wrong == []
 

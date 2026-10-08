@@ -19,6 +19,14 @@ See the [complete AI example run-mode inventory](https://lumibot.lumiwealth.com/
 These examples are inspired by public investing styles and firms. They are not
 affiliated with or endorsed by the investors, firms, or companies named.
 
+## Model defaults
+
+All copyable AI examples default to `openai/gpt-6-luna`. Ray Dalio uses high
+reasoning to match the challenge version; Citadel uses the framework default of
+medium reasoning and retains the explicit `AI_TRADING_TEAM_MODEL` override.
+Native Luna calls require `OPENAI_API_KEY`. Managed BotSpot runs use their
+configured AI gateway. Historical results retain the model that produced them.
+
 ## Examples
 
 - `lumibot/example_strategies/ai_trading_team_citadel_sector_pods.py`
@@ -37,7 +45,7 @@ affiliated with or endorsed by the investors, firms, or companies named.
 - `lumibot/example_strategies/ai_trading_team_ray_dalio_idea_meritocracy.py`
   A Bridgewater-style idea-meritocracy workflow where growth, inflation, and
   liquidity agents argue, a disagreement agent stress-tests the assumptions,
-  and the trader chooses one macro ETF.
+  and the trader builds a diversified macro ETF basket.
 
 - `lumibot/example_strategies/ai_trading_team_ray_dalio_idea_meritocracy_leveraged.py`
   Exact published BotSpot source for the leveraged-ETF idea-meritocracy variant.

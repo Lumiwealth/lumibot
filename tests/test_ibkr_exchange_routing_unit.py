@@ -127,14 +127,21 @@ def test_ibkr_conids_merge_before_upload_unions_remote_keys(tmp_path):
     class FakeS3:
         def __init__(self):
             self._objects = {remote_key: json.dumps(remote_initial).encode("utf-8")}
+            self._version = 1
 
         def get_object(self, Bucket, Key):
             assert Bucket == bucket
-            return {"Body": io.BytesIO(self._objects.get(Key, b"{}"))}
+            return {"Body": io.BytesIO(self._objects.get(Key, b"{}")), "ETag": str(self._version)}
 
         def upload_file(self, filename, Bucket, Key):
             assert Bucket == bucket
             self._objects[Key] = Path(filename).read_bytes()
+
+        def put_object(self, *, Bucket, Key, Body, IfMatch, ContentType):
+            assert Bucket == bucket
+            assert IfMatch == str(self._version)
+            self._objects[Key] = Body
+            self._version += 1
 
     fake_s3 = FakeS3()
 
@@ -220,3 +227,12 @@ def test_ibkr_contract_expiration_date_handles_cl_last_trade_rule():
     # Micro crude uses the same month codes but IBKR's expirationDate is typically 1 trading day earlier.
     assert ibkr_helper._contract_expiration_date("MCL", year=2026, month=5).isoformat() == "2026-04-20"
     assert ibkr_helper._contract_expiration_date("MCL", year=2026, month=3).isoformat() == "2026-02-19"
+
+
+@pytest.mark.parametrize("year,month,expected", [
+    (2026, 11, "2026-10-28"),
+    (2026, 12, "2026-11-25"),
+    (2027, 1, "2026-12-29"),
+])
+def test_ng_expiration_is_three_trading_days_before_delivery_month(year, month, expected):
+    assert ibkr_helper._contract_expiration_date("NG", year=year, month=month).isoformat() == expected

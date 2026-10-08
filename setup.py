@@ -46,7 +46,7 @@ theta_jar_path = PROJECT_ROOT / "lumibot" / "resources" / "ThetaTerminal.jar"
 
 setuptools.setup(
     name="lumibot",
-    version="4.6.6",
+    version="4.6.7",
     author="Robert Grzesik",
     author_email="rob@botspot.trade",
     description="Python framework for algorithmic trading: backtesting and live deployment for stocks, options, crypto, futures, and forex. Same code for backtest and live trading.",
@@ -73,7 +73,7 @@ setuptools.setup(
         "numpy>=1.20.0,<2.5.0",
         "pandas>=2.2.0",
         "polars>=1.32.3",
-        "pandas_market_calendars>=5.1.0",
+        "pandas_market_calendars>=5.4.0",
         "pandas-ta-classic>=0.3.14b0",
         "plotly>=5.18.0",
         "sqlalchemy",

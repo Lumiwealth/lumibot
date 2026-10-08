@@ -26,6 +26,20 @@ machine-specific information in this file or any other tracked repo file.
 - Never edit another customer's strategy or account as an alternative. Rob-owned strategies may be edited only through the owner-scoped regular, development, or local BotSpot MCP server that Rob selected for the task.
 - If authorization is ambiguous, keep LumiBot unchanged. Do not make a speculative compatibility shim, helper method, fallback, documentation change, test change, version bump, or release change.
 
+# BotSpot integration release qualification
+
+- LumiBot keeps its independent package/release cycle. When an explicitly
+  authorized BotSpot release includes a changed LumiBot artifact or contract,
+  the exact package candidate must pass its complete locally runnable LumiBot
+  tests before any downstream Dev deployment.
+- The BotSpot candidate consuming that package must then pass every formal
+  Playwright test owned by its scope locally before Dev. If BotSpot Agent is
+  scoped, its mandatory local freshness selector and required targeted repeats
+  must also be green locally. Focused tests are repair evidence only.
+- Hosted qualification reruns the same committed BotSpot inventory against the
+  exact Dev-served tuple. A hosted-only failure blocks production and requires
+  local environment-parity, contention, or nondeterminism diagnosis.
+
 # Broker Data Ownership
 
 - LumiBot broker and data-source adapters are the sole owners of provider-specific broker market-data and trading API behavior.
@@ -39,15 +53,18 @@ These rules are mandatory whenever you work on ThetaData integrations.
 
 ## Image Generation Rule (CRITICAL)
 
-- For any generated or AI-edited image, infographic, diagram, marketing visual, README visual, documentation visual, or repo asset image, use Nano Banana MCP only (`mcp__nano_banana__generate_image` / `mcp__nano_banana__edit_image`).
-- This is non-negotiable for flow diagrams, architecture diagrams, sequence diagrams, screenshots-as-illustrations, and documentation visuals. Use Nano Banana with reference images/profiles strong enough for readable labels, arrows, branding, and layout.
-- Never use generic image generators, cheaper/lower-quality image models, local SVG/HTML/canvas placeholders, Python drawing scripts, Mermaid screenshots, manually assembled box diagrams, or other fallback image pipelines for generated documentation/product images.
-- For Lumibot, BotSpot, and Lumiwealth visuals, use the canonical Spot mascot reference through Nano Banana (`reference_profile="botspot_spot"` or the approved brand reference images). Spot should usually be doing something relevant to the concept being explained, such as reviewing filings, managing agents, guarding risk, or filing memories. Do not accept off-brand mascot variants or generic static poses when a topic-specific Spot action would make the visual clearer.
+- For any generated or AI-edited image, infographic, diagram, marketing visual, README visual, documentation visual, or repo asset image, use the approved Image Generator only.
+- `Nano Banana` is a compatibility phrase for the approved Image Generator. It does not select Google or Gemini unless Rob explicitly insists on that provider after rejecting the approved default result.
+- The approved Image Generator uses server-controlled GPT Image 2.5 Sunburst for final documentation/product artwork. Follow the current parent-workspace generator policy for supported quality, purpose, aspect ratio, and references; never select another provider/model or post-process an output without Rob's explicit current-turn exception.
+- Never use local SVG/HTML/canvas placeholders, Python drawing scripts, Mermaid screenshots, manually assembled box diagrams, or other fallback pipelines for generated documentation/product images.
+- For agent workflow diagrams, use the approved official LumiBot head as a reference for actual agent cards only. Do not invent a new body, pose, or face, and never use the head to represent a broker order or another non-agent step. Other illustration types can remain character-free. Never reuse a rejected output as a reference or describe it as approved.
+- Every education promotion featuring Rob must include the legible attribution "Rob Grzesik, creator of LumiBot" and a relevant challenge or bootcamp CTA. Preserve tracked clickable image links.
+- Keep generated illustration code and invented trading results out of instructional examples. Runnable code and actual result evidence belong in the page itself.
 - Every generated image must be visually inspected before it is shown to Rob, committed, or used in the repo/docs/README. Open the actual output image, inspect the text, arrows, mascot, spacing, and overall visual hierarchy, and reject outputs with broken/missing text, awkward arrows, cluttered layouts, inaccurate product claims, off-brand mascot variants, or anything that looks like a placeholder.
-- If an image is not good enough, regenerate or edit it with Nano Banana and inspect again. Iterate until the asset is genuinely usable. Do not hand Rob a low-quality image and expect him to catch the problem.
+- If an image is not good enough, regenerate it through the approved Image Generator and inspect again. Iterate until the asset is genuinely usable. Do not hand Rob a low-quality image and expect him to catch the problem.
 - Do not confuse visual asset types. A clickable banner or hero graphic can be a strong marketing asset, but it is not the same thing as a clear CTA button. README/docs pages should usually have one dominant primary CTA; additional CTAs must be visibly secondary and must not look like status badges.
 - When reporting generated visual work, include the generator used and the full absolute paths for the inspected output files.
-- If Nano Banana MCP access is unavailable or broken, stop and report that blocker instead of making replacement images another way.
+- If the Image Generator is unavailable or broken, stop and report that blocker instead of making replacement images another way.
 
 ## Backtesting Accuracy (Definition)
 
@@ -95,6 +112,9 @@ This repo is frequently edited by **multiple AI sessions**. To avoid lost work:
   Temporary worktrees outside this folder are allowed only for isolated review
   of unusually large or risky external PRs, and must not become the active
   release workspace.
+  The parent workspace's BotSpot `main`-only development rule does not apply to
+  LumiBot. This repository has no `main` branch; never create one or move normal
+  LumiBot work to `dev` to satisfy that rule.
 
 - **Release workflow (STRICT):**
   - **Implementation authority is not release authority.** Normal coding agents
@@ -481,3 +501,37 @@ This philosophy applies to ALL projects, not just LumiBot.
 - When starting any task, check: does this move a North Star metric? If not, question its priority.
 - See the private workspace operating instructions for the full framework when
   working inside Rob's local BotSpot/Lumiwealth environment.
+
+# Agent evals are part of "done" (2026-09-24)
+
+LumiBot's agent runtime now ships 78 builtin tools against 16 eval cases.
+Twenty-seven of those tools landed in a single day and one of them got an eval.
+That is the gap these rules close.
+
+- **Every new agent tool ships with at least one eval.** A tool with no eval is
+  not done. Put the case in `agent_eval_cases/` next to the others.
+- **Every eval must fail first**, for the reason a customer would actually hit,
+  and the red artifact is saved in `agent_eval_baselines/` with the date in the
+  filename. An eval that was green from birth proves nothing.
+- **Repeat policy.** A new or changed case must reach three consecutive passes
+  before it is recorded as established; the runner enforces this itself through
+  `target_passes()`, so you do not need to pass `--repeat 3`. An established
+  case then runs once on the ordinary gate. Prior passes carry forward, so an
+  interrupted run resumes rather than restarting.
+- **Run it:**
+
+  ```bash
+  python3 scripts/run_agent_evals.py --max-cost-usd 10
+  ```
+
+  Defaults are `--repeat 1` and `--max-workers 8`. Evals are network-bound, not
+  CPU-bound, so raising workers is the cheapest speedup available.
+- **Highest-value gaps right now**, in order: order lifecycle (market vs limit
+  vs bracket, limit walking, wait-for-terminal, partial fills, rejections),
+  look-ahead discipline when the agent reads the open web through
+  `browser_*`, `http_request` or `rss_fetch`, then indicators, futures and
+  forex. See `docs/research/2026-09-24_lumibot-4.6.1-game-plan.md`.
+- **Look-ahead is special.** LumiBot blocks look-ahead mechanically where it
+  owns the data path. It cannot once the agent reaches an arbitrary page or
+  API, so those cases are the only protection that exists there. When you add a
+  look-ahead eval, teach the rule in the matching skill in the same change.

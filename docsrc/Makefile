@@ -38,7 +38,7 @@ llms-full:
 		echo "" >> ../llms-full.txt; \
 		echo "===== $$(basename $$f .txt) =====" >> ../llms-full.txt; \
 		echo "" >> ../llms-full.txt; \
-		cat "$$f" >> ../llms-full.txt; \
+		sed 's/[[:blank:]]*$$//' "$$f" >> ../llms-full.txt; \
 	done
 	@echo "llms-full.txt generated at repo root ($$(wc -c < ../llms-full.txt | tr -d ' ') bytes)"
 

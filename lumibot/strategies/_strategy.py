@@ -414,11 +414,13 @@ def _json_loads(*args, **kwargs):
     return _json_module().loads(*args, **kwargs)
 
 
-def _get_backtesting_parameters():
+def _get_strategy_parameters():
     if not _DEFER_CREDENTIALS_ON_IMPORT:
-        return getattr(_credentials(), "BACKTESTING_PARAMETERS", None)
+        return getattr(_credentials(), "STRATEGY_PARAMETERS", None)
 
-    raw = os.environ.get("BACKTESTING_PARAMETERS")
+    raw = os.environ.get("LUMIBOT_STRATEGY_PARAMETERS")
+    if raw is None:
+        raw = os.environ.get("BACKTESTING_PARAMETERS")
     if raw is None:
         return None
     raw = raw.strip()
@@ -871,6 +873,11 @@ class _Strategy:
         # Set the the state of first iteration to True. This will later be updated to False by the strategy executor
         self._first_iteration = True
 
+        # Public Strategy.initial_budget is available in both runtimes. Backtests
+        # replace this with configured starting cash below; live strategies replace
+        # it with the first broker-verified account equity snapshot.
+        self._initial_budget = None
+
         # Setting execution parameters
         self._last_on_trading_iteration_datetime = None
         if not self.is_backtesting:
@@ -879,6 +886,7 @@ class _Strategy:
             if synchronize_broker_on_start:
                 self.update_broker_balances()
                 self.broker._set_initial_positions(self)
+                self._initial_budget = self._portfolio_value
         else:
             # Determine initial cash ("budget") for backtesting.
             # NOTE: In BotSpot/BotManager runs we often inject settings via environment variables.
@@ -999,13 +1007,14 @@ class _Strategy:
         if parameters is not None and isinstance(self.parameters, dict):
             self.parameters = {**self.parameters, **parameters}
 
-        # Apply BACKTESTING_PARAMETERS env var override (highest priority, wins over code-level params)
-        BACKTESTING_PARAMETERS = _get_backtesting_parameters()
-        if BACKTESTING_PARAMETERS is not None and isinstance(BACKTESTING_PARAMETERS, dict):
-            self.parameters = {**self.parameters, **BACKTESTING_PARAMETERS}
+        # Apply one mode-neutral override with highest priority for both
+        # backtests and live execution.
+        strategy_parameter_overrides = _get_strategy_parameters()
+        if strategy_parameter_overrides is not None and isinstance(strategy_parameter_overrides, dict):
+            self.parameters = {**self.parameters, **strategy_parameter_overrides}
             self.logger.info(
                 colored(
-                    f"Applied BACKTESTING_PARAMETERS override: {list(BACKTESTING_PARAMETERS.keys())}",
+                    f"Applied strategy parameter override keys: {list(strategy_parameter_overrides.keys())}",
                     "green",
                 )
             )
@@ -1039,6 +1048,23 @@ class _Strategy:
     @_executor.setter
     def _executor(self, executor):
         self._executor_instance = executor
+
+    def _apply_pending_backtest_trade_events(self):
+        """Apply fills produced inside the current backtest iteration to cash and portfolio value.
+
+        Backtest fills update positions immediately but queue the cash update, which the
+        executor otherwise drains only after ``on_trading_iteration`` returns. Without this,
+        code that fills an order and then reads cash in the same iteration sees pre-fill cash.
+        """
+        if not self.is_backtesting:
+            return
+        executor = getattr(self, "_executor_instance", None)
+        if executor is None or not hasattr(executor, "process_queue"):
+            return
+        executor.process_queue(skip_first_iteration_events=False)
+        self._portfolio_value_cache_key = None
+        self._portfolio_value_cache_value = None
+        self._update_portfolio_value()
 
     def _build_executor(self):
         from .strategy_executor import StrategyExecutor
@@ -2135,10 +2161,22 @@ class _Strategy:
 
             positions = self.broker.get_tracked_positions(self._name)
 
+            # ENTITLEMENT: only shares held when the day began earn that day's dividend. This runs
+            # before every iteration, so a position bought on the ex-date existed by the next one
+            # and used to be credited (release gate 2026-09-25: XBI bought 2026-06-22 11:31 on
+            # its ex-date got 82 x 0.138). The first call of each date snapshots the holdings.
+            if getattr(self, "_dividend_entitlement_date", None) != current_date:
+                self._dividend_entitlement_date = current_date
+                self._dividend_entitled_quantity = {
+                    getattr(p.asset, "symbol", str(p.asset)): p.quantity for p in positions
+                }
+            entitled_quantity = self._dividend_entitled_quantity
+
             assets = []
             for position in positions:
                 if position.asset != self._quote_asset and position.asset.asset_type != "option":
-                    assets.append(position.asset)
+                    if getattr(position.asset, "symbol", str(position.asset)) in entitled_quantity:
+                        assets.append(position.asset)
 
             # Early return if no assets - avoid expensive dividend API calls
             if not assets:
@@ -2152,7 +2190,9 @@ class _Strategy:
 
             for position in positions:
                 asset = position.asset
-                quantity = position.quantity
+                quantity = entitled_quantity.get(getattr(asset, "symbol", str(asset)))
+                if quantity is None:
+                    continue  # opened today: not entitled to today's dividend
                 dividend_per_share = 0 if dividends_per_share is None else dividends_per_share.get(asset, 0)
 
                 # Skip if no dividend or already applied for this (date, asset) combination
@@ -3523,6 +3563,15 @@ class _Strategy:
                 base_filename=base_filename,
             )
 
+            try:
+                from lumibot.backtesting.data_provenance import write_backtest_data_provenance
+
+                write_backtest_data_provenance(data_source, logdir)
+            except Exception as exc:
+                # Provenance is diagnostic metadata and must never make an otherwise valid
+                # trading simulation fail at the artifact-writing boundary.
+                self.logger.warning("Backtest data provenance artifact could not be written: %s", exc)
+
             end = datetime.datetime.now()
             backtesting_length = backtesting_end - backtesting_start
             backtesting_run_time = end - start
@@ -3563,6 +3612,11 @@ class _Strategy:
     ):
         if not self._analyze_backtest:
             return
+
+        try:
+            self.broker.data_source.record_runtime_milestone("reports_started_at")
+        except Exception:
+            pass
 
         if not base_filename:
             base_filename = self._name
@@ -3644,6 +3698,12 @@ class _Strategy:
         if tearsheet_result is not None:
             tearsheet_result.to_csv(tearsheet_csv_file)
 
+        try:
+            self.broker.data_source.record_runtime_milestone("reports_completed_at")
+            self.broker.data_source.flush_runtime_timings()
+        except Exception:
+            pass
+        self.write_backtest_settings(settings_file)
         return tearsheet_result
 
     @classmethod
@@ -3843,7 +3903,7 @@ class _Strategy:
             return
 
         # Log that we're starting to send data
-        self.logger.debug(f"Starting cloud update for strategy '{self._name}' with API key: {self.lumiwealth_api_key[:10]}...")
+        self.logger.debug(f"Starting authenticated cloud update for strategy '{self._name}'")
 
         # Refresh the broker account snapshot first. This prevents a failed
         # broker read from being published as stale/default account values.
@@ -3968,8 +4028,7 @@ class _Strategy:
             # Send the data to the cloud
             json_data = _json_dumps(data, default=str)
             data_size_kb = len(json_data.encode('utf-8')) / 1024
-            self.logger.debug(f"Sending {data_size_kb:.2f} KB of data to {listener_url}")
-            self.logger.debug(f"Request headers: {headers}")
+            self.logger.debug(f"Sending {data_size_kb:.2f} KB of data to the configured listener")
 
             response = requests.post(
                 listener_url,
@@ -3978,20 +4037,20 @@ class _Strategy:
                 timeout=10,
             )
 
-            self.logger.debug(f"Cloud response: Status={response.status_code}, Headers={dict(response.headers)}")
+            self.logger.debug(f"Cloud response: Status={response.status_code}")
 
-        except requests.exceptions.ConnectionError as e:
-            self.logger.info(f"Connection error when sending to cloud: {e}", exc_info=True)
+        except requests.exceptions.ConnectionError:
+            self.logger.info("Connection error when sending to cloud; a later snapshot will retry.")
             return False
-        except requests.exceptions.Timeout as e:
-            self.logger.info(f"Timeout error when sending to cloud: {e}", exc_info=True)
+        except requests.exceptions.Timeout:
+            self.logger.info("Timeout error when sending to cloud; a later snapshot will retry.")
             return False
-        except requests.exceptions.RequestException as e:
-            self.logger.info(f"Request error when sending to cloud: {e}", exc_info=True)
+        except requests.exceptions.RequestException:
+            self.logger.info("Request error when sending to cloud; inspect listener status telemetry.")
             return False
         except Exception as e:
-            self.logger.error(f"Unexpected error when sending to cloud: {e}")
-            self.logger.error(_format_exc())
+            # SDK errors/response bodies can echo authentication headers or URLs.
+            self.logger.error(f"Unexpected error when sending to cloud: {type(e).__name__}")
             return False
 
         # Check if the message was sent successfully
@@ -4000,20 +4059,17 @@ class _Strategy:
             self.logger.debug(f"Portfolio update sent successfully to cloud for strategy '{self._name}'")
             return True
         elif response.status_code == 401:
-            self.logger.error(f"❌ Authentication failed - Invalid API key: {self.lumiwealth_api_key[:10]}...")
-            self.logger.error(f"Response: {response.text}")
+            self.logger.error("❌ Cloud authentication failed; check the configured listener credential.")
             return False
         elif response.status_code == 400:
             self.logger.error("❌ Bad request - Invalid data format")
-            self.logger.error(f"Response: {response.text}")
             return False
         elif response.status_code == 413:
             self.logger.error(f"❌ Payload too large ({data_size_kb:.2f} KB)")
-            self.logger.error(f"Response: {response.text}")
             return False
         else:
             self.logger.error(
-                f"❌ Failed to send update to cloud. Status: {response.status_code}, Response: {response.text}"
+                f"❌ Failed to send update to cloud. Status: {response.status_code}"
             )
             return False
 
@@ -4033,6 +4089,74 @@ class _Strategy:
             enabled=enabled,
             **kwargs,
         )
+
+    def send_email(
+        self,
+        *,
+        to,
+        subject,
+        text=None,
+        html=None,
+        attachments=None,
+        idempotency_key=None,
+        enabled=None,
+        provider="resend",
+        **kwargs,
+    ):
+        """Send an email through the configured provider, or record it during a backtest."""
+        return self.notifications.send_email(
+            to=to,
+            subject=subject,
+            text=text,
+            html=html,
+            attachments=attachments,
+            idempotency_key=idempotency_key,
+            enabled=enabled,
+            provider=provider,
+            **kwargs,
+        )
+
+    def list_sent_emails(self, **kwargs):
+        return self.notifications.list_sent_emails(**kwargs)
+
+    def get_sent_email(self, email_id):
+        return self.notifications.get_sent_email(email_id)
+
+    def list_received_emails(self, **kwargs):
+        return self.notifications.list_received_emails(**kwargs)
+
+    def get_received_email(self, email_id):
+        return self.notifications.get_received_email(email_id)
+
+    def get_email_status(self, email_id):
+        return self.notifications.get_email_status(email_id)
+
+    def list_received_email_attachments(self, email_id):
+        return self.notifications.list_received_email_attachments(email_id)
+
+    def get_received_email_attachment(self, email_id, attachment_id):
+        return self.notifications.get_received_email_attachment(email_id, attachment_id)
+
+    def send_slack_message(self, text, *, channel=None, thread_ts=None, blocks=None, enabled=None):
+        return self.notifications.send_slack_message(
+            text,
+            channel=channel,
+            thread_ts=thread_ts,
+            blocks=blocks,
+            enabled=enabled,
+        )
+
+    def list_slack_messages(self, **kwargs):
+        return self.notifications.list_slack_messages(**kwargs)
+
+    def list_slack_channels(self, **kwargs):
+        return self.notifications.list_slack_channels(**kwargs)
+
+    def get_slack_message(self, message_ts, **kwargs):
+        return self.notifications.get_slack_message(message_ts, **kwargs)
+
+    def list_slack_thread(self, thread_ts, **kwargs):
+        return self.notifications.list_slack_thread(thread_ts, **kwargs)
 
     def should_send_account_summary_to_discord(self):
         # Check if db_connection_str has been set, if not, return False
@@ -4473,18 +4597,26 @@ class _Strategy:
 
     @staticmethod
     def _encode_variable_for_backup(value):
+        if isinstance(value, Asset):
+            # Plain to_dict JSON loses the type required by position/chart APIs.
+            # Tag only actual assets; user dictionaries must remain dictionaries.
+            return {"__lumibot_type__": "Asset", "value": value.to_dict()}
         if isinstance(value, datetime.datetime):
             return {"__lumibot_type__": "datetime", "value": value.isoformat()}
         if isinstance(value, datetime.date):
             return {"__lumibot_type__": "date", "value": value.isoformat()}
         if isinstance(value, dict):
-            return {key: _Strategy._encode_variable_for_backup(nested) for key, nested in value.items()}
+            encoded = {key: _Strategy._encode_variable_for_backup(nested) for key, nested in value.items()}
+            if set(value) == {"__lumibot_type__", "value"}:
+                # Escape literal envelopes, including this escape tag itself.
+                return {"__lumibot_type__": "dict", "value": encoded}
+            return encoded
         if isinstance(value, tuple):
             return {
                 "__lumibot_type__": "tuple",
                 "value": [_Strategy._encode_variable_for_backup(nested) for nested in value],
             }
-        if isinstance(value, list):
+        if isinstance(value, (list, set)):
             return [_Strategy._encode_variable_for_backup(nested) for nested in value]
         return value
 
@@ -4492,6 +4624,13 @@ class _Strategy:
     def _decode_variable_from_backup(value):
         if isinstance(value, dict):
             if set(value.keys()) == {"__lumibot_type__", "value"}:
+                if value["__lumibot_type__"] == "dict":
+                    return {
+                        key: _Strategy._decode_variable_from_backup(nested)
+                        for key, nested in value["value"].items()
+                    }
+                if value["__lumibot_type__"] == "Asset":
+                    return Asset.from_dict(value["value"])
                 if value["__lumibot_type__"] == "datetime":
                     return datetime.datetime.fromisoformat(value["value"])
                 if value["__lumibot_type__"] == "date":
@@ -4506,7 +4645,7 @@ class _Strategy:
     @classmethod
     def _serialize_variables_for_backup(cls, variables):
         return _json_dumps(
-            cls._encode_variable_for_backup(variables),
+            {key: cls._encode_variable_for_backup(value) for key, value in variables.items()},
             sort_keys=True,
             cls=_safe_json_encoder_class(),
         )
@@ -4608,15 +4747,14 @@ class _Strategy:
             # Create the table by saving this empty DataFrame to the database
             stats_new.to_sql(self.backup_table_name, self.db_engine, if_exists='replace', index=True)
 
-        current_state = _json_dumps(self.vars.all(), sort_keys=True, cls=_safe_json_encoder_class())
-        if current_state == self._last_backup_state:
-            self.logger.info("No variables changed. Not backing up.")
-            return
-
         try:
             data_to_save = self.vars.all()
+            current_state = self._serialize_variables_for_backup(data_to_save)
+            if current_state == self._last_backup_state:
+                self.logger.info("No variables changed. Not backing up.")
+                return
             if data_to_save:
-                json_data_to_save = _json_dumps(data_to_save, cls=_safe_json_encoder_class())
+                json_data_to_save = current_state
                 with self.db_engine.connect() as connection:
                     with connection.begin():
                         # Check if the row exists
@@ -4722,15 +4860,24 @@ class _Strategy:
 
                 return v
 
-            # Decode any special types we stored using our SafeJSONEncoder,
-            # but only parse strings that actually look like ISO dates/datetimes.
-            data = _json_loads(json_data, object_hook=lambda d: {k: _coerce_value(v) for k, v in d.items()})
+            def _coerce_legacy_dates(value):
+                # Keep the database's historical date-string behavior, but only
+                # after typed entities are decoded so Asset expiration stays valid.
+                if isinstance(value, dict):
+                    return {key: _coerce_value(_coerce_legacy_dates(nested)) for key, nested in value.items()}
+                if isinstance(value, list):
+                    return [_coerce_legacy_dates(nested) for nested in value]
+                if isinstance(value, tuple):
+                    return tuple(_coerce_legacy_dates(nested) for nested in value)
+                return value
+
+            data = _coerce_legacy_dates(self._deserialize_variables_from_backup(json_data))
     
             # Update self.vars dictionary
             for key, value in data.items():
                 self.vars.set(key, value)
     
-            current_state = _json_dumps(self.vars.all(), sort_keys=True, cls=_safe_json_encoder_class())
+            current_state = self._serialize_variables_for_backup(self.vars.all())
             self._last_backup_state = current_state
     
             self.logger.info("Variables loaded successfully from database")

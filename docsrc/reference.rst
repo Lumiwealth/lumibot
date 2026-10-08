@@ -1,7 +1,14 @@
 Reference
 =========
 
+.. meta::
+   :description: Reference. Reference documentation for specialized Lumibot features.
+
 Reference documentation for specialized Lumibot features.
+
+Start with :doc:`strategy_api_overview` for the small set of Strategy methods
+used in most examples, then use the categorized reference pages for complete
+signatures and specialized behavior.
 
 .. toctree::
    :maxdepth: 2

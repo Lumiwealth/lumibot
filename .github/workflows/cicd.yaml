@@ -35,13 +35,6 @@ env:
   POLYGON_MAX_RETRY_ATTEMPTS: "12"
   POLYGON_MAX_RETRY_SLEEP_SECONDS: "120"
   POLYGON_WAIT_SECONDS_RETRY: "10"
-  THETADATA_USERNAME: ${{ secrets.THETADATA_USERNAME }}
-  THETADATA_PASSWORD: ${{ secrets.THETADATA_PASSWORD }}
-  # NOTE (2025-11-28): Data Downloader is a production proxy for ThetaData that allows
-  # shared access without requiring a local ThetaTerminal JAR. When these are set,
-  # ThetaData tests will use the remote downloader instead of spawning a local process.
-  DATADOWNLOADER_BASE_URL: ${{ secrets.DATADOWNLOADER_BASE_URL }}
-  DATADOWNLOADER_API_KEY: ${{ secrets.DATADOWNLOADER_API_KEY }}
   ALPACA_TEST_API_KEY: ${{ secrets.ALPACA_TEST_API_KEY }} # Required for alpaca unit tests
   ALPACA_TEST_API_SECRET: ${{ secrets.ALPACA_TEST_API_SECRET }} # Required for alpaca unit tests
   TRADIER_TEST_ACCESS_TOKEN: ${{ secrets.TRADIER_TEST_ACCESS_TOKEN }} # Required for tradier unit tests
@@ -208,18 +201,6 @@ jobs:
         env:
           SHARD_INDEX: ${{ matrix.shard }}
           SHARD_TOTAL: "4"
-          # Acceptance backtests (in tests/backtest/) require the same ThetaData + S3 secrets used locally.
-          # These env var names intentionally match Strategy Library/Demos/.env.
-          THETADATA_USERNAME: ${{ secrets.THETADATA_USERNAME }}
-          THETADATA_PASSWORD: ${{ secrets.THETADATA_PASSWORD }}
-          DATADOWNLOADER_BASE_URL: ${{ secrets.DATADOWNLOADER_BASE_URL }}
-          DATADOWNLOADER_API_KEY: ${{ secrets.DATADOWNLOADER_API_KEY }}
-          LUMIBOT_CACHE_S3_BUCKET: ${{ secrets.LUMIBOT_CACHE_S3_BUCKET }}
-          LUMIBOT_CACHE_S3_PREFIX: ${{ secrets.LUMIBOT_CACHE_S3_PREFIX }}
-          LUMIBOT_CACHE_S3_REGION: ${{ secrets.LUMIBOT_CACHE_S3_REGION }}
-          LUMIBOT_CACHE_S3_VERSION: ${{ secrets.LUMIBOT_CACHE_S3_VERSION }}
-          LUMIBOT_CACHE_S3_ACCESS_KEY_ID: ${{ secrets.LUMIBOT_CACHE_S3_ACCESS_KEY_ID }}
-          LUMIBOT_CACHE_S3_SECRET_ACCESS_KEY: ${{ secrets.LUMIBOT_CACHE_S3_SECRET_ACCESS_KEY }}
         run: |
           set -euo pipefail
 

@@ -2,7 +2,7 @@
 
 One-line description: Documents the live Alpaca end-of-day crash caused by calling a backtesting-only pending-order method.
 
-Last Updated: 2026-08-27
+Last Updated: 2026-10-08
 
 Status: Fixed locally with credential-free regression coverage; Alpaca paper validation not run.
 
@@ -78,3 +78,20 @@ No Alpaca credentials, account, or live/paper broker connection were used for th
 does not provide the reporter's saved strategy artifact, so the exact customer deployment cannot be
 run locally. A maintainer or reporter with an isolated Alpaca paper account should confirm the full
 strategy lifecycle through market close before describing the customer path as end-to-end proven.
+
+## Review Readiness Refresh
+
+The PR was refreshed against upstream `dev` on 2026-10-08. The public Alpaca
+reference retains both the end-of-day explanation and the upstream Getting
+Started anchor. The fix is recorded under Unreleased rather than a historical
+version. Credential-free validation passed 25 Alpaca tests (5 API tests
+deselected) and 8 backtesting time-advance tests. The Sphinx HTML build
+succeeded across 209 sources with 19 warnings outside the changed Alpaca page.
+
+The Sphinx configuration now requires `sphinxext.opengraph`; its distribution,
+`sphinxext-opengraph`, is included in development requirements so clean
+documentation CI environments can load it. Earlier documentation and public
+hygiene workflow runs expired while awaiting maintainer approval without
+starting jobs. Fresh fork workflow runs require upstream approval when GitHub
+requests it. Full test CI does not automatically trigger for a PR targeting
+`dev`; maintainers must arrange that validation separately.

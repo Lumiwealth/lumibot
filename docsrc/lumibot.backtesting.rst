@@ -3,6 +3,9 @@
 Backtesting
 ===========================
 
+.. meta::
+   :description: Backtesting. Backtesting Broker LumiBot documentation in the LumiBot Python trading framework.
+
 Backtesting Broker
 ----------------------------------------------
 

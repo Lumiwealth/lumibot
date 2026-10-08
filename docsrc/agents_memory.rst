@@ -1,6 +1,9 @@
 Agent Memory
 ============
 
+.. meta::
+   :description: Lumibot includes native local memory for agentic strategies. Memory lets an agent record why it made a decision, search prior lessons, keep an open thesis.
+
 Lumibot includes native local memory for agentic strategies. Memory lets an
 agent record why it made a decision, search prior lessons, keep an open thesis,
 and leave artifacts that a human can inspect after a backtest or live run.
@@ -198,7 +201,7 @@ Example Prompt
 
    self.agents.create(
        name="portfolio_manager",
-       model="openai/gpt-5.4-mini",
+       model="openai/gpt-6-luna",
        allow_trading=True,
        system_prompt=(
            "Review evidence and risk before trading. "

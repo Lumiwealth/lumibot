@@ -50,7 +50,9 @@ else:
 # This ensures environment variables are available for all tests
 project_root = Path(__file__).parent.parent
 env_file = project_root / ".env"
-if env_file.exists():
+if os.environ.get("LUMIBOT_DISABLE_DOTENV", "").lower() in {"1", "true", "yes", "on"}:
+    print("Local dotenv discovery disabled for this test process")
+elif env_file.exists():
     load_dotenv(env_file)
     print(f"Loaded .env file from: {env_file}")
 else:
@@ -85,6 +87,7 @@ if os.getcwd() != str(project_root):
 
 
 def pytest_configure(config):
+    config.addinivalue_line("markers", "alpaca: requires only Alpaca test credentials, never ThetaData or Polygon")
     config.addinivalue_line("markers", "ibkr: downloader-only IBKR tests that do not require Polygon or ThetaData credentials")
     config.addinivalue_line("markers", "polymarket: Polymarket CLOB tests that do not require Polygon or ThetaData credentials")
     config.addinivalue_line("markers", "polymarket_credentials: Polymarket CLOB tests that require authenticated credentials")
@@ -320,6 +323,7 @@ def pytest_runtest_setup(item: pytest.Item):
 
     Markers:
       - apitest: general external API usage
+      - public_http: public unauthenticated HTTP proof; requires no provider credentials
       - downloader: tests that hit remote/downloader services
       - polygon: requires Polygon credentials
       - thetadata: requires ThetaData credentials
@@ -341,15 +345,17 @@ def pytest_runtest_setup(item: pytest.Item):
         # Non-API tests are not gated
         return
 
+    requires_alpaca = item.get_closest_marker("alpaca") is not None
     requires_polygon = item.get_closest_marker("polygon") is not None
     requires_theta = item.get_closest_marker("thetadata") is not None
     requires_ibkr = item.get_closest_marker("ibkr") is not None
     requires_polymarket = item.get_closest_marker("polymarket") is not None
     requires_polymarket_credentials = item.get_closest_marker("polymarket_credentials") is not None
     requires_polymarket_live_trading = item.get_closest_marker("polymarket_live_trading") is not None
+    requires_public_http = item.get_closest_marker("public_http") is not None
 
     # Determine which providers are required
-    if requires_ibkr or requires_polymarket:
+    if requires_public_http or requires_ibkr or requires_polymarket or requires_alpaca:
         need_polygon = False
         need_theta = False
     elif requires_polygon or requires_theta:
@@ -361,6 +367,11 @@ def pytest_runtest_setup(item: pytest.Item):
         need_theta = True
 
     missing = []
+
+    if requires_alpaca:
+        for key in ("ALPACA_TEST_API_KEY", "ALPACA_TEST_API_SECRET"):
+            if _is_placeholder(os.environ.get(key)):
+                missing.append(key)
 
     # Validate only the required credentials
     if need_polygon:

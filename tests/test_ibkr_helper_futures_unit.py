@@ -266,3 +266,40 @@ def test_ibkr_helper_cont_future_segments_use_ibkr_listed_mnq_expiration(monkeyp
     assert contract_asset.expiration == date(2026, 6, 18)
     assert seg_start == datetime(2026, 4, 22, tzinfo=timezone.utc)
     assert seg_end == datetime(2026, 4, 29, tzinfo=timezone.utc)
+
+
+def test_cme_fx_futures_use_ibkr_root_symbols(monkeypatch, tmp_path):
+    """Oct 7 2026: 6E and 6J failed with 'No futures contracts returned for 6E on CME'.
+    IBKR lists CME FX futures under the currency (EUR, JPY), not the Globex code. The
+    registry keys keep the symbol the strategy used, and an old negative entry for the
+    Globex code must not block the corrected lookup."""
+    import lumibot.tools.ibkr_helper as ibkr_helper
+
+    monkeypatch.setattr(ibkr_helper, "LUMIBOT_CACHE_FOLDER", tmp_path.as_posix())
+    monkeypatch.setattr(ibkr_helper, "get_backtest_cache", _stub_cache)
+    monkeypatch.setattr(ibkr_helper, "_RUNTIME_CONID_CACHE", {})
+    monkeypatch.setattr(ibkr_helper, "_NEGATIVE_CONID_CACHE_LOADED", True)
+    monkeypatch.setattr(ibkr_helper, "_is_future_or_current_expiration", lambda value: True)
+    old_negative = ibkr_helper.IbkrConidKey("future", "6E", "", "CME", "").to_key()
+    monkeypatch.setattr(ibkr_helper, "_NEGATIVE_CONID_CACHE",
+                        {old_negative: {"ts": 1791354173.0, "reason": "no_contracts",
+                                        "message": "No futures contracts returned for 6E on CME"}})
+
+    calls = []
+
+    def fake_queue_request(url: str, querystring, headers=None, timeout=None):
+        calls.append(dict(querystring))
+        if querystring["symbols"] != "EUR":
+            return {}
+        return {"EUR": [{"symbol": "EUR", "conid": 532281583, "underlyingConid": 12087792,
+                         "expirationDate": 20261214, "ltd": 20261214}]}
+
+    monkeypatch.setattr(ibkr_helper, "queue_request", fake_queue_request)
+
+    asset = Asset("6E", asset_type=Asset.AssetType.FUTURE, expiration=date(2026, 12, 14))
+    mapping = {}
+    conid = ibkr_helper._lookup_conid_future(asset=asset, exchange="CME", mapping=mapping, keys_added=set())
+
+    assert conid == 532281583
+    assert calls[0]["symbols"] == "EUR"
+    assert mapping["future|6E||CME|20261214"] == 532281583

@@ -1,5 +1,8 @@
-Interactive Brokers
-===================
+Interactive Brokers API Trading with LumiBot
+============================================
+
+.. meta::
+   :description: Connect LumiBot to Interactive Brokers for algorithmic trading, including Client Portal REST or legacy TWS setup, credentials, and supported markets.
 
 Interactive Brokers is a brokerage firm that operates in most countries around the world. It's a great choice for investing and trading, especially if you don't have access to other supported platforms.
 

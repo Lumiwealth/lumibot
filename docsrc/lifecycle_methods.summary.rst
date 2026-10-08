@@ -1,6 +1,9 @@
 Summary
 **************************
 
+.. meta::
+   :description: Lifecycle methods are methods that are called by the trading engine at specific times. They are used to implement trading logics and to perform other tasks.
+
 Lifecycle methods are methods that are called by the trading engine at specific times. They are used to implement trading logics and to perform other tasks. They are the core of the trading engine and are the most important part of the framework, as they are the ones that actually perform the trading operations.
 
 From a user's perspective, lifecycle methods are the only methods that need to be implemented. The rest of the framework is already implemented and ready to use. The user only needs to implement the lifecycle methods and the trading engine will take care of the rest.

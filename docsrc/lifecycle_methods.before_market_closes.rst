@@ -1,6 +1,9 @@
 def before_market_closes
 ===================================
 
+.. meta::
+   :description: This lifecycle method is executed self.minutes_before_closing minutes before the market closes.
+
 This lifecycle method is executed self.minutes_before_closing minutes before the market closes. Use this lifecycle method to execute business logic like selling shares and closing open orders.
 
 .. code-block:: python

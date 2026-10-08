@@ -1,0 +1,73 @@
+Still-forming bar fix in AlpacaBacktesting (BACKTESTING_DATA_SOURCE=alpaca), 2026-09-23
+See docs/investigations/2026-09-23_alpaca-options-backtesting-and-ibkr-4592-window-regression.md.
+
+Alpaca labels a bar with its start time: the 5-minute bar labeled 10:00 closes at 10:05 and the
+daily bar labeled 08-04 00:00 is not finished until that day's session ends.
+
+1) Real SPY bars at the same simulated times (Alpaca cached bars, environment mode).
+   AlpacaBacktesting(2026-08-03 to 2026-08-08) with credentials from the environment, then
+   get_historical_prices(SPY, n, timestep) with remove_incomplete_current_bar=False (the
+   history before the fix) and with the default (after the fix).
+
+environment mode default remove_incomplete_current_bar = True
+
+simulated time 2026-08-04 10:00:00-04:00
+  before fix (remove_incomplete_current_bar=False)
+    5minute  08-04 09:55 o=761.55 c=761.50, 08-04 10:00 o=761.48 c=761.98
+    minute   08-04 09:59 o=761.31 c=761.50, 08-04 10:00 o=761.48 c=761.56
+    day      08-04 00:00 o=758.75 c=769.42
+  after fix (default)
+    5minute  08-04 09:50 o=760.65 c=761.53, 08-04 09:55 o=761.55 c=761.50
+    minute   08-04 09:58 o=760.95 c=761.30, 08-04 09:59 o=761.31 c=761.50
+    day      08-03 00:00 o=747.58 c=755.79
+  get_last_price = 761.48
+
+simulated time 2026-08-04 10:02:00-04:00
+  before fix (remove_incomplete_current_bar=False)
+    5minute  08-04 09:55 o=761.55 c=761.50, 08-04 10:00 o=761.48 c=761.98
+    minute   08-04 10:01 o=761.56 c=761.87, 08-04 10:02 o=761.88 c=762.09
+    day      08-04 00:00 o=758.75 c=769.42
+  after fix (default)
+    5minute  08-04 09:50 o=760.65 c=761.53, 08-04 09:55 o=761.55 c=761.50
+    minute   08-04 10:00 o=761.48 c=761.56, 08-04 10:01 o=761.56 c=761.87
+    day      08-03 00:00 o=747.58 c=755.79
+  get_last_price = 761.88
+
+   Before the fix, at 10:00 the strategy saw the 10:00 five-minute bar's 10:04:59 close
+   (761.98) and today's daily close (769.42, a price from the end of that session, up 1.4
+   percent from the open; the 15:59 minute bar closed at 769.34).
+   After the fix the newest bars are the ones that have closed: 09:55 (close 761.50, equal
+   to the 09:59 minute close) and the 08-03 daily bar. get_last_price (761.48 at 10:00,
+   761.88 at 10:02) is the open of the minute bar that starts now, unchanged.
+
+2) ORB proof, scripts/alpaca_env_selection_proof.py orb, 2026-08-03 to 2026-08-07.
+   The strategy keeps its own completed-bar filter and counts bars the source returned
+   while still forming.
+
+   Before (--legacy-forming-bar, remove_incomplete_current_bar=False):
+     HISTORY CHECK: 33 five-minute history calls, 33 bars returned while still forming
+   After (default):
+     HISTORY CHECK: 33 five-minute history calls, 0 bars returned while still forming
+
+   Trades: both runs match alpaca_env_orb_2026_trades.csv row for row (16 rows; time, side,
+   status, quantity, symbol, price). No trade changed because this strategy already dropped
+   the forming bar itself and asked for one extra bar to make up for it. A strategy without
+   that guard would have made its breakout decision on a close up to 5 minutes in the future.
+
+3) weekly_call proof (options), 2026-07-27 to 2026-08-14.
+   12 trade rows match alpaca_env_weekly_call_2026_trades.csv exactly, including the
+   [FILL][PENDING] waits for a real option print. The strategy uses get_last_price, get_chains
+   and market orders only; the fix does not change any of them (fills use the open of the bar
+   that starts now, which the broker now requests explicitly).
+
+Commands (credentials from your own environment):
+
+  LUMIBOT_DISABLE_DOTENV_LOCAL=1 LUMIBOT_CACHE_BACKEND=local LUMIBOT_CACHE_MODE=disabled \
+  BACKTESTING_QUIET_LOGS=false BACKTESTING_DATA_SOURCE=alpaca ALPACA_IS_PAPER=true \
+  BACKTESTING_START=2026-08-03 BACKTESTING_END=2026-08-08 PYTHONPATH=. \
+  python scripts/alpaca_env_selection_proof.py orb --name alpaca_env_orb_2026 [--legacy-forming-bar]
+
+  LUMIBOT_DISABLE_DOTENV_LOCAL=1 LUMIBOT_CACHE_BACKEND=local LUMIBOT_CACHE_MODE=disabled \
+  BACKTESTING_QUIET_LOGS=false BACKTESTING_DATA_SOURCE=alpaca ALPACA_IS_PAPER=true \
+  BACKTESTING_START=2026-07-27 BACKTESTING_END=2026-08-15 PYTHONPATH=.:scripts \
+  python scripts/alpaca_env_selection_proof.py weekly_call --name alpaca_env_weekly_call_2026

@@ -1,7 +1,10 @@
 .. _backtesting.tearsheet_html:
 
-Tearsheet HTML
-==============
+LumiBot Backtest Tear Sheets and Performance Reports
+====================================================
+
+.. meta::
+   :description: Read LumiBot backtest tear sheets and performance reports, including total return, drawdown, benchmark comparison, trades, and risk metrics.
 
 .. note::
    The **Tearsheet HTML** is one of the most important files generated and is created using the `quantstats-lumi` library. It includes a variety of metrics such as:
@@ -120,4 +123,4 @@ See also: :doc:`cash_accounting`
    - **Condor Martingale Strategy:** Creates an Iron Condor with a defined delta, adjusting quantities based on previous performance. It uses a 1 DTE Iron Condor expiring daily.
    - **Crypto BBands v2 Strategy:** Uses Bollinger Bands and exponential moving averages to determine buy and sell points.
 
-   Interested in implementing these strategies? BotSpot can help you build, backtest, and run LumiBot strategies from plain English. `Start on BotSpot <https://botspot.trade/sales?showLogin=1&utm_source=documentation&utm_medium=tearsheet&utm_campaign=lumibot&utm_content=tearsheet_botspot_text&prompt=I%20want%20to%20deploy%20a%20Lumibot%20trading%20strategy%20on%20BotSpot.%20Please%20help%20me%20set%20up%20a%20backtest%20and%20paper%20or%20live%20deployment.>`_. For any questions, email us at support@lumiwealth.com.
+   Interested in implementing these strategies? BotSpot can help you build, backtest, and run LumiBot strategies from plain English. `Start on BotSpot <https://botspot.trade/sales?showLogin=1&utm_source=documentation&utm_medium=tearsheet&utm_campaign=lumibot&utm_content=tearsheet_botspot_text&prompt=I%20want%20to%20deploy%20a%20Lumibot%20trading%20strategy%20on%20BotSpot.%20Please%20help%20me%20set%20up%20a%20backtest%20and%20paper%20or%20live%20deployment.>`_. For questions, use BotSpot's public support experience.

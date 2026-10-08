@@ -8,13 +8,20 @@ _NAME_TO_MODULE = {
     "AgentRunResult": "schemas",
     "AgentTraceEvent": "schemas",
     "BuiltinTools": "builtins",
+    "BrowserCredentialProfile": "browser_tools",
+    "BrowserSessionManager": "browser_tools",
+    "CamoufoxEngine": "browser_tools",
+    "CredentialProfile": "web_tools",
     "GoogleADKRuntime": "runtime",
     "MCPServer": "schemas",
+    "PatchrightEngine": "browser_tools",
     "StubAgentRuntime": "runtime",
+    "WebClient": "web_tools",
     "agent_tool": "tools",
 }
 _SUBMODULES = {
     "asset_resolution",
+    "browser_tools",
     "builtins",
     "docs_tools",
     "duckdb_tools",
@@ -23,6 +30,7 @@ _SUBMODULES = {
     "runtime",
     "schemas",
     "tools",
+    "web_tools",
 }
 
 __all__ = sorted(_NAME_TO_MODULE)

@@ -1,0 +1,32 @@
+Independent check of the 2026 fills against raw Alpaca option minute bars
+(OptionHistoricalDataClient.get_option_bars, TimeFrame.Minute, queried 2026-09-23).
+Times are America/New_York. "o" is the bar open.
+
+SPY260803C00745000 2026-07-27 prints: 09:30 o=6.15, 09:31 o=6.05, 09:32 o=6.05, 09:33 o=5.97, 09:34 o=5.74, 09:35 o=6.1, 09:36 o=6.48, 09:37 o=6.43
+  -> buy submitted 09:35, filled 09:35 at 6.10 (the 09:35 print).
+SPY260810C00751000 2026-08-07 prints between 15:15 and 15:41: 15:18 o=22.11, 15:39 o=21.91
+  -> sell submitted 15:30 waited through 15:38 (no print), filled 15:39 at 21.91.
+     The previous code forward-filled 15:18 into every minute and would have sold at 15:30 on an invented bar.
+SPY260817C00773000 2026-08-10 prints between 09:30 and 09:38: 09:30 o=5.0, 09:33 o=5.37, 09:37 o=4.97
+  -> buy submitted 09:35 waited through 09:36, filled 09:37 at 4.97.
+SPY260817C00773000 2026-08-14 prints between 15:28 and 15:32: 15:28 o=3.9, 15:29 o=3.92, 15:31 o=3.86
+  -> sell submitted 15:30 waited, filled 15:31 at 3.86.
+SPY stock 2026-08-07 15:38 to 15:39 minute closes: 772.96, 772.91, 772.69
+  -> the 751 call at 21.91 is about intrinsic value (772.9 - 751).
+
+Task C cross-provider check (Polygon key, same strategy, window 2026-08-03 to 2026-08-07):
+Polygon minute aggregates for O:SPY260810C00751000 on 2026-08-07 between 15:10 and 15:45:
+  15:18 o=22.11 v=3, 15:39 o=21.91 v=1   (the same two prints Alpaca returns)
+PolygonDataBacktesting picked the same contract (SPY 2026-08-10 751 call), bought at 4.99 at 09:35
+like Alpaca, but sold at 15:30 at 22.11, the stale 15:18 print. The Pandas-based Polygon path fills
+sparse options on a carried-forward bar; AlpacaBacktesting now waits for the 15:39 print (21.91).
+
+Environment-selected runs (BACKTESTING_DATA_SOURCE=alpaca, backtest(datasource_class=None), no config,
+no timestep; credentials and dates from the environment, like BotSpot):
+SPY 5-minute opening range breakout, 2026-08-03 to 2026-08-07:
+  SPY 2026-08-03 09:50 five-minute bar close 752.76 (> range high 751.94) -> buy at the 09:55 minute open 752.765
+  SPY 2026-08-03 15:50 minute open 758.15 -> sell fill 758.15
+  SPY 2026-08-07 10:25 five-minute bar close 773.19 (> range high 772.09) -> buy at the 10:30 minute open 773.16
+  SPY 2026-08-07 15:50 minute open 772.85 -> sell fill 772.85
+Weekly SPY call, 2026-07-27 to 2026-08-14 (BACKTESTING_END=2026-08-15): trades identical to the
+explicit-class run above, which had to pass an end date three sessions later.

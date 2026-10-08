@@ -1,6 +1,9 @@
 Coinbase Crypto Broker
 ======================
 
+.. meta::
+   :description: Coinbase is one of Lumibot's auto-detected CCXT credential paths. It is a good starting point for users who want regulated spot crypto access and relatively simple.
+
 Coinbase is one of Lumibot's auto-detected CCXT credential paths. It is a good
 starting point for users who want regulated spot crypto access and relatively
 simple account setup.
@@ -44,3 +47,12 @@ Crypto markets trade continuously, so set the market in ``initialize()``:
 
 Start with tiny paper or live test quantities, verify balances, open orders,
 fills, and cancellation behavior, and only then increase size.
+
+Live Historical Bars
+--------------------
+
+Live Coinbase history uses CCXT timestamp pagination. LumiBot advances the
+``since`` cursor to one full timeframe after the last returned candle, which
+prevents exchanges with inclusive cursors from returning the same boundary
+candle indefinitely. A request either returns the requested number of bars or
+raises a short-history error that includes the returned and requested counts.

@@ -1,6 +1,9 @@
 Interactive Brokers (REST) Backtesting
 ======================================
 
+.. meta::
+   :description: LumiBot supports backtesting with Interactive Brokers data providers.
+
 LumiBot supports backtesting with **Interactive Brokers data providers**.
 
 The primary data path uses Client Portal (REST) via the LumiBot Data Downloader.
@@ -36,6 +39,16 @@ Supported Data
 - **Spot crypto**: IBKR crypto bars (availability depends on region and IBKR product support).
 - **Stocks / Indexes (day bars)**: supported in routed backtests (for example mixed Theta+IBKR routing).
 
+Portfolio Valuation (Stocks/Indexes)
+------------------------------------
+
+Daily-cadence backtests (for example ``sleeptime = "1D"``) value stock and index positions on the daily
+series. Intraday backtests value them on the finest intraday bars loaded for that asset (the bars the
+strategy requested and its fills use): the bar that has just completed marks at its close, a bar still forming
+marks at its open. If the strategy's minute history ends before the current time, a small window of minute bars
+is fetched first, the same request the strategy itself makes. Strategies that only use daily bars never fetch
+minute history for valuation.
+
 Daily Stocks/Indexes: Warmup + Corporate Actions
 ------------------------------------------------
 
@@ -45,6 +58,32 @@ lookbacks (for example 200-day SMA signals) are not under-warmed near the backte
 IBKR day-bar payloads do not include corporate-action columns directly. LumiBot enriches cached IBKR
 daily equity bars with ``dividend`` and ``stock_splits`` values using Yahoo actions as a best-effort
 source so split/dividend accounting remains available in backtests.
+
+How History Is Downloaded (stocks and indexes)
+----------------------------------------------
+
+IBKR returns at most about 1,000 bars per request, so LumiBot walks backwards page by page.
+
+- **Weekends, holidays and nights.** A 1-minute page covers 1,000 minutes (16.7 hours). A page that falls
+  entirely inside closed-market time comes back empty; LumiBot steps over it and keeps going instead of treating it
+  as the start of history. US indexes such as SPX only print 09:30 to 16:00 ET, so the same applies every night.
+- **New listings.** When a daily page reaches back before the first bar IBKR holds, IBKR answers
+  ``Chart data unavailable``. LumiBot retries with a smaller page and keeps the real bars it already has, so a
+  fund listed last year still gets its full daily history.
+- **A failed older page** keeps the newer real bars already downloaded; the missing older part is not faked and is
+  retried by a later run.
+- **Delayed feed.** IBKR stock and index history can run about 15 minutes behind real time, so intraday requests
+  stop 20 minutes before the current time. A backtest that ends today during market hours simply ends a little
+  earlier.
+- **Daily windows** up to 993 days are one request sized to the window; longer windows use 5-year pages.
+- **Dividends.** IBKR history has no corporate actions, so LumiBot adds dividends and splits to IBKR daily stock bars
+  from a free corporate-actions source. BotSpot Auto backtests credit a held stock's dividend on its ex-date from
+  those daily bars.
+- **Holes in cached minute bars.** When the cache has bars on both sides of a missing session (for example from two
+  earlier backtests, or a download that was stopped), LumiBot downloads each missing session instead of skipping it.
+  A session with no trades at all is remembered for a day so it is not requested again by every backtest.
+  Gap checks handle nanosecond, microsecond, millisecond and second cache timestamps consistently;
+  existing Parquet caches do not need to be deleted or rewritten.
 
 Futures Exchange Routing (auto + override)
 ------------------------------------------

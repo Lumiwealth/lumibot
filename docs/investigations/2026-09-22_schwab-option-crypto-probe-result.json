@@ -1,0 +1,62 @@
+{
+  "spy_daily": {
+    "status": 200,
+    "count": 6,
+    "detail": ""
+  },
+  "spy_option_chain": {
+    "status": 200,
+    "count": 32,
+    "detail": ""
+  },
+  "option_price_history_direct": {
+    "status": 200,
+    "count": 7,
+    "detail": ""
+  },
+  "option_price_history_lumibot": {
+    "status": null,
+    "count": 0,
+    "detail": "early_return"
+  },
+  "crypto_search_BTC": {
+    "status": 200,
+    "count": 1,
+    "detail": ""
+  },
+  "crypto_history_BTC": {
+    "status": 200,
+    "count": 538,
+    "detail": ""
+  },
+  "crypto_search_BTC/USD": {
+    "status": 200,
+    "count": null,
+    "detail": ""
+  },
+  "crypto_history_BTC/USD": {
+    "status": 200,
+    "count": 0,
+    "detail": ""
+  },
+  "crypto_search_BTCUSD": {
+    "status": 200,
+    "count": null,
+    "detail": ""
+  },
+  "crypto_history_BTCUSD": {
+    "status": 200,
+    "count": 0,
+    "detail": ""
+  },
+  "crypto_history_lumibot_btc": {
+    "status": 200,
+    "count": 6,
+    "detail": ""
+  },
+  "refresh": {
+    "refreshed": true,
+    "refresh_token_present": true,
+    "file_changed": true
+  }
+}

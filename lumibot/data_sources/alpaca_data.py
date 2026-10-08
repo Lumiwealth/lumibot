@@ -5,6 +5,7 @@ import os
 from lumibot._lazy_imports import LazyLogger, LazyModule, lazy_class
 
 from .data_source import DataSource
+from .exceptions import InvalidBars
 
 logger = LazyLogger(__name__)
 TYPE_CHECKING = False
@@ -19,6 +20,12 @@ LUMIBOT_DEFAULT_QUOTE_ASSET_TYPE = "forex"
 
 if TYPE_CHECKING:
     from lumibot.entities import Bars, Quote
+
+
+def _shared_alpaca_bars(client, request, method):
+    from lumibot.tools.alpaca_history import fetch_alpaca_bars
+
+    return fetch_alpaca_bars(client, request, method)
 
 
 def _is_new_york_timezone(tzinfo) -> bool:
@@ -870,7 +877,7 @@ class AlpacaData(DataSource):
                     adjustment=adjustment,
                 )
                 try:
-                    barset = client.get_stock_bars(params)
+                    barset = _shared_alpaca_bars(client, params, client.get_stock_bars)
                     df_multi = getattr(barset, 'df', None)
                     if df_multi is None:
                         continue
@@ -903,6 +910,8 @@ class AlpacaData(DataSource):
                                 raw=cleaned,
                                 tzinfo=self.tzinfo,
                             )
+                except InvalidBars:
+                    raise
                 except Exception as e:
                     logger.error(f"Could not get stock pricing data from Alpaca for batch ({len(syms)} symbols): {e}")
 
@@ -918,7 +927,7 @@ class AlpacaData(DataSource):
                     end=end_dt,
                 )
                 try:
-                    barset = client.get_option_bars(params)
+                    barset = _shared_alpaca_bars(client, params, client.get_option_bars)
                     df_multi = getattr(barset, 'df', None)
                     if df_multi is None:
                         continue
@@ -950,6 +959,8 @@ class AlpacaData(DataSource):
                                 raw=cleaned,
                                 tzinfo=self.tzinfo,
                             )
+                except InvalidBars:
+                    raise
                 except Exception as e:
                     logger.error(f"Could not get option pricing data from Alpaca batch ({len(syms)} symbols): {e}")
 
@@ -972,7 +983,7 @@ class AlpacaData(DataSource):
                     end=end_dt,
                 )
                 try:
-                    barset = client.get_crypto_bars(params)
+                    barset = _shared_alpaca_bars(client, params, client.get_crypto_bars)
                     df_multi = getattr(barset, 'df', None)
                     if df_multi is None:
                         continue
@@ -1006,6 +1017,8 @@ class AlpacaData(DataSource):
                                 raw=cleaned,
                                 tzinfo=self.tzinfo,
                             )
+                except InvalidBars:
+                    raise
                 except Exception as e:
                     logger.error(f"Could not get crypto pricing data from Alpaca batch ({len(syms)} symbols): {e}")
 
@@ -1108,7 +1121,7 @@ class AlpacaData(DataSource):
                     start=start_dt,
                     end=end_dt,
                 )
-                barset = client.get_crypto_bars(params)
+                barset = _shared_alpaca_bars(client, params, client.get_crypto_bars)
 
             elif asset.asset_type == Asset.AssetType.OPTION:
                 strike_formatted = f"{asset.strike:08.3f}".replace('.', '').rjust(8, '0')
@@ -1123,7 +1136,7 @@ class AlpacaData(DataSource):
                     start=start_dt,
                     end=end_dt,
                 )
-                barset = client.get_option_bars(params)
+                barset = _shared_alpaca_bars(client, params, client.get_option_bars)
 
             else:  # Stock/ETF
                 symbol = asset.symbol
@@ -1137,10 +1150,12 @@ class AlpacaData(DataSource):
                     end=end_dt,
                     adjustment=Adjustment.ALL if self._auto_adjust else Adjustment.RAW
                 )
-                barset = client.get_stock_bars(params)
+                barset = _shared_alpaca_bars(client, params, client.get_stock_bars)
 
             df = barset.df
 
+        except InvalidBars:
+            raise
         except Exception as e:
             logger.error(f"Could not get pricing data from Alpaca for {symbol} with error: {e}")
             return None

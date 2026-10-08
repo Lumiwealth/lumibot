@@ -8,6 +8,20 @@
 
 ---
 
+## BotSpot integration release boundary
+
+This runbook owns publishing LumiBot itself. It does not replace BotSpot's
+coordinated pre-Dev qualification when a BotSpot release consumes a new LumiBot
+version. Before any BotSpot Dev branch move or deployment, the exact combined
+candidate must pass all scoped deterministic checks, the entire formal
+Playwright inventory locally on Rob's Mac, and, when Agent is scoped, every
+case selected by mandatory local Agent freshness plus its required targeted
+repeats. Focused Playwright tests never qualify a release. GitHub release gates
+remain blocking for the exact candidate before publication; live Dev reruns
+the already-green candidate as environment proof, not as the first full test
+loop. LumiBot publication, Bot Manager Dev deployment, and Bot Manager
+production deployment each retain their own explicit authorization boundary.
+
 ## TL;DR (do this in order)
 
 1) **Run the release preflight first.** If branch, `setup.py`, `CHANGELOG.md`, tag, or `dev` state is inconsistent, stop. Do not tag. Do not deploy BotManager. Fix the branch first.
@@ -300,6 +314,15 @@ Publishing is **tag-driven** via `.github/workflows/release.yml`.
 
 1) **Verify tests**
    - Ensure required CI checks are green (unit + backtest + acceptance gates as applicable).
+   - The standard gate is portable: no paid historical-data subscription or shared remote cache is required.
+     `tests/backtest/test_alpaca_release_backtest.py` runs the real Alpaca adapter and backtest engine with
+     versioned SDK-response fixtures; option package limits, sparse-bar fills, and fees have deterministic
+     broker regressions. This is execution proof, not a live-provider availability check.
+   - Long-window Strategy Library benchmarks in `test_acceptance_backtests_ci.py` require remote vendor
+     subscriptions, downloader, and S3, so they are `apitest` integrations. Run them explicitly only with
+     active services; they are excluded by the standard marker expression below. Do not enable a paid
+     provider just to publish a release. Supported-provider API checks (for example Alpaca history) may
+     be run separately with authorized test credentials.
    - Local quick check (matches release workflow selection):
      - `python3 -m pytest -m "not apitest and not downloader" --tb=short -q --durations=30`
    - If the local quick check times out, do not guess. Record the timeout result, run targeted tests for the changed

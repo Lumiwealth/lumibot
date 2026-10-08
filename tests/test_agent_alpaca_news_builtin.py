@@ -94,19 +94,30 @@ def test_builtin_alpaca_news_uses_byok_news_key_default_scan_mode_and_bounds_def
     assert result["credential_source"] == "byok_alpaca_news_env"
 
 
-def test_builtin_alpaca_news_does_not_use_standard_alpaca_env(monkeypatch):
-    monkeypatch.delenv("ALPACA_NEWS_API_KEY", raising=False)
-    monkeypatch.delenv("ALPACA_NEWS_API_SECRET", raising=False)
+def test_builtin_alpaca_news_falls_back_to_standard_alpaca_env(monkeypatch):
+    calls = _install_fake_alpaca(monkeypatch, set_news_env=False)
     monkeypatch.setenv("ALPACA_API_KEY", "standard-key")
     monkeypatch.setenv("ALPACA_API_SECRET", "standard-secret")
 
-    strategy = _Strategy()
-    tool = BuiltinTools.news.alpaca_news().binder(strategy, None)
+    tool = BuiltinTools.news.alpaca_news().binder(_Strategy(), None)
+    result = tool.function(symbols="AAPL")
 
-    assert tool.metadata["disabled"] is True
-    assert "ALPACA_NEWS_API_KEY" in tool.metadata["disabled_reason"]
-    assert strategy.log_messages
-    assert "alpaca_news is not configured" in strategy.log_messages[0][0]
+    assert tool.metadata.get("disabled") is not True
+    assert calls[0]["headers"]["APCA-API-KEY-ID"] == "standard-key"
+    assert calls[0]["headers"]["APCA-API-SECRET-KEY"] == "standard-secret"
+    assert result["credential_source"] == "alpaca_api_env"
+
+
+def test_builtin_alpaca_news_prefers_news_env_over_standard_alpaca_env(monkeypatch):
+    calls = _install_fake_alpaca(monkeypatch)
+    monkeypatch.setenv("ALPACA_API_KEY", "standard-key")
+    monkeypatch.setenv("ALPACA_API_SECRET", "standard-secret")
+
+    tool = BuiltinTools.news.alpaca_news().binder(_Strategy(), None)
+    result = tool.function(symbols="AAPL")
+
+    assert calls[0]["headers"]["APCA-API-KEY-ID"] == "key"
+    assert result["credential_source"] == "byok_alpaca_news_env"
 
 
 def test_builtin_alpaca_news_prefers_news_env_over_active_alpaca_broker_oauth(monkeypatch):
@@ -231,16 +242,110 @@ def test_builtin_alpaca_news_missing_credentials_disables_tool_and_warns(monkeyp
 
 
 def test_agent_manager_omits_unavailable_alpaca_news(monkeypatch):
-    monkeypatch.delenv("ALPACA_API_KEY", raising=False)
-    monkeypatch.delenv("ALPACA_API_SECRET", raising=False)
-    monkeypatch.delenv("APCA_API_KEY_ID", raising=False)
-    monkeypatch.delenv("APCA_API_SECRET_KEY", raising=False)
-    monkeypatch.delenv("ALPACA_NEWS_API_KEY", raising=False)
-    monkeypatch.delenv("ALPACA_NEWS_API_SECRET", raising=False)
-
     strategy = _Strategy()
+    # Constructing the manager imports credentials, which reloads .env.local
+    # and can put ALPACA_API_KEY back. Clear news keys and the regular Alpaca
+    # fallback after that import, before tools are bound.
     manager = AgentManager(strategy)
+    for name in (
+        "ALPACA_API_KEY",
+        "ALPACA_API_SECRET",
+        "APCA_API_KEY_ID",
+        "APCA_API_SECRET_KEY",
+        "ALPACA_NEWS_API_KEY",
+        "ALPACA_NEWS_API_SECRET",
+    ):
+        monkeypatch.delenv(name, raising=False)
+
     handle = manager.create(name="test_agent", tools=[])
     tool_names = {tool.name for tool in handle._ensure_bound_tools()}
 
     assert "alpaca_news" not in tool_names
+
+
+def test_news_proof_accepts_pruned_full_content_from_regular_keys(tmp_path):
+    """Agent detail rows shorten large news payloads. The proof still has to
+    see a regular-key fallback and a full article from that shortened row."""
+    import json
+
+    import pandas as pd
+
+    from scripts.run_alpaca_news_ai_proof import _summarize_and_assert
+
+    scan_excerpt = (
+        '{"count": 21, "credential_source": "alpaca_api_env", "include_content": false, '
+        '"articles": [{"content_available": false, "headline": "Fed holds rates"}]}'
+    )
+    full_excerpt = (
+        '{"count": 3, "credential_source": "alpaca_api_env", "include_content": true, '
+        '"articles": [{"content_available": true, "content_original_length": 15177, '
+        '"content_truncated": false, "headline": "US stocks"}]}'
+    )
+    rows = [
+        {
+            "event_kind": "tool_call",
+            "tool_name": "alpaca_news",
+            "event_payload_json": '{"include_content": false, "symbols": "SPY"}',
+            "call_input_tokens": 0,
+            "call_output_tokens": 0,
+            "call_thinking_tokens": 0,
+            "call_cached_input_tokens": 0,
+            "call_latency_ms": 0,
+        },
+        {
+            "event_kind": "tool_result",
+            "tool_name": "alpaca_news",
+            "event_payload_json": json.dumps({
+                "lumibot_tool_result_pruned": True,
+                "excerpt": scan_excerpt,
+                "original_chars": 13993,
+            }),
+            "call_input_tokens": 0,
+            "call_output_tokens": 0,
+            "call_thinking_tokens": 0,
+            "call_cached_input_tokens": 0,
+            "call_latency_ms": 0,
+        },
+        {
+            "event_kind": "tool_call",
+            "tool_name": "alpaca_news",
+            "event_payload_json": '{"include_content": true, "symbols": "SPY"}',
+            "call_input_tokens": 0,
+            "call_output_tokens": 0,
+            "call_thinking_tokens": 0,
+            "call_cached_input_tokens": 0,
+            "call_latency_ms": 0,
+        },
+        {
+            "event_kind": "tool_result",
+            "tool_name": "alpaca_news",
+            "event_payload_json": json.dumps({
+                "lumibot_tool_result_pruned": True,
+                "excerpt": full_excerpt,
+                "original_chars": 28033,
+            }),
+            "call_input_tokens": 0,
+            "call_output_tokens": 0,
+            "call_thinking_tokens": 0,
+            "call_cached_input_tokens": 0,
+            "call_latency_ms": 0,
+        },
+        {
+            "event_kind": "call_summary",
+            "tool_name": "",
+            "event_payload_json": "{}",
+            "call_input_tokens": 10,
+            "call_output_tokens": 2,
+            "call_thinking_tokens": 0,
+            "call_cached_input_tokens": 0,
+            "call_latency_ms": 5,
+        },
+    ]
+    path = tmp_path / "detail.parquet"
+    pd.DataFrame(rows).to_parquet(path)
+
+    summary = _summarize_and_assert(path)
+
+    assert summary["credential_sources"] == ["alpaca_api_env"]
+    assert summary["full_content_articles"] == 1
+    assert summary["max_full_article_chars"] == 15177

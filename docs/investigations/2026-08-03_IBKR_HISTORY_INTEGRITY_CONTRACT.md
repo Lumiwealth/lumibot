@@ -70,6 +70,13 @@ call IBKR, upload cache objects, or delete anything.
   lookups.
 - A repeated partial or transient request in one process performs zero
   additional downloader calls.
+- 2026-09-23 addendum: this also holds when the provider answers successfully
+  but the window stays underfilled. `get_price_data` remembers every segment it
+  requested in the process (`_RUNTIME_ATTEMPTED_HISTORY_SEGMENTS`, in memory
+  only, never a cache marker) and does not request the same or a narrower
+  segment again. US stock intraday window edges that contain no NYSE session
+  time (weekends, holidays, overnight) are not fetched at all. See
+  `2026-09-23_alpaca-options-backtesting-and-ibkr-4592-window-regression.md`.
 - Daily repair performs at most four requests, each covering at most ten
   missing sessions plus padding.
 - Contract recovery performs at most one forced lookup and one history retry.

@@ -12,8 +12,10 @@ submitting an option order.
 
 ## Core workflow
 
-1. Read current portfolio value, cash, signed positions, and open orders in the
-   current agent run before any option order.
+1. Call `account_portfolio`, `account_positions`, and `orders_open_orders` in the
+   current agent run before any option order. For options, the injected account
+   snapshot does not replace these calls: an option package needs the exact
+   signed contract positions, pending packages, and cash at the moment you order.
 2. Read the underlying's current price. Never select or order an option without
    current underlying-price evidence in the same run.
 3. If an option position or pending package already exists, manage that exposure
@@ -21,6 +23,20 @@ submitting an option order.
 4. Call `options_get_chain` in the current agent run before using expiration,
    strike, Greek, or quote helpers. Use only expirations and strikes returned by
    tools.
+   Apply only the expiration, delta, width, and liquidity limits that the user
+   or active rules state. Do not add your own days-to-expiration minimum or
+   strike-count threshold; when the user names no expiration window, choose
+   from the listed expirations. A short strike list is not by itself a reason
+   to decline. Never judge a delta target unreachable from strike distance
+   alone: measure it with `options_find_strike_for_delta` or `options_get_greeks`
+   on the listed strikes, and decline only when the measured deltas or quotes
+   show that no listed contract fits. Missing Greeks or quotes for one listed
+   expiration do not establish that all expirations lack data. Check other
+   listed expirations that satisfy the user's constraints before declining for
+   unavailable data. Re-select and verify every leg for the chosen structure.
+   Keep one expiration when the structure requires it. Calendar legs may use
+   distinct listed expirations only when the user or active rules allow them.
+   Never relax the user's limits to find a trade.
 5. Verify every selected contract individually. Candidate-selection helpers narrow
    the search but do not prove the exact contract's Greeks or quote quality.
 6. Evaluate every leg. For every multi-leg order, explicitly call
@@ -33,32 +49,33 @@ submitting an option order.
 8. Capture the returned identifier, inspect that exact order, and reread positions.
    Submission is not proof of a fill, and a fill response alone is not proof that
    the account has the intended final exposure.
+   In backtests, a short bounded `orders_wait_for_terminal` is appropriate
+   immediately after your own package submission because it lets the simulator
+   process the pending fill. Do not use an unbounded wait. Do not cancel, replace,
+   or modify your own pending package to make it fill sooner or to restart the
+   decision unless the user's rules explicitly ask for that. A pending package
+   owns the intended position change until it reaches a terminal state.
 
 ## Position truth
 
-Treat current signed quantities as authoritative:
+Treat current signed quantities as authoritative. Positive is long, negative
+is short, zero is flat.
 
-- Positive quantity is long. Reduce it with `sell_to_close`.
-- Negative quantity is short. Reduce it with `buy_to_close`.
-- Never use `buy_to_close` for a positive quantity. Never use `sell_to_close`
-  for a negative quantity. Those pairings do not close the observed position.
-- Close exactly the absolute current quantity for each contract.
+To close held option contracts, always pass `action='close'` to
+`options_calculate_multileg_price` and `orders_submit_multileg`. List only
+`symbol`, `expiration`, `strike`, and `right` for each held leg. LumiBot derives
+each closing side from the current signed position (long becomes
+`sell_to_close`, short becomes `buy_to_close`) and defaults the quantity to the
+full held amount. Never write closing sides yourself. Pass `quantity` only for
+a per-unit price check or an intended partial close.
+
 - Never multiply a cleanup quantity or repeat a close without rereading positions.
 - Do not report flatness until every relevant signed quantity is zero.
 
-Immediately before pricing or submitting a close, reconcile every exact contract
-against the latest `account_positions` result:
-
-| Observed signed quantity | Meaning | Closing side | Closing quantity |
-| --- | --- | --- | --- |
-| `+Q` | long | `sell_to_close` | `Q` |
-| `-Q` | short | `buy_to_close` | `Q` |
-
-Reject the proposed package yourself if any closing leg violates this table. If
-a close does not produce flat positions, inspect its exact status and open orders.
-Do not switch tools, reverse sides, change quantities, or submit another close
-until the prior order's terminal state and the current signed positions prove
-what remains.
+If a close does not produce flat positions, inspect its exact status and open
+orders. Do not switch tools, change quantities, or submit another close until
+the prior order's terminal state and the current signed positions prove what
+remains.
 
 ## Pricing truth
 

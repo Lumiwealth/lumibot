@@ -1,6 +1,9 @@
 Chains Entity
 =============
 
+.. meta::
+   :description: Chains represents the complete option-chain snapshot returned by Strategy.get_chains().
+
 ``Chains`` represents the complete option-chain snapshot returned by
 ``Strategy.get_chains()``.  It behaves like a mapping but adds convenience
 helpers so you can focus on trading logic instead of dictionary plumbing.

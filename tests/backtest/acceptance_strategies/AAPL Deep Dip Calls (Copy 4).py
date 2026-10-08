@@ -274,6 +274,15 @@ class AAPLDeepDipCalls(Strategy):
         if self.vars.option_asset is None:
             self.log_message("No option position to close.", color="yellow")
             return
+        active_closes = [
+            order
+            for order in self.get_orders(statuses=Order.ACTIVE_STATUSES, broker_refresh=False)
+            if order.asset == self.vars.option_asset
+            and order.side in {Order.OrderSide.SELL, Order.OrderSide.SELL_TO_CLOSE}
+        ]
+        if active_closes:
+            self.log_message("Option close is still active; waiting for its terminal callback.", color="yellow")
+            return
         pos = self.get_position(self.vars.option_asset)
         if pos is None or pos.quantity is None or pos.quantity == 0:
             self.log_message("Position already closed.", color="white")

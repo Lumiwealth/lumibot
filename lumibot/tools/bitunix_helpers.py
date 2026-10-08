@@ -1,11 +1,11 @@
-import os
-import time
-from typing import Dict, Any, Optional
 import hashlib
 import json
+import os
+import time
+from decimal import Decimal
+from typing import Any, Dict, Optional
 
 from lumibot._lazy_imports import LazyLogger
-
 
 logger = LazyLogger(__name__)
 
@@ -42,19 +42,15 @@ class BitUnixClient:
         qp = ''.join(f"{k}{params[k]}" for k in sorted(params)) if params else ""
         # Prepare compact JSON body string without spaces
         body_str = json.dumps(body, separators=(',', ':'), ensure_ascii=False) if body else ""
-        # Construct digest input and log it
+        # Never log the digest input, digest, sign input, or signature: they contain or are
+        # derived from the API key and secret key, and debug logs are shipped to log sinks.
         digest_input = nonce + timestamp + self.api_key + qp + body_str
-        logger.debug("digest_input: %s", digest_input)
         # First SHA-256 hash
         digest = hashlib.sha256(digest_input.encode('utf-8')).hexdigest()
-        logger.debug("digest: %s", digest)
-        # Final signature input and log it
+        # Second SHA-256 hash over digest + secret. Bitunix's API spec requires this
+        # double SHA-256 request signature; it is not password hashing.
         sign_input = digest + self.secret_key
-        logger.debug("sign_input: %s", sign_input)
-        # Second SHA-256 hash and return
-        signature = hashlib.sha256(sign_input.encode('utf-8')).hexdigest()
-        logger.debug("signature: %s", signature)
-        return signature
+        return hashlib.sha256(sign_input.encode('utf-8')).hexdigest()
 
     def _headers(self, params: Dict[str, Any], body: Optional[Dict[str, Any]]) -> Dict[str, str]:
         nonce     = self._nonce()
@@ -162,12 +158,12 @@ class BitUnixClient:
         symbol: str,
         side: str,
         orderType: str,
-        qty: float,
-        take_profit_price: Optional[float] = None,
-        stop_loss_price: Optional[float] = None,
-        price: Optional[float] = None,
+        qty: str | float | Decimal,
+        take_profit_price: Optional[str | float | Decimal] = None,
+        stop_loss_price: Optional[str | float | Decimal] = None,
+        price: Optional[str | float | Decimal] = None,
         clientId: Optional[str] = None,
-        tradeSide: str = "OPEN",
+        tradeSide: Optional[str] = None,
         **kwargs,
     ) -> Dict[str, Any]:
         """
@@ -181,7 +177,7 @@ class BitUnixClient:
         body = {
             "symbol":    symbol,
             "side":      side,
-            "tradeSide": tradeSide,
+            "tradeSide": tradeSide or ("CLOSE" if kwargs.get("reduceOnly") else "OPEN"),
             "orderType": orderType,
             "qty":       qty,
             **({"price": price}      if price is not None else {}),
@@ -190,6 +186,11 @@ class BitUnixClient:
             **({"slPrice": stop_loss_price} if stop_loss_price is not None else {}),
             **kwargs,
         }
+        # Normalize after kwargs so native TP/SL fields obey the same wire contract.
+        # Fixed-point formatting also avoids scientific notation for small quantities.
+        for field in ("qty", "price", "tpPrice", "slPrice", "tpOrderPrice", "slOrderPrice"):
+            if field in body and body[field] is not None:
+                body[field] = format(Decimal(str(body[field])), "f")
         return self._request(
             method="POST",
             endpoint="/api/v1/futures/trade/place_order",
@@ -377,7 +378,7 @@ class BitUnixClient:
         start_time: Optional[int] = None,
         end_time: Optional[int] = None,
         limit: Optional[int] = None,
-        type: Optional[str] = None,
+        type: Optional[str] = None,  # noqa: A002 - Preserve the public Bitunix kline keyword.
     ) -> Dict[str, Any]:
         """
         Historical OHLCV candles.
@@ -450,7 +451,8 @@ class BitUnixClient:
         Current mark price and funding details for `symbol`.
 
         Returns:
-            Dict[str, Any]: ``{"code": int, "msg": str, "data": {"markPrice": str, "fundingRate": str, "nextFundingTime": int}}``
+            Dict[str, Any]: Response with ``code``, ``msg``, and ``data`` containing
+            ``markPrice``, ``fundingRate``, and ``nextFundingTime``.
         """
         return self._request(
             method="GET",

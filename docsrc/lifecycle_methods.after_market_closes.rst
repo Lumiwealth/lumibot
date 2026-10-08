@@ -1,6 +1,9 @@
 def after_market_closes
 ===================================
 
+.. meta::
+   :description: This lifecycle method is executed right after the market closes. LumiBot documentation.
+
 This lifecycle method is executed right after the market closes.
 
 .. code-block:: python

@@ -1,0 +1,146 @@
+........................................................................ [  2%]
+........................................................................ [  5%]
+........................................................................ [  7%]
+........................................................................ [ 10%]
+........................................................................ [ 12%]
+........................................................................ [ 15%]
+........................................................................ [ 17%]
+........................................................................ [ 20%]
+........................................................................ [ 22%]
+........................................................................ [ 25%]
+.............................................Xs................... [ 27%]
+........................................................ [ 29%]
+......................ss................................................ [ 31%]
+.......................................................... [ 33%]
+........................................................................ [ 36%]
+................................................................................................s [ 39%]
+................................................................Xs...... [ 42%]
+.....................................ssXs............................... [ 44%]
+........................................................................ [ 47%]
+........................................................................ [ 49%]
+........................................................................ [ 52%]
+.............................................................X.......... [ 54%]
+....................................................xx.................. [ 57%]
+.sssss.........s........................................................ [ 59%]
+................ss...................................................... [ 62%]
+........................................................................ [ 65%]
+........................................................................ [ 67%]
+........................................................................ [ 70%]
+........................................................................ [ 72%]
+........................................................................ [ 75%]
+........................................................................ [ 77%]
+........................................................................ [ 80%]
+........................................................................ [ 82%]
+........................................................................ [ 85%]
+........................................................................ [ 87%]
+..................................................sssssss.......ss..ssss [ 90%]
+........................ss.............................................. [ 92%]
+........................................................................ [ 95%]
+......................................s................................s [ 97%]
+.................................................................        [100%]
+=============================== warnings summary ===============================
+.venv/lib/python3.10/site-packages/websockets/legacy/__init__.py:6
+  /Users/robertgrzesik/Development/lumibot/.venv/lib/python3.10/site-packages/websockets/legacy/__init__.py:6: DeprecationWarning: websockets.legacy is deprecated; see https://websockets.readthedocs.io/en/stable/howto/upgrade.html for upgrade instructions
+    warnings.warn(  # deprecated in 14.0 - 2024-11-09
+
+tests/test_brokers_handle_crypto.py:71
+  /Users/robertgrzesik/Development/lumibot/tests/test_brokers_handle_crypto.py:71: PytestUnknownMarkWarning: Unknown pytest.mark.polygon - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.polygon
+
+tests/test_thetadata_pandas_verification.py:134
+  /Users/robertgrzesik/Development/lumibot/tests/test_thetadata_pandas_verification.py:134: PytestUnknownMarkWarning: Unknown pytest.mark.thetadata - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.thetadata
+
+tests/test_agent_account_context.py::test_account_and_open_order_tool_schemas_are_gemini_compatible
+  /Users/robertgrzesik/Development/lumibot/.venv/lib/python3.10/site-packages/google/adk/tools/function_tool.py:95: UserWarning: [EXPERIMENTAL] feature JSON_SCHEMA_FOR_FUNC_DECL is enabled.
+    build_function_declaration(
+
+tests/test_agent_indicator_numeric_contracts.py::test_rsi_vwap_sma50_sma200_one_batch_matches_independent_values[900.0]
+tests/test_agent_indicator_numeric_contracts.py::test_rsi_vwap_sma50_sma200_one_batch_matches_independent_values[9000000.0]
+  /Users/robertgrzesik/Development/lumibot/lumibot/indicators/indicators.py:405: UserWarning: Converting to PeriodArray/Index representation will drop timezone information.
+    return fn(**call_args)
+
+tests/test_agent_skills.py::test_builtin_skill_toolset_exposes_progressive_loading_tools
+  /Users/robertgrzesik/Development/lumibot/.venv/lib/python3.10/site-packages/google/adk/features/_feature_decorator.py:72: UserWarning: [EXPERIMENTAL] feature SKILL_TOOLSET is enabled.
+    check_feature_enabled()
+
+tests/test_cash_financing_framework.py: 8 warnings
+tests/test_ibkr_history_health.py: 1 warning
+tests/test_indicator_subplots.py: 2 warnings
+tests/test_integration_tests.py: 2 warnings
+tests/test_logging.py: 4 warnings
+tests/test_momentum.py: 4 warnings
+tests/test_polymarket_backtesting.py: 2 warnings
+tests/test_tearsheet_custom_metrics_end_to_end.py: 6 warnings
+  /Users/robertgrzesik/Development/lumibot/lumibot/strategies/strategy.py:4507: DeprecationWarning: keys will default to True in jsonpickle 5.0.0
+    json = jsonpickle.encode(settings)
+
+tests/test_cash_financing_framework.py::test_cash_financing_backtest_artifacts_include_stats_and_tearsheet_metrics
+tests/test_cash_financing_framework.py::test_cash_financing_backtest_artifacts_include_stats_and_tearsheet_metrics
+  /Users/robertgrzesik/Development/lumibot/.venv/lib/python3.10/site-packages/scipy/stats/_distn_infrastructure.py:2285: RuntimeWarning: invalid value encountered in multiply
+    lower_bound = _a * scale + loc
+
+tests/test_cash_financing_framework.py::test_cash_financing_backtest_artifacts_include_stats_and_tearsheet_metrics
+tests/test_cash_financing_framework.py::test_cash_financing_backtest_artifacts_include_stats_and_tearsheet_metrics
+  /Users/robertgrzesik/Development/lumibot/.venv/lib/python3.10/site-packages/scipy/stats/_distn_infrastructure.py:2286: RuntimeWarning: invalid value encountered in multiply
+    upper_bound = _b * scale + loc
+
+tests/test_cash_financing_framework.py::test_cash_financing_backtest_artifacts_include_stats_and_tearsheet_metrics
+tests/test_cash_financing_framework.py::test_cash_financing_backtest_artifacts_include_stats_and_tearsheet_metrics
+tests/test_tearsheet_custom_metrics_end_to_end.py::test_tearsheet_custom_metrics_end_to_end_backtest
+tests/test_tearsheet_custom_metrics_end_to_end.py::test_tearsheet_custom_metrics_end_to_end_backtest
+tests/test_tearsheet_custom_metrics_end_to_end.py::test_tearsheet_custom_metrics_end_to_end_backtest
+tests/test_tearsheet_custom_metrics_end_to_end.py::test_tearsheet_end_to_end_backtest_without_custom_metrics
+tests/test_tearsheet_custom_metrics_end_to_end.py::test_tearsheet_end_to_end_backtest_without_custom_metrics
+tests/test_tearsheet_custom_metrics_end_to_end.py::test_tearsheet_end_to_end_backtest_without_custom_metrics
+  /Users/robertgrzesik/Development/lumibot/.venv/lib/python3.10/site-packages/seaborn/categorical.py:700: PendingDeprecationWarning: vert: bool will be deprecated in a future version. Use orientation: {'vertical', 'horizontal'} instead.
+    artists = ax.bxp(**boxplot_kws)
+
+tests/test_ibkr_daily_gap_self_healing.py::test_merge_frames_never_allows_placeholder_to_replace_real_bar
+tests/test_ibkr_daily_gap_self_healing.py::test_merge_frames_never_allows_placeholder_to_replace_real_bar
+tests/test_ibkr_daily_gap_self_healing.py::test_all_placeholder_daily_cache_repairs_without_a_real_anchor
+  /Users/robertgrzesik/Development/lumibot/lumibot/tools/ibkr_helper.py:2463: FutureWarning: The behavior of DataFrame concatenation with empty or all-NA entries is deprecated. In a future version, this will no longer exclude empty or all-NA columns when determining the result dtypes. To retain the old behavior, exclude the relevant entries before the concat operation.
+    merged = pd.concat([existing, incoming], axis=0)
+
+tests/test_ibkr_daily_gap_self_healing.py::test_retryable_daily_gaps_include_unmarked_and_legacy_markers_but_not_fresh_markers
+  /Users/robertgrzesik/Development/lumibot/tests/test_ibkr_daily_gap_self_healing.py:65: FutureWarning: The behavior of DataFrame concatenation with empty or all-NA entries is deprecated. In a future version, this will no longer exclude empty or all-NA columns when determining the result dtypes. To retain the old behavior, exclude the relevant entries before the concat operation.
+    frame = pd.concat([frame, markers]).sort_index()
+
+tests/test_ibkr_daily_gap_self_healing.py::test_generic_fresh_missing_markers_do_not_block_hourly_self_healing
+  /Users/robertgrzesik/Development/lumibot/tests/test_ibkr_daily_gap_self_healing.py:511: FutureWarning: The behavior of DataFrame concatenation with empty or all-NA entries is deprecated. In a future version, this will no longer exclude empty or all-NA columns when determining the result dtypes. To retain the old behavior, exclude the relevant entries before the concat operation.
+    frame = pd.concat([left, generic_markers, right]).sort_index()
+
+tests/test_mes_symbols.py::TestMESSymbols::test_mes_symbol_availability
+  /Users/robertgrzesik/Development/lumibot/.venv/lib/python3.10/site-packages/_pytest/fixtures.py:1313: PytestRemovedIn10Warning: Class-scoped fixture defined as instance method is deprecated.
+  Instance attributes set in this fixture will NOT be visible to test methods,
+  as each test gets a new instance while the fixture runs only once per class.
+  Use @classmethod decorator and set attributes on cls instead.
+  See https://docs.pytest.org/en/stable/deprecations.html#class-scoped-fixture-as-instance-method
+    fixturefunc = resolve_fixture_function(fixturedef, request)
+
+tests/test_schwab_positions_unit.py: 13 warnings
+  /Users/robertgrzesik/Development/lumibot/.venv/lib/python3.10/site-packages/schwab/orders/generic.py:38: UserWarning: passing floats to set_price and set_stop_price is deprecated and will be removed soon. Please update your code to pass prices as strings instead.
+    warnings.warn('passing floats to set_price and set_stop_price is '+
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+2823 passed, 37 skipped, 73 deselected, 2 xfailed, 4 xpassed, 67 warnings, 83 subtests passed in 881.27s (0:14:41)
+trading stream websocket error, restarting  connection: server rejected WebSocket connection: HTTP 429
+trading stream websocket error, restarting  connection: server rejected WebSocket connection: HTTP 429
+trading stream websocket error, restarting  connection: server rejected WebSocket connection: HTTP 429
+trading stream websocket error, restarting  connection: server rejected WebSocket connection: HTTP 429
+trading stream websocket error, restarting  connection: server rejected WebSocket connection: HTTP 429
+trading stream websocket error, restarting  connection: server rejected WebSocket connection: HTTP 429
+trading stream websocket error, restarting  connection: server rejected WebSocket connection: HTTP 429
+trading stream websocket error, restarting  connection: server rejected WebSocket connection: HTTP 429
+trading stream websocket error, restarting  connection: server rejected WebSocket connection: HTTP 429
+trading stream websocket error, restarting  connection: server rejected WebSocket connection: HTTP 429
+trading stream websocket error, restarting  connection: server rejected WebSocket connection: HTTP 429
+trading stream websocket error, restarting  connection: server rejected WebSocket connection: HTTP 429
+trading stream websocket error, restarting  connection: server rejected WebSocket connection: HTTP 429
+trading stream websocket error, restarting  connection: server rejected WebSocket connection: HTTP 429
+trading stream websocket error, restarting  connection: server rejected WebSocket connection: HTTP 429
+trading stream websocket error, restarting  connection: server rejected WebSocket connection: HTTP 429
+trading stream websocket error, restarting  connection: server rejected WebSocket connection: HTTP 429
+trading stream websocket error, restarting  connection: server rejected WebSocket connection: HTTP 429
+trading stream websocket error, restarting  connection: server rejected WebSocket connection: HTTP 429
+trading stream websocket error, restarting  connection: server rejected WebSocket connection: HTTP 429

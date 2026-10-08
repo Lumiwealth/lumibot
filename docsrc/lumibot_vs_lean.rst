@@ -1,6 +1,9 @@
 Lumibot vs QuantConnect LEAN
 ============================
 
+.. meta::
+   :description: Lumibot and QuantConnect LEAN are both open-source algorithmic trading frameworks, but they make different architectural choices.
+
 Lumibot and QuantConnect LEAN are both open-source algorithmic trading
 frameworks, but they make different architectural choices. Lumibot is a
 Python-first library for strategies, backtests, broker connections, and AI

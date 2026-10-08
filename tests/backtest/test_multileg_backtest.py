@@ -222,3 +222,57 @@ def test_submit_order_list_defaults_to_multileg_for_option_orders():
     assert isinstance(submitted, list)
     assert len(submitted) == 1
     assert submitted[0].order_class == Order.OrderClass.MULTILEG
+
+
+class _PackageLimitStrategy(Strategy):
+    """Submits one debit package the way the agent tool does (order_type='debit', price=net)."""
+
+    def initialize(self, parameters=None):
+        self.sleeptime = "1D"
+        self.include_cash_positions = True
+        self.submitted = False
+
+    def on_trading_iteration(self):
+        if self.submitted:
+            return
+        legs = [
+            self.create_order(self.parameters["long_asset"], 10, "buy", time_in_force="gtc"),
+            self.create_order(self.parameters["short_asset"], 10, "sell", time_in_force="gtc"),
+        ]
+        self.submit_orders(legs, is_multileg=True, order_type="debit", price=49.5, duration="gtc")
+        self.submitted = True
+
+
+def test_multileg_package_limit_waits_for_net_price_without_quotes():
+    """A package limit is honored when the data has no bid/ask (Alpaca option history).
+
+    Found 2026-09-29 on the AI Iron Condor: each leg filled as its own market
+    order at the next printed trade and the package net limit was never checked,
+    so a condor could fill at a worse credit than the agent asked for, and legs
+    could fill on different bars. The whole package must fill together, and only
+    when the net of the leg prices is at or better than the limit.
+    """
+    # Net debit per unit (AAA - BBB): day 1 = 50.0 (worse than 49.5), day 2 = 49.2 (fills).
+    quote, data_source = _make_data_for_assets({"AAA": [100.0, 101.0, 100.2, 100.0], "BBB": [50.0, 51.0, 51.0, 51.0]})
+    broker = BacktestingBroker(data_source=data_source)
+    broker.initialize_market_calendars(data_source.get_trading_days_pandas())
+    strategy = _PackageLimitStrategy(
+        broker=broker,
+        budget=100_000.0,
+        analyze_backtest=False,
+        parameters={
+            "long_asset": Asset("AAA", asset_type=Asset.AssetType.STOCK),
+            "short_asset": Asset("BBB", asset_type=Asset.AssetType.STOCK),
+        },
+    )
+    trader = Trader(logfile="", backtest=True)
+    trader.add_strategy(strategy)
+    trader.run_all(show_plot=False, show_tearsheet=False, show_indicators=False, save_tearsheet=False)
+
+    events = strategy.broker._trade_event_log_df
+    fills = events[(events["status"] == "fill") & (events["asset.asset_type"] != "multileg")]
+    assert len(fills) == 2, fills
+    assert set(fills["time"].astype(str)) == {str(fills["time"].iloc[0])}, "legs must fill on the same bar"
+    by_symbol = {row["symbol"]: float(row["price"]) for _, row in fills.iterrows()}
+    assert by_symbol == {"AAA": pytest.approx(100.2), "BBB": pytest.approx(51.0)}
+    assert strategy.cash == pytest.approx(100_000.0 - 10 * 100.2 + 10 * 51.0)

@@ -19,6 +19,9 @@ class BuildWithThetaJar(_build_py):
     """
 
     def run(self):
+        build_lib = Path(self.build_lib)
+        if build_lib.exists():
+            shutil.rmtree(build_lib)
         super().run()
         self._maybe_copy_theta_terminal()
 
@@ -43,7 +46,7 @@ theta_jar_path = PROJECT_ROOT / "lumibot" / "resources" / "ThetaTerminal.jar"
 
 setuptools.setup(
     name="lumibot",
-    version="4.5.86",
+    version="4.6.6",
     author="Robert Grzesik",
     author_email="rob@botspot.trade",
     description="Python framework for algorithmic trading: backtesting and live deployment for stocks, options, crypto, futures, and forex. Same code for backtest and live trading.",
@@ -51,7 +54,12 @@ setuptools.setup(
     long_description_content_type="text/markdown",
     url="https://github.com/Lumiwealth/lumibot",
     packages=setuptools.find_packages(include=["lumibot", "lumibot.*"]),
-    license="MIT",  # Add license argument
+    entry_points={
+        "console_scripts": [
+            "lumibot=lumibot.cli:main",
+        ],
+    },
+    license="GPL-3.0",
     include_package_data=True,
     install_requires=[
         "polygon-api-client>=1.13.3",
@@ -97,9 +105,9 @@ setuptools.setup(
         "psutil",
         "openai",
         "setuptools<81",
-        "google-adk[extensions]>=2.1.0,<3.0.0",
-        "google-genai>=1.72.0,<2.0.0",
-        "litellm>=1.83.7,<=1.83.14",
+        "google-adk[extensions]>=2.9.1,<3.0.0",
+        "google-genai>=2.24.0,<3.0.0",
+        "litellm>=1.101.0",
         "anyio>=4.10.0",
         "mcp>=1.26.0,<2",
         "schwab-py>=1.5.0",
@@ -108,6 +116,7 @@ setuptools.setup(
         "requests-oauthlib",
         "boto3>=1.40.64",
         "httpx",
+        "pypdf>=5.0.0",
     ],
     # Include configuration files, and only include ThetaTerminal.jar if present
     package_data={
@@ -116,10 +125,16 @@ setuptools.setup(
             "components/agents/skills/*/SKILL.md",
             "components/agents/skills/*/agents/*.yaml",
             "components/agents/skills/*/references/*.md",
-            "example_strategies/agent_rules/*.json",
+            "example_strategies/fixtures/*.json",
         ] + (["resources/ThetaTerminal.jar"] if theta_jar_path.exists() else []),
     },
     extras_require={
+        "browser": [
+            "patchright>=1.62.3,<2",
+        ],
+        "browser-camoufox": [
+            "camoufox>=0.5.6,<0.6",
+        ],
         # Optional dependencies to enable ThetaData support
         "thetadata": [
             "thetadata",
@@ -153,7 +168,7 @@ setuptools.setup(
         "Intended Audience :: Developers",
         "Intended Audience :: Financial and Insurance Industry",
         "Intended Audience :: Science/Research",
-        "License :: OSI Approved :: MIT License",
+        "License :: OSI Approved :: GNU General Public License v3 (GPLv3)",
         "Programming Language :: Python :: 3",
         "Programming Language :: Python :: 3.10",
         "Programming Language :: Python :: 3.11",

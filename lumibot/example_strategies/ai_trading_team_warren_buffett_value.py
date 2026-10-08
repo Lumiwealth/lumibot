@@ -1,88 +1,63 @@
-"""Warren Buffett-inspired annual-report value AI trading team example.
+"""Warren Buffett AI Stock Picker.
 
-This example is inspired by public Berkshire Hathaway shareholder letters and
-value-investing principles. It is not affiliated with or endorsed by Warren
-Buffett, Berkshire Hathaway, or related companies.
-
-Set GEMINI_API_KEY plus Alpaca credentials, then run paper trading:
-    python ai_trading_team_warren_buffett_value.py
-
-Set IS_BACKTESTING=True in the runner to run the historical example instead.
+Invests the way Warren Buffett describes in his Berkshire Hathaway letters: buy
+great businesses at fair prices and hold them. A research agent reads each
+company's reports and picks the best mix of quality and price. A skeptic agent,
+like Charlie Munger, attacks each pick. A trading agent owns what survives.
+Not affiliated with or endorsed by Warren Buffett or Berkshire Hathaway.
 """
 
-import os
-from datetime import datetime
-
-from lumibot.strategies.strategy import Strategy
+from lumibot.strategies import Strategy
 
 
 class AITradingTeamWarrenBuffettValueStrategy(Strategy):
-    parameters = {
-        "universe": ["AAPL", "MSFT", "GOOGL", "COST", "V", "MA", "KO", "AXP", "JPM", "PG"],
-    }
+    parameters = {"universe": ["AAPL", "MSFT", "GOOGL", "COST", "V", "MA", "KO", "AXP", "JPM", "PG"]}
 
     def initialize(self):
         self.sleeptime = "1D"
-        model = os.environ.get("AI_TRADING_TEAM_MODEL", "gemini-3.1-flash-lite")
         self.agents.create(
-            name="annual_report_reader",
-            model=model,
+            name="researcher",
             allow_trading=False,
-            system_prompt="Find the best business quality from filings, fundamentals, cash flow, balance sheet strength, and durability.",
+            system_prompt=(
+                "Read each company's latest financial reports and check its stock price today. Pick the 3 to "
+                "5 companies with the best mix of steady profits, a lasting edge over rivals, and a fair "
+                "price. Do not trade."
+            ),
         )
         self.agents.create(
-            name="valuation_skeptic",
-            model=model,
+            name="skeptic",
             allow_trading=False,
-            system_prompt="Challenge the business-quality case. Require a margin of safety and reject weak or overpriced ideas.",
+            system_prompt=(
+                "You are a skeptic like Charlie Munger. Attack each pick: is the price too high, is the edge "
+                "shrinking, is there too much debt? Keep only the picks that survive. Do not trade."
+            ),
         )
         self.agents.create(
-            name="portfolio_manager",
-            model=model,
+            name="trader",
             allow_trading=True,
-            system_prompt="Buy the best long-term compounder from the universe when quality and margin of safety are acceptable. Use nearly all cash.",
+            system_prompt=(
+                "Own the picks the skeptic kept, split about evenly. Hold for the long run and ignore small "
+                "price moves. Sell a stock only when the skeptic drops it."
+            ),
         )
 
     def on_trading_iteration(self):
-        context = {
-            "date": self.get_datetime().date().isoformat(),
-            "universe": self.parameters["universe"],
-        }
-        report = self.agents["annual_report_reader"].run(task_prompt="Pick the highest-quality business.", context=context)
-        skeptic = self.agents["valuation_skeptic"].run(
-            task_prompt="Challenge the valuation and business-quality case. Require margin of safety.",
-            context={**context, "report": report.summary},
+        facts = {"universe": self.parameters["universe"]}
+        research = self.agents["researcher"].run(task_prompt="Pick the best companies.", context=facts)
+        review = self.agents["skeptic"].run(
+            task_prompt="Attack each pick.", context={**facts, "research": research.summary}
         )
-        self.agents["portfolio_manager"].run(
-            task_prompt="Sell anything that is not the best long-term compounder, then buy the best stock with nearly all available cash.",
-            context={**context, "report": report.summary, "skeptic": skeptic.summary},
+        self.agents["trader"].run(
+            task_prompt="Own the picks that survived.", context={**facts, "skeptic": review.summary}
         )
 
 
 if __name__ == "__main__":
-    IS_BACKTESTING = False
+    from lumibot.credentials import IS_BACKTESTING
 
     if IS_BACKTESTING:
         from lumibot.backtesting import YahooDataBacktesting
 
-        AITradingTeamWarrenBuffettValueStrategy.backtest(
-            YahooDataBacktesting,
-            datetime(2026, 4, 7),
-            datetime(2026, 5, 22),
-        )
+        AITradingTeamWarrenBuffettValueStrategy.backtest(YahooDataBacktesting)
     else:
-        from lumibot.brokers import Alpaca
-        from lumibot.traders import Trader
-
-        ALPACA_CONFIG = {
-            "API_KEY": os.environ["ALPACA_API_KEY"],
-            "API_SECRET": os.environ["ALPACA_API_SECRET"],
-            "PAPER": os.environ.get("ALPACA_IS_PAPER", "true").lower() != "false",
-        }
-
-        broker = Alpaca(ALPACA_CONFIG)
-        strategy = AITradingTeamWarrenBuffettValueStrategy(broker=broker)
-
-        trader = Trader()
-        trader.add_strategy(strategy)
-        trader.run_all()
+        AITradingTeamWarrenBuffettValueStrategy().run_live()

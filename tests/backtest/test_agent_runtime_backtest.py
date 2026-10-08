@@ -6,6 +6,7 @@ from pathlib import Path
 import pandas as pd
 import pytest
 
+from lumibot import __version__ as lumibot_version
 from lumibot.backtesting import PandasDataBacktesting
 from lumibot.components.agents import AgentRunResult
 from lumibot.entities import Asset, Data
@@ -56,6 +57,7 @@ class StockPlanRuntime:
         events = [_event("thinking", text="Inspecting current stock state.")]
         positions = _invoke_tool(request, events, "account_positions")
         _invoke_tool(request, events, "account_portfolio")
+        _invoke_tool(request, events, "orders_open_orders")
         _invoke_tool(request, events, "market_last_price", symbol=request.context["symbol"], asset_type="stock")
         table = _invoke_tool(
             request,
@@ -104,6 +106,7 @@ class OptionPlanRuntime:
         events = [_event("thinking", text="Inspecting current option state.")]
         positions = _invoke_tool(request, events, "account_positions")
         _invoke_tool(request, events, "account_portfolio")
+        _invoke_tool(request, events, "orders_open_orders")
         _invoke_tool(
             request,
             events,
@@ -134,11 +137,13 @@ class OptionPlanRuntime:
             sql=f"SELECT COUNT(*) AS rows_seen, MIN(close) AS min_close, MAX(close) AS max_close FROM {table['table_name']}",
         )
         has_position = any(
-            pos.get("asset", {}).get("asset_type") == "option" and float(pos.get("quantity") or 0) > 0
+            pos.get("asset", {}).get("type") == "option" and float(pos.get("quantity") or 0) > 0
             for pos in positions["positions"]
             if isinstance(pos, dict)
         )
         if not has_position:
+            # Opening an option position requires the chain in the same run.
+            _invoke_tool(request, events, "options_get_chain", symbol=request.context["symbol"])
             _invoke_tool(
                 request,
                 events,
@@ -167,6 +172,7 @@ class MinuteStressRuntime:
         events = [_event("thinking", text="Stress-testing minute DuckDB history refresh.")]
         positions = _invoke_tool(request, events, "account_positions")
         _invoke_tool(request, events, "account_portfolio")
+        _invoke_tool(request, events, "orders_open_orders")
         _invoke_tool(request, events, "market_last_price", symbol=request.context["symbol"], asset_type="stock")
         table = _invoke_tool(
             request,
@@ -755,6 +761,16 @@ def test_agent_runtime_injects_base_prompt_runtime_context_and_default_summary_l
     assert "Do not trade for the sake of activity." in request.system_prompt
     assert "Do not resist intentional concentration" in request.system_prompt
     assert "Avoid leaving raw cash idle unless there is a specific reason" in request.system_prompt
+    assert "Stay inside the strategy's allowed universe." in request.system_prompt
+    assert "Only use a defensive parking asset when the strategy allows it" in request.system_prompt
+    assert "drop that weight and rescale the remaining allowed weights" in request.system_prompt
+    # Naming parking tickers led read-only interpreters to weight SGOV in books that exclude it.
+    for ticker in ("SHV", "BIL", "SGOV"):
+        assert ticker not in request.system_prompt
+    assert (
+        "A symbol outside the allowed universe is never a weight or an order, "
+        "including cash, Treasury, or money-market funds." in request.system_prompt
+    )
     tool_names = [tool.name for tool in request.bound_tools]
     assert len(tool_names) == len(set(tool_names))
     summary_logs = [line for line in strategy.vars.captured_logs if line.startswith("[agents] name=research")]
@@ -804,11 +820,14 @@ def test_agent_detail_parquet_has_single_token_summary_row_and_full_events(monke
     summaries = df[df["event_kind"] == "call_summary"]
     assert len(summaries) == UsageTelemetryRuntime.call_count
     assert set(summaries["outcome_operation"]) == {"managed_ai_inference"}
+    assert set(summaries["outcome_status"]) == {"completed_no_action"}
     assert set(summaries["outcome_requiredness"]) == {"decision_critical"}
     assert set(summaries["outcome_decision_completed"]) == {True}
     assert set(summaries["outcome_fallback_used"]) == {False}
     assert set(summaries["outcome_broker_state_certainty"]) == {"not_observed"}
     assert set(summaries["outcome_impact"]) == {"completed"}
+    assert set(summaries["runtime_version"]) == {lumibot_version}
+    assert set(summaries["ai_access_mode"]) == {"byok"}
     call_numbers = list(range(1, UsageTelemetryRuntime.call_count + 1))
     assert summaries["call_input_tokens"].sum() == sum(1000 + idx for idx in call_numbers)
     assert summaries["call_output_tokens"].sum() == sum(200 + idx for idx in call_numbers)
@@ -1073,3 +1092,192 @@ def test_agent_runtime_wrap_tool_callable_sanitizes_nan_payloads():
     assert result["nested"]["change"] is None
     assert result["nested"]["ok"] == 1.25
     assert result["rows"] == [1.0, None]
+
+
+# ---------------------------------------------------------------------------
+# Customer investigation (2026-10-06). A customer's research bot asked GPT-4o for a PASS/VETO
+# verdict per stock. Three gaps in the agents API made that fragile:
+#   1. create()/run() had no output-token setting (every call sent 65535).
+#   2. There was no structured output: result.payload is bookkeeping, so the
+#      code parsed free text, and the INTC verdict came back inside a code fence.
+#   3. A provider rate limit (429) silently skipped the bar in a backtest.
+# ---------------------------------------------------------------------------
+
+
+class FencedVerdictRuntime:
+    """Returns the INTC verdict in the shape GPT-4o returned it to the customer."""
+
+    call_count = 0
+    last_request = None
+    reply = '```json\n{"symbol": "INTC", "verdict": "PASS", "confidence": "MEDIUM"}\n```'
+
+    def run(self, request):
+        type(self).call_count += 1
+        type(self).last_request = request
+        return AgentRunResult(
+            summary=type(self).reply,
+            model=request.model,
+            events=[_event("text", text=type(self).reply)],
+        )
+
+
+VERDICT_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "symbol": {"type": "string"},
+        "verdict": {"type": "string", "enum": ["PASS", "VETO"]},
+        "confidence": {"type": "string", "enum": ["LOW", "MEDIUM", "HIGH"]},
+    },
+    "required": ["symbol", "verdict", "confidence"],
+}
+
+
+class TokenAndSchemaStrategy(Strategy):
+    runtime_class = FencedVerdictRuntime
+    run_kwargs: dict = {}
+    create_kwargs: dict = {}
+
+    def initialize(self):
+        self.sleeptime = "1D"
+        self.agents.create(
+            name="analyst",
+            system_prompt="Give a PASS or VETO verdict for the stock.",
+            default_model="stub-verdict",
+            tools=[],
+            include_builtin_tools=False,
+            _runtime=self.runtime_class(),
+            **type(self).create_kwargs,
+        )
+
+    def on_trading_iteration(self):
+        result = self.agents["analyst"].run(task_prompt="Review INTC.", **type(self).run_kwargs)
+        self.vars.last_parsed = result.parsed
+        self.vars.last_parse_error = result.parse_error
+        self.vars.last_warnings = list(result.warnings)
+
+
+def _run_stub_backtest(strategy_class):
+    return strategy_class.run_backtest(
+        datasource_class=PandasDataBacktesting,
+        backtesting_start=datetime(2025, 1, 6),
+        backtesting_end=datetime(2025, 1, 7),
+        pandas_data=_build_stock_pandas_data(),
+        benchmark_asset=None,
+        analyze_backtest=False,
+        show_plot=False,
+        save_tearsheet=False,
+        show_tearsheet=False,
+        show_indicators=False,
+        save_logfile=False,
+        show_progress_bar=False,
+        quiet_logs=True,
+    )
+
+
+def test_agent_create_and_run_accept_an_output_token_limit(monkeypatch, tmp_path):
+    monkeypatch.setenv("LUMIBOT_CACHE_FOLDER", str(tmp_path / "cache"))
+    FencedVerdictRuntime.last_request = None
+
+    class CreateLimit(TokenAndSchemaStrategy):
+        create_kwargs = {"max_output_tokens": 1500}
+
+    _run_stub_backtest(CreateLimit)
+    assert FencedVerdictRuntime.last_request.max_output_tokens == 1500
+
+    class RunOverride(TokenAndSchemaStrategy):
+        create_kwargs = {"max_output_tokens": 1500}
+        run_kwargs = {"max_output_tokens": 600}
+
+    monkeypatch.setenv("LUMIBOT_CACHE_FOLDER", str(tmp_path / "cache2"))
+    _run_stub_backtest(RunOverride)
+    assert FencedVerdictRuntime.last_request.max_output_tokens == 600
+
+
+def test_agent_output_schema_returns_the_parsed_answer_even_inside_a_code_fence(monkeypatch, tmp_path):
+    monkeypatch.setenv("LUMIBOT_CACHE_FOLDER", str(tmp_path / "cache"))
+    FencedVerdictRuntime.reply = '```json\n{"symbol": "INTC", "verdict": "PASS", "confidence": "MEDIUM"}\n```'
+
+    class SchemaStrategy(TokenAndSchemaStrategy):
+        create_kwargs = {"output_schema": VERDICT_SCHEMA}
+
+    _, strategy = _run_stub_backtest(SchemaStrategy)
+
+    assert strategy.vars.last_parsed == {"symbol": "INTC", "verdict": "PASS", "confidence": "MEDIUM"}
+    assert strategy.vars.last_parse_error is None
+    # The model is told the exact shape it must return.
+    request = FencedVerdictRuntime.last_request
+    assert '"verdict"' in request.system_prompt
+    assert "JSON" in request.system_prompt
+
+
+def test_agent_output_schema_flags_an_answer_that_does_not_match(monkeypatch, tmp_path):
+    monkeypatch.setenv("LUMIBOT_CACHE_FOLDER", str(tmp_path / "cache"))
+    FencedVerdictRuntime.reply = "INTC looks fine overall, I would PASS with medium confidence."
+
+    class SchemaStrategy(TokenAndSchemaStrategy):
+        run_kwargs = {"output_schema": VERDICT_SCHEMA}
+
+    _, strategy = _run_stub_backtest(SchemaStrategy)
+    FencedVerdictRuntime.reply = '```json\n{"symbol": "INTC", "verdict": "PASS", "confidence": "MEDIUM"}\n```'
+
+    assert strategy.vars.last_parsed is None
+    assert strategy.vars.last_parse_error
+    assert any(w.get("kind") == "structured_output_invalid" for w in strategy.vars.last_warnings)
+
+
+def test_agent_output_schema_accepts_a_pydantic_model(monkeypatch, tmp_path):
+    from typing import Literal
+
+    from pydantic import BaseModel
+
+    class Verdict(BaseModel):
+        symbol: str
+        verdict: Literal["PASS", "VETO"]
+        confidence: Literal["LOW", "MEDIUM", "HIGH"]
+
+    monkeypatch.setenv("LUMIBOT_CACHE_FOLDER", str(tmp_path / "cache"))
+
+    class SchemaStrategy(TokenAndSchemaStrategy):
+        create_kwargs = {"output_schema": Verdict}
+
+    _, strategy = _run_stub_backtest(SchemaStrategy)
+
+    assert isinstance(strategy.vars.last_parsed, Verdict)
+    assert strategy.vars.last_parsed.verdict == "PASS"
+
+
+class RateLimitedRuntime:
+    call_count = 0
+
+    def run(self, request):
+        type(self).call_count += 1
+        exc = type("RateLimitError", (Exception,), {})("Rate limit reached for gpt-4o. Please try again in 7s.")
+        exc.status_code = 429
+        raise exc
+
+
+class RateLimitedStrategy(TokenAndSchemaStrategy):
+    runtime_class = RateLimitedRuntime
+
+
+def test_backtest_rate_limited_bars_are_counted_and_reported_not_silently_skipped(monkeypatch, tmp_path):
+    monkeypatch.setenv("LUMIBOT_CACHE_FOLDER", str(tmp_path / "cache"))
+    RateLimitedRuntime.call_count = 0
+
+    _, strategy = _run_stub_backtest(RateLimitedStrategy)
+
+    skipped = RateLimitedRuntime.call_count
+    assert skipped >= 1
+    # Visible in the strategy parameters (tearsheet "Parameters Used" + settings.json).
+    assert strategy.parameters["agent_analyst_skipped_runs"] == skipped
+    assert strategy.parameters["agent_skipped_runs_total"] == skipped
+    # Visible as a health block in the backtest settings artifact.
+    settings_path = tmp_path / "settings.json"
+    strategy.write_backtest_settings(str(settings_path))
+    settings = json.loads(settings_path.read_text(encoding="utf-8"))
+    health = settings["agent_health"]
+    assert health["complete"] is False
+    assert health["skipped_runs"] == skipped
+    assert health["by_category"] == {"transient": skipped}
+    assert health["skipped"][0]["agent"] == "analyst"
+    assert health["skipped"][0]["datetime"]

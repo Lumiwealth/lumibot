@@ -2,7 +2,13 @@
 
 > LumiBot backtests AI trading agents with real external tools, replay caching, and the same code for backtest and live.
 
-**Last Updated:** 2026-08-11
+The same `Strategy` class can be reused. Its startup code must select
+`Strategy.backtest(...)` for a historical run or a configured broker plus
+`run_live()` / `Trader.run_all()` for broker execution. The quickstart file
+below only starts a backtest when run directly. See the
+[AI example run-mode inventory](https://lumibot.lumiwealth.com/strategy_run_modes.html).
+
+**Last Updated:** 2026-09-12
 **Status:** Active
 **Audience:** Both
 
@@ -10,13 +16,18 @@
 
 ## Overview
 
-LumiBot has a first-class AI agent runtime inside the `Strategy` lifecycle. An AI agent reasons, calls tools, and makes trading decisions **on every bar during a backtest**. The same strategy code runs live with zero changes. A built-in replay cache makes warm backtest reruns deterministic and fast.
+LumiBot has a first-class AI agent runtime inside the `Strategy` lifecycle. Call an agent from a lifecycle method to gather evidence, reason, and use tools at your configured cadence. The same Strategy class can run against supported broker configurations. Replay caching can reuse matching decisions; inspect cache and execution artifacts rather than assuming every rerun is identical.
 
 The primary way to give your agent access to external data is the `@agent_tool` decorator, which wraps any REST API as a callable tool using the `requests` library. This pattern works reliably in both backtests and live trading. MCP servers via URL are also supported for live trading or when you have a compatible server.
 
-The quick-start macro example below uses Lumibot's built-in FRED tools. Those tools require `FRED_API_KEY` and use official FRED/ALFRED realtime parameters so backtests do not accidentally see future macro revisions.
+LumiBot also includes built-in FRED tools for macro research. Those tools require `FRED_API_KEY` and use official FRED/ALFRED realtime parameters so backtests do not accidentally see future macro revisions.
 
-If you are looking for an agentic backtesting framework, an LLM trading bot backtest solution, or a way to backtest AI-driven trading strategies with external data, LumiBot is the only production-ready option that puts the AI agent inside the simulation loop.
+The generic `read_document` tool reads web pages, PDF, Word, Excel, CSV/TSV, JSON and ZIP files. Word,
+Excel and ZIP archives share a 100 MB unpacked-size ceiling. Loaded tables have distinct names even
+when sheets or files share a label, so later reads cannot overwrite earlier holdings. Malformed
+CSV/TSV remains readable as text and returns `table_error`; it does not silently discard rows.
+
+LumiBot combines agent reasoning with simulated time, account state, orders, and inspectable backtest artifacts. See the [current project comparison](https://lumibot.lumiwealth.com/ai_trading_project_comparison.html) for overlapping capabilities and source links.
 
 Related docs:
 
@@ -28,11 +39,7 @@ Related docs:
 
 ## Why LumiBot Is Different
 
-Most tools that combine LLMs and trading fall into one of three categories:
-
-1. **LLM outside the loop.** Platforms like QuantConnect let you call an LLM externally, but the model is not part of the backtest simulation. It cannot reason over point-in-time data on each bar.
-2. **Agent frameworks with no backtesting.** CrewAI, AutoGen, and LangGraph build multi-agent workflows, but none of them simulate a trading backtest where the agent makes decisions bar by bar.
-3. **Hobby scripts with no infrastructure.** Open-source experiments wire GPT to a broker but lack MCP support, replay caching, DuckDB, and production observability.
+Choose a framework by its supported workflows and evidence, not a blanket claim that competitors cannot backtest.
 
 LumiBot combines:
 
@@ -47,42 +54,22 @@ LumiBot combines:
 
 ## Quick Start
 
-```python
-from lumibot.strategies import Strategy
+Start with a researcher and a separate trading agent using the existing Strategy class. The researcher collects evidence; the trader owns risk review, order submission and reconciliation. Only the researcher has trading disabled.
 
+[Complete canonical Python source](../lumibot/example_strategies/ai_researcher_trader.py) · [Walkthrough and requirements](https://lumibot.lumiwealth.com/agents_quickstart.html)
 
-class M2LiquidityStrategy(Strategy):
-    def initialize(self):
-        self.sleeptime = "1D"
-        self.agents.create(
-            name="m2_analyst",
-            default_model="gpt-4.1-mini",
-            system_prompt=(
-                "Use money supply and liquidity data to decide between "
-                "TQQQ and SHV. Focus on whether M2 liquidity is expanding "
-                "or contracting."
-            ),
-        )
-
-    def on_trading_iteration(self):
-        result = self.agents["m2_analyst"].run()
-        self.log_message(f"[m2_analyst] {result.summary}", color="yellow")
-
-if __name__ == "__main__":
-    IS_BACKTESTING = True
-    if IS_BACKTESTING:
-        from datetime import datetime
-        M2LiquidityStrategy.backtest(
-            datasource_class=None,
-            backtesting_start=datetime(2020, 1, 1),
-            backtesting_end=datetime(2026, 3, 1),
-            benchmark_asset="SPY",
-        )
+```bash
+python -m pip install "git+https://github.com/Lumiwealth/lumibot.git@version/4.6.3"
+export OPENAI_API_KEY="your-openai-api-key"
+export BACKTESTING_DATA_SOURCE=yahoo
+python -m lumibot.example_strategies.ai_researcher_trader
 ```
 
-The agent gets Lumibot's built-in `get_fred_series` tool automatically when `FRED_API_KEY` is configured. During backtests the tool defaults `as_of` to the strategy datetime and uses FRED/ALFRED realtime parameters, so the agent does not see future macro revisions.
+The example uses `openai/gpt-6-luna` on medium reasoning, Yahoo daily prices and a short historical window. Model calls incur charges. The version-branch installation is explicit because this documentation update does not publish a PyPI release. Fresh real-model proof for this new example is still pending; the real-engine test uses a scripted model substitute.
 
-No local MCP server scripts. No npm installs. No explicit built-in tool lists. Lumibot includes all built-in tools by default, and you can add custom `@agent_tool` functions when you need proprietary APIs or special research logic.
+For an installation check without credentials or paid calls, run `BACKTESTING_DATA_SOURCE=none python -m lumibot.example_strategies.first_backtest`. Its prices are synthetic and its simulated fill tests mechanics, not returns.
+
+Macro tools additionally require `FRED_API_KEY`. They use the strategy clock and FRED/ALFRED vintage parameters; inspect publication dates and missing data. Add ordinary `@agent_tool` functions when you need custom research services.
 
 ---
 
@@ -183,7 +170,7 @@ from pathlib import Path
 
 self.agents.create(
     name="allocator",
-    model="gemini-3.5-flash-lite",
+    model="openai/gpt-6-luna",
     allow_trading=True,
     system_prompt="Trade the best risk-adjusted opportunity you can prove.",
     rules_path=Path(__file__).with_name("rules.json"),
@@ -195,21 +182,14 @@ non-deleted rules are injected. A malformed file fails before the model runs.
 The replay fingerprint changes when active rules change, and runtime artifacts
 record only the file name and content hash, never an absolute personal path.
 
-## Two-Agent SPX Experiment
+## 0DTE Options AI Trading Bot
 
-`ai_spx_zero_dte_bear_call_team.py` implements the first Rules-driven SPX
-comparison as two agents, not as an Agent-to-Python execution handoff:
-
-1. A read-only researcher gathers exact account, SPX, chain, Greek, quote, and
-   package-price evidence.
-2. A trading-enabled validator independently refreshes that evidence, checks
-   every active Rule, decides whether to trade, calls
-   `orders_submit_multileg`, and verifies the resulting order and positions.
-
-The experiment uses an SPX 0 DTE bear call spread with a short call near 0.20
-delta and a long call exactly five points higher. Both entry and exit are one
-atomic package. Missing evidence produces a no-trade decision. Unsupported
-atomic execution fails before any child leg is submitted.
+`ai_0dte_options_trading_bot.py` sells a same-day SPY bear call spread with two
+agents. The research agent checks SPY and today's expiring calls every 15
+minutes. The trading agent opens one spread a day as one multi-leg order and
+closes it early at the profit target, the loss limit, a strike breach, or the
+last 10 minutes. The rules live in the two prompts; the example does not load
+a rules file.
 
 ---
 
@@ -284,8 +264,8 @@ Most alternatives either put the LLM outside the backtest loop (QuantConnect), h
 **What AI models are supported?**
 
 The architecture supports Gemini, OpenAI, Anthropic, and other providers through
-the underlying model router. The AI-only trading examples explicitly use
-`gemini-3.5-flash-lite`. Existing saved strategies keep the model string already
+the underlying model router. The AI-only trading examples use the default
+`openai/gpt-6-luna` on medium reasoning. Existing saved strategies keep the model string already
 stored in their code. Pass a model identifier when creating an agent.
 
 **How is agent behavior tested before release?**
@@ -299,19 +279,24 @@ changes. See `docs/AGENT_EVALS.md`.
 
 **How do I get started?**
 
-Install LumiBot, set `GEMINI_API_KEY` in your environment, copy the Quick Start example above, and run it. The M2 Liquidity Strategy example is a complete, runnable strategy file. Provider-specific variants are available for OpenAI, Grok, and Anthropic. See the public docs at `https://lumibot.lumiwealth.com/agents.html` for additional patterns and the reference demo strategies.
+Install LumiBot, set `OPENAI_API_KEY` in your environment, run the Quick Start commands above. The linked researcher/trader example is a complete strategy file. Provider-specific variants are available for OpenAI, Grok, and Anthropic. See the public docs at `https://lumibot.lumiwealth.com/agents.html` for additional patterns and the reference demo strategies.
 
 **What API keys do I need?**
 
-At minimum, `GEMINI_API_KEY` for the Gemini model that powers the agent. If your `@agent_tool` functions call external APIs, you also need those keys -- for example `ALPACA_API_KEY` and `ALPACA_API_SECRET` for Alpaca data APIs. Macro-data examples and built-in FRED tools require `FRED_API_KEY` so Lumibot can use the official FRED/ALFRED API and request point-in-time vintage observations in backtests.
+At minimum, `OPENAI_API_KEY` for the default GPT-6 Luna model that powers the agent. If your `@agent_tool` functions call external APIs, you also need those keys -- for example `ALPACA_API_KEY` and `ALPACA_API_SECRET` for Alpaca data APIs. Macro-data examples and built-in FRED tools require `FRED_API_KEY` so Lumibot can use the official FRED/ALFRED API and request point-in-time vintage observations in backtests.
 
 **How do I set up my environment?**
 
-Create a `.env` file in your project directory with your API keys (e.g., `GEMINI_API_KEY=your_key_here`). LumiBot reads environment variables at startup. You can also export them in your shell. For backtesting, set `BACKTESTING_DATA_SOURCE` in `.env` or use `datasource_class=None` to defer to the environment configuration.
+Create a `.env` file in your project directory with your API keys (e.g., `OPENAI_API_KEY=your_key_here`). LumiBot reads environment variables at startup. You can also export them in your shell. For backtesting, set `BACKTESTING_DATA_SOURCE` in `.env` or use `datasource_class=None` to defer to the environment configuration.
 
 **Can I use this for live trading?**
 
-Yes. The same strategy code runs in both backtest and live modes. For live trading, connect to a supported broker (Alpaca, Interactive Brokers, Tradier, Schwab, and others). No code changes are required -- LumiBot handles the broker integration.
+The same `Strategy` class can be used for backtesting and broker execution.
+The startup code must select the path: call `Strategy.backtest(...)` for
+historical data, or construct the strategy with a supported broker and call
+`run_live()` or `Trader.run_all()`. A backtest-only example file does not gain a
+broker runner when an environment flag changes. See the
+[run-mode guide](https://lumibot.lumiwealth.com/strategy_run_modes.html).
 
 **Does it work with my broker?**
 
@@ -383,11 +368,11 @@ LumiBot injects the simulated datetime into the agent's context and the base pro
 
 **What is the replay cache?**
 
-In backtesting mode, LumiBot caches every agent run keyed by a SHA-256 hash of the prompt, context, model, tool surface, and simulated timestamp. When a subsequent backtest hits the same combination, the cached result is returned instantly without calling the LLM or any external tool. This makes warm reruns deterministic, fast, and cost-free.
+In backtesting mode, LumiBot caches every agent run keyed by a SHA-256 hash of the prompt, context, model, tool surface, and simulated timestamp. When a subsequent backtest hits the same combination, the cached decision can be reused without a model call. Execution and data tools may still run to reconstruct state; inspect the run artifacts and costs.
 
 **How do I clear the cache for a fresh run?**
 
-Delete the replay cache directory. On macOS the default location is `~/Library/Caches/lumibot/agent_runtime/replay/`. You can also set the `LUMIBOT_CACHE_FOLDER` environment variable to control where caches are stored. After clearing, the next run will make fresh LLM and tool calls.
+Delete the replay cache directory. On macOS the default location is `~/Library/Caches/lumibot/1.0/agent_runtime/replay/`. Set `LUMIBOT_CACHE_FOLDER` before importing lumibot to store caches somewhere else. After clearing, the next run will make fresh LLM and tool calls.
 
 **How long does a backtest take?**
 
@@ -403,19 +388,19 @@ Set `datasource_class=None` to use the data source from your `.env` file (via `B
 
 **How do I see what the agent is doing?**
 
-Every agent run emits a compact summary log line with the agent name, model, cache status, tool call count, warning count, and the agent's summary conclusion. For deeper inspection, open the structured JSON trace file. See `docs/AI_TRADING_AGENT_COMPONENT_GUIDE.md` for the full debugging workflow.
+Every agent run emits a compact summary log line with the agent name, model, cache status, tool call count, warning count, and the agent's summary conclusion. The file to query is `*_agent_detail.parquet`. The `call_summary` row includes `effective_system_prompt`. Raising `LUMIBOT_LOG_LEVEL` only changes printed logs. It does not store the prompt or the tool calls.
 
 **What are agent traces?**
 
-Traces are structured JSON files that record everything the agent did during a single run: the full prompt surface, every tool call with arguments, every tool result, the agent's reasoning and summary, observability warnings, cache hit/miss status, and DuckDB query metrics. They are the source of truth for debugging.
+`*_agent_detail.parquet` is one table for the whole run: a `call_summary` row per AI call, plus rows for thinking, text, tool calls, and tool results. A JSON trace is also written per call. Both record `effective_system_prompt`, every tool call and result, the summary, warnings, and cache status.
 
 **Where are trace files stored?**
 
-Trace files are stored in the LumiBot cache directory under `agent_runtime/`. The trace path is available on the result object via `(result.payload or {}).get("trace_path")`. Machine-readable summaries are also written to `agent_run_summaries.jsonl`.
+A backtest writes `*_agent_detail.parquet` next to the tear sheet. Live and paper files are under `~/Library/Caches/lumibot/1.0/agent_runtime/` on macOS. Set `LUMIBOT_CACHE_FOLDER` before importing lumibot to move that folder. The per-call JSON path is `(result.payload or {}).get("trace_path")`. Summaries are also written to `agent_run_summaries.jsonl`.
 
 **How do I debug a bad trade?**
 
-Open the trace JSON for the run where the bad trade occurred. Check what tools the agent called, what data it received, and what reasoning it stated. Look for observability warnings (future-dated data, no tools called, unsupported orders). Compare the agent's summary to the actual trade.
+Open `*_agent_detail.parquet` for that run. Read `effective_system_prompt`, the tool rows, and the summary. Look for warnings (future-dated data, no tools called, unsupported orders). Compare the summary to the trade. A live run with hundreds of tool calls and a short backtest with a dozen are compared in that file, not by adding a LiteLLM logger. `LUMIBOT_LOG_LEVEL` will not add the missing rows.
 
 **Why is my agent not trading?**
 
@@ -427,12 +412,12 @@ SHV is a common defensive parking asset used in the demo strategies. If the agen
 
 **How much does it cost to run?**
 
-Cost depends on the LLM provider and model, the number of bars in your backtest, and how many tool calls the agent makes per bar. A six-year daily backtest might cost a few dollars on the first cold run with a fast model like Gemini Flash. Warm reruns cost nothing because the replay cache eliminates all LLM and external API calls.
+Cost depends on the LLM provider and model, the number of bars in your backtest, and how many tool calls the agent makes per bar. Measure a short cold run before extending the date range. Matching replay hits can avoid model calls, but data access, changed inputs, cache misses and external tools may still incur costs.
 
 **How can I reduce API costs?**
 
-Use the replay cache -- once a backtest is cached, subsequent runs are free. Use cost-effective models (e.g., `gemini-3.1-flash-lite-preview`). Keep your backtest date range focused during development. Reduce the number of tool calls by making your tools return comprehensive data in a single call rather than requiring multiple round trips.
+Use the replay cache and inspect actual hit/miss records; do not assume every subsequent run is free. Use cost-effective models (e.g., `openai/gpt-6-luna`). Keep your backtest date range focused during development. Reduce the number of tool calls by making your tools return comprehensive data in a single call rather than requiring multiple round trips.
 
 **How does replay caching reduce costs?**
 
-The replay cache stores every agent run result keyed by a hash of the inputs. When the same prompt, context, tools, model, and timestamp appear again, the cached result is returned with zero LLM calls, zero external API calls, and zero cost. A cold backtest that costs a few dollars becomes free on every subsequent warm run.
+The replay cache stores every agent run result keyed by a hash of the inputs. When the same prompt, context, tools, model, and timestamp appear again, a matching cached decision can avoid another model call. This does not guarantee zero external data access, identical execution, or zero cost for the full run.

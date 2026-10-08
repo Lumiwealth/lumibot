@@ -1,45 +1,59 @@
-Getting Started
-***************
+Start with LumiBot
+******************
 
-Lumibot is a Python library that allows you to create trading strategies and backtest them. It also allows you to run your strategies live on a paper trading account. You can also use Lumibot to run your strategies live on a real trading account, but we recommend you start with paper trading first.
+.. meta::
+   :description: Choose your first LumiBot workflow: an AI trading backtest, a conventional Python strategy, or reusable research tools.
 
-Lumibot is designed to be easy to use, but also powerful. It is designed to be used by both beginners and advanced users. It is also designed to be flexible, so you can use it to create any kind of trading strategy you want. It is also designed to be fast, so you can backtest your strategies quickly.
+Traditional strategies are fully supported: define your own Python rules in a
+``Strategy`` subclass, backtest, then configure a broker. AI agents are optional.
+See :doc:`Python strategy examples <examples>` for buy-and-hold, momentum, and
+bracket-order starting points.
 
-Build AI Trading Agents
-=======================
+**The strategy class can stay the same. The code that starts it must select a
+backtest or a broker run.** See :doc:`strategy_run_modes` before copying an
+example's runner. The AI examples are labeled by what direct file execution
+actually does.
 
-Lumibot now supports **AI trading agents** inside the ``Strategy`` class. If you want an **agentic trading** workflow, you can create an agent in ``initialize()``, run it from ``on_trading_iteration()`` or ``on_filled_order()``, query time-series data with DuckDB, and replay the same agent decisions during backtests.
+Choose what you want to build
+-----------------------------
 
-Read :doc:`agents` for the full guide.
+* **AI trading:** :doc:`Run your first AI backtest <agents_quickstart>` with an OpenAI API key (``OPENAI_API_KEY``) and the default ``openai/gpt-6-luna`` model, historical SPY prices, and complete Python code.
+* **Your own trading rules:** :ref:`Backtest a Python strategy <first-python-backtest>` using daily stock prices. No model account is needed.
+* **Research in another project:** :doc:`Use data and research components <standalone_components>` without creating a trading strategy.
 
-Need Help Building Or Running Strategies?
-=========================================
+Already building with an AI coding assistant? Give it :doc:`agent_start_here`.
 
-Lumibot is open source, but the full workflow is better on `BotSpot <https://botspot.trade/sales?showLogin=1&utm_source=documentation&utm_medium=getting_started&utm_campaign=lumibot&utm_content=top_text&sample=lumibot_deploy_sample>`_ when you want to build, backtest, and run strategies without assembling every data source, broker connection, server, scheduler, log pipeline, and monitoring tool yourself.
+Install LumiBot
+---------------
 
-BotSpot gives Lumibot users a managed layer around the code:
+Use Python 3.10 or later in your own virtual environment:
 
-- **Backtesting data included.** Use supported hosted datasets without wrangling every vendor, API key, downloader, and local file yourself.
-- **Cheaper deployment at scale.** Run scheduled or periodic bots on infrastructure built for Lumibot instead of paying for a separate always-on cloud server per strategy.
-- **Lumibot-tuned AI.** Generate and revise strategies with workflows built around Lumibot conventions, backtests, artifacts, brokers, and deployment.
-- **MCP for coding agents.** Let Codex, Claude Code, Cursor, and other MCP clients launch backtests, inspect artifacts, compare results, and prepare deployment.
-- **Marketplace and strategy library.** Start from existing strategy examples, clone or adapt code when allowed, run marketplace strategies, or publish your own.
-- **Monitoring and control.** Inspect charts, logs, trades, account state, audit history, alerts, and kill switches from one place.
-- **Work from anywhere.** Use the web app, your phone, Telegram, Discord, Claude, ChatGPT, or BotSpot MCP without losing your strategy context.
+.. code-block:: bash
 
-.. image:: ../docs/assets/readme/cta_deploy_on_botspot.png
-   :alt: Try deploying a sample Lumibot strategy on BotSpot
-   :align: center
-   :width: 520px
-   :target: https://botspot.trade/sales?showLogin=1&utm_source=documentation&utm_medium=getting_started&utm_campaign=lumibot&utm_content=deploy_button&sample=lumibot_deploy_sample
+   python -m pip install lumibot
 
-If you want your coding agent to work directly with BotSpot, open the :doc:`BotSpot MCP guide <botspot_mcp>`. If you want guided training, the AI Trading Bootcamp teaches the full path from strategy idea to backtest to live deployment.
+The :doc:`AI quickstart <agents_quickstart>` includes the source-version install
+command for its newest example. Follow that page's complete commands if you
+choose the AI route.
 
-.. image:: ../docs/assets/readme/cta_bootcamp.png
-   :alt: AI Trading Bootcamp
-   :align: center
-   :width: 520px
-   :target: https://www.botspot.trade/ai-bot-builder-bootcamp?utm_source=documentation&utm_medium=getting_started&utm_campaign=lumibot&utm_content=bootcamp_button
+Optional offline installation check
+------------------------------------
+
+This is a conventional Python check, **not an AI strategy**. It uses synthetic
+prices and makes no model, market-data, or broker requests:
+
+.. code-block:: bash
+
+   python -m pip install "git+https://github.com/Lumiwealth/lumibot.git@version/4.6.3"
+   BACKTESTING_DATA_SOURCE=none python -m lumibot.example_strategies.first_backtest
+
+It prints a simulated order and ending value so you can check the installation.
+For AI trading, continue to :doc:`agents_quickstart` and configure your model key.
+
+Connect a broker after your backtest
+------------------------------------
+
+The guide below uses Alpaca. See :doc:`brokers` for other supported connections.
 
 Getting Started With Lumibot
 ============================
@@ -134,14 +148,18 @@ Create a strategy class (See strategy section) e.g. class MyStrategy(Strategy) o
 Step 6: Instantiate the Trader, Alpaca, and Strategy Classes
 ------------------------------------------------------------
 
+This is broker setup for Step 8. You can skip Steps 3, 4, and 6 while learning
+with the historical backtest in Step 7; backtesting does not need an Alpaca
+trading account or ``Trader`` instance.
+
 .. code-block:: python
 
     trader = Trader()
     broker = Alpaca(ALPACA_CONFIG)
     strategy = MyStrategy(name="My Strategy", budget=10000, broker=broker, symbol="SPY")
 
-Step 7: Backtest the Strategy (Optional)
-----------------------------------------
+Step 7: Backtest the Strategy
+-----------------------------
 
 .. note::
 
@@ -154,7 +172,7 @@ Step 7: Backtest the Strategy (Optional)
 
     backtesting_start = datetime(2020, 1, 1)
     backtesting_end = datetime(2020, 12, 31)
-    strategy.run_backtest(
+    MyStrategy.run_backtest(
         YahooDataBacktesting,
         backtesting_start,
         backtesting_end,
@@ -163,38 +181,14 @@ Step 7: Backtest the Strategy (Optional)
         },
     )
 
-Step 8: Run the Strategy
-------------------------
-
-.. note::
-
-   **Running a strategy live** carries real financial risks. Start with paper trading to get familiar with the process and ensure your strategy works as expected.
-
-.. code-block:: python
-
-    trader.add_strategy(strategy)
-    trader.run_all()
-
-.. important::
-
-   **And that's it!** Now try modifying the strategy to do what you want it to do.
-
-Here it is all together:
+Here is the historical backtest as a complete file. It ends after the
+backtest; it does not start the broker runner from Step 8:
 
 .. code-block:: python
 
     from datetime import datetime
     from lumibot.backtesting import YahooDataBacktesting
-    from lumibot.brokers import Alpaca
     from lumibot.strategies.strategy import Strategy
-    from lumibot.traders import Trader
-
-    ALPACA_CONFIG = {
-        "API_KEY": "YOUR_ALPACA_API_KEY",
-        "API_SECRET": "YOUR_ALPACA_SECRET",
-        # Set this to False to use a live account
-        "PAPER": True
-    }
 
     class MyStrategy(Strategy):
         parameters = {
@@ -213,23 +207,32 @@ Here it is all together:
             order = self.create_order(symbol, quantity, side)
             self.submit_order(order)
 
-    trader = Trader()
-    broker = Alpaca(ALPACA_CONFIG)
-    strategy = MyStrategy(broker=broker, parameters={"symbol": "SPY"})
-
     backtesting_start = datetime(2020, 1, 1)
     backtesting_end = datetime(2020, 12, 31)
-    strategy.run_backtest(
+    MyStrategy.run_backtest(
         YahooDataBacktesting,
         backtesting_start,
         backtesting_end,
         parameters={"symbol": "SPY"}
     )
 
+Step 8: Start the Broker Runner
+-------------------------------
+
+.. note::
+
+   **Running a strategy live** carries real financial risks. Start with paper trading to get familiar with the process and ensure your strategy works as expected.
+
+.. code-block:: python
+
     trader.add_strategy(strategy)
     trader.run_all()
 
-Or you can download the file here: `https://github.com/Lumiwealth/lumibot/blob/dev/lumibot/example_strategies/simple_start_single_file.py <https://github.com/Lumiwealth/lumibot/blob/dev/lumibot/example_strategies/simple_start_single_file.py>`_.
+.. important::
+
+   **And that's it!** Now try modifying the strategy to do what you want it to do.
+
+For an alternative file with both runner paths, inspect `simple_start_single_file.py <https://github.com/Lumiwealth/lumibot/blob/version/4.6.3/lumibot/example_strategies/simple_start_single_file.py>`_ and select its backtest or broker branch explicitly.
 
 Adding Trading Fees
 ===================
@@ -343,3 +346,22 @@ During backtesting, ``datetime.now()`` returns the real current time, not the si
 **Where can I find more help?**
 
 Check the :doc:`faq` for 70+ answered questions covering backtesting, brokers, AI agents, options, crypto, and more.
+
+Want help building your first AI trading bot?
+---------------------------------------------
+
+**Join the free challenge with Rob Grzesik, creator of LumiBot.**
+Follow the training and learn how to turn an idea into an AI trading strategy.
+
+.. image:: ../docs/assets/ai-trading/rob-get-started.png
+   :alt: Learn with Rob Grzesik, creator of LumiBot. Join the FREE challenge.
+   :width: 640px
+   :align: center
+   :class: lumibot-learning-image
+   :target: https://botspot.trade/challenges?utm_source=documentation&utm_medium=docs&utm_campaign=lumibot_ai_trading&utm_content=setup_challenge_image
+
+
+`Join the free challenge → <https://botspot.trade/challenges?utm_source=documentation&utm_medium=docs&utm_campaign=lumibot_ai_trading&utm_content=free_challenge>`_
+
+For deeper training, explore the `AI Trading Bootcamp <https://botspot.trade/courses/ai-trading-bootcamp?utm_source=documentation&utm_medium=docs&utm_campaign=lumibot_ai_trading&utm_content=bootcamp>`_.
+LumiBot remains free and open source.

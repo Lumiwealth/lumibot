@@ -8,6 +8,8 @@ through Node when a long-running strategy outlives the short access-token TTL.
 from __future__ import annotations
 
 import asyncio
+import base64
+import binascii
 import json
 import os
 import threading
@@ -29,6 +31,20 @@ class ManagedAiGatewayError(RuntimeError):
         super().__init__(message)
         self.status_code = status_code
         self.code = code
+
+
+# Only family identifiers live here. Exact model routing/prices have one owner,
+# the managed gateway, so a provider upgrade does not require a package release.
+MANAGED_MODEL_FAMILIES = frozenset({
+    "google/gemini-pro", "google/gemini-flash", "google/gemini-flash-lite",
+    "openai/luna", "openai/terra", "openai/sol", "openai/astra",
+    "anthropic/sonnet", "anthropic/opus", "anthropic/fable", "xai/grok",
+})
+
+
+def _canonical_model(model: str, provider: str) -> str:
+    value = model.removeprefix(f"{provider}/")
+    return value.removeprefix("models/") if provider == "google" else value
 
 
 def _provider_for_model(model: str) -> str | None:
@@ -71,34 +87,68 @@ def managed_gateway_available_for(model: str) -> bool:
     )
 
 
-def _part_text(part: Any) -> str:
-    if isinstance(getattr(part, "text", None), str):
-        return part.text
+def _encoded_signature(part: Any) -> str | None:
+    signature = getattr(part, "thought_signature", None)
+    if signature is None:
+        return None
+    if not isinstance(signature, bytes):
+        raise ManagedAiGatewayError(
+            "Managed AI encountered an unsupported thought-signature value.",
+            code="protocol_integrity_error",
+        )
+    return base64.b64encode(signature).decode("ascii")
+
+
+def _structured_part(part: Any) -> dict[str, Any]:
+    text = getattr(part, "text", None)
     function_call = getattr(part, "function_call", None)
-    if function_call is not None:
-        return json.dumps(
-            {
-                "type": "function_call",
-                "id": getattr(function_call, "id", None),
-                "name": getattr(function_call, "name", None),
-                "arguments": getattr(function_call, "args", None) or {},
-            },
-            separators=(",", ":"),
-            default=str,
-        )
     function_response = getattr(part, "function_response", None)
-    if function_response is not None:
-        return json.dumps(
-            {
-                "type": "function_response",
-                "id": getattr(function_response, "id", None),
-                "name": getattr(function_response, "name", None),
-                "response": getattr(function_response, "response", None) or {},
-            },
-            separators=(",", ":"),
-            default=str,
+    populated = sum((isinstance(text, str), function_call is not None, function_response is not None))
+    if populated != 1:
+        raise ManagedAiGatewayError(
+            "Managed AI cannot preserve one or more provider content parts.",
+            code="protocol_integrity_error",
         )
-    return ""
+    signature = _encoded_signature(part)
+    if isinstance(text, str):
+        return {
+            "type": "text",
+            "text": text,
+            **({"thought": bool(part.thought)} if getattr(part, "thought", None) is not None else {}),
+            **({"thoughtSignature": signature} if signature else {}),
+        }
+    if function_call is not None:
+        arguments = getattr(function_call, "args", None)
+        if arguments is None:
+            arguments = {}
+        if not isinstance(arguments, dict):
+            raise ManagedAiGatewayError(
+                "Managed AI received invalid function-call arguments.",
+                code="protocol_integrity_error",
+            )
+        call_id = getattr(function_call, "id", None)
+        return {
+            "type": "function_call",
+            **({"id": str(call_id)} if call_id else {}),
+            "name": str(getattr(function_call, "name", "") or ""),
+            "arguments": arguments,
+            **({"thoughtSignature": signature} if signature else {}),
+        }
+    response = getattr(function_response, "response", None)
+    if response is None:
+        response = {}
+    if not isinstance(response, dict):
+        raise ManagedAiGatewayError(
+            "Managed AI received an invalid function response.",
+            code="protocol_integrity_error",
+        )
+    response_id = getattr(function_response, "id", None)
+    return {
+        "type": "function_response",
+        **({"id": str(response_id)} if response_id else {}),
+        "name": str(getattr(function_response, "name", "") or ""),
+        "response": response,
+    }
 
 
 def _messages(llm_request: Any) -> list[dict[str, Any]]:
@@ -106,22 +156,87 @@ def _messages(llm_request: Any) -> list[dict[str, Any]]:
     system_instruction = getattr(getattr(llm_request, "config", None), "system_instruction", None)
     if system_instruction:
         if isinstance(system_instruction, str):
-            system_text = system_instruction
+            system_parts = [{"type": "text", "text": system_instruction}]
         else:
-            system_text = "\n".join(
-                filter(None, (_part_text(part) for part in getattr(system_instruction, "parts", None) or []))
-            )
-        if system_text:
-            messages.append({"role": "system", "content": system_text})
+            system_parts = [_structured_part(part) for part in getattr(system_instruction, "parts", None) or []]
+        if system_parts:
+            messages.append({"role": "system", "parts": system_parts})
 
     for content in getattr(llm_request, "contents", None) or []:
-        role = "assistant" if getattr(content, "role", None) == "model" else "user"
-        text = "\n".join(filter(None, (_part_text(part) for part in getattr(content, "parts", None) or [])))
-        if text:
-            messages.append({"role": role, "content": text})
+        parts = [_structured_part(part) for part in getattr(content, "parts", None) or []]
+        if not parts:
+            raise ManagedAiGatewayError(
+                "Managed AI cannot send an empty provider content block.",
+                code="protocol_integrity_error",
+            )
+        if getattr(content, "role", None) == "model":
+            role = "assistant"
+        elif all(part["type"] == "function_response" for part in parts):
+            role = "tool"
+        else:
+            role = "user"
+        messages.append({"role": role, "parts": parts})
     if not messages:
-        messages.append({"role": "user", "content": "Continue according to the system instructions."})
+        messages.append(
+            {
+                "role": "user",
+                "parts": [{"type": "text", "text": "Continue according to the system instructions."}],
+            }
+        )
     return messages
+
+
+def _decoded_signature(value: Any) -> bytes | None:
+    if value is None:
+        return None
+    if not isinstance(value, str):
+        raise ManagedAiGatewayError(
+            "Managed AI received an invalid provider thought signature.",
+            code="protocol_integrity_error",
+        )
+    try:
+        return base64.b64decode(value, validate=True)
+    except (binascii.Error, ValueError):
+        raise ManagedAiGatewayError(
+            "Managed AI received an invalid provider thought signature.",
+            code="protocol_integrity_error",
+        ) from None
+
+
+def _response_part(value: Any) -> types.Part:
+    if not isinstance(value, dict):
+        raise ManagedAiGatewayError(
+            "Managed AI received an invalid provider content part.",
+            code="protocol_integrity_error",
+        )
+    part_type = value.get("type")
+    if part_type == "text" and isinstance(value.get("text"), str):
+        return types.Part(
+            text=value["text"],
+            thought=value.get("thought") if isinstance(value.get("thought"), bool) else None,
+            thought_signature=_decoded_signature(value.get("thoughtSignature")),
+        )
+    if part_type == "function_call" and isinstance(value.get("name"), str):
+        arguments = value.get("arguments")
+        if arguments is None:
+            arguments = {}
+        if not isinstance(arguments, dict):
+            raise ManagedAiGatewayError(
+                "Managed AI received invalid provider function-call arguments.",
+                code="protocol_integrity_error",
+            )
+        return types.Part(
+            function_call=types.FunctionCall(
+                id=str(value["id"]) if value.get("id") else None,
+                name=value["name"],
+                args=arguments,
+            ),
+            thought_signature=_decoded_signature(value.get("thoughtSignature")),
+        )
+    raise ManagedAiGatewayError(
+        "Managed AI received an unsupported provider content part.",
+        code="protocol_integrity_error",
+    )
 
 
 def _tools(llm_request: Any) -> list[dict[str, Any]]:
@@ -173,6 +288,9 @@ class BotSpotManagedLlm(BaseLlm):
     _access_token: str = PrivateAttr()
     _post: Callable[[str, str, dict[str, Any]], tuple[int, dict[str, Any]]] = PrivateAttr()
     _renew_lock: threading.Lock = PrivateAttr()
+    _model_lock: threading.Lock = PrivateAttr()
+    _resolved_model: str | None = PrivateAttr(default=None)
+    _reasoning_effort: str | None = PrivateAttr(default=None)
 
     def __init__(
         self,
@@ -180,6 +298,7 @@ class BotSpotManagedLlm(BaseLlm):
         model: str,
         gateway_url: str,
         access_token: str,
+        reasoning_effort: str | None = None,
         post: Callable[[str, str, dict[str, Any]], tuple[int, dict[str, Any]]] = _post_json,
     ) -> None:
         super().__init__(model=model)
@@ -187,6 +306,10 @@ class BotSpotManagedLlm(BaseLlm):
         self._access_token = access_token
         self._post = post
         self._renew_lock = threading.Lock()
+        self._model_lock = threading.Lock()
+        if reasoning_effort not in {None, "none", "low", "medium", "high", "xhigh", "max"}:
+            raise ValueError("Unsupported managed AI reasoning effort.")
+        self._reasoning_effort = reasoning_effort
 
     def _renew(self) -> None:
         status, body = self._post(f"{self._gateway_url}/v1/grants/renew", self._access_token, {})
@@ -202,12 +325,13 @@ class BotSpotManagedLlm(BaseLlm):
 
     def _inference(self, payload: dict[str, Any]) -> dict[str, Any]:
         attempted_token = self._access_token
-        status, body = self._post(f"{self._gateway_url}/v1/inference", attempted_token, payload)
+        inference_path = "/v2/inference" if payload.get("protocolVersion") == 2 else "/v1/inference"
+        status, body = self._post(f"{self._gateway_url}{inference_path}", attempted_token, payload)
         if status == 401:
             with self._renew_lock:
                 if self._access_token == attempted_token:
                     self._renew()
-            status, body = self._post(f"{self._gateway_url}/v1/inference", self._access_token, payload)
+            status, body = self._post(f"{self._gateway_url}{inference_path}", self._access_token, payload)
         if status < 200 or status >= 300:
             raise ManagedAiGatewayError(
                 str(body.get("message") or "Managed AI request failed."),
@@ -216,12 +340,44 @@ class BotSpotManagedLlm(BaseLlm):
             )
         return body
 
+    def _resolved_inference(self, payload: dict[str, Any]) -> dict[str, Any]:
+        # Only the first family resolution needs single-flight. Exact-id calls
+        # remain parallel, including the existing credential-renewal protocol.
+        if self.model in MANAGED_MODEL_FAMILIES and self._resolved_model is None:
+            with self._model_lock:
+                return self._infer_pinned_model(payload)
+        return self._infer_pinned_model(payload)
+
+    def _infer_pinned_model(self, payload: dict[str, Any]) -> dict[str, Any]:
+        payload = {**payload, "model": self._resolved_model or self.model}
+        body = self._inference(payload)
+        resolved = body.get("resolvedModel")
+        family = self.model in MANAGED_MODEL_FAMILIES
+        if resolved is None and not family and self._resolved_model is None:
+            # Published older gateways omit this field for exact-id clients.
+            return body
+        provider = _provider_for_model(self.model)
+        expected = self._resolved_model or (None if family else _canonical_model(self.model, provider))
+        if (
+            not isinstance(resolved, str) or not resolved.strip() or len(resolved) > 160
+            or resolved in MANAGED_MODEL_FAMILIES or "/" in resolved
+            or _provider_for_model(resolved) != provider
+            or (expected is not None and resolved != expected)
+        ):
+            raise ManagedAiGatewayError(
+                "Managed AI returned inconsistent model resolution; the decision cannot continue.",
+                code="protocol_integrity_error",
+            )
+        self._resolved_model = resolved
+        return body
+
     async def generate_content_async(self, llm_request: Any, stream: bool = False):
         provider = _provider_for_model(self.model)
         if provider is None:
             raise ManagedAiGatewayError(f"Model '{self.model}' is not available through managed AI.")
         config = getattr(llm_request, "config", None)
         payload = {
+            "protocolVersion": 2,
             "requestId": str(uuid.uuid4()),
             "provider": provider,
             "model": self.model,
@@ -229,21 +385,24 @@ class BotSpotManagedLlm(BaseLlm):
             "tools": _tools(llm_request),
             "maxOutputTokens": int(getattr(config, "max_output_tokens", None) or 16_384),
         }
+        continuation_id = getattr(llm_request, "previous_interaction_id", None)
+        if continuation_id:
+            payload["continuationId"] = str(continuation_id)
         temperature = getattr(config, "temperature", None)
         if temperature is not None:
             payload["temperature"] = float(temperature)
-        body = await asyncio.to_thread(self._inference, payload)
+        if self._reasoning_effort is not None:
+            payload["reasoningEffort"] = self._reasoning_effort
+        body = await asyncio.to_thread(self._resolved_inference, payload)
 
-        parts = []
-        if body.get("text"):
-            parts.append(types.Part(text=str(body["text"])))
-        for call in body.get("toolCalls") or []:
-            parts.append(
-                types.Part.from_function_call(
-                    name=str(call.get("name") or ""),
-                    args=call.get("arguments") if isinstance(call.get("arguments"), dict) else {},
-                )
+        raw_parts = body.get("parts")
+        if not isinstance(raw_parts, list) or not raw_parts:
+            raise ManagedAiGatewayError(
+                "Managed AI returned no structured provider content.",
+                code="protocol_integrity_error",
             )
+        parts = [_response_part(part) for part in raw_parts]
+        response_continuation_id = body.get("continuationId")
         usage = body.get("usage") or {}
         usage_metadata = types.GenerateContentResponseUsageMetadata(
             prompt_token_count=int(usage.get("inputTokens") or 0),
@@ -256,13 +415,15 @@ class BotSpotManagedLlm(BaseLlm):
             content=types.Content(role="model", parts=parts),
             partial=False,
             turn_complete=True,
+            interaction_id=str(response_continuation_id) if response_continuation_id else None,
             usage_metadata=usage_metadata,
         )
 
 
-def managed_gateway_model(model: str) -> BotSpotManagedLlm:
+def managed_gateway_model(model: str, *, reasoning_effort: str | None = None) -> BotSpotManagedLlm:
     return BotSpotManagedLlm(
         model=model,
         gateway_url=str(os.environ["LUMIBOT_AI_GATEWAY_URL"]),
         access_token=str(os.environ["LUMIBOT_AI_GATEWAY_TOKEN"]),
+        reasoning_effort=reasoning_effort,
     )

@@ -1,0 +1,32 @@
+{
+  "schema_version": 1,
+  "recorded_at": "2026-09-12",
+  "package_version": "4.5.92",
+  "examples": {
+    "first_backtest": {
+      "source": "lumibot/example_strategies/first_backtest.py",
+      "sha256": "b7313cebc7e37dd11baa7af65b6db1988353173a507acce8b5e47ea31ec08e0a",
+      "data": "synthetic minute OHLCV in source",
+      "engine": "PandasDataBacktesting",
+      "window": [
+        "2025-01-06T09:30:00-05:00",
+        "2025-01-06T09:35:00-05:00"
+      ],
+      "initial_equity": 10000,
+      "final_equity": 10005,
+      "filled_orders": 1,
+      "fill_quantity": 1,
+      "fill_price": 100,
+      "fees": 0,
+      "model_calls": 0,
+      "validation": "Built final wheel, installed outside source checkout, ran module with BACKTESTING_DATA_SOURCE=none, and asserted actual engine fill. External data-source override is rejected before engine startup. Not investment performance."
+    },
+    "ai_researcher_trader": {
+      "source": "lumibot/example_strategies/ai_researcher_trader.py",
+      "sha256": "a2820f0c5e9593f6151143f96a9441442d8ab05da38da6e2f7488c436e021ed9",
+      "model": "gemini-3.5-flash-lite",
+      "real_model_run": "../ai-trading/spy-20260913/receipt.json",
+      "validation": "September 13: ten fresh Gemini researcher/trader trajectories across five Yahoo trading sessions; one actual engine fill, 15 SPY shares. See linked receipt, decisions, and trade CSV."
+    }
+  }
+}

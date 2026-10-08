@@ -1430,3 +1430,77 @@ def test_orders_wait_for_terminal_fills_stock_market_order_in_backtest():
     # Must not race through days of sim time while failing to fill.
     assert result.get("polls", 0) <= 5
     assert broker.datetime.date().isoformat() == "2026-06-24"
+
+
+@pytest.mark.parametrize("first_iteration", [False, True])
+def test_strategy_sleep_applies_fill_to_cash_and_value_mid_iteration(first_iteration):
+    """Regression: a mid-iteration backtest fill updated positions but not cash.
+
+    Evidence (2026-09-23 sec-insider-luna-v3): after AAPL and MSFT market buys
+    filled through orders_wait_for_terminal, account_positions showed the shares
+    while account_portfolio still reported cash 100000. The FILLED_ORDER event
+    waited in the executor queue until on_trading_iteration returned, so any
+    sizing after a fill in the same iteration read stale cash.
+    """
+    asset = Asset("SPY", asset_type=Asset.AssetType.STOCK)
+    quote = Asset("USD", asset_type=Asset.AssetType.FOREX)
+    strategy, broker, _ = setup_strategy_with_prices(
+        asset,
+        quote,
+        bars=[
+            (100.0, 101.0, 99.0, 100.0),
+            (100.0, 101.0, 99.0, 100.0),
+            (100.0, 101.0, 99.0, 100.0),
+        ],
+        start="2026-06-24 13:30",
+    )
+    strategy._first_iteration = first_iteration
+    broker._first_iteration = first_iteration
+
+    order = strategy.create_order(asset, 100, Order.OrderSide.BUY, order_type=Order.OrderType.MARKET)
+    strategy.submit_order(order)
+    strategy.sleep(60, process_pending_orders=True)
+
+    assert order.is_filled()
+    fill_cost = 100 * float(order.get_fill_price())
+    assert strategy.get_cash() == pytest.approx(100000.0 - fill_cost)
+    assert strategy.get_portfolio_value() == pytest.approx(100000.0, rel=1e-3)
+
+
+def test_orders_wait_then_account_portfolio_reports_post_fill_cash():
+    from lumibot.components.agents import AgentManager, BuiltinTools
+    from lumibot.components.agents.runtime import _wrap_tool_callable
+
+    asset = Asset("AAPL", asset_type=Asset.AssetType.STOCK)
+    quote = Asset("USD", asset_type=Asset.AssetType.FOREX)
+    strategy, broker, _ = setup_strategy_with_prices(
+        asset,
+        quote,
+        bars=[
+            (200.0, 201.0, 199.0, 200.0),
+            (200.0, 201.0, 199.0, 200.0),
+            (200.0, 201.0, 199.0, 200.0),
+        ],
+        start="2026-06-24 13:30",
+    )
+    strategy._first_iteration = True
+    broker._first_iteration = True
+
+    order = strategy.create_order(asset, 36, Order.OrderSide.BUY, order_type=Order.OrderType.MARKET)
+    strategy.submit_order(order)
+
+    manager = AgentManager(strategy)
+    context = {
+        "agent_name": "cash-regression",
+        "model_call_id": "cash-regression-call",
+        "enforce_order_readiness": False,
+        "tool_calls": [],
+    }
+    wait = _wrap_tool_callable(BuiltinTools.orders.wait_for_terminal().binder(strategy, manager), context)
+    wait(identifier=order.identifier, timeout_seconds=5, poll_interval_seconds=1)
+    portfolio = _wrap_tool_callable(BuiltinTools.account.portfolio().binder(strategy, manager), context)()
+
+    assert order.is_filled()
+    fill_cost = 36 * float(order.get_fill_price())
+    assert float(portfolio["cash"]) == pytest.approx(100000.0 - fill_cost)
+    assert float(portfolio["portfolio_value"]) == pytest.approx(100000.0, rel=1e-3)

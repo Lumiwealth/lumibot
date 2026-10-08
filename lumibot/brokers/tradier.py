@@ -2073,7 +2073,36 @@ class Tradier(Broker):
         if not strategy_name and len(self._subscribers) == 1:
             strategy_name = self._subscribers[0].name
         for order_row in raw_orders:
-            order = self._parse_broker_order_dict(order_row, strategy_name=strategy_name)
+            row_id = order_row.get("id")
+            row_tag = order_row.get("tag")
+            # Shared-account safety: never ingest foreign-tagged activity into this
+            # strategy. A sole local subscriber must not claim MOS fills as STM.
+            already_tracked = row_id in stored_orders
+            if (
+                strategy_name
+                and row_tag
+                and not self.strategy_tag_matches(row_tag, strategy_name)
+                and not already_tracked
+            ):
+                if logger.isEnabledFor(20):
+                    logger.info(
+                        "Skipping foreign Tradier order id=%s tag=%r for local strategy %r",
+                        row_id,
+                        row_tag,
+                        strategy_name,
+                    )
+                continue
+
+            parse_strategy = strategy_name
+            if already_tracked and stored_orders[row_id].strategy:
+                parse_strategy = stored_orders[row_id].strategy
+            elif row_tag and strategy_name and self.strategy_tag_matches(row_tag, strategy_name):
+                parse_strategy = strategy_name
+            elif row_tag and strategy_name and not self.strategy_tag_matches(row_tag, strategy_name):
+                # Tracked-but-foreign should not rewrite strategy to local name.
+                parse_strategy = stored_orders[row_id].strategy if already_tracked else None
+
+            order = self._parse_broker_order_dict(order_row, strategy_name=parse_strategy)
             # Process child orders first so they are tracked in the Lumi system before the parent order
             all_orders = [child for child in order.child_orders] + [order]
 
@@ -2103,13 +2132,23 @@ class Tradier(Broker):
                     # Tradier stores the order tag as the strategy name with underscores replaced by hyphens.
                     if not stored_order.strategy:
                         tag = getattr(stored_order, 'tag', None) or getattr(order, 'tag', None)
+                        matched_sub = False
                         if tag and hasattr(self, '_subscribers') and self._subscribers:
                             for sub in self._subscribers:
                                 sub_name = getattr(sub, 'name', '') or str(sub)
-                                if re.sub(r'[^a-zA-Z0-9-]', '-', sub_name) == tag or sub_name == tag:
+                                if self.strategy_tag_matches(tag, sub_name) or sub_name == tag:
                                     stored_order.strategy = sub_name
+                                    matched_sub = True
                                     break
-                        if not stored_order.strategy and hasattr(self, '_subscribers') and len(self._subscribers) == 1:
+                        # Only claim untagged orders via sole-subscriber fallback.
+                        # Foreign tags must never be attributed to the local strategy.
+                        if (
+                            not stored_order.strategy
+                            and not tag
+                            and not matched_sub
+                            and hasattr(self, '_subscribers')
+                            and len(self._subscribers) == 1
+                        ):
                             only_sub = self._subscribers[0]
                             stored_order.strategy = getattr(only_sub, 'name', '') or str(only_sub)
 

@@ -1,6 +1,9 @@
 Tradier
 ===================================
 
+.. meta::
+   :description: Tradier. This is a guide for using Tradier with the Lumibot library.
+
 This is a guide for using Tradier with the Lumibot library.
 
 Getting Started

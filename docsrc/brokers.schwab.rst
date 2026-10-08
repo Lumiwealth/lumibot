@@ -1,9 +1,18 @@
-Schwab
-======
+Charles Schwab API Trading with LumiBot
+=======================================
+
+.. meta::
+   :description: Connect LumiBot to the Charles Schwab Trader API for equities and options. Configure OAuth, callback URLs, account settings, and paper or live execution.
 
 Lumibot integrates directly with Charles Schwab's *Trader* API for equities and options.  Everything you need is built-in; no external wrapper is required.
 
+Go directly to :ref:`Schwab prerequisites <schwab-prerequisites>`,
+:ref:`credentials <schwab-environment>`, :ref:`first-time OAuth login
+<schwab-first-login>`, or :ref:`token renewal <schwab-token-lifecycle>`.
+
 If you want the managed path, `BotSpot <https://botspot.trade/sales?showLogin=1&utm_source=documentation&utm_medium=schwab&utm_campaign=lumibot&utm_content=managed_schwab_text&prompt=I%20want%20to%20connect%20Schwab%20and%20run%20a%20Lumibot%20strategy%20on%20BotSpot.%20Please%20help%20me%20set%20up%20broker%20connections%2C%20monitoring%2C%20and%20paper%20or%20live%20deployment.>`_ can help you connect supported brokers through the website, run paper or live Lumibot strategies, and monitor logs, account state, alerts, audit history, and kill-switch controls without maintaining your own deployment server.
+
+.. _schwab-prerequisites:
 
 Prerequisites
 -------------
@@ -12,6 +21,8 @@ Prerequisites
 2. A Schwab **App Key** (sometimes called *Consumer Key*) generated inside your Developer Portal application.
 3. The brokerage **account number** you want the bot to trade in.
 4. A **callback URL** (HTTPS) you entered when creating the app.  For local testing just use ``https://127.0.0.1:8182``.
+
+.. _schwab-environment:
 
 Environment variables
 ---------------------
@@ -47,12 +58,16 @@ Set the following before running your strategy (``.env`` file, Render secret, Re
    * - ``TRADING_BROKER`` *(optional)*
      - Force Lumibot to select Schwab (``schwab``) even when other creds are present.
 
+.. _schwab-first-login:
+
 First-time login
 ----------------
 
 • **Desktop** – run your bot, a browser pops up, log in, click *Allow*.  A ``token.json`` file is written next to your strategy.  Restart and you're done.
 
 • **Headless / Render / Replit** – the console prints a one-time URL.  Open it on any device, log in, copy the payload string that appears, set it as ``SCHWAB_TOKEN`` and restart.
+
+.. _schwab-token-lifecycle:
 
 Token life-cycle
 ----------------
@@ -70,7 +85,7 @@ Supported functionality
 * OTO / one-triggers-other orders for single stock/ETF and option parent/child orders (experimental; live broker validation recommended before production use).
 * OCO / one-cancels-other and bracket orders for single stock/ETF and option orders (experimental; live broker validation recommended before production use).
 * Streaming quotes for equities/options.
-* Historical bars – up to 15 years daily, 6 months intraday.
+* Historical bars for equities, ETFs, and option contracts (OCC symbol). Futures candle history is not requested. Crypto is not on this API.
 
 Multi-leg option spreads and futures trades are not yet implemented.
 
@@ -117,9 +132,12 @@ Simple stock and single-leg option ``self.modify_order(...)`` calls use Schwab's
 replace-order endpoint. Schwab returns a new broker order id for the replacement;
 LumiBot updates the order object's ``identifier`` and keeps the old id in
 ``previous_identifiers``. For timeout logic where the intended behavior is to
-remove the order, prefer ``self.cancel_order(order)`` plus a direct
-``self.get_order(order.identifier)`` confirmation instead of modifying the
-order into a different price.
+remove the order, prefer ``self.cancel_order(order)`` instead of modifying the
+order into a different price. A successful cancel response is acceptance, not
+terminal confirmation: the order remains active with ``CANCELLING`` status
+until Schwab later reports ``CANCELED``, ``FILLED``, ``EXPIRED``, or a
+rejection/error. Do not put an immediate direct order read in front of the
+cancellation deadline.
 
 Schwab account history can include rows that are not ordinary strategy orders,
 such as mutual funds, sweep/cash-equivalent records, bonds, option exercise
@@ -131,6 +149,93 @@ representable unknown Schwab records as ``Asset.AssetType.UNKNOWN``,
 If Schwab cannot return fresh cash or portfolio value, ``self.get_cash()`` and
 ``self.get_portfolio_value()`` return ``None`` and leave cached values unchanged.
 Do not treat ``None`` as zero.
+
+Fast cancellation and request budgets
+-------------------------------------
+
+For rejected or expired orders, the strategy's error callback receives the
+original Schwab status and its rejection description when the broker supplies
+one. If no description is available, the error reports the status alone;
+LumiBot does not infer a rejection reason. Repeated terminal snapshots do not
+produce duplicate error callbacks.
+
+Separate three measurements when implementing a cancel-after deadline:
+
+* the local time at which the strategy dispatches ``cancel_order``;
+* the HTTP response time for the cancel request;
+* the later broker-terminal outcome such as ``CANCELED`` or ``FILLED``.
+
+The strategy controls the first measurement. It cannot guarantee the other two
+at an exact deadline.
+
+Use a configurable ``cancel_after_seconds`` policy and an absolute
+``time.monotonic()`` deadline. Do not use one fixed timeout for every strategy.
+Finish expensive chain, quote, and liquidity work before submission; then
+process local pending order events while waiting for the deadline:
+
+.. code-block:: python
+
+   deadline = time.monotonic() + cancel_after_seconds
+   while time.monotonic() < deadline and order.is_active():
+       remaining = deadline - time.monotonic()
+       self.sleep(min(0.05, remaining), process_pending_orders=True)
+
+   if order.is_active():
+       self.cancel_order(order)
+
+The short ``self.sleep`` calls above process local queued events. They are not
+broker polls. Avoid calling ``self.get_order`` every fraction of a second or
+placing a broker read immediately before the deadline. Use a bounded exact-order
+read later for a missed callback, restart/reconnect, or ambiguous cancel result.
+
+``on_filled_order`` is the fast path for a fill and already includes the filled
+order. ``on_canceled_order`` reports terminal cancellation; it does not initiate
+the cancel. ``cancel_order`` may return before the queued
+``on_canceled_order`` callback runs. Route callbacks and later reconciliation
+through one idempotent reducer keyed by the broker order identifier or a stable
+causal group.
+
+These ``on_*`` methods are lifecycle callback methods: LumiBot invokes them
+after broker observations. ``on_partially_filled_order(position, order, price,
+quantity, multiplier)`` receives the newly observed fill delta in ``quantity``;
+it is not cumulative across callbacks. A later ``on_filled_order`` receives the
+remaining fill delta and must share the same idempotency state.
+
+LumiBot uses Schwab account-activity WebSocket messages to wake exact reads of
+locally tracked active orders. REST snapshots and stream-triggered observations
+feed one serialized transition reducer, including after login or reconnect. A
+30-second broad history poll remains as a healing fallback. This is deliberately
+not one-second broad polling: one-second polling multiplies request pressure and
+does not remove fill/cancel races.
+
+The REST and account-activity clients share the same refreshable OAuth token
+metadata. A token refresh updates the shared token object in place, so a later
+stream login or reconnect uses the current access token instead of maintaining
+a second credential owner.
+
+Scope blocking to the strategy's actual risk invariant. A cancel-pending order
+must block a conflicting replacement for the same exposure. Independent symbols
+may continue when capital and risk policy permit. Unknown broker state is not
+terminal, but it does not automatically require a strategy-wide freeze.
+
+Schwab developer applications have an application-level order limit for make,
+cancel, and replace requests per minute. Treat throttling as an aggregate
+broker-call budget across market data, order lists, exact reads, submits,
+cancels, and replaces. Do not infer a universal requests-per-second guarantee.
+See the `schwab-py order-limit documentation
+<https://schwab-py.readthedocs.io/en/latest/getting-started.html#order-limit>`_
+and :doc:`lifecycle_methods.on_canceled_order`.
+
+When Schwab returns HTTP 429, LumiBot honors ``Retry-After`` when present and
+otherwise applies bounded exponential backoff with jitter for that endpoint
+family. A throttled read returns no new observation and never converts the
+tracked order to a terminal status.
+
+An authorized local sample of 16 successful cancel HTTP responses ranged from
+228 ms to 444 ms, with a 302.5 ms median and 444 ms 95th percentile. This small
+sample is not a Schwab service-level guarantee and does not measure terminal
+callback visibility. Do not choose a strategy deadline by multiplying these
+observations.
 
 Example ``.env``
 ----------------
@@ -318,6 +423,12 @@ Supported Assets & Order Types
     - ✖
     - ✖
     - ✖
+  * - Crypto
+    - ✖
+    - ✖
+    - ✖
+    - ✖
+    - ✖
 
 - Multi-leg/spread options are not yet implemented in Lumibot.
 - Schwab OTO, OCO, and bracket orders use Schwab's trigger and one-cancels-other support and should be live-tested with the target account and order shape before relying on them in production.
@@ -326,17 +437,28 @@ Supported Assets & Order Types
 Market Data
 -----------
 
-- Real-time quotes, option chains, and historical bars (up to 15 years daily, 6 months intraday for equities/options).
-- **Level-I/II streaming quotes are available for equities, options, and futures; historical bars only for equities/ETFs.**
+- Real-time quotes, last price, and option chains work for equities and options. A live read on 2026-09-22 returned SPY quotes around 774 and an SPY 775 call quote around 0.10. Current quotes include bid and ask. Price-history candles do not.
+- Daily candles for SPY went back through a 20-year request (2006-09-27 to 2026-09-22, 5027 bars). The every-day helper, which asks for twenty years of daily bars, returned 8469 bars from 1993-01-29 through 2026-09-22. One-minute bars capped at 2026-08-07 even when 90 days were requested. Thirty-minute bars for a one-year request started 2026-01-05. Schwab has no 60-minute frequency and no second bars. LumiBot's hour timestep asks for 30-minute candles and says so. A second timestep returns no bars.
+- Price-history candles are last-trade OHLC plus volume and datetime. A live read of SPY stock daily bars and of an SPY option daily series returned only those keys. There is no historical bid or ask on the candle. Days with no trade come back as gaps. Live ``get_quote`` still returns bid and ask. LumiBot does not invent quote bars to fill those gaps.
+- Option quotes, last price, chains, and candles work. History is the life of that contract, not a fixed bar cap and not the years requested. The request has to use the OCC symbol. The SPY 775 call expiring 2026-09-22 had 11 daily bars from 2026-09-08. The SPY 775 call expiring 2027-09-17 quoted at 68.31 (bid 67.75, ask 69.63). A 30-day daily request returned 20 bars from 2026-08-25. One-year, two-year, and five-year daily requests all stopped at 95 bars from 2026-03-26. One-minute bars existed and were thin: 227 bars back to 2026-08-06. The Jan 2029 775 call quoted at 126.11 and had 3 daily bars from 2026-09-18.
+- A Tesla check on the same day showed less history, not more. The TSLA 380 call expiring 2027-09-17 quoted at bid 76.6, ask 77.3, last 77.14. A 30-day daily request returned 21 bars from 2026-08-24. One-year, two-year, and five-year daily requests all stopped at 72 bars from 2026-05-19. One-minute bars over 48 days returned 194 bars from 2026-08-06. The TSLA 380 call expiring 2029-01-19 quoted at bid 120.0, ask 126.0, last 124.58, and had 5 daily bars from 2026-09-16 plus 34 one-minute bars from the same day. The SPY 95-bar stop is that contract's listing, not an API limit.
+- Equity tickers stay equity tickers. ``Asset("BTC")`` and ``Asset("ETH")`` still request ``BTC`` and ``ETH``, and those can be priced and traded as stocks. A live read on 2026-09-22 showed ticker ``BTC`` is the Grayscale Bitcoin Mini Trust ETF (last price 38.265, asset type EQUITY) and ticker ``ETH`` is the Grayscale Ethereum Staking Mini ETF (last price 26.355). ``DOGE`` and ``SOL`` had no instrument. ``LTC`` and ``BCH`` are unrelated stocks. Description search found no spot bitcoin or ethereum pair. The ``$BLX`` and ``$ELX`` indexes stopped on 2023-10-30.
+- Only ``asset_type`` crypto is refused. ``get_historical_prices`` and ``get_quote`` for a crypto asset return no bars and do not call Schwab. Spot bitcoin cannot be quoted, charted, or bought through this API. LumiBot's order builder rejects ``asset_type`` crypto before any order HTTP call. A stock order for ticker ``BTC`` is an ETF order. No order was sent.
+- Futures quotes can stream. Futures candle history is not requested.
 - No extra entitlements required for individual developers.
-- Futures quotes available; historical futures bars not yet supported.
 
 Rate Limits & Token Expiry
 --------------------------
 
-- **~120 requests/minute** for data; **2–4 trade requests/sec**.
-- Exceeding limits returns HTTP 429 errors.
-- Error codes: `429-001` = rate, `429-005` = burst; back-off 60 seconds if hit.
+- Schwab developer applications expose a configurable **order limit**: the
+  number of make, cancel, and replace requests the app may place per minute.
+  The application's configured value is authoritative for that app.
+- Schwab may return HTTP 429 when a request budget or burst limit is exceeded.
+  Respect ``Retry-After`` when present; otherwise use bounded exponential
+  backoff with jitter.
+- Do not rely on a universal data-requests-per-minute or trade-requests-per-second
+  value. Budget all broker endpoint families and measure the target app's
+  actual behavior.
 - Access tokens expire after 30 minutes; refresh tokens after 7 days.
 
 Known Issues & Best Practices
@@ -346,7 +468,7 @@ Known Issues & Best Practices
 - `token.json` must be unique per account/app.
 - OTO, OCO, and bracket advanced orders are experimental.
 - Callback URL must match exactly (including trailing slash).
-- Refresh tokens proactively (every 28–29 min) to avoid expiry.
+- Access tokens last about 30 minutes. While the process is running and ``SCHWAB_APP_SECRET`` is set, LumiBot refreshes in the background and writes the new token back to the token file. Do not also set ``SCHWAB_TOKEN``: every start overwrites that file with the original payload. A live check on 2026-09-22 forced the access token to look expired, and LumiBot refreshed it without another login.
 - Secure `token.json` (chmod 600) and rotate secrets regularly.
 - Use separate apps for sandbox and production.
 - **Attempting to place a futures order returns HTTP 400 "Unsupported instrument".**

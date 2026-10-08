@@ -1,6 +1,9 @@
 Lifecycle Methods
 ************************
 
+.. meta::
+   :description: The abstract class Strategy defines a design pattern that needs to be followed by user-defined strategies.
+
 The abstract class Strategy defines a design pattern that needs to be followed by user-defined strategies. The design pattern was greatly influenced by React.js components and their lifecycle methods.
 
 When building strategies, lifecycle methods needs to be overloaded. Trading logics should be implemented in these methods.

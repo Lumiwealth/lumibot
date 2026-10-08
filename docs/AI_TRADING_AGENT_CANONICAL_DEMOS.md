@@ -6,6 +6,11 @@
 **Status:** Active
 **Audience:** Both
 
+All four demo files start historical backtests when run directly. Their
+`Strategy` classes can be imported into a separate broker runner, but an
+`IS_BACKTESTING=false` setting does not add one to these files. See the
+[AI example run-mode guide](https://lumibot.lumiwealth.com/strategy_run_modes.html).
+
 ---
 
 ## The Four Demos

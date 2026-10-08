@@ -376,7 +376,9 @@ def test_routed_ccxt_crypto_last_price_stays_minute_even_when_day_mode_is_inferr
     quote = Asset(symbol="USDT", asset_type=Asset.AssetType.CRYPTO)
     price = ds.get_last_price(asset, quote=quote)
 
-    assert price == 100.5
+    # The 04:00 UTC minute bar starts at the simulated time, so its close (100.5) is the price at
+    # 04:01. 4.6.2: the price known at 04:00 is that bar's open (still minute data, not daily).
+    assert price == 100.0
     assert calls
     assert calls[0]["exchange_id"] == "coinbase"
     assert calls[0]["symbol"] == "BTC/USDT"
@@ -391,7 +393,8 @@ def test_routed_ccxt_crypto_quote_stays_minute_even_when_day_mode_is_inferred(mo
     quote_asset = Asset(symbol="USDT", asset_type=Asset.AssetType.CRYPTO)
     quote = ds.get_quote(asset, quote=quote_asset)
 
-    assert quote.price == 100.5
+    # Same as the last-price test above: the 04:00 bar is forming at 04:00; its open is the price.
+    assert quote.price == 100.0
     assert calls
     assert calls[0]["exchange_id"] == "coinbase"
     assert calls[0]["symbol"] == "BTC/USDT"
@@ -488,5 +491,8 @@ def test_routed_ccxt_refresh_replaces_stale_legacy_alias_and_lookup_cache(monkey
     bars = ds.get_historical_prices(asset, length=1, timestep="minute", quote=quote)
 
     assert bars is not None
-    assert bars.df["close"].iloc[-1] == 200.5
-    assert bars.df.index[-1].tz_convert("UTC") == pd.Timestamp("2026-06-23 19:58:00+00:00")
+    # The 19:59 UTC bar closes at 20:00, the simulated time, and no later bar exists, so it is the
+    # newest completed bar (4.6.2: a closed bar is visible without waiting for a later bar; this
+    # used to return the 19:58 bar). The refreshed frame, not the stale 2026-06-16 alias, serves it.
+    assert bars.df["close"].iloc[-1] == 201.5
+    assert bars.df.index[-1].tz_convert("UTC") == pd.Timestamp("2026-06-23 19:59:00+00:00")

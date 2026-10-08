@@ -1,6 +1,9 @@
 Agent Built-In Tools
 ====================
 
+.. meta::
+   :description: LumiBot agents are useful because they can inspect the same strategy state that your Python code can inspect.
+
 LumiBot agents are useful because they can inspect the same strategy state that
 your Python code can inspect. Built-in tools are added automatically when an
 agent is created, so a strategy author does not need to manually wire common
@@ -22,7 +25,7 @@ review without changing broker state.
 
    self.agents.create(
        name="researcher",
-       model="openai/gpt-5.4-mini",
+       model="openai/gpt-6-luna",
        allow_trading=False,
        system_prompt="Gather market data, indicators, news, filings, fundamentals, and macro context.",
    )
@@ -47,6 +50,35 @@ Use ``allow_trading=True`` only for the final agent that is allowed to place or
 change orders. In an AI trading team workflow, that is usually the portfolio
 manager or trader agent.
 
+.. _agents-network-permissions:
+
+Network Permissions
+-------------------
+
+The outbound network tools (``http_request``, ``read_document``, ``rss_fetch``, and every
+``browser_*`` tool) are off by default. Fetched pages are untrusted input, and
+a network tool is the channel a prompt-injected page could use to send agent
+context somewhere else. Keeping them out of the default set also keeps trading
+agents focused on account and market tools.
+
+Opt an agent in with ``allow_network=True``:
+
+.. code-block:: python
+
+   self.agents.create(
+       name="page_researcher",
+       model="openai/gpt-6-luna",
+       allow_trading=False,
+       allow_network=True,
+       system_prompt="Use http_request to read the supplied public page. Do not submit orders.",
+   )
+
+Listing a network tool explicitly, for example
+``tools=[BuiltinTools.web.http_request()]``, is also an opt-in, but only for
+the tools you list. ``allow_network=False`` removes network tools even when
+they are listed. Give network access to the research agent that fetches pages,
+not to the trading agent.
+
 Order Readiness
 ---------------
 
@@ -55,11 +87,12 @@ exact order requested or rejects it. It does not silently resize, clip, or
 normalize a requested order into a different order.
 
 Before ``orders_submit_order`` or ``orders_submit_multileg`` can submit an
-order, the agent must inspect the required account and price context in the
-same agent run:
+order, the agent must inspect the required account, open-order, and price
+context in the same agent run:
 
 - ``account_portfolio`` for cash and portfolio value
-- ``account_positions`` for current holdings
+- complete unfiltered ``account_positions`` pagination for current holdings
+- complete unfiltered ``orders_open_orders`` pagination for active orders
 - ``market_last_price`` for the ordered symbol, or ``market_last_prices``
   including that symbol
 
@@ -68,7 +101,38 @@ If those checks are missing, the order tool returns an
 This is not a universal margin model. LumiBot does not try to enforce one
 broker/country/asset-class leverage rule across stocks, ETFs, options, futures,
 forex, and crypto. The readiness gate only prevents blind trading; sizing
-judgment remains with the strategy and agent.
+judgment remains with the strategy and agent. A fresh injected account snapshot
+satisfies the initial account and open-order checks only when all of its
+completeness flags are true. After an order mutation, the agent must refresh
+the account and open-order context before submitting another order.
+
+Option orders ask for more. The agent prompt and the built-in
+``options-trading`` skill tell the agent to call ``account_portfolio``,
+``account_positions``, and ``orders_open_orders`` in the run before any option
+order, even when the injected snapshot is complete, because an option package
+depends on exact signed contract positions and pending packages. The skill also
+tells the agent to apply only the expiration, delta, and width limits the user
+or active rules state, and to measure deltas with the Greek tools instead of
+declining from strike distance alone. If one listed expiration has unavailable
+Greeks or quotes, the agent checks other listed expirations allowed by those
+constraints before declaring that data is unavailable. All legs are selected
+and verified for the chosen structure. Use one expiration when the structure
+requires it. Calendar legs may use distinct listed expirations only when the
+user or active rules allow them, without relaxing those limits.
+
+For stocks, a pending exit already owns that position change. A due exit
+condition or a limit away from the current market does not authorize replacing
+it. The agent changes an existing order only when the user's rules explicitly
+require that change.
+Lookback rules use the requested number of the latest completed bars. The
+reported indicator and date window must match the selected tool result.
+
+Opening an option position (``buy_to_open``, ``sell_to_open``, or a plain buy or
+sell that does not reduce a held contract) also requires a successful
+``options_get_chain`` for the underlying in the same run. Without it the order
+tool returns ``ORDER_READINESS_REQUIRED``. Expiration and delta helpers only
+return candidates; the chain shows what is listed. Closing a held contract does
+not need the chain.
 
 Market-price tools:
 
@@ -79,6 +143,11 @@ Market-price tools:
   provided universe.
 - ``market_load_history_table`` still loads one symbol per call; load finalists
   after the batch scan.
+- Broker price data often has no market indexes (Alpaca has no VIX). When a
+  price tool has no data for an index such as VIX, VXN, OVX, GVZ, SPX or DJIA,
+  its result includes a ``fred_hint`` naming the FRED series with the daily
+  close (the VIX is ``VIXCLS``). ``get_fred_latest`` returns only what was
+  published by the strategy date, so it is safe in backtests.
 
 Market And Account State
 ------------------------
@@ -131,10 +200,30 @@ After submission, agents can call ``orders_get_status`` or
 ``orders_wait_for_terminal`` to verify identifiers. Never treat a submitted
 status as a fill unless ``is_filled`` is true.
 
-``account_positions`` includes the exact contract, signed quantity, average
-fill, current value, and P&L fields when the active broker or backtest provides
-them. Agents can use those generic fields to reconstruct and manage existing
-option positions.
+``account_positions`` and ``orders_open_orders`` return compact, deterministic
+pages with 50 records by default and at most 100 per call. Every response
+includes total, matched, returned, omitted, complete, and next-offset metadata.
+When ``complete`` is false, omitted records still exist; continue through the
+remaining unfiltered pages before treating the account view as complete.
+Every page also carries a content-derived ``snapshot_id``. Full-account
+readiness accepts a page sequence only when every page has the same identifier;
+if positions or open orders change between calls, restart pagination at offset
+zero.
+
+Both tools support exact symbol, asset type, expiration, strike, and option
+right filters. This allows an agent to find a specific contract even when it
+falls outside the first visible page. Open-order filters also inspect compact
+multi-leg child contracts. A targeted lookup proves whether that contract is
+present, while complete unfiltered pagination is still required for full
+order-readiness.
+
+Position entries include the exact compact asset identity, signed quantity,
+closing side and quantity for options, and available average fill, current
+price, market value, and P&L fields. Missing optional values are omitted rather
+than represented as zero. The injected runtime snapshot uses the same compact
+position and order representation as the tools, so inspecting the account does
+not unexpectedly expand raw broker or internal Python objects into model
+context.
 
 Technical Indicators
 --------------------
@@ -145,9 +234,39 @@ Indicator tools expose LumiBot's indicator system to agents:
 - ``get_indicator``
 - ``get_indicators``
 
-In backtests, indicators are evaluated against the visible historical data and
-return the value at or before the current strategy datetime. This prevents the
-agent from seeing a future indicator value.
+Indicator input is restricted to rows at or before strategy time, not just the
+returned value. Noncausal parameters are rejected. Completion of a timestamped
+bar follows the selected data source's contract; see :doc:`indicators`.
+
+Use ``get_indicators`` with ``requests_json`` for independent parameters and
+timeframes. Each of up to 50 requests needs a unique ``id`` and ``indicator``;
+optional ``parameters`` is an object and ``timestep`` overrides the batch default::
+
+    get_indicators(symbol="SPY", requests_json='[
+      {"id":"sma50","indicator":"sma","parameters":{"length":50}},
+      {"id":"sma200","indicator":"sma","parameters":{"length":200}},
+      {"id":"minute_rsi","indicator":"rsi","timestep":"minute","parameters":{"length":14}}
+    ]')
+
+Results retain their request IDs. A failed calculation does not hide other
+results; ``complete=false`` means at least one request failed. The original
+``indicators=["rsi", "macd"]`` interface remains supported for default parameters.
+Do not combine ``indicators`` and ``requests_json`` in one call.
+Request ids, indicator names and timesteps must be nonempty strings of at most
+128 characters. Malformed envelopes fail before data retrieval.
+
+Testing and eval costs
+----------------------
+
+The source release eval runner uses a durable, per-model-call spending ledger.
+Actor calls, judge calls and continuations reserve their maximum cost before
+inference. Missing usage after a failure retains its reservation across resumes;
+it is not counted as a free call. This opt-in release-test policy does not alter
+ordinary strategy execution or impose a new provider account limit.
+
+Freshness remains 90 days for compatible evidence. Runtime, indicator, broker
+and installed SDK changes invalidate the relevant shared fingerprint. See the
+repository's ``docs/AGENT_EVALS.md`` for the ledger and resume contract.
 
 SEC Fundamentals And Filings
 ----------------------------
@@ -165,10 +284,67 @@ Common tools include:
 - ``search_filing``
 - ``get_filing_document``
 
+``get_filings`` for a symbol the SEC ticker map does not list (ETFs, foreign listings, crypto, private names) returns an empty ``filings`` list with ``available: false`` and ``reason: "no_sec_cik"`` instead of an error. The absence is reported, never filled in.
+
 Backtests gate filings by filed date or acceptance timestamp, so an agent cannot
 read a filing before it existed. Use ``search_filing`` before
 ``get_filing_document`` when the filing is large and the agent only needs a
 specific section.
+
+HTTP, Documents, And RSS
+------------------------
+
+These tools require the network opt-in described in `Network Permissions`_.
+
+``http_request`` is the general outbound web/API tool. It supports ``GET``,
+``HEAD``, ``OPTIONS``, ``POST``, ``PUT``, ``PATCH``, and ``DELETE`` with query
+parameters, JSON, form, raw, and multipart bodies. Responses are structured and
+size-bounded; binary bodies are base64 encoded. A strategy-level client retains
+cookies across calls and validates the destination again after every redirect.
+
+Authentication is supplied through named, host-scoped credential profiles
+rather than placed in agent prompts. Profiles support bearer, basic, API-key,
+custom-header, cookie, and client-certificate authentication. Secrets are
+injected only for matching hosts and are not returned in tool output. The
+default network policy blocks loopback, private, link-local, reserved, and
+cloud-metadata destinations; a trusted internal host must be explicitly
+allowlisted by the application that creates the client. This guard preserves
+the full HTTP method set while preventing an untrusted page or prompt from
+silently reaching internal infrastructure.
+
+``read_document`` reads any file or page at a URL: PDF, Word (``.docx``),
+Excel (``.xlsx``), CSV, tab-separated text, JSON, HTML, and ZIP archives (it
+lists and reads every file inside). An HTML page comes back as text plus every
+link on it, so an agent can find a report on a website and follow its link.
+``find`` keeps only the lines that contain a word, and ``start`` with the
+returned ``next_start`` pages through long text. Every table in the file (a
+CSV, an Excel sheet, a table file inside a ZIP) is loaded for ``duckdb_query``,
+so the agent filters and adds up rows with SQL instead of by hand. A ZIP that
+unpacks to more than 100 MB is refused; the same limit applies to Word and Excel
+archives. Tables with the same label receive distinct names so earlier reads
+remain queryable. A malformed CSV/TSV retains its text and returns
+``table_error`` instead of silently dropping rows. No tool is built for one website: the
+:doc:`agents_example_nancy_pelosi_trading_bot` reads the House Clerk's yearly ZIP
+index and PDF reports with ``read_document``. The ``web-documents`` skill tells
+agents how, including the backtest rule: use each document's own date and skip
+anything dated after the backtest time.
+
+.. code-block:: python
+
+   self.agents.create(
+       name="researcher",
+       allow_trading=False,
+       allow_network=True,
+       system_prompt="Read https://example.com/reports/2025.zip and total the amounts by ticker.",
+   )
+
+``rss_fetch`` reads RSS and Atom feeds through the same network and credential
+policy. It normalizes feed metadata and entries and supports conditional
+requests with ETag and Last-Modified validators.
+
+Use these built-ins for normal APIs and feeds. Use :doc:`agents_browser_tools`
+when a source requires JavaScript rendering, a login flow, multiple tabs, or
+stateful interaction.
 
 FRED Macro Data
 ---------------
@@ -251,3 +427,27 @@ The built-in research tools are designed around backtest/live parity:
 
 This lets agents research during a backtest without accidentally looking into
 the future.
+
+Managed model families
+----------------------
+
+With managed AI configured, a strategy may select a reviewed family such as
+``google/gemini-pro``, ``google/gemini-flash``, ``google/gemini-flash-lite`` or
+``openai/luna``. The gateway resolves that family to one exact model on the
+first request. LumiBot keeps that model for the entire decision, including
+native tool continuations. Later decisions may use a newly reviewed mapping.
+For reproducible historical experiments, use an exact model id instead.
+
+Family names require a compatible managed gateway. They are not aliases to
+send directly to a provider. BYOK execution continues to require an exact
+provider model id; LumiBot does not ignore personal keys or switch billing
+routes when authentication fails.
+Historical indicator windows
+----------------------------
+
+``get_indicator`` and each ``get_indicators`` request accept optional ``start``
+and ``end`` ISO timestamps with timezone offsets. Supply both together. The
+inclusive end cannot exceed strategy time. Only bars inside the window are
+used, including warmup; an insufficient window returns null, not a zero signal.
+For example, use separate result IDs and January/February bounds for independent
+monthly calculations. Source adapters retain ownership of bar completion.

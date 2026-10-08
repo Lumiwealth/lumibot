@@ -22,3 +22,4 @@ python-dotenv
 
 # Documentation (llms.txt generation for AI assistants)
 sphinx-llms-txt
+sphinxext-opengraph

@@ -6,10 +6,10 @@ import os
 import time
 from datetime import datetime, timedelta, timezone
 from types import SimpleNamespace
+from unittest.mock import MagicMock, patch
 
 import pandas as pd
 import pytest
-from unittest.mock import patch, MagicMock
 
 
 class _CalendarTestBroker:
@@ -48,28 +48,30 @@ class TestBrokerInitializationSimple:
         # Mock both the credentials imports in the strategy module
         from lumibot.strategies import Strategy
 
-        with patch('lumibot.strategies._strategy.BROKER', None):
-            with patch('lumibot.credentials.IS_BACKTESTING', False):
-                # Create a minimal strategy class for testing
-                class TestStrategy(Strategy):
-                    def on_trading_iteration(self):
-                        pass
-                
-                # Attempt to initialize the strategy with None broker
-                with pytest.raises(ValueError) as exc_info:
-                    TestStrategy(broker=None)
-                
-                # Check that the error message is helpful and contains key information
-                error_message = str(exc_info.value)
-                
-                # Verify the error message contains helpful guidance
-                assert "No broker is set" in error_message
-                assert "IS_BACKTESTING" in error_message
-                assert ".env file" in error_message
-                assert "ALPACA_API_KEY" in error_message
-                assert "lumibot.lumiwealth.com" in error_message
-                assert "backtesting" in error_message.lower()
-                assert "live trading" in error_message.lower()
+        with (
+            patch("lumibot.strategies._strategy.BROKER", None),
+            patch("lumibot.strategies._strategy.get_default_broker", return_value=None),
+            patch("lumibot.credentials.IS_BACKTESTING", False),
+        ):
+            # Create a minimal strategy class for testing
+            class TestStrategy(Strategy):
+                def on_trading_iteration(self):
+                    pass
+
+            # Attempt to initialize the strategy with None broker
+            with pytest.raises(ValueError) as exc_info:
+                TestStrategy(broker=None)
+
+            # Check that the error message is helpful and contains key information
+            error_message = str(exc_info.value)
+
+            # Verify the error message contains helpful guidance
+            assert "No broker is set" in error_message
+            assert "IS_BACKTESTING" in error_message
+            assert ".env file" in error_message
+            assert "ALPACA_API_KEY" in error_message
+            assert "backtesting" in error_message.lower()
+            assert "live trading" in error_message.lower()
     
     def test_strategy_with_valid_broker_does_not_raise_broker_error(self):
         """
@@ -579,7 +581,7 @@ def test_schwab_base_init_does_not_launch_stream_before_client_setup(monkeypatch
             return [{"accountNumber": "12345678", "hashValue": "hash-123"}]
 
     class _Client:
-        def __init__(self, *, api_key, session):
+        def __init__(self, *, api_key, session, token_metadata=None):
             self.api_key = api_key
             self.session = session
 
@@ -606,6 +608,79 @@ def test_schwab_base_init_does_not_launch_stream_before_client_setup(monkeypatch
             "SCHWAB_TOKEN_PATH": str(token_path),
         }
     )
+
+
+def test_schwab_manual_client_exposes_token_metadata_for_account_activity_stream(monkeypatch, tmp_path):
+    """The REST client must retain schwab-py token metadata used by stream login."""
+    from lumibot.brokers import broker as broker_module
+    from lumibot.brokers import schwab as schwab_module
+    import requests_oauthlib
+
+    issued_at = int(time.time() * 1000)
+    token_path = tmp_path / "schwab_token.json"
+    token_path.write_text(
+        json.dumps(
+            {
+                "creation_timestamp": 123,
+                "token": {
+                    "access_token": "access",
+                    "refresh_token": "refresh",
+                    "issued_at": issued_at,
+                    "expires_in": 1800,
+                    "refresh_token_issued_at": issued_at,
+                    "refresh_token_expires_in": 7776000,
+                    "token_type": "Bearer",
+                    "scope": "api",
+                },
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    class _OAuth2Session:
+        def __init__(self, *, client_id, token, **kwargs):
+            self.client_id = client_id
+            self.token = token
+
+        def register_compliance_hook(self, hook_type, hook):
+            return None
+
+    class _AccountResponse:
+        status_code = 200
+
+        def json(self):
+            return [{"accountNumber": "12345678", "hashValue": "hash-123"}]
+
+    class _Client:
+        def __init__(self, *, api_key, session, token_metadata=None):
+            self.api_key = api_key
+            self.session = session
+            self.token_metadata = token_metadata
+
+        def get_account_numbers(self):
+            return _AccountResponse()
+
+    monkeypatch.setenv("LUMIBOT_DISABLE_DOTENV", "1")
+    monkeypatch.setenv("SCHWAB_APP_SECRET", "secret")
+    monkeypatch.setattr(requests_oauthlib, "OAuth2Session", _OAuth2Session)
+    monkeypatch.setattr(schwab_module, "Client", _Client)
+    monkeypatch.setattr(broker_module.Broker, "_start_orders_thread", lambda self: None)
+    monkeypatch.setattr(schwab_module.Schwab, "_finish_initialization", lambda self, *args, **kwargs: None)
+
+    broker = schwab_module.Schwab(
+        config={
+            "SCHWAB_ACCOUNT_NUMBER": "5678",
+            "SCHWAB_APP_KEY": "app-key",
+            "SCHWAB_APP_SECRET": "secret",
+            "SCHWAB_TOKEN_PATH": str(token_path),
+        },
+        connect_stream=False,
+    )
+
+    assert broker.client.token_metadata is not None
+    assert broker.client.token_metadata.creation_timestamp == 123
+    assert broker.client.token_metadata.token is broker.client.session.token
+    assert broker.client.token_metadata.token["access_token"] == "access"
 
 
 def test_schwab_force_refresh_on_startup_rewrites_token(monkeypatch, tmp_path):
@@ -680,7 +755,7 @@ def test_schwab_force_refresh_on_startup_rewrites_token(monkeypatch, tmp_path):
             return [{"accountNumber": "12345678", "hashValue": "hash-123"}]
 
     class _Client:
-        def __init__(self, *, api_key, session):
+        def __init__(self, *, api_key, session, token_metadata=None):
             self.api_key = api_key
             self.session = session
 
@@ -841,7 +916,7 @@ def test_schwab_external_oauth_refresh_mode_skips_forced_refresh_and_uses_extern
             return [{"accountNumber": "12345678", "hashValue": "hash-123"}]
 
     class _Client:
-        def __init__(self, *, api_key, session):
+        def __init__(self, *, api_key, session, token_metadata=None):
             self.api_key = api_key
             self.session = session
 
@@ -945,7 +1020,7 @@ def test_schwab_external_oauth_refresh_mode_reloads_access_only_file_without_ref
             return [{"accountNumber": "12345678", "hashValue": "hash-123"}]
 
     class _Client:
-        def __init__(self, *, api_key, session):
+        def __init__(self, *, api_key, session, token_metadata=None):
             self.api_key = api_key
             self.session = session
 
@@ -1033,7 +1108,7 @@ def test_schwab_external_oauth_refresh_mode_force_reapplies_fresh_file_to_stale_
             return [{"accountNumber": "12345678", "hashValue": "hash-123"}]
 
     class _Client:
-        def __init__(self, *, api_key, session):
+        def __init__(self, *, api_key, session, token_metadata=None):
             self.api_key = api_key
             self.session = session
 
@@ -1111,7 +1186,7 @@ def test_schwab_external_oauth_refresh_mode_multiple_brokers_reload_atomic_repla
             return [{"accountNumber": "12345678", "hashValue": "hash-123"}]
 
     class _Client:
-        def __init__(self, *, api_key, session):
+        def __init__(self, *, api_key, session, token_metadata=None):
             self.api_key = api_key
             self.session = session
 

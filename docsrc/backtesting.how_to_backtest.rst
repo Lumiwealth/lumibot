@@ -1,5 +1,8 @@
-How To Backtest
-===================================
+How to Backtest a Python Trading Strategy with LumiBot
+======================================================
+
+.. meta::
+   :description: Run a Python trading strategy backtest with LumiBot, choose a historical data source, and inspect trades, logs, charts, and tear sheets.
 
 Backtesting is a vital step in validating your trading strategies using historical data. With LumiBot, you can backtest strategies across various data sources such as **ThetaData** (our recommended vendor), **Polygon.io**, **Yahoo Finance**, **Polymarket CLOB prediction-contract history**, or even your own custom **CSV** files. This guide will walk you through each step of backtesting, explain the data sources, and introduce the files that LumiBot generates during backtesting.
 
@@ -44,6 +47,12 @@ Once installed, you can use an IDE like **Visual Studio Code (VS Code)** or **Py
 
 Choosing a Data Source
 -----------------------------------
+
+Historical data is separate from the broker you use for paper or live trading.
+Set ``BACKTESTING_DATA_SOURCE`` to select a historical provider without changing
+your strategy. **This setting overrides a data-source class passed in Python.**
+See :ref:`Choose your backtest data <backtest-data-source-selection>` for the
+selection rules and setup examples.
 
 LumiBot supports several data sources for backtesting, each suited for different asset types and backtesting needs. Here's an overview of the available sources:
 
@@ -162,7 +171,7 @@ If they are set, LumiBot will automatically pick them up. For example:
      - **Description**
      - **Example**
    * - IS_BACKTESTING
-     - Set to **"True"** to run in backtesting mode, or **"False"** for live (defaults to False).
+     - Read only by runners that explicitly check it. Setting it to **"False"** does not turn a ``backtest()`` call into a broker run; see :doc:`strategy_run_modes`.
      - False
    * - BACKTESTING_START
      - Start date in the format "YYYY-MM-DD".
@@ -171,7 +180,7 @@ If they are set, LumiBot will automatically pick them up. For example:
      - End date in the format "YYYY-MM-DD".
      - 2025-05-01
    * - BACKTESTING_DATA_SOURCE
-     - Backtesting data source. This value is case-insensitive and takes precedence even when your code passes a ``datasource_class`` argument. Set it to ``none`` (or leave it unset) if you prefer to control the data source from code. Valid options: **Polygon**, **ThetaData**, **Yahoo**, **Alpaca**, **CCXT**, **DataBento**, **Polymarket** (defaults to ThetaData).
+     - Selects the historical provider and overrides the class in code. Use ``none`` to keep an explicitly supplied class. See :ref:`supported values and defaults <backtest-data-source-selection>`.
      - Polygon
 
 Below is a short example showing how you might rely *entirely* on environment variables and **omit** any explicit date or data source definitions in code. Set ``BACKTESTING_DATA_SOURCE=Polygon`` in your environment to use Polygon.io (API key still required):

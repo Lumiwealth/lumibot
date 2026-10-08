@@ -1,6 +1,9 @@
 Binance CCXT Configuration
 ==========================
 
+.. meta::
+   :description: Binance has selected Lumibot/CCXT handling, but it is not currently one of the global auto-detected credential paths. Use an explicit Ccxt broker config.
+
 Binance has selected Lumibot/CCXT handling, but it is not currently one of the
 global auto-detected credential paths. Use an explicit ``Ccxt`` broker config.
 

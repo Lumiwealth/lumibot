@@ -1,0 +1,114 @@
+{
+  "date": "2026-09-22",
+  "machine": "mac",
+  "hosted_default": false,
+  "aws_task": false,
+  "nodriver_license": "AGPL-3.0",
+  "profile_root": "$TMPDIR/lumibot-browser-bakeoff-wlzbzis7",
+  "pages": {
+    "normal": "https://disclosures-clerk.house.gov/PublicDisclosure/FinancialDisclosure",
+    "hard": "https://seekingalpha.com/symbol/AAPL/earnings/transcripts"
+  },
+  "engines": {
+    "patchright": {
+      "normal": {
+        "result": "pass",
+        "title": "Office of the Clerk, U.S. House of Representatives - Financial Disclosure Reports",
+        "final_url": "https://disclosures-clerk.house.gov/FinancialDisclosure",
+        "webdriver": false,
+        "user_agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/151.0.7922.34 Safari/537.36",
+        "languages": [
+          "en-US"
+        ],
+        "plugin_count": 0,
+        "memory_mb": 461.9,
+        "bot_fingerprint": true,
+        "snippet": "FIND YOUR REPRESENTATIVE LEGISLATIVE INFORMATION MEMBER INFORMATION COMMITTEE INFORMATION DISCLOSURES ABOUT THE CLERK REPORTS Overview Download Financial Disclosure Reports For Members And Staff For Congressional Candidates Search Loading. ",
+        "error": null
+      },
+      "hard": {
+        "result": "block",
+        "title": "Access to this page has been denied",
+        "final_url": "https://seekingalpha.com/symbol/AAPL/earnings/transcripts",
+        "webdriver": false,
+        "user_agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/151.0.7922.34 Safari/537.36",
+        "languages": [
+          "en-US"
+        ],
+        "plugin_count": 0,
+        "memory_mb": 401.4,
+        "bot_fingerprint": true,
+        "snippet": "window._pxVid='';window._pxUuid='5a7fbce8-b6d6-11f1-b458-ee97014b58bf';window._pxAppId='PXxgCxM9By';window._pxHostUrl='/xgCxM9By/xhr';window._pxCustomLogo='';window._pxJsClientSrc='/xgCxM9By/init.js';window._pxMobile=false;window._pxFirstPa",
+        "error": null
+      }
+    },
+    "camoufox": {
+      "normal": {
+        "result": "pass",
+        "title": "Office of the Clerk, U.S. House of Representatives - Financial Disclosure Reports",
+        "final_url": "https://disclosures-clerk.house.gov/FinancialDisclosure",
+        "webdriver": false,
+        "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:152.0) Gecko/20100101 Firefox/152.0",
+        "languages": [
+          "en-US",
+          "en"
+        ],
+        "plugin_count": 5,
+        "memory_mb": 1488.8,
+        "bot_fingerprint": false,
+        "snippet": "FIND YOUR REPRESENTATIVE LEGISLATIVE INFORMATION MEMBER INFORMATION COMMITTEE INFORMATION DISCLOSURES ABOUT THE CLERK REPORTS Overview Download Financial Disclosure Reports For Members And Staff For Congressional Candidates Search Loading. ",
+        "error": null
+      },
+      "hard": {
+        "result": "block",
+        "title": "Access to this page has been denied",
+        "final_url": "https://seekingalpha.com/symbol/AAPL/earnings/transcripts",
+        "webdriver": false,
+        "user_agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:152.0) Gecko/20100101 Firefox/152.0",
+        "languages": [
+          "en-US",
+          "en"
+        ],
+        "plugin_count": 5,
+        "memory_mb": 1304.8,
+        "bot_fingerprint": false,
+        "snippet": "window._pxVid='';window._pxUuid='5e2744f2-b6d6-11f1-b8bf-c1f5bcc8f48a';window._pxAppId='PXxgCxM9By';window._pxHostUrl='/xgCxM9By/xhr';window._pxCustomLogo='';window._pxJsClientSrc='/xgCxM9By/init.js';window._pxMobile=false;window._pxFirstPa",
+        "error": null
+      }
+    },
+    "nodriver": {
+      "normal": {
+        "result": "pass",
+        "title": "Office of the Clerk, U.S. House of Representatives - Financial Disclosure Reports",
+        "final_url": "https://disclosures-clerk.house.gov/FinancialDisclosure",
+        "webdriver": false,
+        "user_agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/153.0.0.0 Safari/537.36",
+        "languages": [
+          "en-US",
+          "en"
+        ],
+        "plugin_count": 5,
+        "memory_mb": 1313.5,
+        "bot_fingerprint": true,
+        "snippet": "Toggle navigation LEGISLATIVE INFORMATION MEMBER INFORMATION COMMITTEE INFORMATION DISCLOSURES ABOUT THE CLERK OVERVIEW FINANCIAL DISCLOSURE REPORTS WHAT ARE FINANCIAL DISCLOSURE REPORTS? Financial Disclosure Reports include information abo",
+        "error": null
+      },
+      "hard": {
+        "result": "block",
+        "title": "Access to this page has been denied",
+        "final_url": "https://seekingalpha.com/symbol/AAPL/earnings/transcripts",
+        "webdriver": false,
+        "user_agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/153.0.0.0 Safari/537.36",
+        "languages": [
+          "en-US",
+          "en"
+        ],
+        "plugin_count": 5,
+        "memory_mb": 2126.1,
+        "bot_fingerprint": true,
+        "snippet": "Before we continue... Press & Hold to confirm you are a human (and not a bot). Reference ID 60d33abb-b6d6-11f1-8a35-bd64fe48b332 mmmmmmmmmmlli mmmmmmmmmmlli",
+        "error": null
+      }
+    }
+  }
+}

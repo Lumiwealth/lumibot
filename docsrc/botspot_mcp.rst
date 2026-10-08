@@ -1,6 +1,9 @@
 BotSpot MCP Integration
 =======================
 
+.. meta::
+   :description: BotSpot exposes a public MCP server for strategy generation, backtesting, deployment monitoring, artifact analysis, and chart/visual retrieval.
+
 BotSpot exposes a public MCP server for strategy generation, backtesting,
 deployment monitoring, artifact analysis, and chart/visual retrieval.
 

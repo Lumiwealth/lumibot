@@ -1,6 +1,9 @@
 Chart Functions
 ===================================
 
+.. meta::
+   :description: Account management functions are used to get your account value, cash, etc. You can see a list of them below: LumiBot documentation.
+
 Account management functions are used to get your account value, cash, etc. You can see a list of them below:
 
 .. currentmodule:: lumibot.strategies.strategy

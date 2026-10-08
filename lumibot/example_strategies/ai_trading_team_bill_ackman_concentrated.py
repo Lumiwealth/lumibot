@@ -1,95 +1,60 @@
-"""Bill Ackman / Pershing Square-inspired concentrated AI trading team example.
+"""Bill Ackman Portfolio AI Trading Bot.
 
-This example is inspired by public descriptions of concentrated, high-quality
-large-cap investing. It is not affiliated with or endorsed by Bill Ackman,
-Pershing Square, or related companies.
-
-Set GEMINI_API_KEY plus Alpaca credentials, then run paper trading:
-    python ai_trading_team_bill_ackman_concentrated.py
-
-Set IS_BACKTESTING=True in the runner to run the historical example instead.
+Invests the way Bill Ackman describes his style: own just a few simple,
+high-quality companies and put real money behind them. A research agent finds
+the best ideas. A short seller agent attacks each one. A trading agent holds the
+3 to 5 that survive, with the most money in the best ideas.
+Not affiliated with or endorsed by Bill Ackman or Pershing Square.
 """
 
-import os
-from datetime import datetime
-
-from lumibot.strategies.strategy import Strategy
+from lumibot.strategies import Strategy
 
 
 class AITradingTeamBillAckmanConcentratedStrategy(Strategy):
-    parameters = {
-        "universe": ["GOOGL", "CMG", "HLT", "QSR", "UBER", "CP", "LOW", "MDLZ", "BKNG", "MSFT"],
-    }
+    parameters = {"universe": ["GOOGL", "CMG", "HLT", "QSR", "UBER", "CP", "LOW", "MDLZ", "BKNG", "MSFT"]}
 
     def initialize(self):
         self.sleeptime = "1D"
-        model = os.environ.get("AI_TRADING_TEAM_MODEL", "gemini-3.1-flash-lite")
         self.agents.create(
-            name="quality_researcher",
-            model=model,
+            name="researcher",
             allow_trading=False,
-            system_prompt="Find the best high-quality, large-cap business with durable free cash flow and clear upside.",
+            system_prompt=(
+                "Find the simple, predictable companies in the universe that make lots of cash and trade at a "
+                "good price. Rank your top 5 ideas and say why. Do not trade."
+            ),
         )
         self.agents.create(
-            name="activist_bull",
-            model=model,
+            name="short_seller",
             allow_trading=False,
-            system_prompt="Argue for the most concentrated high-conviction position. Focus on catalysts, pricing power, and value creation.",
+            system_prompt=(
+                "You are a short seller. Attack each idea: too much debt, weak management, strong rivals, or "
+                "a price that is too high. Say which ideas survive. Do not trade."
+            ),
         )
         self.agents.create(
-            name="short_seller_bear",
-            model=model,
-            allow_trading=False,
-            system_prompt="Attack the thesis like a short seller. Find leverage, governance, accounting, competition, and valuation risk.",
-        )
-        self.agents.create(
-            name="portfolio_manager",
-            model=model,
+            name="trader",
             allow_trading=True,
-            system_prompt="Build one concentrated position from the universe if the bull case survives. Use nearly all cash in the best idea.",
+            system_prompt=(
+                "Hold the 3 to 5 ideas that survived, with more money in the best ones. Sell a stock when it "
+                "no longer survives the attack."
+            ),
         )
 
     def on_trading_iteration(self):
-        context = {
-            "date": self.get_datetime().date().isoformat(),
-            "universe": self.parameters["universe"],
-        }
-        quality = self.agents["quality_researcher"].run(task_prompt="Pick the best high-quality large-cap candidate.", context=context)
-        bull = self.agents["activist_bull"].run(task_prompt="Make the concentrated bull case.", context={**context, "quality": quality.summary})
-        bear = self.agents["short_seller_bear"].run(
-            task_prompt="Attack the concentrated thesis.",
-            context={**context, "quality": quality.summary, "bull": bull.summary},
+        facts = {"universe": self.parameters["universe"]}
+        research = self.agents["researcher"].run(task_prompt="Rank your best ideas.", context=facts)
+        attack = self.agents["short_seller"].run(
+            task_prompt="Attack each idea.", context={**facts, "research": research.summary}
         )
-        self.agents["portfolio_manager"].run(
-            task_prompt="Sell anything that is not the surviving best idea, then buy the best stock with nearly all available cash.",
-            context={**context, "quality": quality.summary, "bull": bull.summary, "bear": bear.summary},
-        )
+        self.agents["trader"].run(task_prompt="Hold the survivors.", context={**facts, "short_seller": attack.summary})
 
 
 if __name__ == "__main__":
-    IS_BACKTESTING = False
+    from lumibot.credentials import IS_BACKTESTING
 
     if IS_BACKTESTING:
         from lumibot.backtesting import YahooDataBacktesting
 
-        AITradingTeamBillAckmanConcentratedStrategy.backtest(
-            YahooDataBacktesting,
-            datetime(2026, 4, 7),
-            datetime(2026, 5, 22),
-        )
+        AITradingTeamBillAckmanConcentratedStrategy.backtest(YahooDataBacktesting)
     else:
-        from lumibot.brokers import Alpaca
-        from lumibot.traders import Trader
-
-        ALPACA_CONFIG = {
-            "API_KEY": os.environ["ALPACA_API_KEY"],
-            "API_SECRET": os.environ["ALPACA_API_SECRET"],
-            "PAPER": os.environ.get("ALPACA_IS_PAPER", "true").lower() != "false",
-        }
-
-        broker = Alpaca(ALPACA_CONFIG)
-        strategy = AITradingTeamBillAckmanConcentratedStrategy(broker=broker)
-
-        trader = Trader()
-        trader.add_strategy(strategy)
-        trader.run_all()
+        AITradingTeamBillAckmanConcentratedStrategy().run_live()

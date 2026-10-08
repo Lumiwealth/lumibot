@@ -1,95 +1,65 @@
-"""Bull/bear leveraged ETF AI trading team example.
+"""TQQQ Strategy AI Trading Bot.
 
-Set GEMINI_API_KEY plus Alpaca credentials, then run paper trading:
-    python ai_trading_team_bull_bear_leveraged_etf.py
-
-Set IS_BACKTESTING=True in the runner to run the historical example instead.
+A bull AI and a bear AI debate the market, then the bot picks leveraged ETFs like
+TQQQ (3x the Nasdaq-100 up) or SQQQ (3x down). A research agent ranks the ETFs,
+the bull and bear agents argue at the same time, and a judge agent trades,
+holding only one side of each index.
 """
 
-import os
-from datetime import datetime
-
-from lumibot.strategies.strategy import Strategy
+from lumibot.strategies import Strategy
 
 
 class AITradingTeamBullBearLeveragedETFStrategy(Strategy):
     parameters = {
-        # Bull/bear leveraged ETFs across broad indexes, sectors, rates, and gold miners.
-        "universe": ["TQQQ", "SQQQ", "UPRO", "SPXU", "UDOW", "SDOW", "TNA", "TZA", "TECL", "TECS", "SOXL", "SOXS", "WEBL", "WEBS", "FAS", "FAZ", "LABU", "LABD", "ERX", "ERY", "GUSH", "DRIP", "DRN", "DRV", "TMF", "TMV", "NUGT", "DUST"],
+        "universe": ["TQQQ", "SQQQ", "UPRO", "SPXU", "UDOW", "SDOW", "TNA", "TZA", "SOXL", "SOXS", "TMF", "TMV"]
     }
 
     def initialize(self):
         self.sleeptime = "1D"
-        model = os.environ.get("AI_TRADING_TEAM_MODEL", "gemini-3.1-flash-lite")
-        # The first three agents are read-only. They can reason, but cannot trade.
         self.agents.create(
             name="researcher",
-            model=model,
             allow_trading=False,
-            system_prompt="Rank the ETFs by upside. Be direct.",
+            system_prompt=("Rank the ETFs in the universe from recent prices and trends. Do not trade."),
         )
         self.agents.create(
             name="bull",
-            model=model,
             allow_trading=False,
-            system_prompt="Argue for the strongest money-making trade.",
+            system_prompt=("Argue for the ETFs most likely to rise. Do not trade."),
         )
         self.agents.create(
             name="bear",
-            model=model,
             allow_trading=False,
-            system_prompt="Point out the biggest risk, briefly.",
+            system_prompt=("Argue the biggest risks in each ETF. Do not trade."),
         )
-        # Only this final agent can submit orders through Lumibot.
         self.agents.create(
             name="trader",
-            model=model,
             allow_trading=True,
-            system_prompt="Buy one ETF from the universe aggressively. Use nearly all cash.",
+            system_prompt=(
+                "You are the judge. Weigh the bull and bear cases and split the account across the winning "
+                "ETFs. Never hold an ETF and its opposite on the same index, like TQQQ and SQQQ. Sell the old "
+                "side before you switch."
+            ),
         )
 
     def on_trading_iteration(self):
-        # Each trading day, pass the same market context through the team.
-        context = {
-            "date": self.get_datetime().date().isoformat(),
-            "universe": self.parameters["universe"],
-        }
-        research = self.agents["researcher"].run(task_prompt="Pick the strongest ETF.", context=context)
-        bull = self.agents["bull"].run(task_prompt="Make the bull case.", context={**context, "research": research.summary})
-        bear = self.agents["bear"].run(task_prompt="Make the bear case.", context={**context, "research": research.summary, "bull": bull.summary})
+        facts = {"universe": self.parameters["universe"]}
+        research = self.agents["researcher"].run(task_prompt="Rank the ETFs.", context=facts)
+        facts = {**facts, "research": research.summary}
+        debate = self.agents.run_together(
+            [("bull", "Make the bull case.", facts), ("bear", "Make the bear case.", facts)]
+        )
         self.agents["trader"].run(
-            task_prompt="Sell anything that is not the pick, then buy the best ETF with nearly all available cash.",
-            context={**context, "research": research.summary, "bull": bull.summary, "bear": bear.summary},
+            task_prompt="Judge the debate and rebalance.",
+            context={**facts, "bull": debate["bull"].summary, "bear": debate["bear"].summary},
         )
 
 
 if __name__ == "__main__":
-    IS_BACKTESTING = False
+    from lumibot.credentials import IS_BACKTESTING
 
     if IS_BACKTESTING:
         from lumibot.backtesting import YahooDataBacktesting
 
-        AITradingTeamBullBearLeveragedETFStrategy.backtest(
-            YahooDataBacktesting,
-            datetime(2026, 4, 7),
-            datetime(2026, 5, 22),
-        )
+        AITradingTeamBullBearLeveragedETFStrategy.backtest(YahooDataBacktesting)
     else:
-        from lumibot.brokers import Alpaca
-        from lumibot.traders import Trader
-
-        ALPACA_CONFIG = {
-            "API_KEY": os.environ["ALPACA_API_KEY"],
-            "API_SECRET": os.environ["ALPACA_API_SECRET"],
-            "PAPER": os.environ.get("ALPACA_IS_PAPER", "true").lower() != "false",
-        }
-
-        broker = Alpaca(ALPACA_CONFIG)
-        strategy = AITradingTeamBullBearLeveragedETFStrategy(broker=broker)
-
-        trader = Trader()
-        trader.add_strategy(strategy)
-        trader.run_all()
-
-
-AITradingTeamStrategy = AITradingTeamBullBearLeveragedETFStrategy
+        AITradingTeamBullBearLeveragedETFStrategy().run_live()

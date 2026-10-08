@@ -1,5 +1,6 @@
 import sys
 from functools import wraps
+from types import SimpleNamespace
 
 
 def staticdecorator(func):
@@ -9,39 +10,33 @@ def staticdecorator(func):
 
 def call_function_get_frame(func, *args, **kwargs):
     """
-    Calls func and returns its local frame and result,
-    much faster than using sys.settrace.
+    Calls func and returns a stable snapshot of its local frame and result.
+
+    Python 3.13 exposes optimized-frame locals through a live proxy whose
+    contents are no longer reliable after the frame returns. Capture a plain
+    dictionary at the return event so callers retain the lifecycle method's
+    actual locals instead of the wrapper's locals or an expired proxy.
     """
+    target = getattr(func, "__func__", func)
+    target_code = target.__code__
+    previous_profile = sys.getprofile()
+    locals_snapshot = None
 
-    trace = sys.gettrace()
-    frame = None
+    def capture_locals(frame, event, arg):
+        nonlocal locals_snapshot
+        if event == "return" and frame.f_code is target_code:
+            locals_snapshot = dict(frame.f_locals)
+        if previous_profile is not None:
+            previous_profile(frame, event, arg)
 
-    if trace is None:
-        # No debugger attached → use inspect for speed
-        import inspect
+    sys.setprofile(capture_locals)
+    try:
+        result = func(*args, **kwargs)
+    finally:
+        sys.setprofile(previous_profile)
 
-        @wraps(func)
-        def wrapper(*args, **kwargs):
-            nonlocal frame
-            frame = inspect.currentframe()
-            return func(*args, **kwargs)
-
-        result = wrapper(*args, **kwargs)
-    else:
-        # Debugger attached → fallback to old method
-        def snatch_locals(_frame, name, arg):
-            nonlocal frame
-            if frame is None and name == "call":
-                frame = _frame
-            return trace
-
-        sys.settrace(snatch_locals)
-        try:
-            result = func(*args, **kwargs)
-        finally:
-            sys.settrace(trace)
-
-    return frame, result
+    frame_snapshot = None if locals_snapshot is None else SimpleNamespace(f_locals=locals_snapshot)
+    return frame_snapshot, result
 
 
 def snatch_locals(store):

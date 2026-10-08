@@ -1,0 +1,9 @@
+time,strategy,exchange,identifier,symbol,side,type,status,price,filled_quantity,multiplier,trade_cost,trade_slippage,time_in_force,asset.right,asset.strike,asset.multiplier,asset.expiration,asset.asset_type,price_source,event_kind,event_id,cash_event_type,cash_event_amount,cash_event_currency,cash_event_description,cash_event_direction,cash_event_reason,is_external_cash_flow,cash_event_raw_type,cash_event_raw_subtype,cash_event_broker_name,cash_event_broker_event_id
+2026-01-05 09:30:00-05:00,ackman,,bt_1,GOOGL,buy,market,new,,,1,,0.0,day,,0.0,1,,stock,,trade,,,,,,,,,,,,
+2026-01-05 09:30:00-05:00,ackman,,bt_2,CMG,buy,market,new,,,1,,0.0,day,,0.0,1,,stock,,trade,,,,,,,,,,,,
+2026-01-05 09:30:00-05:00,ackman,,bt_3,UBER,buy,market,new,,,1,,0.0,day,,0.0,1,,stock,,trade,,,,,,,,,,,,
+2026-01-05 09:30:00-05:00,ackman,,bt_4,HLT,buy,market,new,,,1,,0.0,day,,0.0,1,,stock,,trade,,,,,,,,,,,,
+2026-01-05 09:30:00-05:00,ackman,,bt_1,GOOGL,buy,market,fill,317.6600036621094,94.0,1,0.0,0.0,day,,0.0,1,,stock,,trade,,,,,,,,,,,,
+2026-01-05 09:30:00-05:00,ackman,,bt_2,CMG,buy,market,fill,37.43000030517578,671.0,1,0.0,0.0,day,,0.0,1,,stock,,trade,,,,,,,,,,,,
+2026-01-05 09:30:00-05:00,ackman,,bt_3,UBER,buy,market,fill,81.61000061035156,304.0,1,0.0,0.0,day,,0.0,1,,stock,,trade,,,,,,,,,,,,
+2026-01-05 09:30:00-05:00,ackman,,bt_4,HLT,buy,market,fill,291.2300109863281,69.0,1,0.0,0.0,day,,0.0,1,,stock,,trade,,,,,,,,,,,,

@@ -186,10 +186,14 @@ class Strategy(_Strategy):
 
     @property
     def initial_budget(self):
-        """Returns the initial budget for the strategy.
+        """Returns the strategy's starting value.
+
+        In backtests this is the configured starting cash. In live trading it is
+        the first broker-verified portfolio equity snapshot, including existing
+        positions; it is not merely the account's cash balance.
 
         Returns:
-            float: The initial budget for the strategy.
+            float: Starting backtest cash or live account equity.
 
         Example
         -------
@@ -975,6 +979,7 @@ class Strategy(_Strategy):
                     broker.process_pending_orders(strategy=self)
                 except TypeError:
                     broker.process_pending_orders(self)
+            self._apply_pending_backtest_trade_events()
             return None
 
         time.sleep(sleeptime)
@@ -1784,8 +1789,11 @@ class Strategy(_Strategy):
         self._refresh_live_orders(broker_refresh=broker_refresh, broker_refresh_ttl_seconds=broker_refresh_ttl_seconds)
         all_orders = self.broker.get_tracked_orders(self.name)
         if identifiers:
-            identifier_set = set(identifiers)
-            all_orders = [order for order in all_orders if order.identifier in identifier_set]
+            all_orders = [
+                order
+                for order in all_orders
+                if any(self.broker.identifiers_equal(order.identifier, identifier) for identifier in identifiers)
+            ]
         if normalized_statuses is not None:
             all_orders = [order for order in all_orders if self._order_matches_statuses(order, normalized_statuses)]
         return all_orders
@@ -1967,6 +1975,8 @@ class Strategy(_Strategy):
             default_multileg = True
 
             for o in order:
+                if o is None:
+                    raise ValueError("Cannot submit a null order")
                 if not self._validate_order(o):
                     return
 
@@ -2756,6 +2766,8 @@ class Strategy(_Strategy):
             if cache_key in cache:
                 return cache[cache_key]
 
+        if is_backtesting_run:
+            self._record_backtest_runtime_milestone("first_price_lookup_at")
         try:
             # For daily-cadence backtests, prefer day bars for sources where minute-level
             # fetches are expensive (ThetaData/IBKR/routed backtesting). Keep Yahoo/Polygon
@@ -2796,6 +2808,7 @@ class Strategy(_Strategy):
                     if bars is not None and getattr(bars, "df", None) is not None and not bars.df.empty:
                         result = float(bars.df["close"].iloc[-1])
                         cache[cache_key] = result
+                        self._record_usable_backtest_price(result)
                         return result
 
                     # Forward-fill retry (v4.5.1): when the length=1 slice comes
@@ -2837,6 +2850,7 @@ class Strategy(_Strategy):
                                 if not pre_sim.empty:
                                     result = float(pre_sim["close"].iloc[-1])
                                     cache[cache_key] = result
+                                    self._record_usable_backtest_price(result)
                                     return result
                             except Exception:
                                 pass
@@ -2851,11 +2865,30 @@ class Strategy(_Strategy):
             )
             if is_backtesting_run:
                 cache[cache_key] = result
+                self._record_usable_backtest_price(result)
             return result
         except Exception as e:
             self.log_message(f"Could not get last price for {asset}", color="red")
             self.log_message(f"{e}")
             return None
+
+    def _record_backtest_runtime_milestone(self, name):
+        try:
+            source = self.broker.data_source
+            recorder = getattr(source, "record_runtime_milestone", None)
+            if callable(recorder):
+                recorder(name)
+        except Exception:
+            pass
+
+    def _record_usable_backtest_price(self, price):
+        try:
+            import math
+
+            if price is not None and math.isfinite(float(price)):
+                self._record_backtest_runtime_milestone("first_usable_price_at")
+        except (TypeError, ValueError, OverflowError):
+            pass
 
     def _supports_daily_last_price_optimization(self) -> bool:
         data_source = getattr(getattr(self, "broker", None), "data_source", None)
@@ -4464,6 +4497,27 @@ class Strategy(_Strategy):
             settings["data_health"] = ibkr_history_health_snapshot()
         except Exception:
             pass
+        try:
+            settings["runtime_timings"] = self.broker.data_source.get_runtime_timings()
+        except Exception:
+            pass
+        # AI agent health (2026-10-07): bars where an agent call failed (for example a
+        # provider rate limit that outlasted its retries) and the strategy continued
+        # without an AI decision. Only written when the strategy actually used agents;
+        # the lazy agents component is never loaded just to report on it.
+        try:
+            agents = self.__dict__.get("agents")
+            manager = None
+            if agents is not None:
+                try:
+                    manager = object.__getattribute__(agents, "_instance")
+                except AttributeError:
+                    manager = agents
+            health_snapshot = getattr(manager, "health_snapshot", None) if manager is not None else None
+            if callable(health_snapshot):
+                settings["agent_health"] = health_snapshot()
+        except Exception:
+            pass
         os.makedirs(os.path.dirname(settings_file), exist_ok=True)
         with open(settings_file, "w") as outfile:
             import jsonpickle
@@ -4539,8 +4593,9 @@ class Strategy(_Strategy):
                 - Days: ``"2d"``, ``"2 days"``, ``"1 week"``, ``"1w"``, etc.
                 - Flexible formatting: Case-insensitive, with/without spaces
 
-            When using multi-timeframe formats, the method automatically fetches the
-            underlying minute or day data and resamples it to your desired timeframe.
+            When using multi-timeframe formats, the method asks capable live data
+            sources for native bars. Other sources automatically fetch the underlying
+            minute or day data and resample it to your desired timeframe.
             Default value depends on the data_source (minute for alpaca, day for yahoo, ...)
         timeshift : int, timedelta, or None
             ``None`` by default. When provided it shifts the data window relative to
@@ -4670,7 +4725,13 @@ class Strategy(_Strategy):
             # the backtesting data source so it can slice/aggregate efficiently and cache
             # results internally.
             multiplier, base_unit = parsed
+            live_data_source = getattr(getattr(self, "broker", None), "data_source", None)
+            supports_native_timestep = getattr(live_data_source, "supports_native_timestep", None)
             if getattr(self, "is_backtesting", False) or getattr(getattr(self, "broker", None), "IS_BACKTESTING_BROKER", False):
+                actual_timestep = original_timestep
+                actual_length = length
+                needs_resampling = False
+            elif callable(supports_native_timestep) and supports_native_timestep(original_timestep):
                 actual_timestep = original_timestep
                 actual_length = length
                 needs_resampling = False

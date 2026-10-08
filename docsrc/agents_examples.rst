@@ -1,88 +1,93 @@
-AI Trading Team Examples
-========================
+AI Trading Bot Examples
+=======================
 
-LumiBot includes several copy-paste AI trading team examples. Each one keeps the
-Python simple: create agents in ``initialize()``, pass context through them in
-``on_trading_iteration()``, and let only the final portfolio-manager or trader
-agent submit orders. The same file runs with a broker by default, or backtests
-when you set ``IS_BACKTESTING = True`` in the flat runner.
+.. meta::
+   :description: Free AI trading bot examples in Python: copy Nancy Pelosi's trades, follow insider buying, trade 0DTE options, and more. Each bot is two AI agents.
+
+Pick a bot, read how it works, and run it. Each bot is a few sentences of plain
+English. The agents fit the strategy: one agent for simple rules, a researcher
+and a trader for most bots, and a debate or a team where that is the point.
+Every page shows the full code and a real backtest tear sheet.
+
+Every file ends the same way: with ``IS_BACKTESTING=true`` in your ``.env`` file
+it backtests, otherwise it trades with your broker. See :doc:`strategy_run_modes`.
+
+.. image:: ../docs/assets/ai-trading/example-gallery.png
+   :alt: AI trading with LumiBot: one agent, agents that debate, or AI combined with Python rules.
+   :width: 640px
+   :align: center
+   :class: lumibot-entry-hero
+
+Copy famous investors and insiders
+----------------------------------
+
+* :doc:`agents_example_nancy_pelosi_trading_bot`: owns the same stocks as Nancy Pelosi, rebuilt from her reports on the House website.
+* :doc:`agents_example_nancy_pelosi_copy_trading_bot`: copies her whole portfolio, call options included, sized to your account.
+* :doc:`agents_example_insider_trading_bot`: buys more of the stocks that CEOs and directors are buying with their own money.
+* :doc:`agents_example_warren_buffett_ai_stock_picker`: owns great companies at fair prices, the way Warren Buffett describes it.
+* :doc:`agents_example_bill_ackman_portfolio_ai_trading_bot`: holds a few high-conviction stocks, the way Bill Ackman invests.
+
+Read the web with a real browser
+--------------------------------
+
+* :doc:`agents_example_fear_and_greed_index_trading_bot`: opens CNN's Fear & Greed Index in a browser and buys SPY on fear, sells on greed.
+
+AI agents that debate
+---------------------
+
+* :doc:`agents_example_bull_vs_bear_ai_stock_trading_bot`: a bull agent and a bear agent argue about the biggest US stocks before the trade.
+* :doc:`agents_example_tqqq_strategy_ai_trading_bot`: the same debate for leveraged ETFs like TQQQ and SQQQ.
+
+Options
+-------
+
+* :doc:`agents_example_iron_condor_ai_trading_bot`: sells a one-day SPY iron condor at 3:45 PM and closes early if SPY runs toward a strike.
+* :doc:`agents_example_put_credit_spread_ai_trading_bot`: sells a SPY put credit spread about a month out and manages the exit.
+* :doc:`agents_example_0dte_options_ai_trading_bot`: sells a same-day SPY call spread and watches it every 15 minutes.
+
+Day trading
+-----------
+
+* :doc:`agents_example_vwap_strategy_ai_trading_bot`: buys SPY when it bounces back above VWAP.
+* :doc:`agents_example_opening_range_breakout_ai_trading_bot`: buys the stock that breaks out above its first 15 minutes.
+
+Hedge fund style AI teams
+-------------------------
+
+* :doc:`agents_example_citadel_sector_pods`: five sector agents pitch ideas to a risk manager and a portfolio manager.
+* :doc:`agents_example_ray_dalio_idea_meritocracy`: growth, inflation, and debt agents argue before a trader builds a macro ETF basket.
+
+A backtest shows the code works for that data and those dates. It is not a
+promise of future returns. These examples are inspired by public ideas and are
+not affiliated with or endorsed by the people or firms they are named after.
 
 .. toctree::
-   :maxdepth: 1
+   :hidden:
 
-   agents_example_bull_bear_leveraged_etf
-   agents_example_bull_bear_large_cap_stocks
-   agents_example_ray_dalio_idea_meritocracy
-   agents_example_warren_buffett_value
-   agents_example_bill_ackman_concentrated
+   agents_example_nancy_pelosi_trading_bot
+   agents_example_nancy_pelosi_copy_trading_bot
+   agents_example_insider_trading_bot
+   agents_example_warren_buffett_ai_stock_picker
+   agents_example_bill_ackman_portfolio_ai_trading_bot
+   agents_example_fear_and_greed_index_trading_bot
+   agents_example_bull_vs_bear_ai_stock_trading_bot
+   agents_example_tqqq_strategy_ai_trading_bot
+   agents_example_iron_condor_ai_trading_bot
+   agents_example_put_credit_spread_ai_trading_bot
+   agents_example_0dte_options_ai_trading_bot
+   agents_example_vwap_strategy_ai_trading_bot
+   agents_example_opening_range_breakout_ai_trading_bot
    agents_example_citadel_sector_pods
-   agents_example_ai_iron_condor
-   agents_example_ai_opening_range_breakout
-   agents_example_ai_vwap
-   agents_example_ai_credit_spread
-   agents_example_ai_spx_zero_dte_bear_call_team
+   agents_example_ray_dalio_idea_meritocracy
 
-These examples are inspired by public investing styles and firms. They are not
-affiliated with or endorsed by the investors, firms, or companies named.
+Build your own AI trading bot
+-----------------------------
 
-Examples
---------
+Want help turning your idea into a strategy? Learn with Rob in the free challenge.
 
-``ai_iron_condor.py``
-   A single-agent, AI-only options example with parameterized wing width, delta
-   targets, DTE window, profit/loss exits, and risk caps. Python creates and
-   runs the agent. The system prompt makes the agent retrieve the chain, select
-   and evaluate four contracts, size and submit the atomic multi-leg order,
-   verify fills with ``orders_get_status``, and manage the position later.
-
-``ai_opening_range_breakout.py``
-   AI-only opening-range breakout scaffold. Prefer minute bars when available.
-
-``ai_vwap.py``
-   AI-only VWAP reclaim / mean-reversion scaffold using indicator and history tools.
-
-``ai_credit_spread.py``
-   AI-only vertical credit-spread scaffold using the same generic option tools.
-
-``ai_spx_zero_dte_bear_call_team.py``
-   A two-agent SPX experiment. A read-only researcher gathers exact option
-   evidence, then a trading-enabled validator refreshes the evidence, decides,
-   submits one atomic five-point bear call spread package, and verifies the
-   resulting order and positions.
-
-``ai_trading_team_citadel_sector_pods.py``
-   Inspired by the pod-style structure associated with Ken Griffin's Citadel:
-   sector specialists pitch their best ETF ideas, a risk manager challenges the
-   setup, and a portfolio manager rotates into the strongest sector.
-   `Watch it live on BotSpot <https://botspot.trade/marketplace/strategy/0b4576c7-f78b-4477-ba3a-630758fb0168>`__.
-
-``ai_trading_team_warren_buffett_value.py``
-   A value-investing team where one agent reads for business quality and annual
-   report evidence, one agent demands valuation discipline, and the portfolio
-   manager buys only the best long-term compounder.
-   `Watch it live on BotSpot <https://botspot.trade/marketplace/strategy/bdd324e9-8026-4115-b26e-30cccf6e00e8>`__.
-
-``ai_trading_team_ray_dalio_idea_meritocracy.py``
-   A Bridgewater-style idea-meritocracy workflow where growth, inflation, and
-   liquidity agents argue, a disagreement agent stress-tests the assumptions,
-   and the trader chooses one macro ETF.
-   `Watch it live on BotSpot <https://botspot.trade/marketplace/strategy/81af73b8-7dec-4941-ba35-d5a06fee6863>`__.
-
-``ai_trading_team_bill_ackman_concentrated.py``
-   A concentrated investing workflow where a quality researcher, activist bull,
-   and short-seller bear debate whether one high-conviction large-cap position
-   deserves capital.
-   `Watch it live on BotSpot <https://botspot.trade/marketplace/strategy/d56d5bf1-293b-44d8-a18c-bdda969b82f3>`__.
-
-``ai_trading_team_bull_bear_leveraged_etf.py``
-   An aggressive bull/bear demo where agents debate leveraged long and inverse
-   ETFs before rotating into one high-conviction ETF.
-   `Watch it live on BotSpot <https://botspot.trade/marketplace/strategy/4aa43848-54d6-48bf-b2e4-b266f9fec6ad>`__.
-
-``ai_trading_team_bull_bear_large_cap_stocks.py``
-   The same bull/bear debate structure applied to familiar large-cap stocks, so
-   the reasoning is easier to inspect before using more volatile instruments.
-   `Watch it live on BotSpot <https://botspot.trade/marketplace/strategy/932f3661-c552-4723-b247-869518a5d30f>`__.
-
-``ai_trading_team.py`` remains the shortest alias for the leveraged ETF example.
-New code should prefer the descriptive filenames above.
+.. image:: ../docs/assets/ai-trading/rob-examples.png
+   :alt: Learn with Rob Grzesik, creator of LumiBot. Join the FREE challenge.
+   :width: 640px
+   :align: center
+   :class: lumibot-learning-image
+   :target: https://botspot.trade/challenges?utm_source=documentation&utm_medium=docs&utm_campaign=lumibot_ai_trading&utm_content=examples_challenge_image

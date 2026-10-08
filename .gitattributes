@@ -1,2 +1,7 @@
 * linguist-vendored 
 *.py linguist-vendored=false
+
+# Preserve machine-produced proof artifacts byte-for-byte. Treating them as
+# binary prevents Git from normalizing CRLF CSV output or raw tool log spacing.
+docs/research/artifacts/congress-disclosure-replay/trades.csv binary
+docs/research/artifacts/test-logs/*.log binary

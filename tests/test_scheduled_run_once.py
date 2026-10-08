@@ -1,13 +1,18 @@
 import datetime
 import json
 import logging
+from queue import Queue
 from types import SimpleNamespace
+
+import pytest
 
 from lumibot.strategies import strategy as strategy_module
 from lumibot.strategies import strategy_executor as strategy_executor_module
 from lumibot.strategies._strategy import Vars, _Strategy
 from lumibot.strategies.strategy_executor import StrategyExecutor
 from lumibot.traders.trader import Trader
+from lumibot.entities import Asset, Order, SmartLimitConfig
+from lumibot.strategies.scheduled_timing import ScheduledRunTiming
 
 
 class _DummyBroker:
@@ -142,6 +147,262 @@ class _ScheduledStateDummyStrategy(_DummyStrategy, _Strategy):
     @cash.setter
     def cash(self, value):
         self._cash = value
+
+
+def _completion_executor(monkeypatch, *, post_seconds=0):
+    """Real run_once and SmartLimit engine with deterministic broker/clock transport."""
+    strategy = _DummyStrategy()
+    strategy.broker.market = "24/7"
+    strategy.broker._orders_queue = Queue()
+    strategy.broker.get_active_tracked_orders = lambda strategy=None: [
+        order for order in strategy_orders if order.is_active()
+    ]
+    strategy_orders = strategy.orders
+    executor = StrategyExecutor(strategy)
+    executor.sync_broker = lambda: None
+    executor._on_trading_iteration_callable = lambda: strategy.on_trading_iteration()
+    # The drain owns progress in these deterministic tests, instead of a wall-clock thread.
+    executor.check_queue = lambda: None
+    clock = {"value": 0.0}
+    base = datetime.datetime(2026, 10, 1, 14, 0, tzinfo=datetime.timezone.utc)
+    monkeypatch.setenv("LUMIBOT_SCHEDULED_EXECUTION", "true")
+    monkeypatch.setenv("LUMIBOT_SCHEDULED_TARGET_RUN_AT", base.isoformat())
+    monkeypatch.setenv("LUMIBOT_SCHEDULED_POST_ITERATION_SECONDS", str(post_seconds))
+    monkeypatch.setattr(executor, "_scheduled_now_utc", lambda: base + datetime.timedelta(seconds=clock["value"]))
+    monkeypatch.setattr(strategy_executor_module.time, "monotonic", lambda: clock["value"])
+    monkeypatch.setattr(strategy_executor_module.time, "sleep", lambda seconds: clock.__setitem__("value", clock["value"] + seconds))
+    return strategy, executor, clock
+
+
+def _smart_order(strategy, *, hold=2, step=1):
+    return Order(
+        strategy.name, Asset("SPY"), 1, "buy", identifier="scheduled-smart",
+        status="open", order_type="smart_limit",
+        smart_limit=SmartLimitConfig(preset="fast", step_seconds=step, final_hold_seconds=hold),
+        limit_price=100.0,
+    )
+
+
+@pytest.mark.parametrize("post_seconds", [0, 1])
+def test_run_once_waits_for_smart_limit_and_broker_cancel_confirmation(monkeypatch, post_seconds):
+    strategy, executor, clock = _completion_executor(monkeypatch, post_seconds=post_seconds)
+    order = _smart_order(strategy)
+    reprices = []
+    cancel_requested = []
+    strategy.get_quote = lambda asset, **kwargs: SimpleNamespace(bid=99.0, ask=101.0)
+    strategy.broker.modify_order = lambda order, **kwargs: reprices.append((clock["value"], kwargs["limit_price"]))
+
+    def cancel(order):
+        cancel_requested.append(clock["value"])
+        order.status = "cancelling"
+
+    strategy.broker.cancel_order = cancel
+    strategy.on_trading_iteration = lambda: strategy.orders.append(order)
+    real_process = executor.process_queue
+
+    def process():
+        if clock["value"] >= 5 and cancel_requested:
+            order.status = "canceled"
+        real_process()
+
+    executor.process_queue = process
+    assert executor.run_once() is True
+    assert len(reprices) == 2
+    assert len(cancel_requested) == 1
+    assert cancel_requested[0] == 4
+    assert clock["value"] >= 5
+    assert order.is_canceled()
+    assert strategy.published_orders == [order]
+    assert strategy.broker.closed
+
+
+@pytest.mark.parametrize("terminal_status", ["fill", "error", "canceled"])
+def test_run_once_releases_smart_limit_on_terminal_broker_status(monkeypatch, terminal_status):
+    strategy, executor, clock = _completion_executor(monkeypatch)
+    order = _smart_order(strategy, hold=999)
+    strategy.on_trading_iteration = lambda: strategy.orders.append(order)
+    strategy.get_quote = lambda asset, **kwargs: SimpleNamespace(bid=99.0, ask=101.0)
+    strategy.broker.modify_order = lambda *args, **kwargs: None
+    strategy.broker.cancel_order = lambda *args, **kwargs: pytest.fail("Must not cancel a terminal order")
+
+    def process():
+        if clock["value"] >= 1:
+            order.status = terminal_status
+
+    executor.process_queue = process
+    assert executor.run_once() is True
+    assert clock["value"] == 1
+    assert strategy.published_orders[0].status == terminal_status
+
+
+def test_run_once_waits_for_dequeued_submission_and_end_hook_work(monkeypatch):
+    strategy, executor, clock = _completion_executor(monkeypatch)
+    submissions = strategy.broker._orders_queue
+    release_times = []
+
+    def begin_submission():
+        submissions.put(object())
+        submissions.get_nowait()  # Empty queue, but HTTP submission is still in flight.
+        release_times.append(clock["value"] + 1)
+
+    strategy.on_trading_iteration = begin_submission
+    original_end = strategy.on_strategy_end
+
+    def end():
+        original_end()
+        begin_submission()
+
+    strategy.on_strategy_end = end
+
+    def process():
+        if release_times and clock["value"] >= release_times[0]:
+            submissions.task_done()
+            release_times.pop(0)
+
+    executor.process_queue = process
+    assert executor.run_once() is True
+    assert clock["value"] == 2
+    assert submissions.unfinished_tasks == 0
+    assert strategy.broker.closed
+
+
+def test_run_once_does_not_wait_for_passive_gtc_orders(monkeypatch):
+    strategy, executor, clock = _completion_executor(monkeypatch)
+    strategy.on_trading_iteration = lambda: strategy.orders.append(Order(
+        strategy.name, Asset("SPY"), 1, "buy", status="open", order_type="limit", limit_price=10,
+        time_in_force="gtc",
+    ))
+    assert executor.run_once() is True
+    assert clock["value"] == 0
+    assert strategy.orders[0].is_active()
+
+
+def test_completed_smart_entry_with_passive_bracket_child_does_not_block_exit(monkeypatch):
+    strategy, executor, clock = _completion_executor(monkeypatch)
+    parent = _smart_order(strategy)
+    parent.status = "fill"
+    parent.child_orders.append(Order(
+        strategy.name, Asset("SPY"), 1, "sell", status="open", order_type="stop", stop_price=90,
+    ))
+    strategy.orders.append(parent)
+    assert parent.is_active()  # The protective child remains at the broker.
+    assert executor._scheduled_pending_work() == {}
+    assert executor.run_once() is True
+    assert clock["value"] == 0
+
+
+def test_scheduled_drain_reports_timeout_instead_of_success(monkeypatch):
+    strategy, executor, clock = _completion_executor(monkeypatch)
+    strategy.broker._orders_queue.put(object())
+    executor._scheduled_work_timeout_seconds = lambda: 1
+    assert executor.run_once() is False
+    assert isinstance(executor.exception, TimeoutError)
+    assert clock["value"] == 1
+    assert strategy.cloud_updates == 0
+    assert executor._get_scheduled_timing()._timing["status"] == "drain_failed"
+    assert strategy.broker.closed
+
+
+def test_scheduled_drain_stop_does_not_claim_completion(monkeypatch):
+    strategy, executor, clock = _completion_executor(monkeypatch)
+    strategy.broker._orders_queue.put(object())
+    executor.process_queue = lambda: executor.stop_event.set() if clock["value"] >= 1 else None
+    assert executor.run_once() is False
+    assert isinstance(executor.exception, InterruptedError)
+    assert executor._get_scheduled_timing()._timing["status"] == "drain_interrupted"
+    assert strategy.cloud_updates == 0
+
+
+def test_scheduled_drain_stop_racing_with_final_fill_is_not_success(monkeypatch):
+    strategy, executor, clock = _completion_executor(monkeypatch)
+    order = _smart_order(strategy)
+    strategy.orders.append(order)
+    strategy.broker.modify_order = lambda *args, **kwargs: None
+
+    def process():
+        if clock["value"] >= 1:
+            order.status = "fill"
+            executor.stop_event.set()
+
+    executor.process_queue = process
+    assert executor.run_once() is False
+    assert isinstance(executor.exception, InterruptedError)
+    assert executor._get_scheduled_timing()._timing["status"] == "drain_interrupted"
+
+
+def test_run_once_callback_can_start_another_smart_limit(monkeypatch):
+    strategy, executor, clock = _completion_executor(monkeypatch)
+    first = _smart_order(strategy)
+    second = _smart_order(strategy)
+    second.identifier = "callback-smart"
+    strategy.on_trading_iteration = lambda: strategy.orders.append(first)
+    strategy.broker.modify_order = lambda *args, **kwargs: None
+    strategy.broker.cancel_order = lambda *args, **kwargs: pytest.fail("Both orders fill")
+    strategy.get_quote = lambda *args, **kwargs: SimpleNamespace(bid=99.0, ask=101.0)
+    callbacks = []
+
+    def on_fill(**kwargs):
+        callbacks.append(clock["value"])
+        strategy.orders.append(second)
+
+    executor._on_filled_order = on_fill
+    real_process = executor.process_queue
+
+    def process():
+        if clock["value"] >= 1 and first.is_active():
+            first.status = "fill"
+            executor.priority_queue.put((executor.FILLED_ORDER, {
+                "position": None, "order": first, "price": 100.0, "quantity": 1, "multiplier": 1,
+            }))
+        if clock["value"] >= 2 and second in strategy.orders:
+            second.status = "fill"
+        real_process()
+
+    # Cash accounting itself is covered by the normal trade-event tests.
+    strategy._update_cash = lambda *args, **kwargs: None
+    executor.process_queue = process
+    assert executor.run_once() is True
+    assert callbacks == [1]
+    assert clock["value"] == 2
+    assert [order.status for order in strategy.published_orders] == ["fill", "fill"]
+    assert strategy.backups >= 2
+
+
+def test_run_once_waits_for_non_smart_cancel_confirmation(monkeypatch):
+    strategy, executor, clock = _completion_executor(monkeypatch)
+    order = Order(strategy.name, Asset("SPY"), 1, "buy", status="cancelling", order_type="limit", limit_price=10)
+    strategy.on_trading_iteration = lambda: strategy.orders.append(order)
+    executor.process_queue = lambda: setattr(order, "status", "canceled") if clock["value"] >= 1 else None
+    assert executor.run_once() is True
+    assert clock["value"] == 1
+    assert order.is_canceled()
+
+
+def test_scheduled_smart_limit_long_config_is_not_cut_off_by_default_timeout(monkeypatch):
+    strategy, executor, clock = _completion_executor(monkeypatch)
+    order = _smart_order(strategy, hold=999)
+    strategy.on_trading_iteration = lambda: strategy.orders.append(order)
+    strategy.broker.modify_order = lambda *args, **kwargs: None
+    strategy.broker.cancel_order = lambda *args, **kwargs: pytest.fail("Fills within configured lifetime")
+    strategy.get_quote = lambda *args, **kwargs: SimpleNamespace(bid=99.0, ask=101.0)
+    executor.process_queue = lambda: setattr(order, "status", "fill") if clock["value"] >= 305 else None
+    assert executor.run_once() is True
+    assert clock["value"] == 305
+
+
+def test_timing_drain_waits_for_pending_work_without_scheduled_environment(monkeypatch):
+    monkeypatch.delenv("LUMIBOT_SCHEDULED_EXECUTION", raising=False)
+    monkeypatch.delenv("LUMIBOT_SCHEDULED_POST_ITERATION_SECONDS", raising=False)
+    clock = {"value": 0.0}
+    from threading import Event
+
+    ScheduledRunTiming().drain_after_iteration(
+        stop_event=Event(), process_queue=lambda: None,
+        pending_work=lambda: clock["value"] < 2,
+        monotonic=lambda: clock["value"],
+        sleep=lambda seconds: clock.__setitem__("value", clock["value"] + seconds),
+    )
+    assert clock["value"] == 2
 
 
 def test_strategy_executor_run_once_runs_one_live_iteration(monkeypatch):

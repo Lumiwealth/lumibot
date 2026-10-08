@@ -3,6 +3,9 @@
 Environment Variables
 =====================
 
+.. meta::
+   :description: LumiBot supports configuring many behaviors via environment variables. This page documents the variables most commonly used for backtesting, ThetaData.
+
 LumiBot supports configuring many behaviors via environment variables. This page documents the variables most commonly used for **backtesting**, **ThetaData**, and **remote caching**.
 
 .. important::
@@ -45,8 +48,12 @@ LUMIBOT_LOG_LEVEL
 IS_BACKTESTING
 ^^^^^^^^^^^^^^
 
-- Purpose: Signals backtesting mode for certain code paths.
+- Purpose: Signals backtesting mode for code that explicitly reads this value.
 - Values: ``True`` / ``False`` (string).
+- It does not choose a runner by itself: a file that only calls
+  ``Strategy.backtest()`` still backtests when this is ``False``. A local
+  ``IS_BACKTESTING`` assignment in an example is independent of this variable.
+  See :doc:`strategy_run_modes`.
 
 BACKTESTING_START / BACKTESTING_END
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -63,22 +70,90 @@ BACKTESTING_BUDGET
   - When set, this value is preferred over any ``budget=`` passed in strategy code, so it can be controlled per-run via injected environment variables.
   - Default (when unset and no code budget is provided): ``100000``.
 
-BACKTESTING_PARAMETERS
-^^^^^^^^^^^^^^^^^^^^^^
+LUMIBOT_STRATEGY_PARAMETERS
+^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-- Purpose: Override or inject strategy parameters via environment variable, without modifying strategy code.
+- Purpose: Override or inject strategy parameters without modifying strategy code. The same parameter contract applies to backtests and live strategy execution.
 - Format: JSON string representing a dictionary. Example: ``{"symbol": "AAPL", "quantity": 10}``
 - Notes:
   - When set, the parsed dict is merged on top of the strategy's existing ``parameters`` dict with highest priority (wins over both class-level defaults and code-level overrides).
-  - Useful for parameter sweeps: run the same strategy code with different parameter sets per backtest.
+  - Useful for parameter sweeps and for deploying the exact parameter set validated by a backtest.
   - Nested dicts are supported (e.g. ``{"ALLOCATION": {"SPY": 0.50, "IWM": 0.50}}``).
   - Invalid JSON or non-dict values are ignored with a warning.
+  - ``BACKTESTING_PARAMETERS`` remains a deprecated compatibility alias for older external runners. If both are present, ``LUMIBOT_STRATEGY_PARAMETERS`` wins.
+
+BOTSPOT_DATA_ROUTING_POLICY
+^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+- Purpose: Attach the non-secret version of the routing policy that selected a backtest datasource.
+- Format: JSON object containing a ``version`` field.
+- Notes: LumiBot writes the policy version and the adapters actually observed during the run to ``logs/data_provenance.json``. Credentials, tokens, and signed URLs are never included.
+
+.. _backtest-data-source-selection:
 
 BACKTESTING_DATA_SOURCE
 ^^^^^^^^^^^^^^^^^^^^^^^
 
-- Purpose: Select the backtesting datasource **even if your code passes a `datasource_class`**.
+Choose your backtest data
+""""""""""""""""""""""""""""""
+
+This setting selects historical market data for a backtest; it does not choose
+your paper/live broker. **A provider setting overrides the class in code**,
+including the ``datasource_class`` argument to ``backtest()`` or ``run_backtest()``.
+
+For daily stock and ETF backtests, select Yahoo in your project's ``.env``:
+
+.. code-block:: ini
+
+   BACKTESTING_DATA_SOURCE=yahoo
+
+Or set it in the shell before launching your strategy:
+
+.. code-block:: bash
+
+   # macOS / Linux
+   export BACKTESTING_DATA_SOURCE=yahoo
+   python my_strategy.py
+
+.. code-block:: powershell
+
+   # Windows PowerShell
+   $env:BACKTESTING_DATA_SOURCE = "yahoo"
+   python my_strategy.py
+
+Other providers may require credentials or a Data Downloader. See
+:doc:`the provider setup guides <backtesting>` for asset coverage and requirements.
+
+.. list-table:: How the data source is selected
+   :header-rows: 1
+   :widths: 45 55
+
+   * - Configuration
+     - Result
+   * - Provider name or routing JSON is set
+     - Uses that selection, even when Python supplies a class.
+   * - Unset; Python supplies a class
+     - Uses the class from code.
+   * - Unset; Python supplies no class
+     - Defaults to ThetaData, which requires its own setup.
+   * - ``none`` or an empty value
+     - Uses the class from code; raises an error if no class is supplied.
+
+To keep an explicit data-source class in your code, use
+``BACKTESTING_DATA_SOURCE=none``. This does not disable data requests or make a
+backtest offline.
+
+**Unexpected provider?** Check the variable in your shell, ``.env``, and
+``.env.local`` before launching. An exported value takes precedence over the
+primary ``.env`` file; ``.env.local`` can override both. See
+``LUMIBOT_DISABLE_DOTENV`` and ``LUMIBOT_DISABLE_DOTENV_LOCAL`` above for loading
+controls.
+
+Supported values
+""""""""""""""""
+
 - Values (case-insensitive):
+
   - ``thetadata``, ``yahoo``, ``polygon``, ``alpaca``, ``ccxt``, ``databento``, ``polymarket``, ``polymarket_clob``
   - ``ibkr`` / ``interactivebrokersrest`` / ``interactive_brokers_rest`` (IBKR Client Portal REST)
   - ``router`` (multi-provider routing; defaults to Theta for stock/option/index and IBKR for futures/crypto)
@@ -118,6 +193,17 @@ Live scheduled execution (BotSpot/BotManager)
 - ``LUMIBOT_SCHEDULED_TIMING_FILE``: local JSON timing file written by LumiBot for BotManager bootstrap telemetry.
 - ``LUMIBOT_SCHEDULED_STATE_BACKEND``: external state backend prepared by BotManager: ``s3``, ``dynamodb``, or ``none``. ``none`` disables scheduled ``self.vars`` file load/save.
 - ``LUMIBOT_SCHEDULED_STATE_FILE``: local JSON file managed by BotManager/bootstrap code to restore and persist ``self.vars`` for one scheduled live run. State is restored before scheduled lifecycle hooks.
+
+BotSpot managed research
+------------------------
+
+- ``BOTSPOT_RESEARCH_MCP_URL``: optional BotSpot Research MCP endpoint.
+- ``BOTSPOT_RESEARCH_MCP_TOKEN``: secret, short-lived bearer capability bound to an authenticated user or hosted deployment.
+- ``BOTSPOT_RESEARCH_MCP_RENEW_URL``: optional HTTPS renewal endpoint. Localhost is permitted for local development; otherwise its origin must match the MCP endpoint.
+- All three variables are required for automatic attachment. BotSpot-hosted runtimes inject them; external users can link a BotSpot account and configure the same contract.
+- Missing or incomplete configuration preserves ordinary LumiBot strategy and agent behavior and emits one deduplicated capability notice.
+
+``GITHUB_TOKEN`` is used only in tagged release CI with repository ``actions: read`` permission to restore compatible agent-eval freshness evidence. The source workflow commit must be an ancestor of the exact tagged candidate. If no trustworthy artifact is available, stale cases run normally. Never log or commit token values.
 
 Backtest artifacts + UX flags
 -----------------------------
@@ -828,6 +914,17 @@ POLYGON_MAX_MEMORY_BYTES
 - Purpose: Hard limit on memory Polygon can use for caching.
 - Values: Integer (bytes).
 
+LUMIBOT_OPTION_CHAIN_MAX_DAYS
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+- Purpose: Polygon backtests only. Limits each option chain request to expirations from the
+  simulated date through that many days ahead, which keeps a free Polygon key under its rate
+  limit. A limited chain is cached under its own name (``<SYMBOL>_<date>_max<N>d.parquet``) and is
+  only reused on the same day with the same limit, never as a full chain.
+- Values: Positive whole number of days (for example ``21``). Unset means no limit. Invalid values
+  are ignored with a warning.
+- Example: ``LUMIBOT_OPTION_CHAIN_MAX_DAYS=21``
+
 THETADATA_USERNAME / THETADATA_PASSWORD
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
@@ -924,7 +1021,7 @@ LUMIBOT_AI_GATEWAY_URL and LUMIBOT_AI_GATEWAY_TOKEN
 GEMINI_API_KEY
 ^^^^^^^^^^^^^^
 
-- Purpose: Auth for Gemini models (the default provider).
+- Purpose: Auth for Gemini models.
 - Values: Obtain from https://aistudio.google.com/apikey.
 - Required when ``default_model`` starts with ``gemini-`` (e.g. ``gemini-3.1-flash-lite-preview``).
 - LumiBot's public contract is ``GEMINI_API_KEY``. Do not rely on Google SDK
@@ -934,9 +1031,9 @@ GEMINI_API_KEY
 OPENAI_API_KEY
 ^^^^^^^^^^^^^^
 
-- Purpose: Auth for OpenAI models (GPT-5.4 family and others).
+- Purpose: Auth for OpenAI models, including the default ``openai/gpt-6-luna``.
 - Values: Obtain from https://platform.openai.com/api-keys.
-- Required when ``default_model`` looks like ``openai/gpt-5.4-mini`` or any other ``openai/...`` id.
+- Required for the default model and whenever ``default_model`` is any other ``openai/...`` id.
 
 XAI_API_KEY or GROK_API_KEY
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^

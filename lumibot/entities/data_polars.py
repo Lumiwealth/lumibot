@@ -12,6 +12,7 @@ from lumibot.tools.lumibot_logger import get_logger
 
 from .asset import Asset
 from .dataline import Dataline
+from .data import _repair_quote_source_times
 
 logger = get_logger(__name__)
 
@@ -335,11 +336,16 @@ class DataPolars:
         else:
             df["volume"] = None
 
+        quote_source_columns = ([col for col in ("bid", "ask", "last_bid_time", "last_ask_time") if col in df]
+                                if "last_bid_time" in df or "last_ask_time" in df else [])
+        quote_before_fill = df[quote_source_columns].copy()
+
         # OPTIMIZATION: More efficient column selection and forward fill
         ohlc_cols = ["open", "high", "low"]
-        non_ohlc_cols = [col for col in df.columns if col not in ohlc_cols]
+        non_ohlc_cols = [col for col in df.columns if col not in ohlc_cols and col not in {"last_bid_time", "last_ask_time"}]
         if non_ohlc_cols:
             df[non_ohlc_cols] = df[non_ohlc_cols].ffill()
+        _repair_quote_source_times(df, quote_before_fill)
 
         # If any of close, open, high, low columns are missing, add them with NaN.
         for col in ["close", "open", "high", "low"]:
@@ -461,13 +467,33 @@ class DataPolars:
 
         return checker
 
+    def _intraday_state_at(self, iter_count, dt):
+        """"closed", "forming" or None for the intraday bar at iter_count (see data._intraday_bar_state)."""
+        if self.timestep == "day":
+            return None
+        from lumibot.entities.data import _intraday_bar_state
+
+        try:
+            # Polars preserves ns/us/ms resolution; the shared state helper compares nanoseconds.
+            index = pd.DatetimeIndex(self.iter_index.index).as_unit("ns")
+        except Exception:
+            return None
+        return _intraday_bar_state(
+            index.asi8, iter_count, dt, timestep=self.timestep, index_tz=index.tz, cache_owner=self
+        )
+
     @check_data
     def get_last_price(self, dt, length=1, timeshift=0) -> Union[float, Decimal, None]:
         """Returns the last known price of the data."""
         iter_count = self.get_iter_count(dt)
         open_price = self.datalines["open"].dataline[iter_count]
         close_price = self.datalines["close"].dataline[iter_count]
-        price = close_price if dt > self.datalines["datetime"].dataline[iter_count] else open_price
+        state = self._intraday_state_at(iter_count, dt)
+        if state is None:
+            price = close_price if dt > self.datalines["datetime"].dataline[iter_count] else open_price
+        else:
+            # A bar stamped at its start is forming until start + length: its close is the future.
+            price = close_price if state == "closed" else open_price
         return price
 
     @check_data
@@ -484,19 +510,21 @@ class DataPolars:
             return {}
 
         quote_fields = {
-            "open": ("open", 2),
-            "high": ("high", 2),
-            "low": ("low", 2),
-            "close": ("close", 2),
+            "open": ("open", None),
+            "high": ("high", None),
+            "low": ("low", None),
+            "close": ("close", None),
             "volume": ("volume", 0),
-            "bid": ("bid", 2),
-            "ask": ("ask", 2),
+            "bid": ("bid", None),
+            "ask": ("ask", None),
             "bid_size": ("bid_size", 0),
             "bid_condition": ("bid_condition", 0),
             "bid_exchange": ("bid_exchange", 0),
             "ask_size": ("ask_size", 0),
             "ask_condition": ("ask_condition", 0),
             "ask_exchange": ("ask_exchange", 0),
+            "last_bid_time": ("last_bid_time", None),
+            "last_ask_time": ("last_ask_time", None),
         }
 
         missing_quote_cols = [
@@ -527,6 +555,15 @@ class DataPolars:
         quote_dict = {
             name: _get_value(column, digits) for name, (column, digits) in quote_fields.items()
         }
+        if self._intraday_state_at(iter_count, dt) == "forming":
+            # Same rule as Data.get_quote: the forming bar's close is the future.
+            open_value = quote_dict.get("open")
+            close_value = quote_dict.get("close")
+            if open_value is not None and not pd.isna(open_value):
+                if quote_dict.get("bid") == close_value and quote_dict.get("ask") == close_value:
+                    quote_dict["bid"] = open_value
+                    quote_dict["ask"] = open_value
+                quote_dict["close"] = open_value
 
         return quote_dict
 
@@ -553,7 +590,12 @@ class DataPolars:
                 timeshift = timeshift_converted
 
         # Get bars.
-        end_row = self.get_iter_count(dt) - timeshift
+        iter_count = self.get_iter_count(dt)
+        visible_end = iter_count
+        if self.timestep != "day" and timeshift >= 0:
+            if self._intraday_state_at(iter_count, dt) == "closed":
+                visible_end = iter_count + 1
+        end_row = visible_end - timeshift
         start_row = end_row - length
 
         if start_row < 0:

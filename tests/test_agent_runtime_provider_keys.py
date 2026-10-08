@@ -55,6 +55,20 @@ def test_native_gemini_model_does_not_mutate_google_api_key(monkeypatch):
     assert "GOOGLE_API_KEY" not in os.environ
 
 
+def test_managed_family_never_falls_back_to_direct_provider_or_ignores_byok(monkeypatch):
+    monkeypatch.setenv("LUMIBOT_AI_GATEWAY_URL", "https://gateway.example.test")
+    monkeypatch.setenv("LUMIBOT_AI_GATEWAY_TOKEN", "managed-token")
+    monkeypatch.setenv("GEMINI_API_KEY", "personal-test-key")
+    with pytest.raises(RuntimeError, match="select an exact provider model id"):
+        _resolve_model_for_adk("google/gemini-pro")
+    monkeypatch.delenv("GEMINI_API_KEY")
+    monkeypatch.delenv("GOOGLE_API_KEY", raising=False)
+    assert isinstance(_resolve_model_for_adk("google/gemini-pro"), BotSpotManagedLlm)
+    monkeypatch.delenv("LUMIBOT_AI_GATEWAY_TOKEN")
+    with pytest.raises(RuntimeError, match="Model families require BotSpot"):
+        _resolve_model_for_adk("google/gemini-pro")
+
+
 @pytest.mark.parametrize(
     ("model", "key_name"),
     [
@@ -151,6 +165,7 @@ def test_model_context_registry_uses_known_provider_overrides(monkeypatch):
 
     assert _model_context_limit_tokens("gemini-3.1-flash-lite") == 1_048_576
     assert _model_context_limit_tokens("openai/gpt-4.1-mini") == 1_047_576
+    assert _model_context_limit_tokens("openai/gpt-6-luna") == 922_000
     assert _model_context_limit_tokens("anthropic/claude-sonnet-4-6") == 200_000
     assert _model_context_limit_tokens("xai/grok-4.20-0309-reasoning") == 2_000_000
 
@@ -297,6 +312,50 @@ def test_openai_model_forwards_prompt_cache_key_and_24h_retention(monkeypatch):
     assert created["model"] == "openai/gpt-5.4-mini"
     assert created["prompt_cache_key"] == "stable-prefix-key"
     assert created["prompt_cache_retention"] == "24h"
+
+
+def test_gpt6_luna_forwards_reasoning_effort_and_routes_to_responses_api(monkeypatch):
+    import litellm
+
+    created: dict[str, object] = {}
+
+    class FakeLiteLlm:
+        def __init__(self, **kwargs):
+            created.update(kwargs)
+
+    fake_module = types.ModuleType("google.adk.models.lite_llm")
+    fake_module.LiteLlm = FakeLiteLlm
+    monkeypatch.setitem(sys.modules, "google.adk.models.lite_llm", fake_module)
+
+    result = _resolve_model_for_adk(
+        "openai/gpt-6-luna", prompt_cache_key="stable-prefix-key", reasoning_effort="high"
+    )
+
+    assert isinstance(result, FakeLiteLlm)
+    assert created["model"] == "openai/gpt-6-luna"
+    assert created["reasoning_effort"] == "high"
+    assert "reasoning_effort" in created["allowed_openai_params"]
+    info = litellm.get_model_info("openai/gpt-6-luna")
+    assert info["mode"] == "responses"
+    assert info["supports_function_calling"] is True
+    assert info["input_cost_per_token"] == 0.10e-6
+    assert info["output_cost_per_token"] == 0.50e-6
+
+
+def test_reasoning_effort_is_not_forwarded_when_unset(monkeypatch):
+    created: dict[str, object] = {}
+
+    class FakeLiteLlm:
+        def __init__(self, **kwargs):
+            created.update(kwargs)
+
+    fake_module = types.ModuleType("google.adk.models.lite_llm")
+    fake_module.LiteLlm = FakeLiteLlm
+    monkeypatch.setitem(sys.modules, "google.adk.models.lite_llm", fake_module)
+
+    _resolve_model_for_adk("openai/gpt-5.4-mini")
+
+    assert "reasoning_effort" not in created
 
 
 def test_litellm_model_forwards_model_request_timeout(monkeypatch):
@@ -448,6 +507,8 @@ def test_runtime_prompt_only_names_available_tools():
     assert "Momentum holds." in user_text
     assert "list_fred_series" not in user_text
     assert "alpaca_news" not in user_text
+    assert "Specifically, include calls" not in user_text
+    assert "Do not call every available data category by default" in user_text
 
 
 def test_runtime_enforces_agent_run_timeout(monkeypatch):
@@ -555,3 +616,66 @@ def test_gemini_native_path_uses_plain_model_id_for_implicit_or_adk_context_cach
     # only for LiteLLM providers; Gemini implicit caching and ADK explicit
     # ContextCacheConfig are configured outside the LiteLLM wrapper.
     assert _resolve_model_for_adk("gemini-3.1-pro-preview", prompt_cache_key="stable-prefix-key") == "gemini-3.1-pro-preview"
+
+
+# Customer investigation (2026-10-06): every agent call sent max_output_tokens=65535
+# whatever the model, so a strategy on openai/gpt-4o (16,384 output tokens max)
+# asked for four times what the model can produce. Rob (2026-10-07): do not set an
+# output length by default; let the model answer as long as it needs. Send one only
+# when the provider requires it (Anthropic requires max_tokens), and then use that
+# model's real limit. A customer may still set one; it is capped at the real limit.
+def _output_token_request(model: str, max_output_tokens: int | None = None) -> RuntimeRequest:
+    return RuntimeRequest(
+        agent_name="researcher",
+        model=model,
+        system_prompt="System prompt",
+        task_prompt="Do work",
+        context=None,
+        runtime_context={"mode": "backtesting"},
+        memory_state=None,
+        memory_notes=[],
+        bound_tools=[],
+        max_output_tokens=max_output_tokens,
+    )
+
+
+@pytest.mark.parametrize("model", ["openai/gpt-4o", "openai/gpt-6-luna", "gemini-3.5-flash", "xai/grok-4"])
+def test_no_output_length_is_sent_by_default(model):
+    from google.genai import types as genai_types
+
+    config = GoogleADKRuntime._generate_content_config_kwargs_for_request(
+        _output_token_request(model), genai_types
+    )
+
+    assert "max_output_tokens" not in config
+
+
+def test_anthropic_default_uses_the_model_real_output_limit():
+    from google.genai import types as genai_types
+
+    config = GoogleADKRuntime._generate_content_config_kwargs_for_request(
+        _output_token_request("anthropic/claude-sonnet-4-5"), genai_types
+    )
+
+    # Anthropic requires max_tokens; send the model's real limit, not a small default.
+    assert config["max_output_tokens"] == 64_000
+
+
+def test_explicit_max_output_tokens_is_capped_at_the_model_output_limit():
+    from google.genai import types as genai_types
+
+    config = GoogleADKRuntime._generate_content_config_kwargs_for_request(
+        _output_token_request("openai/gpt-4o", max_output_tokens=100_000), genai_types
+    )
+
+    assert config["max_output_tokens"] == 16_384
+
+
+def test_explicit_max_output_tokens_below_the_limit_is_sent_unchanged():
+    from google.genai import types as genai_types
+
+    config = GoogleADKRuntime._generate_content_config_kwargs_for_request(
+        _output_token_request("gemini-3.5-flash", max_output_tokens=2_000), genai_types
+    )
+
+    assert config["max_output_tokens"] == 2_000

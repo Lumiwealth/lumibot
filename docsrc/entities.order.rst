@@ -1,6 +1,9 @@
 Order
 -----------------------------
 
+.. meta::
+   :description: This object represents an order. Each order belongs to a specific strategy. LumiBot documentation.
+
 This object represents an order. Each order belongs to a specific strategy.
 
 A simple market order can be constructed as follows:

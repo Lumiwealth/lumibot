@@ -1,6 +1,9 @@
 Frequently Asked Questions (FAQ)
 =================================
 
+.. meta::
+   :description: This page answers common questions about LumiBot. If you're new, start with the getting_started guide.
+
 This page answers common questions about LumiBot. If you're new, start with the :doc:`getting_started` guide.
 
 Getting Started
@@ -118,20 +121,20 @@ The replay cache is fully automatic. No configuration needed.
 What LLM providers does LumiBot support for agents?
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-LumiBot's agent runtime is built on `Google ADK <https://google.github.io/adk-docs/>`_ (Agent Development Kit). The default model is **Gemini** (``gemini-3.1-flash-lite-preview``). The architecture supports routing to other providers (OpenAI, Anthropic, xAI/Grok, and others) through Google ADK's LiteLLM bridge. You need a ``GEMINI_API_KEY`` environment variable set for Gemini:
+LumiBot's agent runtime is built on `Google ADK <https://google.github.io/adk-docs/>`_ (Agent Development Kit). The default model is **OpenAI GPT-6 Luna** (``openai/gpt-6-luna``) on medium reasoning. The architecture supports other providers (Gemini, Anthropic, xAI/Grok, and others) through Google ADK's LiteLLM bridge. You need an ``OPENAI_API_KEY`` environment variable set for the default model:
 
 .. code-block:: python
 
     self.agents.create(
         name="research",
-        default_model="gemini-3.1-flash-lite-preview",
+        default_model="openai/gpt-6-luna",
         system_prompt="Your strategy prompt here.",
     )
 
 How do I create my first AI trading agent?
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-Create the agent in ``initialize()`` and run it from ``on_trading_iteration()``. You need ``GEMINI_API_KEY`` set in your environment for Gemini:
+Create the agent in ``initialize()`` and run it from ``on_trading_iteration()``. You need ``OPENAI_API_KEY`` set in your environment for the default model:
 
 .. code-block:: python
 
@@ -142,7 +145,7 @@ Create the agent in ``initialize()`` and run it from ``on_trading_iteration()``.
             self.sleeptime = "1D"
             self.agents.create(
                 name="research",
-                default_model="gemini-3.1-flash-lite-preview",
+                default_model="openai/gpt-6-luna",
                 system_prompt="Analyze the market and trade conservatively.",
             )
 
@@ -176,7 +179,7 @@ Create it with ``allow_trading=False``:
 
     self.agents.create(
         name="researcher",
-        model="openai/gpt-5.4-mini",
+        model="openai/gpt-6-luna",
         allow_trading=False,
         system_prompt="Research the setup. Do not place, modify, or cancel orders.",
     )
@@ -249,7 +252,7 @@ MCP (Model Context Protocol) servers are external services that provide tools an
 
     self.agents.create(
         name="research",
-        default_model="gpt-4.1-mini",
+        default_model="openai/gpt-6-luna",
         system_prompt="Your strategy prompt.",
         mcp_servers=[
             MCPServer(name="my-server", url="https://my-mcp-server.example.com/mcp"),
@@ -284,9 +287,11 @@ How do I debug an AI agent's decisions?
 LumiBot provides a full observability system:
 
 1. **Summary log lines** -- every run emits agent name, model, cache status, tool count, and summary
-2. **Structured JSON traces** -- the full record of prompts, tool calls, results, and reasoning
+2. **``*_agent_detail.parquet``** -- the table to query. A backtest writes it next to the tear sheet. On macOS, live and paper write it under ``~/Library/Caches/lumibot/1.0/agent_runtime/``. Set ``LUMIBOT_CACHE_FOLDER`` before importing lumibot to move it. The ``call_summary`` row has ``effective_system_prompt``.
 3. **Warning system** -- flags suspicious conditions (no tools called, future-dated data, unsupported orders)
-4. Access the trace path via ``(result.payload or {}).get("trace_path")``
+4. Access one call's JSON trace via ``(result.payload or {}).get("trace_path")``
+
+Raising ``LUMIBOT_LOG_LEVEL`` only changes printed logs. It does not store the prompt or the tool calls.
 
 See :doc:`agents_observability` for the complete debugging workflow.
 
@@ -310,19 +315,19 @@ Yes, this is a core design principle. Your strategy code is identical for backte
 What are the canonical demo strategies for AI agents?
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-LumiBot ships four reference demo strategies in ``lumibot/example_strategies/``:
+LumiBot ships short one-agent demos in ``lumibot/example_strategies/``, each a few sentences of plain English using only built-in tools:
 
-1. **News Sentiment** (``agent_news_sentiment.py``) -- event-driven stock selection using Alpaca news
-2. **Macro Risk** (``agent_macro_risk.py``) -- macro regime allocation using Alpaca market data
-3. **Momentum Allocator** (``agent_momentum_allocator.py``) -- momentum + sentiment using price bars and news
-4. **M2 Liquidity** (``agent_m2_liquidity.py``) -- liquidity-driven allocation using FRED money supply data
+1. **News Sentiment** (``agent_news_sentiment.py``) -- buys stocks with strong good news
+2. **Trend** (``agent_macro_risk.py``) -- holds TQQQ or SHV based on the price trend
+3. **Momentum and News** (``agent_momentum_allocator.py``) -- holds TQQQ or SHV based on trend and news
+4. **M2 Liquidity** (``agent_m2_liquidity.py``) -- holds TQQQ or SHV based on money supply data
 
 Start with a demo that only uses built-in market data if you want the fewest credentials. FRED macro tools require ``FRED_API_KEY`` because LumiBot uses official FRED/ALFRED vintage parameters for point-in-time macro backtests instead of revised public CSV data.
 
 How much does it cost to run AI agent backtests?
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-The first run of an AI agent backtest incurs one LLM API call per bar. For example, a daily strategy over 5 years is ~1,260 Gemini API calls. With replay caching, all subsequent reruns are **free** -- zero LLM calls. This makes iterating on strategy parameters or re-running for reporting extremely cost-effective. The Gemini models used by default are among the most affordable LLM APIs available.
+The first run of an AI agent backtest incurs one LLM API call per bar. For example, a daily strategy over 5 years is about 1,260 model calls. The cost of that first run depends on the model you choose and your provider's current pricing, so start with a short date range. With replay caching, all subsequent reruns are **free** -- zero LLM calls. This makes iterating on strategy parameters or re-running for reporting extremely cost-effective.
 
 Can I use multiple AI agents in a single strategy?
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -332,9 +337,9 @@ Yes. Create multiple agents in ``initialize()`` with different names, prompts, a
 .. code-block:: python
 
     def initialize(self):
-        self.agents.create(name="macro", default_model="gemini-3.1-flash-lite-preview",
+        self.agents.create(name="macro", default_model="openai/gpt-6-luna",
                            system_prompt="Analyze macro conditions.")
-        self.agents.create(name="technicals", default_model="gemini-3.1-flash-lite-preview",
+        self.agents.create(name="technicals", default_model="openai/gpt-6-luna",
                            system_prompt="Analyze technical indicators.")
 
     def on_trading_iteration(self):
@@ -437,13 +442,14 @@ Can I set backtest parameters via environment variables?
 
 Yes. LumiBot supports several environment variables for backtest configuration:
 
-- ``IS_BACKTESTING`` -- ``True`` to enable backtesting mode
+- ``IS_BACKTESTING`` -- available to a runner that explicitly checks it; it does not choose a runner by itself
 - ``BACKTESTING_START`` / ``BACKTESTING_END`` -- date range (``YYYY-MM-DD``)
 - ``BACKTESTING_BUDGET`` -- starting cash (e.g., ``100000``)
 - ``BACKTESTING_DATA_SOURCE`` -- data source (``yahoo``, ``polygon``, ``thetadata``, etc.)
-- ``BACKTESTING_PARAMETERS`` -- JSON string of strategy parameters
+- ``LUMIBOT_STRATEGY_PARAMETERS`` -- JSON string of reusable strategy parameters (backtest and live)
 
-See :doc:`environment_variables` for the full list.
+See :doc:`environment_variables` for the full list and
+:doc:`strategy_run_modes` for the backtest/broker distinction.
 
 How do I benchmark my strategy against an index?
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -566,7 +572,7 @@ Define a ``parameters`` dict on your class, then access them with ``self.paramet
             symbol = self.parameters["symbol"]
             period = self.parameters["sma_period"]
 
-Parameters can be overridden at runtime via ``BACKTESTING_PARAMETERS`` environment variable.
+Parameters can be overridden at runtime via ``LUMIBOT_STRATEGY_PARAMETERS``. The same JSON object works in a backtest and in live execution, which lets you deploy the exact parameter set you validated. ``BACKTESTING_PARAMETERS`` remains a deprecated compatibility alias.
 
 What order types does LumiBot support?
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -716,6 +722,11 @@ For ``Asset.AssetType.CRYPTO_FUTURE``, use ``self.close_position()`` instead of 
 
     # CORRECT - closes existing position
     self.close_position(asset)
+
+The close order is side-correct and reduce-only for crypto futures in both live
+broker and backtesting flows. You can close part of a position with
+``self.close_position(asset, fraction=0.5)``. ``fraction`` must be greater than
+0 and no more than 1.
 
 
 Futures Trading

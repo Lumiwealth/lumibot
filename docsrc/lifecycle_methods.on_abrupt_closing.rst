@@ -1,6 +1,9 @@
 def on_abrupt_closing
 ===================================
 
+.. meta::
+   :description: This lifecycle method runs when the strategy execution gets interrupted. Use this lifecycle method to execute code to stop trading gracefully like selling all assets.
+
 This lifecycle method runs when the strategy execution gets interrupted. Use this lifecycle method to execute code to stop trading gracefully like selling all assets
 
 .. code-block:: python

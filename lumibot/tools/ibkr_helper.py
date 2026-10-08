@@ -3269,8 +3269,6 @@ def _repair_us_stock_index_daily_gaps(
 
     working = aligned
     attempted: list[pd.Timestamp] = []
-    first_gap = min(gaps)
-    last_gap = max(gaps)
     effective_end = min(_to_utc(end_dt), datetime.now(timezone.utc))
     expected = _expected_us_daily_sessions(start_dt=start_dt, end_dt=effective_end)
     groups = split_session_groups(

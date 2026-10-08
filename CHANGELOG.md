@@ -1,5 +1,7 @@
 # Changelog
 
+## 4.6.8 - Unreleased
+
 ## 4.6.7 - 2026-10-08
 
 - IBKR history no longer treats a positive page containing only older bars as confirmed absence of newer bars. Those old inferred tail markers and ambiguous daily markers are retryable, so available completed sessions replace placeholders while explicit no-data responses retain their retry delays and existing real bars are preserved.

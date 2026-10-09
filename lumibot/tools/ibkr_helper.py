@@ -235,6 +235,12 @@ def _load_futures_exchange_cache() -> None:
         return
     _FUTURES_EXCHANGE_CACHE_LOADED = True
     path = _futures_exchange_cache_file()
+    try:
+        get_backtest_cache().ensure_local_file(
+            path, payload={"provider": "ibkr", "type": "futures_exchanges"}
+        )
+    except Exception:
+        pass
     if not path.exists():
         return
     try:
@@ -4390,10 +4396,10 @@ def _get_futures_daily_bars(
         return pd.DataFrame()
 
     completed_end = min(end_utc, _ibkr_history_now_utc())
-    requested_closes = pd.DatetimeIndex(schedule.loc[
-        (schedule["market_close"] >= start_utc) & (schedule["market_close"] <= completed_end),
-        "market_close",
-    ])
+    requested_schedule = schedule.loc[
+        (schedule["market_close"] >= start_utc) & (schedule["market_close"] <= completed_end)
+    ]
+    requested_closes = pd.DatetimeIndex(requested_schedule["market_close"])
 
     def with_daily_coverage(frame: pd.DataFrame) -> pd.DataFrame:
         present = requested_closes.intersection(frame.index) if not frame.empty else requested_closes[:0]
@@ -4411,8 +4417,14 @@ def _get_futures_daily_bars(
         )
         return frame
 
-    session_start = pd.Timestamp(schedule["market_open"].min()).tz_convert("UTC").to_pydatetime()
-    session_end = pd.Timestamp(schedule["market_close"].max()).tz_convert("UTC").to_pydatetime()
+    if requested_schedule.empty:
+        return with_daily_coverage(pd.DataFrame())
+
+    # Calendar padding finds the session containing a boundary. Fetch only the
+    # sessions that can produce requested, completed daily bars. Fetching the
+    # padded days would miss an otherwise warm cache and query future history.
+    session_start = pd.Timestamp(requested_schedule["market_open"].min()).tz_convert("UTC").to_pydatetime()
+    session_end = pd.Timestamp(requested_schedule["market_close"].max()).tz_convert("UTC").to_pydatetime()
     if session_start >= session_end:
         return pd.DataFrame()
 
@@ -4458,7 +4470,7 @@ def _get_futures_daily_bars(
     rows: list[dict[str, float]] = []
     idx: list[pd.Timestamp] = []
     minute_fallback: Optional[pd.DataFrame] = None
-    for _, sess in schedule.iterrows():
+    for _, sess in requested_schedule.iterrows():
         open_local = pd.Timestamp(sess["market_open"]).tz_convert("UTC").tz_convert(LUMIBOT_DEFAULT_PYTZ)
         close_local = pd.Timestamp(sess["market_close"]).tz_convert("UTC").tz_convert(LUMIBOT_DEFAULT_PYTZ)
         if close_local < start_local or open_local > end_local:

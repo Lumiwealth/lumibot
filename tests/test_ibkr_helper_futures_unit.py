@@ -30,6 +30,52 @@ def _stub_cache():
     return _StubCache()
 
 
+def test_futures_exchange_resolution_hydrates_shared_cache_once(monkeypatch, tmp_path):
+    import json
+    import lumibot.tools.ibkr_helper as helper
+
+    monkeypatch.setattr(helper, "LUMIBOT_CACHE_FOLDER", str(tmp_path))
+    monkeypatch.setattr(helper, "_FUTURES_EXCHANGE_CACHE", {})
+    monkeypatch.setattr(helper, "_FUTURES_EXCHANGE_CACHE_LOADED", False)
+    downloads = []
+
+    class SharedCache:
+        def ensure_local_file(self, path, payload=None):
+            downloads.append((path, payload))
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text(json.dumps({"GC": "COMEX", "MGC": "COMEX", "ES": "CME"}))
+
+    monkeypatch.setattr(helper, "get_backtest_cache", SharedCache)
+    monkeypatch.setattr(helper, "queue_request", lambda **kwargs: pytest.fail("warm exchange queried IBKR"))
+    assert helper._resolve_futures_exchange("GC") == "COMEX"
+    assert helper._resolve_futures_exchange("MGC") == "COMEX"
+    assert helper._resolve_futures_exchange("ES") == "CME"
+    assert downloads == [(tmp_path / "ibkr" / "futures_exchanges.json", {"provider": "ibkr", "type": "futures_exchanges"})]
+
+
+@pytest.mark.parametrize("unavailable", ["missing", "error"])
+def test_futures_exchange_resolution_retains_provider_fallback(monkeypatch, tmp_path, unavailable):
+    import lumibot.tools.ibkr_helper as helper
+
+    monkeypatch.setattr(helper, "LUMIBOT_CACHE_FOLDER", str(tmp_path))
+    monkeypatch.setattr(helper, "_FUTURES_EXCHANGE_CACHE", {})
+    monkeypatch.setattr(helper, "_FUTURES_EXCHANGE_CACHE_LOADED", False)
+
+    class SharedCache:
+        def ensure_local_file(self, path, payload=None):
+            if unavailable == "error":
+                raise OSError("cache unavailable")
+
+        def on_local_update(self, path, payload=None):
+            pass
+
+    monkeypatch.setattr(helper, "get_backtest_cache", SharedCache)
+    calls = []
+    monkeypatch.setattr(helper, "queue_request", lambda **kwargs: calls.append(kwargs) or [{"symbol": "GC", "description": "Gold", "sections": [{"secType": "FUT", "exchange": "COMEX", "months": "DEC26"}]}])
+    assert helper._resolve_futures_exchange("GC") == "COMEX"
+    assert len(calls) == 1
+
+
 def test_ibkr_helper_future_requires_expiration(monkeypatch, tmp_path):
     import lumibot.tools.ibkr_helper as ibkr_helper
 

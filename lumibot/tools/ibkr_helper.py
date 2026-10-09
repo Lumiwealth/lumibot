@@ -887,15 +887,28 @@ def get_price_data(
     except Exception:
         timestep_component = _timestep_component(timestep)
 
-    # IBKR history for US stocks and indexes on the shared account runs about 13 to 17
-    # minutes behind real time. A request ending at "now" (a backtest whose end date is
-    # today, run during market hours) makes the downloader reject the newest page as
-    # `stale_tail`, and that page is the first one, so the series came back empty.
-    # Ask only for bars the feed can already have.
-    if asset_type in {"stock", "index"} and not str(timestep_component).endswith("day"):
+    # Shared IBKR historical feeds can lag current time, including futures.
+    # Asking through "now" makes a valid delayed page fail strict stale-tail
+    # validation before older requested history can be fetched. Use the same
+    # stable historical boundary for explicit and continuous futures as for
+    # stocks/indexes; daily bars and real-time snapshot APIs remain separate.
+    if asset_type in {"stock", "index", "future", "cont_future"} and not str(timestep_component).endswith("day"):
         latest_available = _ibkr_history_now_utc() - IBKR_INTRADAY_HISTORY_DELAY
         if end_utc > latest_available:
-            end_utc = max(start_utc, latest_available)
+            if start_utc >= latest_available:
+                # This window is too recent to ask the historical feed. Do
+                # not turn unavailable delayed bars into a durable absence.
+                record_history_health(
+                    symbol=str(getattr(asset, "symbol", "")), asset_type=asset_type,
+                    timestep=str(timestep), requested_start=start_utc, requested_end=end_utc,
+                    outcome=HistoryOutcome.PARTIAL, reason="delayed_history_window_unavailable",
+                    series_id=_history_health_series_id(
+                        asset=asset, quote=quote, timestep=timestep, exchange=effective_exchange,
+                        source=history_source, include_after_hours=include_after_hours,
+                    ),
+                )
+                return pd.DataFrame()
+            end_utc = latest_available
             end_local = end_utc.astimezone(LUMIBOT_DEFAULT_PYTZ)
 
     # Continuous futures
@@ -2649,16 +2662,17 @@ def _ibkr_page_request_end(cursor_end: datetime, bar_seconds: int, asset_type: s
     that bar; if IBKR ever includes the bar at T as well, the merge drops the duplicate.
     Daily bars keep their request end unchanged.
 
-    US stock and index intraday requests never ask past the delayed-feed limit
+    Stock, index and futures intraday requests never ask past the delayed-feed limit
     (IBKR_INTRADAY_HISTORY_DELAY, see get_price_data): the shift used to put the first hourly
     page about 40 minutes after now, which the downloader can reject as stale_tail. At the
     limit the page keeps the old end; the bar it leaves out is too recent to be served yet.
-    Futures and crypto are not on that feed and keep the full shift.
+    Crypto keeps its existing full shift. Older futures pages retain the
+    overlap shift, so completed session endings are not lost.
     """
     if not bar_seconds or bar_seconds >= 24 * 60 * 60:
         return cursor_end
     shifted = cursor_end + timedelta(seconds=int(bar_seconds))
-    if asset_type in {"stock", "index"}:
+    if asset_type in {"stock", "index", "future", "cont_future"}:
         latest_available = _ibkr_history_now_utc() - IBKR_INTRADAY_HISTORY_DELAY
         if shifted > latest_available:
             shifted = max(cursor_end, latest_available)

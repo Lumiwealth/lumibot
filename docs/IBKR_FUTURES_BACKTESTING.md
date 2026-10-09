@@ -34,6 +34,14 @@ The entire stack is cache-backed:
 - Local Parquet cache under `LUMIBOT_CACHE_FOLDER/ibkr/...`
 - Optional S3 mirroring through the standard `LUMIBOT_CACHE_*` settings (see `docs/ENV_VARS.md`).
 
+Intraday historical requests use a stable boundary 20 minutes before current
+time, including explicit and continuous futures. The pager's overlap offset
+cannot move a current request past that boundary; older pages retain their
+one-bar overlap. A window wholly inside the unavailable interval returns
+empty bars with partial history health rather than requesting or caching
+absence of prices that have not arrived. Daily candles and real-time snapshot
+APIs keep their separate completion and entitlement rules.
+
 ## Exchange Routing (automatic + per-call override)
 
 Goal: strategy authors should not have to guess which exchange to use (CME vs CBOT vs COMEX vs NYMEX).

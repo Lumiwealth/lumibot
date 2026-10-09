@@ -1,6 +1,8 @@
 # Changelog
 
-## 4.6.12 - Unreleased
+## 4.6.12 - 2026-10-09
+
+- IBKR explicit and continuous futures intraday history use the existing 20-minute stable provider boundary. The pager cannot shift the newest page past that boundary, including hourly requests. Previously delayed futures tails could reject the first page and repeatedly postpone otherwise available history. Wholly unavailable current windows report partial health without probing or caching absent prices; completed older pages, daily candles and snapshot APIs retain their separate behavior.
 
 ## 4.6.11 - 2026-10-09
 

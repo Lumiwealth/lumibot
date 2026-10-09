@@ -1656,11 +1656,80 @@ def test_ibkr_page_request_end_keeps_the_one_bar_shift_for_futures_and_old_windo
     old_cursor = datetime(2026, 9, 18, 20, 0, tzinfo=timezone.utc)
     assert ibkr_helper._ibkr_page_request_end(old_cursor, 60, "stock") == old_cursor + timedelta(minutes=1)
     assert ibkr_helper._ibkr_page_request_end(old_cursor, 86400, "stock") == old_cursor
-    # Futures are not on the delayed stock/index feed: the shift is never clamped.
+    # October 9 provider evidence: futures history is delayed too. Keep the
+    # older-window seam shift, but never shift a current page into unavailable data.
+    assert ibkr_helper._ibkr_page_request_end(old_cursor, 60, "future") == old_cursor + timedelta(minutes=1)
     recent = now - timedelta(minutes=20)
-    assert ibkr_helper._ibkr_page_request_end(recent, 3600, "future") == recent + timedelta(hours=1)
+    assert ibkr_helper._ibkr_page_request_end(recent, 3600, "future") == recent
+    # Crypto retains its existing one-bar shift.
+    assert ibkr_helper._ibkr_page_request_end(recent, 3600, "crypto") == recent + timedelta(hours=1)
     # Stock at the delayed-feed limit stays at the limit.
     assert ibkr_helper._ibkr_page_request_end(recent, 3600, "stock") == recent
+
+
+@pytest.mark.parametrize("asset_type", ["future", "cont_future"])
+@pytest.mark.parametrize("timestep,frequency", [
+    ("minute", "1min"), ("5minute", "5min"), ("15minute", "15min"),
+    ("30minute", "30min"), ("hour", "1h"),
+])
+def test_ibkr_current_futures_history_respects_stable_provider_boundary(
+    monkeypatch, tmp_path, asset_type, timestep, frequency
+):
+    """A current futures page must not fail solely on delayed, unfinished bars.
+
+    Live ES/MES/NQ warmer history failed on 12-minute stale tails. The same
+    feed returned every requested bar in a stabilized historical window.
+    Cover the public continuous wrapper and explicit contracts, including the
+    hourly pager's extra-bar offset, without tolerating missing stable prices.
+    """
+    helper = _page_end_setup(monkeypatch, tmp_path, 123)
+    now = datetime(2026, 9, 25, 15, 0, tzinfo=timezone.utc)
+    monkeypatch.setattr(helper, "_ibkr_history_now_utc", lambda: now)
+    monkeypatch.setattr(helper, "_maybe_apply_future_contract_metadata", lambda **_: None)
+    contract = _mes_contract()
+    monkeypatch.setattr(helper, "_resolve_cont_future_segments", lambda **kw: [
+        (contract, kw["start_dt"], kw["end_dt"])
+    ])
+    vendor = _session_minute_bars(
+        ["2026-09-24", "2026-09-25"], first="04:00", last="10:30", freq=frequency
+    )
+    feed, requests = _ibkr_page_end_feed(vendor, pd.Timedelta(frequency))
+    monkeypatch.setattr(helper, "queue_request", feed)
+    frame = helper.get_price_data(
+        asset=contract if asset_type == "future" else Asset("MES", asset_type="cont_future"),
+        quote=Asset("USD", asset_type="forex"), timestep=timestep,
+        start_dt=datetime(2026, 9, 24, 8, 0, tzinfo=timezone.utc), end_dt=now,
+        exchange="CME", include_after_hours=True,
+    )
+    assert requests and frame is not None and not frame.empty
+    latest = pd.Timestamp(now) - pd.Timedelta(minutes=20)
+    assert max(requests) <= latest, [str(value) for value in requests]
+    assert frame.index.max() <= latest
+
+
+@pytest.mark.parametrize("asset_type", ["stock", "index", "future", "cont_future"])
+def test_ibkr_wholly_unavailable_current_window_does_not_probe_or_cache_absence(
+    monkeypatch, tmp_path, asset_type
+):
+    helper = _page_end_setup(monkeypatch, tmp_path, 123)
+    now = datetime(2026, 9, 25, 15, 0, tzinfo=timezone.utc)
+    monkeypatch.setattr(helper, "_ibkr_history_now_utc", lambda: now)
+    calls = []
+    monkeypatch.setattr(helper, "queue_request", lambda *args, **kwargs: calls.append(kwargs) or {"data": []})
+    frame = helper.get_price_data(
+        asset=_mes_contract() if asset_type == "future" else Asset("MES" if asset_type == "cont_future" else "SPY", asset_type=asset_type),
+        quote=Asset("USD", asset_type="forex"), timestep="minute",
+        start_dt=now - timedelta(minutes=10), end_dt=now,
+        exchange="CME" if asset_type in {"future", "cont_future"} else None,
+        include_after_hours=True,
+    )
+    from lumibot.tools.ibkr_history_health import ibkr_history_health_snapshot
+
+    health = ibkr_history_health_snapshot()
+    assert frame.empty and not calls
+    assert health["complete"] is False
+    assert any(s["reason"] == "delayed_history_window_unavailable" for s in health["series"])
+    assert not list(tmp_path.glob("ibkr/**/*.parquet"))
 
 
 # ---------------------------------------------------------------------------

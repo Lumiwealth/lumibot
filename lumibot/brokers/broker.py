@@ -3308,8 +3308,9 @@ class Broker(ABC):
                 cache = pd.DataFrame()
             else:
                 first = next(iter(rows), None)
-                if isinstance(first, dict):
-                    cache = pd.DataFrame(list(rows))
+                if isinstance(first, dict) or getattr(self, "_trade_event_log_has_dict_rows", False):
+                    columns = getattr(self, "_trade_event_log_columns", None) or TRADE_EVENT_LOG_COLUMNS
+                    cache = pd.DataFrame([row if isinstance(row, dict) else dict(zip(columns, row)) for row in rows])
                 else:
                     cols = getattr(self, "_trade_event_log_columns", None) or None
                     cache = pd.DataFrame(list(rows), columns=list(cols) if cols else None)
@@ -3608,6 +3609,14 @@ class Broker(ABC):
                 None,
                 None,
             )
+
+        journal = getattr(stored_order, "decision_journal", None)
+        if isinstance(journal, dict) and journal.get("action_id"):
+            if not isinstance(new_row, dict):
+                new_row = dict(zip(TRADE_EVENT_LOG_COLUMNS, new_row))
+            for key in ("decision_id", "action_id", "previous_action_id", "model_call_id", "reason_sha256", "strategy_revision_id"):
+                new_row[f"decision.{key}"] = journal.get(key)
+            self._trade_event_log_has_dict_rows = True
 
         # Backtest-only trade audit telemetry.
         #

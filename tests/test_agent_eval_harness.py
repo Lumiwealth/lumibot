@@ -756,6 +756,7 @@ def test_credit_spread_fixture_rejects_reversed_closing_sides_before_submission(
 
     with pytest.raises(ValueError, match="does not reduce the current signed position"):
         submit.function(
+            reason='Explain the verified market evidence before executing this order. Size within the stated exposure limit after checking available cash and current positions. A reversal of the observed trend invalidates the thesis; delayed execution and adverse price movement remain risks.',
             legs_json=(
                 '[{"symbol":"SPY","expiration":"2026-08-28","strike":592,'
                 '"right":"put","quantity":3,"side":"buy_to_close"},'
@@ -776,6 +777,7 @@ def test_credit_spread_fixture_rejects_duplicate_closes_beyond_position():
 
     with pytest.raises(ValueError, match="requested_quantity=2.0"):
         submit.function(
+            reason='Explain the verified market evidence before executing this order. Size within the stated exposure limit after checking available cash and current positions. A reversal of the observed trend invalidates the thesis; delayed execution and adverse price movement remain risks.',
             legs_json=(
                 '[{"symbol":"SPY","expiration":"2026-08-28","strike":592,'
                 '"right":"put","quantity":2,"side":"sell_to_close"},'
@@ -906,6 +908,7 @@ def test_stock_order_fixture_applies_filled_order_to_positions():
     submit = next(tool for tool in evals.build_tools(fixture) if tool.name == "orders_submit_order")
 
     submit.function(
+        reason='Explain the verified market evidence before executing this order. Size within the stated exposure limit after checking available cash and current positions. A reversal of the observed trend invalidates the thesis; delayed execution and adverse price movement remain risks.',
         symbol="AAPL",
         quantity=43,
         side="buy",
@@ -914,7 +917,9 @@ def test_stock_order_fixture_applies_filled_order_to_positions():
         limit_price=230,
     )
 
-    fixture.production.settle()
+    from types import SimpleNamespace
+    fixture.production.capture(SimpleNamespace(tool_calls=[], tool_results=[]))
+    assert fixture.production.orders_before_settlement[0]["status"] not in {"fill", "filled"}
     positions = [p for p in fixture.production.strategy.get_positions() if p.asset.symbol == "AAPL"]
     assert len(positions) == 1
     assert float(positions[0].quantity) == 43.0
@@ -1370,3 +1375,13 @@ class TestTargetPasses:
 
     def test_an_explicit_higher_repeat_still_wins(self):
         assert evals.target_passes(already=0, repeat=5) == 5
+
+
+def test_order_journal_contract_checks_broker_references():
+    case = {"machineContract": {"requireOrderDecisionJournal": True}}
+    transcript = {"fixture_calls": [], "submissions": [], "broker_orders": [{"identifier": "order-1"}]}
+    assert not evals.score_machine_contract(case, transcript)["pass"]
+    transcript["broker_orders"][0]["decision_journal"] = {
+        "action_id": "action-1", "decision_id": "decision-1", "reason_sha256": "a" * 64,
+    }
+    assert evals.score_machine_contract(case, transcript)["pass"]

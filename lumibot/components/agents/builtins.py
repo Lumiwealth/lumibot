@@ -740,6 +740,9 @@ def _order_to_dict(order: Any, *, include_legs: bool = True) -> dict[str, Any]:
         child_orders = getattr(order, "child_orders", None)
         if isinstance(child_orders, list) and child_orders:
             payload["legs"] = [_order_to_dict(child, include_legs=False) for child in child_orders]
+    journal = getattr(order, "decision_journal", None)
+    if isinstance(journal, dict):
+        payload["decision_journal"] = _jsonable(journal)
     decision_provenance = getattr(order, "decision_provenance", None)
     if isinstance(decision_provenance, dict):
         allowed_provenance = {
@@ -3162,20 +3165,21 @@ def _bind_open_orders(strategy: Any, manager: Any) -> BoundTool:
 
 
 def _bind_cancel_order(strategy: Any, manager: Any) -> BoundTool:
-    def cancel_order(*, identifier: str) -> dict[str, Any]:
+    def cancel_order(*, identifier: str, reason: str) -> dict[str, Any]:
+        from lumibot.components.memory.store import validate_order_reason
+        reason = validate_order_reason(reason, required=True)
         identifier = _require_non_empty_text("identifier", identifier)
         order = strategy.get_order(identifier)
         if order is None:
             raise ValueError(f"Unknown order identifier: {identifier}")
-        strategy.cancel_order(order)
-        return {"identifier": identifier, "status": getattr(order, "status", None) or "cancel_requested"}
+        strategy.cancel_order(order, reason=reason)
+        return {"identifier": identifier, "status": getattr(order, "status", None) or "cancel_requested", "decision_journal": getattr(order, "decision_journal", None)}
 
     return BoundTool(
         name="orders_cancel_order",
         description=(
             "Cancel an existing tracked order by identifier. "
-            "Arguments: identifier from orders_open_orders. "
-            "Example: orders_cancel_order(identifier='bt_1')."
+            "Arguments: identifier from orders_open_orders and required reason. Explain the cancellation, evidence and risks in at least 200 trimmed characters (usually 600-2,500; maximum 100,000). This is saved privately before execution."
         ),
         function=cancel_order,
         metadata={"kind": "builtin", "replay_on_cache": True},
@@ -3184,27 +3188,29 @@ def _bind_cancel_order(strategy: Any, manager: Any) -> BoundTool:
 
 def _bind_modify_order(strategy: Any, manager: Any) -> BoundTool:
     def modify_order(
-        *, identifier: str, limit_price: float | None = None, stop_price: float | None = None
+        *, identifier: str, reason: str, limit_price: float | None = None, stop_price: float | None = None
     ) -> dict[str, Any]:
+        from lumibot.components.memory.store import validate_order_reason
+        reason = validate_order_reason(reason, required=True)
         identifier = _require_non_empty_text("identifier", identifier)
         order = strategy.get_order(identifier)
         if order is None:
             raise ValueError(f"Unknown order identifier: {identifier}")
         if limit_price is None and stop_price is None:
             raise ValueError("orders_modify_order requires at least one of limit_price or stop_price.")
-        strategy.modify_order(order, limit_price=limit_price, stop_price=stop_price)
+        strategy.modify_order(order, limit_price=limit_price, stop_price=stop_price, reason=reason)
         return {
             "identifier": identifier,
             "limit_price": limit_price,
             "stop_price": stop_price,
+            "decision_journal": getattr(order, "decision_journal", None),
         }
 
     return BoundTool(
         name="orders_modify_order",
         description=(
             "Modify an existing tracked order. "
-            "Arguments: identifier, optional limit_price, optional stop_price. "
-            "Example: orders_modify_order(identifier='bt_7', limit_price=101.25)."
+            "Arguments: identifier, required reason, optional limit_price, optional stop_price. Explain the new evidence, price change and remaining risk in at least 200 trimmed characters (usually 600-2,500; maximum 100,000). The new explanation is linked to the prior action before execution."
         ),
         function=modify_order,
         metadata={"kind": "builtin", "replay_on_cache": True},
@@ -4210,6 +4216,7 @@ def _bind_submit_order(strategy: Any, manager: Any) -> BoundTool:
         symbol: str,
         quantity: float,
         side: OrderSideArg,
+        reason: str,
         asset_type: AssetTypeArg = "stock",
         expiration: str | None = None,
         strike: float | None = None,
@@ -4224,6 +4231,8 @@ def _bind_submit_order(strategy: Any, manager: Any) -> BoundTool:
         exchange: str | None = None,
         time_in_force: TimeInForceArg = "day",
     ) -> dict[str, Any]:
+        from lumibot.components.memory.store import validate_order_reason
+        reason = validate_order_reason(reason, required=True)
         symbol = _require_single_symbol_text("symbol", symbol)
         quantity = _require_positive_number("quantity", quantity)
         _require_agent_order_readiness(symbol)
@@ -4266,12 +4275,8 @@ def _bind_submit_order(strategy: Any, manager: Any) -> BoundTool:
         _validate_option_closing_orders(strategy, [created])
         memory = getattr(strategy, "memory", None)
         memory_context = _agent_memory_context_kwargs()
-        decision_provenance = None
-        if memory is not None and hasattr(memory, "decision_provenance"):
-            decision_provenance = memory.decision_provenance(**memory_context)
-            setattr(created, "decision_provenance", decision_provenance)
         try:
-            submitted = strategy.submit_order(created)
+            submitted = strategy.submit_order(created, reason=reason)
         except Exception as exc:
             return {
                 "ok": False,
@@ -4283,8 +4288,7 @@ def _bind_submit_order(strategy: Any, manager: Any) -> BoundTool:
                     retryable=isinstance(exc, (TimeoutError, ConnectionError)),
                 ),
             }
-        if decision_provenance is not None and not hasattr(submitted, "decision_provenance"):
-            setattr(submitted, "decision_provenance", decision_provenance)
+        decision_provenance = getattr(submitted, "decision_provenance", None)
         order_payload = _order_to_dict(submitted)
         if memory is not None and hasattr(memory, "record_order_submitted"):
             try:
@@ -4318,7 +4322,8 @@ def _bind_submit_order(strategy: Any, manager: Any) -> BoundTool:
         name="orders_submit_order",
         description=(
             "Create and submit a LumiBot order. "
-            "Arguments: symbol, quantity, side, optional asset_type, expiration, strike, right, order_type, limit_price, stop_price, stop_limit_price, trail_price, trail_percent, quote_symbol, exchange, time_in_force. "
+            "Arguments: symbol, quantity, side, required reason, optional asset_type, expiration, strike, right, order_type, limit_price, stop_price, stop_limit_price, trail_price, trail_percent, quote_symbol, exchange, time_in_force. "
+            "Explain the action, evidence, sizing, risks and invalidation in at least 200 trimmed characters (usually 600-2,500; maximum 100,000). This explicit explanation is saved privately before execution; exclude hidden thinking, secrets and credentials. "
             "Valid asset_type values: stock, option, future, cont_future, forex, crypto, index, multileg, us_equity. "
             "Use stock for normal equities. "
             "Before using this tool, inspect the injected account_snapshot plus market_last_price (or market_last_prices including the symbol). A complete injected account_snapshot satisfies the initial account_portfolio, account_positions, and open-order readiness checks; after any order mutation, refresh account_portfolio and complete unfiltered pagination for both account_positions and orders_open_orders before another order. The current-price check is always required in the same agent run; otherwise the order is rejected with ORDER_READINESS_REQUIRED. "
@@ -4330,7 +4335,7 @@ def _bind_submit_order(strategy: Any, manager: Any) -> BoundTool:
             "Caveats: limit orders require limit_price; stop and stop_limit orders require stop_price; trailing_stop requires trail_price or trail_percent; smart_limit uses LumiBot's built-in smart-limit behavior. "
             "A limit exactly at the last price fills only if the next price reaches it. At the session open the last price can still be the prior close. "
             "When the order must fill this session, use order_type='market' or a buy limit slightly above (sell limit slightly below) the current price. "
-            "Example: orders_submit_order(symbol='SPY', quantity=100, side='buy', asset_type='stock', order_type='market')."
+            "Example: orders_submit_order(symbol='SPY', quantity=100, side='buy', asset_type='stock', order_type='market', reason='<explain evidence, sizing, risks and invalidation in at least 200 characters>')."
         ),
         function=submit_order,
         metadata={"kind": "builtin", "replay_on_cache": True},
@@ -4341,11 +4346,14 @@ def _bind_submit_multileg_order(strategy: Any, manager: Any) -> BoundTool:
     def submit_multileg(
         *,
         legs_json: str,
+        reason: str,
         price_style: MultilegPriceStyleArg = "mid",
         net_limit_price: float | None = None,
         time_in_force: TimeInForceArg = "day",
         action: MultilegActionArg = "as_given",
     ) -> dict[str, Any]:
+        from lumibot.components.memory.store import validate_order_reason
+        reason = validate_order_reason(reason, required=True)
         if action == "close":
             orders = _parse_closing_option_legs(strategy, legs_json, time_in_force=time_in_force)
         else:
@@ -4384,7 +4392,7 @@ def _bind_submit_multileg_order(strategy: Any, manager: Any) -> BoundTool:
             )
             submit_kwargs["price"] = abs(resolved_net_price)
 
-        submitted = strategy.submit_order(orders, **submit_kwargs)
+        submitted = strategy.submit_order(orders, reason=reason, **submit_kwargs)
         submitted_orders = submitted if isinstance(submitted, list) else [submitted]
         return {
             "submitted": [_order_to_dict(order) for order in submitted_orders if order is not None],
@@ -4401,7 +4409,8 @@ def _bind_submit_multileg_order(strategy: Any, manager: Any) -> BoundTool:
         name="orders_submit_multileg",
         description=(
             "Create and submit one atomic multi-leg option order from exact contracts selected by the agent. This is generic and does not choose a strategy or its legs. "
-            "Arguments: legs_json, optional price_style='market', 'best', 'mid', or 'fastest', optional signed net_limit_price, optional time_in_force. legs_json must be a JSON array with at least two legs; each leg requires symbol, expiration, strike, right, quantity, and side. "
+            "Arguments: legs_json, required reason, optional price_style='market', 'best', 'mid', or 'fastest', optional signed net_limit_price, optional time_in_force. legs_json must be a JSON array with at least two legs; each leg requires symbol, expiration, strike, right, quantity, and side. "
+            "Explain the package thesis, evidence, net pricing, sizing, risks and invalidation in at least 200 trimmed characters (usually 600-2,500; maximum 100,000). One private decision links all legs before execution. "
             "Before submitting in the same agent run, inspect the injected account_snapshot, market_last_price or market_last_prices for each underlying symbol, options_get_chain, and options_calculate_multileg_price after evaluating every exact leg. A complete injected account_snapshot satisfies the initial account_portfolio, account_positions, and open-order inspection; after any order mutation, refresh account_portfolio, account_positions, and orders_open_orders before another order. Market and option evidence are always required. "
             "Opening sides are buy_to_open and sell_to_open. Use matching quantities when the intended position requires matched contracts. "
             "To close held option contracts, always pass action='close' and list only symbol, expiration, strike, and right for each held leg, plus an optional quantity (default: the full held quantity). LumiBot derives each closing side from the current signed position (long -> sell_to_close, short -> buy_to_close), so never write closing sides yourself. Close mode rejects contracts with no open position and quantities above the held amount. "

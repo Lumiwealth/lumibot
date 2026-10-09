@@ -64,6 +64,13 @@ minute history for valuation.
 Daily Stocks/Indexes: Warmup + Corporate Actions
 ------------------------------------------------
 
+TWS daily bars use calendar-date labels encoded at UTC midnight. LumiBot preserves that session date
+before converting to New York and exposes the candle at the existing daily close. New stock/index
+daily cache filenames use ``_SESSION_DATE_V2.parquet`` to rebuild mixed legacy daily files from real
+provider data. Old files remain available to older package versions; intraday and futures cache keys
+are unchanged. Provider gaps still report partial history and are never filled with invented prices.
+
+
 For routed daily stock/index backtests, LumiBot prefetches the full computed lookback window so long
 lookbacks (for example 200-day SMA signals) are not under-warmed near the backtest start.
 

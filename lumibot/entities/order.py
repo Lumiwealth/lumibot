@@ -1460,6 +1460,11 @@ class Order:
         if self.smart_limit is not None:
             result["smart_limit"] = self.smart_limit.to_dict()
 
+        if isinstance(getattr(self, "decision_journal", None), dict):
+            result["decision_journal"] = dict(self.decision_journal)
+        if isinstance(getattr(self, "trade_decision_journal", None), dict):
+            result["trade_decision_journal"] = dict(self.trade_decision_journal)
+
         return result
 
     def to_dict(self):

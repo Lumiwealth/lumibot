@@ -68,6 +68,7 @@ class _ScriptedRuntime:
         quantity = int(float(portfolio["portfolio_value"]) * 0.95 / float(quote["price"]))
         _invoke_tool(
             request, events, "orders_submit_order",
+            reason='This synthetic backtest submits one unit after inspecting the fixture market history, existing positions and available cash. Exposure is deliberately limited to one unit; the setup is invalid if the observed market history or available buying power changes before execution.',
             symbol=research["ticker"], quantity=quantity, side="buy", asset_type="stock", order_type="market",
         )
         return AgentRunResult(summary="bought", model=request.model, events=events)

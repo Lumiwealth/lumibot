@@ -240,3 +240,35 @@ Review memory after a run when you want to answer:
 * What lesson did it write after the outcome?
 * Did the agent search prior memories before acting?
 * Did the agent retrieve memory before changing a held position?
+
+Order Decision Journal
+----------------------
+
+Every built-in order submission, modification and cancellation requires an
+explicit ``reason`` of at least 200 characters. Explain dated evidence, sizing,
+risks and invalidation. This is a decision summary, not hidden model reasoning.
+Aim for 600–2,500 characters; the hard limits are 100,000 Unicode characters and
+400 KiB of UTF-8. Optional JSON ``evidence`` and order snapshots share a 1 MiB
+intent limit. Invalid input fails before execution.
+
+Python strategies can use the same ``reason=`` and ``evidence=`` parameters.
+Existing deterministic Python strategies remain compatible. LumiBot commits
+``order.intent`` in SQLite before calling the broker. Full text stays in private
+memory artifacts; orders and fill logs carry compact decision/action references,
+previous action, model call, configured revision, timestamp and a SHA-256 hash.
+
+A broker timeout leaves an unknown outcome; reconcile it before retrying. A
+returned submission is not a confirmed fill. An outcome logging failure after
+acknowledgement does not turn the broker call into a failed trade. Journals are
+private; public sharing requires separate owner consent from the hosting service.
+
+Explicit Community Posting
+--------------------------
+
+Use ``from lumibot.components.community import CommunityClient`` and
+``CommunityClient(api_key=...).post(body)`` only with owner-authorized public
+posting and a dedicated Community-only key. Optional
+``marketplace_listing_id``, ``publication_id`` and ``verified_trade_source``
+request server verification of an owned trade. ``parent_post_id`` replies in a
+root thread. The finite-timeout client never retries an uncertain publication.
+Recording a private explanation does not enable public posting.

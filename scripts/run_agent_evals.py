@@ -94,6 +94,8 @@ def runtime_fingerprint() -> str:
         REPO_ROOT / "lumibot/components/agents/rules.py",
         REPO_ROOT / "lumibot/components/agents/skills.py",
         REPO_ROOT / "lumibot/components/agents/builtins.py",
+        REPO_ROOT / "lumibot/components/memory/store.py",
+        REPO_ROOT / "lumibot/entities/order.py",
         REPO_ROOT / "lumibot/components/agents/duckdb_tools.py",
         REPO_ROOT / "lumibot/components/agents/documents.py",
         REPO_ROOT / "lumibot/components/agents/web_tools.py",
@@ -488,6 +490,16 @@ def score_machine_contract(case: dict[str, Any], transcript: dict[str, Any]) -> 
     relevant = [submission for submission in submissions if submission.get("tool") == order_tool]
     if "exactOrderCount" in contract and len(relevant) != int(contract["exactOrderCount"]):
         failures.append(f"expected {contract['exactOrderCount']} {order_tool} submission(s), observed {len(relevant)}")
+    if contract.get("requireOrderDecisionJournal"):
+        journal_orders = transcript.get("broker_orders") or []
+        if not journal_orders or any(
+            not isinstance(order.get("decision_journal"), dict)
+            or not order["decision_journal"].get("action_id")
+            or not order["decision_journal"].get("decision_id")
+            or not order["decision_journal"].get("reason_sha256")
+            for order in journal_orders
+        ):
+            failures.append("broker orders lacked durable decision and action references")
     if relevant:
         order_index = sequence.index(order_tool) if order_tool in sequence else len(sequence)
         for required in contract.get("requiredBeforeOrder") or []:
@@ -754,6 +766,9 @@ def execute_repetition(
             "tool_calls": [{"name": event.tool_name, "payload": event.payload} for event in all_calls],
             "tool_results": [{"name": event.tool_name, "payload": event.payload} for event in all_results],
             "broker_orders": orders,
+            "broker_orders_timing": "Fixture settlement after the agent final answer; these later fills were not necessarily observed by the agent.",
+            "broker_orders_before_settlement": production.orders_before_settlement,
+            "positions_timing": "Fixture positions are settled after the final answer; use tool results for agent-observed positions.",
             "initial_runtime_context": initial_context,
             "initial_runtime_contexts": initial_contexts,
             "execution_outcome": (result.payload or {}).get("execution_outcome"),

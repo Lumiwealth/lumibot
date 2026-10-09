@@ -46,7 +46,7 @@ def test_managed_native_tool_chain_reaches_atomic_option_submission_and_simulate
         ("market_last_price", {"symbol": "QQQ"}),
         ("options_get_chain", {"symbol": "QQQ", "include_strikes": True}),
         ("options_calculate_multileg_price", {"legs_json": legs}),
-        ("orders_submit_multileg", {"legs_json": legs, "net_limit_price": -.5}),
+        ("orders_submit_multileg", {"reason": 'This synthetic backtest submits one unit after inspecting the fixture market history, existing positions and available cash. Exposure is deliberately limited to one unit; the setup is invalid if the observed market history or available buying power changes before execution.', "legs_json": legs, "net_limit_price": -.5}),
     ]
     requests = []
 

@@ -1745,3 +1745,66 @@ def test_ibkr_futures_minute_paging_continues_across_closed_weekends_and_holiday
     assert len(missing) == 0, f"{label}: {len(missing)} bars missing, first {missing[:3].tolist()}"
     # Closed pages are stepped without requests: about one request per 1000 open minutes.
     assert len(calls) <= len(vendor) // 900 + 8, f"{label}: {len(calls)} requests"
+
+
+@pytest.mark.parametrize("session_day", ["2010-06-29", "2026-01-05", "2026-11-02"])
+def test_ibkr_tws_stock_daily_preserves_provider_session_date(monkeypatch, session_day):
+    """TWS daily date labels are UTC midnight, not previous-evening US trades."""
+    from lumibot.tools import ibkr_helper as helper
+
+    session = pd.Timestamp(session_day, tz="America/New_York") + pd.Timedelta(hours=16)
+    raw_timestamp = int(pd.Timestamp(session_day, tz="UTC").timestamp() * 1000)
+    monkeypatch.setattr(helper, "_resolve_conid", lambda **_: 123)
+    monkeypatch.setattr(helper, "_ibkr_history_request", lambda **_: {
+        "data": [{"t": raw_timestamp, "o": 1, "h": 2, "l": 1, "c": 1.5, "v": 100}],
+        "_botspot_meta": {"provider": "ibkr", "backend": "tws", "classification": "complete", "cache_write_policy": "allow"},
+    })
+    frame = helper._fetch_history_between_dates(
+        asset=Asset("TSLA", asset_type="stock"), quote=Asset("USD", asset_type="forex"),
+        timestep="day", start_dt=session.to_pydatetime(), end_dt=(session + pd.Timedelta(hours=1)).to_pydatetime(),
+        exchange="SMART", include_after_hours=False, source="Trades", source_was_explicit=True,
+    )
+    aligned = helper._align_stock_index_daily_to_session_close(frame)
+    assert list(aligned.index) == [session]
+    assert aligned.iloc[0]["close"] == 1.5
+
+
+@pytest.mark.parametrize("metadata", [[], ["legacy"], "legacy metadata", {"provider": "other", "backend": "tws"}])
+def test_ibkr_daily_ignores_untrusted_backend_metadata(monkeypatch, metadata):
+    """Legacy or foreign metadata must neither crash decoding nor reinterpret dates."""
+    from lumibot.tools import ibkr_helper as helper
+
+    raw_time = pd.Timestamp("2026-07-02 01:00", tz="UTC")
+    expected = raw_time.tz_convert("America/New_York")
+    monkeypatch.setattr(helper, "_resolve_conid", lambda **_: 123)
+    monkeypatch.setattr(helper, "_ibkr_history_request", lambda **_: {
+        "data": [{"t": int(raw_time.timestamp() * 1000), "o": 1, "h": 2, "l": 1, "c": 1.5, "v": 100}],
+        "_botspot_meta": metadata,
+    })
+    frame = helper._fetch_history_between_dates(
+        asset=Asset("TSLA", asset_type="stock"), quote=Asset("USD", asset_type="forex"),
+        timestep="day", start_dt=expected.to_pydatetime(),
+        end_dt=(expected + pd.Timedelta(days=1)).to_pydatetime(),
+        exchange="SMART", include_after_hours=False, source="Trades", source_was_explicit=True,
+    )
+    assert list(frame.index) == [expected]
+    assert frame.iloc[0]["close"] == 1.5
+
+
+@pytest.mark.parametrize("asset_type,timestep,should_migrate", [
+    ("stock", "day", True), ("index", "day", True), ("stock", "minute", False),
+    ("stock", "hour", False), ("future", "day", False), ("crypto", "day", False),
+])
+def test_ibkr_daily_cache_session_date_migration_preserves_other_caches(monkeypatch, tmp_path, asset_type, timestep, should_migrate):
+    from lumibot.tools import ibkr_helper as helper
+
+    monkeypatch.setattr(helper, "LUMIBOT_CACHE_FOLDER", str(tmp_path))
+    asset = Asset("TEST", asset_type=asset_type)
+    path = helper._cache_file_for(asset=asset, quote=Asset("USD", asset_type="forex"), timestep=timestep,
+        exchange=None, source="Trades", include_after_hours=False)
+    folder = "future" if asset_type == "future" else asset_type
+    legacy = path.with_name(f"{folder}_TEST_USD_{timestep}_AUTO_TRADES_RTH.parquet")
+    legacy.parent.mkdir(parents=True, exist_ok=True)
+    legacy.write_bytes(b"preserved legacy cache")
+    assert (path != legacy) is should_migrate
+    assert legacy.read_bytes() == b"preserved legacy cache"

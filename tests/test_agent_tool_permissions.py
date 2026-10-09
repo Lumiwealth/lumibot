@@ -9,6 +9,10 @@ from lumibot.components.agents.manager import AgentModelCallLimitExceeded, _stru
 from lumibot.components.agents.schemas import BoundTool, ToolDefinition
 
 
+# Order explanations are now required; retain every existing readiness/risk assertion.
+ORDER_ACTION_REASON = 'After checking the current quote, account cash, positions and pending orders, take the requested action within the strategy risk budget. The evidence is limited to this fixture timestamp. Reconcile the broker response and remaining exposure before taking any further action.'
+
+
 class _Vars(dict):
     def get(self, key, default=None):
         return super().get(key, default)
@@ -61,7 +65,7 @@ class _OrderReadinessStrategy(_Strategy):
             stop_price=kwargs.get("stop_price"),
         )
 
-    def submit_order(self, order):
+    def submit_order(self, order, **kwargs):
         self.submitted_orders.append(order)
         return order
 
@@ -523,7 +527,9 @@ def test_order_submit_tool_records_memory_event(monkeypatch, tmp_path):
         def create_order(self, *args, **kwargs):
             return _Order()
 
-        def submit_order(self, order):
+        def submit_order(self, order, **kwargs):
+            # The Strategy execution boundary now supplies provenance.
+            order.decision_provenance = self.memory.decision_provenance(agent_name="trader", model_call_id="call-order-1")
             return order
 
     strategy = _OrderStrategy()
@@ -544,7 +550,7 @@ def test_order_submit_tool_records_memory_event(monkeypatch, tmp_path):
 
     tool = _bind_submit_order(strategy, manager=None)
     wrapped = _wrap_tool_callable(tool, {"agent_name": "trader", "model_call_id": "call-order-1"})
-    result = wrapped(symbol="TQQQ", quantity=10, side="buy")
+    result = wrapped(symbol="TQQQ", quantity=10, side="buy", reason=ORDER_ACTION_REASON)
 
     assert result["order"]["identifier"] == "order-123"
     assert result["order"]["decision_provenance"] == {
@@ -584,7 +590,7 @@ def test_order_submit_timeout_reports_unknown_broker_state(monkeypatch):
         def create_order(self, *args, **kwargs):
             return _Order()
 
-        def submit_order(self, order):
+        def submit_order(self, order, **kwargs):
             raise TimeoutError("broker response timed out")
 
     strategy = _TimeoutStrategy()
@@ -593,7 +599,7 @@ def test_order_submit_timeout_reports_unknown_broker_state(monkeypatch):
         lambda *args, **kwargs: (_Asset(), None),
     )
 
-    result = _wrap_tool_callable(_bind_submit_order(strategy, manager=None))(symbol="TQQQ", quantity=10, side="buy")
+    result = _wrap_tool_callable(_bind_submit_order(strategy, manager=None))(symbol="TQQQ", quantity=10, side="buy", reason=ORDER_ACTION_REASON)
 
     assert result["tool_error"] is True
     assert result["execution_outcome"] == {
@@ -793,7 +799,7 @@ def test_agent_order_tool_rejects_when_account_context_was_not_checked():
         ],
     )
 
-    result = tool_map["orders_submit_order"](
+    result = tool_map["orders_submit_order"](reason=ORDER_ACTION_REASON,
         symbol="SPY",
         quantity=1,
         side="buy",
@@ -827,7 +833,7 @@ def test_agent_order_tool_submits_after_account_context_was_checked():
     tool_map["account_positions"]()
     tool_map["orders_open_orders"]()
     tool_map["market_last_price"](symbol="SPY", asset_type="stock")
-    result = tool_map["orders_submit_order"](
+    result = tool_map["orders_submit_order"](reason=ORDER_ACTION_REASON,
         symbol="SPY",
         quantity=1,
         side="buy",
@@ -857,7 +863,7 @@ def test_agent_order_tool_accepts_complete_injected_account_snapshot_for_first_o
     )
 
     tool_map["market_last_price"](symbol="SPY", asset_type="stock")
-    result = tool_map["orders_submit_order"](
+    result = tool_map["orders_submit_order"](reason=ORDER_ACTION_REASON,
         symbol="SPY",
         quantity=1,
         side="buy",
@@ -889,14 +895,14 @@ def test_successful_order_invalidates_injected_snapshot_until_account_is_refresh
     )
 
     tool_map["market_last_price"](symbol="SPY", asset_type="stock")
-    first = tool_map["orders_submit_order"](
+    first = tool_map["orders_submit_order"](reason=ORDER_ACTION_REASON,
         symbol="SPY",
         quantity=1,
         side="buy",
         asset_type="stock",
         order_type="market",
     )
-    second = tool_map["orders_submit_order"](
+    second = tool_map["orders_submit_order"](reason=ORDER_ACTION_REASON,
         symbol="SPY",
         quantity=1,
         side="buy",
@@ -912,7 +918,7 @@ def test_successful_order_invalidates_injected_snapshot_until_account_is_refresh
     tool_map["account_portfolio"]()
     tool_map["account_positions"]()
     tool_map["orders_open_orders"]()
-    third = tool_map["orders_submit_order"](
+    third = tool_map["orders_submit_order"](reason=ORDER_ACTION_REASON,
         symbol="SPY",
         quantity=1,
         side="buy",
@@ -939,7 +945,7 @@ def test_agent_order_tool_requires_last_price_for_ordered_symbol():
     tool_map["account_portfolio"]()
     tool_map["account_positions"]()
     tool_map["market_last_price"](symbol="QQQ", asset_type="stock")
-    result = tool_map["orders_submit_order"](
+    result = tool_map["orders_submit_order"](reason=ORDER_ACTION_REASON,
         symbol="SPY",
         quantity=1,
         side="buy",
@@ -982,7 +988,7 @@ def test_order_submit_rejects_comma_separated_symbols():
 
     tool_map["account_portfolio"]()
     tool_map["account_positions"]()
-    result = tool_map["orders_submit_order"](
+    result = tool_map["orders_submit_order"](reason=ORDER_ACTION_REASON,
         symbol="TQQQ,SQQQ",
         quantity=1,
         side="buy",

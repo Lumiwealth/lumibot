@@ -99,3 +99,13 @@ Load only the smallest relevant reference:
 The user's active strategy rules decide whether a trade should happen. This skill
 explains options mechanics and safe evidence use. It must not invent a strategy,
 override user rules, or force a trade.
+
+## Explain consequential order actions
+
+Supply an explicit `reason` before every submission, modification or cancellation.
+Use at least 200 characters; aim for 600–2,500 when the decision needs it. Explain
+the thesis, dated evidence, sizing, material risks and what would invalidate it.
+State missing evidence honestly. This is a decision summary, not hidden internal
+reasoning, and must contain no credentials or account identifiers. The order
+service commits it before execution. Report only observed order status and fills;
+reconcile an uncertain outcome before trying again.

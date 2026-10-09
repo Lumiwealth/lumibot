@@ -1,0 +1,21 @@
+{
+  "timestamp": "2026-10-09T10:38:23.684770Z",
+  "runtime_fingerprint": "75c2ad83be35b1cd164094f73120bc38be421f2ee3bcf773a2dde698914fa426",
+  "pass_count": 0,
+  "fail_count": 3,
+  "error_count": 0,
+  "usage": {
+    "cached_input_tokens": 378253,
+    "input_tokens": 428239,
+    "output_tokens": 7109,
+    "thinking_tokens": 4348,
+    "total_tokens": 439696,
+    "uncached_input_tokens": 49986
+  },
+  "cumulative_estimated_cost_usd": 0.01451,
+  "wall_time_seconds": 56.955,
+  "case_id": "stock_order_decision_journal",
+  "pre_fix_commit": "6aed77279fcffd112728d0b9a358736c025afb68",
+  "observed_failure": "All three real-model runs submitted broker orders without durable decision/action references.",
+  "external_writes": "isolated fixture only"
+}

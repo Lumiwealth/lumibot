@@ -6,12 +6,12 @@ The daily aggregator included both ends of its session window. Intraday timestam
 
 Two regressions failed with a distinctive next-session price contaminating the prior candle. They verify the corrected close, high and volume and preserve that bar as the following session's legitimate open. All 197 affected IBKR unit tests pass. Exact deployed-package readback must additionally compare the resulting daily prices with the actual prior-session intraday prices.
 
-## Publication gate recovery
+## Pruned-result regression coverage
 
-Tag v4.6.10 passed its unit and backtest gates but did not publish: its option credit-spread close case failed three machine checks while the model judge and actual broker orders showed correct closing sides and quantities. Long private order journals caused the model-visible tool result to be pruned. The harness then scored side-less close arguments instead of the legs LumiBot had actually built.
+Long journal entries can prune model-visible tool results. Qualification recovers a pruned closing result only from the unique actual broker parent whose reason hash matches the accepted tool call. Missing, unrelated or ambiguous records are rejected. Unpruned results retain their existing path; expiration accepts the actual order schema's `exp` field.
 
-The harness now recovers a pruned result only from the unique broker parent whose private journal reason hash matches the exact accepted tool call. Missing, unrelated or ambiguous records are not inferred. Normal unpruned results retain their existing path; expiration accepts the actual order schema's `exp` field. A regression executes the real built-in closing tool and verifies both successful recovery and rejection of an unrelated decision. All 114 tests in the futures daily and complete eval-harness, call-budget, pacing and isolation groups pass. The preserved failed tag remains an audit record; the normal version/4.6.11 release carries these repairs and all inherited 4.6.10 changes forward.
+A regression executes the real built-in closing tool and verifies both successful recovery and rejection of an unrelated decision. All 114 tests in the futures daily and complete eval-harness, call-budget, pacing and isolation groups pass. Signed quantities, exact order count and flat-position checks remain unchanged.
 
-The normal model judge, signed-quantity checks, exact order count and flat-position checks remain release blockers. No agent prompt or strategy API change is needed. No diagram is needed for the two session comparisons or the bounded test-evidence recovery.
+No agent prompt or strategy API change is needed. No diagram is needed for the two session comparisons or the bounded test-evidence recovery.
 
 Primary references: [CME gold contract hours](https://www.cmegroup.com/trading/metals/files/fact-card-gold-futures-options.pdf) and [IBKR historical bar documentation](https://ibkrcampus.com/docs/web-api/v1/endpoints/market-data/historical-market-data).

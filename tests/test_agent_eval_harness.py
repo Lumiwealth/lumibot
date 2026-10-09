@@ -1128,6 +1128,40 @@ def test_close_mode_submission_is_scored_from_the_legs_lumibot_built():
     assert {leg["right"] for leg in legs} == {"put"}
 
 
+@pytest.mark.parametrize("journal_matches", [True, False])
+def test_pruned_close_result_uses_only_its_actual_journal_linked_broker_legs(journal_matches):
+    """Release 37951756643 lost resolved sides when a long journal pruned the result."""
+    from types import SimpleNamespace
+
+    from lumibot.components.agents import AgentTraceEvent
+    from scripts.agent_eval_production_fixture import ProductionFixture
+
+    production = ProductionFixture(evals.build_fixture("open_credit_spread"))
+    contracts = [
+        {"symbol": "SPY", "expiration": "2026-08-28", "strike": 594, "right": "put"},
+        {"symbol": "SPY", "expiration": "2026-08-28", "strike": 592, "right": "put"},
+    ]
+    reason = "Close the observed three short 594 puts and three long 592 puts as one package. Eliminate the existing spread exposure and verify both fills and flat positions before claiming completion. Use the confirmed signed holdings; do not reopen exposure or repeat an uncertain broker submission."
+    try:
+        submit = next(tool for tool in production.tools() if tool.name == "orders_submit_multileg")
+        submit.function(action="close", legs_json=json.dumps(contracts), reason=reason)
+        call = AgentTraceEvent(kind="tool_call", tool_name="orders_submit_multileg", call_id="close",
+            payload={"action": "close", "legs_json": json.dumps(contracts), "reason": reason if journal_matches else "another decision"})
+        result = AgentTraceEvent(kind="tool_result", tool_name="orders_submit_multileg", call_id="close",
+            payload={"lumibot_tool_result_pruned": True, "excerpt": "truncated journal and order response"})
+        production.capture(SimpleNamespace(tool_calls=[call], tool_results=[result]))
+        legs = production.fixture.submissions[0]["legs"]
+        if journal_matches:
+            assert {(leg["strike"], leg["side"], leg["quantity"]) for leg in legs} == {
+                (594., "buy_to_close", 3.), (592., "sell_to_close", 3.),
+            }
+            assert {leg["expiration"] for leg in legs} == {"2026-08-28"}
+        else:
+            assert all("side" not in leg for leg in legs)
+    finally:
+        production.close()
+
+
 def test_harness_error_rows_name_where_the_error_happened_without_its_message():
     def fail():
         return {}["secret-looking-key"]

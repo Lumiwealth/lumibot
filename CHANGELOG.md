@@ -1,6 +1,10 @@
 # Changelog
 
-## 4.6.11 - Unreleased
+## 4.6.11 - 2026-10-09
+
+- IBKR futures daily candles exclude the first intraday bar of the next session. Previously the inclusive closing boundary could change the completed day's OHLC and volume using the next session's first hour. Hourly aggregation and minute fallback now use the same exclusive close boundary.
+- Release qualification recovers pruned option-close results only from the unique actual broker parent linked to the decision journal. It retains resolved sides, quantities and expiration without weakening order or model-judge checks.
+- Includes the stock/index daily date and cache migration, private order-decision journals and explicit Community client described under 4.6.10. That tag's publication gate failed before any PyPI publication or downstream rollout; 4.6.11 carries the complete reviewed source forward.
 
 ## 4.6.10 - 2026-10-09
 

@@ -2,6 +2,8 @@
 
 ## 4.6.14 - 2026-10-09
 
+Deploy marker: `77722ef91750a415ba1ea47fcb783b288c7fc116`.
+
 - Carry forward the unpublished 4.6.13 delayed-futures boundary and shared provenance/date-cutoff corrections.
 - Require the existing general option-structure reference and verified opening-leg topology before package pricing. A real release-gate failure reversed one credit spread and incorrectly treated the resulting near-zero package as unavailable market evidence; the unchanged execution case and judge remain production blockers. Closing-side derivation and no-trade safety remain intact.
 

@@ -156,6 +156,7 @@ class CommitteeToolRuntime:
             request,
             events,
             "orders_submit_order",
+            reason='This synthetic backtest submits one unit after inspecting the fixture market history, existing positions and available cash. Exposure is deliberately limited to one unit; the setup is invalid if the observed market history or available buying power changes before execution.',
             symbol=symbol,
             quantity=1,
             side="buy",

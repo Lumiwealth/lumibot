@@ -30,7 +30,7 @@ def test_canonical_two_agent_example_hands_off_and_executes_in_real_engine(monke
             for tool in ("account_portfolio", "account_positions", "orders_open_orders"):
                 _invoke_tool(request, events, tool)
             _invoke_tool(request, events, "market_last_price", symbol="AGST", asset_type="stock")
-            _invoke_tool(request, events, "orders_submit_order", symbol="AGST", quantity=1,
+            _invoke_tool(request, events, "orders_submit_order", reason='This synthetic backtest submits one unit after inspecting the fixture market history, existing positions and available cash. Exposure is deliberately limited to one unit; the setup is invalid if the observed market history or available buying power changes before execution.', symbol="AGST", quantity=1,
                          side="buy", asset_type="stock", order_type="market")
             return AgentRunResult(summary="Submitted one fixture intent; fill checked by engine assertion.",
                                   model=request.model, events=events)

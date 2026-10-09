@@ -1894,6 +1894,8 @@ class Strategy(_Strategy):
         if preserve_existing and getattr(order, "decision_journal", {}).get("action_id") == reference["action_id"]:
             return
         order.decision_journal = dict(reference)
+        if reference.get("operation") in {"submit", "modify"}:
+            order.trade_decision_journal = dict(reference)
         order.decision_provenance = {key: reference.get(key) for key in ("deployment_id", "run_id", "decision_id", "model_call_id")}
         for child in getattr(order, "child_orders", None) or []:
             Strategy._attach_order_journal(child, reference)

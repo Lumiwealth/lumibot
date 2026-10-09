@@ -1462,6 +1462,8 @@ class Order:
 
         if isinstance(getattr(self, "decision_journal", None), dict):
             result["decision_journal"] = dict(self.decision_journal)
+        if isinstance(getattr(self, "trade_decision_journal", None), dict):
+            result["trade_decision_journal"] = dict(self.trade_decision_journal)
 
         return result
 

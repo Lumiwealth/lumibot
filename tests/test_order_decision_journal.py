@@ -65,6 +65,9 @@ def test_intent_is_committed_before_broker_and_modifications_keep_history(tmp_pa
     assert second["previous_action_id"] == first["action_id"]
     assert second["decision_id"] == first["decision_id"]
     assert order.decision_journal["previous_action_id"] == second["action_id"]
+    assert order.trade_decision_journal == second
+    assert order.trade_decision_journal["operation"] == "modify"
+    assert Order.from_dict(order.to_dict()).trade_decision_journal == second
     assert Order.from_dict(order.to_dict()).decision_journal == order.decision_journal
     with sqlite3.connect(strategy.memory.db_path) as conn:
         rows = conn.execute("SELECT text FROM memory_events WHERE event_type = 'order.intent' ORDER BY sequence").fetchall()

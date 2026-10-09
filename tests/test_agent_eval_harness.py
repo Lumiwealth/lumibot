@@ -430,13 +430,14 @@ def test_release_publish_is_blocked_by_real_model_agent_evals():
     assert "OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}" in standalone
 
 
-def test_paid_eval_workflows_cap_each_run_at_two_dollars():
+def test_paid_eval_workflows_enforce_their_declared_spending_caps():
     repo_root = Path(__file__).resolve().parents[1]
     standalone = (repo_root / ".github/workflows/agent-evals.yml").read_text(encoding="utf-8")
     release = (repo_root / ".github/workflows/release.yml").read_text(encoding="utf-8")
 
     assert 'default: "2"' in standalone
-    assert "--max-cost-usd 2" in release
+    # Match the complete argument: a substring would also accept a higher cap such as 1.5.
+    assert any(line.strip() == "--max-cost-usd 1 " + chr(92) for line in release.splitlines())
     assert "--max-cost-usd 10" not in release
 
 

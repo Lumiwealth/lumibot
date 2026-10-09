@@ -422,6 +422,12 @@ The built-in research tools are designed around backtest/live parity:
 - FRED backtests use vintage observations when ``FRED_API_KEY`` is available
 - news tools use the strategy datetime as the cutoff
 
+Evidence packets retain each returned dataset ID beside its source, dates and
+query window. Attribute an aggregate to a tool only after the tool returns
+that aggregate; rows of individual prices are not a calculated average. When
+selecting document links in a backtest, filter by publication date before
+sorting or limiting the rows, then inspect the date before opening each link.
+
 .. image:: ../docs/assets/readme/lumibot_point_in_time_tools.png
    :alt: Lumibot point-in-time research tools
 

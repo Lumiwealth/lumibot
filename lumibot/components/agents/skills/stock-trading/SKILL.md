@@ -17,7 +17,9 @@ broad mandate leads you to a stock idea, load it before submitting an order.
    `market_load_history_table` does not replace it before a stock order.
    Compute averages and indicators with a tool (`get_indicator`, `get_indicators`,
    or `duckdb_query` over loaded bars), never by mental arithmetic, and quote
-   the tool's value.
+   the tool's value. A query returning individual closes has not computed their
+   average. Request the aggregate or indicator and inspect its returned value
+   before using it in a decision or describing it as tool-calculated.
    For lookback rules, select the requested count of the latest completed bars
    and match the reported indicator and date window to that tool result. Do not
    discard an already-completed bar again or substitute an earlier indicator row.

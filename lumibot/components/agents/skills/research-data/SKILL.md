@@ -21,8 +21,10 @@ broker accounts, live prices, premium news, trading actions, or private user dat
    evidence, you MUST call `query_data` for at least one relevant macro dataset
    before finishing, as well as retrieving the SEC evidence. One category is not
    a substitute for the other.
-3. Record the dataset id, source, attribution, effective or release date, and the
-   query's time bound in the evidence packet.
+3. In the final evidence packet, pair each returned dataset id with its source,
+   attribution, effective or release date, and query time bound. A provider name
+   alone cannot identify the queried dataset; retain the id even when the returned
+   observations are stale or insufficient. Do not leave it only in the tool call.
 4. During a backtest, treat the simulated datetime as a hard wall. Always pass an
    end date or `asOf` no later than that wall. Reject or ignore later observations,
    revised data that was not then available, and documents filed later.

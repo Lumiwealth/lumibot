@@ -1,6 +1,10 @@
 # Changelog
 
-## 4.6.13 - Unreleased
+## 4.6.13 - 2026-10-09
+
+- Carry forward the unpublished 4.6.12 fix for explicit/continuous futures intraday history: clamp current windows and pager overlap to the stable 20-minute boundary, and report wholly unavailable recent windows as partial without caching absence.
+- Strengthen existing shared agent skills after three real release-gate failures: retain returned dataset IDs in final evidence packets, require an actual tool-computed aggregate before attributing a calculation to a tool, and select date-eligible filing links before opening them in a backtest. Existing cases and judge rubrics remain unchanged; preserved failure receipts are in `agent_eval_baselines/2026-10-09_release-4612-provenance-and-cutoff-failures.json`.
+- Reduce the publication eval spending cap to $1.00 while preserving every case, repetition, production blocker and resumable ledger. Standalone targeted validation retains its explicit per-run cap.
 
 ## 4.6.12 - 2026-10-09
 

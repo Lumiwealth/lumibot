@@ -39,9 +39,18 @@ submitting an option order.
    Never relax the user's limits to find a trade.
 5. Verify every selected contract individually. Candidate-selection helpers narrow
    the search but do not prove the exact contract's Greeks or quote quality.
-6. Evaluate every leg. For every multi-leg order, explicitly call
-   `options_calculate_multileg_price` after evaluating the exact legs and before
-   submission, even when the submit tool can calculate a price automatically.
+6. Before constructing an opening multi-leg payload, read
+   `references/common-option-structures.md` and verify each buy/sell side,
+   strike ordering and ratio against the intended structure. For credit
+   verticals, sell the higher-strike put and buy the lower-strike put, or sell
+   the lower-strike call and buy the higher-strike call. Reversing one spread
+   changes the structure. Closing sides instead come from
+   current signed positions as described below. Evaluate every exact leg, then
+   explicitly call `options_calculate_multileg_price` before submission, even
+   when the submit tool can calculate a price automatically. An unexpected
+   near-zero price or wrong debit/credit sign is a reason to recheck leg topology
+   and returned quotes before concluding that market evidence is unavailable.
+   Preserve the requested structure and constraints; never force a trade.
 7. Submit related legs as one atomic multi-leg order. Never submit related legs
    independently, including entry, exit, adjustment, or cleanup. If atomic
    package submission is unavailable, make a no-trade decision and report that

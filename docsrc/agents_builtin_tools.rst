@@ -428,6 +428,11 @@ that aggregate; rows of individual prices are not a calculated average. When
 selecting document links in a backtest, filter by publication date before
 sorting or limiting the rows, then inspect the date before opening each link.
 
+For opening option packages, verify the standard leg topology before pricing.
+A reversed spread changes the structure; recheck buy/sell sides and strikes
+when the calculated debit or credit contradicts the intended package. Closing
+sides continue to come from actual signed positions.
+
 .. image:: ../docs/assets/readme/lumibot_point_in_time_tools.png
    :alt: Lumibot point-in-time research tools
 

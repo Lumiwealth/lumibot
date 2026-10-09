@@ -416,12 +416,17 @@ def _resolve_futures_exchange(symbol: str) -> str:
     return exchange
 
 
-def _us_futures_closed_interval(start_local: datetime, end_local: datetime) -> bool:
+def _us_futures_closed_interval(
+    start_local: datetime, end_local: datetime, *, bar_step: Optional[timedelta] = None
+) -> bool:
     """Return True if US futures are fully closed in [start_local, end_local).
 
     This is a deliberately simple rule-based calendar used to avoid repeated downloader fetches
     for known closed windows (daily maintenance + weekends). It is not intended to encode every
     CME holiday/early-close rule; those can still produce longer gaps that require vendor data.
+    Intraday cache edges may supply a cadence: only aligned bar starts at or after
+    the requested boundary can be returned. A Friday boundary inside the final
+    bar must not repeatedly fetch that earlier bar across the weekend.
     """
     try:
         start_ts = pd.Timestamp(start_local)
@@ -432,6 +437,8 @@ def _us_futures_closed_interval(start_local: datetime, end_local: datetime) -> b
             end_ts = end_ts.tz_localize(LUMIBOT_DEFAULT_PYTZ)
         start_ts = start_ts.tz_convert("America/New_York")
         end_ts = end_ts.tz_convert("America/New_York")
+        if bar_step is not None and timedelta(0) < bar_step < timedelta(days=1):
+            start_ts = start_ts.ceil(pd.Timedelta(bar_step))
         if end_ts <= start_ts:
             return True
     except Exception:
@@ -1167,13 +1174,13 @@ def get_price_data(
         asset_type in {"future", "cont_future"}
         and window_cov_start is not None
         and start_local < window_cov_start
-        and _us_futures_closed_interval(start_local, window_cov_start)
+        and _us_futures_closed_interval(start_local, window_cov_start, bar_step=bar_step)
     )
     cache_start_gap_closed = (
         asset_type in {"future", "cont_future"}
         and coverage_start is not None
         and start_local < coverage_start
-        and _us_futures_closed_interval(start_local, coverage_start)
+        and _us_futures_closed_interval(start_local, coverage_start, bar_step=bar_step)
     )
     window_end_gap_closed = (
         asset_type in {"future", "cont_future"}

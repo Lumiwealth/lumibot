@@ -8,6 +8,48 @@ import pytest
 from lumibot.entities import Asset
 
 
+def test_futures_daily_reads_only_requested_completed_sessions(monkeypatch):
+    import pandas_market_calendars as mcal
+    import lumibot.tools.ibkr_helper as helper
+
+    schedule = mcal.get_calendar("us_futures").schedule(start_date="2026-10-02", end_date="2026-10-08")
+    first, last = schedule.iloc[0], schedule.iloc[-1]
+    start = first.market_open + pd.Timedelta(hours=2)
+    end = last.market_close + pd.Timedelta(hours=1)
+    calls = []
+    index = pd.date_range(first.market_open, last.market_close, freq="1h")
+    hourly = pd.DataFrame({"open": 100., "high": 101., "low": 99., "close": 100.5, "volume": 1}, index=index)
+
+    def cached(**kwargs):
+        calls.append(kwargs)
+        assert kwargs["start_dt"] == first.market_open.to_pydatetime()
+        assert kwargs["end_dt"] == last.market_close.to_pydatetime()
+        return hourly
+
+    monkeypatch.setattr(helper, "_get_cached_bars_for_source", cached)
+    monkeypatch.setattr(helper, "_ibkr_history_now_utc", lambda: end.to_pydatetime())
+    result = helper._get_futures_daily_bars(
+        asset=Asset("MES", asset_type="future", expiration=date(2026, 12, 18)),
+        quote=None, start_dt=start.to_pydatetime(), end_dt=end.to_pydatetime(),
+        exchange="CME", include_after_hours=True, source="Trades",
+    )
+    assert len(calls) == 1
+    assert result.index.tz_convert("UTC").equals(pd.DatetimeIndex(schedule.market_close))
+
+
+def test_futures_daily_does_not_fetch_when_no_session_has_completed(monkeypatch):
+    import lumibot.tools.ibkr_helper as helper
+
+    monkeypatch.setattr(helper, "_get_cached_bars_for_source", lambda **kwargs: pytest.fail("no completed session requested"))
+    result = helper._get_futures_daily_bars(
+        asset=Asset("MES", asset_type="future", expiration=date(2026, 12, 18)),
+        quote=None, start_dt=datetime(2026, 10, 8, 12, tzinfo=timezone.utc),
+        end_dt=datetime(2026, 10, 8, 16, tzinfo=timezone.utc), exchange="CME",
+        include_after_hours=True, source="Trades",
+    )
+    assert result.empty
+
+
 @pytest.mark.parametrize("provider_empty", [False, True])
 def test_futures_daily_health_exposes_missing_completed_sessions(monkeypatch, provider_empty):
     import pandas_market_calendars as mcal

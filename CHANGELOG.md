@@ -1,5 +1,7 @@
 # Changelog
 
+## 4.6.16 - Unreleased
+
 ## 4.6.15 - 2026-10-09
 
 - Reinforce publication-date selection before opening historical documents and explain existing pending-order coverage in the final decision.

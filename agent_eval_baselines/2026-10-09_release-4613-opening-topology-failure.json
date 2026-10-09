@@ -1,0 +1,44 @@
+{
+  "baseline": "Exact preserved failing production-blocking release gate before opening-topology guidance repair",
+  "source_sha": "f102d5a70200b11e56f8e9f0d10677954e55cf78",
+  "run_url": "https://github.com/Lumiwealth/lumibot/actions/runs/37984896059",
+  "original_ledger_sha256": "309d81c4234f2c7ef6b3976cb24d36d5f5286054b29fec8f4a562cae6e860b9f",
+  "customer_state": "synthetic fixture only; zero real external writes",
+  "case_id": "options_iron_condor_limit_between_bid_ask",
+  "repetition": 1,
+  "run_id": "15336021-043b-4348-9191-3a7a037b012a",
+  "judge": {
+    "pass": false,
+    "reason": "The agent loaded the options skill and verified four contracts from one expiration, but submitted no package; no-trade fails the rubric."
+  },
+  "machine": {
+    "failures": [
+      "execution case produced no broker-simulated fill",
+      "expected 1 orders_submit_multileg submission(s), observed 0"
+    ],
+    "pass": false,
+    "tool_sequence": [
+      "load_skill",
+      "account_portfolio",
+      "account_positions",
+      "orders_open_orders",
+      "market_last_price",
+      "market_historical_prices",
+      "options_get_chain",
+      "options_get_strikes",
+      "options_get_strikes",
+      "options_find_strike_for_delta",
+      "options_find_strike_for_delta",
+      "options_get_greeks",
+      "options_get_greeks",
+      "options_get_greeks",
+      "options_get_greeks",
+      "options_evaluate_market",
+      "options_evaluate_market",
+      "options_evaluate_market",
+      "options_evaluate_market",
+      "options_calculate_multileg_price"
+    ]
+  },
+  "diagnosis": "The opening payload bought the higher-strike put and sold the lower-strike put, reversing the credit put vertical. Valid leg quotes then produced an approximately zero-credit mixed package. The standard credit condor topology is already documented in the general reference."
+}

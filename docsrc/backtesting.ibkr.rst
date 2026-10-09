@@ -51,6 +51,13 @@ Supported Data
 - **Spot crypto**: IBKR crypto bars (availability depends on region and IBKR product support).
 - **Stocks / Indexes (day bars)**: supported in routed backtests (for example mixed Theta+IBKR routing).
 
+Stock, index and futures intraday historical requests stop 20 minutes before
+current time. Explicit and continuous futures use the same stable boundary,
+including the pager's overlap offset. A window wholly inside that unavailable
+interval returns empty bars with partial history health; unavailable prices
+are never cached as confirmed absence. Daily bars, older historical windows
+and real-time snapshot APIs retain their separate behavior.
+
 Portfolio Valuation (Stocks/Indexes)
 ------------------------------------
 
@@ -96,7 +103,7 @@ IBKR returns at most about 1,000 bars per request, so LumiBot walks backwards pa
   fund listed last year still gets its full daily history.
 - **A failed older page** keeps the newer real bars already downloaded; the missing older part is not faked and is
   retried by a later run.
-- **Delayed feed.** IBKR stock and index history can run about 15 minutes behind real time, so intraday requests
+- **Delayed feed.** IBKR stock, index and futures history can lag real time, so intraday requests
   stop 20 minutes before the current time. A backtest that ends today during market hours simply ends a little
   earlier.
 - **Daily windows** up to 993 days are one request sized to the window; longer windows use 5-year pages.

@@ -1877,3 +1877,47 @@ def test_ibkr_daily_cache_session_date_migration_preserves_other_caches(monkeypa
     legacy.write_bytes(b"preserved legacy cache")
     assert (path != legacy) is should_migrate
     assert legacy.read_bytes() == b"preserved legacy cache"
+
+
+@pytest.mark.parametrize("symbol", ["ES", "MES", "NQ", "MNQ", "GC", "MGC", "RTY", "M2K", "YM", "MYM", "CL", "MCL", "SI", "NG", "HG", "ZB", "ZN", "ZF", "6E", "6J", "MBT"])
+def test_futures_hour_cache_reuses_partial_friday_start(monkeypatch, tmp_path, symbol):
+    """Actual Oct 2 20:16 warmer boundary has no further Friday hourly label."""
+    from lumibot.tools import ibkr_helper as helper
+
+    monkeypatch.setattr(helper, "LUMIBOT_CACHE_FOLDER", tmp_path.as_posix())
+    monkeypatch.setattr(helper, "_RUNTIME_HISTORY_NO_DATA_WINDOWS", {})
+    monkeypatch.setattr(helper, "_RUNTIME_ATTEMPTED_HISTORY_SEGMENTS", {})
+    monkeypatch.setattr(helper, "_maybe_apply_future_contract_metadata", lambda **kwargs: None)
+    def forbid_provider(*args, **kwargs):
+        raise AssertionError("Unit test must never contact the downloader")
+    monkeypatch.setattr(helper, "queue_request", forbid_provider)
+    asset = Asset(symbol, asset_type="future", expiration=datetime(2026, 12, 29))
+    quote = Asset("USD", asset_type="forex")
+    cache_file = helper._cache_file_for(asset=asset, quote=quote, timestep="hour", exchange="CME", source="Trades", include_after_hours=True)
+    index = pd.date_range("2026-10-04 18:00", "2026-10-09 16:00", freq="h", tz="America/New_York")
+    index = index[index.hour != 17]
+    cached = pd.DataFrame({"open": 100.0, "high": 101.0, "low": 99.0, "close": 100.0, "volume": 1.0, "missing": False}, index=index)
+    helper._write_cache_frame(cache_file, cached)
+    fetches = []
+
+    def fetch(**kwargs):
+        fetches.append((kwargs["start_dt"], kwargs["end_dt"]))
+        return pd.DataFrame()
+
+    monkeypatch.setattr(helper, "_fetch_history_between_dates", fetch)
+    frame = helper.get_price_data(asset=asset, quote=quote, timestep="hour", start_dt=datetime(2026, 10, 2, 20, 16, 38, tzinfo=timezone.utc), end_dt=datetime(2026, 10, 9, 20, 16, 38, tzinfo=timezone.utc), exchange="CME", include_after_hours=True, source="Trades")
+    assert fetches == []
+    assert frame.index.equals(index)
+
+
+@pytest.mark.parametrize("minutes", [1, 5, 15, 30, 60])
+def test_futures_closed_edge_uses_next_requested_bar_without_hiding_available_bar(minutes):
+    from lumibot.tools import ibkr_helper as helper
+
+    end = pd.Timestamp("2026-10-04 18:00", tz="America/New_York")
+    step = timedelta(minutes=minutes)
+    partial_start = pd.Timestamp("2026-10-02 16:59:30", tz="America/New_York")
+    assert helper._us_futures_closed_interval(partial_start, end, bar_step=step)
+    valid_start = pd.Timestamp("2026-10-02 17:00", tz="America/New_York") - step
+    assert not helper._us_futures_closed_interval(valid_start, end, bar_step=step)
+    assert not helper._us_futures_closed_interval(partial_start, end + step, bar_step=step)

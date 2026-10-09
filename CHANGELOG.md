@@ -1,6 +1,9 @@
 # Changelog
 
-## 4.6.16 - Unreleased
+## 4.6.16 - 2026-10-09
+
+- Futures intraday cache readers evaluate the next aligned bar at a partial starting boundary. An hourly request beginning inside Friday's final hour reuses the complete cached Sunday-to-Friday history instead of repeatedly requesting the closed weekend. Available missing bars and next-session gaps remain retryable.
+- Verified the original deployed October 2 20:16 boundary with 21 configured futures roots, and preserved minute, 5-minute, 15-minute, 30-minute and hourly missing-bar checks.
 
 ## 4.6.15 - 2026-10-09
 

@@ -10,6 +10,24 @@ from typing import Any
 
 
 SCHEMA_VERSION = 1
+ORDER_REASON_MAX_CHARACTERS = 100_000
+ORDER_REASON_MAX_BYTES = 400 * 1024
+AGENT_ORDER_REASON_MIN_CHARACTERS = 200
+
+
+def validate_order_reason(reason: Any, *, required: bool = False) -> str | None:
+    """Bound explicit action explanations without truncating the audit record."""
+    if reason is None and not required:
+        return None
+    if not isinstance(reason, str):
+        raise ValueError("reason must be an explicit text explanation of the order action.")
+    text = reason.strip()
+    minimum = AGENT_ORDER_REASON_MIN_CHARACTERS if required else 1
+    if len(text) < minimum:
+        raise ValueError(f"reason must contain at least {minimum} characters after trimming.")
+    if len(text) > ORDER_REASON_MAX_CHARACTERS or len(text.encode("utf-8")) > ORDER_REASON_MAX_BYTES:
+        raise ValueError("reason must not exceed 100,000 characters or 400 KiB of UTF-8 text.")
+    return text
 
 
 def _safe_name(value: Any) -> str:
@@ -374,6 +392,44 @@ class MemoryStore:
         )
         self._export_artifacts_best_effort()
         return event
+
+    def record_order_action(
+        self, *, operation: str, reason: str, orders: list[dict[str, Any]],
+        evidence: dict[str, Any] | None = None, previous: dict[str, Any] | None = None,
+        agent_name: str | None = None, model_call_id: str | None = None,
+    ) -> dict[str, Any]:
+        """Commit intent before execution; never infer a fill from this event."""
+        reason = validate_order_reason(reason, required=bool(agent_name or model_call_id))
+        if evidence is not None and not isinstance(evidence, dict):
+            raise ValueError("evidence must be a JSON object.")
+        action_id = f"action_{uuid.uuid4().hex}"
+        provenance = self.decision_provenance(agent_name=agent_name, model_call_id=model_call_id)
+        previous = previous or {}
+        decision_id = previous.get("decision_id") or provenance.get("decision_id") or f"decision_{uuid.uuid4().hex}"
+        reference = {
+            **provenance, "decision_id": decision_id, "action_id": action_id,
+            "previous_action_id": previous.get("action_id"), "operation": operation,
+            "agent_name": agent_name, "strategy_revision_id": getattr(self.strategy, "revision_id", None) or os.environ.get("BOTSPOT_REVISION_ID"),
+            "reason_preview": reason[:800],
+            "reason_sha256": hashlib.sha256(reason.encode("utf-8")).hexdigest(), "recorded_at": self._timestamp(),
+        }
+        metadata = {"reference": reference, "orders": orders, "evidence": evidence or {}}
+        if len(_json_dumps({"reason": reason, **metadata}).encode("utf-8")) > 1024 * 1024:
+            raise ValueError("reason, evidence and order intent must fit within 1 MiB.")
+        self._record_projection_event(
+            event_type="order.intent", subject_type="order_action", subject_id=action_id,
+            kind="order_action", status="intent", text=reason, metadata=metadata,
+            agent_name=agent_name, model_call_id=model_call_id,
+        )
+        return reference
+
+    def record_order_action_outcome(self, reference: dict[str, Any], *, certainty: str, error_type: str | None = None) -> None:
+        self._append_event(
+            event_type="order.action_outcome", subject_type="order_action", subject_id=reference["action_id"],
+            text=f"Order action {certainty}", metadata={"reference": reference, "certainty": certainty, "error_type": error_type},
+            agent_name=reference.get("agent_name"), model_call_id=reference.get("model_call_id"),
+        )
+        self._export_artifacts_best_effort()
 
     def decision_provenance(
         self,

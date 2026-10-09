@@ -444,6 +444,7 @@ class ProductionFixture:
     def capture(self, result):
         from lumibot.components.agents.builtins import _order_to_dict, _position_to_dict
 
+        self.orders_before_settlement = [_order_to_dict(order) for order in self.strategy.get_orders()]
         self.settle()
         self.fixture.calls = [{"name": event.tool_name, "arguments": event.payload} for event in result.tool_calls]
         self.fixture.positions = [

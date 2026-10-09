@@ -9,6 +9,10 @@ from lumibot.components.agents.runtime import _wrap_tool_callable
 from lumibot.entities import Asset, Order, Position
 
 
+# Order explanations are now required; retain every existing readiness/risk assertion.
+ORDER_ACTION_REASON = 'After checking the current quote, account cash, positions and pending orders, take the requested action within the strategy risk budget. The evidence is limited to this fixture timestamp. Reconcile the broker response and remaining exposure before taking any further action.'
+
+
 class _Vars(dict):
     def set(self, key, value):
         self[key] = value
@@ -57,7 +61,7 @@ class _AccountStrategy:
             child_orders=[],
         )
 
-    def submit_order(self, order):
+    def submit_order(self, order, **kwargs):
         self.submitted_orders.append(order)
         return order
 
@@ -416,7 +420,7 @@ def test_truncated_snapshot_and_incomplete_position_page_do_not_satisfy_order_re
     tools["orders_open_orders"]()
     tools["market_last_price"](symbol="QQQ", asset_type="stock")
 
-    blocked = tools["orders_submit_order"](
+    blocked = tools["orders_submit_order"](reason=ORDER_ACTION_REASON,
         symbol="QQQ",
         quantity=1,
         side="buy",
@@ -449,7 +453,7 @@ def test_contiguous_position_pages_and_open_orders_satisfy_order_readiness():
     tools["orders_open_orders"]()
     tools["market_last_price"](symbol="QQQ", asset_type="stock")
 
-    submitted = tools["orders_submit_order"](
+    submitted = tools["orders_submit_order"](reason=ORDER_ACTION_REASON,
         symbol="QQQ",
         quantity=1,
         side="buy",
@@ -481,7 +485,7 @@ def test_changed_position_membership_with_same_count_invalidates_paginated_readi
     tools["orders_open_orders"]()
     tools["market_last_price"](symbol="QQQ", asset_type="stock")
 
-    blocked = tools["orders_submit_order"](
+    blocked = tools["orders_submit_order"](reason=ORDER_ACTION_REASON,
         symbol="QQQ",
         quantity=1,
         side="buy",

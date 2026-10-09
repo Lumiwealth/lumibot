@@ -12,6 +12,10 @@ from lumibot.entities import Asset, Order
 from lumibot.entities.chains import Chains
 
 
+# Order explanations are now required; retain every existing readiness/risk assertion.
+ORDER_ACTION_REASON = 'After checking the current quote, account cash, positions and pending orders, take the requested action within the strategy risk budget. The evidence is limited to this fixture timestamp. Reconcile the broker response and remaining exposure before taking any further action.'
+
+
 class _FakeBars:
     def __init__(self, closes):
         index = pd.date_range("2026-08-01", periods=len(closes), freq="min", tz="UTC")
@@ -252,7 +256,7 @@ def test_market_last_prices_returns_batch_prices_and_satisfies_order_readiness()
     tools["account_positions"]()
     tools["orders_open_orders"]()
     # Batch price tool must satisfy readiness for a symbol included in the scan.
-    submitted = tools["orders_submit_order"](
+    submitted = tools["orders_submit_order"](reason=ORDER_ACTION_REASON,
         symbol="SPY",
         quantity=1,
         side="buy",
@@ -620,7 +624,7 @@ def test_multileg_submit_prices_from_last_trades_in_trade_only_backtests():
     # Opening an option position requires the chain in the same run.
     tools["options_get_chain"](symbol="SPY")
 
-    result = tools["orders_submit_multileg"](legs_json=json.dumps(_iron_condor_legs()), price_style="mid")
+    result = tools["orders_submit_multileg"](reason=ORDER_ACTION_REASON, legs_json=json.dumps(_iron_condor_legs()), price_style="mid")
 
     assert result["order_type"] == "credit"
     assert result["price_basis"] == "last_trade"
@@ -688,7 +692,7 @@ def test_multileg_submit_creates_one_atomic_four_leg_order_after_normal_readines
     # Opening an option position requires the chain in the same run.
     tools["options_get_chain"](symbol="SPY")
 
-    result = tools["orders_submit_multileg"](
+    result = tools["orders_submit_multileg"](reason=ORDER_ACTION_REASON,
         legs_json=json.dumps(_iron_condor_legs()),
         price_style="mid",
     )
@@ -840,14 +844,14 @@ def test_opening_single_option_order_requires_the_chain_in_the_same_run():
         "limit_price": 1.5,
     }
 
-    rejected = tools["orders_submit_order"](**order)
+    rejected = tools["orders_submit_order"](reason=ORDER_ACTION_REASON, **order)
     assert rejected["tool_error"] is True
     assert "ORDER_READINESS_REQUIRED" in rejected["error"]["message"]
     assert "options_get_chain(symbol='SPY')" in rejected["error"]["message"]
     assert strategy.submissions == []
 
     tools["options_get_chain"](symbol="SPY")
-    accepted = tools["orders_submit_order"](**order)
+    accepted = tools["orders_submit_order"](reason=ORDER_ACTION_REASON, **order)
     assert "tool_error" not in accepted
     assert len(strategy.submissions) == 1
 
@@ -857,12 +861,12 @@ def test_opening_multileg_order_requires_the_chain_in_the_same_run():
     tools = _opening_option_tools(strategy)
     _checked_account(tools)
 
-    rejected = tools["orders_submit_multileg"](legs_json=json.dumps(_iron_condor_legs()), price_style="mid")
+    rejected = tools["orders_submit_multileg"](reason=ORDER_ACTION_REASON, legs_json=json.dumps(_iron_condor_legs()), price_style="mid")
     assert rejected["tool_error"] is True
     assert "options_get_chain(symbol='SPY')" in rejected["error"]["message"]
 
     tools["options_get_chain"](symbol="SPY")
-    accepted = tools["orders_submit_multileg"](legs_json=json.dumps(_iron_condor_legs()), price_style="mid")
+    accepted = tools["orders_submit_multileg"](reason=ORDER_ACTION_REASON, legs_json=json.dumps(_iron_condor_legs()), price_style="mid")
     assert "tool_error" not in accepted
     assert len(strategy.submissions) == 1
 
@@ -874,7 +878,7 @@ def test_closing_an_existing_option_position_does_not_require_the_chain():
     tools = _opening_option_tools(strategy)
     _checked_account(tools)
 
-    result = tools["orders_submit_order"](
+    result = tools["orders_submit_order"](reason=ORDER_ACTION_REASON,
         symbol="SPY",
         quantity=1,
         side="sell_to_close",
@@ -1016,7 +1020,7 @@ def test_close_mode_derives_closing_legs_from_signed_positions():
     assert per_unit["order_type"] == "debit"
 
     # Sides the agent supplies in close mode are ignored, including reversed ones.
-    result = tools["orders_submit_multileg"](
+    result = tools["orders_submit_multileg"](reason=ORDER_ACTION_REASON,
         legs_json=json.dumps(
             [
                 {**_spread_contracts()[0], "side": "sell_to_close"},

@@ -2,6 +2,10 @@
 
 ## 4.6.10 - Unreleased
 
+- Added an explicit Community client for owner-authorized posting with a dedicated scoped key. Trade verification stays server-owned, and transport errors are never retried automatically.
+
+- Agent order submissions, modifications and cancellations require an explicit, bounded explanation committed to the private memory journal before broker execution. Orders, compact progress and fill exports retain decision/action references; modifications preserve prior actions. Existing deterministic Python strategies remain compatible. Unknown broker outcomes are recorded without automatic retries. A real-model release regression verifies the journal links and explanation quality.
+
 ## 4.6.9 - 2026-10-09
 
 Deploy marker: `53f52ae12e5aa32c6d31c356100118b408be25a0`

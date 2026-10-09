@@ -1853,7 +1853,84 @@ class Strategy(_Strategy):
         asset = self._sanitize_user_asset(asset)
         return self.broker.get_asset_potential_total(self.name, asset)
 
-    def submit_order(self, order: Order|list[Order], **kwargs):
+    def _journal_order_action(self, orders, *, operation, reason, evidence=None, changes=None):
+        from lumibot.components.agents.tool_context import current_agent_tool_context
+        from lumibot.components.memory.store import validate_order_reason
+
+        context = current_agent_tool_context()
+        reason = validate_order_reason(reason, required=bool(context.get("agent_name") or context.get("model_call_id")))
+        if reason is None:
+            return None
+        orders = orders if isinstance(orders, list) else [orders]
+        snapshots = [
+            {"identifier": o.identifier, "symbol": o.symbol, "side": str(o.side),
+             "quantity": str(o.quantity), "order_type": str(o.order_type),
+             "limit_price": o.limit_price, "stop_price": o.stop_price, "changes": changes or {},
+             "previous_reference": getattr(o, "decision_journal", None) if operation != "submit" else None}
+            for o in orders
+        ]
+        reference = self.memory.record_order_action(
+            operation=operation, reason=reason, orders=snapshots, evidence=evidence,
+            previous=getattr(orders[0], "decision_journal", None) if operation != "submit" and len(orders) == 1 else None,
+            agent_name=context.get("agent_name"), model_call_id=context.get("model_call_id"),
+        )
+        for order, snapshot in zip(orders, snapshots):
+            linked = dict(reference)
+            previous = snapshot["previous_reference"]
+            if previous:
+                linked["previous_action_id"] = previous.get("action_id")
+                linked["decision_id"] = previous.get("decision_id") or reference["decision_id"]
+            self._attach_order_journal(order, linked)
+        return reference
+
+    @staticmethod
+    def _attach_order_journal(order, reference, *, preserve_existing=False):
+        if order is None:
+            return
+        if isinstance(order, list):
+            for item in order:
+                Strategy._attach_order_journal(item, reference, preserve_existing=preserve_existing)
+            return
+        if preserve_existing and getattr(order, "decision_journal", {}).get("action_id") == reference["action_id"]:
+            return
+        order.decision_journal = dict(reference)
+        order.decision_provenance = {key: reference.get(key) for key in ("deployment_id", "run_id", "decision_id", "model_call_id")}
+        for child in getattr(order, "child_orders", None) or []:
+            Strategy._attach_order_journal(child, reference)
+
+    def _perform_journaled_order_action(self, reference, operation):
+        try:
+            result = operation()
+        except Exception as exc:
+            if reference:
+                self._record_order_action_outcome(reference, certainty="unknown", error_type=type(exc).__name__)
+            raise
+        if reference:
+            self._attach_order_journal(result, reference, preserve_existing=True) if isinstance(result, (Order, list)) else None
+            self._record_order_action_outcome(reference, certainty="returned")
+        return result
+
+    def _record_order_action_outcome(self, reference, **kwargs):
+        # An acknowledged broker call must never appear to fail and invite a retry
+        # because an observability write failed after execution.
+        try:
+            self.memory.record_order_action_outcome(reference, **kwargs)
+        except Exception:
+            import logging
+            logging.getLogger(__name__).exception("Unable to persist order action outcome for %s", reference["action_id"])
+
+    def submit_order(self, order: Order|list[Order], *, reason: str | None = None, evidence: dict | None = None, **kwargs):
+        """Submit with an optional private explanation; agent actions require one.
+
+        ``reason`` is committed before the broker call. ``evidence`` is an
+        optional JSON object of sources, timestamps, sizing and risks. Full
+        explanations remain in the private memory journal; orders carry compact
+        references. An unknown broker outcome must be reconciled before retrying.
+        """
+        reference = self._journal_order_action(order, operation="submit", reason=reason, evidence=evidence)
+        return self._perform_journaled_order_action(reference, lambda: self._submit_order_impl(order, **kwargs))
+
+    def _submit_order_impl(self, order: Order|list[Order], **kwargs):
         """Submit an order or a list of orders for assets
 
         Submits an order or a list of orders for processing by the active broker.
@@ -2013,7 +2090,7 @@ class Strategy(_Strategy):
                 # Multiple independent SMART_LIMIT orders.
                 submitted_orders = []
                 for o in order:
-                    submitted_orders.append(self.submit_order(o))
+                    submitted_orders.append(self._submit_order_impl(o))
                 return submitted_orders
 
             # Broker-agnostic multi-leg LIMIT UX:
@@ -2429,7 +2506,7 @@ class Strategy(_Strategy):
         """
         return self.broker.wait_for_orders_execution(orders)
 
-    def cancel_order(self, order: Order):
+    def cancel_order(self, order: Order, *, reason: str | None = None, evidence: dict | None = None):
         """Cancel an order.
 
         Cancels a single open order provided.
@@ -2450,13 +2527,14 @@ class Strategy(_Strategy):
         >>> self.cancel_order(order)
 
         """
+        reference = self._journal_order_action(order, operation="cancel", reason=reason, evidence=evidence)
         # Set the status to CANCELLING
         order.status = Order.OrderStatus.CANCELLING
 
         # Cancel the order
-        return self.broker.cancel_order(order)
+        return self._perform_journaled_order_action(reference, lambda: self.broker.cancel_order(order))
 
-    def cancel_orders(self, orders: List[Order]):
+    def cancel_orders(self, orders: List[Order], *, reason: str | None = None, evidence: dict | None = None):
         """Cancel orders in all strategies.
 
         Cancels all open orders provided in any of the running
@@ -2480,9 +2558,12 @@ class Strategy(_Strategy):
         >>> # Cancel all orders
         >>> self.cancel_orders([order1, order2])
         """
-        return self.broker.cancel_orders(orders)
+        if not orders:
+            return []
+        reference = self._journal_order_action(orders, operation="cancel", reason=reason, evidence=evidence)
+        return self._perform_journaled_order_action(reference, lambda: self.broker.cancel_orders(orders))
 
-    def cancel_open_orders(self, orders: list[Order] | None = None):
+    def cancel_open_orders(self, orders: list[Order] | None = None, *, reason: str | None = None, evidence: dict | None = None):
         """Cancel all the strategy open orders.
 
         Cancels all orders that are open and awaiting execution within
@@ -2529,9 +2610,10 @@ class Strategy(_Strategy):
         if not active_orders:
             return []
 
-        return self.broker.cancel_open_orders(self.name, active_orders)
+        reference = self._journal_order_action(active_orders, operation="cancel", reason=reason, evidence=evidence)
+        return self._perform_journaled_order_action(reference, lambda: self.broker.cancel_open_orders(self.name, active_orders))
 
-    def modify_order(self, order: Order, limit_price: Union[float, None] = None, stop_price: Union[float, None] = None):
+    def modify_order(self, order: Order, limit_price: Union[float, None] = None, stop_price: Union[float, None] = None, *, reason: str | None = None, evidence: dict | None = None):
         """Modify an order.
 
         Modifies a single open order provided.
@@ -2563,7 +2645,9 @@ class Strategy(_Strategy):
         if not order.identifier:
             raise ValueError("Order identifier is not set, unable to modify order. Did you remember to submit it?")
 
-        result = self.broker.modify_order(order, limit_price=limit_price, stop_price=stop_price)
+        reference = self._journal_order_action(order, operation="modify", reason=reason, evidence=evidence,
+                                               changes={"limit_price": limit_price, "stop_price": stop_price})
+        result = self._perform_journaled_order_action(reference, lambda: self.broker.modify_order(order, limit_price=limit_price, stop_price=stop_price))
         if limit_price is not None:
             order.limit_price = limit_price
         if stop_price is not None:

@@ -6,6 +6,7 @@ orders, and fills are produced by BacktestingBroker against fixture OHLCV data.
 
 from __future__ import annotations
 
+import hashlib
 import json
 import sys
 import tempfile
@@ -173,12 +174,19 @@ def _rejected_order_calls(result):
     }
 
 
-def _resolved_multileg_legs(payload):
+def _resolved_multileg_legs(payload, *, broker_orders=(), reason=None):
     """Legs LumiBot actually built, flattened to the harness leg shape.
 
     In action='close' mode the agent sends only contracts and LumiBot derives
     each side and quantity, so the call arguments are not the submitted legs.
     """
+    if isinstance(payload, dict) and payload.get("lumibot_tool_result_pruned") is True and reason:
+        # A long journal can prune the model-visible result. Recover only the
+        # actual parent order linked to this exact decision, never inferred sides.
+        reason_hash = hashlib.sha256(str(reason).strip().encode("utf-8")).hexdigest()
+        parents = [order for order in broker_orders if isinstance(order.get("legs"), list)
+            and (order.get("decision_journal") or {}).get("reason_sha256") == reason_hash]
+        payload = parents[0] if len(parents) == 1 else None
     if not isinstance(payload, dict) or not isinstance(payload.get("legs"), list):
         return None
     legs = []
@@ -189,7 +197,7 @@ def _resolved_multileg_legs(payload):
         legs.append(
             {
                 "symbol": asset.get("symbol"),
-                "expiration": asset.get("expiration"),
+                "expiration": asset.get("expiration") or asset.get("exp"),
                 "strike": asset.get("strike"),
                 "right": str(asset.get("right") or "").lower(),
                 "side": leg.get("side"),
@@ -465,7 +473,8 @@ class ProductionFixture:
                 except json.JSONDecodeError:
                     legs = []
                 if args.get("action") == "close" and position not in rejected:
-                    legs = _resolved_multileg_legs(outcomes.get(position)) or legs
+                    legs = _resolved_multileg_legs(outcomes.get(position),
+                        broker_orders=self.orders_before_settlement, reason=args.get("reason")) or legs
                 record = {
                     "tool": event.tool_name,
                     "legs": legs,

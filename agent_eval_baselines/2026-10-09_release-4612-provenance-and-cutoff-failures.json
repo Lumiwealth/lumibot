@@ -1,0 +1,83 @@
+{
+  "baseline": "Exact preserved failing production-blocking release gate before shared guidance repair",
+  "source_sha": "432cfa0d2e03fafdc2cfc926c14134bf5fb52c16",
+  "run_url": "https://github.com/Lumiwealth/lumibot/actions/runs/37979961089",
+  "artifact": "lumibot-agent-evals/artifacts/ledger.jsonl",
+  "original_ledger_sha256": "06374fb147a6fc34f928da42d5281bbe2dd3822253eaac79d61086e54a181e21",
+  "customer_state": "synthetic fixture only; zero real external writes",
+  "failures": [
+    {
+      "case_id": "research_macro_point_in_time",
+      "repetition": 2,
+      "run_id": "7d9b9ab4-32a9-472d-82eb-581ba20bf800",
+      "judge": {
+        "pass": false,
+        "reason": "The packet omits the returned dataset IDs, which the rubric explicitly requires. It otherwise uses public research tools, respects the cutoff, cites sources and dates, explains limitations, provides bounded evidence, and places no order."
+      },
+      "machine": {
+        "failures": [],
+        "pass": true,
+        "tool_sequence": [
+          "load_skill",
+          "search_data_catalog",
+          "search_data_catalog",
+          "search_data_catalog",
+          "search_data_catalog",
+          "query_data",
+          "query_data"
+        ]
+      }
+    },
+    {
+      "case_id": "stock_order_decision_journal",
+      "repetition": 1,
+      "run_id": "5940dd5b-36e7-4be2-969b-a74fa183d6bd",
+      "judge": {
+        "pass": false,
+        "reason": "The order, sizing, explicit rationale, and observed pending-status summary satisfy the rubric. However, the order reason claims the $227 average was tool-calculated, while the DuckDB result only returned individual closes and did not calculate an average; this is an unsupported source claim."
+      },
+      "machine": {
+        "failures": [],
+        "pass": true,
+        "tool_sequence": [
+          "load_skill",
+          "market_last_price",
+          "market_historical_prices",
+          "account_portfolio",
+          "account_positions",
+          "orders_open_orders",
+          "duckdb_query",
+          "risk_calculate_stock_quantity",
+          "orders_submit_order",
+          "orders_get_status",
+          "account_portfolio",
+          "account_positions",
+          "orders_open_orders"
+        ]
+      }
+    },
+    {
+      "case_id": "web_documents_holdings_from_yearly_and_trade_reports",
+      "repetition": 3,
+      "run_id": "0749cd68-dde6-4747-83b7-09bf12bd12c7",
+      "judge": {
+        "pass": false,
+        "reason": "The run opened report 2002, filed after the simulated date; the rubric explicitly requires failing if that report is used."
+      },
+      "machine": {
+        "failures": [
+          "read_document fetched /reports/2002.pdf, which was filed after the simulated date"
+        ],
+        "pass": false,
+        "tool_sequence": [
+          "load_skill",
+          "read_document",
+          "duckdb_query",
+          "read_document",
+          "read_document",
+          "read_document"
+        ]
+      }
+    }
+  ]
+}

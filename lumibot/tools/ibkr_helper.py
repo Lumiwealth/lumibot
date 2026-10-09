@@ -2473,7 +2473,7 @@ def _fetch_history_between_dates(
 
         # IBKR typically returns {"data":[...]} (empty list means no data).
         data = payload.get("data") if isinstance(payload, dict) else None
-        backend = str((payload.get("_botspot_meta") or {}).get("backend", "")).lower() if isinstance(payload, dict) else ""
+        backend = str(_downloader_history_meta(payload).get("backend") or "").strip().lower()
         df = _history_payload_to_frame(
             data,
             source_was_explicit=source_was_explicit,

@@ -10,6 +10,6 @@ Provider timeouts or unavailable sessions remain partial history and preserve re
 
 ## Verification
 
-The regression uses real TWS date-label shape at summer and winter session dates, checks that prices stay on the provider date, and verifies that only stock/index daily keys change while legacy files survive. The complete affected IBKR helper, daily-gap, split, futures, crypto and cache-registry unit files pass. Cloud CI and the normal package release gates remain required before publication.
+The regression uses real TWS date-label shape at summer and winter session dates, checks that prices stay on the provider date, and verifies that only stock/index daily keys change while legacy files survive. Backend selection uses the existing validated downloader metadata reader: malformed metadata cannot crash decoding and metadata from another provider cannot reinterpret dates. Three metadata regressions failed before that correction. All 195 tests in the complete affected IBKR helper, daily-gap, split, futures, crypto and cache-registry unit files pass. Cloud CI and the normal package release gates remain required before publication.
 
 No agent prompt change is needed: this corrects provider parsing and cache integrity without adding a strategy-facing API or changing tool choice. No diagram is needed for the narrow timestamp and filename repair.

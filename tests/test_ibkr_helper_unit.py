@@ -1757,7 +1757,7 @@ def test_ibkr_tws_stock_daily_preserves_provider_session_date(monkeypatch, sessi
     monkeypatch.setattr(helper, "_resolve_conid", lambda **_: 123)
     monkeypatch.setattr(helper, "_ibkr_history_request", lambda **_: {
         "data": [{"t": raw_timestamp, "o": 1, "h": 2, "l": 1, "c": 1.5, "v": 100}],
-        "_botspot_meta": {"backend": "tws", "classification": "complete", "cache_write_policy": "allow"},
+        "_botspot_meta": {"provider": "ibkr", "backend": "tws", "classification": "complete", "cache_write_policy": "allow"},
     })
     frame = helper._fetch_history_between_dates(
         asset=Asset("TSLA", asset_type="stock"), quote=Asset("USD", asset_type="forex"),
@@ -1767,6 +1767,28 @@ def test_ibkr_tws_stock_daily_preserves_provider_session_date(monkeypatch, sessi
     aligned = helper._align_stock_index_daily_to_session_close(frame)
     assert list(aligned.index) == [session]
     assert aligned.iloc[0]["close"] == 1.5
+
+
+@pytest.mark.parametrize("metadata", [[], ["legacy"], "legacy metadata", {"provider": "other", "backend": "tws"}])
+def test_ibkr_daily_ignores_untrusted_backend_metadata(monkeypatch, metadata):
+    """Legacy or foreign metadata must neither crash decoding nor reinterpret dates."""
+    from lumibot.tools import ibkr_helper as helper
+
+    raw_time = pd.Timestamp("2026-07-02 01:00", tz="UTC")
+    expected = raw_time.tz_convert("America/New_York")
+    monkeypatch.setattr(helper, "_resolve_conid", lambda **_: 123)
+    monkeypatch.setattr(helper, "_ibkr_history_request", lambda **_: {
+        "data": [{"t": int(raw_time.timestamp() * 1000), "o": 1, "h": 2, "l": 1, "c": 1.5, "v": 100}],
+        "_botspot_meta": metadata,
+    })
+    frame = helper._fetch_history_between_dates(
+        asset=Asset("TSLA", asset_type="stock"), quote=Asset("USD", asset_type="forex"),
+        timestep="day", start_dt=expected.to_pydatetime(),
+        end_dt=(expected + pd.Timedelta(days=1)).to_pydatetime(),
+        exchange="SMART", include_after_hours=False, source="Trades", source_was_explicit=True,
+    )
+    assert list(frame.index) == [expected]
+    assert frame.iloc[0]["close"] == 1.5
 
 
 @pytest.mark.parametrize("asset_type,timestep,should_migrate", [

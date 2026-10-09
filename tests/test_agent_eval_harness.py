@@ -436,8 +436,8 @@ def test_paid_eval_workflows_enforce_their_declared_spending_caps():
     release = (repo_root / ".github/workflows/release.yml").read_text(encoding="utf-8")
 
     assert 'default: "2"' in standalone
-    # Match the complete argument: a substring would also accept a higher cap such as 1.5.
-    assert any(line.strip() == "--max-cost-usd 1 " + chr(92) for line in release.splitlines())
+    # Match the complete argument; the task's remaining publication budget is $0.70.
+    assert any(line.strip() == "--max-cost-usd 0.7 " + chr(92) for line in release.splitlines())
     assert "--max-cost-usd 10" not in release
 
 

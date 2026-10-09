@@ -224,6 +224,15 @@ def test_base_prompt_asks_a_hold_to_name_the_order_or_position_that_already_cove
         "Before relying on an existing position or pending order, call account_positions and "
         "orders_open_orders in this run; the injected snapshot can be stale about fills" in prompt
     )
+    assert "explain how its remaining quantity already covers the intended position change" in prompt
+
+
+@pytest.mark.parametrize("allow_trading", [True, False])
+def test_backtest_prompt_requires_document_eligibility_before_fetching(allow_trading):
+    agent = AgentManager(_Strategy()).create(name="agent", allow_trading=allow_trading)
+    prompt = " ".join(agent._base_system_prompt(agent._runtime_context()).split())
+    assert "put the publication-date cutoff in duckdb_query SQL before sorting or limiting" in prompt
+    assert "Never call read_document on a linked document whose publication date is later" in prompt
 
 
 def test_live_agent_auth_failure_emits_structured_decision_outcome():

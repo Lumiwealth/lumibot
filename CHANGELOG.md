@@ -1,5 +1,7 @@
 # Changelog
 
+## 4.6.12 - Unreleased
+
 ## 4.6.11 - 2026-10-09
 
 Deploy marker: `8bce7c91`

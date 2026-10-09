@@ -1600,7 +1600,8 @@ def _align_stock_index_daily_to_session_close(df: pd.DataFrame) -> pd.DataFrame:
     """Normalize IBKR stock/index daily timestamps to the session close.
 
     Why:
-    - IBKR day bars are often timestamped near UTC midnight, which appears as ~04:00/05:00 ET.
+    - REST day bars can carry a pre-market timestamp; TWS date labels are normalized
+      separately before reaching this function.
     - Daily backtests that run at market open can then incorrectly treat the current session's
       bar as already available.
     - Re-indexing day bars to 16:00 ET aligns them with end-of-session semantics used by
@@ -2472,7 +2473,12 @@ def _fetch_history_between_dates(
 
         # IBKR typically returns {"data":[...]} (empty list means no data).
         data = payload.get("data") if isinstance(payload, dict) else None
-        df = _history_payload_to_frame(data, source_was_explicit=source_was_explicit) if data else pd.DataFrame()
+        backend = str((payload.get("_botspot_meta") or {}).get("backend", "")).lower() if isinstance(payload, dict) else ""
+        df = _history_payload_to_frame(
+            data,
+            source_was_explicit=source_was_explicit,
+            daily_session_dates_from_utc=(backend == "tws" and asset_type in {"stock", "index"} and bar.endswith("d")),
+        ) if data else pd.DataFrame()
         if df.empty:
             skipped_to = _cursor_before_closed_equity_page(
                 asset_type=asset_type,
@@ -2894,7 +2900,9 @@ def _ibkr_history_request(
     return result
 
 
-def _history_payload_to_frame(data: Any, *, source_was_explicit: bool) -> pd.DataFrame:
+def _history_payload_to_frame(
+    data: Any, *, source_was_explicit: bool, daily_session_dates_from_utc: bool = False,
+) -> pd.DataFrame:
     df = pd.DataFrame(data)
     if df.empty:
         return df
@@ -2910,7 +2918,14 @@ def _history_payload_to_frame(data: Any, *, source_was_explicit: bool) -> pd.Dat
     df.index = ts
     df = df[~df.index.isna()]
     df = df.sort_index()
-    df.index = df.index.tz_convert(LUMIBOT_DEFAULT_PYTZ)
+    if daily_session_dates_from_utc:
+        # TWS YYYYMMDD bars are date labels encoded as UTC midnight. Converting
+        # that instant to New York first assigns the price to the preceding day.
+        # Preserve the provider's calendar date before applying close semantics.
+        dates = df.index.tz_convert("UTC").tz_localize(None).normalize()
+        df.index = (dates + pd.Timedelta(hours=16)).tz_localize(LUMIBOT_DEFAULT_PYTZ)
+    else:
+        df.index = df.index.tz_convert(LUMIBOT_DEFAULT_PYTZ)
     df["missing"] = False
     # Default quote fields:
     #
@@ -5505,6 +5520,13 @@ def _cache_file_for(
     suffix = f"_{exp_component}" if exp_component else ""
     if _normalize_asset_type(getattr(asset, "asset_type", "")) == "option":
         suffix = f"{suffix}_{_option_strike_text(asset)}_{_safe_component(str(getattr(asset, 'right', '') or ''))}"
+    # Legacy stock/index daily files can mix TWS prices shifted to the previous
+    # date with correctly dated REST rows. Their provenance is insufficient to
+    # repair those prices by shifting the whole frame. Rebuild only daily files
+    # from provider data under a new key; leave the old files and intraday caches
+    # intact for older readers and rollback.
+    if asset_folder in {"stock", "index"} and _bar.endswith("d"):
+        suffix += "_SESSION_DATE_V2"
     filename = (
         f"{asset_folder}_{symbol}_{quote_symbol}_{timestep_component}_{exch}_{source_component}_{session_component}"
         f"{suffix}.parquet"

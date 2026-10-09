@@ -1,6 +1,10 @@
 # Changelog
 
+## 4.6.13 - Unreleased
+
 ## 4.6.12 - 2026-10-09
+
+This candidate did not publish: the required real-model gate failed. Its reviewed futures fixes carry forward into 4.6.13.
 
 Deploy marker: `00c1fb02ec87735b4812ff3f75ba4564a14b544d`.
 

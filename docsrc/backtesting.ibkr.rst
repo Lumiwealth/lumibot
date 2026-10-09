@@ -61,6 +61,11 @@ marks at its open. If the strategy's minute history ends before the current time
 is fetched first, the same request the strategy itself makes. Strategies that only use daily bars never fetch
 minute history for valuation.
 
+Daily futures candles aggregate intraday bars whose start time is inside the session,
+including the opening boundary and excluding the closing boundary. A bar starting at
+the close belongs to the next session and cannot change the completed candle's prices
+or volume. This applies to both hourly aggregation and the minute fallback.
+
 Daily Stocks/Indexes: Warmup + Corporate Actions
 ------------------------------------------------
 

@@ -8,6 +8,38 @@ import pytest
 from lumibot.entities import Asset
 
 
+@pytest.mark.parametrize("minute_fallback", [False, True])
+def test_futures_daily_excludes_the_first_bar_of_the_next_session(monkeypatch, minute_fallback):
+    import pandas_market_calendars as mcal
+    import lumibot.tools.ibkr_helper as helper
+
+    schedule = mcal.get_calendar("us_futures").schedule(start_date="2026-10-07", end_date="2026-10-08")
+    first, last = schedule.iloc[0], schedule.iloc[-1]
+    index = pd.date_range(first.market_open, last.market_close, freq="1min" if minute_fallback else "1h")
+    # CME's 17:00-18:00 ET break has no prices. The bar at 18:00 begins the next session.
+    index = index[index.tz_convert("America/New_York").hour != 17]
+    prices = pd.DataFrame({"open": 100., "high": 101., "low": 99., "close": 100.5, "volume": 1.}, index=index)
+    prices.loc[first.market_close, ["open", "high", "close", "volume"]] = [900., 901., 900.5, 1000.]
+
+    def cached(**kwargs):
+        return pd.DataFrame() if minute_fallback and kwargs["timestep"] == "hour" else prices.copy()
+
+    monkeypatch.setattr(helper, "_get_cached_bars_for_source", cached)
+    monkeypatch.setattr(helper, "_maybe_augment_futures_bid_ask", lambda **kwargs: (kwargs["df_cache"], False))
+    monkeypatch.setattr(helper, "_ibkr_history_now_utc", lambda: (last.market_close + pd.Timedelta(hours=1)).to_pydatetime())
+    result = helper._get_futures_daily_bars(
+        asset=Asset("MGC", asset_type="future", expiration=date(2026, 10, 28)), quote=None,
+        start_dt=(first.market_open + pd.Timedelta(minutes=1)).to_pydatetime(),
+        end_dt=last.market_close.to_pydatetime(), exchange="COMEX", include_after_hours=True, source="Trades",
+    )
+    assert len(result) == 2
+    assert result.iloc[0]["close"] == 100.5
+    assert result.iloc[0]["high"] == 101.
+    assert result.iloc[0]["volume"] == (1380. if minute_fallback else 23.)
+    assert result.iloc[1]["open"] == 900.
+    assert result.iloc[1]["high"] == 901.
+
+
 def test_futures_daily_reads_only_requested_completed_sessions(monkeypatch):
     import pandas_market_calendars as mcal
     import lumibot.tools.ibkr_helper as helper

@@ -4490,7 +4490,9 @@ def _get_futures_daily_bars(
         close_local = pd.Timestamp(sess["market_close"]).tz_convert("UTC").tz_convert(LUMIBOT_DEFAULT_PYTZ)
         if close_local < start_local or open_local > end_local:
             continue
-        window = intraday.loc[(intraday.index >= open_local) & (intraday.index <= close_local)]
+        # Intraday timestamps mark bar starts. The close boundary begins the next
+        # session and must not leak its first bar into this completed daily candle.
+        window = intraday.loc[(intraday.index >= open_local) & (intraday.index < close_local)]
         if window.empty and intraday_timestep != "minute":
             if minute_fallback is None:
                 minute_fallback = _get_cached_bars_for_source(
@@ -4515,7 +4517,7 @@ def _get_futures_daily_bars(
                         include_after_hours=include_after_hours,
                     )
             if minute_fallback is not None and not minute_fallback.empty:
-                window = minute_fallback.loc[(minute_fallback.index >= open_local) & (minute_fallback.index <= close_local)]
+                window = minute_fallback.loc[(minute_fallback.index >= open_local) & (minute_fallback.index < close_local)]
         if window.empty:
             continue
 

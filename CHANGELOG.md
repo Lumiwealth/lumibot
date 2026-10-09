@@ -1,6 +1,6 @@
 # Changelog
 
-## 4.6.15 - Unreleased
+## 4.6.15 - 2026-10-09
 
 - Reinforce publication-date selection before opening historical documents and explain existing pending-order coverage in the final decision.
 - Retain the stable intraday history boundary for futures, corrected option topology and provenance, and strict release gates.

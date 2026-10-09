@@ -2,7 +2,7 @@
 
 **Description:** Durable, private explanations for consequential order actions.
 **Last updated:** 2026-10-09
-**Status:** Implemented; unreleased
+**Status:** Included in LumiBot 4.6.10
 **Audience:** Strategy developers and agent operators
 
 ## Overview

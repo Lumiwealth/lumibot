@@ -1,6 +1,6 @@
 # Changelog
 
-## 4.6.10 - Unreleased
+## 4.6.10 - 2026-10-09
 
 - IBKR TWS stock/index daily bars preserve their provider session date before timezone conversion. Previously UTC-midnight date labels appeared on the preceding US calendar day. Daily cache files use a new session-date key so legacy files containing mixed shifted TWS and correctly dated REST prices are rebuilt from provider data without deleting old files or invalidating intraday and futures caches.
 

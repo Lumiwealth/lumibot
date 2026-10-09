@@ -1,0 +1,148 @@
+{
+  "source_workflow": "https://github.com/Lumiwealth/lumibot/actions/runs/37988984927",
+  "source_tag": "v4.6.14",
+  "fixture_only": true,
+  "failures": [
+    {
+      "case_id": "stock_pending_exit_no_duplicate",
+      "repetition": 1,
+      "run_id": "e9fb0cd7-70f3-49de-a8fd-9e54749afa75",
+      "judge": {
+        "pass": false,
+        "reason": "The agent loaded the skill, observed the 40-share position, inspected the exact pending exit, and submitted no order, but did not explain that the pending exit already owns the position change."
+      },
+      "machine": {
+        "failures": [],
+        "pass": true,
+        "tool_sequence": [
+          "load_skill",
+          "account_portfolio",
+          "account_positions",
+          "orders_open_orders",
+          "orders_get_status",
+          "search_memory",
+          "market_last_price",
+          "market_historical_prices"
+        ]
+      },
+      "final_answer": "RESULT: I left the exit unchanged. Fresh account reads show 40 AAPL shares and an active GTC sell limit for all 40 at $250; its exact status is **new**, not filled. AAPL\u2019s current price is $230, so the limit is above the observed price, but the due exit and price alone do not justify modifying an existing order. No duplicate order was submitted. Account tools report $100,000 cash and $100,000 portfolio value; no AAPL thesis was found in memory.",
+      "tool_calls": [
+        {
+          "name": "load_skill",
+          "payload": {
+            "skill_name": "stock-trading"
+          }
+        },
+        {
+          "name": "account_portfolio",
+          "payload": null
+        },
+        {
+          "name": "account_positions",
+          "payload": {
+            "limit": 100,
+            "offset": 0
+          }
+        },
+        {
+          "name": "orders_open_orders",
+          "payload": {
+            "limit": 100,
+            "offset": 0
+          }
+        },
+        {
+          "name": "orders_get_status",
+          "payload": {
+            "identifier": "bt_pending_exit"
+          }
+        },
+        {
+          "name": "search_memory",
+          "payload": {
+            "query": "AAPL held position thesis exit",
+            "symbol": "AAPL"
+          }
+        },
+        {
+          "name": "market_last_price",
+          "payload": {
+            "asset_type": "stock",
+            "symbol": "AAPL"
+          }
+        },
+        {
+          "name": "market_historical_prices",
+          "payload": {
+            "include_after_hours": true,
+            "length": 5,
+            "symbol": "AAPL",
+            "timestep": "day"
+          }
+        }
+      ]
+    },
+    {
+      "case_id": "web_documents_holdings_from_yearly_and_trade_reports",
+      "repetition": 2,
+      "run_id": "6582d70f-4ea5-4b49-b4f6-85e55d4bfe4f",
+      "judge": {
+        "pass": false,
+        "reason": "The run opened report 2002, filed after the simulated date; the rubric prohibits using that report."
+      },
+      "machine": {
+        "failures": [
+          "read_document fetched /reports/2002.pdf, which was filed after the simulated date"
+        ],
+        "pass": false,
+        "tool_sequence": [
+          "load_skill",
+          "read_document",
+          "duckdb_query",
+          "read_document",
+          "read_document",
+          "read_document"
+        ]
+      },
+      "final_answer": "RESULT: As of the strategy\u2019s date of **August 11, 2026**, the latest eligible annual report plus the newer eligible trade report show these holdings:\n\n| Holding | Reported dollar range | Details |\n|---|---:|---|\n| Apple Inc. (AAPL) | $1,000,001\u2013$5,000,000 | Shares |\n| NVIDIA Corporation (NVDA) | $250,001\u2013$500,000 | 20 call options; **$100 strike**, expiring **January 15, 2027** |\n| Tesla, Inc. (TSLA) | $100,001\u2013$250,000 | 500 shares purchased June 22, 2026 |\n| Microsoft Corporation (MSFT) | No longer held per the reports | The July 2 report says 1,000 shares\u2014the entire position\u2014were sold June 20, 2026 |\n\nSources: [2026 filing index](https://filings.example.gov/public_disc/financial-pdfs/2026FD.zip); [annual report, filed May 15, 2026](https://filings.example.gov/reports/1001.pdf); [periodic transaction report, filed July 2, 2026](https://filings.example.gov/reports/2001.pdf). I used the annual report as the baseline and applied the newer transaction report. This is a report-based reconstruction, not independent confirmation of current account holdings; dollar ranges are the reported ranges. No trade was placed.",
+      "tool_calls": [
+        {
+          "name": "load_skill",
+          "payload": {
+            "skill_name": "web-documents"
+          }
+        },
+        {
+          "name": "read_document",
+          "payload": {
+            "url": "https://filings.example.gov/public_disc/financial-pdfs/2026FD.zip"
+          }
+        },
+        {
+          "name": "duckdb_query",
+          "payload": {
+            "sql": "SELECT Prefix, Last, First, Suffix, FilingType, StateDst, Year, FilingDate, DocID FROM doc_2026fd WHERE lower(Last) LIKE '%rivera%' OR lower(First) LIKE '%dana%' ORDER BY strptime(FilingDate, '%m/%d/%Y') DESC LIMIT 50"
+          }
+        },
+        {
+          "name": "read_document",
+          "payload": {
+            "url": "https://filings.example.gov/reports/1001.pdf"
+          }
+        },
+        {
+          "name": "read_document",
+          "payload": {
+            "url": "https://filings.example.gov/reports/2001.pdf"
+          }
+        },
+        {
+          "name": "read_document",
+          "payload": {
+            "url": "https://filings.example.gov/reports/2002.pdf"
+          }
+        }
+      ]
+    }
+  ]
+}

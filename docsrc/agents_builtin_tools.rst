@@ -124,6 +124,8 @@ For stocks, a pending exit already owns that position change. A due exit
 condition or a limit away from the current market does not authorize replacing
 it. The agent changes an existing order only when the user's rules explicitly
 require that change.
+The final decision explains how the observed pending quantity already covers
+the intended position change and why another order would duplicate it.
 Lookback rules use the requested number of the latest completed bars. The
 reported indicator and date window must match the selected tool result.
 
@@ -427,6 +429,8 @@ query window. Attribute an aggregate to a tool only after the tool returns
 that aggregate; rows of individual prices are not a calculated average. When
 selecting document links in a backtest, filter by publication date before
 sorting or limiting the rows, then inspect the date before opening each link.
+Establish this eligibility before reading the linked document; opening a later
+document and then discarding its contents has already crossed the time boundary.
 
 For opening option packages, verify the standard leg topology before pricing.
 A reversed spread changes the structure; recheck buy/sell sides and strikes

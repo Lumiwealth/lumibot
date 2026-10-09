@@ -1,6 +1,8 @@
 # Changelog
 
-## 4.6.9 - Unreleased
+## 4.6.9 - 2026-10-09
+
+Deploy marker: `53f52ae12e5aa32c6d31c356100118b408be25a0`
 
 - IBKR futures readers hydrate the shared exchange metadata before resolving contracts, so an empty local cache can use the published COMEX/CME history without another broker lookup. Missing or unavailable shared metadata retains normal provider discovery.
 - Futures daily history fetches only sessions whose completed daily bars were requested. Calendar padding no longer causes unnecessary provider requests for adjacent days or future sessions when the requested history is already cached.

@@ -65,6 +65,83 @@ def test_alpaca_regular_market_hours_mask_keeps_full_session():
 
 class TestAlpacaBroker:
 
+    @pytest.mark.parametrize("prior_fill", [False, True])
+    def test_cancel_reconciles_confirmed_fill_without_duplicate_transaction(self, prior_fill):
+        from alpaca.common.exceptions import APIError
+        from requests import HTTPError, Response
+
+        broker = Alpaca(ALPACA_UNIT_CONFIG, connect_stream=False, start_orders_thread=False)
+        subscriber = SimpleNamespace(
+            name="unit", FILLED_ORDER=broker.FILLED_ORDER,
+            PARTIALLY_FILLED_ORDER=broker.PARTIALLY_FILLED_ORDER, add_event=MagicMock(),
+        )
+        broker._add_subscriber(subscriber)
+        order = Order("unit", Asset("SPY"), 2, "buy", identifier="cancel-fill-race")
+        broker._process_new_order(order)
+        if prior_fill:
+            broker._process_trade_event(order, broker.PARTIALLY_FILLED_ORDER, price=100, filled_quantity=1)
+        response = Response()
+        response.status_code = 422
+        broker.api.cancel_order_by_id = MagicMock(side_effect=APIError(
+            '{"code":42210000,"message":"order is already filled"}', HTTPError(response=response)
+        ))
+        broker.api.get_order_by_id = MagicMock(return_value=SimpleNamespace(
+            id=order.identifier, status="filled", filled_qty="2", filled_avg_price="101.25"
+        ))
+
+        broker.cancel_order(order)
+        assert order.is_filled()
+        assert broker.get_active_tracked_orders(strategy="unit") == []
+        expected_transactions = [(1, 100), (1, 102.5)] if prior_fill else [(2, 101.25)]
+        assert [(transaction.quantity, transaction.price) for transaction in order.transactions] == expected_transactions
+        broker.cancel_order(order)
+        assert broker.api.cancel_order_by_id.call_count == 2
+        assert broker.api.get_order_by_id.call_count == 2
+        assert len(order.transactions) == len(expected_transactions)
+        assert order.avg_fill_price == 101.25
+        fill_events = [call for call in subscriber.add_event.call_args_list if call.args[0] == broker.FILLED_ORDER]
+        assert len(fill_events) == 1
+        assert fill_events[0].args[1]["quantity"] == (1 if prior_fill else 2)
+        assert fill_events[0].args[1]["price"] == (102.5 if prior_fill else 101.25)
+
+    def test_cancel_preserves_authentication_error_without_order_lookup(self):
+        from alpaca.common.exceptions import APIError
+        from requests import HTTPError, Response
+
+        broker = Alpaca(ALPACA_UNIT_CONFIG, connect_stream=False, start_orders_thread=False)
+        order = Order("unit", Asset("SPY"), 2, "buy", identifier="unauthorized-cancel")
+        broker._process_new_order(order)
+        response = Response()
+        response.status_code = 401
+        error = APIError('{"code":40110000,"message":"unauthorized"}', HTTPError(response=response))
+        broker.api.cancel_order_by_id = MagicMock(side_effect=error)
+        broker.api.get_order_by_id = MagicMock()
+        with pytest.raises(APIError) as caught:
+            broker.cancel_order(order)
+        assert caught.value is error
+        broker.api.get_order_by_id.assert_not_called()
+        assert order.is_active()
+
+    @pytest.mark.parametrize("status,price", [("new", "101.25"), ("filled", None), ("filled", "NaN")])
+    def test_cancel_does_not_invent_terminal_state_without_valid_broker_evidence(self, status, price):
+        from alpaca.common.exceptions import APIError
+        from requests import HTTPError, Response
+
+        broker = Alpaca(ALPACA_UNIT_CONFIG, connect_stream=False, start_orders_thread=False)
+        order = Order("unit", Asset("SPY"), 2, "buy", identifier="uncertain-cancel")
+        broker._process_new_order(order)
+        response = Response()
+        response.status_code = 422
+        error = APIError('{"code":42210000,"message":"cannot cancel"}', HTTPError(response=response))
+        broker.api.cancel_order_by_id = MagicMock(side_effect=error)
+        broker.api.get_order_by_id = MagicMock(return_value=SimpleNamespace(
+            id=order.identifier, status=status, filled_qty="2", filled_avg_price=price
+        ))
+        with pytest.raises(APIError):
+            broker.cancel_order(order)
+        assert order.is_active()
+        assert order.transactions == []
+
     def test_initialize_broker_legacy(self):
         """
         This test to make sure the legacy way of initializing the broker still works.

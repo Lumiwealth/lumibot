@@ -1341,7 +1341,65 @@ class Alpaca(Broker):
         Order
             The order that was cancelled
         """
-        self.api.cancel_order_by_id(order.identifier)
+        from alpaca.common.exceptions import APIError
+
+        try:
+            self.api.cancel_order_by_id(order.identifier)
+        except APIError as cancel_error:
+            if cancel_error.status_code != 422:
+                raise
+            # A fill can win the cancellation race while stream delivery is
+            # absent/delayed. The rejection is not proof of a fill: confirm the
+            # exact order through REST before processing any terminal event.
+            try:
+                confirmed = self._pull_broker_order(order.identifier)
+            except Exception:
+                raise cancel_error from None
+            if str(getattr(confirmed, "id", "")) != str(order.identifier):
+                raise
+            status = getattr(confirmed, "status", None)
+            status = getattr(status, "value", status)
+            if status == "canceled":
+                if not order.is_canceled():
+                    self._process_trade_event(order, self.CANCELED_ORDER)
+                return
+            if status != "filled":
+                raise
+            try:
+                total_quantity = Decimal(str(confirmed.filled_qty))
+                price = Decimal(str(confirmed.filled_avg_price))
+                prior_quantity = sum(
+                    (Decimal(str(transaction.quantity)) for transaction in order.transactions), Decimal(0)
+                )
+                prior_value = sum(
+                    (Decimal(str(transaction.quantity)) * Decimal(str(transaction.price))
+                     for transaction in order.transactions), Decimal(0)
+                )
+                remaining_quantity = total_quantity - prior_quantity
+                if (order.is_filled() and total_quantity.is_finite() and price.is_finite()
+                        and total_quantity == Decimal(str(order.quantity)) == prior_quantity
+                        and price > 0 and prior_value == total_quantity * price):
+                    # The broker lookup, not the local status, confirms that a
+                    # repeated explicit cancellation has no missing fill event.
+                    return
+                remaining_price = (total_quantity * price - prior_value) / remaining_quantity
+                valid_fill = (
+                    total_quantity.is_finite() and price.is_finite()
+                    and total_quantity == Decimal(str(order.quantity))
+                    and price > 0 and remaining_quantity > 0
+                    and prior_quantity.is_finite() and prior_quantity >= 0
+                    and remaining_price.is_finite() and remaining_price > 0
+                )
+            except Exception:
+                raise cancel_error from None
+            if not valid_fill:
+                raise
+            order.update_raw(confirmed)
+            order.avg_fill_price = float(price)
+            self._process_trade_event(
+                order, self.FILLED_ORDER, price=float(remaining_price),
+                filled_quantity=float(remaining_quantity), multiplier=order.asset.multiplier,
+            )
 
 
     def _modify_order(

@@ -133,7 +133,7 @@ def test_mgc_51_completed_daily_bars_are_identical_on_cold_and_warm_route(monkey
             assert bars.df.index.tolist() == expected.index.tolist()
 
 
-@pytest.mark.parametrize("when,expected", [("2026-09-20 17:59:59", 104.), ("2026-09-20 18:00:00", None)])
+@pytest.mark.parametrize("when,expected", [("2026-09-20 17:59:59", 104.), ("2026-09-20 18:00:00", None)], ids=["before-reopening", "exact-reopening"])
 def test_closed_futures_mark_expires_at_exact_reopening(when, expected):
     from lumibot.tools.ibkr_helper import closed_futures_mark
 

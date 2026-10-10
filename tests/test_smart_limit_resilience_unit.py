@@ -61,6 +61,48 @@ def _leg(strategy_name: str, asset: Asset, side: Order.OrderSide) -> Order:
     return Order(strategy_name, asset=asset, quantity=1, side=side, order_type=Order.OrderType.MARKET)
 
 
+def test_alpaca_confirmed_fill_resolves_scheduled_smart_limit_pending_work(mocker):
+    from alpaca.common.exceptions import APIError
+    from requests import HTTPError, Response
+
+    from lumibot.brokers.alpaca import Alpaca
+
+    broker = Alpaca(
+        {"API_KEY": "synthetic", "API_SECRET": "synthetic", "PAPER": True},
+        connect_stream=False, start_orders_thread=False,
+    )
+    strategy = _MinimalStrategy(broker)
+    executor = StrategyExecutor(strategy=strategy)
+    strategy._executor = executor
+    subscriber = SimpleNamespace(name="unit", FILLED_ORDER=broker.FILLED_ORDER, add_event=mocker.Mock())
+    broker._add_subscriber(subscriber)
+    config = SmartLimitConfig(preset=SmartLimitPreset.FAST, step_seconds=1, final_hold_seconds=2)
+    order = Order(
+        "unit", _option("SPY", 100), 2, Order.OrderSide.BUY_TO_OPEN,
+        order_type=Order.OrderType.SMART_LIMIT, smart_limit=config, identifier="scheduled-fill-race",
+    )
+    broker._process_new_order(order)
+    order._smart_limit_state = {
+        "created_at": 0.0, "step_index": 2, "steps": 3,
+        "step_seconds": 1, "final_hold_seconds": 2,
+    }
+    response = Response()
+    response.status_code = 422
+    broker.api.cancel_order_by_id = mocker.Mock(side_effect=APIError(
+        '{"code":42210000,"message":"order is already filled"}', HTTPError(response=response),
+    ))
+    broker.api.get_order_by_id = mocker.Mock(return_value=SimpleNamespace(
+        id=order.identifier, status="filled", filled_qty="2", filled_avg_price="15.29",
+    ))
+    mocker.patch("lumibot.strategies.strategy_executor.time.monotonic", return_value=4.1)
+    assert executor._scheduled_pending_work() == {"smart_limit_orders": 1}
+    executor._process_smart_limit_orders()
+    assert order.is_filled()
+    assert executor._scheduled_pending_work() == {}
+    assert subscriber.add_event.call_count == 1
+    assert subscriber.add_event.call_args.args[1]["multiplier"] == 100
+
+
 def test_single_leg_partially_filled_orders_still_reprice(mocker):
     broker = _BrokerStub(name="stub")
     broker.modify_order = mocker.Mock()
@@ -260,4 +302,3 @@ def test_multileg_cross_even_to_debit_replaces_with_debit_price(mocker):
     _, kwargs = broker.submit_orders.call_args
     assert kwargs["order_type"] == "debit"
     assert abs(float(kwargs["price"]) - 0.05) < 1e-9
-

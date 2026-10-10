@@ -48,6 +48,24 @@ broker-provided explanation, rather than only the normalized `error` status.
 Missing descriptions retain the status-only fallback. Repeated snapshots of
 the same terminal order must still emit exactly one error callback.
 
+Direct-order lookups after a broad-list miss use the same serialized snapshot
+reducer as stream and healing observations. They must not assign a terminal
+status before that reducer runs: doing so suppresses the fill/error callback.
+Broker errors queued during synchronization retain the original error object
+when the queue is drained.
+
+Canceled snapshots can contain fills not seen on the stream. Apply their new
+cumulative fill delta before dispatching cancellation, and deduplicate repeated
+snapshots. A cancel HTTP 400/409 is resolved only by a direct broker snapshot
+showing FILLED or CANCELED; uncertain or active state leaves the cancel error
+visible. Immediate login/disconnect cycles retain exponential backoff up to
+30 seconds; reset only after 60 seconds of healthy message handling.
+
+``Strategy.create_order`` defaults to GTC, unlike ``Order``'s DAY default.
+Specify DAY explicitly for an intended intraday hedge. Do not normalize every
+GTC order to DAY or imply that DAY bypasses borrow restrictions. A serializer
+contract proves the submitted duration, not acceptance by a live account.
+
 ## Position Sync Safety
 
 Schwab position parsing should include unknown positions by default when there is enough information to represent them. A row with symbol plus quantity should return a `Position`, even if the asset type is unfamiliar.

@@ -208,6 +208,10 @@ class DownloaderQueueTimeout(TimeoutError):
         self.provider_details = dict(provider_details) if isinstance(provider_details, dict) else None
 
 
+class DownloaderQueueRequestLost(RuntimeError):
+    """The downloader explicitly no longer has an accepted queue request."""
+
+
 class QueueClient:
     """Queue-aware client for ThetaData requests.
 
@@ -451,7 +455,11 @@ class QueueClient:
             existing = self._pending_requests.get(correlation_id)
             if existing and existing.status in ("pending", "processing"):
                 # Refresh status from server
-                self._refresh_status(existing.request_id)
+                try:
+                    self._refresh_status(existing.request_id)
+                except DownloaderQueueRequestLost:
+                    if method.upper() not in {"GET", "HEAD"}:
+                        raise
                 existing = self._pending_requests.get(correlation_id)
                 if existing and existing.status in ("pending", "processing"):
                     logger.debug(
@@ -672,6 +680,12 @@ class QueueClient:
             pass
         return request_id, status
 
+    def _forget_lost_request(self, request_id: str) -> None:
+        with self._lock:
+            correlation_id = self._request_id_to_correlation.pop(request_id, None)
+            if correlation_id:
+                self._pending_requests.pop(correlation_id, None)
+
     def _refresh_status(self, request_id: str) -> Optional[QueuedRequestInfo]:
         """Refresh status of a request from the server."""
         try:
@@ -682,13 +696,8 @@ class QueueClient:
                 timeout=self._http_timeout(QUEUE_STATUS_HTTP_TIMEOUT),
             )
             if resp.status_code == 404:
-                # Request not found, remove from tracking
-                with self._lock:
-                    correlation_id = self._request_id_to_correlation.get(request_id)
-                    if correlation_id:
-                        self._pending_requests.pop(correlation_id, None)
-                        self._request_id_to_correlation.pop(request_id, None)
-                return None
+                self._forget_lost_request(request_id)
+                raise DownloaderQueueRequestLost(f"Downloader no longer has request {request_id}")
 
             resp.raise_for_status()
             data = resp.json()
@@ -724,6 +733,8 @@ class QueueClient:
                     self._status_refresh_error_streak = 0
                     return info
             return None
+        except DownloaderQueueRequestLost:
+            raise
         except Exception as exc:
             self._last_status_refresh_error = str(exc)
             self._last_status_refresh_error_time = time.time()
@@ -743,6 +754,9 @@ class QueueClient:
                 headers={self.api_key_header: self.api_key},
                 timeout=self._http_timeout(QUEUE_RESULT_HTTP_TIMEOUT),
             )
+            if resp.status_code == 404:
+                self._forget_lost_request(request_id)
+                raise DownloaderQueueRequestLost(f"Downloader no longer has result {request_id}")
             data = resp.json()
             status_code = resp.status_code
 
@@ -754,6 +768,8 @@ class QueueClient:
                 return None, status_code, "dead"
             else:
                 return None, status_code, data.get("status", "unknown")
+        except DownloaderQueueRequestLost:
+            raise
         except Exception as exc:
             logger.warning("Failed to get result for %s: %s", request_id, exc)
             return None, 0, "error"
@@ -1095,6 +1111,14 @@ class QueueClient:
                     remaining = self._remaining_budget()
                     return self.wait_for_result(request_id=request_id,
                                                 timeout=min(attempt_timeout, remaining) if remaining is not None else attempt_timeout)
+                except DownloaderQueueRequestLost:
+                    if method.upper() not in {"GET", "HEAD"}:
+                        raise
+                    # A replacement may lose its local queue. Reissue the same
+                    # idempotent read without spending an entire attempt timeout.
+                    # Transient failures and provider waits do not enter this path.
+                    correlation_override = None
+                    self._sleep_with_budget(1.0)
                 except TimeoutError as exc:
                     try:
                         self._remaining_budget()

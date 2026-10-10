@@ -1559,6 +1559,25 @@ def _session_minute_bars(days, *, first, last, freq="1min"):
     return pd.concat(frames).sort_index()
 
 
+def test_backtest_asof_keeps_delayed_tail_fixed_as_wall_clock_advances(monkeypatch, tmp_path):
+    helper = _page_end_setup(monkeypatch, tmp_path, 123)
+    now = datetime(2026, 9, 25, 15, 0, tzinfo=timezone.utc)
+    monkeypatch.setattr(helper, "_ibkr_history_now_utc", lambda: now)
+    vendor = _session_minute_bars(["2026-09-25"], first="09:30", last="10:38")
+    feed, requests = _ibkr_page_end_feed(vendor, pd.Timedelta(minutes=1))
+    monkeypatch.setattr(helper, "queue_request", feed)
+    kwargs = dict(asset=Asset("SPY"), quote=Asset("USD", asset_type="forex"), timestep="minute",
+                  start_dt=datetime(2026, 9, 25, 13, 30, tzinfo=timezone.utc), end_dt=now,
+                  history_as_of=now, include_after_hours=True, source="Trades")
+    first = helper.get_price_data(**kwargs)
+    count = len(requests)
+    assert count > 0
+    now += timedelta(minutes=10)
+    second = helper.get_price_data(**kwargs)
+    assert len(requests) == count
+    pd.testing.assert_frame_equal(first, second)
+
+
 def test_ibkr_index_minute_history_keeps_every_sessions_closing_bar(monkeypatch, tmp_path):
     ibkr_helper = _page_end_setup(monkeypatch, tmp_path, 416904)
     days = ["2026-09-14", "2026-09-15", "2026-09-16", "2026-09-17", "2026-09-18"]

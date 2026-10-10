@@ -18,7 +18,7 @@ def test_router_routes_crypto_to_ibkr(monkeypatch):
 
     calls = {"ibkr": 0}
 
-    def fake_get_price_data(*, asset, quote, timestep, start_dt, end_dt, exchange=None, include_after_hours=True):
+    def fake_get_price_data(*, asset, quote, timestep, start_dt, end_dt, exchange=None, include_after_hours=True, history_as_of=None):
         calls["ibkr"] += 1
         idx = pd.DatetimeIndex(
             [
@@ -63,7 +63,7 @@ def test_router_routes_crypto_future_to_exact_quote_spot_proxy(monkeypatch):
     captured = {}
     log_messages = []
 
-    def fake_get_price_data(*, asset, quote, timestep, start_dt, end_dt, exchange=None, include_after_hours=True):
+    def fake_get_price_data(*, asset, quote, timestep, start_dt, end_dt, exchange=None, include_after_hours=True, history_as_of=None):
         captured["asset"] = asset
         captured["quote"] = quote
         idx = pd.DatetimeIndex(
@@ -114,7 +114,7 @@ def test_router_accepts_futures_key_alias(monkeypatch):
 
     calls = {"ibkr": 0}
 
-    def fake_get_price_data(*, asset, quote, timestep, start_dt, end_dt, exchange=None, include_after_hours=True, source=None):
+    def fake_get_price_data(*, asset, quote, timestep, start_dt, end_dt, exchange=None, include_after_hours=True, source=None, history_as_of=None):
         calls["ibkr"] += 1
         idx = pd.DatetimeIndex(
             [
@@ -156,7 +156,7 @@ def test_router_uses_rth_for_ibkr_stock_daily(monkeypatch):
 
     captured = {"include_after_hours": None, "calls": 0}
 
-    def fake_get_price_data(*, asset, quote, timestep, start_dt, end_dt, exchange=None, include_after_hours=True):
+    def fake_get_price_data(*, asset, quote, timestep, start_dt, end_dt, exchange=None, include_after_hours=True, history_as_of=None):
         captured["calls"] += 1
         captured["include_after_hours"] = bool(include_after_hours)
         idx = pd.DatetimeIndex(

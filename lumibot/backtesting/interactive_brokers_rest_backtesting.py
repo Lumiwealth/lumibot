@@ -30,6 +30,29 @@ class InteractiveBrokersRESTBacktesting(PandasData):
     SOURCE = "InteractiveBrokersREST"
     PREFER_NATIVE_DAY_BARS_FOR_STOCK_INDEX = True
 
+    def record_history_requirement(self, *, asset, timestep, requested_bars, bars, timeshift=None):
+        from lumibot.tools.ibkr_history_health import record_required_history
+
+        if not timeshift:
+            from lumibot.tools.ibkr_history_health import record_backtest_availability_requirement
+
+            record_backtest_availability_requirement(asset=asset, timestep=timestep, when=self.get_datetime(),
+                                                     history_as_of=getattr(self, "_history_as_of", None))
+        record_required_history(asset=asset, timestep=timestep, requested_bars=requested_bars,
+                                frame=bars.pandas_df if bars is not None else None, when=self.get_datetime())
+
+    def resolve_order_asset(self, order, positions):
+        from lumibot.tools.ibkr_order_contract import resolve_order_contract
+
+        return resolve_order_contract(asset=order.asset, side=order.side, quantity=order.quantity,
+                                      positions=positions, when=self.get_datetime())
+
+    def record_missing_valuation(self, asset):
+        from lumibot.tools.ibkr_history_health import record_required_history
+
+        record_required_history(asset=asset, timestep="valuation", requested_bars=1, frame=None,
+                                when=self.get_datetime(), requirement="valuation")
+
     def __init__(
         self,
         datetime_start: datetime,
@@ -44,6 +67,7 @@ class InteractiveBrokersRESTBacktesting(PandasData):
         self._timestep = self.MIN_TIMESTEP
         self.exchange = exchange
         self.history_source = history_source
+        self._history_as_of = ibkr_helper._ibkr_history_now_utc()
 
         unique_id = uuid.uuid4().hex[:8]
         strategy_name = kwargs.get("name", "Backtest")
@@ -246,17 +270,9 @@ class InteractiveBrokersRESTBacktesting(PandasData):
 
         asset_type = self._normalize_asset_type(getattr(base_asset, "asset_type", ""))
         now = self.get_datetime()
-        # Futures backtests should not look ahead into the current (incomplete) bar. Interpret
-        # "last price at dt" as the last completed bar's close by nudging dt slightly earlier.
-        #
-        # NOTE: Continuous futures stitching is responsible for ensuring the bar immediately
-        # preceding a roll boundary is present (so the last-completed-bar semantics remain valid
-        # across contract transitions).
-        if asset_type in {"future", "cont_future"}:
-            try:
-                now = now - timedelta(microseconds=1)
-            except Exception:
-                pass
+        # Data.get_last_price uses a forming bar's open and a completed bar's close.
+        # Keep the actual clock: shifting backwards at a futures session opening lands
+        # in the maintenance gap, hiding an available open and dropping position marks.
         if asset_type == "crypto" and now.hour == 0 and now.minute == 0 and now.second == 0 and now.microsecond == 0:
             day_key = (base_asset, quote_asset, "day", self._normalize_exchange_key(effective_exchange))
             if day_key not in self._fully_loaded_series:
@@ -349,6 +365,10 @@ class InteractiveBrokersRESTBacktesting(PandasData):
                 return data.get_last_price(now)
             except Exception:
                 pass
+            if asset_type in {"future", "cont_future"}:
+                closed_mark = ibkr_helper.closed_futures_mark(data.df, timestep="minute", when=now)
+                if closed_mark is not None:
+                    return closed_mark
 
         if minute_key not in self._fully_loaded_series:
             try:
@@ -369,6 +389,8 @@ class InteractiveBrokersRESTBacktesting(PandasData):
                 return data.get_last_price(now)
             except Exception:
                 pass
+            if asset_type in {"future", "cont_future"}:
+                return ibkr_helper.closed_futures_mark(data.df, timestep="minute", when=now)
         return None
 
     def _refresh_stale_minute_series_for_valuation(self, asset, quote_asset, exchange, now) -> bool:
@@ -382,6 +404,10 @@ class InteractiveBrokersRESTBacktesting(PandasData):
         day-only strategies never trigger a minute fetch.
         """
         canonical_key, _legacy = self._build_dataset_keys(asset, quote_asset, "minute", exchange)
+        if canonical_key in self._fully_loaded_series:
+            # A closed historical window cannot gain bars between calls.
+            # Pre-market valuation may have no current bar; do not refetch it.
+            return False
         if canonical_key not in self._data_store:
             return False
         attempts = getattr(self, "_valuation_refresh_attempts", None)
@@ -706,6 +732,7 @@ class InteractiveBrokersRESTBacktesting(PandasData):
             exchange=exchange,
             include_after_hours=include_after_hours,
             source=self.history_source,
+            history_as_of=self._history_as_of,
         )
 
         if df is None or df.empty:
@@ -797,10 +824,21 @@ class InteractiveBrokersRESTBacktesting(PandasData):
             if data is None:
                 return None
             now = self.get_datetime()
+            execution_shift = (timeshift.total_seconds() < 0 if isinstance(timeshift, timedelta)
+                               else timeshift is not None and timeshift < 0)
             try:
-                return data.get_bars(now, length=length, timestep=timestep, timeshift=timeshift)
+                bars = data.get_bars(now, length=length, timestep=timestep, timeshift=timeshift)
+                if dataset_key == "day" or execution_shift:
+                    return bars
+                if bars is not None and len(bars) >= length:
+                    return bars
             except ValueError:
-                return None
+                if dataset_key == "day" or execution_shift:
+                    return None
+            # A later strategy request can need a longer lookback than the
+            # initial prefetch. Full simulation coverage does not prove that
+            # every possible lookback is loaded.
+            self._fully_loaded_series.discard(fully_loaded_key)
 
         # IBKR crypto/futures trade outside equity calendars; do not add the default 5-day padding.
         start_dt, ts_unit = self.get_start_datetime_and_ts_unit(
@@ -844,6 +882,22 @@ class InteractiveBrokersRESTBacktesting(PandasData):
                     end_dt=prefetch_end,
                 ):
                     self._fully_loaded_series.add(key)
+        elif asset_type in {"stock", "index"} and ts_unit in {"minute", "hour"}:
+            # Match futures/crypto reuse for historical stock strategies. Keep
+            # the endpoint fixed to the simulation, never the wall clock.
+            # The buffer supplies completed bars across weekends/holidays.
+            prefetch_start = min(start_dt, self.datetime_start) - timedelta(days=5)
+            self._update_pandas_data(
+                asset_separated, quote_asset, dataset_key,
+                start_dt=prefetch_start, end_dt=self.datetime_end,
+                exchange=effective_exchange, include_after_hours=include_after_hours,
+            )
+            data_prefetched = self._data_store.get(fully_loaded_key)
+            if ibkr_helper.frame_covers_requested_window(
+                getattr(data_prefetched, "df", None), asset=asset_separated,
+                timestep=dataset_key, start_dt=self.datetime_start, end_dt=self.datetime_end,
+            ):
+                self._fully_loaded_series.add(fully_loaded_key)
         elif asset_type in {"stock", "index"} and ts_unit == "day":
             # Equity/index daily strategies repeatedly request overlapping windows.
             # Prefetch the full backtest range once and reuse in-memory slices.

@@ -6,10 +6,9 @@ import time
 from datetime import date, datetime, timezone
 from pathlib import Path
 from typing import Any
-from zoneinfo import ZoneInfo
 
 import requests
-
+from zoneinfo import ZoneInfo
 
 FRED_API_BASE_URL = "https://api.stlouisfed.org/fred"
 FRED_REALTIME_TIMEZONE = ZoneInfo("America/Chicago")
@@ -135,8 +134,15 @@ class FREDMacroData:
         if cache_path.exists():
             return json.loads(cache_path.read_text(encoding="utf-8"))
         self._rate_limit()
-        response = requests.get(url, params=params, timeout=30)
-        response.raise_for_status()
+        try:
+            response = requests.get(url, params=params, timeout=30)
+            response.raise_for_status()
+        except requests.RequestException as exc:
+            # requests embeds the URL (including api_key) in HTTP errors. These
+            # errors are visible in agent results, so never propagate that URL.
+            status = exc.response.status_code if exc.response is not None else None
+            detail = f"HTTP {status}" if status is not None else type(exc).__name__
+            raise ValueError(f"FRED request failed ({detail})") from None
         payload = response.json()
         cache_path.parent.mkdir(parents=True, exist_ok=True)
         cache_path.write_text(json.dumps(payload, indent=2, sort_keys=True), encoding="utf-8")

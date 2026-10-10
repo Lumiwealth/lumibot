@@ -89,7 +89,7 @@ def test_router_ibkr_prefetches_full_window_once_for_cont_future_minute(monkeypa
 
     calls: list[dict] = []
 
-    def fake_get_price_data(*, asset, quote, timestep, start_dt, end_dt, exchange=None, include_after_hours=True, source=None):
+    def fake_get_price_data(*, asset, quote, timestep, start_dt, end_dt, exchange=None, include_after_hours=True, source=None, history_as_of=None):
         calls.append(
             {
                 "asset": asset,
@@ -148,7 +148,7 @@ def test_router_ibkr_prefetches_full_window_once_for_cont_future_multi_minute(mo
 
     calls: list[dict] = []
 
-    def fake_get_price_data(*, asset, quote, timestep, start_dt, end_dt, exchange=None, include_after_hours=True, source=None):
+    def fake_get_price_data(*, asset, quote, timestep, start_dt, end_dt, exchange=None, include_after_hours=True, source=None, history_as_of=None):
         calls.append({"timestep": timestep, "start_dt": start_dt, "end_dt": end_dt})
         assert timestep == "60minute"
         return _multi_minute_ohlc(start_dt, end_dt, minutes=60)
@@ -194,7 +194,7 @@ def test_router_ibkr_prefetch_slices_expected_window(monkeypatch):
     asset = Asset("NQ", asset_type=Asset.AssetType.CONT_FUTURE)
     quote = Asset("USD", asset_type=Asset.AssetType.FOREX)
 
-    def fake_get_price_data(*, asset, quote, timestep, start_dt, end_dt, exchange=None, include_after_hours=True, source=None):
+    def fake_get_price_data(*, asset, quote, timestep, start_dt, end_dt, exchange=None, include_after_hours=True, source=None, history_as_of=None):
         return _minute_ohlc(start_dt, end_dt)
 
     monkeypatch.setattr(ibkr_helper, "get_price_data", fake_get_price_data)
@@ -233,7 +233,7 @@ def test_router_ibkr_prefetches_full_window_once_for_crypto_minute(monkeypatch):
 
     calls: list[dict] = []
 
-    def fake_get_price_data(*, asset, quote, timestep, start_dt, end_dt, exchange=None, include_after_hours=True, source=None):
+    def fake_get_price_data(*, asset, quote, timestep, start_dt, end_dt, exchange=None, include_after_hours=True, source=None, history_as_of=None):
         calls.append({"timestep": timestep, "start_dt": start_dt, "end_dt": end_dt})
         return _minute_ohlc(start_dt, end_dt)
 

@@ -28,6 +28,38 @@ class PreconditionFailed(RuntimeError):
     response = {"Error": {"Code": "PreconditionFailed"}}
 
 
+def test_expired_tws_absence_has_short_retry_without_poisoning_price_cache(monkeypatch):
+    from lumibot.tools.ibkr_history_health import classify_history_failure
+
+    clock = [2_000_000_000.]
+    monkeypatch.setattr(ibkr_helper.time, "time", lambda: clock[0])
+    monkeypatch.setattr(ibkr_helper, "_NEGATIVE_CONID_CACHE_LOADED", True)
+    monkeypatch.setattr(ibkr_helper, "get_backtest_cache", lambda: SimpleNamespace(on_local_update=lambda *a, **k: None))
+    calls = []
+    def lookup(**kw):
+        calls.append(kw["url"])
+        return {"contracts": []} if "/tws/" in kw["url"] else {"MGC": []}
+    monkeypatch.setattr(ibkr_helper, "queue_request", lookup)
+    asset = Asset("MGC", asset_type="future", expiration=date(2025, 4, 28))
+    for _ in range(2):
+        with pytest.raises(RuntimeError, match="contract_identity") as caught:
+            ibkr_helper._lookup_conid_future(asset=asset, exchange="COMEX")
+        assert not classify_history_failure(caught.value).persist_negative_cache
+    assert len(calls) == 2, "Known unresolved expiry must not query REST and TWS again before retry time"
+    clock[0] += 901
+    with pytest.raises(RuntimeError, match="contract_identity"):
+        ibkr_helper._lookup_conid_future(asset=asset, exchange="COMEX")
+    assert len(calls) == 4, "A cooled-down identity must remain recoverable"
+
+
+def test_tws_transient_failure_does_not_create_identity_absence(monkeypatch):
+    monkeypatch.setattr(ibkr_helper, "queue_request", lambda **kw: (_ for _ in ()).throw(TimeoutError("gateway reset")))
+    with pytest.raises(TimeoutError):
+        ibkr_helper._lookup_conid_future_tws(asset=Asset("MGC", asset_type="future", expiration=date(2025, 4, 28)),
+                                            exchange="COMEX", mapping={}, keys_added=set())
+    assert not ibkr_helper._NEGATIVE_CONID_CACHE
+
+
 class Registry:
     def __init__(self, initial, concurrent=None):
         self.mapping = dict(initial)
@@ -173,3 +205,16 @@ def test_tws_discovery_rejects_ambiguous_same_month(monkeypatch):
     with pytest.raises(RuntimeError, match="ambiguous"):
         ibkr_helper._lookup_conid_future_tws(asset=Asset("MGC", asset_type="future", expiration=date(2026, 4, 28)),
                                             exchange="COMEX", mapping={}, keys_added=set())
+
+
+@pytest.mark.parametrize("symbol,expiration", [("NG", date(2026, 9, 28)), ("CL", date(2026, 9, 22)),
+                                              ("MCL", date(2026, 9, 21))])
+def test_energy_tws_lookup_uses_exact_expiry_not_delivery_month(monkeypatch, symbol, expiration):
+    def request(*, querystring, **kwargs):
+        assert querystring["expiry"] == expiration.strftime("%Y%m%d")
+        return {"contracts": [{"conid": 123, "symbol": symbol, "secType": "FUT", "exchange": "NYMEX",
+                               "currency": "USD", "expiry": expiration.strftime("%Y%m%d")}]}
+    monkeypatch.setattr(ibkr_helper, "queue_request", request)
+    assert ibkr_helper._lookup_conid_future_tws(
+        asset=Asset(symbol, asset_type="future", expiration=expiration), exchange="NYMEX",
+        mapping={}, keys_added=set()) == 123

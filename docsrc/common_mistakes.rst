@@ -6,6 +6,26 @@ Common Mistakes and How to Avoid Them
 
 This page documents the most common mistakes made when writing Lumibot strategies, along with the correct patterns to use instead.
 
+Choosing an Intraday Order Duration
+--------------------------------------------------------------------------------
+
+``Strategy.create_order()`` defaults to ``time_in_force="gtc"``, while constructing
+``Order`` directly defaults to ``"day"``. Specify the intended duration explicitly.
+For example, an intraday market short can use:
+
+.. code-block:: python
+
+   hedge = self.create_order(
+       Asset("SPY"), 100, Order.OrderSide.SELL_SHORT,
+       order_type=Order.OrderType.MARKET, time_in_force="day",
+   )
+   self.submit_order(hedge)
+
+Schwab may reject GTC short-sale orders for hard-to-borrow securities. DAY does
+not guarantee acceptance or a fill; other borrowing, account and market constraints
+still apply. Inspect the broker's rejection reason before retrying. Preserve
+intentional GTC orders instead of changing every order's duration globally.
+
 Restoring Asset Variables After a Restart
 --------------------------------------------------------------------------------
 
@@ -15,13 +35,30 @@ dictionaries, or tuples. Restored objects can be passed directly to
 ``get_position()`` and ``add_ohlc()``.
 Sets still restore as lists, with their asset values preserved.
 
-Older backups may contain an untagged asset dictionary. Such dictionaries are
-not converted automatically because the same shape can be ordinary strategy
-metadata. When migrating a known instrument variable, reconstruct it explicitly
-with ``Asset.from_dict(value)`` after restoration and before using strategy APIs.
+Older backups may contain an untagged asset dictionary. Restoration reconstructs
+it only when the same variable path already contains an ``Asset`` initialized by
+the strategy. Saved contract details remain authoritative; initialization supplies
+the expected type, not replacement quantities, strikes, or signals. Scheduled-file
+restoration preserves the original bytes in a permission-restricted sibling
+``.legacy-<sha256>.bak`` before applying the recovered variables.
+Paths without an initialized instrument remain ordinary dictionaries because
+the same shape can be strategy metadata. Migrate those explicitly with
+``Asset.from_dict(value)`` after verifying the instrument path.
 Do not apply this conversion to arbitrary dictionaries or discard other saved
 strategy state. Backups written by the updated runtime should be restored by
 the updated runtime; older versions do not understand the asset type tag.
+For hosted scheduled bots, preserve the original remote state independently
+before migration: a local sibling backup is not a durable cloud backup unless
+the hosting system explicitly retains it.
+
+FRED Data Errors
+--------------------------------------------------------------------------------
+
+Use official FRED series identifiers rather than market symbols. A failed series
+can appear under ``errors`` even when other series succeed in the same snapshot.
+HTTP and transport errors report a status or exception type without exposing the
+API key in the request URL. Correct an invalid series; do not replace working
+credentials because one series returns HTTP 400.
 
 Critical Mistakes (Will Break Your Strategy)
 --------------------------------------------

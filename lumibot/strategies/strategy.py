@@ -654,7 +654,9 @@ class Strategy(_Strategy):
                 - ``'day'`` Orders valid for the remainder of the day.
                 - ``'gtc'`` Good until cancelled.
                 - ``'gtd'`` Good until date.
-            (Default: 'day')
+            (Default: 'gtc'). Pass ``time_in_force='day'`` explicitly for an
+            intraday order. Constructing ``Order`` directly defaults to 'day';
+            this Strategy API defaults to 'gtc'.
         good_till_date : datetime.datetime
             This is the time order is valid for Good Though Date orders.
         take_profit_price : float
@@ -4968,6 +4970,11 @@ class Strategy(_Strategy):
                     # If resampling fails, log warning and return original data
                     self.logger.warning(f"Failed to resample data from {actual_timestep} to {original_timestep}: {e}")
 
+        if self.is_backtesting:
+            record_requirement = getattr(ds, "record_history_requirement", None)
+            if callable(record_requirement):
+                record_requirement(asset=asset, timestep=original_timestep or actual_timestep,
+                                   requested_bars=length, bars=bars, timeshift=timeshift)
         return bars
 
     def get_symbol_bars(

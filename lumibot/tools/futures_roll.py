@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import date, datetime, timedelta
+from functools import lru_cache
 from typing import Dict, List, Optional, Tuple
 
 import pytz
@@ -281,6 +282,7 @@ def _mcl_last_trade_date(year: int, month: int) -> datetime:
     return _prior_month_25th_minus_trading_days(year, month, trading_days_before_25th=4)
 
 
+@lru_cache(maxsize=4096)
 def _ng_last_trade_date(year: int, month: int) -> datetime:
     """Henry Hub gas: three trading days before the first delivery-month day."""
     delivery_start = date(year, month, 1)
@@ -295,7 +297,10 @@ def _ng_last_trade_date(year: int, month: int) -> datetime:
     return _to_timezone(datetime.combine(valid[-3].date(), datetime.min.time()))
 
 
+@lru_cache(maxsize=8192)
 def _calculate_roll_trigger(year: int, month: int, rule: RollRule) -> datetime:
+    # RollRule is immutable and part of the key: replacing a rule cannot reuse
+    # the old date. Calendar failures raise and are never cached by lru_cache.
     roll_anchor = rule.roll_anchor or rule.anchor
     if roll_anchor == "metal_first_notice":
         # COMEX 706.C: first notice is the last business day of the prior

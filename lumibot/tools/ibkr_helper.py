@@ -483,6 +483,35 @@ def _us_futures_closed_interval(
         return False
 
 
+def closed_futures_mark(frame: pd.DataFrame, *, timestep: str, when: datetime) -> Optional[float]:
+    """Use a completed trade close only when every later instant was closed.
+
+    This is a valuation fallback, never an executable bar or a gap repair. An
+    absent bar after the next opening remains missing, including holiday gaps
+    not represented by the conservative maintenance/weekend calendar.
+    """
+    if frame is None or frame.empty or "close" not in frame:
+        return None
+    try:
+        _, seconds, _ = _timestep_to_ibkr_bar(timestep)
+        if seconds >= 86400:
+            return None
+        now = pd.Timestamp(when)
+        completed = frame.loc[frame.index + pd.Timedelta(seconds=seconds) <= now]
+        if completed.empty:
+            return None
+        row = completed.iloc[-1]
+        if bool(row.get("missing", False)) or not pd.notna(row["close"]):
+            return None
+        end = completed.index[-1] + pd.Timedelta(seconds=seconds)
+        if not _us_futures_closed_interval(end.to_pydatetime(), now.to_pydatetime()):
+            return None
+        price = float(row["close"])
+        return price if math.isfinite(price) else None
+    except (TypeError, ValueError, KeyError):
+        return None
+
+
 @lru_cache(maxsize=64)
 def _us_equity_session_bounds_for_year(year: int, extended_hours: bool) -> tuple[np.ndarray, np.ndarray]:
     """Return sorted NYSE session (open, close) bounds for one year as UTC nanoseconds.
@@ -808,6 +837,7 @@ def get_price_data(
     exchange: Optional[str] = None,
     include_after_hours: bool = True,
     source: Optional[str] = None,
+    history_as_of: Optional[datetime] = None,
 ) -> pd.DataFrame:
     """Fetch IBKR historical bars (via the Data Downloader) and cache to parquet.
 
@@ -900,7 +930,7 @@ def get_price_data(
     # stable historical boundary for explicit and continuous futures as for
     # stocks/indexes; daily bars and real-time snapshot APIs remain separate.
     if asset_type in {"stock", "index", "future", "cont_future"} and not str(timestep_component).endswith("day"):
-        latest_available = _ibkr_history_now_utc() - IBKR_INTRADAY_HISTORY_DELAY
+        latest_available = _to_utc(history_as_of or _ibkr_history_now_utc()) - IBKR_INTRADAY_HISTORY_DELAY
         if end_utc > latest_available:
             if start_utc >= latest_available:
                 # This window is too recent to ask the historical feed. Do
@@ -1012,6 +1042,7 @@ def get_price_data(
                 exchange=effective_exchange,
                 include_after_hours=include_after_hours,
                 source=source,
+                history_as_of=history_as_of,
             )
             if df_seg is not None and not df_seg.empty:
                 frames.append(df_seg)
@@ -5314,9 +5345,13 @@ def _lookup_conid_future_tws(*, asset: Asset, exchange: str,
     symbol = str(asset.symbol).upper()
     root = IBKR_FUTURES_ROOT_ALIASES.get(symbol, symbol)
     target = asset.expiration.strftime("%Y%m%d")
+    # For these roots the last trade date is in the month BEFORE delivery.
+    # TWS interprets YYYYMM as delivery month, so truncating an expiry selects
+    # the previous contract. YYYYMMDD explicitly means last trade date.
+    lookup_expiry = target if symbol in {"NG", "CL", "MCL"} else target[:6]
     payload = queue_request(url=f"{_downloader_base_url()}/ibkr/tws/secdef/contracts",
                             querystring={"symbol": root, "exchange": exchange, "currency": "USD",
-                                         "expiry": target[:6]}, timeout=45.0, max_timeout_attempts=1)
+                                         "expiry": lookup_expiry}, timeout=45.0, max_timeout_attempts=1)
     if not isinstance(payload, dict) or not isinstance(payload.get("contracts"), list):
         raise RuntimeError("partial_history: malformed TWS futures identity payload")
     contracts = payload["contracts"]
@@ -5328,12 +5363,15 @@ def _lookup_conid_future_tws(*, asset: Asset, exchange: str,
         conid = _future_contract_conid(contract)
         if (contract.get("symbol") != root or contract.get("exchange") != exchange
                 or contract.get("secType") != "FUT" or contract.get("currency") != "USD"
-                or len(expiry) != 8 or not expiry.isdigit() or not expiry.startswith(target[:6])
+                or len(expiry) != 8 or not expiry.isdigit() or not expiry.startswith(lookup_expiry)
                 or _date_from_yyyymmdd(expiry) is None or conid is None):
             raise RuntimeError("partial_history: mismatched TWS futures contract identity")
         identities[(conid, expiry)] = contract
     if not identities:
-        return None
+        message = "partial_history: contract_identity_not_found; retry after 15 minutes or registry recovery"
+        key = IbkrConidKey("future", root.upper(), "", exchange, target).to_key()
+        _record_negative_conid(key=key, reason="tws_identity_retry_15m", message=message)
+        raise RuntimeError(message)
     if len(identities) != 1:
         raise RuntimeError("partial_history: ambiguous TWS futures contract identity")
     conid, expiry = next(iter(identities))
@@ -5383,6 +5421,13 @@ def _lookup_conid_future(
         raise IbkrFuturesConidLookupError(cached_msg)
     neg_target_hit = _NEGATIVE_CONID_CACHE.get(neg_target_key) if neg_target_key else None
     if isinstance(neg_target_hit, dict):
+        if neg_target_hit.get("reason") == "tws_identity_retry_15m":
+            # Only a completed, empty TWS identity response creates this marker.
+            # Re-evaluate its short deadline even in a long-lived process. The
+            # shared positive registry is checked before reaching this method.
+            retry_at = float(neg_target_hit.get("ts") or 0) + 900
+            if time.time() < retry_at:
+                raise RuntimeError("partial_history: contract_identity_retry_cooldown; retry after identity deadline")
         cached_msg = str(neg_target_hit.get("message") or "").strip() or (
             f"IBKR futures conid lookup is negatively cached for {symbol_upper} on {desired_exchange} (target={target})."
         )

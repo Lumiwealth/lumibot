@@ -27,7 +27,11 @@ broad mandate leads you to a stock idea, load it before submitting an order.
    price or history tool can return the same evidence.
 4. Evaluate the user's entry, exit, sizing, and frequency rules against current
    evidence. Write down the decisive condition and whether it is true before
-   submitting an order. Do not invent missing signals.
+   submitting an order. Do not invent missing signals. Keep the explanation's
+   comparisons identical to the evaluated rule: a latest price exceeding an
+   average does not establish that every constituent bar exceeded it. If a
+   claim concerns all bars, their count, or a date range, compute and inspect
+   that exact predicate from the returned data before asserting it.
 5. Size from current portfolio value, available cash, current price, volatility or
    stop distance, and the user's risk rules. For a notional cap, calculate
    the maximum notional and call `risk_calculate_stock_quantity`; use its returned

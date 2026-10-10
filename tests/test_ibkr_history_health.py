@@ -27,6 +27,104 @@ def _reset_history_health_state():
     reset_ibkr_history_health_for_testing()
 
 
+def test_required_short_history_stays_invalid_after_later_success():
+    from lumibot.tools.ibkr_history_health import record_required_history
+
+    asset = SimpleNamespace(symbol="MGC", asset_type="cont_future")
+    when = pd.Timestamp("2026-10-01 12:00", tz="UTC")
+    frame = pd.DataFrame({"close": range(32)}, index=pd.date_range(end=when, periods=32, freq="B"))
+    record_required_history(asset=asset, timestep="day", requested_bars=51, frame=frame, when=when)
+    complete = pd.DataFrame({"close": range(51)}, index=pd.date_range(end=when, periods=51, freq="B"))
+    record_required_history(asset=asset, timestep="day", requested_bars=51, frame=complete,
+                            when=when + pd.Timedelta(days=1))
+    health = ibkr_history_health_snapshot()
+    assert health["required_complete"] is False
+    assert health["required_failures"][0]["reason"] == "insufficient_required_history"
+    assert health["required_failures"][0]["requested_bars"] == 51
+    assert health["required_failures"][0]["returned_bars"] == 32
+
+
+@pytest.mark.parametrize("symbol,kind,asof,when,complete", [
+    ("SPY", "stock", "2026-10-09 19:22", "2026-10-09 19:15", False),
+    ("SPY", "stock", "2026-10-09 19:22", "2026-10-09 19:00", True),
+    ("SPY", "stock", "2026-10-10 12:00", "2026-10-10 11:55", True),
+    ("MGC", "cont_future", "2026-10-09 19:22", "2026-10-09 19:15", False),
+    ("MGC", "cont_future", "2026-10-10 12:00", "2026-10-10 11:55", True),
+])
+def test_fixed_feed_snapshot_invalidates_unavailable_decisions_but_not_market_closures(
+    symbol, kind, asof, when, complete
+):
+    from lumibot.tools.ibkr_history_health import record_backtest_availability_requirement
+
+    record_backtest_availability_requirement(asset=SimpleNamespace(symbol=symbol, asset_type=kind),
+        timestep="minute", when=pd.Timestamp(when, tz="UTC"), history_as_of=pd.Timestamp(asof, tz="UTC"))
+    health = ibkr_history_health_snapshot()
+    assert health["required_complete"] is complete
+    if not complete:
+        assert health["required_failures"][0]["reason"] == "required_history_after_feed_cutoff"
+
+
+def test_prefetch_gap_does_not_invalidate_satisfied_strategy_requirement():
+    from lumibot.tools.ibkr_history_health import record_required_history
+
+    when = pd.Timestamp("2026-10-01 12:00", tz="UTC")
+    record_history_health(symbol="SPY", asset_type="stock", timestep="day",
+                          requested_start=when - pd.Timedelta(days=1000), requested_end=when,
+                          outcome=HistoryOutcome.PARTIAL, missing_sessions=["2024-01-02"])
+    frame = pd.DataFrame({"close": range(5)}, index=pd.date_range(end=when, periods=5, freq="B"))
+    record_required_history(asset=SimpleNamespace(symbol="SPY", asset_type="stock"), timestep="day",
+                            requested_bars=5, frame=frame, when=when)
+    health = ibkr_history_health_snapshot()
+    assert health["complete"] is False
+    assert health["required_complete"] is True
+
+
+def test_required_history_detects_known_gap_inside_consumed_interval():
+    from lumibot.tools.ibkr_history_health import record_required_history
+
+    when = pd.Timestamp("2026-10-01 12:00", tz="UTC")
+    record_history_health(symbol="SPY", asset_type="stock", timestep="day",
+                          requested_start=when - pd.Timedelta(days=10), requested_end=when,
+                          outcome=HistoryOutcome.PARTIAL, missing_sessions=["2026-09-29"])
+    frame = pd.DataFrame({"close": range(5)}, index=pd.date_range(end=when, periods=5, freq="B"))
+    record_required_history(asset=SimpleNamespace(symbol="SPY", asset_type="stock"), timestep="day",
+                            requested_bars=5, frame=frame, when=when)
+    assert ibkr_history_health_snapshot()["required_failures"][0]["reason"] == "missing_required_sessions"
+
+
+@pytest.mark.parametrize("gap_start,expected", [("2026-09-29", False), ("2024-01-02", True)])
+def test_required_continuous_history_detects_unresolved_contract_with_enough_rows(gap_start, expected):
+    from lumibot.tools.ibkr_history_health import record_required_history
+
+    when = pd.Timestamp("2026-10-01 20:00", tz="UTC")
+    start = pd.Timestamp(gap_start, tz="UTC")
+    record_history_health(symbol="MGC", asset_type="cont_future", timestep="day",
+                          requested_start=start, requested_end=start + pd.Timedelta(days=1),
+                          outcome=HistoryOutcome.PARTIAL, reason="unresolved_roll_contract")
+    # Enough older bars can conceal a missing contract segment in the middle.
+    frame = pd.DataFrame({"close": range(5)}, index=pd.date_range(end=when, periods=5, freq="B"))
+    record_required_history(asset=SimpleNamespace(symbol="MGC", asset_type="cont_future"),
+                            timestep="day", requested_bars=5, frame=frame, when=when)
+    health = ibkr_history_health_snapshot()
+    assert health["required_complete"] is expected
+    if not expected:
+        assert health["required_failures"][0]["reason"] == "unresolved_required_contract"
+
+
+@pytest.mark.parametrize("provider,expected", [("ibkr", False), ("thetadata", True)])
+def test_routed_requirement_telemetry_applies_only_to_ibkr(provider, expected):
+    from lumibot.backtesting.routed_backtesting import RoutedBacktestingPandas
+    from lumibot.entities import Asset
+
+    router = SimpleNamespace(
+        _provider_spec_for_asset=lambda asset: SimpleNamespace(provider=provider),
+        get_datetime=lambda: pd.Timestamp("2026-10-01", tz="UTC"),
+    )
+    RoutedBacktestingPandas.record_history_requirement(
+        router, asset=Asset("MGC", asset_type="cont_future"), timestep="day", requested_bars=51, bars=None)
+    assert ibkr_history_health_snapshot()["required_complete"] is expected
+
+
 def test_history_failure_classification_never_persists_ambiguous_failures() -> None:
     malformed = classify_history_failure(
         RuntimeError("IBKR history remained invalid after rebuild: malformed_history_payload")

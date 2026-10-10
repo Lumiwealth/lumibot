@@ -354,6 +354,15 @@ class _IbkrRoutingAdapter(_DataFrameRoutingAdapter):
     provider_key = "ibkr"
     _default_start_buffer = timedelta(0)
 
+    def __init__(self, router):
+        super().__init__(router)
+        # A backtest has one data availability snapshot. Letting wall time move
+        # this boundary turns every simulated minute into a fresh tail download.
+        self._history_as_of = ibkr_helper._ibkr_history_now_utc()
+
+    def _get_price_data(self, **kwargs):
+        return ibkr_helper.get_price_data(history_as_of=self._history_as_of, **kwargs)
+
     @staticmethod
     def _normalize_timestep_key(timestep: str) -> str:
         """Normalize a user-facing timestep into a stable IBKR series key.
@@ -384,7 +393,7 @@ class _IbkrRoutingAdapter(_DataFrameRoutingAdapter):
         Key differences vs the generic DataFrame adapter:
         - Preserve the full timestep multiplier in the dataset key ("60m" -> "60minute") so it
           doesn't collide with "minute".
-        - Pass the normalized key through to `ibkr_helper.get_price_data()` so IBKR can return
+        - Pass the normalized key through to `self._get_price_data()` so IBKR can return
           native bars at that cadence (avoids per-iteration resampling).
         - Store `Data` under the normalized key and annotate `_native_timestep_*` so `Data.get_bars()`
           can fast-path slices without resampling.
@@ -456,7 +465,7 @@ class _IbkrRoutingAdapter(_DataFrameRoutingAdapter):
             except Exception:
                 prefetch_start = start_datetime
             prefetch_end = self._router.datetime_end or end_dt
-            df = ibkr_helper.get_price_data(
+            df = self._get_price_data(
                 asset=fetch_asset,
                 quote=fetch_quote_asset,
                 timestep=dataset_key,
@@ -514,7 +523,7 @@ class _IbkrRoutingAdapter(_DataFrameRoutingAdapter):
                 prefetch_start = start_datetime
 
             prefetch_end = self._router.datetime_end or end_dt
-            df = ibkr_helper.get_price_data(
+            df = self._get_price_data(
                 asset=fetch_asset,
                 quote=fetch_quote_asset,
                 timestep=dataset_key,
@@ -540,7 +549,7 @@ class _IbkrRoutingAdapter(_DataFrameRoutingAdapter):
             except Exception:
                 prefetch_start = start_datetime
             prefetch_end = self._router.datetime_end or end_dt
-            df = ibkr_helper.get_price_data(
+            df = self._get_price_data(
                 asset=fetch_asset,
                 quote=fetch_quote_asset,
                 timestep=dataset_key,
@@ -567,7 +576,7 @@ class _IbkrRoutingAdapter(_DataFrameRoutingAdapter):
             # bars and shift first signals by weeks/months.
             prefetch_start = start_datetime
             prefetch_end = self._router.datetime_end or end_dt
-            df = ibkr_helper.get_price_data(
+            df = self._get_price_data(
                 asset=fetch_asset,
                 quote=fetch_quote_asset,
                 timestep=dataset_key,
@@ -594,7 +603,7 @@ class _IbkrRoutingAdapter(_DataFrameRoutingAdapter):
                 lookback_days = 7
             prefetch_start = min(start_datetime, self._router.datetime_start - timedelta(days=lookback_days))
             prefetch_end = self._router.datetime_end or end_dt
-            df = ibkr_helper.get_price_data(
+            df = self._get_price_data(
                 asset=fetch_asset,
                 quote=fetch_quote_asset,
                 timestep=dataset_key,
@@ -615,7 +624,7 @@ class _IbkrRoutingAdapter(_DataFrameRoutingAdapter):
             ):
                 self._fully_loaded_series.add(canonical_key)
         else:
-            df = ibkr_helper.get_price_data(
+            df = self._get_price_data(
                 asset=fetch_asset,
                 quote=fetch_quote_asset,
                 timestep=dataset_key,
@@ -705,7 +714,7 @@ class _IbkrRoutingAdapter(_DataFrameRoutingAdapter):
 
             prefetch_end = self._router.datetime_end or end_dt
 
-            df = ibkr_helper.get_price_data(
+            df = self._get_price_data(
                 asset=asset,
                 quote=quote_asset,
                 timestep=ts_unit,
@@ -733,7 +742,7 @@ class _IbkrRoutingAdapter(_DataFrameRoutingAdapter):
                 prefetch_start = start_datetime
             prefetch_end = self._router.datetime_end or end_dt
 
-            df = ibkr_helper.get_price_data(
+            df = self._get_price_data(
                 asset=asset,
                 quote=quote_asset,
                 timestep=ts_unit,
@@ -762,7 +771,7 @@ class _IbkrRoutingAdapter(_DataFrameRoutingAdapter):
             prefetch_start = min(start_datetime, self._router.datetime_start - timedelta(days=lookback_days))
             prefetch_end = self._router.datetime_end or end_dt
 
-            df = ibkr_helper.get_price_data(
+            df = self._get_price_data(
                 asset=asset,
                 quote=quote_asset,
                 timestep=ts_unit,
@@ -783,7 +792,7 @@ class _IbkrRoutingAdapter(_DataFrameRoutingAdapter):
                 self._fully_loaded_series.add(canonical_key)
             return df
 
-        return ibkr_helper.get_price_data(
+        return self._get_price_data(
             asset=asset,
             quote=quote_asset,
             timestep=ts_unit,
@@ -1130,6 +1139,39 @@ class RoutedBacktestingPandas(ThetaDataBacktestingPandas):
         observed = getattr(self, "_observed_data_routes", {})
         return {"observedRoutes": list(observed.values()) if isinstance(observed, dict) else []}
 
+    def record_history_requirement(self, *, asset, timestep, requested_bars, bars, timeshift=None):
+        base = asset[0] if isinstance(asset, tuple) else asset
+        if self._provider_spec_for_asset(base).provider != "ibkr":
+            return
+        from lumibot.tools.ibkr_history_health import record_required_history
+
+        if not timeshift:
+            from lumibot.tools.ibkr_history_health import record_backtest_availability_requirement
+
+            record_backtest_availability_requirement(asset=asset, timestep=timestep, when=self.get_datetime(),
+                                                     history_as_of=getattr(
+                                                         getattr(getattr(self, "_registry", None), "_adapters", {}).get("ibkr"),
+                                                         "_history_as_of", None))
+        record_required_history(asset=asset, timestep=timestep, requested_bars=requested_bars,
+                                frame=bars.pandas_df if bars is not None else None, when=self.get_datetime())
+
+    def resolve_order_asset(self, order, positions):
+        if self._provider_spec_for_asset(order.asset).provider != "ibkr":
+            return order.asset
+        from lumibot.tools.ibkr_order_contract import resolve_order_contract
+
+        return resolve_order_contract(asset=order.asset, side=order.side, quantity=order.quantity,
+                                      positions=positions, when=self.get_datetime())
+
+    def record_missing_valuation(self, asset):
+        base = asset[0] if isinstance(asset, tuple) else asset
+        if self._provider_spec_for_asset(base).provider != "ibkr":
+            return
+        from lumibot.tools.ibkr_history_health import record_required_history
+
+        record_required_history(asset=asset, timestep="valuation", requested_bars=1, frame=None,
+                                when=self.get_datetime(), requirement="valuation")
+
     @staticmethod
     def _extract_routing_config(config: Any) -> Optional[Dict[str, str]]:
         if config is None:
@@ -1399,7 +1441,24 @@ class RoutedBacktestingPandas(ThetaDataBacktestingPandas):
                 ):
                     timestep = "day"
 
-        return super().get_last_price(asset, timestep=timestep, quote=quote, exchange=exchange, **kwargs)
+        price = super().get_last_price(asset, timestep=timestep, quote=quote, exchange=exchange, **kwargs)
+        base = asset[0] if isinstance(asset, tuple) else asset
+        if (price is None and spec.provider == "ibkr"
+                and _normalize_asset_type(getattr(base, "asset_type", "")) in {"future", "cont_future"}):
+            quote_asset = asset[1] if isinstance(asset, tuple) else (quote or Asset("USD", "forex"))
+            candidates = []
+            for key, data in self._data_store.items():
+                if isinstance(key, tuple) and len(key) >= 3 and key[:2] == (base, quote_asset):
+                    try:
+                        _, seconds, _ = ibkr_helper._timestep_to_ibkr_bar(str(key[2]))
+                    except (TypeError, ValueError):
+                        continue
+                    candidates.append((seconds, str(key[2]), data))
+            for _, cadence, data in sorted(candidates, key=lambda item: item[0]):
+                price = ibkr_helper.closed_futures_mark(data.df, timestep=cadence, when=self.get_datetime())
+                if price is not None:
+                    return price
+        return price
 
     def get_quote(self, asset, quote=None, exchange=None, timestep="minute", **kwargs):
         """Align routed quote lookups away from minute bars in daily non-Theta runs.

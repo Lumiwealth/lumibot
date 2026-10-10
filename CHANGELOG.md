@@ -1,5 +1,33 @@
 # Changelog
 
+## 4.6.17 - 2026-10-10
+
+- Preserve Schwab rejection descriptions and fill callbacks recovered through direct order reconciliation, and preserve deferred broker error objects during synchronization. Account for unobserved partial fills before cancellation, reconcile cancel/fill races from authoritative order state, and retain increasing retry delays through immediately flapping stream logins. Clarify the Strategy API's GTC default and explicit DAY duration for intraday orders without changing intentional GTC orders.
+- Pure closes of a known held IBKR futures contract no longer depend on resolving the current continuous-chart expiry.
+
+Deploy marker: `60e8fc439a661b652cee07b56977da7436ab4f5f`.
+
+- Recover confirmed lost read requests after downloader replacement without waiting out a full attempt timeout. Preserve correlation IDs, total deadlines and transient-failure deduplication; non-read requests are not replayed.
+- Keep required IBKR valuation gaps visible even when the diagnostic ledger retains an earlier known price.
+- Separately correct stock-agent explanations that broaden a checked price-versus-average condition into an unsupported claim about every constituent bar; retain the failed gate and require five targeted repetitions.
+
+- Bind IBKR continuous-futures backtest orders and protective children to physical expiries. Held positions retain their contract after a chart roll; root closes target that held expiry. Ambiguous multi-expiry closes require an explicit contract. This removes artificial roll-spread profit without adding automatic strategy trades.
+
+- Cool down completed, unresolved TWS contract identities for 15 minutes, while checking recovered positive registry entries first. Gateway timeouts remain retryable and identity absence never becomes an absent-price marker.
+- Retain a completed futures trade close during verified maintenance/weekend closure, without bridging unknown open-market gaps.
+- Reconcile Alpaca cancellation/fill races through an exact REST order lookup and normal fill processing, so delayed stream events cannot leave an already-filled smart-limit order pending until the scheduled deadline. Preserve authentication errors and uncertain order states.
+- Restore legacy untagged instrument backups only at initialized Asset paths, retaining saved contract details and ordinary dictionary metadata. Preserve original scheduled-file bytes before applying a recovered variable tree; hosted remote backups must still be retained independently.
+- Keep FRED HTTP and transport failure diagnostics useful without exposing API-key-bearing URLs in agent results.
+
+- Freeze the IBKR delayed-feed availability boundary per backtest, preventing moving-tail repeat downloads; flag decisions requiring data after that boundary while preserving known market closures.
+- Resolve expired NG/CL/MCL through TWS using their exact last-trade date rather than confusing expiry month with delivery month.
+
+- Reuse complete IBKR stock/index intraday series across strategy iterations and pre-market valuation; larger history requirements can still extend the loaded window.
+- Keep the actual futures valuation clock at session openings. The bar reader already marks forming bars at their open; moving the clock into the maintenance gap could omit an open position from equity.
+- Memoize deterministic futures roll-calendar calculations by contract and rule without caching failed calculations.
+- Record unsatisfied strategy history requirements separately from optional prefetch coverage in backtest data-health artifacts.
+- Add frozen-input engine regressions for 250-session stock/SMA histories, intraday fills, futures margin/P&L, and incomplete versus valid zero-trade runs.
+
 ## 4.6.16 - 2026-10-09
 
 Deploy marker: `70a36c55151c8bf67255a5bdac8f5f3cbc3917c5`.

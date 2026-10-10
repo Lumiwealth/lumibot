@@ -1265,6 +1265,16 @@ class Broker(ABC):
             broker_order,
         )
 
+        changed = self._apply_direct_order_observation(order_lumi, matched_order)
+        log.info(
+            f"Refreshed local order {order_lumi} (id={order_lumi.identifier}) with direct broker lookup "
+            f"after broad order-list miss. Broker status is {matched_order.status}."
+        )
+        return changed
+
+    def _apply_direct_order_observation(self, order_lumi, matched_order):
+        """Apply a lookup observation; adapters with lifecycle reducers override this."""
+
         changed = False
         if not order_lumi.equivalent_status(matched_order.status):
             order_lumi.status = matched_order.status
@@ -1281,10 +1291,6 @@ class Broker(ABC):
                 setattr(order_lumi, order_attr, broker_value)
                 changed = True
 
-        log.info(
-            f"Refreshed local order {order_lumi} (id={order_lumi.identifier}) with direct broker lookup "
-            f"after broad order-list miss. Broker status is {matched_order.status}."
-        )
         return changed
 
     def sync_orders(self, strategy):
@@ -3344,6 +3350,7 @@ class Broker(ABC):
             price = th[2]
             filled_quantity = th[3]
             multiplier = th[4]
+            error = th[5] if len(th) > 5 else None
 
             if self.logger.isEnabledFor(20):
                 self.logger.info(
@@ -3359,6 +3366,7 @@ class Broker(ABC):
                 price=price,
                 filled_quantity=filled_quantity,
                 multiplier=multiplier,
+                error=error,
             )
 
     def _process_trade_event(self, stored_order, type_event, price=None, filled_quantity=None, multiplier=1, error=None): # Add error parameter
@@ -3397,6 +3405,7 @@ class Broker(ABC):
                     price,
                     filled_quantity,
                     multiplier,
+                    error,
                 )
             )
             return

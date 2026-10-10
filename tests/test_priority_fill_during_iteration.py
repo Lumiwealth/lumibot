@@ -13,7 +13,8 @@ from dataclasses import dataclass, field
 from decimal import Decimal
 from unittest.mock import MagicMock
 
-from lumibot.entities import Asset
+from lumibot.entities import Asset, Order
+from lumibot.brokers.broker import Broker, LumibotBrokerAPIError
 from lumibot.strategies.strategy_executor import (
     StrategyExecutor,
     should_hold_trade_event_for_sync,
@@ -47,6 +48,22 @@ class _Logger:
 
     def error(self, *args, **kwargs):
         return None
+
+
+def test_held_broker_rejection_preserves_error_when_sync_finishes():
+    broker = _DummyBroker(_hold_trade_events=True)
+    broker.logger = _Logger()
+    order = Order("test", Asset("LW"), 100, "sell_short")
+    error = LumibotBrokerAPIError("Good until canceled short sale orders are not accepted.")
+    Broker._process_trade_event(broker, order, Broker.ERROR_ORDER, error=error)
+
+    received = []
+    broker._process_trade_event = lambda *args, **kwargs: received.append((args, kwargs))
+    Broker.process_held_trades(broker)
+
+    assert len(received) == 1
+    assert received[0][0] == (order, Broker.ERROR_ORDER)
+    assert received[0][1]["error"] is error
 
 
 class _PriorityHedgeStrategy:

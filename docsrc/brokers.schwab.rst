@@ -6,6 +6,22 @@ Charles Schwab API Trading with LumiBot
 
 Lumibot integrates directly with Charles Schwab's *Trader* API for equities and options.  Everything you need is built-in; no external wrapper is required.
 
+Order lifecycle and rejection details
+------------------------------------
+
+Broker order observations preserve Schwab's rejection description, including
+observations recovered by a direct order lookup and errors deferred during
+synchronization. A rejected cancellation is reconciled against the broker's
+order state: an already-filled order produces fill evidence, while an
+already-canceled order produces cancellation evidence. Other cancellation
+errors remain visible. Partial fills reported with a cancellation are processed
+before the cancellation callback.
+
+Repeated immediate account-stream disconnects use increasing retry delays,
+capped at 30 seconds. A login alone does not reset the retry delay; a connection
+must remain healthy for at least 60 seconds. This reduces reconnect storms but
+does not remove provider connection or authentication restrictions.
+
 Go directly to :ref:`Schwab prerequisites <schwab-prerequisites>`,
 :ref:`credentials <schwab-environment>`, :ref:`first-time OAuth login
 <schwab-first-login>`, or :ref:`token renewal <schwab-token-lifecycle>`.

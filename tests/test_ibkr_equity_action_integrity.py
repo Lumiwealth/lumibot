@@ -142,3 +142,15 @@ def test_yahoo_transient_failure_can_recover_in_same_process(monkeypatch):
     recovered = YahooHelper.download_symbol_data('SPY')
     assert recovered is not None and not recovered.empty
     assert len(calls) == 4
+
+
+def test_verified_removed_events_clear_stale_cached_actions(monkeypatch):
+    idx = pd.DatetimeIndex(["2024-06-21 16:00"], tz="America/New_York")
+    frame = pd.DataFrame({"close": [100.], "dividend": [1.25], "stock_splits": [2.]}, index=idx)
+    monkeypatch.setattr(h, "_get_cached_equity_actions", lambda *a, **k:
+                        pd.DataFrame(columns=["Dividends", "Stock Splits"]))
+    corrected, changed = h._append_equity_corporate_actions_daily(frame, Asset("SPY"))
+    assert changed
+    assert corrected.dividend.tolist() == [0.]
+    assert corrected.stock_splits.tolist() == [0.]
+    assert frame.dividend.tolist() == [1.25]

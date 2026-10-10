@@ -5727,6 +5727,13 @@ def _append_equity_corporate_actions_daily(frame: pd.DataFrame, asset: Asset) ->
 
     actions = _get_cached_equity_actions(symbol, last_needed_datetime=last_needed_datetime)
     if actions.empty:
+        # A verified correction can remove an event. Reusing prior columns would
+        # retain a dividend or split the source no longer reports.
+        if bool((out[["dividend", "stock_splits"]].fillna(0) != 0).any().any()):
+            out = out.copy()
+            out["dividend"] = 0.0
+            out["stock_splits"] = 0.0
+            changed = True
         return out, changed
 
     idx = pd.DatetimeIndex(out.index)

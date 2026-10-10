@@ -504,7 +504,9 @@ def closed_futures_mark(frame: pd.DataFrame, *, timestep: str, when: datetime) -
         if bool(row.get("missing", False)) or not pd.notna(row["close"]):
             return None
         end = completed.index[-1] + pd.Timedelta(seconds=seconds)
-        if not _us_futures_closed_interval(end.to_pydatetime(), now.to_pydatetime()):
+        # Include the valuation instant itself: [last close, reopening) is
+        # closed, but at reopening a new executable price may already exist.
+        if not _us_futures_closed_interval(end.to_pydatetime(), (now + pd.Timedelta(microseconds=1)).to_pydatetime()):
             return None
         price = float(row["close"])
         return price if math.isfinite(price) else None

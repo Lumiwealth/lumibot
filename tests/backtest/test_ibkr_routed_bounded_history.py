@@ -131,3 +131,34 @@ def test_mgc_51_completed_daily_bars_are_identical_on_cold_and_warm_route(monkey
             assert bars is not None and len(bars.df) == 51
             assert bars.df.close.tolist() == expected.close.tolist()
             assert bars.df.index.tolist() == expected.index.tolist()
+
+
+@pytest.mark.parametrize("when,expected", [("2026-09-20 17:59:59", 104.), ("2026-09-20 18:00:00", None)])
+def test_closed_futures_mark_expires_at_exact_reopening(when, expected):
+    from lumibot.tools.ibkr_helper import closed_futures_mark
+
+    frame = pd.DataFrame({"close": [104.]}, index=pd.DatetimeIndex(["2026-09-18 16:59"], tz="America/New_York"))
+    assert closed_futures_mark(frame, timestep="minute", when=pd.Timestamp(when, tz="America/New_York")) == expected
+
+
+def test_direct_futures_reopening_refreshes_friday_mark_before_valuation(monkeypatch):
+    from lumibot.backtesting import InteractiveBrokersRESTBacktesting
+    from lumibot.tools import ibkr_helper
+
+    opened = pd.Timestamp("2026-09-20 18:00", tz="America/New_York")
+    asset, quote = Asset("MGC", "future", expiration=datetime(2026, 10, 28).date()), Asset("USD", "forex")
+    source = InteractiveBrokersRESTBacktesting(opened.to_pydatetime(), (opened + pd.Timedelta(hours=1)).to_pydatetime())
+    source._update_datetime(opened.to_pydatetime())
+    frame = pd.DataFrame({"open": [100., 110.], "high": [105., 112.], "low": [99., 109.],
+                          "close": [104., 111.], "volume": 1.},
+                         index=pd.DatetimeIndex([opened - pd.Timedelta(days=2, minutes=61), opened]))
+    calls = []
+    def prices(**kwargs):
+        calls.append(kwargs)
+        return frame.loc[(frame.index >= kwargs["start_dt"]) & (frame.index <= kwargs["end_dt"])].copy()
+    monkeypatch.setattr(ibkr_helper, "get_price_data", prices)
+    source._update_pandas_data(asset, quote, "minute", start_dt=frame.index[0], end_dt=frame.index[0], exchange=None, include_after_hours=True)
+    assert source.get_last_price(asset, quote=quote) == 110.
+    assert len(calls) == 2
+    assert source.get_last_price(asset, quote=quote) == 110.
+    assert len(calls) == 2

@@ -293,3 +293,28 @@ def test_open_market_missing_mark_is_invalid_even_with_previous_good_price(monke
     assert result["fills"] and result["signals"]
     assert result["data_health"]["required_complete"] is False
     assert any(f["reason"] == "missing_valuation_price" for f in result["data_health"]["required_failures"])
+
+
+@pytest.mark.acceptance_backtest
+@pytest.mark.usefixtures("disable_datasource_override")
+@pytest.mark.parametrize("routed", [False, True], ids=["direct", "botspot-auto"])
+def test_intraday_trade_derived_quotes_cannot_fill_at_forming_close(monkeypatch, routed):
+    monkeypatch.setenv("LUMIBOT_CACHE_BACKEND", "local")
+    monkeypatch.setenv("DATADOWNLOADER_BASE_URL", "http://localhost:8080")
+    index = pd.DatetimeIndex([])
+    for session_date in ["2026-02-06", "2026-02-09", "2026-02-10"]:
+        session = pd.date_range(f"{session_date} 04:00", periods=960, freq="min", tz="America/New_York")
+        index = session if index.empty else index.append(session)
+    frame = _prices(index, [100. + i % 17 for i in range(len(index))])
+    # Actual Trades cache objects carry bid/ask synthesized from the bar close.
+    # These are not NBBO known at the start of the minute.
+    frame["bid"] = frame["close"]
+    frame["ask"] = frame["close"]
+    daily = _prices(pd.date_range("2026-02-02 16:00", periods=7, freq="B", tz="America/New_York"), [100.] * 7)
+    result = run_engine_replay(frame, symbol="SPY", start=datetime(2026, 2, 9), end=datetime(2026, 2, 11),
+                               timestep="minute", auxiliary_frames={"day": daily}, routed=routed)
+    assert len(result["signals"]) >= 20
+    assert len(result["fills"]) >= 2
+    assert len([r for r in result["history_requests"] if r["timestep"] == "minute"]) == 1
+    for fill in result["fills"]:
+        assert float(fill["price"]) == float(frame.loc[pd.Timestamp(fill["time"]), "open"])

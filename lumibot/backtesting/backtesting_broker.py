@@ -3812,6 +3812,16 @@ class BacktestingBroker(Broker):
                 return None, None
             bid = bid_line.dataline[i]
             ask = ask_line.dataline[i]
+            # Trades history may synthesize both quote sides from the bar close.
+            # Match Data.get_quote: that close is unknown while the bar forms.
+            # Keep genuine bid/ask values, but price derived quotes at its open.
+            if data_obj._intraday_state_at(i, now) == "forming":
+                close_line = data_obj.datalines.get("close")
+                open_line = data_obj.datalines.get("open")
+                if close_line is not None and open_line is not None:
+                    close = close_line.dataline[i]
+                    if bid == close and ask == close:
+                        bid = ask = open_line.dataline[i]
         except Exception:
             return None, None
 

@@ -41,3 +41,17 @@ not permission to repeat downloads.
 Licensed live-cache and end-to-end integration artifacts remain in the private
 deployment evidence store. Passing portable tests alone does not establish a
 successful deployed customer path.
+
+The bounded real intraday comparison also exposed a direct-IBKR fast-fill bug:
+Trades cache files include bid/ask derived from a candle's close. The optimized
+broker path used those values while the minute was still forming, unlike the
+normal quote path, which uses its open. The regression now supplies that actual
+cache schema to both direct and routed engines and asserts every fill against the
+source minute open. The fast path follows the existing Data quote convention;
+non-derived bid/ask and timestamp freshness checks are retained.
+
+Additional explicit boundaries: final futures valuation is capped at the actual
+simulation endpoint; Friday's known-closed mark expires at the exact Sunday
+reopening. Complete stock corporate-action frames can be reused across the whole
+simulation, but a missing action column is not evidence of no actions. Future
+dividends are indexed once and credited only on their actual ex-date.

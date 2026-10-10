@@ -2,6 +2,8 @@
 
 ## 4.6.18 - 2026-10-10
 
+- Prevent the direct IBKR fast-fill path from executing at a still-forming minute close when Trades cache bid/ask values are derived from that close. Add direct/routed fill parity regressions.
+
 Deploy marker: `20bf01d9603027246ecd853297a0f2c9174b95e2`.
 
 - Preserve IBKR native daily session timestamps in routed backtests. Cold and warm reads now retain the same completed futures bars, and daily equity fills use the current session's open across holidays.

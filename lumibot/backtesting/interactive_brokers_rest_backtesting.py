@@ -270,6 +270,10 @@ class InteractiveBrokersRESTBacktesting(PandasData):
 
         asset_type = self._normalize_asset_type(getattr(base_asset, "asset_type", ""))
         now = self.get_datetime()
+        # Final reporting may run after the executor advances to the next
+        # session. Value the configured backtest endpoint, never a future session.
+        if self.datetime_end is not None:
+            now = min(now, self.datetime_end)
         # Data.get_last_price uses a forming bar's open and a completed bar's close.
         # Keep the actual clock: shifting backwards at a futures session opening lands
         # in the maintenance gap, hiding an available open and dropping position marks.
@@ -828,12 +832,12 @@ class InteractiveBrokersRESTBacktesting(PandasData):
                                else timeshift is not None and timeshift < 0)
             try:
                 bars = data.get_bars(now, length=length, timestep=timestep, timeshift=timeshift)
-                if dataset_key == "day" or execution_shift:
+                if execution_shift:
                     return bars
                 if bars is not None and len(bars) >= length:
                     return bars
             except ValueError:
-                if dataset_key == "day" or execution_shift:
+                if execution_shift:
                     return None
             # A later strategy request can need a longer lookback than the
             # initial prefetch. Full simulation coverage does not prove that
@@ -847,6 +851,12 @@ class InteractiveBrokersRESTBacktesting(PandasData):
         ts_unit = str(ts_unit or "").strip().lower()
         asset_type = self._normalize_asset_type(getattr(asset_separated, "asset_type", ""))
         include_after_hours = self._ibkr_include_after_hours(asset_type, ts_unit)
+        if asset_type in {"stock", "index"} and ts_unit in {"day", "minute", "hour"}:
+            start_dt = min(start_dt, ibkr_helper._equity_history_start_for_bars(
+                end_dt, length, dataset_key, include_after_hours=include_after_hours and asset_type == "stock",
+            ))
+        if asset_type in {"future", "cont_future"} and ts_unit == "day":
+            start_dt -= timedelta(days=5)
         if asset_type in {"future", "cont_future"} and ts_unit in {"minute", "hour", "day"}:
             # Futures strategies frequently request very small slices (e.g., `length=2`) at the
             # beginning of the backtest window. If we only fetch the tiny requested slice, IBKR's

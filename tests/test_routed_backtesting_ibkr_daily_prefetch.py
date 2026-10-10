@@ -23,6 +23,8 @@ def test_routed_futures_closed_market_mark(monkeypatch, when, expected):
     source._update_cadence_from_dt = lambda dt: None
     source.get_datetime = lambda: pd.Timestamp(when, tz="America/New_York").to_pydatetime()
     source._has_loaded_intraday_series = lambda *a: True
+    source.datetime_end = pd.Timestamp("2026-09-21", tz="America/New_York").to_pydatetime()
+    source._update_pandas_data = lambda *a, **kw: None
     asset = Asset("MES", asset_type="future", expiration=datetime(2026, 12, 18).date())
     quote = Asset("USD", "forex")
     idx = pd.date_range("2026-09-18 16:58", periods=2, freq="min", tz="America/New_York")

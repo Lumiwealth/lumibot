@@ -1,6 +1,12 @@
 # Changelog
 
-## 4.6.18 - Unreleased
+## 4.6.18 - 2026-10-10
+
+- Preserve IBKR native daily session timestamps in routed backtests. Cold and warm reads now retain the same completed futures bars, and daily equity fills use the current session's open across holidays.
+- Count equity warmup bars through cached exchange sessions and extend an already-prefetched series when a strategy requests a longer lookback.
+- Mark routed futures positions from native intraday prices instead of a prior daily candle; bound final direct-IBKR valuation to the simulation endpoint.
+- Export filled trade artifacts when a backtest has no benchmark, and reuse complete dividend/split event frames without extra backward history requests. Pay each dividend on its ex-date, including events later in the prefetched simulation.
+- Strengthen frozen replay fixtures to obey request bounds and qualify both direct IBKR and routed stock/futures accounting, including the 51-close MGC requirement.
 
 ## 4.6.17 - 2026-10-10
 

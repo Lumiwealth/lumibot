@@ -72,7 +72,8 @@ class ReplayMomentum(Strategy):
 
 def run_engine_replay(frame: pd.DataFrame, *, symbol: str, start: datetime, end: datetime,
                       timestep: str = "day", lookback: int = 3, asset_type: str = "stock",
-                      expiration=None, multiplier: int = 1, market=None, auxiliary_frames=None, contract_frames=None, trading_fees=None):
+                      expiration=None, multiplier: int = 1, market=None, auxiliary_frames=None, contract_frames=None, trading_fees=None,
+                      routed: bool = False):
     """Run fixed data through the actual engine and return comparison artifacts."""
     if frame.index.has_duplicates or not frame.index.is_monotonic_increasing:
         raise ValueError("Replay prices must have unique ordered timestamps")
@@ -102,27 +103,35 @@ def run_engine_replay(frame: pd.DataFrame, *, symbol: str, start: datetime, end:
         requests.append({"symbol": symbol, "timestep": requested_step,
                          "start": str(kwargs["start_dt"]), "end": str(kwargs["end_dt"]),
                          "expiration": str(getattr(requested, "expiration", None))})
-        return selected_frames[requested_step].copy(deep=True)
+        # A real provider only returns the requested window. Returning the whole
+        # corpus hides adapter underfetch at weekends and longer later lookbacks.
+        selected = selected_frames[requested_step]
+        return selected.loc[(selected.index >= kwargs["start_dt"]) &
+                            (selected.index <= kwargs["end_dt"])].copy(deep=True)
 
     def no_network(*args, **kwargs):
         raise AssertionError("Frozen replay attempted a network request")
 
     from lumibot.tools import ibkr_helper
 
+    from lumibot.backtesting.routed_backtesting import RoutedBacktestingPandas
+    source = RoutedBacktestingPandas if routed else InteractiveBrokersRESTBacktesting
+    source_kwargs = ({"config": {"backtesting_data_routing": {"default": "ibkr"}}}
+                     if routed else {"history_source": "Trades"})
     started = time.perf_counter()
     with patch.object(ibkr_helper, "get_price_data", prices), patch("socket.socket.connect", no_network):
         _, strategy = ReplayMomentum.run_backtest(
-            InteractiveBrokersRESTBacktesting, start, end,
+            source, start, end,
             budget=100_000, benchmark_asset=None, risk_free_rate=0,
             buy_trading_fees=trading_fees or [], sell_trading_fees=trading_fees or [],
             parameters={"asset": asset, "lookback": lookback, "cadence": timestep,
                         "sleeptime": "1D" if timestep == "day" else "30M", "market": market},
-            history_source="Trades", analyze_backtest=False,
+            **source_kwargs, analyze_backtest=False,
             show_plot=False, show_tearsheet=False, save_tearsheet=False,
             show_indicators=False, save_logfile=False, save_stats_file=False,
             show_progress_bar=False, quiet_logs=True,
         )
-    assert isinstance(strategy.broker.data_source, InteractiveBrokersRESTBacktesting)
+    assert isinstance(strategy.broker.data_source, source)
     assert not fixture_errors, fixture_errors
     assert not strategy.replay_errors, strategy.replay_errors
     assert frame_records(frame) == original_records, "Replay mutated the immutable input"

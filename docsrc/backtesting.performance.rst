@@ -121,3 +121,16 @@ The fastest options backtests are those that:
 In practice, the easiest way to get this right is to use :doc:`options_helper` for strike/expiry selection (for example ``OptionsHelper.find_strike_for_delta(...)``) instead of manually scanning chains and calling ``get_greeks()`` per strike.
 
 For ThetaData details, see :doc:`backtesting.thetadata`.
+
+IBKR history and reuse
+----------------------
+
+IBKR equity warmup requests count bars across exchange sessions, including
+weekends and holidays. A larger indicator lookback can extend the prefetched
+window; repeated requests for the same completed window reuse it.
+
+Routed IBKR daily bars retain their native session-close timestamps. Futures
+positions use intraday marks rather than the prior daily candle. This may require
+an initial minute-history fetch even for a daily futures strategy; later marks
+reuse that series. Missing required history or an unknown valuation gap makes
+the result incomplete rather than a verified zero-trade result.

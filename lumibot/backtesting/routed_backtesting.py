@@ -359,6 +359,7 @@ class _IbkrRoutingAdapter(_DataFrameRoutingAdapter):
         # A backtest has one data availability snapshot. Letting wall time move
         # this boundary turns every simulated minute into a fresh tail download.
         self._history_as_of = ibkr_helper._ibkr_history_now_utc()
+        self._prefetch_start_by_series: dict[Any, datetime] = {}
 
     def _get_price_data(self, **kwargs):
         return ibkr_helper.get_price_data(history_as_of=self._history_as_of, **kwargs)
@@ -428,9 +429,23 @@ class _IbkrRoutingAdapter(_DataFrameRoutingAdapter):
         qty = int(qty)
         unit = str(unit)
 
+        asset_type = _normalize_asset_type(getattr(fetch_asset, "asset_type", ""))
+        include_after_hours = _ibkr_include_after_hours(asset_type, unit)
+        if asset_type in {"stock", "index"} and unit in {"day", "minute", "hour"}:
+            start_datetime = min(start_datetime, ibkr_helper._equity_history_start_for_bars(
+                end_dt, length, dataset_key, include_after_hours=include_after_hours and asset_type == "stock",
+            ))
+        elif asset_type in {"future", "cont_future"} and unit == "day":
+            start_datetime -= timedelta(days=5)
+
         canonical_key, legacy_key = self._router._build_dataset_keys(original_asset, original_quote_asset, dataset_key)
         if canonical_key in self._fully_loaded_series and canonical_key in self._router._data_store:
-            return None
+            loaded_start = self._prefetch_start_by_series.get(canonical_key)
+            if loaded_start is not None and start_datetime >= loaded_start:
+                return None
+            # Complete simulation coverage is not complete coverage of a later,
+            # longer indicator lookback. Extend once, then reuse that window.
+            self._fully_loaded_series.discard(canonical_key)
         if canonical_key in self._empty_prefetch_series:
             return None
         existing = self._router._data_store.get(canonical_key)
@@ -664,6 +679,8 @@ class _IbkrRoutingAdapter(_DataFrameRoutingAdapter):
             pass
 
         self._router._data_store[canonical_key] = data
+        if canonical_key in self._fully_loaded_series:
+            self._prefetch_start_by_series[canonical_key] = prefetch_start
         # Only expose the (asset, quote) legacy key for true minute data to avoid collisions with
         # multi-minute datasets (which would otherwise satisfy minute requests incorrectly).
         if dataset_key == "minute" and legacy_key not in self._router._data_store:
@@ -1135,6 +1152,16 @@ class RoutedBacktestingPandas(ThetaDataBacktestingPandas):
             self._observed_data_routes = {}
         self._observed_data_routes[key] = route
 
+    def _finalize_day_frame(self, pandas_df, current_dt, requested_length, timeshift, asset=None):
+        base = asset[0] if isinstance(asset, tuple) else asset
+        if base is not None and self._provider_spec_for_asset(base).provider == "ibkr":
+            # IBKR native daily rows are already timestamped at completed session
+            # closes and sliced by Data. Theta's midnight/calendar-day reshaping
+            # drops a completed futures row at 18:00 and can substitute yesterday's
+            # equity open during the broker's current-session fill lookup.
+            return pandas_df
+        return super()._finalize_day_frame(pandas_df, current_dt, requested_length, timeshift, asset=asset)
+
     def get_data_provenance(self) -> Dict[str, Any]:
         observed = getattr(self, "_observed_data_routes", {})
         return {"observedRoutes": list(observed.values()) if isinstance(observed, dict) else []}
@@ -1406,6 +1433,35 @@ class RoutedBacktestingPandas(ThetaDataBacktestingPandas):
             provider_spec=provider_spec,
         )
 
+    def _ibkr_futures_valuation_price(self, asset, quote=None):
+        base = asset[0] if isinstance(asset, tuple) else asset
+        quote_asset = asset[1] if isinstance(asset, tuple) else (quote or _DEFAULT_QUOTE_ASSET)
+        when = min(self.get_datetime(), self.datetime_end)
+        # A daily candle describes the prior completed session, not the current
+        # futures opening price. Reuse one native minute prefetch for exact marks.
+        self._update_pandas_data(base, quote_asset, 2, "minute", start_dt=when)
+        key, _ = self._build_dataset_keys(base, quote_asset, "minute")
+        data = self._data_store.get(key)
+        if data is None:
+            return None
+        if not data.df.empty and pd.Timestamp(when) >= data.df.index.max() + pd.Timedelta(minutes=1):
+            return ibkr_helper.closed_futures_mark(data.df, timestep="minute", when=when)
+        try:
+            price = data.get_last_price(when)
+        except ValueError:
+            price = None
+        if price is not None:
+            return price
+        return ibkr_helper.closed_futures_mark(data.df, timestep="minute", when=when)
+
+    def get_price_snapshot(self, asset, quote=None, timestep="minute", **kwargs):
+        base = asset[0] if isinstance(asset, tuple) else asset
+        if (self._provider_spec_for_asset(base).provider == "ibkr"
+                and _normalize_asset_type(getattr(base, "asset_type", "")) in {"future", "cont_future"}):
+            price = self._ibkr_futures_valuation_price(asset, quote=quote)
+            return None if price is None else {"price": price, "last_trade_price": price}
+        return super().get_price_snapshot(asset, timestep=timestep, quote=quote, **kwargs)
+
     def get_last_price(self, asset, timestep="minute", quote=None, exchange=None, **kwargs):
         """Align routed daily backtests away from minute bars for performance.
 
@@ -1424,6 +1480,11 @@ class RoutedBacktestingPandas(ThetaDataBacktestingPandas):
         except Exception:
             spec = ProviderSpec(provider="thetadata")
 
+        base = asset[0] if isinstance(asset, tuple) else asset
+        if (spec.provider == "ibkr"
+                and _normalize_asset_type(getattr(base, "asset_type", "")) in {"future", "cont_future"}):
+            return self._ibkr_futures_valuation_price(asset, quote=quote)
+
         if spec.provider != "thetadata" and timestep == "minute":
             asset_obj = asset if not isinstance(asset, tuple) else asset[0]
             asset_type = str(getattr(asset_obj, "asset_type", "") or "").strip().lower()
@@ -1441,24 +1502,7 @@ class RoutedBacktestingPandas(ThetaDataBacktestingPandas):
                 ):
                     timestep = "day"
 
-        price = super().get_last_price(asset, timestep=timestep, quote=quote, exchange=exchange, **kwargs)
-        base = asset[0] if isinstance(asset, tuple) else asset
-        if (price is None and spec.provider == "ibkr"
-                and _normalize_asset_type(getattr(base, "asset_type", "")) in {"future", "cont_future"}):
-            quote_asset = asset[1] if isinstance(asset, tuple) else (quote or Asset("USD", "forex"))
-            candidates = []
-            for key, data in self._data_store.items():
-                if isinstance(key, tuple) and len(key) >= 3 and key[:2] == (base, quote_asset):
-                    try:
-                        _, seconds, _ = ibkr_helper._timestep_to_ibkr_bar(str(key[2]))
-                    except (TypeError, ValueError):
-                        continue
-                    candidates.append((seconds, str(key[2]), data))
-            for _, cadence, data in sorted(candidates, key=lambda item: item[0]):
-                price = ibkr_helper.closed_futures_mark(data.df, timestep=cadence, when=self.get_datetime())
-                if price is not None:
-                    return price
-        return price
+        return super().get_last_price(asset, timestep=timestep, quote=quote, exchange=exchange, **kwargs)
 
     def get_quote(self, asset, quote=None, exchange=None, timestep="minute", **kwargs):
         """Align routed quote lookups away from minute bars in daily non-Theta runs.

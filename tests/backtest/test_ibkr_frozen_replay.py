@@ -10,7 +10,7 @@ from tests.backtest.ibkr_replay_support import run_engine_replay
 def _prices(index, opens):
     return pd.DataFrame({"open": opens, "high": [x + 2 for x in opens],
                          "low": [x - 2 for x in opens], "close": [x + .5 for x in opens],
-                         "volume": 1000, "missing": False}, index=index)
+                         "volume": 1000, "missing": False, "dividend": 0.0, "stock_splits": 0.0}, index=index)
 
 
 @pytest.mark.acceptance_backtest
@@ -75,13 +75,14 @@ def _assert_stock_oracle(result, frame, lookback):
         when = pd.Timestamp(fill["time"])
         row = frame.loc[frame.index.date == when.date()]
         assert len(row) == 1
-        assert float(fill["price"]) == float(row.open.iloc[0]), "Market fill must use this session's open"
+        assert float(fill["price"]) == float(row.open.iloc[0]), f"Market fill must use this session's open: {fill} expected={row.open.iloc[0]}"
 
 
 @pytest.mark.acceptance_backtest
 @pytest.mark.usefixtures("disable_datasource_override")
 @pytest.mark.parametrize("symbol,lookback", [("SPY", 3), ("AAPL", 20), ("TQQQ", 200)])
-def test_250_session_daily_replay_matches_independent_signal_and_ledger(monkeypatch, symbol, lookback):
+@pytest.mark.parametrize("routed", [False, True], ids=["direct", "botspot-auto"])
+def test_250_session_daily_replay_matches_independent_signal_and_ledger(monkeypatch, symbol, lookback, routed):
     import pandas_market_calendars as mcal
 
     monkeypatch.setenv("LUMIBOT_CACHE_BACKEND", "local")
@@ -92,7 +93,7 @@ def test_250_session_daily_replay_matches_independent_signal_and_ledger(monkeypa
     frame = _prices(index, opens)
     first = index[-250].normalize().to_pydatetime()
     end = (index[-1].normalize() + pd.Timedelta(days=1)).to_pydatetime()
-    result = run_engine_replay(frame, symbol=symbol, start=first, end=end, lookback=lookback)
+    result = run_engine_replay(frame, symbol=symbol, start=first, end=end, lookback=lookback, routed=routed)
     assert len(result["signals"]) == 250
     assert len(result["fills"]) >= 10
     assert len(result["history_requests"]) == 1, "Complete frozen history should load once"
@@ -164,7 +165,8 @@ def test_intraday_replay_never_uses_forming_close_and_fills_at_bar_open(monkeypa
 @pytest.mark.acceptance_backtest
 @pytest.mark.usefixtures("disable_datasource_override")
 @pytest.mark.parametrize("symbol,multiplier", [("MES", 5), ("GC", 100), ("MGC", 10), ("NG", 10000)])
-def test_futures_daily_replay_uses_completed_sessions(monkeypatch, symbol, multiplier):
+@pytest.mark.parametrize("routed", [False, True], ids=["direct", "botspot-auto"])
+def test_futures_daily_replay_uses_completed_sessions(monkeypatch, symbol, multiplier, routed):
     import pandas_market_calendars as mcal
 
     monkeypatch.setenv("LUMIBOT_CACHE_BACKEND", "local")
@@ -180,7 +182,7 @@ def test_futures_daily_replay_uses_completed_sessions(monkeypatch, symbol, multi
     minute = pd.concat(minute_frames)
     result = run_engine_replay(frame, symbol=symbol, start=datetime(2026, 2, 9), end=datetime(2026, 2, 14),
                                asset_type="future", expiration=date(2026, 3, 20) if symbol == "MES" else date(2026, 2, 25),
-                               multiplier=multiplier, market="us_futures", auxiliary_frames={"minute": minute})
+                               multiplier=multiplier, market="us_futures", auxiliary_frames={"minute": minute}, routed=routed)
     assert len(result["signals"]) >= 4
     assert result["fills"]
     margin = {"MES": 1300., "GC": 10000., "MGC": 1200., "NG": 3000.}[symbol]
@@ -210,7 +212,8 @@ def test_futures_daily_replay_uses_completed_sessions(monkeypatch, symbol, multi
 @pytest.mark.parametrize("side,expected_quantity", [("buy", 1), ("sell_short", -1)])
 @pytest.mark.parametrize("action", ["hold", "close", "roll"])
 @pytest.mark.parametrize("fee", [0, 1])
-def test_held_contract_does_not_earn_continuous_series_roll_gap(monkeypatch, side, expected_quantity, action, fee):
+@pytest.mark.parametrize("routed", [False, True], ids=["direct", "botspot-auto"])
+def test_held_contract_does_not_earn_continuous_series_roll_gap(monkeypatch, side, expected_quantity, action, fee, routed):
     """Two flat tradable contracts cannot generate profit when a chart changes contract."""
     import pandas_market_calendars as mcal
     from tests.backtest.ibkr_replay_support import ReplayMomentum
@@ -253,7 +256,7 @@ def test_held_contract_does_not_earn_continuous_series_roll_gap(monkeypatch, sid
                                market="us_futures", auxiliary_frames={"minute": continuous_minute},
                                contract_frames={date(2026, 10, 28): {"day": old_day, "minute": old_minute},
                                                 date(2026, 12, 29): {"day": new_day, "minute": new_minute}},
-                               trading_fees=[TradingFee(flat_fee=fee)])
+                               trading_fees=[TradingFee(flat_fee=fee)], routed=routed)
     assert len(result["fills"]) == {"hold": 1, "close": 2, "roll": 3}[action]
     assert [fill["price"] for fill in result["fills"]] == {"hold": [100.], "close": [100., 100.],
                                                          "roll": [100., 100., 110.]}[action]
@@ -263,7 +266,7 @@ def test_held_contract_does_not_earn_continuous_series_roll_gap(monkeypatch, sid
     assert all(expected_equity <= row["equity"] <= 100_000. for row in result["signals"])
     assert result["cash"] == pytest.approx(expected_equity - (0 if action == "close" else 1200.), abs=1e-9, rel=0)
     assert any(request["expiration"] == "2026-10-28" for request in result["history_requests"])
-    assert result["data_health"]["required_complete"] is True
+    assert result["data_health"]["required_complete"] is True, str(result["data_health"]["required_failures"])
 
 
 @pytest.mark.acceptance_backtest

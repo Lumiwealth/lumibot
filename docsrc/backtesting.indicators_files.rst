@@ -4,13 +4,13 @@ Indicators Files
 ================
 
 .. meta::
-   :description: The Indicators HTML and Indicators CSV files contain data on the indicators used in the strategy. These files are unique because they use two key functions:.
+   :description: Plot strategy indicators with add_marker, add_line, and add_ohlc. Inspect their values in the Indicators HTML chart and exported CSV file.
 
-The **Indicators HTML** and **Indicators CSV** files contain data on the indicators used in the strategy. These files are unique because they use two key functions:
+The **Indicators HTML** and **Indicators CSV** files contain data on the indicators used in the strategy. Populate them with these chart functions:
 
-- **add_marker()**: Adds markers to the indicators. For more details, refer to `add_marker <../docs/strategy_methods.chart/strategies.strategy.Strategy.add_marker.html>`_.
-- **add_line()**: Adds lines to the indicators. For more details, refer to `add_line <../docs/strategy_methods.chart/strategies.strategy.Strategy.add_line.html>`_.
-- **add_ohlc()**: Adds OHLC (candlestick) bars to the indicators. For more details, refer to `add_ohlc <../docs/strategy_methods.chart/strategies.strategy.Strategy.add_ohlc.html>`_.
+- :doc:`add_marker() <strategy_methods.chart/lumibot.strategies.strategy.Strategy.add_marker>`: Adds markers to the indicators.
+- :doc:`add_line() <strategy_methods.chart/lumibot.strategies.strategy.Strategy.add_line>`: Adds lines to the indicators.
+- :doc:`add_ohlc() <strategy_methods.chart/lumibot.strategies.strategy.Strategy.add_ohlc>`: Adds OHLC (candlestick) bars to the indicators.
 
 These functions help in visualizing how the indicators influenced the strategy's decisions and performance. Key information includes:
 

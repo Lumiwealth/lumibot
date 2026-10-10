@@ -1,5 +1,10 @@
 # LumiBot growth: what actually moves stars, ranked by return
 
+> Historical report. The [October 10 review](2026-10-10_ORGANIC_DISCOVERY_REVIEW.md)
+> supersedes its missing-CLI recommendation, adoption-proxy interpretations,
+> TradingAgents peer-review claim and causal growth conclusions. Preserve this
+> snapshot as history; use the current review for execution.
+
 Research date: September 18, 2026. Star counts and versions pulled live from the
 GitHub and PyPI APIs on that date. Where a claim is an interpretation rather
 than a measurement, it says so.

@@ -170,7 +170,9 @@ def test_benefit_copy_and_tracked_learning_placements():
         assert 'utm_source=documentation&utm_medium=docs&utm_campaign=lumibot_ai_trading' in source
     assert 'blob/dev/' not in (ROOT / 'docsrc/agent_start_here.rst').read_text()
     template = (ROOT / 'docsrc/_templates/base.html').read_text()
-    assert 'benefit-hero.png' in template
+    # Image selection now feeds both card types from Sphinx's shared metadata context.
+    assert 'benefit-hero.png' in (ROOT / 'docsrc/conf.py').read_text()
+    assert 'share_image_url' in template
     assert 'name="description"' in template
 
 

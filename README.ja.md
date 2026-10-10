@@ -2,7 +2,7 @@
 
 # LumiBot AI Trading
 
-**実際に注文を出す AI エージェント。** 12 のブローカー連携、本物のバックテスト、そして株式・オプション・先物・為替・暗号資産・予測市場に対応します。ほとんどの AI トレーディングプロジェクトは提案で終わります。LumiBot は注文を送信します。
+**実際に注文を出す AI エージェント。** 12 のブローカー連携、本物のバックテスト、そして株式・オプション・先物・為替・暗号資産・予測市場に対応します。
 
 ## 60 秒で試す
 
@@ -20,6 +20,8 @@ lumibot init my-bot --template ai
 lumibot backtest my-bot --days 90
 lumibot run my-bot --paper
 ```
+
+AI テンプレートの実行には `OPENAI_API_KEY` が必要で、モデルの呼び出しには料金が発生します。`--paper` コマンドには Alpaca のペーパートレード用認証情報（`ALPACA_API_KEY` と `ALPACA_API_SECRET`）が必要です。[CLI 設定ガイド](https://lumibot.lumiwealth.com/cli.html)を参照してください。
 
 `lumibot init` が書き出すのは、あなたが手で書いたはずの Python そのものです。コマンドラインは何も隠しません。編集可能なファイルが手元に残ります。
 

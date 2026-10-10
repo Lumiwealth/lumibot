@@ -33,7 +33,7 @@ Run an AI strategy
 
 Start with a complete SPY strategy: research the trend, review risk, and let the
 trading agent decide whether to buy, hold, or sell. **Python 3.10+ and an
-OpenAI API key (``OPENAI_API_KEY``) required.** This historical backtest uses Yahoo prices and no broker
+OpenAI API key required.** Set ``OPENAI_API_KEY``. This historical backtest uses Yahoo prices and no broker
 account; model calls use your provider billing.
 
 .. code-block:: bash
@@ -537,7 +537,7 @@ Compared With Backtesting Libraries
      - Yes
      - Stocks, limited crypto/futures, outdated forex
      - No
-     - IB only/outdated
+     - IB and other integrations; verify adapter maintenance
      - No
    * - Freqtrade
      - Crypto
@@ -572,7 +572,7 @@ Compared With Backtesting Libraries
    * - Hummingbot
      - Crypto
      - Crypto market making
-     - Scripts/controllers
+     - `Condor agent framework <https://hummingbot.org/condor/>`_
      - Crypto exchanges
      - Ecosystem/enterprise options
 

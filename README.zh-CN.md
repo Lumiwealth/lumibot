@@ -2,7 +2,7 @@
 
 # LumiBot AI 交易框架
 
-**真正会下单的 AI 交易智能体。** 支持十二个券商与交易所接入、真实回测，覆盖股票、期权、期货、外汇、加密货币与预测市场。大多数 AI 交易项目只给出建议，LumiBot 会把订单发出去。
+**真正会下单的 AI 交易智能体。** 支持十二个券商与交易所接入、真实回测，覆盖股票、期权、期货、外汇、加密货币与预测市场。
 
 ## 六十秒上手
 
@@ -20,6 +20,8 @@ lumibot init my-bot --template ai     # 生成一个普通的、可直接编辑�
 lumibot backtest my-bot --days 90
 lumibot run my-bot --paper
 ```
+
+运行 AI 模板需要设置 `OPENAI_API_KEY`，模型调用会产生费用。`--paper` 命令需要 Alpaca 模拟交易账户凭据（`ALPACA_API_KEY` 和 `ALPACA_API_SECRET`）。参见 [CLI 配置指南](https://lumibot.lumiwealth.com/cli.html)。
 
 `lumibot init` 写出来的就是你本来会手写的 Python 代码。命令行没有隐藏任何东西，你拿到的是一个可以随意修改的文件。
 

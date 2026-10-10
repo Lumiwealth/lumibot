@@ -2,7 +2,7 @@
 
 # LumiBot AI Trading
 
-**KI-Agenten, die die Order tatsächlich aufgeben.** Zwölf Broker-Anbindungen, echte Backtests sowie Aktien, Optionen, Futures, Devisen, Krypto und Prognosemärkte. Die meisten KI-Trading-Projekte enden bei einer Empfehlung. LumiBot schickt die Order ab.
+**KI-Agenten, die die Order tatsächlich aufgeben.** Zwölf Broker-Anbindungen, echte Backtests sowie Aktien, Optionen, Futures, Devisen, Krypto und Prognosemärkte.
 
 ## Sechzig Sekunden
 
@@ -20,6 +20,8 @@ lumibot init my-bot --template ai
 lumibot backtest my-bot --days 90
 lumibot run my-bot --paper
 ```
+
+Zum Ausführen der KI-Vorlage wird `OPENAI_API_KEY` benötigt; Modellaufrufe sind kostenpflichtig. Der Befehl `--paper` benötigt die Zugangsdaten eines Alpaca-Paper-Kontos (`ALPACA_API_KEY` und `ALPACA_API_SECRET`). Siehe [CLI-Einrichtungsanleitung](https://lumibot.lumiwealth.com/cli.html).
 
 `lumibot init` schreibt genau das Python, das du sonst von Hand geschrieben hättest. Die Kommandozeile verbirgt nichts, und du behältst eine bearbeitbare Datei.
 

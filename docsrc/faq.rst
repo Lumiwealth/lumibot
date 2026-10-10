@@ -357,6 +357,8 @@ How does LumiBot prevent look-ahead bias in AI agent backtests?
 
 LumiBot provides the agent with the simulated datetime (not the real current time) and warns if tool results contain data published after the simulated time. The ``@agent_tool`` pattern gives you control over what date parameters are passed to external APIs. Always use ``self.get_datetime()`` for the current date -- never ``datetime.now()``.
 
+These controls do not make every backtest bias-free. Model training can include later events, and an external API may return current or revised data even when passed a historical date. Verify each source's availability timestamps and macro vintages; use prospective evaluation for claims about decisions made before their outcomes are known.
+
 What is the ``AgentRunResult`` object?
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 

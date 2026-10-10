@@ -113,8 +113,9 @@ tests pass; the final combined source must pass the full normal gates.
 Agent gate 38015216000 failed one of 51 repetitions due to an inaccurate stock
 order explanation. The failure, bounded spend and separate correction are
 recorded in `2026-10-10_stock-decision-evidence-accuracy.md`. No unchanged rerun
-counts as recovery. Five targeted repetitions and the normal publication gate
-remain required. Prior model/example/200-character-reason changes were not
+counts as recovery. Five targeted repetitions passed in 38017744552. Full deterministic cloud CI
+38017692733 passed all shards on e177626f. The normal publication gate remains
+required. Prior model/example/200-character-reason changes were not
 silently reverted by this qualification work.
 
 ## Remaining acceptance

@@ -114,8 +114,8 @@ IBKR returns at most about 1,000 bars per request, so LumiBot walks backwards pa
 - **A failed older page** keeps the newer real bars already downloaded; the missing older part is not faked and is
   retried by a later run.
 - **Delayed feed.** IBKR stock, index and futures history can lag real time, so intraday requests
-  stop 20 minutes before the current time. A backtest that ends today during market hours simply ends a little
-  earlier.
+  stop 20 minutes before the captured start-of-run clock. A strategy decision requiring newer
+  unavailable prices makes the run incomplete; it does not silently qualify a shortened result.
 - **Daily windows** up to 993 days are one request sized to the window; longer windows use 5-year pages.
 - **Dividends.** IBKR history has no corporate actions, so LumiBot adds dividends and splits to IBKR daily stock bars
   from a free corporate-actions source. BotSpot Auto backtests credit a held stock's dividend on its ex-date from
@@ -125,6 +125,19 @@ IBKR returns at most about 1,000 bars per request, so LumiBot walks backwards pa
   A session with no trades at all is remembered for a day so it is not requested again by every backtest.
   Gap checks handle nanosecond, microsecond, millisecond and second cache timestamps consistently;
   existing Parquet caches do not need to be deleted or rewritten.
+
+Continuous Futures: History and Held Contracts
+---------------------------------------------
+
+A continuous series supplies signal history. In IBKR backtests, an order submitted
+for that series binds to the selected physical expiry. The position and its protective
+orders retain that expiry after the continuous chart moves to the next contract.
+There is no automatic roll trade and no profit from merely switching chart series.
+
+To roll a position, close its ``position.asset`` and open the next contract explicitly.
+A root-symbol closing order targets the single matching held contract. Multiple matching
+expiries, or a reversal spanning different expiries, require explicit contracts.
+Normal fills, fees and price availability apply to both legs.
 
 Futures Exchange Routing (auto + override)
 ------------------------------------------

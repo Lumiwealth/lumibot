@@ -20,4 +20,9 @@ permission, sizing constraint, judge rubric or reason-length contract changes.
 The standalone gate supports five targeted repetitions for this failed case;
 all five must pass before a final publication gate can qualify the candidate.
 
-Qualification status: pending targeted five-repeat real-model proof.
+Targeted recovery: run 38017744552 passed all five repetitions on source
+e177626fe2fabc135a6ac7cfb12962d44e00cb1b. Estimated model/judge cost was
+$0.021527, wall time 100.329 seconds, with no failed, missing or errored
+repetitions. The earlier preflight-only run 38017459202 made no model calls
+because its reservation cap was too small. The normal full publication gate
+remains required; this targeted recovery does not replace it.

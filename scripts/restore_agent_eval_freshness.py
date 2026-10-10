@@ -65,7 +65,7 @@ def _get_bytes(url: str, token: str) -> bytes:
         return response.read()
 
 
-def _freshness_from_zip(payload: bytes) -> dict[str, Any] | None:
+def _freshness_from_zip(payload: bytes, *, partial: bool = False) -> dict[str, Any] | None:
     try:
         with zipfile.ZipFile(io.BytesIO(payload)) as archive:
             candidates = [
@@ -75,6 +75,22 @@ def _freshness_from_zip(payload: bytes) -> dict[str, Any] | None:
                 return None
             candidate = sorted(candidates, key=lambda name: (name.count("/"), name))[0]
             value = json.loads(archive.read(candidate))
+            if partial:
+                ledgers = [name for name in archive.namelist() if Path(name).name == "ledger.jsonl"]
+                if len(ledgers) != 1 or not isinstance(value.get("cases"), dict):
+                    return None
+                rows = [json.loads(line) for line in archive.read(ledgers[0]).decode().splitlines() if line]
+                verified = {}
+                for case_id, record in value["cases"].items():
+                    if not isinstance(record, dict):
+                        continue
+                    matching = [row for row in rows if row.get("case_id") == case_id
+                                and row.get("fingerprint") == record.get("fingerprint")]
+                    if len(matching) >= 3 and all(row.get("status") == "pass" for row in matching):
+                        verified[case_id] = record
+                value["cases"] = verified
+                value["invalidated_case_ids"] = sorted({row.get("case_id") for row in rows
+                                                        if row.get("case_id") not in verified})
     except (OSError, ValueError, KeyError, zipfile.BadZipFile, json.JSONDecodeError):
         return None
     if not isinstance(value, dict) or not isinstance(value.get("cases"), dict):
@@ -100,16 +116,19 @@ def restore(
     output: Path,
     trusted_commit: str,
     limit: int = 20,
+    include_partial: bool = False,
 ) -> int | None:
     workflow_name = urllib.parse.quote(workflow, safe="")
     runs_url = (
         f"{API_ROOT}/repos/{repository}/actions/workflows/{workflow_name}/runs"
-        f"?status=success&event=workflow_dispatch&per_page={limit}"
+        f"?status={'completed' if include_partial else 'success'}&event=workflow_dispatch&per_page={limit}"
     )
     runs = _get_json(runs_url, token).get("workflow_runs", [])
     for run in runs:
         run_id = run.get("id")
-        if not isinstance(run_id, int) or run.get("conclusion") != "success":
+        if not isinstance(run_id, int) or run.get("conclusion") not in (
+            {"success", "failure"} if include_partial else {"success"}
+        ):
             continue
         head_sha = run.get("head_sha")
         if not isinstance(head_sha, str) or not re.fullmatch(r"[0-9a-fA-F]{40}", head_sha):
@@ -138,9 +157,17 @@ def restore(
         )
         if artifact is None:
             continue
-        freshness = _freshness_from_zip(_get_bytes(artifact["archive_download_url"], token))
+        freshness = _freshness_from_zip(
+            _get_bytes(artifact["archive_download_url"], token),
+            partial=run.get("conclusion") != "success",
+        )
         if freshness is None:
             continue
+        if include_partial and output.exists():
+            existing = json.loads(output.read_text())
+            retained = {key: value for key, value in existing.get("cases", {}).items()
+                        if key not in freshness.get("invalidated_case_ids", [])}
+            freshness["cases"] = {**retained, **freshness["cases"]}
         output.parent.mkdir(parents=True, exist_ok=True)
         with tempfile.NamedTemporaryFile(mode="w", encoding="utf-8", dir=output.parent, delete=False) as temporary:
             json.dump(freshness, temporary, indent=2, sort_keys=True)
@@ -159,6 +186,7 @@ def main() -> int:
     parser.add_argument("--output", type=Path, default=Path(".ci/agent-evals/freshness.json"))
     parser.add_argument("--trusted-commit", default=os.environ.get("GITHUB_SHA", ""))
     parser.add_argument("--limit", type=int, default=20)
+    parser.add_argument("--include-partial", action="store_true", help="Recover only ledger-proven passing cases from a failed standalone run")
     args = parser.parse_args()
     if not args.repository or "/" not in args.repository:
         parser.error("--repository or GITHUB_REPOSITORY is required")
@@ -175,11 +203,12 @@ def main() -> int:
         output=args.output,
         trusted_commit=args.trusted_commit,
         limit=args.limit,
+        include_partial=args.include_partial,
     )
     if run_id is None:
         print("No usable prior agent-eval freshness artifact found; the gate will run stale cases.")
     else:
-        print(f"Restored agent-eval freshness from successful workflow run {run_id}.")
+        print(f"Restored passing agent-eval freshness from workflow run {run_id}.")
     return 0
 
 

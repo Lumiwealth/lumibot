@@ -480,6 +480,32 @@ def test_cross_workflow_restore_accepts_only_a_valid_freshness_archive():
     assert restore_freshness._freshness_from_zip(invalid_payload.getvalue()) is None
 
 
+def test_partial_workflow_restore_requires_complete_matching_passes():
+    payload = io.BytesIO()
+    state = {"version": 1, "cases": {
+        key: {"fingerprint": key, "consecutive_passes": 3}
+        for key in ("green", "failed", "missing", "stale")
+    }}
+    rows = [
+        {"case_id": key, "fingerprint": key, "status": status}
+        for key, statuses in (("green", ["pass"] * 3), ("failed", ["pass", "fail", "pass"]))
+        for status in statuses
+    ]
+    rows += [{"case_id": "stale", "fingerprint": "other", "status": "pass"}] * 3
+    with zipfile.ZipFile(payload, "w") as archive:
+        archive.writestr("freshness.json", json.dumps(state))
+        archive.writestr("artifacts/ledger.jsonl", "\n".join(json.dumps(row) for row in rows))
+    restored = restore_freshness._freshness_from_zip(payload.getvalue(), partial=True)
+    assert set(restored["cases"]) == {"green"}
+
+
+def test_partial_workflow_restore_rejects_missing_ledger():
+    payload = io.BytesIO()
+    with zipfile.ZipFile(payload, "w") as archive:
+        archive.writestr("freshness.json", json.dumps({"cases": {"case": {}}}))
+    assert restore_freshness._freshness_from_zip(payload.getvalue(), partial=True) is None
+
+
 def test_cross_workflow_restore_skips_unusable_runs_and_writes_the_first_valid_state(monkeypatch, tmp_path):
     valid_payload = io.BytesIO()
     expected = {"version": 1, "cases": {"case": {"fingerprint": "abc"}}}

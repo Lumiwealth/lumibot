@@ -26,9 +26,15 @@ on:
         required: false
         default: ""
         type: string
+      judge_calibration:
+        description: Qualify research rubric semantics against safe and unsafe controls first
+        required: false
+        default: false
+        type: boolean
 
 permissions:
   contents: read
+  actions: read
 
 jobs:
   agent-evals:
@@ -58,6 +64,18 @@ jobs:
           key: lumibot-agent-evals-v1-${{ github.run_id }}
           restore-keys: |
             lumibot-agent-evals-v1-
+
+      - name: Restore independently passing cases from prior artifacts
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: python scripts/restore_agent_eval_freshness.py --include-partial
+
+      - name: Calibrate changed research rubrics
+        if: inputs.judge_calibration
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          LUMIBOT_DISABLE_DOTENV: "1"
+        run: timeout 600 python scripts/check_agent_judge_calibration.py --max-cost-usd 0.35 --output-root .ci/agent-evals/judge-calibration
 
       - name: Run stale real-model evals
         env:
@@ -108,3 +126,4 @@ jobs:
           path: |
             .ci/agent-evals/artifacts/**
             .ci/agent-evals/freshness.json
+            .ci/agent-evals/judge-calibration/**

@@ -458,3 +458,41 @@ def test_daily_backtest_holding_through_split_sells_adjusted_quantity():
     stats = strategy.stats
     split_day_value = stats.loc[pd.Timestamp("2025-01-06 16:00:00-05:00"), "portfolio_value"]
     assert split_day_value == pytest.approx(2000.0)
+
+
+@pytest.mark.parametrize("has_split_column", [False, True])
+def test_complete_loaded_frame_proves_no_splits_only_with_action_column(monkeypatch, has_split_column):
+    from types import SimpleNamespace
+
+    _, broker, asset = _strategy_with_position(1)
+    source = broker.data_source
+    frame = pd.DataFrame({"close": [100., 100.]},
+                         index=pd.DatetimeIndex([source.datetime_start, source.datetime_end]))
+    if has_split_column:
+        frame["stock_splits"] = 0.
+    monkeypatch.setattr(source, "_get_backtest_daily_corporate_action_frame", lambda *a, **k: frame)
+    calls = []
+
+    def fetch(*args, **kwargs):
+        calls.append(kwargs)
+        actions = pd.DataFrame({"stock_splits": [2.]}, index=pd.DatetimeIndex([source._datetime]))
+        return {asset: SimpleNamespace(df=actions)}
+
+    monkeypatch.setattr(source, "get_bars", fetch)
+    result = source.get_yesterday_stock_splits([asset])
+    assert len(calls) == (0 if has_split_column else 1)
+    assert result[asset] == (0 if has_split_column else 2)
+
+
+def test_preloaded_future_dividend_is_paid_on_ex_date_without_history_fetch(monkeypatch):
+    _, broker, asset = _strategy_with_position(1)
+    source = broker.data_source
+    dates = pd.DatetimeIndex([source.datetime_start, source._datetime, source.datetime_end])
+    frame = pd.DataFrame({"close": [100., 100., 100.], "dividend": [0., .75, 0.],
+                          "stock_splits": 0.}, index=dates)
+    monkeypatch.setattr(source, "_get_backtest_daily_corporate_action_frame", lambda *a, **k: frame)
+    monkeypatch.setattr(source, "get_bars", lambda *a, **k: pytest.fail("Complete actions must reuse loaded data"))
+    source._datetime = source.datetime_start
+    assert source.get_yesterday_dividends([asset])[asset] == 0
+    source._datetime = dates[1].to_pydatetime()
+    assert source.get_yesterday_dividends([asset])[asset] == .75

@@ -1,5 +1,26 @@
 # Changelog
 
+## 4.6.18 - 2026-10-10
+
+- Qualify research-evidence judge wording with recorded safe answers and unsafe controls. Preserve independently passing eval cases across workflow runs without reviving a newer failed fingerprint; this changes release tooling, not live agent prompts or policies.
+
+- Separately expose each exact option leg's existing pricing inputs and signed contribution in the multi-leg calculator result. Prices, quote-request counts, prompts and trading policies are unchanged; this makes package-price reconciliation auditable after a real-model gate confused quotes from adjacent strikes.
+
+- Reuse complete daily equity warmup without repeated requests for unused calendar padding; the saved TQQQ SMA200 routed replay falls from 19 history reads to one with identical bars, decisions, fills and accounting.
+
+- Value routed intraday IBKR stocks/indexes using prices available at the simulated clock, not a forming candle’s final close. Preserve completed intraday marks only across verified closures.
+
+- Prevent the direct IBKR fast-fill path from executing at a still-forming minute close when Trades cache bid/ask values are derived from that close. Add direct/routed fill parity regressions.
+
+Deploy marker: `20bf01d9603027246ecd853297a0f2c9174b95e2`.
+
+- Preserve IBKR native daily session timestamps in routed backtests. Cold and warm reads now retain the same completed futures bars, and daily equity fills use the current session's open across holidays.
+- Count equity warmup bars through cached exchange sessions and extend an already-prefetched series when a strategy requests a longer lookback.
+- Expire a closed-session futures mark at the exact reopening instant so the direct reader refreshes the new session price instead of retaining Friday's close.
+- Mark routed futures positions from native intraday prices instead of a prior daily candle; bound final direct-IBKR valuation to the simulation endpoint.
+- Export filled trade artifacts when a backtest has no benchmark, and reuse complete dividend/split event frames without extra backward history requests. Pay each dividend on its ex-date, including events later in the prefetched simulation.
+- Strengthen frozen replay fixtures to obey request bounds and qualify both direct IBKR and routed stock/futures accounting, including the 51-close MGC requirement.
+
 ## 4.6.17 - 2026-10-10
 
 - Preserve Schwab rejection descriptions and fill callbacks recovered through direct order reconciliation, and preserve deferred broker error objects during synchronization. Account for unobserved partial fills before cancellation, reconcile cancel/fill races from authoritative order state, and retain increasing retry delays through immediately flapping stream logins. Clarify the Strategy API's GTC default and explicit DAY duration for intraday orders without changing intentional GTC orders.

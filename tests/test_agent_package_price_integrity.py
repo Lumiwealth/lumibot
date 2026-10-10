@@ -38,3 +38,22 @@ def test_invalid_price_style_fails_visibly():
     helper, orders = package(SimpleNamespace(bid=.9, ask=1.1))
     with pytest.raises(ValueError, match="limit_type"):
         helper.calculate_multileg_limit_price(orders, "unknown")
+
+
+@pytest.mark.parametrize("style,prices", [("mid", [.5, 1.0]), ("best", [.4, 1.1]), ("fastest", [.6, .9])])
+def test_package_price_exposes_the_same_quote_observation_without_extra_reads(style, prices):
+    helper, orders = package(SimpleNamespace(bid=.9, ask=1.1))
+    details = []
+    net = helper.calculate_multileg_limit_price(orders, style, price_details=details)
+    assert helper.strategy.get_quote.call_count == 2
+    assert [item["price"] for item in details] == pytest.approx(prices)
+    assert [item["bid"] for item in details] == [.4, .9]
+    assert [item["ask"] for item in details] == [.6, 1.1]
+    assert sum(item["signed_price"] for item in details) == pytest.approx(net)
+
+
+def test_unpriced_package_does_not_expose_partial_price_details():
+    helper, orders = package(None)
+    details = []
+    assert helper.calculate_multileg_limit_price(orders, "mid", price_details=details) is None
+    assert details == []

@@ -592,6 +592,8 @@ def test_multileg_price_uses_last_trades_in_trade_only_backtests():
     assert result["net_limit_price"] == pytest.approx(0.40 - 1.10 - 1.20 + 0.50)
     assert result["order_type"] == "credit"
     assert result["broker_price"] == pytest.approx(1.40)
+    assert all(leg["pricing"]["price_basis"] == "last_trade" for leg in result["legs"])
+    assert sum(leg["pricing"]["signed_price"] for leg in result["legs"]) == pytest.approx(-1.40)
 
 
 def test_multileg_price_stays_unavailable_live_without_bid_ask():

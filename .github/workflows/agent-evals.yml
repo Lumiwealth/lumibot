@@ -26,9 +26,20 @@ on:
         required: false
         default: ""
         type: string
+      judge_calibration:
+        description: Qualify research rubric semantics against safe and unsafe controls first
+        required: false
+        default: false
+        type: boolean
+      calibration_case_id:
+        description: Optional affected calibration case; prior passing controls remain preserved
+        required: false
+        default: ''
+        type: string
 
 permissions:
   contents: read
+  actions: read
 
 jobs:
   agent-evals:
@@ -58,6 +69,24 @@ jobs:
           key: lumibot-agent-evals-v1-${{ github.run_id }}
           restore-keys: |
             lumibot-agent-evals-v1-
+
+      - name: Restore independently passing cases from prior artifacts
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: python scripts/restore_agent_eval_freshness.py --include-partial
+
+      - name: Calibrate changed research rubrics
+        if: inputs.judge_calibration
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          LUMIBOT_DISABLE_DOTENV: "1"
+          CALIBRATION_CASE_ID: ${{ inputs.calibration_case_id }}
+        run: |
+          args=(--max-cost-usd 0.35 --output-root .ci/agent-evals/judge-calibration)
+          if [[ -n "${CALIBRATION_CASE_ID}" ]]; then
+            args+=(--case-id "${CALIBRATION_CASE_ID}")
+          fi
+          timeout 600 python scripts/check_agent_judge_calibration.py "${args[@]}"
 
       - name: Run stale real-model evals
         env:
@@ -108,3 +137,4 @@ jobs:
           path: |
             .ci/agent-evals/artifacts/**
             .ci/agent-evals/freshness.json
+            .ci/agent-evals/judge-calibration/**

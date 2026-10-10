@@ -480,6 +480,86 @@ def test_cross_workflow_restore_accepts_only_a_valid_freshness_archive():
     assert restore_freshness._freshness_from_zip(invalid_payload.getvalue()) is None
 
 
+def test_partial_workflow_restore_requires_complete_matching_passes():
+    payload = io.BytesIO()
+    state = {"version": 1, "cases": {
+        key: {"fingerprint": key, "consecutive_passes": 3}
+        for key in ("green", "failed", "missing", "stale")
+    }}
+    rows = [
+        {"case_id": key, "fingerprint": key, "status": status}
+        for key, statuses in (("green", ["pass"] * 3), ("failed", ["pass", "fail", "pass"]))
+        for status in statuses
+    ]
+    rows += [{"case_id": "stale", "fingerprint": "other", "status": "pass"}] * 3
+    with zipfile.ZipFile(payload, "w") as archive:
+        archive.writestr("freshness.json", json.dumps(state))
+        archive.writestr("artifacts/ledger.jsonl", "\n".join(json.dumps(row) for row in rows))
+    restored = restore_freshness._freshness_from_zip(payload.getvalue(), partial=True)
+    assert set(restored["cases"]) == {"green"}
+
+
+def test_partial_workflow_restore_rejects_missing_ledger():
+    payload = io.BytesIO()
+    with zipfile.ZipFile(payload, "w") as archive:
+        archive.writestr("freshness.json", json.dumps({"cases": {"case": {}}}))
+    assert restore_freshness._freshness_from_zip(payload.getvalue(), partial=True) is None
+
+
+def test_missing_research_judge_controls_preserve_observed_account_context():
+    controls = json.loads((SCRIPT_PATH.parent.parent / "tests/fixtures/agent_judge_calibration.json").read_text())
+    selected = [row for row in controls if row["case_id"] == "research_unavailable_safe_fallback"]
+    assert len(selected) == 2
+    for row in selected:
+        transcript = row["transcript"]
+        context = transcript["initial_runtime_context"]
+        assert context == transcript["initial_runtime_contexts"]["trader"]
+        assert context["account"]["cash"] == 100000.0
+        assert context["account_snapshot"]["open_orders_complete"] is True
+        assert context["open_orders"] == []
+
+
+def test_partial_restore_combines_runs_without_resurrecting_failed_fingerprint(monkeypatch, tmp_path):
+    def archive(cases, rows=None):
+        output = io.BytesIO()
+        with zipfile.ZipFile(output, "w") as zipped:
+            zipped.writestr("freshness.json", json.dumps({"version": 1, "cases": cases}))
+            if rows is not None:
+                zipped.writestr("artifacts/ledger.jsonl", "\n".join(json.dumps(row) for row in rows))
+        return output.getvalue()
+
+    payloads = {
+        "new": archive({"new": {"fingerprint": "new"}}),
+        "partial": archive({"old": {"fingerprint": "old"}}, [
+            *[{"case_id": "old", "fingerprint": "old", "status": "pass"}] * 3,
+            {"case_id": "bad", "fingerprint": "bad", "status": "fail"},
+        ]),
+        "older": archive({"bad": {"fingerprint": "bad"}}),
+    }
+
+    def get_json(url, _token):
+        if "/workflows/" in url:
+            return {"workflow_runs": [
+                {"id": ident, "conclusion": conclusion, "head_sha": str(ident) * 40}
+                for ident, conclusion in [(3, "success"), (2, "failure"), (1, "success")]
+            ]}
+        if "/compare/" in url:
+            return {"status": "ahead"}
+        for ident, name in [(3, "new"), (2, "partial"), (1, "older")]:
+            if f"/runs/{ident}/" in url:
+                return {"artifacts": [{"name": f"lumibot-agent-evals-{ident}", "expired": False,
+                                       "archive_download_url": name}]}
+        raise AssertionError(url)
+
+    monkeypatch.setattr(restore_freshness, "_get_json", get_json)
+    monkeypatch.setattr(restore_freshness, "_get_bytes", lambda url, _token: payloads[url])
+    output = tmp_path / "freshness.json"
+    assert restore_freshness.restore(repository="Lumiwealth/lumibot", token="redacted",
+                                     workflow="agent-evals.yml", output=output, trusted_commit="a" * 40,
+                                     include_partial=True) == 3
+    assert set(json.loads(output.read_text())["cases"]) == {"new", "old"}
+
+
 def test_cross_workflow_restore_skips_unusable_runs_and_writes_the_first_valid_state(monkeypatch, tmp_path):
     valid_payload = io.BytesIO()
     expected = {"version": 1, "cases": {"case": {"fingerprint": "abc"}}}
@@ -1300,6 +1380,31 @@ def test_expiration_with_data_case_does_not_name_the_fallback():
     assert "2026-08-14" not in prompt
     assert "fall back" not in prompt
     assert "fallback" not in prompt
+
+
+def test_package_pricing_pairs_each_exact_contract_with_its_observed_quote():
+    """A failed real-model run confused the 596P quote with the selected 594P.
+
+    Keep the original fixture and policy. The calculator must expose its exact
+    inputs next to each contract so callers can reconcile the package directly.
+    """
+    from scripts.agent_eval_production_fixture import ProductionFixture
+
+    production = ProductionFixture(evals.build_fixture("options_nearest_expiration_without_data"))
+    try:
+        tools = {tool.name: tool for tool in production.tools()}
+        legs = _good_condor_legs()
+        for leg in legs:
+            leg["expiration"] = "2026-08-28"
+        result = tools["options_calculate_multileg_price"].function(legs_json=json.dumps(legs))
+    finally:
+        production.close()
+    assert result["net_limit_price"] == pytest.approx(-1.0)
+    prices = {float(leg["asset"]["strike"]): leg["pricing"] for leg in result["legs"]}
+    assert prices[594]["bid"] == .95
+    assert prices[594]["ask"] == 1.05
+    assert prices[594]["price"] == 1.0
+    assert sum(price["signed_price"] for price in prices.values()) == pytest.approx(-1.0)
 
 
 def test_expiration_scoring_rejects_the_unpriced_expiration():

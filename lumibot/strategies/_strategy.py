@@ -3669,7 +3669,7 @@ class _Strategy:
         # are disabled, in case downstream tooling reads the events-style format.
         # Note: plot_returns() now always writes the simplified trades CSV/parquet
         # regardless of show_plot, so this is a secondary export for compatibility.
-        if not show_plot:
+        if not show_plot or self._benchmark_returns_df is None or self._strategy_returns_df is None:
             backtesting_broker.export_trade_events_to_csv(trades_file)
         self.plot_returns_vs_benchmark(
             plot_file_html=plot_file_html,

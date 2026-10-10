@@ -582,15 +582,23 @@ def test_router_ibkr_stock_minute_clamped_pre_open_end_does_not_refetch_every_ba
     router = _make_router(start, clamped_end, {"default": "ibkr", "stock": "ibkr"})
 
     seen_last_bars = []
+    first_call_requests = None
     for step in range(12):
         router._datetime = LUMIBOT_DEFAULT_PYTZ.localize(datetime(2026, 9, 8, 9, 30)) + timedelta(minutes=5 * step)
         bars = router.get_historical_prices(asset, length=250, timestep="5minute", quote=quote)
         assert bars is not None and not bars.df.empty
+        assert len(bars.df) == 250, "Calendar closures must not underfill the requested lookback"
+        if first_call_requests is None:
+            first_call_requests = len(requests)
+        else:
+            assert len(requests) == first_call_requests, "Warm steps must add zero broker requests"
         seen_last_bars.append(bars.df.index[-1])
 
     request_keys = [tuple(sorted(r.items())) for r in requests]
     assert len(request_keys) == len(set(request_keys)), f"identical IBKR requests repeated: {requests}"
-    assert len(requests) <= 2, f"expected at most the first-call edge probes, got {len(requests)}: {requests}"
+    # The old two-probe budget accepted an underfilled 250-bar request. Filling
+    # the full pre-holiday history needs one additional bounded first-call page.
+    assert len(requests) <= 3, f"expected only first-call history/edge probes, got {len(requests)}: {requests}"
     # The strategy sees the real session bars, including the 09:30 open.
     assert pd.Timestamp("2026-09-08 09:30", tz="America/New_York") in set(seen_last_bars)
 

@@ -504,7 +504,9 @@ def closed_futures_mark(frame: pd.DataFrame, *, timestep: str, when: datetime) -
         if bool(row.get("missing", False)) or not pd.notna(row["close"]):
             return None
         end = completed.index[-1] + pd.Timedelta(seconds=seconds)
-        if not _us_futures_closed_interval(end.to_pydatetime(), now.to_pydatetime()):
+        # Include the valuation instant itself: [last close, reopening) is
+        # closed, but at reopening a new executable price may already exist.
+        if not _us_futures_closed_interval(end.to_pydatetime(), (now + pd.Timedelta(microseconds=1)).to_pydatetime()):
             return None
         price = float(row["close"])
         return price if math.isfinite(price) else None
@@ -536,6 +538,42 @@ def _us_equity_session_bounds_for_year(year: int, extended_hours: bool) -> tuple
     closes = pd.DatetimeIndex(pd.to_datetime(schedule[close_col], utc=True)).as_unit("ns").asi8
     order = np.argsort(opens)
     return opens[order], closes[order]
+
+
+def _equity_history_start_for_bars(end_dt: datetime, length: int, timestep: str, *, include_after_hours: bool) -> datetime:
+    """Count completed bars backward through cached sessions, including closures.
+
+    This is a request boundary, not permission to fabricate missing provider bars.
+    Calendar years are cached by the existing completeness checker.
+    """
+    end = pd.Timestamp(end_dt)
+    if end.tzinfo is None:
+        end = end.tz_localize(LUMIBOT_DEFAULT_PYTZ)
+    _, seconds, _ = _timestep_to_ibkr_bar(timestep)
+    daily = str(timestep) == "day"
+    remaining = int(length)
+    end_ns = int(end.tz_convert("UTC").value)
+    step_ns = int(seconds * 1_000_000_000)
+    year = end.year
+    while remaining > 0:
+        opens, closes = _us_equity_session_bounds_for_year(year, include_after_hours and not daily)
+        for opened, closed in zip(opens[::-1], closes[::-1]):
+            if daily:
+                if closed >= end_ns:
+                    continue
+                remaining -= 1
+                if remaining == 0:
+                    return pd.Timestamp(int(opened), unit="ns", tz="UTC").to_pydatetime()
+            else:
+                available = max(0, (min(int(closed), end_ns) - int(opened)) // step_ns)
+                if available >= remaining:
+                    start_ns = int(opened) + (available - remaining) * step_ns
+                    return pd.Timestamp(start_ns, unit="ns", tz="UTC").to_pydatetime()
+                remaining -= available
+        year -= 1
+        if year < 1900:
+            raise ValueError("IBKR lookback exceeds supported exchange calendar")
+    return end.to_pydatetime()
 
 
 def _us_equity_closed_interval(start_local: datetime, end_local: datetime, *, include_after_hours: bool) -> bool:

@@ -32,6 +32,10 @@ the same review artifact as trade fills.
 
 See also: :doc:`cash_accounting`
 
+When ``benchmark_asset=None``, the trade CSV is still exported. Without a
+benchmark comparison plot it uses the full trade-event format, including
+``status=fill`` rows. Disabling a benchmark must not remove execution evidence.
+
 Option Lifecycle Statuses
 -------------------------
 

@@ -896,13 +896,21 @@ class DataSource(ABC):
                             except Exception:
                                 length = 2000
 
-                        bars = self.get_bars([asset], length, timestep="day", quote=quote).get(asset)
+                        frame = self._get_backtest_daily_corporate_action_frame(asset, quote=quote)
+                        complete_frame = (frame is not None and not frame.empty
+                                          and "dividend" in frame.columns
+                                          and getattr(self, "datetime_end", None) is not None
+                                          and frame.index.max().date() >= self.datetime_end.date())
+                        if not complete_frame:
+                            bars = self.get_bars([asset], length, timestep="day", quote=quote).get(asset)
+                            frame = bars.df if bars is not None and hasattr(bars, "df") else None
 
-                        # Extract all dividends from the bars and store by date
+                        # Cache events from the full prefetched series, then pay
+                        # only the current ex-date. A backward-looking slice at
+                        # the first iteration would omit later dividends.
                         asset_dividends = {}
-                        if bars is not None and hasattr(bars, 'df') and 'dividend' in bars.df.columns:
-                            # Store dividend for each date
-                            for idx, row in bars.df.iterrows():
+                        if frame is not None and 'dividend' in frame.columns:
+                            for idx, row in frame.iterrows():
                                 date = idx.date() if hasattr(idx, 'date') else idx
                                 dividend_val = row.get('dividend', 0)
                                 if dividend_val and dividend_val > 0:
@@ -969,7 +977,11 @@ class DataSource(ABC):
                         frame = self._get_backtest_daily_corporate_action_frame(asset, quote=quote)
                         asset_splits = self._stock_split_cache_from_frame(frame)
 
-                        if not asset_splits:
+                        complete_frame = (frame is not None and not frame.empty
+                                          and "stock_splits" in frame.columns
+                                          and getattr(self, "datetime_end", None) is not None
+                                          and frame.index.max().date() >= self.datetime_end.date())
+                        if not asset_splits and not complete_frame:
                             length = self._backtest_daily_corporate_action_length()
                             bars = self.get_bars([asset], length, timestep="day", quote=quote).get(asset)
                             if bars is not None and hasattr(bars, 'df'):

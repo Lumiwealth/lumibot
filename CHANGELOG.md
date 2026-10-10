@@ -2,6 +2,8 @@
 
 ## 4.6.19 - 2026-10-10
 
+Deploy marker: `805f00ab67f87bed5dc5591c4ffe18a03695f425`.
+
 - Preserve concurrently published S3 rows across subsequent IBKR paging checkpoints and final writes. Reuse unchanged corporate-action columns so public daily warm reads do not upload the full cache again.
 
 - Bind IBKR stock Trades caches and in-memory series to a verified current split-event ledger. Refetch under a new identity after a split instead of guessing corrections from price jumps; preserve genuine market moves and existing cache files.

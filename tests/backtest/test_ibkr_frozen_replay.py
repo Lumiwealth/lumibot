@@ -218,7 +218,7 @@ def test_held_contract_does_not_earn_continuous_series_roll_gap(monkeypatch, sid
 
     monkeypatch.setenv("LUMIBOT_CACHE_BACKEND", "local")
     monkeypatch.setenv("DATADOWNLOADER_BASE_URL", "http://localhost:8080")
-    sessions = mcal.get_calendar("us_futures").schedule("2026-09-14", "2026-09-23")
+    sessions = mcal.get_calendar("us_futures").schedule("2026-09-14", "2026-09-24")
     daily_index = pd.DatetimeIndex(sessions.market_close)
     minutes = pd.DatetimeIndex([])
     for _, session in sessions.iterrows():
@@ -264,3 +264,29 @@ def test_held_contract_does_not_earn_continuous_series_roll_gap(monkeypatch, sid
     assert result["cash"] == pytest.approx(expected_equity - (0 if action == "close" else 1200.), abs=1e-9, rel=0)
     assert any(request["expiration"] == "2026-10-28" for request in result["history_requests"])
     assert result["data_health"]["required_complete"] is True
+
+
+@pytest.mark.acceptance_backtest
+@pytest.mark.usefixtures("disable_datasource_override")
+def test_open_market_missing_mark_is_invalid_even_with_previous_good_price(monkeypatch):
+    from tests.backtest.ibkr_replay_support import ReplayMomentum
+
+    monkeypatch.setenv("LUMIBOT_CACHE_BACKEND", "local")
+    monkeypatch.setenv("DATADOWNLOADER_BASE_URL", "http://localhost:8080")
+    days = pd.date_range("2026-02-02 18:00", periods=10, freq="B", tz="America/New_York")
+    daily = _prices(days, [100.] * len(days))
+    minutes = pd.date_range("2026-02-08 18:00", "2026-02-10 16:59", freq="min", tz="America/New_York")
+    available = _prices(minutes, [100.] * len(minutes))
+
+    def hold(self):
+        if not self.get_position(self.asset) and not self.get_orders():
+            self.submit_order(self.create_order(self.asset, 1, "buy"))
+        self.trace.append({"time": self.get_datetime().isoformat(), "equity": float(self.portfolio_value)})
+
+    monkeypatch.setattr(ReplayMomentum, "on_trading_iteration", hold)
+    result = run_engine_replay(daily, symbol="MES", start=datetime(2026, 2, 9), end=datetime(2026, 2, 12),
+                               asset_type="future", expiration=date(2026, 3, 20), multiplier=5,
+                               market="us_futures", auxiliary_frames={"minute": available})
+    assert result["fills"] and result["signals"]
+    assert result["data_health"]["required_complete"] is False
+    assert any(f["reason"] == "missing_valuation_price" for f in result["data_health"]["required_failures"])

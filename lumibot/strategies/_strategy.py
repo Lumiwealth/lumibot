@@ -1676,6 +1676,13 @@ class _Strategy:
                     self._last_known_prices[asset] = price
 
                 if self.is_backtesting and price is None:
+                    # A last-known mark may keep the ledger inspectable, but cannot
+                    # qualify an unknown current-price gap as complete IBKR data.
+                    # Provider adapters already handle verified market closures.
+                    position_source = option_source if is_option_asset and option_source is not None else data_source
+                    record_missing = getattr(position_source, "record_missing_valuation", None)
+                    if quantity != 0 and callable(record_missing) and not (is_option_asset and not option_marking_allowed):
+                        record_missing(asset)
                     # Forward-fill fallback: use last known price when current price is unavailable.
                     # This is critical for illiquid options (LEAPS) that may not trade for days.
                     if asset in self._last_known_prices:
@@ -1694,10 +1701,6 @@ class _Strategy:
                             )
                     else:
                         # No price history - must skip this position
-                        position_source = option_source if is_option_asset and option_source is not None else data_source
-                        record_missing = getattr(position_source, "record_missing_valuation", None)
-                        if quantity != 0 and callable(record_missing):
-                            record_missing(asset)
                         if isinstance(asset, Asset):
                             asset_details = (
                                 f"symbol: {asset.symbol}, type: {asset.asset_type}, right: {asset.right}, "

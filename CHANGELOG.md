@@ -2,6 +2,9 @@
 
 ## 4.6.17 - Unreleased
 
+- Keep required IBKR valuation gaps visible even when the diagnostic ledger retains an earlier known price.
+- Separately correct stock-agent explanations that broaden a checked price-versus-average condition into an unsupported claim about every constituent bar; retain the failed gate and require five targeted repetitions.
+
 - Bind IBKR continuous-futures backtest orders and protective children to physical expiries. Held positions retain their contract after a chart roll; root closes target that held expiry. Ambiguous multi-expiry closes require an explicit contract. This removes artificial roll-spread profit without adding automatic strategy trades.
 
 - Cool down completed, unresolved TWS contract identities for 15 minutes, while checking recovered positive registry entries first. Gateway timeouts remain retryable and identity absence never becomes an absent-price marker.

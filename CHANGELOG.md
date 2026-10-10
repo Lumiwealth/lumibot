@@ -2,6 +2,8 @@
 
 ## 4.6.18 - 2026-10-10
 
+- Qualify research-evidence judge wording with recorded safe answers and unsafe controls. Preserve independently passing eval cases across workflow runs without reviving a newer failed fingerprint; this changes release tooling, not live agent prompts or policies.
+
 - Separately expose each exact option leg's existing pricing inputs and signed contribution in the multi-leg calculator result. Prices, quote-request counts, prompts and trading policies are unchanged; this makes package-price reconciliation auditable after a real-model gate confused quotes from adjacent strikes.
 
 - Reuse complete daily equity warmup without repeated requests for unused calendar padding; the saved TQQQ SMA200 routed replay falls from 19 history reads to one with identical bars, decisions, fills and accounting.

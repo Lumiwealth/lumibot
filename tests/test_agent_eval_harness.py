@@ -519,6 +519,47 @@ def test_missing_research_judge_controls_preserve_observed_account_context():
         assert context["open_orders"] == []
 
 
+def test_partial_restore_combines_runs_without_resurrecting_failed_fingerprint(monkeypatch, tmp_path):
+    def archive(cases, rows=None):
+        output = io.BytesIO()
+        with zipfile.ZipFile(output, "w") as zipped:
+            zipped.writestr("freshness.json", json.dumps({"version": 1, "cases": cases}))
+            if rows is not None:
+                zipped.writestr("artifacts/ledger.jsonl", "\n".join(json.dumps(row) for row in rows))
+        return output.getvalue()
+
+    payloads = {
+        "new": archive({"new": {"fingerprint": "new"}}),
+        "partial": archive({"old": {"fingerprint": "old"}}, [
+            *[{"case_id": "old", "fingerprint": "old", "status": "pass"}] * 3,
+            {"case_id": "bad", "fingerprint": "bad", "status": "fail"},
+        ]),
+        "older": archive({"bad": {"fingerprint": "bad"}}),
+    }
+
+    def get_json(url, _token):
+        if "/workflows/" in url:
+            return {"workflow_runs": [
+                {"id": ident, "conclusion": conclusion, "head_sha": str(ident) * 40}
+                for ident, conclusion in [(3, "success"), (2, "failure"), (1, "success")]
+            ]}
+        if "/compare/" in url:
+            return {"status": "ahead"}
+        for ident, name in [(3, "new"), (2, "partial"), (1, "older")]:
+            if f"/runs/{ident}/" in url:
+                return {"artifacts": [{"name": f"lumibot-agent-evals-{ident}", "expired": False,
+                                       "archive_download_url": name}]}
+        raise AssertionError(url)
+
+    monkeypatch.setattr(restore_freshness, "_get_json", get_json)
+    monkeypatch.setattr(restore_freshness, "_get_bytes", lambda url, _token: payloads[url])
+    output = tmp_path / "freshness.json"
+    assert restore_freshness.restore(repository="Lumiwealth/lumibot", token="redacted",
+                                     workflow="agent-evals.yml", output=output, trusted_commit="a" * 40,
+                                     include_partial=True) == 3
+    assert set(json.loads(output.read_text())["cases"]) == {"new", "old"}
+
+
 def test_cross_workflow_restore_skips_unusable_runs_and_writes_the_first_valid_state(monkeypatch, tmp_path):
     valid_payload = io.BytesIO()
     expected = {"version": 1, "cases": {"case": {"fingerprint": "abc"}}}

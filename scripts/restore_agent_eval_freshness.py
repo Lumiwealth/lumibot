@@ -76,7 +76,8 @@ def _freshness_from_zip(payload: bytes, *, partial: bool = False) -> dict[str, A
             candidate = sorted(candidates, key=lambda name: (name.count("/"), name))[0]
             value = json.loads(archive.read(candidate))
             if partial:
-                ledgers = [name for name in archive.namelist() if Path(name).name == "ledger.jsonl"]
+                ledgers = [name for name in archive.namelist()
+                           if name.endswith("artifacts/ledger.jsonl")]
                 if len(ledgers) != 1 or not isinstance(value.get("cases"), dict):
                     return None
                 rows = [json.loads(line) for line in archive.read(ledgers[0]).decode().splitlines() if line]
@@ -89,8 +90,10 @@ def _freshness_from_zip(payload: bytes, *, partial: bool = False) -> dict[str, A
                     if len(matching) >= 3 and all(row.get("status") == "pass" for row in matching):
                         verified[case_id] = record
                 value["cases"] = verified
-                value["invalidated_case_ids"] = sorted({row.get("case_id") for row in rows
-                                                        if row.get("case_id") not in verified})
+                value["invalidated_cases"] = [
+                    {"case_id": row["case_id"], "fingerprint": row["fingerprint"]}
+                    for row in rows if row.get("status") != "pass"
+                ]
     except (OSError, ValueError, KeyError, zipfile.BadZipFile, json.JSONDecodeError):
         return None
     if not isinstance(value, dict) or not isinstance(value.get("cases"), dict):
@@ -124,6 +127,9 @@ def restore(
         f"?status={'completed' if include_partial else 'success'}&event=workflow_dispatch&per_page={limit}"
     )
     runs = _get_json(runs_url, token).get("workflow_runs", [])
+    recovered = {}
+    blocked = set()
+    selected_run_id = None
     for run in runs:
         run_id = run.get("id")
         if not isinstance(run_id, int) or run.get("conclusion") not in (
@@ -163,11 +169,18 @@ def restore(
         )
         if freshness is None:
             continue
-        if include_partial and output.exists():
-            existing = json.loads(output.read_text())
-            retained = {key: value for key, value in existing.get("cases", {}).items()
-                        if key not in freshness.get("invalidated_case_ids", [])}
-            freshness["cases"] = {**retained, **freshness["cases"]}
+        if include_partial:
+            # Runs arrive newest first. A newer failed fingerprint must not
+            # resurrect an older green record; distinct unchanged cases can
+            # recover their own independently verified passes across runs.
+            for item in freshness.get("invalidated_cases", []):
+                if item["case_id"] not in recovered:
+                    blocked.add((item["case_id"], item["fingerprint"]))
+            for case_id, record in freshness["cases"].items():
+                if case_id not in recovered and (case_id, record.get("fingerprint")) not in blocked:
+                    recovered[case_id] = record
+                    selected_run_id = selected_run_id or run_id
+            continue
         output.parent.mkdir(parents=True, exist_ok=True)
         with tempfile.NamedTemporaryFile(mode="w", encoding="utf-8", dir=output.parent, delete=False) as temporary:
             json.dump(freshness, temporary, indent=2, sort_keys=True)
@@ -175,6 +188,14 @@ def restore(
             temporary_path = Path(temporary.name)
         temporary_path.replace(output)
         return run_id
+    if include_partial and recovered:
+        existing = json.loads(output.read_text()) if output.exists() else {"version": 1, "cases": {}}
+        retained = {key: value for key, value in existing.get("cases", {}).items()
+                    if (key, value.get("fingerprint")) not in blocked}
+        existing["cases"] = {**retained, **recovered}
+        output.parent.mkdir(parents=True, exist_ok=True)
+        output.write_text(json.dumps(existing, indent=2, sort_keys=True) + "\n")
+        return selected_run_id
     return None
 
 

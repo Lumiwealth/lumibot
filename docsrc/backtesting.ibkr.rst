@@ -30,7 +30,9 @@ Futures weekend closure runs from Friday 17:00 through Sunday 18:00 New York tim
 
 Downloader queue deadlines cover submission, polling, retry backoff and local concurrency waits together.
 Normal requests allow three configured timeout windows. Requests with a finite attempt cap use that many windows;
-resubmission does not restart the total deadline. Already downloaded valid bars remain available for a later retry.
+resubmission does not restart the total deadline. If a replacement downloader explicitly reports
+that an accepted read request no longer exists, the client resubmits the same logical read
+after a bounded pause. Transient status errors keep waiting on the existing request. Already downloaded valid bars remain available for a later retry.
 
 Status
 ------

@@ -4,6 +4,7 @@
 
 Deploy marker: `60e8fc439a661b652cee07b56977da7436ab4f5f`.
 
+- Recover confirmed lost read requests after downloader replacement without waiting out a full attempt timeout. Preserve correlation IDs, total deadlines and transient-failure deduplication; non-read requests are not replayed.
 - Keep required IBKR valuation gaps visible even when the diagnostic ledger retains an earlier known price.
 - Separately correct stock-agent explanations that broaden a checked price-versus-average condition into an unsupported claim about every constituent bar; retain the failed gate and require five targeted repetitions.
 

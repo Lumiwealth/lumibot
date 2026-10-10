@@ -34,6 +34,7 @@ from lumibot.tools.ibkr_history_health import (
     split_session_groups,
 )
 from lumibot.tools.parquet_series_cache import ParquetSeriesCache
+from lumibot.tools.ibkr_volume import validated_volume_factor
 
 logger = logging.getLogger(__name__)
 
@@ -2418,6 +2419,7 @@ def _fetch_history_between_dates(
         df = _history_payload_to_frame(
             data,
             source_was_explicit=source_was_explicit,
+            volume_factor=validated_volume_factor(payload, asset_type, source),
             daily_session_dates_from_utc=(backend == "tws" and asset_type in {"stock", "index"} and bar.endswith("d")),
         ) if data else pd.DataFrame()
         if df.empty:
@@ -2849,6 +2851,7 @@ def _ibkr_history_request(
 
 def _history_payload_to_frame(
     data: Any, *, source_was_explicit: bool, daily_session_dates_from_utc: bool = False,
+    volume_factor: float = 1.0,
 ) -> pd.DataFrame:
     df = pd.DataFrame(data)
     if df.empty:
@@ -2857,6 +2860,13 @@ def _history_payload_to_frame(
     # IBKR payload columns: t(ms), o, h, l, c, v.
     rename = {"t": "timestamp", "o": "open", "h": "high", "l": "low", "c": "close", "v": "volume"}
     df = df.rename(columns=rename)
+    if "volume" in df.columns:
+        # Provider response metadata defines units. Normalize only fresh raw
+        # rows, before merging or persistence; cache reads never scale again.
+        # IBKR's unavailable-volume sentinel (-1) and nulls are not trades.
+        volume = pd.to_numeric(df["volume"], errors="raise")
+        scalable = volume.notna() & (volume >= 0) & (volume < float("inf"))
+        df["volume"] = volume.where(~scalable, volume * volume_factor)
     if "timestamp" not in df.columns:
         return pd.DataFrame()
 
@@ -5525,6 +5535,11 @@ def _cache_file_for(
     # intact for older readers and rollback.
     if asset_folder in {"stock", "index"} and _bar.endswith("d"):
         suffix += "_SESSION_DATE_V2"
+    # Older traded bars may mix REST lots and TWS units without provenance.
+    # Keep those files intact, but never hydrate them as normalized volume.
+    # Quote-only and index caches carry no traded volume and remain reusable.
+    if asset_folder != "index" and source_component in {"TRADES", "TRADES_DERIVED_DAILY"}:
+        suffix += "_VOL_V1"
     filename = (
         f"{asset_folder}_{symbol}_{quote_symbol}_{timestep_component}_{exch}_{source_component}_{session_component}"
         f"{suffix}.parquet"

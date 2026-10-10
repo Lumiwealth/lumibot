@@ -2,7 +2,7 @@
 
 # LumiBot AI Trading
 
-**Agentes de IA que realmente envían la orden.** Doce integraciones con brókers, backtests reales, y acciones, opciones, futuros, divisas, cripto y mercados de predicción. La mayoría de los proyectos de trading con IA se detienen en una recomendación. LumiBot envía la orden.
+**Agentes de IA que realmente envían la orden.** Doce integraciones con brókers, backtests reales, y acciones, opciones, futuros, divisas, cripto y mercados de predicción.
 
 ## Sesenta segundos
 
@@ -20,6 +20,8 @@ lumibot init my-bot --template ai     # escribe una subclase de Strategy normal 
 lumibot backtest my-bot --days 90
 lumibot run my-bot --paper
 ```
+
+Ejecutar la plantilla de IA requiere `OPENAI_API_KEY` y las llamadas al modelo tienen coste. El comando `--paper` requiere las credenciales de una cuenta de simulación de Alpaca (`ALPACA_API_KEY` y `ALPACA_API_SECRET`). Consulta la [guía de configuración de la CLI](https://lumibot.lumiwealth.com/cli.html).
 
 `lumibot init` escribe el mismo Python que habrías escrito a mano. La línea de comandos no oculta nada y te quedas con un archivo que puedes editar.
 

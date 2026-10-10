@@ -1628,7 +1628,7 @@ def get_price_data(
         df_cache = aligned_cache
 
     # Enrich daily equity cache with corporate actions so dividend accounting and splits are
-    # consistent with other providers. This is intentionally best-effort.
+    # consistent with other providers. Unknown actions must not become zero events.
     if asset_type == "stock" and str(timestep_component).endswith("day"):
         enriched_cache, changed = _append_equity_corporate_actions_daily(df_cache, asset)
         normalized_cache, normalized_changed = _normalize_equity_daily_prices_for_splits(enriched_cache)
@@ -1643,8 +1643,6 @@ def get_price_data(
         # integer bitwise NOT instead of a boolean mask.
         frame = frame[~frame["missing"].fillna(False).astype(bool)]
     frame = _strip_missing_cache_metadata(frame)
-    if asset_type in {"stock", "index"} and str(timestep_component).endswith("day"):
-        frame = _repair_isolated_split_spikes_daily(frame)
     placeholder_covered = _window_is_placeholder_covered(df_cache, start_local=start_local, end_local=end_local)
     if not frame.empty:
         try:
@@ -1817,7 +1815,6 @@ def _normalize_equity_daily_prices_for_splits(frame: pd.DataFrame) -> tuple[pd.D
         if col in out.columns
     ]
     volume_cols = [col for col in ("volume",) if col in out.columns]
-    dividend_cols = [col for col in ("dividend",) if col in out.columns]
 
     changed = False
     adjusted_splits = 0
@@ -1831,7 +1828,10 @@ def _normalize_equity_daily_prices_for_splits(frame: pd.DataFrame) -> tuple[pd.D
         segment_start = _find_split_raw_segment_start(close, split_pos, ratio)
         before_mask = pd.Series(False, index=out.index)
         before_mask.iloc[segment_start:split_pos] = True
-        for col in price_cols + dividend_cols:
+        # Yahoo event amounts are already split-adjusted, independently of
+        # whether IBKR OHLC arrived raw. Scaling them again changes cash on
+        # the first read; enrichment restores them on the next cache read.
+        for col in price_cols:
             out.loc[before_mask, col] = pd.to_numeric(out.loc[before_mask, col], errors="coerce") / ratio
         for col in volume_cols:
             out.loc[before_mask, col] = pd.to_numeric(out.loc[before_mask, col], errors="coerce") * ratio
@@ -1847,156 +1847,6 @@ def _normalize_equity_daily_prices_for_splits(frame: pd.DataFrame) -> tuple[pd.D
     if adjusted_splits:
         logger.warning("IBKR daily split normalization adjusted %s split boundary/boundaries.", adjusted_splits)
     return out, changed
-
-
-def _repair_isolated_split_spikes_daily(df: pd.DataFrame) -> pd.DataFrame:
-    """Repair isolated split-like spikes in daily stock/index bars.
-
-    Why:
-    - Some IBKR daily stock/index series can contain a one-day bar scaled by a split factor
-      (2x/3x/...) that immediately reverts the next day.
-    - This creates impossible +100%/+200% followed by -50%/-66% portfolio jumps.
-
-    Scope:
-    - Only isolated one-day anomalies are repaired.
-    - Persistent level shifts are left untouched.
-    """
-    if df is None or df.empty or "close" not in df.columns or len(df) < 3:
-        return df
-
-    frame = df.sort_index().copy()
-    candidate_cols = [c for c in ("open", "high", "low", "close", "bid", "ask", "last", "vwap") if c in frame.columns]
-    if not candidate_cols:
-        return frame
-
-    numeric = {col: pd.to_numeric(frame[col], errors="coerce").copy() for col in candidate_cols}
-    close = numeric["close"]
-
-    factors = (2.0, 3.0, 4.0, 5.0, 10.0)
-    factor_tol = 0.25
-    reversion_tol = 0.25
-    adjusted_rows = 0
-
-    def _near(value: float, target: float, rel_tol: float) -> bool:
-        if value <= 0 or target <= 0:
-            return False
-        return abs(value - target) <= abs(target) * rel_tol
-
-    def _row_scales_like(idx: int, factor: float, upward: bool) -> bool:
-        # Require most OHLC fields to indicate the same factor jump.
-        ratios: list[float] = []
-        for col in ("open", "high", "low", "close"):
-            series = numeric.get(col)
-            if series is None:
-                continue
-            prev_val = series.iat[idx - 1]
-            cur_val = series.iat[idx]
-            if pd.isna(prev_val) or pd.isna(cur_val) or prev_val <= 0 or cur_val <= 0:
-                continue
-            ratio = (cur_val / prev_val) if upward else (prev_val / cur_val)
-            ratios.append(float(ratio))
-        if len(ratios) < 2:
-            return False
-        hits = sum(1 for ratio in ratios if _near(ratio, factor, factor_tol))
-        return hits >= max(2, len(ratios) - 1)
-
-    def _trailing_level_stable(last_idx: int) -> bool:
-        # Guard against mutating genuine regime shifts by requiring a stable
-        # trailing level before we adjust a terminal-row spike.
-        start = max(0, last_idx - 6)
-        trailing = close.iloc[start:last_idx].dropna()
-        if len(trailing) < 3:
-            return False
-        ref = float(trailing.median())
-        if ref <= 0:
-            return False
-        return abs(float(close.iat[last_idx - 1]) / ref - 1.0) <= 0.35
-
-    for i in range(1, len(frame) - 1):
-        prev_close = close.iat[i - 1]
-        cur_close = close.iat[i]
-        next_close = close.iat[i + 1]
-        if (
-            pd.isna(prev_close)
-            or pd.isna(cur_close)
-            or pd.isna(next_close)
-            or prev_close <= 0
-            or cur_close <= 0
-            or next_close <= 0
-        ):
-            continue
-
-        action = None
-        for factor in factors:
-            # Upward spike on day i that reverts on day i+1.
-            if (
-                _near(float(cur_close / prev_close), factor, factor_tol)
-                and _near(float(next_close / prev_close), 1.0, reversion_tol)
-                and _row_scales_like(i, factor, upward=True)
-            ):
-                action = ("divide", factor)
-                break
-
-            # Downward spike on day i that reverts on day i+1.
-            if (
-                _near(float(prev_close / cur_close), factor, factor_tol)
-                and _near(float(next_close / prev_close), 1.0, reversion_tol)
-                and _row_scales_like(i, factor, upward=False)
-            ):
-                action = ("multiply", factor)
-                break
-
-        if action is None:
-            continue
-
-        op, factor = action
-        for col, series in numeric.items():
-            val = series.iat[i]
-            if pd.isna(val):
-                continue
-            series.iat[i] = (val / factor) if op == "divide" else (val * factor)
-        close = numeric["close"]
-        adjusted_rows += 1
-
-    # Terminal-row fallback:
-    # In rolling backtests we often evaluate up to the current day only, so the latest row does
-    # not yet have the next-day reversion available. Detect obvious split-factor spikes on that
-    # final row using trailing-level stability as a safety check.
-    last_i = len(frame) - 1
-    if last_i >= 1 and _trailing_level_stable(last_i):
-        prev_close = close.iat[last_i - 1]
-        cur_close = close.iat[last_i]
-        if (
-            not pd.isna(prev_close)
-            and not pd.isna(cur_close)
-            and prev_close > 0
-            and cur_close > 0
-        ):
-            terminal_action = None
-            for factor in factors:
-                if _near(float(cur_close / prev_close), factor, factor_tol) and _row_scales_like(last_i, factor, upward=True):
-                    terminal_action = ("divide", factor)
-                    break
-                if _near(float(prev_close / cur_close), factor, factor_tol) and _row_scales_like(last_i, factor, upward=False):
-                    terminal_action = ("multiply", factor)
-                    break
-
-            if terminal_action is not None:
-                op, factor = terminal_action
-                for col, series in numeric.items():
-                    val = series.iat[last_i]
-                    if pd.isna(val):
-                        continue
-                    series.iat[last_i] = (val / factor) if op == "divide" else (val * factor)
-                close = numeric["close"]
-                adjusted_rows += 1
-
-    if adjusted_rows > 0:
-        for col, series in numeric.items():
-            frame[col] = series
-        logger.warning("IBKR daily split-spike repair adjusted %s row(s).", adjusted_rows)
-
-    return frame
 
 
 def _resolve_cont_future_segments(*, asset: Asset, start_dt: datetime, end_dt: datetime,
@@ -2420,6 +2270,7 @@ def _fetch_history_between_dates(
     _max_timeout_attempts: Optional[int] = None,
     _deadline_monotonic: Optional[float] = None,
     _page_checkpoint: Optional[Callable[[pd.DataFrame], None]] = None,
+    _backend: Optional[str] = None,
 ) -> pd.DataFrame:
     conid = _resolve_conid(asset=asset, quote=quote, exchange=exchange)
     conid_refreshed = False
@@ -2483,6 +2334,7 @@ def _fetch_history_between_dates(
                 source=source,
                 queue_timeout=max(0.1, queue_timeout) if queue_timeout is not None else None,
                 max_timeout_attempts=_max_timeout_attempts,
+                **({"backend": _backend} if _backend else {}),
             )
         except Exception as exc:
             smaller_period = _smaller_daily_period_after_chart_unavailable(
@@ -2933,6 +2785,7 @@ def _ibkr_history_request(
     source: str,
     queue_timeout: Optional[float] = None,
     max_timeout_attempts: Optional[int] = None,
+    backend: Optional[str] = None,
 ) -> Dict[str, Any]:
     base_url = _downloader_base_url()
     url = f"{base_url}/ibkr/iserver/marketdata/history"
@@ -2951,6 +2804,10 @@ def _ibkr_history_request(
         "source": source,
         "startTime": start_time_utc.strftime("%Y%m%d-%H:%M:%S"),
     }
+    if backend is not None:
+        if backend not in {"rest", "tws"}:
+            raise ValueError("Unsupported IBKR history backend")
+        query["ibkr_backend"] = backend
     if continuous:
         query["continuous"] = "true"
     if exchange:
@@ -3285,6 +3142,7 @@ def _repair_us_stock_index_daily_gaps(
         "ARCA",
         "AMEX",
         "IEX",
+        "CBOE",
     }:
         return df_cache
 
@@ -3383,6 +3241,40 @@ def _repair_us_stock_index_daily_gaps(
                 group[-1].date(),
                 exc,
             )
+
+    # An authenticated REST route can return an older final day without an
+    # error (observed SPX, October 2026). Try the existing TWS route once for
+    # the missing sessions, keeping the same instrument/source and deadline.
+    real = working.loc[~working.get("missing", pd.Series(False, index=working.index)).fillna(False).astype(bool)]
+    remaining_sessions = [session for session in gaps if session.date() not in set(real.index.date)]
+    if remaining_sessions and not real.empty and deadline > time.perf_counter():
+        try:
+            alt_start, alt_end = padded_repair_window(remaining_sessions, padding_days=4)
+            alternate = _fetch_history_between_dates(
+                asset=asset, quote=quote, timestep=timestep, start_dt=alt_start, end_dt=alt_end,
+                exchange=exchange, include_after_hours=include_after_hours, source=source,
+                source_was_explicit=source_was_explicit, _record_missing_on_empty=False,
+                _queue_timeout=max(0.1, deadline - time.perf_counter()), _max_timeout_attempts=1,
+                _deadline_monotonic=deadline, _backend="tws")
+            repair_attempts += 1
+            alternate = _align_stock_index_daily_to_session_close(alternate)
+            overlap = real.index.intersection(alternate.index)
+            columns = [name for name in ("open", "high", "low", "close") if name in real and name in alternate]
+            # A shared session proves date/adjustment compatibility. Small
+            # vendor rounding is allowed: one basis point plus one cent.
+            compatible = bool(len(overlap) and len(columns) == 4)
+            if compatible:
+                left = real.loc[overlap, columns].to_numpy(dtype=float)
+                right = alternate.loc[overlap, columns].to_numpy(dtype=float)
+                compatible = bool(np.isfinite(left).all() and np.isfinite(right).all()
+                                  and np.isclose(left, right, rtol=0.0001, atol=0.01).all())
+            if compatible:
+                # Never rewrite existing real bars with another backend.
+                working = _merge_frames(working, alternate.loc[~alternate.index.isin(real.index)])
+            else:
+                logger.warning("IBKR alternate daily route lacks compatible overlap for %s", getattr(asset, "symbol", None))
+        except Exception as exc:
+            logger.warning("IBKR alternate daily route unavailable for %s: %s", getattr(asset, "symbol", None), type(exc).__name__)
 
     missing_mask = (
         working["missing"].fillna(False).astype(bool)
@@ -5719,7 +5611,7 @@ def _normalize_history_source(source: Optional[str]) -> str:
 
 
 def _get_cached_equity_actions(symbol: str, last_needed_datetime: Optional[datetime] = None) -> pd.DataFrame:
-    """Return cached split/dividend actions for an equity symbol (best effort)."""
+    """Return verified actions; provider failures are retryable, never cached as absence."""
     key = str(symbol or "").strip().upper()
     if not key:
         return pd.DataFrame(columns=["Dividends", "Stock Splits"])
@@ -5746,27 +5638,38 @@ def _get_cached_equity_actions(symbol: str, last_needed_datetime: Optional[datet
             auto_adjust=False,
             last_needed_datetime=last_needed_datetime,
         )
-        if history is not None and not history.empty:
-            raw = history[["Dividends", "Stock Splits"]]
-            raw = raw[(raw != 0).any(axis=1)].fillna(0)
+        if not isinstance(history, pd.DataFrame) or history.empty:
+            raise ValueError("empty corporate-action history")
+        raw = history[["Dividends", "Stock Splits"]].apply(pd.to_numeric, errors="raise")
+        if raw.isna().any().any() or not np.isfinite(raw.to_numpy()).all():
+            raise ValueError("invalid corporate-action values")
+        if (raw["Stock Splits"] < 0).any():
+            raise ValueError("invalid split ratio")
+        raw.index = pd.to_datetime(raw.index, errors="raise")
+        if raw.index.isna().any() or raw.index.has_duplicates:
+            raise ValueError("invalid corporate-action dates")
+        if isinstance(last_needed_datetime, datetime):
+            required_end = min(_to_utc(last_needed_datetime), datetime.now(timezone.utc))
+            expected = _expected_us_daily_sessions(
+                start_dt=required_end - timedelta(days=14), end_dt=required_end + timedelta(microseconds=1))
+            if expected and raw.index.max().date() < expected[-1].date():
+                raise ValueError("corporate-action history is stale")
+        actions = raw.loc[(raw != 0).any(axis=1)].copy()
+        if actions.index.tz is None:
+            actions.index = actions.index.tz_localize(LUMIBOT_DEFAULT_PYTZ)
         else:
-            raw = None
-
-        if raw is not None and not raw.empty:
-            actions = raw.copy()
-            actions.index = pd.to_datetime(actions.index, errors="coerce")
-            actions = actions[~actions.index.isna()]
-            if actions.index.tz is None:
-                actions.index = actions.index.tz_localize(LUMIBOT_DEFAULT_PYTZ)
-            else:
-                actions.index = actions.index.tz_convert(LUMIBOT_DEFAULT_PYTZ)
-            actions = actions.sort_index()
+            actions.index = actions.index.tz_convert(LUMIBOT_DEFAULT_PYTZ)
+        actions = actions.sort_index()
     except Exception as exc:
-        logger.debug("IBKR equity corporate actions unavailable for %s: %s", key, exc)
+        # Do not log provider payloads or memoize an empty table. A later call can
+        # recover using the provider's normal persistent cache/retry path.
+        from lumibot.tools.ibkr_history_health import record_required_data_issue
+        record_required_data_issue(asset=Asset(key), timestep="day",
+            when=last_needed_datetime or datetime.now(timezone.utc), reason="corporate_actions_unavailable",
+            recovery_cause="corporate_actions_unverified", retryable=True)
+        raise RuntimeError(f"corporate_actions_unavailable: {key}") from exc
 
     _IBKR_EQUITY_ACTIONS_CACHE[cache_key] = actions
-    if cache_key != key and key not in _IBKR_EQUITY_ACTIONS_CACHE:
-        _IBKR_EQUITY_ACTIONS_CACHE[key] = actions
     return actions
 
 

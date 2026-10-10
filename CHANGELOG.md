@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+- Align documentation canonical URLs and social metadata, generate the sitemap from built pages, repair indicator API links, and clarify onboarding requirements and comparison claims.
+- Keep the synthetic installation example offline by supplying its risk-free rate instead of fetching it from Yahoo.
+- Run rendered metadata, sitemap, and offline-example regression tests in documentation CI with required build dependencies.
+
 ## 4.6.18 - 2026-10-10
 
 - Qualify research-evidence judge wording with recorded safe answers and unsafe controls. Preserve independently passing eval cases across workflow runs without reviving a newer failed fingerprint; this changes release tooling, not live agent prompts or policies.

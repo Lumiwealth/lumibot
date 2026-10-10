@@ -44,7 +44,7 @@ prices and makes no model, market-data, or broker requests:
 
 .. code-block:: bash
 
-   python -m pip install "git+https://github.com/Lumiwealth/lumibot.git@version/4.6.19"
+   python -m pip install "git+https://github.com/Lumiwealth/lumibot.git@d3c2455b2f4db856583e975f263e6492ab9f524c"
    LUMIBOT_DISABLE_DOTENV=true BACKTESTING_DATA_SOURCE=none python -m lumibot.example_strategies.first_backtest
 
 It prints a simulated order and ending value so you can check the installation.

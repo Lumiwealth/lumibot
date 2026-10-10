@@ -31,8 +31,6 @@ class Head(HTMLParser):
 
 @pytest.fixture(scope="module")
 def built_docs(tmp_path_factory):
-    for dependency in ("sphinx", "furo", "sphinx_llms_txt", "sphinxext.opengraph"):
-        pytest.importorskip(dependency)
     root = tmp_path_factory.mktemp("docs-seo")
     source = root / "docsrc"
     source.mkdir()

@@ -57,7 +57,13 @@ available, but its recommendations require revalidation against current source.
 Regression coverage checks built HTML, escaped descriptions, fallback descriptions,
 the chosen share image, canonical URLs, sitemap membership and the absence of the
 offline example's external rate lookup. Existing docs and navigation tests remain
-applicable. Building with optional imports mocked can still produce pre-existing
+applicable. Documentation CI runs the rendered metadata and offline-example tests
+before building the site. Build dependencies are declared in development
+requirements; missing dependencies fail the rendered tests instead of skipping
+them. The installation check pins the reviewed source commit without introducing
+a package version bump or unrelated trading-engine changes.
+
+Building with optional imports mocked can still produce pre-existing
 autodoc/RST warnings; a successful build is not proof of warning-free API content.
 
 ## Next useful work

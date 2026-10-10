@@ -56,8 +56,11 @@ def test_open_graph_tags_are_configured():
 
 
 def test_docs_workflow_installs_the_opengraph_extension():
-    workflow = (Path(__file__).resolve().parents[1] / ".github/workflows/docs.yml").read_text()
-    assert "sphinxext-opengraph" in workflow
+    root = Path(__file__).resolve().parents[1]
+    workflow = (root / ".github/workflows/docs.yml").read_text()
+    # Build and test jobs share declared dependencies instead of a docs-only install.
+    assert "pip install -r requirements_dev.txt" in workflow
+    assert "sphinxext-opengraph" in (root / "requirements_dev.txt").read_text().splitlines()
 
 
 def _pages_missing_meta_description():

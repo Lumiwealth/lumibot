@@ -16,6 +16,15 @@ def _reset_ibkr_history_health_state():
     yield
     reset_ibkr_history_health_for_testing()
 
+@pytest.fixture(autouse=True)
+def _frozen_equity_actions(monkeypatch):
+    from lumibot.tools.ibkr_equity_basis import EquityBasisSnapshot
+    from lumibot.tools import ibkr_helper
+    ledger = pd.DataFrame(columns=["Dividends", "Stock Splits"])
+    basis = EquityBasisSnapshot.from_verified_actions(ledger, as_of=pd.Timestamp("2026-10-10T17:00Z"), coverage_through="2026-10-09")
+    monkeypatch.setattr(ibkr_helper, "_get_current_equity_basis", lambda _: basis)
+
+
 
 def test_ibkr_helper_caches_history_and_reuses_cache(monkeypatch, tmp_path):
     import lumibot.tools.ibkr_helper as ibkr_helper
@@ -1124,9 +1133,11 @@ def test_stock_intraday_get_price_data_does_not_fetch_closed_market_edges(monkey
     asset = Asset(symbol="SPY", asset_type=Asset.AssetType.STOCK)
     quote = Asset(symbol="USD", asset_type=Asset.AssetType.FOREX)
     cache_file = ibkr_helper._cache_file_for(
-        asset=asset, quote=quote, timestep="5minute", exchange=None, source="Trades", include_after_hours=True
+        asset=asset, quote=quote, timestep="5minute", exchange=None, source="Trades", include_after_hours=True, equity_basis=ibkr_helper._get_current_equity_basis("SPY").split_fingerprint
     )
     cached = _extended_hours_5min_bars(_SEP_2026_WEEK)
+    from lumibot.tools.ibkr_equity_basis import decorate_adjusted_frame
+    cached = decorate_adjusted_frame(cached, ibkr_helper._get_current_equity_basis("SPY"), provider_prices_verified=True)
     cached["missing"] = False
     ibkr_helper._write_cache_frame(cache_file, cached)
 
@@ -1166,10 +1177,12 @@ def test_stock_intraday_get_price_data_does_not_repeat_an_underfilled_segment(mo
     asset = Asset(symbol="SPY", asset_type=Asset.AssetType.STOCK)
     quote = Asset(symbol="USD", asset_type=Asset.AssetType.FOREX)
     cache_file = ibkr_helper._cache_file_for(
-        asset=asset, quote=quote, timestep="5minute", exchange=None, source="Trades", include_after_hours=True
+        asset=asset, quote=quote, timestep="5minute", exchange=None, source="Trades", include_after_hours=True, equity_basis=ibkr_helper._get_current_equity_basis("SPY").split_fingerprint
     )
     # A real hole inside the Sep 9 session: nothing between 09:30 and 12:00 ET.
     cached = _extended_hours_5min_bars(["2026-09-09"], first="12:00", last="15:55")
+    from lumibot.tools.ibkr_equity_basis import decorate_adjusted_frame
+    cached = decorate_adjusted_frame(cached, ibkr_helper._get_current_equity_basis("SPY"), provider_prices_verified=True)
     cached["missing"] = False
     ibkr_helper._write_cache_frame(cache_file, cached)
 
@@ -1181,7 +1194,7 @@ def test_stock_intraday_get_price_data_does_not_repeat_an_underfilled_segment(mo
 
     def _answer_with_earlier_bars(**kwargs):
         fetches.append((kwargs["start_dt"], kwargs["end_dt"]))
-        return earlier.copy()
+        return decorate_adjusted_frame(earlier, ibkr_helper._get_current_equity_basis("SPY"), provider_prices_verified=True)
 
     monkeypatch.setattr(ibkr_helper, "_fetch_history_between_dates", _answer_with_earlier_bars)
 
@@ -1230,9 +1243,11 @@ def test_stock_intraday_get_price_data_still_fetches_edges_that_contain_sessions
     asset = Asset(symbol="SPY", asset_type=Asset.AssetType.STOCK)
     quote = Asset(symbol="USD", asset_type=Asset.AssetType.FOREX)
     cache_file = ibkr_helper._cache_file_for(
-        asset=asset, quote=quote, timestep="5minute", exchange=None, source="Trades", include_after_hours=True
+        asset=asset, quote=quote, timestep="5minute", exchange=None, source="Trades", include_after_hours=True, equity_basis=ibkr_helper._get_current_equity_basis("SPY").split_fingerprint
     )
     cached = _extended_hours_5min_bars(["2026-09-09", "2026-09-10"])
+    from lumibot.tools.ibkr_equity_basis import decorate_adjusted_frame
+    cached = decorate_adjusted_frame(cached, ibkr_helper._get_current_equity_basis("SPY"), provider_prices_verified=True)
     cached["missing"] = False
     ibkr_helper._write_cache_frame(cache_file, cached)
 

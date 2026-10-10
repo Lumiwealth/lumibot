@@ -164,7 +164,15 @@ def _frame_basis(frame):
 
 def assert_same_basis(existing, new):
     """Reject an unsafe merge, including known/unknown provenance mixtures."""
-    if _frame_basis(existing) != _frame_basis(new):
+    old_basis, new_basis = _frame_basis(existing), _frame_basis(new)
+    # Explicit boolean missing rows carry no prices or adjustment assumptions.
+    # Validate each frame first so a mixed real/unknown frame is still rejected.
+    def placeholders_only(frame):
+        return (len(frame) > 0 and "missing" in frame and
+                frame["missing"].map(lambda value: isinstance(value, (bool, np.bool_)) and bool(value)).all())
+    if placeholders_only(existing) or placeholders_only(new):
+        return
+    if old_basis != new_basis:
         raise EquityBasisError("Cannot combine different or unknown equity adjustment bases")
 
 

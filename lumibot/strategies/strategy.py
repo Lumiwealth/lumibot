@@ -4968,6 +4968,11 @@ class Strategy(_Strategy):
                     # If resampling fails, log warning and return original data
                     self.logger.warning(f"Failed to resample data from {actual_timestep} to {original_timestep}: {e}")
 
+        if self.is_backtesting:
+            record_requirement = getattr(ds, "record_history_requirement", None)
+            if callable(record_requirement):
+                record_requirement(asset=asset, timestep=original_timestep or actual_timestep,
+                                   requested_bars=length, bars=bars)
         return bars
 
     def get_symbol_bars(

@@ -1,0 +1,189 @@
+"""Release-blocking fixed-input comparisons, independent of mutable vendor data."""
+from datetime import date, datetime
+
+import pandas as pd
+import pytest
+
+from tests.backtest.ibkr_replay_support import run_engine_replay
+
+
+def _prices(index, opens):
+    return pd.DataFrame({"open": opens, "high": [x + 2 for x in opens],
+                         "low": [x - 2 for x in opens], "close": [x + .5 for x in opens],
+                         "volume": 1000, "missing": False}, index=index)
+
+
+@pytest.mark.acceptance_backtest
+@pytest.mark.usefixtures("disable_datasource_override")
+def test_missing_warmup_is_distinct_from_valid_zero_trade_run(monkeypatch):
+    from tests.backtest.ibkr_replay_support import ReplayMomentum
+
+    monkeypatch.setenv("LUMIBOT_CACHE_BACKEND", "local")
+    monkeypatch.setenv("DATADOWNLOADER_BASE_URL", "http://localhost:8080")
+    frame = _prices(pd.date_range("2026-02-02 16:00", periods=10, freq="B", tz="America/New_York"), [100.] * 10)
+    valid = run_engine_replay(frame, symbol="SPY", start=datetime(2026, 2, 9), end=datetime(2026, 2, 13))
+    assert not valid["fills"]
+    assert valid["data_health"]["required_complete"] is True
+
+    def hold_if_insufficient(self):
+        # A strategy may intentionally hold cash instead of crashing on missing history.
+        # That must not turn unavailable warmup into a qualified zero-trade result.
+        self.get_historical_prices(self.asset, 51, timestep="day")
+
+    monkeypatch.setattr(ReplayMomentum, "on_trading_iteration", hold_if_insufficient)
+    incomplete = run_engine_replay(frame, symbol="SPY", start=datetime(2026, 2, 9), end=datetime(2026, 2, 13))
+    assert not incomplete["fills"]
+    assert incomplete["data_health"]["required_complete"] is False
+    assert incomplete["data_health"]["required_failures"][0]["requested_bars"] == 51
+
+
+def _assert_stock_oracle(result, frame, lookback):
+    cash, quantity = 100_000., 0.
+    pending_fills = list(result["fills"])
+    for signal in result["signals"]:
+        decision = pd.Timestamp(signal["time"])
+        while pending_fills and pd.Timestamp(pending_fills[0]["time"]) < decision:
+            fill = pending_fills.pop(0)
+            signed = float(fill["filled_quantity"]) * (1 if fill["side"] == "buy" else -1)
+            cash -= signed * float(fill["price"])
+            quantity += signed
+        completed = frame.loc[frame.index < decision].tail(lookback)
+        assert len(completed) == lookback
+        assert signal["last_close"] == float(completed.close.iloc[-1])
+        assert signal["signal"] == int(completed.close.iloc[-1] > completed.close.iloc[:-1].mean())
+        assert signal["cash_before"] == pytest.approx(cash, abs=1e-9, rel=0)
+        assert signal["held_before"] == quantity
+        assert signal["equity_before"] == pytest.approx(cash + quantity * completed.close.iloc[-1], abs=1e-9, rel=0)
+        assert [bar["close"] for bar in signal["input_bars"]] == completed.close.tolist()
+    for fill in result["fills"]:
+        when = pd.Timestamp(fill["time"])
+        row = frame.loc[frame.index.date == when.date()]
+        assert len(row) == 1
+        assert float(fill["price"]) == float(row.open.iloc[0]), "Market fill must use this session's open"
+
+
+@pytest.mark.acceptance_backtest
+@pytest.mark.usefixtures("disable_datasource_override")
+@pytest.mark.parametrize("symbol,lookback", [("SPY", 3), ("AAPL", 20), ("TQQQ", 200)])
+def test_250_session_daily_replay_matches_independent_signal_and_ledger(monkeypatch, symbol, lookback):
+    import pandas_market_calendars as mcal
+
+    monkeypatch.setenv("LUMIBOT_CACHE_BACKEND", "local")
+    monkeypatch.setenv("DATADOWNLOADER_BASE_URL", "http://localhost:8080")
+    schedule = mcal.get_calendar("NYSE").schedule("2024-01-01", "2026-02-13")
+    index = pd.DatetimeIndex(schedule.market_close).tz_convert("America/New_York")
+    opens = [100. + (i % 41) * .25 for i in range(len(index))]
+    frame = _prices(index, opens)
+    first = index[-250].normalize().to_pydatetime()
+    end = (index[-1].normalize() + pd.Timedelta(days=1)).to_pydatetime()
+    result = run_engine_replay(frame, symbol=symbol, start=first, end=end, lookback=lookback)
+    assert len(result["signals"]) == 250
+    assert len(result["fills"]) >= 10
+    assert len(result["history_requests"]) == 1, "Complete frozen history should load once"
+    _assert_stock_oracle(result, frame, lookback)
+
+
+@pytest.mark.acceptance_backtest
+@pytest.mark.usefixtures("disable_datasource_override")
+def test_daily_replay_has_real_fills_and_independently_reconciled_cash(monkeypatch):
+    monkeypatch.setenv("LUMIBOT_DISABLE_DOTENV", "1")
+    monkeypatch.setenv("DATADOWNLOADER_BASE_URL", "http://localhost:8080")
+    monkeypatch.setenv("LUMIBOT_CACHE_BACKEND", "local")
+    idx = pd.date_range("2026-02-02 16:00", periods=12, freq="B", tz="America/New_York")
+    opens = [100, 101, 102, 103, 101, 99, 98, 100, 103, 104, 102, 101]
+    frame = pd.DataFrame({"open": opens, "high": [x + 2 for x in opens],
+                          "low": [x - 2 for x in opens], "close": [x + .5 for x in opens],
+                          "volume": 1000, "missing": False}, index=idx)
+    result = run_engine_replay(frame, symbol="SPY", start=datetime(2026, 2, 9), end=datetime(2026, 2, 13))
+    assert result["signals"]
+    assert result["signals"][0]["last_close"] == 101.5, result["signals"]
+    assert result["fills"], "This deterministic price pattern must exercise broker accounting"
+    cash = 100_000.0
+    quantity = 0.0
+    for fill in result["fills"]:
+        signed = float(fill["filled_quantity"]) * (1 if fill["side"] == "buy" else -1)
+        cash -= signed * float(fill["price"])
+        quantity += signed
+    assert result["cash"] == pytest.approx(cash, abs=1e-9)
+    assert result["quantity"] == quantity
+    for signal in result["signals"]:
+        assert pd.Timestamp(signal["last_input_time"]) < pd.Timestamp(signal["time"]), "future-close leakage"
+        completed = frame.loc[frame.index < pd.Timestamp(signal["time"])]
+        assert signal["last_close"] == float(completed["close"].iloc[-1]), "unclosed session leaked into history"
+
+
+def test_replay_refuses_missing_prices():
+    frame = pd.DataFrame({"open": [1.], "high": [1.], "low": [1.], "close": [None], "volume": [1]},
+                         index=pd.DatetimeIndex(["2026-02-09T16:00:00-05:00"]))
+    with pytest.raises(ValueError, match="missing prices"):
+        run_engine_replay(frame, symbol="SPY", start=datetime(2026, 2, 9), end=datetime(2026, 2, 10))
+
+
+@pytest.mark.acceptance_backtest
+@pytest.mark.usefixtures("disable_datasource_override")
+def test_intraday_replay_never_uses_forming_close_and_fills_at_bar_open(monkeypatch):
+    monkeypatch.setenv("LUMIBOT_CACHE_BACKEND", "local")
+    monkeypatch.setenv("DATADOWNLOADER_BASE_URL", "http://localhost:8080")
+    index = pd.DatetimeIndex([])
+    for session_date in ["2026-02-06", "2026-02-09", "2026-02-10"]:
+        session = pd.date_range(f"{session_date} 09:30", periods=390, freq="min", tz="America/New_York")
+        index = session if index.empty else index.append(session)
+    frame = _prices(index, [100. + (i % 47) * .1 for i in range(len(index))])
+    daily = _prices(pd.date_range("2026-02-02 16:00", periods=7, freq="B", tz="America/New_York"), [100.] * 7)
+    result = run_engine_replay(frame, symbol="SPY", start=datetime(2026, 2, 9), end=datetime(2026, 2, 11),
+                               timestep="minute", auxiliary_frames={"day": daily})
+    assert len(result["signals"]) >= 20
+    assert len(result["fills"]) >= 2
+    minute_requests = [request for request in result["history_requests"] if request["timestep"] == "minute"]
+    assert len(minute_requests) == 1, "A complete historical series must be reused across strategy iterations"
+    for signal in result["signals"]:
+        when = pd.Timestamp(signal["time"])
+        completed = frame.loc[frame.index + pd.Timedelta(minutes=1) <= when].tail(3)
+        assert [bar["close"] for bar in signal["input_bars"]] == completed.close.tolist()
+        assert signal["signal"] == int(completed.close.iloc[-1] > completed.close.iloc[:-1].mean())
+    for fill in result["fills"]:
+        assert float(fill["price"]) == float(frame.loc[pd.Timestamp(fill["time"]), "open"])
+
+
+@pytest.mark.acceptance_backtest
+@pytest.mark.usefixtures("disable_datasource_override")
+@pytest.mark.parametrize("symbol,multiplier", [("MES", 5), ("GC", 100), ("MGC", 10), ("NG", 10000)])
+def test_futures_daily_replay_uses_completed_sessions(monkeypatch, symbol, multiplier):
+    import pandas_market_calendars as mcal
+
+    monkeypatch.setenv("LUMIBOT_CACHE_BACKEND", "local")
+    monkeypatch.setenv("DATADOWNLOADER_BASE_URL", "http://localhost:8080")
+    sessions = mcal.get_calendar("us_futures").schedule("2026-02-02", "2026-02-13")
+    index = pd.DatetimeIndex(sessions.market_close).tz_convert("America/New_York")
+    frame = _prices(index, [100. + i % 4 for i in range(len(index))])
+    minute_frames = []
+    for i, (_, session) in enumerate(sessions.iterrows()):
+        minutes = pd.date_range(session.market_open, session.market_close, freq="min", inclusive="left")
+        minutes = minutes[minutes.tz_convert("America/New_York").hour != 17]
+        minute_frames.append(_prices(minutes, [100. + i % 4] * len(minutes)))
+    minute = pd.concat(minute_frames)
+    result = run_engine_replay(frame, symbol=symbol, start=datetime(2026, 2, 9), end=datetime(2026, 2, 14),
+                               asset_type="future", expiration=date(2026, 3, 20) if symbol == "MES" else date(2026, 2, 25),
+                               multiplier=multiplier, market="us_futures", auxiliary_frames={"minute": minute})
+    assert len(result["signals"]) >= 4
+    assert result["fills"]
+    margin = {"MES": 1300., "GC": 10000., "MGC": 1200., "NG": 3000.}[symbol]
+    realized, held, entry = 0., 0., 0.
+    fills = list(result["fills"])
+    for signal in result["signals"]:
+        when = pd.Timestamp(signal["time"])
+        while fills and pd.Timestamp(fills[0]["time"]) < when:
+            fill = fills.pop(0)
+            if fill["side"] == "buy":
+                held, entry = float(fill["filled_quantity"]), float(fill["price"])
+            else:
+                realized += (float(fill["price"]) - entry) * float(fill["filled_quantity"]) * multiplier
+                held -= float(fill["filled_quantity"])
+        completed = frame.loc[frame.index <= when].tail(3)
+        assert [bar["close"] for bar in signal["input_bars"]] == completed.close.tolist()
+        assert signal["signal"] == int(completed.close.iloc[-1] > completed.close.iloc[:-1].mean())
+        mark = minute.loc[when, "open"] if when in minute.index else minute.loc[minute.index < when, "close"].iloc[-1]
+        assert signal["held_before"] == held
+        assert signal["cash_before"] == pytest.approx(100_000 + realized - held * margin, abs=1e-9, rel=0)
+        assert signal["equity_before"] == pytest.approx(100_000 + realized + held * (mark - entry) * multiplier,
+                                                       abs=1e-9, rel=0)

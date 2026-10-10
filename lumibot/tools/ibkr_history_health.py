@@ -203,6 +203,51 @@ def padded_repair_window(
 _HEALTH_LOCK = Lock()
 _HEALTH_BY_SERIES: dict[str, dict[str, Any]] = {}
 _HEALTH_EVENT_IDS: set[tuple[str, str]] = set()
+_REQUIRED_FAILURES: dict[tuple, dict[str, Any]] = {}
+
+
+def record_required_history(*, asset, timestep, requested_bars, frame, when) -> None:
+    """Record history actually consumed by a strategy, separately from prefetch.
+
+    An incomplete decision remains incomplete even if a later decision has enough
+    bars. Bound evidence by series rather than storing every iteration.
+    """
+    base = asset[0] if isinstance(asset, tuple) else asset
+    symbol = str(getattr(base, "symbol", base)).upper()
+    asset_type = getattr(base, "asset_type", "")
+    asset_type = str(getattr(asset_type, "value", asset_type))
+    requested = int(requested_bars)
+    if requested <= 0:
+        return
+    usable = frame if isinstance(frame, pd.DataFrame) else pd.DataFrame()
+    if "missing" in usable:
+        usable = usable.loc[~usable["missing"].fillna(False).astype(bool)]
+    usable = usable.dropna(subset=[name for name in ("open", "high", "low", "close") if name in usable])
+    returned = len(usable) if "close" in usable else 0
+    missing = []
+    with _HEALTH_LOCK:
+        if returned and isinstance(usable.index, pd.DatetimeIndex):
+            first, last = usable.index.min().date().isoformat(), usable.index.max().date().isoformat()
+            for health in _HEALTH_BY_SERIES.values():
+                if (health["symbol"] == symbol and health["asset_type"] == asset_type
+                        and health["timestep"] == str(timestep) and health["outcome"] != "complete"):
+                    missing.extend(day for day in health["missing_sessions"] if first <= day <= last)
+        reason = "insufficient_required_history" if returned < requested else (
+            "missing_required_sessions" if missing else None)
+        if reason is None:
+            return
+        key = (symbol, asset_type, str(getattr(base, "expiration", "")), str(timestep), reason)
+        previous = _REQUIRED_FAILURES.get(key)
+        if previous:
+            previous["occurrences"] += 1
+            previous["last_observed_at"] = when.isoformat()
+        elif len(_REQUIRED_FAILURES) < 500:
+            _REQUIRED_FAILURES[key] = {
+                "symbol": symbol, "asset_type": asset_type, "timestep": str(timestep),
+                "reason": reason, "requested_bars": requested, "returned_bars": returned,
+                "first_observed_at": when.isoformat(), "last_observed_at": when.isoformat(),
+                "missing_sessions": sorted(set(missing))[:100], "occurrences": 1,
+            }
 
 
 def record_history_health(
@@ -266,6 +311,7 @@ def record_history_health(
 def ibkr_history_health_snapshot() -> dict[str, Any]:
     with _HEALTH_LOCK:
         series = [dict(value) for _, value in sorted(_HEALTH_BY_SERIES.items())]
+        required_failures = [dict(value) for value in _REQUIRED_FAILURES.values()]
     incomplete = sum(1 for value in series if value.get("outcome") != HistoryOutcome.COMPLETE.value)
     return {
         "provider": "ibkr",
@@ -273,6 +319,8 @@ def ibkr_history_health_snapshot() -> dict[str, Any]:
         "incomplete_series_count": incomplete,
         "complete": incomplete == 0,
         "series": series,
+        "required_complete": not required_failures,
+        "required_failures": required_failures,
     }
 
 
@@ -280,6 +328,7 @@ def reset_ibkr_history_health() -> None:
     with _HEALTH_LOCK:
         _HEALTH_BY_SERIES.clear()
         _HEALTH_EVENT_IDS.clear()
+        _REQUIRED_FAILURES.clear()
 
 
 def reset_ibkr_history_health_for_testing() -> None:

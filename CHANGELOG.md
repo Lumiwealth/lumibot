@@ -2,6 +2,12 @@
 
 ## 4.6.17 - Unreleased
 
+- Reuse complete IBKR stock/index intraday series across strategy iterations and pre-market valuation; larger history requirements can still extend the loaded window.
+- Keep the actual futures valuation clock at session openings. The bar reader already marks forming bars at their open; moving the clock into the maintenance gap could omit an open position from equity.
+- Memoize deterministic futures roll-calendar calculations by contract and rule without caching failed calculations.
+- Record unsatisfied strategy history requirements separately from optional prefetch coverage in backtest data-health artifacts.
+- Add frozen-input engine regressions for 250-session stock/SMA histories, intraday fills, futures margin/P&L, and incomplete versus valid zero-trade runs.
+
 ## 4.6.16 - 2026-10-09
 
 Deploy marker: `70a36c55151c8bf67255a5bdac8f5f3cbc3917c5`.

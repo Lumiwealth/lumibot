@@ -153,3 +153,58 @@ def test_gold_roll_keeps_actual_contract_expiration(symbol):
     from lumibot.tools.ibkr_helper import _contract_expiration_date
 
     assert _contract_expiration_date(symbol, year=2026, month=10) == datetime.date(2026, 10, 28)
+
+
+@pytest.mark.parametrize("symbol,expected", [("GC", (2026, 12)), ("MGC", (2026, 12)), ("NG", (2026, 11))])
+def test_repeated_roll_resolution_reuses_calendar_without_changing_contract(monkeypatch, symbol, expected):
+    import pandas_market_calendars as mcal
+
+    for function in (futures_roll._calculate_roll_trigger, futures_roll._ng_last_trade_date):
+        if hasattr(function, "cache_clear"):
+            function.cache_clear()
+    original = mcal.get_calendar
+    calls = []
+
+    def counted_calendar(name, *args, **kwargs):
+        calls.append(name)
+        return original(name, *args, **kwargs)
+
+    monkeypatch.setattr(mcal, "get_calendar", counted_calendar)
+    try:
+        assert futures_roll.determine_contract_year_month(symbol, _dt(2026, 10, 8)) == expected
+        first_count = len(calls)
+        assert first_count > 0
+        for minute in range(1, 5):
+            assert futures_roll.determine_contract_year_month(symbol, _dt(2026, 10, 8, 9, minute)) == expected
+        assert len(calls) == first_count, "Each strategy iteration rebuilt the same delivery-month calendar"
+    finally:
+        for function in (futures_roll._calculate_roll_trigger, futures_roll._ng_last_trade_date):
+            if hasattr(function, "cache_clear"):
+                function.cache_clear()
+
+
+def test_roll_cache_keys_include_rule_and_delivery_month():
+    original = futures_roll.ROLL_RULES["GC"]
+    changed = futures_roll.RollRule(6, original.anchor, original.contract_months, original.roll_anchor)
+    assert futures_roll._calculate_roll_trigger(2026, 10, original) == _dt(2026, 9, 21, 0, 5)
+    assert futures_roll._calculate_roll_trigger(2026, 10, changed) == _dt(2026, 9, 22, 0, 5)
+    assert futures_roll._calculate_roll_trigger(2026, 12, original) == _dt(2026, 11, 18, 0, 5)
+
+
+def test_calendar_failure_is_not_cached(monkeypatch):
+    import pandas_market_calendars as mcal
+
+    futures_roll._ng_last_trade_date.cache_clear()
+    original = mcal.get_calendar
+
+    def unavailable(*args, **kwargs):
+        raise ValueError("calendar unavailable")
+
+    try:
+        monkeypatch.setattr(mcal, "get_calendar", unavailable)
+        with pytest.raises(ValueError, match="calendar unavailable"):
+            futures_roll._ng_last_trade_date(2026, 11)
+        monkeypatch.setattr(mcal, "get_calendar", original)
+        assert futures_roll._ng_last_trade_date(2026, 11) == _dt(2026, 10, 28)
+    finally:
+        futures_roll._ng_last_trade_date.cache_clear()

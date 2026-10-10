@@ -4,6 +4,7 @@ import datetime
 import json
 import logging
 import os
+from pathlib import Path
 from unittest.mock import Mock
 
 import pytest
@@ -42,7 +43,7 @@ def restart(request, tmp_path, monkeypatch):
         strategy.broker.get_tracked_position.return_value = None
         return strategy
 
-    def save_and_restart(variables, raw=None):
+    def save_and_restart(variables, raw=None, initialized=None):
         original = make_strategy()
         for key, value in variables.items():
             original.vars.set(key, value)
@@ -58,6 +59,8 @@ def restart(request, tmp_path, monkeypatch):
                     {"payload": raw},
                 )
         restored = make_strategy()
+        for key, value in (initialized or {}).items():
+            restored.vars.set(key, value)
         if raw is not None:
             restored.vars.set("untouched", "initial")
         restored.load_variables_from_db()
@@ -120,6 +123,53 @@ def test_assets_in_sets_keep_existing_list_container_contract(restart):
 def test_legacy_untagged_asset_is_not_guessed():
     value = Asset("SPY").to_dict()
     assert _Strategy._deserialize_variables_from_backup(json.dumps({"asset": value})) == {"asset": value}
+
+
+def test_legacy_assets_restore_only_at_initialized_instrument_paths(restart):
+    stock = Asset("SPY")
+    option = Asset("SPY", "option", expiration=datetime.date(2027, 1, 15), strike=500, right="CALL")
+    metadata = stock.to_dict()
+    payload = {"underlyings": {"SPY": stock.to_dict()}, "positions": {"SPY": {"asset": option.to_dict(), "quantity": 3}}, "metadata": metadata}
+    raw = json.dumps(payload)
+    restored = restart({}, raw=raw, initialized={"underlyings": {"SPY": stock}, "positions": {"SPY": {"asset": option, "quantity": 0}}, "metadata": metadata})
+    assert isinstance(restored.vars.underlyings["SPY"], Asset)
+    assert isinstance(restored.vars.positions["SPY"]["asset"], Asset)
+    assert restored.vars.positions["SPY"]["quantity"] == 3
+    assert restored.vars.metadata == metadata
+    assert isinstance(restored.vars.metadata, dict)
+    again = restart(restored.vars.all())
+    assert isinstance(again.vars.underlyings["SPY"], Asset)
+    assert again.vars.positions["SPY"]["asset"].to_dict() == option.to_dict()
+
+
+def test_legacy_recovery_preserves_original_scheduled_backup(restart):
+    if os.environ["LUMIBOT_SCHEDULED_EXECUTION"] != "true":
+        return
+    raw = json.dumps({"instrument": Asset("SPY").to_dict(), "quantity": 7})
+    restored = restart({}, raw=raw, initialized={"instrument": Asset("SPY")})
+    state_path = os.environ["LUMIBOT_SCHEDULED_STATE_FILE"]
+    assert Path(state_path).read_text() == raw
+    backups = list(Path(state_path).parent.glob("state.json.legacy-*.bak"))
+    assert len(backups) == 1
+    assert backups[0].read_text() == raw
+    assert backups[0].stat().st_mode & 0o777 == 0o600
+    assert restored.vars.quantity == 7
+
+
+def test_legacy_recovery_rejects_invalid_instrument_before_partial_restore(restart):
+    raw = json.dumps({"untouched": "changed", "instrument": {"symbol": "SPY"}})
+    restored = restart({}, raw=raw, initialized={"instrument": Asset("SPY")})
+    assert restored.vars.untouched == "initial"
+    assert isinstance(restored.vars.instrument, Asset)
+    assert restored._last_backup_state is None
+
+
+def test_legacy_recovery_retains_saved_contract_not_initial_default(restart):
+    initial = Asset("SPY", "option", expiration=datetime.date(2027, 1, 15), strike=500, right="CALL")
+    saved = Asset("SPY", "option", expiration=datetime.date(2027, 2, 19), strike=510, right="PUT")
+    restored = restart({}, raw=json.dumps({"instrument": saved.to_dict(), "quantity": 2}), initialized={"instrument": initial})
+    assert restored.vars.instrument.to_dict() == saved.to_dict()
+    assert restored.vars.quantity == 2
 
 
 def test_variable_names_matching_envelope_are_preserved():

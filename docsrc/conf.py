@@ -127,7 +127,7 @@ html_theme_options = {
     "dark_logo": "Lumibot_Logo.webp",
 }
 
-html_favicon = "_html/lumibot_favicon_192.png"
+html_favicon = "_html/lumibot_favicon_transparent.png"
 
 # Add any paths that contain custom static files (such as style sheets) here,
 # relative to this directory. They are copied after the builtin static files,

@@ -3,6 +3,8 @@
 ## 4.6.17 - Unreleased
 
 - Retain a completed futures trade close during verified maintenance/weekend closure, without bridging unknown open-market gaps.
+- Restore legacy untagged instrument backups only at initialized Asset paths, retaining saved contract details and ordinary dictionary metadata. Preserve original scheduled-file bytes before applying a recovered variable tree; hosted remote backups must still be retained independently.
+- Keep FRED HTTP and transport failure diagnostics useful without exposing API-key-bearing URLs in agent results.
 
 - Freeze the IBKR delayed-feed availability boundary per backtest, preventing moving-tail repeat downloads; flag decisions requiring data after that boundary while preserving known market closures.
 - Resolve expired NG/CL/MCL through TWS using their exact last-trade date rather than confusing expiry month with delivery month.

@@ -63,7 +63,7 @@ def test_ibkr_rest_backtesting_futures_market_roundtrip_uses_bid_ask_and_multipl
 
     df = _make_quote_only_df(bids=[100.00, 100.75], asks=[100.25, 101.00])
 
-    def fake_get_price_data(*, asset, quote, timestep, start_dt, end_dt, exchange=None, include_after_hours=True, source=None):
+    def fake_get_price_data(*, asset, quote, timestep, start_dt, end_dt, exchange=None, include_after_hours=True, source=None, history_as_of=None):
         return df
 
     monkeypatch.setattr(ibkr_helper, "get_price_data", fake_get_price_data)
@@ -137,7 +137,7 @@ def test_ibkr_rest_backtesting_futures_smart_limit_uses_asset_min_tick(monkeypat
     # With bid=100.00 and ask=100.25, mid=100.125. Futures tick=0.25 should round BUY fill up to 100.25.
     df = _make_df(bid0=100.00, ask0=100.25, bid1=100.00, ask1=100.25)
 
-    def fake_get_price_data(*, asset, quote, timestep, start_dt, end_dt, exchange=None, include_after_hours=True, source=None):
+    def fake_get_price_data(*, asset, quote, timestep, start_dt, end_dt, exchange=None, include_after_hours=True, source=None, history_as_of=None):
         return df
 
     monkeypatch.setattr(ibkr_helper, "get_price_data", fake_get_price_data)
@@ -202,7 +202,7 @@ def test_ibkr_rest_backtesting_futures_stop_and_stop_limit_orders_fill(monkeypat
         index=idx,
     )
 
-    def fake_get_price_data(*, asset, quote, timestep, start_dt, end_dt, exchange=None, include_after_hours=True, source=None):
+    def fake_get_price_data(*, asset, quote, timestep, start_dt, end_dt, exchange=None, include_after_hours=True, source=None, history_as_of=None):
         return df
 
     monkeypatch.setattr(ibkr_helper, "get_price_data", fake_get_price_data)
@@ -298,7 +298,7 @@ def test_ibkr_rest_backtesting_futures_market_order_does_not_fill_inside_large_s
         index=idx,
     )
 
-    def fake_get_price_data(*, asset, quote, timestep, start_dt, end_dt, exchange=None, include_after_hours=True, source=None):
+    def fake_get_price_data(*, asset, quote, timestep, start_dt, end_dt, exchange=None, include_after_hours=True, source=None, history_as_of=None):
         return df
 
     monkeypatch.setattr(ibkr_helper, "get_price_data", fake_get_price_data)
@@ -373,7 +373,7 @@ def test_ibkr_rest_backtesting_futures_stop_does_not_trigger_inside_intraday_gap
         index=idx,
     )
 
-    def fake_get_price_data(*, asset, quote, timestep, start_dt, end_dt, exchange=None, include_after_hours=True, source=None):
+    def fake_get_price_data(*, asset, quote, timestep, start_dt, end_dt, exchange=None, include_after_hours=True, source=None, history_as_of=None):
         return df
 
     monkeypatch.setattr(ibkr_helper, "get_price_data", fake_get_price_data)
@@ -461,7 +461,7 @@ def test_ibkr_rest_backtesting_futures_gap_one_bar_before_open_waits_for_reopen(
         index=idx,
     )
 
-    def fake_get_price_data(*, asset, quote, timestep, start_dt, end_dt, exchange=None, include_after_hours=True, source=None):
+    def fake_get_price_data(*, asset, quote, timestep, start_dt, end_dt, exchange=None, include_after_hours=True, source=None, history_as_of=None):
         return df
 
     monkeypatch.setattr(ibkr_helper, "get_price_data", fake_get_price_data)
@@ -543,7 +543,7 @@ def test_ibkr_rest_backtesting_futures_trailing_stop_triggers(monkeypatch):
         index=idx,
     )
 
-    def fake_get_price_data(*, asset, quote, timestep, start_dt, end_dt, exchange=None, include_after_hours=True, source=None):
+    def fake_get_price_data(*, asset, quote, timestep, start_dt, end_dt, exchange=None, include_after_hours=True, source=None, history_as_of=None):
         return df
 
     monkeypatch.setattr(ibkr_helper, "get_price_data", fake_get_price_data)
@@ -623,7 +623,7 @@ def test_ibkr_rest_backtesting_futures_oco_and_oto_orders_execute(monkeypatch):
         index=idx,
     )
 
-    def fake_get_price_data(*, asset, quote, timestep, start_dt, end_dt, exchange=None, include_after_hours=True, source=None):
+    def fake_get_price_data(*, asset, quote, timestep, start_dt, end_dt, exchange=None, include_after_hours=True, source=None, history_as_of=None):
         return df
 
     monkeypatch.setattr(ibkr_helper, "get_price_data", fake_get_price_data)
@@ -714,7 +714,7 @@ def test_ibkr_rest_backtesting_futures_bracket_order_executes_children(monkeypat
         index=idx,
     )
 
-    def fake_get_price_data(*, asset, quote, timestep, start_dt, end_dt, exchange=None, include_after_hours=True, source=None):
+    def fake_get_price_data(*, asset, quote, timestep, start_dt, end_dt, exchange=None, include_after_hours=True, source=None, history_as_of=None):
         return df
 
     monkeypatch.setattr(ibkr_helper, "get_price_data", fake_get_price_data)

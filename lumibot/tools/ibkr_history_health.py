@@ -206,6 +206,30 @@ _HEALTH_EVENT_IDS: set[tuple[str, str]] = set()
 _REQUIRED_FAILURES: dict[tuple, dict[str, Any]] = {}
 
 
+def record_backtest_availability_requirement(*, asset, timestep, when, history_as_of):
+    """Keep a frozen delayed-feed cutoff visible when a decision needs newer bars."""
+    if history_as_of is None:
+        return
+    from lumibot.tools import ibkr_helper as helper
+
+    base = asset[0] if isinstance(asset, tuple) else asset
+    kind = helper._normalize_asset_type(getattr(base, "asset_type", ""))
+    if kind not in {"stock", "index", "future", "cont_future"}:
+        return
+    _, seconds, component = helper._timestep_to_ibkr_bar(str(timestep))
+    if component.endswith("day"):
+        return
+    cutoff = helper._to_utc(history_as_of) - helper.IBKR_INTRADAY_HISTORY_DELAY
+    required = helper._to_utc(when) - timedelta(seconds=seconds)
+    if required <= cutoff:
+        return
+    closed = (helper._us_equity_closed_interval(cutoff, required, include_after_hours=True)
+              if kind in {"stock", "index"} else helper._us_futures_closed_interval(cutoff, required))
+    if not closed:
+        record_required_history(asset=asset, timestep=timestep, requested_bars=1, frame=None,
+                                when=when, requirement="availability")
+
+
 def record_required_history(*, asset, timestep, requested_bars, frame, when, requirement="history") -> None:
     """Record history actually consumed by a strategy, separately from prefetch.
 
@@ -245,6 +269,8 @@ def record_required_history(*, asset, timestep, requested_bars, frame, when, req
                 "unresolved_required_contract" if unresolved_contract else None))
         if reason and requirement == "valuation":
             reason = "missing_valuation_price"
+        if reason and requirement == "availability":
+            reason = "required_history_after_feed_cutoff"
         if reason is None:
             return
         key = (symbol, asset_type, str(getattr(base, "expiration", "")), str(timestep), reason)

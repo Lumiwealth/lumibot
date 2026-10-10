@@ -808,6 +808,7 @@ def get_price_data(
     exchange: Optional[str] = None,
     include_after_hours: bool = True,
     source: Optional[str] = None,
+    history_as_of: Optional[datetime] = None,
 ) -> pd.DataFrame:
     """Fetch IBKR historical bars (via the Data Downloader) and cache to parquet.
 
@@ -900,7 +901,7 @@ def get_price_data(
     # stable historical boundary for explicit and continuous futures as for
     # stocks/indexes; daily bars and real-time snapshot APIs remain separate.
     if asset_type in {"stock", "index", "future", "cont_future"} and not str(timestep_component).endswith("day"):
-        latest_available = _ibkr_history_now_utc() - IBKR_INTRADAY_HISTORY_DELAY
+        latest_available = _to_utc(history_as_of or _ibkr_history_now_utc()) - IBKR_INTRADAY_HISTORY_DELAY
         if end_utc > latest_available:
             if start_utc >= latest_available:
                 # This window is too recent to ask the historical feed. Do
@@ -1012,6 +1013,7 @@ def get_price_data(
                 exchange=effective_exchange,
                 include_after_hours=include_after_hours,
                 source=source,
+                history_as_of=history_as_of,
             )
             if df_seg is not None and not df_seg.empty:
                 frames.append(df_seg)
@@ -5314,9 +5316,13 @@ def _lookup_conid_future_tws(*, asset: Asset, exchange: str,
     symbol = str(asset.symbol).upper()
     root = IBKR_FUTURES_ROOT_ALIASES.get(symbol, symbol)
     target = asset.expiration.strftime("%Y%m%d")
+    # For these roots the last trade date is in the month BEFORE delivery.
+    # TWS interprets YYYYMM as delivery month, so truncating an expiry selects
+    # the previous contract. YYYYMMDD explicitly means last trade date.
+    lookup_expiry = target if symbol in {"NG", "CL", "MCL"} else target[:6]
     payload = queue_request(url=f"{_downloader_base_url()}/ibkr/tws/secdef/contracts",
                             querystring={"symbol": root, "exchange": exchange, "currency": "USD",
-                                         "expiry": target[:6]}, timeout=45.0, max_timeout_attempts=1)
+                                         "expiry": lookup_expiry}, timeout=45.0, max_timeout_attempts=1)
     if not isinstance(payload, dict) or not isinstance(payload.get("contracts"), list):
         raise RuntimeError("partial_history: malformed TWS futures identity payload")
     contracts = payload["contracts"]
@@ -5328,7 +5334,7 @@ def _lookup_conid_future_tws(*, asset: Asset, exchange: str,
         conid = _future_contract_conid(contract)
         if (contract.get("symbol") != root or contract.get("exchange") != exchange
                 or contract.get("secType") != "FUT" or contract.get("currency") != "USD"
-                or len(expiry) != 8 or not expiry.isdigit() or not expiry.startswith(target[:6])
+                or len(expiry) != 8 or not expiry.isdigit() or not expiry.startswith(lookup_expiry)
                 or _date_from_yyyymmdd(expiry) is None or conid is None):
             raise RuntimeError("partial_history: mismatched TWS futures contract identity")
         identities[(conid, expiry)] = contract

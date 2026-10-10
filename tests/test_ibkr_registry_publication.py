@@ -173,3 +173,16 @@ def test_tws_discovery_rejects_ambiguous_same_month(monkeypatch):
     with pytest.raises(RuntimeError, match="ambiguous"):
         ibkr_helper._lookup_conid_future_tws(asset=Asset("MGC", asset_type="future", expiration=date(2026, 4, 28)),
                                             exchange="COMEX", mapping={}, keys_added=set())
+
+
+@pytest.mark.parametrize("symbol,expiration", [("NG", date(2026, 9, 28)), ("CL", date(2026, 9, 22)),
+                                              ("MCL", date(2026, 9, 21))])
+def test_energy_tws_lookup_uses_exact_expiry_not_delivery_month(monkeypatch, symbol, expiration):
+    def request(*, querystring, **kwargs):
+        assert querystring["expiry"] == expiration.strftime("%Y%m%d")
+        return {"contracts": [{"conid": 123, "symbol": symbol, "secType": "FUT", "exchange": "NYMEX",
+                               "currency": "USD", "expiry": expiration.strftime("%Y%m%d")}]}
+    monkeypatch.setattr(ibkr_helper, "queue_request", request)
+    assert ibkr_helper._lookup_conid_future_tws(
+        asset=Asset(symbol, asset_type="future", expiration=expiration), exchange="NYMEX",
+        mapping={}, keys_added=set()) == 123

@@ -137,7 +137,7 @@ def test_ibkr_speed_burner_prefetches_once_and_slices_forever(monkeypatch):
 
     calls: dict[tuple[str, str], int] = {}
 
-    def fake_get_price_data(*, asset, quote, timestep, start_dt, end_dt, exchange=None, include_after_hours=True, source=None):
+    def fake_get_price_data(*, asset, quote, timestep, start_dt, end_dt, exchange=None, include_after_hours=True, source=None, history_as_of=None):
         sym = getattr(asset, "symbol", "")
         key = (sym, str(timestep))
         calls[key] = calls.get(key, 0) + 1

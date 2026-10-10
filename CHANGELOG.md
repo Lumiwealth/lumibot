@@ -2,6 +2,9 @@
 
 ## 4.6.17 - Unreleased
 
+- Freeze the IBKR delayed-feed availability boundary per backtest, preventing moving-tail repeat downloads; flag decisions requiring data after that boundary while preserving known market closures.
+- Resolve expired NG/CL/MCL through TWS using their exact last-trade date rather than confusing expiry month with delivery month.
+
 - Reuse complete IBKR stock/index intraday series across strategy iterations and pre-market valuation; larger history requirements can still extend the loaded window.
 - Keep the actual futures valuation clock at session openings. The bar reader already marks forming bars at their open; moving the clock into the maintenance gap could omit an open position from equity.
 - Memoize deterministic futures roll-calendar calculations by contract and rule without caching failed calculations.

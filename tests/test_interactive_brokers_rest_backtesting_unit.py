@@ -14,7 +14,7 @@ def test_ibkr_rest_backtesting_plumbs_history_source(monkeypatch):
 
     calls = {"count": 0}
 
-    def fake_get_price_data(*, asset, quote, timestep, start_dt, end_dt, exchange=None, include_after_hours=True, source=None):
+    def fake_get_price_data(*, asset, quote, timestep, start_dt, end_dt, exchange=None, include_after_hours=True, source=None, history_as_of=None):
         calls["count"] += 1
         assert source == "Bid_Ask"
         idx = pd.DatetimeIndex(
@@ -58,7 +58,7 @@ def test_ibkr_rest_stock_daily_uses_rth(monkeypatch):
 
     captured = {"include_after_hours": None, "count": 0}
 
-    def fake_get_price_data(*, asset, quote, timestep, start_dt, end_dt, exchange=None, include_after_hours=True, source=None):
+    def fake_get_price_data(*, asset, quote, timestep, start_dt, end_dt, exchange=None, include_after_hours=True, source=None, history_as_of=None):
         captured["count"] += 1
         captured["include_after_hours"] = bool(include_after_hours)
         idx = pd.DatetimeIndex(
@@ -96,7 +96,7 @@ def test_ibkr_rest_stock_daily_uses_rth(monkeypatch):
 def test_ibkr_rest_stock_daily_prefetch_stays_unloaded_when_coverage_fails(monkeypatch):
     import lumibot.tools.ibkr_helper as ibkr_helper
 
-    def fake_get_price_data(*, asset, quote, timestep, start_dt, end_dt, exchange=None, include_after_hours=True, source=None):
+    def fake_get_price_data(*, asset, quote, timestep, start_dt, end_dt, exchange=None, include_after_hours=True, source=None, history_as_of=None):
         idx = pd.DatetimeIndex(
             [
                 datetime(2025, 1, 1, 0, 0, tzinfo=timezone.utc),
@@ -135,7 +135,7 @@ def test_ibkr_rest_stock_daily_prefetch_stays_unloaded_when_coverage_fails(monke
 def test_ibkr_rest_crypto_minute_prefetch_stays_unloaded_when_coverage_fails(monkeypatch):
     import lumibot.tools.ibkr_helper as ibkr_helper
 
-    def fake_get_price_data(*, asset, quote, timestep, start_dt, end_dt, exchange=None, include_after_hours=True, source=None):
+    def fake_get_price_data(*, asset, quote, timestep, start_dt, end_dt, exchange=None, include_after_hours=True, source=None, history_as_of=None):
         idx = pd.date_range(start=start_dt, periods=5, freq="1min")
         return pd.DataFrame(
             {"open": 1.0, "high": 1.1, "low": 0.9, "close": 1.0, "volume": 1.0},
@@ -173,7 +173,7 @@ def test_ibkr_rest_crypto_last_price_rejects_stale_underfilled_intraday_frame(mo
     stale_dt = datetime(2026, 3, 24, 0, 0, tzinfo=ny)
     sim_dt = datetime(2026, 4, 17, 10, 0, tzinfo=ny)
 
-    def fake_get_price_data(*, asset, quote, timestep, start_dt, end_dt, exchange=None, include_after_hours=True, source=None):
+    def fake_get_price_data(*, asset, quote, timestep, start_dt, end_dt, exchange=None, include_after_hours=True, source=None, history_as_of=None):
         idx = pd.DatetimeIndex([stale_dt])
         return pd.DataFrame(
             {
@@ -218,7 +218,7 @@ def test_ibkr_rest_crypto_last_price_rejects_future_underfilled_intraday_frame(m
     future_dt = datetime(2026, 3, 24, 0, 0, tzinfo=ny)
     sim_dt = datetime(2026, 3, 12, 7, 0, tzinfo=ny)
 
-    def fake_get_price_data(*, asset, quote, timestep, start_dt, end_dt, exchange=None, include_after_hours=True, source=None):
+    def fake_get_price_data(*, asset, quote, timestep, start_dt, end_dt, exchange=None, include_after_hours=True, source=None, history_as_of=None):
         idx = pd.DatetimeIndex([future_dt])
         return pd.DataFrame(
             {
@@ -259,7 +259,7 @@ def test_ibkr_rest_crypto_last_price_rejects_future_underfilled_intraday_frame(m
 def test_ibkr_rest_futures_minute_prefetch_stays_unloaded_when_coverage_fails(monkeypatch):
     import lumibot.tools.ibkr_helper as ibkr_helper
 
-    def fake_get_price_data(*, asset, quote, timestep, start_dt, end_dt, exchange=None, include_after_hours=True, source=None):
+    def fake_get_price_data(*, asset, quote, timestep, start_dt, end_dt, exchange=None, include_after_hours=True, source=None, history_as_of=None):
         idx = pd.date_range(start=start_dt, periods=5, freq="1min")
         return pd.DataFrame(
             {"open": 1.0, "high": 1.1, "low": 0.9, "close": 1.0, "volume": 1.0},
@@ -303,7 +303,7 @@ def test_ibkr_rest_get_last_price_fetches_current_slice_without_full_window_pref
     ny = ZoneInfo("America/New_York")
     calls = []
 
-    def fake_get_price_data(*, asset, quote, timestep, start_dt, end_dt, exchange=None, include_after_hours=True, source=None):
+    def fake_get_price_data(*, asset, quote, timestep, start_dt, end_dt, exchange=None, include_after_hours=True, source=None, history_as_of=None):
         calls.append((start_dt, end_dt))
         if pd.Timestamp(end_dt).date() >= datetime(2026, 5, 1).date():
             idx = pd.DatetimeIndex(

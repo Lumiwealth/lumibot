@@ -44,6 +44,26 @@ def test_required_short_history_stays_invalid_after_later_success():
     assert health["required_failures"][0]["returned_bars"] == 32
 
 
+@pytest.mark.parametrize("symbol,kind,asof,when,complete", [
+    ("SPY", "stock", "2026-10-09 19:22", "2026-10-09 19:15", False),
+    ("SPY", "stock", "2026-10-09 19:22", "2026-10-09 19:00", True),
+    ("SPY", "stock", "2026-10-10 12:00", "2026-10-10 11:55", True),
+    ("MGC", "cont_future", "2026-10-09 19:22", "2026-10-09 19:15", False),
+    ("MGC", "cont_future", "2026-10-10 12:00", "2026-10-10 11:55", True),
+])
+def test_fixed_feed_snapshot_invalidates_unavailable_decisions_but_not_market_closures(
+    symbol, kind, asof, when, complete
+):
+    from lumibot.tools.ibkr_history_health import record_backtest_availability_requirement
+
+    record_backtest_availability_requirement(asset=SimpleNamespace(symbol=symbol, asset_type=kind),
+        timestep="minute", when=pd.Timestamp(when, tz="UTC"), history_as_of=pd.Timestamp(asof, tz="UTC"))
+    health = ibkr_history_health_snapshot()
+    assert health["required_complete"] is complete
+    if not complete:
+        assert health["required_failures"][0]["reason"] == "required_history_after_feed_cutoff"
+
+
 def test_prefetch_gap_does_not_invalidate_satisfied_strategy_requirement():
     from lumibot.tools.ibkr_history_health import record_required_history
 

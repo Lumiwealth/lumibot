@@ -30,9 +30,14 @@ class InteractiveBrokersRESTBacktesting(PandasData):
     SOURCE = "InteractiveBrokersREST"
     PREFER_NATIVE_DAY_BARS_FOR_STOCK_INDEX = True
 
-    def record_history_requirement(self, *, asset, timestep, requested_bars, bars):
+    def record_history_requirement(self, *, asset, timestep, requested_bars, bars, timeshift=None):
         from lumibot.tools.ibkr_history_health import record_required_history
 
+        if not timeshift:
+            from lumibot.tools.ibkr_history_health import record_backtest_availability_requirement
+
+            record_backtest_availability_requirement(asset=asset, timestep=timestep, when=self.get_datetime(),
+                                                     history_as_of=getattr(self, "_history_as_of", None))
         record_required_history(asset=asset, timestep=timestep, requested_bars=requested_bars,
                                 frame=bars.pandas_df if bars is not None else None, when=self.get_datetime())
 
@@ -56,6 +61,7 @@ class InteractiveBrokersRESTBacktesting(PandasData):
         self._timestep = self.MIN_TIMESTEP
         self.exchange = exchange
         self.history_source = history_source
+        self._history_as_of = ibkr_helper._ibkr_history_now_utc()
 
         unique_id = uuid.uuid4().hex[:8]
         strategy_name = kwargs.get("name", "Backtest")
@@ -714,6 +720,7 @@ class InteractiveBrokersRESTBacktesting(PandasData):
             exchange=exchange,
             include_after_hours=include_after_hours,
             source=self.history_source,
+            history_as_of=self._history_as_of,
         )
 
         if df is None or df.empty:

@@ -4972,7 +4972,7 @@ class Strategy(_Strategy):
             record_requirement = getattr(ds, "record_history_requirement", None)
             if callable(record_requirement):
                 record_requirement(asset=asset, timestep=original_timestep or actual_timestep,
-                                   requested_bars=length, bars=bars)
+                                   requested_bars=length, bars=bars, timeshift=timeshift)
         return bars
 
     def get_symbol_bars(

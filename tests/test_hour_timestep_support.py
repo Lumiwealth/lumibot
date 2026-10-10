@@ -82,7 +82,7 @@ def test_routed_backtesting_allows_hour_history_for_futures(monkeypatch):
 
     calls = {"ibkr": 0}
 
-    def fake_get_price_data(*, asset, quote, timestep, start_dt, end_dt, exchange=None, include_after_hours=True, source=None):
+    def fake_get_price_data(*, asset, quote, timestep, start_dt, end_dt, exchange=None, include_after_hours=True, source=None, history_as_of=None):
         calls["ibkr"] += 1
         idx = pd.date_range(start=start_dt, end=end_dt, freq="h")
         if idx.tz is None:

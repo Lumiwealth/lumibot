@@ -13,7 +13,7 @@ from lumibot.entities import Asset
 def test_routed_backtesting_prefetches_ibkr_crypto_daily_window_once(monkeypatch):
     calls: list[tuple[datetime, datetime, str]] = []
 
-    def _fake_get_price_data(*, asset, quote, timestep, start_dt, end_dt, exchange=None, include_after_hours=True, source=None):
+    def _fake_get_price_data(*, asset, quote, timestep, start_dt, end_dt, exchange=None, include_after_hours=True, source=None, history_as_of=None):
         calls.append((start_dt, end_dt, str(timestep)))
         idx = pd.date_range(start=start_dt, end=end_dt, freq="D")
         df = pd.DataFrame(
@@ -80,7 +80,7 @@ def test_routed_backtesting_prefetches_ibkr_crypto_daily_window_once(monkeypatch
 
 
 def test_routed_backtesting_crypto_daily_tuple_lookup_uses_prefetched_canonical_key(monkeypatch):
-    def _fake_get_price_data(*, asset, quote, timestep, start_dt, end_dt, exchange=None, include_after_hours=True, source=None):
+    def _fake_get_price_data(*, asset, quote, timestep, start_dt, end_dt, exchange=None, include_after_hours=True, source=None, history_as_of=None):
         idx = pd.date_range(start=start_dt, end=end_dt, freq="D")
         df = pd.DataFrame(
             {
@@ -129,7 +129,7 @@ def test_routed_ibkr_crypto_intraday_rejects_stale_underfilled_last_price_and_qu
     sim_ts = pd.Timestamp("2026-04-17 10:00", tz=ny)
     calls: list[tuple[datetime, datetime, str]] = []
 
-    def _fake_get_price_data(*, asset, quote, timestep, start_dt, end_dt, exchange=None, include_after_hours=True, source=None):
+    def _fake_get_price_data(*, asset, quote, timestep, start_dt, end_dt, exchange=None, include_after_hours=True, source=None, history_as_of=None):
         calls.append((start_dt, end_dt, str(timestep)))
         df = pd.DataFrame(
             {
@@ -185,7 +185,7 @@ def test_routed_ibkr_crypto_intraday_rejects_future_underfilled_last_price_and_q
     sim_ts = pd.Timestamp("2026-03-12 07:00", tz=ny)
     calls: list[tuple[datetime, datetime, str]] = []
 
-    def _fake_get_price_data(*, asset, quote, timestep, start_dt, end_dt, exchange=None, include_after_hours=True, source=None):
+    def _fake_get_price_data(*, asset, quote, timestep, start_dt, end_dt, exchange=None, include_after_hours=True, source=None, history_as_of=None):
         calls.append((start_dt, end_dt, str(timestep)))
         df = pd.DataFrame(
             {
@@ -236,7 +236,7 @@ def test_routed_ibkr_crypto_intraday_rejects_future_underfilled_last_price_and_q
 def test_routed_backtesting_prefetches_ibkr_stock_daily_with_full_lookback(monkeypatch):
     calls: list[tuple[datetime, datetime, str]] = []
 
-    def _fake_get_price_data(*, asset, quote, timestep, start_dt, end_dt, exchange=None, include_after_hours=True, source=None):
+    def _fake_get_price_data(*, asset, quote, timestep, start_dt, end_dt, exchange=None, include_after_hours=True, source=None, history_as_of=None):
         calls.append((start_dt, end_dt, str(timestep)))
         idx = pd.date_range(start=start_dt, end=end_dt, freq="D")
         df = pd.DataFrame(
@@ -305,7 +305,7 @@ def test_routed_backtesting_prefetches_ibkr_stock_daily_with_full_lookback(monke
 def test_routed_backtesting_stock_daily_prefetch_stays_unloaded_when_coverage_fails(monkeypatch):
     calls: list[tuple[datetime, datetime, str]] = []
 
-    def _fake_get_price_data(*, asset, quote, timestep, start_dt, end_dt, exchange=None, include_after_hours=True, source=None):
+    def _fake_get_price_data(*, asset, quote, timestep, start_dt, end_dt, exchange=None, include_after_hours=True, source=None, history_as_of=None):
         calls.append((start_dt, end_dt, str(timestep)))
         idx = pd.date_range(start=start_dt, periods=5, freq="D")
         df = pd.DataFrame(
@@ -370,7 +370,7 @@ def test_routed_backtesting_stock_daily_prefetch_stays_unloaded_when_coverage_fa
 def test_routed_backtesting_stock_minute_prefetch_stays_unloaded_when_coverage_fails(monkeypatch):
     calls: list[tuple[datetime, datetime, str]] = []
 
-    def _fake_get_price_data(*, asset, quote, timestep, start_dt, end_dt, exchange=None, include_after_hours=True, source=None):
+    def _fake_get_price_data(*, asset, quote, timestep, start_dt, end_dt, exchange=None, include_after_hours=True, source=None, history_as_of=None):
         calls.append((start_dt, end_dt, str(timestep)))
         idx = pd.date_range(start=start_dt, periods=5, freq="1min")
         df = pd.DataFrame(
@@ -433,7 +433,7 @@ def test_routed_backtesting_stock_minute_prefetch_stays_unloaded_when_coverage_f
 def test_routed_backtesting_future_minute_prefetch_stays_unloaded_when_coverage_fails(monkeypatch):
     calls: list[tuple[datetime, datetime, str]] = []
 
-    def _fake_get_price_data(*, asset, quote, timestep, start_dt, end_dt, exchange=None, include_after_hours=True, source=None):
+    def _fake_get_price_data(*, asset, quote, timestep, start_dt, end_dt, exchange=None, include_after_hours=True, source=None, history_as_of=None):
         calls.append((start_dt, end_dt, str(timestep)))
         idx = pd.date_range(start=start_dt, periods=5, freq="1min")
         df = pd.DataFrame(
@@ -496,7 +496,7 @@ def test_routed_backtesting_future_minute_prefetch_stays_unloaded_when_coverage_
 def test_routed_backtesting_crypto_daily_prefetch_stays_unloaded_when_coverage_fails(monkeypatch):
     calls: list[tuple[datetime, datetime, str]] = []
 
-    def _fake_get_price_data(*, asset, quote, timestep, start_dt, end_dt, exchange=None, include_after_hours=True, source=None):
+    def _fake_get_price_data(*, asset, quote, timestep, start_dt, end_dt, exchange=None, include_after_hours=True, source=None, history_as_of=None):
         calls.append((start_dt, end_dt, str(timestep)))
         idx = pd.date_range(start=start_dt, periods=5, freq="D")
         df = pd.DataFrame(

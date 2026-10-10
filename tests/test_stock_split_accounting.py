@@ -114,6 +114,7 @@ def test_update_positions_with_splits_ignores_non_action_ratios(monkeypatch, rat
 
 def test_update_positions_with_splits_skips_split_adjusted_data():
     strategy, broker, asset = _strategy_with_position(100, avg_fill_price=25.0)
+    pending = _pending_split_order(strategy, broker, asset)
     quote = Asset("USD", Asset.AssetType.FOREX)
     index = pd.DatetimeIndex(
         [
@@ -143,7 +144,8 @@ def test_update_positions_with_splits_skips_split_adjusted_data():
     assert applied == 0
     assert position.quantity == pytest.approx(100)
     assert position.avg_fill_price == pytest.approx(25.0)
-    assert broker._trade_event_log_df.empty
+    assert pending.is_active() and pending.quantity == 7 and pending.limit_price == 25.0
+    assert "stock_split" not in broker._trade_event_log_df["status"].tolist()
 
 
 def test_update_positions_with_splits_skips_auto_adjusted_data_source(monkeypatch):
@@ -496,3 +498,119 @@ def test_preloaded_future_dividend_is_paid_on_ex_date_without_history_fetch(monk
     assert source.get_yesterday_dividends([asset])[asset] == 0
     source._datetime = dates[1].to_pydatetime()
     assert source.get_yesterday_dividends([asset])[asset] == .75
+
+
+def _pending_split_order(strategy, broker, asset, kind="limit", *, carried=True, side="buy"):
+    """Submit through the real backtest stream, with a known creation session."""
+    prices = {"limit_price": 25.0} if kind == "limit" else {"stop_price": 25.0}
+    order = strategy.create_order(asset, 7, side, time_in_force="gtc", **prices)
+    if carried:
+        order._date_created = pd.Timestamp("2025-01-03 16:00:00-05:00").to_pydatetime()
+    broker._submit_order(order)
+    return order
+
+
+@pytest.mark.parametrize("ratio", [2.0, 0.2])
+@pytest.mark.parametrize("kind", ["limit", "stop"])
+@pytest.mark.parametrize("side", ["buy", "sell"])
+def test_raw_split_cancels_carried_orders_once_without_repricing(monkeypatch, ratio, kind, side):
+    strategy, broker, asset = _strategy_with_position(7, avg_fill_price=100.0)
+    order = _pending_split_order(strategy, broker, asset, kind, side=side)
+    unrelated = _pending_split_order(strategy, broker, Asset("OTHER"), kind)
+    same_day = _pending_split_order(strategy, broker, asset, kind, carried=False)
+    monkeypatch.setattr(broker.data_source, "get_yesterday_stock_splits", lambda assets, quote=None: {asset: ratio})
+    cancelled = []
+    real_cancel = broker.cancel_order
+    def cancel(order):
+        cancelled.append(order.identifier)
+        return real_cancel(order)
+    monkeypatch.setattr(broker, "cancel_order", cancel)
+    before_cash = strategy.cash
+
+    assert strategy._update_positions_with_splits() == 1
+    assert order.is_canceled()
+    assert cancelled == [order.identifier]
+    assert order not in broker.get_active_tracked_orders(strategy.name)
+    assert unrelated.is_active() and same_day.is_active()
+    assert order.quantity == 7
+    assert (order.limit_price if kind == "limit" else order.stop_price) == 25.0
+    position = broker.get_tracked_position(strategy.name, asset)
+    assert Decimal(str(position.quantity)) == Decimal("7") * Decimal(str(ratio))
+    assert position.avg_fill_price == pytest.approx(100.0 / ratio)
+    # Preserve a fractional reverse-split holding; do not invent cash-in-lieu.
+    assert strategy.cash == before_cash
+    assert strategy._update_positions_with_splits() == 0
+    assert cancelled == [order.identifier]
+
+
+def test_raw_split_cancels_pending_buy_without_a_position(monkeypatch):
+    strategy, broker, asset = _strategy_with_position(0)
+    order = _pending_split_order(strategy, broker, asset)
+    requested = []
+    def splits(assets, quote=None):
+        requested.extend(assets)
+        return {asset: 0.2}
+    monkeypatch.setattr(broker.data_source, "get_yesterday_stock_splits", splits)
+    strategy._update_positions_with_splits()
+    assert asset in requested
+    assert order.is_canceled()
+    assert strategy.cash == 1000
+    assert broker.get_tracked_position(strategy.name, asset).quantity == 0
+    strategy._update_positions_with_splits()
+
+
+@pytest.mark.parametrize("mode", ["adjusted", "live"])
+def test_split_does_not_cancel_adjusted_feed_or_live_orders(monkeypatch, mode):
+    strategy, broker, asset = _strategy_with_position(7)
+    order = _pending_split_order(strategy, broker, asset)
+    monkeypatch.setattr(broker.data_source, "get_yesterday_stock_splits", lambda assets, quote=None: {asset: 0.2})
+    if mode == "adjusted":
+        monkeypatch.setattr(broker.data_source, "should_apply_stock_splits_to_positions", lambda asset, quote=None: False)
+    else:
+        strategy.is_backtesting = False
+    assert strategy._update_positions_with_splits() == 0
+    assert order.is_active() and order.quantity == 7 and order.limit_price == 25.0
+    assert broker.get_tracked_position(strategy.name, asset).quantity == 7
+
+
+def test_raw_split_cancels_undated_legacy_order_conservatively(monkeypatch):
+    strategy, broker, asset = _strategy_with_position(7)
+    order = _pending_split_order(strategy, broker, asset)
+    order._date_created = None
+    monkeypatch.setattr(broker.data_source, "get_yesterday_stock_splits", lambda assets, quote=None: {asset: 2.0})
+    strategy._update_positions_with_splits()
+    assert order.is_canceled()
+
+
+@pytest.mark.parametrize("ratio,prices", [(2.0, {"limit_price": 75.0}), (0.2, {"stop_price": 150.0})])
+def test_daily_split_cancels_before_pending_order_can_fill_at_wrong_units(ratio, prices):
+    class PendingAcrossSplit(Strategy):
+        def initialize(self):
+            self.sleeptime = "1D"
+            self.pending = None
+
+        def on_trading_iteration(self):
+            if self.pending is None:
+                self.pending = self.create_order(asset, 7, "buy", time_in_force="gtc", **prices)
+                self.submit_order(self.pending)
+
+    asset = Asset("SPLT")
+    dates = pd.DatetimeIndex([f"2025-01-{day} 16:00:00-05:00" for day in ("02", "03", "06", "07")])
+    values = [100.0, 100.0, 100.0 / ratio, 100.0 / ratio]
+    frame = pd.DataFrame({**{column: values for column in ("open", "high", "low", "close")},
+                          "volume": 1000, "stock_splits": [0.0, 0.0, ratio, 0.0]}, index=dates)
+    source = PandasDataBacktesting(pandas_data={asset: Data(asset, frame, timestep="day")},
+                                  datetime_start=dates[0].to_pydatetime(), datetime_end=dates[-1].to_pydatetime(),
+                                  show_progress_bar=False, log_backtest_progress_to_file=False)
+    broker = BacktestingBroker(data_source=source)
+    strategy = PendingAcrossSplit(broker=broker, data_source=source, budget=10000.0,
+                                  risk_free_rate=0, benchmark_asset=None, analyze_backtest=False)
+    trader = Trader(backtest=True, logfile="")
+    trader.add_strategy(strategy)
+    trader.run_all(show_plot=False, show_tearsheet=False, save_tearsheet=False)
+    assert strategy.pending.is_canceled()
+    assert not strategy.pending.transactions
+    assert strategy.cash == 10000.0
+    assert (strategy.stats["portfolio_value"] == 10000.0).all()
+    cancellations = broker._trade_event_log_df.loc[broker._trade_event_log_df["status"] == "canceled"]
+    assert len(cancellations) == 1

@@ -2237,6 +2237,16 @@ class _Strategy:
             return cash
 
     def _update_positions_with_splits(self):
+        """Apply raw-price splits and cancel carried orders in backtests only.
+
+        Conservative backtest policy: cancel rather than guess a broker's price,
+        quantity or rounding adjustments. This matches IBKR's GTC cancellation
+        on forward/reverse splits (interactivebrokers.com/en/trading/ordertypes.php).
+        FINRA 5330(b) also requires cancellation for reverse splits; forward-split
+        adjustment rules vary by order and venue. Split-adjusted feeds need neither
+        position changes nor order cancellation. Fractional holdings remain intact;
+        no cash-in-lieu payment is invented without actual settlement information.
+        """
         if not self.is_backtesting:
             return 0
 
@@ -2248,7 +2258,7 @@ class _Strategy:
             current_date = current_dt.date() if hasattr(current_dt, 'date') else current_dt
             positions = self.broker.get_tracked_positions(self._name)
 
-            stock_positions = []
+            stock_positions = {}
             assets = []
             for position in positions:
                 asset = position.asset
@@ -2260,8 +2270,24 @@ class _Strategy:
                     continue
                 if not position.quantity:
                     continue
-                stock_positions.append(position)
+                stock_positions[asset] = position
                 assets.append(asset)
+
+            carried_orders = {}
+            for order in self.broker.get_active_tracked_orders(strategy=self._name):
+                asset = order.asset
+                asset_type = getattr(asset, "asset_type", "")
+                asset_type = getattr(asset_type, "value", asset_type)
+                if asset == self._quote_asset or str(asset_type).lower() != "stock":
+                    continue
+                created = getattr(order, "_date_created", None)
+                # Orders created this session already use the post-split units.
+                # An undated legacy order cannot safely retain pre-split prices.
+                if created is not None and created.date() >= current_date:
+                    continue
+                carried_orders.setdefault(asset, []).append(order)
+                if asset not in assets:
+                    assets.append(asset)
 
             if not assets:
                 return 0
@@ -2279,8 +2305,8 @@ class _Strategy:
 
             applied = 0
             should_apply_splits = getattr(data_source, "should_apply_stock_splits_to_positions", None)
-            for position in stock_positions:
-                asset = position.asset
+            for asset in assets:
+                position = stock_positions.get(asset)
                 if callable(should_apply_splits):
                     try:
                         if not should_apply_splits(asset, quote=self._quote_asset):
@@ -2305,6 +2331,15 @@ class _Strategy:
                 symbol = getattr(asset, 'symbol', str(asset))
                 tracker_key = (current_date, symbol, f"{split_ratio:.12g}")
                 if tracker_key in self._stock_splits_applied_tracker:
+                    continue
+
+                # Use the normal broker cancellation owner so state, events and
+                # protective children are updated consistently. Never reprice.
+                for order in carried_orders.get(asset, ()):
+                    if order.is_active():
+                        self.broker.cancel_order(order)
+                if position is None:
+                    self._stock_splits_applied_tracker.add(tracker_key)
                     continue
 
                 try:

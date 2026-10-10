@@ -702,7 +702,7 @@ def _minute_feed(vendor: pd.DataFrame, *, fail_after=None, exc=_StopRun):
         else:
             start = end - pd.Timedelta(days=int(period.removesuffix("d")))
         rows = vendor.loc[(vendor.index > start) & (vendor.index <= end)].tail(1000)
-        return {"data": [{"t": int(ts.timestamp() * 1000), "o": float(r["open"]), "h": float(r["high"]),
+        return {"volumeFactor": 1, "data": [{"t": int(ts.timestamp() * 1000), "o": float(r["open"]), "h": float(r["high"]),
                           "l": float(r["low"]), "c": float(r["close"]), "v": float(r["volume"])}
                          for ts, r in rows.iterrows()]}
 

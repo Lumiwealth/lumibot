@@ -1460,6 +1460,14 @@ class RoutedBacktestingPandas(ThetaDataBacktestingPandas):
                 and _normalize_asset_type(getattr(base, "asset_type", "")) in {"future", "cont_future"}):
             price = self._ibkr_futures_valuation_price(asset, quote=quote)
             return None if price is None else {"price": price, "last_trade_price": price}
+        if (self._provider_spec_for_asset(base).provider == "ibkr"
+                and _normalize_asset_type(getattr(base, "asset_type", "")) in {"stock", "equity", "index"}
+                and getattr(self, "_timestep", None) != "day"
+                and self._has_loaded_intraday_series(base, quote)):
+            # IBKR Trades snapshots carry a forming candle's final OHLC. The
+            # point-in-time last-price reader uses its open until it completes.
+            price = self.get_last_price(asset, timestep=timestep, quote=quote)
+            return None if price is None else {"close": price, "price": price, "last_trade_price": price}
         return super().get_price_snapshot(asset, timestep=timestep, quote=quote, **kwargs)
 
     def get_last_price(self, asset, timestep="minute", quote=None, exchange=None, **kwargs):

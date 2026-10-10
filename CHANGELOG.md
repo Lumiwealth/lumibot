@@ -2,6 +2,8 @@
 
 ## 4.6.18 - 2026-10-10
 
+- Value routed intraday IBKR stocks/indexes using prices available at the simulated clock, not a forming candle’s final close. Preserve completed intraday marks only across verified closures.
+
 - Prevent the direct IBKR fast-fill path from executing at a still-forming minute close when Trades cache bid/ask values are derived from that close. Add direct/routed fill parity regressions.
 
 Deploy marker: `20bf01d9603027246ecd853297a0f2c9174b95e2`.

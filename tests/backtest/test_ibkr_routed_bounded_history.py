@@ -162,3 +162,30 @@ def test_direct_futures_reopening_refreshes_friday_mark_before_valuation(monkeyp
     assert len(calls) == 2
     assert source.get_last_price(asset, quote=quote) == 110.
     assert len(calls) == 2
+
+
+@pytest.mark.parametrize("when,expected", [
+    ("2026-10-02 19:59:00", 100.0),
+    ("2026-10-02 23:59:00", 101.0),
+    ("2026-10-04 23:59:00", 101.0),
+    ("2026-10-05 04:00:00", None),
+], ids=["forming", "overnight", "weekend", "exact-premarket-reopen"])
+def test_stock_intraday_mark_retains_close_only_through_verified_closure(when, expected):
+    from types import SimpleNamespace
+    from lumibot.backtesting.interactive_brokers_rest_backtesting import InteractiveBrokersRESTBacktesting
+
+    frame = pd.DataFrame({"open": [100.], "close": [101.]},
+                         index=pd.DatetimeIndex(["2026-10-02 19:59"], tz="America/New_York"))
+    mark = InteractiveBrokersRESTBacktesting._intraday_mark_from_series(
+        SimpleNamespace(df=frame), pd.Timestamp(when, tz="America/New_York"), 1)
+    assert (mark[1] if mark is not None else None) == expected
+
+
+def test_stock_intraday_mark_does_not_treat_missing_session_tail_as_closed():
+    from types import SimpleNamespace
+    from lumibot.backtesting.interactive_brokers_rest_backtesting import InteractiveBrokersRESTBacktesting
+
+    frame = pd.DataFrame({"open": [100.], "close": [101.]},
+                         index=pd.DatetimeIndex(["2026-10-02 19:45"], tz="America/New_York"))
+    assert InteractiveBrokersRESTBacktesting._intraday_mark_from_series(
+        SimpleNamespace(df=frame), pd.Timestamp("2026-10-02 23:59", tz="America/New_York"), 1) is None

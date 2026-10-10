@@ -489,7 +489,8 @@ class InteractiveBrokersRESTBacktesting(PandasData):
         - a bar that is still forming at ``now`` marks at its open;
         - the bar that has just completed (it ended at most one interval before ``now``)
           marks at its close, the price the strategy saw;
-        - anything older, from another session date, or non-positive is not used.
+        - a completed close remains valid across verified overnight/weekend closure;
+        - unknown gaps, a reopened market, and non-positive prices are not used.
         """
         df = getattr(data, "df", None)
         if df is None or getattr(df, "empty", True) or "close" not in df.columns:
@@ -509,16 +510,16 @@ class InteractiveBrokersRESTBacktesting(PandasData):
         bar_start = index[position]
         interval = timedelta(minutes=max(int(interval_minutes), 1))
         bar_end = bar_start + interval
-        try:
-            if bar_start.date() != stamp.date():
-                # Another session's slice must not price today.
-                return None
-        except Exception:
-            return None
         row = df.iloc[position]
         if stamp < bar_end:
             price = row.get("open") if "open" in df.columns else None
-        elif stamp - bar_end <= interval:
+        elif stamp - bar_end <= interval and bar_start.date() == stamp.date():
+            price = row.get("close")
+        elif ibkr_helper._us_equity_closed_interval(
+            bar_end, stamp + pd.Timedelta(microseconds=1), include_after_hours=True
+        ):
+            # Preserve the final completed intraday close, rather than silently
+            # switching to a different regular-session daily mark after hours.
             price = row.get("close")
         else:
             return None

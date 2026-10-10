@@ -318,3 +318,14 @@ def test_intraday_trade_derived_quotes_cannot_fill_at_forming_close(monkeypatch,
     assert len([r for r in result["history_requests"] if r["timestep"] == "minute"]) == 1
     for fill in result["fills"]:
         assert float(fill["price"]) == float(frame.loc[pd.Timestamp(fill["time"]), "open"])
+    cash, quantity = 100_000., 0.
+    pending = list(result["fills"])
+    for signal in result["signals"]:
+        when = pd.Timestamp(signal["time"])
+        while pending and pd.Timestamp(pending[0]["time"]) < when:
+            fill = pending.pop(0)
+            signed = float(fill["filled_quantity"]) * (1 if fill["side"] == "buy" else -1)
+            cash -= signed * float(frame.loc[pd.Timestamp(fill["time"]), "open"])
+            quantity += signed
+        assert signal["cash_before"] == pytest.approx(cash, rel=0, abs=1e-9)
+        assert signal["equity_before"] == pytest.approx(cash + quantity * float(frame.loc[when, "open"]), rel=0, abs=1e-9)

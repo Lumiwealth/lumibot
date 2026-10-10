@@ -55,3 +55,11 @@ simulation endpoint; Friday's known-closed mark expires at the exact Sunday
 reopening. Complete stock corporate-action frames can be reused across the whole
 simulation, but a missing action column is not evidence of no actions. Future
 dividends are indexed once and credited only on their actual ex-date.
+
+The stock intraday oracle checks equity at every decision as well as fills. This
+caught a separate routed snapshot leak: Data snapshots exposed the forming
+minute's final close to portfolio valuation. Routed IBKR stock/index snapshots
+now use the point-in-time last-price reader. Direct IBKR intraday marks also
+retain a completed close through verified market closures and expire at reopening;
+an unknown missing tail remains unavailable. Earlier hypotheses about the
+final-equity difference are superseded by this recorded first-divergence trace.

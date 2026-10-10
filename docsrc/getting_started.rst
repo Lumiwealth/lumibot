@@ -44,8 +44,8 @@ prices and makes no model, market-data, or broker requests:
 
 .. code-block:: bash
 
-   python -m pip install "git+https://github.com/Lumiwealth/lumibot.git@version/4.6.3"
-   BACKTESTING_DATA_SOURCE=none python -m lumibot.example_strategies.first_backtest
+   python -m pip install "git+https://github.com/Lumiwealth/lumibot.git@version/4.6.19"
+   LUMIBOT_DISABLE_DOTENV=true BACKTESTING_DATA_SOURCE=none python -m lumibot.example_strategies.first_backtest
 
 It prints a simulated order and ending value so you can check the installation.
 For AI trading, continue to :doc:`agents_quickstart` and configure your model key.

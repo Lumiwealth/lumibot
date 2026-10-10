@@ -4,8 +4,8 @@ Run with: python -m lumibot.example_strategies.first_backtest
 No credentials, network data, model calls or browser opening are required.
 The results demonstrate order mechanics, not an investment opportunity.
 """
-from datetime import datetime
 import os
+from datetime import datetime
 
 import pandas as pd
 
@@ -37,7 +37,7 @@ def run_example():
         PandasDataBacktesting,
         datetime(2025, 1, 6, 9, 30), datetime(2025, 1, 6, 9, 35),
         pandas_data={asset: Data(asset, frame, timestep="minute")},
-        budget=10_000, benchmark_asset=None, analyze_backtest=False,
+        budget=10_000, benchmark_asset=None, risk_free_rate=0.0, analyze_backtest=False,
         show_plot=False, show_tearsheet=False, save_tearsheet=False,
         show_indicators=False, save_logfile=False, show_progress_bar=False,
     )

@@ -16,7 +16,6 @@ from .helpers import get_lumibot_datetime
 logger = get_logger(__name__)
 
 INFO_DATA = "info"
-INVALID_SYMBOLS = set()
 
 
 class _YahooData:
@@ -230,14 +229,9 @@ class YahooHelper:
         """
         Attempts to download historical data from yfinance for the specified symbol and interval.
         Retries on empty/None data in case of transient rate limits.
-        If all attempts fail, marks the symbol as invalid (added to INVALID_SYMBOLS) to skip it in future.
+        An exhausted retry returns unknown data; it does not blacklist a valid symbol.
         If symbol info is unavailable, we just skip timezone adjustments (do not return None).
         """
-
-        # If we've already marked this symbol invalid, skip further calls
-        if symbol in INVALID_SYMBOLS:
-            logger.debug(f"{symbol} is already marked invalid. Skipping yfinance calls.")
-            return None
 
         ticker = yf.Ticker(symbol)
 
@@ -277,8 +271,7 @@ class YahooHelper:
                     sleep_sec *= 2
                     continue
                 else:
-                    logger.debug(f"{symbol}: All {max_retries} attempts failed. Marking invalid.")
-                    INVALID_SYMBOLS.add(symbol)
+                    logger.debug(f"{symbol}: All {max_retries} attempts failed. Leaving retryable.")
                     return None
 
             if df is None or df.empty:
@@ -288,8 +281,7 @@ class YahooHelper:
                     time.sleep(sleep_sec)
                     sleep_sec *= 2
                 else:
-                    logger.debug(f"{symbol}: Data still empty after {max_retries} attempts. Marking invalid.")
-                    INVALID_SYMBOLS.add(symbol)
+                    logger.debug(f"{symbol}: Data still empty after {max_retries} attempts. Leaving retryable.")
                     return None
             else:
                 # Successfully got data, so break out of the loop

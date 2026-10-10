@@ -649,7 +649,9 @@ def test_daily_gap_repair_budget_is_per_series_not_global(
         )
         assert pd.Timestamp("2026-07-28 16:00", tz="America/New_York") in result.index
 
-    assert len(calls) == 2
+    assert len(calls) == 4  # one normal plus one bounded alternate attempt per series
+    for symbol in ("QQQ", "SQQQ"):
+        assert [c.get("_backend") for c in calls if c["asset"].symbol == symbol] == [None, "tws"]
 
 
 # ---------------------------------------------------------------------------
@@ -1136,3 +1138,43 @@ def test_session_calendar_resolution_preserves_open_intervals(monkeypatch, index
         pd.Timestamp("2026-08-07 11:00", tz=_NY),
         include_after_hours=extended,
     )
+
+
+def test_index_daily_gap_uses_qualified_alternate_route(monkeypatch, tmp_path):
+    full = _daily_frame(['2026-10-05', '2026-10-06', '2026-10-07', '2026-10-08', '2026-10-09'])
+    cached = full.iloc[:-1].copy()
+    calls = []
+    def fetch(**kwargs):
+        calls.append(kwargs)
+        return full.copy() if kwargs.get('_backend') == 'tws' else cached.copy()
+    monkeypatch.setattr(ibkr_helper, '_RUNTIME_DAILY_GAP_CHECKED_WINDOWS', set())
+    monkeypatch.setattr(ibkr_helper, '_fetch_history_between_dates', fetch)
+    monkeypatch.setattr(ibkr_helper, '_write_cache_frame', lambda *a: None)
+    result = ibkr_helper._repair_us_stock_index_daily_gaps(
+        cached, cache_file=tmp_path / 'spx.parquet', asset=Asset('SPX', asset_type='index'),
+        quote=Asset('USD', asset_type='forex'), timestep='day',
+        start_dt=datetime(2026, 10, 5, tzinfo=timezone.utc), end_dt=datetime(2026, 10, 10, tzinfo=timezone.utc),
+        exchange='CBOE', include_after_hours=False, source='Midpoint', source_was_explicit=False)
+    pd.testing.assert_frame_equal(result, full)
+    assert [c.get('_backend') for c in calls] == [None, 'tws']
+
+
+def test_index_alternate_route_cannot_merge_incompatible_prices(monkeypatch, tmp_path):
+    full = _daily_frame(['2026-10-05', '2026-10-06', '2026-10-07', '2026-10-08', '2026-10-09'])
+    cached = full.iloc[:-1].copy()
+    incompatible = full.copy()
+    incompatible[['open', 'high', 'low', 'close']] *= 2
+    calls = []
+    def fetch(**kwargs):
+        calls.append(kwargs)
+        return incompatible.copy() if kwargs.get('_backend') == 'tws' else cached.copy()
+    monkeypatch.setattr(ibkr_helper, '_RUNTIME_DAILY_GAP_CHECKED_WINDOWS', set())
+    monkeypatch.setattr(ibkr_helper, '_fetch_history_between_dates', fetch)
+    monkeypatch.setattr(ibkr_helper, '_write_cache_frame', lambda *a: None)
+    result = ibkr_helper._repair_us_stock_index_daily_gaps(
+        cached, cache_file=tmp_path / 'spx.parquet', asset=Asset('SPX', asset_type='index'),
+        quote=Asset('USD', asset_type='forex'), timestep='day',
+        start_dt=datetime(2026, 10, 5, tzinfo=timezone.utc), end_dt=datetime(2026, 10, 10, tzinfo=timezone.utc),
+        exchange='CBOE', include_after_hours=False, source='Midpoint', source_was_explicit=False)
+    pd.testing.assert_frame_equal(result, cached)
+    assert any(c.get('_backend') == 'tws' for c in calls)

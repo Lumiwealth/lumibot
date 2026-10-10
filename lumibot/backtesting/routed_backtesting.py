@@ -1349,7 +1349,7 @@ class RoutedBacktestingPandas(ThetaDataBacktestingPandas):
                             [asset], self._backtest_daily_corporate_action_length(), timestep="day", quote=quote
                         )
                     except Exception as exc:
-                        logger.debug("Routed dividend bars unavailable for %s: %s", getattr(asset, "symbol", asset), exc)
+                        raise RuntimeError(f"corporate_actions_unavailable: {asset.symbol}") from exc
                     frame = self._get_backtest_daily_corporate_action_frame(asset, quote=quote)
                 by_date = {}
                 if frame is not None and "dividend" in frame.columns and len(frame.index):
@@ -1405,7 +1405,7 @@ class RoutedBacktestingPandas(ThetaDataBacktestingPandas):
                             if amount > 0:
                                 by_date[ts.date()] = by_date.get(ts.date(), 0.0) + float(amount)
                 except Exception as exc:
-                    logger.warning("Corporate-action dividends unavailable for %s: %s", symbol, exc)
+                    raise RuntimeError(f"corporate_actions_unavailable: {symbol}") from exc
                 cache[symbol] = by_date
             out[asset] = by_date.get(current_date, 0.0)
         return out

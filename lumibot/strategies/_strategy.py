@@ -4672,7 +4672,8 @@ class _Strategy:
         # a dictionary's field names alone: user metadata can have that shape.
         if isinstance(initialized, Asset) and isinstance(saved, dict):
             expected_keys = set(initialized.to_dict())
-            if set(saved) not in (expected_keys, expected_keys - {"leverage"}):
+            # Historical serializers omitted either or both optional fields.
+            if not expected_keys - {"leverage", "auto_expiry"} <= set(saved) <= expected_keys:
                 raise ValueError("Legacy instrument state does not match the Asset schema")
             return Asset.from_dict(saved)
         if isinstance(saved, dict) and isinstance(initialized, dict):

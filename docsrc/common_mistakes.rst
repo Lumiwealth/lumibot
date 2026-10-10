@@ -35,6 +35,12 @@ dictionaries, or tuples. Restored objects can be passed directly to
 ``get_position()`` and ``add_ohlc()``.
 Sets still restore as lists, with their asset values preserved.
 
+Futures backups also preserve ``auto_expiry`` (for example, ``next_quarter``).
+Deferred selectors keep ``expiration=None`` until the broker or data source
+resolves the contract; an explicit expiration remains unchanged. Older backups
+that omitted the selector still restore it as ``None``. The missing rule cannot
+be recovered from the symbol or replaced safely with an initialized default.
+
 Older backups may contain an untagged asset dictionary. Restoration reconstructs
 it only when the same variable path already contains an ``Asset`` initialized by
 the strategy. Saved contract details remain authoritative; initialization supplies

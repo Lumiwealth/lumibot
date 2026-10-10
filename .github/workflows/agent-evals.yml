@@ -13,6 +13,14 @@ on:
         required: true
         default: "2"
         type: string
+      repeat_count:
+        description: Three normal repetitions or five for changed and failed cases
+        required: true
+        default: "3"
+        type: choice
+        options:
+          - "3"
+          - "5"
       case_ids:
         description: Optional comma-separated case IDs for targeted qualification
         required: false
@@ -58,11 +66,16 @@ jobs:
           FORCE_EVALS: ${{ inputs.force }}
           MAX_COST_USD: ${{ inputs.max_cost_usd }}
           CASE_IDS: ${{ inputs.case_ids }}
+          REPEAT_COUNT: ${{ inputs.repeat_count }}
         run: |
           set -euo pipefail
+          case "${REPEAT_COUNT}" in
+            3|5) ;;
+            *) echo "repeat_count must be 3 or 5" >&2; exit 2 ;;
+          esac
           args=(
             --gate
-            --repeat 3
+            --repeat "${REPEAT_COUNT}"
             --max-workers 3
             --max-cost-usd "${MAX_COST_USD}"
             --freshness-state .ci/agent-evals/freshness.json

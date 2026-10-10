@@ -445,6 +445,10 @@ def test_standalone_eval_workflow_supports_targeted_case_repeats():
     workflow = (Path(__file__).resolve().parents[1] / ".github/workflows/agent-evals.yml").read_text(encoding="utf-8")
 
     assert "case_ids:" in workflow
+    assert "repeat_count:" in workflow
+    assert "REPEAT_COUNT: ${{ inputs.repeat_count }}" in workflow
+    assert '--repeat "${REPEAT_COUNT}"' in workflow
+    assert '3|5)' in workflow
     assert "CASE_IDS: ${{ inputs.case_ids }}" in workflow
     assert 'args+=(--case-id "${case_id}")' in workflow
     assert 'case_id="${case_id//[[:space:]]/}"' in workflow

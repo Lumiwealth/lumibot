@@ -2,6 +2,9 @@
 
 ## 4.6.19 - Unreleased
 
+- Keep backtesting position entry basis accurate across additions, reductions, partial fills, reversals, and reopening after a full close.
+- Align documentation canonical URLs and social metadata, generate the sitemap from built pages, repair indicator API links, and clarify onboarding requirements and comparison claims.
+- Keep the synthetic installation example offline by supplying its risk-free rate instead of fetching it from Yahoo.
 
 ## 4.6.18 - 2026-10-10
 

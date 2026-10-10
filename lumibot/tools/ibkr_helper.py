@@ -1409,8 +1409,8 @@ def get_price_data(
 
             def _checkpoint_pages(pages: pd.DataFrame, _state=checkpoint_state) -> None:
                 merged_so_far = _merge_frames(_state["frame"], pages)
-                _write_cache_frame(cache_file, merged_so_far)
-                _state["frame"] = merged_so_far
+                published = _write_cache_frame(cache_file, merged_so_far)
+                _state["frame"] = merged_so_far if published is None else published
 
             try:
                 fetched = _fetch_history_between_dates(
@@ -1426,6 +1426,7 @@ def get_price_data(
                     _page_checkpoint=_checkpoint_pages,
                 )
             except Exception as exc:
+                df_cache = checkpoint_state["frame"]
                 # Avoid crashing the entire backtest on entitlement/session issues. Return an empty
                 # frame so strategies can continue with a loud error in logs.
                 logger.error(
@@ -1500,6 +1501,10 @@ def get_price_data(
                 # This fetch already recorded its precise cause. An empty-frame
                 # follow-up would overwrite it and count the same failure twice.
                 continue
+            # A conflict merge can add remote-only rows during checkpoint writes.
+            # Carry that durable coverage into the final write, not the stale
+            # frame captured before paging started.
+            df_cache = checkpoint_state["frame"]
             if fetched is None or fetched.empty:
                 # Empty payloads are ambiguous in IBKR. Cool down this process, but do not
                 # persist a cross-process negative marker.
@@ -1526,7 +1531,9 @@ def get_price_data(
                 continue
             if fetched is not None and not fetched.empty:
                 merged = _merge_frames(df_cache, fetched)
-                _write_cache_frame(cache_file, merged)
+                published = _write_cache_frame(cache_file, merged)
+                if published is not None:
+                    merged = published
                 df_cache = merged
                 # Older positive bars do not establish that the requested tail
                 # has no data. Segment-attempt tracking already bounds repeated
@@ -1609,7 +1616,9 @@ def get_price_data(
             include_after_hours=include_after_hours,
         )
         if changed:
-            _write_cache_frame(cache_file, df_aug)
+            published = _write_cache_frame(cache_file, df_aug)
+            if published is not None:
+                df_aug = published
             df_cache = df_aug
 
     if (
@@ -1629,7 +1638,9 @@ def get_price_data(
             include_after_hours=include_after_hours,
         )
         if changed:
-            _write_cache_frame(cache_file, df_aug)
+            published = _write_cache_frame(cache_file, df_aug)
+            if published is not None:
+                df_aug = published
             df_cache = df_aug
 
     if asset_type in {"stock", "index", "option"} and str(timestep_component).endswith("day"):
@@ -1638,7 +1649,9 @@ def get_price_data(
         # session open/midnight boundaries.
         aligned_cache = _align_stock_index_daily_to_session_close(df_cache)
         if not aligned_cache.index.equals(df_cache.index):
-            _write_cache_frame(cache_file, aligned_cache)
+            published = _write_cache_frame(cache_file, aligned_cache)
+            if published is not None:
+                aligned_cache = published
         df_cache = aligned_cache
 
     actions_changed = False
@@ -1654,7 +1667,9 @@ def get_price_data(
         assert_same_basis(df_cache, expected_basis)
         df_cache = decorate_adjusted_frame(df_cache, equity_basis, provider_prices_verified=True)
         if actions_changed:
-            _write_cache_frame(cache_file, df_cache)
+            published = _write_cache_frame(cache_file, df_cache)
+            if published is not None:
+                df_cache = published
 
     # Remove placeholder rows from the returned frame (but keep them in cache).
     frame = df_cache.loc[(df_cache.index >= start_local) & (df_cache.index <= end_local)].copy()
@@ -2013,7 +2028,9 @@ def _get_cached_bars_for_source(
                 fetched = pd.DataFrame()
             if fetched is not None and not fetched.empty:
                 merged = _merge_frames(df_cache, fetched)
-                _write_cache_frame(cache_file, merged)
+                published = _write_cache_frame(cache_file, merged)
+                if published is not None:
+                    merged = published
                 df_cache = merged
                 # Older bars are available data, not confirmation that the
                 # newer requested interval is empty. Keep that tail retryable.
@@ -3231,7 +3248,9 @@ def _repair_us_stock_index_daily_gaps(
     )
 
     if not working.equals(df_cache):
-        _write_cache_frame(cache_file, working)
+        published = _write_cache_frame(cache_file, working)
+        if published is not None:
+            working = published
     return working
 
 
@@ -3537,7 +3556,9 @@ def _repair_us_stock_index_hourly_gaps(
                 changed = True
 
     if changed:
-        _write_cache_frame(cache_file, working)
+        published = _write_cache_frame(cache_file, working)
+        if published is not None:
+            working = published
     _RUNTIME_HOURLY_GAP_CHECKED_SERIES[series_key] = (
         _hourly_cache_signature(working),
         request_start,
@@ -3851,7 +3872,9 @@ def _repair_us_stock_index_minute_gaps(
             empty_sessions.append((session_open, session_close))
         if unsaved_pages >= IBKR_PAGE_CHECKPOINT_EVERY:
             # Keep progress if the process is stopped during a long repair.
-            _write_cache_frame(cache_file, working)
+            published = _write_cache_frame(cache_file, working)
+            if published is not None:
+                working = published
             unsaved_pages = 0
 
     if empty_sessions:
@@ -3859,7 +3882,9 @@ def _repair_us_stock_index_minute_gaps(
         working = _merge_frames(working, _minute_session_markers(empty_sessions, retry_after=retry_after))
 
     if not working.equals(df_cache):
-        _write_cache_frame(cache_file, working)
+        published = _write_cache_frame(cache_file, working)
+        if published is not None:
+            working = published
 
     unresolved = _missing_us_minute_sessions(working, start_dt=start_dt, end_dt=end_dt)
     record_history_health(
@@ -5728,10 +5753,13 @@ def _append_equity_corporate_actions_daily(frame: pd.DataFrame, asset: Asset, *,
         split_map = split_series.groupby(actions.index.date).sum().to_dict()
 
     if div_map or split_map:
-        out = out.copy()
-        out["dividend"] = [float(div_map.get(day, 0.0)) for day in idx_dates]
-        out["stock_splits"] = [float(split_map.get(day, 0.0)) for day in idx_dates]
-        changed = True
+        dividends = pd.Series([float(div_map.get(day, 0.0)) for day in idx_dates], index=out.index)
+        splits = pd.Series([float(split_map.get(day, 0.0)) for day in idx_dates], index=out.index)
+        if not (out["dividend"].eq(dividends).all() and out["stock_splits"].eq(splits).all()):
+            out = out.copy()
+            out["dividend"] = dividends
+            out["stock_splits"] = splits
+            changed = True
 
     return out, changed
 
@@ -5779,16 +5807,32 @@ def _read_cache_frame(path: Path) -> pd.DataFrame:
     return df
 
 
-def _write_cache_frame(path: Path, df: pd.DataFrame) -> None:
+def _write_cache_frame(path: Path, df: pd.DataFrame) -> pd.DataFrame:
     path.parent.mkdir(parents=True, exist_ok=True)
     df_to_save = df.copy()
     if not isinstance(df_to_save.index, pd.DatetimeIndex):
         raise ValueError("IBKR cache frames must be indexed by datetime")
     df_to_save.to_parquet(path)
+
+    def identity():
+        stat = path.stat()
+        return (stat.st_dev, stat.st_ino, stat.st_size, stat.st_mtime_ns, stat.st_ctime_ns)
+
+    written = identity()
     try:
         get_backtest_cache().on_local_update(path, payload=_remote_payload_from_path(path))
     except Exception:
         pass
+    # Conditional publication can merge rows written concurrently into this file.
+    # Return those rows to the owner so its next checkpoint cannot erase them.
+    # Ordinary uploads leave the file untouched: no extra parse or remote read.
+    if identity() != written:
+        durable = _read_cache_frame(path)
+        from lumibot.tools.ibkr_equity_basis import assert_same_basis
+        assert_same_basis(df, durable)
+        durable.attrs.update(df.attrs)
+        return durable
+    return df
 
 
 def _contract_info_cache_file(conid: int) -> Path:

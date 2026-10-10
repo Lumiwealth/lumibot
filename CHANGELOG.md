@@ -2,6 +2,8 @@
 
 ## 4.6.17 - 2026-10-10
 
+- Pure closes of a known held IBKR futures contract no longer depend on resolving the current continuous-chart expiry.
+
 Deploy marker: `60e8fc439a661b652cee07b56977da7436ab4f5f`.
 
 - Recover confirmed lost read requests after downloader replacement without waiting out a full attempt timeout. Preserve correlation IDs, total deadlines and transient-failure deduplication; non-read requests are not replayed.

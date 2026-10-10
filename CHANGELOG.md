@@ -2,6 +2,8 @@
 
 ## 4.6.17 - 2026-10-10
 
+Deploy marker: `60e8fc439a661b652cee07b56977da7436ab4f5f`.
+
 - Keep required IBKR valuation gaps visible even when the diagnostic ledger retains an earlier known price.
 - Separately correct stock-agent explanations that broaden a checked price-versus-average condition into an unsupported claim about every constituent bar; retain the failed gate and require five targeted repetitions.
 

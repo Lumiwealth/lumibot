@@ -196,7 +196,103 @@
             "message": "No research observations were returned. Do not infer or invent values."
           }
         }
-      ]
+      ],
+      "initial_runtime_context": {
+        "account": {
+          "cash": 100000.0,
+          "portfolio_value": 100000.0
+        },
+        "account_snapshot": {
+          "account_complete": true,
+          "as_of": "2026-08-11T14:35:00+00:00",
+          "open_orders_complete": true,
+          "open_orders_included": 0,
+          "open_orders_omitted": 0,
+          "open_orders_total": 0,
+          "positions_complete": true,
+          "positions_included": 1,
+          "positions_omitted": 0,
+          "positions_total": 1
+        },
+        "agent_name": "trader",
+        "current_datetime": "2026-08-11T14:35:00+00:00",
+        "market": null,
+        "mode": "backtesting",
+        "open_orders": [],
+        "positions": [
+          {
+            "asset": {
+              "symbol": "USD",
+              "type": "forex"
+            },
+            "closing_quantity": 100000.0,
+            "position_side": "long",
+            "quantity": 100000.0
+          }
+        ],
+        "recent_orders": [],
+        "recent_trades": [],
+        "strategy_name": "eval_a59c29ad531e4b6a900a2ea15521bd5e",
+        "strategy_rules": {
+          "content_hash": "6cf6c39f21d4e18ace6ada2a2aeb371a0c94a868e87ef68f1d5e0fe68a0e93ce",
+          "document": {
+            "rules": [],
+            "version": 1
+          },
+          "file_name": "rules.json",
+          "source": "rules.json"
+        },
+        "timezone": "UTC"
+      },
+      "initial_runtime_contexts": {
+        "trader": {
+          "account": {
+            "cash": 100000.0,
+            "portfolio_value": 100000.0
+          },
+          "account_snapshot": {
+            "account_complete": true,
+            "as_of": "2026-08-11T14:35:00+00:00",
+            "open_orders_complete": true,
+            "open_orders_included": 0,
+            "open_orders_omitted": 0,
+            "open_orders_total": 0,
+            "positions_complete": true,
+            "positions_included": 1,
+            "positions_omitted": 0,
+            "positions_total": 1
+          },
+          "agent_name": "trader",
+          "current_datetime": "2026-08-11T14:35:00+00:00",
+          "market": null,
+          "mode": "backtesting",
+          "open_orders": [],
+          "positions": [
+            {
+              "asset": {
+                "symbol": "USD",
+                "type": "forex"
+              },
+              "closing_quantity": 100000.0,
+              "position_side": "long",
+              "quantity": 100000.0
+            }
+          ],
+          "recent_orders": [],
+          "recent_trades": [],
+          "strategy_name": "eval_a59c29ad531e4b6a900a2ea15521bd5e",
+          "strategy_rules": {
+            "content_hash": "6cf6c39f21d4e18ace6ada2a2aeb371a0c94a868e87ef68f1d5e0fe68a0e93ce",
+            "document": {
+              "rules": [],
+              "version": 1
+            },
+            "file_name": "rules.json",
+            "source": "rules.json"
+          },
+          "timezone": "UTC"
+        }
+      }
     }
   },
   {
@@ -394,7 +490,103 @@
             "message": "No research observations were returned. Do not infer or invent values."
           }
         }
-      ]
+      ],
+      "initial_runtime_context": {
+        "account": {
+          "cash": 100000.0,
+          "portfolio_value": 100000.0
+        },
+        "account_snapshot": {
+          "account_complete": true,
+          "as_of": "2026-08-11T14:35:00+00:00",
+          "open_orders_complete": true,
+          "open_orders_included": 0,
+          "open_orders_omitted": 0,
+          "open_orders_total": 0,
+          "positions_complete": true,
+          "positions_included": 1,
+          "positions_omitted": 0,
+          "positions_total": 1
+        },
+        "agent_name": "trader",
+        "current_datetime": "2026-08-11T14:35:00+00:00",
+        "market": null,
+        "mode": "backtesting",
+        "open_orders": [],
+        "positions": [
+          {
+            "asset": {
+              "symbol": "USD",
+              "type": "forex"
+            },
+            "closing_quantity": 100000.0,
+            "position_side": "long",
+            "quantity": 100000.0
+          }
+        ],
+        "recent_orders": [],
+        "recent_trades": [],
+        "strategy_name": "eval_a59c29ad531e4b6a900a2ea15521bd5e",
+        "strategy_rules": {
+          "content_hash": "6cf6c39f21d4e18ace6ada2a2aeb371a0c94a868e87ef68f1d5e0fe68a0e93ce",
+          "document": {
+            "rules": [],
+            "version": 1
+          },
+          "file_name": "rules.json",
+          "source": "rules.json"
+        },
+        "timezone": "UTC"
+      },
+      "initial_runtime_contexts": {
+        "trader": {
+          "account": {
+            "cash": 100000.0,
+            "portfolio_value": 100000.0
+          },
+          "account_snapshot": {
+            "account_complete": true,
+            "as_of": "2026-08-11T14:35:00+00:00",
+            "open_orders_complete": true,
+            "open_orders_included": 0,
+            "open_orders_omitted": 0,
+            "open_orders_total": 0,
+            "positions_complete": true,
+            "positions_included": 1,
+            "positions_omitted": 0,
+            "positions_total": 1
+          },
+          "agent_name": "trader",
+          "current_datetime": "2026-08-11T14:35:00+00:00",
+          "market": null,
+          "mode": "backtesting",
+          "open_orders": [],
+          "positions": [
+            {
+              "asset": {
+                "symbol": "USD",
+                "type": "forex"
+              },
+              "closing_quantity": 100000.0,
+              "position_side": "long",
+              "quantity": 100000.0
+            }
+          ],
+          "recent_orders": [],
+          "recent_trades": [],
+          "strategy_name": "eval_a59c29ad531e4b6a900a2ea15521bd5e",
+          "strategy_rules": {
+            "content_hash": "6cf6c39f21d4e18ace6ada2a2aeb371a0c94a868e87ef68f1d5e0fe68a0e93ce",
+            "document": {
+              "rules": [],
+              "version": 1
+            },
+            "file_name": "rules.json",
+            "source": "rules.json"
+          },
+          "timezone": "UTC"
+        }
+      }
     }
   },
   {

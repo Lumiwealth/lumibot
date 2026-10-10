@@ -31,6 +31,11 @@ on:
         required: false
         default: false
         type: boolean
+      calibration_case_id:
+        description: Optional affected calibration case; prior passing controls remain preserved
+        required: false
+        default: ''
+        type: string
 
 permissions:
   contents: read
@@ -75,7 +80,13 @@ jobs:
         env:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           LUMIBOT_DISABLE_DOTENV: "1"
-        run: timeout 600 python scripts/check_agent_judge_calibration.py --max-cost-usd 0.35 --output-root .ci/agent-evals/judge-calibration
+          CALIBRATION_CASE_ID: ${{ inputs.calibration_case_id }}
+        run: |
+          args=(--max-cost-usd 0.35 --output-root .ci/agent-evals/judge-calibration)
+          if [[ -n "${CALIBRATION_CASE_ID}" ]]; then
+            args+=(--case-id "${CALIBRATION_CASE_ID}")
+          fi
+          timeout 600 python scripts/check_agent_judge_calibration.py "${args[@]}"
 
       - name: Run stale real-model evals
         env:

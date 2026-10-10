@@ -20,9 +20,15 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--max-cost-usd", type=float, required=True)
     parser.add_argument("--output-root", type=Path, required=True)
+    parser.add_argument("--case-id", action="append", default=[])
     args = parser.parse_args()
     configure_fixture_environment(evals.REPO_ROOT)
     fixtures = json.loads((evals.REPO_ROOT / "tests/fixtures/agent_judge_calibration.json").read_text())
+    if args.case_id:
+        known = {item["case_id"] for item in fixtures}
+        if set(args.case_id) - known:
+            parser.error("Unknown calibration case")
+        fixtures = [item for item in fixtures if item["case_id"] in args.case_id]
     cases = {case["id"]: case for case in evals.load_cases({item["case_id"] for item in fixtures})}
     evals.select_eval_credentials({evals.DEFAULT_JUDGE_MODEL})
     evals.preflight(list(cases.values()), evals.DEFAULT_JUDGE_MODEL, args.max_cost_usd)

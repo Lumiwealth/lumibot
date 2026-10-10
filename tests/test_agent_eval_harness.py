@@ -506,6 +506,19 @@ def test_partial_workflow_restore_rejects_missing_ledger():
     assert restore_freshness._freshness_from_zip(payload.getvalue(), partial=True) is None
 
 
+def test_missing_research_judge_controls_preserve_observed_account_context():
+    controls = json.loads((SCRIPT_PATH.parent.parent / "tests/fixtures/agent_judge_calibration.json").read_text())
+    selected = [row for row in controls if row["case_id"] == "research_unavailable_safe_fallback"]
+    assert len(selected) == 2
+    for row in selected:
+        transcript = row["transcript"]
+        context = transcript["initial_runtime_context"]
+        assert context == transcript["initial_runtime_contexts"]["trader"]
+        assert context["account"]["cash"] == 100000.0
+        assert context["account_snapshot"]["open_orders_complete"] is True
+        assert context["open_orders"] == []
+
+
 def test_cross_workflow_restore_skips_unusable_runs_and_writes_the_first_valid_state(monkeypatch, tmp_path):
     valid_payload = io.BytesIO()
     expected = {"version": 1, "cases": {"case": {"fingerprint": "abc"}}}

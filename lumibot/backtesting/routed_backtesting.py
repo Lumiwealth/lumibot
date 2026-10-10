@@ -1155,6 +1155,14 @@ class RoutedBacktestingPandas(ThetaDataBacktestingPandas):
         record_required_history(asset=asset, timestep=timestep, requested_bars=requested_bars,
                                 frame=bars.pandas_df if bars is not None else None, when=self.get_datetime())
 
+    def resolve_order_asset(self, order, positions):
+        if self._provider_spec_for_asset(order.asset).provider != "ibkr":
+            return order.asset
+        from lumibot.tools.ibkr_order_contract import resolve_order_contract
+
+        return resolve_order_contract(asset=order.asset, side=order.side, quantity=order.quantity,
+                                      positions=positions, when=self.get_datetime())
+
     def record_missing_valuation(self, asset):
         base = asset[0] if isinstance(asset, tuple) else asset
         if self._provider_spec_for_asset(base).provider != "ibkr":

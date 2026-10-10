@@ -245,3 +245,19 @@ Common environment variables for IBKR REST backtesting:
 - ``LUMIBOT_IBKR_ENABLE_FUTURES_BID_ASK`` (default: disabled; opt-in quote derivation for futures)
 
 See :ref:`environment_variables` for details.
+
+
+Continuous history and tradable positions
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Continuous-futures history switches contracts on the configured roll schedule.
+An IBKR backtest order resolves to a physical expiry when submitted. Its fills,
+protective children and held position keep that expiry; a change in the history
+series does not itself trade or change position value. Close the held contract
+and submit the replacement explicitly when the strategy intends to roll. Both
+fills use their own observed contract prices and configured fees.
+
+A root-symbol closing order targets a single matching held expiry. If several
+opposite positions exist, or a reversal would span different expiries, use
+explicit ``position.asset`` contracts and separate orders. The simulator rejects
+ambiguous operations rather than silently choosing a different financial result.

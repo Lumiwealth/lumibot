@@ -41,6 +41,12 @@ class InteractiveBrokersRESTBacktesting(PandasData):
         record_required_history(asset=asset, timestep=timestep, requested_bars=requested_bars,
                                 frame=bars.pandas_df if bars is not None else None, when=self.get_datetime())
 
+    def resolve_order_asset(self, order, positions):
+        from lumibot.tools.ibkr_order_contract import resolve_order_contract
+
+        return resolve_order_contract(asset=order.asset, side=order.side, quantity=order.quantity,
+                                      positions=positions, when=self.get_datetime())
+
     def record_missing_valuation(self, asset):
         from lumibot.tools.ibkr_history_health import record_required_history
 

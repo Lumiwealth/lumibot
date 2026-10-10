@@ -1133,6 +1133,18 @@ class BacktestingBroker(Broker):
         if order is None:
             raise ValueError("BacktestingBroker cannot submit a null order")
 
+        resolver = getattr(self.data_source, "resolve_order_asset", None)
+        if callable(resolver):
+            original_asset = order.asset
+            resolved_asset = resolver(order, self.get_tracked_positions(order.strategy))
+            if resolved_asset is not original_asset:
+                order.asset = resolved_asset
+                # Protective children must keep the parent's physical contract,
+                # even if they become active after the continuous chart rolls.
+                for child in order.child_orders or []:
+                    if child.asset == original_asset:
+                        child.asset = resolved_asset
+
         self._validate_data_source_order(order)
 
         # Optional audit trail (submission-time context).

@@ -2,6 +2,8 @@
 
 ## 4.6.17 - Unreleased
 
+- Bind IBKR continuous-futures backtest orders and protective children to physical expiries. Held positions retain their contract after a chart roll; root closes target that held expiry. Ambiguous multi-expiry closes require an explicit contract. This removes artificial roll-spread profit without adding automatic strategy trades.
+
 - Cool down completed, unresolved TWS contract identities for 15 minutes, while checking recovered positive registry entries first. Gateway timeouts remain retryable and identity absence never becomes an absent-price marker.
 - Retain a completed futures trade close during verified maintenance/weekend closure, without bridging unknown open-market gaps.
 - Restore legacy untagged instrument backups only at initialized Asset paths, retaining saved contract details and ordinary dictionary metadata. Preserve original scheduled-file bytes before applying a recovered variable tree; hosted remote backups must still be retained independently.

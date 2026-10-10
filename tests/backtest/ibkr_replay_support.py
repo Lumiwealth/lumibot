@@ -72,7 +72,7 @@ class ReplayMomentum(Strategy):
 
 def run_engine_replay(frame: pd.DataFrame, *, symbol: str, start: datetime, end: datetime,
                       timestep: str = "day", lookback: int = 3, asset_type: str = "stock",
-                      expiration=None, multiplier: int = 1, market=None, auxiliary_frames=None):
+                      expiration=None, multiplier: int = 1, market=None, auxiliary_frames=None, contract_frames=None, trading_fees=None):
     """Run fixed data through the actual engine and return comparison artifacts."""
     if frame.index.has_duplicates or not frame.index.is_monotonic_increasing:
         raise ValueError("Replay prices must have unique ordered timestamps")
@@ -93,12 +93,16 @@ def run_engine_replay(frame: pd.DataFrame, *, symbol: str, start: datetime, end:
             fixture_errors.append(f"Unexpected replay instrument {requested_symbol}")
             raise AssertionError(f"Unexpected replay instrument {requested_symbol}")
         requested_step = str(kwargs["timestep"])
-        if requested_step not in frames:
+        selected_frames = frames
+        if getattr(requested, "expiration", None) is not None and contract_frames is not None:
+            selected_frames = contract_frames.get(requested.expiration, {})
+        if requested_step not in selected_frames:
             fixture_errors.append(f"Missing frozen {requested_step} fixture for {symbol}")
             raise AssertionError(f"Missing frozen {requested_step} fixture for {symbol}")
         requests.append({"symbol": symbol, "timestep": requested_step,
-                         "start": str(kwargs["start_dt"]), "end": str(kwargs["end_dt"])})
-        return frames[requested_step].copy(deep=True)
+                         "start": str(kwargs["start_dt"]), "end": str(kwargs["end_dt"]),
+                         "expiration": str(getattr(requested, "expiration", None))})
+        return selected_frames[requested_step].copy(deep=True)
 
     def no_network(*args, **kwargs):
         raise AssertionError("Frozen replay attempted a network request")
@@ -110,6 +114,7 @@ def run_engine_replay(frame: pd.DataFrame, *, symbol: str, start: datetime, end:
         _, strategy = ReplayMomentum.run_backtest(
             InteractiveBrokersRESTBacktesting, start, end,
             budget=100_000, benchmark_asset=None, risk_free_rate=0,
+            buy_trading_fees=trading_fees or [], sell_trading_fees=trading_fees or [],
             parameters={"asset": asset, "lookback": lookback, "cadence": timestep,
                         "sleeptime": "1D" if timestep == "day" else "30M", "market": market},
             history_source="Trades", analyze_backtest=False,

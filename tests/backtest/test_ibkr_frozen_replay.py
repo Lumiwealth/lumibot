@@ -203,3 +203,64 @@ def test_futures_daily_replay_uses_completed_sessions(monkeypatch, symbol, multi
         assert signal["cash_before"] == pytest.approx(100_000 + realized - held * margin, abs=1e-9, rel=0)
         assert signal["equity_before"] == pytest.approx(100_000 + realized + held * (mark - entry) * multiplier,
                                                        abs=1e-9, rel=0)
+
+
+@pytest.mark.acceptance_backtest
+@pytest.mark.usefixtures("disable_datasource_override")
+@pytest.mark.parametrize("side,expected_quantity", [("buy", 1), ("sell_short", -1)])
+@pytest.mark.parametrize("action", ["hold", "close", "roll"])
+@pytest.mark.parametrize("fee", [0, 1])
+def test_held_contract_does_not_earn_continuous_series_roll_gap(monkeypatch, side, expected_quantity, action, fee):
+    """Two flat tradable contracts cannot generate profit when a chart changes contract."""
+    import pandas_market_calendars as mcal
+    from tests.backtest.ibkr_replay_support import ReplayMomentum
+    from lumibot.entities import TradingFee
+
+    monkeypatch.setenv("LUMIBOT_CACHE_BACKEND", "local")
+    monkeypatch.setenv("DATADOWNLOADER_BASE_URL", "http://localhost:8080")
+    sessions = mcal.get_calendar("us_futures").schedule("2026-09-14", "2026-09-23")
+    daily_index = pd.DatetimeIndex(sessions.market_close)
+    minutes = pd.DatetimeIndex([])
+    for _, session in sessions.iterrows():
+        part = pd.date_range(session.market_open, session.market_close, freq="min", inclusive="left")
+        part = part[part.tz_convert("America/New_York").hour != 17]
+        minutes = part if minutes.empty else minutes.append(part)
+    cut = pd.Timestamp("2026-09-21 04:05", tz="UTC")
+
+    def flat(index, values):
+        frame = _prices(index, values)
+        frame["close"] = frame["open"]
+        return frame
+
+    continuous_day = flat(daily_index, [100. if stamp < cut else 110. for stamp in daily_index])
+    continuous_minute = flat(minutes, [100. if stamp < cut else 110. for stamp in minutes])
+    old_day, old_minute = flat(daily_index, [100.] * len(daily_index)), flat(minutes, [100.] * len(minutes))
+    new_day, new_minute = flat(daily_index, [110.] * len(daily_index)), flat(minutes, [110.] * len(minutes))
+
+    def hold(self):
+        if not self.get_position(self.asset) and not self.get_orders():
+            self.submit_order(self.create_order(self.asset, 1, side))
+        if action != "hold" and self.get_datetime() >= cut and not getattr(self, "closed_original", False):
+            self.submit_order(self.create_order(self.asset, 1, "sell" if side == "buy" else "buy_to_cover"))
+            if action == "roll":
+                self.submit_order(self.create_order(self.asset, 1, "buy_to_open" if side == "buy" else "sell_short"))
+            self.closed_original = True
+        self.trace.append({"time": self.get_datetime().isoformat(), "equity": float(self.portfolio_value)})
+
+    monkeypatch.setattr(ReplayMomentum, "on_trading_iteration", hold)
+    result = run_engine_replay(continuous_day, symbol="MGC", start=datetime(2026, 9, 17),
+                               end=datetime(2026, 9, 24), asset_type="cont_future", multiplier=10,
+                               market="us_futures", auxiliary_frames={"minute": continuous_minute},
+                               contract_frames={date(2026, 10, 28): {"day": old_day, "minute": old_minute},
+                                                date(2026, 12, 29): {"day": new_day, "minute": new_minute}},
+                               trading_fees=[TradingFee(flat_fee=fee)])
+    assert len(result["fills"]) == {"hold": 1, "close": 2, "roll": 3}[action]
+    assert [fill["price"] for fill in result["fills"]] == {"hold": [100.], "close": [100., 100.],
+                                                         "roll": [100., 100., 110.]}[action]
+    assert result["quantity"] == (0 if action == "close" else expected_quantity)
+    expected_equity = 100_000. - fee * len(result["fills"])
+    assert result["equity"] == pytest.approx(expected_equity, abs=1e-9, rel=0)
+    assert all(expected_equity <= row["equity"] <= 100_000. for row in result["signals"])
+    assert result["cash"] == pytest.approx(expected_equity - (0 if action == "close" else 1200.), abs=1e-9, rel=0)
+    assert any(request["expiration"] == "2026-10-28" for request in result["history_requests"])
+    assert result["data_health"]["required_complete"] is True

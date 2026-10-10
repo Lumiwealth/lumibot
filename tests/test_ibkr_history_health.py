@@ -72,6 +72,25 @@ def test_required_history_detects_known_gap_inside_consumed_interval():
     assert ibkr_history_health_snapshot()["required_failures"][0]["reason"] == "missing_required_sessions"
 
 
+@pytest.mark.parametrize("gap_start,expected", [("2026-09-29", False), ("2024-01-02", True)])
+def test_required_continuous_history_detects_unresolved_contract_with_enough_rows(gap_start, expected):
+    from lumibot.tools.ibkr_history_health import record_required_history
+
+    when = pd.Timestamp("2026-10-01 20:00", tz="UTC")
+    start = pd.Timestamp(gap_start, tz="UTC")
+    record_history_health(symbol="MGC", asset_type="cont_future", timestep="day",
+                          requested_start=start, requested_end=start + pd.Timedelta(days=1),
+                          outcome=HistoryOutcome.PARTIAL, reason="unresolved_roll_contract")
+    # Enough older bars can conceal a missing contract segment in the middle.
+    frame = pd.DataFrame({"close": range(5)}, index=pd.date_range(end=when, periods=5, freq="B"))
+    record_required_history(asset=SimpleNamespace(symbol="MGC", asset_type="cont_future"),
+                            timestep="day", requested_bars=5, frame=frame, when=when)
+    health = ibkr_history_health_snapshot()
+    assert health["required_complete"] is expected
+    if not expected:
+        assert health["required_failures"][0]["reason"] == "unresolved_required_contract"
+
+
 @pytest.mark.parametrize("provider,expected", [("ibkr", False), ("thetadata", True)])
 def test_routed_requirement_telemetry_applies_only_to_ibkr(provider, expected):
     from lumibot.backtesting.routed_backtesting import RoutedBacktestingPandas

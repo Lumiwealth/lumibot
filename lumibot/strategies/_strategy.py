@@ -1693,6 +1693,10 @@ class _Strategy:
                             )
                     else:
                         # No price history - must skip this position
+                        position_source = option_source if is_option_asset and option_source is not None else data_source
+                        record_missing = getattr(position_source, "record_missing_valuation", None)
+                        if quantity != 0 and callable(record_missing):
+                            record_missing(asset)
                         if isinstance(asset, Asset):
                             asset_details = (
                                 f"symbol: {asset.symbol}, type: {asset.asset_type}, right: {asset.right}, "

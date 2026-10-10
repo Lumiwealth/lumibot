@@ -206,7 +206,7 @@ _HEALTH_EVENT_IDS: set[tuple[str, str]] = set()
 _REQUIRED_FAILURES: dict[tuple, dict[str, Any]] = {}
 
 
-def record_required_history(*, asset, timestep, requested_bars, frame, when) -> None:
+def record_required_history(*, asset, timestep, requested_bars, frame, when, requirement="history") -> None:
     """Record history actually consumed by a strategy, separately from prefetch.
 
     An incomplete decision remains incomplete even if a later decision has enough
@@ -225,6 +225,7 @@ def record_required_history(*, asset, timestep, requested_bars, frame, when) -> 
     usable = usable.dropna(subset=[name for name in ("open", "high", "low", "close") if name in usable])
     returned = len(usable) if "close" in usable else 0
     missing = []
+    unresolved_contract = False
     with _HEALTH_LOCK:
         if returned and isinstance(usable.index, pd.DatetimeIndex):
             first, last = usable.index.min().date().isoformat(), usable.index.max().date().isoformat()
@@ -232,8 +233,18 @@ def record_required_history(*, asset, timestep, requested_bars, frame, when) -> 
                 if (health["symbol"] == symbol and health["asset_type"] == asset_type
                         and health["timestep"] == str(timestep) and health["outcome"] != "complete"):
                     missing.extend(day for day in health["missing_sessions"] if first <= day <= last)
+                    if health["reason"] == "unresolved_roll_contract":
+                        # This interval is an explicitly absent contract segment,
+                        # not the broader optional prefetch window. Older bars can
+                        # satisfy the row count while hiding this interior hole.
+                        gap_start = pd.Timestamp(health["requested_start"]).date().isoformat()
+                        gap_end = pd.Timestamp(health["requested_end"]).date().isoformat()
+                        unresolved_contract |= gap_start <= last and gap_end >= first
         reason = "insufficient_required_history" if returned < requested else (
-            "missing_required_sessions" if missing else None)
+            "missing_required_sessions" if missing else (
+                "unresolved_required_contract" if unresolved_contract else None))
+        if reason and requirement == "valuation":
+            reason = "missing_valuation_price"
         if reason is None:
             return
         key = (symbol, asset_type, str(getattr(base, "expiration", "")), str(timestep), reason)

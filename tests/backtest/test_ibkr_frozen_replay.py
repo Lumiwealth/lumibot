@@ -37,6 +37,22 @@ def test_missing_warmup_is_distinct_from_valid_zero_trade_run(monkeypatch):
     assert incomplete["data_health"]["required_failures"][0]["requested_bars"] == 51
 
 
+@pytest.mark.acceptance_backtest
+@pytest.mark.usefixtures("disable_datasource_override")
+def test_missing_futures_position_mark_invalidates_equity(monkeypatch):
+    monkeypatch.setenv("LUMIBOT_CACHE_BACKEND", "local")
+    monkeypatch.setenv("DATADOWNLOADER_BASE_URL", "http://localhost:8080")
+    index = pd.date_range("2026-02-02 18:00", periods=10, freq="B", tz="America/New_York")
+    frame = _prices(index, [100. + i % 4 for i in range(10)])
+    empty_minute = frame.iloc[:0]
+    result = run_engine_replay(frame, symbol="MES", start=datetime(2026, 2, 9), end=datetime(2026, 2, 14),
+                               asset_type="future", expiration=date(2026, 3, 20), multiplier=5,
+                               market="us_futures", auxiliary_frames={"minute": empty_minute})
+    assert result["fills"]
+    assert result["data_health"]["required_complete"] is False
+    assert any(failure["reason"] == "missing_valuation_price" for failure in result["data_health"]["required_failures"])
+
+
 def _assert_stock_oracle(result, frame, lookback):
     cash, quantity = 100_000., 0.
     pending_fills = list(result["fills"])

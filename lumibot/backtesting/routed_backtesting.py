@@ -1139,6 +1139,15 @@ class RoutedBacktestingPandas(ThetaDataBacktestingPandas):
         record_required_history(asset=asset, timestep=timestep, requested_bars=requested_bars,
                                 frame=bars.pandas_df if bars is not None else None, when=self.get_datetime())
 
+    def record_missing_valuation(self, asset):
+        base = asset[0] if isinstance(asset, tuple) else asset
+        if self._provider_spec_for_asset(base).provider != "ibkr":
+            return
+        from lumibot.tools.ibkr_history_health import record_required_history
+
+        record_required_history(asset=asset, timestep="valuation", requested_bars=1, frame=None,
+                                when=self.get_datetime(), requirement="valuation")
+
     @staticmethod
     def _extract_routing_config(config: Any) -> Optional[Dict[str, str]]:
         if config is None:

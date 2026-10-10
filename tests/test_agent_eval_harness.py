@@ -1302,6 +1302,31 @@ def test_expiration_with_data_case_does_not_name_the_fallback():
     assert "fallback" not in prompt
 
 
+def test_package_pricing_pairs_each_exact_contract_with_its_observed_quote():
+    """A failed real-model run confused the 596P quote with the selected 594P.
+
+    Keep the original fixture and policy. The calculator must expose its exact
+    inputs next to each contract so callers can reconcile the package directly.
+    """
+    from scripts.agent_eval_production_fixture import ProductionFixture
+
+    production = ProductionFixture(evals.build_fixture("options_nearest_expiration_without_data"))
+    try:
+        tools = {tool.name: tool for tool in production.tools()}
+        legs = _good_condor_legs()
+        for leg in legs:
+            leg["expiration"] = "2026-08-28"
+        result = tools["options_calculate_multileg_price"].function(legs_json=json.dumps(legs))
+    finally:
+        production.close()
+    assert result["net_limit_price"] == pytest.approx(-1.0)
+    prices = {float(leg["asset"]["strike"]): leg["pricing"] for leg in result["legs"]}
+    assert prices[594]["bid"] == .95
+    assert prices[594]["ask"] == 1.05
+    assert prices[594]["price"] == 1.0
+    assert sum(price["signed_price"] for price in prices.values()) == pytest.approx(-1.0)
+
+
 def test_expiration_scoring_rejects_the_unpriced_expiration():
     case = evals.load_cases({"options_expiration_with_data"})[0]
     legs = _good_condor_legs()

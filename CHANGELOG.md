@@ -2,6 +2,8 @@
 
 ## 4.6.18 - 2026-10-10
 
+- Separately expose each exact option leg's existing pricing inputs and signed contribution in the multi-leg calculator result. Prices, quote-request counts, prompts and trading policies are unchanged; this makes package-price reconciliation auditable after a real-model gate confused quotes from adjacent strikes.
+
 - Reuse complete daily equity warmup without repeated requests for unused calendar padding; the saved TQQQ SMA200 routed replay falls from 19 history reads to one with identical bars, decisions, fills and accounting.
 
 - Value routed intraday IBKR stocks/indexes using prices available at the simulated clock, not a forming candle’s final close. Preserve completed intraday marks only across verified closures.

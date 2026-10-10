@@ -1607,7 +1607,9 @@ class OptionsHelper:
 
         return best_strike
 
-    def calculate_multileg_limit_price(self, orders: List[Order], limit_type: str) -> Optional[float]:
+    def calculate_multileg_limit_price(
+        self, orders: List[Order], limit_type: str, *, price_details: Optional[List[Dict[str, Any]]] = None
+    ) -> Optional[float]:
         """
         Calculate an aggregate limit price for a multi-leg order by combining quotes from each leg.
 
@@ -1617,6 +1619,9 @@ class OptionsHelper:
             List of orders (each order has an Asset).
         limit_type : str
             One of "best", "fastest", or "mid" indicating which price to use.
+        price_details : list, optional
+            Receives pricing inputs in leg order, from the same quote reads.
+            Cleared first; remains empty if the complete package cannot be priced.
 
         Returns
         -------
@@ -1625,8 +1630,11 @@ class OptionsHelper:
         """
         if limit_type not in {"best", "mid", "fastest"}:
             raise ValueError("limit_type must be best, mid, or fastest.")
+        if price_details is not None:
+            price_details.clear()
         self.strategy.log_message("Calculating multi-leg limit price.", color="blue")
         quotes: List[float] = []
+        details = []
         for order in orders:
             asset = order.asset
             if asset.asset_type != Asset.AssetType.OPTION:
@@ -1656,10 +1664,17 @@ class OptionsHelper:
                 quotes.append(bid if order.is_buy_order() else -ask)
             elif limit_type == "fastest":
                 quotes.append(ask if order.is_buy_order() else -bid)
+            if price_details is not None:
+                details.append({
+                    "price_basis": "bid_ask", "bid": bid, "ask": ask,
+                    "price": abs(quotes[-1]), "signed_price": quotes[-1],
+                })
         if not quotes:
             self.strategy.log_message("No valid quotes for calculating limit price.", color="red")
             return None
         limit_price = sum(quotes)
+        if price_details is not None:
+            price_details.extend(details)
         self.strategy.log_message(f"Calculated limit price: {limit_price}", color="green")
         return limit_price
 

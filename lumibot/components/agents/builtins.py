@@ -1864,31 +1864,47 @@ def _option_price_basis(strategy: Any, evaluation: Any) -> dict[str, Any]:
     }
 
 
-def _backtest_last_trade_multileg_price(strategy: Any, orders: list[Any]) -> float | None:
+def _backtest_last_trade_multileg_price(
+    strategy: Any, orders: list[Any], price_details: list[dict[str, Any]] | None = None
+) -> float | None:
     """Per-unit net price from each leg's bid/ask mid or last trade, for trade-only backtest data."""
     if not getattr(strategy, "is_backtesting", False):
         return None
     helper = _options_helper_for_strategy(strategy)
     total = 0.0
+    details = []
     for order in orders:
         evaluation = helper.evaluate_option_market(order.asset)
         if evaluation.has_bid_ask and evaluation.bid is not None and evaluation.ask is not None:
             price = (float(evaluation.bid) + float(evaluation.ask)) / 2
+            basis = "bid_ask"
         elif evaluation.used_last_price_fallback and evaluation.last_price is not None:
             price = float(evaluation.last_price)
+            basis = "last_trade"
         else:
             return None
         if not math.isfinite(price) or price <= 0:
             return None
-        total += price if order.is_buy_order() else -price
+        signed_price = price if order.is_buy_order() else -price
+        total += signed_price
+        if price_details is not None:
+            details.append({
+                "price_basis": basis, "bid": evaluation.bid, "ask": evaluation.ask,
+                "last_price": evaluation.last_price, "price": price, "signed_price": signed_price,
+            })
+    if price_details is not None:
+        price_details.extend(details)
     return total
 
 
-def _resolve_multileg_net_price(strategy: Any, orders: list[Any], price_style: str) -> tuple[float | None, str]:
-    net_price = _options_helper_for_strategy(strategy).calculate_multileg_limit_price(orders, price_style)
+def _resolve_multileg_net_price(
+    strategy: Any, orders: list[Any], price_style: str, price_details: list[dict[str, Any]] | None = None
+) -> tuple[float | None, str]:
+    helper = _options_helper_for_strategy(strategy)
+    net_price = helper.calculate_multileg_limit_price(orders, price_style, price_details=price_details)
     if net_price is not None:
         return float(net_price), "bid_ask"
-    fallback = _backtest_last_trade_multileg_price(strategy, orders)
+    fallback = _backtest_last_trade_multileg_price(strategy, orders, price_details)
     if fallback is not None:
         return fallback, "last_trade"
     return None, "none"
@@ -1948,7 +1964,8 @@ def _bind_options_calculate_multileg_price(strategy: Any, manager: Any) -> Bound
             orders = _parse_closing_option_legs(strategy, legs_json)
         else:
             orders = _parse_option_legs(strategy, legs_json)
-        net_price, price_basis = _resolve_multileg_net_price(strategy, orders, price_style)
+        price_details: list[dict[str, Any]] = []
+        net_price, price_basis = _resolve_multileg_net_price(strategy, orders, price_style, price_details)
         if net_price is None:
             return {
                 "available": False,
@@ -1965,7 +1982,10 @@ def _bind_options_calculate_multileg_price(strategy: Any, manager: Any) -> Bound
             "net_limit_price": net_price,
             "order_type": order_type,
             "broker_price": abs(net_price),
-            "legs": [_order_to_dict(order) for order in orders],
+            "legs": [
+                dict(_order_to_dict(order), pricing=_jsonable(pricing))
+                for order, pricing in zip(orders, price_details)
+            ],
             "datetime": strategy.get_datetime().isoformat(),
         }
 

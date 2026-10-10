@@ -136,6 +136,25 @@ class EquityBasisSnapshot:
                             columns=["Dividends", "Stock Splits"], dtype=float)
 
 
+def equity_basis_from_frame(frame):
+    """Read and validate a returned immutable ledger without fetching provider data."""
+    metadata = frame.attrs.get("ibkr_equity_basis")
+    if metadata is None:
+        if "_ibkr_split_basis" in frame:
+            raise EquityBasisError("IBKR equity prices lack their frozen action ledger")
+        return None
+    try:
+        if metadata["schema"] != "ibkr-equity-actions-v1":
+            raise EquityBasisError("Unknown equity action snapshot schema")
+        snapshot = EquityBasisSnapshot(metadata["as_of"], metadata["coverage_through"],
+                                       tuple(tuple(event) for event in metadata["events"]))
+        if snapshot.split_fingerprint != metadata["split_fingerprint"]:
+            raise EquityBasisError("Equity snapshot events contradict their fingerprint")
+        return snapshot
+    except (KeyError, TypeError, ValueError) as exc:
+        raise EquityBasisError("Invalid IBKR equity action snapshot") from exc
+
+
 def _frame_basis(frame):
     metadata = frame.attrs.get("ibkr_equity_basis")
     attr_basis = metadata.get("split_fingerprint") if isinstance(metadata, dict) else None

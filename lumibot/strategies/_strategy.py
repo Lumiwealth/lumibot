@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import io
 import math
 import os
@@ -4655,11 +4656,29 @@ class _Strategy:
         )
 
     @classmethod
-    def _deserialize_variables_from_backup(cls, json_data):
+    def _deserialize_variables_from_backup(cls, json_data, initialized_variables=None):
         data = _json_loads(json_data)
         if not isinstance(data, dict):
             raise ValueError("Variables backup must contain a JSON object")
-        return {key: cls._decode_variable_from_backup(value) for key, value in data.items()}
+        decoded = {key: cls._decode_variable_from_backup(value) for key, value in data.items()}
+        return cls._restore_legacy_assets(decoded, initialized_variables)
+
+    @classmethod
+    def _restore_legacy_assets(cls, saved, initialized):
+        # The initialized type is the schema. Never guess from a ticker or from
+        # a dictionary's field names alone: user metadata can have that shape.
+        if isinstance(initialized, Asset) and isinstance(saved, dict):
+            expected_keys = set(initialized.to_dict())
+            if set(saved) not in (expected_keys, expected_keys - {"leverage"}):
+                raise ValueError("Legacy instrument state does not match the Asset schema")
+            return Asset.from_dict(saved)
+        if isinstance(saved, dict) and isinstance(initialized, dict):
+            return {key: cls._restore_legacy_assets(value, initialized.get(key)) for key, value in saved.items()}
+        if isinstance(saved, (list, tuple)) and isinstance(initialized, (list, tuple)):
+            restored = [cls._restore_legacy_assets(value, initialized[index] if index < len(initialized) else None)
+                        for index, value in enumerate(saved)]
+            return tuple(restored) if isinstance(saved, tuple) else restored
+        return saved
 
     def _load_variables_from_scheduled_state_file(self):
         state_file = os.environ.get("LUMIBOT_SCHEDULED_STATE_FILE")
@@ -4668,7 +4687,22 @@ class _Strategy:
 
         try:
             with open(state_file, "r", encoding="utf-8") as f:
-                data = self._deserialize_variables_from_backup(f.read())
+                original_json = f.read()
+            decoded = self._deserialize_variables_from_backup(original_json)
+            data = self._restore_legacy_assets(decoded, self.vars.all())
+            if self._serialize_variables_for_backup(decoded) != self._serialize_variables_for_backup(data):
+                # Preserve original bytes before any variable or state write.
+                digest = hashlib.sha256(original_json.encode("utf-8")).hexdigest()
+                backup_path = f"{state_file}.legacy-{digest}.bak"
+                try:
+                    fd = os.open(backup_path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+                except FileExistsError:
+                    with open(backup_path, "r", encoding="utf-8") as backup:
+                        if backup.read() != original_json:
+                            raise ValueError("Legacy state backup does not match original bytes")
+                else:
+                    with os.fdopen(fd, "w", encoding="utf-8") as backup:
+                        backup.write(original_json)
         except FileNotFoundError:
             self.logger.info("Scheduled state file does not exist yet. Not restoring variables.")
             return
@@ -4875,7 +4909,7 @@ class _Strategy:
                     return tuple(_coerce_legacy_dates(nested) for nested in value)
                 return value
 
-            data = _coerce_legacy_dates(self._deserialize_variables_from_backup(json_data))
+            data = _coerce_legacy_dates(self._deserialize_variables_from_backup(json_data, self.vars.all()))
     
             # Update self.vars dictionary
             for key, value in data.items():

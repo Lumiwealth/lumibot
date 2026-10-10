@@ -15,13 +15,30 @@ dictionaries, or tuples. Restored objects can be passed directly to
 ``get_position()`` and ``add_ohlc()``.
 Sets still restore as lists, with their asset values preserved.
 
-Older backups may contain an untagged asset dictionary. Such dictionaries are
-not converted automatically because the same shape can be ordinary strategy
-metadata. When migrating a known instrument variable, reconstruct it explicitly
-with ``Asset.from_dict(value)`` after restoration and before using strategy APIs.
+Older backups may contain an untagged asset dictionary. Restoration reconstructs
+it only when the same variable path already contains an ``Asset`` initialized by
+the strategy. Saved contract details remain authoritative; initialization supplies
+the expected type, not replacement quantities, strikes, or signals. Scheduled-file
+restoration preserves the original bytes in a permission-restricted sibling
+``.legacy-<sha256>.bak`` before applying the recovered variables.
+Paths without an initialized instrument remain ordinary dictionaries because
+the same shape can be strategy metadata. Migrate those explicitly with
+``Asset.from_dict(value)`` after verifying the instrument path.
 Do not apply this conversion to arbitrary dictionaries or discard other saved
 strategy state. Backups written by the updated runtime should be restored by
 the updated runtime; older versions do not understand the asset type tag.
+For hosted scheduled bots, preserve the original remote state independently
+before migration: a local sibling backup is not a durable cloud backup unless
+the hosting system explicitly retains it.
+
+FRED Data Errors
+--------------------------------------------------------------------------------
+
+Use official FRED series identifiers rather than market symbols. A failed series
+can appear under ``errors`` even when other series succeed in the same snapshot.
+HTTP and transport errors report a status or exception type without exposing the
+API key in the request URL. Correct an invalid series; do not replace working
+credentials because one series returns HTTP 400.
 
 Critical Mistakes (Will Break Your Strategy)
 --------------------------------------------

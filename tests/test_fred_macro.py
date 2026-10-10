@@ -1,5 +1,7 @@
 from datetime import date, datetime, timezone
 
+import requests
+
 import lumibot.macro.fred as fred_module
 from lumibot.macro import FREDMacroData
 
@@ -106,3 +108,14 @@ def test_fred_snapshot_reports_per_series_errors(monkeypatch, tmp_path):
     result = fred.get_snapshot(["NOT_A_CURATED_SERIES"])
     assert result["values"] == {}
     assert "NOT_A_CURATED_SERIES" in result["errors"]
+
+
+def test_fred_http_errors_do_not_expose_api_key_in_agent_results(monkeypatch, tmp_path):
+    response = requests.Response()
+    response.status_code = 400
+    response.url = "https://api.stlouisfed.org/fred/series/observations?api_key=synthetic-private-key"
+    monkeypatch.setattr(fred_module.requests, "get", lambda *args, **kwargs: response)
+    fred = FREDMacroData(_Strategy(), api_key="synthetic-private-key", cache_dir=tmp_path, min_request_interval_seconds=0)
+    result = fred.get_snapshot(["WTI"])
+    assert result["values"] == {}
+    assert result["errors"] == {"WTI": "FRED request failed (HTTP 400)"}

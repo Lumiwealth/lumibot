@@ -17,6 +17,12 @@ When REST does not list the requested expired month, a downloader with the read-
 The root, venue, currency and expiration month must match one unambiguous futures contract.
 Discovery cannot extend IBKR's historical-data retention limits.
 
+NG, CL and MCL discovery uses the exact last-trade date because it precedes
+the delivery month. A completed TWS lookup without a matching identity has a
+15-minute retry cooldown; a newly recovered positive registry entry takes
+precedence. Timeouts and disconnects do not establish identity absence, and
+unresolved identities never establish that historical prices did not exist.
+
 Missing continuous-futures roll contracts are reported as partial history, even when later contracts supply bars.
 Check the actual number of completed bars at the simulated decision time before applying a lookback indicator.
 Shared registry writes preserve unrelated current identities and retry concurrent publication conflicts.

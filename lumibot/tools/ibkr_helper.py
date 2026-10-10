@@ -5368,7 +5368,10 @@ def _lookup_conid_future_tws(*, asset: Asset, exchange: str,
             raise RuntimeError("partial_history: mismatched TWS futures contract identity")
         identities[(conid, expiry)] = contract
     if not identities:
-        return None
+        message = "partial_history: contract_identity_not_found; retry after 15 minutes or registry recovery"
+        key = IbkrConidKey("future", root.upper(), "", exchange, target).to_key()
+        _record_negative_conid(key=key, reason="tws_identity_retry_15m", message=message)
+        raise RuntimeError(message)
     if len(identities) != 1:
         raise RuntimeError("partial_history: ambiguous TWS futures contract identity")
     conid, expiry = next(iter(identities))
@@ -5418,6 +5421,13 @@ def _lookup_conid_future(
         raise IbkrFuturesConidLookupError(cached_msg)
     neg_target_hit = _NEGATIVE_CONID_CACHE.get(neg_target_key) if neg_target_key else None
     if isinstance(neg_target_hit, dict):
+        if neg_target_hit.get("reason") == "tws_identity_retry_15m":
+            # Only a completed, empty TWS identity response creates this marker.
+            # Re-evaluate its short deadline even in a long-lived process. The
+            # shared positive registry is checked before reaching this method.
+            retry_at = float(neg_target_hit.get("ts") or 0) + 900
+            if time.time() < retry_at:
+                raise RuntimeError("partial_history: contract_identity_retry_cooldown; retry after identity deadline")
         cached_msg = str(neg_target_hit.get("message") or "").strip() or (
             f"IBKR futures conid lookup is negatively cached for {symbol_upper} on {desired_exchange} (target={target})."
         )

@@ -100,3 +100,14 @@ def test_auto_expiry_wrapper_uses_same_contract_as_continuous_history():
     asset = Asset('MGC', asset_type='future', auto_expiry='front_month', multiplier=10)
     assert resolve(asset=asset).expiration == date(2026, 12, 29)
     assert asset.expiration is None
+
+
+@pytest.mark.parametrize('position_quantity,side', [(1, 'sell'), (1, 'sell_to_close'), (-1, 'buy'), (-1, 'buy_to_cover')])
+def test_known_held_close_does_not_require_current_chart_contract(monkeypatch, position_quantity, side):
+    def unavailable(*args, **kwargs):
+        raise ValueError('current chart calendar unavailable')
+    monkeypatch.setattr('lumibot.tools.futures_roll.determine_contract_year_month', unavailable)
+    position = held(quantity=position_quantity)
+    assert resolve(side=side, positions=[position]) is position.asset
+    with pytest.raises(ValueError, match='current chart calendar unavailable'):
+        resolve(side='buy_to_open')

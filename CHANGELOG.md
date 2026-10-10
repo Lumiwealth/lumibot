@@ -3,6 +3,7 @@
 ## 4.6.17 - 2026-10-10
 
 - Preserve Schwab rejection descriptions and fill callbacks recovered through direct order reconciliation, and preserve deferred broker error objects during synchronization. Account for unobserved partial fills before cancellation, reconcile cancel/fill races from authoritative order state, and retain increasing retry delays through immediately flapping stream logins. Clarify the Strategy API's GTC default and explicit DAY duration for intraday orders without changing intentional GTC orders.
+- Pure closes of a known held IBKR futures contract no longer depend on resolving the current continuous-chart expiry.
 
 Deploy marker: `60e8fc439a661b652cee07b56977da7436ab4f5f`.
 

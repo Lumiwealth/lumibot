@@ -81,17 +81,15 @@ fetch the corrected contracts or that sparse mark captures prove full minute cov
 
 ## Production observations and limits
 
-At 02:30 UTC verified HTTPS returned downloader source
-`20bcc96bc0c224cfd84ae3fd06e8feff90ee0220`; both IBKR connections were connected,
-REST authenticated, and no competing login was reported. The actual v44 S3
-manifest was six seconds old. Its SDK16 priority round recorded 168/168 complete,
+The qualified downloader source was
+`20bcc96bc0c224cfd84ae3fd06e8feff90ee0220`. Its SDK16 priority round recorded 168/168 complete,
 bulk refresh 188 complete with seven partial, and current-context deeper history
 96 complete with 13 partial. This is real progress, not complete universe coverage.
 
 Two inspected production stock runs made 182 and 152 distinct downloader requests
 (the apparent roughly 300 counts included duplicate log entries). In the second,
 S3 reads consumed 1.354s, S3 uploads 10.182s, and summed broker-request time 803.1s.
-Moving endpoints were observed within one run. A deployed candidate rerun must
+A deployed candidate rerun must
 prove those requests disappear for complete, immutable historical windows.
 
 Downloader source tests pass on 382e298cfe3cc3ee6a30f2890e75c5b305f1e508,

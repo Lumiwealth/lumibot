@@ -1,6 +1,9 @@
 IBKR equity history accuracy
 ============================
 
+.. meta::
+   :description: Verify IBKR split-adjusted history, corporate actions, cache provenance and repeat backtest accuracy.
+
 Stock Trades history uses split-adjusted prices and separately accounts for cash dividends.
 LumiBot verifies corporate-action evidence and keeps each historical cache tied to its
 split basis. A new split requires a new price cache; existing files remain available for

@@ -263,7 +263,10 @@ def test_routed_backtesting_prefetches_ibkr_stock_daily_with_full_lookback(monke
 
     def _fake_get_price_data(*, asset, quote, timestep, start_dt, end_dt, exchange=None, include_after_hours=True, source=None, history_as_of=None):
         calls.append((start_dt, end_dt, str(timestep)))
-        idx = pd.date_range(start=start_dt, end=end_dt, freq="D")
+        import pandas_market_calendars as mcal
+
+        schedule = mcal.get_calendar("NYSE").schedule(start_dt.date(), end_dt.date())
+        idx = pd.DatetimeIndex(schedule["market_close"])
         df = pd.DataFrame(
             {
                 "open": 100.0,
@@ -299,8 +302,8 @@ def test_routed_backtesting_prefetches_ibkr_stock_daily_with_full_lookback(monke
     def _get_timestep(self):
         return "day"
 
-    # For 200+ day SMA lookbacks, the start window should be substantially deeper than
-    # "backtest start - ~225 calendar days".
+    # The generic caller padding is deliberately too deep. The equity adapter
+    # must request exactly 220 completed exchange sessions and then reuse them.
     def _get_start_datetime_and_ts_unit(self, length, ts, start_dt=None, start_buffer=timedelta(0)):
         end_dt = start_dt if isinstance(start_dt, datetime) else backtest_start
         return end_dt - timedelta(days=352), "day"
@@ -320,7 +323,10 @@ def test_routed_backtesting_prefetches_ibkr_stock_daily_with_full_lookback(monke
 
     routed._update_pandas_data(base, quote, 220, "day", start_dt=backtest_start)
     assert calls, "Expected ibkr_helper.get_price_data to be called"
-    assert calls[0][0] == backtest_start - timedelta(days=352)
+    # Feb 20 through Dec 31 contains 220 NYSE sessions, including holiday closures.
+    assert calls[0][0] == datetime(2020, 2, 20, 14, 30, tzinfo=timezone.utc)
+    data = routed._data_store[(base, quote, "day")]
+    assert len(data.df.loc[data.df.index < backtest_start]) == 220
     assert calls[0][1] == backtest_end
 
     routed._update_pandas_data(base, quote, 220, "day", start_dt=backtest_start + timedelta(days=1))

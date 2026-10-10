@@ -1,7 +1,7 @@
 import asyncio
 import logging
 import time
-from datetime import date
+from datetime import date, datetime, timezone
 from threading import Barrier, BrokenBarrierError, Event, RLock, Thread
 from types import SimpleNamespace
 
@@ -11,6 +11,7 @@ from lumibot.brokers.broker import LumibotBrokerAPIError
 from lumibot.brokers.schwab import Schwab
 from lumibot.entities import Asset, Order, Position
 from lumibot.trading_builtins import SafeList
+from lumibot.strategies import Strategy
 
 
 class _Response:
@@ -527,6 +528,27 @@ def test_schwab_stock_market_replacement_spec_uses_normal_session():
     assert order_spec["session"] == "NORMAL"
     assert order_spec["duration"] == "DAY"
     assert order_spec["orderType"] == "MARKET"
+
+
+@pytest.mark.parametrize("duration, expected", [(None, "GOOD_TILL_CANCEL"), ("day", "DAY"), ("gtc", "GOOD_TILL_CANCEL")])
+def test_schwab_stock_short_duration_through_public_strategy_api(duration, expected):
+    strategy = SimpleNamespace(
+        name="unit-test", quote_asset=Asset("USD", asset_type="forex"),
+        broker=SimpleNamespace(IS_BACKTESTING_BROKER=False),
+        get_datetime=lambda: datetime(2026, 1, 2, 15, tzinfo=timezone.utc),
+        _sanitize_user_asset=lambda asset: asset,
+    )
+    kwargs = {} if duration is None else {"time_in_force": duration}
+    order = Strategy.create_order(
+        strategy, Asset("LW"), 100, Order.OrderSide.SELL_SHORT,
+        order_type=Order.OrderType.MARKET, **kwargs,
+    )
+    broker = Schwab.__new__(Schwab)
+    broker.name = "Schwab"
+    spec = broker._prepare_stock_order_spec(order)
+    assert spec["duration"] == expected
+    assert spec["orderLegCollection"][0]["instruction"] == "SELL_SHORT"
+    assert spec["orderLegCollection"][0]["quantity"] == 100
 
 
 def test_schwab_stock_submit_succeeds_without_stream():
@@ -1373,6 +1395,157 @@ def test_schwab_parsed_terminal_snapshot_preserves_broker_rejection_reason(raw_s
     if description:
         expected += f" ({description})"
     assert str(details["error"]) == expected
+
+
+def test_schwab_direct_lookup_delivers_rejection_details_once_before_terminalizing():
+    stored = _order()
+    broker = _broker_for_lifecycle(stored)
+    payload = _OrderResponse().json()
+    payload.update(status="REJECTED", statusDescription="Good until canceled short sale orders are not accepted for hard to borrow securities.")
+    broker._pull_broker_order = lambda identifier: payload
+
+    assert broker._refresh_missing_active_order_from_broker(stored, stored.strategy)
+    broker._refresh_missing_active_order_from_broker(stored, stored.strategy)
+    broker._process_schwab_order_snapshot(broker._parse_broker_order(payload, stored.strategy))
+
+    assert stored.status == Order.OrderStatus.ERROR
+    assert stored.raw_order_status == "REJECTED"
+    assert stored.raw_broker_payload["statusDescription"] == payload["statusDescription"]
+    assert len(broker._lifecycle_events) == 1
+    event, details = broker._lifecycle_events[0]
+    assert event == broker.ERROR_ORDER
+    assert payload["statusDescription"] in str(details["error"])
+
+
+def test_schwab_direct_lookup_delivers_partial_then_final_fill_without_losing_delta():
+    stored = _order()
+    stored.quantity = 100
+    broker = _broker_for_lifecycle(stored)
+    snapshots = iter([
+        _observed_order(Order.OrderStatus.PARTIALLY_FILLED, 40, 10),
+        _observed_order(Order.OrderStatus.FILLED, 100, 10),
+    ])
+    def parse_snapshot(*args, **kwargs):
+        observation = next(snapshots)
+        observation.quantity = 100
+        return observation
+    broker._pull_broker_order = lambda identifier: {"orderId": identifier}
+    broker._parse_broker_order = parse_snapshot
+
+    broker._refresh_missing_active_order_from_broker(stored, stored.strategy)
+    broker._refresh_missing_active_order_from_broker(stored, stored.strategy)
+
+    assert [(event, details["filled_quantity"]) for event, details in broker._lifecycle_events] == [
+        (broker.PARTIALLY_FILLED_ORDER, 40), (broker.FILLED_ORDER, 60),
+    ]
+
+
+def test_schwab_immediate_stream_disconnects_increase_retry_delay(monkeypatch):
+    broker = Schwab.__new__(Schwab)
+    broker._schwab_activity_stop = Event()
+    broker.client = object()
+    broker.account_number = "test-account"
+    broker.stream_client = SimpleNamespace()
+    delays = []
+
+    async def configure(client):
+        async def handle_message():
+            raise ConnectionError("connection closed after login")
+        client.handle_message = handle_message
+
+    async def sleep(delay):
+        delays.append(delay)
+        if len(delays) == 3:
+            broker._schwab_activity_stop.set()
+
+    broker._configure_schwab_account_activity_stream = configure
+    monkeypatch.setattr(asyncio, "sleep", sleep)
+    monkeypatch.setattr("lumibot.brokers.schwab._get_stream_client_class", lambda: lambda *args, **kwargs: SimpleNamespace())
+    asyncio.run(broker._run_schwab_account_activity_async())
+
+    assert delays == [1, 2, 4]
+
+
+@pytest.mark.parametrize("terminal_status", ["FILLED", "CANCELED"])
+def test_schwab_cancel_race_reconciles_authoritative_terminal_snapshot(terminal_status):
+    stored = _order(status=Order.OrderStatus.CANCELLING)
+    broker = _broker_for_lifecycle(stored)
+    broker.schwab_authorization_error = False
+    broker.hash_value = "account-hash"
+    payload = _OrderResponse().json()
+    payload.update(status=terminal_status, price=10.0, filledQuantity=1 if terminal_status == "FILLED" else 0)
+    broker.client = _CancelClient(_CancelResponse(400, "Order is already terminal."))
+    broker.client.get_order = lambda *args: SimpleNamespace(status_code=200, json=lambda: payload)
+
+    broker.cancel_order(stored)
+    broker._process_schwab_order_snapshot(broker._parse_broker_order(payload, stored.strategy))
+
+    assert stored.status == (Order.OrderStatus.FILLED if terminal_status == "FILLED" else Order.OrderStatus.CANCELED)
+    assert len(broker._lifecycle_events) == 1
+    assert broker._lifecycle_events[0][0] == (broker.FILLED_ORDER if terminal_status == "FILLED" else broker.CANCELED_ORDER)
+
+
+def test_schwab_canceled_snapshot_accounts_for_unobserved_partial_fill_before_cancel():
+    stored = _order(status=Order.OrderStatus.CANCELLING)
+    stored.quantity = 100
+    broker = _broker_for_lifecycle(stored)
+    observation = _observed_order(Order.OrderStatus.CANCELED, 40, 10.0)
+    broker._process_schwab_order_snapshot(observation)
+    broker._process_schwab_order_snapshot(observation)
+
+    assert broker._lifecycle_events == [
+        (broker.PARTIALLY_FILLED_ORDER, {"price": 10.0, "filled_quantity": 40.0, "multiplier": 1}),
+        (broker.CANCELED_ORDER, {}),
+    ]
+
+
+@pytest.mark.parametrize("snapshot", [None, "WORKING"])
+def test_schwab_cancel_error_is_not_swallowed_without_terminal_broker_evidence(snapshot):
+    stored = _order(status=Order.OrderStatus.CANCELLING)
+    broker = _broker_for_lifecycle(stored)
+    broker.schwab_authorization_error = False
+    broker.hash_value = "account-hash"
+    broker.client = _CancelClient(_CancelResponse(400, "Invalid cancel request."))
+    broker._pull_broker_order = lambda identifier: None if snapshot is None else _OrderResponse().json()
+
+    with pytest.raises(LumibotBrokerAPIError, match="HTTP 400"):
+        broker.cancel_order(stored)
+    assert stored.status == Order.OrderStatus.CANCELLING
+    assert broker._lifecycle_events == []
+
+
+def test_schwab_stream_backoff_resets_only_after_sustained_connection(monkeypatch):
+    broker = Schwab.__new__(Schwab)
+    broker._schwab_activity_stop = Event()
+    broker.client = object()
+    broker.account_number = "test-account"
+    broker.stream_client = SimpleNamespace()
+    delays = []
+    clock = [0.0]
+    connection = [0]
+
+    async def configure(client):
+        connection[0] += 1
+        messages = [0]
+        async def handle_message():
+            messages[0] += 1
+            if connection[0] == 3 and messages[0] == 1:
+                clock[0] += 61
+                return
+            raise ConnectionError("closed")
+        client.handle_message = handle_message
+
+    async def sleep(delay):
+        delays.append(delay)
+        if len(delays) == 3:
+            broker._schwab_activity_stop.set()
+
+    broker._configure_schwab_account_activity_stream = configure
+    monkeypatch.setattr(time, "monotonic", lambda: clock[0])
+    monkeypatch.setattr(asyncio, "sleep", sleep)
+    monkeypatch.setattr("lumibot.brokers.schwab._get_stream_client_class", lambda: lambda *args, **kwargs: SimpleNamespace())
+    asyncio.run(broker._run_schwab_account_activity_async())
+    assert delays == [1, 2, 1]
 
 
 @pytest.mark.parametrize(

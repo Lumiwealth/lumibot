@@ -654,7 +654,9 @@ class Strategy(_Strategy):
                 - ``'day'`` Orders valid for the remainder of the day.
                 - ``'gtc'`` Good until cancelled.
                 - ``'gtd'`` Good until date.
-            (Default: 'day')
+            (Default: 'gtc'). Pass ``time_in_force='day'`` explicitly for an
+            intraday order. Constructing ``Order`` directly defaults to 'day';
+            this Strategy API defaults to 'gtc'.
         good_till_date : datetime.datetime
             This is the time order is valid for Good Though Date orders.
         take_profit_price : float

@@ -1842,6 +1842,19 @@ class Schwab(Broker):
         with self._schwab_order_transition_lock:
             self._reduce_schwab_order_snapshot(observed_order)
 
+    def _apply_direct_order_observation(self, order_lumi, matched_order):
+        # Setting terminal status first makes the reducer skip the callback and
+        # loses both rejection reasons and fills. All observations use one owner.
+        previous_status = order_lumi.status
+        self._process_schwab_order_snapshot(matched_order)
+        changed = not order_lumi.equivalent_status(previous_status)
+        for attr in ("quantity", "limit_price", "stop_price"):
+            value = getattr(matched_order, attr, None)
+            if getattr(order_lumi, attr, None) != value:
+                setattr(order_lumi, attr, value)
+                changed = True
+        return changed
+
     def _reduce_schwab_order_snapshot(self, observed_order: Order) -> None:
         """Reduce one broker-observed Schwab order snapshot into lifecycle events.
 
@@ -1895,6 +1908,13 @@ class Schwab(Broker):
         ):
             return
 
+        raw_payload = getattr(observed_order, "raw_broker_payload", None)
+        if isinstance(raw_payload, dict):
+            self._attach_raw_broker_data(
+                stored_order, raw_payload,
+                raw_order_status=getattr(observed_order, "raw_order_status", None),
+            )
+
         if Order.is_equivalent_status(observed_status, self.NEW_ORDER):
             # Never regress a local/broker cancel-pending order back to NEW when
             # an older snapshot arrives out of order.
@@ -1906,7 +1926,10 @@ class Schwab(Broker):
             stored_order.status = Order.OrderStatus.CANCELLING
             return
 
-        if Order.is_equivalent_status(observed_status, self.PARTIALLY_FILLED_ORDER) or Order.is_equivalent_status(
+        terminal_after_fill = any(Order.is_equivalent_status(observed_status, status) for status in (
+            self.CANCELED_ORDER, self.ERROR_ORDER, Order.OrderStatus.EXPIRED,
+        ))
+        if terminal_after_fill or Order.is_equivalent_status(observed_status, self.PARTIALLY_FILLED_ORDER) or Order.is_equivalent_status(
             observed_status, self.FILLED_ORDER
         ):
             try:
@@ -1917,7 +1940,7 @@ class Schwab(Broker):
                 cumulative_filled = float(stored_order.quantity or observed_order.quantity or 0)
 
             prior_filled = float(self._schwab_observed_fill_quantities.get(identifier, 0.0))
-            if cumulative_filled <= prior_filled:
+            if cumulative_filled <= prior_filled and not terminal_after_fill:
                 return
             fill_delta = cumulative_filled - prior_filled
             price = (
@@ -1925,34 +1948,36 @@ class Schwab(Broker):
                 or getattr(observed_order, "avg_fill_price", None)
                 or getattr(observed_order, "limit_price", None)
             )
-            if price is None:
+            if price is None and fill_delta > 0:
                 logger.warning(
                     "[SchwabLifecycle] event=order.lifecycle.deferred "
                     f"order_ref={self._schwab_order_ref(identifier)} reason=missing_fill_price"
                 )
                 return
 
-            self._schwab_observed_fill_quantities[identifier] = cumulative_filled
-            event = (
-                self.FILLED_ORDER
-                if Order.is_equivalent_status(observed_status, self.FILLED_ORDER)
-                else self.PARTIALLY_FILLED_ORDER
-            )
-            self._process_trade_event(
-                stored_order,
-                event,
-                price=price,
-                filled_quantity=fill_delta,
-                multiplier=getattr(getattr(stored_order, "asset", None), "multiplier", 1) or 1,
-            )
-            self._log_schwab_lifecycle_event(
-                "order.lifecycle.callback",
-                stored_order,
-                callback=event,
-                broker_status=observed_status,
-                local_status=stored_order.status,
-            )
-            return
+            if fill_delta > 0:
+                self._schwab_observed_fill_quantities[identifier] = cumulative_filled
+                event = (
+                    self.FILLED_ORDER
+                    if Order.is_equivalent_status(observed_status, self.FILLED_ORDER)
+                    else self.PARTIALLY_FILLED_ORDER
+                )
+                self._process_trade_event(
+                    stored_order,
+                    event,
+                    price=price,
+                    filled_quantity=fill_delta,
+                    multiplier=getattr(getattr(stored_order, "asset", None), "multiplier", 1) or 1,
+                )
+                self._log_schwab_lifecycle_event(
+                    "order.lifecycle.callback",
+                    stored_order,
+                    callback=event,
+                    broker_status=observed_status,
+                    local_status=stored_order.status,
+                )
+            if not terminal_after_fill:
+                return
 
         if Order.is_equivalent_status(observed_status, self.CANCELED_ORDER):
             terminal_key = (identifier, self.CANCELED_ORDER)
@@ -2120,9 +2145,13 @@ class Schwab(Broker):
             try:
                 await self._configure_schwab_account_activity_stream(stream_client)
                 logger.info("[SchwabLifecycle] account_activity_stream_connected")
-                backoff_seconds = 1.0
+                connected_at = time.monotonic()
                 while not self._schwab_activity_stop.is_set():
                     await stream_client.handle_message()
+                    # Login success alone does not mean the stream recovered.
+                    # Keep backoff across rapid login/disconnect cycles.
+                    if time.monotonic() - connected_at >= 60.0:
+                        backoff_seconds = 1.0
             except Exception as exc:
                 if self._schwab_activity_stop.is_set():
                     return
@@ -3256,6 +3285,18 @@ class Schwab(Broker):
         )
 
         if not 200 <= int(status_code) < 300:
+            if int(status_code) in (400, 409):
+                # A cancel can lose a race to a fill or another cancel. Only an
+                # authoritative terminal snapshot resolves it; never infer this
+                # from an HTTP code or the response text alone.
+                raw_order = self._pull_broker_order(order.identifier)
+                observed = self._parse_broker_order(raw_order, order.strategy) if raw_order else None
+                if observed is not None and any(
+                    Order.is_equivalent_status(observed.status, status)
+                    for status in (self.FILLED_ORDER, self.CANCELED_ORDER)
+                ):
+                    self._process_schwab_order_snapshot(observed)
+                    return
             error_msg = f"Error canceling Schwab order {order.identifier}: HTTP {status_code}"
             if response_text:
                 error_msg += f" - {response_text}"

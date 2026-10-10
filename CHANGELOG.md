@@ -2,6 +2,8 @@
 
 ## 4.6.17 - 2026-10-10
 
+- Preserve Schwab rejection descriptions and fill callbacks recovered through direct order reconciliation, and preserve deferred broker error objects during synchronization. Account for unobserved partial fills before cancellation, reconcile cancel/fill races from authoritative order state, and retain increasing retry delays through immediately flapping stream logins. Clarify the Strategy API's GTC default and explicit DAY duration for intraday orders without changing intentional GTC orders.
+
 Deploy marker: `60e8fc439a661b652cee07b56977da7436ab4f5f`.
 
 - Recover confirmed lost read requests after downloader replacement without waiting out a full attempt timeout. Preserve correlation IDs, total deadlines and transient-failure deduplication; non-read requests are not replayed.

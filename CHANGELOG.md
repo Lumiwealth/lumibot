@@ -2,6 +2,8 @@
 
 ## 4.6.18 - 2026-10-10
 
+Deploy marker: `20bf01d9603027246ecd853297a0f2c9174b95e2`.
+
 - Preserve IBKR native daily session timestamps in routed backtests. Cold and warm reads now retain the same completed futures bars, and daily equity fills use the current session's open across holidays.
 - Count equity warmup bars through cached exchange sessions and extend an already-prefetched series when a strategy requests a longer lookback.
 - Mark routed futures positions from native intraday prices instead of a prior daily candle; bound final direct-IBKR valuation to the simulation endpoint.

@@ -88,3 +88,13 @@ Recommended public positioning:
 ## Sitemap Fix
 
 The docs build now generates `docsrc/_extra/sitemap.xml` from all `.rst` source pages. The generated sitemap contains 132 URLs instead of 8. After the docs are deployed, Search Console should be allowed to re-read the sitemap or the sitemap should be resubmitted.
+
+## Build correction (2026-10-10)
+
+The HTML build now writes `sitemap.xml` into its output directory from Sphinx's
+built-document inventory, including nested API pages and one canonical homepage
+URL. The checked-in `_extra/sitemap.xml` is removed. Optional `lastmod` dates are
+omitted because source-file history misses included code and shallow checkouts
+can report misleading dates. Rendered metadata and sitemap regression tests run
+in documentation CI. This changes build correctness, not the historical Search
+Console measurements above.

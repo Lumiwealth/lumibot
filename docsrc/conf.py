@@ -11,11 +11,12 @@
 # documentation root, use os.path.abspath to make it absolute, like shown here.
 #
 import os
-import subprocess
 import sys
-from datetime import date, datetime, timezone
 from pathlib import Path
+from urllib.parse import urljoin
 from xml.sax.saxutils import escape
+
+from docutils import nodes
 
 # Ensure the repository root is discoverable before any installed packages so
 # autodoc resolves modules from the local checkout instead of site-packages.
@@ -66,7 +67,7 @@ ogp_image = "https://lumibot.lumiwealth.com/_static/lumibot-social-card.png"
 ogp_image_alt = "LumiBot: AI trading agents that actually place the trade"
 ogp_description_length = 200
 ogp_type = "website"
-ogp_enable_meta_description = True
+ogp_enable_meta_description = False
 ogp_custom_meta_tags = [
     '<meta name="twitter:card" content="summary_large_image" />',
 ]
@@ -138,74 +139,56 @@ html_js_files = ["posthog.js"]
 html_extra_path = ["_extra"]
 
 
-def _source_lastmod(source: Path, repository_root: Path | None = None) -> str:
-    """Return the latest committed date for a documentation source file."""
-
-    repo_root = repository_root or Path(__file__).resolve().parent.parent
-    try:
-        relative_source = source.resolve().relative_to(repo_root.resolve())
-        result = subprocess.run(
-            ["git", "log", "-1", "--format=%cs", "--", relative_source.as_posix()],
-            cwd=repo_root,
-            check=True,
-            capture_output=True,
-            text=True,
-            timeout=5,
-        )
-        committed_date = result.stdout.strip()
-        if committed_date:
-            return date.fromisoformat(committed_date).isoformat()
-    except (OSError, ValueError, subprocess.SubprocessError):
-        pass
-
-    return datetime.fromtimestamp(source.stat().st_mtime, tz=timezone.utc).date().isoformat()
+def _canonical_url(app, pagename):
+    path = "" if pagename == app.config.root_doc else app.builder.get_target_uri(pagename)
+    return urljoin(app.config.html_baseurl, path)
 
 
-def _generate_sitemap() -> None:
-    """Generate sitemap.xml from the docs source tree before Sphinx copies _extra.
+def _prepare_page_metadata(app, pagename, templatename, context, doctree):
+    """Share the authored description and canonical URL with the theme and Open Graph."""
+    context["pageurl"] = _canonical_url(app, pagename)
+    page_title = app.env.titles[pagename].astext() if pagename in app.env.titles else pagename
+    description = next(
+        (node.get("content") for node in doctree.findall(nodes.meta)
+         if node.get("name") == "description"),
+        None,
+    ) if doctree is not None else None
+    context["page_description"] = description or (
+        f"{page_title}: setup, usage, and reference documentation for the LumiBot Python trading framework."
+    )
+    share_image = {
+        "index": "benefit-hero.png",
+        "agents_examples": "example-gallery.png",
+        "agents_quickstart": "backtest-benefit.png",
+        "standalone_components": "component-research.png",
+    }.get(pagename)
+    context["share_image_url"] = urljoin(
+        app.config.html_baseurl, f"_images/{share_image}" if share_image else "_static/lumibot-social-card.png"
+    )
+    context["meta"] = dict(context.get("meta") or {})
+    context["meta"].update({
+        "og:url": context["pageurl"],
+        "og:description": context["page_description"],
+        "og:image": context["share_image_url"],
+        "og:image:alt": page_title,
+    })
+    if pagename == app.config.root_doc:
+        context["meta"]["og:title"] = "Lumibot: Python Algorithmic Trading and AI Agents"
 
-    The previous sitemap was a small hand-written file, so Search Console only
-    discovered a few top-level pages even though the docs contain many more
-    pages. Generating it from the source files keeps Search Console aligned with
-    the docs that Sphinx actually builds.
-    """
 
-    docs_root = Path(__file__).resolve().parent
-    extra_root = docs_root / "_extra"
-    extra_root.mkdir(parents=True, exist_ok=True)
-    urls: dict[str, Path] = {}
-
-    for source in docs_root.rglob("*.rst"):
-        relative = source.relative_to(docs_root)
-        if any(part.startswith("_") for part in relative.parts):
-            continue
-        if relative.parts[0] in {"strategy_methods.account", "strategy_methods.data", "strategy_methods.orders", "strategy_properties"}:
-            continue
-        if source.name.endswith("_template.rst"):
-            continue
-        html_path = relative.with_suffix(".html").as_posix()
-        if html_path == "index.html":
-            urls["https://lumibot.lumiwealth.com/"] = source
-        urls[f"https://lumibot.lumiwealth.com/{html_path}"] = source
-
+def _generate_sitemap(app, exception):
+    """List built documents, excluding copied redirects and Sphinx utility pages."""
+    if exception is not None or app.builder.name != "html":
+        return
     lines = [
         '<?xml version="1.0" encoding="UTF-8"?>',
         '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">',
     ]
-    for url, source in sorted(urls.items()):
-        lines.extend(
-            [
-                "  <url>",
-                f"    <loc>{escape(url)}</loc>",
-                f"    <lastmod>{_source_lastmod(source, docs_root.parent)}</lastmod>",
-                "  </url>",
-            ]
-        )
+    for pagename in sorted(app.env.found_docs):
+        lines.append(f"  <url><loc>{escape(_canonical_url(app, pagename))}</loc></url>")
     lines.append("</urlset>")
-    (extra_root / "sitemap.xml").write_text("\n".join(lines) + "\n", encoding="utf-8")
-
-
-_generate_sitemap()
+    # Source-file dates miss included code; shallow CI history also invents freshness.
+    (Path(app.outdir) / "sitemap.xml").write_text("\n".join(lines) + "\n", encoding="utf-8")
 
 html_context = {
     'note': """
@@ -817,4 +800,6 @@ def _normalize_strategy_docstrings(app, what, name, obj, options, lines):
         lines[:] = override.splitlines()
 
 def setup(app):
+    app.connect('html-page-context', _prepare_page_metadata, priority=400)
+    app.connect('build-finished', _generate_sitemap)
     app.connect('autodoc-process-docstring', _normalize_strategy_docstrings)

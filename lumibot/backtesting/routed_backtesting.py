@@ -432,9 +432,13 @@ class _IbkrRoutingAdapter(_DataFrameRoutingAdapter):
         asset_type = _normalize_asset_type(getattr(fetch_asset, "asset_type", ""))
         include_after_hours = _ibkr_include_after_hours(asset_type, unit)
         if asset_type in {"stock", "index"} and unit in {"day", "minute", "hour"}:
-            start_datetime = min(start_datetime, ibkr_helper._equity_history_start_for_bars(
+            session_start = ibkr_helper._equity_history_start_for_bars(
                 end_dt, length, dataset_key, include_after_hours=include_after_hours and asset_type == "stock",
-            ))
+            )
+            session_start = session_start.astimezone(start_datetime.tzinfo)
+            # Daily session counting is exact. Keeping the generic calendar-day
+            # padding makes complete SMA history look incomplete and reload it.
+            start_datetime = session_start if unit == "day" else min(start_datetime, session_start)
         elif asset_type in {"future", "cont_future"} and unit == "day":
             start_datetime -= timedelta(days=5)
 

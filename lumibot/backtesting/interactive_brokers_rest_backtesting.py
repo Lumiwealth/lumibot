@@ -853,9 +853,13 @@ class InteractiveBrokersRESTBacktesting(PandasData):
         asset_type = self._normalize_asset_type(getattr(asset_separated, "asset_type", ""))
         include_after_hours = self._ibkr_include_after_hours(asset_type, ts_unit)
         if asset_type in {"stock", "index"} and ts_unit in {"day", "minute", "hour"}:
-            start_dt = min(start_dt, ibkr_helper._equity_history_start_for_bars(
+            session_start = ibkr_helper._equity_history_start_for_bars(
                 end_dt, length, dataset_key, include_after_hours=include_after_hours and asset_type == "stock",
-            ))
+            )
+            session_start = session_start.astimezone(start_dt.tzinfo)
+            # Daily session counting is exact. Keeping the generic calendar-day
+            # padding makes complete SMA history look incomplete and reload it.
+            start_dt = session_start if ts_unit == "day" else min(start_dt, session_start)
         if asset_type in {"future", "cont_future"} and ts_unit == "day":
             start_dt -= timedelta(days=5)
         if asset_type in {"future", "cont_future"} and ts_unit in {"minute", "hour", "day"}:

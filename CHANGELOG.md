@@ -2,6 +2,8 @@
 
 ## 4.6.18 - 2026-10-10
 
+- Reuse complete daily equity warmup without repeated requests for unused calendar padding; the saved TQQQ SMA200 routed replay falls from 19 history reads to one with identical bars, decisions, fills and accounting.
+
 - Value routed intraday IBKR stocks/indexes using prices available at the simulated clock, not a forming candle’s final close. Preserve completed intraday marks only across verified closures.
 
 - Prevent the direct IBKR fast-fill path from executing at a still-forming minute close when Trades cache bid/ask values are derived from that close. Add direct/routed fill parity regressions.

@@ -63,3 +63,11 @@ now use the point-in-time last-price reader. Direct IBKR intraday marks also
 retain a completed close through verified market closures and expire at reopening;
 an unknown missing tail remains unavailable. Earlier hypotheses about the
 final-equity difference are superseded by this recorded first-divergence trace.
+
+Exact daily session counting also replaces generic calendar-day padding rather
+than retaining the earlier padded start. A bounded 250-session regression supplies
+only the required warmup and fails if the same complete frame reloads. On the
+saved TQQQ SMA200 corpus this reduces routed history helper reads from 19 to one
+(and direct reads from two to one). All sixteen saved-data replays retain identical
+bars, decisions, fills, cash, quantities and equity after this optimization. These
+counts measure eliminated history reads, not a claimed engine CPU speedup.

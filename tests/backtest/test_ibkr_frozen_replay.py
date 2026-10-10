@@ -90,7 +90,9 @@ def test_250_session_daily_replay_matches_independent_signal_and_ledger(monkeypa
     schedule = mcal.get_calendar("NYSE").schedule("2024-01-01", "2026-02-13")
     index = pd.DatetimeIndex(schedule.market_close).tz_convert("America/New_York")
     opens = [100. + (i % 41) * .25 for i in range(len(index))]
-    frame = _prices(index, opens)
+    frame = _prices(index, opens).tail(lookback + 250)
+    # Supply exactly the required warmup, not an unbounded fixture that masks
+    # repeated requests for unnecessary calendar padding before the corpus.
     first = index[-250].normalize().to_pydatetime()
     end = (index[-1].normalize() + pd.Timedelta(days=1)).to_pydatetime()
     result = run_engine_replay(frame, symbol=symbol, start=first, end=end, lookback=lookback, routed=routed)

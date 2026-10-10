@@ -7,6 +7,7 @@ Deploy marker: `805f00ab67f87bed5dc5591c4ffe18a03695f425`.
 - Preserve concurrently published S3 rows across subsequent IBKR paging checkpoints and final writes. Reuse unchanged corporate-action columns so public daily warm reads do not upload the full cache again.
 
 - Bind IBKR stock Trades caches and in-memory series to a verified current split-event ledger. Refetch under a new identity after a split instead of guessing corrections from price jumps; preserve genuine market moves and existing cache files.
+- Freeze that verified stock ledger across routed IBKR cadences too; reject changed or missing adjustment provenance before merging rows or publishing repaired data. Add routed split-basis regressions and isolate required-data health between corporate-action tests.
 - Normalize explicitly reported IBKR volume units once, and isolate historical caches whose previous units cannot be established. Missing stock Trades units fail visibly rather than silently scaling volume.
 - Require usable corporate-action evidence, clear corrected/deleted events, preserve separately adjusted dividends, and keep transient Yahoo failures retryable. Current-session action coverage and weekend cache eligibility are explicit.
 - Repair incomplete daily stock/index history through the qualified alternate route without replacing valid overlapping prices. Preserve genuine closed-session gaps and exact cold/warm results.

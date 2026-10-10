@@ -8,6 +8,14 @@ from lumibot.entities import Asset
 from lumibot.tools import ibkr_helper as h
 from lumibot.tools.ibkr_equity_basis import EquityBasisSnapshot, decorate_adjusted_frame
 from lumibot.tools.yahoo_helper import YahooHelper
+from lumibot.tools.ibkr_history_health import reset_ibkr_history_health_for_testing
+
+
+@pytest.fixture(autouse=True)
+def isolated_history_health():
+    reset_ibkr_history_health_for_testing()
+    yield
+    reset_ibkr_history_health_for_testing()
 
 
 @pytest.mark.parametrize("closes", [

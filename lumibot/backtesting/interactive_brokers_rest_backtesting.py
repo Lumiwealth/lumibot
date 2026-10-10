@@ -10,7 +10,7 @@ from lumibot.entities import Asset, Data
 import lumibot.tools.ibkr_helper as ibkr_helper
 from lumibot.tools.helpers import parse_timestep_qty_and_unit
 from lumibot.tools.data_downloader_queue_client import set_queue_client_id
-from lumibot.tools.ibkr_equity_basis import EquityBasisError, EquityBasisSnapshot, assert_same_basis
+from lumibot.tools.ibkr_equity_basis import EquityBasisError, EquityBasisSnapshot, assert_same_basis, equity_basis_from_frame
 
 logger = logging.getLogger(__name__)
 
@@ -752,19 +752,7 @@ class InteractiveBrokersRESTBacktesting(PandasData):
             return
 
         if stock_symbol:
-            metadata = df.attrs.get("ibkr_equity_basis")
-            returned_basis = None
-            if metadata is not None:
-                try:
-                    if metadata["schema"] != "ibkr-equity-actions-v1":
-                        raise EquityBasisError("Unknown equity action snapshot schema")
-                    returned_basis = EquityBasisSnapshot(
-                        metadata["as_of"], metadata["coverage_through"],
-                        tuple(tuple(event) for event in metadata["events"]))
-                    if returned_basis.split_fingerprint != metadata["split_fingerprint"]:
-                        raise EquityBasisError("Equity snapshot events contradict their fingerprint")
-                except (KeyError, TypeError, ValueError) as exc:
-                    raise EquityBasisError("Invalid IBKR equity action snapshot") from exc
+            returned_basis = equity_basis_from_frame(df)
             frozen_basis = frozen_basis or returned_basis
             if frozen_basis is not None:
                 expected = pd.DataFrame({"_ibkr_split_basis": [frozen_basis.split_fingerprint]})

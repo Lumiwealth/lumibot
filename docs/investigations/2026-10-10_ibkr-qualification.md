@@ -31,6 +31,7 @@ under the qualification workspace's ignored `logs/qualification/`.
 | SPY intraday, direct SDK | 100017.07 | 100017.07 | 100017.07 | Same 65 decisions and 29 fills; helper loads 66 / 66 / 2 | 3.872 / 3.747 / .665 |
 | MES daily, verified saved minute mark | 99733.75 | 99712.50 | 99712.50 | 4.6.6 daily candle includes the next session; 11/candidate match | .191 / .155 / .234 |
 | GC held physical contract across history roll | 90000.00 | 90000.00 | 100970.00 | Older versions omit the position mark at session openings; candidate matches every independent held-contract decision mark | measured in private artifact |
+| NG held physical contract across history roll | 97000.00 | 97000.00 | 103150.00 | Candidate matches all four independent decision marks; no required-data failures with captured close/reopen prices | .092 / .079 / .149 |
 | MGC held physical contract across history roll | 98800.00 | 98800.00 | 100084.00 | Same valuation defect; candidate matches every independent held-contract decision mark | measured in private artifact |
 
 These are bounded replay timings, not end-to-end production speed claims.
@@ -52,8 +53,10 @@ same hourly-derived trade-price semantics.
 Real GC/MGC hourly stitching matched all 207 expected rows on 11/candidate;
 4.6.6 had 87 differing rows after the corrected September 21 roll. NG matched
 206 rows on 11/candidate; the 4.6.6 run requested expiries absent from the fixed
-NG corpus because its schedule was wrong. A complete old-NG trade/equity replay
-has therefore not yet been qualified.
+NG corpus because its schedule was wrong. The separate held-NG engine replay uses the same fixed continuous input for all
+versions, plus saved physical-contract minute prices at every valuation event.
+It completes the ledger comparison above; it does not claim the old resolver could
+fetch the corrected contracts or that sparse mark captures prove full minute coverage.
 
 ## Newly protected accuracy failures
 
@@ -129,7 +132,7 @@ silently reverted by this qualification work.
    cold/warm end-to-end timings. Customer accounts remain read-only.
 4. Verify native cache objects for all six priority cadences using the actual
    deployed candidate, and observe lower-tier progress/freshness over time.
-5. Finish NG real-data ledger and isolated reconnect/replacement survival proof.
+5. Finish isolated reconnect/replacement survival proof.
    Do not treat a healthy container or shared-gateway login as that proof.
 
 No claim of universal accuracy, completed deployment, unlimited provider history,

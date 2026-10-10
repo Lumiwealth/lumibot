@@ -1,5 +1,8 @@
 # Changelog
 
+## 4.6.19 - Unreleased
+
+
 ## 4.6.18 - 2026-10-10
 
 - Qualify research-evidence judge wording with recorded safe answers and unsafe controls. Preserve independently passing eval cases across workflow runs without reviving a newer failed fingerprint; this changes release tooling, not live agent prompts or policies.

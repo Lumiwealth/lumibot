@@ -1,57 +1,13 @@
+"""Session alignment remains independent of price correction.
+
+Shape-only split-spike correction was removed: a real large price move is not
+proof of a bad quote. Public-reader regressions live in test_ibkr_equity_action_integrity.
+"""
 from __future__ import annotations
 
 import pandas as pd
 
-from lumibot.tools.ibkr_helper import (
-    _align_stock_index_daily_to_session_close,
-    _repair_isolated_split_spikes_daily,
-)
-
-
-def _build_frame(closes):
-    idx = pd.date_range(start="2020-01-01", periods=len(closes), freq="D", tz="America/New_York")
-    close = pd.Series(closes, index=idx, dtype="float64")
-    return pd.DataFrame(
-        {
-            "open": close * 1.00,
-            "high": close * 1.01,
-            "low": close * 0.99,
-            "close": close,
-        },
-        index=idx,
-    )
-
-
-def test_repair_isolated_upward_split_spike_day():
-    frame = _build_frame([10.0, 11.0, 22.0, 11.2, 11.4])
-    repaired = _repair_isolated_split_spikes_daily(frame)
-    assert abs(float(repaired["close"].iloc[2]) - 11.0) < 1e-9
-    assert abs(float(repaired["open"].iloc[2]) - 11.0) < 1e-9
-
-
-def test_repair_isolated_upward_three_to_one_spike_day():
-    frame = _build_frame([10.0, 10.2, 30.6, 10.3, 10.4])
-    repaired = _repair_isolated_split_spikes_daily(frame)
-    assert abs(float(repaired["close"].iloc[2]) - 10.2) < 1e-9
-
-
-def test_repair_isolated_downward_split_spike_day():
-    frame = _build_frame([10.0, 10.5, 5.2, 10.6, 10.8])
-    repaired = _repair_isolated_split_spikes_daily(frame)
-    assert abs(float(repaired["close"].iloc[2]) - 10.4) < 1e-9
-
-
-def test_does_not_modify_persistent_regime_shift():
-    frame = _build_frame([10.0, 11.0, 22.0, 21.5, 21.8])
-    repaired = _repair_isolated_split_spikes_daily(frame)
-    assert abs(float(repaired["close"].iloc[2]) - 22.0) < 1e-9
-
-
-def test_repair_terminal_split_spike_without_next_day_reversion():
-    # Final row is a 2x split-like spike; rolling windows won't include a future reversion row.
-    frame = _build_frame([10.0, 10.1, 10.2, 10.3, 20.6])
-    repaired = _repair_isolated_split_spikes_daily(frame)
-    assert abs(float(repaired["close"].iloc[-1]) - 10.3) < 1e-9
+from lumibot.tools.ibkr_helper import _align_stock_index_daily_to_session_close
 
 
 def test_align_stock_index_daily_to_session_close_from_early_morning_timestamps():

@@ -315,3 +315,30 @@ def test_backtest_settings_include_sanitized_data_health(tmp_path) -> None:
         "2025-04-30",
     ]
     assert "credential" not in json.dumps(payload["data_health"]).lower()
+
+
+def test_corporate_action_issue_retains_safe_typed_recovery():
+    from lumibot.tools.ibkr_history_health import record_required_data_issue
+    asset = SimpleNamespace(symbol='SPY', asset_type='stock')
+    now = pd.Timestamp('2026-10-09T20:00:00Z')
+    record_required_data_issue(asset=asset, timestep='day', when=now,
+        reason='corporate_actions_unavailable', recovery_cause='corporate_actions_unverified', retryable=True)
+    failure = ibkr_history_health_snapshot()['required_failures'][0]
+    assert failure['retryable'] is True
+    assert failure['recovery_cause'] == 'corporate_actions_unverified'
+    assert ibkr_history_health_snapshot()['required_complete'] is False
+
+
+@pytest.mark.parametrize('known_transient', [True, False])
+def test_retry_cause_requires_correlated_explicit_transient_evidence(known_transient):
+    from lumibot.tools.ibkr_history_health import record_required_history
+    when = pd.Timestamp('2026-10-09T20:00:00Z')
+    record_history_health(symbol='SPY', asset_type='stock', timestep='day',
+        requested_start=when-pd.Timedelta(days=7), requested_end=when,
+        outcome=HistoryOutcome.TRANSIENT_FAILURE if known_transient else HistoryOutcome.PARTIAL,
+        reason='rate_limited' if known_transient else 'empty_history_payload')
+    record_required_history(asset=SimpleNamespace(symbol='SPY', asset_type='stock'), timestep='day',
+        requested_bars=5, frame=None, when=when)
+    failure = ibkr_history_health_snapshot()['required_failures'][0]
+    assert failure['retryable'] is known_transient
+    assert failure['recovery_cause'] == ('temporary_download_failure' if known_transient else 'unknown')

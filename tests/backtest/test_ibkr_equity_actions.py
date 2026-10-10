@@ -165,7 +165,8 @@ def test_normalize_equity_daily_prices_for_raw_forward_split():
     assert normalized.loc[idx[0], "close"] == pytest.approx(50.0)
     assert normalized.loc[idx[0], "open"] == pytest.approx(49.0)
     assert normalized.loc[idx[0], "volume"] == pytest.approx(2000.0)
-    assert normalized.loc[idx[0], "dividend"] == pytest.approx(0.1)
+    # Enrichment supplies Yahoo split-adjusted dividends, not raw IBKR prices.
+    assert normalized.loc[idx[0], "dividend"] == pytest.approx(0.2)
     assert normalized.loc[idx[1], "close"] == pytest.approx(46.5)
 
 
@@ -195,7 +196,7 @@ def test_normalize_equity_daily_prices_for_raw_reverse_split():
     assert normalized["_split_adjusted"].all()
     assert normalized.loc[idx[0], "close"] == pytest.approx(100.0)
     assert normalized.loc[idx[0], "volume"] == pytest.approx(1000.0)
-    assert normalized.loc[idx[0], "dividend"] == pytest.approx(10.0)
+    assert normalized.loc[idx[0], "dividend"] == pytest.approx(1.0)
 
 
 def test_normalize_equity_daily_prices_marks_already_adjusted_split_without_double_adjusting():

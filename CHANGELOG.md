@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Fix conflicting documentation metadata and homepage canonical URLs; generate the sitemap from built documents and verify rendered output in documentation CI.
+
 ## 4.6.18 - 2026-10-10
 
 - Qualify research-evidence judge wording with recorded safe answers and unsafe controls. Preserve independently passing eval cases across workflow runs without reviving a newer failed fingerprint; this changes release tooling, not live agent prompts or policies.

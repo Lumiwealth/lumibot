@@ -20,5 +20,8 @@ safety
 # Secret Storage
 python-dotenv
 
-# Documentation (llms.txt generation for AI assistants)
+# Documentation build and rendered metadata regression tests
+sphinx
+furo
+sphinxext-opengraph
 sphinx-llms-txt

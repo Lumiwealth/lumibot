@@ -1,16 +1,10 @@
 import importlib.util
-import os
-import subprocess
 import sys
-from datetime import datetime, timezone
 from pathlib import Path
-from types import SimpleNamespace
 
 
 def _load_docs_config():
     config_path = Path(__file__).resolve().parents[1] / "docsrc" / "conf.py"
-    sitemap_path = config_path.parent / "_extra" / "sitemap.xml"
-    original_sitemap = sitemap_path.read_bytes()
     spec = importlib.util.spec_from_file_location("lumibot_docs_conf", config_path)
     module = importlib.util.module_from_spec(spec)
     original_modules = sys.modules.copy()
@@ -20,37 +14,11 @@ def _load_docs_config():
         for module_name in set(sys.modules) - set(original_modules):
             sys.modules.pop(module_name, None)
         sys.modules.update(original_modules)
-        sitemap_path.write_bytes(original_sitemap)
     return module
 
 
-def test_sitemap_lastmod_uses_committed_source_date(monkeypatch, tmp_path):
-    docs_config = _load_docs_config()
-    source = tmp_path / "guide.rst"
-    source.write_text("Guide\n=====\n", encoding="utf-8")
-
-    monkeypatch.setattr(
-        docs_config.subprocess,
-        "run",
-        lambda *args, **kwargs: SimpleNamespace(stdout="2026-07-01\n"),
-    )
-
-    assert docs_config._source_lastmod(source, tmp_path) == "2026-07-01"
-
-
-def test_sitemap_lastmod_mtime_fallback_uses_utc(monkeypatch, tmp_path):
-    docs_config = _load_docs_config()
-    source = tmp_path / "guide.rst"
-    source.write_text("Guide\n=====\n", encoding="utf-8")
-    timestamp = datetime(2026, 7, 1, 0, 30, tzinfo=timezone.utc).timestamp()
-    os.utime(source, (timestamp, timestamp))
-
-    def fail_git_lookup(*_args, **_kwargs):
-        raise subprocess.CalledProcessError(1, "git")
-
-    monkeypatch.setattr(docs_config.subprocess, "run", fail_git_lookup)
-
-    assert docs_config._source_lastmod(source, tmp_path) == "2026-07-01"
+# Built sitemap coverage and canonical consistency live in tests/docs/test_docs_seo.py.
+# Optional lastmod dates are omitted: RST history alone misses included code changes.
 
 
 def test_comparison_docs_are_publicly_discoverable():
@@ -88,8 +56,11 @@ def test_open_graph_tags_are_configured():
 
 
 def test_docs_workflow_installs_the_opengraph_extension():
-    workflow = (Path(__file__).resolve().parents[1] / ".github/workflows/docs.yml").read_text()
-    assert "sphinxext-opengraph" in workflow
+    root = Path(__file__).resolve().parents[1]
+    workflow = (root / ".github/workflows/docs.yml").read_text()
+    # Build and test jobs share declared dependencies instead of a docs-only install.
+    assert "pip install -r requirements_dev.txt" in workflow
+    assert "sphinxext-opengraph" in (root / "requirements_dev.txt").read_text().splitlines()
 
 
 def _pages_missing_meta_description():

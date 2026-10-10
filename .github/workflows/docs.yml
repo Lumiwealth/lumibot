@@ -8,6 +8,7 @@ on:
       - "docs/**"
       - "README.md"
       - "requirements_dev.txt"
+      - "tests/docs/test_docs_seo.py"
       - ".github/workflows/docs.yml"
   push:
     branches: [dev]
@@ -16,6 +17,7 @@ on:
       - "docs/**"
       - "README.md"
       - "requirements_dev.txt"
+      - "tests/docs/test_docs_seo.py"
       - ".github/workflows/docs.yml"
 
 permissions:
@@ -49,7 +51,9 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements_dev.txt
-          pip install sphinx furo sphinx-llms-txt sphinxext-opengraph
+
+      - name: Test documentation metadata and sitemap
+        run: python -m pytest -o addopts='' tests/docs/test_docs_seo.py -q
 
       - name: Build docs and generate llms files
         run: |

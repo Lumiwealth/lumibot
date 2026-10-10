@@ -11,11 +11,12 @@
 # documentation root, use os.path.abspath to make it absolute, like shown here.
 #
 import os
-import subprocess
 import sys
-from datetime import date, datetime, timezone
 from pathlib import Path
+from urllib.parse import urljoin
 from xml.sax.saxutils import escape
+
+from docutils import nodes
 
 # Ensure the repository root is discoverable before any installed packages so
 # autodoc resolves modules from the local checkout instead of site-packages.
@@ -66,7 +67,7 @@ ogp_image = "https://lumibot.lumiwealth.com/_static/lumibot-social-card.png"
 ogp_image_alt = "LumiBot: AI trading agents that actually place the trade"
 ogp_description_length = 200
 ogp_type = "website"
-ogp_enable_meta_description = True
+ogp_enable_meta_description = False
 ogp_custom_meta_tags = [
     '<meta name="twitter:card" content="summary_large_image" />',
 ]
@@ -138,74 +139,86 @@ html_js_files = ["posthog.js"]
 html_extra_path = ["_extra"]
 
 
-def _source_lastmod(source: Path, repository_root: Path | None = None) -> str:
-    """Return the latest committed date for a documentation source file."""
+# Keep existing page descriptions when a source has no explicit meta description.
+_PAGE_DESCRIPTIONS = {
+    'index': 'Build Python trading bots and AI trading agents with LumiBot. Backtest strategies, inspect decisions, and connect stocks, options, crypto, and futures brokers.',
+    'agents': 'Build AI trading agents inside LumiBot strategies. Explore tools, multi-agent teams, historical backtests, memory, and broker execution in Python.',
+    'agents_quickstart': 'Run your first LumiBot AI agent with a complete Python example, installation steps, model credentials, daily stock data, and a short research backtest.',
+    'agents_examples': 'Explore LumiBot AI trading examples for stocks, options, macro research, and multi-agent teams, with source code and documented data requirements.',
+    'agents_example_ai_opening_range_breakout': 'Opening-range breakout example that reads Alpaca minute bars. The January 5, 2026 proof bought and sold 1 SPY.',
+    'agents_example_ai_vwap': 'VWAP example that reads Alpaca minute bars. The January 5, 2026 proof bought 1 SPY at 686.54 and sold it at 687.29.',
+    'agents_example_ai_iron_condor': 'Iron condor example that opens and closes one four-leg order on Alpaca option history. A row is one contract, held long enough for the tear sheet to move.',
+    'agents_example_ai_credit_spread': 'Credit spread example that opens and closes one vertical on Alpaca option history. One contract, then a close after prices can move.',
+    'agents_example_warren_buffett_value': 'Buffett value example. The source proof calls get_filings and get_filing_section on a real EDGAR 10-K, then holds.',
+    'agents_example_bill_ackman_concentrated': 'Ackman example. The source proof fetches the live Pershing Square SEC company atom feed, then holds.',
+    'agents_example_bull_bear_leveraged_etf': 'Leveraged ETF team for pairs such as TQQQ against SQQQ. The January 2026 Yahoo price proof bought 1 TQQQ.',
+    'agents_example_sec_insider_filings': 'SEC insider example. It reads the live Form 4 Atom feed and may act only on entries already public at the backtest clock.',
+    'agents_example_congress_disclosures': 'Trade a public House Clerk PTR after the filing is public. Stock mode needs a ticker and side. Option mode also needs call or put, strike, and expiration, and skips a row that lacks them. Amounts are ranges, and a report can be up to 45 days late.',
+    'agents_example_bull_bear_large_cap_stocks': 'Build a Python AI stock-trading team with bull, bear, and trader agents that debate large-cap stocks inside the LumiBot strategy lifecycle.',
+    'agents_example_citadel_sector_pods': 'Explore a Citadel-inspired AI sector-pod team in LumiBot, with research agents, portfolio decisions, Python source, and hosted BotSpot examples.',
+    'agents_example_ray_dalio_idea_meritocracy': 'Explore a Ray Dalio-inspired AI macro team in LumiBot, with specialist debate, portfolio decisions, Python source, and hosted BotSpot examples.',
+    'backtesting': 'Backtest Python trading strategies in LumiBot. Compare historical data sources and learn how strategy logic, orders, fees, and results fit together.',
+    'macro_data': 'Use FRED and ALFRED economic data in LumiBot strategies and AI agents. Configure credentials and query macro series with historical vintage handling.',
+    'fundamentals': 'Use company fundamentals and SEC filings in LumiBot strategies and AI research agents. Explore data access, examples, and historical-data limitations.',
+    'MIGRATING_FROM_BACKTRADER': 'Migrate a Backtrader strategy to LumiBot: map lifecycle methods, port a Python allocation example, compare orders and data, and configure the broker runner.',
+    'PARTNERSHIPS': 'Partner with the LumiBot team on funded integrations, open-source maintenance, developer tutorials, and strategic product collaboration.'
+}
 
-    repo_root = repository_root or Path(__file__).resolve().parent.parent
-    try:
-        relative_source = source.resolve().relative_to(repo_root.resolve())
-        result = subprocess.run(
-            ["git", "log", "-1", "--format=%cs", "--", relative_source.as_posix()],
-            cwd=repo_root,
-            check=True,
-            capture_output=True,
-            text=True,
-            timeout=5,
-        )
-        committed_date = result.stdout.strip()
-        if committed_date:
-            return date.fromisoformat(committed_date).isoformat()
-    except (OSError, ValueError, subprocess.SubprocessError):
-        pass
 
-    return datetime.fromtimestamp(source.stat().st_mtime, tz=timezone.utc).date().isoformat()
+def _canonical_url(app, pagename):
+    path = "" if pagename == app.config.root_doc else app.builder.get_target_uri(pagename)
+    return urljoin(app.config.html_baseurl, path)
 
 
-def _generate_sitemap() -> None:
-    """Generate sitemap.xml from the docs source tree before Sphinx copies _extra.
+def _prepare_page_metadata(app, pagename, templatename, context, doctree):
+    """Share the authored description and canonical URL with the theme and Open Graph."""
+    context["pageurl"] = _canonical_url(app, pagename)
+    page_title = app.env.titles[pagename].astext() if pagename in app.env.titles else pagename
+    description = next(
+        (node.get("content") for node in doctree.findall(nodes.meta)
+         if node.get("name") == "description"),
+        None,
+    ) if doctree is not None else None
+    context["page_description"] = description or _PAGE_DESCRIPTIONS.get(pagename) or (
+        f"{page_title}: setup, usage, and reference documentation for the LumiBot Python trading framework."
+    )
+    share_image = {
+        "index": "benefit-hero.png",
+        "agents_examples": "example-gallery.png",
+        "agents_quickstart": "backtest-benefit.png",
+        "standalone_components": "component-research.png",
+    }.get(pagename)
+    context["share_image_url"] = urljoin(
+        app.config.html_baseurl, f"_images/{share_image}" if share_image else "_static/lumibot_spot_logo.png"
+    )
+    context["meta"] = dict(context.get("meta") or {})
+    context["meta"].update({
+        "og:url": context["pageurl"],
+        "og:description": context["page_description"],
+        "og:image": context["share_image_url"],
+        "og:image:alt": page_title,
+        "og:image:width": "1536" if share_image else "852",
+        "og:image:height": "864" if share_image else "852",
+        "og:site_name": "Lumibot",
+        "og:title": f"{page_title} - Lumibot",
+    })
+    if pagename == app.config.root_doc:
+        context["meta"]["og:title"] = "Lumibot: Python Algorithmic Trading and AI Agents"
 
-    The previous sitemap was a small hand-written file, so Search Console only
-    discovered a few top-level pages even though the docs contain many more
-    pages. Generating it from the source files keeps Search Console aligned with
-    the docs that Sphinx actually builds.
-    """
 
-    docs_root = Path(__file__).resolve().parent
-    extra_root = docs_root / "_extra"
-    extra_root.mkdir(parents=True, exist_ok=True)
-    urls: dict[str, Path] = {}
-
-    for source in docs_root.rglob("*.rst"):
-        relative = source.relative_to(docs_root)
-        if any(part.startswith("_") for part in relative.parts):
-            continue
-        if relative.parts[0] in {"strategy_methods.account", "strategy_methods.data", "strategy_methods.orders", "strategy_properties"}:
-            continue
-        if source.name.endswith("_template.rst"):
-            continue
-        html_path = relative.with_suffix(".html").as_posix()
-        if html_path == "index.html":
-            urls["https://lumibot.lumiwealth.com/"] = source
-        urls[f"https://lumibot.lumiwealth.com/{html_path}"] = source
-
+def _generate_sitemap(app, exception):
+    """List built documents, excluding copied redirects and Sphinx utility pages."""
+    if exception is not None or app.builder.name != "html":
+        return
     lines = [
         '<?xml version="1.0" encoding="UTF-8"?>',
         '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">',
     ]
-    for url, source in sorted(urls.items()):
-        lines.extend(
-            [
-                "  <url>",
-                f"    <loc>{escape(url)}</loc>",
-                f"    <lastmod>{_source_lastmod(source, docs_root.parent)}</lastmod>",
-                "  </url>",
-            ]
-        )
+    for pagename in sorted(app.env.found_docs):
+        lines.append(f"  <url><loc>{escape(_canonical_url(app, pagename))}</loc></url>")
     lines.append("</urlset>")
-    (extra_root / "sitemap.xml").write_text("\n".join(lines) + "\n", encoding="utf-8")
-
-
-_generate_sitemap()
+    # Source-file dates miss included code; shallow CI history also invents freshness.
+    (Path(app.outdir) / "sitemap.xml").write_text("\n".join(lines) + "\n", encoding="utf-8")
 
 html_context = {
     'note': """
@@ -817,4 +830,6 @@ def _normalize_strategy_docstrings(app, what, name, obj, options, lines):
         lines[:] = override.splitlines()
 
 def setup(app):
+    app.connect('html-page-context', _prepare_page_metadata, priority=400)
+    app.connect('build-finished', _generate_sitemap)
     app.connect('autodoc-process-docstring', _normalize_strategy_docstrings)

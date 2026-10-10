@@ -2,7 +2,7 @@
 
 # LumiBot AI Trading
 
-**실제로 주문을 내는 AI 에이전트.** 12개 브로커 연동, 진짜 백테스트, 그리고 주식·옵션·선물·외환·암호화폐·예측 시장을 지원합니다. 대부분의 AI 트레이딩 프로젝트는 추천에서 멈춥니다. LumiBot은 주문을 전송합니다.
+**실제로 주문을 내는 AI 에이전트.** 12개 브로커 연동, 진짜 백테스트, 그리고 주식·옵션·선물·외환·암호화폐·예측 시장을 지원합니다.
 
 ## 60초 만에 시작
 
@@ -20,6 +20,8 @@ lumibot init my-bot --template ai
 lumibot backtest my-bot --days 90
 lumibot run my-bot --paper
 ```
+
+AI 템플릿을 실행하려면 `OPENAI_API_KEY`가 필요하며 모델 호출에는 비용이 발생합니다. `--paper` 명령에는 Alpaca 모의 거래 계정 인증 정보(`ALPACA_API_KEY` 및 `ALPACA_API_SECRET`)가 필요합니다. [CLI 설정 안내](https://lumibot.lumiwealth.com/cli.html)를 참조하세요.
 
 `lumibot init`이 작성하는 코드는 여러분이 직접 손으로 썼을 Python 그대로입니다. 명령줄이 숨기는 것은 없으며, 편집 가능한 파일이 남습니다.
 

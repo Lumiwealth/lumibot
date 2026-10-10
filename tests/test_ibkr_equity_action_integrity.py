@@ -6,6 +6,7 @@ import pytest
 
 from lumibot.entities import Asset
 from lumibot.tools import ibkr_helper as h
+from lumibot.tools.ibkr_equity_basis import EquityBasisSnapshot, decorate_adjusted_frame
 from lumibot.tools.yahoo_helper import YahooHelper
 
 
@@ -18,6 +19,11 @@ def test_daily_reader_preserves_large_moves_without_verified_correction(monkeypa
     idx = pd.date_range("2026-10-05 16:00", periods=5, freq="B", tz="America/New_York")
     frame = pd.DataFrame({c: closes for c in ["open", "high", "low", "close"]}, index=idx)
     frame["volume"] = 1000.0
+    snapshot = EquityBasisSnapshot.from_verified_actions(
+        pd.DataFrame(columns=["Dividends", "Stock Splits"], index=pd.DatetimeIndex([])),
+        as_of="2026-10-10T12:00:00Z", coverage_through="2026-10-09")
+    frame = decorate_adjusted_frame(frame, snapshot, provider_prices_verified=True)
+    monkeypatch.setattr(h, "_get_current_equity_basis", lambda symbol: snapshot, raising=False)
     monkeypatch.setattr(h, "LUMIBOT_CACHE_FOLDER", str(tmp_path))
     monkeypatch.setattr(h, "get_backtest_cache", lambda: SimpleNamespace(ensure_local_file=lambda *a, **k: None))
     monkeypatch.setattr(h, "_read_cache_frame", lambda *a: frame.copy())
@@ -103,6 +109,11 @@ def test_enrichment_then_split_normalization_has_exact_repeat_dividends(monkeypa
     frame = pd.DataFrame({col: prices for col in ['open', 'high', 'low', 'close']}, index=idx)
     actions = pd.DataFrame({'Dividends': [.2, 0., 0.], 'Stock Splits': [0., 0., ratio]}, index=idx.normalize())
     monkeypatch.setattr(h, '_get_cached_equity_actions', lambda *a, **k: actions)
+    # Supplied OHLC is explicitly certified adjusted; a split-shaped move is not
+    # permission to change the prices or separately adjusted cash distributions.
+    snapshot = EquityBasisSnapshot.from_verified_actions(actions,
+        as_of="2024-06-22T12:00:00Z", coverage_through="2024-06-21")
+    frame = decorate_adjusted_frame(frame, snapshot, provider_prices_verified=True)
     def read(value):
         enriched, _ = h._append_equity_corporate_actions_daily(value, Asset('SPY'))
         return h._normalize_equity_daily_prices_for_splits(enriched)[0]
@@ -110,6 +121,7 @@ def test_enrichment_then_split_normalization_has_exact_repeat_dividends(monkeypa
     repeat = read(first.copy())
     pd.testing.assert_frame_equal(first, repeat)
     assert first.dividend.tolist() == [.2, 0., 0.]
+    pd.testing.assert_frame_equal(first[['open', 'high', 'low', 'close']], frame[['open', 'high', 'low', 'close']])
 
 
 def test_action_history_short_of_required_session_is_unknown(monkeypatch):
@@ -154,3 +166,19 @@ def test_verified_removed_events_clear_stale_cached_actions(monkeypatch):
     assert corrected.dividend.tolist() == [0.]
     assert corrected.stock_splits.tolist() == [0.]
     assert frame.dividend.tolist() == [1.25]
+
+
+def test_confirmed_split_does_not_authorize_price_shape_rewriting():
+    # These are already adjusted provider prices. A real 50% market drop on
+    # the split date must survive even though its shape resembles raw prices.
+    idx = pd.date_range("2024-06-06 16:00", periods=3, freq="B", tz="America/New_York")
+    frame = pd.DataFrame({"open": [100., 101., 50.5], "high": [102., 103., 51.],
+                          "low": [99., 100., 49.], "close": [100., 101., 50.5],
+                          "volume": [1000., 2000., 3000.], "stock_splits": [0., 0., 2.],
+                          "_split_adjusted": [True, True, True]}, index=idx)
+    basis = EquityBasisSnapshot.from_verified_actions(
+        pd.DataFrame({"Dividends": [0.], "Stock Splits": [2.]}, index=pd.DatetimeIndex(["2024-06-10"], tz="America/New_York")),
+        as_of="2024-06-11T22:00:00Z", coverage_through="2024-06-11")
+    frame = decorate_adjusted_frame(frame, basis, provider_prices_verified=True)
+    result, _ = h._normalize_equity_daily_prices_for_splits(frame)
+    pd.testing.assert_frame_equal(result, frame)

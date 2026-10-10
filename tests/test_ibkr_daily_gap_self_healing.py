@@ -8,6 +8,15 @@ import pytest
 from lumibot.entities import Asset
 from lumibot.tools import ibkr_helper
 
+@pytest.fixture(autouse=True)
+def _frozen_equity_actions(monkeypatch):
+    from lumibot.tools.ibkr_equity_basis import EquityBasisSnapshot
+    from lumibot.tools import ibkr_helper
+    ledger = pd.DataFrame(columns=["Dividends", "Stock Splits"])
+    basis = EquityBasisSnapshot.from_verified_actions(ledger, as_of=pd.Timestamp("2026-10-10T17:00Z"), coverage_through="2026-10-09")
+    monkeypatch.setattr(ibkr_helper, "_get_current_equity_basis", lambda _: basis)
+
+
 
 def _daily_frame(dates: list[str], *, missing: bool = False) -> pd.DataFrame:
     index = pd.DatetimeIndex(
@@ -1087,6 +1096,8 @@ def test_public_minute_repair_accepts_timestamp_units(monkeypatch, tmp_path, ind
     _minute_setup(monkeypatch, tmp_path)
     _new_minute_process(monkeypatch, lambda **_: None)
     vendor = _minute_vendor(["2026-08-06", "2026-08-07", "2026-08-10"])
+    from lumibot.tools.ibkr_equity_basis import decorate_adjusted_frame
+    vendor = decorate_adjusted_frame(vendor, ibkr_helper._get_current_equity_basis("SPY"), provider_prices_verified=True)
     vendor.index = vendor.index.as_unit(index_unit)
     holey = vendor.loc[vendor.index.strftime("%Y-%m-%d") != "2026-08-07"]
     path = tmp_path / "minute-cache.parquet"

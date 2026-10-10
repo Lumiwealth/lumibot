@@ -9,6 +9,15 @@ from lumibot.entities import Asset
 from lumibot.tools import ibkr_helper as h
 from lumibot.tools.ibkr_volume import IbkrVolumeMetadataError
 
+@pytest.fixture(autouse=True)
+def _frozen_equity_actions(monkeypatch):
+    from lumibot.tools.ibkr_equity_basis import EquityBasisSnapshot
+    from lumibot.tools import ibkr_helper
+    ledger = pd.DataFrame(columns=["Dividends", "Stock Splits"])
+    basis = EquityBasisSnapshot.from_verified_actions(ledger, as_of=pd.Timestamp("2026-10-10T17:00Z"), coverage_through="2026-10-09")
+    monkeypatch.setattr(ibkr_helper, "_get_current_equity_basis", lambda _: basis)
+
+
 
 def _fetch(monkeypatch, payload, timestep="minute", source="Trades", asset_type="stock"):
     start = pd.Timestamp("2024-06-07 13:30", tz="UTC")

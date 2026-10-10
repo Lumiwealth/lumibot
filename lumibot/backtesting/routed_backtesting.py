@@ -1433,7 +1433,24 @@ class RoutedBacktestingPandas(ThetaDataBacktestingPandas):
                 ):
                     timestep = "day"
 
-        return super().get_last_price(asset, timestep=timestep, quote=quote, exchange=exchange, **kwargs)
+        price = super().get_last_price(asset, timestep=timestep, quote=quote, exchange=exchange, **kwargs)
+        base = asset[0] if isinstance(asset, tuple) else asset
+        if (price is None and spec.provider == "ibkr"
+                and _normalize_asset_type(getattr(base, "asset_type", "")) in {"future", "cont_future"}):
+            quote_asset = asset[1] if isinstance(asset, tuple) else (quote or Asset("USD", "forex"))
+            candidates = []
+            for key, data in self._data_store.items():
+                if isinstance(key, tuple) and len(key) >= 3 and key[:2] == (base, quote_asset):
+                    try:
+                        _, seconds, _ = ibkr_helper._timestep_to_ibkr_bar(str(key[2]))
+                    except (TypeError, ValueError):
+                        continue
+                    candidates.append((seconds, str(key[2]), data))
+            for _, cadence, data in sorted(candidates, key=lambda item: item[0]):
+                price = ibkr_helper.closed_futures_mark(data.df, timestep=cadence, when=self.get_datetime())
+                if price is not None:
+                    return price
+        return price
 
     def get_quote(self, asset, quote=None, exchange=None, timestep="minute", **kwargs):
         """Align routed quote lookups away from minute bars in daily non-Theta runs.

@@ -483,6 +483,35 @@ def _us_futures_closed_interval(
         return False
 
 
+def closed_futures_mark(frame: pd.DataFrame, *, timestep: str, when: datetime) -> Optional[float]:
+    """Use a completed trade close only when every later instant was closed.
+
+    This is a valuation fallback, never an executable bar or a gap repair. An
+    absent bar after the next opening remains missing, including holiday gaps
+    not represented by the conservative maintenance/weekend calendar.
+    """
+    if frame is None or frame.empty or "close" not in frame:
+        return None
+    try:
+        _, seconds, _ = _timestep_to_ibkr_bar(timestep)
+        if seconds >= 86400:
+            return None
+        now = pd.Timestamp(when)
+        completed = frame.loc[frame.index + pd.Timedelta(seconds=seconds) <= now]
+        if completed.empty:
+            return None
+        row = completed.iloc[-1]
+        if bool(row.get("missing", False)) or not pd.notna(row["close"]):
+            return None
+        end = completed.index[-1] + pd.Timedelta(seconds=seconds)
+        if not _us_futures_closed_interval(end.to_pydatetime(), now.to_pydatetime()):
+            return None
+        price = float(row["close"])
+        return price if math.isfinite(price) else None
+    except (TypeError, ValueError, KeyError):
+        return None
+
+
 @lru_cache(maxsize=64)
 def _us_equity_session_bounds_for_year(year: int, extended_hours: bool) -> tuple[np.ndarray, np.ndarray]:
     """Return sorted NYSE session (open, close) bounds for one year as UTC nanoseconds.

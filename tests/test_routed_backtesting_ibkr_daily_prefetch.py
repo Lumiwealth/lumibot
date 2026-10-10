@@ -10,6 +10,29 @@ from lumibot.backtesting.routed_backtesting import RoutedBacktestingPandas
 from lumibot.entities import Asset
 
 
+@pytest.mark.parametrize("when,expected", [
+    ("2026-09-18 17:55", 104.), ("2026-09-20 17:55", 104.),
+    ("2026-09-20 18:05", None),
+])
+def test_routed_futures_closed_market_mark(monkeypatch, when, expected):
+    from lumibot.backtesting.thetadata_backtesting_pandas import ThetaDataBacktestingPandas
+    from lumibot.entities import Data
+
+    source = RoutedBacktestingPandas.__new__(RoutedBacktestingPandas)
+    source._routing = {"default": "ibkr"}
+    source._update_cadence_from_dt = lambda dt: None
+    source.get_datetime = lambda: pd.Timestamp(when, tz="America/New_York").to_pydatetime()
+    source._has_loaded_intraday_series = lambda *a: True
+    asset = Asset("MES", asset_type="future", expiration=datetime(2026, 12, 18).date())
+    quote = Asset("USD", "forex")
+    idx = pd.date_range("2026-09-18 16:58", periods=2, freq="min", tz="America/New_York")
+    frame = pd.DataFrame({"open": [100., 101.], "high": [103., 105.],
+                          "low": [99., 100.], "close": [102., 104.], "volume": 10}, index=idx)
+    source._data_store = {(asset, quote, "minute"): Data(asset, frame, timestep="minute", quote=quote)}
+    monkeypatch.setattr(ThetaDataBacktestingPandas, "get_last_price", lambda *a, **kw: None)
+    assert source.get_last_price(asset, quote=quote) == expected
+
+
 def test_routed_backtesting_prefetches_ibkr_crypto_daily_window_once(monkeypatch):
     calls: list[tuple[datetime, datetime, str]] = []
 

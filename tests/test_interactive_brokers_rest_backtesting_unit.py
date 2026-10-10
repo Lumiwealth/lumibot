@@ -4,9 +4,32 @@ from datetime import datetime, timezone
 from zoneinfo import ZoneInfo
 
 import pandas as pd
+import pytest
 
 from lumibot.backtesting.interactive_brokers_rest_backtesting import InteractiveBrokersRESTBacktesting
 from lumibot.entities import Asset
+
+
+@pytest.mark.parametrize("when,expected", [
+    ("2026-09-18 17:55", 104.),
+    ("2026-09-20 17:55", 104.),
+    ("2026-09-20 18:05", None),
+])
+def test_futures_valuation_preserves_close_only_across_known_closure(monkeypatch, when, expected):
+    from lumibot.tools import ibkr_helper
+
+    idx = pd.date_range("2026-09-18 16:58", periods=2, freq="min", tz="America/New_York")
+    frame = pd.DataFrame({"open": [100., 101.], "high": [103., 105.],
+                          "low": [99., 100.], "close": [102., 104.], "volume": 10}, index=idx)
+    monkeypatch.setattr(ibkr_helper, "get_price_data", lambda **kw: frame.copy())
+    source = InteractiveBrokersRESTBacktesting(
+        datetime_start=idx[0].to_pydatetime(),
+        datetime_end=pd.Timestamp("2026-09-21", tz="America/New_York").to_pydatetime(),
+        show_progress_bar=False, log_backtest_progress_to_file=False,
+    )
+    asset = Asset("MES", asset_type="future", expiration=datetime(2026, 12, 18).date())
+    source._update_datetime(pd.Timestamp(when, tz="America/New_York").to_pydatetime())
+    assert source.get_last_price(asset) == expected
 
 
 def test_ibkr_rest_backtesting_plumbs_history_source(monkeypatch):

@@ -52,7 +52,7 @@ Supported Data
 - **Stocks / Indexes (day bars)**: supported in routed backtests (for example mixed Theta+IBKR routing).
 
 Stock, index and futures intraday historical requests stop 20 minutes before
-current time. Explicit and continuous futures use the same stable boundary,
+the backtest's captured start-of-run clock. Explicit and continuous futures use the same stable boundary,
 including the pager's overlap offset. A window wholly inside that unavailable
 interval returns empty bars with partial history health; unavailable prices
 are never cached as confirmed absence. Daily bars, older historical windows
@@ -72,6 +72,10 @@ Daily futures candles aggregate intraday bars whose start time is inside the ses
 including the opening boundary and excluding the closing boundary. A bar starting at
 the close belongs to the next session and cannot change the completed candle's prices
 or volume. This applies to both hourly aggregation and the minute fallback.
+
+During known daily maintenance and weekend closures, futures valuation can
+retain the last completed trade close. This fallback cannot bridge a missing
+open-market interval or supply an executable bar.
 
 Daily Stocks/Indexes: Warmup + Corporate Actions
 ------------------------------------------------
@@ -172,8 +176,14 @@ bar always wins.
 
 Backtest ``settings.json`` artifacts include a credential-free ``data_health``
 summary with up to 100 missing-session dates, the full missing-session count,
-and repair outcomes. Free-form provider errors remain in logs. The summary is
-diagnostic evidence and does not add a new backtest failure condition.
+and repair outcomes. Free-form provider errors remain in logs.
+
+The summary distinguishes optional prefetch gaps from history actually required
+by a strategy. ``required_complete=false`` means a decision lacked its requested
+completed bars, a consumed contract segment was unresolved, a held position had
+no valuation price, or a decision required an unavailable delayed-feed tail.
+Consumers must not present such a run as a valid completed result. A fully
+supplied strategy that legitimately chooses no trades remains valid.
 
 Conid lookups also maintain cache files under ``LUMIBOT_CACHE_FOLDER/ibkr``:
 

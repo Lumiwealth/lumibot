@@ -32,6 +32,20 @@ the same review artifact as trade fills.
 
 See also: :doc:`cash_accounting`
 
+Position average entry price
+----------------------------
+
+In backtesting, ``position.avg_fill_price`` represents the weighted entry price
+of the remaining position. Adding exposure updates that average from actual fill
+quantities, including partial fills. Selling part of a long position or covering
+part of a short leaves its entry basis unchanged. A fill that reverses the
+position opens the remaining opposite-side exposure at that fill's price.
+Closing the position clears its basis. Unknown entry basis stays unknown.
+
+This value is distinct from an individual order's average fill price and from
+realized profit or loss. Strategies calculating stops from position basis should
+read the current position after fills rather than retaining the first entry price.
+
 When ``benchmark_asset=None``, the trade CSV is still exported. Without a
 benchmark comparison plot it uses the full trade-event format, including
 ``status=fill`` rows. Disabling a benchmark must not remove execution evidence.

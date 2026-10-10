@@ -1001,6 +1001,8 @@ class BacktestingBroker(Broker):
             return None
 
         existing_position = self.get_tracked_position(order.strategy, order.asset)
+        previous_quantity = existing_position._quantity if existing_position is not None else Decimal(0)
+        previous_average = existing_position.avg_fill_price if existing_position is not None else None
 
         # Currently perfect fill price in backtesting!
         order.avg_fill_price = price
@@ -1008,6 +1010,7 @@ class BacktestingBroker(Broker):
         position = super()._process_filled_order(order, price, quantity)
         if existing_position:
             position.add_order(order, quantity)  # Add will update quantity, but not double count the order
+            self._update_position_fill_basis(position, previous_quantity, previous_average, price)
             if position.quantity == 0:
                 logger.info(f"Position {position} liquidated")
                 self._filled_positions.remove(position)
@@ -1033,6 +1036,7 @@ class BacktestingBroker(Broker):
                         cancel_sides=cancel_sides,
                     )
         else:
+            self._update_position_fill_basis(position, previous_quantity, previous_average, price)
             self._filled_positions.append(position)  # New position, add it to the tracker
 
         # If this is a child order, update the parent order status if all children are filled or cancelled.
@@ -1060,15 +1064,47 @@ class BacktestingBroker(Broker):
         filled_ids.add(identifier)
         self._filled_orders.append(order)
 
+    @staticmethod
+    def _update_position_fill_basis(position, previous_quantity, previous_average, price):
+        """Maintain average entry price from executed deltas, not order quantity.
+
+        Reductions realize P&L without changing the remaining entry basis. A
+        crossing fill opens the opposite side at this fill's price. Live brokers
+        continue to own their reported position basis; this is backtesting only.
+        """
+        current_quantity = position._quantity
+        if current_quantity == 0:
+            position.avg_fill_price = None
+        elif previous_quantity == 0 or previous_quantity * current_quantity < 0:
+            position.avg_fill_price = float(price)
+        elif abs(current_quantity) > abs(previous_quantity):
+            if previous_average is None:
+                position.avg_fill_price = None
+            else:
+                added_quantity = abs(current_quantity) - abs(previous_quantity)
+                position.avg_fill_price = float(
+                    (abs(previous_quantity) * Decimal(str(previous_average))
+                     + added_quantity * Decimal(str(price))) / abs(current_quantity)
+                )
+        else:
+            position.avg_fill_price = previous_average
+
     def _process_partially_filled_order(self, order, price, quantity):
         """
         BackTesting needs to create/update positions when orders are partially filled becuase there is no broker
         to do it
         """
         existing_position = self.get_tracked_position(order.strategy, order.asset)
+        previous_quantity = existing_position._quantity if existing_position is not None else Decimal(0)
+        previous_average = existing_position.avg_fill_price if existing_position is not None else None
         stored_order, position = super()._process_partially_filled_order(order, price, quantity)
         if existing_position:
             position.add_order(stored_order, quantity)  # Add will update quantity, but not double count the order
+        self._update_position_fill_basis(position, previous_quantity, previous_average, price)
+        if existing_position is None:
+            self._filled_positions.append(position)
+        elif position.quantity == 0:
+            self._filled_positions.remove(position)
         return stored_order, position
 
     def _process_cash_settlement(self, order, price, quantity):

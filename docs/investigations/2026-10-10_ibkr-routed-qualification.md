@@ -50,6 +50,17 @@ cache schema to both direct and routed engines and asserts every fill against th
 source minute open. The fast path follows the existing Data quote convention;
 non-derived bid/ask and timestamp freshness checks are retained.
 
+Additional daily recovery regression: a previous route's missing-session telemetry
+could reject a strategy even after its consumed daily frame contained the repaired
+row. The check now verifies that row against the usable daily prices. It retains
+the failed route's telemetry and earlier genuinely incomplete decisions. A marker,
+null close, unresolved contract, or remaining absent session cannot qualify a run.
+Intraday session completeness is not inferred from a single timestamp. The unit
+regression failed for stocks, indexes and continuous futures before the repair;
+direct and routed engine regressions also failed before it. Afterward, both engines
+match the complete-input baseline exactly for bars, signals, fills, cash, holdings,
+equity and provider request windows. No price, strategy or execution rule changed.
+
 Additional explicit boundaries: final futures valuation is capped at the actual
 simulation endpoint; Friday's known-closed mark expires at the exact Sunday
 reopening. Complete stock corporate-action frames can be reused across the whole

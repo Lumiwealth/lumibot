@@ -39,6 +39,39 @@ def test_missing_warmup_is_distinct_from_valid_zero_trade_run(monkeypatch):
 
 @pytest.mark.acceptance_backtest
 @pytest.mark.usefixtures("disable_datasource_override")
+@pytest.mark.parametrize("routed", [False, True], ids=["direct", "botspot-auto"])
+def test_recovered_daily_history_preserves_valid_result_and_exact_financials(monkeypatch, routed):
+    from tests.backtest.ibkr_replay_support import ReplayMomentum
+    from lumibot.tools.ibkr_history_health import HistoryOutcome, record_history_health
+
+    monkeypatch.setenv("LUMIBOT_CACHE_BACKEND", "local")
+    monkeypatch.setenv("DATADOWNLOADER_BASE_URL", "http://localhost:8080")
+    index = pd.date_range("2026-02-02 16:00", periods=12, freq="B", tz="America/New_York")
+    frame = _prices(index, [100., 101., 102., 103., 101., 99., 98., 100., 103., 104., 102., 101.])
+    kwargs = dict(symbol="SPY", start=datetime(2026, 2, 9), end=datetime(2026, 2, 14), routed=routed)
+    baseline = run_engine_replay(frame, **kwargs)
+    original = ReplayMomentum.on_trading_iteration
+
+    def decision_after_recovery(self):
+        when = self.get_datetime()
+        # The original route missed Friday; the frozen provider now supplies it.
+        # This is download telemetry, not an earlier incomplete strategy decision.
+        record_history_health(symbol="SPY", asset_type="stock", timestep="day",
+                              requested_start=when - pd.Timedelta(days=10), requested_end=when,
+                              outcome=HistoryOutcome.PARTIAL, missing_sessions=["2026-02-06"],
+                              series_id="original-route")
+        return original(self)
+
+    monkeypatch.setattr(ReplayMomentum, "on_trading_iteration", decision_after_recovery)
+    recovered = run_engine_replay(frame, **kwargs)
+    assert recovered["data_health"]["complete"] is False, "Do not erase failed-route evidence"
+    assert recovered["data_health"]["required_complete"] is True
+    for field in ("bars", "signals", "fills", "cash", "quantity", "equity", "history_requests", "frame_sha256"):
+        assert recovered[field] == baseline[field], field
+
+
+@pytest.mark.acceptance_backtest
+@pytest.mark.usefixtures("disable_datasource_override")
 def test_missing_futures_position_mark_invalidates_equity(monkeypatch):
     monkeypatch.setenv("LUMIBOT_CACHE_BACKEND", "local")
     monkeypatch.setenv("DATADOWNLOADER_BASE_URL", "http://localhost:8080")

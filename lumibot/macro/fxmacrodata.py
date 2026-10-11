@@ -171,7 +171,13 @@ class FXMacroData:
         return datetime.now(timezone.utc)
 
     def _effective_as_of_datetime(self, as_of: Any | None) -> datetime:
-        return _as_of_datetime(as_of) if as_of is not None else self._strategy_as_of()
+        """Keep backtest requests at or before the simulated strategy clock."""
+        if as_of is None:
+            return self._strategy_as_of()
+        requested = _as_of_datetime(as_of)
+        if self._use_cache():
+            return min(requested, self._strategy_as_of())
+        return requested
 
     def _cache_path(self, *parts: str) -> Path:
         safe = [re.sub(r"[^A-Za-z0-9_.=-]+", "_", str(part)).strip("_") for part in parts]
@@ -251,10 +257,13 @@ class FXMacroData:
             params={key: value for key, value in params.items() if value is not None},
             headers=self._headers() or None,
             timeout=30,
+            allow_redirects=False,
         )
         status_code = getattr(response, "status_code", 200)
         if status_code == 409:
             return status_code, None
+        if 300 <= status_code < 400:
+            raise ValueError("FXMacroData redirects are not allowed.")
         response.raise_for_status()
         return status_code, response.json()
 

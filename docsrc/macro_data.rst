@@ -95,8 +95,13 @@ USD announcement data is public. Set ``FXMD_API_KEY`` or
 ``FXMACRODATA_API_KEY`` for non-USD and paid endpoint access. LumiBot sends the
 key as an ``X-API-Key`` header, not as an ``api_key`` query parameter.
 
-In a backtest, ``as_of`` defaults to ``self.get_datetime()``. LumiBot drops
-rows whose ``announcement_datetime`` is after ``as_of``, and also drops rows the
+HTTP redirects are rejected, so the key header is never forwarded to a redirect
+destination. Redirect errors do not include the destination URL or response body.
+
+In a backtest, ``as_of`` defaults to ``self.get_datetime()``. Explicit ``as_of``
+values later than the simulated strategy clock are capped at that clock; earlier
+values stay earlier. The request's ``end`` date cannot exceed that effective
+date. LumiBot drops rows whose ``announcement_datetime`` is after ``as_of``, and also drops rows the
 API returns without an announcement datetime, because their period date usually
 precedes the real release. Outside backtests those rows are kept, gated on their
 period date, and marked ``gated_on: "period_date"`` (other rows carry

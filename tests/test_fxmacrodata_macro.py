@@ -2,7 +2,7 @@
 
 # pylint: disable=missing-class-docstring,missing-function-docstring
 
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 import pytest
 
@@ -225,7 +225,11 @@ def test_fxmacrodata_backtest_latest_cache_is_refetched_if_it_stopped_early(
         "announcement_datetime": "2025-01-10T13:30:00Z",
     }
     rows = [*unpublished, published]
-    fxmd = fxmacrodata_factory(_BacktestingStrategy(), _paged_fake_get(rows, calls))
+    strategy = _BacktestingStrategy()
+    # Keep both requests at or before the simulated clock: this test checks
+    # same-day cache completeness, not access to future releases.
+    strategy.get_datetime = lambda: datetime(2025, 1, 15, 14, 0, tzinfo=timezone.utc)
+    fxmd = fxmacrodata_factory(strategy, _paged_fake_get(rows, calls))
 
     # Later in the day the first page already holds a published row ...
     later = fxmd.get_latest("usd", "inflation", as_of="2025-01-15T14:00:00Z")
@@ -466,3 +470,156 @@ def test_macro_data_preserves_fred_methods_and_adds_fxmacrodata(tmp_path):
     assert macro.list_series(category="rates")["series"]
     assert macro.fxmacrodata.list_indicators(category="rates")["indicators"]
     assert macro.fxmd is macro.fxmacrodata
+
+
+@pytest.mark.parametrize("method", ["get_series", "get_latest", "get_snapshot"])
+@pytest.mark.parametrize("callable_flag", [False, True])
+@pytest.mark.parametrize(
+    "strategy_clock",
+    [
+        datetime(2025, 1, 15, 12, 0),
+        datetime(2025, 1, 15, 12, 0, tzinfo=timezone.utc),
+        datetime(2025, 1, 15, 7, 0, tzinfo=timezone(timedelta(hours=-5))),
+    ],
+)
+@pytest.mark.parametrize(
+    "future_as_of",
+    [
+        datetime(2025, 1, 16, 14, 0),
+        datetime(2025, 1, 16, 14, 0, tzinfo=timezone.utc),
+        "2025-01-16T19:00:00+05:00",
+    ],
+)
+def test_fxmacrodata_backtest_future_as_of_is_capped(
+    fxmacrodata_factory,
+    method,
+    callable_flag,
+    strategy_clock,
+    future_as_of,
+):
+    calls = []
+
+    def fake_get(_url, **kwargs):
+        calls.append(kwargs["params"].copy())
+        payload = _payload()
+        payload["data"].append(
+            {
+                "date": "2024-12-15",
+                "val": "2.5",
+                "announcement_datetime": "2025-01-15T12:00:00Z",
+            }
+        )
+        return _Response(payload=payload)
+
+    strategy = _BacktestingStrategy()
+    strategy.get_datetime = lambda: strategy_clock
+    strategy.is_backtesting = (lambda: True) if callable_flag else True
+    fxmd = fxmacrodata_factory(strategy, fake_get)
+    if method == "get_snapshot":
+        result = fxmd.get_snapshot("usd", ["inflation"], as_of=future_as_of)
+        assert result["values"]["inflation"]["value"] == 2.5
+        assert result["errors"] == {}
+    else:
+        kwargs = {"as_of": future_as_of}
+        if method == "get_series":
+            kwargs["end"] = "2025-01-20"
+        result = getattr(fxmd, method)("usd", "inflation", **kwargs)
+        assert [row["value"] for row in result["observations"]] == [2.4, 2.5]
+        if method == "get_latest":
+            assert result["latest"]["value"] == 2.5
+
+    assert result["as_of"] == "2025-01-15T12:00:00+00:00"
+    assert calls and all(call["end_date"] == "2025-01-15" for call in calls)
+
+
+@pytest.mark.parametrize("method", ["get_series", "get_latest", "get_snapshot"])
+def test_fxmacrodata_backtest_preserves_earlier_as_of(fxmacrodata_factory, method):
+    def fake_get(_url, **_kwargs):
+        payload = _payload()
+        payload["data"].append(
+            {
+                "date": "2024-11-01",
+                "val": "2.1",
+                "announcement_datetime": "2025-01-15T10:30:00Z",
+            }
+        )
+        return _Response(payload=payload)
+
+    fxmd = fxmacrodata_factory(_BacktestingStrategy(), fake_get)
+    if method == "get_snapshot":
+        result = fxmd.get_snapshot("usd", ["inflation"], as_of="2025-01-15T11:00:00Z")
+        assert result["values"]["inflation"]["value"] == 2.1
+    else:
+        result = getattr(fxmd, method)("usd", "inflation", as_of="2025-01-15T11:00:00Z")
+        assert [row["value"] for row in result["observations"]] == [2.1]
+    assert result["as_of"] == "2025-01-15T11:00:00+00:00"
+
+
+@pytest.mark.parametrize("method", ["get_series", "get_latest", "get_snapshot"])
+@pytest.mark.parametrize("callable_flag", [False, True])
+def test_fxmacrodata_live_explicit_as_of_is_preserved(fxmacrodata_factory, method, callable_flag):
+    strategy = _Strategy()
+    strategy.is_backtesting = (lambda: False) if callable_flag else False
+    fxmd = fxmacrodata_factory(strategy, lambda *_args, **_kwargs: _Response(payload=_payload()))
+    if method == "get_snapshot":
+        result = fxmd.get_snapshot("usd", ["inflation"], as_of="2025-01-16T14:00:00Z")
+        assert result["values"]["inflation"]["value"] == 2.6
+    else:
+        result = getattr(fxmd, method)("usd", "inflation", as_of="2025-01-16T14:00:00Z")
+        assert [row["value"] for row in result["observations"]] == [2.4, 2.6]
+    assert result["as_of"] == "2025-01-16T14:00:00+00:00"
+
+
+def test_fxmacrodata_backtest_preserves_end_before_clock(fxmacrodata_factory):
+    calls = []
+
+    def fake_get(_url, **kwargs):
+        calls.append(kwargs["params"].copy())
+        return _Response(payload={"data": []})
+
+    fxmd = fxmacrodata_factory(_BacktestingStrategy(), fake_get)
+    result = fxmd.get_series(
+        "usd",
+        "inflation",
+        end="2025-01-14",
+        as_of="2025-01-16T14:00:00Z",
+    )
+    assert result["as_of"] == "2025-01-15T12:00:00+00:00"
+    assert calls[0]["end_date"] == "2025-01-14"
+
+
+@pytest.mark.parametrize("status_code", [301, 302, 303, 307, 308])
+def test_fxmacrodata_rejects_redirects_without_forwarding_key(fxmacrodata_factory, status_code):
+    synthetic_key = "test-fxmd-key"
+    redirect_url = f"https://redirect.invalid/{synthetic_key}"
+    calls = []
+    redirected_calls = []
+    json_calls = []
+
+    class RedirectResponse(_Response):
+        headers = {"Location": redirect_url}
+        text = f"redirect response containing {synthetic_key}"
+
+        def json(self):
+            json_calls.append(True)
+            return {"data": []}
+
+    def fake_get(url, **kwargs):
+        calls.append((url, kwargs))
+        if kwargs.get("allow_redirects", True):
+            redirected_calls.append((redirect_url, kwargs["headers"]))
+        return RedirectResponse(status_code=status_code)
+
+    fxmd = fxmacrodata_factory(_Strategy(), fake_get, api_key=synthetic_key)
+
+    with pytest.raises(ValueError, match="^FXMacroData redirects are not allowed\\.$") as exc_info:
+        fxmd.get_series("eur", "inflation")
+
+    assert len(calls) == 1
+    assert calls[0][1]["allow_redirects"] is False
+    assert calls[0][1]["headers"] == {"X-API-Key": synthetic_key}
+    assert redirected_calls == []
+    assert json_calls == []
+    assert synthetic_key not in str(exc_info.value)
+    assert redirect_url not in str(exc_info.value)
+    assert "redirect response" not in str(exc_info.value)

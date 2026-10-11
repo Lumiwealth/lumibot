@@ -1,5 +1,13 @@
 # Schwab stock quantity preservation
 
+Preserve requested share quantities at the Schwab serialization boundary.
+
+Last Updated: 2026-10-11
+Status: Implemented; provider execution remains unverified
+Audience: Broker adapter contributors and reviewers
+
+## Overview
+
 The shared stock builder previously converted every order quantity with `int()`.
 A positive sub-share close became zero and failed inside `schwab-py` with
 `quantity must be positive`; a quantity such as `1.0436` silently became `1`.

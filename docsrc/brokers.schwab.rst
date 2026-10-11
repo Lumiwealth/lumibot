@@ -17,8 +17,8 @@ fail before submission instead of sending a different quantity.
 
 This preserves the requested quantity; it does not guarantee fractional trading
 eligibility through the Trader API. Schwab determines account, security, order
-type, and session eligibility. Provider rejections remain visible through the
-order error callback, and rejected cleanup orders do not close the position.
+type, and session eligibility. Submission rejections remain visible through the
+order error callback. Rejected cleanup orders do not close the position.
 
 Broker order observations preserve Schwab's rejection description, including
 observations recovered by a direct order lookup and errors deferred during

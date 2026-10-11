@@ -2566,7 +2566,18 @@ class Schwab(Broker):
 
         # Get order parameters
         symbol = self._normalize_symbol_for_broker(order.asset.symbol, asset_type=order.asset.asset_type)
-        quantity = int(order.quantity)
+        from decimal import Decimal
+
+        requested_quantity = Decimal(str(order.quantity))
+        if not requested_quantity.is_finite() or requested_quantity <= 0:
+            raise ValueError("Schwab stock quantity must be finite and positive")
+        # Preserve the requested decimal in JSON; never round a position close.
+        if requested_quantity == requested_quantity.to_integral_value():
+            quantity = int(requested_quantity)
+        else:
+            quantity = float(requested_quantity)
+        if Decimal(str(quantity)) != requested_quantity:
+            raise ValueError("Schwab stock quantity cannot be represented without losing precision")
         limit_price = order.limit_price
         if order.order_type == Order.OrderType.STOP_LIMIT:
             limit_price = order.stop_limit_price

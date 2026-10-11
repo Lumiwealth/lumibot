@@ -13,6 +13,7 @@ Deploy marker: `805f00ab67f87bed5dc5591c4ffe18a03695f425`.
 - Repair incomplete daily stock/index history through the qualified alternate route without replacing valid overlapping prices. Preserve genuine closed-session gaps and exact cold/warm results.
 - Cancel pending raw-share equity orders through the normal broker cancellation path when a split changes their quantity basis; do not silently adjust outstanding orders.
 - Expose sanitized retry causes and verified history bounds for actionable backtest recovery, with regression coverage for valid zero-trade results.
+- Accept recovered daily prices even when an earlier route's telemetry still reports that day missing. Keep the original download evidence and reject genuinely absent rows; direct and routed replays preserve exact bars, signals, fills, cash, holdings and equity.
 - Add frozen real corporate-event engine regressions, independent cash/share/equity ledgers, split-basis cache extension and replay tests, and volume/provenance regressions. No general live-agent prompt or strategy-rule changes are part of these IBKR repairs.
 
 - Keep backtesting position entry basis accurate across additions, reductions, partial fills, reversals, and reopening after a full close.

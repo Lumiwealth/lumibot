@@ -275,10 +275,19 @@ def record_required_history(*, asset, timestep, requested_bars, frame, when, req
     with _HEALTH_LOCK:
         if returned and isinstance(usable.index, pd.DatetimeIndex):
             first, last = usable.index.min().date().isoformat(), usable.index.max().date().isoformat()
+            from lumibot.tools.helpers import parse_canonical_timestep
+
+            # Prefetch telemetry may describe a route that failed before another
+            # route/cache repair supplied the missing daily row. Validate the
+            # prices this decision actually received, without erasing the failed
+            # route's evidence. One intraday row does not prove a whole session.
+            daily_dates = ({stamp.date().isoformat() for stamp in usable.index}
+                           if parse_canonical_timestep(timestep) == (1, "day") else None)
             for health in _HEALTH_BY_SERIES.values():
                 if (health["symbol"] == symbol and health["asset_type"] == asset_type
                         and health["timestep"] == str(timestep) and health["outcome"] != "complete"):
-                    missing.extend(day for day in health["missing_sessions"] if first <= day <= last)
+                    missing.extend(day for day in health["missing_sessions"]
+                                   if first <= day <= last and (daily_dates is None or day not in daily_dates))
                     if health["reason"] == "unresolved_roll_contract":
                         # This interval is an explicitly absent contract segment,
                         # not the broader optional prefetch window. Older bars can

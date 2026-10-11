@@ -7,7 +7,18 @@ Charles Schwab API Trading with LumiBot
 Lumibot integrates directly with Charles Schwab's *Trader* API for equities and options.  Everything you need is built-in; no external wrapper is required.
 
 Order lifecycle and rejection details
-------------------------------------
+-------------------------------------
+
+Stock orders and replacements preserve fractional quantities rather than
+rounding down to whole shares. For example, a request for ``0.0436`` shares
+stays ``0.0436``, and ``1.0436`` stays ``1.0436``. Whole-share quantities remain
+integers. Nonpositive, nonfinite, or numerically unrepresentable quantities
+fail before submission instead of sending a different quantity.
+
+This preserves the requested quantity; it does not guarantee fractional trading
+eligibility through the Trader API. Schwab determines account, security, order
+type, and session eligibility. Submission rejections remain visible through the
+order error callback. Rejected cleanup orders do not close the position.
 
 Broker order observations preserve Schwab's rejection description, including
 observations recovered by a direct order lookup and errors deferred during

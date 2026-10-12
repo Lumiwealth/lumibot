@@ -1620,6 +1620,44 @@ def test_schwab_direct_lookup_delivers_rejection_details_once_before_terminalizi
     assert payload["statusDescription"] in str(details["error"])
 
 
+@pytest.mark.parametrize("has_underlying_symbol", [True, False])
+def test_real_schwab_option_parse_and_direct_refresh_preserve_underlying_symbol(
+    real_lifecycle_broker, has_underlying_symbol,
+):
+    broker, initial_order, events = real_lifecycle_broker
+    payload = _option_order_payload()
+    if not has_underlying_symbol:
+        payload["orderLegCollection"][0]["instrument"].pop("underlyingSymbol")
+    stored = broker._parse_broker_order(payload, initial_order.strategy)
+
+    assert stored.asset.symbol == "LW"
+    assert stored.asset.asset_type == Asset.AssetType.OPTION
+    assert stored.asset.expiration == date(2026, 5, 29)
+    assert stored.asset.strike == 38
+    assert stored.asset.right == "CALL"
+    assert stored.asset.underlying_asset is None
+    broker._new_orders.remove(initial_order.identifier, key="identifier")
+    broker._new_orders.append(stored)
+    original_asset = stored.asset
+    payload.update(status="FILLED", filledQuantity=1, averagePrice=4.84)
+    broker.schwab_authorization_error = False
+    broker.hash_value = "synthetic-account-hash"
+    broker.client = _OrderClient(SimpleNamespace(status_code=200, json=lambda: payload))
+
+    assert broker._refresh_missing_active_order_from_broker(stored, stored.strategy)
+    broker._refresh_missing_active_order_from_broker(stored, stored.strategy)
+    refreshed = broker.get_tracked_order(stored.identifier)
+
+    assert refreshed is stored
+    assert refreshed.is_filled()
+    assert refreshed.asset is original_asset
+    assert refreshed.asset.symbol == "LW"
+    assert refreshed.asset.underlying_asset is None
+    assert [transaction.quantity for transaction in refreshed.transactions] == [1]
+    assert events == [(broker.FILLED_ORDER, 1.0, 1)]
+    assert broker.client.get_order_calls == [(stored.identifier, broker.hash_value)] * 2
+
+
 def test_schwab_direct_lookup_delivers_partial_then_final_fill_without_losing_delta():
     stored = _order()
     stored.quantity = 100

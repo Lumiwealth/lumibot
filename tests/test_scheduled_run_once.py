@@ -4,15 +4,16 @@ import logging
 from queue import Queue
 from types import SimpleNamespace
 
+import pandas as pd
 import pytest
 
+from lumibot.entities import Asset, Order, SmartLimitConfig
 from lumibot.strategies import strategy as strategy_module
 from lumibot.strategies import strategy_executor as strategy_executor_module
 from lumibot.strategies._strategy import Vars, _Strategy
+from lumibot.strategies.scheduled_timing import ScheduledRunTiming
 from lumibot.strategies.strategy_executor import StrategyExecutor
 from lumibot.traders.trader import Trader
-from lumibot.entities import Asset, Order, SmartLimitConfig
-from lumibot.strategies.scheduled_timing import ScheduledRunTiming
 
 
 class _DummyBroker:
@@ -880,3 +881,95 @@ def test_run_once_restores_state_before_lifecycle_hooks(tmp_path, monkeypatch):
     persisted = json.loads(state_file.read_text(encoding="utf-8"))
     assert persisted["count"] == 3
     assert strategy.iterations == 1
+
+
+def test_scheduled_state_file_round_trips_timestamp_and_date_dict_keys(tmp_path, monkeypatch):
+    """Regression: dicts keyed by pandas.Timestamp / date must persist across scheduled runs.
+
+    Production bots store strategy vars with Timestamp-keyed dicts. Backup previously
+    crashed inside json.dumps because _encode_variable_for_backup only wrapped
+    Timestamp/date VALUES, not dict KEYS. Exact production error:
+    TypeError: keys must be str, int, float, bool or None, not Timestamp
+    """
+    state_file = tmp_path / "scheduled_state.json"
+    strategy = object.__new__(_Strategy)
+    strategy.is_backtesting = False
+    strategy.vars = Vars()
+    strategy.logger = logging.getLogger("test_scheduled_state_ts_keys")
+    strategy._last_backup_state = None
+
+    monkeypatch.setenv("LUMIBOT_SCHEDULED_EXECUTION", "true")
+    monkeypatch.setenv("LUMIBOT_SCHEDULED_STATE_BACKEND", "s3")
+    monkeypatch.setenv("LUMIBOT_SCHEDULED_STATE_FILE", str(state_file))
+
+    bar_ts = pd.Timestamp("2026-05-11 09:30:00")
+    bar_ts_2 = pd.Timestamp("2026-05-12 09:30:00")
+    trade_date = datetime.date(2026, 5, 12)
+    trade_date_2 = datetime.date(2026, 5, 13)
+
+    # Keep non-JSON-native keys in their own dicts (no mixed str keys) so the
+    # failure mode matches production: json.dumps TypeError on Timestamp keys.
+    strategy.vars.set(
+        "by_bar",
+        {
+            bar_ts: {"qty": 1, "side": "buy"},
+            bar_ts_2: {"qty": 2, "side": "sell"},
+        },
+    )
+    strategy.vars.set(
+        "by_date",
+        {
+            trade_date: {"qty": 3},
+            trade_date_2: {"qty": 4},
+        },
+    )
+    strategy.vars.set(
+        "nested_holder",
+        {
+            "inner": {
+                bar_ts: {"flag": True},
+                bar_ts_2: {"flag": False},
+            },
+            "note": "ok",
+        },
+    )
+    strategy.vars.set("plain", 7)
+
+    _Strategy._backup_variables_to_scheduled_state_file(strategy)
+
+    assert state_file.exists(), "scheduled state file must be written on successful backup"
+    persisted = json.loads(state_file.read_text(encoding="utf-8"))
+    assert "by_bar" in persisted
+    assert "by_date" in persisted
+    assert persisted["plain"] == 7
+
+    restored = object.__new__(_Strategy)
+    restored.is_backtesting = False
+    restored.vars = Vars()
+    restored.logger = logging.getLogger("test_scheduled_state_ts_keys_load")
+    restored._last_backup_state = None
+    monkeypatch.setenv("LUMIBOT_SCHEDULED_STATE_FILE", str(state_file))
+
+    _Strategy._load_variables_from_scheduled_state_file(restored)
+
+    by_bar = restored.vars.get("by_bar")
+    by_date = restored.vars.get("by_date")
+    nested_holder = restored.vars.get("nested_holder")
+
+    assert by_bar[bar_ts] == {"qty": 1, "side": "buy"}
+    assert by_bar[bar_ts_2] == {"qty": 2, "side": "sell"}
+    assert by_date[trade_date] == {"qty": 3}
+    assert by_date[trade_date_2] == {"qty": 4}
+    assert nested_holder["inner"][bar_ts] == {"flag": True}
+    assert nested_holder["inner"][bar_ts_2] == {"flag": False}
+    assert nested_holder["note"] == "ok"
+    assert restored.vars.get("plain") == 7
+
+    # date keys must remain date (not datetime); Timestamp keys may round-trip as
+    # datetime.datetime with the same instant (matching Timestamp VALUE encoding).
+    assert all(type(k) is datetime.date for k in by_date)
+    assert set(by_date) == {trade_date, trade_date_2}
+    assert all(
+        (isinstance(k, datetime.datetime) or isinstance(k, pd.Timestamp)) and k in (bar_ts, bar_ts_2)
+        for k in by_bar
+    )

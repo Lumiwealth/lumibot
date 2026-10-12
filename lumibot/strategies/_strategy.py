@@ -4614,6 +4614,15 @@ class _Strategy:
         if isinstance(value, datetime.date):
             return {"__lumibot_type__": "date", "value": value.isoformat()}
         if isinstance(value, dict):
+            if any(not isinstance(key, (str, int, float, bool, type(None))) for key in value):
+                # JSON object keys cannot hold typed envelopes; preserve them as pairs.
+                return {
+                    "__lumibot_type__": "dict_items",
+                    "value": [
+                        [_Strategy._encode_variable_for_backup(key), _Strategy._encode_variable_for_backup(nested)]
+                        for key, nested in value.items()
+                    ],
+                }
             encoded = {key: _Strategy._encode_variable_for_backup(nested) for key, nested in value.items()}
             if set(value) == {"__lumibot_type__", "value"}:
                 # Escape literal envelopes, including this escape tag itself.
@@ -4632,6 +4641,11 @@ class _Strategy:
     def _decode_variable_from_backup(value):
         if isinstance(value, dict):
             if set(value.keys()) == {"__lumibot_type__", "value"}:
+                if value["__lumibot_type__"] == "dict_items":
+                    return {
+                        _Strategy._decode_variable_from_backup(key): _Strategy._decode_variable_from_backup(nested)
+                        for key, nested in value["value"]
+                    }
                 if value["__lumibot_type__"] == "dict":
                     return {
                         key: _Strategy._decode_variable_from_backup(nested)

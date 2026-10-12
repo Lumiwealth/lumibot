@@ -7,7 +7,7 @@ from types import SimpleNamespace
 
 import pytest
 
-from lumibot.brokers.broker import LumibotBrokerAPIError
+from lumibot.brokers.broker import Broker, LumibotBrokerAPIError
 from lumibot.brokers.schwab import Schwab
 from lumibot.entities import Asset, Order, Position
 from lumibot.trading_builtins import SafeList
@@ -225,6 +225,7 @@ def _observed_order(status, cumulative_filled=0, average_fill_price=None, identi
 
 def _broker_for_lifecycle(stored_order):
     broker = Schwab.__new__(Schwab)
+    broker._lock = RLock()
     broker._schwab_observed_fill_quantities = {}
     broker._schwab_terminal_observations = set()
     broker.get_tracked_order = lambda identifier: stored_order if identifier == stored_order.identifier else None
@@ -245,6 +246,208 @@ def _broker_for_lifecycle(stored_order):
 
     broker._process_trade_event = process_trade_event
     return broker
+
+
+@pytest.fixture
+def real_lifecycle_broker(monkeypatch):
+    """Real Broker reducers and Order transactions, with no threads or Strategy."""
+    monkeypatch.setenv("LUMIBOT_TELEMETRY", "false")
+    broker = Schwab.__new__(Schwab)
+    Broker.__init__(
+        broker, name="synthetic-schwab", connect_stream=False, start_orders_thread=False,
+        data_source=SimpleNamespace(get_datetime=lambda: datetime(2026, 10, 12, tzinfo=timezone.utc)),
+    )
+    broker._strategy_name = "unit-test"
+    broker._schwab_observed_fill_quantities = {}
+    broker._schwab_terminal_observations = set()
+    events = []
+
+    def receive(event, payload):
+        current = payload["order"]
+        events.append((event, payload.get("quantity"), sum(t.quantity for t in current.transactions)))
+
+    broker._subscribers.append(SimpleNamespace(
+        name="unit-test", add_event=receive, NEW_ORDER=broker.NEW_ORDER,
+        ERROR_ORDER=broker.ERROR_ORDER, CANCELED_ORDER=broker.CANCELED_ORDER,
+        PARTIALLY_FILLED_ORDER=broker.PARTIALLY_FILLED_ORDER, FILLED_ORDER=broker.FILLED_ORDER,
+    ))
+    stored = _order()
+    stored.quantity = 100
+    broker._new_orders.append(stored)
+    return broker, stored, events
+
+
+def test_real_schwab_local_error_then_fresh_fill_records_one_hundred(real_lifecycle_broker):
+    broker, stored, events = real_lifecycle_broker
+    broker._process_trade_event(stored, broker.ERROR_ORDER, error=RuntimeError("transport outcome unknown"))
+    observed = _observed_order(Order.OrderStatus.FILLED, 100, 10.0)
+    observed.quantity = 100
+    for _ in range(2):
+        broker._process_schwab_order_snapshot(observed)
+    assert stored.is_filled()
+    assert [t.quantity for t in stored.transactions] == [100]
+    assert events[-1] == (broker.FILLED_ORDER, 100.0, 100)
+    assert sum(event[0] == broker.FILLED_ORDER for event in events) == 1
+    assert broker.get_tracked_order(stored.identifier) is stored
+    assert list(broker._tracked_orders).count(stored) == 1
+
+
+def test_real_schwab_partial_forty_local_error_then_final_fill_adds_only_sixty(real_lifecycle_broker):
+    broker, stored, events = real_lifecycle_broker
+    broker._process_schwab_order_snapshot(_observed_order(Order.OrderStatus.PARTIALLY_FILLED, 40, 10.0))
+    broker._process_trade_event(stored, broker.ERROR_ORDER, error=RuntimeError("stream failure"))
+    observed = _observed_order(Order.OrderStatus.FILLED, 100, 10.0)
+    observed.quantity = 100
+    for _ in range(2):
+        broker._process_schwab_order_snapshot(observed)
+    assert stored.is_filled()
+    assert [t.quantity for t in stored.transactions] == [40, 60]
+    assert events[-1] == (broker.FILLED_ORDER, 60.0, 100)
+    assert list(broker._tracked_orders).count(stored) == 1
+
+
+@pytest.mark.parametrize("late_status", [Order.OrderStatus.CANCELED, Order.OrderStatus.PARTIALLY_FILLED])
+def test_real_schwab_canceled_zero_then_late_cumulative_forty_records_once(real_lifecycle_broker, late_status):
+    broker, stored, events = real_lifecycle_broker
+    broker._process_schwab_order_snapshot(_observed_order(Order.OrderStatus.CANCELED))
+    observed = _observed_order(late_status, 40, 10.0)
+    observed.quantity = 100
+    for _ in range(2):
+        broker._process_schwab_order_snapshot(observed)
+    assert stored.is_canceled()
+    assert [t.quantity for t in stored.transactions] == [40]
+    assert [event for event in events if event[0] == broker.PARTIALLY_FILLED_ORDER] == [
+        (broker.PARTIALLY_FILLED_ORDER, 40.0, 40),
+    ]
+    assert sum(event[0] == broker.CANCELED_ORDER for event in events) == 1
+    assert list(broker._tracked_orders).count(stored) == 1
+
+
+@pytest.mark.parametrize("broker_confirmed", [False, True])
+def test_real_schwab_partial_fill_distinguishes_confirmed_rejection_from_local_error(
+    real_lifecycle_broker, broker_confirmed,
+):
+    broker, stored, events = real_lifecycle_broker
+    if broker_confirmed:
+        broker._process_schwab_order_snapshot(_observed_order(Order.OrderStatus.ERROR))
+    else:
+        broker._process_trade_event(stored, broker.ERROR_ORDER, error=RuntimeError("local transport failure"))
+    observed = _observed_order(Order.OrderStatus.PARTIALLY_FILLED, 40, 10.0)
+    for _ in range(2):
+        broker._process_schwab_order_snapshot(observed)
+    assert stored.status == (Order.OrderStatus.ERROR if broker_confirmed else Order.OrderStatus.PARTIALLY_FILLED)
+    assert stored._closed_event.is_set() is broker_confirmed
+    assert [t.quantity for t in stored.transactions] == [40]
+    assert events[-1] == (broker.PARTIALLY_FILLED_ORDER, 40.0, 40)
+    assert list(broker._tracked_orders).count(stored) == 1
+    broker._process_schwab_order_snapshot(_observed_order(Order.OrderStatus.NEW))
+    if broker_confirmed:
+        assert stored.status == Order.OrderStatus.ERROR
+
+
+def test_real_schwab_restart_high_water_uses_existing_confirmed_transactions(real_lifecycle_broker):
+    broker, stored, events = real_lifecycle_broker
+    broker._process_trade_event(stored, broker.PARTIALLY_FILLED_ORDER, price=10, filled_quantity=40)
+    broker._process_trade_event(stored, broker.ERROR_ORDER, error=RuntimeError("local transport failure"))
+    assert broker._schwab_observed_fill_quantities == {}
+    observed = _observed_order(Order.OrderStatus.FILLED, 100, 10.0)
+    observed.quantity = 100
+    broker._process_schwab_order_snapshot(observed)
+    assert [t.quantity for t in stored.transactions] == [40, 60]
+    assert events[-1] == (broker.FILLED_ORDER, 60.0, 100)
+
+
+@pytest.mark.parametrize("terminal_status", [
+    Order.OrderStatus.CANCELED, Order.OrderStatus.ERROR, Order.OrderStatus.EXPIRED,
+])
+def test_real_schwab_late_partial_preserves_exact_confirmed_terminal_status(real_lifecycle_broker, terminal_status):
+    broker, stored, events = real_lifecycle_broker
+    if terminal_status == Order.OrderStatus.EXPIRED:
+        # Restored terminal data can retain the parser's exact EXPIRED status.
+        # Native Broker events/buckets below still perform every fill mutation.
+        stored.status = terminal_status
+        stored.raw_order_status = "EXPIRED"
+        stored.error_message = "Confirmed order expiry"
+        stored._closed_event.set()
+        broker._new_orders.remove(stored.identifier, key="identifier")
+        broker._error_orders.append(stored)
+        broker._schwab_terminal_observations.add((stored.identifier, str(terminal_status)))
+    else:
+        broker._process_schwab_order_snapshot(_observed_order(terminal_status))
+    reason = stored.error_message
+    observed = _observed_order(Order.OrderStatus.PARTIALLY_FILLED, 40, 10.0)
+    for _ in range(2):
+        broker._process_schwab_order_snapshot(observed)
+    assert stored.status == terminal_status
+    assert stored._closed_event.is_set()
+    assert [t.quantity for t in stored.transactions] == [40]
+    assert stored.error_message == reason
+    assert list(broker._tracked_orders).count(stored) == 1
+    assert sum(event[0] == broker.PARTIALLY_FILLED_ORDER for event in events) == 1
+
+
+def test_real_schwab_error_after_recorded_full_fill_restores_status_without_another_fill(real_lifecycle_broker):
+    broker, stored, events = real_lifecycle_broker
+    observed = _observed_order(Order.OrderStatus.FILLED, 100, 10.0)
+    observed.quantity = 100
+    broker._process_schwab_order_snapshot(observed)
+    broker._process_trade_event(stored, broker.ERROR_ORDER, error=RuntimeError("late local transport error"))
+    for _ in range(2):
+        broker._process_schwab_order_snapshot(observed)
+    assert stored.is_filled()
+    assert [t.quantity for t in stored.transactions] == [100]
+    assert sum(event[0] == broker.FILLED_ORDER for event in events) == 1
+    assert list(broker._tracked_orders).count(stored) == 1
+
+
+def test_real_schwab_recovery_never_exposes_a_gap_between_terminal_and_filled_buckets(real_lifecycle_broker):
+    broker, stored, _events = real_lifecycle_broker
+    broker._process_trade_event(stored, broker.ERROR_ORDER, error=RuntimeError("local transport failure"))
+    entered, release, reader_done = Event(), Event(), Event()
+    native_process = broker._process_trade_event
+    readbacks = []
+
+    def paused_native_event(*args, **kwargs):
+        entered.set()
+        assert release.wait(2)
+        native_process(*args, **kwargs)
+
+    def read_current():
+        readbacks.append(broker.get_tracked_order(stored.identifier))
+        reader_done.set()
+
+    broker._process_trade_event = paused_native_event
+    observed = _observed_order(Order.OrderStatus.FILLED, 100, 10.0)
+    observed.quantity = 100
+    writer = Thread(target=broker._process_schwab_order_snapshot, args=(observed,))
+    reader = Thread(target=read_current)
+    writer.start()
+    try:
+        assert entered.wait(1)
+        reader.start()
+        assert not reader_done.wait(0.2), "Tracked reads must wait for this atomic lifecycle move"
+    finally:
+        release.set()
+        writer.join(2)
+        if reader.ident is not None:
+            reader.join(2)
+    assert readbacks == [stored]
+    assert stored.is_filled()
+
+
+def test_real_schwab_terminal_and_foreign_controls_do_not_regress_or_duplicate(real_lifecycle_broker):
+    broker, stored, events = real_lifecycle_broker
+    observed = _observed_order(Order.OrderStatus.FILLED, 100, 10.0)
+    observed.quantity = 100
+    broker._process_schwab_order_snapshot(observed)
+    for value in [observed, _observed_order(Order.OrderStatus.NEW),
+                  _observed_order(Order.OrderStatus.PARTIALLY_FILLED, 40, 10.0),
+                  _observed_order(Order.OrderStatus.CANCELED),
+                  _observed_order(Order.OrderStatus.FILLED, 100, 10.0, identifier="foreign")]:
+        broker._process_schwab_order_snapshot(value)
+    assert stored.is_filled()
+    assert [t.quantity for t in stored.transactions] == [100]
+    assert events == [(broker.FILLED_ORDER, 100.0, 100)]
 
 
 def _option_asset():

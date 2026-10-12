@@ -600,6 +600,10 @@ def _classify_agent_error(exc: BaseException) -> str:
     # actionable backtest failures, not valid no-op trading decisions.
     if typed_code == "provider_quota_exhausted":
         return "billing"
+    if typed_code in {"subscription_sharing_usage_limit_exceeded", "subscription_sharing_usage_unavailable"}:
+        return "billing"
+    if typed_code == "eval_call_limit_exceeded":
+        return "config"
     if typed_code == "protocol_integrity_error":
         return "config"
     if typed_code in {"provider_auth_failed", "unauthorized", "renewal_failed"}:
@@ -1260,6 +1264,23 @@ def _resolve_model_for_adk(
     if not isinstance(model, str):
         return model
     lower = model.strip().lower()
+    if lower.startswith("chatgpt/"):
+        from .chatgpt_auth import profile_path
+        from .chatgpt_llm import ChatGPTPlanLlm
+
+        slug = model.removeprefix("chatgpt/")
+        if not slug or "/" in slug:
+            raise ValueError("Use chatgpt/<slug> from the signed-in model catalog")
+        _configure_litellm_quietly()
+        _register_openai_gpt6_models()
+        kwargs = {}
+        if reasoning_effort is not None:
+            kwargs["reasoning_effort"] = reasoning_effort
+            kwargs["allowed_openai_params"] = ["reasoning_effort"]
+        timeout = _coerce_positive_timeout_seconds(model_request_timeout_seconds)
+        if timeout is not None:
+            kwargs["timeout"] = timeout
+        return ChatGPTPlanLlm(model="openai/responses/" + slug, profile=profile_path(), **kwargs)
     from lumibot.components.agents.managed_gateway import (
         MANAGED_MODEL_FAMILIES,
         ManagedAiGatewayError,
@@ -1466,7 +1487,7 @@ class GoogleADKRuntime:
         budget = request.model_call_budget
         if budget is None:
             return pruning, None
-        if not (_is_native_gemini_model(request.model) or _is_priced_openai_gpt6_model(request.model)):
+        if not (str(request.model).startswith("chatgpt/") or _is_native_gemini_model(request.model) or _is_priced_openai_gpt6_model(request.model)):
             raise ValueError(
                 "Per-call eval budgeting requires a priced model: native Gemini or a registered GPT-6 model."
             )
@@ -1806,7 +1827,7 @@ class GoogleADKRuntime:
             if http_options_type is not None:
                 config_kwargs["http_options"] = http_options_type(timeout=timeout_millis)
         if request.model_call_budget is not None:
-            if _is_priced_openai_gpt6_model(request.model):
+            if str(request.model).startswith("chatgpt/") or _is_priced_openai_gpt6_model(request.model):
                 # LiteLLM retries are disabled on the model itself
                 # (disable_provider_retries in _resolve_model_for_adk).
                 return config_kwargs

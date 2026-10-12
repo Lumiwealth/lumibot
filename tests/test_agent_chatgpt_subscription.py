@@ -1,0 +1,219 @@
+"""Subscription auth and transport contracts; no model or credential network calls."""
+import json
+import os
+import time
+
+import pytest
+
+from lumibot.components.agents import chatgpt_auth as auth
+
+
+def test_callback_accepts_returning_client_and_rejects_account_switch():
+    assert auth.validate_callback({"state": ["state"], "code": ["code"]}, "state", "issued") == ("code", "issued")
+    with pytest.raises(ValueError, match="client"):
+        auth.validate_callback({"state": ["state"], "code": ["code"], "client_id": ["other"]}, "state", "issued")
+    with pytest.raises(ValueError, match="state"):
+        auth.validate_callback({"state": ["bad"], "code": ["code"]}, "state", "issued")
+
+
+def test_dynamic_callback_requires_issued_registration():
+    for value in ({}, {"client_id": ["dynamic_agent_client"]}, {"client_id": ["a", "b"]}):
+        with pytest.raises(ValueError):
+            auth.validate_callback({"state": ["state"], "code": ["code"], **value}, "state")
+
+
+def test_private_profile_requires_permission_without_api_fallback(tmp_path, monkeypatch):
+    path = tmp_path / "profile.json"
+    auth.save_private(path, {"status": "connected", "scopes": [], "access_token": "synthetic"})
+    monkeypatch.setenv("OPENAI_API_KEY", "must-never-be-used")
+    with pytest.raises(RuntimeError, match="permission"):
+        auth.access_token(path)
+    assert path.stat().st_mode & 0o077 == 0
+    path.chmod(0o644)
+    with pytest.raises(RuntimeError, match="owner-only"):
+        auth.access_token(path)
+
+
+def test_profile_pin_is_not_changed_by_active_selection(tmp_path, monkeypatch):
+    from uuid import uuid4
+    first, second = str(uuid4()), str(uuid4())
+    monkeypatch.setenv("LUMIBOT_CHATGPT_HOME", str(tmp_path))
+    monkeypatch.delenv("LUMIBOT_CHATGPT_PROFILE", raising=False)
+    monkeypatch.delenv("LUMIBOT_CHATGPT_PROFILE_PATH", raising=False)
+    auth.save_private(tmp_path / "active.json", {"profile_id": first})
+    assert auth.profile_path().name == first + ".json"
+    auth.save_private(tmp_path / "active.json", {"profile_id": second})
+    assert auth.profile_path().name == first + ".json"
+
+
+def test_model_catalog_uses_subscription_shape_and_visibility(tmp_path, monkeypatch):
+    path = tmp_path / "profile.json"
+    auth.save_private(path, {"status": "connected", "scopes": ["chatgpt.tokens.use.direct"],
+                             "access_token": "synthetic", "saved_at": time.time(), "expires_in": 3600})
+    import httpx
+    def get(url, **kwargs):
+        assert url == "https://api.openai.com/v1/models"
+        assert kwargs["headers"]["Authorization"] == "Bearer synthetic"
+        return httpx.Response(200, request=httpx.Request("GET", url), json={"models": [
+            {"slug": "gpt-visible", "display_name": "Visible", "visibility": "list"},
+            {"slug": "gpt-hidden", "visibility": "hidden"}]})
+    monkeypatch.setattr(auth.httpx, "get", get)
+    assert auth.available_models(path) == [{"slug": "gpt-visible", "display_name": "Visible", "visibility": "list"}]
+
+
+def test_eval_preflight_rejects_paid_models_even_with_keys(monkeypatch):
+    from scripts import run_agent_evals as evals
+    monkeypatch.setenv("OPENAI_API_KEY", "must-never-be-used")
+    with pytest.raises(RuntimeError, match="subscription"):
+        evals.select_eval_credentials({"openai/gpt-6-luna"})
+    assert evals.DEFAULT_ACTING_MODEL.startswith("chatgpt/")
+    assert evals.DEFAULT_JUDGE_MODEL.startswith("chatgpt/")
+
+
+def test_subscription_call_budget_enforces_calls_across_resume(tmp_path):
+    from scripts.agent_eval_subscription_budget import SubscriptionCallBudget
+    path = tmp_path / "calls.jsonl"
+    budget = SubscriptionCallBudget(path, max_calls=1)
+    ticket = budget.for_scope("case", 1, "acting").reserve("chatgpt/gpt-6-luna", 100)
+    budget.settle(ticket, {"input_tokens": 5, "output_tokens": 2})
+    resumed = SubscriptionCallBudget(path, max_calls=1)
+    with pytest.raises(ValueError, match="call limit"):
+        resumed.reserve("chatgpt/gpt-6-luna", 100)
+    assert resumed.snapshot()["committed_usd"] == 0
+    assert resumed.snapshot()["usage"]["input_tokens"] == 5
+
+
+@pytest.mark.parametrize("event", ["error", "response.failed", "response.incomplete"])
+def test_stream_rejects_provider_quota_without_logging_provider_body(event):
+    import asyncio
+    import httpx
+    from lumibot.components.agents.chatgpt_llm import CompletionCheckedStream, SubscriptionModelResponseError
+    from lumibot.components.agents.runtime import _classify_agent_error
+    class Stream(httpx.AsyncByteStream):
+        async def __aiter__(self):
+            yield ("data: " + json.dumps({"type": event, "error": {
+                "code": "subscription_sharing_usage_limit_exceeded", "message": "private material"}}) + "\n\n").encode()
+    async def consume():
+        return [chunk async for chunk in CompletionCheckedStream(Stream())]
+    with pytest.raises(SubscriptionModelResponseError) as captured:
+        asyncio.run(consume())
+    assert _classify_agent_error(captured.value) == "billing"
+    assert "private material" not in str(captured.value)
+
+
+@pytest.mark.parametrize("complete", [True, False])
+def test_stream_requires_completed_terminal_event_across_chunk_boundaries(complete):
+    import asyncio
+    import httpx
+    from lumibot.components.agents.chatgpt_llm import CompletionCheckedStream
+    content = b'data: {"type":"response.output_text.delta","delta":"partial"}\n\n'
+    if complete:
+        content += b'data: {"type":"response.completed","response":{"status":"completed"}}\n\n'
+    class Stream(httpx.AsyncByteStream):
+        async def __aiter__(self):
+            for offset in range(0, len(content), 7):
+                yield content[offset:offset+7]
+    async def consume():
+        return b"".join([chunk async for chunk in CompletionCheckedStream(Stream())])
+    if complete:
+        assert asyncio.run(consume()) == content
+    else:
+        with pytest.raises(RuntimeError, match="subscription_stream_incomplete"):
+            asyncio.run(consume())
+
+
+def test_subscription_budget_config_does_not_require_api_pricing():
+    from types import SimpleNamespace
+    from google.genai import types
+    from lumibot.components.agents.runtime import GoogleADKRuntime
+    request = SimpleNamespace(model="chatgpt/gpt-6-luna", max_output_tokens=100,
+                              model_request_timeout_seconds=30, model_call_budget=object())
+    assert GoogleADKRuntime._generate_content_config_kwargs_for_request(request, types) == {"max_output_tokens": 100}
+
+
+def test_refresh_serializes_and_persists_rotating_tokens(tmp_path, monkeypatch):
+    from concurrent.futures import ThreadPoolExecutor
+    import httpx
+    path = tmp_path / "profile.json"
+    auth.save_private(path, {"status":"connected", "scopes":[auth.PLAN_SCOPE], "client_id":"issued",
+        "access_token":"old", "refresh_token":"old-refresh", "saved_at":0, "expires_in":1})
+    calls = []
+    def post(url, **kwargs):
+        calls.append(kwargs["data"])
+        time.sleep(0.05)
+        return httpx.Response(200, json={"access_token":"new", "refresh_token":"new-refresh", "expires_in":3600})
+    monkeypatch.setattr(auth.httpx, "post", post)
+    with ThreadPoolExecutor(max_workers=4) as pool:
+        assert list(pool.map(lambda _: auth.access_token(path), range(4))) == ["new"] * 4
+    assert len(calls) == 1
+    assert json.loads(path.read_text())["refresh_token"] == "new-refresh"
+
+
+def test_logout_clears_tokens_even_when_revocation_cannot_be_confirmed(tmp_path, monkeypatch):
+    import httpx
+    path = tmp_path / "profile.json"
+    auth.save_private(path, {"client_id":"issued", "subject":"subject", "status":"connected", "refresh_token":"secret"})
+    def handle(request):
+        if request.method == "GET":
+            return httpx.Response(200, json={"revocation_endpoint":auth.AUTH+"/oauth/revoke"})
+        return httpx.Response(503)
+    original = auth.httpx.Client
+    monkeypatch.setattr(auth.httpx, "Client", lambda **kwargs: original(transport=httpx.MockTransport(handle), **kwargs))
+    assert auth.logout(path) is False
+    record = json.loads(path.read_text())
+    assert record == {"client_id":"issued", "subject":"subject", "status":"disconnected"}
+
+
+@pytest.mark.parametrize("completed", [True, False])
+def test_actual_adk_subscription_transport_owns_stream_validation(monkeypatch, tmp_path, completed):
+    """Run the actual ADK/LiteLLM conversion against a recorded HTTP contract."""
+    import asyncio
+    import httpx
+    from google.adk.models.llm_request import LlmRequest
+    from google.genai import types
+    from lumibot.components.agents import chatgpt_llm
+    from lumibot.components.agents.runtime import _configure_litellm_quietly, _register_openai_gpt6_models
+    _configure_litellm_quietly()
+    _register_openai_gpt6_models()
+    monkeypatch.setattr(chatgpt_llm, "access_token", lambda path: "synthetic-plan-token")
+    requests = []
+    def handle(request):
+        requests.append(json.loads(request.content))
+        assert str(request.url) == "https://api.openai.com/v1/responses"
+        assert request.headers["authorization"] == "Bearer synthetic-plan-token"
+        terminal = {"id":"resp_contract", "object":"response", "model":"gpt-6-luna", "status":"completed",
+            "output":[{"id":"msg_contract", "type":"message", "role":"assistant", "status":"completed",
+                "content":[{"type":"output_text", "text":"ok", "annotations":[]}]}],
+            "usage":{"input_tokens":5, "output_tokens":2, "total_tokens":7}}
+        events = [{"type":"response.output_text.delta", "delta":"ok", "item_id":"msg_contract", "output_index":0, "content_index":0}]
+        if completed:
+            events.append({"type":"response.completed", "response":terminal})
+        data = "".join("data: "+json.dumps(event)+"\n\n" for event in events)
+        class Stream(httpx.AsyncByteStream):
+            async def __aiter__(self):
+                yield data.encode()
+        return httpx.Response(200, headers={"content-type":"text/event-stream"}, stream=Stream())
+    original_send = httpx.AsyncClient.send
+    async def synthetic_only(client, request, **kwargs):
+        assert isinstance(client._transport, httpx.MockTransport), "The owned subscription HTTP handler was bypassed"
+        return await original_send(client, request, **kwargs)
+    monkeypatch.setattr(httpx.AsyncClient, "send", synthetic_only)
+    model = chatgpt_llm.ChatGPTPlanLlm(model="openai/responses/gpt-6-luna", profile=tmp_path/"profile.json",
+                                     transport=httpx.MockTransport(handle))
+    request = LlmRequest(contents=[types.Content(role="user", parts=[types.Part(text="say ok")])],
+                         config=types.GenerateContentConfig(temperature=0.2, max_output_tokens=100))
+    async def consume():
+        return [response async for response in model.generate_content_async(request)]
+    if completed:
+        responses = asyncio.run(consume())
+        assert len(responses) == 1
+        assert responses[0].usage_metadata.prompt_token_count == 5
+    else:
+        with pytest.raises(chatgpt_llm.SubscriptionModelResponseError, match="subscription_stream_incomplete"):
+            asyncio.run(consume())
+    assert len(requests) == 1
+    assert requests[0]["stream"] is True
+    assert requests[0]["store"] is False
+    assert "temperature" not in requests[0]
+    assert "max_output_tokens" not in requests[0]
+    assert request.config.temperature == 0.2

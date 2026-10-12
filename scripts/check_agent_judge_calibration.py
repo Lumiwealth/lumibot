@@ -12,13 +12,14 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from scripts import run_agent_evals as evals
-from scripts.agent_eval_call_budget import EvalCallBudget
+from scripts.agent_eval_subscription_budget import SubscriptionCallBudget
 from scripts.agent_eval_isolation import configure_fixture_environment
 
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--max-cost-usd", type=float, required=True)
+    parser.add_argument("--max-cost-usd", type=float, default=0)
+    parser.add_argument("--max-model-calls", type=int, default=100)
     parser.add_argument("--output-root", type=Path, required=True)
     parser.add_argument("--case-id", action="append", default=[])
     args = parser.parse_args()
@@ -33,10 +34,7 @@ def main():
     evals.select_eval_credentials({evals.DEFAULT_JUDGE_MODEL})
     evals.preflight(list(cases.values()), evals.DEFAULT_JUDGE_MODEL, args.max_cost_usd)
     args.output_root.mkdir(parents=True, exist_ok=True)
-    budget = EvalCallBudget(
-        args.output_root / "model_calls.jsonl", cap_usd=args.max_cost_usd,
-        prices=evals.MODEL_PRICES_PER_MILLION, max_input_tokens=evals.MAX_INPUT_TOKENS_PER_MODEL_CALL,
-    )
+    budget = SubscriptionCallBudget(args.output_root / "model_calls.jsonl", max_calls=args.max_model_calls)
 
     def check(item, repetition):
         judge, result, seconds = evals.run_judge(

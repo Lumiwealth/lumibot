@@ -79,14 +79,14 @@ def test_release_eval_uses_production_manager_context_and_builtin_bindings(monke
         "run_judge",
         lambda *args: (
             {"pass": True, "reason": "unit fixture"},
-            AgentRunResult(summary="", model="gemini-3.1-flash-lite", events=[], usage={}),
+            AgentRunResult(summary="", model="chatgpt/gpt-6-luna", events=[], usage={}),
             0.0,
         ),
     )
     case = {
         "id": "parity-contract",
         "fixture": "stock_momentum",
-        "model": "gemini-3.5-flash-lite",
+        "model": "chatgpt/gpt-6-luna",
         "systemPrompt": "Inspect the account.",
         "taskPrompt": "Hold.",
         "machineContract": {"forbidOrderTools": True},
@@ -96,7 +96,7 @@ def test_release_eval_uses_production_manager_context_and_builtin_bindings(monke
         case,
         repetition=1,
         fingerprint="unit",
-        judge_model="gemini-3.1-flash-lite",
+        judge_model="chatgpt/gpt-6-luna",
         budget=SimpleNamespace(for_scope=lambda *args: object()),
     )
     assert len(requests) == 1
@@ -160,7 +160,7 @@ def test_every_eval_case_uses_a_real_model_and_a_production_contract():
     assert len({case["id"] for case in cases}) == len(cases)
     for case in cases:
         # Rob, 2026-09-23: release evals run the product default, GPT-6 Luna.
-        assert case["model"] == "openai/gpt-6-luna"
+        assert case["model"] == "chatgpt/gpt-6-luna"
         assert case["judgeRubric"].strip()
         assert case["machineContract"]
         assert "simulatedEvents" not in case
@@ -319,50 +319,27 @@ def test_research_eval_macro_rows_come_from_a_provenance_bearing_recorded_fixtur
     assert recorded["sources"]["treasury.daily_yield_curve"]["sourceUrl"].startswith("https://")
 
 
-def test_release_runner_prefers_gemini_key_when_both_credential_names_exist(monkeypatch):
-    monkeypatch.setenv("GEMINI_API_KEY", "release-gemini-key")
-    monkeypatch.setenv("GOOGLE_API_KEY", "stale-google-key")
-
-    assert evals.select_eval_credentials({"gemini-3.5-flash-lite"}) == ["GEMINI_API_KEY"]
-    assert os.environ["GOOGLE_API_KEY"] == "release-gemini-key"
-
-
-def test_release_runner_supports_google_key_when_it_is_the_only_credential(monkeypatch):
-    monkeypatch.delenv("GEMINI_API_KEY", raising=False)
-    monkeypatch.setenv("GOOGLE_API_KEY", "google-key")
-
-    assert evals.select_eval_credentials({"gemini-3.5-flash-lite"}) == ["GOOGLE_API_KEY"]
-    assert os.environ["GOOGLE_API_KEY"] == "google-key"
+@pytest.mark.parametrize("model", ["gemini-3.5-flash-lite", "openai/gpt-6-luna"])
+def test_release_runner_rejects_paid_models_despite_credentials(monkeypatch, model):
+    monkeypatch.setenv("OPENAI_API_KEY", "synthetic")
+    monkeypatch.setenv("GEMINI_API_KEY", "synthetic")
+    with pytest.raises(RuntimeError, match="subscription"):
+        evals.select_eval_credentials({model})
 
 
-def test_luna_evals_need_only_the_openai_key(monkeypatch):
-    monkeypatch.setenv("OPENAI_API_KEY", "synthetic-openai")
-    monkeypatch.delenv("GEMINI_API_KEY", raising=False)
-    monkeypatch.delenv("GOOGLE_API_KEY", raising=False)
-
-    assert evals.select_eval_credentials({"openai/gpt-6-luna"}) == ["OPENAI_API_KEY"]
-    evals.preflight(evals.load_cases(), evals.DEFAULT_JUDGE_MODEL, 2.0)
-
-    monkeypatch.delenv("OPENAI_API_KEY")
-    with pytest.raises(RuntimeError, match="OPENAI_API_KEY"):
-        evals.select_eval_credentials({"openai/gpt-6-luna"})
-    with pytest.raises(RuntimeError, match="OPENAI_API_KEY"):
-        evals.preflight(evals.load_cases(), evals.DEFAULT_JUDGE_MODEL, 2.0)
-
-
-def test_eval_defaults_are_gpt6_luna_on_medium_reasoning_with_registered_prices():
-    from lumibot.components.agents.manager import DEFAULT_AGENT_MODEL
-    from lumibot.components.agents.runtime import _OPENAI_GPT6_MODEL_INFO
-
-    assert evals.DEFAULT_ACTING_MODEL == DEFAULT_AGENT_MODEL == "openai/gpt-6-luna"
-    assert evals.DEFAULT_JUDGE_MODEL == "openai/gpt-6-luna"
+def test_eval_defaults_use_subscription_for_both_roles_with_medium_reasoning():
+    assert evals.DEFAULT_ACTING_MODEL == "chatgpt/gpt-6-luna"
+    assert evals.DEFAULT_JUDGE_MODEL == "chatgpt/gpt-6-luna"
     assert evals.EVAL_REASONING_EFFORT == "medium"
-    info = _OPENAI_GPT6_MODEL_INFO["gpt-6-luna"]
-    prices = evals.MODEL_PRICES_PER_MILLION["openai/gpt-6-luna"]
-    assert prices["input"] == pytest.approx(info["input_cost_per_token"] * 1_000_000)
-    assert prices["cached_input"] == pytest.approx(info["cache_read_input_token_cost"] * 1_000_000)
-    assert prices["output"] == pytest.approx(info["output_cost_per_token"] * 1_000_000)
-    assert "openai" in evals.estimate_cost("openai/gpt-6-luna", {"input_tokens": 10})["price_source_url"]
+    assert evals.estimate_cost(evals.DEFAULT_ACTING_MODEL, {"input_tokens": 10})["estimated_usd"] == 0
+
+
+@pytest.fixture(autouse=True)
+def synthetic_subscription_for_harness_contracts(monkeypatch, tmp_path):
+    from lumibot.components.agents import chatgpt_auth
+    monkeypatch.setattr(chatgpt_auth, "profile_path", lambda: tmp_path / "synthetic-profile.json")
+    monkeypatch.setattr(chatgpt_auth, "access_token", lambda path: "synthetic-token")
+    monkeypatch.setattr(chatgpt_auth, "available_models", lambda path: [{"slug": "gpt-6-luna"}])
 
 
 def test_acting_and_judge_requests_use_medium_reasoning(monkeypatch):
@@ -391,7 +368,7 @@ def test_acting_and_judge_requests_use_medium_reasoning(monkeypatch):
     monkeypatch.setattr(runtime, "GoogleADKRuntime", CaptureRuntime)
     case = evals.load_cases({"stock_price_before_order"})[0]
     evals.run_judge(case, {"tool_calls": []}, evals.DEFAULT_JUDGE_MODEL, None)
-    assert seen[0].model == "openai/gpt-6-luna"
+    assert seen[0].model == "chatgpt/gpt-6-luna"
     assert seen[0].reasoning_effort == "medium"
 
 
@@ -425,20 +402,24 @@ def test_release_publish_is_blocked_by_real_model_agent_evals():
     assert "agent-evals:" in workflow
     assert "python scripts/run_agent_evals.py" in workflow
     assert "needs: [validate-build, unit-tests, backtest-tests, agent-evals]" in workflow
-    assert "OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}" in workflow
+    assert "OPENAI_API_KEY" not in workflow
     standalone = (Path(__file__).resolve().parents[1] / ".github/workflows/agent-evals.yml").read_text(encoding="utf-8")
-    assert "OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}" in standalone
+    assert "OPENAI_API_KEY" not in standalone
 
 
-def test_paid_eval_workflows_enforce_their_declared_spending_caps():
+def test_subscription_eval_workflows_forbid_api_spend_and_bound_model_calls():
     repo_root = Path(__file__).resolve().parents[1]
     standalone = (repo_root / ".github/workflows/agent-evals.yml").read_text(encoding="utf-8")
     release = (repo_root / ".github/workflows/release.yml").read_text(encoding="utf-8")
 
-    assert 'default: "2"' in standalone
-    # Match the complete argument; the task's remaining publication budget is $0.70.
-    assert any(line.strip() == "--max-cost-usd 0.7 " + chr(92) for line in release.splitlines())
+    assert 'default: "0"' in standalone
+    # Match the complete argument: API spend is always zero.
+    assert any(line.strip() == "--max-cost-usd 0 " + chr(92) for line in release.splitlines())
     assert "--max-cost-usd 10" not in release
+    for workflow in (standalone, release):
+        assert "--max-model-calls" in workflow
+        assert "LUMIBOT_SUBSCRIPTION_EVAL_RUNNER" in workflow
+        assert "environment: subscription-evals" in workflow
 
 
 def test_standalone_eval_workflow_supports_targeted_case_repeats():
@@ -682,36 +663,26 @@ def test_eval_fingerprint_changes_with_runtime_and_judge():
     assert first != third
 
 
-def test_eval_cost_uses_official_cached_and_uncached_rates():
-    cost = evals.estimate_cost(
-        "gemini-3.5-flash-lite",
-        {
-            "input_tokens": 1_000_000,
-            "cached_input_tokens": 250_000,
-            "output_tokens": 100_000,
-        },
-    )
-    assert cost["estimated_usd"] == 0.4825
-    assert cost["price_source_url"].startswith("https://cloud.google.com/")
+def test_eval_usage_reports_cached_tokens_without_api_prices():
+    report = evals.estimate_cost("chatgpt/gpt-6-luna", {
+        "input_tokens": 1_000_000, "cached_input_tokens": 250_000, "output_tokens": 100_000,
+    })
+    assert report["estimated_usd"] == 0
+    assert report["funding"] == "chatgpt-plan"
+    assert report["usage"]["uncached_input_tokens"] == 750_000
+    with pytest.raises(RuntimeError, match="subscription"):
+        evals.estimate_cost("openai/gpt-6-luna", {"input_tokens": 1})
 
 
-def test_eval_initial_worker_admission_does_not_overcommit_initial_calls():
+def test_eval_subscription_worker_admission_is_bounded_by_worker_count():
     case = evals.load_cases({"stock_price_before_order"})[0]
     work = [(case, repetition, "fingerprint") for repetition in range(1, 4)]
-    # This admits workers, not whole tool loops. Per-call ledger tests enforce
-    # the actual cap before each continuation and across process resumes.
-    per_repetition = evals.initial_repetition_reservation_usd(case, evals.DEFAULT_JUDGE_MODEL)
-
-    batch, remaining = evals.reserve_budget_batch(
-        work,
-        max_workers=3,
-        remaining_budget=(per_repetition * 2) + (per_repetition / 2),
-        judge_model=evals.DEFAULT_JUDGE_MODEL,
-    )
-
+    batch, remaining = evals.reserve_budget_batch(work, max_workers=2, remaining_budget=1,
+                                                judge_model=evals.DEFAULT_JUDGE_MODEL)
     assert len(batch) == 2
     assert len(remaining) == 1
-    assert sum(item[3] for item in batch) <= (per_repetition * 2) + (per_repetition / 2)
+    assert sum(item[3] for item in batch) == 0
+    # The subscription ledger separately caps every continuation and judge.
 
 
 def test_runtime_fingerprint_includes_indicators_broker_and_installed_sdks(monkeypatch):
@@ -763,7 +734,7 @@ def test_fresh_gate_preserves_original_pass_time_without_spending(tmp_path, monk
             "--case-id",
             case["id"],
             "--max-cost-usd",
-            "4",
+            "0",
             "--freshness-state",
             str(state_path),
             "--output-root",
@@ -1041,7 +1012,7 @@ def test_preflight_only_never_constructs_a_spending_ledger(
         [
             "run_agent_evals.py",
             "--max-cost-usd",
-            "4",
+            "0",
             "--preflight-only",
             "--freshness-state",
             str(tmp_path / "freshness.json"),
@@ -1062,9 +1033,9 @@ def test_resume_rebuilds_missing_freshness_from_completed_matching_ledger(monkey
     """An interruption after ledger fsync must not require paying for passed cases again."""
     from datetime import timedelta
     from scripts import agent_eval_isolation
-    from scripts.agent_eval_call_budget import EvalCallBudget
+    from scripts.agent_eval_subscription_budget import SubscriptionCallBudget
 
-    case = {"id": "resume-contract", "model": "openai/gpt-6-luna"}
+    case = {"id": "resume-contract", "model": "chatgpt/gpt-6-luna"}
     monkeypatch.setattr(agent_eval_isolation, "configure_fixture_environment", lambda root: None)
     monkeypatch.setenv("OPENAI_API_KEY", "unused-synthetic-key")
     monkeypatch.setattr(evals, "load_cases", lambda ids: [case])
@@ -1079,10 +1050,9 @@ def test_resume_rebuilds_missing_freshness_from_completed_matching_ledger(monkey
     # An unrelated later fingerprint must not rejuvenate the recovered receipt.
     rows.append({"case_id": case["id"], "fingerprint": "other-runtime", "status": "pass", "timestamp": evals.utc_text()})
     (tmp_path / "ledger.jsonl").write_text("".join(json.dumps(r) + "\n" for r in rows))
-    EvalCallBudget(tmp_path / "model_calls.jsonl", cap_usd=25,
-                   prices=evals.MODEL_PRICES_PER_MILLION, max_input_tokens=evals.MAX_INPUT_TOKENS_PER_MODEL_CALL)
+    SubscriptionCallBudget(tmp_path / "model_calls.jsonl", max_calls=500)
     state_path = tmp_path / "freshness.json"
-    monkeypatch.setattr(evals.sys, "argv", ["run_agent_evals.py", "--max-cost-usd", "25",
+    monkeypatch.setattr(evals.sys, "argv", ["run_agent_evals.py", "--max-cost-usd", "0",
         "--output-root", str(tmp_path), "--freshness-state", str(state_path)])
     assert evals.main() == 0
     summary = json.loads(capsys.readouterr().out)

@@ -36,6 +36,7 @@ integrations, maintenance, developer tutorials, and strategic collaboration.
    :maxdepth: 1
 
    agents_flows
+   agents_chatgpt
    agents_builtin_tools
    agents_browser_tools
    agents_canonical_demos

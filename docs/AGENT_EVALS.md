@@ -2,7 +2,7 @@
 
 > Real-model release gates for LumiBot's built-in trading-agent behavior.
 
-**Last Updated:** 2026-09-23
+**Last Updated:** 2026-10-12
 **Status:** Active
 **Audience:** Both
 
@@ -11,9 +11,12 @@
 ## Overview
 
 LumiBot agent evals call the real trading model and a separate real LLM judge.
-Both default to the product default, OpenAI GPT-6 Luna (`openai/gpt-6-luna`) on
-medium reasoning, and need only `OPENAI_API_KEY`. Gemini is supported only when
-a case or `--judge-model` names a Gemini model explicitly; it is never a default.
+Both use the explicitly selected ChatGPT subscription connection, defaulting to
+`chatgpt/gpt-6-luna` on medium reasoning. API-funded model selections are rejected
+for both roles, including when ordinary provider API keys are present. Connect
+your own account with `python -m lumibot.components.agents.chatgpt_auth login`.
+Verify that connected-app paid-credit fallback is disabled in ChatGPT Usage;
+OAuth authentication alone cannot establish that account setting.
 They verify model behavior through the real Strategy, AgentManager and built-in
 tool bindings, with fixture OHLCV and broker responses underneath those APIs, while
 preventing broker writes, customer access, and unnecessary historical-data cost.
@@ -33,12 +36,12 @@ cannot pass as completed decisions.
 Each repetition receives a unique strategy identity and local replay directory;
 remote replay reads/writes are disabled at the cache transport boundary. Live
 hosted gateway and broker credentials never enter the fixture process. The CLI
-imports only the approved inference keys (`OPENAI_API_KEY`, plus a Gemini key
-only when one is set), disables LumiBot dotenv discovery before importing
-Strategy, and rejects non-inference HTTP requests at the transport boundary. The
-allowed requests are POSTs to the OpenAI Responses and Chat Completions
-endpoints and to Gemini's generate and count endpoints. This prevents a developer's default broker from starting during an
-import. No customer account or external broker writes are needed.
+retains only the explicitly selected protected subscription profile and essential
+OS configuration, disables LumiBot dotenv discovery before importing Strategy,
+and rejects ordinary provider credentials and external broker requests.
+Only the public Responses endpoint, subscription model discovery and rotating
+refresh endpoint are reachable through the fixture HTTP boundary. No API key,
+Codex credential extraction, customer account or external broker write is needed.
 
 ---
 
@@ -96,11 +99,12 @@ Validate schemas, actual tool bindings, MCP discovery and freshness without
 reserving budget or calling a model:
 
 ```bash
-python scripts/run_agent_evals.py --preflight-only --gate --max-cost-usd 4
+python scripts/run_agent_evals.py --preflight-only --gate --max-cost-usd 0
 ```
 
 This is a deterministic preflight, not a real-model pass or credential-acceptance
-check. It does not write a freshness receipt or create a spending ledger.
+check. It verifies the renewable plan permission and subscription model catalog,
+without inference. It does not write freshness or create a call ledger.
 
 Run deterministic preflight and the stale catalog:
 
@@ -109,7 +113,7 @@ python scripts/run_agent_evals.py \
   --gate \
   --repeat 3 \
   --max-workers 3 \
-  --max-cost-usd 10
+  --max-cost-usd 0 --max-model-calls 500
 ```
 
 Run one changed case three times:
@@ -118,11 +122,12 @@ Run one changed case three times:
 python scripts/run_agent_evals.py \
   --case-id options_credit_spread_close_signed_quantities \
   --repeat 3 \
-  --max-cost-usd 2
+  --max-cost-usd 0 --max-model-calls 80
 ```
 
-The runner fails before paid calls when case schemas, fixtures, credentials,
-model pricing, artifacts, or the requested total cost budget are invalid.
+The runner fails before inference when schemas, fixtures, plan permissions,
+model availability or artifacts are invalid. `--max-cost-usd` must be zero; the
+call cap covers actors, judges, continuations and bounded outer retries.
 
 ## Durable Evidence
 
@@ -135,30 +140,19 @@ Each run writes:
 - fixture versus real external-write classification;
 - case and runtime fingerprints used by the freshness gate.
 
-The call ledger owns the cap across process resumes and concurrent workers.
-Native eval calls also use the provider's count-only endpoint for the exact
-system instruction, tools and continuation history. A separate durable input
-window paces actor and judge calls per model at 200,000 input tokens per minute.
-This is an eval-worker throttle, not a customer quota or a provider-account cap.
-It addresses the observed 250,000-token free-tier limit without serializing
-entire cases, resetting spending, or enabling hidden SDK retries.
-Unknown usage (including timeout or process death) retains the entire reserved
-maximum; resuming cannot treat it as free. A corrupt ledger or changed cap/pricing
-fails closed. An older run without a call ledger cannot safely resume inference
-until its spending is reconciled. Do not start a new output directory to reset
-an approved release-attempt cap. CI and local qualification must carry the same
-attempt ledger or an explicitly reconciled remaining allocation.
+The call ledger owns a finite request allowance across resumes and concurrent
+workers. Unknown usage after timeout or process death retains that request's
+reservation; it is never treated as an unused call. The ledger records actual
+input, cached-input, output and reasoning usage when the provider supplies it.
+Zero API spend is not proof that ChatGPT's separate paid-credit setting is off.
 
-Budgeted requests (native Gemini or the registered GPT-6 Luna) disable
-SDK-level retries; any outer retry gets a new reservation. GPT-6 Luna prices come
-from the model information registered in `lumibot/components/agents/runtime.py`,
-and a unit test keeps the eval price table equal to it. Gemini has a count-only
-endpoint for input pacing; for Luna the pacer uses a local estimate of about
-three characters per token, while spending always settles from the provider's
-reported usage. The optional budget does not change ordinary agent runs or
-provider account limits. No prompt or credential is written to the call ledger.
-Cost with unsettled calls is a conservative committed amount, not a claim of
-provider-settled billing. Native model context/output limits bound reservations.
+SDK retries are disabled; outer retries require another ledger reservation.
+No paid token-counting endpoint is used. Subscription quota and revoked grants
+produce visible failures, not successful decisions. A corrupt ledger or changed
+call cap fails closed. Do not switch output directories to reset an approved
+release-attempt allowance. CI and local qualification need the same attempt
+ledger or an explicitly reconciled remaining allowance. No prompt or credential
+is written to the per-call ledger.
 
 Fingerprints include indicator and broker code plus installed ADK, GenAI,
 LiteLLM, pandas-ta, pandas, NumPy and Alpaca SDK versions. Compatible passes retain
@@ -175,6 +169,15 @@ The PyPI release workflow requires the `agent-evals` job alongside build, unit,
 and backtest jobs. It restores the last passing freshness state, reruns only stale
 cases, saves refreshed state, and uploads the ledger and summary. Publishing
 cannot begin if the eval gate fails or lacks valid fresh evidence.
+
+Both workflows use an authorized private evaluator selected by the repository
+variable `LUMIBOT_SUBSCRIPTION_EVAL_RUNNER`, with the `subscription-evals`
+environment and a shared non-canceling concurrency group. Register the worker
+for this repository only, restrict the environment to trusted maintained
+revisions, and connect a dedicated protected SIWC profile outside checkout.
+Do not place rotating refresh tokens in public workflows or fork artifacts.
+Without that worker/profile arrangement, the default runner fails authentication
+visibly; an environment name alone does not establish its protections.
 
 The manual `LumiBot Agent Evals` workflow uses the same runner and contracts. A
 manual pass is useful for qualification, but release publication still verifies

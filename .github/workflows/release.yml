@@ -245,7 +245,11 @@ jobs:
 
   agent-evals:
     name: Real-Model Agent Evals
-    runs-on: ubuntu-latest
+    runs-on: ${{ vars.LUMIBOT_SUBSCRIPTION_EVAL_RUNNER || 'ubuntu-latest' }}
+    environment: subscription-evals
+    concurrency:
+      group: lumibot-subscription-evals
+      cancel-in-progress: false
     timeout-minutes: 30
     steps:
       - name: Checkout
@@ -283,7 +287,6 @@ jobs:
 
       - name: Run stale real-model evals
         env:
-          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           LUMIBOT_DISABLE_DOTENV: "1"
         run: |
           set -euo pipefail
@@ -291,7 +294,8 @@ jobs:
             --gate \
             --repeat 3 \
             --max-workers 3 \
-            --max-cost-usd 0.7 \
+            --max-cost-usd 0 \
+            --max-model-calls 500 \
             --freshness-state .ci/agent-evals/freshness.json \
             --output-root .ci/agent-evals/artifacts
 

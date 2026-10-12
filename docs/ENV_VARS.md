@@ -13,6 +13,13 @@ This page documents environment variables used by LumiBot, with an emphasis on *
 
 ## Backtesting selection + dates
 
+### `LUMIBOT_CHATGPT_HOME` / `LUMIBOT_CHATGPT_PROFILE` / `LUMIBOT_CHATGPT_PROFILE_PATH`
+- Purpose: Select the private directory, existing profile ID, or explicitly protected profile file for `chatgpt/<model>` agents and subscription-funded evaluations.
+- Default directory: `~/.config/lumibot-chatgpt`; never source-control this directory.
+- A running process pins its selected profile. Refresh rotation is serialized through a sibling file lock and saved atomically.
+- These select the user's own supported SIWC registration, not Codex credentials or an API key. There is no API-funded eval fallback.
+- For zero-credit execution, verify the separate ChatGPT Usage setting for connected-app credit fallback is disabled. OAuth funding alone cannot establish that setting.
+
 ### `ALPACA_NEWS_API_KEY` / `ALPACA_NEWS_API_SECRET`
 - Purpose: Optional credentials for the built-in `alpaca_news` agent tool when there is no active Alpaca broker.
 - Fallback: If these are unset and there is no active Alpaca broker, `alpaca_news` is not exposed to agents.

@@ -9,9 +9,9 @@ on:
         default: false
         type: boolean
       max_cost_usd:
-        description: Maximum estimated model and judge spend in USD
+        description: Must be zero; API-funded model calls are forbidden
         required: true
-        default: "2"
+        default: "0"
         type: string
       repeat_count:
         description: Three normal repetitions or five for changed and failed cases
@@ -44,7 +44,11 @@ permissions:
 jobs:
   agent-evals:
     name: Real-Model Agent Evals
-    runs-on: ubuntu-latest
+    runs-on: ${{ vars.LUMIBOT_SUBSCRIPTION_EVAL_RUNNER || 'ubuntu-latest' }}
+    environment: subscription-evals
+    concurrency:
+      group: lumibot-subscription-evals
+      cancel-in-progress: false
     timeout-minutes: 30
     steps:
       - name: Checkout
@@ -78,11 +82,10 @@ jobs:
       - name: Calibrate changed research rubrics
         if: inputs.judge_calibration
         env:
-          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           LUMIBOT_DISABLE_DOTENV: "1"
           CALIBRATION_CASE_ID: ${{ inputs.calibration_case_id }}
         run: |
-          args=(--max-cost-usd 0.35 --output-root .ci/agent-evals/judge-calibration)
+          args=(--max-cost-usd 0 --max-model-calls 100 --output-root .ci/agent-evals/judge-calibration)
           if [[ -n "${CALIBRATION_CASE_ID}" ]]; then
             args+=(--case-id "${CALIBRATION_CASE_ID}")
           fi
@@ -90,7 +93,6 @@ jobs:
 
       - name: Run stale real-model evals
         env:
-          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           LUMIBOT_DISABLE_DOTENV: "1"
           FORCE_EVALS: ${{ inputs.force }}
           MAX_COST_USD: ${{ inputs.max_cost_usd }}
@@ -107,6 +109,7 @@ jobs:
             --repeat "${REPEAT_COUNT}"
             --max-workers 3
             --max-cost-usd "${MAX_COST_USD}"
+            --max-model-calls 500
             --freshness-state .ci/agent-evals/freshness.json
             --output-root .ci/agent-evals/artifacts
           )

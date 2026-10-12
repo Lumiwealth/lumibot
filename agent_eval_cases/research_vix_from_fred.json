@@ -1,6 +1,6 @@
 {
   "id": "research_vix_from_fred",
-  "model": "openai/gpt-6-luna",
+  "model": "chatgpt/gpt-6-luna",
   "fixture": "vix_from_fred",
   "systemPrompt": "You trade SPY iron condors that expire the next trading day. When it is time to open one, first check the VIX: if it closed above 25 yesterday, do not trade today. Otherwise sell an iron condor on SPY that expires the next trading day: sell a put and a call near 0.14 delta, and buy a put and a call one dollar farther out to cap the loss. Size it so the most we can lose is about 3% of the account. Then hold it until it expires.",
   "taskPrompt": "It is 3:45 PM. Open today's iron condor.",

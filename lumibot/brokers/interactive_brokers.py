@@ -716,7 +716,7 @@ class IBWrapper(EWrapper):
 
         # If the last price is not available, then use yesterday's closing price
         # This can happen if the market is closed
-        if tickType == 9 and self.tick is None and self.should_use_last_close:
+        if tickType == 9 and self.price is None and self.should_use_last_close:
             self.price = price
             self.tick_type_used = tickType
 
@@ -1513,6 +1513,12 @@ class IBApp(IBWrapper, IBClient):
 
         return contract
 
+    @staticmethod
+    def _apply_time_in_force(ib_order, order):
+        """Copy LumiBot duration fields to every native order in an advanced order."""
+        ib_order.tif = order.time_in_force.upper()
+        ib_order.goodTillDate = order.good_till_date.strftime("%Y%m%d %H:%M:%S") if order.good_till_date else ""
+
     def create_order(self, order):
         ib_order = Order()
         if order.order_class == "bracket":
@@ -1529,6 +1535,7 @@ class IBApp(IBWrapper, IBClient):
             parent.totalQuantity = order.quantity
             parent.lmtPrice = order.limit_price
             parent.transmit = False
+            self._apply_time_in_force(parent, order)
 
             takeProfit = Order()
             takeProfit.orderId = self.nextOrderId()
@@ -1538,6 +1545,7 @@ class IBApp(IBWrapper, IBClient):
             takeProfit.lmtPrice = order.limit_price
             takeProfit.parentId = parent.orderId
             takeProfit.transmit = False
+            self._apply_time_in_force(takeProfit, order)
 
             stopLoss = Order()
             stopLoss.orderId = self.nextOrderId()
@@ -1547,6 +1555,7 @@ class IBApp(IBWrapper, IBClient):
             stopLoss.totalQuantity = order.quantity
             stopLoss.parentId = parent.orderId
             stopLoss.transmit = True
+            self._apply_time_in_force(stopLoss, order)
 
             bracketOrder = [parent, takeProfit, stopLoss]
 
@@ -1567,6 +1576,7 @@ class IBApp(IBWrapper, IBClient):
             parent.totalQuantity = order.quantity
             parent.lmtPrice = order.limit_price
             parent.transmit = False
+            self._apply_time_in_force(parent, order)
 
             if order.limit_price:
                 takeProfit = Order()
@@ -1577,6 +1587,7 @@ class IBApp(IBWrapper, IBClient):
                 takeProfit.lmtPrice = order.limit_price
                 takeProfit.parentId = parent.orderId
                 takeProfit.transmit = True
+                self._apply_time_in_force(takeProfit, order)
                 return [parent, takeProfit]
 
             elif order.stop_price:
@@ -1588,6 +1599,7 @@ class IBApp(IBWrapper, IBClient):
                 stopLoss.totalQuantity = order.quantity
                 stopLoss.parentId = parent.orderId
                 stopLoss.transmit = True
+                self._apply_time_in_force(stopLoss, order)
                 return [parent, stopLoss]
 
         elif order.order_class == "oco":
@@ -1598,6 +1610,7 @@ class IBApp(IBWrapper, IBClient):
             takeProfit.totalQuantity = order.quantity
             takeProfit.lmtPrice = order.limit_price
             takeProfit.transmit = False
+            self._apply_time_in_force(takeProfit, order)
 
             oco_Group = f"oco_{takeProfit.orderId}"
             takeProfit.ocaGroup = oco_Group
@@ -1610,6 +1623,7 @@ class IBApp(IBWrapper, IBClient):
             stopLoss.totalQuantity = order.quantity
             stopLoss.auxPrice = order.stop_price
             stopLoss.transmit = True
+            self._apply_time_in_force(stopLoss, order)
 
             stopLoss.ocaGroup = oco_Group
             stopLoss.ocaType = 1
@@ -1625,8 +1639,7 @@ class IBApp(IBWrapper, IBClient):
             if order.trail_price:
                 ib_order.auxPrice = order.trail_price
             ib_order.orderId = order.identifier if order.identifier else self.nextOrderId()
-            ib_order.tif = order.time_in_force.upper()
-            ib_order.goodTillDate = order.good_till_date.strftime("%Y%m%d %H:%M:%S") if order.good_till_date else ""
+            self._apply_time_in_force(ib_order, order)
             return [ib_order]
 
     def _create_multileg_order(self, order, exchange=None, **kwargs):
@@ -1684,8 +1697,7 @@ class IBApp(IBWrapper, IBClient):
         combo_order.action = "BUY" # TODO: This is a placeholder. This should be set based on the order side
         combo_order.orderId = combo_order_id
         combo_order.orderType = ORDERTYPE_MAPPING[order.order_type]
-        combo_order.tif = order.time_in_force.upper()
-        combo_order.goodTillDate = order.good_till_date if order.good_till_date else ""
+        self._apply_time_in_force(combo_order, order)
         combo_order.totalQuantity = min([child_order.quantity for child_order in order.child_orders])
 
         # Set the limit price if this is a limit order and a price is provided

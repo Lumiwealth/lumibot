@@ -1900,11 +1900,27 @@ class Schwab(Broker):
                     observed_order.status = Order.OrderStatus.CANCELLING
             return
 
-        if (
-            stored_order.is_filled()
-            or stored_order.is_canceled()
-            or Order.is_equivalent_status(stored_order.status, self.ERROR_ORDER)
-            or Order.is_equivalent_status(stored_order.status, Order.OrderStatus.EXPIRED)
+        if stored_order.is_filled():
+            return
+        stored_terminal_status = stored_order.status
+        stored_terminal_reason = getattr(stored_order, "error_message", None)
+        was_terminal = (
+            stored_order.is_canceled()
+            or Order.is_equivalent_status(stored_terminal_status, self.ERROR_ORDER)
+            or Order.is_equivalent_status(stored_terminal_status, Order.OrderStatus.EXPIRED)
+        )
+        confirmed_terminal = (
+            Order.is_equivalent_status(stored_terminal_status, self.CANCELED_ORDER)
+            or Order.is_equivalent_status(stored_terminal_status, Order.OrderStatus.EXPIRED)
+            or (identifier, str(self.ERROR_ORDER)) in self._schwab_terminal_observations
+            or (identifier, str(Order.OrderStatus.EXPIRED)) in self._schwab_terminal_observations
+        )
+        # ERROR can originate from a local transport failure, while canceled
+        # snapshots can later gain execution details. Neither may suppress new
+        # confirmed fill quantity. Stale active snapshots cannot reopen them.
+        if was_terminal and (
+            Order.is_equivalent_status(observed_status, self.NEW_ORDER)
+            or Order.is_equivalent_status(observed_status, Order.OrderStatus.CANCELLING)
         ):
             return
 
@@ -1939,8 +1955,25 @@ class Schwab(Broker):
             if Order.is_equivalent_status(observed_status, self.FILLED_ORDER) and cumulative_filled <= 0:
                 cumulative_filled = float(stored_order.quantity or observed_order.quantity or 0)
 
-            prior_filled = float(self._schwab_observed_fill_quantities.get(identifier, 0.0))
+            recorded_filled = sum(float(item.quantity) for item in stored_order.transactions)
+            prior_filled = max(
+                float(self._schwab_observed_fill_quantities.get(identifier, 0.0)),
+                recorded_filled,
+            )
             if cumulative_filled <= prior_filled and not terminal_after_fill:
+                if (was_terminal and Order.is_equivalent_status(observed_status, self.FILLED_ORDER)
+                        and recorded_filled == float(stored_order.quantity)):
+                    # The fill was already delivered before a local ERROR
+                    # moved this object to the error bucket. Restore confirmed
+                    # terminal state without a zero-quantity/fabricated fill.
+                    with self._lock:
+                        self._error_orders.remove(identifier, key="identifier")
+                        self._canceled_orders.remove(identifier, key="identifier")
+                        self._partially_filled_orders.remove(identifier, key="identifier")
+                        stored_order.status = self.FILLED_ORDER
+                        stored_order.set_filled()
+                        if stored_order not in self._filled_orders:
+                            self._filled_orders.append(stored_order)
                 return
             fill_delta = cumulative_filled - prior_filled
             price = (
@@ -1962,20 +1995,42 @@ class Schwab(Broker):
                     if Order.is_equivalent_status(observed_status, self.FILLED_ORDER)
                     else self.PARTIALLY_FILLED_ORDER
                 )
-                self._process_trade_event(
-                    stored_order,
-                    event,
-                    price=price,
-                    filled_quantity=fill_delta,
-                    multiplier=getattr(getattr(stored_order, "asset", None), "multiplier", 1) or 1,
-                )
-                self._log_schwab_lifecycle_event(
-                    "order.lifecycle.callback",
-                    stored_order,
-                    callback=event,
-                    broker_status=observed_status,
-                    local_status=stored_order.status,
-                )
+                # One atomic native bucket move; no I/O or Strategy execution.
+                with self._lock:
+                    if was_terminal:
+                        self._error_orders.remove(identifier, key="identifier")
+                        self._canceled_orders.remove(identifier, key="identifier")
+                        if not confirmed_terminal and event == self.PARTIALLY_FILLED_ORDER:
+                            # Local set_error closed this order before its broker
+                            # outcome was known. Fresh partial fill proves it is
+                            # still open; do not leave wait-for-close signaled.
+                            stored_order._closed_event.clear()
+                    self._process_trade_event(
+                        stored_order,
+                        event,
+                        price=price,
+                        filled_quantity=fill_delta,
+                        multiplier=getattr(getattr(stored_order, "asset", None), "multiplier", 1) or 1,
+                    )
+                    self._log_schwab_lifecycle_event(
+                        "order.lifecycle.callback",
+                        stored_order,
+                        callback=event,
+                        broker_status=observed_status,
+                        local_status=stored_order.status,
+                    )
+                    if was_terminal and confirmed_terminal and event != self.FILLED_ORDER:
+                        # Keep the established terminal outcome after recording
+                        # new fills, without a second terminal callback.
+                        if Order.is_equivalent_status(stored_terminal_status, self.CANCELED_ORDER):
+                            self._process_canceled_order(stored_order)
+                        else:
+                            self._process_error_order(
+                                stored_order, LumibotBrokerAPIError(stored_terminal_reason or "Terminal broker order")
+                            )
+                            # Expiry uses the same terminal bucket as errors;
+                            # retain its exact previously confirmed status.
+                            stored_order.status = stored_terminal_status
             if not terminal_after_fill:
                 return
 

@@ -12,6 +12,22 @@ LumiBot supports configuring many behaviors via environment variables. This page
 
    **Never commit secrets** (API keys, passwords, AWS secret keys) into any repo or docs. Document variable names and semantics only.
 
+ChatGPT subscription profiles
+-----------------------------
+
+``LUMIBOT_CHATGPT_HOME`` selects the private configuration directory (default
+``~/.config/lumibot-chatgpt``). ``LUMIBOT_CHATGPT_PROFILE`` selects an existing
+profile ID; ``LUMIBOT_CHATGPT_PROFILE_PATH`` explicitly selects a protected file
+from your own supported SIWC registration. Processes pin their selected
+profile, and refresh rotation is serialized across local processes.
+
+These variables authenticate explicit ``chatgpt/<model>`` agents and canonical
+subscription-funded evaluations. They do not supply an API key, a broker
+credential or a BotSpot research grant. Keep all profile files outside source
+control. For subscription-only execution, separately disable connected-app
+credit fallback in ChatGPT Usage. See :doc:`agents_chatgpt` for login, model
+discovery, sign-out and self-hosted setup.
+
 Backtesting configuration
 -------------------------
 

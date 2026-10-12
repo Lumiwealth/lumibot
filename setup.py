@@ -116,6 +116,8 @@ setuptools.setup(
         "requests-oauthlib",
         "boto3>=1.40.64",
         "httpx",
+        "filelock>=3.0",
+        "PyJWT[crypto]>=2.0",
         "pypdf>=5.0.0",
     ],
     # Include configuration files, and only include ThetaTerminal.jar if present

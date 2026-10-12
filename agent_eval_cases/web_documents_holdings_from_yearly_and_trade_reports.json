@@ -1,6 +1,6 @@
 {
   "id": "web_documents_holdings_from_yearly_and_trade_reports",
-  "model": "openai/gpt-6-luna",
+  "model": "chatgpt/gpt-6-luna",
   "fixture": "web_documents",
   "allowNetwork": true,
   "systemPrompt": "You work out what a member of Congress owns from their public reports. Do not trade.",

@@ -21,8 +21,6 @@ def test_fixture_process_keeps_only_inference_credentials(monkeypatch, tmp_path)
     configure_fixture_environment(tmp_path)
     assert set(os.environ) == {
         "PATH",
-        "GEMINI_API_KEY",
-        "GOOGLE_API_KEY",
         "LUMIBOT_DISABLE_DOTENV",
         "IS_BACKTESTING",
         "LITELLM_LOCAL_MODEL_COST_MAP",
@@ -30,7 +28,7 @@ def test_fixture_process_keeps_only_inference_credentials(monkeypatch, tmp_path)
     assert os.environ["LUMIBOT_DISABLE_DOTENV"] == "true"
 
 
-def test_fixture_process_keeps_the_openai_key_for_luna_without_requiring_gemini(monkeypatch, tmp_path):
+def test_fixture_process_strips_paid_openai_keys(monkeypatch, tmp_path):
     monkeypatch.setattr(
         os,
         "environ",
@@ -39,7 +37,6 @@ def test_fixture_process_keeps_the_openai_key_for_luna_without_requiring_gemini(
     configure_fixture_environment(tmp_path)
     assert set(os.environ) == {
         "PATH",
-        "OPENAI_API_KEY",
         "LUMIBOT_DISABLE_DOTENV",
         "IS_BACKTESTING",
         "LITELLM_LOCAL_MODEL_COST_MAP",

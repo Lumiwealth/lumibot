@@ -25,11 +25,10 @@ if str(REPO_ROOT) in sys.path:
     sys.path.remove(str(REPO_ROOT))
 sys.path.insert(0, str(REPO_ROOT))
 CASE_ROOT = REPO_ROOT / "agent_eval_cases"
-# Release evals run the product default: GPT-6 Luna on medium reasoning for
-# both the acting agent and the judge. Gemini stays available only when a case
-# or --judge-model names it explicitly.
-DEFAULT_ACTING_MODEL = "openai/gpt-6-luna"
-DEFAULT_JUDGE_MODEL = "openai/gpt-6-luna"
+# Both real-model roles use the explicitly selected ChatGPT subscription.
+# API-funded actor/judge model selections are rejected before inference.
+DEFAULT_ACTING_MODEL = "chatgpt/gpt-6-luna"
+DEFAULT_JUDGE_MODEL = "chatgpt/gpt-6-luna"
 EVAL_REASONING_EFFORT = "medium"
 DEFAULT_FRESHNESS_DAYS = 90
 # A brand new or changed case must pass three times in a row before it is
@@ -38,26 +37,6 @@ DEFAULT_FRESHNESS_DAYS = 90
 # and coverage stayed thin as a result.
 NEW_CASE_REQUIRED_PASSES = 3
 REQUIRED_CONSECUTIVE_PASSES = NEW_CASE_REQUIRED_PASSES  # backwards-compatible alias
-PRICE_SOURCE = "Google Cloud Agent Platform pricing, 2026-08-11"
-PRICE_SOURCE_URL = "https://cloud.google.com/gemini-enterprise-agent-platform/generative-ai/pricing"
-OPENAI_PRICE_SOURCE = "OpenAI GPT-6 Luna pricing, 2026-09-23 (registered in lumibot/components/agents/runtime.py)"
-OPENAI_PRICE_SOURCE_URL = "https://platform.openai.com/docs/models/gpt-6-luna"
-MODEL_PRICES_PER_MILLION = {
-    # Must equal _OPENAI_GPT6_MODEL_INFO in runtime.py; a unit test checks it.
-    "openai/gpt-6-luna": {"input": 0.10, "cached_input": 0.01, "output": 0.50},
-    "gemini-3.5-flash-lite": {"input": 0.30, "cached_input": 0.03, "output": 2.50},
-    "gemini-3.1-flash-lite": {"input": 0.25, "cached_input": 0.025, "output": 1.50},
-}
-
-
-def _is_gemini_model(model: str) -> bool:
-    return str(model).startswith("gemini")
-
-
-def _price_source(model: str) -> tuple[str, str]:
-    if _is_gemini_model(model):
-        return PRICE_SOURCE, PRICE_SOURCE_URL
-    return OPENAI_PRICE_SOURCE, OPENAI_PRICE_SOURCE_URL
 MAX_INPUT_TOKENS_PER_MODEL_CALL = 1_048_576
 ACTING_MAX_OUTPUT_TOKENS = 12_000
 JUDGE_MAX_OUTPUT_TOKENS = 4_000  # GPT-6 Luna reasoning tokens count against this cap
@@ -106,6 +85,9 @@ def runtime_fingerprint() -> str:
         REPO_ROOT / "lumibot/brokers/alpaca.py",
         REPO_ROOT / "lumibot/strategies/strategy.py",
         REPO_ROOT / "scripts/agent_eval_call_budget.py",
+        REPO_ROOT / "scripts/agent_eval_subscription_budget.py",
+        REPO_ROOT / "lumibot/components/agents/chatgpt_auth.py",
+        REPO_ROOT / "lumibot/components/agents/chatgpt_llm.py",
         REPO_ROOT / "scripts/agent_eval_rate_pacing.py",
         REPO_ROOT / "scripts/agent_eval_isolation.py",
         REPO_ROOT / "scripts/agent_eval_production_fixture.py",
@@ -190,42 +172,16 @@ def normalize_usage(usage: dict[str, Any] | None) -> dict[str, int]:
 
 
 def estimate_cost(model: str, usage: dict[str, Any] | None) -> dict[str, Any]:
-    prices = MODEL_PRICES_PER_MILLION.get(model)
-    if prices is None:
-        raise RuntimeError(f"No eval pricing configured for model {model!r}")
-    normalized = normalize_usage(usage)
-    billed_output_tokens = normalized["output_tokens"]
-    if normalized["thinking_tokens"] and normalized["total_tokens"] > (
-        normalized["input_tokens"] + normalized["output_tokens"]
-    ):
-        billed_output_tokens += normalized["thinking_tokens"]
-    estimated = (
-        normalized["uncached_input_tokens"] * prices["input"]
-        + normalized["cached_input_tokens"] * prices["cached_input"]
-        + billed_output_tokens * prices["output"]
-    ) / 1_000_000
-    price_source, price_source_url = _price_source(model)
-    return {
-        "estimated_usd": round(estimated, 6),
-        "price_source": price_source,
-        "price_source_url": price_source_url,
-        "prices_per_million_tokens": prices,
-        "usage": normalized,
-    }
+    if not model.startswith("chatgpt/"):
+        raise RuntimeError("Canonical evaluations require subscription funding")
+    return {"estimated_usd": 0, "funding": "chatgpt-plan", "usage": normalize_usage(usage)}
 
 
 def initial_repetition_reservation_usd(case: dict[str, Any], judge_model: str) -> float:
-    """Worker scheduling estimate, NOT an upper bound for a tool-loop repetition."""
-    acting_model = str(case.get("model") or DEFAULT_ACTING_MODEL)
-    acting_prices = MODEL_PRICES_PER_MILLION[acting_model]
-    judge_prices = MODEL_PRICES_PER_MILLION[judge_model]
-    acting_max = (
-        MAX_INPUT_TOKENS_PER_MODEL_CALL * acting_prices["input"] + ACTING_MAX_OUTPUT_TOKENS * acting_prices["output"]
-    ) / 1_000_000
-    judge_max = (
-        MAX_INPUT_TOKENS_PER_MODEL_CALL * judge_prices["input"] + JUDGE_MAX_OUTPUT_TOKENS * judge_prices["output"]
-    ) / 1_000_000
-    return round(acting_max + judge_max, 6)
+    # The shared call ledger bounds subscription usage; there is no USD spend.
+    if not str(case.get("model") or DEFAULT_ACTING_MODEL).startswith("chatgpt/") or not judge_model.startswith("chatgpt/"):
+        raise RuntimeError("Canonical evaluations require subscription funding")
+    return 0.0
 
 
 def reserve_budget_batch(
@@ -672,7 +628,7 @@ def run_judge(
         run_timeout_seconds=300,
         max_output_tokens=JUDGE_MAX_OUTPUT_TOKENS,
         model_call_budget=budget,
-        reasoning_effort=None if _is_gemini_model(judge_model) else EVAL_REASONING_EFFORT,
+        reasoning_effort=EVAL_REASONING_EFFORT,
     )
     started = time.perf_counter()
     result = GoogleADKRuntime().run(request)
@@ -930,21 +886,15 @@ def write_json_atomic(path: Path, value: dict[str, Any]) -> None:
 
 
 def preflight(cases: list[dict[str, Any]], judge_model: str, max_cost_usd: float) -> None:
-    missing_models = sorted(
-        {str(case.get("model") or DEFAULT_ACTING_MODEL) for case in cases}.union({judge_model})
-        - MODEL_PRICES_PER_MILLION.keys()
-    )
-    if missing_models:
-        raise RuntimeError(f"Pricing is unknown for: {', '.join(missing_models)}")
-    if max_cost_usd <= 0:
-        raise RuntimeError("--max-cost-usd must be positive")
     models = {str(case.get("model") or DEFAULT_ACTING_MODEL) for case in cases} | {judge_model}
-    if any(not _is_gemini_model(model) for model in models) and not os.environ.get("OPENAI_API_KEY"):
-        raise RuntimeError("OPENAI_API_KEY is required for GPT-6 Luna evals")
-    if any(_is_gemini_model(model) for model in models) and not (
-        os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_API_KEY")
-    ):
-        raise RuntimeError("GEMINI_API_KEY or GOOGLE_API_KEY is required for Gemini evals")
+    if max_cost_usd != 0:
+        raise RuntimeError("Eval API spend must be zero; use --max-cost-usd 0")
+    if any(not model.startswith("chatgpt/") for model in models):
+        raise RuntimeError("Both eval roles require subscription funding; paid AI tokens are forbidden")
+    from lumibot.components.agents.chatgpt_auth import available_models, profile_path
+    catalog = {entry["slug"] for entry in available_models(profile_path())}
+    if {model.removeprefix("chatgpt/") for model in models} - catalog:
+        raise RuntimeError("Requested eval model is not available in the connected subscription catalog")
     if any(
         os.environ.get(key)
         for key in (
@@ -1008,38 +958,12 @@ def preflight_production_fixtures(cases: list[dict[str, Any]]) -> None:
 
 
 def select_eval_credentials(models: set[str]) -> list[str]:
-    """Name the credential each selected model needs; never log a value.
-
-    GPT-6 Luna needs OPENAI_API_KEY. Gemini is an explicit opt-in and keeps
-    its own key selection below.
-    """
-    selected: list[str] = []
-    if any(not _is_gemini_model(model) for model in models):
-        if not str(os.environ.get("OPENAI_API_KEY") or "").strip():
-            raise RuntimeError("OPENAI_API_KEY is required for GPT-6 Luna evals")
-        selected.append("OPENAI_API_KEY")
-    if any(_is_gemini_model(model) for model in models):
-        selected.append(select_gemini_credential())
-    return selected
-
-
-def select_gemini_credential() -> str:
-    """Make the release runner's documented Gemini credential deterministic.
-
-    google-genai gives GOOGLE_API_KEY precedence when both names are present.
-    Local dotenv files can contain an older Google key alongside the release
-    GEMINI_API_KEY, which otherwise makes a healthy release credential look
-    broken. Do not log either value; mirror the release-scoped key into the
-    name the SDK prefers.
-    """
-    gemini_key = str(os.environ.get("GEMINI_API_KEY") or "").strip()
-    google_key = str(os.environ.get("GOOGLE_API_KEY") or "").strip()
-    if gemini_key:
-        os.environ["GOOGLE_API_KEY"] = gemini_key
-        return "GEMINI_API_KEY"
-    if google_key:
-        return "GOOGLE_API_KEY"
-    raise RuntimeError("GEMINI_API_KEY or GOOGLE_API_KEY is required for real-model evals")
+    """Select the plan profile explicitly; provider API keys are never read."""
+    if any(not model.startswith("chatgpt/") for model in models):
+        raise RuntimeError("Eval actor and judge require subscription funding; API fallback is forbidden")
+    from lumibot.components.agents.chatgpt_auth import access_token, profile_path
+    access_token(profile_path())
+    return ["chatgpt-plan"]
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -1056,7 +980,8 @@ def build_parser() -> argparse.ArgumentParser:
         ),
     )
     parser.add_argument("--judge-model", default=DEFAULT_JUDGE_MODEL)
-    parser.add_argument("--max-cost-usd", type=float, required=True)
+    parser.add_argument("--max-cost-usd", type=float, default=0, help="Must be zero; API-funded evals are forbidden")
+    parser.add_argument("--max-model-calls", type=int, default=500)
     parser.add_argument("--freshness-days", type=int, default=DEFAULT_FRESHNESS_DAYS)
     parser.add_argument("--freshness-state", type=Path, default=Path(".ci/agent-evals/freshness.json"))
     parser.add_argument("--output-root", type=Path, default=Path("artifacts/agent_evals"))
@@ -1120,19 +1045,14 @@ def main() -> int:
     ledger_path = output_root / "ledger.jsonl"
     summary_path = output_root / "summary.json"
     existing_rows = read_jsonl(ledger_path)
-    from scripts.agent_eval_call_budget import EvalCallBudget
+    from scripts.agent_eval_subscription_budget import SubscriptionCallBudget
 
     call_ledger_path = output_root / "model_calls.jsonl"
     if existing_rows and not call_ledger_path.exists():
         raise RuntimeError(
             "This old run has no per-call spending ledger; reconcile its spending before resuming inference."
         )
-    budget = EvalCallBudget(
-        call_ledger_path,
-        cap_usd=args.max_cost_usd,
-        prices=MODEL_PRICES_PER_MILLION,
-        max_input_tokens=MAX_INPUT_TOKENS_PER_MODEL_CALL,
-    )
+    budget = SubscriptionCallBudget(call_ledger_path, max_calls=args.max_model_calls)
     state = load_freshness(args.freshness_state)
     fingerprints = {
         case["id"]: case_fingerprint(case, judge_model=args.judge_model, runtime_hash=runtime_hash) for case in cases
@@ -1156,9 +1076,7 @@ def main() -> int:
     estimated_total = prior_committed
     pending = list(work)
     while pending:
-        remaining_budget = args.max_cost_usd - estimated_total
-        if remaining_budget <= 0:
-            break
+        remaining_budget = 1.0  # USD is always zero; the per-call subscription cap authorizes requests.
         batch, pending = reserve_budget_batch(
             pending,
             max_workers=args.max_workers,
@@ -1267,6 +1185,8 @@ def main() -> int:
         "model_call_budget": final_budget,
         "model_call_ledger_path": str(call_ledger_path),
         "max_cost_usd": args.max_cost_usd,
+        "funding": "chatgpt-plan",
+        "api_spend_usd": 0,
         "fixture_external_writes": len(new_rows),
         "real_external_writes": 0,
         "wall_time_seconds": round(time.perf_counter() - run_started, 3),

@@ -816,7 +816,7 @@ def _managed_ai_provenance(model: str) -> dict[str, Any]:
     managed = managed_gateway_available_for(model)
     return {
         "runtime_version": str(__version__),
-        "ai_access_mode": "botspot_managed" if managed else "byok",
+        "ai_access_mode": "chatgpt_plan" if str(model).startswith("chatgpt/") else "botspot_managed" if managed else "byok",
         "gateway_protocol_version": 2 if managed else None,
         "gateway_component_sha256": _managed_gateway_component_sha256() if managed else None,
     }
@@ -1639,7 +1639,14 @@ class AgentHandle:
             f"Error:  {exc.__class__.__name__}: {str(exc)[:400]}",
             "",
         ]
-        if category == "auth":
+        if str(model).startswith("chatgpt/"):
+            lines.extend([
+                "ChatGPT subscription inference is blocked; no API fallback is enabled.",
+                "Reconnect with: python -m lumibot.components.agents.chatgpt_auth login",
+                "Check plan allowance at: https://chatgpt.com/settings/usage",
+                "Keep paid-credit fallback disabled for subscription-only execution.",
+            ])
+        elif category == "auth":
             lines.extend(
                 [
                     f"Likely cause: {env_var} is missing or invalid.",

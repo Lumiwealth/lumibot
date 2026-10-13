@@ -2,6 +2,11 @@
 
 No replacement agent-facing trading functions live here. Orders are real LumiBot
 orders, and fills are produced by BacktestingBroker against fixture OHLCV data.
+
+research_live_available exercises live research transport on recorded calendar
+data, never original-version historical source qualification. Its agent cannot
+trade. research_unavailable covers current observations being unavailable;
+research_available retains the backtest clock and actual historical refusals.
 """
 
 from __future__ import annotations
@@ -435,6 +440,11 @@ class ProductionFixture:
         if fixture.name == "vix_from_fred":
             self.strategy.macro = _recorded_fred(self.strategy, self.root / "fred")
         self.strategy.fundamentals = _recorded_sec_fundamentals(self.strategy, self.root / "sec")
+        if fixture.name in {"research_live_available", "research_unavailable"}:
+            # Use the actual Strategy mode setter after synthetic backtest setup.
+            # Keep its bounded recorded clock and isolated broker: calendar data
+            # is live research evidence, not a qualified historical replay.
+            self.strategy.is_backtesting = False
         self.manager = self.strategy.agents
         self.manager.replay_cache.root = self.root / "replay"
         self.manager.replay_cache.remote_cache = _NoRemoteCache()
@@ -459,7 +469,7 @@ class ProductionFixture:
             rules_path=rules,
             _runtime=runtime,
             mcp_servers=servers,
-            allow_trading=allow_trading,
+            allow_trading=False if self.fixture.name == "research_live_available" else allow_trading,
             allow_network=bool(case.get("allowNetwork")),
             reasoning_effort=None if str(case["model"]).startswith("gemini") else "medium",
         )

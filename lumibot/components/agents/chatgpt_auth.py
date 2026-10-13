@@ -199,33 +199,42 @@ def login(*, root: Path | None = None, profile_id: str | None = None, new_profil
         pending.unlink(missing_ok=True)
     profile_id = profile_id or str(uuid4())
     path = root / "profiles" / (profile_id + ".json")
-    # Preserve the issued registration even if exchange or validation fails.
-    save_private(path, {**previous, "client_id": client_id, "ext_agent_host_id": host, "status": "pending"})
-    with httpx.Client(timeout=30) as client:
-        response = client.post(AUTH + "/api/accounts/oauth/token", data={
-            "grant_type": "authorization_code", "client_id": client_id, "code": code,
-            "code_verifier": verifier, "redirect_uri": redirect, "resource": RESOURCE,
-        })
-        if response.status_code != 200:
-            raise RuntimeError(f"ChatGPT authorization exchange failed (HTTP {response.status_code})")
-        token = response.json()
-        discovery = client.get(AUTH + "/.well-known/openid-configuration")
-        discovery.raise_for_status()
-        jwks_uri = discovery.json()["jwks_uri"]
-        if urlsplit(jwks_uri).scheme != "https" or urlsplit(jwks_uri).hostname != "auth.openai.com":
-            raise ValueError("Unexpected identity key host")
-        key = jwt.PyJWKClient(jwks_uri).get_signing_key_from_jwt(token["id_token"])
-        identity = jwt.decode(token["id_token"], key.key, algorithms=["RS256"], audience=client_id, issuer=AUTH,
-                              options={"require": ["exp", "iss", "aud", "sub", "nonce"]})
-        if identity["nonce"] != nonce or (previous.get("subject") and identity["sub"] != previous["subject"]):
-            raise ValueError("ChatGPT identity or nonce mismatch")
-        scopes = token.get("scope", "").split()
-        if PLAN_SCOPE not in scopes or not all(token.get(key) for key in ("access_token", "refresh_token", "expires_in")):
-            raise ValueError("Renewable ChatGPT plan permission is missing")
-        save_private(path, {**token, "client_id": client_id, "ext_agent_host_id": host,
-                            "subject": identity["sub"], "scopes": scopes,
-                            "saved_at": time.time(), "status": "connected"})
-        save_private(root / "active.json", {"profile_id": profile_id})
+    path.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
+    # Exchange/reconnect and rotating refresh share the same write owner. Do not
+    # replace a working connection until the new identity/grant is validated.
+    with FileLock(str(path) + ".lock", timeout=60):
+        current = read_private(path) if path.exists() else {}
+        if current.get("client_id") and current["client_id"] != client_id:
+            raise ValueError("ChatGPT registration changed during sign-in")
+        if current.get("status") != "connected":
+            # A newly issued registration remains recoverable after failure.
+            save_private(path, {**current, "client_id": client_id, "ext_agent_host_id": host, "status": "pending"})
+        with httpx.Client(timeout=30) as client:
+            response = client.post(AUTH + "/api/accounts/oauth/token", data={
+                "grant_type": "authorization_code", "client_id": client_id, "code": code,
+                "code_verifier": verifier, "redirect_uri": redirect, "resource": RESOURCE,
+            })
+            if response.status_code != 200:
+                raise RuntimeError(f"ChatGPT authorization exchange failed (HTTP {response.status_code})")
+            token = response.json()
+            discovery = client.get(AUTH + "/.well-known/openid-configuration")
+            discovery.raise_for_status()
+            jwks_uri = discovery.json()["jwks_uri"]
+            if urlsplit(jwks_uri).scheme != "https" or urlsplit(jwks_uri).hostname != "auth.openai.com":
+                raise ValueError("Unexpected identity key host")
+            key = jwt.PyJWKClient(jwks_uri).get_signing_key_from_jwt(token["id_token"])
+            identity = jwt.decode(token["id_token"], key.key, algorithms=["RS256"], audience=client_id, issuer=AUTH,
+                                  options={"require": ["exp", "iss", "aud", "sub", "nonce"]})
+            subjects = {record["subject"] for record in (previous, current) if record.get("subject")}
+            if identity["nonce"] != nonce or any(identity["sub"] != subject for subject in subjects):
+                raise ValueError("ChatGPT identity or nonce mismatch")
+            scopes = token.get("scope", "").split()
+            if PLAN_SCOPE not in scopes or not all(token.get(key) for key in ("access_token", "refresh_token", "expires_in")):
+                raise ValueError("Renewable ChatGPT plan permission is missing")
+            save_private(path, {**token, "client_id": client_id, "ext_agent_host_id": host,
+                                "subject": identity["sub"], "scopes": scopes,
+                                "saved_at": time.time(), "status": "connected"})
+            save_private(root / "active.json", {"profile_id": profile_id})
     print("ChatGPT connected. Run the models command to choose an available model.")
 
 

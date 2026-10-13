@@ -26,15 +26,20 @@ API key or BotSpot's managed inference. Existing explicit provider models retain
 their own authentication. Broker, price-data and research permissions are
 separate from model authentication.
 
-Keep paid credits disabled
---------------------------
+Choose your ChatGPT usage policy
+-------------------------------
 
-In `ChatGPT Usage <https://chatgpt.com/settings/usage>`_, turn off **Allow other
-apps to use credits after reaching your usage limit** for subscription-only
-execution. This setting applies to connected apps across the account. A
-ChatGPT OAuth token alone does **not** guarantee that paid credits are disabled.
-The public inference API does not provide a documented way for LumiBot to
-change or verify this account setting; verify it before qualification runs.
+Your ChatGPT connection can use included plan allowance and, when you allow
+it, your existing ChatGPT credit balance. Both use the same OAuth connection;
+neither requires an API key. Reaching zero remaining plan allowance does not
+mean inference is unavailable when credit use is enabled.
+
+Review `ChatGPT Usage <https://chatgpt.com/settings/usage>`_ before running
+evaluations. If you want included allowance only, turn off **Allow other apps
+to use credits after reaching your usage limit**. This setting applies across
+connected apps. If existing credits are authorized, leave it enabled. LumiBot
+does not change this account-wide setting, and its public inference API does
+not provide a documented way to verify it.
 
 Exhausted or revoked plan permission produces a visible error. It does not
 create successful eval freshness or silently select another funding source.
@@ -91,8 +96,8 @@ Canonical evaluations
 
 The canonical LumiBot actor and semantic judge both use this subscription
 connection. Ordinary provider API keys and broker credentials are stripped
-from the isolated fixture environment. Select a protected developer profile,
-verify credit fallback is disabled, then run:
+from the isolated fixture environment. Select a protected developer profile
+and your authorized ChatGPT usage policy, then run:
 
 .. code-block:: bash
 

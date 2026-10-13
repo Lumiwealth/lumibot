@@ -97,6 +97,28 @@ def make_receipt(metadata):
     return build_with_calibration(rows, calls, cases, runtime_hash="source", versions=versions, now=now)
 
 
+def test_explicit_new_subscription_attempt_can_qualify_with_1500_call_limit(native_metadata):
+    metadata = deepcopy(native_metadata)
+    metadata[1][0]["max_calls"] = 1500
+    receipt = make_receipt(metadata)
+    assert receipt["call_allowance"] == {"max_calls": 1500, "consumed_calls": 12}
+    qualification.verify_receipt(receipt, metadata[2], runtime_hash="source",
+                                 versions=metadata[3], now=metadata[4])
+
+
+@pytest.mark.parametrize("cap", [1501, 0, -1, True, 1.5, "1500"])
+def test_export_and_verification_reject_invalid_subscription_caps(native_metadata, cap):
+    metadata = deepcopy(native_metadata)
+    metadata[1][0]["max_calls"] = cap
+    with pytest.raises(ValueError, match="allowance"):
+        make_receipt(metadata)
+    receipt = make_receipt(native_metadata)
+    receipt["call_allowance"]["max_calls"] = cap
+    with pytest.raises(ValueError, match="allowance"):
+        qualification.verify_receipt(receipt, native_metadata[2], runtime_hash="source",
+                                     versions=native_metadata[3], now=native_metadata[4])
+
+
 def require_five_repetitions(metadata):
     rows, calls, cases, versions, now = deepcopy(metadata)
     cases[0]["requiredRepetitions"] = 5

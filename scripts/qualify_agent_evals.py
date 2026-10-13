@@ -21,6 +21,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from scripts import check_agent_judge_calibration as calibration
 from scripts import run_agent_evals as evals
 from scripts.agent_eval_call_budget import EvalCallBudget
+from scripts.agent_eval_subscription_budget import MAX_SUBSCRIPTION_QUALIFICATION_CALLS
 
 KIND = "lumibot-real-model-qualification"
 VERSION = 2
@@ -247,7 +248,7 @@ def build_receipt(rows, call_rows, cases, *, runtime_hash, versions, calibration
     header = call_rows[0]
     cap = header.get("max_calls")
     calls = EvalCallBudget._calls(call_rows[1:])
-    if type(cap) is not int or not 0 < cap <= 500 or len(calls) > cap:
+    if type(cap) is not int or not 0 < cap <= MAX_SUBSCRIPTION_QUALIFICATION_CALLS or len(calls) > cap:
         raise ValueError("Native model-call allowance is invalid or exceeded")
     records = {}
     for case in cases:
@@ -302,7 +303,7 @@ def verify_receipt(receipt, cases, *, runtime_hash, versions, now=None):
     allowance = receipt["call_allowance"]
     if (not isinstance(allowance, dict) or set(allowance) != {"max_calls", "consumed_calls"}
             or any(type(n) is not int for n in allowance.values())
-            or not 0 < allowance["consumed_calls"] <= allowance["max_calls"] <= 500):
+            or not 0 < allowance["consumed_calls"] <= allowance["max_calls"] <= MAX_SUBSCRIPTION_QUALIFICATION_CALLS):
         raise ValueError("Invalid cumulative subscription call allowance")
     hashes = receipt["native_ledger_digests"]
     if not isinstance(hashes, dict) or set(hashes) != {"repetitions", "model_calls", "calibration", "calibration_summary"} or any(

@@ -101,6 +101,32 @@ def test_builtin_agent_skills_are_packaged_and_loadable():
     assert len(builtin_skill_fingerprint()) == 64
 
 
+def test_packaged_web_document_instructions_reach_progressive_loading_unchanged():
+    """Packaging/transport contract only; native model evals assess reconciliation."""
+    directory = next(path for path in builtin_skill_directories() if path.name == "web-documents")
+    packaged_markdown = (directory / "SKILL.md").read_text(encoding="utf-8")
+    _frontmatter, separator, packaged_body = (
+        packaged_markdown.removeprefix("---\n").partition("\n---\n")
+    )
+    assert separator
+
+    loaded_skill = next(skill for skill in load_builtin_skills() if skill.name == "web-documents")
+    assert loaded_skill.instructions.strip() == packaged_body.strip()
+
+    toolset = build_builtin_skill_toolset()
+    load_skill = next(tool for tool in asyncio.run(toolset.get_tools()) if tool.name == "load_skill")
+    context = SimpleNamespace(
+        state={}, agent_name="packaged-document-test", invocation_id="packaged-document-test"
+    )
+    response = asyncio.run(
+        load_skill.run_async(args={"skill_name": "web-documents"}, tool_context=context)
+    )
+    assert response["skill_name"] == loaded_skill.name
+    assert response["instructions"].strip() == packaged_body.strip()
+    assert response["frontmatter"]["name"] == loaded_skill.name
+    assert response["frontmatter"]["description"] == loaded_skill.description
+
+
 def test_research_skill_requires_query_after_catalog_discovery():
     skill = (
         Path(__file__).resolve().parents[1]

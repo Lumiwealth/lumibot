@@ -6,6 +6,8 @@ owns its plan quota; a local call cap bounds each qualification attempt.
 
 from scripts.agent_eval_call_budget import EvalCallBudget
 
+MAX_SUBSCRIPTION_QUALIFICATION_CALLS = 1500
+
 
 class SubscriptionCallLimitError(ValueError):
     code = "eval_call_limit_exceeded"
@@ -13,8 +15,10 @@ class SubscriptionCallLimitError(ValueError):
 
 class SubscriptionCallBudget(EvalCallBudget):
     def __init__(self, path, *, max_calls=500):
-        if type(max_calls) is not int or max_calls <= 0:
-            raise ValueError("Subscription call limit must be positive")
+        if type(max_calls) is not int or not 0 < max_calls <= MAX_SUBSCRIPTION_QUALIFICATION_CALLS:
+            raise ValueError(
+                f"Subscription call limit must be a positive integer at most {MAX_SUBSCRIPTION_QUALIFICATION_CALLS}"
+            )
         self.max_calls = max_calls
         from pathlib import Path
         self.path = Path(path)

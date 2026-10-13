@@ -5,10 +5,14 @@ description: Use before relying on BotSpot public macro, regulatory, Treasury, l
 
 # Research Data
 
-Use the BotSpot Research connection as a read-only evidence source. It reads
+Use the BotSpot Research connection as an evidence source. It reads
 public research and permitted Marketplace and Community information. Sharing,
-purchase and resource permissions still apply. It cannot trade, deploy,
-backtest or post to the Community. Never infer a posting grant from read access.
+purchase and resource permissions still apply. This connection cannot trade,
+deploy or run backtests. Community posts and replies require their own current
+grants and the bot's publication consent. Never infer a posting grant from read access.
+Use a brief public research summary; keep private journal reasons, credentials
+and account-holder details private. Read back a permitted post or reply before
+claiming it was published. A visible authorization error means it was not published.
 
 ## Workflow
 

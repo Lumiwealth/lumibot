@@ -1,5 +1,5 @@
-import logging
 import json
+import logging
 from datetime import date, datetime, timezone
 from pathlib import Path
 
@@ -27,6 +27,45 @@ def _event(kind: str, *, text: str | None = None, tool_name: str | None = None, 
         payload=payload,
         timestamp=_utc_iso_timestamp(),
     )
+
+
+@pytest.mark.parametrize("domain_purpose", [False, True])
+def test_cached_agent_tools_preserve_domain_arguments_and_private_purpose(tmp_path, domain_purpose):
+    from types import SimpleNamespace
+
+    from lumibot.components.agents.manager import AgentHandle
+    from lumibot.components.agents.schemas import BoundTool
+    from lumibot.components.memory import MemoryStore
+
+    strategy = SimpleNamespace(name="Cached purpose", get_datetime=lambda: datetime(2026, 8, 11, tzinfo=timezone.utc))
+    strategy.memory = MemoryStore(strategy, root_dir=tmp_path)
+    calls = []
+
+    if domain_purpose:
+        def read(symbol: str, agent_purpose: str):
+            calls.append({"symbol": symbol, "agent_purpose": agent_purpose})
+            return {"symbol": symbol}
+        payload = {"symbol": "QQQ", "agent_purpose": "business filter", "agent_purpose_2": "Rebuild the authorized cached market context."}
+        expected = {"symbol": "QQQ", "agent_purpose": "business filter"}
+    else:
+        def read(symbol: str):
+            calls.append({"symbol": symbol})
+            return {"symbol": symbol}
+        payload = {"symbol": "QQQ", "agent_purpose": "Rebuild the authorized cached market context."}
+        expected = {"symbol": "QQQ"}
+    tool = BoundTool(name="market_context", description="Rebuild permitted market evidence.", function=read, source="builtin", metadata={"replay_on_cache": True})
+    handle = object.__new__(AgentHandle)
+    handle.name = "researcher"
+    handle.manager = SimpleNamespace(strategy=strategy)
+    handle._ensure_bound_tools = lambda: [tool]
+    result = AgentRunResult(summary="Cached context.", model="chatgpt/gpt-6-luna", cache_key="cached-call", cache_hit=True, events=[_event("tool_call", tool_name=tool.name, payload=payload)])
+    handle._replay_cached_side_effects(result)
+    assert calls == [expected]
+    assert result.tool_calls[0].payload == payload
+    with strategy.memory._connect() as connection:
+        rows = connection.execute("SELECT event_type, text, agent_name, model_call_id FROM memory_events ORDER BY sequence").fetchall()
+    assert [row["event_type"] for row in rows] == ["agent.tool_started", "agent.tool_outcome"]
+    assert all(row["agent_name"] == "researcher" and row["model_call_id"] == "cached-call" for row in rows)
 
 
 def _invoke_tool(request, events, tool_name: str, **kwargs):

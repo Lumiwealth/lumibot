@@ -80,6 +80,37 @@ def test_calibration_shares_default_500_call_cap_and_scopes_every_control(calibr
     assert calibration.setup == [{"artifact_root": calibration.output.resolve()}]
 
 
+def test_calibration_runs_every_explicit_high_risk_repetition(calibration):
+    calibration.fixtures[0]["required_repetitions"] = 5
+    calibration.fixture_path.write_text(json.dumps(calibration.fixtures))
+    assert calibration.invoke() == 0
+    assert len(calibration.calls) == 5
+    assert {scope["repetition"] for scope in calibration.calls} == {1, 2, 3, 4, 5}
+    assert calibration.invoke() == 0
+    assert len(calibration.calls) == 5
+
+
+def test_new_calibration_invalidates_an_export_before_the_first_call(calibration, monkeypatch):
+    control = calibration.fixtures[0]
+    case = runner.evals.load_cases({control["case_id"]})[0]
+    fingerprint = runner.control_fingerprint(control, case, "same-runtime")
+    receipt = calibration.root / "ci/agent-evals/qualification.json"
+    receipt.parent.mkdir(parents=True)
+    receipt.write_text(json.dumps({
+        "runtime_fingerprint": "same-runtime", "cases": {},
+        "calibration": {"controls": {control["id"]: {"fingerprint": fingerprint}}},
+    }))
+    original = runner.evals.run_judge
+
+    def require_invalidation(*args):
+        assert json.loads(receipt.read_text())["invalidated"]["calibration_control_ids"] == [control["id"]]
+        return original(*args)
+
+    monkeypatch.setattr(runner.evals, "run_judge", require_invalidation)
+    assert calibration.invoke() == 0
+    assert len(calibration.calls) == 3
+
+
 def test_calibration_resumes_unchanged_passes_without_rewriting_native_timestamps(calibration):
     assert calibration.invoke() == 0
     original = (calibration.output / "ledger.jsonl").read_bytes()

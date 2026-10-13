@@ -140,10 +140,12 @@ async def check_response_stream(response: httpx.Response, replay=None) -> None:
         except (ValueError, AttributeError):
             code = "unknown"
         raise SubscriptionModelResponseError(code, status_code=response.status_code)
-    if response.is_success and "text/event-stream" in response.headers.get("content-type", ""):
-        if not isinstance(response.stream, httpx.AsyncByteStream):
-            raise RuntimeError("Subscription requires an asynchronous response stream")
-        response.stream = CompletionCheckedStream(response.stream, replay)
+    # This owned client always requests streaming Responses. Real plan replies
+    # can omit Content-Type; the actual terminal event, rather than a MIME hint,
+    # must attest completion and retain opaque tool-continuation history.
+    if not isinstance(response.stream, httpx.AsyncByteStream):
+        raise RuntimeError("Subscription requires an asynchronous response stream")
+    response.stream = CompletionCheckedStream(response.stream, replay)
 
 
 class _PlanResponsesClient(LiteLLMClient):

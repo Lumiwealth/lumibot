@@ -3,6 +3,7 @@ import json
 import os
 import re
 import sqlite3
+import unicodedata
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
@@ -13,6 +14,54 @@ SCHEMA_VERSION = 1
 ORDER_REASON_MAX_CHARACTERS = 100_000
 ORDER_REASON_MAX_BYTES = 400 * 1024
 AGENT_ORDER_REASON_MIN_CHARACTERS = 200
+PUBLIC_ORDER_REASON_MAX_BYTES = 280
+
+# This explicit public-field boundary rejects obvious identifiers and account
+# disclosures. It never edits the private audit reason/evidence or blocks orders.
+# Authoritative owner-name checks belong to the publishing service.
+_PUBLIC_REASON_PRIVATE_PATTERNS = tuple(re.compile(pattern, re.IGNORECASE) for pattern in (
+    r"[\w.+-]+@[\w.-]+\.[A-Za-z]{2,}",
+    r"\b\d{3}[- ]\d{2}[- ]\d{4}\b",
+    r"\b(?:ssn|social\s+security(?:\s+number)?)\s*[:=#-]?\s*\d{9}\b",
+    r"\b(?:account|acct|routing|bank(?:\s+account)?|iban|swift)\s*"
+    r"(?:number|no\.?|id|code|#)\s*[:=#-]?\s*\S+",
+    r"\b(?:account|acct|routing|bank(?:\s+account)?|iban|swift)\s*[:=#]\s*\S+",
+    r"\b(?:account|acct|routing|bank\s+account)\s+(?:is\s+)?[A-Z]{0,5}-?\d[\w-]{3,}\b",
+    r"\b(?:api[ _-]*key|access[ _-]*token|refresh[ _-]*token|private[ _-]*key|"
+    r"secret|password|passwd|authorization|credentials?)\s*(?:[:=]|is\b|\s)\s*\S+",
+    r"\b(?:bearer\s+\S+|token\s*[:=]\s*\S+|sk-[A-Za-z0-9_-]{12,}|"
+    r"AKIA[A-Z0-9]{16}|gh[pousr]_[A-Za-z0-9]{20,}|xox[baprs]-[A-Za-z0-9-]{10,})\b",
+    r"\beyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\b",
+    r"\b(?:account|portfolio)\s+(?:cash|balance|equity|value|buying[ -]?power)\b",
+    r"\bbuying[ -]?power\b",
+    r"\b(?:my|our|available|remaining|total|settled|unsettled)\s+(?:cash|balance)\b",
+    r"\b(?:i|we)\s+(?:have|hold)\s+(?:[$€£]\s*)?\d[\d,.]*\s+(?:in\s+)?(?:cash|balance)\b",
+    r"\b(?:cash\s+balance|balance\s+is|account\s+(?:has|holds))\s*(?:[$€£]|\d)",
+    r"\b(?:cash|balance)\s*(?:[:=]|(?:is|of|stands\s+at)\b)?\s*[$€£]?\s*\d",
+))
+
+
+def _public_order_reason_reference(evidence: dict[str, Any] | None) -> dict[str, str]:
+    """Project only an explicit, safe public reason; never infer one privately."""
+    value = evidence.get("public_reason") if isinstance(evidence, dict) else None
+    if not isinstance(value, str) or not value or value != value.strip():
+        return {}
+    try:
+        encoded = value.encode("utf-8")
+    except UnicodeEncodeError:
+        return {}
+    if len(encoded) > PUBLIC_ORDER_REASON_MAX_BYTES or any(
+        unicodedata.category(character) in {"Cc", "Cf"} for character in value
+    ):
+        return {}
+    # Normalize only the privacy check. Preserve the exact published bytes/hash.
+    privacy_text = unicodedata.normalize("NFKC", value)
+    if any(pattern.search(privacy_text) for pattern in _PUBLIC_REASON_PRIVATE_PATTERNS):
+        return {}
+    return {
+        "public_reason_preview": value,
+        "public_reason_sha256": hashlib.sha256(encoded).hexdigest(),
+    }
 
 
 def validate_order_reason(reason: Any, *, required: bool = False) -> str | None:
@@ -413,6 +462,7 @@ class MemoryStore:
             "reason_preview": reason[:800],
             "reason_sha256": hashlib.sha256(reason.encode("utf-8")).hexdigest(), "recorded_at": self._timestamp(),
         }
+        reference.update(_public_order_reason_reference(evidence))
         metadata = {"reference": reference, "orders": orders, "evidence": evidence or {}}
         if len(_json_dumps({"reason": reason, **metadata}).encode("utf-8")) > 1024 * 1024:
             raise ValueError("reason, evidence and order intent must fit within 1 MiB.")

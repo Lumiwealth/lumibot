@@ -27,6 +27,9 @@ from lumibot.components.agents import MCPServer
 from lumibot.entities import Asset, Data, Position
 from lumibot.strategies import Strategy
 
+_MAX_CAPTURED_MEMORY_EVENTS = 1024
+_MAX_CAPTURED_MEMORY_BYTES = 4 * 1024 * 1024
+
 
 class _NoRemoteCache:
     def ensure_local_file(self, path):
@@ -653,9 +656,43 @@ class ProductionFixture:
     def settle(self):
         self.broker.process_pending_orders(self.strategy)
 
+    def _capture_memory_events(self):
+        """Read committed synthetic audit rows, preserving original bytes and linkage.
+
+        This is evidence from the existing MemoryStore, not a second journal or
+        generated tool trajectory. Capture before settlement and store teardown;
+        neither stage can establish when the actor observed a broker fill.
+        """
+        captured = []
+        size = 2  # JSON array delimiters; include separators in the byte bound.
+        with self.strategy.memory._connect() as connection:
+            rows = connection.execute(
+                """SELECT event_id, sequence, timestamp, wall_time, strategy, event_type,
+                          subject_type, subject_id, agent_name, model_call_id, text,
+                          metadata_json, payload_json, payload_hash, schema_version
+                   FROM memory_events
+                   WHERE event_type IN (
+                       'agent.tool_started', 'agent.tool_outcome',
+                       'order.intent', 'order.action_outcome'
+                   )
+                   ORDER BY sequence LIMIT ?""",
+                (_MAX_CAPTURED_MEMORY_EVENTS + 1,),
+            )
+            for source in rows:
+                if len(captured) >= _MAX_CAPTURED_MEMORY_EVENTS:
+                    raise ValueError("Fixture journal row bound exceeded; audit evidence was not truncated.")
+                row = dict(source)
+                row["metadata"] = json.loads(row.pop("metadata_json"))
+                size += len(json.dumps(row, ensure_ascii=True).encode("utf-8")) + (2 if captured else 0)
+                if size > _MAX_CAPTURED_MEMORY_BYTES:
+                    raise ValueError("Fixture journal byte bound exceeded; audit evidence was not truncated.")
+                captured.append(row)
+        self.fixture.memory_events = captured
+
     def capture(self, result):
         from lumibot.components.agents.builtins import _position_to_dict
 
+        self._capture_memory_events()
         self.orders_before_settlement = [_capture_broker_order(order) for order in self.strategy.get_orders()]
         self.settle()
         self.fixture.calls = [{"name": event.tool_name, "arguments": event.payload} for event in result.tool_calls]

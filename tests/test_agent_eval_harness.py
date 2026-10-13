@@ -701,12 +701,82 @@ def test_runtime_fingerprint_includes_indicators_broker_and_installed_sdks(monke
     assert evals.REPO_ROOT / "lumibot/components/agents/duckdb_tools.py" in seen
 
 
+@pytest.mark.parametrize(
+    "mutation",
+    [
+        {"passed_at": "future"},
+        {"passed_at": "naive"},
+        {"consecutive_passes": None},
+        {"consecutive_passes": 2},
+        {"consecutive_passes": True},
+        {"consecutive_passes": "3"},
+        {"acting_model": None},
+        {"acting_model": "chatgpt/gpt-6-sol"},
+        {"judge_model": None},
+        {"judge_model": "chatgpt/gpt-6-sol"},
+    ],
+)
+def test_freshness_rejects_unqualified_record_even_with_matching_fingerprint(monkeypatch, mutation):
+    """A matching hash alone cannot qualify missing or inconsistent pass evidence."""
+    now = evals.datetime(2026, 10, 12, tzinfo=evals.timezone.utc)
+    monkeypatch.setattr(evals, "utc_now", lambda: now)
+    record = {
+        "fingerprint": "same-contract",
+        "passed_at": evals.utc_text(now - evals.timedelta(days=1)),
+        "consecutive_passes": evals.REQUIRED_CONSECUTIVE_PASSES,
+        "acting_model": evals.DEFAULT_ACTING_MODEL,
+        "judge_model": evals.DEFAULT_JUDGE_MODEL,
+    }
+    if mutation.get("passed_at") == "future":
+        mutation = {"passed_at": evals.utc_text(now + evals.timedelta(seconds=1))}
+    elif mutation.get("passed_at") == "naive":
+        mutation = {"passed_at": (now - evals.timedelta(days=1)).replace(tzinfo=None).isoformat()}
+    record.update(mutation)
+    for field in [key for key, value in record.items() if value is None]:
+        del record[field]
+    assert not evals.is_fresh({"cases": {"case": record}}, "case", "same-contract", 90)
+
+
+def test_freshness_accepts_completed_qualification_without_rewriting_timestamp(monkeypatch):
+    now = evals.datetime(2026, 10, 12, tzinfo=evals.timezone.utc)
+    monkeypatch.setattr(evals, "utc_now", lambda: now)
+    passed_at = evals.utc_text(now - evals.timedelta(days=2))
+    record = {
+        "fingerprint": "same-contract",
+        "passed_at": passed_at,
+        "consecutive_passes": evals.REQUIRED_CONSECUTIVE_PASSES,
+        "acting_model": evals.DEFAULT_ACTING_MODEL,
+        "judge_model": evals.DEFAULT_JUDGE_MODEL,
+    }
+    assert evals.is_fresh({"cases": {"case": record}}, "case", "same-contract", 90)
+    assert record["passed_at"] == passed_at
+
+
+def test_freshness_accepts_the_explicitly_selected_actor_and_judge(monkeypatch):
+    now = evals.datetime(2026, 10, 12, tzinfo=evals.timezone.utc)
+    monkeypatch.setattr(evals, "utc_now", lambda: now)
+    record = {
+        "fingerprint": "selected-contract",
+        "passed_at": evals.utc_text(now - evals.timedelta(days=1)),
+        "consecutive_passes": 5,
+        "acting_model": "chatgpt/gpt-6-sol",
+        "judge_model": "chatgpt/gpt-6.1-sol",
+    }
+    state = {"cases": {"case": record}}
+    assert evals.is_fresh(state, "case", "selected-contract", 90,
+                          acting_model=record["acting_model"], judge_model=record["judge_model"])
+    assert not evals.is_fresh(state, "case", "selected-contract", 90)
+
+
 def test_fresh_gate_preserves_original_pass_time_without_spending(tmp_path, monkeypatch):
     # main() rebuilds the process environment for the fixture. Give it a
     # private copy and a synthetic key so it neither clears the real test
     # environment nor imports a key from a developer's .env.local.
     monkeypatch.setattr(os, "environ", {"PATH": os.environ.get("PATH", "")})
     monkeypatch.setenv("OPENAI_API_KEY", "unused-synthetic-key")
+    # This tests receipt reuse, not provider authorization or inference.
+    monkeypatch.setattr(evals, "select_eval_credentials", lambda models: ["chatgpt-plan"])
+    monkeypatch.setattr(evals, "preflight", lambda *args: None)
     case = evals.load_cases({"stock_price_before_order"})[0]
     fingerprint = evals.case_fingerprint(case, judge_model=evals.DEFAULT_JUDGE_MODEL, runtime_hash="runtime")
     passed_at = evals.utc_text(evals.utc_now() - evals.timedelta(days=2))
@@ -720,6 +790,9 @@ def test_fresh_gate_preserves_original_pass_time_without_spending(tmp_path, monk
                     "fingerprint": fingerprint,
                     "passed_at": passed_at,
                     "consecutive_passes": 3,
+                    # Match the metadata written by the real qualification producer.
+                    "acting_model": case.get("model") or evals.DEFAULT_ACTING_MODEL,
+                    "judge_model": evals.DEFAULT_JUDGE_MODEL,
                 }
             },
         },
@@ -997,10 +1070,11 @@ def test_preflight_only_never_constructs_a_spending_ledger(
 
     monkeypatch.setattr(agent_eval_isolation, "configure_fixture_environment", lambda root: None)
     monkeypatch.setenv("OPENAI_API_KEY", "unused-synthetic-key")
+    monkeypatch.setattr(evals, "select_eval_credentials", lambda models: ["chatgpt-plan"])
     monkeypatch.setattr(evals, "preflight", lambda *args: None)
     monkeypatch.setattr(evals, "preflight_production_fixtures", lambda cases: None)
     monkeypatch.setattr(evals, "runtime_fingerprint", lambda: "test-fingerprint")
-    monkeypatch.setattr(evals, "is_fresh", lambda *args: fresh)
+    monkeypatch.setattr(evals, "is_fresh", lambda *args, **kwargs: fresh)
     monkeypatch.setattr(
         agent_eval_call_budget,
         "EvalCallBudget",
@@ -1038,6 +1112,7 @@ def test_resume_rebuilds_missing_freshness_from_completed_matching_ledger(monkey
     case = {"id": "resume-contract", "model": "chatgpt/gpt-6-luna"}
     monkeypatch.setattr(agent_eval_isolation, "configure_fixture_environment", lambda root: None)
     monkeypatch.setenv("OPENAI_API_KEY", "unused-synthetic-key")
+    monkeypatch.setattr(evals, "select_eval_credentials", lambda models: ["chatgpt-plan"])
     monkeypatch.setattr(evals, "load_cases", lambda ids: [case])
     monkeypatch.setattr(evals, "preflight", lambda *args: None)
     monkeypatch.setattr(evals, "preflight_production_fixtures", lambda cases: None)
@@ -1045,8 +1120,10 @@ def test_resume_rebuilds_missing_freshness_from_completed_matching_ledger(monkey
     monkeypatch.setattr(evals, "execute_repetition", lambda *a, **k: pytest.fail("Completed passes must be reused"))
     fingerprint = evals.case_fingerprint(case, judge_model=evals.DEFAULT_JUDGE_MODEL, runtime_hash="same-runtime")
     passed_at = (evals.utc_now() - timedelta(days=1)).isoformat()
-    rows = [{"case_id": case["id"], "fingerprint": fingerprint, "status": "pass", "timestamp": passed_at}
-            for _ in range(evals.REQUIRED_CONSECUTIVE_PASSES)]
+    # Canonical producer rows identify each independent repetition explicitly.
+    rows = [{"case_id": case["id"], "fingerprint": fingerprint, "status": "pass", "timestamp": passed_at,
+             "repetition": repetition}
+            for repetition in range(1, evals.REQUIRED_CONSECUTIVE_PASSES + 1)]
     # An unrelated later fingerprint must not rejuvenate the recovered receipt.
     rows.append({"case_id": case["id"], "fingerprint": "other-runtime", "status": "pass", "timestamp": evals.utc_text()})
     (tmp_path / "ledger.jsonl").write_text("".join(json.dumps(r) + "\n" for r in rows))
@@ -1060,6 +1137,135 @@ def test_resume_rebuilds_missing_freshness_from_completed_matching_ledger(monkey
     assert summary["fresh_case_count"] == 1
     assert summary["incremental_estimated_cost_usd"] == 0
     assert json.loads(state_path.read_text())["cases"][case["id"]]["passed_at"] == passed_at
+
+
+@pytest.mark.parametrize(
+    "attempts,repeat,expected_scheduled,expected_passes",
+    [
+        ([(1, "pass"), (2, "fail"), (3, "pass")], 3, [2], 3),
+        ([(1, "pass"), (2, "pass"), (3, "fail")], 3, [3], 3),
+        ([(1, "pass"), (1, "pass"), (1, "pass")], 3, [2, 3], 3),
+        ([(1, "pass"), (2, "pass"), (3, "pass"), (2, "fail")], 3, [2], 3),
+        ([(5, "pass"), (3, "pass"), (1, "pass"), (4, "pass"), (2, "pass")], 5, [], 5),
+    ],
+)
+def test_resume_schedules_only_missing_or_latest_failed_unique_repetitions(
+    monkeypatch, tmp_path, capsys, attempts, repeat, expected_scheduled, expected_passes
+):
+    """Normal harness contracts use synthetic rows; they are not real-model evals."""
+    from scripts import agent_eval_isolation
+    from scripts.agent_eval_subscription_budget import SubscriptionCallBudget
+
+    case = {"id": "unique-resume-contract", "model": evals.DEFAULT_ACTING_MODEL}
+    monkeypatch.setattr(agent_eval_isolation, "configure_fixture_environment", lambda root: None)
+    monkeypatch.setattr(evals, "select_eval_credentials", lambda models: ["chatgpt-plan"])
+    monkeypatch.setattr(evals, "load_cases", lambda ids: [case])
+    monkeypatch.setattr(evals, "preflight", lambda *args: None)
+    monkeypatch.setattr(evals, "preflight_production_fixtures", lambda cases: None)
+    monkeypatch.setattr(evals, "runtime_fingerprint", lambda: "same-runtime")
+    fingerprint = evals.case_fingerprint(case, judge_model=evals.DEFAULT_JUDGE_MODEL, runtime_hash="same-runtime")
+    original_timestamp = evals.utc_text(evals.utc_now() - evals.timedelta(days=1))
+    rows = [{"case_id": case["id"], "fingerprint": fingerprint, "status": status,
+             "repetition": repetition, "timestamp": original_timestamp}
+            for repetition, status in attempts]
+    (tmp_path / "ledger.jsonl").write_text("".join(json.dumps(row) + "\n" for row in rows))
+    SubscriptionCallBudget(tmp_path / "model_calls.jsonl", max_calls=500)
+    scheduled = []
+
+    def execute(case, *, repetition, fingerprint, **kwargs):
+        scheduled.append(repetition)
+        return {"case_id": case["id"], "fingerprint": fingerprint, "status": "pass",
+                "repetition": repetition, "timestamp": evals.utc_text()}
+
+    monkeypatch.setattr(evals, "execute_repetition", execute)
+    state_path = tmp_path / "freshness.json"
+    monkeypatch.setattr(evals.sys, "argv", ["runner", "--max-cost-usd", "0", "--repeat", str(repeat),
+        "--output-root", str(tmp_path), "--freshness-state", str(state_path)])
+    assert evals.main() == 0
+    assert sorted(scheduled) == expected_scheduled
+    summary = json.loads(capsys.readouterr().out)
+    assert summary["scheduled_repetitions"] == len(expected_scheduled)
+    record = json.loads(state_path.read_text())["cases"][case["id"]]
+    assert record["consecutive_passes"] == expected_passes
+    if not expected_scheduled:
+        assert record["passed_at"] == original_timestamp
+
+
+def test_consecutive_passes_require_distinct_valid_repetition_ids():
+    rows = [{"case_id": "case", "fingerprint": "same", "status": "pass", "repetition": 1}] * 3
+    assert evals.consecutive_pass_count(rows, "case", "same") == 1
+    for repetition in (None, True, "2", 0):
+        assert evals.consecutive_pass_count(
+            [{"case_id": "case", "fingerprint": "same", "status": "pass", "repetition": repetition}],
+            "case", "same",
+        ) == 0
+
+
+@pytest.mark.parametrize("status", ["fail", "error", "incomplete"])
+def test_newer_failed_repetition_invalidates_freshness_until_qualified_retry(
+    monkeypatch, tmp_path, capsys, status
+):
+    """A new failed attempt cannot be hidden by the previous passing receipt."""
+    from scripts import agent_eval_isolation
+    from scripts.agent_eval_subscription_budget import SubscriptionCallBudget
+
+    case = {"id": "failed-freshness-contract", "model": evals.DEFAULT_ACTING_MODEL}
+    monkeypatch.setattr(agent_eval_isolation, "configure_fixture_environment", lambda root: None)
+    monkeypatch.setattr(evals, "select_eval_credentials", lambda models: ["chatgpt-plan"])
+    monkeypatch.setattr(evals, "load_cases", lambda ids: [case])
+    monkeypatch.setattr(evals, "preflight", lambda *args: None)
+    monkeypatch.setattr(evals, "preflight_production_fixtures", lambda cases: None)
+    monkeypatch.setattr(evals, "runtime_fingerprint", lambda: "same-runtime")
+    fingerprint = evals.case_fingerprint(case, judge_model=evals.DEFAULT_JUDGE_MODEL, runtime_hash="same-runtime")
+    passed_at = evals.utc_text(evals.utc_now() - evals.timedelta(days=1))
+    rows = [{"case_id": case["id"], "fingerprint": fingerprint, "status": "pass",
+             "repetition": repetition, "timestamp": passed_at} for repetition in range(1, 4)]
+    rows.append({"case_id": case["id"], "fingerprint": fingerprint, "status": status,
+                 "repetition": 2, "timestamp": evals.utc_text()})
+    (tmp_path / "ledger.jsonl").write_text("".join(json.dumps(row) + "\n" for row in rows))
+    SubscriptionCallBudget(tmp_path / "model_calls.jsonl", max_calls=500)
+    state_path = tmp_path / "freshness.json"
+    evals.write_json_atomic(state_path, {"version": 1, "cases": {case["id"]: {
+        "fingerprint": fingerprint, "passed_at": passed_at, "consecutive_passes": 3,
+        "acting_model": case["model"], "judge_model": evals.DEFAULT_JUDGE_MODEL,
+    }}})
+    scheduled = []
+    result_status = status
+
+    def execute(case, *, repetition, fingerprint, **kwargs):
+        scheduled.append(repetition)
+        return {"case_id": case["id"], "fingerprint": fingerprint, "status": result_status,
+                "repetition": repetition, "timestamp": evals.utc_text()}
+
+    monkeypatch.setattr(evals, "execute_repetition", execute)
+    monkeypatch.setattr(evals.sys, "argv", ["runner", "--gate", "--max-cost-usd", "0", "--repeat", "3",
+        "--output-root", str(tmp_path), "--freshness-state", str(state_path)])
+    assert evals.main() == 1
+    assert scheduled == [2]
+    assert case["id"] not in json.loads(state_path.read_text())["cases"]
+    summary = json.loads(capsys.readouterr().out)
+    assert summary["fresh_case_count"] == 0
+    result_status = "pass"
+    assert evals.main() == 0
+    assert scheduled == [2, 2]
+    record = json.loads(state_path.read_text())["cases"][case["id"]]
+    assert record["consecutive_passes"] == 3
+    assert record["passed_at"] != passed_at
+
+
+def test_invalidation_keeps_newer_qualification_and_other_fingerprints():
+    now = evals.utc_now()
+    record = {"fingerprint": "current", "passed_at": evals.utc_text(now)}
+    state = {"cases": {"case": dict(record)}}
+    rows = [{"case_id": "case", "fingerprint": "current", "status": "fail", "repetition": 1,
+             "timestamp": evals.utc_text(now - evals.timedelta(days=1))},
+            {"case_id": "case", "fingerprint": "different", "status": "fail", "repetition": 1,
+             "timestamp": evals.utc_text(now + evals.timedelta(seconds=1))}]
+    evals.invalidate_failed_freshness(state, rows, {"case": "current"})
+    assert state["cases"]["case"] == record
+    rows.append({"case_id": "case", "fingerprint": "current", "status": "error", "repetition": 1})
+    evals.invalidate_failed_freshness(state, rows, {"case": "current"})
+    assert "case" not in state["cases"]
 
 
 def _iron_condor_case():

@@ -113,6 +113,12 @@ def test_research_skill_requires_query_after_catalog_discovery():
     assert "MUST call `query_data` for at least one relevant macro dataset" in text
 
 
+def test_packaged_research_skill_distinguishes_live_queries_from_historical_replay():
+    research_skill = next(skill for skill in load_builtin_skills() if skill.name == "research-data")
+    assert "Omit `asOf` for a current live snapshot" in research_skill.instructions
+    assert "A live runtime clock alone is not a historical replay request" in research_skill.instructions
+
+
 def test_options_skill_requires_atomic_multileg_or_no_trade():
     options_skill = next(skill for skill in load_builtin_skills() if skill.name == "options-trading")
     instructions = " ".join(options_skill.instructions.split())

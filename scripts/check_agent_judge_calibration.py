@@ -14,9 +14,8 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from scripts import run_agent_evals as evals
-from scripts.agent_eval_subscription_budget import SubscriptionCallBudget
 from scripts.agent_eval_isolation import configure_fixture_environment
-
+from scripts.agent_eval_subscription_budget import SubscriptionCallBudget
 
 REQUIRED_REPETITIONS = 3
 
@@ -48,7 +47,8 @@ def control_passed(row):
         uuid.UUID(row["run_id"])
     except (KeyError, TypeError, ValueError, AttributeError):
         return False
-    return timestamp.tzinfo is not None and timestamp <= evals.utc_now()
+    now = evals.utc_now()
+    return timestamp.tzinfo is not None and now - evals.timedelta(days=evals.DEFAULT_FRESHNESS_DAYS) <= timestamp <= now
 
 
 def main():
@@ -82,7 +82,19 @@ def main():
     fingerprints = {item["id"]: control_fingerprint(item, cases[item["case_id"]], runtime_hash) for item in fixtures}
     output_root.mkdir(parents=True, exist_ok=True)
     ledger_path = output_root / "ledger.jsonl"
-    latest = latest_control_rows(evals.read_jsonl(ledger_path), fingerprints)
+    existing = evals.read_jsonl(ledger_path)
+    with budget._ledger() as (_, native_rows):
+        recovered = evals.recover_native_incomplete_attempts(
+            [{**row, "case_id": row.get("id")} for row in existing], native_rows, fingerprints
+        )
+    controls = {item["id"]: item for item in fixtures}
+    for row in recovered:
+        control_id = row["case_id"]
+        row.update(id=control_id, case_id=controls[control_id]["case_id"], passed=False,
+                   expected=controls[control_id]["expected"], runtime_fingerprint=runtime_hash,
+                   judge_model=evals.DEFAULT_JUDGE_MODEL)
+        evals.append_jsonl(ledger_path, row)
+    latest = latest_control_rows(existing + recovered, fingerprints)
     required = [(item["id"], repetition) for item in fixtures for repetition in range(1, REQUIRED_REPETITIONS + 1)]
     work = [(item, repetition) for item in fixtures for repetition in range(1, REQUIRED_REPETITIONS + 1)
             if not control_passed(latest.get((item["id"], repetition), {}))]
@@ -97,6 +109,8 @@ def main():
         row = {"id": item["id"], "case_id": item["case_id"], "repetition": repetition,
                "run_id": run_id, "fingerprint": fingerprint, "runtime_fingerprint": runtime_hash,
                "expected": item["expected"], "judge_model": evals.DEFAULT_JUDGE_MODEL}
+        row.update(started_at=evals.utc_text(), timestamp=evals.utc_text(), status="incomplete", passed=False)
+        evals.append_jsonl(ledger_path, row)
         try:
             judge, result, seconds = evals.run_judge(
                 cases[item["case_id"]], item["transcript"], evals.DEFAULT_JUDGE_MODEL,

@@ -5,7 +5,7 @@ from contextlib import contextmanager
 from urllib.parse import urlsplit
 
 
-def configure_fixture_environment(root):
+def configure_fixture_environment(root, *, artifact_root=None):
     """Keep only the explicitly selected subscription profile and OS settings."""
     retained = {
         name: value for name, value in os.environ.items() if name in {
@@ -17,6 +17,10 @@ def configure_fixture_environment(root):
     os.environ.clear()
     os.environ.update(retained)
     os.environ.update(LUMIBOT_DISABLE_DOTENV="true", IS_BACKTESTING="true", LITELLM_LOCAL_MODEL_COST_MAP="True")
+    if artifact_root is not None:
+        # Each producer's owned output holds traces and caches, never the developer's shared cache.
+        from pathlib import Path
+        os.environ["LUMIBOT_CACHE_FOLDER"] = str(Path(artifact_root).resolve() / "runtime_cache")
 
 
 _INFERENCE_ENDPOINTS = {

@@ -2,142 +2,34 @@ name: LumiBot Agent Evals
 
 on:
   workflow_dispatch:
-    inputs:
-      force:
-        description: Ignore fresh passes and rerun every case
-        required: false
-        default: false
-        type: boolean
-      max_cost_usd:
-        description: Must be zero; API-funded model calls are forbidden
-        required: true
-        default: "0"
-        type: string
-      repeat_count:
-        description: Three normal repetitions or five for changed and failed cases
-        required: true
-        default: "3"
-        type: choice
-        options:
-          - "3"
-          - "5"
-      case_ids:
-        description: Optional comma-separated case IDs for targeted qualification
-        required: false
-        default: ""
-        type: string
-      judge_calibration:
-        description: Qualify research rubric semantics against safe and unsafe controls first
-        required: false
-        default: false
-        type: boolean
-      calibration_case_id:
-        description: Optional affected calibration case; prior passing controls remain preserved
-        required: false
-        default: ''
-        type: string
 
 permissions:
   contents: read
-  actions: read
 
 jobs:
   agent-evals:
     name: Real-Model Agent Evals
-    runs-on: ${{ vars.LUMIBOT_SUBSCRIPTION_EVAL_RUNNER || 'ubuntu-latest' }}
-    environment: subscription-evals
-    concurrency:
-      group: lumibot-subscription-evals
-      cancel-in-progress: false
-    timeout-minutes: 30
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-
       - name: Set up Python 3.10
         uses: actions/setup-python@v5
         with:
           python-version: "3.10"
           cache: pip
-
-      - name: Install dependencies
+      - name: Install qualified dependencies
         run: |
           set -euo pipefail
           python -m pip install --upgrade pip
-          pip install -r requirements_dev.txt
-
-      - name: Restore passing eval freshness
-        uses: actions/cache/restore@v4
-        with:
-          path: .ci/agent-evals/freshness.json
-          key: lumibot-agent-evals-v1-${{ github.run_id }}
-          restore-keys: |
-            lumibot-agent-evals-v1-
-
-      - name: Restore independently passing cases from prior artifacts
-        env:
-          GITHUB_TOKEN: ${{ github.token }}
-        run: python scripts/restore_agent_eval_freshness.py --include-partial
-
-      - name: Calibrate changed research rubrics
-        if: inputs.judge_calibration
-        env:
-          LUMIBOT_DISABLE_DOTENV: "1"
-          CALIBRATION_CASE_ID: ${{ inputs.calibration_case_id }}
-        run: |
-          args=(--max-cost-usd 0 --max-model-calls 100 --output-root .ci/agent-evals/judge-calibration)
-          if [[ -n "${CALIBRATION_CASE_ID}" ]]; then
-            args+=(--case-id "${CALIBRATION_CASE_ID}")
-          fi
-          timeout 600 python scripts/check_agent_judge_calibration.py "${args[@]}"
-
-      - name: Run stale real-model evals
-        env:
-          LUMIBOT_DISABLE_DOTENV: "1"
-          FORCE_EVALS: ${{ inputs.force }}
-          MAX_COST_USD: ${{ inputs.max_cost_usd }}
-          CASE_IDS: ${{ inputs.case_ids }}
-          REPEAT_COUNT: ${{ inputs.repeat_count }}
-        run: |
-          set -euo pipefail
-          case "${REPEAT_COUNT}" in
-            3|5) ;;
-            *) echo "repeat_count must be 3 or 5" >&2; exit 2 ;;
-          esac
-          args=(
-            --gate
-            --repeat "${REPEAT_COUNT}"
-            --max-workers 3
-            --max-cost-usd "${MAX_COST_USD}"
-            --max-model-calls 500
-            --freshness-state .ci/agent-evals/freshness.json
-            --output-root .ci/agent-evals/artifacts
-          )
-          if [[ "${FORCE_EVALS}" == "true" ]]; then
-            args+=(--force)
-          fi
-          if [[ -n "${CASE_IDS}" ]]; then
-            IFS=',' read -ra selected_case_ids <<< "${CASE_IDS}"
-            for case_id in "${selected_case_ids[@]}"; do
-              case_id="${case_id//[[:space:]]/}"
-              args+=(--case-id "${case_id}")
-            done
-          fi
-          timeout 1500 python scripts/run_agent_evals.py "${args[@]}"
-
-      - name: Save passing eval freshness
-        uses: actions/cache/save@v4
-        with:
-          path: .ci/agent-evals/freshness.json
-          key: lumibot-agent-evals-v1-${{ github.run_id }}
-
-      - name: Upload eval evidence
+          pip install -r requirements_dev.txt -c requirements_agent_evals.txt
+      - name: Verify native real-model actor and judge qualification
+        run: timeout 120 python scripts/qualify_agent_evals.py verify
+      - name: Upload compact qualification evidence
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: lumibot-agent-evals-${{ github.run_id }}
-          if-no-files-found: warn
-          path: |
-            .ci/agent-evals/artifacts/**
-            .ci/agent-evals/freshness.json
-            .ci/agent-evals/judge-calibration/**
+          if-no-files-found: error
+          path: ci/agent-evals/qualification.json

@@ -39,8 +39,8 @@ class SubscriptionCallBudget(EvalCallBudget):
         if type(max_output_tokens) is not int or max_output_tokens <= 0:
             raise ValueError("A positive request output allowance is required")
         self._cost(model, 0, 0, 0)
-        from uuid import uuid4
         from datetime import datetime, timezone
+        from uuid import uuid4
         with self._ledger() as (stream, rows):
             if len(self._calls(rows[1:])) >= self.max_calls:
                 raise SubscriptionCallLimitError("Subscription call limit reached; resume without resetting the cap")
@@ -50,14 +50,19 @@ class SubscriptionCallBudget(EvalCallBudget):
                 "timestamp": datetime.now(timezone.utc).isoformat(), "scope": scope})
         return token
 
-    def for_scope(self, case_id, repetition, role):
+    def for_scope(self, case_id, repetition, role, *, run_id=None, fingerprint=None):
         from scripts.agent_eval_call_budget import _ScopedBudget
         class Scope(_ScopedBudget):
             def before_request(self, model, llm_request):
                 # Native Gemini token counting would itself bill an API. The
                 # subscription provider enforces its catalog's context limit.
                 self.owner._cost(model, 0, 0, 0)
-        return Scope(self, {"case_id": case_id, "repetition": repetition, "role": role})
+        scope = {"case_id": case_id, "repetition": repetition, "role": role}
+        if run_id is not None or fingerprint is not None:
+            if not run_id or not fingerprint:
+                raise ValueError("Native qualification scope requires both attempt and source identities")
+            scope.update(run_id=run_id, fingerprint=fingerprint)
+        return Scope(self, scope)
 
     def snapshot(self):
         return {**super().snapshot(), "funding": "chatgpt-plan", "max_calls": self.max_calls,

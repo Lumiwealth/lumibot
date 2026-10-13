@@ -26,6 +26,39 @@ be established, report that evidence unavailable for the historical decision.
 A discovery index may contain later entries. Query only eligible rows before
 following report links. After eligibility is established, use the workflow below.
 
+## Reconcile instruments and records before calculating
+
+A report row is evidence about a holding, not automatically a separate asset.
+Before ranking holdings or adding their amounts, identify the instrument from
+its labels, table headings and document context: common stock, a fund, debt,
+or an option. An issuer name or ticker identifies the issuer; it does not by
+itself establish a common-stock holding. For an option, retain the underlying,
+call or put, strike and expiration when reported. Different contracts or
+instrument types must not be merged merely because they share an issuer.
+
+An issuer summary and its instrument detail, repeated rows across pages, or a
+total and its components may describe the same holding. Check headings,
+indentation, identifiers and cross-references before treating them as separate.
+A summary followed by option details is not evidence of both stock and options.
+Count separate holdings only when the source independently establishes them;
+do not count a summary again on top of the details it summarizes. Preserve the
+source rows and explain which represent the holding and which provide context.
+
+Reconcile transaction reports against the same identified instrument and the
+holding's reporting period before updating it. Keep the transaction date,
+reporting period and publication or disclosure date separate. Apply only
+transactions that update that instrument after the baseline snapshot and are
+eligible at the decision time. A transaction's execution date does not make a
+later disclosure available sooner. Do not apply an issuer-level transaction to
+stock or an option contract by guessing which one it concerns.
+
+Keep values, quantities and reported ranges distinct. A partial sale does not
+by itself prove the entire holding is gone, and a transaction amount is not the
+remaining position value. If instrument type, contract identity, dates, or the
+relationship between rows cannot be established, retain an unresolved holding
+or an unknown amount and state the missing evidence. Do not invent stock,
+option terms, separate assets or exact remaining amounts to complete a ranking.
+
 ## Workflow
 
 1. Find the document. Call `read_document` on the page URL: it returns the page

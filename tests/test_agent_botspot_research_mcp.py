@@ -8,8 +8,22 @@ from pathlib import Path
 
 import pytest
 
+import lumibot.components.agents.manager as manager_module
 import lumibot.components.agents.runtime as runtime_module
 from lumibot.components.agents import AgentManager, MCPServer
+
+_RESEARCH_PRESET_TOOL_NAMES = [
+    "search_data_catalog",
+    "query_data",
+    "search_documents",
+    "get_document",
+    "list_marketplace_strategies",
+    "get_marketplace_strategy",
+    "get_marketplace_strategy_code",
+    "list_marketplace_accounts",
+    "get_marketplace_account",
+    "community",
+]
 
 
 class _Vars(dict):
@@ -46,20 +60,110 @@ def _configure_hosted_research(monkeypatch):
     )
 
 
-def test_hosted_research_capability_auto_attaches_exact_read_only_tools(monkeypatch):
+def test_hosted_research_capability_auto_attaches_the_shared_research_preset(monkeypatch):
     _configure_hosted_research(monkeypatch)
 
     handle = AgentManager(_Strategy()).create(name="researcher", _runtime=_Runtime())
 
     server = next(server for server in handle._mcp_servers if server.name == "botspot_research")
-    assert server.exposed_tools == [
-        "search_data_catalog",
-        "query_data",
-        "search_documents",
-        "get_document",
-    ]
+    # The shared Research preset now includes Marketplace and Community reads.
+    # Community is one mixed-action tool; its write scopes are enforced by Node.
+    assert server.exposed_tools == _RESEARCH_PRESET_TOOL_NAMES
     assert server.auth_token_env == "BOTSPOT_RESEARCH_MCP_TOKEN"
     assert server.auth_token_refresh_url.endswith("/research-runtime-capabilities/renew")
+
+
+@pytest.mark.parametrize("renew_url", [None, "", "  "])
+def test_external_static_research_key_auto_attaches_without_a_renewal_endpoint(monkeypatch, renew_url):
+    _configure_hosted_research(monkeypatch)
+    if renew_url is None:
+        monkeypatch.delenv("BOTSPOT_RESEARCH_MCP_RENEW_URL")
+    else:
+        monkeypatch.setenv("BOTSPOT_RESEARCH_MCP_RENEW_URL", renew_url)
+    strategy = _Strategy()
+
+    handle = AgentManager(strategy).create(name="researcher", _runtime=_Runtime())
+
+    assert len(handle._mcp_servers) == 1
+    server = handle._mcp_servers[0]
+    assert server.name == "botspot_research"
+    assert server.exposed_tools == _RESEARCH_PRESET_TOOL_NAMES
+    assert server.auth_token_env == "BOTSPOT_RESEARCH_MCP_TOKEN"
+    assert server.auth_token_refresh_url is None
+    assert server.headers is None
+    assert "research-token" not in repr(server)
+    assert all("research-token" not in message for message in strategy.messages)
+    assert asyncio.run(runtime_module._refresh_mcp_auth_token(server, "research-token")) is False
+
+
+@pytest.mark.parametrize(
+    "renew_url",
+    ["https://attacker.example/renew", "http://api.test.botspot.trade/renew", "not-a-url"],
+)
+def test_auto_attachment_rejects_a_supplied_unsafe_renewal_endpoint(monkeypatch, renew_url):
+    _configure_hosted_research(monkeypatch)
+    monkeypatch.setenv("BOTSPOT_RESEARCH_MCP_RENEW_URL", renew_url)
+    strategy = _Strategy()
+    manager = AgentManager(strategy)
+
+    first = manager.create(name="first", _runtime=_Runtime())
+    second = manager.create(name="second", _runtime=_Runtime())
+
+    assert first._mcp_servers == second._mcp_servers == []
+    warnings = [message for message in strategy.messages if "configuration is invalid" in message]
+    assert len(warnings) == 1
+    assert "research-token" not in warnings[0]
+
+
+@pytest.mark.parametrize("scope,parent_post_id", [("community:post", None), ("community:reply", "public-post")])
+def test_mixed_community_tool_preserves_server_write_denial(monkeypatch, scope, parent_post_id):
+    _configure_hosted_research(monkeypatch)
+    calls = []
+    monkeypatch.setattr(
+        runtime_module,
+        "list_mcp_tools",
+        lambda _server: [
+            {
+                "name": "community",
+                "description": "Read the feed or publish only with an explicit posting grant.",
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {
+                        "action": {"type": "string", "enum": ["feed", "post"]},
+                        "body": {"type": "string"},
+                        "parentPostId": {"type": "string"},
+                    },
+                    "required": ["action"],
+                },
+            }
+        ],
+    )
+    denial = runtime_module.RemoteMCPToolError(
+        "community",
+        {"isError": True, "structuredContent": {"errorCode": "forbidden", "message": f"Missing {scope}"}},
+    )
+
+    def denied_by_server(server, name, payload):
+        calls.append((server.name, name, payload))
+        raise denial
+
+    # This is a client propagation contract, not proof of server authorization.
+    # No local intent gate or live Community write is involved.
+    monkeypatch.setattr(runtime_module, "call_mcp_tool", denied_by_server)
+    monkeypatch.setattr(manager_module, "_RUNTIME_IMPORTS", None)
+    handle = AgentManager(_Strategy()).create(name="researcher", _runtime=_Runtime())
+    community = next(tool for tool in handle._ensure_bound_tools() if tool.name == "community")
+    assert list(inspect.signature(community.function).parameters) == ["action", "body", "parentPostId"]
+    payload = {"action": "post", "body": "Public research summary."}
+    if parent_post_id is not None:
+        payload["parentPostId"] = parent_post_id
+
+    with pytest.raises(runtime_module.RemoteMCPToolError) as raised:
+        community.function(**payload)
+
+    assert raised.value is denial
+    assert raised.value.code == "forbidden"
+    assert calls == [("botspot_research", "community", payload)]
 
 
 def test_hosted_research_tools_expose_the_remote_mcp_contract_to_the_model(monkeypatch):

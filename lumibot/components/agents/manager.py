@@ -30,6 +30,14 @@ _BOTSPOT_RESEARCH_TOOLS = [
     "query_data",
     "search_documents",
     "get_document",
+    "list_marketplace_strategies",
+    "get_marketplace_strategy",
+    "get_marketplace_strategy_code",
+    "list_marketplace_accounts",
+    "get_marketplace_account",
+    # This selects the shared tool contract. BotSpot still authorizes each
+    # Community action, including its separately granted post/reply scopes.
+    "community",
 ]
 # Outbound network tools are default-deny. An agent gets them only with
 # allow_network=True, or by listing one explicitly in tools=[...]. Fetched
@@ -223,7 +231,9 @@ def _botspot_research_server_from_environment() -> tuple[MCPServer | None, str |
             "is attached automatically on BotSpot; external LumiBot users can link a BotSpot account. "
             "Ordinary LumiBot tools and strategy execution remain available.",
         )
-    if not all(configured):
+    # External research keys need only URL + token. Hosted capabilities can
+    # additionally renew; a supplied renewal URL retains MCPServer validation.
+    if not (url and token):
         return (
             None,
             "BotSpot research is only partially configured. Link a BotSpot account or run on BotSpot "
@@ -237,7 +247,7 @@ def _botspot_research_server_from_environment() -> tuple[MCPServer | None, str |
                 url=url,
                 exposed_tools=_BOTSPOT_RESEARCH_TOOLS,
                 auth_token_env="BOTSPOT_RESEARCH_MCP_TOKEN",
-                auth_token_refresh_url=renew_url,
+                auth_token_refresh_url=renew_url or None,
             ),
             None,
         )

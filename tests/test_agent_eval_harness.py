@@ -1,10 +1,16 @@
+import copy
+import hashlib
 import importlib.util
 import json
 import os
 import sys
+import uuid
 from pathlib import Path
 
 import pytest
+
+from lumibot.components.agents import AgentRunResult
+from scripts import agent_eval_production_fixture as fixture_module
 
 SCRIPT_PATH = Path(__file__).resolve().parents[1] / "scripts/run_agent_evals.py"
 SPEC = importlib.util.spec_from_file_location("run_agent_evals", SCRIPT_PATH)
@@ -766,7 +772,15 @@ def test_judge_receives_only_called_builtin_contracts_and_preserves_observed_evi
     )
     transcript = result["transcript"]
     assert [item["name"] for item in transcript["builtin_tool_contracts"]] == ["account_positions"]
-    assert transcript["tool_results"] == [{"name": "account_positions", "payload": observed}]
+    # Preserve observed bodies plus actual provider/request identities for audit linkage.
+    assert transcript["tool_results"] == [
+        {
+            "name": "account_positions",
+            "payload": observed,
+            "call_id": None,
+            "model_call_id": seen[0].model_call_id,
+        }
+    ]
     request = next(request for request in seen if request.agent_name == "eval_judge")
     emitted = json.loads(request.task_prompt.split("RUN:\n", 1)[1])
     assert emitted["builtin_tool_contracts"] == transcript["builtin_tool_contracts"]
@@ -2168,6 +2182,499 @@ def test_order_journal_contract_checks_broker_references():
     transcript = {"fixture_calls": [], "submissions": [], "broker_orders": [{"identifier": "order-1"}]}
     assert not evals.score_machine_contract(case, transcript)["pass"]
     transcript["broker_orders"][0]["decision_journal"] = {
-        "action_id": "action-1", "decision_id": "decision-1", "reason_sha256": "a" * 64,
+        "action_id": "action-1",
+        "decision_id": "decision-1",
+        "reason_sha256": "a" * 64,
     }
     assert evals.score_machine_contract(case, transcript)["pass"]
+
+
+# Actual fixture capture contracts promoted from the preceding producer slice.
+def _audit(memory, *, status="completed"):
+    fields = {
+        "action_id": str(uuid.uuid4()),
+        "tool_name": "orders_submit_order",
+        "purpose": "Private synthetic sizing and order audit.",
+        "arguments_sha256": hashlib.sha256(b"synthetic-only-arguments").hexdigest(),
+        "agent_name": "trader",
+        "model_call_id": "synthetic-call-1",
+    }
+    memory.record_agent_tool_action(**fields, status="started")
+    memory.record_agent_tool_action(
+        **fields, status=status, **({"error_type": "SyntheticFailure"} if status == "failed" else {})
+    )
+    return fields
+
+
+def _fixture():
+    return fixture_module.ProductionFixture(evals.build_fixture("flat_stock_account"))
+
+
+def _capture(production):
+    production.capture(
+        AgentRunResult(summary="Ordinary capture contract; no model.", model="ordinary-contract-no-model", events=[])
+    )
+    return production.fixture.memory_events
+
+
+def test_capture_preserves_actual_committed_tool_and_order_rows():
+    production = _fixture()
+    root = production.root
+    try:
+        memory = production.strategy.memory
+        memory.remember("Unrelated synthetic memory must not appear in the bounded audit projection.")
+        fields = _audit(memory)
+        private_reason = (
+            "Private synthetic order rationale: completed daily bars support the current-price comparison, "
+            "the proposed size is within the fixture risk budget, volatility can reverse the move, "
+            "and failure of the observed price condition invalidates the entry."
+        )
+        public_reason = "AAPL entry follows completed daily prices, with a small position and reversal risk."
+        reference = memory.record_order_action(
+            operation="submit",
+            reason=private_reason,
+            orders=[{"symbol": "AAPL", "quantity": 1, "side": "buy"}],
+            evidence={"public_reason": public_reason},
+            agent_name="trader",
+            model_call_id="synthetic-call-1",
+        )
+        memory.record_order_action_outcome(reference, certainty="submitted")
+        with memory._connect() as connection:
+            committed = connection.execute(
+                "SELECT * FROM memory_events WHERE event_type IN "
+                "('agent.tool_started', 'agent.tool_outcome', 'order.intent', 'order.action_outcome') "
+                "ORDER BY sequence"
+            ).fetchall()
+        captured = _capture(production)
+        assert [row["event_type"] for row in captured] == [
+            "agent.tool_started",
+            "agent.tool_outcome",
+            "order.intent",
+            "order.action_outcome",
+        ]
+        assert [row["sequence"] for row in captured] == [row["sequence"] for row in committed]
+        for row, source in zip(captured, committed):
+            for key in (
+                "event_id",
+                "sequence",
+                "timestamp",
+                "wall_time",
+                "strategy",
+                "event_type",
+                "subject_type",
+                "subject_id",
+                "agent_name",
+                "model_call_id",
+                "text",
+                "payload_json",
+                "payload_hash",
+                "schema_version",
+            ):
+                assert row[key] == source[key]
+            assert row["metadata"] == json.loads(source["metadata_json"])
+            assert hashlib.sha256(row["payload_json"].encode("utf-8")).hexdigest() == row["payload_hash"]
+        for row in captured[:2]:
+            assert row["subject_id"] == fields["action_id"]
+            assert row["metadata"]["purpose"] == fields["purpose"]
+            assert row["metadata"]["arguments_sha256"] == fields["arguments_sha256"]
+            assert "public_reason" not in row["metadata"]
+        intent = captured[2]
+        assert intent["text"] == private_reason
+        assert (
+            intent["metadata"]["reference"]["reason_sha256"]
+            == hashlib.sha256(private_reason.encode("utf-8")).hexdigest()
+        )
+        assert intent["metadata"]["reference"]["public_reason_preview"] == public_reason
+        assert (
+            intent["metadata"]["reference"]["public_reason_sha256"]
+            == hashlib.sha256(public_reason.encode("utf-8")).hexdigest()
+        )
+        assert intent["metadata"]["evidence"]["public_reason"] == public_reason
+        assert captured[3]["subject_id"] == intent["subject_id"]
+    finally:
+        production.close()
+    assert not root.exists()
+    assert production.fixture.memory_events == captured
+
+
+def test_failed_actual_tool_outcome_is_not_changed_to_success():
+    production = _fixture()
+    try:
+        fields = _audit(production.strategy.memory, status="failed")
+        captured = _capture(production)
+        assert len(captured) == 2
+        assert [row["metadata"]["status"] for row in captured] == ["started", "failed"]
+        assert captured[1]["metadata"]["error_type"] == "SyntheticFailure"
+        assert captured[1]["subject_id"] == fields["action_id"]
+    finally:
+        production.close()
+
+
+def test_capture_occurs_before_harness_settlement():
+    production = _fixture()
+    try:
+        _audit(production.strategy.memory)
+        actual_settle = production.settle
+
+        def observed_settle():
+            assert len(production.fixture.memory_events) == 2
+            return actual_settle()
+
+        production.settle = observed_settle
+        _capture(production)
+    finally:
+        production.close()
+
+
+def test_capture_row_bound_fails_visibly_instead_of_truncating(monkeypatch):
+    production = _fixture()
+    try:
+        _audit(production.strategy.memory)
+        monkeypatch.setattr(fixture_module, "_MAX_CAPTURED_MEMORY_EVENTS", 1, raising=False)
+        with pytest.raises(ValueError, match="journal row bound"):
+            _capture(production)
+    finally:
+        production.close()
+
+
+def test_capture_byte_bound_fails_visibly_instead_of_truncating(monkeypatch):
+    production = _fixture()
+    try:
+        _audit(production.strategy.memory)
+        monkeypatch.setattr(fixture_module, "_MAX_CAPTURED_MEMORY_BYTES", 1, raising=False)
+        with pytest.raises(ValueError, match="journal byte bound"):
+            _capture(production)
+    finally:
+        production.close()
+
+
+def _native_journal_gate_transcript(*, fail_order=False):
+    """Ordinary real built-in/MemoryStore contract; no model trajectory claim."""
+    from lumibot.components.agents import AgentTraceEvent
+    from lumibot.components.agents.runtime import _wrap_agent_tool_callable
+
+    production = _fixture()
+    try:
+        # Only bind actual tools; never construct or invoke a provider runtime.
+        handle = production.create_agent(evals.load_cases({"stock_order_decision_journal"})[0], object())
+        request_id = "synthetic-contract-request"
+        context = {
+            "agent_name": "trader",
+            "model_call_id": request_id,
+            "tool_journal_callback": handle._tool_journal_callback(request_id),
+            "enforce_order_readiness": True,
+            "account_snapshot": handle._runtime_context()["account_snapshot"],
+            "tool_calls": [],
+        }
+        tools = {tool.name: tool for tool in handle._ensure_bound_tools()}
+        events = []
+        requests = [
+            ("market_last_price", {"symbol": "AAPL", "agent_purpose": "Inspect the current fixture price."}),
+            (
+                "orders_submit_order",
+                {
+                    "symbol": "AAPL",
+                    "quantity": -1 if fail_order else 1,
+                    "side": "buy",
+                    "order_type": "limit",
+                    "limit_price": 231,
+                    "reason": (
+                        "The actual fixture current price supports the small synthetic entry. "
+                        "One share keeps exposure below the fixture risk budget. A price reversal "
+                        "can invalidate the entry, so reassess the observed completed daily evidence "
+                        "before increasing exposure."
+                    ),
+                    "public_reason": "A small AAPL entry follows the observed price evidence; reversal is a risk.",
+                    "agent_purpose": "Record the private rationale before sending the fixture order.",
+                },
+            ),
+        ]
+        for index, (name, arguments) in enumerate(requests):
+            result = _wrap_agent_tool_callable(tools[name], context)(**arguments)
+            assert bool(result.get("tool_error")) is (fail_order and index == 1)
+            events.extend(
+                [
+                    AgentTraceEvent(kind="tool_call", tool_name=name, call_id=f"call-{index}", payload=arguments),
+                    AgentTraceEvent(kind="tool_result", tool_name=name, call_id=f"call-{index}", payload=result),
+                ]
+            )
+        actor = AgentRunResult(
+            summary="Ordinary tool contract; no model was run.",
+            model="ordinary-contract-no-model",
+            events=events,
+            cache_key=request_id,
+        )
+        orders = production.capture(actor)
+        transcript = evals.compact_transcript(actor, production.fixture)
+        # This setup provides real producer rows independently of projection under test.
+        transcript["memory_events"] = copy.deepcopy(production.fixture.memory_events)
+        transcript["broker_orders"] = orders
+        return transcript, actor, production.fixture
+    finally:
+        production.close()
+
+
+def test_compact_transcript_preserves_actual_native_journal_and_request_identity():
+    transcript, actor, fixture = _native_journal_gate_transcript()
+    projected = evals.compact_transcript(actor, fixture)
+    assert projected["memory_events"] == fixture.memory_events
+    assert projected["tool_calls"][0]["model_call_id"] == actor.cache_key
+    assert projected["tool_calls"][0]["call_id"] == "call-0"
+    assert projected["tool_results"][0]["call_id"] == "call-0"
+
+
+def test_agent_audit_contract_rejects_missing_committed_rows():
+    transcript, _, _ = _native_journal_gate_transcript()
+    transcript.pop("memory_events")
+    result = evals.score_machine_contract({"machineContract": {"requireAgentToolAudit": True}}, transcript)
+    assert not result["pass"]
+    assert any("audit" in failure for failure in result["failures"])
+
+
+def test_public_order_reference_contract_rejects_missing_committed_intent():
+    transcript, _, _ = _native_journal_gate_transcript()
+    transcript["memory_events"] = [row for row in transcript["memory_events"] if row["event_type"] != "order.intent"]
+    result = evals.score_machine_contract({"machineContract": {"requirePublicOrderReasonReference": True}}, transcript)
+    assert not result["pass"]
+    assert any("public order" in failure for failure in result["failures"])
+
+
+def _rehash_journal_test_event(row):
+    """Controlled corruption contract, outside real cases and native receipts."""
+    payload = json.loads(row["payload_json"])
+    if row["event_type"].startswith("agent.tool_"):
+        payload = row["metadata"]
+    elif row["event_type"] == "order.intent":
+        payload["metadata"] = row["metadata"]
+        payload["text"] = row["text"]
+    row["payload_json"] = json.dumps(payload, sort_keys=True)
+    row["payload_hash"] = hashlib.sha256(row["payload_json"].encode("utf-8")).hexdigest()
+
+
+@pytest.mark.parametrize("public", [False, True])
+def test_native_journal_gate_accepts_actual_committed_builtin_actions(public):
+    transcript, _, _ = _native_journal_gate_transcript()
+    result = evals.score_machine_contract(
+        {
+            "machineContract": {
+                "requireAgentToolAudit": True,
+                "requirePublicOrderReasonReference": public,
+            }
+        },
+        transcript,
+    )
+    assert result["pass"], result["failures"]
+
+
+def test_native_journal_gate_preserves_actual_failed_invocation_status():
+    transcript, _, _ = _native_journal_gate_transcript(fail_order=True)
+    result = evals.score_machine_contract({"machineContract": {"requireAgentToolAudit": True}}, transcript)
+    assert result["pass"], result["failures"]
+    assert transcript["memory_events"][-1]["metadata"]["status"] == "failed"
+    assert not transcript["broker_orders"]
+
+
+@pytest.mark.parametrize(
+    "mutation",
+    [
+        "missing_start",
+        "missing_outcome",
+        "duplicate_event",
+        "invalid_uuid",
+        "wrong_call_request",
+        "wrong_result_id",
+        "wrong_status",
+        "arguments_hash",
+        "payload_hash",
+        "sequence",
+        "schema",
+        "purpose",
+        "purpose_controls",
+        "mixed_store",
+        "metadata_request",
+        "extra_result",
+        "missing_result",
+    ],
+)
+def test_native_journal_gate_rejects_exact_corrupted_audit_contract(mutation):
+    transcript, _, _ = _native_journal_gate_transcript()
+    rows = transcript["memory_events"]
+    first_pair = rows[:2]
+    if mutation == "missing_start":
+        rows.pop(0)
+    elif mutation == "missing_outcome":
+        rows.pop(1)
+    elif mutation == "duplicate_event":
+        duplicate = copy.deepcopy(rows[-1])
+        duplicate["sequence"] += 1
+        rows.append(duplicate)
+    elif mutation == "invalid_uuid":
+        for row in first_pair:
+            row["metadata"]["action_id"] = row["subject_id"] = "invalid-action-id"
+            _rehash_journal_test_event(row)
+    elif mutation == "wrong_call_request":
+        transcript["tool_calls"][0]["model_call_id"] = "another-request"
+    elif mutation == "wrong_result_id":
+        transcript["tool_results"][0]["call_id"] = "another-provider-call"
+    elif mutation == "wrong_status":
+        first_pair[1]["metadata"]["status"] = "failed"
+        _rehash_journal_test_event(first_pair[1])
+    elif mutation == "arguments_hash":
+        for row in first_pair:
+            row["metadata"]["arguments_sha256"] = "0" * 64
+            _rehash_journal_test_event(row)
+    elif mutation == "payload_hash":
+        first_pair[0]["payload_hash"] = "0" * 64
+    elif mutation == "sequence":
+        first_pair[0]["sequence"] = True
+    elif mutation == "schema":
+        first_pair[0]["schema_version"] = 2
+    elif mutation == "purpose":
+        for row in first_pair:
+            row["metadata"]["purpose"] = row["text"] = "Different private purpose."
+            _rehash_journal_test_event(row)
+    elif mutation == "purpose_controls":
+        for row in first_pair:
+            row["metadata"]["purpose"] = row["text"] = "Private purpose\nwith control."
+            _rehash_journal_test_event(row)
+        transcript["tool_calls"][0]["payload"]["agent_purpose"] = "Private purpose\nwith control."
+    elif mutation == "mixed_store":
+        first_pair[0]["strategy"] = "different-fixture-store"
+    elif mutation == "metadata_request":
+        first_pair[0]["metadata"]["model_call_id"] = "different-request"
+        _rehash_journal_test_event(first_pair[0])
+    elif mutation == "extra_result":
+        transcript["tool_results"].append(copy.deepcopy(transcript["tool_results"][0]))
+    elif mutation == "missing_result":
+        transcript["tool_results"].pop(0)
+    result = evals.score_machine_contract({"machineContract": {"requireAgentToolAudit": True}}, transcript)
+    assert not result["pass"], mutation
+
+
+@pytest.mark.parametrize(
+    "mutation",
+    [
+        "missing_public",
+        "public_reference_hash",
+        "private_reference_hash",
+        "public_content",
+        "missing_order_outcome",
+        "late_intent",
+        "unknown_outcome",
+        "missing_broker_reference",
+        "duplicate_intent",
+    ],
+)
+def test_native_journal_gate_rejects_exact_corrupted_public_order_contract(mutation):
+    transcript, _, _ = _native_journal_gate_transcript()
+    rows = transcript["memory_events"]
+    intent = next(row for row in rows if row["event_type"] == "order.intent")
+    outcome = next(row for row in rows if row["event_type"] == "order.action_outcome")
+    if mutation == "missing_public":
+        transcript["tool_calls"][-1]["payload"].pop("public_reason")
+    elif mutation == "public_reference_hash":
+        transcript["broker_orders"][0]["decision_journal"]["public_reason_sha256"] = "0" * 64
+    elif mutation == "private_reference_hash":
+        intent["metadata"]["reference"]["reason_sha256"] = "0" * 64
+        _rehash_journal_test_event(intent)
+    elif mutation == "public_content":
+        intent["metadata"]["evidence"]["public_reason"] = "Different summary."
+        _rehash_journal_test_event(intent)
+    elif mutation == "missing_order_outcome":
+        rows.remove(outcome)
+    elif mutation == "late_intent":
+        intent["sequence"] = rows[-1]["sequence"] + 1
+        rows.sort(key=lambda row: row["sequence"])
+    elif mutation == "unknown_outcome":
+        outcome["metadata"]["certainty"] = "unknown"
+    elif mutation == "missing_broker_reference":
+        transcript["broker_orders"][0].pop("decision_journal")
+    elif mutation == "duplicate_intent":
+        duplicate = copy.deepcopy(intent)
+        duplicate["event_id"] = f"event_{uuid.uuid4().hex}"
+        duplicate["sequence"] = rows[-1]["sequence"] + 1
+        rows.append(duplicate)
+    result = evals.score_machine_contract(
+        {
+            "machineContract": {
+                "requireAgentToolAudit": True,
+                "requirePublicOrderReasonReference": True,
+            }
+        },
+        transcript,
+    )
+    assert not result["pass"], mutation
+
+
+def test_native_journal_gate_accepts_pruned_results_using_committed_status():
+    transcript, _, _ = _native_journal_gate_transcript()
+    transcript["tool_results"][-1]["payload"] = {"lumibot_tool_result_pruned": True, "excerpt": "bounded"}
+    result = evals.score_machine_contract(
+        {
+            "machineContract": {
+                "requireAgentToolAudit": True,
+                "requirePublicOrderReasonReference": True,
+            }
+        },
+        transcript,
+    )
+    assert result["pass"], result["failures"]
+
+
+@pytest.mark.parametrize("flag", ["requireAgentToolAudit", "requirePublicOrderReasonReference"])
+def test_native_journal_machine_flags_require_exact_booleans(flag):
+    with pytest.raises(RuntimeError, match="must be a boolean"):
+        evals._decision_completion_contract({flag: 1})
+
+
+@pytest.mark.parametrize("value", [2, float("nan")])
+def test_native_journal_gate_preserves_domain_purpose_and_unique_repeated_calls(value):
+    from lumibot.components.agents import AgentTraceEvent
+    from lumibot.components.agents.runtime import _wrap_agent_tool_callable
+    from lumibot.components.agents.schemas import BoundTool
+
+    production = _fixture()
+    try:
+        handle = production.create_agent(evals.load_cases({"stock_order_decision_journal"})[0], object())
+        request_id = "synthetic-domain-purpose-request"
+        context = {"tool_calls": [], "tool_journal_callback": handle._tool_journal_callback(request_id)}
+
+        def domain_tool(*, agent_purpose, value):
+            return {"domain_purpose": agent_purpose, "value": value}
+
+        tool = BoundTool(name="domain_tool", description="Ordinary domain argument contract.", function=domain_tool)
+        arguments = {"agent_purpose": "domain-owned value", "value": value, "agent_purpose_2": "Private audit purpose."}
+        events = []
+        for _ in range(2):
+            response = _wrap_agent_tool_callable(tool, context)(**arguments)
+            assert response["domain_purpose"] == "domain-owned value"
+            events.extend(
+                [
+                    AgentTraceEvent(kind="tool_call", tool_name=tool.name, call_id=None, payload=dict(arguments)),
+                    AgentTraceEvent(kind="tool_result", tool_name=tool.name, call_id=None, payload=response),
+                ]
+            )
+        actor = AgentRunResult(
+            summary="Ordinary contract; no model.",
+            model="ordinary-contract-no-model",
+            events=events,
+            cache_key=request_id,
+        )
+        production.capture(actor)
+        transcript = evals.compact_transcript(actor, production.fixture)
+        transcript["builtin_tool_contracts"] = [
+            {
+                "name": tool.name,
+                "parameters": {"properties": {"agent_purpose": {}, "value": {}}},
+            }
+        ]
+        outcome = evals.score_machine_contract({"machineContract": {"requireAgentToolAudit": True}}, transcript)
+        assert outcome["pass"], outcome["failures"]
+        assert len({row["subject_id"] for row in transcript["memory_events"]}) == 2
+        # Reusing one pair for two otherwise identical calls must never pass.
+        transcript["memory_events"] = transcript["memory_events"][:2]
+        assert not evals.score_machine_contract({"machineContract": {"requireAgentToolAudit": True}}, transcript)[
+            "pass"
+        ]
+    finally:
+        production.close()

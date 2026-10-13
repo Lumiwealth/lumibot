@@ -1522,3 +1522,303 @@ def test_run_together_keeps_model_calls_parallel_but_serializes_shared_state(mon
 
     for name in agent_names:
         assert manager._observability_call_index[name] == runs_per_agent
+
+
+def test_durable_private_tool_journal_precedes_call_and_links_actual_outcome():
+    import hashlib
+    from uuid import UUID
+
+    records, observed = [], []
+    context = {"tool_journal_callback": lambda record: records.append(dict(record))}
+
+    def read(secret: str) -> dict:
+        observed.append(list(records))
+        return {"value": 42}
+
+    result = _agent_declared_callable(BoundTool("read", "Read.", read), context)(secret="synthetic-private-value", agent_purpose=PRIVATE_TOOL_PURPOSE)
+    assert result == {"value": 42}
+    assert len(records) == 2
+    started, completed = records
+    assert observed == [[started]]
+    UUID(started["action_id"])
+    assert completed["action_id"] == started["action_id"]
+    assert started["status"] == "started" and "ok" not in started
+    assert completed["status"] == "completed" and completed["ok"] is True
+    assert started["tool_name"] == "read" and started["purpose"] == PRIVATE_TOOL_PURPOSE
+    expected = json.dumps({"args": [], "kwargs": {"secret": "synthetic-private-value"}}, sort_keys=True, separators=(",", ":"), ensure_ascii=True)
+    assert started["arguments_sha256"] == hashlib.sha256(expected.encode("utf-8")).hexdigest()
+    assert set(started) == {"action_id", "tool_name", "purpose", "status", "arguments_sha256"}
+    assert "synthetic-private-value" not in json.dumps(records)
+    assert context["tool_calls"][0]["action_id"] == started["action_id"]
+
+
+@pytest.mark.parametrize("fail_status", ["started", "completed"])
+def test_durable_private_tool_journal_failure_is_visible_without_false_completion(fail_status):
+    records, invoked = [], []
+
+    def journal(record):
+        records.append(dict(record))
+        if record["status"] == fail_status:
+            raise RuntimeError("synthetic private credential detail must never enter the public error")
+
+    context = {"tool_journal_callback": journal}
+    wrapped = _agent_declared_callable(BoundTool("submit_order", "Submit.", lambda **kwargs: invoked.append(kwargs) or {"id": "order-1"}), context)
+    result = wrapped(symbol="SPY", agent_purpose=PRIVATE_TOOL_PURPOSE)
+    assert result["ok"] is False and result["tool_error"] is True
+    assert result["error"]["code"] == "tool_journal_unavailable"
+    assert "synthetic private credential" not in json.dumps(result)
+    assert len(invoked) == (0 if fail_status == "started" else 1)
+    assert context["tool_calls"][0]["status"] == "journal_failed"
+    assert context["tool_calls"][0]["ok"] is False
+
+
+def test_durable_private_tool_journal_records_remote_failure_code_without_payload():
+    from lumibot.components.agents.runtime import RemoteMCPToolError
+
+    records = []
+
+    def read(**kwargs):
+        raise RemoteMCPToolError("query_data", {"isError": True, "structuredContent": {"errorCode": "unsupported_capability", "message": "Original archive unavailable.", "private": "fixture-credential"}})
+
+    result = _agent_declared_callable(BoundTool("query_data", "Query.", read), {"tool_journal_callback": lambda record: records.append(dict(record))})(datasetId="sec", agent_purpose=PRIVATE_TOOL_PURPOSE)
+    assert result["error"]["code"] == "unsupported_capability"
+    assert len(records) == 2 and records[1]["status"] == "failed" and records[1]["ok"] is False
+    assert records[1]["error_code"] == "unsupported_capability"
+    assert "fixture-credential" not in json.dumps(records)
+
+
+def test_agent_purpose_field_helper_is_collision_safe_and_programmatic_sink_is_unchanged():
+    from lumibot.components.agents.runtime import _wrap_tool_callable, agent_purpose_parameter_name
+
+    assert agent_purpose_parameter_name({"symbol"}) == "agent_purpose"
+    assert agent_purpose_parameter_name({"agent_purpose", "agent_purpose_2", "purpose"}) == "agent_purpose_3"
+    records = []
+    wrapped = _wrap_tool_callable(BoundTool("read", "Read.", lambda symbol: symbol), {"tool_journal_callback": records.append})
+    assert wrapped(symbol="SPY") == "SPY"
+    assert records == []
+
+
+def _native_skill_fixture():
+    from google.adk.skills.models import Frontmatter, Resources, Skill
+    from google.adk.tools.skill_toolset import SkillToolset
+
+    skill = Skill(frontmatter=Frontmatter(name="audit-fixture", description="Synthetic local skill."), instructions="Use only permitted evidence.", resources=Resources(references={"source.md": "Synthetic official observation."}))
+    return SkillToolset(skills=[skill]), SimpleNamespace(state={}, agent_name="researcher", invocation_id="fixture-invocation")
+
+
+@pytest.mark.parametrize("name,arguments", [
+    ("list_skills", {}),
+    ("load_skill", {"skill_name": "audit-fixture"}),
+    ("load_skill_resource", {"skill_name": "audit-fixture", "file_path": "references/source.md"}),
+])
+def test_native_skill_tools_require_purpose_and_audit_before_actual_native_call(name, arguments, monkeypatch):
+    import asyncio
+
+    from google.adk.tools.base_tool import BaseTool
+    from google.adk.tools.base_toolset import BaseToolset
+    from google.genai import types
+
+    from lumibot.components.agents.managed_gateway import _tools
+    from lumibot.components.agents.runtime import _agent_toolset_with_purpose
+
+    native, native_context = _native_skill_fixture()
+    original = next(tool for tool in asyncio.run(native.get_tools()) if tool.name == name)
+    snapshots, actual_args, records = [], [], []
+    native_run = original.run_async
+
+    async def observed_run(*, args, tool_context):
+        assert tool_context is native_context
+        snapshots.append(list(records))
+        actual_args.append(dict(args))
+        return await native_run(args=args, tool_context=tool_context)
+
+    monkeypatch.setattr(original, "run_async", observed_run)
+    context = {"tool_journal_callback": lambda record: records.append(dict(record))}
+    adapted = _agent_toolset_with_purpose(native, context)
+    assert isinstance(adapted, BaseToolset)
+    tools = asyncio.run(adapted.get_tools_with_prefix())
+    tool = next(tool for tool in tools if tool.name == name)
+    assert isinstance(tool, BaseTool)
+    declaration = tool._get_declaration()
+    schema = _tools(SimpleNamespace(config=SimpleNamespace(tools=[types.Tool(function_declarations=[declaration])])))[0]["inputSchema"]
+    assert "agent_purpose" in schema["required"]
+    raw_declaration = original._get_declaration()
+    assert "agent_purpose" not in raw_declaration.parameters_json_schema["properties"]
+    denied = asyncio.run(tool.run_async(args=arguments, tool_context=native_context))
+    assert denied["tool_error"] is True and denied["ok"] is False
+    assert actual_args == [] and records == []
+    result = asyncio.run(tool.run_async(args={**arguments, "agent_purpose": PRIVATE_TOOL_PURPOSE}, tool_context=native_context))
+    assert actual_args == [arguments] and snapshots == [[records[0]]]
+    assert [row["status"] for row in records] == ["started", "completed"]
+    if name == "list_skills":
+        assert "audit-fixture" in result
+    elif name == "load_skill":
+        assert result["instructions"] == "Use only permitted evidence."
+        assert native.list_active_skills(native_context) == ["audit-fixture"]
+    else:
+        assert result["content"] == "Synthetic official observation."
+
+
+def test_native_skill_request_processing_and_close_preserve_underlying_owner(monkeypatch):
+    import asyncio
+
+    from google.adk.models.llm_request import LlmRequest
+
+    from lumibot.components.agents.runtime import _agent_toolset_with_purpose
+
+    native, native_context = _native_skill_fixture()
+    adapted = _agent_toolset_with_purpose(native, {})
+    llm_request = LlmRequest(model="gemini-2.5-flash")
+    asyncio.run(adapted.process_llm_request(tool_context=native_context, llm_request=llm_request))
+    assert llm_request.config.system_instruction
+    tools = asyncio.run(adapted.get_tools_with_prefix())
+    for tool in tools:
+        asyncio.run(tool.process_llm_request(tool_context=native_context, llm_request=llm_request))
+    assert all("agent_purpose" in declaration.parameters_json_schema["required"] for entry in llm_request.config.tools for declaration in entry.function_declarations or [])
+    assert all(llm_request.tools_dict[tool.name] is tool for tool in tools)
+    closed = []
+
+    async def close():
+        closed.append(True)
+
+    monkeypatch.setattr(native, "close", close)
+    asyncio.run(adapted.close())
+    assert closed == [True]
+
+
+def test_durable_journal_callback_and_native_skill_adapter_reach_runtime_assembly(monkeypatch):
+    import asyncio
+
+    from google.adk.tools.base_toolset import BaseToolset
+    from google.adk.tools.function_tool import FunctionTool
+    from google.genai import types
+
+    from lumibot.components.agents import runtime as runtime_module
+
+    captured, records = {}, []
+
+    class Captured(Exception):
+        pass
+
+    class Agent:
+        def __init__(self, **kwargs):
+            captured.update(kwargs)
+            raise Captured()
+
+    runtime = runtime_module.GoogleADKRuntime()
+    monkeypatch.setattr(runtime, "_ensure_adk", lambda: (Agent, object, types, FunctionTool))
+    monkeypatch.setattr(runtime_module, "_resolve_model_for_adk", lambda model, **_kwargs: model)
+    request = runtime_module.RuntimeRequest(agent_name="researcher", model="chatgpt/gpt-6-sol", system_prompt="Read.", task_prompt="Read.", context=None, runtime_context={}, memory_state=None, memory_notes=[], bound_tools=[BoundTool("read", "Read.", lambda: 42)], tool_journal_callback=records.append)
+    with pytest.raises(Captured):
+        asyncio.run(runtime._run_async(request))
+    assert captured["tools"][0].func(agent_purpose=PRIVATE_TOOL_PURPOSE) == 42
+    assert len(records) == 2
+    skillset = next(tool for tool in captured["tools"] if isinstance(tool, BaseToolset))
+    declaration = asyncio.run(skillset.get_tools())[0]._get_declaration()
+    assert "agent_purpose" in declaration.parameters_json_schema["required"]
+
+
+@pytest.mark.parametrize("fail_status", ["started", "completed"])
+def test_native_skill_durable_journal_failure_does_not_invoke_or_claim_completion(fail_status, monkeypatch):
+    import asyncio
+
+    from lumibot.components.agents.runtime import _agent_toolset_with_purpose
+
+    native, native_context = _native_skill_fixture()
+    original = asyncio.run(native.get_tools())[0]
+    invoked = []
+    native_run = original.run_async
+
+    async def observed(*, args, tool_context):
+        invoked.append(dict(args))
+        return await native_run(args=args, tool_context=tool_context)
+
+    monkeypatch.setattr(original, "run_async", observed)
+
+    def journal(record):
+        if record["status"] == fail_status:
+            raise RuntimeError("synthetic private sink payload")
+
+    context = {"tool_journal_callback": journal}
+    adapted = asyncio.run(_agent_toolset_with_purpose(native, context).get_tools())[0]
+    result = asyncio.run(adapted.run_async(args={"agent_purpose": PRIVATE_TOOL_PURPOSE}, tool_context=native_context))
+    assert result["tool_error"] is True and result["ok"] is False
+    assert result["error"]["code"] == "tool_journal_unavailable"
+    assert "synthetic private sink" not in json.dumps(result)
+    assert len(invoked) == (0 if fail_status == "started" else 1)
+    assert context["tool_calls"][0]["status"] == "journal_failed"
+
+
+def test_native_skill_actual_failed_response_and_prefix_remain_native(monkeypatch):
+    import asyncio
+
+    from lumibot.components.agents.runtime import _agent_toolset_with_purpose
+
+    native, native_context = _native_skill_fixture()
+    native.tool_name_prefix = "strategy"
+    records, context = [], {}
+    context["tool_journal_callback"] = lambda record: records.append(dict(record))
+    adapted = _agent_toolset_with_purpose(native, context)
+    tools = asyncio.run(adapted.get_tools_with_prefix())
+    tool = next(tool for tool in tools if tool.name == "strategy_load_skill")
+    assert tool._get_declaration().name == "strategy_load_skill"
+    result = asyncio.run(tool.run_async(args={"skill_name": "missing-fixture", "agent_purpose": PRIVATE_TOOL_PURPOSE}, tool_context=native_context))
+    assert result["error_code"] == "SKILL_NOT_FOUND"
+    assert records[-1]["status"] == "failed" and records[-1]["ok"] is False
+    assert records[-1]["error_code"] == "SKILL_NOT_FOUND"
+    assert native.list_active_skills(native_context) == []
+
+
+def test_native_skill_resource_request_processing_preserves_binary_resource_injection():
+    import asyncio
+
+    from google.adk.models.llm_request import LlmRequest
+    from google.genai import types
+
+    from lumibot.components.agents.runtime import _agent_toolset_with_purpose
+
+    native, native_context = _native_skill_fixture()
+    native.skills[0].resources.assets["chart.png"] = b"\x89PNG\r\n\x1a\nsynthetic-local-fixture"
+    adapted = _agent_toolset_with_purpose(native, {})
+    resource = next(tool for tool in asyncio.run(adapted.get_tools()) if tool.name == "load_skill_resource")
+    result = asyncio.run(resource.run_async(args={"skill_name": "audit-fixture", "file_path": "assets/chart.png", "agent_purpose": PRIVATE_TOOL_PURPOSE}, tool_context=native_context))
+    request = LlmRequest(model="gemini-2.5-flash", contents=[types.Content(role="user", parts=[types.Part(function_response=types.FunctionResponse(name="load_skill_resource", response=result))])])
+    asyncio.run(resource.process_llm_request(tool_context=native_context, llm_request=request))
+    assert any(part.inline_data and part.inline_data.data == native.skills[0].resources.assets["chart.png"] for content in request.contents for part in content.parts or [])
+    assert request.tools_dict[resource.name] is resource
+
+
+def test_native_additional_tool_collision_preserves_original_schema_arguments_and_confirmation():
+    import asyncio
+
+    from google.adk.tools.base_tool import BaseTool
+    from google.genai import types
+
+    from lumibot.components.agents.runtime import _agent_toolset_with_purpose
+
+    native, native_context = _native_skill_fixture()
+    invoked, confirmations = [], []
+
+    class DomainTool(BaseTool):
+        def __init__(self):
+            super().__init__(name="domain_read", description="Synthetic dynamic tool.")
+
+        def _get_declaration(self):
+            return types.FunctionDeclaration(name=self.name, parameters=types.Schema(type="OBJECT", properties={"agent_purpose": types.Schema(type="STRING")}, required=["agent_purpose"]))
+
+        async def run_async(self, *, args, tool_context):
+            invoked.append((dict(args), tool_context))
+            return args
+
+        async def check_require_confirmation(self, args, tool_context):
+            confirmations.append(dict(args))
+            return True
+
+    native._tools.append(DomainTool())
+    tool = next(tool for tool in asyncio.run(_agent_toolset_with_purpose(native, {}).get_tools()) if tool.name == "domain_read")
+    assert set(tool._get_declaration().parameters_json_schema["required"]) == {"agent_purpose", "agent_purpose_2"}
+    args = {"agent_purpose": "domain-selection", "agent_purpose_2": PRIVATE_TOOL_PURPOSE}
+    assert asyncio.run(tool.check_require_confirmation(args, native_context)) is True
+    assert asyncio.run(tool.run_async(args=args, tool_context=native_context)) == {"agent_purpose": "domain-selection"}
+    assert confirmations == [{"agent_purpose": "domain-selection"}]
+    assert invoked == [({"agent_purpose": "domain-selection"}, native_context)]

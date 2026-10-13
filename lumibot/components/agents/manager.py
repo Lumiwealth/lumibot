@@ -1564,7 +1564,10 @@ class AgentHandle:
                         hour=23, minute=59, second=59, microsecond=999999, tzinfo=timezone.utc
                     )
                 else:
-                    requested = datetime.fromisoformat(requested_as_of.replace("Z", "+00:00"))
+                    # Node's ISO contract permits compact offsets. Python 3.10
+                    # requires their colon; preserve the instant before parsing.
+                    normalized = re.sub(r"([+-]\d{2})(\d{2})$", r"\1:\2", requested_as_of)
+                    requested = datetime.fromisoformat(normalized.replace("Z", "+00:00"))
                     if requested.tzinfo is None or requested.utcoffset() is None:
                         raise ValueError("asOf must include a timezone")
                 ceiling = min(ceiling, requested.astimezone(timezone.utc))

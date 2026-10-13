@@ -29,12 +29,21 @@ def control_fingerprint(item, case, runtime_hash):
     return hashlib.sha256(evals.stable_json(contract).encode()).hexdigest()
 
 
-def latest_control_rows(rows, fingerprints):
+def control_repetitions(item):
+    repetitions = item.get("required_repetitions", REQUIRED_REPETITIONS)
+    if type(repetitions) is not int or repetitions not in {3, 5}:
+        raise ValueError("Calibration repetitions must be 3 or 5")
+    return repetitions
+
+
+def latest_control_rows(rows, fingerprints, required_repetitions=None):
     latest = {}
+    required_repetitions = required_repetitions or {}
     for row in rows:
         control_id, repetition = row.get("id"), row.get("repetition")
         if (control_id in fingerprints and row.get("fingerprint") == fingerprints[control_id]
-                and type(repetition) is int and 1 <= repetition <= REQUIRED_REPETITIONS):
+                and type(repetition) is int
+                and 1 <= repetition <= required_repetitions.get(control_id, REQUIRED_REPETITIONS)):
             latest[(control_id, repetition)] = row
     return latest
 
@@ -58,6 +67,8 @@ def main():
     parser.add_argument("--model-call-ledger", type=Path, required=True,
                         help="Existing shared release-attempt subscription ledger; never a fresh per-output cap")
     parser.add_argument("--output-root", type=Path, required=True)
+    parser.add_argument("--qualification-receipt", type=Path,
+                        help="Existing release export to invalidate before a new control attempt")
     parser.add_argument("--case-id", action="append", default=[])
     args = parser.parse_args()
     if args.max_cost_usd != 0:
@@ -94,13 +105,19 @@ def main():
                    expected=controls[control_id]["expected"], runtime_fingerprint=runtime_hash,
                    judge_model=evals.DEFAULT_JUDGE_MODEL)
         evals.append_jsonl(ledger_path, row)
-    latest = latest_control_rows(existing + recovered, fingerprints)
-    required = [(item["id"], repetition) for item in fixtures for repetition in range(1, REQUIRED_REPETITIONS + 1)]
-    work = [(item, repetition) for item in fixtures for repetition in range(1, REQUIRED_REPETITIONS + 1)
+    repetitions = {item["id"]: control_repetitions(item) for item in fixtures}
+    latest = latest_control_rows(existing + recovered, fingerprints, repetitions)
+    required = [(item["id"], repetition) for item in fixtures for repetition in range(1, repetitions[item["id"]] + 1)]
+    work = [(item, repetition) for item in fixtures for repetition in range(1, repetitions[item["id"]] + 1)
             if not control_passed(latest.get((item["id"], repetition), {}))]
     resumed = len(required) - len(work)
     run_id = str(uuid.uuid4())
     if work:
+        from scripts.qualify_agent_evals import invalidate_receipt
+
+        receipt = args.qualification_receipt or evals.REPO_ROOT / "ci/agent-evals/qualification.json"
+        invalidate_receipt(receipt, {item["id"]: fingerprints[item["id"]] for item, _ in work},
+                           runtime_hash=runtime_hash)
         evals.select_eval_credentials({evals.DEFAULT_JUDGE_MODEL})
         evals.preflight(list(cases.values()), evals.DEFAULT_JUDGE_MODEL, args.max_cost_usd)
 

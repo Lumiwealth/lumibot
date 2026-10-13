@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import time
 from decimal import Decimal
+from threading import RLock
 from unittest.mock import MagicMock
 
 import pytest
@@ -429,6 +430,7 @@ def test_schwab_snapshot_still_fills_already_tracked_owned_order(mocker):
     from lumibot.brokers.schwab import Schwab
 
     broker = Schwab.__new__(Schwab)
+    broker._lock = RLock()  # __new__ skips the native Broker constructor.
     broker._strategy_name = "STM Call Strategy"
     broker._subscribers = []
     broker.logger = _Logger()

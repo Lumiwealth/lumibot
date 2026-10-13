@@ -288,6 +288,12 @@ class Indicators:
         if callable(pair):
             asset = pair(asset, quote if quote is not None else getattr(self._strategy, "quote_asset", None))
         record = getattr(source, "record_indicator_input", None)
+        if getattr(self._strategy, "is_backtesting", False):
+            from lumibot.backtesting.market_input_evidence import record_market_input
+
+            effective_quote = quote if quote is not None else getattr(self._strategy, "quote_asset", None)
+            record_market_input(source=source, asset=asset, quote=effective_quote,
+                timestep=timestep, when=self._strategy.get_datetime(), frame=frame, purpose="indicator")
         if callable(record):
             record(asset=asset, timestep=timestep, frame=frame)
 

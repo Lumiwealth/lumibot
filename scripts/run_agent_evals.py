@@ -344,10 +344,27 @@ def build_tools(fixture: FixtureRuntime) -> list[Any]:
 def compact_transcript(result: Any, fixture: FixtureRuntime) -> dict[str, Any]:
     return {
         "final_answer": result.summary or result.text,
-        "tool_calls": [{"name": event.tool_name, "payload": event.payload} for event in result.tool_calls],
-        "tool_results": [{"name": event.tool_name, "payload": event.payload} for event in result.tool_results],
+        "tool_calls": [
+            {
+                "name": event.tool_name,
+                "payload": event.payload,
+                "call_id": event.call_id,
+                "model_call_id": result.cache_key,
+            }
+            for event in result.tool_calls
+        ],
+        "tool_results": [
+            {
+                "name": event.tool_name,
+                "payload": event.payload,
+                "call_id": event.call_id,
+                "model_call_id": result.cache_key,
+            }
+            for event in result.tool_results
+        ],
         "fixture_calls": fixture.calls,
         "web_requests": getattr(fixture, "web_requests", None),
+        "memory_events": getattr(fixture, "memory_events", None),
         "submissions": fixture.submissions,
         "rejected_submissions": fixture.rejected_submissions,
         "final_positions": fixture.positions,
@@ -402,6 +419,9 @@ def _decision_completion_contract(contract: dict[str, Any]) -> tuple[bool, list[
     """A blocked decision exemption requires explicit typed failed-tool evidence."""
     if not isinstance(contract, dict):
         raise RuntimeError("machineContract must be a JSON object")
+    for flag in ("requireAgentToolAudit", "requirePublicOrderReasonReference"):
+        if flag in contract and type(contract[flag]) is not bool:
+            raise RuntimeError(f"{flag} must be a boolean")
     expected = contract.get("expectedDecisionCompleted", True)
     if type(expected) is not bool:
         raise RuntimeError("expectedDecisionCompleted must be a boolean")
@@ -418,12 +438,285 @@ def _decision_completion_contract(contract: dict[str, Any]) -> tuple[bool, list[
     return expected, required
 
 
+def _exact_digest(value: Any) -> bool:
+    return isinstance(value, str) and re.fullmatch(r"[0-9a-f]{64}", value) is not None
+
+
+def _native_journal_failures(contract: dict[str, Any], transcript: dict[str, Any]) -> list[str]:
+    """Check only exact producer contracts; rationale and privacy are judged separately."""
+    from lumibot.components.agents.runtime import (
+        _json_safe_value,
+        _validate_agent_purpose,
+        agent_purpose_parameter_name,
+    )
+    from lumibot.components.memory.store import SCHEMA_VERSION, _agent_audit_name
+
+    prefix = (
+        "private tool audit / public order"
+        if contract.get("requirePublicOrderReasonReference")
+        else "private tool audit"
+    )
+    rows = transcript.get("memory_events")
+    calls = transcript.get("tool_calls")
+    results = transcript.get("tool_results")
+    if not isinstance(rows, list) or not rows or not isinstance(calls, list) or not calls:
+        return [f"{prefix}: actual tool calls and committed memory rows are required"]
+    if not isinstance(results, list):
+        return [f"{prefix}: actual tool results are required"]
+    failures = []
+    seen_ids, previous_sequence = set(), 0
+    pairs: dict[str, list[dict[str, Any]]] = {}
+    for row in rows:
+        try:
+            if not isinstance(row, dict) or not isinstance(row.get("metadata"), dict):
+                raise ValueError("malformed event")
+            sequence, event_id = row["sequence"], row["event_id"]
+            if type(sequence) is not int or sequence <= previous_sequence or event_id in seen_ids:
+                raise ValueError("nonunique or unordered event identity")
+            if not isinstance(event_id, str) or re.fullmatch(r"event_[0-9a-f]{32}", event_id) is None:
+                raise ValueError("invalid event identity")
+            if type(row["schema_version"]) is not int or row["schema_version"] != SCHEMA_VERSION:
+                raise ValueError("incompatible schema")
+            for field in ("timestamp", "wall_time"):
+                if (
+                    not isinstance(row[field], str)
+                    or datetime.fromisoformat(row[field].replace("Z", "+00:00")).tzinfo is None
+                ):
+                    raise ValueError("missing original aware timestamps")
+            for field in ("strategy", "agent_name", "model_call_id"):
+                if not isinstance(row[field], str) or not row[field] or row[field] != row[field].strip():
+                    raise ValueError("missing request identity")
+            _agent_audit_name(row["agent_name"], field="agent_name", max_bytes=128)
+            _agent_audit_name(row["model_call_id"], field="model_call_id", max_bytes=240)
+            if (
+                not _exact_digest(row["payload_hash"])
+                or hashlib.sha256(row["payload_json"].encode("utf-8")).hexdigest() != row["payload_hash"]
+            ):
+                raise ValueError("payload hash mismatch")
+            payload = json.loads(row["payload_json"])
+            if not isinstance(payload, dict):
+                raise ValueError("invalid native payload object")
+            metadata = row["metadata"]
+            if row["event_type"] in {"agent.tool_started", "agent.tool_outcome"}:
+                action_id = metadata["action_id"]
+                if not isinstance(action_id, str) or str(uuid.UUID(action_id)) != action_id:
+                    raise ValueError("invalid action UUID")
+                if row["subject_type"] != "agent_tool_action" or row["subject_id"] != action_id or payload != metadata:
+                    raise ValueError("tool payload or subject linkage mismatch")
+                if any(metadata[field] != row[field] for field in ("agent_name", "model_call_id")):
+                    raise ValueError("request linkage mismatch")
+                _agent_audit_name(metadata["tool_name"], field="tool_name", max_bytes=128)
+                if metadata.get("error_type") is not None:
+                    _agent_audit_name(metadata["error_type"], field="error_type", max_bytes=128)
+                purpose = metadata["purpose"]
+                if _validate_agent_purpose(purpose, "agent_purpose") != purpose:
+                    raise ValueError("invalid bounded private purpose")
+                if row["text"] != purpose or not _exact_digest(metadata["arguments_sha256"]):
+                    raise ValueError("purpose or arguments hash mismatch")
+                pairs.setdefault(action_id, []).append(row)
+            elif row["event_type"] == "order.intent":
+                if (
+                    payload.get("metadata") != metadata
+                    or payload.get("text") != row["text"]
+                    or (payload.get("kind"), payload.get("status"), row["subject_type"])
+                    != ("order_action", "intent", "order_action")
+                ):
+                    raise ValueError("order intent payload linkage mismatch")
+            elif row["event_type"] == "order.action_outcome":
+                if payload != {} or row["subject_type"] != "order_action":
+                    raise ValueError("order outcome payload schema mismatch")
+            else:
+                raise ValueError("unexpected event type")
+            seen_ids.add(event_id)
+            previous_sequence = sequence
+        except (KeyError, TypeError, ValueError, AttributeError, UnicodeError):
+            failures.append(f"{prefix}: malformed, unordered or hash-mismatched committed event")
+    if failures:
+        return failures
+    if len({row["strategy"] for row in rows}) != 1:
+        return [f"{prefix}: committed events mixed distinct fixture stores"]
+
+    starts = []
+    for pair in pairs.values():
+        if len(pair) != 2 or [row["event_type"] for row in pair] != ["agent.tool_started", "agent.tool_outcome"]:
+            failures.append(f"{prefix}: each action requires exactly one started/outcome pair")
+            continue
+        start, outcome = pair
+        before, after = start["metadata"], outcome["metadata"]
+        excluded = {"status", "error_type", "decision_id"}  # Existing MemoryStore pairing contract.
+        if (
+            before.get("status") != "started"
+            or after.get("status") not in {"completed", "failed"}
+            or (
+                before.get("error_type") is not None
+                or after["status"] == "completed"
+                and after.get("error_type") is not None
+                or {key: value for key, value in before.items() if key not in excluded}
+                != {key: value for key, value in after.items() if key not in excluded}
+            )
+        ):
+            failures.append(f"{prefix}: outcome status or action/request binding mismatch")
+        starts.append((start, outcome))
+    if failures:
+        return failures
+
+    declarations = {item["name"]: item for item in transcript.get("builtin_tool_contracts") or []}
+    remaining_pairs, remaining_results = list(starts), list(results)
+    matched = []
+    for call in calls:
+        try:
+            arguments = dict(call["payload"])
+            name, request_id = call["name"], call["model_call_id"]
+            if not isinstance(request_id, str) or not request_id:
+                raise ValueError("missing actor request")
+            properties = declarations.get(name, {}).get("parameters", {}).get("properties", {})
+            purpose = arguments.pop(agent_purpose_parameter_name(properties))
+            if not isinstance(purpose, str):
+                raise ValueError("missing private purpose")
+            digest = hashlib.sha256(
+                json.dumps(
+                    _json_safe_value({"args": [], "kwargs": arguments}),
+                    sort_keys=True,
+                    separators=(",", ":"),
+                    ensure_ascii=True,
+                ).encode("utf-8")
+            ).hexdigest()
+            candidates = [
+                pair
+                for pair in remaining_pairs
+                if (
+                    pair[0]["metadata"]["tool_name"],
+                    pair[0]["model_call_id"],
+                    pair[0]["metadata"]["purpose"],
+                    pair[0]["metadata"]["arguments_sha256"],
+                )
+                == (name, request_id, purpose.strip(), digest)
+            ]
+            if not candidates:
+                raise ValueError("missing exact invocation pair")
+            pair = candidates[0]
+            response = next(
+                item
+                for item in remaining_results
+                if (item.get("name"), item.get("model_call_id"), item.get("call_id"))
+                == (name, request_id, call.get("call_id"))
+            )
+            body = response.get("payload")
+            if not isinstance(body, dict):
+                raise ValueError("missing tool response")
+            # Pruning removes the returned body, not the actual committed status.
+            # Never parse an excerpt to guess success or manufacture a failure.
+            if body.get("lumibot_tool_result_pruned") is not True:
+                failed = body.get("tool_error") is True or (name not in declarations and bool(body.get("error")))
+                if pair[1]["metadata"]["status"] != ("failed" if failed else "completed"):
+                    raise ValueError("returned status differs from committed status")
+            matched.append((call, pair))
+            remaining_pairs.remove(pair)
+            remaining_results.remove(response)
+        except (KeyError, TypeError, ValueError, StopIteration, AttributeError, UnicodeError):
+            failures.append(
+                f"{prefix}: actor invocation, purpose, arguments, request or result did not match its audit pair"
+            )
+    if remaining_pairs or remaining_results or len(matched) != len(calls):
+        failures.append(f"{prefix}: actual actor calls/results and committed audit pairs were not one-to-one")
+    if failures or not contract.get("requirePublicOrderReasonReference"):
+        return failures
+
+    linked_actions = set()
+    for call, (start, tool_outcome) in matched:
+        if call["name"] not in ORDER_TOOLS or tool_outcome["metadata"]["status"] != "completed":
+            continue
+        try:
+            arguments = call["payload"]
+            public = arguments["public_reason"]
+            reason = arguments["reason"].strip()
+            if (
+                not isinstance(public, str)
+                or not public
+                or public != public.strip()
+                or len(public.encode("utf-8")) > 280
+            ):
+                raise ValueError("missing exact bounded public reason")
+            intents = [
+                row
+                for row in rows
+                if row["event_type"] == "order.intent"
+                and (row["agent_name"], row["model_call_id"], row["text"])
+                == (start["agent_name"], start["model_call_id"], reason)
+                and start["sequence"] < row["sequence"] < tool_outcome["sequence"]
+            ]
+            if len(intents) != 1:
+                raise ValueError("missing unique pre-execution intent")
+            intent = intents[0]
+            reference = intent["metadata"]["reference"]
+            action_id = reference["action_id"]
+            if re.fullmatch(r"action_[0-9a-f]{32}", action_id) is None or intent["subject_id"] != action_id:
+                raise ValueError("invalid order action identity")
+            if (
+                reference["operation"] != "submit"
+                or reference["model_call_id"] != start["model_call_id"]
+                or (
+                    reference["agent_name"] != start["agent_name"]
+                    or not reference.get("decision_id")
+                    or reference["reason_preview"] != reason[:800]
+                    or reference["reason_sha256"] != hashlib.sha256(reason.encode("utf-8")).hexdigest()
+                    or reference["public_reason_preview"] != public
+                    or reference["public_reason_sha256"] != hashlib.sha256(public.encode("utf-8")).hexdigest()
+                    or intent["metadata"]["evidence"]["public_reason"] != public
+                )
+            ):
+                raise ValueError("reason/reference content hash mismatch")
+            outcomes = [
+                row for row in rows if row["event_type"] == "order.action_outcome" and row["subject_id"] == action_id
+            ]
+            if (
+                len(outcomes) != 1
+                or not intent["sequence"] < outcomes[0]["sequence"] < tool_outcome["sequence"]
+                or (
+                    outcomes[0]["subject_type"] != "order_action"
+                    or outcomes[0]["metadata"] != {"reference": reference, "certainty": "returned", "error_type": None}
+                    or outcomes[0]["agent_name"] != start["agent_name"]
+                    or outcomes[0]["model_call_id"] != start["model_call_id"]
+                )
+            ):
+                raise ValueError("missing matching returned order outcome")
+            if not any(order.get("decision_journal") == reference for order in transcript.get("broker_orders") or []):
+                raise ValueError("broker did not retain exact committed reference")
+            linked_actions.add(action_id)
+        except (KeyError, TypeError, ValueError, AttributeError, UnicodeError):
+            failures.append(
+                "public order: private intent, returned outcome or broker/public content hash linkage failed"
+            )
+    broker_orders = transcript.get("broker_orders") or []
+    intents = [row for row in rows if row["event_type"] == "order.intent"]
+    outcomes = [row for row in rows if row["event_type"] == "order.action_outcome"]
+    if (
+        len(intents) != len(linked_actions)
+        or len(outcomes) != len(linked_actions)
+        or any(row["subject_id"] not in linked_actions for row in intents + outcomes)
+    ):
+        failures.append("public order: duplicate or orphan committed intent/outcome")
+    if (
+        not linked_actions
+        or not broker_orders
+        or any(
+            not isinstance(order.get("decision_journal"), dict)
+            or order["decision_journal"].get("action_id") not in linked_actions
+            for order in broker_orders
+        )
+    ):
+        failures.append("public order: each broker reference must link to an actual committed public-reason action")
+    return failures
+
+
 def score_machine_contract(case: dict[str, Any], transcript: dict[str, Any]) -> dict[str, Any]:
     contract = case.get("machineContract") or {}
     calls = transcript["fixture_calls"]
     sequence = [call["name"] for call in calls]
     submissions = transcript["submissions"]
     failures: list[str] = []
+    if contract.get("requireAgentToolAudit") or contract.get("requirePublicOrderReasonReference"):
+        failures.extend(_native_journal_failures(contract, transcript))
     required_agents = contract.get("requiredAgents") or []
     agent_runs = transcript.get("agent_runs") or []
     observed_agents = [str(run.get("role") or "") for run in agent_runs]
@@ -915,15 +1208,35 @@ def execute_repetition(
         model_seconds = time.perf_counter() - model_started
         orders = production.capture(result)
         all_calls = [event for actor in actor_results for event in actor.tool_calls]
-        all_results = [event for actor in actor_results for event in actor.tool_results]
         fixture.calls = [{"name": event.tool_name, "arguments": event.payload} for event in all_calls]
         transcript = {
             **compact_transcript(result, fixture),
-            "tool_calls": [{"name": event.tool_name, "payload": event.payload} for event in all_calls],
-            "tool_results": [{"name": event.tool_name, "payload": event.payload} for event in all_results],
-            "builtin_tool_contracts": builtin_tool_contracts([
-                tools_by_name[name] for name in sorted({event.tool_name for event in all_calls} & tools_by_name.keys())
-            ]),
+            "tool_calls": [
+                {
+                    "name": event.tool_name,
+                    "payload": event.payload,
+                    "call_id": event.call_id,
+                    "model_call_id": actor.cache_key,
+                }
+                for actor in actor_results
+                for event in actor.tool_calls
+            ],
+            "tool_results": [
+                {
+                    "name": event.tool_name,
+                    "payload": event.payload,
+                    "call_id": event.call_id,
+                    "model_call_id": actor.cache_key,
+                }
+                for actor in actor_results
+                for event in actor.tool_results
+            ],
+            "builtin_tool_contracts": builtin_tool_contracts(
+                [
+                    tools_by_name[name]
+                    for name in sorted({event.tool_name for event in all_calls} & tools_by_name.keys())
+                ]
+            ),
             "broker_orders": orders,
             "broker_orders_timing": "Post-run fixture capture can include fills already observed through ordered tool_results. Capture alone does not establish when the agent observed a fill.",
             "broker_orders_before_settlement": production.orders_before_settlement,
@@ -935,9 +1248,7 @@ def execute_repetition(
                 {
                     "role": "researcher" if index == 0 and len(actor_results) > 1 else "trader",
                     "final_answer": actor.summary or actor.text,
-                    "tool_calls": [
-                        {"name": event.tool_name, "payload": event.payload} for event in actor.tool_calls
-                    ],
+                    "tool_calls": [{"name": event.tool_name, "payload": event.payload} for event in actor.tool_calls],
                     "execution_outcome": (actor.payload or {}).get("execution_outcome"),
                 }
                 for index, actor in enumerate(actor_results)

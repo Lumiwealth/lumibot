@@ -2547,9 +2547,9 @@ def _bind_read_document(strategy: Any, manager: Any) -> BoundTool:
         # and agents mistook the download time for the document's date.
         result = {key: fetched[key] for key in ("ok", "status_code", "url", "error") if key in fetched}
         result["dates"] = (
-            "This is the live, current copy. Its download time is not its date. Use the dates written in it "
-            "(filing, published, or row dates): parts dated on or before the current time are usable, later parts are "
-            "not. Never open a document an index lists with a date after the current time, not even to check it."
+            "Live current version. Retrieval, observation, transaction and filing dates do not prove original historical "
+            "availability. Compare UTC-normalized first-public/version instants with the full simulated cutoff before "
+            "following links. Never fetch later disclosures or revisions. Unproved original versions remain unavailable."
         )
         if not fetched.get("ok"):
             result["text"] = content[:2_000].decode("utf-8", errors="replace")

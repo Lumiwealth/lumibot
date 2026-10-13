@@ -1750,8 +1750,7 @@ class AgentHandle:
         reasoning_effort: str | None,
     ) -> dict[str, Any]:
         bound_tools = self._ensure_bound_tools()
-        return {
-            "agent_tool_contract": "private-purpose-audit-v1",
+        payload = {
             "user_system_prompt": self.system_prompt,
             "base_system_prompt": base_system_prompt,
             "effective_system_prompt": effective_system_prompt,
@@ -1773,6 +1772,10 @@ class AgentHandle:
             ],
             "memory_notes": self._memory_prompt_notes(),
         }
+        contract = getattr(self._runtime, "agent_tool_contract", None)
+        if contract is not None:
+            payload["agent_tool_contract"] = contract
+        return payload
 
     @staticmethod
     def _cache_root() -> Path:
@@ -1928,14 +1931,17 @@ class AgentHandle:
             if not bool(tool.metadata.get("replay_on_cache")):
                 continue
             payload = event.payload if isinstance(event.payload, dict) else {}
-            purpose_name = agent_purpose_parameter_name(inspect.signature(tool.function).parameters)
-            if purpose_name in payload:
+            if (result.payload or {}).get("agent_tool_contract") == "private-purpose-audit-v1":
+                purpose_name = agent_purpose_parameter_name(inspect.signature(tool.function).parameters)
+                if purpose_name not in payload:
+                    raise RuntimeError("Cached agent tool replay is missing its private purpose.")
                 replayed = _wrap_agent_tool_callable(tool, context)(**payload)
                 if isinstance(replayed, dict) and replayed.get("tool_error") is True:
                     raise RuntimeError("Cached agent tool replay failed; its completion was not confirmed.")
             else:
                 # Custom programmatic runtimes do not use ADK's agent argument.
-                # Old ADK cache keys differ through agent_tool_contract above.
+                # Adapter-generated payloads carry an explicit runtime marker.
+                # Ordinary domain arguments must never select that protocol.
                 with agent_tool_context(context):
                     tool.function(**payload)
 
@@ -2466,6 +2472,7 @@ class AgentHandle:
             }
             trace_path = self._write_trace(result, trace_payload)
             result.payload = {
+                **(result.payload or {}),
                 "trace_path": trace_path.as_posix(),
                 "warnings": result.warnings,
                 "execution_outcome": execution_outcome,

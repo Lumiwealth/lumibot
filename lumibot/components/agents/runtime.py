@@ -234,7 +234,7 @@ def _finish_agent_tool_audit(call: dict[str, Any], result: Any, context: dict[st
         try:
             _write_private_tool_audit(context, audit, before=False)
         except ToolJournalError:
-            call.update(status="journal_failed", ok=False)
+            call.update(status="journal_failed", ok=False, invocation_completed=True)
             raise
     call.update(status=status, ok=not failed)
 
@@ -1643,6 +1643,8 @@ def _attempt_touched_broker(request: Any) -> bool:
 
 
 class GoogleADKRuntime:
+    agent_tool_contract = "private-purpose-audit-v1"
+
     def __init__(self, mcp_servers: list[MCPServer] | None = None) -> None:
         self.mcp_servers = mcp_servers or []
         self._llm_agent_type: type[Any] | None = None
@@ -2045,6 +2047,7 @@ class GoogleADKRuntime:
             summary=summary,
             model=request.model,
             events=events,
+            payload={"agent_tool_contract": self.agent_tool_contract},
             usage=usage,
             started_at=started_at,
             first_event_at=first_event_at,

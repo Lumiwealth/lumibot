@@ -3,13 +3,13 @@ name: LumiBot CI/CD
 
 on:
   # Full LumiBot CI is intentionally expensive: lint + 6 unit shards + 4 backtest
-  # shards. Run it when explicitly requested, for release/CI tags, or for main PRs.
+  # shards. Run it when explicitly requested, for release/CI tags, or for dev PRs.
   push:
     tags:
       - "v*.*.*"
       - "ci-*"
   pull_request:
-    branches: [main]
+    branches: [dev]
     paths:
       - "lumibot/**"
       - "tests/**"

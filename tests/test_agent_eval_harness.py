@@ -810,6 +810,16 @@ def test_release_publish_is_blocked_by_real_model_agent_evals():
     assert "OPENAI_API_KEY" not in standalone
 
 
+def test_full_release_pr_gate_targets_the_existing_dev_default_branch():
+    import yaml
+
+    workflow = yaml.safe_load((Path(__file__).resolve().parents[1] / ".github/workflows/cicd.yaml").read_text())
+    # PyYAML 1.1 treats the GitHub Actions key `on` as boolean True.
+    triggers = workflow.get("on", workflow.get(True))
+    assert triggers["pull_request"]["branches"] == ["dev"]
+    assert set(triggers["push"]["tags"]) == {"v*.*.*", "ci-*"}
+
+
 def test_production_fixture_memory_is_owned_and_removed_in_finally():
     from scripts.agent_eval_production_fixture import ProductionFixture
 

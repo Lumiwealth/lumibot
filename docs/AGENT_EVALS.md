@@ -195,9 +195,39 @@ host, review their private native artifacts, then export a compact public-safe
 receipt for the complete catalog:
 
 ```bash
-python scripts/qualify_agent_evals.py create --output-root <owned-output>
+python scripts/qualify_agent_evals.py create \
+  --output-root <owned-actor-output> \
+  --calibration-output-root <owned-calibration-output> \
+  --model-call-ledger <owned-actor-output>/model_calls.jsonl
 python scripts/qualify_agent_evals.py verify
 ```
+
+Before exporting, resume the full actor catalog and judge controls using the
+same owned directories and immutable call allowance. `--gate --repeat 1` still
+requires every new or changed case's configured three or five consecutive passes;
+it preserves completed matching repetitions and only schedules missing or failed
+work. Avoid `--force` when resuming a qualification. Set `TMPDIR` to a dedicated
+task-owned directory so production fixture memory is removed by its normal close
+path, including failures.
+
+```bash
+python scripts/run_agent_evals.py --preflight-only --gate --repeat 1 \
+  --max-cost-usd 0 --max-model-calls <existing-call-cap> \
+  --output-root <owned-actor-output> --freshness-state <owned-freshness-file>
+python scripts/run_agent_evals.py --gate --repeat 1 --max-workers 5 \
+  --max-cost-usd 0 --max-model-calls <existing-call-cap> \
+  --output-root <owned-actor-output> --freshness-state <owned-freshness-file>
+python scripts/check_agent_judge_calibration.py \
+  --model-call-ledger <owned-actor-output>/model_calls.jsonl \
+  --output-root <owned-calibration-output> \
+  --max-model-calls <existing-call-cap> --max-cost-usd 0
+```
+
+Normal release qualification runs on the version branch's pull request into
+`dev`, LumiBot's default branch. After that reviewed merge and its required
+checks pass, tag that exact `dev` merge for the publishing workflow. Read back
+the published package with an isolated installation before advancing the next
+version branch or downstream runtime pin. LumiBot has no `main` branch.
 
 Commit `ci/agent-evals/qualification.json` with the tested candidate. The manual
 `LumiBot Agent Evals` workflow and the PyPI release job both verify that receipt

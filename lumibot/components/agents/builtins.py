@@ -2618,9 +2618,11 @@ def _bind_read_document(strategy: Any, manager: Any) -> BoundTool:
             "to page through long text: call again with start=next_start until next_start is null. Every table in the file "
             "(a CSV, an Excel sheet, a table file inside a ZIP) is loaded for duckdb_query: the result lists "
             "each table_name, its columns and sample rows, so filter, sort and add up rows with SQL instead of "
-            "by hand. To find a document on a website, read the page and follow its links. In a backtest, use "
-            "each document's own date (for example a filing date) and ignore anything dated after the current "
-            "backtest time. Example: read_document(url='https://example.com/reports/2025.zip')."
+            "by hand. In a backtest, select exact document IDs/URLs from every relevant discovery table using "
+            "SQL that compares UTC first-public/version timestamps with the full simulated cutoff before following "
+            "links. Filing, observation and transaction dates do not prove availability. Never guess an ID from "
+            "a row count, fetch an excluded revision, or stop at a baseline without eligible updates. "
+            "Example: read_document(url='https://example.com/reports/2025.zip')."
         ),
         function=read_document,
         source="builtin",

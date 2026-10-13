@@ -696,7 +696,10 @@ def test_judge_contract_projection_uses_actual_builtins_without_private_connecti
         contracts = evals.builtin_tool_contracts(tools)
         contract = next(item for item in contracts if item["name"] == builtin.name)
         assert contract["description"] == builtin.description
-        assert set(contract) == {"name", "description", "parameters"}
+        # The managed argument name is public schema identity, never a connection value.
+        assert set(contract) == {"name", "description", "parameters", "private_purpose_parameter"}
+        assert contract["private_purpose_parameter"] == "agent_purpose"
+        assert contract["private_purpose_parameter"] in contract["parameters"]["required"]
         assert contract["parameters"]["properties"]["action"]["enum"] == ["as_given", "close"]
         assert "legs_json" in contract["parameters"]["required"]
         assert not {"custom", "remote"} & {item["name"] for item in contracts}
@@ -2409,6 +2412,7 @@ def _native_journal_gate_transcript(*, fail_order=False):
         # This setup provides real producer rows independently of projection under test.
         transcript["memory_events"] = copy.deepcopy(production.fixture.memory_events)
         transcript["broker_orders"] = orders
+        transcript["builtin_tool_contracts"] = evals.builtin_tool_contracts([tools[name] for name, _ in requests])
         return transcript, actor, production.fixture
     finally:
         production.close()
@@ -2629,8 +2633,10 @@ def test_native_journal_machine_flags_require_exact_booleans(flag):
 
 @pytest.mark.parametrize("value", [2, float("nan")])
 def test_native_journal_gate_preserves_domain_purpose_and_unique_repeated_calls(value):
+    from google.adk.tools import FunctionTool
+
     from lumibot.components.agents import AgentTraceEvent
-    from lumibot.components.agents.runtime import _wrap_agent_tool_callable
+    from lumibot.components.agents.runtime import _function_tools_with_name_aliases, _wrap_agent_tool_callable
     from lumibot.components.agents.schemas import BoundTool
 
     production = _fixture()
@@ -2639,7 +2645,7 @@ def test_native_journal_gate_preserves_domain_purpose_and_unique_repeated_calls(
         request_id = "synthetic-domain-purpose-request"
         context = {"tool_calls": [], "tool_journal_callback": handle._tool_journal_callback(request_id)}
 
-        def domain_tool(*, agent_purpose, value):
+        def domain_tool(*, agent_purpose: str, value: float):
             return {"domain_purpose": agent_purpose, "value": value}
 
         tool = BoundTool(name="domain_tool", description="Ordinary domain argument contract.", function=domain_tool)
@@ -2662,12 +2668,19 @@ def test_native_journal_gate_preserves_domain_purpose_and_unique_repeated_calls(
         )
         production.capture(actor)
         transcript = evals.compact_transcript(actor, production.fixture)
+        managed = _function_tools_with_name_aliases(FunctionTool, [tool])[0]
+        declaration = managed._get_declaration()
+        parameters = declaration.parameters_json_schema or declaration.parameters
+        if hasattr(parameters, "model_dump"):
+            parameters = parameters.model_dump(mode="json", exclude_none=True)
         transcript["builtin_tool_contracts"] = [
             {
                 "name": tool.name,
-                "parameters": {"properties": {"agent_purpose": {}, "value": {}}},
+                "parameters": evals.judge_parameter_schema(parameters),
+                "private_purpose_parameter": evals._managed_private_purpose_parameter(tool, managed),
             }
         ]
+        assert transcript["builtin_tool_contracts"][0]["private_purpose_parameter"] == "agent_purpose_2"
         outcome = evals.score_machine_contract({"machineContract": {"requireAgentToolAudit": True}}, transcript)
         assert outcome["pass"], outcome["failures"]
         assert len({row["subject_id"] for row in transcript["memory_events"]}) == 2
@@ -2678,3 +2691,1179 @@ def test_native_journal_gate_preserves_domain_purpose_and_unique_repeated_calls(
         ]
     finally:
         production.close()
+
+
+def test_actual_native_stock_audit_failure_uses_managed_declaration_identity():
+    """Actual failure regression, ordinary offline scoring; not a new model pass."""
+    transcript = copy.deepcopy(_NATIVE_STOCK_AUDIT_FAILURE)
+    for row in transcript["memory_events"]:
+        payload = json.loads(row["payload_json"])
+        if row["event_type"].startswith("agent.tool_"):
+            row["metadata"], row["text"] = payload, payload["purpose"]
+        elif row["event_type"] == "order.intent":
+            row["metadata"], row["text"] = payload["metadata"], payload["text"]
+    # Freeze the original synthetic source fields, not a requalified pass.
+    assert hashlib.sha256(json.dumps(transcript, sort_keys=True, separators=(",", ":")).encode()).hexdigest() == (
+        "1a19df09ed3d83d8f7d94acfe33b8030d528cf67fd1f0aab7542d7964cfe70d0"
+    )
+    transcript["fixture_calls"] = [
+        {"name": call["name"], "arguments": call["payload"]} for call in transcript["tool_calls"]
+    ]
+    transcript["submissions"] = []
+    production = _fixture()
+    try:
+        handle = production.create_agent(evals.load_cases({"stock_order_decision_journal"})[0], object())
+        called = {call["name"] for call in transcript["tool_calls"]}
+        transcript["builtin_tool_contracts"] = evals.builtin_tool_contracts(
+            [tool for tool in handle._ensure_bound_tools() if tool.name in called]
+        )
+        # Native declarations already expose the actual private argument.
+        assert all("agent_purpose" in item["parameters"]["properties"] for item in transcript["builtin_tool_contracts"])
+        result = evals.score_machine_contract(
+            {
+                "machineContract": {
+                    "requireAgentToolAudit": True,
+                    "requirePublicOrderReasonReference": True,
+                }
+            },
+            transcript,
+        )
+        assert result["pass"], result["failures"]
+    finally:
+        production.close()
+
+
+@pytest.mark.parametrize("identity", [None, "symbol", "agent_purpose_2"])
+def test_audit_scorer_requires_the_actual_managed_private_identity(identity):
+    transcript, _, _ = _native_journal_gate_transcript()
+    declaration = next(item for item in transcript["builtin_tool_contracts"] if item["name"] == "market_last_price")
+    if identity is None:
+        declaration.pop("private_purpose_parameter")
+    else:
+        declaration["private_purpose_parameter"] = identity
+    assert not evals.score_machine_contract({"machineContract": {"requireAgentToolAudit": True}}, transcript)["pass"]
+
+
+def test_managed_private_identity_preserves_dense_domain_parameter_names():
+    from google.adk.tools import FunctionTool
+
+    from lumibot.components.agents.runtime import _function_tools_with_name_aliases
+    from lumibot.components.agents.schemas import BoundTool
+
+    def domain_tool(*, agent_purpose: str, agent_purpose_2: str, agent_purpose_4: str):
+        return {"values": [agent_purpose, agent_purpose_2, agent_purpose_4]}
+
+    tool = BoundTool(name="domain_tool", description="Exact domain signature contract.", function=domain_tool)
+    managed = _function_tools_with_name_aliases(FunctionTool, [tool])[0]
+    assert evals._managed_private_purpose_parameter(tool, managed) == "agent_purpose_3"
+    with pytest.raises(RuntimeError, match="exactly one"):
+        evals._managed_private_purpose_parameter(tool, FunctionTool(domain_tool))
+
+
+# Lossless native synthetic nine-call excerpt; never actor/judge freshness evidence.
+# Source ac313ad535f0d0f4233c9c0846141ede56514d3a, original machine FAIL.
+# Run 4db57f7a-9ff6-47d3-a0f7-ff9b710fd57b, repetition 2.
+# Case fingerprint 16bc4d95f2e60e5d8a73f61f118f8ec6d0b44db3775337cf48436f113118f6e6.
+# Original completed ledger line SHA256 a8427ea4e1e7586099dbc7a7344fa6d41e61498951d2cab26528eb619e444f43.
+_NATIVE_STOCK_AUDIT_FAILURE = {
+    "broker_orders": [
+        {
+            "asset": {"symbol": "AAPL", "type": "stock"},
+            "avg_fill_price": 230.0,
+            "decision_journal": {
+                "action_id": "action_11d5873ecdce45c8af023835174044ec",
+                "agent_name": "trader",
+                "decision_id": "decision_e29f1d15384f4f0fa9ae6e870194f3ca",
+                "deployment_id": None,
+                "model_call_id": "142db474b414c8e1a237bf952294f6369b8a8178f71bb803eac7a7fbf78c9e9e",
+                "operation": "submit",
+                "previous_action_id": None,
+                "public_reason_preview": "AAPL is above the mean of its five "
+                "latest completed daily closes, meeting "
+                "the entry rule. A 43-share limit order "
+                "stays within the defined portfolio "
+                "exposure cap; price declines and "
+                "non-execution remain possible.",
+                "public_reason_sha256": "90845318d387f8be6ed3c105d98604798ec8c9cc556f8617996ab129039b7338",
+                "reason_preview": "The conditional entry rule is satisfied: the "
+                "current AAPL price at 2026-08-11 14:35 UTC is "
+                "$230, strictly above the arithmetic mean of "
+                "$227 across the five latest completed daily "
+                "closes: $225 on 2026-08-06, $226 on "
+                "2026-08-07, $227 on 2026-08-08, $228 on "
+                "2026-08-09, and $229 on 2026-08-10. Account "
+                "tools showed $100,000 portfolio value, "
+                "$100,000 cash, a USD cash position and no AAPL "
+                "holding or open orders. The 10% portfolio "
+                "notional cap is $10,000; the sizing tool "
+                "returned 43 shares at the current price, "
+                "$9,890 notional, below both the cap and cash, "
+                "leaving room for price movement. This single "
+                "day limit buy at $230 risks loss if AAPL "
+                "falls; the rule's entry condition is "
+                "invalidated if current price is no longer "
+                "strictly above the five-close mean, and "
+                "execution is not guaranteed at this limi",
+                "reason_sha256": "dc4cf49812a22b1e253b3d0c9545d7fe737a652081a4bf5f90b4a419fb740e82",
+                "recorded_at": "2026-08-11T14:35:00+00:00",
+                "run_id": None,
+                "strategy_revision_id": None,
+            },
+            "decision_provenance": {
+                "decision_id": "decision_e29f1d15384f4f0fa9ae6e870194f3ca",
+                "model_call_id": "142db474b414c8e1a237bf952294f6369b8a8178f71bb803eac7a7fbf78c9e9e",
+            },
+            "identifier": "bt_1",
+            "limit_price": 230.0,
+            "order_type": "limit",
+            "quantity": 43.0,
+            "quote": {"symbol": "USD", "type": "forex"},
+            "side": "buy",
+            "status": "fill",
+            "time_in_force": "day",
+        }
+    ],
+    "memory_events": [
+        {
+            "agent_name": "trader",
+            "event_id": "event_2fe1e5c21cf84d7cb9400dd793989d56",
+            "event_type": "agent.tool_started",
+            "model_call_id": "142db474b414c8e1a237bf952294f6369b8a8178f71bb803eac7a7fbf78c9e9e",
+            "payload_hash": "d55f37b08ea2d0b1a34961b71160f9094b73a159b2921cb30af076b4cd158163",
+            "payload_json": '{"action_id": "574ac3dd-4730-4a75-ac1d-f17c29c68e72", "agent_name": '
+            '"trader", "arguments_sha256": '
+            '"abfbf177d94bada96858af8930469c9b6f8a41f237da7c287bb1a42509be89b2", '
+            '"decision_id": null, "deployment_id": null, "error_type": null, '
+            '"model_call_id": '
+            '"142db474b414c8e1a237bf952294f6369b8a8178f71bb803eac7a7fbf78c9e9e", '
+            '"purpose": "Load required stock/ETF procedures before evaluating the '
+            'conditional AAPL equity trade.", "run_id": null, "status": "started", '
+            '"strategy_revision_id": null, "tool_name": "load_skill"}',
+            "schema_version": 1,
+            "sequence": 1,
+            "strategy": "eval_3770cd03ca43423dac37d0c4204dec0e",
+            "subject_id": "574ac3dd-4730-4a75-ac1d-f17c29c68e72",
+            "subject_type": "agent_tool_action",
+            "timestamp": "2026-08-11T14:35:00+00:00",
+            "wall_time": "2026-10-13T17:26:05.948126Z",
+        },
+        {
+            "agent_name": "trader",
+            "event_id": "event_35edfb7c87cc4d688cccca861d7dcaf8",
+            "event_type": "agent.tool_outcome",
+            "model_call_id": "142db474b414c8e1a237bf952294f6369b8a8178f71bb803eac7a7fbf78c9e9e",
+            "payload_hash": "05b2af91c291c0c537779b210140103e6df2c472c02445c1d668c24accfb3d0a",
+            "payload_json": '{"action_id": "574ac3dd-4730-4a75-ac1d-f17c29c68e72", "agent_name": '
+            '"trader", "arguments_sha256": '
+            '"abfbf177d94bada96858af8930469c9b6f8a41f237da7c287bb1a42509be89b2", '
+            '"decision_id": null, "deployment_id": null, "error_type": null, '
+            '"model_call_id": '
+            '"142db474b414c8e1a237bf952294f6369b8a8178f71bb803eac7a7fbf78c9e9e", '
+            '"purpose": "Load required stock/ETF procedures before evaluating the '
+            'conditional AAPL equity trade.", "run_id": null, "status": '
+            '"completed", "strategy_revision_id": null, "tool_name": "load_skill"}',
+            "schema_version": 1,
+            "sequence": 2,
+            "strategy": "eval_3770cd03ca43423dac37d0c4204dec0e",
+            "subject_id": "574ac3dd-4730-4a75-ac1d-f17c29c68e72",
+            "subject_type": "agent_tool_action",
+            "timestamp": "2026-08-11T14:35:00+00:00",
+            "wall_time": "2026-10-13T17:26:05.949673Z",
+        },
+        {
+            "agent_name": "trader",
+            "event_id": "event_38f6ed0fab464be9ab6b4b0ddacd28a1",
+            "event_type": "agent.tool_started",
+            "model_call_id": "142db474b414c8e1a237bf952294f6369b8a8178f71bb803eac7a7fbf78c9e9e",
+            "payload_hash": "19e852ba7c267e9f2e0d30eeb908d2990728070846fdf6753bf7dc9132d258e6",
+            "payload_json": '{"action_id": "2de0bc50-0c13-4ef9-b9dd-741bbb38a532", "agent_name": '
+            '"trader", "arguments_sha256": '
+            '"4a3d438d999142aedeefe480c14fb96d01e0a1430963c4c55b6b2e1a2b90bef3", '
+            '"decision_id": null, "deployment_id": null, "error_type": null, '
+            '"model_call_id": '
+            '"142db474b414c8e1a237bf952294f6369b8a8178f71bb803eac7a7fbf78c9e9e", '
+            '"purpose": "Obtain same-run current AAPL price for strict entry test '
+            'and buy-limit reference.", "run_id": null, "status": "started", '
+            '"strategy_revision_id": null, "tool_name": "market_last_price"}',
+            "schema_version": 1,
+            "sequence": 3,
+            "strategy": "eval_3770cd03ca43423dac37d0c4204dec0e",
+            "subject_id": "2de0bc50-0c13-4ef9-b9dd-741bbb38a532",
+            "subject_type": "agent_tool_action",
+            "timestamp": "2026-08-11T14:35:00+00:00",
+            "wall_time": "2026-10-13T17:26:14.450655Z",
+        },
+        {
+            "agent_name": "trader",
+            "event_id": "event_0b06acaff7d2409c85c34f53c8a7ade8",
+            "event_type": "agent.tool_outcome",
+            "model_call_id": "142db474b414c8e1a237bf952294f6369b8a8178f71bb803eac7a7fbf78c9e9e",
+            "payload_hash": "41865e30a4a25ca45df57630b64111480eeb55d520db26241cca10da3b0b6b79",
+            "payload_json": '{"action_id": "2de0bc50-0c13-4ef9-b9dd-741bbb38a532", "agent_name": '
+            '"trader", "arguments_sha256": '
+            '"4a3d438d999142aedeefe480c14fb96d01e0a1430963c4c55b6b2e1a2b90bef3", '
+            '"decision_id": null, "deployment_id": null, "error_type": null, '
+            '"model_call_id": '
+            '"142db474b414c8e1a237bf952294f6369b8a8178f71bb803eac7a7fbf78c9e9e", '
+            '"purpose": "Obtain same-run current AAPL price for strict entry test '
+            'and buy-limit reference.", "run_id": null, "status": "completed", '
+            '"strategy_revision_id": null, "tool_name": "market_last_price"}',
+            "schema_version": 1,
+            "sequence": 4,
+            "strategy": "eval_3770cd03ca43423dac37d0c4204dec0e",
+            "subject_id": "2de0bc50-0c13-4ef9-b9dd-741bbb38a532",
+            "subject_type": "agent_tool_action",
+            "timestamp": "2026-08-11T14:35:00+00:00",
+            "wall_time": "2026-10-13T17:26:14.453735Z",
+        },
+        {
+            "agent_name": "trader",
+            "event_id": "event_f7c76db64af348d4b85d7bba06403be2",
+            "event_type": "agent.tool_started",
+            "model_call_id": "142db474b414c8e1a237bf952294f6369b8a8178f71bb803eac7a7fbf78c9e9e",
+            "payload_hash": "93b5f45b2065aff36c3c5ad9788261ffa83b9c1718d77ffcbd14edb17c78ce1a",
+            "payload_json": '{"action_id": "3dc80c78-e01d-428a-8530-c492972d50d0", "agent_name": '
+            '"trader", "arguments_sha256": '
+            '"08b3a683a4f465032bbdb194c6119d93f2a04af6bbd01df564afcd2644d4e72d", '
+            '"decision_id": null, "deployment_id": null, "error_type": null, '
+            '"model_call_id": '
+            '"142db474b414c8e1a237bf952294f6369b8a8178f71bb803eac7a7fbf78c9e9e", '
+            '"purpose": "Retrieve recent dated daily bars to select the five '
+            'latest completed closes for the user\'s threshold.", "run_id": null, '
+            '"status": "started", "strategy_revision_id": null, "tool_name": '
+            '"market_historical_prices"}',
+            "schema_version": 1,
+            "sequence": 5,
+            "strategy": "eval_3770cd03ca43423dac37d0c4204dec0e",
+            "subject_id": "3dc80c78-e01d-428a-8530-c492972d50d0",
+            "subject_type": "agent_tool_action",
+            "timestamp": "2026-08-11T14:35:00+00:00",
+            "wall_time": "2026-10-13T17:26:14.455448Z",
+        },
+        {
+            "agent_name": "trader",
+            "event_id": "event_34bdcc74237d489cb2da1f05981824a9",
+            "event_type": "agent.tool_outcome",
+            "model_call_id": "142db474b414c8e1a237bf952294f6369b8a8178f71bb803eac7a7fbf78c9e9e",
+            "payload_hash": "8fc8edeb27ac21266eeb3bb15f73d4af0a30c8d63422e25c888d0f26e3b4f75e",
+            "payload_json": '{"action_id": "3dc80c78-e01d-428a-8530-c492972d50d0", "agent_name": '
+            '"trader", "arguments_sha256": '
+            '"08b3a683a4f465032bbdb194c6119d93f2a04af6bbd01df564afcd2644d4e72d", '
+            '"decision_id": null, "deployment_id": null, "error_type": null, '
+            '"model_call_id": '
+            '"142db474b414c8e1a237bf952294f6369b8a8178f71bb803eac7a7fbf78c9e9e", '
+            '"purpose": "Retrieve recent dated daily bars to select the five '
+            'latest completed closes for the user\'s threshold.", "run_id": null, '
+            '"status": "completed", "strategy_revision_id": null, "tool_name": '
+            '"market_historical_prices"}',
+            "schema_version": 1,
+            "sequence": 6,
+            "strategy": "eval_3770cd03ca43423dac37d0c4204dec0e",
+            "subject_id": "3dc80c78-e01d-428a-8530-c492972d50d0",
+            "subject_type": "agent_tool_action",
+            "timestamp": "2026-08-11T14:35:00+00:00",
+            "wall_time": "2026-10-13T17:26:14.462564Z",
+        },
+        {
+            "agent_name": "trader",
+            "event_id": "event_4d4d6097fa0c42c6becb1b6214de0e36",
+            "event_type": "agent.tool_started",
+            "model_call_id": "142db474b414c8e1a237bf952294f6369b8a8178f71bb803eac7a7fbf78c9e9e",
+            "payload_hash": "be6640db0fb924f75cec945a32b3d300f5bb1f5d1ced1a711101449fa5624ee6",
+            "payload_json": '{"action_id": "f589a5f0-8609-48d1-950f-7b4ddf8288f2", "agent_name": '
+            '"trader", "arguments_sha256": '
+            '"f73d6a4a0737a94472154591b5b488acbe69403b2330ff68e25d4597ddec595d", '
+            '"decision_id": null, "deployment_id": null, "error_type": null, '
+            '"model_call_id": '
+            '"142db474b414c8e1a237bf952294f6369b8a8178f71bb803eac7a7fbf78c9e9e", '
+            '"purpose": "Compute the exact mean of the five latest completed AAPL '
+            'daily closes and inspect dated inputs.", "run_id": null, "status": '
+            '"started", "strategy_revision_id": null, "tool_name": "duckdb_query"}',
+            "schema_version": 1,
+            "sequence": 7,
+            "strategy": "eval_3770cd03ca43423dac37d0c4204dec0e",
+            "subject_id": "f589a5f0-8609-48d1-950f-7b4ddf8288f2",
+            "subject_type": "agent_tool_action",
+            "timestamp": "2026-08-11T14:35:00+00:00",
+            "wall_time": "2026-10-13T17:26:20.197809Z",
+        },
+        {
+            "agent_name": "trader",
+            "event_id": "event_a67e5e1066be475a867486288eb543f7",
+            "event_type": "agent.tool_outcome",
+            "model_call_id": "142db474b414c8e1a237bf952294f6369b8a8178f71bb803eac7a7fbf78c9e9e",
+            "payload_hash": "04a1750eb52b03985d1ee0d9cd9c18e56a7be33db8ecc0e14fcb2e5098a9cf96",
+            "payload_json": '{"action_id": "f589a5f0-8609-48d1-950f-7b4ddf8288f2", "agent_name": '
+            '"trader", "arguments_sha256": '
+            '"f73d6a4a0737a94472154591b5b488acbe69403b2330ff68e25d4597ddec595d", '
+            '"decision_id": null, "deployment_id": null, "error_type": null, '
+            '"model_call_id": '
+            '"142db474b414c8e1a237bf952294f6369b8a8178f71bb803eac7a7fbf78c9e9e", '
+            '"purpose": "Compute the exact mean of the five latest completed AAPL '
+            'daily closes and inspect dated inputs.", "run_id": null, "status": '
+            '"completed", "strategy_revision_id": null, "tool_name": '
+            '"duckdb_query"}',
+            "schema_version": 1,
+            "sequence": 8,
+            "strategy": "eval_3770cd03ca43423dac37d0c4204dec0e",
+            "subject_id": "f589a5f0-8609-48d1-950f-7b4ddf8288f2",
+            "subject_type": "agent_tool_action",
+            "timestamp": "2026-08-11T14:35:00+00:00",
+            "wall_time": "2026-10-13T17:26:20.202194Z",
+        },
+        {
+            "agent_name": "trader",
+            "event_id": "event_99b4649becad44ada089284daa4d2d9e",
+            "event_type": "agent.tool_started",
+            "model_call_id": "142db474b414c8e1a237bf952294f6369b8a8178f71bb803eac7a7fbf78c9e9e",
+            "payload_hash": "488e45b241ad03ec8e1598f508fc8dfc1cc1c24fcf18596b72d3dcd1e0d314d4",
+            "payload_json": '{"action_id": "32a6b6fa-0727-4de5-8f94-e8b144bf6f2b", "agent_name": '
+            '"trader", "arguments_sha256": '
+            '"97fcdad9fe31227a9ec60e519ff7635ac71941c55b77e585c908db1fa6406030", '
+            '"decision_id": null, "deployment_id": null, "error_type": null, '
+            '"model_call_id": '
+            '"142db474b414c8e1a237bf952294f6369b8a8178f71bb803eac7a7fbf78c9e9e", '
+            '"purpose": "Refresh cash and portfolio value for 10% AAPL position '
+            'sizing.", "run_id": null, "status": "started", '
+            '"strategy_revision_id": null, "tool_name": "account_portfolio"}',
+            "schema_version": 1,
+            "sequence": 9,
+            "strategy": "eval_3770cd03ca43423dac37d0c4204dec0e",
+            "subject_id": "32a6b6fa-0727-4de5-8f94-e8b144bf6f2b",
+            "subject_type": "agent_tool_action",
+            "timestamp": "2026-08-11T14:35:00+00:00",
+            "wall_time": "2026-10-13T17:26:27.566253Z",
+        },
+        {
+            "agent_name": "trader",
+            "event_id": "event_d6871395fa9049fcb1b6896c1e9a3154",
+            "event_type": "agent.tool_outcome",
+            "model_call_id": "142db474b414c8e1a237bf952294f6369b8a8178f71bb803eac7a7fbf78c9e9e",
+            "payload_hash": "eae713d8931c82ad9b2874d60ce41e8a04532ca7d2d6cf72a4cd00f53afab7e6",
+            "payload_json": '{"action_id": "32a6b6fa-0727-4de5-8f94-e8b144bf6f2b", "agent_name": '
+            '"trader", "arguments_sha256": '
+            '"97fcdad9fe31227a9ec60e519ff7635ac71941c55b77e585c908db1fa6406030", '
+            '"decision_id": null, "deployment_id": null, "error_type": null, '
+            '"model_call_id": '
+            '"142db474b414c8e1a237bf952294f6369b8a8178f71bb803eac7a7fbf78c9e9e", '
+            '"purpose": "Refresh cash and portfolio value for 10% AAPL position '
+            'sizing.", "run_id": null, "status": "completed", '
+            '"strategy_revision_id": null, "tool_name": "account_portfolio"}',
+            "schema_version": 1,
+            "sequence": 10,
+            "strategy": "eval_3770cd03ca43423dac37d0c4204dec0e",
+            "subject_id": "32a6b6fa-0727-4de5-8f94-e8b144bf6f2b",
+            "subject_type": "agent_tool_action",
+            "timestamp": "2026-08-11T14:35:00+00:00",
+            "wall_time": "2026-10-13T17:26:27.569562Z",
+        },
+        {
+            "agent_name": "trader",
+            "event_id": "event_0b4fbeaa592b455b8b20bed3912e3daa",
+            "event_type": "agent.tool_started",
+            "model_call_id": "142db474b414c8e1a237bf952294f6369b8a8178f71bb803eac7a7fbf78c9e9e",
+            "payload_hash": "172329d2a23b16d715f3d765f338c036f9b69a9cbc28c00a40db51abc9921a83",
+            "payload_json": '{"action_id": "a92381e1-3048-4d30-a912-ef9cd923fc72", "agent_name": '
+            '"trader", "arguments_sha256": '
+            '"97fcdad9fe31227a9ec60e519ff7635ac71941c55b77e585c908db1fa6406030", '
+            '"decision_id": null, "deployment_id": null, "error_type": null, '
+            '"model_call_id": '
+            '"142db474b414c8e1a237bf952294f6369b8a8178f71bb803eac7a7fbf78c9e9e", '
+            '"purpose": "Verify exact current holdings before opening AAPL '
+            'exposure.", "run_id": null, "status": "started", '
+            '"strategy_revision_id": null, "tool_name": "account_positions"}',
+            "schema_version": 1,
+            "sequence": 11,
+            "strategy": "eval_3770cd03ca43423dac37d0c4204dec0e",
+            "subject_id": "a92381e1-3048-4d30-a912-ef9cd923fc72",
+            "subject_type": "agent_tool_action",
+            "timestamp": "2026-08-11T14:35:00+00:00",
+            "wall_time": "2026-10-13T17:26:27.571933Z",
+        },
+        {
+            "agent_name": "trader",
+            "event_id": "event_427e685991e241558c4fb8d684d07ace",
+            "event_type": "agent.tool_outcome",
+            "model_call_id": "142db474b414c8e1a237bf952294f6369b8a8178f71bb803eac7a7fbf78c9e9e",
+            "payload_hash": "65cc750861adbc2964e58aadfc754766473846cb3b86e453e100d826a964c593",
+            "payload_json": '{"action_id": "a92381e1-3048-4d30-a912-ef9cd923fc72", "agent_name": '
+            '"trader", "arguments_sha256": '
+            '"97fcdad9fe31227a9ec60e519ff7635ac71941c55b77e585c908db1fa6406030", '
+            '"decision_id": null, "deployment_id": null, "error_type": null, '
+            '"model_call_id": '
+            '"142db474b414c8e1a237bf952294f6369b8a8178f71bb803eac7a7fbf78c9e9e", '
+            '"purpose": "Verify exact current holdings before opening AAPL '
+            'exposure.", "run_id": null, "status": "completed", '
+            '"strategy_revision_id": null, "tool_name": "account_positions"}',
+            "schema_version": 1,
+            "sequence": 12,
+            "strategy": "eval_3770cd03ca43423dac37d0c4204dec0e",
+            "subject_id": "a92381e1-3048-4d30-a912-ef9cd923fc72",
+            "subject_type": "agent_tool_action",
+            "timestamp": "2026-08-11T14:35:00+00:00",
+            "wall_time": "2026-10-13T17:26:27.575778Z",
+        },
+        {
+            "agent_name": "trader",
+            "event_id": "event_4ef70ccdf5194752959b85e735e1446e",
+            "event_type": "agent.tool_started",
+            "model_call_id": "142db474b414c8e1a237bf952294f6369b8a8178f71bb803eac7a7fbf78c9e9e",
+            "payload_hash": "af6372c71ff65c9a5e944d943647af9dfa003d6113c5f099fc3d23dd22db37d2",
+            "payload_json": '{"action_id": "59e49f24-cf84-46bd-b0b1-f297713849fe", "agent_name": '
+            '"trader", "arguments_sha256": '
+            '"97fcdad9fe31227a9ec60e519ff7635ac71941c55b77e585c908db1fa6406030", '
+            '"decision_id": null, "deployment_id": null, "error_type": null, '
+            '"model_call_id": '
+            '"142db474b414c8e1a237bf952294f6369b8a8178f71bb803eac7a7fbf78c9e9e", '
+            '"purpose": "Verify no pending order already covers the intended AAPL '
+            'purchase.", "run_id": null, "status": "started", '
+            '"strategy_revision_id": null, "tool_name": "orders_open_orders"}',
+            "schema_version": 1,
+            "sequence": 13,
+            "strategy": "eval_3770cd03ca43423dac37d0c4204dec0e",
+            "subject_id": "59e49f24-cf84-46bd-b0b1-f297713849fe",
+            "subject_type": "agent_tool_action",
+            "timestamp": "2026-08-11T14:35:00+00:00",
+            "wall_time": "2026-10-13T17:26:27.579524Z",
+        },
+        {
+            "agent_name": "trader",
+            "event_id": "event_99268f134d7c4664969e6568f45907d9",
+            "event_type": "agent.tool_outcome",
+            "model_call_id": "142db474b414c8e1a237bf952294f6369b8a8178f71bb803eac7a7fbf78c9e9e",
+            "payload_hash": "bb1da552ef3d07642d9d5d79ea676c5b2063a4ca28bb588ba8b0be22c0384918",
+            "payload_json": '{"action_id": "59e49f24-cf84-46bd-b0b1-f297713849fe", "agent_name": '
+            '"trader", "arguments_sha256": '
+            '"97fcdad9fe31227a9ec60e519ff7635ac71941c55b77e585c908db1fa6406030", '
+            '"decision_id": null, "deployment_id": null, "error_type": null, '
+            '"model_call_id": '
+            '"142db474b414c8e1a237bf952294f6369b8a8178f71bb803eac7a7fbf78c9e9e", '
+            '"purpose": "Verify no pending order already covers the intended AAPL '
+            'purchase.", "run_id": null, "status": "completed", '
+            '"strategy_revision_id": null, "tool_name": "orders_open_orders"}',
+            "schema_version": 1,
+            "sequence": 14,
+            "strategy": "eval_3770cd03ca43423dac37d0c4204dec0e",
+            "subject_id": "59e49f24-cf84-46bd-b0b1-f297713849fe",
+            "subject_type": "agent_tool_action",
+            "timestamp": "2026-08-11T14:35:00+00:00",
+            "wall_time": "2026-10-13T17:26:27.582806Z",
+        },
+        {
+            "agent_name": "trader",
+            "event_id": "event_2cf00e46407b447ea4b177a105caf2d3",
+            "event_type": "agent.tool_started",
+            "model_call_id": "142db474b414c8e1a237bf952294f6369b8a8178f71bb803eac7a7fbf78c9e9e",
+            "payload_hash": "6b6a0359cc70f2e128c8a3e48fb91ce8bc753097123ca44c1eee5c0156557679",
+            "payload_json": '{"action_id": "698fcc43-aa6c-49b0-9f7a-0f20080c525a", "agent_name": '
+            '"trader", "arguments_sha256": '
+            '"853a7e4bb7ff23482a2c012ea069cf267e4e51c18a9c1c1fb91be5a3d272a946", '
+            '"decision_id": null, "deployment_id": null, "error_type": null, '
+            '"model_call_id": '
+            '"142db474b414c8e1a237bf952294f6369b8a8178f71bb803eac7a7fbf78c9e9e", '
+            '"purpose": "Calculate whole-share quantity within the user\'s 10% '
+            'portfolio risk cap.", "run_id": null, "status": "started", '
+            '"strategy_revision_id": null, "tool_name": '
+            '"risk_calculate_stock_quantity"}',
+            "schema_version": 1,
+            "sequence": 15,
+            "strategy": "eval_3770cd03ca43423dac37d0c4204dec0e",
+            "subject_id": "698fcc43-aa6c-49b0-9f7a-0f20080c525a",
+            "subject_type": "agent_tool_action",
+            "timestamp": "2026-08-11T14:35:00+00:00",
+            "wall_time": "2026-10-13T17:26:27.585418Z",
+        },
+        {
+            "agent_name": "trader",
+            "event_id": "event_8005d72214b148b696b48fa92397aebe",
+            "event_type": "agent.tool_outcome",
+            "model_call_id": "142db474b414c8e1a237bf952294f6369b8a8178f71bb803eac7a7fbf78c9e9e",
+            "payload_hash": "738b49f11301326e7e22bb8743864ee5f19486a11a30960921fc3efb8379181e",
+            "payload_json": '{"action_id": "698fcc43-aa6c-49b0-9f7a-0f20080c525a", "agent_name": '
+            '"trader", "arguments_sha256": '
+            '"853a7e4bb7ff23482a2c012ea069cf267e4e51c18a9c1c1fb91be5a3d272a946", '
+            '"decision_id": null, "deployment_id": null, "error_type": null, '
+            '"model_call_id": '
+            '"142db474b414c8e1a237bf952294f6369b8a8178f71bb803eac7a7fbf78c9e9e", '
+            '"purpose": "Calculate whole-share quantity within the user\'s 10% '
+            'portfolio risk cap.", "run_id": null, "status": "completed", '
+            '"strategy_revision_id": null, "tool_name": '
+            '"risk_calculate_stock_quantity"}',
+            "schema_version": 1,
+            "sequence": 16,
+            "strategy": "eval_3770cd03ca43423dac37d0c4204dec0e",
+            "subject_id": "698fcc43-aa6c-49b0-9f7a-0f20080c525a",
+            "subject_type": "agent_tool_action",
+            "timestamp": "2026-08-11T14:35:00+00:00",
+            "wall_time": "2026-10-13T17:26:27.588265Z",
+        },
+        {
+            "agent_name": "trader",
+            "event_id": "event_c6cf0b123b5048fab39f21f6fd373767",
+            "event_type": "agent.tool_started",
+            "model_call_id": "142db474b414c8e1a237bf952294f6369b8a8178f71bb803eac7a7fbf78c9e9e",
+            "payload_hash": "9269133ba4a63cdda8e537b397e97295b0d06cbec648b791539e759c587bca47",
+            "payload_json": '{"action_id": "95a52df9-aad1-481a-be67-c032c5e6856a", "agent_name": '
+            '"trader", "arguments_sha256": '
+            '"cc2cb3113e48335004059e723f33765f0f476891ad8e49b75383819dc860f777", '
+            '"decision_id": null, "deployment_id": null, "error_type": null, '
+            '"model_call_id": '
+            '"142db474b414c8e1a237bf952294f6369b8a8178f71bb803eac7a7fbf78c9e9e", '
+            '"purpose": "Submit one AAPL limit buy because current price exceeds '
+            "the exact five-completed-close average; retain dated evidence and "
+            'capped sizing in private audit.", "run_id": null, "status": '
+            '"started", "strategy_revision_id": null, "tool_name": '
+            '"orders_submit_order"}',
+            "schema_version": 1,
+            "sequence": 17,
+            "strategy": "eval_3770cd03ca43423dac37d0c4204dec0e",
+            "subject_id": "95a52df9-aad1-481a-be67-c032c5e6856a",
+            "subject_type": "agent_tool_action",
+            "timestamp": "2026-08-11T14:35:00+00:00",
+            "wall_time": "2026-10-13T17:26:37.168218Z",
+        },
+        {
+            "agent_name": "trader",
+            "event_id": "event_0e1aed09e5de4f4fa86da4b86443e7fc",
+            "event_type": "order.intent",
+            "model_call_id": "142db474b414c8e1a237bf952294f6369b8a8178f71bb803eac7a7fbf78c9e9e",
+            "payload_hash": "48c1833f5dd032f8a0b78c7db0b5914623994da7903616786142bf6bff17ac72",
+            "payload_json": '{"kind": "order_action", "metadata": {"evidence": {"public_reason": '
+            '"AAPL is above the mean of its five latest completed daily closes, '
+            "meeting the entry rule. A 43-share limit order stays within the "
+            "defined portfolio exposure cap; price declines and non-execution "
+            'remain possible."}, "orders": [{"changes": {}, "identifier": "bt_1", '
+            '"limit_price": 230.0, "order_type": "limit", "previous_reference": '
+            'null, "quantity": "43.0", "side": "buy", "stop_price": null, '
+            '"symbol": "AAPL"}], "reference": {"action_id": '
+            '"action_11d5873ecdce45c8af023835174044ec", "agent_name": "trader", '
+            '"decision_id": "decision_e29f1d15384f4f0fa9ae6e870194f3ca", '
+            '"deployment_id": null, "model_call_id": '
+            '"142db474b414c8e1a237bf952294f6369b8a8178f71bb803eac7a7fbf78c9e9e", '
+            '"operation": "submit", "previous_action_id": null, '
+            '"public_reason_preview": "AAPL is above the mean of its five latest '
+            "completed daily closes, meeting the entry rule. A 43-share limit "
+            "order stays within the defined portfolio exposure cap; price declines "
+            'and non-execution remain possible.", "public_reason_sha256": '
+            '"90845318d387f8be6ed3c105d98604798ec8c9cc556f8617996ab129039b7338", '
+            '"reason_preview": "The conditional entry rule is satisfied: the '
+            "current AAPL price at 2026-08-11 14:35 UTC is $230, strictly above "
+            "the arithmetic mean of $227 across the five latest completed daily "
+            "closes: $225 on 2026-08-06, $226 on 2026-08-07, $227 on 2026-08-08, "
+            "$228 on 2026-08-09, and $229 on 2026-08-10. Account tools showed "
+            "$100,000 portfolio value, $100,000 cash, a USD cash position and no "
+            "AAPL holding or open orders. The 10% portfolio notional cap is "
+            "$10,000; the sizing tool returned 43 shares at the current price, "
+            "$9,890 notional, below both the cap and cash, leaving room for price "
+            "movement. This single day limit buy at $230 risks loss if AAPL falls; "
+            "the rule's entry condition is invalidated if current price is no "
+            "longer strictly above the five-close mean, and execution is not "
+            'guaranteed at this limi", "reason_sha256": '
+            '"dc4cf49812a22b1e253b3d0c9545d7fe737a652081a4bf5f90b4a419fb740e82", '
+            '"recorded_at": "2026-08-11T14:35:00+00:00", "run_id": null, '
+            '"strategy_revision_id": null}}, "status": "intent", "symbol": null, '
+            '"tags": [], "text": "The conditional entry rule is satisfied: the '
+            "current AAPL price at 2026-08-11 14:35 UTC is $230, strictly above "
+            "the arithmetic mean of $227 across the five latest completed daily "
+            "closes: $225 on 2026-08-06, $226 on 2026-08-07, $227 on 2026-08-08, "
+            "$228 on 2026-08-09, and $229 on 2026-08-10. Account tools showed "
+            "$100,000 portfolio value, $100,000 cash, a USD cash position and no "
+            "AAPL holding or open orders. The 10% portfolio notional cap is "
+            "$10,000; the sizing tool returned 43 shares at the current price, "
+            "$9,890 notional, below both the cap and cash, leaving room for price "
+            "movement. This single day limit buy at $230 risks loss if AAPL falls; "
+            "the rule's entry condition is invalidated if current price is no "
+            "longer strictly above the five-close mean, and execution is not "
+            'guaranteed at this limit."}',
+            "schema_version": 1,
+            "sequence": 18,
+            "strategy": "eval_3770cd03ca43423dac37d0c4204dec0e",
+            "subject_id": "action_11d5873ecdce45c8af023835174044ec",
+            "subject_type": "order_action",
+            "timestamp": "2026-08-11T14:35:00+00:00",
+            "wall_time": "2026-10-13T17:26:37.169980Z",
+        },
+        {
+            "agent_name": "trader",
+            "event_id": "event_9e0ae0ba25f9401496a6caedcfdba61b",
+            "event_type": "order.action_outcome",
+            "metadata": {
+                "certainty": "returned",
+                "error_type": None,
+                "reference": {
+                    "action_id": "action_11d5873ecdce45c8af023835174044ec",
+                    "agent_name": "trader",
+                    "decision_id": "decision_e29f1d15384f4f0fa9ae6e870194f3ca",
+                    "deployment_id": None,
+                    "model_call_id": "142db474b414c8e1a237bf952294f6369b8a8178f71bb803eac7a7fbf78c9e9e",
+                    "operation": "submit",
+                    "previous_action_id": None,
+                    "public_reason_preview": "AAPL is above the mean of its "
+                    "five latest completed daily "
+                    "closes, meeting the entry rule. A "
+                    "43-share limit order stays within "
+                    "the defined portfolio exposure "
+                    "cap; price declines and "
+                    "non-execution remain possible.",
+                    "public_reason_sha256": "90845318d387f8be6ed3c105d98604798ec8c9cc556f8617996ab129039b7338",
+                    "reason_preview": "The conditional entry rule is satisfied: "
+                    "the current AAPL price at 2026-08-11 "
+                    "14:35 UTC is $230, strictly above the "
+                    "arithmetic mean of $227 across the five "
+                    "latest completed daily closes: $225 on "
+                    "2026-08-06, $226 on 2026-08-07, $227 on "
+                    "2026-08-08, $228 on 2026-08-09, and $229 "
+                    "on 2026-08-10. Account tools showed "
+                    "$100,000 portfolio value, $100,000 cash, "
+                    "a USD cash position and no AAPL holding "
+                    "or open orders. The 10% portfolio "
+                    "notional cap is $10,000; the sizing tool "
+                    "returned 43 shares at the current price, "
+                    "$9,890 notional, below both the cap and "
+                    "cash, leaving room for price movement. "
+                    "This single day limit buy at $230 risks "
+                    "loss if AAPL falls; the rule's entry "
+                    "condition is invalidated if current "
+                    "price is no longer strictly above the "
+                    "five-close mean, and execution is not "
+                    "guaranteed at this limi",
+                    "reason_sha256": "dc4cf49812a22b1e253b3d0c9545d7fe737a652081a4bf5f90b4a419fb740e82",
+                    "recorded_at": "2026-08-11T14:35:00+00:00",
+                    "run_id": None,
+                    "strategy_revision_id": None,
+                },
+            },
+            "model_call_id": "142db474b414c8e1a237bf952294f6369b8a8178f71bb803eac7a7fbf78c9e9e",
+            "payload_hash": "44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+            "payload_json": "{}",
+            "schema_version": 1,
+            "sequence": 19,
+            "strategy": "eval_3770cd03ca43423dac37d0c4204dec0e",
+            "subject_id": "action_11d5873ecdce45c8af023835174044ec",
+            "subject_type": "order_action",
+            "text": "Order action returned",
+            "timestamp": "2026-08-11T14:35:00+00:00",
+            "wall_time": "2026-10-13T17:26:37.180390Z",
+        },
+        {
+            "agent_name": "trader",
+            "event_id": "event_ed25394fd4ea4db5ad6dfbc866b7dffb",
+            "event_type": "agent.tool_outcome",
+            "model_call_id": "142db474b414c8e1a237bf952294f6369b8a8178f71bb803eac7a7fbf78c9e9e",
+            "payload_hash": "c31b4e1b25c677d2b6e9e441dfe8ae083d4b092367f102384bacb66c461d1f1d",
+            "payload_json": '{"action_id": "95a52df9-aad1-481a-be67-c032c5e6856a", "agent_name": '
+            '"trader", "arguments_sha256": '
+            '"cc2cb3113e48335004059e723f33765f0f476891ad8e49b75383819dc860f777", '
+            '"decision_id": null, "deployment_id": null, "error_type": null, '
+            '"model_call_id": '
+            '"142db474b414c8e1a237bf952294f6369b8a8178f71bb803eac7a7fbf78c9e9e", '
+            '"purpose": "Submit one AAPL limit buy because current price exceeds '
+            "the exact five-completed-close average; retain dated evidence and "
+            'capped sizing in private audit.", "run_id": null, "status": '
+            '"completed", "strategy_revision_id": null, "tool_name": '
+            '"orders_submit_order"}',
+            "schema_version": 1,
+            "sequence": 21,
+            "strategy": "eval_3770cd03ca43423dac37d0c4204dec0e",
+            "subject_id": "95a52df9-aad1-481a-be67-c032c5e6856a",
+            "subject_type": "agent_tool_action",
+            "timestamp": "2026-08-11T14:35:00+00:00",
+            "wall_time": "2026-10-13T17:26:37.194592Z",
+        },
+    ],
+    "tool_calls": [
+        {
+            "call_id": "call_wAZq22MK3xLWzV5uNr41qu4r",
+            "model_call_id": "142db474b414c8e1a237bf952294f6369b8a8178f71bb803eac7a7fbf78c9e9e",
+            "name": "load_skill",
+            "payload": {
+                "agent_purpose": "Load required stock/ETF procedures before evaluating the "
+                "conditional AAPL equity trade.",
+                "skill_name": "stock-trading",
+            },
+        },
+        {
+            "call_id": "call_PBlu7nwIr4q20041YAEXQEWM",
+            "model_call_id": "142db474b414c8e1a237bf952294f6369b8a8178f71bb803eac7a7fbf78c9e9e",
+            "name": "market_last_price",
+            "payload": {
+                "agent_purpose": "Obtain same-run current AAPL price for strict entry test and buy-limit reference.",
+                "asset_type": "stock",
+                "symbol": "AAPL",
+            },
+        },
+        {
+            "call_id": "call_bANgnOcRM8g2vl8hTkwlwSuh",
+            "model_call_id": "142db474b414c8e1a237bf952294f6369b8a8178f71bb803eac7a7fbf78c9e9e",
+            "name": "market_historical_prices",
+            "payload": {
+                "agent_purpose": "Retrieve recent dated daily bars to select the five latest "
+                "completed closes for the user's threshold.",
+                "asset_type": "stock",
+                "length": 8,
+                "symbols_json": '["AAPL"]',
+                "table_name": "aapl_rule_bars",
+                "timestep": "day",
+            },
+        },
+        {
+            "call_id": "call_0X9OOtHeTl2LKATPPXmbSd9y",
+            "model_call_id": "142db474b414c8e1a237bf952294f6369b8a8178f71bb803eac7a7fbf78c9e9e",
+            "name": "duckdb_query",
+            "payload": {
+                "agent_purpose": "Compute the exact mean of the five latest completed AAPL "
+                "daily closes and inspect dated inputs.",
+                "sql": "SELECT datetime, close, AVG(close) OVER () AS mean_five FROM (SELECT "
+                "datetime, close FROM aapl_rule_bars WHERE CAST(datetime AS DATE) < "
+                "DATE '2026-08-11' ORDER BY datetime DESC LIMIT 5) s ORDER BY "
+                "datetime",
+            },
+        },
+        {
+            "call_id": "call_KgVnEe99tPnW88vI6p7q4u1o",
+            "model_call_id": "142db474b414c8e1a237bf952294f6369b8a8178f71bb803eac7a7fbf78c9e9e",
+            "name": "account_portfolio",
+            "payload": {"agent_purpose": "Refresh cash and portfolio value for 10% AAPL position sizing."},
+        },
+        {
+            "call_id": "call_v9oxQSFoPF4avCM7aBKLA7Mu",
+            "model_call_id": "142db474b414c8e1a237bf952294f6369b8a8178f71bb803eac7a7fbf78c9e9e",
+            "name": "account_positions",
+            "payload": {"agent_purpose": "Verify exact current holdings before opening AAPL exposure."},
+        },
+        {
+            "call_id": "call_IGsVbprxJePxIufG1VMvVrKM",
+            "model_call_id": "142db474b414c8e1a237bf952294f6369b8a8178f71bb803eac7a7fbf78c9e9e",
+            "name": "orders_open_orders",
+            "payload": {"agent_purpose": "Verify no pending order already covers the intended AAPL purchase."},
+        },
+        {
+            "call_id": "call_Jg8Y6o6rUuQs8Sp2OqtyhrZE",
+            "model_call_id": "142db474b414c8e1a237bf952294f6369b8a8178f71bb803eac7a7fbf78c9e9e",
+            "name": "risk_calculate_stock_quantity",
+            "payload": {
+                "agent_purpose": "Calculate whole-share quantity within the user's 10% portfolio risk cap.",
+                "available_cash": 100000,
+                "maximum_notional": 10000,
+                "price": 230,
+            },
+        },
+        {
+            "call_id": "call_Mzavogvt2LfxhAJl3eq4vB9y",
+            "model_call_id": "142db474b414c8e1a237bf952294f6369b8a8178f71bb803eac7a7fbf78c9e9e",
+            "name": "orders_submit_order",
+            "payload": {
+                "agent_purpose": "Submit one AAPL limit buy because current price exceeds the "
+                "exact five-completed-close average; retain dated evidence "
+                "and capped sizing in private audit.",
+                "asset_type": "stock",
+                "limit_price": 230.0,
+                "order_type": "limit",
+                "public_reason": "AAPL is above the mean of its five latest completed daily "
+                "closes, meeting the entry rule. A 43-share limit order "
+                "stays within the defined portfolio exposure cap; price "
+                "declines and non-execution remain possible.",
+                "quantity": 43,
+                "reason": "The conditional entry rule is satisfied: the current AAPL price at "
+                "2026-08-11 14:35 UTC is $230, strictly above the arithmetic mean "
+                "of $227 across the five latest completed daily closes: $225 on "
+                "2026-08-06, $226 on 2026-08-07, $227 on 2026-08-08, $228 on "
+                "2026-08-09, and $229 on 2026-08-10. Account tools showed $100,000 "
+                "portfolio value, $100,000 cash, a USD cash position and no AAPL "
+                "holding or open orders. The 10% portfolio notional cap is $10,000; "
+                "the sizing tool returned 43 shares at the current price, $9,890 "
+                "notional, below both the cap and cash, leaving room for price "
+                "movement. This single day limit buy at $230 risks loss if AAPL "
+                "falls; the rule's entry condition is invalidated if current price "
+                "is no longer strictly above the five-close mean, and execution is "
+                "not guaranteed at this limit.",
+                "side": "buy",
+                "symbol": "AAPL",
+                "time_in_force": "day",
+            },
+        },
+    ],
+    "tool_results": [
+        {
+            "call_id": "call_wAZq22MK3xLWzV5uNr41qu4r",
+            "model_call_id": "142db474b414c8e1a237bf952294f6369b8a8178f71bb803eac7a7fbf78c9e9e",
+            "name": "load_skill",
+            "payload": {
+                "frontmatter": {
+                    "allowed_tools": None,
+                    "compatibility": None,
+                    "description": "Use before researching, selecting, opening, "
+                    "modifying, or closing a stock or ETF "
+                    "position, including discretionary "
+                    "investing, rotation, breakout, momentum, "
+                    "mean-reversion, opening-range breakout, and "
+                    "VWAP trading. Also use when a broad mandate "
+                    "leads you to consider stocks or ETFs even "
+                    "if the user did not name an asset class "
+                    "initially.",
+                    "license": None,
+                    "metadata": {},
+                    "name": "stock-trading",
+                },
+                "instructions": "# Stock Trading\n"
+                "\n"
+                "Load this skill before using stocks or ETFs as part of a "
+                "trading decision. If a\n"
+                "broad mandate leads you to a stock idea, load it before "
+                "submitting an order.\n"
+                "\n"
+                "## Core workflow\n"
+                "\n"
+                "1. Read portfolio value, cash, current positions, and open "
+                "orders.\n"
+                "2. Retrieve the current price and recent price history for "
+                "every serious candidate.\n"
+                "   Read that history with `market_historical_prices`, also "
+                "for a single symbol;\n"
+                "   pass `table_name` to query it with `duckdb_query`.\n"
+                "   `market_load_history_table` does not replace it before "
+                "a stock order.\n"
+                "   Compute averages and indicators with a tool "
+                "(`get_indicator`, `get_indicators`,\n"
+                "   or `duckdb_query` over loaded bars), never by mental "
+                "arithmetic, and quote\n"
+                "   the tool's value. A query returning individual closes "
+                "has not computed their\n"
+                "   average. Request the aggregate or indicator and inspect "
+                "its returned value\n"
+                "   before using it in a decision or describing it as "
+                "tool-calculated.\n"
+                "   For lookback rules, select the requested count of the "
+                "latest completed bars\n"
+                "   and match the reported indicator and date window to "
+                "that tool result. Do not\n"
+                "   discard an already-completed bar again or substitute an "
+                "earlier indicator row.\n"
+                "3. Use batch tools for a universe. Do not loop one symbol "
+                "at a time when a batch\n"
+                "   price or history tool can return the same evidence.\n"
+                "4. Evaluate the user's entry, exit, sizing, and frequency "
+                "rules against current\n"
+                "   evidence. Write down the decisive condition and whether "
+                "it is true before\n"
+                "   submitting an order. Do not invent missing signals. "
+                "Keep the explanation's\n"
+                "   comparisons identical to the evaluated rule: a latest "
+                "price exceeding an\n"
+                "   average does not establish that every constituent bar "
+                "exceeded it. If a\n"
+                "   claim concerns all bars, their count, or a date range, "
+                "compute and inspect\n"
+                "   that exact predicate from the returned data before "
+                "asserting it.\n"
+                "5. Size from current portfolio value, available cash, "
+                "current price, volatility or\n"
+                "   stop distance, and the user's risk rules. For a "
+                "notional cap, calculate\n"
+                "   the maximum notional and call "
+                "`risk_calculate_stock_quantity`; use its returned\n"
+                "   whole-share quantity unchanged. Verify its notional is "
+                "at or below both the cap\n"
+                "   and available cash before submission. Submit only when "
+                "the returned quantity is\n"
+                "   greater than zero; otherwise make a no-trade decision.\n"
+                "6. Submit the selected order once. Price a limit order "
+                "from the current\n"
+                "   `market_last_price` result, never from a historical "
+                "bar's close: a buy limit\n"
+                "   below the current price usually does not fill. Follow "
+                "the order tool's\n"
+                "   guidance when the order must fill this session. This is "
+                "for a new order; it\n"
+                "   is never a reason to modify an order that is already "
+                "pending (see step 8).\n"
+                "7. Capture the returned identifier, inspect that exact "
+                "order, and reread positions\n"
+                "   and open orders. In backtests, a short bounded "
+                "`orders_wait_for_terminal` is\n"
+                "   appropriate immediately after your own market-order "
+                "submission because it\n"
+                "   lets the simulator process the pending fill. Do not use "
+                "an unbounded wait.\n"
+                "8. If a related order is already open, call "
+                "`orders_get_status` with its returned\n"
+                "   identifier to inspect that exact order; listing open "
+                "orders alone does not\n"
+                "   replace this status read. Do not submit another order "
+                "for the same intended\n"
+                "   position change. A pending exit already\n"
+                "   owns the exit: leave it in place and report that it "
+                "owns the position change.\n"
+                "   Modify or cancel and replace it only when the user's "
+                "rules explicitly require\n"
+                "   changing an existing order. A due exit condition or a "
+                "nonmarketable limit\n"
+                "   alone does not authorize changing an already-pending "
+                "exit.\n"
+                "9. Reconcile the final summary with the mutation tools and "
+                "the final account\n"
+                "   reads. If an order tool returned a submitted "
+                "identifier, never say that no\n"
+                "   order was entered. Report the exact observed status "
+                "instead.\n"
+                "\n"
+                "## Research depth\n"
+                "\n"
+                "Match research to the strategy. A broad discretionary "
+                "investment decision should\n"
+                "use relevant technical, news, macro, and company evidence "
+                "when available. A\n"
+                "mechanical intraday strategy should prioritize the exact "
+                "price, bar, volume, and\n"
+                "indicator evidence required by its rules. Do not force "
+                "irrelevant research merely\n"
+                "to increase tool use.\n"
+                "\n"
+                "## References\n"
+                "\n"
+                "Load only the smallest relevant reference:\n"
+                "\n"
+                "- `references/research-sizing-and-orders.md`: evidence, "
+                "sizing, entries, exits,\n"
+                "  rotation, and order verification.\n"
+                "- `references/intraday-setups.md`: opening-range breakout "
+                "and VWAP mechanics.\n"
+                "\n"
+                "The user's active strategy rules decide whether a trade "
+                "should happen. This skill\n"
+                "provides reusable stock-trading mechanics and does not "
+                "invent a strategy.\n"
+                "\n"
+                "## Explain consequential order actions\n"
+                "\n"
+                "Supply an explicit `reason` before every submission, "
+                "modification or cancellation.\n"
+                "Use at least 200 characters; aim for 600–2,500 when the "
+                "decision needs it. Explain\n"
+                "the thesis, dated evidence, sizing, material risks and "
+                "what would invalidate it.\n"
+                "State missing evidence honestly. This is a decision "
+                "summary, not hidden internal\n"
+                "reasoning, and must contain no credentials or account "
+                "identifiers. The order\n"
+                "service commits it before execution. Report only observed "
+                "order status and fills;\n"
+                "reconcile an uncertain outcome before trying again.",
+                "skill_name": "stock-trading",
+            },
+        },
+        {
+            "call_id": "call_PBlu7nwIr4q20041YAEXQEWM",
+            "model_call_id": "142db474b414c8e1a237bf952294f6369b8a8178f71bb803eac7a7fbf78c9e9e",
+            "name": "market_last_price",
+            "payload": {
+                "asset_type": "stock",
+                "datetime": "2026-08-11T14:35:00+00:00",
+                "price": 230.0,
+                "symbol": "AAPL",
+            },
+        },
+        {
+            "call_id": "call_bANgnOcRM8g2vl8hTkwlwSuh",
+            "model_call_id": "142db474b414c8e1a237bf952294f6369b8a8178f71bb803eac7a7fbf78c9e9e",
+            "name": "market_historical_prices",
+            "payload": {
+                "asset_type": "stock",
+                "columns": ["symbol", "datetime", "open", "high", "low", "close", "volume"],
+                "count_available": 1,
+                "count_requested": 1,
+                "datetime": "2026-08-11T14:35:00+00:00",
+                "datetime_timezone": "America/New_York",
+                "first_datetime": "2026-08-04T00:00:00",
+                "include_after_hours": True,
+                "last_datetime": "2026-08-10T00:00:00",
+                "length": 8,
+                "row_count": 7,
+                "rows_by_symbol": {"AAPL": 7},
+                "symbols_available": ["AAPL"],
+                "symbols_interval_mismatch": [],
+                "symbols_missing": [],
+                "symbols_requested": ["AAPL"],
+                "table_name": "aapl_rule_bars",
+                "timestep": "day",
+            },
+        },
+        {
+            "call_id": "call_0X9OOtHeTl2LKATPPXmbSd9y",
+            "model_call_id": "142db474b414c8e1a237bf952294f6369b8a8178f71bb803eac7a7fbf78c9e9e",
+            "name": "duckdb_query",
+            "payload": {
+                "columns": ["datetime", "close", "mean_five"],
+                "query_ms": 1.471,
+                "row_count": 5,
+                "rows": [
+                    {"close": 225.0, "datetime": "2026-08-06T00:00:00", "mean_five": 227.0},
+                    {"close": 226.0, "datetime": "2026-08-07T00:00:00", "mean_five": 227.0},
+                    {"close": 227.0, "datetime": "2026-08-08T00:00:00", "mean_five": 227.0},
+                    {"close": 228.0, "datetime": "2026-08-09T00:00:00", "mean_five": 227.0},
+                    {"close": 229.0, "datetime": "2026-08-10T00:00:00", "mean_five": 227.0},
+                ],
+                "truncated": False,
+            },
+        },
+        {
+            "call_id": "call_KgVnEe99tPnW88vI6p7q4u1o",
+            "model_call_id": "142db474b414c8e1a237bf952294f6369b8a8178f71bb803eac7a7fbf78c9e9e",
+            "name": "account_portfolio",
+            "payload": {"cash": 100000.0, "datetime": "2026-08-11T14:35:00+00:00", "portfolio_value": 100000.0},
+        },
+        {
+            "call_id": "call_v9oxQSFoPF4avCM7aBKLA7Mu",
+            "model_call_id": "142db474b414c8e1a237bf952294f6369b8a8178f71bb803eac7a7fbf78c9e9e",
+            "name": "account_positions",
+            "payload": {
+                "as_of": "2026-08-11T14:35:00+00:00",
+                "complete": True,
+                "filters": {},
+                "limit": 50,
+                "matched": 1,
+                "next_offset": None,
+                "offset": 0,
+                "omitted": 0,
+                "positions": [
+                    {
+                        "asset": {"symbol": "USD", "type": "forex"},
+                        "closing_quantity": 100000.0,
+                        "position_side": "long",
+                        "quantity": 100000.0,
+                    }
+                ],
+                "returned": 1,
+                "snapshot_id": "79f25008dbe1aa8d020a1025bcceb64a1c0e904e920ae44bb21de69f12b6ebb2",
+                "total": 1,
+            },
+        },
+        {
+            "call_id": "call_IGsVbprxJePxIufG1VMvVrKM",
+            "model_call_id": "142db474b414c8e1a237bf952294f6369b8a8178f71bb803eac7a7fbf78c9e9e",
+            "name": "orders_open_orders",
+            "payload": {
+                "as_of": "2026-08-11T14:35:00+00:00",
+                "complete": True,
+                "filters": {},
+                "limit": 50,
+                "matched": 0,
+                "next_offset": None,
+                "offset": 0,
+                "omitted": 0,
+                "orders": [],
+                "returned": 0,
+                "snapshot_id": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+                "total": 0,
+            },
+        },
+        {
+            "call_id": "call_Jg8Y6o6rUuQs8Sp2OqtyhrZE",
+            "model_call_id": "142db474b414c8e1a237bf952294f6369b8a8178f71bb803eac7a7fbf78c9e9e",
+            "name": "risk_calculate_stock_quantity",
+            "payload": {
+                "available_cash": 100000.0,
+                "maximum_notional": 10000.0,
+                "notional": 9890.0,
+                "price": 230.0,
+                "quantity": 43,
+                "remaining_notional": 110.0,
+                "spendable_notional": 10000.0,
+                "within_available_cash": True,
+                "within_maximum_notional": True,
+            },
+        },
+        {
+            "call_id": "call_Mzavogvt2LfxhAJl3eq4vB9y",
+            "model_call_id": "142db474b414c8e1a237bf952294f6369b8a8178f71bb803eac7a7fbf78c9e9e",
+            "name": "orders_submit_order",
+            "payload": {
+                "execution_outcome": {
+                    "broker_state_certainty": "confirmed_submitted",
+                    "decision_completed": True,
+                    "fallback_used": False,
+                    "impact": "completed",
+                    "operation": "broker_order_submission",
+                    "requiredness": "decision_critical",
+                    "retryability": "not_applicable",
+                },
+                "order": {
+                    "asset": {"symbol": "AAPL", "type": "stock"},
+                    "decision_journal": {
+                        "action_id": "action_11d5873ecdce45c8af023835174044ec",
+                        "agent_name": "trader",
+                        "decision_id": "decision_e29f1d15384f4f0fa9ae6e870194f3ca",
+                        "deployment_id": None,
+                        "model_call_id": "142db474b414c8e1a237bf952294f6369b8a8178f71bb803eac7a7fbf78c9e9e",
+                        "operation": "submit",
+                        "previous_action_id": None,
+                        "public_reason_preview": "AAPL is above the "
+                        "mean of its five "
+                        "latest completed "
+                        "daily closes, "
+                        "meeting the entry "
+                        "rule. A 43-share "
+                        "limit order stays "
+                        "within the defined "
+                        "portfolio exposure "
+                        "cap; price "
+                        "declines and "
+                        "non-execution "
+                        "remain possible.",
+                        "public_reason_sha256": "90845318d387f8be6ed3c105d98604798ec8c9cc556f8617996ab129039b7338",
+                        "reason_preview": "The conditional entry "
+                        "rule is satisfied: the "
+                        "current AAPL price at "
+                        "2026-08-11 14:35 UTC is "
+                        "$230, strictly above the "
+                        "arithmetic mean of $227 "
+                        "across the five latest "
+                        "completed daily closes: "
+                        "$225 on 2026-08-06, $226 "
+                        "on 2026-08-07, $227 on "
+                        "2026-08-08, $228 on "
+                        "2026-08-09, and $229 on "
+                        "2026-08-10. Account tools "
+                        "showed $100,000 portfolio "
+                        "value, $100,000 cash, a "
+                        "USD cash position and no "
+                        "AAPL holding or open "
+                        "orders. The 10% portfolio "
+                        "notional cap is $10,000; "
+                        "the sizing tool returned "
+                        "43 shares at the current "
+                        "price, $9,890 notional, "
+                        "below both the cap and "
+                        "cash, leaving room for "
+                        "price movement. This "
+                        "single day limit buy at "
+                        "$230 risks loss if AAPL "
+                        "falls; the rule's entry "
+                        "condition is invalidated "
+                        "if current price is no "
+                        "longer strictly above the "
+                        "five-close mean, and "
+                        "execution is not "
+                        "guaranteed at this limi",
+                        "reason_sha256": "dc4cf49812a22b1e253b3d0c9545d7fe737a652081a4bf5f90b4a419fb740e82",
+                        "recorded_at": "2026-08-11T14:35:00+00:00",
+                        "run_id": None,
+                        "strategy_revision_id": None,
+                    },
+                    "decision_provenance": {
+                        "decision_id": "decision_e29f1d15384f4f0fa9ae6e870194f3ca",
+                        "model_call_id": "142db474b414c8e1a237bf952294f6369b8a8178f71bb803eac7a7fbf78c9e9e",
+                    },
+                    "identifier": "bt_1",
+                    "limit_price": 230.0,
+                    "order_type": "limit",
+                    "quantity": 43.0,
+                    "quote": {"symbol": "USD", "type": "forex"},
+                    "side": "buy",
+                    "status": "new",
+                    "time_in_force": "day",
+                },
+            },
+        },
+    ],
+}

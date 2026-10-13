@@ -569,8 +569,16 @@ def _native_journal_failures(contract: dict[str, Any], transcript: dict[str, Any
             name, request_id = call["name"], call["model_call_id"]
             if not isinstance(request_id, str) or not request_id:
                 raise ValueError("missing actor request")
-            properties = declarations.get(name, {}).get("parameters", {}).get("properties", {})
-            purpose = arguments.pop(agent_purpose_parameter_name(properties))
+            declaration = declarations.get(name)
+            if declaration is not None:
+                properties = declaration.get("parameters", {}).get("properties", {})
+                purpose_parameter = declaration.get("private_purpose_parameter")
+                if not isinstance(purpose_parameter, str) or purpose_parameter not in properties:
+                    raise ValueError("missing managed private-purpose parameter identity")
+            else:
+                # Native skill tools have no bound built-in declaration here.
+                purpose_parameter = agent_purpose_parameter_name(())
+            purpose = arguments.pop(purpose_parameter)
             if not isinstance(purpose, str):
                 raise ValueError("missing private purpose")
             digest = hashlib.sha256(
@@ -1048,6 +1056,23 @@ def judge_parameter_schema(schema: dict[str, Any]) -> dict[str, Any]:
     return projected
 
 
+def _managed_private_purpose_parameter(bound_tool: Any, managed_tool: Any) -> str:
+    """Identify the one argument actually introduced by the runtime wrapper."""
+    import inspect
+
+    from lumibot.components.agents.runtime import agent_purpose_parameter_name
+
+    original = inspect.signature(bound_tool.function).parameters
+    managed = inspect.signature(managed_tool.func).parameters
+    introduced = set(managed) - set(original)
+    if len(introduced) != 1:
+        raise RuntimeError("Managed tool must expose exactly one private-purpose parameter.")
+    purpose_parameter = introduced.pop()
+    if purpose_parameter != agent_purpose_parameter_name(original):
+        raise RuntimeError("Managed private-purpose parameter does not match its runtime owner.")
+    return purpose_parameter
+
+
 def builtin_tool_contracts(bound_tools: list[Any]) -> list[dict[str, Any]]:
     """Use the same declarations as the actor, restricted to LumiBot built-ins."""
     import inspect
@@ -1060,14 +1085,22 @@ def builtin_tool_contracts(bound_tools: list[Any]) -> list[dict[str, Any]]:
     for tool in bound_tools:
         if tool.source == "mcp" or inspect.unwrap(tool.function).__module__ != "lumibot.components.agents.builtins":
             continue
-        declaration = _function_tools_with_name_aliases(FunctionTool, [tool])[0]._get_declaration()
-        contract = {"name": tool.name, "description": _judge_contract_text(tool.description)}
+        managed = _function_tools_with_name_aliases(FunctionTool, [tool])[0]
+        declaration = managed._get_declaration()
+        purpose_parameter = _managed_private_purpose_parameter(tool, managed)
+        contract = {
+            "name": tool.name,
+            "description": _judge_contract_text(tool.description),
+            "private_purpose_parameter": purpose_parameter,
+        }
         parameters = declaration.parameters_json_schema or declaration.parameters
         if parameters is not None:
             if hasattr(parameters, "model_dump"):
                 parameters = parameters.model_dump(mode="json", exclude_none=True)
             if isinstance(parameters, dict):
                 contract["parameters"] = judge_parameter_schema(parameters)
+        if purpose_parameter not in contract.get("parameters", {}).get("properties", {}):
+            raise RuntimeError("Managed declaration omitted its private-purpose parameter.")
         contracts.append(contract)
     return contracts
 

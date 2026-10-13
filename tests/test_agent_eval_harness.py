@@ -379,6 +379,116 @@ def test_acting_and_judge_requests_use_medium_reasoning(monkeypatch):
     assert seen[0].reasoning_effort == "medium"
 
 
+def test_judge_contract_projection_uses_actual_builtins_without_private_connection_fields():
+    from lumibot.components.agents.schemas import BoundTool
+    from scripts.agent_eval_production_fixture import ProductionFixture
+
+    production = ProductionFixture(evals.build_fixture("flat_stock_account"))
+    try:
+        handle = production.create_agent(evals.load_cases({"stock_price_before_order"})[0], None)
+        tools = handle._ensure_bound_tools()
+        builtin = next(tool for tool in tools if tool.name == "orders_submit_multileg")
+        builtin.metadata = {
+            **builtin.metadata,
+            "headers": {"Authorization": "private-token"},
+            "url": "https://private.invalid?key=private-token",
+        }
+
+        def custom(*, secret: str = "private-token"):
+            return None
+
+        tools += [
+            BoundTool("custom", "Private owner instructions", custom, metadata={"kind": "builtin"}),
+            BoundTool("remote", "https://private.invalid private-token", custom, source="mcp"),
+        ]
+        contracts = evals.builtin_tool_contracts(tools)
+        contract = next(item for item in contracts if item["name"] == builtin.name)
+        assert contract["description"] == builtin.description
+        assert set(contract) == {"name", "description", "parameters"}
+        assert contract["parameters"]["properties"]["action"]["enum"] == ["as_given", "close"]
+        assert "legs_json" in contract["parameters"]["required"]
+        assert not {"custom", "remote"} & {item["name"] for item in contracts}
+        assert "private-token" not in json.dumps(contracts)
+        assert "private.invalid" not in json.dumps(contracts)
+    finally:
+        production.close()
+
+
+def test_judge_schema_projection_keeps_machine_contract_and_removes_connection_values():
+    schema = {
+        "type": "object",
+        "properties": {
+            "symbol": {
+                "type": "string",
+                "default": "private-token",
+                "description": "Evidence at https://private.invalid?api_key=private-token",
+            }
+        },
+        "required": ["symbol"],
+        "headers": {"Authorization": "private-token"},
+        "examples": [{"symbol": "private-token"}],
+    }
+    projected = evals.judge_parameter_schema(schema)
+    assert projected["type"] == "object"
+    assert projected["required"] == ["symbol"]
+    assert projected["properties"]["symbol"]["type"] == "string"
+    assert "private-token" not in json.dumps(projected)
+    assert "private.invalid" not in json.dumps(projected)
+    assert "default" not in projected["properties"]["symbol"]
+    assert "examples" not in projected
+
+
+def test_judge_receives_only_called_builtin_contracts_and_preserves_observed_evidence(monkeypatch):
+    """Harness contracts, not an eval or fabricated broker integration.
+
+    Genuine native judge failures: 4181117d-523f-483f-b25c-34d0f1de8748
+    and fc1d2db1-c04c-478d-97c9-b39e1d6e8f50. Their original private evidence
+    remains with the release owner; this test only checks evidence plumbing.
+    """
+    from types import SimpleNamespace
+
+    from lumibot.components.agents import runtime
+    from lumibot.components.agents.schemas import AgentRunResult, AgentTraceEvent
+
+    seen = []
+    observed = {"complete": True, "positions": []}
+
+    class CaptureRuntime:
+        def run(self, request):
+            seen.append(request)
+            if request.agent_name == "eval_judge":
+                return AgentRunResult(
+                    summary='{"pass": true, "reason": "unit contract"}', model=request.model, events=[]
+                )
+            return AgentRunResult(
+                summary="Unit fixture",
+                model=request.model,
+                events=[
+                    AgentTraceEvent(kind="tool_call", tool_name="account_positions", payload={}),
+                    AgentTraceEvent(kind="tool_result", tool_name="account_positions", payload=observed),
+                ],
+            )
+
+    monkeypatch.setattr(runtime, "GoogleADKRuntime", CaptureRuntime)
+    case = evals.load_cases({"stock_price_before_order"})[0]
+    result = evals.execute_repetition(
+        case,
+        repetition=1,
+        fingerprint="unit",
+        judge_model=evals.DEFAULT_JUDGE_MODEL,
+        budget=SimpleNamespace(for_scope=lambda *args, **kwargs: None),
+    )
+    transcript = result["transcript"]
+    assert [item["name"] for item in transcript["builtin_tool_contracts"]] == ["account_positions"]
+    assert transcript["tool_results"] == [{"name": "account_positions", "payload": observed}]
+    request = next(request for request in seen if request.agent_name == "eval_judge")
+    emitted = json.loads(request.task_prompt.split("RUN:\n", 1)[1])
+    assert emitted["builtin_tool_contracts"] == transcript["builtin_tool_contracts"]
+    assert emitted["tool_results"] == transcript["tool_results"]
+    assert "the tool explicitly derives" in request.system_prompt
+    assert "post-run fixture capture alone cannot justify" in request.system_prompt
+
+
 def test_judge_output_cap_leaves_room_for_luna_reasoning(monkeypatch):
     # GPT-6 Luna counts reasoning tokens against max_output_tokens. A passing
     # judge call used 985 of the old 1,000 (463 reasoning + 522 text), and run

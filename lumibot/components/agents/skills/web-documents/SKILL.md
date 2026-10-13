@@ -106,6 +106,15 @@ supplement. Reconcile updates in transaction order while retaining their
 separate disclosure times. Only declare the reconstruction complete after
 the manifest's relevant documents have been inspected or explicitly unresolved.
 
+A report-based reconstruction includes eligible purchases of instruments that
+were absent from the baseline, as well as eligible sales of baseline holdings.
+Do not omit a disclosed purchase merely because no later ownership snapshot
+independently repeats it. Carry the purchase forward in the reported
+reconstruction unless an eligible later update changes it, and label the result
+as report-derived rather than a verified real-time account position. Retain the
+purchase's reported amount range as a transaction range when no remaining-value
+range is available. Incomplete valuation does not erase the instrument.
+
 Keep values, quantities and reported ranges distinct. A partial sale does not
 by itself prove the entire holding is gone, and a transaction amount is not the
 remaining position value. If instrument type, contract identity, dates, or the

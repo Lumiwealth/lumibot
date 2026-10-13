@@ -230,7 +230,8 @@ def _last_successful_account_mutation_index() -> int:
         (
             index
             for index, call in enumerate(_agent_tool_calls_for_current_run())
-            if call.get("tool_name") in _ACCOUNT_MUTATING_ORDER_TOOLS and (
+            if call.get("tool_name") in _ACCOUNT_MUTATING_ORDER_TOOLS
+            and (
                 _tool_call_was_successful(call)
                 # The tool ran, but its outcome could not be durably recorded.
                 # Account evidence must be refreshed despite the visible error.
@@ -998,9 +999,7 @@ def _signed_option_quantities(strategy: Any) -> dict[tuple[str, str, float, str]
     return quantities
 
 
-def _parse_closing_option_legs(
-    strategy: Any, legs_json: str, *, time_in_force: TimeInForceArg = "day"
-) -> list[Any]:
+def _parse_closing_option_legs(strategy: Any, legs_json: str, *, time_in_force: TimeInForceArg = "day") -> list[Any]:
     """Build closing legs from the exact contracts and the current signed positions.
 
     Why: agents reversed closing sides by hand (release eval
@@ -1071,9 +1070,7 @@ def _option_contract_key(asset: Any) -> tuple[str, str, float, str]:
 
 def _validate_option_closing_orders(strategy: Any, orders: list[Any]) -> None:
     closing_orders = [
-        order
-        for order in orders
-        if str(getattr(order, "side", "") or "").lower() in {"buy_to_close", "sell_to_close"}
+        order for order in orders if str(getattr(order, "side", "") or "").lower() in {"buy_to_close", "sell_to_close"}
     ]
     if not closing_orders:
         return
@@ -1084,9 +1081,7 @@ def _validate_option_closing_orders(strategy: Any, orders: list[Any]) -> None:
         side = str(getattr(order, "side", "") or "").lower()
         key = _option_contract_key(getattr(order, "asset", None))
         current_quantity = quantities_by_contract.get(key, 0.0)
-        expected_side = (
-            "sell_to_close" if current_quantity > 0 else "buy_to_close" if current_quantity < 0 else None
-        )
+        expected_side = "sell_to_close" if current_quantity > 0 else "buy_to_close" if current_quantity < 0 else None
         if side != expected_side:
             raise ValueError(
                 "Option closing side does not reduce the current signed position: "
@@ -1125,9 +1120,7 @@ def _bind_positions(strategy: Any, manager: Any) -> BoundTool:
         )
         current = strategy.get_positions(include_cash_positions=True) or []
         payloads = _sorted_position_payloads(list(current))
-        filtered = [
-            payload for payload in payloads if _asset_matches_filters(payload.get("asset", {}), filters)
-        ]
+        filtered = [payload for payload in payloads if _asset_matches_filters(payload.get("asset", {}), filters)]
         result = _paged_payload(
             filtered,
             item_key="positions",
@@ -1185,9 +1178,7 @@ def _bind_calculate_stock_quantity(strategy: Any, manager: Any) -> BoundTool:
         maximum_notional_value = _require_positive_number("maximum_notional", maximum_notional)
         price_value = _require_positive_number("price", price)
         available_cash_value = (
-            _require_nonnegative_number("available_cash", available_cash)
-            if available_cash is not None
-            else None
+            _require_nonnegative_number("available_cash", available_cash) if available_cash is not None else None
         )
         spendable_notional = min(
             maximum_notional_value,
@@ -1897,10 +1888,16 @@ def _backtest_last_trade_multileg_price(
         signed_price = price if order.is_buy_order() else -price
         total += signed_price
         if price_details is not None:
-            details.append({
-                "price_basis": basis, "bid": evaluation.bid, "ask": evaluation.ask,
-                "last_price": evaluation.last_price, "price": price, "signed_price": signed_price,
-            })
+            details.append(
+                {
+                    "price_basis": basis,
+                    "bid": evaluation.bid,
+                    "ask": evaluation.ask,
+                    "last_price": evaluation.last_price,
+                    "price": price,
+                    "signed_price": signed_price,
+                }
+            )
     if price_details is not None:
         price_details.extend(details)
     return total
@@ -1994,8 +1991,7 @@ def _bind_options_calculate_multileg_price(strategy: Any, manager: Any) -> Bound
             "order_type": order_type,
             "broker_price": abs(net_price),
             "legs": [
-                dict(_order_to_dict(order), pricing=_jsonable(pricing))
-                for order, pricing in zip(orders, price_details)
+                dict(_order_to_dict(order), pricing=_jsonable(pricing)) for order, pricing in zip(orders, price_details)
             ],
             "datetime": strategy.get_datetime().isoformat(),
         }
@@ -2535,6 +2531,8 @@ def _bind_read_document(strategy: Any, manager: Any) -> BoundTool:
         start: int = 0,
         max_chars: int = 2_500,
         credential_profile: str | None = None,
+        available_at: str | None = None,
+        expected_sha256: str | None = None,
     ) -> dict[str, Any]:
         from .documents import read_document_bytes
 
@@ -2555,6 +2553,48 @@ def _bind_read_document(strategy: Any, manager: Any) -> BoundTool:
                         "message": "read_document backtests require a valid timezone-aware strategy datetime.",
                     },
                 }
+        availability = None
+        if available_at is not None:
+            try:
+                if not isinstance(available_at, str):
+                    raise ValueError("Availability must be text.")
+                availability = datetime.fromisoformat(available_at.replace("Z", "+00:00"))
+                if availability.tzinfo is None or availability.utcoffset() is None:
+                    raise ValueError("Availability must include an offset.")
+                availability = availability.astimezone(timezone.utc)
+            except (ValueError, TypeError, OverflowError):
+                return {
+                    "ok": False,
+                    "tool_error": True,
+                    "error": {
+                        "code": "invalid_document_availability",
+                        "message": "available_at must be the source version's timezone-aware publication instant.",
+                    },
+                }
+            if historical_as_of is not None and availability > clock.astimezone(timezone.utc):
+                return {
+                    "ok": False,
+                    "tool_error": True,
+                    "historical_as_of": historical_as_of,
+                    "available_at": availability.isoformat(),
+                    "error": {
+                        "code": "document_after_cutoff",
+                        "message": "The declared source version became available after the simulated instant; no HTTP request was made.",
+                    },
+                }
+        if expected_sha256 is not None and (
+            not isinstance(expected_sha256, str)
+            or len(expected_sha256) != 64
+            or any(character not in "0123456789abcdefABCDEF" for character in expected_sha256)
+        ):
+            return {
+                "ok": False,
+                "tool_error": True,
+                "error": {
+                    "code": "invalid_document_hash",
+                    "message": "expected_sha256 must be an exact 64-character SHA-256 hex digest.",
+                },
+            }
         fetched = _web_client_for_strategy(strategy).request(
             "GET", url, credential_profile=credential_profile, max_response_bytes=25_000_000, return_content=True
         )
@@ -2569,10 +2609,29 @@ def _bind_read_document(strategy: Any, manager: Any) -> BoundTool:
         )
         if historical_as_of is not None:
             result["historical_as_of"] = historical_as_of
+        if availability is not None:
+            result["available_at"] = availability.isoformat()
         if not fetched.get("ok"):
             result["text"] = content[:2_000].decode("utf-8", errors="replace")
             return result
         result["sha256"] = hashlib.sha256(content).hexdigest()
+        if expected_sha256 is not None and result["sha256"] != expected_sha256.lower():
+            return {
+                key: value
+                for key, value in {
+                    "ok": False,
+                    "tool_error": True,
+                    "url": result.get("url"),
+                    "historical_as_of": historical_as_of,
+                    "available_at": result.get("available_at"),
+                    "sha256": result["sha256"],
+                    "error": {
+                        "code": "document_version_mismatch",
+                        "message": "Fetched bytes do not match the declared retained-original hash; text and tables were not exposed.",
+                    },
+                }.items()
+                if value is not None
+            }
         document = read_document_bytes(
             content,
             name=str(fetched.get("url") or url).rsplit("/", 1)[-1],
@@ -2622,7 +2681,9 @@ def _bind_read_document(strategy: Any, manager: Any) -> BoundTool:
                 "table_name": table["table_name"],
                 "row_count": table["row_count"],
                 "columns": table["columns"][:30],
-                "sample_row": {key: str(value)[:60] for key, value in list((table["sample_rows"] or [{}])[0].items())[:30]},
+                "sample_row": {
+                    key: str(value)[:60] for key, value in list((table["sample_rows"] or [{}])[0].items())[:30]
+                },
             }
             for table in tables[:5]
         ]
@@ -2641,6 +2702,10 @@ def _bind_read_document(strategy: Any, manager: Any) -> BoundTool:
             "SQL that compares UTC first-public/version timestamps with the full simulated cutoff before following "
             "links. Filing, observation and transaction dates do not prove availability. Never guess an ID from "
             "a row count, fetch an excluded revision, or stop at a baseline without eligible updates. "
+            "For linked evidence supply available_at from the discovery row's version publication instant; "
+            "the tool refuses known post-cutoff versions before HTTP. Supply expected_sha256 when the publisher "
+            "identifies retained original bytes; a mismatch exposes no document text or tables. "
+            "These declarations do not independently prove source availability; never invent them. "
             "Example: read_document(url='https://example.com/reports/2025.zip')."
         ),
         function=read_document,
@@ -3053,11 +3118,7 @@ def _bind_alpaca_news(strategy: Any, manager: Any) -> BoundTool:
         try:
             current_dt = strategy.get_datetime()
             if is_backtesting:
-                if (
-                    not isinstance(current_dt, datetime)
-                    or current_dt.tzinfo is None
-                    or current_dt.utcoffset() is None
-                ):
+                if not isinstance(current_dt, datetime) or current_dt.tzinfo is None or current_dt.utcoffset() is None:
                     raise ValueError("A verified timezone-aware strategy clock is required.")
                 # UTC conversion validates the clock's absolute instant without
                 # inventing an offset or changing its request-window timezone.
@@ -3304,7 +3365,8 @@ def _bind_open_orders(strategy: Any, manager: Any) -> BoundTool:
 
 _PUBLIC_ORDER_REASON_DESCRIPTION = (
     " Optional public_reason is a separate, already trimmed public summary of at most 280 UTF-8 bytes. "
-    "Never include names, account IDs, balances, buying power, bank details, secrets or credentials. "
+    "Use a qualitative trade thesis and risk; account-relative sizing percentages and formulas stay private. "
+    "Never include private holder names, account IDs, balances, buying power, bank details, secrets or credentials. "
     "An invalid or unsafe public summary is omitted without changing the required private reason or order action."
 )
 
@@ -3312,6 +3374,7 @@ _PUBLIC_ORDER_REASON_DESCRIPTION = (
 def _bind_cancel_order(strategy: Any, manager: Any) -> BoundTool:
     def cancel_order(*, identifier: str, reason: str, public_reason: str | None = None) -> dict[str, Any]:
         from lumibot.components.memory.store import validate_order_reason
+
         reason = validate_order_reason(reason, required=True)
         identifier = _require_non_empty_text("identifier", identifier)
         order = strategy.get_order(identifier)
@@ -3319,14 +3382,19 @@ def _bind_cancel_order(strategy: Any, manager: Any) -> BoundTool:
             raise ValueError(f"Unknown order identifier: {identifier}")
         public_evidence = {"evidence": {"public_reason": public_reason}} if public_reason is not None else {}
         strategy.cancel_order(order, reason=reason, **public_evidence)
-        return {"identifier": identifier, "status": getattr(order, "status", None) or "cancel_requested", "decision_journal": getattr(order, "decision_journal", None)}
+        return {
+            "identifier": identifier,
+            "status": getattr(order, "status", None) or "cancel_requested",
+            "decision_journal": getattr(order, "decision_journal", None),
+        }
 
     return BoundTool(
         name="orders_cancel_order",
         description=(
             "Cancel an existing tracked order by identifier. "
             "Arguments: identifier from orders_open_orders and required reason. Explain the cancellation, evidence and risks in at least 200 trimmed characters (usually 600-2,500; maximum 100,000). This is saved privately before execution."
-        ) + _PUBLIC_ORDER_REASON_DESCRIPTION,
+        )
+        + _PUBLIC_ORDER_REASON_DESCRIPTION,
         function=cancel_order,
         metadata={"kind": "builtin", "replay_on_cache": True},
     )
@@ -3334,10 +3402,15 @@ def _bind_cancel_order(strategy: Any, manager: Any) -> BoundTool:
 
 def _bind_modify_order(strategy: Any, manager: Any) -> BoundTool:
     def modify_order(
-        *, identifier: str, reason: str, limit_price: float | None = None, stop_price: float | None = None,
+        *,
+        identifier: str,
+        reason: str,
+        limit_price: float | None = None,
+        stop_price: float | None = None,
         public_reason: str | None = None,
     ) -> dict[str, Any]:
         from lumibot.components.memory.store import validate_order_reason
+
         reason = validate_order_reason(reason, required=True)
         identifier = _require_non_empty_text("identifier", identifier)
         order = strategy.get_order(identifier)
@@ -3359,7 +3432,8 @@ def _bind_modify_order(strategy: Any, manager: Any) -> BoundTool:
         description=(
             "Modify an existing tracked order. "
             "Arguments: identifier, required reason, optional limit_price, optional stop_price. Explain the new evidence, price change and remaining risk in at least 200 trimmed characters (usually 600-2,500; maximum 100,000). The new explanation is linked to the prior action before execution."
-        ) + _PUBLIC_ORDER_REASON_DESCRIPTION,
+        )
+        + _PUBLIC_ORDER_REASON_DESCRIPTION,
         function=modify_order,
         metadata={"kind": "builtin", "replay_on_cache": True},
     )
@@ -3544,8 +3618,16 @@ def _bind_get_indicators(strategy: Any, manager: Any) -> BoundTool:
             raise ValueError("An indicator batch must contain between 1 and 50 requests.")
         seen = set()
         allowed_request_fields = {
-            "id", "symbol", "asset_type", "quote_symbol", "exchange",
-            "indicator", "timestep", "parameters", "start", "end",
+            "id",
+            "symbol",
+            "asset_type",
+            "quote_symbol",
+            "exchange",
+            "indicator",
+            "timestep",
+            "parameters",
+            "start",
+            "end",
         }
         for item in requests:
             if not isinstance(item, dict) or set(item) - allowed_request_fields:
@@ -3581,13 +3663,15 @@ def _bind_get_indicators(strategy: Any, manager: Any) -> BoundTool:
         for item in requests:
             try:
                 result = single(
-                    symbol=item.get("symbol", symbol), indicator=item["indicator"],
+                    symbol=item.get("symbol", symbol),
+                    indicator=item["indicator"],
                     timestep=item.get("timestep", timestep),
                     asset_type=item.get("asset_type", asset_type),
                     quote_symbol=item.get("quote_symbol", quote_symbol),
                     exchange=item.get("exchange", exchange),
                     parameters_json=json.dumps(item.get("parameters", {})),
-                    start=item.get("start"), end=item.get("end"),
+                    start=item.get("start"),
+                    end=item.get("end"),
                 )
             except Exception as exc:
                 result = {"ok": False, "indicator": item["indicator"], "tool_error": True, "error": str(exc)}
@@ -4381,6 +4465,7 @@ def _bind_submit_order(strategy: Any, manager: Any) -> BoundTool:
         time_in_force: TimeInForceArg = "day",
     ) -> dict[str, Any]:
         from lumibot.components.memory.store import validate_order_reason
+
         reason = validate_order_reason(reason, required=True)
         symbol = _require_single_symbol_text("symbol", symbol)
         quantity = _require_positive_number("quantity", quantity)
@@ -4486,7 +4571,8 @@ def _bind_submit_order(strategy: Any, manager: Any) -> BoundTool:
             "A limit exactly at the last price fills only if the next price reaches it. At the session open the last price can still be the prior close. "
             "When the order must fill this session, use order_type='market' or a buy limit slightly above (sell limit slightly below) the current price. "
             "Example: orders_submit_order(symbol='SPY', quantity=100, side='buy', asset_type='stock', order_type='market', reason='<explain evidence, sizing, risks and invalidation in at least 200 characters>')."
-        ) + _PUBLIC_ORDER_REASON_DESCRIPTION,
+        )
+        + _PUBLIC_ORDER_REASON_DESCRIPTION,
         function=submit_order,
         metadata={"kind": "builtin", "replay_on_cache": True},
     )
@@ -4504,6 +4590,7 @@ def _bind_submit_multileg_order(strategy: Any, manager: Any) -> BoundTool:
         action: MultilegActionArg = "as_given",
     ) -> dict[str, Any]:
         from lumibot.components.memory.store import validate_order_reason
+
         reason = validate_order_reason(reason, required=True)
         if action == "close":
             orders = _parse_closing_option_legs(strategy, legs_json, time_in_force=time_in_force)
@@ -4573,7 +4660,8 @@ def _bind_submit_multileg_order(strategy: Any, manager: Any) -> BoundTool:
             "For limit execution, a positive signed net_limit_price is a debit and a negative value is a credit. If omitted, LumiBot calculates the selected best/mid/fastest price. "
             "The agent must validate that signed price against its exact leg quotes and strategy economics before submission. For equal-width credit spreads, credit must be positive and strictly less than the wing width. "
             "Use price_style='market' only when the strategy policy explicitly accepts market execution. The tool returns the submitted child orders and pricing classification."
-        ) + _PUBLIC_ORDER_REASON_DESCRIPTION,
+        )
+        + _PUBLIC_ORDER_REASON_DESCRIPTION,
         function=submit_multileg,
         metadata={"kind": "builtin", "replay_on_cache": True},
     )
@@ -4716,8 +4804,7 @@ def _web_search_backend():
         from ddgs import DDGS
     except ImportError as exc:
         raise RuntimeError(
-            "web_search needs the optional `ddgs` package, which requires no API key. "
-            "Install it with: pip install ddgs"
+            "web_search needs the optional `ddgs` package, which requires no API key. Install it with: pip install ddgs"
         ) from exc
 
     def _search(**kwargs):
@@ -4987,13 +5074,19 @@ class _NotificationTools:
         return ToolDefinition(name="get_sent_email", description="Read one sent email.", binder=_bind_get_sent_email)
 
     def get_email_status(self) -> ToolDefinition:
-        return ToolDefinition(name="get_email_status", description="Read sent email delivery status.", binder=_bind_get_email_status)
+        return ToolDefinition(
+            name="get_email_status", description="Read sent email delivery status.", binder=_bind_get_email_status
+        )
 
     def list_received_emails(self) -> ToolDefinition:
-        return ToolDefinition(name="list_received_emails", description="List received emails.", binder=_bind_list_received_emails)
+        return ToolDefinition(
+            name="list_received_emails", description="List received emails.", binder=_bind_list_received_emails
+        )
 
     def get_received_email(self) -> ToolDefinition:
-        return ToolDefinition(name="get_received_email", description="Read a received email.", binder=_bind_get_received_email)
+        return ToolDefinition(
+            name="get_received_email", description="Read a received email.", binder=_bind_get_received_email
+        )
 
     def list_received_email_attachments(self) -> ToolDefinition:
         return ToolDefinition(
@@ -5010,19 +5103,29 @@ class _NotificationTools:
         )
 
     def send_slack_message(self) -> ToolDefinition:
-        return ToolDefinition(name="send_slack_message", description="Send a Slack message.", binder=_bind_send_slack_message)
+        return ToolDefinition(
+            name="send_slack_message", description="Send a Slack message.", binder=_bind_send_slack_message
+        )
 
     def list_slack_messages(self) -> ToolDefinition:
-        return ToolDefinition(name="list_slack_messages", description="List Slack messages.", binder=_bind_list_slack_messages)
+        return ToolDefinition(
+            name="list_slack_messages", description="List Slack messages.", binder=_bind_list_slack_messages
+        )
 
     def list_slack_channels(self) -> ToolDefinition:
-        return ToolDefinition(name="list_slack_channels", description="List Slack channels.", binder=_bind_list_slack_channels)
+        return ToolDefinition(
+            name="list_slack_channels", description="List Slack channels.", binder=_bind_list_slack_channels
+        )
 
     def get_slack_message(self) -> ToolDefinition:
-        return ToolDefinition(name="get_slack_message", description="Read one Slack message.", binder=_bind_get_slack_message)
+        return ToolDefinition(
+            name="get_slack_message", description="Read one Slack message.", binder=_bind_get_slack_message
+        )
 
     def list_slack_thread(self) -> ToolDefinition:
-        return ToolDefinition(name="list_slack_thread", description="Read a Slack thread.", binder=_bind_list_slack_thread)
+        return ToolDefinition(
+            name="list_slack_thread", description="Read a Slack thread.", binder=_bind_list_slack_thread
+        )
 
 
 class _MemoryTools:
@@ -5087,8 +5190,10 @@ class _OrderTools:
     def submit_multileg(self) -> ToolDefinition:
         return ToolDefinition(
             name="orders_submit_multileg",
-            description=("Submit one atomic multi-leg option order from exact agent-selected contracts."
-                         + _PUBLIC_ORDER_REASON_DESCRIPTION),
+            description=(
+                "Submit one atomic multi-leg option order from exact agent-selected contracts."
+                + _PUBLIC_ORDER_REASON_DESCRIPTION
+            ),
             binder=_bind_submit_multileg_order,
             metadata={"mutates_trading": True},
         )

@@ -869,7 +869,12 @@ def _classify_agent_error(exc: BaseException) -> str:
         return "billing"
     if typed_code == "eval_call_limit_exceeded":
         return "config"
-    if typed_code == "protocol_integrity_error":
+    if typed_code in {
+        "protocol_integrity_error",
+        "subscription_stream_incomplete",
+        "subscription_history_conflict",
+        "subscription_call_id_missing",
+    }:
         return "config"
     if typed_code in {"provider_auth_failed", "unauthorized", "renewal_failed"}:
         return "auth"
@@ -916,6 +921,11 @@ def _classify_agent_error(exc: BaseException) -> str:
             return "transient"
         if 500 <= status_code < 600:
             return "transient"
+
+    # Streaming Responses failures can carry a sanitized machine reason without
+    # an HTTP status. Preserve explicit HTTP/auth/quota/integrity boundaries above.
+    if typed_code == "server_error":
+        return "transient"
 
     # Message substring fallback for providers that don't use standard class names.
     lower_exc = exc_name.lower()

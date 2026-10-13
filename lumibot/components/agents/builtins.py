@@ -3016,7 +3016,32 @@ def _bind_alpaca_news(strategy: Any, manager: Any) -> BoundTool:
                 "count": 0,
             }
 
-        current_dt = strategy.get_datetime()
+        is_backtesting = bool(getattr(strategy, "is_backtesting", False))
+        try:
+            current_dt = strategy.get_datetime()
+            if is_backtesting:
+                if (
+                    not isinstance(current_dt, datetime)
+                    or current_dt.tzinfo is None
+                    or current_dt.utcoffset() is None
+                ):
+                    raise ValueError("A verified timezone-aware strategy clock is required.")
+                # UTC conversion validates the clock's absolute instant without
+                # inventing an offset or changing its request-window timezone.
+                current_dt.astimezone(timezone.utc)
+        except Exception:
+            if not is_backtesting:
+                raise
+            return {
+                "ok": False,
+                "tool_error": True,
+                "error": {
+                    "type": "InvalidHistoricalClock",
+                    "message": "alpaca_news backtests require a valid timezone-aware strategy datetime.",
+                },
+                "articles": [],
+                "count": 0,
+            }
         if not end:
             end = current_dt.isoformat()
         if not start:
@@ -3034,7 +3059,6 @@ def _bind_alpaca_news(strategy: Any, manager: Any) -> BoundTool:
 
         requested_end = str(end)
         lookahead_clamped = False
-        is_backtesting = bool(getattr(strategy, "is_backtesting", False))
         historical_as_of: datetime | None = None
         if is_backtesting:
             parsed_end = _parse_datetime_value(end)
@@ -3055,10 +3079,6 @@ def _bind_alpaca_news(strategy: Any, manager: Any) -> BoundTool:
                     "articles": [],
                     "count": 0,
                 }
-            # LumiBot normally supplies an aware strategy clock. Keep comparisons
-            # in UTC when a custom strategy supplies a naive clock as UTC.
-            if historical_as_of.tzinfo is None:
-                historical_as_of = historical_as_of.replace(tzinfo=timezone.utc)
             historical_as_of = historical_as_of.astimezone(timezone.utc)
 
         params: dict[str, Any] = {

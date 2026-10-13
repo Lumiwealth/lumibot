@@ -15,8 +15,12 @@ Both use the explicitly selected ChatGPT subscription connection, defaulting to
 `chatgpt/gpt-6-luna` on medium reasoning. API-funded model selections are rejected
 for both roles, including when ordinary provider API keys are present. Connect
 your own account with `python -m lumibot.components.agents.chatgpt_auth login`.
-Verify that connected-app paid-credit fallback is disabled in ChatGPT Usage;
-OAuth authentication alone cannot establish that account setting.
+Review your usage policy in ChatGPT Usage: the connection can use included
+allowance and an authorized existing ChatGPT credit balance. Zero remaining
+included allowance does not prohibit inference when credit use is enabled.
+LumiBot does not change the account-wide connected-app credit setting; OAuth
+authentication alone cannot establish that setting. API-key billing, credit
+purchases and automatic reload are not performed by the eval runner.
 They verify model behavior through the real Strategy, AgentManager and built-in
 tool bindings, with fixture OHLCV and broker responses underneath those APIs, while
 preventing broker writes, customer access, and unnecessary historical-data cost.

@@ -86,8 +86,66 @@ def test_required_history_detects_known_gap_inside_consumed_interval():
     record_history_health(symbol="SPY", asset_type="stock", timestep="day",
                           requested_start=when - pd.Timedelta(days=10), requested_end=when,
                           outcome=HistoryOutcome.PARTIAL, missing_sessions=["2026-09-29"])
-    frame = pd.DataFrame({"close": range(5)}, index=pd.date_range(end=when, periods=5, freq="B"))
+    # Keep a genuine missing session: five older rows must not hide September 29.
+    index = pd.date_range(end=when, periods=6, freq="B")
+    index = index[index.date != pd.Timestamp("2026-09-29").date()]
+    frame = pd.DataFrame({"close": range(5)}, index=index)
     record_required_history(asset=SimpleNamespace(symbol="SPY", asset_type="stock"), timestep="day",
+                            requested_bars=5, frame=frame, when=when)
+    assert ibkr_history_health_snapshot()["required_failures"][0]["reason"] == "missing_required_sessions"
+
+
+@pytest.mark.parametrize("symbol,kind", [("SPY", "stock"), ("SPX", "index"), ("MGC", "cont_future")])
+@pytest.mark.parametrize("timestep", ["day", "1Day"])
+def test_repaired_daily_rows_override_stale_prefetch_gap_evidence(symbol, kind, timestep):
+    """A failed route must not reject complete prices obtained by another route."""
+    from lumibot.tools.ibkr_history_health import record_required_history
+
+    when = pd.Timestamp("2026-10-01 20:00", tz="America/New_York")
+    record_history_health(symbol=symbol, asset_type=kind, timestep=timestep,
+                          requested_start=when - pd.Timedelta(days=10), requested_end=when,
+                          outcome=HistoryOutcome.PARTIAL, missing_sessions=["2026-09-29"],
+                          series_id="original-route")
+    frame = pd.DataFrame({"close": range(5)}, index=pd.date_range(end=when, periods=5, freq="B"))
+    before = frame.copy(deep=True)
+    record_required_history(asset=SimpleNamespace(symbol=symbol, asset_type=kind), timestep=timestep,
+                            requested_bars=5, frame=frame, when=when)
+
+    health = ibkr_history_health_snapshot()
+    assert health["complete"] is False, "Retain the original failed-download evidence"
+    assert health["required_complete"] is True, "The strategy received every required daily row"
+    pd.testing.assert_frame_equal(frame, before)
+
+
+@pytest.mark.parametrize("bad_row", ["placeholder", "missing_close"])
+def test_repair_needs_a_real_daily_price_not_an_absence_marker(bad_row):
+    from lumibot.tools.ibkr_history_health import record_required_history
+
+    when = pd.Timestamp("2026-10-01 20:00", tz="America/New_York")
+    record_history_health(symbol="SPY", asset_type="stock", timestep="day",
+                          requested_start=when - pd.Timedelta(days=10), requested_end=when,
+                          outcome=HistoryOutcome.PARTIAL, missing_sessions=["2026-09-29"])
+    frame = pd.DataFrame({"close": 100., "missing": False},
+                         index=pd.date_range(end=when, periods=6, freq="B"))
+    row = frame.index.date == pd.Timestamp("2026-09-29").date()
+    frame.loc[row, "missing" if bad_row == "placeholder" else "close"] = True if bad_row == "placeholder" else float("nan")
+    record_required_history(asset=SimpleNamespace(symbol="SPY", asset_type="stock"), timestep="day",
+                            requested_bars=5, frame=frame, when=when)
+    failure = ibkr_history_health_snapshot()["required_failures"][0]
+    assert failure["reason"] == "missing_required_sessions"
+    assert failure["returned_bars"] == 5, "Older bars must not conceal the missing daily price"
+
+
+@pytest.mark.parametrize("timestep", ["minute", "15min", "hour"])
+def test_one_intraday_price_does_not_clear_a_missing_session(timestep):
+    from lumibot.tools.ibkr_history_health import record_required_history
+
+    when = pd.Timestamp("2026-09-29 15:36", tz="America/New_York")
+    record_history_health(symbol="SPY", asset_type="stock", timestep=timestep,
+                          requested_start=when - pd.Timedelta(days=1), requested_end=when,
+                          outcome=HistoryOutcome.PARTIAL, missing_sessions=["2026-09-29"])
+    frame = pd.DataFrame({"close": 100.}, index=pd.date_range(end=when, periods=5, freq="min"))
+    record_required_history(asset=SimpleNamespace(symbol="SPY", asset_type="stock"), timestep=timestep,
                             requested_bars=5, frame=frame, when=when)
     assert ibkr_history_health_snapshot()["required_failures"][0]["reason"] == "missing_required_sessions"
 
@@ -315,3 +373,30 @@ def test_backtest_settings_include_sanitized_data_health(tmp_path) -> None:
         "2025-04-30",
     ]
     assert "credential" not in json.dumps(payload["data_health"]).lower()
+
+
+def test_corporate_action_issue_retains_safe_typed_recovery():
+    from lumibot.tools.ibkr_history_health import record_required_data_issue
+    asset = SimpleNamespace(symbol='SPY', asset_type='stock')
+    now = pd.Timestamp('2026-10-09T20:00:00Z')
+    record_required_data_issue(asset=asset, timestep='day', when=now,
+        reason='corporate_actions_unavailable', recovery_cause='corporate_actions_unverified', retryable=True)
+    failure = ibkr_history_health_snapshot()['required_failures'][0]
+    assert failure['retryable'] is True
+    assert failure['recovery_cause'] == 'corporate_actions_unverified'
+    assert ibkr_history_health_snapshot()['required_complete'] is False
+
+
+@pytest.mark.parametrize('known_transient', [True, False])
+def test_retry_cause_requires_correlated_explicit_transient_evidence(known_transient):
+    from lumibot.tools.ibkr_history_health import record_required_history
+    when = pd.Timestamp('2026-10-09T20:00:00Z')
+    record_history_health(symbol='SPY', asset_type='stock', timestep='day',
+        requested_start=when-pd.Timedelta(days=7), requested_end=when,
+        outcome=HistoryOutcome.TRANSIENT_FAILURE if known_transient else HistoryOutcome.PARTIAL,
+        reason='rate_limited' if known_transient else 'empty_history_payload')
+    record_required_history(asset=SimpleNamespace(symbol='SPY', asset_type='stock'), timestep='day',
+        requested_bars=5, frame=None, when=when)
+    failure = ibkr_history_health_snapshot()['required_failures'][0]
+    assert failure['retryable'] is known_transient
+    assert failure['recovery_cause'] == ('temporary_download_failure' if known_transient else 'unknown')

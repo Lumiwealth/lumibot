@@ -7,7 +7,7 @@
 
 # LumiBot AI Trading
 
-**AI agents that actually place the trade.** Twelve broker integrations, real backtests, and stocks, options, futures, forex, crypto and prediction markets. Most AI trading projects stop at a recommendation. LumiBot sends the order.
+**AI agents that actually place the trade.** Twelve broker integrations, real backtests, and stocks, options, futures, forex, crypto and prediction markets.
 
 Read this in [中文](README.zh-CN.md) · [Español](README.es.md) · [Français](README.fr.md) · [Deutsch](README.de.md) · [日本語](README.ja.md) · [한국어](README.ko.md) · [Português](README.pt.md) · [Русский](README.ru.md)
 
@@ -27,6 +27,8 @@ lumibot init my-bot --template ai     # writes an ordinary, editable Strategy su
 lumibot backtest my-bot --days 90
 lumibot run my-bot --paper
 ```
+
+Running the AI template requires `OPENAI_API_KEY` and billed model calls. The `--paper` command requires Alpaca paper-account credentials (`ALPACA_API_KEY` and `ALPACA_API_SECRET`). See the [CLI setup guide](https://lumibot.lumiwealth.com/cli.html).
 
 `lumibot init` writes the same Python you would have written by hand. Nothing is hidden behind the CLI, and you keep an editable file.
 
@@ -85,10 +87,10 @@ See the docs comparison pages for more detail: [Lumibot vs TradingAgents](https:
 | **Prediction markets** | Polymarket trading and backtesting | No | No | No | No | No | No | No | Limited/no |
 | **Futures** | Yes | Limited | Crypto only | Partial | Yes | Crypto only | Yes | Yes | Perpetuals/crypto venues |
 | **Forex** | Yes | Outdated | No | No | Yes | No | Yes | Yes | No |
-| **AI agent runtime** | Built-in | No | FreqAI (ML) | No | No | ML pipeline | No | No | Scripts/controllers |
-| **Broker execution** | Alpaca, IBKR, Tradier, Schwab, Tradovate, TopstepX (via ProjectX), Bitunix, Polymarket, selected CCXT | IB only (outdated) | Crypto exchanges | None | None | Crypto exchanges | No | Exchange adapters | Crypto exchanges |
+| **AI agent runtime** | Built-in | No | FreqAI (ML) | No | No | ML pipeline | No | No | [Condor agent framework](https://hummingbot.org/condor/) |
+| **Broker execution** | Alpaca, IBKR, Tradier, Schwab, Tradovate, TopstepX (via ProjectX), Bitunix, Polymarket, selected CCXT | IB and other integrations; verify adapter maintenance | Crypto exchanges | None | None | Crypto exchanges | No | Exchange adapters | Crypto exchanges |
 | **Hosted deployment path** | BotSpot | No | No | No | No | Paid cloud | No | No | Hummingbot Foundation/enterprise ecosystem |
-| **License** | GPL-3.0 | GPL-3.0 | GPL-3.0 | Apache-2.0 | AGPL-3.0 | MIT | Apache-2.0 | LGPL-3.0 | Apache-2.0 |
+| **License** | GPL-3.0 | GPL-3.0 | GPL-3.0 | Apache-2.0 | AGPL-3.0 | MIT | [Apache-2.0 with Commons Clause](https://github.com/polakowo/vectorbt/blob/master/LICENSE.md) | LGPL-3.0 | Apache-2.0 |
 
 **Switching from Backtrader?** See our [migration guide](docsrc/MIGRATING_FROM_BACKTRADER.rst) for a side-by-side comparison with code examples.
 
@@ -515,7 +517,7 @@ Lumibot can backtest from free daily data, broker data, premium market data, and
 
 ### Recommended Data Provider
 
-For the deepest historical coverage (stocks, options, futures, indexes), we recommend [ThetaData](https://www.thetadata.net/). Use promo code **`BotSpot10`** for 10% off your first order.
+For historical stocks, options, and indexes, consider [ThetaData](https://www.thetadata.net/). Its [coverage FAQ](https://www.thetadata.net/faq) currently excludes CME futures; choose a supported futures data provider for those backtests. Use promo code **`BotSpot10`** for 10% off your first order.
 
 ## AI Trading Agents
 
@@ -538,8 +540,10 @@ Use **[BotSpot MCP](https://botspot.trade/agents?utm_source=github&utm_medium=re
 </p>
 
 <p align="center">
-  <img src="docs/assets/readme/lumibot_point_in_time_tools.png" alt="Point-in-time AI agent tools prevent look-ahead bias" width="100%">
+  <img src="docs/assets/readme/lumibot_point_in_time_tools.png" alt="Point-in-time controls for SEC filings, FRED macro data, and indicator tool inputs" width="100%">
 </p>
+
+These controls constrain tool inputs to the simulated time. They cannot remove later information from a model's training or guarantee a bias-free backtest. See the [AI quickstart's backtest limitations](https://lumibot.lumiwealth.com/agents_quickstart.html).
 
 Start here:
 - [Agent Documentation](https://lumibot.lumiwealth.com/agents.html)

@@ -10,6 +10,7 @@ from lumibot.entities import Asset, Data
 import lumibot.tools.ibkr_helper as ibkr_helper
 from lumibot.tools.helpers import parse_timestep_qty_and_unit
 from lumibot.tools.data_downloader_queue_client import set_queue_client_id
+from lumibot.tools.ibkr_equity_basis import EquityBasisError, EquityBasisSnapshot, assert_same_basis, equity_basis_from_frame
 
 logger = logging.getLogger(__name__)
 
@@ -68,6 +69,7 @@ class InteractiveBrokersRESTBacktesting(PandasData):
         self.exchange = exchange
         self.history_source = history_source
         self._history_as_of = ibkr_helper._ibkr_history_now_utc()
+        self._equity_basis_snapshots: dict[str, EquityBasisSnapshot] = {}
 
         unique_id = uuid.uuid4().hex[:8]
         strategy_name = kwargs.get("name", "Backtest")
@@ -728,6 +730,11 @@ class InteractiveBrokersRESTBacktesting(PandasData):
         existing = self._data_store.get(canonical_key)
         existing_df = getattr(existing, "df", None) if existing is not None else None
 
+        stock_symbol = (str(asset.symbol).strip().upper()
+                        if self._normalize_asset_type(asset.asset_type) == "stock" else None)
+        frozen_basis = self._equity_basis_snapshots.get(stock_symbol) if stock_symbol else None
+        basis_kwargs = {"equity_basis": frozen_basis} if frozen_basis is not None else {}
+
         df = ibkr_helper.get_price_data(
             asset=asset,
             quote=quote,
@@ -738,12 +745,23 @@ class InteractiveBrokersRESTBacktesting(PandasData):
             include_after_hours=include_after_hours,
             source=self.history_source,
             history_as_of=self._history_as_of,
+            **basis_kwargs,
         )
 
         if df is None or df.empty:
             return
 
+        if stock_symbol:
+            returned_basis = equity_basis_from_frame(df)
+            frozen_basis = frozen_basis or returned_basis
+            if frozen_basis is not None:
+                expected = pd.DataFrame({"_ibkr_split_basis": [frozen_basis.split_fingerprint]})
+                assert_same_basis(expected, df)
+            elif "_ibkr_split_basis" in df:
+                raise EquityBasisError("IBKR equity prices lack their frozen action ledger")
+
         if existing_df is not None and isinstance(existing_df, pd.DataFrame) and not existing_df.empty:
+            assert_same_basis(existing_df, df)
             merged = pd.concat([existing_df, df], axis=0).sort_index()
             merged = merged[~merged.index.duplicated(keep="last")]
         else:
@@ -786,6 +804,11 @@ class InteractiveBrokersRESTBacktesting(PandasData):
         except Exception:
             # Fallback: if repair fails, leave data as-is (callers will treat as missing).
             pass
+        # Validate outside the repair fallback: provenance failure must not be swallowed.
+        assert_same_basis(merged, data.df)
+        if stock_symbol and frozen_basis is not None:
+            data.df.attrs["ibkr_equity_basis"] = frozen_basis.to_dict()
+            self._equity_basis_snapshots[stock_symbol] = frozen_basis
         self._data_store[canonical_key] = data
         # Only write the legacy key for minute data to avoid collisions with daily bars.
         if dataset_key == "minute":

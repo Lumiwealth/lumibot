@@ -2,9 +2,9 @@ Chart Functions
 ===================================
 
 .. meta::
-   :description: Account management functions are used to get your account value, cash, etc. You can see a list of them below: LumiBot documentation.
+   :description: Add markers, lines, and OHLC bars to LumiBot indicator charts, then retrieve recorded markers and lines for analysis.
 
-Account management functions are used to get your account value, cash, etc. You can see a list of them below:
+Record and inspect the values plotted in your strategy's indicator charts:
 
 .. currentmodule:: lumibot.strategies.strategy
 
@@ -14,5 +14,6 @@ Account management functions are used to get your account value, cash, etc. You 
 
         Strategy.add_marker
         Strategy.add_line
+        Strategy.add_ohlc
         Strategy.get_markers_df
         Strategy.get_lines_df

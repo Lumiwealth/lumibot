@@ -83,7 +83,7 @@ def _configure_google_sdk_noise_filters() -> None:
 
 
 def _tool_error_payload(tool_name: str, args: dict[str, Any], exc: Exception) -> dict[str, Any]:
-    return {
+    payload = {
         "ok": False,
         "tool_error": True,
         "tool_name": tool_name,
@@ -93,6 +93,10 @@ def _tool_error_payload(tool_name: str, args: dict[str, Any], exc: Exception) ->
         },
         "arguments": _json_safe_value(dict(args or {})),
     }
+    if isinstance(exc, RemoteMCPToolError):
+        payload["isError"] = True
+        payload["error"]["code"] = exc.code
+    return payload
 
 
 def _utc_iso_timestamp() -> str:
@@ -2053,6 +2057,81 @@ def _mcp_headers(server: MCPServer) -> dict[str, str]:
     return headers
 
 
+class RemoteMCPToolError(RuntimeError):
+    """A failed MCP result with private evidence and a bounded public message."""
+
+    def __init__(
+        self,
+        tool_name: str,
+        result: dict[str, Any],
+        *,
+        original_result: Any = None,
+        secret_values: Sequence[str] = (),
+    ):
+        self.tool_name = tool_name
+        self.result = result
+        self.original_result = result if original_result is None else original_result
+        self.structured_result = result.get("structuredContent")
+        fields = self.structured_result if isinstance(self.structured_result, dict) else {}
+        text = None
+        if not fields:
+            for content in result.get("content") or []:
+                if isinstance(content, dict) and isinstance(content.get("text"), str):
+                    text = content["text"]
+                    try:
+                        parsed = json.loads(text)
+                    except (TypeError, ValueError):
+                        break
+                    if isinstance(parsed, dict):
+                        fields = parsed
+                    break
+        nested = fields.get("error")
+        nested = nested if isinstance(nested, dict) else {}
+        code = fields.get("errorCode") or fields.get("code") or nested.get("code")
+        code = str(code or "remote_mcp_tool_error")
+        self.code = code if re.fullmatch(r"[A-Za-z0-9_.-]{1,80}", code) else "remote_mcp_tool_error"
+        message = fields.get("message") or nested.get("message")
+        if not isinstance(message, str):
+            message = text if text and not fields else "Remote MCP server returned a failed-tool result."
+        for secret in secret_values:
+            if secret:
+                message = message.replace(secret, "[REDACTED]")
+                if secret in self.code:
+                    self.code = "remote_mcp_tool_error"
+        self.message = " ".join("".join(char if char.isprintable() else " " for char in message).split())[:512]
+        super().__init__(f"{_tool_function_name(tool_name)[:80]} failed [{self.code}]: {self.message}")
+
+
+def _mcp_error_secret_values(server: MCPServer) -> list[str]:
+    values = []
+    for name, value in _mcp_headers(server).items():
+        normalized = name.lower().replace("-", "").replace("_", "")
+        if normalized in {"authorization", "proxyauthorization"} or normalized.endswith(("key", "token", "secret")):
+            values.append(str(value))
+            if normalized in {"authorization", "proxyauthorization"} and " " in value:
+                values.append(value.split(" ", 1)[1])
+    for name, value in (server.env or {}).items():
+        if any(part in name.upper() for part in ("KEY", "TOKEN", "SECRET", "PASSWORD")):
+            values.append(str(value))
+    return values
+
+
+def _single_mcp_exception_leaf(exc: BaseException) -> BaseException | None:
+    # MCP's AnyIO dependency declares the backport on Python < 3.11. Keep the
+    # import local so ordinary agents do not acquire another eager SDK import.
+    try:
+        from builtins import BaseExceptionGroup
+    except ImportError:
+        from exceptiongroup import BaseExceptionGroup
+
+    current = exc
+    while isinstance(current, BaseExceptionGroup):
+        if len(current.exceptions) != 1:
+            return None
+        current = current.exceptions[0]
+    return current
+
+
 _MCP_HTTP_401_PATTERN = re.compile(
     r"\b401\s+unauthori[sz]ed\b|\bunauthori[sz]ed\s*\(?401\b|\b(?:http|status(?:\s+code)?)[\s:=]+401\b",
     re.IGNORECASE,
@@ -2176,6 +2255,14 @@ async def _with_mcp_session(server: MCPServer, callback):
     try:
         return await _with_mcp_session_once(server, callback)
     except Exception as exc:
+        leaf = _single_mcp_exception_leaf(exc)
+        if isinstance(leaf, RemoteMCPToolError):
+            if leaf is exc:
+                raise
+            raise leaf from None
+        # A group containing independent failures is not just an expired token.
+        if leaf is None:
+            raise
         if not _is_mcp_auth_failure(exc) or not await _refresh_mcp_auth_token(server, previous_token):
             raise
     return await _with_mcp_session_once(server, callback)
@@ -2223,7 +2310,9 @@ async def _call_mcp_tool_async(server: MCPServer, name: str, arguments: dict[str
         if not isinstance(dumped, dict):
             raise RuntimeError(f"{name} returned unexpected payload: {dumped!r}")
         if dumped.get("isError") is True:
-            raise RuntimeError(f"{name} failed: {dumped}")
+            raise RemoteMCPToolError(
+                name, dumped, original_result=result, secret_values=_mcp_error_secret_values(server)
+            )
         return dumped
 
     if transport == "http":
@@ -2273,4 +2362,6 @@ async def _legacy_http_call_tool(server: MCPServer, name: str, arguments: dict[s
     result = data.get("result") or {}
     if not isinstance(result, dict):
         raise RuntimeError(f"{name} returned unexpected payload: {result!r}")
+    if result.get("isError") is True:
+        raise RemoteMCPToolError(name, result, secret_values=_mcp_error_secret_values(server))
     return result

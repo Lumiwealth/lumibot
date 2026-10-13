@@ -1,7 +1,9 @@
 import json
+import sys
 import threading
 from datetime import datetime, timezone
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from pathlib import Path
 
 import pandas as pd
 import pytest
@@ -15,6 +17,201 @@ from lumibot.backtesting import PandasDataBacktesting
 from lumibot.components.agents import AgentRunResult, MCPServer
 from lumibot.entities import Asset, Data
 from lumibot.strategies import Strategy
+
+
+def _recorded_research_server():
+    return MCPServer(
+        name="recorded-research",
+        command=sys.executable,
+        args=[
+            str(Path(__file__).resolve().parents[1] / "scripts/agent_eval_research_server.py"),
+            "research_available",
+        ],
+        transport="stdio",
+        exposed_tools=["query_data"],
+    )
+
+
+def test_native_stdio_tool_refusal_survives_anyio_teardown_as_typed_failure():
+    from lumibot.components.agents.runtime import call_mcp_tool
+
+    # This uses the real SDK/stdio fixture and its actual Node-shaped refusal.
+    arguments = {"datasetId": "bls.public_series", "asOf": "2026-08-11T14:35:00Z"}
+    with pytest.raises(Exception) as raised:
+        call_mcp_tool(_recorded_research_server(), "query_data", arguments)
+
+    failure = raised.value
+    assert failure.__class__.__name__ == "RemoteMCPToolError"
+    assert failure.tool_name == "query_data"
+    assert failure.code == "unsupported_capability"
+    assert "cannot verify original versions" in failure.message
+    assert failure.result["isError"] is True
+    assert failure.original_result.isError is True
+    assert failure.structured_result["errorCode"] == "unsupported_capability"
+    assert failure.structured_result["details"]["asOf"] == arguments["asOf"]
+    assert failure.result["content"][0]["text"]
+
+
+def test_native_stdio_refusal_remains_a_visible_failed_actor_tool_record():
+    from lumibot.components.agents.runtime import _wrap_tool_callable, call_mcp_tool
+    from lumibot.components.agents.schemas import BoundTool
+
+    server = _recorded_research_server()
+    tool = BoundTool(
+        name="query_data",
+        description="Read recorded research data.",
+        function=lambda **arguments: call_mcp_tool(server, "query_data", arguments),
+    )
+    context = {}
+    arguments = {"datasetId": "bls.public_series", "asOf": "2026-08-11T14:35:00Z"}
+
+    result = _wrap_tool_callable(tool, context)(**arguments)
+
+    assert result["ok"] is False
+    assert result["tool_error"] is True
+    assert result["isError"] is True
+    assert result["error"]["type"] == "RemoteMCPToolError"
+    assert result["error"]["code"] == "unsupported_capability"
+    assert "cannot verify original versions" in result["error"]["message"]
+    assert "TaskGroup" not in result["error"]["message"]
+    assert "details" not in result
+    assert "structuredContent" not in result
+    assert context["tool_calls"] == [{"tool_name": "query_data", "arguments": arguments, "ok": False}]
+
+
+def test_remote_tool_error_preserves_private_result_and_bounds_redacted_public_message():
+    from lumibot.components.agents.runtime import RemoteMCPToolError, _tool_error_payload
+
+    structured = {
+        "errorCode": "unsupported_capability",
+        "message": "Cannot verify historical data\nserver-secret\x00 " + "x" * 1000,
+        "details": {"privateCredential": "private-diagnostic-value"},
+    }
+    result = {"isError": True, "structuredContent": structured, "content": [{"text": "private raw content"}]}
+    error = RemoteMCPToolError("query_data", result, secret_values=["server-secret"])
+    payload = _tool_error_payload("query_data", {}, error)
+
+    assert error.result is result
+    assert error.original_result is result
+    assert error.structured_result is structured
+    assert len(error.message) <= 512
+    assert "[REDACTED]" in error.message
+    assert "server-secret" not in str(error)
+    assert "private-diagnostic-value" not in str(error)
+    assert "private raw content" not in str(error)
+    assert "\n" not in error.message
+    assert "\x00" not in error.message
+    assert payload["isError"] is True
+    assert payload["error"]["code"] == "unsupported_capability"
+    assert "private-diagnostic-value" not in json.dumps(payload)
+
+
+def test_remote_tool_error_does_not_publish_a_configured_secret_as_an_error_code():
+    from lumibot.components.agents.runtime import RemoteMCPToolError, _tool_error_payload
+
+    result = {"isError": True, "structuredContent": {"errorCode": "server-secret", "message": "Denied"}}
+    error = RemoteMCPToolError("query_data", result, secret_values=["server-secret"])
+
+    assert error.code == "remote_mcp_tool_error"
+    assert error.structured_result["errorCode"] == "server-secret"
+    assert "server-secret" not in json.dumps(_tool_error_payload("query_data", {}, error))
+
+
+@pytest.mark.parametrize("nested", [False, True])
+def test_only_single_leaf_typed_remote_failure_is_unwrapped_without_auth_retry(monkeypatch, nested):
+    import anyio
+
+    from lumibot.components.agents import runtime
+
+    error = runtime.RemoteMCPToolError(
+        "query_data", {"isError": True, "structuredContent": {"errorCode": "forbidden", "message": "HTTP 401: denied"}}
+    )
+    failure = ExceptionGroup("task failure", [error])
+    if nested:
+        failure = ExceptionGroup("transport shutdown", [failure])
+    calls = []
+
+    async def once(_server, _callback):
+        calls.append("call")
+        raise failure
+
+    async def renew(_server, _previous_token):
+        pytest.fail("a failed-tool result is not a transport authentication failure")
+
+    monkeypatch.setattr(runtime, "_with_mcp_session_once", once)
+    monkeypatch.setattr(runtime, "_refresh_mcp_auth_token", renew)
+    with pytest.raises(runtime.RemoteMCPToolError) as caught:
+        anyio.run(runtime._with_mcp_session, _recorded_research_server(), None)
+    assert caught.value is error
+    assert calls == ["call"]
+
+
+@pytest.mark.parametrize("kind", ["unrelated_single", "tool_and_transport", "unauthorized_and_transport"])
+def test_unrelated_and_multi_error_groups_keep_every_original_failure(monkeypatch, kind):
+    import anyio
+    import httpx
+
+    from lumibot.components.agents import runtime
+
+    request = httpx.Request("POST", "https://example.test/mcp")
+    transport = httpx.ConnectError("offline", request=request)
+    if kind == "unrelated_single":
+        children = [transport]
+    elif kind == "tool_and_transport":
+        children = [runtime.RemoteMCPToolError("query_data", {"isError": True}), transport]
+    else:
+        children = [
+            httpx.HTTPStatusError("expired", request=request, response=httpx.Response(401, request=request)),
+            transport,
+        ]
+    failure = ExceptionGroup("transport shutdown", [ExceptionGroup("task failures", children)])
+
+    async def once(_server, _callback):
+        raise failure
+
+    async def renew(_server, _previous_token):
+        pytest.fail("a group with an unrelated failure must not be replaced by a retry")
+
+    monkeypatch.setattr(runtime, "_with_mcp_session_once", once)
+    monkeypatch.setattr(runtime, "_refresh_mcp_auth_token", renew)
+    with pytest.raises(ExceptionGroup) as caught:
+        anyio.run(runtime._with_mcp_session, _recorded_research_server(), None)
+    assert caught.value is failure
+
+
+def test_legacy_http_iserror_result_is_a_typed_failure_with_configured_token_redacted(monkeypatch):
+    import anyio
+    import httpx
+
+    from lumibot.components.agents import runtime
+
+    result = {
+        "isError": True,
+        "structuredContent": {"errorCode": "unsupported_capability", "message": "Cannot verify server-secret"},
+        "privateDiagnostic": "private-result-value",
+    }
+    requests = []
+
+    def handler(request):
+        requests.append(request)
+        return httpx.Response(200, json={"jsonrpc": "2.0", "id": "query_data-call", "result": result})
+
+    original_client = httpx.AsyncClient
+    monkeypatch.setattr(
+        httpx, "AsyncClient", lambda **kwargs: original_client(**kwargs, transport=httpx.MockTransport(handler))
+    )
+    server = MCPServer(
+        name="remote", url="https://example.test/mcp", headers={"Authorization": "Bearer server-secret"},
+        exposed_tools=["query_data"],
+    )
+    with pytest.raises(runtime.RemoteMCPToolError) as caught:
+        anyio.run(runtime._call_mcp_tool_async, server, "query_data", {})
+
+    assert caught.value.result == result
+    assert caught.value.code == "unsupported_capability"
+    assert "server-secret" not in str(caught.value)
+    assert "private-result-value" not in str(caught.value)
+    assert len(requests) == 1
 
 
 def _utc_iso_timestamp() -> str:

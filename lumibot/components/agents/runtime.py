@@ -13,7 +13,7 @@ import re
 import sys
 import time
 import warnings
-from collections.abc import Sequence
+from collections.abc import Callable, Collection, Sequence
 from dataclasses import dataclass
 from datetime import date, datetime, timezone
 from enum import Enum
@@ -93,6 +93,8 @@ def _tool_error_payload(tool_name: str, args: dict[str, Any], exc: Exception) ->
         },
         "arguments": _json_safe_value(dict(args or {})),
     }
+    if isinstance(exc, ToolJournalError):
+        payload["error"]["code"] = "tool_journal_unavailable"
     if isinstance(exc, RemoteMCPToolError):
         payload["isError"] = True
         payload["error"]["code"] = exc.code
@@ -144,6 +146,99 @@ def _clone_tool_callable(wrapper: Any, name: str) -> Any:
     return alias
 
 
+class ToolJournalError(RuntimeError):
+    """A private caller-owned audit write failed; never expose sink details."""
+
+
+def agent_purpose_parameter_name(existing_names: Collection[str]) -> str:
+    """Return the reserved agent-only field without consuming domain names."""
+    name, suffix = "agent_purpose", 2
+    while name in existing_names:
+        name = f"agent_purpose_{suffix}"
+        suffix += 1
+    return name
+
+
+def _validate_agent_purpose(supplied: Any, name: str) -> str:
+    if not isinstance(supplied, str) or not supplied.strip():
+        raise ValueError(f"{name} requires an explicit nonempty private purpose.")
+    purpose = supplied.strip()
+    try:
+        byte_count = len(purpose.encode("utf-8"))
+    except UnicodeEncodeError as exc:
+        raise ValueError(f"{name} must be valid UTF-8 text.") from exc
+    if byte_count > 500 or any(ord(char) < 32 or 127 <= ord(char) <= 159 for char in purpose):
+        raise ValueError(f"{name} must be a short single-line purpose within 500 UTF-8 bytes.")
+    return purpose
+
+
+def _write_private_tool_audit(context: dict[str, Any], record: dict[str, Any], *, before: bool) -> None:
+    callback = context.get("tool_journal_callback")
+    if callback is None:
+        return
+    try:
+        result = callback(dict(record))
+        if inspect.isawaitable(result):
+            # MemoryStore's existing append owner is synchronous. Reject an
+            # accidental coroutine rather than pretending it was persisted.
+            if inspect.iscoroutine(result):
+                result.close()
+            raise TypeError("The private tool journal callback must be synchronous.")
+    except Exception:
+        phase = "before invocation" if before else "after invocation; completion was not confirmed"
+        raise ToolJournalError(f"Private tool journal write failed {phase}.") from None
+
+
+def _start_agent_tool_audit(
+    tool_name: str, arguments: dict[str, Any], args: tuple[Any, ...], purpose: str, context: dict[str, Any]
+) -> dict[str, Any]:
+    calls = context.setdefault("tool_calls", [])
+    if not isinstance(calls, list):
+        raise ValueError("Agent tool attempt trace is unavailable; the tool was not invoked.")
+    call = {
+        "tool_name": tool_name,
+        "arguments": _json_safe_value(arguments),
+        "purpose": purpose,
+        "status": "started",
+    }
+    calls.append(call)
+    if context.get("tool_journal_callback") is not None:
+        encoded = json.dumps(
+            _json_safe_value({"args": args, "kwargs": arguments}),
+            sort_keys=True, separators=(",", ":"), ensure_ascii=True,
+        ).encode("utf-8")
+        audit = {
+            "action_id": str(uuid4()), "tool_name": tool_name, "purpose": purpose,
+            "status": "started", "arguments_sha256": hashlib.sha256(encoded).hexdigest(),
+        }
+        call["action_id"] = audit["action_id"]
+        call["arguments_sha256"] = audit["arguments_sha256"]
+        try:
+            _write_private_tool_audit(context, audit, before=True)
+        except ToolJournalError:
+            call.update(status="journal_failed", ok=False)
+            raise
+    return call
+
+
+def _finish_agent_tool_audit(call: dict[str, Any], result: Any, context: dict[str, Any], *, native: bool = False) -> None:
+    failed = isinstance(result, dict) and (result.get("tool_error") is True or (native and bool(result.get("error"))))
+    status = "failed" if failed else "completed"
+    if "action_id" in call:
+        audit = {key: call[key] for key in ("action_id", "tool_name", "purpose", "arguments_sha256")}
+        audit.update(status=status, ok=not failed)
+        error = result.get("error") if isinstance(result, dict) else None
+        code = error.get("code") if isinstance(error, dict) else result.get("error_code") if native and isinstance(result, dict) else None
+        if isinstance(code, str) and code:
+            audit["error_code"] = code[:128]
+        try:
+            _write_private_tool_audit(context, audit, before=False)
+        except ToolJournalError:
+            call.update(status="journal_failed", ok=False)
+            raise
+    call.update(status=status, ok=not failed)
+
+
 def _wrap_tool_callable(
     tool: BoundTool,
     tool_context: dict[str, Any] | None = None,
@@ -153,21 +248,12 @@ def _wrap_tool_callable(
     original = tool.function
 
     def wrapper(*args, **kwargs):
-        result: Any
         call_record = None
-        calls = None
         if _purpose is not None and isinstance(tool_context, dict):
-            calls = tool_context.setdefault("tool_calls", [])
-            if isinstance(calls, list):
-                # This is the existing attempt trace, not a durable journal.
-                # Record intent before invocation; do not claim success yet.
-                call_record = {
-                    "tool_name": tool.name,
-                    "arguments": _json_safe_value(dict(kwargs or {})),
-                    "purpose": _purpose,
-                    "status": "started",
-                }
-                calls.append(call_record)
+            try:
+                call_record = _start_agent_tool_audit(tool.name, dict(kwargs), args, _purpose, tool_context)
+            except (ValueError, ToolJournalError) as exc:
+                return _tool_error_payload(tool.name, kwargs, exc)
         invocation_context = tool_context
         if _purpose is not None:
             invocation_context = {**(tool_context or {}), "tool_purpose": _purpose}
@@ -177,33 +263,26 @@ def _wrap_tool_callable(
         except Exception as exc:
             result = _tool_error_payload(tool.name, kwargs, exc)
         if isinstance(tool_context, dict):
-            if _purpose is None:
-                calls = tool_context.setdefault("tool_calls", [])
+            calls = tool_context.setdefault("tool_calls", [])
             if isinstance(calls, list):
-                success = not (isinstance(result, dict) and result.get("tool_error") is True)
                 if call_record is None:
                     call_record = {
                         "tool_name": tool.name,
-                        "arguments": _json_safe_value(dict(kwargs or {})),
-                        "ok": success,
+                        "arguments": _json_safe_value(dict(kwargs)),
+                        "ok": not (isinstance(result, dict) and result.get("tool_error") is True),
                     }
                     calls.append(call_record)
                 else:
-                    call_record["ok"] = success
-                    call_record["status"] = "completed" if success else "failed"
+                    try:
+                        _finish_agent_tool_audit(call_record, result, tool_context)
+                    except ToolJournalError as exc:
+                        return _tool_error_payload(tool.name, kwargs, exc)
                 if tool.name in {"account_positions", "orders_open_orders"} and isinstance(result, dict):
                     call_record["coverage"] = {
                         key: _json_safe_value(result.get(key))
                         for key in (
-                            "total",
-                            "matched",
-                            "returned",
-                            "offset",
-                            "limit",
-                            "complete",
-                            "next_offset",
-                            "filters",
-                            "snapshot_id",
+                            "total", "matched", "returned", "offset", "limit", "complete",
+                            "next_offset", "filters", "snapshot_id",
                         )
                     }
         return result
@@ -230,11 +309,7 @@ def _wrap_agent_tool_callable(tool: BoundTool, tool_context: dict[str, Any] | No
     """
     ordinary = _wrap_tool_callable(tool, tool_context)
     signature = inspect.signature(ordinary)
-    purpose_name = "agent_purpose"
-    suffix = 2
-    while purpose_name in signature.parameters:
-        purpose_name = f"agent_purpose_{suffix}"
-        suffix += 1
+    purpose_name = agent_purpose_parameter_name(signature.parameters)
     parameters = list(signature.parameters.values())
     purpose_parameter = inspect.Parameter(purpose_name, inspect.Parameter.KEYWORD_ONLY, annotation=str)
     position = next((i for i, parameter in enumerate(parameters) if parameter.kind is inspect.Parameter.VAR_KEYWORD), len(parameters))
@@ -244,15 +319,7 @@ def _wrap_agent_tool_callable(tool: BoundTool, tool_context: dict[str, Any] | No
     def wrapper(*args, **kwargs):
         supplied = kwargs.pop(purpose_name, None)
         try:
-            if not isinstance(supplied, str) or not supplied.strip():
-                raise ValueError(f"{purpose_name} requires an explicit nonempty private purpose.")
-            purpose = supplied.strip()
-            try:
-                byte_count = len(purpose.encode("utf-8"))
-            except UnicodeEncodeError as exc:
-                raise ValueError(f"{purpose_name} must be valid UTF-8 text.") from exc
-            if byte_count > 500 or any(ord(char) < 32 or 127 <= ord(char) <= 159 for char in purpose):
-                raise ValueError(f"{purpose_name} must be a short single-line purpose within 500 UTF-8 bytes.")
+            purpose = _validate_agent_purpose(supplied, purpose_name)
             if not isinstance(context.setdefault("tool_calls", []), list):
                 raise ValueError("Agent tool attempt trace is unavailable; the tool was not invoked.")
         except ValueError as exc:
@@ -273,6 +340,115 @@ def _wrap_agent_tool_callable(tool: BoundTool, tool_context: dict[str, Any] | No
         "not a domain argument or a public Community reason."
     )
     return wrapper
+
+
+def _agent_toolset_with_purpose(toolset: Any, context: dict[str, Any]) -> Any:
+    """Adapt native ADK skills without replacing their state or resource owner."""
+    from google.adk.tools.base_tool import BaseTool
+    from google.adk.tools.base_toolset import BaseToolset
+
+    class AgentPurposeTool(BaseTool):
+        def __init__(self, original):
+            super().__init__(
+                name=original.name, description=original.description,
+                is_long_running=original.is_long_running, custom_metadata=original.custom_metadata,
+                behavior=original.behavior, response_scheduling=original.response_scheduling,
+            )
+            self.original = original
+            self._defers_response = original._defers_response
+            declaration = original._get_declaration()
+            schema = declaration.parameters_json_schema or (declaration.parameters.model_dump(mode="json", exclude_none=True) if declaration.parameters else {})
+            self.purpose_name = agent_purpose_parameter_name(schema.get("properties", {}))
+
+        def __getattr__(self, name):
+            return getattr(self.original, name)
+
+        def _get_declaration(self):
+            declaration = self.original._get_declaration().model_copy(deep=True)
+            schema = declaration.parameters_json_schema
+            if schema is None:
+                schema = declaration.parameters.model_dump(mode="json", exclude_none=True) if declaration.parameters else {"type": "object"}
+            schema.setdefault("properties", {})[self.purpose_name] = {
+                "type": "string", "description": "Required short explicit private purpose (one line, at most 500 UTF-8 bytes); never public Community content."
+            }
+            schema["required"] = [*schema.get("required", []), self.purpose_name]
+            declaration.parameters = None
+            declaration.parameters_json_schema = schema
+            return declaration
+
+        async def run_async(self, *, args, tool_context):
+            arguments = dict(args)
+            supplied = arguments.pop(self.purpose_name, None)
+            try:
+                purpose = _validate_agent_purpose(supplied, self.purpose_name)
+                call = _start_agent_tool_audit(self.name, arguments, (), purpose, context)
+            except (ValueError, ToolJournalError) as exc:
+                return _tool_error_payload(self.name, arguments, exc)
+            try:
+                with agent_tool_context({**context, "tool_purpose": purpose}):
+                    result = await self.original.run_async(args=arguments, tool_context=tool_context)
+            except Exception as exc:
+                result = _tool_error_payload(self.name, arguments, exc)
+            try:
+                _finish_agent_tool_audit(call, result, context, native=True)
+            except ToolJournalError as exc:
+                return _tool_error_payload(self.name, arguments, exc)
+            return result
+
+        async def check_require_confirmation(self, args, tool_context):
+            original_args = {key: value for key, value in args.items() if key != self.purpose_name}
+            return await self.original.check_require_confirmation(original_args, tool_context)
+
+        async def process_llm_request(self, *, tool_context, llm_request):
+            # Preserve native resource processing (including binary resources),
+            # but register this audited callable/declaration with the request.
+            wrapper = self
+
+            class RequestProxy:
+                def __getattr__(self, name):
+                    return getattr(llm_request, name)
+
+                def __setattr__(self, name, value):
+                    setattr(llm_request, name, value)
+
+                def append_tools(self, tools):
+                    llm_request.append_tools([wrapper if tool is wrapper.original else tool for tool in tools])
+
+            await self.original.process_llm_request(tool_context=tool_context, llm_request=RequestProxy())
+
+    class AgentPurposeToolset(BaseToolset):
+        def __init__(self):
+            # The native owner retains prefix/filter/lifecycle caches. This
+            # adapter contributes every tool that owner normally exposes.
+            super().__init__()
+            self.wrappers = {}
+
+        async def get_tools(self, readonly_context=None):
+            tools = await toolset.get_tools(readonly_context)
+            return self._wrap(tools)
+
+        async def get_tools_with_prefix(self, readonly_context=None):
+            return self._wrap(await toolset.get_tools_with_prefix(readonly_context))
+
+        def _wrap(self, tools):
+            result = []
+            for tool in tools:
+                key = id(tool)
+                if key not in self.wrappers:
+                    self.wrappers[key] = AgentPurposeTool(tool)
+                result.append(self.wrappers[key])
+            return result
+
+        async def process_llm_request(self, *, tool_context, llm_request):
+            await toolset.process_llm_request(tool_context=tool_context, llm_request=llm_request)
+
+        def get_auth_config(self):
+            return toolset.get_auth_config()
+
+        async def close(self):
+            await toolset.close()
+
+    return AgentPurposeToolset()
 
 
 def _is_provider_safe_function_name(name: str) -> bool:
@@ -569,6 +745,9 @@ class RuntimeRequest:
     # Optional caller-owned budget (release evals). No provider credentials or
     # account caps are modified. Each continuation gets a separate reservation.
     model_call_budget: Any | None = None
+    # Private synchronous append owner supplied by the caller (e.g. MemoryStore).
+    # Only bounded intent/status and original-argument hash enter this callback.
+    tool_journal_callback: Callable[[dict[str, Any]], None] | None = None
 
 
 _LITELLM_CONFIGURED = False
@@ -1756,6 +1935,7 @@ class GoogleADKRuntime:
         active_tool_context = {
             "agent_name": request.agent_name,
             "model_call_id": request.model_call_id,
+            "tool_journal_callback": request.tool_journal_callback,
             "enforce_order_readiness": True,
             "account_snapshot": (
                 request.runtime_context.get("account_snapshot") if isinstance(request.runtime_context, dict) else None
@@ -1772,7 +1952,7 @@ class GoogleADKRuntime:
         if request.include_builtin_skills:
             from .skills import build_builtin_skill_toolset
 
-            tools.append(build_builtin_skill_toolset())
+            tools.append(_agent_toolset_with_purpose(build_builtin_skill_toolset(), active_tool_context))
         config_kwargs = self._generate_content_config_kwargs_for_request(request, genai_types)
         model_request_timeout_seconds = self._model_request_timeout_seconds_for_request(request)
         run_timeout_seconds = self._run_timeout_seconds_for_request(request)

@@ -852,13 +852,31 @@ def target_passes(already: int, repeat: int) -> int:
     return repeat
 
 
+def latest_repetition_rows(
+    rows: list[dict[str, Any]], case_id: str, fingerprint: str
+) -> dict[int, dict[str, Any]]:
+    latest = {}
+    for row in rows:
+        repetition = row.get("repetition")
+        if (
+            row.get("case_id") == case_id
+            and row.get("fingerprint") == fingerprint
+            and type(repetition) is int
+            and repetition > 0
+        ):
+            latest[repetition] = row
+    return latest
+
+
 def consecutive_pass_count(rows: list[dict[str, Any]], case_id: str, fingerprint: str) -> int:
-    relevant = [row for row in rows if row.get("case_id") == case_id and row.get("fingerprint") == fingerprint]
+    latest = latest_repetition_rows(rows, case_id, fingerprint)
     count = 0
-    for row in reversed(relevant):
-        if row.get("status") != "pass":
+    expected = max(latest, default=0)
+    for repetition in sorted(latest, reverse=True):
+        if repetition != expected or latest[repetition].get("status") != "pass":
             break
         count += 1
+        expected -= 1
     return count
 
 
@@ -874,15 +892,54 @@ def load_freshness(path: Path) -> dict[str, Any]:
     return value
 
 
-def is_fresh(state: dict[str, Any], case_id: str, fingerprint: str, days: int) -> bool:
+def is_fresh(
+    state: dict[str, Any],
+    case_id: str,
+    fingerprint: str,
+    days: int,
+    *,
+    acting_model: str = DEFAULT_ACTING_MODEL,
+    judge_model: str = DEFAULT_JUDGE_MODEL,
+) -> bool:
     record = state.get("cases", {}).get(case_id)
     if not isinstance(record, dict) or record.get("fingerprint") != fingerprint:
+        return False
+    passed_count = record.get("consecutive_passes")
+    if type(passed_count) is not int or passed_count < REQUIRED_CONSECUTIVE_PASSES:
+        return False
+    if record.get("acting_model") != acting_model or record.get("judge_model") != judge_model:
         return False
     try:
         passed_at = datetime.fromisoformat(str(record["passed_at"]).replace("Z", "+00:00"))
     except (KeyError, TypeError, ValueError):
         return False
-    return passed_at >= utc_now() - timedelta(days=days)
+    if passed_at.tzinfo is None or passed_at.utcoffset() is None:
+        return False
+    now = utc_now()
+    return now - timedelta(days=days) <= passed_at <= now
+
+
+def invalidate_failed_freshness(
+    state: dict[str, Any], rows: list[dict[str, Any]], fingerprints: dict[str, str]
+) -> None:
+    """New failed native attempts supersede a prior matching qualification."""
+    records = state.get("cases", {})
+    for case_id, fingerprint in fingerprints.items():
+        record = records.get(case_id)
+        if not isinstance(record, dict) or record.get("fingerprint") != fingerprint:
+            continue
+        for row in latest_repetition_rows(rows, case_id, fingerprint).values():
+            if row.get("status") == "pass":
+                continue
+            try:
+                failed_at = datetime.fromisoformat(str(row["timestamp"]).replace("Z", "+00:00"))
+                passed_at = datetime.fromisoformat(str(record["passed_at"]).replace("Z", "+00:00"))
+                if failed_at.tzinfo is not None and passed_at.tzinfo is not None and failed_at < passed_at:
+                    continue
+            except (KeyError, TypeError, ValueError):
+                pass
+            records.pop(case_id, None)
+            break
 
 
 def write_json_atomic(path: Path, value: dict[str, Any]) -> None:
@@ -1023,16 +1080,23 @@ def main() -> int:
     preflight(cases, args.judge_model, args.max_cost_usd)
     preflight_production_fixtures(cases)
     runtime_hash = runtime_fingerprint()
+    state = load_freshness(args.freshness_state)
+    fingerprints = {
+        case["id"]: case_fingerprint(case, judge_model=args.judge_model, runtime_hash=runtime_hash) for case in cases
+    }
+    existing_rows = read_jsonl(args.output_root.resolve() / "ledger.jsonl")
+    invalidate_failed_freshness(state, existing_rows, fingerprints)
     if args.preflight_only:
-        state = load_freshness(args.freshness_state)
         fresh = [
             case["id"]
             for case in cases
             if is_fresh(
                 state,
                 case["id"],
-                case_fingerprint(case, judge_model=args.judge_model, runtime_hash=runtime_hash),
+                fingerprints[case["id"]],
                 args.freshness_days,
+                acting_model=case.get("model") or DEFAULT_ACTING_MODEL,
+                judge_model=args.judge_model,
             )
         ]
         print(
@@ -1051,7 +1115,6 @@ def main() -> int:
     output_root = args.output_root.resolve()
     ledger_path = output_root / "ledger.jsonl"
     summary_path = output_root / "summary.json"
-    existing_rows = read_jsonl(ledger_path)
     from scripts.agent_eval_subscription_budget import SubscriptionCallBudget
 
     call_ledger_path = output_root / "model_calls.jsonl"
@@ -1060,21 +1123,26 @@ def main() -> int:
             "This old run has no per-call spending ledger; reconcile its spending before resuming inference."
         )
     budget = SubscriptionCallBudget(call_ledger_path, max_calls=args.max_model_calls)
-    state = load_freshness(args.freshness_state)
-    fingerprints = {
-        case["id"]: case_fingerprint(case, judge_model=args.judge_model, runtime_hash=runtime_hash) for case in cases
-    }
 
     work: list[tuple[dict[str, Any], int, str]] = []
     fresh_case_ids: list[str] = []
+    resumed_repetitions = 0
     for case in cases:
         fingerprint = fingerprints[case["id"]]
-        if args.gate and not args.force and is_fresh(state, case["id"], fingerprint, args.freshness_days):
+        if args.gate and not args.force and is_fresh(
+            state, case["id"], fingerprint, args.freshness_days,
+            acting_model=case.get("model") or DEFAULT_ACTING_MODEL,
+            judge_model=args.judge_model,
+        ):
             fresh_case_ids.append(case["id"])
             continue
         already = 0 if args.force else consecutive_pass_count(existing_rows, case["id"], fingerprint)
-        for repetition in range(already + 1, target_passes(already, args.repeat) + 1):
-            work.append((case, repetition, fingerprint))
+        latest = {} if args.force else latest_repetition_rows(existing_rows, case["id"], fingerprint)
+        for repetition in range(1, target_passes(already, args.repeat) + 1):
+            if latest.get(repetition, {}).get("status") == "pass":
+                resumed_repetitions += 1
+            else:
+                work.append((case, repetition, fingerprint))
 
     run_started = time.perf_counter()
     new_rows: list[dict[str, Any]] = []
@@ -1130,6 +1198,7 @@ def main() -> int:
             break
 
     all_rows = existing_rows + new_rows
+    invalidate_failed_freshness(state, all_rows, fingerprints)
     refreshed: list[str] = []
     for case in cases:
         case_id = case["id"]
@@ -1141,11 +1210,16 @@ def main() -> int:
             row for row in all_rows
             if row.get("case_id") == case_id and row.get("fingerprint") == fingerprint
         ]
-        if case_rows and consecutive_pass_count(all_rows, case_id, fingerprint) >= REQUIRED_CONSECUTIVE_PASSES:
+        passed_count = consecutive_pass_count(all_rows, case_id, fingerprint)
+        latest = latest_repetition_rows(all_rows, case_id, fingerprint)
+        if (
+            case_rows and passed_count >= REQUIRED_CONSECUTIVE_PASSES
+            and all(row.get("status") == "pass" for row in latest.values())
+        ):
             state.setdefault("cases", {})[case_id] = {
                 "fingerprint": fingerprint,
                 "passed_at": case_rows[-1]["timestamp"],
-                "consecutive_passes": REQUIRED_CONSECUTIVE_PASSES,
+                "consecutive_passes": passed_count,
                 "acting_model": case.get("model") or DEFAULT_ACTING_MODEL,
                 "judge_model": args.judge_model,
             }
@@ -1155,7 +1229,11 @@ def main() -> int:
     write_json_atomic(args.freshness_state, state)
 
     final_fresh = [
-        case["id"] for case in cases if is_fresh(state, case["id"], fingerprints[case["id"]], args.freshness_days)
+        case["id"] for case in cases if is_fresh(
+            state, case["id"], fingerprints[case["id"]], args.freshness_days,
+            acting_model=case.get("model") or DEFAULT_ACTING_MODEL,
+            judge_model=args.judge_model,
+        )
     ]
     pass_count = sum(row.get("status") == "pass" for row in new_rows)
     fail_count = sum(row.get("status") == "fail" for row in new_rows)
@@ -1176,10 +1254,7 @@ def main() -> int:
         "error_count": error_count,
         "missing_count": max(len(work) - len(new_rows), 0),
         "skipped_fresh_count": len(fresh_case_ids),
-        "resumed_count": sum(
-            min(consecutive_pass_count(existing_rows, case["id"], fingerprints[case["id"]]), args.repeat)
-            for case in cases
-        ),
+        "resumed_count": resumed_repetitions,
         "fresh_case_count": len(final_fresh),
         "fresh_case_ids": sorted(final_fresh),
         "required_case_ids": sorted(case["id"] for case in cases),

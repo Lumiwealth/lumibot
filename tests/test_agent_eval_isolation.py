@@ -43,6 +43,13 @@ def test_fixture_process_strips_paid_openai_keys(monkeypatch, tmp_path):
     }
 
 
+def test_fixture_cache_and_traces_use_producer_owned_output(monkeypatch, tmp_path):
+    monkeypatch.setattr(os, "environ", {"PATH": "/bin", "LUMIBOT_CACHE_FOLDER": "/shared-cache"})
+    output = tmp_path / "owned-output"
+    configure_fixture_environment(tmp_path, artifact_root=output)
+    assert os.environ["LUMIBOT_CACHE_FOLDER"] == str(output / "runtime_cache")
+
+
 def test_openai_responses_inference_is_allowed_but_other_openai_paths_are_not():
     assert_fixture_request("https://api.openai.com/v1/responses", "POST")
     for url, method in (

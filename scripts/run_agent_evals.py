@@ -42,6 +42,10 @@ ACTING_MAX_OUTPUT_TOKENS = 12_000
 JUDGE_MAX_OUTPUT_TOKENS = 4_000  # GPT-6 Luna reasoning tokens count against this cap
 ORDER_TOOLS = {"orders_submit_order", "orders_submit_multileg"}
 LEDGER_LOCK = threading.Lock()
+EVAL_SDK_PACKAGES = (
+    "google-adk", "google-genai", "litellm", "pandas-ta-classic", "pandas", "numpy", "alpaca-py",
+    "httpx", "openai", "PyJWT", "filelock", "pydantic",
+)
 
 
 def utc_now() -> datetime:
@@ -64,6 +68,16 @@ def sha256_files(paths: list[Path]) -> str:
         digest.update(path.read_bytes())
         digest.update(b"\0")
     return digest.hexdigest()
+
+
+def sdk_versions() -> dict[str, str]:
+    versions = {}
+    for package in EVAL_SDK_PACKAGES:
+        try:
+            versions[package] = importlib.metadata.version(package)
+        except importlib.metadata.PackageNotFoundError:
+            versions[package] = "missing"
+    return versions
 
 
 def runtime_fingerprint() -> str:
@@ -96,17 +110,20 @@ def runtime_fingerprint() -> str:
         REPO_ROOT / "lumibot/data_sources/pandas_data.py",
         REPO_ROOT / "lumibot/components/options_helper.py",
         REPO_ROOT / "agent_eval_fixtures/research_data.json",
+        REPO_ROOT / "scripts/qualify_agent_evals.py",
+        REPO_ROOT / "scripts/check_agent_judge_calibration.py",
+        REPO_ROOT / "tests/fixtures/agent_judge_calibration.json",
+        REPO_ROOT / "requirements_agent_evals.txt",
+        REPO_ROOT / "requirements.txt",
+        REPO_ROOT / "requirements_dev.txt",
+        REPO_ROOT / "setup.py",
         Path(__file__).resolve(),
     ]
     skills_root = REPO_ROOT / "lumibot/components/agents/skills"
     paths.extend(path for path in skills_root.rglob("*") if path.is_file())
-    sdk_versions = {}
-    for package in ("google-adk", "google-genai", "litellm", "pandas-ta-classic", "pandas", "numpy", "alpaca-py"):
-        try:
-            sdk_versions[package] = importlib.metadata.version(package)
-        except importlib.metadata.PackageNotFoundError:
-            sdk_versions[package] = "missing"
-    return hashlib.sha256((sha256_files(paths) + stable_json(sdk_versions)).encode()).hexdigest()
+    # Include responsible schema, projection and indirect runtime helpers too.
+    paths = sorted(set(paths) | set((REPO_ROOT / "lumibot").rglob("*.py")))
+    return hashlib.sha256((sha256_files(paths) + stable_json(sdk_versions())).encode()).hexdigest()
 
 
 def load_cases(case_ids: set[str] | None = None) -> list[dict[str, Any]]:
@@ -643,11 +660,15 @@ def execute_repetition(
     fingerprint: str,
     judge_model: str,
     budget: Any,
+    run_id: str | None = None,
+    started_at: str | None = None,
 ) -> dict[str, Any]:
     from lumibot.components.agents.runtime import GoogleADKRuntime
     from scripts.agent_eval_production_fixture import ProductionFixture
 
     setup_started = time.perf_counter()
+    run_id = run_id or str(uuid.uuid4())
+    started_at = started_at or utc_text()
     fixture = build_fixture(str(case["fixture"]))
     initial_context = {}
     initial_contexts: dict[str, Any] = {}
@@ -659,8 +680,10 @@ def execute_repetition(
             initial_context.update(deepcopy(request.runtime_context))
             initial_contexts[request.agent_name] = deepcopy(request.runtime_context)
             # The manager owns context, skills, rules, tools and outcomes. Only
-            # the paid-call accounting hook is supplied by the release harness.
-            request.model_call_budget = budget.for_scope(case["id"], repetition, "acting")
+            # the subscription accounting hook is supplied by the release harness.
+            request.model_call_budget = budget.for_scope(
+                case["id"], repetition, "acting", run_id=run_id, fingerprint=fingerprint
+            )
             request.max_output_tokens = ACTING_MAX_OUTPUT_TOKENS
             return GoogleADKRuntime().run(request)
 
@@ -744,7 +767,8 @@ def execute_repetition(
         production.close()
     machine = score_machine_contract(case, transcript)
     judge, judge_result, judge_seconds = run_judge(
-        case, transcript, judge_model, budget.for_scope(case["id"], repetition, "judge")
+        case, transcript, judge_model,
+        budget.for_scope(case["id"], repetition, "judge", run_id=run_id, fingerprint=fingerprint)
     )
     acting_model = str(case.get("model") or DEFAULT_ACTING_MODEL)
     acting_cost = estimate_cost(acting_model, combined_usage(*actor_results))
@@ -752,7 +776,8 @@ def execute_repetition(
     passed = bool(machine["pass"] and judge["pass"])
     return {
         "timestamp": utc_text(),
-        "run_id": str(uuid.uuid4()),
+        "started_at": started_at,
+        "run_id": run_id,
         "case_id": case["id"],
         "repetition": repetition,
         "fingerprint": fingerprint,
@@ -778,7 +803,8 @@ def execute_repetition(
     }
 
 
-def harness_error_row(case_id: str, repetition: int, fingerprint: str, exc: BaseException) -> dict[str, Any]:
+def harness_error_row(case_id: str, repetition: int, fingerprint: str, exc: BaseException,
+                      *, run_id: str | None = None, started_at: str | None = None) -> dict[str, Any]:
     """Ledger row for a repetition the harness could not finish.
 
     Provider errors can contain request material, so the message is never
@@ -800,7 +826,8 @@ def harness_error_row(case_id: str, repetition: int, fingerprint: str, exc: Base
     status = getattr(exc, "status_code", None)
     return {
         "timestamp": utc_text(),
-        "run_id": str(uuid.uuid4()),
+        "run_id": run_id or str(uuid.uuid4()),
+        "started_at": started_at or utc_text(),
         "case_id": case_id,
         "repetition": repetition,
         "fingerprint": fingerprint,
@@ -866,6 +893,45 @@ def latest_repetition_rows(
         ):
             latest[repetition] = row
     return latest
+
+
+def recover_native_incomplete_attempts(rows, native_rows, fingerprints):
+    """Recover the old producer's interruption gap without forgiving consumed calls."""
+    if not native_rows:
+        return []
+    from scripts.agent_eval_call_budget import EvalCallBudget
+
+    calls = EvalCallBudget._calls(native_rows[1:])
+    candidates = {}
+    for call in calls.values():
+        scope = call.get("scope") or {}
+        case_id, rep, fingerprint = (scope.get(key) for key in ("case_id", "repetition", "fingerprint"))
+        if case_id not in fingerprints or fingerprint != fingerprints[case_id] or type(rep) is not int or rep < 1:
+            continue
+        attempt = scope.get("run_id")
+        if not isinstance(attempt, str) or not attempt:
+            raise ValueError("Native model call lacks an attempt identity")
+        latest = latest_repetition_rows(rows, case_id, fingerprint).get(rep)
+        if latest and latest.get("run_id") == attempt:
+            continue
+        try:
+            began = datetime.fromisoformat(call["timestamp"].replace("Z", "+00:00"))
+            previous = datetime.fromisoformat(str((latest or {}).get("started_at") or (latest or {}).get("timestamp"))
+                                             .replace("Z", "+00:00")) if latest else None
+        except (KeyError, TypeError, ValueError) as exc:
+            raise ValueError("Unreconciled native attempt timestamp") from exc
+        if began.tzinfo is None or began > utc_now() or (previous and previous.tzinfo is None):
+            raise ValueError("Unreconciled native attempt clock")
+        if previous is not None and began < previous:
+            continue
+        key = (case_id, rep, fingerprint)
+        record = {"case_id": case_id, "repetition": rep, "fingerprint": fingerprint,
+                  "run_id": attempt, "started_at": utc_text(began), "timestamp": utc_text(began),
+                  "status": "incomplete", "external_writes": "fixture_only"}
+        prior = candidates.get(key)
+        if prior is None or record["timestamp"] > prior["timestamp"]:
+            candidates[key] = record
+    return list(candidates.values())
 
 
 def consecutive_pass_count(rows: list[dict[str, Any]], case_id: str, fingerprint: str) -> int:
@@ -1049,6 +1115,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--freshness-days", type=int, default=DEFAULT_FRESHNESS_DAYS)
     parser.add_argument("--freshness-state", type=Path, default=Path(".ci/agent-evals/freshness.json"))
     parser.add_argument("--output-root", type=Path, default=Path("artifacts/agent_evals"))
+    parser.add_argument("--qualification-receipt", type=Path, default=REPO_ROOT / "ci/agent-evals/qualification.json")
     parser.add_argument("--max-workers", type=int, default=8)
     parser.add_argument("--gate", action="store_true", help="Skip fresh cases and require complete fresh coverage")
     parser.add_argument(
@@ -1074,7 +1141,7 @@ def main() -> int:
 
     from scripts.agent_eval_isolation import configure_fixture_environment
 
-    configure_fixture_environment(REPO_ROOT)
+    configure_fixture_environment(REPO_ROOT, artifact_root=args.output_root.resolve())
     cases = load_cases(set(args.case_id) or None)
     select_eval_credentials({str(case.get("model") or DEFAULT_ACTING_MODEL) for case in cases} | {args.judge_model})
     preflight(cases, args.judge_model, args.max_cost_usd)
@@ -1085,6 +1152,10 @@ def main() -> int:
         case["id"]: case_fingerprint(case, judge_model=args.judge_model, runtime_hash=runtime_hash) for case in cases
     }
     existing_rows = read_jsonl(args.output_root.resolve() / "ledger.jsonl")
+    native_path = args.output_root.resolve() / "model_calls.jsonl"
+    native_rows = [json.loads(line) for line in native_path.read_text().splitlines() if line.strip()] if native_path.exists() else []
+    recovered_attempts = recover_native_incomplete_attempts(existing_rows, native_rows, fingerprints)
+    existing_rows.extend(recovered_attempts)
     invalidate_failed_freshness(state, existing_rows, fingerprints)
     if args.preflight_only:
         fresh = [
@@ -1123,6 +1194,8 @@ def main() -> int:
             "This old run has no per-call spending ledger; reconcile its spending before resuming inference."
         )
     budget = SubscriptionCallBudget(call_ledger_path, max_calls=args.max_model_calls)
+    for row in recovered_attempts:
+        append_jsonl(ledger_path, row)
 
     work: list[tuple[dict[str, Any], int, str]] = []
     fresh_case_ids: list[str] = []
@@ -1138,14 +1211,21 @@ def main() -> int:
             continue
         already = 0 if args.force else consecutive_pass_count(existing_rows, case["id"], fingerprint)
         latest = {} if args.force else latest_repetition_rows(existing_rows, case["id"], fingerprint)
-        for repetition in range(1, target_passes(already, args.repeat) + 1):
+        for repetition in range(1, max(target_passes(already, args.repeat), max(latest, default=0)) + 1):
             if latest.get(repetition, {}).get("status") == "pass":
                 resumed_repetitions += 1
             else:
                 work.append((case, repetition, fingerprint))
 
+    if work:
+        from scripts.qualify_agent_evals import invalidate_receipt
+        invalidate_receipt(args.qualification_receipt, {
+            case["id"]: fingerprint for case, _, fingerprint in work
+        }, runtime_hash=runtime_hash)
+
     run_started = time.perf_counter()
     new_rows: list[dict[str, Any]] = []
+    started_rows: list[dict[str, Any]] = []
     prior_budget = budget.snapshot()
     prior_committed = prior_budget["committed_usd"]
     estimated_total = prior_committed
@@ -1161,6 +1241,15 @@ def main() -> int:
         if not batch:
             break
         batch_size = len(batch)
+        attempts = {}
+        for case, repetition, fingerprint, _ in batch:
+            began = utc_text()
+            row = {"timestamp": began, "started_at": began, "run_id": str(uuid.uuid4()),
+                   "case_id": case["id"], "repetition": repetition, "fingerprint": fingerprint,
+                   "status": "incomplete", "external_writes": "fixture_only"}
+            append_jsonl(ledger_path, row)
+            started_rows.append(row)
+            attempts[(case["id"], repetition)] = row
         with concurrent.futures.ThreadPoolExecutor(max_workers=batch_size) as executor:
             futures = {
                 executor.submit(
@@ -1170,6 +1259,8 @@ def main() -> int:
                     fingerprint=fingerprint,
                     judge_model=args.judge_model,
                     budget=budget,
+                    run_id=attempts[(case["id"], repetition)]["run_id"],
+                    started_at=attempts[(case["id"], repetition)]["started_at"],
                 ): (case["id"], repetition, reservation)
                 for case, repetition, fingerprint, reservation in batch
             }
@@ -1178,7 +1269,9 @@ def main() -> int:
                 try:
                     row = future.result()
                 except Exception as exc:
-                    row = harness_error_row(case_id, repetition, fingerprints[case_id], exc)
+                    attempt = attempts[(case_id, repetition)]
+                    row = harness_error_row(case_id, repetition, fingerprints[case_id], exc,
+                                            run_id=attempt["run_id"], started_at=attempt["started_at"])
                 append_jsonl(ledger_path, row)
                 new_rows.append(row)
                 # Batch estimates schedule workers, but only the shared durable
@@ -1197,7 +1290,7 @@ def main() -> int:
         if estimated_total > args.max_cost_usd:
             break
 
-    all_rows = existing_rows + new_rows
+    all_rows = existing_rows + started_rows + new_rows
     invalidate_failed_freshness(state, all_rows, fingerprints)
     refreshed: list[str] = []
     for case in cases:
@@ -1269,7 +1362,9 @@ def main() -> int:
         "max_cost_usd": args.max_cost_usd,
         "funding": "chatgpt-plan",
         "api_spend_usd": 0,
-        "fixture_external_writes": len(new_rows),
+        "fixture_external_writes": sum(
+            len(row.get("transcript", {}).get("submissions", [])) for row in new_rows
+        ),
         "real_external_writes": 0,
         "wall_time_seconds": round(time.perf_counter() - run_started, 3),
         "ledger_path": str(ledger_path),

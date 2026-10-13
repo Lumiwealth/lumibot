@@ -32,7 +32,7 @@ jobs:
         run: |
           set -euo pipefail
           python -m pip install --upgrade pip
-          pip install -r requirements_dev.txt
+          pip install -r requirements_dev.txt -c requirements_agent_evals.txt
           pip install build
 
       - name: Validate tag version matches setup.py
@@ -63,6 +63,9 @@ jobs:
         run: |
           set -euo pipefail
           python -m build --wheel
+          pip install --force-reinstall dist/*.whl -c requirements_agent_evals.txt
+          pip check
+          python -I -c "import lumibot; import importlib.metadata as m; print(m.version('lumibot'), lumibot.__file__)"
 
       - name: Upload dist
         uses: actions/upload-artifact@v4
@@ -93,7 +96,7 @@ jobs:
         run: |
           set -euo pipefail
           python -m pip install --upgrade pip
-          pip install -r requirements_dev.txt
+          pip install -r requirements_dev.txt -c requirements_agent_evals.txt
 
       - name: Run unit tests
         env:
@@ -185,7 +188,7 @@ jobs:
         run: |
           set -euo pipefail
           python -m pip install --upgrade pip
-          pip install -r requirements_dev.txt
+          pip install -r requirements_dev.txt -c requirements_agent_evals.txt
 
       - name: Run backtest tests
         env:
@@ -245,75 +248,30 @@ jobs:
 
   agent-evals:
     name: Real-Model Agent Evals
-    runs-on: ${{ vars.LUMIBOT_SUBSCRIPTION_EVAL_RUNNER || 'ubuntu-latest' }}
-    environment: subscription-evals
-    concurrency:
-      group: lumibot-subscription-evals
-      cancel-in-progress: false
-    timeout-minutes: 30
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-
       - name: Set up Python 3.10
         uses: actions/setup-python@v5
         with:
           python-version: "3.10"
           cache: pip
-
-      - name: Install dependencies
+      - name: Install qualified dependencies
         run: |
           set -euo pipefail
           python -m pip install --upgrade pip
-          pip install -r requirements_dev.txt
-
-      - name: Restore passing eval freshness
-        uses: actions/cache/restore@v4
-        with:
-          path: .ci/agent-evals/freshness.json
-          key: lumibot-agent-evals-v1-${{ github.run_id }}
-          restore-keys: |
-            lumibot-agent-evals-v1-
-
-      - name: Restore cross-workflow passing eval freshness
-        env:
-          GITHUB_TOKEN: ${{ github.token }}
-        run: |
-          set -euo pipefail
-          python scripts/restore_agent_eval_freshness.py \
-            --repository "${GITHUB_REPOSITORY}" \
-            --trusted-commit "${GITHUB_SHA}" \
-            --output .ci/agent-evals/freshness.json
-
-      - name: Run stale real-model evals
-        env:
-          LUMIBOT_DISABLE_DOTENV: "1"
-        run: |
-          set -euo pipefail
-          timeout 1500 python scripts/run_agent_evals.py \
-            --gate \
-            --repeat 3 \
-            --max-workers 3 \
-            --max-cost-usd 0 \
-            --max-model-calls 500 \
-            --freshness-state .ci/agent-evals/freshness.json \
-            --output-root .ci/agent-evals/artifacts
-
-      - name: Save passing eval freshness
-        uses: actions/cache/save@v4
-        with:
-          path: .ci/agent-evals/freshness.json
-          key: lumibot-agent-evals-v1-${{ github.run_id }}
-
-      - name: Upload eval evidence
+          pip install -r requirements_dev.txt -c requirements_agent_evals.txt
+      - name: Verify native real-model actor and judge qualification
+        run: timeout 120 python scripts/qualify_agent_evals.py verify
+      - name: Upload compact qualification evidence
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: lumibot-agent-evals
-          if-no-files-found: warn
-          path: |
-            .ci/agent-evals/artifacts/**
-            .ci/agent-evals/freshness.json
+          if-no-files-found: error
+          path: ci/agent-evals/qualification.json
 
   publish:
     name: Publish to PyPI + Create GitHub Release

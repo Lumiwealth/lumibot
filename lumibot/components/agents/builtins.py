@@ -3269,15 +3269,23 @@ def _bind_open_orders(strategy: Any, manager: Any) -> BoundTool:
     )
 
 
+_PUBLIC_ORDER_REASON_DESCRIPTION = (
+    " Optional public_reason is a separate, already trimmed public summary of at most 280 UTF-8 bytes. "
+    "Never include names, account IDs, balances, buying power, bank details, secrets or credentials. "
+    "An invalid or unsafe public summary is omitted without changing the required private reason or order action."
+)
+
+
 def _bind_cancel_order(strategy: Any, manager: Any) -> BoundTool:
-    def cancel_order(*, identifier: str, reason: str) -> dict[str, Any]:
+    def cancel_order(*, identifier: str, reason: str, public_reason: str | None = None) -> dict[str, Any]:
         from lumibot.components.memory.store import validate_order_reason
         reason = validate_order_reason(reason, required=True)
         identifier = _require_non_empty_text("identifier", identifier)
         order = strategy.get_order(identifier)
         if order is None:
             raise ValueError(f"Unknown order identifier: {identifier}")
-        strategy.cancel_order(order, reason=reason)
+        public_evidence = {"evidence": {"public_reason": public_reason}} if public_reason is not None else {}
+        strategy.cancel_order(order, reason=reason, **public_evidence)
         return {"identifier": identifier, "status": getattr(order, "status", None) or "cancel_requested", "decision_journal": getattr(order, "decision_journal", None)}
 
     return BoundTool(
@@ -3285,7 +3293,7 @@ def _bind_cancel_order(strategy: Any, manager: Any) -> BoundTool:
         description=(
             "Cancel an existing tracked order by identifier. "
             "Arguments: identifier from orders_open_orders and required reason. Explain the cancellation, evidence and risks in at least 200 trimmed characters (usually 600-2,500; maximum 100,000). This is saved privately before execution."
-        ),
+        ) + _PUBLIC_ORDER_REASON_DESCRIPTION,
         function=cancel_order,
         metadata={"kind": "builtin", "replay_on_cache": True},
     )
@@ -3293,7 +3301,8 @@ def _bind_cancel_order(strategy: Any, manager: Any) -> BoundTool:
 
 def _bind_modify_order(strategy: Any, manager: Any) -> BoundTool:
     def modify_order(
-        *, identifier: str, reason: str, limit_price: float | None = None, stop_price: float | None = None
+        *, identifier: str, reason: str, limit_price: float | None = None, stop_price: float | None = None,
+        public_reason: str | None = None,
     ) -> dict[str, Any]:
         from lumibot.components.memory.store import validate_order_reason
         reason = validate_order_reason(reason, required=True)
@@ -3303,7 +3312,8 @@ def _bind_modify_order(strategy: Any, manager: Any) -> BoundTool:
             raise ValueError(f"Unknown order identifier: {identifier}")
         if limit_price is None and stop_price is None:
             raise ValueError("orders_modify_order requires at least one of limit_price or stop_price.")
-        strategy.modify_order(order, limit_price=limit_price, stop_price=stop_price, reason=reason)
+        public_evidence = {"evidence": {"public_reason": public_reason}} if public_reason is not None else {}
+        strategy.modify_order(order, limit_price=limit_price, stop_price=stop_price, reason=reason, **public_evidence)
         return {
             "identifier": identifier,
             "limit_price": limit_price,
@@ -3316,7 +3326,7 @@ def _bind_modify_order(strategy: Any, manager: Any) -> BoundTool:
         description=(
             "Modify an existing tracked order. "
             "Arguments: identifier, required reason, optional limit_price, optional stop_price. Explain the new evidence, price change and remaining risk in at least 200 trimmed characters (usually 600-2,500; maximum 100,000). The new explanation is linked to the prior action before execution."
-        ),
+        ) + _PUBLIC_ORDER_REASON_DESCRIPTION,
         function=modify_order,
         metadata={"kind": "builtin", "replay_on_cache": True},
     )
@@ -4322,6 +4332,7 @@ def _bind_submit_order(strategy: Any, manager: Any) -> BoundTool:
         quantity: float,
         side: OrderSideArg,
         reason: str,
+        public_reason: str | None = None,
         asset_type: AssetTypeArg = "stock",
         expiration: str | None = None,
         strike: float | None = None,
@@ -4381,7 +4392,8 @@ def _bind_submit_order(strategy: Any, manager: Any) -> BoundTool:
         memory = getattr(strategy, "memory", None)
         memory_context = _agent_memory_context_kwargs()
         try:
-            submitted = strategy.submit_order(created, reason=reason)
+            public_evidence = {"evidence": {"public_reason": public_reason}} if public_reason is not None else {}
+            submitted = strategy.submit_order(created, reason=reason, **public_evidence)
         except Exception as exc:
             return {
                 "ok": False,
@@ -4441,7 +4453,7 @@ def _bind_submit_order(strategy: Any, manager: Any) -> BoundTool:
             "A limit exactly at the last price fills only if the next price reaches it. At the session open the last price can still be the prior close. "
             "When the order must fill this session, use order_type='market' or a buy limit slightly above (sell limit slightly below) the current price. "
             "Example: orders_submit_order(symbol='SPY', quantity=100, side='buy', asset_type='stock', order_type='market', reason='<explain evidence, sizing, risks and invalidation in at least 200 characters>')."
-        ),
+        ) + _PUBLIC_ORDER_REASON_DESCRIPTION,
         function=submit_order,
         metadata={"kind": "builtin", "replay_on_cache": True},
     )
@@ -4452,6 +4464,7 @@ def _bind_submit_multileg_order(strategy: Any, manager: Any) -> BoundTool:
         *,
         legs_json: str,
         reason: str,
+        public_reason: str | None = None,
         price_style: MultilegPriceStyleArg = "mid",
         net_limit_price: float | None = None,
         time_in_force: TimeInForceArg = "day",
@@ -4497,6 +4510,8 @@ def _bind_submit_multileg_order(strategy: Any, manager: Any) -> BoundTool:
             )
             submit_kwargs["price"] = abs(resolved_net_price)
 
+        if public_reason is not None:
+            submit_kwargs["evidence"] = {"public_reason": public_reason}
         submitted = strategy.submit_order(orders, reason=reason, **submit_kwargs)
         submitted_orders = submitted if isinstance(submitted, list) else [submitted]
         return {
@@ -4525,7 +4540,7 @@ def _bind_submit_multileg_order(strategy: Any, manager: Any) -> BoundTool:
             "For limit execution, a positive signed net_limit_price is a debit and a negative value is a credit. If omitted, LumiBot calculates the selected best/mid/fastest price. "
             "The agent must validate that signed price against its exact leg quotes and strategy economics before submission. For equal-width credit spreads, credit must be positive and strictly less than the wing width. "
             "Use price_style='market' only when the strategy policy explicitly accepts market execution. The tool returns the submitted child orders and pricing classification."
-        ),
+        ) + _PUBLIC_ORDER_REASON_DESCRIPTION,
         function=submit_multileg,
         metadata={"kind": "builtin", "replay_on_cache": True},
     )
@@ -5023,7 +5038,7 @@ class _OrderTools:
     def submit(self) -> ToolDefinition:
         return ToolDefinition(
             name="orders_submit_order",
-            description="Submit an order with explicit side/type/time_in_force.",
+            description="Submit an order with explicit side/type/time_in_force." + _PUBLIC_ORDER_REASON_DESCRIPTION,
             binder=_bind_submit_order,
             metadata={"mutates_trading": True},
         )
@@ -5031,7 +5046,7 @@ class _OrderTools:
     def cancel(self) -> ToolDefinition:
         return ToolDefinition(
             name="orders_cancel_order",
-            description="Cancel a tracked order by identifier.",
+            description="Cancel a tracked order by identifier." + _PUBLIC_ORDER_REASON_DESCRIPTION,
             binder=_bind_cancel_order,
             metadata={"mutates_trading": True},
         )
@@ -5039,7 +5054,8 @@ class _OrderTools:
     def submit_multileg(self) -> ToolDefinition:
         return ToolDefinition(
             name="orders_submit_multileg",
-            description="Submit one atomic multi-leg option order from exact agent-selected contracts.",
+            description=("Submit one atomic multi-leg option order from exact agent-selected contracts."
+                         + _PUBLIC_ORDER_REASON_DESCRIPTION),
             binder=_bind_submit_multileg_order,
             metadata={"mutates_trading": True},
         )
@@ -5068,7 +5084,7 @@ class _OrderTools:
     def modify(self) -> ToolDefinition:
         return ToolDefinition(
             name="orders_modify_order",
-            description="Modify a tracked order by identifier.",
+            description="Modify a tracked order by identifier." + _PUBLIC_ORDER_REASON_DESCRIPTION,
             binder=_bind_modify_order,
             metadata={"mutates_trading": True},
         )

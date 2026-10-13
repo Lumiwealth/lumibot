@@ -480,6 +480,7 @@ class Data:
     # To opt-in to the future behavior, set `pd.set_option('future.no_silent_downcasting', True)`
 
     def repair_times_and_fill(self, idx):
+        """Align rows and build datalines, keeping actions at their recorded timestamps."""
         # OPTIMIZATION: Use searchsorted instead of expensive boolean indexing
         # Replace: idx[(idx >= self.datetime_start) & (idx <= self.datetime_end)]
         start_pos = idx.searchsorted(self.datetime_start, side='left')
@@ -553,11 +554,13 @@ class Data:
         if non_ohlc_cols:
             df[non_ohlc_cols] = df[non_ohlc_cols].ffill()
 
-        # Corporate actions are point-in-time events. Forward-filling a split ratio would make
-        # every later bar look like another split and can compound positions incorrectly.
+        # The first reindex also forward-fills events onto newly inserted rows. Restore
+        # exact timestamp matches from the deduplicated input before computing returns.
+        # Zero is the existing neutral value for an absent dividend or split event.
+        # Supply it during reindexing to avoid float promotion rounding integer events.
         for col in corporate_action_cols:
             if col in df.columns:
-                df[col] = df[col].fillna(0)
+                df[col] = self.df[col].reindex(df.index, fill_value=0).fillna(0)
 
         # For quote columns, do segment-wise ffill (don't fill across session boundaries)
         segment_ids = None

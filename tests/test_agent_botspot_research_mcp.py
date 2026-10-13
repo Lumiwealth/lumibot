@@ -180,15 +180,17 @@ def test_backtest_research_calls_receive_a_hard_point_in_time_ceiling(monkeypatc
     )
 
 
+@pytest.mark.parametrize("offset", ["-05:00", "-0500"])
 @pytest.mark.parametrize("tool_name", ["query_data", "search_documents", "get_document"])
-def test_research_preserves_intraday_ceiling_and_earlier_requested_bound(monkeypatch, tool_name):
+def test_research_preserves_intraday_ceiling_and_earlier_requested_bound(monkeypatch, tool_name, offset):
     _configure_hosted_research(monkeypatch)
     handle = AgentManager(_Strategy()).create(name="researcher", _runtime=_Runtime())
     server = next(server for server in handle._mcp_servers if server.name == "botspot_research")
-    payload = {"datasetId": "sec.filings", "asOf": "2025-01-06T10:00:00-05:00"}
+    requested = f"2025-01-06T10:00:00{offset}"
+    payload = {"datasetId": "sec.filings", "asOf": requested}
     result = handle._bound_remote_tool_payload(server, tool_name, payload)
     assert result["asOf"] == "2025-01-06T15:00:00Z"
-    assert payload["asOf"] == "2025-01-06T10:00:00-05:00"
+    assert payload["asOf"] == requested
     result = handle._bound_remote_tool_payload(server, tool_name, {"datasetId": "sec.filings"})
     assert result["asOf"] == "2025-01-06T15:30:00Z"
 

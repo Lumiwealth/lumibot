@@ -19,6 +19,11 @@ before comparing closes or volume. Do not infer an interval merely from sparse
 timestamps. Never treat the first one-minute constituent of a five-minute window
 as a completed five-minute bar or submit an order from that partial window.
 
+At evaluation, compute each interval end as its bar start plus the rule interval.
+Use only bars whose interval end is at or before the runtime clock (inclusive).
+A bar ending exactly at the clock is completed; a bar ending later is unfinished.
+Do not discard a completed candidate because the current interval is still forming.
+
 When the rule asks for higher volume without naming a baseline, compare the
 candidate bar with the opening-range bars of the same session. Pre-market and
 after-hours bars are not part of that comparison, and neither are bars that
@@ -26,6 +31,18 @@ completed after the candidate. The first completed bar after the range that
 meets the rule is the breakout. Unless the user's rules limit how late an entry
 may come, it stays a valid signal at a later evaluation while price still holds
 above the range high; do not reject it only because later bars have completed.
+
+Evaluate the exact user predicate on the completed opening-range and candidate
+bars first. Then check the current `market_last_price` quote separately for any
+price-hold condition in the user's rules. The candidate's completed close and
+the current quote are separate checks. Unless the user explicitly requires a
+current-bar close, do not add that confirmation and do not wait for the current
+unfinished bar to close. When execution is authorized and the user's predicate
+is true, proceed to the core sizing and order checks. For a notional cap, call
+`risk_calculate_stock_quantity` and use its returned whole-share quantity;
+do not skip that calculation because a later bar is unfinished. Do not invent
+an additional entry condition. Existing cash, quantity, position, pending-order,
+risk, and session checks still apply before submission.
 
 Do not invent an opening range from incomplete bars. Use batch prices and history
 for a universe, then perform deeper analysis only on valid finalists. Respect the

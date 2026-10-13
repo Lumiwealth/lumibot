@@ -1548,18 +1548,36 @@ class AgentHandle:
             getattr(self.manager.strategy, "is_backtesting", False)
         ):
             return arguments
+        if tool_name not in {"query_data", "search_documents", "get_document"}:
+            return arguments
         current_dt = _current_strategy_datetime(self.manager.strategy)
-        if current_dt is None:
-            raise RuntimeError("BotSpot research requires a current simulated datetime during backtests.")
-        as_of = current_dt.date().isoformat() if hasattr(current_dt, "date") else str(current_dt)[:10]
+        if not isinstance(current_dt, datetime) or current_dt.tzinfo is None or current_dt.utcoffset() is None:
+            raise RuntimeError("BotSpot research requires a timezone-aware simulated datetime during backtests.")
+        ceiling = current_dt.astimezone(timezone.utc)
+        requested_as_of = arguments.get("asOf")
+        if requested_as_of is not None:
+            try:
+                if not isinstance(requested_as_of, str):
+                    raise ValueError("asOf must be a string")
+                if len(requested_as_of) == 10:
+                    requested = datetime.strptime(requested_as_of, "%Y-%m-%d").replace(
+                        hour=23, minute=59, second=59, microsecond=999999, tzinfo=timezone.utc
+                    )
+                else:
+                    requested = datetime.fromisoformat(requested_as_of.replace("Z", "+00:00"))
+                    if requested.tzinfo is None or requested.utcoffset() is None:
+                        raise ValueError("asOf must include a timezone")
+                ceiling = min(ceiling, requested.astimezone(timezone.utc))
+            except (ValueError, TypeError, OverflowError) as exc:
+                raise ValueError("BotSpot research asOf must be a valid date or timezone-aware ISO timestamp.") from exc
+        arguments["asOf"] = ceiling.isoformat().replace("+00:00", "Z")
+        as_of_day = ceiling.date().isoformat()
         if tool_name in {"query_data", "search_documents"}:
             time_range = dict(arguments.get("timeRange") or {})
             requested_end = str(time_range.get("endDate") or "").strip()
-            if not requested_end or requested_end[:10] > as_of:
-                time_range["endDate"] = as_of
+            if not requested_end or requested_end[:10] > as_of_day:
+                time_range["endDate"] = as_of_day
             arguments["timeRange"] = time_range
-        elif tool_name == "get_document":
-            arguments["asOf"] = as_of
         return arguments
 
     def _ensure_bound_tools(self) -> list[BoundTool]:

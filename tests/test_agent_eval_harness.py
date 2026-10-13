@@ -1,9 +1,7 @@
 import importlib.util
-import io
 import json
 import os
 import sys
-import zipfile
 from pathlib import Path
 
 import pytest
@@ -15,16 +13,12 @@ evals = importlib.util.module_from_spec(SPEC)
 sys.modules[SPEC.name] = evals
 SPEC.loader.exec_module(evals)
 
-RESTORE_SCRIPT_PATH = Path(__file__).resolve().parents[1] / "scripts/restore_agent_eval_freshness.py"
-RESTORE_SPEC = importlib.util.spec_from_file_location("restore_agent_eval_freshness", RESTORE_SCRIPT_PATH)
-assert RESTORE_SPEC is not None and RESTORE_SPEC.loader is not None
-restore_freshness = importlib.util.module_from_spec(RESTORE_SPEC)
-sys.modules[RESTORE_SPEC.name] = restore_freshness
-RESTORE_SPEC.loader.exec_module(restore_freshness)
+
 
 
 @pytest.fixture(autouse=True)
-def close_production_fixtures(monkeypatch):
+def close_production_fixtures(monkeypatch, tmp_path):
+    monkeypatch.setenv("LUMIBOT_CACHE_FOLDER", str(tmp_path / "runtime-cache"))
     original = evals.build_fixture
     fixtures = []
 
@@ -54,6 +48,11 @@ def test_release_eval_uses_production_manager_context_and_builtin_bindings(monke
     from lumibot.components.agents import AgentRunResult, AgentTraceEvent
 
     requests = []
+    scopes = []
+
+    def scoped_budget(*args, **kwargs):
+        scopes.append((args, kwargs))
+        return object()
 
     class CaptureRuntime:
         def __init__(self, **kwargs):
@@ -92,12 +91,12 @@ def test_release_eval_uses_production_manager_context_and_builtin_bindings(monke
         "machineContract": {"forbidOrderTools": True},
         "judgeRubric": "No order.",
     }
-    evals.execute_repetition(
+    row = evals.execute_repetition(
         case,
         repetition=1,
         fingerprint="unit",
         judge_model="chatgpt/gpt-6-luna",
-        budget=SimpleNamespace(for_scope=lambda *args: object()),
+        budget=SimpleNamespace(for_scope=scoped_budget),
     )
     assert len(requests) == 1
     request = requests[0]
@@ -106,6 +105,14 @@ def test_release_eval_uses_production_manager_context_and_builtin_bindings(monke
     assert all(tool.source != "eval_fixture" for tool in request.bound_tools)
     assert request.runtime_context.get("account_snapshot") is not None
     assert request.model_call_budget is not None
+    # A row cannot borrow actor/judge usage from another attempt of the same case.
+    assert row["started_at"] <= row["timestamp"]
+    assert len(scopes) == 2
+    for args, binding in scopes:
+        assert args[:2] == (case["id"], 1)
+        assert binding == {"run_id": row["run_id"], "fingerprint": "unit"}
+
+
 
 
 def test_production_execution_cannot_pass_without_observed_fill_or_completed_decision():
@@ -400,91 +407,38 @@ def test_judge_output_cap_leaves_room_for_luna_reasoning(monkeypatch):
 def test_release_publish_is_blocked_by_real_model_agent_evals():
     workflow = (Path(__file__).resolve().parents[1] / ".github/workflows/release.yml").read_text(encoding="utf-8")
     assert "agent-evals:" in workflow
-    assert "python scripts/run_agent_evals.py" in workflow
+    assert "python scripts/qualify_agent_evals.py verify" in workflow
     assert "needs: [validate-build, unit-tests, backtest-tests, agent-evals]" in workflow
     assert "OPENAI_API_KEY" not in workflow
     standalone = (Path(__file__).resolve().parents[1] / ".github/workflows/agent-evals.yml").read_text(encoding="utf-8")
     assert "OPENAI_API_KEY" not in standalone
 
 
-def test_subscription_eval_workflows_forbid_api_spend_and_bound_model_calls():
+def test_production_fixture_memory_is_owned_and_removed_in_finally():
+    from scripts.agent_eval_production_fixture import ProductionFixture
+
+    production = ProductionFixture(evals.FixtureRuntime(name="flat_stock_account"))
+    root = production.root
+    try:
+        memory = production.strategy.memory
+        memory.remember("Synthetic qualification memory.")
+        assert memory.db_path.is_relative_to(root)
+        assert memory.db_path.exists()
+    finally:
+        production.close()
+    assert not root.exists()
+
+
+def test_subscription_eval_workflows_use_native_evidence_without_private_credentials():
     repo_root = Path(__file__).resolve().parents[1]
-    standalone = (repo_root / ".github/workflows/agent-evals.yml").read_text(encoding="utf-8")
-    release = (repo_root / ".github/workflows/release.yml").read_text(encoding="utf-8")
-
-    assert 'default: "0"' in standalone
-    # Match the complete argument: API spend is always zero.
-    assert any(line.strip() == "--max-cost-usd 0 " + chr(92) for line in release.splitlines())
-    assert "--max-cost-usd 10" not in release
-    for workflow in (standalone, release):
-        assert "--max-model-calls" in workflow
-        assert "LUMIBOT_SUBSCRIPTION_EVAL_RUNNER" in workflow
-        assert "environment: subscription-evals" in workflow
-
-
-def test_standalone_eval_workflow_supports_targeted_case_repeats():
-    workflow = (Path(__file__).resolve().parents[1] / ".github/workflows/agent-evals.yml").read_text(encoding="utf-8")
-
-    assert "case_ids:" in workflow
-    assert "repeat_count:" in workflow
-    assert "REPEAT_COUNT: ${{ inputs.repeat_count }}" in workflow
-    assert '--repeat "${REPEAT_COUNT}"' in workflow
-    assert '3|5)' in workflow
-    assert "CASE_IDS: ${{ inputs.case_ids }}" in workflow
-    assert 'args+=(--case-id "${case_id}")' in workflow
-    assert 'case_id="${case_id//[[:space:]]/}"' in workflow
-
-
-def test_release_restores_repository_scoped_eval_evidence_after_branch_scoped_cache():
-    workflow = (Path(__file__).resolve().parents[1] / ".github/workflows/release.yml").read_text(encoding="utf-8")
-    artifact_restore = workflow.index("Restore cross-workflow passing eval freshness")
-    cache_restore = workflow.index("Restore passing eval freshness")
-    assert cache_restore < artifact_restore
-    assert "actions: read" in workflow
-    assert "scripts/restore_agent_eval_freshness.py" in workflow
-    assert '--trusted-commit "${GITHUB_SHA}"' in workflow
-
-
-def test_cross_workflow_restore_accepts_only_a_valid_freshness_archive():
-    valid_payload = io.BytesIO()
-    with zipfile.ZipFile(valid_payload, "w") as archive:
-        archive.writestr("artifacts/summary.json", "{}")
-        archive.writestr("freshness.json", json.dumps({"version": 1, "cases": {"case": {}}}))
-    assert restore_freshness._freshness_from_zip(valid_payload.getvalue()) == {
-        "version": 1,
-        "cases": {"case": {}},
-    }
-
-    invalid_payload = io.BytesIO()
-    with zipfile.ZipFile(invalid_payload, "w") as archive:
-        archive.writestr("freshness.json", json.dumps({"version": 1, "cases": []}))
-    assert restore_freshness._freshness_from_zip(invalid_payload.getvalue()) is None
-
-
-def test_partial_workflow_restore_requires_complete_matching_passes():
-    payload = io.BytesIO()
-    state = {"version": 1, "cases": {
-        key: {"fingerprint": key, "consecutive_passes": 3}
-        for key in ("green", "failed", "missing", "stale")
-    }}
-    rows = [
-        {"case_id": key, "fingerprint": key, "status": status}
-        for key, statuses in (("green", ["pass"] * 3), ("failed", ["pass", "fail", "pass"]))
-        for status in statuses
-    ]
-    rows += [{"case_id": "stale", "fingerprint": "other", "status": "pass"}] * 3
-    with zipfile.ZipFile(payload, "w") as archive:
-        archive.writestr("freshness.json", json.dumps(state))
-        archive.writestr("artifacts/ledger.jsonl", "\n".join(json.dumps(row) for row in rows))
-    restored = restore_freshness._freshness_from_zip(payload.getvalue(), partial=True)
-    assert set(restored["cases"]) == {"green"}
-
-
-def test_partial_workflow_restore_rejects_missing_ledger():
-    payload = io.BytesIO()
-    with zipfile.ZipFile(payload, "w") as archive:
-        archive.writestr("freshness.json", json.dumps({"cases": {"case": {}}}))
-    assert restore_freshness._freshness_from_zip(payload.getvalue(), partial=True) is None
+    for name in ("agent-evals.yml", "release.yml"):
+        workflow = (repo_root / ".github/workflows" / name).read_text()
+        # CI verifies genuine authenticated runs; it does not borrow a developer's login.
+        assert "python scripts/qualify_agent_evals.py verify" in workflow
+        assert "-c requirements_agent_evals.txt" in workflow
+        assert "LUMIBOT_SUBSCRIPTION_EVAL_RUNNER" not in workflow
+        assert "environment: subscription-evals" not in workflow
+        assert "OPENAI_API_KEY" not in workflow
 
 
 def test_missing_research_judge_controls_preserve_observed_account_context():
@@ -500,135 +454,10 @@ def test_missing_research_judge_controls_preserve_observed_account_context():
         assert context["open_orders"] == []
 
 
-def test_partial_restore_combines_runs_without_resurrecting_failed_fingerprint(monkeypatch, tmp_path):
-    def archive(cases, rows=None):
-        output = io.BytesIO()
-        with zipfile.ZipFile(output, "w") as zipped:
-            zipped.writestr("freshness.json", json.dumps({"version": 1, "cases": cases}))
-            if rows is not None:
-                zipped.writestr("artifacts/ledger.jsonl", "\n".join(json.dumps(row) for row in rows))
-        return output.getvalue()
-
-    payloads = {
-        "new": archive({"new": {"fingerprint": "new"}}),
-        "partial": archive({"old": {"fingerprint": "old"}}, [
-            *[{"case_id": "old", "fingerprint": "old", "status": "pass"}] * 3,
-            {"case_id": "bad", "fingerprint": "bad", "status": "fail"},
-        ]),
-        "older": archive({"bad": {"fingerprint": "bad"}}),
-    }
-
-    def get_json(url, _token):
-        if "/workflows/" in url:
-            return {"workflow_runs": [
-                {"id": ident, "conclusion": conclusion, "head_sha": str(ident) * 40}
-                for ident, conclusion in [(3, "success"), (2, "failure"), (1, "success")]
-            ]}
-        if "/compare/" in url:
-            return {"status": "ahead"}
-        for ident, name in [(3, "new"), (2, "partial"), (1, "older")]:
-            if f"/runs/{ident}/" in url:
-                return {"artifacts": [{"name": f"lumibot-agent-evals-{ident}", "expired": False,
-                                       "archive_download_url": name}]}
-        raise AssertionError(url)
-
-    monkeypatch.setattr(restore_freshness, "_get_json", get_json)
-    monkeypatch.setattr(restore_freshness, "_get_bytes", lambda url, _token: payloads[url])
-    output = tmp_path / "freshness.json"
-    assert restore_freshness.restore(repository="Lumiwealth/lumibot", token="redacted",
-                                     workflow="agent-evals.yml", output=output, trusted_commit="a" * 40,
-                                     include_partial=True) == 3
-    assert set(json.loads(output.read_text())["cases"]) == {"new", "old"}
 
 
-def test_cross_workflow_restore_skips_unusable_runs_and_writes_the_first_valid_state(monkeypatch, tmp_path):
-    valid_payload = io.BytesIO()
-    expected = {"version": 1, "cases": {"case": {"fingerprint": "abc"}}}
-    with zipfile.ZipFile(valid_payload, "w") as archive:
-        archive.writestr("freshness.json", json.dumps(expected))
-
-    def fake_get_json(url, _token):
-        if "/workflows/" in url:
-            return {
-                "workflow_runs": [
-                    {"id": 9, "conclusion": "success", "head_sha": "9" * 40},
-                    {"id": 8, "conclusion": "failure"},
-                    {"id": 7, "conclusion": "success", "head_sha": "7" * 40},
-                ]
-            }
-        if "/compare/" in url:
-            return {"status": "ahead"}
-        if "/runs/9/" in url:
-            return {
-                "artifacts": [
-                    {
-                        "name": "lumibot-agent-evals-9",
-                        "expired": True,
-                        "archive_download_url": "https://example.test/expired",
-                    }
-                ]
-            }
-        if "/runs/7/" in url:
-            return {
-                "artifacts": [
-                    {
-                        "name": "lumibot-agent-evals-7",
-                        "expired": False,
-                        "archive_download_url": "https://example.test/valid",
-                    }
-                ]
-            }
-        raise AssertionError(url)
-
-    monkeypatch.setattr(restore_freshness, "_get_json", fake_get_json)
-    monkeypatch.setattr(restore_freshness, "_get_bytes", lambda _url, _token: valid_payload.getvalue())
-    output = tmp_path / "nested" / "freshness.json"
-    assert (
-        restore_freshness.restore(
-            repository="Lumiwealth/lumibot",
-            token="redacted",
-            workflow="agent-evals.yml",
-            output=output,
-            trusted_commit="a" * 40,
-        )
-        == 7
-    )
-    assert json.loads(output.read_text(encoding="utf-8")) == expected
 
 
-def test_cross_workflow_restore_rejects_a_newer_unrelated_branch_artifact(monkeypatch, tmp_path):
-    calls = []
-
-    def fake_get_json(url, _token):
-        calls.append(url)
-        if "/workflows/" in url:
-            return {
-                "workflow_runs": [
-                    {"id": 10, "conclusion": "success", "head_sha": "b" * 40},
-                ]
-            }
-        if "/compare/" in url:
-            return {"status": "diverged"}
-        raise AssertionError(f"untrusted run artifacts must not be downloaded: {url}")
-
-    monkeypatch.setattr(restore_freshness, "_get_json", fake_get_json)
-    monkeypatch.setattr(
-        restore_freshness,
-        "_get_bytes",
-        lambda *_args: pytest.fail("untrusted artifact must not be downloaded"),
-    )
-
-    assert (
-        restore_freshness.restore(
-            repository="Lumiwealth/lumibot",
-            token="redacted",
-            workflow="agent-evals.yml",
-            output=tmp_path / "freshness.json",
-            trusted_commit="a" * 40,
-        )
-        is None
-    )
-    assert any("/compare/" in url for url in calls)
 
 
 def test_eval_freshness_policy_has_one_90_day_source_of_truth():
@@ -1068,7 +897,7 @@ def test_preflight_only_never_constructs_a_spending_ledger(
 ):
     from scripts import agent_eval_call_budget, agent_eval_isolation
 
-    monkeypatch.setattr(agent_eval_isolation, "configure_fixture_environment", lambda root: None)
+    monkeypatch.setattr(agent_eval_isolation, "configure_fixture_environment", lambda root, **kwargs: None)
     monkeypatch.setenv("OPENAI_API_KEY", "unused-synthetic-key")
     monkeypatch.setattr(evals, "select_eval_credentials", lambda models: ["chatgpt-plan"])
     monkeypatch.setattr(evals, "preflight", lambda *args: None)
@@ -1106,11 +935,12 @@ def test_preflight_only_never_constructs_a_spending_ledger(
 def test_resume_rebuilds_missing_freshness_from_completed_matching_ledger(monkeypatch, tmp_path, capsys):
     """An interruption after ledger fsync must not require paying for passed cases again."""
     from datetime import timedelta
+
     from scripts import agent_eval_isolation
     from scripts.agent_eval_subscription_budget import SubscriptionCallBudget
 
     case = {"id": "resume-contract", "model": "chatgpt/gpt-6-luna"}
-    monkeypatch.setattr(agent_eval_isolation, "configure_fixture_environment", lambda root: None)
+    monkeypatch.setattr(agent_eval_isolation, "configure_fixture_environment", lambda root, **kwargs: None)
     monkeypatch.setenv("OPENAI_API_KEY", "unused-synthetic-key")
     monkeypatch.setattr(evals, "select_eval_credentials", lambda models: ["chatgpt-plan"])
     monkeypatch.setattr(evals, "load_cases", lambda ids: [case])
@@ -1147,6 +977,8 @@ def test_resume_rebuilds_missing_freshness_from_completed_matching_ledger(monkey
         ([(1, "pass"), (1, "pass"), (1, "pass")], 3, [2, 3], 3),
         ([(1, "pass"), (2, "pass"), (3, "pass"), (2, "fail")], 3, [2], 3),
         ([(5, "pass"), (3, "pass"), (1, "pass"), (4, "pass"), (2, "pass")], 5, [], 5),
+        ([(1, "pass"), (2, "pass"), (3, "pass"), (4, "fail")], 3, [4], 4),
+        ([(1, "pass"), (2, "pass"), (3, "pass"), (4, "pass"), (5, "error")], 3, [5], 5),
     ],
 )
 def test_resume_schedules_only_missing_or_latest_failed_unique_repetitions(
@@ -1157,7 +989,7 @@ def test_resume_schedules_only_missing_or_latest_failed_unique_repetitions(
     from scripts.agent_eval_subscription_budget import SubscriptionCallBudget
 
     case = {"id": "unique-resume-contract", "model": evals.DEFAULT_ACTING_MODEL}
-    monkeypatch.setattr(agent_eval_isolation, "configure_fixture_environment", lambda root: None)
+    monkeypatch.setattr(agent_eval_isolation, "configure_fixture_environment", lambda root, **kwargs: None)
     monkeypatch.setattr(evals, "select_eval_credentials", lambda models: ["chatgpt-plan"])
     monkeypatch.setattr(evals, "load_cases", lambda ids: [case])
     monkeypatch.setattr(evals, "preflight", lambda *args: None)
@@ -1210,7 +1042,7 @@ def test_newer_failed_repetition_invalidates_freshness_until_qualified_retry(
     from scripts.agent_eval_subscription_budget import SubscriptionCallBudget
 
     case = {"id": "failed-freshness-contract", "model": evals.DEFAULT_ACTING_MODEL}
-    monkeypatch.setattr(agent_eval_isolation, "configure_fixture_environment", lambda root: None)
+    monkeypatch.setattr(agent_eval_isolation, "configure_fixture_environment", lambda root, **kwargs: None)
     monkeypatch.setattr(evals, "select_eval_credentials", lambda models: ["chatgpt-plan"])
     monkeypatch.setattr(evals, "load_cases", lambda ids: [case])
     monkeypatch.setattr(evals, "preflight", lambda *args: None)
@@ -1266,6 +1098,20 @@ def test_invalidation_keeps_newer_qualification_and_other_fingerprints():
     rows.append({"case_id": "case", "fingerprint": "current", "status": "error", "repetition": 1})
     evals.invalidate_failed_freshness(state, rows, {"case": "current"})
     assert "case" not in state["cases"]
+
+
+@pytest.mark.parametrize("relative", ["lumibot/components/agents/schemas.py", "setup.py", "requirements.txt"])
+def test_runtime_schema_and_package_changes_invalidate_qualification(monkeypatch, relative):
+    before = evals.runtime_fingerprint()
+    original_read = Path.read_bytes
+    changed_path = evals.REPO_ROOT / relative
+
+    def changed_bytes(path):
+        data = original_read(path)
+        return data + b"\n# source changed\n" if path == changed_path else data
+
+    monkeypatch.setattr(Path, "read_bytes", changed_bytes)
+    assert evals.runtime_fingerprint() != before
 
 
 def _iron_condor_case():

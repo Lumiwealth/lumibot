@@ -103,7 +103,8 @@ Validate schemas, actual tool bindings, MCP discovery and freshness without
 reserving budget or calling a model:
 
 ```bash
-python scripts/run_agent_evals.py --preflight-only --gate --max-cost-usd 0
+python scripts/run_agent_evals.py --preflight-only --gate --max-cost-usd 0 \
+  --output-root <owned-output>
 ```
 
 This is a deterministic preflight, not a real-model pass or credential-acceptance
@@ -117,21 +118,36 @@ python scripts/run_agent_evals.py \
   --gate \
   --repeat 3 \
   --max-workers 3 \
-  --max-cost-usd 0 --max-model-calls 500
+  --max-cost-usd 0 --max-model-calls 500 --output-root <owned-output>
 ```
 
-Run one changed case three times:
+Run a changed, failed, or high-risk case five times in the same release-attempt ledger:
 
 ```bash
 python scripts/run_agent_evals.py \
   --case-id options_credit_spread_close_signed_quantities \
-  --repeat 3 \
-  --max-cost-usd 0 --max-model-calls 80
+  --repeat 5 \
+  --max-cost-usd 0 --max-model-calls 500 --output-root <owned-output>
 ```
 
 The runner fails before inference when schemas, fixtures, plan permissions,
 model availability or artifacts are invalid. `--max-cost-usd` must be zero; the
 call cap covers actors, judges, continuations and bounded outer retries.
+
+Calibrate affected research rubrics with real judges and labeled safe/unsafe
+controls under that same initialized allowance:
+
+```bash
+python scripts/check_agent_judge_calibration.py \
+  --case-id research_macro_point_in_time \
+  --model-call-ledger <owned-output>/model_calls.jsonl \
+  --output-root <owned-calibration-output> --max-model-calls 500 --max-cost-usd 0
+```
+
+Calibration controls are not agent passes and never create case freshness. Both
+runners persist an incomplete attempt before inference, then its completed or
+failed result. Resume preserves completed unique repetitions and recovers older
+native-only interruptions without forgetting their consumed calls.
 
 ## Durable Evidence
 
@@ -154,12 +170,14 @@ SDK retries are disabled; outer retries require another ledger reservation.
 No paid token-counting endpoint is used. Subscription quota and revoked grants
 produce visible failures, not successful decisions. A corrupt ledger or changed
 call cap fails closed. Do not switch output directories to reset an approved
-release-attempt allowance. CI and local qualification need the same attempt
-ledger or an explicitly reconciled remaining allowance. No prompt or credential
+release-attempt allowance. Actor, judge and rubric calibration need the same attempt
+ledger. CI verifies the completed evidence without inference. No prompt or credential
 is written to the per-call ledger.
 
 Fingerprints include indicator and broker code plus installed ADK, GenAI,
-LiteLLM, pandas-ta, pandas, NumPy and Alpaca SDK versions. Compatible passes retain
+LiteLLM, pandas-ta, pandas, NumPy, Alpaca, HTTPX, OpenAI, PyJWT, FileLock and Pydantic
+versions. Install `requirements_dev.txt` with `-c requirements_agent_evals.txt`
+for the authenticated qualification. Compatible passes retain
 their original timestamp rather than being renewed when an unchanged gate skips
 them. The current shared fingerprint is conservative: a shared dependency change
 can invalidate more than one case.
@@ -170,22 +188,39 @@ cases or artifacts.
 ## Release Gate
 
 The PyPI release workflow requires the `agent-evals` job alongside build, unit,
-and backtest jobs. It restores the last passing freshness state, reruns only stale
-cases, saves refreshed state, and uploads the ledger and summary. Publishing
-cannot begin if the eval gate fails or lacks valid fresh evidence.
+and backtest jobs. Run real actors and judges on the authenticated qualification
+host, review their private native artifacts, then export a compact public-safe
+receipt for the complete catalog:
 
-Both workflows use an authorized private evaluator selected by the repository
-variable `LUMIBOT_SUBSCRIPTION_EVAL_RUNNER`, with the `subscription-evals`
-environment and a shared non-canceling concurrency group. Register the worker
-for this repository only, restrict the environment to trusted maintained
-revisions, and connect a dedicated protected SIWC profile outside checkout.
-Do not place rotating refresh tokens in public workflows or fork artifacts.
-Without that worker/profile arrangement, the default runner fails authentication
-visibly; an environment name alone does not establish its protections.
+```bash
+python scripts/qualify_agent_evals.py create --output-root <owned-output>
+python scripts/qualify_agent_evals.py verify
+```
 
-The manual `LumiBot Agent Evals` workflow uses the same runner and contracts. A
-manual pass is useful for qualification, but release publication still verifies
-the gate for the exact tagged candidate.
+Commit `ci/agent-evals/qualification.json` with the tested candidate. The manual
+`LumiBot Agent Evals` workflow and the PyPI release job both verify that receipt
+on ordinary GitHub workers using the exact qualified SDK constraints. They make
+no model calls and contain no developer login. A missing case, mismatched source
+or SDK, stale or future timestamp, duplicate repetition, failed machine/judge
+result, missing actor/judge usage, or incomplete native call blocks publication.
+The receipt binds each settlement to its original attempt and source fingerprint;
+an older attempt cannot donate model usage to a new passing row.
+Starting a new matching eval attempt invalidates the existing exported receipt
+before inference. A failed or interrupted attempt therefore cannot leave an old
+green file publishable. Only exporting the complete recovered qualification clears
+that invalidation; failed export also preserves the invalid marker.
+
+The release owner must review the real native evidence before committing the
+receipt. Hashes bind evidence and do not cryptographically prove inference. The
+normal repository review and release authority remain the trust boundary. Full
+prompts, transcripts and private artifacts stay out of the public receipt.
+
+This replaces the old successful-workflow freshness ZIP import, which could
+accept a freshness-only archive without native actor/judge evidence. Its helper
+and normal workflow path are removed. Existing native ledgers stay recoverable;
+old unbound call records are retained for cumulative usage but cannot qualify the
+new receipt format. Rollback requires the normal reviewed source revert and
+requalification; a cache or environment name cannot bypass the gate.
 
 ### Interrupted completion receipts
 
@@ -196,3 +231,7 @@ passing timestamp and still requires the full consecutive pass count. Unrelated
 fingerprints cannot renew the receipt, and an expired or incompatible receipt
 cannot qualify a different release candidate. This recovery does not invoke the
 model again for the already completed matching repetitions.
+Newer incomplete native attempts supersede older passes. Export rejects them;
+resume reruns the affected repetition, including failed repetitions above a
+smaller newly requested repeat count. Fixture memory databases and exports belong
+to their exact temporary fixture and are removed in its final cleanup.

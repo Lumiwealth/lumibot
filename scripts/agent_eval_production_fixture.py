@@ -374,6 +374,10 @@ class ProductionFixture:
             parameters={},
         )
         self.strategy._first_iteration = False
+        from lumibot.components.memory import MemoryStore
+        # The fixture owns this exact synthetic SQLite store and derived exports.
+        # ProductionFixture.close removes them with the fixture's finally owner.
+        self.strategy.memory = MemoryStore(self.strategy, root_dir=self.root / "memory")
         for position in fixture.positions:
             value = dict(position)
             quantity = value.pop("quantity")

@@ -92,6 +92,29 @@ def test_calibration_resumes_unchanged_passes_without_rewriting_native_timestamp
     assert summary["missing"] == 0
 
 
+def test_calibration_recovers_newer_orphan_native_control_before_reusing_old_pass(calibration):
+    import uuid
+    assert calibration.invoke() == 0
+    scope = next(row for row in calibration.calls if row["repetition"] == 2)
+    calibration.budget.reserve(runner.evals.DEFAULT_JUDGE_MODEL, 100,
+                               scope={**scope, "run_id": str(uuid.uuid4())})
+    assert calibration.invoke() == 0
+    assert len(calibration.calls) == 4
+    assert calibration.calls[-1]["repetition"] == 2
+    assert total_calls(calibration.budget) == 5
+
+
+def test_calibration_does_not_reuse_expired_passes(calibration):
+    assert calibration.invoke() == 0
+    ledger = calibration.output / "ledger.jsonl"
+    rows = runner.evals.read_jsonl(ledger)
+    for row in rows:
+        row["timestamp"] = runner.evals.utc_text(runner.evals.utc_now() - runner.evals.timedelta(days=91))
+    ledger.write_text("".join(json.dumps(row) + "\n" for row in rows))
+    assert calibration.invoke() == 0
+    assert len(calibration.calls) == 6
+
+
 @pytest.mark.parametrize("change", ["runtime", "control"])
 def test_calibration_requalifies_changed_source_or_control_under_the_same_budget(calibration, monkeypatch, change):
     assert calibration.invoke() == 0
@@ -122,7 +145,8 @@ def test_calibration_persists_errors_and_retries_only_the_failed_unique_control(
     monkeypatch.setattr(runner.evals, "run_judge", judge)
     assert calibration.invoke() == 1
     rows = runner.evals.read_jsonl(calibration.output / "ledger.jsonl")
-    assert len(rows) == 3
+    # Start rows are durable too; only terminal rows count as completed controls.
+    assert len(rows) == 6
     assert sum(row["status"] == "error" for row in rows) == 1
     assert "private material" not in (calibration.output / "ledger.jsonl").read_text()
     original_passes = {row["repetition"]: row for row in rows if row["passed"]}
@@ -159,7 +183,8 @@ def test_calibration_rejects_immutable_cap_change_before_auth(calibration, monke
 def test_calibration_does_not_count_duplicate_control_repetitions_as_complete(calibration):
     assert calibration.invoke() == 0
     rows = runner.evals.read_jsonl(calibration.output / "ledger.jsonl")
-    first = next(row for row in rows if row["repetition"] == 1)
+    # Start rows now coexist with terminal rows; duplicate the completed pass.
+    first = next(row for row in rows if row["repetition"] == 1 and row["status"] == "pass")
     (calibration.output / "ledger.jsonl").write_text((json.dumps(first) + "\n") * 3)
     assert calibration.invoke() == 0
     assert len(calibration.calls) == 5
@@ -199,6 +224,7 @@ def test_exhausted_shared_cap_cannot_be_reset_by_a_new_calibration_output(calibr
     summary = json.loads((calibration.output / "summary.json").read_text())
     assert summary["errors"] == 3
     assert summary["passed"] == 0
-    assert all(row["error_code"] == "eval_call_limit_exceeded"
-               for row in runner.evals.read_jsonl(calibration.output / "ledger.jsonl"))
+    terminal = [row for row in runner.evals.read_jsonl(calibration.output / "ledger.jsonl") if row["status"] == "error"]
+    assert len(terminal) == 3
+    assert all(row["error_code"] == "eval_call_limit_exceeded" for row in terminal)
     assert not (calibration.output / "model_calls.jsonl").exists()

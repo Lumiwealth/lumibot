@@ -21,6 +21,8 @@
     "orderTool": "orders_submit_order",
     "exactOrderCount": 1,
     "requireOrderDecisionJournal": true,
+    "requireAgentToolAudit": true,
+    "requirePublicOrderReasonReference": true,
     "requiredBeforeOrder": [
       "account_portfolio",
       "account_positions",

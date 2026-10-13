@@ -224,7 +224,7 @@ def test_function_tools_register_only_provider_safe_canonical_names():
     names = {tool.name for tool in tools}
     assert names == {"options_find_expiration"}
     assert "options_find_ expiration" not in names
-    assert tools[0].fn(symbol="QQQ")["symbol"] == "QQQ"
+    assert tools[0].fn(symbol="QQQ", agent_purpose="Verify the selected underlying's listed expiration.")["symbol"] == "QQQ"
 
 
 def test_wrapped_tool_coerces_uuid_payloads_before_provider_serialization():

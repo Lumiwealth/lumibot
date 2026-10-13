@@ -232,6 +232,13 @@ def test_options_skill_completes_authorized_execution_after_a_valid_preview():
     assert "Preserve the requested structure and constraints; never force a trade" in instructions
 
 
+def test_options_execution_checks_every_returned_child_and_supports_single_legs():
+    instructions = " ".join(next(skill for skill in load_builtin_skills() if skill.name == "options-trading").instructions.split())
+    assert "For one authorized option contract, use `orders_submit_order`" in instructions
+    assert "Verify every returned child identifier" in instructions
+    assert "One child's terminal fill does not prove the complete package filled" in instructions
+
+
 def test_stock_skill_defines_opening_range_boundaries_and_order_truth():
     stock_skill = next(skill for skill in load_builtin_skills() if skill.name == "stock-trading")
     instructions = " ".join(stock_skill.instructions.split())

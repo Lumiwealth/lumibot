@@ -88,6 +88,9 @@ broker, approval, liquidity and risk limits.
    complete the status and position checks below before your final answer.
    A successful price preview or an intention to submit is not completed execution.
    If a real condition remains unmet, state that condition and leave the position unchanged.
+   For one authorized option contract, use `orders_submit_order` with the exact
+   verified identity, quantity, side, limit price and required private purpose
+   and order reason. Complete that call before claiming submission.
 8. Capture the returned identifier, inspect that exact order, and reread positions.
    Submission is not proof of a fill, and a fill response alone is not proof that
    the account has the intended final exposure.
@@ -97,6 +100,9 @@ broker, approval, liquidity and risk limits.
    or modify your own pending package to make it fill sooner or to restart the
    decision unless the user's rules explicitly ask for that. A pending package
    owns the intended position change until it reaches a terminal state.
+   Verify every returned child identifier for a multi-leg package and reconcile
+   every intended leg against fresh signed positions. One child's terminal fill
+   does not prove the complete package filled. Report unresolved legs explicitly.
 
 ## Position truth
 

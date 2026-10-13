@@ -85,7 +85,10 @@ def test_default_agent_model_is_current_and_explicit_pins_are_preserved():
     pinned = manager.create(name="pinned", model="pinned-model", _runtime=_CaptureRuntime())
     assert pinned.default_model == "pinned-model"
     assert pinned.reasoning_effort is None
-    assert manager.create(name="family", model="google/gemini-pro", _runtime=_CaptureRuntime()).default_model == "google/gemini-pro"
+    assert (
+        manager.create(name="family", model="google/gemini-pro", _runtime=_CaptureRuntime()).default_model
+        == "google/gemini-pro"
+    )
 
 
 def test_builtin_agent_skills_are_packaged_and_loadable():
@@ -105,9 +108,7 @@ def test_packaged_web_document_instructions_reach_progressive_loading_unchanged(
     """Packaging/transport contract only; native model evals assess reconciliation."""
     directory = next(path for path in builtin_skill_directories() if path.name == "web-documents")
     packaged_markdown = (directory / "SKILL.md").read_text(encoding="utf-8")
-    _frontmatter, separator, packaged_body = (
-        packaged_markdown.removeprefix("---\n").partition("\n---\n")
-    )
+    _frontmatter, separator, packaged_body = packaged_markdown.removeprefix("---\n").partition("\n---\n")
     assert separator
 
     loaded_skill = next(skill for skill in load_builtin_skills() if skill.name == "web-documents")
@@ -115,12 +116,8 @@ def test_packaged_web_document_instructions_reach_progressive_loading_unchanged(
 
     toolset = build_builtin_skill_toolset()
     load_skill = next(tool for tool in asyncio.run(toolset.get_tools()) if tool.name == "load_skill")
-    context = SimpleNamespace(
-        state={}, agent_name="packaged-document-test", invocation_id="packaged-document-test"
-    )
-    response = asyncio.run(
-        load_skill.run_async(args={"skill_name": "web-documents"}, tool_context=context)
-    )
+    context = SimpleNamespace(state={}, agent_name="packaged-document-test", invocation_id="packaged-document-test")
+    response = asyncio.run(load_skill.run_async(args={"skill_name": "web-documents"}, tool_context=context))
     assert response["skill_name"] == loaded_skill.name
     assert response["instructions"].strip() == packaged_body.strip()
     assert response["frontmatter"]["name"] == loaded_skill.name
@@ -128,10 +125,7 @@ def test_packaged_web_document_instructions_reach_progressive_loading_unchanged(
 
 
 def test_research_skill_requires_query_after_catalog_discovery():
-    skill = (
-        Path(__file__).resolve().parents[1]
-        / "lumibot/components/agents/skills/research-data/SKILL.md"
-    )
+    skill = Path(__file__).resolve().parents[1] / "lumibot/components/agents/skills/research-data/SKILL.md"
     text = skill.read_text(encoding="utf-8")
 
     assert "Catalog results are metadata, not observations" in text
@@ -200,7 +194,10 @@ def test_stock_skill_prices_limits_from_current_price_and_loads_rule_bars_with_h
     # The limit-price rule is for a new order. It made agents reprice an
     # already-pending exit (release eval stock_pending_exit_no_duplicate).
     assert "This is for a new order; it is never a reason to modify an order that is already pending" in instructions
-    assert "Modify or cancel and replace it only when the user's rules explicitly require changing an existing order" in instructions
+    assert (
+        "Modify or cancel and replace it only when the user's rules explicitly require changing an existing order"
+        in instructions
+    )
     assert "Load the rule-interval bars with `market_historical_prices`" in intraday
     assert "pass `table_name` to query them with `duckdb_query`" in intraday
 
@@ -246,7 +243,10 @@ def test_stock_skill_leaves_a_pending_exit_in_place():
     stock_skill = next(skill for skill in load_builtin_skills() if skill.name == "stock-trading")
     instructions = " ".join(stock_skill.instructions.split())
 
-    assert "Modify or cancel and replace it only when the user's rules explicitly require changing an existing order" in instructions
+    assert (
+        "Modify or cancel and replace it only when the user's rules explicitly require changing an existing order"
+        in instructions
+    )
     assert "Let it resolve or cancel it deliberately before replacing it" not in instructions
 
 
@@ -511,7 +511,6 @@ def test_indicator_values_come_from_tools_not_hand_arithmetic():
     assert "never by mental arithmetic" in instructions
 
 
-
 def test_options_skill_keeps_its_own_pending_package_instead_of_cancelling_it():
     # Release eval options_iron_condor_atomic_open (run 36034047544, repetition 3)
     # submitted a valid atomic condor, then cancelled its own pending package and
@@ -543,6 +542,17 @@ def test_web_skill_removes_a_holding_after_an_eligible_entire_sale():
     assert "remaining holdings; retain the sale in transaction history" in text
 
 
+def test_web_skill_passes_computed_version_proof_to_document_tool():
+    # The actual ac313 native repetition fetched an excluded same-day PDF
+    # after a diagnostic query, despite its earlier eligible manifest.
+    skill = next(skill for skill in load_builtin_skills() if skill.name == "web-documents")
+    text = " ".join(skill.instructions.split())
+    assert "Pass the selected row's normalized instant as `available_at`" in text
+    assert "Pass its retained-original SHA-256 as `expected_sha256`" in text
+    assert "Never invent or move an availability instant" in text
+    assert "Diagnostic excluded rows never enter the fetch manifest" in text
+
+
 class TestUserSuppliedSkills:
     """Users must be able to bring their own skills, not only switch ours off.
 
@@ -554,34 +564,26 @@ class TestUserSuppliedSkills:
     def _write_skill(self, root, name, body="Always size to 1% of the book."):
         skill_dir = root / name
         skill_dir.mkdir(parents=True)
-        (skill_dir / "SKILL.md").write_text(
-            f"---\nname: {name}\ndescription: {name} rules\n---\n\n{body}\n"
-        )
+        (skill_dir / "SKILL.md").write_text(f"---\nname: {name}\ndescription: {name} rules\n---\n\n{body}\n")
         return skill_dir
 
     def test_user_skill_directories_are_resolved(self, tmp_path):
         from lumibot.components.agents import skills as skills_module
 
         mine = self._write_skill(tmp_path, "my-house-rules")
-        resolved = skills_module.resolve_skill_directories(
-            skill_dirs=[mine], include_builtin=False
-        )
+        resolved = skills_module.resolve_skill_directories(skill_dirs=[mine], include_builtin=False)
         assert resolved == (mine,)
 
     def test_builtin_and_user_skills_compose(self, tmp_path):
         from lumibot.components.agents import skills as skills_module
 
         mine = self._write_skill(tmp_path, "my-house-rules")
-        resolved = skills_module.resolve_skill_directories(
-            skill_dirs=[mine], include_builtin=True
-        )
+        resolved = skills_module.resolve_skill_directories(skill_dirs=[mine], include_builtin=True)
         assert mine in resolved
         assert len(resolved) == len(skills_module.builtin_skill_directories()) + 1
         # Built-ins keep their catalog order and the user's skill comes last,
         # so a user skill can build on ours rather than being shadowed.
-        assert resolved[: len(skills_module.builtin_skill_directories())] == (
-            skills_module.builtin_skill_directories()
-        )
+        assert resolved[: len(skills_module.builtin_skill_directories())] == (skills_module.builtin_skill_directories())
 
     def test_a_directory_without_skill_md_is_rejected_by_name(self, tmp_path):
         from lumibot.components.agents import skills as skills_module
@@ -595,17 +597,13 @@ class TestUserSuppliedSkills:
         from lumibot.components.agents import skills as skills_module
 
         with pytest.raises(ValueError, match="does-not-exist"):
-            skills_module.resolve_skill_directories(
-                skill_dirs=[tmp_path / "does-not-exist"], include_builtin=False
-            )
+            skills_module.resolve_skill_directories(skill_dirs=[tmp_path / "does-not-exist"], include_builtin=False)
 
     def test_strings_are_accepted_as_well_as_paths(self, tmp_path):
         from lumibot.components.agents import skills as skills_module
 
         mine = self._write_skill(tmp_path, "my-house-rules")
-        resolved = skills_module.resolve_skill_directories(
-            skill_dirs=[str(mine)], include_builtin=False
-        )
+        resolved = skills_module.resolve_skill_directories(skill_dirs=[str(mine)], include_builtin=False)
         assert resolved == (mine,)
 
     def test_user_skills_change_the_fingerprint(self, tmp_path):

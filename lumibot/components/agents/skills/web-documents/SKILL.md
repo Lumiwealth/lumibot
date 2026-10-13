@@ -56,6 +56,15 @@ including a short CSV whose samples seem easy to read by eye. Restate each
 selected report's normalized instant against the cutoff before following its
 URL. A tool-purpose sentence asserting eligibility is not a computed check.
 
+Pass the selected row's normalized instant as `available_at` to `read_document`.
+Pass its retained-original SHA-256 as `expected_sha256` when the publisher index
+provides that proof. The tool checks the supplied instant before HTTP and the
+hash before exposing text or tables. Never invent or move an availability
+instant to make a document eligible. Keep the computed eligible manifest as the
+source of fetch arguments. Diagnostic excluded rows never enter the fetch
+manifest. These checks validate supplied proof; they do not establish unknown
+publication times or authorize a later version with an earlier document date.
+
 A discovery index may contain later entries. Query only eligible rows before
 following report links. After eligibility is established, use the workflow below.
 

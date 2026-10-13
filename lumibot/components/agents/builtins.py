@@ -1978,6 +1978,7 @@ def _bind_options_calculate_multileg_price(strategy: Any, manager: Any) -> Bound
         if net_price is None:
             return {
                 "available": False,
+                "preview_only": True,
                 "price_style": price_style,
                 "price_basis": price_basis,
                 "net_limit_price": None,
@@ -1986,6 +1987,7 @@ def _bind_options_calculate_multileg_price(strategy: Any, manager: Any) -> Bound
         order_type = "debit" if net_price > 0 else "credit" if net_price < 0 else "even"
         return {
             "available": True,
+            "preview_only": True,
             "price_style": price_style,
             "price_basis": price_basis,
             "net_limit_price": net_price,
@@ -2006,7 +2008,8 @@ def _bind_options_calculate_multileg_price(strategy: Any, manager: Any) -> Bound
             "To close held option contracts, always pass action='close': each leg then needs only symbol, expiration, strike, and right plus an optional quantity (default: the full held quantity). LumiBot derives every closing side from the current signed position, so never write closing sides yourself. "
             "Use buy_to_open/sell_to_open when opening. A positive net_limit_price is a debit and a negative value is a credit. "
             "When comparing a per-unit multi-leg opening credit with a per-unit closing debit, price one contract per leg here. Use the full absolute position quantities only in the later orders_submit_multileg call. "
-            "Independently reconcile the returned net price from the four option midpoint values you just observed. For a defined-risk structure, reject a result that conflicts materially with those leg mids or violates the structure's economic bounds. "
+            "This is a price preview: no order has been submitted. Leg identifiers, status and order_type describe temporary pricing components, not broker submissions or the eventual package execution policy. The verified signed net_limit_price controls the later atomic limit order. "
+            "Independently reconcile the returned net price using each returned leg pricing.signed_price and quantity for the selected price_style. A fastest price uses asks for buys and bids for sells, so it can legitimately differ from midpoint valuation. Reject inconsistent arithmetic or prices that violate the structure's economic bounds. "
             "price_basis='last_trade' means a trade-only backtest priced each leg from its last traded price; reconcile against the leg last prices instead of mids. "
             'Example legs_json: [{"symbol":"SPY","expiration":"2026-09-18","strike":620,"right":"put","quantity":1,"side":"buy_to_open"},{"symbol":"SPY","expiration":"2026-09-18","strike":625,"right":"put","quantity":1,"side":"sell_to_open"}].'
         ),

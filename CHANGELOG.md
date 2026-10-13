@@ -5,6 +5,7 @@
 Deploy marker: `805f00ab67f87bed5dc5591c4ffe18a03695f425`.
 
 - Allow an explicit `minimum_bars` for generous historical windows. Validate the required tail without changing returned prices, fetch windows, signals or accounting; omitted minima retain strict existing behavior. Reject invalid minima and missing rows inside the declared required lookback.
+- Reuse bounded serialization of overlapping framework input rows. Preserve exact row/frame fingerprints, timestamps, scalar types, signed zero and corrected-price observations rather than repeatedly converting unchanged rolling windows.
 
 - Treat optional indicator cache prefetch separately from required history. Validate actual causal indicator inputs without requiring a nonexistent 10,000-bar cache; explicit history requests and genuine missing inputs remain strict.
 - Preserve bounded framework-observed market input rows, times, instrument identities and frame fingerprints independently of strategy chart annotations. Export explicit incomplete-capture markers and keep option-source observations separate; the diagnostics never alter orders or data validation.

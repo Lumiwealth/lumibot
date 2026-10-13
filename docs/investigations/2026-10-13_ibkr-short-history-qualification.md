@@ -30,3 +30,29 @@ The release is not published merely because these focused checks pass. The
 latest version branch must pass normal cloud gates and required review before
 tagging/publication and downstream consumption. Platform deployment belongs
 to the dedicated deployment task under Rob's October 13 ownership rule.
+
+## Input-observation cost qualification
+
+An additional red regression demonstrated repeated scalar conversion of identical
+overlapping input rows. The existing recorder now reuses bounded row serialization
+and canonical JSON bytes. Tests preserve original frame fingerprints, signed zero,
+scalar types, corrected values, missing rows and explicit capacity-limit reporting.
+No observation, required-data check or financial calculation is disabled.
+All 109 focused tests pass after both fixes (23.96 seconds).
+
+Sixteen serial actual-price-corpus replays cover routed TQQQ SMA200, AAPL daily,
+SPY intraday and MGC across a roll: SDK18 and candidate, each twice. Every compared
+bar, signal, fill, cash balance, holding and equity value matches exactly, and each
+run has complete required data. Provider access is blocked. These are saved-input
+engine runs, not actual Manager Dev execution or S3 warm-repeat broker counts.
+
+Latest two-sample engine medians in seconds (SDK18 / candidate): TQQQ1.896/2.090,
+AAPL0.895/1.054, SPY intraday0.806/0.872, MGC0.188/0.183. The earlier TQQQ candidate
+was approximately2.9s. Sampling and concurrent Mac activity limit timing claims;
+some observation overhead remains. Do not claim whole-backtest speed qualification
+or a universal speedup from these figures. Exact-source hosted integration timing
+and actual cold/warm Manager runs remain mandatory before claiming final rollout.
+
+SDK19's earlier real-model cost was$0.24479. The remaining gate is capped at$0.45;
+combined maximum$0.69479 stays below the established$0.70 SDK19 allowance. No provider
+account cap or customer traffic control is changed.

@@ -32,6 +32,50 @@ def test_framework_input_rows_preserve_time_identity_and_changed_values(tmp_path
                for value in data["asset"])
 
 
+def test_overlapping_windows_reuse_serialized_rows_without_losing_corrections(monkeypatch):
+    import lumibot.backtesting.market_input_evidence as evidence
+    scalar = evidence._scalar
+    calls = []
+    def counted(value):
+        calls.append(value)
+        return scalar(value)
+    monkeypatch.setattr(evidence, "_scalar", counted)
+    frame = pd.DataFrame({"open": [9., 10.], "close": [10., 11.]},
+        index=pd.date_range("2025-01-01", periods=2, tz="UTC"))
+    recorder = evidence.MarketInputEvidence()
+    kw = dict(asset=Asset("SPY"), timestep="day", frame=frame, purpose="history")
+    recorder.record(when=frame.index[-1], **kw)
+    original_hash = recorder.observations[0]["frameSha256"]
+    assert len(calls) == 4
+    recorder.record(when=frame.index[-1] + pd.Timedelta(days=1), **kw)
+    assert len(calls) == 4, "Do not serialize identical historical rows at every decision"
+    assert len(recorder.observations) == 2
+    assert recorder.observations[1]["frameSha256"] == original_hash
+    changed = frame.copy()
+    changed.iloc[-1, 1] = 12.
+    recorder.record(when=frame.index[-1] + pd.Timedelta(days=2), **{**kw, "frame": changed})
+    assert len(calls) == 6, "A corrected row must be serialized and retained"
+    assert len(recorder.rows) == 3
+    assert recorder.observations[-1]["frameSha256"] != original_hash
+    assert {r["close"] for r in recorder.rows.values()} == {10., 11., 12.}
+
+
+def test_serialization_cache_preserves_signed_zero_types_and_stays_bounded():
+    import hashlib
+    from lumibot.backtesting.market_input_evidence import MarketInputEvidence, _encoded
+    recorder = MarketInputEvidence(max_rows=2)
+    index = pd.date_range("2025-01-01", periods=1, tz="UTC")
+    for value in (0., -0., 1):
+        frame = pd.DataFrame({"close": [value]}, index=index)
+        recorder.record(asset=Asset("SPY"), timestep="day", when=index[0], frame=frame, purpose="history")
+        expected = hashlib.sha256(_encoded({"columns": ["close"],
+            "rows": [[index[0].isoformat(), value]]}).encode()).hexdigest()
+        assert recorder.observations[-1]["frameSha256"] == expected
+        assert len(recorder._serialized_rows) <= 2
+    assert len({o["frameSha256"] for o in recorder.observations}) == 3
+    assert recorder.incomplete == {"row_limit"}
+
+
 def test_capture_limit_is_explicit_and_does_not_change_input_data(tmp_path):
     from lumibot.backtesting.market_input_evidence import MarketInputEvidence, write_market_input_evidence
     recorder = MarketInputEvidence(max_rows=1)

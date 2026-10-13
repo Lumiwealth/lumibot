@@ -51,6 +51,7 @@ class MarketInputEvidence:
         self.max_rows = max_rows
         self.max_observations = max_observations
         self.rows = {}
+        self._serialized_rows = {}
         self.observations = []
         self.seen = set()
         self.incomplete = set()
@@ -73,11 +74,33 @@ class MarketInputEvidence:
                 return
             identity = _encoded(asset_identity(asset, quote))
             observed = when.isoformat()
-            values = [] if frame is None else [
-                [index.isoformat(), *(_scalar(v) for v in row)]
-                for index, *row in frame[columns].itertuples(name=None)]
-            frame_hash = hashlib.sha256(_encoded({"columns": columns, "rows": values}).encode()).hexdigest()
             context = {"asset": identity, "timestep": str(timestep), "columns": _encoded(columns)}
+            values, fingerprints, encoded_rows = [], [], []
+            timezone_name = str(frame.index.tz) if frame is not None else ""
+            if frame is not None:
+                for index, *row in frame[columns].itertuples(name=None):
+                    # Rolling lookbacks repeat the same prices hundreds of times.
+                    # Memoize serialization, not the observation or market data.
+                    # Preserve scalar types and signed zero in the identity so
+                    # corrected values cannot reuse an earlier row's evidence.
+                    signature = (identity, str(timestep), tuple(columns), timezone_name, index.value,
+                                 tuple((type(v), v.hex() if isinstance(v, float) else v) for v in row))
+                    try:
+                        cached = self._serialized_rows.get(signature)
+                    except TypeError:
+                        signature, cached = None, None
+                    if cached is None:
+                        converted = [index.isoformat(), *(_scalar(v) for v in row)]
+                        fingerprint = hashlib.sha256(_encoded({**context, "values": converted}).encode()).hexdigest()
+                        cached = (converted, fingerprint, _encoded(converted))
+                        if signature is not None and len(self._serialized_rows) < self.max_rows:
+                            self._serialized_rows[signature] = cached
+                    values.append(cached[0])
+                    fingerprints.append(cached[1])
+                    encoded_rows.append(cached[2])
+            # Exact original canonical JSON, reusing each row's encoded bytes.
+            encoded_frame = '{"columns":' + context["columns"] + ',"rows":[' + ','.join(encoded_rows) + ']}'
+            frame_hash = hashlib.sha256(encoded_frame.encode()).hexdigest()
             observation = {**context, "purpose": purpose, "observedAt": observed,
                 "frameSha256": frame_hash, "returnedRows": len(values),
                 "windowStart": values[0][0] if values else None,
@@ -86,8 +109,7 @@ class MarketInputEvidence:
             if observation_key in self.seen:
                 return
             sequence = len(self.observations)
-            for row in values:
-                key = hashlib.sha256(_encoded({**context, "values": row}).encode()).hexdigest()
+            for row, key in zip(values, fingerprints):
                 if key not in self.rows:
                     if len(self.rows) >= self.max_rows:
                         self.incomplete.add("row_limit")

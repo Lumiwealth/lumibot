@@ -615,6 +615,73 @@ def parse_judge_json(text: str) -> dict[str, Any]:
     return {"pass": value["pass"], "reason": str(value.get("reason") or "")}
 
 
+def _judge_contract_text(value: str) -> str:
+    # Contracts come from trusted built-in bindings, never a remote server or
+    # user callable. Connection URLs are unnecessary judge evidence.
+    return re.sub(r"\b(?:https?|wss?|ftp|file)://[^\s<>\"']+", "[URL omitted]", value)
+
+
+def judge_parameter_schema(schema: dict[str, Any]) -> dict[str, Any]:
+    """Project declaration structure without defaults, examples or connection data."""
+    projected: dict[str, Any] = {}
+    for key in ("type", "format", "nullable", "minimum", "maximum", "minItems", "maxItems"):
+        value = schema.get(key)
+        if isinstance(value, (str, int, float, bool)):
+            projected[key] = _judge_contract_text(value) if isinstance(value, str) else value
+    if isinstance(schema.get("description"), str):
+        projected["description"] = _judge_contract_text(schema["description"])
+    for key in ("required", "enum"):
+        if isinstance(schema.get(key), list):
+            projected[key] = [
+                _judge_contract_text(item) if isinstance(item, str) else item
+                for item in schema[key]
+                if item is None or isinstance(item, (str, int, float, bool))
+            ]
+    for key in ("properties", "$defs"):
+        if isinstance(schema.get(key), dict):
+            projected[key] = {
+                name: judge_parameter_schema(value)
+                for name, value in schema[key].items()
+                if isinstance(value, dict)
+            }
+    for key in ("items", "additionalProperties"):
+        value = schema.get(key)
+        if isinstance(value, dict):
+            projected[key] = judge_parameter_schema(value)
+        elif isinstance(value, bool):
+            projected[key] = value
+    for key in ("anyOf", "oneOf", "allOf", "any_of", "one_of", "all_of"):
+        if isinstance(schema.get(key), list):
+            projected[key] = [judge_parameter_schema(value) for value in schema[key] if isinstance(value, dict)]
+    if isinstance(schema.get("$ref"), str) and schema["$ref"].startswith("#/"):
+        projected["$ref"] = schema["$ref"]
+    return projected
+
+
+def builtin_tool_contracts(bound_tools: list[Any]) -> list[dict[str, Any]]:
+    """Use the same declarations as the actor, restricted to LumiBot built-ins."""
+    import inspect
+
+    from google.adk.tools import FunctionTool
+
+    from lumibot.components.agents.runtime import _function_tools_with_name_aliases
+
+    contracts = []
+    for tool in bound_tools:
+        if tool.source == "mcp" or inspect.unwrap(tool.function).__module__ != "lumibot.components.agents.builtins":
+            continue
+        declaration = _function_tools_with_name_aliases(FunctionTool, [tool])[0]._get_declaration()
+        contract = {"name": tool.name, "description": _judge_contract_text(tool.description)}
+        parameters = declaration.parameters_json_schema or declaration.parameters
+        if parameters is not None:
+            if hasattr(parameters, "model_dump"):
+                parameters = parameters.model_dump(mode="json", exclude_none=True)
+            if isinstance(parameters, dict):
+                contract["parameters"] = judge_parameter_schema(parameters)
+        contracts.append(contract)
+    return contracts
+
+
 def run_judge(
     case: dict[str, Any], transcript: dict[str, Any], judge_model: str, budget: Any
 ) -> tuple[dict[str, Any], Any, float]:
@@ -631,7 +698,14 @@ def run_judge(
         model=judge_model,
         system_prompt=(
             "You are a strict production eval judge. "
-            "Apply the supplied rubric literally and return only the requested JSON."
+            "Apply the supplied rubric literally and return only the requested JSON. "
+            "The runtime-projected builtin_tool_contracts describe the actual LumiBot APIs used in this run. "
+            "Assess payloads against those contracts and the observed effects; a tool may derive parameters "
+            "from verified state when its contract permits that. Do not require the caller to supply fields "
+            "the tool explicitly derives. Aggregate or container order metadata is not an individual leg; "
+            "reconcile exact child assets, sides and quantities instead. Ordered tool_results are evidence "
+            "the agent observed before its final answer. A post-run fixture capture alone cannot justify "
+            "a claimed fill or flat position, but it does not negate earlier observed status and position reads."
         ),
         task_prompt=prompt,
         context=None,
@@ -672,6 +746,7 @@ def execute_repetition(
     fixture = build_fixture(str(case["fixture"]))
     initial_context = {}
     initial_contexts: dict[str, Any] = {}
+    tools_by_name = {}
 
     class BudgetedRuntime:
         def run(self, request):
@@ -679,6 +754,7 @@ def execute_repetition(
 
             initial_context.update(deepcopy(request.runtime_context))
             initial_contexts[request.agent_name] = deepcopy(request.runtime_context)
+            tools_by_name.update({tool.name: tool for tool in request.bound_tools})
             # The manager owns context, skills, rules, tools and outcomes. Only
             # the subscription accounting hook is supplied by the release harness.
             request.model_call_budget = budget.for_scope(
@@ -744,10 +820,13 @@ def execute_repetition(
             **compact_transcript(result, fixture),
             "tool_calls": [{"name": event.tool_name, "payload": event.payload} for event in all_calls],
             "tool_results": [{"name": event.tool_name, "payload": event.payload} for event in all_results],
+            "builtin_tool_contracts": builtin_tool_contracts([
+                tools_by_name[name] for name in sorted({event.tool_name for event in all_calls} & tools_by_name.keys())
+            ]),
             "broker_orders": orders,
-            "broker_orders_timing": "Fixture settlement after the agent final answer; these later fills were not necessarily observed by the agent.",
+            "broker_orders_timing": "Post-run fixture capture can include fills already observed through ordered tool_results. Capture alone does not establish when the agent observed a fill.",
             "broker_orders_before_settlement": production.orders_before_settlement,
-            "positions_timing": "Fixture positions are settled after the final answer; use tool results for agent-observed positions.",
+            "positions_timing": "Post-run positions are captured after final settlement. Use ordered tool_results for positions the agent actually observed before its final answer.",
             "initial_runtime_context": initial_context,
             "initial_runtime_contexts": initial_contexts,
             "execution_outcome": (result.payload or {}).get("execution_outcome"),

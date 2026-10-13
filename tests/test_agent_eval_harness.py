@@ -1685,7 +1685,11 @@ def test_iron_condor_scoring_reports_a_malformed_leg_instead_of_crashing():
     assert any("strike" in failure for failure in score["failures"])
 
 
-def test_rejected_order_attempts_are_not_counted_as_broker_submissions():
+@pytest.mark.parametrize("rejection", [
+    {"ok": False, "tool_error": True},
+    {"error": "Invoking the tool failed because a mandatory input parameter is not present."},
+])
+def test_rejected_order_attempts_are_not_counted_as_broker_submissions(rejection):
     """An order the tool rejected (readiness gate, malformed legs) never reached
     the broker. exactOrderCount and topology score the accepted order; the
     rejected attempt is kept separately and still fails a no-order contract."""
@@ -1701,7 +1705,7 @@ def test_rejected_order_attempts_are_not_counted_as_broker_submissions():
 
     events = [
         event("tool_call", "a", {"legs_json": json.dumps(bad)}),
-        event("tool_result", "a", {"ok": False, "tool_error": True}),
+        event("tool_result", "a", rejection),
         event("tool_call", "b", {"legs_json": json.dumps(_good_condor_legs())}),
         event("tool_result", "b", {"order_type": "credit"}),
     ]

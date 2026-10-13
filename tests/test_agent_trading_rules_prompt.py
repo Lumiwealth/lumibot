@@ -66,3 +66,21 @@ def test_authorized_evidence_work_continues_before_the_final_answer_in_both_role
         assert "An empty catalog lookup requires a bounded refinement or unfiltered catalog lookup before concluding no relevant dataset exists." in prompt
         assert "After a candidate fails a requested constraint, inspect bounded relevant alternatives from the returned inputs before declaring the setup unavailable." in prompt
         assert "Keep trading permission, historical cutoffs, evidence requirements and risk limits unchanged." in prompt
+
+
+def test_execution_claims_use_the_registered_tools_and_returned_identifiers():
+    # RC4 afee: the single-leg actor claimed submission without a tool call,
+    # and another actor called one child order the complete filled package.
+    prompt = _prompt(allow_trading=True)
+    assert "Available order tools in this run:" in prompt
+    assert "orders_submit_order" in prompt
+    assert "An order-submission tool call and its returned acknowledgement are required before claiming submission." in prompt
+    assert "A single child order's fill does not prove that its entire package filled." in prompt
+
+
+def test_indicator_warmup_and_document_versions_keep_the_original_time_basis():
+    # RC4 afee: an artificially short SMA window produced null; a discovered
+    # document timestamp was then converted to an invented earlier instant.
+    prompt = _prompt(allow_trading=False)
+    assert "When no explicit analysis window is requested, leave optional indicator start/end unset" in prompt
+    assert "Never change a publisher timestamp to make a document eligible" in prompt

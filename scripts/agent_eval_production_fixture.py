@@ -249,7 +249,13 @@ def _rejected_order_calls(result):
     return {
         position
         for position, payload in _order_call_outcomes(result).items()
-        if isinstance(payload, dict) and payload.get("tool_error") is True
+        if isinstance(payload, dict) and (
+            payload.get("tool_error") is True
+            # ADK's argument validator rejects a call before the bound tool runs.
+            # Its error-only function response is a machine envelope, not a
+            # broker acknowledgement; retain the attempted call as rejected.
+            or set(payload) == {"error"} and isinstance(payload["error"], str)
+        )
     }
 
 

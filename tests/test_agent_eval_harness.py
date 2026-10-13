@@ -334,10 +334,11 @@ def test_release_runner_rejects_paid_models_despite_credentials(monkeypatch, mod
         evals.select_eval_credentials({model})
 
 
-def test_eval_defaults_use_subscription_for_both_roles_with_medium_reasoning():
+def test_eval_defaults_use_subscription_for_both_roles_with_qualified_role_reasoning():
     assert evals.DEFAULT_ACTING_MODEL == "chatgpt/gpt-6-luna"
-    assert evals.DEFAULT_JUDGE_MODEL == "chatgpt/gpt-6-luna"
+    assert evals.DEFAULT_JUDGE_MODEL == "chatgpt/gpt-6.1-sol"
     assert evals.EVAL_REASONING_EFFORT == "medium"
+    assert evals.JUDGE_REASONING_EFFORT == "high"
     assert evals.estimate_cost(evals.DEFAULT_ACTING_MODEL, {"input_tokens": 10})["estimated_usd"] == 0
 
 
@@ -349,7 +350,7 @@ def synthetic_subscription_for_harness_contracts(monkeypatch, tmp_path):
     monkeypatch.setattr(chatgpt_auth, "available_models", lambda path: [{"slug": "gpt-6-luna"}])
 
 
-def test_acting_and_judge_requests_use_medium_reasoning(monkeypatch):
+def test_acting_and_judge_requests_use_their_explicit_reasoning_levels(monkeypatch):
     from lumibot.components.agents import runtime
     from lumibot.components.agents.schemas import AgentRunResult, AgentTraceEvent
     from scripts.agent_eval_production_fixture import ProductionFixture
@@ -375,8 +376,8 @@ def test_acting_and_judge_requests_use_medium_reasoning(monkeypatch):
     monkeypatch.setattr(runtime, "GoogleADKRuntime", CaptureRuntime)
     case = evals.load_cases({"stock_price_before_order"})[0]
     evals.run_judge(case, {"tool_calls": []}, evals.DEFAULT_JUDGE_MODEL, None)
-    assert seen[0].model == "chatgpt/gpt-6-luna"
-    assert seen[0].reasoning_effort == "medium"
+    assert seen[0].model == "chatgpt/gpt-6.1-sol"
+    assert seen[0].reasoning_effort == "high"
 
 
 def test_judge_contract_projection_uses_actual_builtins_without_private_connection_fields():
@@ -1654,6 +1655,36 @@ class TestTargetPasses:
 
     def test_an_explicit_higher_repeat_still_wins(self):
         assert evals.target_passes(already=0, repeat=5) == 5
+
+
+@pytest.mark.parametrize("limit,fill,expected", [(0.5, 0.6, False), (-0.5, -0.4, False),
+                                               (0.5, 0.4, True), (-0.5, -0.6, True)])
+def test_machine_contract_checks_observed_signed_package_fill_limit(limit, fill, expected):
+    transcript = {"fixture_calls": [], "tool_calls": [], "submissions": [],
+                  "broker_orders": [{"status": "filled", "order_type": "limit",
+                    "legs": [{}, {}], "package_execution": {
+                      "signed_limit_price": limit, "signed_fill_price": fill}}]}
+    result = evals.score_machine_contract({"machineContract": {}}, transcript)
+    assert result["pass"] is expected
+
+
+def test_production_capture_keeps_authoritative_signed_package_execution_prices():
+    from types import SimpleNamespace
+    fixture = evals.build_fixture("open_credit_spread")
+    submit = next(tool for tool in evals.build_tools(fixture) if tool.name == "orders_submit_multileg")
+    try:
+        submit.function(action="close", legs_json=json.dumps([
+            {"symbol": "SPY", "expiration": fixture.expiration, "strike": strike, "right": "put"}
+            for strike in (592, 594)]), price_style="fastest", net_limit_price=0.6,
+            reason="Close the verified three-contract spread using the current executable bid and ask. "
+                   "The full signed positions define the closing legs and quantities. The approved debit "
+                   "limit is sixty cents per spread; do not fill above that limit or add new exposure.")
+        captured = fixture.production.capture(SimpleNamespace(tool_calls=[], tool_results=[]))
+        parent = next(order for order in captured if order.get("legs"))
+        assert parent["package_execution"]["signed_limit_price"] == pytest.approx(0.6)
+        assert parent["package_execution"]["signed_fill_price"] == pytest.approx(0.6)
+    finally:
+        fixture.production.close()
 
 
 def test_order_journal_contract_checks_broker_references():

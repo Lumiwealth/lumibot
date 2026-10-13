@@ -11,8 +11,10 @@
 ## Overview
 
 LumiBot agent evals call the real trading model and a separate real LLM judge.
-Both use the explicitly selected ChatGPT subscription connection, defaulting to
-`chatgpt/gpt-6-luna` on medium reasoning. API-funded model selections are rejected
+Both use the explicitly selected ChatGPT subscription connection. Actors default
+to `chatgpt/gpt-6-luna` on medium reasoning; semantic judges use
+`chatgpt/gpt-6.1-sol` on high reasoning after observed arithmetic/effect errors in
+the lighter judge. API-funded model selections are rejected
 for both roles, including when ordinary provider API keys are present. Connect
 your own account with `python -m lumibot.components.agents.chatgpt_auth login`.
 Review your usage policy in ChatGPT Usage: the connection can use included

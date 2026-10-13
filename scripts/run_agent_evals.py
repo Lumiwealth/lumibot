@@ -8,6 +8,7 @@ import concurrent.futures
 import hashlib
 import importlib.metadata
 import json
+import math
 import os
 import re
 import sys
@@ -28,8 +29,9 @@ CASE_ROOT = REPO_ROOT / "agent_eval_cases"
 # Both real-model roles use the explicitly selected ChatGPT subscription.
 # API-funded actor/judge model selections are rejected before inference.
 DEFAULT_ACTING_MODEL = "chatgpt/gpt-6-luna"
-DEFAULT_JUDGE_MODEL = "chatgpt/gpt-6-luna"
+DEFAULT_JUDGE_MODEL = "chatgpt/gpt-6.1-sol"
 EVAL_REASONING_EFFORT = "medium"
+JUDGE_REASONING_EFFORT = "high"
 DEFAULT_FRESHNESS_DAYS = 90
 # A brand new or changed case must pass three times in a row before it is
 # recorded as established. The ongoing gate then runs an established case
@@ -434,6 +436,17 @@ def score_machine_contract(case: dict[str, Any], transcript: dict[str, Any]) -> 
         ):
             failures.append("execution case produced no broker-simulated fill")
 
+    for order in transcript.get("broker_orders", []):
+        execution = order.get("package_execution")
+        if order.get("status") not in {"fill", "filled"} or not isinstance(execution, dict):
+            continue
+        limit, fill = execution.get("signed_limit_price"), execution.get("signed_fill_price")
+        if (type(limit) not in {int, float} or type(fill) not in {int, float}
+                or not math.isfinite(limit) or not math.isfinite(fill)):
+            failures.append("filled package lacks finite signed limit/fill evidence")
+        elif fill > limit + 1e-9:
+            failures.append("broker-simulated package fill violated its signed limit")
+
     required_skill = case.get("requiredSkill")
     if required_skill:
         skill_loaded = any(
@@ -723,7 +736,7 @@ def run_judge(
         run_timeout_seconds=300,
         max_output_tokens=JUDGE_MAX_OUTPUT_TOKENS,
         model_call_budget=budget,
-        reasoning_effort=EVAL_REASONING_EFFORT,
+        reasoning_effort=JUDGE_REASONING_EFFORT,
     )
     started = time.perf_counter()
     result = GoogleADKRuntime().run(request)

@@ -62,6 +62,12 @@ def test_managed_native_tool_chain_reaches_atomic_option_submission_and_price_ap
             assert result["name"] == trajectory[step-1][0]
             assert not result.get("response", {}).get("tool_error"), result
             assert "error" not in result.get("response", {}), result
+            if result["name"] == "options_calculate_multileg_price":
+                preview = result["response"]
+                assert preview["preview_only"] is True
+                assert preview["price_style"] == price_style
+                assert preview["net_limit_price"] == pytest.approx(-.5 if price_style == "mid" else -.4)
+                assert sum(leg["pricing"]["signed_price"] * leg["quantity"] for leg in preview["legs"]) == pytest.approx(preview["net_limit_price"])
             assert payload["model"] == "gemini-3.5-flash-lite"
         parts = ([{"type": "function_call", "name": trajectory[step][0], "arguments": {
                        **trajectory[step][1],

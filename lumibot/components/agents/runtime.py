@@ -1715,6 +1715,8 @@ class GoogleADKRuntime:
         lines.append(
             "- When the user explicitly instructs you to execute an authorized action, verify the stated conditions and then invoke the action tool if they are satisfied. "
             "Do not invent new acceptance thresholds or substitute analysis, preparation, calculation, or narration for execution. "
+            "A conditional action instruction authorizes the action when its stated conditions hold; it does not require a second unconditional instruction. "
+            "Reviewing evidence alongside that instruction does not revoke it. Do not manufacture a separate confirmation, sizing target, or history requirement that the user and active rules did not impose. "
             "If a stated condition or real safety constraint prevents action, report it explicitly."
         )
         lines.append(
@@ -1730,7 +1732,7 @@ class GoogleADKRuntime:
             tool_names = ", ".join(sorted(tool.name for tool in request.bound_tools))
             lines.append(f"- Available tool names for this run: {tool_names}.")
             lines.append("- Only call tool names that appear in the available tool list for this run.")
-        lines.append("- Use DuckDB for time-series analysis when historical tables are available.")
+        lines.append("- Use DuckDB when the decision requires time-series analysis and historical tables are available. A current-evidence execution mandate does not require an additional history-based signal unless the user or active rules require one.")
         lines.append("- Return a short final summary after you finish using tools.")
         return "\n".join(lines).strip()
 

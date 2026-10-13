@@ -12,6 +12,13 @@ submitting an option order.
 
 ## Core workflow
 
+An instruction to open or close a bounded position when stated checks pass is
+authorization to act once those checks pass. Do not require a second instruction
+or add an unstated history length, signal, risk percentage, or sizing condition.
+Use a permitted contract count within the user's stated cap. Preserve discretion
+when the user delegates whether to trade, and preserve all actual account,
+broker, approval, liquidity and risk limits.
+
 1. Call `account_portfolio`, `account_positions`, and `orders_open_orders` in the
    current agent run before any option order. For options, the injected account
    snapshot does not replace these calls: an option package needs the exact
@@ -37,6 +44,12 @@ submitting an option order.
    Keep one expiration when the structure requires it. Calendar legs may use
    distinct listed expirations only when the user or active rules allow them.
    Never relax the user's limits to find a trade.
+   When no expiration is specified, choosing an eligible listed expiration is
+   part of contract selection; unusable nearer contracts do not disqualify a
+   fully verified later candidate. If a chosen wing has the wrong ordering,
+   correct it from the listed contracts and verify its exact Greeks and quotes
+   before repricing. A recoverable selection error is not proof that valid
+   market evidence is unavailable.
 5. Verify every selected contract individually. Candidate-selection helpers narrow
    the search but do not prove the exact contract's Greeks or quote quality.
 6. Before constructing an opening multi-leg payload, read

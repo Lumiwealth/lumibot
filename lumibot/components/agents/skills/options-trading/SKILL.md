@@ -83,6 +83,11 @@ broker, approval, liquidity and risk limits.
    independently, including entry, exit, adjustment, or cleanup. If atomic
    package submission is unavailable, make a no-trade decision and report that
    broker capability as the blocker.
+   If checks pass for an already-authorized execution, continue from preview to
+   `orders_submit_multileg` with the verified legs and signed limit, then
+   complete the status and position checks below before your final answer.
+   A successful price preview or an intention to submit is not completed execution.
+   If a real condition remains unmet, state that condition and leave the position unchanged.
 8. Capture the returned identifier, inspect that exact order, and reread positions.
    Submission is not proof of a fill, and a fill response alone is not proof that
    the account has the intended final exposure.
@@ -126,6 +131,18 @@ remains.
   discrepancy appears, recheck the exact sides, ratios and price style with the
   pricing tool before deciding the evidence is inconsistent.
 - Reject prices that contradict the structure's economic bounds.
+- For a standard same-expiration credit iron condor with one contract per leg,
+  compute `put_width = short_put - long_put`,
+  `call_width = long_call - short_call`, and
+  `short_gap = short_call - short_put` separately from the verified strikes.
+  The short-strike gap is not a wing width. Check the complete strike ordering
+  and each protective width against the intended structure.
+  Reconcile `credit = -net_limit_price` with the returned signed leg prices.
+  Independently compute `max_loss = max(put_width, call_width) - credit` in
+  those same price units, then scale by the verified contract multiplier and
+  matched package quantity to obtain monetary maximum loss. Compare that loss
+  and the package cash impact against the actual strategy, account and broker
+  limits. Other structures or ratios require their own verified payoff bounds.
 - Choose the price style for the authorized execution goal before submitting.
   A midpoint is a valuation estimate, not an immediately executable quote;
   `best` and `mid` limits can remain pending. For an authorized entry or exit

@@ -196,6 +196,42 @@ def test_options_skill_rebuilds_outward_wings_after_selecting_short_deltas():
     assert "Preserve the requested structure and constraints; never force a trade" in instructions
 
 
+def test_options_skill_reconciles_wing_widths_signed_credit_and_maximum_loss():
+    """RC4 run 932a62f4-bca6-4893-9db4-24c734535cea confused the gap
+    between verified short strikes with a wing width, then stopped at a valid
+    credit preview. Preserve this real failure; this ordinary test checks
+    packaged guidance, not whether a model will execute it correctly.
+    """
+    options_skill = next(skill for skill in load_builtin_skills() if skill.name == "options-trading")
+    instructions = " ".join(options_skill.instructions.split())
+
+    assert "`put_width = short_put - long_put`" in instructions
+    assert "`call_width = long_call - short_call`" in instructions
+    assert "`short_gap = short_call - short_put`" in instructions
+    assert "The short-strike gap is not a wing width" in instructions
+    assert "`credit = -net_limit_price`" in instructions
+    assert "`max_loss = max(put_width, call_width) - credit`" in instructions
+    assert "verified contract multiplier and matched package quantity" in instructions
+    assert "Preserve every user debit cap, minimum credit, risk bound and execution preference" in instructions
+
+
+def test_options_skill_completes_authorized_execution_after_a_valid_preview():
+    """RC4 run 6108d113-61c6-45df-92ad-be6e2fb5982d corrected an
+    inverted wing and obtained a valid credit preview, but ended with an
+    intention to submit rather than an actual order. No mocked actor is run.
+    """
+    options_skill = next(skill for skill in load_builtin_skills() if skill.name == "options-trading")
+    instructions = " ".join(options_skill.instructions.split())
+
+    assert "If checks pass for an already-authorized execution" in instructions
+    assert "continue from preview to `orders_submit_multileg` with the verified legs and signed limit" in instructions
+    assert "complete the status and position checks below before your final answer" in instructions
+    assert "A successful price preview or an intention to submit is not completed execution" in instructions
+    assert "If a real condition remains unmet, state that condition and leave the position unchanged" in instructions
+    assert "Preserve discretion when the user delegates whether to trade" in instructions
+    assert "Preserve the requested structure and constraints; never force a trade" in instructions
+
+
 def test_stock_skill_defines_opening_range_boundaries_and_order_truth():
     stock_skill = next(skill for skill in load_builtin_skills() if skill.name == "stock-trading")
     instructions = " ".join(stock_skill.instructions.split())

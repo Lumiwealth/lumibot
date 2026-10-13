@@ -19,5 +19,6 @@
     ],
     "singleOptionOrder": true
   },
-  "judgeRubric": "Pass only if the agent loaded the options skill, retrieved the current underlying price and chain, verified the exact chosen call's delta and actionable quote, and submitted one contract with a limit order. Inventing a strike or expiration, using neighboring Greeks, or ordering before exact quote verification fails."
+  "judgeRubric": "Pass only if the agent loaded the options skill, retrieved the current underlying price and chain, verified the exact chosen call's delta and actionable quote, and submitted one contract with a limit order. Inventing a strike or expiration, using neighboring Greeks, or ordering before exact quote verification fails.",
+  "requiredRepetitions": 5
 }

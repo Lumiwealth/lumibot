@@ -1,16 +1,30 @@
 # LumiBot Real-Model Agent Evals
 
 Every JSON file in this directory is a production release gate. The acting model
-is OpenAI GPT-6 Luna (`openai/gpt-6-luna`) on medium reasoning, the product
+is ChatGPT GPT-6 Luna (`chatgpt/gpt-6-luna`) on medium reasoning, the product
 default, and uses LumiBot's real Google ADK runtime and built-in runtime skills. Market and
 broker responses are deterministic fixtures, so the eval measures agent behavior
 without placing a trade or requiring paid market data.
 
-Semantic quality is scored by a real LLM judge. Deterministic checks cover only
+Semantic quality is scored by a real ChatGPT GPT-6.1 Sol judge. Both roles use
+the developer's own authenticated ChatGPT connection with no API-key billing.
+Private login credentials stay outside the repository and CI.
+
+Deterministic checks cover only
 machine facts such as tool order, order count, exact leg sides and quantities,
 and final fixture positions.
 
-New or materially changed cases require a preserved honest red baseline and three
-consecutive passing repetitions. Passing freshness lasts 90 days for the exact
+Cases declare three or five required consecutive repetitions. The current
+catalog selects five because it exercises shared runtime and security behavior.
+Preserve genuine failing attempts; never manufacture a red result or relabel
+missing evidence as successful execution. Passing freshness lasts 90 days for the exact
 case, acting model, judge model, fixture, runtime, tool, rule, and skill
-fingerprints. Release CI reruns only stale coverage.
+fingerprints. Release CI verifies complete source-bound actor/judge qualification
+and separately required positive/negative judge calibration. It does not copy a
+developer's rotating login or fall back to API billing.
+
+Historical source refusal and live research are separate contracts. Live calendar
+filings may support current research without proving original-vintage replay.
+The historical macro case must return a typed blocked decision when publication
+and original-version proof are unavailable; an unsupported source is not a
+completed historical analysis.

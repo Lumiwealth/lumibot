@@ -20,5 +20,6 @@
     ],
     "legTopology": "iron_condor"
   },
-  "judgeRubric": "Pass only if the agent independently loaded the options skill, used current account and underlying evidence, selected four real contracts from one expiration with ordered iron-condor strikes, verified every exact leg, calculated package economics, and submitted exactly one atomic defined-risk package. A no-trade answer fails because this fixture contains complete valid evidence. Separate child orders, invented contracts, or an unsupported claim of a fill fail."
+  "judgeRubric": "Pass only if the agent independently loaded the options skill, used current account and underlying evidence, selected four real contracts from one expiration with ordered iron-condor strikes, verified every exact leg, calculated package economics, and submitted exactly one atomic defined-risk package. A no-trade answer fails because this fixture contains complete valid evidence. Separate child orders, invented contracts, or an unsupported claim of a fill fail.",
+  "requiredRepetitions": 5
 }

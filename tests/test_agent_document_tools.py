@@ -9,6 +9,7 @@ Clerk's yearly ZIP index and PDF reports this way.
 
 import io
 import zipfile
+from datetime import datetime, timedelta, timezone
 from types import SimpleNamespace
 
 import httpx
@@ -241,6 +242,43 @@ def test_read_document_tool_finds_lines_and_pages_through_long_text():
 def test_read_document_is_a_network_tool_listed_with_the_builtins():
     assert "read_document" in NETWORK_TOOL_NAMES
     assert "read_document" in {tool.name for tool in BuiltinTools.all()}
+
+
+def test_read_document_returns_actual_byte_hash_and_absolute_backtest_cutoff():
+    import hashlib
+
+    data = b"Original publisher document bytes."
+    strategy = SimpleNamespace(
+        is_backtesting=True,
+        get_datetime=lambda: datetime(2026, 8, 11, 10, 35, tzinfo=timezone(timedelta(hours=-4))),
+    )
+    strategy._agent_web_client = WebClient(
+        transport=httpx.MockTransport(lambda request: httpx.Response(200, content=data)),
+        resolver=lambda host: ["93.184.216.34"],
+    )
+    tool = BuiltinTools.web.read_document().binder(strategy, SimpleNamespace(duckdb=DuckDBQueryLayer(strategy)))
+    result = tool.function(url="https://clerk.example/report.txt")
+    assert result["historical_as_of"] == "2026-08-11T14:35:00+00:00"
+    assert result["sha256"] == hashlib.sha256(data).hexdigest()
+
+
+@pytest.mark.parametrize("clock", [None, datetime(2026, 8, 11, 10, 35), "2026-08-11"])
+def test_read_document_rejects_unverified_historical_clock_before_network(clock):
+    requests = []
+    strategy = SimpleNamespace(is_backtesting=True, get_datetime=lambda: clock)
+
+    def handler(request):
+        requests.append(request)
+        return httpx.Response(200, content=b"Should not be fetched without a historical clock")
+
+    strategy._agent_web_client = WebClient(
+        transport=httpx.MockTransport(handler), resolver=lambda host: ["93.184.216.34"]
+    )
+    tool = BuiltinTools.web.read_document().binder(strategy, SimpleNamespace(duckdb=DuckDBQueryLayer(strategy)))
+    result = tool.function(url="https://clerk.example/report.txt")
+    assert result["ok"] is False
+    assert result["error"]["type"] == "InvalidHistoricalClock"
+    assert requests == []
 
 
 def test_read_document_results_fit_the_agent_tool_result_limit():

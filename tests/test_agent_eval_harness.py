@@ -6,6 +6,7 @@ import os
 import sys
 import uuid
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
@@ -1818,6 +1819,65 @@ def test_harness_error_rows_name_where_the_error_happened_without_its_message():
     assert row["error_location"].startswith("tests/test_agent_eval_harness.py:")
     assert "fail" in row["error_location"]
     assert "secret-looking-key" not in json.dumps(row)
+
+
+def test_retryable_subscription_actor_failure_is_infrastructure_not_a_judged_decision():
+    # Actual RC4 expiration repetition4: no tools, typed subscription failure,
+    # runtime_error/transient/retryable and an incomplete decision.
+    result = SimpleNamespace(payload={
+        "runtime_error": True,
+        "error_class": "SubscriptionModelResponseError",
+        "error_message": "private provider request must not be copied",
+        "execution_outcome": {
+            "status": "runtime_error", "error_category": "transient",
+            "retryability": "retryable", "decision_completed": False,
+        },
+    })
+    observed = evals.actor_infrastructure_failure([result])
+    assert observed == {
+        "error": "SubscriptionModelResponseError", "error_category": "transient",
+        "retryability": "retryable", "actor_index": 0,
+    }
+    assert "private provider request" not in json.dumps(observed)
+
+
+@pytest.mark.parametrize("change", [
+    {"runtime_error": False},
+    {"error_class": "ValueError"},
+    {"execution_outcome": {"status": "tool_error", "error_category": "transient", "retryability": "retryable", "decision_completed": False}},
+    {"execution_outcome": {"status": "runtime_error", "error_category": "authentication", "retryability": "non_retryable", "decision_completed": False}},
+    {"execution_outcome": {"status": "completed_no_action", "error_category": None, "retryability": "not_applicable", "decision_completed": True}},
+])
+def test_actor_failure_classification_preserves_semantic_and_tool_failure_judging(change):
+    payload = {
+        "runtime_error": True, "error_class": "SubscriptionModelResponseError",
+        "execution_outcome": {"status": "runtime_error", "error_category": "transient", "retryability": "retryable", "decision_completed": False},
+    }
+    assert evals.actor_infrastructure_failure([SimpleNamespace(payload={**payload, **change})]) is None
+
+
+def test_native_repetition_preserves_typed_actor_error_without_spending_a_judge_call(monkeypatch):
+    from scripts.agent_eval_production_fixture import ProductionFixture
+
+    result = AgentRunResult(summary="Safe skipped iteration", model=evals.DEFAULT_ACTING_MODEL, events=[])
+    result.payload = {
+        "runtime_error": True, "error_class": "SubscriptionModelResponseError",
+        "execution_outcome": {"status": "runtime_error", "error_category": "transient", "retryability": "retryable", "decision_completed": False},
+    }
+    monkeypatch.setattr(ProductionFixture, "create_agent", lambda *_args, **_kwargs: SimpleNamespace(run=lambda **_kwargs: result))
+
+    def forbidden_judge(*_args, **_kwargs):
+        raise AssertionError("An incomplete provider-failed actor must not call the judge")
+
+    monkeypatch.setattr(evals, "run_judge", forbidden_judge)
+    case = json.loads((evals.CASE_ROOT / "stock_price_before_order.json").read_text())
+    row = evals.execute_repetition(case, repetition=1, fingerprint="test", judge_model=evals.DEFAULT_JUDGE_MODEL, budget=None)
+    assert row["status"] == "error"
+    assert row["error"] == "SubscriptionModelResponseError"
+    assert row["transcript"]["execution_outcome"]["decision_completed"] is False
+    assert row["transcript"]["submissions"] == []
+    assert row["timing_seconds"]["judge"] == 0
+    assert "judge" not in row["usage"]
 
 
 def test_stock_fixture_supports_the_above_five_day_average_premise():

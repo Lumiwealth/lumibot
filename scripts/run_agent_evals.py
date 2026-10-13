@@ -1154,6 +1154,34 @@ def run_judge(
     return parse_judge_json(result.summary or result.text), result, elapsed
 
 
+def actor_infrastructure_failure(actor_results: list[Any]) -> dict[str, Any] | None:
+    """Distinguish typed retryable inference failures from completed decisions.
+
+    The runtime deliberately returns a safe no-op on a provider failure. That
+    no-op is not an actor decision to judge. Preserve it as an error in the
+    append-only eval ledger; only the failed repetition is eligible for retry.
+    Never infer infrastructure failure from the final answer or error text.
+    """
+    for index, result in enumerate(actor_results):
+        payload = result.payload or {}
+        outcome = payload.get("execution_outcome") or {}
+        if (
+            payload.get("runtime_error") is True
+            and payload.get("error_class") in {"SubscriptionModelResponseError", "ManagedAiGatewayError"}
+            and outcome.get("status") in {"runtime_error", "provider_error"}
+            and outcome.get("decision_completed") is False
+            and outcome.get("error_category") in {"transient", "unknown"}
+            and outcome.get("retryability") == "retryable"
+        ):
+            return {
+                "error": payload["error_class"],
+                "error_category": outcome["error_category"],
+                "retryability": "retryable",
+                "actor_index": index,
+            }
+    return None
+
+
 def execute_repetition(
     case: dict[str, Any],
     *,
@@ -1289,6 +1317,25 @@ def execute_repetition(
         }
     finally:
         production.close()
+    actor_failure = actor_infrastructure_failure(actor_results)
+    if actor_failure is not None:
+        acting_model = str(case.get("model") or DEFAULT_ACTING_MODEL)
+        acting_cost = estimate_cost(acting_model, combined_usage(*actor_results))
+        return {
+            "timestamp": utc_text(), "started_at": started_at, "run_id": run_id,
+            "case_id": case["id"], "repetition": repetition, "fingerprint": fingerprint,
+            "status": "error", **actor_failure,
+            "acting_model": acting_model, "judge_model": judge_model,
+            "judge_not_run": "retryable_actor_infrastructure_failure",
+            "transcript": transcript,
+            "usage": {"acting": acting_cost, "estimated_cost_usd": acting_cost["estimated_usd"]},
+            "timing_seconds": {
+                "setup": round(setup_seconds, 3), "queue": 0.0,
+                "model": round(model_seconds, 3), "judge": 0.0,
+                "total": round(setup_seconds + model_seconds, 3),
+            },
+            "external_writes": "fixture_only",
+        }
     machine = score_machine_contract(case, transcript)
     judge, judge_result, judge_seconds = run_judge(
         case, transcript, judge_model,

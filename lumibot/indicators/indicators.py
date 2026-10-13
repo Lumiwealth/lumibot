@@ -252,6 +252,7 @@ class Indicators:
         )
         df = self._full_history(asset, timestep, quote=quote, exchange=exchange)
         if df is None or df.empty:
+            self._record_consumed_input(asset, timestep, None)
             return None
         if not isinstance(df.index, pd.DatetimeIndex) or not df.index.is_monotonic_increasing or not df.index.is_unique:
             raise ValueError("Indicator history requires a unique, increasing DatetimeIndex.")
@@ -265,6 +266,7 @@ class Indicators:
             if df.index.tz is None:
                 raise ValueError("Indicator window history requires timezone-aware timestamps.")
             df = df.loc[(df.index >= window[0]) & (df.index <= window[1])]
+        self._record_consumed_input(asset, timestep, df)
         if df.empty:
             return None
         digest = hashlib.sha256(pd.util.hash_pandas_object(df, index=True).values.tobytes()).hexdigest()
@@ -274,6 +276,12 @@ class Indicators:
             result = self._compute(df, name, kwargs, custom_fn)
             self._cache[key] = (data_tag, result)
         return self._at_current_bar(self._cache[key][1])
+
+    def _record_consumed_input(self, asset, timestep, frame):
+        source = getattr(getattr(self._strategy, "broker", None), "data_source", None)
+        record = getattr(source, "record_indicator_input", None)
+        if callable(record):
+            record(asset=asset, timestep=timestep, frame=frame)
 
     @staticmethod
     def _validate_causal_parameters(kwargs):
@@ -326,7 +334,11 @@ class Indicators:
                 history_kwargs["quote"] = quote
             if exchange is not None:
                 history_kwargs["exchange"] = exchange
-            bars = self._strategy.get_historical_prices(asset, **history_kwargs)
+            # Keep the Strategy owner's asset identity and resampling behavior.
+            # Lightweight strategy-like clients without the private cache API
+            # retain their existing public getter contract.
+            prefetch = getattr(self._strategy, "_prefetch_indicator_history", self._strategy.get_historical_prices)
+            bars = prefetch(asset, **history_kwargs)
         except Exception as exc:
             logger.debug("indicators: get_historical_prices fallback failed for %s: %s", asset, exc)
             bars = None

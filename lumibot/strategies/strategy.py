@@ -4643,6 +4643,14 @@ class Strategy(_Strategy):
             return (multiplier * 30, "day")
         return (multiplier, unit)
 
+    def _prefetch_indicator_history(self, *args, **kwargs):
+        """Populate optional indicator history through normal asset/timeframe handling.
+
+        The indicator records its actual causal input separately. A cache fill
+        ceiling is not a demand for that many decision-input rows.
+        """
+        return self.get_historical_prices(*args, _history_requirement="prefetch", **kwargs)
+
     def get_historical_prices(
         self,
         asset: Union[Asset, str],
@@ -4773,6 +4781,9 @@ class Strategy(_Strategy):
                 raise TypeError("get_historical_prices() got multiple values for keyword argument 'return_polars'")
             kwargs["return_polars"] = args[0]
 
+        history_requirement = kwargs.pop("_history_requirement", "required")
+        if history_requirement not in {"required", "prefetch"}:
+            raise ValueError("Unknown internal history requirement mode")
         return_polars_provided = "return_polars" in kwargs
         return_polars = kwargs.pop("return_polars", False)
         if return_polars_provided:
@@ -4970,7 +4981,7 @@ class Strategy(_Strategy):
                     # If resampling fails, log warning and return original data
                     self.logger.warning(f"Failed to resample data from {actual_timestep} to {original_timestep}: {e}")
 
-        if self.is_backtesting:
+        if self.is_backtesting and history_requirement == "required":
             record_requirement = getattr(ds, "record_history_requirement", None)
             if callable(record_requirement):
                 record_requirement(asset=asset, timestep=original_timestep or actual_timestep,

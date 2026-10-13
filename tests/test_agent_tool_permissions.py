@@ -1234,6 +1234,69 @@ def test_read_only_agent_runtime_can_use_non_trading_tools(tmp_path):
     assert _Runtime.last_request.model_call_id in set(retrieval_rows["model_call_id"])
 
 
+@pytest.mark.parametrize("journal_available", [True, False])
+def test_managed_agent_request_commits_private_intent_before_tool_action(monkeypatch, tmp_path, journal_available):
+    from lumibot.components.agents.runtime import _wrap_agent_tool_callable
+    from lumibot.components.memory import MemoryStore
+
+    monkeypatch.setenv("LUMIBOT_CACHE_FOLDER", str(tmp_path / "cache"))
+    strategy = _Strategy()
+    strategy.vars = _Vars()
+    strategy.parameters = {}
+    strategy.is_backtesting = False
+    strategy.memory = MemoryStore(strategy, root_dir=tmp_path / "memory")
+    runtime = _LongSummaryRuntime()
+    runtime.requests = []
+    agent = AgentManager(strategy).create(
+        name="private_audit", model="chatgpt/gpt-6-luna", allow_trading=False,
+        include_builtin_tools=False, include_builtin_skills=False, _runtime=runtime,
+    )
+    result = agent.run(task_prompt="Inspect permitted evidence.")
+    request = type(runtime).requests[-1]
+    assert request.model_call_id == result.cache_key
+    assert callable(request.tool_journal_callback)
+    calls = []
+
+    def read(account_reference: str):
+        with strategy.memory._connect() as connection:
+            intent = connection.execute(
+                "SELECT event_type, agent_name, model_call_id, text FROM memory_events "
+                "WHERE event_type LIKE 'agent.tool_%' ORDER BY sequence"
+            ).fetchall()
+        assert len(intent) == 1
+        assert intent[0]["event_type"] == "agent.tool_started"
+        assert intent[0]["agent_name"] == "private_audit"
+        assert intent[0]["model_call_id"] == request.model_call_id
+        assert account_reference not in intent[0]["text"]
+        calls.append(account_reference)
+        return {"ok": True}
+
+    if not journal_available:
+        def unavailable(**_arguments):
+            raise RuntimeError("private database path and credentials must not reach the model")
+        monkeypatch.setattr(strategy.memory, "record_agent_tool_action", unavailable)
+        request.tool_journal_callback = agent._tool_journal_callback(request.model_call_id)
+
+    wrapped = _wrap_agent_tool_callable(BoundTool("account_evidence", "Read permitted evidence.", read), {
+        "agent_name": request.agent_name, "model_call_id": request.model_call_id,
+        "tool_calls": [], "tool_journal_callback": request.tool_journal_callback,
+    })
+    outcome = wrapped(account_reference="private-account-fixture", agent_purpose=PRIVATE_TOOL_PURPOSE)
+    if journal_available:
+        assert outcome == {"ok": True}
+        assert calls == ["private-account-fixture"]
+        with strategy.memory._connect() as connection:
+            rows = connection.execute(
+                "SELECT event_type, text FROM memory_events WHERE event_type LIKE 'agent.tool_%' ORDER BY sequence"
+            ).fetchall()
+        assert [row["event_type"] for row in rows] == ["agent.tool_started", "agent.tool_outcome"]
+        assert all("private-account-fixture" not in row["text"] for row in rows)
+    else:
+        assert outcome["error"]["code"] == "tool_journal_unavailable"
+        assert "credentials" not in str(outcome)
+        assert calls == []
+
+
 def test_agent_runtime_memory_notes_are_compacted(monkeypatch, tmp_path):
     from lumibot.components.memory import MemoryStore
     from lumibot.components.notifications import NotificationManager

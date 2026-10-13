@@ -1751,6 +1751,7 @@ class AgentHandle:
     ) -> dict[str, Any]:
         bound_tools = self._ensure_bound_tools()
         return {
+            "agent_tool_contract": "private-purpose-audit-v1",
             "user_system_prompt": self.system_prompt,
             "base_system_prompt": base_system_prompt,
             "effective_system_prompt": effective_system_prompt,
@@ -1885,8 +1886,36 @@ class AgentHandle:
             first_event_latency_ms=_coerce_usage_int(timing.get("call_first_event_latency_ms")),
         )
 
+    def _tool_journal_callback(self, model_call_id: str):
+        memory = getattr(self.manager.strategy, "memory", None)
+        recorder = getattr(memory, "record_agent_tool_action", None)
+        if not callable(recorder):
+            return None
+
+        def record_private_action(record: dict[str, Any]) -> None:
+            recorder(
+                action_id=record["action_id"],
+                tool_name=record["tool_name"],
+                purpose=record["purpose"],
+                status=record["status"],
+                arguments_sha256=record["arguments_sha256"],
+                agent_name=self.name,
+                model_call_id=model_call_id,
+                error_type=record.get("error_code"),
+            )
+
+        return record_private_action
+
     def _replay_cached_side_effects(self, result: AgentRunResult) -> None:
+        from .runtime import _wrap_agent_tool_callable, agent_purpose_parameter_name
+
         bound_tools = {tool.name: tool for tool in self._ensure_bound_tools()}
+        context = {
+            "agent_name": self.name,
+            "model_call_id": result.cache_key,
+            "tool_calls": [],
+            "tool_journal_callback": self._tool_journal_callback(result.cache_key),
+        }
         for event in result.tool_calls:
             tool_name = event.tool_name
             if not tool_name:
@@ -1899,8 +1928,16 @@ class AgentHandle:
             if not bool(tool.metadata.get("replay_on_cache")):
                 continue
             payload = event.payload if isinstance(event.payload, dict) else {}
-            with agent_tool_context({"agent_name": self.name, "model_call_id": result.cache_key}):
-                tool.function(**payload)
+            purpose_name = agent_purpose_parameter_name(inspect.signature(tool.function).parameters)
+            if purpose_name in payload:
+                replayed = _wrap_agent_tool_callable(tool, context)(**payload)
+                if isinstance(replayed, dict) and replayed.get("tool_error") is True:
+                    raise RuntimeError("Cached agent tool replay failed; its completion was not confirmed.")
+            else:
+                # Custom programmatic runtimes do not use ADK's agent argument.
+                # Old ADK cache keys differ through agent_tool_contract above.
+                with agent_tool_context(context):
+                    tool.function(**payload)
 
     def _derive_warnings(self, result: AgentRunResult, runtime_context: dict[str, Any]) -> list[dict[str, Any]]:
         warnings: list[dict[str, Any]] = []
@@ -2228,6 +2265,7 @@ class AgentHandle:
                 include_builtin_skills=self.include_builtin_skills,
                 builtin_skill_fingerprint=skill_fingerprint,
                 model_call_id=cache_key,
+                tool_journal_callback=self._tool_journal_callback(cache_key),
                 provider_prompt_cache_key=_provider_prompt_cache_key(
                     agent_name=self.name,
                     model=model_name,

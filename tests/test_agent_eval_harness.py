@@ -1091,8 +1091,9 @@ def test_resume_rebuilds_missing_freshness_from_completed_matching_ledger(monkey
         ([(1, "pass"), (2, "pass"), (3, "pass"), (4, "pass"), (5, "error")], 3, [5], 5),
     ],
 )
+@pytest.mark.parametrize("force", [False, True])
 def test_resume_schedules_only_missing_or_latest_failed_unique_repetitions(
-    monkeypatch, tmp_path, capsys, attempts, repeat, expected_scheduled, expected_passes
+    monkeypatch, tmp_path, capsys, attempts, repeat, expected_scheduled, expected_passes, force
 ):
     """Normal harness contracts use synthetic rows; they are not real-model evals."""
     from scripts import agent_eval_isolation
@@ -1122,7 +1123,9 @@ def test_resume_schedules_only_missing_or_latest_failed_unique_repetitions(
     monkeypatch.setattr(evals, "execute_repetition", execute)
     state_path = tmp_path / "freshness.json"
     monkeypatch.setattr(evals.sys, "argv", ["runner", "--max-cost-usd", "0", "--repeat", str(repeat),
-        "--output-root", str(tmp_path), "--freshness-state", str(state_path)])
+        "--output-root", str(tmp_path), "--freshness-state", str(state_path)] + (["--force"] if force else []))
+    if force:
+        expected_scheduled = list(range(1, max(repeat, max(rep for rep, _ in attempts)) + 1))
     assert evals.main() == 0
     assert sorted(scheduled) == expected_scheduled
     summary = json.loads(capsys.readouterr().out)

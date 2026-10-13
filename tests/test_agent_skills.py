@@ -597,13 +597,15 @@ def test_web_skill_starts_with_complete_historical_read_sequence():
     assert text.index("For EACH discovered index table") < text.index("Eligibility belongs to")
 
 
-def test_historical_runtime_requires_fetch_arguments_from_computed_manifest():
+def test_historical_runtime_requires_fetch_arguments_from_computed_manifest(tmp_path):
     # Actual c016898e native repeats followed excluded samples or reopened
     # an explicitly future revised page to confirm already-known metadata.
     strategy = _Strategy()
     strategy.is_backtesting = True
     runtime = _CaptureRuntime()
-    agent = AgentManager(strategy).create(name="historical", allow_trading=False, _runtime=runtime)
+    manager = AgentManager(strategy)
+    manager.replay_cache.root = tmp_path / "replay"
+    agent = manager.create(name="historical", allow_trading=False, _runtime=runtime)
     agent.run(task_prompt="Reconstruct historical disclosures without trading.")
     prompt = " ".join(runtime.requests[0].system_prompt.split())
     assert "Fetch arguments must come only from the computed eligible manifest" in prompt

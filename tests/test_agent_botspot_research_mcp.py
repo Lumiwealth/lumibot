@@ -165,7 +165,48 @@ def test_backtest_research_calls_receive_a_hard_point_in_time_ceiling(monkeypatc
         server,
         "get_document",
         {"datasetId": "sec.filings", "documentId": "cik:accession:file"},
-    )["asOf"] == "2025-01-06"
+    )["asOf"] == "2025-01-06T15:30:00Z"
+
+
+@pytest.mark.parametrize("tool_name", ["query_data", "search_documents", "get_document"])
+def test_research_preserves_intraday_ceiling_and_earlier_requested_bound(monkeypatch, tool_name):
+    _configure_hosted_research(monkeypatch)
+    handle = AgentManager(_Strategy()).create(name="researcher", _runtime=_Runtime())
+    server = next(server for server in handle._mcp_servers if server.name == "botspot_research")
+    payload = {"datasetId": "sec.filings", "asOf": "2025-01-06T10:00:00-05:00"}
+    result = handle._bound_remote_tool_payload(server, tool_name, payload)
+    assert result["asOf"] == "2025-01-06T15:00:00Z"
+    assert payload["asOf"] == "2025-01-06T10:00:00-05:00"
+    result = handle._bound_remote_tool_payload(server, tool_name, {"datasetId": "sec.filings"})
+    assert result["asOf"] == "2025-01-06T15:30:00Z"
+
+
+@pytest.mark.parametrize("clock", [None, datetime(2025, 1, 6, 15, 30), "2025-01-06"])
+def test_research_rejects_unknown_or_naive_simulated_clock(monkeypatch, clock):
+    _configure_hosted_research(monkeypatch)
+    strategy = _Strategy()
+    strategy.get_datetime = lambda: clock
+    handle = AgentManager(strategy).create(name="researcher", _runtime=_Runtime())
+    server = next(server for server in handle._mcp_servers if server.name == "botspot_research")
+    with pytest.raises(RuntimeError, match="timezone-aware simulated datetime"):
+        handle._bound_remote_tool_payload(server, "query_data", {"datasetId": "bls.public_series"})
+
+
+@pytest.mark.parametrize("bound", ["2025-01-06T15:00:00", "January 6", "2025-02-31"])
+def test_research_rejects_malformed_requested_ceiling(monkeypatch, bound):
+    _configure_hosted_research(monkeypatch)
+    handle = AgentManager(_Strategy()).create(name="researcher", _runtime=_Runtime())
+    server = next(server for server in handle._mcp_servers if server.name == "botspot_research")
+    with pytest.raises(ValueError, match="asOf"):
+        handle._bound_remote_tool_payload(server, "get_document", {"asOf": bound})
+
+
+def test_research_legacy_date_bound_cannot_overwrite_an_earlier_ceiling(monkeypatch):
+    _configure_hosted_research(monkeypatch)
+    handle = AgentManager(_Strategy()).create(name="researcher", _runtime=_Runtime())
+    server = next(server for server in handle._mcp_servers if server.name == "botspot_research")
+    result = handle._bound_remote_tool_payload(server, "get_document", {"asOf": "2025-01-03"})
+    assert result["asOf"] == "2025-01-03T23:59:59.999999Z"
 
 
 def test_refresh_endpoint_must_share_the_mcp_origin():

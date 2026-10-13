@@ -2885,6 +2885,10 @@ ALPACA_NEWS_DESCRIPTION = (
     "start, end, limit <= 50, include_content, exclude_contentless, page_token, optional content_max_chars, and sort. "
     "In backtests, only use articles at or before the current simulated datetime; if end is omitted, LumiBot uses "
     "the current simulated datetime, and future end times are clamped to avoid look-ahead bias. "
+    "Returned historical rows must have parseable timezone-aware created_at and updated_at timestamps at or before "
+    "the effective end. Later versions and rows with unknown availability are excluded entirely. Inspect "
+    "historical_integrity for excluded counts and coverage limitations; this endpoint does not establish a complete "
+    "original-version archive, and an empty filtered page does not prove that no news existed. "
     "Use a two-step workflow: first scan with include_content=False to read headlines, summaries, timestamps, URLs, "
     "sources, and symbols. Use limit=10-20 for focused single-symbol checks, limit=30-50 for broad market or sector scans, "
     "and use page_token when next_page_token is returned to fetch more pages. Do not trade from one weak or noisy article. If a story matters, call "
@@ -3030,13 +3034,32 @@ def _bind_alpaca_news(strategy: Any, manager: Any) -> BoundTool:
 
         requested_end = str(end)
         lookahead_clamped = False
-        if getattr(strategy, "is_backtesting", False):
+        is_backtesting = bool(getattr(strategy, "is_backtesting", False))
+        historical_as_of: datetime | None = None
+        if is_backtesting:
             parsed_end = _parse_datetime_value(end)
             if parsed_end is not None:
                 comparable_end = _coerce_same_timezone(parsed_end, current_dt)
                 if comparable_end > current_dt:
                     end = current_dt.isoformat()
                     lookahead_clamped = True
+                historical_as_of = min(comparable_end, current_dt)
+            else:
+                return {
+                    "ok": False,
+                    "tool_error": True,
+                    "error": {
+                        "type": "InvalidHistoricalWindow",
+                        "message": "alpaca_news requires a parseable historical end timestamp.",
+                    },
+                    "articles": [],
+                    "count": 0,
+                }
+            # LumiBot normally supplies an aware strategy clock. Keep comparisons
+            # in UTC when a custom strategy supplies a naive clock as UTC.
+            if historical_as_of.tzinfo is None:
+                historical_as_of = historical_as_of.replace(tzinfo=timezone.utc)
+            historical_as_of = historical_as_of.astimezone(timezone.utc)
 
         params: dict[str, Any] = {
             "start": start,
@@ -3062,9 +3085,35 @@ def _bind_alpaca_news(strategy: Any, manager: Any) -> BoundTool:
         normalized_articles: list[dict[str, Any]] = []
         content_available_count = 0
         summary_available_count = 0
-        for article in payload.get("news", []) or []:
+        upstream_articles = payload.get("news", []) or []
+        excluded_counts = {
+            "published_after_as_of": 0,
+            "version_after_as_of": 0,
+            "unverified_availability": 0,
+        }
+        for article in upstream_articles:
             if not isinstance(article, dict):
+                if is_backtesting:
+                    excluded_counts["unverified_availability"] += 1
                 continue
+            if historical_as_of is not None:
+                created_at = _parse_datetime_value(article.get("created_at"))
+                updated_at = _parse_datetime_value(article.get("updated_at"))
+                # created_at describes first publication, not the current body's
+                # version. Exclude the whole mutable row (headline/summary/body)
+                # when its returned version did not exist at the requested time.
+                if created_at is None or created_at.tzinfo is None:
+                    excluded_counts["unverified_availability"] += 1
+                    continue
+                if created_at > historical_as_of:
+                    excluded_counts["published_after_as_of"] += 1
+                    continue
+                if updated_at is None or updated_at.tzinfo is None or updated_at < created_at:
+                    excluded_counts["unverified_availability"] += 1
+                    continue
+                if updated_at > historical_as_of:
+                    excluded_counts["version_after_as_of"] += 1
+                    continue
             raw_content = str(article.get("content") or "")
             raw_summary = str(article.get("summary") or "")
             if raw_content:
@@ -3095,7 +3144,7 @@ def _bind_alpaca_news(strategy: Any, manager: Any) -> BoundTool:
                     normalized["content_truncated"] = False
             normalized_articles.append(normalized)
 
-        return {
+        result = {
             "ok": True,
             "provider": "alpaca",
             "source": "benzinga",
@@ -3115,6 +3164,22 @@ def _bind_alpaca_news(strategy: Any, manager: Any) -> BoundTool:
             "next_page_token": payload.get("next_page_token"),
             "articles": normalized_articles,
         }
+        if historical_as_of is not None:
+            result["historical_integrity"] = {
+                "as_of": historical_as_of.isoformat(),
+                "availability_basis": "provider_created_at_and_updated_at",
+                "upstream_article_count": len(upstream_articles),
+                "excluded_counts": excluded_counts,
+                "original_version_history_available": False,
+                "coverage_complete": False,
+                "limitations": [
+                    "Only returned provider versions with publication and update timestamps at or before as_of are visible.",
+                    "The endpoint does not reconstruct an earlier version of an article updated after as_of.",
+                    "Provider timestamps are availability evidence, not an independently verified original-version archive.",
+                    "This is one filtered provider page; missing articles and an empty page do not prove there was no news. Follow next_page_token when present.",
+                ],
+            }
+        return result
 
     return BoundTool(
         name="alpaca_news",

@@ -1171,6 +1171,15 @@ class RoutedBacktestingPandas(ThetaDataBacktestingPandas):
         return {"observedRoutes": list(observed.values()) if isinstance(observed, dict) else []}
 
     def record_history_requirement(self, *, asset, timestep, requested_bars, bars, timeshift=None):
+        RoutedBacktestingPandas._record_consumed_history(self, asset=asset, timestep=timestep,
+            requested_bars=requested_bars, frame=bars.pandas_df if bars is not None else None, timeshift=timeshift)
+
+    def record_indicator_input(self, *, asset, timestep, frame):
+        """Validate the actual observed indicator inputs, not optional cache size."""
+        RoutedBacktestingPandas._record_consumed_history(self, asset=asset, timestep=timestep,
+            requested_bars=max(1, len(frame)) if frame is not None else 1, frame=frame, timeshift=None)
+
+    def _record_consumed_history(self, *, asset, timestep, requested_bars, frame, timeshift):
         base = asset[0] if isinstance(asset, tuple) else asset
         if self._provider_spec_for_asset(base).provider != "ibkr":
             return
@@ -1184,7 +1193,7 @@ class RoutedBacktestingPandas(ThetaDataBacktestingPandas):
                                                          getattr(getattr(self, "_registry", None), "_adapters", {}).get("ibkr"),
                                                          "_history_as_of", None))
         record_required_history(asset=asset, timestep=timestep, requested_bars=requested_bars,
-                                frame=bars.pandas_df if bars is not None else None, when=self.get_datetime())
+                                frame=frame, when=self.get_datetime())
 
     def resolve_order_asset(self, order, positions):
         if self._provider_spec_for_asset(order.asset).provider != "ibkr":

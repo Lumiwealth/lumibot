@@ -8,6 +8,30 @@ description: Use before reading websites, reports, filings, spreadsheets, CSV fi
 Any website or file can be read with the generic network tools. No tool is
 built for one website.
 
+## Complete historical reading sequence
+
+In a backtest, finish these steps in order before answering:
+
+1. Discover the source's indexes and load their tables. Obtain the full simulated
+   UTC instant from the runtime; do not substitute a filing date or today's date.
+2. For EACH discovered index table, execute a timezone-aware SQL eligibility
+   query against that cutoff, including an annual index and a small supplementary
+   CSV. Select actual identifiers, URLs, document types, normalized instants and
+   original hashes. A name-only query or filing-date sort is not this check.
+3. Build one eligible manifest from those selected rows. Pick the newest eligible
+   baseline and retain every relevant later report. Keep excluded diagnostics out.
+4. Read every eligible document that changes OR confirms the baseline, passing
+   its computed `available_at` and any supplied `expected_sha256` to
+   `read_document`. An eligible administrative supplement must be opened even
+   when its discovery label suggests no holding change. Read its contents first.
+5. Reconcile the baseline and updates by instrument and transaction date. A full
+   sale removes the holding; a purchase absent from the baseline adds a reported
+   holding. Distinguish disclosure times, observation periods and valuation gaps.
+6. Match every relevant manifest identifier to a document actually read before
+   declaring completion. Fetch an unmatched eligible source now, or state the
+   actual retrieval/parsing/availability blocker. Never describe unread contents
+   or claim that filtering an index inspected its linked documents.
+
 ## Historical eligibility comes before reading linked documents
 
 Backtests: the simulated time is a hard wall. A website shows everything

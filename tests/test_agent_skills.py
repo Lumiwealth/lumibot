@@ -553,6 +553,17 @@ def test_web_skill_passes_computed_version_proof_to_document_tool():
     assert "Diagnostic excluded rows never enter the fetch manifest" in text
 
 
+def test_web_skill_starts_with_complete_historical_read_sequence():
+    # Real 964967c6 repetitions either skipped yearly-index eligibility SQL
+    # or described an eligible supplemental report without opening it.
+    skill = next(skill for skill in load_builtin_skills() if skill.name == "web-documents")
+    text = " ".join(skill.instructions.split())
+    assert "For EACH discovered index table" in text
+    assert "Read every eligible document that changes OR confirms the baseline" in text
+    assert "An eligible administrative supplement must be opened" in text
+    assert text.index("For EACH discovered index table") < text.index("Eligibility belongs to")
+
+
 class TestUserSuppliedSkills:
     """Users must be able to bring their own skills, not only switch ours off.
 

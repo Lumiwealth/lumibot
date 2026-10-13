@@ -18,8 +18,8 @@ from pathlib import Path
 from uuid import UUID
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from scripts import run_agent_evals as evals
 from scripts import check_agent_judge_calibration as calibration
+from scripts import run_agent_evals as evals
 from scripts.agent_eval_call_budget import EvalCallBudget
 
 KIND = "lumibot-real-model-qualification"
@@ -80,7 +80,7 @@ def validate_record(record, case, *, runtime_hash, now):
     if not acting_model.startswith("chatgpt/") or record.get("fingerprint") != fingerprint:
         raise ValueError("Qualification source/model fingerprint mismatch")
     rows = record.get("repetitions")
-    if not isinstance(rows, list) or len(rows) < evals.NEW_CASE_REQUIRED_PASSES:
+    if not isinstance(rows, list) or len(rows) < evals.case_required_passes(case):
         raise ValueError("Qualification lacks required unique repetitions")
     repetitions, attempts, call_ids = set(), set(), set()
     for row in rows:
@@ -253,7 +253,7 @@ def build_receipt(rows, call_rows, cases, *, runtime_hash, versions, calibration
     for case in cases:
         fingerprint = evals.case_fingerprint(case, judge_model=evals.DEFAULT_JUDGE_MODEL, runtime_hash=runtime_hash)
         latest = evals.latest_repetition_rows(rows, case["id"], fingerprint)
-        if len(latest) < evals.NEW_CASE_REQUIRED_PASSES or any(row.get("status") != "pass" for row in latest.values()):
+        if len(latest) < evals.case_required_passes(case) or any(row.get("status") != "pass" for row in latest.values()):
             raise ValueError(f"Unqualified or failed case: {case['id']}")
         repetitions = []
         for rep, row in sorted(latest.items()):
@@ -400,6 +400,6 @@ def main():
 if __name__ == "__main__":
     try:
         raise SystemExit(main())
-    except (OSError, ValueError, KeyError, TypeError) as exc:
+    except (OSError, ValueError, KeyError, TypeError, RuntimeError) as exc:
         print(f"Real-model qualification blocked: {exc}. Run the authenticated local evals, review evidence, then create the receipt.", file=sys.stderr)
         raise SystemExit(1) from exc

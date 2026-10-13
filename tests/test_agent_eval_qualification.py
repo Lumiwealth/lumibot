@@ -28,7 +28,8 @@ def native_metadata():
         for role in ("acting", "judge"):
             token = str(uuid4())
             calls.extend([
-                {"kind": "reserve", "id": token, "model": evals.DEFAULT_ACTING_MODEL, "nano_usd": 0,
+                {"kind": "reserve", "id": token,
+                 "model": evals.DEFAULT_ACTING_MODEL if role == "acting" else evals.DEFAULT_JUDGE_MODEL, "nano_usd": 0,
                  "reserved_nano_usd": 0, "max_output_tokens": 100,
                  "timestamp": (started + timedelta(seconds=1)).isoformat(),
                  "scope": {key: row[key] for key in ("case_id", "repetition", "run_id", "fingerprint") } | {"role": role}},

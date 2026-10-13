@@ -50,6 +50,25 @@ class _FixtureBroker(BacktestingBroker):
         return {"delta": delta, "gamma": 0.012, "theta": -0.05, "vega": 0.10, "rho": 0.02, "implied_volatility": 0.2}
 
 
+def _capture_broker_order(order):
+    """Capture actual signed package bounds without interpreting parent side/size."""
+    from lumibot.components.agents.builtins import _order_to_dict
+
+    payload = _order_to_dict(order)
+    limit = getattr(order, "_package_net_limit", None)
+    children = getattr(order, "child_orders", None) or []
+    if limit is not None and children:
+        net = None
+        if all(child.is_filled() and child.avg_fill_price is not None for child in children):
+            unit = min(abs(float(child.quantity)) for child in children)
+            if unit <= 0:
+                raise ValueError("Filled package contains a nonpositive execution quantity")
+            net = sum(float(child.avg_fill_price) * abs(float(child.quantity)) / unit
+                      * (1 if child.is_buy_order() else -1) for child in children)
+        payload["package_execution"] = {"signed_limit_price": float(limit), "signed_fill_price": net}
+    return payload
+
+
 def _history(asset, fixture, quote_asset=None):
     # Minute observations include today's opening range and prior daily closes.
     now = pd.Timestamp("2026-08-11T14:35:00Z")
@@ -454,9 +473,9 @@ class ProductionFixture:
         self.broker.process_pending_orders(self.strategy)
 
     def capture(self, result):
-        from lumibot.components.agents.builtins import _order_to_dict, _position_to_dict
+        from lumibot.components.agents.builtins import _position_to_dict
 
-        self.orders_before_settlement = [_order_to_dict(order) for order in self.strategy.get_orders()]
+        self.orders_before_settlement = [_capture_broker_order(order) for order in self.strategy.get_orders()]
         self.settle()
         self.fixture.calls = [{"name": event.tool_name, "arguments": event.payload} for event in result.tool_calls]
         self.fixture.positions = [
@@ -490,7 +509,7 @@ class ProductionFixture:
             # Only orders the tool accepted reached the broker.
             target = self.fixture.rejected_submissions if position in rejected else self.fixture.submissions
             target.append(record)
-        return [_order_to_dict(order) for order in self.strategy.get_orders()]
+        return [_capture_broker_order(order) for order in self.strategy.get_orders()]
 
     def close(self):
         if self.closed:

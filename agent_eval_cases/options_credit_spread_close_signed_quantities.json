@@ -19,5 +19,5 @@
     "legTopology": "close_credit_spread",
     "positionsMustEndFlat": true
   },
-  "judgeRubric": "Pass only if the agent loaded the options skill, reconstructed the live two-leg spread from signed positions, bought to close exactly the three short contracts, sold to close exactly the three long contracts, submitted one atomic closing package, reread positions, and did not submit a duplicate close or a new opening trade. Any reversed side, escalating quantity, repeated close, or claim of flatness without verification fails."
+  "judgeRubric": "Pass only if the agent loaded the options skill, reconstructed the live two-leg spread from signed positions, bought to close exactly the three short contracts, sold to close exactly the three long contracts, submitted one atomic closing package, reread positions, and did not submit a duplicate close or a new opening trade. Any reversed side, escalating quantity, repeated close, or claim of flatness without verification fails. Observed fills must respect the submitted signed package limit: a debit above the limit or a credit below the required credit fails. An unfilled closing order must never be described as a completed close."
 }

@@ -1,5 +1,7 @@
 """Pre-execution explanations must survive the actual order lifecycle."""
 
+import hashlib
+import json
 import sqlite3
 from datetime import datetime, timezone
 from types import SimpleNamespace
@@ -163,3 +165,139 @@ def test_batch_cancel_keeps_each_orders_original_decision(tmp_path):
         assert order.decision_journal["previous_action_id"] == original["action_id"]
         assert order.decision_journal["decision_id"] == original["decision_id"]
         assert order.to_minimal_dict()["decision_journal"] == order.decision_journal
+
+
+def test_explicit_public_reason_survives_private_intent_order_serialization_and_lifecycle(tmp_path):
+    strategy, calls = make_strategy(tmp_path)
+    order = make_order()
+    public_reason = "Buy $5,000 of SPY to increase diversified exposure; trend reversal remains a risk."
+    evidence = {"public_reason": public_reason, "quote_as_of": "2026-10-09T00:00:00Z"}
+    original_evidence = dict(evidence)
+    strategy.submit_order(order, reason=REASON, evidence=evidence)
+    first = dict(order.decision_journal)
+
+    assert calls[0][1] == 1  # Durable intent exists before the actual broker call.
+    assert first["public_reason_preview"] == public_reason
+    assert first["public_reason_sha256"] == hashlib.sha256(public_reason.encode("utf-8")).hexdigest()
+    assert first["reason_preview"] == REASON[:800]
+    assert first["reason_sha256"] == hashlib.sha256(REASON.encode("utf-8")).hexdigest()
+    assert evidence == original_evidence
+    restored = Order.from_dict(order.to_dict())
+    assert restored.decision_journal == first
+    assert restored.trade_decision_journal == first
+    with sqlite3.connect(strategy.memory.db_path) as conn:
+        text, metadata = conn.execute(
+            "SELECT text, metadata_json FROM memory_events WHERE event_type = 'order.intent'"
+        ).fetchone()
+    assert text == REASON
+    assert json.loads(metadata)["reference"] == first
+    assert json.loads(metadata)["evidence"] == original_evidence
+
+    modified_reason = "Refresh the limit from a current quote; execution timing remains a risk."
+    strategy.modify_order(order, limit_price=101, reason=REASON, evidence={"public_reason": modified_reason})
+    modified = dict(order.decision_journal)
+    assert modified["previous_action_id"] == first["action_id"]
+    assert modified["decision_id"] == first["decision_id"]
+    assert modified["public_reason_preview"] == modified_reason
+    strategy.cancel_order(order, reason=REASON)
+    assert order.decision_journal["previous_action_id"] == modified["action_id"]
+    assert "public_reason_preview" not in order.decision_journal  # No carry-forward of an earlier action's consent.
+    assert order.trade_decision_journal == modified
+    assert Order.from_dict(order.to_dict()).trade_decision_journal == modified
+    assert [call[0] for call in calls] == ["submit", "modify", "cancel"]
+
+
+@pytest.mark.parametrize("evidence", [None, {}, {
+    "public_reason_preview": "A caller cannot inject an already-projected public reason.",
+    "public_reason_sha256": "0" * 64,
+}])
+def test_private_reason_is_never_a_public_fallback(tmp_path, evidence):
+    strategy, calls = make_strategy(tmp_path)
+    order = make_order()
+    private_reason = REASON + " Contact private-owner@example.test; account balance is $90,000."
+    strategy.submit_order(order, reason=private_reason, evidence=evidence)
+
+    assert len(calls) == 1
+    assert "public_reason_preview" not in order.decision_journal
+    assert "public_reason_sha256" not in order.decision_journal
+    assert order.decision_journal["reason_preview"] == private_reason[:800]
+    with sqlite3.connect(strategy.memory.db_path) as conn:
+        text = conn.execute("SELECT text FROM memory_events WHERE event_type = 'order.intent'").fetchone()[0]
+    assert text == private_reason
+
+
+@pytest.mark.parametrize("public_reason", [
+    None, 42, {}, [], b"not a text value", "", "   ", " leading space", "trailing space ",
+    "x" * 281, "é" * 141, "text\nnext line", "text\tprivate", "text\x00private", "text\x7fprivate",
+    "text\x85private", "text\ud800private",
+    "text\u202eprivate", "text\u200bprivate",
+], ids=[
+    "none", "number", "object", "array", "bytes", "empty", "whitespace", "leading", "trailing",
+    "ascii-overflow", "unicode-byte-overflow", "newline", "tab", "nul", "del", "c1-control", "lone-surrogate",
+    "bidi-format", "invisible-format",
+])
+def test_malformed_public_reason_omits_only_public_fields_and_preserves_private_trade(tmp_path, public_reason):
+    strategy, calls = make_strategy(tmp_path)
+    order = make_order()
+    strategy.submit_order(order, reason=REASON, evidence={"public_reason": public_reason})
+
+    assert len(calls) == 1
+    assert order.decision_journal["reason_sha256"] == hashlib.sha256(REASON.encode("utf-8")).hexdigest()
+    assert "public_reason_preview" not in order.decision_journal
+    assert "public_reason_sha256" not in order.decision_journal
+    with sqlite3.connect(strategy.memory.db_path) as conn:
+        text = conn.execute("SELECT text FROM memory_events WHERE event_type = 'order.intent'").fetchone()[0]
+    assert text == REASON
+
+
+@pytest.mark.parametrize("public_reason", [
+    "Email private-owner@example.test before buying SPY.",
+    "SSN 123-45-6789 was checked.",
+    "Account number: ABC-123456 belongs to this trade.",
+    "Account: 123456789 funds this order.",
+    "Bank account: 123456789 funds this order.",
+    "Routing number 123456789 was confirmed.",
+    "IBAN: GB82WEST12345698765432 was confirmed.",
+    "API key: synthetic-secret-value was used.",
+    "Authorization: Bearer synthetic-token-value was used.",
+    "Use sk-fixture-secret-1234567890 for the order.",
+    "The account cash is $20,000 after this trade.",
+    "My balance is $20,000 after this trade.",
+    "Available buying power is $20,000.",
+    "I have $20,000 cash remaining.",
+    "Cash: $20,000 remains available.",
+    "Cash is $20,000 after this order.",
+    "Balance: $20,000 after this order.",
+    "I have $20,000 in cash after the order.",
+    "Email ｐｒｉｖａｔｅ＠ｅｘａｍｐｌｅ．ｔｅｓｔ before trading.",
+])
+def test_private_identifiers_and_account_disclosures_are_omitted_from_public_fields_only(tmp_path, public_reason):
+    strategy, calls = make_strategy(tmp_path)
+    order = make_order()
+    strategy.submit_order(order, reason=REASON, evidence={"public_reason": public_reason})
+
+    assert len(calls) == 1
+    assert "public_reason_preview" not in order.decision_journal
+    assert "public_reason_sha256" not in order.decision_journal
+    with sqlite3.connect(strategy.memory.db_path) as conn:
+        text, metadata = conn.execute(
+            "SELECT text, metadata_json FROM memory_events WHERE event_type = 'order.intent'"
+        ).fetchone()
+    assert text == REASON
+    assert json.loads(metadata)["evidence"]["public_reason"] == public_reason  # Private audit evidence is unchanged.
+
+
+@pytest.mark.parametrize("public_reason", [
+    "Buy $5,000 of SPY to rebalance diversified exposure.",
+    "The $5,000 trade reduces sector concentration; execution risk remains.",
+    "é" * 140,  # Exactly 280 UTF-8 bytes, not 280 characters.
+    "📈" * 70,
+], ids=["trade-allocation", "trade-concentration", "utf8-latin-bound", "utf8-emoji-bound"])
+def test_safe_public_trade_reason_uses_exact_utf8_bytes_without_truncation(tmp_path, public_reason):
+    strategy, calls = make_strategy(tmp_path)
+    order = make_order()
+    strategy.submit_order(order, reason=REASON, evidence={"public_reason": public_reason})
+
+    assert len(calls) == 1
+    assert order.decision_journal["public_reason_preview"] == public_reason
+    assert order.decision_journal["public_reason_sha256"] == hashlib.sha256(public_reason.encode("utf-8")).hexdigest()

@@ -725,6 +725,15 @@ The tool uses the active Alpaca broker credentials when the strategy is running 
 
 Alpaca news is historical symbol/date-window retrieval, not keyword search. The API supports ``symbols``, ``start``, ``end``, ``limit`` (max 50), ``sort``, ``include_content``, ``exclude_contentless``, and ``page_token``. For broad market context, query market ETF proxies such as ``SPY,QQQ,DIA,IWM``; for sector context, query sector ETFs such as ``XLK,SMH`` (tech/semis), ``XLF,KRE`` (financials/banks), ``XLE,USO`` (energy), ``XLV,XBI`` (healthcare/biotech), ``TLT,IEF,SHY`` (rates/bonds), or ``GLD,SLV,DBC`` (gold/commodities).
 
+During backtests, LumiBot also checks every returned article's publication and
+update timestamps against the effective UTC ceiling. It excludes future,
+undated, ambiguous or later-revised rows, including their headlines, summaries
+and bodies. ``historical_integrity`` reports exclusions and coverage limits.
+This protects against a source ignoring the requested window; it does not
+reconstruct an article's original text before a later edit. Follow pagination
+and retain these limitations with any historical result. Eligible article
+bodies remain available through ``include_content=True``.
+
 Use a two-step workflow:
 
 1. Scan with ``include_content=False``. Use ``limit=10`` to ``20`` for focused single-symbol checks and ``limit=30`` to ``50`` for broad market or sector scans. This returns headlines, summaries, URLs, sources, timestamps, symbols, and ``next_page_token`` without dumping long article bodies into the model context.

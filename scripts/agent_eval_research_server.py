@@ -5,7 +5,7 @@ import json
 import re
 import sys
 from pathlib import Path
-from typing import Annotated
+from typing import Annotated, Literal
 
 from mcp.server.fastmcp import FastMCP
 from mcp.types import CallToolResult, TextContent
@@ -109,16 +109,37 @@ def _in_calendar_range(day: str, time_range: dict | None) -> bool:
 
 FILING_DATE = "2026-08-07"
 DOCUMENT_ID = "0000123456:0000123456-26-000042:acme-20260630.htm"
+CATALOG_SOURCES = {
+    "bls.public_series": "BLS",
+    "treasury.fiscaldata": "Treasury",
+    "sec.filings": "SEC",
+}
 
 
 @server.tool()
-def search_data_catalog(query: str = "") -> dict:
+def search_data_catalog(
+    query: Annotated[str, Field(default=None, max_length=200)],
+    source: Annotated[Literal["SEC", "Treasury", "BLS", "BEA", "OFR", "CFTC", "FRB", "BotSpot"], Field(default=None)],
+    limit: Annotated[int, Field(default=None, ge=1, le=50)],
+) -> dict:
     """Find recorded public macro and SEC datasets by topic."""
-    return {
-        "available": True,
-        "datasets": [{"datasetId": key, "source": value["source"]} for key, value in recorded["sources"].items()]
-        + [{"datasetId": "sec.filings", "source": "SEC"}],
-    }
+    # Keep discovery bounded to recorded fixtures; do not claim the complete
+    # live catalog or original-vintage capabilities for these observations.
+    datasets = [
+        {
+            "id": dataset_id,
+            "source": CATALOG_SOURCES[dataset_id],
+            "temporalCapabilities": {
+                "pointInTimeQualified": False,
+                "originalVintageReplay": False,
+                "exactPublicationTime": False,
+                "historicalAvailability": "unqualified",
+            },
+        }
+        for dataset_id in [*recorded["sources"], "sec.filings"]
+        if source is None or CATALOG_SOURCES[dataset_id] == source
+    ][: limit or 20]
+    return {"datasets": datasets, "count": len(datasets)}
 
 
 @server.tool()
@@ -153,7 +174,13 @@ def query_data(
         "asOf": None,
         "pointInTimeQualified": False,
         **value,
-        "rows": [row.copy() for row in value["rows"] if _in_calendar_range(row["observationDate"], timeRange)][:limit],
+        "rows": [
+            row.copy()
+            for row in value["rows"]
+            if _in_calendar_range(
+                row["date"] if datasetId == "treasury.fiscaldata" else row["observationDate"], timeRange
+            )
+        ][:limit],
     }
 
 
@@ -213,8 +240,12 @@ def get_document(
         return _error("invalid_request", "This fixture only records sec.filings")
     if documentId != DOCUMENT_ID:
         return _error("not_found", "No matching document was recorded")
-    if asOf is not None and FILING_DATE > asOf:
-        return _error("invalid_request", "The recorded filing date exceeds the requested asOf date")
+    if asOf is not None:
+        # This recorded document has no SEC archive-index last-modified proof.
+        # Its filingDate cannot establish the availability of these bytes.
+        return _error(
+            "invalid_request", "The document availability date could not be verified for the requested asOf bound"
+        )
     return {
         "datasetId": "sec.filings",
         "documentId": documentId,
@@ -223,7 +254,7 @@ def get_document(
         "filingDate": FILING_DATE,
         "asOf": asOf,
         "pointInTimeQualified": False,
-        "availabilityPolicy": "recorded_calendar_filing_date_only",
+        "availabilityPolicy": "calendar_last_modified_only",
         "limitations": [
             "Only filingDate is recorded; original version, SEC acceptance and last-modified times are unverified."
         ],

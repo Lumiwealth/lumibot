@@ -405,17 +405,29 @@ def _recorded_research_call(server, name, payload):
 def test_recorded_research_schemas_match_the_generic_node_input_fields(recorded_research_server):
     tools = {tool.name: tool for tool in asyncio.run(recorded_research_server.list_tools())}
     fields = {
+        "search_data_catalog": {"query", "source", "limit"},
         "query_data": {"asOf", "datasetId", "entity", "entities", "metrics", "timeRange", "filters", "limit"},
         "search_documents": {"asOf", "datasetId", "entity", "query", "documentTypes", "timeRange", "limit"},
         "get_document": {"asOf", "datasetId", "documentId", "section"},
     }
-    required = {"query_data": ["datasetId"], "search_documents": [], "get_document": ["datasetId", "documentId"]}
+    required = {
+        "search_data_catalog": [],
+        "query_data": ["datasetId"],
+        "search_documents": [],
+        "get_document": ["datasetId", "documentId"],
+    }
     for name, expected in fields.items():
         schema = tools[name].inputSchema
         assert set(schema["properties"]) == expected
         assert schema.get("required", []) == required[name]
-        assert schema["properties"]["asOf"]["type"] == "string"
-        assert "asOf" not in schema.get("required", [])
+        if name != "search_data_catalog":
+            assert schema["properties"]["asOf"]["type"] == "string"
+            assert "asOf" not in schema.get("required", [])
+    catalog = tools["search_data_catalog"].inputSchema["properties"]
+    assert catalog["query"]["maxLength"] == 200
+    assert catalog["source"]["enum"] == ["SEC", "Treasury", "BLS", "BEA", "OFR", "CFTC", "FRB", "BotSpot"]
+    assert catalog["limit"]["minimum"] == 1
+    assert catalog["limit"]["maximum"] == 50
 
 
 @pytest.mark.parametrize(
@@ -495,7 +507,7 @@ def test_recorded_research_invalid_asof_is_a_visible_tool_error(recorded_researc
     assert result.structuredContent["errorCode"] == "invalid_request"
 
 
-def test_recorded_get_preserves_only_known_legacy_calendar_filing_evidence(recorded_research_server):
+def test_recorded_get_refuses_calendar_bound_without_last_modified_metadata(recorded_research_server):
     result = _recorded_research_call(
         recorded_research_server,
         "get_document",
@@ -505,22 +517,102 @@ def test_recorded_get_preserves_only_known_legacy_calendar_filing_evidence(recor
             "asOf": "2026-08-11",
         },
     )
-    assert result["asOf"] == "2026-08-11"
-    assert result["filingDate"] == "2026-08-07"
-    assert result["pointInTimeQualified"] is False
-    assert result["availabilityPolicy"] == "recorded_calendar_filing_date_only"
-    assert "IGNORE ALL PRIOR RULES" in result["text"]
+    # Node's archive-index last-modified check cannot be replaced by filingDate.
+    assert result.isError is True
+    assert result.structuredContent["errorCode"] == "invalid_request"
+    assert result.structuredContent["message"] == (
+        "The document availability date could not be verified for the requested asOf bound"
+    )
     before = _recorded_research_call(
         recorded_research_server,
         "get_document",
         {
             "datasetId": "sec.filings",
-            "documentId": result["documentId"],
+            "documentId": "0000123456:0000123456-26-000042:acme-20260630.htm",
             "asOf": "2026-08-06",
         },
     )
     assert before.isError is True
     assert before.structuredContent["errorCode"] == "invalid_request"
+
+
+def test_recorded_catalog_matches_node_ids_and_unqualified_temporal_capabilities(recorded_research_server):
+    result = _recorded_research_call(recorded_research_server, "search_data_catalog", {})
+    assert set(result) == {"datasets", "count"}
+    assert result["count"] == len(result["datasets"])
+    assert {item["id"] for item in result["datasets"]} == {"bls.public_series", "treasury.fiscaldata", "sec.filings"}
+    for item in result["datasets"]:
+        assert "datasetId" not in item
+        assert item["source"] in {"BLS", "Treasury", "SEC"}
+        assert item["temporalCapabilities"] == {
+            "pointInTimeQualified": False,
+            "originalVintageReplay": False,
+            "exactPublicationTime": False,
+            "historicalAvailability": "unqualified",
+        }
+    limited = _recorded_research_call(recorded_research_server, "search_data_catalog", {"limit": 1})
+    assert limited["count"] == len(limited["datasets"]) == 1
+
+
+@pytest.mark.parametrize(
+    "source,ids",
+    [("BLS", ["bls.public_series"]), ("Treasury", ["treasury.fiscaldata"]), ("SEC", ["sec.filings"]), ("BEA", [])],
+)
+def test_recorded_catalog_honors_node_source_and_limit_inputs(recorded_research_server, source, ids):
+    result = _recorded_research_call(recorded_research_server, "search_data_catalog", {"source": source, "limit": 1})
+    assert [item["id"] for item in result["datasets"]] == ids
+    assert result["count"] == len(ids)
+
+
+@pytest.mark.parametrize("payload", [{"source": "unknown"}, {"limit": 0}, {"limit": 51}, {"query": "x" * 201}])
+def test_recorded_catalog_rejects_inputs_outside_the_node_schema(recorded_research_server, payload):
+    from mcp.server.fastmcp.exceptions import ToolError
+
+    with pytest.raises(ToolError):
+        _recorded_research_call(recorded_research_server, "search_data_catalog", payload)
+
+
+def test_recorded_document_omitted_asof_retains_live_unqualified_read(recorded_research_server):
+    result = _recorded_research_call(
+        recorded_research_server,
+        "get_document",
+        {"datasetId": "sec.filings", "documentId": "0000123456:0000123456-26-000042:acme-20260630.htm"},
+    )
+    assert result["asOf"] is None
+    assert result["pointInTimeQualified"] is False
+    assert result["availabilityPolicy"] == "calendar_last_modified_only"
+    assert result["text"]
+
+
+def test_recorded_treasury_filters_the_actual_node_date_value_projection(recorded_research_server, monkeypatch):
+    from scripts import agent_eval_research_server
+
+    # Ordinary transport contract for the Node projection of the preserved raw
+    # Jan 2, 2025 observation. This adds no observation or publication proof.
+    recorded = json.loads(json.dumps(agent_eval_research_server.recorded))
+    source = recorded["sources"]["treasury.fiscaldata"]
+    assert source["rows"] == [{"date": "2025-01-02", "value": 4.57, "maturity": "BC_10YEAR", "label": "10-year"}]
+    monkeypatch.setattr(agent_eval_research_server, "recorded", recorded)
+    result = _recorded_research_call(
+        recorded_research_server,
+        "query_data",
+        {
+            "datasetId": "treasury.fiscaldata",
+            "metrics": ["10-year"],
+            "filters": {"topic": "yield_curve"},
+            "timeRange": {"startDate": "2025-01-01", "endDate": "2025-01-31"},
+        },
+    )
+    assert result["rows"] == source["rows"]
+    assert result["asOf"] is None
+    assert result["pointInTimeQualified"] is False
+    empty = _recorded_research_call(
+        recorded_research_server,
+        "query_data",
+        {"datasetId": "treasury.fiscaldata", "timeRange": {"startDate": "2026-01-01", "endDate": "2026-08-11"}},
+    )
+    assert empty["rows"] == []
+    assert agent_eval_research_server.recorded["sources"]["treasury.fiscaldata"]["rows"] == source["rows"]
 
 
 def test_recorded_period_selection_preserves_values_without_claiming_an_asof(recorded_research_server):

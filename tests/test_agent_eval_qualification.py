@@ -1,9 +1,9 @@
 """Receipt integrity contracts. Synthetic metadata here is never an agent eval."""
 
+import json
 from copy import deepcopy
 from datetime import datetime, timedelta, timezone
 from uuid import uuid4
-import json
 
 import pytest
 
@@ -95,6 +95,72 @@ def native_metadata():
 def make_receipt(metadata):
     rows, calls, cases, versions, now = metadata
     return build_with_calibration(rows, calls, cases, runtime_hash="source", versions=versions, now=now)
+
+
+def require_five_repetitions(metadata):
+    rows, calls, cases, versions, now = deepcopy(metadata)
+    cases[0]["requiredRepetitions"] = 5
+    fingerprint = evals.case_fingerprint(cases[0], judge_model=evals.DEFAULT_JUDGE_MODEL,
+                                         runtime_hash="source")
+    for row in rows:
+        row["fingerprint"] = fingerprint
+    for call in calls:
+        if "scope" in call:
+            call["scope"]["fingerprint"] = fingerprint
+    return rows, calls, cases, versions, now
+
+
+def test_export_cannot_qualify_three_passes_for_a_five_repeat_case(native_metadata):
+    with pytest.raises(ValueError, match="Unqualified or failed case"):
+        make_receipt(require_five_repetitions(native_metadata))
+
+
+def test_verifier_cannot_accept_a_three_repeat_receipt_for_a_five_repeat_case(native_metadata):
+    receipt = make_receipt(native_metadata)
+    metadata = require_five_repetitions(native_metadata)
+    record = receipt["cases"]["contract"]
+    record["fingerprint"] = metadata[0][0]["fingerprint"]
+    for row in record["repetitions"]:
+        row["fingerprint"] = record["fingerprint"]
+        for call in row["calls"]:
+            call["scope"]["fingerprint"] = record["fingerprint"]
+    with pytest.raises(ValueError, match="required unique repetitions"):
+        qualification.validate_record(record, metadata[2][0], runtime_hash="source", now=metadata[4])
+
+
+@pytest.mark.parametrize("required", [True, 4, 6, "5", None])
+def test_qualification_rejects_invalid_case_repetition_requirements(native_metadata, required):
+    metadata = deepcopy(native_metadata)
+    metadata[2][0]["requiredRepetitions"] = required
+    fingerprint = evals.case_fingerprint(metadata[2][0], judge_model=evals.DEFAULT_JUDGE_MODEL,
+                                         runtime_hash="source")
+    for row in metadata[0]:
+        row["fingerprint"] = fingerprint
+    for call in metadata[1]:
+        if "scope" in call:
+            call["scope"]["fingerprint"] = fingerprint
+    with pytest.raises((ValueError, RuntimeError)):
+        make_receipt(metadata)
+
+
+def test_export_and_verify_accept_five_distinct_qualified_repetitions(native_metadata):
+    metadata = require_five_repetitions(native_metadata)
+    rows, calls, cases, versions, now = metadata
+    original_events = deepcopy(calls[-4:])
+    for rep in (4, 5):
+        row = deepcopy(rows[-1])
+        row.update(repetition=rep, run_id=str(uuid4()))
+        rows.append(row)
+        ids = {}
+        for event in deepcopy(original_events):
+            ids.setdefault(event["id"], str(uuid4()))
+            event["id"] = ids[event["id"]]
+            if "scope" in event:
+                event["scope"].update(repetition=rep, run_id=row["run_id"])
+            calls.append(event)
+    receipt = make_receipt(metadata)
+    assert len(receipt["cases"]["contract"]["repetitions"]) == 5
+    qualification.verify_receipt(receipt, cases, runtime_hash="source", versions=versions, now=now)
 
 
 def test_actor_only_export_cannot_treat_real_judge_calibration_as_advisory(native_metadata):

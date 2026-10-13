@@ -1672,10 +1672,11 @@ class AgentHandle:
         ]
         if str(model).startswith("chatgpt/"):
             lines.extend([
-                "ChatGPT subscription inference is blocked; no API fallback is enabled.",
+                "The ChatGPT request failed; no API-key fallback is enabled.",
                 "Reconnect with: python -m lumibot.components.agents.chatgpt_auth login",
-                "Check plan allowance at: https://chatgpt.com/settings/usage",
-                "Keep paid-credit fallback disabled for subscription-only execution.",
+                "Check included allowance and existing ChatGPT credits at: https://chatgpt.com/settings/usage",
+                "Your account settings determine whether existing ChatGPT credits can be used.",
+                "Zero included allowance alone does not establish that inference is unavailable.",
             ])
         elif category == "auth":
             lines.extend(

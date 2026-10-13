@@ -628,7 +628,7 @@ def test_release_runner_rejects_paid_models_despite_credentials(monkeypatch, mod
 def test_eval_defaults_use_subscription_for_both_roles_with_qualified_role_reasoning():
     assert evals.DEFAULT_ACTING_MODEL == "chatgpt/gpt-6-luna"
     assert evals.DEFAULT_JUDGE_MODEL == "chatgpt/gpt-6.1-sol"
-    assert evals.EVAL_REASONING_EFFORT == "medium"
+    assert evals.EVAL_REASONING_EFFORT == "high"
     assert evals.JUDGE_REASONING_EFFORT == "high"
     assert evals.estimate_cost(evals.DEFAULT_ACTING_MODEL, {"input_tokens": 10})["estimated_usd"] == 0
 
@@ -649,7 +649,7 @@ def test_acting_and_judge_requests_use_their_explicit_reasoning_levels(monkeypat
     production = ProductionFixture(evals.build_fixture("flat_stock_account"))
     try:
         handle = production.create_agent(evals.load_cases({"stock_price_before_order"})[0], None)
-        assert handle.reasoning_effort == "medium"
+        assert handle.reasoning_effort == evals.EVAL_REASONING_EFFORT == "high"
     finally:
         production.close()
 

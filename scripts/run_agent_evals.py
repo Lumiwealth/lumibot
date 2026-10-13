@@ -31,7 +31,7 @@ CASE_ROOT = REPO_ROOT / "agent_eval_cases"
 # API-funded actor/judge model selections are rejected before inference.
 DEFAULT_ACTING_MODEL = "chatgpt/gpt-6-luna"
 DEFAULT_JUDGE_MODEL = "chatgpt/gpt-6.1-sol"
-EVAL_REASONING_EFFORT = "medium"
+EVAL_REASONING_EFFORT = "high"
 JUDGE_REASONING_EFFORT = "high"
 DEFAULT_FRESHNESS_DAYS = 90
 # A brand new or changed case must pass three times in a row before it is

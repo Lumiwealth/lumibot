@@ -630,6 +630,8 @@ class ProductionFixture:
         self.manager.replay_cache.remote_cache = _NoRemoteCache()
 
     def create_agent(self, case, runtime, *, name="trader", allow_trading=True, system_prompt=None):
+        from scripts.run_agent_evals import EVAL_REASONING_EFFORT
+
         rules = self.root / "rules.json"
         rules.write_text(json.dumps(case.get("rules") or {"version": 1, "rules": []}), encoding="utf-8")
         servers = []
@@ -651,7 +653,7 @@ class ProductionFixture:
             mcp_servers=servers,
             allow_trading=False if self.fixture.name == "research_live_available" else allow_trading,
             allow_network=bool(case.get("allowNetwork")),
-            reasoning_effort=None if str(case["model"]).startswith("gemini") else "medium",
+            reasoning_effort=None if str(case["model"]).startswith("gemini") else EVAL_REASONING_EFFORT,
         )
 
     def tools(self):

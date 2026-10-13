@@ -133,6 +133,90 @@ def test_production_execution_cannot_pass_without_observed_fill_or_completed_dec
     assert evals.score_machine_contract(case, transcript)["pass"]
 
 
+def blocked_research_contract():
+    required = [{"name": name, "code": "unsupported_capability"} for name in ("query_data", "search_documents")]
+    case = {"machineContract": {"expectedDecisionCompleted": False, "requiredFailedTools": required}}
+    transcript = {
+        "fixture_calls": [{"name": requirement["name"]} for requirement in required],
+        "tool_calls": [],
+        "submissions": [],
+        "execution_outcome": {"decision_completed": False},
+        "tool_results": [{"name": requirement["name"], "payload": {
+            "tool_error": True, "ok": False, "error": {"code": requirement["code"]},
+        }} for requirement in required],
+    }
+    return case, transcript
+
+
+@pytest.mark.parametrize("wrapped", [False, True])
+def test_deliberate_blocked_decision_requires_actual_typed_failed_tools(wrapped):
+    case, transcript = blocked_research_contract()
+    if wrapped:
+        for result in transcript["tool_results"]:
+            result["payload"] = {"result": result["payload"]}
+    assert evals.score_machine_contract(case, transcript)["pass"] is True
+
+
+@pytest.mark.parametrize("mutation", [
+    "missing-outcome", "missing-completion", "completed", "string-completion", "numeric-completion",
+    "missing-results", "missing-required-result", "wrong-tool", "missing-error-code", "wrong-error-code",
+    "missing-tool-error", "false-tool-error", "string-tool-error", "missing-ok", "true-ok", "numeric-ok",
+    "fixture-only-failure",
+])
+def test_deliberate_blocked_decision_rejects_missing_or_mismatched_machine_evidence(mutation):
+    case, transcript = blocked_research_contract()
+    payload = transcript["tool_results"][0]["payload"]
+    if mutation == "missing-outcome":
+        del transcript["execution_outcome"]
+    elif mutation == "missing-completion":
+        transcript["execution_outcome"] = {}
+    elif mutation in {"completed", "string-completion", "numeric-completion"}:
+        transcript["execution_outcome"]["decision_completed"] = {
+            "completed": True, "string-completion": "false", "numeric-completion": 0,
+        }[mutation]
+    elif mutation in {"missing-results", "missing-required-result"}:
+        transcript["tool_results"] = [] if mutation == "missing-results" else transcript["tool_results"][1:]
+    elif mutation == "wrong-tool":
+        transcript["tool_results"][0]["name"] = "get_document"
+    elif mutation == "missing-error-code":
+        del payload["error"]["code"]
+    elif mutation == "wrong-error-code":
+        payload["error"]["code"] = "unauthorized"
+    elif mutation == "missing-tool-error":
+        del payload["tool_error"]
+    elif mutation in {"false-tool-error", "string-tool-error"}:
+        payload["tool_error"] = False if mutation == "false-tool-error" else "true"
+    elif mutation == "missing-ok":
+        del payload["ok"]
+    elif mutation in {"true-ok", "numeric-ok"}:
+        payload["ok"] = True if mutation == "true-ok" else 0
+    elif mutation == "fixture-only-failure":
+        transcript["fixture_calls"][0]["result"] = payload
+        transcript["tool_results"] = transcript["tool_results"][1:]
+    assert evals.score_machine_contract(case, transcript)["pass"] is False
+
+
+@pytest.mark.parametrize("failed_tools", [None, [], {}, [{"name": "query_data"}], [{"code": "unsupported_capability"}]])
+def test_blocked_completion_is_not_an_unconditional_exemption(failed_tools):
+    case, transcript = blocked_research_contract()
+    case["machineContract"]["requiredFailedTools"] = failed_tools
+    assert evals.score_machine_contract(case, transcript)["pass"] is False
+
+
+def test_duplicate_required_failed_tools_need_distinct_observed_results():
+    case, transcript = blocked_research_contract()
+    case["machineContract"]["requiredFailedTools"] = [case["machineContract"]["requiredFailedTools"][0]] * 2
+    transcript["tool_results"] = transcript["tool_results"][:1]
+    assert evals.score_machine_contract(case, transcript)["pass"] is False
+
+
+def test_default_execution_contract_still_rejects_incomplete_production_decisions():
+    _, transcript = blocked_research_contract()
+    assert evals.score_machine_contract({"machineContract": {}}, transcript)["pass"] is False
+    transcript["execution_outcome"]["decision_completed"] = True
+    assert evals.score_machine_contract({"machineContract": {}}, transcript)["pass"] is True
+
+
 def test_only_complete_current_injected_account_evidence_can_replace_redundant_reads():
     context = {
         "current_datetime": "2026-08-11T14:35:00Z",
@@ -793,6 +877,64 @@ def test_freshness_accepts_the_explicitly_selected_actor_and_judge(monkeypatch):
     assert not evals.is_fresh(state, "case", "selected-contract", 90)
 
 
+@pytest.mark.parametrize("passes,expected", [(3, False), (4, False), (5, True)])
+def test_freshness_uses_the_selected_cases_required_passes(passes, expected):
+    record = {
+        "fingerprint": "five-pass-contract",
+        "passed_at": evals.utc_text(),
+        "consecutive_passes": passes,
+        "acting_model": evals.DEFAULT_ACTING_MODEL,
+        "judge_model": evals.DEFAULT_JUDGE_MODEL,
+    }
+    assert evals.is_fresh({"cases": {"case": record}}, "case", "five-pass-contract", 90, required=5) is expected
+
+
+def test_preflight_selection_cannot_reuse_three_passes_for_a_five_pass_case(monkeypatch, tmp_path, capsys):
+    from scripts import agent_eval_isolation, agent_eval_subscription_budget
+
+    case = {"id": "five-pass-preflight", "model": evals.DEFAULT_ACTING_MODEL, "requiredRepetitions": 5}
+    monkeypatch.setattr(agent_eval_isolation, "configure_fixture_environment", lambda *args, **kwargs: None)
+    monkeypatch.setattr(evals, "select_eval_credentials", lambda models: ["chatgpt-plan"])
+    monkeypatch.setattr(evals, "load_cases", lambda ids: [case])
+    monkeypatch.setattr(evals, "preflight", lambda *args: None)
+    monkeypatch.setattr(evals, "preflight_production_fixtures", lambda cases: None)
+    monkeypatch.setattr(evals, "runtime_fingerprint", lambda: "unit-runtime")
+    monkeypatch.setattr(agent_eval_subscription_budget, "SubscriptionCallBudget",
+                        lambda *args, **kwargs: pytest.fail("Preflight must not create an inference budget"))
+    fingerprint = evals.case_fingerprint(case, judge_model=evals.DEFAULT_JUDGE_MODEL, runtime_hash="unit-runtime")
+    state_path = tmp_path / "freshness.json"
+    evals.write_json_atomic(state_path, {"cases": {case["id"]: {
+        "fingerprint": fingerprint, "passed_at": evals.utc_text(), "consecutive_passes": 3,
+        "acting_model": evals.DEFAULT_ACTING_MODEL, "judge_model": evals.DEFAULT_JUDGE_MODEL,
+    }}})
+    monkeypatch.setattr(evals.sys, "argv", ["runner", "--preflight-only", "--gate", "--max-cost-usd", "0",
+        "--freshness-state", str(state_path), "--output-root", str(tmp_path / "run")])
+
+    assert evals.main() == 0
+    report = json.loads(capsys.readouterr().out)
+    assert report["fresh_case_ids"] == []
+    assert report["selected_case_count"] == 1
+    assert report["paid_calls"] == 0
+
+
+@pytest.mark.parametrize("metadata", [
+    {"requiredRepetitions": 4}, {"requiredRepetitions": True}, {"requiredRepetitions": "5"},
+    {"machineContract": {"expectedDecisionCompleted": False}},
+    {"machineContract": {"expectedDecisionCompleted": "false"}},
+    {"machineContract": {"requiredFailedTools": [{"name": "query_data"}]}},
+])
+def test_invalid_case_repetition_and_failed_decision_metadata_fail_before_auth_catalog(monkeypatch, metadata):
+    from lumibot.components.agents import chatgpt_auth
+
+    case = {"id": "invalid-machine-metadata", "model": evals.DEFAULT_ACTING_MODEL,
+            "fixture": "research_available", "systemPrompt": "Inspect.", "taskPrompt": "Inspect.",
+            "judgeRubric": "Judge actual evidence.", "machineContract": {}, **metadata}
+    monkeypatch.setattr(chatgpt_auth, "available_models",
+                        lambda *args: pytest.fail("Invalid metadata must fail before reading the auth catalog"))
+    with pytest.raises(RuntimeError):
+        evals.preflight([case], evals.DEFAULT_JUDGE_MODEL, 0)
+
+
 def test_fresh_gate_preserves_original_pass_time_without_spending(tmp_path, monkeypatch):
     # main() rebuilds the process environment for the fixture. Give it a
     # private copy and a synthetic key so it neither clears the real test
@@ -1166,26 +1308,28 @@ def test_resume_rebuilds_missing_freshness_from_completed_matching_ledger(monkey
 
 
 @pytest.mark.parametrize(
-    "attempts,repeat,expected_scheduled,expected_passes",
+    "attempts,repeat,expected_scheduled,expected_passes,required",
     [
-        ([(1, "pass"), (2, "fail"), (3, "pass")], 3, [2], 3),
-        ([(1, "pass"), (2, "pass"), (3, "fail")], 3, [3], 3),
-        ([(1, "pass"), (1, "pass"), (1, "pass")], 3, [2, 3], 3),
-        ([(1, "pass"), (2, "pass"), (3, "pass"), (2, "fail")], 3, [2], 3),
-        ([(5, "pass"), (3, "pass"), (1, "pass"), (4, "pass"), (2, "pass")], 5, [], 5),
-        ([(1, "pass"), (2, "pass"), (3, "pass"), (4, "fail")], 3, [4], 4),
-        ([(1, "pass"), (2, "pass"), (3, "pass"), (4, "pass"), (5, "error")], 3, [5], 5),
+        ([(1, "pass"), (2, "fail"), (3, "pass")], 3, [2], 3, 3),
+        ([(1, "pass"), (2, "pass"), (3, "fail")], 3, [3], 3, 3),
+        ([(1, "pass"), (1, "pass"), (1, "pass")], 3, [2, 3], 3, 3),
+        ([(1, "pass"), (2, "pass"), (3, "pass"), (2, "fail")], 3, [2], 3, 3),
+        ([(5, "pass"), (3, "pass"), (1, "pass"), (4, "pass"), (2, "pass")], 5, [], 5, 3),
+        ([(1, "pass"), (2, "pass"), (3, "pass"), (4, "fail")], 3, [4], 4, 3),
+        ([(1, "pass"), (2, "pass"), (3, "pass"), (4, "pass"), (5, "error")], 3, [5], 5, 3),
+        ([(1, "pass"), (2, "pass"), (3, "pass")], 1, [4, 5], 5, 5),
+        ([(1, "pass"), (2, "pass"), (3, "pass"), (6, "incomplete")], 1, [4, 5, 6], 6, 5),
     ],
 )
 @pytest.mark.parametrize("force", [False, True])
 def test_resume_schedules_only_missing_or_latest_failed_unique_repetitions(
-    monkeypatch, tmp_path, capsys, attempts, repeat, expected_scheduled, expected_passes, force
+    monkeypatch, tmp_path, capsys, attempts, repeat, expected_scheduled, expected_passes, required, force
 ):
     """Normal harness contracts use synthetic rows; they are not real-model evals."""
     from scripts import agent_eval_isolation
     from scripts.agent_eval_subscription_budget import SubscriptionCallBudget
 
-    case = {"id": "unique-resume-contract", "model": evals.DEFAULT_ACTING_MODEL}
+    case = {"id": "unique-resume-contract", "model": evals.DEFAULT_ACTING_MODEL, "requiredRepetitions": required}
     monkeypatch.setattr(agent_eval_isolation, "configure_fixture_environment", lambda root, **kwargs: None)
     monkeypatch.setattr(evals, "select_eval_credentials", lambda models: ["chatgpt-plan"])
     monkeypatch.setattr(evals, "load_cases", lambda ids: [case])
@@ -1211,7 +1355,7 @@ def test_resume_schedules_only_missing_or_latest_failed_unique_repetitions(
     monkeypatch.setattr(evals.sys, "argv", ["runner", "--max-cost-usd", "0", "--repeat", str(repeat),
         "--output-root", str(tmp_path), "--freshness-state", str(state_path)] + (["--force"] if force else []))
     if force:
-        expected_scheduled = list(range(1, max(repeat, max(rep for rep, _ in attempts)) + 1))
+        expected_scheduled = list(range(1, max(repeat, required, max(rep for rep, _ in attempts)) + 1))
     assert evals.main() == 0
     assert sorted(scheduled) == expected_scheduled
     summary = json.loads(capsys.readouterr().out)
@@ -1740,6 +1884,21 @@ class TestTargetPasses:
 
     def test_an_explicit_higher_repeat_still_wins(self):
         assert evals.target_passes(already=0, repeat=5) == 5
+
+    @pytest.mark.parametrize("already,repeat,expected", [(0, 1, 5), (3, 1, 5), (4, 1, 5), (5, 1, 1), (0, 7, 7)])
+    def test_five_pass_cases_preserve_establishment_and_selected_repeat(self, already, repeat, expected):
+        assert evals.target_passes(already, repeat, required=5) == expected
+
+
+@pytest.mark.parametrize("case,expected", [({}, 3), ({"requiredRepetitions": 3}, 3), ({"requiredRepetitions": 5}, 5)])
+def test_case_required_passes_exports_the_single_metadata_policy(case, expected):
+    assert evals.case_required_passes(case) == expected
+
+
+@pytest.mark.parametrize("required", [None, True, False, 1, 4, 6, 3.0, 5.0, "3", "5", [], {}])
+def test_case_required_passes_rejects_unqualified_metadata(required):
+    with pytest.raises(RuntimeError):
+        evals.case_required_passes({"requiredRepetitions": required})
 
 
 @pytest.mark.parametrize("limit,fill,expected", [(0.5, 0.6, False), (-0.5, -0.4, False),

@@ -3,11 +3,63 @@
 from copy import deepcopy
 from datetime import datetime, timedelta, timezone
 from uuid import uuid4
+import json
 
 import pytest
 
 from scripts import qualify_agent_evals as qualification
 from scripts import run_agent_evals as evals
+
+
+@pytest.fixture(autouse=True)
+def maintained_contract_controls(monkeypatch, tmp_path):
+    # Tiny labeled metadata stays in ordinary contracts, never the real eval catalog.
+    controls = [{"id": "accept-control", "case_id": "contract", "expected": True,
+                 "required_repetitions": 3, "transcript": {"private": "never exported calibration"}},
+                {"id": "reject-control", "case_id": "contract", "expected": False,
+                 "required_repetitions": 3, "transcript": {"private": "never exported calibration"}}]
+    path = tmp_path / "control-catalog.json"
+    path.write_text(json.dumps(controls))
+    monkeypatch.setattr(qualification, "CALIBRATION_CATALOG_PATH", path)
+
+
+def calibration_metadata(cases, now, runtime_hash="source"):
+    controls = qualification.load_calibration_catalog(cases)
+    case_map = {case["id"]: case for case in cases}
+    rows, calls, attempt = [], [], str(uuid4())
+    for control in controls:
+        fingerprint = qualification.calibration.control_fingerprint(control, case_map[control["case_id"]], runtime_hash)
+        for rep in range(1, control["required_repetitions"] + 1):
+            started = now - timedelta(minutes=4 - rep / 10)
+            row = {"id": control["id"], "case_id": control["case_id"], "repetition": rep,
+                   "run_id": attempt, "fingerprint": fingerprint, "runtime_fingerprint": runtime_hash,
+                   "started_at": started.isoformat(), "timestamp": (started + timedelta(seconds=20)).isoformat(),
+                   "status": "pass", "passed": True, "expected": control["expected"],
+                   "judge_model": evals.DEFAULT_JUDGE_MODEL, "judge": {"pass": control["expected"]},
+                   "private": "never exported calibration"}
+            rows.append(row)
+            token = str(uuid4())
+            calls.extend([
+                {"kind": "reserve", "id": token, "model": evals.DEFAULT_JUDGE_MODEL, "nano_usd": 0,
+                 "reserved_nano_usd": 0, "max_output_tokens": 100,
+                 "timestamp": (started + timedelta(seconds=1)).isoformat(),
+                 "scope": {"case_id": control["id"], "repetition": rep, "run_id": attempt,
+                           "fingerprint": fingerprint, "role": "judge_calibration"}},
+                {"kind": "settle", "id": token, "nano_usd": 0,
+                 "settled_at": (started + timedelta(seconds=10)).isoformat(),
+                 "usage": {"input_tokens": 12, "cached_input_tokens": 3, "output_tokens": 4, "thinking_tokens": 1}},
+            ])
+    summary = {"kind": "judge-calibration", "runtime_fingerprint": runtime_hash,
+               "judge_model": evals.DEFAULT_JUDGE_MODEL, "passed": len(rows), "failed": 0,
+               "errors": 0, "missing": 0, "actor_runs": 0, "external_writes": 0, "creates_case_freshness": False}
+    return rows, calls, summary
+
+
+def build_with_calibration(rows, calls, cases, *, runtime_hash, versions, now):
+    calibration_rows, calibration_calls, summary = calibration_metadata(cases, now, runtime_hash)
+    return qualification.build_receipt(rows, [*calls, *calibration_calls], cases, runtime_hash=runtime_hash,
+                                       versions=versions, now=now, calibration_rows=calibration_rows,
+                                       calibration_summary=summary)
 
 
 @pytest.fixture
@@ -42,12 +94,27 @@ def native_metadata():
 
 def make_receipt(metadata):
     rows, calls, cases, versions, now = metadata
-    return qualification.build_receipt(rows, calls, cases, runtime_hash="source", versions=versions, now=now)
+    return build_with_calibration(rows, calls, cases, runtime_hash="source", versions=versions, now=now)
+
+
+def test_actor_only_export_cannot_treat_real_judge_calibration_as_advisory(native_metadata):
+    rows, calls, cases, versions, now = native_metadata
+    with pytest.raises(ValueError):
+        qualification.build_receipt(rows, calls, cases, runtime_hash="source", versions=versions, now=now)
+
+
+def test_actor_only_receipt_cannot_satisfy_the_release_verifier(native_metadata):
+    receipt = make_receipt(native_metadata)
+    receipt.pop("calibration", None)
+    with pytest.raises(ValueError):
+        qualification.verify_receipt(receipt, native_metadata[2], runtime_hash="source",
+                                     versions=native_metadata[3], now=native_metadata[4])
 
 
 def test_export_requires_native_actor_and_judge_and_keeps_transcripts_private(native_metadata):
     receipt = make_receipt(native_metadata)
-    assert receipt["call_allowance"] == {"max_calls": 500, "consumed_calls": 6}
+    # Both native actor/judge repetitions and independent calibration use one cap.
+    assert receipt["call_allowance"] == {"max_calls": 500, "consumed_calls": 12}
     assert "never exported" not in evals.stable_json(receipt)
     qualification.verify_receipt(receipt, native_metadata[2], runtime_hash="source",
                                  versions=native_metadata[3], now=native_metadata[4])
@@ -108,7 +175,7 @@ def test_export_rejects_unsafe_native_metadata(native_metadata, change):
     elif change == "paid_header":
         calls[0]["funding"] = "api"
     with pytest.raises((ValueError, KeyError, TypeError)):
-        qualification.build_receipt(rows, calls, cases, runtime_hash="source", versions=versions, now=now)
+        build_with_calibration(rows, calls, cases, runtime_hash="source", versions=versions, now=now)
 
 
 @pytest.mark.parametrize("change", ["missing_catalog", "wrong_sdk", "wrong_source", "unknown_field", "missing_calls"])
@@ -146,13 +213,20 @@ def test_failed_export_invalidates_prior_green_receipt(native_metadata, tmp_path
     receipt_path = tmp_path / "qualification.json"
     evals.write_json_atomic(receipt_path, make_receipt(native_metadata))
     rows.append({**rows[0], "status": "fail"})
-    for name, values in (("ledger.jsonl", rows), ("model_calls.jsonl", calls)):
+    calibration_rows, calibration_calls, summary = calibration_metadata(cases, now)
+    calibration_root = tmp_path / "calibration"
+    for row in calibration_rows:
+        evals.append_jsonl(calibration_root / "ledger.jsonl", row)
+    evals.write_json_atomic(calibration_root / "summary.json", summary)
+    for name, values in (("ledger.jsonl", rows), ("model_calls.jsonl", [*calls, *calibration_calls])):
         for value in values:
             evals.append_jsonl(tmp_path / name, value)
     monkeypatch.setattr(qualification.evals, "load_cases", lambda: cases)
     monkeypatch.setattr(qualification.evals, "runtime_fingerprint", lambda: "source")
     monkeypatch.setattr(qualification.evals, "sdk_versions", lambda: versions)
     monkeypatch.setattr(qualification.sys, "argv", ["qualify", "create", "--output-root", str(tmp_path),
+                                                   "--calibration-output-root", str(calibration_root),
+                                                   "--model-call-ledger", str(tmp_path / "model_calls.jsonl"),
                                                    "--receipt", str(receipt_path)])
     with pytest.raises(ValueError):
         qualification.main()
@@ -183,7 +257,7 @@ def test_later_orphan_native_call_cannot_revive_old_passes(native_metadata):
     calls.append({**calls[1], "id": str(uuid4()), "timestamp": (now - timedelta(seconds=1)).isoformat(),
                   "scope": {**calls[1]["scope"], "run_id": str(uuid4())}})
     with pytest.raises(ValueError):
-        qualification.build_receipt(rows, calls, cases, runtime_hash="source", versions=versions, now=now)
+        build_with_calibration(rows, calls, cases, runtime_hash="source", versions=versions, now=now)
 
 
 def test_older_or_unrelated_orphan_still_consumes_allowance_without_poisoning_recovered_passes(native_metadata):
@@ -192,8 +266,8 @@ def test_older_or_unrelated_orphan_still_consumes_allowance_without_poisoning_re
                   "scope": {**calls[1]["scope"], "run_id": str(uuid4())}})
     calls.append({**calls[1], "id": str(uuid4()), "timestamp": (now - timedelta(seconds=1)).isoformat(),
                   "scope": {**calls[1]["scope"], "run_id": str(uuid4()), "fingerprint": "other-source"}})
-    receipt = qualification.build_receipt(rows, calls, cases, runtime_hash="source", versions=versions, now=now)
-    assert receipt["call_allowance"]["consumed_calls"] == 8
+    receipt = build_with_calibration(rows, calls, cases, runtime_hash="source", versions=versions, now=now)
+    assert receipt["call_allowance"]["consumed_calls"] == 14
 
 
 def test_resume_recovers_newer_native_orphan_as_incomplete_without_forgiving_calls(native_metadata):
@@ -219,3 +293,157 @@ def test_resume_does_not_recover_old_source_or_older_native_orphans(native_metad
     calls.append({**calls[1], "id": str(uuid4()), "timestamp": (now - timedelta(seconds=1)).isoformat(),
                   "scope": {**calls[1]["scope"], "run_id": str(uuid4()), "fingerprint": "other-source"}})
     assert not evals.recover_native_incomplete_attempts(rows, calls, {"contract": rows[0]["fingerprint"]})
+
+
+@pytest.mark.parametrize("change", [
+    "missing_control", "missing_repetition", "failed_latest", "incomplete_latest", "newer_orphan",
+    "wrong_source", "wrong_runtime", "wrong_case", "wrong_label", "wrong_verdict", "missing_calls",
+    "unsettled", "no_usage", "empty_usage", "api_model", "paid_cost", "actor_scope", "duplicate_call",
+    "before_attempt", "future", "stale", "external_writes", "native_write", "actor_runs", "creates_freshness",
+    "summary_errors", "summary_missing",
+])
+def test_calibration_export_requires_complete_independent_native_judgment(native_metadata, change):
+    rows, calls, cases, versions, now = deepcopy(native_metadata)
+    controls, judge_calls, summary = calibration_metadata(cases, now)
+    if change == "missing_control":
+        controls = [row for row in controls if row["id"] != "reject-control"]
+    elif change == "missing_repetition":
+        del controls[1]
+    elif change in {"failed_latest", "incomplete_latest"}:
+        controls.append({**controls[0], "status": "fail" if change == "failed_latest" else "incomplete", "passed": False})
+    elif change == "newer_orphan":
+        judge_calls.append({**judge_calls[0], "id": str(uuid4()), "timestamp": (now - timedelta(seconds=1)).isoformat(),
+                            "scope": {**judge_calls[0]["scope"], "run_id": str(uuid4())}})
+    elif change == "wrong_source":
+        controls[0]["fingerprint"] = "other-source"
+    elif change == "wrong_runtime":
+        controls[0]["runtime_fingerprint"] = "other-runtime"
+    elif change == "wrong_case":
+        controls[0]["case_id"] = "other-case"
+    elif change == "wrong_label":
+        controls[0]["expected"] = False
+    elif change == "wrong_verdict":
+        controls[0]["judge"]["pass"] = False
+    elif change == "missing_calls":
+        judge_calls = []
+    elif change == "unsettled":
+        del judge_calls[1]
+    elif change == "no_usage":
+        del judge_calls[1]["usage"]
+    elif change == "empty_usage":
+        judge_calls[1]["usage"].update(output_tokens=0, thinking_tokens=0)
+    elif change == "api_model":
+        judge_calls[0]["model"] = "openai/gpt-6-luna"
+    elif change == "paid_cost":
+        judge_calls[1]["nano_usd"] = 1
+    elif change == "actor_scope":
+        judge_calls[0]["scope"]["role"] = "acting"
+    elif change == "duplicate_call":
+        judge_calls += deepcopy(judge_calls[:2])
+    elif change == "before_attempt":
+        judge_calls[0]["timestamp"] = (now - timedelta(minutes=20)).isoformat()
+    elif change == "future":
+        controls[0]["timestamp"] = (now + timedelta(days=1)).isoformat()
+    elif change == "stale":
+        controls[0]["timestamp"] = (now - timedelta(days=91)).isoformat()
+    elif change == "native_write":
+        controls[0]["external_writes"] = 1
+    elif change in {"external_writes", "actor_runs"}:
+        summary[change] = 1
+    elif change == "creates_freshness":
+        summary["creates_case_freshness"] = True
+    elif change == "summary_errors":
+        summary["errors"] = 1
+    elif change == "summary_missing":
+        summary["missing"] = 1
+    with pytest.raises((ValueError, KeyError, TypeError)):
+        qualification.build_receipt(rows, [*calls, *judge_calls], cases, runtime_hash="source", versions=versions,
+                                    now=now, calibration_rows=controls, calibration_summary=summary)
+
+
+@pytest.mark.parametrize("change", [
+    "missing_control", "missing_repetition", "wrong_verdict", "wrong_label", "no_usage", "actor_scope",
+    "source", "future", "stale", "private_field", "external_writes", "actor_reused",
+])
+def test_cloud_verifier_requires_the_same_calibration_contract(native_metadata, change):
+    receipt = make_receipt(native_metadata)
+    record = receipt["calibration"]["controls"]["accept-control"]
+    row = record["repetitions"][0]
+    if change == "missing_control":
+        del receipt["calibration"]["controls"]["reject-control"]
+    elif change == "missing_repetition":
+        record["repetitions"].pop()
+    elif change == "wrong_verdict":
+        row["judge_pass"] = False
+    elif change == "wrong_label":
+        row["expected"] = False
+    elif change == "no_usage":
+        del row["calls"][0]["usage"]
+    elif change == "actor_scope":
+        row["calls"][0]["scope"]["role"] = "acting"
+    elif change == "source":
+        record["fingerprint"] = "other-source"
+    elif change == "future":
+        row["timestamp"] = (native_metadata[4] + timedelta(days=1)).isoformat()
+    elif change == "stale":
+        row["timestamp"] = (native_metadata[4] - timedelta(days=91)).isoformat()
+    elif change == "private_field":
+        row["transcript"] = {"private": "must stay private"}
+    elif change == "external_writes":
+        receipt["calibration"]["external_writes"] = 1
+    elif change == "actor_reused":
+        row["run_id"] = receipt["cases"]["contract"]["repetitions"][0]["run_id"]
+        row["calls"][0]["scope"]["run_id"] = row["run_id"]
+    with pytest.raises(ValueError):
+        qualification.verify_receipt(receipt, native_metadata[2], runtime_hash="source",
+                                     versions=native_metadata[3], now=native_metadata[4])
+
+
+@pytest.mark.parametrize("change", ["negative_only", "positive_only", "no_repetition_policy", "duplicate_id", "new_control", "changed_control"])
+def test_maintained_calibration_catalog_cannot_be_omitted_or_changed(native_metadata, change):
+    receipt = make_receipt(native_metadata)
+    controls = json.loads(qualification.CALIBRATION_CATALOG_PATH.read_text())
+    if change == "negative_only":
+        controls = [row for row in controls if not row["expected"]]
+    elif change == "positive_only":
+        controls = [row for row in controls if row["expected"]]
+    elif change == "no_repetition_policy":
+        del controls[0]["required_repetitions"]
+    elif change == "duplicate_id":
+        controls.append(deepcopy(controls[0]))
+    elif change == "new_control":
+        controls.append({**controls[0], "id": "new-control"})
+    else:
+        controls[0]["transcript"] = {"different": "source evidence"}
+    qualification.CALIBRATION_CATALOG_PATH.write_text(json.dumps(controls))
+    with pytest.raises(ValueError):
+        qualification.verify_receipt(receipt, native_metadata[2], runtime_hash="source",
+                                     versions=native_metadata[3], now=native_metadata[4])
+
+
+def test_high_risk_control_requires_all_five_real_judge_repetitions(native_metadata):
+    controls = json.loads(qualification.CALIBRATION_CATALOG_PATH.read_text())
+    controls[1]["required_repetitions"] = 5
+    qualification.CALIBRATION_CATALOG_PATH.write_text(json.dumps(controls))
+    rows, calls, cases, versions, now = native_metadata
+    calibration_rows, calibration_calls, summary = calibration_metadata(cases, now)
+    receipt = qualification.build_receipt(rows, [*calls, *calibration_calls], cases, runtime_hash="source",
+        versions=versions, now=now, calibration_rows=calibration_rows, calibration_summary=summary)
+    assert len(receipt["calibration"]["controls"]["reject-control"]["repetitions"]) == 5
+    incomplete = [row for row in calibration_rows if row["id"] != "reject-control" or row["repetition"] <= 3]
+    with pytest.raises(ValueError):
+        qualification.build_receipt(rows, [*calls, *calibration_calls], cases, runtime_hash="source",
+            versions=versions, now=now, calibration_rows=incomplete, calibration_summary=summary)
+
+
+def test_new_calibration_attempt_invalidates_an_older_publishable_receipt(native_metadata, tmp_path):
+    receipt = make_receipt(native_metadata)
+    path = tmp_path / "qualification.json"
+    evals.write_json_atomic(path, receipt)
+    fingerprint = receipt["calibration"]["controls"]["reject-control"]["fingerprint"]
+    qualification.invalidate_receipt(path, {"reject-control": fingerprint}, runtime_hash="source")
+    invalidated = json.loads(path.read_text())
+    assert invalidated["invalidated"]["calibration_control_ids"] == ["reject-control"]
+    with pytest.raises(ValueError):
+        qualification.verify_receipt(invalidated, native_metadata[2], runtime_hash="source",
+                                     versions=native_metadata[3], now=native_metadata[4])

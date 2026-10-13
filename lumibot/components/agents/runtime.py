@@ -144,24 +144,53 @@ def _clone_tool_callable(wrapper: Any, name: str) -> Any:
     return alias
 
 
-def _wrap_tool_callable(tool: BoundTool, tool_context: dict[str, Any] | None = None):
+def _wrap_tool_callable(
+    tool: BoundTool,
+    tool_context: dict[str, Any] | None = None,
+    *,
+    _purpose: str | None = None,
+):
     original = tool.function
 
     def wrapper(*args, **kwargs):
         result: Any
+        call_record = None
+        calls = None
+        if _purpose is not None and isinstance(tool_context, dict):
+            calls = tool_context.setdefault("tool_calls", [])
+            if isinstance(calls, list):
+                # This is the existing attempt trace, not a durable journal.
+                # Record intent before invocation; do not claim success yet.
+                call_record = {
+                    "tool_name": tool.name,
+                    "arguments": _json_safe_value(dict(kwargs or {})),
+                    "purpose": _purpose,
+                    "status": "started",
+                }
+                calls.append(call_record)
+        invocation_context = tool_context
+        if _purpose is not None:
+            invocation_context = {**(tool_context or {}), "tool_purpose": _purpose}
         try:
-            with agent_tool_context(tool_context):
+            with agent_tool_context(invocation_context):
                 result = _json_safe_value(original(*args, **kwargs))
         except Exception as exc:
             result = _tool_error_payload(tool.name, kwargs, exc)
         if isinstance(tool_context, dict):
-            calls = tool_context.setdefault("tool_calls", [])
+            if _purpose is None:
+                calls = tool_context.setdefault("tool_calls", [])
             if isinstance(calls, list):
-                call_record = {
-                    "tool_name": tool.name,
-                    "arguments": _json_safe_value(dict(kwargs or {})),
-                    "ok": not (isinstance(result, dict) and result.get("tool_error") is True),
-                }
+                success = not (isinstance(result, dict) and result.get("tool_error") is True)
+                if call_record is None:
+                    call_record = {
+                        "tool_name": tool.name,
+                        "arguments": _json_safe_value(dict(kwargs or {})),
+                        "ok": success,
+                    }
+                    calls.append(call_record)
+                else:
+                    call_record["ok"] = success
+                    call_record["status"] = "completed" if success else "failed"
                 if tool.name in {"account_positions", "orders_open_orders"} and isinstance(result, dict):
                     call_record["coverage"] = {
                         key: _json_safe_value(result.get(key))
@@ -177,7 +206,6 @@ def _wrap_tool_callable(tool: BoundTool, tool_context: dict[str, Any] | None = N
                             "snapshot_id",
                         )
                     }
-                calls.append(call_record)
         return result
 
     wrapper.__name__ = _tool_function_name(tool.name)
@@ -190,6 +218,60 @@ def _wrap_tool_callable(tool: BoundTool, tool_context: dict[str, Any] | None = N
     annotations = getattr(original, "__annotations__", None)
     if isinstance(annotations, dict):
         wrapper.__annotations__ = dict(annotations)
+    return wrapper
+
+
+def _wrap_agent_tool_callable(tool: BoundTool, tool_context: dict[str, Any] | None = None):
+    """Add private purpose only to the agent-facing callable declaration.
+
+    Public MCP schemas and ordinary BoundTool functions retain their contracts.
+    Colliding domain arguments retain their names and values; only this adapter's
+    independently named argument is consumed before entering cache/domain code.
+    """
+    ordinary = _wrap_tool_callable(tool, tool_context)
+    signature = inspect.signature(ordinary)
+    purpose_name = "agent_purpose"
+    suffix = 2
+    while purpose_name in signature.parameters:
+        purpose_name = f"agent_purpose_{suffix}"
+        suffix += 1
+    parameters = list(signature.parameters.values())
+    purpose_parameter = inspect.Parameter(purpose_name, inspect.Parameter.KEYWORD_ONLY, annotation=str)
+    position = next((i for i, parameter in enumerate(parameters) if parameter.kind is inspect.Parameter.VAR_KEYWORD), len(parameters))
+    parameters.insert(position, purpose_parameter)
+    context = tool_context if tool_context is not None else {}
+
+    def wrapper(*args, **kwargs):
+        supplied = kwargs.pop(purpose_name, None)
+        try:
+            if not isinstance(supplied, str) or not supplied.strip():
+                raise ValueError(f"{purpose_name} requires an explicit nonempty private purpose.")
+            purpose = supplied.strip()
+            try:
+                byte_count = len(purpose.encode("utf-8"))
+            except UnicodeEncodeError as exc:
+                raise ValueError(f"{purpose_name} must be valid UTF-8 text.") from exc
+            if byte_count > 500 or any(ord(char) < 32 or 127 <= ord(char) <= 159 for char in purpose):
+                raise ValueError(f"{purpose_name} must be a short single-line purpose within 500 UTF-8 bytes.")
+            if not isinstance(context.setdefault("tool_calls", []), list):
+                raise ValueError("Agent tool attempt trace is unavailable; the tool was not invoked.")
+        except ValueError as exc:
+            result = _tool_error_payload(tool.name, kwargs, exc)
+            calls = context.setdefault("tool_calls", [])
+            if isinstance(calls, list):
+                calls.append({"tool_name": tool.name, "arguments": _json_safe_value(dict(kwargs)), "status": "failed", "ok": False})
+            return result
+        return _wrap_tool_callable(tool, context, _purpose=purpose)(*args, **kwargs)
+
+    wrapper.__name__ = ordinary.__name__
+    wrapper.__qualname__ = ordinary.__qualname__
+    wrapper.__signature__ = signature.replace(parameters=parameters)
+    wrapper.__annotations__ = {**getattr(ordinary, "__annotations__", {}), purpose_name: str}
+    wrapper.__doc__ = (
+        f"{tool.description}\n\nAgent-only argument {purpose_name}: Provide a short explicit private purpose "
+        "before invoking this tool (one line, at most 500 UTF-8 bytes). This is private audit metadata, "
+        "not a domain argument or a public Community reason."
+    )
     return wrapper
 
 
@@ -228,7 +310,7 @@ def _function_tools_with_name_aliases(
     tools: list[Any] = []
     seen_names: set[str] = set()
     for bound in bound_tools:
-        wrapper = _wrap_tool_callable(bound, tool_context)
+        wrapper = _wrap_agent_tool_callable(bound, tool_context)
         canonical = wrapper.__name__
         if canonical in seen_names or not _is_provider_safe_function_name(canonical):
             continue
@@ -1449,6 +1531,20 @@ class GoogleADKRuntime:
         lines.append("")
         lines.append("General rules:")
         lines.append("- Use tools for structured data and trading actions.")
+        lines.append(
+            "- When the user explicitly instructs you to execute an authorized action, verify the stated conditions and then invoke the action tool if they are satisfied. "
+            "Do not invent new acceptance thresholds or substitute analysis, preparation, calculation, or narration for execution. "
+            "If a stated condition or real safety constraint prevents action, report it explicitly."
+        )
+        lines.append(
+            "- Preserve discretion when the user requests analysis or delegates the choice of whether and what to trade; do not treat analysis as an execution instruction."
+        )
+        lines.append(
+            "- Report an action as submitted only after its action tool succeeds and returns the action's identifier. Preparation or an intended order is not a submission."
+        )
+        lines.append(
+            "- Report fills only from observed status or position evidence; never infer a fill from submission or planned quantities or prices."
+        )
         if request.bound_tools:
             tool_names = ", ".join(sorted(tool.name for tool in request.bound_tools))
             lines.append(f"- Available tool names for this run: {tool_names}.")

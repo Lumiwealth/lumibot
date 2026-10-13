@@ -252,7 +252,7 @@ class Indicators:
         )
         df = self._full_history(asset, timestep, quote=quote, exchange=exchange)
         if df is None or df.empty:
-            self._record_consumed_input(asset, timestep, None)
+            self._record_consumed_input(asset, timestep, None, quote=quote)
             return None
         if not isinstance(df.index, pd.DatetimeIndex) or not df.index.is_monotonic_increasing or not df.index.is_unique:
             raise ValueError("Indicator history requires a unique, increasing DatetimeIndex.")
@@ -266,7 +266,7 @@ class Indicators:
             if df.index.tz is None:
                 raise ValueError("Indicator window history requires timezone-aware timestamps.")
             df = df.loc[(df.index >= window[0]) & (df.index <= window[1])]
-        self._record_consumed_input(asset, timestep, df)
+        self._record_consumed_input(asset, timestep, df, quote=quote)
         if df.empty:
             return None
         digest = hashlib.sha256(pd.util.hash_pandas_object(df, index=True).values.tobytes()).hexdigest()
@@ -277,8 +277,16 @@ class Indicators:
             self._cache[key] = (data_tag, result)
         return self._at_current_bar(self._cache[key][1])
 
-    def _record_consumed_input(self, asset, timestep, frame):
-        source = getattr(getattr(self._strategy, "broker", None), "data_source", None)
+    def _record_consumed_input(self, asset, timestep, frame, *, quote=None):
+        normalize = getattr(self._strategy, "_sanitize_user_asset", None)
+        asset = normalize(asset) if callable(normalize) else asset
+        broker = getattr(self._strategy, "broker", None)
+        source = getattr(broker, "data_source", None)
+        if getattr(broker, "option_source", None) is not None and getattr(asset, "asset_type", None) == "option":
+            source = broker.option_source
+        pair = getattr(self._strategy, "crypto_assets_to_tuple", None)
+        if callable(pair):
+            asset = pair(asset, quote if quote is not None else getattr(self._strategy, "quote_asset", None))
         record = getattr(source, "record_indicator_input", None)
         if callable(record):
             record(asset=asset, timestep=timestep, frame=frame)

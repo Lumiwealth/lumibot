@@ -72,3 +72,23 @@ def test_indicator_consumed_input_still_rejects_real_missing_rows():
         get_datetime=lambda: frame.index[-1], _registry=SimpleNamespace(_adapters={}))
     RoutedBacktestingPandas.record_indicator_input(source, asset=asset, timestep="day", frame=frame)
     assert len(ibkr_history_health_snapshot()["required_failures"]) == 1
+
+
+def test_string_asset_is_normalized_before_input_validation():
+    asset, _, source, strategy = fixture_strategy()
+    strategy._sanitize_user_asset = lambda value: asset if value == "SPY" else value
+    original = source.record_indicator_input
+    def record(**kwargs):
+        assert kwargs["asset"] == asset
+        original(**kwargs)
+    source.record_indicator_input = record
+    assert Indicators(strategy).custom("mean", lambda df: df.close.rolling(2).mean(), "SPY") == 13
+
+
+def test_option_inputs_are_validated_by_the_selected_option_source():
+    asset, _, option_source, strategy = fixture_strategy()
+    asset = Asset("SPY", "option", strike=500, right="call")
+    strategy.broker.option_source = option_source
+    strategy.broker.data_source = SimpleNamespace(record_indicator_input=lambda **_: pytest.fail("wrong source"))
+    assert Indicators(strategy).custom("mean", lambda df: df.close.rolling(2).mean(), asset) == 13
+    assert len(option_source.inputs) == 1

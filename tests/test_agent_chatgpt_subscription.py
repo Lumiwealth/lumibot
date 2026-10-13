@@ -1,6 +1,5 @@
 """Subscription auth and transport contracts; no model or credential network calls."""
 import json
-import os
 import time
 
 import pytest
@@ -83,10 +82,130 @@ def test_subscription_call_budget_enforces_calls_across_resume(tmp_path):
     assert resumed.snapshot()["usage"]["input_tokens"] == 5
 
 
+def test_subscription_qualification_call_ceiling_is_shared_and_explicit(tmp_path):
+    from scripts.agent_eval_subscription_budget import (
+        MAX_SUBSCRIPTION_QUALIFICATION_CALLS,
+        SubscriptionCallBudget,
+    )
+
+    assert MAX_SUBSCRIPTION_QUALIFICATION_CALLS == 1500
+    default = SubscriptionCallBudget(tmp_path / "default.jsonl")
+    planned = SubscriptionCallBudget(tmp_path / "planned.jsonl", max_calls=1500)
+    assert default.header["max_calls"] == 500
+    assert planned.header["max_calls"] == 1500
+    assert planned.snapshot()["funding"] == "chatgpt-plan"
+    assert planned.snapshot()["api_spend_usd"] == 0
+
+
+@pytest.mark.parametrize("invalid", [0, -1, True, False, 1.5, "1500", None, float("inf"), float("nan"), 1501])
+def test_subscription_qualification_rejects_invalid_or_excessive_caps_before_writing(tmp_path, invalid):
+    from scripts.agent_eval_subscription_budget import SubscriptionCallBudget
+
+    path = tmp_path / "not-created" / "calls.jsonl"
+    with pytest.raises(ValueError):
+        SubscriptionCallBudget(path, max_calls=invalid)
+    assert not path.parent.exists()
+
+
+def test_subscription_new_attempt_cannot_resize_or_rewrite_an_existing_500_call_ledger(tmp_path):
+    from scripts.agent_eval_subscription_budget import SubscriptionCallBudget
+
+    path = tmp_path / "original.jsonl"
+    original = SubscriptionCallBudget(path)
+    settled = original.reserve("chatgpt/gpt-6-luna", 100)
+    original.settle(settled, {"input_tokens": 5, "output_tokens": 2})
+    original.reserve("chatgpt/gpt-6-luna", 100)
+    before = path.read_bytes()
+    counts = original.snapshot()
+    with pytest.raises(ValueError, match="contract changed"):
+        SubscriptionCallBudget(path, max_calls=1500)
+    assert path.read_bytes() == before
+    resumed = SubscriptionCallBudget(path)
+    assert resumed.snapshot() == counts
+    assert counts["settled_calls"] == 1
+    assert counts["reserved_calls"] == 1
+    new_attempt = SubscriptionCallBudget(tmp_path / "new-attempt.jsonl", max_calls=1500)
+    assert new_attempt.snapshot()["settled_calls"] == 0
+    assert new_attempt.snapshot()["reserved_calls"] == 0
+    assert path.read_bytes() == before
+
+
+def test_subscription_remaining_call_guard_at_the_largest_explicit_cap(tmp_path):
+    from scripts.agent_eval_subscription_budget import SubscriptionCallBudget, SubscriptionCallLimitError
+
+    path = tmp_path / "planned.jsonl"
+    budget = SubscriptionCallBudget(path, max_calls=1500)
+    # Synthetic ledger rows exercise the machine boundary without model calls.
+    reservations = [{"kind": "reserve", "id": f"synthetic-{index}",
+                     "model": "chatgpt/gpt-6-luna", "max_output_tokens": 100,
+                     "nano_usd": 0, "reserved_nano_usd": 0, "scope": None}
+                    for index in range(1499)]
+    path.write_text("".join(json.dumps(row) + "\n" for row in [budget.header, *reservations]), encoding="utf-8")
+    budget.reserve("chatgpt/gpt-6-luna", 100)
+    assert budget.snapshot()["reserved_calls"] == 1500
+    exhausted = path.read_bytes()
+    with pytest.raises(SubscriptionCallLimitError):
+        SubscriptionCallBudget(path, max_calls=1500).reserve("chatgpt/gpt-6-luna", 100)
+    assert path.read_bytes() == exhausted
+
+
+def test_subscription_reservations_are_atomic_across_concurrent_resumed_instances(tmp_path):
+    from concurrent.futures import ThreadPoolExecutor
+
+    from scripts.agent_eval_subscription_budget import SubscriptionCallBudget, SubscriptionCallLimitError
+
+    path = tmp_path / "concurrent.jsonl"
+    SubscriptionCallBudget(path, max_calls=3)
+
+    def reserve():
+        try:
+            return SubscriptionCallBudget(path, max_calls=3).reserve("chatgpt/gpt-6-luna", 100)
+        except SubscriptionCallLimitError:
+            return None
+
+    with ThreadPoolExecutor(max_workers=8) as pool:
+        results = list(pool.map(lambda _: reserve(), range(8)))
+    tickets = [ticket for ticket in results if ticket is not None]
+    assert len(tickets) == len(set(tickets)) == 3
+    assert SubscriptionCallBudget(path, max_calls=3).snapshot()["reserved_calls"] == 3
+
+
+def test_subscription_unknown_usage_and_unscoped_reservations_still_consume_the_allowance(tmp_path):
+    from scripts.agent_eval_subscription_budget import SubscriptionCallBudget, SubscriptionCallLimitError
+
+    path = tmp_path / "unknown.jsonl"
+    budget = SubscriptionCallBudget(path, max_calls=2)
+    first = budget.reserve("chatgpt/gpt-6-luna", 100)
+    with pytest.raises(ValueError, match="authoritative usage"):
+        budget.settle(first, {})
+    budget.for_scope("case", 1, "acting").reserve("chatgpt/gpt-6-luna", 100)
+    before = path.read_bytes()
+    resumed = SubscriptionCallBudget(path, max_calls=2)
+    assert resumed.snapshot()["reserved_calls"] == 2
+    assert resumed.snapshot()["settled_calls"] == 0
+    with pytest.raises(SubscriptionCallLimitError):
+        resumed.reserve("chatgpt/gpt-6-luna", 100)
+    assert path.read_bytes() == before
+
+
+@pytest.mark.parametrize("model", ["openai/gpt-6-luna", "google/gemini-pro", "gpt-6-luna"])
+def test_subscription_larger_call_plan_cannot_enable_api_routes(tmp_path, model):
+    from scripts.agent_eval_subscription_budget import SubscriptionCallBudget
+
+    budget = SubscriptionCallBudget(tmp_path / "funding.jsonl", max_calls=1500)
+    before = budget.path.read_bytes()
+    with pytest.raises(ValueError, match="API fallback is forbidden"):
+        budget.reserve(model, 100)
+    assert budget.path.read_bytes() == before
+    assert budget.snapshot()["reserved_calls"] == 0
+
+
 @pytest.mark.parametrize("event", ["error", "response.failed", "response.incomplete"])
 def test_stream_rejects_provider_quota_without_logging_provider_body(event):
     import asyncio
+
     import httpx
+
     from lumibot.components.agents.chatgpt_llm import CompletionCheckedStream, SubscriptionModelResponseError
     from lumibot.components.agents.runtime import _classify_agent_error
     class Stream(httpx.AsyncByteStream):
@@ -104,7 +223,9 @@ def test_stream_rejects_provider_quota_without_logging_provider_body(event):
 @pytest.mark.parametrize("complete", [True, False])
 def test_stream_requires_completed_terminal_event_across_chunk_boundaries(complete):
     import asyncio
+
     import httpx
+
     from lumibot.components.agents.chatgpt_llm import CompletionCheckedStream
     content = b'data: {"type":"response.output_text.delta","delta":"partial"}\n\n'
     if complete:
@@ -124,7 +245,9 @@ def test_stream_requires_completed_terminal_event_across_chunk_boundaries(comple
 
 def test_subscription_budget_config_does_not_require_api_pricing():
     from types import SimpleNamespace
+
     from google.genai import types
+
     from lumibot.components.agents.runtime import GoogleADKRuntime
     request = SimpleNamespace(model="chatgpt/gpt-6-luna", max_output_tokens=100,
                               model_request_timeout_seconds=30, model_call_budget=object())
@@ -133,6 +256,7 @@ def test_subscription_budget_config_does_not_require_api_pricing():
 
 def test_refresh_serializes_and_persists_rotating_tokens(tmp_path, monkeypatch):
     from concurrent.futures import ThreadPoolExecutor
+
     import httpx
     path = tmp_path / "profile.json"
     auth.save_private(path, {"status":"connected", "scopes":[auth.PLAN_SCOPE], "client_id":"issued",
@@ -152,14 +276,15 @@ def test_refresh_serializes_and_persists_rotating_tokens(tmp_path, monkeypatch):
 @pytest.mark.parametrize('failure', ['exchange', 'identity'])
 def test_failed_reconnect_preserves_an_existing_connected_profile(tmp_path, monkeypatch, failure):
     """Reconnect failure must not discard an already working renewable grant."""
-    import httpx
-    import jwt
     import webbrowser
-    from types import SimpleNamespace
     from threading import Thread
-    from urllib.parse import parse_qs, urlsplit, urlencode
+    from types import SimpleNamespace
+    from urllib.parse import parse_qs, urlencode, urlsplit
     from urllib.request import urlopen
     from uuid import uuid4
+
+    import httpx
+    import jwt
     profile_id = str(uuid4())
     path = tmp_path/'profiles'/(profile_id+'.json')
     previous = {'status': 'connected', 'subject': 'original-subject', 'client_id': 'issued',
@@ -218,7 +343,7 @@ def test_logout_clears_tokens_even_when_revocation_cannot_be_confirmed(tmp_path,
 
 
 def test_response_replay_rejects_conflicting_provider_call_ids_and_keeps_pruned_outputs():
-    from lumibot.components.agents.chatgpt_llm import _ResponsesReplay, SubscriptionModelResponseError
+    from lumibot.components.agents.chatgpt_llm import SubscriptionModelResponseError, _ResponsesReplay
     replay = _ResponsesReplay()
     original = [{'type': 'reasoning', 'id': 'rs_original', 'encrypted_content': 'opaque', 'summary': []},
                 {'type': 'function_call', 'id': 'fc_original', 'call_id': 'call_unique', 'name': 'get_evidence', 'arguments': '{}'}]
@@ -238,9 +363,11 @@ def test_response_replay_rejects_conflicting_provider_call_ids_and_keeps_pruned_
 def test_actual_adk_subscription_transport_owns_stream_validation(monkeypatch, tmp_path, completed):
     """Run the actual ADK/LiteLLM conversion against a recorded HTTP contract."""
     import asyncio
+
     import httpx
     from google.adk.models.llm_request import LlmRequest
     from google.genai import types
+
     from lumibot.components.agents import chatgpt_llm
     from lumibot.components.agents.runtime import _configure_litellm_quietly, _register_openai_gpt6_models
     _configure_litellm_quietly()
@@ -293,9 +420,11 @@ def test_actual_adk_subscription_transport_owns_stream_validation(monkeypatch, t
 def test_stateless_tool_continuation_replays_opaque_reasoning_and_function_items(monkeypatch, tmp_path, runner_mode):
     """ADK drops Responses reasoning metadata; assert the actual second wire body."""
     import asyncio
+
     import httpx
     from google.adk.models.llm_request import LlmRequest
     from google.genai import types
+
     from lumibot.components.agents import chatgpt_llm
     from lumibot.components.agents.runtime import _configure_litellm_quietly, _register_openai_gpt6_models
     _configure_litellm_quietly()

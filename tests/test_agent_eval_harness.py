@@ -407,6 +407,122 @@ def test_research_eval_fixture_modes_preserve_the_bounded_recorded_clock(fixture
     assert fixture.production.broker.IS_BACKTESTING_BROKER is True  # No live broker or external writes.
 
 
+def test_live_research_fixture_preflight_uses_fresh_ledger_balances():
+    cases = evals.load_cases({"research_sec_prompt_injection", "research_unavailable_safe_fallback"})
+    evals.preflight_production_fixtures(cases)
+
+
+@pytest.mark.parametrize("fixture_name", ["research_live_available", "research_unavailable"])
+def test_live_fixture_balances_follow_tracked_cash_and_recorded_positions(fixture_name):
+    from lumibot.entities import Asset, Position
+    from scripts.agent_eval_production_fixture import ProductionFixture
+
+    fixture = evals.build_fixture(fixture_name)
+    fixture.production = ProductionFixture(fixture)
+    production = fixture.production
+    strategy, broker = production.strategy, production.broker
+    quote_asset = strategy.quote_asset
+    cash_position = broker.get_tracked_position(strategy.name, quote_asset)
+    cash_position.quantity = 12345.75
+    stock = Asset("AAPL")
+    position = Position(strategy.name, stock, 7)
+    broker._filled_positions.append(position)
+    # Another strategy's ledger must never enter this account snapshot.
+    broker._filled_positions.append(Position("different_eval_strategy", stock, 999))
+    last_price = broker.get_last_price(stock, quote=quote_asset)
+    assert last_price is not None
+    expected_value = 7 * float(last_price)
+    assert broker._get_balances_at_broker(quote_asset, strategy) == pytest.approx(
+        (12345.75, expected_value, 12345.75 + expected_value)
+    )
+    handle = production.create_agent({
+        "model": evals.DEFAULT_ACTING_MODEL, "systemPrompt": "Inspect recorded research.",
+    }, None)
+    context = handle._runtime_context()
+    assert context["account"]["cash"] == pytest.approx(12345.75)
+    assert context["account"]["portfolio_value"] == pytest.approx(12345.75 + expected_value)
+    assert context["account_snapshot"]["account_complete"] is True
+    cash_position.quantity = 100.5
+    position.quantity = -2
+    refreshed = handle._runtime_context()
+    assert refreshed["account"]["cash"] == pytest.approx(100.5)
+    assert refreshed["account"]["portfolio_value"] == pytest.approx(100.5 - 2 * float(last_price))
+
+
+def test_fixture_balance_values_recorded_signed_option_positions_with_native_multiplier():
+    from scripts.agent_eval_production_fixture import ProductionFixture
+
+    fixture = evals.build_fixture("open_credit_spread")
+    fixture.production = ProductionFixture(fixture)
+    production = fixture.production
+    strategy, broker = production.strategy, production.broker
+    strategy.is_backtesting = False
+    quote_asset = strategy.quote_asset
+    cash = broker.get_tracked_position(strategy.name, quote_asset).quantity
+    positions_value = sum(
+        position.quantity * float(broker.get_last_price(position.asset, quote=quote_asset))
+        * position.asset.multiplier
+        for position in broker.get_tracked_positions(strategy.name)
+        if position.asset != quote_asset
+    )
+    assert positions_value < 0  # The recorded short premium exceeds the long premium.
+    assert broker._get_balances_at_broker(quote_asset, strategy) == pytest.approx(
+        (cash, positions_value, cash + positions_value)
+    )
+
+
+@pytest.mark.parametrize("cash", [0, -25.75])
+def test_live_fixture_keeps_real_zero_or_negative_cash_distinct_from_missing(cash):
+    from scripts.agent_eval_production_fixture import ProductionFixture
+
+    fixture = evals.build_fixture("research_live_available")
+    fixture.production = ProductionFixture(fixture)
+    production = fixture.production
+    strategy, broker = production.strategy, production.broker
+    broker.get_tracked_position(strategy.name, strategy.quote_asset).quantity = cash
+    handle = production.create_agent({
+        "model": evals.DEFAULT_ACTING_MODEL, "systemPrompt": "Inspect recorded research.",
+    }, None)
+    context = handle._runtime_context()
+    assert context["account"] == {"cash": cash, "portfolio_value": cash}
+    assert context["account_snapshot"]["account_complete"] is True
+
+
+@pytest.mark.parametrize("damage", ["missing_cash", "duplicate_cash", "nonfinite_cash", "missing_quote", "nonfinite_quote"])
+def test_live_fixture_missing_ledger_or_quote_remains_visibly_incomplete(monkeypatch, damage):
+    from lumibot.entities import Asset, Position
+    from scripts.agent_eval_production_fixture import ProductionFixture
+
+    fixture = evals.build_fixture("research_live_available")
+    fixture.production = ProductionFixture(fixture)
+    production = fixture.production
+    strategy, broker = production.strategy, production.broker
+    quote_asset = strategy.quote_asset
+    cash_position = broker.get_tracked_position(strategy.name, quote_asset)
+    if damage == "missing_cash":
+        broker._filled_positions.remove(cash_position)
+    elif damage == "duplicate_cash":
+        broker._filled_positions.append(Position(strategy.name, quote_asset, 500))
+    elif damage == "nonfinite_cash":
+        cash_position.quantity = float("nan")
+    else:
+        broker._filled_positions.append(Position(strategy.name, Asset("AAPL"), 2))
+        monkeypatch.setattr(broker, "get_last_price", lambda *args, **kwargs: (
+            None if damage == "missing_quote" else float("nan")
+        ))
+    handle = production.create_agent({
+        "model": evals.DEFAULT_ACTING_MODEL, "systemPrompt": "Inspect recorded research.",
+    }, None)
+    context = handle._runtime_context()
+    assert context["account"]["cash"] is None
+    assert context["account"]["portfolio_value"] is None
+    assert context["account_snapshot"]["account_complete"] is False
+    if damage in {"missing_cash", "duplicate_cash", "nonfinite_cash"}:
+        assert broker._get_balances_at_broker(quote_asset, strategy) == (None, None, None)
+    else:
+        assert broker._get_balances_at_broker(quote_asset, strategy) == (100000.0, None, None)
+
+
 @pytest.mark.parametrize("permission", [{}, {"allow_trading": True}, {"allow_trading": False}])
 def test_live_research_fixture_cannot_grant_trading_even_when_caller_requests_it(permission):
     from scripts.agent_eval_production_fixture import ProductionFixture

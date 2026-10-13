@@ -8,9 +8,200 @@ from lumibot.components.agents import AgentManager, AgentRunResult, AgentTraceEv
 from lumibot.components.agents.manager import AgentModelCallLimitExceeded, _structured_operation_outcomes
 from lumibot.components.agents.schemas import BoundTool, ToolDefinition
 
-
 # Order explanations are now required; retain every existing readiness/risk assertion.
 ORDER_ACTION_REASON = 'After checking the current quote, account cash, positions and pending orders, take the requested action within the strategy risk budget. The evidence is limited to this fixture timestamp. Reconcile the broker response and remaining exposure before taking any further action.'
+
+
+PRIVATE_TOOL_PURPOSE = "Read the permitted account evidence to determine whether the existing position covers the action."
+
+
+def _agent_declared_callable(tool, context):
+    from lumibot.components.agents.runtime import _function_tools_with_name_aliases
+
+    # Exercise the production ADK registration boundary without invoking a model.
+    return _function_tools_with_name_aliases(lambda function: function, [tool], context)[0]
+
+
+def test_agent_bound_tool_purpose_is_required_only_in_actual_adk_and_managed_declaration():
+    from google.adk.tools.function_tool import FunctionTool
+    from google.genai import types
+
+    from lumibot.components.agents.managed_gateway import _tools
+    from lumibot.components.agents.runtime import _function_tools_with_name_aliases, _wrap_tool_callable
+
+    def read(symbol: str) -> dict:
+        return {"symbol": symbol}
+
+    tool = BoundTool("read_evidence", "Read permitted evidence.", read)
+    ordinary = FunctionTool(_wrap_tool_callable(tool))._get_declaration()
+    declared = _function_tools_with_name_aliases(FunctionTool, [tool], {})[0]._get_declaration()
+    request = SimpleNamespace(config=SimpleNamespace(tools=[types.Tool(function_declarations=[declared])]))
+    schema = _tools(request)[0]["inputSchema"]
+    assert "agent_purpose" in schema["required"]
+    assert schema["properties"]["agent_purpose"]["type"].lower() == "string"
+    assert "symbol" in schema["properties"]
+    # Current ADK may use parameters_json_schema; exercise the same gateway
+    # conversion for the ordinary declaration rather than assuming one form.
+    ordinary_request = SimpleNamespace(config=SimpleNamespace(tools=[types.Tool(function_declarations=[ordinary])]))
+    ordinary_schema = _tools(ordinary_request)[0]["inputSchema"]
+    assert "agent_purpose" not in ordinary_schema["properties"]
+    assert tool.function(symbol="SPY") == {"symbol": "SPY"}
+
+
+@pytest.mark.parametrize("purpose", [None, "", " \t ", 42, False, {}, "x" * 501, "🧠" * 126, "a\0b", "a\nb", "\ud800"])
+def test_agent_bound_tool_purpose_invalid_is_visible_and_does_not_invoke(purpose):
+    invoked = []
+
+    def read(**arguments) -> dict:
+        invoked.append(arguments)
+        return {"ok": True}
+
+    context = {}
+    wrapped = _agent_declared_callable(BoundTool("read_evidence", "Read evidence.", read), context)
+    arguments = {"symbol": "SPY"}
+    if purpose is not None:
+        arguments["agent_purpose"] = purpose
+    result = wrapped(**arguments)
+    assert result["ok"] is False
+    assert result["tool_error"] is True
+    assert "agent_purpose" in result["error"]["message"]
+    assert invoked == []
+    assert context["tool_calls"][-1]["ok"] is False
+    assert context["tool_calls"][-1]["status"] == "failed"
+
+
+def test_agent_bound_tool_purpose_records_before_invocation_without_domain_or_public_projection():
+    from lumibot.components.agents.tool_context import current_agent_tool_context
+
+    context = {"agent_name": "researcher", "model_call_id": "call-1", "tool_calls": []}
+    snapshots = []
+    observed = []
+
+    def read(symbol: str) -> dict:
+        snapshots.append(dict(context["tool_calls"][-1]))
+        observed.append((symbol, current_agent_tool_context()["tool_purpose"]))
+        return {"ok": True, "symbol": symbol}
+
+    wrapped = _agent_declared_callable(BoundTool("read_evidence", "Read evidence.", read), context)
+    result = wrapped(symbol="SPY", agent_purpose=PRIVATE_TOOL_PURPOSE)
+    assert result == {"ok": True, "symbol": "SPY"}
+    assert observed == [("SPY", PRIVATE_TOOL_PURPOSE)]
+    assert snapshots == [{"tool_name": "read_evidence", "arguments": {"symbol": "SPY"}, "purpose": PRIVATE_TOOL_PURPOSE, "status": "started"}]
+    assert context["tool_calls"] == [{"tool_name": "read_evidence", "arguments": {"symbol": "SPY"}, "purpose": PRIVATE_TOOL_PURPOSE, "status": "completed", "ok": True}]
+    assert "tool_purpose" not in current_agent_tool_context()
+    assert "public_reason" not in result
+
+
+def test_agent_bound_tool_purpose_preserves_colliding_domain_arguments():
+    from google.adk.tools.function_tool import FunctionTool
+
+    def read(agent_purpose: str, purpose: str) -> dict:
+        return {"agent_purpose": agent_purpose, "purpose": purpose}
+
+    tool = BoundTool("read_evidence", "Read evidence.", read)
+    wrapped = _agent_declared_callable(tool, {})
+    declaration = FunctionTool(wrapped)._get_declaration()
+    schema = declaration.parameters_json_schema or declaration.parameters.model_dump(exclude_none=True)
+    assert {"agent_purpose", "purpose", "agent_purpose_2"}.issubset(schema["required"])
+    assert wrapped(agent_purpose="domain selection", purpose="domain filter", agent_purpose_2=PRIVATE_TOOL_PURPOSE) == {
+        "agent_purpose": "domain selection", "purpose": "domain filter"
+    }
+
+
+def test_agent_bound_tool_purpose_does_not_invoke_without_an_attempt_trace():
+    invoked = []
+
+    def read(symbol: str) -> dict:
+        invoked.append(symbol)
+        return {"ok": True}
+
+    wrapped = _agent_declared_callable(BoundTool("read_evidence", "Read evidence.", read), {"tool_calls": "invalid"})
+    result = wrapped(symbol="SPY", agent_purpose=PRIVATE_TOOL_PURPOSE)
+    assert result["ok"] is False
+    assert result["tool_error"] is True
+    assert invoked == []
+
+
+def test_agent_bound_tool_purpose_preserves_shared_cache_keys_without_purpose(monkeypatch, tmp_path):
+    monkeypatch.setenv("LUMIBOT_CACHE_FOLDER", str(tmp_path / "cache"))
+    manager = AgentManager(_Strategy())
+    invoked = []
+
+    def read(symbol: str) -> dict:
+        invoked.append(symbol)
+        return {"ok": True, "symbol": symbol}
+
+    tool = manager._with_tool_result_cache(BoundTool("read_evidence", "Read evidence.", read, metadata={"cache_scope": "strategy_day"}))
+    first_context, second_context = {}, {}
+    first = _agent_declared_callable(tool, first_context)(symbol="SPY", agent_purpose=PRIVATE_TOOL_PURPOSE)
+    second = _agent_declared_callable(tool, second_context)(symbol="SPY", agent_purpose="Verify the same permitted symbol for a separate decision.")
+    assert first["ok"] is True
+    assert second["ok"] is True
+    assert second["_lumibot_tool_cache"]["hit"] is True
+    assert invoked == ["SPY"]
+    assert first_context["tool_calls"][0]["arguments"] == second_context["tool_calls"][0]["arguments"] == {"symbol": "SPY"}
+    assert first_context["tool_calls"][0]["purpose"] != second_context["tool_calls"][0]["purpose"]
+
+
+def test_agent_bound_tool_purpose_preserves_remote_failed_status_and_original_arguments():
+    from lumibot.components.agents.runtime import RemoteMCPToolError
+
+    observed = []
+    failure = RemoteMCPToolError("query_data", {"isError": True, "structuredContent": {"errorCode": "unsupported_capability", "message": "Original historical versions unavailable."}})
+
+    def query(**arguments) -> dict:
+        observed.append(arguments)
+        raise failure
+
+    context = {}
+    wrapped = _agent_declared_callable(BoundTool("query_data", "Read recorded data.", query, source="mcp"), context)
+    result = wrapped(datasetId="bls.public_series", agent_purpose=PRIVATE_TOOL_PURPOSE)
+    assert observed == [{"datasetId": "bls.public_series"}]
+    assert result["ok"] is False
+    assert result["tool_error"] is True
+    assert result["isError"] is True
+    assert result["error"]["code"] == "unsupported_capability"
+    assert result["arguments"] == {"datasetId": "bls.public_series"}
+    assert context["tool_calls"][0]["purpose"] == PRIVATE_TOOL_PURPOSE
+    assert context["tool_calls"][0]["status"] == "failed"
+    assert context["tool_calls"][0]["ok"] is False
+
+
+def test_explicit_execution_and_observed_action_rules_reach_assembled_adk_instruction(monkeypatch):
+    import asyncio
+
+    from google.adk.tools.function_tool import FunctionTool
+    from google.genai import types
+
+    from lumibot.components.agents import runtime as runtime_module
+
+    captured = {}
+
+    class ConstructionCaptured(RuntimeError):
+        pass
+
+    class CapturedAgent:
+        def __init__(self, **arguments):
+            captured.update(arguments)
+            raise ConstructionCaptured("ADK constructor reached; no runner or model is started")
+
+    runtime = runtime_module.GoogleADKRuntime()
+    monkeypatch.setattr(runtime, "_ensure_adk", lambda: (CapturedAgent, object, types, FunctionTool))
+    monkeypatch.setattr(runtime_module, "_resolve_model_for_adk", lambda model, **_kwargs: model)
+    request = runtime_module.RuntimeRequest(
+        agent_name="researcher", model="chatgpt/gpt-6-sol", system_prompt="Respect the authorized strategy rules.",
+        task_prompt="Perform the requested authorized action when the stated conditions hold.",
+        context=None, runtime_context={}, memory_state=None, memory_notes=[], bound_tools=[], include_builtin_skills=False,
+    )
+    with pytest.raises(ConstructionCaptured):
+        asyncio.run(runtime._run_async(request))
+    instruction = captured["instruction"]
+    assert instruction == runtime._instruction_for(request)
+    assert "verify the stated conditions and then invoke the action tool" in instruction
+    assert "Do not invent new acceptance thresholds" in instruction
+    assert "Preserve discretion when the user requests analysis or delegates the choice" in instruction
+    assert "only after its action tool succeeds and returns the action's identifier" in instruction
+    assert "Report fills only from observed status or position evidence" in instruction
 
 
 class _Vars(dict):

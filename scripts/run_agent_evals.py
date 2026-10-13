@@ -1289,8 +1289,9 @@ def main() -> int:
             fresh_case_ids.append(case["id"])
             continue
         already = 0 if args.force else consecutive_pass_count(existing_rows, case["id"], fingerprint)
-        latest = {} if args.force else latest_repetition_rows(existing_rows, case["id"], fingerprint)
-        for repetition in range(1, max(target_passes(already, args.repeat), max(latest, default=0)) + 1):
+        seen = latest_repetition_rows(existing_rows, case["id"], fingerprint)
+        latest = {} if args.force else seen
+        for repetition in range(1, max(target_passes(already, args.repeat), max(seen, default=0)) + 1):
             if latest.get(repetition, {}).get("status") == "pass":
                 resumed_repetitions += 1
             else:

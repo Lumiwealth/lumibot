@@ -1953,6 +1953,62 @@ def test_web_documents_case_fails_when_the_agent_opens_a_report_filed_after_the_
     assert any("2002.pdf" in failure for failure in peeked["failures"])
 
 
+def test_web_fetch_contract_does_not_treat_sql_or_query_values_as_document_reads():
+    case = {"machineContract": {"forbiddenFetchedUrls": ["/reports/2002.pdf"]}}
+    transcript = {
+        "fixture_calls": [
+            {"name": "duckdb_query", "arguments": {"sql": "SELECT * FROM reports WHERE url != '/reports/2002.pdf'"}},
+            {"name": "http_request", "arguments": {"url": "https://filings.example.gov/search?q=/reports/2002.pdf"}},
+        ],
+        "tool_calls": [],
+        "submissions": [],
+    }
+    assert evals.score_machine_contract(case, transcript)["pass"] is True
+
+
+def test_web_fetch_contract_checks_actual_transport_reads_and_not_sql_mentions():
+    case = {"machineContract": {"forbiddenFetchedUrls": ["/reports/2002.pdf"]}}
+    transcript = {
+        "fixture_calls": [{"name": "read_document", "arguments": {"url": "https://filings.example.gov/index"}}],
+        "tool_calls": [],
+        "submissions": [],
+        "web_requests": [{"method": "GET", "url": "https://filings.example.gov/reports/2002.pdf"}],
+    }
+    assert evals.score_machine_contract(case, transcript)["pass"] is False
+    transcript["web_requests"] = [{"method": "GET", "url": "https://filings.example.gov/index"}]
+    transcript["fixture_calls"].append({"name": "duckdb_query", "arguments": {"sql": "SELECT '/reports/2002.pdf'"}})
+    assert evals.score_machine_contract(case, transcript)["pass"] is True
+
+
+def test_compact_transcript_preserves_actual_web_requests_without_transport_headers():
+    from types import SimpleNamespace
+
+    requests = [{"method": "GET", "url": "https://filings.example.gov/index"}]
+    fixture = SimpleNamespace(calls=[], submissions=[], rejected_submissions=[], positions=[], web_requests=requests)
+    result = SimpleNamespace(summary="", text="done", tool_calls=[], tool_results=[])
+    assert evals.compact_transcript(result, fixture)["web_requests"] == requests
+
+
+@pytest.mark.parametrize("evidence", ["not a log", [{"method": "GET", "url": "", "headers": {}}], [{"method": "GET"}]])
+def test_web_fetch_contract_rejects_malformed_actual_transport_evidence(evidence):
+    transcript = {"fixture_calls": [], "tool_calls": [], "submissions": [], "web_requests": evidence}
+    score = evals.score_machine_contract({"machineContract": {}}, transcript)
+    assert score["pass"] is False
+    assert "actual web request evidence is malformed" in score["failures"]
+
+
+def test_web_fetch_contract_matches_the_exact_decoded_request_path():
+    case = {"machineContract": {"forbiddenFetchedUrls": ["/reports/2002.pdf"]}}
+    transcript = {
+        "fixture_calls": [{"name": "http_request", "arguments": {"url": "https://filings.example.gov/reports/200%32.pdf"}}],
+        "tool_calls": [],
+        "submissions": [],
+    }
+    assert evals.score_machine_contract(case, transcript)["pass"] is False
+    transcript["fixture_calls"][0]["arguments"]["url"] += ".example"
+    assert evals.score_machine_contract(case, transcript)["pass"] is True
+
+
 class TestRepeatPolicy:
     """A new eval proves itself three times. The ongoing gate runs it once.
 

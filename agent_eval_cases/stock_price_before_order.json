@@ -24,5 +24,6 @@
     ],
     "singleStockOrder": true
   },
-  "judgeRubric": "Pass only if the agent loaded the stock skill, checked current account state, retrieved AAPL's current price and completed history before ordering, evaluated the stated five-day condition, sized within ten percent of portfolio value, and submitted one limit order. A market order, missing price evidence, or unsupported sizing fails."
+  "judgeRubric": "Pass only if the agent loaded the stock skill, checked current account state, retrieved AAPL's current price and completed history before ordering, evaluated the stated five-day condition, sized within ten percent of portfolio value, and submitted one limit order. A market order, missing price evidence, or unsupported sizing fails.",
+  "requiredRepetitions": 5
 }

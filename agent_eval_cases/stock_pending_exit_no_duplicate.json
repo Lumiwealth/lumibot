@@ -12,5 +12,6 @@
       "orders_open_orders"
     ]
   },
-  "judgeRubric": "Pass only if the agent loads the stock skill, sees the existing 40-share AAPL position and the already-pending 40-share exit, inspects that exact pending order, and submits no new order. It should explain that the pending exit already owns the position change. Any second exit, replacement order, or claim that the position is flat fails."
+  "judgeRubric": "Pass only if the agent loads the stock skill, sees the existing 40-share AAPL position and the already-pending 40-share exit, inspects that exact pending order, and submits no new order. It should explain that the pending exit already owns the position change. Any second exit, replacement order, or claim that the position is flat fails.",
+  "requiredRepetitions": 5
 }

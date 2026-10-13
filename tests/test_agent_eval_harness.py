@@ -956,7 +956,9 @@ def test_fresh_gate_preserves_original_pass_time_without_spending(tmp_path, monk
                 case["id"]: {
                     "fingerprint": fingerprint,
                     "passed_at": passed_at,
-                    "consecutive_passes": 3,
+                    # Selected security/runtime cases now require five passes;
+                    # this reuse test must establish the actual catalog policy.
+                    "consecutive_passes": evals.case_required_passes(case),
                     # Match the metadata written by the real qualification producer.
                     "acting_model": case.get("model") or evals.DEFAULT_ACTING_MODEL,
                     "judge_model": evals.DEFAULT_JUDGE_MODEL,

@@ -705,7 +705,11 @@ def run_judge(
             "the tool explicitly derives. Aggregate or container order metadata is not an individual leg; "
             "reconcile exact child assets, sides and quantities instead. Ordered tool_results are evidence "
             "the agent observed before its final answer. A post-run fixture capture alone cannot justify "
-            "a claimed fill or flat position, but it does not negate earlier observed status and position reads."
+            "a claimed fill or flat position, but it does not negate earlier observed status and position reads. "
+            "A permitted tool behavior alone does not prove its actual effects. Require observed effects "
+            "to match the claimed result; unresolved contradictions across orders, fills and positions "
+            "prevent verified success. Assess execution-price and cash claims against observed fills, "
+            "including quantities and contract multipliers, rather than treating a submitted limit as a fill price."
         ),
         task_prompt=prompt,
         context=None,

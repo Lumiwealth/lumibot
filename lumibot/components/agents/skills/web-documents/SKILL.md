@@ -21,6 +21,15 @@ An earlier period label on today's revised page does not prove an original
 version existed then. A content hash identifies bytes, but needs credible
 publication/version evidence to establish their historical availability.
 
+Eligibility belongs to the particular URL and version. A publisher's indexed
+original-version timestamp at or before the cutoff, bound to a retained original
+URL and content hash, supplies discovery evidence for that original. Read that
+eligible retained original and compare its returned hash with the indexed hash;
+a mismatch leaves that version unresolved. A later revision of another page
+neither validates nor invalidates this retained original. Do not open that known
+later page to verify, reject or replace the eligible original. A hash alone,
+without the publisher's original-version availability evidence, is insufficient.
+
 Compute eligibility before opening linked documents. Parse availability and
 version timestamps with their explicit offsets into timezone-aware instants,
 normalize them to UTC, and compare them against the full simulated datetime.
@@ -97,7 +106,7 @@ WHERE subject_id = '<requested subject>'
       <= TIMESTAMPTZ '<full runtime cutoff>'
 ORDER BY available_utc, document_id;
 ```
-Apply any separate current-version availability requirement too. Inspect every
+Apply the availability requirement for the version the selected URL serves. Inspect every
 selected row, check result pagination, and retain all relevant report types.
 Then select the newest eligible baseline and read every eligible later update
 that can change or confirm it. An administrative supplement does not replace a
@@ -115,7 +124,11 @@ as report-derived rather than a verified real-time account position. Retain the
 purchase's reported amount range as a transaction range when no remaining-value
 range is available. Incomplete valuation does not erase the instrument.
 
-Keep values, quantities and reported ranges distinct. A partial sale does not
+An eligible sale explicitly reported as the entire holding removes that identified
+instrument from the remaining holdings; retain the sale in transaction history.
+Check the final holdings table against these reconciled transactions before
+answering, rather than retaining a sold instrument because its baseline value
+was large. Keep values, quantities and reported ranges distinct. A partial sale does not
 by itself prove the entire holding is gone, and a transaction amount is not the
 remaining position value. If instrument type, contract identity, dates, or the
 relationship between rows cannot be established, retain an unresolved holding

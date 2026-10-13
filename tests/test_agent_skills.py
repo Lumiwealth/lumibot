@@ -523,6 +523,26 @@ def test_options_skill_keeps_its_own_pending_package_instead_of_cancelling_it():
     assert "Do not cancel, replace, or modify your own pending package" in text
 
 
+def test_web_skill_qualifies_each_retained_original_independently_of_later_pages():
+    # Real b39ede18 native repeat/resume: the actor rejected an eligible
+    # retained original and opened a known post-cutoff HTML revision instead.
+    skill = next(skill for skill in load_builtin_skills() if skill.name == "web-documents")
+    text = " ".join(skill.instructions.split())
+    assert "Eligibility belongs to the particular URL and version" in text
+    assert "publisher's indexed original-version timestamp" in text
+    assert "Read that eligible retained original and compare its returned hash" in text
+    assert "A later revision of another page neither validates nor invalidates" in text
+
+
+def test_web_skill_removes_a_holding_after_an_eligible_entire_sale():
+    # The actual b39ede18 actor described an entire sale but retained that
+    # instrument in its current report-derived holdings table.
+    skill = next(skill for skill in load_builtin_skills() if skill.name == "web-documents")
+    text = " ".join(skill.instructions.split())
+    assert "An eligible sale explicitly reported as the entire holding removes" in text
+    assert "remaining holdings; retain the sale in transaction history" in text
+
+
 class TestUserSuppliedSkills:
     """Users must be able to bring their own skills, not only switch ours off.
 

@@ -50,7 +50,22 @@ broker, approval, liquidity and risk limits.
    correct it from the listed contracts and verify its exact Greeks and quotes
    before repricing. A recoverable selection error is not proof that valid
    market evidence is unavailable.
-5. Verify every selected contract individually. Candidate-selection helpers narrow
+   Build a bounded candidate comparison from listed strikes and exact Greeks.
+   Choose short strikes by the requested signed or absolute delta. A strike
+   near the underlying does not automatically match the delta target. When a
+   checked candidate misses the target, use candidate helpers or other eligible
+   listed strikes to search toward the target. Candidate helpers can narrow
+   larger chains; compare relevant candidates directly for a small strike list.
+   Compare verified deltas before selecting the closest eligible candidate.
+5. Separate short-strike selection from protective-wing selection. For an iron
+   condor with specified wing widths, calculate
+   `long_put = short_put - put_width` and
+   `long_call = short_call + call_width` from the requested widths.
+   Check those exact wing strikes against the complete returned put and call lists.
+   A contract previously considered as a wing can become a short when its verified
+   delta is the appropriate match; rebuild both outer wings for the selected short pair.
+   Unchecked outer strikes do not establish that protective wings are absent.
+   Verify every selected contract individually. Candidate-selection helpers narrow
    the search but do not prove the exact contract's Greeks or quote quality.
 6. Before constructing an opening multi-leg payload, read
    `references/common-option-structures.md` and verify each buy/sell side,

@@ -163,6 +163,39 @@ def test_options_skill_requires_explicit_account_reads_and_measured_deltas():
     assert "A short strike list is not by itself a reason to decline" in instructions
 
 
+def test_options_skill_compares_verified_delta_candidates_before_declining():
+    """Native run 3d88a144-359d-42d7-b3ef-b139b7bf929d checked only the
+    nearest-underlying strikes at the quoted later expiration, then declined
+    without checking other listed candidates. This is a guidance contract;
+    real actor/judge repetitions establish whether the guidance is effective.
+    """
+    options_skill = next(skill for skill in load_builtin_skills() if skill.name == "options-trading")
+    instructions = " ".join(options_skill.instructions.split())
+
+    assert "Build a bounded candidate comparison from listed strikes and exact Greeks" in instructions
+    assert "Choose short strikes by the requested signed or absolute delta" in instructions
+    assert "search toward the target" in instructions
+    assert "Compare verified deltas before selecting the closest eligible candidate" in instructions
+    assert "Never relax the user's limits to find a trade" in instructions
+
+
+def test_options_skill_rebuilds_outward_wings_after_selecting_short_deltas():
+    """Native run e72a287a-3894-4b3a-aada-21684564e134 measured the correct
+    short deltas but overlooked listed outward wings. Preserve that actual
+    native failure; this ordinary contract checks the packaged workflow only.
+    """
+    options_skill = next(skill for skill in load_builtin_skills() if skill.name == "options-trading")
+    instructions = " ".join(options_skill.instructions.split())
+
+    assert "Separate short-strike selection from protective-wing selection" in instructions
+    assert "`long_put = short_put - put_width`" in instructions
+    assert "`long_call = short_call + call_width`" in instructions
+    assert "Check those exact wing strikes against the complete returned put and call lists" in instructions
+    assert "rebuild both outer wings for the selected short pair" in instructions
+    assert "Unchecked outer strikes do not establish that protective wings are absent" in instructions
+    assert "Preserve the requested structure and constraints; never force a trade" in instructions
+
+
 def test_stock_skill_defines_opening_range_boundaries_and_order_truth():
     stock_skill = next(skill for skill in load_builtin_skills() if skill.name == "stock-trading")
     instructions = " ".join(stock_skill.instructions.split())

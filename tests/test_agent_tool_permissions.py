@@ -422,8 +422,10 @@ def test_base_prompt_asks_a_hold_to_name_the_order_or_position_that_already_cove
 def test_backtest_prompt_requires_document_eligibility_before_fetching(allow_trading):
     agent = AgentManager(_Strategy()).create(name="agent", allow_trading=allow_trading)
     prompt = " ".join(agent._base_system_prompt(agent._runtime_context()).split())
-    assert "put the publication-date cutoff in duckdb_query SQL before sorting or limiting" in prompt
-    assert "Never call read_document on a linked document whose publication date is later" in prompt
+    assert "typed duckdb_query SQL" in prompt
+    assert "first public availability and version time" in prompt
+    assert "Parse explicit timezone offsets as TIMESTAMPTZ and compare UTC instants before sorting or limiting" in prompt
+    assert "Never open a post-cutoff disclosure or revised page" in prompt
 
 
 def test_live_agent_auth_failure_emits_structured_decision_outcome():

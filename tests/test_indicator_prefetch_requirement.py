@@ -66,6 +66,44 @@ def test_explicit_customer_history_request_remains_strict():
     assert len(ibkr_history_health_snapshot()["required_failures"]) == 1
 
 
+def test_generous_window_can_declare_smaller_actual_minimum():
+    asset, frame, source, strategy = fixture_strategy()
+    causal = frame.iloc[:3].copy()
+    source.get_historical_prices = lambda *a, **kw: SimpleNamespace(pandas_df=causal, df=causal)
+    result = strategy.get_historical_prices(asset, 500, timestep="day", minimum_bars=2)
+    assert result.pandas_df.equals(causal), "Validation must not alter strategy inputs"
+    assert ibkr_history_health_snapshot()["required_complete"] is True
+
+
+@pytest.mark.parametrize("minimum", [0, -1, 501, True, 2.5, "2"])
+def test_invalid_minimum_is_rejected_before_fetch(minimum):
+    asset, _, source, strategy = fixture_strategy()
+    source.get_historical_prices = lambda *a, **kw: pytest.fail("Invalid request reached provider")
+    with pytest.raises(ValueError, match="minimum_bars"):
+        strategy.get_historical_prices(asset, 500, timestep="day", minimum_bars=minimum)
+
+
+@pytest.mark.parametrize("routed", [False, True])
+@pytest.mark.parametrize("missing", [False, True])
+def test_declared_minimum_validates_the_actual_required_tail(routed, missing):
+    from lumibot.backtesting.interactive_brokers_rest_backtesting import InteractiveBrokersRESTBacktesting
+    from lumibot.backtesting.routed_backtesting import RoutedBacktestingPandas
+    asset, frame, _, _ = fixture_strategy()
+    causal = frame.copy()
+    # Source time is the final row; all four rows are causal for this fixture.
+    # An older row outside the declared minimum is not consumed by this decision.
+    causal.loc[causal.index[0], "close"] = float("nan")
+    if missing:
+        causal.loc[causal.index[-1], "close"] = float("nan")
+    source = SimpleNamespace(get_datetime=lambda: causal.index[-1],
+        _provider_spec_for_asset=lambda _: SimpleNamespace(provider="ibkr"),
+        _registry=SimpleNamespace(_adapters={}))
+    cls = RoutedBacktestingPandas if routed else InteractiveBrokersRESTBacktesting
+    cls.record_history_requirement(source, asset=asset, timestep="day", requested_bars=2,
+        bars=SimpleNamespace(pandas_df=causal))
+    assert ibkr_history_health_snapshot()["required_complete"] is (not missing)
+
+
 def test_indicator_consumed_input_still_rejects_real_missing_rows():
     from lumibot.backtesting.routed_backtesting import RoutedBacktestingPandas
     asset, frame, _, _ = fixture_strategy()

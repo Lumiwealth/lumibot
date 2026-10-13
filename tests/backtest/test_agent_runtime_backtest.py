@@ -58,7 +58,7 @@ def test_cached_agent_tools_preserve_domain_arguments_and_private_purpose(tmp_pa
     handle.name = "researcher"
     handle.manager = SimpleNamespace(strategy=strategy)
     handle._ensure_bound_tools = lambda: [tool]
-    result = AgentRunResult(summary="Cached context.", model="chatgpt/gpt-6-luna", cache_key="cached-call", cache_hit=True, events=[_event("tool_call", tool_name=tool.name, payload=payload)])
+    result = AgentRunResult(summary="Cached context.", model="chatgpt/gpt-6-luna", cache_key="cached-call", cache_hit=True, payload={"agent_tool_contract": "private-purpose-audit-v1"}, events=[_event("tool_call", tool_name=tool.name, payload=payload)])
     handle._replay_cached_side_effects(result)
     assert calls == [expected]
     assert result.tool_calls[0].payload == payload
@@ -66,6 +66,54 @@ def test_cached_agent_tools_preserve_domain_arguments_and_private_purpose(tmp_pa
         rows = connection.execute("SELECT event_type, text, agent_name, model_call_id FROM memory_events ORDER BY sequence").fetchall()
     assert [row["event_type"] for row in rows] == ["agent.tool_started", "agent.tool_outcome"]
     assert all(row["agent_name"] == "researcher" and row["model_call_id"] == "cached-call" for row in rows)
+
+
+@pytest.mark.parametrize("uninspectable", [False, True])
+def test_cached_programmatic_tools_preserve_variadic_purpose_and_uninspectable_callable(uninspectable):
+    from types import SimpleNamespace
+
+    from lumibot.components.agents.manager import AgentHandle
+    from lumibot.components.agents.schemas import BoundTool
+
+    observed = {}
+
+    def business_tool(**arguments):
+        observed.update(arguments)
+
+    function = observed.update if uninspectable else business_tool
+    payload = {"agent_purpose": "ordinary-domain-value", "symbol": "SPY"}
+    tool = BoundTool(name="programmatic_context", description="Replay ordinary arguments.", function=function,
+                     source="custom", metadata={"replay_on_cache": True})
+    handle = object.__new__(AgentHandle)
+    handle.name = "custom"
+    handle.manager = SimpleNamespace(strategy=SimpleNamespace())
+    handle._ensure_bound_tools = lambda: [tool]
+    result = AgentRunResult(summary="Ordinary cached context.", model="custom", cache_key="ordinary-cache",
+                            cache_hit=True, events=[_event("tool_call", tool_name=tool.name, payload=payload)])
+    handle._replay_cached_side_effects(result)
+    assert observed == payload
+    assert result.tool_calls[0].payload == payload
+
+
+@pytest.mark.parametrize("agent_adapter", [False, True])
+def test_cache_protocol_tracks_runtime_contract_without_invalidating_programmatic_cache(agent_adapter):
+    from types import SimpleNamespace
+
+    from lumibot.components.agents.manager import AgentHandle
+    from lumibot.components.agents.runtime import GoogleADKRuntime
+
+    handle = object.__new__(AgentHandle)
+    handle.system_prompt = "Test strategy prompt."
+    handle._runtime = GoogleADKRuntime() if agent_adapter else SimpleNamespace()
+    handle._ensure_bound_tools = lambda: []
+    handle._memory_prompt_notes = lambda: []
+    payload = handle._cache_payload(task_prompt="Read evidence.", context={}, model="custom",
+                                   runtime_context={}, memory_state=None, effective_system_prompt="effective",
+                                   base_system_prompt="base", builtin_skill_fingerprint=None, reasoning_effort=None)
+    if agent_adapter:
+        assert payload["agent_tool_contract"] == GoogleADKRuntime.agent_tool_contract
+    else:
+        assert "agent_tool_contract" not in payload
 
 
 def _invoke_tool(request, events, tool_name: str, **kwargs):

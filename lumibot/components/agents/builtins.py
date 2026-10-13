@@ -203,6 +203,10 @@ def _agent_tool_calls_for_current_run() -> list[dict[str, Any]]:
 
 
 def _tool_call_was_successful(call: dict[str, Any]) -> bool:
+    # Agent-facing adapters record intent before invocation. An unfinished
+    # intent cannot satisfy evidence checks or invalidate the account snapshot.
+    if call.get("status") in {"started", "failed", "journal_failed"}:
+        return False
     return call.get("ok") is not False
 
 
@@ -226,7 +230,12 @@ def _last_successful_account_mutation_index() -> int:
         (
             index
             for index, call in enumerate(_agent_tool_calls_for_current_run())
-            if call.get("tool_name") in _ACCOUNT_MUTATING_ORDER_TOOLS and _tool_call_was_successful(call)
+            if call.get("tool_name") in _ACCOUNT_MUTATING_ORDER_TOOLS and (
+                _tool_call_was_successful(call)
+                # The tool ran, but its outcome could not be durably recorded.
+                # Account evidence must be refreshed despite the visible error.
+                or (call.get("status") == "journal_failed" and call.get("invocation_completed") is True)
+            )
         ),
         default=-1,
     )

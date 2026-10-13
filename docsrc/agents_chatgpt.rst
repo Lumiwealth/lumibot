@@ -1,6 +1,9 @@
 Use your ChatGPT subscription
 =============================
 
+.. meta::
+   :description: Connect LumiBot agents and actor/judge evaluations to your own ChatGPT account, with secure login, private profiles and explicit credit usage.
+
 LumiBot can connect to your own ChatGPT account through OpenAI's supported
 `Sign in with ChatGPT <https://developers.openai.com/siwc/token-sharing-open-source>`_
 flow. Choose this connection explicitly for an agent:

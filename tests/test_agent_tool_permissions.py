@@ -1046,6 +1046,80 @@ def test_agent_order_tool_submits_after_account_context_was_checked():
     assert len(strategy.submitted_orders) == 1
 
 
+@pytest.mark.parametrize("injected_snapshot", [True, False])
+def test_agent_audit_started_order_preserves_prior_readiness_and_completed_order_requires_refresh(injected_snapshot):
+    strategy = _OrderReadinessStrategy()
+    manager = AgentManager(strategy)
+    context = {"enforce_order_readiness": True, "tool_calls": []}
+    if injected_snapshot:
+        context["account_snapshot"] = {
+            "as_of": "2026-01-02T00:00:00+00:00", "account_complete": True,
+            "positions_complete": True, "open_orders_complete": True,
+        }
+    definitions = [BuiltinTools.account.positions(), BuiltinTools.account.portfolio(),
+                   BuiltinTools.orders.open_orders(), BuiltinTools.market.last_price(), BuiltinTools.orders.submit()]
+    tools = {}
+    for definition in definitions:
+        tool = definition.binder(strategy, manager)
+        tools[tool.name] = _agent_declared_callable(tool, context)
+
+    def refresh():
+        for name in ["account_portfolio", "account_positions", "orders_open_orders"]:
+            assert tools[name](agent_purpose=PRIVATE_TOOL_PURPOSE).get("tool_error") is not True
+
+    if not injected_snapshot:
+        refresh()
+    tools["market_last_price"](symbol="SPY", asset_type="stock", agent_purpose=PRIVATE_TOOL_PURPOSE)
+    arguments = dict(symbol="SPY", quantity=1, side="buy", asset_type="stock", order_type="market",
+                     reason=ORDER_ACTION_REASON, agent_purpose=PRIVATE_TOOL_PURPOSE)
+    first = tools["orders_submit_order"](**arguments)
+    assert first.get("tool_error") is not True
+    assert len(strategy.submitted_orders) == 1
+    second = tools["orders_submit_order"](**arguments)
+    assert second["tool_error"] is True
+    assert "ORDER_READINESS_REQUIRED" in second["error"]["message"]
+    assert len(strategy.submitted_orders) == 1
+    refresh()
+    third = tools["orders_submit_order"](**arguments)
+    assert third.get("tool_error") is not True
+    assert len(strategy.submitted_orders) == 2
+
+
+def test_post_invocation_audit_failure_invalidates_account_evidence_before_another_order():
+    strategy = _OrderReadinessStrategy()
+    manager = AgentManager(strategy)
+    fail_outcome = [True]
+
+    def journal(record):
+        if record["tool_name"] == "orders_submit_order" and record["status"] == "completed" and fail_outcome[0]:
+            fail_outcome[0] = False
+            raise OSError("synthetic outcome persistence failure")
+
+    context = {"enforce_order_readiness": True, "tool_calls": [], "tool_journal_callback": journal,
+               "account_snapshot": {"as_of": "2026-01-02T00:00:00+00:00", "account_complete": True,
+                                    "positions_complete": True, "open_orders_complete": True}}
+    definitions = [BuiltinTools.account.positions(), BuiltinTools.account.portfolio(),
+                   BuiltinTools.orders.open_orders(), BuiltinTools.market.last_price(), BuiltinTools.orders.submit()]
+    tools = {}
+    for definition in definitions:
+        tool = definition.binder(strategy, manager)
+        tools[tool.name] = _agent_declared_callable(tool, context)
+    tools["market_last_price"](symbol="SPY", agent_purpose=PRIVATE_TOOL_PURPOSE)
+    arguments = dict(symbol="SPY", quantity=1, side="buy", reason=ORDER_ACTION_REASON, agent_purpose=PRIVATE_TOOL_PURPOSE)
+    first = tools["orders_submit_order"](**arguments)
+    assert first["error"]["code"] == "tool_journal_unavailable"
+    assert len(strategy.submitted_orders) == 1
+    second = tools["orders_submit_order"](**arguments)
+    assert second["tool_error"] is True
+    assert "ORDER_READINESS_REQUIRED" in second["error"]["message"]
+    assert len(strategy.submitted_orders) == 1
+    for name in ["account_portfolio", "account_positions", "orders_open_orders"]:
+        tools[name](agent_purpose=PRIVATE_TOOL_PURPOSE)
+    third = tools["orders_submit_order"](**arguments)
+    assert third.get("tool_error") is not True
+    assert len(strategy.submitted_orders) == 2
+
+
 def test_agent_order_tool_accepts_complete_injected_account_snapshot_for_first_order():
     strategy = _OrderReadinessStrategy()
     tool_map = _wrap_builtin_tools(
@@ -1232,6 +1306,63 @@ def test_read_only_agent_runtime_can_use_non_trading_tools(tmp_path):
     retrieval_rows = pd.read_parquet(retrievals)
     assert set(retrieval_rows["agent_name"]) == {"researcher_runtime"}
     assert _Runtime.last_request.model_call_id in set(retrieval_rows["model_call_id"])
+
+
+def test_actual_adk_protocol_survives_manager_save_load_and_private_cache_replay(monkeypatch, tmp_path):
+    from google.adk.models.base_llm import BaseLlm
+    from google.adk.models.llm_response import LlmResponse
+    from google.genai import types
+
+    from lumibot.components.agents import runtime as runtime_module
+    from lumibot.components.memory import MemoryStore
+
+    provider_calls = []
+    rebuilt = []
+
+    class ProviderFixture(BaseLlm):
+        async def generate_content_async(self, llm_request, stream=False):
+            provider_calls.append(llm_request)
+            if len(provider_calls) == 1:
+                part = types.Part(function_call=types.FunctionCall(
+                    name="rebuild_context", id="owned-replay-call",
+                    args={"symbol": "SPY", "agent_purpose": PRIVATE_TOOL_PURPOSE},
+                ))
+            else:
+                part = types.Part(text="Permitted context inspected.")
+            yield LlmResponse(content=types.Content(role="model", parts=[part]))
+
+    def binder(_strategy, _manager):
+        def rebuild_context(symbol: str):
+            rebuilt.append(symbol)
+            return {"symbol": symbol}
+        return BoundTool("rebuild_context", "Rebuild permitted context.", rebuild_context,
+                         metadata={"replay_on_cache": True})
+
+    monkeypatch.setenv("LUMIBOT_CACHE_FOLDER", str(tmp_path / "cache"))
+    monkeypatch.setattr(runtime_module, "_resolve_model_for_adk", lambda *_args, **_kwargs: ProviderFixture(model="fixture"))
+    strategy = _Strategy()
+    strategy.vars = _Vars()
+    strategy.parameters = {}
+    strategy.memory = MemoryStore(strategy, root_dir=tmp_path / "memory")
+    manager = AgentManager(strategy)
+    agent = manager.create(name="private_replay", model="fixture", allow_trading=False,
+                           include_builtin_tools=False, include_builtin_skills=False,
+                           tools=[ToolDefinition("rebuild_context", "Rebuild permitted context.", binder)])
+    cold = agent.run(task_prompt="Inspect permitted context.")
+    assert cold.payload["agent_tool_contract"] == runtime_module.GoogleADKRuntime.agent_tool_contract
+    saved = manager.replay_cache.load(cold.cache_key)
+    assert saved["payload"]["agent_tool_contract"] == cold.payload["agent_tool_contract"]
+    # Recreate the same historical replay key without another provider call.
+    monkeypatch.setattr(manager.replay_cache, "compute_key", lambda _payload: cold.cache_key)
+    warm = agent.run(task_prompt="Inspect permitted context.")
+    assert warm.cache_hit is True
+    assert len(provider_calls) == 2
+    assert rebuilt == ["SPY", "SPY"]
+    with strategy.memory._connect() as connection:
+        rows = connection.execute(
+            "SELECT event_type FROM memory_events WHERE event_type LIKE 'agent.tool_%' ORDER BY sequence"
+        ).fetchall()
+    assert [row["event_type"] for row in rows] == ["agent.tool_started", "agent.tool_outcome"] * 2
 
 
 @pytest.mark.parametrize("journal_available", [True, False])

@@ -54,3 +54,15 @@ def test_research_agent_does_not_get_order_rules():
 
     assert "Plan every order from one read of the account" not in prompt
     assert "You cannot place orders." in prompt
+
+
+def test_authorized_evidence_work_continues_before_the_final_answer_in_both_roles():
+    # RC4 runtime57f316cf: the live researcher returned a next-step plan
+    # after discovery; the options trader stopped after two mismatched inputs.
+    for trading in (False, True):
+        prompt = _prompt(allow_trading=trading)
+        assert "Complete the user's authorized task in this run." in prompt
+        assert "Perform relevant available tool calls before finalizing a plan for later." in prompt
+        assert "An empty catalog lookup requires a bounded refinement or unfiltered catalog lookup before concluding no relevant dataset exists." in prompt
+        assert "After a candidate fails a requested constraint, inspect bounded relevant alternatives from the returned inputs before declaring the setup unavailable." in prompt
+        assert "Keep trading permission, historical cutoffs, evidence requirements and risk limits unchanged." in prompt

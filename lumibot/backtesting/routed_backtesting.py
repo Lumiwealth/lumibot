@@ -1197,7 +1197,8 @@ class RoutedBacktestingPandas(ThetaDataBacktestingPandas):
 
     def record_history_requirement(self, *, asset, timestep, requested_bars, bars, timeshift=None):
         RoutedBacktestingPandas._record_consumed_history(self, asset=asset, timestep=timestep,
-            requested_bars=requested_bars, frame=bars.pandas_df if bars is not None else None, timeshift=timeshift)
+            requested_bars=requested_bars, frame=bars.pandas_df.tail(requested_bars) if bars is not None else None,
+            timeshift=timeshift)
 
     def record_indicator_input(self, *, asset, timestep, frame):
         """Validate the actual observed indicator inputs, not optional cache size."""

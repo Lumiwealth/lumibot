@@ -4677,6 +4677,12 @@ class Strategy(_Strategy):
             object. Cryptocurrencies must also specify the quote currency.
         length : int
             The number of rows (number of timesteps)
+        minimum_bars : int, optional
+            Minimum completed bars required by this backtest decision, between
+            1 and ``length``. Defaults to ``length`` to preserve strict existing
+            requirements. Set this when requesting a generous history window
+            but consuming only its most recent smaller lookback. This changes
+            validation only; returned prices and the download window are unchanged.
         timestep : str
             Time interval for each bar. Supports multiple formats:
 
@@ -4782,6 +4788,7 @@ class Strategy(_Strategy):
             kwargs["return_polars"] = args[0]
 
         history_requirement = kwargs.pop("_history_requirement", "required")
+        minimum_bars = kwargs.pop("minimum_bars", None)
         if history_requirement not in {"required", "prefetch"}:
             raise ValueError("Unknown internal history requirement mode")
         return_polars_provided = "return_polars" in kwargs
@@ -4806,6 +4813,12 @@ class Strategy(_Strategy):
                     f"Invalid length parameter in get_historical_prices() method. Length must be an int but instead got {length}, "
                     f"which is a type {type(length)}."
                 )
+
+        if minimum_bars is not None and (
+            isinstance(minimum_bars, bool) or not isinstance(minimum_bars, int)
+            or minimum_bars < 1 or minimum_bars > length
+        ):
+            raise ValueError("minimum_bars must be an integer between 1 and length")
 
         if quote is None:
             quote = self.quote_asset
@@ -4990,7 +5003,8 @@ class Strategy(_Strategy):
             record_requirement = getattr(ds, "record_history_requirement", None)
             if callable(record_requirement):
                 record_requirement(asset=asset, timestep=original_timestep or actual_timestep,
-                                   requested_bars=length, bars=bars, timeshift=timeshift)
+                                   requested_bars=length if minimum_bars is None else minimum_bars,
+                                   bars=bars, timeshift=timeshift)
         return bars
 
     def get_symbol_bars(

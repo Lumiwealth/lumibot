@@ -40,6 +40,23 @@ def test_missing_warmup_is_distinct_from_valid_zero_trade_run(monkeypatch):
 @pytest.mark.acceptance_backtest
 @pytest.mark.usefixtures("disable_datasource_override")
 @pytest.mark.parametrize("routed", [False, True], ids=["direct", "botspot-auto"])
+def test_generous_history_window_preserves_exact_decisions_and_financials(monkeypatch, routed):
+    monkeypatch.setenv("LUMIBOT_CACHE_BACKEND", "local")
+    monkeypatch.setenv("DATADOWNLOADER_BASE_URL", "http://localhost:8080")
+    frame = _prices(pd.date_range("2026-02-02 16:00", periods=12, freq="B", tz="America/New_York"),
+                    [100., 101., 102., 103., 101., 99., 98., 100., 103., 104., 102., 101.])
+    kwargs = dict(symbol="SPY", start=datetime(2026, 2, 9), end=datetime(2026, 2, 14), routed=routed)
+    baseline = run_engine_replay(frame, **kwargs)
+    generous = run_engine_replay(frame, history_window=500, **kwargs)
+    assert generous["data_health"]["required_complete"] is True
+    assert baseline["fills"], "Exercise real broker fills, not only a zero-trade result"
+    for field in ("bars", "signals", "fills", "cash", "quantity", "equity", "frame_sha256"):
+        assert generous[field] == baseline[field], field
+
+
+@pytest.mark.acceptance_backtest
+@pytest.mark.usefixtures("disable_datasource_override")
+@pytest.mark.parametrize("routed", [False, True], ids=["direct", "botspot-auto"])
 def test_recovered_daily_history_preserves_valid_result_and_exact_financials(monkeypatch, routed):
     from tests.backtest.ibkr_replay_support import ReplayMomentum
     from lumibot.tools.ibkr_history_health import HistoryOutcome, record_history_health

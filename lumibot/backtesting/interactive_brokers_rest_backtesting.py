@@ -39,8 +39,9 @@ class InteractiveBrokersRESTBacktesting(PandasData):
 
             record_backtest_availability_requirement(asset=asset, timestep=timestep, when=self.get_datetime(),
                                                      history_as_of=getattr(self, "_history_as_of", None))
+        frame = bars.pandas_df.tail(requested_bars) if bars is not None else None
         record_required_history(asset=asset, timestep=timestep, requested_bars=requested_bars,
-                                frame=bars.pandas_df if bars is not None else None, when=self.get_datetime())
+                                frame=frame, when=self.get_datetime())
 
     def resolve_order_asset(self, order, positions):
         from lumibot.tools.ibkr_order_contract import resolve_order_contract

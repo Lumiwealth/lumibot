@@ -46,8 +46,12 @@ class ReplayMomentum(Strategy):
             self.set_market(p["market"])
 
     def on_trading_iteration(self):
-        bars = self.get_historical_prices(self.asset, self.lookback, timestep=self.cadence)
+        window = self.parameters.get("history_window")
+        required = {"minimum_bars": self.lookback} if window is not None else {}
+        bars = self.get_historical_prices(self.asset, window or self.lookback,
+                                          timestep=self.cadence, **required)
         frame = bars.df if bars is not None else pd.DataFrame()
+        frame = frame.tail(self.lookback)
         closes = frame["close"].dropna() if "close" in frame else pd.Series(dtype=float)
         if len(closes) < self.lookback:
             message = f"Replay requires {self.lookback} completed closes, received {len(closes)}"
@@ -73,7 +77,7 @@ class ReplayMomentum(Strategy):
 def run_engine_replay(frame: pd.DataFrame, *, symbol: str, start: datetime, end: datetime,
                       timestep: str = "day", lookback: int = 3, asset_type: str = "stock",
                       expiration=None, multiplier: int = 1, market=None, auxiliary_frames=None, contract_frames=None, trading_fees=None,
-                      routed: bool = False):
+                      routed: bool = False, history_window: int = None):
     """Run fixed data through the actual engine and return comparison artifacts."""
     if frame.index.has_duplicates or not frame.index.is_monotonic_increasing:
         raise ValueError("Replay prices must have unique ordered timestamps")
@@ -125,7 +129,8 @@ def run_engine_replay(frame: pd.DataFrame, *, symbol: str, start: datetime, end:
             budget=100_000, benchmark_asset=None, risk_free_rate=0,
             buy_trading_fees=trading_fees or [], sell_trading_fees=trading_fees or [],
             parameters={"asset": asset, "lookback": lookback, "cadence": timestep,
-                        "sleeptime": "1D" if timestep == "day" else "30M", "market": market},
+                        "sleeptime": "1D" if timestep == "day" else "30M", "market": market,
+                        "history_window": history_window},
             **source_kwargs, analyze_backtest=False,
             show_plot=False, show_tearsheet=False, save_tearsheet=False,
             show_indicators=False, save_logfile=False, save_stats_file=False,

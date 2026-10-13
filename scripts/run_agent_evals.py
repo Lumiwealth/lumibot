@@ -20,6 +20,7 @@ from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
+from urllib.parse import unquote, urlsplit
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 if str(REPO_ROOT) in sys.path:
@@ -346,6 +347,7 @@ def compact_transcript(result: Any, fixture: FixtureRuntime) -> dict[str, Any]:
         "tool_calls": [{"name": event.tool_name, "payload": event.payload} for event in result.tool_calls],
         "tool_results": [{"name": event.tool_name, "payload": event.payload} for event in result.tool_results],
         "fixture_calls": fixture.calls,
+        "web_requests": getattr(fixture, "web_requests", None),
         "submissions": fixture.submissions,
         "rejected_submissions": fixture.rejected_submissions,
         "final_positions": fixture.positions,
@@ -510,11 +512,42 @@ def score_machine_contract(case: dict[str, Any], transcript: dict[str, Any]) -> 
     if contract.get("forbidOrderTools") and (submissions or transcript.get("rejected_submissions")):
         failures.append("submitted an order despite a no-order contract")
 
-    # A document dated after the simulated clock must never be opened, even to discard it.
+    # Prefer the fixture's actual HTTP observations: redirects and document
+    # parsers can fetch URLs beyond the initial tool argument. Older calibration
+    # transcripts retain a narrow transport-tool fallback; SQL and other tool
+    # arguments mentioning excluded links are not network requests.
+    requests = transcript.get("web_requests")
+    if requests is None:
+        requests = [
+            {"url": call.get("arguments", {}).get("url")}
+            for call in calls
+            if call.get("name") in {"http_request", "read_document"}
+            and isinstance(call.get("arguments"), dict)
+            and isinstance(call["arguments"].get("url"), str)
+        ]
+    elif not isinstance(requests, list) or any(
+        not isinstance(item, dict) or set(item) != {"method", "url"}
+        or not isinstance(item["method"], str) or not item["method"]
+        or not isinstance(item["url"], str) or not item["url"]
+        for item in requests
+    ):
+        failures.append("actual web request evidence is malformed")
+        requests = []
+
+    # A future disclosed document must never be fetched, even to discard it.
     for forbidden in contract.get("forbiddenFetchedUrls") or []:
-        for call in calls:
-            if forbidden in stable_json(call.get("arguments") or {}):
-                failures.append(f"{call.get('name')} fetched {forbidden}, which was filed after the simulated date")
+        for request in requests:
+            try:
+                actual, excluded = urlsplit(request["url"]), urlsplit(forbidden)
+                matched = (
+                    unquote(actual.path) == unquote(excluded.path)
+                    if forbidden.startswith("/")
+                    else actual._replace(fragment="") == excluded._replace(fragment="")
+                )
+            except ValueError:
+                matched = False
+            if matched:
+                failures.append(f"HTTP request fetched {forbidden}, which was disclosed after the simulated instant")
                 break
     for required in contract.get("requiredTools") or []:
         if required not in sequence:

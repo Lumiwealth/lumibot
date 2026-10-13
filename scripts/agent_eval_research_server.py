@@ -1,6 +1,7 @@
 """Local stdio MCP fixture: real discovery/transport, recorded research responses."""
 
 import calendar
+import copy
 import json
 import re
 import sys
@@ -109,11 +110,112 @@ def _in_calendar_range(day: str, time_range: dict | None) -> bool:
 
 FILING_DATE = "2026-08-07"
 DOCUMENT_ID = "0000123456:0000123456-26-000042:acme-20260630.htm"
-CATALOG_SOURCES = {
-    "bls.public_series": "BLS",
-    "treasury.fiscaldata": "Treasury",
-    "sec.filings": "SEC",
-}
+# Production discovery metadata, restricted to these recorded sources. Keep
+# the production catalog order for score ties; metadata is not an observation
+# or proof that original-vintage historical replay is available.
+RECORDED_CATALOG = (
+    {
+        "id": "sec.filings",
+        "source": "SEC",
+        "title": "SEC filings",
+        "description": "Recent EDGAR filing metadata and document URLs for public companies and reporting entities.",
+        "categories": ["documents", "sec", "filings"],
+        "keywords": ["10-K", "10-Q", "8-K", "S-1", "DEF 14A", "proxy", "registration"],
+        "access": "public",
+        "attribution": "U.S. Securities and Exchange Commission EDGAR APIs",
+        "examples": ["List Apple's latest 10-K and 10-Q filings", "Find Berkshire's latest 13F-HR"],
+    },
+    {
+        "id": "treasury.fiscaldata",
+        "source": "Treasury",
+        "title": "Treasury FiscalData",
+        "description": "Public U.S. Treasury FiscalData datasets including debt to the penny, average interest rates, "
+        "and Daily Treasury Statement tables.",
+        "categories": ["macro", "treasury", "fiscal"],
+        "keywords": [
+            "debt",
+            "daily treasury statement",
+            "interest rates",
+            "fiscal data",
+            "yield curve",
+            "10-year Treasury",
+            "ten year yield",
+        ],
+        "aliases": ["10-year treasury yield", "10 year treasury yield", "treasury yield curve", "daily treasury rates"],
+        "access": "public",
+        "attribution": "U.S. Department of the Treasury FiscalData API",
+        "examples": [
+            "Get the latest debt to the penny",
+            "Show average interest rates on Treasury securities",
+            "Chart the 10-year Treasury yield for the last decade",
+        ],
+    },
+    {
+        "id": "bls.public_series",
+        "source": "BLS",
+        "title": "BLS public time series",
+        "description": "Bureau of Labor Statistics time series for CPI, unemployment, payrolls, wages, and PPI.",
+        "categories": ["macro", "labor", "inflation"],
+        "keywords": ["CPI", "unemployment", "payrolls", "wages", "PPI", "inflation"],
+        "access": "botspot_key",
+        "attribution": "U.S. Bureau of Labor Statistics Public Data API",
+        "examples": ["Show CPI and unemployment for the last year", "Get nonfarm payrolls"],
+    },
+)
+CATALOG_STOP_WORDS = frozenset(
+    "a an and are chart data for from get graph latest me of on please public recent show the to with".split()
+)
+CATALOG_QUERY_SYNONYMS = (
+    (r"\bquarterly\s+real\s+gdp\b", ("BEA", "NIPA", "real gdp", "quarterly real gdp")),
+    (r"\breal\s+gdp\b", ("BEA", "NIPA", "real gdp")),
+    (r"\bgdp\s+growth\b|\bgrowth\s+rate\b", ("BEA", "GDP growth rate", "NIPA")),
+    (r"\bnominal\s+gdp\b", ("BEA", "nominal gdp", "NIPA")),
+    (
+        r"\b10[-\s]?year\s+treasury\b|\bten\s+year\s+treasury\b|\byield\s+curve\b",
+        ("Treasury", "10-year Treasury", "yield curve"),
+    ),
+    (
+        r"\binsider\s+(transaction|buy|sell|sale|purchase)|\bform\s+4\b",
+        ("SEC", "Form 4", "insider transactions", "current filings"),
+    ),
+    (r"\bfull[-\s]?text\b|\bsearch\s+edgar\b|\bfilings\s+mention", ("SEC", "full text", "EDGAR search")),
+    (r"\bexhibit|attachment|filing\s+index\b", ("SEC", "exhibits", "filing index")),
+)
+
+
+def _catalog_search_score(dataset: dict, query: str) -> int:
+    # Match the production catalog's metadata search, including synonyms,
+    # duplicate token weighting and aliases. This does not route agent tools.
+    haystack = " ".join(
+        [
+            dataset["id"],
+            dataset["source"],
+            dataset["title"],
+            dataset["description"],
+            *dataset["categories"],
+            *dataset["keywords"],
+            *dataset.get("aliases", []),
+            *dataset["examples"],
+        ]
+    ).lower()
+    additions = [
+        term
+        for pattern, terms in CATALOG_QUERY_SYNONYMS
+        if re.search(pattern, query, re.IGNORECASE | re.ASCII)
+        for term in terms
+    ]
+    expanded = " ".join([query, *additions]).lower()
+    score = 20 if query in haystack else 0
+    for token in re.split(r"[^a-z0-9]+", expanded):
+        if len(token) <= 1 or token in CATALOG_STOP_WORDS:
+            continue
+        score += 2 if token in haystack else 0
+        score += 2 if token in dataset["id"].lower() else 0
+        score += 1 if token in dataset["source"].lower() else 0
+    for alias in dataset.get("aliases", []):
+        if alias.lower() in query or query in alias.lower():
+            score += 25
+    return score
 
 
 @server.tool()
@@ -125,10 +227,22 @@ def search_data_catalog(
     """Find recorded public macro and SEC datasets by topic."""
     # Keep discovery bounded to recorded fixtures; do not claim the complete
     # live catalog or original-vintage capabilities for these observations.
+    normalized_query = (query or "").strip().lower()
+    normalized_source = (source or "").strip().lower()
+    candidates = []
+    for index, dataset in enumerate(RECORDED_CATALOG):
+        if dataset["id"] not in recorded["sources"] and dataset["id"] != "sec.filings":
+            continue
+        if normalized_source and dataset["source"].lower() != normalized_source:
+            continue
+        score = _catalog_search_score(dataset, normalized_query) if normalized_query else 1
+        if score > 0:
+            candidates.append((score, index, dataset))
+    candidates.sort(key=lambda item: (-item[0], item[1]))
+    bounded_limit = min(max(limit or 20, 1), 50)
     datasets = [
         {
-            "id": dataset_id,
-            "source": CATALOG_SOURCES[dataset_id],
+            **copy.deepcopy(dataset),
             "temporalCapabilities": {
                 "pointInTimeQualified": False,
                 "originalVintageReplay": False,
@@ -136,9 +250,8 @@ def search_data_catalog(
                 "historicalAvailability": "unqualified",
             },
         }
-        for dataset_id in [*recorded["sources"], "sec.filings"]
-        if source is None or CATALOG_SOURCES[dataset_id] == source
-    ][: limit or 20]
+        for _score, _index, dataset in candidates[:bounded_limit]
+    ]
     return {"datasets": datasets, "count": len(datasets)}
 
 

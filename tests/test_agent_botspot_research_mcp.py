@@ -555,6 +555,77 @@ def test_recorded_catalog_matches_node_ids_and_unqualified_temporal_capabilities
 
 
 @pytest.mark.parametrize(
+    "dataset_id,title,description,categories",
+    [
+        (
+            "bls.public_series",
+            "BLS public time series",
+            "Bureau of Labor Statistics time series for CPI, unemployment, payrolls, wages, and PPI.",
+            ["macro", "labor", "inflation"],
+        ),
+        (
+            "treasury.fiscaldata",
+            "Treasury FiscalData",
+            "Public U.S. Treasury FiscalData datasets including debt to the penny, average interest rates, "
+            "and Daily Treasury Statement tables.",
+            ["macro", "treasury", "fiscal"],
+        ),
+        (
+            "sec.filings",
+            "SEC filings",
+            "Recent EDGAR filing metadata and document URLs for public companies and reporting entities.",
+            ["documents", "sec", "filings"],
+        ),
+    ],
+)
+def test_recorded_catalog_discovery_wire_contains_actual_node_metadata(
+    recorded_research_server, dataset_id, title, description, categories
+):
+    # Actual Node catalog metadata, not an invented available/qualified source.
+    result = _recorded_research_call(recorded_research_server, "search_data_catalog", {})
+    dataset = next(item for item in result["datasets"] if item["id"] == dataset_id)
+    assert dataset["title"] == title
+    assert dataset["description"] == description
+    assert dataset["categories"] == categories
+    assert dataset["temporalCapabilities"]["historicalAvailability"] == "unqualified"
+
+
+@pytest.mark.parametrize(
+    "payload,ids",
+    [
+        ({"query": "  CPI unemployment  "}, ["bls.public_series"]),
+        ({"query": "debt to the penny"}, ["treasury.fiscaldata"]),
+        # Production token scoring also matches the "10" in Treasury yields.
+        ({"query": "10-K"}, ["sec.filings", "treasury.fiscaldata"]),
+        ({"query": "nonfarm"}, ["bls.public_series"]),
+        ({"query": "daily treasury rates"}, ["treasury.fiscaldata"]),
+        ({"query": "unemployment", "source": "SEC"}, []),
+        ({"query": "zzzzxyzzzz"}, []),
+        # Ties keep the production catalog order before the limit is applied.
+        ({"query": "macro", "limit": 1}, ["treasury.fiscaldata"]),
+        ({"query": "   ", "limit": 1}, ["sec.filings"]),
+    ],
+)
+def test_recorded_catalog_honors_actual_node_topic_filter_order_and_limit(recorded_research_server, payload, ids):
+    result = _recorded_research_call(recorded_research_server, "search_data_catalog", payload)
+    assert [item["id"] for item in result["datasets"]] == ids
+    assert result["count"] == len(ids)
+
+
+def test_recorded_discovery_metadata_does_not_upgrade_unavailable_observations(recorded_research_server, monkeypatch):
+    from scripts import agent_eval_research_server
+
+    monkeypatch.setattr(agent_eval_research_server, "unavailable", True)
+    catalog = _recorded_research_call(recorded_research_server, "search_data_catalog", {"query": "CPI"})
+    assert [item["id"] for item in catalog["datasets"]] == ["bls.public_series"]
+    assert catalog["datasets"][0]["temporalCapabilities"]["pointInTimeQualified"] is False
+    result = _recorded_research_call(recorded_research_server, "query_data", {"datasetId": "bls.public_series"})
+    assert result["available"] is False
+    assert result["error"] == "managed_research_unavailable"
+    assert "rows" not in result
+
+
+@pytest.mark.parametrize(
     "source,ids",
     [("BLS", ["bls.public_series"]), ("Treasury", ["treasury.fiscaldata"]), ("SEC", ["sec.filings"]), ("BEA", [])],
 )

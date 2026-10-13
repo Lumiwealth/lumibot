@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import math
 import sys
 import tempfile
 import uuid
@@ -45,6 +46,57 @@ class _EvalStrategy(Strategy):
 
 class _FixtureBroker(BacktestingBroker):
     """Recorded Greeks are a broker response; execution uses the real broker."""
+
+    def _get_balances_at_broker(self, quote_asset, strategy):
+        """Live-read parity from this strategy's current recorded ledger only.
+
+        BacktestingBroker has no live balance implementation. Do not fill that
+        gap with the initial budget or cached strategy equity: missing ledger
+        entries or recorded marks must keep the production snapshot incomplete.
+        """
+        positions = self.get_tracked_positions(strategy)
+        cash_positions = [position for position in positions if position.asset == quote_asset]
+        if len(cash_positions) != 1:
+            return None, None, None
+        try:
+            cash = float(cash_positions[0].quantity)
+        except (TypeError, ValueError, OverflowError):
+            return None, None, None
+        if not math.isfinite(cash):
+            return None, None, None
+        values = []
+        for position in positions:
+            if position.asset == quote_asset:
+                continue
+            try:
+                quantity = float(position.quantity)
+                if not math.isfinite(quantity):
+                    return cash, None, None
+                if quantity == 0:
+                    continue
+                # This broker uses only its recorded Pandas source, including
+                # native option multipliers and signed tracked quantities.
+                price = self.get_last_price(position.asset, quote=quote_asset)
+                if price is None:
+                    return cash, None, None
+                price = float(price)
+                multiplier = float(position.asset.multiplier)
+                if not math.isfinite(price) or price == 0 or not math.isfinite(multiplier) or multiplier <= 0:
+                    return cash, None, None
+                value = quantity * price * multiplier
+                if not math.isfinite(value):
+                    return cash, None, None
+                values.append(value)
+            except Exception:
+                return cash, None, None
+        try:
+            positions_value = math.fsum(values)
+            portfolio_value = cash + positions_value
+        except (ValueError, OverflowError):
+            return cash, None, None
+        if not math.isfinite(portfolio_value):
+            return cash, None, None
+        return cash, positions_value, portfolio_value
 
     def get_greeks(self, asset, **kwargs):
         expiration = getattr(asset, "expiration", None)

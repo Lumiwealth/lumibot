@@ -136,6 +136,8 @@ def load_cases(case_ids: set[str] | None = None) -> list[dict[str, Any]]:
             raise RuntimeError(f"Invalid eval case: {path}")
         if case_ids and value["id"] not in case_ids:
             continue
+        case_required_passes(value)
+        _decision_completion_contract(value.get("machineContract") or {})
         value["_path"] = path
         cases.append(value)
     if case_ids:
@@ -394,6 +396,26 @@ def initial_snapshot_covers(transcript, tool):
     )
 
 
+def _decision_completion_contract(contract: dict[str, Any]) -> tuple[bool, list[dict[str, str]]]:
+    """A blocked decision exemption requires explicit typed failed-tool evidence."""
+    if not isinstance(contract, dict):
+        raise RuntimeError("machineContract must be a JSON object")
+    expected = contract.get("expectedDecisionCompleted", True)
+    if type(expected) is not bool:
+        raise RuntimeError("expectedDecisionCompleted must be a boolean")
+    required = contract.get("requiredFailedTools", [])
+    if not isinstance(required, list) or any(
+        not isinstance(item, dict) or set(item) != {"name", "code"}
+        or any(not isinstance(item[key], str) or not item[key] or item[key] != item[key].strip()
+               for key in ("name", "code"))
+        for item in required
+    ):
+        raise RuntimeError("requiredFailedTools must contain exact nonempty name/code objects")
+    if expected is False and not required:
+        raise RuntimeError("expectedDecisionCompleted=False requires nonempty requiredFailedTools")
+    return expected, required
+
+
 def score_machine_contract(case: dict[str, Any], transcript: dict[str, Any]) -> dict[str, Any]:
     contract = case.get("machineContract") or {}
     calls = transcript["fixture_calls"]
@@ -428,8 +450,37 @@ def score_machine_contract(case: dict[str, Any], transcript: dict[str, Any]) -> 
                     failures.append(
                         f"indicator tool {field} was {arguments.get(field)!r}, expected {expected!r}"
                     )
-    if "execution_outcome" in transcript and not (transcript["execution_outcome"] or {}).get("decision_completed"):
-        failures.append("production AgentManager did not report a completed decision")
+    try:
+        expected_completed, required_failed = _decision_completion_contract(contract)
+    except RuntimeError as exc:
+        failures.append(str(exc))
+        expected_completed, required_failed = True, []
+    # Older helper-only contract transcripts have no execution outcome. Actual
+    # production captures always carry it; an explicit expectation requires it.
+    if "execution_outcome" in transcript or "expectedDecisionCompleted" in contract:
+        outcome = transcript.get("execution_outcome")
+        completed = outcome.get("decision_completed") if isinstance(outcome, dict) else None
+        if completed is not expected_completed:
+            failures.append(f"production AgentManager decision_completed was not {expected_completed}")
+    observed_results = list(transcript.get("tool_results") or [])
+    for required in required_failed:
+        matched = None
+        for index, event in enumerate(observed_results):
+            if not isinstance(event, dict) or event.get("name") != required["name"]:
+                continue
+            payload = event.get("payload")
+            if isinstance(payload, dict) and isinstance(payload.get("result"), dict):
+                payload = payload["result"]
+            if (
+                isinstance(payload, dict) and payload.get("tool_error") is True and payload.get("ok") is False
+                and isinstance(payload.get("error"), dict) and payload["error"].get("code") == required["code"]
+            ):
+                matched = index
+                break
+        if matched is None:
+            failures.append(f"required failed tool {required['name']} did not return error code {required['code']}")
+        else:
+            observed_results.pop(matched)  # One actual result cannot satisfy two required failures.
     if "broker_orders" in transcript and int(contract.get("exactOrderCount", 0)) > 0:
         if not any(
             order.get("status") == "fill" or order.get("status") == "filled" for order in transcript["broker_orders"]
@@ -962,16 +1013,27 @@ def append_jsonl(path: Path, row: dict[str, Any]) -> None:
             os.fsync(handle.fileno())
 
 
-def target_passes(already: int, repeat: int) -> int:
+def case_required_passes(case: dict[str, Any]) -> int:
+    """Single establishment policy: ordinary cases need three, selected cases five."""
+    required = case.get("requiredRepetitions", NEW_CASE_REQUIRED_PASSES)
+    if type(required) is not int or required not in {3, 5}:
+        raise RuntimeError("requiredRepetitions must be the integer 3 or 5")
+    return required
+
+
+def target_passes(already: int, repeat: int, required: int | None = None) -> int:
     """How many consecutive passes this case needs before it is done.
 
-    A case that has not yet earned NEW_CASE_REQUIRED_PASSES consecutive passes
-    is driven to that number whatever --repeat says, so a brand new eval can
+    A case that has not yet earned its required consecutive passes is driven
+    to that number whatever --repeat says, so a brand new eval can
     never be accepted on one lucky run. An established case honours --repeat,
     which is 1 for the ordinary gate.
     """
-    if already < NEW_CASE_REQUIRED_PASSES:
-        return max(repeat, NEW_CASE_REQUIRED_PASSES)
+    required = NEW_CASE_REQUIRED_PASSES if required is None else required
+    if type(required) is not int or required not in {3, 5}:
+        raise RuntimeError("required passes must be the integer 3 or 5")
+    if already < required:
+        return max(repeat, required)
     return repeat
 
 
@@ -1062,12 +1124,16 @@ def is_fresh(
     *,
     acting_model: str = DEFAULT_ACTING_MODEL,
     judge_model: str = DEFAULT_JUDGE_MODEL,
+    required: int | None = None,
 ) -> bool:
+    required = REQUIRED_CONSECUTIVE_PASSES if required is None else required
+    if type(required) is not int or required not in {3, 5}:
+        raise RuntimeError("required passes must be the integer 3 or 5")
     record = state.get("cases", {}).get(case_id)
     if not isinstance(record, dict) or record.get("fingerprint") != fingerprint:
         return False
     passed_count = record.get("consecutive_passes")
-    if type(passed_count) is not int or passed_count < REQUIRED_CONSECUTIVE_PASSES:
+    if type(passed_count) is not int or passed_count < required:
         return False
     if record.get("acting_model") != acting_model or record.get("judge_model") != judge_model:
         return False
@@ -1112,6 +1178,9 @@ def write_json_atomic(path: Path, value: dict[str, Any]) -> None:
 
 
 def preflight(cases: list[dict[str, Any]], judge_model: str, max_cost_usd: float) -> None:
+    for case in cases:
+        case_required_passes(case)
+        _decision_completion_contract(case.get("machineContract") or {})
     models = {str(case.get("model") or DEFAULT_ACTING_MODEL) for case in cases} | {judge_model}
     if max_cost_usd != 0:
         raise RuntimeError("Eval API spend must be zero; use --max-cost-usd 0")
@@ -1144,6 +1213,9 @@ def preflight_production_fixtures(cases: list[dict[str, Any]]) -> None:
     """Exercise schema discovery and production bindings before purchasing tokens."""
     from scripts.agent_eval_production_fixture import ProductionFixture
 
+    for case in cases:
+        case_required_passes(case)
+        _decision_completion_contract(case.get("machineContract") or {})
     for name in sorted({case["fixture"] for case in cases}):
         case = next(case for case in cases if case["fixture"] == name)
         fixture = ProductionFixture(build_fixture(name))
@@ -1153,6 +1225,7 @@ def preflight_production_fixtures(cases: list[dict[str, Any]]) -> None:
             for candidate in (item for item in cases if item["fixture"] == name):
                 contract = candidate["machineContract"]
                 required = set(contract.get("requiredTools", []) + contract.get("requiredBeforeOrder", []))
+                required.update(item["name"] for item in contract.get("requiredFailedTools", []))
                 if contract.get("orderTool"):
                     required.add(contract["orderTool"])
                 if required - tools:
@@ -1201,7 +1274,7 @@ def build_parser() -> argparse.ArgumentParser:
         default=1,
         help=(
             "Repetitions to run for each selected case. An established case needs 1. "
-            f"A new or changed case still needs {NEW_CASE_REQUIRED_PASSES} consecutive "
+            "A new or changed case still needs its configured 3 or 5 consecutive "
             "passes before it is recorded as fresh, and prior passes carry forward."
         ),
     )
@@ -1264,6 +1337,7 @@ def main() -> int:
                 args.freshness_days,
                 acting_model=case.get("model") or DEFAULT_ACTING_MODEL,
                 judge_model=args.judge_model,
+                required=case_required_passes(case),
             )
         ]
         print(
@@ -1302,13 +1376,16 @@ def main() -> int:
             state, case["id"], fingerprint, args.freshness_days,
             acting_model=case.get("model") or DEFAULT_ACTING_MODEL,
             judge_model=args.judge_model,
+            required=case_required_passes(case),
         ):
             fresh_case_ids.append(case["id"])
             continue
         already = 0 if args.force else consecutive_pass_count(existing_rows, case["id"], fingerprint)
         seen = latest_repetition_rows(existing_rows, case["id"], fingerprint)
         latest = {} if args.force else seen
-        for repetition in range(1, max(target_passes(already, args.repeat), max(seen, default=0)) + 1):
+        for repetition in range(1, max(
+            target_passes(already, args.repeat, required=case_required_passes(case)), max(seen, default=0)
+        ) + 1):
             if latest.get(repetition, {}).get("status") == "pass":
                 resumed_repetitions += 1
             else:
@@ -1403,7 +1480,7 @@ def main() -> int:
         passed_count = consecutive_pass_count(all_rows, case_id, fingerprint)
         latest = latest_repetition_rows(all_rows, case_id, fingerprint)
         if (
-            case_rows and passed_count >= REQUIRED_CONSECUTIVE_PASSES
+            case_rows and passed_count >= case_required_passes(case)
             and all(row.get("status") == "pass" for row in latest.values())
         ):
             state.setdefault("cases", {})[case_id] = {
@@ -1423,6 +1500,7 @@ def main() -> int:
             state, case["id"], fingerprints[case["id"]], args.freshness_days,
             acting_model=case.get("model") or DEFAULT_ACTING_MODEL,
             judge_model=args.judge_model,
+            required=case_required_passes(case),
         )
     ]
     pass_count = sum(row.get("status") == "pass" for row in new_rows)

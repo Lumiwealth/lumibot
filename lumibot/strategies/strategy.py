@@ -5107,7 +5107,7 @@ class Strategy(_Strategy):
         if effective_sleep_time is None:
             data_source = getattr(getattr(self, "broker", None), "data_source", None)
             effective_sleep_time = 0.0 if getattr(data_source, "IS_BACKTESTING_DATA_SOURCE", False) else 0.1
-        return self.broker.data_source.get_bars(
+        results = self.broker.data_source.get_bars(
             assets,
             length,
             timestep=timestep,
@@ -5118,6 +5118,15 @@ class Strategy(_Strategy):
             include_after_hours=include_after_hours,
             sleep_time=effective_sleep_time
         )
+        if self.is_backtesting:
+            from lumibot.backtesting.market_input_evidence import record_market_input
+
+            for asset in assets:
+                bars = results.get(asset) if isinstance(results, dict) else None
+                record_market_input(source=self.broker.data_source, asset=asset,
+                    quote=self.quote_asset, timestep=timestep, when=self.get_datetime(),
+                    frame=bars.pandas_df if bars is not None else None, purpose="history-batch")
+        return results
 
     def get_bars(
         self,

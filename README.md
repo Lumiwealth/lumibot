@@ -531,10 +531,10 @@ Lumibot includes a built-in AI trading agent runtime. Build agents that run iden
 - Mount external **MCP servers** for news, macro data, filings, or any domain-specific tools
 - Replay identical agent decisions in **backtests** without paying for another model call
 
-Use **[BotSpot MCP](https://botspot.trade/agents?utm_source=github&utm_medium=readme&utm_campaign=lumibot&utm_content=ai_agents_mcp_link)** when you want an AI coding agent to generate Lumibot strategies, launch backtests, inspect artifacts, and iterate without leaving your editor.
+Use **[BotSpot MCP](https://github.com/Lumiwealth/botspot-mcp#connect)** when you want an AI coding agent to create and edit Lumibot strategies, run historical backtests, inspect artifacts, and iterate without leaving your editor. The maintained setup guide includes client instructions and starter prompts. A paid BotSpot plan is required; public store availability is tracked separately.
 
 <p align="center">
-  <a href="https://botspot.trade/agents?utm_source=github&utm_medium=readme&utm_campaign=lumibot&utm_content=ai_agents_mcp_button">
+  <a href="https://github.com/Lumiwealth/botspot-mcp#connect">
     <img src="docs/assets/readme/cta_botspot_mcp.png" alt="Use BotSpot MCP" width="520">
   </a>
 </p>
@@ -625,7 +625,7 @@ Crypto futures/perpetual backtests can route `Asset.AssetType.CRYPTO_FUTURE` thr
 - **Documentation:** [lumibot.lumiwealth.com](https://lumibot.lumiwealth.com/)
 - **Blog:** [lumiwealth.com/blog](https://lumiwealth.com/blog/)
 - **AI strategy builder and hosted deployment:** [BotSpot.trade](https://botspot.trade/sales?showLogin=1&utm_source=github&utm_medium=readme&utm_campaign=lumibot&utm_content=learn_more_botspot&sample=lumibot_readme_deploy)
-- **BotSpot MCP for AI coding agents:** [botspot.trade/agents](https://botspot.trade/agents?utm_source=github&utm_medium=readme&utm_campaign=lumibot&utm_content=learn_more_mcp)
+- **BotSpot MCP for AI coding agents:** [Setup and starter prompts](https://github.com/Lumiwealth/botspot-mcp#connect)
 - **Strategy marketplace:** [botspot.trade/marketplace](https://botspot.trade/marketplace?utm_source=github&utm_medium=readme&utm_campaign=lumibot&utm_content=learn_more_marketplace)
 - **YouTube strategy builds:** [Lumiwealth on YouTube](https://www.youtube.com/@Lumiwealth?sub_confirmation=1&utm_source=github&utm_medium=readme&utm_campaign=lumibot&utm_content=learn_more_youtube)
 

@@ -2,193 +2,54 @@ BotSpot MCP Integration
 =======================
 
 .. meta::
-   :description: BotSpot exposes a public MCP server for strategy generation, backtesting, deployment monitoring, artifact analysis, and chart/visual retrieval.
+   :description: Connect your AI assistant to BotSpot to create LumiBot strategies, run historical backtests, inspect charts, and report on your account.
 
-BotSpot exposes a public MCP server for strategy generation, backtesting,
-deployment monitoring, artifact analysis, and chart/visual retrieval.
+Use BotSpot MCP when you want your AI assistant to create and edit LumiBot
+strategies, run hosted historical backtests, inspect results, and report on
+your existing bots. A paid BotSpot plan is required; data access and usage
+limits depend on your plan and the requested workflow.
 
-This is the piece that makes BotSpot useful even when you already use Codex,
-Claude Code, Cursor, or another coding agent. A generic agent can write Python,
-but the BotSpot MCP gives that agent Lumibot-specific tools: launch hosted
-backtests, inspect charts and artifacts, compare runs, work with strategies in
-the marketplace, and prepare deployment without leaving the coding workflow.
-
-This page is intentionally practical: endpoint URLs, auth, client setup,
-and verification commands.
+Start with the `maintained setup guide <https://github.com/Lumiwealth/botspot-mcp#connect>`_.
+It contains current Claude Code, Cursor, Codex and hosted-client instructions,
+first-use prompts, pricing and connection troubleshooting.
 
 .. image:: ../docs/assets/readme/cta_botspot_mcp.png
    :alt: Use BotSpot MCP
    :align: center
    :width: 520px
-   :target: https://botspot.trade/agents?utm_source=documentation&utm_medium=mcp_guide&utm_campaign=lumibot&utm_content=mcp_primary_button
+   :target: https://github.com/Lumiwealth/botspot-mcp#connect
 
-Last verified
--------------
+Connect and try one workflow
+----------------------------------------
 
-- This doc was updated for the current production MCP behavior on ``March 16, 2026``.
-- Canonical host is ``https://mcp.botspot.trade``.
+1. Add the Streamable HTTP endpoint ``https://mcp.botspot.trade/mcp`` in your client.
+2. Complete the client's normal BotSpot OAuth sign-in.
+3. Ask the assistant to check account access, create a strategy, run a historical
+   backtest, and inspect that exact run using the `starter prompts
+   <https://github.com/Lumiwealth/botspot-mcp#your-first-useful-result>`_.
 
-Canonical endpoints
--------------------
+Strategy creation uses ``create_strategy`` followed by the saved-file and
+revision tools. Every edit creates a new revision; start a backtest from the
+newest saved revision. Keep the returned backtest ID for status, chart and
+artifact requests. A queued backtest is not a completed result.
 
-- Production MCP root (hosted connectors): ``https://mcp.botspot.trade``
-- Production MCP path (explicit endpoint): ``https://mcp.botspot.trade/mcp``
-- Production API (non-MCP REST): ``https://api.botspot.trade``
+No brokerage connection is needed for the starter historical example when
+your plan includes its required data. Backtests are simulations and do not
+guarantee future returns.
 
-Important transport note
-------------------------
+Permissions and availability
+----------------------------------------
 
-BotSpot runs MCP over HTTP JSON-RPC (POST). ``GET /mcp`` now returns a small
-capability JSON document for connector reachability checks.
-Tool execution still uses ``POST /mcp``.
+The direct MCP connection includes trading and deployment actions, subject
+to account permissions, plan entitlements and normal product approvals.
+An account connection alone does not authorize a trade. Protect API keys;
+never paste them into a chat or commit them to source control.
 
-Authentication modes
---------------------
+Custom MCP installation and public app-store approval are separate. The
+planned restricted store connection is still awaiting qualification and
+release. Check the `distribution tracker
+<https://github.com/Lumiwealth/botspot-mcp/blob/main/docs/distribution-status.md>`_
+for submitted, approved and installation-tested destinations.
 
-BotSpot supports two modes:
-
-1. **OAuth 2.1 + PKCE** (recommended for hosted connector UIs like Claude app/web and ChatGPT custom apps)
-2. **API key bearer token** (recommended for CLI/IDE clients like Claude Code, Cursor, Codex, and scripts)
-
-Create an API key
------------------
-
-1. Sign in to BotSpot.
-2. Go to **Account Settings**.
-3. In **API Keys**, click **Create New API Key**.
-4. Copy the key immediately (it begins with ``botspot_`` and is shown once).
-
-Use the key as:
-
-.. code-block:: text
-
-   Authorization: Bearer botspot_YOUR_API_KEY
-
-Client quickstarts
-------------------
-
-Claude app (Desktop/Web)
-^^^^^^^^^^^^^^^^^^^^^^^^
-
-1. Open Claude.
-2. Go to **Customize -> Connectors**.
-3. Add custom connector URL ``https://mcp.botspot.trade``.
-4. Click **Connect** and finish Auth0 sign-in + consent.
-
-Claude Code (API key)
-^^^^^^^^^^^^^^^^^^^^^
-
-.. code-block:: bash
-
-   export BOTSPOT_API_KEY="botspot_YOUR_API_KEY"
-   claude mcp add --transport http botspot https://mcp.botspot.trade/mcp \
-     --header "Authorization: Bearer $BOTSPOT_API_KEY"
-   claude mcp list
-
-Cursor (API key)
-^^^^^^^^^^^^^^^^
-
-Add this to your Cursor MCP config (commonly ``.cursor/mcp.json``):
-
-.. code-block:: json
-
-   {
-     "mcpServers": {
-       "botspot": {
-         "url": "https://mcp.botspot.trade/mcp",
-         "headers": {
-           "Authorization": "Bearer botspot_YOUR_API_KEY"
-         }
-       }
-     }
-   }
-
-Codex CLI (API key)
-^^^^^^^^^^^^^^^^^^^
-
-.. code-block:: bash
-
-   export BOTSPOT_API_KEY="botspot_YOUR_API_KEY"
-   codex mcp add botspot --url https://mcp.botspot.trade/mcp \
-     --bearer-token-env-var BOTSPOT_API_KEY
-   codex mcp list
-
-ChatGPT custom app (OAuth)
-^^^^^^^^^^^^^^^^^^^^^^^^^^
-
-If your ChatGPT plan has custom apps/connectors enabled:
-
-1. Open ChatGPT settings for apps/connectors.
-2. Add BotSpot MCP URL ``https://mcp.botspot.trade``.
-3. Complete OAuth sign-in/consent when prompted.
-
-What BotSpot MCP enables
-------------------------
-
-- Generate/refine strategies
-- Start/stop/status backtests
-- List/sort/filter backtests with server-side ordering
-- Query CSV artifacts using SQL
-- Fetch strategy visuals and backtest visual artifacts
-- Fetch chart-ready time series (equity, drawdown, returns, portfolio)
-- Read account status and billing links
-
-Known chaining requirement
---------------------------
-
-``start_backtest`` and ``get_code`` workflows are revision-specific.
-In practice, call ``list_revisions`` (or use revision IDs returned by other tools)
-before calling tools that require ``revisionId``.
-
-Validation checklist (copy/paste)
----------------------------------
-
-1) Metadata endpoint must return 200:
-
-.. code-block:: bash
-
-   curl -i https://mcp.botspot.trade/.well-known/oauth-protected-resource
-
-2) Unauthenticated MCP call must return 401 with ``WWW-Authenticate``:
-
-.. code-block:: bash
-
-   curl -i -X POST https://mcp.botspot.trade/mcp \
-     -H "Content-Type: application/json" \
-     --data '{"jsonrpc":"2.0","id":1,"method":"tools/list","params":{}}'
-
-3) Authenticated MCP call (replace key) should return tool list/result:
-
-.. code-block:: bash
-
-   curl -i -X POST https://mcp.botspot.trade/mcp \
-     -H "Authorization: Bearer botspot_YOUR_API_KEY" \
-     -H "Content-Type: application/json" \
-     --data '{"jsonrpc":"2.0","id":1,"method":"tools/list","params":{}}'
-
-Local debugging (recommended)
------------------------------
-
-- Local Node MCP endpoint: ``http://localhost:8082/mcp``
-- Tunnel endpoint example: ``https://<your-stable-ngrok-domain>/mcp``
-
-Keep one stable tunnel URL during a debugging cycle to avoid connector and callback drift.
-
-Troubleshooting
----------------
-
-- **"Error connecting to MCP server"**:
-  - Verify exact URL.
-  - Reconnect and complete OAuth consent.
-  - For OAuth clients, verify Auth0 callback/origin settings.
-- **Missing tools or stale schema in a chat session**:
-  - Start a fresh chat/session so tool metadata reloads.
-- **401 / missing scope errors**:
-  - Verify token type and scope set.
-  - Regenerate API key and re-test with a minimal tool call.
-
-More resources
---------------
-
-- BotSpot AI agent and MCP page: `https://botspot.trade/agents <https://botspot.trade/agents>`_
-- BotSpot MCP server guide: `https://github.com/Lumiwealth/botspot_node/blob/production/docs/mcp/mcp-server-guide.md <https://github.com/Lumiwealth/botspot_node/blob/production/docs/mcp/mcp-server-guide.md>`_
+To disconnect, use your client's connector controls. Revoke any separate
+BotSpot API key through BotSpot Account Settings.

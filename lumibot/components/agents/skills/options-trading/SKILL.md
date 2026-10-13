@@ -93,13 +93,19 @@ remains.
 - Use the intended package quantity only when submitting the order.
 - A positive signed package price is a debit. A negative signed package price is
   a credit.
+- Reconcile package arithmetic using the returned per-leg signed prices and
+  quantities. Do not invent a conflicting credit from mental arithmetic. If a
+  discrepancy appears, recheck the exact sides, ratios and price style with the
+  pricing tool before deciding the evidence is inconsistent.
 - Reject prices that contradict the structure's economic bounds.
 - Choose the price style for the authorized execution goal before submitting.
   A midpoint is a valuation estimate, not an immediately executable quote;
-  `best` and `mid` limits can remain pending. When instructed to complete an exit
-  and no tighter price limit is specified, calculate `price_style='fastest'`
-  with `action='close'` from the current exact-leg quotes and use that signed
-  price as the closing package limit. This buys at the quoted asks and sells
+  `best` and `mid` limits can remain pending. For an authorized entry or exit
+  intended to execute now, calculate `price_style='fastest'` from current
+  exact-leg quotes unless the user specifies a different price preference.
+  Closing held positions also requires `action='close'`. Pass the returned
+  signed price as `net_limit_price` so the order records the price you verified.
+  This buys at the quoted asks and sells
   at the quoted bids, while retaining a limit. Preserve every user debit cap,
   minimum credit, risk bound and execution preference; if the executable price
   violates one, leave the position unchanged and explain the conflict.

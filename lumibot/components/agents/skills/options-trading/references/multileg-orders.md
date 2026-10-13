@@ -16,10 +16,17 @@ tool can calculate a price when `net_limit_price` is omitted:
 - Compare the result with the maximum possible debit, credit, gain, and loss implied
   by the structure before ordering.
 
+Use the returned per-leg signed prices and quantities when reconciling that
+sum. Keep per-share package price distinct from dollars per contract and total
+order value. Recheck any apparent arithmetic conflict with the pricing tool;
+do not declare quotes inconsistent from an unsupported mental calculation.
+
 Match the price style to the user's execution goal. `mid` estimates value;
-`best` and `mid` can leave an order unfilled. For an authorized complete exit
-without a tighter price constraint, calculate the current executable
-`fastest` closing price (buy asks, sell bids), then submit that signed limit.
+`best` and `mid` can leave an order unfilled. For an authorized entry or exit
+intended to execute now, calculate the current executable `fastest` price
+(buy asks, sell bids), unless the user's price preference requires another
+style. Closing held positions also requires `action='close'`. Submit the
+returned signed price explicitly as `net_limit_price`.
 Do not use an uncapped market order or override the user's price/risk limits.
 If the quoted executable price breaches a limit, report the conflict without
 submitting. An executable quote is still not a guarantee of a fill.

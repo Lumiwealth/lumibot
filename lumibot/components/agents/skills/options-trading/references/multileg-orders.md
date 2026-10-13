@@ -16,6 +16,14 @@ tool can calculate a price when `net_limit_price` is omitted:
 - Compare the result with the maximum possible debit, credit, gain, and loss implied
   by the structure before ordering.
 
+Match the price style to the user's execution goal. `mid` estimates value;
+`best` and `mid` can leave an order unfilled. For an authorized complete exit
+without a tighter price constraint, calculate the current executable
+`fastest` closing price (buy asks, sell bids), then submit that signed limit.
+Do not use an uncapped market order or override the user's price/risk limits.
+If the quoted executable price breaches a limit, report the conflict without
+submitting. An executable quote is still not a guarantee of a fill.
+
 ## Submit atomically
 
 Use `orders_submit_multileg` once for the complete package. Pass the full intended

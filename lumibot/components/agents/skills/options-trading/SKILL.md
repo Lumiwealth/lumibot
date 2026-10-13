@@ -94,6 +94,16 @@ remains.
 - A positive signed package price is a debit. A negative signed package price is
   a credit.
 - Reject prices that contradict the structure's economic bounds.
+- Choose the price style for the authorized execution goal before submitting.
+  A midpoint is a valuation estimate, not an immediately executable quote;
+  `best` and `mid` limits can remain pending. When instructed to complete an exit
+  and no tighter price limit is specified, calculate `price_style='fastest'`
+  with `action='close'` from the current exact-leg quotes and use that signed
+  price as the closing package limit. This buys at the quoted asks and sells
+  at the quoted bids, while retaining a limit. Preserve every user debit cap,
+  minimum credit, risk bound and execution preference; if the executable price
+  violates one, leave the position unchanged and explain the conflict.
+  Quote movement can still prevent a fill, so verify actual status and positions.
 
 ## References
 

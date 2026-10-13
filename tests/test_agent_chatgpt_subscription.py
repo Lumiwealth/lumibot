@@ -360,7 +360,8 @@ def test_response_replay_rejects_conflicting_provider_call_ids_and_keeps_pruned_
 
 
 @pytest.mark.parametrize("completed", [True, False])
-def test_actual_adk_subscription_transport_owns_stream_validation(monkeypatch, tmp_path, completed):
+@pytest.mark.parametrize("content_type", ["text/event-stream", None])
+def test_actual_adk_subscription_transport_owns_stream_validation(monkeypatch, tmp_path, completed, content_type):
     """Run the actual ADK/LiteLLM conversion against a recorded HTTP contract."""
     import asyncio
 
@@ -389,7 +390,7 @@ def test_actual_adk_subscription_transport_owns_stream_validation(monkeypatch, t
         class Stream(httpx.AsyncByteStream):
             async def __aiter__(self):
                 yield data.encode()
-        return httpx.Response(200, headers={"content-type":"text/event-stream"}, stream=Stream())
+        return httpx.Response(200, headers={"content-type": content_type} if content_type else {}, stream=Stream())
     original_send = httpx.AsyncClient.send
     async def synthetic_only(client, request, **kwargs):
         assert isinstance(client._transport, httpx.MockTransport), "The owned subscription HTTP handler was bypassed"
@@ -417,7 +418,8 @@ def test_actual_adk_subscription_transport_owns_stream_validation(monkeypatch, t
 
 
 @pytest.mark.parametrize('runner_mode', [False, True])
-def test_stateless_tool_continuation_replays_opaque_reasoning_and_function_items(monkeypatch, tmp_path, runner_mode):
+@pytest.mark.parametrize("content_type", ["text/event-stream", None])
+def test_stateless_tool_continuation_replays_opaque_reasoning_and_function_items(monkeypatch, tmp_path, runner_mode, content_type):
     """ADK drops Responses reasoning metadata; assert the actual second wire body."""
     import asyncio
 
@@ -471,7 +473,7 @@ def test_stateless_tool_continuation_replays_opaque_reasoning_and_function_items
                                    'item_id': 'msg_final', 'output_index': 0, 'content_index': 0})
                 events.append({'type': 'response.completed', 'response': terminal})
                 yield ''.join('data: ' + json.dumps(event) + '\n\n' for event in events).encode()
-        return httpx.Response(200, headers={'content-type': 'text/event-stream'}, stream=Stream())
+        return httpx.Response(200, headers={'content-type': content_type} if content_type else {}, stream=Stream())
     model = chatgpt_llm.ChatGPTPlanLlm(model='openai/responses/gpt-6-luna', profile=tmp_path/'profile.json',
                                      transport=httpx.MockTransport(handle))
     request = LlmRequest(contents=[types.Content(role='user', parts=[types.Part(text='get CPI evidence')])],

@@ -860,10 +860,58 @@ def test_missing_research_judge_controls_preserve_observed_account_context():
         assert context["open_orders"] == []
 
 
+def test_web_disclosure_judge_controls_preserve_actual_native_provenance_and_request_evidence():
+    """Catalog integrity only; real judges qualify each semantic control label."""
+    import hashlib
+    from uuid import UUID
 
-
-
-
+    controls = json.loads((SCRIPT_PATH.parent.parent / "tests/fixtures/agent_judge_calibration.json").read_text())
+    selected = {
+        row["id"]: row for row in controls if row["case_id"] == "web_documents_holdings_from_yearly_and_trade_reports"
+    }
+    sources = {
+        "web-disclosure-manifest-observed-safe": (True, "7b1e2cd0-3a1b-459d-ab1c-b29f01fc9b4b", 2),
+        "web-disclosure-future-fetch-observed-negative": (False, "2bbd5dee-0fa1-48d6-9913-a9936b0f38cf", 2),
+        "web-disclosure-invented-document-observed-negative": (False, "e5318f8b-db7f-4b47-9156-2086a60d0dac", 5),
+        "web-disclosure-omitted-transaction-observed-negative": (False, "db648627-8147-4d93-8371-2317443bcb16", 3),
+        "web-disclosure-supplemental-future-observed-negative": (False, "3a13a229-0a5f-40e4-98c8-54bac17fca66", 5),
+    }
+    runtime_sources = {
+        "4ecb097f32fab6049ca8e92be54e1963f41275aa": "bd548a4ebc6d278aa118d00ea2e7ca3633f470015090f101abb82b72695e45fc",
+        "fb902af527a529417021f3011039547389d3ff44": "a2c574ceb2010f6a91c768e2b83010062f716d490959433a3f0065f4cf59c5f9",
+        "958e69e5d115cc3e6dc1d03200965792b09afe74": "7925c2aaffe49387acc21c18e3c1191f72610ab2f941634da682e83d86d14c22",
+    }
+    assert set(selected) == set(sources)
+    assert len(controls) == 14  # The existing nine research/spread controls remain.
+    case = evals.load_cases({"web_documents_holdings_from_yearly_and_trade_reports"})[0]
+    for identifier, (expected, run_id, repetition) in sources.items():
+        control = selected[identifier]
+        assert control["expected"] is expected
+        assert control["required_repetitions"] == 5
+        assert control["source_run"] == run_id and str(UUID(run_id)) == run_id
+        assert control["source_repetition"] == repetition
+        assert control["source_runtime_fingerprint"] == runtime_sources[control["source_sha"]]
+        assert control["source_case_fingerprint"] == evals.case_fingerprint(
+            case, judge_model=evals.DEFAULT_JUDGE_MODEL, runtime_hash=control["source_runtime_fingerprint"]
+        )
+        assert len(control["source_ledger_row_sha256"]) == 64
+        assert int(control["source_ledger_row_sha256"], 16) >= 0
+        assert control["source_external_writes"] == "fixture_only"
+        assert control["source_actor_funding"] == control["source_judge_funding"] == "chatgpt-plan"
+        assert control["source_api_spend_usd"] == 0
+        assert control["source_status"] == ("pass" if expected else "fail")
+        assert control["source_judge"]["pass"] is expected
+        transcript = control["transcript"]
+        assert (
+            hashlib.sha256(evals.stable_json(transcript).encode("utf-8")).hexdigest()
+            == (control["source_transcript_sha256"])
+        )
+        assert transcript["initial_runtime_context"]["current_datetime"] == "2026-08-11T14:35:00+00:00"
+        requests = transcript["web_requests"]
+        assert requests and all(set(item) == {"method", "url"} for item in requests)
+        assert all(
+            item["method"] == "GET" and item["url"].startswith("https://filings.example.gov/") for item in requests
+        )
 
 
 def test_eval_freshness_policy_has_one_90_day_source_of_truth():

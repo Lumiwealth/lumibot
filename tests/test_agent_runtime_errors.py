@@ -1,6 +1,18 @@
 from lumibot.components.agents.runtime import _classify_agent_error
 
 
+def test_chatgpt_failure_guidance_preserves_account_credit_choice(capsys):
+    from lumibot.components.agents.manager import AgentHandle
+
+    AgentHandle._log_fatal_backtest_error(RuntimeError("request failed"), "billing", "chatgpt/gpt-6-luna")
+
+    message = capsys.readouterr().err
+    assert "existing ChatGPT credits" in message
+    assert "no API-key fallback" in message
+    assert "Keep paid-credit fallback disabled" not in message
+    assert "Zero included allowance alone" in message
+
+
 class _ProviderError(Exception):
     def __init__(self, message: str, status_code: int | None = None, code: str | None = None):
         super().__init__(message)

@@ -2539,6 +2539,22 @@ def _bind_read_document(strategy: Any, manager: Any) -> BoundTool:
         from .documents import read_document_bytes
 
         url = _require_non_empty_text("url", url)
+        historical_as_of = None
+        if bool(getattr(strategy, "is_backtesting", False)):
+            try:
+                clock = strategy.get_datetime()
+                if not isinstance(clock, datetime) or clock.tzinfo is None or clock.utcoffset() is None:
+                    raise ValueError("A timezone-aware strategy clock is required.")
+                historical_as_of = clock.astimezone(timezone.utc).isoformat()
+            except Exception:
+                return {
+                    "ok": False,
+                    "tool_error": True,
+                    "error": {
+                        "type": "InvalidHistoricalClock",
+                        "message": "read_document backtests require a valid timezone-aware strategy datetime.",
+                    },
+                }
         fetched = _web_client_for_strategy(strategy).request(
             "GET", url, credential_profile=credential_profile, max_response_bytes=25_000_000, return_content=True
         )
@@ -2547,13 +2563,16 @@ def _bind_read_document(strategy: Any, manager: Any) -> BoundTool:
         # and agents mistook the download time for the document's date.
         result = {key: fetched[key] for key in ("ok", "status_code", "url", "error") if key in fetched}
         result["dates"] = (
-            "Live current version. Retrieval, observation, transaction and filing dates do not prove original historical "
-            "availability. Compare UTC-normalized first-public/version instants with the full simulated cutoff before "
-            "following links. Never fetch later disclosures or revisions. Unproved original versions remain unavailable."
+            "Current bytes. Before links, SQL-filter EACH index table by UTC first-public/version instants <= "
+            "historical_as_of; inspect actual selected IDs/URLs. Samples, counts, period/filing/retrieval dates are "
+            "not availability proof. Never fetch excluded versions."
         )
+        if historical_as_of is not None:
+            result["historical_as_of"] = historical_as_of
         if not fetched.get("ok"):
             result["text"] = content[:2_000].decode("utf-8", errors="replace")
             return result
+        result["sha256"] = hashlib.sha256(content).hexdigest()
         document = read_document_bytes(
             content,
             name=str(fetched.get("url") or url).rsplit("/", 1)[-1],

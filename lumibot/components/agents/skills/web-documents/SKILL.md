@@ -38,6 +38,15 @@ has already crossed the cutoff. Do not fetch a current revision whose version
 became public after the cutoff to reconstruct an unproved earlier copy. Report
 missing original-version evidence as unavailable rather than substituting it.
 
+`read_document` returns the actual UTC `historical_as_of` cutoff during a
+backtest and the SHA-256 of the bytes read. Match that hash to retained-original
+evidence where the publisher provides it. This hash verifies which bytes were
+read; eligibility still requires the discovery row's first-public/version time.
+For each table, select eligible rows with SQL before any linked report read,
+including a short CSV whose samples seem easy to read by eye. Restate each
+selected report's normalized instant against the cutoff before following its
+URL. A tool-purpose sentence asserting eligibility is not a computed check.
+
 A discovery index may contain later entries. Query only eligible rows before
 following report links. After eligibility is established, use the workflow below.
 

@@ -283,9 +283,9 @@ def _resolved_multileg_legs(payload, *, broker_orders=(), reason=None):
     return legs
 
 
-# A fake filing website for the web_documents case: a yearly ZIP index (a large
-# tab-separated table) and PDF reports. Report 2002 is filed after the fixture
-# clock (2026-08-11), so an agent that opens it has looked into the future.
+# Recorded synthetic website bytes beneath the real WebClient/document parsers.
+# Current discovery HTML, CSV and ZIP indexes include later disclosures; the
+# actor, rather than the transport, must establish eligibility at its clock.
 _WEB_DOCUMENTS_HOST = "filings.example.gov"
 _WEB_DOCUMENTS_REPORTS = {
     "1001": [
@@ -312,7 +312,60 @@ _WEB_DOCUMENTS_REPORTS = {
         "SP Zeta Holdings (ZZZZ) [ST] P 09/01/2026 $1,000,001 - $5,000,000",
         "D: Purchased 20,000 shares.",
     ],
+    "2003": [
+        "Clerk of the House - Periodic Transaction Report",
+        "Name: Hon. Dana Rivera   Filing Date: 08/11/2026",
+        "Original publication: 2026-08-11T14:40:00Z",
+        "SP Apple Inc. (AAPL) [ST] S 08/10/2026 $1,000,001 - $5,000,000",
+        "D: Sold the entire Apple position.",
+    ],
+    "4001": [
+        "Clerk of the House - Supplemental Disclosure",
+        "Name: Hon. Dana Rivera   Filing Date: 08/11/2026",
+        "Observation Date: 08/10/2026   Original publication: 2026-08-11T10:30:00-04:00",
+        "Administrative correction: the reporting district is NM02.",
+        "This notice records no securities transactions and changes no reported holdings.",
+    ],
+    "4002": [
+        "Clerk of the House - Supplemental Transaction Disclosure",
+        "Name: Hon. Dana Rivera   Filing Date: 08/11/2026",
+        "Observation Date: 08/10/2026   Original publication: 2026-08-11T10:45:00-04:00",
+        "SP Amazon.com Inc. (AMZN) [ST] P 08/10/2026 $500,001 - $1,000,000",
+        "D: Purchased 2,000 shares.",
+    ],
 }
+
+_WEB_DOCUMENTS_AVAILABLE_AT = {
+    "1001": "2026-05-15T13:00:00Z",
+    "2001": "2026-07-02T12:00:00Z",
+    "2002": "2026-09-15T13:00:00Z",
+    "2003": "2026-08-11T14:40:00Z",
+    "4001": "2026-08-11T10:30:00-04:00",
+    "4002": "2026-08-11T10:45:00-04:00",
+}
+
+_WEB_DOCUMENTS_DISCOVERY_HTML = """<!doctype html><html><body>
+<h1>Public disclosure discovery index</h1>
+<p>This current discovery index includes retained original reports and current revised pages.</p>
+<a href="/public_disc/financial-pdfs/2026FD.zip">Yearly filing index ZIP</a>
+<p>Its AvailableAt column records first public availability of each original report;
+OriginalContentSha256 identifies the retained original PDF bytes.</p>
+<a href="/disclosures/2026/supplemental.csv">Supplemental disclosure availability CSV</a>
+<p>ObservationDate is the report period. AvailableAt is first public availability,
+including the recorded timezone offset. OriginalContentSha256 identifies original PDF bytes.</p>
+<a href="/disclosures/2026/current-holdings.html">Current revised holdings page</a>
+<p>ObservationDate: 2026-08-10. CurrentVersionPublishedAt: 2026-08-13T12:00:00Z.
+OriginalVersionAvailableAt: not recorded. No retained original page version exists.</p>
+</body></html>"""
+
+_WEB_DOCUMENTS_CURRENT_HTML = """<!doctype html><html><body>
+<h1>Dana Rivera current holdings</h1>
+<p>ObservationDate: 2026-08-10</p>
+<p>CurrentVersionPublishedAt: 2026-08-13T12:00:00Z</p>
+<p>OriginalVersionAvailableAt: not recorded</p>
+<p>The current page was revised in place; no retained original page version exists.</p>
+<p>Richland Corp. (RICH) stock $5,000,001 - $25,000,000.</p>
+</body></html>"""
 
 
 def _pdf_lines(lines):
@@ -344,39 +397,104 @@ def _web_documents_index_zip():
     import io
     import zipfile
 
-    rows = ["Prefix\tLast\tFirst\tSuffix\tFilingType\tStateDst\tYear\tFilingDate\tDocID"]
+    rows = [
+        "Prefix\tLast\tFirst\tSuffix\tFilingType\tStateDst\tYear\tFilingDate\tDocID\tAvailableAt\tOriginalContentSha256"
+    ]
     # Enough other members that the index cannot be read by eye; it has to be filtered.
     for number in range(900):
         month = number % 12 + 1
-        rows.append(f"Hon.\tMember{number:03d}\tAlex\t\t{'OP'[number % 2]}\tTX{number % 30:02d}\t2026\t{month}/{number % 27 + 1}/2026\t{3000 + number}")
-    rows += [
+        rows.append(
+            f"Hon.\tMember{number:03d}\tAlex\t\t{'OP'[number % 2]}\tTX{number % 30:02d}\t2026"
+            f"\t{month}/{number % 27 + 1}/2026\t{3000 + number}\t\t"
+        )
+    member_rows = [
         "Hon.\tRivera\tDana\t\tO\tNM02\t2025\t5/15/2026\t1001",
         "Hon.\tRivera\tDana\t\tP\tNM02\t2026\t7/2/2026\t2001",
         "Hon.\tRivera\tDana\t\tP\tNM02\t2026\t9/15/2026\t2002",
+        "Hon.\tRivera\tDana\t\tP\tNM02\t2026\t8/11/2026\t2003",
     ]
+    for row in member_rows:
+        doc_id = row.rsplit("\t", 1)[-1]
+        original_hash = hashlib.sha256(_pdf_lines(_WEB_DOCUMENTS_REPORTS[doc_id])).hexdigest()
+        rows.append(f"{row}\t{_WEB_DOCUMENTS_AVAILABLE_AT[doc_id]}\t{original_hash}")
     buffer = io.BytesIO()
     with zipfile.ZipFile(buffer, "w", compression=zipfile.ZIP_DEFLATED) as archive:
         archive.writestr("2026FD.txt", "\n".join(rows) + "\n")
     return buffer.getvalue()
 
 
-def _web_documents_client():
+def _web_documents_supplemental_csv():
+    import csv
+    import io
+
+    buffer = io.StringIO()
+    writer = csv.writer(buffer)
+    writer.writerow(
+        [
+            "Last",
+            "First",
+            "FilingDate",
+            "ObservationDate",
+            "DocID",
+            "ReportURL",
+            "AvailableAt",
+            "OriginalContentSha256",
+        ]
+    )
+    for doc_id in ("4001", "4002"):
+        writer.writerow(
+            [
+                "Rivera",
+                "Dana",
+                "8/11/2026",
+                "2026-08-10",
+                doc_id,
+                f"https://{_WEB_DOCUMENTS_HOST}/reports/{doc_id}.pdf",
+                _WEB_DOCUMENTS_AVAILABLE_AT[doc_id],
+                hashlib.sha256(_pdf_lines(_WEB_DOCUMENTS_REPORTS[doc_id])).hexdigest(),
+            ]
+        )
+    return buffer.getvalue().encode("utf-8")
+
+
+def _web_documents_client(*, request_log=None):
     import httpx
 
     from lumibot.components.agents.web_tools import WebClient
 
     index = _web_documents_index_zip()
+    requests = request_log if request_log is not None else []
+
+    def record_request(request):
+        # Capture the validated original URL before WebClient pins its address.
+        # Every redirect gets its own hook. Never record headers or bodies.
+        if len(requests) >= 1024:
+            raise RuntimeError("Synthetic web request capture is full; request was not sent.")
+        requests.append({"method": request.method, "url": str(request.url)})
 
     def handler(request):
         path = request.url.path
+        if path == "/disclosures/2026/index.html":
+            return httpx.Response(200, text=_WEB_DOCUMENTS_DISCOVERY_HTML, headers={"content-type": "text/html"})
+        if path == "/disclosures/2026/supplemental.csv":
+            return httpx.Response(302, headers={"location": "/disclosures/2026/supplemental-index.csv"})
+        if path == "/disclosures/2026/supplemental-index.csv":
+            return httpx.Response(200, content=_web_documents_supplemental_csv(), headers={"content-type": "text/csv"})
+        if path == "/disclosures/2026/current-holdings.html":
+            return httpx.Response(200, text=_WEB_DOCUMENTS_CURRENT_HTML, headers={"content-type": "text/html"})
         if path.lower().endswith("/2026fd.zip"):
             return httpx.Response(200, content=index, headers={"content-type": "application/x-zip-compressed"})
         doc_id = path.rsplit("/", 1)[-1].removesuffix(".pdf")
         if path.startswith("/reports/") and doc_id in _WEB_DOCUMENTS_REPORTS:
-            return httpx.Response(200, content=_pdf_lines(_WEB_DOCUMENTS_REPORTS[doc_id]), headers={"content-type": "application/pdf"})
+            return httpx.Response(
+                200, content=_pdf_lines(_WEB_DOCUMENTS_REPORTS[doc_id]), headers={"content-type": "application/pdf"}
+            )
         return httpx.Response(404, text="Not found")
 
-    return WebClient(transport=httpx.MockTransport(handler), resolver=lambda host: ["93.184.216.34"])
+    client = WebClient(transport=httpx.MockTransport(handler), resolver=lambda host: ["93.184.216.34"])
+    client._client.event_hooks["request"].append(record_request)
+    client.web_requests = requests
+    return client
 
 
 def _recorded_fred(strategy, cache_dir):
@@ -489,6 +607,7 @@ class ProductionFixture:
             self.strategy.get_chains = get_chains
         if fixture.name == "web_documents":
             self.strategy._agent_web_client = _web_documents_client()
+            self.fixture.web_requests = self.strategy._agent_web_client.web_requests
         if fixture.name == "vix_from_fred":
             self.strategy.macro = _recorded_fred(self.strategy, self.root / "fred")
         self.strategy.fundamentals = _recorded_sec_fundamentals(self.strategy, self.root / "sec")
@@ -578,4 +697,8 @@ class ProductionFixture:
             return
         self.closed = True
         self.broker.stream.stop()
-        self.directory.cleanup()
+        try:
+            if self.fixture.name == "web_documents":
+                self.strategy._agent_web_client.close()
+        finally:
+            self.directory.cleanup()

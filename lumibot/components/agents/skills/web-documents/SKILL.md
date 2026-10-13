@@ -67,12 +67,35 @@ eligible at the decision time. A transaction's execution date does not make a
 later disclosure available sooner. Do not apply an issuer-level transaction to
 stock or an option contract by guessing which one it concerns.
 
-After selecting a baseline, query every relevant update/transaction stream in
-the discovery indexes under the same availability predicate. An administrative
-supplement does not replace a transaction report. Check eligible counts and
-pagination before declaring reconstruction complete; do not stop after finding
-the newest snapshot or the first supplementary table. Reconcile eligible
-updates in transaction order while retaining their separate disclosure times.
+Build an eligible document manifest from every relevant discovery table, not
+just the ownership-snapshot type or the first supplementary table. Select each
+actual document identifier, URL, type, normalized availability instant and
+original-version evidence under the same cutoff predicate. A count or grouped
+summary cannot supply a missing identifier. Never increment, guess or invent
+document IDs: read them from the selected rows and use only the publisher's
+documented URL template when a URL column is absent. If a link fails, return to
+those rows and verify the identifier before declaring the source unavailable.
+
+Query and filter each table even when its displayed sample appears sufficient;
+sample rows are previews and do not establish complete eligibility. For example,
+with the source's actual table and column names:
+```sql
+SELECT document_id, document_type, report_url,
+       TRY_CAST(first_available_at AS TIMESTAMPTZ) AS available_utc
+FROM disclosure_index
+WHERE subject_id = '<requested subject>'
+  AND TRY_CAST(first_available_at AS TIMESTAMPTZ)
+      <= TIMESTAMPTZ '<full runtime cutoff>'
+ORDER BY available_utc, document_id;
+```
+Apply any separate current-version availability requirement too. Inspect every
+selected row, check result pagination, and retain all relevant report types.
+Then select the newest eligible baseline and read every eligible later update
+that can change or confirm it. An administrative supplement does not replace a
+transaction report, and a transaction stream does not replace an eligible
+supplement. Reconcile updates in transaction order while retaining their
+separate disclosure times. Only declare the reconstruction complete after
+the manifest's relevant documents have been inspected or explicitly unresolved.
 
 Keep values, quantities and reported ranges distinct. A partial sale does not
 by itself prove the entire holding is gone, and a transaction amount is not the

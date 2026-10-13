@@ -38,6 +38,15 @@ Lumibot will start trading at 0000 hrs for the first date and up to 2359 hrs for
 
 Pandas backtester will receive a dataframe in the following format:
 
+You may also include ``dividend`` (cash per share) and ``stock_splits``
+(split ratio, such as ``2.0`` for a 2:1 split). Put each action on its recorded
+timestamp and use zero on rows without an action. During shared-index alignment,
+Pandas and Polars data objects preserve exact action timestamps and treat null
+events or inserted rows as zero. For example, adding Tuesday between a Monday
+dividend and a Wednesday bar leaves the dividend on Monday only. Duplicate
+timestamps retain the first input row. An action whose timestamp is absent from
+the requested index is not moved to another row by price-mark filling.
+
 .. code-block:: python
 
     Index: 

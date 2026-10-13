@@ -15,7 +15,14 @@ backtest or post to the Community. Never infer a posting grant from read access.
 1. Call `search_data_catalog` when the correct dataset is not already known.
    Catalog results are metadata, not observations. Do not cite or summarize a
    catalog entry as if it were the requested economic evidence.
+   Historical replay capabilities do not determine live observation availability.
+   A catalog flag is not a failed observation query. A dataset can supply a
+   current snapshot while lacking proof of its original historical versions.
 2. After selecting a structured dataset, call `query_data` for its observations.
+   For a live request, query the relevant dataset without `asOf` before reporting
+   its observations unavailable. Judge the returned observations, dates and
+   errors; do not infer an outage from historical capability metadata.
+   Keep the historical ceiling and require original-release proof for a historical request.
    For SEC evidence, call `search_documents` followed
    by `get_document` for SEC documents. Prefer a bounded section or search result
    over loading an entire filing.

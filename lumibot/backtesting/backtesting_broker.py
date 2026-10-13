@@ -1288,8 +1288,7 @@ class BacktestingBroker(Broker):
                         parent_order_type = Order.OrderType.MARKET
             # Credit/debit/even multileg submits pass `price` as the absolute net
             # limit. Persist it on the parent so wait/status tools and audit logs
-            # see the package limit the agent calculated (children still fill as
-            # their own order types).
+            # see the package limit the agent calculated.
             parent_limit_price = kwargs.get("price", None)
             if parent_limit_price is None:
                 parent_limit_price = kwargs.get("limit_price", None)
@@ -1318,13 +1317,12 @@ class BacktestingBroker(Broker):
             for o in orders:
                 o.parent_identifier = parent_order.identifier
 
-            # A credit/debit/even package with a net limit and no bid/ask in the data
-            # (Alpaca option history is trades only) fills as one package: every leg on
-            # the same bar, only when the net of the leg prices meets the limit. With
-            # quotes, legs keep filling individually at the bid/ask as before.
+            # A credit/debit/even package fills as one package: every leg on the
+            # same bar, only when the net of the executable leg prices meets the
+            # limit. Quoted legs must not bypass that limit by filling individually.
             if parent_smart_limit is None:
                 package_limit = self._signed_package_limit(kwargs.get("order_type"), parent_limit_price)
-                if package_limit is not None and not self._every_leg_has_quote(orders):
+                if package_limit is not None:
                     parent_order._package_net_limit = package_limit
                     for child in orders:
                         setattr(child, "_package_limit_managed_by_parent", True)
@@ -4815,17 +4813,23 @@ class BacktestingBroker(Broker):
             return None
         return -abs(float(limit_price)) if kind == "credit" else abs(float(limit_price))
 
-    def _every_leg_has_quote(self, orders) -> bool:
-        for leg in orders:
-            try:
-                quote = self.get_quote(leg.asset, quote=leg.quote)
-            except Exception:
-                return False
-            bid = self._coerce_price(getattr(quote, "bid", None)) if quote is not None else None
-            ask = self._coerce_price(getattr(quote, "ask", None)) if quote is not None else None
-            if bid is None or ask is None or self._is_invalid_price(bid) or self._is_invalid_price(ask):
-                return False
-        return True
+    def _leg_package_fill_price(self, leg) -> Optional[float]:
+        """Observed executable quote, or the current bar open for trade-only data."""
+        try:
+            quote = self.get_quote(leg.asset, quote=leg.quote)
+        except Exception:
+            quote = None
+        if quote is not None and self._quote_matches_current_execution_bar(quote, leg):
+            side = "ask" if leg.is_buy_order() else "bid"
+            price = self._coerce_price(getattr(quote, side, None))
+            if not self._is_invalid_price(price):
+                try:
+                    price = float(price)
+                    if math.isfinite(price):
+                        return price
+                except (TypeError, ValueError):
+                    pass
+        return self._leg_bar_open_now(leg)
 
     def _leg_bar_open_now(self, leg) -> Optional[float]:
         """Open of the leg's bar at the current backtest time, or None when the leg has not
@@ -4871,20 +4875,20 @@ class BacktestingBroker(Broker):
     def _fill_package_at_net_limit(self, order: Order, strategy) -> bool:
         """Fill every leg of a package limit order on this bar, or none of them."""
         legs = order.child_orders
-        opens = []
+        prices = []
         for leg in legs:
-            price = self._leg_bar_open_now(leg)
+            price = self._leg_package_fill_price(leg)
             if price is None:
                 return False
-            opens.append(price)
+            prices.append(price)
         unit = min(abs(float(leg.quantity)) for leg in legs) or 1.0
         net = sum(
             (price if leg.is_buy_order() else -price) * abs(float(leg.quantity)) / unit
-            for leg, price in zip(legs, opens)
+            for leg, price in zip(legs, prices)
         )
         if net > float(order._package_net_limit) + 1e-9:
             return False
-        for leg, price in zip(legs, opens):
+        for leg, price in zip(legs, prices):
             leg.trade_slippage = 0.0
             setattr(leg, "_price_source", "package_limit")
             self._execute_filled_order(order=leg, price=price, filled_quantity=leg.quantity, strategy=strategy)

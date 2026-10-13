@@ -6,7 +6,7 @@ import pandas as pd
 import pytest
 
 from lumibot.backtesting import BacktestingBroker, PandasDataBacktesting
-from lumibot.entities import Asset, Data, SmartLimitConfig, SmartLimitPreset
+from lumibot.entities import Asset, Data, Position, SmartLimitConfig, SmartLimitPreset
 from lumibot.entities.order import Order
 from lumibot.strategies.strategy import Strategy
 
@@ -308,3 +308,108 @@ def test_multileg_smart_limit_net_fill_price():
 
     assert parent.is_filled()
     assert parent.get_fill_price() == pytest.approx(80.1)
+
+
+def _build_quoted_spread_strategy():
+    quote = Asset("USD", asset_type=Asset.AssetType.FOREX)
+    long_asset = Asset("SPY", asset_type="option", expiration="2025-01-17", strike=592, right="put")
+    short_asset = Asset("SPY", asset_type="option", expiration="2025-01-17", strike=594, right="put")
+    pandas_data = {}
+    for asset, last, bid, ask in [(long_asset, 0.50, 0.45, 0.55), (short_asset, 1.00, 0.95, 1.05)]:
+        frame = _make_df(price=last)
+        frame["high"] = last + 0.05
+        frame["low"] = last - 0.05
+        frame["bid"] = bid
+        frame["ask"] = ask
+        pandas_data[(asset, quote)] = Data(
+            asset=asset, df=frame.tz_localize(None), quote=quote,
+            timestep="minute", timezone="America/New_York",
+        )
+    data_source = PandasDataBacktesting(
+        pandas_data=pandas_data,
+        datetime_start=frame.index[0],
+        datetime_end=frame.index[-1] + pd.Timedelta(minutes=1),
+        show_progress_bar=False, market="24/7", auto_adjust=True,
+    )
+    data_source.load_data()
+    broker = BacktestingBroker(data_source=data_source)
+    broker.initialize_market_calendars(data_source.get_trading_days_pandas())
+    broker._first_iteration = False
+    strategy = _StubStrategy(broker=broker, budget=100_000.0, analyze_backtest=False, parameters={})
+    strategy._first_iteration = False
+    return strategy, broker, long_asset, short_asset, quote
+
+
+@pytest.mark.parametrize("kind,limit", [("debit", 0.50), ("credit", 0.50), ("even", 0.0)])
+def test_quoted_package_limit_rejects_worse_net_without_any_leg_fill(kind, limit):
+    """The quoted close costs 0.60 and quoted entry earns 0.40 per package.
+
+    Independent market-leg fills must not violate the parent's explicit net
+    limit, even when each leg has an executable bid and ask.
+    """
+    strategy, broker, long_asset, short_asset, quote = _build_quoted_spread_strategy()
+    if kind in {"debit", "even"}:
+        broker._filled_positions.append(Position(strategy.name, long_asset, Decimal("3")))
+        broker._filled_positions.append(Position(strategy.name, short_asset, Decimal("-3")))
+        sides = (Order.OrderSide.SELL_TO_CLOSE, Order.OrderSide.BUY_TO_CLOSE)
+    else:
+        sides = (Order.OrderSide.BUY_TO_OPEN, Order.OrderSide.SELL_TO_OPEN)
+    legs = [
+        strategy.create_order(asset, Decimal("3"), side, order_type=Order.OrderType.MARKET, quote=quote)
+        for asset, side in zip((long_asset, short_asset), sides)
+    ]
+    before_positions = {position.asset: position.quantity for position in broker._filled_positions.get_list()}
+    before_cash = strategy.cash
+    parent = strategy.submit_orders(legs, is_multileg=True, order_type=kind, price=limit)[0]
+
+    broker.process_pending_orders(strategy)
+    strategy._executor.process_queue()
+
+    assert not parent.is_filled()
+    assert all(not leg.is_filled() for leg in legs)
+    assert parent.is_active()
+    assert all(leg.is_active() for leg in legs)
+    assert {position.asset: position.quantity for position in broker._filled_positions.get_list()} == before_positions
+    assert strategy.cash == before_cash
+    events = broker._trade_event_log_df
+    assert events.empty or not events["status"].eq("fill").any()
+
+
+@pytest.mark.parametrize(
+    "kind,limit,expected_prices,expected_net",
+    [
+        ("debit", 0.60, (0.45, 1.05), 0.60),
+        ("debit", 0.70, (0.45, 1.05), 0.60),
+        ("credit", 0.40, (0.55, 0.95), -0.40),
+        ("credit", 0.30, (0.55, 0.95), -0.40),
+        ("even", 0.0, (0.55, 0.95), -0.40),
+    ],
+)
+def test_quoted_package_limit_fills_all_legs_at_eligible_observed_prices(kind, limit, expected_prices, expected_net):
+    strategy, broker, long_asset, short_asset, quote = _build_quoted_spread_strategy()
+    if kind == "debit":
+        broker._filled_positions.append(Position(strategy.name, long_asset, Decimal("3")))
+        broker._filled_positions.append(Position(strategy.name, short_asset, Decimal("-3")))
+        sides = (Order.OrderSide.SELL_TO_CLOSE, Order.OrderSide.BUY_TO_CLOSE)
+    else:
+        sides = (Order.OrderSide.BUY_TO_OPEN, Order.OrderSide.SELL_TO_OPEN)
+    legs = [
+        strategy.create_order(asset, Decimal("3"), side, order_type=Order.OrderType.MARKET, quote=quote)
+        for asset, side in zip((long_asset, short_asset), sides)
+    ]
+    before_cash = strategy.cash
+    parent = strategy.submit_orders(legs, is_multileg=True, order_type=kind, price=limit)[0]
+
+    broker.process_pending_orders(strategy)
+    strategy._executor.process_queue()
+
+    assert parent.is_filled()
+    assert all(leg.is_filled() for leg in legs)
+    assert [leg.avg_fill_price for leg in legs] == pytest.approx(expected_prices)
+    assert parent.avg_fill_price == pytest.approx(expected_net)
+    assert strategy.cash == pytest.approx(before_cash - expected_net * 3 * 100)
+    # The atomic package also emits its cash-neutral parent completion event;
+    # count only the two executable option legs as trades.
+    fills = broker._trade_event_log_df.query("status == 'fill' and `asset.asset_type` != 'multileg'")
+    assert len(fills) == 2
+    assert len(set(fills["time"])) == 1

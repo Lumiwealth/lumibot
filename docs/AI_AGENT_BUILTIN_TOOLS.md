@@ -46,6 +46,13 @@ Use `orders_get_status` after a submit to verify identifiers. Never claim a fill
 
 Alpaca news uses an active Alpaca broker when available. Outside Alpaca broker runs, it checks `ALPACA_NEWS_API_KEY` / `ALPACA_NEWS_API_SECRET`. If neither path is available, `alpaca_news` is not exposed to agents.
 
+Historical news validates each returned publication/update timestamp against
+the effective simulated UTC clock. Future, undated, ambiguous and subsequently
+revised rows are excluded in full. The `historical_integrity` response records
+exclusions, pagination limits and the lack of original-version reconstruction;
+it never presents filtered current articles as a complete historical archive.
+Live results and eligible full article bodies retain their existing behavior.
+
 Trading permission:
 
 ```python

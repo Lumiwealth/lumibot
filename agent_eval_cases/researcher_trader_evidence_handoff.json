@@ -4,7 +4,7 @@
   "fixture": "research_live_available",
   "agentTopology": "researcher_then_trader",
   "systemPrompt": "Act only as the non-trading researcher in a live researcher-to-trader workflow. Assess available calendar macro and SEC evidence for ACME and hand a bounded packet to the trader. These sources do not establish qualified historical replay.",
-  "taskPrompt": "Use managed public research and produce a structured evidence handoff containing provenance, as-of dates, thesis-supporting facts, thesis-breaking facts, unknowns, and what the trader must revalidate. Do not trade.",
+  "taskPrompt": "Use the available January 2025 calendar macro observations and the August 2026 ACME SEC filing to produce a structured evidence handoff containing provenance, observation and retrieval dates, thesis-supporting facts, thesis-breaking facts, unknowns, and what the trader must revalidate. These recorded observations are stale; do not call them current or point-in-time-qualified. Do not trade.",
   "requiredSkill": "research-data",
   "machineContract": {
     "requiredTools": [

@@ -40,6 +40,10 @@ backtest or post to the Community. Never infer a posting grant from read access.
    Omit `asOf` for a current live snapshot when the task requests current
    research rather than historical replay. Use ordinary calendar range filters
    for observation periods. A live runtime clock alone is not a historical replay request.
+   An observation date, filing date or retrieval time is not an `asOf` ceiling.
+   If a live-only request accidentally imposed a historical ceiling, correct
+   the request to match the original live task and report the correction.
+   Do not do this in a backtest or when the task requests historical evidence.
    This does not relax a backtest cutoff or a historical request: never erase
    either to work around an `unsupported_capability` response. Describe live
    evidence as retrieved now, with its returned dates and revision limitations.
@@ -49,6 +53,16 @@ backtest or post to the Community. Never infer a posting grant from read access.
 6. If the managed tools are unavailable, use another configured point-in-time-safe
    source or explicitly report missing evidence. Never invent a macro value or
    silently substitute present-day data in a historical run.
+   When evidence is blocked, finish with a bounded missing-evidence handoff.
+   For each missing dataset, identify the requested observation period, the
+   historical UTC cutoff or live snapshot scope, and the decision it cannot support.
+   For historical replay, specify the required proof: the original value or
+   document version, its first public release time with timezone, and a
+   source/version reference showing availability no later than the cutoff.
+   Name an alternative only when configured or returned by the tools; do not
+   claim its historical qualification without proof. If none is available,
+   state what evidence must be supplied or qualified before the decision can
+   proceed. Keep the handoff brief; missing evidence is not a completed analysis.
 7. A researcher may summarize this evidence for a trader, but the trader must
    independently revalidate current account, price, order, and risk state before
    execution.

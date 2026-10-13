@@ -67,3 +67,20 @@ def test_missing_rows_and_input_window_remain_visible(tmp_path):
     assert data["close"].isna().sum() == 1
     assert observations.iloc[0]["observedAt"] < observations.iloc[0]["windowEnd"]
     assert observations.iloc[0]["returnedRows"] == 2
+
+
+def test_batch_history_records_each_actual_result_without_replacing_missing_assets():
+    import logging
+    from lumibot.strategies.strategy import Strategy
+    a, b = Asset("AAPL"), Asset("MSFT")
+    frame = pd.DataFrame({"close": [10., 11.]}, index=pd.date_range("2025-01-01", periods=2, tz="UTC"))
+    results = {a: SimpleNamespace(pandas_df=frame), b: None}
+    source = SimpleNamespace(IS_BACKTESTING_DATA_SOURCE=True, get_bars=lambda *_, **__: results)
+    strategy = SimpleNamespace(broker=SimpleNamespace(data_source=source),
+        is_backtesting=True, quote_asset=Asset("USD", "forex"), get_datetime=lambda: frame.index[-1],
+        _sanitize_user_asset=lambda v: v, _logged_get_historical_prices_assets=set(),
+        logger=logging.getLogger("batch-input-unit"))
+    assert Strategy.get_historical_prices_for_assets(strategy, [a, b], 2, timestep="day") is results
+    observed = source._market_input_evidence.observations
+    assert [r["returnedRows"] for r in observed] == [2, 0]
+    assert [json.loads(r["asset"])["symbol"] for r in observed] == ["AAPL", "MSFT"]

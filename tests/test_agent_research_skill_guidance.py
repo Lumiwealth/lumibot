@@ -100,3 +100,13 @@ def test_live_discovery_does_not_treat_unqualified_history_as_an_observation_fai
     assert "For a live request, query the relevant dataset without `asOf` before reporting its observations unavailable." in instructions
     assert "A catalog flag is not a failed observation query." in instructions
     assert "Keep the historical ceiling and require original-release proof for a historical request." in instructions
+
+
+def test_community_guidance_requires_independent_permissions_and_a_public_summary(
+    delivered_research_guidance,
+):
+    instructions = " ".join(delivered_research_guidance[2]["instructions"].split())
+    assert "Community posts and replies require their own current grants and the bot's publication consent." in instructions
+    assert "Use a brief public research summary; keep private journal reasons, credentials and account-holder details private." in instructions
+    assert "Never infer a posting grant from read access." in instructions
+    assert "It cannot trade, deploy, backtest or post to the Community." not in instructions

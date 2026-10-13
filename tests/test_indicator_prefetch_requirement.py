@@ -55,6 +55,9 @@ def test_optional_indicator_warmup_does_not_demand_ten_thousand_required_bars():
     assert ibkr_history_health_snapshot()["required_complete"] is True
     assert len(source.inputs) == 1
     assert source.inputs[0].equals(frame.iloc[:3])  # Actual causal inputs, no future row.
+    assert len(source._market_input_evidence.observations) == 1
+    assert source._market_input_evidence.observations[0]["returnedRows"] == 3
+    assert len(source._market_input_evidence.rows) == 3
 
 
 def test_explicit_customer_history_request_remains_strict():

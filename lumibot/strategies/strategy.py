@@ -4982,6 +4982,11 @@ class Strategy(_Strategy):
                     self.logger.warning(f"Failed to resample data from {actual_timestep} to {original_timestep}: {e}")
 
         if self.is_backtesting and history_requirement == "required":
+            from lumibot.backtesting.market_input_evidence import record_market_input
+
+            record_market_input(source=ds, asset=asset, quote=quote,
+                timestep=original_timestep or actual_timestep, when=self.get_datetime(),
+                frame=bars.pandas_df if bars is not None else None, purpose="history")
             record_requirement = getattr(ds, "record_history_requirement", None)
             if callable(record_requirement):
                 record_requirement(asset=asset, timestep=original_timestep or actual_timestep,

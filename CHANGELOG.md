@@ -4,6 +4,9 @@
 
 Deploy marker: `805f00ab67f87bed5dc5591c4ffe18a03695f425`.
 
+- Treat optional indicator cache prefetch separately from required history. Validate actual causal indicator inputs without requiring a nonexistent 10,000-bar cache; explicit history requests and genuine missing inputs remain strict.
+- Preserve bounded framework-observed market input rows, times, instrument identities and frame fingerprints independently of strategy chart annotations. Export explicit incomplete-capture markers and keep option-source observations separate; the diagnostics never alter orders or data validation.
+
 - Preserve concurrently published S3 rows across subsequent IBKR paging checkpoints and final writes. Reuse unchanged corporate-action columns so public daily warm reads do not upload the full cache again.
 
 - Bind IBKR stock Trades caches and in-memory series to a verified current split-event ledger. Refetch under a new identity after a split instead of guessing corrections from price jumps; preserve genuine market moves and existing cache files.

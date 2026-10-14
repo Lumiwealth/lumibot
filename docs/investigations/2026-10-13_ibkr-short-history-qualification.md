@@ -56,3 +56,21 @@ and actual cold/warm Manager runs remain mandatory before claiming final rollout
 SDK19's earlier real-model cost was$0.24479. The remaining gate is capped at$0.45;
 combined maximum$0.69479 stays below the established$0.70 SDK19 allowance. No provider
 account cap or customer traffic control is changed.
+
+## Gate timeout and recovery defect
+
+Full source CI38480592343 passed. Model run38480595682 timed out after39
+passing repetitions but left freshness.json on its earlier runtime fingerprint.
+Its durable per-call ledger commits$0.3190006, including one unsettled call's
+full reservation; the last progress snapshot's$0.2042535 was not final spending.
+Resume38483994008 failed budget admission after unnecessarily repeating seven
+passing repetitions, costing$0.03455691. Neither failed run is a passing gate.
+
+The partial-artifact restorer previously required the stale freshness record
+to already contain the new fingerprint. A red regression reproduced the loss.
+Recovery now also derives complete native records from distinct passing
+repetitions, model identities and aware timestamps in the actual ledger.
+Latest failed fingerprints and duplicate repetitions remain unqualified.
+All82 owning harness tests pass; replaying the actual timeout artifact recovers
+13 complete cases/39 repetitions with zero model calls. This helper does not
+change the actor/judge runtime fingerprint or any model input/scoring policy.

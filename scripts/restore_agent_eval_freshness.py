@@ -19,6 +19,7 @@ import tempfile
 import urllib.parse
 import urllib.request
 import zipfile
+from datetime import datetime
 from pathlib import Path
 from typing import Any
 
@@ -89,6 +90,43 @@ def _freshness_from_zip(payload: bytes, *, partial: bool = False) -> dict[str, A
                                 and row.get("fingerprint") == record.get("fingerprint")]
                     if len(matching) >= 3 and all(row.get("status") == "pass" for row in matching):
                         verified[case_id] = record
+                # A killed runner may persist its per-repetition ledger before
+                # it writes final freshness. Recover full native evidence rather
+                # than require the stale checkpoint to know the new fingerprint.
+                by_case = {}
+                for row in rows:
+                    by_case.setdefault(row.get("case_id"), []).append(row)
+                for case_id, observations in by_case.items():
+                    latest = observations[-1]
+                    fingerprint = latest.get("fingerprint")
+                    matching = [row for row in observations if row.get("fingerprint") == fingerprint]
+                    if any(row.get("status") != "pass" for row in matching):
+                        verified.pop(case_id, None)
+                        continue
+                    complete = all(
+                        isinstance(row.get("repetition"), int) and not isinstance(row["repetition"], bool)
+                        and row["repetition"] > 0 and isinstance(row.get("timestamp"), str)
+                        and isinstance(row.get("acting_model"), str) and bool(row["acting_model"])
+                        and isinstance(row.get("judge_model"), str) and bool(row["judge_model"])
+                        for row in matching)
+                    repetitions = {row.get("repetition") for row in matching}
+                    if not complete or len(repetitions) < 3 or not isinstance(case_id, str) or not fingerprint:
+                        continue
+                    models = {(row["acting_model"], row["judge_model"]) for row in matching}
+                    if len(models) != 1:
+                        continue
+                    try:
+                        timestamps = [datetime.fromisoformat(row["timestamp"].replace("Z", "+00:00"))
+                                      for row in matching]
+                        if any(stamp.tzinfo is None for stamp in timestamps):
+                            continue
+                    except ValueError:
+                        continue
+                    verified[case_id] = {
+                        "fingerprint": fingerprint, "consecutive_passes": len(repetitions),
+                        "acting_model": latest["acting_model"], "judge_model": latest["judge_model"],
+                        "passed_at": max(timestamps).isoformat(),
+                    }
                 value["cases"] = verified
                 value["invalidated_cases"] = [
                     {"case_id": row["case_id"], "fingerprint": row["fingerprint"]}

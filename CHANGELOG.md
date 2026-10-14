@@ -4,6 +4,8 @@
 
 Deploy marker: `805f00ab67f87bed5dc5591c4ffe18a03695f425`.
 
+- Recover independently passing native eval cases from their durable ledger after a timeout, even when the final freshness checkpoint was not written. Preserve failed fingerprints and require distinct completed repetitions; this is qualification recovery, not an agent-policy change.
+
 - Allow an explicit `minimum_bars` for generous historical windows. Validate the required tail without changing returned prices, fetch windows, signals or accounting; omitted minima retain strict existing behavior. Reject invalid minima and missing rows inside the declared required lookback.
 - Reuse bounded serialization of overlapping framework input rows. Preserve exact row/frame fingerprints, timestamps, scalar types, signed zero and corrected-price observations rather than repeatedly converting unchanged rolling windows.
 

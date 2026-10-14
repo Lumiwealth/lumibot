@@ -506,6 +506,31 @@ def test_partial_workflow_restore_rejects_missing_ledger():
     assert restore_freshness._freshness_from_zip(payload.getvalue(), partial=True) is None
 
 
+@pytest.mark.parametrize('failure', [None, 'fail', 'duplicate'])
+def test_partial_restore_recovers_real_ledger_after_stale_checkpoint(failure):
+    # The October13 timeout saved39 passes but freshness.json still held the
+    # October10 fingerprint. Recovery must use complete, typed native evidence.
+    rows = [dict(case_id='case', fingerprint='new-runtime', status='pass', repetition=n,
+                 acting_model='openai/gpt-6-luna', judge_model='openai/gpt-6-luna',
+                 timestamp=f'2026-10-13T22:00:0{n}+00:00') for n in (1, 2, 3)]
+    if failure == 'fail':
+        rows.append({**rows[-1], 'repetition': 4, 'status': 'fail'})
+    if failure == 'duplicate':
+        rows = [rows[0]] * 3
+    payload = io.BytesIO()
+    with zipfile.ZipFile(payload, 'w') as archive:
+        archive.writestr('freshness.json', json.dumps({'version': 1, 'cases': {
+            'case': {'fingerprint': 'old-runtime', 'consecutive_passes': 3}}}))
+        archive.writestr('artifacts/ledger.jsonl', '\n'.join(json.dumps(row) for row in rows))
+    restored = restore_freshness._freshness_from_zip(payload.getvalue(), partial=True)
+    if failure is None:
+        assert restored['cases']['case']['fingerprint'] == 'new-runtime'
+        assert restored['cases']['case']['consecutive_passes'] == 3
+        assert restored['cases']['case']['passed_at'] == rows[-1]['timestamp']
+    else:
+        assert restored['cases'] == {}
+
+
 def test_missing_research_judge_controls_preserve_observed_account_context():
     controls = json.loads((SCRIPT_PATH.parent.parent / "tests/fixtures/agent_judge_calibration.json").read_text())
     selected = [row for row in controls if row["case_id"] == "research_unavailable_safe_fallback"]

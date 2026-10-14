@@ -1925,7 +1925,7 @@ Deploy marker: 61b75f24 (`deploy 4.5.6`)
 - **WEEX broker support via CCXT.** New `WEEX_CONFIG` in `lumibot/credentials.py` wires WEEX (CCXT exchange id `weex`) into the broker auto-detect chain, the explicit-name branch (`TRADING_BROKER=weex`), and the data-source aliases (`DATA_SOURCE=weex`). WEEX requires three credentials (`WEEX_API_KEY`, `WEEX_API_SECRET`, `WEEX_API_PASSPHRASE`) and has no API sandbox, so `sandbox` is hard-wired to `False`. Added `"weex"` to the exchange-id whitelists in `lumibot/brokers/ccxt.py` (balance parsing at line 104 and open-orders routing at line 224) so the generic Ccxt broker accepts WEEX without raising `NotImplementedError`. Initial scope is **spot trading only**; WEEX's primary business is USDT-margined perpetual swap, but swap support is not wired into the shared Ccxt broker today. Note that WEEX's Terms of Use exclude US and Canadian residents, documented in `docsrc/brokers.ccxt.rst`. New unit test `test_initialize_weex_broker` in `tests/test_ccxt.py`.
 
 ### Changed
-- **Docs: Coinbase section now documents CDP (Cloud Developer Platform) private-key auth.** `COINBASE_CONFIG` already supported PEM private keys via the `secret` field (CCXT auto-detects PEM vs HMAC), but the docs still described the legacy HMAC + passphrase flow. Updated `docsrc/brokers.ccxt.rst` to explain that `COINBASE_API_KEY_NAME` holds the org-qualified identifier from the CDP JSON and `COINBASE_PRIVATE_KEY` holds the full PEM block (multi-line, `-----BEGIN EC PRIVATE KEY-----` ... `-----END EC PRIVATE KEY-----`). `COINBASE_API_PASSPHRASE` is now documented as legacy-only.
+- **Docs: Coinbase section now documents CDP (Cloud Developer Platform) private-key auth.** `COINBASE_CONFIG` already supported PEM private keys via the `secret` field (CCXT auto-detects PEM vs HMAC), but the docs still described the legacy HMAC + passphrase flow. Updated `docsrc/brokers.ccxt.rst` to explain that `COINBASE_API_KEY_NAME` holds the org-qualified identifier from the CDP JSON and `COINBASE_PRIVATE_KEY` holds the full multi-line PEM block. `COINBASE_API_PASSPHRASE` is now documented as legacy-only.
 
 ### Fixed
 - **`Data.iter_count()` with a microsecond-precision index returned incorrect cursor positions.** `_index_values_ns` assumed the pandas `DatetimeIndex` was nanosecond-precision, but pandas 2.x can build microsecond-precision indexes from ISO strings. Normalize to nanoseconds explicitly so the `np.searchsorted(index_ns, now_ns)` cursor math works regardless of pandas' chosen unit. Regression test in `tests/test_data_iter_count_microsecond_index.py`.
@@ -2436,3 +2436,10 @@ Deploy marker: `b7f83088` ("Deploy 4.4.25")
 - Fixed ThetaData EOD corrections by fetching a real 09:30–09:31 minute window for each trading day, preventing zero-length requests and the resulting terminal hangs.
 - Logged the active downloader base URL whenever remote mode is enabled to make it obvious in backtest logs which data path is being used.
 - Added regression tests covering the custom session window override plus the fallback path when Theta rejects an invalid minute range.
+
+## Pending FXMacroData fixes (unreleased)
+
+### Fixed
+- FXMacroData backtests cap an explicit future `as_of` at the simulated strategy clock, preventing later macro releases from leaking into earlier decisions.
+- FXMacroData requests reject HTTP redirects without forwarding the API key header or exposing the redirect destination or response body in errors.
+

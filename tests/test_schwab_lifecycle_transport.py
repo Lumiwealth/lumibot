@@ -294,3 +294,75 @@ def test_paused_reply_timeout_is_recorded_as_undelivered_not_an_observed_success
     assert call["delivery"] == "transport_exception"
     assert call["error_type"] == "TimeoutError"
     assert transport.calls[0]["delivery"] == "delivered"
+
+
+def strategy_order_refresh(broker, identifier):
+    # Exercise the public accessor and real refresh/reducer path without a
+    # market scheduler, authentication, or external network.
+    from lumibot.strategies.strategy import Strategy
+    strategy = Strategy.__new__(Strategy)
+    strategy._name = "fixture"
+    strategy.broker = broker
+    return strategy.get_order(identifier)
+
+
+def history_snapshot(transport, current, **patch):
+    snapshot = dict(transport._base[current.identifier])
+    snapshot.update(patch)
+    transport.queue_history_response([snapshot])
+
+
+def test_strategy_get_order_broad_history_delivers_late_fill_after_cancellation():
+    transport, broker, queues, current = submitted()
+    for cumulative in (40, 60, 60):
+        history_snapshot(transport, current, status="CANCELED", filledQuantity=cumulative, averagePrice=10)
+        assert strategy_order_refresh(broker, current.identifier) is current
+    assert current.is_canceled()
+    assert [item.quantity for item in current.transactions] == [40, 20]
+    assert current.raw_broker_payload["filledQuantity"] == 60
+    events = callbacks(queues)
+    assert [payload["quantity"] for name, payload in events if name == broker.PARTIALLY_FILLED_ORDER] == [40, 20]
+    assert [name for name, payload in events].count(broker.CANCELED_ORDER) == 1
+
+
+def test_strategy_get_order_broad_history_preserves_broker_rejection():
+    transport, broker, queues, current = submitted()
+    history_snapshot(transport, current, status="REJECTED", statusDescription="Fixture rejection detail")
+    assert strategy_order_refresh(broker, current.identifier) is current
+    assert current.status == Order.OrderStatus.ERROR
+    assert "Fixture rejection detail" in current.error_message
+    assert callbacks(queues)[0][0] == broker.ERROR_ORDER
+
+
+def test_strategy_get_order_broad_history_filled_does_not_skip_transactions():
+    transport, broker, queues, current = submitted()
+    history_snapshot(transport, current, status="FILLED", filledQuantity=100, averagePrice=10)
+    assert strategy_order_refresh(broker, current.identifier) is current
+    assert current.is_filled()
+    assert sum(item.quantity for item in current.transactions) == 100
+    assert callbacks(queues)[0][0] == broker.FILLED_ORDER
+
+
+def test_strategy_get_order_stale_history_cannot_reopen_canceled_order():
+    transport, broker, queues, current = submitted()
+    history_snapshot(transport, current, status="CANCELED", filledQuantity=40, averagePrice=10)
+    strategy_order_refresh(broker, current.identifier)
+    history_snapshot(transport, current, status="WORKING", filledQuantity=0)
+    strategy_order_refresh(broker, current.identifier)
+    assert current.is_canceled()
+    assert sum(item.quantity for item in current.transactions) == 40
+
+
+def test_strategy_get_order_pending_cancel_then_fill_retains_native_cancel_request():
+    transport, broker, queues, current = submitted()
+    broker.cancel_order(current)
+    assert current.status == Order.OrderStatus.CANCELLING
+    history_snapshot(transport, current, status="PENDING_CANCEL", filledQuantity=0)
+    strategy_order_refresh(broker, current.identifier)
+    assert current.status == Order.OrderStatus.CANCELLING
+    history_snapshot(transport, current, status="FILLED", filledQuantity=100, averagePrice=10)
+    strategy_order_refresh(broker, current.identifier)
+    assert current.is_filled()
+    assert sum(item.quantity for item in current.transactions) == 100
+    assert len([call for call in transport.calls if call["method"] == "cancel_order"]) == 1
+    assert [name for name, payload in callbacks(queues)] == [broker.FILLED_ORDER]

@@ -1714,10 +1714,10 @@ class Strategy(_Strategy):
     def get_order(self, identifier: str, broker_refresh: bool = True, broker_refresh_ttl_seconds: float = 0.0):
         """Get a tracked order given an identifier. Check the details of the order including status, etc.
 
-        In live trading this refreshes broker order state before returning by default. Use this
-        direct lookup after submitting an order if you need to verify that same order immediately.
-        Some brokers can expose a just-submitted order through direct order lookup before it appears
-        in broad account order-list endpoints.
+        In live trading this refreshes broker order state before returning by default.
+        Refresh normally reads the broker order list; a tracked active order absent from
+        that list may also receive a direct lookup. This is not an unconditional
+        single-order HTTP request. Set broker_refresh=False to read only tracked state.
 
         Returns
         -------

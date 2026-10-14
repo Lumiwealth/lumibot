@@ -2,7 +2,7 @@
 
 ## Unreleased
 
-- Add an explicit `chatgpt/<model>` agent connection using supported Sign in with ChatGPT, protected local profiles, model discovery, rotating refresh and logout. Subscription transport requires successful stream completion and never falls back to an API key. Document the separate account setting required to prevent paid-credit fallback.
+- Add an explicit `chatgpt/<model>` agent connection using supported Sign in with ChatGPT, protected local profiles, model discovery, rotating refresh and logout. Subscription transport requires successful stream completion and never falls back to an API key. Support included plan allowance and explicitly authorized existing ChatGPT credits without changing the account-wide usage setting.
 - Move canonical evaluation actors, semantic judges and rubric calibration to subscription funding with a resumable per-call allowance. Reject API-funded eval model selections and remove ordinary provider/broker credentials from fixture processes. Real model qualification and private CI grant wiring remain release requirements.
 
 ## 4.6.19 - 2026-10-10

@@ -1,6 +1,9 @@
 Quote
 =====
 
+.. meta::
+   :description: Keep option bid, ask, midpoint, last trade and their source times distinct with LumiBot Quote.
+
 .. autoclass:: lumibot.entities.Quote
 
 An option quote keeps the latest observed bid and ask separately from the last

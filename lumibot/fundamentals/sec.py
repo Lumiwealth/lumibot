@@ -4,10 +4,11 @@ import json
 import os
 import re
 import time
-from datetime import date, datetime, timezone
+from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
 from urllib.parse import urljoin
+from zoneinfo import ZoneInfo
 
 import requests
 
@@ -16,6 +17,7 @@ SEC_ARCHIVES_BASE_URL = "https://www.sec.gov/Archives/edgar/data/"
 SEC_COMPANY_TICKERS_URL = "https://www.sec.gov/files/company_tickers.json"
 DEFAULT_SEC_USER_AGENT = "LumiBot open-source trading framework support@lumiwealth.com"
 DEFAULT_MUTABLE_CACHE_TTL_SECONDS = 300.0
+EDGAR_TIMEZONE = ZoneInfo("America/New_York")
 
 
 INCOME_STATEMENT_TAGS = {
@@ -87,6 +89,23 @@ def _parse_dt(value: Any) -> datetime | None:
             return datetime.strptime(text[:10], "%Y-%m-%d")
         except ValueError:
             return None
+
+
+def _available_at(value: Any) -> datetime | None:
+    """When a SEC record is known to be public, for point-in-time checks.
+
+    A full timestamp (acceptanceDateTime) is used as it is. companyfacts and filingDate give only
+    the filing date, and EDGAR accepts filings until 10 p.m. Eastern, so a date-only value is known
+    to be public once that day has ended in New York, not from its midnight: Microsoft's FY2026
+    10-K is filed 2026-07-29 but was accepted at 16:08:01 ET, after that day's close.
+    """
+    if isinstance(value, datetime):
+        return value
+    text = value.isoformat() if isinstance(value, date) else str(value or "").strip()
+    if re.fullmatch(r"\d{4}-\d{2}-\d{2}", text):
+        day = date.fromisoformat(text)
+        return datetime(day.year, day.month, day.day, tzinfo=EDGAR_TIMEZONE) + timedelta(days=1)
+    return _parse_dt(text)
 
 
 def _as_of_datetime(value: Any) -> datetime:
@@ -454,7 +473,7 @@ class SECFundamentals:
                         for row in rows:
                             if not isinstance(row, dict):
                                 continue
-                            published = _parse_dt(row.get("filed") or row.get("acceptanceDateTime"))
+                            published = _available_at(row.get("filed") or row.get("acceptanceDateTime"))
                             if published is None or _same_tz(published, as_of) <= as_of:
                                 visible_rows.append(row)
                         units[unit] = visible_rows
@@ -480,7 +499,7 @@ class SECFundamentals:
             raw = acceptances[index] if index < len(acceptances) and acceptances[index] else None
             if not raw and index < len(filing_dates):
                 raw = filing_dates[index]
-            published = _parse_dt(raw)
+            published = _available_at(raw)
             if published is not None and _same_tz(published, as_of) <= as_of:
                 keep_indexes.append(index)
         for key, values in list(recent.items()):
@@ -603,7 +622,7 @@ class SECFundamentals:
                 for fact in unit_facts:
                     if not isinstance(fact, dict):
                         continue
-                    filed = _parse_dt(fact.get("filed") or fact.get("acceptanceDateTime"))
+                    filed = _available_at(fact.get("filed") or fact.get("acceptanceDateTime"))
                     if filed is None:
                         continue
                     filed = _same_tz(filed, as_of)
@@ -722,7 +741,7 @@ class SECFundamentals:
             for fact in facts:
                 if not isinstance(fact, dict):
                     continue
-                filed = _parse_dt(fact.get("filed") or fact.get("acceptanceDateTime"))
+                filed = _available_at(fact.get("filed") or fact.get("acceptanceDateTime"))
                 if filed is None:
                     continue
                 filed = _same_tz(filed, as_of)
@@ -786,7 +805,7 @@ class SECFundamentals:
             if form and str(filing_form).upper() != str(form).upper():
                 continue
             filed_raw = acceptances[idx] if idx < len(acceptances) and acceptances[idx] else filing_dates[idx]
-            filed_dt = _parse_dt(filed_raw)
+            filed_dt = _available_at(filed_raw)
             if filed_dt is None:
                 continue
             filed_dt = _same_tz(filed_dt, as_of_dt)
@@ -896,7 +915,7 @@ class SECFundamentals:
                 published_raw = acceptances[index] if index < len(acceptances) and acceptances[index] else None
                 if not published_raw and index < len(filing_dates):
                     published_raw = filing_dates[index]
-                published = _parse_dt(published_raw)
+                published = _available_at(published_raw)
                 if published is not None and _same_tz(published, as_of_dt) > as_of_dt:
                     raise ValueError(
                         f"SEC accession {accession_number} was not public as of {as_of_dt.isoformat()}."

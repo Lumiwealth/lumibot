@@ -2,6 +2,7 @@ import json
 import os
 import time
 from datetime import datetime, timezone
+from zoneinfo import ZoneInfo
 
 import pytest
 
@@ -729,3 +730,56 @@ def test_strip_html_drops_script_and_style_blocks_with_spaced_end_tags():
     assert "secret" not in text
     assert "color" not in text
     assert "evil" not in text
+
+
+def test_facts_filed_on_a_day_stay_hidden_until_that_day_ends_in_new_york(monkeypatch, tmp_path):
+    # companyfacts gives only the filing date. Microsoft's FY2026 10-K is filed 2026-07-29, but
+    # EDGAR accepted it at 16:08:01 ET, after the close, so a 10:00 ET clock that day must not see it.
+    def fake_get(url, **kwargs):
+        if url.endswith("company_tickers.json"):
+            return _Response(payload={"0": {"ticker": "MSFT", "cik_str": 789019, "title": "MICROSOFT CORP"}})
+        if "companyfacts" in url:
+            rows = [
+                {"val": 82886000000, "filed": "2026-04-29", "form": "10-Q", "fy": 2026, "fp": "Q3",
+                 "start": "2026-01-01", "end": "2026-03-31", "accn": "0001193125-26-191507"},
+                {"val": 331839000000, "filed": "2026-07-29", "form": "10-K", "fy": 2026, "fp": "FY",
+                 "start": "2025-07-01", "end": "2026-06-30", "accn": "0001193125-26-323660"},
+            ]
+            return _Response(payload={"facts": {"us-gaap": {
+                "RevenueFromContractWithCustomerExcludingAssessedTax": {"units": {"USD": rows}}}}})
+        raise AssertionError(url)
+
+    monkeypatch.setattr("lumibot.fundamentals.sec.requests.get", fake_get)
+    sec = SECFundamentals(cache_dir=tmp_path, min_request_interval_seconds=0)
+    eastern = ZoneInfo("America/New_York")
+    for hidden in (
+        datetime(2026, 7, 29, 10, 0, tzinfo=eastern),
+        datetime(2026, 7, 29, 23, 59, tzinfo=eastern),
+        datetime(2026, 7, 30, 3, 0, tzinfo=timezone.utc),
+    ):
+        revenue = sec.get_income_statement("MSFT", as_of=hidden)["values"]["revenue"]
+        assert revenue["value"] == 82886000000, hidden
+        facts = sec.get_company_facts("MSFT", as_of=hidden, raw=True)
+        rows = facts["facts"]["us-gaap"]["RevenueFromContractWithCustomerExcludingAssessedTax"]["units"]["USD"]
+        assert [row["filed"] for row in rows] == ["2026-04-29"], hidden
+    visible = sec.get_income_statement("MSFT", as_of=datetime(2026, 7, 30, 9, 30, tzinfo=eastern))
+    assert visible["values"]["revenue"]["value"] == 331839000000
+
+
+def test_filing_date_fallback_waits_for_the_end_of_the_day(monkeypatch, tmp_path):
+    def fake_get(url, **kwargs):
+        if url.endswith("company_tickers.json"):
+            return _Response(payload={"0": {"ticker": "MSFT", "cik_str": 789019, "title": "MICROSOFT CORP"}})
+        if "/submissions/" in url:
+            return _Response(payload={"cik": "789019", "filings": {"recent": {
+                "accessionNumber": ["0001193125-26-323660"], "form": ["10-K"], "filingDate": ["2026-07-29"],
+                "reportDate": ["2026-06-30"], "acceptanceDateTime": [""], "primaryDocument": ["msft-10k.htm"],
+                "primaryDocDescription": ["10-K"]}}})
+        raise AssertionError(url)
+
+    monkeypatch.setattr("lumibot.fundamentals.sec.requests.get", fake_get)
+    sec = SECFundamentals(cache_dir=tmp_path, min_request_interval_seconds=0)
+    eastern = ZoneInfo("America/New_York")
+    assert sec.get_filings("MSFT", as_of=datetime(2026, 7, 29, 15, 0, tzinfo=eastern))["filings"] == []
+    later = sec.get_filings("MSFT", as_of=datetime(2026, 7, 30, 9, 30, tzinfo=eastern))["filings"]
+    assert [row["accession_number"] for row in later] == ["0001193125-26-323660"]

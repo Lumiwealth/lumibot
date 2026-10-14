@@ -454,19 +454,28 @@ class TradierData(DataSource):
         # Extract relevant fields for the Quote object
         from lumibot.entities import Quote
 
-        return Quote(
+        bid_time = dt.datetime.fromtimestamp(float(quote_dict['bid_date']) / 1000, tz=dt.timezone.utc) if quote_dict.get('bid_date') else None
+        ask_time = dt.datetime.fromtimestamp(float(quote_dict['ask_date']) / 1000, tz=dt.timezone.utc) if quote_dict.get('ask_date') else None
+        source_times = [time for time in (bid_time, ask_time) if time is not None]
+        quote_time = max(source_times) if source_times else None
+        result = Quote(
             asset=asset,
-            price=quote_dict.get('last'),
+            price=quote_dict.get('last'), last_price=quote_dict.get('last'),
+            trade_time=dt.datetime.fromtimestamp(float(quote_dict['trade_date']) / 1000, tz=dt.timezone.utc) if quote_dict.get('trade_date') else None,
             bid=quote_dict.get('bid'),
             ask=quote_dict.get('ask'),
             volume=quote_dict.get('volume'),
-            timestamp=dt.datetime.now(dt.timezone.utc),
+            timestamp=quote_time,
+            quote_time=quote_time, bid_time=bid_time, ask_time=ask_time,
             bid_size=quote_dict.get('bidsize'),
             ask_size=quote_dict.get('asksize'),
             change=quote_dict.get('change'),
             percent_change=quote_dict.get('change_percentage'),
             raw_data=quote_dict
         )
+        # Quote's general constructor defaults to retrieval time; absent source time remains unknown here.
+        result.timestamp = quote_time
+        return result
 
     def query_greeks(self, asset: Asset):
         """

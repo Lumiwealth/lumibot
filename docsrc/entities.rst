@@ -15,6 +15,7 @@ Here's a list of the main entities in Lumibot:
    entities.asset
    entities.bars
    entities.data
+   entities.quote
    entities.order
    entities.position
    entities.trading_fee

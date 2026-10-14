@@ -61,9 +61,12 @@ class Quote:
                  volume: float = None, timestamp: datetime.datetime = None, bid_size: float = None,
                  ask_size: float = None, change: float = None, percent_change: float = None,
                  quote_time: datetime.datetime = None, bid_time: datetime.datetime = None,
-                 ask_time: datetime.datetime = None, raw_data: dict = None, mid_price: float = None, **kwargs):
+                 ask_time: datetime.datetime = None, raw_data: dict = None, mid_price: float = None, last_price: float = None,
+                 trade_time: datetime.datetime = None, **kwargs):
         self.asset = asset
         self.price = price
+        self.last_price = last_price
+        self.trade_time = _source_timestamp(trade_time)
         self.bid = bid
         self.ask = ask
         self.volume = volume

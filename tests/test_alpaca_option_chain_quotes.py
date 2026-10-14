@@ -45,7 +45,7 @@ def test_get_chain_full_info_preserves_native_quote_trade_and_greeks():
     assert put["implied_volatility"] == 0.81
 
 
-def test_get_chain_full_info_accepts_raw_nested_snapshots_and_uses_quote_midpoint():
+def test_get_chain_full_info_keeps_quote_midpoint_separate_from_missing_trade():
     data_source = _data_source()
     data_source._option_client = SimpleNamespace(
         get_option_chain=lambda request: {
@@ -65,7 +65,8 @@ def test_get_chain_full_info_accepts_raw_nested_snapshots_and_uses_quote_midpoin
     row = result.iloc[0]
     assert row["bid"] == 4.0
     assert row["ask"] == 4.4
-    assert row["last"] == 4.2
+    assert row["last"] is None or __import__("pandas").isna(row["last"])
+    assert row["mid"] == 4.2
     assert row["greeks.delta"] == -0.25
 
 
@@ -109,3 +110,24 @@ def test_get_chains_still_parses_nested_snapshot_symbols():
 
     assert result["Chains"]["PUT"]["2026-08-21"] == [500.0]
     assert result["Chains"]["CALL"]["2026-08-21"] == [510.0]
+
+
+def test_option_quote_uses_latest_snapshot_after_close():
+    from datetime import date
+    from lumibot.entities import Asset
+    data_source = _data_source()
+    symbol = "SPY261120P00500000"
+    data_source._option_client = SimpleNamespace(get_option_snapshot=lambda request: {symbol: SimpleNamespace(
+        latest_quote=SimpleNamespace(bid_price=4.0, ask_price=4.4, bid_size=2, ask_size=3, timestamp="2026-10-13T20:00:00Z"),
+        latest_trade=SimpleNamespace(price=4.1, timestamp="2026-10-13T19:58:00Z"),
+        greeks=SimpleNamespace(delta=-0.25,gamma=0.01,theta=-0.03,vega=0.08,rho=-0.02),
+    )})
+    quote = data_source.get_quote(Asset("SPY",asset_type="option",expiration=date(2026,11,20),strike=500,right="PUT"))
+    assert quote.bid == 4.0
+    assert quote.ask == 4.4
+    assert quote.price == 4.1
+    assert quote.last_price == 4.1
+    assert str(quote.trade_time).startswith("2026-10-13 19:58:00")
+    assert quote.raw_data["last_price"] == 4.1
+    assert quote.raw_data["greeks"]["delta"] == -0.25
+    assert quote.raw_data["trade_time"] == "2026-10-13T19:58:00Z"

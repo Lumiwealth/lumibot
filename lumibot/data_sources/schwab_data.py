@@ -721,10 +721,6 @@ class SchwabData(DataSource):
             if ask_time and (not timestamp or ask_time > timestamp):
                 timestamp = ask_time
 
-            # If we still don't have a timestamp, use current time
-            if not timestamp:
-                timestamp = datetime.datetime.now(datetime.timezone.utc)
-
             # Extract additional useful fields that might be available
             bid_size = quote_info.get('bidSize')
             ask_size = quote_info.get('askSize')
@@ -736,9 +732,10 @@ class SchwabData(DataSource):
             percent_change = quote_info.get('netPercentChangeInDouble')
 
             # Create and return Quote object
-            return _get_quote_class()(
+            result = _get_quote_class()(
                 asset=asset,
-                price=last_price,
+                price=last_price, last_price=last_price,
+                trade_time=self.convert_epoch_ms_to_datetime(quote_info.get('tradeTime')),
                 bid=bid_price,
                 ask=ask_price,
                 volume=volume,
@@ -753,6 +750,8 @@ class SchwabData(DataSource):
                 raw_data=asset_quote,
                 symbol_used=symbol
             )
+            result.timestamp = timestamp
+            return result
 
         except Exception as e:
             logger.error(colored(f"Error in get_quote for {asset.symbol}: {str(e)}", "red"))

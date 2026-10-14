@@ -693,24 +693,26 @@ class AlpacaData(DataSource):
             ask = float(self._snapshot_value(quote, "ask_price", "ap", default=0.0) or 0.0)
             bid_size = float(self._snapshot_value(quote, "bid_size", "bs", default=0.0) or 0.0)
             ask_size = float(self._snapshot_value(quote, "ask_size", "as", default=0.0) or 0.0)
-            last = float(self._snapshot_value(trade, "price", "p", default=0.0) or 0.0)
+            last_value = self._snapshot_value(trade, "price", "p", default=None)
+            last = float(last_value) if last_value is not None else None
             last_size = float(self._snapshot_value(trade, "size", "s", default=0.0) or 0.0)
-            if last <= 0:
-                last = (bid + ask) / 2.0 if bid > 0 and ask > 0 else bid or ask
 
             row = {
                 "symbol": symbol,
                 "last": last,
+                "mid": (bid + ask) / 2.0 if bid > 0 and ask > 0 else None,
+                "quote_time": self._snapshot_value(quote, "timestamp", "t", default=None),
+                "trade_time": self._snapshot_value(trade, "timestamp", "t", default=None),
                 "expiration_date": expiration,
                 "strike": strike,
                 "option_type": right,
                 "underlying": asset.symbol,
-                "open_interest": 0,
+                "open_interest": self._snapshot_value(snapshot, "open_interest", "openInterest", default=None),
                 "bid": bid,
                 "ask": ask,
                 "bidsize": bid_size,
                 "asksize": ask_size,
-                "volume": 0,
+                "volume": self._snapshot_value(snapshot, "volume", default=None),
                 "last_volume": last_size,
                 "average_volume": 0,
                 "implied_volatility": float(
@@ -1266,44 +1268,34 @@ class AlpacaData(DataSource):
             
             
             client = self._get_option_client()
-            from alpaca.data.requests import OptionLatestQuoteRequest
-            req = OptionLatestQuoteRequest(symbol_or_symbols=symbol)
-            trade = client.get_option_latest_quote(req)
-            t = trade[symbol]
-            # Option trades may not have bid/ask, so use price for both
-            # not sure what above comment was trying to say.
-
-            """
-            structure of t:
-            {     
-                'ask_exchange': 'B',
-                'ask_price': 2.86,
-                'ask_size': 10.0,
-                'bid_exchange': 'C',
-                'bid_price': 2.6,
-                'bid_size': 9.0,
-                'conditions': ' ',
-                'symbol': 'PEP251031P00137000',
-                'tape': None,
-                'timestamp': datetime.datetime(2025, 9, 18, 17, 18, 27, 139174, tzinfo=TzInfo(UTC))
-            } """
-
-            return Quote(
-                asset=asset,
-                price= round((t.bid_price + t.ask_price) / 2, 2) if t.bid_price and t.ask_price else None,  #using mid?
-                bid=getattr(t, "bid_price", None),
-                ask=getattr(t, "ask_price", None),
-                bid_size=getattr(t, "bid_size", None),
-                ask_size=getattr(t, "ask_size", None),
-                volume=None, #not in data from alpaca
-                timestamp=getattr(t, "timestamp", None),
+            from alpaca.data.requests import OptionSnapshotRequest
+            snapshots = client.get_option_snapshot(OptionSnapshotRequest(symbol_or_symbols=symbol))
+            snapshot = self._option_chain_snapshots(snapshots).get(symbol)
+            quote = self._snapshot_value(snapshot, "latest_quote", "latestQuote", default=None)
+            trade = self._snapshot_value(snapshot, "latest_trade", "latestTrade", default=None)
+            greek_data = self._snapshot_value(snapshot, "greeks", default=None)
+            read = self._snapshot_value
+            last = read(trade, "price", "p", default=None)
+            quote_time = read(quote, "timestamp", "t", default=None)
+            trade_time = read(trade, "timestamp", "t", default=None)
+            result = Quote(
+                asset=asset, price=last, last_price=last, trade_time=trade_time,
+                bid=read(quote, "bid_price", "bp", default=None),
+                ask=read(quote, "ask_price", "ap", default=None),
+                bid_size=read(quote, "bid_size", "bs", default=None),
+                ask_size=read(quote, "ask_size", "as", default=None),
+                timestamp=quote_time or trade_time, quote_time=quote_time,
                 raw_data={
-                    "exchange": getattr(t, "ask_exchange", None), #using ask_exchange, ignoring bid_exchange
-                    "conditions": getattr(t, "conditions", None),
-                    "symbol": symbol,
-                    "original_response": t
-                }
+                    "symbol": symbol, "last_price": last, "trade_time": trade_time,
+                    "greeks": {key: read(greek_data, key, default=None)
+                               for key in ("delta", "gamma", "theta", "vega", "rho")},
+                    "original_response": snapshot,
+                },
             )
+            # Quote's default is retrieval time; an absent source time stays absent.
+            result.timestamp = quote_time or trade_time
+            return result
+
         else:
             # Stocks
             symbol = asset.symbol

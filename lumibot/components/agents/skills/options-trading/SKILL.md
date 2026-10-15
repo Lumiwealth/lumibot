@@ -67,6 +67,9 @@ broker, approval, liquidity and risk limits.
    Unchecked outer strikes do not establish that protective wings are absent.
    Verify every selected contract individually. Candidate-selection helpers narrow
    the search but do not prove the exact contract's Greeks or quote quality.
+   Changing any leg's symbol, expiration, right or strike invalidates that leg's
+   earlier checks. Re-read both Greeks and quote quality for its final identity
+   before package pricing or submission; verifying a replaced candidate does not count.
 6. Before constructing an opening multi-leg payload, read
    `references/common-option-structures.md` and verify each buy/sell side,
    strike ordering and ratio against the intended structure. For credit

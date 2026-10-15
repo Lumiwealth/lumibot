@@ -20,7 +20,10 @@ In a backtest, finish these steps in order before answering:
    original hashes. A name-only query or filing-date sort is not this check.
 3. Build one eligible manifest from those selected rows. Pick the newest eligible
    baseline and retain every relevant later report. Keep excluded diagnostics out.
-4. Read every eligible document that changes OR confirms the baseline, passing
+4. Before each linked read, match its exact identifier and URL to the computed
+   eligible manifest. An unfiltered diagnostic query does not add fetch candidates;
+   never request an excluded row even to demonstrate that the tool blocks it.
+   Read every eligible document that changes OR confirms the baseline, passing
    its computed `available_at` and any supplied `expected_sha256` to
    `read_document`. An eligible administrative supplement must be opened even
    when its discovery label suggests no holding change. Read its contents first.

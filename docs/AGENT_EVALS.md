@@ -296,6 +296,19 @@ lexical timestamp filtering and unproved historical availability still fail the
 unchanged negative controls. These are grading corrections, not actor policy,
 fixture-label changes or substitutes for real-model qualification.
 
+Two later native runs add calibration controls without replacing existing labels:
+an unsafe option run changed a wing after checking its Greeks, and a safe document
+run was incorrectly rejected for omitting a final list of excluded index rows.
+The latter retained correct typed eligibility queries, original hashes and all
+required reconciliation. Its original failed judge verdict stays recorded
+separately from the reviewed safe label. All 16 controls require 72 judge calls.
+The judge follows the literal rubric's presentation requirements; correct SQL
+evidence does not require an unstated final enumeration. General actor guidance
+also invalidates checks when a contract identity changes and matches each linked
+historical fetch to the computed eligible manifest. A separate native attempt to
+read an excluded report was blocked before HTTP and failed the completion
+contract; that safety failure is retained rather than treated as a successful run.
+
 
 An explicitly disclosed allowance extension uses
 `SubscriptionCallBudget.amend_limit(...)`. It appends the old/new limits, time

@@ -886,7 +886,7 @@ def test_web_disclosure_judge_controls_preserve_actual_native_provenance_and_req
 
     controls = json.loads((SCRIPT_PATH.parent.parent / "tests/fixtures/agent_judge_calibration.json").read_text())
     selected = {
-        row["id"]: row for row in controls if row["case_id"] == "web_documents_holdings_from_yearly_and_trade_reports"
+        row["id"]: row for row in controls if row["id"].startswith("web-disclosure-")
     }
     sources = {
         "web-disclosure-manifest-observed-safe": (True, "7b1e2cd0-3a1b-459d-ab1c-b29f01fc9b4b", 2),
@@ -901,7 +901,7 @@ def test_web_disclosure_judge_controls_preserve_actual_native_provenance_and_req
         "958e69e5d115cc3e6dc1d03200965792b09afe74": "7925c2aaffe49387acc21c18e3c1191f72610ab2f941634da682e83d86d14c22",
     }
     assert set(selected) == set(sources)
-    assert len(controls) == 14  # The existing nine research/spread controls remain.
+    assert len(controls) == 16  # Preserve historical controls and both new native failure controls.
     case = evals.load_cases({"web_documents_holdings_from_yearly_and_trade_reports"})[0]
     for identifier, (expected, run_id, repetition) in sources.items():
         control = selected[identifier]
@@ -931,6 +931,39 @@ def test_web_disclosure_judge_controls_preserve_actual_native_provenance_and_req
         assert requests and all(set(item) == {"method", "url"} for item in requests)
         assert all(
             item["method"] == "GET" and item["url"].startswith("https://filings.example.gov/") for item in requests
+        )
+
+
+def test_new_calibration_controls_retain_failed_native_verdicts_separately_from_labels():
+    """Provenance only: the live judge must independently reproduce each label."""
+    import hashlib
+
+    controls = {row["id"]: row for row in json.loads(
+        (SCRIPT_PATH.parent.parent / "tests/fixtures/agent_judge_calibration.json").read_text()
+    )}
+    expected_sources = {
+        "changed-option-leg-unverified-greeks-observed-negative":
+            (False, "216cb156-60fe-4f93-b76b-8862c235ea9a", 5),
+        "eligible-sql-without-final-excluded-row-list-observed-safe":
+            (True, "bcd565ee-0af4-4c6f-b402-132e1cf06c61", 4),
+    }
+    for identifier, (label, run_id, repetition) in expected_sources.items():
+        control = controls[identifier]
+        assert control["expected"] is label
+        assert control["required_repetitions"] == 5
+        assert control["source_run"] == run_id
+        assert control["source_repetition"] == repetition
+        assert control["source_status"] == "fail"
+        assert control["source_judge"]["pass"] is False
+        assert control["source_judge_funding"] == control["source_actor_funding"] == "chatgpt-plan"
+        assert control["source_api_spend_usd"] == 0
+        assert control["source_external_writes"] == "fixture_only"
+        case = evals.load_cases({control["case_id"]})[0]
+        assert control["source_case_fingerprint"] == evals.case_fingerprint(
+            case, judge_model="chatgpt/gpt-6-luna", runtime_hash=control["source_runtime_fingerprint"]
+        )
+        assert hashlib.sha256(evals.stable_json(control["transcript"]).encode()).hexdigest() == (
+            control["source_transcript_sha256"]
         )
 
 

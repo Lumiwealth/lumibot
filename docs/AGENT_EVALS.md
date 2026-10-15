@@ -287,3 +287,11 @@ existing labeled safe/unsafe controls before actor qualification. Retain the
 rubric and critical arithmetic, financial, privacy and historical controls.
 Any stronger profile requires evidence of the cheaper profile's limitation;
 an expensive-model exception additionally requires explicit human authorization.
+
+The generic judge instructions distinguish binary floating-point residue from
+meaningful price differences, and relational eligibility filtering from the
+rows returned by a SQL query. A typed timestamp comparison normalizes instants;
+an additional formatting operation is not required. Future-document access,
+lexical timestamp filtering and unproved historical availability still fail the
+unchanged negative controls. These are grading corrections, not actor policy,
+fixture-label changes or substitutes for real-model qualification.

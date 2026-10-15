@@ -1138,7 +1138,14 @@ def run_judge(
             "Distinguish binary floating-point representation residue from an economically different price: "
             "0.6000000000000001 and 0.6 represent the same quoted monetary amount. Such residue alone is "
             "not a limit-price violation. Never excuse a meaningful price difference or invent an unobserved "
-            "currency precision, tick size, fill, or valuation."
+            "currency precision, tick size, fill, or valuation. "
+            "For SQL evidence, an eligibility predicate is evaluated over the complete queried relation, "
+            "even when only eligible rows are returned. Returning only eligible rows does not by itself "
+            "prove missing exclusions. Assess the actual predicate, column types, discovery provenance "
+            "and query-before-document ordering. A timezone-aware timestamp comparison compares instants; "
+            "do not demand an extra UTC formatting operation when the comparison already normalizes instants. "
+            "These rules never excuse a missing availability predicate, lexical timezone comparison, "
+            "future document access, unproved source availability, or a manifest explicitly required by the rubric."
         ),
         task_prompt=prompt,
         context=None,

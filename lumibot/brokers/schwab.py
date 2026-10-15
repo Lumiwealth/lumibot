@@ -1075,7 +1075,9 @@ class Schwab(Broker):
 
         from lumibot.entities import CashEventSync
 
-        end = dt.datetime.now(dt.timezone.utc)
+        # The SDK serializes bounds to whole seconds; never certify a
+        # fractional tail that was not sent to the provider.
+        end = dt.datetime.now(dt.timezone.utc).replace(microsecond=0)
         start = since if since is not None else end - dt.timedelta(days=60)
         # Validate caller parameters and identity before any broker read.
         arguments = dict(events=(), broker_name="schwab", account_id=getattr(self, "account_number", None),
@@ -1113,7 +1115,9 @@ class Schwab(Broker):
         # 365 days is at most one calendar year even across leap years. Check
         # the initial work before contacting Schwab; all later splits share
         # this same finite budget. Inclusive boundaries are deduplicated below.
-        max_window = dt.timedelta(days=365)
+        # Audits reserve one second for an inclusive-start overlap without
+        # exceeding the provider's one-year request maximum.
+        max_window = dt.timedelta(days=365) - (dt.timedelta(seconds=1) if audit else dt.timedelta())
         if end - start > max_window * requests_remaining:
             raise ValueError("Schwab cash-event history exceeds the bounded request budget")
         windows = []
@@ -1144,7 +1148,8 @@ class Schwab(Broker):
             requests_remaining -= 1
             try:
                 response = self.client.get_transactions(
-                    self.hash_value, start_date=window_start, end_date=window_end,
+                    self.hash_value, start_date=window_start - dt.timedelta(seconds=1) if audit else window_start,
+                    end_date=window_end,
                     transaction_types=transaction_types,
                 )
             except Exception as exc:

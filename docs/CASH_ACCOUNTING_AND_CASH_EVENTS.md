@@ -278,3 +278,9 @@ successfully: the boolean reports delivery, while `funding_sync.state` reports
 retrieval completeness. Normal `send_update_to_cloud()` emits one batch per
 update. Managed deployments use `BOTSPOT_DEPLOYMENT_ID`; external bots use the
 external producer kind. The one-shot method identifies account snapshots.
+
+Audited Schwab requests pin their declared end to the SDK's whole-second wire
+precision. They overlap the inclusive start by one second, then filter normalized
+rows to the declared start-inclusive/end-exclusive window. Split windows reserve
+that overlap inside the one-year request maximum. This prevents a fractional
+unchecked tail or an exclusive provider boundary from becoming complete coverage.

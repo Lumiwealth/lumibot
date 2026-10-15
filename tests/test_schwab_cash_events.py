@@ -16,7 +16,7 @@ def transaction(identifier="funding-1", kind="ACH_RECEIPT", amount=100, **overri
         "activityId": identifier,
         "type": kind,
         "status": "VALID",
-        "time": dt.datetime.now(dt.timezone.utc).replace(microsecond=0).isoformat(),
+        "time": (dt.datetime.now(dt.timezone.utc) - dt.timedelta(seconds=1)).replace(microsecond=0).isoformat(),
         "netAmount": amount,
         "transferItems": [{"instrument": {"assetType": "CURRENCY", "symbol": "CURRENCY_USD"}, "amount": amount}],
         **overrides,
@@ -650,3 +650,48 @@ def test_schwab_funding_sync_outage_is_explicit_and_sanitized():
     assert receipt["pagination_exhausted"] is False
     assert receipt["completed_at"] is None
     assert receipt["covered_intervals"] == []
+
+
+def test_funding_receipt_matches_the_actual_sdk_wire_time_bounds():
+    """The real SDK drops fractions; an audited window must not overclaim them."""
+    from schwab.client import Client
+
+    params = []
+    client = Client("synthetic-key", SimpleNamespace())
+    client._get_request = lambda _path, query: params.append(query) or SimpleNamespace(status_code=200, json=lambda: [])
+    broker, _ = broker_for([])
+    broker.client = client
+    start = dt.datetime(2025, 12, 1, 0, 0, 0, 123456, tzinfo=dt.timezone.utc)
+    result = broker.get_cash_event_sync(since=start)
+    receipt = result.to_dict(producer_kind="account_snapshot", batch_index=0, batch_size=50)
+    assert receipt["state"] == "complete"
+    assert result.end.microsecond == 0
+    assert params[-1]["endDate"] == result.end.strftime("%Y-%m-%dT%H:%M:%SZ")
+    # Query before the declared inclusive start, even if the provider treats
+    # startDate as exclusive. Extra overlapping rows are filtered and deduped.
+    assert dt.datetime.fromisoformat(params[0]["startDate"].replace("Z", "+00:00")) < start
+
+
+def test_audited_windows_allow_boundary_overlap_without_exceeding_provider_maximum():
+    broker, calls = broker_for([])
+    broker.get_cash_event_sync(since=dt.datetime.now(dt.timezone.utc) - dt.timedelta(days=800))
+    assert len(calls) >= 3
+    assert all(call["end_date"] - call["start_date"] <= dt.timedelta(days=365) for call in calls)
+
+
+def test_sdk_wire_overlap_includes_start_and_excludes_requested_end():
+    from schwab.client import Client
+    start = dt.datetime(2026, 1, 1, 0, 0, 0, 123456, tzinfo=dt.timezone.utc)
+    def respond(_path, query):
+        return SimpleNamespace(status_code=200, json=lambda: [
+            transaction(identifier="at-start", time=start.isoformat()),
+            transaction(identifier="before-start", time=(start-dt.timedelta(microseconds=1)).isoformat()),
+            transaction(identifier="at-end", time=query["endDate"]),
+        ])
+    client = Client("synthetic-key", SimpleNamespace())
+    client._get_request = respond
+    broker, _ = broker_for([])
+    broker.client = client
+    result = broker.get_cash_event_sync(since=start)
+    assert result.state == "complete"
+    assert [event.event_id for event in result.events] == ["schwab:at-start"]

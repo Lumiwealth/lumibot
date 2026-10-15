@@ -3,6 +3,7 @@
 ## Unreleased
 
 - Harden Schwab funding and token storage: use the official one-year transaction-request maximum with bounded historical slices; reject explicit corrections and malformed provider fields without leaking response details. Preserve saved credentials on login/metadata/storage failures, share private atomic writes across login and refresh, and advance adapter token state only after persistence. Validate read-only account discovery and retain its primary error during cleanup. Correct documentation that incorrectly promised a rolling seven-day authorization.
+- Preserve Schwab credentials on SDK startup and account-discovery errors, including HTTP 401; reject unusable account hashes and stop the failed initialization's proactive refresher. Provider error text cannot decide whether to delete a token or enter startup logs.
 
 - Read recent Schwab cash activities through the existing authenticated client, preserving signed funding, provider IDs and provider timezone offsets. Distinguish internal cash/margin and bank-sweep journals from IRA distribution withholding. Subdivide saturated or timed-out large windows; reject unresolved classification, missing currency, incomplete history and truncating limits. Event retrieval does not certify all-time coverage.
 

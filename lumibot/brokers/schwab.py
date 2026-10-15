@@ -831,32 +831,22 @@ class Schwab(Broker):
             if not external_token_refresh and not app_secret_for_refresh:
                 logger.warning(
                     "[Schwab] Token auto-refresh by this client may not work as SCHWAB_APP_SECRET is not configured. "
-                    "You may need to re-authenticate by providing a new SCHWAB_TOKEN or deleting token.json when the current token expires."
+                    "You may need to complete normal Schwab reauthorization when the current token expires."
                 )
-        except Exception as e:
-            logger.error(colored(f"[Schwab] Error initializing Schwab client from token file {token_path}: {e}", "red"))
-            logger.error(_format_exc())
-            # Only delete the token file when it is genuinely corrupt (unreadable
-            # JSON or structurally missing its token). A transient network/API
-            # error during startup must not destroy a valid refresh_token, which
-            # would force an interactive re-authentication.
-            token_file_corrupt = isinstance(e, _json_module().JSONDecodeError) or (
-                isinstance(e, ValueError) and "token" in str(e).lower()
-            )
-            if token_path.exists() and not external_token_refresh and not isinstance(e, SchwabTokenPersistenceError):
-                if token_file_corrupt:
-                    logger.warning(f"[Schwab] Deleting corrupt token file: {token_path}")
-                    token_path.unlink(missing_ok=True)
-                else:
-                    logger.warning(
-                        f"[Schwab] Keeping token file {token_path} after a transient initialization error "
-                        "(the file itself looks intact); it can be reused on the next start."
-                    )
+        except Exception:
+            # An SDK exception mentioning 'token', or even a 401, does not
+            # authorize destroying saved credentials. Provider exceptions can
+            # also contain request URLs or token payloads, so keep them private.
+            logger.error("[Schwab] Client initialization failed; saved token file retained.")
             self.schwab_authorization_error = True
+            refresh_stop = getattr(self, "_schwab_token_refresh_stop", None)
+            if refresh_stop is not None:
+                refresh_stop.set()
+                self._schwab_token_refresh_stop = None
             raise ConnectionError(
-                f"Failed to initialize Schwab client: {e}. "
-                "Consider deleting token.json and clearing SCHWAB_TOKEN env var, then restarting."
-            ) from e
+                "Failed to initialize Schwab client; saved token file retained. "
+                "Check app configuration and token storage, or complete normal Schwab reauthorization."
+            ) from None
 
         # -------------------------------------------------------------
         # Retrieve account hash (needed for all subsequent endpoints)
@@ -865,6 +855,8 @@ class Schwab(Broker):
             resp_accounts = self.client.get_account_numbers()
             if hasattr(resp_accounts, 'status_code') and resp_accounts.status_code == 200:
                 accounts_json = resp_accounts.json()
+                if not isinstance(accounts_json, list) or not all(isinstance(acc, dict) for acc in accounts_json):
+                    raise ValueError("Invalid Schwab account discovery response")
                 # Find entry matching our account number. BotSpot often passes
                 # the last 3-4 account digits, so allow a unique suffix match.
                 target_acc = None
@@ -900,7 +892,7 @@ class Schwab(Broker):
                             "to any account returned by Schwab."
                         )
 
-                if target_acc and 'hashValue' in target_acc:
+                if target_acc and isinstance(target_acc.get('hashValue'), str) and target_acc['hashValue'].strip():
                     hash_value = target_acc['hashValue']
                     logger.info(
                         "[Schwab] Retrieved account hash %s for account %s.",
@@ -913,27 +905,24 @@ class Schwab(Broker):
                     self._broker_fully_ready = True # Signal readiness
                     self._finish_initialization(config, self.data_source, self.account_number, hash_value)
                 else:
-                    logger.error(
-                        "[Schwab] Unable to locate account hash in response from get_account_numbers(). "
-                        "API response: %s",
-                        self._redact_schwab_payload(accounts_json),
-                    )
+                    logger.error("[Schwab] Unable to locate a usable account hash in account discovery.")
                     self.schwab_authorization_error = True
             else:
                 code = getattr(resp_accounts, 'status_code', 'n/a')
-                logger.error(f"[Schwab] Failed to fetch account numbers. HTTP status {code}")
-                if code == 401 and not external_token_refresh:
-                    # Token is invalid, delete it so user will be prompted to re-authenticate.
-                    # In external mode the file is parent-managed; deleting it here would
-                    # destroy the refresh token the parent process rotates.
-                    if token_path.exists(): token_path.unlink(missing_ok=True)
-                    logger.warning(f"[Schwab] Deleted invalid token file {token_path} due to 401 error.")
-                    raise ConnectionError("Schwab authentication failed (401 Unauthorized). Token deleted. Please restart to re-authenticate.")
+                status_label = str(code) if type(code) is int and 100 <= code <= 599 else "unavailable"
+                logger.error(f"[Schwab] Failed to fetch account numbers (HTTP {status_label}); saved token retained.")
                 self.schwab_authorization_error = True
-        except Exception as e_acc:
-            logger.error(colored(f"[Schwab] Exception while fetching account numbers: {e_acc}", "red"))
-            logger.error(_format_exc())
+        except Exception:
+            logger.error("[Schwab] Account discovery or initialization failed; saved token retained.")
+            self.hash_value = None
+            self._broker_fully_ready = False
             self.schwab_authorization_error = True
+
+        if self.schwab_authorization_error:
+            refresh_stop = getattr(self, "_schwab_token_refresh_stop", None)
+            if refresh_stop is not None:
+                refresh_stop.set()
+                self._schwab_token_refresh_stop = None
 
     def cleanup_streams(self):
         activity_stop = getattr(self, "_schwab_activity_stop", None)

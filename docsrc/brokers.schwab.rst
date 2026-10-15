@@ -127,6 +127,10 @@ Token life-cycle
   replacement. Failed input, metadata preparation or persistence preserves the
   existing file. A storage/validation failure reports an error; fix storage or
   explicitly reauthorize instead of deleting credentials automatically.
+* SDK startup and account-discovery failures, including HTTP 401, also retain the
+  saved file. An unusable account hash cannot mark the broker ready. A failed
+  initialization stops its proactive refresh task; expiry or revocation still
+  requires normal reauthorization.
 
 Supported functionality
 -----------------------

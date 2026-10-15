@@ -181,3 +181,49 @@ def test_successful_refresh_persists_private_file_and_preserves_refresh_token(br
     assert saved["token"]["refresh_token"] == "old-refresh"
     assert saved["token"]["access_token"] == "new-access"
     assert stat.S_IMODE(path.stat().st_mode) == 0o600
+
+
+@pytest.mark.parametrize("response", [
+    SimpleNamespace(status_code=401, json=lambda: {}),
+    SimpleNamespace(status_code=200, json=lambda: [{"accountNumber": "synthetic-account", "hashValue": " "}]),
+])
+def test_discovery_failure_preserves_token_and_cannot_mark_broker_ready(monkeypatch, broker_with_token_updater, response):
+    from lumibot.brokers.schwab import Schwab
+
+    broker, path = broker_with_token_updater
+    before = path.read_bytes()
+    monkeypatch.setattr(type(broker.client), "get_account_numbers", lambda *args: response)
+    failed = Schwab(config={"SCHWAB_APP_KEY": "synthetic-app", "SCHWAB_APP_SECRET": "synthetic-secret",
+                            "SCHWAB_ACCOUNT_NUMBER": "synthetic-account", "SCHWAB_TOKEN_PATH": str(path)},
+                    connect_stream=False)
+    try:
+        assert failed.schwab_authorization_error is True
+        assert failed._broker_fully_ready is False
+        assert failed.hash_value is None
+        assert path.read_bytes() == before
+    finally:
+        failed.cleanup_streams()
+
+
+def test_sdk_initialization_error_cannot_delete_token_or_leak_provider_text(monkeypatch, broker_with_token_updater, caplog):
+    from threading import Event
+
+    from lumibot.brokers import schwab as module
+
+    _, path = broker_with_token_updater
+    before = path.read_bytes()
+    refresh_stop = Event()
+    monkeypatch.setattr(module, "_start_schwab_proactive_token_refresh", lambda *a, **k: refresh_stop)
+
+    def fail(**kwargs):
+        raise ValueError("token private-provider-details")
+
+    monkeypatch.setattr(module, "Client", fail)
+    with pytest.raises(ConnectionError, match="Failed to initialize Schwab client") as caught:
+        module.Schwab(config={"SCHWAB_APP_KEY": "synthetic-app", "SCHWAB_APP_SECRET": "synthetic-secret",
+                             "SCHWAB_ACCOUNT_NUMBER": "synthetic-account", "SCHWAB_TOKEN_PATH": str(path)},
+                     connect_stream=False)
+    assert path.read_bytes() == before
+    assert "private-provider-details" not in str(caught.value)
+    assert "private-provider-details" not in caplog.text
+    assert refresh_stop.is_set()

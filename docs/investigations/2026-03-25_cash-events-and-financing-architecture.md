@@ -147,8 +147,12 @@ Observed limitation in this workspace:
 
 October 2026 implementation update: the adapter now implements
 `get_cash_events(since=..., limit=...)` through the existing Schwab SDK client.
-The installed SDK contract documents a 60-day recent window. An omitted start
-does not mean all-time coverage; older explicit requests fail. Potentially capped
+The [official transaction specification](https://developer.schwab.com/products/trader-api--individual/details/specifications/Retail%20Trader%20API%20Production)
+permits at most one year per request and 3000 returned rows. This supersedes the
+SDK's stale 60-day description. The omitted start remains a bounded 60-day
+default; older explicit starts use contiguous, at-most-365-day slices under the
+same 127-request budget. The request interval does not establish retention.
+Potentially capped
 responses are split into overlapping windows with stable-ID deduplication,
 bounded request count and explicit failure if a one-second window saturates.
 No queue token or silently truncated list is invented.
@@ -170,13 +174,20 @@ describes the automatic sweep of an account's free credit balance. The exact
 `FED INC TAX WHLD IRA` label is external distribution withholding (`tax`), in
 addition to the net cash disbursement. This distinction must not be applied to
 ordinary tax on investment income. Unknown journals, in-kind transfers,
-currency conversions, non-final statuses and ambiguous amounts or timestamps
+currency conversions, explicit correction/unknown activity actions, non-final
+statuses and ambiguous amounts or timestamps
 fail rather than acquiring a guessed classification. Compact provider timezone
 offsets are normalized for Python 3.10 as well as newer runtimes.
 
 Large timed-out history windows are subdivided with a bounded timeout budget;
 partial successful slices never become a successful partial result. The SDK's
 normal saved-token refresh path is reused; no second credential owner exists.
+Initial login, metadata migration and refresh share a private atomic writer.
+Failed parsing, serialization, disk writes or replacement preserve the saved
+file. Storage failures do not delete credentials or initiate a replacement
+login, and the adapter's token metadata advances only after persistence.
+Default refresh-token lifetime metadata is seven days, not 90; access refresh
+does not establish indefinite authorization.
 
 The cloud sender removes events only after its existing successful HTTP
 acknowledgement. Account/window coverage and durable ingestion proof must

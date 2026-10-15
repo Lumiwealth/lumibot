@@ -552,14 +552,11 @@ class Schwab(Broker):
                         token_available_and_valid = True
                         logger.info(f"[Schwab] Token from SCHWAB_TOKEN env var processed, validated, and saved to {token_path}")
                     else:
-                        logger.error(f"[Schwab] Token from SCHWAB_TOKEN env var became invalid after SchwabHelper._ensure_token_metadata. Deleting {token_path}.")
-                        token_path.unlink(missing_ok=True)
+                        logger.error("[Schwab] Imported token failed metadata validation; saved file retained.")
                 else:
-                    logger.error(f"[Schwab] Token from SCHWAB_TOKEN env var resulted in an invalid token file at {token_path}. Deleting.")
-                    token_path.unlink(missing_ok=True)
-            except Exception as e:
-                logger.error(f"[Schwab] Error processing SCHWAB_TOKEN: {e}")
-                if token_path.exists(): token_path.unlink(missing_ok=True)
+                    logger.error("[Schwab] Imported token failed validation; saved file retained.")
+            except Exception:
+                logger.error("[Schwab] Unable to process SCHWAB_TOKEN; saved file retained.")
 
         if not token_available_and_valid and token_path.exists() and token_path.stat().st_size > 0:
             logger.info(f"[Schwab] Existing token file found at {token_path}. Validating...")
@@ -575,11 +572,13 @@ class Schwab(Broker):
                     token_available_and_valid = True
                     logger.info(f"[Schwab] Existing token file {token_path} is valid after metadata check.")
                 else:
-                    logger.warning(f"[Schwab] Existing token file {token_path} is invalid after checks. Deleting.")
-                    token_path.unlink(missing_ok=True)
-            except Exception as e:
-                logger.warning(f"[Schwab] Error validating/fixing existing token file {token_path}: {e}. Deleting.")
-                if token_path.exists(): token_path.unlink(missing_ok=True)
+                    raise ValueError("Saved token is invalid")
+            except Exception:
+                self.schwab_authorization_error = True
+                raise ConnectionError(
+                    "Unable to validate or persist saved Schwab token; file preserved. "
+                    "Check token storage or explicitly complete normal Schwab reauthorization."
+                ) from None
 
         if not token_available_and_valid:
             logger.info("[Schwab] No valid token found. Initiating user authorization flow to obtain token payload.")
@@ -597,8 +596,7 @@ class Schwab(Broker):
                 if schwab_helper._is_token_valid_for_schwab_py(token_path):
                     token_available_and_valid = True
                 else:
-                    logger.error(f"[Schwab] Token became invalid after SchwabHelper._ensure_token_metadata post-auth. Deleting {token_path}.")
-                    if token_path.exists(): token_path.unlink(missing_ok=True)
+                    logger.error("[Schwab] Token failed validation after authorization; saved file retained.")
             else:
                 self.schwab_authorization_error = True
                 raise ConnectionError("Schwab token file is missing or invalid even after successful authorization flow.")
@@ -643,14 +641,17 @@ class Schwab(Broker):
 
             def _update_token(updated_token):
                 """Write refreshed token back to token.json so it persists across restarts."""
-                tmp_token_path = token_path.with_name(f".{token_path.name}.tmp.{os.getpid()}.{time.time_ns()}")
                 try:
                     if not isinstance(updated_token, dict):
                         raise ValueError("Refreshed Schwab token payload is not a JSON object.")
+                    if not isinstance(updated_token.get("access_token"), str) or not updated_token["access_token"].strip():
+                        raise ValueError("Refreshed Schwab token is missing a usable access token.")
                     next_token = dict(token_dict_for_session)
                     next_token.update(updated_token)
                     if not next_token.get("refresh_token") and token_dict_for_session.get("refresh_token"):
                         next_token["refresh_token"] = token_dict_for_session["refresh_token"]
+                    if not isinstance(next_token.get("refresh_token"), str) or not next_token["refresh_token"].strip():
+                        raise ValueError("Refreshed Schwab token is missing a usable refresh token.")
                     now_ms = int(time.time() * 1000)
                     if updated_token.get("access_token") and not updated_token.get("issued_at"):
                         next_token["issued_at"] = now_ms
@@ -659,36 +660,27 @@ class Schwab(Broker):
                     next_token.setdefault("expires_in", token_dict_for_session.get("expires_in", 1800))
                     next_token.setdefault(
                         "refresh_token_expires_in",
-                        token_dict_for_session.get("refresh_token_expires_in", 90 * 24 * 3600),
+                        token_dict_for_session.get("refresh_token_expires_in", 7 * 24 * 3600),
                     )
                     next_token.setdefault("token_type", token_dict_for_session.get("token_type", "Bearer"))
                     next_token.setdefault("scope", token_dict_for_session.get("scope", "api"))
                     next_token.pop("id_token", None)
 
-                    token_dict_for_session.clear()
-                    token_dict_for_session.update(next_token)
                     wrapped = {
                         "creation_timestamp": wrapped_token_data.get("creation_timestamp", int(time.time())),
-                        "token": token_dict_for_session,
+                        "token": next_token,
                     }
-                    with open(tmp_token_path, "w", encoding="utf-8") as fp:
-                        _json_module().dump(wrapped, fp)
-                    os.chmod(tmp_token_path, 0o600)
-                    os.replace(tmp_token_path, token_path)
-                    try:
-                        os.chmod(token_path, 0o600)
-                    except OSError:
-                        pass
+                    # Use the same private atomic writer as initial login.
+                    # Advance the adapter's token state only after persistence.
+                    _schwab_helper()._write_token_file(token_path, wrapped)
+                    token_dict_for_session.clear()
+                    token_dict_for_session.update(next_token)
                     logger.info(f"[Schwab] Token automatically refreshed and written to {token_path}")
-                except Exception as e_write:
-                    try:
-                        tmp_token_path.unlink(missing_ok=True)
-                    except OSError:
-                        pass
-                    logger.error(f"[Schwab] Failed to write refreshed token to file: {e_write}")
+                except Exception:
+                    logger.error("[Schwab] Failed to persist refreshed token; saved file retained.")
                     raise SchwabTokenPersistenceError(
-                        f"[Schwab] Failed to write refreshed token to file {token_path}: {e_write}"
-                    ) from e_write
+                        "[Schwab] Failed to persist refreshed token; saved file retained."
+                    ) from None
 
             # Build kwargs for token refresh – only include client_secret if it actually exists
             refresh_kwargs = {
@@ -972,9 +964,21 @@ class Schwab(Broker):
         if not isinstance(transaction, dict):
             raise ValueError("Invalid Schwab transaction payload")
         kind = transaction.get("type")
+        if not isinstance(kind, str):
+            raise ValueError("Invalid Schwab transaction category")
         if kind == "TRADE":
             # Trade proceeds and embedded commissions already affect value.
             return None
+        # A correction can replace a prior observation rather than represent
+        # new capital. The cash-list contract cannot retract an acknowledged
+        # event, so do not silently add its amount a second time. Older valid
+        # provider responses omit this optional action field altogether.
+        action = transaction.get("activityType")
+        if action is not None and action not in ("TRANSFER", "EXECUTION"):
+            raise ValueError("Schwab transaction action requires reconciliation")
+        description = transaction.get("description")
+        if description is not None and not isinstance(description, str):
+            raise ValueError("Invalid Schwab transaction description")
         funding_types = Schwab.CASH_FUNDING_TRANSACTION_TYPES
         journal_type = None
         if kind == "JOURNAL":
@@ -1002,22 +1006,32 @@ class Schwab(Broker):
         if amount is None or isinstance(amount, bool) or (isinstance(amount, str) and not amount.strip()):
             raise ValueError("Schwab transaction is missing a cash amount")
         try:
-            amount = CashEvent.coerce_amount(amount)
-            provider_time = str(transaction.get("time", "")).replace("Z", "+00:00")
+            # Schwab declares a numeric double, not a formatted money string.
+            # Generic CashEvent coercion also accepts '$' and ',' as zero.
+            amount = CashEvent.coerce_amount(float(amount))
+            provider_time = transaction.get("time")
+            if not isinstance(provider_time, str) or not re.fullmatch(
+                r"[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}"
+                r"(?:\.[0-9]+)?(?:Z|[+-][0-9]{2}:?[0-9]{2})", provider_time,
+            ):
+                raise ValueError("Invalid provider timestamp")
+            provider_time = provider_time.replace("Z", "+00:00")
             # Schwab returns +0000 offsets, which fromisoformat only accepts
             # with a colon on supported Python 3.10 runtimes.
             provider_time = re.sub(r"([+-][0-9]{2})([0-9]{2})$", r"\1:\2", provider_time)
             occurred_at = dt.datetime.fromisoformat(provider_time)
             if occurred_at.tzinfo is None or occurred_at.utcoffset() is None:
                 raise ValueError("Missing timezone")
-        except (TypeError, ValueError):
+        except (TypeError, ValueError, OverflowError):
             raise ValueError("Schwab transaction has an invalid amount or timestamp") from None
         transfer_items = transaction.get("transferItems")
         if not isinstance(transfer_items, list) or not transfer_items:
             raise ValueError("Schwab transaction currency is unavailable")
         currencies = set()
         for item in transfer_items:
-            instrument = item.get("instrument", {}) if isinstance(item, dict) else {}
+            if not isinstance(item, dict):
+                raise ValueError("Invalid Schwab transfer item")
+            instrument = item.get("instrument")
             if not isinstance(instrument, dict):
                 raise ValueError("Schwab transaction currency is unavailable")
             if instrument.get("assetType") != "CURRENCY":
@@ -1027,7 +1041,7 @@ class Schwab(Broker):
                     raise ValueError("Schwab in-kind transfer requires valuation and classification")
                 continue
             symbol = instrument.get("symbol", "")
-            if not isinstance(symbol, str) or not symbol.startswith("CURRENCY_") or len(symbol) != 12:
+            if not isinstance(symbol, str) or not re.fullmatch(r"CURRENCY_[A-Z]{3}", symbol):
                 raise ValueError("Schwab transaction currency is unavailable")
             currencies.add(symbol.removeprefix("CURRENCY_"))
         if len(currencies) != 1:
@@ -1048,12 +1062,14 @@ class Schwab(Broker):
         )
 
     def get_cash_events(self, *, since=None, limit=100):
-        """Read normalized transactions in the SDK's documented recent window.
+        """Read cash transactions in bounded, at-most-one-year request windows.
 
         This list is cash event evidence, not a certificate of all-time or
         in-kind funding coverage. Security transfers need separate valuation.
-        Requests older than 60 days, unresolved classifications, saturated
-        responses and caller limits that would discard events fail explicitly.
+        The default start is 60 days ago, not a provider retention guarantee.
+        Explicit older starts are sliced to the official one-year request
+        maximum. Unresolved classifications, saturated responses and caller
+        limits that would discard events fail explicitly.
         No strategy, order, stream or OAuth setup is started by this method.
         """
         import datetime as dt
@@ -1063,18 +1079,29 @@ class Schwab(Broker):
         if limit is not None and (isinstance(limit, bool) or not isinstance(limit, int) or limit <= 0):
             raise ValueError("Schwab cash-event limit must be a positive integer or None")
         end = dt.datetime.now(dt.timezone.utc).replace(microsecond=0)
-        earliest = end - dt.timedelta(days=60)
         if since is None:
-            start = earliest
+            start = end - dt.timedelta(days=60)
         else:
             if not isinstance(since, dt.datetime) or since.tzinfo is None or since.utcoffset() is None:
                 raise ValueError("Schwab cash-event start must have an explicit timezone")
             start = since.astimezone(dt.timezone.utc)
-            if start < earliest:
-                raise ValueError("Schwab cash-event history is limited to the documented 60-day window")
             if start > end:
                 raise ValueError("Schwab cash-event start is after the request end")
-        windows = [(start, end)]
+        requests_remaining = 127
+        # 365 days is at most one calendar year even across leap years. Check
+        # the initial work before contacting Schwab; all later splits share
+        # this same finite budget. Inclusive boundaries are deduplicated below.
+        max_window = dt.timedelta(days=365)
+        if end - start > max_window * requests_remaining:
+            raise ValueError("Schwab cash-event history exceeds the bounded request budget")
+        windows = []
+        cursor = start
+        while cursor < end:
+            next_end = min(cursor + max_window, end)
+            windows.append((cursor, next_end))
+            cursor = next_end
+        if not windows:
+            windows = [(start, end)]
         events = {}
         # Request cash categories explicitly: neither trade cash nor a
         # security transfer's zero netAmount measures external cash funding.
@@ -1083,7 +1110,6 @@ class Schwab(Broker):
             value for value in _get_client_class().Transactions.TransactionType
             if value.value in cash_types
         ]
-        requests_remaining = 127
         timeouts_remaining = 8
         while windows:
             window_start, window_end = windows.pop()
@@ -1110,8 +1136,9 @@ class Schwab(Broker):
                 # Provider exception text can contain URLs, hashes and credentials.
                 raise ConnectionError("Schwab transaction request failed") from None
             status = getattr(response, "status_code", None)
-            if status != 200:
-                raise ConnectionError(f"Schwab transaction request failed (HTTP {status})")
+            if type(status) is not int or status != 200:
+                status_label = str(status) if type(status) is int and 100 <= status <= 599 else "unavailable"
+                raise ConnectionError(f"Schwab transaction request failed (HTTP {status_label})")
             try:
                 rows = response.json()
             except Exception:

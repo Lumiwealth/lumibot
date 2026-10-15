@@ -33,7 +33,9 @@ Cash activity history
 
 ``broker.get_cash_events(since=aware_datetime, limit=5000)`` reads recent
 transactions through the existing authenticated Schwab client. Omitting
-``since`` requests the SDK's documented 60-day window, not all-time history.
+``since`` requests the most recent 60 days as a bounded default. Explicit older
+starts use contiguous windows of at most 365 days, within the official endpoint's
+one-year request maximum. That maximum does not establish historical retention.
 Dates require a timezone. The method does not start a strategy or place orders.
 The query selects cash, journal and dividend/interest categories. Security
 receive/deliver activity is outside this cash API; its zero cash amount does
@@ -46,7 +48,8 @@ and embedded commissions are not external capital. Exact Schwab bank-sweep and
 cash/margin subaccount-transfer labels remain non-external journals. The separate
 ``FED INC TAX WHLD IRA`` entry is external distribution withholding, not an
 investment loss. Unknown journals,
-in-kind transfers, currency conversions and non-final transaction statuses
+in-kind transfers, currency conversions, explicit correction/unknown activity
+actions and non-final transaction statuses
 raise an explicit error rather than fabricating a zero cash flow.
 
 Saturated responses and timed-out large windows are divided into overlapping date windows and deduplicated
@@ -117,8 +120,13 @@ Token life-cycle
 
 * Access token ≈ 30 min; refresh token ≈ 7 days.
 * Lumibot automatically refreshes the token every ~25 min and rewrites ``token.json``.
-* As long as the bot is running (or restarted at least once a week) you will **never see the login page again**.
-* If the bot is **offline > 7 days** the refresh token expires – simply run the login flow once more.
+* Refresh tokens expire seven days after creation, or earlier if authorization is
+  revoked. Access-token refresh does not guarantee an indefinitely renewable login.
+* On expiry or revocation, complete the normal browser authorization again.
+* Login and refresh save the token with mode ``600`` through an atomic file
+  replacement. Failed input, metadata preparation or persistence preserves the
+  existing file. A storage/validation failure reports an error; fix storage or
+  explicitly reauthorize instead of deleting credentials automatically.
 
 Supported functionality
 -----------------------
@@ -360,9 +368,10 @@ To use Schwab with Lumibot, you need to set the following environment variables 
     - `<big-string>`
 
 .. important::
-   `SCHWAB_TOKEN` is only read **once** (on first run) to build `token.json`.
-   After that, automatic refresh keeps the file current; you do **not** need to
-   rotate the env-var every 7 days.
+   ``SCHWAB_TOKEN`` imports a login payload into the token file when supplied.
+   Remove an old bootstrap payload from subsequent starts so it cannot overwrite
+   a refreshed file. Automatic access-token refresh still requires an unexpired,
+   authorized refresh token and the matching app configuration.
 
 Token Life-cycle & Auto-refresh
 -------------------------------
@@ -370,17 +379,16 @@ Token Life-cycle & Auto-refresh
 * Access-token ≈ 30 min, refresh-token ≈ 7 days (per Schwab policy).
 * Lumibot configures an `OAuth2Session` with ``auto_refresh_url`` so that tokens
   refresh themselves quietly in the background every ~25 min.
-* The refreshed token is written back to `token.json`; it rolls the 7-day window
-  forward.  As long as the bot is running (or restarted at least once a week)
-  you never need to log in again.
+* The refreshed access token is written back to ``token.json``. This does not
+  establish a rolling seven-day authorization: the refresh token expires seven
+  days after creation or can be revoked earlier.
 * In managed environments where a trusted parent process owns broker OAuth
   refresh, set ``LUMIBOT_OAUTH_REFRESH_MODE=external``. In that mode LumiBot does
   not call the Schwab OAuth refresh endpoint; it reloads an access-token-only
   token file when the parent atomically replaces it. Refresh-token fields are
   stripped from LumiBot's child broker state in this mode.
-* Only if the service is **offline for >7 days** will the refresh-token expire.
-  In that case repeat the browser login once and redeploy the new payload or
-  token file.
+* Repeat the normal browser authorization when the refresh token expires or
+  is revoked, even if the service has remained online.
 
 Creating an App & Getting Keys
 ------------------------------

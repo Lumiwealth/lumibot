@@ -105,7 +105,7 @@ def main() -> int:
     parser.add_argument("--token-path", type=Path, required=True)
     parser.add_argument("--app-env", type=Path, required=True)
     parser.add_argument("--account-suffix", help="Read only the uniquely matching account, otherwise all linked accounts")
-    parser.add_argument("--days", type=int, default=59, choices=range(1, 60))
+    parser.add_argument("--days", type=int, default=59, choices=range(1, 366))
     parser.add_argument("--login", action="store_true", help="Run normal browser login before reading")
     args = parser.parse_args()
     logging.disable(logging.CRITICAL)
@@ -122,8 +122,20 @@ def main() -> int:
                         connect_stream=False)
         response = broker.client.get_account_numbers()
         if response.status_code != 200:
-            raise RuntimeError(f"Schwab account discovery failed (HTTP {response.status_code})")
-        accounts = response.json()
+            raise RuntimeError("Schwab account discovery failed")
+        try:
+            accounts = response.json()
+        except Exception:
+            raise RuntimeError("Invalid Schwab account discovery response") from None
+        if not isinstance(accounts, list) or not accounts:
+            raise RuntimeError("Schwab account discovery returned no authorized accounts")
+        for account in accounts:
+            if not isinstance(account, dict):
+                raise RuntimeError("Invalid Schwab account discovery response")
+            number, account_hash = account.get("accountNumber"), account.get("hashValue")
+            if (type(number) not in (str, int) or not str(number).strip()
+                    or not isinstance(account_hash, str) or not account_hash.strip()):
+                raise RuntimeError("Invalid Schwab account discovery response")
         if args.account_suffix:
             accounts = [a for a in accounts if str(a["accountNumber"]).endswith(args.account_suffix)]
             if len(accounts) != 1:
@@ -133,7 +145,12 @@ def main() -> int:
         return int(any("failure" in result for result in summaries))
     finally:
         if broker is not None:
-            broker.cleanup_streams()
+            already_failing = sys.exc_info()[0] is not None
+            try:
+                broker.cleanup_streams()
+            except Exception:
+                if not already_failing:
+                    raise RuntimeError("Schwab read-only probe cleanup failed") from None
 
 
 if __name__ == "__main__":

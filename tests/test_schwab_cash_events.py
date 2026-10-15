@@ -217,11 +217,15 @@ def test_schwab_return_limit_cannot_silently_drop_funding():
         broker.get_cash_events(limit=1)
 
 
-def test_schwab_outside_documented_history_window_is_not_empty_success():
+def test_schwab_older_history_uses_official_request_interval_contract():
     broker, calls = broker_for([])
-    with pytest.raises(ValueError, match="60"):
-        broker.get_cash_events(since=dt.datetime.now(dt.timezone.utc) - dt.timedelta(days=90))
-    assert calls == []
+    # The official endpoint permits one year per request; the SDK's 60-day
+    # description is stale. Neither contract establishes historical retention.
+    assert broker.get_cash_events(since=dt.datetime.now(dt.timezone.utc) - dt.timedelta(days=800)) == []
+    assert len(calls) == 3
+    assert all(call["end_date"] - call["start_date"] <= dt.timedelta(days=365) for call in calls)
+    ordered = sorted(calls, key=lambda call: call["start_date"])
+    assert all(a["end_date"] == b["start_date"] for a, b in zip(ordered, ordered[1:]))
 
 
 def test_schwab_successful_empty_response_is_empty():
@@ -315,6 +319,81 @@ def test_schwab_invalid_limit_does_not_fetch(limit):
     assert calls == []
 
 
+@pytest.mark.parametrize("action", ["ACTIVITY_CORRECTION", "ORDER_ACTION", "UNKNOWN", "NEW_ACTION", [], {}])
+def test_schwab_ambiguous_activity_action_requires_reconciliation(action):
+    broker, _ = broker_for([transaction(activityType=action)])
+    with pytest.raises(ValueError, match="reconciliation"):
+        broker.get_cash_events()
+
+
+@pytest.mark.parametrize("action", [None, "TRANSFER", "EXECUTION"])
+def test_schwab_known_activity_action_preserves_signed_cash(action):
+    event = Schwab._normalize_transaction_to_cash_event(transaction(activityType=action, amount=-100))
+    assert event.amount == -100
+    assert event.is_external_cash_flow is True
+
+
+@pytest.mark.parametrize("changes", [
+    {"type": []}, {"type": {}}, {"description": {"private": "provider-data"}},
+    {"netAmount": 10 ** 400}, {"netAmount": "$"}, {"netAmount": ","},
+    {"netAmount": True}, {"netAmount": float("inf")},
+    {"transferItems": [None], "type": "DIVIDEND_OR_INTEREST"},
+    {"transferItems": [{"instrument": {"assetType": "CURRENCY", "symbol": "CURRENCY_1$?"}}]},
+    {"time": "2026-10-01"}, {"time": "2026-10-01X12:00:00+00:00"},
+])
+def test_schwab_malformed_fields_fail_with_sanitized_value_error(changes):
+    broker, _ = broker_for([transaction(**changes)])
+    with pytest.raises(ValueError) as caught:
+        broker.get_cash_events()
+    assert "provider-data" not in str(caught.value)
+
+
+@pytest.mark.parametrize("status", [None, "private-response", {"private": "response"}])
+def test_schwab_malformed_http_status_cannot_leak_provider_data(status):
+    broker, calls = broker_for([], status=status)
+    with pytest.raises(ConnectionError) as caught:
+        broker.get_cash_events()
+    assert "private" not in str(caught.value)
+    assert len(calls) == 1
+
+
+@pytest.mark.parametrize("status", [401, 403, 429, 503])
+def test_schwab_http_failure_does_not_loop_or_reinitialize_broker(status):
+    broker, calls = broker_for([], status=status)
+    original_client = broker.client
+    with pytest.raises(ConnectionError):
+        broker.get_cash_events()
+    assert len(calls) == 1
+    assert broker.client is original_client
+    assert broker.hash_value == "synthetic-account-hash"
+
+
+def test_schwab_json_decode_failure_is_sanitized():
+    broker, _ = broker_for([])
+
+    def decode():
+        raise ValueError("private-response-content")
+
+    broker.client.get_transactions = lambda *a, **k: SimpleNamespace(status_code=200, json=decode)
+    with pytest.raises(ValueError, match="Invalid Schwab transaction response") as caught:
+        broker.get_cash_events()
+    assert caught.value.__suppress_context__ is True
+
+
+def test_schwab_historical_request_budget_is_checked_before_network_io():
+    broker, calls = broker_for([])
+    with pytest.raises(ValueError, match="request budget"):
+        broker.get_cash_events(since=dt.datetime(1800, 1, 1, tzinfo=dt.timezone.utc))
+    assert calls == []
+
+
+def test_schwab_saturation_budget_is_bounded_even_with_no_progress():
+    broker, calls = broker_for([transaction()] * 3000)
+    with pytest.raises(ValueError, match="drained|saturated"):
+        broker.get_cash_events()
+    assert 1 < len(calls) <= 127
+
+
 def _probe_module():
     path = Path(__file__).resolve().parents[1] / "scripts" / "schwab_cash_event_probe.py"
     spec = importlib.util.spec_from_file_location("schwab_cash_event_probe", path)
@@ -365,7 +444,16 @@ def test_schwab_probe_closes_the_actual_supported_broker_lifecycle(monkeypatch, 
 
     class ReadOnlyBroker:
         def __init__(self, **kwargs):
-            self.client = SimpleNamespace(get_account_numbers=lambda: SimpleNamespace(status_code=200, json=lambda: []))
+            # Empty account discovery now fails explicitly. Use an authorized
+            # synthetic account to keep this successful-cleanup assertion.
+            self.client = SimpleNamespace(
+                get_account_numbers=lambda: SimpleNamespace(status_code=200, json=lambda: [
+                    {"accountNumber": "synthetic-1234", "hashValue": "synthetic-hash"},
+                ]), get_transactions=lambda *args, **kwargs: None,
+            )
+
+        def get_cash_events(self, **kwargs):
+            return []
 
         def cleanup_streams(self):
             closed.append(True)
@@ -378,6 +466,60 @@ def test_schwab_probe_closes_the_actual_supported_broker_lifecycle(monkeypatch, 
     monkeypatch.setattr(sys, "argv", ["probe", "--token-path", str(token), "--app-env", "synthetic.env"])
     assert probe.main() == 0
     assert closed == [True]
+
+
+@pytest.mark.parametrize("accounts", [None, {}, [], [None], [{"accountNumber": "1234"}],
+                                     [{"accountNumber": True, "hashValue": "h"}],
+                                     [{"accountNumber": "1234", "hashValue": " "}]])
+def test_schwab_probe_malformed_account_discovery_fails_and_cleans_up(monkeypatch, tmp_path, accounts):
+    import sys
+
+    import lumibot.brokers.schwab as module
+
+    probe = _probe_module()
+    token = tmp_path / "synthetic-token.json"
+    token.write_text("{}")
+    closed = []
+
+    class ReadOnlyBroker:
+        def __init__(self, **kwargs):
+            self.client = SimpleNamespace(get_account_numbers=lambda: SimpleNamespace(status_code=200, json=lambda: accounts))
+
+        def cleanup_streams(self):
+            closed.append(True)
+
+    monkeypatch.setattr(module, "Schwab", ReadOnlyBroker)
+    monkeypatch.setattr(probe, "configure_environment", lambda *args: None)
+    monkeypatch.setattr(probe.logging, "disable", lambda *args: None)
+    monkeypatch.setattr(probe, "inspect_account", lambda *args: pytest.fail("Invalid discovery must not read history"))
+    monkeypatch.setattr(sys, "argv", ["probe", "--token-path", str(token), "--app-env", "synthetic.env"])
+    with pytest.raises(RuntimeError, match="account discovery"):
+        probe.main()
+    assert closed == [True]
+
+
+def test_schwab_probe_cleanup_failure_does_not_hide_discovery_error(monkeypatch, tmp_path):
+    import sys
+
+    import lumibot.brokers.schwab as module
+
+    probe = _probe_module()
+    token = tmp_path / "synthetic-token.json"
+    token.write_text("{}")
+
+    class ReadOnlyBroker:
+        def __init__(self, **kwargs):
+            self.client = SimpleNamespace(get_account_numbers=lambda: SimpleNamespace(status_code=401))
+
+        def cleanup_streams(self):
+            raise ValueError("private-cleanup-details")
+
+    monkeypatch.setattr(module, "Schwab", ReadOnlyBroker)
+    monkeypatch.setattr(probe, "configure_environment", lambda *args: None)
+    monkeypatch.setattr(probe.logging, "disable", lambda *args: None)
+    monkeypatch.setattr(sys, "argv", ["probe", "--token-path", str(token), "--app-env", "synthetic.env"])
+    with pytest.raises(RuntimeError, match="account discovery failed"):
+        probe.main()
 
 
 def test_schwab_events_reach_existing_listener_payload_and_acknowledgement(monkeypatch):

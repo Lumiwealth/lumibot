@@ -2,20 +2,39 @@ from __future__ import annotations
 
 import base64
 import json
+import os
+import re
+import tempfile
 import time
-import traceback
 import urllib.parse
 import webbrowser
-from pathlib import Path
-from termcolor import colored
-import re
 from datetime import datetime
+from pathlib import Path
+
+from termcolor import colored
 
 from .lumibot_logger import get_logger
 
 logger = get_logger(__name__)
 
 class SchwabHelper:
+    @staticmethod
+    def _write_token_file(token_path: Path, payload: dict):
+        """Replace a token only after a complete private file is durable.
+
+        A failed serialization, disk write or replacement must leave the last
+        saved credentials intact. The temporary file is private from creation.
+        """
+        descriptor, temporary = tempfile.mkstemp(prefix=f".{token_path.name}.", dir=token_path.parent)
+        try:
+            with os.fdopen(descriptor, "w", encoding="utf-8") as fp:
+                json.dump(payload, fp, allow_nan=False)
+                fp.flush()
+                os.fsync(fp.fileno())
+            os.replace(temporary, token_path)
+        finally:
+            Path(temporary).unlink(missing_ok=True)
+
     @staticmethod
     def _ensure_token_metadata(token_path: Path):
         """
@@ -25,21 +44,26 @@ class SchwabHelper:
             "token": { ... }
         }
         """
-        import time, json
+        import json
+        import time
         if not token_path.exists():
             return
 
         try: # Add try-except around file operations
-            with token_path.open("r+", encoding="utf-8") as fp:
+            with token_path.open("r", encoding="utf-8") as fp:
                 tok_raw = json.load(fp)
+            if not isinstance(tok_raw, dict):
+                raise ValueError("Invalid token object")
 
             # If already wrapped, just update the token part
             if "creation_timestamp" in tok_raw and "token" in tok_raw:
                 creation_ts = tok_raw["creation_timestamp"]
-                tok = tok_raw["token"]
+                tok = dict(tok_raw["token"]) if isinstance(tok_raw["token"], dict) else None
             else:
                 creation_ts = int(time.time())
-                tok = tok_raw
+                tok = dict(tok_raw)
+            if not isinstance(tok, dict):
+                raise ValueError("Invalid token object")
 
             # 1) REMOVED @ → = padding replacement here.
             #    Tokens should be used as-is from Schwab.
@@ -50,7 +74,7 @@ class SchwabHelper:
                 "issued_at": now_ms,
                 "refresh_token_issued_at": now_ms,
                 "expires_in": 1800,
-                "refresh_token_expires_in": 90 * 24 * 3600, # Changed from 7776000 for clarity (90 days)
+                "refresh_token_expires_in": 7 * 24 * 3600,
                 "token_type": "Bearer",
                 "scope": "api",
             }
@@ -64,20 +88,14 @@ class SchwabHelper:
                 "creation_timestamp": creation_ts,
                 "token": tok,
             }
-            # Use 'w' mode to overwrite the file completely
-            with token_path.open("w", encoding="utf-8") as fp:
-                json.dump(wrapped, fp)
+            if wrapped != tok_raw:
+                SchwabHelper._write_token_file(token_path, wrapped)
+            else:
+                token_path.chmod(0o600)
             logger.info(f"[DEBUG] Token file successfully written and wrapped by _ensure_token_metadata to {token_path}")
 
-        except Exception as e:
-            logger.error(f"[DEBUG] Error in _ensure_token_metadata: {e}")
-            logger.error(traceback.format_exc())
-            # If error occurs, try to delete the potentially corrupted file
-            try:
-                token_path.unlink(missing_ok=True)
-                logger.warning(f"[DEBUG] Deleted potentially corrupted token file due to error in _ensure_token_metadata: {token_path}")
-            except Exception as unlink_e:
-                logger.error(f"[DEBUG] Failed to delete token file after error in _ensure_token_metadata: {unlink_e}")
+        except Exception:
+            raise ValueError("Unable to prepare Schwab token metadata; saved file preserved") from None
 
     @staticmethod
     def _initiate_schwab_auth_and_get_token_payload(api_key: str, backend_callback_url: str, token_path: Path) -> bool:
@@ -134,14 +152,8 @@ class SchwabHelper:
             SchwabHelper._save_payload_str_to_token_file(payload_str, token_path)
             logger.info(f"Schwab token payload processed and saved to {token_path}")
             return True
-        except Exception as e:
-            logger.error(f"Error processing pasted payload or saving token: {e}")
-            logger.error(traceback.format_exc())
-            if token_path.exists():
-                try:
-                    token_path.unlink(missing_ok=True)
-                except OSError:
-                    pass
+        except Exception:
+            logger.error("Unable to process or save Schwab login payload; saved file preserved")
             return False
 
     @staticmethod
@@ -163,8 +175,8 @@ class SchwabHelper:
                 t = tok["token"]
                 return bool(t.get("access_token") and t.get("refresh_token"))
             return False
-        except Exception as e:
-            logger.error(f"[DEBUG] Exception in _is_token_valid_for_schwab_py: {e}")
+        except Exception:
+            logger.error("Unable to validate saved Schwab token")
             return False
 
     @staticmethod
@@ -235,16 +247,21 @@ class SchwabHelper:
         if missing_padding:
             payload_str += '=' * (4 - missing_padding)
         try:
-            decoded_bytes = base64.urlsafe_b64decode(payload_str)
+            decoded_bytes = base64.b64decode(payload_str, altchars=b"-_", validate=True)
             token_data_from_payload = json.loads(decoded_bytes.decode('utf-8'))
-        except Exception as e:
-            raise ValueError(f"Failed to decode or parse payload string: {e}") from e
+        except Exception:
+            raise ValueError("Failed to decode or parse Schwab token payload") from None
+        if not isinstance(token_data_from_payload, dict) or not all(
+            isinstance(token_data_from_payload.get(key), str) and token_data_from_payload[key].strip()
+            for key in ("access_token", "refresh_token")
+        ):
+            raise ValueError("Decoded payload must contain usable access_token and refresh_token strings")
         now_ms = int(time.time() * 1000)
         defaults = {
             "issued_at": now_ms,
             "refresh_token_issued_at": now_ms,
             "expires_in": token_data_from_payload.get("expires_in", 1800),
-            "refresh_token_expires_in": token_data_from_payload.get("refresh_token_expires_in", 7776000),
+            "refresh_token_expires_in": token_data_from_payload.get("refresh_token_expires_in", 7 * 86400),
             "token_type": token_data_from_payload.get("token_type", "Bearer"),
             "scope": token_data_from_payload.get("scope", "api"),
         }
@@ -259,8 +276,7 @@ class SchwabHelper:
             "creation_timestamp": int(time.time()),
             "token": final_token_data,
         }
-        with token_path.open("w", encoding="utf-8") as fp:
-            json.dump(wrapped_token, fp)
+        SchwabHelper._write_token_file(token_path, wrapped_token)
         logger.info(f"Token payload processed and saved to {token_path}")
 
 __all__ = [

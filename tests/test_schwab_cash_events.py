@@ -18,9 +18,7 @@ def transaction(identifier="funding-1", kind="ACH_RECEIPT", amount=100, **overri
         "status": "VALID",
         "time": dt.datetime.now(dt.timezone.utc).replace(microsecond=0).isoformat(),
         "netAmount": amount,
-        "transferItems": [
-            {"instrument": {"assetType": "CURRENCY", "symbol": "CURRENCY_USD"}, "amount": amount}
-        ],
+        "transferItems": [{"instrument": {"assetType": "CURRENCY", "symbol": "CURRENCY_USD"}, "amount": amount}],
         **overrides,
     }
 
@@ -36,6 +34,8 @@ def broker_for(rows, status=200):
     broker.client = SimpleNamespace(get_transactions=get_transactions)
     broker.hash_value = "synthetic-account-hash"
     broker.name = "Schwab"
+    # The real initialized broker always resolves the full selected account.
+    broker.account_number = "synthetic-account"
     broker.sync_positions = lambda *args, **kwargs: None
     return broker, calls
 
@@ -90,14 +90,20 @@ def test_schwab_compact_provider_timezone_is_parsed_on_python_310(provider_time)
     assert event.occurred_at == dt.datetime(2026, 10, 1, 4, tzinfo=dt.timezone.utc)
 
 
-@pytest.mark.parametrize("description", [
-    "TRF FDS TO TYPE 1", "TRF FDS FRM TYPE 2",
-    "BANK SWEEP TO BROKERAGE", "BROKERAGE SWEEP FR BANK",
-    "BANK SWEEP FR BROKERAGE", "BROKERAGE SWEEP TO BANK",
-])
+@pytest.mark.parametrize(
+    "description",
+    [
+        "TRF FDS TO TYPE 1",
+        "TRF FDS FRM TYPE 2",
+        "BANK SWEEP TO BROKERAGE",
+        "BROKERAGE SWEEP FR BANK",
+        "BANK SWEEP FR BROKERAGE",
+        "BROKERAGE SWEEP TO BANK",
+    ],
+)
 def test_schwab_internal_cash_journals_are_not_new_capital(description):
     broker, _ = broker_for([transaction(kind="JOURNAL", amount=-25, description=description)])
-    event, = broker.get_cash_events()
+    (event,) = broker.get_cash_events()
     assert event.event_type == "journal"
     assert event.amount == -25
     assert event.is_external_cash_flow is False
@@ -105,10 +111,12 @@ def test_schwab_internal_cash_journals_are_not_new_capital(description):
 
 
 def test_schwab_ira_distribution_withholding_leaves_the_account():
-    broker, _ = broker_for([
-        transaction("net-distribution", "CASH_DISBURSEMENT", -80),
-        transaction("withholding", "JOURNAL", -20, description="FED INC TAX WHLD IRA"),
-    ])
+    broker, _ = broker_for(
+        [
+            transaction("net-distribution", "CASH_DISBURSEMENT", -80),
+            transaction("withholding", "JOURNAL", -20, description="FED INC TAX WHLD IRA"),
+        ]
+    )
     events = broker.get_cash_events()
     assert sum(e.amount for e in events if e.is_external_cash_flow) == -100
     assert next(e for e in events if e.broker_event_id == "withholding").event_type == "tax"
@@ -293,7 +301,7 @@ def test_schwab_timezone_boundary_is_preserved():
     boundary = now - dt.timedelta(days=1)
     local = boundary.astimezone(dt.timezone(dt.timedelta(hours=-4)))
     broker, calls = broker_for([transaction(time=local.isoformat())])
-    event, = broker.get_cash_events(since=local)
+    (event,) = broker.get_cash_events(since=local)
     assert event.occurred_at == boundary
     assert calls[0]["start_date"] == boundary
 
@@ -333,14 +341,23 @@ def test_schwab_known_activity_action_preserves_signed_cash(action):
     assert event.is_external_cash_flow is True
 
 
-@pytest.mark.parametrize("changes", [
-    {"type": []}, {"type": {}}, {"description": {"private": "provider-data"}},
-    {"netAmount": 10 ** 400}, {"netAmount": "$"}, {"netAmount": ","},
-    {"netAmount": True}, {"netAmount": float("inf")},
-    {"transferItems": [None], "type": "DIVIDEND_OR_INTEREST"},
-    {"transferItems": [{"instrument": {"assetType": "CURRENCY", "symbol": "CURRENCY_1$?"}}]},
-    {"time": "2026-10-01"}, {"time": "2026-10-01X12:00:00+00:00"},
-])
+@pytest.mark.parametrize(
+    "changes",
+    [
+        {"type": []},
+        {"type": {}},
+        {"description": {"private": "provider-data"}},
+        {"netAmount": 10**400},
+        {"netAmount": "$"},
+        {"netAmount": ","},
+        {"netAmount": True},
+        {"netAmount": float("inf")},
+        {"transferItems": [None], "type": "DIVIDEND_OR_INTEREST"},
+        {"transferItems": [{"instrument": {"assetType": "CURRENCY", "symbol": "CURRENCY_1$?"}}]},
+        {"time": "2026-10-01"},
+        {"time": "2026-10-01X12:00:00+00:00"},
+    ],
+)
 def test_schwab_malformed_fields_fail_with_sanitized_value_error(changes):
     broker, _ = broker_for([transaction(**changes)])
     with pytest.raises(ValueError) as caught:
@@ -407,7 +424,9 @@ def test_schwab_probe_uses_adapter_and_never_prints_private_event_values():
     broker, _ = broker_for([transaction(identifier="private-activity", amount=123.45)])
     original_get = broker.client.get_transactions
     result = probe.inspect_account(
-        broker, {"accountNumber": "synthetic-1234", "hashValue": "private-account-hash"}, 7,
+        broker,
+        {"accountNumber": "synthetic-1234", "hashValue": "private-account-hash"},
+        7,
     )
     assert result["normalized_count"] == 1
     assert result["event_types"] == {"deposit": 1}
@@ -447,9 +466,13 @@ def test_schwab_probe_closes_the_actual_supported_broker_lifecycle(monkeypatch, 
             # Empty account discovery now fails explicitly. Use an authorized
             # synthetic account to keep this successful-cleanup assertion.
             self.client = SimpleNamespace(
-                get_account_numbers=lambda: SimpleNamespace(status_code=200, json=lambda: [
-                    {"accountNumber": "synthetic-1234", "hashValue": "synthetic-hash"},
-                ]), get_transactions=lambda *args, **kwargs: None,
+                get_account_numbers=lambda: SimpleNamespace(
+                    status_code=200,
+                    json=lambda: [
+                        {"accountNumber": "synthetic-1234", "hashValue": "synthetic-hash"},
+                    ],
+                ),
+                get_transactions=lambda *args, **kwargs: None,
             )
 
         def get_cash_events(self, **kwargs):
@@ -468,9 +491,18 @@ def test_schwab_probe_closes_the_actual_supported_broker_lifecycle(monkeypatch, 
     assert closed == [True]
 
 
-@pytest.mark.parametrize("accounts", [None, {}, [], [None], [{"accountNumber": "1234"}],
-                                     [{"accountNumber": True, "hashValue": "h"}],
-                                     [{"accountNumber": "1234", "hashValue": " "}]])
+@pytest.mark.parametrize(
+    "accounts",
+    [
+        None,
+        {},
+        [],
+        [None],
+        [{"accountNumber": "1234"}],
+        [{"accountNumber": True, "hashValue": "h"}],
+        [{"accountNumber": "1234", "hashValue": " "}],
+    ],
+)
 def test_schwab_probe_malformed_account_discovery_fails_and_cleans_up(monkeypatch, tmp_path, accounts):
     import sys
 
@@ -483,7 +515,9 @@ def test_schwab_probe_malformed_account_discovery_fails_and_cleans_up(monkeypatc
 
     class ReadOnlyBroker:
         def __init__(self, **kwargs):
-            self.client = SimpleNamespace(get_account_numbers=lambda: SimpleNamespace(status_code=200, json=lambda: accounts))
+            self.client = SimpleNamespace(
+                get_account_numbers=lambda: SimpleNamespace(status_code=200, json=lambda: accounts)
+            )
 
         def cleanup_streams(self):
             closed.append(True)
@@ -572,3 +606,47 @@ def test_schwab_listener_delivery_failure_retries_identical_events(monkeypatch):
     assert _Strategy.send_update_to_cloud(strategy) is True
     assert payloads[0]["cash_events"] == payloads[1]["cash_events"]
     assert strategy._cash_event_pending_for_cloud == []
+
+
+def test_schwab_funding_sync_audits_security_categories_and_empty_window():
+    broker, calls = broker_for([])
+    broker.account_number = "synthetic-account"
+    result = broker.get_cash_event_sync()
+    receipt = result.to_dict(producer_kind="account_snapshot", batch_index=0, batch_size=50)
+    assert receipt["state"] == "complete"
+    assert receipt["pagination_exhausted"] is True
+    assert receipt["covered_intervals"] == [receipt["requested"]]
+    assert "RECEIVE_AND_DELIVER" in {value.value for value in calls[0]["transaction_types"]}
+    assert receipt["account_ref"]["account_id"] == "synthetic-account"
+
+
+@pytest.mark.parametrize(
+    "unresolved",
+    [
+        transaction(kind="RECEIVE_AND_DELIVER", amount=0),
+        transaction(kind="JOURNAL", description="UNRECOGNIZED TRANSFER"),
+        transaction(activityType="CORRECTION"),
+        transaction(status="PENDING"),
+    ],
+)
+def test_schwab_funding_sync_keeps_known_cash_but_never_certifies_unresolved_transfer(unresolved):
+    broker, _ = broker_for([transaction(identifier="known", time="2026-01-01T00:00:00Z"), unresolved])
+    broker.account_number = "synthetic-account"
+    result = broker.get_cash_event_sync(since=dt.datetime(2025, 12, 1, tzinfo=dt.timezone.utc))
+    receipt = result.to_dict(producer_kind="external_bot", batch_index=0, batch_size=50)
+    assert [e.event_id for e in result.events] == ["schwab:known"]
+    assert receipt["state"] == "partial"
+    assert receipt["covered_intervals"] == []
+    assert receipt["reason_code"] == "unresolved_transaction"
+
+
+def test_schwab_funding_sync_outage_is_explicit_and_sanitized():
+    broker, _ = broker_for([], status=401)
+    broker.account_number = "synthetic-account"
+    result = broker.get_cash_event_sync()
+    receipt = result.to_dict(producer_kind="managed_bot", batch_index=0, batch_size=50)
+    assert receipt["state"] == "unavailable"
+    assert receipt["reason_code"] == "broker_history_unavailable"
+    assert receipt["pagination_exhausted"] is False
+    assert receipt["completed_at"] is None
+    assert receipt["covered_intervals"] == []

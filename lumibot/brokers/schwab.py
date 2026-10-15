@@ -1061,13 +1061,46 @@ class Schwab(Broker):
         limits that would discard events fail explicitly.
         No strategy, order, stream or OAuth setup is started by this method.
         """
+        events, _ = self._read_cash_events(since=since, limit=limit)
+        return events
+
+    def get_cash_event_sync(self, *, since=None, limit=5000):
+        """Audit a selected account's cash and security-transfer activity.
+
+        Security transfers, corrections and ambiguous journals retain known
+        cash evidence but make coverage partial. No cost basis or zero cash
+        amount is substituted for a missing transfer valuation.
+        """
+        import datetime as dt
+
+        from lumibot.entities import CashEventSync
+
+        end = dt.datetime.now(dt.timezone.utc)
+        start = since if since is not None else end - dt.timedelta(days=60)
+        # Validate caller parameters and identity before any broker read.
+        arguments = dict(events=(), broker_name="schwab", account_id=getattr(self, "account_number", None),
+                         mode="live", start=start, end=end, fetched_at=end, state="complete")
+        CashEventSync(**arguments)
+        if limit is not None and (type(limit) is not int or limit <= 0):
+            raise ValueError("Schwab cash-event limit must be a positive integer or None")
+        try:
+            events, unresolved = self._read_cash_events(since=start, limit=limit, end=end, audit=True)
+        except (ConnectionError, ValueError):
+            return CashEventSync(**{**arguments, "fetched_at": dt.datetime.now(dt.timezone.utc),
+                                    "state": "unavailable", "reason_code": "broker_history_unavailable"})
+        return CashEventSync(**{**arguments, "events": tuple(events),
+                                "fetched_at": dt.datetime.now(dt.timezone.utc),
+                                "state": "partial" if unresolved else "complete",
+                                "reason_code": "unresolved_transaction" if unresolved else None})
+
+    def _read_cash_events(self, *, since=None, limit=100, end=None, audit=False):
         import datetime as dt
 
         if not getattr(self, "client", None) or not getattr(self, "hash_value", None):
             raise ConnectionError("Schwab transaction client or selected account is unavailable")
         if limit is not None and (isinstance(limit, bool) or not isinstance(limit, int) or limit <= 0):
             raise ValueError("Schwab cash-event limit must be a positive integer or None")
-        end = dt.datetime.now(dt.timezone.utc).replace(microsecond=0)
+        end = end or dt.datetime.now(dt.timezone.utc).replace(microsecond=0)
         if since is None:
             start = end - dt.timedelta(days=60)
         else:
@@ -1092,9 +1125,13 @@ class Schwab(Broker):
         if not windows:
             windows = [(start, end)]
         events = {}
+        unresolved = False
         # Request cash categories explicitly: neither trade cash nor a
         # security transfer's zero netAmount measures external cash funding.
         cash_types = self.CASH_FUNDING_TRANSACTION_TYPES | {"JOURNAL", "DIVIDEND_OR_INTEREST"}
+        if audit:
+            cash_types = {value.value for value in _get_client_class().Transactions.TransactionType
+                          if value.value != "TRADE"}
         transaction_types = [
             value for value in _get_client_class().Transactions.TransactionType
             if value.value in cash_types
@@ -1144,8 +1181,16 @@ class Schwab(Broker):
                 windows.extend([(window_start, midpoint), (midpoint, window_end)])
                 continue
             for row in rows:
-                event = self._normalize_transaction_to_cash_event(row)
+                try:
+                    event = self._normalize_transaction_to_cash_event(row)
+                except ValueError:
+                    if not audit:
+                        raise
+                    unresolved = True
+                    continue
                 if event is None or not start <= event.occurred_at <= end:
+                    continue
+                if audit and event.occurred_at == end:
                     continue
                 existing = events.get(event.event_id)
                 if existing is not None and existing.to_dict() != event.to_dict():
@@ -1153,7 +1198,7 @@ class Schwab(Broker):
                 events[event.event_id] = event
                 if limit is not None and len(events) > limit:
                     raise ValueError("Schwab cash-event limit would discard funding events")
-        return sorted(events.values(), key=lambda event: (event.occurred_at, event.event_id))
+        return sorted(events.values(), key=lambda event: (event.occurred_at, event.event_id)), unresolved
 
     def _get_balances_at_broker(self, quote_asset: Asset, strategy) -> tuple:
         """

@@ -11,7 +11,7 @@ import requests
 from lumibot.backtesting import BacktestingBroker, PandasDataBacktesting
 from lumibot.brokers.alpaca import Alpaca
 from lumibot.brokers.tradier import Tradier
-from lumibot.entities import Asset, CashEvent
+from lumibot.entities import CashEvent
 from lumibot.strategies._strategy import _Strategy
 
 
@@ -405,9 +405,7 @@ def test_tradier_history_normalization_uses_nested_fields_for_stable_synthetic_i
 
     event_one = Tradier._normalize_history_row_to_cash_event(base_row)
     event_two = Tradier._normalize_history_row_to_cash_event(dict(base_row))
-    event_three = Tradier._normalize_history_row_to_cash_event(
-        {**base_row, "adjustment.symbol": "XYZ"}
-    )
+    event_three = Tradier._normalize_history_row_to_cash_event({**base_row, "adjustment.symbol": "XYZ"})
 
     assert event_one is not None
     assert event_two is not None
@@ -749,3 +747,168 @@ def test_send_update_to_cloud_retries_pending_cash_events_after_failure(monkeypa
     assert _Strategy.send_update_to_cloud(dummy) is True
     assert payloads[1]["cash_events"][0]["event_id"] == "alpaca:evt-2"
     assert dummy._cash_event_pending_for_cloud == []
+
+
+def test_one_shot_snapshot_drains_all_cash_batches_without_repolling(monkeypatch):
+    """A one-shot producer must not exit after the first 50-event update."""
+    events = [
+        CashEvent(
+            broker_name="schwab",
+            broker_event_id=str(i),
+            event_type="deposit",
+            amount=1,
+            occurred_at="2026-01-01",
+            is_external_cash_flow=True,
+        )
+        for i in range(121)
+    ]
+    polls, payloads = [], []
+    dummy = _cloud_update_dummy(lambda **kwargs: polls.append(kwargs) or events)
+    monkeypatch.setattr(requests, "post", lambda _url, **kw: payloads.append(json.loads(kw["data"])) or _Response())
+    assert _Strategy.send_account_snapshot_to_cloud(dummy) is True
+    assert [len(p["cash_events"]) for p in payloads] == [50, 50, 21]
+    assert len(polls) == 1
+    assert dummy._cash_event_pending_for_cloud == []
+    assert len({e["event_id"] for p in payloads for e in p["cash_events"]}) == 121
+
+
+def test_one_shot_snapshot_failure_retains_exact_pending_batch_for_retry(monkeypatch):
+    events = [
+        CashEvent(
+            broker_name="schwab", broker_event_id=str(i), event_type="deposit", amount=1, occurred_at="2026-01-01"
+        )
+        for i in range(121)
+    ]
+    dummy = _cloud_update_dummy(lambda **kwargs: events)
+    payloads = []
+
+    def post(_url, **kwargs):
+        payloads.append(json.loads(kwargs["data"]))
+        return _Response(503 if len(payloads) == 2 else 200)
+
+    monkeypatch.setattr(requests, "post", post)
+    assert _Strategy.send_account_snapshot_to_cloud(dummy) is False
+    assert len(dummy._cash_event_pending_for_cloud) == 71
+    assert _Strategy.send_account_snapshot_to_cloud(dummy) is True
+    assert payloads[1]["cash_events"] == payloads[2]["cash_events"]
+    assert dummy._cash_event_pending_for_cloud == []
+
+
+def test_one_shot_snapshot_batch_budget_never_reports_partial_delivery_as_success(monkeypatch):
+    events = [
+        CashEvent(
+            broker_name="schwab", broker_event_id=str(i), event_type="deposit", amount=1, occurred_at="2026-01-01"
+        )
+        for i in range(51)
+    ]
+    dummy = _cloud_update_dummy(lambda **kwargs: events)
+    monkeypatch.setattr(requests, "post", lambda *_a, **_kw: _Response())
+    assert _Strategy.send_account_snapshot_to_cloud(dummy, max_batches=1) is False
+    assert len(dummy._cash_event_pending_for_cloud) == 1
+
+
+def test_one_shot_snapshot_rejects_invalid_budget_before_sending(monkeypatch):
+    import pytest
+
+    dummy = _cloud_update_dummy(lambda **kwargs: [])
+    monkeypatch.setattr(requests, "post", lambda *_a, **_kw: pytest.fail("must not send"))
+    for value in (0, -1, True, 1.5, 10001):
+        with pytest.raises(ValueError):
+            _Strategy.send_account_snapshot_to_cloud(dummy, max_batches=value)
+
+
+def _funding_sync(events=(), state="complete"):
+    import datetime as dt
+
+    from lumibot.entities import CashEventSync
+
+    return CashEventSync(
+        events=tuple(events),
+        broker_name="schwab",
+        account_id="synthetic-account",
+        mode="live",
+        start=dt.datetime(2025, 1, 1, tzinfo=dt.timezone.utc),
+        end=dt.datetime(2026, 2, 1, tzinfo=dt.timezone.utc),
+        fetched_at=dt.datetime(2026, 2, 1, tzinfo=dt.timezone.utc),
+        state=state,
+        reason_code="unresolved_transaction" if state != "complete" else None,
+    )
+
+
+def test_funding_receipt_batches_retry_exact_identity_and_retain_full_history(monkeypatch):
+    events = [
+        CashEvent(
+            broker_name="schwab", broker_event_id=str(i), event_type="deposit", amount=1, occurred_at="2026-01-01"
+        )
+        for i in range(121)
+    ]
+    result = _funding_sync(events)
+    dummy = _cloud_update_dummy(lambda **kw: [])
+    dummy.broker.get_cash_event_sync = lambda **kw: result
+    # Previous polls' delivered IDs cannot remove rows from a new window proof.
+    dummy._cash_event_sent_ids = {e.event_id for e in events}
+    payloads = []
+
+    def post(_url, **kw):
+        payloads.append(json.loads(kw["data"]))
+        return _Response(503 if len(payloads) == 2 else 200)
+
+    monkeypatch.setattr(requests, "post", post)
+    assert _Strategy.send_account_snapshot_to_cloud(dummy) is False
+    assert _Strategy.send_account_snapshot_to_cloud(dummy) is True
+    receipts = [p["funding_sync"] for p in payloads]
+    assert [r["batch"]["index"] for r in receipts] == [0, 1, 1, 2]
+    assert receipts[1] == receipts[2]
+    assert all(r["sync_id"] == result.sync_id for r in receipts)
+    assert all(r["batch"]["count"] == 3 and r["batch"]["total_event_count"] == 121 for r in receipts)
+    assert all(r["producer_kind"] == "account_snapshot" for r in receipts)
+
+
+def test_empty_checked_window_delivers_receipt_once_and_partial_stays_explicit(monkeypatch):
+    payloads = []
+    dummy = _cloud_update_dummy(lambda **kw: [])
+    dummy.broker.get_cash_event_sync = lambda **kw: _funding_sync(state="partial")
+    monkeypatch.setattr(requests, "post", lambda _url, **kw: payloads.append(json.loads(kw["data"])) or _Response())
+    assert _Strategy.send_account_snapshot_to_cloud(dummy) is True
+    assert payloads[0]["cash_events"] == []
+    assert payloads[0]["funding_sync"]["state"] == "partial"
+    assert payloads[0]["funding_sync"]["covered_intervals"] == []
+    assert _Strategy.send_update_to_cloud(dummy) is True
+    assert "funding_sync" not in payloads[1]
+
+
+def test_one_shot_cash_fetch_failure_does_not_report_success(monkeypatch):
+    def fail(**kwargs):
+        raise ConnectionError("history unavailable")
+
+    dummy = _cloud_update_dummy(fail)
+    monkeypatch.setattr(requests, "post", lambda *_a, **kw: _Response())
+    assert _Strategy.send_account_snapshot_to_cloud(dummy) is False
+
+
+def test_concurrent_cloud_updates_serialize_funding_batch_acknowledgements(monkeypatch):
+    import time
+    from concurrent.futures import ThreadPoolExecutor
+
+    events = [
+        CashEvent(
+            broker_name="schwab", broker_event_id=str(i), event_type="deposit", amount=1, occurred_at="2026-01-01"
+        )
+        for i in range(121)
+    ]
+    dummy = _cloud_update_dummy(lambda **kw: [])
+    dummy.broker.get_cash_event_sync = lambda **kw: _funding_sync(events)
+    payloads = []
+
+    def post(_url, **kw):
+        payloads.append(json.loads(kw["data"]))
+        time.sleep(0.03)
+        return _Response()
+
+    monkeypatch.setattr(requests, "post", post)
+    with ThreadPoolExecutor(max_workers=3) as pool:
+        assert list(pool.map(lambda _: _Strategy.send_update_to_cloud(dummy), range(3))) == [True] * 3
+    receipts = [p["funding_sync"] for p in payloads]
+    assert [r["batch"]["index"] for r in receipts] == [0, 1, 2]
+    assert len({r["sync_id"] for r in receipts}) == 1
+    assert [len(p["cash_events"]) for p in payloads] == [50, 50, 21]

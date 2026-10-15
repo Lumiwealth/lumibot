@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Send account/window funding-sync evidence through the shared cloud sender. Audit all non-trade Schwab categories; retain known cash while explicitly reporting unresolved transfers/corrections or unavailable history. Drain every pending batch for one-shot account snapshots, preserve receipt identities on retry, and serialize concurrent cloud updates.
+
 - Harden Schwab funding and token storage: use the official one-year transaction-request maximum with bounded historical slices; reject explicit corrections and malformed provider fields without leaking response details. Preserve saved credentials on login/metadata/storage failures, share private atomic writes across login and refresh, and advance adapter token state only after persistence. Validate read-only account discovery and retain its primary error during cleanup. Correct documentation that incorrectly promised a rolling seven-day authorization.
 - Preserve Schwab credentials on SDK startup and account-discovery errors, including HTTP 401; reject unusable account hashes and stop the failed initialization's proactive refresher. Provider error text cannot decide whether to delete a token or enter startup logs.
 

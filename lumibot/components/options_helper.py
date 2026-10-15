@@ -8,7 +8,7 @@ from decimal import Decimal
 from statistics import NormalDist
 from typing import Any, Dict, List, Optional, Tuple, Union
 
-from lumibot.entities import Asset, Order
+from lumibot.entities import Asset, Order, Quote
 from lumibot.entities.chains import Chains
 
 logger = logging.getLogger(__name__)
@@ -1682,6 +1682,8 @@ class OptionsHelper:
         self,
         option_asset: Asset,
         max_spread_pct: Optional[float] = None,
+        *,
+        quote: Optional[Quote] = None,
     ) -> OptionMarketEvaluation:
         """Evaluate available quote data for an option and produce execution anchors.
 
@@ -1691,6 +1693,12 @@ class OptionsHelper:
             The option to evaluate.
         max_spread_pct : float, optional
             Maximum acceptable bid/ask spread as a fraction (e.g. 0.25 for 25%).
+        quote : Quote, optional
+            An already acquired quote for this exact option. Applies the same
+            price checks without additional market-data reads or the helper's
+            per-datetime cache. The caller owns snapshot freshness and historical
+            availability. Missing prices remain non-actionable; no last-price
+            network fallback is performed for an explicit snapshot.
 
         Returns
         -------
@@ -1703,6 +1711,9 @@ class OptionsHelper:
         # PERF: Option strategies often evaluate the same contract multiple times within a single
         # strategy datetime (MTM, liquidity checks, multi-leg pricing). In backtesting, quotes are
         # immutable per bar, so cache evaluations for the current datetime.
+        supplied_quote = quote is not None
+        if supplied_quote and (not isinstance(quote, Quote) or quote.asset != option_asset):
+            raise ValueError("The supplied quote must describe the same asset")
         current_dt = None
         try:
             current_dt = self.strategy.get_datetime()
@@ -1716,7 +1727,7 @@ class OptionsHelper:
 
         cache_key = (option_asset, max_spread_pct)
         cache = getattr(self, "_option_market_eval_cache", {})
-        if cache_key in cache:
+        if not supplied_quote and cache_key in cache:
             return cache[cache_key]
 
         # PERF: `log_message()` respects BACKTESTING_QUIET_LOGS, but callers still pay the cost
@@ -1728,7 +1739,7 @@ class OptionsHelper:
             should_log_info = False
 
         data_source = getattr(getattr(self.strategy, "broker", None), "data_source", None)
-        allow_fallback = bool(getattr(data_source, "option_quote_fallback_allowed", False))
+        allow_fallback = not supplied_quote and bool(getattr(data_source, "option_quote_fallback_allowed", False))
 
         bid: Optional[float] = None
         ask: Optional[float] = None
@@ -1745,7 +1756,6 @@ class OptionsHelper:
         data_quality_flags: List[str] = []
         sanitization_notes: List[str] = []
 
-        quote = None
         broker = getattr(self.strategy, "broker", None)
         data_source = getattr(broker, "data_source", None) if broker is not None else None
         is_theta_backtest = (
@@ -1778,7 +1788,7 @@ class OptionsHelper:
         #
         # Prefer snapshot NBBO first. Only fall back to the regular quote path when the snapshot is
         # missing so we avoid unnecessary downloader/cache churn.
-        if getattr(option_asset, "asset_type", None) == Asset.AssetType.OPTION and is_theta_backtest and is_daily_cadence:
+        if not supplied_quote and getattr(option_asset, "asset_type", None) == Asset.AssetType.OPTION and is_theta_backtest and is_daily_cadence:
             _, snap_bid, snap_ask = self._get_option_mark_from_quote(option_asset, snapshot=True)
             if snap_bid is not None and snap_ask is not None:
                 bid = snap_bid
@@ -1807,14 +1817,15 @@ class OptionsHelper:
                             ask = snap_ask
         else:
             # Attempt to get quotes first (default behavior)
-            try:
-                quote = self.strategy.get_quote(option_asset)
-            except Exception as exc:
-                if should_log_info:
-                    self.strategy.log_message(
-                        f"Error fetching quote for {option_asset}: {exc}",
-                        color="red",
-                    )
+            if not supplied_quote:
+                try:
+                    quote = self.strategy.get_quote(option_asset)
+                except Exception as exc:
+                    if should_log_info:
+                        self.strategy.log_message(
+                            f"Error fetching quote for {option_asset}: {exc}",
+                            color="red",
+                        )
 
             if quote is not None:
                 if getattr(quote, "bid", None) is not None:
@@ -1822,7 +1833,7 @@ class OptionsHelper:
                 if getattr(quote, "ask", None) is not None:
                     ask = self._coerce_price(getattr(quote, "ask", None), "ask", data_quality_flags, sanitization_notes)
 
-            if getattr(option_asset, "asset_type", None) == Asset.AssetType.OPTION and is_theta_backtest:
+            if not supplied_quote and getattr(option_asset, "asset_type", None) == Asset.AssetType.OPTION and is_theta_backtest:
                 if (bid is None or ask is None):
                     # Prefer actionable NBBO from a point-in-time snapshot when bar-aligned quotes omit
                     # bid/ask (common in historical option backtests). Only fall back to `quote.price`
@@ -1948,10 +1959,11 @@ class OptionsHelper:
             data_quality_flags=data_quality_flags,
         )
 
-        try:
-            self._option_market_eval_cache[cache_key] = evaluation
-        except Exception:
-            pass
+        if not supplied_quote:
+            try:
+                self._option_market_eval_cache[cache_key] = evaluation
+            except Exception:
+                pass
 
         return evaluation
 

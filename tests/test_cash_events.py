@@ -749,3 +749,19 @@ def test_send_update_to_cloud_retries_pending_cash_events_after_failure(monkeypa
     assert _Strategy.send_update_to_cloud(dummy) is True
     assert payloads[1]["cash_events"][0]["event_id"] == "alpaca:evt-2"
     assert dummy._cash_event_pending_for_cloud == []
+
+
+def test_pending_cash_event_count_tracks_only_acknowledged_delivery():
+    strategy = _Strategy.__new__(_Strategy)
+    strategy._cash_event_pending_for_cloud = []
+    strategy._cash_event_sent_ids = set()
+    strategy._cash_event_sent_id_order = deque()
+    event = CashEvent(
+        broker_name="schwab", broker_event_id="synthetic-pending", event_type="deposit",
+        amount=10, occurred_at="2026-10-14T12:00:00Z", is_external_cash_flow=True,
+    )
+    assert strategy.pending_cash_event_count == 0
+    strategy._cash_event_pending_for_cloud.append(event)
+    assert strategy.pending_cash_event_count == 1
+    _Strategy._mark_cash_events_sent(strategy, [event])
+    assert strategy.pending_cash_event_count == 0

@@ -145,15 +145,44 @@ Observed limitation in this workspace:
 
 ### Schwab
 
+October 2026 implementation update: the adapter now implements
+`get_cash_events(since=..., limit=...)` through the existing Schwab SDK client.
+The installed SDK contract documents a 60-day recent window. An omitted start
+does not mean all-time coverage; older explicit requests fail. Potentially capped
+responses are split into overlapping windows with stable-ID deduplication,
+bounded request count and explicit failure if a one-second window saturates.
+No queue token or silently truncated list is invented.
+
+Cash, ACH, electronic-fund and wire activity is external capital by signed
+`netAmount`. `DIVIDEND_OR_INTEREST` remains non-external `other_cash` because
+the combined provider type alone cannot distinguish those income categories.
+Trade cash and embedded commissions remain performance. Journals, in-kind
+transfers, currency conversions, non-final statuses and ambiguous amounts or
+timestamps fail until their financial meaning is established. No description
+text is used to guess a classification.
+
+`Strategy.pending_cash_event_count` exposes the fetched delivery backlog, not
+coverage. The cloud sender removes events only after its existing successful
+HTTP acknowledgement. Account/window coverage and durable ingestion proof must
+be supplied by the downstream financial-contract owner before publishing a
+verified adjusted return. This adapter does not enable that availability.
+
+Regression baseline before implementation: `tests/test_schwab_cash_events.py`
+had 32 failures and one pass because the inherited method returned `[]` without
+contacting the provider. The queue-count regression separately failed with an
+AttributeError. Regression coverage includes signed funding, income, unknown
+classifications, duplicates/conflicts, timezones, sliced boundaries, request
+failure after a successful slice and explicit response/retention/size failures.
+All fixtures are synthetic; no account authorization, order or money movement
+is part of this proof.
+
 Research outcome:
 
 - local `schwab-py` surface exposes transaction retrieval with ACH, cash in/out, wire, journal, and dividend/interest
 - this fits the normalized `CashEvent` model cleanly
 
-Decision:
-
-- do not implement now
-- keep the broker abstraction generic enough for later support
+Original March decision (superseded by the October update above): defer the
+adapter while keeping the broker abstraction generic.
 
 ### IBKR
 

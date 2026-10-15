@@ -953,6 +953,146 @@ class Schwab(Broker):
         super().cleanup_streams()
 
     # Account and balance methods
+    @staticmethod
+    def _normalize_transaction_to_cash_event(transaction):
+        """Normalize only transactions with an unambiguous cash classification.
+
+        An unresolved journal or security transfer is a coverage failure, not
+        a zero-dollar deposit. Never classify funding from description text.
+        """
+        import datetime as dt
+
+        from lumibot.entities import CashEvent
+
+        if not isinstance(transaction, dict):
+            raise ValueError("Invalid Schwab transaction payload")
+        kind = transaction.get("type")
+        if kind == "TRADE":
+            # Trade proceeds and embedded commissions already affect value.
+            return None
+        funding_types = {
+            "ACH_RECEIPT", "ACH_DISBURSEMENT", "CASH_RECEIPT",
+            "CASH_DISBURSEMENT", "WIRE_IN", "WIRE_OUT", "ELECTRONIC_FUND",
+        }
+        if kind not in funding_types | {"DIVIDEND_OR_INTEREST"}:
+            raise ValueError("Schwab transaction requires cash-flow classification")
+        if transaction.get("status") != "VALID":
+            raise ValueError("Schwab transaction status requires reconciliation")
+        identifier = transaction.get("activityId")
+        if identifier is None or isinstance(identifier, bool) or not str(identifier).strip():
+            raise ValueError("Schwab transaction is missing a stable activity identifier")
+        amount = transaction.get("netAmount")
+        if amount is None or isinstance(amount, bool) or amount == "":
+            raise ValueError("Schwab transaction is missing a cash amount")
+        try:
+            amount = CashEvent.coerce_amount(amount)
+            occurred_at = dt.datetime.fromisoformat(str(transaction.get("time", "")).replace("Z", "+00:00"))
+            if occurred_at.tzinfo is None or occurred_at.utcoffset() is None:
+                raise ValueError("Missing timezone")
+        except (TypeError, ValueError):
+            raise ValueError("Schwab transaction has an invalid amount or timestamp") from None
+        transfer_items = transaction.get("transferItems")
+        if not isinstance(transfer_items, list) or not transfer_items:
+            raise ValueError("Schwab transaction currency is unavailable")
+        currencies = set()
+        for item in transfer_items:
+            instrument = item.get("instrument", {}) if isinstance(item, dict) else {}
+            if instrument.get("assetType") != "CURRENCY":
+                # A cash dividend may reference the paying security; an external
+                # transfer containing securities needs an independently verified valuation.
+                if kind in funding_types:
+                    raise ValueError("Schwab in-kind transfer requires valuation and classification")
+                continue
+            symbol = instrument.get("symbol", "")
+            if not isinstance(symbol, str) or not symbol.startswith("CURRENCY_") or len(symbol) != 12:
+                raise ValueError("Schwab transaction currency is unavailable")
+            currencies.add(symbol.removeprefix("CURRENCY_"))
+        if len(currencies) != 1:
+            raise ValueError("Schwab transaction requires currency-conversion classification")
+        external = kind in funding_types
+        event_type = ("deposit" if amount >= 0 else "withdrawal") if external else "other_cash"
+        return CashEvent(
+            broker_name="schwab",
+            broker_event_id=str(identifier),
+            event_type=event_type,
+            raw_type=kind,
+            amount=amount,
+            currency=next(iter(currencies)),
+            occurred_at=occurred_at,
+            is_external_cash_flow=external,
+        )
+
+    def get_cash_events(self, *, since=None, limit=100):
+        """Read normalized transactions in the SDK's documented recent window.
+
+        This list is event evidence, not a certificate of all-time coverage.
+        Requests older than 60 days, unresolved classifications, saturated
+        responses and caller limits that would discard events fail explicitly.
+        No strategy, order, stream or OAuth setup is started by this method.
+        """
+        import datetime as dt
+
+        if not getattr(self, "client", None) or not getattr(self, "hash_value", None):
+            raise ConnectionError("Schwab transaction client or selected account is unavailable")
+        if limit is not None and (isinstance(limit, bool) or not isinstance(limit, int) or limit <= 0):
+            raise ValueError("Schwab cash-event limit must be a positive integer or None")
+        end = dt.datetime.now(dt.timezone.utc).replace(microsecond=0)
+        earliest = end - dt.timedelta(days=60)
+        if since is None:
+            start = earliest
+        else:
+            if not isinstance(since, dt.datetime) or since.tzinfo is None or since.utcoffset() is None:
+                raise ValueError("Schwab cash-event start must have an explicit timezone")
+            start = since.astimezone(dt.timezone.utc)
+            if start < earliest:
+                raise ValueError("Schwab cash-event history is limited to the documented 60-day window")
+            if start > end:
+                raise ValueError("Schwab cash-event start is after the request end")
+        windows = [(start, end)]
+        events = {}
+        requests_remaining = 127
+        while windows:
+            window_start, window_end = windows.pop()
+            if requests_remaining <= 0:
+                raise ValueError("Schwab cash-event response could not be completely drained")
+            requests_remaining -= 1
+            try:
+                response = self.client.get_transactions(
+                    self.hash_value, start_date=window_start, end_date=window_end,
+                )
+            except Exception:
+                # Provider exception text can contain URLs, hashes and credentials.
+                raise ConnectionError("Schwab transaction request failed") from None
+            status = getattr(response, "status_code", None)
+            if status != 200:
+                raise ConnectionError(f"Schwab transaction request failed (HTTP {status})")
+            try:
+                rows = response.json()
+            except Exception:
+                raise ValueError("Invalid Schwab transaction response") from None
+            if not isinstance(rows, list):
+                raise ValueError("Invalid Schwab transaction response")
+            # The endpoint has no page cursor in the supported SDK. Split a
+            # possibly capped response, overlapping boundaries and deduping IDs.
+            if len(rows) >= 3000:
+                span = int((window_end - window_start).total_seconds())
+                if span <= 1:
+                    raise ValueError("Schwab transaction response remains saturated at its time boundary")
+                midpoint = window_start + dt.timedelta(seconds=span // 2)
+                windows.extend([(window_start, midpoint), (midpoint, window_end)])
+                continue
+            for row in rows:
+                event = self._normalize_transaction_to_cash_event(row)
+                if event is None or not start <= event.occurred_at <= end:
+                    continue
+                existing = events.get(event.event_id)
+                if existing is not None and existing.to_dict() != event.to_dict():
+                    raise ValueError("Schwab returned conflicting observations for one activity")
+                events[event.event_id] = event
+                if limit is not None and len(events) > limit:
+                    raise ValueError("Schwab cash-event limit would discard funding events")
+        return sorted(events.values(), key=lambda event: (event.occurred_at, event.event_id))
+
     def _get_balances_at_broker(self, quote_asset: Asset, strategy) -> tuple:
         """
         Get the actual cash balance at the broker.

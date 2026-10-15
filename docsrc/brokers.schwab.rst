@@ -28,6 +28,29 @@ Go directly to :ref:`Schwab prerequisites <schwab-prerequisites>`,
 
 If you want the managed path, `BotSpot <https://botspot.trade/sales?showLogin=1&utm_source=documentation&utm_medium=schwab&utm_campaign=lumibot&utm_content=managed_schwab_text&prompt=I%20want%20to%20connect%20Schwab%20and%20run%20a%20Lumibot%20strategy%20on%20BotSpot.%20Please%20help%20me%20set%20up%20broker%20connections%2C%20monitoring%2C%20and%20paper%20or%20live%20deployment.>`_ can help you connect supported brokers through the website, run paper or live Lumibot strategies, and monitor logs, account state, alerts, audit history, and kill-switch controls without maintaining your own deployment server.
 
+Cash activity history
+---------------------
+
+``broker.get_cash_events(since=aware_datetime, limit=5000)`` reads recent
+transactions through the existing authenticated Schwab client. Omitting
+``since`` requests the SDK's documented 60-day window, not all-time history.
+Dates require a timezone. The method does not start a strategy or place orders.
+
+ACH, cash and wire movements retain their signed amount and stable provider
+activity ID. Dividends and interest remain investment income; trade proceeds
+and embedded commissions are not external capital. Unresolved journals,
+in-kind transfers, currency conversions and non-final transaction statuses
+raise an explicit error rather than fabricating a zero cash flow.
+
+Saturated responses are divided into overlapping date windows and deduplicated
+by activity ID. Provider failures, conflicting observations and limits that
+would discard events fail explicitly. Currency must be present in the provider
+cash instruments. A returned list, including an empty list, is event evidence;
+it does not independently certify historical coverage or server persistence.
+
+``strategy.pending_cash_event_count`` reports fetched events still waiting for
+successful cloud delivery. A zero count describes the delivery queue only.
+
 .. _schwab-prerequisites:
 
 Prerequisites

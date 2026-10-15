@@ -14,6 +14,7 @@ Inside your strategy you can also get a lot of information about the state of th
 
     Strategy.cash
     Strategy.portfolio_value
+    Strategy.pending_cash_event_count
     Strategy.first_iteration
     Strategy.is_backtesting
     Strategy.quote_asset

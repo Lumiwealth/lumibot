@@ -65,6 +65,8 @@ def _normalized_data_error(error):
 class DataSource(ABC):
     SOURCE = ""
     IS_BACKTESTING_DATA_SOURCE = False
+    # Calculated chains need these inputs; native provider snapshots may not.
+    CHAIN_FULL_INFO_REQUIRES_PRICING_INPUTS = True
     APPLY_BACKTEST_POSITION_SPLITS = True
     AUTO_ADJUST_IMPLIES_SPLIT_ADJUSTED_PRICES = False
     MIN_TIMESTEP = "minute"

@@ -3331,14 +3331,16 @@ class Strategy(_Strategy):
         >>> print(f"Strike: {df.iloc[0]['strike']}, Delta: {df.iloc[0]['greeks.delta']}")
         """
         asset = self._sanitize_user_asset(asset)
-        risk_free_rate = risk_free_rate if risk_free_rate is not None else self.risk_free_rate
-        if underlying_price is None:
-            underlying_asset = Asset(symbol=asset.symbol, asset_type="stock")
-            und_price = self.get_last_price(underlying_asset)
-        else:
-            und_price = underlying_price
+        # Native chain snapshots already contain provider Greeks. Do not fetch
+        # interest rates or underlying prices that those adapters never use.
+        needs_pricing = getattr(self.broker.data_source, "CHAIN_FULL_INFO_REQUIRES_PRICING_INPUTS", True)
+        if needs_pricing:
+            risk_free_rate = risk_free_rate if risk_free_rate is not None else self.risk_free_rate
+            if underlying_price is None:
+                underlying_asset = Asset(symbol=asset.symbol, asset_type="stock")
+                underlying_price = self.get_last_price(underlying_asset)
 
-        return self.broker.get_chain_full_info(asset, expiry, chains=chains, underlying_price=und_price,
+        return self.broker.get_chain_full_info(asset, expiry, chains=chains, underlying_price=underlying_price,
                                                risk_free_rate=risk_free_rate, strike_min=strike_min,
                                                strike_max=strike_max)
 

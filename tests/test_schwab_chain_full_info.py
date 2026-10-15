@@ -121,6 +121,47 @@ def test_documented_strategy_api_reaches_the_bulk_adapter(monkeypatch):
     assert len(frame) == 3 and len(calls) == 1
 
 
+def test_native_strategy_chain_does_not_fetch_unused_pricing_inputs(monkeypatch):
+    monkeypatch.setenv("LUMIBOT_DISABLE_DOTENV", "true")
+    monkeypatch.setenv("LUMIBOT_LAZY_CREDENTIALS", "true")
+    from lumibot.brokers import Broker
+    from lumibot.strategies.strategy import Strategy
+    data, calls = source()
+    broker = SimpleNamespace(data_source=data)
+    broker.get_chain_full_info = lambda *a, **k: Broker.get_chain_full_info(broker, *a, **k)
+    class NativeStrategy:
+        _sanitize_user_asset = staticmethod(lambda value: value)
+        @property
+        def risk_free_rate(self):
+            raise AssertionError("native chain must not fetch external interest rates")
+        def get_last_price(self, asset):
+            raise AssertionError("native chain must not fetch unused underlying price")
+    strategy = NativeStrategy()
+    strategy.broker = broker
+    frame = Strategy.get_chain_full_info(strategy, Asset("ABC"), EXPIRY)
+    assert len(frame) == 3 and len(calls) == 1
+
+
+def test_calculated_chain_keeps_default_pricing_inputs(monkeypatch):
+    monkeypatch.setenv("LUMIBOT_DISABLE_DOTENV", "true")
+    monkeypatch.setenv("LUMIBOT_LAZY_CREDENTIALS", "true")
+    from lumibot.strategies.strategy import Strategy
+    captured = []
+    def full_info(asset, expiry, **kwargs):
+        captured.append(kwargs)
+        return "calculated"
+    strategy = SimpleNamespace(
+        _sanitize_user_asset=lambda value: value,
+        broker=SimpleNamespace(data_source=SimpleNamespace(), get_chain_full_info=full_info),
+        risk_free_rate=.04, get_last_price=lambda asset: 25,
+    )
+    assert Strategy.get_chain_full_info(strategy, Asset("ABC"), EXPIRY) == "calculated"
+    assert captured[0]["underlying_price"] == 25
+    assert captured[0]["risk_free_rate"] == .04
+    Strategy.get_chain_full_info(strategy, Asset("ABC"), EXPIRY, underlying_price=26, risk_free_rate=.03)
+    assert captured[1]["underlying_price"] == 26 and captured[1]["risk_free_rate"] == .03
+
+
 @pytest.mark.parametrize("strike_count", [1, 21, 100])
 def test_request_count_does_not_grow_with_contract_count(strike_count):
     payload = {"callExpDateMap": {"2026-10-16:1": {

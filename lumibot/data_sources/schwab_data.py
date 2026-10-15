@@ -108,6 +108,7 @@ class SchwabData(DataSource):
 
     MIN_TIMESTEP = "minute"
     SOURCE = "Schwab"
+    CHAIN_FULL_INFO_REQUIRES_PRICING_INPUTS = False
 
     def __init__(self, client=None, api_key=None, secret=None, account_number=None, auto_create_client=True, **kwargs):
         """

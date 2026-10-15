@@ -2,7 +2,7 @@
 
 ## Unreleased
 
-- Read recent Schwab cash activities through the existing authenticated client, preserving signed funding and provider IDs. Reject unresolved classification, missing currency, incomplete history, saturated boundaries and truncating limits. Event retrieval does not certify all-time coverage.
+- Read recent Schwab cash activities through the existing authenticated client, preserving signed funding, provider IDs and provider timezone offsets. Distinguish internal cash/margin and bank-sweep journals from IRA distribution withholding. Subdivide saturated or timed-out large windows; reject unresolved classification, missing currency, incomplete history and truncating limits. Event retrieval does not certify all-time coverage.
 
 - Add an explicit `chatgpt/<model>` agent connection using supported Sign in with ChatGPT, protected local profiles, model discovery, rotating refresh and logout. Subscription transport requires successful stream completion and never falls back to an API key. Support included plan allowance and explicitly authorized existing ChatGPT credits without changing the account-wide usage setting.
 - Move canonical evaluation actors, semantic judges and rubric calibration to subscription funding with a resumable per-call allowance. Reject API-funded eval model selections and remove ordinary provider/broker credentials from fixture processes. Real model qualification and private CI grant wiring remain release requirements.

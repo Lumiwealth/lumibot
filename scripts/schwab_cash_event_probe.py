@@ -133,7 +133,7 @@ def main() -> int:
         return int(any("failure" in result for result in summaries))
     finally:
         if broker is not None:
-            broker.cleanup()
+            broker.cleanup_streams()
 
 
 if __name__ == "__main__":

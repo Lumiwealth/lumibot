@@ -156,10 +156,21 @@ No queue token or silently truncated list is invented.
 Cash, ACH, electronic-fund and wire activity is external capital by signed
 `netAmount`. `DIVIDEND_OR_INTEREST` remains non-external `other_cash` because
 the combined provider type alone cannot distinguish those income categories.
-Trade cash and embedded commissions remain performance. Journals, in-kind
-transfers, currency conversions, non-final statuses and ambiguous amounts or
-timestamps fail until their financial meaning is established. No description
-text is used to guess a classification.
+Trade cash and embedded commissions remain performance. Exact bank-sweep labels
+and `TRF FDS TO/FRM TYPE <number>` subaccount labels are non-external journals.
+Authorized reads showed matching opposite-signed entries within each account;
+the [Schwab cash-feature disclosure](https://www.schwab.com/legal/cash-features-disclosure-statement)
+describes the automatic sweep of an account's free credit balance. The exact
+`FED INC TAX WHLD IRA` label is external distribution withholding (`tax`), in
+addition to the net cash disbursement. This distinction must not be applied to
+ordinary tax on investment income. Unknown journals, in-kind transfers,
+currency conversions, non-final statuses and ambiguous amounts or timestamps
+fail rather than acquiring a guessed classification. Compact provider timezone
+offsets are normalized for Python 3.10 as well as newer runtimes.
+
+Large timed-out history windows are subdivided with a bounded timeout budget;
+partial successful slices never become a successful partial result. The SDK's
+normal saved-token refresh path is reused; no second credential owner exists.
 
 The cloud sender removes events only after its existing successful HTTP
 acknowledgement. Account/window coverage and durable ingestion proof must

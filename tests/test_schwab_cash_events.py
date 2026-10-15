@@ -76,6 +76,82 @@ def test_schwab_cash_events_skip_trade_cash_and_embedded_fees():
     assert broker.get_cash_events() == []
 
 
+@pytest.mark.parametrize("provider_time", ["2026-10-01T04:00:00+0000", "2026-10-01T06:00:00+0200"])
+def test_schwab_compact_provider_timezone_is_parsed_on_python_310(provider_time):
+    event = Schwab._normalize_transaction_to_cash_event(transaction(time=provider_time))
+    assert event.occurred_at == dt.datetime(2026, 10, 1, 4, tzinfo=dt.timezone.utc)
+
+
+@pytest.mark.parametrize("description", [
+    "TRF FDS TO TYPE 1", "TRF FDS FRM TYPE 2",
+    "BANK SWEEP TO BROKERAGE", "BROKERAGE SWEEP FR BANK",
+    "BANK SWEEP FR BROKERAGE", "BROKERAGE SWEEP TO BANK",
+])
+def test_schwab_internal_cash_journals_are_not_new_capital(description):
+    broker, _ = broker_for([transaction(kind="JOURNAL", amount=-25, description=description)])
+    event, = broker.get_cash_events()
+    assert event.event_type == "journal"
+    assert event.amount == -25
+    assert event.is_external_cash_flow is False
+    assert event.description == description
+
+
+def test_schwab_ira_distribution_withholding_leaves_the_account():
+    broker, _ = broker_for([
+        transaction("net-distribution", "CASH_DISBURSEMENT", -80),
+        transaction("withholding", "JOURNAL", -20, description="FED INC TAX WHLD IRA"),
+    ])
+    events = broker.get_cash_events()
+    assert sum(e.amount for e in events if e.is_external_cash_flow) == -100
+    assert next(e for e in events if e.broker_event_id == "withholding").event_type == "tax"
+
+
+@pytest.mark.parametrize("description", ["BANK SWEEP TO ANOTHER ACCOUNT", "TRF FDS TO TYPE 1 UNKNOWN"])
+def test_schwab_similar_unknown_journal_labels_are_not_guessed(description):
+    broker, _ = broker_for([transaction(kind="JOURNAL", description=description)])
+    with pytest.raises(ValueError, match="classification"):
+        broker.get_cash_events()
+
+
+def test_schwab_timed_out_history_is_retried_in_smaller_complete_windows():
+    import httpx
+
+    broker, _ = broker_for([])
+    calls = []
+    row = transaction()
+
+    def get_transactions(*args, **kwargs):
+        calls.append(kwargs)
+        if len(calls) == 1:
+            raise httpx.ReadTimeout("private-provider-url")
+        return SimpleNamespace(status_code=200, json=lambda: [row])
+
+    broker.client.get_transactions = get_transactions
+    events = broker.get_cash_events()
+    assert len(events) == 1
+    assert len(calls) == 3
+    assert calls[1]["start_date"] == calls[2]["end_date"]
+    assert calls[1]["end_date"] == calls[0]["end_date"]
+    assert calls[2]["start_date"] == calls[0]["start_date"]
+
+
+def test_schwab_persistent_history_timeouts_have_a_bounded_sanitized_failure():
+    import httpx
+
+    broker, _ = broker_for([])
+    calls = []
+
+    def get_transactions(*args, **kwargs):
+        calls.append(kwargs)
+        raise httpx.ReadTimeout("private-provider-url")
+
+    broker.client.get_transactions = get_transactions
+    with pytest.raises(ConnectionError, match="request failed") as caught:
+        broker.get_cash_events()
+    assert len(calls) <= 8
+    assert "private-provider-url" not in str(caught.value)
+
+
 @pytest.mark.parametrize("kind", ["JOURNAL", "RECEIVE_AND_DELIVER", "MEMORANDUM", "UNKNOWN"])
 def test_schwab_unclassified_activity_is_not_a_successful_empty_window(kind):
     broker, _ = broker_for([transaction(kind=kind)])
@@ -257,9 +333,7 @@ def test_schwab_probe_uses_adapter_and_never_prints_private_event_values():
 
 def test_schwab_probe_environment_loads_only_explicit_schwab_app_fields(monkeypatch, tmp_path):
     probe = _probe_module()
-    for key in ["SCHWAB_APP_KEY", "SCHWAB_APP_SECRET", "AWS_SECRET_ACCESS_KEY", "SCHWAB_TOKEN"]:
-        monkeypatch.delenv(key, raising=False)
-    monkeypatch.setenv("SCHWAB_TOKEN", "stale-payload")
+    monkeypatch.setattr(probe.os, "environ", {"SCHWAB_TOKEN": "stale-payload"})
     path = tmp_path / "synthetic.env"
     path.write_text("SCHWAB_APP_KEY=test-app\nSCHWAB_APP_SECRET=test-secret\nAWS_SECRET_ACCESS_KEY=must-not-load\n")
     probe.configure_environment(path)
@@ -271,9 +345,34 @@ def test_schwab_probe_environment_loads_only_explicit_schwab_app_fields(monkeypa
     assert "SCHWAB_TOKEN" not in os.environ
 
 
+def test_schwab_probe_closes_the_actual_supported_broker_lifecycle(monkeypatch, tmp_path):
+    import sys
+
+    import lumibot.brokers.schwab as module
+
+    probe = _probe_module()
+    token = tmp_path / "synthetic-token.json"
+    token.write_text("{}")
+    closed = []
+
+    class ReadOnlyBroker:
+        def __init__(self, **kwargs):
+            self.client = SimpleNamespace(get_account_numbers=lambda: SimpleNamespace(status_code=200, json=lambda: []))
+
+        def cleanup_streams(self):
+            closed.append(True)
+
+    monkeypatch.setattr(module, "Schwab", ReadOnlyBroker)
+    monkeypatch.setattr(probe, "configure_environment", lambda *args: None)
+    monkeypatch.setattr(sys, "argv", ["probe", "--token-path", str(token), "--app-env", "synthetic.env"])
+    assert probe.main() == 0
+    assert closed == [True]
+
+
 def test_schwab_events_reach_existing_listener_payload_and_acknowledgement(monkeypatch):
     # Use the real shared cloud sender, not a second Schwab-specific sender.
     import requests
+
     from lumibot.strategies._strategy import _Strategy
     from tests.test_cash_events import _cloud_update_dummy
 
@@ -299,6 +398,7 @@ def test_schwab_events_reach_existing_listener_payload_and_acknowledgement(monke
 
 def test_schwab_listener_delivery_failure_retries_identical_events(monkeypatch):
     import requests
+
     from lumibot.strategies._strategy import _Strategy
     from tests.test_cash_events import _cloud_update_dummy
 

@@ -958,7 +958,8 @@ class Schwab(Broker):
         """Normalize only transactions with an unambiguous cash classification.
 
         An unresolved journal or security transfer is a coverage failure, not
-        a zero-dollar deposit. Never classify funding from description text.
+        a zero-dollar deposit. Journal labels below are exact provider labels;
+        arbitrary descriptions must not become external funding guesses.
         """
         import datetime as dt
 
@@ -974,7 +975,22 @@ class Schwab(Broker):
             "ACH_RECEIPT", "ACH_DISBURSEMENT", "CASH_RECEIPT",
             "CASH_DISBURSEMENT", "WIRE_IN", "WIRE_OUT", "ELECTRONIC_FUND",
         }
-        if kind not in funding_types | {"DIVIDEND_OR_INTEREST"}:
+        journal_type = None
+        if kind == "JOURNAL":
+            description = transaction.get("description")
+            internal_labels = {
+                "BANK SWEEP TO BROKERAGE", "BROKERAGE SWEEP FR BANK",
+                "BANK SWEEP FR BROKERAGE", "BROKERAGE SWEEP TO BANK",
+            }
+            if isinstance(description, str) and (
+                description in internal_labels or re.fullmatch(r"TRF FDS (?:TO|FRM) TYPE [0-9]+", description)
+            ):
+                journal_type = "journal"
+            elif description == "FED INC TAX WHLD IRA":
+                # Withholding is part of an IRA distribution leaving the
+                # account, distinct from tax on investment income.
+                journal_type = "tax"
+        if kind not in funding_types | {"DIVIDEND_OR_INTEREST"} and journal_type is None:
             raise ValueError("Schwab transaction requires cash-flow classification")
         if transaction.get("status") != "VALID":
             raise ValueError("Schwab transaction status requires reconciliation")
@@ -986,7 +1002,11 @@ class Schwab(Broker):
             raise ValueError("Schwab transaction is missing a cash amount")
         try:
             amount = CashEvent.coerce_amount(amount)
-            occurred_at = dt.datetime.fromisoformat(str(transaction.get("time", "")).replace("Z", "+00:00"))
+            provider_time = str(transaction.get("time", "")).replace("Z", "+00:00")
+            # Schwab returns +0000 offsets, which fromisoformat only accepts
+            # with a colon on supported Python 3.10 runtimes.
+            provider_time = re.sub(r"([+-][0-9]{2})([0-9]{2})$", r"\1:\2", provider_time)
+            occurred_at = dt.datetime.fromisoformat(provider_time)
             if occurred_at.tzinfo is None or occurred_at.utcoffset() is None:
                 raise ValueError("Missing timezone")
         except (TypeError, ValueError):
@@ -1002,7 +1022,7 @@ class Schwab(Broker):
             if instrument.get("assetType") != "CURRENCY":
                 # A cash dividend may reference the paying security; an external
                 # transfer containing securities needs an independently verified valuation.
-                if kind in funding_types:
+                if kind in funding_types or kind == "JOURNAL":
                     raise ValueError("Schwab in-kind transfer requires valuation and classification")
                 continue
             symbol = instrument.get("symbol", "")
@@ -1011,8 +1031,8 @@ class Schwab(Broker):
             currencies.add(symbol.removeprefix("CURRENCY_"))
         if len(currencies) != 1:
             raise ValueError("Schwab transaction requires currency-conversion classification")
-        external = kind in funding_types
-        event_type = ("deposit" if amount >= 0 else "withdrawal") if external else "other_cash"
+        external = kind in funding_types or journal_type == "tax"
+        event_type = journal_type or (("deposit" if amount >= 0 else "withdrawal") if external else "other_cash")
         return CashEvent(
             broker_name="schwab",
             broker_event_id=str(identifier),
@@ -1061,6 +1081,7 @@ class Schwab(Broker):
             if value.value != "TRADE"
         ]
         requests_remaining = 127
+        timeouts_remaining = 8
         while windows:
             window_start, window_end = windows.pop()
             if requests_remaining <= 0:
@@ -1071,7 +1092,18 @@ class Schwab(Broker):
                     self.hash_value, start_date=window_start, end_date=window_end,
                     transaction_types=transaction_types,
                 )
-            except Exception:
+            except Exception as exc:
+                from httpx import TimeoutException
+
+                # Large activity windows can time out even for a valid login.
+                # Retry smaller complete windows rather than returning partial
+                # cash evidence or retrying an identical expensive request.
+                timeouts_remaining -= isinstance(exc, TimeoutException)
+                span = int((window_end - window_start).total_seconds())
+                if isinstance(exc, TimeoutException) and timeouts_remaining > 0 and span > 86400:
+                    midpoint = window_start + dt.timedelta(seconds=span // 2)
+                    windows.extend([(window_start, midpoint), (midpoint, window_end)])
+                    continue
                 # Provider exception text can contain URLs, hashes and credentials.
                 raise ConnectionError("Schwab transaction request failed") from None
             status = getattr(response, "status_code", None)

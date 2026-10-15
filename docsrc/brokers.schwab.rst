@@ -38,11 +38,14 @@ Dates require a timezone. The method does not start a strategy or place orders.
 
 ACH, cash and wire movements retain their signed amount and stable provider
 activity ID. Dividends and interest remain investment income; trade proceeds
-and embedded commissions are not external capital. Unresolved journals,
+and embedded commissions are not external capital. Exact Schwab bank-sweep and
+cash/margin subaccount-transfer labels remain non-external journals. The separate
+``FED INC TAX WHLD IRA`` entry is external distribution withholding, not an
+investment loss. Unknown journals,
 in-kind transfers, currency conversions and non-final transaction statuses
 raise an explicit error rather than fabricating a zero cash flow.
 
-Saturated responses are divided into overlapping date windows and deduplicated
+Saturated responses and timed-out large windows are divided into overlapping date windows and deduplicated
 by activity ID. Provider failures, conflicting observations and limits that
 would discard events fail explicitly. Currency must be present in the provider
 cash instruments. A returned list, including an empty list, is event evidence;

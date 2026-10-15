@@ -119,3 +119,39 @@ def test_documented_strategy_api_reaches_the_bulk_adapter(monkeypatch):
     )
     frame = Strategy.get_chain_full_info(strategy, Asset("ABC"), "2026-10-16", underlying_price=25)
     assert len(frame) == 3 and len(calls) == 1
+
+
+@pytest.mark.parametrize("strike_count", [1, 21, 100])
+def test_request_count_does_not_grow_with_contract_count(strike_count):
+    payload = {"callExpDateMap": {"2026-10-16:1": {
+        str(strike): [contract(strike)] for strike in range(1, strike_count + 1)
+    }}}
+    data, calls = source(payload)
+    assert len(data.get_chain_full_info(Asset("ABC"), EXPIRY)) == strike_count
+    assert len(calls) == 1
+
+
+def test_repeated_reads_refresh_snapshot_instead_of_reusing_stale_prices():
+    data, calls = source()
+    data.get_chain_full_info(Asset("ABC"), EXPIRY)
+    data.get_chain_full_info(Asset("ABC"), EXPIRY)
+    assert len(calls) == 2
+
+
+def test_bad_bounds_fail_before_request():
+    data, calls = source()
+    with pytest.raises(ValueError):
+        data.get_chain_full_info(Asset("ABC"), EXPIRY, strike_min=25, strike_max=20)
+    assert not calls
+
+
+def test_delayed_and_adjusted_contract_metadata_is_not_lost():
+    payload = {"isDelayed": True, "callExpDateMap": {"2026-10-16:1": {"20": [
+        contract(20, nonStandard=True, multiplier=10,
+                 optionDeliverablesList=[{"symbol": "ABC", "deliverableUnits": 10}])
+    ]}}}
+    data, _ = source(payload)
+    row = data.get_chain_full_info(Asset("ABC"), EXPIRY).iloc[0]
+    assert bool(row.is_delayed) and bool(row.non_standard)
+    assert row.multiplier == 10
+    assert row.deliverables == [{"symbol": "ABC", "deliverableUnits": 10}]

@@ -520,6 +520,9 @@ The API is unchanged; the Schwab data source supplies the efficient implementati
 
 The response is a snapshot, not a stream or a promise of fresh executable prices.
 Check provider timestamps, missing bid/ask, spread and liquidity before acting.
+The snapshot also retains ``is_delayed``, ``non_standard``, ``multiplier`` and
+``deliverables`` when supplied; a strike alone does not identify a standard
+100-share contract.
 Missing values remain missing; they are not replaced with zero or the current time.
 Apply the strategy's original eligibility and pricing formulas to the returned
 rows. A fresh decision may require a fresh snapshot. Do not retain prices across

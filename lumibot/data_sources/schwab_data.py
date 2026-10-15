@@ -427,6 +427,10 @@ class SchwabData(DataSource):
                             "last_volume": item.get("lastSize"),
                             "average_volume": None, "type": "option",
                             "implied_volatility": item.get("volatility"),
+                            "is_delayed": payload.get("isDelayed"),
+                            "non_standard": item.get("nonStandard"),
+                            "multiplier": item.get("multiplier"),
+                            "deliverables": item.get("optionDeliverablesList"),
                             "quote_time": self.convert_epoch_ms_to_datetime(item.get("quoteTimeInLong")),
                             "trade_time": self.convert_epoch_ms_to_datetime(item.get("tradeTimeInLong")),
                         }

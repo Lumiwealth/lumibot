@@ -268,6 +268,12 @@ resume reruns the affected repetition, including failed repetitions above a
 smaller newly requested repeat count. Fixture memory databases and exports belong
 to their exact temporary fixture and are removed in its final cleanup.
 
+A typed retryable inference `Timeout`, subscription response failure or managed
+gateway failure is an infrastructure error when the runtime reports an incomplete
+decision. It does not spend a judge call or become a passing actor decision.
+Retry only that repetition within the same cumulative allowance. Error text alone,
+authentication failures, tool failures and completed decisions cannot take this path.
+
 
 ### Qualification model policy
 

@@ -1183,7 +1183,7 @@ def actor_infrastructure_failure(actor_results: list[Any]) -> dict[str, Any] | N
         outcome = payload.get("execution_outcome") or {}
         if (
             payload.get("runtime_error") is True
-            and payload.get("error_class") in {"SubscriptionModelResponseError", "ManagedAiGatewayError"}
+            and payload.get("error_class") in {"SubscriptionModelResponseError", "ManagedAiGatewayError", "Timeout"}
             and outcome.get("status") in {"runtime_error", "provider_error"}
             and outcome.get("decision_completed") is False
             and outcome.get("error_category") in {"transient", "unknown"}

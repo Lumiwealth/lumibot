@@ -1861,12 +1861,13 @@ def test_harness_error_rows_name_where_the_error_happened_without_its_message():
     assert "secret-looking-key" not in json.dumps(row)
 
 
-def test_retryable_subscription_actor_failure_is_infrastructure_not_a_judged_decision():
+@pytest.mark.parametrize("error_class", ["SubscriptionModelResponseError", "ManagedAiGatewayError", "Timeout"])
+def test_retryable_subscription_actor_failure_is_infrastructure_not_a_judged_decision(error_class):
     # Actual RC4 expiration repetition4: no tools, typed subscription failure,
     # runtime_error/transient/retryable and an incomplete decision.
     result = SimpleNamespace(payload={
         "runtime_error": True,
-        "error_class": "SubscriptionModelResponseError",
+        "error_class": error_class,
         "error_message": "private provider request must not be copied",
         "execution_outcome": {
             "status": "runtime_error", "error_category": "transient",
@@ -1875,7 +1876,7 @@ def test_retryable_subscription_actor_failure_is_infrastructure_not_a_judged_dec
     })
     observed = evals.actor_infrastructure_failure([result])
     assert observed == {
-        "error": "SubscriptionModelResponseError", "error_category": "transient",
+        "error": error_class, "error_category": "transient",
         "retryability": "retryable", "actor_index": 0,
     }
     assert "private provider request" not in json.dumps(observed)
@@ -1896,12 +1897,13 @@ def test_actor_failure_classification_preserves_semantic_and_tool_failure_judgin
     assert evals.actor_infrastructure_failure([SimpleNamespace(payload={**payload, **change})]) is None
 
 
-def test_native_repetition_preserves_typed_actor_error_without_spending_a_judge_call(monkeypatch):
+@pytest.mark.parametrize("error_class", ["SubscriptionModelResponseError", "Timeout"])
+def test_native_repetition_preserves_typed_actor_error_without_spending_a_judge_call(monkeypatch, error_class):
     from scripts.agent_eval_production_fixture import ProductionFixture
 
     result = AgentRunResult(summary="Safe skipped iteration", model=evals.DEFAULT_ACTING_MODEL, events=[])
     result.payload = {
-        "runtime_error": True, "error_class": "SubscriptionModelResponseError",
+        "runtime_error": True, "error_class": error_class,
         "execution_outcome": {"status": "runtime_error", "error_category": "transient", "retryability": "retryable", "decision_completed": False},
     }
     monkeypatch.setattr(ProductionFixture, "create_agent", lambda *_args, **_kwargs: SimpleNamespace(run=lambda **_kwargs: result))
@@ -1913,7 +1915,7 @@ def test_native_repetition_preserves_typed_actor_error_without_spending_a_judge_
     case = json.loads((evals.CASE_ROOT / "stock_price_before_order.json").read_text())
     row = evals.execute_repetition(case, repetition=1, fingerprint="test", judge_model=evals.DEFAULT_JUDGE_MODEL, budget=None)
     assert row["status"] == "error"
-    assert row["error"] == "SubscriptionModelResponseError"
+    assert row["error"] == error_class
     assert row["transcript"]["execution_outcome"]["decision_completed"] is False
     assert row["transcript"]["submissions"] == []
     assert row["timing_seconds"]["judge"] == 0

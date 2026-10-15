@@ -391,6 +391,8 @@ class SchwabData(DataSource):
         payload = response.json()
         if not isinstance(payload, dict):
             raise ValueError("Invalid Schwab full option chain response")
+        if payload.get("error") or str(payload.get("status", "SUCCESS")).upper() != "SUCCESS":
+            raise ConnectionError("Schwab full option chain reported failure")
 
         rows = []
         for right, map_name in (("CALL", "callExpDateMap"), ("PUT", "putExpDateMap")):

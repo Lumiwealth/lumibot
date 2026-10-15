@@ -155,3 +155,10 @@ def test_delayed_and_adjusted_contract_metadata_is_not_lost():
     assert bool(row.is_delayed) and bool(row.non_standard)
     assert row.multiplier == 10
     assert row.deliverables == [{"symbol": "ABC", "deliverableUnits": 10}]
+
+
+def test_provider_failure_inside_http_200_is_not_an_empty_success():
+    data, calls = source({"status": "FAILED", "error": "provider details"})
+    with pytest.raises(ConnectionError, match="reported failure"):
+        data.get_chain_full_info(Asset("ABC"), EXPIRY)
+    assert len(calls) == 1

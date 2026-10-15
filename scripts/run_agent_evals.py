@@ -31,7 +31,7 @@ CASE_ROOT = REPO_ROOT / "agent_eval_cases"
 # API-funded actor/judge model selections are rejected before inference.
 DEFAULT_ACTING_MODEL = "chatgpt/gpt-6-luna"
 DEFAULT_JUDGE_MODEL = "chatgpt/gpt-6-luna"
-EVAL_REASONING_EFFORT = "low"
+EVAL_REASONING_EFFORT = "medium"
 # Low and Medium each falsely rejected one repetition of the preserved
 # safe historical disclosure control. High must pass the unchanged controls.
 JUDGE_REASONING_EFFORT = "high"

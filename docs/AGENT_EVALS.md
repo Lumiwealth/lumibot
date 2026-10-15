@@ -271,7 +271,13 @@ to their exact temporary fixture and are removed in its final cleanup.
 
 ### Qualification model policy
 
-New qualification uses `chatgpt/gpt-6-luna` for both roles. Actors start at Low.
+New qualification uses `chatgpt/gpt-6-luna` for both roles. Actors started at Low.
+The native `options_iron_condor_limit_between_bid_ask` run
+`b158f4ea-3a34-40df-b2d1-594cf6a3d68d` then declined a valid requested trade
+after overlooking listed strikes whose observed deltas met the target, despite
+the general selection guidance. The unchanged machine contract and judge both
+failed it. The candidate actor profile therefore uses Medium and must establish
+fresh source-bound qualification; Low passes are not relabeled as Medium.
 Low and Medium judges each passed 61 of 62 labeled control calls but falsely
 rejected one repetition of the preserved safe historical-disclosure control.
 Low misread the disclosed option value range; Medium incorrectly required an

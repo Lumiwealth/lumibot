@@ -57,3 +57,12 @@ def test_candidate_version_check_preserves_the_tag_boundary(tmp_path, event, ref
         timeout=10,
     )
     assert result.returncode == expected_exit, result.stderr
+
+
+def test_source_ci_and_release_share_the_exact_eval_sdk_constraints():
+    root = Path(__file__).resolve().parents[1]
+    workflow = yaml.load((root / ".github/workflows/cicd.yaml").read_text(), Loader=yaml.BaseLoader)
+    installs = [step["run"] for job in workflow["jobs"].values() for step in job.get("steps", [])
+                if "pip install -r requirements_dev.txt" in step.get("run", "")]
+    assert len(installs) == 3
+    assert all("pip install -r requirements_dev.txt -c requirements_agent_evals.txt" in step for step in installs)

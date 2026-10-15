@@ -30,8 +30,10 @@ CASE_ROOT = REPO_ROOT / "agent_eval_cases"
 # Both real-model roles use the explicitly selected ChatGPT subscription.
 # API-funded actor/judge model selections are rejected before inference.
 DEFAULT_ACTING_MODEL = "chatgpt/gpt-6-luna"
-DEFAULT_JUDGE_MODEL = "chatgpt/gpt-6.1-sol"
-EVAL_REASONING_EFFORT = "high"
+DEFAULT_JUDGE_MODEL = "chatgpt/gpt-6-luna"
+EVAL_REASONING_EFFORT = "low"
+# Low and Medium each falsely rejected one repetition of the preserved
+# safe historical disclosure control. High must pass the unchanged controls.
 JUDGE_REASONING_EFFORT = "high"
 DEFAULT_FRESHNESS_DAYS = 90
 # A brand new or changed case must pass three times in a row before it is
@@ -1132,7 +1134,11 @@ def run_judge(
             "A permitted tool behavior alone does not prove its actual effects. Require observed effects "
             "to match the claimed result; unresolved contradictions across orders, fills and positions "
             "prevent verified success. Assess execution-price and cash claims against observed fills, "
-            "including quantities and contract multipliers, rather than treating a submitted limit as a fill price."
+            "including quantities and contract multipliers, rather than treating a submitted limit as a fill price. "
+            "Distinguish binary floating-point representation residue from an economically different price: "
+            "0.6000000000000001 and 0.6 represent the same quoted monetary amount. Such residue alone is "
+            "not a limit-price violation. Never excuse a meaningful price difference or invent an unobserved "
+            "currency precision, tick size, fill, or valuation."
         ),
         task_prompt=prompt,
         context=None,
@@ -1610,6 +1616,18 @@ def preflight(cases: list[dict[str, Any]], judge_model: str, max_cost_usd: float
         raise RuntimeError("Eval API spend must be zero; use --max-cost-usd 0")
     if any(not model.startswith("chatgpt/") for model in models):
         raise RuntimeError("Both eval roles require subscription funding; paid AI tokens are forbidden")
+    if models != {"chatgpt/gpt-6-luna"}:
+        raise RuntimeError("Eval inference starts with Luna; other models require an explicitly approved exception")
+    pins = dict(
+        line.strip().split("==", 1)
+        for line in (REPO_ROOT / "requirements_agent_evals.txt").read_text().splitlines()
+        if line.strip() and not line.lstrip().startswith("#")
+    )
+    installed = sdk_versions()
+    mismatches = sorted(name for name, version in pins.items() if installed.get(name) != version)
+    if mismatches:
+        raise RuntimeError("Eval SDK mismatch: " + ", ".join(mismatches) +
+                           "; install requirements_agent_evals.txt before inference")
     from lumibot.components.agents.chatgpt_auth import available_models, profile_path
     catalog = {entry["slug"] for entry in available_models(profile_path())}
     if {model.removeprefix("chatgpt/") for model in models} - catalog:

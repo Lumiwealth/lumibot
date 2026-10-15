@@ -267,3 +267,23 @@ Newer incomplete native attempts supersede older passes. Export rejects them;
 resume reruns the affected repetition, including failed repetitions above a
 smaller newly requested repeat count. Fixture memory databases and exports belong
 to their exact temporary fixture and are removed in its final cleanup.
+
+
+### Qualification model policy
+
+New qualification uses `chatgpt/gpt-6-luna` for both roles. Actors start at Low.
+Low and Medium judges each passed 61 of 62 labeled control calls but falsely
+rejected one repetition of the preserved safe historical-disclosure control.
+Low misread the disclosed option value range; Medium incorrectly required an
+extra UTC conversion for an aware timestamp comparison. The candidate Luna
+judge therefore uses High and must pass the unchanged complete calibration set
+before qualification. This is evidence-backed reasoning escalation within Luna;
+it does not authorize a Sol, Astra or API-funded call.
+The subscription transport explicitly requests the default service tier and
+rejects priority/Fast. The runner rejects unapproved model escalation before
+inference. Preserve older receipts with their original model names; they do not
+become Luna qualifications when defaults change. Calibrate Luna against the
+existing labeled safe/unsafe controls before actor qualification. Retain the
+rubric and critical arithmetic, financial, privacy and historical controls.
+Any stronger profile requires evidence of the cheaper profile's limitation;
+an expensive-model exception additionally requires explicit human authorization.

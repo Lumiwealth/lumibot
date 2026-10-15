@@ -626,9 +626,11 @@ def test_release_runner_rejects_paid_models_despite_credentials(monkeypatch, mod
 
 
 def test_eval_defaults_use_subscription_for_both_roles_with_qualified_role_reasoning():
+    # Current policy starts actor and semantic judge on Luna at Low; old
+    # Sol qualification records remain historical, never relabeled.
     assert evals.DEFAULT_ACTING_MODEL == "chatgpt/gpt-6-luna"
-    assert evals.DEFAULT_JUDGE_MODEL == "chatgpt/gpt-6.1-sol"
-    assert evals.EVAL_REASONING_EFFORT == "high"
+    assert evals.DEFAULT_JUDGE_MODEL == "chatgpt/gpt-6-luna"
+    assert evals.EVAL_REASONING_EFFORT == "low"
     assert evals.JUDGE_REASONING_EFFORT == "high"
     assert evals.estimate_cost(evals.DEFAULT_ACTING_MODEL, {"input_tokens": 10})["estimated_usd"] == 0
 
@@ -649,7 +651,7 @@ def test_acting_and_judge_requests_use_their_explicit_reasoning_levels(monkeypat
     production = ProductionFixture(evals.build_fixture("flat_stock_account"))
     try:
         handle = production.create_agent(evals.load_cases({"stock_price_before_order"})[0], None)
-        assert handle.reasoning_effort == evals.EVAL_REASONING_EFFORT == "high"
+        assert handle.reasoning_effort == evals.EVAL_REASONING_EFFORT == "low"
     finally:
         production.close()
 
@@ -667,7 +669,7 @@ def test_acting_and_judge_requests_use_their_explicit_reasoning_levels(monkeypat
     monkeypatch.setattr(runtime, "GoogleADKRuntime", CaptureRuntime)
     case = evals.load_cases({"stock_price_before_order"})[0]
     evals.run_judge(case, {"tool_calls": []}, evals.DEFAULT_JUDGE_MODEL, None)
-    assert seen[0].model == "chatgpt/gpt-6.1-sol"
+    assert seen[0].model == "chatgpt/gpt-6-luna"
     assert seen[0].reasoning_effort == "high"
 
 
@@ -908,8 +910,9 @@ def test_web_disclosure_judge_controls_preserve_actual_native_provenance_and_req
         assert control["source_run"] == run_id and str(UUID(run_id)) == run_id
         assert control["source_repetition"] == repetition
         assert control["source_runtime_fingerprint"] == runtime_sources[control["source_sha"]]
+        # This verifies the historical source judge, not today's default.
         assert control["source_case_fingerprint"] == evals.case_fingerprint(
-            case, judge_model=evals.DEFAULT_JUDGE_MODEL, runtime_hash=control["source_runtime_fingerprint"]
+            case, judge_model="chatgpt/gpt-6.1-sol", runtime_hash=control["source_runtime_fingerprint"]
         )
         assert len(control["source_ledger_row_sha256"]) == 64
         assert int(control["source_ledger_row_sha256"], 16) >= 0
@@ -3930,3 +3933,18 @@ _NATIVE_STOCK_AUDIT_FAILURE = {
         },
     ],
 }
+
+
+@pytest.mark.parametrize("model", ["chatgpt/gpt-6-sol", "chatgpt/gpt-6.1-sol", "chatgpt/gpt-6-astra"])
+def test_eval_preflight_rejects_unapproved_model_escalation(model):
+    with pytest.raises(RuntimeError, match="Luna"):
+        evals.preflight(evals.load_cases({"stock_price_before_order"}), model, 0)
+
+
+def test_eval_preflight_rejects_unqualified_sdks_before_authentication(monkeypatch):
+    from lumibot.components.agents import chatgpt_auth
+
+    monkeypatch.setattr(evals, "sdk_versions", lambda: {"google-adk": "outdated"})
+    monkeypatch.setattr(chatgpt_auth, "available_models", lambda *_: pytest.fail("SDK check must precede authentication"))
+    with pytest.raises(RuntimeError, match="SDK"):
+        evals.preflight(evals.load_cases({"stock_price_before_order"}), evals.DEFAULT_JUDGE_MODEL, 0)

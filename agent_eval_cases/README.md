@@ -1,8 +1,9 @@
 # LumiBot Real-Model Agent Evals
 
 Every JSON file in this directory is a production release gate. The acting model
-is ChatGPT GPT-6 Luna (`chatgpt/gpt-6-luna`) on medium reasoning, the product
-default, and uses LumiBot's real Google ADK runtime and built-in runtime skills. Market and
+is ChatGPT GPT-6 Luna (`chatgpt/gpt-6-luna`) and uses LumiBot's real Google ADK
+runtime and built-in runtime skills. Native receipts record the effective
+reasoning effort; qualification follows that recorded configuration. Market and
 broker responses are deterministic fixtures, so the eval measures agent behavior
 without placing a trade or requiring paid market data.
 
@@ -22,6 +23,13 @@ case, acting model, judge model, fixture, runtime, tool, rule, and skill
 fingerprints. Release CI verifies complete source-bound actor/judge qualification
 and separately required positive/negative judge calibration. It does not copy a
 developer's rotating login or fall back to API billing.
+
+The existing release workflow also supports manual candidate validation with
+`gh workflow run release.yml --ref version/4.6.19`. It runs the same package
+build/install, unit, backtest and native qualification gates without publishing.
+The installed wheel must import the ChatGPT adapter and expose the login CLI.
+Only a version-tag push may publish to PyPI, create a GitHub release or advance
+the next version; a successful manual validation is not a release.
 
 Historical source refusal and live research are separate contracts. Live calendar
 filings may support current research without proving original-vintage replay.

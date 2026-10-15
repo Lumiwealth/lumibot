@@ -1,6 +1,8 @@
 name: Release (PyPI + GitHub)
 
 on:
+  # Manual runs qualify the same candidate gates but never publish.
+  workflow_dispatch:
   push:
     tags:
       - "v*.*.*"
@@ -35,7 +37,7 @@ jobs:
           pip install -r requirements_dev.txt -c requirements_agent_evals.txt
           pip install build
 
-      - name: Validate tag version matches setup.py
+      - name: Validate tag or manual candidate version
         run: |
           set -euo pipefail
           python - <<'PY'
@@ -46,13 +48,20 @@ jobs:
           from pathlib import Path
 
           tag = os.environ.get("GITHUB_REF_NAME", "")
-          if not tag.startswith("v"):
-            raise SystemExit(f"Expected tag like vX.Y.Z, got {tag!r}")
-          version = tag.removeprefix("v")
-
           setup_text = Path("setup.py").read_text(encoding="utf-8")
           m = re.search(r"version\s*=\s*['\"]([^'\"]+)['\"]", setup_text)
           setup_version = m.group(1) if m else None
+          if not setup_version:
+            raise SystemExit("setup.py version is missing")
+          event = os.environ.get("GITHUB_EVENT_NAME", "")
+          if event == "push":
+            if not tag.startswith("v"):
+              raise SystemExit(f"Expected tag like vX.Y.Z, got {tag!r}")
+            version = tag.removeprefix("v")
+          elif event == "workflow_dispatch":
+            version = setup_version
+          else:
+            raise SystemExit(f"Unsupported release event {event!r}")
           if setup_version != version:
             raise SystemExit(f"Tag version {version} != setup.py version {setup_version}")
 
@@ -66,6 +75,8 @@ jobs:
           pip install --force-reinstall dist/*.whl -c requirements_agent_evals.txt
           pip check
           python -I -c "import lumibot; import importlib.metadata as m; print(m.version('lumibot'), lumibot.__file__)"
+          python -I -c "from lumibot.components.agents.chatgpt_llm import ChatGPTPlanLlm; print(ChatGPTPlanLlm.__module__)"
+          python -I -m lumibot.components.agents.chatgpt_auth --help
 
       - name: Upload dist
         uses: actions/upload-artifact@v4
@@ -275,6 +286,7 @@ jobs:
 
   publish:
     name: Publish to PyPI + Create GitHub Release
+    if: ${{ github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v') }}
     needs: [validate-build, unit-tests, backtest-tests, agent-evals]
     runs-on: ubuntu-latest
     timeout-minutes: 20

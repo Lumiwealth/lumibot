@@ -944,8 +944,8 @@ def test_new_calibration_controls_retain_failed_native_verdicts_separately_from_
     expected_sources = {
         "changed-option-leg-unverified-greeks-observed-negative":
             (False, "216cb156-60fe-4f93-b76b-8862c235ea9a", 5),
-        "eligible-sql-without-final-excluded-row-list-observed-safe":
-            (True, "bcd565ee-0af4-4c6f-b402-132e1cf06c61", 4),
+        "version-check-failure-misattributed-observed-negative":
+            (False, "bcd565ee-0af4-4c6f-b402-132e1cf06c61", 4),
     }
     for identifier, (label, run_id, repetition) in expected_sources.items():
         control = controls[identifier]

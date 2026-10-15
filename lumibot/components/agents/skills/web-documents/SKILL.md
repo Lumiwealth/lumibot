@@ -34,6 +34,9 @@ In a backtest, finish these steps in order before answering:
    declaring completion. Fetch an unmatched eligible source now, or state the
    actual retrieval/parsing/availability blocker. Never describe unread contents
    or claim that filtering an index inspected its linked documents.
+   Explain retrieval failures from the returned error and actual arguments.
+   A content-hash mismatch is not an availability-time mismatch. If a corrected
+   retry succeeds, retain its verified proof without inventing why the first failed.
 
 ## Historical eligibility comes before reading linked documents
 

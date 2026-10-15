@@ -372,6 +372,9 @@ def test_schwab_probe_closes_the_actual_supported_broker_lifecycle(monkeypatch, 
 
     monkeypatch.setattr(module, "Schwab", ReadOnlyBroker)
     monkeypatch.setattr(probe, "configure_environment", lambda *args: None)
+    # main() suppresses private provider logging for its standalone process.
+    # Invoking it in pytest must not disable logging for subsequent tests.
+    monkeypatch.setattr(probe.logging, "disable", lambda *args: None)
     monkeypatch.setattr(sys, "argv", ["probe", "--token-path", str(token), "--app-env", "synthetic.env"])
     assert probe.main() == 0
     assert closed == [True]

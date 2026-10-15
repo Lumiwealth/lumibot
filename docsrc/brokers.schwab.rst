@@ -502,6 +502,31 @@ Market Data
 - Futures quotes can stream. Futures candle history is not requested.
 - No extra entitlements required for individual developers.
 
+Bulk option snapshots
+---------------------
+
+``Strategy.get_chain_full_info`` uses one Schwab option-chain request for the
+selected expiration, returning both calls and puts with bid, ask, last, sizes,
+volume, open interest, Greeks, and provider ``quote_time`` / ``trade_time``.
+This avoids reconstructing the chain with one price request per contract.
+The API is unchanged; the Schwab data source supplies the efficient implementation.
+
+.. code-block:: python
+
+   underlying = self.create_asset("SPY")
+   # Select expiration using the strategy's existing expiry policy.
+   snapshot = self.get_chain_full_info(underlying, expiration)
+   calls = snapshot[snapshot["option_type"] == "CALL"] if not snapshot.empty else snapshot
+
+The response is a snapshot, not a stream or a promise of fresh executable prices.
+Check provider timestamps, missing bid/ask, spread and liquidity before acting.
+Missing values remain missing; they are not replaced with zero or the current time.
+Apply the strategy's original eligibility and pricing formulas to the returned
+rows. A fresh decision may require a fresh snapshot. Do not retain prices across
+scans indefinitely. ``strike_min`` and ``strike_max`` filter inclusively.
+HTTP failures raise ``ConnectionError`` rather than returning an apparently empty
+market. An empty successful chain returns an empty DataFrame.
+
 Rate Limits & Token Expiry
 --------------------------
 

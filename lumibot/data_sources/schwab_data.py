@@ -352,6 +352,90 @@ class SchwabData(DataSource):
             logger.error(colored(f"Error getting option chains for {asset.symbol}: {str(e)}", "red"))
             return {}
 
+    def get_chain_full_info(
+        self, asset: Asset, expiry, chains=None, underlying_price=None,
+        risk_free_rate=None, strike_min=None, strike_max=None,
+    ):
+        """Fetch one expiration's prices and Greeks in one Schwab request.
+
+        This overrides DataSource's per-contract reconstruction using the
+        existing public full-chain API. ``chains`` may be previously fetched
+        strike metadata; it is not a quote cache. Each call requests a fresh
+        snapshot. Missing prices and timestamps stay missing, so callers must
+        apply their own liquidity and freshness requirements before trading.
+        Provider failures raise rather than masquerading as an empty market.
+        """
+        if isinstance(expiry, datetime.datetime):
+            expiry = expiry.date()
+        elif isinstance(expiry, str):
+            expiry = datetime.date.fromisoformat(expiry)
+        elif not isinstance(expiry, datetime.date):
+            raise TypeError("expiry must be an ISO date string, datetime.date or datetime.datetime instance")
+        if self.client is None:
+            raise ConnectionError("No Schwab client available for full option chain")
+        if strike_min is not None and strike_max is not None and strike_min > strike_max:
+            raise ValueError("strike_min must not exceed strike_max")
+
+        response = self.client.get_option_chain(
+            symbol=asset.symbol,
+            contract_type=self.client.Options.ContractType.ALL,
+            strategy=self.client.Options.Strategy.SINGLE,
+            from_date=expiry,
+            to_date=expiry,
+            include_underlying_quote=False,
+        )
+        status = getattr(response, "status_code", None)
+        if status != 200:
+            # Do not include provider bodies: they may contain account details.
+            raise ConnectionError(f"Schwab full option chain request failed (status {status})")
+        payload = response.json()
+        if not isinstance(payload, dict):
+            raise ValueError("Invalid Schwab full option chain response")
+
+        rows = []
+        for right, map_name in (("CALL", "callExpDateMap"), ("PUT", "putExpDateMap")):
+            expiration_map = payload.get(map_name) or {}
+            if not isinstance(expiration_map, dict):
+                raise ValueError("Invalid Schwab option expiration map")
+            for expiration_key, strikes in expiration_map.items():
+                if str(expiration_key).split(":", 1)[0] != expiry.isoformat():
+                    continue
+                if not isinstance(strikes, dict):
+                    raise ValueError("Invalid Schwab option strike map")
+                for contracts in strikes.values():
+                    if not isinstance(contracts, list):
+                        raise ValueError("Invalid Schwab option contracts")
+                    for item in contracts:
+                        if not isinstance(item, dict):
+                            raise ValueError("Invalid Schwab option contract")
+                        strike = item.get("strikePrice")
+                        if strike is None or not item.get("symbol"):
+                            continue
+                        strike = float(strike)
+                        if strike_min is not None and strike < strike_min:
+                            continue
+                        if strike_max is not None and strike > strike_max:
+                            continue
+                        row = {
+                            "symbol": item["symbol"], "last": item.get("last"),
+                            "expiration_date": expiry, "strike": strike,
+                            "option_type": right, "underlying": asset.symbol,
+                            "open_interest": item.get("openInterest"),
+                            "bid": item.get("bid"), "ask": item.get("ask"),
+                            "bidsize": item.get("bidSize"), "asksize": item.get("askSize"),
+                            "volume": item.get("totalVolume"),
+                            "last_volume": item.get("lastSize"),
+                            "average_volume": None, "type": "option",
+                            "implied_volatility": item.get("volatility"),
+                            "quote_time": self.convert_epoch_ms_to_datetime(item.get("quoteTimeInLong")),
+                            "trade_time": self.convert_epoch_ms_to_datetime(item.get("tradeTimeInLong")),
+                        }
+                        for greek in ("delta", "gamma", "theta", "vega", "rho"):
+                            value = item.get(greek)
+                            row[f"greeks.{greek}"] = None if value == -999 else value
+                        rows.append(row)
+        return pd.DataFrame(rows).sort_values(["strike", "option_type"]).reset_index(drop=True) if rows else pd.DataFrame()
+
     def convert_timestep_str_to_timedelta(self, timestep_str):
         """
         Convert a timestep string to a timedelta object.

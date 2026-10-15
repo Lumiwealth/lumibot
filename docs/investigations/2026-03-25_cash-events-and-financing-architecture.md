@@ -153,6 +153,12 @@ responses are split into overlapping windows with stable-ID deduplication,
 bounded request count and explicit failure if a one-second window saturates.
 No queue token or silently truncated list is invented.
 
+The request explicitly selects cash-funding, journal and dividend/interest
+categories. `RECEIVE_AND_DELIVER` security activity, money-market movements and
+memoranda are not queried as cash funding. In particular, a security transfer's
+zero `netAmount` is not its capital value. An account with in-kind transfers
+still needs separate valuation evidence before adjusted returns are available.
+
 Cash, ACH, electronic-fund and wire activity is external capital by signed
 `netAmount`. `DIVIDEND_OR_INTEREST` remains non-external `other_cash` because
 the combined provider type alone cannot distinguish those income categories.

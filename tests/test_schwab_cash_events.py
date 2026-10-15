@@ -76,6 +76,14 @@ def test_schwab_cash_events_skip_trade_cash_and_embedded_fees():
     assert broker.get_cash_events() == []
 
 
+def test_schwab_cash_query_does_not_claim_security_transfer_valuation():
+    broker, calls = broker_for([])
+    assert broker.get_cash_events() == []
+    requested = {value.value for value in calls[0]["transaction_types"]}
+    assert {"ACH_RECEIPT", "CASH_DISBURSEMENT", "JOURNAL", "DIVIDEND_OR_INTEREST"} <= requested
+    assert not requested & {"TRADE", "RECEIVE_AND_DELIVER", "MEMORANDUM", "MONEY_MARKET"}
+
+
 @pytest.mark.parametrize("provider_time", ["2026-10-01T04:00:00+0000", "2026-10-01T06:00:00+0200"])
 def test_schwab_compact_provider_timezone_is_parsed_on_python_310(provider_time):
     event = Schwab._normalize_transaction_to_cash_event(transaction(time=provider_time))

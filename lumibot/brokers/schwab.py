@@ -300,6 +300,10 @@ class Schwab(Broker):
     """
 
     NAME = "Schwab"
+    CASH_FUNDING_TRANSACTION_TYPES = {
+        "ACH_RECEIPT", "ACH_DISBURSEMENT", "CASH_RECEIPT",
+        "CASH_DISBURSEMENT", "WIRE_IN", "WIRE_OUT", "ELECTRONIC_FUND",
+    }
     ACTIVE_SCHWAB_ORDER_STATUSES = {
         "AWAITING_PARENT_ORDER",
         "AWAITING_CONDITION",
@@ -971,10 +975,7 @@ class Schwab(Broker):
         if kind == "TRADE":
             # Trade proceeds and embedded commissions already affect value.
             return None
-        funding_types = {
-            "ACH_RECEIPT", "ACH_DISBURSEMENT", "CASH_RECEIPT",
-            "CASH_DISBURSEMENT", "WIRE_IN", "WIRE_OUT", "ELECTRONIC_FUND",
-        }
+        funding_types = Schwab.CASH_FUNDING_TRANSACTION_TYPES
         journal_type = None
         if kind == "JOURNAL":
             description = transaction.get("description")
@@ -1049,7 +1050,8 @@ class Schwab(Broker):
     def get_cash_events(self, *, since=None, limit=100):
         """Read normalized transactions in the SDK's documented recent window.
 
-        This list is event evidence, not a certificate of all-time coverage.
+        This list is cash event evidence, not a certificate of all-time or
+        in-kind funding coverage. Security transfers need separate valuation.
         Requests older than 60 days, unresolved classifications, saturated
         responses and caller limits that would discard events fail explicitly.
         No strategy, order, stream or OAuth setup is started by this method.
@@ -1074,11 +1076,12 @@ class Schwab(Broker):
                 raise ValueError("Schwab cash-event start is after the request end")
         windows = [(start, end)]
         events = {}
-        # Trades can dominate the endpoint's result cap. Request every SDK
-        # non-trade category so deposits cannot be hidden behind trade history.
+        # Request cash categories explicitly: neither trade cash nor a
+        # security transfer's zero netAmount measures external cash funding.
+        cash_types = self.CASH_FUNDING_TRANSACTION_TYPES | {"JOURNAL", "DIVIDEND_OR_INTEREST"}
         transaction_types = [
             value for value in _get_client_class().Transactions.TransactionType
-            if value.value != "TRADE"
+            if value.value in cash_types
         ]
         requests_remaining = 127
         timeouts_remaining = 8

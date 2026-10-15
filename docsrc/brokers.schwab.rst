@@ -35,6 +35,10 @@ Cash activity history
 transactions through the existing authenticated Schwab client. Omitting
 ``since`` requests the SDK's documented 60-day window, not all-time history.
 Dates require a timezone. The method does not start a strategy or place orders.
+The query selects cash, journal and dividend/interest categories. Security
+receive/deliver activity is outside this cash API; its zero cash amount does
+not establish the value of an in-kind transfer. This method alone cannot
+establish complete external-capital coverage for such an account.
 
 ACH, cash and wire movements retain their signed amount and stable provider
 activity ID. Dividends and interest remain investment income; trade proceeds

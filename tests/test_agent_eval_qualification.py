@@ -535,3 +535,12 @@ def test_new_calibration_attempt_invalidates_an_older_publishable_receipt(native
     with pytest.raises(ValueError):
         qualification.verify_receipt(invalidated, native_metadata[2], runtime_hash="source",
                                      versions=native_metadata[3], now=native_metadata[4])
+
+
+def test_native_export_retains_original_header_and_explicit_allowance_amendment(native_metadata):
+    metadata = deepcopy(native_metadata)
+    metadata[1].append({"kind": "allowance_amendment", "previous_max_calls": 500, "max_calls": 1500,
+                        "reason": "Additional source qualification", "timestamp": metadata[4].isoformat()})
+    receipt = make_receipt(metadata)
+    assert receipt["call_allowance"] == {"max_calls": 1500, "consumed_calls": 12}
+    assert metadata[1][0]["max_calls"] == 500

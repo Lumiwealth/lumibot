@@ -295,3 +295,14 @@ an additional formatting operation is not required. Future-document access,
 lexical timestamp filtering and unproved historical availability still fail the
 unchanged negative controls. These are grading corrections, not actor policy,
 fixture-label changes or substitutes for real-model qualification.
+
+
+An explicitly disclosed allowance extension uses
+`SubscriptionCallBudget.amend_limit(...)`. It appends the old/new limits, time
+and reason, keeps the original header and every reservation/settlement, and
+remains under the 1,500-call hard ceiling. Resume with the amended explicit limit.
+Constructors never silently raise a limit. Decreases, concurrent duplicate
+amendments, new/empty ledgers and retroactive authorization of calls beyond a
+prior cap are rejected. Qualification export counts all old calls and binds the
+entire amended journal. A source-changing repair still requires fresh evidence;
+an allowance amendment does not make incompatible passes current.

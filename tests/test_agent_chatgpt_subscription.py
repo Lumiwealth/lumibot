@@ -511,3 +511,86 @@ def test_stateless_tool_continuation_replays_opaque_reasoning_and_function_items
     assert {item['call_id'] for item in outputs} == ({'call_contract', 'call_parallel'} if runner_mode else {'call_contract'})
     assert 'opaque-contract' not in json.dumps(model.model_dump(mode='json'))
     assert requests[1]['store'] is False
+
+
+def test_subscription_allowance_amendment_preserves_every_existing_call(tmp_path):
+    from scripts.agent_eval_subscription_budget import SubscriptionCallBudget
+    path = tmp_path / "calls.jsonl"
+    first = SubscriptionCallBudget(path, max_calls=2)
+    ticket = first.reserve("chatgpt/gpt-6-luna", 100)
+    first.settle(ticket, {"input_tokens": 5, "output_tokens": 2})
+    original = path.read_bytes()
+    SubscriptionCallBudget.amend_limit(path, previous_limit=2, max_calls=3, reason="Reviewed additional qualification")
+    assert path.read_bytes().startswith(original)
+    resumed = SubscriptionCallBudget(path, max_calls=3)
+    resumed.reserve("chatgpt/gpt-6-luna", 100)
+    resumed.reserve("chatgpt/gpt-6-luna", 100)
+    with pytest.raises(ValueError, match="call limit"):
+        resumed.reserve("chatgpt/gpt-6-luna", 100)
+    assert resumed.header["max_calls"] == 2
+    assert resumed.snapshot()["max_calls"] == 3
+    assert resumed.snapshot()["usage"]["input_tokens"] == 5
+
+
+@pytest.mark.parametrize("limit,reason", [(1, "review"), (2, "review"), (1501, "review"), (True, "review"), (3, "")])
+def test_subscription_allowance_rejects_invalid_amendments_without_writing(tmp_path, limit, reason):
+    from scripts.agent_eval_subscription_budget import SubscriptionCallBudget
+    path = tmp_path / "calls.jsonl"
+    SubscriptionCallBudget(path, max_calls=2)
+    original = path.read_bytes()
+    with pytest.raises(ValueError):
+        SubscriptionCallBudget.amend_limit(path, previous_limit=2, max_calls=limit, reason=reason)
+    assert path.read_bytes() == original
+
+
+def test_subscription_allowance_amendment_is_single_flight(tmp_path):
+    from concurrent.futures import ThreadPoolExecutor
+
+    from scripts.agent_eval_subscription_budget import SubscriptionCallBudget
+    path = tmp_path / "calls.jsonl"
+    SubscriptionCallBudget(path, max_calls=2)
+    def amend(_):
+        try:
+            SubscriptionCallBudget.amend_limit(path, previous_limit=2, max_calls=3, reason="Scoped extension")
+            return True
+        except ValueError:
+            return False
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        assert sorted(pool.map(amend, range(2))) == [False, True]
+    assert SubscriptionCallBudget(path, max_calls=3).snapshot()["max_calls"] == 3
+
+
+def test_subscription_amendment_cannot_create_a_new_ledger(tmp_path):
+    from scripts.agent_eval_subscription_budget import SubscriptionCallBudget
+    path = tmp_path / "missing.jsonl"
+    with pytest.raises(ValueError, match="existing"):
+        SubscriptionCallBudget.amend_limit(path, previous_limit=2, max_calls=3, reason="review")
+    assert not path.exists()
+
+
+def test_subscription_amendment_cannot_retroactively_authorize_overspending(tmp_path):
+    import json
+    from uuid import uuid4
+
+    from scripts.agent_eval_subscription_budget import SubscriptionCallBudget
+    path = tmp_path / "calls.jsonl"
+    budget = SubscriptionCallBudget(path, max_calls=1)
+    budget.reserve("chatgpt/gpt-6-luna", 100)
+    rows = [json.loads(line) for line in path.read_text().splitlines()]
+    extra = {**rows[-1], "id": str(uuid4())}
+    amendment = {"kind": "allowance_amendment", "previous_max_calls": 1, "max_calls": 3,
+                 "reason": "Too late", "timestamp": extra["timestamp"]}
+    with path.open("a") as stream:
+        stream.write(json.dumps(extra) + "\n" + json.dumps(amendment) + "\n")
+    with pytest.raises(ValueError, match="exceeded"):
+        SubscriptionCallBudget(path, max_calls=3)
+
+
+@pytest.mark.parametrize("model", ["chatgpt/gpt-6-sol", "chatgpt/gpt-6.1-sol", "chatgpt/gpt-6-astra"])
+def test_nested_eval_budget_rejects_unapproved_model_before_reservation(tmp_path, model):
+    from scripts.agent_eval_subscription_budget import SubscriptionCallBudget
+    budget = SubscriptionCallBudget(tmp_path / "calls.jsonl", max_calls=2)
+    scope = budget.for_scope("case", 1, "nested_actor")
+    with pytest.raises(ValueError, match="Luna"):
+        scope.reserve(model, 100)
+    assert budget.snapshot()["reserved_calls"] == 0

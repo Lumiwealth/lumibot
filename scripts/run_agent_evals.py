@@ -1496,7 +1496,11 @@ def recover_native_incomplete_attempts(rows, native_rows, fingerprints):
         return []
     from scripts.agent_eval_call_budget import EvalCallBudget
 
-    calls = EvalCallBudget._calls(native_rows[1:])
+    if any(isinstance(row, dict) and row.get("kind") == "allowance_amendment" for row in native_rows[1:]):
+        from scripts.agent_eval_subscription_budget import subscription_call_state
+        _, calls = subscription_call_state(native_rows)
+    else:
+        calls = EvalCallBudget._calls(native_rows[1:])
     candidates = {}
     for call in calls.values():
         scope = call.get("scope") or {}

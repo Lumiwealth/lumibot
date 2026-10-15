@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Match Schwab funding coverage to the SDK's whole-second wire precision, overlapping inclusive starts inside the one-year request bound. Preserve continuous producer identity after one-shot snapshots.
+- Enforce Luna subscription-only qualification across top-level and nested calls, reject SDK drift before inference, and keep explicit cumulative-allowance amendments append-only. Calibrate numerical-residue and typed-SQL grading against unchanged safe/unsafe controls.
+
 - Send account/window funding-sync evidence through the shared cloud sender. Audit all non-trade Schwab categories; retain known cash while explicitly reporting unresolved transfers/corrections or unavailable history. Drain every pending batch for one-shot account snapshots, preserve receipt identities on retry, and serialize concurrent cloud updates.
 
 - Harden Schwab funding and token storage: use the official one-year transaction-request maximum with bounded historical slices; reject explicit corrections and malformed provider fields without leaking response details. Preserve saved credentials on login/metadata/storage failures, share private atomic writes across login and refresh, and advance adapter token state only after persistence. Validate read-only account discovery and retain its primary error during cleanup. Correct documentation that incorrectly promised a rolling seven-day authorization.

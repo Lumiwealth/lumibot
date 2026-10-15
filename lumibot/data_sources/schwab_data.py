@@ -743,120 +743,79 @@ class SchwabData(DataSource):
             logger.error(colored(f"Error converting timestamp: {e}", "red"))
             return None
 
-    def get_quote(self, asset, quote=None, exchange=None) -> Quote:
+    def _quote_from_response(self, asset, symbol, asset_quote):
+        """The same exact-symbol parser serves singleton and bulk requests."""
+        quote_info = asset_quote.get("quote", {})
+        if not isinstance(quote_info, dict):
+            raise ValueError("Invalid Schwab quote fields")
+        quote_time = self.convert_epoch_ms_to_datetime(quote_info.get("quoteTime"))
+        bid_time = self.convert_epoch_ms_to_datetime(quote_info.get("bidTime"))
+        ask_time = self.convert_epoch_ms_to_datetime(quote_info.get("askTime"))
+        times = [value for value in (quote_time, bid_time, ask_time) if value is not None]
+        timestamp = max(times) if times else datetime.datetime.now(datetime.timezone.utc)
+        return _get_quote_class()(
+            asset=asset, price=quote_info.get("lastPrice"),
+            bid=quote_info.get("bidPrice"), ask=quote_info.get("askPrice"),
+            volume=quote_info.get("totalVolume"), timestamp=timestamp,
+            quote_time=quote_time, bid_time=bid_time, ask_time=ask_time,
+            bid_size=quote_info.get("bidSize"), ask_size=quote_info.get("askSize"),
+            change=quote_info.get("netChange"),
+            percent_change=quote_info.get("netPercentChangeInDouble"),
+            raw_data=asset_quote, symbol_used=symbol,
+        )
+
+    def get_quotes(self, assets, quote=None, exchange=None):
+        """Fetch exact stock/option/future contracts in batches of at most 50.
+
+        Return every requested Asset mapped to a Quote or None when its symbol
+        is absent. Preserve recorded quote times and missing bid/ask values.
+        No last-price substitution, persistent cache or per-contract retries.
+        Provider/shape failures raise; callers must not treat them as no market.
         """
-        This function returns the quote of an asset as a Quote object.
-        
-        Parameters
-        ----------
-        asset: Asset
-            The asset to get the quote for
-        quote: Asset
-            The quote asset to get the quote for (not currently used for Schwab)
-        exchange: str
-            The exchange to get the quote for (not currently used for Schwab)
-
-        Returns
-        -------
-        Quote
-            Quote object containing detailed information about the asset
-        """
-        if self.client is None:
-            logger.error(colored("No Schwab client available for get_quote", "red"))
-            return None
-
-        if getattr(asset, "asset_type", None) == "crypto":
-            logger.error(colored(
-                "Schwab does not support the crypto asset type. Equity tickers such as BTC and ETH are unchanged.",
-                "red",
-            ))
-            return None
-
-        try:
-            # Format the symbol according to asset type
+        assets = list(dict.fromkeys(assets))
+        if not assets:
+            return {}
+        symbols = {}
+        for asset in assets:
             symbol = _schwab_market_symbol(asset)
             if not symbol:
-                logger.error(colored(f"No Schwab symbol for {getattr(asset, 'symbol', asset)}", "red"))
-                return None
+                raise ValueError("Schwab does not support the requested quote asset")
+            symbols[asset] = symbol
+        if self.client is None:
+            raise ConnectionError("No Schwab client available for quotes")
+        result = {}
+        for offset in range(0, len(assets), 50):
+            batch = assets[offset:offset + 50]
+            response = self.client.get_quotes([symbols[asset] for asset in batch])
+            if getattr(response, "status_code", None) != 200:
+                raise ConnectionError(f"Schwab quote request failed (status {getattr(response, 'status_code', None)})")
+            payload = response.json()
+            if not isinstance(payload, dict):
+                raise ValueError("Invalid Schwab quotes response")
+            for asset in batch:
+                symbol = symbols[asset]
+                matches = [key for key in payload if isinstance(key, str) and key.upper() == symbol.upper()]
+                if len(matches) > 1:
+                    raise ValueError("Ambiguous Schwab quote symbol")
+                data = payload[matches[0]] if matches else None
+                if data is None:
+                    result[asset] = None
+                    continue
+                if not isinstance(data, dict):
+                    raise ValueError("Invalid Schwab quote response")
+                if not data:
+                    result[asset] = None
+                    continue
+                reported = data.get("symbol")
+                if reported is not None and str(reported).upper() != symbol.upper():
+                    raise ValueError("Schwab quote contract does not match the requested asset")
+                result[asset] = self._quote_from_response(asset, matches[0], data)
+        return result
 
-            # Get quotes from Schwab API
-            response = self.client.get_quotes([symbol])
-
-            # Check for valid response
-            if not hasattr(response, 'status_code'):
-                logger.error(colored(f"Unexpected response type from get_quotes: {type(response)}", "red"))
-                return None
-
-            if response.status_code != 200:
-                logger.error(colored(f"Error fetching quote for {symbol}: {response.status_code}, {response.text}", "red"))
-                return None
-
-            # Parse response JSON
-            quote_data = response.json()
-
-            # Get quote for our symbol
-            asset_quote = quote_data.get(symbol)
-
-            if not asset_quote:
-                # Try case-insensitive match
-                for key in quote_data:
-                    if key.upper() == symbol.upper():
-                        asset_quote = quote_data[key]
-                        symbol = key  # Update symbol to the matched key
-                        break
-
-            if not asset_quote:
-                logger.warning(colored(f"No quote data found for {symbol}", "yellow"))
-                return None
-
-            # Extract quote information
-            quote_info = asset_quote.get('quote', {})
-
-            # Get timestamps as datetime objects
-            quote_time = self.convert_epoch_ms_to_datetime(quote_info.get('quoteTime'))
-            bid_time = self.convert_epoch_ms_to_datetime(quote_info.get('bidTime'))
-            ask_time = self.convert_epoch_ms_to_datetime(quote_info.get('askTime'))
-
-            # Use most recent timestamp as the main quote timestamp
-            timestamp = quote_time
-            if bid_time and (not timestamp or bid_time > timestamp):
-                timestamp = bid_time
-            if ask_time and (not timestamp or ask_time > timestamp):
-                timestamp = ask_time
-
-            # If we still don't have a timestamp, use current time
-            if not timestamp:
-                timestamp = datetime.datetime.now(datetime.timezone.utc)
-
-            # Extract additional useful fields that might be available
-            bid_size = quote_info.get('bidSize')
-            ask_size = quote_info.get('askSize')
-            last_price = quote_info.get('lastPrice')
-            bid_price = quote_info.get('bidPrice')
-            ask_price = quote_info.get('askPrice')
-            volume = quote_info.get('totalVolume')
-            change = quote_info.get('netChange')
-            percent_change = quote_info.get('netPercentChangeInDouble')
-
-            # Create and return Quote object
-            return _get_quote_class()(
-                asset=asset,
-                price=last_price,
-                bid=bid_price,
-                ask=ask_price,
-                volume=volume,
-                timestamp=timestamp,
-                quote_time=quote_time,
-                bid_time=bid_time,
-                ask_time=ask_time,
-                bid_size=bid_size,
-                ask_size=ask_size,
-                change=change,
-                percent_change=percent_change,
-                raw_data=asset_quote,
-                symbol_used=symbol
-            )
-
-        except Exception as e:
-            logger.error(colored(f"Error in get_quote for {asset.symbol}: {str(e)}", "red"))
+    def get_quote(self, asset, quote=None, exchange=None) -> Quote:
+        """Get one quote, preserving the existing None-on-error contract."""
+        try:
+            return self.get_quotes([asset], quote=quote, exchange=exchange)[asset]
+        except Exception as exc:
+            logger.error(colored(f"Error in get_quote for {getattr(asset, 'symbol', asset)}: {exc}", "red"))
             return None

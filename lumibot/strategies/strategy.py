@@ -3080,6 +3080,35 @@ class Strategy(_Strategy):
             self.log_message(f"Error getting quote from data source: {e}", color="red")
             return _quote_class()(asset=asset)
 
+    def get_quotes(self, assets: List[Asset], quote: Asset = None, exchange: str = None):
+        """Return exact Assets mapped to Quote objects (or None when absent).
+
+        Schwab batches up to 50 symbols per request, including selected option
+        contracts. Other providers retain their existing get_quote behavior;
+        no batching speed is promised without a native adapter. Option assets
+        honor the configured option_source just like get_quote. A native batch
+        failure raises instead of silently triggering serial retries. Snapshot
+        freshness and trading decisions remain the strategy's responsibility.
+        """
+        assets = list(dict.fromkeys(self._sanitize_user_asset(asset) for asset in assets))
+        groups = {}
+        for asset in assets:
+            source = self.broker.option_source if self.broker.option_source and asset.asset_type == "option" else self.broker.data_source
+            groups.setdefault(id(source), (source, []))[1].append(asset)
+        result = {}
+        for source, selected in groups.values():
+            native = getattr(source, "get_quotes", None)
+            if callable(native):
+                quotes = native(selected, quote=quote, exchange=exchange)
+                if not isinstance(quotes, dict) or any(asset not in quotes for asset in selected):
+                    raise ValueError("Bulk quote adapter omitted requested asset results")
+                if any(value is not None and getattr(value, "asset", None) != asset for asset, value in quotes.items() if asset in selected):
+                    raise ValueError("Bulk quote adapter returned another asset's quote")
+                result.update({asset: quotes[asset] for asset in selected})
+            else:
+                result.update({asset: self.get_quote(asset, quote=quote, exchange=exchange) for asset in selected})
+        return {asset: result[asset] for asset in assets}
+
     def get_tick(self, asset: Union[Asset, str]):
         """Takes an Asset and returns the last known price"""
         # TODO: Should this function be depricated? This appears to be an IBKR-only thing.

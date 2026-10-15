@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 4.6.19 - 2026-10-15
 
 - Match Schwab funding coverage to the SDK's whole-second wire precision, overlapping inclusive starts inside the one-year request bound. Preserve continuous producer identity after one-shot snapshots.
 - Enforce Luna subscription-only qualification across top-level and nested calls, reject SDK drift before inference, and keep explicit cumulative-allowance amendments append-only. Calibrate numerical-residue and typed-SQL grading against unchanged safe/unsafe controls.
@@ -15,9 +15,14 @@
 - Add an explicit `chatgpt/<model>` agent connection using supported Sign in with ChatGPT, protected local profiles, model discovery, rotating refresh and logout. Subscription transport requires successful stream completion and never falls back to an API key. Support included plan allowance and explicitly authorized existing ChatGPT credits without changing the account-wide usage setting.
 - Move canonical evaluation actors, semantic judges and rubric calibration to subscription funding with a resumable per-call allowance. Reject API-funded eval model selections and remove ordinary provider/broker credentials from fixture processes. Real model qualification and private CI grant wiring remain release requirements.
 
-## 4.6.19 - 2026-10-10
+- Add exact-asset bulk quotes to Strategy and Schwab, retrieve full Schwab option snapshots in one chain request, bound empty-chain fallback and reject unsuccessful chain responses. OptionsHelper can evaluate a supplied snapshot without redundant market reads while preserving exact contract identity and freshness.
 
-Deploy marker: `805f00ab67f87bed5dc5591c4ffe18a03695f425`.
+- Reconcile broad order refresh through the adapter lifecycle owner, preserving direct-refresh fills, rejection evidence and option underlying identity.
+
+- Persist explicit private agent tool purpose and ordered tool audit events, with separately authorized public order reasons. Preserve typed remote MCP failures, observed execution evidence and managed replay linkage without exposing private journal content as public reasons.
+- Strengthen general research and trading guidance: verify historical document versions and eligible manifests before reading, retain source identities and timing, distinguish live research from unavailable historical replay, use completed intraday signals, and reconcile executable option packages and existing pending orders. Atomic multi-leg backtest fills enforce quoted package limits. Native actor repetitions and unchanged safe/unsafe calibration controls gate publication.
+
+Earlier IBKR qualification marker: `805f00ab67f87bed5dc5591c4ffe18a03695f425` (not a separately published release).
 
 - Recover independently passing native eval cases from their durable ledger after a timeout, even when the final freshness checkpoint was not written. Preserve failed fingerprints and require distinct completed repetitions; this is qualification recovery, not an agent-policy change.
 

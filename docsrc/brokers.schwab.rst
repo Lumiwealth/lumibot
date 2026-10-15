@@ -144,6 +144,30 @@ Supported functionality
 
 Multi-leg option spreads and futures trades are not yet implemented.
 
+Deposits, withdrawals and account transfers
+-------------------------------------------
+
+Schwab cash history uses the existing authenticated brokerage client. Signed
+cash amounts and stable provider transaction IDs distinguish deposits,
+withdrawals, internal journals, income, fees and adjustments. The adapter
+audits non-trade transaction categories, uses bounded requests within Schwab's
+one-year request maximum and subdivides saturated or timed-out windows.
+Trade proceeds are not external funding.
+
+Use ``get_cash_event_sync(since=..., limit=...)`` when completeness matters.
+It preserves known cash while reporting unresolved journals, corrections or
+in-kind transfers as partial. It does not infer the capital value of securities
+from cost basis or a zero cash amount. A failed provider read is unavailable,
+not a complete empty history. The default 60-day lookback does not certify
+all-time retention.
+
+Audited windows match the SDK's whole-second precision. Requests overlap each
+inclusive start by one second within the one-year request bound; normalized
+events are filtered to the declared start-inclusive/end-exclusive window.
+See :doc:`cash_accounting` for funding receipts, batch retries and one-shot
+account snapshots. These methods retrieve/report history and do not initiate
+cash or security transfers.
+
 Order and position freshness
 ----------------------------
 

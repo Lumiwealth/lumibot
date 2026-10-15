@@ -979,10 +979,10 @@ class Schwab(Broker):
         if transaction.get("status") != "VALID":
             raise ValueError("Schwab transaction status requires reconciliation")
         identifier = transaction.get("activityId")
-        if identifier is None or isinstance(identifier, bool) or not str(identifier).strip():
+        if not isinstance(identifier, (str, int)) or isinstance(identifier, bool) or not str(identifier).strip():
             raise ValueError("Schwab transaction is missing a stable activity identifier")
         amount = transaction.get("netAmount")
-        if amount is None or isinstance(amount, bool) or amount == "":
+        if amount is None or isinstance(amount, bool) or (isinstance(amount, str) and not amount.strip()):
             raise ValueError("Schwab transaction is missing a cash amount")
         try:
             amount = CashEvent.coerce_amount(amount)
@@ -997,6 +997,8 @@ class Schwab(Broker):
         currencies = set()
         for item in transfer_items:
             instrument = item.get("instrument", {}) if isinstance(item, dict) else {}
+            if not isinstance(instrument, dict):
+                raise ValueError("Schwab transaction currency is unavailable")
             if instrument.get("assetType") != "CURRENCY":
                 # A cash dividend may reference the paying security; an external
                 # transfer containing securities needs an independently verified valuation.
@@ -1019,6 +1021,8 @@ class Schwab(Broker):
             amount=amount,
             currency=next(iter(currencies)),
             occurred_at=occurred_at,
+            raw_subtype=transaction["status"],
+            description=transaction.get("description"),
             is_external_cash_flow=external,
         )
 
@@ -1050,6 +1054,12 @@ class Schwab(Broker):
                 raise ValueError("Schwab cash-event start is after the request end")
         windows = [(start, end)]
         events = {}
+        # Trades can dominate the endpoint's result cap. Request every SDK
+        # non-trade category so deposits cannot be hidden behind trade history.
+        transaction_types = [
+            value for value in _get_client_class().Transactions.TransactionType
+            if value.value != "TRADE"
+        ]
         requests_remaining = 127
         while windows:
             window_start, window_end = windows.pop()
@@ -1059,6 +1069,7 @@ class Schwab(Broker):
             try:
                 response = self.client.get_transactions(
                     self.hash_value, start_date=window_start, end_date=window_end,
+                    transaction_types=transaction_types,
                 )
             except Exception:
                 # Provider exception text can contain URLs, hashes and credentials.

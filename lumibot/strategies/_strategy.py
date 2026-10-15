@@ -3837,15 +3837,6 @@ class _Strategy:
         sent_queue.append(event_id)
         sent_ids.add(event_id)
 
-    @property
-    def pending_cash_event_count(self) -> int:
-        """Number of fetched cash events awaiting successful cloud delivery.
-
-        Zero describes the delivery queue only; it does not certify provider
-        capability, historical coverage, or downstream persistence.
-        """
-        return len(getattr(self, "_cash_event_pending_for_cloud", []) or [])
-
     @staticmethod
     def _collect_cash_events_for_cloud(self) -> list[CashEvent]:
         pending_events = list(getattr(self, "_cash_event_pending_for_cloud", []) or [])

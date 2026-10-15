@@ -48,9 +48,6 @@ would discard events fail explicitly. Currency must be present in the provider
 cash instruments. A returned list, including an empty list, is event evidence;
 it does not independently certify historical coverage or server persistence.
 
-``strategy.pending_cash_event_count`` reports fetched events still waiting for
-successful cloud delivery. A zero count describes the delivery queue only.
-
 .. _schwab-prerequisites:
 
 Prerequisites

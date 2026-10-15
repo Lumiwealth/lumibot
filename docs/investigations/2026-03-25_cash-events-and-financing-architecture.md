@@ -161,16 +161,14 @@ transfers, currency conversions, non-final statuses and ambiguous amounts or
 timestamps fail until their financial meaning is established. No description
 text is used to guess a classification.
 
-`Strategy.pending_cash_event_count` exposes the fetched delivery backlog, not
-coverage. The cloud sender removes events only after its existing successful
-HTTP acknowledgement. Account/window coverage and durable ingestion proof must
+The cloud sender removes events only after its existing successful HTTP
+acknowledgement. Account/window coverage and durable ingestion proof must
 be supplied by the downstream financial-contract owner before publishing a
 verified adjusted return. This adapter does not enable that availability.
 
 Regression baseline before implementation: `tests/test_schwab_cash_events.py`
 had 32 failures and one pass because the inherited method returned `[]` without
-contacting the provider. The queue-count regression separately failed with an
-AttributeError. Regression coverage includes signed funding, income, unknown
+contacting the provider. Regression coverage includes signed funding, income, unknown
 classifications, duplicates/conflicts, timezones, sliced boundaries, request
 failure after a successful slice and explicit response/retention/size failures.
 All fixtures are synthetic; no account authorization, order or money movement

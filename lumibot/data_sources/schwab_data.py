@@ -270,21 +270,27 @@ class SchwabData(DataSource):
             if strike_range is not None:
                 params["strike_range"] = strike_range
 
-            response = self.client.get_option_chain(**params)
-
-            # Process response
-            if not response:
-                logger.error(colored(f"No response from API for {asset.symbol}", "red"))
-                return {}
-
-            if hasattr(response, 'status_code'):
-                if response.status_code == 200:
-                    data = response.json()
+            def fetch_chain_data():
+                response = self.client.get_option_chain(**params)
+                if not response:
+                    logger.error(colored(f"No response from API for {asset.symbol}", "red"))
+                    return None
+                if hasattr(response, "status_code"):
+                    if response.status_code != 200:
+                        logger.error(colored(f"Error fetching options for {asset.symbol}: {response.status_code}", "red"))
+                        return None
+                    result = response.json()
                 else:
-                    logger.error(colored(f"Error fetching options for {asset.symbol}: {response.status_code}", "red"))
-                    return {}
-            else:
-                data = response
+                    result = response
+                if (not isinstance(result, dict) or result.get("error")
+                        or str(result.get("status", "SUCCESS")).upper() != "SUCCESS"):
+                    logger.error(colored(f"Invalid or unsuccessful option chain for {asset.symbol}", "red"))
+                    return None
+                return result
+
+            data = fetch_chain_data()
+            if data is None:
+                return {}
 
             # Extract option data for both call and put types
             success = False
@@ -311,12 +317,25 @@ class SchwabData(DataSource):
                     # Sort the strikes in ascending order
                     chains["Chains"][option_type][exp_date].sort()
 
-                return True
+                return any(chains["Chains"][option_type].values())
 
             # Extract data for both call and put options
             call_success = extract_option_data("CALL")
             put_success = extract_option_data("PUT")
             success = call_success or put_success
+
+            # A retry must actually change the request. Recursing through this
+            # method recreated NTM every time and could issue unbounded reads.
+            if not success and strike_range is not None and strike_range != self.client.Options.StrikeRange.ALL:
+                logger.warning(colored("No option data found with current strike range. Trying with ALL strikes...", "yellow"))
+                params["strike_range"] = self.client.Options.StrikeRange.ALL
+                data = fetch_chain_data()
+                if data is None:
+                    return {}
+                chains["Chains"] = {"CALL": {}, "PUT": {}}
+                call_success = extract_option_data("CALL")
+                put_success = extract_option_data("PUT")
+                success = call_success or put_success
 
             # Extract underlying data if available
             if 'underlying' in data and (not chains.get("Exchange") or not chains.get("Multiplier")):
@@ -331,13 +350,6 @@ class SchwabData(DataSource):
                     exchange_name = underlying.get('exchange')
                     if exchange_name:
                         chains["Exchange"] = exchange_name
-
-            # If we got no data and we're not already using ALL strikes, try again with ALL strikes
-            if not success and strike_range is not None and strike_range != self.client.Options.StrikeRange.ALL:
-                logger.warning(colored("No option data found with current strike range. Trying with ALL strikes...", "yellow"))
-                # Set to ALL for the recursive call
-                params["strike_range"] = self.client.Options.StrikeRange.ALL
-                return self.get_chains(asset, quote, exchange, strike_count)
 
             if not success:
                 logger.error(colored(f"No option data found for {asset.symbol}", "red"))

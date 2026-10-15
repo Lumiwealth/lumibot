@@ -912,3 +912,16 @@ def test_concurrent_cloud_updates_serialize_funding_batch_acknowledgements(monke
     assert [r["batch"]["index"] for r in receipts] == [0, 1, 2]
     assert len({r["sync_id"] for r in receipts}) == 1
     assert [len(p["cash_events"]) for p in payloads] == [50, 50, 21]
+
+
+def test_one_shot_snapshot_restores_the_continuous_producer_kind(monkeypatch):
+    dummy = _cloud_update_dummy(lambda **kw: [])
+    dummy.broker.get_cash_event_sync = lambda **kw: _funding_sync()
+    payloads = []
+    monkeypatch.delenv("BOTSPOT_DEPLOYMENT_ID", raising=False)
+    monkeypatch.setattr(requests, "post", lambda _url, **kw:
+                        payloads.append(json.loads(kw["data"])) or _Response())
+    assert _Strategy.send_account_snapshot_to_cloud(dummy) is True
+    dummy._cash_event_last_poll_at = None
+    assert _Strategy.send_update_to_cloud(dummy) is True
+    assert [p["funding_sync"]["producer_kind"] for p in payloads] == ["account_snapshot", "external_bot"]

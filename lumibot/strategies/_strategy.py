@@ -3968,21 +3968,30 @@ class _Strategy:
         """
         if type(max_batches) is not int or not 1 <= max_batches <= 10000:
             raise ValueError("max_batches must be an integer between 1 and 10000")
-        self._cash_event_producer_kind = "account_snapshot"
-        for _ in range(max_batches):
-            before = len(getattr(self, "_cash_event_pending_for_cloud", ()) or ())
-            if not _Strategy.send_update_to_cloud(self):
+        lock = self.__dict__.setdefault("_cloud_update_lock", threading.RLock())
+        with lock:
+            previous_kind = self.__dict__.get("_cash_event_producer_kind")
+            self._cash_event_producer_kind = "account_snapshot"
+            try:
+                for _ in range(max_batches):
+                    before = len(getattr(self, "_cash_event_pending_for_cloud", ()) or ())
+                    if not _Strategy.send_update_to_cloud(self):
+                        return False
+                    if getattr(self, "_cash_event_fetch_failed", False):
+                        return False
+                    after = len(getattr(self, "_cash_event_pending_for_cloud", ()) or ())
+                    if not after:
+                        return True
+                    if before and after >= before:
+                        self.logger.error("Snapshot cash-event delivery made no progress")
+                        return False
+                self.logger.error("Snapshot cash-event delivery exceeded its batch budget")
                 return False
-            if getattr(self, "_cash_event_fetch_failed", False):
-                return False
-            after = len(getattr(self, "_cash_event_pending_for_cloud", ()) or ())
-            if not after:
-                return True
-            if before and after >= before:
-                self.logger.error("Snapshot cash-event delivery made no progress")
-                return False
-        self.logger.error("Snapshot cash-event delivery exceeded its batch budget")
-        return False
+            finally:
+                if previous_kind is None:
+                    self.__dict__.pop("_cash_event_producer_kind", None)
+                else:
+                    self._cash_event_producer_kind = previous_kind
 
     def send_update_to_cloud(self):
         """

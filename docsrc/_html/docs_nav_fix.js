@@ -1,8 +1,8 @@
 /**
  * Harden Sphinx/Furo docs navigation for search results and sidebar.
  *
- * PostHog 01a11a50: users reported search-result clicks updating only the URL
- * hash while staying on search.html, and sidebar toggles feeling dead.
+ * Users reported search-result clicks updating only the URL hash while
+ * staying on search.html, and sidebar toggles feeling dead.
  * Sphinx marks the current toctree page as href="#", which is a silent no-op
  * besides changing the hash. This script:
  * - Forces search-result activations to assign a fully resolved document URL
@@ -94,9 +94,12 @@
       if (!raw || raw.charAt(0) === "#") {
         return;
       }
-      // Always leave search.html via a fully resolved URL. Relative hrefs are
-      // normally fine; this also defeats preventDefault from other listeners
-      // and hash-only stuck states reported in session replay.
+      // Leave ordinary primary clicks on a fully resolved URL so search.html
+      // cannot stay stuck with only a hash change. Preserve modified clicks
+      // (new tab / new window) so the rewritten href still opens normally.
+      if (event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) {
+        return;
+      }
       event.preventDefault();
       window.location.assign(resolveDocsUrl(raw));
     },

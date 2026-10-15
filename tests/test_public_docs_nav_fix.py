@@ -1,7 +1,7 @@
 """Contract tests for documentation search/sidebar navigation hardening.
 
 Runs docs_nav_fix.js in a Node VM (no browser, no network). Covers the
-PostHog 01a11a50 failure mode: search-result clicks must leave search.html,
+Regression: search-result clicks must leave search.html,
 and current-page href="#" links must resolve to a real document path.
 """
 
@@ -145,7 +145,13 @@ const clickListener = searchPage.listeners.find((l) => l.type === 'click');
 const evt = {
   target: searchPage.searchAnchor,
   prevented: false,
-  preventDefault() { this.prevented = true; },
+  button: 0,
+  metaKey: false,
+  ctrlKey: false,
+  shiftKey: false,
+  altKey: false,
+  defaultPrevented: false,
+  preventDefault() { this.prevented = true; this.defaultPrevented = true; },
 };
 clickListener.cb(evt);
 

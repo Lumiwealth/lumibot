@@ -141,9 +141,15 @@ def test_subscription_remaining_call_guard_at_the_largest_explicit_cap(tmp_path)
                      "model": "chatgpt/gpt-6-luna", "max_output_tokens": 100,
                      "nano_usd": 0, "reserved_nano_usd": 0, "scope": None}
                     for index in range(1499)]
-    path.write_text("".join(json.dumps(row) + "\n" for row in [budget.header, *reservations]), encoding="utf-8")
+    completed = []
+    for row in reservations:
+        completed.extend([row, {"kind": "settle", "id": row["id"], "nano_usd": 0,
+                               "usage": {"input_tokens": 1, "cached_input_tokens": 0,
+                                         "output_tokens": 1, "thinking_tokens": 0}}])
+    path.write_text("".join(json.dumps(row) + "\n" for row in [budget.header, *completed]), encoding="utf-8")
     budget.reserve("chatgpt/gpt-6-luna", 100)
-    assert budget.snapshot()["reserved_calls"] == 1500
+    assert budget.snapshot()["settled_calls"] == 1499
+    assert budget.snapshot()["reserved_calls"] == 1
     exhausted = path.read_bytes()
     with pytest.raises(SubscriptionCallLimitError):
         SubscriptionCallBudget(path, max_calls=1500).reserve("chatgpt/gpt-6-luna", 100)
@@ -595,3 +601,60 @@ def test_nested_eval_budget_rejects_unapproved_model_before_reservation(tmp_path
     with pytest.raises(ValueError, match="Luna"):
         scope.reserve(model, 100)
     assert budget.snapshot()["reserved_calls"] == 0
+
+
+def test_subscription_output_reservation_uses_provider_maximum_not_ignored_request_limit(tmp_path):
+    from scripts.agent_eval_subscription_budget import SubscriptionCallBudget
+    budget = SubscriptionCallBudget(tmp_path / "calls.jsonl", max_calls=20)
+    for _ in range(7):
+        budget.reserve("chatgpt/gpt-6-luna", 1)
+    before = budget.path.read_bytes()
+    with pytest.raises(ValueError, match="token"):
+        budget.reserve("chatgpt/gpt-6-luna", 1)
+    assert budget.path.read_bytes() == before
+    status = SubscriptionCallBudget(budget.path, max_calls=20).snapshot()
+    assert status["reserved_output_tokens"] == 896_000
+    assert status["api_spend_usd"] == 0
+    assert status["actual_subscription_credit_debit"] is None
+
+
+def test_subscription_settlement_releases_only_unused_token_capacity(tmp_path):
+    from scripts.agent_eval_subscription_budget import SubscriptionCallBudget
+    budget = SubscriptionCallBudget(tmp_path / "calls.jsonl", max_calls=20)
+    tickets = [budget.reserve("chatgpt/gpt-6-luna", 1) for _ in range(7)]
+    budget.settle(tickets[0], {"input_tokens": 5, "cached_input_tokens": 3, "output_tokens": 2})
+    resumed = SubscriptionCallBudget(budget.path, max_calls=20)
+    resumed.reserve("chatgpt/gpt-6-luna", 1)
+    with pytest.raises(ValueError, match="token"):
+        resumed.reserve("chatgpt/gpt-6-luna", 1)
+    s = resumed.snapshot()
+    assert s["settled_calls"] == 1 and s["reserved_calls"] == 7
+    assert s["usage"]["cached_input_tokens"] == 3
+    assert s["equivalent_usd_upper_bound"] > 0
+    assert s["equivalent_usd_upper_bound"] < s["equivalent_usd_allowance"] <= 20
+
+
+def test_subscription_parallel_roles_share_the_cumulative_token_cap(tmp_path):
+    from concurrent.futures import ThreadPoolExecutor
+    from scripts.agent_eval_subscription_budget import SubscriptionCallBudget
+    path = tmp_path / "calls.jsonl"
+    SubscriptionCallBudget(path, max_calls=20)
+    def attempt(index):
+        try:
+            b = SubscriptionCallBudget(path, max_calls=20).for_scope("case", 1, str(index))
+            return b.reserve("chatgpt/gpt-6-luna", 1)
+        except ValueError:
+            return None
+    with ThreadPoolExecutor(max_workers=8) as pool:
+        assert len([r for r in pool.map(attempt, range(12)) if r]) == 7
+
+
+def test_subscription_adk_completion_reasoning_is_counted_once(tmp_path):
+    from scripts.agent_eval_subscription_budget import SubscriptionCallBudget
+    budget = SubscriptionCallBudget(tmp_path / "calls.jsonl", max_calls=2)
+    ticket = budget.reserve("chatgpt/gpt-6-luna", 1)
+    budget.settle(ticket, {"prompt_token_count": 10, "candidates_token_count": 100,
+                          "thoughts_token_count": 80, "cached_content_token_count": 5})
+    usage = budget.snapshot()["usage"]
+    assert usage == {"input_tokens": 10, "cached_input_tokens": 5,
+                     "output_tokens": 20, "thinking_tokens": 80}

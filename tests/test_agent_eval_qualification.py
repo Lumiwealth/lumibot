@@ -97,16 +97,18 @@ def make_receipt(metadata):
     return build_with_calibration(rows, calls, cases, runtime_hash="source", versions=versions, now=now)
 
 
-def test_explicit_new_subscription_attempt_can_qualify_with_1500_call_limit(native_metadata):
+@pytest.mark.parametrize("cap", [1500, 2500])
+def test_explicit_subscription_attempt_can_qualify_with_approved_call_limit(native_metadata, cap):
     metadata = deepcopy(native_metadata)
-    metadata[1][0]["max_calls"] = 1500
+    metadata[1][0]["max_calls"] = cap
     receipt = make_receipt(metadata)
-    assert receipt["call_allowance"] == {"max_calls": 1500, "consumed_calls": 12}
+    assert receipt["call_allowance"] == {"max_calls": cap, "consumed_calls": 12}
     qualification.verify_receipt(receipt, metadata[2], runtime_hash="source",
                                  versions=metadata[3], now=metadata[4])
 
 
-@pytest.mark.parametrize("cap", [1501, 0, -1, True, 1.5, "1500"])
+# The approved ceiling rises; malformed limits and limits above it stay invalid.
+@pytest.mark.parametrize("cap", [2501, 0, -1, True, 1.5, "2500"])
 def test_export_and_verification_reject_invalid_subscription_caps(native_metadata, cap):
     metadata = deepcopy(native_metadata)
     metadata[1][0]["max_calls"] = cap

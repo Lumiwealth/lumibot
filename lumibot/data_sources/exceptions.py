@@ -2,6 +2,10 @@ class InvalidBars(ValueError):
     """Provider observations violate the price contract; never treat them as missing data."""
 
 
+class UnsupportedAsset(ValueError):
+    """The selected provider cannot read this asset type; never treat it as a missing quote."""
+
+
 class NoDataFound(Exception):
     def __init__(self, source, asset):
         message = (

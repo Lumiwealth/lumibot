@@ -53,3 +53,34 @@ def test_supported_quote_retains_identity_and_timestamp(asset_type, symbol):
     assert result.ask == 12.0
     assert result.price == 11.0
     assert client.mock_calls[0].args[0].symbol_or_symbols == symbol
+
+
+@pytest.mark.parametrize("asset_type", ["future", "cont_future", "crypto_future", "forex", "index"])
+def test_public_strategy_quote_preserves_unsupported_asset_error(asset_type):
+    from lumibot.strategies import Strategy
+
+    source = AlpacaData({"API_KEY": "test", "API_SECRET": "test"})
+    asset = Asset("ES", asset_type=asset_type, expiration=dt.date(2026, 12, 18))
+    strategy = SimpleNamespace(
+        _sanitize_user_asset=lambda asset: asset,
+        broker=SimpleNamespace(option_source=None, data_source=source),
+        log_message=Mock(),
+    )
+    with pytest.raises(ValueError, match="Alpaca.*asset type"):
+        Strategy.get_quote(strategy, asset)
+
+
+def test_public_strategy_quote_keeps_transient_provider_failure_fallback():
+    from lumibot.strategies import Strategy
+
+    asset = Asset("SPY")
+    strategy = SimpleNamespace(
+        _sanitize_user_asset=lambda asset: asset,
+        broker=SimpleNamespace(option_source=None, data_source=SimpleNamespace(
+            get_quote=Mock(side_effect=RuntimeError("Provider temporarily unavailable")))),
+        log_message=Mock(),
+    )
+    result = Strategy.get_quote(strategy, asset)
+    assert result.asset is asset
+    assert result.price is None
+    strategy.log_message.assert_called_once()

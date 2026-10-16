@@ -7,6 +7,7 @@ import time
 import warnings
 
 from lumibot._lazy_imports import LazyModule, lazy_class, lazy_typing
+from lumibot.data_sources.exceptions import UnsupportedAsset
 
 from ._strategy import IS_BACKTESTING, _Strategy
 
@@ -3076,6 +3077,8 @@ class Strategy(_Strategy):
                 return self.broker.option_source.get_quote(asset, quote=quote, exchange=exchange)
             else:
                 return self.broker.data_source.get_quote(asset, quote=quote, exchange=exchange)
+        except UnsupportedAsset:
+            raise
         except Exception as e:
             self.log_message(f"Error getting quote from data source: {e}", color="red")
             return _quote_class()(asset=asset)

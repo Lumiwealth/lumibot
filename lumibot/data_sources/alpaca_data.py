@@ -5,7 +5,7 @@ import os
 from lumibot._lazy_imports import LazyLogger, LazyModule, lazy_class
 
 from .data_source import DataSource
-from .exceptions import InvalidBars
+from .exceptions import InvalidBars, UnsupportedAsset
 
 logger = LazyLogger(__name__)
 TYPE_CHECKING = False
@@ -433,7 +433,7 @@ class AlpacaData(DataSource):
     @staticmethod
     def _validate_market_data_asset(asset: Asset) -> None:
         if asset.asset_type not in {Asset.AssetType.STOCK, Asset.AssetType.OPTION, Asset.AssetType.CRYPTO}:
-            raise ValueError(
+            raise UnsupportedAsset(
                 f"Alpaca market data is unavailable for asset type {asset.asset_type} ({asset.symbol})"
             )
 

@@ -24,7 +24,8 @@ Features
 
 Alpaca market-data reads support stocks, options and crypto. Requests for futures,
 continuous futures, crypto futures, forex bases or indices raise ``ValueError``
-before making a provider request. They are never treated as equity tickers sharing
+before making a provider request. This error remains visible through
+``Strategy.get_quote()`` instead of becoming an empty quote. They are never treated as equity tickers sharing
 the same symbol. A forex quote currency such as USD remains valid for crypto pairs.
 Historical batches containing unsupported asset types fail before any request;
 separate those assets and use a data source that supports their contract type.

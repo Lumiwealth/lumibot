@@ -10,6 +10,10 @@ before provider I/O. Stocks, options and crypto retain their existing request
 classes and timestamps. Crypto's forex quote currency remains supported. A mixed
 historical batch containing an unsupported asset fails before any request rather
 than returning misleading partial bars. No other provider is substituted.
+The provider-generic ``UnsupportedAsset`` exception subclasses ``ValueError``;
+``Strategy.get_quote()`` preserves it while retaining the existing empty-quote
+fallback for transient provider failures. This keeps the unsupported error
+visible to callers of the public strategy API, including hosted data readers.
 
 Asset construction previously overwrote every explicit option multiplier with
 100. Omitted option multipliers still default to 100; explicit mini/adjusted

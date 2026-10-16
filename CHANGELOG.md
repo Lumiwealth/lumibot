@@ -1,6 +1,8 @@
 # Changelog
 
-## 4.6.19 - 2026-10-15
+## 4.6.19 - 2026-10-16
+
+- Make blocked research packets explicitly hand off the next observations or documents, time bound, qualified source type and deferred decision. Preserve historical ceilings, original-version/publication proof and configured-source limits.
 
 - Timestamp verified cloud account balances before slower position, order and funding reads, preserving the real observation time for both continuous and one-shot snapshots. Funding coverage and return calculations remain independently validated.
 

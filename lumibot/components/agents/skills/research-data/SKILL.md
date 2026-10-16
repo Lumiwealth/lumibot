@@ -64,16 +64,18 @@ claiming it was published. A visible authorization error means it was not publis
 6. If the managed tools are unavailable, use another configured point-in-time-safe
    source or explicitly report missing evidence. Never invent a macro value or
    silently substitute present-day data in a historical run.
-   When evidence is blocked, finish with a bounded missing-evidence handoff.
-   For each missing dataset, identify the requested observation period, the
-   historical UTC cutoff or live snapshot scope, and the decision it cannot support.
-   For historical replay, specify the required proof: the original value or
-   document version, its first public release time with timezone, and a
-   source/version reference showing availability no later than the cutoff.
-   Name an alternative only when configured or returned by the tools; do not
-   claim its historical qualification without proof. If none is available,
-   state what evidence must be supplied or qualified before the decision can
-   proceed. Keep the handoff brief; missing evidence is not a completed analysis.
+   When evidence is blocked, finish with an explicit **Next evidence needed**
+   handoff. A limitation or refusal summary alone does not complete this handoff.
+   For each missing dataset, state the observations or documents to obtain,
+   requested observation period, historical UTC cutoff or live snapshot scope,
+   and decision still blocked. Identify the type of qualified source needed:
+   for historical replay, original-release or versioned records with the original
+   value or document version, first public release time with timezone, and a
+   source/version reference proving availability no later than the cutoff.
+   Name a provider only when configured or returned by tools; never claim its
+   qualification without proof. If no source is available, say what must be
+   supplied or qualified next. Keep this brief; missing evidence is not a
+   completed analysis.
 7. A researcher may summarize this evidence for a trader, but the trader must
    independently revalidate current account, price, order, and risk state before
    execution.

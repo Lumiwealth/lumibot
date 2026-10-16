@@ -2,6 +2,8 @@
 
 ## 4.6.19 - 2026-10-16
 
+Deploy marker: `81a24d66ee26a25be1f516e7771f1a386c56417f`.
+
 - Preserve explicit source timezone offsets through historical document reads and reporting. SQL column aliases do not convert timestamps; release qualification retains the observed double-conversion failure as a negative control.
 
 - Report the successful research response's effective time bound separately from requested bounds and calendar filters. A live retry with `asOf: null` must never be reported as historical cutoff proof; preserve the observed failure as a negative release calibration control.

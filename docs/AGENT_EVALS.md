@@ -388,3 +388,10 @@ These are source and judge-calibration receipts, not package publication or
 qualification of every actor case. New controls, changed rubrics and any changed
 runtime must receive their required source-valid proof before release; historical
 passes keep their actual source, model and timestamp.
+
+The cost-control changes were reconciled with active `version/4.6.20` at
+`59d86472`. All 527 tests in the eight affected complete specifications passed
+again on that source, with normal fixtures in separate processes and no model
+calls. The preserved 77-judgment calibration retains its original `19fac6f3`
+source; it is not a qualification of the new actor/runtime candidate. Package
+publication still requires the normal exact-candidate release gates.

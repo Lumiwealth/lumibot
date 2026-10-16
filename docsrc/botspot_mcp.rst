@@ -53,3 +53,37 @@ for submitted, approved and installation-tested destinations.
 
 To disconnect, use your client's connector controls. Revoke any separate
 BotSpot API key through BotSpot Account Settings.
+
+LumiBot strategy agents
+----------------------
+
+Create a **Research** key in BotSpot's API Keys settings. It gives your agents
+public research and the Marketplace and Community information you may read.
+It does not authorize trading, deployments, backtests or Community posting.
+Store your own key in your environment or secret manager:
+
+.. code-block:: bash
+
+   export BOTSPOT_RESEARCH_MCP_URL="https://api.botspot.trade/research-mcp"
+   export BOTSPOT_RESEARCH_MCP_TOKEN="botspot_YOUR_RESEARCH_KEY"
+
+LumiBot attaches that connection when you create a strategy agent. Static keys
+do not need a renewal URL. BotSpot-hosted runtimes supply their own short-lived
+capability and renewal endpoint; never copy those runtime tokens elsewhere.
+
+The connection discovers datasets through ``search_data_catalog`` and reads
+structured observations with ``query_data`` or documents with
+``search_documents`` and ``get_document``. It also reads permitted Marketplace
+listings, code and accounts, and the Community feed. Protected code and private
+positions retain the owner's sharing and purchase rules.
+
+In a backtest, the strategy's actual UTC clock limits the research request.
+Sources without original-version and publication-time proof return a visible
+``unsupported_capability`` error. Calendar dates or today's revised economic
+tables do not establish what was available historically. Record missing
+evidence and the provider used; changing a news source requires a new backtest.
+
+Choose a narrower Custom key when you need fewer capabilities. Manage expiry
+and revoke keys in BotSpot. Give an agent a posting grant only when you intend
+to publish; the default Research connection cannot post or reply.
+

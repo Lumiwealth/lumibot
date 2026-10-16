@@ -12,6 +12,22 @@ LumiBot supports configuring many behaviors via environment variables. This page
 
    **Never commit secrets** (API keys, passwords, AWS secret keys) into any repo or docs. Document variable names and semantics only.
 
+ChatGPT subscription profiles
+-----------------------------
+
+``LUMIBOT_CHATGPT_HOME`` selects the private configuration directory (default
+``~/.config/lumibot-chatgpt``). ``LUMIBOT_CHATGPT_PROFILE`` selects an existing
+profile ID; ``LUMIBOT_CHATGPT_PROFILE_PATH`` explicitly selects a protected file
+from your own supported SIWC registration. Processes pin their selected
+profile, and refresh rotation is serialized across local processes.
+
+These variables authenticate explicit ``chatgpt/<model>`` agents and canonical
+subscription-funded evaluations. They do not supply an API key, a broker
+credential or a BotSpot research grant. Keep all profile files outside source
+control. For subscription-only execution, separately disable connected-app
+credit fallback in ChatGPT Usage. See :doc:`agents_chatgpt` for login, model
+discovery, sign-out and self-hosted setup.
+
 Backtesting configuration
 -------------------------
 
@@ -198,9 +214,9 @@ BotSpot managed research
 ------------------------
 
 - ``BOTSPOT_RESEARCH_MCP_URL``: optional BotSpot Research MCP endpoint.
-- ``BOTSPOT_RESEARCH_MCP_TOKEN``: secret, short-lived bearer capability bound to an authenticated user or hosted deployment.
+- ``BOTSPOT_RESEARCH_MCP_TOKEN``: secret bearer credential. External users supply their own scoped BotSpot key; hosted runtimes receive a short-lived deployment-bound capability.
 - ``BOTSPOT_RESEARCH_MCP_RENEW_URL``: optional HTTPS renewal endpoint. Localhost is permitted for local development; otherwise its origin must match the MCP endpoint.
-- All three variables are required for automatic attachment. BotSpot-hosted runtimes inject them; external users can link a BotSpot account and configure the same contract.
+- The URL and token enable automatic attachment. The renewal URL is optional for an external static key and required only when the hosted capability needs automatic renewal.
 - Missing or incomplete configuration preserves ordinary LumiBot strategy and agent behavior and emits one deduplicated capability notice.
 
 ``GITHUB_TOKEN`` is used only in tagged release CI with repository ``actions: read`` permission to restore compatible agent-eval freshness evidence. The source workflow commit must be an ancestor of the exact tagged candidate. If no trustworthy artifact is available, stale cases run normally. Never log or commit token values.

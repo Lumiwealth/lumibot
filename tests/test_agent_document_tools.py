@@ -9,6 +9,7 @@ Clerk's yearly ZIP index and PDF reports this way.
 
 import io
 import zipfile
+from datetime import datetime, timedelta, timezone
 from types import SimpleNamespace
 
 import httpx
@@ -188,8 +189,12 @@ def test_document_tables_with_the_same_label_remain_independently_queryable():
     import pandas as pd
 
     layer = DuckDBQueryLayer(SimpleNamespace())
-    first = layer.register_document_table("Holdings", pd.DataFrame({"shares": [10]}), source="https://example.com/a.xlsx")
-    second = layer.register_document_table("Holdings", pd.DataFrame({"shares": [20]}), source="https://example.com/b.xlsx")
+    first = layer.register_document_table(
+        "Holdings", pd.DataFrame({"shares": [10]}), source="https://example.com/a.xlsx"
+    )
+    second = layer.register_document_table(
+        "Holdings", pd.DataFrame({"shares": [20]}), source="https://example.com/b.xlsx"
+    )
     assert first["table_name"] != second["table_name"]
     assert layer.query(sql=f"SELECT shares FROM {first['table_name']}")["rows"] == [{"shares": 10}]
     assert layer.query(sql=f"SELECT shares FROM {second['table_name']}")["rows"] == [{"shares": 20}]
@@ -243,6 +248,100 @@ def test_read_document_is_a_network_tool_listed_with_the_builtins():
     assert "read_document" in {tool.name for tool in BuiltinTools.all()}
 
 
+def test_read_document_returns_actual_byte_hash_and_absolute_backtest_cutoff():
+    import hashlib
+
+    data = b"Original publisher document bytes."
+    strategy = SimpleNamespace(
+        is_backtesting=True,
+        get_datetime=lambda: datetime(2026, 8, 11, 10, 35, tzinfo=timezone(timedelta(hours=-4))),
+    )
+    strategy._agent_web_client = WebClient(
+        transport=httpx.MockTransport(lambda request: httpx.Response(200, content=data)),
+        resolver=lambda host: ["93.184.216.34"],
+    )
+    tool = BuiltinTools.web.read_document().binder(strategy, SimpleNamespace(duckdb=DuckDBQueryLayer(strategy)))
+    result = tool.function(url="https://clerk.example/report.txt")
+    assert result["historical_as_of"] == "2026-08-11T14:35:00+00:00"
+    assert result["sha256"] == hashlib.sha256(data).hexdigest()
+
+
+@pytest.mark.parametrize("clock", [None, datetime(2026, 8, 11, 10, 35), "2026-08-11"])
+def test_read_document_rejects_unverified_historical_clock_before_network(clock):
+    requests = []
+    strategy = SimpleNamespace(is_backtesting=True, get_datetime=lambda: clock)
+
+    def handler(request):
+        requests.append(request)
+        return httpx.Response(200, content=b"Should not be fetched without a historical clock")
+
+    strategy._agent_web_client = WebClient(
+        transport=httpx.MockTransport(handler), resolver=lambda host: ["93.184.216.34"]
+    )
+    tool = BuiltinTools.web.read_document().binder(strategy, SimpleNamespace(duckdb=DuckDBQueryLayer(strategy)))
+    result = tool.function(url="https://clerk.example/report.txt")
+    assert result["ok"] is False
+    assert result["error"]["type"] == "InvalidHistoricalClock"
+    assert requests == []
+
+
+@pytest.mark.parametrize("available_at", ["2026-08-11T10:40:00-04:00", "2026-08-11T14:40:00Z"])
+def test_document_declared_future_version_is_rejected_before_http(available_at):
+    requests = []
+    strategy = SimpleNamespace(
+        is_backtesting=True, get_datetime=lambda: datetime(2026, 8, 11, 14, 35, tzinfo=timezone.utc)
+    )
+    strategy._agent_web_client = WebClient(
+        transport=httpx.MockTransport(
+            lambda request: requests.append(request) or httpx.Response(200, content=b"Future document")
+        ),
+        resolver=lambda host: ["93.184.216.34"],
+    )
+    tool = BuiltinTools.web.read_document().binder(strategy, SimpleNamespace(duckdb=DuckDBQueryLayer(strategy)))
+    result = tool.function(url="https://clerk.example/report.txt", available_at=available_at)
+    assert result["tool_error"] is True
+    assert result["error"]["code"] == "document_after_cutoff"
+    assert requests == []
+
+
+@pytest.mark.parametrize("available_at", ["2026-08-11", "2026-08-11T10:30:00", "not-an-instant"])
+def test_document_availability_requires_an_aware_instant_before_http(available_at):
+    tool, _ = _bound_tool()
+    result = tool.function(url="https://clerk.example/report.txt", available_at=available_at)
+    assert result["tool_error"] is True
+    assert result["error"]["code"] == "invalid_document_availability"
+
+
+def test_document_original_hash_mismatch_does_not_expose_text_or_register_tables():
+    tool, manager = _bound_tool()
+    result = tool.function(url="https://clerk.example/2025FD.ZIP", expected_sha256="0" * 64)
+    assert result["tool_error"] is True
+    assert result["error"]["code"] == "document_version_mismatch"
+    assert not {"text", "tables", "links", "sample_row"} & result.keys()
+    assert manager.duckdb._table_meta == {}
+
+
+def test_document_exact_cutoff_and_original_hash_allow_verified_bytes():
+    import hashlib
+
+    data = b"Retained original document."
+    strategy = SimpleNamespace(
+        is_backtesting=True, get_datetime=lambda: datetime(2026, 8, 11, 14, 35, tzinfo=timezone.utc)
+    )
+    strategy._agent_web_client = WebClient(
+        transport=httpx.MockTransport(lambda request: httpx.Response(200, content=data)),
+        resolver=lambda host: ["93.184.216.34"],
+    )
+    tool = BuiltinTools.web.read_document().binder(strategy, SimpleNamespace(duckdb=DuckDBQueryLayer(strategy)))
+    result = tool.function(
+        url="https://clerk.example/report.txt",
+        available_at="2026-08-11T10:35:00-04:00",
+        expected_sha256=hashlib.sha256(data).hexdigest(),
+    )
+    assert result["ok"] is True and result["text"] == data.decode()
+    assert result["available_at"] == result["historical_as_of"]
+
+
 def test_read_document_results_fit_the_agent_tool_result_limit():
     # The agent runtime cuts any tool result over 4,000 characters down to its
     # head and tail, so a long default page silently hid the middle of a report.
@@ -267,7 +366,9 @@ def test_read_document_results_fit_the_agent_tool_result_limit():
     assert result["next_start"] and result["links_total"] == 400
 
     found = tool.function(url="https://clerk.example/list", find="Report 12")
-    assert [link["text"] for link in found["links"]] == [f"Report {n}" for n in (12, 120, 121, 122, 123, 124, 125, 126, 127, 128, 129)]
+    assert [link["text"] for link in found["links"]] == [
+        f"Report {n}" for n in (12, 120, 121, 122, 123, 124, 125, 126, 127, 128, 129)
+    ]
 
 
 def test_the_table_tool_is_a_calculator_for_portfolio_weights():

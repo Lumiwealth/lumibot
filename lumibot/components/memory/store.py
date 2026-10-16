@@ -3,16 +3,64 @@ import json
 import os
 import re
 import sqlite3
+import unicodedata
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-
 SCHEMA_VERSION = 1
 ORDER_REASON_MAX_CHARACTERS = 100_000
 ORDER_REASON_MAX_BYTES = 400 * 1024
 AGENT_ORDER_REASON_MIN_CHARACTERS = 200
+PUBLIC_ORDER_REASON_MAX_BYTES = 280
+
+# This explicit public-field boundary rejects obvious identifiers and account
+# disclosures. It never edits the private audit reason/evidence or blocks orders.
+# Authoritative owner-name checks belong to the publishing service.
+_PUBLIC_REASON_PRIVATE_PATTERNS = tuple(re.compile(pattern, re.IGNORECASE) for pattern in (
+    r"[\w.+-]+@[\w.-]+\.[A-Za-z]{2,}",
+    r"\b\d{3}[- ]\d{2}[- ]\d{4}\b",
+    r"\b(?:ssn|social\s+security(?:\s+number)?)\s*[:=#-]?\s*\d{9}\b",
+    r"\b(?:account|acct|routing|bank(?:\s+account)?|iban|swift)\s*"
+    r"(?:number|no\.?|id|code|#)\s*[:=#-]?\s*\S+",
+    r"\b(?:account|acct|routing|bank(?:\s+account)?|iban|swift)\s*[:=#]\s*\S+",
+    r"\b(?:account|acct|routing|bank\s+account)\s+(?:is\s+)?[A-Z]{0,5}-?\d[\w-]{3,}\b",
+    r"\b(?:api[ _-]*key|access[ _-]*token|refresh[ _-]*token|private[ _-]*key|"
+    r"secret|password|passwd|authorization|credentials?)\s*(?:[:=]|is\b|\s)\s*\S+",
+    r"\b(?:bearer\s+\S+|token\s*[:=]\s*\S+|sk-[A-Za-z0-9_-]{12,}|"
+    r"AKIA[A-Z0-9]{16}|gh[pousr]_[A-Za-z0-9]{20,}|xox[baprs]-[A-Za-z0-9-]{10,})\b",
+    r"\beyJ[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\.[A-Za-z0-9_-]{8,}\b",
+    r"\b(?:account|portfolio)\s+(?:cash|balance|equity|value|buying[ -]?power)\b",
+    r"\bbuying[ -]?power\b",
+    r"\b(?:my|our|available|remaining|total|settled|unsettled)\s+(?:cash|balance)\b",
+    r"\b(?:i|we)\s+(?:have|hold)\s+(?:[$€£]\s*)?\d[\d,.]*\s+(?:in\s+)?(?:cash|balance)\b",
+    r"\b(?:cash\s+balance|balance\s+is|account\s+(?:has|holds))\s*(?:[$€£]|\d)",
+    r"\b(?:cash|balance)\s*(?:[:=]|(?:is|of|stands\s+at)\b)?\s*[$€£]?\s*\d",
+))
+
+
+def _public_order_reason_reference(evidence: dict[str, Any] | None) -> dict[str, str]:
+    """Project only an explicit, safe public reason; never infer one privately."""
+    value = evidence.get("public_reason") if isinstance(evidence, dict) else None
+    if not isinstance(value, str) or not value or value != value.strip():
+        return {}
+    try:
+        encoded = value.encode("utf-8")
+    except UnicodeEncodeError:
+        return {}
+    if len(encoded) > PUBLIC_ORDER_REASON_MAX_BYTES or any(
+        unicodedata.category(character) in {"Cc", "Cf"} for character in value
+    ):
+        return {}
+    # Normalize only the privacy check. Preserve the exact published bytes/hash.
+    privacy_text = unicodedata.normalize("NFKC", value)
+    if any(pattern.search(privacy_text) for pattern in _PUBLIC_REASON_PRIVATE_PATTERNS):
+        return {}
+    return {
+        "public_reason_preview": value,
+        "public_reason_sha256": hashlib.sha256(encoded).hexdigest(),
+    }
 
 
 def validate_order_reason(reason: Any, *, required: bool = False) -> str | None:
@@ -61,6 +109,18 @@ def _compact_text(value: Any, *, limit: int) -> str:
 def _normalize_symbol(value: Any) -> str | None:
     text = str(value or "").strip().upper()
     return text or None
+
+
+def _agent_audit_name(value: Any, *, field: str, max_bytes: int) -> str:
+    if not isinstance(value, str) or not value or value != value.strip():
+        raise ValueError(f"{field} must be a nonempty exact name.")
+    try:
+        encoded = value.encode("utf-8")
+    except UnicodeEncodeError as exc:
+        raise ValueError(f"{field} must be valid UTF-8.") from exc
+    if len(encoded) > max_bytes or any(unicodedata.category(char) in {"Cc", "Cf"} for char in value):
+        raise ValueError(f"{field} must be a bounded name without control characters.")
+    return value
 
 
 class MemoryStore:
@@ -393,10 +453,82 @@ class MemoryStore:
         self._export_artifacts_best_effort()
         return event
 
+    def record_agent_tool_action(
+        self,
+        *,
+        action_id: str,
+        tool_name: str,
+        purpose: str,
+        status: str,
+        arguments_sha256: str,
+        agent_name: str,
+        model_call_id: str,
+        error_type: str | None = None,
+    ) -> dict[str, Any]:
+        """Commit private tool intent/outcome; argument bytes never enter this API."""
+        if not isinstance(action_id, str):
+            raise ValueError("action_id must be a canonical UUID string.")
+        try:
+            canonical_id = str(uuid.UUID(action_id))
+        except ValueError as exc:
+            raise ValueError("action_id must be a canonical UUID string.") from exc
+        if canonical_id != action_id:
+            raise ValueError("action_id must be a canonical UUID string.")
+        if not isinstance(status, str) or status not in {"started", "completed", "failed"}:
+            raise ValueError("status must be started, completed or failed.")
+        if not isinstance(arguments_sha256, str) or re.fullmatch(r"[0-9a-f]{64}", arguments_sha256) is None:
+            raise ValueError("arguments_sha256 must be an exact lowercase SHA-256 digest.")
+        tool_name = _agent_audit_name(tool_name, field="tool_name", max_bytes=128)
+        agent_name = _agent_audit_name(agent_name, field="agent_name", max_bytes=128)
+        model_call_id = _agent_audit_name(model_call_id, field="model_call_id", max_bytes=240)
+        if not isinstance(purpose, str) or not purpose.strip():
+            raise ValueError("purpose must be a nonempty private explanation.")
+        try:
+            purpose_bytes = purpose.encode("utf-8")
+        except UnicodeEncodeError as exc:
+            raise ValueError("purpose must be valid UTF-8.") from exc
+        if len(purpose_bytes) > 500:
+            raise ValueError("purpose must not exceed 500 UTF-8 bytes.")
+        if error_type is not None:
+            if status != "failed":
+                raise ValueError("error_type is only valid for a failed tool outcome.")
+            error_type = _agent_audit_name(error_type, field="error_type", max_bytes=128)
+        metadata = {
+            **self.decision_provenance(agent_name=agent_name, model_call_id=model_call_id),
+            "strategy_revision_id": getattr(self.strategy, "revision_id", None)
+            or os.environ.get("BOTSPOT_REVISION_ID"),
+            "action_id": action_id,
+            "tool_name": tool_name,
+            "purpose": purpose,
+            "status": status,
+            "arguments_sha256": arguments_sha256,
+            "agent_name": agent_name,
+            "model_call_id": model_call_id,
+            "error_type": error_type,
+        }
+        # The existing event owner commits before returning. Run closeout exports
+        # these private events; no per-tool projection or Parquet export is needed.
+        return self._append_event(
+            event_type="agent.tool_started" if status == "started" else "agent.tool_outcome",
+            subject_type="agent_tool_action",
+            subject_id=action_id,
+            text=purpose,
+            metadata=metadata,
+            payload=metadata,
+            agent_name=agent_name,
+            model_call_id=model_call_id,
+        )
+
     def record_order_action(
-        self, *, operation: str, reason: str, orders: list[dict[str, Any]],
-        evidence: dict[str, Any] | None = None, previous: dict[str, Any] | None = None,
-        agent_name: str | None = None, model_call_id: str | None = None,
+        self,
+        *,
+        operation: str,
+        reason: str,
+        orders: list[dict[str, Any]],
+        evidence: dict[str, Any] | None = None,
+        previous: dict[str, Any] | None = None,
+        agent_name: str | None = None,
+        model_call_id: str | None = None,
     ) -> dict[str, Any]:
         """Commit intent before execution; never infer a fill from this event."""
         reason = validate_order_reason(reason, required=bool(agent_name or model_call_id))
@@ -413,6 +545,7 @@ class MemoryStore:
             "reason_preview": reason[:800],
             "reason_sha256": hashlib.sha256(reason.encode("utf-8")).hexdigest(), "recorded_at": self._timestamp(),
         }
+        reference.update(_public_order_reason_reference(evidence))
         metadata = {"reference": reference, "orders": orders, "evidence": evidence or {}}
         if len(_json_dumps({"reason": reason, **metadata}).encode("utf-8")) > 1024 * 1024:
             raise ValueError("reason, evidence and order intent must fit within 1 MiB.")
@@ -939,6 +1072,31 @@ class MemoryStore:
         payload_hash = hashlib.sha256(payload_json.encode("utf-8")).hexdigest()
         normalized_symbol = _normalize_symbol(symbol or (metadata or {}).get("symbol"))
         with self._connect() as conn:
+            # Allocate the next sequence only after acquiring the writer lock.
+            # The same transaction also owns tool intent/outcome pairing.
+            conn.execute("BEGIN IMMEDIATE")
+            if event_type in {"agent.tool_started", "agent.tool_outcome"}:
+                previous = conn.execute(
+                    """SELECT event_type, metadata_json FROM memory_events
+                       WHERE subject_type = 'agent_tool_action' AND subject_id = ?
+                       ORDER BY sequence""",
+                    (subject_id,),
+                ).fetchall()
+                if event_type == "agent.tool_started":
+                    if previous:
+                        raise ValueError("Tool action already has a committed intent.")
+                else:
+                    if len(previous) != 1 or previous[0]["event_type"] != "agent.tool_started":
+                        raise ValueError("Tool outcome requires one unmatched committed intent.")
+                    intent = _json_loads(previous[0]["metadata_json"], {})
+                    # A memory tool can create a decision during the same request.
+                    # Its observed decision is provenance, not the action/run binding.
+                    outcome_fields = {"status", "error_type", "decision_id"}
+                    binding = {key: value for key, value in (metadata or {}).items() if key not in outcome_fields}
+                    if not isinstance(intent, dict) or binding != {
+                        key: value for key, value in intent.items() if key not in outcome_fields
+                    }:
+                        raise ValueError("Tool outcome does not match its action and runtime intent.")
             sequence = int(conn.execute("SELECT COALESCE(MAX(sequence), 0) + 1 FROM memory_events").fetchone()[0])
             conn.execute(
                 """

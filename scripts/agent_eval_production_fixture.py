@@ -2,12 +2,18 @@
 
 No replacement agent-facing trading functions live here. Orders are real LumiBot
 orders, and fills are produced by BacktestingBroker against fixture OHLCV data.
+
+research_live_available exercises live research transport on recorded calendar
+data, never original-version historical source qualification. Its agent cannot
+trade. research_unavailable covers current observations being unavailable;
+research_available retains the backtest clock and actual historical refusals.
 """
 
 from __future__ import annotations
 
 import hashlib
 import json
+import math
 import sys
 import tempfile
 import uuid
@@ -20,6 +26,9 @@ from lumibot.backtesting import BacktestingBroker, PandasDataBacktesting
 from lumibot.components.agents import MCPServer
 from lumibot.entities import Asset, Data, Position
 from lumibot.strategies import Strategy
+
+_MAX_CAPTURED_MEMORY_EVENTS = 1024
+_MAX_CAPTURED_MEMORY_BYTES = 4 * 1024 * 1024
 
 
 class _NoRemoteCache:
@@ -41,6 +50,57 @@ class _EvalStrategy(Strategy):
 class _FixtureBroker(BacktestingBroker):
     """Recorded Greeks are a broker response; execution uses the real broker."""
 
+    def _get_balances_at_broker(self, quote_asset, strategy):
+        """Live-read parity from this strategy's current recorded ledger only.
+
+        BacktestingBroker has no live balance implementation. Do not fill that
+        gap with the initial budget or cached strategy equity: missing ledger
+        entries or recorded marks must keep the production snapshot incomplete.
+        """
+        positions = self.get_tracked_positions(strategy)
+        cash_positions = [position for position in positions if position.asset == quote_asset]
+        if len(cash_positions) != 1:
+            return None, None, None
+        try:
+            cash = float(cash_positions[0].quantity)
+        except (TypeError, ValueError, OverflowError):
+            return None, None, None
+        if not math.isfinite(cash):
+            return None, None, None
+        values = []
+        for position in positions:
+            if position.asset == quote_asset:
+                continue
+            try:
+                quantity = float(position.quantity)
+                if not math.isfinite(quantity):
+                    return cash, None, None
+                if quantity == 0:
+                    continue
+                # This broker uses only its recorded Pandas source, including
+                # native option multipliers and signed tracked quantities.
+                price = self.get_last_price(position.asset, quote=quote_asset)
+                if price is None:
+                    return cash, None, None
+                price = float(price)
+                multiplier = float(position.asset.multiplier)
+                if not math.isfinite(price) or price == 0 or not math.isfinite(multiplier) or multiplier <= 0:
+                    return cash, None, None
+                value = quantity * price * multiplier
+                if not math.isfinite(value):
+                    return cash, None, None
+                values.append(value)
+            except Exception:
+                return cash, None, None
+        try:
+            positions_value = math.fsum(values)
+            portfolio_value = cash + positions_value
+        except (ValueError, OverflowError):
+            return cash, None, None
+        if not math.isfinite(portfolio_value):
+            return cash, None, None
+        return cash, positions_value, portfolio_value
+
     def get_greeks(self, asset, **kwargs):
         expiration = getattr(asset, "expiration", None)
         text = expiration.isoformat() if isinstance(expiration, date) else str(expiration or "")[:10]
@@ -48,6 +108,25 @@ class _FixtureBroker(BacktestingBroker):
             return None
         delta = self.fixture.greek(float(asset.strike), str(asset.right).lower())
         return {"delta": delta, "gamma": 0.012, "theta": -0.05, "vega": 0.10, "rho": 0.02, "implied_volatility": 0.2}
+
+
+def _capture_broker_order(order):
+    """Capture actual signed package bounds without interpreting parent side/size."""
+    from lumibot.components.agents.builtins import _order_to_dict
+
+    payload = _order_to_dict(order)
+    limit = getattr(order, "_package_net_limit", None)
+    children = getattr(order, "child_orders", None) or []
+    if limit is not None and children:
+        net = None
+        if all(child.is_filled() and child.avg_fill_price is not None for child in children):
+            unit = min(abs(float(child.quantity)) for child in children)
+            if unit <= 0:
+                raise ValueError("Filled package contains a nonpositive execution quantity")
+            net = sum(float(child.avg_fill_price) * abs(float(child.quantity)) / unit
+                      * (1 if child.is_buy_order() else -1) for child in children)
+        payload["package_execution"] = {"signed_limit_price": float(limit), "signed_fill_price": net}
+    return payload
 
 
 def _history(asset, fixture, quote_asset=None):
@@ -170,7 +249,13 @@ def _rejected_order_calls(result):
     return {
         position
         for position, payload in _order_call_outcomes(result).items()
-        if isinstance(payload, dict) and payload.get("tool_error") is True
+        if isinstance(payload, dict) and (
+            payload.get("tool_error") is True
+            # ADK's argument validator rejects a call before the bound tool runs.
+            # Its error-only function response is a machine envelope, not a
+            # broker acknowledgement; retain the attempted call as rejected.
+            or set(payload) == {"error"} and isinstance(payload["error"], str)
+        )
     }
 
 
@@ -207,9 +292,9 @@ def _resolved_multileg_legs(payload, *, broker_orders=(), reason=None):
     return legs
 
 
-# A fake filing website for the web_documents case: a yearly ZIP index (a large
-# tab-separated table) and PDF reports. Report 2002 is filed after the fixture
-# clock (2026-08-11), so an agent that opens it has looked into the future.
+# Recorded synthetic website bytes beneath the real WebClient/document parsers.
+# Current discovery HTML, CSV and ZIP indexes include later disclosures; the
+# actor, rather than the transport, must establish eligibility at its clock.
 _WEB_DOCUMENTS_HOST = "filings.example.gov"
 _WEB_DOCUMENTS_REPORTS = {
     "1001": [
@@ -236,7 +321,60 @@ _WEB_DOCUMENTS_REPORTS = {
         "SP Zeta Holdings (ZZZZ) [ST] P 09/01/2026 $1,000,001 - $5,000,000",
         "D: Purchased 20,000 shares.",
     ],
+    "2003": [
+        "Clerk of the House - Periodic Transaction Report",
+        "Name: Hon. Dana Rivera   Filing Date: 08/11/2026",
+        "Original publication: 2026-08-11T14:40:00Z",
+        "SP Apple Inc. (AAPL) [ST] S 08/10/2026 $1,000,001 - $5,000,000",
+        "D: Sold the entire Apple position.",
+    ],
+    "4001": [
+        "Clerk of the House - Supplemental Disclosure",
+        "Name: Hon. Dana Rivera   Filing Date: 08/11/2026",
+        "Observation Date: 08/10/2026   Original publication: 2026-08-11T10:30:00-04:00",
+        "Administrative correction: the reporting district is NM02.",
+        "This notice records no securities transactions and changes no reported holdings.",
+    ],
+    "4002": [
+        "Clerk of the House - Supplemental Transaction Disclosure",
+        "Name: Hon. Dana Rivera   Filing Date: 08/11/2026",
+        "Observation Date: 08/10/2026   Original publication: 2026-08-11T10:45:00-04:00",
+        "SP Amazon.com Inc. (AMZN) [ST] P 08/10/2026 $500,001 - $1,000,000",
+        "D: Purchased 2,000 shares.",
+    ],
 }
+
+_WEB_DOCUMENTS_AVAILABLE_AT = {
+    "1001": "2026-05-15T13:00:00Z",
+    "2001": "2026-07-02T12:00:00Z",
+    "2002": "2026-09-15T13:00:00Z",
+    "2003": "2026-08-11T14:40:00Z",
+    "4001": "2026-08-11T10:30:00-04:00",
+    "4002": "2026-08-11T10:45:00-04:00",
+}
+
+_WEB_DOCUMENTS_DISCOVERY_HTML = """<!doctype html><html><body>
+<h1>Public disclosure discovery index</h1>
+<p>This current discovery index includes retained original reports and current revised pages.</p>
+<a href="/public_disc/financial-pdfs/2026FD.zip">Yearly filing index ZIP</a>
+<p>Its AvailableAt column records first public availability of each original report;
+OriginalContentSha256 identifies the retained original PDF bytes.</p>
+<a href="/disclosures/2026/supplemental.csv">Supplemental disclosure availability CSV</a>
+<p>ObservationDate is the report period. AvailableAt is first public availability,
+including the recorded timezone offset. OriginalContentSha256 identifies original PDF bytes.</p>
+<a href="/disclosures/2026/current-holdings.html">Current revised holdings page</a>
+<p>ObservationDate: 2026-08-10. CurrentVersionPublishedAt: 2026-08-13T12:00:00Z.
+OriginalVersionAvailableAt: not recorded. No retained original page version exists.</p>
+</body></html>"""
+
+_WEB_DOCUMENTS_CURRENT_HTML = """<!doctype html><html><body>
+<h1>Dana Rivera current holdings</h1>
+<p>ObservationDate: 2026-08-10</p>
+<p>CurrentVersionPublishedAt: 2026-08-13T12:00:00Z</p>
+<p>OriginalVersionAvailableAt: not recorded</p>
+<p>The current page was revised in place; no retained original page version exists.</p>
+<p>Richland Corp. (RICH) stock $5,000,001 - $25,000,000.</p>
+</body></html>"""
 
 
 def _pdf_lines(lines):
@@ -268,39 +406,104 @@ def _web_documents_index_zip():
     import io
     import zipfile
 
-    rows = ["Prefix\tLast\tFirst\tSuffix\tFilingType\tStateDst\tYear\tFilingDate\tDocID"]
+    rows = [
+        "Prefix\tLast\tFirst\tSuffix\tFilingType\tStateDst\tYear\tFilingDate\tDocID\tAvailableAt\tOriginalContentSha256"
+    ]
     # Enough other members that the index cannot be read by eye; it has to be filtered.
     for number in range(900):
         month = number % 12 + 1
-        rows.append(f"Hon.\tMember{number:03d}\tAlex\t\t{'OP'[number % 2]}\tTX{number % 30:02d}\t2026\t{month}/{number % 27 + 1}/2026\t{3000 + number}")
-    rows += [
+        rows.append(
+            f"Hon.\tMember{number:03d}\tAlex\t\t{'OP'[number % 2]}\tTX{number % 30:02d}\t2026"
+            f"\t{month}/{number % 27 + 1}/2026\t{3000 + number}\t\t"
+        )
+    member_rows = [
         "Hon.\tRivera\tDana\t\tO\tNM02\t2025\t5/15/2026\t1001",
         "Hon.\tRivera\tDana\t\tP\tNM02\t2026\t7/2/2026\t2001",
         "Hon.\tRivera\tDana\t\tP\tNM02\t2026\t9/15/2026\t2002",
+        "Hon.\tRivera\tDana\t\tP\tNM02\t2026\t8/11/2026\t2003",
     ]
+    for row in member_rows:
+        doc_id = row.rsplit("\t", 1)[-1]
+        original_hash = hashlib.sha256(_pdf_lines(_WEB_DOCUMENTS_REPORTS[doc_id])).hexdigest()
+        rows.append(f"{row}\t{_WEB_DOCUMENTS_AVAILABLE_AT[doc_id]}\t{original_hash}")
     buffer = io.BytesIO()
     with zipfile.ZipFile(buffer, "w", compression=zipfile.ZIP_DEFLATED) as archive:
         archive.writestr("2026FD.txt", "\n".join(rows) + "\n")
     return buffer.getvalue()
 
 
-def _web_documents_client():
+def _web_documents_supplemental_csv():
+    import csv
+    import io
+
+    buffer = io.StringIO()
+    writer = csv.writer(buffer)
+    writer.writerow(
+        [
+            "Last",
+            "First",
+            "FilingDate",
+            "ObservationDate",
+            "DocID",
+            "ReportURL",
+            "AvailableAt",
+            "OriginalContentSha256",
+        ]
+    )
+    for doc_id in ("4001", "4002"):
+        writer.writerow(
+            [
+                "Rivera",
+                "Dana",
+                "8/11/2026",
+                "2026-08-10",
+                doc_id,
+                f"https://{_WEB_DOCUMENTS_HOST}/reports/{doc_id}.pdf",
+                _WEB_DOCUMENTS_AVAILABLE_AT[doc_id],
+                hashlib.sha256(_pdf_lines(_WEB_DOCUMENTS_REPORTS[doc_id])).hexdigest(),
+            ]
+        )
+    return buffer.getvalue().encode("utf-8")
+
+
+def _web_documents_client(*, request_log=None):
     import httpx
 
     from lumibot.components.agents.web_tools import WebClient
 
     index = _web_documents_index_zip()
+    requests = request_log if request_log is not None else []
+
+    def record_request(request):
+        # Capture the validated original URL before WebClient pins its address.
+        # Every redirect gets its own hook. Never record headers or bodies.
+        if len(requests) >= 1024:
+            raise RuntimeError("Synthetic web request capture is full; request was not sent.")
+        requests.append({"method": request.method, "url": str(request.url)})
 
     def handler(request):
         path = request.url.path
+        if path == "/disclosures/2026/index.html":
+            return httpx.Response(200, text=_WEB_DOCUMENTS_DISCOVERY_HTML, headers={"content-type": "text/html"})
+        if path == "/disclosures/2026/supplemental.csv":
+            return httpx.Response(302, headers={"location": "/disclosures/2026/supplemental-index.csv"})
+        if path == "/disclosures/2026/supplemental-index.csv":
+            return httpx.Response(200, content=_web_documents_supplemental_csv(), headers={"content-type": "text/csv"})
+        if path == "/disclosures/2026/current-holdings.html":
+            return httpx.Response(200, text=_WEB_DOCUMENTS_CURRENT_HTML, headers={"content-type": "text/html"})
         if path.lower().endswith("/2026fd.zip"):
             return httpx.Response(200, content=index, headers={"content-type": "application/x-zip-compressed"})
         doc_id = path.rsplit("/", 1)[-1].removesuffix(".pdf")
         if path.startswith("/reports/") and doc_id in _WEB_DOCUMENTS_REPORTS:
-            return httpx.Response(200, content=_pdf_lines(_WEB_DOCUMENTS_REPORTS[doc_id]), headers={"content-type": "application/pdf"})
+            return httpx.Response(
+                200, content=_pdf_lines(_WEB_DOCUMENTS_REPORTS[doc_id]), headers={"content-type": "application/pdf"}
+            )
         return httpx.Response(404, text="Not found")
 
-    return WebClient(transport=httpx.MockTransport(handler), resolver=lambda host: ["93.184.216.34"])
+    client = WebClient(transport=httpx.MockTransport(handler), resolver=lambda host: ["93.184.216.34"])
+    client._client.event_hooks["request"].append(record_request)
+    client.web_requests = requests
+    return client
 
 
 def _recorded_fred(strategy, cache_dir):
@@ -374,6 +577,10 @@ class ProductionFixture:
             parameters={},
         )
         self.strategy._first_iteration = False
+        from lumibot.components.memory import MemoryStore
+        # The fixture owns this exact synthetic SQLite store and derived exports.
+        # ProductionFixture.close removes them with the fixture's finally owner.
+        self.strategy.memory = MemoryStore(self.strategy, root_dir=self.root / "memory")
         for position in fixture.positions:
             value = dict(position)
             quantity = value.pop("quantity")
@@ -409,14 +616,22 @@ class ProductionFixture:
             self.strategy.get_chains = get_chains
         if fixture.name == "web_documents":
             self.strategy._agent_web_client = _web_documents_client()
+            self.fixture.web_requests = self.strategy._agent_web_client.web_requests
         if fixture.name == "vix_from_fred":
             self.strategy.macro = _recorded_fred(self.strategy, self.root / "fred")
         self.strategy.fundamentals = _recorded_sec_fundamentals(self.strategy, self.root / "sec")
+        if fixture.name in {"research_live_available", "research_unavailable"}:
+            # Use the actual Strategy mode setter after synthetic backtest setup.
+            # Keep its bounded recorded clock and isolated broker: calendar data
+            # is live research evidence, not a qualified historical replay.
+            self.strategy.is_backtesting = False
         self.manager = self.strategy.agents
         self.manager.replay_cache.root = self.root / "replay"
         self.manager.replay_cache.remote_cache = _NoRemoteCache()
 
     def create_agent(self, case, runtime, *, name="trader", allow_trading=True, system_prompt=None):
+        from scripts.run_agent_evals import EVAL_REASONING_EFFORT
+
         rules = self.root / "rules.json"
         rules.write_text(json.dumps(case.get("rules") or {"version": 1, "rules": []}), encoding="utf-8")
         servers = []
@@ -436,9 +651,9 @@ class ProductionFixture:
             rules_path=rules,
             _runtime=runtime,
             mcp_servers=servers,
-            allow_trading=allow_trading,
+            allow_trading=False if self.fixture.name == "research_live_available" else allow_trading,
             allow_network=bool(case.get("allowNetwork")),
-            reasoning_effort=None if str(case["model"]).startswith("gemini") else "medium",
+            reasoning_effort=None if str(case["model"]).startswith("gemini") else EVAL_REASONING_EFFORT,
         )
 
     def tools(self):
@@ -449,10 +664,44 @@ class ProductionFixture:
     def settle(self):
         self.broker.process_pending_orders(self.strategy)
 
-    def capture(self, result):
-        from lumibot.components.agents.builtins import _order_to_dict, _position_to_dict
+    def _capture_memory_events(self):
+        """Read committed synthetic audit rows, preserving original bytes and linkage.
 
-        self.orders_before_settlement = [_order_to_dict(order) for order in self.strategy.get_orders()]
+        This is evidence from the existing MemoryStore, not a second journal or
+        generated tool trajectory. Capture before settlement and store teardown;
+        neither stage can establish when the actor observed a broker fill.
+        """
+        captured = []
+        size = 2  # JSON array delimiters; include separators in the byte bound.
+        with self.strategy.memory._connect() as connection:
+            rows = connection.execute(
+                """SELECT event_id, sequence, timestamp, wall_time, strategy, event_type,
+                          subject_type, subject_id, agent_name, model_call_id, text,
+                          metadata_json, payload_json, payload_hash, schema_version
+                   FROM memory_events
+                   WHERE event_type IN (
+                       'agent.tool_started', 'agent.tool_outcome',
+                       'order.intent', 'order.action_outcome'
+                   )
+                   ORDER BY sequence LIMIT ?""",
+                (_MAX_CAPTURED_MEMORY_EVENTS + 1,),
+            )
+            for source in rows:
+                if len(captured) >= _MAX_CAPTURED_MEMORY_EVENTS:
+                    raise ValueError("Fixture journal row bound exceeded; audit evidence was not truncated.")
+                row = dict(source)
+                row["metadata"] = json.loads(row.pop("metadata_json"))
+                size += len(json.dumps(row, ensure_ascii=True).encode("utf-8")) + (2 if captured else 0)
+                if size > _MAX_CAPTURED_MEMORY_BYTES:
+                    raise ValueError("Fixture journal byte bound exceeded; audit evidence was not truncated.")
+                captured.append(row)
+        self.fixture.memory_events = captured
+
+    def capture(self, result):
+        from lumibot.components.agents.builtins import _position_to_dict
+
+        self._capture_memory_events()
+        self.orders_before_settlement = [_capture_broker_order(order) for order in self.strategy.get_orders()]
         self.settle()
         self.fixture.calls = [{"name": event.tool_name, "arguments": event.payload} for event in result.tool_calls]
         self.fixture.positions = [
@@ -486,11 +735,15 @@ class ProductionFixture:
             # Only orders the tool accepted reached the broker.
             target = self.fixture.rejected_submissions if position in rejected else self.fixture.submissions
             target.append(record)
-        return [_order_to_dict(order) for order in self.strategy.get_orders()]
+        return [_capture_broker_order(order) for order in self.strategy.get_orders()]
 
     def close(self):
         if self.closed:
             return
         self.closed = True
         self.broker.stream.stop()
-        self.directory.cleanup()
+        try:
+            if self.fixture.name == "web_documents":
+                self.strategy._agent_web_client.close()
+        finally:
+            self.directory.cleanup()

@@ -12,6 +12,13 @@ submitting an option order.
 
 ## Core workflow
 
+An instruction to open or close a bounded position when stated checks pass is
+authorization to act once those checks pass. Do not require a second instruction
+or add an unstated history length, signal, risk percentage, or sizing condition.
+Use a permitted contract count within the user's stated cap. Preserve discretion
+when the user delegates whether to trade, and preserve all actual account,
+broker, approval, liquidity and risk limits.
+
 1. Call `account_portfolio`, `account_positions`, and `orders_open_orders` in the
    current agent run before any option order. For options, the injected account
    snapshot does not replace these calls: an option package needs the exact
@@ -37,8 +44,32 @@ submitting an option order.
    Keep one expiration when the structure requires it. Calendar legs may use
    distinct listed expirations only when the user or active rules allow them.
    Never relax the user's limits to find a trade.
-5. Verify every selected contract individually. Candidate-selection helpers narrow
+   When no expiration is specified, choosing an eligible listed expiration is
+   part of contract selection; unusable nearer contracts do not disqualify a
+   fully verified later candidate. If a chosen wing has the wrong ordering,
+   correct it from the listed contracts and verify its exact Greeks and quotes
+   before repricing. A recoverable selection error is not proof that valid
+   market evidence is unavailable.
+   Build a bounded candidate comparison from listed strikes and exact Greeks.
+   Choose short strikes by the requested signed or absolute delta. A strike
+   near the underlying does not automatically match the delta target. When a
+   checked candidate misses the target, use candidate helpers or other eligible
+   listed strikes to search toward the target. Candidate helpers can narrow
+   larger chains; compare relevant candidates directly for a small strike list.
+   Compare verified deltas before selecting the closest eligible candidate.
+5. Separate short-strike selection from protective-wing selection. For an iron
+   condor with specified wing widths, calculate
+   `long_put = short_put - put_width` and
+   `long_call = short_call + call_width` from the requested widths.
+   Check those exact wing strikes against the complete returned put and call lists.
+   A contract previously considered as a wing can become a short when its verified
+   delta is the appropriate match; rebuild both outer wings for the selected short pair.
+   Unchecked outer strikes do not establish that protective wings are absent.
+   Verify every selected contract individually. Candidate-selection helpers narrow
    the search but do not prove the exact contract's Greeks or quote quality.
+   Changing any leg's symbol, expiration, right or strike invalidates that leg's
+   earlier checks. Re-read both Greeks and quote quality for its final identity
+   before package pricing or submission; verifying a replaced candidate does not count.
 6. Before constructing an opening multi-leg payload, read
    `references/common-option-structures.md` and verify each buy/sell side,
    strike ordering and ratio against the intended structure. For credit
@@ -55,6 +86,14 @@ submitting an option order.
    independently, including entry, exit, adjustment, or cleanup. If atomic
    package submission is unavailable, make a no-trade decision and report that
    broker capability as the blocker.
+   If checks pass for an already-authorized execution, continue from preview to
+   `orders_submit_multileg` with the verified legs and signed limit, then
+   complete the status and position checks below before your final answer.
+   A successful price preview or an intention to submit is not completed execution.
+   If a real condition remains unmet, state that condition and leave the position unchanged.
+   For one authorized option contract, use `orders_submit_order` with the exact
+   verified identity, quantity, side, limit price and required private purpose
+   and order reason. Complete that call before claiming submission.
 8. Capture the returned identifier, inspect that exact order, and reread positions.
    Submission is not proof of a fill, and a fill response alone is not proof that
    the account has the intended final exposure.
@@ -64,6 +103,9 @@ submitting an option order.
    or modify your own pending package to make it fill sooner or to restart the
    decision unless the user's rules explicitly ask for that. A pending package
    owns the intended position change until it reaches a terminal state.
+   Verify every returned child identifier for a multi-leg package and reconcile
+   every intended leg against fresh signed positions. One child's terminal fill
+   does not prove the complete package filled. Report unresolved legs explicitly.
 
 ## Position truth
 
@@ -93,7 +135,35 @@ remains.
 - Use the intended package quantity only when submitting the order.
 - A positive signed package price is a debit. A negative signed package price is
   a credit.
+- Reconcile package arithmetic using the returned per-leg signed prices and
+  quantities. Do not invent a conflicting credit from mental arithmetic. If a
+  discrepancy appears, recheck the exact sides, ratios and price style with the
+  pricing tool before deciding the evidence is inconsistent.
 - Reject prices that contradict the structure's economic bounds.
+- For a standard same-expiration credit iron condor with one contract per leg,
+  compute `put_width = short_put - long_put`,
+  `call_width = long_call - short_call`, and
+  `short_gap = short_call - short_put` separately from the verified strikes.
+  The short-strike gap is not a wing width. Check the complete strike ordering
+  and each protective width against the intended structure.
+  Reconcile `credit = -net_limit_price` with the returned signed leg prices.
+  Independently compute `max_loss = max(put_width, call_width) - credit` in
+  those same price units, then scale by the verified contract multiplier and
+  matched package quantity to obtain monetary maximum loss. Compare that loss
+  and the package cash impact against the actual strategy, account and broker
+  limits. Other structures or ratios require their own verified payoff bounds.
+- Choose the price style for the authorized execution goal before submitting.
+  A midpoint is a valuation estimate, not an immediately executable quote;
+  `best` and `mid` limits can remain pending. For an authorized entry or exit
+  intended to execute now, calculate `price_style='fastest'` from current
+  exact-leg quotes unless the user specifies a different price preference.
+  Closing held positions also requires `action='close'`. Pass the returned
+  signed price as `net_limit_price` so the order records the price you verified.
+  This buys at the quoted asks and sells
+  at the quoted bids, while retaining a limit. Preserve every user debit cap,
+  minimum credit, risk bound and execution preference; if the executable price
+  violates one, leave the position unchanged and explain the conflict.
+  Quote movement can still prevent a fill, so verify actual status and positions.
 
 ## References
 

@@ -8,6 +8,7 @@ _NAME_TO_MODULE = {
     "Bar": "bar",
     "Bars": "bars",
     "CashEvent": "cash_event",
+    "CashEventSync": "cash_event_sync",
     "Chains": "chains",
     "Data": "data",
     "DataPolars": "data_polars",

@@ -179,6 +179,18 @@ Common Patterns
    sells, reduces, or explicitly skips a high-conviction setup. Keep the entry
    compact: action, symbol, main evidence, risk, and expected invalidation.
 
+**Private order rationale and public summary**
+   Order submission, multileg submission, modification and cancellation tools
+   require a private ``reason`` for the owner's audit trail. They also accept an
+   optional ``public_reason``: a separate short summary intended for sharing.
+   Private reasons are never used as a fallback for a public post.
+
+   Keep public summaries within 280 UTF-8 bytes. Exclude names, account numbers,
+   credentials, bank information and account balances. An invalid public note
+   is omitted while the valid private order action continues. A public note
+   alone does not authorize Community publication: the owner's filled-trade
+   and explanation-sharing settings and the server's privacy checks still apply.
+
 **Thesis tracking**
    Use ``open_thesis`` when the agent enters a position, ``update_thesis`` when
    evidence changes, and ``close_thesis`` when the position exits or the thesis

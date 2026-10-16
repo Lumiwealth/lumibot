@@ -1,5 +1,63 @@
 # Changelog
 
+## 4.6.19 - 2026-10-16
+
+Deploy marker: `81a24d66ee26a25be1f516e7771f1a386c56417f`.
+
+- Preserve explicit source timezone offsets through historical document reads and reporting. SQL column aliases do not convert timestamps; release qualification retains the observed double-conversion failure as a negative control.
+
+- Report the successful research response's effective time bound separately from requested bounds and calendar filters. A live retry with `asOf: null` must never be reported as historical cutoff proof; preserve the observed failure as a negative release calibration control.
+
+- Make blocked research packets explicitly hand off the next observations or documents, time bound, qualified source type and deferred decision. Preserve historical ceilings, original-version/publication proof and configured-source limits.
+
+- Timestamp verified cloud account balances before slower position, order and funding reads, preserving the real observation time for both continuous and one-shot snapshots. Funding coverage and return calculations remain independently validated.
+
+- Match Schwab funding coverage to the SDK's whole-second wire precision, overlapping inclusive starts inside the one-year request bound. Preserve continuous producer identity after one-shot snapshots.
+- Enforce Luna subscription-only qualification across top-level and nested calls, reject SDK drift before inference, and keep explicit cumulative-allowance amendments append-only. Calibrate numerical-residue and typed-SQL grading against unchanged safe/unsafe controls.
+
+- Send account/window funding-sync evidence through the shared cloud sender. Audit all non-trade Schwab categories; retain known cash while explicitly reporting unresolved transfers/corrections or unavailable history. Drain every pending batch for one-shot account snapshots, preserve receipt identities on retry, and serialize concurrent cloud updates.
+
+- Harden Schwab funding and token storage: use the official one-year transaction-request maximum with bounded historical slices; reject explicit corrections and malformed provider fields without leaking response details. Preserve saved credentials on login/metadata/storage failures, share private atomic writes across login and refresh, and advance adapter token state only after persistence. Validate read-only account discovery and retain its primary error during cleanup. Correct documentation that incorrectly promised a rolling seven-day authorization.
+- Preserve Schwab credentials on SDK startup and account-discovery errors, including HTTP 401; reject unusable account hashes and stop the failed initialization's proactive refresher. Provider error text cannot decide whether to delete a token or enter startup logs.
+
+- Read recent Schwab cash activities through the existing authenticated client, preserving signed funding, provider IDs and provider timezone offsets. Distinguish internal cash/margin and bank-sweep journals from IRA distribution withholding. Subdivide saturated or timed-out large windows; reject unresolved classification, missing currency, incomplete history and truncating limits. Event retrieval does not certify all-time coverage.
+
+- Add an explicit `chatgpt/<model>` agent connection using supported Sign in with ChatGPT, protected local profiles, model discovery, rotating refresh and logout. Subscription transport requires successful stream completion and never falls back to an API key. Support included plan allowance and explicitly authorized existing ChatGPT credits without changing the account-wide usage setting.
+- Move canonical evaluation actors, semantic judges and rubric calibration to subscription funding with a resumable per-call allowance. Reject API-funded eval model selections and remove ordinary provider/broker credentials from fixture processes. Real model qualification and private CI grant wiring remain release requirements.
+
+- Add exact-asset bulk quotes to Strategy and Schwab, retrieve full Schwab option snapshots in one chain request, bound empty-chain fallback and reject unsuccessful chain responses. OptionsHelper can evaluate a supplied snapshot without redundant market reads while preserving exact contract identity and freshness.
+
+- Reconcile broad order refresh through the adapter lifecycle owner, preserving direct-refresh fills, rejection evidence and option underlying identity.
+
+- Persist explicit private agent tool purpose and ordered tool audit events, with separately authorized public order reasons. Preserve typed remote MCP failures, observed execution evidence and managed replay linkage without exposing private journal content as public reasons.
+- Strengthen general research and trading guidance: verify historical document versions and eligible manifests before reading, retain source identities and timing, distinguish live research from unavailable historical replay, use completed intraday signals, and reconcile executable option packages and existing pending orders. Atomic multi-leg backtest fills enforce quoted package limits. Native actor repetitions and unchanged safe/unsafe calibration controls gate publication.
+
+Earlier IBKR qualification marker: `805f00ab67f87bed5dc5591c4ffe18a03695f425` (not a separately published release).
+
+- Recover independently passing native eval cases from their durable ledger after a timeout, even when the final freshness checkpoint was not written. Preserve failed fingerprints and require distinct completed repetitions; this is qualification recovery, not an agent-policy change.
+
+- Allow an explicit `minimum_bars` for generous historical windows. Validate the required tail without changing returned prices, fetch windows, signals or accounting; omitted minima retain strict existing behavior. Reject invalid minima and missing rows inside the declared required lookback.
+- Reuse bounded serialization of overlapping framework input rows. Preserve exact row/frame fingerprints, timestamps, scalar types, signed zero and corrected-price observations rather than repeatedly converting unchanged rolling windows.
+
+- Treat optional indicator cache prefetch separately from required history. Validate actual causal indicator inputs without requiring a nonexistent 10,000-bar cache; explicit history requests and genuine missing inputs remain strict.
+- Preserve bounded framework-observed market input rows, times, instrument identities and frame fingerprints independently of strategy chart annotations. Export explicit incomplete-capture markers and keep option-source observations separate; the diagnostics never alter orders or data validation.
+
+- Preserve concurrently published S3 rows across subsequent IBKR paging checkpoints and final writes. Reuse unchanged corporate-action columns so public daily warm reads do not upload the full cache again.
+
+- Bind IBKR stock Trades caches and in-memory series to a verified current split-event ledger. Refetch under a new identity after a split instead of guessing corrections from price jumps; preserve genuine market moves and existing cache files.
+- Freeze that verified stock ledger across routed IBKR cadences too; reject changed or missing adjustment provenance before merging rows or publishing repaired data. Add routed split-basis regressions and isolate required-data health between corporate-action tests.
+- Normalize explicitly reported IBKR volume units once, and isolate historical caches whose previous units cannot be established. Missing stock Trades units fail visibly rather than silently scaling volume.
+- Require usable corporate-action evidence, clear corrected/deleted events, preserve separately adjusted dividends, and keep transient Yahoo failures retryable. Current-session action coverage and weekend cache eligibility are explicit.
+- Repair incomplete daily stock/index history through the qualified alternate route without replacing valid overlapping prices. Preserve genuine closed-session gaps and exact cold/warm results.
+- Cancel pending raw-share equity orders through the normal broker cancellation path when a split changes their quantity basis; do not silently adjust outstanding orders.
+- Expose sanitized retry causes and verified history bounds for actionable backtest recovery, with regression coverage for valid zero-trade results.
+- Accept recovered daily prices even when an earlier route's telemetry still reports that day missing. Keep the original download evidence and reject genuinely absent rows; direct and routed replays preserve exact bars, signals, fills, cash, holdings and equity.
+- Add frozen real corporate-event engine regressions, independent cash/share/equity ledgers, split-basis cache extension and replay tests, and volume/provenance regressions. No general live-agent prompt or strategy-rule changes are part of these IBKR repairs.
+
+- Keep backtesting position entry basis accurate across additions, reductions, partial fills, reversals, and reopening after a full close.
+- Align documentation canonical URLs and social metadata, generate the sitemap from built pages, repair indicator API links, and clarify onboarding requirements and comparison claims.
+- Keep the synthetic installation example offline by supplying its risk-free rate instead of fetching it from Yahoo.
+
 ## 4.6.18 - 2026-10-10
 
 - Qualify research-evidence judge wording with recorded safe answers and unsafe controls. Preserve independently passing eval cases across workflow runs without reviving a newer failed fingerprint; this changes release tooling, not live agent prompts or policies.

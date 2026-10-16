@@ -5,11 +5,19 @@ import pytest
 from lumibot.tools import data_downloader_queue_client as queue
 
 
-def test_execute_deadline_includes_queue_full_submission(monkeypatch):
+def _isolated_queue_clock(monkeypatch):
     clock = [0.0]
-    monkeypatch.setattr(queue.time, "monotonic", lambda: clock[0])
-    monkeypatch.setattr(queue.time, "time", lambda: clock[0])
-    monkeypatch.setattr(queue.time, "sleep", lambda delay: clock.__setitem__(0, clock[0] + delay))
+    # Replacing the module-local reference keeps unrelated SDK/background
+    # sleeps from advancing this request's synthetic deadline.
+    monkeypatch.setattr(queue, "time", SimpleNamespace(
+        monotonic=lambda: clock[0], time=lambda: clock[0],
+        sleep=lambda delay: clock.__setitem__(0, clock[0] + delay),
+    ))
+    return clock
+
+
+def test_execute_deadline_includes_queue_full_submission(monkeypatch):
+    clock = _isolated_queue_clock(monkeypatch)
     client = queue.QueueClient("http://localhost:8080", "test-key", timeout=30)
     calls = []
     def post(*a, **kwargs):
@@ -28,8 +36,7 @@ def test_execute_deadline_includes_queue_full_submission(monkeypatch):
 
 
 def test_result_wait_receives_remaining_budget_after_submission(monkeypatch):
-    clock = [0.0]
-    monkeypatch.setattr(queue.time, "monotonic", lambda: clock[0])
+    clock = _isolated_queue_clock(monkeypatch)
     client = queue.QueueClient("http://localhost:8080", "test-key")
     def submit(**kwargs):
         clock[0] += 4
@@ -50,10 +57,7 @@ def _replacement_session(monkeypatch, *, absent_forever=False, transient=False, 
 
     import requests
 
-    clock = [0.0]
-    monkeypatch.setattr(queue.time, 'monotonic', lambda: clock[0])
-    monkeypatch.setattr(queue.time, 'time', lambda: clock[0])
-    monkeypatch.setattr(queue.time, 'sleep', lambda delay: clock.__setitem__(0, clock[0] + delay))
+    clock = _isolated_queue_clock(monkeypatch)
     calls = {'submits': [], 'statuses': 0}
     def response(status, data):
         result = requests.Response()
@@ -182,3 +186,18 @@ def test_read_survives_actual_http_server_replacement(monkeypatch):
         server.server_close()
         thread.join(1)
         executor.shutdown(wait=True)
+
+
+def test_fake_queue_clock_does_not_replace_unrelated_process_time(monkeypatch):
+    import threading
+    import time
+
+    real_monotonic, real_sleep = time.monotonic, time.sleep
+    _, clock, _ = _replacement_session(monkeypatch)
+    background = threading.Thread(target=lambda: time.sleep(.01))
+    background.start()
+    background.join(timeout=1)
+    assert not background.is_alive()
+    assert clock == [0.0], "Unrelated background sleeps must not consume the queue deadline"
+    assert time.monotonic is real_monotonic
+    assert time.sleep is real_sleep

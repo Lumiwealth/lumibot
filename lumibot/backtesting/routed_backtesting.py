@@ -16,6 +16,7 @@ from lumibot.entities import Asset, AssetsMapping, Data
 from lumibot.tools import ibkr_helper
 from lumibot.tools import polygon_helper
 from lumibot.tools.helpers import parse_timestep_qty_and_unit
+from lumibot.tools.ibkr_equity_basis import EquityBasisSnapshot, assert_same_basis, equity_basis_from_frame
 
 logger = logging.getLogger(__name__)
 
@@ -360,9 +361,25 @@ class _IbkrRoutingAdapter(_DataFrameRoutingAdapter):
         # this boundary turns every simulated minute into a fresh tail download.
         self._history_as_of = ibkr_helper._ibkr_history_now_utc()
         self._prefetch_start_by_series: dict[Any, datetime] = {}
+        self._equity_basis_snapshots: dict[str, EquityBasisSnapshot] = {}
 
     def _get_price_data(self, **kwargs):
-        return ibkr_helper.get_price_data(history_as_of=self._history_as_of, **kwargs)
+        asset = kwargs["asset"]
+        stock_symbol = (str(asset.symbol).strip().upper()
+                        if _normalize_asset_type(asset.asset_type) == "stock" else None)
+        frozen_basis = self._equity_basis_snapshots.get(stock_symbol) if stock_symbol else None
+        basis_kwargs = {"equity_basis": frozen_basis} if frozen_basis is not None else {}
+        df = ibkr_helper.get_price_data(history_as_of=self._history_as_of, **basis_kwargs, **kwargs)
+        if stock_symbol and df is not None and not df.empty:
+            # Validate every returned ledger, including later cadences. A frozen
+            # price basis must not disguise a corrupt provider ledger.
+            returned_basis = equity_basis_from_frame(df)
+            frozen_basis = frozen_basis or returned_basis
+            if frozen_basis is not None:
+                expected = pd.DataFrame({"_ibkr_split_basis": [frozen_basis.split_fingerprint]})
+                assert_same_basis(expected, df)
+                self._equity_basis_snapshots[stock_symbol] = frozen_basis
+        return df
 
     @staticmethod
     def _normalize_timestep_key(timestep: str) -> str:
@@ -663,6 +680,7 @@ class _IbkrRoutingAdapter(_DataFrameRoutingAdapter):
             df = df.sort_index()
 
         if existing_df is not None and isinstance(existing_df, pd.DataFrame) and not existing_df.empty:
+            assert_same_basis(existing_df, df)
             merged = pd.concat([existing_df, df], axis=0).sort_index()
             merged = merged[~merged.index.duplicated(keep="last")]
         else:
@@ -682,6 +700,13 @@ class _IbkrRoutingAdapter(_DataFrameRoutingAdapter):
         except Exception:
             pass
 
+        # Repair may recreate the DataFrame. Check rows outside its fallback,
+        # then restore the verified ledger metadata before publishing memory.
+        assert_same_basis(merged, data.df)
+        if asset_type == "stock":
+            frozen_basis = self._equity_basis_snapshots.get(str(fetch_asset.symbol).strip().upper())
+            if frozen_basis is not None:
+                data.df.attrs["ibkr_equity_basis"] = frozen_basis.to_dict()
         self._router._data_store[canonical_key] = data
         if canonical_key in self._fully_loaded_series:
             self._prefetch_start_by_series[canonical_key] = prefetch_start
@@ -1171,6 +1196,16 @@ class RoutedBacktestingPandas(ThetaDataBacktestingPandas):
         return {"observedRoutes": list(observed.values()) if isinstance(observed, dict) else []}
 
     def record_history_requirement(self, *, asset, timestep, requested_bars, bars, timeshift=None):
+        RoutedBacktestingPandas._record_consumed_history(self, asset=asset, timestep=timestep,
+            requested_bars=requested_bars, frame=bars.pandas_df.tail(requested_bars) if bars is not None else None,
+            timeshift=timeshift)
+
+    def record_indicator_input(self, *, asset, timestep, frame):
+        """Validate the actual observed indicator inputs, not optional cache size."""
+        RoutedBacktestingPandas._record_consumed_history(self, asset=asset, timestep=timestep,
+            requested_bars=max(1, len(frame)) if frame is not None else 1, frame=frame, timeshift=None)
+
+    def _record_consumed_history(self, *, asset, timestep, requested_bars, frame, timeshift):
         base = asset[0] if isinstance(asset, tuple) else asset
         if self._provider_spec_for_asset(base).provider != "ibkr":
             return
@@ -1184,7 +1219,7 @@ class RoutedBacktestingPandas(ThetaDataBacktestingPandas):
                                                          getattr(getattr(self, "_registry", None), "_adapters", {}).get("ibkr"),
                                                          "_history_as_of", None))
         record_required_history(asset=asset, timestep=timestep, requested_bars=requested_bars,
-                                frame=bars.pandas_df if bars is not None else None, when=self.get_datetime())
+                                frame=frame, when=self.get_datetime())
 
     def resolve_order_asset(self, order, positions):
         if self._provider_spec_for_asset(order.asset).provider != "ibkr":
@@ -1340,7 +1375,7 @@ class RoutedBacktestingPandas(ThetaDataBacktestingPandas):
                             [asset], self._backtest_daily_corporate_action_length(), timestep="day", quote=quote
                         )
                     except Exception as exc:
-                        logger.debug("Routed dividend bars unavailable for %s: %s", getattr(asset, "symbol", asset), exc)
+                        raise RuntimeError(f"corporate_actions_unavailable: {asset.symbol}") from exc
                     frame = self._get_backtest_daily_corporate_action_frame(asset, quote=quote)
                 by_date = {}
                 if frame is not None and "dividend" in frame.columns and len(frame.index):
@@ -1396,7 +1431,7 @@ class RoutedBacktestingPandas(ThetaDataBacktestingPandas):
                             if amount > 0:
                                 by_date[ts.date()] = by_date.get(ts.date(), 0.0) + float(amount)
                 except Exception as exc:
-                    logger.warning("Corporate-action dividends unavailable for %s: %s", symbol, exc)
+                    raise RuntimeError(f"corporate_actions_unavailable: {symbol}") from exc
                 cache[symbol] = by_date
             out[asset] = by_date.get(current_date, 0.0)
         return out

@@ -226,7 +226,7 @@ This keeps the payload future-compatible for downstream idempotency work without
 
 - Alpaca: implemented through the authenticated Trading API client's inherited REST methods
 - Tradier: implemented through `lumiwealth-tradier` account history
-- Schwab: documented as future-compatible, not implemented in this release
+- Schwab: implemented with bounded history retrieval, signed cash funding, income and explicit unresolved transfer coverage
 - IBKR: documented as future-compatible, not implemented in this release
 - CCXT / crypto exchanges: documented as future-compatible, not implemented in this release
 
@@ -243,3 +243,50 @@ This keeps the payload future-compatible for downstream idempotency work without
 - Alpaca paper read-path validation depends on valid paper credentials that are authorized for account activities
 - Tradier account history is live-only and updated nightly, so paper accounts cannot fully validate the live cash-event
   path
+
+
+### Account/window funding evidence and one-shot snapshots
+
+Schwab's `get_cash_event_sync(since=..., limit=...)` returns `CashEventSync`.
+The requested window is start inclusive and end exclusive; omitted `since`
+means a 60-day window, not all-time history. Retrieval is bounded and audits all
+non-trade transaction categories. Known cash stays available when another row
+needs reconciliation. Ambiguous journals, corrections, non-valid activity and
+in-kind transfers with no verified valuation produce `partial` coverage with
+`unresolved_transaction`. They never become guessed zero-dollar deposits.
+Provider failures produce `unavailable` with `broker_history_unavailable`.
+Both states leave coverage empty. The caller must surface these limitations.
+
+The shared cloud sender emits optional `funding_sync` schema version 1 with
+account identity/mode, requested window, covered intervals, retrieval state,
+observation times and a stable sync/batch identity. Full selected account IDs
+travel only in the authenticated telemetry payload; do not log them. Legacy
+brokers without this evidence continue sending cash events; missing evidence
+means unknown coverage. A complete empty read is different from a failed read.
+
+`account_snapshot_checked_at` records when the verified balances were read,
+before fetching positions, orders or funding. A slow funding request must not
+retimestamp that older balance at payload serialization time. Consumers still
+check the actual covered interval; this timestamp does not expand funding
+coverage, certify unknown windows or change the return calculation.
+
+A sync includes every retrieved event even when an earlier overlapping sync
+already sent it. Stable event IDs let the receiver deduplicate cash while
+proving delivery of every batch in this particular window. Failed posts retain
+the same sync and batch for retry. HTTP success means queue acceptance; only
+the receiver can establish persisted delivery and performance eligibility.
+
+Use `strategy.send_account_snapshot_to_cloud(max_batches=100)` for a one-shot
+snapshot. It drains pending batches without running a trading iteration. It
+returns false on send failure, history-fetch exception, lack of progress or
+batch-budget exhaustion. Partial/unavailable receipts can be delivered
+successfully: the boolean reports delivery, while `funding_sync.state` reports
+retrieval completeness. Normal `send_update_to_cloud()` emits one batch per
+update. Managed deployments use `BOTSPOT_DEPLOYMENT_ID`; external bots use the
+external producer kind. The one-shot method identifies account snapshots.
+
+Audited Schwab requests pin their declared end to the SDK's whole-second wire
+precision. They overlap the inclusive start by one second, then filter normalized
+rows to the declared start-inclusive/end-exclusive window. Split windows reserve
+that overlap inside the one-year request maximum. This prevents a fractional
+unchecked tail or an exclusive provider boundary from becoming complete coverage.

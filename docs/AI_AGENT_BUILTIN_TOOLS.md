@@ -46,6 +46,29 @@ Use `orders_get_status` after a submit to verify identifiers. Never claim a fill
 
 Alpaca news uses an active Alpaca broker when available. Outside Alpaca broker runs, it checks `ALPACA_NEWS_API_KEY` / `ALPACA_NEWS_API_SECRET`. If neither path is available, `alpaca_news` is not exposed to agents.
 
+Historical news validates each returned publication/update timestamp against
+the effective simulated UTC clock. Future, undated, ambiguous and subsequently
+revised rows are excluded in full. The `historical_integrity` response records
+exclusions, pagination limits and the lack of original-version reconstruction;
+it never presents filtered current articles as a complete historical archive.
+Live results and eligible full article bodies retain their existing behavior.
+
+`read_document(url, available_at=..., expected_sha256=...)` accepts version proof
+from a publisher or discovery index. During a backtest, a timezone-aware
+`available_at` after the simulated UTC clock produces a visible tool error before
+HTTP. A malformed instant or SHA-256 also fails before HTTP. When fetched bytes
+do not match `expected_sha256`, the tool returns an integrity error without
+exposing document text or registering tables. These optional arguments preserve
+existing callers; they validate supplied proof and cannot establish an unknown
+publication time. Agents must compute eligibility for every index table before
+following linked documents and must not fetch excluded versions.
+
+Order tools require a private decision reason. Their optional `public_reason`
+contains a short qualitative thesis and risk, without private identity, account
+balances, account-relative sizing percentages, sizing formulas or credentials.
+The private audit retains the decision context. An unsafe public summary is
+omitted without changing the order or its private reason.
+
 Trading permission:
 
 ```python

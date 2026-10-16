@@ -38,15 +38,16 @@ def option_data():
 
 
 @pytest.mark.usefixtures("disable_datasource_override")
-def test_managed_native_tool_chain_reaches_atomic_option_submission_and_simulated_fill(monkeypatch, tmp_path):
+@pytest.mark.parametrize("price_style,expected_positions", [("mid", {}), ("fastest", {520: 1, 525: -1})])
+def test_managed_native_tool_chain_reaches_atomic_option_submission_and_price_appropriate_settlement(monkeypatch, tmp_path, price_style, expected_positions):
     legs = json.dumps([dict(symbol="QQQ", expiration="2026-09-18", strike=k, right="put",
                             quantity=1, side=side) for k, side in [(520, "buy_to_open"), (525, "sell_to_open")]])
     trajectory = [
         ("account_portfolio", {}), ("account_positions", {}),
         ("market_last_price", {"symbol": "QQQ"}),
         ("options_get_chain", {"symbol": "QQQ", "include_strikes": True}),
-        ("options_calculate_multileg_price", {"legs_json": legs}),
-        ("orders_submit_multileg", {"reason": 'This synthetic backtest submits one unit after inspecting the fixture market history, existing positions and available cash. Exposure is deliberately limited to one unit; the setup is invalid if the observed market history or available buying power changes before execution.', "legs_json": legs, "net_limit_price": -.5}),
+        ("options_calculate_multileg_price", {"legs_json": legs, "price_style": price_style}),
+        ("orders_submit_multileg", {"reason": 'This synthetic backtest submits one unit after inspecting the fixture market history, existing positions and available cash. Exposure is deliberately limited to one unit; the setup is invalid if the observed market history or available buying power changes before execution.', "legs_json": legs, "price_style": price_style}),
     ]
     requests = []
 
@@ -61,14 +62,24 @@ def test_managed_native_tool_chain_reaches_atomic_option_submission_and_simulate
             assert result["name"] == trajectory[step-1][0]
             assert not result.get("response", {}).get("tool_error"), result
             assert "error" not in result.get("response", {}), result
+            if result["name"] == "options_calculate_multileg_price":
+                preview = result["response"]
+                assert preview["preview_only"] is True
+                assert preview["price_style"] == price_style
+                assert preview["net_limit_price"] == pytest.approx(-.5 if price_style == "mid" else -.4)
+                assert sum(leg["pricing"]["signed_price"] * leg["quantity"] for leg in preview["legs"]) == pytest.approx(preview["net_limit_price"])
             assert payload["model"] == "gemini-3.5-flash-lite"
-        parts = ([{"type": "function_call", "name": trajectory[step][0], "arguments": trajectory[step][1],
+        parts = ([{"type": "function_call", "name": trajectory[step][0], "arguments": {
+                       **trajectory[step][1],
+                       "agent_purpose": "Inspect the authorized synthetic spread evidence and execute its permitted atomic order.",
+                   },
                    "id": f"call-{step}", "thoughtSignature": "c2lnbmF0dXJl"}]
                  if step < len(trajectory) else [{"type": "text", "text": "Spread submitted; fills are broker-observed."}])
         return 200, {"resolvedModel": "gemini-3.5-flash-lite", "model": "gemini-3.5-flash-lite",
                      "parts": parts, "usage": {"inputTokens": 10, "outputTokens": 5}}
 
     monkeypatch.setenv("LUMIBOT_CACHE_FOLDER", str(tmp_path / "cache"))
+    monkeypatch.setenv("LUMIBOT_MEMORY_DIR", str(tmp_path / "memory"))
     monkeypatch.setenv("LUMIBOT_AI_GATEWAY_URL", "https://gateway.example.test")
     monkeypatch.setenv("LUMIBOT_AI_GATEWAY_TOKEN", "synthetic-bound-token")
     for key in ("GEMINI_API_KEY", "GOOGLE_API_KEY"):
@@ -92,7 +103,17 @@ def test_managed_native_tool_chain_reaches_atomic_option_submission_and_simulate
         save_logfile=False, show_progress_bar=False, quiet_logs=True)
     assert len(requests) == len(trajectory) + 1
     positions = {p.asset.strike: float(p.quantity) for p in strategy.get_positions() if p.asset.asset_type == "option"}
-    assert positions == {520: 1, 525: -1}
+    # With unchanged fixture quotes, a mid credit limit stays pending; the
+    # executable bid/ask package can fill through the actual broker simulator.
+    assert positions == expected_positions
     detail = pd.read_parquet(strategy.parameters["agent_trader_detail_parquet"])
     calls = detail.loc[detail.event_kind == "tool_call", "tool_name"].tolist()
     assert calls == [name for name, _ in trajectory]
+    with strategy.memory._connect() as connection:
+        audit = connection.execute(
+            "SELECT event_type, agent_name, model_call_id FROM memory_events "
+            "WHERE event_type LIKE 'agent.tool_%' ORDER BY sequence"
+        ).fetchall()
+    assert [row["event_type"] for row in audit] == ["agent.tool_started", "agent.tool_outcome"] * len(trajectory)
+    assert {row["agent_name"] for row in audit} == {"trader"}
+    assert len({row["model_call_id"] for row in audit}) == 1

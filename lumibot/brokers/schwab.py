@@ -300,6 +300,10 @@ class Schwab(Broker):
     """
 
     NAME = "Schwab"
+    CASH_FUNDING_TRANSACTION_TYPES = {
+        "ACH_RECEIPT", "ACH_DISBURSEMENT", "CASH_RECEIPT",
+        "CASH_DISBURSEMENT", "WIRE_IN", "WIRE_OUT", "ELECTRONIC_FUND",
+    }
     ACTIVE_SCHWAB_ORDER_STATUSES = {
         "AWAITING_PARENT_ORDER",
         "AWAITING_CONDITION",
@@ -548,14 +552,11 @@ class Schwab(Broker):
                         token_available_and_valid = True
                         logger.info(f"[Schwab] Token from SCHWAB_TOKEN env var processed, validated, and saved to {token_path}")
                     else:
-                        logger.error(f"[Schwab] Token from SCHWAB_TOKEN env var became invalid after SchwabHelper._ensure_token_metadata. Deleting {token_path}.")
-                        token_path.unlink(missing_ok=True)
+                        logger.error("[Schwab] Imported token failed metadata validation; saved file retained.")
                 else:
-                    logger.error(f"[Schwab] Token from SCHWAB_TOKEN env var resulted in an invalid token file at {token_path}. Deleting.")
-                    token_path.unlink(missing_ok=True)
-            except Exception as e:
-                logger.error(f"[Schwab] Error processing SCHWAB_TOKEN: {e}")
-                if token_path.exists(): token_path.unlink(missing_ok=True)
+                    logger.error("[Schwab] Imported token failed validation; saved file retained.")
+            except Exception:
+                logger.error("[Schwab] Unable to process SCHWAB_TOKEN; saved file retained.")
 
         if not token_available_and_valid and token_path.exists() and token_path.stat().st_size > 0:
             logger.info(f"[Schwab] Existing token file found at {token_path}. Validating...")
@@ -571,11 +572,13 @@ class Schwab(Broker):
                     token_available_and_valid = True
                     logger.info(f"[Schwab] Existing token file {token_path} is valid after metadata check.")
                 else:
-                    logger.warning(f"[Schwab] Existing token file {token_path} is invalid after checks. Deleting.")
-                    token_path.unlink(missing_ok=True)
-            except Exception as e:
-                logger.warning(f"[Schwab] Error validating/fixing existing token file {token_path}: {e}. Deleting.")
-                if token_path.exists(): token_path.unlink(missing_ok=True)
+                    raise ValueError("Saved token is invalid")
+            except Exception:
+                self.schwab_authorization_error = True
+                raise ConnectionError(
+                    "Unable to validate or persist saved Schwab token; file preserved. "
+                    "Check token storage or explicitly complete normal Schwab reauthorization."
+                ) from None
 
         if not token_available_and_valid:
             logger.info("[Schwab] No valid token found. Initiating user authorization flow to obtain token payload.")
@@ -593,8 +596,7 @@ class Schwab(Broker):
                 if schwab_helper._is_token_valid_for_schwab_py(token_path):
                     token_available_and_valid = True
                 else:
-                    logger.error(f"[Schwab] Token became invalid after SchwabHelper._ensure_token_metadata post-auth. Deleting {token_path}.")
-                    if token_path.exists(): token_path.unlink(missing_ok=True)
+                    logger.error("[Schwab] Token failed validation after authorization; saved file retained.")
             else:
                 self.schwab_authorization_error = True
                 raise ConnectionError("Schwab token file is missing or invalid even after successful authorization flow.")
@@ -639,14 +641,17 @@ class Schwab(Broker):
 
             def _update_token(updated_token):
                 """Write refreshed token back to token.json so it persists across restarts."""
-                tmp_token_path = token_path.with_name(f".{token_path.name}.tmp.{os.getpid()}.{time.time_ns()}")
                 try:
                     if not isinstance(updated_token, dict):
                         raise ValueError("Refreshed Schwab token payload is not a JSON object.")
+                    if not isinstance(updated_token.get("access_token"), str) or not updated_token["access_token"].strip():
+                        raise ValueError("Refreshed Schwab token is missing a usable access token.")
                     next_token = dict(token_dict_for_session)
                     next_token.update(updated_token)
                     if not next_token.get("refresh_token") and token_dict_for_session.get("refresh_token"):
                         next_token["refresh_token"] = token_dict_for_session["refresh_token"]
+                    if not isinstance(next_token.get("refresh_token"), str) or not next_token["refresh_token"].strip():
+                        raise ValueError("Refreshed Schwab token is missing a usable refresh token.")
                     now_ms = int(time.time() * 1000)
                     if updated_token.get("access_token") and not updated_token.get("issued_at"):
                         next_token["issued_at"] = now_ms
@@ -655,36 +660,27 @@ class Schwab(Broker):
                     next_token.setdefault("expires_in", token_dict_for_session.get("expires_in", 1800))
                     next_token.setdefault(
                         "refresh_token_expires_in",
-                        token_dict_for_session.get("refresh_token_expires_in", 90 * 24 * 3600),
+                        token_dict_for_session.get("refresh_token_expires_in", 7 * 24 * 3600),
                     )
                     next_token.setdefault("token_type", token_dict_for_session.get("token_type", "Bearer"))
                     next_token.setdefault("scope", token_dict_for_session.get("scope", "api"))
                     next_token.pop("id_token", None)
 
-                    token_dict_for_session.clear()
-                    token_dict_for_session.update(next_token)
                     wrapped = {
                         "creation_timestamp": wrapped_token_data.get("creation_timestamp", int(time.time())),
-                        "token": token_dict_for_session,
+                        "token": next_token,
                     }
-                    with open(tmp_token_path, "w", encoding="utf-8") as fp:
-                        _json_module().dump(wrapped, fp)
-                    os.chmod(tmp_token_path, 0o600)
-                    os.replace(tmp_token_path, token_path)
-                    try:
-                        os.chmod(token_path, 0o600)
-                    except OSError:
-                        pass
+                    # Use the same private atomic writer as initial login.
+                    # Advance the adapter's token state only after persistence.
+                    _schwab_helper()._write_token_file(token_path, wrapped)
+                    token_dict_for_session.clear()
+                    token_dict_for_session.update(next_token)
                     logger.info(f"[Schwab] Token automatically refreshed and written to {token_path}")
-                except Exception as e_write:
-                    try:
-                        tmp_token_path.unlink(missing_ok=True)
-                    except OSError:
-                        pass
-                    logger.error(f"[Schwab] Failed to write refreshed token to file: {e_write}")
+                except Exception:
+                    logger.error("[Schwab] Failed to persist refreshed token; saved file retained.")
                     raise SchwabTokenPersistenceError(
-                        f"[Schwab] Failed to write refreshed token to file {token_path}: {e_write}"
-                    ) from e_write
+                        "[Schwab] Failed to persist refreshed token; saved file retained."
+                    ) from None
 
             # Build kwargs for token refresh – only include client_secret if it actually exists
             refresh_kwargs = {
@@ -835,32 +831,22 @@ class Schwab(Broker):
             if not external_token_refresh and not app_secret_for_refresh:
                 logger.warning(
                     "[Schwab] Token auto-refresh by this client may not work as SCHWAB_APP_SECRET is not configured. "
-                    "You may need to re-authenticate by providing a new SCHWAB_TOKEN or deleting token.json when the current token expires."
+                    "You may need to complete normal Schwab reauthorization when the current token expires."
                 )
-        except Exception as e:
-            logger.error(colored(f"[Schwab] Error initializing Schwab client from token file {token_path}: {e}", "red"))
-            logger.error(_format_exc())
-            # Only delete the token file when it is genuinely corrupt (unreadable
-            # JSON or structurally missing its token). A transient network/API
-            # error during startup must not destroy a valid refresh_token, which
-            # would force an interactive re-authentication.
-            token_file_corrupt = isinstance(e, _json_module().JSONDecodeError) or (
-                isinstance(e, ValueError) and "token" in str(e).lower()
-            )
-            if token_path.exists() and not external_token_refresh and not isinstance(e, SchwabTokenPersistenceError):
-                if token_file_corrupt:
-                    logger.warning(f"[Schwab] Deleting corrupt token file: {token_path}")
-                    token_path.unlink(missing_ok=True)
-                else:
-                    logger.warning(
-                        f"[Schwab] Keeping token file {token_path} after a transient initialization error "
-                        "(the file itself looks intact); it can be reused on the next start."
-                    )
+        except Exception:
+            # An SDK exception mentioning 'token', or even a 401, does not
+            # authorize destroying saved credentials. Provider exceptions can
+            # also contain request URLs or token payloads, so keep them private.
+            logger.error("[Schwab] Client initialization failed; saved token file retained.")
             self.schwab_authorization_error = True
+            refresh_stop = getattr(self, "_schwab_token_refresh_stop", None)
+            if refresh_stop is not None:
+                refresh_stop.set()
+                self._schwab_token_refresh_stop = None
             raise ConnectionError(
-                f"Failed to initialize Schwab client: {e}. "
-                "Consider deleting token.json and clearing SCHWAB_TOKEN env var, then restarting."
-            ) from e
+                "Failed to initialize Schwab client; saved token file retained. "
+                "Check app configuration and token storage, or complete normal Schwab reauthorization."
+            ) from None
 
         # -------------------------------------------------------------
         # Retrieve account hash (needed for all subsequent endpoints)
@@ -869,6 +855,8 @@ class Schwab(Broker):
             resp_accounts = self.client.get_account_numbers()
             if hasattr(resp_accounts, 'status_code') and resp_accounts.status_code == 200:
                 accounts_json = resp_accounts.json()
+                if not isinstance(accounts_json, list) or not all(isinstance(acc, dict) for acc in accounts_json):
+                    raise ValueError("Invalid Schwab account discovery response")
                 # Find entry matching our account number. BotSpot often passes
                 # the last 3-4 account digits, so allow a unique suffix match.
                 target_acc = None
@@ -904,7 +892,7 @@ class Schwab(Broker):
                             "to any account returned by Schwab."
                         )
 
-                if target_acc and 'hashValue' in target_acc:
+                if target_acc and isinstance(target_acc.get('hashValue'), str) and target_acc['hashValue'].strip():
                     hash_value = target_acc['hashValue']
                     logger.info(
                         "[Schwab] Retrieved account hash %s for account %s.",
@@ -917,27 +905,24 @@ class Schwab(Broker):
                     self._broker_fully_ready = True # Signal readiness
                     self._finish_initialization(config, self.data_source, self.account_number, hash_value)
                 else:
-                    logger.error(
-                        "[Schwab] Unable to locate account hash in response from get_account_numbers(). "
-                        "API response: %s",
-                        self._redact_schwab_payload(accounts_json),
-                    )
+                    logger.error("[Schwab] Unable to locate a usable account hash in account discovery.")
                     self.schwab_authorization_error = True
             else:
                 code = getattr(resp_accounts, 'status_code', 'n/a')
-                logger.error(f"[Schwab] Failed to fetch account numbers. HTTP status {code}")
-                if code == 401 and not external_token_refresh:
-                    # Token is invalid, delete it so user will be prompted to re-authenticate.
-                    # In external mode the file is parent-managed; deleting it here would
-                    # destroy the refresh token the parent process rotates.
-                    if token_path.exists(): token_path.unlink(missing_ok=True)
-                    logger.warning(f"[Schwab] Deleted invalid token file {token_path} due to 401 error.")
-                    raise ConnectionError("Schwab authentication failed (401 Unauthorized). Token deleted. Please restart to re-authenticate.")
+                status_label = str(code) if type(code) is int and 100 <= code <= 599 else "unavailable"
+                logger.error(f"[Schwab] Failed to fetch account numbers (HTTP {status_label}); saved token retained.")
                 self.schwab_authorization_error = True
-        except Exception as e_acc:
-            logger.error(colored(f"[Schwab] Exception while fetching account numbers: {e_acc}", "red"))
-            logger.error(_format_exc())
+        except Exception:
+            logger.error("[Schwab] Account discovery or initialization failed; saved token retained.")
+            self.hash_value = None
+            self._broker_fully_ready = False
             self.schwab_authorization_error = True
+
+        if self.schwab_authorization_error:
+            refresh_stop = getattr(self, "_schwab_token_refresh_stop", None)
+            if refresh_stop is not None:
+                refresh_stop.set()
+                self._schwab_token_refresh_stop = None
 
     def cleanup_streams(self):
         activity_stop = getattr(self, "_schwab_activity_stop", None)
@@ -953,6 +938,273 @@ class Schwab(Broker):
         super().cleanup_streams()
 
     # Account and balance methods
+    @staticmethod
+    def _normalize_transaction_to_cash_event(transaction):
+        """Normalize only transactions with an unambiguous cash classification.
+
+        An unresolved journal or security transfer is a coverage failure, not
+        a zero-dollar deposit. Journal labels below are exact provider labels;
+        arbitrary descriptions must not become external funding guesses.
+        """
+        import datetime as dt
+
+        from lumibot.entities import CashEvent
+
+        if not isinstance(transaction, dict):
+            raise ValueError("Invalid Schwab transaction payload")
+        kind = transaction.get("type")
+        if not isinstance(kind, str):
+            raise ValueError("Invalid Schwab transaction category")
+        if kind == "TRADE":
+            # Trade proceeds and embedded commissions already affect value.
+            return None
+        # A correction can replace a prior observation rather than represent
+        # new capital. The cash-list contract cannot retract an acknowledged
+        # event, so do not silently add its amount a second time. Older valid
+        # provider responses omit this optional action field altogether.
+        action = transaction.get("activityType")
+        if action is not None and action not in ("TRANSFER", "EXECUTION"):
+            raise ValueError("Schwab transaction action requires reconciliation")
+        description = transaction.get("description")
+        if description is not None and not isinstance(description, str):
+            raise ValueError("Invalid Schwab transaction description")
+        funding_types = Schwab.CASH_FUNDING_TRANSACTION_TYPES
+        journal_type = None
+        if kind == "JOURNAL":
+            description = transaction.get("description")
+            internal_labels = {
+                "BANK SWEEP TO BROKERAGE", "BROKERAGE SWEEP FR BANK",
+                "BANK SWEEP FR BROKERAGE", "BROKERAGE SWEEP TO BANK",
+            }
+            if isinstance(description, str) and (
+                description in internal_labels or re.fullmatch(r"TRF FDS (?:TO|FRM) TYPE [0-9]+", description)
+            ):
+                journal_type = "journal"
+            elif description == "FED INC TAX WHLD IRA":
+                # Withholding is part of an IRA distribution leaving the
+                # account, distinct from tax on investment income.
+                journal_type = "tax"
+        if kind not in funding_types | {"DIVIDEND_OR_INTEREST"} and journal_type is None:
+            raise ValueError("Schwab transaction requires cash-flow classification")
+        if transaction.get("status") != "VALID":
+            raise ValueError("Schwab transaction status requires reconciliation")
+        identifier = transaction.get("activityId")
+        if not isinstance(identifier, (str, int)) or isinstance(identifier, bool) or not str(identifier).strip():
+            raise ValueError("Schwab transaction is missing a stable activity identifier")
+        amount = transaction.get("netAmount")
+        if amount is None or isinstance(amount, bool) or (isinstance(amount, str) and not amount.strip()):
+            raise ValueError("Schwab transaction is missing a cash amount")
+        try:
+            # Schwab declares a numeric double, not a formatted money string.
+            # Generic CashEvent coercion also accepts '$' and ',' as zero.
+            amount = CashEvent.coerce_amount(float(amount))
+            provider_time = transaction.get("time")
+            if not isinstance(provider_time, str) or not re.fullmatch(
+                r"[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}"
+                r"(?:\.[0-9]+)?(?:Z|[+-][0-9]{2}:?[0-9]{2})", provider_time,
+            ):
+                raise ValueError("Invalid provider timestamp")
+            provider_time = provider_time.replace("Z", "+00:00")
+            # Schwab returns +0000 offsets, which fromisoformat only accepts
+            # with a colon on supported Python 3.10 runtimes.
+            provider_time = re.sub(r"([+-][0-9]{2})([0-9]{2})$", r"\1:\2", provider_time)
+            occurred_at = dt.datetime.fromisoformat(provider_time)
+            if occurred_at.tzinfo is None or occurred_at.utcoffset() is None:
+                raise ValueError("Missing timezone")
+        except (TypeError, ValueError, OverflowError):
+            raise ValueError("Schwab transaction has an invalid amount or timestamp") from None
+        transfer_items = transaction.get("transferItems")
+        if not isinstance(transfer_items, list) or not transfer_items:
+            raise ValueError("Schwab transaction currency is unavailable")
+        currencies = set()
+        for item in transfer_items:
+            if not isinstance(item, dict):
+                raise ValueError("Invalid Schwab transfer item")
+            instrument = item.get("instrument")
+            if not isinstance(instrument, dict):
+                raise ValueError("Schwab transaction currency is unavailable")
+            if instrument.get("assetType") != "CURRENCY":
+                # A cash dividend may reference the paying security; an external
+                # transfer containing securities needs an independently verified valuation.
+                if kind in funding_types or kind == "JOURNAL":
+                    raise ValueError("Schwab in-kind transfer requires valuation and classification")
+                continue
+            symbol = instrument.get("symbol", "")
+            if not isinstance(symbol, str) or not re.fullmatch(r"CURRENCY_[A-Z]{3}", symbol):
+                raise ValueError("Schwab transaction currency is unavailable")
+            currencies.add(symbol.removeprefix("CURRENCY_"))
+        if len(currencies) != 1:
+            raise ValueError("Schwab transaction requires currency-conversion classification")
+        external = kind in funding_types or journal_type == "tax"
+        event_type = journal_type or (("deposit" if amount >= 0 else "withdrawal") if external else "other_cash")
+        return CashEvent(
+            broker_name="schwab",
+            broker_event_id=str(identifier),
+            event_type=event_type,
+            raw_type=kind,
+            amount=amount,
+            currency=next(iter(currencies)),
+            occurred_at=occurred_at,
+            raw_subtype=transaction["status"],
+            description=transaction.get("description"),
+            is_external_cash_flow=external,
+        )
+
+    def get_cash_events(self, *, since=None, limit=100):
+        """Read cash transactions in bounded, at-most-one-year request windows.
+
+        This list is cash event evidence, not a certificate of all-time or
+        in-kind funding coverage. Security transfers need separate valuation.
+        The default start is 60 days ago, not a provider retention guarantee.
+        Explicit older starts are sliced to the official one-year request
+        maximum. Unresolved classifications, saturated responses and caller
+        limits that would discard events fail explicitly.
+        No strategy, order, stream or OAuth setup is started by this method.
+        """
+        events, _ = self._read_cash_events(since=since, limit=limit)
+        return events
+
+    def get_cash_event_sync(self, *, since=None, limit=5000):
+        """Audit a selected account's cash and security-transfer activity.
+
+        Security transfers, corrections and ambiguous journals retain known
+        cash evidence but make coverage partial. No cost basis or zero cash
+        amount is substituted for a missing transfer valuation.
+        """
+        import datetime as dt
+
+        from lumibot.entities import CashEventSync
+
+        # The SDK serializes bounds to whole seconds; never certify a
+        # fractional tail that was not sent to the provider.
+        end = dt.datetime.now(dt.timezone.utc).replace(microsecond=0)
+        start = since if since is not None else end - dt.timedelta(days=60)
+        # Validate caller parameters and identity before any broker read.
+        arguments = dict(events=(), broker_name="schwab", account_id=getattr(self, "account_number", None),
+                         mode="live", start=start, end=end, fetched_at=end, state="complete")
+        CashEventSync(**arguments)
+        if limit is not None and (type(limit) is not int or limit <= 0):
+            raise ValueError("Schwab cash-event limit must be a positive integer or None")
+        try:
+            events, unresolved = self._read_cash_events(since=start, limit=limit, end=end, audit=True)
+        except (ConnectionError, ValueError):
+            return CashEventSync(**{**arguments, "fetched_at": dt.datetime.now(dt.timezone.utc),
+                                    "state": "unavailable", "reason_code": "broker_history_unavailable"})
+        return CashEventSync(**{**arguments, "events": tuple(events),
+                                "fetched_at": dt.datetime.now(dt.timezone.utc),
+                                "state": "partial" if unresolved else "complete",
+                                "reason_code": "unresolved_transaction" if unresolved else None})
+
+    def _read_cash_events(self, *, since=None, limit=100, end=None, audit=False):
+        import datetime as dt
+
+        if not getattr(self, "client", None) or not getattr(self, "hash_value", None):
+            raise ConnectionError("Schwab transaction client or selected account is unavailable")
+        if limit is not None and (isinstance(limit, bool) or not isinstance(limit, int) or limit <= 0):
+            raise ValueError("Schwab cash-event limit must be a positive integer or None")
+        end = end or dt.datetime.now(dt.timezone.utc).replace(microsecond=0)
+        if since is None:
+            start = end - dt.timedelta(days=60)
+        else:
+            if not isinstance(since, dt.datetime) or since.tzinfo is None or since.utcoffset() is None:
+                raise ValueError("Schwab cash-event start must have an explicit timezone")
+            start = since.astimezone(dt.timezone.utc)
+            if start > end:
+                raise ValueError("Schwab cash-event start is after the request end")
+        requests_remaining = 127
+        # 365 days is at most one calendar year even across leap years. Check
+        # the initial work before contacting Schwab; all later splits share
+        # this same finite budget. Inclusive boundaries are deduplicated below.
+        # Audits reserve one second for an inclusive-start overlap without
+        # exceeding the provider's one-year request maximum.
+        max_window = dt.timedelta(days=365) - (dt.timedelta(seconds=1) if audit else dt.timedelta())
+        if end - start > max_window * requests_remaining:
+            raise ValueError("Schwab cash-event history exceeds the bounded request budget")
+        windows = []
+        cursor = start
+        while cursor < end:
+            next_end = min(cursor + max_window, end)
+            windows.append((cursor, next_end))
+            cursor = next_end
+        if not windows:
+            windows = [(start, end)]
+        events = {}
+        unresolved = False
+        # Request cash categories explicitly: neither trade cash nor a
+        # security transfer's zero netAmount measures external cash funding.
+        cash_types = self.CASH_FUNDING_TRANSACTION_TYPES | {"JOURNAL", "DIVIDEND_OR_INTEREST"}
+        if audit:
+            cash_types = {value.value for value in _get_client_class().Transactions.TransactionType
+                          if value.value != "TRADE"}
+        transaction_types = [
+            value for value in _get_client_class().Transactions.TransactionType
+            if value.value in cash_types
+        ]
+        timeouts_remaining = 8
+        while windows:
+            window_start, window_end = windows.pop()
+            if requests_remaining <= 0:
+                raise ValueError("Schwab cash-event response could not be completely drained")
+            requests_remaining -= 1
+            try:
+                response = self.client.get_transactions(
+                    self.hash_value, start_date=window_start - dt.timedelta(seconds=1) if audit else window_start,
+                    end_date=window_end,
+                    transaction_types=transaction_types,
+                )
+            except Exception as exc:
+                from httpx import TimeoutException
+
+                # Large activity windows can time out even for a valid login.
+                # Retry smaller complete windows rather than returning partial
+                # cash evidence or retrying an identical expensive request.
+                timeouts_remaining -= isinstance(exc, TimeoutException)
+                span = int((window_end - window_start).total_seconds())
+                if isinstance(exc, TimeoutException) and timeouts_remaining > 0 and span > 86400:
+                    midpoint = window_start + dt.timedelta(seconds=span // 2)
+                    windows.extend([(window_start, midpoint), (midpoint, window_end)])
+                    continue
+                # Provider exception text can contain URLs, hashes and credentials.
+                raise ConnectionError("Schwab transaction request failed") from None
+            status = getattr(response, "status_code", None)
+            if type(status) is not int or status != 200:
+                status_label = str(status) if type(status) is int and 100 <= status <= 599 else "unavailable"
+                raise ConnectionError(f"Schwab transaction request failed (HTTP {status_label})")
+            try:
+                rows = response.json()
+            except Exception:
+                raise ValueError("Invalid Schwab transaction response") from None
+            if not isinstance(rows, list):
+                raise ValueError("Invalid Schwab transaction response")
+            # The endpoint has no page cursor in the supported SDK. Split a
+            # possibly capped response, overlapping boundaries and deduping IDs.
+            if len(rows) >= 3000:
+                span = int((window_end - window_start).total_seconds())
+                if span <= 1:
+                    raise ValueError("Schwab transaction response remains saturated at its time boundary")
+                midpoint = window_start + dt.timedelta(seconds=span // 2)
+                windows.extend([(window_start, midpoint), (midpoint, window_end)])
+                continue
+            for row in rows:
+                try:
+                    event = self._normalize_transaction_to_cash_event(row)
+                except ValueError:
+                    if not audit:
+                        raise
+                    unresolved = True
+                    continue
+                if event is None or not start <= event.occurred_at <= end:
+                    continue
+                if audit and event.occurred_at == end:
+                    continue
+                existing = events.get(event.event_id)
+                if existing is not None and existing.to_dict() != event.to_dict():
+                    raise ValueError("Schwab returned conflicting observations for one activity")
+                events[event.event_id] = event
+                if limit is not None and len(events) > limit:
+                    raise ValueError("Schwab cash-event limit would discard funding events")
+        return sorted(events.values(), key=lambda event: (event.occurred_at, event.event_id)), unresolved
+
     def _get_balances_at_broker(self, quote_asset: Asset, strategy) -> tuple:
         """
         Get the actual cash balance at the broker.
@@ -1900,11 +2152,27 @@ class Schwab(Broker):
                     observed_order.status = Order.OrderStatus.CANCELLING
             return
 
-        if (
-            stored_order.is_filled()
-            or stored_order.is_canceled()
-            or Order.is_equivalent_status(stored_order.status, self.ERROR_ORDER)
-            or Order.is_equivalent_status(stored_order.status, Order.OrderStatus.EXPIRED)
+        if stored_order.is_filled():
+            return
+        stored_terminal_status = stored_order.status
+        stored_terminal_reason = getattr(stored_order, "error_message", None)
+        was_terminal = (
+            stored_order.is_canceled()
+            or Order.is_equivalent_status(stored_terminal_status, self.ERROR_ORDER)
+            or Order.is_equivalent_status(stored_terminal_status, Order.OrderStatus.EXPIRED)
+        )
+        confirmed_terminal = (
+            Order.is_equivalent_status(stored_terminal_status, self.CANCELED_ORDER)
+            or Order.is_equivalent_status(stored_terminal_status, Order.OrderStatus.EXPIRED)
+            or (identifier, str(self.ERROR_ORDER)) in self._schwab_terminal_observations
+            or (identifier, str(Order.OrderStatus.EXPIRED)) in self._schwab_terminal_observations
+        )
+        # ERROR can originate from a local transport failure, while canceled
+        # snapshots can later gain execution details. Neither may suppress new
+        # confirmed fill quantity. Stale active snapshots cannot reopen them.
+        if was_terminal and (
+            Order.is_equivalent_status(observed_status, self.NEW_ORDER)
+            or Order.is_equivalent_status(observed_status, Order.OrderStatus.CANCELLING)
         ):
             return
 
@@ -1939,8 +2207,25 @@ class Schwab(Broker):
             if Order.is_equivalent_status(observed_status, self.FILLED_ORDER) and cumulative_filled <= 0:
                 cumulative_filled = float(stored_order.quantity or observed_order.quantity or 0)
 
-            prior_filled = float(self._schwab_observed_fill_quantities.get(identifier, 0.0))
+            recorded_filled = sum(float(item.quantity) for item in stored_order.transactions)
+            prior_filled = max(
+                float(self._schwab_observed_fill_quantities.get(identifier, 0.0)),
+                recorded_filled,
+            )
             if cumulative_filled <= prior_filled and not terminal_after_fill:
+                if (was_terminal and Order.is_equivalent_status(observed_status, self.FILLED_ORDER)
+                        and recorded_filled == float(stored_order.quantity)):
+                    # The fill was already delivered before a local ERROR
+                    # moved this object to the error bucket. Restore confirmed
+                    # terminal state without a zero-quantity/fabricated fill.
+                    with self._lock:
+                        self._error_orders.remove(identifier, key="identifier")
+                        self._canceled_orders.remove(identifier, key="identifier")
+                        self._partially_filled_orders.remove(identifier, key="identifier")
+                        stored_order.status = self.FILLED_ORDER
+                        stored_order.set_filled()
+                        if stored_order not in self._filled_orders:
+                            self._filled_orders.append(stored_order)
                 return
             fill_delta = cumulative_filled - prior_filled
             price = (
@@ -1962,20 +2247,42 @@ class Schwab(Broker):
                     if Order.is_equivalent_status(observed_status, self.FILLED_ORDER)
                     else self.PARTIALLY_FILLED_ORDER
                 )
-                self._process_trade_event(
-                    stored_order,
-                    event,
-                    price=price,
-                    filled_quantity=fill_delta,
-                    multiplier=getattr(getattr(stored_order, "asset", None), "multiplier", 1) or 1,
-                )
-                self._log_schwab_lifecycle_event(
-                    "order.lifecycle.callback",
-                    stored_order,
-                    callback=event,
-                    broker_status=observed_status,
-                    local_status=stored_order.status,
-                )
+                # One atomic native bucket move; no I/O or Strategy execution.
+                with self._lock:
+                    if was_terminal:
+                        self._error_orders.remove(identifier, key="identifier")
+                        self._canceled_orders.remove(identifier, key="identifier")
+                        if not confirmed_terminal and event == self.PARTIALLY_FILLED_ORDER:
+                            # Local set_error closed this order before its broker
+                            # outcome was known. Fresh partial fill proves it is
+                            # still open; do not leave wait-for-close signaled.
+                            stored_order._closed_event.clear()
+                    self._process_trade_event(
+                        stored_order,
+                        event,
+                        price=price,
+                        filled_quantity=fill_delta,
+                        multiplier=getattr(getattr(stored_order, "asset", None), "multiplier", 1) or 1,
+                    )
+                    self._log_schwab_lifecycle_event(
+                        "order.lifecycle.callback",
+                        stored_order,
+                        callback=event,
+                        broker_status=observed_status,
+                        local_status=stored_order.status,
+                    )
+                    if was_terminal and confirmed_terminal and event != self.FILLED_ORDER:
+                        # Keep the established terminal outcome after recording
+                        # new fills, without a second terminal callback.
+                        if Order.is_equivalent_status(stored_terminal_status, self.CANCELED_ORDER):
+                            self._process_canceled_order(stored_order)
+                        else:
+                            self._process_error_order(
+                                stored_order, LumibotBrokerAPIError(stored_terminal_reason or "Terminal broker order")
+                            )
+                            # Expiry uses the same terminal bucket as errors;
+                            # retain its exact previously confirmed status.
+                            stored_order.status = stored_terminal_status
             if not terminal_after_fill:
                 return
 

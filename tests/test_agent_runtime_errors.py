@@ -1,6 +1,18 @@
 from lumibot.components.agents.runtime import _classify_agent_error
 
 
+def test_chatgpt_failure_guidance_preserves_account_credit_choice(capsys):
+    from lumibot.components.agents.manager import AgentHandle
+
+    AgentHandle._log_fatal_backtest_error(RuntimeError("request failed"), "billing", "chatgpt/gpt-6-luna")
+
+    message = capsys.readouterr().err
+    assert "existing ChatGPT credits" in message
+    assert "no API-key fallback" in message
+    assert "Keep paid-credit fallback disabled" not in message
+    assert "Zero included allowance alone" in message
+
+
 class _ProviderError(Exception):
     def __init__(self, message: str, status_code: int | None = None, code: str | None = None):
         super().__init__(message)
@@ -205,3 +217,111 @@ def test_managed_gateway_rate_limit_counts_as_a_rate_limit():
     )
     assert _classify_agent_error(exc) == "transient"
     assert _is_rate_limit_error(exc)
+
+
+@pytest.mark.parametrize(
+    "code,status,category",
+    [
+        ("server_error", None, "transient"),
+        ("server_error", 503, "transient"),
+        ("server_error", 401, "auth"),
+        ("server_error", 400, "config"),
+        ("unauthorized", 503, "auth"),
+        ("provider_auth_failed", 503, "auth"),
+        ("provider_quota_exhausted", 503, "billing"),
+        ("subscription_sharing_usage_limit_exceeded", 503, "billing"),
+        ("insufficient_quota", 503, "billing"),
+        ("subscription_stream_incomplete", 503, "config"),
+        ("subscription_history_conflict", None, "config"),
+        ("subscription_call_id_missing", None, "config"),
+        ("protocol_integrity_error", 503, "config"),
+    ],
+)
+def test_actual_subscription_response_codes_keep_machine_failure_boundaries(code, status, category):
+    # Real native web repetition failed with this sanitized typed server_error,
+    # rather than an HTTP exception carrying a 5xx status.
+    from lumibot.components.agents.chatgpt_llm import SubscriptionModelResponseError
+
+    exc = SubscriptionModelResponseError(code, status_code=status)
+    assert _classify_agent_error(exc) == category
+    assert GoogleADKRuntime._is_non_retryable(exc) is (category != "transient")
+
+
+@pytest.mark.parametrize("recover", [False, True])
+def test_subscription_server_error_uses_existing_bounded_retry_owner(monkeypatch, recover):
+    from lumibot.components.agents.chatgpt_llm import SubscriptionModelResponseError
+
+    runtime = GoogleADKRuntime()
+    request = _rate_limit_request(trading=False)
+    request.model = "chatgpt/gpt-6-luna"
+    attempts = []
+    sleeps = []
+    failure = SubscriptionModelResponseError("server_error")
+
+    async def fails_or_recovers(req):
+        attempts.append(req)
+        if not recover or len(attempts) < 3:
+            raise failure
+        return AgentRunResult(summary="Completed after the provider recovered", model=req.model, events=[])
+
+    monkeypatch.setattr(runtime, "_run_async", fails_or_recovers)
+    monkeypatch.setattr("time.sleep", sleeps.append)
+    monkeypatch.setenv("LUMIBOT_AGENT_RUN_TIMEOUT_SECONDS", "0")
+    monkeypatch.setenv("LUMIBOT_AGENT_MAX_RUN_ATTEMPTS", "3")
+    if recover:
+        result = runtime.run(request)
+        assert result.summary == "Completed after the provider recovered"
+    else:
+        with pytest.raises(SubscriptionModelResponseError) as raised:
+            runtime.run(request)
+        assert raised.value is failure
+    assert len(attempts) == 3
+    assert sleeps == list(runtime._RETRY_BACKOFF_SECONDS[:2])
+
+
+@pytest.mark.parametrize("code", ["subscription_stream_incomplete", "subscription_history_conflict", "subscription_call_id_missing"])
+def test_subscription_integrity_failure_never_retries_or_returns_a_decision(monkeypatch, code):
+    from lumibot.components.agents.chatgpt_llm import SubscriptionModelResponseError
+
+    runtime = GoogleADKRuntime()
+    request = _rate_limit_request(trading=False)
+    attempts = []
+    sleeps = []
+    failure = SubscriptionModelResponseError(code)
+
+    async def fails(req):
+        attempts.append(req)
+        raise failure
+
+    monkeypatch.setattr(runtime, "_run_async", fails)
+    monkeypatch.setattr("time.sleep", sleeps.append)
+    monkeypatch.setenv("LUMIBOT_AGENT_RUN_TIMEOUT_SECONDS", "0")
+    monkeypatch.setenv("LUMIBOT_AGENT_MAX_RUN_ATTEMPTS", "3")
+    with pytest.raises(SubscriptionModelResponseError) as raised:
+        runtime.run(request)
+    assert raised.value is failure
+    assert len(attempts) == 1
+    assert sleeps == []
+
+
+def test_subscription_server_error_never_retries_after_broker_mutation(monkeypatch):
+    from lumibot.components.agents.chatgpt_llm import SubscriptionModelResponseError
+
+    runtime = GoogleADKRuntime()
+    request = _rate_limit_request(trading=True)
+    attempts = []
+    sleeps = []
+
+    async def mutates_then_fails(req):
+        attempts.append(req)
+        req._attempt_tool_calls.append({"tool_name": "orders_submit_order", "ok": True})
+        raise SubscriptionModelResponseError("server_error")
+
+    monkeypatch.setattr(runtime, "_run_async", mutates_then_fails)
+    monkeypatch.setattr("time.sleep", sleeps.append)
+    monkeypatch.setenv("LUMIBOT_AGENT_RUN_TIMEOUT_SECONDS", "0")
+    monkeypatch.setenv("LUMIBOT_AGENT_MAX_RUN_ATTEMPTS", "3")
+    with pytest.raises(SubscriptionModelResponseError):
+        runtime.run(request)
+    assert len(attempts) == 1
+    assert sleeps == []

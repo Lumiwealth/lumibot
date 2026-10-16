@@ -9,6 +9,8 @@ rounded target.
 `options_find_strike_for_delta` returns a candidate. Verify the exact selected
 contract with `options_get_greeks`. Do not reuse the delta of a neighboring strike
 or the underlying.
+If a candidate changes, discard its verification for the replacement: obtain
+Greeks and quote quality for the final exact identity before pricing or ordering.
 
 ## Quote quality
 

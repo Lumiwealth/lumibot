@@ -145,15 +145,70 @@ Observed limitation in this workspace:
 
 ### Schwab
 
+October 2026 implementation update: the adapter now implements
+`get_cash_events(since=..., limit=...)` through the existing Schwab SDK client.
+The [official transaction specification](https://developer.schwab.com/products/trader-api--individual/details/specifications/Retail%20Trader%20API%20Production)
+permits at most one year per request and 3000 returned rows. This supersedes the
+SDK's stale 60-day description. The omitted start remains a bounded 60-day
+default; older explicit starts use contiguous, at-most-365-day slices under the
+same 127-request budget. The request interval does not establish retention.
+Potentially capped
+responses are split into overlapping windows with stable-ID deduplication,
+bounded request count and explicit failure if a one-second window saturates.
+No queue token or silently truncated list is invented.
+
+The request explicitly selects cash-funding, journal and dividend/interest
+categories. `RECEIVE_AND_DELIVER` security activity, money-market movements and
+memoranda are not queried as cash funding. In particular, a security transfer's
+zero `netAmount` is not its capital value. An account with in-kind transfers
+still needs separate valuation evidence before adjusted returns are available.
+
+Cash, ACH, electronic-fund and wire activity is external capital by signed
+`netAmount`. `DIVIDEND_OR_INTEREST` remains non-external `other_cash` because
+the combined provider type alone cannot distinguish those income categories.
+Trade cash and embedded commissions remain performance. Exact bank-sweep labels
+and `TRF FDS TO/FRM TYPE <number>` subaccount labels are non-external journals.
+Authorized reads showed matching opposite-signed entries within each account;
+the [Schwab cash-feature disclosure](https://www.schwab.com/legal/cash-features-disclosure-statement)
+describes the automatic sweep of an account's free credit balance. The exact
+`FED INC TAX WHLD IRA` label is external distribution withholding (`tax`), in
+addition to the net cash disbursement. This distinction must not be applied to
+ordinary tax on investment income. Unknown journals, in-kind transfers,
+currency conversions, explicit correction/unknown activity actions, non-final
+statuses and ambiguous amounts or timestamps
+fail rather than acquiring a guessed classification. Compact provider timezone
+offsets are normalized for Python 3.10 as well as newer runtimes.
+
+Large timed-out history windows are subdivided with a bounded timeout budget;
+partial successful slices never become a successful partial result. The SDK's
+normal saved-token refresh path is reused; no second credential owner exists.
+Initial login, metadata migration and refresh share a private atomic writer.
+Failed parsing, serialization, disk writes or replacement preserve the saved
+file. Storage failures do not delete credentials or initiate a replacement
+login, and the adapter's token metadata advances only after persistence.
+Default refresh-token lifetime metadata is seven days, not 90; access refresh
+does not establish indefinite authorization.
+
+The cloud sender removes events only after its existing successful HTTP
+acknowledgement. Account/window coverage and durable ingestion proof must
+be supplied by the downstream financial-contract owner before publishing a
+verified adjusted return. This adapter does not enable that availability.
+
+Regression baseline before implementation: `tests/test_schwab_cash_events.py`
+had 32 failures and one pass because the inherited method returned `[]` without
+contacting the provider. Regression coverage includes signed funding, income, unknown
+classifications, duplicates/conflicts, timezones, sliced boundaries, request
+failure after a successful slice and explicit response/retention/size failures.
+All fixtures are synthetic; no account authorization, order or money movement
+is part of this proof.
+
 Research outcome:
 
 - local `schwab-py` surface exposes transaction retrieval with ACH, cash in/out, wire, journal, and dividend/interest
 - this fits the normalized `CashEvent` model cleanly
 
-Decision:
-
-- do not implement now
-- keep the broker abstraction generic enough for later support
+Original March decision (superseded by the October update above): defer the
+adapter while keeping the broker abstraction generic.
 
 ### IBKR
 

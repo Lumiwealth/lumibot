@@ -21,8 +21,6 @@ def test_fixture_process_keeps_only_inference_credentials(monkeypatch, tmp_path)
     configure_fixture_environment(tmp_path)
     assert set(os.environ) == {
         "PATH",
-        "GEMINI_API_KEY",
-        "GOOGLE_API_KEY",
         "LUMIBOT_DISABLE_DOTENV",
         "IS_BACKTESTING",
         "LITELLM_LOCAL_MODEL_COST_MAP",
@@ -30,7 +28,7 @@ def test_fixture_process_keeps_only_inference_credentials(monkeypatch, tmp_path)
     assert os.environ["LUMIBOT_DISABLE_DOTENV"] == "true"
 
 
-def test_fixture_process_keeps_the_openai_key_for_luna_without_requiring_gemini(monkeypatch, tmp_path):
+def test_fixture_process_strips_paid_openai_keys(monkeypatch, tmp_path):
     monkeypatch.setattr(
         os,
         "environ",
@@ -39,17 +37,23 @@ def test_fixture_process_keeps_the_openai_key_for_luna_without_requiring_gemini(
     configure_fixture_environment(tmp_path)
     assert set(os.environ) == {
         "PATH",
-        "OPENAI_API_KEY",
         "LUMIBOT_DISABLE_DOTENV",
         "IS_BACKTESTING",
         "LITELLM_LOCAL_MODEL_COST_MAP",
     }
 
 
+def test_fixture_cache_and_traces_use_producer_owned_output(monkeypatch, tmp_path):
+    monkeypatch.setattr(os, "environ", {"PATH": "/bin", "LUMIBOT_CACHE_FOLDER": "/shared-cache"})
+    output = tmp_path / "owned-output"
+    configure_fixture_environment(tmp_path, artifact_root=output)
+    assert os.environ["LUMIBOT_CACHE_FOLDER"] == str(output / "runtime_cache")
+
+
 def test_openai_responses_inference_is_allowed_but_other_openai_paths_are_not():
     assert_fixture_request("https://api.openai.com/v1/responses", "POST")
-    assert_fixture_request("https://api.openai.com/v1/chat/completions", "POST")
     for url, method in (
+        ("https://api.openai.com/v1/chat/completions", "POST"),
         ("https://api.openai.com/v1/files", "POST"),
         ("https://api.openai.com/v1/responses", "GET"),
         ("http://api.openai.com/v1/responses", "POST"),
@@ -77,9 +81,10 @@ def test_external_brokers_and_unknown_hosts_fail_before_transport(url):
     assert url not in str(error.value)
 
 
-def test_inference_and_count_endpoints_remain_available():
+def test_paid_provider_inference_and_count_endpoints_are_rejected():
     for path in ("generateContent", "streamGenerateContent", "countTokens"):
-        assert_fixture_request(f"https://generativelanguage.googleapis.com/v1beta/models/gemini:{path}", "POST")
+        with pytest.raises(RuntimeError, match="external boundary"):
+            assert_fixture_request(f"https://generativelanguage.googleapis.com/v1beta/models/gemini:{path}", "POST")
 
 
 def test_pytest_bootstrap_respects_explicit_dotenv_isolation():

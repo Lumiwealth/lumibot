@@ -13,7 +13,7 @@ import re
 import sys
 import time
 import warnings
-from collections.abc import Sequence
+from collections.abc import Callable, Collection, Sequence
 from dataclasses import dataclass
 from datetime import date, datetime, timezone
 from enum import Enum
@@ -83,7 +83,7 @@ def _configure_google_sdk_noise_filters() -> None:
 
 
 def _tool_error_payload(tool_name: str, args: dict[str, Any], exc: Exception) -> dict[str, Any]:
-    return {
+    payload = {
         "ok": False,
         "tool_error": True,
         "tool_name": tool_name,
@@ -93,6 +93,12 @@ def _tool_error_payload(tool_name: str, args: dict[str, Any], exc: Exception) ->
         },
         "arguments": _json_safe_value(dict(args or {})),
     }
+    if isinstance(exc, ToolJournalError):
+        payload["error"]["code"] = "tool_journal_unavailable"
+    if isinstance(exc, RemoteMCPToolError):
+        payload["isError"] = True
+        payload["error"]["code"] = exc.code
+    return payload
 
 
 def _utc_iso_timestamp() -> str:
@@ -140,40 +146,145 @@ def _clone_tool_callable(wrapper: Any, name: str) -> Any:
     return alias
 
 
-def _wrap_tool_callable(tool: BoundTool, tool_context: dict[str, Any] | None = None):
+class ToolJournalError(RuntimeError):
+    """A private caller-owned audit write failed; never expose sink details."""
+
+
+def agent_purpose_parameter_name(existing_names: Collection[str]) -> str:
+    """Return the reserved agent-only field without consuming domain names."""
+    name, suffix = "agent_purpose", 2
+    while name in existing_names:
+        name = f"agent_purpose_{suffix}"
+        suffix += 1
+    return name
+
+
+def _validate_agent_purpose(supplied: Any, name: str) -> str:
+    if not isinstance(supplied, str) or not supplied.strip():
+        raise ValueError(f"{name} requires an explicit nonempty private purpose.")
+    purpose = supplied.strip()
+    try:
+        byte_count = len(purpose.encode("utf-8"))
+    except UnicodeEncodeError as exc:
+        raise ValueError(f"{name} must be valid UTF-8 text.") from exc
+    if byte_count > 500 or any(ord(char) < 32 or 127 <= ord(char) <= 159 for char in purpose):
+        raise ValueError(f"{name} must be a short single-line purpose within 500 UTF-8 bytes.")
+    return purpose
+
+
+def _write_private_tool_audit(context: dict[str, Any], record: dict[str, Any], *, before: bool) -> None:
+    callback = context.get("tool_journal_callback")
+    if callback is None:
+        return
+    try:
+        result = callback(dict(record))
+        if inspect.isawaitable(result):
+            # MemoryStore's existing append owner is synchronous. Reject an
+            # accidental coroutine rather than pretending it was persisted.
+            if inspect.iscoroutine(result):
+                result.close()
+            raise TypeError("The private tool journal callback must be synchronous.")
+    except Exception:
+        phase = "before invocation" if before else "after invocation; completion was not confirmed"
+        raise ToolJournalError(f"Private tool journal write failed {phase}.") from None
+
+
+def _start_agent_tool_audit(
+    tool_name: str, arguments: dict[str, Any], args: tuple[Any, ...], purpose: str, context: dict[str, Any]
+) -> dict[str, Any]:
+    calls = context.setdefault("tool_calls", [])
+    if not isinstance(calls, list):
+        raise ValueError("Agent tool attempt trace is unavailable; the tool was not invoked.")
+    call = {
+        "tool_name": tool_name,
+        "arguments": _json_safe_value(arguments),
+        "purpose": purpose,
+        "status": "started",
+    }
+    calls.append(call)
+    if context.get("tool_journal_callback") is not None:
+        encoded = json.dumps(
+            _json_safe_value({"args": args, "kwargs": arguments}),
+            sort_keys=True, separators=(",", ":"), ensure_ascii=True,
+        ).encode("utf-8")
+        audit = {
+            "action_id": str(uuid4()), "tool_name": tool_name, "purpose": purpose,
+            "status": "started", "arguments_sha256": hashlib.sha256(encoded).hexdigest(),
+        }
+        call["action_id"] = audit["action_id"]
+        call["arguments_sha256"] = audit["arguments_sha256"]
+        try:
+            _write_private_tool_audit(context, audit, before=True)
+        except ToolJournalError:
+            call.update(status="journal_failed", ok=False)
+            raise
+    return call
+
+
+def _finish_agent_tool_audit(call: dict[str, Any], result: Any, context: dict[str, Any], *, native: bool = False) -> None:
+    failed = isinstance(result, dict) and (result.get("tool_error") is True or (native and bool(result.get("error"))))
+    status = "failed" if failed else "completed"
+    if "action_id" in call:
+        audit = {key: call[key] for key in ("action_id", "tool_name", "purpose", "arguments_sha256")}
+        audit.update(status=status, ok=not failed)
+        error = result.get("error") if isinstance(result, dict) else None
+        code = error.get("code") if isinstance(error, dict) else result.get("error_code") if native and isinstance(result, dict) else None
+        if isinstance(code, str) and code:
+            audit["error_code"] = code[:128]
+        try:
+            _write_private_tool_audit(context, audit, before=False)
+        except ToolJournalError:
+            call.update(status="journal_failed", ok=False, invocation_completed=True)
+            raise
+    call.update(status=status, ok=not failed)
+
+
+def _wrap_tool_callable(
+    tool: BoundTool,
+    tool_context: dict[str, Any] | None = None,
+    *,
+    _purpose: str | None = None,
+):
     original = tool.function
 
     def wrapper(*args, **kwargs):
-        result: Any
+        call_record = None
+        if _purpose is not None and isinstance(tool_context, dict):
+            try:
+                call_record = _start_agent_tool_audit(tool.name, dict(kwargs), args, _purpose, tool_context)
+            except (ValueError, ToolJournalError) as exc:
+                return _tool_error_payload(tool.name, kwargs, exc)
+        invocation_context = tool_context
+        if _purpose is not None:
+            invocation_context = {**(tool_context or {}), "tool_purpose": _purpose}
         try:
-            with agent_tool_context(tool_context):
+            with agent_tool_context(invocation_context):
                 result = _json_safe_value(original(*args, **kwargs))
         except Exception as exc:
             result = _tool_error_payload(tool.name, kwargs, exc)
         if isinstance(tool_context, dict):
             calls = tool_context.setdefault("tool_calls", [])
             if isinstance(calls, list):
-                call_record = {
-                    "tool_name": tool.name,
-                    "arguments": _json_safe_value(dict(kwargs or {})),
-                    "ok": not (isinstance(result, dict) and result.get("tool_error") is True),
-                }
+                if call_record is None:
+                    call_record = {
+                        "tool_name": tool.name,
+                        "arguments": _json_safe_value(dict(kwargs)),
+                        "ok": not (isinstance(result, dict) and result.get("tool_error") is True),
+                    }
+                    calls.append(call_record)
+                else:
+                    try:
+                        _finish_agent_tool_audit(call_record, result, tool_context)
+                    except ToolJournalError as exc:
+                        return _tool_error_payload(tool.name, kwargs, exc)
                 if tool.name in {"account_positions", "orders_open_orders"} and isinstance(result, dict):
                     call_record["coverage"] = {
                         key: _json_safe_value(result.get(key))
                         for key in (
-                            "total",
-                            "matched",
-                            "returned",
-                            "offset",
-                            "limit",
-                            "complete",
-                            "next_offset",
-                            "filters",
-                            "snapshot_id",
+                            "total", "matched", "returned", "offset", "limit", "complete",
+                            "next_offset", "filters", "snapshot_id",
                         )
                     }
-                calls.append(call_record)
         return result
 
     wrapper.__name__ = _tool_function_name(tool.name)
@@ -187,6 +298,157 @@ def _wrap_tool_callable(tool: BoundTool, tool_context: dict[str, Any] | None = N
     if isinstance(annotations, dict):
         wrapper.__annotations__ = dict(annotations)
     return wrapper
+
+
+def _wrap_agent_tool_callable(tool: BoundTool, tool_context: dict[str, Any] | None = None):
+    """Add private purpose only to the agent-facing callable declaration.
+
+    Public MCP schemas and ordinary BoundTool functions retain their contracts.
+    Colliding domain arguments retain their names and values; only this adapter's
+    independently named argument is consumed before entering cache/domain code.
+    """
+    ordinary = _wrap_tool_callable(tool, tool_context)
+    signature = inspect.signature(ordinary)
+    purpose_name = agent_purpose_parameter_name(signature.parameters)
+    parameters = list(signature.parameters.values())
+    purpose_parameter = inspect.Parameter(purpose_name, inspect.Parameter.KEYWORD_ONLY, annotation=str)
+    position = next((i for i, parameter in enumerate(parameters) if parameter.kind is inspect.Parameter.VAR_KEYWORD), len(parameters))
+    parameters.insert(position, purpose_parameter)
+    context = tool_context if tool_context is not None else {}
+
+    def wrapper(*args, **kwargs):
+        supplied = kwargs.pop(purpose_name, None)
+        try:
+            purpose = _validate_agent_purpose(supplied, purpose_name)
+            if not isinstance(context.setdefault("tool_calls", []), list):
+                raise ValueError("Agent tool attempt trace is unavailable; the tool was not invoked.")
+        except ValueError as exc:
+            result = _tool_error_payload(tool.name, kwargs, exc)
+            calls = context.setdefault("tool_calls", [])
+            if isinstance(calls, list):
+                calls.append({"tool_name": tool.name, "arguments": _json_safe_value(dict(kwargs)), "status": "failed", "ok": False})
+            return result
+        return _wrap_tool_callable(tool, context, _purpose=purpose)(*args, **kwargs)
+
+    wrapper.__name__ = ordinary.__name__
+    wrapper.__qualname__ = ordinary.__qualname__
+    wrapper.__signature__ = signature.replace(parameters=parameters)
+    wrapper.__annotations__ = {**getattr(ordinary, "__annotations__", {}), purpose_name: str}
+    wrapper.__doc__ = (
+        f"{tool.description}\n\nAgent-only argument {purpose_name}: Provide a short explicit private purpose "
+        "before invoking this tool (one line, at most 500 UTF-8 bytes). This is private audit metadata, "
+        "not a domain argument or a public Community reason."
+    )
+    return wrapper
+
+
+def _agent_toolset_with_purpose(toolset: Any, context: dict[str, Any]) -> Any:
+    """Adapt native ADK skills without replacing their state or resource owner."""
+    from google.adk.tools.base_tool import BaseTool
+    from google.adk.tools.base_toolset import BaseToolset
+
+    class AgentPurposeTool(BaseTool):
+        def __init__(self, original):
+            super().__init__(
+                name=original.name, description=original.description,
+                is_long_running=original.is_long_running, custom_metadata=original.custom_metadata,
+                behavior=original.behavior, response_scheduling=original.response_scheduling,
+            )
+            self.original = original
+            self._defers_response = original._defers_response
+            declaration = original._get_declaration()
+            schema = declaration.parameters_json_schema or (declaration.parameters.model_dump(mode="json", exclude_none=True) if declaration.parameters else {})
+            self.purpose_name = agent_purpose_parameter_name(schema.get("properties", {}))
+
+        def __getattr__(self, name):
+            return getattr(self.original, name)
+
+        def _get_declaration(self):
+            declaration = self.original._get_declaration().model_copy(deep=True)
+            schema = declaration.parameters_json_schema
+            if schema is None:
+                schema = declaration.parameters.model_dump(mode="json", exclude_none=True) if declaration.parameters else {"type": "object"}
+            schema.setdefault("properties", {})[self.purpose_name] = {
+                "type": "string", "description": "Required short explicit private purpose (one line, at most 500 UTF-8 bytes); never public Community content."
+            }
+            schema["required"] = [*schema.get("required", []), self.purpose_name]
+            declaration.parameters = None
+            declaration.parameters_json_schema = schema
+            return declaration
+
+        async def run_async(self, *, args, tool_context):
+            arguments = dict(args)
+            supplied = arguments.pop(self.purpose_name, None)
+            try:
+                purpose = _validate_agent_purpose(supplied, self.purpose_name)
+                call = _start_agent_tool_audit(self.name, arguments, (), purpose, context)
+            except (ValueError, ToolJournalError) as exc:
+                return _tool_error_payload(self.name, arguments, exc)
+            try:
+                with agent_tool_context({**context, "tool_purpose": purpose}):
+                    result = await self.original.run_async(args=arguments, tool_context=tool_context)
+            except Exception as exc:
+                result = _tool_error_payload(self.name, arguments, exc)
+            try:
+                _finish_agent_tool_audit(call, result, context, native=True)
+            except ToolJournalError as exc:
+                return _tool_error_payload(self.name, arguments, exc)
+            return result
+
+        async def check_require_confirmation(self, args, tool_context):
+            original_args = {key: value for key, value in args.items() if key != self.purpose_name}
+            return await self.original.check_require_confirmation(original_args, tool_context)
+
+        async def process_llm_request(self, *, tool_context, llm_request):
+            # Preserve native resource processing (including binary resources),
+            # but register this audited callable/declaration with the request.
+            wrapper = self
+
+            class RequestProxy:
+                def __getattr__(self, name):
+                    return getattr(llm_request, name)
+
+                def __setattr__(self, name, value):
+                    setattr(llm_request, name, value)
+
+                def append_tools(self, tools):
+                    llm_request.append_tools([wrapper if tool is wrapper.original else tool for tool in tools])
+
+            await self.original.process_llm_request(tool_context=tool_context, llm_request=RequestProxy())
+
+    class AgentPurposeToolset(BaseToolset):
+        def __init__(self):
+            # The native owner retains prefix/filter/lifecycle caches. This
+            # adapter contributes every tool that owner normally exposes.
+            super().__init__()
+            self.wrappers = {}
+
+        async def get_tools(self, readonly_context=None):
+            tools = await toolset.get_tools(readonly_context)
+            return self._wrap(tools)
+
+        async def get_tools_with_prefix(self, readonly_context=None):
+            return self._wrap(await toolset.get_tools_with_prefix(readonly_context))
+
+        def _wrap(self, tools):
+            result = []
+            for tool in tools:
+                key = id(tool)
+                if key not in self.wrappers:
+                    self.wrappers[key] = AgentPurposeTool(tool)
+                result.append(self.wrappers[key])
+            return result
+
+        async def process_llm_request(self, *, tool_context, llm_request):
+            await toolset.process_llm_request(tool_context=tool_context, llm_request=llm_request)
+
+        def get_auth_config(self):
+            return toolset.get_auth_config()
+
+        async def close(self):
+            await toolset.close()
+
+    return AgentPurposeToolset()
 
 
 def _is_provider_safe_function_name(name: str) -> bool:
@@ -224,7 +486,7 @@ def _function_tools_with_name_aliases(
     tools: list[Any] = []
     seen_names: set[str] = set()
     for bound in bound_tools:
-        wrapper = _wrap_tool_callable(bound, tool_context)
+        wrapper = _wrap_agent_tool_callable(bound, tool_context)
         canonical = wrapper.__name__
         if canonical in seen_names or not _is_provider_safe_function_name(canonical):
             continue
@@ -483,6 +745,9 @@ class RuntimeRequest:
     # Optional caller-owned budget (release evals). No provider credentials or
     # account caps are modified. Each continuation gets a separate reservation.
     model_call_budget: Any | None = None
+    # Private synchronous append owner supplied by the caller (e.g. MemoryStore).
+    # Only bounded intent/status and original-argument hash enter this callback.
+    tool_journal_callback: Callable[[dict[str, Any]], None] | None = None
 
 
 _LITELLM_CONFIGURED = False
@@ -600,7 +865,16 @@ def _classify_agent_error(exc: BaseException) -> str:
     # actionable backtest failures, not valid no-op trading decisions.
     if typed_code == "provider_quota_exhausted":
         return "billing"
-    if typed_code == "protocol_integrity_error":
+    if typed_code in {"subscription_sharing_usage_limit_exceeded", "subscription_sharing_usage_unavailable"}:
+        return "billing"
+    if typed_code == "eval_call_limit_exceeded":
+        return "config"
+    if typed_code in {
+        "protocol_integrity_error",
+        "subscription_stream_incomplete",
+        "subscription_history_conflict",
+        "subscription_call_id_missing",
+    }:
         return "config"
     if typed_code in {"provider_auth_failed", "unauthorized", "renewal_failed"}:
         return "auth"
@@ -647,6 +921,11 @@ def _classify_agent_error(exc: BaseException) -> str:
             return "transient"
         if 500 <= status_code < 600:
             return "transient"
+
+    # Streaming Responses failures can carry a sanitized machine reason without
+    # an HTTP status. Preserve explicit HTTP/auth/quota/integrity boundaries above.
+    if typed_code == "server_error":
+        return "transient"
 
     # Message substring fallback for providers that don't use standard class names.
     lower_exc = exc_name.lower()
@@ -1260,6 +1539,23 @@ def _resolve_model_for_adk(
     if not isinstance(model, str):
         return model
     lower = model.strip().lower()
+    if lower.startswith("chatgpt/"):
+        from .chatgpt_auth import profile_path
+        from .chatgpt_llm import ChatGPTPlanLlm
+
+        slug = model.removeprefix("chatgpt/")
+        if not slug or "/" in slug:
+            raise ValueError("Use chatgpt/<slug> from the signed-in model catalog")
+        _configure_litellm_quietly()
+        _register_openai_gpt6_models()
+        kwargs = {}
+        if reasoning_effort is not None:
+            kwargs["reasoning_effort"] = reasoning_effort
+            kwargs["allowed_openai_params"] = ["reasoning_effort"]
+        timeout = _coerce_positive_timeout_seconds(model_request_timeout_seconds)
+        if timeout is not None:
+            kwargs["timeout"] = timeout
+        return ChatGPTPlanLlm(model="openai/responses/" + slug, profile=profile_path(), **kwargs)
     from lumibot.components.agents.managed_gateway import (
         MANAGED_MODEL_FAMILIES,
         ManagedAiGatewayError,
@@ -1357,6 +1653,8 @@ def _attempt_touched_broker(request: Any) -> bool:
 
 
 class GoogleADKRuntime:
+    agent_tool_contract = "private-purpose-audit-v1"
+
     def __init__(self, mcp_servers: list[MCPServer] | None = None) -> None:
         self.mcp_servers = mcp_servers or []
         self._llm_agent_type: type[Any] | None = None
@@ -1424,11 +1722,27 @@ class GoogleADKRuntime:
         lines.append("")
         lines.append("General rules:")
         lines.append("- Use tools for structured data and trading actions.")
+        lines.append(
+            "- When the user explicitly instructs you to execute an authorized action, verify the stated conditions and then invoke the action tool if they are satisfied. "
+            "Do not invent new acceptance thresholds or substitute analysis, preparation, calculation, or narration for execution. "
+            "A conditional action instruction authorizes the action when its stated conditions hold; it does not require a second unconditional instruction. "
+            "Reviewing evidence alongside that instruction does not revoke it. Do not manufacture a separate confirmation, sizing target, or history requirement that the user and active rules did not impose. "
+            "If a stated condition or real safety constraint prevents action, report it explicitly."
+        )
+        lines.append(
+            "- Preserve discretion when the user requests analysis or delegates the choice of whether and what to trade; do not treat analysis as an execution instruction."
+        )
+        lines.append(
+            "- Report an action as submitted only after its action tool succeeds and returns the action's identifier. Preparation or an intended order is not a submission."
+        )
+        lines.append(
+            "- Report fills only from observed status or position evidence; never infer a fill from submission or planned quantities or prices."
+        )
         if request.bound_tools:
             tool_names = ", ".join(sorted(tool.name for tool in request.bound_tools))
             lines.append(f"- Available tool names for this run: {tool_names}.")
             lines.append("- Only call tool names that appear in the available tool list for this run.")
-        lines.append("- Use DuckDB for time-series analysis when historical tables are available.")
+        lines.append("- Use DuckDB when the decision requires time-series analysis and historical tables are available. A current-evidence execution mandate does not require an additional history-based signal unless the user or active rules require one.")
         lines.append("- Return a short final summary after you finish using tools.")
         return "\n".join(lines).strip()
 
@@ -1466,7 +1780,7 @@ class GoogleADKRuntime:
         budget = request.model_call_budget
         if budget is None:
             return pruning, None
-        if not (_is_native_gemini_model(request.model) or _is_priced_openai_gpt6_model(request.model)):
+        if not (str(request.model).startswith("chatgpt/") or _is_native_gemini_model(request.model) or _is_priced_openai_gpt6_model(request.model)):
             raise ValueError(
                 "Per-call eval budgeting requires a priced model: native Gemini or a registered GPT-6 model."
             )
@@ -1635,6 +1949,7 @@ class GoogleADKRuntime:
         active_tool_context = {
             "agent_name": request.agent_name,
             "model_call_id": request.model_call_id,
+            "tool_journal_callback": request.tool_journal_callback,
             "enforce_order_readiness": True,
             "account_snapshot": (
                 request.runtime_context.get("account_snapshot") if isinstance(request.runtime_context, dict) else None
@@ -1651,7 +1966,7 @@ class GoogleADKRuntime:
         if request.include_builtin_skills:
             from .skills import build_builtin_skill_toolset
 
-            tools.append(build_builtin_skill_toolset())
+            tools.append(_agent_toolset_with_purpose(build_builtin_skill_toolset(), active_tool_context))
         config_kwargs = self._generate_content_config_kwargs_for_request(request, genai_types)
         model_request_timeout_seconds = self._model_request_timeout_seconds_for_request(request)
         run_timeout_seconds = self._run_timeout_seconds_for_request(request)
@@ -1744,6 +2059,7 @@ class GoogleADKRuntime:
             summary=summary,
             model=request.model,
             events=events,
+            payload={"agent_tool_contract": self.agent_tool_contract},
             usage=usage,
             started_at=started_at,
             first_event_at=first_event_at,
@@ -1806,7 +2122,7 @@ class GoogleADKRuntime:
             if http_options_type is not None:
                 config_kwargs["http_options"] = http_options_type(timeout=timeout_millis)
         if request.model_call_budget is not None:
-            if _is_priced_openai_gpt6_model(request.model):
+            if str(request.model).startswith("chatgpt/") or _is_priced_openai_gpt6_model(request.model):
                 # LiteLLM retries are disabled on the model itself
                 # (disable_provider_retries in _resolve_model_for_adk).
                 return config_kwargs
@@ -2032,6 +2348,81 @@ def _mcp_headers(server: MCPServer) -> dict[str, str]:
     return headers
 
 
+class RemoteMCPToolError(RuntimeError):
+    """A failed MCP result with private evidence and a bounded public message."""
+
+    def __init__(
+        self,
+        tool_name: str,
+        result: dict[str, Any],
+        *,
+        original_result: Any = None,
+        secret_values: Sequence[str] = (),
+    ):
+        self.tool_name = tool_name
+        self.result = result
+        self.original_result = result if original_result is None else original_result
+        self.structured_result = result.get("structuredContent")
+        fields = self.structured_result if isinstance(self.structured_result, dict) else {}
+        text = None
+        if not fields:
+            for content in result.get("content") or []:
+                if isinstance(content, dict) and isinstance(content.get("text"), str):
+                    text = content["text"]
+                    try:
+                        parsed = json.loads(text)
+                    except (TypeError, ValueError):
+                        break
+                    if isinstance(parsed, dict):
+                        fields = parsed
+                    break
+        nested = fields.get("error")
+        nested = nested if isinstance(nested, dict) else {}
+        code = fields.get("errorCode") or fields.get("code") or nested.get("code")
+        code = str(code or "remote_mcp_tool_error")
+        self.code = code if re.fullmatch(r"[A-Za-z0-9_.-]{1,80}", code) else "remote_mcp_tool_error"
+        message = fields.get("message") or nested.get("message")
+        if not isinstance(message, str):
+            message = text if text and not fields else "Remote MCP server returned a failed-tool result."
+        for secret in secret_values:
+            if secret:
+                message = message.replace(secret, "[REDACTED]")
+                if secret in self.code:
+                    self.code = "remote_mcp_tool_error"
+        self.message = " ".join("".join(char if char.isprintable() else " " for char in message).split())[:512]
+        super().__init__(f"{_tool_function_name(tool_name)[:80]} failed [{self.code}]: {self.message}")
+
+
+def _mcp_error_secret_values(server: MCPServer) -> list[str]:
+    values = []
+    for name, value in _mcp_headers(server).items():
+        normalized = name.lower().replace("-", "").replace("_", "")
+        if normalized in {"authorization", "proxyauthorization"} or normalized.endswith(("key", "token", "secret")):
+            values.append(str(value))
+            if normalized in {"authorization", "proxyauthorization"} and " " in value:
+                values.append(value.split(" ", 1)[1])
+    for name, value in (server.env or {}).items():
+        if any(part in name.upper() for part in ("KEY", "TOKEN", "SECRET", "PASSWORD")):
+            values.append(str(value))
+    return values
+
+
+def _single_mcp_exception_leaf(exc: BaseException) -> BaseException | None:
+    # MCP's AnyIO dependency declares the backport on Python < 3.11. Keep the
+    # import local so ordinary agents do not acquire another eager SDK import.
+    try:
+        from builtins import BaseExceptionGroup
+    except ImportError:
+        from exceptiongroup import BaseExceptionGroup
+
+    current = exc
+    while isinstance(current, BaseExceptionGroup):
+        if len(current.exceptions) != 1:
+            return None
+        current = current.exceptions[0]
+    return current
+
+
 _MCP_HTTP_401_PATTERN = re.compile(
     r"\b401\s+unauthori[sz]ed\b|\bunauthori[sz]ed\s*\(?401\b|\b(?:http|status(?:\s+code)?)[\s:=]+401\b",
     re.IGNORECASE,
@@ -2155,6 +2546,14 @@ async def _with_mcp_session(server: MCPServer, callback):
     try:
         return await _with_mcp_session_once(server, callback)
     except Exception as exc:
+        leaf = _single_mcp_exception_leaf(exc)
+        if isinstance(leaf, RemoteMCPToolError):
+            if leaf is exc:
+                raise
+            raise leaf from None
+        # A group containing independent failures is not just an expired token.
+        if leaf is None:
+            raise
         if not _is_mcp_auth_failure(exc) or not await _refresh_mcp_auth_token(server, previous_token):
             raise
     return await _with_mcp_session_once(server, callback)
@@ -2202,7 +2601,9 @@ async def _call_mcp_tool_async(server: MCPServer, name: str, arguments: dict[str
         if not isinstance(dumped, dict):
             raise RuntimeError(f"{name} returned unexpected payload: {dumped!r}")
         if dumped.get("isError") is True:
-            raise RuntimeError(f"{name} failed: {dumped}")
+            raise RemoteMCPToolError(
+                name, dumped, original_result=result, secret_values=_mcp_error_secret_values(server)
+            )
         return dumped
 
     if transport == "http":
@@ -2252,4 +2653,6 @@ async def _legacy_http_call_tool(server: MCPServer, name: str, arguments: dict[s
     result = data.get("result") or {}
     if not isinstance(result, dict):
         raise RuntimeError(f"{name} returned unexpected payload: {result!r}")
+    if result.get("isError") is True:
+        raise RemoteMCPToolError(name, result, secret_values=_mcp_error_secret_values(server))
     return result

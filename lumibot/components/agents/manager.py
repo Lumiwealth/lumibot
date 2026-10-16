@@ -30,6 +30,14 @@ _BOTSPOT_RESEARCH_TOOLS = [
     "query_data",
     "search_documents",
     "get_document",
+    "list_marketplace_strategies",
+    "get_marketplace_strategy",
+    "get_marketplace_strategy_code",
+    "list_marketplace_accounts",
+    "get_marketplace_account",
+    # This selects the shared tool contract. BotSpot still authorizes each
+    # Community action, including its separately granted post/reply scopes.
+    "community",
 ]
 # Outbound network tools are default-deny. An agent gets them only with
 # allow_network=True, or by listing one explicitly in tools=[...]. Fetched
@@ -223,7 +231,9 @@ def _botspot_research_server_from_environment() -> tuple[MCPServer | None, str |
             "is attached automatically on BotSpot; external LumiBot users can link a BotSpot account. "
             "Ordinary LumiBot tools and strategy execution remain available.",
         )
-    if not all(configured):
+    # External research keys need only URL + token. Hosted capabilities can
+    # additionally renew; a supplied renewal URL retains MCPServer validation.
+    if not (url and token):
         return (
             None,
             "BotSpot research is only partially configured. Link a BotSpot account or run on BotSpot "
@@ -237,7 +247,7 @@ def _botspot_research_server_from_environment() -> tuple[MCPServer | None, str |
                 url=url,
                 exposed_tools=_BOTSPOT_RESEARCH_TOOLS,
                 auth_token_env="BOTSPOT_RESEARCH_MCP_TOKEN",
-                auth_token_refresh_url=renew_url,
+                auth_token_refresh_url=renew_url or None,
             ),
             None,
         )
@@ -816,7 +826,7 @@ def _managed_ai_provenance(model: str) -> dict[str, Any]:
     managed = managed_gateway_available_for(model)
     return {
         "runtime_version": str(__version__),
-        "ai_access_mode": "botspot_managed" if managed else "byok",
+        "ai_access_mode": "chatgpt_plan" if str(model).startswith("chatgpt/") else "botspot_managed" if managed else "byok",
         "gateway_protocol_version": 2 if managed else None,
         "gateway_component_sha256": _managed_gateway_component_sha256() if managed else None,
     }
@@ -1281,6 +1291,13 @@ class AgentHandle:
             "Use the provided runtime context and tool outputs as the ground truth for the current state of the strategy.",
             "Ground claims in tool results or runtime context instead of unsupported prior knowledge or vague market memory.",
             "If evidence is weak, conflicting, stale, or incomplete, prefer doing nothing and explain why.",
+            "Complete the user's authorized task in this run. Perform relevant available tool calls before finalizing a plan for later. Keep trading permission, historical cutoffs, evidence requirements and risk limits unchanged.",
+            "Available order tools in this run: " + ", ".join(sorted(name for name in available_tool_names if name.startswith("orders_"))) + ". The registered function declarations are authoritative; do not invent missing capabilities.",
+            "An order-submission tool call and its returned acknowledgement are required before claiming submission. A price preview, calculated size, intention or schema-validation error is not an accepted order. A single child order's fill does not prove that its entire package filled.",
+            "When no explicit analysis window is requested, leave optional indicator start/end unset so the indicator tool can obtain its required past warmup. If you selected a window too short to calculate the requested period, expand its earlier start within the user's permitted history; never move its end beyond the simulated cutoff or invent a value.",
+            "Never change a publisher timestamp to make a document eligible. Carry the exact selected document URL, version time and hash together from the typed eligible manifest to the read; normalized timestamps must represent the same instant. An excluded row is a diagnostic, never a candidate to open.",
+            "An empty catalog lookup requires a bounded refinement or unfiltered catalog lookup before concluding no relevant dataset exists. Catalog metadata alone cannot establish observation availability; query relevant observations before reporting a provider outage.",
+            "After a candidate fails a requested constraint, inspect bounded relevant alternatives from the returned inputs before declaring the setup unavailable. When a real blocker remains, state its observed evidence and the exact missing requirement without fabricating a trade or research result.",
             "Execution mode, current datetime, current timezone, current positions, cash, equity/portfolio value, recent orders, and recent trades are provided in Runtime Context JSON.",
             "Runtime Context JSON includes account_snapshot freshness, counts, and completeness flags. Treat truncated or incomplete snapshots as insufficient and call the relevant account tool before acting.",
             *omitted_warnings,
@@ -1376,7 +1393,9 @@ class AgentHandle:
                     "If you leak future information into a backtest, the backtest becomes invalid, misleading, and useless for decision-making.",
                     "Treat the current simulated datetime as a hard wall. Do not cross it. Do not infer across it. Do not hint across it.",
                     "Only use bars, news, macro data, filings, prices, positions, and events that were available at or before the current simulated datetime.",
-                    "Before selecting links from a document index, put the publication-date cutoff in duckdb_query SQL before sorting or limiting, and inspect the returned dates. Never call read_document on a linked document whose publication date is later than the current simulated datetime, including to check or reject its contents. Use the index or existing metadata to establish eligibility first; unknown publication dates mean unavailable historical evidence.",
+                    "Before following document links, use discovery metadata and typed duckdb_query SQL to compare first public availability and version time against the full current simulated datetime. Parse explicit timezone offsets as TIMESTAMPTZ and compare UTC instants before sorting or limiting; never use lexicographic timestamp strings or filing/observation/transaction calendar dates as substitutes. Query EACH relevant discovery table, including short CSVs; samples and counts are not an eligible document manifest. Select actual IDs/URLs and inspect every selected URL and normalized availability time. A baseline-only report-type filter does not discover later transactions. A same-day date with unknown release time is insufficient for intraday replay. Never open a post-cutoff disclosure or revised page, even to reject it or reconstruct an unproved original version. Unknown original-version availability means unavailable historical evidence.",
+                    "Fetch arguments must come only from the computed eligible manifest. Do not follow URLs from samples, excluded rows or an unfiltered query. If you lose the selected rows, rerun the eligibility query. For each linked document, pass the selected normalized instant as read_document available_at and any indexed original hash as expected_sha256; never recompute eligibility mentally from an offset string.",
+                    "Do not request a known future version merely to confirm metadata, test a cutoff error, or check that it should be excluded. Discovery metadata already establishes that exclusion. Read every relevant eligible supplement before claiming completion, including administrative confirmations, and reconcile the manifest with documents actually read.",
                     "Correct example: if the current simulated time is 2026-03-10 10:15 ET, you may use a news article published at 09:30 ET that same day if it appears in tool output.",
                     "Incorrect example: using a headline published at 14:00 ET, a later macro revision, a later SEC filing, or knowledge of the close when the simulated time is still the morning.",
                     "Incorrect example: saying 'the market later sold off' or 'inflation kept rising after this' unless that fact is explicitly visible in current tool output at or before the simulated datetime.",
@@ -1548,18 +1567,39 @@ class AgentHandle:
             getattr(self.manager.strategy, "is_backtesting", False)
         ):
             return arguments
+        if tool_name not in {"query_data", "search_documents", "get_document"}:
+            return arguments
         current_dt = _current_strategy_datetime(self.manager.strategy)
-        if current_dt is None:
-            raise RuntimeError("BotSpot research requires a current simulated datetime during backtests.")
-        as_of = current_dt.date().isoformat() if hasattr(current_dt, "date") else str(current_dt)[:10]
+        if not isinstance(current_dt, datetime) or current_dt.tzinfo is None or current_dt.utcoffset() is None:
+            raise RuntimeError("BotSpot research requires a timezone-aware simulated datetime during backtests.")
+        ceiling = current_dt.astimezone(timezone.utc)
+        requested_as_of = arguments.get("asOf")
+        if requested_as_of is not None:
+            try:
+                if not isinstance(requested_as_of, str):
+                    raise ValueError("asOf must be a string")
+                if len(requested_as_of) == 10:
+                    requested = datetime.strptime(requested_as_of, "%Y-%m-%d").replace(
+                        hour=23, minute=59, second=59, microsecond=999999, tzinfo=timezone.utc
+                    )
+                else:
+                    # Node's ISO contract permits compact offsets. Python 3.10
+                    # requires their colon; preserve the instant before parsing.
+                    normalized = re.sub(r"([+-]\d{2})(\d{2})$", r"\1:\2", requested_as_of)
+                    requested = datetime.fromisoformat(normalized.replace("Z", "+00:00"))
+                    if requested.tzinfo is None or requested.utcoffset() is None:
+                        raise ValueError("asOf must include a timezone")
+                ceiling = min(ceiling, requested.astimezone(timezone.utc))
+            except (ValueError, TypeError, OverflowError) as exc:
+                raise ValueError("BotSpot research asOf must be a valid date or timezone-aware ISO timestamp.") from exc
+        arguments["asOf"] = ceiling.isoformat().replace("+00:00", "Z")
+        as_of_day = ceiling.date().isoformat()
         if tool_name in {"query_data", "search_documents"}:
             time_range = dict(arguments.get("timeRange") or {})
             requested_end = str(time_range.get("endDate") or "").strip()
-            if not requested_end or requested_end[:10] > as_of:
-                time_range["endDate"] = as_of
+            if not requested_end or requested_end[:10] > as_of_day:
+                time_range["endDate"] = as_of_day
             arguments["timeRange"] = time_range
-        elif tool_name == "get_document":
-            arguments["asOf"] = as_of
         return arguments
 
     def _ensure_bound_tools(self) -> list[BoundTool]:
@@ -1639,7 +1679,15 @@ class AgentHandle:
             f"Error:  {exc.__class__.__name__}: {str(exc)[:400]}",
             "",
         ]
-        if category == "auth":
+        if str(model).startswith("chatgpt/"):
+            lines.extend([
+                "The ChatGPT request failed; no API-key fallback is enabled.",
+                "Reconnect with: python -m lumibot.components.agents.chatgpt_auth login",
+                "Check included allowance and existing ChatGPT credits at: https://chatgpt.com/settings/usage",
+                "Your account settings determine whether existing ChatGPT credits can be used.",
+                "Zero included allowance alone does not establish that inference is unavailable.",
+            ])
+        elif category == "auth":
             lines.extend(
                 [
                     f"Likely cause: {env_var} is missing or invalid.",
@@ -1711,7 +1759,7 @@ class AgentHandle:
         reasoning_effort: str | None,
     ) -> dict[str, Any]:
         bound_tools = self._ensure_bound_tools()
-        return {
+        payload = {
             "user_system_prompt": self.system_prompt,
             "base_system_prompt": base_system_prompt,
             "effective_system_prompt": effective_system_prompt,
@@ -1733,6 +1781,10 @@ class AgentHandle:
             ],
             "memory_notes": self._memory_prompt_notes(),
         }
+        contract = getattr(self._runtime, "agent_tool_contract", None)
+        if contract is not None:
+            payload["agent_tool_contract"] = contract
+        return payload
 
     @staticmethod
     def _cache_root() -> Path:
@@ -1846,8 +1898,36 @@ class AgentHandle:
             first_event_latency_ms=_coerce_usage_int(timing.get("call_first_event_latency_ms")),
         )
 
+    def _tool_journal_callback(self, model_call_id: str):
+        memory = getattr(self.manager.strategy, "memory", None)
+        recorder = getattr(memory, "record_agent_tool_action", None)
+        if not callable(recorder):
+            return None
+
+        def record_private_action(record: dict[str, Any]) -> None:
+            recorder(
+                action_id=record["action_id"],
+                tool_name=record["tool_name"],
+                purpose=record["purpose"],
+                status=record["status"],
+                arguments_sha256=record["arguments_sha256"],
+                agent_name=self.name,
+                model_call_id=model_call_id,
+                error_type=record.get("error_code"),
+            )
+
+        return record_private_action
+
     def _replay_cached_side_effects(self, result: AgentRunResult) -> None:
+        from .runtime import _wrap_agent_tool_callable, agent_purpose_parameter_name
+
         bound_tools = {tool.name: tool for tool in self._ensure_bound_tools()}
+        context = {
+            "agent_name": self.name,
+            "model_call_id": result.cache_key,
+            "tool_calls": [],
+            "tool_journal_callback": self._tool_journal_callback(result.cache_key),
+        }
         for event in result.tool_calls:
             tool_name = event.tool_name
             if not tool_name:
@@ -1860,8 +1940,19 @@ class AgentHandle:
             if not bool(tool.metadata.get("replay_on_cache")):
                 continue
             payload = event.payload if isinstance(event.payload, dict) else {}
-            with agent_tool_context({"agent_name": self.name, "model_call_id": result.cache_key}):
-                tool.function(**payload)
+            if (result.payload or {}).get("agent_tool_contract") == "private-purpose-audit-v1":
+                purpose_name = agent_purpose_parameter_name(inspect.signature(tool.function).parameters)
+                if purpose_name not in payload:
+                    raise RuntimeError("Cached agent tool replay is missing its private purpose.")
+                replayed = _wrap_agent_tool_callable(tool, context)(**payload)
+                if isinstance(replayed, dict) and replayed.get("tool_error") is True:
+                    raise RuntimeError("Cached agent tool replay failed; its completion was not confirmed.")
+            else:
+                # Custom programmatic runtimes do not use ADK's agent argument.
+                # Adapter-generated payloads carry an explicit runtime marker.
+                # Ordinary domain arguments must never select that protocol.
+                with agent_tool_context(context):
+                    tool.function(**payload)
 
     def _derive_warnings(self, result: AgentRunResult, runtime_context: dict[str, Any]) -> list[dict[str, Any]]:
         warnings: list[dict[str, Any]] = []
@@ -2189,6 +2280,7 @@ class AgentHandle:
                 include_builtin_skills=self.include_builtin_skills,
                 builtin_skill_fingerprint=skill_fingerprint,
                 model_call_id=cache_key,
+                tool_journal_callback=self._tool_journal_callback(cache_key),
                 provider_prompt_cache_key=_provider_prompt_cache_key(
                     agent_name=self.name,
                     model=model_name,
@@ -2389,6 +2481,7 @@ class AgentHandle:
             }
             trace_path = self._write_trace(result, trace_payload)
             result.payload = {
+                **(result.payload or {}),
                 "trace_path": trace_path.as_posix(),
                 "warnings": result.warnings,
                 "execution_outcome": execution_outcome,

@@ -1,6 +1,6 @@
 {
   "id": "stock_price_before_order",
-  "model": "openai/gpt-6-luna",
+  "model": "chatgpt/gpt-6-luna",
   "fixture": "flat_stock_account",
   "systemPrompt": "Buy AAPL only if current price and recent completed daily bars confirm it remains above its five-day average. Risk no more than 10 percent of portfolio value, preserve its instrument identity explicitly as asset_type stock, and use a limit order.",
   "taskPrompt": "Evaluate the rule with current fixture evidence and act once if it passes.",
@@ -24,5 +24,6 @@
     ],
     "singleStockOrder": true
   },
-  "judgeRubric": "Pass only if the agent loaded the stock skill, checked current account state, retrieved AAPL's current price and completed history before ordering, evaluated the stated five-day condition, sized within ten percent of portfolio value, and submitted one limit order. A market order, missing price evidence, or unsupported sizing fails."
+  "judgeRubric": "Pass only if the agent loaded the stock skill, checked current account state, retrieved AAPL's current price and completed history before ordering, evaluated the stated five-day condition, sized within ten percent of portfolio value, and submitted one limit order. A market order, missing price evidence, or unsupported sizing fails.",
+  "requiredRepetitions": 5
 }

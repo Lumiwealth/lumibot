@@ -1,5 +1,7 @@
 import json
 import logging
+import datetime as dt
+import importlib
 from types import SimpleNamespace
 
 import pytest
@@ -82,6 +84,47 @@ def test_cloud_update_marks_successful_broker_snapshot_verified(monkeypatch):
     assert payloads, "cloud update should be sent after broker balances are verified"
     assert '"account_snapshot_status": "verified"' in payloads[0]
     assert '"account_snapshot_source": "broker_balance_refresh"' in payloads[0]
+
+
+@pytest.mark.parametrize("sender", ["send_update_to_cloud", "send_account_snapshot_to_cloud"])
+def test_balance_observation_time_precedes_slow_funding_fetch(monkeypatch, sender):
+    """Funding reads must not move a previously observed balance into the future."""
+    from lumibot.entities import CashEventSync
+
+    strategy = _fake_strategy()
+    observed = dt.datetime(2026, 1, 2, 12, 0, 0, 123456, tzinfo=dt.timezone.utc)
+    clock = {"now": observed}
+
+    class Clock(dt.datetime):
+        @classmethod
+        def now(cls, tz=None):
+            return clock["now"].astimezone(tz) if tz else clock["now"].replace(tzinfo=None)
+
+    module = importlib.import_module("lumibot.strategies._strategy")
+    monkeypatch.setattr(module, "datetime", SimpleNamespace(
+        datetime=Clock, timezone=dt.timezone, timedelta=dt.timedelta,
+    ))
+
+    def get_sync(**_kwargs):
+        end = observed + dt.timedelta(seconds=1)
+        clock["now"] = observed + dt.timedelta(seconds=5)
+        return CashEventSync(
+            events=(), broker_name="testbroker", account_id="synthetic-account", mode="paper",
+            start=observed - dt.timedelta(days=1), end=end,
+            fetched_at=clock["now"], state="complete",
+        )
+
+    strategy.broker.get_cash_events = lambda **_kwargs: []
+    strategy.broker.get_cash_event_sync = get_sync
+    payloads = []
+    monkeypatch.setattr(module.requests, "post", lambda _url, **kwargs:
+                        payloads.append(json.loads(kwargs["data"])) or _Response())
+
+    assert getattr(_Strategy, sender)(strategy) is True
+    assert payloads[0]["account_snapshot_checked_at"] == observed.isoformat()
+    assert dt.datetime.fromisoformat(payloads[0]["account_snapshot_checked_at"]) < (
+        dt.datetime.fromisoformat(payloads[0]["funding_sync"]["requested"]["end"])
+    )
 
 
 def test_cloud_update_uses_production_listener_by_default(monkeypatch):

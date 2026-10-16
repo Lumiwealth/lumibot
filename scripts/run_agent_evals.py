@@ -8,6 +8,7 @@ import concurrent.futures
 import hashlib
 import importlib.metadata
 import json
+import math
 import os
 import re
 import sys
@@ -19,18 +20,21 @@ from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
+from urllib.parse import unquote, urlsplit
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 if str(REPO_ROOT) in sys.path:
     sys.path.remove(str(REPO_ROOT))
 sys.path.insert(0, str(REPO_ROOT))
 CASE_ROOT = REPO_ROOT / "agent_eval_cases"
-# Release evals run the product default: GPT-6 Luna on medium reasoning for
-# both the acting agent and the judge. Gemini stays available only when a case
-# or --judge-model names it explicitly.
-DEFAULT_ACTING_MODEL = "openai/gpt-6-luna"
-DEFAULT_JUDGE_MODEL = "openai/gpt-6-luna"
-EVAL_REASONING_EFFORT = "medium"
+# Both real-model roles use the explicitly selected ChatGPT subscription.
+# API-funded actor/judge model selections are rejected before inference.
+DEFAULT_ACTING_MODEL = "chatgpt/gpt-6-luna"
+DEFAULT_JUDGE_MODEL = "chatgpt/gpt-6-luna"
+EVAL_REASONING_EFFORT = "high"
+# Low, Medium and High judge profiles missed labeled controls. XHigh must
+# independently pass all maintained positive and negative controls.
+JUDGE_REASONING_EFFORT = "xhigh"
 DEFAULT_FRESHNESS_DAYS = 90
 # A brand new or changed case must pass three times in a row before it is
 # recorded as established. The ongoing gate then runs an established case
@@ -38,31 +42,15 @@ DEFAULT_FRESHNESS_DAYS = 90
 # and coverage stayed thin as a result.
 NEW_CASE_REQUIRED_PASSES = 3
 REQUIRED_CONSECUTIVE_PASSES = NEW_CASE_REQUIRED_PASSES  # backwards-compatible alias
-PRICE_SOURCE = "Google Cloud Agent Platform pricing, 2026-08-11"
-PRICE_SOURCE_URL = "https://cloud.google.com/gemini-enterprise-agent-platform/generative-ai/pricing"
-OPENAI_PRICE_SOURCE = "OpenAI GPT-6 Luna pricing, 2026-09-23 (registered in lumibot/components/agents/runtime.py)"
-OPENAI_PRICE_SOURCE_URL = "https://platform.openai.com/docs/models/gpt-6-luna"
-MODEL_PRICES_PER_MILLION = {
-    # Must equal _OPENAI_GPT6_MODEL_INFO in runtime.py; a unit test checks it.
-    "openai/gpt-6-luna": {"input": 0.10, "cached_input": 0.01, "output": 0.50},
-    "gemini-3.5-flash-lite": {"input": 0.30, "cached_input": 0.03, "output": 2.50},
-    "gemini-3.1-flash-lite": {"input": 0.25, "cached_input": 0.025, "output": 1.50},
-}
-
-
-def _is_gemini_model(model: str) -> bool:
-    return str(model).startswith("gemini")
-
-
-def _price_source(model: str) -> tuple[str, str]:
-    if _is_gemini_model(model):
-        return PRICE_SOURCE, PRICE_SOURCE_URL
-    return OPENAI_PRICE_SOURCE, OPENAI_PRICE_SOURCE_URL
 MAX_INPUT_TOKENS_PER_MODEL_CALL = 1_048_576
 ACTING_MAX_OUTPUT_TOKENS = 12_000
 JUDGE_MAX_OUTPUT_TOKENS = 4_000  # GPT-6 Luna reasoning tokens count against this cap
 ORDER_TOOLS = {"orders_submit_order", "orders_submit_multileg"}
 LEDGER_LOCK = threading.Lock()
+EVAL_SDK_PACKAGES = (
+    "google-adk", "google-genai", "litellm", "pandas-ta-classic", "pandas", "numpy", "alpaca-py",
+    "httpx", "openai", "PyJWT", "filelock", "pydantic",
+)
 
 
 def utc_now() -> datetime:
@@ -87,6 +75,16 @@ def sha256_files(paths: list[Path]) -> str:
     return digest.hexdigest()
 
 
+def sdk_versions() -> dict[str, str]:
+    versions = {}
+    for package in EVAL_SDK_PACKAGES:
+        try:
+            versions[package] = importlib.metadata.version(package)
+        except importlib.metadata.PackageNotFoundError:
+            versions[package] = "missing"
+    return versions
+
+
 def runtime_fingerprint() -> str:
     paths = [
         REPO_ROOT / "lumibot/components/agents/manager.py",
@@ -106,6 +104,9 @@ def runtime_fingerprint() -> str:
         REPO_ROOT / "lumibot/brokers/alpaca.py",
         REPO_ROOT / "lumibot/strategies/strategy.py",
         REPO_ROOT / "scripts/agent_eval_call_budget.py",
+        REPO_ROOT / "scripts/agent_eval_subscription_budget.py",
+        REPO_ROOT / "lumibot/components/agents/chatgpt_auth.py",
+        REPO_ROOT / "lumibot/components/agents/chatgpt_llm.py",
         REPO_ROOT / "scripts/agent_eval_rate_pacing.py",
         REPO_ROOT / "scripts/agent_eval_isolation.py",
         REPO_ROOT / "scripts/agent_eval_production_fixture.py",
@@ -114,17 +115,20 @@ def runtime_fingerprint() -> str:
         REPO_ROOT / "lumibot/data_sources/pandas_data.py",
         REPO_ROOT / "lumibot/components/options_helper.py",
         REPO_ROOT / "agent_eval_fixtures/research_data.json",
+        REPO_ROOT / "scripts/qualify_agent_evals.py",
+        REPO_ROOT / "scripts/check_agent_judge_calibration.py",
+        REPO_ROOT / "tests/fixtures/agent_judge_calibration.json",
+        REPO_ROOT / "requirements_agent_evals.txt",
+        REPO_ROOT / "requirements.txt",
+        REPO_ROOT / "requirements_dev.txt",
+        REPO_ROOT / "setup.py",
         Path(__file__).resolve(),
     ]
     skills_root = REPO_ROOT / "lumibot/components/agents/skills"
     paths.extend(path for path in skills_root.rglob("*") if path.is_file())
-    sdk_versions = {}
-    for package in ("google-adk", "google-genai", "litellm", "pandas-ta-classic", "pandas", "numpy", "alpaca-py"):
-        try:
-            sdk_versions[package] = importlib.metadata.version(package)
-        except importlib.metadata.PackageNotFoundError:
-            sdk_versions[package] = "missing"
-    return hashlib.sha256((sha256_files(paths) + stable_json(sdk_versions)).encode()).hexdigest()
+    # Include responsible schema, projection and indirect runtime helpers too.
+    paths = sorted(set(paths) | set((REPO_ROOT / "lumibot").rglob("*.py")))
+    return hashlib.sha256((sha256_files(paths) + stable_json(sdk_versions())).encode()).hexdigest()
 
 
 def load_cases(case_ids: set[str] | None = None) -> list[dict[str, Any]]:
@@ -135,6 +139,8 @@ def load_cases(case_ids: set[str] | None = None) -> list[dict[str, Any]]:
             raise RuntimeError(f"Invalid eval case: {path}")
         if case_ids and value["id"] not in case_ids:
             continue
+        case_required_passes(value)
+        _decision_completion_contract(value.get("machineContract") or {})
         value["_path"] = path
         cases.append(value)
     if case_ids:
@@ -190,42 +196,16 @@ def normalize_usage(usage: dict[str, Any] | None) -> dict[str, int]:
 
 
 def estimate_cost(model: str, usage: dict[str, Any] | None) -> dict[str, Any]:
-    prices = MODEL_PRICES_PER_MILLION.get(model)
-    if prices is None:
-        raise RuntimeError(f"No eval pricing configured for model {model!r}")
-    normalized = normalize_usage(usage)
-    billed_output_tokens = normalized["output_tokens"]
-    if normalized["thinking_tokens"] and normalized["total_tokens"] > (
-        normalized["input_tokens"] + normalized["output_tokens"]
-    ):
-        billed_output_tokens += normalized["thinking_tokens"]
-    estimated = (
-        normalized["uncached_input_tokens"] * prices["input"]
-        + normalized["cached_input_tokens"] * prices["cached_input"]
-        + billed_output_tokens * prices["output"]
-    ) / 1_000_000
-    price_source, price_source_url = _price_source(model)
-    return {
-        "estimated_usd": round(estimated, 6),
-        "price_source": price_source,
-        "price_source_url": price_source_url,
-        "prices_per_million_tokens": prices,
-        "usage": normalized,
-    }
+    if not model.startswith("chatgpt/"):
+        raise RuntimeError("Canonical evaluations require subscription funding")
+    return {"estimated_usd": 0, "funding": "chatgpt-plan", "usage": normalize_usage(usage)}
 
 
 def initial_repetition_reservation_usd(case: dict[str, Any], judge_model: str) -> float:
-    """Worker scheduling estimate, NOT an upper bound for a tool-loop repetition."""
-    acting_model = str(case.get("model") or DEFAULT_ACTING_MODEL)
-    acting_prices = MODEL_PRICES_PER_MILLION[acting_model]
-    judge_prices = MODEL_PRICES_PER_MILLION[judge_model]
-    acting_max = (
-        MAX_INPUT_TOKENS_PER_MODEL_CALL * acting_prices["input"] + ACTING_MAX_OUTPUT_TOKENS * acting_prices["output"]
-    ) / 1_000_000
-    judge_max = (
-        MAX_INPUT_TOKENS_PER_MODEL_CALL * judge_prices["input"] + JUDGE_MAX_OUTPUT_TOKENS * judge_prices["output"]
-    ) / 1_000_000
-    return round(acting_max + judge_max, 6)
+    # The shared call ledger bounds subscription usage; there is no USD spend.
+    if not str(case.get("model") or DEFAULT_ACTING_MODEL).startswith("chatgpt/") or not judge_model.startswith("chatgpt/"):
+        raise RuntimeError("Canonical evaluations require subscription funding")
+    return 0.0
 
 
 def reserve_budget_batch(
@@ -366,9 +346,27 @@ def build_tools(fixture: FixtureRuntime) -> list[Any]:
 def compact_transcript(result: Any, fixture: FixtureRuntime) -> dict[str, Any]:
     return {
         "final_answer": result.summary or result.text,
-        "tool_calls": [{"name": event.tool_name, "payload": event.payload} for event in result.tool_calls],
-        "tool_results": [{"name": event.tool_name, "payload": event.payload} for event in result.tool_results],
+        "tool_calls": [
+            {
+                "name": event.tool_name,
+                "payload": event.payload,
+                "call_id": event.call_id,
+                "model_call_id": result.cache_key,
+            }
+            for event in result.tool_calls
+        ],
+        "tool_results": [
+            {
+                "name": event.tool_name,
+                "payload": event.payload,
+                "call_id": event.call_id,
+                "model_call_id": result.cache_key,
+            }
+            for event in result.tool_results
+        ],
         "fixture_calls": fixture.calls,
+        "web_requests": getattr(fixture, "web_requests", None),
+        "memory_events": getattr(fixture, "memory_events", None),
         "submissions": fixture.submissions,
         "rejected_submissions": fixture.rejected_submissions,
         "final_positions": fixture.positions,
@@ -419,12 +417,316 @@ def initial_snapshot_covers(transcript, tool):
     )
 
 
+def _decision_completion_contract(contract: dict[str, Any]) -> tuple[bool, list[dict[str, str]]]:
+    """A blocked decision exemption requires explicit typed failed-tool evidence."""
+    if not isinstance(contract, dict):
+        raise RuntimeError("machineContract must be a JSON object")
+    for flag in ("requireAgentToolAudit", "requirePublicOrderReasonReference"):
+        if flag in contract and type(contract[flag]) is not bool:
+            raise RuntimeError(f"{flag} must be a boolean")
+    expected = contract.get("expectedDecisionCompleted", True)
+    if type(expected) is not bool:
+        raise RuntimeError("expectedDecisionCompleted must be a boolean")
+    required = contract.get("requiredFailedTools", [])
+    if not isinstance(required, list) or any(
+        not isinstance(item, dict) or set(item) != {"name", "code"}
+        or any(not isinstance(item[key], str) or not item[key] or item[key] != item[key].strip()
+               for key in ("name", "code"))
+        for item in required
+    ):
+        raise RuntimeError("requiredFailedTools must contain exact nonempty name/code objects")
+    if expected is False and not required:
+        raise RuntimeError("expectedDecisionCompleted=False requires nonempty requiredFailedTools")
+    return expected, required
+
+
+def _exact_digest(value: Any) -> bool:
+    return isinstance(value, str) and re.fullmatch(r"[0-9a-f]{64}", value) is not None
+
+
+def _native_journal_failures(contract: dict[str, Any], transcript: dict[str, Any]) -> list[str]:
+    """Check only exact producer contracts; rationale and privacy are judged separately."""
+    from lumibot.components.agents.runtime import (
+        _json_safe_value,
+        _validate_agent_purpose,
+        agent_purpose_parameter_name,
+    )
+    from lumibot.components.memory.store import SCHEMA_VERSION, _agent_audit_name
+
+    prefix = (
+        "private tool audit / public order"
+        if contract.get("requirePublicOrderReasonReference")
+        else "private tool audit"
+    )
+    rows = transcript.get("memory_events")
+    calls = transcript.get("tool_calls")
+    results = transcript.get("tool_results")
+    if not isinstance(rows, list) or not rows or not isinstance(calls, list) or not calls:
+        return [f"{prefix}: actual tool calls and committed memory rows are required"]
+    if not isinstance(results, list):
+        return [f"{prefix}: actual tool results are required"]
+    failures = []
+    seen_ids, previous_sequence = set(), 0
+    pairs: dict[str, list[dict[str, Any]]] = {}
+    for row in rows:
+        try:
+            if not isinstance(row, dict) or not isinstance(row.get("metadata"), dict):
+                raise ValueError("malformed event")
+            sequence, event_id = row["sequence"], row["event_id"]
+            if type(sequence) is not int or sequence <= previous_sequence or event_id in seen_ids:
+                raise ValueError("nonunique or unordered event identity")
+            if not isinstance(event_id, str) or re.fullmatch(r"event_[0-9a-f]{32}", event_id) is None:
+                raise ValueError("invalid event identity")
+            if type(row["schema_version"]) is not int or row["schema_version"] != SCHEMA_VERSION:
+                raise ValueError("incompatible schema")
+            for field in ("timestamp", "wall_time"):
+                if (
+                    not isinstance(row[field], str)
+                    or datetime.fromisoformat(row[field].replace("Z", "+00:00")).tzinfo is None
+                ):
+                    raise ValueError("missing original aware timestamps")
+            for field in ("strategy", "agent_name", "model_call_id"):
+                if not isinstance(row[field], str) or not row[field] or row[field] != row[field].strip():
+                    raise ValueError("missing request identity")
+            _agent_audit_name(row["agent_name"], field="agent_name", max_bytes=128)
+            _agent_audit_name(row["model_call_id"], field="model_call_id", max_bytes=240)
+            if (
+                not _exact_digest(row["payload_hash"])
+                or hashlib.sha256(row["payload_json"].encode("utf-8")).hexdigest() != row["payload_hash"]
+            ):
+                raise ValueError("payload hash mismatch")
+            payload = json.loads(row["payload_json"])
+            if not isinstance(payload, dict):
+                raise ValueError("invalid native payload object")
+            metadata = row["metadata"]
+            if row["event_type"] in {"agent.tool_started", "agent.tool_outcome"}:
+                action_id = metadata["action_id"]
+                if not isinstance(action_id, str) or str(uuid.UUID(action_id)) != action_id:
+                    raise ValueError("invalid action UUID")
+                if row["subject_type"] != "agent_tool_action" or row["subject_id"] != action_id or payload != metadata:
+                    raise ValueError("tool payload or subject linkage mismatch")
+                if any(metadata[field] != row[field] for field in ("agent_name", "model_call_id")):
+                    raise ValueError("request linkage mismatch")
+                _agent_audit_name(metadata["tool_name"], field="tool_name", max_bytes=128)
+                if metadata.get("error_type") is not None:
+                    _agent_audit_name(metadata["error_type"], field="error_type", max_bytes=128)
+                purpose = metadata["purpose"]
+                if _validate_agent_purpose(purpose, "agent_purpose") != purpose:
+                    raise ValueError("invalid bounded private purpose")
+                if row["text"] != purpose or not _exact_digest(metadata["arguments_sha256"]):
+                    raise ValueError("purpose or arguments hash mismatch")
+                pairs.setdefault(action_id, []).append(row)
+            elif row["event_type"] == "order.intent":
+                if (
+                    payload.get("metadata") != metadata
+                    or payload.get("text") != row["text"]
+                    or (payload.get("kind"), payload.get("status"), row["subject_type"])
+                    != ("order_action", "intent", "order_action")
+                ):
+                    raise ValueError("order intent payload linkage mismatch")
+            elif row["event_type"] == "order.action_outcome":
+                if payload != {} or row["subject_type"] != "order_action":
+                    raise ValueError("order outcome payload schema mismatch")
+            else:
+                raise ValueError("unexpected event type")
+            seen_ids.add(event_id)
+            previous_sequence = sequence
+        except (KeyError, TypeError, ValueError, AttributeError, UnicodeError):
+            failures.append(f"{prefix}: malformed, unordered or hash-mismatched committed event")
+    if failures:
+        return failures
+    if len({row["strategy"] for row in rows}) != 1:
+        return [f"{prefix}: committed events mixed distinct fixture stores"]
+
+    starts = []
+    for pair in pairs.values():
+        if len(pair) != 2 or [row["event_type"] for row in pair] != ["agent.tool_started", "agent.tool_outcome"]:
+            failures.append(f"{prefix}: each action requires exactly one started/outcome pair")
+            continue
+        start, outcome = pair
+        before, after = start["metadata"], outcome["metadata"]
+        excluded = {"status", "error_type", "decision_id"}  # Existing MemoryStore pairing contract.
+        if (
+            before.get("status") != "started"
+            or after.get("status") not in {"completed", "failed"}
+            or (
+                before.get("error_type") is not None
+                or after["status"] == "completed"
+                and after.get("error_type") is not None
+                or {key: value for key, value in before.items() if key not in excluded}
+                != {key: value for key, value in after.items() if key not in excluded}
+            )
+        ):
+            failures.append(f"{prefix}: outcome status or action/request binding mismatch")
+        starts.append((start, outcome))
+    if failures:
+        return failures
+
+    declarations = {item["name"]: item for item in transcript.get("builtin_tool_contracts") or []}
+    remaining_pairs, remaining_results = list(starts), list(results)
+    matched = []
+    for call in calls:
+        try:
+            arguments = dict(call["payload"])
+            name, request_id = call["name"], call["model_call_id"]
+            if not isinstance(request_id, str) or not request_id:
+                raise ValueError("missing actor request")
+            declaration = declarations.get(name)
+            if declaration is not None:
+                properties = declaration.get("parameters", {}).get("properties", {})
+                purpose_parameter = declaration.get("private_purpose_parameter")
+                if not isinstance(purpose_parameter, str) or purpose_parameter not in properties:
+                    raise ValueError("missing managed private-purpose parameter identity")
+            else:
+                # Native skill tools have no bound built-in declaration here.
+                purpose_parameter = agent_purpose_parameter_name(())
+            purpose = arguments.pop(purpose_parameter)
+            if not isinstance(purpose, str):
+                raise ValueError("missing private purpose")
+            digest = hashlib.sha256(
+                json.dumps(
+                    _json_safe_value({"args": [], "kwargs": arguments}),
+                    sort_keys=True,
+                    separators=(",", ":"),
+                    ensure_ascii=True,
+                ).encode("utf-8")
+            ).hexdigest()
+            candidates = [
+                pair
+                for pair in remaining_pairs
+                if (
+                    pair[0]["metadata"]["tool_name"],
+                    pair[0]["model_call_id"],
+                    pair[0]["metadata"]["purpose"],
+                    pair[0]["metadata"]["arguments_sha256"],
+                )
+                == (name, request_id, purpose.strip(), digest)
+            ]
+            if not candidates:
+                raise ValueError("missing exact invocation pair")
+            pair = candidates[0]
+            response = next(
+                item
+                for item in remaining_results
+                if (item.get("name"), item.get("model_call_id"), item.get("call_id"))
+                == (name, request_id, call.get("call_id"))
+            )
+            body = response.get("payload")
+            if not isinstance(body, dict):
+                raise ValueError("missing tool response")
+            # Pruning removes the returned body, not the actual committed status.
+            # Never parse an excerpt to guess success or manufacture a failure.
+            if body.get("lumibot_tool_result_pruned") is not True:
+                failed = body.get("tool_error") is True or (name not in declarations and bool(body.get("error")))
+                if pair[1]["metadata"]["status"] != ("failed" if failed else "completed"):
+                    raise ValueError("returned status differs from committed status")
+            matched.append((call, pair))
+            remaining_pairs.remove(pair)
+            remaining_results.remove(response)
+        except (KeyError, TypeError, ValueError, StopIteration, AttributeError, UnicodeError):
+            failures.append(
+                f"{prefix}: actor invocation, purpose, arguments, request or result did not match its audit pair"
+            )
+    if remaining_pairs or remaining_results or len(matched) != len(calls):
+        failures.append(f"{prefix}: actual actor calls/results and committed audit pairs were not one-to-one")
+    if failures or not contract.get("requirePublicOrderReasonReference"):
+        return failures
+
+    linked_actions = set()
+    for call, (start, tool_outcome) in matched:
+        if call["name"] not in ORDER_TOOLS or tool_outcome["metadata"]["status"] != "completed":
+            continue
+        try:
+            arguments = call["payload"]
+            public = arguments["public_reason"]
+            reason = arguments["reason"].strip()
+            if (
+                not isinstance(public, str)
+                or not public
+                or public != public.strip()
+                or len(public.encode("utf-8")) > 280
+            ):
+                raise ValueError("missing exact bounded public reason")
+            intents = [
+                row
+                for row in rows
+                if row["event_type"] == "order.intent"
+                and (row["agent_name"], row["model_call_id"], row["text"])
+                == (start["agent_name"], start["model_call_id"], reason)
+                and start["sequence"] < row["sequence"] < tool_outcome["sequence"]
+            ]
+            if len(intents) != 1:
+                raise ValueError("missing unique pre-execution intent")
+            intent = intents[0]
+            reference = intent["metadata"]["reference"]
+            action_id = reference["action_id"]
+            if re.fullmatch(r"action_[0-9a-f]{32}", action_id) is None or intent["subject_id"] != action_id:
+                raise ValueError("invalid order action identity")
+            if (
+                reference["operation"] != "submit"
+                or reference["model_call_id"] != start["model_call_id"]
+                or (
+                    reference["agent_name"] != start["agent_name"]
+                    or not reference.get("decision_id")
+                    or reference["reason_preview"] != reason[:800]
+                    or reference["reason_sha256"] != hashlib.sha256(reason.encode("utf-8")).hexdigest()
+                    or reference["public_reason_preview"] != public
+                    or reference["public_reason_sha256"] != hashlib.sha256(public.encode("utf-8")).hexdigest()
+                    or intent["metadata"]["evidence"]["public_reason"] != public
+                )
+            ):
+                raise ValueError("reason/reference content hash mismatch")
+            outcomes = [
+                row for row in rows if row["event_type"] == "order.action_outcome" and row["subject_id"] == action_id
+            ]
+            if (
+                len(outcomes) != 1
+                or not intent["sequence"] < outcomes[0]["sequence"] < tool_outcome["sequence"]
+                or (
+                    outcomes[0]["subject_type"] != "order_action"
+                    or outcomes[0]["metadata"] != {"reference": reference, "certainty": "returned", "error_type": None}
+                    or outcomes[0]["agent_name"] != start["agent_name"]
+                    or outcomes[0]["model_call_id"] != start["model_call_id"]
+                )
+            ):
+                raise ValueError("missing matching returned order outcome")
+            if not any(order.get("decision_journal") == reference for order in transcript.get("broker_orders") or []):
+                raise ValueError("broker did not retain exact committed reference")
+            linked_actions.add(action_id)
+        except (KeyError, TypeError, ValueError, AttributeError, UnicodeError):
+            failures.append(
+                "public order: private intent, returned outcome or broker/public content hash linkage failed"
+            )
+    broker_orders = transcript.get("broker_orders") or []
+    intents = [row for row in rows if row["event_type"] == "order.intent"]
+    outcomes = [row for row in rows if row["event_type"] == "order.action_outcome"]
+    if (
+        len(intents) != len(linked_actions)
+        or len(outcomes) != len(linked_actions)
+        or any(row["subject_id"] not in linked_actions for row in intents + outcomes)
+    ):
+        failures.append("public order: duplicate or orphan committed intent/outcome")
+    if (
+        not linked_actions
+        or not broker_orders
+        or any(
+            not isinstance(order.get("decision_journal"), dict)
+            or order["decision_journal"].get("action_id") not in linked_actions
+            for order in broker_orders
+        )
+    ):
+        failures.append("public order: each broker reference must link to an actual committed public-reason action")
+    return failures
+
+
 def score_machine_contract(case: dict[str, Any], transcript: dict[str, Any]) -> dict[str, Any]:
     contract = case.get("machineContract") or {}
     calls = transcript["fixture_calls"]
     sequence = [call["name"] for call in calls]
     submissions = transcript["submissions"]
     failures: list[str] = []
+    if contract.get("requireAgentToolAudit") or contract.get("requirePublicOrderReasonReference"):
+        failures.extend(_native_journal_failures(contract, transcript))
     required_agents = contract.get("requiredAgents") or []
     agent_runs = transcript.get("agent_runs") or []
     observed_agents = [str(run.get("role") or "") for run in agent_runs]
@@ -453,13 +755,53 @@ def score_machine_contract(case: dict[str, Any], transcript: dict[str, Any]) -> 
                     failures.append(
                         f"indicator tool {field} was {arguments.get(field)!r}, expected {expected!r}"
                     )
-    if "execution_outcome" in transcript and not (transcript["execution_outcome"] or {}).get("decision_completed"):
-        failures.append("production AgentManager did not report a completed decision")
+    try:
+        expected_completed, required_failed = _decision_completion_contract(contract)
+    except RuntimeError as exc:
+        failures.append(str(exc))
+        expected_completed, required_failed = True, []
+    # Older helper-only contract transcripts have no execution outcome. Actual
+    # production captures always carry it; an explicit expectation requires it.
+    if "execution_outcome" in transcript or "expectedDecisionCompleted" in contract:
+        outcome = transcript.get("execution_outcome")
+        completed = outcome.get("decision_completed") if isinstance(outcome, dict) else None
+        if completed is not expected_completed:
+            failures.append(f"production AgentManager decision_completed was not {expected_completed}")
+    observed_results = list(transcript.get("tool_results") or [])
+    for required in required_failed:
+        matched = None
+        for index, event in enumerate(observed_results):
+            if not isinstance(event, dict) or event.get("name") != required["name"]:
+                continue
+            payload = event.get("payload")
+            if isinstance(payload, dict) and isinstance(payload.get("result"), dict):
+                payload = payload["result"]
+            if (
+                isinstance(payload, dict) and payload.get("tool_error") is True and payload.get("ok") is False
+                and isinstance(payload.get("error"), dict) and payload["error"].get("code") == required["code"]
+            ):
+                matched = index
+                break
+        if matched is None:
+            failures.append(f"required failed tool {required['name']} did not return error code {required['code']}")
+        else:
+            observed_results.pop(matched)  # One actual result cannot satisfy two required failures.
     if "broker_orders" in transcript and int(contract.get("exactOrderCount", 0)) > 0:
         if not any(
             order.get("status") == "fill" or order.get("status") == "filled" for order in transcript["broker_orders"]
         ):
             failures.append("execution case produced no broker-simulated fill")
+
+    for order in transcript.get("broker_orders", []):
+        execution = order.get("package_execution")
+        if order.get("status") not in {"fill", "filled"} or not isinstance(execution, dict):
+            continue
+        limit, fill = execution.get("signed_limit_price"), execution.get("signed_fill_price")
+        if (type(limit) not in {int, float} or type(fill) not in {int, float}
+                or not math.isfinite(limit) or not math.isfinite(fill)):
+            failures.append("filled package lacks finite signed limit/fill evidence")
+        elif fill > limit + 1e-9:
+            failures.append("broker-simulated package fill violated its signed limit")
 
     required_skill = case.get("requiredSkill")
     if required_skill:
@@ -473,11 +815,42 @@ def score_machine_contract(case: dict[str, Any], transcript: dict[str, Any]) -> 
     if contract.get("forbidOrderTools") and (submissions or transcript.get("rejected_submissions")):
         failures.append("submitted an order despite a no-order contract")
 
-    # A document dated after the simulated clock must never be opened, even to discard it.
+    # Prefer the fixture's actual HTTP observations: redirects and document
+    # parsers can fetch URLs beyond the initial tool argument. Older calibration
+    # transcripts retain a narrow transport-tool fallback; SQL and other tool
+    # arguments mentioning excluded links are not network requests.
+    requests = transcript.get("web_requests")
+    if requests is None:
+        requests = [
+            {"url": call.get("arguments", {}).get("url")}
+            for call in calls
+            if call.get("name") in {"http_request", "read_document"}
+            and isinstance(call.get("arguments"), dict)
+            and isinstance(call["arguments"].get("url"), str)
+        ]
+    elif not isinstance(requests, list) or any(
+        not isinstance(item, dict) or set(item) != {"method", "url"}
+        or not isinstance(item["method"], str) or not item["method"]
+        or not isinstance(item["url"], str) or not item["url"]
+        for item in requests
+    ):
+        failures.append("actual web request evidence is malformed")
+        requests = []
+
+    # A future disclosed document must never be fetched, even to discard it.
     for forbidden in contract.get("forbiddenFetchedUrls") or []:
-        for call in calls:
-            if forbidden in stable_json(call.get("arguments") or {}):
-                failures.append(f"{call.get('name')} fetched {forbidden}, which was filed after the simulated date")
+        for request in requests:
+            try:
+                actual, excluded = urlsplit(request["url"]), urlsplit(forbidden)
+                matched = (
+                    unquote(actual.path) == unquote(excluded.path)
+                    if forbidden.startswith("/")
+                    else actual._replace(fragment="") == excluded._replace(fragment="")
+                )
+            except ValueError:
+                matched = False
+            if matched:
+                failures.append(f"HTTP request fetched {forbidden}, which was disclosed after the simulated instant")
                 break
     for required in contract.get("requiredTools") or []:
         if required not in sequence:
@@ -642,6 +1015,98 @@ def parse_judge_json(text: str) -> dict[str, Any]:
     return {"pass": value["pass"], "reason": str(value.get("reason") or "")}
 
 
+def _judge_contract_text(value: str) -> str:
+    # Contracts come from trusted built-in bindings, never a remote server or
+    # user callable. Connection URLs are unnecessary judge evidence.
+    return re.sub(r"\b(?:https?|wss?|ftp|file)://[^\s<>\"']+", "[URL omitted]", value)
+
+
+def judge_parameter_schema(schema: dict[str, Any]) -> dict[str, Any]:
+    """Project declaration structure without defaults, examples or connection data."""
+    projected: dict[str, Any] = {}
+    for key in ("type", "format", "nullable", "minimum", "maximum", "minItems", "maxItems"):
+        value = schema.get(key)
+        if isinstance(value, (str, int, float, bool)):
+            projected[key] = _judge_contract_text(value) if isinstance(value, str) else value
+    if isinstance(schema.get("description"), str):
+        projected["description"] = _judge_contract_text(schema["description"])
+    for key in ("required", "enum"):
+        if isinstance(schema.get(key), list):
+            projected[key] = [
+                _judge_contract_text(item) if isinstance(item, str) else item
+                for item in schema[key]
+                if item is None or isinstance(item, (str, int, float, bool))
+            ]
+    for key in ("properties", "$defs"):
+        if isinstance(schema.get(key), dict):
+            projected[key] = {
+                name: judge_parameter_schema(value)
+                for name, value in schema[key].items()
+                if isinstance(value, dict)
+            }
+    for key in ("items", "additionalProperties"):
+        value = schema.get(key)
+        if isinstance(value, dict):
+            projected[key] = judge_parameter_schema(value)
+        elif isinstance(value, bool):
+            projected[key] = value
+    for key in ("anyOf", "oneOf", "allOf", "any_of", "one_of", "all_of"):
+        if isinstance(schema.get(key), list):
+            projected[key] = [judge_parameter_schema(value) for value in schema[key] if isinstance(value, dict)]
+    if isinstance(schema.get("$ref"), str) and schema["$ref"].startswith("#/"):
+        projected["$ref"] = schema["$ref"]
+    return projected
+
+
+def _managed_private_purpose_parameter(bound_tool: Any, managed_tool: Any) -> str:
+    """Identify the one argument actually introduced by the runtime wrapper."""
+    import inspect
+
+    from lumibot.components.agents.runtime import agent_purpose_parameter_name
+
+    original = inspect.signature(bound_tool.function).parameters
+    managed = inspect.signature(managed_tool.func).parameters
+    introduced = set(managed) - set(original)
+    if len(introduced) != 1:
+        raise RuntimeError("Managed tool must expose exactly one private-purpose parameter.")
+    purpose_parameter = introduced.pop()
+    if purpose_parameter != agent_purpose_parameter_name(original):
+        raise RuntimeError("Managed private-purpose parameter does not match its runtime owner.")
+    return purpose_parameter
+
+
+def builtin_tool_contracts(bound_tools: list[Any]) -> list[dict[str, Any]]:
+    """Use the same declarations as the actor, restricted to LumiBot built-ins."""
+    import inspect
+
+    from google.adk.tools import FunctionTool
+
+    from lumibot.components.agents.runtime import _function_tools_with_name_aliases
+
+    contracts = []
+    for tool in bound_tools:
+        if tool.source == "mcp" or inspect.unwrap(tool.function).__module__ != "lumibot.components.agents.builtins":
+            continue
+        managed = _function_tools_with_name_aliases(FunctionTool, [tool])[0]
+        declaration = managed._get_declaration()
+        purpose_parameter = _managed_private_purpose_parameter(tool, managed)
+        contract = {
+            "name": tool.name,
+            "description": _judge_contract_text(tool.description),
+            "private_purpose_parameter": purpose_parameter,
+        }
+        parameters = declaration.parameters_json_schema or declaration.parameters
+        if parameters is not None:
+            if hasattr(parameters, "model_dump"):
+                parameters = parameters.model_dump(mode="json", exclude_none=True)
+            if isinstance(parameters, dict):
+                contract["parameters"] = judge_parameter_schema(parameters)
+        if purpose_parameter not in contract.get("parameters", {}).get("properties", {}):
+            raise RuntimeError("Managed declaration omitted its private-purpose parameter.")
+        contracts.append(contract)
+    return contracts
+
+
 def run_judge(
     case: dict[str, Any], transcript: dict[str, Any], judge_model: str, budget: Any
 ) -> tuple[dict[str, Any], Any, float]:
@@ -658,7 +1123,42 @@ def run_judge(
         model=judge_model,
         system_prompt=(
             "You are a strict production eval judge. "
-            "Apply the supplied rubric literally and return only the requested JSON."
+            "Apply the supplied rubric literally and return only the requested JSON. "
+            "The runtime-projected builtin_tool_contracts describe the actual LumiBot APIs used in this run. "
+            "Assess payloads against those contracts and the observed effects; a tool may derive parameters "
+            "from verified state when its contract permits that. Do not require the caller to supply fields "
+            "the tool explicitly derives. Aggregate or container order metadata is not an individual leg; "
+            "reconcile exact child assets, sides and quantities instead. Ordered tool_results are evidence "
+            "the agent observed before its final answer. A post-run fixture capture alone cannot justify "
+            "a claimed fill or flat position, but it does not negate earlier observed status and position reads. "
+            "A permitted tool behavior alone does not prove its actual effects. Require observed effects "
+            "to match the claimed result; unresolved contradictions across orders, fills and positions "
+            "prevent verified success. Assess execution-price and cash claims against observed fills, "
+            "including quantities and contract multipliers, rather than treating a submitted limit as a fill price. "
+            "Distinguish binary floating-point representation residue from an economically different price: "
+            "0.6000000000000001 and 0.6 represent the same quoted monetary amount. Such residue alone is "
+            "not a limit-price violation. Never excuse a meaningful price difference or invent an unobserved "
+            "currency precision, tick size, fill, or valuation. "
+            "A quoted bid/ask range includes its endpoints unless the rubric explicitly requires a "
+            "strictly interior price or a midpoint. Do not turn 'between bid and ask' or 'outside the "
+            "bid and ask fails' into an unstated strictly-interior requirement. Reconcile signed debit "
+            "and credit conventions before comparing package limits with their observed quote range. "
+            "Verify every mandatory rubric condition, even when the overall outcome looks successful. "
+            "Identity-bound evidence must match the exact instrument or source being acted on: observations "
+            "for a previously selected item cannot verify its replacement. A later successful outcome does "
+            "not retroactively satisfy a required earlier validation. Every factual explanation in the final "
+            "answer must agree with returned evidence; a successful retry does not excuse falsely describing "
+            "why an earlier request failed. "
+            "For SQL evidence, an eligibility predicate is evaluated over the complete queried relation, "
+            "even when only eligible rows are returned. Returning only eligible rows does not by itself "
+            "prove missing exclusions. Assess the actual predicate, column types, discovery provenance "
+            "excluded-row handling and query-before-document ordering in the tool evidence. "
+            "Do not require the final answer to enumerate "
+            "every excluded row unless the rubric explicitly requires that presentation. "
+            "A timezone-aware timestamp comparison compares instants; "
+            "do not demand an extra UTC formatting operation when the comparison already normalizes instants. "
+            "These rules never excuse a missing availability predicate, lexical timezone comparison, "
+            "future document access, unproved source availability, or a manifest explicitly required by the rubric."
         ),
         task_prompt=prompt,
         context=None,
@@ -672,12 +1172,40 @@ def run_judge(
         run_timeout_seconds=300,
         max_output_tokens=JUDGE_MAX_OUTPUT_TOKENS,
         model_call_budget=budget,
-        reasoning_effort=None if _is_gemini_model(judge_model) else EVAL_REASONING_EFFORT,
+        reasoning_effort=JUDGE_REASONING_EFFORT,
     )
     started = time.perf_counter()
     result = GoogleADKRuntime().run(request)
     elapsed = time.perf_counter() - started
     return parse_judge_json(result.summary or result.text), result, elapsed
+
+
+def actor_infrastructure_failure(actor_results: list[Any]) -> dict[str, Any] | None:
+    """Distinguish typed retryable inference failures from completed decisions.
+
+    The runtime deliberately returns a safe no-op on a provider failure. That
+    no-op is not an actor decision to judge. Preserve it as an error in the
+    append-only eval ledger; only the failed repetition is eligible for retry.
+    Never infer infrastructure failure from the final answer or error text.
+    """
+    for index, result in enumerate(actor_results):
+        payload = result.payload or {}
+        outcome = payload.get("execution_outcome") or {}
+        if (
+            payload.get("runtime_error") is True
+            and payload.get("error_class") in {"SubscriptionModelResponseError", "ManagedAiGatewayError", "Timeout"}
+            and outcome.get("status") in {"runtime_error", "provider_error"}
+            and outcome.get("decision_completed") is False
+            and outcome.get("error_category") in {"transient", "unknown"}
+            and outcome.get("retryability") == "retryable"
+        ):
+            return {
+                "error": payload["error_class"],
+                "error_category": outcome["error_category"],
+                "retryability": "retryable",
+                "actor_index": index,
+            }
+    return None
 
 
 def execute_repetition(
@@ -687,14 +1215,19 @@ def execute_repetition(
     fingerprint: str,
     judge_model: str,
     budget: Any,
+    run_id: str | None = None,
+    started_at: str | None = None,
 ) -> dict[str, Any]:
     from lumibot.components.agents.runtime import GoogleADKRuntime
     from scripts.agent_eval_production_fixture import ProductionFixture
 
     setup_started = time.perf_counter()
+    run_id = run_id or str(uuid.uuid4())
+    started_at = started_at or utc_text()
     fixture = build_fixture(str(case["fixture"]))
     initial_context = {}
     initial_contexts: dict[str, Any] = {}
+    tools_by_name = {}
 
     class BudgetedRuntime:
         def run(self, request):
@@ -702,9 +1235,12 @@ def execute_repetition(
 
             initial_context.update(deepcopy(request.runtime_context))
             initial_contexts[request.agent_name] = deepcopy(request.runtime_context)
+            tools_by_name.update({tool.name: tool for tool in request.bound_tools})
             # The manager owns context, skills, rules, tools and outcomes. Only
-            # the paid-call accounting hook is supplied by the release harness.
-            request.model_call_budget = budget.for_scope(case["id"], repetition, "acting")
+            # the subscription accounting hook is supplied by the release harness.
+            request.model_call_budget = budget.for_scope(
+                case["id"], repetition, "acting", run_id=run_id, fingerprint=fingerprint
+            )
             request.max_output_tokens = ACTING_MAX_OUTPUT_TOKENS
             return GoogleADKRuntime().run(request)
 
@@ -759,16 +1295,39 @@ def execute_repetition(
         model_seconds = time.perf_counter() - model_started
         orders = production.capture(result)
         all_calls = [event for actor in actor_results for event in actor.tool_calls]
-        all_results = [event for actor in actor_results for event in actor.tool_results]
         fixture.calls = [{"name": event.tool_name, "arguments": event.payload} for event in all_calls]
         transcript = {
             **compact_transcript(result, fixture),
-            "tool_calls": [{"name": event.tool_name, "payload": event.payload} for event in all_calls],
-            "tool_results": [{"name": event.tool_name, "payload": event.payload} for event in all_results],
+            "tool_calls": [
+                {
+                    "name": event.tool_name,
+                    "payload": event.payload,
+                    "call_id": event.call_id,
+                    "model_call_id": actor.cache_key,
+                }
+                for actor in actor_results
+                for event in actor.tool_calls
+            ],
+            "tool_results": [
+                {
+                    "name": event.tool_name,
+                    "payload": event.payload,
+                    "call_id": event.call_id,
+                    "model_call_id": actor.cache_key,
+                }
+                for actor in actor_results
+                for event in actor.tool_results
+            ],
+            "builtin_tool_contracts": builtin_tool_contracts(
+                [
+                    tools_by_name[name]
+                    for name in sorted({event.tool_name for event in all_calls} & tools_by_name.keys())
+                ]
+            ),
             "broker_orders": orders,
-            "broker_orders_timing": "Fixture settlement after the agent final answer; these later fills were not necessarily observed by the agent.",
+            "broker_orders_timing": "Post-run fixture capture can include fills already observed through ordered tool_results. Capture alone does not establish when the agent observed a fill.",
             "broker_orders_before_settlement": production.orders_before_settlement,
-            "positions_timing": "Fixture positions are settled after the final answer; use tool results for agent-observed positions.",
+            "positions_timing": "Post-run positions are captured after final settlement. Use ordered tool_results for positions the agent actually observed before its final answer.",
             "initial_runtime_context": initial_context,
             "initial_runtime_contexts": initial_contexts,
             "execution_outcome": (result.payload or {}).get("execution_outcome"),
@@ -776,9 +1335,7 @@ def execute_repetition(
                 {
                     "role": "researcher" if index == 0 and len(actor_results) > 1 else "trader",
                     "final_answer": actor.summary or actor.text,
-                    "tool_calls": [
-                        {"name": event.tool_name, "payload": event.payload} for event in actor.tool_calls
-                    ],
+                    "tool_calls": [{"name": event.tool_name, "payload": event.payload} for event in actor.tool_calls],
                     "execution_outcome": (actor.payload or {}).get("execution_outcome"),
                 }
                 for index, actor in enumerate(actor_results)
@@ -786,9 +1343,29 @@ def execute_repetition(
         }
     finally:
         production.close()
+    actor_failure = actor_infrastructure_failure(actor_results)
+    if actor_failure is not None:
+        acting_model = str(case.get("model") or DEFAULT_ACTING_MODEL)
+        acting_cost = estimate_cost(acting_model, combined_usage(*actor_results))
+        return {
+            "timestamp": utc_text(), "started_at": started_at, "run_id": run_id,
+            "case_id": case["id"], "repetition": repetition, "fingerprint": fingerprint,
+            "status": "error", **actor_failure,
+            "acting_model": acting_model, "judge_model": judge_model,
+            "judge_not_run": "retryable_actor_infrastructure_failure",
+            "transcript": transcript,
+            "usage": {"acting": acting_cost, "estimated_cost_usd": acting_cost["estimated_usd"]},
+            "timing_seconds": {
+                "setup": round(setup_seconds, 3), "queue": 0.0,
+                "model": round(model_seconds, 3), "judge": 0.0,
+                "total": round(setup_seconds + model_seconds, 3),
+            },
+            "external_writes": "fixture_only",
+        }
     machine = score_machine_contract(case, transcript)
     judge, judge_result, judge_seconds = run_judge(
-        case, transcript, judge_model, budget.for_scope(case["id"], repetition, "judge")
+        case, transcript, judge_model,
+        budget.for_scope(case["id"], repetition, "judge", run_id=run_id, fingerprint=fingerprint)
     )
     acting_model = str(case.get("model") or DEFAULT_ACTING_MODEL)
     acting_cost = estimate_cost(acting_model, combined_usage(*actor_results))
@@ -796,7 +1373,8 @@ def execute_repetition(
     passed = bool(machine["pass"] and judge["pass"])
     return {
         "timestamp": utc_text(),
-        "run_id": str(uuid.uuid4()),
+        "started_at": started_at,
+        "run_id": run_id,
         "case_id": case["id"],
         "repetition": repetition,
         "fingerprint": fingerprint,
@@ -822,7 +1400,8 @@ def execute_repetition(
     }
 
 
-def harness_error_row(case_id: str, repetition: int, fingerprint: str, exc: BaseException) -> dict[str, Any]:
+def harness_error_row(case_id: str, repetition: int, fingerprint: str, exc: BaseException,
+                      *, run_id: str | None = None, started_at: str | None = None) -> dict[str, Any]:
     """Ledger row for a repetition the harness could not finish.
 
     Provider errors can contain request material, so the message is never
@@ -835,16 +1414,24 @@ def harness_error_row(case_id: str, repetition: int, fingerprint: str, exc: Base
             relative = Path(frame.filename).resolve().relative_to(REPO_ROOT)
         except ValueError:
             continue
+        if relative.parts[0] in {".venv", "venv", "node_modules"}:
+            continue
         location = f"{relative.as_posix()}:{frame.lineno} in {frame.name}"
         break
+    code = str(getattr(exc, "code", "") or "")
+    safe_code = code if len(code) <= 100 and all(char.isalnum() or char in "_.-" for char in code) else None
+    status = getattr(exc, "status_code", None)
     return {
         "timestamp": utc_text(),
-        "run_id": str(uuid.uuid4()),
+        "run_id": run_id or str(uuid.uuid4()),
+        "started_at": started_at or utc_text(),
         "case_id": case_id,
         "repetition": repetition,
         "fingerprint": fingerprint,
         "status": "error",
         "error": type(exc).__name__,
+        "error_code": safe_code or None,
+        "http_status": status if type(status) is int and 100 <= status <= 599 else None,
         "error_location": location,
         "external_writes": "fixture_only",
     }
@@ -876,26 +1463,98 @@ def append_jsonl(path: Path, row: dict[str, Any]) -> None:
             os.fsync(handle.fileno())
 
 
-def target_passes(already: int, repeat: int) -> int:
+def case_required_passes(case: dict[str, Any]) -> int:
+    """Single establishment policy: ordinary cases need three, selected cases five."""
+    required = case.get("requiredRepetitions", NEW_CASE_REQUIRED_PASSES)
+    if type(required) is not int or required not in {3, 5}:
+        raise RuntimeError("requiredRepetitions must be the integer 3 or 5")
+    return required
+
+
+def target_passes(already: int, repeat: int, required: int | None = None) -> int:
     """How many consecutive passes this case needs before it is done.
 
-    A case that has not yet earned NEW_CASE_REQUIRED_PASSES consecutive passes
-    is driven to that number whatever --repeat says, so a brand new eval can
+    A case that has not yet earned its required consecutive passes is driven
+    to that number whatever --repeat says, so a brand new eval can
     never be accepted on one lucky run. An established case honours --repeat,
     which is 1 for the ordinary gate.
     """
-    if already < NEW_CASE_REQUIRED_PASSES:
-        return max(repeat, NEW_CASE_REQUIRED_PASSES)
+    required = NEW_CASE_REQUIRED_PASSES if required is None else required
+    if type(required) is not int or required not in {3, 5}:
+        raise RuntimeError("required passes must be the integer 3 or 5")
+    if already < required:
+        return max(repeat, required)
     return repeat
 
 
+def latest_repetition_rows(
+    rows: list[dict[str, Any]], case_id: str, fingerprint: str
+) -> dict[int, dict[str, Any]]:
+    latest = {}
+    for row in rows:
+        repetition = row.get("repetition")
+        if (
+            row.get("case_id") == case_id
+            and row.get("fingerprint") == fingerprint
+            and type(repetition) is int
+            and repetition > 0
+        ):
+            latest[repetition] = row
+    return latest
+
+
+def recover_native_incomplete_attempts(rows, native_rows, fingerprints):
+    """Recover the old producer's interruption gap without forgiving consumed calls."""
+    if not native_rows:
+        return []
+    from scripts.agent_eval_call_budget import EvalCallBudget
+
+    if any(isinstance(row, dict) and row.get("kind") == "allowance_amendment" for row in native_rows[1:]):
+        from scripts.agent_eval_subscription_budget import subscription_call_state
+        _, calls = subscription_call_state(native_rows)
+    else:
+        calls = EvalCallBudget._calls(native_rows[1:])
+    candidates = {}
+    for call in calls.values():
+        scope = call.get("scope") or {}
+        case_id, rep, fingerprint = (scope.get(key) for key in ("case_id", "repetition", "fingerprint"))
+        if case_id not in fingerprints or fingerprint != fingerprints[case_id] or type(rep) is not int or rep < 1:
+            continue
+        attempt = scope.get("run_id")
+        if not isinstance(attempt, str) or not attempt:
+            raise ValueError("Native model call lacks an attempt identity")
+        latest = latest_repetition_rows(rows, case_id, fingerprint).get(rep)
+        if latest and latest.get("run_id") == attempt:
+            continue
+        try:
+            began = datetime.fromisoformat(call["timestamp"].replace("Z", "+00:00"))
+            previous = datetime.fromisoformat(str((latest or {}).get("started_at") or (latest or {}).get("timestamp"))
+                                             .replace("Z", "+00:00")) if latest else None
+        except (KeyError, TypeError, ValueError) as exc:
+            raise ValueError("Unreconciled native attempt timestamp") from exc
+        if began.tzinfo is None or began > utc_now() or (previous and previous.tzinfo is None):
+            raise ValueError("Unreconciled native attempt clock")
+        if previous is not None and began < previous:
+            continue
+        key = (case_id, rep, fingerprint)
+        record = {"case_id": case_id, "repetition": rep, "fingerprint": fingerprint,
+                  "run_id": attempt, "started_at": utc_text(began), "timestamp": utc_text(began),
+                  "status": "incomplete", "external_writes": "fixture_only"}
+        prior = candidates.get(key)
+        if prior is None or record["timestamp"] > prior["timestamp"]:
+            candidates[key] = record
+    return list(candidates.values())
+
+
 def consecutive_pass_count(rows: list[dict[str, Any]], case_id: str, fingerprint: str) -> int:
-    relevant = [row for row in rows if row.get("case_id") == case_id and row.get("fingerprint") == fingerprint]
+    latest = latest_repetition_rows(rows, case_id, fingerprint)
     count = 0
-    for row in reversed(relevant):
-        if row.get("status") != "pass":
+    expected = max(latest, default=0)
+    for repetition in sorted(latest, reverse=True):
+        if repetition != expected or latest[repetition].get("status") != "pass":
             break
         count += 1
+        expected -= 1
     return count
 
 
@@ -911,15 +1570,58 @@ def load_freshness(path: Path) -> dict[str, Any]:
     return value
 
 
-def is_fresh(state: dict[str, Any], case_id: str, fingerprint: str, days: int) -> bool:
+def is_fresh(
+    state: dict[str, Any],
+    case_id: str,
+    fingerprint: str,
+    days: int,
+    *,
+    acting_model: str = DEFAULT_ACTING_MODEL,
+    judge_model: str = DEFAULT_JUDGE_MODEL,
+    required: int | None = None,
+) -> bool:
+    required = REQUIRED_CONSECUTIVE_PASSES if required is None else required
+    if type(required) is not int or required not in {3, 5}:
+        raise RuntimeError("required passes must be the integer 3 or 5")
     record = state.get("cases", {}).get(case_id)
     if not isinstance(record, dict) or record.get("fingerprint") != fingerprint:
+        return False
+    passed_count = record.get("consecutive_passes")
+    if type(passed_count) is not int or passed_count < required:
+        return False
+    if record.get("acting_model") != acting_model or record.get("judge_model") != judge_model:
         return False
     try:
         passed_at = datetime.fromisoformat(str(record["passed_at"]).replace("Z", "+00:00"))
     except (KeyError, TypeError, ValueError):
         return False
-    return passed_at >= utc_now() - timedelta(days=days)
+    if passed_at.tzinfo is None or passed_at.utcoffset() is None:
+        return False
+    now = utc_now()
+    return now - timedelta(days=days) <= passed_at <= now
+
+
+def invalidate_failed_freshness(
+    state: dict[str, Any], rows: list[dict[str, Any]], fingerprints: dict[str, str]
+) -> None:
+    """New failed native attempts supersede a prior matching qualification."""
+    records = state.get("cases", {})
+    for case_id, fingerprint in fingerprints.items():
+        record = records.get(case_id)
+        if not isinstance(record, dict) or record.get("fingerprint") != fingerprint:
+            continue
+        for row in latest_repetition_rows(rows, case_id, fingerprint).values():
+            if row.get("status") == "pass":
+                continue
+            try:
+                failed_at = datetime.fromisoformat(str(row["timestamp"]).replace("Z", "+00:00"))
+                passed_at = datetime.fromisoformat(str(record["passed_at"]).replace("Z", "+00:00"))
+                if failed_at.tzinfo is not None and passed_at.tzinfo is not None and failed_at < passed_at:
+                    continue
+            except (KeyError, TypeError, ValueError):
+                pass
+            records.pop(case_id, None)
+            break
 
 
 def write_json_atomic(path: Path, value: dict[str, Any]) -> None:
@@ -930,21 +1632,30 @@ def write_json_atomic(path: Path, value: dict[str, Any]) -> None:
 
 
 def preflight(cases: list[dict[str, Any]], judge_model: str, max_cost_usd: float) -> None:
-    missing_models = sorted(
-        {str(case.get("model") or DEFAULT_ACTING_MODEL) for case in cases}.union({judge_model})
-        - MODEL_PRICES_PER_MILLION.keys()
-    )
-    if missing_models:
-        raise RuntimeError(f"Pricing is unknown for: {', '.join(missing_models)}")
-    if max_cost_usd <= 0:
-        raise RuntimeError("--max-cost-usd must be positive")
+    for case in cases:
+        case_required_passes(case)
+        _decision_completion_contract(case.get("machineContract") or {})
     models = {str(case.get("model") or DEFAULT_ACTING_MODEL) for case in cases} | {judge_model}
-    if any(not _is_gemini_model(model) for model in models) and not os.environ.get("OPENAI_API_KEY"):
-        raise RuntimeError("OPENAI_API_KEY is required for GPT-6 Luna evals")
-    if any(_is_gemini_model(model) for model in models) and not (
-        os.environ.get("GEMINI_API_KEY") or os.environ.get("GOOGLE_API_KEY")
-    ):
-        raise RuntimeError("GEMINI_API_KEY or GOOGLE_API_KEY is required for Gemini evals")
+    if max_cost_usd != 0:
+        raise RuntimeError("Eval API spend must be zero; use --max-cost-usd 0")
+    if any(not model.startswith("chatgpt/") for model in models):
+        raise RuntimeError("Both eval roles require subscription funding; paid AI tokens are forbidden")
+    if models != {"chatgpt/gpt-6-luna"}:
+        raise RuntimeError("Eval inference starts with Luna; other models require an explicitly approved exception")
+    pins = dict(
+        line.strip().split("==", 1)
+        for line in (REPO_ROOT / "requirements_agent_evals.txt").read_text().splitlines()
+        if line.strip() and not line.lstrip().startswith("#")
+    )
+    installed = sdk_versions()
+    mismatches = sorted(name for name, version in pins.items() if installed.get(name) != version)
+    if mismatches:
+        raise RuntimeError("Eval SDK mismatch: " + ", ".join(mismatches) +
+                           "; install requirements_agent_evals.txt before inference")
+    from lumibot.components.agents.chatgpt_auth import available_models, profile_path
+    catalog = {entry["slug"] for entry in available_models(profile_path())}
+    if {model.removeprefix("chatgpt/") for model in models} - catalog:
+        raise RuntimeError("Requested eval model is not available in the connected subscription catalog")
     if any(
         os.environ.get(key)
         for key in (
@@ -968,6 +1679,9 @@ def preflight_production_fixtures(cases: list[dict[str, Any]]) -> None:
     """Exercise schema discovery and production bindings before purchasing tokens."""
     from scripts.agent_eval_production_fixture import ProductionFixture
 
+    for case in cases:
+        case_required_passes(case)
+        _decision_completion_contract(case.get("machineContract") or {})
     for name in sorted({case["fixture"] for case in cases}):
         case = next(case for case in cases if case["fixture"] == name)
         fixture = ProductionFixture(build_fixture(name))
@@ -977,6 +1691,7 @@ def preflight_production_fixtures(cases: list[dict[str, Any]]) -> None:
             for candidate in (item for item in cases if item["fixture"] == name):
                 contract = candidate["machineContract"]
                 required = set(contract.get("requiredTools", []) + contract.get("requiredBeforeOrder", []))
+                required.update(item["name"] for item in contract.get("requiredFailedTools", []))
                 if contract.get("orderTool"):
                     required.add(contract["orderTool"])
                 if required - tools:
@@ -1008,38 +1723,12 @@ def preflight_production_fixtures(cases: list[dict[str, Any]]) -> None:
 
 
 def select_eval_credentials(models: set[str]) -> list[str]:
-    """Name the credential each selected model needs; never log a value.
-
-    GPT-6 Luna needs OPENAI_API_KEY. Gemini is an explicit opt-in and keeps
-    its own key selection below.
-    """
-    selected: list[str] = []
-    if any(not _is_gemini_model(model) for model in models):
-        if not str(os.environ.get("OPENAI_API_KEY") or "").strip():
-            raise RuntimeError("OPENAI_API_KEY is required for GPT-6 Luna evals")
-        selected.append("OPENAI_API_KEY")
-    if any(_is_gemini_model(model) for model in models):
-        selected.append(select_gemini_credential())
-    return selected
-
-
-def select_gemini_credential() -> str:
-    """Make the release runner's documented Gemini credential deterministic.
-
-    google-genai gives GOOGLE_API_KEY precedence when both names are present.
-    Local dotenv files can contain an older Google key alongside the release
-    GEMINI_API_KEY, which otherwise makes a healthy release credential look
-    broken. Do not log either value; mirror the release-scoped key into the
-    name the SDK prefers.
-    """
-    gemini_key = str(os.environ.get("GEMINI_API_KEY") or "").strip()
-    google_key = str(os.environ.get("GOOGLE_API_KEY") or "").strip()
-    if gemini_key:
-        os.environ["GOOGLE_API_KEY"] = gemini_key
-        return "GEMINI_API_KEY"
-    if google_key:
-        return "GOOGLE_API_KEY"
-    raise RuntimeError("GEMINI_API_KEY or GOOGLE_API_KEY is required for real-model evals")
+    """Select the plan profile explicitly; provider API keys are never read."""
+    if any(not model.startswith("chatgpt/") for model in models):
+        raise RuntimeError("Eval actor and judge require subscription funding; API fallback is forbidden")
+    from lumibot.components.agents.chatgpt_auth import access_token, profile_path
+    access_token(profile_path())
+    return ["chatgpt-plan"]
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -1051,15 +1740,17 @@ def build_parser() -> argparse.ArgumentParser:
         default=1,
         help=(
             "Repetitions to run for each selected case. An established case needs 1. "
-            f"A new or changed case still needs {NEW_CASE_REQUIRED_PASSES} consecutive "
+            "A new or changed case still needs its configured 3 or 5 consecutive "
             "passes before it is recorded as fresh, and prior passes carry forward."
         ),
     )
     parser.add_argument("--judge-model", default=DEFAULT_JUDGE_MODEL)
-    parser.add_argument("--max-cost-usd", type=float, required=True)
+    parser.add_argument("--max-cost-usd", type=float, default=0, help="Must be zero; API-funded evals are forbidden")
+    parser.add_argument("--max-model-calls", type=int, default=500)
     parser.add_argument("--freshness-days", type=int, default=DEFAULT_FRESHNESS_DAYS)
     parser.add_argument("--freshness-state", type=Path, default=Path(".ci/agent-evals/freshness.json"))
     parser.add_argument("--output-root", type=Path, default=Path("artifacts/agent_evals"))
+    parser.add_argument("--qualification-receipt", type=Path, default=REPO_ROOT / "ci/agent-evals/qualification.json")
     parser.add_argument("--max-workers", type=int, default=8)
     parser.add_argument("--gate", action="store_true", help="Skip fresh cases and require complete fresh coverage")
     parser.add_argument(
@@ -1085,22 +1776,34 @@ def main() -> int:
 
     from scripts.agent_eval_isolation import configure_fixture_environment
 
-    configure_fixture_environment(REPO_ROOT)
+    configure_fixture_environment(REPO_ROOT, artifact_root=args.output_root.resolve())
     cases = load_cases(set(args.case_id) or None)
     select_eval_credentials({str(case.get("model") or DEFAULT_ACTING_MODEL) for case in cases} | {args.judge_model})
     preflight(cases, args.judge_model, args.max_cost_usd)
     preflight_production_fixtures(cases)
     runtime_hash = runtime_fingerprint()
+    state = load_freshness(args.freshness_state)
+    fingerprints = {
+        case["id"]: case_fingerprint(case, judge_model=args.judge_model, runtime_hash=runtime_hash) for case in cases
+    }
+    existing_rows = read_jsonl(args.output_root.resolve() / "ledger.jsonl")
+    native_path = args.output_root.resolve() / "model_calls.jsonl"
+    native_rows = [json.loads(line) for line in native_path.read_text().splitlines() if line.strip()] if native_path.exists() else []
+    recovered_attempts = recover_native_incomplete_attempts(existing_rows, native_rows, fingerprints)
+    existing_rows.extend(recovered_attempts)
+    invalidate_failed_freshness(state, existing_rows, fingerprints)
     if args.preflight_only:
-        state = load_freshness(args.freshness_state)
         fresh = [
             case["id"]
             for case in cases
             if is_fresh(
                 state,
                 case["id"],
-                case_fingerprint(case, judge_model=args.judge_model, runtime_hash=runtime_hash),
+                fingerprints[case["id"]],
                 args.freshness_days,
+                acting_model=case.get("model") or DEFAULT_ACTING_MODEL,
+                judge_model=args.judge_model,
+                required=case_required_passes(case),
             )
         ]
         print(
@@ -1119,46 +1822,56 @@ def main() -> int:
     output_root = args.output_root.resolve()
     ledger_path = output_root / "ledger.jsonl"
     summary_path = output_root / "summary.json"
-    existing_rows = read_jsonl(ledger_path)
-    from scripts.agent_eval_call_budget import EvalCallBudget
+    from scripts.agent_eval_subscription_budget import SubscriptionCallBudget
 
     call_ledger_path = output_root / "model_calls.jsonl"
     if existing_rows and not call_ledger_path.exists():
         raise RuntimeError(
             "This old run has no per-call spending ledger; reconcile its spending before resuming inference."
         )
-    budget = EvalCallBudget(
-        call_ledger_path,
-        cap_usd=args.max_cost_usd,
-        prices=MODEL_PRICES_PER_MILLION,
-        max_input_tokens=MAX_INPUT_TOKENS_PER_MODEL_CALL,
-    )
-    state = load_freshness(args.freshness_state)
-    fingerprints = {
-        case["id"]: case_fingerprint(case, judge_model=args.judge_model, runtime_hash=runtime_hash) for case in cases
-    }
+    budget = SubscriptionCallBudget(call_ledger_path, max_calls=args.max_model_calls)
+    for row in recovered_attempts:
+        append_jsonl(ledger_path, row)
 
     work: list[tuple[dict[str, Any], int, str]] = []
     fresh_case_ids: list[str] = []
+    resumed_repetitions = 0
     for case in cases:
         fingerprint = fingerprints[case["id"]]
-        if args.gate and not args.force and is_fresh(state, case["id"], fingerprint, args.freshness_days):
+        if args.gate and not args.force and is_fresh(
+            state, case["id"], fingerprint, args.freshness_days,
+            acting_model=case.get("model") or DEFAULT_ACTING_MODEL,
+            judge_model=args.judge_model,
+            required=case_required_passes(case),
+        ):
             fresh_case_ids.append(case["id"])
             continue
         already = 0 if args.force else consecutive_pass_count(existing_rows, case["id"], fingerprint)
-        for repetition in range(already + 1, target_passes(already, args.repeat) + 1):
-            work.append((case, repetition, fingerprint))
+        seen = latest_repetition_rows(existing_rows, case["id"], fingerprint)
+        latest = {} if args.force else seen
+        for repetition in range(1, max(
+            target_passes(already, args.repeat, required=case_required_passes(case)), max(seen, default=0)
+        ) + 1):
+            if latest.get(repetition, {}).get("status") == "pass":
+                resumed_repetitions += 1
+            else:
+                work.append((case, repetition, fingerprint))
+
+    if work:
+        from scripts.qualify_agent_evals import invalidate_receipt
+        invalidate_receipt(args.qualification_receipt, {
+            case["id"]: fingerprint for case, _, fingerprint in work
+        }, runtime_hash=runtime_hash)
 
     run_started = time.perf_counter()
     new_rows: list[dict[str, Any]] = []
+    started_rows: list[dict[str, Any]] = []
     prior_budget = budget.snapshot()
     prior_committed = prior_budget["committed_usd"]
     estimated_total = prior_committed
     pending = list(work)
     while pending:
-        remaining_budget = args.max_cost_usd - estimated_total
-        if remaining_budget <= 0:
-            break
+        remaining_budget = 1.0  # USD is always zero; the per-call subscription cap authorizes requests.
         batch, pending = reserve_budget_batch(
             pending,
             max_workers=args.max_workers,
@@ -1168,6 +1881,15 @@ def main() -> int:
         if not batch:
             break
         batch_size = len(batch)
+        attempts = {}
+        for case, repetition, fingerprint, _ in batch:
+            began = utc_text()
+            row = {"timestamp": began, "started_at": began, "run_id": str(uuid.uuid4()),
+                   "case_id": case["id"], "repetition": repetition, "fingerprint": fingerprint,
+                   "status": "incomplete", "external_writes": "fixture_only"}
+            append_jsonl(ledger_path, row)
+            started_rows.append(row)
+            attempts[(case["id"], repetition)] = row
         with concurrent.futures.ThreadPoolExecutor(max_workers=batch_size) as executor:
             futures = {
                 executor.submit(
@@ -1177,6 +1899,8 @@ def main() -> int:
                     fingerprint=fingerprint,
                     judge_model=args.judge_model,
                     budget=budget,
+                    run_id=attempts[(case["id"], repetition)]["run_id"],
+                    started_at=attempts[(case["id"], repetition)]["started_at"],
                 ): (case["id"], repetition, reservation)
                 for case, repetition, fingerprint, reservation in batch
             }
@@ -1185,7 +1909,9 @@ def main() -> int:
                 try:
                     row = future.result()
                 except Exception as exc:
-                    row = harness_error_row(case_id, repetition, fingerprints[case_id], exc)
+                    attempt = attempts[(case_id, repetition)]
+                    row = harness_error_row(case_id, repetition, fingerprints[case_id], exc,
+                                            run_id=attempt["run_id"], started_at=attempt["started_at"])
                 append_jsonl(ledger_path, row)
                 new_rows.append(row)
                 # Batch estimates schedule workers, but only the shared durable
@@ -1204,7 +1930,8 @@ def main() -> int:
         if estimated_total > args.max_cost_usd:
             break
 
-    all_rows = existing_rows + new_rows
+    all_rows = existing_rows + started_rows + new_rows
+    invalidate_failed_freshness(state, all_rows, fingerprints)
     refreshed: list[str] = []
     for case in cases:
         case_id = case["id"]
@@ -1216,11 +1943,16 @@ def main() -> int:
             row for row in all_rows
             if row.get("case_id") == case_id and row.get("fingerprint") == fingerprint
         ]
-        if case_rows and consecutive_pass_count(all_rows, case_id, fingerprint) >= REQUIRED_CONSECUTIVE_PASSES:
+        passed_count = consecutive_pass_count(all_rows, case_id, fingerprint)
+        latest = latest_repetition_rows(all_rows, case_id, fingerprint)
+        if (
+            case_rows and passed_count >= case_required_passes(case)
+            and all(row.get("status") == "pass" for row in latest.values())
+        ):
             state.setdefault("cases", {})[case_id] = {
                 "fingerprint": fingerprint,
                 "passed_at": case_rows[-1]["timestamp"],
-                "consecutive_passes": REQUIRED_CONSECUTIVE_PASSES,
+                "consecutive_passes": passed_count,
                 "acting_model": case.get("model") or DEFAULT_ACTING_MODEL,
                 "judge_model": args.judge_model,
             }
@@ -1230,7 +1962,12 @@ def main() -> int:
     write_json_atomic(args.freshness_state, state)
 
     final_fresh = [
-        case["id"] for case in cases if is_fresh(state, case["id"], fingerprints[case["id"]], args.freshness_days)
+        case["id"] for case in cases if is_fresh(
+            state, case["id"], fingerprints[case["id"]], args.freshness_days,
+            acting_model=case.get("model") or DEFAULT_ACTING_MODEL,
+            judge_model=args.judge_model,
+            required=case_required_passes(case),
+        )
     ]
     pass_count = sum(row.get("status") == "pass" for row in new_rows)
     fail_count = sum(row.get("status") == "fail" for row in new_rows)
@@ -1251,10 +1988,7 @@ def main() -> int:
         "error_count": error_count,
         "missing_count": max(len(work) - len(new_rows), 0),
         "skipped_fresh_count": len(fresh_case_ids),
-        "resumed_count": sum(
-            min(consecutive_pass_count(existing_rows, case["id"], fingerprints[case["id"]]), args.repeat)
-            for case in cases
-        ),
+        "resumed_count": resumed_repetitions,
         "fresh_case_count": len(final_fresh),
         "fresh_case_ids": sorted(final_fresh),
         "required_case_ids": sorted(case["id"] for case in cases),
@@ -1267,7 +2001,11 @@ def main() -> int:
         "model_call_budget": final_budget,
         "model_call_ledger_path": str(call_ledger_path),
         "max_cost_usd": args.max_cost_usd,
-        "fixture_external_writes": len(new_rows),
+        "funding": "chatgpt-plan",
+        "api_spend_usd": 0,
+        "fixture_external_writes": sum(
+            len(row.get("transcript", {}).get("submissions", [])) for row in new_rows
+        ),
         "real_external_writes": 0,
         "wall_time_seconds": round(time.perf_counter() - run_started, 3),
         "ledger_path": str(ledger_path),

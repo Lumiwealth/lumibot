@@ -28,6 +28,36 @@ Go directly to :ref:`Schwab prerequisites <schwab-prerequisites>`,
 
 If you want the managed path, `BotSpot <https://botspot.trade/sales?showLogin=1&utm_source=documentation&utm_medium=schwab&utm_campaign=lumibot&utm_content=managed_schwab_text&prompt=I%20want%20to%20connect%20Schwab%20and%20run%20a%20Lumibot%20strategy%20on%20BotSpot.%20Please%20help%20me%20set%20up%20broker%20connections%2C%20monitoring%2C%20and%20paper%20or%20live%20deployment.>`_ can help you connect supported brokers through the website, run paper or live Lumibot strategies, and monitor logs, account state, alerts, audit history, and kill-switch controls without maintaining your own deployment server.
 
+Cash activity history
+---------------------
+
+``broker.get_cash_events(since=aware_datetime, limit=5000)`` reads recent
+transactions through the existing authenticated Schwab client. Omitting
+``since`` requests the most recent 60 days as a bounded default. Explicit older
+starts use contiguous windows of at most 365 days, within the official endpoint's
+one-year request maximum. That maximum does not establish historical retention.
+Dates require a timezone. The method does not start a strategy or place orders.
+The query selects cash, journal and dividend/interest categories. Security
+receive/deliver activity is outside this cash API; its zero cash amount does
+not establish the value of an in-kind transfer. This method alone cannot
+establish complete external-capital coverage for such an account.
+
+ACH, cash and wire movements retain their signed amount and stable provider
+activity ID. Dividends and interest remain investment income; trade proceeds
+and embedded commissions are not external capital. Exact Schwab bank-sweep and
+cash/margin subaccount-transfer labels remain non-external journals. The separate
+``FED INC TAX WHLD IRA`` entry is external distribution withholding, not an
+investment loss. Unknown journals,
+in-kind transfers, currency conversions, explicit correction/unknown activity
+actions and non-final transaction statuses
+raise an explicit error rather than fabricating a zero cash flow.
+
+Saturated responses and timed-out large windows are divided into overlapping date windows and deduplicated
+by activity ID. Provider failures, conflicting observations and limits that
+would discard events fail explicitly. Currency must be present in the provider
+cash instruments. A returned list, including an empty list, is event evidence;
+it does not independently certify historical coverage or server persistence.
+
 .. _schwab-prerequisites:
 
 Prerequisites
@@ -90,8 +120,17 @@ Token life-cycle
 
 * Access token ≈ 30 min; refresh token ≈ 7 days.
 * Lumibot automatically refreshes the token every ~25 min and rewrites ``token.json``.
-* As long as the bot is running (or restarted at least once a week) you will **never see the login page again**.
-* If the bot is **offline > 7 days** the refresh token expires – simply run the login flow once more.
+* Refresh tokens expire seven days after creation, or earlier if authorization is
+  revoked. Access-token refresh does not guarantee an indefinitely renewable login.
+* On expiry or revocation, complete the normal browser authorization again.
+* Login and refresh save the token with mode ``600`` through an atomic file
+  replacement. Failed input, metadata preparation or persistence preserves the
+  existing file. A storage/validation failure reports an error; fix storage or
+  explicitly reauthorize instead of deleting credentials automatically.
+* SDK startup and account-discovery failures, including HTTP 401, also retain the
+  saved file. An unusable account hash cannot mark the broker ready. A failed
+  initialization stops its proactive refresh task; expiry or revocation still
+  requires normal reauthorization.
 
 Supported functionality
 -----------------------
@@ -104,6 +143,30 @@ Supported functionality
 * Historical bars for equities, ETFs, and option contracts (OCC symbol). Futures candle history is not requested. Crypto is not on this API.
 
 Multi-leg option spreads and futures trades are not yet implemented.
+
+Deposits, withdrawals and account transfers
+-------------------------------------------
+
+Schwab cash history uses the existing authenticated brokerage client. Signed
+cash amounts and stable provider transaction IDs distinguish deposits,
+withdrawals, internal journals, income, fees and adjustments. The adapter
+audits non-trade transaction categories, uses bounded requests within Schwab's
+one-year request maximum and subdivides saturated or timed-out windows.
+Trade proceeds are not external funding.
+
+Use ``get_cash_event_sync(since=..., limit=...)`` when completeness matters.
+It preserves known cash while reporting unresolved journals, corrections or
+in-kind transfers as partial. It does not infer the capital value of securities
+from cost basis or a zero cash amount. A failed provider read is unavailable,
+not a complete empty history. The default 60-day lookback does not certify
+all-time retention.
+
+Audited windows match the SDK's whole-second precision. Requests overlap each
+inclusive start by one second within the one-year request bound; normalized
+events are filtered to the declared start-inclusive/end-exclusive window.
+See :doc:`cash_accounting` for funding receipts, batch retries and one-shot
+account snapshots. These methods retrieve/report history and do not initiate
+cash or security transfers.
 
 Order and position freshness
 ----------------------------
@@ -333,9 +396,10 @@ To use Schwab with Lumibot, you need to set the following environment variables 
     - `<big-string>`
 
 .. important::
-   `SCHWAB_TOKEN` is only read **once** (on first run) to build `token.json`.
-   After that, automatic refresh keeps the file current; you do **not** need to
-   rotate the env-var every 7 days.
+   ``SCHWAB_TOKEN`` imports a login payload into the token file when supplied.
+   Remove an old bootstrap payload from subsequent starts so it cannot overwrite
+   a refreshed file. Automatic access-token refresh still requires an unexpired,
+   authorized refresh token and the matching app configuration.
 
 Token Life-cycle & Auto-refresh
 -------------------------------
@@ -343,17 +407,16 @@ Token Life-cycle & Auto-refresh
 * Access-token ≈ 30 min, refresh-token ≈ 7 days (per Schwab policy).
 * Lumibot configures an `OAuth2Session` with ``auto_refresh_url`` so that tokens
   refresh themselves quietly in the background every ~25 min.
-* The refreshed token is written back to `token.json`; it rolls the 7-day window
-  forward.  As long as the bot is running (or restarted at least once a week)
-  you never need to log in again.
+* The refreshed access token is written back to ``token.json``. This does not
+  establish a rolling seven-day authorization: the refresh token expires seven
+  days after creation or can be revoked earlier.
 * In managed environments where a trusted parent process owns broker OAuth
   refresh, set ``LUMIBOT_OAUTH_REFRESH_MODE=external``. In that mode LumiBot does
   not call the Schwab OAuth refresh endpoint; it reloads an access-token-only
   token file when the parent atomically replaces it. Refresh-token fields are
   stripped from LumiBot's child broker state in this mode.
-* Only if the service is **offline for >7 days** will the refresh-token expire.
-  In that case repeat the browser login once and redeploy the new payload or
-  token file.
+* Repeat the normal browser authorization when the refresh token expires or
+  is revoked, even if the service has remained online.
 
 Creating an App & Getting Keys
 ------------------------------
@@ -462,6 +525,34 @@ Market Data
 - Only ``asset_type`` crypto is refused. ``get_historical_prices`` and ``get_quote`` for a crypto asset return no bars and do not call Schwab. Spot bitcoin cannot be quoted, charted, or bought through this API. LumiBot's order builder rejects ``asset_type`` crypto before any order HTTP call. A stock order for ticker ``BTC`` is an ETF order. No order was sent.
 - Futures quotes can stream. Futures candle history is not requested.
 - No extra entitlements required for individual developers.
+
+Bulk option snapshots
+---------------------
+
+``Strategy.get_chain_full_info`` uses one Schwab option-chain request for the
+selected expiration, returning both calls and puts with bid, ask, last, sizes,
+volume, open interest, Greeks, and provider ``quote_time`` / ``trade_time``.
+This avoids reconstructing the chain with one price request per contract.
+The API is unchanged; the Schwab data source supplies the efficient implementation.
+
+.. code-block:: python
+
+   underlying = self.create_asset("SPY")
+   # Select expiration using the strategy's existing expiry policy.
+   snapshot = self.get_chain_full_info(underlying, expiration)
+   calls = snapshot[snapshot["option_type"] == "CALL"] if not snapshot.empty else snapshot
+
+The response is a snapshot, not a stream or a promise of fresh executable prices.
+Check provider timestamps, missing bid/ask, spread and liquidity before acting.
+The snapshot also retains ``is_delayed``, ``non_standard``, ``multiplier`` and
+``deliverables`` when supplied; a strike alone does not identify a standard
+100-share contract.
+Missing values remain missing; they are not replaced with zero or the current time.
+Apply the strategy's original eligibility and pricing formulas to the returned
+rows. A fresh decision may require a fresh snapshot. Do not retain prices across
+scans indefinitely. ``strike_min`` and ``strike_max`` filter inclusively.
+HTTP failures raise ``ConnectionError`` rather than returning an apparently empty
+market. An empty successful chain returns an empty DataFrame.
 
 Rate Limits & Token Expiry
 --------------------------

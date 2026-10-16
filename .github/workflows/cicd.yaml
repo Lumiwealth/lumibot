@@ -3,13 +3,13 @@ name: LumiBot CI/CD
 
 on:
   # Full LumiBot CI is intentionally expensive: lint + 6 unit shards + 4 backtest
-  # shards. Run it when explicitly requested, for release/CI tags, or for main PRs.
+  # shards. Run it when explicitly requested, for release/CI tags, or for dev PRs.
   push:
     tags:
       - "v*.*.*"
       - "ci-*"
   pull_request:
-    branches: [main]
+    branches: [dev]
     paths:
       - "lumibot/**"
       - "tests/**"
@@ -60,7 +60,7 @@ jobs:
           echo "Set AIOHTTP_NO_EXTENSIONS=$AIOHTTP_NO_EXTENSIONS so that aiohttp doesn't try to install C extensions"
           python -m pip install --upgrade pip
           pip install requests
-          pip install -r requirements_dev.txt
+          pip install -r requirements_dev.txt -c requirements_agent_evals.txt
 
       - name: Run Ruff (ThetaData scope)
         run: |
@@ -105,7 +105,7 @@ jobs:
           echo "Set AIOHTTP_NO_EXTENSIONS=$AIOHTTP_NO_EXTENSIONS so that aiohttp doesn't try to install C extensions"
           python -m pip install --upgrade pip
           pip install requests
-          pip install -r requirements_dev.txt
+          pip install -r requirements_dev.txt -c requirements_agent_evals.txt
 
       - name: Run unit tests (sharded)
         env:
@@ -195,7 +195,7 @@ jobs:
           echo "Set AIOHTTP_NO_EXTENSIONS=$AIOHTTP_NO_EXTENSIONS so that aiohttp doesn't try to install C extensions"
           python -m pip install --upgrade pip
           pip install requests
-          pip install -r requirements_dev.txt
+          pip install -r requirements_dev.txt -c requirements_agent_evals.txt
 
       - name: Run backtest tests (sharded)
         env:

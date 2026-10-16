@@ -85,7 +85,10 @@ def test_default_agent_model_is_current_and_explicit_pins_are_preserved():
     pinned = manager.create(name="pinned", model="pinned-model", _runtime=_CaptureRuntime())
     assert pinned.default_model == "pinned-model"
     assert pinned.reasoning_effort is None
-    assert manager.create(name="family", model="google/gemini-pro", _runtime=_CaptureRuntime()).default_model == "google/gemini-pro"
+    assert (
+        manager.create(name="family", model="google/gemini-pro", _runtime=_CaptureRuntime()).default_model
+        == "google/gemini-pro"
+    )
 
 
 def test_builtin_agent_skills_are_packaged_and_loadable():
@@ -101,16 +104,48 @@ def test_builtin_agent_skills_are_packaged_and_loadable():
     assert len(builtin_skill_fingerprint()) == 64
 
 
+def test_packaged_web_document_instructions_reach_progressive_loading_unchanged():
+    """Packaging/transport contract only; native model evals assess reconciliation."""
+    directory = next(path for path in builtin_skill_directories() if path.name == "web-documents")
+    packaged_markdown = (directory / "SKILL.md").read_text(encoding="utf-8")
+    _frontmatter, separator, packaged_body = packaged_markdown.removeprefix("---\n").partition("\n---\n")
+    assert separator
+
+    loaded_skill = next(skill for skill in load_builtin_skills() if skill.name == "web-documents")
+    assert loaded_skill.instructions.strip() == packaged_body.strip()
+
+    toolset = build_builtin_skill_toolset()
+    load_skill = next(tool for tool in asyncio.run(toolset.get_tools()) if tool.name == "load_skill")
+    context = SimpleNamespace(state={}, agent_name="packaged-document-test", invocation_id="packaged-document-test")
+    response = asyncio.run(load_skill.run_async(args={"skill_name": "web-documents"}, tool_context=context))
+    assert response["skill_name"] == loaded_skill.name
+    assert response["instructions"].strip() == packaged_body.strip()
+    assert response["frontmatter"]["name"] == loaded_skill.name
+    assert response["frontmatter"]["description"] == loaded_skill.description
+
+
 def test_research_skill_requires_query_after_catalog_discovery():
-    skill = (
-        Path(__file__).resolve().parents[1]
-        / "lumibot/components/agents/skills/research-data/SKILL.md"
-    )
+    skill = Path(__file__).resolve().parents[1] / "lumibot/components/agents/skills/research-data/SKILL.md"
     text = skill.read_text(encoding="utf-8")
 
     assert "Catalog results are metadata, not observations" in text
     assert "call `query_data`" in text
     assert "MUST call `query_data` for at least one relevant macro dataset" in text
+
+
+def test_packaged_research_skill_distinguishes_live_queries_from_historical_replay():
+    research_skill = next(skill for skill in load_builtin_skills() if skill.name == "research-data")
+    assert "Omit `asOf` for a current live snapshot" in research_skill.instructions
+    assert "A live runtime clock alone is not a historical replay request" in research_skill.instructions
+
+
+
+def test_research_skill_reports_the_successful_response_bound_without_inheriting_failed_requests():
+    skill = next(skill for skill in load_builtin_skills() if skill.name == "research-data")
+    instructions = " ".join(skill.instructions.split())
+    assert "requested bound from the successful response's effective bound" in instructions
+    assert "If the successful response returns `asOf: null`" in instructions
+    assert "do not describe it as cutoff-bounded" in instructions
 
 
 def test_options_skill_requires_atomic_multileg_or_no_trade():
@@ -135,6 +170,82 @@ def test_options_skill_requires_explicit_account_reads_and_measured_deltas():
     assert "Never judge a delta target unreachable from strike distance alone" in instructions
     assert "Do not add your own days-to-expiration minimum" in instructions
     assert "A short strike list is not by itself a reason to decline" in instructions
+
+
+def test_options_skill_compares_verified_delta_candidates_before_declining():
+    """Native run 3d88a144-359d-42d7-b3ef-b139b7bf929d checked only the
+    nearest-underlying strikes at the quoted later expiration, then declined
+    without checking other listed candidates. This is a guidance contract;
+    real actor/judge repetitions establish whether the guidance is effective.
+    """
+    options_skill = next(skill for skill in load_builtin_skills() if skill.name == "options-trading")
+    instructions = " ".join(options_skill.instructions.split())
+
+    assert "Build a bounded candidate comparison from listed strikes and exact Greeks" in instructions
+    assert "Choose short strikes by the requested signed or absolute delta" in instructions
+    assert "search toward the target" in instructions
+    assert "Compare verified deltas before selecting the closest eligible candidate" in instructions
+    assert "Never relax the user's limits to find a trade" in instructions
+
+
+def test_options_skill_rebuilds_outward_wings_after_selecting_short_deltas():
+    """Native run e72a287a-3894-4b3a-aada-21684564e134 measured the correct
+    short deltas but overlooked listed outward wings. Preserve that actual
+    native failure; this ordinary contract checks the packaged workflow only.
+    """
+    options_skill = next(skill for skill in load_builtin_skills() if skill.name == "options-trading")
+    instructions = " ".join(options_skill.instructions.split())
+
+    assert "Separate short-strike selection from protective-wing selection" in instructions
+    assert "`long_put = short_put - put_width`" in instructions
+    assert "`long_call = short_call + call_width`" in instructions
+    assert "Check those exact wing strikes against the complete returned put and call lists" in instructions
+    assert "rebuild both outer wings for the selected short pair" in instructions
+    assert "Unchecked outer strikes do not establish that protective wings are absent" in instructions
+    assert "Preserve the requested structure and constraints; never force a trade" in instructions
+
+
+def test_options_skill_reconciles_wing_widths_signed_credit_and_maximum_loss():
+    """RC4 run 932a62f4-bca6-4893-9db4-24c734535cea confused the gap
+    between verified short strikes with a wing width, then stopped at a valid
+    credit preview. Preserve this real failure; this ordinary test checks
+    packaged guidance, not whether a model will execute it correctly.
+    """
+    options_skill = next(skill for skill in load_builtin_skills() if skill.name == "options-trading")
+    instructions = " ".join(options_skill.instructions.split())
+
+    assert "`put_width = short_put - long_put`" in instructions
+    assert "`call_width = long_call - short_call`" in instructions
+    assert "`short_gap = short_call - short_put`" in instructions
+    assert "The short-strike gap is not a wing width" in instructions
+    assert "`credit = -net_limit_price`" in instructions
+    assert "`max_loss = max(put_width, call_width) - credit`" in instructions
+    assert "verified contract multiplier and matched package quantity" in instructions
+    assert "Preserve every user debit cap, minimum credit, risk bound and execution preference" in instructions
+
+
+def test_options_skill_completes_authorized_execution_after_a_valid_preview():
+    """RC4 run 6108d113-61c6-45df-92ad-be6e2fb5982d corrected an
+    inverted wing and obtained a valid credit preview, but ended with an
+    intention to submit rather than an actual order. No mocked actor is run.
+    """
+    options_skill = next(skill for skill in load_builtin_skills() if skill.name == "options-trading")
+    instructions = " ".join(options_skill.instructions.split())
+
+    assert "If checks pass for an already-authorized execution" in instructions
+    assert "continue from preview to `orders_submit_multileg` with the verified legs and signed limit" in instructions
+    assert "complete the status and position checks below before your final answer" in instructions
+    assert "A successful price preview or an intention to submit is not completed execution" in instructions
+    assert "If a real condition remains unmet, state that condition and leave the position unchanged" in instructions
+    assert "Preserve discretion when the user delegates whether to trade" in instructions
+    assert "Preserve the requested structure and constraints; never force a trade" in instructions
+
+
+def test_options_execution_checks_every_returned_child_and_supports_single_legs():
+    instructions = " ".join(next(skill for skill in load_builtin_skills() if skill.name == "options-trading").instructions.split())
+    assert "For one authorized option contract, use `orders_submit_order`" in instructions
+    assert "Verify every returned child identifier" in instructions
+    assert "One child's terminal fill does not prove the complete package filled" in instructions
 
 
 def test_stock_skill_defines_opening_range_boundaries_and_order_truth():
@@ -168,7 +279,10 @@ def test_stock_skill_prices_limits_from_current_price_and_loads_rule_bars_with_h
     # The limit-price rule is for a new order. It made agents reprice an
     # already-pending exit (release eval stock_pending_exit_no_duplicate).
     assert "This is for a new order; it is never a reason to modify an order that is already pending" in instructions
-    assert "Modify or cancel and replace it only when the user's rules explicitly require changing an existing order" in instructions
+    assert (
+        "Modify or cancel and replace it only when the user's rules explicitly require changing an existing order"
+        in instructions
+    )
     assert "Load the rule-interval bars with `market_historical_prices`" in intraday
     assert "pass `table_name` to query them with `duckdb_query`" in intraday
 
@@ -214,7 +328,10 @@ def test_stock_skill_leaves_a_pending_exit_in_place():
     stock_skill = next(skill for skill in load_builtin_skills() if skill.name == "stock-trading")
     instructions = " ".join(stock_skill.instructions.split())
 
-    assert "Modify or cancel and replace it only when the user's rules explicitly require changing an existing order" in instructions
+    assert (
+        "Modify or cancel and replace it only when the user's rules explicitly require changing an existing order"
+        in instructions
+    )
     assert "Let it resolve or cancel it deliberately before replacing it" not in instructions
 
 
@@ -479,7 +596,6 @@ def test_indicator_values_come_from_tools_not_hand_arithmetic():
     assert "never by mental arithmetic" in instructions
 
 
-
 def test_options_skill_keeps_its_own_pending_package_instead_of_cancelling_it():
     # Release eval options_iron_condor_atomic_open (run 36034047544, repetition 3)
     # submitted a valid atomic condor, then cancelled its own pending package and
@@ -489,6 +605,64 @@ def test_options_skill_keeps_its_own_pending_package_instead_of_cancelling_it():
 
     assert "In backtests, a short bounded `orders_wait_for_terminal` is appropriate" in text
     assert "Do not cancel, replace, or modify your own pending package" in text
+
+
+def test_web_skill_qualifies_each_retained_original_independently_of_later_pages():
+    # Real b39ede18 native repeat/resume: the actor rejected an eligible
+    # retained original and opened a known post-cutoff HTML revision instead.
+    skill = next(skill for skill in load_builtin_skills() if skill.name == "web-documents")
+    text = " ".join(skill.instructions.split())
+    assert "Eligibility belongs to the particular URL and version" in text
+    assert "publisher's indexed original-version timestamp" in text
+    assert "Read that eligible retained original and compare its returned hash" in text
+    assert "A later revision of another page neither validates nor invalidates" in text
+
+
+def test_web_skill_removes_a_holding_after_an_eligible_entire_sale():
+    # The actual b39ede18 actor described an entire sale but retained that
+    # instrument in its current report-derived holdings table.
+    skill = next(skill for skill in load_builtin_skills() if skill.name == "web-documents")
+    text = " ".join(skill.instructions.split())
+    assert "An eligible sale explicitly reported as the entire holding removes" in text
+    assert "remaining holdings; retain the sale in transaction history" in text
+
+
+def test_web_skill_passes_computed_version_proof_to_document_tool():
+    # The actual ac313 native repetition fetched an excluded same-day PDF
+    # after a diagnostic query, despite its earlier eligible manifest.
+    skill = next(skill for skill in load_builtin_skills() if skill.name == "web-documents")
+    text = " ".join(skill.instructions.split())
+    assert "Pass the selected row's normalized instant as `available_at`" in text
+    assert "Pass its retained-original SHA-256 as `expected_sha256`" in text
+    assert "Never invent or move an availability instant" in text
+    assert "Diagnostic excluded rows never enter the fetch manifest" in text
+
+
+def test_web_skill_starts_with_complete_historical_read_sequence():
+    # Real 964967c6 repetitions either skipped yearly-index eligibility SQL
+    # or described an eligible supplemental report without opening it.
+    skill = next(skill for skill in load_builtin_skills() if skill.name == "web-documents")
+    text = " ".join(skill.instructions.split())
+    assert "For EACH discovered index table" in text
+    assert "Read every eligible document that changes OR confirms the baseline" in text
+    assert "An eligible administrative supplement must be opened" in text
+    assert text.index("For EACH discovered index table") < text.index("Eligibility belongs to")
+
+
+def test_historical_runtime_requires_fetch_arguments_from_computed_manifest(tmp_path):
+    # Actual c016898e native repeats followed excluded samples or reopened
+    # an explicitly future revised page to confirm already-known metadata.
+    strategy = _Strategy()
+    strategy.is_backtesting = True
+    runtime = _CaptureRuntime()
+    manager = AgentManager(strategy)
+    manager.replay_cache.root = tmp_path / "replay"
+    agent = manager.create(name="historical", allow_trading=False, _runtime=runtime)
+    agent.run(task_prompt="Reconstruct historical disclosures without trading.")
+    prompt = " ".join(runtime.requests[0].system_prompt.split())
+    assert "Fetch arguments must come only from the computed eligible manifest" in prompt
+    assert "Do not follow URLs from samples, excluded rows or an unfiltered query" in prompt
+    assert "Do not request a known future version merely to confirm metadata" in prompt
 
 
 class TestUserSuppliedSkills:
@@ -502,34 +676,26 @@ class TestUserSuppliedSkills:
     def _write_skill(self, root, name, body="Always size to 1% of the book."):
         skill_dir = root / name
         skill_dir.mkdir(parents=True)
-        (skill_dir / "SKILL.md").write_text(
-            f"---\nname: {name}\ndescription: {name} rules\n---\n\n{body}\n"
-        )
+        (skill_dir / "SKILL.md").write_text(f"---\nname: {name}\ndescription: {name} rules\n---\n\n{body}\n")
         return skill_dir
 
     def test_user_skill_directories_are_resolved(self, tmp_path):
         from lumibot.components.agents import skills as skills_module
 
         mine = self._write_skill(tmp_path, "my-house-rules")
-        resolved = skills_module.resolve_skill_directories(
-            skill_dirs=[mine], include_builtin=False
-        )
+        resolved = skills_module.resolve_skill_directories(skill_dirs=[mine], include_builtin=False)
         assert resolved == (mine,)
 
     def test_builtin_and_user_skills_compose(self, tmp_path):
         from lumibot.components.agents import skills as skills_module
 
         mine = self._write_skill(tmp_path, "my-house-rules")
-        resolved = skills_module.resolve_skill_directories(
-            skill_dirs=[mine], include_builtin=True
-        )
+        resolved = skills_module.resolve_skill_directories(skill_dirs=[mine], include_builtin=True)
         assert mine in resolved
         assert len(resolved) == len(skills_module.builtin_skill_directories()) + 1
         # Built-ins keep their catalog order and the user's skill comes last,
         # so a user skill can build on ours rather than being shadowed.
-        assert resolved[: len(skills_module.builtin_skill_directories())] == (
-            skills_module.builtin_skill_directories()
-        )
+        assert resolved[: len(skills_module.builtin_skill_directories())] == (skills_module.builtin_skill_directories())
 
     def test_a_directory_without_skill_md_is_rejected_by_name(self, tmp_path):
         from lumibot.components.agents import skills as skills_module
@@ -543,17 +709,13 @@ class TestUserSuppliedSkills:
         from lumibot.components.agents import skills as skills_module
 
         with pytest.raises(ValueError, match="does-not-exist"):
-            skills_module.resolve_skill_directories(
-                skill_dirs=[tmp_path / "does-not-exist"], include_builtin=False
-            )
+            skills_module.resolve_skill_directories(skill_dirs=[tmp_path / "does-not-exist"], include_builtin=False)
 
     def test_strings_are_accepted_as_well_as_paths(self, tmp_path):
         from lumibot.components.agents import skills as skills_module
 
         mine = self._write_skill(tmp_path, "my-house-rules")
-        resolved = skills_module.resolve_skill_directories(
-            skill_dirs=[str(mine)], include_builtin=False
-        )
+        resolved = skills_module.resolve_skill_directories(skill_dirs=[str(mine)], include_builtin=False)
         assert resolved == (mine,)
 
     def test_user_skills_change_the_fingerprint(self, tmp_path):
@@ -578,3 +740,11 @@ class TestUserSuppliedSkills:
         params = inspect.signature(AgentManager.create).parameters
         assert "skill_dirs" in params
         assert params["skill_dirs"].default is None
+
+
+def test_packaged_web_skill_preserves_returned_offsets_not_column_aliases():
+    skill = next(skill for skill in load_builtin_skills() if skill.name == "web-documents")
+    instructions = " ".join(skill.instructions.split())
+    assert "A column alias is not a timezone conversion" in instructions
+    assert "preserve its explicit offset when passing `available_at`" in instructions
+    assert "Never apply a timezone offset twice" in instructions

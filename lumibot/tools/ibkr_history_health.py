@@ -230,6 +230,28 @@ def record_backtest_availability_requirement(*, asset, timestep, when, history_a
                                 when=when, requirement="availability")
 
 
+
+def record_required_data_issue(*, asset, timestep, when, reason, recovery_cause="unknown", retryable=False):
+    """Persist a bounded typed failure without leaking provider payloads."""
+    allowed = {"temporary_download_failure", "history_unavailable", "corporate_actions_unverified",
+               "data_not_yet_available", "unknown"}
+    if recovery_cause not in allowed:
+        raise ValueError("unknown recovery cause")
+    symbol = str(getattr(asset, "symbol", asset)).upper()
+    kind = getattr(asset, "asset_type", "")
+    kind = str(getattr(kind, "value", kind))
+    key = (symbol, kind, str(getattr(asset, "expiration", "")), str(timestep), reason)
+    with _HEALTH_LOCK:
+        previous = _REQUIRED_FAILURES.get(key)
+        if previous:
+            previous["occurrences"] += 1
+            previous["last_observed_at"] = when.isoformat()
+            previous["retryable"] = previous.get("retryable", False) and retryable is True
+        elif len(_REQUIRED_FAILURES) < 500:
+            _REQUIRED_FAILURES[key] = {"symbol": symbol, "asset_type": kind, "timestep": str(timestep),
+                "reason": str(reason)[:200], "recovery_cause": recovery_cause, "retryable": retryable is True,
+                "first_observed_at": when.isoformat(), "last_observed_at": when.isoformat(), "occurrences": 1}
+
 def record_required_history(*, asset, timestep, requested_bars, frame, when, requirement="history") -> None:
     """Record history actually consumed by a strategy, separately from prefetch.
 
@@ -253,10 +275,19 @@ def record_required_history(*, asset, timestep, requested_bars, frame, when, req
     with _HEALTH_LOCK:
         if returned and isinstance(usable.index, pd.DatetimeIndex):
             first, last = usable.index.min().date().isoformat(), usable.index.max().date().isoformat()
+            from lumibot.tools.helpers import parse_canonical_timestep
+
+            # Prefetch telemetry may describe a route that failed before another
+            # route/cache repair supplied the missing daily row. Validate the
+            # prices this decision actually received, without erasing the failed
+            # route's evidence. One intraday row does not prove a whole session.
+            daily_dates = ({stamp.date().isoformat() for stamp in usable.index}
+                           if parse_canonical_timestep(timestep) == (1, "day") else None)
             for health in _HEALTH_BY_SERIES.values():
                 if (health["symbol"] == symbol and health["asset_type"] == asset_type
                         and health["timestep"] == str(timestep) and health["outcome"] != "complete"):
-                    missing.extend(day for day in health["missing_sessions"] if first <= day <= last)
+                    missing.extend(day for day in health["missing_sessions"]
+                                   if first <= day <= last and (daily_dates is None or day not in daily_dates))
                     if health["reason"] == "unresolved_roll_contract":
                         # This interval is an explicitly absent contract segment,
                         # not the broader optional prefetch window. Older bars can
@@ -273,15 +304,30 @@ def record_required_history(*, asset, timestep, requested_bars, frame, when, req
             reason = "required_history_after_feed_cutoff"
         if reason is None:
             return
+        correlated = [h for h in _HEALTH_BY_SERIES.values()
+                      if h["symbol"] == symbol and h["asset_type"] == asset_type
+                      and h["timestep"] == str(timestep) and h["outcome"] != "complete"
+                      and pd.Timestamp(h["requested_start"]) <= pd.Timestamp(when)
+                      and pd.Timestamp(h["requested_end"]) >= pd.Timestamp(when)]
+        transient = bool(correlated) and all(
+            h["outcome"] == HistoryOutcome.TRANSIENT_FAILURE.value
+            and h["reason"] in {"rate_limited", "transient_history_failure"}
+            for h in correlated)
+        recovery_cause = ("data_not_yet_available" if requirement == "availability" else
+                          "temporary_download_failure" if transient else "unknown")
         key = (symbol, asset_type, str(getattr(base, "expiration", "")), str(timestep), reason)
         previous = _REQUIRED_FAILURES.get(key)
         if previous:
             previous["occurrences"] += 1
             previous["last_observed_at"] = when.isoformat()
+            previous["retryable"] = previous.get("retryable", False) and transient
+            if previous.get("recovery_cause") != recovery_cause:
+                previous["recovery_cause"] = "unknown"
         elif len(_REQUIRED_FAILURES) < 500:
             _REQUIRED_FAILURES[key] = {
                 "symbol": symbol, "asset_type": asset_type, "timestep": str(timestep),
-                "reason": reason, "requested_bars": requested, "returned_bars": returned,
+                "reason": reason, "recovery_cause": recovery_cause, "retryable": transient,
+                "requested_bars": requested, "returned_bars": returned,
                 "first_observed_at": when.isoformat(), "last_observed_at": when.isoformat(),
                 "missing_sessions": sorted(set(missing))[:100], "occurrences": 1,
             }

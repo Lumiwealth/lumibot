@@ -5,8 +5,15 @@ import pytest
 @pytest.mark.usefixtures("disable_datasource_override")
 def test_first_backtest_records_one_actual_simulated_fill(monkeypatch, tmp_path):
     monkeypatch.setenv("LUMIBOT_CACHE_FOLDER", str(tmp_path / "cache"))
+    from unittest.mock import Mock
+
     from lumibot.example_strategies.first_backtest import run_example
+
+    # The offline example must not fetch Yahoo's risk-free rate while saving settings.
+    rate_lookup = Mock(return_value=0.0)
+    monkeypatch.setattr("lumibot.strategies.strategy.get_risk_free_rate", rate_lookup)
     _, strategy = run_example()
+    rate_lookup.assert_not_called()
     position = strategy.get_position("DEMO")
     assert position is not None
     assert float(position.quantity) == 1

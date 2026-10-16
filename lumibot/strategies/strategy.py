@@ -1714,10 +1714,10 @@ class Strategy(_Strategy):
     def get_order(self, identifier: str, broker_refresh: bool = True, broker_refresh_ttl_seconds: float = 0.0):
         """Get a tracked order given an identifier. Check the details of the order including status, etc.
 
-        In live trading this refreshes broker order state before returning by default. Use this
-        direct lookup after submitting an order if you need to verify that same order immediately.
-        Some brokers can expose a just-submitted order through direct order lookup before it appears
-        in broad account order-list endpoints.
+        In live trading this refreshes broker order state before returning by default.
+        Refresh normally reads the broker order list; a tracked active order absent from
+        that list may also receive a direct lookup. This is not an unconditional
+        single-order HTTP request. Set broker_refresh=False to read only tracked state.
 
         Returns
         -------
@@ -3080,6 +3080,35 @@ class Strategy(_Strategy):
             self.log_message(f"Error getting quote from data source: {e}", color="red")
             return _quote_class()(asset=asset)
 
+    def get_quotes(self, assets: List[Asset], quote: Asset = None, exchange: str = None):
+        """Return exact Assets mapped to Quote objects (or None when absent).
+
+        Schwab batches up to 50 symbols per request, including selected option
+        contracts. Other providers retain their existing get_quote behavior;
+        no batching speed is promised without a native adapter. Option assets
+        honor the configured option_source just like get_quote. A native batch
+        failure raises instead of silently triggering serial retries. Snapshot
+        freshness and trading decisions remain the strategy's responsibility.
+        """
+        assets = list(dict.fromkeys(self._sanitize_user_asset(asset) for asset in assets))
+        groups = {}
+        for asset in assets:
+            source = self.broker.option_source if self.broker.option_source and asset.asset_type == "option" else self.broker.data_source
+            groups.setdefault(id(source), (source, []))[1].append(asset)
+        result = {}
+        for source, selected in groups.values():
+            native = getattr(source, "get_quotes", None)
+            if callable(native):
+                quotes = native(selected, quote=quote, exchange=exchange)
+                if not isinstance(quotes, dict) or any(asset not in quotes for asset in selected):
+                    raise ValueError("Bulk quote adapter omitted requested asset results")
+                if any(value is not None and getattr(value, "asset", None) != asset for asset, value in quotes.items() if asset in selected):
+                    raise ValueError("Bulk quote adapter returned another asset's quote")
+                result.update({asset: quotes[asset] for asset in selected})
+            else:
+                result.update({asset: self.get_quote(asset, quote=quote, exchange=exchange) for asset in selected})
+        return {asset: result[asset] for asset in assets}
+
     def get_tick(self, asset: Union[Asset, str]):
         """Takes an Asset and returns the last known price"""
         # TODO: Should this function be depricated? This appears to be an IBKR-only thing.
@@ -3331,14 +3360,16 @@ class Strategy(_Strategy):
         >>> print(f"Strike: {df.iloc[0]['strike']}, Delta: {df.iloc[0]['greeks.delta']}")
         """
         asset = self._sanitize_user_asset(asset)
-        risk_free_rate = risk_free_rate if risk_free_rate is not None else self.risk_free_rate
-        if underlying_price is None:
-            underlying_asset = Asset(symbol=asset.symbol, asset_type="stock")
-            und_price = self.get_last_price(underlying_asset)
-        else:
-            und_price = underlying_price
+        # Native chain snapshots already contain provider Greeks. Do not fetch
+        # interest rates or underlying prices that those adapters never use.
+        needs_pricing = getattr(self.broker.data_source, "CHAIN_FULL_INFO_REQUIRES_PRICING_INPUTS", True)
+        if needs_pricing:
+            risk_free_rate = risk_free_rate if risk_free_rate is not None else self.risk_free_rate
+            if underlying_price is None:
+                underlying_asset = Asset(symbol=asset.symbol, asset_type="stock")
+                underlying_price = self.get_last_price(underlying_asset)
 
-        return self.broker.get_chain_full_info(asset, expiry, chains=chains, underlying_price=und_price,
+        return self.broker.get_chain_full_info(asset, expiry, chains=chains, underlying_price=underlying_price,
                                                risk_free_rate=risk_free_rate, strike_min=strike_min,
                                                strike_max=strike_max)
 
@@ -4643,6 +4674,14 @@ class Strategy(_Strategy):
             return (multiplier * 30, "day")
         return (multiplier, unit)
 
+    def _prefetch_indicator_history(self, *args, **kwargs):
+        """Populate optional indicator history through normal asset/timeframe handling.
+
+        The indicator records its actual causal input separately. A cache fill
+        ceiling is not a demand for that many decision-input rows.
+        """
+        return self.get_historical_prices(*args, _history_requirement="prefetch", **kwargs)
+
     def get_historical_prices(
         self,
         asset: Union[Asset, str],
@@ -4669,6 +4708,12 @@ class Strategy(_Strategy):
             object. Cryptocurrencies must also specify the quote currency.
         length : int
             The number of rows (number of timesteps)
+        minimum_bars : int, optional
+            Minimum completed bars required by this backtest decision, between
+            1 and ``length``. Defaults to ``length`` to preserve strict existing
+            requirements. Set this when requesting a generous history window
+            but consuming only its most recent smaller lookback. This changes
+            validation only; returned prices and the download window are unchanged.
         timestep : str
             Time interval for each bar. Supports multiple formats:
 
@@ -4773,6 +4818,10 @@ class Strategy(_Strategy):
                 raise TypeError("get_historical_prices() got multiple values for keyword argument 'return_polars'")
             kwargs["return_polars"] = args[0]
 
+        history_requirement = kwargs.pop("_history_requirement", "required")
+        minimum_bars = kwargs.pop("minimum_bars", None)
+        if history_requirement not in {"required", "prefetch"}:
+            raise ValueError("Unknown internal history requirement mode")
         return_polars_provided = "return_polars" in kwargs
         return_polars = kwargs.pop("return_polars", False)
         if return_polars_provided:
@@ -4795,6 +4844,12 @@ class Strategy(_Strategy):
                     f"Invalid length parameter in get_historical_prices() method. Length must be an int but instead got {length}, "
                     f"which is a type {type(length)}."
                 )
+
+        if minimum_bars is not None and (
+            isinstance(minimum_bars, bool) or not isinstance(minimum_bars, int)
+            or minimum_bars < 1 or minimum_bars > length
+        ):
+            raise ValueError("minimum_bars must be an integer between 1 and length")
 
         if quote is None:
             quote = self.quote_asset
@@ -4970,11 +5025,17 @@ class Strategy(_Strategy):
                     # If resampling fails, log warning and return original data
                     self.logger.warning(f"Failed to resample data from {actual_timestep} to {original_timestep}: {e}")
 
-        if self.is_backtesting:
+        if self.is_backtesting and history_requirement == "required":
+            from lumibot.backtesting.market_input_evidence import record_market_input
+
+            record_market_input(source=ds, asset=asset, quote=quote,
+                timestep=original_timestep or actual_timestep, when=self.get_datetime(),
+                frame=bars.pandas_df if bars is not None else None, purpose="history")
             record_requirement = getattr(ds, "record_history_requirement", None)
             if callable(record_requirement):
                 record_requirement(asset=asset, timestep=original_timestep or actual_timestep,
-                                   requested_bars=length, bars=bars, timeshift=timeshift)
+                                   requested_bars=length if minimum_bars is None else minimum_bars,
+                                   bars=bars, timeshift=timeshift)
         return bars
 
     def get_symbol_bars(
@@ -5091,7 +5152,7 @@ class Strategy(_Strategy):
         if effective_sleep_time is None:
             data_source = getattr(getattr(self, "broker", None), "data_source", None)
             effective_sleep_time = 0.0 if getattr(data_source, "IS_BACKTESTING_DATA_SOURCE", False) else 0.1
-        return self.broker.data_source.get_bars(
+        results = self.broker.data_source.get_bars(
             assets,
             length,
             timestep=timestep,
@@ -5102,6 +5163,15 @@ class Strategy(_Strategy):
             include_after_hours=include_after_hours,
             sleep_time=effective_sleep_time
         )
+        if self.is_backtesting:
+            from lumibot.backtesting.market_input_evidence import record_market_input
+
+            for asset in assets:
+                bars = results.get(asset) if isinstance(results, dict) else None
+                record_market_input(source=self.broker.data_source, asset=asset,
+                    quote=self.quote_asset, timestep=timestep, when=self.get_datetime(),
+                    frame=bars.pandas_df if bars is not None else None, purpose="history-batch")
+        return results
 
     def get_bars(
         self,

@@ -6,8 +6,23 @@ from lumibot.entities import Asset
 from lumibot.entities import Data
 from lumibot.strategies.strategy import Strategy
 from lumibot.tools import ibkr_helper
+from lumibot.tools.ibkr_equity_basis import EquityBasisSnapshot, decorate_adjusted_frame
 from lumibot.tools.yahoo_helper import YahooHelper
 from lumibot.traders import Trader
+
+
+# 2026-10-10: adjusted prices now require provider provenance. Price continuity
+# cannot establish a split basis; old shape-based repair expectations were unsafe.
+def _certify_adjusted(frame):
+    actions = pd.DataFrame({
+        "Dividends": frame["dividend"].to_numpy() if "dividend" in frame else 0.0,
+        "Stock Splits": frame["stock_splits"].to_numpy() if "stock_splits" in frame else 0.0,
+    }, index=frame.index.normalize())
+    last = frame.index.max().date().isoformat()
+    snapshot = EquityBasisSnapshot.from_verified_actions(
+        actions, as_of=pd.Timestamp(last, tz="America/New_York") + pd.Timedelta(hours=23),
+        coverage_through=last)
+    return decorate_adjusted_frame(frame, snapshot, provider_prices_verified=True), snapshot
 
 
 class _HoldTqqqThroughSplitStrategy(Strategy):
@@ -158,15 +173,10 @@ def test_normalize_equity_daily_prices_for_raw_forward_split():
         index=idx,
     )
 
-    normalized, changed = ibkr_helper._normalize_equity_daily_prices_for_splits(frame)
-
-    assert changed is True
-    assert normalized["_split_adjusted"].all()
-    assert normalized.loc[idx[0], "close"] == pytest.approx(50.0)
-    assert normalized.loc[idx[0], "open"] == pytest.approx(49.0)
-    assert normalized.loc[idx[0], "volume"] == pytest.approx(2000.0)
-    assert normalized.loc[idx[0], "dividend"] == pytest.approx(0.1)
-    assert normalized.loc[idx[1], "close"] == pytest.approx(46.5)
+    original = frame.copy(deep=True)
+    with pytest.raises(ValueError, match="basis|provenance"):
+        ibkr_helper._normalize_equity_daily_prices_for_splits(frame)
+    pd.testing.assert_frame_equal(frame, original)
 
 
 def test_normalize_equity_daily_prices_for_raw_reverse_split():
@@ -189,13 +199,10 @@ def test_normalize_equity_daily_prices_for_raw_reverse_split():
         index=idx,
     )
 
-    normalized, changed = ibkr_helper._normalize_equity_daily_prices_for_splits(frame)
-
-    assert changed is True
-    assert normalized["_split_adjusted"].all()
-    assert normalized.loc[idx[0], "close"] == pytest.approx(100.0)
-    assert normalized.loc[idx[0], "volume"] == pytest.approx(1000.0)
-    assert normalized.loc[idx[0], "dividend"] == pytest.approx(10.0)
+    original = frame.copy(deep=True)
+    with pytest.raises(ValueError, match="basis|provenance"):
+        ibkr_helper._normalize_equity_daily_prices_for_splits(frame)
+    pd.testing.assert_frame_equal(frame, original)
 
 
 def test_normalize_equity_daily_prices_marks_already_adjusted_split_without_double_adjusting():
@@ -218,14 +225,14 @@ def test_normalize_equity_daily_prices_marks_already_adjusted_split_without_doub
         index=idx,
     )
 
+    frame, _ = _certify_adjusted(frame)
     normalized, changed = ibkr_helper._normalize_equity_daily_prices_for_splits(frame)
     normalized_again, changed_again = ibkr_helper._normalize_equity_daily_prices_for_splits(normalized)
-
-    assert changed is True
+    assert changed is False
     assert changed_again is False
-    assert normalized["_split_adjusted"].all()
+    pd.testing.assert_frame_equal(normalized, frame)
+    pd.testing.assert_frame_equal(normalized_again, frame)
     assert normalized.loc[idx[0], "close"] == pytest.approx(50.0)
-    assert normalized_again.loc[idx[0], "close"] == pytest.approx(50.0)
 
 
 def test_normalize_equity_daily_prices_still_checks_marked_frame_after_late_split_enrichment():
@@ -249,15 +256,14 @@ def test_normalize_equity_daily_prices_still_checks_marked_frame_after_late_spli
         index=idx,
     )
 
-    normalized, changed = ibkr_helper._normalize_equity_daily_prices_for_splits(frame)
+    original = frame.copy(deep=True)
+    # An old boolean marker cannot identify which splits the price source applied.
+    with pytest.raises(ValueError, match="basis|provenance"):
+        ibkr_helper._normalize_equity_daily_prices_for_splits(frame)
+    pd.testing.assert_frame_equal(frame, original)
 
-    assert changed is True
-    assert normalized["_split_adjusted"].all()
-    assert normalized.loc[idx[0], "close"] == pytest.approx(50.0)
-    assert normalized.loc[idx[0], "volume"] == pytest.approx(2000.0)
 
-
-def test_normalize_equity_daily_prices_repairs_mixed_tqqq_cache_shape():
+def test_normalize_equity_daily_prices_rejects_mixed_tqqq_basis():
     idx = pd.DatetimeIndex(
         [
             "2021-01-20 16:00:00-05:00",
@@ -281,20 +287,18 @@ def test_normalize_equity_daily_prices_repairs_mixed_tqqq_cache_shape():
         index=idx,
     )
 
-    normalized, changed = ibkr_helper._normalize_equity_daily_prices_for_splits(frame)
-
-    assert changed is True
-    assert normalized["_split_adjusted"].all()
-    # 2021 and 2022 were already continuous in the cache and must not be halved again.
-    assert normalized.loc[idx[0], "close"] == pytest.approx(24.75)
-    assert normalized.loc[idx[2], "close"] == pytest.approx(38.17)
-    # The 2025 tail was raw and must be brought into the same adjusted price space.
-    assert normalized.loc[idx[4], "close"] == pytest.approx(50.025)
-    assert normalized.loc[idx[4], "open"] == pytest.approx(49.33)
-    assert normalized.loc[idx[5], "close"] == pytest.approx(46.45)
+    frame, snapshot = _certify_adjusted(frame)
+    different = EquityBasisSnapshot.from_verified_actions(
+        pd.DataFrame(columns=["Dividends", "Stock Splits"], index=pd.DatetimeIndex([])),
+        as_of=snapshot.as_of, coverage_through=snapshot.coverage_through)
+    frame.loc[idx[-2:], "_ibkr_split_basis"] = different.split_fingerprint
+    original = frame.copy(deep=True)
+    with pytest.raises(ValueError, match="basis|bases|provenance"):
+        ibkr_helper._normalize_equity_daily_prices_for_splits(frame)
+    pd.testing.assert_frame_equal(frame, original)
 
 
-def test_normalize_equity_daily_prices_repairs_old_dev_tqqq_tail_only():
+def test_normalize_equity_daily_prices_preserves_certified_large_moves():
     idx = pd.DatetimeIndex(
         [
             "2022-10-31 16:00:00",
@@ -321,22 +325,18 @@ def test_normalize_equity_daily_prices_repairs_old_dev_tqqq_tail_only():
         index=idx,
     )
 
+    frame, _ = _certify_adjusted(frame)
     normalized, changed = ibkr_helper._normalize_equity_daily_prices_for_splits(frame)
-
-    assert changed is True
-    assert normalized["_split_adjusted"].all()
-    # This known dev-cache jump was not on a split date. Keep it visible for cache-quality audits
-    # instead of masking arbitrary data anomalies as corporate actions.
+    assert changed is False
+    # Even split-sized jumps at/around a split may be real. Preserve every
+    # certified provider value; never infer a splice point from price shape.
+    pd.testing.assert_frame_equal(normalized, frame)
     assert normalized.loc[idx[1], "close"] == pytest.approx(20.30)
-    assert normalized.loc[idx[2], "close"] == pytest.approx(9.10)
-    # The later raw segment is exactly what created the false 2025 TQQQ split cliff.
-    assert normalized.loc[idx[4], "close"] == pytest.approx(26.32)
-    assert normalized.loc[idx[5], "close"] == pytest.approx(26.40)
-    assert normalized.loc[idx[6], "close"] == pytest.approx(26.45)
-    assert normalized.loc[idx[7], "close"] == pytest.approx(26.45)
+    assert normalized.loc[idx[4], "close"] == pytest.approx(52.64)
+    assert normalized.loc[idx[-1], "close"] == pytest.approx(26.45)
 
 
-def test_get_price_data_normalizes_cached_ibkr_daily_stock_split_tail(tmp_path, monkeypatch):
+def test_get_price_data_preserves_certified_ibkr_daily_stock_split_tail(tmp_path, monkeypatch):
     class NoRemoteCache:
         def ensure_local_file(self, *args, **kwargs):
             return False
@@ -355,26 +355,28 @@ def test_get_price_data_normalizes_cached_ibkr_daily_stock_split_tail(tmp_path, 
             "2025-11-21 16:00:00-05:00",
         ]
     )
-    raw_ibkr_frame = pd.DataFrame(
+    adjusted_ibkr_frame = pd.DataFrame(
         {
-            "open": [98.0, 98.66, 52.92, 47.05],
-            "high": [101.0, 103.15, 53.54, 48.0],
-            "low": [97.0, 97.43, 46.23, 46.2],
-            "close": [99.0, 100.05, 46.45, 46.85],
-            "volume": [720000.0, 768163.78, 1576329.68, 1500000.0],
+            "open": [49.0, 49.33, 52.92, 47.05],
+            "high": [50.5, 51.575, 53.54, 48.0],
+            "low": [48.5, 48.715, 46.23, 46.2],
+            "close": [49.5, 50.025, 46.45, 46.85],
+            "volume": [1440000.0, 1536327.56, 1576329.68, 1500000.0],
             "dividend": [0.0, 0.0, 0.0, 0.0],
             "stock_splits": [0.0, 0.0, 2.0, 0.0],
         },
         index=idx,
     )
-    raw_ibkr_frame.to_parquet(cache_file)
+    adjusted_ibkr_frame, snapshot = _certify_adjusted(adjusted_ibkr_frame)
+    adjusted_ibkr_frame.to_parquet(cache_file)
+    monkeypatch.setattr(ibkr_helper, "_get_current_equity_basis", lambda symbol: snapshot, raising=False)
 
     monkeypatch.setattr(ibkr_helper, "get_backtest_cache", lambda: NoRemoteCache())
     monkeypatch.setattr(ibkr_helper, "_cache_file_for", lambda **kwargs: cache_file)
     monkeypatch.setattr(
         ibkr_helper,
         "_append_equity_corporate_actions_daily",
-        lambda frame, stock_asset: (frame, False),
+        lambda frame, stock_asset, **kwargs: (frame, False),
     )
 
     returned = ibkr_helper.get_price_data(
@@ -392,12 +394,17 @@ def test_get_price_data_normalizes_cached_ibkr_daily_stock_split_tail(tmp_path, 
     assert returned.loc[idx[1], "close"] == pytest.approx(50.025)
     assert returned.loc[idx[2], "close"] == pytest.approx(46.45)
 
+    price_columns = ["open", "high", "low", "close", "volume", "dividend", "stock_splits"]
+    pd.testing.assert_frame_equal(returned[price_columns].reset_index(drop=True),
+                                  adjusted_ibkr_frame[price_columns].reset_index(drop=True))
     persisted = pd.read_parquet(cache_file)
+    pd.testing.assert_frame_equal(persisted[price_columns].reset_index(drop=True),
+                                  adjusted_ibkr_frame[price_columns].reset_index(drop=True))
     assert persisted["_split_adjusted"].all()
     assert persisted.loc[idx[1], "close"] == pytest.approx(50.025)
 
 
-def test_tqqq_daily_backtest_uses_normalized_ibkr_split_data_without_false_cliff():
+def test_tqqq_daily_backtest_uses_certified_adjusted_prices_without_false_cliff():
     asset = Asset("TQQQ", Asset.AssetType.STOCK)
     idx = pd.DatetimeIndex(
         [
@@ -409,21 +416,23 @@ def test_tqqq_daily_backtest_uses_normalized_ibkr_split_data_without_false_cliff
             "2025-11-24 16:00:00-05:00",
         ]
     )
-    raw_ibkr_frame = pd.DataFrame(
+    adjusted_ibkr_frame = pd.DataFrame(
         {
-            "open": [96.0, 98.0, 98.66, 52.92, 47.05, 47.4],
-            "high": [100.0, 101.0, 103.15, 53.54, 48.0, 48.2],
-            "low": [95.0, 97.0, 97.43, 46.23, 46.2, 46.9],
-            "close": [97.0, 99.0, 100.05, 46.45, 46.85, 47.3],
-            "volume": [700000.0, 720000.0, 768163.78, 1576329.68, 1500000.0, 1450000.0],
+            "open": [48.0, 49.0, 49.33, 52.92, 47.05, 47.4],
+            "high": [50.0, 50.5, 51.575, 53.54, 48.0, 48.2],
+            "low": [47.5, 48.5, 48.715, 46.23, 46.2, 46.9],
+            "close": [48.5, 49.5, 50.025, 46.45, 46.85, 47.3],
+            "volume": [1400000.0, 1440000.0, 1536327.56, 1576329.68, 1500000.0, 1450000.0],
             "dividend": [0.0] * 6,
             "stock_splits": [0.0, 0.0, 0.0, 2.0, 0.0, 0.0],
         },
         index=idx,
     )
 
-    normalized, changed = ibkr_helper._normalize_equity_daily_prices_for_splits(raw_ibkr_frame)
-    assert changed is True
+    adjusted_ibkr_frame, _ = _certify_adjusted(adjusted_ibkr_frame)
+    normalized, changed = ibkr_helper._normalize_equity_daily_prices_for_splits(adjusted_ibkr_frame)
+    assert changed is False
+    pd.testing.assert_frame_equal(normalized, adjusted_ibkr_frame)
     assert normalized.loc[idx[2], "close"] == pytest.approx(50.025)
     assert normalized.loc[idx[3], "close"] == pytest.approx(46.45)
 

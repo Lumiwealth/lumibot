@@ -36,6 +36,7 @@ integrations, maintenance, developer tutorials, and strategic collaboration.
    :maxdepth: 1
 
    agents_flows
+   agents_chatgpt
    agents_builtin_tools
    agents_browser_tools
    agents_canonical_demos
@@ -723,6 +724,15 @@ Strategies can use ``BuiltinTools.news.alpaca_news()`` to give an agent access t
 The tool uses the active Alpaca broker credentials when the strategy is running on Alpaca, including OAuth connections. If the active broker is not Alpaca, set bring-your-own-key news credentials with ``ALPACA_NEWS_API_KEY`` and ``ALPACA_NEWS_API_SECRET``. If neither path is available, LumiBot logs a warning and does not expose ``alpaca_news`` to agents. It defaults ``end`` to the current simulated datetime in backtests and clamps future ``end`` values to avoid look-ahead. The response includes ``requested_end``, ``effective_end``, and ``lookahead_clamped`` so you can audit the exact window used.
 
 Alpaca news is historical symbol/date-window retrieval, not keyword search. The API supports ``symbols``, ``start``, ``end``, ``limit`` (max 50), ``sort``, ``include_content``, ``exclude_contentless``, and ``page_token``. For broad market context, query market ETF proxies such as ``SPY,QQQ,DIA,IWM``; for sector context, query sector ETFs such as ``XLK,SMH`` (tech/semis), ``XLF,KRE`` (financials/banks), ``XLE,USO`` (energy), ``XLV,XBI`` (healthcare/biotech), ``TLT,IEF,SHY`` (rates/bonds), or ``GLD,SLV,DBC`` (gold/commodities).
+
+During backtests, LumiBot also checks every returned article's publication and
+update timestamps against the effective UTC ceiling. It excludes future,
+undated, ambiguous or later-revised rows, including their headlines, summaries
+and bodies. ``historical_integrity`` reports exclusions and coverage limits.
+This protects against a source ignoring the requested window; it does not
+reconstruct an article's original text before a later edit. Follow pagination
+and retain these limitations with any historical result. Eligible article
+bodies remain available through ``include_content=True``.
 
 Use a two-step workflow:
 

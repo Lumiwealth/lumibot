@@ -1,4 +1,6 @@
-from datetime import datetime, timezone
+from datetime import date, datetime, timedelta, timezone, tzinfo
+
+import pytest
 
 from lumibot.components.agents import AgentManager, BuiltinTools
 
@@ -206,6 +208,281 @@ def test_builtin_alpaca_news_passes_page_token_and_clamps_lookahead(monkeypatch)
     assert calls[0]["params"]["end"] == "2026-04-28T15:30:00+00:00"
     assert calls[0]["params"]["page_token"] == "abc123"
     assert calls[0]["params"]["sort"] == "asc"
+
+
+def _install_article_page(monkeypatch, articles):
+    calls = _install_fake_alpaca(monkeypatch)
+    monkeypatch.setattr(_Response, "json", lambda self: {"news": articles, "next_page_token": "next"})
+    return calls
+
+
+def _historical_article(**changes):
+    article = _Response().json()["news"][0]
+    return {**article, **changes}
+
+
+@pytest.mark.parametrize(
+    ("changes", "reason"),
+    [
+        ({"created_at": "2026-04-28T15:30:01Z", "updated_at": "2026-04-28T15:30:01Z"}, "published_after_as_of"),
+        ({"updated_at": "2026-04-28T15:30:01Z"}, "version_after_as_of"),
+        ({"created_at": None}, "unverified_availability"),
+        ({"created_at": "invalid"}, "unverified_availability"),
+        ({"created_at": "2026-04-28T14:00:00"}, "unverified_availability"),
+        ({"updated_at": None}, "unverified_availability"),
+        ({"updated_at": "invalid"}, "unverified_availability"),
+        ({"updated_at": "2026-04-28T14:05:00"}, "unverified_availability"),
+        ({"updated_at": "2026-04-28T13:00:00Z"}, "unverified_availability"),
+    ],
+)
+def test_backtest_news_excludes_unavailable_or_later_article_versions(monkeypatch, changes, reason):
+    # Request bounds do not establish what an upstream page actually returned.
+    article = _historical_article(**changes)
+    _install_article_page(monkeypatch, [article])
+
+    tool = BuiltinTools.news.alpaca_news().binder(_Strategy(), None)
+    result = tool.function(include_content=True)
+
+    assert result["ok"] is True
+    assert result["articles"] == []
+    assert result["count"] == 0
+    assert result["content_available_count"] == 0
+    assert result["summary_available_count"] == 0
+    integrity = result["historical_integrity"]
+    assert integrity["excluded_counts"][reason] == 1
+    assert sum(integrity["excluded_counts"].values()) == 1
+    assert integrity["upstream_article_count"] == 1
+    assert integrity["original_version_history_available"] is False
+    assert integrity["coverage_complete"] is False
+    assert integrity["limitations"]
+    assert result["next_page_token"] == "next"
+
+
+def test_backtest_news_keeps_utc_boundary_version_and_full_body(monkeypatch):
+    article = _historical_article(
+        created_at="2026-04-28T11:30:00-04:00",
+        updated_at="2026-04-28T17:30:00+02:00",
+    )
+    _install_article_page(monkeypatch, [article])
+
+    tool = BuiltinTools.news.alpaca_news().binder(_Strategy(), None)
+    result = tool.function(include_content=True)
+
+    assert result["articles"][0]["content"] == article["content"]
+    assert result["count"] == 1
+    assert result["historical_integrity"]["as_of"] == "2026-04-28T15:30:00+00:00"
+    assert sum(result["historical_integrity"]["excluded_counts"].values()) == 0
+
+
+def test_backtest_news_filters_versions_at_an_explicit_earlier_end(monkeypatch):
+    _install_article_page(monkeypatch, [_historical_article()])
+
+    tool = BuiltinTools.news.alpaca_news().binder(_Strategy(), None)
+    result = tool.function(end="2026-04-28T14:02:00Z", include_content=True)
+
+    assert result["articles"] == []
+    assert result["historical_integrity"]["as_of"] == "2026-04-28T14:02:00+00:00"
+    assert result["historical_integrity"]["excluded_counts"]["version_after_as_of"] == 1
+
+
+def test_backtest_news_rejects_an_unparseable_end_before_provider_access(monkeypatch):
+    calls = _install_fake_alpaca(monkeypatch)
+
+    tool = BuiltinTools.news.alpaca_news().binder(_Strategy(), None)
+    result = tool.function(end="unknown", include_content=True)
+
+    assert result["ok"] is False
+    assert result["tool_error"] is True
+    assert result["error"]["type"] == "InvalidHistoricalWindow"
+    assert result["articles"] == []
+    assert calls == []
+
+
+class _UnknownOffset(tzinfo):
+    def utcoffset(self, dt):
+        return None
+
+
+class _InvalidOffset(tzinfo):
+    def utcoffset(self, dt):
+        raise ValueError("Strategy timezone offset is unavailable")
+
+
+@pytest.mark.parametrize(
+    "clock",
+    [
+        None,
+        "2026-04-28T15:30:00Z",
+        date(2026, 4, 28),
+        datetime(2026, 4, 28, 15, 30),
+        datetime(2026, 4, 28, 15, 30, tzinfo=_UnknownOffset()),
+        datetime(2026, 4, 28, 15, 30, tzinfo=_InvalidOffset()),
+    ],
+    ids=["missing", "string", "date_only", "naive", "unknown_offset", "invalid_offset"],
+)
+@pytest.mark.parametrize("explicit_window", [False, True])
+def test_backtest_news_rejects_unverified_strategy_clock_before_provider_access(
+    monkeypatch, clock, explicit_window
+):
+    # A caller-supplied end cannot establish the simulated clock's timezone.
+    calls = _install_fake_alpaca(monkeypatch)
+    strategy = _Strategy()
+    monkeypatch.setattr(strategy, "get_datetime", lambda: clock)
+    tool = BuiltinTools.news.alpaca_news().binder(strategy, None)
+    window = {"start": "2026-04-28T00:00:00Z", "end": "2026-04-28T14:02:00Z"} if explicit_window else {}
+
+    result = tool.function(include_content=True, **window)
+
+    assert result["ok"] is False
+    assert result["tool_error"] is True
+    assert result["error"]["type"] == "InvalidHistoricalClock"
+    assert result["articles"] == []
+    assert result["count"] == 0
+    assert calls == []
+
+
+def test_backtest_news_reports_unavailable_strategy_clock_before_provider_access(monkeypatch):
+    calls = _install_fake_alpaca(monkeypatch)
+    strategy = _Strategy()
+
+    def unavailable_clock():
+        raise RuntimeError("Simulated clock is unavailable")
+
+    monkeypatch.setattr(strategy, "get_datetime", unavailable_clock)
+    tool = BuiltinTools.news.alpaca_news().binder(strategy, None)
+
+    result = tool.function(include_content=True)
+
+    assert result["ok"] is False
+    assert result["tool_error"] is True
+    assert result["error"]["type"] == "InvalidHistoricalClock"
+    assert result["articles"] == []
+    assert result["count"] == 0
+    assert calls == []
+
+
+def test_backtest_news_preserves_earlier_aware_end_with_an_offset_strategy_clock(monkeypatch):
+    calls = _install_article_page(monkeypatch, [_historical_article()])
+    strategy = _Strategy()
+    monkeypatch.setattr(
+        strategy,
+        "get_datetime",
+        lambda: datetime(2026, 4, 28, 11, 30, tzinfo=timezone(timedelta(hours=-4))),
+    )
+    tool = BuiltinTools.news.alpaca_news().binder(strategy, None)
+
+    result = tool.function(end="2026-04-28T16:02:00+02:00", include_content=True)
+
+    assert result["ok"] is True
+    assert result["effective_end"] == "2026-04-28T16:02:00+02:00"
+    assert result["lookahead_clamped"] is False
+    assert result["historical_integrity"]["as_of"] == "2026-04-28T14:02:00+00:00"
+    assert result["historical_integrity"]["excluded_counts"]["version_after_as_of"] == 1
+    assert calls[0]["params"]["end"] == "2026-04-28T16:02:00+02:00"
+
+
+def test_backtest_news_clamps_future_end_to_an_aware_offset_strategy_clock(monkeypatch):
+    calls = _install_fake_alpaca(monkeypatch)
+    strategy = _Strategy()
+    monkeypatch.setattr(
+        strategy,
+        "get_datetime",
+        lambda: datetime(2026, 4, 28, 11, 30, tzinfo=timezone(timedelta(hours=-4))),
+    )
+    tool = BuiltinTools.news.alpaca_news().binder(strategy, None)
+
+    result = tool.function(end="2026-04-28T15:31:00Z", include_content=True)
+
+    assert result["ok"] is True
+    assert result["lookahead_clamped"] is True
+    assert result["effective_end"] == "2026-04-28T11:30:00-04:00"
+    assert result["historical_integrity"]["as_of"] == "2026-04-28T15:30:00+00:00"
+    assert result["articles"][0]["content"] == "x" * 2500
+    assert calls[0]["params"]["end"] == "2026-04-28T11:30:00-04:00"
+
+
+def test_backtest_news_keeps_date_only_caller_end_in_the_verified_clock_timezone(monkeypatch):
+    calls = _install_fake_alpaca(monkeypatch)
+    strategy = _Strategy()
+    monkeypatch.setattr(
+        strategy,
+        "get_datetime",
+        lambda: datetime(2026, 4, 28, 11, 30, tzinfo=timezone(timedelta(hours=-4))),
+    )
+    tool = BuiltinTools.news.alpaca_news().binder(strategy, None)
+
+    result = tool.function(end="2026-04-28", include_content=True)
+
+    assert result["ok"] is True
+    assert result["effective_end"] == "2026-04-28"
+    assert result["lookahead_clamped"] is False
+    assert result["historical_integrity"]["as_of"] == "2026-04-28T04:00:00+00:00"
+    assert result["articles"] == []
+    assert calls[0]["params"]["end"] == "2026-04-28"
+
+
+def test_live_news_preserves_a_naive_strategy_clock(monkeypatch):
+    calls = _install_fake_alpaca(monkeypatch)
+    strategy = _Strategy()
+    strategy.is_backtesting = False
+    monkeypatch.setattr(strategy, "get_datetime", lambda: datetime(2026, 4, 28, 15, 30))
+    tool = BuiltinTools.news.alpaca_news().binder(strategy, None)
+
+    result = tool.function(include_content=True)
+
+    assert result["ok"] is True
+    assert result["window_end"] == "2026-04-28T15:30:00"
+    assert result["articles"][0]["content"] == "x" * 2500
+    assert "historical_integrity" not in result
+    assert calls[0]["params"]["end"] == "2026-04-28T15:30:00"
+
+
+def test_backtest_headline_scan_excludes_later_mutable_versions(monkeypatch):
+    _install_article_page(monkeypatch, [_historical_article(updated_at="2026-04-28T15:31:00Z")])
+
+    tool = BuiltinTools.news.alpaca_news().binder(_Strategy(), None)
+    result = tool.function(include_content=False)
+
+    assert result["articles"] == []
+    assert result["historical_integrity"]["excluded_counts"]["version_after_as_of"] == 1
+
+
+def test_backtest_news_filters_the_complete_page_and_counts_only_visible_bodies(monkeypatch):
+    visible = _historical_article()
+    future = _historical_article(id=456, updated_at="2026-04-29T12:00:00Z")
+    _install_article_page(monkeypatch, [visible, future, None])
+
+    tool = BuiltinTools.news.alpaca_news().binder(_Strategy(), None)
+    result = tool.function(include_content=True)
+
+    assert [article["id"] for article in result["articles"]] == [123]
+    assert result["content_available_count"] == 1
+    assert result["summary_available_count"] == 1
+    assert result["historical_integrity"]["upstream_article_count"] == 3
+    assert result["historical_integrity"]["excluded_counts"] == {
+        "published_after_as_of": 0,
+        "version_after_as_of": 1,
+        "unverified_availability": 1,
+    }
+
+
+def test_live_news_preserves_provider_rows_without_historical_filtering(monkeypatch):
+    class _LiveStrategy(_Strategy):
+        is_backtesting = False
+
+    articles = [
+        _historical_article(),
+        _historical_article(id=456, created_at=None, updated_at=None),
+        _historical_article(id=789, updated_at="2026-04-29T12:00:00Z"),
+    ]
+    _install_article_page(monkeypatch, articles)
+
+    tool = BuiltinTools.news.alpaca_news().binder(_LiveStrategy(), None)
+    result = tool.function(include_content=True)
+
+    assert [article["id"] for article in result["articles"]] == [123, 456, 789]
+    assert all(article["content"] == "x" * 2500 for article in result["articles"])
+    assert "historical_integrity" not in result
 
 
 def test_builtin_alpaca_news_description_teaches_scan_deep_read_and_no_keyword_search():

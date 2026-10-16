@@ -219,6 +219,14 @@ def test_ibkr_placeholder_window_suppresses_subwindow_refetch_after_restart(monk
 
         monkeypatch.setattr(ibkr_helper, "_resolve_conid", lambda *args, **kwargs: 123)
 
+        # This local negative-cache contract uses a verified, frozen empty
+        # action ledger; it must never consult Yahoo for a synthetic symbol.
+        from lumibot.tools.ibkr_equity_basis import EquityBasisSnapshot
+        basis = EquityBasisSnapshot.from_verified_actions(
+            pd.DataFrame(columns=["Dividends", "Stock Splits"], index=pd.DatetimeIndex([], tz="UTC")),
+            as_of=pd.Timestamp("2026-02-04T22:00Z"), coverage_through="2026-02-04")
+        monkeypatch.setattr(ibkr_helper, "_get_current_equity_basis", lambda _: basis)
+
         asset = Asset("RAPT", asset_type=Asset.AssetType.STOCK)
         quote = Asset("USD", asset_type=Asset.AssetType.FOREX)
 
@@ -237,6 +245,7 @@ def test_ibkr_placeholder_window_suppresses_subwindow_refetch_after_restart(monk
             exchange=None,
             source=source,
             include_after_hours=True,
+            equity_basis=basis.split_fingerprint,
         )
 
         df_seed = pd.DataFrame(

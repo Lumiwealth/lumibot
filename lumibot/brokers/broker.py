@@ -1322,20 +1322,10 @@ class Broker(ABC):
                 order_lumi = matches[0] if len(matches) > 0 else None
 
             if order_lumi:
-                if not order_lumi.equivalent_status(order.status):
-                    order_lumi.status = order.status
-                    changed = True
-
-                if order_lumi.quantity != order.quantity:
-                    order_lumi.quantity = order.quantity
-                    changed = True
-
-                for order_attr in ("limit_price", "stop_price"):
-                    olumi = getattr(order_lumi, order_attr)
-                    obroker = getattr(order, order_attr)
-                    if olumi != obroker:
-                        setattr(order_lumi, order_attr, obroker)
-                        changed = True
+                # Both broad history and direct lookup must use the adapter's
+                # lifecycle owner. Copying status here first can suppress fills,
+                # rejection details and callbacks in adapters with a reducer.
+                changed = self._apply_direct_order_observation(order_lumi, order) or changed
             elif self._first_iteration or order.is_active():
                 self._process_broker_synced_order(order)
                 changed = True

@@ -4,6 +4,7 @@ import json
 import hashlib
 import logging
 import math
+import re
 import os
 import time
 from dataclasses import dataclass
@@ -34,6 +35,7 @@ from lumibot.tools.ibkr_history_health import (
     split_session_groups,
 )
 from lumibot.tools.parquet_series_cache import ParquetSeriesCache
+from lumibot.tools.ibkr_volume import validated_volume_factor
 
 logger = logging.getLogger(__name__)
 
@@ -142,6 +144,7 @@ _FUTURES_EXCHANGE_CACHE_LOADED = False
 _NEGATIVE_CONID_CACHE: Dict[str, Dict[str, Any]] = {}
 _NEGATIVE_CONID_CACHE_LOADED = False
 _IBKR_EQUITY_ACTIONS_CACHE: Dict[str, pd.DataFrame] = {}
+_IBKR_EQUITY_BASIS_CACHE: dict = {}
 _RUNTIME_CONID_CACHE: Dict[str, int] = {}
 _RUNTIME_HISTORY_NO_DATA_WINDOWS: Dict[str, Tuple[datetime, datetime]] = {}
 # Downloader segments already requested in this process, keyed by cache file.
@@ -876,6 +879,7 @@ def get_price_data(
     include_after_hours: bool = True,
     source: Optional[str] = None,
     history_as_of: Optional[datetime] = None,
+    equity_basis=None,
 ) -> pd.DataFrame:
     """Fetch IBKR historical bars (via the Data Downloader) and cache to parquet.
 
@@ -1126,6 +1130,12 @@ def get_price_data(
     if asset_type in {"future", "cont_future"}:
         _maybe_apply_future_contract_metadata(asset=asset, exchange=effective_exchange)
 
+    if asset_type == "stock" and history_source == "Trades":
+        current_basis = _get_current_equity_basis(str(asset.symbol))
+        if equity_basis is not None and equity_basis.split_fingerprint != current_basis.split_fingerprint:
+            raise RuntimeError("corporate_actions_unavailable: equity split basis changed during this run")
+        equity_basis = equity_basis or current_basis
+
     cache_file = _cache_file_for(
         asset=asset,
         quote=quote,
@@ -1133,6 +1143,7 @@ def get_price_data(
         exchange=effective_exchange,
         source=history_source,
         include_after_hours=include_after_hours,
+        equity_basis=equity_basis.split_fingerprint if equity_basis else None,
     )
     runtime_no_data_key = str(cache_file)
     cache_manager = get_backtest_cache()
@@ -1153,6 +1164,8 @@ def get_price_data(
         pass
 
     df_cache = _read_cache_frame(cache_file)
+    if equity_basis is not None:
+        df_cache = _verified_equity_cache(df_cache, equity_basis)
     # If this series came from a cached parquet (e.g., prefilled via TWS), it may not include the
     # synthetic bid/ask fallback columns that we add when decoding Client Portal history. For
     # non-explicit history sources, populate bid/ask from close so quote-based fill logic (and
@@ -1396,8 +1409,8 @@ def get_price_data(
 
             def _checkpoint_pages(pages: pd.DataFrame, _state=checkpoint_state) -> None:
                 merged_so_far = _merge_frames(_state["frame"], pages)
-                _write_cache_frame(cache_file, merged_so_far)
-                _state["frame"] = merged_so_far
+                published = _write_cache_frame(cache_file, merged_so_far)
+                _state["frame"] = merged_so_far if published is None else published
 
             try:
                 fetched = _fetch_history_between_dates(
@@ -1413,6 +1426,7 @@ def get_price_data(
                     _page_checkpoint=_checkpoint_pages,
                 )
             except Exception as exc:
+                df_cache = checkpoint_state["frame"]
                 # Avoid crashing the entire backtest on entitlement/session issues. Return an empty
                 # frame so strategies can continue with a loud error in logs.
                 logger.error(
@@ -1473,6 +1487,7 @@ def get_price_data(
                             end_dt=_to_utc(end_utc),
                             reason=classification.reason,
                             outcome=classification.outcome,
+                            equity_basis=equity_basis.split_fingerprint if equity_basis else None,
                         )
                         # Reload to include the newly written missing markers.
                         df_cache = _read_cache_frame(cache_file)
@@ -1486,6 +1501,10 @@ def get_price_data(
                 # This fetch already recorded its precise cause. An empty-frame
                 # follow-up would overwrite it and count the same failure twice.
                 continue
+            # A conflict merge can add remote-only rows during checkpoint writes.
+            # Carry that durable coverage into the final write, not the stale
+            # frame captured before paging started.
+            df_cache = checkpoint_state["frame"]
             if fetched is None or fetched.empty:
                 # Empty payloads are ambiguous in IBKR. Cool down this process, but do not
                 # persist a cross-process negative marker.
@@ -1512,7 +1531,9 @@ def get_price_data(
                 continue
             if fetched is not None and not fetched.empty:
                 merged = _merge_frames(df_cache, fetched)
-                _write_cache_frame(cache_file, merged)
+                published = _write_cache_frame(cache_file, merged)
+                if published is not None:
+                    merged = published
                 df_cache = merged
                 # Older positive bars do not establish that the requested tail
                 # has no data. Segment-attempt tracking already bounds repeated
@@ -1595,7 +1616,9 @@ def get_price_data(
             include_after_hours=include_after_hours,
         )
         if changed:
-            _write_cache_frame(cache_file, df_aug)
+            published = _write_cache_frame(cache_file, df_aug)
+            if published is not None:
+                df_aug = published
             df_cache = df_aug
 
     if (
@@ -1615,7 +1638,9 @@ def get_price_data(
             include_after_hours=include_after_hours,
         )
         if changed:
-            _write_cache_frame(cache_file, df_aug)
+            published = _write_cache_frame(cache_file, df_aug)
+            if published is not None:
+                df_aug = published
             df_cache = df_aug
 
     if asset_type in {"stock", "index", "option"} and str(timestep_component).endswith("day"):
@@ -1624,17 +1649,27 @@ def get_price_data(
         # session open/midnight boundaries.
         aligned_cache = _align_stock_index_daily_to_session_close(df_cache)
         if not aligned_cache.index.equals(df_cache.index):
-            _write_cache_frame(cache_file, aligned_cache)
+            published = _write_cache_frame(cache_file, aligned_cache)
+            if published is not None:
+                aligned_cache = published
         df_cache = aligned_cache
 
+    actions_changed = False
     # Enrich daily equity cache with corporate actions so dividend accounting and splits are
-    # consistent with other providers. This is intentionally best-effort.
-    if asset_type == "stock" and str(timestep_component).endswith("day"):
-        enriched_cache, changed = _append_equity_corporate_actions_daily(df_cache, asset)
-        normalized_cache, normalized_changed = _normalize_equity_daily_prices_for_splits(enriched_cache)
-        if changed or normalized_changed:
-            _write_cache_frame(cache_file, normalized_cache)
-        df_cache = normalized_cache
+    # consistent with other providers. Unknown actions must not become zero events.
+    if equity_basis is not None and str(timestep_component).endswith("day"):
+        enriched_cache, actions_changed = _append_equity_corporate_actions_daily(
+            df_cache, asset, actions=equity_basis.actions_frame())
+        df_cache = enriched_cache
+    if equity_basis is not None:
+        from lumibot.tools.ibkr_equity_basis import assert_same_basis, decorate_adjusted_frame
+        expected_basis = decorate_adjusted_frame(pd.DataFrame(), equity_basis, provider_prices_verified=True)
+        assert_same_basis(df_cache, expected_basis)
+        df_cache = decorate_adjusted_frame(df_cache, equity_basis, provider_prices_verified=True)
+        if actions_changed:
+            published = _write_cache_frame(cache_file, df_cache)
+            if published is not None:
+                df_cache = published
 
     # Remove placeholder rows from the returned frame (but keep them in cache).
     frame = df_cache.loc[(df_cache.index >= start_local) & (df_cache.index <= end_local)].copy()
@@ -1643,8 +1678,6 @@ def get_price_data(
         # integer bitwise NOT instead of a boolean mask.
         frame = frame[~frame["missing"].fillna(False).astype(bool)]
     frame = _strip_missing_cache_metadata(frame)
-    if asset_type in {"stock", "index"} and str(timestep_component).endswith("day"):
-        frame = _repair_isolated_split_spikes_daily(frame)
     placeholder_covered = _window_is_placeholder_covered(df_cache, start_local=start_local, end_local=end_local)
     if not frame.empty:
         try:
@@ -1721,282 +1754,15 @@ def _normalize_split_ratio(value: Any) -> Optional[float]:
     return ratio
 
 
-def _split_row_needs_price_adjustment(close: pd.Series, split_pos: int, ratio: float) -> bool:
-    """Return True when the local split window still has a raw split-level jump.
-
-    IBKR daily cache rows can be mixed: older rows may already be split-adjusted while
-    a newly appended tail around a fresh split is still raw. A per-split continuity test
-    prevents double-adjusting the already-normalized part of the cache.
-    """
-    if split_pos <= 0 or split_pos >= len(close):
-        return False
-
-    prev_close = close.iat[split_pos - 1]
-    split_close = close.iat[split_pos]
-    if (
-        pd.isna(prev_close)
-        or pd.isna(split_close)
-        or prev_close <= 0
-        or split_close <= 0
-    ):
-        return False
-
-    observed = float(prev_close) / float(split_close)
-    if observed <= 0:
-        return False
-
-    # In adjusted space, adjacent closes should be closer to 1x. In raw space,
-    # the adjacent ratio should be closer to the split ratio.
-    raw_score = abs(math.log(observed / ratio))
-    adjusted_score = abs(math.log(observed))
-    return raw_score < adjusted_score
-
-
-def _find_split_raw_segment_start(close: pd.Series, split_pos: int, ratio: float) -> int:
-    """Find where a mixed raw pre-split cache segment begins.
-
-    If a cache was partially refreshed after a split, the rows immediately before the split
-    can be raw while older rows are already adjusted. In that case there is usually a
-    persistent split-factor level jump at the cache splice point. Return that splice row;
-    if none is found, the whole history before the split is treated as raw.
-    """
-    for pos in range(split_pos - 1, 0, -1):
-        prev_close = close.iat[pos - 1]
-        cur_close = close.iat[pos]
-        if (
-            pd.isna(prev_close)
-            or pd.isna(cur_close)
-            or prev_close <= 0
-            or cur_close <= 0
-        ):
-            continue
-        observed = float(cur_close) / float(prev_close)
-        if observed <= 0:
-            continue
-        raw_boundary_score = abs(math.log(observed / ratio))
-        continuity_score = abs(math.log(observed))
-        if raw_boundary_score < continuity_score:
-            return pos
-    return 0
-
-
 def _normalize_equity_daily_prices_for_splits(frame: pd.DataFrame) -> tuple[pd.DataFrame, bool]:
-    """Normalize IBKR stock daily bars into split-adjusted price space.
-
-    LumiBot's stock backtesting providers generally expose Yahoo-style split-adjusted
-    OHLC to strategies. IBKR daily cache data can arrive raw for newly appended split
-    tails while older cached rows are already continuous. This function repairs only
-    the split dates whose local price jump still looks raw, marks the frame as
-    `_split_adjusted`, and lets the broker ledger skip share multiplication for the
-    adjusted frame.
-    """
-    if frame is None or frame.empty or "stock_splits" not in frame.columns or "close" not in frame.columns:
+    """Preserve qualified adjusted provider prices; never infer a split from shape."""
+    if frame is None or frame.empty:
         return frame, False
-
-    out = frame.sort_index().copy()
-    marker_all_adjusted = False
-    if "_split_adjusted" in out.columns:
-        marker = out["_split_adjusted"]
-        try:
-            marker_all_adjusted = bool(marker.fillna(False).astype(bool).all())
-        except Exception:
-            marker_all_adjusted = False
-
-    close = pd.to_numeric(out["close"], errors="coerce")
-    splits = pd.to_numeric(out["stock_splits"], errors="coerce").fillna(0.0)
-    split_positions = [i for i, value in enumerate(splits.to_numpy()) if _normalize_split_ratio(value) is not None]
-    if not split_positions:
-        if marker_all_adjusted:
-            return out, False
-        out["_split_adjusted"] = True
-        return out, True
-
-    price_cols = [
-        col
-        for col in ("open", "high", "low", "close", "bid", "ask", "last", "vwap")
-        if col in out.columns
-    ]
-    volume_cols = [col for col in ("volume",) if col in out.columns]
-    dividend_cols = [col for col in ("dividend",) if col in out.columns]
-
-    changed = False
-    adjusted_splits = 0
-    for split_pos in split_positions:
-        ratio = _normalize_split_ratio(splits.iat[split_pos])
-        if ratio is None:
-            continue
-        if not _split_row_needs_price_adjustment(close, split_pos, ratio):
-            continue
-
-        segment_start = _find_split_raw_segment_start(close, split_pos, ratio)
-        before_mask = pd.Series(False, index=out.index)
-        before_mask.iloc[segment_start:split_pos] = True
-        for col in price_cols + dividend_cols:
-            out.loc[before_mask, col] = pd.to_numeric(out.loc[before_mask, col], errors="coerce") / ratio
-        for col in volume_cols:
-            out.loc[before_mask, col] = pd.to_numeric(out.loc[before_mask, col], errors="coerce") * ratio
-
-        close = pd.to_numeric(out["close"], errors="coerce")
-        changed = True
-        adjusted_splits += 1
-
-    if not marker_all_adjusted or not out["_split_adjusted"].fillna(False).astype(bool).all():
-        out["_split_adjusted"] = True
-        changed = True
-
-    if adjusted_splits:
-        logger.warning("IBKR daily split normalization adjusted %s split boundary/boundaries.", adjusted_splits)
-    return out, changed
-
-
-def _repair_isolated_split_spikes_daily(df: pd.DataFrame) -> pd.DataFrame:
-    """Repair isolated split-like spikes in daily stock/index bars.
-
-    Why:
-    - Some IBKR daily stock/index series can contain a one-day bar scaled by a split factor
-      (2x/3x/...) that immediately reverts the next day.
-    - This creates impossible +100%/+200% followed by -50%/-66% portfolio jumps.
-
-    Scope:
-    - Only isolated one-day anomalies are repaired.
-    - Persistent level shifts are left untouched.
-    """
-    if df is None or df.empty or "close" not in df.columns or len(df) < 3:
-        return df
-
-    frame = df.sort_index().copy()
-    candidate_cols = [c for c in ("open", "high", "low", "close", "bid", "ask", "last", "vwap") if c in frame.columns]
-    if not candidate_cols:
-        return frame
-
-    numeric = {col: pd.to_numeric(frame[col], errors="coerce").copy() for col in candidate_cols}
-    close = numeric["close"]
-
-    factors = (2.0, 3.0, 4.0, 5.0, 10.0)
-    factor_tol = 0.25
-    reversion_tol = 0.25
-    adjusted_rows = 0
-
-    def _near(value: float, target: float, rel_tol: float) -> bool:
-        if value <= 0 or target <= 0:
-            return False
-        return abs(value - target) <= abs(target) * rel_tol
-
-    def _row_scales_like(idx: int, factor: float, upward: bool) -> bool:
-        # Require most OHLC fields to indicate the same factor jump.
-        ratios: list[float] = []
-        for col in ("open", "high", "low", "close"):
-            series = numeric.get(col)
-            if series is None:
-                continue
-            prev_val = series.iat[idx - 1]
-            cur_val = series.iat[idx]
-            if pd.isna(prev_val) or pd.isna(cur_val) or prev_val <= 0 or cur_val <= 0:
-                continue
-            ratio = (cur_val / prev_val) if upward else (prev_val / cur_val)
-            ratios.append(float(ratio))
-        if len(ratios) < 2:
-            return False
-        hits = sum(1 for ratio in ratios if _near(ratio, factor, factor_tol))
-        return hits >= max(2, len(ratios) - 1)
-
-    def _trailing_level_stable(last_idx: int) -> bool:
-        # Guard against mutating genuine regime shifts by requiring a stable
-        # trailing level before we adjust a terminal-row spike.
-        start = max(0, last_idx - 6)
-        trailing = close.iloc[start:last_idx].dropna()
-        if len(trailing) < 3:
-            return False
-        ref = float(trailing.median())
-        if ref <= 0:
-            return False
-        return abs(float(close.iat[last_idx - 1]) / ref - 1.0) <= 0.35
-
-    for i in range(1, len(frame) - 1):
-        prev_close = close.iat[i - 1]
-        cur_close = close.iat[i]
-        next_close = close.iat[i + 1]
-        if (
-            pd.isna(prev_close)
-            or pd.isna(cur_close)
-            or pd.isna(next_close)
-            or prev_close <= 0
-            or cur_close <= 0
-            or next_close <= 0
-        ):
-            continue
-
-        action = None
-        for factor in factors:
-            # Upward spike on day i that reverts on day i+1.
-            if (
-                _near(float(cur_close / prev_close), factor, factor_tol)
-                and _near(float(next_close / prev_close), 1.0, reversion_tol)
-                and _row_scales_like(i, factor, upward=True)
-            ):
-                action = ("divide", factor)
-                break
-
-            # Downward spike on day i that reverts on day i+1.
-            if (
-                _near(float(prev_close / cur_close), factor, factor_tol)
-                and _near(float(next_close / prev_close), 1.0, reversion_tol)
-                and _row_scales_like(i, factor, upward=False)
-            ):
-                action = ("multiply", factor)
-                break
-
-        if action is None:
-            continue
-
-        op, factor = action
-        for col, series in numeric.items():
-            val = series.iat[i]
-            if pd.isna(val):
-                continue
-            series.iat[i] = (val / factor) if op == "divide" else (val * factor)
-        close = numeric["close"]
-        adjusted_rows += 1
-
-    # Terminal-row fallback:
-    # In rolling backtests we often evaluate up to the current day only, so the latest row does
-    # not yet have the next-day reversion available. Detect obvious split-factor spikes on that
-    # final row using trailing-level stability as a safety check.
-    last_i = len(frame) - 1
-    if last_i >= 1 and _trailing_level_stable(last_i):
-        prev_close = close.iat[last_i - 1]
-        cur_close = close.iat[last_i]
-        if (
-            not pd.isna(prev_close)
-            and not pd.isna(cur_close)
-            and prev_close > 0
-            and cur_close > 0
-        ):
-            terminal_action = None
-            for factor in factors:
-                if _near(float(cur_close / prev_close), factor, factor_tol) and _row_scales_like(last_i, factor, upward=True):
-                    terminal_action = ("divide", factor)
-                    break
-                if _near(float(prev_close / cur_close), factor, factor_tol) and _row_scales_like(last_i, factor, upward=False):
-                    terminal_action = ("multiply", factor)
-                    break
-
-            if terminal_action is not None:
-                op, factor = terminal_action
-                for col, series in numeric.items():
-                    val = series.iat[last_i]
-                    if pd.isna(val):
-                        continue
-                    series.iat[last_i] = (val / factor) if op == "divide" else (val * factor)
-                close = numeric["close"]
-                adjusted_rows += 1
-
-    if adjusted_rows > 0:
-        for col, series in numeric.items():
-            frame[col] = series
-        logger.warning("IBKR daily split-spike repair adjusted %s row(s).", adjusted_rows)
-
-    return frame
+    if "_ibkr_split_basis" not in frame or "_split_adjusted" not in frame or not frame["_split_adjusted"].fillna(False).eq(True).all():
+        raise ValueError("IBKR equity adjustment basis is unverified; reload qualified provider prices")
+    from lumibot.tools.ibkr_equity_basis import assert_same_basis
+    assert_same_basis(frame, frame)
+    return frame, False
 
 
 def _resolve_cont_future_segments(*, asset: Asset, start_dt: datetime, end_dt: datetime,
@@ -2160,6 +1926,7 @@ def _get_cached_bars_for_source(
     end_local = end_utc.astimezone(LUMIBOT_DEFAULT_PYTZ)
 
     history_source = _normalize_history_source(source)
+    equity_basis = _get_current_equity_basis(str(asset.symbol)) if _normalize_asset_type(asset.asset_type) == "stock" and history_source == "Trades" else None
     cache_file = _cache_file_for(
         asset=asset,
         quote=quote,
@@ -2167,6 +1934,7 @@ def _get_cached_bars_for_source(
         exchange=exchange,
         source=history_source,
         include_after_hours=include_after_hours,
+        equity_basis=equity_basis.split_fingerprint if equity_basis else None,
     )
     cache_manager = get_backtest_cache()
     try:
@@ -2185,6 +1953,8 @@ def _get_cached_bars_for_source(
         pass
 
     df_cache = _read_cache_frame(cache_file)
+    if equity_basis is not None:
+        df_cache = _verified_equity_cache(df_cache, equity_basis)
     if not df_cache.empty:
         coverage_start = df_cache.index.min()
         coverage_end = df_cache.index.max()
@@ -2258,7 +2028,9 @@ def _get_cached_bars_for_source(
                 fetched = pd.DataFrame()
             if fetched is not None and not fetched.empty:
                 merged = _merge_frames(df_cache, fetched)
-                _write_cache_frame(cache_file, merged)
+                published = _write_cache_frame(cache_file, merged)
+                if published is not None:
+                    merged = published
                 df_cache = merged
                 # Older bars are available data, not confirmation that the
                 # newer requested interval is empty. Keep that tail retryable.
@@ -2420,11 +2192,13 @@ def _fetch_history_between_dates(
     _max_timeout_attempts: Optional[int] = None,
     _deadline_monotonic: Optional[float] = None,
     _page_checkpoint: Optional[Callable[[pd.DataFrame], None]] = None,
+    _backend: Optional[str] = None,
 ) -> pd.DataFrame:
     conid = _resolve_conid(asset=asset, quote=quote, exchange=exchange)
     conid_refreshed = False
     bar, bar_seconds, _cache_timestep = _timestep_to_ibkr_bar(timestep)
     asset_type = _normalize_asset_type(getattr(asset, "asset_type", ""))
+    equity_basis = _get_current_equity_basis(str(asset.symbol)) if asset_type == "stock" and _normalize_history_source(source) == "Trades" else None
     # IBKR's `continuous=true` is IBKR-specific roll behavior. For LumiBot `cont_future` assets
     # we prefer our own synthetic roll (explicit contract series per expiration) so parity is
     # stable across data providers. Only request IBKR "continuous" when we truly do not have an
@@ -2483,6 +2257,7 @@ def _fetch_history_between_dates(
                 source=source,
                 queue_timeout=max(0.1, queue_timeout) if queue_timeout is not None else None,
                 max_timeout_attempts=_max_timeout_attempts,
+                **({"backend": _backend} if _backend else {}),
             )
         except Exception as exc:
             smaller_period = _smaller_daily_period_after_chart_unavailable(
@@ -2566,6 +2341,7 @@ def _fetch_history_between_dates(
         df = _history_payload_to_frame(
             data,
             source_was_explicit=source_was_explicit,
+            volume_factor=validated_volume_factor(payload, asset_type, source),
             daily_session_dates_from_utc=(backend == "tws" and asset_type in {"stock", "index"} and bar.endswith("d")),
         ) if data else pd.DataFrame()
         if df.empty:
@@ -2646,6 +2422,13 @@ def _fetch_history_between_dates(
                 )
             return pd.DataFrame()
 
+        if equity_basis is not None:
+            from lumibot.tools.ibkr_equity_basis import decorate_adjusted_frame
+            if _get_current_equity_basis(str(asset.symbol)).split_fingerprint != equity_basis.split_fingerprint:
+                raise RuntimeError("corporate_actions_unavailable: equity split basis changed during download")
+            # Both configured historical equity TRADES routes supply split-adjusted
+            # prices; volume normalization is independently validated at decoding.
+            df = decorate_adjusted_frame(df, equity_basis, provider_prices_verified=True)
         chunks.append(df)
         futures_empty_open_pages = 0
         if _page_checkpoint is not None and len(chunks) - checkpointed_pages >= IBKR_PAGE_CHECKPOINT_EVERY:
@@ -2933,6 +2716,7 @@ def _ibkr_history_request(
     source: str,
     queue_timeout: Optional[float] = None,
     max_timeout_attempts: Optional[int] = None,
+    backend: Optional[str] = None,
 ) -> Dict[str, Any]:
     base_url = _downloader_base_url()
     url = f"{base_url}/ibkr/iserver/marketdata/history"
@@ -2951,6 +2735,10 @@ def _ibkr_history_request(
         "source": source,
         "startTime": start_time_utc.strftime("%Y%m%d-%H:%M:%S"),
     }
+    if backend is not None:
+        if backend not in {"rest", "tws"}:
+            raise ValueError("Unsupported IBKR history backend")
+        query["ibkr_backend"] = backend
     if continuous:
         query["continuous"] = "true"
     if exchange:
@@ -2992,6 +2780,7 @@ def _ibkr_history_request(
 
 def _history_payload_to_frame(
     data: Any, *, source_was_explicit: bool, daily_session_dates_from_utc: bool = False,
+    volume_factor: float = 1.0,
 ) -> pd.DataFrame:
     df = pd.DataFrame(data)
     if df.empty:
@@ -3000,6 +2789,13 @@ def _history_payload_to_frame(
     # IBKR payload columns: t(ms), o, h, l, c, v.
     rename = {"t": "timestamp", "o": "open", "h": "high", "l": "low", "c": "close", "v": "volume"}
     df = df.rename(columns=rename)
+    if "volume" in df.columns:
+        # Provider response metadata defines units. Normalize only fresh raw
+        # rows, before merging or persistence; cache reads never scale again.
+        # IBKR's unavailable-volume sentinel (-1) and nulls are not trades.
+        volume = pd.to_numeric(df["volume"], errors="raise")
+        scalable = volume.notna() & (volume >= 0) & (volume < float("inf"))
+        df["volume"] = volume.where(~scalable, volume * volume_factor)
     if "timestamp" not in df.columns:
         return pd.DataFrame()
 
@@ -3108,6 +2904,10 @@ def _merge_frames(existing: pd.DataFrame, incoming: pd.DataFrame) -> pd.DataFram
     elif incoming is None or incoming.empty:
         merged = existing
     else:
+        from lumibot.tools.ibkr_equity_basis import assert_same_basis
+        # Unknown/unknown non-equity frames retain their existing behavior.
+        # A known equity basis may never mix with unknown or another split basis.
+        assert_same_basis(existing, incoming)
         merged = pd.concat([existing, incoming], axis=0)
     if merged is None or merged.empty:
         return merged
@@ -3285,6 +3085,7 @@ def _repair_us_stock_index_daily_gaps(
         "ARCA",
         "AMEX",
         "IEX",
+        "CBOE",
     }:
         return df_cache
 
@@ -3384,6 +3185,40 @@ def _repair_us_stock_index_daily_gaps(
                 exc,
             )
 
+    # An authenticated REST route can return an older final day without an
+    # error (observed SPX, October 2026). Try the existing TWS route once for
+    # the missing sessions, keeping the same instrument/source and deadline.
+    real = working.loc[~working.get("missing", pd.Series(False, index=working.index)).fillna(False).astype(bool)]
+    remaining_sessions = [session for session in gaps if session.date() not in set(real.index.date)]
+    if remaining_sessions and not real.empty and deadline > time.perf_counter():
+        try:
+            alt_start, alt_end = padded_repair_window(remaining_sessions, padding_days=4)
+            alternate = _fetch_history_between_dates(
+                asset=asset, quote=quote, timestep=timestep, start_dt=alt_start, end_dt=alt_end,
+                exchange=exchange, include_after_hours=include_after_hours, source=source,
+                source_was_explicit=source_was_explicit, _record_missing_on_empty=False,
+                _queue_timeout=max(0.1, deadline - time.perf_counter()), _max_timeout_attempts=1,
+                _deadline_monotonic=deadline, _backend="tws")
+            repair_attempts += 1
+            alternate = _align_stock_index_daily_to_session_close(alternate)
+            overlap = real.index.intersection(alternate.index)
+            columns = [name for name in ("open", "high", "low", "close") if name in real and name in alternate]
+            # A shared session proves date/adjustment compatibility. Small
+            # vendor rounding is allowed: one basis point plus one cent.
+            compatible = bool(len(overlap) and len(columns) == 4)
+            if compatible:
+                left = real.loc[overlap, columns].to_numpy(dtype=float)
+                right = alternate.loc[overlap, columns].to_numpy(dtype=float)
+                compatible = bool(np.isfinite(left).all() and np.isfinite(right).all()
+                                  and np.isclose(left, right, rtol=0.0001, atol=0.01).all())
+            if compatible:
+                # Never rewrite existing real bars with another backend.
+                working = _merge_frames(working, alternate.loc[~alternate.index.isin(real.index)])
+            else:
+                logger.warning("IBKR alternate daily route lacks compatible overlap for %s", getattr(asset, "symbol", None))
+        except Exception as exc:
+            logger.warning("IBKR alternate daily route unavailable for %s: %s", getattr(asset, "symbol", None), type(exc).__name__)
+
     missing_mask = (
         working["missing"].fillna(False).astype(bool)
         if "missing" in working.columns
@@ -3413,7 +3248,9 @@ def _repair_us_stock_index_daily_gaps(
     )
 
     if not working.equals(df_cache):
-        _write_cache_frame(cache_file, working)
+        published = _write_cache_frame(cache_file, working)
+        if published is not None:
+            working = published
     return working
 
 
@@ -3719,7 +3556,9 @@ def _repair_us_stock_index_hourly_gaps(
                 changed = True
 
     if changed:
-        _write_cache_frame(cache_file, working)
+        published = _write_cache_frame(cache_file, working)
+        if published is not None:
+            working = published
     _RUNTIME_HOURLY_GAP_CHECKED_SERIES[series_key] = (
         _hourly_cache_signature(working),
         request_start,
@@ -4033,7 +3872,9 @@ def _repair_us_stock_index_minute_gaps(
             empty_sessions.append((session_open, session_close))
         if unsaved_pages >= IBKR_PAGE_CHECKPOINT_EVERY:
             # Keep progress if the process is stopped during a long repair.
-            _write_cache_frame(cache_file, working)
+            published = _write_cache_frame(cache_file, working)
+            if published is not None:
+                working = published
             unsaved_pages = 0
 
     if empty_sessions:
@@ -4041,7 +3882,9 @@ def _repair_us_stock_index_minute_gaps(
         working = _merge_frames(working, _minute_session_markers(empty_sessions, retry_after=retry_after))
 
     if not working.equals(df_cache):
-        _write_cache_frame(cache_file, working)
+        published = _write_cache_frame(cache_file, working)
+        if published is not None:
+            working = published
 
     unresolved = _missing_us_minute_sessions(working, start_dt=start_dt, end_dt=end_dt)
     record_history_health(
@@ -4214,6 +4057,7 @@ def _record_missing_window(
     end_dt: datetime,
     reason: str,
     outcome: HistoryOutcome,
+    equity_basis: str | None = None,
 ) -> None:
     if outcome is not HistoryOutcome.CONFIRMED_NO_DATA:
         raise ValueError("Only confirmed_no_data may be persisted as a missing window")
@@ -4225,6 +4069,7 @@ def _record_missing_window(
         exchange=exchange,
         source=source,
         include_after_hours=include_after_hours,
+        equity_basis=equity_basis,
     )
     cache_manager = get_backtest_cache()
     try:
@@ -5612,6 +5457,7 @@ def _cache_file_for(
     exchange: Optional[str],
     source: str,
     include_after_hours: bool,
+    equity_basis: str | None = None,
 ) -> Path:
     provider_root = Path(LUMIBOT_CACHE_FOLDER) / CACHE_SUBFOLDER
     asset_folder = _asset_folder(asset)
@@ -5633,6 +5479,15 @@ def _cache_file_for(
     # intact for older readers and rollback.
     if asset_folder in {"stock", "index"} and _bar.endswith("d"):
         suffix += "_SESSION_DATE_V2"
+    # Older traded bars may mix REST lots and TWS units without provenance.
+    # Keep those files intact, but never hydrate them as normalized volume.
+    # Quote-only and index caches carry no traded volume and remain reusable.
+    if asset_folder != "index" and source_component in {"TRADES", "TRADES_DERIVED_DAILY"}:
+        suffix += "_VOL_V1"
+    if asset_folder == "stock" and equity_basis:
+        if not re.fullmatch(r"SPLIT_V1_[a-f0-9]{64}", equity_basis):
+            raise ValueError("Invalid equity split basis identity")
+        suffix += "_" + equity_basis
     filename = (
         f"{asset_folder}_{symbol}_{quote_symbol}_{timestep_component}_{exch}_{source_component}_{session_component}"
         f"{suffix}.parquet"
@@ -5719,7 +5574,7 @@ def _normalize_history_source(source: Optional[str]) -> str:
 
 
 def _get_cached_equity_actions(symbol: str, last_needed_datetime: Optional[datetime] = None) -> pd.DataFrame:
-    """Return cached split/dividend actions for an equity symbol (best effort)."""
+    """Return verified actions; provider failures are retryable, never cached as absence."""
     key = str(symbol or "").strip().upper()
     if not key:
         return pd.DataFrame(columns=["Dividends", "Stock Splits"])
@@ -5746,31 +5601,93 @@ def _get_cached_equity_actions(symbol: str, last_needed_datetime: Optional[datet
             auto_adjust=False,
             last_needed_datetime=last_needed_datetime,
         )
-        if history is not None and not history.empty:
-            raw = history[["Dividends", "Stock Splits"]]
-            raw = raw[(raw != 0).any(axis=1)].fillna(0)
+        if not isinstance(history, pd.DataFrame) or history.empty:
+            raise ValueError("empty corporate-action history")
+        raw = history[["Dividends", "Stock Splits"]].apply(pd.to_numeric, errors="raise")
+        if raw.isna().any().any() or not np.isfinite(raw.to_numpy()).all():
+            raise ValueError("invalid corporate-action values")
+        if (raw["Stock Splits"] < 0).any():
+            raise ValueError("invalid split ratio")
+        raw.index = pd.to_datetime(raw.index, errors="raise")
+        if raw.index.isna().any() or raw.index.has_duplicates:
+            raise ValueError("invalid corporate-action dates")
+        if isinstance(last_needed_datetime, datetime):
+            required_end = min(_to_utc(last_needed_datetime), datetime.now(timezone.utc))
+            expected = _expected_us_daily_sessions(
+                start_dt=required_end - timedelta(days=14), end_dt=required_end + timedelta(microseconds=1))
+            if expected and raw.index.max().date() < expected[-1].date():
+                raise ValueError("corporate-action history is stale")
+        actions = raw.loc[(raw != 0).any(axis=1)].copy()
+        if actions.index.tz is None:
+            actions.index = actions.index.tz_localize(LUMIBOT_DEFAULT_PYTZ)
         else:
-            raw = None
-
-        if raw is not None and not raw.empty:
-            actions = raw.copy()
-            actions.index = pd.to_datetime(actions.index, errors="coerce")
-            actions = actions[~actions.index.isna()]
-            if actions.index.tz is None:
-                actions.index = actions.index.tz_localize(LUMIBOT_DEFAULT_PYTZ)
-            else:
-                actions.index = actions.index.tz_convert(LUMIBOT_DEFAULT_PYTZ)
-            actions = actions.sort_index()
+            actions.index = actions.index.tz_convert(LUMIBOT_DEFAULT_PYTZ)
+        actions = actions.sort_index()
+        actions.attrs["coverage_through"] = raw.index.max().date().isoformat()
     except Exception as exc:
-        logger.debug("IBKR equity corporate actions unavailable for %s: %s", key, exc)
+        # Do not log provider payloads or memoize an empty table. A later call can
+        # recover using the provider's normal persistent cache/retry path.
+        from lumibot.tools.ibkr_history_health import record_required_data_issue
+        record_required_data_issue(asset=Asset(key), timestep="day",
+            when=last_needed_datetime or datetime.now(timezone.utc), reason="corporate_actions_unavailable",
+            recovery_cause="corporate_actions_unverified", retryable=True)
+        raise RuntimeError(f"corporate_actions_unavailable: {key}") from exc
 
     _IBKR_EQUITY_ACTIONS_CACHE[cache_key] = actions
-    if cache_key != key and key not in _IBKR_EQUITY_ACTIONS_CACHE:
-        _IBKR_EQUITY_ACTIONS_CACHE[key] = actions
     return actions
 
 
-def _append_equity_corporate_actions_daily(frame: pd.DataFrame, asset: Asset) -> tuple[pd.DataFrame, bool]:
+def _verified_equity_cache(frame, snapshot):
+    """An unversioned or interrupted mixed cache must be refetched, never guessed."""
+    if frame is None or frame.empty:
+        return frame
+    from lumibot.tools.ibkr_equity_basis import EquityBasisError, assert_same_basis, decorate_adjusted_frame
+    expected = decorate_adjusted_frame(pd.DataFrame(), snapshot, provider_prices_verified=True)
+    try:
+        assert_same_basis(frame, expected)
+    except EquityBasisError:
+        logger.warning("IBKR equity cache has unverified adjustment provenance; refetching")
+        return pd.DataFrame()
+    return frame
+
+
+def _get_current_equity_basis(symbol: str):
+    from lumibot.tools.ibkr_equity_basis import EquityBasisSnapshot
+    now = _ibkr_history_now_utc()
+    symbol = str(symbol).strip().upper()
+    bucket = now.strftime("%Y-%m-%dT%H")
+    cached = _IBKR_EQUITY_BASIS_CACHE.get(symbol)
+    if cached is not None and cached[0] == bucket:
+        return cached[1]
+    from lumibot.tools.helpers import get_trading_days
+    local = now.astimezone(LUMIBOT_DEFAULT_PYTZ)
+    sessions = get_trading_days(market="NYSE", start_date=(local - timedelta(days=14)).date(),
+                               end_date=(local + timedelta(days=1)).date(), tzinfo=LUMIBOT_DEFAULT_PYTZ)
+    if sessions is None or sessions.empty:
+        raise RuntimeError(f"corporate_actions_unavailable: {symbol} session calendar unavailable")
+    # Include today's effective actions even before its close; on weekends require
+    # Friday, not an impossible Saturday daily row that causes full-history fetches.
+    closes = pd.DatetimeIndex(sessions["market_close"]).tz_convert(LUMIBOT_DEFAULT_PYTZ)
+    closes = closes[closes.date <= local.date()]
+    latest_session = closes[-1]
+    needed = latest_session.normalize().to_pydatetime()
+    # A historical replay must still learn splits effective since its end date.
+    # Reuse the provider's existing persistent cache, but demand current coverage.
+    key = f"{symbol}:{needed.date().isoformat()}"
+    _IBKR_EQUITY_ACTIONS_CACHE.pop(key, None)
+    actions = _get_cached_equity_actions(symbol, last_needed_datetime=needed)
+    coverage = actions.attrs.get("coverage_through")
+    if not coverage:
+        raise RuntimeError(f"corporate_actions_unavailable: {symbol} source coverage is unknown")
+    if str(coverage) < needed.date().isoformat():
+        raise RuntimeError(f"corporate_actions_unavailable: {symbol} current effective session is unverified")
+    coverage = min(str(coverage), local.date().isoformat())
+    snapshot = EquityBasisSnapshot.from_verified_actions(actions, as_of=now, coverage_through=coverage)
+    _IBKR_EQUITY_BASIS_CACHE[symbol] = (bucket, snapshot)
+    return snapshot
+
+
+def _append_equity_corporate_actions_daily(frame: pd.DataFrame, asset: Asset, *, actions=None) -> tuple[pd.DataFrame, bool]:
     """Append `dividend` + `stock_splits` columns to daily equity bars.
 
     WHY:
@@ -5807,8 +5724,16 @@ def _append_equity_corporate_actions_daily(frame: pd.DataFrame, asset: Asset) ->
     except Exception:
         last_needed_datetime = None
 
-    actions = _get_cached_equity_actions(symbol, last_needed_datetime=last_needed_datetime)
+    if actions is None:
+        actions = _get_cached_equity_actions(symbol, last_needed_datetime=last_needed_datetime)
     if actions.empty:
+        # A verified correction can remove an event. Reusing prior columns would
+        # retain a dividend or split the source no longer reports.
+        if bool((out[["dividend", "stock_splits"]].fillna(0) != 0).any().any()):
+            out = out.copy()
+            out["dividend"] = 0.0
+            out["stock_splits"] = 0.0
+            changed = True
         return out, changed
 
     idx = pd.DatetimeIndex(out.index)
@@ -5828,10 +5753,13 @@ def _append_equity_corporate_actions_daily(frame: pd.DataFrame, asset: Asset) ->
         split_map = split_series.groupby(actions.index.date).sum().to_dict()
 
     if div_map or split_map:
-        out = out.copy()
-        out["dividend"] = [float(div_map.get(day, 0.0)) for day in idx_dates]
-        out["stock_splits"] = [float(split_map.get(day, 0.0)) for day in idx_dates]
-        changed = True
+        dividends = pd.Series([float(div_map.get(day, 0.0)) for day in idx_dates], index=out.index)
+        splits = pd.Series([float(split_map.get(day, 0.0)) for day in idx_dates], index=out.index)
+        if not (out["dividend"].eq(dividends).all() and out["stock_splits"].eq(splits).all()):
+            out = out.copy()
+            out["dividend"] = dividends
+            out["stock_splits"] = splits
+            changed = True
 
     return out, changed
 
@@ -5879,16 +5807,32 @@ def _read_cache_frame(path: Path) -> pd.DataFrame:
     return df
 
 
-def _write_cache_frame(path: Path, df: pd.DataFrame) -> None:
+def _write_cache_frame(path: Path, df: pd.DataFrame) -> pd.DataFrame:
     path.parent.mkdir(parents=True, exist_ok=True)
     df_to_save = df.copy()
     if not isinstance(df_to_save.index, pd.DatetimeIndex):
         raise ValueError("IBKR cache frames must be indexed by datetime")
     df_to_save.to_parquet(path)
+
+    def identity():
+        stat = path.stat()
+        return (stat.st_dev, stat.st_ino, stat.st_size, stat.st_mtime_ns, stat.st_ctime_ns)
+
+    written = identity()
     try:
         get_backtest_cache().on_local_update(path, payload=_remote_payload_from_path(path))
     except Exception:
         pass
+    # Conditional publication can merge rows written concurrently into this file.
+    # Return those rows to the owner so its next checkpoint cannot erase them.
+    # Ordinary uploads leave the file untouched: no extra parse or remote read.
+    if identity() != written:
+        durable = _read_cache_frame(path)
+        from lumibot.tools.ibkr_equity_basis import assert_same_basis
+        assert_same_basis(df, durable)
+        durable.attrs.update(df.attrs)
+        return durable
+    return df
 
 
 def _contract_info_cache_file(conid: int) -> Path:

@@ -1001,6 +1001,8 @@ class BacktestingBroker(Broker):
             return None
 
         existing_position = self.get_tracked_position(order.strategy, order.asset)
+        previous_quantity = existing_position._quantity if existing_position is not None else Decimal(0)
+        previous_average = existing_position.avg_fill_price if existing_position is not None else None
 
         # Currently perfect fill price in backtesting!
         order.avg_fill_price = price
@@ -1008,6 +1010,7 @@ class BacktestingBroker(Broker):
         position = super()._process_filled_order(order, price, quantity)
         if existing_position:
             position.add_order(order, quantity)  # Add will update quantity, but not double count the order
+            self._update_position_fill_basis(position, previous_quantity, previous_average, price)
             if position.quantity == 0:
                 logger.info(f"Position {position} liquidated")
                 self._filled_positions.remove(position)
@@ -1033,6 +1036,7 @@ class BacktestingBroker(Broker):
                         cancel_sides=cancel_sides,
                     )
         else:
+            self._update_position_fill_basis(position, previous_quantity, previous_average, price)
             self._filled_positions.append(position)  # New position, add it to the tracker
 
         # If this is a child order, update the parent order status if all children are filled or cancelled.
@@ -1060,15 +1064,47 @@ class BacktestingBroker(Broker):
         filled_ids.add(identifier)
         self._filled_orders.append(order)
 
+    @staticmethod
+    def _update_position_fill_basis(position, previous_quantity, previous_average, price):
+        """Maintain average entry price from executed deltas, not order quantity.
+
+        Reductions realize P&L without changing the remaining entry basis. A
+        crossing fill opens the opposite side at this fill's price. Live brokers
+        continue to own their reported position basis; this is backtesting only.
+        """
+        current_quantity = position._quantity
+        if current_quantity == 0:
+            position.avg_fill_price = None
+        elif previous_quantity == 0 or previous_quantity * current_quantity < 0:
+            position.avg_fill_price = float(price)
+        elif abs(current_quantity) > abs(previous_quantity):
+            if previous_average is None:
+                position.avg_fill_price = None
+            else:
+                added_quantity = abs(current_quantity) - abs(previous_quantity)
+                position.avg_fill_price = float(
+                    (abs(previous_quantity) * Decimal(str(previous_average))
+                     + added_quantity * Decimal(str(price))) / abs(current_quantity)
+                )
+        else:
+            position.avg_fill_price = previous_average
+
     def _process_partially_filled_order(self, order, price, quantity):
         """
         BackTesting needs to create/update positions when orders are partially filled becuase there is no broker
         to do it
         """
         existing_position = self.get_tracked_position(order.strategy, order.asset)
+        previous_quantity = existing_position._quantity if existing_position is not None else Decimal(0)
+        previous_average = existing_position.avg_fill_price if existing_position is not None else None
         stored_order, position = super()._process_partially_filled_order(order, price, quantity)
         if existing_position:
             position.add_order(stored_order, quantity)  # Add will update quantity, but not double count the order
+        self._update_position_fill_basis(position, previous_quantity, previous_average, price)
+        if existing_position is None:
+            self._filled_positions.append(position)
+        elif position.quantity == 0:
+            self._filled_positions.remove(position)
         return stored_order, position
 
     def _process_cash_settlement(self, order, price, quantity):
@@ -1252,8 +1288,7 @@ class BacktestingBroker(Broker):
                         parent_order_type = Order.OrderType.MARKET
             # Credit/debit/even multileg submits pass `price` as the absolute net
             # limit. Persist it on the parent so wait/status tools and audit logs
-            # see the package limit the agent calculated (children still fill as
-            # their own order types).
+            # see the package limit the agent calculated.
             parent_limit_price = kwargs.get("price", None)
             if parent_limit_price is None:
                 parent_limit_price = kwargs.get("limit_price", None)
@@ -1282,13 +1317,12 @@ class BacktestingBroker(Broker):
             for o in orders:
                 o.parent_identifier = parent_order.identifier
 
-            # A credit/debit/even package with a net limit and no bid/ask in the data
-            # (Alpaca option history is trades only) fills as one package: every leg on
-            # the same bar, only when the net of the leg prices meets the limit. With
-            # quotes, legs keep filling individually at the bid/ask as before.
+            # A credit/debit/even package fills as one package: every leg on the
+            # same bar, only when the net of the executable leg prices meets the
+            # limit. Quoted legs must not bypass that limit by filling individually.
             if parent_smart_limit is None:
                 package_limit = self._signed_package_limit(kwargs.get("order_type"), parent_limit_price)
-                if package_limit is not None and not self._every_leg_has_quote(orders):
+                if package_limit is not None:
                     parent_order._package_net_limit = package_limit
                     for child in orders:
                         setattr(child, "_package_limit_managed_by_parent", True)
@@ -4779,17 +4813,23 @@ class BacktestingBroker(Broker):
             return None
         return -abs(float(limit_price)) if kind == "credit" else abs(float(limit_price))
 
-    def _every_leg_has_quote(self, orders) -> bool:
-        for leg in orders:
-            try:
-                quote = self.get_quote(leg.asset, quote=leg.quote)
-            except Exception:
-                return False
-            bid = self._coerce_price(getattr(quote, "bid", None)) if quote is not None else None
-            ask = self._coerce_price(getattr(quote, "ask", None)) if quote is not None else None
-            if bid is None or ask is None or self._is_invalid_price(bid) or self._is_invalid_price(ask):
-                return False
-        return True
+    def _leg_package_fill_price(self, leg) -> Optional[float]:
+        """Observed executable quote, or the current bar open for trade-only data."""
+        try:
+            quote = self.get_quote(leg.asset, quote=leg.quote)
+        except Exception:
+            quote = None
+        if quote is not None and self._quote_matches_current_execution_bar(quote, leg):
+            side = "ask" if leg.is_buy_order() else "bid"
+            price = self._coerce_price(getattr(quote, side, None))
+            if not self._is_invalid_price(price):
+                try:
+                    price = float(price)
+                    if math.isfinite(price):
+                        return price
+                except (TypeError, ValueError):
+                    pass
+        return self._leg_bar_open_now(leg)
 
     def _leg_bar_open_now(self, leg) -> Optional[float]:
         """Open of the leg's bar at the current backtest time, or None when the leg has not
@@ -4835,20 +4875,20 @@ class BacktestingBroker(Broker):
     def _fill_package_at_net_limit(self, order: Order, strategy) -> bool:
         """Fill every leg of a package limit order on this bar, or none of them."""
         legs = order.child_orders
-        opens = []
+        prices = []
         for leg in legs:
-            price = self._leg_bar_open_now(leg)
+            price = self._leg_package_fill_price(leg)
             if price is None:
                 return False
-            opens.append(price)
+            prices.append(price)
         unit = min(abs(float(leg.quantity)) for leg in legs) or 1.0
         net = sum(
             (price if leg.is_buy_order() else -price) * abs(float(leg.quantity)) / unit
-            for leg, price in zip(legs, opens)
+            for leg, price in zip(legs, prices)
         )
         if net > float(order._package_net_limit) + 1e-9:
             return False
-        for leg, price in zip(legs, opens):
+        for leg, price in zip(legs, prices):
             leg.trade_slippage = 0.0
             setattr(leg, "_price_source", "package_limit")
             self._execute_filled_order(order=leg, price=price, filled_quantity=leg.quantity, strategy=strategy)

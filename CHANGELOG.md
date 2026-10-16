@@ -2,6 +2,8 @@
 
 ## 4.6.19 - 2026-10-16
 
+- Preserve explicit source timezone offsets through historical document reads and reporting. SQL column aliases do not convert timestamps; release qualification retains the observed double-conversion failure as a negative control.
+
 - Report the successful research response's effective time bound separately from requested bounds and calendar filters. A live retry with `asOf: null` must never be reported as historical cutoff proof; preserve the observed failure as a negative release calibration control.
 
 - Make blocked research packets explicitly hand off the next observations or documents, time bound, qualified source type and deferred decision. Preserve historical ceilings, original-version/publication proof and configured-source limits.

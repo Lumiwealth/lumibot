@@ -740,3 +740,11 @@ class TestUserSuppliedSkills:
         params = inspect.signature(AgentManager.create).parameters
         assert "skill_dirs" in params
         assert params["skill_dirs"].default is None
+
+
+def test_packaged_web_skill_preserves_returned_offsets_not_column_aliases():
+    skill = next(skill for skill in load_builtin_skills() if skill.name == "web-documents")
+    instructions = " ".join(skill.instructions.split())
+    assert "A column alias is not a timezone conversion" in instructions
+    assert "preserve its explicit offset when passing `available_at`" in instructions
+    assert "Never apply a timezone offset twice" in instructions

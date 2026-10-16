@@ -70,6 +70,12 @@ times and stable sync/batch identity. Brokers without this evidence continue
 to send cash events; their coverage is unknown. Full selected account identities
 belong only in authenticated telemetry and must not be logged.
 
+``account_snapshot_checked_at`` is captured when balances are verified, before
+the sender reads positions, orders and funding. Slow retrieval does not move
+that balance observation to the time the payload is serialized. Funding
+coverage is still checked separately; its interval is never extended by the
+observation timestamp.
+
 For a one-shot account snapshot, call
 ``strategy.send_account_snapshot_to_cloud(max_batches=100)``. It drains pending
 batches without running a trading iteration and returns ``False`` for delivery

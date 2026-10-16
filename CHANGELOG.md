@@ -2,6 +2,8 @@
 
 ## 4.6.19 - 2026-10-15
 
+- Timestamp verified cloud account balances before slower position, order and funding reads, preserving the real observation time for both continuous and one-shot snapshots. Funding coverage and return calculations remain independently validated.
+
 - Match Schwab funding coverage to the SDK's whole-second wire precision, overlapping inclusive starts inside the one-year request bound. Preserve continuous producer identity after one-shot snapshots.
 - Enforce Luna subscription-only qualification across top-level and nested calls, reject SDK drift before inference, and keep explicit cumulative-allowance amendments append-only. Calibrate numerical-residue and typed-SQL grading against unchanged safe/unsafe controls.
 

@@ -4053,6 +4053,9 @@ class _Strategy:
         try:
             portfolio_value = _verified_number(self._portfolio_value, "portfolio_value")
             cash = _verified_number(self.get_cash(), "cash")
+            # Timestamp these balances before slower position/funding reads.
+            # Serialization time is not the time this account value was observed.
+            account_snapshot_checked_at = datetime.datetime.now(datetime.timezone.utc).isoformat()
             self.logger.debug(f"Portfolio value: {portfolio_value}")
             self.logger.debug(f"Cash: {cash}")
         except Exception as e:
@@ -4117,7 +4120,7 @@ class _Strategy:
             "broker_name": self.broker.name,
             "account_snapshot_status": "verified",
             "account_snapshot_source": "broker_balance_refresh",
-            "account_snapshot_checked_at": datetime.datetime.now(datetime.timezone.utc).isoformat(),
+            "account_snapshot_checked_at": account_snapshot_checked_at,
             "positions_snapshot_status": positions_snapshot_status,
             "positions_snapshot_source": positions_snapshot_source,
         }

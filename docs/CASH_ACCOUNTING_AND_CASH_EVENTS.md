@@ -264,6 +264,12 @@ travel only in the authenticated telemetry payload; do not log them. Legacy
 brokers without this evidence continue sending cash events; missing evidence
 means unknown coverage. A complete empty read is different from a failed read.
 
+`account_snapshot_checked_at` records when the verified balances were read,
+before fetching positions, orders or funding. A slow funding request must not
+retimestamp that older balance at payload serialization time. Consumers still
+check the actual covered interval; this timestamp does not expand funding
+coverage, certify unknown windows or change the return calculation.
+
 A sync includes every retrieved event even when an earlier overlapping sync
 already sent it. Stable event IDs let the receiver deduplicate cash while
 proving delivery of every batch in this particular window. Failed posts retain

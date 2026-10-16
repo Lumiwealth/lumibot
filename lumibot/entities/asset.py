@@ -1,4 +1,6 @@
+import math
 from collections import UserDict
+from decimal import Decimal, InvalidOperation
 from enum import Enum
 
 from lumibot._lazy_imports import lazy_class
@@ -74,9 +76,9 @@ class Asset:
     right : str
         'CALL' or 'PUT'
         default : ""
-    multiplier : int
-        Price multiplier.
-        default : 1
+    multiplier : float
+        Contract price multiplier. Explicit values are preserved.
+        Defaults to 100 for options and 1 for other asset types.
     underlying_asset : Asset
         Underlying asset for options.
 
@@ -99,8 +101,8 @@ class Asset:
         Contract strike price.
     right : str (required if asset_type is 'option')
         Option call or put.
-    multiplier : int  (required if asset_type is 'forex')
-        Contract leverage over the underlying.
+    multiplier : float
+        Positive finite contract price scale; distinct from leverage.
     precision : str (required if asset_type is 'crypto')
         Conversion currency.
     _right : list of str
@@ -195,7 +197,7 @@ class Asset:
         expiration: date = None,
         strike: float = 0.0,
         right: str = None,
-        multiplier: int = 1,
+        multiplier: float | None = None,
         leverage: int = 1,
         precision: str = None,
         underlying_asset: "Asset" = None,
@@ -218,9 +220,9 @@ class Asset:
         right : str
             'CALL' or 'PUT'
             default : ""
-        multiplier : int
-            Price multiplier.
-            default : 1
+        multiplier : float
+            Contract price multiplier. Explicit values are preserved.
+            Defaults to 100 for options and 1 for other asset types.
         underlying_asset : Asset
             Underlying asset for options.
         auto_expiry : str or Asset.AutoExpiry, optional
@@ -246,7 +248,24 @@ class Asset:
         self.symbol = symbol.upper() if symbol is not None else None
         self.asset_type = asset_type
         self.strike = strike
-        self.multiplier = multiplier
+        if multiplier is not None:
+            message = "Asset multiplier must be a positive finite number"
+            try:
+                numeric_multiplier = Decimal(str(multiplier))
+            except (InvalidOperation, TypeError, ValueError) as exc:
+                raise ValueError(message) from exc
+            if not numeric_multiplier.is_finite() or numeric_multiplier <= 0:
+                raise ValueError(message)
+            multiplier = (
+                int(numeric_multiplier)
+                if numeric_multiplier == numeric_multiplier.to_integral_value()
+                else float(numeric_multiplier)
+            )
+            if isinstance(multiplier, float) and (not math.isfinite(multiplier) or multiplier <= 0):
+                raise ValueError(message)
+        self.multiplier = multiplier if multiplier is not None else (
+            100 if asset_type == self.AssetType.OPTION else 1
+        )
         self.precision = precision
         self.underlying_asset = underlying_asset
 
@@ -281,9 +300,7 @@ class Asset:
         #
         # NOTE: This also avoids `date.today()` skew when backtesting historical periods.
 
-        # Multiplier for options must always be 100
-        if asset_type == self.AssetType.OPTION:
-            self.multiplier = 100
+        # Preserve explicit contract terms, including adjusted or mini options.
 
         # Note: Futures multipliers should be fetched from data provider (e.g., DataBento)
         # at the data source level, not hardcoded here. The Asset class accepts multiplier

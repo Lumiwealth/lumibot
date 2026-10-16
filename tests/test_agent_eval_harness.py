@@ -902,7 +902,8 @@ def test_web_disclosure_judge_controls_preserve_actual_native_provenance_and_req
     }
     assert set(selected) == set(sources)
     assert len(controls) == 19  # Preserve all controls and the observed reporting/timezone regressions.
-    case = evals.load_cases({"web_documents_holdings_from_yearly_and_trade_reports"})[0]
+    case = json.loads((SCRIPT_PATH.parent.parent / "tests/fixtures/agent_judge_source_cases" /
+                       "web_documents_holdings_from_yearly_and_trade_reports.json").read_text())
     for identifier, (expected, run_id, repetition) in sources.items():
         control = selected[identifier]
         assert control["expected"] is expected

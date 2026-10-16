@@ -19,6 +19,8 @@ An asset object represents securities such as stocks or options in Lumibot. Attr
   an explicit value is preserved, including adjusted contracts and mini options.
   Other asset types default to 1. Obtain nonstandard contract terms from the
   provider; do not infer them from the underlying symbol.
+  Numeric strings returned by brokers are normalized to numbers for valuation.
+  Explicit terms must be positive and finite; invalid values raise ``ValueError``.
 
 **Futures Only**
 

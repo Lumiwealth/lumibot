@@ -1,4 +1,6 @@
 import datetime
+from decimal import Decimal
+from types import SimpleNamespace
 from collections.abc import Hashable
 from unittest.mock import patch
 
@@ -71,6 +73,35 @@ def test_strategy_asset_factory_preserves_explicit_option_multiplier(multiplier)
 
     asset = Strategy.create_asset(None, "TEST", asset_type="option", multiplier=multiplier)
     assert asset.multiplier == multiplier
+
+
+@pytest.mark.parametrize("asset_type", ["option", "future"])
+@pytest.mark.parametrize("supplied,expected", [("10", 10), ("50.0", 50), ("0.5", 0.5), (Decimal("50"), 50)])
+def test_contract_multiplier_is_numeric_for_valuation_and_serialization(asset_type, supplied, expected):
+    asset = Asset("TEST", asset_type=asset_type, multiplier=supplied)
+    assert asset.multiplier == expected
+    assert 3.5 * 2 * asset.multiplier == pytest.approx(7 * expected)
+    assert Asset.from_dict(asset.to_dict()).multiplier == expected
+
+
+@pytest.mark.parametrize("multiplier", [True, False, 0, -1, float("nan"), float("inf"), "", "unknown", "0", "-1", "nan"])
+def test_invalid_contract_multiplier_is_rejected(multiplier):
+    with pytest.raises(ValueError, match="multiplier.*positive finite"):
+        Asset("SPY", asset_type="option", multiplier=multiplier)
+
+
+@pytest.mark.parametrize("asset_type", ["option", "future"])
+def test_ibkr_position_parser_retains_numeric_contract_terms(asset_type):
+    from lumibot.brokers.interactive_brokers import InteractiveBrokers
+
+    broker = SimpleNamespace(_normalize_symbol_for_internal=lambda symbol, **kwargs: symbol)
+    position = InteractiveBrokers._parse_broker_position(broker, {
+        "symbol": "SPY" if asset_type == "option" else "ES",
+        "asset_type": asset_type, "expiration": datetime.date(2026, 12, 18),
+        "strike": 600, "right": "CALL", "multiplier": "50", "position": 2,
+    }, "synthetic")
+    assert position.asset.multiplier == 50
+    assert 3.5 * float(position.quantity) * position.asset.multiplier == 350
 
 
 def test_is_hashable():

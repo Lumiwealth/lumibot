@@ -21,6 +21,10 @@ contract terms are retained through construction and serialization. Other asset
 types retain a default of 1 and preserve explicit futures multipliers.
 The public ``Strategy.create_asset()`` factory delegates omitted multipliers to
 those same defaults instead of supplying an explicit 1 for standard options.
+Broker-native numeric strings and decimal terms are normalized to numeric values
+before valuation. The IBKR position parser is covered directly with its string
+multiplier payload. Explicit zero, negative, nonnumeric and nonfinite terms fail
+instead of entering account valuation arithmetic.
 
 Regression tests cover all four Alpaca read entry points across futures,
 continuous futures, crypto futures, forex and indices, asserting that rejected

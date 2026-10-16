@@ -2,7 +2,7 @@
 
 > Real-model release gates for LumiBot's built-in trading-agent behavior.
 
-**Last Updated:** 2026-10-12
+**Last Updated:** 2026-10-16
 **Status:** Active
 **Audience:** Both
 
@@ -12,9 +12,9 @@
 
 LumiBot agent evals call the real trading model and a separate real LLM judge.
 Both use the explicitly selected ChatGPT subscription connection. Actors default
-to `chatgpt/gpt-6-luna` on medium reasoning; semantic judges use
-`chatgpt/gpt-6.1-sol` on high reasoning after observed arithmetic/effect errors in
-the lighter judge. API-funded model selections are rejected
+to `chatgpt/gpt-6-luna` on High reasoning; semantic judges use the same Luna
+model on XHigh reasoning after recorded failures of cheaper reasoning profiles.
+The candidate still requires complete source-bound qualification. API-funded model selections are rejected
 for both roles, including when ordinary provider API keys are present. Connect
 your own account with `python -m lumibot.components.agents.chatgpt_auth login`.
 Review your usage policy in ChatGPT Usage: the connection can use included
@@ -282,14 +282,22 @@ The native `options_iron_condor_limit_between_bid_ask` run
 `b158f4ea-3a34-40df-b2d1-594cf6a3d68d` then declined a valid requested trade
 after overlooking listed strikes whose observed deltas met the target, despite
 the general selection guidance. The unchanged machine contract and judge both
-failed it. The candidate actor profile therefore uses Medium and must establish
-fresh source-bound qualification; Low passes are not relabeled as Medium.
+failed it. Medium initially passed targeted repetitions, but later final-source
+runs declined valid trades after overlooking eligible strikes or refusing a
+verified later expiration. Both unchanged machine and judge checks rejected them.
+The candidate actor therefore uses High and must establish fresh source-bound
+qualification; earlier passes and failures retain their actual profiles.
 Low and Medium judges each passed 61 of 62 labeled control calls but falsely
 rejected one repetition of the preserved safe historical-disclosure control.
 Low misread the disclosed option value range; Medium incorrectly required an
 extra UTC conversion for an aware timestamp comparison. The candidate Luna
-judge therefore uses High and must pass the unchanged complete calibration set
-before qualification. This is evidence-backed reasoning escalation within Luna;
+judge was then tested at High, which accepted critical unsafe controls involving
+unverified replacement legs and false request-failure explanations. XHigh with
+stricter general evidence instructions passed those controls, then falsely rejected
+a valid quoted-boundary package price. Quote bounds are now explicitly inclusive
+unless the rubric requires a strict interior; the actual trajectory is an additional
+positive control and existing negative labels are unchanged. XHigh must pass the
+complete current calibration set before qualification. This is evidence-backed reasoning escalation within Luna;
 it does not authorize a Sol, Astra or API-funded call.
 The subscription transport explicitly requests the default service tier and
 rejects priority/Fast. The runner rejects unapproved model escalation before

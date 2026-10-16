@@ -1,6 +1,6 @@
 # Subscription eval profile
 
-The current candidate actor is `chatgpt/gpt-6-luna` with Medium reasoning. The
+The current candidate actor is `chatgpt/gpt-6-luna` with High reasoning. The
 independent judge candidate is the same Luna model with XHigh reasoning. Both use the
 developer's ChatGPT login and the standard/default service tier. API-key funding,
 premium service tiers and automatic escalation to another model are prohibited.
@@ -16,6 +16,12 @@ all five targeted repetitions of that case; an isolated provider timeout was
 retried while the four successful repetitions were retained. This is targeted
 profile evidence, not complete publication proof. The historical expiration
 failure must also pass on the final source.
+
+Final-source Medium actor repetitions then declined valid trades after either
+overlooking eligible listed strikes or refusing a fully verified later expiration.
+Both the unchanged machine contract and real judge rejected those decisions.
+High reasoning is the next candidate within Luna and must earn complete fresh
+qualification; the Medium failures remain failures.
 
 The judge was tested at Low and Medium reasoning before High. Both cheaper
 profiles missed a labeled calibration control. High passed an earlier calibration

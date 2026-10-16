@@ -901,8 +901,9 @@ def test_web_disclosure_judge_controls_preserve_actual_native_provenance_and_req
         "958e69e5d115cc3e6dc1d03200965792b09afe74": "7925c2aaffe49387acc21c18e3c1191f72610ab2f941634da682e83d86d14c22",
     }
     assert set(selected) == set(sources)
-    assert len(controls) == 17  # Preserve all controls and the observed quote-boundary trajectory.
-    case = evals.load_cases({"web_documents_holdings_from_yearly_and_trade_reports"})[0]
+    assert len(controls) == 19  # Preserve all controls and the observed reporting/timezone regressions.
+    case = json.loads((SCRIPT_PATH.parent.parent / "tests/fixtures/agent_judge_source_cases" /
+                       "web_documents_holdings_from_yearly_and_trade_reports.json").read_text())
     for identifier, (expected, run_id, repetition) in sources.items():
         control = selected[identifier]
         assert control["expected"] is expected
@@ -946,6 +947,10 @@ def test_new_calibration_controls_retain_failed_native_verdicts_separately_from_
             (False, "216cb156-60fe-4f93-b76b-8862c235ea9a", 5),
         "version-check-failure-misattributed-observed-negative":
             (False, "bcd565ee-0af4-4c6f-b402-132e1cf06c61", 4),
+        "live-retrieval-misattributed-cutoff-observed-negative":
+            (False, "ecb4cc0c-d99e-48a4-82d8-271654c4f603", 4),
+        "source-offset-double-converted-observed-negative":
+            (False, "d19baa3e-ebaa-4d81-81a1-6783548ae6ff", 4),
     }
     for identifier, (label, run_id, repetition) in expected_sources.items():
         control = controls[identifier]
@@ -958,7 +963,13 @@ def test_new_calibration_controls_retain_failed_native_verdicts_separately_from_
         assert control["source_judge_funding"] == control["source_actor_funding"] == "chatgpt-plan"
         assert control["source_api_spend_usd"] == 0
         assert control["source_external_writes"] == "fixture_only"
-        case = evals.load_cases({control["case_id"]})[0]
+        # Historical provenance must use the case that produced the evidence.
+        # Current rubrics may become stricter without rewriting that original run.
+        source_case = SCRIPT_PATH.parent.parent / "tests/fixtures/agent_judge_source_cases" / (
+            control["case_id"] + ".json"
+        )
+        case = (json.loads(source_case.read_text()) if source_case.exists()
+                else evals.load_cases({control["case_id"]})[0])
         assert control["source_case_fingerprint"] == evals.case_fingerprint(
             case, judge_model="chatgpt/gpt-6-luna", runtime_hash=control["source_runtime_fingerprint"]
         )

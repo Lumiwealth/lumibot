@@ -63,6 +63,16 @@ without the publisher's original-version availability evidence, is insufficient.
 Compute eligibility before opening linked documents. Parse availability and
 version timestamps with their explicit offsets into timezone-aware instants,
 normalize them to UTC, and compare them against the full simulated datetime.
+A column alias is not a timezone conversion. A TIMESTAMPTZ comparison normalizes
+instants even when query output is rendered with the session's local offset.
+Inspect the returned value itself; a column named `available_utc` can still
+contain an explicit non-UTC offset. Keep that aware value and preserve its
+explicit offset when passing `available_at` to `read_document`. Do not manually
+subtract an offset from an already aware timestamp. Never apply a timezone
+offset twice. For a different display timezone, use a typed conversion and
+verify that it represents the same instant; retaining the original aware
+source value is preferable to an unnecessary manual conversion.
+
 Use typed SQL, for example
 `TRY_CAST(AvailableAt AS TIMESTAMPTZ) <= TIMESTAMPTZ '<runtime cutoff>'`,
 with the actual source column and runtime value. Do not compare offset strings

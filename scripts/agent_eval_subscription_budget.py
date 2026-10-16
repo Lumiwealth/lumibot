@@ -9,7 +9,7 @@ from datetime import datetime, timezone
 
 from scripts.agent_eval_call_budget import EvalCallBudget
 
-MAX_SUBSCRIPTION_QUALIFICATION_CALLS = 4000
+MAX_SUBSCRIPTION_QUALIFICATION_CALLS = 5000
 
 
 def subscription_call_state(rows):

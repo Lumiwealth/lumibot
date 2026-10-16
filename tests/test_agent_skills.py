@@ -139,6 +139,15 @@ def test_packaged_research_skill_distinguishes_live_queries_from_historical_repl
     assert "A live runtime clock alone is not a historical replay request" in research_skill.instructions
 
 
+
+def test_research_skill_reports_the_successful_response_bound_without_inheriting_failed_requests():
+    skill = next(skill for skill in load_builtin_skills() if skill.name == "research-data")
+    instructions = " ".join(skill.instructions.split())
+    assert "requested bound from the successful response's effective bound" in instructions
+    assert "If the successful response returns `asOf: null`" in instructions
+    assert "do not describe it as cutoff-bounded" in instructions
+
+
 def test_options_skill_requires_atomic_multileg_or_no_trade():
     options_skill = next(skill for skill in load_builtin_skills() if skill.name == "options-trading")
     instructions = " ".join(options_skill.instructions.split())

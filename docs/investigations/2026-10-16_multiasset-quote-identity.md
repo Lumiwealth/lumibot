@@ -34,3 +34,41 @@ standard, mini, adjusted and single-unit multipliers, serialization and futures.
 These deterministic tests do not establish live-provider freshness or grant a
 provider support for another asset class. Package publication and downstream
 runtime verification remain separate release steps.
+
+## Local qualification (2026-10-16)
+
+The initial focused baseline reproduced 24 failures; subsequent public API,
+factory and native IBKR numeric-term regressions were also observed failing
+before their fixes. The final focused set passed 105 tests.
+
+The complete ordinary SDK inventory selected 5,225 cases, with no failures or
+missing results: 5,181 passed, 38 skipped, three expected failures and three
+nonstrict unexpected passes. Existing external-provider `apitest`/`downloader`
+markers and assertions are unchanged. The expected failures concern existing
+Yahoo logging/crypto behavior; the unexpected passes also retain their existing
+Yahoo markers. These outcomes are not live-provider qualification.
+
+All 5,222 nonbrowser cases ran on source
+`430b917ead06c49d95e1cccded4d46fec9d8f548` using three bounded native pytest
+workers. The three native Chromium browser cases, including 100 sequential
+profile reopen cycles, passed on
+`ee4d2e4beb074fbce4531954dd86d761f92417f3`. Their browser owner, tests, fixtures,
+lazy-import code, dependency requirements and installed dependency versions
+are unchanged in the final candidate; their actual original source is retained.
+Total local concurrency never exceeded four test workers. No model inference
+was required for this adapter/valuation qualification.
+
+The active version branch advanced to 4.6.20 during qualification. Its only
+additional inputs were `setup.py` and `CHANGELOG.md`. After explicit merge into
+`3095e1306a152f236bc8573f63f24a079926b6ef`, the owned editable package was installed as
+4.6.20 and all 14 affected packaging/release contract tests passed. Application
+source remains identical to the full-run candidate. No tag, package release or
+deployment was performed by this feature work.
+
+Native report fingerprints:
+
+- `sdk-author-collect.log`: `e72392c51f671f94c3c783efcd44f0c6b26d53e25db07974bf09be7903a6e9a7`
+- `sdk-shard-0.xml`: `b9ad4d722dc33a9c87889494ff1e86d253481f6aa024fbd514ee806447cdaab4`
+- `sdk-shard-1.xml`: `4d9d9fabe9522cb1cba405b36a21038f012d0c08ac674f641b945fce1774af6b`
+- `sdk-shard-2.xml`: `8095bc18303f051deb7f84c79ec955a5a56ff81266dfb39c89729d1b4f29388d`
+- `packaging.xml`: `dd36d0a8c3eb2ecb2359288d5c171d4b18b84645633d95f6212b9f005235b656`

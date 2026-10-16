@@ -658,3 +658,23 @@ def test_subscription_adk_completion_reasoning_is_counted_once(tmp_path):
     usage = budget.snapshot()["usage"]
     assert usage == {"input_tokens": 10, "cached_input_tokens": 5,
                      "output_tokens": 20, "thinking_tokens": 80}
+
+
+def test_historical_mixed_model_cost_is_unknown_and_cannot_authorize_more_calls(tmp_path):
+    from scripts.agent_eval_subscription_budget import SubscriptionCallBudget
+    budget = SubscriptionCallBudget(tmp_path / "legacy.jsonl", max_calls=10)
+    legacy = {key: value for key, value in budget.header.items() if key != "token_policy"}
+    rows = [legacy,
+            {"kind": "reserve", "id": "historical", "model": "chatgpt/gpt-6.1-sol",
+             "max_output_tokens": 100, "nano_usd": 0, "reserved_nano_usd": 0},
+            {"kind": "settle", "id": "historical", "nano_usd": 0,
+             "usage": {"input_tokens": 100, "cached_input_tokens": 0,
+                       "output_tokens": 10, "thinking_tokens": 20}}]
+    budget.path.write_text("".join(json.dumps(row) + "\n" for row in rows))
+    before = budget.path.read_bytes()
+    resumed = SubscriptionCallBudget(budget.path, max_calls=10)
+    assert resumed.snapshot()["equivalent_usd_upper_bound"] is None
+    assert resumed.snapshot()["unpriced_historical_models"] == ["chatgpt/gpt-6.1-sol"]
+    with pytest.raises(ValueError, match="historical.*pricing"):
+        resumed.reserve("chatgpt/gpt-6-luna", 1)
+    assert budget.path.read_bytes() == before

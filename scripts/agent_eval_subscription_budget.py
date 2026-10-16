@@ -166,6 +166,8 @@ class SubscriptionCallBudget(EvalCallBudget):
         from uuid import uuid4
         with self._ledger() as (stream, rows):
             calls = self._calls(rows[1:])
+            if any(call.get("model") != "chatgpt/gpt-6-luna" for call in calls.values()):
+                raise SubscriptionCallLimitError("Unqualified historical model pricing; reconcile the existing allowance before inference")
             if len(calls) >= self.max_calls:
                 raise SubscriptionCallLimitError("Subscription call limit reached; resume without resetting the cap")
             tokens = subscription_token_state(calls)
@@ -214,6 +216,8 @@ class SubscriptionCallBudget(EvalCallBudget):
         with self._ledger() as (_, rows):
             calls = self._calls(rows[1:])
             tokens = subscription_token_state(calls)
+            unpriced = sorted({str(call.get("model")) for call in calls.values()
+                               if call.get("model") != "chatgpt/gpt-6-luna"})
             return {"committed_usd": 0, "funding": "chatgpt-plan", "max_calls": self.max_calls,
                     "settled_calls": sum(c["kind"] == "settle" for c in calls.values()),
                     "reserved_calls": sum(c["kind"] == "reserve" for c in calls.values()),
@@ -224,7 +228,8 @@ class SubscriptionCallBudget(EvalCallBudget):
                     "max_total_output_tokens": MAX_SUBSCRIPTION_OUTPUT_TOKENS,
                     "equivalent_usd_upper_bound": equivalent_upper_bound(
                         tokens["input_tokens"] + tokens["reserved_input_tokens"],
-                        tokens["output_tokens"] + tokens["reserved_output_tokens"]),
+                        tokens["output_tokens"] + tokens["reserved_output_tokens"]) if not unpriced else None,
+                    "unpriced_historical_models": unpriced,
                     "equivalent_usd_allowance": SUBSCRIPTION_EQUIVALENT_ALLOWANCE_USD,
                     "rate_source": "https://developers.openai.com/api/docs/pricing",
                     "rates_verified_at": "2026-10-16",

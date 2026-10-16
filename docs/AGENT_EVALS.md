@@ -176,7 +176,11 @@ The call limit remains an additional independent ceiling. Raising it does not
 raise or reset the cumulative token allowance. Existing v2 ledgers are read
 without rewriting past usage; unknown legacy calls retain the full envelope.
 ADK's OpenAI completion count already includes reasoning, so settlement splits
-visible output and thinking before summing them once. Unknown usage after timeout or process death retains that request's
+visible output and thinking before summing them once.
+Mixed-model historical ledgers remain readable with their original usage and
+model names. If their prices have not been qualified by this budget owner, their
+equivalent estimate is unknown and new requests are refused. Reconcile that
+existing allowance before continuing; do not create another ledger to reset it. Unknown usage after timeout or process death retains that request's
 reservation; it is never treated as an unused call. The ledger records actual
 input, cached-input, output and reasoning usage when the provider supplies it.
 Zero API spend is not proof that ChatGPT's separate paid-credit setting is off.

@@ -958,7 +958,13 @@ def test_new_calibration_controls_retain_failed_native_verdicts_separately_from_
         assert control["source_judge_funding"] == control["source_actor_funding"] == "chatgpt-plan"
         assert control["source_api_spend_usd"] == 0
         assert control["source_external_writes"] == "fixture_only"
-        case = evals.load_cases({control["case_id"]})[0]
+        # Historical provenance must use the case that produced the evidence.
+        # Current rubrics may become stricter without rewriting that original run.
+        source_case = SCRIPT_PATH.parent.parent / "tests/fixtures/agent_judge_source_cases" / (
+            control["case_id"] + ".json"
+        )
+        case = (json.loads(source_case.read_text()) if source_case.exists()
+                else evals.load_cases({control["case_id"]})[0])
         assert control["source_case_fingerprint"] == evals.case_fingerprint(
             case, judge_model="chatgpt/gpt-6-luna", runtime_hash=control["source_runtime_fingerprint"]
         )

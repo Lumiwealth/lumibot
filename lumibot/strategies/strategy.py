@@ -3952,7 +3952,7 @@ class Strategy(_Strategy):
         expiration: datetime.datetime = None,
         strike: float = None,
         right: str = None,
-        multiplier: int = 1,
+        multiplier: int | None = None,
     ):
         """Creates an asset object. This is used to create an asset object.
 
@@ -3974,7 +3974,8 @@ class Strategy(_Strategy):
             The right of the option (optional, only required for options).
 
         multiplier : int
-            The multiplier of the asset (optional, only required for options and futures).
+            Contract price multiplier. When omitted, defaults to 100 for options
+            and 1 for other asset types. Explicit provider contract terms are preserved.
 
         Returns
         -------

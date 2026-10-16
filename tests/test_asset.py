@@ -38,6 +38,41 @@ def test_check_defaults_with_stock():
     assert asset.multiplier == 1
 
 
+@pytest.mark.parametrize("multiplier", [1, 10, 50, 100, 150])
+def test_option_preserves_explicit_contract_multiplier_and_serialization(multiplier):
+    asset = Asset("SPY", asset_type="option", expiration=datetime.date(2026, 12, 18),
+                  strike=600, right="CALL", multiplier=multiplier)
+    assert asset.multiplier == multiplier
+    assert Asset.from_dict(asset.to_dict()).multiplier == multiplier
+
+
+@pytest.mark.parametrize("asset_type,expected", [("option", 100), ("future", 1),
+                                                  ("stock", 1), ("crypto", 1), ("forex", 1)])
+def test_omitted_contract_multiplier_keeps_asset_type_default(asset_type, expected):
+    assert Asset("TEST", asset_type=asset_type).multiplier == expected
+
+
+def test_future_preserves_provider_contract_multiplier():
+    asset = Asset("ES", asset_type="future", expiration=datetime.date(2026, 12, 18), multiplier=50)
+    assert asset.multiplier == 50
+    assert Asset.from_dict(asset.to_dict()).multiplier == 50
+
+
+@pytest.mark.parametrize("asset_type,expected", [("option", 100), ("stock", 1), ("future", 1)])
+def test_strategy_asset_factory_keeps_omitted_multiplier_default(asset_type, expected):
+    from lumibot.strategies import Strategy
+
+    assert Strategy.create_asset(None, "TEST", asset_type=asset_type).multiplier == expected
+
+
+@pytest.mark.parametrize("multiplier", [1, 10, 50, 150])
+def test_strategy_asset_factory_preserves_explicit_option_multiplier(multiplier):
+    from lumibot.strategies import Strategy
+
+    asset = Strategy.create_asset(None, "TEST", asset_type="option", multiplier=multiplier)
+    assert asset.multiplier == multiplier
+
+
 def test_is_hashable():
     asset = Asset(symbol="ABC")
     assert isinstance(asset, Hashable)

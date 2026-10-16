@@ -427,7 +427,15 @@ class AlpacaData(DataSource):
         from lumibot.tools.alpaca_helpers import sanitize_base_and_quote_asset
 
         asset, quote = sanitize_base_and_quote_asset(base_asset, quote_asset)
+        self._validate_market_data_asset(asset)
         return asset, quote
+
+    @staticmethod
+    def _validate_market_data_asset(asset: Asset) -> None:
+        if asset.asset_type not in {Asset.AssetType.STOCK, Asset.AssetType.OPTION, Asset.AssetType.CRYPTO}:
+            raise ValueError(
+                f"Alpaca market data is unavailable for asset type {asset.asset_type} ({asset.symbol})"
+            )
 
     @staticmethod
     def _option_chain_snapshots(raw_chain_data) -> dict:
@@ -783,6 +791,11 @@ class AlpacaData(DataSource):
                 norm_assets.append(a[0])
             else:
                 logger.warning(f"Unsupported asset entry {a}, skipping")
+
+        # Validate the entire batch before any request; unsupported contracts must
+        # never be interpreted as stock symbols with the same root.
+        for asset in norm_assets:
+            self._validate_market_data_asset(asset)
 
         # Determine timeframe
         timeframe = self._parse_source_timestep(timestep, reverse=True)

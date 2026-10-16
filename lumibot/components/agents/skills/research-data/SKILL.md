@@ -38,6 +38,14 @@ claiming it was published. A visible authorization error means it was not publis
    attribution, effective or release date, and query time bound. A provider name
    alone cannot identify the queried dataset; retain the id even when the returned
    observations are stale or insufficient. Do not leave it only in the tool call.
+   Distinguish the requested bound from the successful response's effective bound.
+   Report the effective `asOf`, calendar filters, and retrieval time separately;
+   a date filter is not proof of historical availability. If an earlier bounded
+   request failed and a permitted live retry succeeded, describe that correction
+   and the successful request, not the failed request's bound.
+   If the successful response returns `asOf: null`, describe it as unbounded live
+   retrieval; do not describe it as cutoff-bounded. Never inherit a failed
+   request's historical cutoff in the final provenance of a successful live read.
 4. During a backtest, treat the simulated datetime as a hard wall. Pass an aware
    UTC `asOf` no later than that wall. The runtime also clamps managed research.
    Observation periods, release dates and retrieval times are different facts.

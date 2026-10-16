@@ -89,16 +89,16 @@ def test_subscription_qualification_call_ceiling_is_shared_and_explicit(tmp_path
     )
 
     # Explicitly approved cumulative ceiling; existing lower allowances stay fixed.
-    assert MAX_SUBSCRIPTION_QUALIFICATION_CALLS == 4000
+    assert MAX_SUBSCRIPTION_QUALIFICATION_CALLS == 5000
     default = SubscriptionCallBudget(tmp_path / "default.jsonl")
-    planned = SubscriptionCallBudget(tmp_path / "planned.jsonl", max_calls=4000)
+    planned = SubscriptionCallBudget(tmp_path / "planned.jsonl", max_calls=5000)
     assert default.header["max_calls"] == 500
-    assert planned.header["max_calls"] == 4000
+    assert planned.header["max_calls"] == 5000
     assert planned.snapshot()["funding"] == "chatgpt-plan"
     assert planned.snapshot()["api_spend_usd"] == 0
 
 
-@pytest.mark.parametrize("invalid", [0, -1, True, False, 1.5, "2500", None, float("inf"), float("nan"), 4001])
+@pytest.mark.parametrize("invalid", [0, -1, True, False, 1.5, "2500", None, float("inf"), float("nan"), 5001])
 def test_subscription_qualification_rejects_invalid_or_excessive_caps_before_writing(tmp_path, invalid):
     from scripts.agent_eval_subscription_budget import SubscriptionCallBudget
 
@@ -539,7 +539,7 @@ def test_subscription_allowance_amendment_preserves_every_existing_call(tmp_path
     assert resumed.snapshot()["usage"]["input_tokens"] == 5
 
 
-@pytest.mark.parametrize("limit,reason", [(1, "review"), (2, "review"), (4001, "review"), (True, "review"), (3, "")])
+@pytest.mark.parametrize("limit,reason", [(1, "review"), (2, "review"), (5001, "review"), (True, "review"), (3, "")])
 def test_subscription_allowance_rejects_invalid_amendments_without_writing(tmp_path, limit, reason):
     from scripts.agent_eval_subscription_budget import SubscriptionCallBudget
     path = tmp_path / "calls.jsonl"

@@ -9,7 +9,7 @@ from datetime import datetime, timezone
 
 from scripts.agent_eval_call_budget import EvalCallBudget
 
-MAX_SUBSCRIPTION_QUALIFICATION_CALLS = 4000
+MAX_SUBSCRIPTION_QUALIFICATION_CALLS = 5000
 # Standard Luna rates verified 2026-10-16; use the highest long-context and
 # cache-write input rate conservatively, independent of actual cache behavior.
 # https://developers.openai.com/api/docs/pricing

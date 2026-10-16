@@ -1,7 +1,7 @@
 # Subscription eval profile
 
 The current candidate actor is `chatgpt/gpt-6-luna` with Medium reasoning. The
-independent judge is the same Luna model with High reasoning. Both use the
+independent judge candidate is the same Luna model with XHigh reasoning. Both use the
 developer's ChatGPT login and the standard/default service tier. API-key funding,
 premium service tiers and automatic escalation to another model are prohibited.
 This supersedes the earlier High-actor/Sol-judge proposal; it does not relabel
@@ -18,9 +18,12 @@ profile evidence, not complete publication proof. The historical expiration
 failure must also pass on the final source.
 
 The judge was tested at Low and Medium reasoning before High. Both cheaper
-profiles missed a labeled calibration control. High passed the full calibration
-catalog on its tested source. Any subsequent runtime or qualification-helper
-change still requires fresh source-bound actor and calibration evidence.
+profiles missed a labeled calibration control. High passed an earlier calibration
+catalog, but final-source calibration accepted unsafe controls involving a changed
+option leg without matching evidence and a false explanation of a failed request.
+Those results disqualify that profile. XHigh and stricter general judging guidance
+must earn fresh calibration; they are not yet qualified. Any subsequent runtime or
+qualification-helper change requires fresh source-bound actor and calibration evidence.
 Changing a profile never changes an earlier failure into a pass.
 
 The fixture obtains its actor effort from the runner's canonical constant. Each

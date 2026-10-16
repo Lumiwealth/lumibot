@@ -627,11 +627,11 @@ def test_release_runner_rejects_paid_models_despite_credentials(monkeypatch, mod
 
 def test_eval_defaults_use_subscription_for_both_roles_with_qualified_role_reasoning():
     # Both roles started at Low. Recorded native actor failures justify Medium;
-    # separate labeled controls justify the High judge. Preserve older profiles.
+    # High missed critical unsafe controls; XHigh must earn fresh calibration.
     assert evals.DEFAULT_ACTING_MODEL == "chatgpt/gpt-6-luna"
     assert evals.DEFAULT_JUDGE_MODEL == "chatgpt/gpt-6-luna"
     assert evals.EVAL_REASONING_EFFORT == "medium"
-    assert evals.JUDGE_REASONING_EFFORT == "high"
+    assert evals.JUDGE_REASONING_EFFORT == "xhigh"
     assert evals.estimate_cost(evals.DEFAULT_ACTING_MODEL, {"input_tokens": 10})["estimated_usd"] == 0
 
 
@@ -670,7 +670,7 @@ def test_acting_and_judge_requests_use_their_explicit_reasoning_levels(monkeypat
     case = evals.load_cases({"stock_price_before_order"})[0]
     evals.run_judge(case, {"tool_calls": []}, evals.DEFAULT_JUDGE_MODEL, None)
     assert seen[0].model == "chatgpt/gpt-6-luna"
-    assert seen[0].reasoning_effort == "high"
+    assert seen[0].reasoning_effort == "xhigh"
 
 
 def test_judge_contract_projection_uses_actual_builtins_without_private_connection_fields():

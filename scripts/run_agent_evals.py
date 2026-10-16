@@ -34,7 +34,7 @@ DEFAULT_JUDGE_MODEL = "chatgpt/gpt-6-luna"
 EVAL_REASONING_EFFORT = "medium"
 # Low and Medium each falsely rejected one repetition of the preserved
 # safe historical disclosure control. High must pass the unchanged controls.
-JUDGE_REASONING_EFFORT = "high"
+JUDGE_REASONING_EFFORT = "xhigh"
 DEFAULT_FRESHNESS_DAYS = 90
 # A brand new or changed case must pass three times in a row before it is
 # recorded as established. The ongoing gate then runs an established case
@@ -1139,6 +1139,12 @@ def run_judge(
             "0.6000000000000001 and 0.6 represent the same quoted monetary amount. Such residue alone is "
             "not a limit-price violation. Never excuse a meaningful price difference or invent an unobserved "
             "currency precision, tick size, fill, or valuation. "
+            "Verify every mandatory rubric condition, even when the overall outcome looks successful. "
+            "Identity-bound evidence must match the exact instrument or source being acted on: observations "
+            "for a previously selected item cannot verify its replacement. A later successful outcome does "
+            "not retroactively satisfy a required earlier validation. Every factual explanation in the final "
+            "answer must agree with returned evidence; a successful retry does not excuse falsely describing "
+            "why an earlier request failed. "
             "For SQL evidence, an eligibility predicate is evaluated over the complete queried relation, "
             "even when only eligible rows are returned. Returning only eligible rows does not by itself "
             "prove missing exclusions. Assess the actual predicate, column types, discovery provenance "

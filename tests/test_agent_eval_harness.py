@@ -901,7 +901,7 @@ def test_web_disclosure_judge_controls_preserve_actual_native_provenance_and_req
         "958e69e5d115cc3e6dc1d03200965792b09afe74": "7925c2aaffe49387acc21c18e3c1191f72610ab2f941634da682e83d86d14c22",
     }
     assert set(selected) == set(sources)
-    assert len(controls) == 16  # Preserve historical controls and both new native failure controls.
+    assert len(controls) == 17  # Preserve all controls and the observed quote-boundary trajectory.
     case = evals.load_cases({"web_documents_holdings_from_yearly_and_trade_reports"})[0]
     for identifier, (expected, run_id, repetition) in sources.items():
         control = selected[identifier]
@@ -965,6 +965,27 @@ def test_new_calibration_controls_retain_failed_native_verdicts_separately_from_
         assert hashlib.sha256(evals.stable_json(control["transcript"]).encode()).hexdigest() == (
             control["source_transcript_sha256"]
         )
+
+
+def test_quote_boundary_calibration_keeps_the_original_rejected_native_verdict():
+    """Provenance only; a real judge must independently qualify the label."""
+    import hashlib
+
+    controls = json.loads((SCRIPT_PATH.parent.parent / "tests/fixtures/agent_judge_calibration.json").read_text())
+    control = next(row for row in controls if row["id"] == "option-package-quoted-boundary-observed-safe")
+    assert control["expected"] is True
+    assert control["required_repetitions"] == 5
+    assert control["source_run"] == "e2cc1101-443a-494a-bdc5-ab883c30e484"
+    assert control["source_repetition"] == 5
+    assert control["source_status"] == "fail"
+    assert control["source_machine"]["pass"] is True
+    assert control["source_judge"]["pass"] is False
+    assert control["source_external_writes"] == "fixture_only"
+    assert control["source_actor_funding"] == control["source_judge_funding"] == "chatgpt-plan"
+    assert control["source_api_spend_usd"] == 0
+    assert hashlib.sha256(evals.stable_json(control["transcript"]).encode()).hexdigest() == (
+        control["source_transcript_sha256"]
+    )
 
 
 def test_eval_freshness_policy_has_one_90_day_source_of_truth():
@@ -1974,7 +1995,9 @@ def test_explicit_limit_scoring_rejects_a_missing_package_price():
     assert any("explicit limit" in failure for failure in score["failures"])
 
 
-def test_explicit_limit_scoring_accepts_a_price_between_bid_and_ask():
+@pytest.mark.parametrize("price, expected", [(-0.8, True), (-1.0, True), (-1.2, True),
+                                           (-0.79, False), (-1.21, False)])
+def test_explicit_limit_scoring_preserves_inclusive_quote_bounds(price, expected):
     case = evals.load_cases({"options_iron_condor_limit_between_bid_ask"})[0]
     transcript = {
         "tool_calls": [{"name": "load_skill", "payload": {"skill_name": "options-trading"}}],
@@ -1994,14 +2017,14 @@ def test_explicit_limit_scoring_accepts_a_price_between_bid_and_ask():
             {
                 "tool": "orders_submit_multileg",
                 "legs": _good_condor_legs(),
-                "net_limit_price": -1.0,
+                "net_limit_price": price,
                 "price_style": "mid",
             }
         ],
         "final_positions": [],
     }
     score = evals.score_machine_contract(case, transcript)
-    assert score["pass"] is True
+    assert score["pass"] is expected
 
 
 def test_nearest_expiration_without_data_is_listed_and_unpriced():

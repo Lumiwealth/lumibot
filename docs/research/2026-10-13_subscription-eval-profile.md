@@ -33,7 +33,13 @@ Historical versions, publication ceilings, permissions, risk constraints and
 judge rubrics remain required. Strategy configurations using another reasoning
 profile are not qualified by this profile's receipt.
 
-The runner's cumulative ceiling is currently 2,500 calls. Every actor, judge,
+XHigh then passed all 72 maintained controls, but rejected an observed valid
+package limit at the quoted boundary by inventing a strictly-interior constraint.
+The quote-range interpretation is now explicit and that real trajectory is an
+additional positive calibration control. Existing negative controls and rubrics
+are unchanged; fresh complete calibration remains required after this repair.
+
+The runner's cumulative ceiling is currently 4,000 calls. Every actor, judge,
 nested call, failure and interrupted reservation counts in the same ledger.
 An allowance amendment must be explicit and append-only; constructors cannot
 silently increase it. A proposed larger allowance is not an active allowance.

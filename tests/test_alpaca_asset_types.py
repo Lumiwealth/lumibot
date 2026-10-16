@@ -84,3 +84,37 @@ def test_public_strategy_quote_keeps_transient_provider_failure_fallback():
     assert result.asset is asset
     assert result.price is None
     strategy.log_message.assert_called_once()
+
+
+@pytest.mark.parametrize("asset_type", ["future", "cont_future", "crypto_future", "forex", "index"])
+def test_public_strategy_last_price_preserves_unsupported_asset_error(asset_type, monkeypatch):
+    from lumibot.strategies import Strategy
+
+    monkeypatch.setattr("lumibot.strategies.strategy.IS_BACKTESTING", False)
+    source = AlpacaData({"API_KEY": "test", "API_SECRET": "test"})
+    asset = Asset("EUR" if asset_type == "forex" else "ES", asset_type=asset_type,
+                  expiration=dt.date(2026, 12, 18))
+    strategy = SimpleNamespace(
+        _sanitize_user_asset=lambda asset: asset,
+        _should_use_daily_last_price=lambda asset: False,
+        is_backtesting=False,
+        broker=SimpleNamespace(IS_BACKTESTING_BROKER=False, get_last_price=source.get_last_price),
+        log_message=Mock(), logger=Mock(),
+    )
+    with pytest.raises(ValueError, match="Alpaca.*asset type"):
+        Strategy.get_last_price(strategy, asset, quote=Asset("USD", asset_type="forex"))
+
+
+def test_public_strategy_last_price_keeps_transient_provider_failure_fallback(monkeypatch):
+    from lumibot.strategies import Strategy
+
+    monkeypatch.setattr("lumibot.strategies.strategy.IS_BACKTESTING", False)
+    strategy = SimpleNamespace(
+        _sanitize_user_asset=lambda asset: asset,
+        _should_use_daily_last_price=lambda asset: False,
+        is_backtesting=False,
+        broker=SimpleNamespace(IS_BACKTESTING_BROKER=False,
+                               get_last_price=Mock(side_effect=RuntimeError("Provider temporarily unavailable"))),
+        log_message=Mock(), logger=Mock(),
+    )
+    assert Strategy.get_last_price(strategy, Asset("SPY"), quote=Asset("USD", asset_type="forex")) is None

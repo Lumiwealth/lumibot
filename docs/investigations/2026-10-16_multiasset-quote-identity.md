@@ -11,7 +11,7 @@ classes and timestamps. Crypto's forex quote currency remains supported. A mixed
 historical batch containing an unsupported asset fails before any request rather
 than returning misleading partial bars. No other provider is substituted.
 The provider-generic ``UnsupportedAsset`` exception subclasses ``ValueError``;
-``Strategy.get_quote()`` preserves it while retaining the existing empty-quote
+``Strategy.get_quote()`` and ``Strategy.get_last_price()`` preserve it while retaining the existing empty-quote
 fallback for transient provider failures. This keeps the unsupported error
 visible to callers of the public strategy API, including hosted data readers.
 

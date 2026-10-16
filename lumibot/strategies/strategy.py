@@ -2956,6 +2956,8 @@ class Strategy(_Strategy):
                 cache[cache_key] = result
                 self._record_usable_backtest_price(result)
             return result
+        except UnsupportedAsset:
+            raise
         except Exception as e:
             self.log_message(f"Could not get last price for {asset}", color="red")
             self.log_message(f"{e}")

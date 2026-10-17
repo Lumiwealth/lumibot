@@ -17,7 +17,7 @@ from pydantic import PrivateAttr
 import httpx
 from litellm.llms.custom_httpx.http_handler import AsyncHTTPHandler
 
-from .chatgpt_auth import access_token
+from .chatgpt_auth import USAGE_LIMIT_CODES, access_token, is_cooling, mark_exhausted, next_connected_profile
 
 
 class _ResponsesReplay:
@@ -207,6 +207,28 @@ class ChatGPTPlanLlm(BaseLlm):
         self._transport = transport
 
     async def generate_content_async(self, llm_request: Any, stream: bool = False) -> AsyncGenerator[Any, None]:
+        # A plan usage limit arrives before any output. Cool that account down
+        # and retry on the next connected one; any other failure, or a limit
+        # after output started, is raised unchanged.
+        if is_cooling(self._profile):
+            self._profile = next_connected_profile(self._profile) or self._profile
+        while True:
+            produced = False
+            try:
+                async for response in self._generate_once(llm_request, stream):
+                    produced = True
+                    yield response
+                return
+            except SubscriptionModelResponseError as error:
+                if produced or error.code not in USAGE_LIMIT_CODES:
+                    raise
+                mark_exhausted(self._profile)
+                following = next_connected_profile(self._profile)
+                if following is None:
+                    raise
+                self._profile = following
+
+    async def _generate_once(self, llm_request: Any, stream: bool = False) -> AsyncGenerator[Any, None]:
         token = await asyncio.to_thread(access_token, self._profile)
         kwargs = dict(self._kwargs)
         # LiteLLM drops top-level store=False on its completion bridge. The

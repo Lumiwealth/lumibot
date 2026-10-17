@@ -678,3 +678,112 @@ def test_historical_mixed_model_cost_is_unknown_and_cannot_authorize_more_calls(
     with pytest.raises(ValueError, match="historical.*pricing"):
         resumed.reserve("chatgpt/gpt-6-luna", 1)
     assert budget.path.read_bytes() == before
+
+
+def _write_profile(home, profile_id, email):
+    from lumibot.components.agents.chatgpt_auth import PLAN_SCOPE, save_private
+    path = home / "profiles" / f"{profile_id}.json"
+    save_private(path, {"status": "connected", "scopes": [PLAN_SCOPE], "email": email})
+    return path
+
+
+def test_usage_limit_fails_over_to_the_next_connected_account(monkeypatch, tmp_path):
+    """Rob, 2026-10-17: one ChatGPT account running out must not stop local evals.
+
+    The refused account cools down in a shared pool.json, the call retries on the
+    next connected account, and later calls skip the cooling account entirely.
+    """
+    import asyncio
+
+    import httpx
+    from google.adk.models.llm_request import LlmRequest
+    from google.genai import types
+
+    from lumibot.components.agents import chatgpt_llm
+    from lumibot.components.agents.runtime import _configure_litellm_quietly, _register_openai_gpt6_models
+    _configure_litellm_quietly()
+    _register_openai_gpt6_models()
+    monkeypatch.setenv("LUMIBOT_CHATGPT_HOME", str(tmp_path))
+    first = _write_profile(tmp_path, "11111111-1111-4111-8111-111111111111", "a@example.com")
+    _write_profile(tmp_path, "22222222-2222-4222-8222-222222222222", "b@example.com")
+    monkeypatch.setattr(chatgpt_llm, "access_token", lambda path: "token-" + json.loads(path.read_text())["email"])
+    tokens = []
+
+    def handle(request):
+        token = request.headers["authorization"].removeprefix("Bearer ")
+        tokens.append(token)
+        if token == "token-a@example.com":
+            events = [{"type": "response.failed", "response": {"error": {
+                "code": "subscription_sharing_usage_limit_exceeded", "message": "limit"}}}]
+        else:
+            events = [
+                {"type": "response.output_text.delta", "delta": "ok", "item_id": "m", "output_index": 0,
+                 "content_index": 0},
+                {"type": "response.completed", "response": {
+                    "id": "r", "object": "response", "model": "gpt-6-luna", "status": "completed",
+                    "output": [{"id": "m", "type": "message", "role": "assistant", "status": "completed",
+                                "content": [{"type": "output_text", "text": "ok", "annotations": []}]}],
+                    "usage": {"input_tokens": 1, "output_tokens": 1, "total_tokens": 2}}},
+            ]
+        data = "".join("data: " + json.dumps(event) + "\n\n" for event in events)
+
+        class Stream(httpx.AsyncByteStream):
+            async def __aiter__(self):
+                yield data.encode()
+        return httpx.Response(200, headers={"content-type": "text/event-stream"}, stream=Stream())
+
+    def ask():
+        model = chatgpt_llm.ChatGPTPlanLlm(model="openai/responses/gpt-6-luna", profile=first,
+                                         transport=httpx.MockTransport(handle))
+        request = LlmRequest(contents=[types.Content(role="user", parts=[types.Part(text="say ok")])],
+                             config=types.GenerateContentConfig())
+
+        async def consume():
+            return [response async for response in model.generate_content_async(request)]
+        return asyncio.run(consume())
+
+    assert len(ask()) == 1
+    assert tokens == ["token-a@example.com", "token-b@example.com"]
+    pool = json.loads((tmp_path / "pool.json").read_text())
+    assert pool["cooldowns"]["a@example.com"] > time.time()
+    tokens.clear()
+    assert len(ask()) == 1
+    assert tokens == ["token-b@example.com"], "a cooling account is skipped, not retried"
+
+
+def test_usage_limit_with_no_other_account_still_fails_visibly(monkeypatch, tmp_path):
+    import asyncio
+
+    import httpx
+    from google.adk.models.llm_request import LlmRequest
+    from google.genai import types
+
+    from lumibot.components.agents import chatgpt_llm
+    from lumibot.components.agents.runtime import _configure_litellm_quietly, _register_openai_gpt6_models
+    _configure_litellm_quietly()
+    _register_openai_gpt6_models()
+    monkeypatch.setenv("LUMIBOT_CHATGPT_HOME", str(tmp_path))
+    only = _write_profile(tmp_path, "11111111-1111-4111-8111-111111111111", "a@example.com")
+    monkeypatch.setattr(chatgpt_llm, "access_token", lambda path: "token")
+    calls = []
+
+    def handle(request):
+        calls.append(1)
+        data = "data: " + json.dumps({"type": "response.failed", "response": {"error": {
+            "code": "subscription_sharing_usage_limit_exceeded"}}}) + "\n\n"
+
+        class Stream(httpx.AsyncByteStream):
+            async def __aiter__(self):
+                yield data.encode()
+        return httpx.Response(200, headers={"content-type": "text/event-stream"}, stream=Stream())
+
+    model = chatgpt_llm.ChatGPTPlanLlm(model="openai/responses/gpt-6-luna", profile=only,
+                                     transport=httpx.MockTransport(handle))
+    request = LlmRequest(contents=[types.Content(role="user", parts=[types.Part(text="x")])],
+                         config=types.GenerateContentConfig())
+
+    async def consume():
+        return [response async for response in model.generate_content_async(request)]
+    with pytest.raises(chatgpt_llm.SubscriptionModelResponseError, match="subscription_sharing_usage_limit_exceeded"):
+        asyncio.run(consume())
+    assert calls == [1]

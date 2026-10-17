@@ -1,6 +1,16 @@
 # Changelog
 
-## 4.6.20 - Unreleased
+## 4.6.20 - 2026-10-17
+
+### Fixed
+- IBKR stock history: older pages that omit `volumeFactor` no longer throw away real prices. 4.6.19 raised on those pages, so long backtests logged "No price for TQQQ/UPRO, skipping" for years of real bars. Unknown volume units now mark only volume as missing (never guessed); OHLC is kept. A present but malformed factor still fails.
+- Preserve market-data asset identity, unsupported assets through quote and last-price reads, and normalize verified numeric option contract multipliers for valuation.
+
+### Changed
+- Agents may read sources that record only a publication or filing date in backtests; the date-only rule is applied at end of day in the source's timezone.
+- Pelosi AI examples are AI only: one research agent plus one trading agent, both called every iteration.
+- ChatGPT plan connections fail over to the next connected account when one hits a usage limit before any output.
+- Subscription eval token bounds now cover calls, roles and resume; exact observation coverage is required and unpriced eval history is kept.
 
 ## 4.6.19 - 2026-10-16
 

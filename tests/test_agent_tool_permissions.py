@@ -1734,7 +1734,7 @@ def test_examples_that_use_the_web_opt_in_only_the_agents_that_fetch(filename):
 
     context = SimpleNamespace(
         agents=_Agents(),
-        parameters=dict(strategy_class.parameters),
+        parameters=dict(getattr(strategy_class, "parameters", {}) or {}),
         log_message=lambda *args, **kwargs: None,
     )
     strategy_class.initialize(context)

@@ -1,0 +1,21 @@
+{
+  "timestamp": "2026-10-17T20:05:12.123664Z",
+  "runtime_fingerprint": "dd278c68bbbd1cb9c9105d3e39240dd9bfcebf0dddd37e6310588e9be3eb7c12",
+  "usage": {
+    "cached_input_tokens": 151936,
+    "input_tokens": 211990,
+    "output_tokens": 1484,
+    "thinking_tokens": 1681,
+    "total_tokens": 215155,
+    "uncached_input_tokens": 60054
+  },
+  "wall_time_seconds": 114.666,
+  "case_ids": [
+    "web_documents_date_only_publication_index",
+    "web_documents_holdings_from_yearly_and_trade_reports"
+  ],
+  "pass_count": 10,
+  "fail_count": 0,
+  "result": "Both cases 5/5 consecutive passes on the date-only rule, actor and judge chatgpt/gpt-6-luna via Login with ChatGPT. Earlier draft without the exact-time guard failed the strict case twice in 15 runs; old instructions passed it 5/5.",
+  "external_writes": "isolated fixture only"
+}

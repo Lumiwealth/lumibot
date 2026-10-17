@@ -1,3 +1,12 @@
+# LumiBot is the platform: never put strategy-specific code in it (Rob, 2026-10-17, ABSOLUTE)
+
+- LumiBot is one generic platform for every strategy. Never add strategy-, person-, company- or website-specific logic, text, tools, skills, prompts, eval fixtures or branches to LumiBot core (for example "House Clerk", "Pelosi", or one site's filing format). Strategy-specific knowledge lives only in that strategy's own prompts.
+- Improve LumiBot only with generic capabilities that help every strategy: browser use, file downloads, ZIP, PDF and CSV reading, API calls, and look-ahead safety that works for any source. While fixing a strategy, explain exactly what a proposed LumiBot change does and get Rob's explicit approval before touching LumiBot core. Never release, tag or deploy LumiBot without Rob's explicit approval.
+- AI strategy examples (LumiBot `example_strategies` and BotSpot AI strategies) use AI and AI only: exactly one agent dedicated to trading, plus any number of research or planning agents, all called every iteration. The Ray Dalio and Citadel examples are the reference pattern; do not change them. Agents hand work to each other only through their answers, and `self.vars` may carry an agent's last answer forward so it does not redo old work. No Python in between that fetches or parses data, filters filings, computes weights, or skips agents with if statements. The whole point is to show how simple LumiBot makes it: agents research, one agent trades.
+- Let the agent find its own way: browse, download, read. A short hint about where to look may go in the prompt. Parsing or availability code may not.
+- If a platform behavior blocks a simple example, report the evidence to Rob and propose a generic platform fix. Never work around it with strategy Python or a strategy-specific platform change.
+- Why: on 2026-10-17 an agent "fixed" the Pelosi bot with Python that downloaded and filtered House filings and skipped the AI on most days. It then edited LumiBot's shared web-documents skill and evals with House Clerk text on a `pelosi-house-filings` branch. Rob: "LumiBot is not a strategy. LumiBot is the platform. The platform needs to work for all strategies."
+
 # Subscription eval controls (2026-10-16)
 
 - Eval inference uses Login with ChatGPT only, with no API-key fallback, paid

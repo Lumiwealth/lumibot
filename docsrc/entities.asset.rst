@@ -15,7 +15,12 @@ An asset object represents securities such as stocks or options in Lumibot. Attr
 * expiration (str): Expiration of the options contract. Format is datetime.date().
 * strike(float): Contract strike price.
 * right(str): May enter call or put.
-* multiplier(float): Contract multiplier to the underlying. (default: 1)
+* multiplier(float): Contract price multiplier. Defaults to 100 for options;
+  an explicit value is preserved, including adjusted contracts and mini options.
+  Other asset types default to 1. Obtain nonstandard contract terms from the
+  provider; do not infer them from the underlying symbol.
+  Numeric strings returned by brokers are normalized to numbers for valuation.
+  Explicit terms must be positive and finite; invalid values raise ``ValueError``.
 
 **Futures Only**
 

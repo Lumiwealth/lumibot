@@ -77,6 +77,64 @@ def profile_path() -> Path:
     return config_root() / "profiles" / (profile_id + ".json")
 
 
+# When one connected account reaches its plan usage limit, the next connected
+# account in the same home takes over. A shared pool.json records the refused
+# account for an hour so other calls and processes skip it. The plan endpoint
+# gives no reset time.
+USAGE_LIMIT_CODES = frozenset({"subscription_sharing_usage_limit_exceeded", "usage_limit_reached"})
+USAGE_LIMIT_COOLDOWN_SECONDS = 3600
+
+
+def _account_key(path: Path) -> str:
+    try:
+        return str(read_private(path).get("email") or path.stem)
+    except (OSError, ValueError, RuntimeError):
+        return path.stem
+
+
+def _pool_cooldowns() -> dict:
+    try:
+        cooldowns = json.loads((config_root() / "pool.json").read_text()).get("cooldowns", {})
+    except (OSError, ValueError, AttributeError):
+        return {}
+    return cooldowns if isinstance(cooldowns, dict) else {}
+
+
+def is_cooling(path: Path) -> bool:
+    return float(_pool_cooldowns().get(_account_key(path), 0)) > time.time()
+
+
+def mark_exhausted(path: Path) -> None:
+    pool = config_root() / "pool.json"
+    with FileLock(str(config_root() / "pool.lock"), timeout=60):
+        try:
+            state = json.loads(pool.read_text())
+        except (OSError, ValueError):
+            state = {}
+        if not isinstance(state, dict):
+            state = {}
+        existing = state.get("cooldowns")
+        cooldowns = dict(existing) if isinstance(existing, dict) else {}
+        cooldowns[_account_key(path)] = time.time() + USAGE_LIMIT_COOLDOWN_SECONDS
+        state["cooldowns"] = cooldowns
+        save_private(pool, state)
+
+
+def next_connected_profile(current: Path) -> Path | None:
+    """Another connected plan account in this home that is not cooling down."""
+    skip = _account_key(current)
+    for path in sorted((config_root() / "profiles").glob("*.json")):
+        try:
+            record = read_private(path)
+        except (OSError, ValueError, RuntimeError):
+            continue
+        if record.get("status") != "connected" or PLAN_SCOPE not in record.get("scopes", []):
+            continue
+        if _account_key(path) != skip and not is_cooling(path):
+            return path
+    return None
+
+
 def access_token(path: Path) -> str:
     """Serialize rotating refresh tokens, including across independent workers."""
     # Check permissions before opening a sibling lock or contacting OpenAI.

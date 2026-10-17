@@ -22,6 +22,15 @@ Features
 * **Live Streaming**: Real-time trade updates and market data
 * **Cash Events**: Live cloud payloads can include normalized broker cash events such as deposits, withdrawals, interest, dividends, fees, journals, and adjustments
 
+Alpaca market-data reads support stocks, options and crypto. Requests for futures,
+continuous futures, crypto futures, forex bases or indices raise ``ValueError``
+before making a provider request. This error remains visible through
+``Strategy.get_quote()`` and ``Strategy.get_last_price()`` instead of becoming
+an empty quote or missing price. They are never treated as equity tickers sharing
+the same symbol. A forex quote currency such as USD remains valid for crypto pairs.
+Historical batches containing unsupported asset types fail before any request;
+separate those assets and use a data source that supports their contract type.
+
 .. _alpaca-getting-started:
 
 Getting Started

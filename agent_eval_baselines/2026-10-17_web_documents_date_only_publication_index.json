@@ -1,0 +1,21 @@
+{
+  "timestamp": "2026-10-17T19:34:50.039945Z",
+  "runtime_fingerprint": "994a45c6f0075924d1eb7457fbf85ec66b1c970c61794395be8cde340b1cb857",
+  "pass_count": 0,
+  "fail_count": 5,
+  "error_count": 0,
+  "usage": {
+    "cached_input_tokens": 271488,
+    "input_tokens": 685691,
+    "output_tokens": 2565,
+    "thinking_tokens": 4872,
+    "total_tokens": 693128,
+    "uncached_input_tokens": 414203
+  },
+  "cumulative_estimated_cost_usd": 0,
+  "wall_time_seconds": 73.651,
+  "case_id": "web_documents_date_only_publication_index",
+  "pre_fix_commit": "fe0437cca88adcc24aa175fa9a94875c2b3e605e",
+  "observed_failure": "All five real-model runs refused to reconstruct holdings because the date-only report index lacks publication times or version history, the same refusal that kept the Nancy Pelosi example from trading in BotSpot backtests.",
+  "external_writes": "isolated fixture only"
+}

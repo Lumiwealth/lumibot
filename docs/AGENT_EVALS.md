@@ -162,8 +162,25 @@ Each run writes:
 - fixture versus real external-write classification;
 - case and runtime fingerprints used by the freshness gate.
 
-The call ledger owns a finite request allowance across resumes and concurrent
-workers. Unknown usage after timeout or process death retains that request's
+The call ledger owns one cumulative allowance across actors, judges, nested
+calls, retries, calibration, resumes and concurrent workers. New ledgers bind the
+token policy in their header: 10 million input tokens and 1 million output tokens
+(including reasoning). Before each call it reserves the full provider context and
+128,000 output tokens because the subscription endpoint rejects a requested
+output-token limit. Missing usage retains that entire reservation. Settled calls
+release only unused capacity; API-equivalent usage is reported separately from
+zero API spend and unknown subscription-credit debits. Conservative Standard
+Luna rates verified October 16, 2026 bound this token envelope at $3.25 equivalent,
+below the $20 task allowance. See https://developers.openai.com/api/docs/pricing.
+The call limit remains an additional independent ceiling. Raising it does not
+raise or reset the cumulative token allowance. Existing v2 ledgers are read
+without rewriting past usage; unknown legacy calls retain the full envelope.
+ADK's OpenAI completion count already includes reasoning, so settlement splits
+visible output and thinking before summing them once.
+Mixed-model historical ledgers remain readable with their original usage and
+model names. If their prices have not been qualified by this budget owner, their
+equivalent estimate is unknown and new requests are refused. Reconcile that
+existing allowance before continuing; do not create another ledger to reset it. Unknown usage after timeout or process death retains that request's
 reservation; it is never treated as an unused call. The ledger records actual
 input, cached-input, output and reasoning usage when the provider supplies it.
 Zero API spend is not proof that ChatGPT's separate paid-credit setting is off.
@@ -323,7 +340,8 @@ was initially proposed as safe because its first judge reason criticized an
 unstated final exclusion list. Calibration exposed the independent false source
 claim; inspection of the original tool arguments confirmed it. The proposed label
 was corrected to unsafe and the original failed verdict remains unchanged.
-All 16 controls require 72 judge calls.
+That dated 16-control corpus required 72 judge calls. The current fixture file
+is authoritative for its expanded control count and required repetitions.
 The judge follows the literal rubric's presentation requirements; correct SQL
 evidence does not require an unstated final enumeration. General actor guidance
 also invalidates checks when a contract identity changes and matches each linked
@@ -335,9 +353,45 @@ contract; that safety failure is retained rather than treated as a successful ru
 An explicitly disclosed allowance extension uses
 `SubscriptionCallBudget.amend_limit(...)`. It appends the old/new limits, time
 and reason, keeps the original header and every reservation/settlement, and
-remains under the 1,500-call hard ceiling. Resume with the amended explicit limit.
+remains under the explicit qualification call ceiling (currently 5,000; the
+default remains 500). The shared cumulative input/output/equivalent limits still
+apply, so a higher technical call ceiling never creates a fresh usage allowance.
+Resume with the amended explicit limit.
 Constructors never silently raise a limit. Decreases, concurrent duplicate
 amendments, new/empty ledgers and retroactive authorization of calls beyond a
 prior cap are rejected. Qualification export counts all old calls and binds the
 entire amended journal. A source-changing repair still requires fresh evidence;
 an allowance amendment does not make incompatible passes current.
+
+
+## October 16 cumulative-cost verification
+
+The reconciled cost-control candidate at `95c5dc17` passed 527 deterministic
+tests across eight complete affected specifications: subscription transport,
+call budget, eval harness, qualification, calibration runner, isolation, pacing
+and packaged skills. No model calls were made by those tests.
+
+The earlier candidate `19fac6f3` separately passed 77 required real Luna XHigh
+judgments over 17 labeled controls, using ten compatible retained judgments and
+67 missing judgments. It created no actor freshness. The prior unsafe acceptance
+of a changed option leg without matching Greeks remains preserved; the generic
+judge instructions were repaired without changing its label or rubric.
+
+That cumulative calibration used 154 calls, 3,346,198 input tokens, 9,766 visible
+output tokens and 107,708 reasoning tokens. Its conservative API-equivalent
+upper estimate was $0.924655; API billing was zero and actual subscription-credit
+debit was not exposed. All calls used Login with ChatGPT, Luna and default tier.
+The call ceiling was explicitly amended from 100 to 200 in the original ledger;
+its token and dollar-equivalent envelopes and all prior usage were retained.
+
+These are source and judge-calibration receipts, not package publication or
+qualification of every actor case. New controls, changed rubrics and any changed
+runtime must receive their required source-valid proof before release; historical
+passes keep their actual source, model and timestamp.
+
+The cost-control changes were reconciled with active `version/4.6.20` at
+`59d86472`. All 527 tests in the eight affected complete specifications passed
+again on that source, with normal fixtures in separate processes and no model
+calls. The preserved 77-judgment calibration retains its original `19fac6f3`
+source; it is not a qualification of the new actor/runtime candidate. Package
+publication still requires the normal exact-candidate release gates.

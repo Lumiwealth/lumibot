@@ -2780,7 +2780,7 @@ def _ibkr_history_request(
 
 def _history_payload_to_frame(
     data: Any, *, source_was_explicit: bool, daily_session_dates_from_utc: bool = False,
-    volume_factor: float = 1.0,
+    volume_factor: Optional[float] = 1.0,
 ) -> pd.DataFrame:
     df = pd.DataFrame(data)
     if df.empty:
@@ -2795,7 +2795,12 @@ def _history_payload_to_frame(
         # IBKR's unavailable-volume sentinel (-1) and nulls are not trades.
         volume = pd.to_numeric(df["volume"], errors="raise")
         scalable = volume.notna() & (volume >= 0) & (volume < float("inf"))
-        df["volume"] = volume.where(~scalable, volume * volume_factor)
+        if volume_factor is None:
+            # Units unknown (no volumeFactor): keep the real prices, mark the
+            # volume missing instead of guessing shares versus lots.
+            df["volume"] = volume.where(~scalable, float("nan"))
+        else:
+            df["volume"] = volume.where(~scalable, volume * volume_factor)
     if "timestamp" not in df.columns:
         return pd.DataFrame()
 

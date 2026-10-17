@@ -506,6 +506,87 @@ def _web_documents_client(*, request_log=None):
     return client
 
 
+# Many real public sources list only the day a report was published, with no
+# time or version history. A generic investor's report index shaped that way.
+_DATE_ONLY_HOST = "records.example.org"
+_DATE_ONLY_REPORTS = {
+    "H1": [
+        "Example Capital - Holdings Report",
+        "Published: 05/15/2026   Holdings as of: 03/31/2026",
+        "Apple Inc. (AAPL) common stock $1,000,001 - $5,000,000",
+        "Microsoft Corporation (MSFT) common stock $250,001 - $500,000",
+    ],
+    "C1": [
+        "Example Capital - Change Notice",
+        "Published: 07/02/2026",
+        "Microsoft Corporation (MSFT) sold 06/20/2026 $250,001 - $500,000: the entire position.",
+        "Tesla, Inc. (TSLA) bought 06/22/2026 $100,001 - $250,000.",
+    ],
+    "C2": [
+        "Example Capital - Change Notice",
+        "Published: 08/10/2026",
+        "Amazon.com Inc. (AMZN) bought 08/05/2026 $500,001 - $1,000,000.",
+    ],
+    "C3": [
+        "Example Capital - Change Notice",
+        "Published: 08/11/2026",
+        "Apple Inc. (AAPL) sold 08/07/2026 $1,000,001 - $5,000,000: the entire position.",
+    ],
+    "C4": [
+        "Example Capital - Change Notice",
+        "Published: 09/15/2026",
+        "Zeta Holdings (ZZZZ) bought 09/01/2026 $1,000,001 - $5,000,000.",
+    ],
+}
+_DATE_ONLY_ROWS = [
+    ("H1", "Holdings Report", "5/15/2026"),
+    ("C1", "Change Notice", "7/2/2026"),
+    ("C2", "Change Notice", "8/10/2026"),
+    ("C3", "Change Notice", "8/11/2026"),
+    ("C4", "Change Notice", "9/15/2026"),
+]
+
+
+def _date_only_index_csv():
+    rows = ["ReportID,Investor,ReportType,PublishedDate,URL"]
+    for number in range(300):
+        rows.append(f"X{number:03d},Other Fund {number:03d},Holdings Report,{number % 12 + 1}/{number % 27 + 1}/2026,")
+    for report_id, report_type, published in _DATE_ONLY_ROWS:
+        rows.append(
+            f"{report_id},Example Capital,{report_type},{published},https://{_DATE_ONLY_HOST}/reports/{report_id}.pdf"
+        )
+    return ("\n".join(rows) + "\n").encode("utf-8")
+
+
+def _date_only_client(*, request_log=None):
+    import httpx
+
+    from lumibot.components.agents.web_tools import WebClient
+
+    requests = request_log if request_log is not None else []
+
+    def record_request(request):
+        if len(requests) >= 1024:
+            raise RuntimeError("Synthetic web request capture is full; request was not sent.")
+        requests.append({"method": request.method, "url": str(request.url)})
+
+    def handler(request):
+        path = request.url.path
+        if path == "/reports/index.csv":
+            return httpx.Response(200, content=_date_only_index_csv(), headers={"content-type": "text/csv"})
+        report_id = path.rsplit("/", 1)[-1].removesuffix(".pdf")
+        if path.startswith("/reports/") and report_id in _DATE_ONLY_REPORTS:
+            return httpx.Response(
+                200, content=_pdf_lines(_DATE_ONLY_REPORTS[report_id]), headers={"content-type": "application/pdf"}
+            )
+        return httpx.Response(404, text="Not found")
+
+    client = WebClient(transport=httpx.MockTransport(handler), resolver=lambda host: ["93.184.216.34"])
+    client._client.event_hooks["request"].append(record_request)
+    client.web_requests = requests
+    return client
+
+
 def _recorded_fred(strategy, cache_dir):
     """Real FRED client and point-in-time filtering, fed recorded VIX closes instead of the network.
 
@@ -616,6 +697,9 @@ class ProductionFixture:
             self.strategy.get_chains = get_chains
         if fixture.name == "web_documents":
             self.strategy._agent_web_client = _web_documents_client()
+            self.fixture.web_requests = self.strategy._agent_web_client.web_requests
+        if fixture.name == "web_documents_date_only":
+            self.strategy._agent_web_client = _date_only_client()
             self.fixture.web_requests = self.strategy._agent_web_client.web_requests
         if fixture.name == "vix_from_fred":
             self.strategy.macro = _recorded_fred(self.strategy, self.root / "fred")
@@ -743,7 +827,7 @@ class ProductionFixture:
         self.closed = True
         self.broker.stream.stop()
         try:
-            if self.fixture.name == "web_documents":
+            if self.fixture.name in {"web_documents", "web_documents_date_only"}:
                 self.strategy._agent_web_client.close()
         finally:
             self.directory.cleanup()

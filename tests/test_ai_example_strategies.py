@@ -25,9 +25,9 @@ EXAMPLES = Path(__file__).resolve().parents[1] / "lumibot" / "example_strategies
 
 # file -> (class, agent names in run order, agents that may browse the web)
 REBUILT = {
-    "ai_nancy_pelosi_trading_bot.py": ("NancyPelosiTradingBot", ["researcher", "portfolio", "trader"], {"researcher"}),
+    "ai_nancy_pelosi_trading_bot.py": ("NancyPelosiTradingBot", ["researcher", "trader"], {"researcher"}),
     "ai_nancy_pelosi_copy_trading_bot.py": (
-        "NancyPelosiCopyTradingBot", ["researcher", "portfolio", "trader"], {"researcher"}
+        "NancyPelosiCopyTradingBot", ["researcher", "trader"], {"researcher"}
     ),
     "ai_insider_trading_bot.py": ("InsiderTradingBot", ["researcher", "trader"], set()),
     "ai_fear_and_greed_trading_bot.py": ("FearAndGreedTradingBot", ["researcher", "trader"], {"researcher"}),
@@ -323,25 +323,33 @@ def test_iron_condor_stop_is_plain_python_and_wakes_the_ai_only_near_a_short_str
 
 
 @pytest.mark.parametrize("name", ["ai_nancy_pelosi_trading_bot.py", "ai_nancy_pelosi_copy_trading_bot.py"])
-def test_pelosi_bots_rebalance_only_when_her_newest_filing_changes(name):
-    # 2026-09-30 switch-window backtests: a full answer that mentioned "NOTHING NEW"
-    # in passing skipped day one, and answers like "Newest filing: May 15, 2026,
-    # DocID 10075701. NOTHING NEW." triggered a rebalance and option churn. The
-    # bot now remembers her newest filing's DocID and rebalances only when it changes.
+def test_pelosi_bots_run_both_agents_every_day_with_no_python_gate(name):
+    # Rob, 2026-10-17: AI examples use AI and AI only. One agent works out what
+    # she owns today, the other trades; both run every day. An earlier version
+    # parsed filing IDs in Python and skipped the AI on most days, and a later
+    # one downloaded and filtered the filing list in Python. Neither is allowed.
     class_name = REBUILT[name][0]
     module = __import__(f"lumibot.example_strategies.{name[:-3]}", fromlist=[class_name])
     strategy_class = getattr(module, class_name)
+    method = next(
+        node for node in ast.walk(_tree(name))
+        if isinstance(node, ast.FunctionDef) and node.name == "on_trading_iteration"
+    )
+    gates = [node for node in ast.walk(method) if isinstance(node, (ast.If, ast.Return, ast.For, ast.While))]
+    assert not gates, "the agents run every day; no Python decides to skip them"
+    defined = {node.name for node in ast.walk(_tree(name)) if isinstance(node, ast.FunctionDef)}
+    assert defined == {"initialize", "on_trading_iteration"}, defined
+
     strategy = object.__new__(strategy_class)
     strategy.vars = Vars()
-    strategy.__dict__["parameters"] = dict(strategy_class.parameters)
-
-    def run_day(answer):
+    strategy.__dict__["parameters"] = dict(getattr(strategy_class, "parameters", {}) or {})
+    for answer in ("Holdings: AAPL 60%, NVDA 40%.", "Same holdings as yesterday.", "Holdings: AAPL 60%, NVDA 40%."):
         calls = []
 
         class _Named(_Agent):
-            def run(self, task_prompt, context=None):
-                calls.append(self.name)
-                return SimpleNamespace(summary=answer if self.name == "researcher" else f"{self.name} summary")
+            def run(self, task_prompt, context=None, _answer=answer, _calls=calls):
+                _calls.append((self.name, dict(context or {})))
+                return SimpleNamespace(summary=_answer if self.name == "researcher" else "done")
 
         class _Team(_Agents):
             def __getitem__(self, agent_name):
@@ -353,14 +361,5 @@ def test_pelosi_bots_rebalance_only_when_her_newest_filing_changes(name):
             strategy.on_trading_iteration()
         finally:
             del type(strategy).agents
-        return calls
-
-    first = "Newest filing: January 23, 2026, DocID 20033725. This is not NOTHING NEW for me yet. Holdings: AAPL."
-    assert run_day(first) == ["researcher", "portfolio", "trader"]
-    assert run_day("Newest filing: January 23, 2026, DocID 20033725. Holdings: AAPL.") == ["researcher"]
-    assert run_day("RESULT: NOTHING NEW") == ["researcher"]
-    assert run_day("Newest filing: May 15, 2026 — DocID 10075701. NOTHING NEW.") == ["researcher", "portfolio", "trader"]
-    assert run_day("Newest filing: May 15, 2026 — DocID 10075701. NOTHING NEW.") == ["researcher"]
-    # A partial answer without an ID must not erase the last known filing.
-    assert run_day("Holdings: AAPL. The filing ID could not be read.") == ["researcher", "portfolio", "trader"]
-    assert run_day("Newest filing: May 15, 2026 — DocID 10075701. NOTHING NEW.") == ["researcher"]
+        assert [call[0] for call in calls] == ["researcher", "trader"]
+        assert answer in calls[1][1].values(), "the trader gets the research"

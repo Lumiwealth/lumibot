@@ -2604,8 +2604,9 @@ def _bind_read_document(strategy: Any, manager: Any) -> BoundTool:
         result = {key: fetched[key] for key in ("ok", "status_code", "url", "error") if key in fetched}
         result["dates"] = (
             "Current bytes. Before links, SQL-filter EACH index table by UTC first-public/version instants <= "
-            "historical_as_of; inspect actual selected IDs/URLs. Samples, counts, period/filing/retrieval dates are "
-            "not availability proof. Never fetch excluded versions."
+            "historical_as_of; inspect actual selected IDs/URLs. Samples, counts, period and retrieval dates are "
+            "not availability proof; a source that records only a publication date counts from the next day. "
+            "Never fetch excluded versions."
         )
         if historical_as_of is not None:
             result["historical_as_of"] = historical_as_of
@@ -2700,7 +2701,9 @@ def _bind_read_document(strategy: Any, manager: Any) -> BoundTool:
             "each table_name, its columns and sample rows, so filter, sort and add up rows with SQL instead of "
             "by hand. In a backtest, select exact document IDs/URLs from every relevant discovery table using "
             "SQL that compares UTC first-public/version timestamps with the full simulated cutoff before following "
-            "links. Filing, observation and transaction dates do not prove availability. Never guess an ID from "
+            "links. Observation and transaction dates do not prove availability; when a source records only a "
+            "publication or filing date, the document counts as public from the start of the next day. "
+            "Never guess an ID from "
             "a row count, fetch an excluded revision, or stop at a baseline without eligible updates. "
             "For linked evidence supply available_at from the discovery row's version publication instant; "
             "the tool refuses known post-cutoff versions before HTTP. Supply expected_sha256 when the publisher "

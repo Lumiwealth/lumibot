@@ -23,8 +23,10 @@ def test_invalid_factor_is_visible(factor):
 @pytest.mark.parametrize("asset_type", ["stock", "etf"])
 @pytest.mark.parametrize("source", ["Trades", "TRADES", "Last", "ADJUSTED_LAST"])
 def test_missing_trade_factor_never_guesses_from_asset_or_route(asset_type, source):
-    with pytest.raises(IbkrVolumeMetadataError, match="missing"):
-        validated_volume_factor({"_botspot_meta": {"backend": "tws"}}, asset_type, source)
+    # Unknown units: no guessed factor (not 1, not 100). None tells the caller to
+    # mark volume missing while keeping the real prices (2026-10-17 incident:
+    # raising here dropped whole pages of older IBKR stock history).
+    assert validated_volume_factor({"_botspot_meta": {"backend": "tws"}}, asset_type, source) is None
 
 
 @pytest.mark.parametrize("source", ["MIDPOINT", "Bid_Ask", "BID", "ASK"])

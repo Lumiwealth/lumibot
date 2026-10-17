@@ -2,7 +2,7 @@
 from collections.abc import Mapping
 from decimal import Decimal
 import math
-from typing import Any
+from typing import Any, Optional
 
 
 class IbkrVolumeMetadataError(ValueError):
@@ -12,7 +12,7 @@ class IbkrVolumeMetadataError(ValueError):
 _NON_VOLUME_SOURCES = frozenset({"BID", "ASK", "BID_ASK", "MIDPOINT"})
 
 
-def validated_volume_factor(payload: Mapping[str, Any], asset_type: Any, source: str) -> float:
+def validated_volume_factor(payload: Mapping[str, Any], asset_type: Any, source: str) -> Optional[float]:
     """Return the explicit factor converting provider volume to canonical units.
 
     Stock trade volume requires response metadata; a route, currency, ticker,
@@ -46,6 +46,8 @@ def validated_volume_factor(payload: Mapping[str, Any], asset_type: Any, source:
     asset_name = str(getattr(asset_type, "value", asset_type)).strip().lower()
     if asset_name not in {"stock", "etf"}:
         return 1.0
-    raise IbkrVolumeMetadataError(
-        "IBKR volumeFactor is missing for historical trade volume; provider units are unknown"
-    )
+    # Stock trade volume with no factor has unknown units (shares or 100-share
+    # lots). The prices in the same response are still real, so the caller must
+    # keep them and mark only the volume as unavailable. Raising here discarded
+    # whole pages of older IBKR history (LumiBot 4.6.19 incident, 2026-10-17).
+    return None

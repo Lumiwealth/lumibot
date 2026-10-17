@@ -62,11 +62,27 @@ def test_unavailable_volume_and_zero_are_not_fabricated(monkeypatch, volume):
     assert pd.isna(frame.iloc[0].volume) if volume is None else frame.iloc[0].volume == volume
 
 
+@pytest.mark.parametrize("timestep", ["day", "minute"])
 @pytest.mark.parametrize("backend", ["rest", "tws"])
-def test_unknown_stock_volume_units_fail_before_caching(monkeypatch, backend):
-    payload = _payload(backend)
+def test_unknown_stock_volume_units_keep_real_prices_and_hide_volume(monkeypatch, backend, timestep):
+    # Incident 2026-10-17 (LumiBot 4.6.19): IBKR omits volumeFactor on older
+    # stock history pages. Raising here discarded the whole page, so a
+    # 2010-2026 Diversified Leverage backtest logged "No price for TQQQ,
+    # skipping" for years of real bars. Unknown volume units must only make the
+    # volume unknown (missing, never guessed); the real OHLC prices stay.
+    payload = _payload(backend, timestep=timestep)
     del payload["volumeFactor"]
-    with pytest.raises(IbkrVolumeMetadataError, match="missing"):
+    frame = _fetch(monkeypatch, payload, timestep)
+    assert not frame.empty
+    assert frame.iloc[0][["open", "high", "low", "close"]].tolist() == [119.79, 121.69, 118.02, 120.89]
+    assert pd.isna(frame.iloc[0].volume)
+
+
+def test_invalid_stock_volume_factor_still_fails(monkeypatch):
+    # A factor that is present but malformed is a real protocol error.
+    payload = _payload()
+    payload["volumeFactor"] = -5
+    with pytest.raises(IbkrVolumeMetadataError, match="finite positive"):
         _fetch(monkeypatch, payload)
 
 

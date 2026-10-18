@@ -11,6 +11,8 @@
 - Pelosi AI examples are AI only: one research agent plus one trading agent, both called every iteration.
 - ChatGPT plan connections fail over to the next connected account when one hits a usage limit before any output.
 - Subscription eval token bounds now cover calls, roles and resume; exact observation coverage is required and unpriced eval history is kept.
+- One eval ledger can now hold a full release catalog: the input-token cap is 60M (was 10M); the $20 equivalent allowance stays the binding limit.
+- Release qualification: 18 cases, 90 required repetitions, 87 judge controls passed on Luna through ChatGPT plan login ($0 API spend, about $5.73 equivalent upper bound). Two flaky first attempts were retried and passed: iron condor wings quoted without Greeks, and one post-cutoff report wrongly called eligible in the holdings web-documents case.
 
 ## 4.6.19 - 2026-10-16
 

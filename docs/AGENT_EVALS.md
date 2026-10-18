@@ -164,14 +164,15 @@ Each run writes:
 
 The call ledger owns one cumulative allowance across actors, judges, nested
 calls, retries, calibration, resumes and concurrent workers. New ledgers bind the
-token policy in their header: 10 million input tokens and 1 million output tokens
+token policy in their header: 60 million input tokens and 1 million output tokens
 (including reasoning). Before each call it reserves the full provider context and
 128,000 output tokens because the subscription endpoint rejects a requested
 output-token limit. Missing usage retains that entire reservation. Settled calls
 release only unused capacity; API-equivalent usage is reported separately from
 zero API spend and unknown subscription-credit debits. Conservative Standard
-Luna rates verified October 16, 2026 bound this token envelope at $3.25 equivalent,
-below the $20 task allowance. See https://developers.openai.com/api/docs/pricing.
+Luna rates verified October 16, 2026 bound this token envelope at $15.75 equivalent,
+below the $20 task allowance, which remains the binding limit. The earlier 10 million
+input cap could not fit one full release catalog (4.6.20, 2026-10-17). See https://developers.openai.com/api/docs/pricing.
 The call limit remains an additional independent ceiling. Raising it does not
 raise or reset the cumulative token allowance. Existing v2 ledgers are read
 without rewriting past usage; unknown legacy calls retain the full envelope.

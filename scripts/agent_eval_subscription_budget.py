@@ -13,7 +13,10 @@ MAX_SUBSCRIPTION_QUALIFICATION_CALLS = 5000
 # Standard Luna rates verified 2026-10-16; use the highest long-context and
 # cache-write input rate conservatively, independent of actual cache behavior.
 # https://developers.openai.com/api/docs/pricing
-MAX_SUBSCRIPTION_INPUT_TOKENS = 10_000_000
+# 60M input keeps the worst case ($15 input + $0.75 output) under the $20
+# allowance, which stays the binding limit. 10M stopped the 4.6.20 release
+# catalog after 36 of 90 required repetitions (2026-10-17).
+MAX_SUBSCRIPTION_INPUT_TOKENS = 60_000_000
 MAX_SUBSCRIPTION_OUTPUT_TOKENS = 1_000_000
 SUBSCRIPTION_EQUIVALENT_ALLOWANCE_USD = 20
 PROVIDER_INPUT_BOUND = 1_050_000

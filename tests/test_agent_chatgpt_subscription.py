@@ -787,3 +787,17 @@ def test_usage_limit_with_no_other_account_still_fails_visibly(monkeypatch, tmp_
     with pytest.raises(chatgpt_llm.SubscriptionModelResponseError, match="subscription_sharing_usage_limit_exceeded"):
         asyncio.run(consume())
     assert calls == [1]
+
+
+def test_token_envelope_fits_a_full_release_catalog_inside_the_dollar_allowance():
+    # 2026-10-17 4.6.20 release: 90 required repetitions over 18 cases used
+    # about 250k input tokens each. A 10M input cap stopped the ledger after
+    # 36 passes, so no full catalog could ever be qualified. The $20
+    # equivalent allowance, not the token cap, must be the binding limit.
+    from scripts import agent_eval_subscription_budget as budget
+
+    full_catalog_inputs = 90 * 250_000 + 20 * budget.PROVIDER_INPUT_BOUND
+    assert budget.MAX_SUBSCRIPTION_INPUT_TOKENS >= full_catalog_inputs
+    assert budget.equivalent_upper_bound(
+        budget.MAX_SUBSCRIPTION_INPUT_TOKENS, budget.MAX_SUBSCRIPTION_OUTPUT_TOKENS
+    ) <= budget.SUBSCRIPTION_EQUIVALENT_ALLOWANCE_USD

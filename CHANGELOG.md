@@ -1,6 +1,11 @@
 # Changelog
 
-## 4.6.21 - Unreleased
+## 4.6.22 - Unreleased
+
+### Changed
+- Requalify the complete real-model actor and judge catalog for the broker timestamp fixes. The 4.6.21 publication was blocked by its previous-source qualification receipt and was not published.
+
+## 4.6.21 - Publication blocked
 
 ### Fixed
 - Preserve UTC epoch instants in Schwab historical candles before converting to the configured timezone. Previously bars shifted by the UTC offset and could select a prior session at an account cutoff.

@@ -2,6 +2,10 @@
 
 ## 4.6.21 - Unreleased
 
+### Fixed
+- Preserve UTC epoch instants in Schwab historical candles before converting to the configured timezone. Previously bars shifted by the UTC offset and could select a prior session at an account cutoff.
+- Keep CCXT candle timestamps and historical cutoffs UTC-aware, including offset-aware endpoints and timeshift requests. Exchange candle opens remain candle opens.
+
 ## 4.6.20 - 2026-10-17
 
 ### Fixed

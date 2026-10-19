@@ -15,6 +15,27 @@
 
 ## Overview
 
+### Broker history clock contract
+
+Provider epoch values denote UTC instants. Parse with an explicit unit and UTC
+before converting to the strategy timezone; localizing an epoch-derived naive
+index to New York shifts the instant. Schwab history now follows its existing
+quote-time parser's UTC contract. CCXT history keeps UTC-aware candles and
+normalizes aware endpoints to UTC before building exchange requests or slicing.
+Its legacy naive endpoints retain their UTC meaning. Neither repair changes
+candle-open versus candle-completion semantics.
+
+The adapter audit also checked Alpaca (SDK aware index), Tradier (local wall
+times and date-only sessions), IBKR socket (UTC seconds intraday; local daily
+session labels), IBKR REST (UTC milliseconds), Bitunix (UTC milliseconds),
+ProjectX (UTC response timestamps), and Polymarket (UTC timestamps). Those
+formats must not receive a blanket local-time or UTC relabeling. Regression
+checks in `tests/test_broker_history_timestamps.py` cover epoch preservation,
+offset-equivalent cutoffs, DST boundaries, and Tradier's distinct local contract;
+the existing adapter suites retain their own format coverage. These are offline
+transport fixtures, not live provider integration proof. Snapshot cadence is
+outside this contract and is unchanged.
+
 Backtest quotes retain the stored `last_bid_time` and `last_ask_time` as
 `Quote.bid_time` and `Quote.ask_time`. Pandas and Polars data objects pass those
 columns through; ThetaData cached, snapshot-only, and daily paths use the same

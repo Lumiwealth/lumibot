@@ -95,8 +95,7 @@ class CcxtData(DataSource):
         parsed_timestep = self._parse_source_timestep(timestep, reverse=True)
         kwargs = dict(limit=length)
         if timeshift:
-            end = datetime.datetime.now() - timeshift
-            kwargs["end"] = self.to_default_timezone(end)
+            kwargs["end"] = datetime.datetime.now(datetime.timezone.utc) - timeshift
 
         result = {}
         for asset in assets:
@@ -167,7 +166,11 @@ class CcxtData(DataSource):
             limit = 300
 
         if end is None:
-            end = datetime.datetime.utcnow()
+            end = datetime.datetime.now(datetime.timezone.utc)
+        else:
+            # Legacy naive endpoints denote UTC; aware endpoints retain their instant.
+            end = pd.Timestamp(end)
+            end = end.tz_localize("UTC") if end.tzinfo is None else end.tz_convert("UTC")
 
         endunix = self.api.parse8601(end.strftime("%Y-%m-%d %H:%M:%S"))
         buffer = 10  # A few extra datapoints in the download then trim the df.
@@ -188,7 +191,7 @@ class CcxtData(DataSource):
                 cnt += 1
                 candles = self.api.fetch_ohlcv(symbol, freq, since=curr_start, limit=loop_limit, params={})
                 df = pd.DataFrame(candles, columns=["datetime", "open", "high", "low", "close", "volume"])
-                df["datetime"] = pd.to_datetime(df["datetime"], unit="ms")
+                df["datetime"] = pd.to_datetime(df["datetime"], unit="ms", utc=True)
                 df = df.set_index("datetime")
 
                 next_start = curr_start + page_span_ms

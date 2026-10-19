@@ -177,3 +177,32 @@ def test_account_sync_of_zero_fill_cancellation_does_not_emit_a_fill(first_itera
     assert not [event for event, _ in events
         if event in {broker.FILLED_ORDER, broker.PARTIALLY_FILLED_ORDER}]
     assert not order.transactions
+
+
+def test_known_canceled_hedge_can_report_a_later_positive_fill_delta_once():
+    transport = transport_module.SchwabLifecycleTransport()
+    broker, queues = transport_module.data_only_schwab_broker(transport)
+    order = Order(strategy='fixture', asset=Asset('F'), quantity=100,
+        side='sell_short', order_type='limit', limit_price=10, time_in_force='day')
+    broker.submit_order(order)
+    transport_module.drain_stream_events(broker)
+    queue_rows(queues.priority_queue)
+    for cumulative in (40, 60, 60):
+        executions = [{'activityType': 'EXECUTION', 'executionType': 'FILL', 'quantity':40,
+            'executionLegs':[{'legId':1, 'quantity':40, 'price':10,
+                'time':'2026-10-15T14:00:00Z'}]}]
+        if cumulative == 60:
+            executions.append({'activityType':'EXECUTION', 'executionType':'FILL', 'quantity':20,
+                'executionLegs':[{'legId':1, 'quantity':20, 'price':10,
+                    'time':'2026-10-15T14:00:01Z'}]})
+        transport.queue_order_reads(order.identifier, {'status':'CANCELED',
+            'filledQuantity':cumulative, 'remainingQuantity':100-cumulative,
+            'orderActivityCollection':executions})
+        broker._refresh_missing_active_order_from_broker(order, 'fixture')
+    events = queue_rows(queues.priority_queue)
+    fills = [payload for event, payload in events if event in {
+        broker.FILLED_ORDER, broker.PARTIALLY_FILLED_ORDER}]
+    assert [float(payload['quantity']) for payload in fills] == [40, 20]
+    assert sum(transaction.quantity for transaction in order.transactions) == 60
+    assert order.status == 'canceled'
+    assert sum(event == broker.CANCELED_ORDER for event, _ in events) == 1

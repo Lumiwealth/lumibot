@@ -2,10 +2,13 @@
 
 Holds the same stocks Nancy Pelosi owns, in the same proportions. Every day a
 research agent works out what she owns today from her public financial
-disclosure reports, and a trading agent makes the account match.
+disclosure reports, a portfolio agent turns that into target weights, and a
+trading agent makes the account match.
 """
 
 from lumibot.strategies import Strategy
+
+HOUSE = "https://disclosures-clerk.house.gov/public_disc"
 
 
 class NancyPelosiTradingBot(Strategy):
@@ -16,22 +19,36 @@ class NancyPelosiTradingBot(Strategy):
             allow_trading=False,
             allow_network=True,
             system_prompt=(
-                "Find out which stocks Nancy Pelosi owns today and how much of each. Use her official financial "
-                "disclosure reports on the U.S. House Clerk website (https://disclosures-clerk.house.gov): her "
-                "newest yearly report of everything she owns, plus every trade report filed after it. Use only "
-                "reports filed before today. If your last answer is given, start from it and only read reports filed "
-                "since then. Skip options, funds, bonds, real estate and private companies. Give each stock's "
-                "ticker and its share of her stock portfolio in percent, using the middle of each reported dollar "
-                "range. Do not trade."
+                "Find out which stocks Nancy Pelosi owns today. Use her official financial disclosure reports on "
+                "the U.S. House Clerk website: her newest yearly report of everything she owns, plus every trade "
+                f"report filed after it. Each year's list of filings is a ZIP file at {HOUSE}/financial-pdfs/2026FD.ZIP "
+                f"(change 2026 to the year); yearly reports are at {HOUSE}/financial-pdfs/YEAR/DOCID.pdf and trade "
+                f"reports at {HOUSE}/ptr-pdfs/YEAR/DOCID.pdf. A yearly report sits in the list of the year it covers, "
+                "so check this year's and last year's lists. The lists are updated over time; that is fine, just use "
+                "the rows filed before today. Read every page of each report you use, since the yearly report is long. If "
+                "your last answer lists her stocks, start from it and only read reports filed since then; otherwise "
+                "start over from the yearly report. Skip options, funds, bonds, real estate and private companies. "
+                "List every stock she still owns with the ticker it trades under today and its reported dollar range. "
+                "Do not trade."
+            ),
+        )
+        self.agents.create(
+            name="portfolio",
+            allow_trading=False,
+            system_prompt=(
+                "Turn the research into target weights for our account. Use the middle of each dollar range as "
+                "that stock's value; each weight is its value divided by the total. Do the math with a calculator. "
+                "Return one line per ticker with its target percent. Do not trade."
             ),
         )
         self.agents.create(
             name="trader",
             allow_trading=True,
             system_prompt=(
-                "Make the account hold the same stocks in the same percentages as the research. Sell stocks that "
-                "are not in it and buy the ones you do not own. Leave a stock alone when it is within 2 percentage "
-                "points of its target. Sell before you buy, never short, and never spend more cash than you have."
+                "Make the account hold the stocks in the plan at their target percents. Sell stocks that are not in "
+                "the plan and buy the ones you do not own. Leave a stock alone when it is within 2 percentage points "
+                "of its target. If a stock has no price, skip it and spread its weight over the others. Sell before "
+                "you buy, never short, and never spend more cash than you have."
             ),
         )
 
@@ -42,9 +59,8 @@ class NancyPelosiTradingBot(Strategy):
             context={"your_last_answer": self.vars.get("last_research", "none yet")},
         )
         self.vars.set("last_research", research.summary)
-        self.agents["trader"].run(
-            task_prompt="Match the account to the research.", context={"research": research.summary}
-        )
+        plan = self.agents["portfolio"].run(task_prompt="Set the target weights.", context={"holdings": research.summary})
+        self.agents["trader"].run(task_prompt="Match the account to the plan.", context={"plan": plan.summary})
 
 
 if __name__ == "__main__":

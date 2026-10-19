@@ -203,7 +203,8 @@ def test_ccxt_live_pagination_advances_past_inclusive_last_candle():
     frame = source.get_barset_from_api(api, "BTC/USD", "1m", limit=3, end=end)
 
     assert len(frame) == 3
-    assert frame.index[-1] == pd.Timestamp(end)
+    assert frame.index[-1] == pd.Timestamp(end, tz="UTC")
+    assert str(frame.index.tz) == "UTC"
     assert all(
         later - earlier == 60_000
         for earlier, later in zip(api.calls, api.calls[1:])

@@ -125,3 +125,17 @@ def test_public_strategy_rejects_native_quote_for_another_asset():
         broker=SimpleNamespace(data_source=SimpleNamespace(get_quotes=lambda *a, **k: {asset: SimpleNamespace(asset=Asset('XYZ'))}), option_source=None))
     with pytest.raises(ValueError, match='asset'):
         Strategy.get_quotes(strategy, [asset])
+
+
+def test_one_malformed_quote_member_does_not_erase_healthy_batch_quotes():
+    """A batch optimization must retain the singleton read's per-asset outcome."""
+    broken, healthy = Asset('ABC'), Asset('XYZ')
+    data, calls = source({'ABC': {'quote': []}, 'XYZ': {'quote': {'bidPrice': 23, 'askPrice': 24}}})
+    assert data.get_quote(broken) is None
+    assert data.get_quote(healthy).bid == 23
+    calls.clear()
+    result = data.get_quotes([broken, healthy])
+    assert result[broken] is None
+    assert result[healthy].bid == 23
+    assert result[healthy].ask == 24
+    assert calls == [['ABC', 'XYZ']]

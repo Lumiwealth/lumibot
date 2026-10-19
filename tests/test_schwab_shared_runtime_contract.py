@@ -36,6 +36,38 @@ def native_strategy(broker, name):
 
 
 @pytest.mark.parametrize("first_iteration", [True, False])
+def test_fill_from_current_scan_is_delivered_before_live_iteration_finishes(first_iteration):
+    """A newly submitted order is not startup history, even on the first scan."""
+    from queue import Queue
+    from threading import Event
+
+    delivered = Event()
+    executor = StrategyExecutor.__new__(StrategyExecutor)
+    executor.strategy = SimpleNamespace(
+        name="OwnedScanner", _name="OwnedScanner", logger=Mock(),
+        _first_iteration=first_iteration, _update_cash=Mock(),
+    )
+    executor.broker = SimpleNamespace(_first_iteration=first_iteration)
+    executor.priority_queue = Queue()
+    executor.queue = Queue()
+    executor._process_smart_limit_orders = Mock()
+    executor._on_filled_order = Mock(side_effect=lambda **_: delivered.set())
+    order = Order(strategy="OwnedScanner", asset=Asset("F"), quantity=1,
+                  side="buy", order_type="limit", limit_price=10, time_in_force="day")
+
+    def current_scan():
+        executor.priority_queue.put((executor.FILLED_ORDER, {
+            "position": None, "order": order, "price": 10,
+            "quantity": 1, "multiplier": 1,
+        }))
+        delivered.wait(timeout=0.3)
+
+    executor._run_live_trading_iteration_with_priority_drains(current_scan)
+    assert delivered.is_set(), "The current iteration's fill was discarded as startup history"
+    executor._on_filled_order.assert_called_once()
+
+
+@pytest.mark.parametrize("first_iteration", [True, False])
 @pytest.mark.parametrize("other_name", ["SharedClass", "DifferentClass"])
 def test_account_sync_cannot_adopt_another_instances_order(first_iteration, other_name):
     transport = transport_module.SchwabLifecycleTransport()
@@ -150,6 +182,32 @@ def test_real_fill_reported_with_cancellation_is_counted_once_across_duplicate_r
     assert sum(transaction.quantity for transaction in order.transactions) == 40
 
 
+def test_late_report_of_pre_cancel_fill_preserves_terminal_status_and_counts_only_delta():
+    transport = transport_module.SchwabLifecycleTransport()
+    broker, queues = transport_module.data_only_schwab_broker(transport)
+    order = Order(strategy="fixture", asset=Asset("F"), quantity=100,
+        side="sell_short", order_type="limit", limit_price=10, time_in_force="day")
+    broker.submit_order(order)
+    transport_module.drain_stream_events(broker)
+    queue_rows(queues.priority_queue)
+    executions = [{"activityType": "EXECUTION", "executionType": "FILL", "quantity": qty,
+        "executionLegs": [{"legId": 1, "quantity": qty, "price": 10,
+            "time": time}]} for qty, time in [(40, "2026-10-15T14:00:01Z"),
+                                               (20, "2026-10-15T14:00:07Z")]]
+    # Cancellation is observed after both execution times. The additional
+    # execution is reported late; it did not happen after cancellation.
+    for quantity, activities in [(40, executions[:1]), (60, executions), (60, executions)]:
+        transport.queue_order_reads(order.identifier, {"status": "CANCELED",
+            "filledQuantity": quantity, "remainingQuantity": 100 - quantity,
+            "price": 10, "orderActivityCollection": activities})
+        broker._refresh_missing_active_order_from_broker(order, "fixture")
+    events = queue_rows(queues.priority_queue)
+    assert sum(transaction.quantity for transaction in order.transactions) == 60
+    assert order.status == Order.OrderStatus.CANCELED
+    assert len([event for event, _ in events if event == broker.CANCELED_ORDER]) == 1
+    assert len([event for event, _ in events if event == broker.PARTIALLY_FILLED_ORDER]) == 2
+
+
 @pytest.mark.parametrize('first_iteration', [True, False])
 def test_account_sync_of_zero_fill_cancellation_does_not_emit_a_fill(first_iteration):
     from datetime import date
@@ -206,3 +264,50 @@ def test_known_canceled_hedge_can_report_a_later_positive_fill_delta_once():
     assert sum(transaction.quantity for transaction in order.transactions) == 60
     assert order.status == 'canceled'
     assert sum(event == broker.CANCELED_ORDER for event, _ in events) == 1
+
+
+@pytest.mark.parametrize("filled_field", ["omitted", None, 0, "0", "0.0"])
+def test_canceled_one_contract_without_execution_never_invents_a_fill(filled_field):
+    from datetime import date
+    transport = transport_module.SchwabLifecycleTransport()
+    broker, queues = transport_module.data_only_schwab_broker(transport)
+    order = Order(strategy="fixture", asset=Asset("F", asset_type="option",
+        expiration=date(2026, 10, 16), strike=10, right="CALL"), quantity=1,
+        side="buy_to_open", order_type="limit", limit_price=.10, time_in_force="day")
+    broker.submit_order(order)
+    transport_module.drain_stream_events(broker)
+    queue_rows(queues.priority_queue)
+    raw=transport.get_order(order.identifier,transport.account_hash).json()
+    raw.update(status="CANCELED",remainingQuantity=1,orderActivityCollection=[])
+    if filled_field=="omitted":raw.pop("filledQuantity",None)
+    else:raw["filledQuantity"]=filled_field
+    observed=broker._parse_broker_order(raw,"fixture")
+    broker._process_schwab_order_snapshot(observed)
+    events=queue_rows(queues.priority_queue)
+    assert not [event for event,_ in events if event in {broker.FILLED_ORDER,broker.PARTIALLY_FILLED_ORDER}]
+    assert not order.transactions
+
+
+def test_full_contract_execution_with_terminal_cancel_reaches_filled_callback_once():
+    from datetime import date
+    transport=transport_module.SchwabLifecycleTransport()
+    broker,queues=transport_module.data_only_schwab_broker(transport)
+    order=Order(strategy="fixture",asset=Asset("F",asset_type="option",
+        expiration=date(2026,10,16),strike=10,right="CALL"),quantity=1,
+        side="buy_to_open",order_type="limit",limit_price=.10,time_in_force="day")
+    broker.submit_order(order)
+    transport_module.drain_stream_events(broker)
+    queue_rows(queues.priority_queue)
+    raw=transport.get_order(order.identifier,transport.account_hash).json()
+    raw.update(status="CANCELED",filledQuantity=1,remainingQuantity=0,
+        orderActivityCollection=[{"activityType":"EXECUTION","executionType":"FILL",
+            "quantity":1,"executionLegs":[{"legId":1,"quantity":1,"price":.10,
+            "time":"2026-10-15T14:00:00Z"}]}])
+    for _ in range(2):
+        broker._process_schwab_order_snapshot(broker._parse_broker_order(raw,"fixture"))
+    events=queue_rows(queues.priority_queue)
+    assert sum(transaction.quantity for transaction in order.transactions)==1
+    fills=[(event,payload) for event,payload in events
+           if event in {broker.FILLED_ORDER,broker.PARTIALLY_FILLED_ORDER}]
+    assert [(event,float(payload["quantity"])) for event,payload in fills]==[(broker.FILLED_ORDER,1.0)]
+    assert order.is_filled()

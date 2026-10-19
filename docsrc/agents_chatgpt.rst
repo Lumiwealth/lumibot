@@ -94,6 +94,51 @@ and each customer's consent. A developer's local subscription is not a shared
 funding account for customer bots. BotSpot's research MCP connection is also a
 separate grant; signing into ChatGPT does not authorize deployment or trading.
 
+Bounded test-worker credentials
+-------------------------------
+
+A host running an authorized test can select a nonrenewable run profile through
+the existing ``LUMIBOT_CHATGPT_PROFILE_PATH`` setting. This does not transfer a
+credential, create a remote worker, change an agent's selected model, or enable
+subscription inference for ordinary provider models. The agent must still use
+an explicit ``chatgpt/<model slug>`` connection.
+
+The private run profile contains ``credential_kind: "run"``, a unique ``run_id``,
+``status: "connected"``, the granted ``scopes`` including
+``chatgpt.tokens.use.direct``, one authorized OAuth ``access_token``, an absolute
+Unix ``expires_at``, one model ``model`` slug, and positive integer ``limits``
+for ``calls``, ``input_tokens`` and ``output_tokens``. It may be valid for at most
+one hour when loaded for inference. It must not contain a refresh token or an
+API key. The trusted host prepares it from its authorized connection; do not
+copy a renewable account profile into a test artifact or public workflow.
+
+The adapter reserves the selected model catalog's full input/output envelope
+before each actual HTTP request, including tool continuations. Unknown model
+limits fail before the request. A smaller caller output limit cannot reduce the
+reservation because this subscription endpoint does not accept that limit.
+Completed Responses usage settles the reservation; interrupted streams, missing
+usage and failed requests keep it. Output counts already include reasoning.
+
+An owner-only sibling ``.usage.jsonl`` file records reservations and usage,
+without prompts, tool arguments or access tokens. Concurrent processes using
+that profile share its lock and limits. Restarting cannot reset use or enlarge
+the original policy. Expired credentials refuse new requests, but existing usage
+can still be recorded and inspected. Run profiles never refresh, switch
+accounts, or fall back to API billing.
+
+These are client-side limits, not a newly scoped or independently revocable
+OpenAI credential. The underlying bearer token retains its original permission
+and provider expiration. Protect it through the host's existing secret channel.
+The controlling test runner must reserve each worker's whole allowance in its
+own cumulative ledger before provisioning it, and collect the usage receipt
+afterward. Separate workers do not share a local ledger automatically.
+
+This SDK support alone does not qualify a hosted integration. Credential
+transfer, host identity, consent, cleanup and end-to-end inference need their
+own authorized validation. Existing production provider connections keep their
+current authentication and billing unless their owner explicitly selects a
+different connection.
+
 Canonical evaluations
 ---------------------
 

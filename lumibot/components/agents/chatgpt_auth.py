@@ -141,6 +141,9 @@ def access_token(path: Path) -> str:
     read_private(path)
     with FileLock(str(path) + ".lock", timeout=60):
         record = read_private(path)
+        if record.get("credential_kind") == "run":
+            from .chatgpt_run import run_profile
+            return str(run_profile(path)["access_token"])
         if record.get("status") != "connected" or PLAN_SCOPE not in record.get("scopes", []):
             raise ChatGPTAuthorizationError("ChatGPT plan permission is missing; no API fallback")
         if time.time() >= float(record["saved_at"]) + float(record["expires_in"]) - 60:

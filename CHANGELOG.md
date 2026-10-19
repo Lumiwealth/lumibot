@@ -2,6 +2,9 @@
 
 ## 4.6.23 - Unreleased
 
+### Added
+- Nonrenewable ChatGPT plan run profiles with request-level call/token admission, private resumable usage receipts and pinned account/model selection. Normal provider connections are unchanged; this does not deploy or provision a hosted subscription integration.
+
 ## 4.6.22 - Unreleased
 
 ### Changed

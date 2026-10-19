@@ -127,6 +127,29 @@ def test_canceled_option_without_executions_cannot_generate_a_fill():
     assert not order.transactions
 
 
+def test_real_fill_reported_with_cancellation_is_counted_once_across_duplicate_reads():
+    transport = transport_module.SchwabLifecycleTransport()
+    broker, queues = transport_module.data_only_schwab_broker(transport)
+    order = Order(strategy="fixture", asset=Asset("F"), quantity=100,
+        side="sell_short", order_type="limit", limit_price=10, time_in_force="day")
+    broker.submit_order(order)
+    transport_module.drain_stream_events(broker)
+    queue_rows(queues.priority_queue)
+    for _ in range(2):
+        transport.queue_order_reads(order.identifier, {"status": "CANCELED",
+            "filledQuantity": 40, "remainingQuantity": 60, "price": 10,
+            "orderActivityCollection": [{"activityType": "EXECUTION",
+                "executionType": "FILL", "quantity": 40,
+                "executionLegs": [{"legId": 1, "quantity": 40, "price": 10,
+                    "time": "2026-10-15T14:00:00Z"}]}]})
+        broker._refresh_missing_active_order_from_broker(order, "fixture")
+    events = queue_rows(queues.priority_queue)
+    fills = [payload for event, payload in events
+        if event in {broker.FILLED_ORDER, broker.PARTIALLY_FILLED_ORDER}]
+    assert len(fills) == 1
+    assert sum(transaction.quantity for transaction in order.transactions) == 40
+
+
 @pytest.mark.parametrize('first_iteration', [True, False])
 def test_account_sync_of_zero_fill_cancellation_does_not_emit_a_fill(first_iteration):
     from datetime import date

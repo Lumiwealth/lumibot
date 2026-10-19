@@ -125,3 +125,32 @@ def test_canceled_option_without_executions_cannot_generate_a_fill():
     events = queue_rows(queues.priority_queue)
     assert not [event for event, _ in events if event in {broker.FILLED_ORDER, broker.PARTIALLY_FILLED_ORDER}]
     assert not order.transactions
+
+
+@pytest.mark.parametrize('first_iteration', [True, False])
+def test_account_sync_of_zero_fill_cancellation_does_not_emit_a_fill(first_iteration):
+    from datetime import date
+    transport = transport_module.SchwabLifecycleTransport()
+    broker, queues = transport_module.data_only_schwab_broker(transport, name='GenericScanner')
+    order = Order(strategy='GenericScanner', asset=Asset('F', asset_type='option',
+        expiration=date(2026, 10, 16), strike=10, right='CALL'), quantity=1,
+        side='buy_to_open', order_type='limit', limit_price=.10, time_in_force='day')
+    broker.submit_order(order)
+    transport_module.drain_stream_events(broker)
+    queue_rows(queues.priority_queue)
+    snapshot = transport.get_order(order.identifier, transport.account_hash).json()
+    snapshot.update(status='CANCELED', filledQuantity=0, orderActivityCollection=[])
+    transport.queue_history_response([snapshot])
+    broker._first_iteration = first_iteration
+    broker._get_balances_at_broker = lambda *_: (1000, 0, 1000)
+    broker.sync_positions = lambda *_: None
+    strategy = SimpleNamespace(name='GenericScanner', logger=Mock(),
+        quote_asset=Asset('USD', asset_type='forex'), _set_cash_position=lambda *_: None)
+    executor = SimpleNamespace(strategy=strategy, broker=broker, name='GenericScanner',
+        _index_orders_by_identifier=StrategyExecutor._index_orders_by_identifier,
+        _get_all_order_identifiers=StrategyExecutor._get_all_order_identifiers)
+    StrategyExecutor.sync_broker(executor)
+    events = queue_rows(queues.priority_queue)
+    assert not [event for event, _ in events
+        if event in {broker.FILLED_ORDER, broker.PARTIALLY_FILLED_ORDER}]
+    assert not order.transactions

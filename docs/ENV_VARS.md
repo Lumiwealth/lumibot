@@ -145,9 +145,10 @@ This page documents environment variables used by LumiBot, with an emphasis on *
 ## BotSpot managed research
 
 - `BOTSPOT_RESEARCH_MCP_URL`: optional BotSpot Research MCP endpoint.
-- `BOTSPOT_RESEARCH_MCP_TOKEN`: secret, short-lived bearer capability bound to an authenticated user or hosted deployment.
+- `BOTSPOT_RESEARCH_MCP_TOKEN`: secret BotSpot API key for an external connection, or a short-lived bearer capability bound to a hosted workload.
 - `BOTSPOT_RESEARCH_MCP_RENEW_URL`: optional HTTPS renewal endpoint. Localhost is permitted for local development; otherwise its origin must match the MCP endpoint.
-- All three variables are required for automatic attachment. BotSpot-hosted runtimes inject them; external users can link a BotSpot account and configure the same contract.
+- URL and token attach the connection automatically to agents. External API keys do not need a renewal URL. BotSpot-hosted runtimes inject all three variables and renew the restricted workload capability automatically.
+- Endpoints must use HTTPS, except HTTP on loopback for local development. Do not put credentials in the URL, query string or fragment. A supplied renewal endpoint must have the same origin as the MCP endpoint.
 - Missing or incomplete configuration preserves ordinary LumiBot strategy and agent behavior and emits one deduplicated capability notice.
 
 ### `GITHUB_TOKEN` in release CI

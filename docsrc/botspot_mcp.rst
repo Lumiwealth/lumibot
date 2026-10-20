@@ -57,10 +57,12 @@ BotSpot API key through BotSpot Account Settings.
 LumiBot strategy agents
 ----------------------
 
-Create a **Research** key in BotSpot's API Keys settings. It gives your agents
-public research and the Marketplace and Community information you may read.
-It does not authorize trading, deployments, backtests or Community posting.
-Store your own key in your environment or secret manager:
+Create a named key in BotSpot's API Keys settings. Enable the independent public
+research, Marketplace and Community-read permissions you need. Leave trading,
+deployment, backtest-control, secret-management and Community-publication
+permissions off unless you separately intend those capabilities. Expiry defaults
+to Never; choose an expiry if needed. Store your key in your environment or
+secret manager:
 
 .. code-block:: bash
 
@@ -70,6 +72,8 @@ Store your own key in your environment or secret manager:
 LumiBot attaches that connection when you create a strategy agent. Static keys
 do not need a renewal URL. BotSpot-hosted runtimes supply their own short-lived
 capability and renewal endpoint; never copy those runtime tokens elsewhere.
+Endpoints require HTTPS outside loopback, and renewal must use the same origin.
+Never put credentials in a URL, query string or fragment.
 
 The connection discovers datasets through ``search_data_catalog`` and reads
 structured observations with ``query_data`` or documents with
@@ -77,13 +81,22 @@ structured observations with ``query_data`` or documents with
 listings, code and accounts, and the Community feed. Protected code and private
 positions retain the owner's sharing and purchase rules.
 
-In a backtest, the strategy's actual UTC clock limits the research request.
+In a backtest, LumiBot limits research requests to the strategy's actual UTC
+clock. Hosted server authorization must also verify that simulation clock; an
+authenticated backtest workload alone does not establish the current timestamp.
+Without a trusted server clock binding, time-dependent reads return
+``unsupported_capability`` before fetching data. Never bypass this by requesting
+live data or substituting an external key.
 Sources without original-version and publication-time proof return a visible
 ``unsupported_capability`` error. Calendar dates or today's revised economic
 tables do not establish what was available historically. Record missing
 evidence and the provider used; changing a news source requires a new backtest.
 
-Choose a narrower Custom key when you need fewer capabilities. Manage expiry
-and revoke keys in BotSpot. Give an agent a posting grant only when you intend
-to publish; the default Research connection cannot post or reply.
+Edit the same independent switches to narrow a key or revoke it on the existing
+API Keys page. Hosted bot settings are separate from key creation; disabling
+hosted research or revoking a selected key denies that hosted access too.
+Community publication requires separate explicit account, key and bot consent.
+BotSpot owns supplier credentials, normalization, storage and source qualification;
+LumiBot is the client. Research access never grants deployment, backtest-control,
+trading or secret-management authority.
 

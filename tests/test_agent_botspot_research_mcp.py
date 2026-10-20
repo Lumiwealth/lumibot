@@ -115,6 +115,32 @@ def test_auto_attachment_rejects_a_supplied_unsafe_renewal_endpoint(monkeypatch,
     assert "research-token" not in warnings[0]
 
 
+@pytest.mark.parametrize(
+    "endpoint",
+    [
+        "http://api.test.botspot.trade/research-mcp",
+        "https://user:private-url-secret@api.test.botspot.trade/research-mcp",
+        "https://api.test.botspot.trade/research-mcp?token=private-url-secret",
+        "https://api.test.botspot.trade/research-mcp#private-url-secret",
+        "https:///research-mcp",
+        "https://api.test.botspot.trade:invalid/research-mcp",
+    ],
+)
+def test_external_research_connection_rejects_unsafe_or_secret_bearing_urls(monkeypatch, endpoint):
+    # A static API key has no renewal endpoint, so refresh-only validation cannot
+    # protect the initial bearer request or keep credentials out of URL traces.
+    _configure_hosted_research(monkeypatch)
+    monkeypatch.setenv("BOTSPOT_RESEARCH_MCP_URL", endpoint)
+    monkeypatch.delenv("BOTSPOT_RESEARCH_MCP_RENEW_URL")
+    strategy = _Strategy()
+    manager = AgentManager(strategy)
+
+    assert manager.create(name="first", _runtime=_Runtime())._mcp_servers == []
+    assert manager.create(name="second", _runtime=_Runtime())._mcp_servers == []
+    assert len([message for message in strategy.messages if "configuration is invalid" in message]) == 1
+    assert all("private-url-secret" not in message and "research-token" not in message for message in strategy.messages)
+
+
 @pytest.mark.parametrize("scope,parent_post_id", [("community:post", None), ("community:reply", "public-post")])
 def test_mixed_community_tool_preserves_server_write_denial(monkeypatch, scope, parent_post_id):
     _configure_hosted_research(monkeypatch)

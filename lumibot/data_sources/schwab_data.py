@@ -680,17 +680,14 @@ class SchwabData(DataSource):
 
             # Set datetime as the index
             if 'datetime' in df.columns:
-                df['datetime'] = pd.to_datetime(df['datetime'], unit='ms')
+                # Epoch milliseconds identify UTC instants, never local wall time.
+                df['datetime'] = pd.to_datetime(df['datetime'], unit='ms', utc=True)
                 df.set_index('datetime', inplace=True)
 
             # Drop any duplicate indices
             df = df[~df.index.duplicated(keep='first')]
 
-            # Ensure index is timezone-aware
-            if df.index.tz is None:
-                df.index = df.index.tz_localize(LUMIBOT_DEFAULT_TIMEZONE)
-            else:
-                df.index = df.index.tz_convert(LUMIBOT_DEFAULT_TIMEZONE)
+            df.index = df.index.tz_convert(LUMIBOT_DEFAULT_TIMEZONE)
 
             # Create and return the Bars object
             bars = _get_bars_class()(df, self.SOURCE, asset, raw=df, quote=quote)

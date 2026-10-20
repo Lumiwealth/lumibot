@@ -5,6 +5,17 @@
 ### Fixed
 - Preserve dividend and stock-split event timestamps when Pandas and Polars backtest data are aligned to a shared index. Inserted rows carry zero actions instead of repeating a prior event.
 
+## 4.6.22 - Unreleased
+
+### Changed
+- Requalify the complete real-model actor and judge catalog for the broker timestamp fixes. The 4.6.21 publication was blocked by its previous-source qualification receipt and was not published.
+
+## 4.6.21 - Publication blocked
+
+### Fixed
+- Preserve UTC epoch instants in Schwab historical candles before converting to the configured timezone. Previously bars shifted by the UTC offset and could select a prior session at an account cutoff.
+- Keep CCXT candle timestamps and historical cutoffs UTC-aware, including offset-aware endpoints and timeshift requests. Exchange candle opens remain candle opens.
+
 ## 4.6.20 - 2026-10-17
 
 ### Fixed

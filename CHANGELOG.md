@@ -3,7 +3,12 @@
 ## 4.6.23 - Unreleased
 
 ### Added
+- `lumibot connect botspot` checks a BotSpot Research key and writes `BOTSPOT_RESEARCH_MCP_URL` and `BOTSPOT_RESEARCH_MCP_TOKEN` to `.env`.
+- The "BotSpot research is not connected" notice now explains what the connection gives and how to set it up, shows once per process, stays silent in CI, and can be hidden with `LUMIBOT_NO_BOTSPOT_HINT=1` or `DO_NOT_TRACK=1`. `llms.txt` describes the optional connection for coding agents.
 - Nonrenewable ChatGPT plan run profiles with request-level call/token admission, private resumable usage receipts and pinned account/model selection. Normal provider connections are unchanged; this does not deploy or provision a hosted subscription integration.
+
+### Changed
+- Restore the BotSpot and MCP links at the top of the README and put "Build and Deploy with BotSpot" and "BotSpot MCP Integration" first in the docs sidebar.
 
 ## 4.6.22 - Unreleased
 

@@ -556,6 +556,51 @@ def cmd_version(args) -> int:
     return 0
 
 
+def cmd_connect(args) -> int:
+    """Link the optional BotSpot research server for strategy agents.
+
+    Writes BOTSPOT_RESEARCH_MCP_URL and BOTSPOT_RESEARCH_MCP_TOKEN to a dotenv
+    file only after BotSpot accepts the key. The key is never printed.
+    """
+    from lumibot.components.agents import botspot_hint
+
+    url = botspot_hint.connect_url(medium="cli", content="connect_command")
+    token = (args.token or "").strip()
+    if not token:
+        print("Connect BotSpot research to your LumiBot strategy agents (free BotSpot account).")
+        print(f"1. Create a Research key: {url}")
+        if not args.no_browser and sys.stdin.isatty():
+            import webbrowser
+
+            webbrowser.open(url)
+        if not sys.stdin.isatty():
+            print("2. Run again with the key: lumibot connect botspot --token <your-research-key>", file=sys.stderr)
+            return 2
+        import getpass
+
+        token = getpass.getpass("2. Paste the key (hidden): ").strip()
+        if not token:
+            print("No key entered. Nothing was changed.", file=sys.stderr)
+            return 2
+
+    ok, detail = botspot_hint.verify_research_key(botspot_hint.RESEARCH_MCP_URL, token)
+    if not ok:
+        print(f"BotSpot research key check failed ({detail}). Nothing was changed.", file=sys.stderr)
+        return 1
+
+    env_file = Path(args.env_file)
+    botspot_hint.write_env_values(
+        env_file,
+        {
+            "BOTSPOT_RESEARCH_MCP_URL": botspot_hint.RESEARCH_MCP_URL,
+            "BOTSPOT_RESEARCH_MCP_TOKEN": token,
+        },
+    )
+    print(f"Connected. Saved BOTSPOT_RESEARCH_MCP_URL and BOTSPOT_RESEARCH_MCP_TOKEN to {env_file}.")
+    print("Strategy agents attach BotSpot research automatically when those are set.")
+    return 0
+
+
 # ----------------------------------------------------------------------
 
 
@@ -569,6 +614,7 @@ def build_parser() -> argparse.ArgumentParser:
             "  lumibot init my-bot --template ai     write an editable strategy\n"
             "  lumibot backtest my-bot --days 90     backtest it\n"
             "  lumibot run my-bot --paper            trade it on a paper account\n"
+            "  lumibot connect botspot               optional: link BotSpot research for agents\n"
         ),
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
@@ -600,6 +646,13 @@ def build_parser() -> argparse.ArgumentParser:
 
     p_ver = sub.add_parser("version", help="Print the installed lumibot version")
     p_ver.set_defaults(func=cmd_version)
+
+    p_connect = sub.add_parser("connect", help="Link optional BotSpot research for strategy agents")
+    p_connect.add_argument("service", choices=["botspot"], help="Service to connect")
+    p_connect.add_argument("--token", help="BotSpot Research key (otherwise prompted)")
+    p_connect.add_argument("--env-file", default=".env", help="Dotenv file to update (default: .env)")
+    p_connect.add_argument("--no-browser", action="store_true", help="Do not open the key page")
+    p_connect.set_defaults(func=cmd_connect)
 
     return parser
 

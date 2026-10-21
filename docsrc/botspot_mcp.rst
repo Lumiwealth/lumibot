@@ -67,6 +67,12 @@ Store your own key in your environment or secret manager:
    export BOTSPOT_RESEARCH_MCP_URL="https://api.botspot.trade/research-mcp"
    export BOTSPOT_RESEARCH_MCP_TOKEN="botspot_YOUR_RESEARCH_KEY"
 
+Or let the command line check the key and write both values to ``.env``:
+
+.. code-block:: bash
+
+   lumibot connect botspot
+
 LumiBot attaches that connection when you create a strategy agent. Static keys
 do not need a renewal URL. BotSpot-hosted runtimes supply their own short-lived
 capability and renewal endpoint; never copy those runtime tokens elsewhere.

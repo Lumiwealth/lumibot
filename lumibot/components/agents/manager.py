@@ -225,12 +225,12 @@ def _botspot_research_server_from_environment() -> tuple[MCPServer | None, str |
     renew_url = str(os.environ.get("BOTSPOT_RESEARCH_MCP_RENEW_URL") or "").strip()
     configured = [bool(url), bool(token), bool(renew_url)]
     if not any(configured):
-        return (
-            None,
-            "BotSpot managed public macro and SEC research are not linked. This optional capability "
-            "is attached automatically on BotSpot; external LumiBot users can link a BotSpot account. "
-            "Ordinary LumiBot tools and strategy execution remain available.",
-        )
+        # Once per process and silent in CI or when opted out; see botspot_hint.
+        from .botspot_hint import claim_unlinked_hint, unlinked_research_message
+
+        if not claim_unlinked_hint():
+            return None, None
+        return None, unlinked_research_message()
     # External research keys need only URL + token. Hosted capabilities can
     # additionally renew; a supplied renewal URL retains MCPServer validation.
     if not (url and token):

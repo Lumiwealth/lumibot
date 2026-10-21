@@ -239,6 +239,12 @@ def test_partial_hosted_configuration_warns_once_without_changing_ordinary_execu
 
 
 def test_unlinked_external_runtime_advertises_optional_capability_once(monkeypatch):
+    from lumibot.components.agents import botspot_hint
+
+    # The hint is once per process and silent in CI; isolate it for this test.
+    for name in ("LUMIBOT_NO_BOTSPOT_HINT", "DO_NOT_TRACK", "CI", "GITHUB_ACTIONS", "JENKINS_URL"):
+        monkeypatch.delenv(name, raising=False)
+    botspot_hint._reset_for_tests()
     monkeypatch.delenv("BOTSPOT_RESEARCH_MCP_URL", raising=False)
     monkeypatch.delenv("BOTSPOT_RESEARCH_MCP_TOKEN", raising=False)
     monkeypatch.delenv("BOTSPOT_RESEARCH_MCP_RENEW_URL", raising=False)

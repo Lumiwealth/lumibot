@@ -137,6 +137,12 @@ Commands
    * - ``lumibot run <project>``
      - Trade the project. ``--paper`` or ``--live`` is required; ``--live`` also
        requires ``--yes``.
+   * - ``lumibot connect botspot``
+     - Optional. Link BotSpot research (public macro data, SEC research,
+       Marketplace and Community reads) for strategy agents with a free
+       BotSpot account. Checks the key, then writes
+       ``BOTSPOT_RESEARCH_MCP_URL`` and ``BOTSPOT_RESEARCH_MCP_TOKEN`` to
+       ``.env``. ``--token`` skips the prompt; ``--env-file`` picks the file.
    * - ``lumibot --version``
      - Print the installed version.
 

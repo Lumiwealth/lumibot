@@ -27,6 +27,10 @@ For complete API documentation with all method signatures, parameters, return ty
 - Complete two-agent Strategy: https://lumibot.lumiwealth.com/agents_quickstart.html
 - Examples and recorded evidence: https://lumibot.lumiwealth.com/agents_examples.html
 - Coding-agent instructions: https://lumibot.lumiwealth.com/agent_start_here.html
+
+## Optional: BotSpot research
+
+LumiBot strategy agents can attach BotSpot's read-only research server: public macro data, SEC research, and BotSpot Marketplace and Community reads. It works with a free BotSpot account and is attached automatically on BotSpot. Setup: run `lumibot connect botspot`, or set `BOTSPOT_RESEARCH_MCP_URL=https://api.botspot.trade/research-mcp` and `BOTSPOT_RESEARCH_MCP_TOKEN` (a Research key from https://botspot.trade/account-settings/api-keys?utm_source=lumibot&utm_medium=llms_txt&utm_campaign=mcp_nudge&utm_content=llms_txt). Without it, ordinary LumiBot tools and strategies work the same.
 - Standalone components: https://lumibot.lumiwealth.com/standalone_components.html
 - Existing Strategy subclasses remain the canonical execution interface.
 
@@ -34,7 +38,7 @@ For complete API documentation with all method signatures, parameters, return ty
 
 - LumiBot supports **AI trading agents** directly inside the `Strategy` lifecycle with `self.agents.create(...)`
 - Start with a read-only researcher and a trading-enabled risk reviewer. The trader submits orders and reconciles their actual status; a submission or timeout is not proof of a fill.
-- The quickstart uses gemini-3.5-flash-lite and GEMINI_API_KEY.
+- The quickstart uses openai/gpt-6-luna on high reasoning and OPENAI_API_KEY.
 - Agents can run from `initialize()`, `on_trading_iteration()`, `on_filled_order()`, and other lifecycle methods
 - Agentic backtests can replay identical runs from cache without another model call
 - DuckDB is the built-in SQL query surface for time-series analysis
@@ -157,4 +161,4 @@ class MyStrategy(Strategy):
 
 Set via environment variable: `BACKTESTING_DATA_SOURCE=yahoo|polygon|thetadata|polymarket`
 
-# Generated: 2026-09-13T21:04:41Z
+# Generated: 2026-10-21T00:19:59Z

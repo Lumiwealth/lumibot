@@ -147,8 +147,10 @@ This page documents environment variables used by LumiBot, with an emphasis on *
 - `BOTSPOT_RESEARCH_MCP_URL`: optional BotSpot Research MCP endpoint.
 - `BOTSPOT_RESEARCH_MCP_TOKEN`: secret, short-lived bearer capability bound to an authenticated user or hosted deployment.
 - `BOTSPOT_RESEARCH_MCP_RENEW_URL`: optional HTTPS renewal endpoint. Localhost is permitted for local development; otherwise its origin must match the MCP endpoint.
-- All three variables are required for automatic attachment. BotSpot-hosted runtimes inject them; external users can link a BotSpot account and configure the same contract.
-- Missing or incomplete configuration preserves ordinary LumiBot strategy and agent behavior and emits one deduplicated capability notice.
+- The URL and token are required for automatic attachment; the renewal URL is optional for an external static key. BotSpot-hosted runtimes inject all three.
+- Missing or incomplete configuration preserves ordinary LumiBot strategy and agent behavior and emits one deduplicated capability notice. The "not connected" notice (`lumibot/components/agents/botspot_hint.py`) shows at most once per process, never in CI, and carries a tracked link (`utm_campaign=mcp_nudge`).
+- `LUMIBOT_NO_BOTSPOT_HINT`: set to `1` to hide that notice. `DO_NOT_TRACK=1` also hides it.
+- `lumibot connect botspot` verifies a Research key and writes the URL and token to `.env` (mode 0600).
 
 ### `GITHUB_TOKEN` in release CI
 

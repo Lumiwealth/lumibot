@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+### Fixed
+- Preserve directional percentage trailing stops in backtests: buy stops follow price decreases and sell stops retain their threshold on pullbacks. Correct the backtesting 2% example to use `trail_percent=0.02`.
+
 ## 4.6.24 - 2026-10-21
 
 ### Fixed

@@ -45,6 +45,27 @@ Backtesting must not assume a single universal rule for “market closed” beca
 
 When behavior differs across brokers, we need broker-scoped semantics (or a documented approximation).
 
+### Backtesting trailing-stop invariant
+
+`Order.update_trail_stop_price()` owns the stored trailing threshold used by
+both OHLC and quote-based backtest execution. With a fractional percentage
+offset such as `0.02` (2%), buy thresholds only ratchet downward and sell
+thresholds only ratchet upward. A reversal must not loosen the retained stop:
+buy prices `100, 90, 95` retain `91.8`, and sell prices `100, 110, 109` retain
+`107.8`. Fixed-dollar trails use the same directional invariant.
+
+OHLC execution checks the previously stored stop before updating from the
+current bar's favorable extreme. Quote execution updates from bid for a buy
+or ask for a sell, then checks execution against the opposite quote side.
+These timing and spread conventions remain distinct. Regression coverage in
+`tests/test_percentage_trailing_stop_ratcheting.py` checks the owning state
+transition, quote decisions, and OHLC fills with cash and position accounting.
+
+This fractional convention describes backtesting. Existing live adapters can
+forward broker-native percentage units; this invariant does not establish
+unit parity or live fill equivalence, and does not introduce input rescaling
+or new percentage-range validation.
+
 ### Crypto-futures close invariant
 
 `Position.get_selling_order()` intentionally does not synthesize a generic

@@ -125,6 +125,30 @@ The one exception is outbound network access. ``http_request``, ``rss_fetch``, a
 External Data Patterns
 ----------------------
 
+**BotSpot managed research**
+
+Create a named key on BotSpot's existing API Keys settings page. Enable the
+individual research permissions you need; leave deployment, backtest-control,
+trading and secret-management permissions off. Expiry defaults to Never and the
+same page can revoke the key. Hosted bot permissions are a separate account setting.
+
+Set ``BOTSPOT_RESEARCH_MCP_URL`` to the BotSpot Research MCP endpoint and
+``BOTSPOT_RESEARCH_MCP_TOKEN`` to the key. Agents attach it automatically without
+supplier keys or custom ``MCPServer`` configuration. External static keys do not
+need a renewal URL; hosted workloads receive
+``BOTSPOT_RESEARCH_MCP_RENEW_URL`` automatically. HTTPS is required outside
+loopback, renewal must use the same origin, and URLs cannot contain credentials,
+query strings or fragments.
+
+BotSpot owns supplier credentials, normalization, storage and source qualification.
+The connection provides research and permitted Marketplace/Community capabilities;
+it does not grant permission to launch a backtest, deploy a bot or place a trade.
+Community publication needs its own explicit grants. Revoking a selected key also
+narrows hosted access. Historical reads require qualified source history and a
+server-verified hosted simulation clock; an unavailable binding must return an
+explicit unsupported-capability error. Never bypass that error by switching to
+live data or an unbounded external key.
+
 **Pattern 1: @agent_tool wrapping a REST API (recommended)**
 
 This is the primary and recommended approach. It works reliably in both backtests and live trading because you control the HTTP call directly.

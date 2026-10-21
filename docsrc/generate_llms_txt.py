@@ -34,6 +34,10 @@ For complete API documentation with all method signatures, parameters, return ty
 - Complete two-agent Strategy: https://lumibot.lumiwealth.com/agents_quickstart.html
 - Examples and recorded evidence: https://lumibot.lumiwealth.com/agents_examples.html
 - Coding-agent instructions: https://lumibot.lumiwealth.com/agent_start_here.html
+
+## Optional: BotSpot research
+
+LumiBot strategy agents can attach BotSpot's read-only research server: public macro data, SEC research, and BotSpot Marketplace and Community reads. It works with a free BotSpot account and is attached automatically on BotSpot. Setup: run `lumibot connect botspot`, or set `BOTSPOT_RESEARCH_MCP_URL=https://api.botspot.trade/research-mcp` and `BOTSPOT_RESEARCH_MCP_TOKEN` (a Research key from https://botspot.trade/account-settings/api-keys?utm_source=lumibot&utm_medium=llms_txt&utm_campaign=mcp_nudge&utm_content=llms_txt). Without it, ordinary LumiBot tools and strategies work the same.
 - Standalone components: https://lumibot.lumiwealth.com/standalone_components.html
 - Existing Strategy subclasses remain the canonical execution interface.
 

@@ -99,10 +99,11 @@ class SubscriptionModelResponseError(RuntimeError):
 class CompletionCheckedStream(httpx.AsyncByteStream):
     """Require provider completion before ADK can finalize a truncated stream."""
 
-    def __init__(self, delegate: httpx.AsyncByteStream, replay=None) -> None:
+    def __init__(self, delegate: httpx.AsyncByteStream, replay=None, on_completed=None) -> None:
         self.delegate = delegate
         self.failure = None
         self.replay = replay
+        self.on_completed = on_completed
 
     async def __aiter__(self) -> AsyncGenerator[bytes, None]:
         pending = b""
@@ -123,6 +124,12 @@ class CompletionCheckedStream(httpx.AsyncByteStream):
                             complete = event.get("response", {}).get("status") == "completed"
                             if complete and self.replay is not None:
                                 self.replay.remember(event["response"].get("output"))
+                            if complete and self.on_completed is not None:
+                                try:
+                                    await self.on_completed(event["response"])
+                                except Exception as error:
+                                    self.failure = error
+                                    raise
             yield chunk
         if not complete:
             self.failure = SubscriptionModelResponseError("subscription_stream_incomplete")
@@ -132,7 +139,7 @@ class CompletionCheckedStream(httpx.AsyncByteStream):
         await self.delegate.aclose()
 
 
-async def check_response_stream(response: httpx.Response, replay=None) -> None:
+async def check_response_stream(response: httpx.Response, replay=None, on_completed=None) -> None:
     if not response.is_success:
         await response.aread()
         try:
@@ -145,7 +152,7 @@ async def check_response_stream(response: httpx.Response, replay=None) -> None:
     # must attest completion and retain opaque tool-continuation history.
     if not isinstance(response.stream, httpx.AsyncByteStream):
         raise RuntimeError("Subscription requires an asynchronous response stream")
-    response.stream = CompletionCheckedStream(response.stream, replay)
+    response.stream = CompletionCheckedStream(response.stream, replay, on_completed)
 
 
 class _PlanResponsesClient(LiteLLMClient):
@@ -207,10 +214,12 @@ class ChatGPTPlanLlm(BaseLlm):
         self._transport = transport
 
     async def generate_content_async(self, llm_request: Any, stream: bool = False) -> AsyncGenerator[Any, None]:
+        from .chatgpt_run import is_run_profile
+        pinned_run = is_run_profile(self._profile)
         # A plan usage limit arrives before any output. Cool that account down
         # and retry on the next connected one; any other failure, or a limit
         # after output started, is raised unchanged.
-        if is_cooling(self._profile):
+        if not pinned_run and is_cooling(self._profile):
             self._profile = next_connected_profile(self._profile) or self._profile
         while True:
             produced = False
@@ -220,7 +229,7 @@ class ChatGPTPlanLlm(BaseLlm):
                     yield response
                 return
             except SubscriptionModelResponseError as error:
-                if produced or error.code not in USAGE_LIMIT_CODES:
+                if pinned_run or produced or error.code not in USAGE_LIMIT_CODES:
                     raise
                 mark_exhausted(self._profile)
                 following = next_connected_profile(self._profile)
@@ -230,6 +239,8 @@ class ChatGPTPlanLlm(BaseLlm):
 
     async def _generate_once(self, llm_request: Any, stream: bool = False) -> AsyncGenerator[Any, None]:
         token = await asyncio.to_thread(access_token, self._profile)
+        from .chatgpt_run import RunBudget, is_run_profile
+        run_budget = RunBudget(self._profile) if is_run_profile(self._profile) else None
         kwargs = dict(self._kwargs)
         # LiteLLM drops top-level store=False on its completion bridge. The
         # existing Responses extra_body path preserves it (live-verified).
@@ -249,10 +260,40 @@ class ChatGPTPlanLlm(BaseLlm):
         terminal = False
         checked_streams = []
         response_failure = None
+        request_failure = None
+
+        async def admit_request(request):
+            nonlocal request_failure
+            if run_budget is None:
+                return
+            try:
+                if str(request.url) != "https://api.openai.com/v1/responses" or request.method != "POST":
+                    raise ValueError("Run credential only permits subscription Responses requests")
+                body = json.loads(request.content)
+                if body.get("service_tier") != "default" or body.get("store") is not False or body.get("stream") is not True:
+                    raise ValueError("Run request must use Standard, streaming and store=false")
+                from litellm import get_model_info
+                info = get_model_info("openai/" + body["model"])
+                # Output limits are stripped on this endpoint. Reserve the actual
+                # catalog envelope, not the smaller ADK caller's requested limit.
+                ticket = await asyncio.to_thread(run_budget.reserve, body["model"],
+                    input_bound=info.get("max_input_tokens"),
+                    output_bound=info.get("max_output_tokens"))
+                request.extensions["lumibot_plan_ticket"] = ticket
+            except Exception as error:
+                request_failure = error
+                raise
+
         async def checked_response(response):
             nonlocal response_failure
+            async def completed(payload):
+                if run_budget is not None:
+                    ticket = response.request.extensions.get("lumibot_plan_ticket")
+                    if not ticket:
+                        raise RuntimeError("Run response lacks a reserved request")
+                    await asyncio.to_thread(run_budget.settle, ticket, payload.get("usage"))
             try:
-                await check_response_stream(response, self._replay)
+                await check_response_stream(response, self._replay, completed if run_budget is not None else None)
             except SubscriptionModelResponseError as error:
                 response_failure = error
                 raise
@@ -262,7 +303,7 @@ class ChatGPTPlanLlm(BaseLlm):
         # Responses routing uses LiteLLM's AsyncHTTPHandler, not an OpenAI
         # SDK client. Passing the wrong client type silently loses hooks.
         http_handler = AsyncHTTPHandler(timeout=self._kwargs.get("timeout", 180),
-            event_hooks={"response": [checked_response]}, transport=self._transport, follow_redirects=False)
+            event_hooks={"request": [admit_request], "response": [checked_response]}, transport=self._transport, follow_redirects=False)
         try:
             delegate = LiteLlm(model=self.model, llm_client=_PlanResponsesClient(http_handler, token, self._replay), **kwargs)
             async for response in delegate.generate_content_async(request, stream=True):
@@ -274,7 +315,7 @@ class ChatGPTPlanLlm(BaseLlm):
                     yield response
         except Exception:
             # Preserve structured transport causes if LiteLLM wrapped them.
-            failure = response_failure or next((item.failure for item in checked_streams if item.failure), None)
+            failure = request_failure or response_failure or next((item.failure for item in checked_streams if item.failure), None)
             if failure:
                 raise failure from None
             raise

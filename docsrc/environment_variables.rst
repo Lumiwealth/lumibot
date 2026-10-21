@@ -217,7 +217,9 @@ BotSpot managed research
 - ``BOTSPOT_RESEARCH_MCP_TOKEN``: secret bearer credential. External users supply their own scoped BotSpot key; hosted runtimes receive a short-lived deployment-bound capability.
 - ``BOTSPOT_RESEARCH_MCP_RENEW_URL``: optional HTTPS renewal endpoint. Localhost is permitted for local development; otherwise its origin must match the MCP endpoint.
 - The URL and token enable automatic attachment. The renewal URL is optional for an external static key and required only when the hosted capability needs automatic renewal.
-- Missing or incomplete configuration preserves ordinary LumiBot strategy and agent behavior and emits one deduplicated capability notice.
+- Missing or incomplete configuration preserves ordinary LumiBot strategy and agent behavior and emits one deduplicated capability notice. The "not connected" notice appears at most once per process and never in CI.
+- ``LUMIBOT_NO_BOTSPOT_HINT``: set to ``1`` to hide the "BotSpot research is not connected" notice. ``DO_NOT_TRACK=1`` also hides it.
+- ``lumibot connect botspot`` checks a Research key with BotSpot and writes the URL and token to ``.env``. See :doc:`cli`.
 
 ``GITHUB_TOKEN`` is used only in tagged release CI with repository ``actions: read`` permission to restore compatible agent-eval freshness evidence. The source workflow commit must be an ancestor of the exact tagged candidate. If no trustworthy artifact is available, stale cases run normally. Never log or commit token values.
 

@@ -232,6 +232,10 @@ def test_explicit_execution_and_observed_action_rules_reach_assembled_adk_instru
     runtime = runtime_module.GoogleADKRuntime()
     monkeypatch.setattr(runtime, "_ensure_adk", lambda: (CapturedAgent, object, types, FunctionTool))
     monkeypatch.setattr(runtime_module, "_resolve_model_for_adk", lambda model, **_kwargs: model)
+    # This construction-only contract must not ask LiteLLM for ChatGPT model
+    # metadata: that lookup can start interactive device authentication before
+    # the captured constructor is reached. Model limits are not this test's job.
+    monkeypatch.setattr(runtime_module, "_model_max_output_tokens", lambda _model: None)
     request = runtime_module.RuntimeRequest(
         agent_name="researcher",
         model="chatgpt/gpt-6-sol",
@@ -2061,6 +2065,9 @@ def test_durable_journal_callback_and_native_skill_adapter_reach_runtime_assembl
     runtime = runtime_module.GoogleADKRuntime()
     monkeypatch.setattr(runtime, "_ensure_adk", lambda: (Agent, object, types, FunctionTool))
     monkeypatch.setattr(runtime_module, "_resolve_model_for_adk", lambda model, **_kwargs: model)
+    # As in the construction-only instruction contract above, model metadata
+    # is fixture-owned so this assertion cannot start a login or model request.
+    monkeypatch.setattr(runtime_module, "_model_max_output_tokens", lambda _model: None)
     request = runtime_module.RuntimeRequest(
         agent_name="researcher",
         model="chatgpt/gpt-6-sol",

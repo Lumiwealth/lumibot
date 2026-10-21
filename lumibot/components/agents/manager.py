@@ -10,6 +10,7 @@ import time
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
+from urllib.parse import urlparse
 
 from lumibot import LUMIBOT_CACHE_FOLDER
 
@@ -225,12 +226,12 @@ def _botspot_research_server_from_environment() -> tuple[MCPServer | None, str |
     renew_url = str(os.environ.get("BOTSPOT_RESEARCH_MCP_RENEW_URL") or "").strip()
     configured = [bool(url), bool(token), bool(renew_url)]
     if not any(configured):
-        return (
-            None,
-            "BotSpot managed public macro and SEC research are not linked. This optional capability "
-            "is attached automatically on BotSpot; external LumiBot users can link a BotSpot account. "
-            "Ordinary LumiBot tools and strategy execution remain available.",
-        )
+        # Once per process and silent in CI or when opted out; see botspot_hint.
+        from .botspot_hint import claim_unlinked_hint, unlinked_research_message
+
+        if not claim_unlinked_hint():
+            return None, None
+        return None, unlinked_research_message()
     # External research keys need only URL + token. Hosted capabilities can
     # additionally renew; a supplied renewal URL retains MCPServer validation.
     if not (url and token):
@@ -240,6 +241,24 @@ def _botspot_research_server_from_environment() -> tuple[MCPServer | None, str |
             "to use the managed public macro and SEC research catalog.",
         )
     try:
+        # Static external keys do not configure renewal, so MCPServer's refresh
+        # validation alone cannot protect the initial bearer request. Keep all
+        # credentials in the header and permit cleartext only on loopback.
+        for endpoint in [url, *([renew_url] if renew_url else [])]:
+            parsed = urlparse(endpoint)
+            _ = parsed.port  # Validate a malformed port without echoing the URL.
+            if (
+                not parsed.hostname
+                or not (
+                    parsed.scheme == "https"
+                    or (parsed.scheme == "http" and parsed.hostname in {"localhost", "127.0.0.1", "::1"})
+                )
+                or parsed.username is not None
+                or parsed.password is not None
+                or parsed.query
+                or parsed.fragment
+            ):
+                raise ValueError("Research endpoints require HTTPS or loopback HTTP and no URL credentials, query or fragment.")
         return (
             MCPServer(
                 name="botspot_research",
@@ -251,8 +270,8 @@ def _botspot_research_server_from_environment() -> tuple[MCPServer | None, str |
             ),
             None,
         )
-    except ValueError as exc:
-        return None, f"BotSpot research configuration is invalid: {exc}"
+    except ValueError:
+        return None, "BotSpot research configuration is invalid: use HTTPS (or loopback HTTP), with a same-origin renewal endpoint and credentials only in BOTSPOT_RESEARCH_MCP_TOKEN."
 
 
 def _iso_or_none(value: Any) -> str | None:

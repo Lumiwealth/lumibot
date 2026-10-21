@@ -584,6 +584,8 @@ Table of Contents
    :caption: Start here
 
    Home <self>
+   Build and Deploy with BotSpot <https://botspot.trade/sales?showLogin=1&utm_source=documentation&utm_medium=sidebar&utm_campaign=lumibot&utm_content=sidebar_build_bots&sample=lumibot_deploy_sample>
+   BotSpot MCP Integration <botspot_mcp>
    Start Here / Python Setup <getting_started>
    The lumibot Command <cli>
    Python Strategy Examples <examples>
@@ -632,8 +634,6 @@ Table of Contents
    :caption: Community and learning
 
    Free AI Trading Challenge <https://botspot.trade/challenges?utm_source=documentation&utm_medium=sidebar&utm_campaign=lumibot_ai_trading&utm_content=free_challenge>
-   Build and Deploy with BotSpot <https://botspot.trade/sales?showLogin=1&utm_source=documentation&utm_medium=sidebar&utm_campaign=lumibot&utm_content=sidebar_build_bots&sample=lumibot_deploy_sample>
-   BotSpot MCP Integration <botspot_mcp>
    Partnerships and Sponsorship <PARTNERSHIPS>
    Migrate from Backtrader <MIGRATING_FROM_BACKTRADER>
    GitHub <https://github.com/Lumiwealth/lumibot>

@@ -14,6 +14,7 @@ _NAME_TO_MODULE = {
     "ProjectX": "projectx",
     "Polymarket": "polymarket",
     "Schwab": "schwab",
+    "TickerAll": "tickerall",
     "Tradier": "tradier",
     "Tradovate": "tradovate",
 }

@@ -11,6 +11,7 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from enum import Enum
 import json
+import sys
 from threading import Lock
 from typing import Any, Iterable, Optional, Sequence
 
@@ -430,6 +431,13 @@ def reset_ibkr_history_health() -> None:
         _HEALTH_EVENT_IDS.clear()
         _REQUIRED_FAILURES.clear()
         _OPTIONAL_ISSUES.clear()
+    # A Strategy backtest startup already resets this provider's run telemetry.
+    # Reset the price-basis memo at the same boundary, without importing a data
+    # adapter into runs that never use IBKR. Within one run it remains frozen.
+    helper = sys.modules.get("lumibot.tools.ibkr_helper")
+    basis_cache = getattr(helper, "_IBKR_EQUITY_BASIS_CACHE", None)
+    if basis_cache is not None:
+        basis_cache.clear()
 
 
 def reset_ibkr_history_health_for_testing() -> None:

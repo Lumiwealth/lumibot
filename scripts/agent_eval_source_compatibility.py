@@ -17,6 +17,13 @@ import subprocess
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
+# Exact entry-point migration for the preserved legacy receipt. This is not a
+# general main() exemption. Remove the pair when the anchor is replaced by fresh
+# native proof under the current verifier; any other entry-point edit is stale.
+VALIDATOR_ENTRY_COMPATIBILITY = (
+    '604ee1cb892d5f94e9309cde7bcb8d9c14fe00267571861d5b47744d1ec91bca',
+    'e6c26e47a98e894c5318dc971caaed7c7f5fd803926e2915bb62971e271978a9',
+)
 PROVIDER_ONLY_PATHS = frozenset({
     'lumibot/backtesting/routed_backtesting.py',
     'lumibot/tools/ibkr_equity_basis.py',
@@ -88,9 +95,15 @@ def check_change(path, before, after):
     if path == 'scripts/qualify_agent_evals.py':
         def validator_contract(source):
             tree = ast.parse(source)
+            entries = [node for node in tree.body if isinstance(node, ast.FunctionDef) and node.name == 'main']
+            if len(entries) != 1:
+                raise ValueError('Validator requires exactly one maintained main entry point')
+            entry_hash = hashlib.sha256(ast.dump(entries[0]).encode()).hexdigest()
             tree.body = [node for node in tree.body if not isinstance(node, ast.FunctionDef) or node.name != 'main']
-            return ast.dump(tree)
-        if validator_contract(before) == validator_contract(after):
+            return ast.dump(tree), entry_hash
+        old_contract, old_entry = validator_contract(before)
+        new_contract, new_entry = validator_contract(after)
+        if old_contract == new_contract and (old_entry, new_entry) == VALIDATOR_ENTRY_COMPATIBILITY:
             return
     raise ValueError(f'Source change affects model qualification: {path}')
 

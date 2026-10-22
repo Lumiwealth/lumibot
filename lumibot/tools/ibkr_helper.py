@@ -5762,7 +5762,12 @@ def _append_equity_corporate_actions_daily(frame: pd.DataFrame, asset: Asset, *,
         # without evidence; the warning survives in settings/data-health output.
         out["dividend"] = np.nan
         out["stock_splits"] = np.nan
+        out.attrs["actions_verified"] = False
         return out, True
+    if out.attrs.get("actions_verified") is not True:
+        out = out.copy()
+        out.attrs["actions_verified"] = True
+        changed = True
     if actions.empty:
         # A verified correction can remove an event. Reusing prior columns would
         # retain a dividend or split the source no longer reports.

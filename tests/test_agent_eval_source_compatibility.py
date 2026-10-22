@@ -1,7 +1,6 @@
 """Native inference keeps its original source; unrelated provider edits may reuse it."""
 import hashlib
 import json
-from pathlib import Path
 
 import pytest
 
@@ -39,9 +38,20 @@ def test_reconstructed_hash_preserves_path_order_and_sdk_identity():
 
 def test_validator_reuse_never_accepts_changed_native_validation():
     before = b'def validate_record():\n    return True\n\ndef main():\n    return 1\n'
-    scope.check_change('scripts/qualify_agent_evals.py', before, before.replace(b'return 1', b'return 2'))
+    with pytest.raises(ValueError):
+        scope.check_change('scripts/qualify_agent_evals.py', before, before.replace(b'return 1', b'return 2'))
     with pytest.raises(ValueError):
         scope.check_change('scripts/qualify_agent_evals.py', before, before.replace(b'return True', b'return False'))
+
+
+def test_validator_entry_migration_is_bound_to_the_exact_checked_main():
+    import ast
+    source = (scope.ROOT / 'scripts/qualify_agent_evals.py').read_bytes()
+    main = next(node for node in ast.parse(source).body if isinstance(node, ast.FunctionDef) and node.name == 'main')
+    assert hashlib.sha256(ast.dump(main).encode()).hexdigest() == scope.VALIDATOR_ENTRY_COMPATIBILITY[1]
+    early_success = source.replace(b'    cases, runtime_hash, versions =', b'    return 0\n    cases, runtime_hash, versions =')
+    with pytest.raises(ValueError):
+        scope.check_change('scripts/qualify_agent_evals.py', source, early_success)
 
 
 def test_compatibility_anchor_cannot_rebind_a_changed_native_receipt(tmp_path):

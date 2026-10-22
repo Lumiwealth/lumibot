@@ -195,3 +195,48 @@ def test_confirmed_split_does_not_authorize_price_shape_rewriting():
     frame = decorate_adjusted_frame(frame, basis, provider_prices_verified=True)
     result, _ = h._normalize_equity_daily_prices_for_splits(frame)
     pd.testing.assert_frame_equal(result, frame)
+
+
+def test_new_backtest_does_not_reuse_unavailable_action_basis(monkeypatch):
+    from lumibot.tools.ibkr_history_health import reset_ibkr_history_health
+    now = pd.Timestamp('2026-10-21T12:00Z').to_pydatetime()
+    monkeypatch.setattr(h, '_ibkr_history_now_utc', lambda: now)
+    monkeypatch.setattr(h, '_verified_current_equity_basis', lambda *args: (_ for _ in ()).throw(TimeoutError()))
+    first = h._get_current_equity_basis('XLF')
+    assert first.actions_verified is False
+    reset_ibkr_history_health()
+    recovered = EquityBasisSnapshot.from_verified_actions(
+        pd.DataFrame(columns=['Dividends', 'Stock Splits']), as_of=now, coverage_through='2026-10-21')
+    monkeypatch.setattr(h, '_verified_current_equity_basis', lambda *args: recovered)
+    assert h._get_current_equity_basis('XLF').actions_verified is True
+
+
+def test_unknown_daily_action_marker_survives_data_repair_and_does_not_cache_zero(monkeypatch):
+    from lumibot.entities import Data
+    from lumibot.backtesting.routed_backtesting import RoutedBacktestingPandas
+    idx = pd.date_range('2024-06-19 16:00', periods=3, freq='D', tz='America/New_York')
+    frame = pd.DataFrame({c: [100., 101., 102.] for c in ['open', 'high', 'low', 'close']}, index=idx)
+    actions = pd.DataFrame(columns=['Dividends', 'Stock Splits'])
+    actions.attrs['actions_verified'] = False
+    enriched, _ = h._append_equity_corporate_actions_daily(frame, asset=Asset('SPY'), actions=actions)
+    data = Data(Asset('SPY'), enriched, timestep='day')
+    data.repair_times_and_fill(idx)
+    assert data.df.attrs.get('actions_verified') is False
+    reader = object.__new__(RoutedBacktestingPandas)
+    reader._datetime = idx[1]
+    monkeypatch.setattr(reader, '_provider_spec_for_asset', lambda _: SimpleNamespace(provider='ibkr'))
+    monkeypatch.setattr(reader, '_get_backtest_daily_corporate_action_frame', lambda *a, **k: data.df)
+    monkeypatch.setattr(reader, '_backtest_daily_corporate_action_length', lambda: 5)
+    monkeypatch.setattr(reader, 'get_bars', lambda *a, **k: None)
+    monkeypatch.setattr(h, '_get_cached_equity_actions', lambda *a, **k: (_ for _ in ()).throw(TimeoutError()))
+    assert reader.get_yesterday_dividends([Asset('SPY')])[Asset('SPY')] == 0.
+    assert not reader._routed_dividend_cache
+    # A later simulated day may recover enrichment, without relabeling prices
+    # or retroactively inventing cash on the earlier unavailable day.
+    recovered = pd.DataFrame({'Dividends': [0., .25, .5], 'Stock Splits': [0., 0., 0.]}, index=idx)
+    monkeypatch.setattr(h, '_get_cached_equity_actions', lambda *a, **k: recovered)
+    assert reader.get_yesterday_dividends([Asset('SPY')])[Asset('SPY')] == 0.
+    reader._datetime = idx[2]
+    assert reader.get_yesterday_dividends([Asset('SPY')])[Asset('SPY')] == .5
+    assert data.df['close'].tolist() == [100., 101., 102.]
+    assert data.df.attrs['actions_verified'] is False

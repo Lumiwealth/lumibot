@@ -240,3 +240,23 @@ def test_unknown_daily_action_marker_survives_data_repair_and_does_not_cache_zer
     assert reader.get_yesterday_dividends([Asset('SPY')])[Asset('SPY')] == .5
     assert data.df['close'].tolist() == [100., 101., 102.]
     assert data.df.attrs['actions_verified'] is False
+
+
+@pytest.mark.parametrize("verified", [False, True])
+def test_unavailable_daily_enrichment_is_idempotent_and_recovers_verified_empty(verified):
+    idx = pd.date_range('2024-06-19 16:00', periods=2, freq='D', tz='America/New_York')
+    frame = pd.DataFrame({'close': [100., 101.]}, index=idx)
+    unknown = pd.DataFrame(columns=['Dividends', 'Stock Splits'])
+    unknown.attrs['actions_verified'] = False
+    first, changed = h._append_equity_corporate_actions_daily(frame, Asset('XLF'), actions=unknown)
+    assert changed is True
+    actions = pd.DataFrame(columns=['Dividends', 'Stock Splits']) if verified else unknown
+    second, changed = h._append_equity_corporate_actions_daily(first, Asset('XLF'), actions=actions)
+    if verified:
+        assert changed is True and second.attrs['actions_verified'] is True
+        assert second.dividend.tolist() == [0., 0.]
+        assert second.stock_splits.tolist() == [0., 0.]
+    else:
+        assert changed is False, 'An unchanged unknown-action cache must stay warm'
+        pd.testing.assert_frame_equal(first, second)
+    assert first.dividend.isna().all() and first.attrs['actions_verified'] is False

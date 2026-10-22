@@ -5757,6 +5757,9 @@ def _append_equity_corporate_actions_daily(frame: pd.DataFrame, asset: Asset, *,
             actions = pd.DataFrame(columns=["Dividends", "Stock Splits"])
             actions.attrs["actions_verified"] = False
     if actions.attrs.get("actions_verified") is False:
+        if (out.attrs.get("actions_verified") is False and
+                out["dividend"].isna().all() and out["stock_splits"].isna().all()):
+            return out, changed
         out = out.copy()
         # NaN represents unknown metadata. Accounting cannot credit a dividend
         # without evidence; the warning survives in settings/data-health output.
@@ -5767,6 +5770,8 @@ def _append_equity_corporate_actions_daily(frame: pd.DataFrame, asset: Asset, *,
     if out.attrs.get("actions_verified") is False:
         out = out.copy()
         out.attrs["actions_verified"] = True
+        out["dividend"] = 0.0
+        out["stock_splits"] = 0.0
         changed = True
     if actions.empty:
         # A verified correction can remove an event. Reusing prior columns would

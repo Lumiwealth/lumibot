@@ -261,6 +261,7 @@ class DriftCalculationLogic:
         return self._calculate_drift().copy()
 
     def _add_positions(self) -> None:
+        """Value held options in contract notional while keeping price reads per share."""
         positions = self.strategy.get_positions()
         for position in positions:
             symbol = position.symbol
@@ -272,6 +273,10 @@ class DriftCalculationLogic:
                 is_quote_asset = False
                 last_price = get_last_price_or_raise(self.strategy, position.asset, self.strategy.quote_asset)
                 current_value = current_quantity * last_price
+                if position.asset.asset_type == Asset.AssetType.OPTION:
+                    # Asset owns the verified contract terms, including adjusted multipliers.
+                    # Scale the holding here rather than changing the provider's per-share quote.
+                    current_value *= Decimal(str(position.asset.multiplier))
             self._add_position(
                 symbol=symbol,
                 base_asset=position.asset,

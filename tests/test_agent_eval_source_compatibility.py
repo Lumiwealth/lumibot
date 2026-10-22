@@ -48,7 +48,7 @@ def test_validator_entry_migration_is_bound_to_the_exact_checked_main():
     import ast
     source = (scope.ROOT / 'scripts/qualify_agent_evals.py').read_bytes()
     main = next(node for node in ast.parse(source).body if isinstance(node, ast.FunctionDef) and node.name == 'main')
-    assert hashlib.sha256(ast.dump(main).encode()).hexdigest() == scope.VALIDATOR_ENTRY_COMPATIBILITY[1]
+    assert scope.entry_digest(main) == scope.VALIDATOR_ENTRY_COMPATIBILITY[1]
     early_success = source.replace(b'    cases, runtime_hash, versions =', b'    return 0\n    cases, runtime_hash, versions =')
     with pytest.raises(ValueError):
         scope.check_change('scripts/qualify_agent_evals.py', source, early_success)
@@ -59,3 +59,14 @@ def test_compatibility_anchor_cannot_rebind_a_changed_native_receipt(tmp_path):
     anchor = {'version': 1, 'source_commit': 'a'*40, 'receipt_sha256': '0'*64}
     with pytest.raises(ValueError, match='receipt digest'):
         scope.compatible_runtime(receipt, json.dumps(receipt).encode(), anchor, root=tmp_path)
+
+
+def test_entry_digest_ignores_new_empty_ast_fields_only():
+    import ast
+    node = ast.parse("def main():\n    return True\n").body[0]
+    baseline = scope.entry_digest(node)
+    node._fields = tuple(field for field in node._fields if field != "type_params") + ("type_params",)
+    node.type_params = []
+    assert scope.entry_digest(node) == baseline
+    node.body[0].value = ast.Constant(value=False)
+    assert scope.entry_digest(node) != baseline

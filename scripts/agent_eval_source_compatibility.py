@@ -21,8 +21,8 @@ ROOT = Path(__file__).resolve().parents[1]
 # general main() exemption. Remove the pair when the anchor is replaced by fresh
 # native proof under the current verifier; any other entry-point edit is stale.
 VALIDATOR_ENTRY_COMPATIBILITY = (
-    '604ee1cb892d5f94e9309cde7bcb8d9c14fe00267571861d5b47744d1ec91bca',
-    'e6c26e47a98e894c5318dc971caaed7c7f5fd803926e2915bb62971e271978a9',
+    'f38655adfc6ede1098d397949eb99de2b0de37ad7d89daa97141c2d866b38084',
+    'c2b63a8b5b268ea44190d93238769562878fb0d406b32bb55fd83189b58605c9',
 )
 PROVIDER_ONLY_PATHS = frozenset({
     'lumibot/backtesting/routed_backtesting.py',
@@ -81,6 +81,23 @@ def _fingerprint(blobs, versions):
     return hashlib.sha256((digest.hexdigest() + sdk).encode()).hexdigest()
 
 
+def portable_ast(value):
+    """Ignore parser-version empty fields, preserving all meaningful AST data."""
+    if isinstance(value, ast.AST):
+        return {"node": type(value).__name__, **{
+            key: portable_ast(item) for key, item in ast.iter_fields(value)
+            if item is not None and not (isinstance(item, list) and not item)
+        }}
+    if isinstance(value, list):
+        return [portable_ast(item) for item in value]
+    return value
+
+
+def entry_digest(node):
+    return hashlib.sha256(json.dumps(portable_ast(node), sort_keys=True,
+                                    separators=(",", ":")).encode()).hexdigest()
+
+
 def check_change(path, before, after):
     if before == after or path in PROVIDER_ONLY_PATHS:
         return
@@ -98,7 +115,7 @@ def check_change(path, before, after):
             entries = [node for node in tree.body if isinstance(node, ast.FunctionDef) and node.name == 'main']
             if len(entries) != 1:
                 raise ValueError('Validator requires exactly one maintained main entry point')
-            entry_hash = hashlib.sha256(ast.dump(entries[0]).encode()).hexdigest()
+            entry_hash = entry_digest(entries[0])
             tree.body = [node for node in tree.body if not isinstance(node, ast.FunctionDef) or node.name != 'main']
             return ast.dump(tree), entry_hash
         old_contract, old_entry = validator_contract(before)

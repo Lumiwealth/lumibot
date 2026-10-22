@@ -5764,7 +5764,7 @@ def _append_equity_corporate_actions_daily(frame: pd.DataFrame, asset: Asset, *,
         out["stock_splits"] = np.nan
         out.attrs["actions_verified"] = False
         return out, True
-    if out.attrs.get("actions_verified") is not True:
+    if out.attrs.get("actions_verified") is False:
         out = out.copy()
         out.attrs["actions_verified"] = True
         changed = True

@@ -284,3 +284,15 @@ posting and a dedicated Community-only key. Optional
 request server verification of an owned trade. ``parent_post_id`` replies in a
 root thread. The finite-timeout client never retries an uncertain publication.
 Recording a private explanation does not enable public posting.
+
+Pass an optional ``request_id`` containing a hyphenated UUID when the caller
+needs to recover from an ambiguous response. Save it before sending and reuse
+it only with the same body, reply target and trade references. New content
+needs a new UUID. The client forwards it as ``requestId`` without generating an
+identity or retrying automatically. Legacy calls omit it.
+
+The server checks current permissions and post visibility on every attempt.
+It returns the existing post for a matching request, and rejects changed
+content or an original that is no longer available. A request identity does
+not grant publication permission. Identity-free retries have no deduplication
+guarantee.

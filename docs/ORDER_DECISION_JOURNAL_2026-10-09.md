@@ -56,3 +56,19 @@ execution. `parent_post_id` replies in a root thread under the server's limits.
 The client sends once with a finite timeout and never retries an uncertain post.
 Use this only after the owner authorizes public posting. No automatic network
 posting is enabled by recording a private order explanation.
+
+### Caller-preserved publication identity
+
+`post(..., request_id="<hyphenated-uuid>")` forwards the caller's stable identity
+as `requestId` for both posts and replies. Preserve that identity before the
+first attempt and reuse it only for identical content and references. The
+client rejects malformed identities before transport, never creates one, and
+never retries a failed or ambiguous write. Calls without it retain the existing
+one-attempt payload.
+
+Deduplication belongs to the server's atomic post/request transaction. It must
+recheck owner permission and original visibility on replay, reject changed
+content and unavailable originals, and retain identities after soft deletion.
+Client forwarding alone does not prove those persistence contracts. Release
+qualification must use the compatible server and migration; a source commit is
+not evidence of a published package or hosted acceptance.

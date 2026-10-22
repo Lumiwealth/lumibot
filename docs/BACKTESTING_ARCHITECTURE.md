@@ -58,6 +58,21 @@ intraday spacing use the nominal minute or hour interval. Regression
 coverage exercises each Polars resolution alongside the pandas path in
 `tests/test_data_get_bars_day_includes_latest_completed_bar.py`.
 
+Corporate actions are timestamped events. When `Data` or `DataPolars` aligns
+history to a shared index, `dividend` and `stock_splits` are matched to the
+deduplicated input by exact timestamp, before dataline construction and any
+derived-return calculation. An inserted row or an original null event becomes
+zero; a recorded action retains its amount or ratio. The existing first-row
+policy applies to duplicate timestamps. An off-grid price observation may
+supply a mark under existing fill rules, while its action is retained only if
+its recorded timestamp appears in the requested index.
+
+For example, a $1 dividend and a 2:1 split recorded on Monday remain Monday
+events when another asset adds Tuesday to the shared calendar. Tuesday carries
+zero dividend and zero split, even if its price mark comes from Monday.
+`tests/test_data_corporate_action_preservation.py` covers both backends,
+datalines, derived returns, public historical bars, and supported daily action reads.
+
 Technical indicator calculations restrict input to strategy-time history before
 computing, rather than trimming a result calculated over future bars. See
 [indicator temporal safety](indicator-temporal-safety.md) for the regression,

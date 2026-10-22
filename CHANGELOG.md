@@ -1,5 +1,13 @@
 # Changelog
 
+## 4.6.24 - 2026-10-21
+
+### Fixed
+- IBKR stock history continues with native split-adjusted prices when optional corporate-action metadata is unavailable or stale. Unknown actions are reported as warnings, isolated from verified action caches, and never converted into invented splits or dividends. Added a portable IBKR backtest-engine regression that completes and fills an order with the metadata service unavailable.
+
+### Changed
+- Preserve source-compatible native AI qualification at its original source, model, usage and time. Independently verify immutable Git source and reject changes to actors, judges, cases, fixtures, shared code or dependencies; external IBKR provider repairs do not purchase unchanged Pandas-fixture inference again.
+
 ## 4.6.23 - 2026-10-20
 
 ### Added

@@ -264,6 +264,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - name: Set up Python 3.10
         uses: actions/setup-python@v5
         with:
@@ -282,7 +284,7 @@ jobs:
         with:
           name: lumibot-agent-evals
           if-no-files-found: error
-          path: ci/agent-evals/qualification.json
+          path: ci/agent-evals/*.json
 
   publish:
     name: Publish to PyPI + Create GitHub Release

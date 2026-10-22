@@ -1375,8 +1375,41 @@ class RoutedBacktestingPandas(ThetaDataBacktestingPandas):
                             [asset], self._backtest_daily_corporate_action_length(), timestep="day", quote=quote
                         )
                     except Exception as exc:
-                        raise RuntimeError(f"corporate_actions_unavailable: {asset.symbol}") from exc
+                        # This daily load enriches dividend accounting, not the
+                        # strategy's requested minute-price series. Preserve the
+                        # warning and retry later; do not invent a verified zero.
+                        from lumibot.tools.ibkr_history_health import record_optional_corporate_action_issue
+                        record_optional_corporate_action_issue(
+                            symbol=asset.symbol, when=ibkr_helper._ibkr_history_now_utc())
+                        logger.warning("Optional dividend history unavailable for %s; cash dividends "
+                                       "remain unverified.", asset.symbol)
+                        result[asset] = 0.0
+                        continue
                     frame = self._get_backtest_daily_corporate_action_frame(asset, quote=quote)
+                if frame is not None and frame.attrs.get("actions_verified") is False:
+                    # Data repair may fill action NaNs numerically; its frame
+                    # marker still means unknown, never a verified zero ledger.
+                    # Try optional enrichment at most once per simulated day.
+                    attempts = getattr(self, "_routed_unverified_action_dates", None)
+                    if attempts is None:
+                        attempts = self._routed_unverified_action_dates = {}
+                    if attempts.get(asset) == current_date:
+                        result[asset] = 0.0
+                        continue
+                    attempts[asset] = current_date
+                    try:
+                        actions = ibkr_helper._get_cached_equity_actions(
+                            asset.symbol, last_needed_datetime=getattr(self, "datetime_end", self._datetime))
+                        frame, _ = ibkr_helper._append_equity_corporate_actions_daily(
+                            frame, asset, actions=actions)
+                        if frame.attrs.get("actions_verified") is False:
+                            raise ValueError("Optional action coverage remains unverified")
+                    except Exception:
+                        from lumibot.tools.ibkr_history_health import record_optional_corporate_action_issue
+                        record_optional_corporate_action_issue(
+                            symbol=asset.symbol, when=ibkr_helper._ibkr_history_now_utc())
+                        result[asset] = 0.0
+                        continue
                 by_date = {}
                 if frame is not None and "dividend" in frame.columns and len(frame.index):
                     index = pd.DatetimeIndex(frame.index)

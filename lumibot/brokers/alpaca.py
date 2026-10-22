@@ -655,8 +655,9 @@ class Alpaca(Broker):
             The calling strategy; forwarded so pending orders can be processed
             the same way BacktestingBroker does.
         """
-        # First, handle any orders waiting to be processed.
-        self.process_pending_orders(strategy=strategy)
+        # First, handle any orders waiting to be processed if supported by the broker.
+        if hasattr(self, "process_pending_orders") and callable(self.process_pending_orders):
+            self.process_pending_orders(strategy=strategy)
 
         # Seconds until the bell rings
         time_to_close = self.get_time_to_close()

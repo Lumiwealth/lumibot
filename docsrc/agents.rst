@@ -136,18 +136,20 @@ Set ``BOTSPOT_RESEARCH_MCP_URL`` to the BotSpot Research MCP endpoint and
 ``BOTSPOT_RESEARCH_MCP_TOKEN`` to the key. Agents attach it automatically without
 supplier keys or custom ``MCPServer`` configuration. External static keys do not
 need a renewal URL; hosted workloads receive
-``BOTSPOT_RESEARCH_MCP_RENEW_URL`` automatically. HTTPS is required outside
-loopback, renewal must use the same origin, and URLs cannot contain credentials,
-query strings or fragments.
+``BOTSPOT_RESEARCH_MCP_RENEW_URL`` automatically. The connection uses the normal
+MCP transport configuration, including private HTTP endpoints, URL authentication
+and query parameters. There is no additional BotSpot-specific URL prohibition.
+Optional automatic token renewal retains the shared MCP client's same-origin
+and HTTPS (or loopback HTTP) requirements.
 
 BotSpot owns supplier credentials, normalization, storage and source qualification.
 The connection provides research and permitted Marketplace/Community capabilities;
 it does not grant permission to launch a backtest, deploy a bot or place a trade.
 Community publication needs its own explicit grants. Revoking a selected key also
-narrows hosted access. Historical reads require qualified source history and a
-server-verified hosted simulation clock; an unavailable binding must return an
-explicit unsupported-capability error. Never bypass that error by switching to
-live data or an unbounded external key.
+narrows hosted access. During backtests, LumiBot supplies the simulation date for
+data and document reads. Each source applies its own historical availability
+contract and reports unavailable snapshots explicitly. Backtests are not blocked
+from research merely because they lack a separate server-attested clock.
 
 **Pattern 1: @agent_tool wrapping a REST API (recommended)**
 

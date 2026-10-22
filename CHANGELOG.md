@@ -2,6 +2,9 @@
 
 ## 4.6.25 - Unreleased
 
+### Fixed
+- Restore normal MCP endpoint handling for automatic BotSpot connections, including private HTTP endpoints, URL authentication, query parameters and fragments. Remove the extra BotSpot-specific URL policy; retain sanitized configuration notices and the shared client's token-renewal checks.
+
 ## 4.6.24 - 2026-10-21
 
 ### Fixed

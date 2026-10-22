@@ -5,7 +5,29 @@
 ### Fixed
 - Preserve dividend and stock-split event timestamps when Pandas and Polars backtest data are aligned to a shared index. Inserted rows carry zero actions instead of repeating a prior event.
 
-## 4.6.22 - Unreleased
+## 4.6.24 - 2026-10-21
+
+### Fixed
+- IBKR stock history continues with native split-adjusted prices when optional corporate-action metadata is unavailable or stale. Unknown actions are reported as warnings, isolated from verified action caches, and never converted into invented splits or dividends. Added a portable IBKR backtest-engine regression that completes and fills an order with the metadata service unavailable.
+
+### Changed
+- Preserve source-compatible native AI qualification at its original source, model, usage and time. Independently verify immutable Git source and reject changes to actors, judges, cases, fixtures, shared code or dependencies; external IBKR provider repairs do not purchase unchanged Pandas-fixture inference again.
+
+## 4.6.23 - 2026-10-20
+
+### Added
+- `lumibot connect botspot` checks a BotSpot Research key and writes `BOTSPOT_RESEARCH_MCP_URL` and `BOTSPOT_RESEARCH_MCP_TOKEN` to `.env`.
+- The "BotSpot research is not connected" notice now explains what the connection gives and how to set it up, shows once per process, stays silent in CI, and can be hidden with `LUMIBOT_NO_BOTSPOT_HINT=1` or `DO_NOT_TRACK=1`. `llms.txt` describes the optional connection for coding agents.
+- Nonrenewable ChatGPT plan run profiles with request-level call/token admission, private resumable usage receipts and pinned account/model selection. Normal provider connections are unchanged; this does not deploy or provision a hosted subscription integration.
+
+### Fixed
+- External BotSpot research connections: validate managed Research MCP endpoints even for static external keys (HTTPS outside loopback, no credentials in URLs, sanitized configuration notices). Construction contract tests stay offline.
+
+### Changed
+- Release qualification: 18 cases, 90 required repetitions, 87 judge controls passed on Luna through ChatGPT plan login ($0 API spend, about $5.73 equivalent upper bound). Three first attempts were retried and passed: one 600s inference timeout (rules override), a missing unbounded-read disclosure in the researcher handoff, and a five-day average computed over seven bars.
+- Restore the BotSpot and MCP links at the top of the README and put "Build and Deploy with BotSpot" and "BotSpot MCP Integration" first in the docs sidebar.
+
+## 4.6.22 - 2026-10-19
 
 ### Changed
 - Requalify the complete real-model actor and judge catalog for the broker timestamp fixes. The 4.6.21 publication was blocked by its previous-source qualification receipt and was not published.

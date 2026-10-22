@@ -75,6 +75,31 @@ Macro tools additionally require `FRED_API_KEY`. They use the strategy clock and
 
 ## External Data Patterns
 
+### BotSpot managed research
+
+In BotSpot account settings, create a named API key and enable the independent
+research permissions you need. Leave trading, deployment, backtest-control and
+secret-management permissions off. The key defaults to never expiring; choose
+an expiry if needed and revoke it from the same page to end access.
+
+Set `BOTSPOT_RESEARCH_MCP_URL` to the Research MCP endpoint shown by BotSpot and
+`BOTSPOT_RESEARCH_MCP_TOKEN` to that key. Agents attach the connection automatically;
+no custom `MCPServer` or supplier key is required. A static external key does not
+need `BOTSPOT_RESEARCH_MCP_RENEW_URL`. Keep credentials in the token environment
+variable, never in a URL or committed strategy. HTTPS is required outside loopback.
+
+Hosted direct, scheduled and backtest workloads receive restricted connection
+credentials from BotSpot. Their account-wide hosted research settings are separate
+from API-key creation; changing or revoking a selected key changes the hosted
+permission ceiling too. Community publication requires its own explicit grants.
+The research connection does not authorize running backtests, deployments or trades.
+
+LumiBot bounds historical data requests to the strategy clock. Server authorization
+must also verify a hosted backtest's simulation clock; if that binding or a source's
+historical version is unavailable, an explicit unsupported-capability response is
+the result. Do not retry a historical request with a live clock or an unbounded key.
+BotSpot owns supplier credentials, normalization, storage and source qualification.
+
 ### Pattern 1: @agent_tool wrapping a REST API (recommended)
 
 This is the primary and recommended approach. It works reliably in both backtests and live trading because you control the HTTP call directly.

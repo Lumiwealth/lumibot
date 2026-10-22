@@ -391,8 +391,17 @@ def main():
                                 calibration_summary=json.loads((args.calibration_output_root / "summary.json").read_text()))
         evals.write_json_atomic(args.receipt, receipt)
     else:
-        verify_receipt(json.loads(args.receipt.read_text()), cases, runtime_hash=runtime_hash, versions=versions)
-    print(f"Verified {len(cases)} real-model actor/judge qualifications and complete judge calibration for the current source and SDKs.")
+        receipt_bytes = args.receipt.read_bytes()
+        receipt = json.loads(receipt_bytes)
+        evidence_hash = runtime_hash
+        anchor = evals.REPO_ROOT / "ci/agent-evals/source-compatibility.json"
+        if receipt.get("runtime_fingerprint") != runtime_hash and anchor.exists():
+            from scripts.agent_eval_source_compatibility import compatible_runtime
+
+            evidence_hash = compatible_runtime(receipt, receipt_bytes, json.loads(anchor.read_text()))
+            print(f"Preserving native inference at original source {evidence_hash}; candidate {runtime_hash} is source-compatible. No inference timestamps or usage were rewritten.")
+        verify_receipt(receipt, cases, runtime_hash=evidence_hash, versions=versions)
+    print(f"Verified {len(cases)} real-model actor/judge qualifications and complete judge calibration for the candidate and SDKs.")
     return 0
 
 

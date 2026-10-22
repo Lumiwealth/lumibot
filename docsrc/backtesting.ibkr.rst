@@ -8,6 +8,22 @@ LumiBot supports backtesting with **Interactive Brokers data providers**.
 
 The primary data path uses Client Portal (REST) via the LumiBot Data Downloader.
 
+Corporate-action metadata availability
+-------------------------------------
+
+IBKR ``TRADES`` stock and ETF prices are already split-adjusted. A missing or
+stale auxiliary split/dividend ledger does not prevent those prices from being
+used in a backtest. LumiBot keeps an explicitly unverified, dated price snapshot
+separate from caches with verified corporate-action coverage. It does not infer
+splits from market moves or mix incompatible adjustment bases.
+
+When the optional metadata is unavailable, ``settings.json`` data-health warnings
+record ``corporate_actions_status="unavailable"`` and
+``cash_dividends_verified=false``. The backtest can continue, but it must not be
+described as having complete cash-dividend accounting. Unknown action columns
+are missing values, rather than proof that no dividends or splits occurred.
+Available verified action metadata continues to support cash-dividend accounting.
+
 Note: second-level and tick-level history are not yet a fully-supported end-to-end workflow in the open-source
 distribution. (Some internal deployments may have additional adapters behind the same external ``/ibkr/*`` contract.)
 

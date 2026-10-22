@@ -303,3 +303,25 @@ def test_standalone_page_teaches_the_datetime_trap_for_price_history():
     section = page.split("Read price history")[1].split("Read SEC submissions")[0]
     assert "datetime_start=datetime.now()" in section
     assert "365" in section
+
+
+def test_readme_top_keeps_botspot_and_mcp_links_above_quickstart():
+    """Rob, 2026-10-20: the Sep 18 rewrite (28afefe8) dropped these two links and
+    LumiBot-sourced BotSpot signups fell from about 6 to 2.6 a week. GA4 tracks
+    them by utm_content, so the names must stay stable."""
+    text = (ROOT / 'README.md').read_text()
+    top = text.split('## Sixty seconds')[0]
+    assert 'utm_content=top_text_link' in top
+    assert 'https://botspot.trade/agents?' in top
+    assert 'utm_content=top_mcp_link' in top
+
+
+def test_docs_sidebar_leads_with_build_bots_and_mcp():
+    """The docs sidebar 'Build bots' link fell from 50 to 6 clicks after it moved
+    below the challenge link. Keep it first in the 'Start here' group."""
+    index = (ROOT / 'docsrc/index.rst').read_text()
+    start = index.split(':caption: Start here')[1].split('.. toctree::')[0]
+    entries = [line.strip() for line in start.splitlines() if line.strip()]
+    assert entries[0] == 'Home <self>'
+    assert 'utm_content=sidebar_build_bots' in entries[1]
+    assert entries[2] == 'BotSpot MCP Integration <botspot_mcp>'

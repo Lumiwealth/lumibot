@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+### Fixed
+- Preserve held option contract multipliers in drift valuation, preventing spurious drift and incorrect standard-contract resize orders.
+
 ## 4.6.24 - 2026-10-21
 
 ### Fixed

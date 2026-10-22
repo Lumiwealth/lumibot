@@ -2653,3 +2653,87 @@ class TestDriftRebalancerOptions:
 
         # Should create no orders since we can't afford even 1 contract
         assert len(strategy.orders) == 0
+
+
+class TestDriftHeldOptionValuation:
+    """Exercise held-position valuation before handing its result to order logic."""
+
+    def setup_method(self):
+        """Use the native backtesting broker without a market-data service."""
+        data_source = PandasDataBacktesting(datetime(2021, 7, 10), datetime(2021, 7, 13))
+        self.broker = BacktestingBroker(data_source)
+
+    def _strategy(self, mocker, asset, quantity, price, total_value, cash, drift_type=DriftType.ABSOLUTE):
+        """Fake external reads while retaining the real position, calculation and order owners."""
+        from lumibot.entities import Position
+
+        strategy = MockStrategyWithDriftCalculationLogic(broker=self.broker, drift_type=drift_type)
+        strategy._set_cash_position(cash=float(cash))
+        strategy.drift_rebalancer_logic.order_logic.acceptable_slippage = Decimal("0")
+        positions = [
+            Position(strategy.name, asset, quantity),
+            Position(strategy.name, strategy.quote_asset, cash),
+        ]
+        mocker.patch.object(strategy, "get_positions", return_value=positions)
+        mocker.patch.object(strategy, "get_portfolio_value", return_value=total_value)
+        mocker.patch.object(strategy, "get_last_price", return_value=price)
+        return strategy
+
+    @pytest.mark.parametrize("drift_type", [DriftType.ABSOLUTE, DriftType.RELATIVE])
+    @pytest.mark.parametrize("quantity", [2, -2])
+    @pytest.mark.parametrize("multiplier,notional", [(None, "1000"), ("25", "250"), ("0.1", "1")])
+    def test_on_target_option_notional_does_not_trigger_orders(
+        self, mocker, drift_type, quantity, multiplier, notional
+    ):
+        """Use explicit dollar oracles, including a fractional multiplier sensitive to float conversion."""
+        asset = Asset(
+            "TEST", "option", expiration=datetime(2027, 1, 15).date(), strike=50, right="CALL", multiplier=multiplier
+        )
+        # Two contracts at $5 represent these independently specified notionals.
+        # A short holding has three times that notional in cash, keeping NAV positive.
+        notional = Decimal(notional)
+        signed_notional = notional if quantity > 0 else -notional
+        cash = notional if quantity > 0 else notional * 3
+        target_weight = Decimal("0.5") if quantity > 0 else Decimal("-0.5")
+        strategy = self._strategy(mocker, asset, quantity, Decimal("5"), notional * 2, cash, drift_type)
+        weights = [{"base_asset": asset, "weight": target_weight}]
+
+        result = strategy.drift_rebalancer_logic.calculate(weights)
+
+        assert result["current_quantity"].tolist() == [Decimal(quantity), cash]
+        assert result["current_value"].tolist() == [signed_notional, cash]
+        assert result["current_weight"].tolist() == [target_weight, cash / (notional * 2)]
+        assert result["target_value"].tolist() == [signed_notional, Decimal("0")]
+        assert result["drift"].tolist() == [Decimal("0"), Decimal("0")]
+        strategy.get_last_price.assert_called_once_with(asset, strategy.quote_asset)
+        assert strategy.drift_rebalancer_logic.rebalance(result) is False
+        assert strategy.orders == []
+
+    @pytest.mark.parametrize("quantity,side", [(2, "buy"), (6, "sell")])
+    @pytest.mark.parametrize("order_type", [Order.OrderType.MARKET, Order.OrderType.LIMIT])
+    def test_standard_option_resize_uses_calculated_notional(self, mocker, quantity, side, order_type):
+        """A $2,000 target needs four $500 contracts, so adjust a two/six-contract holding by two."""
+        asset = Asset("TEST", "option", expiration=datetime(2027, 1, 15).date(), strike=50, right="CALL")
+        strategy = self._strategy(mocker, asset, quantity, Decimal("5"), Decimal("4000"), 4000 - quantity * 500)
+        strategy.drift_rebalancer_logic.order_logic.order_type = order_type
+
+        result = strategy.drift_rebalancer_logic.calculate([{"base_asset": asset, "weight": Decimal("0.5")}])
+
+        assert strategy.drift_rebalancer_logic.rebalance(result) is True
+        assert len(strategy.orders) == 1
+        order = strategy.orders[0]
+        assert (order.asset, order.side, order.quantity, order.order_type) == (asset, side, Decimal("2"), order_type)
+        if order_type == Order.OrderType.LIMIT:
+            assert order.limit_price == 5
+
+    def test_stock_and_quote_valuation_are_not_scaled(self, mocker):
+        """Non-option multipliers remain outside this correction; cash never needs a price read."""
+        asset = Asset("TEST", "stock", multiplier=25)
+        strategy = self._strategy(mocker, asset, 2, Decimal("5"), Decimal("20"), Decimal("10"))
+        strategy.quote_asset.multiplier = 100
+
+        result = strategy.drift_rebalancer_logic.calculate([{"base_asset": asset, "weight": Decimal("0.5")}])
+
+        assert result["current_value"].tolist() == [Decimal("10"), Decimal("10")]
+        assert result["drift"].tolist() == [Decimal("0"), Decimal("0")]
+        strategy.get_last_price.assert_called_once_with(asset, strategy.quote_asset)

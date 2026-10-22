@@ -609,6 +609,7 @@ Table of Contents
    Strategy API <strategy_api_overview>
    Imports and Startup <imports_and_startup>
    Reusable Components <standalone_components>
+   Drift Rebalancer Valuation <drift_rebalancer>
    Lifecycle Methods <lifecycle_methods>
    Strategy Methods <strategy_methods>
    Strategy Properties <strategy_properties>

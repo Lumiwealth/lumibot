@@ -106,9 +106,14 @@ def test_ibkr_dividend_reader_does_not_cache_failed_daily_load(monkeypatch):
     def unavailable(*a, **k):
         raise RuntimeError('corporate_actions_unavailable: SPY')
     monkeypatch.setattr(reader, 'get_bars', unavailable)
-    with pytest.raises(RuntimeError, match='corporate_actions_unavailable'):
-        reader.get_yesterday_dividends([Asset('SPY')])
+    # 2026-10-21: optional dividend telemetry must not abort valid minute-price
+    # execution. No successful/zero-action result may be cached for this error.
+    assert reader.get_yesterday_dividends([Asset('SPY')])[Asset('SPY')] == 0.0
     assert not reader._routed_dividend_cache
+    from lumibot.tools.ibkr_history_health import ibkr_history_health_snapshot
+    health = ibkr_history_health_snapshot()
+    assert health["required_complete"] is True
+    assert health["warnings"][0]["cash_dividends_verified"] is False
 
 
 @pytest.mark.parametrize('ratio,prices', [(2.0, [100., 101., 50.5]), (0.2, [10., 10., 50.])])

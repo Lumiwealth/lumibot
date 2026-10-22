@@ -2,6 +2,9 @@
 
 ## 4.6.24 - Unreleased
 
+### Fixed
+- IBKR stock history continues with native split-adjusted prices when optional corporate-action metadata is unavailable or stale. Unknown actions are reported as warnings, isolated from verified action caches, and never converted into invented splits or dividends. Added a portable IBKR backtest-engine regression that completes and fills an order with the metadata service unavailable.
+
 ## 4.6.23 - 2026-10-20
 
 ### Added

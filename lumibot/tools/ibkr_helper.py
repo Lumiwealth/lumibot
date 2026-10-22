@@ -5632,10 +5632,6 @@ def _get_cached_equity_actions(symbol: str, last_needed_datetime: Optional[datet
     except Exception as exc:
         # Do not log provider payloads or memoize an empty table. A later call can
         # recover using the provider's normal persistent cache/retry path.
-        from lumibot.tools.ibkr_history_health import record_required_data_issue
-        record_required_data_issue(asset=Asset(key), timestep="day",
-            when=last_needed_datetime or datetime.now(timezone.utc), reason="corporate_actions_unavailable",
-            recovery_cause="corporate_actions_unverified", retryable=True)
         raise RuntimeError(f"corporate_actions_unavailable: {key}") from exc
 
     _IBKR_EQUITY_ACTIONS_CACHE[cache_key] = actions
@@ -5662,8 +5658,32 @@ def _get_current_equity_basis(symbol: str):
     symbol = str(symbol).strip().upper()
     bucket = now.strftime("%Y-%m-%dT%H")
     cached = _IBKR_EQUITY_BASIS_CACHE.get(symbol)
-    if cached is not None and cached[0] == bucket:
-        return cached[1]
+    if cached is not None:
+        # Keep a native-price snapshot stable for this process/session. Recovering
+        # optional metadata must not relabel prices already returned to a run.
+        native_same_day = (not cached[1].actions_verified and
+                           pd.Timestamp(cached[1].as_of).tz_convert(LUMIBOT_DEFAULT_PYTZ).date() ==
+                           now.astimezone(LUMIBOT_DEFAULT_PYTZ).date())
+        if cached[0] == bucket or native_same_day:
+            return cached[1]
+    try:
+        snapshot = _verified_current_equity_basis(symbol, now)
+    except Exception:
+        # IBKR already supplies split-adjusted TRADES prices. Failure of the
+        # auxiliary action ledger is a warning, never proof of missing prices.
+        # Do not expose provider payloads or certify a false empty action ledger.
+        from lumibot.tools.ibkr_history_health import record_optional_corporate_action_issue
+        record_optional_corporate_action_issue(symbol=symbol, when=now)
+        logger.warning("IBKR %s corporate-action metadata unavailable; using native split-adjusted "
+                       "prices. Cash dividends are unverified for this run.", symbol)
+        snapshot = EquityBasisSnapshot.from_provider_adjusted_prices(as_of=now)
+    _IBKR_EQUITY_BASIS_CACHE[symbol] = (bucket, snapshot)
+    return snapshot
+
+
+def _verified_current_equity_basis(symbol, now):
+    """Optional enrichment; this function may fail without blocking IBKR prices."""
+    from lumibot.tools.ibkr_equity_basis import EquityBasisSnapshot
     from lumibot.tools.helpers import get_trading_days
     local = now.astimezone(LUMIBOT_DEFAULT_PYTZ)
     sessions = get_trading_days(market="NYSE", start_date=(local - timedelta(days=14)).date(),
@@ -5688,7 +5708,6 @@ def _get_current_equity_basis(symbol: str):
         raise RuntimeError(f"corporate_actions_unavailable: {symbol} current effective session is unverified")
     coverage = min(str(coverage), local.date().isoformat())
     snapshot = EquityBasisSnapshot.from_verified_actions(actions, as_of=now, coverage_through=coverage)
-    _IBKR_EQUITY_BASIS_CACHE[symbol] = (bucket, snapshot)
     return snapshot
 
 
@@ -5730,7 +5749,20 @@ def _append_equity_corporate_actions_daily(frame: pd.DataFrame, asset: Asset, *,
         last_needed_datetime = None
 
     if actions is None:
-        actions = _get_cached_equity_actions(symbol, last_needed_datetime=last_needed_datetime)
+        try:
+            actions = _get_cached_equity_actions(symbol, last_needed_datetime=last_needed_datetime)
+        except Exception:
+            from lumibot.tools.ibkr_history_health import record_optional_corporate_action_issue
+            record_optional_corporate_action_issue(symbol=symbol, when=_ibkr_history_now_utc())
+            actions = pd.DataFrame(columns=["Dividends", "Stock Splits"])
+            actions.attrs["actions_verified"] = False
+    if actions.attrs.get("actions_verified") is False:
+        out = out.copy()
+        # NaN represents unknown metadata. Accounting cannot credit a dividend
+        # without evidence; the warning survives in settings/data-health output.
+        out["dividend"] = np.nan
+        out["stock_splits"] = np.nan
+        return out, True
     if actions.empty:
         # A verified correction can remove an event. Reusing prior columns would
         # retain a dividend or split the source no longer reports.

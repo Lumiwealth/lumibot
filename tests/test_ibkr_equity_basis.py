@@ -48,6 +48,23 @@ def test_dividend_changes_do_not_invalidate_split_basis():
     assert first.events != corrected.events
 
 
+def test_native_price_snapshot_preserves_unknown_actions_and_round_trips():
+    from lumibot.tools.ibkr_equity_basis import equity_basis_from_frame
+    native = EquityBasisSnapshot.from_provider_adjusted_prices(as_of="2026-10-22T00:42Z")
+    assert native.actions_verified is False and native.coverage_through is None
+    assert native.events == () and native.actions_frame().attrs["actions_verified"] is False
+    result = decorate_adjusted_frame(prices(), native, provider_prices_verified=True)
+    assert equity_basis_from_frame(result) == native
+    assert native.split_fingerprint != snapshot().split_fingerprint
+    pd.testing.assert_frame_equal(result[prices().columns], prices())
+
+
+@pytest.mark.parametrize("coverage,events", [("2026-10-21", ()), (None, (("2026-10-21", 1., 2.),))])
+def test_native_price_snapshot_cannot_fabricate_verified_events(coverage, events):
+    with pytest.raises(EquityBasisError, match="cannot claim"):
+        EquityBasisSnapshot("2026-10-22T00:42Z", coverage, events, actions_verified=False)
+
+
 def test_forward_reverse_and_removed_events_change_basis():
     empty = snapshot()
     forward = snapshot([("2024-06-10", 0, 10)])

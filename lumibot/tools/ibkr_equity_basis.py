@@ -54,8 +54,9 @@ class EquityBasisSnapshot:
     """
 
     as_of: str
-    coverage_through: str
+    coverage_through: str | None
     events: tuple
+    actions_verified: bool = True
 
     def __post_init__(self):
         # The public dataclass constructor cannot bypass the factory's invariants.
@@ -65,6 +66,12 @@ class EquityBasisSnapshot:
                 raise ValueError("as_of")
         except (TypeError, ValueError, OverflowError) as exc:
             raise EquityBasisError("An explicit timezone-aware as_of is required") from exc
+        if not isinstance(self.actions_verified, bool):
+            raise EquityBasisError("Action verification state must be explicit")
+        if not self.actions_verified:
+            if self.coverage_through is not None or self.events != ():
+                raise EquityBasisError("Unavailable actions cannot claim coverage or events")
+            return
         coverage = _session_date(self.coverage_through)
         if coverage != self.coverage_through or coverage > _session_date(observed):
             raise EquityBasisError("Invalid explicit action coverage")
@@ -82,6 +89,16 @@ class EquityBasisSnapshot:
             if not isinstance(dividend, (int, float)) or not isinstance(split, (int, float)):
                 raise EquityBasisError("Frozen actions must contain numeric scalars")
             previous = date
+
+    @classmethod
+    def from_provider_adjusted_prices(cls, *, as_of):
+        """IBKR TRADES remains split-adjusted even when the action ledger is unknown.
+
+        A separate dated namespace prevents those prices from entering a cache
+        certified by a complete ledger. No missing event is asserted to be zero.
+        """
+        observed = pd.Timestamp(as_of)
+        return cls(observed.isoformat(), None, (), actions_verified=False)
 
     @classmethod
     def from_verified_actions(cls, actions, *, as_of, coverage_through):
@@ -116,6 +133,10 @@ class EquityBasisSnapshot:
 
     @property
     def split_fingerprint(self):
+        if not self.actions_verified:
+            observed_date = _session_date(self.as_of)
+            encoded = json.dumps(("ibkr-native-split-adjusted", observed_date)).encode("utf-8")
+            return "SPLIT_V1_" + hashlib.sha256(encoded).hexdigest()
         # Neither cash dividends nor refresh timestamps invalidate historical prices.
         splits = [(date, float(split)) for date, _, split in self.events if split not in (0, 1)]
         encoded = json.dumps(splits, separators=(",", ":"), allow_nan=False).encode("utf-8")
@@ -123,17 +144,20 @@ class EquityBasisSnapshot:
 
     def to_dict(self):
         return {
-            "schema": "ibkr-equity-actions-v1",
+            "schema": "ibkr-equity-actions-v1" if self.actions_verified else "ibkr-equity-prices-v2",
             "as_of": self.as_of,
             "coverage_through": self.coverage_through,
             "events": [list(event) for event in self.events],
             "split_fingerprint": self.split_fingerprint,
+            "actions_verified": self.actions_verified,
         }
 
     def actions_frame(self):
         dates = pd.DatetimeIndex([event[0] for event in self.events], tz="America/New_York")
-        return pd.DataFrame([(event[1], event[2]) for event in self.events], index=dates,
-                            columns=["Dividends", "Stock Splits"], dtype=float)
+        frame = pd.DataFrame([(event[1], event[2]) for event in self.events], index=dates,
+                             columns=["Dividends", "Stock Splits"], dtype=float)
+        frame.attrs["actions_verified"] = self.actions_verified
+        return frame
 
 
 def equity_basis_from_frame(frame):
@@ -144,10 +168,13 @@ def equity_basis_from_frame(frame):
             raise EquityBasisError("IBKR equity prices lack their frozen action ledger")
         return None
     try:
-        if metadata["schema"] != "ibkr-equity-actions-v1":
+        if metadata["schema"] not in {"ibkr-equity-actions-v1", "ibkr-equity-prices-v2"}:
             raise EquityBasisError("Unknown equity action snapshot schema")
+        verified = metadata.get("actions_verified", True)
+        if (metadata["schema"] == "ibkr-equity-actions-v1") != (verified is True):
+            raise EquityBasisError("Contradictory equity provenance schema")
         snapshot = EquityBasisSnapshot(metadata["as_of"], metadata["coverage_through"],
-                                       tuple(tuple(event) for event in metadata["events"]))
+                                       tuple(tuple(event) for event in metadata["events"]), verified)
         if snapshot.split_fingerprint != metadata["split_fingerprint"]:
             raise EquityBasisError("Equity snapshot events contradict their fingerprint")
         return snapshot

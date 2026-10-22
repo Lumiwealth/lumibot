@@ -204,6 +204,21 @@ _HEALTH_LOCK = Lock()
 _HEALTH_BY_SERIES: dict[str, dict[str, Any]] = {}
 _HEALTH_EVENT_IDS: set[tuple[str, str]] = set()
 _REQUIRED_FAILURES: dict[tuple, dict[str, Any]] = {}
+_OPTIONAL_ISSUES: dict[tuple, dict[str, Any]] = {}
+
+
+def record_optional_corporate_action_issue(*, symbol, when):
+    """Record unavailable enrichment separately from required price-data failures."""
+    key = (str(symbol).strip().upper(), "corporate_actions_unavailable")
+    with _HEALTH_LOCK:
+        if key in _OPTIONAL_ISSUES:
+            _OPTIONAL_ISSUES[key]["occurrences"] += 1
+        elif len(_OPTIONAL_ISSUES) < 500:
+            _OPTIONAL_ISSUES[key] = {
+                "symbol": key[0], "reason": key[1], "required": False,
+                "price_provider": "ibkr", "corporate_actions_status": "unavailable",
+                "cash_dividends_verified": False, "observed_at": when.isoformat(), "occurrences": 1,
+            }
 
 
 def record_backtest_availability_requirement(*, asset, timestep, when, history_as_of):
@@ -395,6 +410,7 @@ def ibkr_history_health_snapshot() -> dict[str, Any]:
     with _HEALTH_LOCK:
         series = [dict(value) for _, value in sorted(_HEALTH_BY_SERIES.items())]
         required_failures = [dict(value) for value in _REQUIRED_FAILURES.values()]
+        warnings = [dict(value) for value in _OPTIONAL_ISSUES.values()]
     incomplete = sum(1 for value in series if value.get("outcome") != HistoryOutcome.COMPLETE.value)
     return {
         "provider": "ibkr",
@@ -404,6 +420,7 @@ def ibkr_history_health_snapshot() -> dict[str, Any]:
         "series": series,
         "required_complete": not required_failures,
         "required_failures": required_failures,
+        "warnings": warnings,
     }
 
 
@@ -412,6 +429,7 @@ def reset_ibkr_history_health() -> None:
         _HEALTH_BY_SERIES.clear()
         _HEALTH_EVENT_IDS.clear()
         _REQUIRED_FAILURES.clear()
+        _OPTIONAL_ISSUES.clear()
 
 
 def reset_ibkr_history_health_for_testing() -> None:

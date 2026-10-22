@@ -1375,7 +1375,16 @@ class RoutedBacktestingPandas(ThetaDataBacktestingPandas):
                             [asset], self._backtest_daily_corporate_action_length(), timestep="day", quote=quote
                         )
                     except Exception as exc:
-                        raise RuntimeError(f"corporate_actions_unavailable: {asset.symbol}") from exc
+                        # This daily load enriches dividend accounting, not the
+                        # strategy's requested minute-price series. Preserve the
+                        # warning and retry later; do not invent a verified zero.
+                        from lumibot.tools.ibkr_history_health import record_optional_corporate_action_issue
+                        record_optional_corporate_action_issue(
+                            symbol=asset.symbol, when=ibkr_helper._ibkr_history_now_utc())
+                        logger.warning("Optional dividend history unavailable for %s; cash dividends "
+                                       "remain unverified.", asset.symbol)
+                        result[asset] = 0.0
+                        continue
                     frame = self._get_backtest_daily_corporate_action_frame(asset, quote=quote)
                 by_date = {}
                 if frame is not None and "dividend" in frame.columns and len(frame.index):

@@ -102,14 +102,16 @@ def test_current_actions_use_latest_session_on_weekend(monkeypatch):
     assert h._get_current_equity_basis("SPY") is basis and len(calls)==1
 
 
-def test_split_morning_requires_current_effective_session(monkeypatch):
+def test_missing_split_morning_metadata_preserves_native_price_basis(monkeypatch):
     monkeypatch.setattr(h,"_IBKR_EQUITY_BASIS_CACHE",{})
     monkeypatch.setattr(h,"_ibkr_history_now_utc",lambda:pd.Timestamp("2024-06-10T13:00Z").to_pydatetime())
     frame=pd.DataFrame(columns=["Dividends","Stock Splits"]);frame.attrs["coverage_through"]="2024-06-07"
     monkeypatch.setattr(h,"_get_cached_equity_actions",lambda *a,**k:frame)
-    with pytest.raises(RuntimeError,match="current effective session"):
-        h._get_current_equity_basis("NVDA")
-    assert not h._IBKR_EQUITY_BASIS_CACHE
+    # 2026-10-21: a missing event ledger is not a price-data failure. IBKR's
+    # native prices are already split-adjusted; unknown events stay unverified.
+    basis = h._get_current_equity_basis("NVDA")
+    assert basis.actions_verified is False and basis.coverage_through is None
+    assert basis.events == ()
 
 
 def test_placeholder_merge_does_not_invent_or_require_price_basis(isolated):
@@ -120,3 +122,40 @@ def test_placeholder_merge_does_not_invent_or_require_price_basis(isolated):
     assert len(h._verified_equity_cache(combined,isolated))==2
     unmarked=placeholder.copy();unmarked["missing"]=False
     with pytest.raises(EquityBasisError):h._merge_frames(real,unmarked)
+
+
+@pytest.mark.parametrize("symbol", ["SPY", "XLF"])
+@pytest.mark.parametrize("wall_clock", ["2026-10-21T06:30Z", "2026-10-22T00:42Z"])
+def test_native_stock_prices_survive_optional_action_outage(monkeypatch, tmp_path, symbol, wall_clock):
+    """Missing auxiliary metadata must not prevent a supported IBKR price request."""
+    monkeypatch.setattr(h, "_IBKR_EQUITY_BASIS_CACHE", {})
+    monkeypatch.setattr(h, "_ibkr_history_now_utc", lambda: pd.Timestamp(wall_clock).to_pydatetime())
+    monkeypatch.setattr(h, "LUMIBOT_CACHE_FOLDER", str(tmp_path))
+    monkeypatch.setattr(h, "get_backtest_cache", lambda: SimpleNamespace(
+        ensure_local_file=lambda *a, **k: None, on_local_update=lambda *a, **k: None))
+    monkeypatch.setattr(h, "_resolve_conid", lambda **_: 12345)
+    action_calls, price_calls = [], []
+
+    def unavailable(*a, **k):
+        action_calls.append(1)
+        raise RuntimeError("corporate_actions_unavailable: source unavailable")
+
+    monkeypatch.setattr(h, "_get_cached_equity_actions", unavailable)
+    monkeypatch.setattr(h, "_ibkr_history_request", lambda **_: price_calls.append(1) or payload())
+    request = args()
+    request["asset"] = Asset(symbol)
+    first = h._get_cached_bars_for_source(**request)
+    repeat = h._get_cached_bars_for_source(**request)
+    assert first.close.tolist() == [120.] * 3
+    pd.testing.assert_frame_equal(first, repeat)
+    assert len(price_calls) == 1 and len(action_calls) == 1
+    from lumibot.tools.ibkr_equity_basis import equity_basis_from_frame
+    basis = equity_basis_from_frame(first)
+    assert basis.actions_verified is False and basis.coverage_through is None
+    assert basis.events == ()
+    verified_empty = snapshot()
+    assert basis.split_fingerprint != verified_empty.split_fingerprint
+    verified = decorate_adjusted_frame(pd.DataFrame({"close": [120.]}, index=first.index[:1]),
+                                      verified_empty, provider_prices_verified=True)
+    with pytest.raises(EquityBasisError):
+        h._merge_frames(first, verified)

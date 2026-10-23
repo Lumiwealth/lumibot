@@ -18,8 +18,10 @@ repeated or overlapping history requests from them. Each broker adapter only sup
 - a `fetch(start, end_exclusive)` function that reads one range from the broker and raises on errors.
 
 Wired today: `AlpacaData` and `AlpacaBacktesting` (through `tools/alpaca_history.py`),
-`SchwabData`, `TradierData`, `InteractiveBrokersRESTData` (Client Portal history) and
-`CcxtData`. The BotSpot Auto backtest providers (IBKR downloader, ThetaData, Yahoo, Polygon,
+`SchwabData`, `TradierData` and `CcxtData`. `InteractiveBrokersRESTData` (Client Portal) is not
+cached: the gateway answers "the last N bars" in trading time, which a calendar range cannot
+describe (4.6.25 and 4.6.26 returned empty night-time reads). Caching it needs trading-calendar
+ranges. The BotSpot Auto backtest providers (IBKR downloader, ThetaData, Yahoo, Polygon,
 DataBento) keep their own caches: they read from a different source than a customer's broker
 connection, so their bars are never mixed with broker-connection bars.
 

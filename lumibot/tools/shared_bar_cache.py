@@ -96,12 +96,16 @@ def settle_margin() -> pd.Timedelta:
     return pd.Timedelta(minutes=max(0.0, minutes))
 
 
-def credential_scope(*parts) -> str | None:
-    """Stable one-way scope for a provider connection (never store the raw credential)."""
-    values = [str(part) for part in parts if part not in (None, "")]
+def credential_scope(provider, *identity) -> str | None:
+    """Stable one-way scope for a provider connection (never store the raw credential).
+
+    ``None`` (do not share) unless at least one identifying value besides the provider name is
+    present: a scope built from the provider name alone would merge unrelated connections.
+    """
+    values = [str(part) for part in identity if part not in (None, "")]
     if not values:
         return None
-    return hashlib.sha256("\x1f".join(values).encode()).hexdigest()
+    return hashlib.sha256("\x1f".join([str(provider), *values]).encode()).hexdigest()
 
 
 # --------------------------------------------------------------------------- series

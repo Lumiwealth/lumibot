@@ -34,6 +34,10 @@ def echo_market_state(symbol: str = "TEST", note: str = "") -> dict:
         "timestamp": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
     }
 
+@mcp.tool()
+def query_data(datasetId: str) -> dict:
+    return {"datasetId": datasetId, "records": [{"value": 42}]}
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--transport", choices=["stdio", "streamable-http"], default="stdio")
@@ -234,6 +238,31 @@ def test_streamable_http_mcp_transport_support(monkeypatch, tmp_path, streamable
         parameters={"mcp_server": server},
     )
     assert strategy.vars.agent_result == "Transport said: TRNS"
+
+
+@pytest.mark.parametrize("suffix", ["?region=us&tenant=research", "#research"])
+def test_automatic_research_connection_preserves_url_options_through_real_http(
+    monkeypatch, streamable_http_server, suffix
+):
+    from lumibot.components.agents.manager import _botspot_research_server_from_environment
+
+    endpoint = streamable_http_server + suffix
+    monkeypatch.setenv("BOTSPOT_RESEARCH_MCP_URL", endpoint)
+    monkeypatch.setenv("BOTSPOT_RESEARCH_MCP_TOKEN", "synthetic-local-token")
+    monkeypatch.delenv("BOTSPOT_RESEARCH_MCP_RENEW_URL", raising=False)
+    server, warning = _botspot_research_server_from_environment()
+
+    assert server is not None
+    assert server.url == endpoint
+    assert warning is None
+    result = runtime_module.call_mcp_tool(server, "query_data", {"datasetId": "transport.fixture"})
+    assert result.get("isError") is not True
+    # MCP servers may return JSON text or structuredContent; both are supported
+    # by the normal transport. Require the same exact successful result in either.
+    data = result.get("structuredContent")
+    if data is None:
+        data = json.loads(next(item["text"] for item in result["content"] if item.get("type") == "text"))
+    assert data == {"datasetId": "transport.fixture", "records": [{"value": 42}]}
 
 
 def test_stdio_transport_sends_child_stderr_to_devnull_when_quiet(monkeypatch):

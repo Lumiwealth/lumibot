@@ -12,7 +12,6 @@ datetime = LazyModule("datetime")
 Asset = lazy_class("lumibot.entities", "Asset")
 Order = lazy_class("lumibot.entities", "Order")
 Decimal = lazy_class("decimal", "Decimal")
-ROUND_DOWN = "ROUND_DOWN"
 
 if TYPE_CHECKING:
     from lumibot.entities import Position
@@ -28,12 +27,6 @@ def _position_class():
     from lumibot.entities import Position
 
     return Position
-
-
-def getcontext():
-    from decimal import getcontext as _getcontext
-
-    return _getcontext()
 
 
 class Ccxt(Broker):
@@ -110,97 +103,49 @@ class Ccxt(Broker):
         return self.api.fetch_balance(params)
 
     # =========Positions functions==================
+    @staticmethod
+    def _balance_rows(balances):
+        """Read CCXT's unified currency maps, including older per-currency results."""
+        reserved = {"total", "free", "used", "info", "timestamp", "datetime", "debt"}
+        totals = balances.get("total") or {}
+        currencies = set(totals)
+        currencies.update(key for key, value in balances.items()
+                          if key not in reserved and isinstance(value, dict) and "total" in value)
+        for currency in sorted(currencies):
+            row = balances.get(currency) or {}
+            total = totals.get(currency, row.get("total"))
+            if total is None or Decimal(str(total)) == 0:
+                continue
+            free = (balances.get("free") or {}).get(currency, row.get("free"))
+            used = (balances.get("used") or {}).get(currency, row.get("used"))
+            if free is None and used is not None:
+                free = Decimal(str(total)) - Decimal(str(used))
+            if used is None and free is not None:
+                used = Decimal(str(total)) - Decimal(str(free))
+            yield {"currency": currency, "total": total, "free": free, "used": used}
+
     def _get_balances_at_broker(self, quote_asset, strategy):
-        """Get's the current actual cash, positions value, and total
-        liquidation value from ccxt.
-
-        This method will get the current actual values from ccxt broker
-        for the actual cash, positions value, and total liquidation.
-
-        Best attempts will be made to use USD as a base currency.
-
-        Returns
-        -------
-        tuple of float
-            (cash, positions_value, total_liquidation_value)
-        """
-        total_cash_value = 0
-        positions_value = 0
-        # Get the market values for each pair held.
-        balances = self._fetch_balance()
-
-        currency_key = "currency"
-        if self.api.exchangeId in ["coinbasepro", "kucoin", "kraken", "coinbase", "binance", "bitmex", "weex"]:
-            balances_info = []
-            reserved_keys = ["total", "free", "used", "info", "timestamp", "datetime", "debt"]
-            for key in balances:
-                if key in reserved_keys:
-                    continue
-                bal = balances[key]["total"]
-                if Decimal(bal) != Decimal("0"):
-                    balances_info.append({"currency": key, "balance": bal})
-        else:
-            raise NotImplementedError(f"{self.api.exchangeId} not implemented yet.")
-
-        no_valuation = []
+        """Return cash, non-cash holdings value, and equity in the quote currency."""
+        cash = Decimal("0")
+        positions_value = Decimal("0")
         self._ensure_markets_loaded()
-        for currency_info in balances_info:
-            currency = currency_info[currency_key]
-
+        for row in self._balance_rows(self._fetch_balance()):
+            currency, units = row["currency"], Decimal(str(row["total"]))
             if currency == quote_asset.symbol:
-                total_cash_value = Decimal(currency_info["balance"])
+                cash = units
                 continue
-
-            # Check for three USD markets.
-            market_string = f"{currency}/{quote_asset.symbol}"
-            market = None
-            if market_string in self.api.markets:
-                market = market_string
-
-            if market is None:
-                no_valuation.append(currency)
+            direct = f"{currency}/{quote_asset.symbol}"
+            inverse = f"{quote_asset.symbol}/{currency}"
+            symbol = direct if direct in self.api.markets else inverse
+            if symbol not in self.api.markets:
+                logger.warning("No %s valuation market for %s; excluded from CCXT equity", quote_asset, currency)
                 continue
-
-            precision_amount = self.api.markets[market]["precision"]["amount"]
-            precision_price = self.api.markets[market]["precision"]["price"]
-
-            if self.api.exchangeId == "binance":
-                precision_amount = 10**-precision_amount
-                precision_price = 10**-precision_price
-
-            total_balance = currency_info["balance"]
-
-            units = Decimal(total_balance)
-
-            attempts = 0
-            max_attempts = 3
-            while attempts < max_attempts:
-                last_price = self.api.fetch_ticker(market)["last"]
-                if last_price is None:
-                    attempts += 1
-                else:
-                    attempts = max_attempts
-
-            if last_price is None:
-                last_price = 0
-
-            price = Decimal(last_price)
-
-            value = units * price
-            positions_value += value
-
-        if len(no_valuation) > 0:
-            logger.info(
-                f"The coins {no_valuation} have no valuation in {quote_asset} "
-                f"and therefore could not be added to the portfolio when calculating "
-                f"the total value of the holdings."
-            )
-
-        total_cash_value = float(total_cash_value)
-        gross_positions_value = float(positions_value) + total_cash_value
-        net_liquidation_value = float(positions_value) + total_cash_value
-
-        return (total_cash_value, gross_positions_value, net_liquidation_value)
+            price = self.api.fetch_ticker(symbol).get("last")
+            if price is None or Decimal(str(price)) <= 0:
+                raise ValueError(f"No usable CCXT valuation price for {symbol}")
+            price = Decimal(str(price))
+            positions_value += units * price if symbol == direct else units / price
+        return float(cash), float(positions_value), float(cash + positions_value)
 
     def _parse_broker_position(self, position, strategy, orders=None):
         """parse a broker position representation
@@ -210,22 +155,19 @@ class Ccxt(Broker):
         symbol = position["currency"]
         hold = position["used"]
         available = position["free"]
-        quantity = Decimal(position["total"])
+        quantity = Decimal(str(position["total"]))
 
         self._ensure_markets_loaded()
-        # Check if symbol is in the currencies list
-        if symbol not in self.api.currencies:
-            logger.error(
-                f"The symbol {symbol} is not in the currencies list. "
-                f"Please check the symbol and the exchange currencies list."
-            )
-            precision = None
+        currency = self.api.currencies.get(symbol) or {}
+        precision = currency.get("precision")
+        if precision is not None:
+            import ccxt
 
-        elif self.api.exchangeId == "binance":
-            precision = str(10 ** -self.api.currencies[symbol]["precision"])
-
-        else:
-            precision = str(self.api.currencies[symbol]["precision"])
+            if self.api.precisionMode == ccxt.DECIMAL_PLACES:
+                precision = Decimal("10") ** -precision
+            elif self.api.precisionMode == ccxt.SIGNIFICANT_DIGITS:
+                # Significant digits cannot be represented as a fixed coin increment.
+                precision = None
 
         asset = Asset(
             symbol=symbol,
@@ -237,49 +179,13 @@ class Ccxt(Broker):
         return position_return
 
     def _pull_broker_position(self, asset):
-        """Given a asset, get the broker representation
-        of the corresponding asset"""
-
-        position = None
-        if self.api.exchangeId == "binance":
-            for position in self._pull_broker_positions():
-                if position["currency"] == asset.symbol:
-                    return position
-        else:
-            position = self._pull_broker_positions()["info"][asset.symbol]
-        return position
+        return next((row for row in self._pull_broker_positions()
+                     if row["currency"] == asset.symbol), None)
 
     def _pull_broker_positions(self, strategy=None):
-        """Get the broker representation of all positions"""
-        response = self._fetch_balance()
-
-        if self.api.exchangeId in ["kraken", "kucoin", "coinbasepro", "coinbase", "binance", "bitmex", "weex"]:
-            balances_info = []
-            reserved_keys = [
-                "total",
-                "free",
-                "used",
-                "info",
-                "timestamp",
-                "datetime",
-                "debt",
-                strategy.quote_asset.symbol if strategy else None,
-            ]
-            for key in response:
-                if key in reserved_keys:
-                    continue
-                bals = response[key]
-                if Decimal(bals["total"]) != Decimal("0"):
-                    bals["currency"] = key
-                    balances_info.append(bals)
-
-            return balances_info
-        else:
-            raise NotImplementedError(
-                f"{self.api.exchangeId} not implemented yet. \
-                                      If you think this is incorrect, then please check \
-                                      the exact spelling of the exchangeId."
-            )
+        """Read spot holdings using the unified balance contract on every exchange."""
+        quote = strategy.quote_asset.symbol if strategy is not None else None
+        return [row for row in self._balance_rows(self._fetch_balance()) if row["currency"] != quote]
 
     def _parse_broker_positions(self, broker_positions, strategy):
         """parse a list of broker positions into a
@@ -319,33 +225,27 @@ class Ccxt(Broker):
             The position object for the asset and strategy if found, otherwise None
         """
         response = self._pull_broker_position(asset)
-        result = self._parse_broker_position(response, strategy)
-        return result
+        return self._parse_broker_position(response, getattr(strategy, "name", strategy)) if response else None
 
     # =======Orders and assets functions=========
     def _parse_broker_order(self, response, strategy_name, strategy_object=None):
         """parse a broker order representation
         to an order object"""
-        pair = response["symbol"].split("/")
+        base, quote = response["symbol"].split("/", 1)
+        order_type = response.get("type") or "market"
+        trigger = response.get("triggerPrice") or response.get("stopPrice")
+        if trigger is not None and order_type in ("market", "limit"):
+            order_type = "stop" if order_type == "market" else "stop_limit"
         order = Order(
-            strategy_name,
-            Asset(
-                symbol=pair[0],
-                asset_type="crypto",
-            ),
-            response["amount"],
-            response["side"],
-            limit_price=response["price"],
-            stop_price=response["stopPrice"],
-            time_in_force=response["timeInForce"].lower() if response["timeInForce"] else None,
-            quote=Asset(
-                symbol=pair[1],
-                asset_type="crypto",
-            ),
-            order_type=response["type"] if "type" in response else None,
+            strategy_name, Asset(base, asset_type="crypto"), response["amount"], response["side"],
+            limit_price=response.get("price") if order_type in ("limit", "stop_limit") else None,
+            stop_price=trigger,
+            time_in_force=(response.get("timeInForce") or "gtc").lower(),
+            quote=Asset(quote, asset_type="crypto"), order_type=order_type,
+            avg_fill_price=response.get("average"),
         )
         order.set_identifier(response["id"])
-        order.status = response["status"]
+        order.status = response.get("status") or "new"
         order.update_raw(response)
         return order
 
@@ -361,16 +261,9 @@ class Ccxt(Broker):
 
     def _pull_broker_closed_orders(self):
         params = {}
-
-        if self.api.id == "kraken":  # Check if the exchange is Kraken
-            logger.info("Detected Kraken exchange. Not sending params for closed orders.")
-            params = None  # Ensure no parameters are sent
-        elif self.is_margin_enabled():
+        if self.is_margin_enabled() and self.api.id == "kucoin":
             params["tradeType"] = "MARGIN_TRADE"
-
-        closed_orders = self.api.fetch_closed_orders(params)
-
-        return closed_orders
+        return self.api.fetch_closed_orders(params=params)
 
     def _pull_broker_all_orders(self):
         """Get the broker open orders"""
@@ -416,409 +309,77 @@ class Ccxt(Broker):
         return orders
 
     def _submit_order(self, order):
-        """Submit an order for an asset"""
-
-        # Check if order has a quantity
-        if not hasattr(order, "quantity") or order.quantity is None:
-            raise ValueError(f"Order {order} does not have a quantity.")
-
-        # Check that order quantity is a numeric type
-        if not isinstance(order.quantity, (int, float, Decimal)):
-            raise ValueError(f"Order quantity must be a numeric type, not {type(order.quantity)}")
-
-        # Check if order quantity is greater than 0.
-        if order.quantity <= 0:
-            logger.warning(f"The order {order} was rejected as the order quantity is 0 or less.")
-            return
-
-        # Orders limited.
-        order_class = None
-        order_types = ["market", "limit", "stop_limit"]
-        # TODO: Is this actually true?? Try testing this with a bunch of different exchanges.
-        markets_error_message = "Only `market`, `limit`, or `stop_limit` orders work with crypto currency markets."
-
-        if order.order_class != order_class:
-            logger.error(f"A compound order of {order.order_class} was entered. " f"{markets_error_message}")
-            return
-
-        if order.order_type not in order_types:
-            logger.error(f"An order type of {order.order_type} was entered which is not " f"valid. {markets_error_message}")
-            return
-
-        # Check order within limits.
+        """Submit through CCXT's unified order API, preserving native parameters."""
+        if order.order_class not in (None, "simple"):
+            order.set_error("CCXT compound order lifecycle is not implemented; use native attached-order parameters")
+            return order
+        if order.quantity is None or order.quantity <= 0:
+            order.set_error("Order quantity must be greater than zero")
+            return order
         self._ensure_markets_loaded()
         from lumibot.tools.symbol_normalization import resolve_ccxt_market_symbol
 
-        exchange_id = getattr(self.api, "id", None)
-        resolved_pair = resolve_ccxt_market_symbol(
-            getattr(self.api, "markets", None),
-            order.pair,
-            exchange_id=exchange_id,
-        )
-        if resolved_pair is None:
-            logger.error(
-                f"An order for {order.pair} was submitted. The market for that pair does not exist"
-            )
-            order.set_error("No market for pair.")
+        pair = resolve_ccxt_market_symbol(self.api.markets, order.pair, exchange_id=self.api.id)
+        if pair is None:
+            order.set_error(f"No CCXT market for {order.pair}")
             return order
-        if resolved_pair != order.pair:
-            logger.info(
-                "Normalized crypto CCXT order pair %s -> %s for %s",
-                order.pair,
-                resolved_pair,
-                exchange_id or "ccxt",
-            )
-            order.pair = resolved_pair
-        market = self.api.markets.get(order.pair, None)
-        if market is None:
-            logger.error(f"An order for {order.pair} was submitted. The market for that pair does not exist")
-            order.set_error("No market for pair.")
-            return order
-
-        limits = market["limits"]
-        precision = market["precision"]
-        if self.api.exchangeId in ["binance", "kucoin"]:
-            precision_amount = Decimal(str(10 ** -precision["amount"]))
-        elif self.api.exchangeId == "kraken":
-            initial_precision_amount = Decimal(str(precision["amount"]))
-
-            # Remove a few decimal places because Kraken precision amount is wrong and it's causing orders to fail.
-            precision_exp_modifier = 2
-            initial_precision_exp = abs(initial_precision_amount.as_tuple().exponent)
-            new_precision_exp = initial_precision_exp - precision_exp_modifier
-            factor = 10**new_precision_exp
-            precision_amount = Decimal(1) / Decimal(factor)
-        else:
-            # Set the precision for the Decimal context
-            getcontext().prec = 8
-            getcontext().rounding = ROUND_DOWN
-            decimal_value = Decimal(precision["amount"])
-            precision_amount = decimal_value.quantize(Decimal(f"1e-{8}"), rounding=ROUND_DOWN)
-
-        # Convert the amount to Decimal.
-        if hasattr(order, "quantity") and order.quantity is not None:
-            qty = Decimal(order.quantity)
-
-            # Calculate the precision factor as the reciprocal of precision_amount
-            precision_factor = Decimal("1") / precision_amount
-
-            new_qty = (qty * precision_factor).to_integral_value(rounding="ROUND_DOWN") / precision_factor
-
-            if new_qty <= Decimal(0):
-                logger.warning(
-                    f"The order {order} was rejected as the order quantity is 0 or less after rounding down to the exchange minimum precision amount of {precision_amount}."
-                )
-                return
-
-            order.quantity = new_qty
-
-            # TODO: Remove this if really not needed by several brokers (keeping for now because it's a big change and need to monitor first).
-            # try:
-            #     if limits["amount"]["min"] is not None:
-            #         assert Decimal(order.quantity) >= Decimal(limits["amount"]["min"])
-            # except AssertionError:
-            #     logger.warning(
-            #         f"\nThe order {order} was rejected as the order quantity \n"
-            #         f"was less then the minimum allowed for {order.pair}. The minimum order quantity is {limits['amount']['min']} \n"
-            #         f"The quantity for this order was {order.quantity} \n"
-            #     )
-            #     return
-
-            # try:
-            #     if limits["amount"]["max"] is not None:
-            #         assert order.quantity <= limits["amount"]["max"]
-            # except AssertionError:
-            #     logger.warning(
-            #         f"\nThe order {order} was rejected as the order quantity \n"
-            #         f"was greater then the maximum allowed for {order.pair}. The maximum order "
-            #         f"quantity is {limits['amount']['max']} \n"
-            #         f"The quantity for this order was {order.quantity} \n"
-            #     )
-            #     return
-
-        # Convert the price to Decimal.
-        for price_type in [
-            "limit_price",
-            "stop_price",
-        ]:
-            if hasattr(order, price_type) and getattr(order, price_type) is not None:
-                precision_price = Decimal(str(10 ** -precision["price"])
-                                          ) if self.api.exchangeId == "binance" else precision["price"]
-                setattr(
-                    order,
-                    price_type,
-                    Decimal(getattr(order, price_type)).quantize(Decimal(str(precision_price))),
-                )
-            else:
-                continue
-
-            try:
-                if limits["price"]["min"] is not None:
-                    assert getattr(order, price_type) >= limits["price"]["min"]
-            except AssertionError:
-                logger.warning(
-                    f"\nThe order {order} was rejected as the order {price_type} \n"
-                    f"was less then the minimum allowed for {order.pair}. The minimum price "
-                    f"is {limits['price']['min']} \n"
-                    f"The price for this order was {getattr(order, price_type):4.9f} \n"
-                )
-                return
-
-            try:
-                if limits["price"]["max"] is not None:
-                    assert getattr(order, price_type) <= limits["price"]["max"]
-            except AssertionError:
-                logger.warning(
-                    f"\nThe order {order} was rejected as the order {price_type} \n"
-                    f"was greater then the maximum allowed for {order.pair}. The maximum price "
-                    f"is {limits['price']['max']} \n"
-                    f"The price for this order was {getattr(order, price_type):4.9f} \n"
-                )
-                return
-
-            try:
-                if limits["cost"]["min"] is not None:
-                    price = Decimal(getattr(order, price_type))
-                    qty = Decimal(order.quantity)
-                    limit_min = Decimal(limits["cost"]["min"])
-                    assert (price * qty) >= limit_min
-            except AssertionError:
-                logger.warning(
-                    f"\nThe order {order} was rejected as the order total cost \n"
-                    f"was less then the minimum allowed for {order.pair}. The minimum cost "
-                    f"is {limits['cost']['min']} \n"
-                    f"The cost for this order was only {(getattr(order, price_type) * order.quantity):4.9f} \n"
-                )
-                return
-
-            try:
-                if limits["cost"]["max"] is not None:
-                    assert getattr(order, price_type) * order.quantity <= Decimal(limits["cost"]["max"])
-            except AssertionError:
-                logger.warning(
-                    f"\nThe order {order} was rejected as the order total cost \n"
-                    f"was greater then the maximum allowed for {order.pair}. The maximum cost "
-                    f"is {limits['cost']['max']} \n"
-                    f"The cost for this order was {(getattr(order, price_type) * order.quantity):4.9f} \n"
-                )
-                return
-        args = self.create_order_args(order)
-
-        params = {}
-
-        if self.is_margin_enabled() and self.api.exchangeId != "binance":
-            params["tradeType"] = "MARGIN_TRADE"
-
-        # if self.api.exchangeId == "coinbase" and order.order_type == "market":
-        #     params["createMarketBuyOrderRequiresPrice"] = False
-
+        order.pair = pair
         try:
-            # Add order.custom_params to params
-            if hasattr(order, "custom_params") and order.custom_params is not None:
-                params.update(order.custom_params)
-
-            response = self.api.create_order(*args, params=params)
+            order.quantity = Decimal(self.api.amount_to_precision(pair, order.quantity))
+            for field in ("limit_price", "stop_price"):
+                price = getattr(order, field, None)
+                if price is not None:
+                    setattr(order, field, Decimal(self.api.price_to_precision(pair, price)))
+            limits = self.api.markets[pair].get("limits") or {}
+            for price in (order.limit_price, order.stop_price):
+                if price is not None:
+                    self._check_market_limit("price", price, limits)
+            if order.limit_price is not None:
+                self._check_market_limit("cost", order.limit_price * order.quantity, limits)
+            params = {}
+            if self.is_margin_enabled() and self.api.id == "kucoin":
+                params["tradeType"] = "MARGIN_TRADE"
+            if order.stop_price is not None:
+                params["triggerPrice"] = str(order.stop_price)
+            if order.time_in_force and order.time_in_force.lower() != "day":
+                params["timeInForce"] = order.time_in_force.upper()
+            params.update(order.custom_params or {})
+            response = self.api.create_order(*self.create_order_args(order), params=params)
             order.set_identifier(response["id"])
-            order.status = response["status"]
+            order.status = response.get("status") or "new"
             order.update_raw(response)
-
-        except Exception as e:
-            order.set_error(e)
-            message = str(e)
-            full_message = f"{order} did not go through. The following error occurred: {message}"
-            logger.info(colored(full_message, "red"))
-
+        except Exception as exc:
+            order.set_error(exc)
+            logger.error("CCXT order submission failed for %s: %s", order.pair, type(exc).__name__)
         return order
 
+    @staticmethod
+    def _check_market_limit(field, value, limits):
+        for bound, limit in (limits.get(field) or {}).items():
+            if limit is None:
+                continue
+            limit = Decimal(str(limit))
+            if (bound == "min" and value < limit) or (bound == "max" and value > limit):
+                raise ValueError(f"CCXT {field} {value} exceeds market {bound} {limit}")
+
     def create_order_args(self, order):
-        """Will create the args for the ccxt `create_order` submission.
-
-        Creating the order args. There are only a few acceptable lumibot
-        orders. These are:
-            market, limit, stop_limit
-
-        There is no stop or trailing orders. Also combo orders do not
-        work in crypto. So no bracket or oco orders.
-
-        The args are complicated and will vary for each broker. All new
-        broker conditions should be fully documented as below.
-
-        The main arguments for `api.create_order()` are:
-            symbol: always the pairing symbol.
-            type: order types vary with broker, see below.
-            side: buy or sell
-            amount: string quantity to buy or sell
-            price=None: Optional, use for limit pricing.
-            {params}: custom parameters.
-
-        For Binance the args are as follows:
-            Allowable orders:
-                orderTypes:
-                    'MARKET'
-                    'LIMIT',
-                    'STOP_LOSS_LIMIT'
-                custom parameters dict:
-                    {'stopPrice': string price}
-
-            Examples of the args for binance are as follows:
-
-            Market Order
-            api.create_order("BTC/USDT", "MARKET", "buy", "0.0999")
-
-            Limit Order
-            api.create_order("BTC/USDT", "LIMIT", "buy", "0.0888", "40000")
-            api.create_order("BTC/USDT", "LIMIT", "sell", "0.0777", "40000")
-
-            Stop Entry Limit Order
-            api.create_order(
-                "BTC/USDT",
-                "TAKE_PROFIT_LIMIT",
-                "sell",
-                ".0777",
-                40100,
-                {"stopPrice": 40000},
-            )
-
-            Stop Loss Limit Order
-            api.create_order(
-                "BTC/USDT",
-                "STOP_LOSS_LIMIT",
-                "sell",
-                "0.0666",
-                40100,
-                {"stopPrice": 40000}
-            )
-
-        For Coinbase the args are as follows:
-            Allowable orders:
-                orderTypes:
-                    `market`
-                    `limit`
-                custom parameters dict:
-                    {
-                    `stop`: `loss` or `entry`
-                    `stop_price`: string price
-                    }
-
-            Examples of the args for coinbase are as follows:
-
-            Market Order
-            api.create_order("BTC/USD", "market", side, amount)
-
-            Limit Order
-            api.create_order("BTC/USD", "limit", side, amount, "40000")
-            api.create_order("BTC/USD", "limit", side, amount, "40000")
-
-            Buy Stop Entry
-            api.create_order(
-                "BTC/USD",
-                "limit",
-                "buy",
-                "0.123",
-                "40100",
-                {"stop": "entry", "stop_price": "40000"},
-            )
-
-            Sell Stop Loss
-            order = api.create_order(
-                "BTC/USD",
-                "limit",
-                "sell",
-                "0.111",
-                "40100",
-                {"stop": "loss", "stop_price": "40000"},
-            )
-
-
-        Parameters
-        ----------
-        order
-
-        Returns
-        -------
-        create_order api arguments : dict
-
-        """
-        broker = self.api.exchangeId
-        if broker == "binance":
-            params = {}
-            if order.order_type in ["stop_limit"]:
-                params = {
-                    "stopPrice": str(order.stop_price),
-                }
-                # Remove items with None values
-                params = {k: v for k, v in params.items() if v}
-
-            order_type_map = dict(market="MARKET", limit="LIMIT", stop_limit="STOP_LOSS_LIMIT")
-
-            args = [
-                order.pair,
-                order_type_map[order.order_type],
-                order.side,
-                str(order.quantity),
-            ]
-            if order.order_type in ["limit", "stop_limit"]:
-                args.append(str(order.limit_price))
-
-            if len(params) > 0:
-                args.append(params)
-
-            return args
-
-        elif broker in ["kraken", "kucoin", "coinbasepro", "coinbase"]:
-            params = {}
-            if order.order_type in ["stop_limit"]:
-                params = {
-                    "stop": "entry" if order.side == "buy" else "loss",
-                    "stop_price": str(order.stop_price),
-                }
-
-                # Remove items with None values
-                params = {k: v for k, v in params.items() if v}
-
-            order_type_map = dict(
-                market="market",
-                stop="market",
-                limit="limit",
-                stop_limit="limit",
-            )
-
-            args = [
-                order.pair,
-                order_type_map[order.order_type],
-                order.side,
-                str(order.quantity),  # check this with coinbase.
-            ]
-            if order_type_map[order.order_type] == "limit":
-                args.append(str(order.limit_price))
-
-            # If coinbase, you need to pass the price even with a market order
-            if broker == "coinbase" and order_type_map[order.order_type] == "market":
-                price = self.data_source.get_last_price(order.asset, quote=order.quote)
-                args.append(str(price))
-
-            if len(params) > 0:
-                args.append(params)
-
-            return args
-
-        else:
-            raise ValueError(
-                f"An attempt was made to use the broker {broker} which is "
-                f"not an approved broker. Please refer to the Lumibot docs"
-                f"to get a list of currently approved brokers."
-            )
+        """Build the unified symbol, type, side, coin quantity and optional price."""
+        order_type = {"stop": "market", "stop_limit": "limit"}.get(order.order_type, order.order_type)
+        price = str(order.limit_price) if order.limit_price is not None else None
+        if order_type == "market" and order.side == "buy" and self.api.options.get("createMarketBuyOrderRequiresPrice"):
+            price = self.data_source.get_last_price(order.asset, quote=order.quote)
+            if price is None:
+                raise ValueError(f"A price is required to calculate market-buy cost for {order.pair}")
+            price = str(price)
+        return [order.pair, order_type, order.side, str(order.quantity), price]
 
     def cancel_order(self, order):
-        """Cancel an order"""
-        if self.api.exchangeId == "binance":
-            response = self.api.cancel_order(order.identifier, order.pair)
-            if order.identifier == response["id"]:
-                order.set_canceled()
-        else:
-            response = self.api.cancel_order(order.identifier, order.symbol)
-            if order.identifier == response:
-                order.set_canceled()
+        """Cancel using the unified market identity; only confirm terminal responses."""
+        response = self.api.cancel_order(order.identifier, order.pair)
+        if str(response.get("id")) == str(order.identifier) and response.get("status") in ("canceled", "cancelled", "expired"):
+            order.status = response["status"]
+            order.set_canceled()
+        return response
 
     def cancel_open_orders(self, strategy, orders: list[Order] | None = None):
         """Cancel all open orders at the broker."""

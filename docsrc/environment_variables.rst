@@ -384,6 +384,31 @@ LUMIBOT_CACHE_FOLDER
 
 - Purpose: Override the local cache folder (useful to simulate a fresh container/task).
 
+LUMIBOT_SHARED_BARS
+^^^^^^^^^^^^^^^^^^^
+
+- Purpose: Turn the shared history cache on or off. Live reads (charts, trading bots) and
+  backtests that read bars from the same broker connection share one cache, for every broker
+  (Alpaca, Schwab, Tradier, Interactive Brokers Client Portal, CCXT exchanges).
+- Default: ``true``. Set ``false`` to read every bar from the broker.
+- Notes: Only real broker bars are stored. Completed bars never expire; the still-open newest
+  bar is always read again. Split- or dividend-adjusted history is re-checked against the broker
+  and rebuilt when the broker rewrites old prices. With ``LUMIBOT_CACHE_BACKEND=s3`` the files are
+  also shared through S3 (uploads run in the background, so callers never wait on them).
+
+LUMIBOT_SHARED_BARS_SCOPE
+^^^^^^^^^^^^^^^^^^^^^^^^^
+
+- Purpose: Who may reuse cached bars.
+- Values: ``credential`` (default: each broker connection keeps its own bars) or ``provider``
+  (all connections of one broker share bars).
+
+LUMIBOT_SHARED_BARS_SETTLE_MINUTES
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+- Purpose: How long after a bar ends it counts as final and may be stored.
+- Default: ``15``.
+
 LUMIBOT_CACHE_S3_BUCKET / LUMIBOT_CACHE_S3_PREFIX / LUMIBOT_CACHE_S3_REGION
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 

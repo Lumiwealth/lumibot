@@ -2333,6 +2333,11 @@ class Schwab(Broker):
         """
         self.account_number = account_number
         self.hash_value = hash_value
+        if data_source is not None and account_number:
+            # History cached for this account is shared by its charts, bots and backtests.
+            from lumibot.tools.shared_bar_cache import credential_scope
+
+            data_source.shared_bars_scope = credential_scope("schwab", account_number)
 
         # Only create stream client if client exists and stream startup was requested.
         if self._connect_stream and self.client:

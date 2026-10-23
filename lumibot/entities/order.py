@@ -766,6 +766,8 @@ class Order:
     def update_trail_stop_price(self, price):
         """Update the trail stop price.
         This will be used to determine if a trailing stop order should be triggered in a backtest.
+        Buy thresholds can only decrease; sell thresholds can only increase.
+        Backtesting uses a fractional percentage offset (0.02 means 2%).
 
         Parameters
         ----------
@@ -803,7 +805,7 @@ class Order:
                 return
 
             # Ratchet down the trail stop price for a buy order if the price has decreased.
-            if self.is_sell_order() and potential_trail_stop_price < self._trail_stop_price:
+            if self.is_buy_order() and potential_trail_stop_price < self._trail_stop_price:
                 # Update the trail stop price
                 self._trail_stop_price = potential_trail_stop_price
 

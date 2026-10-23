@@ -76,6 +76,11 @@ To create a stop_limit order object, add the keyword parameters stop_price and l
 Trailing stop orders allow you to continuously and automatically keep updating the stop price threshold based on the stock price movement.
 
 To create trailing_stop orders, add either a trail_price or a trail_percent keyword parameter.
+In backtesting, ``trail_percent`` is a fraction: ``0.02`` means 2%.
+A buy stop follows falling prices and never rises; a sell stop follows rising
+prices and never falls. For example, a 2% buy trail observing prices 100, 90,
+and 95 retains a stop of 91.8 after the rebound. A 2% sell trail observing
+100, 110, and 109 retains a stop of 107.8 after the pullback.
 
 .. code-block:: python
 
@@ -83,9 +88,14 @@ To create trailing_stop orders, add either a trail_price or a trail_percent keyw
    order_1 = self.create_order(symbol, quantity, side, trail_price=my_trail_price)
    self.submit_order(order_1)
 
-   my_trail_percent = 2.0 # 2.0 % 
+   # Percentage trail in a backtest
+   my_trail_percent = 0.02 # 2.0 %
    order_2 = self.create_order(symbol, quantity, side, trail_percent=my_trail_percent)
    self.submit_order(order_2)
+
+Live broker adapters may pass ``trail_percent`` through in broker-native units.
+The fractional example above describes backtesting; confirm the selected
+broker's percentage convention before submitting a live trailing order.
 
 
 **smart limit order**

@@ -1,6 +1,6 @@
 # Changelog
 
-## 4.6.27 - Unreleased
+## 4.6.27 - 2026-10-23
 
 ### Changed
 - AI agents may use sources with no date in backtests. They still prefer dated sources and never open a document known to be from after the backtest time, but an undated page or file is now used with an estimated publication date that the agent discloses, instead of being refused. The web-documents and research-data skills, the backtest rules in the agent prompt and the `read_document` description say so. Live trading applies no publication-date rules, and the backtest-only document-manifest rule no longer appears in live prompts. New evals: `web_documents_undated_source_estimated_date`, `web_documents_known_future_document_not_opened`, `web_documents_live_undated_source_used_freely`.

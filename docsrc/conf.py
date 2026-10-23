@@ -105,6 +105,7 @@ templates_path = ["_templates"]
 exclude_patterns = [
     "_build",
     "_includes",
+    "_snippets",
     "Thumbs.db",
     ".DS_Store",
     "strategy_methods.*/strategies.strategy.*.rst",

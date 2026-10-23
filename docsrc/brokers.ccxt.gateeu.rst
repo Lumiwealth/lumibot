@@ -11,6 +11,8 @@ Gate EU Trading Bot in Python
 
 This guide shows how to build a Gate EU trading bot in Python with LumiBot, for both AI agent trading and algorithmic trading. LumiBot connects to Gate EU through CCXT, the open source library that talks to more than 100 crypto exchanges. You will create a Gate EU account and API key, connect it, and run two examples: a simple algorithmic trading bot and an agentic trading bot where an AI agent makes the calls.
 
+.. include:: _snippets/botspot_mcp_callout.rst
+
 Gate EU at a glance
 -------------------
 
@@ -203,6 +205,11 @@ What you can trade on Gate EU through CCXT
      - Not listed by CCXT
 
 CCXT lists these order features for Gate EU: market orders, limit orders, stop orders, stop-loss orders, take-profit orders, reduce-only orders, editing open orders, canceling orders.
+
+Fees and partner IDs on Gate EU
+-------------------------------
+
+You pay Gate EU's normal trading fees. LumiBot may attach its own exchange partner ID. That costs you nothing extra. LumiBot never adds an extra builder fee unless one is turned on, and it logs a warning when one is.
 
 Gate EU tips
 ------------

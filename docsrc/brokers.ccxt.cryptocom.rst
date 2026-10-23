@@ -11,6 +11,8 @@ Crypto.com Trading Bot in Python
 
 This guide shows how to build a Crypto.com trading bot in Python with LumiBot, for both AI agent trading and algorithmic trading. LumiBot connects to Crypto.com through CCXT, the open source library that talks to more than 100 crypto exchanges. You will create a Crypto.com account and API key, connect it, and run two examples: a simple algorithmic trading bot and an agentic trading bot where an AI agent makes the calls.
 
+.. include:: _snippets/botspot_mcp_callout.rst
+
 Crypto.com at a glance
 ----------------------
 
@@ -209,6 +211,47 @@ What you can trade on Crypto.com through CCXT
 CCXT lists these order features for Crypto.com: market orders, limit orders, stop orders, editing open orders, canceling orders.
 
 For perpetual contracts, use the full CCXT symbol so the settlement currency is clear, for example ``BTC/USDT:USDT``. See :doc:`the CCXT guide <brokers.ccxt>` for contract quantities, position modes and leverage.
+
+Perpetual futures example on Crypto.com
+---------------------------------------
+
+Crypto.com also lists perpetual swaps. This bot opens one small long position in ``BTC/USD:USD`` worth about 50 USD and then holds it. LumiBot treats a perpetual as ``asset_type="crypto_future"`` and sizes it in contracts, the same model as LumiBot's Bitunix futures broker. Contract symbols can differ by exchange, so check the symbol in ``self.broker.api.markets`` before going live. In hedge mode, add ``position_side="long"`` to ``create_order``.
+
+.. code-block:: python
+
+   from lumibot.entities import Asset
+   from lumibot.strategies import Strategy
+
+
+   class CryptocomOpenOneLong(Strategy):
+       """Open one small long BTC perpetual position, then hold it."""
+
+       def initialize(self):
+           self.sleeptime = "1H"
+           self.set_market("24/7")  # crypto trades all day, every day
+
+       def on_trading_iteration(self):
+           # The full CCXT symbol keeps the settlement currency clear.
+           contract = self.broker.get_asset("BTC/USD:USD")
+           if self.get_position(contract) is not None:
+               return  # already holding the position
+           price = self.get_last_price(contract)
+           if price:
+               # Each contract covers contract.multiplier BTC; size the order to about 50 USD.
+               quantity = round(50 / (price * contract.multiplier), 6)
+               order = self.create_order(contract, quantity, "buy")
+               self.submit_order(order)
+
+
+   if __name__ == "__main__":
+       # LumiBot reads TRADING_BROKER and the keys from your .env file.
+       strategy = CryptocomOpenOneLong(quote_asset=Asset("USD", asset_type=Asset.AssetType.CRYPTO))
+       strategy.run_live()
+
+Fees and partner IDs on Crypto.com
+----------------------------------
+
+You pay Crypto.com's normal trading fees. CCXT, the library underneath, normally tags Crypto.com orders with its own partner ID. LumiBot removes that tag. LumiBot may attach its own exchange partner ID instead. That costs you nothing extra. LumiBot never adds an extra builder fee unless one is turned on, and it logs a warning when one is.
 
 Crypto.com tips
 ---------------

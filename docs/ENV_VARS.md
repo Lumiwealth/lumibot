@@ -27,6 +27,19 @@ This page documents environment variables used by LumiBot, with an emphasis on *
   - The tool date-gates requests to the strategy datetime during backtests.
   - Do not commit real key values.
 
+### `LUMIBOT_CCXT_PARTNER_IDS` / `LUMIBOT_CCXT_BUILDER_FEES` / `LUMIBOT_CCXT_REFERRAL_CODES`
+- Owner: `lumibot/tools/ccxt_partner_ids.py`, applied wherever LumiBot creates a CCXT client
+  (`CcxtData`, `CcxtDataStore`, the CCXT Pro stream).
+- Default: all empty. CCXT's own partner IDs, builder fees and Hyperliquid referrer are removed.
+- JSON objects keyed by CCXT exchange id. Builder fees cost the user extra and are logged as a warning.
+- `tests/test_ccxt_partner_ids.py` fails if a CCXT upgrade stops sending an ID we strip.
+- CCXT re-adds its tag inside `sign` on HTX swaps, WOO X, WOOFi Pro and ModeTrade; those are reported as
+  `unremovable` (needs a CCXT change that honours an explicit off value).
+
+### DEX trading-only keys (`PARADEX_L2_*`, `LIGHTER_API_KEY_*`, `LIGHTER_ACCOUNT_INDEX`, `LIGHTER_LIBRARY_PATH`, `DYDX_MNEMONIC`)
+- Owner: `AGENT_KEY_CREDENTIALS` in `lumibot/tools/ccxt_exchange_catalog.py`. When complete they replace
+  `<EXCHANGE>_PRIVATE_KEY`; a partial set names what is missing.
+
 ### Polymarket CLOB broker variables
 - Selectors:
   - `TRADING_BROKER=polymarket` or `TRADING_BROKER=polymarket_clob`

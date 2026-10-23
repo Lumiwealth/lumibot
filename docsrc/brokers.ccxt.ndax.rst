@@ -11,6 +11,8 @@ NDAX Trading Bot in Python
 
 This guide shows how to build a NDAX trading bot in Python with LumiBot, for both AI agent trading and algorithmic trading. LumiBot connects to NDAX through CCXT, the open source library that talks to more than 100 crypto exchanges. You will create a NDAX account and API key, connect it, and run two examples: a simple algorithmic trading bot and an agentic trading bot where an AI agent makes the calls.
 
+.. include:: _snippets/botspot_mcp_callout.rst
+
 NDAX at a glance
 ----------------
 
@@ -210,6 +212,11 @@ What you can trade on NDAX through CCXT
      - No
 
 CCXT lists these order features for NDAX: market orders, limit orders, stop orders, editing open orders, canceling orders.
+
+Fees and partner IDs on NDAX
+----------------------------
+
+You pay NDAX's normal trading fees. LumiBot may attach its own exchange partner ID. That costs you nothing extra. LumiBot never adds an extra builder fee unless one is turned on, and it logs a warning when one is.
 
 NDAX tips
 ---------

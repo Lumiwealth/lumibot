@@ -11,6 +11,8 @@ CoinOne Trading Bot in Python
 
 This guide shows how to build a CoinOne trading bot in Python with LumiBot, for both AI agent trading and algorithmic trading. LumiBot connects to CoinOne through CCXT, the open source library that talks to more than 100 crypto exchanges. You will create a CoinOne account and API key, connect it, and run two examples: a simple algorithmic trading bot and an agentic trading bot where an AI agent makes the calls.
 
+.. include:: _snippets/botspot_mcp_callout.rst
+
 CoinOne at a glance
 -------------------
 
@@ -203,6 +205,11 @@ What you can trade on CoinOne through CCXT
      - No
 
 CCXT lists these order features for CoinOne: limit orders, editing open orders, canceling orders.
+
+Fees and partner IDs on CoinOne
+-------------------------------
+
+You pay CoinOne's normal trading fees. LumiBot may attach its own exchange partner ID. That costs you nothing extra. LumiBot never adds an extra builder fee unless one is turned on, and it logs a warning when one is.
 
 CoinOne tips
 ------------

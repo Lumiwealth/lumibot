@@ -11,6 +11,8 @@ dYdX Trading Bot in Python
 
 This guide shows how to build a dYdX trading bot in Python with LumiBot, for both AI agent trading and algorithmic trading. LumiBot connects to dYdX through CCXT, the open source library that talks to more than 100 crypto exchanges. You will create a dYdX account and API wallet, connect it, and run two examples: a simple algorithmic trading bot and an agentic trading bot where an AI agent makes the calls.
 
+.. include:: _snippets/botspot_mcp_callout.rst
+
 dYdX at a glance
 ----------------
 
@@ -213,6 +215,11 @@ CCXT lists these order features for dYdX: limit orders, editing open orders, can
 
 For perpetual contracts, use the full CCXT symbol so the settlement currency is clear, for example ``BTC/USDC:USDC``. See :doc:`the CCXT guide <brokers.ccxt>` for contract quantities, position modes and leverage.
 
+Fees and partner IDs on dYdX
+----------------------------
+
+You pay dYdX's normal trading fees. LumiBot may attach its own exchange partner ID. That costs you nothing extra. LumiBot never adds an extra builder fee unless one is turned on, and it logs a warning when one is.
+
 dYdX tips
 ---------
 
@@ -220,6 +227,7 @@ dYdX tips
 * dYdX markets are perpetual futures settled in USDC, so use the full CCXT symbol, for example ``BTC/USDC:USDC``.
 * dYdX warns that anyone who knows your secret phrase can send, trade and sell from that account. Store keys offline and never paste them into chats. Use separate keys for each bot.
 * Mainnet data comes from the indexer at https://indexer.dydx.trade/v4, and the testnet indexer is https://indexer.v4testnet.dydx.exchange.
+* Instead of the Ethereum wallet key you can set ``DYDX_MNEMONIC`` to your dYdX Chain secret phrase. That keeps the Ethereum wallet key off the bot, but the phrase still has full control of the dYdX account, including withdrawals. CCXT does not support dYdX API Trading Keys yet.
 
 Frequently asked questions
 --------------------------

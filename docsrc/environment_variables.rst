@@ -899,6 +899,54 @@ COINBASE_SANDBOX
 - Values: ``true`` / ``false``.
 - Default: ``false``.
 
+LUMIBOT_CCXT_PARTNER_IDS
+^^^^^^^^^^^^^^^^^^^^^^^^
+
+- Purpose: LumiBot's own exchange partner (broker) IDs for CCXT exchanges. CCXT's
+  own partner IDs are always removed; these are attached instead. A partner ID
+  does not change what the user pays.
+- Values: JSON object keyed by CCXT exchange id, for example
+  ``{"bybit": "<partner-id>", "kucoin": {"id": "<id>", "key": "<partner-key>"}}``.
+- Default: empty (no partner ID is attached).
+
+LUMIBOT_CCXT_BUILDER_FEES
+^^^^^^^^^^^^^^^^^^^^^^^^^
+
+- Purpose: An extra builder fee on DEXes that support one (Hyperliquid, Lighter,
+  GRVT, Aster, Pacifica, Extended). **This costs the user extra on every order.**
+  LumiBot logs a warning whenever one is enabled.
+- Values: JSON object of CCXT option overrides per exchange, for example
+  ``{"hyperliquid": {"builder": "0x...", "feeRate": "0.01%", "feeInt": 10}}``.
+- Default: empty. CCXT's own builder fees are turned off.
+
+LUMIBOT_CCXT_REFERRAL_CODES
+^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+- Purpose: Referral code to register when a wallet first connects (Hyperliquid).
+- Values: JSON object, for example ``{"hyperliquid": "<code>"}``.
+- Default: empty. CCXT's own referrer registration is skipped.
+
+PARADEX_L2_PRIVATE_KEY / PARADEX_L2_ADDRESS / PARADEX_L2_PUBLIC_KEY
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+- Purpose: Trade Paradex with a subkey (can trade, cannot withdraw) instead of the
+  wallet's private key. ``PARADEX_L2_ADDRESS`` is the Paradex account address.
+- Values: from Paradex Key Management (**do not hardcode**).
+
+LIGHTER_API_KEY_PRIVATE_KEY / LIGHTER_API_KEY_INDEX / LIGHTER_ACCOUNT_INDEX / LIGHTER_LIBRARY_PATH
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+- Purpose: Trade Lighter with an existing API key instead of the wallet's private
+  key. All four are needed; the library path points to Lighter's signer library.
+- Values: Lighter API key details (**do not hardcode** the private key).
+
+DYDX_MNEMONIC
+^^^^^^^^^^^^^
+
+- Purpose: Use the dYdX Chain secret phrase instead of the Ethereum wallet key.
+  It still has full control of the dYdX account.
+- Values: secret phrase (**do not hardcode**).
+
 Bitunix broker
 --------------
 

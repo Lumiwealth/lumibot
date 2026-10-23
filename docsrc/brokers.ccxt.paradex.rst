@@ -11,6 +11,8 @@ Paradex Trading Bot in Python
 
 This guide shows how to build a Paradex trading bot in Python with LumiBot, for both AI agent trading and algorithmic trading. LumiBot connects to Paradex through CCXT, the open source library that talks to more than 100 crypto exchanges. You will create a Paradex account and API wallet, connect it, and run two examples: a simple algorithmic trading bot and an agentic trading bot where an AI agent makes the calls.
 
+.. include:: _snippets/botspot_mcp_callout.rst
+
 Paradex at a glance
 -------------------
 
@@ -57,7 +59,7 @@ Set up a Paradex API wallet
 #. Set ``PARADEX_WALLET_ADDRESS`` to that wallet's Ethereum address.
 #. Set ``PARADEX_PRIVATE_KEY`` to that wallet's private key. CCXT signs with it to find your Paradex account and log in.
 #. Fund only what the bot will trade.
-#. Paradex also offers subkeys (Key Management, Subkeys, + Add New Key) that can trade but cannot withdraw. CCXT's Paradex login does not use the subkey flow, so they do not replace the key above.
+#. Safer option: Paradex subkeys (Key Management, Subkeys, + Add New Key) can trade but cannot withdraw. Set ``PARADEX_L2_PRIVATE_KEY`` to the subkey's private key and ``PARADEX_L2_ADDRESS`` to your Paradex account address, and leave ``PARADEX_PRIVATE_KEY`` unset. LumiBot then hands CCXT the subkey directly, so the wallet's private key never reaches the bot. LumiBot has not yet run this setup against a live Paradex account, so test it with a small amount first.
 
 **Which permissions to turn on:** Paradex subkeys can place, cancel and change orders but cannot withdraw or transfer. However, CCXT logs in with the wallet's private key, and that key has full control, including withdrawals. Use a separate wallet that holds only the bot's funds, and never reuse your main wallet's key.
 
@@ -211,6 +213,11 @@ What you can trade on Paradex through CCXT
 CCXT lists these order features for Paradex: market orders, limit orders, stop orders, editing open orders, canceling orders.
 
 For perpetual contracts, use the full CCXT symbol so the settlement currency is clear, for example ``BTC/USD:USDC``. See :doc:`the CCXT guide <brokers.ccxt>` for contract quantities, position modes and leverage.
+
+Fees and partner IDs on Paradex
+-------------------------------
+
+You pay Paradex's normal trading fees. CCXT, the library underneath, normally tags Paradex orders with its own partner ID. LumiBot removes that tag. LumiBot may attach its own exchange partner ID instead. That costs you nothing extra. LumiBot never adds an extra builder fee unless one is turned on, and it logs a warning when one is.
 
 Paradex tips
 ------------

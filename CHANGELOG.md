@@ -1,5 +1,16 @@
 # Changelog
 
+## 4.6.28 - unreleased
+
+### Changed
+- CCXT partner IDs and builder fees: CCXT tags orders with its own partner ID on many exchanges (Binance, Bitget, MEXC, BingX, HTX, OKX, Bybit, Phemex, Coinbase, Gate, KuCoin, Bitmart, Blofin, Coinex, Crypto.com, Paradex and others) and adds an extra user-paid builder fee on Hyperliquid, Lighter, GRVT, Aster, Pacifica and Extended, plus a CCXT referrer on Hyperliquid. LumiBot now removes CCXT's IDs, turns CCXT's builder fees and referrer off, and attaches only its own configured IDs (`LUMIBOT_CCXT_PARTNER_IDS`, default empty). A builder fee is added only when configured (`LUMIBOT_CCXT_BUILDER_FEES`) and is logged as a warning because it costs the user extra. New `lumibot.tools.ccxt_partner_ids`, applied to every CCXT client LumiBot creates. HTX perpetual orders, WOO X, WOOFi Pro and ModeTrade still carry CCXT's tag because CCXT re-adds it while signing.
+- CCXT market types follow the Bitunix futures model: an exchange-style contract symbol such as `BTCUSDT` resolves to the perpetual, an opening order on an asset created with `leverage` above 1 sets that leverage once (closing orders and the default 1x never change it), dated futures use their full CCXT symbol, and CCXT option markets map to LumiBot option assets (base, expiration, strike, right). Positions are read for every contract type the exchange lists (swaps, then dated futures and options); swap-only accounts make the same single call as before.
+
+### Added
+- Trading-only keys for DEX wallets: Paradex subkeys (`PARADEX_L2_PRIVATE_KEY`, `PARADEX_L2_ADDRESS`), existing Lighter API keys (`LIGHTER_API_KEY_PRIVATE_KEY`, `LIGHTER_API_KEY_INDEX`, `LIGHTER_ACCOUNT_INDEX`, `LIGHTER_LIBRARY_PATH`) and the dYdX Chain mnemonic (`DYDX_MNEMONIC`) replace the main wallet private key when set. Offline tests only so far.
+- Docs: every generated CCXT exchange page includes the shared BotSpot MCP callout (`docsrc/_snippets/botspot_mcp_callout.rst`) and a "Fees and partner IDs" section; 31 exchanges that list spot and perpetuals (with CCXT position reads) gain a perpetual example. Every page example now runs a full iteration offline: the fake exchange fills the order, LumiBot processes the fill and the position appears after a normal position sync. The Lighter "set builderFee False" workaround text is gone.
+- Opt-in live order proof for Coinbase, Kraken, Kraken Futures and Coinbase International (`tests/test_ccxt_live_orders_apitest.py`): skipped unless `LUMIBOT_LIVE_CCXT_ORDER_TESTS=1` and keys are set.
+
 ## 4.6.27 - 2026-10-23
 
 ### Changed

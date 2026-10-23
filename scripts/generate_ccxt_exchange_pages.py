@@ -29,12 +29,20 @@ Usage::
     python scripts/generate_ccxt_exchange_pages.py phemex bybit
 """
 
+import copy
 import json
 import re
 import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+# The fee section describes exactly what LumiBot's CCXT client policy does.
+from lumibot.tools.ccxt_partner_ids import BUILDER_FEE_DEFAULTS, PARTNER_RULES, REFERRER_EXCHANGES  # noqa: E402
+
+# One shared callout file, included near the top of every exchange page.
+MCP_CALLOUT_INCLUDE = ".. include:: _snippets/botspot_mcp_callout.rst\n"
 DATA = ROOT / "docsrc" / "_data"
 DOCSRC = ROOT / "docsrc"
 INDEX_PAGE = DOCSRC / "brokers.ccxt.rst"
@@ -337,6 +345,52 @@ class {cls}(Strategy):
 {main_block(cls, p.quote)}'''
 
 
+def swap_example_page(p):
+    """A copy of the page set up for a perpetual example, when the exchange lists spot and swaps."""
+    if p.perp_symbol or not (p.fx["markets"].get("spot") and p.fx["markets"].get("swap")):
+        return None
+    # LumiBot reads contract positions through CCXT's fetchPositions; without it a
+    # perpetual position would be invisible to the strategy, so no example.
+    if p.fx["methods"].get("fetchPositions") not in (True, "emulated"):
+        return None
+    swap = copy.copy(p)
+    swap.perp_symbol = p.nt.get("perp_example_symbol") or f"{p.base}/{p.quote}:{p.quote}"
+    return swap
+
+
+def fee_note(p):
+    """Plain description of the CCXT partner-ID and builder-fee policy for this exchange."""
+    rules = PARTNER_RULES.get(p.id, ())
+    unremovable = [r.target for r in rules if r.kind == "unremovable"]
+    parts = [f"You pay {p.name}'s normal trading fees."]
+    if unremovable:
+        parts.append(
+            f"CCXT, the library underneath, tags {p.name} orders with its own partner ID and adds it again while "
+            "signing each request, so LumiBot cannot remove it yet. A partner ID does not change what you pay."
+        )
+    elif rules:
+        parts.append(
+            f"CCXT, the library underneath, normally tags {p.name} orders with its own partner ID. LumiBot removes "
+            "that tag."
+        )
+    parts.append("LumiBot may attach its own exchange partner ID" + (" instead" if rules else "")
+                 + ". That costs you nothing extra.")
+    if p.id in BUILDER_FEE_DEFAULTS:
+        parts.append(
+            f"CCXT also adds its own extra builder fee on {p.name}, paid by you. LumiBot turns it off. LumiBot never "
+            "adds a builder fee unless one is turned on in its settings, and it logs a warning when one is, because "
+            "it costs you extra on every order."
+        )
+    else:
+        parts.append("LumiBot never adds an extra builder fee unless one is turned on, and it logs a warning when one is.")
+    if p.id in REFERRER_EXCHANGES:
+        parts.append(
+            f"CCXT also tries to register itself as your {p.name} referrer the first time a wallet connects. "
+            "LumiBot skips that step."
+        )
+    return " ".join(parts)
+
+
 def related_pages(exchange_id, facts_by_id, rendered_ids, limit=4):
     mine = facts_by_id[exchange_id]["markets"]
     scored = []
@@ -393,6 +447,7 @@ def render(exchange_id, facts_by_id, notes, affiliates, meta, rendered_ids=None)
         + ", connect it, and run two examples: a simple algorithmic trading bot and an agentic trading bot where an AI "
         "agent makes the calls.\n"
     )
+    out.append(MCP_CALLOUT_INCLUDE)
 
     rows = [
         ("CCXT exchange id", f"``{fx['id']}``"),
@@ -513,6 +568,21 @@ def render(exchange_id, facts_by_id, notes, affiliates, meta, rendered_ids=None)
             f"``{p.perp_symbol or 'BTC/USDT:USDT'}``. See :doc:`the CCXT guide <brokers.ccxt>` for contract quantities, "
             "position modes and leverage.\n"
         )
+    swap_page = swap_example_page(p)
+    if swap_page is not None:
+        out.append(heading(f"Perpetual futures example on {display}", "-"))
+        out.append(
+            f"{display} also lists perpetual swaps. This bot opens one small long position in "
+            f"``{swap_page.perp_symbol}`` worth about {p.notional} {p.quote} and then holds it. LumiBot treats a "
+            "perpetual as ``asset_type=\"crypto_future\"`` and sizes it in contracts, the same model as LumiBot's "
+            "Bitunix futures broker. Contract symbols can differ by exchange, so check the symbol in "
+            "``self.broker.api.markets`` before going live. In hedge mode, add ``position_side=\"long\"`` to "
+            "``create_order``." + order_sentence(p) + "\n"
+        )
+        out.append(code("python", perp_example(swap_page)))
+
+    out.append(heading(f"Fees and partner IDs on {display}", "-"))
+    out.append(fee_note(p) + "\n")
 
     if nt.get("backtesting"):
         out.append(heading(f"Backtesting with {display} data", "-"))

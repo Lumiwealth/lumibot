@@ -11,6 +11,8 @@ Zebpay Trading Bot in Python
 
 This guide shows how to build a Zebpay trading bot in Python with LumiBot, for both AI agent trading and algorithmic trading. LumiBot connects to Zebpay through CCXT, the open source library that talks to more than 100 crypto exchanges. You will create a Zebpay account and API key, connect it, and run two examples: a simple algorithmic trading bot and an agentic trading bot where an AI agent makes the calls.
 
+.. include:: _snippets/botspot_mcp_callout.rst
+
 Zebpay at a glance
 ------------------
 
@@ -207,6 +209,47 @@ What you can trade on Zebpay through CCXT
 CCXT lists these order features for Zebpay: market orders, limit orders, editing open orders, canceling orders.
 
 For perpetual contracts, use the full CCXT symbol so the settlement currency is clear, for example ``BTC/USDT:USDT``. See :doc:`the CCXT guide <brokers.ccxt>` for contract quantities, position modes and leverage.
+
+Perpetual futures example on Zebpay
+-----------------------------------
+
+Zebpay also lists perpetual swaps. This bot opens one small long position in ``BTC/INR:INR`` worth about 4500 INR and then holds it. LumiBot treats a perpetual as ``asset_type="crypto_future"`` and sizes it in contracts, the same model as LumiBot's Bitunix futures broker. Contract symbols can differ by exchange, so check the symbol in ``self.broker.api.markets`` before going live. In hedge mode, add ``position_side="long"`` to ``create_order``.
+
+.. code-block:: python
+
+   from lumibot.entities import Asset
+   from lumibot.strategies import Strategy
+
+
+   class ZebpayOpenOneLong(Strategy):
+       """Open one small long BTC perpetual position, then hold it."""
+
+       def initialize(self):
+           self.sleeptime = "1H"
+           self.set_market("24/7")  # crypto trades all day, every day
+
+       def on_trading_iteration(self):
+           # The full CCXT symbol keeps the settlement currency clear.
+           contract = self.broker.get_asset("BTC/INR:INR")
+           if self.get_position(contract) is not None:
+               return  # already holding the position
+           price = self.get_last_price(contract)
+           if price:
+               # Each contract covers contract.multiplier BTC; size the order to about 4500 INR.
+               quantity = round(4500 / (price * contract.multiplier), 6)
+               order = self.create_order(contract, quantity, "buy")
+               self.submit_order(order)
+
+
+   if __name__ == "__main__":
+       # LumiBot reads TRADING_BROKER and the keys from your .env file.
+       strategy = ZebpayOpenOneLong(quote_asset=Asset("INR", asset_type=Asset.AssetType.CRYPTO))
+       strategy.run_live()
+
+Fees and partner IDs on Zebpay
+------------------------------
+
+You pay Zebpay's normal trading fees. LumiBot may attach its own exchange partner ID. That costs you nothing extra. LumiBot never adds an extra builder fee unless one is turned on, and it logs a warning when one is.
 
 Zebpay tips
 -----------

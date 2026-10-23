@@ -11,6 +11,8 @@ Lighter Trading Bot in Python
 
 This guide shows how to build a Lighter trading bot in Python with LumiBot, for both AI agent trading and algorithmic trading. LumiBot connects to Lighter through CCXT, the open source library that talks to more than 100 crypto exchanges. You will create a Lighter account and API wallet, connect it, and run two examples: a simple algorithmic trading bot and an agentic trading bot where an AI agent makes the calls.
 
+.. include:: _snippets/botspot_mcp_callout.rst
+
 Lighter at a glance
 -------------------
 
@@ -208,14 +210,55 @@ CCXT lists these order features for Lighter: market orders, limit orders, editin
 
 For perpetual contracts, use the full CCXT symbol so the settlement currency is clear, for example ``BTC/USDT:USDT``. See :doc:`the CCXT guide <brokers.ccxt>` for contract quantities, position modes and leverage.
 
+Perpetual futures example on Lighter
+------------------------------------
+
+Lighter also lists perpetual swaps. This bot opens one small long position in ``ETH/USDC:USDC`` worth about 50 USDC and then holds it. LumiBot treats a perpetual as ``asset_type="crypto_future"`` and sizes it in contracts, the same model as LumiBot's Bitunix futures broker. Contract symbols can differ by exchange, so check the symbol in ``self.broker.api.markets`` before going live. In hedge mode, add ``position_side="long"`` to ``create_order``.
+
+.. code-block:: python
+
+   from lumibot.entities import Asset
+   from lumibot.strategies import Strategy
+
+
+   class LighterOpenOneLong(Strategy):
+       """Open one small long ETH perpetual position, then hold it."""
+
+       def initialize(self):
+           self.sleeptime = "1H"
+           self.set_market("24/7")  # crypto trades all day, every day
+
+       def on_trading_iteration(self):
+           # The full CCXT symbol keeps the settlement currency clear.
+           contract = self.broker.get_asset("ETH/USDC:USDC")
+           if self.get_position(contract) is not None:
+               return  # already holding the position
+           price = self.get_last_price(contract)
+           if price:
+               # Each contract covers contract.multiplier ETH; size the order to about 50 USDC.
+               quantity = round(50 / (price * contract.multiplier), 6)
+               order = self.create_order(contract, quantity, "buy")
+               self.submit_order(order)
+
+
+   if __name__ == "__main__":
+       # LumiBot reads TRADING_BROKER and the keys from your .env file.
+       strategy = LighterOpenOneLong(quote_asset=Asset("USDC", asset_type=Asset.AssetType.CRYPTO))
+       strategy.run_live()
+
+Fees and partner IDs on Lighter
+-------------------------------
+
+You pay Lighter's normal trading fees. LumiBot may attach its own exchange partner ID. That costs you nothing extra. CCXT also adds its own extra builder fee on Lighter, paid by you. LumiBot turns it off. LumiBot never adds a builder fee unless one is turned on in its settings, and it logs a warning when one is, because it costs you extra on every order.
+
 Lighter tips
 ------------
 
 * CCXT signs Lighter orders with Lighter's signing library. Download it from Lighter's official Python SDK (https://github.com/elliottech/lighter-python, folder lighter/signers) and pass its path as the CCXT option ``libraryPath`` in a code config, for example ``"options": {"libraryPath": "/path/to/signer"}``.
 * BTC trades only as a perpetual on Lighter (``BTC/USDC:USDC``). Spot markets are fewer, for example ``ETH/USDC``, which is why the spot example here uses ETH.
 * Each Lighter API key has its own order queue. Lighter suggests a separate API key for each independent workload, so if you run more than one bot, give each one its own ``apiKeyIndex``.
-* By default CCXT asks Lighter to approve an integrator fee for the CCXT project when it first connects. Set the CCXT option ``builderFee`` to ``False`` if you do not want that.
 * Lighter on Robinhood Chain is a separate exchange with its own servers. The CCXT id ``lighter`` connects to the main Lighter exchange.
+* Safer keys: if you already have a Lighter API key (its private key, its index and your account index), set ``LIGHTER_API_KEY_PRIVATE_KEY``, ``LIGHTER_API_KEY_INDEX``, ``LIGHTER_ACCOUNT_INDEX`` and ``LIGHTER_LIBRARY_PATH`` instead of ``LIGHTER_PRIVATE_KEY``. LumiBot then trades with that API key and your wallet's private key never reaches the bot. Lighter API keys can still make secure withdrawals back to the wallet that owns the account. LumiBot has not yet run this setup against a live Lighter account.
 
 Frequently asked questions
 --------------------------

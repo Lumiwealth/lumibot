@@ -11,6 +11,8 @@ Pacifica Trading Bot in Python
 
 This guide shows how to build a Pacifica trading bot in Python with LumiBot, for both AI agent trading and algorithmic trading. LumiBot connects to Pacifica through CCXT, the open source library that talks to more than 100 crypto exchanges. You will create a Pacifica account and API wallet, connect it, and run two examples: a simple algorithmic trading bot and an agentic trading bot where an AI agent makes the calls.
 
+.. include:: _snippets/botspot_mcp_callout.rst
+
 Pacifica at a glance
 --------------------
 
@@ -211,6 +213,11 @@ What you can trade on Pacifica through CCXT
 CCXT lists these order features for Pacifica: market orders, limit orders, stop orders, reduce-only orders, editing open orders, canceling orders.
 
 For perpetual contracts, use the full CCXT symbol so the settlement currency is clear, for example ``BTC/USDC:USDC``. See :doc:`the CCXT guide <brokers.ccxt>` for contract quantities, position modes and leverage.
+
+Fees and partner IDs on Pacifica
+--------------------------------
+
+You pay Pacifica's normal trading fees. LumiBot may attach its own exchange partner ID. That costs you nothing extra. CCXT also adds its own extra builder fee on Pacifica, paid by you. LumiBot turns it off. LumiBot never adds a builder fee unless one is turned on in its settings, and it logs a warning when one is, because it costs you extra on every order.
 
 Pacifica tips
 -------------

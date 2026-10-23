@@ -11,6 +11,8 @@ Mudrex Trading Bot in Python
 
 This guide shows how to build a Mudrex trading bot in Python with LumiBot, for both AI agent trading and algorithmic trading. LumiBot connects to Mudrex through CCXT, the open source library that talks to more than 100 crypto exchanges. You will create a Mudrex account and API key, connect it, and run two examples: a simple algorithmic trading bot and an agentic trading bot where an AI agent makes the calls.
 
+.. include:: _snippets/botspot_mcp_callout.rst
+
 Mudrex at a glance
 ------------------
 
@@ -206,6 +208,11 @@ What you can trade on Mudrex through CCXT
 CCXT lists these order features for Mudrex: market orders, limit orders, reduce-only orders, editing open orders, canceling orders.
 
 For perpetual contracts, use the full CCXT symbol so the settlement currency is clear, for example ``BTC/USDT:USDT``. See :doc:`the CCXT guide <brokers.ccxt>` for contract quantities, position modes and leverage.
+
+Fees and partner IDs on Mudrex
+------------------------------
+
+You pay Mudrex's normal trading fees. CCXT, the library underneath, normally tags Mudrex orders with its own partner ID. LumiBot removes that tag. LumiBot may attach its own exchange partner ID instead. That costs you nothing extra. LumiBot never adds an extra builder fee unless one is turned on, and it logs a warning when one is.
 
 Mudrex tips
 -----------

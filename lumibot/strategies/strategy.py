@@ -573,6 +573,8 @@ class Strategy(_Strategy):
         type: Union[Order.OrderType, None] = None,  # Deprecated, use 'order_type' instead
         smart_limit: SmartLimitConfig = None,
         custom_params: dict = None,
+        position_side: str = None,
+        position_id: str = None,
     ):
         # noinspection PyShadowingNames,PyUnresolvedReferences
         """Creates a new order for this specific strategy. Once created, an order must still be submitted.
@@ -922,6 +924,8 @@ class Strategy(_Strategy):
             order_class=order_class,
             smart_limit=smart_limit,
             custom_params=custom_params,
+            position_side=position_side,
+            position_id=position_id,
             identifier=identifier,
         )
 
@@ -1274,6 +1278,8 @@ class Strategy(_Strategy):
         asset: Union[str, Asset],
         broker_refresh: bool = True,
         broker_refresh_ttl_seconds: float = 0.0,
+        position_side: str = None,
+        position_id: str = None,
     ):
         """Get a tracked position given an asset for the current
         strategy.
@@ -1321,7 +1327,9 @@ class Strategy(_Strategy):
         
         # For non-continuous futures, use existing exact matching
         if asset.asset_type != Asset.AssetType.CONT_FUTURE:
-            return self.broker.get_tracked_position(self.name, asset)
+            selectors = {key: value for key, value in (("position_side", position_side), ("position_id", position_id))
+                         if value is not None}
+            return self.broker.get_tracked_position(self.name, asset, **selectors)
         
         # For continuous futures, implement smart matching
         return self._get_continuous_future_position(asset)
@@ -2687,7 +2695,7 @@ class Strategy(_Strategy):
         """
         self.broker.sell_all(self.name, cancel_open_orders=cancel_open_orders, strategy=self, is_multileg=is_multileg)
 
-    def close_position(self, asset, fraction: float = 1.0):
+    def close_position(self, asset, fraction: float = 1.0, position_side=None, position_id=None):
         """
         Close a single position for the specified asset.
 
@@ -2706,14 +2714,21 @@ class Strategy(_Strategy):
         """
         asset_obj = self._sanitize_user_asset(asset)
 
+        position = None
         try:
-            position = self.get_position(asset_obj)
+            selectors = {key: value for key, value in (("position_side", position_side), ("position_id", position_id))
+                         if value is not None}
+            position = self.get_position(asset_obj, **selectors)
             qty = getattr(position, "quantity", 0) if position else 0
             self.log_message(
                 f"close_position -> asset={asset_obj.symbol if hasattr(asset_obj, 'symbol') else asset_obj}, "
                 f"fraction={fraction}, current_qty={qty}",
                 color="yellow",
             )
+        except ValueError as exc:
+            # An unselected hedge position may have multiple legs; the broker
+            # closes all of them below without requiring a single-position view.
+            self.logger.debug("Position lookup before close_position: %s", exc)
         except Exception as exc:  # pragma: no cover - defensive logging
             self.logger.exception("Unable to inspect position prior to close_position: %s", exc)
 
@@ -2727,7 +2742,9 @@ class Strategy(_Strategy):
                 )
             except Exception:  # pragma: no cover - best effort logging
                 pass
-        result = self.broker.close_position(self.name, target_asset, fraction)
+        selectors = {key: value for key, value in (("position_side", position_side), ("position_id", position_id))
+                     if value is not None}
+        result = self.broker.close_position(self.name, target_asset, fraction, **selectors)
         if result is None:
             self.log_message("close_position -> broker returned None (no order submitted)", color="yellow")
         else:

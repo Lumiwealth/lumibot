@@ -263,6 +263,8 @@ class Order:
         tag: str = "",
         status: OrderStatus = "unprocessed",
         smart_limit: "SmartLimitConfig" = None,
+        position_side: str = None,
+        position_id: str = None,
     ):
         """Order class for managing individual orders.
 
@@ -502,6 +504,8 @@ class Order:
         self.trade_cost = trade_cost
         self.trade_slippage = 0.0 if trade_slippage is None else trade_slippage
         self.custom_params = custom_params
+        self.position_side = str(position_side).lower() if position_side is not None else None
+        self.position_id = position_id
         self._trail_stop_price = None  # Used by backtesting broker to track desired trailing stop price so far
         self.tag = tag
         self._avg_fill_price = avg_fill_price # The weighted average filled price for this order. Calculated if not given by broker
@@ -1371,7 +1375,9 @@ class Order:
             self.asset,
             position_qty,
             orders=[self],
-            avg_fill_price=self.avg_fill_price
+            avg_fill_price=self.avg_fill_price,
+            position_side=self.position_side,
+            position_id=self.position_id,
         )
         return position
 
@@ -1455,6 +1461,10 @@ class Order:
         }
 
         # Only include prices if they're set
+        if self.position_side is not None:
+            result["position_side"] = self.position_side
+        if self.position_id is not None:
+            result["position_id"] = self.position_id
         if self.limit_price is not None:
             result["limit"] = float(self.limit_price)
         if self.stop_price is not None:

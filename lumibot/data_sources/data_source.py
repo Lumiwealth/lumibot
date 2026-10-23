@@ -74,6 +74,9 @@ class DataSource(ABC):
     DEFAULT_TIMEZONE = LUMIBOT_DEFAULT_TIMEZONE
     DEFAULT_PYTZ = LazyPytzTimezoneRef(LUMIBOT_DEFAULT_TIMEZONE)
     option_quote_fallback_allowed = False
+    # One-way identity of the provider connection (see lumibot.tools.shared_bar_cache).
+    # Brokers set it once the account is known. None means "do not share history".
+    shared_bars_scope: str | None = None
 
     def __init__(
             self,

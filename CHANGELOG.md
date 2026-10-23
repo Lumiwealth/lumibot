@@ -5,6 +5,21 @@
 ### Fixed
 - Preserve directional percentage trailing stops in backtests: buy stops follow price decreases and sell stops retain their threshold on pullbacks. Correct the backtesting 2% example to use `trail_percent=0.02`.
 
+## 4.6.25 - 2026-10-23
+
+### Fixed
+- Resolve CCXT perpetual instruments with settlement and contract-size metadata, preserve hedge legs through native requests and convert linear/inverse fills consistently. Phemex account and V2 stream routes follow product metadata across settlement currencies. Crypto-future execution callbacks no longer debit full spot notional from cash.
+- Add one managed CCXT Pro client per broker for live market data and account order updates, with cumulative-fill reconciliation, REST public-data fallback and explicit shutdown. Public Phemex testnet spot, USDT and inverse streams passed; USDC public production streams passed, while USDC testnet remains unavailable in the observed checks. Authenticated testnet trading and perpetual backtesting remain unqualified; see the CCXT guide.
+- Preserve optional derivative position sides and IDs through order fills, position synchronization, serialization and closing. Separate hedge legs no longer overwrite one another; single-position lookup accepts leg selectors and closing without a selector closes both legs.
+- CCXT spot trading uses the unified order and balance contracts across installed exchange adapters, removing hard-coded exchange approval lists. Use CCXT precision and trigger parameters, preserve crypto wallet dust, correct holdings valuation and cancellation, and accept optional order fields. Offline coverage includes Phemex, Coinbase, Kraken, KuCoin, OKX and Bybit; authenticated testnet trading remains unqualified.
+- Restore normal MCP endpoint handling for automatic BotSpot connections, including private HTTP endpoints, URL authentication, query parameters and fragments. Remove the extra BotSpot-specific URL policy; retain sanitized configuration notices and the shared client's token-renewal checks.
+
+### Changed
+- One shared history cache for every broker (`lumibot/tools/shared_bar_cache.py`). Schwab, Tradier, Interactive Brokers (Client Portal) and CCXT live history now read through it, alongside Alpaca charts and Alpaca backtests. Repeated reads of settled bars make no broker call; live reads fetch only the still-open tail.
+- Completed bars no longer expire (the old Alpaca cache dropped closed months after 24 hours and never stored the current month). Split- or dividend-adjusted history is re-checked against the broker and rebuilt when old prices change.
+- Cache uploads to S3 run in the background; the caller gets its bars after the local write only. Remote partitions load in parallel.
+- New settings: `LUMIBOT_SHARED_BARS`, `LUMIBOT_SHARED_BARS_SCOPE`, `LUMIBOT_SHARED_BARS_SETTLE_MINUTES`. Design: `docs/SHARED_BAR_CACHE.md`.
+
 ## 4.6.24 - 2026-10-21
 
 ### Fixed

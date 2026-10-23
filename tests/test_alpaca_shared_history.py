@@ -13,6 +13,20 @@ from alpaca.data.timeframe import TimeFrame
 from lumibot.data_sources.alpaca_data import AlpacaData
 from lumibot.entities import Asset
 from lumibot.tools.alpaca_history import fetch_alpaca_bars
+from lumibot.tools.shared_bar_cache import flush_shared_bar_writes
+
+
+@pytest.fixture(autouse=True)
+def no_real_remote_cache(monkeypatch):
+    """Never read or write a developer's real S3 cache from unit tests."""
+    from lumibot.tools import parquet_series_cache
+    from lumibot.tools.backtest_cache import BacktestCacheManager
+
+    monkeypatch.setattr(parquet_series_cache, "get_backtest_cache", lambda: BacktestCacheManager(None))
+    monkeypatch.delenv("LUMIBOT_SHARED_BARS", raising=False)
+    from lumibot.tools import shared_bar_cache
+
+    shared_bar_cache._Store._memory.clear()
 
 
 def provider_frame(start="2025-01-01", end="2025-04-01", symbols=("TSLA",)):
@@ -128,13 +142,14 @@ def history(tmp_path, monkeypatch):
     return fetch, calls, client, tmp_path
 
 
-def test_overlap_downloads_only_missing_month(history):
+def test_overlap_downloads_only_the_uncovered_range(history):
     fetch, calls, _, _ = history
     first = fetch()
     overlap = fetch("2025-02-10", "2025-04-25")
     assert len(calls) == 2
-    assert calls[1].start == datetime(2025, 4, 1, tzinfo=timezone.utc)
-    assert calls[1].end == datetime(2025, 5, 1, tzinfo=timezone.utc)
+    # Only the part after the first read (plus three re-checked adjusted bars).
+    assert datetime(2025, 3, 17, tzinfo=timezone.utc) <= calls[1].start <= datetime(2025, 3, 21, tzinfo=timezone.utc)
+    assert calls[1].end >= datetime(2025, 4, 25, tzinfo=timezone.utc)
     pd.testing.assert_frame_equal(
         first.loc[(slice(None), slice("2025-02-10", "2025-03-20")), :],
         overlap.loc[(slice(None), slice("2025-02-10", "2025-03-20")), :],
@@ -147,8 +162,9 @@ def test_partial_month_first_read_does_not_clip_later_read(history):
     fetch, calls, _, _ = history
     assert len(fetch("2025-02-15", "2025-02-16")) == 2
     assert len(fetch("2025-02-01", "2025-02-28")) == 28
-    assert len(calls) == 1
-    assert calls[0].start.day == 1
+    reads = len(calls)
+    assert len(fetch("2025-02-01", "2025-02-28")) == 28
+    assert len(calls) == reads
 
 
 def test_add_symbol_downloads_only_new_symbol_and_preserves_existing(history):
@@ -187,20 +203,29 @@ def test_credential_scope_cannot_cross_entitlements(history):
     assert len(calls) == 2
 
 
-@pytest.mark.parametrize("kwargs", [{"refresh": True}, {"now": "2025-06-12"}, {"limit": 5}])
-def test_explicit_refresh_expiry_and_limits_fetch_provider(history, kwargs):
+@pytest.mark.parametrize("kwargs", [{"refresh": True}, {"limit": 5}])
+def test_explicit_refresh_and_limits_fetch_provider(history, kwargs):
     fetch, calls, _, _ = history
     fetch()
     fetch(**kwargs)
     assert len(calls) == 2
 
 
-def test_current_month_tail_is_read_again(history):
+def test_settled_history_never_expires(history):
     fetch, calls, _, _ = history
-    fetch("2025-05-01", "2025-05-18", now="2025-05-20")
-    fetch("2025-05-01", "2025-05-18", now="2025-05-20")
+    fetch(adjustment=Adjustment.RAW)
+    fetch(adjustment=Adjustment.RAW, now="2026-06-12")
+    assert len(calls) == 1
+
+
+def test_current_month_completed_bars_are_cached_and_only_open_tail_is_read(history):
+    fetch, calls, _, _ = history
+    first = fetch("2025-05-01", "2025-05-19T15:00:00Z", now="2025-05-19T15:00:00Z", adjustment=Adjustment.RAW)
+    second = fetch("2025-05-01", "2025-05-19T15:00:00Z", now="2025-05-19T15:00:00Z", adjustment=Adjustment.RAW)
     assert len(calls) == 2
-    assert calls[0].end == pd.Timestamp("2025-05-18", tz="UTC")
+    # The repeat reads only the still-open tail: bars after the last settled day.
+    assert calls[1].start >= datetime(2025, 5, 17, tzinfo=timezone.utc)
+    pd.testing.assert_frame_equal(first, second)
 
 
 def test_minute_overlap_preserves_utc_sessions_through_daylight_saving(tmp_path, monkeypatch):
@@ -245,7 +270,7 @@ def test_minute_overlap_preserves_utc_sessions_through_daylight_saving(tmp_path,
     overlapping = fetch("2025-02-01", "2025-04-30T23:59:59Z")
     repeated = fetch("2025-02-01", "2025-04-30T23:59:59Z")
     assert len(calls) == 2
-    assert calls[1].start == datetime(2025, 4, 1, tzinfo=timezone.utc)
+    assert datetime(2025, 3, 31, 23, 59, tzinfo=timezone.utc) <= calls[1].start <= datetime(2025, 4, 1, tzinfo=timezone.utc)
     pd.testing.assert_frame_equal(overlapping, repeated)
     common = original.index.intersection(overlapping.index)
     pd.testing.assert_frame_equal(original.loc[common], overlapping.loc[common])
@@ -270,7 +295,7 @@ def test_wrong_partition_metadata_is_rejected(history):
     fetch()
     path = next(root.rglob("*.parquet"))
     rows = pd.read_parquet(path)
-    rows.attrs["alpacaPartition"]["symbol"] = "QQQ"
+    rows.attrs["sharedBars"]["series"] = "0" * 64
     rows.to_parquet(path)
     fetch()
     assert len(calls) == 2
@@ -383,11 +408,19 @@ def test_chart_and_backtest_share_actual_s3_parquet_in_both_directions(tmp_path,
         )
 
     first = run(first_reader, tmp_path / "first-process")
+    # Uploads run in the background so the caller never waits on S3.
+    assert flush_shared_bar_writes(10)["flushed"]
     calls_before = client.get_stock_bars.call_count
     second = run("backtest" if first_reader == "chart" else "chart", tmp_path / "second-process")
-    assert client.get_stock_bars.call_count == calls_before
-    assert objects and all(key.startswith("sandbox/cache/v44/alpaca/bars/") for key in objects)
-    for body in objects.values():
+    # The second reader re-downloads nothing the first one stored. The chart asks
+    # through Mar 31 and the backtest through Apr 1, so at most that edge is read.
+    later = client.get_stock_bars.call_args_list[calls_before:]
+    assert len(later) <= 1
+    assert all(call.args[0].start >= datetime(2025, 3, 27, tzinfo=timezone.utc) for call in later)
+    assert objects and all(key.startswith("sandbox/cache/v44/bars/v2/alpaca/") for key in objects)
+    for key, body in objects.items():
+        if not key.endswith(".parquet"):
+            continue
         shared = pd.read_parquet(io.BytesIO(body))
         assert shared.index.tz is not None
         assert set(shared.columns) == {"open", "high", "low", "close", "volume"}
@@ -409,7 +442,7 @@ def test_cache_measurements_distinguish_fetch_time_from_lookup_time(history):
     assert cold["providerMs"] >= 0 and warm["providerMs"] == 0
     assert cold["lookupMs"] >= 0 and warm["lookupMs"] >= 0
     assert cold["writeMs"] >= 0 and warm["writeMs"] == 0
-    assert cold["oldestFetchedAt"] == warm["oldestFetchedAt"]
+    assert warm["hit"] and not cold["hit"]
 
 
 def test_interrupted_partition_write_does_not_destroy_valid_cache(tmp_path, monkeypatch):
@@ -443,7 +476,9 @@ def test_concurrent_overlap_writers_publish_complete_months(history):
         results = list(pool.map(lambda bounds: fetch(*bounds), windows))
     assert [len(frame) for frame in results] == [9, 9, 6]
     assert len(fetch("2025-02-01", "2025-02-28")) == 28
-    assert all(len(pd.read_parquet(path)) == 28 for path in root.rglob("*.parquet"))
+    for path in root.rglob("*.parquet"):
+        stored = pd.read_parquet(path).loc["2025-02-01":"2025-02-28"]
+        assert len(stored) == 28 and not stored.index.has_duplicates
 
 
 @pytest.mark.parametrize("field,value", [("close", float("nan")), ("high", 50.0), ("volume", -1.0)])

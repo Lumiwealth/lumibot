@@ -1,6 +1,9 @@
 from __future__ import annotations
 
 import os
+import time
+from collections import OrderedDict
+from threading import Lock
 
 from lumibot._lazy_imports import LazyLogger, LazyModule, lazy_class
 
@@ -12,7 +15,6 @@ datetime = LazyModule("datetime")
 Asset = lazy_class("lumibot.entities", "Asset")
 Order = lazy_class("lumibot.entities", "Order")
 Decimal = lazy_class("decimal", "Decimal")
-ROUND_DOWN = "ROUND_DOWN"
 
 if TYPE_CHECKING:
     from lumibot.entities import Position
@@ -30,12 +32,6 @@ def _position_class():
     return Position
 
 
-def getcontext():
-    from decimal import getcontext as _getcontext
-
-    return _getcontext()
-
-
 class Ccxt(Broker):
     """
     Crypto broker using CCXT.
@@ -46,6 +42,15 @@ class Ccxt(Broker):
 
         if data_source is None:
             data_source = CcxtData(config, max_workers=max_workers, chunk_size=chunk_size)
+        if not isinstance(data_source, CcxtData):
+            raise ValueError(f"Ccxt Broker's Data Source must be of type {CcxtData}")
+        self.api = data_source.api
+        self._contract_accounts_lock = Lock()
+        self._contract_accounts_cache = None
+        self._stream_orders = OrderedDict()
+        self._stream_order_scopes = {}
+        self._submitted_orders = {}
+        self._pending_client_orders = {}
         super().__init__(name="ccxt", config=config, data_source=data_source, max_workers=max_workers, **kwargs)
 
         # Override default market setting for crypto to be 24/7, but still respect config/env if set
@@ -60,6 +65,101 @@ class Ccxt(Broker):
         ensure = getattr(self.data_source, "_ensure_markets_loaded", None)
         if callable(ensure):
             ensure()
+
+    def get_market(self, asset, quote=None):
+        return self.data_source.get_market(asset, quote)
+
+    def get_asset(self, symbol):
+        """Build an asset from provider metadata; contract quantities are contracts."""
+        market = self.get_market(symbol)
+        if market.get("contract"):
+            return Asset(market["symbol"], asset_type="crypto_future", multiplier=market["contractSize"])
+        return Asset(market["base"], asset_type="crypto")
+
+    def get_contract_exposure(self, asset, quantity, price):
+        market = self.get_market(asset)
+        contracts, size, price = Decimal(str(quantity)), Decimal(str(market["contractSize"])), Decimal(str(price))
+        if market.get("inverse"):
+            quote = contracts * size
+            base = quote / price
+        else:
+            base = contracts * size
+            quote = base * price
+        return {"base": base, "quote": quote, "settle": market["settle"], "contract_size": size}
+
+    @staticmethod
+    def _position_side(response):
+        info = response.get("info") or {}
+        side = response.get("positionSide") or info.get("posSide") or info.get("positionSide")
+        if side is not None and str(side).lower() in ("long", "short"):
+            return str(side).lower()
+        return response.get("side") if response.get("hedged") else None
+
+    @staticmethod
+    def _phemex_uses_real_values(market):
+        return (market.get("info") or {}).get("type") == "PerpetualV2"
+
+    def _phemex_contract_accounts(self):
+        """Read every metadata-discovered settlement wallet and its positions.
+
+        Phemex V2 uses the G endpoints and unscaled Rv values. Legacy contracts
+        use the original endpoints and currency-specific Ev scaling. Routing by
+        product metadata also covers newly listed settlement currencies.
+        """
+        self._ensure_markets_loaded()
+        with self._contract_accounts_lock:
+            if self._contract_accounts_cache and time.monotonic() - self._contract_accounts_cache[0] < 1:
+                return self._contract_accounts_cache[1]
+            groups = {}
+            for market in self.api.markets.values():
+                if market.get("contract"):
+                    groups[(market["settle"], self._phemex_uses_real_values(market))] = market
+            result = {"positions": [], "balances": {}}
+            for (settle, real), market in sorted(groups.items()):
+                currency = self.api.currency(settle)
+                request = {"currency": currency["id"]}
+                endpoint = self.api.privateGetGAccountsAccountPositions if real else self.api.privateGetAccountsAccountPositions
+                response = endpoint(request)
+                data = response.get("data") or {}
+                account = data.get("account") or {}
+                values = {}
+                for name, key in (("total", "accountBalance"), ("used", "totalUsedBalance")):
+                    if key + "Rv" in account:
+                        values[name] = Decimal(str(account[key + "Rv"]))
+                    elif key + "Ev" in account:
+                        values[name] = Decimal(str(account[key + "Ev"])) / Decimal(10) ** int(currency.get("valueScale", 8))
+                    else:
+                        raise ValueError(f"Phemex {settle} account omitted {key}")
+                values["free"] = values["total"] - values["used"]
+                result["balances"][settle] = values
+                for raw in data.get("positions") or []:
+                    contract = next((item for item in self.api.markets.values()
+                                     if item.get("contract") and item["id"] == raw.get("symbol")
+                                     and item["settle"] == settle), None)
+                    result["positions"].append(self.api.parse_position(raw, contract))
+            self._contract_accounts_cache = (time.monotonic(), result)
+            return result
+
+    def _fetch_derivative_positions(self):
+        if self.api.id == "phemex":
+            return self._phemex_contract_accounts()["positions"]
+        return self.api.fetch_positions(params={"type": "swap"})
+
+    def set_position_mode(self, hedged, asset, params=None):
+        market = self.get_market(asset)
+        if self.api.id == "phemex" and self._phemex_uses_real_values(market):
+            return self.api.privatePutGPositionsSwitchPosModeSync({
+                "symbol": market["id"], "targetPosMode": "Hedged" if hedged else "OneWay", **(params or {})})
+        return self.api.set_position_mode(hedged, market["symbol"], params or {})
+
+    def set_leverage(self, leverage, asset, params=None):
+        return self.api.set_leverage(leverage, self.get_market(asset)["symbol"], params or {})
+
+    def set_margin_mode(self, margin_mode, asset, params=None):
+        return self.api.set_margin_mode(margin_mode, self.get_market(asset)["symbol"], params or {})
+
+    def fetch_funding_rate(self, asset, params=None):
+        return self.api.fetch_funding_rate(self.get_market(asset)["symbol"], params or {})
 
     # =========Clock functions=====================
 
@@ -102,7 +202,7 @@ class Ccxt(Broker):
         return "margin" in self._config and self._config["margin"]
 
     def _fetch_balance(self):
-        params = {}
+        params = {"type": "spot"} if self.api.id == "phemex" else {}
 
         if self.is_margin_enabled():
             params["type"] = "margin"
@@ -110,122 +210,104 @@ class Ccxt(Broker):
         return self.api.fetch_balance(params)
 
     # =========Positions functions==================
+    @staticmethod
+    def _balance_rows(balances):
+        """Read CCXT's unified currency maps, including older per-currency results."""
+        reserved = {"total", "free", "used", "info", "timestamp", "datetime", "debt"}
+        totals = balances.get("total") or {}
+        currencies = set(totals)
+        currencies.update(key for key, value in balances.items()
+                          if key not in reserved and isinstance(value, dict) and "total" in value)
+        for currency in sorted(currencies):
+            row = balances.get(currency) or {}
+            total = totals.get(currency, row.get("total"))
+            if total is None or Decimal(str(total)) == 0:
+                continue
+            free = (balances.get("free") or {}).get(currency, row.get("free"))
+            used = (balances.get("used") or {}).get(currency, row.get("used"))
+            if free is None and used is not None:
+                free = Decimal(str(total)) - Decimal(str(used))
+            if used is None and free is not None:
+                used = Decimal(str(total)) - Decimal(str(free))
+            yield {"currency": currency, "total": total, "free": free, "used": used}
+
+    def _currency_value(self, currency, units, quote_asset):
+        if currency == quote_asset.symbol:
+            return units
+        direct = f"{currency}/{quote_asset.symbol}"
+        inverse = f"{quote_asset.symbol}/{currency}"
+        symbol = direct if direct in self.api.markets else inverse
+        if symbol not in self.api.markets:
+            logger.warning("No %s valuation market for %s; excluded from CCXT equity", quote_asset, currency)
+            return Decimal("0")
+        price = self.api.fetch_ticker(symbol).get("last")
+        if price is None or Decimal(str(price)) <= 0:
+            raise ValueError(f"No usable CCXT valuation price for {symbol}")
+        price = Decimal(str(price))
+        return units * price if symbol == direct else units / price
+
     def _get_balances_at_broker(self, quote_asset, strategy):
-        """Get's the current actual cash, positions value, and total
-        liquidation value from ccxt.
-
-        This method will get the current actual values from ccxt broker
-        for the actual cash, positions value, and total liquidation.
-
-        Best attempts will be made to use USD as a base currency.
-
-        Returns
-        -------
-        tuple of float
-            (cash, positions_value, total_liquidation_value)
-        """
-        total_cash_value = 0
-        positions_value = 0
-        # Get the market values for each pair held.
-        balances = self._fetch_balance()
-
-        currency_key = "currency"
-        if self.api.exchangeId in ["coinbasepro", "kucoin", "kraken", "coinbase", "binance", "bitmex", "weex"]:
-            balances_info = []
-            reserved_keys = ["total", "free", "used", "info", "timestamp", "datetime", "debt"]
-            for key in balances:
-                if key in reserved_keys:
-                    continue
-                bal = balances[key]["total"]
-                if Decimal(bal) != Decimal("0"):
-                    balances_info.append({"currency": key, "balance": bal})
-        else:
-            raise NotImplementedError(f"{self.api.exchangeId} not implemented yet.")
-
-        no_valuation = []
+        """Return cash, non-cash holdings plus PnL, and equity in quote units."""
+        cash = Decimal("0")
+        positions_value = Decimal("0")
         self._ensure_markets_loaded()
-        for currency_info in balances_info:
-            currency = currency_info[currency_key]
-
+        rows = list(self._balance_rows(self._fetch_balance()))
+        contracts = None
+        if self.api.id == "phemex" and any(m.get("contract") for m in self.api.markets.values()):
+            contracts = self._phemex_contract_accounts()
+            rows.extend({"currency": currency, **balance} for currency, balance in contracts["balances"].items())
+        for row in rows:
+            currency, units = row["currency"], Decimal(str(row["total"]))
             if currency == quote_asset.symbol:
-                total_cash_value = Decimal(currency_info["balance"])
-                continue
-
-            # Check for three USD markets.
-            market_string = f"{currency}/{quote_asset.symbol}"
-            market = None
-            if market_string in self.api.markets:
-                market = market_string
-
-            if market is None:
-                no_valuation.append(currency)
-                continue
-
-            precision_amount = self.api.markets[market]["precision"]["amount"]
-            precision_price = self.api.markets[market]["precision"]["price"]
-
-            if self.api.exchangeId == "binance":
-                precision_amount = 10**-precision_amount
-                precision_price = 10**-precision_price
-
-            total_balance = currency_info["balance"]
-
-            units = Decimal(total_balance)
-
-            attempts = 0
-            max_attempts = 3
-            while attempts < max_attempts:
-                last_price = self.api.fetch_ticker(market)["last"]
-                if last_price is None:
-                    attempts += 1
-                else:
-                    attempts = max_attempts
-
-            if last_price is None:
-                last_price = 0
-
-            price = Decimal(last_price)
-
-            value = units * price
-            positions_value += value
-
-        if len(no_valuation) > 0:
-            logger.info(
-                f"The coins {no_valuation} have no valuation in {quote_asset} "
-                f"and therefore could not be added to the portfolio when calculating "
-                f"the total value of the holdings."
-            )
-
-        total_cash_value = float(total_cash_value)
-        gross_positions_value = float(positions_value) + total_cash_value
-        net_liquidation_value = float(positions_value) + total_cash_value
-
-        return (total_cash_value, gross_positions_value, net_liquidation_value)
+                cash += units
+            elif units:
+                positions_value += self._currency_value(currency, units, quote_asset)
+        if contracts:
+            for position in contracts["positions"]:
+                pnl = position.get("unrealizedPnl")
+                if pnl is None and Decimal(str(position.get("contracts") or 0)) != 0:
+                    raise ValueError(f"Phemex omitted unrealized PnL for {position['symbol']}")
+                if pnl:
+                    settlement = self.get_market(position["symbol"])["settle"]
+                    positions_value += self._currency_value(settlement, Decimal(str(pnl)), quote_asset)
+        return float(cash), float(positions_value), float(cash + positions_value)
 
     def _parse_broker_position(self, position, strategy, orders=None):
         """parse a broker position representation
         into a position object"""
         Position = _position_class()
 
+        if "contracts" in position:
+            market = self.get_market(position["symbol"])
+            quantity = Decimal(str(position.get("contracts") or 0))
+            if position.get("side") == "short":
+                quantity = -abs(quantity)
+            position_id = position.get("id") if self.api.id != "phemex" else None
+            result = Position(strategy, self.get_asset(market["symbol"]), quantity, orders=orders,
+                              avg_fill_price=position.get("entryPrice"),
+                              position_side=self._position_side(position), position_id=position_id)
+            result.current_price = position.get("markPrice")
+            result.pnl = position.get("unrealizedPnl")
+            result.currency = market["settle"]
+            result.exchange = self.api.id
+            return result
+
         symbol = position["currency"]
         hold = position["used"]
         available = position["free"]
-        quantity = Decimal(position["total"])
+        quantity = Decimal(str(position["total"]))
 
         self._ensure_markets_loaded()
-        # Check if symbol is in the currencies list
-        if symbol not in self.api.currencies:
-            logger.error(
-                f"The symbol {symbol} is not in the currencies list. "
-                f"Please check the symbol and the exchange currencies list."
-            )
-            precision = None
+        currency = self.api.currencies.get(symbol) or {}
+        precision = currency.get("precision")
+        if precision is not None:
+            import ccxt
 
-        elif self.api.exchangeId == "binance":
-            precision = str(10 ** -self.api.currencies[symbol]["precision"])
-
-        else:
-            precision = str(self.api.currencies[symbol]["precision"])
+            if self.api.precisionMode == ccxt.DECIMAL_PLACES:
+                precision = Decimal("10") ** -precision
+            elif self.api.precisionMode == ccxt.SIGNIFICANT_DIGITS:
+                # Significant digits cannot be represented as a fixed coin increment.
+                precision = None
 
         asset = Asset(
             symbol=symbol,
@@ -236,50 +318,29 @@ class Ccxt(Broker):
         position_return = Position(strategy, asset, quantity, hold=hold, available=available, orders=orders)
         return position_return
 
-    def _pull_broker_position(self, asset):
-        """Given a asset, get the broker representation
-        of the corresponding asset"""
-
-        position = None
-        if self.api.exchangeId == "binance":
-            for position in self._pull_broker_positions():
-                if position["currency"] == asset.symbol:
-                    return position
-        else:
-            position = self._pull_broker_positions()["info"][asset.symbol]
-        return position
+    def _pull_broker_position(self, asset, position_side=None):
+        market = self.get_market(asset) if asset.asset_type == "crypto_future" else None
+        matches = [row for row in self._pull_broker_positions()
+                   if (row.get("symbol") == market["symbol"] if market else row.get("currency") == asset.symbol)
+                   and (position_side is None or self._position_side(row) == position_side)]
+        if len(matches) > 1:
+            raise ValueError(f"Multiple positions for {asset.symbol}; specify position_side")
+        return matches[0] if matches else None
 
     def _pull_broker_positions(self, strategy=None):
-        """Get the broker representation of all positions"""
-        response = self._fetch_balance()
-
-        if self.api.exchangeId in ["kraken", "kucoin", "coinbasepro", "coinbase", "binance", "bitmex", "weex"]:
-            balances_info = []
-            reserved_keys = [
-                "total",
-                "free",
-                "used",
-                "info",
-                "timestamp",
-                "datetime",
-                "debt",
-                strategy.quote_asset.symbol if strategy else None,
-            ]
-            for key in response:
-                if key in reserved_keys:
-                    continue
-                bals = response[key]
-                if Decimal(bals["total"]) != Decimal("0"):
-                    bals["currency"] = key
-                    balances_info.append(bals)
-
-            return balances_info
-        else:
-            raise NotImplementedError(
-                f"{self.api.exchangeId} not implemented yet. \
-                                      If you think this is incorrect, then please check \
-                                      the exact spelling of the exchangeId."
-            )
+        """Read spot holdings using the unified balance contract on every exchange."""
+        quote = strategy.quote_asset.symbol if strategy is not None else None
+        rows = [row for row in self._balance_rows(self._fetch_balance()) if row["currency"] != quote]
+        self._ensure_markets_loaded()
+        if self.api.has.get("fetchPositions") and any(m.get("contract") for m in self.api.markets.values()):
+            seen = set()
+            for position in self._fetch_derivative_positions():
+                key = (position["symbol"], self._position_side(position),
+                       position.get("id") if self.api.id != "phemex" else None)
+                if key not in seen and Decimal(str(position.get("contracts") or 0)) != 0:
+                    rows.append(position)
+                    seen.add(key)
+        return rows
 
     def _parse_broker_positions(self, broker_positions, strategy):
         """parse a list of broker positions into a
@@ -301,7 +362,7 @@ class Ccxt(Broker):
         result = self._parse_broker_positions(response, strategy.name)
         return result
 
-    def _pull_position(self, strategy, asset):
+    def _pull_position(self, strategy, asset, position_side=None):
         """
         Pull a single position from the broker that matches the asset and strategy. If no position is found, None is
         returned.
@@ -318,62 +379,84 @@ class Ccxt(Broker):
         Position
             The position object for the asset and strategy if found, otherwise None
         """
-        response = self._pull_broker_position(asset)
-        result = self._parse_broker_position(response, strategy)
-        return result
+        response = self._pull_broker_position(asset, position_side=position_side)
+        return self._parse_broker_position(response, getattr(strategy, "name", strategy)) if response else None
 
     # =======Orders and assets functions=========
     def _parse_broker_order(self, response, strategy_name, strategy_object=None):
         """parse a broker order representation
         to an order object"""
-        pair = response["symbol"].split("/")
+        market = self.get_market(response["symbol"])
+        asset = self.get_asset(market["symbol"])
+        quote = market["quote"]
+        order_type = response.get("type") or "market"
+        trigger = response.get("triggerPrice") or response.get("stopPrice")
+        if trigger is not None and order_type in ("market", "limit"):
+            order_type = "stop" if order_type == "market" else "stop_limit"
         order = Order(
-            strategy_name,
-            Asset(
-                symbol=pair[0],
-                asset_type="crypto",
-            ),
-            response["amount"],
-            response["side"],
-            limit_price=response["price"],
-            stop_price=response["stopPrice"],
-            time_in_force=response["timeInForce"].lower() if response["timeInForce"] else None,
-            quote=Asset(
-                symbol=pair[1],
-                asset_type="crypto",
-            ),
-            order_type=response["type"] if "type" in response else None,
+            strategy_name, asset, response["amount"], response["side"],
+            limit_price=response.get("price") if order_type in ("limit", "stop_limit") else None,
+            stop_price=trigger,
+            time_in_force=(response.get("timeInForce") or "gtc").lower(),
+            quote=Asset(quote, asset_type="crypto"), order_type=order_type,
+            avg_fill_price=response.get("average"),
+            position_side=self._position_side(response),
         )
+        order.reduce_only = response.get("reduceOnly") or (response.get("info") or {}).get("reduceOnly", False)
         order.set_identifier(response["id"])
-        order.status = response["status"]
+        order.status = response.get("status") or "new"
         order.update_raw(response)
         return order
 
     def _pull_broker_order(self, identifier):
-        """Get a broker order representation by its id"""
-        open_orders = self._pull_broker_all_orders()
-        closed_orders = self._pull_broker_closed_orders()
-        all_orders = open_orders + closed_orders
-
-        response = [order for order in all_orders if order["id"] == identifier]
-
-        return response[0] if len(response) > 0 else None
+        order = self.get_tracked_order(identifier) or self._submitted_orders.get(str(identifier))
+        if order is not None and self.api.has.get("fetchOrder"):
+            pair = self.get_market(order.pair or order.asset, order.quote)["symbol"]
+            params = self._position_request_params(order)
+            return self.api.fetch_order(identifier, pair, **({"params": params} if params else {}))
+        if str(identifier) in self._stream_orders:
+            return self._stream_orders[str(identifier)]
+        if self.api.id == "phemex":
+            raise ValueError("Phemex order lookup requires a known order market")
+        orders = self._pull_broker_all_orders() + self._pull_broker_closed_orders()
+        return next((item for item in orders if str(item["id"]) == str(identifier)), None)
 
     def _pull_broker_closed_orders(self):
         params = {}
-
-        if self.api.id == "kraken":  # Check if the exchange is Kraken
-            logger.info("Detected Kraken exchange. Not sending params for closed orders.")
-            params = None  # Ensure no parameters are sent
-        elif self.is_margin_enabled():
+        if self.is_margin_enabled() and self.api.id == "kucoin":
             params["tradeType"] = "MARGIN_TRADE"
-
-        closed_orders = self.api.fetch_closed_orders(params)
-
-        return closed_orders
+        return self.api.fetch_closed_orders(params=params)
 
     def _pull_broker_all_orders(self):
         """Get the broker open orders"""
+        if self.api.id == "phemex":
+            self._ensure_markets_loaded()
+            if self.stream is not None:
+                scopes = []
+                if any(m.get("spot") for m in self.api.markets.values()):
+                    scopes.append({"type": "spot"})
+                contracts = [m for m in self.api.markets.values() if m.get("contract")]
+                if any(not self._phemex_uses_real_values(m) for m in contracts):
+                    scopes.append({"type": "swap"})
+                if any(self._phemex_uses_real_values(m) for m in contracts):
+                    scopes.append({"type": "swap", "settle": "USDT"})
+                for scope in scopes:
+                    self.stream.subscribe("watch_balance", params=scope)
+                    self.stream.snapshot("watch_orders", params=scope, max_age=None, require_snapshot=True)
+                with self._lock:
+                    return [dict(order) for order in self._stream_orders.values()
+                            if order.get("status") in ("open", "new", "pending")]
+            # Phemex REST requires a market symbol. A stream-disabled account
+            # needs the full discovery scan to avoid losing external orders.
+            orders = []
+            for market in self.api.markets.values():
+                if market.get("active") is not False:
+                    orders.extend(self.api.fetch_open_orders(market["symbol"]))
+            return orders
+
+        if self.stream is not None and self.api.apiKey:
+            self.stream.subscribe("watch_orders")
+            self.stream.subscribe("watch_balance")
         # For binance api rate limit on calling all orders at once.
         if self.api.exchangeId == "binance":
             self.api.options["warnOnFetchOpenOrdersWithoutSymbol"] = False
@@ -399,490 +482,311 @@ class Ccxt(Broker):
         return orders
 
     def _flatten_order(self, order):
-        """Some submitted orders may trigger other orders.
-        _flatten_order returns a list containing the main order
-        and all the derived ones"""
-        orders = [order]
-
-        if self.api.exchangeId == "binance":
-            return orders
-
-        if "legs" in order._raw and order._raw.legs:
-            strategy_name = order.strategy
-            for json_sub_order in order._raw.legs:
-                sub_order = self._parse_broker_order(json_sub_order, strategy_name)
-                orders.append(sub_order)
-
-        return orders
+        # A REST acknowledgement can register or finish an order before the
+        # optional submission worker gets here. Do not enqueue it a second time.
+        return [] if order._new_event.is_set() or order._closed_event.is_set() else [order]
 
     def _submit_order(self, order):
-        """Submit an order for an asset"""
-
-        # Check if order has a quantity
-        if not hasattr(order, "quantity") or order.quantity is None:
-            raise ValueError(f"Order {order} does not have a quantity.")
-
-        # Check that order quantity is a numeric type
-        if not isinstance(order.quantity, (int, float, Decimal)):
-            raise ValueError(f"Order quantity must be a numeric type, not {type(order.quantity)}")
-
-        # Check if order quantity is greater than 0.
-        if order.quantity <= 0:
-            logger.warning(f"The order {order} was rejected as the order quantity is 0 or less.")
-            return
-
-        # Orders limited.
-        order_class = None
-        order_types = ["market", "limit", "stop_limit"]
-        # TODO: Is this actually true?? Try testing this with a bunch of different exchanges.
-        markets_error_message = "Only `market`, `limit`, or `stop_limit` orders work with crypto currency markets."
-
-        if order.order_class != order_class:
-            logger.error(f"A compound order of {order.order_class} was entered. " f"{markets_error_message}")
-            return
-
-        if order.order_type not in order_types:
-            logger.error(f"An order type of {order.order_type} was entered which is not " f"valid. {markets_error_message}")
-            return
-
-        # Check order within limits.
+        """Submit through CCXT's unified order API, preserving native parameters."""
+        if order.order_class not in (None, "simple"):
+            order.set_error("CCXT compound order lifecycle is not implemented; use native attached-order parameters")
+            return order
+        if order.quantity is None or order.quantity <= 0:
+            order.set_error("Order quantity must be greater than zero")
+            return order
         self._ensure_markets_loaded()
-        from lumibot.tools.symbol_normalization import resolve_ccxt_market_symbol
-
-        exchange_id = getattr(self.api, "id", None)
-        resolved_pair = resolve_ccxt_market_symbol(
-            getattr(self.api, "markets", None),
-            order.pair,
-            exchange_id=exchange_id,
-        )
-        if resolved_pair is None:
-            logger.error(
-                f"An order for {order.pair} was submitted. The market for that pair does not exist"
-            )
-            order.set_error("No market for pair.")
-            return order
-        if resolved_pair != order.pair:
-            logger.info(
-                "Normalized crypto CCXT order pair %s -> %s for %s",
-                order.pair,
-                resolved_pair,
-                exchange_id or "ccxt",
-            )
-            order.pair = resolved_pair
-        market = self.api.markets.get(order.pair, None)
-        if market is None:
-            logger.error(f"An order for {order.pair} was submitted. The market for that pair does not exist")
-            order.set_error("No market for pair.")
-            return order
-
-        limits = market["limits"]
-        precision = market["precision"]
-        if self.api.exchangeId in ["binance", "kucoin"]:
-            precision_amount = Decimal(str(10 ** -precision["amount"]))
-        elif self.api.exchangeId == "kraken":
-            initial_precision_amount = Decimal(str(precision["amount"]))
-
-            # Remove a few decimal places because Kraken precision amount is wrong and it's causing orders to fail.
-            precision_exp_modifier = 2
-            initial_precision_exp = abs(initial_precision_amount.as_tuple().exponent)
-            new_precision_exp = initial_precision_exp - precision_exp_modifier
-            factor = 10**new_precision_exp
-            precision_amount = Decimal(1) / Decimal(factor)
-        else:
-            # Set the precision for the Decimal context
-            getcontext().prec = 8
-            getcontext().rounding = ROUND_DOWN
-            decimal_value = Decimal(precision["amount"])
-            precision_amount = decimal_value.quantize(Decimal(f"1e-{8}"), rounding=ROUND_DOWN)
-
-        # Convert the amount to Decimal.
-        if hasattr(order, "quantity") and order.quantity is not None:
-            qty = Decimal(order.quantity)
-
-            # Calculate the precision factor as the reciprocal of precision_amount
-            precision_factor = Decimal("1") / precision_amount
-
-            new_qty = (qty * precision_factor).to_integral_value(rounding="ROUND_DOWN") / precision_factor
-
-            if new_qty <= Decimal(0):
-                logger.warning(
-                    f"The order {order} was rejected as the order quantity is 0 or less after rounding down to the exchange minimum precision amount of {precision_amount}."
-                )
-                return
-
-            order.quantity = new_qty
-
-            # TODO: Remove this if really not needed by several brokers (keeping for now because it's a big change and need to monitor first).
-            # try:
-            #     if limits["amount"]["min"] is not None:
-            #         assert Decimal(order.quantity) >= Decimal(limits["amount"]["min"])
-            # except AssertionError:
-            #     logger.warning(
-            #         f"\nThe order {order} was rejected as the order quantity \n"
-            #         f"was less then the minimum allowed for {order.pair}. The minimum order quantity is {limits['amount']['min']} \n"
-            #         f"The quantity for this order was {order.quantity} \n"
-            #     )
-            #     return
-
-            # try:
-            #     if limits["amount"]["max"] is not None:
-            #         assert order.quantity <= limits["amount"]["max"]
-            # except AssertionError:
-            #     logger.warning(
-            #         f"\nThe order {order} was rejected as the order quantity \n"
-            #         f"was greater then the maximum allowed for {order.pair}. The maximum order "
-            #         f"quantity is {limits['amount']['max']} \n"
-            #         f"The quantity for this order was {order.quantity} \n"
-            #     )
-            #     return
-
-        # Convert the price to Decimal.
-        for price_type in [
-            "limit_price",
-            "stop_price",
-        ]:
-            if hasattr(order, price_type) and getattr(order, price_type) is not None:
-                precision_price = Decimal(str(10 ** -precision["price"])
-                                          ) if self.api.exchangeId == "binance" else precision["price"]
-                setattr(
-                    order,
-                    price_type,
-                    Decimal(getattr(order, price_type)).quantize(Decimal(str(precision_price))),
-                )
-            else:
-                continue
-
-            try:
-                if limits["price"]["min"] is not None:
-                    assert getattr(order, price_type) >= limits["price"]["min"]
-            except AssertionError:
-                logger.warning(
-                    f"\nThe order {order} was rejected as the order {price_type} \n"
-                    f"was less then the minimum allowed for {order.pair}. The minimum price "
-                    f"is {limits['price']['min']} \n"
-                    f"The price for this order was {getattr(order, price_type):4.9f} \n"
-                )
-                return
-
-            try:
-                if limits["price"]["max"] is not None:
-                    assert getattr(order, price_type) <= limits["price"]["max"]
-            except AssertionError:
-                logger.warning(
-                    f"\nThe order {order} was rejected as the order {price_type} \n"
-                    f"was greater then the maximum allowed for {order.pair}. The maximum price "
-                    f"is {limits['price']['max']} \n"
-                    f"The price for this order was {getattr(order, price_type):4.9f} \n"
-                )
-                return
-
-            try:
-                if limits["cost"]["min"] is not None:
-                    price = Decimal(getattr(order, price_type))
-                    qty = Decimal(order.quantity)
-                    limit_min = Decimal(limits["cost"]["min"])
-                    assert (price * qty) >= limit_min
-            except AssertionError:
-                logger.warning(
-                    f"\nThe order {order} was rejected as the order total cost \n"
-                    f"was less then the minimum allowed for {order.pair}. The minimum cost "
-                    f"is {limits['cost']['min']} \n"
-                    f"The cost for this order was only {(getattr(order, price_type) * order.quantity):4.9f} \n"
-                )
-                return
-
-            try:
-                if limits["cost"]["max"] is not None:
-                    assert getattr(order, price_type) * order.quantity <= Decimal(limits["cost"]["max"])
-            except AssertionError:
-                logger.warning(
-                    f"\nThe order {order} was rejected as the order total cost \n"
-                    f"was greater then the maximum allowed for {order.pair}. The maximum cost "
-                    f"is {limits['cost']['max']} \n"
-                    f"The cost for this order was {(getattr(order, price_type) * order.quantity):4.9f} \n"
-                )
-                return
-        args = self.create_order_args(order)
-
-        params = {}
-
-        if self.is_margin_enabled() and self.api.exchangeId != "binance":
-            params["tradeType"] = "MARGIN_TRADE"
-
-        # if self.api.exchangeId == "coinbase" and order.order_type == "market":
-        #     params["createMarketBuyOrderRequiresPrice"] = False
-
         try:
-            # Add order.custom_params to params
-            if hasattr(order, "custom_params") and order.custom_params is not None:
-                params.update(order.custom_params)
-
+            market = self.get_market(order.pair or order.asset, order.quote)
+        except ValueError as exc:
+            order.set_error(exc)
+            return order
+        pair = market["symbol"]
+        order.pair = pair
+        submission_started = False
+        accepted_response = None
+        client_id = None
+        if market.get("contract"):
+            order.asset.multiplier = market["contractSize"]
+        try:
+            order.quantity = Decimal(self.api.amount_to_precision(pair, order.quantity))
+            for field in ("limit_price", "stop_price"):
+                price = getattr(order, field, None)
+                if price is not None:
+                    setattr(order, field, Decimal(self.api.price_to_precision(pair, price)))
+            limits = self.api.markets[pair].get("limits") or {}
+            for price in (order.limit_price, order.stop_price):
+                if price is not None:
+                    self._check_market_limit("price", price, limits)
+            if order.limit_price is not None:
+                cost = order.limit_price * order.quantity
+                if market.get("contract"):
+                    cost = self.get_contract_exposure(order.asset, order.quantity, order.limit_price)["quote"]
+                self._check_market_limit("cost", cost, limits)
+            params = {}
+            if self.is_margin_enabled() and self.api.id == "kucoin":
+                params["tradeType"] = "MARGIN_TRADE"
+            if order.stop_price is not None:
+                params["triggerPrice"] = str(order.stop_price)
+            if order.time_in_force and order.time_in_force.lower() != "day":
+                params["timeInForce"] = order.time_in_force.upper()
+            if getattr(order, "reduce_only", False):
+                params["reduceOnly"] = True
+            if order.position_side is not None:
+                params["hedged"] = True
+                if self.api.id in ("phemex", "okx"):
+                    params["posSide"] = order.position_side.capitalize() if self.api.id == "phemex" else order.position_side
+                if order.side != ("buy" if order.position_side == "long" else "sell"):
+                    params["reduceOnly"] = True
+            params.update(order.custom_params or {})
+            if self.api.id == "phemex":
+                params.setdefault("clientOrderId", str(order.identifier))
+            client_id = params.get("clientOrderId")
+            if client_id:
+                self._pending_client_orders[str(client_id)] = order
+            args = self.create_order_args(order)
+            submission_started = True
             response = self.api.create_order(*args, params=params)
-            order.set_identifier(response["id"])
-            order.status = response["status"]
-            order.update_raw(response)
+            accepted_response = response
+            with self._lock:
+                if response.get("id") is None:
+                    order.status = "unknown"
+                    order.error_message = "Submission outcome unknown: exchange returned no order ID"
+                    self._unprocessed_orders.append(order)
+                    return order
+                order.set_identifier(response["id"])
+                self._submitted_orders[str(order.identifier)] = order
+                self._apply_ccxt_order_observation(order, response)
+                queued = self._stream_orders.get(str(order.identifier))
+                if queued is not None:
+                    self._apply_ccxt_order_observation(order, queued)
+                if client_id:
+                    self._pending_client_orders.pop(str(client_id), None)
+        except Exception as exc:
+            import ccxt
 
-        except Exception as e:
-            order.set_error(e)
-            message = str(e)
-            full_message = f"{order} did not go through. The following error occurred: {message}"
-            logger.info(colored(full_message, "red"))
-
+            if accepted_response is not None and accepted_response.get("id") is not None:
+                order.error_message = f"Accepted order observation could not be applied: {type(exc).__name__}; reconcile"
+                order.update_raw(accepted_response)
+                if not order._new_event.is_set():
+                    order.status = "unknown"
+                    self._unprocessed_orders.append(order)
+            elif submission_started and isinstance(exc, ccxt.NetworkError):
+                order.status = "unknown"
+                order.error_message = f"Submission outcome unknown after {type(exc).__name__}; reconcile before retrying"
+                self._unprocessed_orders.append(order)
+            else:
+                if client_id:
+                    self._pending_client_orders.pop(str(client_id), None)
+                order.set_error(exc)
+            logger.error("CCXT order submission for %s: %s", order.pair, type(exc).__name__)
         return order
 
+    @staticmethod
+    def _check_market_limit(field, value, limits):
+        for bound, limit in (limits.get(field) or {}).items():
+            if limit is None:
+                continue
+            limit = Decimal(str(limit))
+            if (bound == "min" and value < limit) or (bound == "max" and value > limit):
+                raise ValueError(f"CCXT {field} {value} exceeds market {bound} {limit}")
+
     def create_order_args(self, order):
-        """Will create the args for the ccxt `create_order` submission.
-
-        Creating the order args. There are only a few acceptable lumibot
-        orders. These are:
-            market, limit, stop_limit
-
-        There is no stop or trailing orders. Also combo orders do not
-        work in crypto. So no bracket or oco orders.
-
-        The args are complicated and will vary for each broker. All new
-        broker conditions should be fully documented as below.
-
-        The main arguments for `api.create_order()` are:
-            symbol: always the pairing symbol.
-            type: order types vary with broker, see below.
-            side: buy or sell
-            amount: string quantity to buy or sell
-            price=None: Optional, use for limit pricing.
-            {params}: custom parameters.
-
-        For Binance the args are as follows:
-            Allowable orders:
-                orderTypes:
-                    'MARKET'
-                    'LIMIT',
-                    'STOP_LOSS_LIMIT'
-                custom parameters dict:
-                    {'stopPrice': string price}
-
-            Examples of the args for binance are as follows:
-
-            Market Order
-            api.create_order("BTC/USDT", "MARKET", "buy", "0.0999")
-
-            Limit Order
-            api.create_order("BTC/USDT", "LIMIT", "buy", "0.0888", "40000")
-            api.create_order("BTC/USDT", "LIMIT", "sell", "0.0777", "40000")
-
-            Stop Entry Limit Order
-            api.create_order(
-                "BTC/USDT",
-                "TAKE_PROFIT_LIMIT",
-                "sell",
-                ".0777",
-                40100,
-                {"stopPrice": 40000},
-            )
-
-            Stop Loss Limit Order
-            api.create_order(
-                "BTC/USDT",
-                "STOP_LOSS_LIMIT",
-                "sell",
-                "0.0666",
-                40100,
-                {"stopPrice": 40000}
-            )
-
-        For Coinbase the args are as follows:
-            Allowable orders:
-                orderTypes:
-                    `market`
-                    `limit`
-                custom parameters dict:
-                    {
-                    `stop`: `loss` or `entry`
-                    `stop_price`: string price
-                    }
-
-            Examples of the args for coinbase are as follows:
-
-            Market Order
-            api.create_order("BTC/USD", "market", side, amount)
-
-            Limit Order
-            api.create_order("BTC/USD", "limit", side, amount, "40000")
-            api.create_order("BTC/USD", "limit", side, amount, "40000")
-
-            Buy Stop Entry
-            api.create_order(
-                "BTC/USD",
-                "limit",
-                "buy",
-                "0.123",
-                "40100",
-                {"stop": "entry", "stop_price": "40000"},
-            )
-
-            Sell Stop Loss
-            order = api.create_order(
-                "BTC/USD",
-                "limit",
-                "sell",
-                "0.111",
-                "40100",
-                {"stop": "loss", "stop_price": "40000"},
-            )
-
-
-        Parameters
-        ----------
-        order
-
-        Returns
-        -------
-        create_order api arguments : dict
-
-        """
-        broker = self.api.exchangeId
-        if broker == "binance":
-            params = {}
-            if order.order_type in ["stop_limit"]:
-                params = {
-                    "stopPrice": str(order.stop_price),
-                }
-                # Remove items with None values
-                params = {k: v for k, v in params.items() if v}
-
-            order_type_map = dict(market="MARKET", limit="LIMIT", stop_limit="STOP_LOSS_LIMIT")
-
-            args = [
-                order.pair,
-                order_type_map[order.order_type],
-                order.side,
-                str(order.quantity),
-            ]
-            if order.order_type in ["limit", "stop_limit"]:
-                args.append(str(order.limit_price))
-
-            if len(params) > 0:
-                args.append(params)
-
-            return args
-
-        elif broker in ["kraken", "kucoin", "coinbasepro", "coinbase"]:
-            params = {}
-            if order.order_type in ["stop_limit"]:
-                params = {
-                    "stop": "entry" if order.side == "buy" else "loss",
-                    "stop_price": str(order.stop_price),
-                }
-
-                # Remove items with None values
-                params = {k: v for k, v in params.items() if v}
-
-            order_type_map = dict(
-                market="market",
-                stop="market",
-                limit="limit",
-                stop_limit="limit",
-            )
-
-            args = [
-                order.pair,
-                order_type_map[order.order_type],
-                order.side,
-                str(order.quantity),  # check this with coinbase.
-            ]
-            if order_type_map[order.order_type] == "limit":
-                args.append(str(order.limit_price))
-
-            # If coinbase, you need to pass the price even with a market order
-            if broker == "coinbase" and order_type_map[order.order_type] == "market":
-                price = self.data_source.get_last_price(order.asset, quote=order.quote)
-                args.append(str(price))
-
-            if len(params) > 0:
-                args.append(params)
-
-            return args
-
-        else:
-            raise ValueError(
-                f"An attempt was made to use the broker {broker} which is "
-                f"not an approved broker. Please refer to the Lumibot docs"
-                f"to get a list of currently approved brokers."
-            )
+        """Build the unified symbol, type, side, coin quantity and optional price."""
+        order_type = {"stop": "market", "stop_limit": "limit"}.get(order.order_type, order.order_type)
+        price = str(order.limit_price) if order.limit_price is not None else None
+        if order_type == "market" and order.side == "buy" and self.api.options.get("createMarketBuyOrderRequiresPrice"):
+            price = self.data_source.get_last_price(order.asset, quote=order.quote)
+            if price is None:
+                raise ValueError(f"A price is required to calculate market-buy cost for {order.pair}")
+            price = str(price)
+        return [order.pair, order_type, order.side, str(order.quantity), price]
 
     def cancel_order(self, order):
-        """Cancel an order"""
-        if self.api.exchangeId == "binance":
-            response = self.api.cancel_order(order.identifier, order.pair)
-            if order.identifier == response["id"]:
-                order.set_canceled()
-        else:
-            response = self.api.cancel_order(order.identifier, order.symbol)
-            if order.identifier == response:
-                order.set_canceled()
+        """Cancel using the unified market identity; only confirm terminal responses."""
+        pair = self.get_market(order.pair or order.asset, order.quote)["symbol"]
+        params = self._position_request_params(order)
+        response = self.api.cancel_order(order.identifier, pair, **({"params": params} if params else {}))
+        if str(response.get("id")) == str(order.identifier) and response.get("status") in ("canceled", "cancelled", "expired"):
+            with self._lock:
+                self._apply_ccxt_order_observation(order, response)
+        return response
+
+    def _position_request_params(self, order):
+        if order.position_side is None:
+            return {}
+        if self.api.id == "phemex":
+            return {"posSide": order.position_side.capitalize()}
+        if self.api.id == "okx":
+            return {"posSide": order.position_side}
+        return {}
 
     def cancel_open_orders(self, strategy, orders: list[Order] | None = None):
-        """Cancel all open orders at the broker."""
-        for order in self._pull_broker_all_orders():
-            self.api.cancel_order(order["id"], symbol=order["symbol"])
+        """Cancel the supplied orders or active orders owned by the strategy."""
+        strategy_name = getattr(strategy, "name", strategy)
+        candidates = orders if orders is not None else self.get_tracked_orders(strategy_name)
+        for order in candidates:
+            if order.strategy == strategy_name and order.is_active():
+                self.cancel_order(order)
 
-    def _modify_order(self, order: Order, limit_price: Union[float, None] = None,
-                      stop_price: Union[float, None] = None):
-        """
-        Modify an order at the broker. Nothing will be done for orders that are already cancelled or filled. You are
-        only allowed to change the limit price and/or stop price. If you want to change the quantity,
-        you must cancel the order and submit a new one.
-        """
-        raise NotImplementedError("CCXTBroker modify order is not implemented.")
+    def _modify_order(self, order, limit_price=None, stop_price=None):
+        if not order.is_active():
+            return None
+        pair = self.get_market(order.pair or order.asset, order.quote)["symbol"]
+        price = order.limit_price if limit_price is None else limit_price
+        trigger = order.stop_price if stop_price is None else stop_price
+        if price is not None:
+            price = self.api.price_to_precision(pair, price)
+        params = {**(order.custom_params or {}), **self._position_request_params(order)}
+        if trigger is not None:
+            params["triggerPrice"] = self.api.price_to_precision(pair, trigger)
+        order_type = {"stop": "market", "stop_limit": "limit"}.get(order.order_type, order.order_type)
+        response = self.api.edit_order(order.identifier, pair, order_type, order.side,
+                                       self.api.amount_to_precision(pair, order.quantity), price, params=params)
+        if limit_price is not None:
+            order.limit_price = Decimal(str(price))
+        if stop_price is not None:
+            order.stop_price = Decimal(str(params["triggerPrice"]))
+        with self._lock:
+            self._apply_ccxt_order_observation(order, response)
+        return order
 
     def get_historical_account_value(self):
         logger.error("The function get_historical_account_value is not " "implemented yet for CCXT.")
         return {"hourly": None, "daily": None}
 
-    def wait_for_order_registration(self, order):
-        """Wait for the registration of the orders with the broker.
-
-        Not yet implemented, requires streaming.
-        """
-        raise NotImplementedError(
-            "Waiting for an order registration is not yet implemented in Crypto, "
-            "requires streaming. Check the order status at each interval."
-        )
-
     def wait_for_order_registrations(self, orders):
-        """Wait for the registration of the order with the broker.
+        return self.wait_for_orders_registration(orders)
 
-        Not yet implemented, requires streaming.
-        """
-        raise NotImplementedError(
-            "Waiting for an order registration is not yet implemented in Crypto, "
-            "requires streaming. Check the order status at each interval."
-        )
-
-    def wait_for_order_execution(self, order):
-        """Wait for order to fill.
-
-        Not yet implemented, requires streaming.
-        """
-        raise NotImplementedError(
-            "Waiting for an order execution is not yet implemented in Crypto, "
-            "requires streaming. Check the order status at each interval."
-        )
-
-    def wait_for_order_executions(self, order):
-        """Wait for orders to fill.
-
-        Not yet implemented, requires streaming.
-        """
-        raise NotImplementedError(
-            "Waiting for an order execution is not yet implemented in Crypto, "
-            "requires streaming. Check the order status at each interval."
-        )
+    def wait_for_order_executions(self, orders):
+        return self.wait_for_orders_execution(orders)
 
     def _get_stream_object(self):
-        pass
+        from lumibot.trading_builtins.ccxt_stream import CcxtStream
+
+        stream = CcxtStream(self.api, self._config, on_orders=self._on_ccxt_orders,
+                            on_balance=self._on_ccxt_balance)
+        self.data_source._stream = stream
+        return stream
+
+    def _launch_stream(self):
+        # Pro construction, network activity and authentication stay lazy.
+        # A subscription starts the one managed event loop when needed.
+        self._register_stream_events()
 
     def _register_stream_events(self):
-        pass
+        return
 
     def _run_stream(self):
-        pass
+        self.stream.start()
+
+    def _on_ccxt_balance(self, balance):
+        self._contract_accounts_cache = None
+        self._stream_established()
+
+    def _on_ccxt_orders(self, orders, scope, snapshot=False):
+        scope_key = tuple(sorted(scope.items()))
+        with self._lock:
+            if snapshot:
+                for identifier in list(self._stream_orders):
+                    if self._stream_order_scopes.get(identifier) == scope_key:
+                        del self._stream_orders[identifier]
+                        self._stream_order_scopes.pop(identifier, None)
+            for response in orders:
+                identifier = str(response["id"])
+                local = self.get_tracked_order(identifier) or self._submitted_orders.get(identifier)
+                if local is None and response.get("clientOrderId"):
+                    local = self._pending_client_orders.get(str(response["clientOrderId"]))
+                    if local is not None:
+                        local.set_identifier(response["id"])
+                        self._invalidate_order_caches()
+                if local is not None and local._closed_event.is_set() and response.get("status") in ("open", "new", "pending"):
+                    continue
+                previous = self._stream_orders.get(identifier) or {}
+                if response.get("filled") is not None and previous.get("filled") is not None:
+                    if Decimal(str(response["filled"])) < Decimal(str(previous["filled"])):
+                        continue
+                self._stream_orders[identifier] = dict(response)
+                self._stream_order_scopes[identifier] = scope_key
+                if local is not None:
+                    self._apply_ccxt_order_observation(local, response)
+            # Retain all open orders, with a bounded terminal replay cache.
+            terminal = [key for key, value in self._stream_orders.items()
+                        if value.get("status") not in ("open", "new", "pending")]
+            for identifier in terminal[:-1000]:
+                del self._stream_orders[identifier]
+                self._stream_order_scopes.pop(identifier, None)
+        self._stream_established()
+
+    def _apply_ccxt_order_observation(self, order, response):
+        """Reduce cumulative REST/WS observations through the shared lifecycle."""
+        status = response.get("status")
+        already = sum((Decimal(str(tx.quantity)) for tx in order.transactions), Decimal("0"))
+        reported = response.get("filled")
+        filled = Decimal(str(reported)) if reported is not None else already
+        if filled < already or (order.is_filled() and status in ("open", "new", "pending")):
+            return False
+        delta = filled - already
+        changed = False
+        if not order._new_event.is_set() and status not in ("rejected", "error"):
+            self._process_trade_event(order, self.NEW_ORDER)
+            changed = True
+        if delta > 0:
+            market = self.api.markets.get(order.pair or order.asset.symbol) or {}
+            size = Decimal(str(market.get("contractSize") or 1))
+            inverse = market.get("inverse", False)
+            previous_cost = sum((Decimal(str(tx.quantity)) * size / Decimal(str(tx.price)) if inverse
+                                 else Decimal(str(tx.quantity)) * size * Decimal(str(tx.price))
+                                 for tx in order.transactions), Decimal("0"))
+            cost = response.get("cost")
+            average = response.get("average")
+            if cost is None and average is not None:
+                average = Decimal(str(average))
+                cost = filled * size / average if inverse else filled * size * average
+            if cost is None:
+                raise ValueError(f"CCXT execution omitted price for order {order.identifier}")
+            delta_cost = Decimal(str(cost)) - previous_cost
+            if delta_cost <= 0:
+                raise ValueError(f"CCXT execution returned invalid cumulative cost for order {order.identifier}")
+            price = delta * size / delta_cost if inverse else delta_cost / (delta * size)
+            if price <= 0:
+                raise ValueError(f"CCXT execution returned an invalid price for order {order.identifier}")
+            event = self.FILLED_ORDER if status == "closed" or filled >= Decimal(str(order.quantity)) else self.PARTIALLY_FILLED_ORDER
+            self._process_trade_event(order, event, price=float(price), filled_quantity=float(delta),
+                                      multiplier=order.asset.multiplier)
+            changed = True
+        if status in ("canceled", "cancelled", "expired") and not order.is_canceled():
+            self._process_trade_event(order, self.CANCELED_ORDER)
+            changed = True
+        elif status in ("rejected", "error") and order.status != "error":
+            self._process_trade_event(order, self.ERROR_ORDER, error=response.get("error") or "Exchange rejected order")
+            changed = True
+        elif status in ("open", "new") and order.status in ("unprocessed", "submitted") and not filled:
+            self._process_trade_event(order, self.NEW_ORDER)
+            changed = True
+        if response.get("average") is not None and filled:
+            order.avg_fill_price = response["average"]
+        fees = response.get("fees") or ([response["fee"]] if response.get("fee") else [])
+        if not fees and self.api.id == "phemex":
+            info = response.get("info") or {}
+            market = self.api.markets.get(order.pair or order.asset.symbol) or {}
+            currency = info.get("feeCurrency") or market.get("settle")
+            if currency and ("cumFeeRv" in info or "cumFeeEv" in info):
+                if "cumFeeRv" in info:
+                    fee = Decimal(str(info["cumFeeRv"]))
+                else:
+                    scale = (self.api.currency(currency) or {}).get("valueScale", 8)
+                    fee = Decimal(str(info["cumFeeEv"])) / Decimal(10) ** int(scale)
+                fees = [{"currency": currency, "cost": float(fee)}]
+        if fees:
+            order.fees = fees
+        order.update_raw(response)
+        if order._closed_event.is_set():
+            self._submitted_orders.pop(str(order.identifier), None)
+            for client_id, pending in list(self._pending_client_orders.items()):
+                if pending is order:
+                    del self._pending_client_orders[client_id]
+        return changed
+
+    def _apply_direct_order_observation(self, order_lumi, matched_order):
+        with self._lock:
+            return self._apply_ccxt_order_observation(order_lumi, matched_order._raw)

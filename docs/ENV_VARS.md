@@ -345,6 +345,14 @@ These env vars are used by the ThetaData chain cache/builder in `lumibot/tools/t
 - Purpose: Override the local cache folder (useful to simulate a fresh ECS task).
 - Notes: This is read at import/startup time; changing it mid-run will not relocate already-created paths.
 
+### `LUMIBOT_SHARED_BARS` / `LUMIBOT_SHARED_BARS_SCOPE` / `LUMIBOT_SHARED_BARS_SETTLE_MINUTES`
+- Purpose: Control the broker-agnostic shared history cache (`lumibot/tools/shared_bar_cache.py`).
+- `LUMIBOT_SHARED_BARS`: `true` (default) or `false`. The test suite sets `false` in `tests/conftest.py`;
+  cache tests turn it back on and isolate their folder and remote store.
+- `LUMIBOT_SHARED_BARS_SCOPE`: `credential` (default, one cache per broker connection) or `provider`.
+- `LUMIBOT_SHARED_BARS_SETTLE_MINUTES`: minutes after a bar ends before it is stored (default 15).
+- Design and invariants: `docs/SHARED_BAR_CACHE.md`.
+
 ### `LUMIBOT_CACHE_S3_BUCKET`, `LUMIBOT_CACHE_S3_PREFIX`, `LUMIBOT_CACHE_S3_REGION`
 - Purpose: S3 target configuration.
 

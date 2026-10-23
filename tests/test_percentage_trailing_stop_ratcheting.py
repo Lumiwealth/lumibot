@@ -99,11 +99,13 @@ class _TrailingStrategy(Strategy):
         self.sleeptime = "1M"
 
 
-def _make_strategy(prices, *, side, spread=None):
+def _make_strategy(prices, *, side, spread=None, ohlc=None):
     """Prepare real Pandas data with only the native simulated broker stream."""
     asset, quote = Asset("SPY"), Asset("USD", asset_type="forex")
     index = pd.date_range("2025-01-13 09:30", periods=len(prices), freq="min", tz="America/New_York")
-    frame = pd.DataFrame({name: prices for name in ("open", "high", "low", "close")}, index=index)
+    frame = pd.DataFrame(
+        ohlc if ohlc is not None else {name: prices for name in ("open", "high", "low", "close")}, index=index
+    )
     frame["volume"] = 1000
     if spread is not None:
         # Buy trails advance from bid and execute at ask; sell trails advance
@@ -171,3 +173,34 @@ def test_ohlc_consumer_fills_and_accounts_for_percentage_reversal(side):
     position = broker.get_tracked_position(strategy.name, asset)
     assert (float(position.quantity) if position else 0) == (2 if side == "buy" else 0)
     assert strategy.cash == pytest.approx(99810 if side == "buy" else 100014)
+
+
+def test_ohlc_wide_bar_checks_stored_stop_before_ratcheting():
+    """A bar must not trigger the stop that its own high has just established."""
+    strategy, broker, asset, index = _make_strategy(
+        [100, 109],
+        side="sell",
+        ohlc={"open": [100, 109], "high": [100, 110], "low": [100, 107], "close": [100, 109]},
+    )
+    entry = strategy.create_order(asset, 2, "buy")
+    strategy.submit_order(entry)
+    broker.process_pending_orders(strategy)
+    strategy._executor.process_queue()
+    assert entry.get_fill_price() == pytest.approx(100)
+
+    order = strategy.create_order(asset, 2, "sell", trail_percent=0.02)
+    strategy.submit_order(order)
+    broker.process_pending_orders(strategy)
+    strategy._executor.process_queue()
+    assert not order.is_filled()
+    assert order.get_current_trail_stop_price() == pytest.approx(98)
+
+    broker._update_datetime(index[1])
+    broker.process_pending_orders(strategy)
+    strategy._executor.process_queue()
+    # The low of 107 crosses the new 110 * 0.98 = 107.8 threshold, but not
+    # the previously stored 98. Updating before checking would fill too early.
+    assert not order.is_filled()
+    assert order.get_current_trail_stop_price() == pytest.approx(107.8)
+    assert broker.get_tracked_position(strategy.name, asset).quantity == 2
+    assert strategy.cash == pytest.approx(99800)

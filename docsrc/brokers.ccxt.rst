@@ -8,53 +8,215 @@ CCXT Crypto Trading and Backtesting with LumiBot
 
 This is the guide for Lumibot's CCXT-based cryptocurrency broker integrations. CCXT is a popular library for cryptocurrency trading. If you are interested (but not required!), you can find the documentation for CCXT here: https://ccxt.readthedocs.io/en/latest/
 
-Lumibot does **not** automatically support every exchange in the CCXT ecosystem.
-The documented paths do not all have the same validation level:
+The shared ``Ccxt`` broker accepts exchange IDs provided by your installed CCXT
+version. You do not need a new LumiBot broker class or an approved-exchange list
+for each venue. Exchange products, API permissions, order features, credentials,
+regional availability and test environments still differ.
 
-.. list-table:: Documented CCXT exchange paths
+Available adapters and qualification
+------------------------------------
+
+**Available** means the adapter can be selected through generic configuration.
+**Contract tested** means LumiBot's order and balance handling passed offline
+checks. **Exchange tested** means the workflow was exercised against that
+exchange's API. These are different levels of evidence.
+
+.. list-table:: Current shared spot qualification
    :header-rows: 1
-   :widths: 22 26 27 25
+   :widths: 30 35 35
 
-   * - Exchange
-     - Credential auto-detection
-     - Exchange-specific order handling
-     - Backtesting example
-   * - Coinbase
-     - Yes
-     - Yes
-     - No dedicated example
-   * - Kraken
-     - Yes
-     - Yes
-     - Yes
-   * - KuCoin
-     - Manual configuration
-     - Yes
-     - Yes
-   * - Binance
-     - Manual configuration
-     - Yes
-     - Yes
-   * - BitMEX
-     - Manual configuration
-     - Shared CCXT path
-     - Yes
-   * - WEEX
-     - Yes
-     - Shared CCXT path
-     - No dedicated example
-   * - Bybit
-     - Manual configuration
-     - Backtesting or custom config only
-     - Yes
-   * - OKX
-     - Manual configuration
-     - Backtesting or custom config only
-     - Yes
+   * - Exchange IDs
+     - Offline qualification
+     - Authenticated exchange qualification in this change
+   * - ``phemex``
+     - Unified spot orders, balances, cancellation; native CCXT request serialization
+     - Pending testnet credentials
+   * - ``coinbase``, ``kraken``, ``kucoin``, ``okx``, ``bybit``
+     - Unified spot orders, balances and cancellation
+     - Not exercised
+   * - Other installed CCXT adapters
+     - Available through the same configuration
+     - Not qualified by this change
 
-Other CCXT exchanges may be possible with additional adapter/config work, but they should not be assumed to work until they are tested in Lumibot.
+Qualification on October 23, 2026 used CCXT 4.5.64: 105 affected offline tests
+passed and two pre-existing historical-cache tests were skipped. Coverage:
+``test_ccxt_unified_spot``, ``test_ccxt``, ``test_symbol_normalization``,
+``test_position_serialization``, ``test_position_signs``,
+``test_broker_sync_positions``, ``test_crypto_future_close_position``,
+``test_backtesting_ccxt_execution_semantics`` and ``test_ccxt_store``.
+The pre-fix shared spot regression had 17 failures. No authenticated orders
+were placed during this qualification.
 
-Each documented exchange path requires its own specific credentials or manual CCXT config.
+There is no LumiBot exchange allowlist. The following adapter IDs were available
+in CCXT 4.5.64; this is an availability list, not a claim that every product or
+operation has passed an exchange test:
+
+.. code-block:: text
+
+   aftermath, alpaca, apex, aster, backpack, bequant, bigone, binance,
+   binancecoinm, binanceus, binanceusdm, bingx, bit2c, bitbank, bitbns,
+   bitfinex, bitflyer, bitget, bithumb, bitmart, bitmex, bitopro, bitrue,
+   bitso, bitstamp, bitteam, bittrade, bitvavo, blockchaincom, blofin,
+   btcbox, btcmarkets, btcturk, bullish, bybit, bybiteu, bydfi, cex,
+   coinbase, coinbaseexchange, coinbaseinternational, coincheck, coinex,
+   coinmate, coinone, coinsph, coinspot, cryptocom, cryptomus, deepcoin,
+   delta, deribit, derive, digifinex, dydx, exmo, extended, fmfwio, foxbit,
+   gate, gateeu, gemini, grvt, hashkey, hibachi, hitbtc, hollaex, htx,
+   hyperliquid, independentreserve, indodax, kraken, krakenfutures,
+   kucoin, kucoineu, kucoinfutures, latoken, lbank, lighter, luno, mercado,
+   mexc, modetrade, mudrex, myokx, ndax, okx, okxus, onetrading, p2b,
+   pacifica, paradex, paymium, phemex, poloniex, tokocrypto, toobit, upbit,
+   weex, whitebit, woo, woofipro, xt, zaif, zebpay
+
+Inspect the installed list and each exchange's capabilities directly:
+
+.. code-block:: python
+
+   import ccxt
+
+   print(ccxt.exchanges)
+   exchange = ccxt.phemex()
+   print(exchange.has)
+   print(exchange.features)
+
+Generic configuration
+---------------------
+
+.. code-block:: python
+
+   from lumibot.brokers import Ccxt
+
+   broker = Ccxt({
+       "exchange_id": "phemex",  # Any installed CCXT exchange ID
+       "apiKey": "<testnet-api-key>",
+       "secret": "<testnet-api-secret>",
+       "sandbox": True,
+       "options": {"defaultType": "spot"},
+   })
+
+Sandbox selection happens before market discovery or other requests. Use
+``sandbox=False`` for an exchange's production API. Some venues have no sandbox,
+and a static-response sandbox does not prove matching, fills or cancellation.
+Credentials are specific to the selected environment. Some exchanges additionally
+require ``password`` or other CCXT credential fields.
+
+Spot order quantities are base-coin units. LumiBot uses CCXT's own amount and
+price precision methods, including tick-size and decimal-place modes. Native
+exchange options remain available through the CCXT config and an order's
+``custom_params``; stop orders use the unified ``triggerPrice`` parameter.
+Provider-specific trigger direction and other required parameters must match
+the exchange API. Compound-order lifecycle remains separate from native attached
+orders supplied through ``custom_params``.
+
+Perpetual contracts and position modes
+------------------------------------
+
+Use the complete CCXT instrument symbol so quote and settlement remain distinct:
+``BTC/USDT:USDT``, ``BTC/USDC:USDC`` or ``BTC/USD:BTC``. The broker discovers
+contracts and collateral currencies from exchange metadata. An explicit contract
+never falls back to a spot instrument with the same base and quote.
+
+.. code-block:: python
+
+   contract = broker.get_asset("BTC/USDC:USDC")
+   # Inside a Strategy:
+   order = self.create_order(contract, 1, "buy", position_side="long")
+   self.submit_order(order)
+
+Spot quantities mean base-coin units. Contract quantities mean CCXT contract
+units, which can be fractional when the market's amount precision permits it.
+``contract.multiplier`` is the exchange's ``contractSize``. For a linear contract,
+base exposure is quantity times contract size; for an inverse contract, quote
+exposure is quantity times contract size. ``broker.get_contract_exposure(asset,
+quantity, price)`` returns both exposures and the settlement currency.
+Existing broker-specific quantity conventions are unchanged.
+
+``position_side="long"`` and ``position_side="short"`` identify separate hedge
+legs. For example, an account can retain ten long contracts and four short
+contracts as two positions. ``self.get_position(contract, position_side="short")``
+selects the short leg; closing that position retains its identity and reduce-only
+intent. Omitting the selector when closing both legs closes each separately.
+One-way accounts continue to use a single signed position without a leg selector.
+An ambiguous single-position lookup asks for a selector instead of choosing a leg.
+
+Account mode is never changed automatically. The broker exposes
+``set_position_mode(hedged, asset, params=None)``,
+``set_leverage(leverage, asset, params=None)`` and
+``set_margin_mode(mode, asset, params=None)``. Native parameters remain available,
+including separate long and short leverage where supported. The venue determines
+which operations each contract supports. For Phemex, the V2 position-mode route
+follows product metadata rather than restricting it to one settlement currency.
+
+Phemex collateral and unrealized PnL are valued in the strategy's quote currency;
+leveraged notional is not added to account equity. A collateral currency without
+a direct or inverse conversion market is explicitly warned about and excluded
+from converted equity. This is an unresolved valuation limit, not an assertion
+that such collateral is worthless. ``fetch_funding_rate(asset)`` reads the current
+venue funding rate; it does not simulate historical funding payments.
+
+WebSocket market and account data
+--------------------------------
+
+The broker uses the CCXT Pro client included in CCXT. One lazy managed event loop
+serves subscriptions for a broker. No network connection or private authentication
+starts merely from construction. Live last prices and quotes use streamed data
+after subscription, with REST fallback for unavailable or stale public snapshots.
+
+.. code-block:: python
+
+   source = broker.data_source
+   source.get_last_price(contract)
+   source.get_quote(contract)
+   source.get_order_book(contract)
+   source.get_trades(contract)
+   source.get_live_candles(contract, timeframe="1m")
+
+Historical bars continue through the existing REST history/cache owner. A live
+candle subscription does not replace historical data. Order submission, amendment
+and cancellation use REST. Account order updates feed the normal order/fill
+callbacks, applying cumulative fill quantities once across REST acknowledgements,
+WebSocket updates and replays. An uncertain submission retains its client ID for
+reconciliation and is not automatically resubmitted. Balance updates invalidate
+the collateral snapshot. Positions are reconciled through REST because the
+installed Phemex Pro adapter has no ``watch_positions`` implementation.
+
+Call ``broker.cleanup_streams()`` when finished; normal broker shutdown also
+closes the managed client. ``connect_stream=False`` retains REST operation.
+Phemex requires a symbol for REST open-order discovery, so a stream-disabled
+account-wide refresh scans metadata-discovered active markets.
+
+Phemex qualification and remaining work
+--------------------------------------
+
+The offline contract and stream tests cover linear USDT, linear USDC and
+coin-settled inverse identities, quantity/exposure conversion, separate hedge
+legs, native request serialization, cumulative fills, replay handling, fees,
+amendment and cancellation. Transport doubles are not exchange trading proof.
+The final affected regression run passed 337 tests with two pre-existing skips,
+including shared history/cache behavior, Bitunix compatibility, position identity
+and strategy execution callbacks. The new contract/stream tests are
+``tests/test_ccxt_derivatives.py`` and ``tests/test_ccxt_stream.py``.
+
+Public API qualification on October 23, 2026 with CCXT 4.5.64 established:
+
+* Testnet spot, USDT perpetual and inverse perpetual market discovery and prices.
+* Testnet ticker, order book, trades and candle subscriptions for those families.
+* USDC perpetual ticker, book, trades and candles on the production **public**
+  feed, without credentials or trading.
+* USDC testnet prices returned provider error ``6001`` (invalid argument), and
+  its public subscriptions failed to produce usable snapshots. The opt-in
+  testnet checks retain this failure; USDC is not removed from discovery.
+
+Authenticated testnet orders, private streams, mode changes, collateral balances
+and a complete strategy trading cycle remain unqualified until testnet credentials
+are available. Run the public checks with ``pytest
+tests/test_ccxt_phemex_testnet.py -m apitest``; these make no account writes.
+Other exchanges' private/perpetual streams have not been exchange-qualified by
+this change. CCXT adapter availability is not a promise that every feature works.
+
+Perpetual backtesting with contract-aware margin, inverse PnL, historical funding
+and liquidation is still remaining work. Existing spot ``CcxtBacktesting`` support
+does not establish that accounting.
 
 Exchange-Specific Guides
 ------------------------
@@ -76,18 +238,18 @@ Use these pages for exchange-specific setup details:
 Features
 --------
 
-* **Cryptocurrency Trading**: Spot and margin trading
-* **Selected Exchanges**: Coinbase, Kraken, and WEEX have auto-detected credential paths; KuCoin, Binance, and BitMEX have documented manual setup paths; Kraken, Binance, KuCoin, BitMEX, Bybit, and OKX have documented backtesting examples
-* **Real-time Data**: Live order and position updates
+* **Cryptocurrency Trading**: Spot, margin and metadata-resolved contracts, subject to venue capabilities and the qualification above
+* **Exchange Selection**: Any installed CCXT adapter through explicit configuration; existing credential auto-detection remains available
+* **Market Data**: Streamed prices, quotes, books, trades and live candles; REST historical candles and public snapshot fallback
 * **Order Types**: Market, limit, stop orders
 * **Auto-Detection**: Automatically connects when environment variables are set
 
 Prerequisites
 -------------
 
-1. **Account**: Create an account with a documented cryptocurrency exchange
+1. **Account**: Use an eligible account or the exchange's separate testnet account
 2. **API Credentials**: Generate API credentials from your exchange's website
-3. **Environment Variables**: Set your broker's API credentials
+3. **Configuration**: Supply CCXT credentials explicitly, or use an existing credential auto-detection path
 
 .. note::
    **Easy Setup with .env File**
@@ -160,7 +322,9 @@ WEEX requires **three** credentials: an API key, a secret, and a mandatory passp
    WEEX's Terms of Use exclude residents of the United States, Canada, and several other jurisdictions (see https://weexsupport.zendesk.com/hc/en-us/articles/4417379529241). WEEX does **not** provide an API sandbox — all trades run against live infrastructure. Start with very small quantities until you have verified behavior.
 
 .. note::
-   LumiBot's WEEX path is spot-oriented through the shared CCXT broker configuration. WEEX's primary business is USDT-margined perpetual swap (futures); swap support is not wired into the shared broker today and would require position/leverage/funding-rate modeling beyond what the current CCXT path provides.
+   The shared broker now resolves contract symbols and exposes leverage, margin
+   and funding-rate operations through CCXT. WEEX perpetual balances, account
+   synchronization and live trading have not been qualified by this change.
 
 Manual CCXT Config Examples
 ---------------------------

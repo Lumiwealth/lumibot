@@ -116,7 +116,7 @@ class Position:
         result = self._quantity_float
 
         # If result is less than 0.000001, return 0.0 to avoid rounding errors.
-        if abs(result) < 0.000001:
+        if self.asset.asset_type not in ("crypto", "crypto_future") and abs(result) < 0.000001:
             return 0.0
 
         return result
@@ -160,24 +160,9 @@ class Position:
         # Used to check the number types for hold and available.
         if self.asset.asset_type != "crypto":
             return 0
-
-        default_precision = 8
-        precision = (
-            self.asset.precision
-            if hasattr(self, "asset.precision")
-            else default_precision
-        )
-        if isinstance(value, Decimal):
-            return value.quantize(Decimal(precision))
-        elif isinstance(
-            value,
-            (
-                int,
-                float,
-                str,
-            ),
-        ):
-            return Decimal(str(value)).quantize(Decimal(precision))
+        # Wallet balances can include dust smaller than an order's minimum
+        # increment. Preserve the reported amount instead of rounding it away.
+        return Decimal(str(value)) if value is not None else None
 
     def get_selling_order(self, quote_asset=None):
         """Returns an order that can be used to sell this position.

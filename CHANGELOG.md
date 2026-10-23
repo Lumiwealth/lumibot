@@ -3,6 +3,7 @@
 ## 4.6.25 - 2026-10-23
 
 ### Fixed
+- CCXT spot trading uses the unified order and balance contracts across installed exchange adapters, removing hard-coded exchange approval lists. Use CCXT precision and trigger parameters, preserve crypto wallet dust, correct holdings valuation and cancellation, and accept optional order fields. Offline coverage includes Phemex, Coinbase, Kraken, KuCoin, OKX and Bybit; authenticated testnet trading remains unqualified.
 - Restore normal MCP endpoint handling for automatic BotSpot connections, including private HTTP endpoints, URL authentication, query parameters and fragments. Remove the extra BotSpot-specific URL policy; retain sanitized configuration notices and the shared client's token-renewal checks.
 
 ### Changed

@@ -8,53 +8,106 @@ CCXT Crypto Trading and Backtesting with LumiBot
 
 This is the guide for Lumibot's CCXT-based cryptocurrency broker integrations. CCXT is a popular library for cryptocurrency trading. If you are interested (but not required!), you can find the documentation for CCXT here: https://ccxt.readthedocs.io/en/latest/
 
-Lumibot does **not** automatically support every exchange in the CCXT ecosystem.
-The documented paths do not all have the same validation level:
+The shared ``Ccxt`` broker accepts exchange IDs provided by your installed CCXT
+version. You do not need a new LumiBot broker class or an approved-exchange list
+for each venue. Exchange products, API permissions, order features, credentials,
+regional availability and test environments still differ.
 
-.. list-table:: Documented CCXT exchange paths
+Available adapters and qualification
+------------------------------------
+
+**Available** means the adapter can be selected through generic configuration.
+**Contract tested** means LumiBot's order and balance handling passed offline
+checks. **Exchange tested** means the workflow was exercised against that
+exchange's API. These are different levels of evidence.
+
+.. list-table:: Current shared spot qualification
    :header-rows: 1
-   :widths: 22 26 27 25
+   :widths: 30 35 35
 
-   * - Exchange
-     - Credential auto-detection
-     - Exchange-specific order handling
-     - Backtesting example
-   * - Coinbase
-     - Yes
-     - Yes
-     - No dedicated example
-   * - Kraken
-     - Yes
-     - Yes
-     - Yes
-   * - KuCoin
-     - Manual configuration
-     - Yes
-     - Yes
-   * - Binance
-     - Manual configuration
-     - Yes
-     - Yes
-   * - BitMEX
-     - Manual configuration
-     - Shared CCXT path
-     - Yes
-   * - WEEX
-     - Yes
-     - Shared CCXT path
-     - No dedicated example
-   * - Bybit
-     - Manual configuration
-     - Backtesting or custom config only
-     - Yes
-   * - OKX
-     - Manual configuration
-     - Backtesting or custom config only
-     - Yes
+   * - Exchange IDs
+     - Offline qualification
+     - Authenticated exchange qualification in this change
+   * - ``phemex``
+     - Unified spot orders, balances, cancellation; native CCXT request serialization
+     - Pending testnet credentials
+   * - ``coinbase``, ``kraken``, ``kucoin``, ``okx``, ``bybit``
+     - Unified spot orders, balances and cancellation
+     - Not exercised
+   * - Other installed CCXT adapters
+     - Available through the same configuration
+     - Not qualified by this change
 
-Other CCXT exchanges may be possible with additional adapter/config work, but they should not be assumed to work until they are tested in Lumibot.
+Qualification on October 23, 2026 used CCXT 4.5.64: 105 affected offline tests
+passed and two pre-existing historical-cache tests were skipped. Coverage:
+``test_ccxt_unified_spot``, ``test_ccxt``, ``test_symbol_normalization``,
+``test_position_serialization``, ``test_position_signs``,
+``test_broker_sync_positions``, ``test_crypto_future_close_position``,
+``test_backtesting_ccxt_execution_semantics`` and ``test_ccxt_store``.
+The pre-fix shared spot regression had 17 failures. No authenticated orders
+were placed during this qualification.
 
-Each documented exchange path requires its own specific credentials or manual CCXT config.
+There is no LumiBot exchange allowlist. The following adapter IDs were available
+in CCXT 4.5.64; this is an availability list, not a claim that every product or
+operation has passed an exchange test:
+
+.. code-block:: text
+
+   aftermath, alpaca, apex, aster, backpack, bequant, bigone, binance,
+   binancecoinm, binanceus, binanceusdm, bingx, bit2c, bitbank, bitbns,
+   bitfinex, bitflyer, bitget, bithumb, bitmart, bitmex, bitopro, bitrue,
+   bitso, bitstamp, bitteam, bittrade, bitvavo, blockchaincom, blofin,
+   btcbox, btcmarkets, btcturk, bullish, bybit, bybiteu, bydfi, cex,
+   coinbase, coinbaseexchange, coinbaseinternational, coincheck, coinex,
+   coinmate, coinone, coinsph, coinspot, cryptocom, cryptomus, deepcoin,
+   delta, deribit, derive, digifinex, dydx, exmo, extended, fmfwio, foxbit,
+   gate, gateeu, gemini, grvt, hashkey, hibachi, hitbtc, hollaex, htx,
+   hyperliquid, independentreserve, indodax, kraken, krakenfutures,
+   kucoin, kucoineu, kucoinfutures, latoken, lbank, lighter, luno, mercado,
+   mexc, modetrade, mudrex, myokx, ndax, okx, okxus, onetrading, p2b,
+   pacifica, paradex, paymium, phemex, poloniex, tokocrypto, toobit, upbit,
+   weex, whitebit, woo, woofipro, xt, zaif, zebpay
+
+Inspect the installed list and each exchange's capabilities directly:
+
+.. code-block:: python
+
+   import ccxt
+
+   print(ccxt.exchanges)
+   exchange = ccxt.phemex()
+   print(exchange.has)
+   print(exchange.features)
+
+Generic configuration
+---------------------
+
+.. code-block:: python
+
+   from lumibot.brokers import Ccxt
+
+   broker = Ccxt({
+       "exchange_id": "phemex",  # Any installed CCXT exchange ID
+       "apiKey": "<testnet-api-key>",
+       "secret": "<testnet-api-secret>",
+       "sandbox": True,
+       "options": {"defaultType": "spot"},
+   })
+
+Sandbox selection happens before market discovery or other requests. Use
+``sandbox=False`` for an exchange's production API. Some venues have no sandbox,
+and a static-response sandbox does not prove matching, fills or cancellation.
+Credentials are specific to the selected environment. Some exchanges additionally
+require ``password`` or other CCXT credential fields.
+
+Spot order quantities are base-coin units. LumiBot uses CCXT's own amount and
+price precision methods, including tick-size and decimal-place modes. Native
+exchange options remain available through the CCXT config and an order's
+``custom_params``; stop orders use the unified ``triggerPrice`` parameter.
+Provider-specific trigger direction and other required parameters must match
+the exchange API. Compound-order lifecycle support, perpetual positions and
+WebSocket synchronization require separate qualification; the spot checks above
+do not establish those workflows.
 
 Exchange-Specific Guides
 ------------------------
@@ -77,17 +130,17 @@ Features
 --------
 
 * **Cryptocurrency Trading**: Spot and margin trading
-* **Selected Exchanges**: Coinbase, Kraken, and WEEX have auto-detected credential paths; KuCoin, Binance, and BitMEX have documented manual setup paths; Kraken, Binance, KuCoin, BitMEX, Bybit, and OKX have documented backtesting examples
-* **Real-time Data**: Live order and position updates
+* **Exchange Selection**: Any installed CCXT adapter through explicit configuration; existing credential auto-detection remains available
+* **Market Data**: REST prices and historical candles; see qualification above for stream coverage
 * **Order Types**: Market, limit, stop orders
 * **Auto-Detection**: Automatically connects when environment variables are set
 
 Prerequisites
 -------------
 
-1. **Account**: Create an account with a documented cryptocurrency exchange
+1. **Account**: Use an eligible account or the exchange's separate testnet account
 2. **API Credentials**: Generate API credentials from your exchange's website
-3. **Environment Variables**: Set your broker's API credentials
+3. **Configuration**: Supply CCXT credentials explicitly, or use an existing credential auto-detection path
 
 .. note::
    **Easy Setup with .env File**

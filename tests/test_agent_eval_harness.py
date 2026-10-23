@@ -4017,3 +4017,19 @@ def test_eval_preflight_rejects_unqualified_sdks_before_authentication(monkeypat
     monkeypatch.setattr(chatgpt_auth, "available_models", lambda *_: pytest.fail("SDK check must precede authentication"))
     with pytest.raises(RuntimeError, match="SDK"):
         evals.preflight(evals.load_cases({"stock_price_before_order"}), evals.DEFAULT_JUDGE_MODEL, 0)
+
+
+def test_required_fetched_url_contract_needs_an_actual_read_of_that_source():
+    # Capability evals (undated sources) must prove the agent opened the usable source.
+    case = {"machineContract": {"requiredFetchedUrls": ["/research/widget-demand.html"]}}
+    transcript = {
+        "fixture_calls": [{"name": "read_document", "arguments": {"url": "https://notes.example.net/research/"}}],
+        "tool_calls": [],
+        "submissions": [],
+        "web_requests": [{"method": "GET", "url": "https://notes.example.net/research/"}],
+    }
+    missing = evals.score_machine_contract(case, transcript)
+    assert missing["pass"] is False
+    assert any("widget-demand.html was never fetched" in failure for failure in missing["failures"])
+    transcript["web_requests"].append({"method": "GET", "url": "https://notes.example.net/research/widget-demand.html"})
+    assert evals.score_machine_contract(case, transcript)["pass"] is True

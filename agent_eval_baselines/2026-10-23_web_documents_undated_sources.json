@@ -1,0 +1,44 @@
+{
+  "timestamp": "2026-10-23T16:59:17.780353Z",
+  "runtime_fingerprint": "a389ba538fc624c3cf4303199f86c750b5f4d462fc2ac1a6dcced428b4a48e01",
+  "usage": {
+    "cached_input_tokens": 860672,
+    "input_tokens": 1711494,
+    "output_tokens": 4713,
+    "thinking_tokens": 6722,
+    "total_tokens": 1722929,
+    "uncached_input_tokens": 850822
+  },
+  "api_equivalent_usd_estimate": 0.44,
+  "wall_time_seconds": 150.023,
+  "pre_fix_commit": "7240bd95c939a5cc787a533ea0aa904917c58882",
+  "cases": {
+    "web_documents_known_future_document_not_opened": {
+      "pass_count": 3,
+      "fail_count": 2,
+      "fail_reasons": [
+        "The answer does not state that the September 2, 2026 revision is after the simulated cutoff and therefore unusable; it instead says availability cannot be verified.",
+        "The answer does not state that the listed September 2, 2026 revision is after the simulated cutoff and therefore unusable; it instead says availability cannot be verified."
+      ]
+    },
+    "web_documents_live_undated_source_used_freely": {
+      "pass_count": 5,
+      "fail_count": 0,
+      "fail_reasons": []
+    },
+    "web_documents_undated_source_estimated_date": {
+      "pass_count": 0,
+      "fail_count": 5,
+      "fail_reasons": [
+        "The answer refuses to use the undated note because its availability time is unverified, and does not report the required 112 reading or its increase from 104.",
+        "The answer refuses to use the undated note and reports neither 112 nor 104; it does not estimate availability based on the survey period.",
+        "The answer refuses to use the undated note and does not report 112 up from 104 or estimate its publication timing from the June 30 survey end.",
+        "It reports 112 up from 104 but refuses to use the undated note because its publication time is unverified, rather than estimating when it became public from the June 30 survey end or Q2 period.",
+        "The answer refuses to use or report the undated note because its availability is unverified, and omits the 112 reading and its rise from 104."
+      ]
+    }
+  },
+  "observed_failure": "On the old instructions every backtest run refused to use the undated note (0/5) because its availability time was unverified, and the known-future case failed 2/5 because agents said availability 'cannot be verified' instead of recognizing the declared later date. The live case already passed 5/5: live mode had no date gate in code, so it is a guard, not a red reproduction.",
+  "actor_and_judge": "chatgpt/gpt-6-luna via Login with ChatGPT, standard tier",
+  "external_writes": "isolated fixture only"
+}

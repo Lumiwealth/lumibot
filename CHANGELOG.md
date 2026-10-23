@@ -1,6 +1,6 @@
 # Changelog
 
-## 4.6.26 - Unreleased
+## 4.6.26 - 2026-10-23
 
 ### Fixed
 - Shared history cache: Schwab, Tradier, IBKR and CCXT history return the broker's own bars again when a bar is internally inconsistent (Tradier SPY 2024-12-19 has its close below its low). 4.6.25 rejected the whole answer, so Tradier charts came back empty on Dev. Only Alpaca keeps its existing strict OHLCV check.

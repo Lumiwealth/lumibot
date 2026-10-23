@@ -220,3 +220,27 @@ def test_async_pro_client_is_handled():
     gate = ccxt.pro.gate()
     apply_partner_config(gate)
     assert "X-Gate-Channel-Id" not in gate.headers
+
+
+def test_real_okx_order_request_built_by_lumibot_carries_no_ccxt_id():
+    """End to end through CCXT's own create_order: only the network call is faked."""
+    from lumibot.data_sources import CcxtData
+
+    data = CcxtData({"exchange_id": "okx", **CREDS, "sandbox": False})
+    data.api.set_markets([{
+        "id": "BTC-USDT", "symbol": "BTC/USDT", "base": "BTC", "quote": "USDT", "baseId": "BTC", "quoteId": "USDT",
+        "type": "spot", "spot": True, "swap": False, "future": False, "option": False, "contract": False,
+        "linear": None, "inverse": None, "settle": None, "active": True,
+        "precision": {"amount": 0.0001, "price": 0.1}, "limits": {"amount": {"min": 0.0001}, "price": {}, "cost": {}},
+        "info": {"instType": "SPOT"}}])
+    sent = {}
+
+    def fetch(url, method="GET", headers=None, body=None):
+        sent["body"] = body
+        return {"code": "0", "data": [{"ordId": "1", "clOrdId": "x", "sCode": "0"}]}
+
+    data.api.fetch = fetch
+    data.api.create_order("BTC/USDT", "limit", "buy", 0.001, 100)
+    order = json.loads(sent["body"])[0]
+    assert "6b9ad766b55dBCDE" not in sent["body"]
+    assert order["clOrdId"].startswith(NEUTRAL_PREFIX) and order["tag"] == NEUTRAL_PREFIX

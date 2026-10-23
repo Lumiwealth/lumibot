@@ -25,7 +25,7 @@ def isolated(tmp_path, monkeypatch):
     monkeypatch.setattr(parquet_series_cache, "get_backtest_cache", lambda: BacktestCacheManager(None))
     for name in ("LUMIBOT_SHARED_BARS", "LUMIBOT_SHARED_BARS_SCOPE", "LUMIBOT_SHARED_BARS_SETTLE_MINUTES"):
         monkeypatch.delenv(name, raising=False)
-    sbc._Store._memory.clear()
+    sbc._reset_process_memory()
     yield tmp_path
 
 
@@ -98,13 +98,18 @@ def test_empty_answer_is_never_remembered():
     assert len(calls) == 2
 
 
-def test_invalid_provider_bars_raise_and_write_nothing(isolated):
+def test_invalid_provider_bars_raise_and_write_nothing_for_strict_adapters(isolated):
     fetch, _, frame = provider()
     bad = frame.copy()
     bad.loc[pd.Timestamp("2026-03-02T10:05Z"), "high"] = 1.0
     with pytest.raises(InvalidBars):
         sbc.read_bars(
-            series(), "2026-03-02", "2026-03-03", lambda a, b: bad[(bad.index >= a) & (bad.index < b)], now=NOW
+            series(),
+            "2026-03-02",
+            "2026-03-03",
+            lambda a, b: bad[(bad.index >= a) & (bad.index < b)],
+            now=NOW,
+            strict_ohlcv=True,
         )
     assert not list(isolated.rglob("*.parquet"))
 
@@ -268,7 +273,7 @@ def test_second_process_reads_remote_without_any_provider_call(monkeypatch, isol
     # A new process: empty local folder, empty memory, same S3.
     monkeypatch.setattr(constants, "LUMIBOT_CACHE_FOLDER", str(isolated / "other-process"))
     monkeypatch.setattr(backtest_cache, "LUMIBOT_CACHE_FOLDER", str(isolated / "other-process"))
-    sbc._Store._memory.clear()
+    sbc._reset_process_memory()
     second = sbc.read_bars(series(), "2026-03-02", "2026-03-04", fetch, now=NOW)
     assert len(calls) == 1
     pd.testing.assert_frame_equal(first, second)
@@ -285,12 +290,12 @@ def test_concurrent_remote_writers_keep_each_others_coverage(monkeypatch, isolat
     for name, (a, b) in {"p1": ("2026-03-02", "2026-03-03"), "p2": ("2026-03-05", "2026-03-06")}.items():
         monkeypatch.setattr(constants, "LUMIBOT_CACHE_FOLDER", str(isolated / name))
         monkeypatch.setattr(backtest_cache, "LUMIBOT_CACHE_FOLDER", str(isolated / name))
-        sbc._Store._memory.clear()
+        sbc._reset_process_memory()
         sbc.read_bars(series(), a, b, fetch, now=NOW)
         sbc.flush_shared_bar_writes(10)
     monkeypatch.setattr(constants, "LUMIBOT_CACHE_FOLDER", str(isolated / "p3"))
     monkeypatch.setattr(backtest_cache, "LUMIBOT_CACHE_FOLDER", str(isolated / "p3"))
-    sbc._Store._memory.clear()
+    sbc._reset_process_memory()
     reads = len(calls)
     sbc.read_bars(series(), "2026-03-02", "2026-03-03", fetch, now=NOW)
     sbc.read_bars(series(), "2026-03-05", "2026-03-06", fetch, now=NOW)
@@ -309,7 +314,7 @@ def test_remote_partitions_load_in_parallel(monkeypatch, isolated):
     sbc.flush_shared_bar_writes(10)
     monkeypatch.setattr(constants, "LUMIBOT_CACHE_FOLDER", str(isolated / "fresh"))
     monkeypatch.setattr(backtest_cache, "LUMIBOT_CACHE_FOLDER", str(isolated / "fresh"))
-    sbc._Store._memory.clear()
+    sbc._reset_process_memory()
     original_get = remote.get_object
 
     def slow_get(Bucket, Key):  # noqa: N803
@@ -323,3 +328,55 @@ def test_remote_partitions_load_in_parallel(monkeypatch, isolated):
     assert result.attrs["historyCache"]["hit"] is True
     assert result.attrs["historyCache"]["partitions"] >= 14
     assert elapsed < 1.5, f"{elapsed:.2f}s: partitions were fetched one after another"
+
+
+def test_provider_quirks_pass_through_unchanged_and_are_cached():
+    """Real broker rows the old path returned (Tradier SPY 2024-12-19: close below low) must still return.
+
+    Only adapters that opt into ``strict_ohlcv`` (Alpaca, its existing contract) reject such rows.
+    """
+    fetch, calls, frame = provider(freq="1D")
+    quirky = frame.copy()
+    day = pd.Timestamp("2026-02-10", tz="UTC")
+    quirky.loc[day, ["open", "high", "low", "close"]] = [591.36, 593.0, 585.85, 584.134452]
+
+    def read(start, stop):
+        calls.append((start, stop))
+        return quirky[(quirky.index >= start) & (quirky.index < stop)]
+
+    item = series(timestep="1day")
+    first = sbc.read_bars(item, "2026-02-01", "2026-02-28", read, now=NOW)
+    second = sbc.read_bars(item, "2026-02-01", "2026-02-28", read, now=NOW)
+    assert first.loc[day, "close"] == 584.134452 and first.loc[day, "low"] == 585.85
+    pd.testing.assert_frame_equal(first, second)
+    assert len(calls) == 1
+    with pytest.raises(InvalidBars):
+        sbc.read_bars(series(timestep="1day", scope="strict"), "2026-02-01", "2026-02-28", read, now=NOW,
+                      strict_ohlcv=True)
+
+
+def test_slow_local_write_never_blocks_the_caller(monkeypatch):
+    """Workers with a remote store (one CPU on Lambda) must not wait on the Parquet write either."""
+    remote_manager(monkeypatch, SlowRemote(delay=0))
+    original = sbc._encode_partition
+
+    def slow(part):
+        time.sleep(1.5)
+        return original(part)
+
+    monkeypatch.setattr(sbc, "_encode_partition", slow)
+    fetch, calls, _ = provider()
+    started = time.perf_counter()
+    result = sbc.read_bars(series(), "2026-03-02", "2026-03-03", fetch, now=NOW)
+    assert len(result) > 0
+    assert time.perf_counter() - started < 1.0, "caller waited for the local partition write"
+    assert sbc.flush_shared_bar_writes(10)["flushed"]
+    # Once written, the same process and a fresh process both reuse it.
+    again = sbc.read_bars(series(), "2026-03-02", "2026-03-03", fetch, now=NOW)
+    pd.testing.assert_frame_equal(result, again)
+    assert len(calls) == 1
+
+
+def test_prewarm_is_safe_to_call_repeatedly():
+    sbc.prewarm()
+    sbc.prewarm()

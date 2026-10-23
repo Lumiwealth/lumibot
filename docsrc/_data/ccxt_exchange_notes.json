@@ -1,0 +1,141 @@
+{
+ "_about": "Hand-checked, per-exchange facts for the CCXT exchange pages. Every entry cites official exchange pages (or a named practitioner source) with the date it was read. Facts that come from CCXT metadata live in ccxt_exchange_facts.json instead. Do not add region or country labels (Rob, 2026-10-23). No 'tested by us' or 'community supported' labels (Rob, 2026-10-23).",
+ "exchanges": {
+  "phemex": {
+   "summary": "Phemex is a crypto exchange founded in 2019 that offers spot trading and perpetual futures. Phemex says more than 10 million traders use it.",
+   "signup_url": "https://phemex.com/register",
+   "signup_steps": [
+    "Create a Phemex account with an email address (or another sign-in method Phemex offers).",
+    "Finish identity verification (KYC) and turn on two-factor authentication.",
+    "For practice, also create a separate account on the Phemex testnet at https://testnet.phemex.com. Testnet keys only work on the testnet."
+   ],
+   "api_key_steps": [
+    "Log in and open API Management from your account menu (https://phemex.com/account/api-management).",
+    "Click Create New API Key.",
+    "Choose Default API entry. The High Rate Limit entry is meant for heavy, professional use.",
+    "Enter a name and the IP address of the machine that will run your bot.",
+    "Pick the permission level, click Confirm and enter the email verification code.",
+    "Copy the key and secret right away. Phemex shows the key only once."
+   ],
+   "permissions": "Use read and trade access. Leave withdrawals off. A bot never needs to move money out of your account.",
+   "testnet_note": "Phemex runs a full testnet at https://testnet.phemex.com with its own accounts and keys. Set ``PHEMEX_SANDBOX=true`` (or ``\"sandbox\": True`` in a code config) to send LumiBot requests there.",
+   "extra_notes": [
+    "Phemex perpetual symbols use the full CCXT form, for example ``BTC/USDT:USDT`` (settled in USDT) or ``BTC/USD:BTC`` (inverse, settled in BTC). Spot is plain ``BTC/USDT``.",
+    "Phemex also offers sub-accounts, and you can share one API key with sub-accounts from API Management. A separate sub-account per bot keeps bot trades apart from manual trades."
+   ],
+   "sources": [
+    [
+     "Phemex Help Center: How do I create an API key?",
+     "https://phemex.zendesk.com/hc/en-us/articles/27626210828697-How-do-I-create-an-API-Key",
+     "2026-10-23"
+    ],
+    [
+     "Phemex API home and FAQ",
+     "https://phemex.com/home-api",
+     "2026-10-23"
+    ],
+    [
+     "Phemex Help Center: share API keys with sub-accounts",
+     "https://phemex.com/help-center/how-to-share-api-keys-from-Main-to-Sub",
+     "2026-10-23"
+    ],
+    [
+     "Phemex Help Center: identity verification",
+     "https://phemex.com/help-center/faq-on-kyc",
+     "2026-10-23"
+    ]
+   ]
+  },
+  "bybit": {
+   "summary": "Bybit is a large crypto exchange for spot trading, perpetual and dated futures, and options. It has one of the most complete APIs in CCXT and is a CCXT certified exchange.",
+   "signup_url": "https://www.bybit.com/register",
+   "signup_steps": [
+    "Create a Bybit account on the website and finish identity verification.",
+    "Wait if needed: Bybit may block API key creation for the first 48 hours after you register.",
+    "For practice, create a separate account on the Bybit testnet at https://testnet.bybit.com. Bybit also has a demo trading mode with its own keys; that is a different system from the testnet."
+   ],
+   "api_key_steps": [
+    "Open API Management on the Bybit website (https://www.bybit.com/app/user/api-management). Keys cannot be made in the app.",
+    "Click Create New Key and pick System-generated API Keys.",
+    "Choose API Transaction and give the key a name.",
+    "Set the permissions (see below) and add your bot's IP address.",
+    "Enter your two-factor code, then copy the key and secret and store them safely."
+   ],
+   "permissions": "Choose Read-Write. Turn on the trade permissions for what you trade: spot trading, or contract orders and positions for perpetuals. Leave withdrawals off. Freqtrade's docs list Read-Write, Contract Orders and Contract Positions for futures bots.",
+   "testnet_note": "Bybit's testnet lives at https://testnet.bybit.com and its API at https://api-testnet.bybit.com. Set ``BYBIT_SANDBOX=true`` (or ``\"sandbox\": True`` in a code config) to use it. Bybit's demo trading mode is a different system with its own keys; the sandbox setting points at the testnet, not demo trading.",
+   "extra_notes": [
+    "Bybit's Unified Trading Account keeps spot and derivatives in one wallet. Traders who connect bots often say to make sure it is turned on before you create keys.",
+    "CCXT has a separate exchange id, ``bybiteu``, for Bybit's EU site. It uses the api.bybit.eu API. Use the id that matches the site where you opened your account.",
+    "Run one bot per sub-account. Freqtrade warns that manual trades on the same account can confuse a bot."
+   ],
+   "backtesting": true,
+   "sources": [
+    [
+     "Bybit Help Center: How to create your API key",
+     "https://www.bybit.com/en/help-center/article/How-to-create-your-API-key",
+     "2026-10-23"
+    ],
+    [
+     "Bybit V5 API integration guide",
+     "https://bybit-exchange.github.io/docs/v5/guide",
+     "2026-10-23"
+    ],
+    [
+     "Bybit Learn: how to create and set up a Bybit API key",
+     "https://www.bybit.com/en/learn/bybit-guide/how-to-create-a-bybit-api-key",
+     "2026-10-23"
+    ],
+    [
+     "Freqtrade exchange notes: Bybit",
+     "https://docs.freqtrade.io/en/stable/exchanges/",
+     "2026-10-23"
+    ],
+    [
+     "Practitioner video: automating TradingView alerts to Bybit (API key and Unified Trading steps)",
+     "https://www.youtube.com/watch?v=x7QSRhi_db0",
+     "2026-10-23"
+    ]
+   ]
+  },
+  "bitvavo": {
+   "summary": "Bitvavo is a crypto exchange based in the Netherlands. It offers spot trading with prices in euros.",
+   "signup_url": "https://bitvavo.com/",
+   "signup_steps": [
+    "Create a Bitvavo account and finish identity verification.",
+    "Turn on two-factor authentication. Bitvavo will not let you create API keys without it.",
+    "Bitvavo has no testnet, so plan to test with a very small amount."
+   ],
+   "api_key_steps": [
+    "Log in on the website (keys cannot be made in the app), click your name and choose Settings.",
+    "Open the API tab and click Add new API key.",
+    "Enter a name and the IP address of your bot. Separate more than one IP with commas.",
+    "Choose the permissions (see below).",
+    "Enter your two-factor code and click Confirm. Save the key and secret right away; you cannot see the secret again."
+   ],
+   "permissions": "Turn on View access and Trade digital assets. Bitvavo needs both to read your orders and trades. Leave Withdraw digital assets off: Bitvavo warns that API withdrawals skip two-factor and email checks.",
+   "testnet_note": "Bitvavo has no sandbox, and CCXT lists no test URL for it, so test with a very small amount. With environment variables, leave ``BITVAVO_SANDBOX`` unset. In a code config, always set ``\"sandbox\": False``: a code config without it turns sandbox mode on, and CCXT then fails because Bitvavo has no test site.",
+   "quote_symbol": "EUR",
+   "extra_notes": [
+    "Bitvavo markets are priced in euros, so use ``EUR`` as your quote asset (for example ``BTC/EUR``).",
+    "Bitvavo supports sub-accounts. An API key can be given access to sub-accounts and internal transfers, but a trading bot does not need those permissions."
+   ],
+   "sources": [
+    [
+     "Bitvavo Help Center: What are API keys and how do I create them?",
+     "https://support.bitvavo.com/hc/en-us/articles/4405059841809-What-are-API-keys-and-how-do-I-create-them",
+     "2026-10-23"
+    ],
+    [
+     "Bitvavo API docs: get started",
+     "https://docs.bitvavo.com/docs/get-started/",
+     "2026-10-23"
+    ],
+    [
+     "Bitvavo REST API: permissions",
+     "https://docs.bitvavo.com/docs/rest-api/introduction/",
+     "2026-10-23"
+    ]
+   ]
+  }
+ }
+}

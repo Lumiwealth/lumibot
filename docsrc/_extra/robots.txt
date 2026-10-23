@@ -1,41 +1,88 @@
 # Lumibot Documentation - robots.txt
-# AI crawlers welcome - this library documentation is meant to be indexed
+# AI crawlers welcome - this library documentation is meant to be indexed.
+# The wildcard group already allows everyone; the named groups below make the
+# intent explicit for the search and answer engines AI tools rely on.
 
 User-agent: *
 Allow: /
 
-# AI-specific crawlers (explicitly allowed)
-User-agent: OAI-SearchBot
+# Classic search indexes (Bing feeds Copilot, DuckDuckGo and parts of ChatGPT;
+# Google feeds Gemini and AI Overviews; Brave, which powers Claude search,
+# only crawls what Googlebot may crawl)
+User-agent: Googlebot
 Allow: /
 
-User-agent: GPTBot
+User-agent: Bingbot
+Allow: /
+
+User-agent: DuckDuckBot
+Allow: /
+
+User-agent: Applebot
+Allow: /
+
+User-agent: Amazonbot
+Allow: /
+
+# OpenAI (ChatGPT search, user fetches, training)
+User-agent: OAI-SearchBot
 Allow: /
 
 User-agent: ChatGPT-User
 Allow: /
 
-User-agent: ClaudeBot
+User-agent: GPTBot
+Allow: /
+
+# Anthropic (Claude search, user fetches, training)
+User-agent: Claude-SearchBot
 Allow: /
 
 User-agent: Claude-User
 Allow: /
 
-User-agent: Claude-SearchBot
+User-agent: ClaudeBot
 Allow: /
 
 User-agent: Claude-Web
 Allow: /
 
-User-agent: CCBot
+User-agent: anthropic-ai
+Allow: /
+
+# Perplexity
+User-agent: PerplexityBot
+Allow: /
+
+User-agent: Perplexity-User
+Allow: /
+
+# Other AI answer engines and assistants
+User-agent: DuckAssistBot
+Allow: /
+
+User-agent: Meta-WebIndexer
+Allow: /
+
+User-agent: meta-externalagent
+Allow: /
+
+User-agent: MistralAI-User
+Allow: /
+
+User-agent: MistralAI-Index
+Allow: /
+
+User-agent: YouBot
+Allow: /
+
+User-agent: Applebot-Extended
 Allow: /
 
 User-agent: Google-Extended
 Allow: /
 
-User-agent: anthropic-ai
-Allow: /
-
-User-agent: PerplexityBot
+User-agent: CCBot
 Allow: /
 
 User-agent: Bytespider

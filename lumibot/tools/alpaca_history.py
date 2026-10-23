@@ -103,7 +103,8 @@ def fetch_alpaca_bars(client, request, method, *, now=None, refresh=False):
 
     try:
         results = shared_bar_cache.read_bars_many(
-            list(series.values()), request.start, request.end, fetch, now=now, refresh=refresh
+            list(series.values()), request.start, request.end, fetch, now=now, refresh=refresh,
+            strict_ohlcv=True,  # Alpaca's existing contract: invalid provider OHLCV is an explicit error
         )
     except InvalidBars as exc:
         raise InvalidBars("Alpaca returned invalid OHLCV bars; shared cache was not written") from exc

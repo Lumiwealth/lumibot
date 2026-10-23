@@ -484,6 +484,10 @@ TRADING_BROKER
   - ``ib``, ``interactivebrokers``, ``ibrest``, ``interactivebrokersrest``
   - ``tradovate``, ``schwab``, ``bitunix``, ``polymarket``, ``polymarket_clob``
   - ``projectx`` / ``projectx-topstepx`` for TopstepX futures (via ProjectX)
+  - Any other CCXT exchange ID (for example ``okx``, ``binance``, ``hyperliquid``), with credentials in
+    ``<EXCHANGE>_API_KEY``, ``<EXCHANGE>_API_SECRET``, ``<EXCHANGE>_API_PASSPHRASE``, ``<EXCHANGE>_UID``,
+    ``<EXCHANGE>_PRIVATE_KEY``, ``<EXCHANGE>_WALLET_ADDRESS`` (only the fields that exchange requires) and
+    optional ``<EXCHANGE>_SANDBOX`` / ``<EXCHANGE>_MARGIN``. See the CCXT broker guide.
 - Note: If not set, broker is auto-detected based on available credentials.
 
 DATA_SOURCE
@@ -493,6 +497,7 @@ DATA_SOURCE
 - Values (case-insensitive):
   - ``alpaca``, ``tradier``, ``polygon``, ``yahoo``, ``thetadata``, ``databento``
   - ``ccxt``, ``coinbase``, ``kraken``, ``weex``, ``schwab``, ``bitunix``, ``projectx``, ``polymarket``, ``polymarket_clob``
+  - Any other CCXT exchange ID (public market data needs no credentials on most exchanges)
 - Note: If not set, uses broker's default data source.
 
 Alpaca broker

@@ -454,6 +454,48 @@ WEEX_CONFIG = {
     "sandbox": False,  # WEEX has no public API sandbox
 }
 
+# Any other CCXT exchange: set TRADING_BROKER (or DATA_SOURCE) to its CCXT id,
+# for example "okx", "binance" or "hyperliquid", and provide the credentials the
+# exchange requires as <EXCHANGE>_API_KEY, <EXCHANGE>_API_SECRET,
+# <EXCHANGE>_API_PASSPHRASE, <EXCHANGE>_WALLET_ADDRESS, <EXCHANGE>_PRIVATE_KEY and
+# so on. The required fields come from CCXT itself; see
+# lumibot/tools/ccxt_exchange_catalog.py. Native LumiBot broker names keep
+# priority; "ccxt:<id>" reaches a CCXT exchange whose id collides with one.
+def _is_generic_ccxt_name(name) -> bool:
+    from .tools.ccxt_exchange_catalog import is_generic_ccxt_broker_name
+
+    return is_generic_ccxt_broker_name(name)
+
+
+def generic_ccxt_config(name, environ=None) -> dict:
+    """Return the environment-built CCXT config for any CCXT exchange id."""
+    from .tools.ccxt_exchange_catalog import build_ccxt_config_from_env, resolve_ccxt_exchange_id
+
+    exchange_id = resolve_ccxt_exchange_id(name)
+    if exchange_id is None:
+        raise ValueError(f"'{name}' is not an exchange id in the installed CCXT package")
+    return build_ccxt_config_from_env(exchange_id, environ)
+
+
+def _generic_ccxt_broker(name, connect_stream=True):
+    from .tools.ccxt_exchange_catalog import validate_ccxt_config
+
+    config = generic_ccxt_config(name)
+    validate_ccxt_config(config["exchange_id"], config)
+    return _broker_class("Ccxt")(config, connect_stream=connect_stream)
+
+
+def _generic_ccxt_data_source(name):
+    """Market data needs no credentials on most exchanges; pass any that are set."""
+    from .data_sources import CcxtData
+    from .tools.ccxt_exchange_catalog import exchange_capabilities
+
+    config = generic_ccxt_config(name)
+    if config.get("sandbox") and not exchange_capabilities(config["exchange_id"])["sandbox"]:
+        raise ValueError(f"CCXT exchange '{config['exchange_id']}' has no testnet/sandbox in CCXT")
+    return CcxtData(config)
+
+
 # Interactive Brokers Configuration
 INTERACTIVE_BROKERS_CONFIG = {
     "SOCKET_PORT": int(os.environ.get("INTERACTIVE_BROKERS_PORT")) if os.environ.get("INTERACTIVE_BROKERS_PORT") else None,
@@ -713,6 +755,8 @@ def _build_default_live_credentials():
             except Exception as e:
                 colored_message = _colored(f"Failed to initialize ProjectX broker {trading_broker_name}: {e}", "red")
                 logger.error(colored_message)
+        elif _is_generic_ccxt_name(trading_broker_name):
+            broker = _generic_ccxt_broker(trading_broker_name, connect_stream=connect_stream)
         else:
             colored_message = _colored(f"Unknown trading broker name: {trading_broker_name}. Please check your environment variables.", "red")
             logger.error(colored_message)
@@ -858,6 +902,8 @@ def _build_default_live_credentials():
                     data_source = ProjectXData(config)
                     if broker and broker.name.lower().startswith("projectx") and hasattr(broker, "client"):
                         data_source.client = broker.client
+            elif _is_generic_ccxt_name(data_source_name):
+                data_source = _generic_ccxt_data_source(data_source_name)
             else:
                 colored_message = _colored(f"Unknown data source name: {data_source_name}. Please check your environment variables.", "red")
                 logger.error(colored_message)
@@ -1001,6 +1047,8 @@ elif not is_backtesting or is_backtesting.lower() == "false":
             except Exception as e:
                 colored_message = _colored(f"Failed to initialize ProjectX broker {trading_broker_name}: {e}", "red")
                 logger.error(colored_message)
+        elif _is_generic_ccxt_name(trading_broker_name):
+            broker = _generic_ccxt_broker(trading_broker_name, connect_stream=connect_stream)
         else:
             colored_message = _colored(f"Unknown trading broker name: {trading_broker_name}. Please check your environment variables.", "red")
             logger.error(colored_message)
@@ -1165,6 +1213,8 @@ elif not is_backtesting or is_backtesting.lower() == "false":
                     # If broker is also ProjectX, share the same client instance
                     if broker and broker.name.lower().startswith("projectx") and hasattr(broker, "client"):
                         data_source.client = broker.client
+            elif _is_generic_ccxt_name(data_source_name):
+                data_source = _generic_ccxt_data_source(data_source_name)
             else:
                 colored_message = _colored(f"Unknown data source name: {data_source_name}. Please check your environment variables.", "red")
                 logger.error(colored_message)

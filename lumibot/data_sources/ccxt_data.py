@@ -34,6 +34,7 @@ class CcxtData(DataSource):
         self.max_workers = min(max_workers, 200)
         self._markets_loaded = False
         self._markets_lock = Lock()
+        self._stream = None
 
         # When requesting data for assets for example,
         # if there is too many assets, the best thing to do would
@@ -76,6 +77,27 @@ class CcxtData(DataSource):
                 )
                 raise
 
+    def get_market(self, asset, quote=None):
+        """Resolve a spot or contract instrument without losing settlement."""
+        from lumibot.tools.symbol_normalization import build_ccxt_crypto_symbol, resolve_ccxt_market_symbol
+
+        self._ensure_markets_loaded()
+        raw = getattr(asset, "symbol", asset)
+        symbol = build_ccxt_crypto_symbol(raw, getattr(quote, "symbol", quote))
+        resolved = resolve_ccxt_market_symbol(self.api.markets, symbol,
+                                              exchange_id=self.config.get("exchange_id"))
+        contract = getattr(asset, "asset_type", None) == "crypto_future"
+        if resolved and (not contract or self.api.markets[resolved].get("contract")):
+            return self.api.markets[resolved]
+        if contract and ":" not in symbol:
+            matches = [market for market in self.api.markets.values()
+                       if market.get("contract") and market["symbol"].split(":", 1)[0] == symbol]
+            if len(matches) == 1:
+                return matches[0]
+            if len(matches) > 1:
+                raise ValueError(f"Multiple settlement contracts for {symbol}; use the full CCXT symbol")
+        raise ValueError(f"No CCXT market for {symbol}")
+
     def _pull_source_symbol_bars(
         self, asset, length, timestep=MIN_TIMESTEP, timeshift=None, quote=None, exchange=None, include_after_hours=True
     ):
@@ -100,11 +122,9 @@ class CcxtData(DataSource):
         result = {}
         for asset in assets:
             if isinstance(asset, tuple):
-                symbol = f"{asset[0].symbol.upper()}/{asset[1].symbol.upper()}"
-            elif quote is not None:
-                symbol = f"{asset.symbol.upper()}/{quote.symbol.upper()}"
+                symbol = self.get_market(asset[0], asset[1])["symbol"]
             else:
-                symbol = asset
+                symbol = self.get_market(asset, quote)["symbol"]
             data = self.get_barset_from_api(self.api, symbol, parsed_timestep, **kwargs)
             result[asset] = data
 
@@ -266,12 +286,52 @@ class CcxtData(DataSource):
         return bars
 
     def get_last_price(self, asset, quote=None, exchange=None, **kwargs) -> Union[float, Decimal, None]:
-        if quote is not None:
-            symbol = f"{asset.symbol}/{quote.symbol}"
-        else:
-            symbol = asset.symbol
-
-        ticker = self.api.fetch_ticker(symbol)
+        symbol = self.get_market(asset, quote)["symbol"]
+        ticker = self._live_read("watch_ticker", symbol, lambda: self.api.fetch_ticker(symbol))
         price = ticker["last"]
 
         return price
+
+    def _live_read(self, method, symbol, rest, **kwargs):
+        if self._stream is not None:
+            import ccxt
+
+            try:
+                return self._stream.snapshot(method, symbol=symbol, **kwargs)
+            except (TimeoutError, ccxt.NetworkError, ccxt.NotSupported):
+                logger.debug("CCXT %s unavailable for %s; reading REST", method, symbol)
+        return rest()
+
+    def get_order_book(self, asset, quote=None, limit=None):
+        symbol = self.get_market(asset, quote)["symbol"]
+        kwargs = {"limit": limit} if limit is not None else {}
+        return self._live_read("watch_order_book", symbol, lambda: self.api.fetch_order_book(symbol, **kwargs), **kwargs)
+
+    def get_trades(self, asset, quote=None, since=None, limit=None):
+        symbol = self.get_market(asset, quote)["symbol"]
+        kwargs = {key: value for key, value in (("since", since), ("limit", limit)) if value is not None}
+        return self._live_read("watch_trades", symbol, lambda: self.api.fetch_trades(symbol, **kwargs), **kwargs)
+
+    def get_live_candles(self, asset, quote=None, timeframe="1m", limit=None):
+        symbol = self.get_market(asset, quote)["symbol"]
+        kwargs = {"timeframe": timeframe}
+        if limit is not None:
+            kwargs["limit"] = limit
+        return self._live_read("watch_ohlcv", symbol, lambda: self.api.fetch_ohlcv(symbol, **kwargs), **kwargs)
+
+    def get_quote(self, asset, quote=None, exchange=None):
+        from lumibot.entities import Quote
+
+        symbol = self.get_market(asset, quote)["symbol"]
+        ticker = self._live_read("watch_ticker", symbol, lambda: self.api.fetch_ticker(symbol))
+        book = self.get_order_book(asset, quote)
+        bids, asks = book.get("bids") or [], book.get("asks") or []
+        timestamp = ticker.get("timestamp")
+        source_time = datetime.datetime.fromtimestamp(timestamp / 1000, datetime.timezone.utc) if timestamp is not None else None
+        book_timestamp = book.get("timestamp")
+        book_time = datetime.datetime.fromtimestamp(book_timestamp / 1000, datetime.timezone.utc) if book_timestamp is not None else None
+        return Quote(asset, price=ticker.get("last"), bid=bids[0][0] if bids else ticker.get("bid"),
+                     ask=asks[0][0] if asks else ticker.get("ask"),
+                     bid_size=bids[0][1] if bids else None, ask_size=asks[0][1] if asks else None,
+                     volume=ticker.get("baseVolume"), timestamp=source_time, quote_time=source_time,
+                     bid_time=book_time, ask_time=book_time, raw_data={"ticker": ticker, "order_book": book})

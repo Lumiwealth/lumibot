@@ -222,3 +222,15 @@ def test_reported_market_limits_are_preserved(make_broker, field, limits):
 
     assert submitted.status == "error"
     broker.api.create_order.assert_not_called()
+
+
+def test_cancel_open_orders_respects_the_supplied_owned_orders(make_broker):
+    broker = make_broker()
+    owned = order()
+    owned.status = "new"
+    broker.cancel_order = Mock()
+    broker._pull_broker_all_orders = Mock(side_effect=AssertionError("must not cancel account-wide orders"))
+
+    broker.cancel_open_orders("test-strategy", orders=[owned])
+
+    broker.cancel_order.assert_called_once_with(owned)

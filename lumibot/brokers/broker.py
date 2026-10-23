@@ -3277,7 +3277,7 @@ class Broker(ABC):
         if subscriber:
             subscriber.add_event(subscriber.PARTIALLY_FILLED_ORDER, payload)
         else:
-            self.logger.error(f"Subscriber {order.strategy} not found", color="red")
+            self.logger.error(colored(f"Subscriber {order.strategy} not found", color="red"))
 
     def _on_filled_order(self, position, order, price, quantity, multiplier):
         """notify relevant subscriber/strategy about

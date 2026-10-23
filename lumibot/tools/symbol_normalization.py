@@ -177,6 +177,11 @@ def build_ccxt_crypto_symbol(
     if not isinstance(base_sym, str) or not base_sym:
         return None
 
+    # CCXT derivative symbols encode settlement (and possibly expiry) after
+    # the colon. It is part of instrument identity, never an optional alias.
+    if "/" in base_sym and ":" in base_sym:
+        return base_sym
+
     parsed_base, parsed_quote = parse_crypto_pair_symbol(base_sym)
     if not parsed_base:
         return None

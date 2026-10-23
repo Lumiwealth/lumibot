@@ -256,11 +256,13 @@ You pay Bybit's normal trading fees. CCXT, the library underneath, normally tags
 Backtesting with Bybit data
 ---------------------------
 
-``bybit`` is a documented CCXT backtesting exchange id in LumiBot:
+``bybit`` is a documented CCXT backtesting exchange id in LumiBot. Set the data source to ``ccxt``:
 
 .. code-block:: bash
 
-   export BACKTESTING_DATA_SOURCE=bybit
+   export BACKTESTING_DATA_SOURCE=ccxt
+
+Then pass ``exchange_id="bybit"`` to ``CcxtBacktesting``, as in ``lumibot/example_strategies/ccxt_backtesting_example.py``. ``bybit`` itself is not a valid ``BACKTESTING_DATA_SOURCE`` value.
 
 Backtests use historical candles through the CCXT data path. Live trading results can differ from a backtest.
 

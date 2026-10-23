@@ -203,3 +203,15 @@ def test_callout_says_free_and_never_paid_plan_required():
     readme = (ROOT / "README.md").read_text(encoding="utf-8")
     assert "paid botspot plan is required" not in readme.lower()
     assert "connect the free [BotSpot MCP]" in readme[:3000]
+
+
+def test_exchange_pages_never_use_exchange_id_as_backtesting_data_source():
+    """BACKTESTING_DATA_SOURCE only accepts ``ccxt`` for exchanges; ``bybit`` or ``bitmex`` raises an error."""
+    bad = []
+    for page in sorted(DOCSRC.glob("brokers.ccxt.*.rst")):
+        for value in re.findall(r"BACKTESTING_DATA_SOURCE=(\w+)", page.read_text(encoding="utf-8")):
+            if value != "ccxt":
+                bad.append(f"{page.name}: {value}")
+    generator = (ROOT / "scripts" / "generate_ccxt_exchange_pages.py").read_text(encoding="utf-8")
+    assert "BACKTESTING_DATA_SOURCE={fx['id']}" not in generator
+    assert not bad, bad

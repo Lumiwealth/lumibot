@@ -587,8 +587,13 @@ def render(exchange_id, facts_by_id, notes, affiliates, meta, rendered_ids=None)
 
     if nt.get("backtesting"):
         out.append(heading(f"Backtesting with {display} data", "-"))
-        out.append(f"``{fx['id']}`` is a documented CCXT backtesting exchange id in LumiBot:\n")
-        out.append(code("bash", f"export BACKTESTING_DATA_SOURCE={fx['id']}"))
+        out.append(f"``{fx['id']}`` is a documented CCXT backtesting exchange id in LumiBot. Set the data source to ``ccxt``:\n")
+        out.append(code("bash", "export BACKTESTING_DATA_SOURCE=ccxt"))
+        out.append(
+            f"Then pass ``exchange_id=\"{fx['id']}\"`` to ``CcxtBacktesting``, as in "
+            "``lumibot/example_strategies/ccxt_backtesting_example.py``. "
+            f"``{fx['id']}`` itself is not a valid ``BACKTESTING_DATA_SOURCE`` value.\n"
+        )
         out.append("Backtests use historical candles through the CCXT data path. Live trading results can differ from a backtest.\n")
 
     if nt.get("extra_notes"):

@@ -67,7 +67,9 @@ class Position:
             orders=None,
             hold=0,
             available=0,
-            avg_fill_price=None
+            avg_fill_price=None,
+            position_side=None,
+            position_id=None,
         ):
         """Creates a position.
 
@@ -79,6 +81,8 @@ class Position:
         self.symbol = self.asset.symbol
         self.orders = None
         self.avg_fill_price = avg_fill_price
+        self.position_side = str(position_side).lower() if position_side is not None else None
+        self.position_id = position_id
 
         # Quantity is the total number of shares/units owned in the position.
         # setting the quantity
@@ -264,6 +268,10 @@ class Position:
             "val": round(market_value, 2),
             "pnl": round(pnl, 2),
         }
+        if self.position_side is not None:
+            result["position_side"] = self.position_side
+        if self.position_id is not None:
+            result["position_id"] = self.position_id
 
         return result
 
@@ -293,6 +301,10 @@ class Position:
             "available": float(self.available) if self.available else None,
             "avg_fill_price": float(self.avg_fill_price) if self.avg_fill_price else None,
         }
+        if self.position_side is not None:
+            result["position_side"] = self.position_side
+        if self.position_id is not None:
+            result["position_id"] = self.position_id
 
         # Add dynamically set fields if they exist (from broker)
         if hasattr(self, 'current_price'):
@@ -340,7 +352,9 @@ class Position:
             asset=asset,
             quantity=Decimal(data["quantity"]),
             orders=[entities.Order.from_dict(order) for order in data["orders"]],
-            hold=Decimal(data["hold"]),
-            available=Decimal(data["available"]),
-            avg_fill_price=Decimal(data["avg_fill_price"]),
+            hold=Decimal(str(data["hold"])) if data.get("hold") is not None else None,
+            available=Decimal(str(data["available"])) if data.get("available") is not None else None,
+            avg_fill_price=Decimal(str(data["avg_fill_price"])) if data.get("avg_fill_price") is not None else None,
+            position_side=data.get("position_side"),
+            position_id=data.get("position_id"),
         )

@@ -1075,7 +1075,7 @@ class Broker(ABC):
                 position_lumi = [
                     pos_lumi
                     for pos_lumi in self._filled_positions.get_list()
-                    if pos_lumi.asset == position.asset
+                    if self._same_position(pos_lumi, position)
                 ]
                 position_lumi = position_lumi[0] if len(position_lumi) > 0 else None
 
@@ -1093,7 +1093,9 @@ class Broker(ABC):
                     # strategy with subsequent updates.
                     if strategy:
                         strategy_name = strategy.name if not isinstance(strategy, str) else strategy
-                        if position_lumi.strategy != strategy_name:
+                        if position_lumi.strategy != strategy_name and (
+                            not position_lumi.strategy or getattr(position_lumi, "position_side", None) is None
+                        ):
                             position_lumi.strategy = strategy_name
                             self._filled_positions.revision += 1
                 else:
@@ -1109,7 +1111,7 @@ class Broker(ABC):
             for position in list(self._filled_positions.get_list()):
                 found = False
                 for position_broker in positions_broker:
-                    if position_broker.asset == position.asset:
+                    if self._same_position(position_broker, position):
                         found = True
                         break
                 if (
@@ -1412,6 +1414,8 @@ class Broker(ABC):
             "exchange",
             "currency",
             "multiplier",
+            "position_side",
+            "position_id",
         )
 
         for field in broker_fields:
@@ -2042,7 +2046,7 @@ class Broker(ABC):
             if order not in self._partially_filled_orders:
                 self._partially_filled_orders.append(order)
 
-        position = self.get_tracked_position(order.strategy, order.asset)
+        position = self._position_for_order(order)
         if position is None:
             # Create new position for this given strategy and asset
             position = order.to_position(quantity)
@@ -2065,7 +2069,7 @@ class Broker(ABC):
             order.set_filled()
             self._filled_orders.append(order)
 
-        position = self.get_tracked_position(order.strategy, order.asset)
+        position = self._position_for_order(order)
         if position is None:
             # Create new position for this given strategy and asset
             position = order.to_position(quantity)
@@ -2112,7 +2116,7 @@ class Broker(ABC):
             order.set_filled()
             self._filled_orders.append(order)
 
-        position = self.get_tracked_position(order.strategy, order.asset)
+        position = self._position_for_order(order)
         if position is not None:
             # Live brokers will update positions via polling, but in backtesting there is no broker-side
             # reconciliation. Cash settlement must therefore adjust the position quantity immediately so
@@ -2514,21 +2518,34 @@ class Broker(ABC):
             self.sleep(sleeptime)
 
     # =========Positions functions==================
-    def get_tracked_position(self, strategy, asset):
-        """get a tracked position given an asset and
-        a strategy"""
-        strategy_name = self._strategy_name_from_input(strategy)
-        cache_key = (getattr(self._filled_positions, "revision", 0), strategy_name, asset)
-        cached = self._tracked_position_cache.get(cache_key)
-        if cached is not None or cache_key in self._tracked_position_cache:
-            return cached
+    @staticmethod
+    def _same_position(left, right):
+        if left.asset != right.asset or getattr(left, "position_side", None) != getattr(right, "position_side", None):
+            return False
+        left_id, right_id = getattr(left, "position_id", None), getattr(right, "position_id", None)
+        return left_id is None or right_id is None or left_id == right_id
 
-        for position in self._filled_positions:
-            if position.asset == asset and (strategy_name is None or position.strategy == strategy_name):
-                self._cache_result(self._tracked_position_cache, cache_key, position)
-                return position
-        self._cache_result(self._tracked_position_cache, cache_key, None)
-        return None
+    def _position_for_order(self, order):
+        selectors = {key: getattr(order, key, None) for key in ("position_side", "position_id")
+                     if getattr(order, key, None) is not None}
+        return self.get_tracked_position(order.strategy, order.asset, **selectors)
+
+    def get_tracked_position(self, strategy, asset, position_side=None, position_id=None):
+        """Return an exact position; select a side when an asset has two hedge legs."""
+        strategy_name = self._strategy_name_from_input(strategy)
+        position_side = str(position_side).lower() if position_side is not None else None
+        cache_key = (getattr(self._filled_positions, "revision", 0), strategy_name, asset, position_side, position_id)
+        if cache_key in self._tracked_position_cache:
+            return self._tracked_position_cache[cache_key]
+        matches = [position for position in self._filled_positions
+                   if position.asset == asset and (strategy_name is None or position.strategy == strategy_name)
+                   and (position_side is None or getattr(position, "position_side", None) == position_side)
+                   and (position_id is None or getattr(position, "position_id", None) == position_id)]
+        if len(matches) > 1:
+            raise ValueError(f"Multiple positions for {asset}; select position_side or position_id, or use get_positions()")
+        position = matches[0] if matches else None
+        self._cache_result(self._tracked_position_cache, cache_key, position)
+        return position
 
     def get_tracked_positions(self, strategy=None):
         """get all tracked positions for a given strategy"""
@@ -2762,7 +2779,7 @@ class Broker(ABC):
         }:
             raise ValueError(f"Unsupported option order side: {side}")
 
-        position = self.get_tracked_position(order.strategy, order.asset)
+        position = self._position_for_order(order)
         position_quantity = float(position.quantity) if position is not None else 0.0
         close_side = None
         open_side = None
@@ -2979,8 +2996,12 @@ class Broker(ABC):
     def _create_position_closing_order(self, position, quote_asset=None):
         """Build a close order, including reduce-only crypto-futures fallback."""
         order = position.get_selling_order(quote_asset=quote_asset)
-        if order is not None or position.quantity == 0:
+        if order is not None:
+            order.position_side = getattr(position, "position_side", None)
+            order.position_id = getattr(position, "position_id", None)
             return order
+        if position.quantity == 0:
+            return None
 
         order = Order(
             position.strategy,
@@ -2988,11 +3009,13 @@ class Broker(ABC):
             abs(position.quantity),
             side=Order.OrderSide.SELL if position.quantity > 0 else Order.OrderSide.BUY,
             quote=quote_asset,
+            position_side=getattr(position, "position_side", None),
+            position_id=getattr(position, "position_id", None),
         )
         order.reduce_only = True
         return order
 
-    def close_position(self, strategy_name: str, asset: Asset, fraction: float = 1.00):
+    def close_position(self, strategy_name: str, asset: Asset, fraction: float = 1.00, position_side=None, position_id=None):
         """
         Close a position for a given strategy and asset by submitting a sell order.
 
@@ -3015,7 +3038,14 @@ class Broker(ABC):
         if not 0 < fraction_value <= 1:
             raise ValueError("fraction must be greater than 0 and no more than 1")
 
-        pos = self.get_tracked_position(strategy_name, asset)
+        selectors = {key: value for key, value in (("position_side", position_side), ("position_id", position_id))
+                     if value is not None}
+        if not selectors:
+            legs = [pos for pos in self.get_tracked_positions(strategy_name) if pos.asset == asset and pos.quantity != 0]
+            if len(legs) > 1:
+                return [self.close_position(strategy_name, asset, fraction, position_side=pos.position_side,
+                                            position_id=pos.position_id) for pos in legs]
+        pos = self.get_tracked_position(strategy_name, asset, **selectors)
         if pos and pos.quantity != 0:
             self.logger.info(
                 "close_position(strategy=%s, asset=%s, fraction=%s) -> qty=%s",

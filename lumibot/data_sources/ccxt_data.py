@@ -54,6 +54,10 @@ class CcxtData(DataSource):
 
         self.config = config
         self.api = exchange_class(config)
+        # Remove CCXT's own partner IDs and builder fees; attach only LumiBot's configured ones.
+        from lumibot.tools.ccxt_partner_ids import apply_partner_config
+
+        apply_partner_config(self.api)
         is_sandbox = True if "sandbox" not in config else config["sandbox"]
         self.api.set_sandbox_mode(is_sandbox)
         # Recommended two or less api calls per second.

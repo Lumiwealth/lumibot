@@ -21,6 +21,7 @@ DATA = ROOT / "docsrc" / "_data"
 NOTES = json.loads((DATA / "ccxt_exchange_notes.json").read_text())["exchanges"]
 FACTS = {fx["id"]: fx for fx in json.loads((DATA / "ccxt_exchange_facts.json").read_text())["exchanges"]}
 PAGES = sorted(NOTES)
+AFFILIATES = json.loads((DATA / "ccxt_exchange_affiliates.json").read_text())
 
 sys.path.insert(0, str(ROOT / "scripts"))
 import generate_ccxt_exchange_pages as pages_gen  # noqa: E402
@@ -53,25 +54,53 @@ def page_env_config(exchange_id):
     from lumibot.tools.ccxt_exchange_catalog import validate_ccxt_config
 
     env = page_env(exchange_id)
-    assert env["TRADING_BROKER"] == exchange_id
+    # ``ccxt:<id>`` reaches a CCXT exchange whose id collides with a LumiBot broker name.
+    assert env["TRADING_BROKER"] in (exchange_id, f"ccxt:{exchange_id}")
     config = generic_ccxt_config(env["TRADING_BROKER"], env)
     validate_ccxt_config(exchange_id, config)  # the page lists every required variable
     return config
 
 
-def fake_markets(quote):
-    def market(base):
+def fake_markets(exchange_id):
+    """Fake CCXT markets for the page's example: spot pairs, or its perpetual."""
+    notes = NOTES[exchange_id]
+    quote = notes.get("quote_symbol", "USDT")
+    base = notes.get("example_base", "BTC")
+    import ccxt
+
+    # Precision values must match the exchange's CCXT precision mode: a tick
+    # size (0.000001) for TICK_SIZE, a digit count (6) for the other modes.
+    tick = getattr(ccxt, exchange_id)().precisionMode == ccxt.TICK_SIZE
+    amount_precision, price_precision = (0.000001, 0.01) if tick else (6, 2)
+
+    def market(symbol, b, q, settle=None, inverse=False):
+        contract = settle is not None
         return {
-            "id": f"{base}{quote}", "symbol": f"{base}/{quote}", "base": base, "quote": quote,
-            "baseId": base, "quoteId": quote, "settle": None, "settleId": None,
-            "type": "spot", "spot": True, "swap": False, "future": False, "option": False,
-            "contract": False, "linear": False, "inverse": False, "active": True,
-            "precision": {"amount": 0.000001, "price": 0.01},
+            "id": symbol.replace("/", "").replace(":", ""), "symbol": symbol, "base": b, "quote": q,
+            "baseId": b, "quoteId": q, "settle": settle, "settleId": settle,
+            "type": "swap" if contract else "spot", "spot": not contract, "swap": contract, "future": False,
+            "option": False, "contract": contract, "linear": contract and not inverse, "inverse": inverse,
+            "contractSize": (100 if inverse else 0.001) if contract else None, "active": True,
+            "precision": {"amount": amount_precision, "price": price_precision},
             "limits": {"amount": {"min": 0.000001, "max": None}, "price": {"min": None, "max": None},
                        "cost": {"min": 1, "max": None}},
             "info": {},
         }
-    return [market("BTC"), market("ETH")]
+
+    markets = [market(f"{base}/{quote}", base, quote), market(f"ETH/{quote}", "ETH", quote)]
+    symbol = notes.get("example_symbol")
+    if symbol and not FACTS[exchange_id]["markets"].get("spot"):
+        b, rest = symbol.split("/", 1)
+        q, settle = rest.split(":", 1)
+        markets.append(market(symbol, b, q, settle=settle, inverse=(settle == b)))
+    return markets
+
+
+def expected_order_symbol(exchange_id):
+    notes = NOTES[exchange_id]
+    if notes.get("example_symbol") and not FACTS[exchange_id]["markets"].get("spot"):
+        return notes["example_symbol"]
+    return f"{notes.get('example_base', 'BTC')}/{notes.get('quote_symbol', 'USDT')}"
 
 
 def build_example(exchange_id, source, monkeypatch):
@@ -100,7 +129,14 @@ def build_example(exchange_id, source, monkeypatch):
 
     quote = NOTES[exchange_id].get("quote_symbol", "USDT")
     broker = Ccxt(config, connect_stream=False, start_orders_thread=False)
-    broker.api.set_markets(fake_markets(quote))
+    # Hard offline guarantee: any CCXT request that is not faked below fails
+    # here instead of reaching the exchange with the fake keys.
+    broker.api.request = Mock(side_effect=AssertionError("network disabled in docs example tests"))
+    broker.api.fetch_positions = Mock(return_value=[])
+    broker.api.fetch_my_trades = Mock(return_value=[])
+    broker.api.fetch_closed_orders = Mock(return_value=[])
+    broker.api.fetch_ticker = Mock(return_value={"last": 50000, "bid": 49990, "ask": 50010, "close": 50000})
+    broker.api.set_markets(fake_markets(exchange_id))
     broker.data_source._markets_loaded = True
     broker.api.fetch_balance = Mock(return_value={"total": {quote: 1000}, "free": {quote: 1000}, "used": {quote: 0}})
     broker.api.fetch_open_orders = Mock(return_value=[])
@@ -116,7 +152,7 @@ def build_example(exchange_id, source, monkeypatch):
 def test_pages_are_current_with_generator(exchange_id):
     facts = json.loads((DATA / "ccxt_exchange_facts.json").read_text())
     affiliates = json.loads((DATA / "ccxt_exchange_affiliates.json").read_text())
-    rendered = pages_gen.render(exchange_id, FACTS, NOTES, affiliates, facts)
+    rendered = pages_gen.render(exchange_id, FACTS, NOTES, affiliates, facts, PAGES)
     assert rendered == page_text(exchange_id), "page is stale: rerun scripts/generate_ccxt_exchange_pages.py"
 
 
@@ -126,15 +162,19 @@ def test_regular_example_places_one_spot_order_offline(exchange_id, monkeypatch)
     strategy, config, broker = build_example(exchange_id, source, monkeypatch)
 
     assert config["exchange_id"] == exchange_id
-    assert config["sandbox"] is FACTS[exchange_id]["sandbox"]
+    assert config["sandbox"] is pages_gen.Page(exchange_id, FACTS, NOTES, AFFILIATES).sandbox
     for credential in FACTS[exchange_id]["required_credentials"]:
         assert config[credential] == "fake-value"
 
     strategy.initialize()
     strategy.on_trading_iteration()
+    assert broker.api.create_order.called, "the example never sent an order"
     args, _ = broker.api.create_order.call_args
-    quote = NOTES[exchange_id].get("quote_symbol", "USDT")
-    assert args[0] == f"BTC/{quote}" and args[2] == "buy"
+    assert args[0] == expected_order_symbol(exchange_id) and args[2] == "buy"
+    assert float(args[3]) > 0
+    # Limit-only exchanges (no createMarketOrder in CCXT) must get a limit order.
+    page = pages_gen.Page(exchange_id, FACTS, NOTES, AFFILIATES)
+    assert str(args[1]).endswith("market" if page.market_orders else "limit")
 
 
 @pytest.mark.parametrize("exchange_id", PAGES)
@@ -155,6 +195,7 @@ def test_code_config_snippet_matches_env_config(exchange_id, monkeypatch):
         assert config[field] == env_config[field] == "fake-value"
     assert config["sandbox"] is env_config["sandbox"]
     broker = Ccxt(config, connect_stream=False, start_orders_thread=False)  # constructs offline
+    broker.api.request = Mock(side_effect=AssertionError("network disabled in docs example tests"))
     assert broker.api.id == exchange_id
 
 

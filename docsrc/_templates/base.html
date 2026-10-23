@@ -3,6 +3,9 @@
 {% block htmltitle %}
 {% if pagename == master_doc %}
 <title>Lumibot: Python Algorithmic Trading and AI Agents</title>
+{% elif meta and meta.get('seo_title') %}
+{#- A page may keep a short on-page H1 for phones and a longer search title. -#}
+<title>{{ meta.get('seo_title')|e }}</title>
 {% else %}
 <title>{{ title|striptags|e }} - Lumibot</title>
 {% endif %}
@@ -15,7 +18,7 @@
 {% if 'name="description"' not in metatags %}
 <meta name="description" content="{{ page_description|e }}">
 {% endif %}
-<meta name="twitter:title" content="{% if pagename == master_doc %}Lumibot: Python Algorithmic Trading and AI Agents{% else %}{{ title|striptags|trim }} - Lumibot{% endif %}">
+<meta name="twitter:title" content="{% if pagename == master_doc %}Lumibot: Python Algorithmic Trading and AI Agents{% elif meta and meta.get('seo_title') %}{{ meta.get('seo_title')|e }}{% else %}{{ title|striptags|trim }} - Lumibot{% endif %}">
 <meta name="twitter:description" content="{{ page_description|e }}">
 <meta name="twitter:image" content="{{ share_image_url|e }}">
 <script type="application/ld+json">

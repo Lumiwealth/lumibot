@@ -89,11 +89,19 @@ class Ccxt(Broker):
 
     @staticmethod
     def _position_side(response):
+        """Hedge leg named by a unified or native exchange field, else None (netted)."""
         info = response.get("info") or {}
-        side = response.get("positionSide") or info.get("posSide") or info.get("positionSide")
-        if side is not None and str(side).lower() in ("long", "short"):
-            return str(side).lower()
-        return response.get("side") if response.get("hedged") else None
+        for side in (response.get("positionSide"), info.get("posSide"), info.get("positionSide"),
+                     info.get("holdSide")):
+            if side is not None and str(side).lower() in ("long", "short"):
+                return str(side).lower()
+        # Position index: 1 = buy-side hedge leg, 2 = sell-side hedge leg, 0 = one-way.
+        index = str(info.get("positionIdx", "")).strip()
+        if index in ("1", "2"):
+            return "long" if index == "1" else "short"
+        side = str(response.get("side") or "").lower()
+        # Unified positions name their leg long/short; orders say buy/sell, which is not a leg.
+        return side if response.get("hedged") and side in ("long", "short") else None
 
     @staticmethod
     def _phemex_uses_real_values(market):

@@ -220,7 +220,7 @@ class Bitunix(Broker):
         must raise instead, because shared position sync prunes absent assets.
         """
         positions = []
-        seen_assets = set()
+        seen_legs = {}
         Position = _position_class()
         strategy_name = self._strategy_name_from_input(strategy) or ""
 
@@ -248,12 +248,22 @@ class Bitunix(Broker):
                 qty = -abs(qty) if side in ("SELL", "SHORT") else abs(qty)
                 if qty != 0:
                     asset = Asset(sym, Asset.AssetType.CRYPTO_FUTURE)
-                    if asset in seen_assets:
+                    # HEDGE mode can hold a long and a short leg on one symbol.
+                    # Each leg keeps its own side and exchange positionId so the
+                    # shared tracker never merges or overwrites them. A repeated
+                    # leg with no distinct positionId is still ambiguous.
+                    position_side = "short" if side in ("SELL", "SHORT") else "long"
+                    raw_id = p.get("positionId")
+                    position_id = str(raw_id) if raw_id not in (None, "") else None
+                    ids = seen_legs.setdefault((asset, position_side), set())
+                    if ids and (position_id is None or position_id in ids or None in ids):
                         raise LumibotBrokerAPIError(
-                            "Multiple active Bitunix positions for one symbol cannot be represented safely"
+                            "Multiple active Bitunix positions for one symbol and side cannot be represented safely"
                         )
-                    seen_assets.add(asset)
-                    pos = Position(strategy_name, asset, qty)
+                    ids.add(position_id)
+                    pos = Position(
+                        strategy_name, asset, qty, position_side=position_side, position_id=position_id
+                    )
                     pos.avg_fill_price = entry
                     pos._raw = p
                     positions.append(pos)
@@ -322,7 +332,7 @@ class Bitunix(Broker):
             self._trading_pair_rules[symbol] = rules
         return self._trading_pair_rules[symbol]
 
-    def _get_close_position(self, symbol: str, position_side: str) -> dict:
+    def _get_close_position(self, symbol: str, position_side: str, position_id: str | None = None) -> dict:
         response = self.api.get_positions()
         if not response or response.get("code") != 0:
             raise LumibotBrokerAPIError(f"Cannot read Bitunix position for closing {symbol}")
@@ -331,6 +341,7 @@ class Bitunix(Broker):
             if position.get("symbol") == symbol
             and position.get("side") in (position_side, "BUY" if position_side == "LONG" else "SELL")
             and Decimal(str(position.get("qty", "0"))) > 0
+            and (position_id is None or str(position.get("positionId")) == str(position_id))
         ]
         if len(matches) != 1 or not matches[0].get("positionId"):
             raise LumibotBrokerAPIError(f"Cannot identify a unique Bitunix {position_side} position for {symbol}")
@@ -390,9 +401,19 @@ class Bitunix(Broker):
 
             self._ensure_position_mode_initialized()
             close_position = None
+            opening_leg = "long" if self._map_side_to_bitunix(order.side) == "BUY" else "short"
+            if not reduce_only and order.position_side is not None and order.position_side != opening_leg:
+                # An order naming the other leg trades against it: a hedge-mode close.
+                reduce_only = True
+                order.reduce_only = True
             if reduce_only:
                 position_side = "LONG" if self._map_side_to_bitunix(order.side) == "SELL" else "SHORT"
-                close_position = self._get_close_position(symbol, position_side)
+                close_position = self._get_close_position(symbol, position_side, order.position_id)
+                order.position_side = position_side.lower()
+                order.position_id = str(close_position["positionId"])
+            else:
+                # Name the leg an opening order trades so its fill lands on that leg.
+                order.position_side = opening_leg
 
             confirmed_existing_hedge_close = bool(
                 reduce_only
@@ -500,7 +521,8 @@ class Bitunix(Broker):
     # ------------------------------------------------------------------
     # Position‑closing helper using Bitunix reduce‑only orders
     # ------------------------------------------------------------------
-    def close_position(self, strategy_name: str, asset: Asset, fraction: float = 1.0):
+    def close_position(self, strategy_name: str, asset: Asset, fraction: float = 1.0,
+                       position_side=None, position_id=None):
         """
         Close all or part of an existing position using a reduce‑only
         market order (tradeSide="CLOSE").
@@ -519,8 +541,16 @@ class Bitunix(Broker):
         Optional[Order]
             The submitted order, or ``None`` if no position exists.
         """
+        selectors = {key: value for key, value in (("position_side", position_side), ("position_id", position_id))
+                     if value is not None}
+        if not selectors:
+            legs = [leg for leg in self.get_tracked_positions(strategy_name) if leg.asset == asset and leg.quantity != 0]
+            if len(legs) > 1:
+                # Both hedge legs: close each one by its own exchange position.
+                return [self.close_position(strategy_name, asset, fraction, position_side=leg.position_side,
+                                            position_id=leg.position_id) for leg in legs]
         # Retrieve the current tracked position
-        position = self.get_tracked_position(strategy_name, asset)
+        position = self.get_tracked_position(strategy_name, asset, **selectors)
         if not position or position.quantity == 0:
             return None
 
@@ -540,6 +570,8 @@ class Bitunix(Broker):
 
         # Mark as reduce‑only so `_submit_order` will send tradeSide="CLOSE"
         order.reduce_only = True
+        order.position_side = getattr(position, "position_side", None)
+        order.position_id = getattr(position, "position_id", None)
 
         return self.submit_order(order)
 
@@ -669,9 +701,12 @@ class Bitunix(Broker):
             # Map order side
             side = Order.OrderSide.BUY if side_raw.upper() == "BUY" else Order.OrderSide.SELL
             is_close = response.get("tradeSide") == "CLOSE"
+            # HEDGE responses name the position side for a CLOSE and the opening
+            # direction for an OPEN, so the wire side identifies the leg either way.
+            position_side = "long" if side == Order.OrderSide.BUY else "short"
             if is_close:
-                # HEDGE responses name the position side, not the execution side.
                 side = Order.OrderSide.SELL if side == Order.OrderSide.BUY else Order.OrderSide.BUY
+            raw_position_id = response.get("positionId")
 
             # Map order type
             if order_type.upper() == "LIMIT":
@@ -698,7 +733,9 @@ class Bitunix(Broker):
                 limit_price=price_limit,
                 status=order_status,
                 identifier=order_id,
-                quote=quote
+                quote=quote,
+                position_side=position_side,
+                position_id=str(raw_position_id) if raw_position_id not in (None, "") else None,
             )
 
             # Set filled info
@@ -910,16 +947,20 @@ class Bitunix(Broker):
         except Exception as e:
             raise LumibotBrokerAPIError(f"Error modifying order: {str(e)}") from e
 
-    def _pull_position(self, strategy, asset: Asset) -> Position | None:
+    def _pull_position(self, strategy, asset: Asset, position_side=None, position_id=None) -> Position | None:
         """
-        Fetch a single position by asset.
+        Fetch a single position by asset, selecting a hedge leg when both exist.
         """
         # Reuse the multi-position pull and filter by asset
-        positions = self._pull_positions(strategy)
-        for pos in positions:
-            if pos.asset == asset:
-                return pos
-        return None
+        matches = [
+            pos for pos in self._pull_positions(strategy)
+            if pos.asset == asset
+            and (position_side is None or pos.position_side == str(position_side).lower())
+            and (position_id is None or pos.position_id == str(position_id))
+        ]
+        if len(matches) > 1:
+            raise ValueError(f"Multiple positions for {asset.symbol}; specify position_side or position_id")
+        return matches[0] if matches else None
 
     def get_historical_account_value(self, start_date=None, end_date=None, frequency=None) -> dict:
         """

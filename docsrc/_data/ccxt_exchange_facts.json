@@ -1,0 +1,8123 @@
+{
+ "generated_at": "2026-10-23",
+ "ccxt_version": "4.5.64",
+ "exchange_count": 105,
+ "errors": {},
+ "exchanges": [
+  {
+   "id": "aftermath",
+   "name": "AftermathFinance",
+   "countries_listed_by_ccxt": [],
+   "certified": false,
+   "pro": true,
+   "dex": true,
+   "alias": false,
+   "api_version": "v1",
+   "rate_limit_ms": 50,
+   "urls": {
+    "www": "https://aftermath.finance",
+    "doc": [],
+    "fees": [],
+    "api_management": null,
+    "api_base": "https://aftermath.finance/api/ccxt",
+    "test": [
+     "https://testnet.aftermath.finance/api/ccxt"
+    ]
+   },
+   "has_referral_url": false,
+   "sandbox": true,
+   "markets": {
+    "spot": false,
+    "margin": false,
+    "swap": true,
+    "future": false,
+    "option": false
+   },
+   "methods": {
+    "createOrder": true,
+    "createMarketOrder": true,
+    "createLimitOrder": true,
+    "createStopOrder": null,
+    "createTriggerOrder": null,
+    "createStopLossOrder": null,
+    "createTakeProfitOrder": null,
+    "createReduceOnlyOrder": null,
+    "cancelOrder": true,
+    "editOrder": false,
+    "fetchBalance": true,
+    "fetchPositions": true,
+    "fetchOpenOrders": true,
+    "fetchMyTrades": false,
+    "fetchOHLCV": true,
+    "fetchTicker": true,
+    "fetchOrderBook": true,
+    "fetchTradingFees": false,
+    "fetchFundingRate": null,
+    "setLeverage": true,
+    "setMarginMode": null,
+    "setPositionMode": null
+   },
+   "streams": {
+    "watchTicker": false,
+    "watchOrderBook": true,
+    "watchTrades": true,
+    "watchOHLCV": false,
+    "watchOrders": false,
+    "watchBalance": false,
+    "watchPositions": true
+   },
+   "required_credentials": [
+    "privateKey",
+    "walletAddress"
+   ],
+   "default_trading_fee": {
+    "maker": null,
+    "taker": null,
+    "note": "CCXT default schedule; the exchange's fee page is the source of truth"
+   }
+  },
+  {
+   "id": "alpaca",
+   "name": "Alpaca",
+   "countries_listed_by_ccxt": [
+    "US"
+   ],
+   "certified": false,
+   "pro": true,
+   "dex": false,
+   "alias": false,
+   "api_version": null,
+   "rate_limit_ms": 333,
+   "urls": {
+    "www": "https://alpaca.markets",
+    "doc": [
+     "https://alpaca.markets/docs/"
+    ],
+    "fees": [
+     "https://docs.alpaca.markets/docs/crypto-fees"
+    ],
+    "api_management": null,
+    "api_base": "https://broker-api.alpaca.markets",
+    "test": [
+     "https://broker-api.sandbox.alpaca.markets",
+     "https://paper-api.alpaca.markets",
+     "https://data.alpaca.markets"
+    ]
+   },
+   "has_referral_url": false,
+   "sandbox": true,
+   "markets": {
+    "spot": true,
+    "margin": false,
+    "swap": false,
+    "future": false,
+    "option": false
+   },
+   "methods": {
+    "createOrder": true,
+    "createMarketOrder": true,
+    "createLimitOrder": true,
+    "createStopOrder": true,
+    "createTriggerOrder": true,
+    "createStopLossOrder": null,
+    "createTakeProfitOrder": null,
+    "createReduceOnlyOrder": false,
+    "cancelOrder": true,
+    "editOrder": true,
+    "fetchBalance": true,
+    "fetchPositions": false,
+    "fetchOpenOrders": true,
+    "fetchMyTrades": true,
+    "fetchOHLCV": true,
+    "fetchTicker": true,
+    "fetchOrderBook": true,
+    "fetchTradingFees": false,
+    "fetchFundingRate": false,
+    "setLeverage": false,
+    "setMarginMode": false,
+    "setPositionMode": false
+   },
+   "streams": {
+    "watchTicker": true,
+    "watchOrderBook": true,
+    "watchTrades": true,
+    "watchOHLCV": true,
+    "watchOrders": true,
+    "watchBalance": false,
+    "watchPositions": false
+   },
+   "required_credentials": [
+    "apiKey",
+    "secret"
+   ],
+   "default_trading_fee": {
+    "maker": 0.0015,
+    "taker": 0.0025,
+    "note": "CCXT default schedule; the exchange's fee page is the source of truth"
+   }
+  },
+  {
+   "id": "apex",
+   "name": "Apex",
+   "countries_listed_by_ccxt": [],
+   "certified": false,
+   "pro": true,
+   "dex": true,
+   "alias": false,
+   "api_version": "v3",
+   "rate_limit_ms": 20,
+   "urls": {
+    "www": "https://apex.exchange/",
+    "doc": [
+     "https://api-docs.omni.apex.exchange"
+    ],
+    "fees": [
+     "https://apex-pro.gitbook.io/apex-pro/apex-omni-live-now/trading-perpetual-contracts/trading-fees"
+    ],
+    "api_management": null,
+    "api_base": "https://omni.apex.exchange/api",
+    "test": [
+     "https://testnet.omni.apex.exchange/api"
+    ]
+   },
+   "has_referral_url": true,
+   "sandbox": true,
+   "markets": {
+    "spot": false,
+    "margin": false,
+    "swap": true,
+    "future": false,
+    "option": false
+   },
+   "methods": {
+    "createOrder": true,
+    "createMarketOrder": true,
+    "createLimitOrder": true,
+    "createStopOrder": true,
+    "createTriggerOrder": true,
+    "createStopLossOrder": null,
+    "createTakeProfitOrder": null,
+    "createReduceOnlyOrder": true,
+    "cancelOrder": true,
+    "editOrder": false,
+    "fetchBalance": true,
+    "fetchPositions": true,
+    "fetchOpenOrders": true,
+    "fetchMyTrades": true,
+    "fetchOHLCV": true,
+    "fetchTicker": true,
+    "fetchOrderBook": true,
+    "fetchTradingFees": false,
+    "fetchFundingRate": false,
+    "setLeverage": true,
+    "setMarginMode": false,
+    "setPositionMode": false
+   },
+   "streams": {
+    "watchTicker": true,
+    "watchOrderBook": true,
+    "watchTrades": true,
+    "watchOHLCV": true,
+    "watchOrders": true,
+    "watchBalance": false,
+    "watchPositions": true
+   },
+   "required_credentials": [
+    "apiKey",
+    "password",
+    "secret"
+   ],
+   "default_trading_fee": {
+    "maker": null,
+    "taker": null,
+    "note": "CCXT default schedule; the exchange's fee page is the source of truth"
+   }
+  },
+  {
+   "id": "aster",
+   "name": "Aster",
+   "countries_listed_by_ccxt": [
+    "US"
+   ],
+   "certified": false,
+   "pro": true,
+   "dex": true,
+   "alias": false,
+   "api_version": null,
+   "rate_limit_ms": 333,
+   "urls": {
+    "www": "https://www.asterdex.com/en",
+    "doc": [
+     "https://github.com/asterdex/api-docs"
+    ],
+    "fees": [
+     "https://docs.asterdex.com/product/asterex-simple/fees-and-slippage"
+    ],
+    "api_management": null,
+    "api_base": "https://fapi.asterdex.com/fapi",
+    "test": []
+   },
+   "has_referral_url": true,
+   "sandbox": false,
+   "markets": {
+    "spot": true,
+    "margin": false,
+    "swap": true,
+    "future": false,
+    "option": false
+   },
+   "methods": {
+    "createOrder": true,
+    "createMarketOrder": true,
+    "createLimitOrder": true,
+    "createStopOrder": false,
+    "createTriggerOrder": false,
+    "createStopLossOrder": false,
+    "createTakeProfitOrder": false,
+    "createReduceOnlyOrder": false,
+    "cancelOrder": true,
+    "editOrder": false,
+    "fetchBalance": true,
+    "fetchPositions": true,
+    "fetchOpenOrders": true,
+    "fetchMyTrades": true,
+    "fetchOHLCV": true,
+    "fetchTicker": true,
+    "fetchOrderBook": true,
+    "fetchTradingFees": false,
+    "fetchFundingRate": true,
+    "setLeverage": true,
+    "setMarginMode": true,
+    "setPositionMode": true
+   },
+   "streams": {
+    "watchTicker": true,
+    "watchOrderBook": true,
+    "watchTrades": true,
+    "watchOHLCV": true,
+    "watchOrders": true,
+    "watchBalance": true,
+    "watchPositions": true
+   },
+   "required_credentials": [
+    "privateKey"
+   ],
+   "default_trading_fee": {
+    "maker": 0.0001,
+    "taker": 0.00035,
+    "note": "CCXT default schedule; the exchange's fee page is the source of truth"
+   }
+  },
+  {
+   "id": "backpack",
+   "name": "Backpack",
+   "countries_listed_by_ccxt": [
+    "JP"
+   ],
+   "certified": false,
+   "pro": true,
+   "dex": false,
+   "alias": false,
+   "api_version": "v1",
+   "rate_limit_ms": 50,
+   "urls": {
+    "www": "https://backpack.exchange/",
+    "doc": [
+     "https://docs.backpack.exchange/"
+    ],
+    "fees": [],
+    "api_management": null,
+    "api_base": "https://api.backpack.exchange",
+    "test": []
+   },
+   "has_referral_url": true,
+   "sandbox": false,
+   "markets": {
+    "spot": true,
+    "margin": true,
+    "swap": true,
+    "future": false,
+    "option": false
+   },
+   "methods": {
+    "createOrder": true,
+    "createMarketOrder": true,
+    "createLimitOrder": true,
+    "createStopOrder": null,
+    "createTriggerOrder": true,
+    "createStopLossOrder": false,
+    "createTakeProfitOrder": false,
+    "createReduceOnlyOrder": true,
+    "cancelOrder": true,
+    "editOrder": "emulated",
+    "fetchBalance": true,
+    "fetchPositions": true,
+    "fetchOpenOrders": true,
+    "fetchMyTrades": true,
+    "fetchOHLCV": true,
+    "fetchTicker": true,
+    "fetchOrderBook": true,
+    "fetchTradingFees": false,
+    "fetchFundingRate": true,
+    "setLeverage": false,
+    "setMarginMode": false,
+    "setPositionMode": false
+   },
+   "streams": {
+    "watchTicker": true,
+    "watchOrderBook": true,
+    "watchTrades": true,
+    "watchOHLCV": true,
+    "watchOrders": true,
+    "watchBalance": false,
+    "watchPositions": true
+   },
+   "required_credentials": [
+    "apiKey",
+    "secret"
+   ],
+   "default_trading_fee": {
+    "maker": null,
+    "taker": null,
+    "note": "CCXT default schedule; the exchange's fee page is the source of truth"
+   }
+  },
+  {
+   "id": "bequant",
+   "name": "Bequant",
+   "countries_listed_by_ccxt": [
+    "MT"
+   ],
+   "certified": false,
+   "pro": true,
+   "dex": false,
+   "alias": false,
+   "api_version": "3",
+   "rate_limit_ms": 3.333,
+   "urls": {
+    "www": "https://bequant.io",
+    "doc": [
+     "https://api.bequant.io/"
+    ],
+    "fees": [
+     "https://bequant.io/fees-and-limits"
+    ],
+    "api_management": null,
+    "api_base": "https://api.bequant.io/api/3",
+    "test": [
+     "https://api.demo.hitbtc.com/api/3"
+    ]
+   },
+   "has_referral_url": true,
+   "sandbox": true,
+   "markets": {
+    "spot": true,
+    "margin": null,
+    "swap": false,
+    "future": null,
+    "option": null
+   },
+   "methods": {
+    "createOrder": true,
+    "createMarketOrder": true,
+    "createLimitOrder": true,
+    "createStopOrder": true,
+    "createTriggerOrder": null,
+    "createStopLossOrder": null,
+    "createTakeProfitOrder": null,
+    "createReduceOnlyOrder": true,
+    "cancelOrder": true,
+    "editOrder": true,
+    "fetchBalance": true,
+    "fetchPositions": true,
+    "fetchOpenOrders": true,
+    "fetchMyTrades": true,
+    "fetchOHLCV": true,
+    "fetchTicker": true,
+    "fetchOrderBook": true,
+    "fetchTradingFees": true,
+    "fetchFundingRate": true,
+    "setLeverage": true,
+    "setMarginMode": false,
+    "setPositionMode": false
+   },
+   "streams": {
+    "watchTicker": true,
+    "watchOrderBook": true,
+    "watchTrades": true,
+    "watchOHLCV": true,
+    "watchOrders": true,
+    "watchBalance": true,
+    "watchPositions": null
+   },
+   "required_credentials": [
+    "apiKey",
+    "secret"
+   ],
+   "default_trading_fee": {
+    "maker": 0.0009,
+    "taker": 0.0009,
+    "note": "CCXT default schedule; the exchange's fee page is the source of truth"
+   }
+  },
+  {
+   "id": "bigone",
+   "name": "BigONE",
+   "countries_listed_by_ccxt": [
+    "CN"
+   ],
+   "certified": false,
+   "pro": false,
+   "dex": false,
+   "alias": false,
+   "api_version": "v3",
+   "rate_limit_ms": 20,
+   "urls": {
+    "www": "https://big.one",
+    "doc": [
+     "https://open.big.one/docs/api.html"
+    ],
+    "fees": [
+     "https://bigone.zendesk.com/hc/en-us/articles/115001933374-BigONE-Fee-Policy"
+    ],
+    "api_management": null,
+    "api_base": "https://big.one/api/v3",
+    "test": []
+   },
+   "has_referral_url": true,
+   "sandbox": false,
+   "markets": {
+    "spot": true,
+    "margin": false,
+    "swap": true,
+    "future": null,
+    "option": false
+   },
+   "methods": {
+    "createOrder": true,
+    "createMarketOrder": true,
+    "createLimitOrder": true,
+    "createStopOrder": true,
+    "createTriggerOrder": null,
+    "createStopLossOrder": null,
+    "createTakeProfitOrder": null,
+    "createReduceOnlyOrder": null,
+    "cancelOrder": true,
+    "editOrder": "emulated",
+    "fetchBalance": true,
+    "fetchPositions": null,
+    "fetchOpenOrders": true,
+    "fetchMyTrades": true,
+    "fetchOHLCV": true,
+    "fetchTicker": true,
+    "fetchOrderBook": true,
+    "fetchTradingFees": false,
+    "fetchFundingRate": false,
+    "setLeverage": null,
+    "setMarginMode": null,
+    "setPositionMode": null
+   },
+   "streams": {
+    "watchTicker": null,
+    "watchOrderBook": null,
+    "watchTrades": null,
+    "watchOHLCV": null,
+    "watchOrders": null,
+    "watchBalance": null,
+    "watchPositions": null
+   },
+   "required_credentials": [
+    "apiKey",
+    "secret"
+   ],
+   "default_trading_fee": {
+    "maker": 0.001,
+    "taker": 0.001,
+    "note": "CCXT default schedule; the exchange's fee page is the source of truth"
+   }
+  },
+  {
+   "id": "binance",
+   "name": "Binance",
+   "countries_listed_by_ccxt": [],
+   "certified": true,
+   "pro": true,
+   "dex": false,
+   "alias": false,
+   "api_version": null,
+   "rate_limit_ms": 50,
+   "urls": {
+    "www": "https://www.binance.com",
+    "doc": [
+     "https://developers.binance.com/en"
+    ],
+    "fees": [
+     "https://www.binance.com/en/fee/schedule"
+    ],
+    "api_management": "https://www.binance.com/en/usercenter/settings/api-management",
+    "api_base": "https://api.binance.com/sapi/v1",
+    "test": [
+     "https://testnet.binancefuture.com/dapi/v1",
+     "https://testnet.binancefuture.com/dapi/v2",
+     "https://testnet.binancefuture.com/fapi/v1",
+     "https://testnet.binancefuture.com/fapi/v2",
+     "https://testnet.binancefuture.com/fapi/v3",
+     "https://testnet.binance.vision/api/v3",
+     "https://testnet.binance.vision/api/v1"
+    ]
+   },
+   "has_referral_url": true,
+   "sandbox": true,
+   "markets": {
+    "spot": true,
+    "margin": true,
+    "swap": true,
+    "future": true,
+    "option": true
+   },
+   "methods": {
+    "createOrder": true,
+    "createMarketOrder": true,
+    "createLimitOrder": true,
+    "createStopOrder": true,
+    "createTriggerOrder": true,
+    "createStopLossOrder": true,
+    "createTakeProfitOrder": true,
+    "createReduceOnlyOrder": true,
+    "cancelOrder": true,
+    "editOrder": true,
+    "fetchBalance": true,
+    "fetchPositions": true,
+    "fetchOpenOrders": true,
+    "fetchMyTrades": true,
+    "fetchOHLCV": true,
+    "fetchTicker": true,
+    "fetchOrderBook": true,
+    "fetchTradingFees": true,
+    "fetchFundingRate": true,
+    "setLeverage": true,
+    "setMarginMode": true,
+    "setPositionMode": true
+   },
+   "streams": {
+    "watchTicker": true,
+    "watchOrderBook": true,
+    "watchTrades": true,
+    "watchOHLCV": true,
+    "watchOrders": true,
+    "watchBalance": true,
+    "watchPositions": true
+   },
+   "required_credentials": [
+    "apiKey",
+    "secret"
+   ],
+   "default_trading_fee": {
+    "maker": 0.001,
+    "taker": 0.001,
+    "note": "CCXT default schedule; the exchange's fee page is the source of truth"
+   }
+  },
+  {
+   "id": "binancecoinm",
+   "name": "Binance COIN-M",
+   "countries_listed_by_ccxt": [],
+   "certified": true,
+   "pro": true,
+   "dex": false,
+   "alias": false,
+   "api_version": null,
+   "rate_limit_ms": 50,
+   "urls": {
+    "www": "https://www.binance.com",
+    "doc": [
+     "https://binance-docs.github.io/apidocs/delivery/en/",
+     "https://binance-docs.github.io/apidocs/spot/en",
+     "https://developers.binance.com/en"
+    ],
+    "fees": [
+     "https://www.binance.com/en/fee/schedule"
+    ],
+    "api_management": "https://www.binance.com/en/usercenter/settings/api-management",
+    "api_base": "https://api.binance.com/sapi/v1",
+    "test": [
+     "https://testnet.binancefuture.com/dapi/v1",
+     "https://testnet.binancefuture.com/dapi/v2",
+     "https://testnet.binancefuture.com/fapi/v1",
+     "https://testnet.binancefuture.com/fapi/v2",
+     "https://testnet.binancefuture.com/fapi/v3",
+     "https://testnet.binance.vision/api/v3",
+     "https://testnet.binance.vision/api/v1"
+    ]
+   },
+   "has_referral_url": true,
+   "sandbox": true,
+   "markets": {
+    "spot": false,
+    "margin": false,
+    "swap": true,
+    "future": true,
+    "option": null
+   },
+   "methods": {
+    "createOrder": true,
+    "createMarketOrder": true,
+    "createLimitOrder": true,
+    "createStopOrder": true,
+    "createTriggerOrder": true,
+    "createStopLossOrder": true,
+    "createTakeProfitOrder": true,
+    "createReduceOnlyOrder": true,
+    "cancelOrder": true,
+    "editOrder": true,
+    "fetchBalance": true,
+    "fetchPositions": true,
+    "fetchOpenOrders": true,
+    "fetchMyTrades": true,
+    "fetchOHLCV": true,
+    "fetchTicker": true,
+    "fetchOrderBook": true,
+    "fetchTradingFees": true,
+    "fetchFundingRate": true,
+    "setLeverage": true,
+    "setMarginMode": true,
+    "setPositionMode": true
+   },
+   "streams": {
+    "watchTicker": true,
+    "watchOrderBook": true,
+    "watchTrades": true,
+    "watchOHLCV": true,
+    "watchOrders": true,
+    "watchBalance": true,
+    "watchPositions": true
+   },
+   "required_credentials": [
+    "apiKey",
+    "secret"
+   ],
+   "default_trading_fee": {
+    "maker": 0.001,
+    "taker": 0.001,
+    "note": "CCXT default schedule; the exchange's fee page is the source of truth"
+   }
+  },
+  {
+   "id": "binanceus",
+   "name": "Binance US",
+   "countries_listed_by_ccxt": [
+    "US"
+   ],
+   "certified": false,
+   "pro": true,
+   "dex": false,
+   "alias": false,
+   "api_version": null,
+   "rate_limit_ms": 50,
+   "urls": {
+    "www": "https://www.binance.us",
+    "doc": [
+     "https://github.com/binance-us/binance-official-api-docs"
+    ],
+    "fees": [
+     "https://www.binance.us/en/fee/schedule"
+    ],
+    "api_management": "https://www.binance.com/en/usercenter/settings/api-management",
+    "api_base": "https://api.binance.us/sapi/v1",
+    "test": [
+     "https://testnet.binancefuture.com/dapi/v1",
+     "https://testnet.binancefuture.com/dapi/v2",
+     "https://testnet.binancefuture.com/fapi/v1",
+     "https://testnet.binancefuture.com/fapi/v2",
+     "https://testnet.binancefuture.com/fapi/v3",
+     "https://testnet.binance.vision/api/v3",
+     "https://testnet.binance.vision/api/v1"
+    ]
+   },
+   "has_referral_url": true,
+   "sandbox": true,
+   "markets": {
+    "spot": true,
+    "margin": false,
+    "swap": false,
+    "future": false,
+    "option": false
+   },
+   "methods": {
+    "createOrder": true,
+    "createMarketOrder": true,
+    "createLimitOrder": true,
+    "createStopOrder": true,
+    "createTriggerOrder": true,
+    "createStopLossOrder": false,
+    "createTakeProfitOrder": false,
+    "createReduceOnlyOrder": false,
+    "cancelOrder": true,
+    "editOrder": true,
+    "fetchBalance": true,
+    "fetchPositions": false,
+    "fetchOpenOrders": true,
+    "fetchMyTrades": true,
+    "fetchOHLCV": true,
+    "fetchTicker": true,
+    "fetchOrderBook": true,
+    "fetchTradingFees": true,
+    "fetchFundingRate": false,
+    "setLeverage": false,
+    "setMarginMode": false,
+    "setPositionMode": false
+   },
+   "streams": {
+    "watchTicker": true,
+    "watchOrderBook": true,
+    "watchTrades": true,
+    "watchOHLCV": true,
+    "watchOrders": true,
+    "watchBalance": true,
+    "watchPositions": false
+   },
+   "required_credentials": [
+    "apiKey",
+    "secret"
+   ],
+   "default_trading_fee": {
+    "maker": 0.001,
+    "taker": 0.001,
+    "note": "CCXT default schedule; the exchange's fee page is the source of truth"
+   }
+  },
+  {
+   "id": "binanceusdm",
+   "name": "Binance USD\u24c8-M",
+   "countries_listed_by_ccxt": [],
+   "certified": true,
+   "pro": true,
+   "dex": false,
+   "alias": false,
+   "api_version": null,
+   "rate_limit_ms": 50,
+   "urls": {
+    "www": "https://www.binance.com",
+    "doc": [
+     "https://binance-docs.github.io/apidocs/futures/en/",
+     "https://binance-docs.github.io/apidocs/spot/en",
+     "https://developers.binance.com/en"
+    ],
+    "fees": [
+     "https://www.binance.com/en/fee/schedule"
+    ],
+    "api_management": "https://www.binance.com/en/usercenter/settings/api-management",
+    "api_base": "https://api.binance.com/sapi/v1",
+    "test": [
+     "https://testnet.binancefuture.com/dapi/v1",
+     "https://testnet.binancefuture.com/dapi/v2",
+     "https://testnet.binancefuture.com/fapi/v1",
+     "https://testnet.binancefuture.com/fapi/v2",
+     "https://testnet.binancefuture.com/fapi/v3",
+     "https://testnet.binance.vision/api/v3",
+     "https://testnet.binance.vision/api/v1"
+    ]
+   },
+   "has_referral_url": true,
+   "sandbox": true,
+   "markets": {
+    "spot": false,
+    "margin": false,
+    "swap": true,
+    "future": true,
+    "option": null
+   },
+   "methods": {
+    "createOrder": true,
+    "createMarketOrder": true,
+    "createLimitOrder": true,
+    "createStopOrder": true,
+    "createTriggerOrder": true,
+    "createStopLossOrder": true,
+    "createTakeProfitOrder": true,
+    "createReduceOnlyOrder": true,
+    "cancelOrder": true,
+    "editOrder": true,
+    "fetchBalance": true,
+    "fetchPositions": true,
+    "fetchOpenOrders": true,
+    "fetchMyTrades": true,
+    "fetchOHLCV": true,
+    "fetchTicker": true,
+    "fetchOrderBook": true,
+    "fetchTradingFees": true,
+    "fetchFundingRate": true,
+    "setLeverage": true,
+    "setMarginMode": true,
+    "setPositionMode": true
+   },
+   "streams": {
+    "watchTicker": true,
+    "watchOrderBook": true,
+    "watchTrades": true,
+    "watchOHLCV": true,
+    "watchOrders": true,
+    "watchBalance": true,
+    "watchPositions": true
+   },
+   "required_credentials": [
+    "apiKey",
+    "secret"
+   ],
+   "default_trading_fee": {
+    "maker": 0.001,
+    "taker": 0.001,
+    "note": "CCXT default schedule; the exchange's fee page is the source of truth"
+   }
+  },
+  {
+   "id": "bingx",
+   "name": "BingX",
+   "countries_listed_by_ccxt": [
+    "US"
+   ],
+   "certified": true,
+   "pro": true,
+   "dex": false,
+   "alias": false,
+   "api_version": "v1",
+   "rate_limit_ms": 100,
+   "urls": {
+    "www": "https://bingx.com/",
+    "doc": [
+     "https://bingx-api.github.io/docs/"
+    ],
+    "fees": [],
+    "api_management": null,
+    "api_base": "https://open-api.bingx.com/openApi",
+    "test": [
+     "https://open-api-vst.bingx.com/openApi"
+    ]
+   },
+   "has_referral_url": true,
+   "sandbox": true,
+   "markets": {
+    "spot": true,
+    "margin": false,
+    "swap": true,
+    "future": false,
+    "option": false
+   },
+   "methods": {
+    "createOrder": true,
+    "createMarketOrder": true,
+    "createLimitOrder": true,
+    "createStopOrder": true,
+    "createTriggerOrder": true,
+    "createStopLossOrder": true,
+    "createTakeProfitOrder": true,
+    "createReduceOnlyOrder": true,
+    "cancelOrder": true,
+    "editOrder": true,
+    "fetchBalance": true,
+    "fetchPositions": true,
+    "fetchOpenOrders": true,
+    "fetchMyTrades": true,
+    "fetchOHLCV": true,
+    "fetchTicker": true,
+    "fetchOrderBook": true,
+    "fetchTradingFees": null,
+    "fetchFundingRate": true,
+    "setLeverage": true,
+    "setMarginMode": true,
+    "setPositionMode": true
+   },
+   "streams": {
+    "watchTicker": true,
+    "watchOrderBook": true,
+    "watchTrades": true,
+    "watchOHLCV": true,
+    "watchOrders": true,
+    "watchBalance": true,
+    "watchPositions": true
+   },
+   "required_credentials": [
+    "apiKey",
+    "secret"
+   ],
+   "default_trading_fee": {
+    "maker": null,
+    "taker": null,
+    "note": "CCXT default schedule; the exchange's fee page is the source of truth"
+   }
+  },
+  {
+   "id": "bit2c",
+   "name": "Bit2C",
+   "countries_listed_by_ccxt": [
+    "IL"
+   ],
+   "certified": false,
+   "pro": false,
+   "dex": false,
+   "alias": false,
+   "api_version": null,
+   "rate_limit_ms": 3000,
+   "urls": {
+    "www": "https://www.bit2c.co.il",
+    "doc": [
+     "https://www.bit2c.co.il/home/api",
+     "https://github.com/OferE/bit2c"
+    ],
+    "fees": [],
+    "api_management": null,
+    "api_base": "https://bit2c.co.il",
+    "test": []
+   },
+   "has_referral_url": true,
+   "sandbox": false,
+   "markets": {
+    "spot": true,
+    "margin": false,
+    "swap": false,
+    "future": false,
+    "option": false
+   },
+   "methods": {
+    "createOrder": true,
+    "createMarketOrder": true,
+    "createLimitOrder": true,
+    "createStopOrder": null,
+    "createTriggerOrder": null,
+    "createStopLossOrder": null,
+    "createTakeProfitOrder": null,
+    "createReduceOnlyOrder": false,
+    "cancelOrder": true,
+    "editOrder": "emulated",
+    "fetchBalance": true,
+    "fetchPositions": false,
+    "fetchOpenOrders": true,
+    "fetchMyTrades": true,
+    "fetchOHLCV": null,
+    "fetchTicker": true,
+    "fetchOrderBook": true,
+    "fetchTradingFees": true,
+    "fetchFundingRate": false,
+    "setLeverage": false,
+    "setMarginMode": false,
+    "setPositionMode": false
+   },
+   "streams": {
+    "watchTicker": null,
+    "watchOrderBook": null,
+    "watchTrades": null,
+    "watchOHLCV": null,
+    "watchOrders": null,
+    "watchBalance": null,
+    "watchPositions": null
+   },
+   "required_credentials": [
+    "apiKey",
+    "secret"
+   ],
+   "default_trading_fee": {
+    "maker": 0.025,
+    "taker": 0.03,
+    "note": "CCXT default schedule; the exchange's fee page is the source of truth"
+   }
+  },
+  {
+   "id": "bitbank",
+   "name": "bitbank",
+   "countries_listed_by_ccxt": [
+    "JP"
+   ],
+   "certified": false,
+   "pro": false,
+   "dex": false,
+   "alias": false,
+   "api_version": "v1",
+   "rate_limit_ms": 100,
+   "urls": {
+    "www": "https://bitbank.cc/",
+    "doc": [
+     "https://docs.bitbank.cc/"
+    ],
+    "fees": [
+     "https://bitbank.cc/docs/fees/"
+    ],
+    "api_management": null,
+    "api_base": "https://public.bitbank.cc",
+    "test": []
+   },
+   "has_referral_url": false,
+   "sandbox": false,
+   "markets": {
+    "spot": true,
+    "margin": false,
+    "swap": false,
+    "future": false,
+    "option": false
+   },
+   "methods": {
+    "createOrder": true,
+    "createMarketOrder": true,
+    "createLimitOrder": true,
+    "createStopOrder": null,
+    "createTriggerOrder": null,
+    "createStopLossOrder": null,
+    "createTakeProfitOrder": null,
+    "createReduceOnlyOrder": false,
+    "cancelOrder": true,
+    "editOrder": "emulated",
+    "fetchBalance": true,
+    "fetchPositions": false,
+    "fetchOpenOrders": true,
+    "fetchMyTrades": true,
+    "fetchOHLCV": true,
+    "fetchTicker": true,
+    "fetchOrderBook": true,
+    "fetchTradingFees": true,
+    "fetchFundingRate": false,
+    "setLeverage": false,
+    "setMarginMode": false,
+    "setPositionMode": false
+   },
+   "streams": {
+    "watchTicker": null,
+    "watchOrderBook": null,
+    "watchTrades": null,
+    "watchOHLCV": null,
+    "watchOrders": null,
+    "watchBalance": null,
+    "watchPositions": null
+   },
+   "required_credentials": [
+    "apiKey",
+    "secret"
+   ],
+   "default_trading_fee": {
+    "maker": null,
+    "taker": null,
+    "note": "CCXT default schedule; the exchange's fee page is the source of truth"
+   }
+  },
+  {
+   "id": "bitbns",
+   "name": "Bitbns",
+   "countries_listed_by_ccxt": [
+    "IN"
+   ],
+   "certified": false,
+   "pro": false,
+   "dex": false,
+   "alias": false,
+   "api_version": "v2",
+   "rate_limit_ms": 1000,
+   "urls": {
+    "www": "https://bitbns.com",
+    "doc": [
+     "https://bitbns.com/trade/#/api-trading/"
+    ],
+    "fees": [
+     "https://bitbns.com/fees"
+    ],
+    "api_management": null,
+    "api_base": "https://bitbns.com",
+    "test": []
+   },
+   "has_referral_url": true,
+   "sandbox": false,
+   "markets": {
+    "spot": true,
+    "margin": null,
+    "swap": false,
+    "future": false,
+    "option": null
+   },
+   "methods": {
+    "createOrder": true,
+    "createMarketOrder": true,
+    "createLimitOrder": true,
+    "createStopOrder": true,
+    "createTriggerOrder": true,
+    "createStopLossOrder": null,
+    "createTakeProfitOrder": null,
+    "createReduceOnlyOrder": null,
+    "cancelOrder": true,
+    "editOrder": "emulated",
+    "fetchBalance": true,
+    "fetchPositions": null,
+    "fetchOpenOrders": true,
+    "fetchMyTrades": true,
+    "fetchOHLCV": false,
+    "fetchTicker": "emulated",
+    "fetchOrderBook": true,
+    "fetchTradingFees": false,
+    "fetchFundingRate": false,
+    "setLeverage": null,
+    "setMarginMode": null,
+    "setPositionMode": null
+   },
+   "streams": {
+    "watchTicker": null,
+    "watchOrderBook": null,
+    "watchTrades": null,
+    "watchOHLCV": null,
+    "watchOrders": null,
+    "watchBalance": null,
+    "watchPositions": null
+   },
+   "required_credentials": [
+    "apiKey",
+    "secret"
+   ],
+   "default_trading_fee": {
+    "maker": 0.0025,
+    "taker": 0.0025,
+    "note": "CCXT default schedule; the exchange's fee page is the source of truth"
+   }
+  },
+  {
+   "id": "bitfinex",
+   "name": "Bitfinex",
+   "countries_listed_by_ccxt": [
+    "VG"
+   ],
+   "certified": false,
+   "pro": true,
+   "dex": false,
+   "alias": false,
+   "api_version": "v2",
+   "rate_limit_ms": 250,
+   "urls": {
+    "www": "https://www.bitfinex.com",
+    "doc": [
+     "https://docs.bitfinex.com/v2/docs/",
+     "https://github.com/bitfinexcom/bitfinex-api-node"
+    ],
+    "fees": [
+     "https://www.bitfinex.com/fees"
+    ],
+    "api_management": null,
+    "api_base": "https://api.bitfinex.com",
+    "test": []
+   },
+   "has_referral_url": false,
+   "sandbox": false,
+   "markets": {
+    "spot": true,
+    "margin": true,
+    "swap": true,
+    "future": false,
+    "option": false
+   },
+   "methods": {
+    "createOrder": true,
+    "createMarketOrder": true,
+    "createLimitOrder": true,
+    "createStopOrder": true,
+    "createTriggerOrder": true,
+    "createStopLossOrder": null,
+    "createTakeProfitOrder": null,
+    "createReduceOnlyOrder": true,
+    "cancelOrder": true,
+    "editOrder": true,
+    "fetchBalance": true,
+    "fetchPositions": true,
+    "fetchOpenOrders": true,
+    "fetchMyTrades": true,
+    "fetchOHLCV": true,
+    "fetchTicker": true,
+    "fetchOrderBook": true,
+    "fetchTradingFees": true,
+    "fetchFundingRate": "emulated",
+    "setLeverage": false,
+    "setMarginMode": false,
+    "setPositionMode": false
+   },
+   "streams": {
+    "watchTicker": true,
+    "watchOrderBook": true,
+    "watchTrades": true,
+    "watchOHLCV": true,
+    "watchOrders": true,
+    "watchBalance": true,
+    "watchPositions": null
+   },
+   "required_credentials": [
+    "apiKey",
+    "secret"
+   ],
+   "default_trading_fee": {
+    "maker": 0.001,
+    "taker": 0.002,
+    "note": "CCXT default schedule; the exchange's fee page is the source of truth"
+   }
+  },
+  {
+   "id": "bitflyer",
+   "name": "bitFlyer",
+   "countries_listed_by_ccxt": [
+    "JP"
+   ],
+   "certified": false,
+   "pro": false,
+   "dex": false,
+   "alias": false,
+   "api_version": "v1",
+   "rate_limit_ms": 1000,
+   "urls": {
+    "www": "https://bitflyer.com",
+    "doc": [
+     "https://lightning.bitflyer.com/docs?lang=en"
+    ],
+    "fees": [],
+    "api_management": null,
+    "api_base": "https://api.bitflyer.com",
+    "test": []
+   },
+   "has_referral_url": false,
+   "sandbox": false,
+   "markets": {
+    "spot": true,
+    "margin": false,
+    "swap": null,
+    "future": null,
+    "option": false
+   },
+   "methods": {
+    "createOrder": true,
+    "createMarketOrder": true,
+    "createLimitOrder": true,
+    "createStopOrder": null,
+    "createTriggerOrder": null,
+    "createStopLossOrder": null,
+    "createTakeProfitOrder": null,
+    "createReduceOnlyOrder": null,
+    "cancelOrder": true,
+    "editOrder": "emulated",
+    "fetchBalance": true,
+    "fetchPositions": true,
+    "fetchOpenOrders": "emulated",
+    "fetchMyTrades": true,
+    "fetchOHLCV": null,
+    "fetchTicker": true,
+    "fetchOrderBook": true,
+    "fetchTradingFees": false,
+    "fetchFundingRate": true,
+    "setLeverage": null,
+    "setMarginMode": null,
+    "setPositionMode": null
+   },
+   "streams": {
+    "watchTicker": null,
+    "watchOrderBook": null,
+    "watchTrades": null,
+    "watchOHLCV": null,
+    "watchOrders": null,
+    "watchBalance": null,
+    "watchPositions": null
+   },
+   "required_credentials": [
+    "apiKey",
+    "secret"
+   ],
+   "default_trading_fee": {
+    "maker": 0.002,
+    "taker": 0.002,
+    "note": "CCXT default schedule; the exchange's fee page is the source of truth"
+   }
+  },
+  {
+   "id": "bitget",
+   "name": "Bitget",
+   "countries_listed_by_ccxt": [
+    "SG"
+   ],
+   "certified": true,
+   "pro": true,
+   "dex": false,
+   "alias": false,
+   "api_version": "v2",
+   "rate_limit_ms": 50,
+   "urls": {
+    "www": "https://www.bitget.com",
+    "doc": [
+     "https://www.bitget.com/api-doc/common/intro",
+     "https://www.bitget.com/api-doc/spot/intro",
+     "https://www.bitget.com/api-doc/contract/intro",
+     "https://www.bitget.com/api-doc/broker/intro",
+     "https://www.bitget.com/api-doc/margin/intro",
+     "https://www.bitget.com/api-doc/copytrading/intro",
+     "https://www.bitget.com/api-doc/earn/intro",
+     "https://bitgetlimited.github.io/apidoc/en/mix",
+     "https://bitgetlimited.github.io/apidoc/en/spot",
+     "https://bitgetlimited.github.io/apidoc/en/broker",
+     "https://bitgetlimited.github.io/apidoc/en/margin"
+    ],
+    "fees": [
+     "https://www.bitget.cc/zh-CN/rate?tab=1"
+    ],
+    "api_management": null,
+    "api_base": "https://api.bitget.com",
+    "test": []
+   },
+   "has_referral_url": true,
+   "sandbox": false,
+   "markets": {
+    "spot": true,
+    "margin": true,
+    "swap": true,
+    "future": true,
+    "option": false
+   },
+   "methods": {
+    "createOrder": true,
+    "createMarketOrder": true,
+    "createLimitOrder": true,
+    "createStopOrder": true,
+    "createTriggerOrder": true,
+    "createStopLossOrder": true,
+    "createTakeProfitOrder": true,
+    "createReduceOnlyOrder": false,
+    "cancelOrder": true,
+    "editOrder": true,
+    "fetchBalance": true,
+    "fetchPositions": true,
+    "fetchOpenOrders": true,
+    "fetchMyTrades": true,
+    "fetchOHLCV": true,
+    "fetchTicker": true,
+    "fetchOrderBook": true,
+    "fetchTradingFees": true,
+    "fetchFundingRate": true,
+    "setLeverage": true,
+    "setMarginMode": true,
+    "setPositionMode": true
+   },
+   "streams": {
+    "watchTicker": true,
+    "watchOrderBook": true,
+    "watchTrades": true,
+    "watchOHLCV": true,
+    "watchOrders": true,
+    "watchBalance": true,
+    "watchPositions": true
+   },
+   "required_credentials": [
+    "apiKey",
+    "password",
+    "secret"
+   ],
+   "default_trading_fee": {
+    "maker": null,
+    "taker": null,
+    "note": "CCXT default schedule; the exchange's fee page is the source of truth"
+   }
+  },
+  {
+   "id": "bithumb",
+   "name": "Bithumb",
+   "countries_listed_by_ccxt": [
+    "KR"
+   ],
+   "certified": false,
+   "pro": true,
+   "dex": false,
+   "alias": false,
+   "api_version": null,
+   "rate_limit_ms": 500,
+   "urls": {
+    "www": "https://www.bithumb.com",
+    "doc": [
+     "https://apidocs.bithumb.com"
+    ],
+    "fees": [
+     "https://en.bithumb.com/customer_support/info_fee"
+    ],
+    "api_management": null,
+    "api_base": "https://api.bithumb.com/public",
+    "test": []
+   },
+   "has_referral_url": false,
+   "sandbox": false,
+   "markets": {
+    "spot": true,
+    "margin": false,
+    "swap": false,
+    "future": false,
+    "option": false
+   },
+   "methods": {
+    "createOrder": true,
+    "createMarketOrder": true,
+    "createLimitOrder": true,
+    "createStopOrder": null,
+    "createTriggerOrder": null,
+    "createStopLossOrder": null,
+    "createTakeProfitOrder": null,
+    "createReduceOnlyOrder": false,
+    "cancelOrder": true,
+    "editOrder": "emulated",
+    "fetchBalance": true,
+    "fetchPositions": false,
+    "fetchOpenOrders": true,
+    "fetchMyTrades": null,
+    "fetchOHLCV": true,
+    "fetchTicker": true,
+    "fetchOrderBook": true,
+    "fetchTradingFees": null,
+    "fetchFundingRate": false,
+    "setLeverage": false,
+    "setMarginMode": false,
+    "setPositionMode": false
+   },
+   "streams": {
+    "watchTicker": true,
+    "watchOrderBook": true,
+    "watchTrades": true,
+    "watchOHLCV": false,
+    "watchOrders": true,
+    "watchBalance": true,
+    "watchPositions": null
+   },
+   "required_credentials": [
+    "apiKey",
+    "secret"
+   ],
+   "default_trading_fee": {
+    "maker": 0.0025,
+    "taker": 0.0025,
+    "note": "CCXT default schedule; the exchange's fee page is the source of truth"
+   }
+  },
+  {
+   "id": "bitmart",
+   "name": "BitMart",
+   "countries_listed_by_ccxt": [
+    "US",
+    "CN",
+    "HK",
+    "KR"
+   ],
+   "certified": true,
+   "pro": true,
+   "dex": false,
+   "alias": false,
+   "api_version": "v2",
+   "rate_limit_ms": 33.34,
+   "urls": {
+    "www": "https://www.bitmart.com/",
+    "doc": [
+     "https://developer-pro.bitmart.com/"
+    ],
+    "fees": [
+     "https://www.bitmart.com/fee/en"
+    ],
+    "api_management": null,
+    "api_base": "https://api-cloud.bitmart.com",
+    "test": []
+   },
+   "has_referral_url": true,
+   "sandbox": false,
+   "markets": {
+    "spot": true,
+    "margin": true,
+    "swap": true,
+    "future": false,
+    "option": false
+   },
+   "methods": {
+    "createOrder": true,
+    "createMarketOrder": true,
+    "createLimitOrder": true,
+    "createStopOrder": false,
+    "createTriggerOrder": null,
+    "createStopLossOrder": null,
+    "createTakeProfitOrder": null,
+    "createReduceOnlyOrder": true,
+    "cancelOrder": true,
+    "editOrder": "emulated",
+    "fetchBalance": true,
+    "fetchPositions": true,
+    "fetchOpenOrders": true,
+    "fetchMyTrades": true,
+    "fetchOHLCV": true,
+    "fetchTicker": true,
+    "fetchOrderBook": true,
+    "fetchTradingFees": false,
+    "fetchFundingRate": true,
+    "setLeverage": true,
+    "setMarginMode": false,
+    "setPositionMode": true
+   },
+   "streams": {
+    "watchTicker": true,
+    "watchOrderBook": true,
+    "watchTrades": true,
+    "watchOHLCV": true,
+    "watchOrders": true,
+    "watchBalance": true,
+    "watchPositions": true
+   },
+   "required_credentials": [
+    "apiKey",
+    "secret",
+    "uid"
+   ],
+   "default_trading_fee": {
+    "maker": 0.0035,
+    "taker": 0.004,
+    "note": "CCXT default schedule; the exchange's fee page is the source of truth"
+   }
+  },
+  {
+   "id": "bitmex",
+   "name": "BitMEX",
+   "countries_listed_by_ccxt": [
+    "SC"
+   ],
+   "certified": true,
+   "pro": true,
+   "dex": false,
+   "alias": false,
+   "api_version": "v1",
+   "rate_limit_ms": 100,
+   "urls": {
+    "www": "https://www.bitmex.com",
+    "doc": [
+     "https://www.bitmex.com/app/apiOverview",
+     "https://github.com/BitMEX/api-connectors/tree/master/official-http"
+    ],
+    "fees": [
+     "https://www.bitmex.com/app/fees"
+    ],
+    "api_management": null,
+    "api_base": "https://www.bitmex.com",
+    "test": [
+     "https://testnet.bitmex.com"
+    ]
+   },
+   "has_referral_url": true,
+   "sandbox": true,
+   "markets": {
+    "spot": true,
+    "margin": false,
+    "swap": true,
+    "future": true,
+    "option": false
+   },
+   "methods": {
+    "createOrder": true,
+    "createMarketOrder": true,
+    "createLimitOrder": true,
+    "createStopOrder": true,
+    "createTriggerOrder": true,
+    "createStopLossOrder": null,
+    "createTakeProfitOrder": null,
+    "createReduceOnlyOrder": true,
+    "cancelOrder": true,
+    "editOrder": true,
+    "fetchBalance": true,
+    "fetchPositions": true,
+    "fetchOpenOrders": true,
+    "fetchMyTrades": true,
+    "fetchOHLCV": true,
+    "fetchTicker": true,
+    "fetchOrderBook": true,
+    "fetchTradingFees": null,
+    "fetchFundingRate": "emulated",
+    "setLeverage": true,
+    "setMarginMode": true,
+    "setPositionMode": false
+   },
+   "streams": {
+    "watchTicker": true,
+    "watchOrderBook": true,
+    "watchTrades": true,
+    "watchOHLCV": true,
+    "watchOrders": true,
+    "watchBalance": true,
+    "watchPositions": null
+   },
+   "required_credentials": [
+    "apiKey",
+    "secret"
+   ],
+   "default_trading_fee": {
+    "maker": null,
+    "taker": null,
+    "note": "CCXT default schedule; the exchange's fee page is the source of truth"
+   }
+  },
+  {
+   "id": "bitopro",
+   "name": "BitoPro",
+   "countries_listed_by_ccxt": [
+    "TW"
+   ],
+   "certified": false,
+   "pro": true,
+   "dex": false,
+   "alias": false,
+   "api_version": "v3",
+   "rate_limit_ms": 100,
+   "urls": {
+    "www": "https://www.bitopro.com",
+    "doc": [
+     "https://github.com/bitoex/bitopro-offical-api-docs/blob/master/v3-1/rest-1/rest.md"
+    ],
+    "fees": [
+     "https://www.bitopro.com/fees"
+    ],
+    "api_management": null,
+    "api_base": "https://api.bitopro.com/v3",
+    "test": []
+   },
+   "has_referral_url": false,
+   "sandbox": false,
+   "markets": {
+    "spot": true,
+    "margin": false,
+    "swap": false,
+    "future": false,
+    "option": false
+   },
+   "methods": {
+    "createOrder": true,
+    "createMarketOrder": true,
+    "createLimitOrder": true,
+    "createStopOrder": true,
+    "createTriggerOrder": true,
+    "createStopLossOrder": null,
+    "createTakeProfitOrder": null,
+    "createReduceOnlyOrder": false,
+    "cancelOrder": true,
+    "editOrder": false,
+    "fetchBalance": true,
+    "fetchPositions": false,
+    "fetchOpenOrders": true,
+    "fetchMyTrades": true,
+    "fetchOHLCV": true,
+    "fetchTicker": true,
+    "fetchOrderBook": true,
+    "fetchTradingFees": true,
+    "fetchFundingRate": false,
+    "setLeverage": false,
+    "setMarginMode": false,
+    "setPositionMode": false
+   },
+   "streams": {
+    "watchTicker": true,
+    "watchOrderBook": true,
+    "watchTrades": true,
+    "watchOHLCV": false,
+    "watchOrders": false,
+    "watchBalance": true,
+    "watchPositions": null
+   },
+   "required_credentials": [
+    "apiKey",
+    "secret"
+   ],
+   "default_trading_fee": {
+    "maker": 0.001,
+    "taker": 0.002,
+    "note": "CCXT default schedule; the exchange's fee page is the source of truth"
+   }
+  },
+  {
+   "id": "bitrue",
+   "name": "Bitrue",
+   "countries_listed_by_ccxt": [
+    "SG"
+   ],
+   "certified": false,
+   "pro": true,
+   "dex": false,
+   "alias": false,
+   "api_version": "v1",
+   "rate_limit_ms": 10,
+   "urls": {
+    "www": "https://www.bitrue.com",
+    "doc": [
+     "https://github.com/Bitrue-exchange/bitrue-official-api-docs",
+     "https://www.bitrue.com/api-docs"
+    ],
+    "fees": [
+     "https://bitrue.zendesk.com/hc/en-001/articles/4405479952537"
+    ],
+    "api_management": null,
+    "api_base": "https://www.bitrue.com/api",
+    "test": []
+   },
+   "has_referral_url": true,
+   "sandbox": false,
+   "markets": {
+    "spot": true,
+    "margin": false,
+    "swap": true,
+    "future": false,
+    "option": false
+   },
+   "methods": {
+    "createOrder": true,
+    "createMarketOrder": true,
+    "createLimitOrder": true,
+    "createStopOrder": true,
+    "createTriggerOrder": null,
+    "createStopLossOrder": null,
+    "createTakeProfitOrder": null,
+    "createReduceOnlyOrder": true,
+    "cancelOrder": true,
+    "editOrder": "emulated",
+    "fetchBalance": true,
+    "fetchPositions": false,
+    "fetchOpenOrders": true,
+    "fetchMyTrades": true,
+    "fetchOHLCV": true,
+    "fetchTicker": true,
+    "fetchOrderBook": true,
+    "fetchTradingFees": false,
+    "fetchFundingRate": false,
+    "setLeverage": true,
+    "setMarginMode": false,
+    "setPositionMode": false
+   },
+   "streams": {
+    "watchTicker": true,
+    "watchOrderBook": true,
+    "watchTrades": true,
+    "watchOHLCV": true,
+    "watchOrders": true,
+    "watchBalance": true,
+    "watchPositions": null
+   },
+   "required_credentials": [
+    "apiKey",
+    "secret"
+   ],
+   "default_trading_fee": {
+    "maker": 0.00098,
+    "taker": 0.00098,
+    "note": "CCXT default schedule; the exchange's fee page is the source of truth"
+   }
+  },
+  {
+   "id": "bitso",
+   "name": "Bitso",
+   "countries_listed_by_ccxt": [
+    "MX"
+   ],
+   "certified": false,
+   "pro": false,
+   "dex": false,
+   "alias": false,
+   "api_version": "v3",
+   "rate_limit_ms": 2000,
+   "urls": {
+    "www": "https://bitso.com",
+    "doc": [
+     "https://bitso.com/api_info"
+    ],
+    "fees": [
+     "https://bitso.com/fees"
+    ],
+    "api_management": null,
+    "api_base": "https://bitso.com/api",
+    "test": [
+     "https://stage.bitso.com/api"
+    ]
+   },
+   "has_referral_url": true,
+   "sandbox": true,
+   "markets": {
+    "spot": true,
+    "margin": false,
+    "swap": false,
+    "future": false,
+    "option": false
+   },
+   "methods": {
+    "createOrder": true,
+    "createMarketOrder": true,
+    "createLimitOrder": true,
+    "createStopOrder": null,
+    "createTriggerOrder": null,
+    "createStopLossOrder": null,
+    "createTakeProfitOrder": null,
+    "createReduceOnlyOrder": false,
+    "cancelOrder": true,
+    "editOrder": "emulated",
+    "fetchBalance": true,
+    "fetchPositions": false,
+    "fetchOpenOrders": true,
+    "fetchMyTrades": true,
+    "fetchOHLCV": true,
+    "fetchTicker": true,
+    "fetchOrderBook": true,
+    "fetchTradingFees": true,
+    "fetchFundingRate": false,
+    "setLeverage": false,
+    "setMarginMode": false,
+    "setPositionMode": false
+   },
+   "streams": {
+    "watchTicker": null,
+    "watchOrderBook": null,
+    "watchTrades": null,
+    "watchOHLCV": null,
+    "watchOrders": null,
+    "watchBalance": null,
+    "watchPositions": null
+   },
+   "required_credentials": [
+    "apiKey",
+    "secret"
+   ],
+   "default_trading_fee": {
+    "maker": null,
+    "taker": null,
+    "note": "CCXT default schedule; the exchange's fee page is the source of truth"
+   }
+  },
+  {
+   "id": "bitstamp",
+   "name": "Bitstamp",
+   "countries_listed_by_ccxt": [
+    "GB"
+   ],
+   "certified": false,
+   "pro": true,
+   "dex": false,
+   "alias": false,
+   "api_version": "v2",
+   "rate_limit_ms": 75,
+   "urls": {
+    "www": "https://www.bitstamp.net",
+    "doc": [
+     "https://www.bitstamp.net/api"
+    ],
+    "fees": [],
+    "api_management": null,
+    "api_base": "https://www.bitstamp.net/api",
+    "test": []
+   },
+   "has_referral_url": false,
+   "sandbox": false,
+   "markets": {
+    "spot": true,
+    "margin": false,
+    "swap": true,
+    "future": false,
+    "option": false
+   },
+   "methods": {
+    "createOrder": true,
+    "createMarketOrder": true,
+    "createLimitOrder": true,
+    "createStopOrder": false,
+    "createTriggerOrder": null,
+    "createStopLossOrder": null,
+    "createTakeProfitOrder": null,
+    "createReduceOnlyOrder": false,
+    "cancelOrder": true,
+    "editOrder": "emulated",
+    "fetchBalance": true,
+    "fetchPositions": false,
+    "fetchOpenOrders": true,
+    "fetchMyTrades": true,
+    "fetchOHLCV": true,
+    "fetchTicker": true,
+    "fetchOrderBook": true,
+    "fetchTradingFees": true,
+    "fetchFundingRate": false,
+    "setLeverage": false,
+    "setMarginMode": false,
+    "setPositionMode": false
+   },
+   "streams": {
+    "watchTicker": false,
+    "watchOrderBook": true,
+    "watchTrades": true,
+    "watchOHLCV": false,
+    "watchOrders": true,
+    "watchBalance": null,
+    "watchPositions": null
+   },
+   "required_credentials": [
+    "apiKey",
+    "secret"
+   ],
+   "default_trading_fee": {
+    "maker": 0.004,
+    "taker": 0.004,
+    "note": "CCXT default schedule; the exchange's fee page is the source of truth"
+   }
+  },
+  {
+   "id": "bitteam",
+   "name": "BIT.TEAM",
+   "countries_listed_by_ccxt": [
+    "UK"
+   ],
+   "certified": false,
+   "pro": false,
+   "dex": false,
+   "alias": false,
+   "api_version": "v2.0.6",
+   "rate_limit_ms": 1,
+   "urls": {
+    "www": "https://bit.team/",
+    "doc": [
+     "https://bit.team/trade/api/documentation"
+    ],
+    "fees": [],
+    "api_management": null,
+    "api_base": "https://history.bit.team",
+    "test": []
+   },
+   "has_referral_url": true,
+   "sandbox": false,
+   "markets": {
+    "spot": true,
+    "margin": false,
+    "swap": false,
+    "future": false,
+    "option": false
+   },
+   "methods": {
+    "createOrder": true,
+    "createMarketOrder": true,
+    "createLimitOrder": true,
+    "createStopOrder": false,
+    "createTriggerOrder": null,
+    "createStopLossOrder": null,
+    "createTakeProfitOrder": null,
+    "createReduceOnlyOrder": false,
+    "cancelOrder": true,
+    "editOrder": false,
+    "fetchBalance": true,
+    "fetchPositions": false,
+    "fetchOpenOrders": true,
+    "fetchMyTrades": true,
+    "fetchOHLCV": true,
+    "fetchTicker": true,
+    "fetchOrderBook": true,
+    "fetchTradingFees": false,
+    "fetchFundingRate": false,
+    "setLeverage": false,
+    "setMarginMode": false,
+    "setPositionMode": false
+   },
+   "streams": {
+    "watchTicker": null,
+    "watchOrderBook": null,
+    "watchTrades": null,
+    "watchOHLCV": null,
+    "watchOrders": null,
+    "watchBalance": null,
+    "watchPositions": null
+   },
+   "required_credentials": [
+    "apiKey",
+    "secret"
+   ],
+   "default_trading_fee": {
+    "maker": 0.002,
+    "taker": 0.002,
+    "note": "CCXT default schedule; the exchange's fee page is the source of truth"
+   }
+  },
+  {
+   "id": "bittrade",
+   "name": "BitTrade",
+   "countries_listed_by_ccxt": [
+    "JP"
+   ],
+   "certified": false,
+   "pro": true,
+   "dex": false,
+   "alias": false,
+   "api_version": "v1",
+   "rate_limit_ms": 100,
+   "urls": {
+    "www": "https://www.bittrade.co.jp",
+    "doc": [
+     "https://api-doc.bittrade.co.jp"
+    ],
+    "fees": [
+     "https://www.bittrade.co.jp/ja-jp/support/fee"
+    ],
+    "api_management": null,
+    "api_base": "https://api-cloud.bittrade.co.jp",
+    "test": []
+   },
+   "has_referral_url": true,
+   "sandbox": false,
+   "markets": {
+    "spot": true,
+    "margin": null,
+    "swap": false,
+    "future": false,
+    "option": false
+   },
+   "methods": {
+    "createOrder": true,
+    "createMarketOrder": true,
+    "createLimitOrder": true,
+    "createStopOrder": false,
+    "createTriggerOrder": null,
+    "createStopLossOrder": null,
+    "createTakeProfitOrder": null,
+    "createReduceOnlyOrder": null,
+    "cancelOrder": true,
+    "editOrder": "emulated",
+    "fetchBalance": true,
+    "fetchPositions": null,
+    "fetchOpenOrders": true,
+    "fetchMyTrades": true,
+    "fetchOHLCV": true,
+    "fetchTicker": true,
+    "fetchOrderBook": true,
+    "fetchTradingFees": null,
+    "fetchFundingRate": false,
+    "setLeverage": null,
+    "setMarginMode": null,
+    "setPositionMode": null
+   },
+   "streams": {
+    "watchTicker": true,
+    "watchOrderBook": true,
+    "watchTrades": true,
+    "watchOHLCV": true,
+    "watchOrders": null,
+    "watchBalance": false,
+    "watchPositions": null
+   },
+   "required_credentials": [
+    "apiKey",
+    "secret"
+   ],
+   "default_trading_fee": {
+    "maker": 0.002,
+    "taker": 0.002,
+    "note": "CCXT default schedule; the exchange's fee page is the source of truth"
+   }
+  },
+  {
+   "id": "bitvavo",
+   "name": "Bitvavo",
+   "countries_listed_by_ccxt": [
+    "NL"
+   ],
+   "certified": false,
+   "pro": true,
+   "dex": false,
+   "alias": false,
+   "api_version": "v2",
+   "rate_limit_ms": 60,
+   "urls": {
+    "www": "https://bitvavo.com/",
+    "doc": [
+     "https://docs.bitvavo.com/"
+    ],
+    "fees": [
+     "https://bitvavo.com/en/fees"
+    ],
+    "api_management": null,
+    "api_base": "https://api.bitvavo.com",
+    "test": []
+   },
+   "has_referral_url": true,
+   "sandbox": false,
+   "markets": {
+    "spot": true,
+    "margin": false,
+    "swap": false,
+    "future": false,
+    "option": false
+   },
+   "methods": {
+    "createOrder": true,
+    "createMarketOrder": true,
+    "createLimitOrder": true,
+    "createStopOrder": true,
+    "createTriggerOrder": null,
+    "createStopLossOrder": null,
+    "createTakeProfitOrder": null,
+    "createReduceOnlyOrder": false,
+    "cancelOrder": true,
+    "editOrder": true,
+    "fetchBalance": true,
+    "fetchPositions": false,
+    "fetchOpenOrders": true,
+    "fetchMyTrades": true,
+    "fetchOHLCV": true,
+    "fetchTicker": true,
+    "fetchOrderBook": true,
+    "fetchTradingFees": true,
+    "fetchFundingRate": false,
+    "setLeverage": false,
+    "setMarginMode": false,
+    "setPositionMode": false
+   },
+   "streams": {
+    "watchTicker": true,
+    "watchOrderBook": true,
+    "watchTrades": true,
+    "watchOHLCV": true,
+    "watchOrders": true,
+    "watchBalance": null,
+    "watchPositions": null
+   },
+   "required_credentials": [
+    "apiKey",
+    "secret"
+   ],
+   "default_trading_fee": {
+    "maker": 0.002,
+    "taker": 0.0025,
+    "note": "CCXT default schedule; the exchange's fee page is the source of truth"
+   }
+  },
+  {
+   "id": "blockchaincom",
+   "name": "Blockchain.com",
+   "countries_listed_by_ccxt": [
+    "LX"
+   ],
+   "certified": false,
+   "pro": true,
+   "dex": false,
+   "alias": false,
+   "api_version": "v3",
+   "rate_limit_ms": 500,
+   "urls": {
+    "www": "https://blockchain.com",
+    "doc": [
+     "https://api.blockchain.com/v3"
+    ],
+    "fees": [
+     "https://exchange.blockchain.com/fees"
+    ],
+    "api_management": null,
+    "api_base": "https://api.blockchain.com/v3/exchange",
+    "test": [
+     "https://testnet-api.delta.exchange"
+    ]
+   },
+   "has_referral_url": false,
+   "sandbox": true,
+   "markets": {
+    "spot": true,
+    "margin": null,
+    "swap": false,
+    "future": false,
+    "option": false
+   },
+   "methods": {
+    "createOrder": true,
+    "createMarketOrder": true,
+    "createLimitOrder": true,
+    "createStopOrder": true,
+    "createTriggerOrder": null,
+    "createStopLossOrder": null,
+    "createTakeProfitOrder": null,
+    "createReduceOnlyOrder": null,
+    "cancelOrder": true,
+    "editOrder": "emulated",
+    "fetchBalance": true,
+    "fetchPositions": null,
+    "fetchOpenOrders": true,
+    "fetchMyTrades": true,
+    "fetchOHLCV": false,
+    "fetchTicker": true,
+    "fetchOrderBook": true,
+    "fetchTradingFees": true,
+    "fetchFundingRate": false,
+    "setLeverage": null,
+    "setMarginMode": null,
+    "setPositionMode": null
+   },
+   "streams": {
+    "watchTicker": true,
+    "watchOrderBook": true,
+    "watchTrades": true,
+    "watchOHLCV": true,
+    "watchOrders": true,
+    "watchBalance": true,
+    "watchPositions": null
+   },
+   "required_credentials": [
+    "secret"
+   ],
+   "default_trading_fee": {
+    "maker": null,
+    "taker": null,
+    "note": "CCXT default schedule; the exchange's fee page is the source of truth"
+   }
+  },
+  {
+   "id": "blofin",
+   "name": "BloFin",
+   "countries_listed_by_ccxt": [
+    "US"
+   ],
+   "certified": false,
+   "pro": true,
+   "dex": false,
+   "alias": false,
+   "api_version": "v1",
+   "rate_limit_ms": 100,
+   "urls": {
+    "www": "https://www.blofin.com",
+    "doc": [
+     "https://blofin.com/docs"
+    ],
+    "fees": [],
+    "api_management": null,
+    "api_base": "https://openapi.blofin.com",
+    "test": [
+     "https://demo-trading-openapi.blofin.com"
+    ]
+   },
+   "has_referral_url": true,
+   "sandbox": true,
+   "markets": {
+    "spot": false,
+    "margin": false,
+    "swap": true,
+    "future": false,
+    "option": false
+   },
+   "methods": {
+    "createOrder": true,
+    "createMarketOrder": true,
+    "createLimitOrder": true,
+    "createStopOrder": false,
+    "createTriggerOrder": true,
+    "createStopLossOrder": true,
+    "createTakeProfitOrder": true,
+    "createReduceOnlyOrder": false,
+    "cancelOrder": true,
+    "editOrder": false,
+    "fetchBalance": true,
+    "fetchPositions": true,
+    "fetchOpenOrders": true,
+    "fetchMyTrades": true,
+    "fetchOHLCV": true,
+    "fetchTicker": true,
+    "fetchOrderBook": true,
+    "fetchTradingFees": false,
+    "fetchFundingRate": true,
+    "setLeverage": true,
+    "setMarginMode": true,
+    "setPositionMode": true
+   },
+   "streams": {
+    "watchTicker": true,
+    "watchOrderBook": true,
+    "watchTrades": true,
+    "watchOHLCV": true,
+    "watchOrders": true,
+    "watchBalance": null,
+    "watchPositions": true
+   },
+   "required_credentials": [
+    "apiKey",
+    "password",
+    "secret"
+   ],
+   "default_trading_fee": {
+    "maker": null,
+    "taker": null,
+    "note": "CCXT default schedule; the exchange's fee page is the source of truth"
+   }
+  },
+  {
+   "id": "btcbox",
+   "name": "BtcBox",
+   "countries_listed_by_ccxt": [
+    "JP"
+   ],
+   "certified": false,
+   "pro": false,
+   "dex": false,
+   "alias": false,
+   "api_version": "v1",
+   "rate_limit_ms": 1000,
+   "urls": {
+    "www": "https://www.btcbox.co.jp/",
+    "doc": [
+     "https://blog.btcbox.jp/en/archives/8762"
+    ],
+    "fees": [
+     "https://support.btcbox.co.jp/hc/en-us/articles/360001235694-Fees-introduction"
+    ],
+    "api_management": null,
+    "api_base": "https://www.btcbox.co.jp/api",
+    "test": []
+   },
+   "has_referral_url": false,
+   "sandbox": false,
+   "markets": {
+    "spot": true,
+    "margin": false,
+    "swap": false,
+    "future": false,
+    "option": false
+   },
+   "methods": {
+    "createOrder": true,
+    "createMarketOrder": true,
+    "createLimitOrder": true,
+    "createStopOrder": null,
+    "createTriggerOrder": null,
+    "createStopLossOrder": null,
+    "createTakeProfitOrder": null,
+    "createReduceOnlyOrder": false,
+    "cancelOrder": true,
+    "editOrder": "emulated",
+    "fetchBalance": true,
+    "fetchPositions": false,
+    "fetchOpenOrders": true,
+    "fetchMyTrades": null,
+    "fetchOHLCV": null,
+    "fetchTicker": true,
+    "fetchOrderBook": true,
+    "fetchTradingFees": null,
+    "fetchFundingRate": false,
+    "setLeverage": false,
+    "setMarginMode": false,
+    "setPositionMode": false
+   },
+   "streams": {
+    "watchTicker": null,
+    "watchOrderBook": null,
+    "watchTrades": null,
+    "watchOHLCV": null,
+    "watchOrders": null,
+    "watchBalance": null,
+    "watchPositions": null
+   },
+   "required_credentials": [
+    "apiKey",
+    "secret"
+   ],
+   "default_trading_fee": {
+    "maker": null,
+    "taker": null,
+    "note": "CCXT default schedule; the exchange's fee page is the source of truth"
+   }
+  },
+  {
+   "id": "btcmarkets",
+   "name": "BTC Markets",
+   "countries_listed_by_ccxt": [
+    "AU"
+   ],
+   "certified": false,
+   "pro": false,
+   "dex": false,
+   "alias": false,
+   "api_version": "v3",
+   "rate_limit_ms": 1000,
+   "urls": {
+    "www": "https://btcmarkets.net",
+    "doc": [
+     "https://api.btcmarkets.net/doc/v3",
+     "https://github.com/BTCMarkets/API"
+    ],
+    "fees": [],
+    "api_management": null,
+    "api_base": "https://api.btcmarkets.net",
+    "test": []
+   },
+   "has_referral_url": false,
+   "sandbox": false,
+   "markets": {
+    "spot": true,
+    "margin": false,
+    "swap": false,
+    "future": false,
+    "option": false
+   },
+   "methods": {
+    "createOrder": true,
+    "createMarketOrder": true,
+    "createLimitOrder": true,
+    "createStopOrder": null,
+    "createTriggerOrder": true,
+    "createStopLossOrder": null,
+    "createTakeProfitOrder": null,
+    "createReduceOnlyOrder": false,
+    "cancelOrder": true,
+    "editOrder": "emulated",
+    "fetchBalance": true,
+    "fetchPositions": false,
+    "fetchOpenOrders": true,
+    "fetchMyTrades": true,
+    "fetchOHLCV": true,
+    "fetchTicker": true,
+    "fetchOrderBook": true,
+    "fetchTradingFees": null,
+    "fetchFundingRate": false,
+    "setLeverage": false,
+    "setMarginMode": false,
+    "setPositionMode": false
+   },
+   "streams": {
+    "watchTicker": null,
+    "watchOrderBook": null,
+    "watchTrades": null,
+    "watchOHLCV": null,
+    "watchOrders": null,
+    "watchBalance": null,
+    "watchPositions": null
+   },
+   "required_credentials": [
+    "apiKey",
+    "secret"
+   ],
+   "default_trading_fee": {
+    "maker": null,
+    "taker": null,
+    "note": "CCXT default schedule; the exchange's fee page is the source of truth"
+   }
+  },
+  {
+   "id": "btcturk",
+   "name": "BTCTurk",
+   "countries_listed_by_ccxt": [
+    "TR"
+   ],
+   "certified": false,
+   "pro": false,
+   "dex": false,
+   "alias": false,
+   "api_version": null,
+   "rate_limit_ms": 100,
+   "urls": {
+    "www": "https://www.btcturk.com",
+    "doc": [
+     "https://github.com/BTCTrader/broker-api-docs"
+    ],
+    "fees": [],
+    "api_management": null,
+    "api_base": "https://api.btcturk.com/api/v2",
+    "test": []
+   },
+   "has_referral_url": false,
+   "sandbox": false,
+   "markets": {
+    "spot": true,
+    "margin": false,
+    "swap": false,
+    "future": false,
+    "option": false
+   },
+   "methods": {
+    "createOrder": true,
+    "createMarketOrder": true,
+    "createLimitOrder": true,
+    "createStopOrder": null,
+    "createTriggerOrder": null,
+    "createStopLossOrder": null,
+    "createTakeProfitOrder": null,
+    "createReduceOnlyOrder": false,
+    "cancelOrder": true,
+    "editOrder": "emulated",
+    "fetchBalance": true,
+    "fetchPositions": false,
+    "fetchOpenOrders": true,
+    "fetchMyTrades": true,
+    "fetchOHLCV": true,
+    "fetchTicker": true,
+    "fetchOrderBook": true,
+    "fetchTradingFees": null,
+    "fetchFundingRate": false,
+    "setLeverage": false,
+    "setMarginMode": false,
+    "setPositionMode": false
+   },
+   "streams": {
+    "watchTicker": null,
+    "watchOrderBook": null,
+    "watchTrades": null,
+    "watchOHLCV": null,
+    "watchOrders": null,
+    "watchBalance": null,
+    "watchPositions": null
+   },
+   "required_credentials": [
+    "apiKey",
+    "secret"
+   ],
+   "default_trading_fee": {
+    "maker": 0.0005,
+    "taker": 0.0009,
+    "note": "CCXT default schedule; the exchange's fee page is the source of truth"
+   }
+  },
+  {
+   "id": "bullish",
+   "name": "Bullish",
+   "countries_listed_by_ccxt": [
+    "DE"
+   ],
+   "certified": false,
+   "pro": true,
+   "dex": false,
+   "alias": false,
+   "api_version": "v3",
+   "rate_limit_ms": 20,
+   "urls": {
+    "www": "https://bullish.com/",
+    "doc": [
+     "https://api.exchange.bullish.com/docs/api/rest/"
+    ],
+    "fees": [],
+    "api_management": null,
+    "api_base": "https://api.exchange.bullish.com/trading-api",
+    "test": [
+     "https://api.simnext.bullish-test.com/trading-api"
+    ]
+   },
+   "has_referral_url": false,
+   "sandbox": true,
+   "markets": {
+    "spot": true,
+    "margin": false,
+    "swap": true,
+    "future": false,
+    "option": false
+   },
+   "methods": {
+    "createOrder": true,
+    "createMarketOrder": true,
+    "createLimitOrder": true,
+    "createStopOrder": null,
+    "createTriggerOrder": true,
+    "createStopLossOrder": null,
+    "createTakeProfitOrder": null,
+    "createReduceOnlyOrder": null,
+    "cancelOrder": true,
+    "editOrder": true,
+    "fetchBalance": true,
+    "fetchPositions": true,
+    "fetchOpenOrders": true,
+    "fetchMyTrades": true,
+    "fetchOHLCV": true,
+    "fetchTicker": true,
+    "fetchOrderBook": true,
+    "fetchTradingFees": false,
+    "fetchFundingRate": false,
+    "setLeverage": false,
+    "setMarginMode": false,
+    "setPositionMode": false
+   },
+   "streams": {
+    "watchTicker": true,
+    "watchOrderBook": true,
+    "watchTrades": true,
+    "watchOHLCV": false,
+    "watchOrders": true,
+    "watchBalance": true,
+    "watchPositions": true
+   },
+   "required_credentials": [
+    "apiKey",
+    "secret"
+   ],
+   "default_trading_fee": {
+    "maker": 0.001,
+    "taker": 0.001,
+    "note": "CCXT default schedule; the exchange's fee page is the source of truth"
+   }
+  },
+  {
+   "id": "bybit",
+   "name": "Bybit",
+   "countries_listed_by_ccxt": [
+    "VG"
+   ],
+   "certified": true,
+   "pro": true,
+   "dex": false,
+   "alias": false,
+   "api_version": "v5",
+   "rate_limit_ms": 20,
+   "urls": {
+    "www": "https://www.bybit.com",
+    "doc": [
+     "https://bybit-exchange.github.io/docs/inverse/",
+     "https://bybit-exchange.github.io/docs/linear/",
+     "https://github.com/bybit-exchange"
+    ],
+    "fees": [
+     "https://help.bybit.com/hc/en-us/articles/360039261154"
+    ],
+    "api_management": null,
+    "api_base": "https://api.bybit.com",
+    "test": [
+     "https://api-testnet.bybit.com"
+    ]
+   },
+   "has_referral_url": true,
+   "sandbox": true,
+   "markets": {
+    "spot": true,
+    "margin": true,
+    "swap": true,
+    "future": true,
+    "option": true
+   },
+   "methods": {
+    "createOrder": true,
+    "createMarketOrder": true,
+    "createLimitOrder": true,
+    "createStopOrder": true,
+    "createTriggerOrder": true,
+    "createStopLossOrder": true,
+    "createTakeProfitOrder": true,
+    "createReduceOnlyOrder": true,
+    "cancelOrder": true,
+    "editOrder": true,
+    "fetchBalance": true,
+    "fetchPositions": true,
+    "fetchOpenOrders": true,
+    "fetchMyTrades": true,
+    "fetchOHLCV": true,
+    "fetchTicker": true,
+    "fetchOrderBook": true,
+    "fetchTradingFees": true,
+    "fetchFundingRate": "emulated",
+    "setLeverage": true,
+    "setMarginMode": true,
+    "setPositionMode": true
+   },
+   "streams": {
+    "watchTicker": true,
+    "watchOrderBook": true,
+    "watchTrades": true,
+    "watchOHLCV": true,
+    "watchOrders": true,
+    "watchBalance": true,
+    "watchPositions": true
+   },
+   "required_credentials": [
+    "apiKey",
+    "secret"
+   ],
+   "default_trading_fee": {
+    "maker": 0.0001,
+    "taker": 0.00075,
+    "note": "CCXT default schedule; the exchange's fee page is the source of truth"
+   }
+  },
+  {
+   "id": "bybiteu",
+   "name": "Bybit EU",
+   "countries_listed_by_ccxt": [
+    "EU"
+   ],
+   "certified": false,
+   "pro": true,
+   "dex": false,
+   "alias": false,
+   "api_version": "v5",
+   "rate_limit_ms": 20,
+   "urls": {
+    "www": "https://www.bybit.com",
+    "doc": [
+     "https://bybit-exchange.github.io/docs/inverse/",
+     "https://bybit-exchange.github.io/docs/linear/",
+     "https://github.com/bybit-exchange"
+    ],
+    "fees": [
+     "https://help.bybit.com/hc/en-us/articles/360039261154"
+    ],
+    "api_management": null,
+    "api_base": "https://api.bybit.eu",
+    "test": [
+     "https://api-testnet.bybit.eu"
+    ]
+   },
+   "has_referral_url": true,
+   "sandbox": true,
+   "markets": {
+    "spot": true,
+    "margin": true,
+    "swap": false,
+    "future": false,
+    "option": null
+   },
+   "methods": {
+    "createOrder": true,
+    "createMarketOrder": true,
+    "createLimitOrder": true,
+    "createStopOrder": true,
+    "createTriggerOrder": true,
+    "createStopLossOrder": true,
+    "createTakeProfitOrder": true,
+    "createReduceOnlyOrder": true,
+    "cancelOrder": true,
+    "editOrder": true,
+    "fetchBalance": true,
+    "fetchPositions": true,
+    "fetchOpenOrders": true,
+    "fetchMyTrades": true,
+    "fetchOHLCV": true,
+    "fetchTicker": true,
+    "fetchOrderBook": true,
+    "fetchTradingFees": true,
+    "fetchFundingRate": "emulated",
+    "setLeverage": true,
+    "setMarginMode": true,
+    "setPositionMode": true
+   },
+   "streams": {
+    "watchTicker": true,
+    "watchOrderBook": true,
+    "watchTrades": true,
+    "watchOHLCV": true,
+    "watchOrders": true,
+    "watchBalance": true,
+    "watchPositions": true
+   },
+   "required_credentials": [
+    "apiKey",
+    "secret"
+   ],
+   "default_trading_fee": {
+    "maker": 0.0001,
+    "taker": 0.00075,
+    "note": "CCXT default schedule; the exchange's fee page is the source of truth"
+   }
+  },
+  {
+   "id": "bydfi",
+   "name": "BYDFi",
+   "countries_listed_by_ccxt": [
+    "SG"
+   ],
+   "certified": false,
+   "pro": true,
+   "dex": false,
+   "alias": false,
+   "api_version": "v1",
+   "rate_limit_ms": 50,
+   "urls": {
+    "www": "https://bydfi.com/",
+    "doc": [
+     "https://developers.bydfi.com/en/"
+    ],
+    "fees": [],
+    "api_management": null,
+    "api_base": "https://api.bydfi.com/api",
+    "test": []
+   },
+   "has_referral_url": true,
+   "sandbox": false,
+   "markets": {
+    "spot": false,
+    "margin": false,
+    "swap": true,
+    "future": false,
+    "option": false
+   },
+   "methods": {
+    "createOrder": true,
+    "createMarketOrder": true,
+    "createLimitOrder": true,
+    "createStopOrder": false,
+    "createTriggerOrder": false,
+    "createStopLossOrder": true,
+    "createTakeProfitOrder": true,
+    "createReduceOnlyOrder": true,
+    "cancelOrder": false,
+    "editOrder": true,
+    "fetchBalance": true,
+    "fetchPositions": true,
+    "fetchOpenOrders": true,
+    "fetchMyTrades": true,
+    "fetchOHLCV": true,
+    "fetchTicker": true,
+    "fetchOrderBook": true,
+    "fetchTradingFees": false,
+    "fetchFundingRate": true,
+    "setLeverage": true,
+    "setMarginMode": true,
+    "setPositionMode": true
+   },
+   "streams": {
+    "watchTicker": true,
+    "watchOrderBook": true,
+    "watchTrades": false,
+    "watchOHLCV": true,
+    "watchOrders": true,
+    "watchBalance": true,
+    "watchPositions": true
+   },
+   "required_credentials": [
+    "apiKey",
+    "secret"
+   ],
+   "default_trading_fee": {
+    "maker": null,
+    "taker": null,
+    "note": "CCXT default schedule; the exchange's fee page is the source of truth"
+   }
+  },
+  {
+   "id": "cex",
+   "name": "CEX.IO",
+   "countries_listed_by_ccxt": [
+    "GB",
+    "EU",
+    "CY",
+    "RU"
+   ],
+   "certified": false,
+   "pro": true,
+   "dex": false,
+   "alias": false,
+   "api_version": null,
+   "rate_limit_ms": 300,
+   "urls": {
+    "www": "https://cex.io",
+    "doc": [
+     "https://trade.cex.io/docs/"
+    ],
+    "fees": [
+     "https://cex.io/fee-schedule",
+     "https://cex.io/limits-commissions"
+    ],
+    "api_management": null,
+    "api_base": "https://trade.cex.io/api/spot/rest-public",
+    "test": []
+   },
+   "has_referral_url": true,
+   "sandbox": false,
+   "markets": {
+    "spot": true,
+    "margin": false,
+    "swap": false,
+    "future": false,
+    "option": false
+   },
+   "methods": {
+    "createOrder": true,
+    "createMarketOrder": true,
+    "createLimitOrder": true,
+    "createStopOrder": true,
+    "createTriggerOrder": true,
+    "createStopLossOrder": null,
+    "createTakeProfitOrder": null,
+    "createReduceOnlyOrder": false,
+    "cancelOrder": true,
+    "editOrder": "emulated",
+    "fetchBalance": true,
+    "fetchPositions": false,
+    "fetchOpenOrders": true,
+    "fetchMyTrades": null,
+    "fetchOHLCV": true,
+    "fetchTicker": true,
+    "fetchOrderBook": true,
+    "fetchTradingFees": true,
+    "fetchFundingRate": false,
+    "setLeverage": false,
+    "setMarginMode": false,
+    "setPositionMode": false
+   },
+   "streams": {
+    "watchTicker": true,
+    "watchOrderBook": true,
+    "watchTrades": true,
+    "watchOHLCV": true,
+    "watchOrders": true,
+    "watchBalance": true,
+    "watchPositions": null
+   },
+   "required_credentials": [
+    "apiKey",
+    "secret"
+   ],
+   "default_trading_fee": {
+    "maker": null,
+    "taker": null,
+    "note": "CCXT default schedule; the exchange's fee page is the source of truth"
+   }
+  },
+  {
+   "id": "coinbase",
+   "name": "Coinbase Advanced",
+   "countries_listed_by_ccxt": [
+    "US"
+   ],
+   "certified": false,
+   "pro": true,
+   "dex": false,
+   "alias": false,
+   "api_version": "v2",
+   "rate_limit_ms": 34,
+   "urls": {
+    "www": "https://www.coinbase.com",
+    "doc": [
+     "https://docs.cdp.coinbase.com/coinbase-app/introduction/welcome",
+     "https://docs.cdp.coinbase.com/coinbase-app/advanced-trade-apis/api-reference"
+    ],
+    "fees": [
+     "https://support.coinbase.com/customer/portal/articles/2109597-buy-sell-bank-transfer-fees",
+     "https://www.coinbase.com/advanced-fees"
+    ],
+    "api_management": null,
+    "api_base": "https://api.coinbase.com",
+    "test": []
+   },
+   "has_referral_url": true,
+   "sandbox": false,
+   "markets": {
+    "spot": true,
+    "margin": false,
+    "swap": false,
+    "future": false,
+    "option": false
+   },
+   "methods": {
+    "createOrder": true,
+    "createMarketOrder": true,
+    "createLimitOrder": true,
+    "createStopOrder": true,
+    "createTriggerOrder": null,
+    "createStopLossOrder": null,
+    "createTakeProfitOrder": null,
+    "createReduceOnlyOrder": false,
+    "cancelOrder": true,
+    "editOrder": true,
+    "fetchBalance": true,
+    "fetchPositions": true,
+    "fetchOpenOrders": true,
+    "fetchMyTrades": true,
+    "fetchOHLCV": true,
+    "fetchTicker": true,
+    "fetchOrderBook": true,
+    "fetchTradingFees": true,
+    "fetchFundingRate": false,
+    "setLeverage": false,
+    "setMarginMode": false,
+    "setPositionMode": false
+   },
+   "streams": {
+    "watchTicker": true,
+    "watchOrderBook": true,
+    "watchTrades": true,
+    "watchOHLCV": false,
+    "watchOrders": true,
+    "watchBalance": false,
+    "watchPositions": null
+   },
+   "required_credentials": [
+    "apiKey",
+    "secret"
+   ],
+   "default_trading_fee": {
+    "maker": 0.006,
+    "taker": 0.012,
+    "note": "CCXT default schedule; the exchange's fee page is the source of truth"
+   }
+  },
+  {
+   "id": "coinbaseexchange",
+   "name": "Coinbase Exchange",
+   "countries_listed_by_ccxt": [
+    "US"
+   ],
+   "certified": false,
+   "pro": true,
+   "dex": false,
+   "alias": false,
+   "api_version": null,
+   "rate_limit_ms": 100,
+   "urls": {
+    "www": "https://coinbase.com/",
+    "doc": [
+     "https://docs.cloud.coinbase.com/exchange/docs/"
+    ],
+    "fees": [
+     "https://docs.pro.coinbase.com/#fees",
+     "https://support.pro.coinbase.com/customer/en/portal/articles/2945310-fees"
+    ],
+    "api_management": null,
+    "api_base": "https://api.exchange.coinbase.com",
+    "test": [
+     "https://api-public.sandbox.exchange.coinbase.com"
+    ]
+   },
+   "has_referral_url": false,
+   "sandbox": true,
+   "markets": {
+    "spot": true,
+    "margin": false,
+    "swap": false,
+    "future": false,
+    "option": false
+   },
+   "methods": {
+    "createOrder": true,
+    "createMarketOrder": true,
+    "createLimitOrder": true,
+    "createStopOrder": true,
+    "createTriggerOrder": null,
+    "createStopLossOrder": null,
+    "createTakeProfitOrder": null,
+    "createReduceOnlyOrder": false,
+    "cancelOrder": true,
+    "editOrder": "emulated",
+    "fetchBalance": true,
+    "fetchPositions": false,
+    "fetchOpenOrders": true,
+    "fetchMyTrades": true,
+    "fetchOHLCV": true,
+    "fetchTicker": true,
+    "fetchOrderBook": true,
+    "fetchTradingFees": true,
+    "fetchFundingRate": false,
+    "setLeverage": false,
+    "setMarginMode": false,
+    "setPositionMode": false
+   },
+   "streams": {
+    "watchTicker": true,
+    "watchOrderBook": true,
+    "watchTrades": true,
+    "watchOHLCV": false,
+    "watchOrders": true,
+    "watchBalance": false,
+    "watchPositions": null
+   },
+   "required_credentials": [
+    "apiKey",
+    "password",
+    "secret"
+   ],
+   "default_trading_fee": {
+    "maker": 0.004,
+    "taker": 0.006,
+    "note": "CCXT default schedule; the exchange's fee page is the source of truth"
+   }
+  },
+  {
+   "id": "coinbaseinternational",
+   "name": "Coinbase International",
+   "countries_listed_by_ccxt": [
+    "US"
+   ],
+   "certified": false,
+   "pro": true,
+   "dex": false,
+   "alias": false,
+   "api_version": "v1",
+   "rate_limit_ms": 100,
+   "urls": {
+    "www": "https://international.coinbase.com",
+    "doc": [
+     "https://docs.cloud.coinbase.com/intx/docs"
+    ],
+    "fees": [
+     "https://help.coinbase.com/en/international-exchange/trading-deposits-withdrawals/international-exchange-fees"
+    ],
+    "api_management": null,
+    "api_base": "https://api.international.coinbase.com/api",
+    "test": [
+     "https://api-n5e1.coinbase.com/api"
+    ]
+   },
+   "has_referral_url": false,
+   "sandbox": true,
+   "markets": {
+    "spot": true,
+    "margin": true,
+    "swap": true,
+    "future": true,
+    "option": false
+   },
+   "methods": {
+    "createOrder": true,
+    "createMarketOrder": true,
+    "createLimitOrder": true,
+    "createStopOrder": true,
+    "createTriggerOrder": null,
+    "createStopLossOrder": null,
+    "createTakeProfitOrder": null,
+    "createReduceOnlyOrder": false,
+    "cancelOrder": true,
+    "editOrder": true,
+    "fetchBalance": true,
+    "fetchPositions": true,
+    "fetchOpenOrders": true,
+    "fetchMyTrades": true,
+    "fetchOHLCV": true,
+    "fetchTicker": true,
+    "fetchOrderBook": false,
+    "fetchTradingFees": false,
+    "fetchFundingRate": false,
+    "setLeverage": false,
+    "setMarginMode": false,
+    "setPositionMode": false
+   },
+   "streams": {
+    "watchTicker": true,
+    "watchOrderBook": true,
+    "watchTrades": true,
+    "watchOHLCV": true,
+    "watchOrders": false,
+    "watchBalance": false,
+    "watchPositions": false
+   },
+   "required_credentials": [
+    "apiKey",
+    "password",
+    "secret"
+   ],
+   "default_trading_fee": {
+    "maker": 0.002,
+    "taker": 0.004,
+    "note": "CCXT default schedule; the exchange's fee page is the source of truth"
+   }
+  },
+  {
+   "id": "coincheck",
+   "name": "Coincheck",
+   "countries_listed_by_ccxt": [
+    "JP",
+    "ID"
+   ],
+   "certified": false,
+   "pro": false,
+   "dex": false,
+   "alias": false,
+   "api_version": null,
+   "rate_limit_ms": 1500,
+   "urls": {
+    "www": "https://coincheck.com",
+    "doc": [
+     "https://coincheck.com/documents/exchange/api"
+    ],
+    "fees": [
+     "https://coincheck.com/exchange/fee",
+     "https://coincheck.com/info/fee"
+    ],
+    "api_management": null,
+    "api_base": "https://coincheck.com/api",
+    "test": []
+   },
+   "has_referral_url": false,
+   "sandbox": false,
+   "markets": {
+    "spot": true,
+    "margin": false,
+    "swap": false,
+    "future": false,
+    "option": false
+   },
+   "methods": {
+    "createOrder": true,
+    "createMarketOrder": true,
+    "createLimitOrder": true,
+    "createStopOrder": null,
+    "createTriggerOrder": null,
+    "createStopLossOrder": null,
+    "createTakeProfitOrder": null,
+    "createReduceOnlyOrder": false,
+    "cancelOrder": true,
+    "editOrder": "emulated",
+    "fetchBalance": true,
+    "fetchPositions": false,
+    "fetchOpenOrders": true,
+    "fetchMyTrades": true,
+    "fetchOHLCV": null,
+    "fetchTicker": true,
+    "fetchOrderBook": true,
+    "fetchTradingFees": true,
+    "fetchFundingRate": false,
+    "setLeverage": false,
+    "setMarginMode": false,
+    "setPositionMode": false
+   },
+   "streams": {
+    "watchTicker": false,
+    "watchOrderBook": true,
+    "watchTrades": true,
+    "watchOHLCV": false,
+    "watchOrders": false,
+    "watchBalance": null,
+    "watchPositions": null
+   },
+   "required_credentials": [
+    "apiKey",
+    "secret"
+   ],
+   "default_trading_fee": {
+    "maker": 0.0,
+    "taker": 0.0,
+    "note": "CCXT default schedule; the exchange's fee page is the source of truth"
+   }
+  },
+  {
+   "id": "coinex",
+   "name": "CoinEx",
+   "countries_listed_by_ccxt": [
+    "CN"
+   ],
+   "certified": true,
+   "pro": true,
+   "dex": false,
+   "alias": false,
+   "api_version": "v2",
+   "rate_limit_ms": 2.5,
+   "urls": {
+    "www": "https://www.coinex.com",
+    "doc": [
+     "https://docs.coinex.com/api/v2"
+    ],
+    "fees": [
+     "https://www.coinex.com/fees"
+    ],
+    "api_management": null,
+    "api_base": "https://api.coinex.com",
+    "test": []
+   },
+   "has_referral_url": true,
+   "sandbox": false,
+   "markets": {
+    "spot": true,
+    "margin": true,
+    "swap": true,
+    "future": false,
+    "option": false
+   },
+   "methods": {
+    "createOrder": true,
+    "createMarketOrder": true,
+    "createLimitOrder": true,
+    "createStopOrder": true,
+    "createTriggerOrder": true,
+    "createStopLossOrder": true,
+    "createTakeProfitOrder": true,
+    "createReduceOnlyOrder": true,
+    "cancelOrder": true,
+    "editOrder": true,
+    "fetchBalance": true,
+    "fetchPositions": true,
+    "fetchOpenOrders": true,
+    "fetchMyTrades": true,
+    "fetchOHLCV": true,
+    "fetchTicker": true,
+    "fetchOrderBook": true,
+    "fetchTradingFees": true,
+    "fetchFundingRate": true,
+    "setLeverage": true,
+    "setMarginMode": true,
+    "setPositionMode": false
+   },
+   "streams": {
+    "watchTicker": true,
+    "watchOrderBook": true,
+    "watchTrades": true,
+    "watchOHLCV": false,
+    "watchOrders": true,
+    "watchBalance": true,
+    "watchPositions": null
+   },
+   "required_credentials": [
+    "apiKey",
+    "secret"
+   ],
+   "default_trading_fee": {
+    "maker": 0.001,
+    "taker": 0.001,
+    "note": "CCXT default schedule; the exchange's fee page is the source of truth"
+   }
+  },
+  {
+   "id": "coinmate",
+   "name": "CoinMate",
+   "countries_listed_by_ccxt": [
+    "GB",
+    "CZ",
+    "EU"
+   ],
+   "certified": false,
+   "pro": false,
+   "dex": false,
+   "alias": false,
+   "api_version": null,
+   "rate_limit_ms": 600,
+   "urls": {
+    "www": "https://coinmate.io",
+    "doc": [
+     "https://coinmate.docs.apiary.io",
+     "https://coinmate.io/developers"
+    ],
+    "fees": [
+     "https://coinmate.io/fees"
+    ],
+    "api_management": null,
+    "api_base": "https://coinmate.io/api",
+    "test": []
+   },
+   "has_referral_url": true,
+   "sandbox": false,
+   "markets": {
+    "spot": true,
+    "margin": false,
+    "swap": false,
+    "future": false,
+    "option": false
+   },
+   "methods": {
+    "createOrder": true,
+    "createMarketOrder": true,
+    "createLimitOrder": true,
+    "createStopOrder": null,
+    "createTriggerOrder": null,
+    "createStopLossOrder": null,
+    "createTakeProfitOrder": null,
+    "createReduceOnlyOrder": false,
+    "cancelOrder": true,
+    "editOrder": "emulated",
+    "fetchBalance": true,
+    "fetchPositions": false,
+    "fetchOpenOrders": true,
+    "fetchMyTrades": true,
+    "fetchOHLCV": null,
+    "fetchTicker": true,
+    "fetchOrderBook": true,
+    "fetchTradingFees": false,
+    "fetchFundingRate": false,
+    "setLeverage": false,
+    "setMarginMode": false,
+    "setPositionMode": false
+   },
+   "streams": {
+    "watchTicker": null,
+    "watchOrderBook": null,
+    "watchTrades": null,
+    "watchOHLCV": null,
+    "watchOrders": null,
+    "watchBalance": null,
+    "watchPositions": null
+   },
+   "required_credentials": [
+    "apiKey",
+    "secret",
+    "uid"
+   ],
+   "default_trading_fee": {
+    "maker": 0.004,
+    "taker": 0.006,
+    "note": "CCXT default schedule; the exchange's fee page is the source of truth"
+   }
+  },
+  {
+   "id": "coinone",
+   "name": "CoinOne",
+   "countries_listed_by_ccxt": [
+    "KR"
+   ],
+   "certified": false,
+   "pro": false,
+   "dex": false,
+   "alias": false,
+   "api_version": "v2",
+   "rate_limit_ms": 50,
+   "urls": {
+    "www": "https://coinone.co.kr",
+    "doc": [
+     "https://doc.coinone.co.kr"
+    ],
+    "fees": [],
+    "api_management": null,
+    "api_base": "https://api.coinone.co.kr",
+    "test": []
+   },
+   "has_referral_url": false,
+   "sandbox": false,
+   "markets": {
+    "spot": true,
+    "margin": false,
+    "swap": false,
+    "future": false,
+    "option": false
+   },
+   "methods": {
+    "createOrder": true,
+    "createMarketOrder": false,
+    "createLimitOrder": true,
+    "createStopOrder": false,
+    "createTriggerOrder": null,
+    "createStopLossOrder": null,
+    "createTakeProfitOrder": null,
+    "createReduceOnlyOrder": false,
+    "cancelOrder": true,
+    "editOrder": "emulated",
+    "fetchBalance": true,
+    "fetchPositions": false,
+    "fetchOpenOrders": true,
+    "fetchMyTrades": true,
+    "fetchOHLCV": null,
+    "fetchTicker": true,
+    "fetchOrderBook": true,
+    "fetchTradingFees": null,
+    "fetchFundingRate": false,
+    "setLeverage": false,
+    "setMarginMode": false,
+    "setPositionMode": false
+   },
+   "streams": {
+    "watchTicker": true,
+    "watchOrderBook": true,
+    "watchTrades": true,
+    "watchOHLCV": false,
+    "watchOrders": false,
+    "watchBalance": null,
+    "watchPositions": null
+   },
+   "required_credentials": [
+    "apiKey",
+    "secret"
+   ],
+   "default_trading_fee": {
+    "maker": 0.002,
+    "taker": 0.002,
+    "note": "CCXT default schedule; the exchange's fee page is the source of truth"
+   }
+  },
+  {
+   "id": "coinsph",
+   "name": "Coins.ph",
+   "countries_listed_by_ccxt": [
+    "PH"
+   ],
+   "certified": false,
+   "pro": false,
+   "dex": false,
+   "alias": false,
+   "api_version": "v1",
+   "rate_limit_ms": 50,
+   "urls": {
+    "www": "https://coins.ph/",
+    "doc": [
+     "https://coins-docs.github.io/rest-api"
+    ],
+    "fees": [
+     "https://support.coins.ph/hc/en-us/sections/4407198694681-Limits-Fees"
+    ],
+    "api_management": null,
+    "api_base": "https://api.pro.coins.ph",
+    "test": []
+   },
+   "has_referral_url": true,
+   "sandbox": false,
+   "markets": {
+    "spot": true,
+    "margin": false,
+    "swap": false,
+    "future": false,
+    "option": false
+   },
+   "methods": {
+    "createOrder": true,
+    "createMarketOrder": true,
+    "createLimitOrder": true,
+    "createStopOrder": true,
+    "createTriggerOrder": null,
+    "createStopLossOrder": null,
+    "createTakeProfitOrder": null,
+    "createReduceOnlyOrder": false,
+    "cancelOrder": true,
+    "editOrder": false,
+    "fetchBalance": true,
+    "fetchPositions": false,
+    "fetchOpenOrders": true,
+    "fetchMyTrades": true,
+    "fetchOHLCV": true,
+    "fetchTicker": true,
+    "fetchOrderBook": true,
+    "fetchTradingFees": true,
+    "fetchFundingRate": false,
+    "setLeverage": false,
+    "setMarginMode": false,
+    "setPositionMode": false
+   },
+   "streams": {
+    "watchTicker": null,
+    "watchOrderBook": null,
+    "watchTrades": null,
+    "watchOHLCV": null,
+    "watchOrders": null,
+    "watchBalance": null,
+    "watchPositions": null
+   },
+   "required_credentials": [
+    "apiKey",
+    "secret"
+   ],
+   "default_trading_fee": {
+    "maker": 0.0025,
+    "taker": 0.003,
+    "note": "CCXT default schedule; the exchange's fee page is the source of truth"
+   }
+  },
+  {
+   "id": "coinspot",
+   "name": "CoinSpot",
+   "countries_listed_by_ccxt": [
+    "AU"
+   ],
+   "certified": false,
+   "pro": false,
+   "dex": false,
+   "alias": false,
+   "api_version": null,
+   "rate_limit_ms": 1000,
+   "urls": {
+    "www": "https://www.coinspot.com.au",
+    "doc": [
+     "https://www.coinspot.com.au/api"
+    ],
+    "fees": [],
+    "api_management": null,
+    "api_base": "https://www.coinspot.com.au/pubapi",
+    "test": []
+   },
+   "has_referral_url": true,
+   "sandbox": false,
+   "markets": {
+    "spot": true,
+    "margin": false,
+    "swap": false,
+    "future": false,
+    "option": false
+   },
+   "methods": {
+    "createOrder": true,
+    "createMarketOrder": false,
+    "createLimitOrder": true,
+    "createStopOrder": false,
+    "createTriggerOrder": null,
+    "createStopLossOrder": null,
+    "createTakeProfitOrder": null,
+    "createReduceOnlyOrder": false,
+    "cancelOrder": true,
+    "editOrder": "emulated",
+    "fetchBalance": true,
+    "fetchPositions": false,
+    "fetchOpenOrders": null,
+    "fetchMyTrades": true,
+    "fetchOHLCV": null,
+    "fetchTicker": true,
+    "fetchOrderBook": true,
+    "fetchTradingFees": false,
+    "fetchFundingRate": false,
+    "setLeverage": false,
+    "setMarginMode": false,
+    "setPositionMode": false
+   },
+   "streams": {
+    "watchTicker": null,
+    "watchOrderBook": null,
+    "watchTrades": null,
+    "watchOHLCV": null,
+    "watchOrders": null,
+    "watchBalance": null,
+    "watchPositions": null
+   },
+   "required_credentials": [
+    "apiKey",
+    "secret"
+   ],
+   "default_trading_fee": {
+    "maker": null,
+    "taker": null,
+    "note": "CCXT default schedule; the exchange's fee page is the source of truth"
+   }
+  },
+  {
+   "id": "cryptocom",
+   "name": "Crypto.com",
+   "countries_listed_by_ccxt": [
+    "MT"
+   ],
+   "certified": true,
+   "pro": true,
+   "dex": false,
+   "alias": false,
+   "api_version": "v2",
+   "rate_limit_ms": 10,
+   "urls": {
+    "www": "https://crypto.com/",
+    "doc": [
+     "https://exchange-docs.crypto.com/exchange/v1/rest-ws/index.html",
+     "https://exchange-docs.crypto.com/spot/index.html",
+     "https://exchange-docs.crypto.com/derivatives/index.html"
+    ],
+    "fees": [
+     "https://crypto.com/exchange/document/fees-limits"
+    ],
+    "api_management": null,
+    "api_base": "https://api.crypto.com",
+    "test": [
+     "https://uat-api.3ona.co/exchange/v1",
+     "https://uat-api.3ona.co/v2"
+    ]
+   },
+   "has_referral_url": true,
+   "sandbox": true,
+   "markets": {
+    "spot": true,
+    "margin": true,
+    "swap": true,
+    "future": true,
+    "option": true
+   },
+   "methods": {
+    "createOrder": true,
+    "createMarketOrder": true,
+    "createLimitOrder": true,
+    "createStopOrder": true,
+    "createTriggerOrder": true,
+    "createStopLossOrder": null,
+    "createTakeProfitOrder": null,
+    "createReduceOnlyOrder": null,
+    "cancelOrder": true,
+    "editOrder": true,
+    "fetchBalance": true,
+    "fetchPositions": true,
+    "fetchOpenOrders": true,
+    "fetchMyTrades": true,
+    "fetchOHLCV": true,
+    "fetchTicker": true,
+    "fetchOrderBook": true,
+    "fetchTradingFees": true,
+    "fetchFundingRate": true,
+    "setLeverage": false,
+    "setMarginMode": false,
+    "setPositionMode": false
+   },
+   "streams": {
+    "watchTicker": true,
+    "watchOrderBook": true,
+    "watchTrades": true,
+    "watchOHLCV": true,
+    "watchOrders": true,
+    "watchBalance": true,
+    "watchPositions": true
+   },
+   "required_credentials": [
+    "apiKey",
+    "secret"
+   ],
+   "default_trading_fee": {
+    "maker": 0.0025,
+    "taker": 0.005,
+    "note": "CCXT default schedule; the exchange's fee page is the source of truth"
+   }
+  },
+  {
+   "id": "cryptomus",
+   "name": "Cryptomus",
+   "countries_listed_by_ccxt": [
+    "CA"
+   ],
+   "certified": false,
+   "pro": false,
+   "dex": false,
+   "alias": false,
+   "api_version": "v2",
+   "rate_limit_ms": 100,
+   "urls": {
+    "www": "https://cryptomus.com",
+    "doc": [
+     "https://doc.cryptomus.com/personal"
+    ],
+    "fees": [
+     "https://cryptomus.com/tariffs"
+    ],
+    "api_management": null,
+    "api_base": "https://api.cryptomus.com",
+    "test": []
+   },
+   "has_referral_url": true,
+   "sandbox": false,
+   "markets": {
+    "spot": true,
+    "margin": false,
+    "swap": false,
+    "future": false,
+    "option": false
+   },
+   "methods": {
+    "createOrder": true,
+    "createMarketOrder": false,
+    "createLimitOrder": true,
+    "createStopOrder": false,
+    "createTriggerOrder": false,
+    "createStopLossOrder": false,
+    "createTakeProfitOrder": false,
+    "createReduceOnlyOrder": false,
+    "cancelOrder": true,
+    "editOrder": "emulated",
+    "fetchBalance": true,
+    "fetchPositions": false,
+    "fetchOpenOrders": true,
+    "fetchMyTrades": false,
+    "fetchOHLCV": false,
+    "fetchTicker": false,
+    "fetchOrderBook": true,
+    "fetchTradingFees": true,
+    "fetchFundingRate": false,
+    "setLeverage": false,
+    "setMarginMode": false,
+    "setPositionMode": false
+   },
+   "streams": {
+    "watchTicker": null,
+    "watchOrderBook": null,
+    "watchTrades": null,
+    "watchOHLCV": null,
+    "watchOrders": null,
+    "watchBalance": null,
+    "watchPositions": null
+   },
+   "required_credentials": [
+    "secret",
+    "uid"
+   ],
+   "default_trading_fee": {
+    "maker": 0.02,
+    "taker": 0.02,
+    "note": "CCXT default schedule; the exchange's fee page is the source of truth"
+   }
+  },
+  {
+   "id": "deepcoin",
+   "name": "DeepCoin",
+   "countries_listed_by_ccxt": [
+    "SG"
+   ],
+   "certified": false,
+   "pro": true,
+   "dex": false,
+   "alias": false,
+   "api_version": "v1",
+   "rate_limit_ms": 200,
+   "urls": {
+    "www": "https://www.deepcoin.com/",
+    "doc": [
+     "https://www.deepcoin.com/docs"
+    ],
+    "fees": [],
+    "api_management": null,
+    "api_base": "https://api.deepcoin.com",
+    "test": []
+   },
+   "has_referral_url": true,
+   "sandbox": false,
+   "markets": {
+    "spot": true,
+    "margin": true,
+    "swap": true,
+    "future": false,
+    "option": false
+   },
+   "methods": {
+    "createOrder": true,
+    "createMarketOrder": true,
+    "createLimitOrder": true,
+    "createStopOrder": null,
+    "createTriggerOrder": true,
+    "createStopLossOrder": false,
+    "createTakeProfitOrder": false,
+    "createReduceOnlyOrder": true,
+    "cancelOrder": true,
+    "editOrder": true,
+    "fetchBalance": true,
+    "fetchPositions": true,
+    "fetchOpenOrders": true,
+    "fetchMyTrades": true,
+    "fetchOHLCV": true,
+    "fetchTicker": false,
+    "fetchOrderBook": true,
+    "fetchTradingFees": false,
+    "fetchFundingRate": true,
+    "setLeverage": true,
+    "setMarginMode": false,
+    "setPositionMode": false
+   },
+   "streams": {
+    "watchTicker": true,
+    "watchOrderBook": true,
+    "watchTrades": true,
+    "watchOHLCV": true,
+    "watchOrders": true,
+    "watchBalance": false,
+    "watchPositions": true
+   },
+   "required_credentials": [
+    "apiKey",
+    "password",
+    "secret"
+   ],
+   "default_trading_fee": {
+    "maker": 0.001,
+    "taker": 0.0015,
+    "note": "CCXT default schedule; the exchange's fee page is the source of truth"
+   }
+  },
+  {
+   "id": "delta",
+   "name": "Delta Exchange",
+   "countries_listed_by_ccxt": [
+    "VC"
+   ],
+   "certified": false,
+   "pro": false,
+   "dex": false,
+   "alias": false,
+   "api_version": "v2",
+   "rate_limit_ms": 300,
+   "urls": {
+    "www": "https://www.delta.exchange",
+    "doc": [
+     "https://docs.delta.exchange"
+    ],
+    "fees": [
+     "https://www.delta.exchange/fees"
+    ],
+    "api_management": null,
+    "api_base": "https://api.delta.exchange",
+    "test": [
+     "https://testnet-api.delta.exchange"
+    ]
+   },
+   "has_referral_url": true,
+   "sandbox": true,
+   "markets": {
+    "spot": true,
+    "margin": false,
+    "swap": true,
+    "future": false,
+    "option": true
+   },
+   "methods": {
+    "createOrder": true,
+    "createMarketOrder": true,
+    "createLimitOrder": true,
+    "createStopOrder": null,
+    "createTriggerOrder": null,
+    "createStopLossOrder": null,
+    "createTakeProfitOrder": null,
+    "createReduceOnlyOrder": true,
+    "cancelOrder": true,
+    "editOrder": true,
+    "fetchBalance": true,
+    "fetchPositions": true,
+    "fetchOpenOrders": true,
+    "fetchMyTrades": true,
+    "fetchOHLCV": true,
+    "fetchTicker": true,
+    "fetchOrderBook": true,
+    "fetchTradingFees": null,
+    "fetchFundingRate": true,
+    "setLeverage": true,
+    "setMarginMode": true,
+    "setPositionMode": false
+   },
+   "streams": {
+    "watchTicker": null,
+    "watchOrderBook": null,
+    "watchTrades": null,
+    "watchOHLCV": null,
+    "watchOrders": null,
+    "watchBalance": null,
+    "watchPositions": null
+   },
+   "required_credentials": [
+    "apiKey",
+    "secret"
+   ],
+   "default_trading_fee": {
+    "maker": 0.001,
+    "taker": 0.0015,
+    "note": "CCXT default schedule; the exchange's fee page is the source of truth"
+   }
+  },
+  {
+   "id": "deribit",
+   "name": "Deribit",
+   "countries_listed_by_ccxt": [
+    "NL"
+   ],
+   "certified": false,
+   "pro": true,
+   "dex": false,
+   "alias": false,
+   "api_version": "v2",
+   "rate_limit_ms": 50,
+   "urls": {
+    "www": "https://www.deribit.com",
+    "doc": [
+     "https://docs.deribit.com/v2",
+     "https://github.com/deribit"
+    ],
+    "fees": [
+     "https://www.deribit.com/pages/information/fees"
+    ],
+    "api_management": null,
+    "api_base": "https://www.deribit.com",
+    "test": [
+     "https://test.deribit.com"
+    ]
+   },
+   "has_referral_url": true,
+   "sandbox": true,
+   "markets": {
+    "spot": true,
+    "margin": false,
+    "swap": true,
+    "future": true,
+    "option": true
+   },
+   "methods": {
+    "createOrder": true,
+    "createMarketOrder": true,
+    "createLimitOrder": true,
+    "createStopOrder": true,
+    "createTriggerOrder": null,
+    "createStopLossOrder": null,
+    "createTakeProfitOrder": null,
+    "createReduceOnlyOrder": true,
+    "cancelOrder": true,
+    "editOrder": true,
+    "fetchBalance": true,
+    "fetchPositions": true,
+    "fetchOpenOrders": true,
+    "fetchMyTrades": true,
+    "fetchOHLCV": true,
+    "fetchTicker": true,
+    "fetchOrderBook": true,
+    "fetchTradingFees": true,
+    "fetchFundingRate": true,
+    "setLeverage": null,
+    "setMarginMode": null,
+    "setPositionMode": null
+   },
+   "streams": {
+    "watchTicker": true,
+    "watchOrderBook": true,
+    "watchTrades": true,
+    "watchOHLCV": true,
+    "watchOrders": true,
+    "watchBalance": true,
+    "watchPositions": null
+   },
+   "required_credentials": [
+    "apiKey",
+    "secret"
+   ],
+   "default_trading_fee": {
+    "maker": null,
+    "taker": null,
+    "note": "CCXT default schedule; the exchange's fee page is the source of truth"
+   }
+  },
+  {
+   "id": "derive",
+   "name": "Derive",
+   "countries_listed_by_ccxt": [],
+   "certified": false,
+   "pro": true,
+   "dex": true,
+   "alias": false,
+   "api_version": "v1",
+   "rate_limit_ms": 50,
+   "urls": {
+    "www": "https://www.derive.xyz/",
+    "doc": [
+     "https://docs.derive.xyz/docs/"
+    ],
+    "fees": [
+     "https://docs.derive.xyz/reference/fees-1/"
+    ],
+    "api_management": null,
+    "api_base": "https://api.lyra.finance/public",
+    "test": [
+     "https://api-demo.lyra.finance/public",
+     "https://api-demo.lyra.finance/private"
+    ]
+   },
+   "has_referral_url": true,
+   "sandbox": true,
+   "markets": {
+    "spot": false,
+    "margin": false,
+    "swap": false,
+    "future": false,
+    "option": false
+   },
+   "methods": {
+    "createOrder": true,
+    "createMarketOrder": true,
+    "createLimitOrder": true,
+    "createStopOrder": false,
+    "createTriggerOrder": false,
+    "createStopLossOrder": null,
+    "createTakeProfitOrder": null,
+    "createReduceOnlyOrder": false,
+    "cancelOrder": true,
+    "editOrder": true,
+    "fetchBalance": true,
+    "fetchPositions": true,
+    "fetchOpenOrders": true,
+    "fetchMyTrades": true,
+    "fetchOHLCV": false,
+    "fetchTicker": true,
+    "fetchOrderBook": false,
+    "fetchTradingFees": false,
+    "fetchFundingRate": true,
+    "setLeverage": false,
+    "setMarginMode": false,
+    "setPositionMode": false
+   },
+   "streams": {
+    "watchTicker": true,
+    "watchOrderBook": true,
+    "watchTrades": true,
+    "watchOHLCV": false,
+    "watchOrders": true,
+    "watchBalance": false,
+    "watchPositions": false
+   },
+   "required_credentials": [
+    "privateKey",
+    "walletAddress"
+   ],
+   "default_trading_fee": {
+    "maker": null,
+    "taker": null,
+    "note": "CCXT default schedule; the exchange's fee page is the source of truth"
+   }
+  },
+  {
+   "id": "digifinex",
+   "name": "DigiFinex",
+   "countries_listed_by_ccxt": [
+    "SG"
+   ],
+   "certified": false,
+   "pro": false,
+   "dex": false,
+   "alias": false,
+   "api_version": "v3",
+   "rate_limit_ms": 900,
+   "urls": {
+    "www": "https://www.digifinex.com",
+    "doc": [
+     "https://docs.digifinex.com"
+    ],
+    "fees": [
+     "https://digifinex.zendesk.com/hc/en-us/articles/360000328422-Fee-Structure-on-DigiFinex"
+    ],
+    "api_management": null,
+    "api_base": "https://openapi.digifinex.com",
+    "test": []
+   },
+   "has_referral_url": true,
+   "sandbox": false,
+   "markets": {
+    "spot": true,
+    "margin": true,
+    "swap": true,
+    "future": false,
+    "option": false
+   },
+   "methods": {
+    "createOrder": true,
+    "createMarketOrder": true,
+    "createLimitOrder": true,
+    "createStopOrder": false,
+    "createTriggerOrder": null,
+    "createStopLossOrder": null,
+    "createTakeProfitOrder": null,
+    "createReduceOnlyOrder": true,
+    "cancelOrder": true,
+    "editOrder": "emulated",
+    "fetchBalance": true,
+    "fetchPositions": true,
+    "fetchOpenOrders": true,
+    "fetchMyTrades": true,
+    "fetchOHLCV": true,
+    "fetchTicker": true,
+    "fetchOrderBook": true,
+    "fetchTradingFees": false,
+    "fetchFundingRate": true,
+    "setLeverage": true,
+    "setMarginMode": true,
+    "setPositionMode": false
+   },
+   "streams": {
+    "watchTicker": null,
+    "watchOrderBook": null,
+    "watchTrades": null,
+    "watchOHLCV": null,
+    "watchOrders": null,
+    "watchBalance": null,
+    "watchPositions": null
+   },
+   "required_credentials": [
+    "apiKey",
+    "secret"
+   ],
+   "default_trading_fee": {
+    "maker": 0.002,
+    "taker": 0.002,
+    "note": "CCXT default schedule; the exchange's fee page is the source of truth"
+   }
+  },
+  {
+   "id": "dydx",
+   "name": "dYdX",
+   "countries_listed_by_ccxt": [
+    "US"
+   ],
+   "certified": false,
+   "pro": true,
+   "dex": true,
+   "alias": false,
+   "api_version": "v4",
+   "rate_limit_ms": 100,
+   "urls": {
+    "www": "https://www.dydx.xyz",
+    "doc": [
+     "https://docs.dydx.xyz"
+    ],
+    "fees": [
+     "https://docs.dydx.exchange/introduction-trading_fees"
+    ],
+    "api_management": null,
+    "api_base": "https://indexer.dydx.trade/v4",
+    "test": [
+     "https://indexer.v4testnet.dydx.exchange/v4",
+     "https://test-dydx-rpc.kingnodes.com",
+     "https://test-dydx-rest.kingnodes.com"
+    ]
+   },
+   "has_referral_url": true,
+   "sandbox": true,
+   "markets": {
+    "spot": false,
+    "margin": false,
+    "swap": true,
+    "future": false,
+    "option": false
+   },
+   "methods": {
+    "createOrder": true,
+    "createMarketOrder": false,
+    "createLimitOrder": true,
+    "createStopOrder": false,
+    "createTriggerOrder": false,
+    "createStopLossOrder": false,
+    "createTakeProfitOrder": false,
+    "createReduceOnlyOrder": false,
+    "cancelOrder": true,
+    "editOrder": "emulated",
+    "fetchBalance": true,
+    "fetchPositions": true,
+    "fetchOpenOrders": true,
+    "fetchMyTrades": false,
+    "fetchOHLCV": true,
+    "fetchTicker": false,
+    "fetchOrderBook": true,
+    "fetchTradingFees": false,
+    "fetchFundingRate": false,
+    "setLeverage": false,
+    "setMarginMode": null,
+    "setPositionMode": false
+   },
+   "streams": {
+    "watchTicker": false,
+    "watchOrderBook": true,
+    "watchTrades": true,
+    "watchOHLCV": true,
+    "watchOrders": null,
+    "watchBalance": false,
+    "watchPositions": null
+   },
+   "required_credentials": [],
+   "default_trading_fee": {
+    "maker": 0.0001,
+    "taker": 0.0005,
+    "note": "CCXT default schedule; the exchange's fee page is the source of truth"
+   }
+  },
+  {
+   "id": "exmo",
+   "name": "EXMO",
+   "countries_listed_by_ccxt": [
+    "LT"
+   ],
+   "certified": false,
+   "pro": false,
+   "dex": false,
+   "alias": false,
+   "api_version": "v1.1",
+   "rate_limit_ms": 100,
+   "urls": {
+    "www": "https://exmo.me",
+    "doc": [
+     "https://exmo.me/en/api_doc?ref=131685"
+    ],
+    "fees": [
+     "https://exmo.com/en/docs/fees"
+    ],
+    "api_management": null,
+    "api_base": "https://api.exmo.com",
+    "test": []
+   },
+   "has_referral_url": true,
+   "sandbox": false,
+   "markets": {
+    "spot": true,
+    "margin": true,
+    "swap": false,
+    "future": false,
+    "option": false
+   },
+   "methods": {
+    "createOrder": true,
+    "createMarketOrder": true,
+    "createLimitOrder": true,
+    "createStopOrder": true,
+    "createTriggerOrder": null,
+    "createStopLossOrder": null,
+    "createTakeProfitOrder": null,
+    "createReduceOnlyOrder": null,
+    "cancelOrder": true,
+    "editOrder": true,
+    "fetchBalance": true,
+    "fetchPositions": false,
+    "fetchOpenOrders": true,
+    "fetchMyTrades": true,
+    "fetchOHLCV": true,
+    "fetchTicker": true,
+    "fetchOrderBook": true,
+    "fetchTradingFees": true,
+    "fetchFundingRate": false,
+    "setLeverage": null,
+    "setMarginMode": null,
+    "setPositionMode": null
+   },
+   "streams": {
+    "watchTicker": true,
+    "watchOrderBook": true,
+    "watchTrades": true,
+    "watchOHLCV": false,
+    "watchOrders": true,
+    "watchBalance": true,
+    "watchPositions": null
+   },
+   "required_credentials": [
+    "apiKey",
+    "secret"
+   ],
+   "default_trading_fee": {
+    "maker": 0.004,
+    "taker": 0.004,
+    "note": "CCXT default schedule; the exchange's fee page is the source of truth"
+   }
+  },
+  {
+   "id": "extended",
+   "name": "Extended",
+   "countries_listed_by_ccxt": [
+    "SG"
+   ],
+   "certified": false,
+   "pro": true,
+   "dex": true,
+   "alias": false,
+   "api_version": "v2",
+   "rate_limit_ms": 600,
+   "urls": {
+    "www": "https://app.extended.exchange",
+    "doc": [
+     "https://api.docs.extended.exchange"
+    ],
+    "fees": [
+     "https://docs.extended.exchange/extended-resources/trading/trading-fees-and-rebates"
+    ],
+    "api_management": null,
+    "api_base": "https://api.starknet.extended.exchange",
+    "test": [
+     "https://api.starknet.sepolia.extended.exchange"
+    ]
+   },
+   "has_referral_url": false,
+   "sandbox": true,
+   "markets": {
+    "spot": true,
+    "margin": false,
+    "swap": true,
+    "future": false,
+    "option": false
+   },
+   "methods": {
+    "createOrder": true,
+    "createMarketOrder": true,
+    "createLimitOrder": true,
+    "createStopOrder": false,
+    "createTriggerOrder": false,
+    "createStopLossOrder": false,
+    "createTakeProfitOrder": false,
+    "createReduceOnlyOrder": false,
+    "cancelOrder": true,
+    "editOrder": true,
+    "fetchBalance": true,
+    "fetchPositions": true,
+    "fetchOpenOrders": true,
+    "fetchMyTrades": true,
+    "fetchOHLCV": true,
+    "fetchTicker": true,
+    "fetchOrderBook": true,
+    "fetchTradingFees": true,
+    "fetchFundingRate": false,
+    "setLeverage": true,
+    "setMarginMode": false,
+    "setPositionMode": false
+   },
+   "streams": {
+    "watchTicker": null,
+    "watchOrderBook": true,
+    "watchTrades": true,
+    "watchOHLCV": true,
+    "watchOrders": true,
+    "watchBalance": true,
+    "watchPositions": true
+   },
+   "required_credentials": [
+    "apiKey",
+    "privateKey"
+   ],
+   "default_trading_fee": {
+    "maker": null,
+    "taker": null,
+    "note": "CCXT default schedule; the exchange's fee page is the source of truth"
+   }
+  },
+  {
+   "id": "fmfwio",
+   "name": "FMFW.io",
+   "countries_listed_by_ccxt": [
+    "KN"
+   ],
+   "certified": false,
+   "pro": false,
+   "dex": false,
+   "alias": false,
+   "api_version": "3",
+   "rate_limit_ms": 3.333,
+   "urls": {
+    "www": "https://fmfw.io",
+    "doc": [
+     "https://api.fmfw.io/"
+    ],
+    "fees": [
+     "https://fmfw.io/fees-and-limits"
+    ],
+    "api_management": null,
+    "api_base": "https://api.fmfw.io/api/3",
+    "test": [
+     "https://api.demo.hitbtc.com/api/3"
+    ]
+   },
+   "has_referral_url": true,
+   "sandbox": true,
+   "markets": {
+    "spot": true,
+    "margin": true,
+    "swap": true,
+    "future": false,
+    "option": false
+   },
+   "methods": {
+    "createOrder": true,
+    "createMarketOrder": true,
+    "createLimitOrder": true,
+    "createStopOrder": true,
+    "createTriggerOrder": null,
+    "createStopLossOrder": null,
+    "createTakeProfitOrder": null,
+    "createReduceOnlyOrder": true,
+    "cancelOrder": true,
+    "editOrder": true,
+    "fetchBalance": true,
+    "fetchPositions": true,
+    "fetchOpenOrders": true,
+    "fetchMyTrades": true,
+    "fetchOHLCV": true,
+    "fetchTicker": true,
+    "fetchOrderBook": true,
+    "fetchTradingFees": true,
+    "fetchFundingRate": true,
+    "setLeverage": true,
+    "setMarginMode": false,
+    "setPositionMode": false
+   },
+   "streams": {
+    "watchTicker": null,
+    "watchOrderBook": null,
+    "watchTrades": null,
+    "watchOHLCV": null,
+    "watchOrders": null,
+    "watchBalance": null,
+    "watchPositions": null
+   },
+   "required_credentials": [
+    "apiKey",
+    "secret"
+   ],
+   "default_trading_fee": {
+    "maker": 0.005,
+    "taker": 0.005,
+    "note": "CCXT default schedule; the exchange's fee page is the source of truth"
+   }
+  },
+  {
+   "id": "foxbit",
+   "name": "Foxbit",
+   "countries_listed_by_ccxt": [
+    "pt-BR"
+   ],
+   "certified": false,
+   "pro": false,
+   "dex": false,
+   "alias": false,
+   "api_version": "1",
+   "rate_limit_ms": 33.334,
+   "urls": {
+    "www": "https://app.foxbit.com.br",
+    "doc": [
+     "https://docs.foxbit.com.br"
+    ],
+    "fees": [],
+    "api_management": null,
+    "api_base": "https://api.foxbit.com.br",
+    "test": []
+   },
+   "has_referral_url": false,
+   "sandbox": false,
+   "markets": {
+    "spot": true,
+    "margin": null,
+    "swap": null,
+    "future": null,
+    "option": null
+   },
+   "methods": {
+    "createOrder": true,
+    "createMarketOrder": true,
+    "createLimitOrder": true,
+    "createStopOrder": null,
+    "createTriggerOrder": null,
+    "createStopLossOrder": null,
+    "createTakeProfitOrder": null,
+    "createReduceOnlyOrder": null,
+    "cancelOrder": true,
+    "editOrder": "emulated",
+    "fetchBalance": true,
+    "fetchPositions": null,
+    "fetchOpenOrders": true,
+    "fetchMyTrades": true,
+    "fetchOHLCV": true,
+    "fetchTicker": true,
+    "fetchOrderBook": true,
+    "fetchTradingFees": true,
+    "fetchFundingRate": null,
+    "setLeverage": null,
+    "setMarginMode": null,
+    "setPositionMode": null
+   },
+   "streams": {
+    "watchTicker": null,
+    "watchOrderBook": null,
+    "watchTrades": null,
+    "watchOHLCV": null,
+    "watchOrders": null,
+    "watchBalance": null,
+    "watchPositions": null
+   },
+   "required_credentials": [
+    "apiKey",
+    "secret"
+   ],
+   "default_trading_fee": {
+    "maker": 0.0025,
+    "taker": 0.005,
+    "note": "CCXT default schedule; the exchange's fee page is the source of truth"
+   }
+  },
+  {
+   "id": "gate",
+   "name": "Gate",
+   "countries_listed_by_ccxt": [
+    "KR"
+   ],
+   "certified": true,
+   "pro": true,
+   "dex": false,
+   "alias": false,
+   "api_version": "v4",
+   "rate_limit_ms": 50,
+   "urls": {
+    "www": "https://gate.com",
+    "doc": [
+     "https://www.gate.com/docs/developers/apiv4/en"
+    ],
+    "fees": [],
+    "api_management": null,
+    "api_base": "https://api.gateio.ws/api/v4",
+    "test": [
+     "https://api-testnet.gateapi.io/api/v4"
+    ]
+   },
+   "has_referral_url": true,
+   "sandbox": true,
+   "markets": {
+    "spot": true,
+    "margin": true,
+    "swap": true,
+    "future": true,
+    "option": true
+   },
+   "methods": {
+    "createOrder": true,
+    "createMarketOrder": true,
+    "createLimitOrder": true,
+    "createStopOrder": true,
+    "createTriggerOrder": true,
+    "createStopLossOrder": true,
+    "createTakeProfitOrder": true,
+    "createReduceOnlyOrder": true,
+    "cancelOrder": true,
+    "editOrder": true,
+    "fetchBalance": true,
+    "fetchPositions": true,
+    "fetchOpenOrders": true,
+    "fetchMyTrades": true,
+    "fetchOHLCV": true,
+    "fetchTicker": true,
+    "fetchOrderBook": true,
+    "fetchTradingFees": true,
+    "fetchFundingRate": true,
+    "setLeverage": true,
+    "setMarginMode": false,
+    "setPositionMode": true
+   },
+   "streams": {
+    "watchTicker": true,
+    "watchOrderBook": true,
+    "watchTrades": true,
+    "watchOHLCV": true,
+    "watchOrders": true,
+    "watchBalance": true,
+    "watchPositions": true
+   },
+   "required_credentials": [
+    "apiKey",
+    "secret"
+   ],
+   "default_trading_fee": {
+    "maker": 0.002,
+    "taker": 0.002,
+    "note": "CCXT default schedule; the exchange's fee page is the source of truth"
+   }
+  },
+  {
+   "id": "gateeu",
+   "name": "Gate EU",
+   "countries_listed_by_ccxt": [
+    "EU"
+   ],
+   "certified": false,
+   "pro": true,
+   "dex": false,
+   "alias": false,
+   "api_version": "v4",
+   "rate_limit_ms": 20,
+   "urls": {
+    "www": "https://gate.com",
+    "doc": [
+     "https://www.gate.com/docs/developers/apiv4/en"
+    ],
+    "fees": [],
+    "api_management": null,
+    "api_base": "https://api.gateeu.com/api/v4",
+    "test": [
+     "https://api-testnet.gateapi.io/api/v4"
+    ]
+   },
+   "has_referral_url": true,
+   "sandbox": true,
+   "markets": {
+    "spot": true,
+    "margin": true,
+    "swap": false,
+    "future": false,
+    "option": null
+   },
+   "methods": {
+    "createOrder": true,
+    "createMarketOrder": true,
+    "createLimitOrder": true,
+    "createStopOrder": true,
+    "createTriggerOrder": true,
+    "createStopLossOrder": true,
+    "createTakeProfitOrder": true,
+    "createReduceOnlyOrder": true,
+    "cancelOrder": true,
+    "editOrder": true,
+    "fetchBalance": true,
+    "fetchPositions": true,
+    "fetchOpenOrders": true,
+    "fetchMyTrades": true,
+    "fetchOHLCV": true,
+    "fetchTicker": true,
+    "fetchOrderBook": true,
+    "fetchTradingFees": true,
+    "fetchFundingRate": true,
+    "setLeverage": true,
+    "setMarginMode": false,
+    "setPositionMode": true
+   },
+   "streams": {
+    "watchTicker": null,
+    "watchOrderBook": null,
+    "watchTrades": null,
+    "watchOHLCV": null,
+    "watchOrders": null,
+    "watchBalance": null,
+    "watchPositions": null
+   },
+   "required_credentials": [
+    "apiKey",
+    "secret"
+   ],
+   "default_trading_fee": {
+    "maker": 0.002,
+    "taker": 0.002,
+    "note": "CCXT default schedule; the exchange's fee page is the source of truth"
+   }
+  },
+  {
+   "id": "gemini",
+   "name": "Gemini",
+   "countries_listed_by_ccxt": [
+    "US"
+   ],
+   "certified": false,
+   "pro": true,
+   "dex": false,
+   "alias": false,
+   "api_version": "v1",
+   "rate_limit_ms": 100,
+   "urls": {
+    "www": "https://gemini.com/",
+    "doc": [
+     "https://docs.gemini.com/rest-api",
+     "https://docs.sandbox.gemini.com"
+    ],
+    "fees": [
+     "https://gemini.com/api-fee-schedule",
+     "https://gemini.com/trading-fees",
+     "https://gemini.com/transfer-fees"
+    ],
+    "api_management": null,
+    "api_base": "https://api.gemini.com",
+    "test": [
+     "https://api.sandbox.gemini.com",
+     "https://docs.gemini.com",
+     "https://exchange.gemini.com"
+    ]
+   },
+   "has_referral_url": false,
+   "sandbox": true,
+   "markets": {
+    "spot": true,
+    "margin": null,
+    "swap": true,
+    "future": false,
+    "option": false
+   },
+   "methods": {
+    "createOrder": true,
+    "createMarketOrder": false,
+    "createLimitOrder": true,
+    "createStopOrder": null,
+    "createTriggerOrder": null,
+    "createStopLossOrder": null,
+    "createTakeProfitOrder": null,
+    "createReduceOnlyOrder": false,
+    "cancelOrder": true,
+    "editOrder": "emulated",
+    "fetchBalance": true,
+    "fetchPositions": false,
+    "fetchOpenOrders": true,
+    "fetchMyTrades": true,
+    "fetchOHLCV": true,
+    "fetchTicker": true,
+    "fetchOrderBook": true,
+    "fetchTradingFees": true,
+    "fetchFundingRate": false,
+    "setLeverage": false,
+    "setMarginMode": false,
+    "setPositionMode": false
+   },
+   "streams": {
+    "watchTicker": false,
+    "watchOrderBook": true,
+    "watchTrades": true,
+    "watchOHLCV": true,
+    "watchOrders": true,
+    "watchBalance": false,
+    "watchPositions": null
+   },
+   "required_credentials": [
+    "apiKey",
+    "secret"
+   ],
+   "default_trading_fee": {
+    "maker": 0.002,
+    "taker": 0.004,
+    "note": "CCXT default schedule; the exchange's fee page is the source of truth"
+   }
+  },
+  {
+   "id": "grvt",
+   "name": "GRVT",
+   "countries_listed_by_ccxt": [
+    "SG"
+   ],
+   "certified": false,
+   "pro": true,
+   "dex": true,
+   "alias": false,
+   "api_version": "v1",
+   "rate_limit_ms": 10,
+   "urls": {
+    "www": "https://grvt.io",
+    "doc": [
+     "https://api-docs.grvt.io/"
+    ],
+    "fees": [
+     "https://help.grvt.io/en/articles/9614699-how-does-grvt-s-fee-model-work"
+    ],
+    "api_management": null,
+    "api_base": "https://edge.grvt.io/",
+    "test": [
+     "https://edge.testnet.grvt.io/",
+     "https://trades.testnet.grvt.io/",
+     "https://market-data.testnet.grvt.io/"
+    ]
+   },
+   "has_referral_url": true,
+   "sandbox": true,
+   "markets": {
+    "spot": false,
+    "margin": false,
+    "swap": true,
+    "future": false,
+    "option": false
+   },
+   "methods": {
+    "createOrder": true,
+    "createMarketOrder": true,
+    "createLimitOrder": true,
+    "createStopOrder": null,
+    "createTriggerOrder": null,
+    "createStopLossOrder": null,
+    "createTakeProfitOrder": null,
+    "createReduceOnlyOrder": null,
+    "cancelOrder": true,
+    "editOrder": "emulated",
+    "fetchBalance": true,
+    "fetchPositions": true,
+    "fetchOpenOrders": true,
+    "fetchMyTrades": true,
+    "fetchOHLCV": true,
+    "fetchTicker": true,
+    "fetchOrderBook": true,
+    "fetchTradingFees": null,
+    "fetchFundingRate": null,
+    "setLeverage": true,
+    "setMarginMode": null,
+    "setPositionMode": null
+   },
+   "streams": {
+    "watchTicker": true,
+    "watchOrderBook": true,
+    "watchTrades": true,
+    "watchOHLCV": true,
+    "watchOrders": true,
+    "watchBalance": null,
+    "watchPositions": true
+   },
+   "required_credentials": [
+    "privateKey"
+   ],
+   "default_trading_fee": {
+    "maker": null,
+    "taker": null,
+    "note": "CCXT default schedule; the exchange's fee page is the source of truth"
+   }
+  },
+  {
+   "id": "hashkey",
+   "name": "HashKey Global",
+   "countries_listed_by_ccxt": [
+    "BM"
+   ],
+   "certified": true,
+   "pro": true,
+   "dex": false,
+   "alias": false,
+   "api_version": "v1",
+   "rate_limit_ms": 100,
+   "urls": {
+    "www": "https://global.hashkey.com/",
+    "doc": [
+     "https://hashkeyglobal-apidoc.readme.io/"
+    ],
+    "fees": [
+     "https://support.global.hashkey.com/hc/en-us/articles/13199900083612-HashKey-Global-Fee-Structure"
+    ],
+    "api_management": null,
+    "api_base": "https://api-glb.hashkey.com",
+    "test": [
+     "https://api-glb.sim.hashkeydev.com"
+    ]
+   },
+   "has_referral_url": true,
+   "sandbox": true,
+   "markets": {
+    "spot": true,
+    "margin": false,
+    "swap": true,
+    "future": false,
+    "option": false
+   },
+   "methods": {
+    "createOrder": true,
+    "createMarketOrder": true,
+    "createLimitOrder": true,
+    "createStopOrder": true,
+    "createTriggerOrder": true,
+    "createStopLossOrder": false,
+    "createTakeProfitOrder": false,
+    "createReduceOnlyOrder": true,
+    "cancelOrder": true,
+    "editOrder": "emulated",
+    "fetchBalance": true,
+    "fetchPositions": true,
+    "fetchOpenOrders": true,
+    "fetchMyTrades": true,
+    "fetchOHLCV": true,
+    "fetchTicker": true,
+    "fetchOrderBook": true,
+    "fetchTradingFees": true,
+    "fetchFundingRate": true,
+    "setLeverage": true,
+    "setMarginMode": true,
+    "setPositionMode": false
+   },
+   "streams": {
+    "watchTicker": true,
+    "watchOrderBook": true,
+    "watchTrades": true,
+    "watchOHLCV": true,
+    "watchOrders": true,
+    "watchBalance": true,
+    "watchPositions": false
+   },
+   "required_credentials": [
+    "apiKey",
+    "secret"
+   ],
+   "default_trading_fee": {
+    "maker": null,
+    "taker": null,
+    "note": "CCXT default schedule; the exchange's fee page is the source of truth"
+   }
+  },
+  {
+   "id": "hibachi",
+   "name": "Hibachi",
+   "countries_listed_by_ccxt": [
+    "US"
+   ],
+   "certified": false,
+   "pro": false,
+   "dex": true,
+   "alias": false,
+   "api_version": null,
+   "rate_limit_ms": 100,
+   "urls": {
+    "www": "https://www.hibachi.xyz/",
+    "doc": [],
+    "fees": [],
+    "api_management": null,
+    "api_base": "https://data-api.hibachi.xyz",
+    "test": []
+   },
+   "has_referral_url": true,
+   "sandbox": false,
+   "markets": {
+    "spot": false,
+    "margin": false,
+    "swap": true,
+    "future": false,
+    "option": false
+   },
+   "methods": {
+    "createOrder": true,
+    "createMarketOrder": false,
+    "createLimitOrder": true,
+    "createStopOrder": false,
+    "createTriggerOrder": false,
+    "createStopLossOrder": false,
+    "createTakeProfitOrder": false,
+    "createReduceOnlyOrder": false,
+    "cancelOrder": true,
+    "editOrder": true,
+    "fetchBalance": true,
+    "fetchPositions": true,
+    "fetchOpenOrders": true,
+    "fetchMyTrades": true,
+    "fetchOHLCV": true,
+    "fetchTicker": true,
+    "fetchOrderBook": true,
+    "fetchTradingFees": true,
+    "fetchFundingRate": true,
+    "setLeverage": false,
+    "setMarginMode": null,
+    "setPositionMode": false
+   },
+   "streams": {
+    "watchTicker": null,
+    "watchOrderBook": null,
+    "watchTrades": null,
+    "watchOHLCV": null,
+    "watchOrders": null,
+    "watchBalance": null,
+    "watchPositions": null
+   },
+   "required_credentials": [
+    "accountId",
+    "apiKey",
+    "privateKey"
+   ],
+   "default_trading_fee": {
+    "maker": 0.00015,
+    "taker": 0.00045,
+    "note": "CCXT default schedule; the exchange's fee page is the source of truth"
+   }
+  },
+  {
+   "id": "hitbtc",
+   "name": "HitBTC",
+   "countries_listed_by_ccxt": [
+    "HK"
+   ],
+   "certified": false,
+   "pro": false,
+   "dex": false,
+   "alias": false,
+   "api_version": "3",
+   "rate_limit_ms": 3.333,
+   "urls": {
+    "www": "https://hitbtc.com",
+    "doc": [
+     "https://api.hitbtc.com",
+     "https://github.com/hitbtc-com/hitbtc-api/blob/master/APIv2.md"
+    ],
+    "fees": [
+     "https://hitbtc.com/fees-and-limits",
+     "https://support.hitbtc.com/hc/en-us/articles/115005148605-Fees-and-limits"
+    ],
+    "api_management": null,
+    "api_base": "https://api.hitbtc.com/api/3",
+    "test": [
+     "https://api.demo.hitbtc.com/api/3"
+    ]
+   },
+   "has_referral_url": true,
+   "sandbox": true,
+   "markets": {
+    "spot": true,
+    "margin": true,
+    "swap": true,
+    "future": false,
+    "option": false
+   },
+   "methods": {
+    "createOrder": true,
+    "createMarketOrder": true,
+    "createLimitOrder": true,
+    "createStopOrder": true,
+    "createTriggerOrder": null,
+    "createStopLossOrder": null,
+    "createTakeProfitOrder": null,
+    "createReduceOnlyOrder": true,
+    "cancelOrder": true,
+    "editOrder": true,
+    "fetchBalance": true,
+    "fetchPositions": true,
+    "fetchOpenOrders": true,
+    "fetchMyTrades": true,
+    "fetchOHLCV": true,
+    "fetchTicker": true,
+    "fetchOrderBook": true,
+    "fetchTradingFees": true,
+    "fetchFundingRate": true,
+    "setLeverage": true,
+    "setMarginMode": false,
+    "setPositionMode": false
+   },
+   "streams": {
+    "watchTicker": true,
+    "watchOrderBook": true,
+    "watchTrades": true,
+    "watchOHLCV": true,
+    "watchOrders": true,
+    "watchBalance": true,
+    "watchPositions": null
+   },
+   "required_credentials": [
+    "apiKey",
+    "secret"
+   ],
+   "default_trading_fee": {
+    "maker": 0.0009,
+    "taker": 0.0009,
+    "note": "CCXT default schedule; the exchange's fee page is the source of truth"
+   }
+  },
+  {
+   "id": "hollaex",
+   "name": "HollaEx",
+   "countries_listed_by_ccxt": [
+    "KR"
+   ],
+   "certified": false,
+   "pro": true,
+   "dex": false,
+   "alias": false,
+   "api_version": "v2",
+   "rate_limit_ms": 250,
+   "urls": {
+    "www": "https://hollaex.com",
+    "doc": [
+     "https://apidocs.hollaex.com"
+    ],
+    "fees": [],
+    "api_management": null,
+    "api_base": "https://api.hollaex.com",
+    "test": [
+     "https://api.sandbox.hollaex.com"
+    ]
+   },
+   "has_referral_url": true,
+   "sandbox": true,
+   "markets": {
+    "spot": true,
+    "margin": null,
+    "swap": false,
+    "future": false,
+    "option": false
+   },
+   "methods": {
+    "createOrder": true,
+    "createMarketOrder": true,
+    "createLimitOrder": true,
+    "createStopOrder": true,
+    "createTriggerOrder": null,
+    "createStopLossOrder": null,
+    "createTakeProfitOrder": null,
+    "createReduceOnlyOrder": false,
+    "cancelOrder": true,
+    "editOrder": "emulated",
+    "fetchBalance": true,
+    "fetchPositions": false,
+    "fetchOpenOrders": true,
+    "fetchMyTrades": true,
+    "fetchOHLCV": true,
+    "fetchTicker": true,
+    "fetchOrderBook": true,
+    "fetchTradingFees": true,
+    "fetchFundingRate": false,
+    "setLeverage": false,
+    "setMarginMode": false,
+    "setPositionMode": false
+   },
+   "streams": {
+    "watchTicker": false,
+    "watchOrderBook": true,
+    "watchTrades": true,
+    "watchOHLCV": false,
+    "watchOrders": true,
+    "watchBalance": true,
+    "watchPositions": null
+   },
+   "required_credentials": [
+    "apiKey",
+    "secret"
+   ],
+   "default_trading_fee": {
+    "maker": 0.001,
+    "taker": 0.001,
+    "note": "CCXT default schedule; the exchange's fee page is the source of truth"
+   }
+  },
+  {
+   "id": "htx",
+   "name": "HTX",
+   "countries_listed_by_ccxt": [
+    "CN"
+   ],
+   "certified": true,
+   "pro": true,
+   "dex": false,
+   "alias": false,
+   "api_version": "v1",
+   "rate_limit_ms": 100,
+   "urls": {
+    "www": "https://www.huobi.com",
+    "doc": [
+     "https://huobiapi.github.io/docs/spot/v1/en/",
+     "https://huobiapi.github.io/docs/dm/v1/en/",
+     "https://huobiapi.github.io/docs/coin_margined_swap/v1/en/",
+     "https://huobiapi.github.io/docs/usdt_swap/v1/en/",
+     "https://www.huobi.com/en-us/opend/newApiPages/"
+    ],
+    "fees": [
+     "https://www.huobi.com/about/fee/"
+    ],
+    "api_management": null,
+    "api_base": "https://api.huobi.pro",
+    "test": []
+   },
+   "has_referral_url": true,
+   "sandbox": false,
+   "markets": {
+    "spot": true,
+    "margin": true,
+    "swap": true,
+    "future": true,
+    "option": null
+   },
+   "methods": {
+    "createOrder": true,
+    "createMarketOrder": true,
+    "createLimitOrder": true,
+    "createStopOrder": true,
+    "createTriggerOrder": true,
+    "createStopLossOrder": true,
+    "createTakeProfitOrder": true,
+    "createReduceOnlyOrder": false,
+    "cancelOrder": true,
+    "editOrder": "emulated",
+    "fetchBalance": true,
+    "fetchPositions": true,
+    "fetchOpenOrders": true,
+    "fetchMyTrades": true,
+    "fetchOHLCV": true,
+    "fetchTicker": true,
+    "fetchOrderBook": true,
+    "fetchTradingFees": false,
+    "fetchFundingRate": true,
+    "setLeverage": true,
+    "setMarginMode": false,
+    "setPositionMode": true
+   },
+   "streams": {
+    "watchTicker": true,
+    "watchOrderBook": true,
+    "watchTrades": true,
+    "watchOHLCV": true,
+    "watchOrders": true,
+    "watchBalance": true,
+    "watchPositions": null
+   },
+   "required_credentials": [
+    "apiKey",
+    "secret"
+   ],
+   "default_trading_fee": {
+    "maker": 0.002,
+    "taker": 0.002,
+    "note": "CCXT default schedule; the exchange's fee page is the source of truth"
+   }
+  },
+  {
+   "id": "hyperliquid",
+   "name": "Hyperliquid",
+   "countries_listed_by_ccxt": [],
+   "certified": true,
+   "pro": true,
+   "dex": true,
+   "alias": false,
+   "api_version": "v1",
+   "rate_limit_ms": 50,
+   "urls": {
+    "www": "https://hyperliquid.xyz",
+    "doc": [
+     "https://hyperliquid.gitbook.io/hyperliquid-docs/for-developers/api"
+    ],
+    "fees": [
+     "https://hyperliquid.gitbook.io/hyperliquid-docs/trading/fees"
+    ],
+    "api_management": null,
+    "api_base": "https://api.hyperliquid.xyz",
+    "test": [
+     "https://api.hyperliquid-testnet.xyz"
+    ]
+   },
+   "has_referral_url": true,
+   "sandbox": true,
+   "markets": {
+    "spot": true,
+    "margin": false,
+    "swap": true,
+    "future": false,
+    "option": false
+   },
+   "methods": {
+    "createOrder": true,
+    "createMarketOrder": true,
+    "createLimitOrder": true,
+    "createStopOrder": true,
+    "createTriggerOrder": true,
+    "createStopLossOrder": null,
+    "createTakeProfitOrder": null,
+    "createReduceOnlyOrder": true,
+    "cancelOrder": true,
+    "editOrder": true,
+    "fetchBalance": true,
+    "fetchPositions": true,
+    "fetchOpenOrders": true,
+    "fetchMyTrades": true,
+    "fetchOHLCV": true,
+    "fetchTicker": "emulated",
+    "fetchOrderBook": true,
+    "fetchTradingFees": false,
+    "fetchFundingRate": false,
+    "setLeverage": true,
+    "setMarginMode": true,
+    "setPositionMode": false
+   },
+   "streams": {
+    "watchTicker": true,
+    "watchOrderBook": true,
+    "watchTrades": true,
+    "watchOHLCV": true,
+    "watchOrders": true,
+    "watchBalance": true,
+    "watchPositions": true
+   },
+   "required_credentials": [
+    "privateKey",
+    "walletAddress"
+   ],
+   "default_trading_fee": {
+    "maker": null,
+    "taker": null,
+    "note": "CCXT default schedule; the exchange's fee page is the source of truth"
+   }
+  },
+  {
+   "id": "independentreserve",
+   "name": "Independent Reserve",
+   "countries_listed_by_ccxt": [
+    "AU",
+    "NZ"
+   ],
+   "certified": false,
+   "pro": true,
+   "dex": false,
+   "alias": false,
+   "api_version": null,
+   "rate_limit_ms": 1000,
+   "urls": {
+    "www": "https://www.independentreserve.com",
+    "doc": [
+     "https://www.independentreserve.com/API"
+    ],
+    "fees": [],
+    "api_management": null,
+    "api_base": "https://api.independentreserve.com/Public",
+    "test": []
+   },
+   "has_referral_url": false,
+   "sandbox": false,
+   "markets": {
+    "spot": true,
+    "margin": false,
+    "swap": false,
+    "future": false,
+    "option": false
+   },
+   "methods": {
+    "createOrder": true,
+    "createMarketOrder": true,
+    "createLimitOrder": true,
+    "createStopOrder": false,
+    "createTriggerOrder": null,
+    "createStopLossOrder": null,
+    "createTakeProfitOrder": null,
+    "createReduceOnlyOrder": false,
+    "cancelOrder": true,
+    "editOrder": "emulated",
+    "fetchBalance": true,
+    "fetchPositions": false,
+    "fetchOpenOrders": true,
+    "fetchMyTrades": true,
+    "fetchOHLCV": null,
+    "fetchTicker": true,
+    "fetchOrderBook": true,
+    "fetchTradingFees": true,
+    "fetchFundingRate": false,
+    "setLeverage": false,
+    "setMarginMode": false,
+    "setPositionMode": false
+   },
+   "streams": {
+    "watchTicker": false,
+    "watchOrderBook": true,
+    "watchTrades": true,
+    "watchOHLCV": false,
+    "watchOrders": false,
+    "watchBalance": false,
+    "watchPositions": null
+   },
+   "required_credentials": [
+    "apiKey",
+    "secret"
+   ],
+   "default_trading_fee": {
+    "maker": 0.005,
+    "taker": 0.005,
+    "note": "CCXT default schedule; the exchange's fee page is the source of truth"
+   }
+  },
+  {
+   "id": "indodax",
+   "name": "INDODAX",
+   "countries_listed_by_ccxt": [
+    "ID"
+   ],
+   "certified": false,
+   "pro": false,
+   "dex": false,
+   "alias": false,
+   "api_version": "2.0",
+   "rate_limit_ms": 50,
+   "urls": {
+    "www": "https://www.indodax.com",
+    "doc": [
+     "https://github.com/btcid/indodax-official-api-docs"
+    ],
+    "fees": [],
+    "api_management": null,
+    "api_base": "https://indodax.com",
+    "test": []
+   },
+   "has_referral_url": true,
+   "sandbox": false,
+   "markets": {
+    "spot": true,
+    "margin": false,
+    "swap": false,
+    "future": false,
+    "option": false
+   },
+   "methods": {
+    "createOrder": true,
+    "createMarketOrder": true,
+    "createLimitOrder": true,
+    "createStopOrder": false,
+    "createTriggerOrder": null,
+    "createStopLossOrder": null,
+    "createTakeProfitOrder": null,
+    "createReduceOnlyOrder": false,
+    "cancelOrder": true,
+    "editOrder": "emulated",
+    "fetchBalance": true,
+    "fetchPositions": false,
+    "fetchOpenOrders": true,
+    "fetchMyTrades": null,
+    "fetchOHLCV": null,
+    "fetchTicker": true,
+    "fetchOrderBook": true,
+    "fetchTradingFees": false,
+    "fetchFundingRate": false,
+    "setLeverage": false,
+    "setMarginMode": false,
+    "setPositionMode": false
+   },
+   "streams": {
+    "watchTicker": null,
+    "watchOrderBook": null,
+    "watchTrades": null,
+    "watchOHLCV": null,
+    "watchOrders": null,
+    "watchBalance": null,
+    "watchPositions": null
+   },
+   "required_credentials": [
+    "apiKey",
+    "secret"
+   ],
+   "default_trading_fee": {
+    "maker": 0,
+    "taker": 0.003,
+    "note": "CCXT default schedule; the exchange's fee page is the source of truth"
+   }
+  },
+  {
+   "id": "kraken",
+   "name": "Kraken",
+   "countries_listed_by_ccxt": [
+    "US"
+   ],
+   "certified": false,
+   "pro": true,
+   "dex": false,
+   "alias": false,
+   "api_version": "0",
+   "rate_limit_ms": 1000,
+   "urls": {
+    "www": "https://www.kraken.com",
+    "doc": [
+     "https://docs.kraken.com/rest/"
+    ],
+    "fees": [
+     "https://www.kraken.com/en-us/features/fee-schedule"
+    ],
+    "api_management": null,
+    "api_base": "https://api.kraken.com",
+    "test": []
+   },
+   "has_referral_url": false,
+   "sandbox": false,
+   "markets": {
+    "spot": true,
+    "margin": true,
+    "swap": false,
+    "future": false,
+    "option": false
+   },
+   "methods": {
+    "createOrder": true,
+    "createMarketOrder": true,
+    "createLimitOrder": true,
+    "createStopOrder": true,
+    "createTriggerOrder": null,
+    "createStopLossOrder": null,
+    "createTakeProfitOrder": null,
+    "createReduceOnlyOrder": null,
+    "cancelOrder": true,
+    "editOrder": true,
+    "fetchBalance": true,
+    "fetchPositions": true,
+    "fetchOpenOrders": true,
+    "fetchMyTrades": true,
+    "fetchOHLCV": true,
+    "fetchTicker": true,
+    "fetchOrderBook": true,
+    "fetchTradingFees": false,
+    "fetchFundingRate": false,
+    "setLeverage": false,
+    "setMarginMode": false,
+    "setPositionMode": null
+   },
+   "streams": {
+    "watchTicker": true,
+    "watchOrderBook": true,
+    "watchTrades": true,
+    "watchOHLCV": true,
+    "watchOrders": true,
+    "watchBalance": true,
+    "watchPositions": null
+   },
+   "required_credentials": [
+    "apiKey",
+    "secret"
+   ],
+   "default_trading_fee": {
+    "maker": 0.0016,
+    "taker": 0.0026,
+    "note": "CCXT default schedule; the exchange's fee page is the source of truth"
+   }
+  },
+  {
+   "id": "krakenfutures",
+   "name": "Kraken Futures",
+   "countries_listed_by_ccxt": [
+    "US"
+   ],
+   "certified": false,
+   "pro": true,
+   "dex": false,
+   "alias": false,
+   "api_version": "v3",
+   "rate_limit_ms": 600,
+   "urls": {
+    "www": "https://futures.kraken.com/",
+    "doc": [
+     "https://docs.kraken.com/api/docs/futures-api/trading/market-data/"
+    ],
+    "fees": [
+     "https://support.kraken.com/hc/en-us/articles/360022835771-Transaction-fees-and-rebates-for-Kraken-Futures"
+    ],
+    "api_management": null,
+    "api_base": "https://futures.kraken.com/api/charts/",
+    "test": [
+     "https://demo-futures.kraken.com/derivatives/api/",
+     "https://demo-futures.kraken.com/api/charts/",
+     "https://demo-futures.kraken.com/api/history/",
+     "https://demo-futures.kraken.com"
+    ]
+   },
+   "has_referral_url": false,
+   "sandbox": true,
+   "markets": {
+    "spot": false,
+    "margin": false,
+    "swap": true,
+    "future": true,
+    "option": false
+   },
+   "methods": {
+    "createOrder": true,
+    "createMarketOrder": true,
+    "createLimitOrder": true,
+    "createStopOrder": true,
+    "createTriggerOrder": true,
+    "createStopLossOrder": null,
+    "createTakeProfitOrder": null,
+    "createReduceOnlyOrder": true,
+    "cancelOrder": true,
+    "editOrder": true,
+    "fetchBalance": true,
+    "fetchPositions": true,
+    "fetchOpenOrders": true,
+    "fetchMyTrades": true,
+    "fetchOHLCV": true,
+    "fetchTicker": true,
+    "fetchOrderBook": true,
+    "fetchTradingFees": null,
+    "fetchFundingRate": "emulated",
+    "setLeverage": true,
+    "setMarginMode": false,
+    "setPositionMode": null
+   },
+   "streams": {
+    "watchTicker": true,
+    "watchOrderBook": true,
+    "watchTrades": true,
+    "watchOHLCV": false,
+    "watchOrders": true,
+    "watchBalance": true,
+    "watchPositions": true
+   },
+   "required_credentials": [
+    "apiKey",
+    "secret"
+   ],
+   "default_trading_fee": {
+    "maker": 0.0002,
+    "taker": 0.0005,
+    "note": "CCXT default schedule; the exchange's fee page is the source of truth"
+   }
+  },
+  {
+   "id": "kucoin",
+   "name": "KuCoin",
+   "countries_listed_by_ccxt": [
+    "SC"
+   ],
+   "certified": true,
+   "pro": true,
+   "dex": false,
+   "alias": false,
+   "api_version": "v2",
+   "rate_limit_ms": 7.5,
+   "urls": {
+    "www": "https://www.kucoin.com",
+    "doc": [
+     "https://docs.kucoin.com"
+    ],
+    "fees": [],
+    "api_management": null,
+    "api_base": "https://api.kucoin.com",
+    "test": []
+   },
+   "has_referral_url": true,
+   "sandbox": false,
+   "markets": {
+    "spot": true,
+    "margin": true,
+    "swap": true,
+    "future": true,
+    "option": false
+   },
+   "methods": {
+    "createOrder": true,
+    "createMarketOrder": true,
+    "createLimitOrder": true,
+    "createStopOrder": true,
+    "createTriggerOrder": true,
+    "createStopLossOrder": true,
+    "createTakeProfitOrder": true,
+    "createReduceOnlyOrder": null,
+    "cancelOrder": true,
+    "editOrder": true,
+    "fetchBalance": true,
+    "fetchPositions": true,
+    "fetchOpenOrders": true,
+    "fetchMyTrades": true,
+    "fetchOHLCV": true,
+    "fetchTicker": true,
+    "fetchOrderBook": true,
+    "fetchTradingFees": false,
+    "fetchFundingRate": true,
+    "setLeverage": true,
+    "setMarginMode": true,
+    "setPositionMode": true
+   },
+   "streams": {
+    "watchTicker": true,
+    "watchOrderBook": true,
+    "watchTrades": true,
+    "watchOHLCV": true,
+    "watchOrders": true,
+    "watchBalance": true,
+    "watchPositions": false
+   },
+   "required_credentials": [
+    "apiKey",
+    "password",
+    "secret"
+   ],
+   "default_trading_fee": {
+    "maker": 0.001,
+    "taker": 0.001,
+    "note": "CCXT default schedule; the exchange's fee page is the source of truth"
+   }
+  },
+  {
+   "id": "kucoineu",
+   "name": "KuCoin EU",
+   "countries_listed_by_ccxt": [
+    "EU"
+   ],
+   "certified": false,
+   "pro": true,
+   "dex": false,
+   "alias": false,
+   "api_version": "v2",
+   "rate_limit_ms": 7.5,
+   "urls": {
+    "www": "https://www.kucoin.com/en-eu",
+    "doc": [
+     "https://www.kucoin.com/en-eu/docs-new"
+    ],
+    "fees": [],
+    "api_management": null,
+    "api_base": "https://api.kucoin.eu",
+    "test": []
+   },
+   "has_referral_url": true,
+   "sandbox": false,
+   "markets": {
+    "spot": true,
+    "margin": true,
+    "swap": true,
+    "future": true,
+    "option": false
+   },
+   "methods": {
+    "createOrder": true,
+    "createMarketOrder": true,
+    "createLimitOrder": true,
+    "createStopOrder": true,
+    "createTriggerOrder": true,
+    "createStopLossOrder": true,
+    "createTakeProfitOrder": true,
+    "createReduceOnlyOrder": null,
+    "cancelOrder": true,
+    "editOrder": true,
+    "fetchBalance": true,
+    "fetchPositions": true,
+    "fetchOpenOrders": true,
+    "fetchMyTrades": true,
+    "fetchOHLCV": true,
+    "fetchTicker": true,
+    "fetchOrderBook": true,
+    "fetchTradingFees": false,
+    "fetchFundingRate": true,
+    "setLeverage": true,
+    "setMarginMode": true,
+    "setPositionMode": true
+   },
+   "streams": {
+    "watchTicker": true,
+    "watchOrderBook": true,
+    "watchTrades": true,
+    "watchOHLCV": true,
+    "watchOrders": true,
+    "watchBalance": true,
+    "watchPositions": false
+   },
+   "required_credentials": [
+    "apiKey",
+    "password",
+    "secret"
+   ],
+   "default_trading_fee": {
+    "maker": 0.001,
+    "taker": 0.001,
+    "note": "CCXT default schedule; the exchange's fee page is the source of truth"
+   }
+  },
+  {
+   "id": "kucoinfutures",
+   "name": "KuCoin Futures",
+   "countries_listed_by_ccxt": [
+    "SC"
+   ],
+   "certified": true,
+   "pro": true,
+   "dex": false,
+   "alias": false,
+   "api_version": "v2",
+   "rate_limit_ms": 7.5,
+   "urls": {
+    "www": "https://futures.kucoin.com/",
+    "doc": [
+     "https://docs.kucoin.com"
+    ],
+    "fees": [],
+    "api_management": null,
+    "api_base": "https://api.kucoin.com",
+    "test": []
+   },
+   "has_referral_url": true,
+   "sandbox": false,
+   "markets": {
+    "spot": false,
+    "margin": false,
+    "swap": true,
+    "future": true,
+    "option": null
+   },
+   "methods": {
+    "createOrder": true,
+    "createMarketOrder": true,
+    "createLimitOrder": true,
+    "createStopOrder": true,
+    "createTriggerOrder": true,
+    "createStopLossOrder": true,
+    "createTakeProfitOrder": true,
+    "createReduceOnlyOrder": null,
+    "cancelOrder": true,
+    "editOrder": true,
+    "fetchBalance": true,
+    "fetchPositions": true,
+    "fetchOpenOrders": true,
+    "fetchMyTrades": true,
+    "fetchOHLCV": true,
+    "fetchTicker": true,
+    "fetchOrderBook": true,
+    "fetchTradingFees": false,
+    "fetchFundingRate": true,
+    "setLeverage": true,
+    "setMarginMode": true,
+    "setPositionMode": true
+   },
+   "streams": {
+    "watchTicker": true,
+    "watchOrderBook": true,
+    "watchTrades": true,
+    "watchOHLCV": true,
+    "watchOrders": true,
+    "watchBalance": true,
+    "watchPositions": false
+   },
+   "required_credentials": [
+    "apiKey",
+    "password",
+    "secret"
+   ],
+   "default_trading_fee": {
+    "maker": 0.001,
+    "taker": 0.001,
+    "note": "CCXT default schedule; the exchange's fee page is the source of truth"
+   }
+  },
+  {
+   "id": "latoken",
+   "name": "Latoken",
+   "countries_listed_by_ccxt": [
+    "KY"
+   ],
+   "certified": false,
+   "pro": false,
+   "dex": false,
+   "alias": false,
+   "api_version": "v2",
+   "rate_limit_ms": 1000,
+   "urls": {
+    "www": "https://latoken.com",
+    "doc": [
+     "https://api.latoken.com"
+    ],
+    "fees": [
+     "https://latoken.com/fees"
+    ],
+    "api_management": null,
+    "api_base": "https://api.latoken.com",
+    "test": []
+   },
+   "has_referral_url": true,
+   "sandbox": false,
+   "markets": {
+    "spot": true,
+    "margin": false,
+    "swap": false,
+    "future": false,
+    "option": false
+   },
+   "methods": {
+    "createOrder": true,
+    "createMarketOrder": true,
+    "createLimitOrder": true,
+    "createStopOrder": true,
+    "createTriggerOrder": null,
+    "createStopLossOrder": null,
+    "createTakeProfitOrder": null,
+    "createReduceOnlyOrder": null,
+    "cancelOrder": true,
+    "editOrder": "emulated",
+    "fetchBalance": true,
+    "fetchPositions": false,
+    "fetchOpenOrders": true,
+    "fetchMyTrades": true,
+    "fetchOHLCV": null,
+    "fetchTicker": true,
+    "fetchOrderBook": true,
+    "fetchTradingFees": false,
+    "fetchFundingRate": false,
+    "setLeverage": false,
+    "setMarginMode": false,
+    "setPositionMode": false
+   },
+   "streams": {
+    "watchTicker": null,
+    "watchOrderBook": null,
+    "watchTrades": null,
+    "watchOHLCV": null,
+    "watchOrders": null,
+    "watchBalance": null,
+    "watchPositions": null
+   },
+   "required_credentials": [
+    "apiKey",
+    "secret"
+   ],
+   "default_trading_fee": {
+    "maker": 0.0049,
+    "taker": 0.0049,
+    "note": "CCXT default schedule; the exchange's fee page is the source of truth"
+   }
+  },
+  {
+   "id": "lbank",
+   "name": "LBank",
+   "countries_listed_by_ccxt": [
+    "CN"
+   ],
+   "certified": false,
+   "pro": true,
+   "dex": false,
+   "alias": false,
+   "api_version": "v2",
+   "rate_limit_ms": 20,
+   "urls": {
+    "www": "https://www.lbank.com",
+    "doc": [
+     "https://www.lbank.com/en-US/docs/index.html"
+    ],
+    "fees": [
+     "https://support.lbank.site/hc/en-gb/articles/900000535703-Trading-Fees-From-14-00-on-April-7-2020-UTC-8-"
+    ],
+    "api_management": null,
+    "api_base": "https://api.lbank.info",
+    "test": []
+   },
+   "has_referral_url": true,
+   "sandbox": false,
+   "markets": {
+    "spot": true,
+    "margin": false,
+    "swap": null,
+    "future": false,
+    "option": false
+   },
+   "methods": {
+    "createOrder": true,
+    "createMarketOrder": true,
+    "createLimitOrder": true,
+    "createStopOrder": false,
+    "createTriggerOrder": null,
+    "createStopLossOrder": null,
+    "createTakeProfitOrder": null,
+    "createReduceOnlyOrder": false,
+    "cancelOrder": true,
+    "editOrder": "emulated",
+    "fetchBalance": true,
+    "fetchPositions": false,
+    "fetchOpenOrders": true,
+    "fetchMyTrades": true,
+    "fetchOHLCV": true,
+    "fetchTicker": true,
+    "fetchOrderBook": true,
+    "fetchTradingFees": true,
+    "fetchFundingRate": false,
+    "setLeverage": false,
+    "setMarginMode": false,
+    "setPositionMode": false
+   },
+   "streams": {
+    "watchTicker": true,
+    "watchOrderBook": true,
+    "watchTrades": true,
+    "watchOHLCV": true,
+    "watchOrders": true,
+    "watchBalance": true,
+    "watchPositions": null
+   },
+   "required_credentials": [
+    "apiKey",
+    "secret"
+   ],
+   "default_trading_fee": {
+    "maker": 0.001,
+    "taker": 0.001,
+    "note": "CCXT default schedule; the exchange's fee page is the source of truth"
+   }
+  },
+  {
+   "id": "lighter",
+   "name": "Lighter",
+   "countries_listed_by_ccxt": [],
+   "certified": false,
+   "pro": true,
+   "dex": true,
+   "alias": false,
+   "api_version": "v1",
+   "rate_limit_ms": 1000,
+   "urls": {
+    "www": "https://lighter.xyz/",
+    "doc": [
+     "https://apidocs.lighter.xyz/"
+    ],
+    "fees": [
+     "https://docs.lighter.xyz/perpetual-futures/fees"
+    ],
+    "api_management": null,
+    "api_base": "https://mainnet.zklighter.elliot.ai",
+    "test": [
+     "https://testnet.zklighter.elliot.ai"
+    ]
+   },
+   "has_referral_url": true,
+   "sandbox": true,
+   "markets": {
+    "spot": true,
+    "margin": false,
+    "swap": true,
+    "future": false,
+    "option": false
+   },
+   "methods": {
+    "createOrder": true,
+    "createMarketOrder": true,
+    "createLimitOrder": true,
+    "createStopOrder": false,
+    "createTriggerOrder": false,
+    "createStopLossOrder": null,
+    "createTakeProfitOrder": null,
+    "createReduceOnlyOrder": false,
+    "cancelOrder": true,
+    "editOrder": true,
+    "fetchBalance": true,
+    "fetchPositions": true,
+    "fetchOpenOrders": true,
+    "fetchMyTrades": true,
+    "fetchOHLCV": true,
+    "fetchTicker": true,
+    "fetchOrderBook": true,
+    "fetchTradingFees": false,
+    "fetchFundingRate": false,
+    "setLeverage": true,
+    "setMarginMode": true,
+    "setPositionMode": false
+   },
+   "streams": {
+    "watchTicker": true,
+    "watchOrderBook": true,
+    "watchTrades": true,
+    "watchOHLCV": false,
+    "watchOrders": true,
+    "watchBalance": true,
+    "watchPositions": false
+   },
+   "required_credentials": [
+    "privateKey"
+   ],
+   "default_trading_fee": {
+    "maker": null,
+    "taker": null,
+    "note": "CCXT default schedule; the exchange's fee page is the source of truth"
+   }
+  },
+  {
+   "id": "luno",
+   "name": "Luno",
+   "countries_listed_by_ccxt": [
+    "GB",
+    "SG",
+    "ZA"
+   ],
+   "certified": false,
+   "pro": true,
+   "dex": false,
+   "alias": false,
+   "api_version": "1",
+   "rate_limit_ms": 200,
+   "urls": {
+    "www": "https://www.luno.com",
+    "doc": [
+     "https://www.luno.com/en/api",
+     "https://npmjs.org/package/bitx",
+     "https://github.com/bausmeier/node-bitx"
+    ],
+    "fees": [],
+    "api_management": null,
+    "api_base": "https://api.luno.com/api",
+    "test": []
+   },
+   "has_referral_url": true,
+   "sandbox": false,
+   "markets": {
+    "spot": true,
+    "margin": false,
+    "swap": false,
+    "future": false,
+    "option": false
+   },
+   "methods": {
+    "createOrder": true,
+    "createMarketOrder": true,
+    "createLimitOrder": true,
+    "createStopOrder": null,
+    "createTriggerOrder": null,
+    "createStopLossOrder": null,
+    "createTakeProfitOrder": null,
+    "createReduceOnlyOrder": false,
+    "cancelOrder": true,
+    "editOrder": "emulated",
+    "fetchBalance": true,
+    "fetchPositions": false,
+    "fetchOpenOrders": true,
+    "fetchMyTrades": true,
+    "fetchOHLCV": true,
+    "fetchTicker": true,
+    "fetchOrderBook": true,
+    "fetchTradingFees": false,
+    "fetchFundingRate": false,
+    "setLeverage": false,
+    "setMarginMode": false,
+    "setPositionMode": false
+   },
+   "streams": {
+    "watchTicker": false,
+    "watchOrderBook": true,
+    "watchTrades": true,
+    "watchOHLCV": false,
+    "watchOrders": null,
+    "watchBalance": null,
+    "watchPositions": null
+   },
+   "required_credentials": [
+    "apiKey",
+    "secret"
+   ],
+   "default_trading_fee": {
+    "maker": 0.0,
+    "taker": 0.001,
+    "note": "CCXT default schedule; the exchange's fee page is the source of truth"
+   }
+  },
+  {
+   "id": "mercado",
+   "name": "Mercado Bitcoin",
+   "countries_listed_by_ccxt": [
+    "BR"
+   ],
+   "certified": false,
+   "pro": false,
+   "dex": false,
+   "alias": false,
+   "api_version": "v3",
+   "rate_limit_ms": 1000,
+   "urls": {
+    "www": "https://www.mercadobitcoin.com.br",
+    "doc": [
+     "https://www.mercadobitcoin.com.br/api-doc",
+     "https://www.mercadobitcoin.com.br/trade-api"
+    ],
+    "fees": [],
+    "api_management": null,
+    "api_base": "https://www.mercadobitcoin.net/api",
+    "test": []
+   },
+   "has_referral_url": false,
+   "sandbox": false,
+   "markets": {
+    "spot": true,
+    "margin": false,
+    "swap": false,
+    "future": false,
+    "option": false
+   },
+   "methods": {
+    "createOrder": true,
+    "createMarketOrder": true,
+    "createLimitOrder": true,
+    "createStopOrder": false,
+    "createTriggerOrder": null,
+    "createStopLossOrder": null,
+    "createTakeProfitOrder": null,
+    "createReduceOnlyOrder": false,
+    "cancelOrder": true,
+    "editOrder": "emulated",
+    "fetchBalance": true,
+    "fetchPositions": false,
+    "fetchOpenOrders": true,
+    "fetchMyTrades": "emulated",
+    "fetchOHLCV": true,
+    "fetchTicker": true,
+    "fetchOrderBook": true,
+    "fetchTradingFees": false,
+    "fetchFundingRate": false,
+    "setLeverage": false,
+    "setMarginMode": false,
+    "setPositionMode": false
+   },
+   "streams": {
+    "watchTicker": null,
+    "watchOrderBook": null,
+    "watchTrades": null,
+    "watchOHLCV": null,
+    "watchOrders": null,
+    "watchBalance": null,
+    "watchPositions": null
+   },
+   "required_credentials": [
+    "apiKey",
+    "secret"
+   ],
+   "default_trading_fee": {
+    "maker": 0.003,
+    "taker": 0.007,
+    "note": "CCXT default schedule; the exchange's fee page is the source of truth"
+   }
+  },
+  {
+   "id": "mexc",
+   "name": "MEXC Global",
+   "countries_listed_by_ccxt": [
+    "SC"
+   ],
+   "certified": true,
+   "pro": true,
+   "dex": false,
+   "alias": false,
+   "api_version": "v3",
+   "rate_limit_ms": 50,
+   "urls": {
+    "www": "https://www.mexc.com/",
+    "doc": [
+     "https://mexcdevelop.github.io/apidocs/"
+    ],
+    "fees": [
+     "https://www.mexc.com/fee"
+    ],
+    "api_management": null,
+    "api_base": "https://api.mexc.com",
+    "test": []
+   },
+   "has_referral_url": true,
+   "sandbox": false,
+   "markets": {
+    "spot": true,
+    "margin": true,
+    "swap": true,
+    "future": false,
+    "option": false
+   },
+   "methods": {
+    "createOrder": true,
+    "createMarketOrder": true,
+    "createLimitOrder": true,
+    "createStopOrder": true,
+    "createTriggerOrder": true,
+    "createStopLossOrder": null,
+    "createTakeProfitOrder": null,
+    "createReduceOnlyOrder": true,
+    "cancelOrder": true,
+    "editOrder": null,
+    "fetchBalance": true,
+    "fetchPositions": true,
+    "fetchOpenOrders": true,
+    "fetchMyTrades": true,
+    "fetchOHLCV": true,
+    "fetchTicker": true,
+    "fetchOrderBook": true,
+    "fetchTradingFees": false,
+    "fetchFundingRate": true,
+    "setLeverage": true,
+    "setMarginMode": true,
+    "setPositionMode": true
+   },
+   "streams": {
+    "watchTicker": true,
+    "watchOrderBook": true,
+    "watchTrades": true,
+    "watchOHLCV": true,
+    "watchOrders": true,
+    "watchBalance": true,
+    "watchPositions": null
+   },
+   "required_credentials": [
+    "apiKey",
+    "secret"
+   ],
+   "default_trading_fee": {
+    "maker": 0.002,
+    "taker": 0.002,
+    "note": "CCXT default schedule; the exchange's fee page is the source of truth"
+   }
+  },
+  {
+   "id": "modetrade",
+   "name": "Mode Trade",
+   "countries_listed_by_ccxt": [
+    "KY"
+   ],
+   "certified": false,
+   "pro": true,
+   "dex": true,
+   "alias": false,
+   "api_version": "v1",
+   "rate_limit_ms": 100,
+   "urls": {
+    "www": "https://trade.mode.network",
+    "doc": [],
+    "fees": [],
+    "api_management": null,
+    "api_base": "https://api-evm.orderly.org",
+    "test": [
+     "https://testnet-api-evm.orderly.org"
+    ]
+   },
+   "has_referral_url": true,
+   "sandbox": true,
+   "markets": {
+    "spot": false,
+    "margin": false,
+    "swap": true,
+    "future": false,
+    "option": false
+   },
+   "methods": {
+    "createOrder": true,
+    "createMarketOrder": true,
+    "createLimitOrder": true,
+    "createStopOrder": true,
+    "createTriggerOrder": true,
+    "createStopLossOrder": true,
+    "createTakeProfitOrder": true,
+    "createReduceOnlyOrder": true,
+    "cancelOrder": true,
+    "editOrder": "emulated",
+    "fetchBalance": true,
+    "fetchPositions": true,
+    "fetchOpenOrders": true,
+    "fetchMyTrades": true,
+    "fetchOHLCV": true,
+    "fetchTicker": false,
+    "fetchOrderBook": true,
+    "fetchTradingFees": true,
+    "fetchFundingRate": true,
+    "setLeverage": true,
+    "setMarginMode": null,
+    "setPositionMode": false
+   },
+   "streams": {
+    "watchTicker": true,
+    "watchOrderBook": true,
+    "watchTrades": true,
+    "watchOHLCV": true,
+    "watchOrders": true,
+    "watchBalance": true,
+    "watchPositions": true
+   },
+   "required_credentials": [
+    "accountId",
+    "apiKey",
+    "secret"
+   ],
+   "default_trading_fee": {
+    "maker": 0.0002,
+    "taker": 0.0005,
+    "note": "CCXT default schedule; the exchange's fee page is the source of truth"
+   }
+  },
+  {
+   "id": "mudrex",
+   "name": "Mudrex",
+   "countries_listed_by_ccxt": [
+    "IN"
+   ],
+   "certified": false,
+   "pro": true,
+   "dex": false,
+   "alias": false,
+   "api_version": "v1",
+   "rate_limit_ms": 100,
+   "urls": {
+    "www": "https://mudrex.com",
+    "doc": [
+     "https://docs.trade.mudrex.com/docs"
+    ],
+    "fees": [
+     "https://docs.trade.mudrex.com"
+    ],
+    "api_management": null,
+    "api_base": "https://trade.mudrex.com/fapi/v1",
+    "test": []
+   },
+   "has_referral_url": false,
+   "sandbox": false,
+   "markets": {
+    "spot": false,
+    "margin": false,
+    "swap": true,
+    "future": false,
+    "option": false
+   },
+   "methods": {
+    "createOrder": true,
+    "createMarketOrder": true,
+    "createLimitOrder": true,
+    "createStopOrder": null,
+    "createTriggerOrder": null,
+    "createStopLossOrder": null,
+    "createTakeProfitOrder": null,
+    "createReduceOnlyOrder": true,
+    "cancelOrder": true,
+    "editOrder": true,
+    "fetchBalance": true,
+    "fetchPositions": true,
+    "fetchOpenOrders": true,
+    "fetchMyTrades": true,
+    "fetchOHLCV": true,
+    "fetchTicker": true,
+    "fetchOrderBook": false,
+    "fetchTradingFees": null,
+    "fetchFundingRate": false,
+    "setLeverage": true,
+    "setMarginMode": null,
+    "setPositionMode": null
+   },
+   "streams": {
+    "watchTicker": true,
+    "watchOrderBook": null,
+    "watchTrades": null,
+    "watchOHLCV": true,
+    "watchOrders": null,
+    "watchBalance": null,
+    "watchPositions": null
+   },
+   "required_credentials": [
+    "secret"
+   ],
+   "default_trading_fee": {
+    "maker": 0.00023,
+    "taker": 0.00059,
+    "note": "CCXT default schedule; the exchange's fee page is the source of truth"
+   }
+  },
+  {
+   "id": "myokx",
+   "name": "MyOKX(EEA)",
+   "countries_listed_by_ccxt": [
+    "CN",
+    "US"
+   ],
+   "certified": false,
+   "pro": true,
+   "dex": false,
+   "alias": false,
+   "api_version": "v5",
+   "rate_limit_ms": 110.00000000000001,
+   "urls": {
+    "www": "https://my.okx.com",
+    "doc": [
+     "https://my.okx.com/docs-v5/en/#overview"
+    ],
+    "fees": [
+     "https://my.okx.com/pages/products/fees.html"
+    ],
+    "api_management": null,
+    "api_base": "https://eea.okx.com",
+    "test": [
+     "https://eea.okx.com"
+    ]
+   },
+   "has_referral_url": true,
+   "sandbox": true,
+   "markets": {
+    "spot": true,
+    "margin": null,
+    "swap": false,
+    "future": false,
+    "option": false
+   },
+   "methods": {
+    "createOrder": true,
+    "createMarketOrder": true,
+    "createLimitOrder": true,
+    "createStopOrder": true,
+    "createTriggerOrder": true,
+    "createStopLossOrder": true,
+    "createTakeProfitOrder": true,
+    "createReduceOnlyOrder": true,
+    "cancelOrder": true,
+    "editOrder": true,
+    "fetchBalance": true,
+    "fetchPositions": true,
+    "fetchOpenOrders": true,
+    "fetchMyTrades": true,
+    "fetchOHLCV": true,
+    "fetchTicker": true,
+    "fetchOrderBook": true,
+    "fetchTradingFees": false,
+    "fetchFundingRate": true,
+    "setLeverage": true,
+    "setMarginMode": true,
+    "setPositionMode": true
+   },
+   "streams": {
+    "watchTicker": true,
+    "watchOrderBook": true,
+    "watchTrades": true,
+    "watchOHLCV": true,
+    "watchOrders": true,
+    "watchBalance": true,
+    "watchPositions": true
+   },
+   "required_credentials": [
+    "apiKey",
+    "password",
+    "secret"
+   ],
+   "default_trading_fee": {
+    "maker": 0.001,
+    "taker": 0.0015,
+    "note": "CCXT default schedule; the exchange's fee page is the source of truth"
+   }
+  },
+  {
+   "id": "ndax",
+   "name": "NDAX",
+   "countries_listed_by_ccxt": [
+    "CA"
+   ],
+   "certified": false,
+   "pro": true,
+   "dex": false,
+   "alias": false,
+   "api_version": null,
+   "rate_limit_ms": 1000,
+   "urls": {
+    "www": "https://ndax.io",
+    "doc": [
+     "https://apidoc.ndax.io/"
+    ],
+    "fees": [
+     "https://ndax.io/fees"
+    ],
+    "api_management": null,
+    "api_base": "https://api.ndax.io:8443/AP",
+    "test": [
+     "https://ndaxmarginstaging.cdnhop.net:8443/AP"
+    ]
+   },
+   "has_referral_url": true,
+   "sandbox": true,
+   "markets": {
+    "spot": true,
+    "margin": false,
+    "swap": false,
+    "future": false,
+    "option": false
+   },
+   "methods": {
+    "createOrder": true,
+    "createMarketOrder": true,
+    "createLimitOrder": true,
+    "createStopOrder": true,
+    "createTriggerOrder": null,
+    "createStopLossOrder": null,
+    "createTakeProfitOrder": null,
+    "createReduceOnlyOrder": false,
+    "cancelOrder": true,
+    "editOrder": true,
+    "fetchBalance": true,
+    "fetchPositions": false,
+    "fetchOpenOrders": true,
+    "fetchMyTrades": true,
+    "fetchOHLCV": true,
+    "fetchTicker": true,
+    "fetchOrderBook": true,
+    "fetchTradingFees": false,
+    "fetchFundingRate": false,
+    "setLeverage": false,
+    "setMarginMode": false,
+    "setPositionMode": false
+   },
+   "streams": {
+    "watchTicker": true,
+    "watchOrderBook": true,
+    "watchTrades": true,
+    "watchOHLCV": true,
+    "watchOrders": null,
+    "watchBalance": null,
+    "watchPositions": null
+   },
+   "required_credentials": [
+    "apiKey",
+    "login",
+    "password",
+    "secret",
+    "uid"
+   ],
+   "default_trading_fee": {
+    "maker": 0.002,
+    "taker": 0.0025,
+    "note": "CCXT default schedule; the exchange's fee page is the source of truth"
+   }
+  },
+  {
+   "id": "okx",
+   "name": "OKX",
+   "countries_listed_by_ccxt": [
+    "CN",
+    "US"
+   ],
+   "certified": true,
+   "pro": true,
+   "dex": false,
+   "alias": false,
+   "api_version": "v5",
+   "rate_limit_ms": 110.00000000000001,
+   "urls": {
+    "www": "https://www.okx.com",
+    "doc": [
+     "https://www.okx.com/docs-v5/en/"
+    ],
+    "fees": [
+     "https://www.okx.com/pages/products/fees.html"
+    ],
+    "api_management": null,
+    "api_base": "https://www.okx.com",
+    "test": [
+     "https://www.okx.com"
+    ]
+   },
+   "has_referral_url": true,
+   "sandbox": true,
+   "markets": {
+    "spot": true,
+    "margin": true,
+    "swap": true,
+    "future": true,
+    "option": true
+   },
+   "methods": {
+    "createOrder": true,
+    "createMarketOrder": true,
+    "createLimitOrder": true,
+    "createStopOrder": true,
+    "createTriggerOrder": true,
+    "createStopLossOrder": true,
+    "createTakeProfitOrder": true,
+    "createReduceOnlyOrder": true,
+    "cancelOrder": true,
+    "editOrder": true,
+    "fetchBalance": true,
+    "fetchPositions": true,
+    "fetchOpenOrders": true,
+    "fetchMyTrades": true,
+    "fetchOHLCV": true,
+    "fetchTicker": true,
+    "fetchOrderBook": true,
+    "fetchTradingFees": false,
+    "fetchFundingRate": true,
+    "setLeverage": true,
+    "setMarginMode": true,
+    "setPositionMode": true
+   },
+   "streams": {
+    "watchTicker": true,
+    "watchOrderBook": true,
+    "watchTrades": true,
+    "watchOHLCV": true,
+    "watchOrders": true,
+    "watchBalance": true,
+    "watchPositions": true
+   },
+   "required_credentials": [
+    "apiKey",
+    "password",
+    "secret"
+   ],
+   "default_trading_fee": {
+    "maker": 0.001,
+    "taker": 0.0015,
+    "note": "CCXT default schedule; the exchange's fee page is the source of truth"
+   }
+  },
+  {
+   "id": "okxus",
+   "name": "OKX(US)",
+   "countries_listed_by_ccxt": [
+    "CN",
+    "US"
+   ],
+   "certified": false,
+   "pro": true,
+   "dex": false,
+   "alias": false,
+   "api_version": "v5",
+   "rate_limit_ms": 110.00000000000001,
+   "urls": {
+    "www": "https://app.okx.com",
+    "doc": [
+     "https://app.okx.com/docs-v5/en/#overview"
+    ],
+    "fees": [
+     "https://app.okx.com/pages/products/fees.html"
+    ],
+    "api_management": null,
+    "api_base": "https://us.okx.com",
+    "test": [
+     "https://us.okx.com"
+    ]
+   },
+   "has_referral_url": true,
+   "sandbox": true,
+   "markets": {
+    "spot": true,
+    "margin": null,
+    "swap": true,
+    "future": false,
+    "option": false
+   },
+   "methods": {
+    "createOrder": true,
+    "createMarketOrder": true,
+    "createLimitOrder": true,
+    "createStopOrder": true,
+    "createTriggerOrder": true,
+    "createStopLossOrder": true,
+    "createTakeProfitOrder": true,
+    "createReduceOnlyOrder": true,
+    "cancelOrder": true,
+    "editOrder": true,
+    "fetchBalance": true,
+    "fetchPositions": true,
+    "fetchOpenOrders": true,
+    "fetchMyTrades": true,
+    "fetchOHLCV": true,
+    "fetchTicker": true,
+    "fetchOrderBook": true,
+    "fetchTradingFees": false,
+    "fetchFundingRate": true,
+    "setLeverage": true,
+    "setMarginMode": true,
+    "setPositionMode": true
+   },
+   "streams": {
+    "watchTicker": true,
+    "watchOrderBook": true,
+    "watchTrades": true,
+    "watchOHLCV": true,
+    "watchOrders": true,
+    "watchBalance": true,
+    "watchPositions": true
+   },
+   "required_credentials": [
+    "apiKey",
+    "password",
+    "secret"
+   ],
+   "default_trading_fee": {
+    "maker": 0.001,
+    "taker": 0.0015,
+    "note": "CCXT default schedule; the exchange's fee page is the source of truth"
+   }
+  },
+  {
+   "id": "onetrading",
+   "name": "One Trading",
+   "countries_listed_by_ccxt": [
+    "AT"
+   ],
+   "certified": false,
+   "pro": true,
+   "dex": false,
+   "alias": false,
+   "api_version": "v1",
+   "rate_limit_ms": 300,
+   "urls": {
+    "www": "https://onetrading.com/",
+    "doc": [
+     "https://docs.onetrading.com"
+    ],
+    "fees": [
+     "https://onetrading.com/fees"
+    ],
+    "api_management": null,
+    "api_base": "https://api.onetrading.com/fast",
+    "test": []
+   },
+   "has_referral_url": false,
+   "sandbox": false,
+   "markets": {
+    "spot": true,
+    "margin": false,
+    "swap": false,
+    "future": false,
+    "option": false
+   },
+   "methods": {
+    "createOrder": true,
+    "createMarketOrder": true,
+    "createLimitOrder": true,
+    "createStopOrder": true,
+    "createTriggerOrder": null,
+    "createStopLossOrder": null,
+    "createTakeProfitOrder": null,
+    "createReduceOnlyOrder": false,
+    "cancelOrder": true,
+    "editOrder": "emulated",
+    "fetchBalance": true,
+    "fetchPositions": false,
+    "fetchOpenOrders": true,
+    "fetchMyTrades": true,
+    "fetchOHLCV": true,
+    "fetchTicker": true,
+    "fetchOrderBook": true,
+    "fetchTradingFees": true,
+    "fetchFundingRate": false,
+    "setLeverage": false,
+    "setMarginMode": false,
+    "setPositionMode": false
+   },
+   "streams": {
+    "watchTicker": true,
+    "watchOrderBook": true,
+    "watchTrades": false,
+    "watchOHLCV": true,
+    "watchOrders": true,
+    "watchBalance": true,
+    "watchPositions": null
+   },
+   "required_credentials": [
+    "apiKey"
+   ],
+   "default_trading_fee": {
+    "maker": 0.001,
+    "taker": 0.0015,
+    "note": "CCXT default schedule; the exchange's fee page is the source of truth"
+   }
+  },
+  {
+   "id": "p2b",
+   "name": "p2b",
+   "countries_listed_by_ccxt": [
+    "LT"
+   ],
+   "certified": false,
+   "pro": true,
+   "dex": false,
+   "alias": false,
+   "api_version": "v2",
+   "rate_limit_ms": 100,
+   "urls": {
+    "www": "https://p2pb2b.com/",
+    "doc": [
+     "https://github.com/P2B-team/p2b-api-docs/blob/master/api-doc.md"
+    ],
+    "fees": [
+     "https://p2pb2b.com/fee-schedule/"
+    ],
+    "api_management": null,
+    "api_base": "https://api.p2pb2b.com/api/v2/public",
+    "test": []
+   },
+   "has_referral_url": true,
+   "sandbox": false,
+   "markets": {
+    "spot": true,
+    "margin": false,
+    "swap": false,
+    "future": false,
+    "option": false
+   },
+   "methods": {
+    "createOrder": true,
+    "createMarketOrder": false,
+    "createLimitOrder": true,
+    "createStopOrder": false,
+    "createTriggerOrder": null,
+    "createStopLossOrder": null,
+    "createTakeProfitOrder": null,
+    "createReduceOnlyOrder": false,
+    "cancelOrder": true,
+    "editOrder": "emulated",
+    "fetchBalance": true,
+    "fetchPositions": false,
+    "fetchOpenOrders": true,
+    "fetchMyTrades": true,
+    "fetchOHLCV": true,
+    "fetchTicker": true,
+    "fetchOrderBook": true,
+    "fetchTradingFees": null,
+    "fetchFundingRate": false,
+    "setLeverage": false,
+    "setMarginMode": false,
+    "setPositionMode": false
+   },
+   "streams": {
+    "watchTicker": true,
+    "watchOrderBook": true,
+    "watchTrades": true,
+    "watchOHLCV": true,
+    "watchOrders": false,
+    "watchBalance": false,
+    "watchPositions": null
+   },
+   "required_credentials": [
+    "apiKey",
+    "secret"
+   ],
+   "default_trading_fee": {
+    "maker": "[[0.0, 0.2], [1.0, 0.18], [5.0, 0.16], [10.0, 0.14], [25.0, 0.12], [75.0, 0.1], [100.0, 0.08], [150.0, 0.06], [300.0, 0.04], [450.0, 0.02], [500.0, 0.01]]",
+    "taker": "[[0.0, 0.2], [1.0, 0.19], [5.0, 0.18], [10.0, 0.17], [25.0, 0.16], [75.0, 0.15], [100.0, 0.14], [150.0, 0.13], [300.0, 0.12], [450.0, 0.11], [500.0, 0.1]]",
+    "note": "CCXT default schedule; the exchange's fee page is the source of truth"
+   }
+  },
+  {
+   "id": "pacifica",
+   "name": "Pacifica",
+   "countries_listed_by_ccxt": [],
+   "certified": false,
+   "pro": true,
+   "dex": true,
+   "alias": false,
+   "api_version": "v1",
+   "rate_limit_ms": 50,
+   "urls": {
+    "www": "https://www.pacifica.fi",
+    "doc": [
+     "https://docs.pacifica.fi/api-documentation/api/rest-api"
+    ],
+    "fees": [
+     "https://docs.pacifica.fi/trading-on-pacifica/trading-fees"
+    ],
+    "api_management": null,
+    "api_base": "https://api.pacifica.fi",
+    "test": [
+     "https://test-api.pacifica.fi"
+    ]
+   },
+   "has_referral_url": true,
+   "sandbox": true,
+   "markets": {
+    "spot": false,
+    "margin": false,
+    "swap": true,
+    "future": false,
+    "option": false
+   },
+   "methods": {
+    "createOrder": true,
+    "createMarketOrder": true,
+    "createLimitOrder": true,
+    "createStopOrder": true,
+    "createTriggerOrder": null,
+    "createStopLossOrder": null,
+    "createTakeProfitOrder": null,
+    "createReduceOnlyOrder": true,
+    "cancelOrder": true,
+    "editOrder": true,
+    "fetchBalance": true,
+    "fetchPositions": true,
+    "fetchOpenOrders": true,
+    "fetchMyTrades": true,
+    "fetchOHLCV": true,
+    "fetchTicker": "emulated",
+    "fetchOrderBook": true,
+    "fetchTradingFees": false,
+    "fetchFundingRate": false,
+    "setLeverage": true,
+    "setMarginMode": true,
+    "setPositionMode": false
+   },
+   "streams": {
+    "watchTicker": true,
+    "watchOrderBook": true,
+    "watchTrades": true,
+    "watchOHLCV": true,
+    "watchOrders": true,
+    "watchBalance": false,
+    "watchPositions": null
+   },
+   "required_credentials": [
+    "privateKey"
+   ],
+   "default_trading_fee": {
+    "maker": null,
+    "taker": null,
+    "note": "CCXT default schedule; the exchange's fee page is the source of truth"
+   }
+  },
+  {
+   "id": "paradex",
+   "name": "Paradex",
+   "countries_listed_by_ccxt": [],
+   "certified": false,
+   "pro": true,
+   "dex": true,
+   "alias": false,
+   "api_version": "v1",
+   "rate_limit_ms": 50,
+   "urls": {
+    "www": "https://www.paradex.trade/",
+    "doc": [
+     "https://docs.api.testnet.paradex.trade/"
+    ],
+    "fees": [
+     "https://docs.paradex.trade/getting-started/trading-fees"
+    ],
+    "api_management": null,
+    "api_base": "https://api.prod.paradex.trade/v1",
+    "test": [
+     "https://api.testnet.paradex.trade/v1",
+     "https://api.testnet.paradex.trade/v2"
+    ]
+   },
+   "has_referral_url": true,
+   "sandbox": true,
+   "markets": {
+    "spot": false,
+    "margin": false,
+    "swap": true,
+    "future": false,
+    "option": false
+   },
+   "methods": {
+    "createOrder": true,
+    "createMarketOrder": true,
+    "createLimitOrder": true,
+    "createStopOrder": true,
+    "createTriggerOrder": true,
+    "createStopLossOrder": null,
+    "createTakeProfitOrder": null,
+    "createReduceOnlyOrder": false,
+    "cancelOrder": true,
+    "editOrder": true,
+    "fetchBalance": true,
+    "fetchPositions": true,
+    "fetchOpenOrders": true,
+    "fetchMyTrades": true,
+    "fetchOHLCV": true,
+    "fetchTicker": true,
+    "fetchOrderBook": true,
+    "fetchTradingFees": true,
+    "fetchFundingRate": false,
+    "setLeverage": true,
+    "setMarginMode": true,
+    "setPositionMode": false
+   },
+   "streams": {
+    "watchTicker": true,
+    "watchOrderBook": true,
+    "watchTrades": true,
+    "watchOHLCV": false,
+    "watchOrders": true,
+    "watchBalance": false,
+    "watchPositions": null
+   },
+   "required_credentials": [
+    "privateKey",
+    "walletAddress"
+   ],
+   "default_trading_fee": {
+    "maker": null,
+    "taker": null,
+    "note": "CCXT default schedule; the exchange's fee page is the source of truth"
+   }
+  },
+  {
+   "id": "paymium",
+   "name": "Paymium",
+   "countries_listed_by_ccxt": [
+    "FR",
+    "EU"
+   ],
+   "certified": false,
+   "pro": false,
+   "dex": false,
+   "alias": false,
+   "api_version": "v1",
+   "rate_limit_ms": 2000,
+   "urls": {
+    "www": "https://www.paymium.com",
+    "doc": [
+     "https://github.com/Paymium/api-documentation",
+     "https://www.paymium.com/page/developers",
+     "https://paymium.github.io/api-documentation/"
+    ],
+    "fees": [
+     "https://www.paymium.com/page/help/fees"
+    ],
+    "api_management": null,
+    "api_base": "https://paymium.com/api",
+    "test": []
+   },
+   "has_referral_url": true,
+   "sandbox": false,
+   "markets": {
+    "spot": true,
+    "margin": null,
+    "swap": false,
+    "future": false,
+    "option": false
+   },
+   "methods": {
+    "createOrder": true,
+    "createMarketOrder": true,
+    "createLimitOrder": true,
+    "createStopOrder": null,
+    "createTriggerOrder": null,
+    "createStopLossOrder": null,
+    "createTakeProfitOrder": null,
+    "createReduceOnlyOrder": null,
+    "cancelOrder": true,
+    "editOrder": "emulated",
+    "fetchBalance": true,
+    "fetchPositions": null,
+    "fetchOpenOrders": null,
+    "fetchMyTrades": null,
+    "fetchOHLCV": null,
+    "fetchTicker": true,
+    "fetchOrderBook": true,
+    "fetchTradingFees": false,
+    "fetchFundingRate": false,
+    "setLeverage": null,
+    "setMarginMode": null,
+    "setPositionMode": null
+   },
+   "streams": {
+    "watchTicker": null,
+    "watchOrderBook": null,
+    "watchTrades": null,
+    "watchOHLCV": null,
+    "watchOrders": null,
+    "watchBalance": null,
+    "watchPositions": null
+   },
+   "required_credentials": [
+    "apiKey",
+    "secret"
+   ],
+   "default_trading_fee": {
+    "maker": -0.001,
+    "taker": 0.005,
+    "note": "CCXT default schedule; the exchange's fee page is the source of truth"
+   }
+  },
+  {
+   "id": "phemex",
+   "name": "Phemex",
+   "countries_listed_by_ccxt": [
+    "CN"
+   ],
+   "certified": false,
+   "pro": true,
+   "dex": false,
+   "alias": false,
+   "api_version": "v1",
+   "rate_limit_ms": 120.5,
+   "urls": {
+    "www": "https://phemex.com",
+    "doc": [
+     "https://phemex-docs.github.io/#overview"
+    ],
+    "fees": [
+     "https://phemex.com/fees-conditions"
+    ],
+    "api_management": null,
+    "api_base": "https://api.phemex.com/v1",
+    "test": [
+     "https://testnet-api.phemex.com/v1",
+     "https://testnet-api.phemex.com",
+     "https://testnet-api.phemex.com/exchange/public"
+    ]
+   },
+   "has_referral_url": true,
+   "sandbox": true,
+   "markets": {
+    "spot": true,
+    "margin": false,
+    "swap": true,
+    "future": false,
+    "option": false
+   },
+   "methods": {
+    "createOrder": true,
+    "createMarketOrder": true,
+    "createLimitOrder": true,
+    "createStopOrder": true,
+    "createTriggerOrder": null,
+    "createStopLossOrder": null,
+    "createTakeProfitOrder": null,
+    "createReduceOnlyOrder": true,
+    "cancelOrder": true,
+    "editOrder": true,
+    "fetchBalance": true,
+    "fetchPositions": true,
+    "fetchOpenOrders": true,
+    "fetchMyTrades": true,
+    "fetchOHLCV": true,
+    "fetchTicker": true,
+    "fetchOrderBook": true,
+    "fetchTradingFees": false,
+    "fetchFundingRate": true,
+    "setLeverage": true,
+    "setMarginMode": true,
+    "setPositionMode": true
+   },
+   "streams": {
+    "watchTicker": true,
+    "watchOrderBook": true,
+    "watchTrades": true,
+    "watchOHLCV": true,
+    "watchOrders": true,
+    "watchBalance": true,
+    "watchPositions": null
+   },
+   "required_credentials": [
+    "apiKey",
+    "secret"
+   ],
+   "default_trading_fee": {
+    "maker": 0.001,
+    "taker": 0.001,
+    "note": "CCXT default schedule; the exchange's fee page is the source of truth"
+   }
+  },
+  {
+   "id": "poloniex",
+   "name": "Poloniex",
+   "countries_listed_by_ccxt": [
+    "US"
+   ],
+   "certified": false,
+   "pro": true,
+   "dex": false,
+   "alias": false,
+   "api_version": null,
+   "rate_limit_ms": 5,
+   "urls": {
+    "www": "https://www.poloniex.com",
+    "doc": [
+     "https://api-docs.poloniex.com/spot/"
+    ],
+    "fees": [
+     "https://poloniex.com/fees"
+    ],
+    "api_management": null,
+    "api_base": "https://api.poloniex.com",
+    "test": [
+     "https://sand-spot-api-gateway.poloniex.com"
+    ]
+   },
+   "has_referral_url": true,
+   "sandbox": true,
+   "markets": {
+    "spot": true,
+    "margin": null,
+    "swap": true,
+    "future": false,
+    "option": false
+   },
+   "methods": {
+    "createOrder": true,
+    "createMarketOrder": true,
+    "createLimitOrder": true,
+    "createStopOrder": true,
+    "createTriggerOrder": true,
+    "createStopLossOrder": null,
+    "createTakeProfitOrder": null,
+    "createReduceOnlyOrder": null,
+    "cancelOrder": true,
+    "editOrder": true,
+    "fetchBalance": true,
+    "fetchPositions": true,
+    "fetchOpenOrders": true,
+    "fetchMyTrades": true,
+    "fetchOHLCV": true,
+    "fetchTicker": true,
+    "fetchOrderBook": true,
+    "fetchTradingFees": true,
+    "fetchFundingRate": false,
+    "setLeverage": true,
+    "setMarginMode": null,
+    "setPositionMode": true
+   },
+   "streams": {
+    "watchTicker": true,
+    "watchOrderBook": true,
+    "watchTrades": true,
+    "watchOHLCV": true,
+    "watchOrders": true,
+    "watchBalance": true,
+    "watchPositions": null
+   },
+   "required_credentials": [
+    "apiKey",
+    "secret"
+   ],
+   "default_trading_fee": {
+    "maker": 0.0009,
+    "taker": 0.0009,
+    "note": "CCXT default schedule; the exchange's fee page is the source of truth"
+   }
+  },
+  {
+   "id": "tokocrypto",
+   "name": "Tokocrypto",
+   "countries_listed_by_ccxt": [
+    "ID"
+   ],
+   "certified": false,
+   "pro": false,
+   "dex": false,
+   "alias": false,
+   "api_version": "v1",
+   "rate_limit_ms": 2000,
+   "urls": {
+    "www": "https://tokocrypto.com",
+    "doc": [
+     "https://www.tokocrypto.com/apidocs/"
+    ],
+    "fees": [
+     "https://www.tokocrypto.com/fees/newschedule"
+    ],
+    "api_management": null,
+    "api_base": "https://www.tokocrypto.com",
+    "test": []
+   },
+   "has_referral_url": false,
+   "sandbox": false,
+   "markets": {
+    "spot": true,
+    "margin": true,
+    "swap": false,
+    "future": false,
+    "option": false
+   },
+   "methods": {
+    "createOrder": true,
+    "createMarketOrder": true,
+    "createLimitOrder": true,
+    "createStopOrder": true,
+    "createTriggerOrder": null,
+    "createStopLossOrder": false,
+    "createTakeProfitOrder": false,
+    "createReduceOnlyOrder": null,
+    "cancelOrder": true,
+    "editOrder": "emulated",
+    "fetchBalance": true,
+    "fetchPositions": false,
+    "fetchOpenOrders": true,
+    "fetchMyTrades": true,
+    "fetchOHLCV": true,
+    "fetchTicker": false,
+    "fetchOrderBook": true,
+    "fetchTradingFees": false,
+    "fetchFundingRate": false,
+    "setLeverage": false,
+    "setMarginMode": false,
+    "setPositionMode": false
+   },
+   "streams": {
+    "watchTicker": null,
+    "watchOrderBook": null,
+    "watchTrades": null,
+    "watchOHLCV": null,
+    "watchOrders": null,
+    "watchBalance": null,
+    "watchPositions": null
+   },
+   "required_credentials": [
+    "apiKey",
+    "secret"
+   ],
+   "default_trading_fee": {
+    "maker": 0.0075,
+    "taker": 0.0075,
+    "note": "CCXT default schedule; the exchange's fee page is the source of truth"
+   }
+  },
+  {
+   "id": "toobit",
+   "name": "Toobit",
+   "countries_listed_by_ccxt": [
+    "KY"
+   ],
+   "certified": false,
+   "pro": true,
+   "dex": false,
+   "alias": false,
+   "api_version": "v1",
+   "rate_limit_ms": 20,
+   "urls": {
+    "www": "https://www.toobit.com/",
+    "doc": [
+     "https://toobit-docs.github.io/apidocs/spot/v1/en/",
+     "https://toobit-docs.github.io/apidocs/usdt_swap/v1/en/"
+    ],
+    "fees": [
+     "https://www.toobit.com/fee"
+    ],
+    "api_management": null,
+    "api_base": "https://api.toobit.com",
+    "test": []
+   },
+   "has_referral_url": true,
+   "sandbox": false,
+   "markets": {
+    "spot": true,
+    "margin": false,
+    "swap": true,
+    "future": false,
+    "option": false
+   },
+   "methods": {
+    "createOrder": true,
+    "createMarketOrder": true,
+    "createLimitOrder": true,
+    "createStopOrder": null,
+    "createTriggerOrder": null,
+    "createStopLossOrder": null,
+    "createTakeProfitOrder": null,
+    "createReduceOnlyOrder": null,
+    "cancelOrder": true,
+    "editOrder": "emulated",
+    "fetchBalance": true,
+    "fetchPositions": null,
+    "fetchOpenOrders": true,
+    "fetchMyTrades": true,
+    "fetchOHLCV": true,
+    "fetchTicker": true,
+    "fetchOrderBook": true,
+    "fetchTradingFees": null,
+    "fetchFundingRate": null,
+    "setLeverage": null,
+    "setMarginMode": true,
+    "setPositionMode": null
+   },
+   "streams": {
+    "watchTicker": true,
+    "watchOrderBook": true,
+    "watchTrades": true,
+    "watchOHLCV": true,
+    "watchOrders": true,
+    "watchBalance": true,
+    "watchPositions": null
+   },
+   "required_credentials": [
+    "apiKey",
+    "secret"
+   ],
+   "default_trading_fee": {
+    "maker": null,
+    "taker": null,
+    "note": "CCXT default schedule; the exchange's fee page is the source of truth"
+   }
+  },
+  {
+   "id": "upbit",
+   "name": "Upbit",
+   "countries_listed_by_ccxt": [
+    "KR",
+    "ID",
+    "SG",
+    "TH"
+   ],
+   "certified": false,
+   "pro": true,
+   "dex": false,
+   "alias": false,
+   "api_version": "v1",
+   "rate_limit_ms": 50,
+   "urls": {
+    "www": "https://upbit.com",
+    "doc": [
+     "https://docs.upbit.com/kr",
+     "https://global-docs.upbit.com"
+    ],
+    "fees": [
+     "https://upbit.com/service_center/guide"
+    ],
+    "api_management": null,
+    "api_base": "https://api.upbit.com",
+    "test": []
+   },
+   "has_referral_url": false,
+   "sandbox": false,
+   "markets": {
+    "spot": true,
+    "margin": null,
+    "swap": false,
+    "future": false,
+    "option": false
+   },
+   "methods": {
+    "createOrder": true,
+    "createMarketOrder": true,
+    "createLimitOrder": true,
+    "createStopOrder": null,
+    "createTriggerOrder": null,
+    "createStopLossOrder": null,
+    "createTakeProfitOrder": null,
+    "createReduceOnlyOrder": null,
+    "cancelOrder": true,
+    "editOrder": true,
+    "fetchBalance": true,
+    "fetchPositions": null,
+    "fetchOpenOrders": true,
+    "fetchMyTrades": false,
+    "fetchOHLCV": true,
+    "fetchTicker": true,
+    "fetchOrderBook": true,
+    "fetchTradingFees": true,
+    "fetchFundingRate": false,
+    "setLeverage": null,
+    "setMarginMode": null,
+    "setPositionMode": null
+   },
+   "streams": {
+    "watchTicker": true,
+    "watchOrderBook": true,
+    "watchTrades": true,
+    "watchOHLCV": true,
+    "watchOrders": true,
+    "watchBalance": true,
+    "watchPositions": null
+   },
+   "required_credentials": [
+    "apiKey",
+    "secret"
+   ],
+   "default_trading_fee": {
+    "maker": 0.0025,
+    "taker": 0.0025,
+    "note": "CCXT default schedule; the exchange's fee page is the source of truth"
+   }
+  },
+  {
+   "id": "weex",
+   "name": "Weex",
+   "countries_listed_by_ccxt": [
+    "SG"
+   ],
+   "certified": false,
+   "pro": true,
+   "dex": false,
+   "alias": false,
+   "api_version": "v3",
+   "rate_limit_ms": 20,
+   "urls": {
+    "www": "https://www.weex.com",
+    "doc": [
+     "https://www.weex.com/api-doc"
+    ],
+    "fees": [],
+    "api_management": null,
+    "api_base": "https://api-spot.weex.com",
+    "test": []
+   },
+   "has_referral_url": true,
+   "sandbox": false,
+   "markets": {
+    "spot": true,
+    "margin": false,
+    "swap": true,
+    "future": false,
+    "option": false
+   },
+   "methods": {
+    "createOrder": true,
+    "createMarketOrder": true,
+    "createLimitOrder": true,
+    "createStopOrder": null,
+    "createTriggerOrder": false,
+    "createStopLossOrder": true,
+    "createTakeProfitOrder": true,
+    "createReduceOnlyOrder": true,
+    "cancelOrder": true,
+    "editOrder": false,
+    "fetchBalance": true,
+    "fetchPositions": true,
+    "fetchOpenOrders": true,
+    "fetchMyTrades": true,
+    "fetchOHLCV": true,
+    "fetchTicker": true,
+    "fetchOrderBook": true,
+    "fetchTradingFees": false,
+    "fetchFundingRate": true,
+    "setLeverage": true,
+    "setMarginMode": true,
+    "setPositionMode": true
+   },
+   "streams": {
+    "watchTicker": true,
+    "watchOrderBook": false,
+    "watchTrades": true,
+    "watchOHLCV": true,
+    "watchOrders": true,
+    "watchBalance": true,
+    "watchPositions": true
+   },
+   "required_credentials": [
+    "apiKey",
+    "password",
+    "secret"
+   ],
+   "default_trading_fee": {
+    "maker": 0.1,
+    "taker": 0.1,
+    "note": "CCXT default schedule; the exchange's fee page is the source of truth"
+   }
+  },
+  {
+   "id": "whitebit",
+   "name": "WhiteBit",
+   "countries_listed_by_ccxt": [
+    "EE"
+   ],
+   "certified": false,
+   "pro": true,
+   "dex": false,
+   "alias": false,
+   "api_version": "v4",
+   "rate_limit_ms": 20,
+   "urls": {
+    "www": "https://www.whitebit.com",
+    "doc": [
+     "https://github.com/whitebit-exchange/api-docs"
+    ],
+    "fees": [
+     "https://whitebit.com/fee-schedule"
+    ],
+    "api_management": null,
+    "api_base": "https://whitebit.com/api/v1/public",
+    "test": []
+   },
+   "has_referral_url": true,
+   "sandbox": false,
+   "markets": {
+    "spot": true,
+    "margin": true,
+    "swap": true,
+    "future": false,
+    "option": false
+   },
+   "methods": {
+    "createOrder": true,
+    "createMarketOrder": true,
+    "createLimitOrder": true,
+    "createStopOrder": true,
+    "createTriggerOrder": true,
+    "createStopLossOrder": null,
+    "createTakeProfitOrder": null,
+    "createReduceOnlyOrder": null,
+    "cancelOrder": true,
+    "editOrder": true,
+    "fetchBalance": true,
+    "fetchPositions": true,
+    "fetchOpenOrders": true,
+    "fetchMyTrades": true,
+    "fetchOHLCV": true,
+    "fetchTicker": true,
+    "fetchOrderBook": true,
+    "fetchTradingFees": true,
+    "fetchFundingRate": true,
+    "setLeverage": true,
+    "setMarginMode": null,
+    "setPositionMode": null
+   },
+   "streams": {
+    "watchTicker": true,
+    "watchOrderBook": true,
+    "watchTrades": true,
+    "watchOHLCV": true,
+    "watchOrders": true,
+    "watchBalance": true,
+    "watchPositions": null
+   },
+   "required_credentials": [
+    "apiKey",
+    "secret"
+   ],
+   "default_trading_fee": {
+    "maker": 0.001,
+    "taker": 0.001,
+    "note": "CCXT default schedule; the exchange's fee page is the source of truth"
+   }
+  },
+  {
+   "id": "woo",
+   "name": "WOO X",
+   "countries_listed_by_ccxt": [
+    "KY"
+   ],
+   "certified": true,
+   "pro": true,
+   "dex": false,
+   "alias": false,
+   "api_version": "v1",
+   "rate_limit_ms": 100,
+   "urls": {
+    "www": "https://woox.io/",
+    "doc": [
+     "https://docs.woox.io/"
+    ],
+    "fees": [
+     "https://support.woox.io/hc/en-001/articles/4404611795353--Trading-Fees"
+    ],
+    "api_management": null,
+    "api_base": "https://api-pub.woox.io",
+    "test": [
+     "https://api-pub.staging.woox.io",
+     "https://api.staging.woox.io"
+    ]
+   },
+   "has_referral_url": true,
+   "sandbox": true,
+   "markets": {
+    "spot": true,
+    "margin": true,
+    "swap": true,
+    "future": false,
+    "option": false
+   },
+   "methods": {
+    "createOrder": true,
+    "createMarketOrder": false,
+    "createLimitOrder": true,
+    "createStopOrder": false,
+    "createTriggerOrder": true,
+    "createStopLossOrder": true,
+    "createTakeProfitOrder": true,
+    "createReduceOnlyOrder": true,
+    "cancelOrder": true,
+    "editOrder": "emulated",
+    "fetchBalance": true,
+    "fetchPositions": true,
+    "fetchOpenOrders": true,
+    "fetchMyTrades": true,
+    "fetchOHLCV": true,
+    "fetchTicker": false,
+    "fetchOrderBook": true,
+    "fetchTradingFees": true,
+    "fetchFundingRate": true,
+    "setLeverage": true,
+    "setMarginMode": null,
+    "setPositionMode": true
+   },
+   "streams": {
+    "watchTicker": true,
+    "watchOrderBook": true,
+    "watchTrades": true,
+    "watchOHLCV": true,
+    "watchOrders": true,
+    "watchBalance": true,
+    "watchPositions": true
+   },
+   "required_credentials": [
+    "apiKey",
+    "secret"
+   ],
+   "default_trading_fee": {
+    "maker": 0.0002,
+    "taker": 0.0005,
+    "note": "CCXT default schedule; the exchange's fee page is the source of truth"
+   }
+  },
+  {
+   "id": "woofipro",
+   "name": "WOOFI PRO",
+   "countries_listed_by_ccxt": [
+    "KY"
+   ],
+   "certified": true,
+   "pro": true,
+   "dex": true,
+   "alias": false,
+   "api_version": "v1",
+   "rate_limit_ms": 100,
+   "urls": {
+    "www": "https://dex.woo.org",
+    "doc": [
+     "https://orderly.network/docs/build-on-omnichain/building-on-evm"
+    ],
+    "fees": [
+     "https://dex.woo.org/en/orderly"
+    ],
+    "api_management": null,
+    "api_base": "https://api-evm.orderly.org",
+    "test": [
+     "https://testnet-api-evm.orderly.org"
+    ]
+   },
+   "has_referral_url": true,
+   "sandbox": true,
+   "markets": {
+    "spot": false,
+    "margin": false,
+    "swap": true,
+    "future": false,
+    "option": false
+   },
+   "methods": {
+    "createOrder": true,
+    "createMarketOrder": false,
+    "createLimitOrder": true,
+    "createStopOrder": false,
+    "createTriggerOrder": true,
+    "createStopLossOrder": true,
+    "createTakeProfitOrder": true,
+    "createReduceOnlyOrder": true,
+    "cancelOrder": true,
+    "editOrder": "emulated",
+    "fetchBalance": true,
+    "fetchPositions": true,
+    "fetchOpenOrders": true,
+    "fetchMyTrades": true,
+    "fetchOHLCV": true,
+    "fetchTicker": false,
+    "fetchOrderBook": true,
+    "fetchTradingFees": true,
+    "fetchFundingRate": true,
+    "setLeverage": true,
+    "setMarginMode": null,
+    "setPositionMode": false
+   },
+   "streams": {
+    "watchTicker": true,
+    "watchOrderBook": true,
+    "watchTrades": true,
+    "watchOHLCV": true,
+    "watchOrders": true,
+    "watchBalance": true,
+    "watchPositions": true
+   },
+   "required_credentials": [
+    "accountId",
+    "apiKey",
+    "secret"
+   ],
+   "default_trading_fee": {
+    "maker": 0.0002,
+    "taker": 0.0005,
+    "note": "CCXT default schedule; the exchange's fee page is the source of truth"
+   }
+  },
+  {
+   "id": "xt",
+   "name": "XT",
+   "countries_listed_by_ccxt": [
+    "SC"
+   ],
+   "certified": false,
+   "pro": true,
+   "dex": false,
+   "alias": false,
+   "api_version": "v4",
+   "rate_limit_ms": 100,
+   "urls": {
+    "www": "https://xt.com",
+    "doc": [
+     "https://doc.xt.com/",
+     "https://github.com/xtpub/api-doc"
+    ],
+    "fees": [
+     "https://www.xt.com/en/rate"
+    ],
+    "api_management": null,
+    "api_base": "https://sapi.xt.com",
+    "test": []
+   },
+   "has_referral_url": true,
+   "sandbox": false,
+   "markets": {
+    "spot": true,
+    "margin": true,
+    "swap": true,
+    "future": true,
+    "option": false
+   },
+   "methods": {
+    "createOrder": true,
+    "createMarketOrder": true,
+    "createLimitOrder": true,
+    "createStopOrder": null,
+    "createTriggerOrder": null,
+    "createStopLossOrder": null,
+    "createTakeProfitOrder": null,
+    "createReduceOnlyOrder": true,
+    "cancelOrder": true,
+    "editOrder": true,
+    "fetchBalance": true,
+    "fetchPositions": true,
+    "fetchOpenOrders": true,
+    "fetchMyTrades": true,
+    "fetchOHLCV": true,
+    "fetchTicker": true,
+    "fetchOrderBook": true,
+    "fetchTradingFees": false,
+    "fetchFundingRate": true,
+    "setLeverage": true,
+    "setMarginMode": true,
+    "setPositionMode": false
+   },
+   "streams": {
+    "watchTicker": true,
+    "watchOrderBook": true,
+    "watchTrades": true,
+    "watchOHLCV": true,
+    "watchOrders": true,
+    "watchBalance": true,
+    "watchPositions": true
+   },
+   "required_credentials": [
+    "apiKey",
+    "secret"
+   ],
+   "default_trading_fee": {
+    "maker": null,
+    "taker": null,
+    "note": "CCXT default schedule; the exchange's fee page is the source of truth"
+   }
+  },
+  {
+   "id": "zaif",
+   "name": "Zaif",
+   "countries_listed_by_ccxt": [
+    "JP"
+   ],
+   "certified": false,
+   "pro": false,
+   "dex": false,
+   "alias": false,
+   "api_version": "1",
+   "rate_limit_ms": 100,
+   "urls": {
+    "www": "https://zaif.jp",
+    "doc": [
+     "https://techbureau-api-document.readthedocs.io/ja/latest/index.html",
+     "https://corp.zaif.jp/api-docs",
+     "https://corp.zaif.jp/api-docs/api_links",
+     "https://www.npmjs.com/package/zaif.jp",
+     "https://github.com/you21979/node-zaif"
+    ],
+    "fees": [
+     "https://zaif.jp/fee?lang=en"
+    ],
+    "api_management": null,
+    "api_base": "https://api.zaif.jp",
+    "test": []
+   },
+   "has_referral_url": false,
+   "sandbox": false,
+   "markets": {
+    "spot": true,
+    "margin": null,
+    "swap": false,
+    "future": false,
+    "option": false
+   },
+   "methods": {
+    "createOrder": true,
+    "createMarketOrder": false,
+    "createLimitOrder": true,
+    "createStopOrder": null,
+    "createTriggerOrder": null,
+    "createStopLossOrder": false,
+    "createTakeProfitOrder": false,
+    "createReduceOnlyOrder": null,
+    "cancelOrder": true,
+    "editOrder": "emulated",
+    "fetchBalance": true,
+    "fetchPositions": false,
+    "fetchOpenOrders": true,
+    "fetchMyTrades": null,
+    "fetchOHLCV": null,
+    "fetchTicker": true,
+    "fetchOrderBook": true,
+    "fetchTradingFees": false,
+    "fetchFundingRate": false,
+    "setLeverage": null,
+    "setMarginMode": false,
+    "setPositionMode": null
+   },
+   "streams": {
+    "watchTicker": null,
+    "watchOrderBook": null,
+    "watchTrades": null,
+    "watchOHLCV": null,
+    "watchOrders": null,
+    "watchBalance": null,
+    "watchPositions": null
+   },
+   "required_credentials": [
+    "apiKey",
+    "secret"
+   ],
+   "default_trading_fee": {
+    "maker": 0.0,
+    "taker": 0.001,
+    "note": "CCXT default schedule; the exchange's fee page is the source of truth"
+   }
+  },
+  {
+   "id": "zebpay",
+   "name": "Zebpay",
+   "countries_listed_by_ccxt": [
+    "IN"
+   ],
+   "certified": false,
+   "pro": false,
+   "dex": false,
+   "alias": false,
+   "api_version": "v1",
+   "rate_limit_ms": 50,
+   "urls": {
+    "www": "https://www.zebpay.com",
+    "doc": [
+     "https://github.com/zebpay/zebpay-api-references"
+    ],
+    "fees": [
+     "https://zebpay.com/in/features/pricing"
+    ],
+    "api_management": null,
+    "api_base": "https://sapi.zebpay.com",
+    "test": [
+     "https://www.zebstage.com",
+     "https://dev-futuresbe.zebstage.com"
+    ]
+   },
+   "has_referral_url": false,
+   "sandbox": true,
+   "markets": {
+    "spot": true,
+    "margin": false,
+    "swap": true,
+    "future": false,
+    "option": null
+   },
+   "methods": {
+    "createOrder": true,
+    "createMarketOrder": true,
+    "createLimitOrder": true,
+    "createStopOrder": null,
+    "createTriggerOrder": null,
+    "createStopLossOrder": null,
+    "createTakeProfitOrder": null,
+    "createReduceOnlyOrder": null,
+    "cancelOrder": true,
+    "editOrder": "emulated",
+    "fetchBalance": true,
+    "fetchPositions": true,
+    "fetchOpenOrders": true,
+    "fetchMyTrades": true,
+    "fetchOHLCV": true,
+    "fetchTicker": true,
+    "fetchOrderBook": true,
+    "fetchTradingFees": null,
+    "fetchFundingRate": null,
+    "setLeverage": true,
+    "setMarginMode": null,
+    "setPositionMode": null
+   },
+   "streams": {
+    "watchTicker": null,
+    "watchOrderBook": null,
+    "watchTrades": null,
+    "watchOHLCV": null,
+    "watchOrders": null,
+    "watchBalance": null,
+    "watchPositions": null
+   },
+   "required_credentials": [
+    "apiKey",
+    "secret"
+   ],
+   "default_trading_fee": {
+    "maker": null,
+    "taker": null,
+    "note": "CCXT default schedule; the exchange's fee page is the source of truth"
+   }
+  }
+ ]
+}

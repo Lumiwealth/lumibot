@@ -234,6 +234,8 @@ Use these pages for exchange-specific setup details:
    brokers.ccxt.bitmex
    brokers.ccxt.bybit
    brokers.ccxt.okx
+   brokers.ccxt.phemex
+   brokers.ccxt.bitvavo
 
 Features
 --------

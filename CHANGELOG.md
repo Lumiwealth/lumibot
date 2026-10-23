@@ -2,6 +2,9 @@
 
 ## 4.6.26 - 2026-10-23
 
+### Added
+- Docs: per-exchange CCXT pages generated from installed CCXT metadata plus hand-checked exchange notes (`scripts/generate_ccxt_exchange_facts.py`, `scripts/generate_ccxt_exchange_pages.py`, `docsrc/_data/`). Pilot pages for Phemex, Bybit and Bitvavo, each with sign-up and API key steps, a connect snippet, a regular example and a one-agent agentic example. `tests/test_ccxt_exchange_docs.py` runs every page example offline against a fake exchange.
+
 ### Fixed
 - Shared history cache: Schwab, Tradier, IBKR and CCXT history return the broker's own bars again when a bar is internally inconsistent (Tradier SPY 2024-12-19 has its close below its low). 4.6.25 rejected the whole answer, so Tradier charts came back empty on Dev. Only Alpaca keeps its existing strict OHLCV check.
 - Shared history cache on workers with a remote store: the local Parquet write now runs on the background uploader too, so a cache miss returns right after the broker answers (Dev Lambda misses spent 1.4-3.6 s writing before answering). New `shared_bar_cache.prewarm()` loads the Parquet engine and S3 client in the background for one-request worker processes.

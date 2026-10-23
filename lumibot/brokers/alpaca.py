@@ -374,23 +374,14 @@ class Alpaca(Broker):
         data_source=None,
         polling_interval=5.0,
         start_orders_thread=None,
-        trading_client=None,
     ):
-        """Create an adapter, optionally using a caller-owned trading client.
-
-        ``trading_client`` implements the Alpaca SDK TradingClient interface and
-        owns its authentication. Provide ``data_source`` or separate data
-        credentials for market data. Injected HTTP clients use order polling.
-        """
         # Calling init methods
         self.api_key = ""
         self.api_secret = ""
         self.oauth_token = ""
         self.is_paper = False
         self.polling_interval = polling_interval
-        # A caller-owned SDK-compatible client manages its own authentication.
-        self._injected_trading_client = trading_client
-        self._api = trading_client
+        self._api = None
 
         _validate_alpaca_data_credentials_config(config)
 
@@ -400,8 +391,6 @@ class Alpaca(Broker):
 
         # Check if we have OAuth-only (no API key/secret)
         self.is_oauth_only = bool(self.oauth_token and not (self.api_key and self.api_secret))
-        # Injected HTTP clients use the existing polling lifecycle.
-        self._use_polling = trading_client is not None or self.is_oauth_only
 
         # Debug logging for OAuth detection
         logger.debug(f"Alpaca Broker Init: oauth_token={'present' if self.oauth_token else 'missing'}, api_key={'present' if self.api_key else 'missing'}, api_secret={'present' if self.api_secret else 'missing'}")
@@ -431,9 +420,9 @@ class Alpaca(Broker):
 
         # Validate authentication early, but defer TradingClient creation until the first
         # broker API call. Importing the Alpaca SDK dominates cold startup for scheduled runs.
-        if trading_client is None and not ((self.api_key and self.api_secret) or self.oauth_token):
+        if not ((self.api_key and self.api_secret) or self.oauth_token):
             raise ValueError("Either OAuth token or API key/secret must be provided for Alpaca authentication")
-        if trading_client is None and TradingClient is not None:
+        if TradingClient is not None:
             self._api = self._create_trading_client()
 
     @property
@@ -451,8 +440,6 @@ class Alpaca(Broker):
         self._api = None
 
     def _create_trading_client(self):
-        if self._injected_trading_client is not None:
-            return self._injected_trading_client
         # Initialize TradingClient based on available authentication method (API keys have precedence)
         try:
             client_cls = TradingClient
@@ -476,7 +463,7 @@ class Alpaca(Broker):
                     error_msg += (
                         "1. Check that your ALPACA_OAUTH_TOKEN environment variable is set correctly\n"
                         "2. Verify your OAuth token is valid and not expired\n"
-                        "3. Re-authorize through your application or broker\n"
+                        "3. Re-authenticate at: https://localhost:3000/oauth/alpaca/success\n"
                         "4. Or use API key/secret instead by setting ALPACA_API_KEY and ALPACA_API_SECRET\n\n"
                     )
                 else:
@@ -485,13 +472,9 @@ class Alpaca(Broker):
                         "2. Verify your API credentials are valid\n"
                         "3. Check that your account has trading permissions\n\n"
                     )
-                error_msg += f"Provider error type: {type(e).__name__}"
-                if "401" in error_message:
-                    error_msg += " (401 Unauthorized)"
-                elif "403" in error_message:
-                    error_msg += " (403 Forbidden)"
+                error_msg += f"Original error: {e}"
                 logger.error(error_msg)
-                raise ValueError(error_msg) from None
+                raise ValueError(error_msg)
             else:
                 # Re-raise the original exception for other errors
                 raise e
@@ -1713,11 +1696,11 @@ class Alpaca(Broker):
     def _get_stream_object(self):
         """
         Get the broker stream connection.
-        Returns PollingStream for OAuth or injected HTTP clients, TradingStream for API keys.
+        Returns PollingStream for OAuth-only configurations, TradingStream otherwise.
         """
-        if self._use_polling:
-            # OAuth and injected HTTP clients share the polling lifecycle.
-            logger.debug("Alpaca Stream: Using PollingStream for HTTP client configuration")
+        if self.is_oauth_only:
+            # OAuth-only configurations use polling since TradingStream doesn't support OAuth tokens
+            logger.debug("Alpaca Stream: Using PollingStream for OAuth-only configuration")
             from lumibot.trading_builtins import PollingStream
 
             return PollingStream(self.polling_interval)
@@ -1735,7 +1718,7 @@ class Alpaca(Broker):
     def _register_stream_events(self):
         """Register the function on_trade_event
         to be executed on each trade_update event"""
-        if self._use_polling:
+        if self.is_oauth_only:
             # For OAuth-only, use polling events
             logger.debug("Alpaca Stream: Registering OAuth polling events")
             broker = self
@@ -1952,7 +1935,7 @@ class Alpaca(Broker):
                     error_msg += (
                         "1. Check that your ALPACA_OAUTH_TOKEN environment variable is set correctly\n"
                         "2. Verify your OAuth token is valid and not expired\n"
-                        "3. Re-authorize through your application or broker\n"
+                        "3. Re-authenticate at: https://localhost:3000/oauth/alpaca/success\n"
                         "4. Or use API key/secret instead by setting ALPACA_API_KEY and ALPACA_API_SECRET\n\n"
                     )
                 else:
@@ -1961,13 +1944,9 @@ class Alpaca(Broker):
                         "2. Verify your API credentials are valid\n"
                         "3. Check that your account has trading permissions\n\n"
                     )
-                error_msg += f"Provider error type: {type(e).__name__}"
-                if "401" in error_message:
-                    error_msg += " (401 Unauthorized)"
-                elif "403" in error_message:
-                    error_msg += " (403 Forbidden)"
+                error_msg += f"Original error: {e}"
                 logger.error(error_msg)
-                raise ValueError(error_msg) from None
+                raise ValueError(error_msg)
             else:
                 is_rate_limited = (
                     "rate limit" in error_message
@@ -1984,7 +1963,7 @@ class Alpaca(Broker):
     def _run_stream(self):
         """Run the broker stream - either polling or WebSocket streaming depending on authentication method"""
 
-        if self._use_polling:
+        if self.is_oauth_only:
             # For OAuth-only, use polling approach like Tradier
             self._stream_established()
             try:

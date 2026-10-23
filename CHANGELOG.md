@@ -2,11 +2,7 @@
 
 ## 4.6.25 - 2026-10-23
 
-### Added
-- Alpaca adapters accept caller-owned trading and stock, option, and crypto data clients. Injected clients manage their own authentication, use the existing order-polling lifecycle, and remain configured after data authentication resets. Standalone API-key and OAuth connections retain their existing behavior.
-
 ### Fixed
-- Alpaca authentication diagnostics no longer print OAuth token prefixes, raw authentication response bodies, or application-specific sign-in addresses.
 - Resolve CCXT perpetual instruments with settlement and contract-size metadata, preserve hedge legs through native requests and convert linear/inverse fills consistently. Phemex account and V2 stream routes follow product metadata across settlement currencies. Crypto-future execution callbacks no longer debit full spot notional from cash.
 - Add one managed CCXT Pro client per broker for live market data and account order updates, with cumulative-fill reconciliation, REST public-data fallback and explicit shutdown. Public Phemex testnet spot, USDT and inverse streams passed; USDC public production streams passed, while USDC testnet remains unavailable in the observed checks. Authenticated testnet trading and perpetual backtesting remain unqualified; see the CCXT guide.
 - Preserve optional derivative position sides and IDs through order fills, position synchronization, serialization and closing. Separate hedge legs no longer overwrite one another; single-position lookup accepts leg selectors and closing without a selector closes both legs.

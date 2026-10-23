@@ -197,9 +197,10 @@ class AlpacaData(DataSource):
                     f"2. Verify your OAuth token is valid and not expired\n"
                     f"3. **MOST LIKELY**: Your OAuth token lacks MARKET DATA permissions\n"
                     f"   - OAuth tokens need separate scopes for trading vs market data\n"
-                    f"   - Re-authorize through your application with market data permissions\n"
+                    f"   - Visit botspot.trade to re-authenticate with market data permissions\n"
                     f"4. Alternative: Use API key/secret instead by setting ALPACA_API_KEY and ALPACA_API_SECRET\n"
                     f"5. For paper trading, ensure your OAuth token has paper trading permissions\n\n"
+                    f"🔑 Current OAuth token: {self.oauth_token[:10]}... (first 10 chars)\n"
                     f"📋 Paper trading: {getattr(self, 'is_paper', 'Unknown')}\n"
                     f"💡 Note: Trading operations may work while market data fails due to different OAuth scopes\n\n"
                 )
@@ -209,14 +210,14 @@ class AlpacaData(DataSource):
                     "2. Verify your API credentials are valid\n"
                     "3. Check that your account has proper data permissions\n\n"
                 )
-            error_msg += f"💀 STOPPING STRATEGY EXECUTION\n\nProvider error type: {type(e).__name__}"
+            error_msg += f"💀 STOPPING STRATEGY EXECUTION\n\nOriginal error: {e}"
             logger.error(error_msg)
 
             # Mark the data source as failed to stop further requests
             self._auth_failed = True
 
             # Raise a regular exception that will be caught by the strategy
-            raise ValueError(f"Authentication failed: {auth_method} is invalid or expired. {error_msg}") from None
+            raise ValueError(f"Authentication failed: {auth_method} is invalid or expired. {error_msg}")
         else:
             # For non-auth errors, log the error but don't mark as auth failed
             logger.warning(f"Non-authentication error during {operation}: {e}")
@@ -310,20 +311,13 @@ class AlpacaData(DataSource):
             delay: Optional[int] = None,
             tzinfo: Optional[pytz.timezone] = None,
             remove_incomplete_current_bar: bool = False,
-            stock_client=None,
-            crypto_client=None,
-            option_client=None,
             **kwargs
     ) -> None:
         """
         Initializes the Alpaca Data Source.
 
         Parameters:
-        - config (dict): Configuration containing API keys or OAuth authentication.
-        - stock_client, crypto_client, option_client: Optional caller-owned clients
-          implementing the respective Alpaca historical-data SDK interfaces. Each
-          supplied client owns its authentication and survives authentication reset.
-          Other product clients are created lazily from config when requested.
+        - config (dict): Configuration containing API keys for Alpaca.
         - max_workers (int, optional): The maximum number of workers for parallel processing. Default is 20.
         - chunk_size (int, optional): The size of chunks for batch requests. Default is 100.
         - delay (Optional[int], optional): A delay parameter to control how many minutes to delay non-crypto data for. 
@@ -365,8 +359,7 @@ class AlpacaData(DataSource):
 
         # Initialize these to none so they will be lazily created and kept around
         # for better performance.
-        self._provided_clients = (stock_client, crypto_client, option_client)
-        self._stock_client, self._crypto_client, self._option_client = self._provided_clients
+        self._stock_client = self._crypto_client = self._option_client = None
 
         # Initialize authentication credentials
         self.api_key = None
@@ -392,7 +385,7 @@ class AlpacaData(DataSource):
             self.oauth_token = config["OAUTH_TOKEN"]
         elif hasattr(config, "OAUTH_TOKEN") and config.OAUTH_TOKEN:
             self.oauth_token = config.OAUTH_TOKEN
-        elif all(client is None for client in self._provided_clients):
+        else:
             raise ValueError("Either OAuth token or API key/secret must be provided for Alpaca authentication")
 
         # If an ENDPOINT is provided, warn the user that it is not used anymore
@@ -425,7 +418,9 @@ class AlpacaData(DataSource):
         This allows the data source to retry authentication after a failure.
         """
         self._auth_failed = False
-        self._stock_client, self._crypto_client, self._option_client = self._provided_clients
+        self._stock_client = None
+        self._crypto_client = None
+        self._option_client = None
         logger.info("Authentication failure state has been reset - will retry API calls")
 
     def _sanitize_base_and_quote_asset(self, base_asset, quote_asset) -> tuple[Asset, Asset]:
@@ -515,8 +510,10 @@ class AlpacaData(DataSource):
             logger.warning("Authentication failure flag is set - attempting to clear and retry")
             # Instead of immediately failing, reset the flag and let the actual error show
             self._auth_failed = False
-            # Recreate adapter-owned clients; retain caller-owned authentication.
-            self._stock_client, self._crypto_client, self._option_client = self._provided_clients
+            # Clear the cached clients so they get recreated
+            self._stock_client = None
+            self._crypto_client = None
+            self._option_client = None
 
         try:
             # Use the existing option client getter which has proper error handling
@@ -1242,8 +1239,10 @@ class AlpacaData(DataSource):
             logger.warning("Authentication failure flag is set - attempting to clear and retry")
             # Instead of immediately failing, reset the flag and let the actual error show
             self._auth_failed = False
-            # Recreate adapter-owned clients; retain caller-owned authentication.
-            self._stock_client, self._crypto_client, self._option_client = self._provided_clients
+            # Clear the cached clients so they get recreated
+            self._stock_client = None
+            self._crypto_client = None
+            self._option_client = None
 
         asset, quote = self._sanitize_base_and_quote_asset(asset, quote)
         if asset.asset_type == Asset.AssetType.CRYPTO:

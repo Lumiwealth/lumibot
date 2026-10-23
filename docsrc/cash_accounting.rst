@@ -90,6 +90,68 @@ the receiver deduplicate them. HTTP success confirms queue acceptance. The
 receiver must verify every persisted batch before establishing complete
 delivery or performance eligibility.
 
+Frequently asked questions
+--------------------------
+
+How do I add a deposit or withdrawal to a LumiBot backtest?
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Call ``self.deposit_cash(amount, reason="deposit")`` or
+``self.withdraw_cash(amount, reason="withdrawal")`` inside your strategy, for
+example from ``on_trading_iteration()``. The amount must be a positive number.
+Both methods return the new cash balance.
+
+Do deposits and withdrawals change my strategy's returns?
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+No. LumiBot keeps deposits and withdrawals out of strategy performance. The
+stats files include ``cash_adjusted_portfolio_value`` so you can compare the raw
+portfolio value with the value after removing cash flows.
+
+Can I use deposit_cash or withdraw_cash in live trading?
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+No. These cash methods only work in backtests. In live trading LumiBot raises
+an error if you call them. Live cash events come from the broker instead.
+
+How do I model margin interest or interest on cash?
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Call ``self.configure_cash_financing()`` to turn on daily financing in a
+backtest, then ``self.set_cash_financing_rates(credit_rate_annual=...,
+debit_rate_annual=...)`` to set yearly rates. The default day count basis is
+360. See :doc:`strategy_methods.account`.
+
+Can cash go below zero in a backtest?
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+It depends on the account mode in ``configure_cash_financing()``. The
+``"margin"`` mode, which is the default, allows negative cash. The ``"cash"``
+mode blocks it. ``withdraw_cash()`` also takes an ``allow_negative`` setting if
+you want to choose for one withdrawal.
+
+Where can I see cash events after a backtest?
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Look in ``trades.csv`` for cash event rows next to trade rows, in ``stats.csv``
+for cash adjusted value and period cash flow columns, and in ``trades.html`` for
+cash event markers on the chart. See :doc:`backtesting.trades_files`.
+
+Which brokers send live cash events?
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Live cash event normalization is documented for :doc:`brokers.alpaca`,
+:doc:`brokers.tradier` and :doc:`brokers.schwab`. These events go into the live
+cloud payload as ``cash_events`` records.
+
+What does partial or unavailable funding coverage mean?
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+``partial`` means some activity in the window could not be checked, such as an
+unknown journal entry. ``unavailable`` means the provider read failed. In both
+cases the known cash events are still there, but the window is not proven
+complete. Do not treat an unresolved transfer as zero funding.
+
 Long-form reference
 -------------------
 

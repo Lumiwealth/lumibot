@@ -1,5 +1,20 @@
 # Changelog
 
+## 4.6.28 - Unreleased
+
+### Added
+- Startup tip: when a backtest or live run starts (`Trader.run_all`) and BotSpot is not connected, LumiBot logs one clean block saying the BotSpot MCP is free and how to connect it (`lumibot connect botspot`, https://botspot.trade/agents). Once per run, shared with the agent research hint, never raises, hidden in CI and when `BOTSPOT_RESEARCH_MCP_TOKEN`, `BOTSPOT_RESEARCH_MCP_RENEW_URL` or `BOTSPOT_API_KEY` is set. New env var `LUMIBOT_HIDE_BOTSPOT_TIP=1` silences it (`LUMIBOT_NO_BOTSPOT_HINT=1` still works).
+- Docs: a "Frequently asked questions" section on every hand-written broker page, the backtesting data-source pages and the top docs pages by search impressions. Each FAQ is emitted as FAQPage JSON-LD (`_add_faq_schema` in `docsrc/conf.py`, rendered from `_templates/base.html`, which is the template Furo actually uses; the old FAQ page schema in `layout.html` never rendered).
+- Docs: one shared BotSpot MCP callout (`docsrc/_snippets/botspot_mcp_callout.rst`) near the top of broker, exchange, backtesting, getting started, AI agent pages and the homepage, plus a "Why connect the free BotSpot MCP" section on the BotSpot MCP page.
+- Docs: brokers grouped in the sidebar (Stocks & options, Futures, Crypto exchanges, Prediction markets, Backtesting data sources) and an all brokers A to Z page with a filter box. Every exchange guide sits directly under "Crypto exchanges" with its plain name. Page URLs are unchanged.
+
+### Changed
+- Docs: titles and menu labels no longer say "CCXT" (the CCXT library is still named in the body). The BotSpot MCP is described as free to connect; paid plans apply only to some heavier features.
+- README: 100+ brokers and exchanges with links to the A to Z list, and a free BotSpot MCP line below the existing top links (which are unchanged).
+
+### Fixed
+- Docs: the BitMEX page said `BACKTESTING_DATA_SOURCE=bitmex`, which raises "Unknown BACKTESTING_DATA_SOURCE". It now says `ccxt` with `exchange_id="bitmex"`.
+
 ## 4.6.27 - 2026-10-23
 
 ### Changed

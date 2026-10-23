@@ -9,6 +9,8 @@ LumiBot supports Polymarket prediction-contract trading and backtesting through 
 ``prediction_contract`` asset priced between ``0`` and ``1`` in USD collateral. The same strategy structure can discover
 markets, read order books, backtest historical prices, and submit live orders through the normal LumiBot broker API.
 
+.. include:: _snippets/botspot_mcp_callout.rst
+
 Quick Start
 -----------
 
@@ -328,3 +330,48 @@ No fake-money live matrix
    The public Polymarket CLOB docs expose staging hosts in places, but LumiBot does not treat them as a complete
    fake-money paper trading environment. Use mocked unit tests for CI and run live smoke tests only when explicitly
    funded and approved.
+
+Frequently asked questions
+--------------------------
+
+Can I trade on Polymarket with LumiBot?
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Yes. Set ``TRADING_BROKER=polymarket`` and your Polymarket credentials. Each outcome token is a ``prediction_contract`` asset priced between 0 and 1 in USD collateral, and you trade it through the normal LumiBot order methods. The `Polymarket documentation <https://docs.polymarket.com/>`__ covers the exchange side.
+
+Can I backtest a Polymarket strategy?
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Yes. Set ``BACKTESTING_DATA_SOURCE=polymarket`` or pass ``PolymarketBacktesting`` to your backtest. It loads real Polymarket price history as bars, keeps prices between 0 and 1, and marks resolved tokens to 1 or 0 when the resolution data is available.
+
+What credentials do I need for live Polymarket trading?
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+You need a wallet private key in ``POLYMARKET_PRIVATE_KEY`` to sign orders, plus CLOB API credentials: ``POLYMARKET_CLOB_API_KEY``, ``POLYMARKET_CLOB_API_SECRET`` and ``POLYMARKET_CLOB_API_PASSPHRASE``. LumiBot can derive the CLOB credentials from the signer. Builder credentials are separate and are only for wallet setup tasks, not normal orders.
+
+Keep these values in an ignored file or a secret manager. Never commit them.
+
+How do I find the token id for a Polymarket market?
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Use ``PolymarketData``. Call ``search_markets()`` to find a market, ``resolve_market()`` to load it by slug, and ``resolve_contract(market, outcome="Yes")`` to get the outcome token you can trade.
+
+How do market buy orders work on Polymarket?
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+A market BUY uses a dollar amount, not a share count. Put the amount in ``custom_params["amount"]``. Market SELL orders use shares instead. Market BUY orders are capped by ``POLYMARKET_MAX_MARKET_ORDER_NOTIONAL``, which defaults to 5 dollars when you do not set it.
+
+Which order types does the Polymarket broker support?
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+FAK and FOK market orders, GTC and GTD limit orders, and post-only limit orders. You can cancel one order, several orders, all orders, or all orders in one market. Limit prices must be between 0 and 1 and match the market tick size.
+
+Why do I get "maker address not allowed, please use the deposit wallet flow"?
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Your account must trade from its Polymarket deposit wallet. Use the deposit wallet helper script to deploy, fund, approve and activate it, then set ``POLYMARKET_WALLET_ADDRESS`` to the deposit wallet and ``POLYMARKET_SIGNATURE_TYPE=3``. See `Deposit Wallet Flow`_ above.
+
+Is there a Polymarket paper trading mode in LumiBot?
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+No. LumiBot does not treat any Polymarket environment as fake-money paper trading. Live orders use real funds. To test an idea without money, run a backtest with ``PolymarketBacktesting``.

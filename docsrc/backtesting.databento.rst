@@ -6,6 +6,8 @@ Databento Backtesting with LumiBot
 
 DataBento is a premium financial data provider that offers high-quality, clean market data for backtesting. Lumibot integrates with DataBento to provide reliable historical data for stocks, futures, options, and other instruments.
 
+.. include:: _snippets/botspot_mcp_callout.rst
+
 Overview
 ========
 
@@ -453,3 +455,57 @@ For cost-effective backtesting:
 - Focus on the symbols you actually need
 
 DataBento provides excellent value for professional strategy development due to its data quality and reliability.
+
+Frequently asked questions
+==========================
+
+What is Databento?
+------------------
+
+Databento is a market data provider. LumiBot uses its historical API, through the ``databento`` Python package, to download futures and stock bars for backtests.
+
+How do I set my DATABENTO_API_KEY?
+----------------------------------
+
+Sign up at `databento.com <https://databento.com>`__ and you get an API key automatically. You can see it on the API keys page of the Databento portal. Keys are 32 characters long and start with ``db-`` (see the `Databento quickstart <https://databento.com/docs/quickstart>`__).
+
+Then set ``DATABENTO_API_KEY`` in your environment or in a ``.env`` file, as shown in Setting Up DataBento above.
+
+Can I backtest futures for free with Databento?
+-----------------------------------------------
+
+New Databento accounts get $125 in free data credits, according to the `Databento quickstart <https://databento.com/docs/quickstart>`__. That can cover early tests. After the credits run out, Databento charges for data, so see Cost Considerations above to keep usage low.
+
+How does LumiBot handle Databento continuous futures?
+-----------------------------------------------------
+
+Create the asset with ``Asset.AssetType.CONT_FUTURE`` and a root symbol such as ``MES``, ``ES`` or ``NQ``. LumiBot maps the root to the active contract for each date in the backtest, so you do not have to manage expirations yourself.
+
+LumiBot also reads each contract's multiplier from Databento's definition data, for example 5 for MES and 50 for ES.
+
+Can I backtest NQ, ES and micro futures with Databento?
+-------------------------------------------------------
+
+Yes. The Supported Assets section shows ES, NQ and RTY, the micro contracts MES, MNQ and M2K, and commodity futures such as CL, GC and NG. LumiBot requests CME Group futures from Databento's ``GLBX.MDP3`` dataset and stocks from ``XNAS.ITCH``.
+
+Which Databento schemas does LumiBot use for backtests?
+-------------------------------------------------------
+
+LumiBot backtests use Databento's OHLCV bar schemas: ``ohlcv-1m``, ``ohlcv-1h`` and ``ohlcv-1d``. It also reads the ``definition`` schema for contract details.
+
+Databento also sells order book and trade schemas such as MBO, MBP-10, TBBO and trades (see `Databento schemas <https://databento.com/docs/schemas-and-data-formats/whats-a-schema>`__). LumiBot does not rebuild the order book from those schemas in backtests. Orders fill against bars.
+
+Which timeframes can I use?
+---------------------------
+
+Use ``"minute"``, ``"hour"`` or ``"day"`` with ``get_historical_prices()``. LumiBot maps them to the matching Databento OHLCV schema.
+
+Where does LumiBot cache Databento data?
+----------------------------------------
+
+In the ``databento_polars`` folder inside ``LUMIBOT_CACHE_FOLDER``. When that variable is not set, LumiBot uses your user cache folder. Cached data makes repeat backtests faster and avoids paying for the same download twice.
+
+How do I select Databento without changing my code?
+----------------------------------------------------
+
+Set ``BACKTESTING_DATA_SOURCE=databento``. This setting wins over the data source class in your code. See :ref:`Choose your backtest data <backtest-data-source-selection>`.

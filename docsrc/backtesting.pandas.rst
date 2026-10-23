@@ -8,6 +8,8 @@ Pandas (CSV or other data)
 
 **NOTE: Please ensure you have installed the latest lumibot version using ``pip install lumibot --upgrade`` before proceeding as there have been some major changes to the backtesting module in the latest version.**
 
+.. include:: _snippets/botspot_mcp_callout.rst
+
 **For most situations, you will want to use the Polygon backtester or the Yahoo backtester instead, they are much easier to use and get started with. The Pandas backtester is intended for advanced users who have their own data and want to use it with Lumibot.**
 
 Pandas backtester is named after the python dataframe library because the user must provide a strictly formatted dataframe. You can use any csv, parquet, database data, etc that you wish, but Lumibot will only accept one format of dataframe.
@@ -255,3 +257,46 @@ Below is **the full code** that relies *entirely on environment variables*:
             PandasDataBacktesting,
             pandas_data=pandas_data
         )
+
+Frequently asked questions
+--------------------------
+
+How do I backtest with my own CSV data?
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Load the file into a pandas DataFrame, wrap it in a ``Data`` object with its ``Asset`` and timestep, and put it in a ``pandas_data`` dictionary keyed by the asset. Then pass ``PandasDataBacktesting`` and ``pandas_data=pandas_data`` to ``run_backtest()``, as in the full example above.
+
+What columns does my DataFrame need?
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+It needs ``open``, ``high``, ``low``, ``close`` and ``volume``. Upper case names such as ``Close`` are changed to lower case for you. The index should be the date and time. If it is not, LumiBot looks for a column named ``datetime``, ``date``, ``timestamp`` or ``time`` and uses that as the index.
+
+What timezone should my data use?
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+If your timestamps have no timezone, LumiBot treats them as America/New_York time. If they have a timezone, LumiBot converts them to America/New_York. You can also pass ``timezone=...`` to ``Data`` to set the timezone of naive timestamps.
+
+Which timesteps does the Pandas backtester support?
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Use ``timestep="minute"`` for minute bars or ``timestep="day"`` for daily bars. The ``Data`` class also accepts ``"hour"``. The timestep must match the bars in your file.
+
+Which assets can I backtest with my own data?
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Stocks and stock-like securities, futures, crypto and forex. You must create an ``Asset`` for each data set. For crypto, also pass a ``quote`` asset (for example USD) to ``Data``, or LumiBot raises an error.
+
+Can I load data from Parquet or a database instead of CSV?
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Yes. Any source works as long as you end up with a DataFrame in the format above. CSV is just the most common starting point.
+
+Can I select the Pandas backtester with BACKTESTING_DATA_SOURCE?
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+No. Pass ``PandasDataBacktesting`` in your code instead. If ``BACKTESTING_DATA_SOURCE`` is set to another source, it wins over the class in your code, so leave it unset (or set it to ``none``) when you use your own data.
+
+How are option expirations handled with my own data?
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Equity and ETF options settle physically, index options settle in cash at intrinsic value, and out of the money contracts expire. The trade files mark these events as ``assigned``, ``exercised``, ``cash_settled`` or ``expired``.

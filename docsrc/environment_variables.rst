@@ -219,6 +219,7 @@ BotSpot managed research
 - The URL and token enable automatic attachment. The renewal URL is optional for an external static key and required only when the hosted capability needs automatic renewal.
 - Missing or incomplete configuration preserves ordinary LumiBot strategy and agent behavior and emits one deduplicated capability notice. The "not connected" notice appears at most once per process and never in CI.
 - ``LUMIBOT_NO_BOTSPOT_HINT``: set to ``1`` to hide the "BotSpot research is not connected" notice. ``DO_NOT_TRACK=1`` also hides it.
+- ``LUMIBOT_HIDE_BOTSPOT_TIP``: set to ``1`` to hide the one-time "BotSpot MCP is not connected" tip that LumiBot logs when a backtest or live run starts without a BotSpot connection. The tip is also hidden in CI, with ``LUMIBOT_NO_BOTSPOT_HINT=1`` or ``DO_NOT_TRACK=1``, and when ``BOTSPOT_RESEARCH_MCP_TOKEN``, ``BOTSPOT_RESEARCH_MCP_RENEW_URL`` or ``BOTSPOT_API_KEY`` is set.
 - ``lumibot connect botspot`` checks a Research key with BotSpot and writes the URL and token to ``.env``. See :doc:`cli`.
 
 ``GITHUB_TOKEN`` is used only in tagged release CI with repository ``actions: read`` permission to restore compatible agent-eval freshness evidence. The source workflow commit must be an ancestor of the exact tagged candidate. If no trustworthy artifact is available, stale cases run normally. Never log or commit token values.
@@ -1188,3 +1189,79 @@ TELEGRAM_CHAT_ID
 
 - Purpose: Telegram chat/channel/user id for strategy notifications.
 - Values: Telegram chat id.
+
+Frequently asked questions
+--------------------------
+
+Where do I put LumiBot environment variables?
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+You can export them in your shell before you start your strategy, or put them
+in a ``.env`` file. LumiBot looks upward from the folder of the script you run
+for the nearest ``.env`` file. If it finds none there, it also looks upward
+from your current working directory.
+
+If a ``.env`` file is found, LumiBot also loads a ``.env.local`` file next to
+it. Use ``.env.local`` only for your own local overrides.
+
+Which value wins: my shell, .env, or .env.local?
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+A value you export in your shell wins over the primary ``.env`` file. A
+``.env.local`` file can override both. If a backtest picks a provider you did
+not expect, check all three places before you launch.
+
+How do I stop LumiBot from loading my .env file?
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Set ``LUMIBOT_DISABLE_DOTENV=1`` to turn off ``.env`` loading. To keep ``.env``
+but skip ``.env.local``, set ``LUMIBOT_DISABLE_DOTENV_LOCAL=1``. In hosted or
+deployed runs, injected variables plus ``LUMIBOT_DISABLE_DOTENV=1`` keep local
+files from overriding runtime secrets.
+
+How do I choose the backtest data source with an environment variable?
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Set ``BACKTESTING_DATA_SOURCE``, for example ``BACKTESTING_DATA_SOURCE=yahoo``.
+This value overrides the data source class in your Python code. Set it to
+``none`` if you want LumiBot to use the class from your code instead. See
+:ref:`backtest-data-source-selection` for every supported value.
+
+How do I set the starting cash for a backtest?
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Set ``BACKTESTING_BUDGET``, for example ``BACKTESTING_BUDGET=10000``. It wins
+over a ``budget=`` value in your code. If you set neither one, a backtest starts
+with ``100000``.
+
+Which API key do I need for AI agents?
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+It depends on the model. The default model ``openai/gpt-6-luna`` needs
+``OPENAI_API_KEY``. Gemini models need ``GEMINI_API_KEY``, Anthropic models
+need ``ANTHROPIC_API_KEY``, and xAI Grok models need ``XAI_API_KEY`` (or
+``GROK_API_KEY``). You only need a model key if your strategy uses AI agents.
+
+Does LumiBot read EDGAR_USER_AGENT or SEC_EDGAR_USER_AGENT?
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+No. LumiBot reads ``LUMIBOT_SEC_USER_AGENT`` for SEC EDGAR requests. If it is
+not set, LumiBot sends its own support contact as the user agent. The SEC asks
+automated tools to declare a user agent in request headers. See the SEC page on
+`accessing EDGAR data <https://www.sec.gov/os/accessing-edgar-data>`_.
+
+How do I send strategy alerts to Discord or Telegram?
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+For Discord, set ``DISCORD_WEBHOOK_URL`` to your full Discord webhook URL. For
+Telegram, set ``TELEGRAM_BOT_TOKEN`` to the token from BotFather and
+``TELEGRAM_CHAT_ID`` to the chat that should get the messages.
+
+Is it safe to keep API keys in a .env file?
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Keep keys in a ``.env`` file, your shell, or a secret manager, and never commit
+them to a repository. Do not commit ``.env.local`` either. If a key was ever
+pushed to a repository, GitHub's guide says the first step is to revoke or
+rotate that secret. See
+`Removing sensitive data from a repository <https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/removing-sensitive-data-from-a-repository>`_.

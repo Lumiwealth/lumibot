@@ -12,6 +12,8 @@ Build trading strategies with Python rules, AI agents, or both. Backtest on
 historical data, view trades and results, and connect a supported broker through
 the same strategy interface.
 
+.. include:: _snippets/botspot_mcp_callout.rst
+
 **The strategy class can stay the same. The code that starts it must select a
 backtest or a broker run.** See :doc:`strategy_run_modes` before running an
 example: ``IS_BACKTESTING=false`` alone cannot turn a backtest-only file into
@@ -58,7 +60,7 @@ Why build with LumiBot?
 
 * **One strategy lifecycle:** use your own Python rules, AI agents, or both.
 * **Historical backtesting:** test an idea before connecting a broker.
-* **Broker adapters:** keep trading logic separate from broker configuration.
+* **Broker adapters:** keep trading logic separate from broker configuration, across :doc:`100+ brokers and crypto exchanges <brokers.all>`.
 * **Examples to build on:** start with stocks, macro, options, or buy-and-hold.
 
 Build your own trading system
@@ -640,6 +642,74 @@ Table of Contents
    Reddit Community <https://www.reddit.com/r/BotSpotTrade/>
    Discord Community <https://discord.gg/4R9j6T3PN8>
    Get Pre-Built Strategies <https://botspot.trade/marketplace?utm_source=documentation&utm_medium=sidebar&utm_campaign=lumibot&utm_content=sidebar_marketplace>
+
+Frequently asked questions
+**************************
+
+What is LumiBot?
+----------------
+
+LumiBot is a Python framework for building trading strategies. You can write
+strategies with your own Python rules, with AI agents, or with both. You can
+backtest a strategy on historical data and then connect the same strategy class
+to a supported broker for paper or live trading.
+
+Is LumiBot free and open source?
+--------------------------------
+
+Yes. LumiBot is free and open source under the GNU General Public License
+version 3 (GPL-3.0). The source code is on GitHub at
+`github.com/Lumiwealth/lumibot <https://github.com/Lumiwealth/lumibot>`_.
+
+Who created LumiBot?
+--------------------
+
+LumiBot was created by Rob Grzesik and is published by Lumiwealth. The project
+lives in the ``Lumiwealth/lumibot`` repository on GitHub.
+
+How do I install LumiBot in Python?
+-----------------------------------
+
+Run ``pip install lumibot``. To get the newest release later, run
+``pip install lumibot --upgrade``. LumiBot needs Python 3.10 or newer.
+
+Do I need AI or an API key to use LumiBot?
+------------------------------------------
+
+No. AI is optional. A normal ``Strategy`` subclass with your own rules and
+indicators needs no AI model and no model API key. The AI example strategies
+call a model provider, so they need a key such as ``OPENAI_API_KEY``, and model
+calls use your provider billing. See :doc:`agents_quickstart` for the AI path.
+
+Do I need a broker account to run a backtest?
+---------------------------------------------
+
+No. A backtest uses historical data, not a broker. The quickstart backtest on
+this page uses free Yahoo Finance data and no broker account. You only need a
+broker account when you want to paper trade or trade live.
+
+Which brokers does LumiBot work with?
+-------------------------------------
+
+LumiBot connects to 100+ brokers and crypto exchanges: Alpaca, Interactive
+Brokers, Tradier, Schwab, Tradovate, ProjectX, Bitunix, Polymarket, and the
+crypto exchanges your installed CCXT version lists. See :doc:`brokers` for
+brokers by type, or :doc:`the A to Z list <brokers.all>` for every guide.
+
+Can I use the same code for backtesting and live trading?
+---------------------------------------------------------
+
+Yes. The strategy class can stay the same. The code that starts it decides
+whether it runs as a backtest or against a broker. Setting
+``IS_BACKTESTING=false`` alone does not turn a backtest-only file into paper or
+live trading. See :doc:`strategy_run_modes` for how each mode starts.
+
+Where can I get help with LumiBot?
+----------------------------------
+
+Start with the :doc:`faq` and :doc:`common_mistakes` pages. You can also ask
+questions in the community links in the sidebar, including the LumiBot GitHub
+repository, Reddit, and Discord.
 
 Indices and tables
 ==================

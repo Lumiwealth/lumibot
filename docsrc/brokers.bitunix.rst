@@ -4,6 +4,8 @@ Bitunix API Perpetual Futures Trading with LumiBot
 .. meta::
    :description: Configure Bitunix API perpetual futures trading with LumiBot, including USDT futures funding, credentials, order setup, and supported behavior.
 
+.. include:: _snippets/botspot_mcp_callout.rst
+
 How to Use Bitunix
 ------------------
 
@@ -216,6 +218,54 @@ passing ``fraction`` between 0 and 1, for example
 
 .. note::
     For best results, ensure all funds in your Bitunix Futures account are in USDT. Crypto balances may not be counted as available cash for order sizing.
+
+Frequently asked questions
+--------------------------
+
+Can I run a Bitunix trading bot with LumiBot?
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Yes, for USDT perpetual futures. Set ``BITUNIX_API_KEY`` and ``BITUNIX_API_SECRET``. Choose it with ``TRADING_BROKER=bitunix``. If no other broker is configured, LumiBot also picks Bitunix on its own when both keys are set. A working example ships with LumiBot as ``lumibot/example_strategies/bitunix_futures_example.py``.
+
+Does LumiBot support Bitunix spot trading?
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+No. The Bitunix integration only trades perpetual futures. Orders must use a ``CRYPTO_FUTURE`` asset such as ``Asset("BTCUSDT", Asset.AssetType.CRYPTO_FUTURE)``. Any other asset type is rejected before it reaches the exchange.
+
+Does LumiBot use CCXT for Bitunix?
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+No. Bitunix has its own native LumiBot broker that talks to the Bitunix futures API directly, so you do not need CCXT settings for it. The `Bitunix API documentation <https://www.bitunix.com/api-docs/>`__ covers the exchange side, including how requests are signed.
+
+Is there a Bitunix testnet or paper trading mode in LumiBot?
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+No. The LumiBot Bitunix broker connects to the live Bitunix futures API (``fapi.bitunix.com``) and has no testnet switch. Every order uses real funds, so start with very small sizes.
+
+Which order types can I use on Bitunix?
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Market, limit, stop and stop limit orders. You can also attach a take-profit price and a stop-loss price to an order. Multi-leg, OCO, OTO and bracket order groups are not supported.
+
+How do I set leverage for a Bitunix order?
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Pass ``leverage`` when you create the ``CRYPTO_FUTURE`` asset, or set ``asset.leverage`` before you create the order. The default is 1. LumiBot asks Bitunix for that leverage before an opening order. See `Setting Leverage for Bitunix Orders`_ above for details.
+
+Why did my Bitunix order get an ERROR status without reaching the exchange?
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The two most common causes are size and account mode. LumiBot rounds the quantity down to the pair precision, and if the result is below the pair minimum the order stops with an error. LumiBot also needs the account in ``HEDGE`` position mode. If the account reports ``ONE_WAY`` mode, the order is not sent.
+
+How much price history can I get from Bitunix?
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The Bitunix futures API returns up to 200 candles per request. LumiBot pages through more requests on its own when you ask for more than 200 bars. If the symbol does not have enough history, ``get_historical_prices`` raises a clear error instead of returning a short result.
+
+Why does LumiBot show less cash than my Bitunix balance?
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+LumiBot counts USDT in the Futures wallet as cash. Money in the spot wallet is not available for trading, and crypto like BTC in the Futures wallet is not counted as cash for order sizing. Move USDT into the Futures wallet to fix this.
 
 Documentation
 ---------------

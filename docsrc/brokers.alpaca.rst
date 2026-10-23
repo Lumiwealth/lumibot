@@ -6,6 +6,8 @@ Alpaca API Trading with LumiBot
 
 The Alpaca broker integration allows you to trade stocks, options, and cryptocurrencies through Alpaca Markets. This is one of the most popular brokers for algorithmic trading.
 
+.. include:: _snippets/botspot_mcp_callout.rst
+
 Go directly to :ref:`Alpaca setup <alpaca-getting-started>`,
 :ref:`authentication <alpaca-authentication>`, :ref:`configuration
 <alpaca-configuration>`, or :ref:`runnable examples <alpaca-examples>`.
@@ -403,6 +405,70 @@ Market Hours Methods
 
 .. automethod:: lumibot.brokers.alpaca.Alpaca.is_market_open
    :no-index:
+
+Frequently asked questions
+--------------------------
+
+Where do I find my Alpaca API key and secret key?
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Log in to the `Alpaca dashboard <https://app.alpaca.markets>`__ and open the API Keys page. Click "Create New Key" and copy both the API key and the secret key.
+
+Save the secret key right away. Alpaca only shows it once.
+
+Are Alpaca paper trading keys different from live keys?
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Yes. Alpaca says your paper trading account has a different API key from your live account (see the `Alpaca paper trading docs <https://docs.alpaca.markets/docs/paper-trading>`__).
+
+Use paper keys with ``ALPACA_IS_PAPER=true`` and live keys with ``ALPACA_IS_PAPER=false``.
+
+What environment variables does LumiBot use for Alpaca?
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+LumiBot reads ``ALPACA_API_KEY``, ``ALPACA_API_SECRET`` and ``ALPACA_IS_PAPER``. If you use OAuth, it reads ``ALPACA_OAUTH_TOKEN``.
+
+``ALPACA_IS_PAPER`` defaults to ``true`` when it is not set. LumiBot does not read the ``APCA_API_KEY_ID`` or ``APCA_API_SECRET_KEY`` names that some Alpaca tools use, so copy your keys into the ``ALPACA_`` names.
+
+Do I have to put my Alpaca keys in my code?
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+No. If you create a strategy without a broker, LumiBot picks one from your environment variables. It chooses Alpaca when ``ALPACA_API_KEY`` or ``ALPACA_OAUTH_TOKEN`` is set. You can also set ``TRADING_BROKER=alpaca`` to force it.
+
+To build the broker yourself, import the settings with ``from lumibot.credentials import ALPACA_CONFIG`` and pass them in with ``Alpaca(ALPACA_CONFIG)``.
+
+How do I switch from Alpaca paper trading to live trading?
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Set ``ALPACA_IS_PAPER=false`` and use the API key and secret from your live account. Then restart your strategy.
+
+Test the same strategy in paper trading first.
+
+What can I trade on Alpaca with LumiBot?
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Stocks, ETFs, options and crypto. Order types include market, limit, stop, stop-limit and trailing stop, plus bracket, OCO and OTO orders.
+
+Alpaca data requests for futures, forex bases or indexes raise a ``ValueError``. Use a different data source for those assets.
+
+What time in force does LumiBot use for Alpaca crypto and options orders?
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+LumiBot sends Alpaca crypto orders as ``gtc`` (good till canceled) and Alpaca option orders as ``day``. Stock orders keep the time in force you set on the order.
+
+Is Alpaca market data real time on the free plan?
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Partly. On Alpaca's free Basic plan, real-time stock data comes from the IEX exchange only, and options use an indicative price feed. The paid Algo Trader Plus plan covers all US stock exchanges and the OPRA options feed.
+
+See `Alpaca's market data docs <https://docs.alpaca.markets/docs/about-market-data-api>`__ for the current plans.
+
+Can I use Alpaca OAuth instead of API keys?
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Yes. Set ``ALPACA_OAUTH_TOKEN`` instead of the key and secret. You can get an OAuth token through `botspot.trade <https://botspot.trade>`__.
+
+With OAuth only, LumiBot checks for order updates by polling every 5 seconds. With an API key and secret, it uses Alpaca's live stream.
 
 Additional Resources
 --------------------

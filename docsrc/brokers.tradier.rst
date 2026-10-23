@@ -6,6 +6,8 @@ Tradier
 
 This is a guide for using Tradier with the Lumibot library.
 
+.. include:: _snippets/botspot_mcp_callout.rst
+
 Getting Started
 ---------------
 
@@ -183,3 +185,55 @@ Tradier-specific limitations
   is not futures execution support through Tradier Brokerage REST.
 
 See also: :doc:`cash_accounting`
+
+Frequently asked questions
+--------------------------
+
+Where do I find my Tradier access token and account number?
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Log in to Tradier and open the `API Access page <https://dash.tradier.com/settings/api>`__ on dash.tradier.com. It shows your account number and your API access token.
+
+What environment variables does LumiBot use for Tradier?
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Set ``TRADIER_ACCESS_TOKEN``, ``TRADIER_ACCOUNT_NUMBER`` and ``TRADIER_IS_PAPER``. LumiBot also accepts ``TRADIER_API_KEY`` as another name for the access token.
+
+``TRADIER_IS_PAPER`` defaults to ``true`` when it is not set. If keys for other brokers are also set, add ``TRADING_BROKER=tradier`` to force Tradier.
+
+What is the Tradier sandbox, and how do I use it with LumiBot?
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The sandbox is Tradier's paper trading environment. Tradier says sandbox trades are filled against market data that is delayed 15 minutes (see `Tradier's getting started docs <https://docs.tradier.com/docs/getting-started>`__).
+
+In LumiBot, set ``TRADIER_IS_PAPER=true`` (or ``"PAPER": True`` in your config) and use your sandbox token and account number. Set it to ``false`` with your live token and account to trade real money.
+
+Why are my Tradier paper trading prices delayed?
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Tradier's sandbox only provides data delayed by 15 minutes. LumiBot treats paper mode data as 15 minutes delayed and live mode data as current.
+
+How does LumiBot get Tradier order updates?
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+LumiBot polls Tradier for order changes, every 5 seconds by default. It uses polling for both paper and live accounts.
+
+Can I trade multi-leg options on Tradier with LumiBot?
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Yes. LumiBot sends multi-leg option orders to Tradier as one order. The order type can be ``market``, ``debit``, ``credit`` or ``even``, and ``debit`` and ``credit`` orders need a price.
+
+Does Tradier support trailing stop orders in LumiBot?
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+No. The LumiBot Tradier broker does not support trailing stop orders. Market, limit, stop and stop-limit orders work, along with OCO, OTO and bracket orders.
+
+Can I trade futures or crypto through Tradier with LumiBot?
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+No. The LumiBot Tradier broker routes stock and option orders through the Tradier Brokerage API. It does not trade futures or crypto.
+
+Does LumiBot refresh Tradier OAuth tokens?
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Yes, when you use ``TRADIER_TOKEN_PATH``. LumiBot can refresh the token and write the new token back to that file. If you use a plain ``TRADIER_ACCESS_TOKEN``, nothing needs refreshing.

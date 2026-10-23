@@ -10,6 +10,8 @@ Alpaca Backtesting
 It covers stocks, ETFs, crypto, and US equity options. A free Alpaca account includes
 option history, so this is the simplest way to backtest options with your own key.
 
+.. include:: _snippets/botspot_mcp_callout.rst
+
 Setup
 -----
 
@@ -186,3 +188,51 @@ Known limits
    subscription. Live historical-data integration tests are marked ``apitest``
    and require your own authorized Alpaca credentials; fixture tests do not
    establish live-provider availability.
+
+Frequently asked questions
+--------------------------
+
+Can I backtest options with a free Alpaca account?
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Yes. A free Alpaca account includes option history, starting around February 2024. ``AlpacaBacktesting`` uses that history for chains, prices and fills, so you can test options with your own key.
+
+Which Alpaca keys does LumiBot need?
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Set ``ALPACA_API_KEY`` and ``ALPACA_API_SECRET``. An OAuth token in ``ALPACA_OAUTH_TOKEN`` also works, but the key and secret win if both are set. Backtests only read data and never send orders.
+
+How do I select Alpaca without changing my code?
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Set ``BACKTESTING_DATA_SOURCE=alpaca`` plus your keys and ``BACKTESTING_START`` and ``BACKTESTING_END``, then call ``backtest()`` with ``datasource_class=None``. This is the same way BotSpot runs Alpaca backtests.
+
+Which assets can I backtest with Alpaca?
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Stocks, ETFs, crypto and US equity options. Option chains only list standard 100 share contracts.
+
+Why can't my Alpaca backtest end today?
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+On the free plan, Alpaca does not serve the latest 15 minutes of stock history (see `Alpaca's market data plans <https://docs.alpaca.markets/docs/about-market-data-api>`__). End your backtest at least one full day before today.
+
+What is the Alpaca rate limit for backtests?
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Alpaca's free plan allows 200 historical API calls per minute (see `Alpaca's market data plans <https://docs.alpaca.markets/docs/about-market-data-api>`__). LumiBot stays below that, and if Alpaca answers with HTTP 429 it waits and retries a limited number of times.
+
+Does Alpaca option data include bid and ask?
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+No. There is no historical option bid and ask, so fills use real trade prices and do not model the spread. ``get_greeks()`` still works, using the last trade and the underlying price.
+
+Why does my backtest stop three trading days early?
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+That is the original behavior when you pass an explicit ``config``. Pass ``full_window=True``, or select Alpaca from the environment, to run through ``backtesting_end``.
+
+Can an Alpaca backtest see future prices?
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Not by default. History returns finished bars only, because ``remove_incomplete_current_bar=True`` is the default. Setting it to ``False`` adds the bar that is still forming, which looks up to one bar into the future.

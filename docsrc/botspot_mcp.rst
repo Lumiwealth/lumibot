@@ -6,8 +6,39 @@ BotSpot MCP Integration
 
 Use BotSpot MCP when you want your AI assistant to create and edit LumiBot
 strategies, run hosted historical backtests, inspect results, and report on
-your existing bots. A paid BotSpot plan is required; data access and usage
-limits depend on your plan and the requested workflow.
+your existing bots. Connecting is free. Paid BotSpot plans exist only for some
+heavier features, and usage limits depend on your plan.
+
+.. _why-botspot-mcp:
+
+Why connect the free BotSpot MCP
+--------------------------------
+
+We strongly recommend it if you build with an AI assistant. One free connection
+gives Claude, ChatGPT, Codex or Cursor what it needs to work on real trading
+strategies instead of only writing code:
+
+* **Strategy-building skills.** Your assistant learns how LumiBot strategies are
+  built, so it writes code that runs.
+* **Free data.** News, economic data and SEC filings, ready for research.
+* **Backtests and charts.** Your assistant can run a historical backtest on
+  BotSpot's servers and read the charts, trades and logs.
+* **Cheap scheduled deployments.** Run a bot on BotSpot's servers on a schedule.
+  For a bot that runs once a day, that is usually cheaper than keeping your own
+  computer or server on all the time.
+* **The community.** Read and post, and see what other people's bots and trades
+  are doing.
+* **The marketplace.** Research strategies other people published, and publish
+  your own so others can use it.
+* **Easy broker linking.** Connect a broker on the website instead of managing
+  keys on a server.
+* **More tools for LumiBot's own AI agents.** With ``lumibot connect botspot``,
+  agents inside your strategies get BotSpot research tools (macro data, SEC
+  research, marketplace and community reads).
+
+Backtests are simulations. They do not promise future results.
+
+`Connect it free at botspot.trade/agents <https://botspot.trade/agents?utm_source=documentation&utm_medium=mcp_page&utm_campaign=lumibot&utm_content=why_section>`__
 
 Start with the `maintained setup guide <https://github.com/Lumiwealth/botspot-mcp#connect>`_.
 It contains current Claude Code, Cursor, Codex and hosted-client instructions,
@@ -106,3 +137,72 @@ BotSpot owns supplier credentials, normalization, storage and source qualificati
 LumiBot is the client. Research access never grants deployment, backtest-control,
 trading or secret-management authority.
 
+Frequently asked questions
+--------------------------
+
+What is BotSpot MCP?
+~~~~~~~~~~~~~~~~~~~~
+
+BotSpot MCP connects your AI assistant to BotSpot. Your assistant can then
+create and edit LumiBot strategies, run hosted historical backtests, look at
+the results and report on your existing bots.
+
+How is BotSpot related to LumiBot?
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+LumiBot is the open source Python trading framework. BotSpot is the hosted
+service around it. It runs hosted backtests and handles broker connections,
+results and scheduling for LumiBot strategies. See
+`BotSpot for AI agents <https://botspot.trade/agents>`_.
+
+Is BotSpot MCP free?
+~~~~~~~~~~~~~~~~~~~~
+
+Yes, connecting is free. Paid BotSpot plans exist only for some heavier
+features, and usage limits depend on your plan. The
+`setup guide <https://github.com/Lumiwealth/botspot-mcp#connect>`_ has current
+pricing.
+
+What is the BotSpot MCP server URL?
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Add the Streamable HTTP endpoint ``https://mcp.botspot.trade/mcp`` in your
+client, then finish the normal BotSpot sign in. The
+`BotSpot agents page <https://botspot.trade/agents>`_ lists the exact steps for
+each client.
+
+Which AI assistants work with BotSpot MCP?
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The `BotSpot agents page <https://botspot.trade/agents>`_ lists ChatGPT,
+Claude, Claude Code, Codex, Gemini CLI and Cursor. Some sign in with OAuth and
+some use a BotSpot API key.
+
+Do I need a brokerage account to run a backtest?
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+No. The starter historical example needs no brokerage connection when your
+plan includes the data it uses. Backtests are simulations and do not promise
+future returns.
+
+Can my AI assistant place trades through BotSpot MCP?
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The direct MCP connection includes trading and deployment actions. They still
+depend on your account permissions, your plan and the normal product
+approvals. Connecting an account alone does not approve a trade.
+
+What should I try first?
+~~~~~~~~~~~~~~~~~~~~~~~~
+
+Ask your assistant to check your account access, create a strategy, run a
+historical backtest and then inspect that exact run. The
+`starter prompts <https://github.com/Lumiwealth/botspot-mcp#your-first-useful-result>`_
+show how. Keep the backtest ID it returns, and remember that a queued backtest
+is not a finished result.
+
+How do I disconnect BotSpot MCP?
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Use your AI client's connector controls. If you also made a BotSpot API key,
+revoke it in BotSpot Account Settings.

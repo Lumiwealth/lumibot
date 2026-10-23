@@ -151,6 +151,7 @@ This page documents environment variables used by LumiBot, with an emphasis on *
 - Endpoints must use HTTPS, except HTTP on loopback for local development. Do not put credentials in the URL, query string or fragment. A supplied renewal endpoint must have the same origin as the MCP endpoint.
 - Missing or incomplete configuration preserves ordinary LumiBot strategy and agent behavior and emits one deduplicated capability notice. The "not connected" notice (`lumibot/components/agents/botspot_hint.py`) shows at most once per process, never in CI, and carries a tracked link (`utm_campaign=mcp_nudge`).
 - `LUMIBOT_NO_BOTSPOT_HINT`: set to `1` to hide that notice. `DO_NOT_TRACK=1` also hides it.
+- `LUMIBOT_HIDE_BOTSPOT_TIP`: set to `1` to hide the one-time startup tip that `Trader.run_all` logs when no BotSpot connection is configured (`lumibot/components/agents/botspot_hint.py::show_startup_tip`). It shares the once-per-process claim with the agent hint, so a run shows at most one BotSpot message. Connected means `BOTSPOT_RESEARCH_MCP_TOKEN`, `BOTSPOT_RESEARCH_MCP_RENEW_URL` or `BOTSPOT_API_KEY` is set. Hidden in CI too.
 - `lumibot connect botspot` verifies a Research key and writes the URL and token to `.env` (mode 0600).
 
 ### `GITHUB_TOKEN` in release CI

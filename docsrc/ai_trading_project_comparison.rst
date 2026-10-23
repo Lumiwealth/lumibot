@@ -136,6 +136,74 @@ does something more practical: it forces the agent, tools, prompts, Python
 guardrails, and broker-facing order logic to run through a repeatable trading
 lifecycle before you trust it with real execution.
 
+Frequently asked questions
+**************************
+
+Which AI agent backtesting platform should I use?
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Pick by what you need: the interface, the market data, the broker actions you
+need and the evidence you want to inspect. If you want AI agents inside a Python
+strategy that you can backtest and later connect to a broker, start with the
+:doc:`LumiBot AI agent quick start <agents_quickstart>`.
+
+Can I backtest AI agent decisions with LumiBot?
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Yes. LumiBot runs the agents inside the backtest loop. Afterward you can inspect
+the orders, traces, replay cache, charts, logs and tear sheets for each
+decision. See :doc:`agents`.
+
+Which brokers does LumiBot support?
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The table above lists Alpaca, Interactive Brokers, Tradier, Schwab, Tradovate,
+ProjectX, Bitunix and selected CCXT crypto exchanges. See :doc:`brokers` for
+setup guides.
+
+How is LumiBot different from TradingAgents?
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+TradingAgents is a multi-agent LLM trading research framework with its own
+research and debate structure. Paper and live broker trading is not its main
+focus. LumiBot adds backtests of the agent decisions and a path to supported
+brokers. See :doc:`lumibot_vs_tradingagents`.
+
+How is LumiBot different from ai-hedge-fund?
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+ai-hedge-fund uses investor-style agent personas and documents a saved-fund
+backtest command. Its README says it does not place actual trades. LumiBot
+supports paper and live trading with supported brokers. See
+:doc:`lumibot_vs_ai_hedge_fund`.
+
+How is LumiBot different from OpenAlice?
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+OpenAlice is built around an end-to-end AI agent product. LumiBot is a Python
+trading framework where you control the strategy code, backtests and broker
+path. See :doc:`lumibot_vs_openalice`.
+
+Is OpenBB a trading backtester?
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+No. OpenBB is a financial data platform for analysts, quants and AI agents. It
+is not a strategy backtester and does not include a broker execution framework.
+
+Does a good backtest mean an AI strategy will make money?
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+No. A backtest does not prove future results. It makes the agent, tools,
+prompts, Python guardrails and order logic run through a repeatable trading
+process before you trust them with real orders.
+
+When was this comparison last checked?
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The TradingAgents, ai-hedge-fund, Vibe-Trading and AI-Trader rows were checked
+against their main repository READMEs on September 12, 2026. The other rows come
+from a July 28, 2026 review. Projects change, so check the linked sources below.
+
 Source And Verification Method
 ******************************
 

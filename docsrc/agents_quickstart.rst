@@ -8,6 +8,8 @@ One agent researches the market. A second agent reviews risk, decides whether
 to trade, and checks the result. Both run inside the same standard ``Strategy``
 class used by conventional LumiBot strategies.
 
+.. include:: _snippets/botspot_mcp_callout.rst
+
 This example's file starts a historical backtest when run directly. **The
 strategy class can stay the same; the code that starts it must select a
 backtest or a broker run.** See :doc:`strategy_run_modes` before adapting it

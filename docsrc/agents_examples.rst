@@ -9,6 +9,8 @@ English. The agents fit the strategy: one agent for simple rules, a researcher
 and a trader for most bots, and a debate or a team where that is the point.
 Every page shows the full code and a real backtest tear sheet.
 
+.. include:: _snippets/botspot_mcp_callout.rst
+
 Every file ends the same way: with ``IS_BACKTESTING=true`` in your ``.env`` file
 it backtests, otherwise it trades with your broker. See :doc:`strategy_run_modes`.
 

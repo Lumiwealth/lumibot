@@ -115,11 +115,15 @@ class FakeTradierMarket:
 
     def get_historical_quotes(self, symbol, interval, start_date, end_date, session_filter="all"):
         self.calls.append((pd.Timestamp(start_date), pd.Timestamp(end_date)))
-        start = pd.Timestamp(start_date).tz_convert("UTC").normalize()
-        end = pd.Timestamp(end_date).tz_convert("UTC")
-        frame = synthetic_bars(start, end, "1D", weekdays_only=True)
-        frame.index = [stamp.date() for stamp in frame.index]  # Tradier daily rows are dates
-        return frame
+        # Like the real API: daily rows are dates, selected by calendar date in the
+        # caller's time zone (the request's time of day does not matter).
+        first = pd.Timestamp(start_date).tz_convert(self.tz).date()
+        last = pd.Timestamp(end_date).tz_convert(self.tz).date()
+        days = [day.date() for day in pd.bdate_range(first, last)]
+        close = np.array([_price(pd.Timestamp(day)) for day in days])
+        return pd.DataFrame(
+            {"open": close, "high": close + 1, "low": close - 1, "close": close, "volume": 1000.0}, index=days
+        )
 
     def get_timesales(self, symbol, interval, start_date, end_date, session_filter="all"):
         self.calls.append((pd.Timestamp(start_date), pd.Timestamp(end_date)))

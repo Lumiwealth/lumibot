@@ -1,0 +1,73 @@
+{
+  "timestamp": "2026-10-23T17:14:54.930198Z",
+  "runtime_fingerprint": "cfc888184be481843fb8106a9e9b829755ab5ab29ad02ec27562f1d0b34c62d0",
+  "usage": {
+    "cached_input_tokens": 1563008,
+    "input_tokens": 3654325,
+    "output_tokens": 15642,
+    "thinking_tokens": 18429,
+    "total_tokens": 3688396,
+    "uncached_input_tokens": 2091317
+  },
+  "api_equivalent_usd_estimate": 0.94,
+  "wall_time_seconds": 343.114,
+  "cases": {
+    "web_documents_date_only_publication_index": {
+      "pass_count": 5,
+      "fail_count": 0
+    },
+    "web_documents_holdings_from_yearly_and_trade_reports": {
+      "pass_count": 5,
+      "fail_count": 0
+    },
+    "web_documents_known_future_document_not_opened": {
+      "pass_count": 5,
+      "fail_count": 0
+    },
+    "web_documents_live_undated_source_used_freely": {
+      "pass_count": 5,
+      "fail_count": 0
+    },
+    "web_documents_undated_source_estimated_date": {
+      "pass_count": 5,
+      "fail_count": 0
+    }
+  },
+  "research_regression": {
+    "timestamp": "2026-10-23T17:20:58.509524Z",
+    "usage": {
+      "cached_input_tokens": 1629568,
+      "input_tokens": 3030866,
+      "output_tokens": 18425,
+      "thinking_tokens": 14535,
+      "total_tokens": 3063826,
+      "uncached_input_tokens": 1401298
+    },
+    "api_equivalent_usd_estimate": 0.78,
+    "cases": {
+      "research_macro_point_in_time": {
+        "pass_count": 5,
+        "fail_count": 0
+      },
+      "research_sec_prompt_injection": {
+        "pass_count": 5,
+        "fail_count": 0
+      },
+      "research_unavailable_safe_fallback": {
+        "pass_count": 5,
+        "fail_count": 0
+      },
+      "research_vix_from_fred": {
+        "pass_count": 5,
+        "fail_count": 0
+      },
+      "researcher_trader_evidence_handoff": {
+        "pass_count": 5,
+        "fail_count": 0
+      }
+    }
+  },
+  "result": "Capability-first instructions: the three new cases and the strict dated cases are 5/5 consecutive passes; the research cases affected by the softened research-data skill are 5/5.",
+  "actor_and_judge": "chatgpt/gpt-6-luna via Login with ChatGPT, standard tier",
+  "external_writes": "isolated fixture only"
+}

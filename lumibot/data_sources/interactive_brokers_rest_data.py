@@ -1056,8 +1056,10 @@ class InteractiveBrokersRESTData(DataSource):
             _shared_bar_cache().normalize_timestep(
                 timestep_value, {"min": "minute", "h": "hour", "d": "day", "w": "week", "m": "month"}.get(unit_suffix, "day")
             ),
-            scope=self.shared_bars_scope
-            or _shared_bar_cache().credential_scope("ibkr", getattr(self, "account_id", None)),
+            # Not shared yet: Client Portal answers "the last N bars ending at startTime" in
+            # trading time (at night a one-minute read returns the 16:00 bar), which a calendar
+            # range cannot describe. The read goes straight to the gateway, as before 4.6.25.
+            scope=None,
             adjusted=True,
             bar=timestep,
             outsideRth=bool(include_after_hours),

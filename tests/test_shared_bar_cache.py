@@ -380,3 +380,10 @@ def test_slow_local_write_never_blocks_the_caller(monkeypatch):
 def test_prewarm_is_safe_to_call_repeatedly():
     sbc.prewarm()
     sbc.prewarm()
+
+
+def test_scope_needs_an_identity_beyond_the_provider_name():
+    assert sbc.credential_scope("ibkr", None) is None
+    assert sbc.credential_scope("ibkr", "") is None
+    assert sbc.credential_scope("ibkr", "DU1") != sbc.credential_scope("ibkr", "DU2")
+    assert sbc.credential_scope("ibkr", "DU1") != sbc.credential_scope("tradier", "DU1")

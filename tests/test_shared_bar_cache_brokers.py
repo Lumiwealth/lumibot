@@ -229,13 +229,25 @@ BROKERS = {
 }
 
 
+# Interactive Brokers Client Portal reads bypass the cache (see interactive_brokers_rest_data.py).
+CACHED_BROKERS = {name: value for name, value in BROKERS.items() if name != "ibkr"}
+
+
+def test_ibkr_client_portal_reads_always_go_to_the_gateway():
+    source, provider = ibkr_source()
+    first = _read(source, Asset("SPY"), 30, "day", dt.timedelta(days=40))
+    second = _read(source, Asset("SPY"), 30, "day", dt.timedelta(days=40))
+    assert len(provider.calls) == 2
+    pd.testing.assert_frame_equal(first.df[["open", "close"]], second.df[["open", "close"]], check_freq=False)
+
+
 def _read(source, asset, length, timestep, timeshift=None):
     if isinstance(asset, tuple):
         return source.get_historical_prices(asset[0], length, timestep, timeshift=timeshift, quote=asset[1])
     return source.get_historical_prices(asset, length, timestep, timeshift=timeshift)
 
 
-@pytest.mark.parametrize("broker", sorted(BROKERS))
+@pytest.mark.parametrize("broker", sorted(CACHED_BROKERS))
 def test_repeated_settled_daily_history_makes_zero_provider_calls(broker):
     make, asset = BROKERS[broker]
     source, provider = make()
@@ -252,7 +264,7 @@ def test_repeated_settled_daily_history_makes_zero_provider_calls(broker):
     )
 
 
-@pytest.mark.parametrize("broker", sorted(BROKERS))
+@pytest.mark.parametrize("broker", sorted(CACHED_BROKERS))
 def test_repeated_live_minute_read_fetches_only_the_open_tail(broker):
     make, asset = BROKERS[broker]
     source, provider = make()
@@ -271,7 +283,7 @@ def test_repeated_live_minute_read_fetches_only_the_open_tail(broker):
     )
 
 
-@pytest.mark.parametrize("broker", sorted(BROKERS))
+@pytest.mark.parametrize("broker", sorted(CACHED_BROKERS))
 def test_cached_read_matches_an_uncached_read(broker, monkeypatch):
     make, asset = BROKERS[broker]
     source, _ = make()
@@ -286,7 +298,7 @@ def test_cached_read_matches_an_uncached_read(broker, monkeypatch):
     )
 
 
-@pytest.mark.parametrize("broker", sorted(BROKERS))
+@pytest.mark.parametrize("broker", sorted(CACHED_BROKERS))
 def test_different_connections_do_not_share_bars_by_default(broker):
     make, asset = BROKERS[broker]
     first_source, _ = make()
@@ -297,7 +309,7 @@ def test_different_connections_do_not_share_bars_by_default(broker):
     assert provider.calls, f"{broker}: another connection's bars were reused"
 
 
-@pytest.mark.parametrize("broker", sorted(BROKERS))
+@pytest.mark.parametrize("broker", sorted(CACHED_BROKERS))
 def test_history_cache_measurements_reach_the_caller(broker):
     make, asset = BROKERS[broker]
     source, _ = make()
@@ -307,7 +319,7 @@ def test_history_cache_measurements_reach_the_caller(broker):
     assert stats.get("kind") == "lumibot_shared_bars" and stats.get("hit") is True
 
 
-@pytest.mark.parametrize("broker", ["schwab", "tradier", "ibkr"])
+@pytest.mark.parametrize("broker", ["schwab", "tradier"])
 def test_real_broker_quirks_still_return_bars(broker, monkeypatch):
     """Tradier SPY 2024-12-19 really has close 584.134452 below low 585.85. The old path returned it;
     the cache must too (Dev, Oct 23: the cached path returned no bars at all)."""
@@ -336,3 +348,56 @@ def test_real_broker_quirks_still_return_bars(broker, monkeypatch):
     calls = len(provider.calls)
     _read(source, asset, 30, "day", dt.timedelta(days=40))
     assert len(provider.calls) == calls, "quirky bars must be cached like any other"
+
+
+def test_adapters_return_the_providers_own_timestamps_with_the_cache_on(monkeypatch):
+    """Bot Manager's scheduled smoke contract (Dev, Oct 23 2026): installed adapters given synthetic
+    transport answers must return exactly the provider's bar, even when it lies outside a calendar
+    window (IBKR answers "the last N bars", e.g. the 16:00 bar at night). 4.6.26 returned no bars."""
+    monkeypatch.delenv("LUMIBOT_SHARED_BARS", raising=False)
+    import pandas as pd
+
+    # Actual installed adapters, synthetic transport responses, no broker calls.
+    import datetime as dt
+    from threading import Lock
+    from types import SimpleNamespace
+    from unittest.mock import patch
+    from lumibot.data_sources.schwab_data import SchwabData
+    from lumibot.data_sources.ccxt_data import CcxtData
+    from lumibot.data_sources.interactive_brokers_rest_data import InteractiveBrokersRESTData
+    from lumibot.data_sources import tradier_data
+    from lumibot.entities import Asset
+
+    for instant in ("2026-01-16T14:30Z", "2026-10-16T13:30Z", "2026-10-16T00:05Z"):
+        stamp = pd.Timestamp(instant)
+        source = SchwabData(auto_create_client=False)
+        response = {"candles": [{"datetime": stamp.value // 1_000_000,
+                    "open": 1, "high": 1, "low": 1, "close": 1, "volume": 1}]}
+        source.client = SimpleNamespace(get_price_history_every_day=lambda *a, **k: response)
+        assert source.get_historical_prices(Asset("SPY"), 1, "day").df.index[0] == stamp
+        rest = object.__new__(InteractiveBrokersRESTData)
+        rest.ping_iserver = lambda: None
+        rest.get_conid_from_asset = lambda **kwargs: 1
+        rest.base_url = "https://synthetic.invalid"
+        rest.get_from_endpoint = lambda *args: {"data": [{"t": stamp.value // 1_000_000,
+            "o": 1, "h": 1, "l": 1, "c": 1, "v": 1}]}
+        assert rest.get_historical_prices(Asset("SPY"), 1, "minute").df.index[0] == stamp
+
+    source = object.__new__(CcxtData)
+    source._markets_loaded = True
+    source._markets_lock = Lock()
+    first, after = pd.Timestamp("2026-10-16T13:00Z"), pd.Timestamp("2026-10-16T13:10Z")
+    source.api = SimpleNamespace(has={"fetchOHLCV": True}, markets={"BTC/USD": {}},
+        fetch_ohlcv=lambda *args, **kwargs: [[t.value // 1_000_000, 1, 1, 1, 1, 1] for t in (first, after)],
+        parse8601=lambda value: int(pd.Timestamp(value, tz="UTC").timestamp() * 1000))
+    end = dt.datetime(2026, 10, 16, 13, 6, tzinfo=dt.timezone.utc)
+    assert list(source.get_barset_from_api(source.api, "BTC/USD", "5m", limit=1, end=end).index) == [first]
+
+    for local in ("2026-01-16T09:30", "2026-10-16T09:30"):
+        source = tradier_data.TradierData(account_number="synthetic", access_token="synthetic")
+        frame = pd.DataFrame({"open": [1], "high": [1], "low": [1], "close": [1], "volume": [1]},
+                             index=pd.DatetimeIndex([local]))
+        source.tradier = SimpleNamespace(market=SimpleNamespace(get_timesales=lambda *a, **k: frame))
+        with patch.object(tradier_data, "_date_n_trading_days_from_date", return_value=dt.date(2026, 1, 1)):
+            assert source.get_historical_prices(Asset("SPY"), 1, "minute").df.index[0] == pd.Timestamp(local, tz="America/New_York")
+    print("installed broker timestamp contracts passed")

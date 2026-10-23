@@ -852,6 +852,15 @@ def score_machine_contract(case: dict[str, Any], transcript: dict[str, Any]) -> 
             if matched:
                 failures.append(f"HTTP request fetched {forbidden}, which was disclosed after the simulated instant")
                 break
+    # A usable source (for example an undated page) must actually be opened.
+    for required_url in contract.get("requiredFetchedUrls") or []:
+        if not any(
+            unquote(urlsplit(request["url"]).path) == unquote(urlsplit(required_url).path)
+            if required_url.startswith("/")
+            else urlsplit(request["url"])._replace(fragment="") == urlsplit(required_url)._replace(fragment="")
+            for request in requests
+        ):
+            failures.append(f"required source {required_url} was never fetched")
     for required in contract.get("requiredTools") or []:
         if required not in sequence:
             failures.append(f"required tool {required} was not called")

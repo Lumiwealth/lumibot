@@ -2520,7 +2520,13 @@ class Broker(ABC):
     # =========Positions functions==================
     @staticmethod
     def _same_position(left, right):
-        if left.asset != right.asset or getattr(left, "position_side", None) != getattr(right, "position_side", None):
+        # A missing side or id is unknown, not a different leg: a position tracked
+        # before its broker reported a side (an earlier fill or snapshot) must be
+        # updated in place, keeping its strategy owner, rather than replaced.
+        if left.asset != right.asset:
+            return False
+        left_side, right_side = getattr(left, "position_side", None), getattr(right, "position_side", None)
+        if left_side is not None and right_side is not None and left_side != right_side:
             return False
         left_id, right_id = getattr(left, "position_id", None), getattr(right, "position_id", None)
         return left_id is None or right_id is None or left_id == right_id

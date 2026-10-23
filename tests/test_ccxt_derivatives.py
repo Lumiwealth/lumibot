@@ -222,3 +222,44 @@ def test_phemex_cumulative_native_fee_keeps_settlement_and_rebates(derivatives, 
 
     assert order.fees == [{"currency": currency, "cost": cost}]
 
+
+
+@pytest.mark.parametrize(
+    "info, expected",
+    [
+        ({"positionIdx": "1"}, "long"),  # hedge-mode buy leg (Bybit style)
+        ({"positionIdx": 2}, "short"),  # hedge-mode sell leg
+        ({"positionIdx": "0"}, None),  # one-way mode nets: no leg
+        ({"holdSide": "short"}, "short"),  # two-way position side (Bitget style)
+        ({"holdSide": "buy"}, None),  # one-way value is a direction, not a leg
+        ({"positionSide": "BOTH"}, None),
+    ],
+)
+def test_order_import_reads_exchange_hedge_leg_fields(derivatives, info, expected):
+    parsed = derivatives._parse_broker_order({
+        "id": "contract-order", "symbol": "BTC/USDC:USDC", "type": "market", "side": "sell",
+        "amount": 2, "status": "open", "info": info,
+    }, "strategy")
+    assert parsed.position_side == expected
+
+
+def test_hedged_order_side_is_never_stored_as_a_position_leg(derivatives):
+    # Orders carry buy/sell, not long/short; a hedged flag must not turn "sell" into a leg name.
+    parsed = derivatives._parse_broker_order({
+        "id": "contract-order", "symbol": "BTC/USDC:USDC", "type": "market", "side": "sell",
+        "amount": 2, "status": "open", "hedged": True, "info": {},
+    }, "strategy")
+    assert parsed.position_side in (None, "long", "short")
+    assert parsed.position_side != "sell"
+
+
+def test_position_snapshot_reads_position_index_legs(derivatives):
+    # Unified rows without a hedged flag: the native position index alone names each leg,
+    # so neither leg is dropped as a duplicate of the other.
+    derivatives.api.fetch_balance = Mock(return_value={"total": {}})
+    derivatives._fetch_derivative_positions = Mock(return_value=[
+        {"symbol": "BTC/USDC:USDC", "contracts": 3, "side": "long", "contractSize": 1, "info": {"positionIdx": "1"}},
+        {"symbol": "BTC/USDC:USDC", "contracts": 1, "side": "short", "contractSize": 1, "info": {"positionIdx": "2"}},
+    ])
+    positions = derivatives._pull_positions(SimpleNamespace(name="strategy", quote_asset=Asset("USDT", "crypto")))
+    assert sorted((p.position_side, p.quantity) for p in positions) == [("long", 3), ("short", -1)]

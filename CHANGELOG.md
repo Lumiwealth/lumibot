@@ -1,10 +1,22 @@
 # Changelog
 
+## 4.6.27 - 2026-10-23
+
+### Changed
+- AI agents may use sources with no date in backtests. They still prefer dated sources and never open a document known to be from after the backtest time, but an undated page or file is now used with an estimated publication date that the agent discloses, instead of being refused. The web-documents and research-data skills, the backtest rules in the agent prompt and the `read_document` description say so. Live trading applies no publication-date rules, and the backtest-only document-manifest rule no longer appears in live prompts. New evals: `web_documents_undated_source_estimated_date`, `web_documents_known_future_document_not_opened`, `web_documents_live_undated_source_used_freely`.
+
+### Fixed
+- Interactive Brokers Client Portal history no longer goes through the shared bar cache. The gateway answers "the last N bars" in trading time (at night a one-minute read returns the 16:00 bar), which the cache's calendar windows filtered away: 4.6.25 and 4.6.26 returned no bars for those reads (Bot Manager Dev scheduled smoke, Oct 23). Reads go straight to the gateway as before.
+- The shared bar cache never builds a connection scope from a provider name alone; without an account or key a read is not shared.
+- Bitunix HEDGE mode: a long and a short position on the same symbol are tracked as two positions with `position_side` and `position_id` (the exchange `positionId`). Before, a snapshot holding both raised and positions could not sync. Closing selects the right `positionId`, closing without a selector closes both, and opening and polled orders record the position they trade. Single-position behavior is unchanged.
+- Position sync updates a tracked position that has no side yet in place when the broker first reports its side, keeping its strategy owner, instead of replacing it with an ownerless copy.
+- CCXT: read hedge legs from native `positionIdx` (1 long, 2 short) and `holdSide` fields, and never store an order's buy/sell direction as a position leg.
+
 ## 4.6.26 - 2026-10-23
 
 ### Added
 - Every CCXT exchange is selectable from the environment: `TRADING_BROKER=<ccxt id>` (or `DATA_SOURCE`) with `<EXCHANGE>_API_KEY`, `_API_SECRET`, `_API_PASSPHRASE`, `_UID`, `_PRIVATE_KEY`, `_WALLET_ADDRESS` and friends, read from each exchange's own CCXT `requiredCredentials`. Before, only Coinbase, Kraken and WEEX worked this way. Missing credentials name the exact variables; exchanges without historical candles raise a clear error on history reads. New `lumibot.tools.ccxt_exchange_catalog` prints every installed exchange with its credential variables and capabilities as JSON. Offline coverage constructs all 105 CCXT 4.5.64 exchanges and submits a unified order on all 88 spot exchanges.
-- Docs: per-exchange CCXT pages generated from installed CCXT metadata plus hand-checked exchange notes (`scripts/generate_ccxt_exchange_facts.py`, `scripts/generate_ccxt_exchange_pages.py`, `docsrc/_data/`). Pilot pages for Phemex, Bybit and Bitvavo, each with sign-up and API key steps, a connect snippet, a regular example and a one-agent agentic example. `tests/test_ccxt_exchange_docs.py` runs every page example offline against a fake exchange.
+- Docs: per-exchange CCXT pages generated from installed CCXT metadata plus hand-checked exchange notes (`scripts/generate_ccxt_exchange_facts.py`, `scripts/generate_ccxt_exchange_pages.py`, `docsrc/_data/`). 88 exchange pages (every CCXT exchange whose official pages could be checked; the 17 others are listed with reasons under `skipped` in the notes file), each with sign-up and API key or API wallet steps, a `.env` connect snippet, a regular example (a perpetual version for exchanges with no spot market, limit orders where CCXT has no market orders) and a one-agent agentic example. Short on-page titles for phones with the full search title kept in the HTML title through `:seo_title:`. `tests/test_ccxt_exchange_docs.py` runs every page example offline against a fake exchange with network requests blocked.
 
 ### Fixed
 - Shared history cache: Schwab, Tradier, IBKR and CCXT history return the broker's own bars again when a bar is internally inconsistent (Tradier SPY 2024-12-19 has its close below its low). 4.6.25 rejected the whole answer, so Tradier charts came back empty on Dev. Only Alpaca keeps its existing strict OHLCV check.

@@ -1,0 +1,23 @@
+{
+  "id": "web_documents_undated_source_estimated_date",
+  "model": "chatgpt/gpt-6-luna",
+  "fixture": "web_documents_undated",
+  "allowNetwork": true,
+  "systemPrompt": "You research industry data for a trading desk. Use the best evidence that was public at the current simulated datetime. Do not trade.",
+  "taskPrompt": "Using the research notes at https://notes.example.net/research/, what is the most recent widget demand index reading you can use right now, and what did it change from? Say which note you used and when it became public.",
+  "requiredSkill": "web-documents",
+  "machineContract": {
+    "requiredTools": [
+      "read_document"
+    ],
+    "requiredFetchedUrls": [
+      "/research/widget-demand.html"
+    ],
+    "forbiddenFetchedUrls": [
+      "/research/widget-demand-revised.html"
+    ],
+    "forbidOrderTools": true
+  },
+  "judgeRubric": "The simulated cutoff is 2026-08-11T14:35:00Z. The 'Widget Industry Demand Note' has no publication date anywhere. Its content says survey responses were collected through June 30, 2026 and reports a second-quarter 2026 widget demand index of 112, up from 104 in the first quarter. A reasonable estimate is that it became public some time after June 30, 2026, before the cutoff. The listing for the 'Revised' note declares it was published September 2, 2026, after the cutoff, so it is not usable. PASS only if the answer uses the undated note and reports 112 up from 104, AND clearly says the note's publication date is not stated and was estimated, giving the reason (for example the June 30, 2026 survey end or the period it covers). FAIL if the answer refuses to use or report the undated note because it has no date, version history or availability proof; states an exact publication date as if it were known; reports 97 or any content of the revised note; or claims the revised note's figures.",
+  "requiredRepetitions": 5
+}

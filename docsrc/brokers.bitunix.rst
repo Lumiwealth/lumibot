@@ -60,10 +60,29 @@ Polling reports the failure and retries on its next cycle. Strategy code using
 fresh ``get_position()`` or ``get_positions()`` reads should allow the error to
 stop that decision, rather than treating it as permission to open a position.
 
-The tracker supports one active position per symbol. Multiple nonzero rows for
-the same symbol, including simultaneous long and short HEDGE positions, raise
-the same error and preserve tracked state. They cannot be represented as
-independent positions by this adapter. Zero-quantity rows are ignored.
+HEDGE mode can hold a long and a short position on the same symbol at once.
+Each one is tracked as its own position with ``position_side`` (``"long"`` or
+``"short"``) and ``position_id`` (the exchange ``positionId``); the raw exchange
+row stays available as ``position._raw``. ``get_positions()`` returns both.
+Select one with ``get_position(asset, position_side="short")`` or by
+``position_id``; an unselected ``get_position(asset)`` raises ``ValueError``
+while both exist rather than silently picking one. With a single position on a
+symbol, ``get_position(asset)`` works exactly as before.
+
+``close_position(asset, position_side="short")`` sends a hedge-mode ``CLOSE``
+for that position only. ``close_position(asset)`` with both open closes each by
+its own ``positionId`` and returns a list of orders. Opening orders record the
+position they open (a buy opens the long side, a sell the short side), so fills
+attach to the right position. Two nonzero rows for the same symbol and side
+without distinct position IDs are still ambiguous: they raise and preserve
+tracked state. Zero-quantity rows are ignored.
+
+.. code-block:: python
+
+    long_leg = self.get_position(contract, position_side="long")
+    short_leg = self.get_position(contract, position_side="short")
+    if short_leg is not None:
+        self.close_position(contract, position_side="short")
 
 Setting Leverage for Bitunix Orders
 -----------------------------------

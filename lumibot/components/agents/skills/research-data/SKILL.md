@@ -26,7 +26,7 @@ claiming it was published. A visible authorization error means it was not publis
    For a live request, query the relevant dataset without `asOf` before reporting
    its observations unavailable. Judge the returned observations, dates and
    errors; do not infer an outage from historical capability metadata.
-   Keep the historical ceiling and require original-release proof for a historical request.
+   Keep the historical ceiling for a historical request and prefer original-release values.
    For SEC evidence, call `search_documents` followed
    by `get_document` for SEC documents. Prefer a bounded section or search result
    over loading an entire filing.
@@ -49,8 +49,13 @@ claiming it was published. A visible authorization error means it was not publis
 4. During a backtest, treat the simulated datetime as a hard wall. Pass an aware
    UTC `asOf` no later than that wall. The runtime also clamps managed research.
    Observation periods, release dates and retrieval times are different facts.
-   Require original-version availability before using values or article bodies;
-   calendar bounds or current revised tables are not that proof. If a provider
+   Prefer original-version values and article bodies; calendar bounds or current
+   revised tables do not prove a value's original version. When a source you can
+   actually read has no release or version date, you may still use it for a
+   period that ended before the simulated time: estimate when it became public,
+   say it may include later revisions, and never present it as exact
+   point-in-time data. Never use a value or document known to have been
+   released after the simulated time. If a provider
    returns `unsupported_capability`, do not remove the bound, switch to live mode
    or silently choose another provider to obtain a historical answer.
    Apply the same reasoning to websites, ZIPs, holdings reports and external
@@ -77,9 +82,9 @@ claiming it was published. A visible authorization error means it was not publis
    For each missing dataset, state the observations or documents to obtain,
    requested observation period, historical UTC cutoff or live snapshot scope,
    and decision still blocked. Identify the type of qualified source needed:
-   for historical replay, original-release or versioned records with the original
-   value or document version, first public release time with timezone, and a
-   source/version reference proving availability no later than the cutoff.
+   for historical replay, preferably original-release or versioned records with
+   the original value or document version and first public release time; an
+   undated source is acceptable with a disclosed estimate of when it became public.
    Name a provider only when configured or returned by tools; never claim its
    qualification without proof. If no source is available, say what must be
    supplied or qualified next. Keep this brief; missing evidence is not a

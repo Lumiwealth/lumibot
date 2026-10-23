@@ -391,6 +391,8 @@ The agent runs inside `on_trading_iteration()` on every bar (e.g., every trading
 
 LumiBot injects the simulated datetime into the agent's context and the base prompt includes explicit rules about look-ahead bias. The observability system also flags future-dated data warnings if a tool result references data published after the simulated backtest time. Your `@agent_tool` functions should respect date parameters to avoid requesting future data.
 
+Capability first (Rob, 2026-10-22): agents prefer dated sources in backtests and never use anything known to be from after the simulated time, but a source with no date is still allowed when the agent estimates when it became public and discloses that estimate. Live runs have no publication-date rules. See `tests/test_agent_undated_sources_capability.py` and the `web_documents_*undated*` evals.
+
 **What is the replay cache?**
 
 In backtesting mode, LumiBot caches every agent run keyed by a SHA-256 hash of the prompt, context, model, tool surface, and simulated timestamp. When a subsequent backtest hits the same combination, the cached decision can be reused without a model call. Execution and data tools may still run to reconstruct state; inspect the run artifacts and costs.

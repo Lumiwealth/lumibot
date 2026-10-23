@@ -55,9 +55,11 @@ def broker():
         {"code": 0, "data": [row(), row(symbol="")]},
         {"code": 0, "data": [row(), {"symbol": "ETHUSDT", "side": "LONG"}]},
         {"code": 0, "data": [row(), row("ETHUSDT", avgOpenPrice="NaN")]},
-        {"code": 0, "data": [row(side="LONG"), row(side="SHORT")]},
-        {"code": 0, "data": [row(side="SHORT"), row(side="LONG")]},
+        # A long and a short leg on one symbol is a valid HEDGE-mode snapshot
+        # since generic position identity (4.6.25); see test_bitunix_hedge_legs.
+        # Two rows for the SAME side with no distinct positionId stay ambiguous.
         {"code": 0, "data": [row(side="LONG"), row(side="LONG")]},
+        {"code": 0, "data": [row(side="SHORT", positionId="leg-1"), row(side="SHORT", positionId="leg-1")]},
     ],
 )
 def test_failed_snapshot_preserves_all_positions_and_refresh_retry(broker, response):

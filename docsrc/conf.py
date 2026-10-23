@@ -177,6 +177,9 @@ def _prepare_page_metadata(app, pagename, templatename, context, doctree):
     })
     if pagename == app.config.root_doc:
         context["meta"]["og:title"] = "Lumibot: Python Algorithmic Trading and AI Agents"
+    elif context["meta"].get("seo_title"):
+        # Short on-page H1 for phones, full search title for shares (see _templates/base.html).
+        context["meta"]["og:title"] = context["meta"]["seo_title"]
 
 
 _INCLUDE_RE = re.compile(r"^\s*\.\.\s+(?:include|literalinclude)::\s+(\S+)", re.MULTILINE)

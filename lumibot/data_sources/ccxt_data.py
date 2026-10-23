@@ -86,6 +86,8 @@ class CcxtData(DataSource):
         from lumibot.tools.symbol_normalization import build_ccxt_crypto_symbol, resolve_ccxt_market_symbol
 
         self._ensure_markets_loaded()
+        if getattr(asset, "asset_type", None) == "option":
+            return self._get_option_market(asset, quote)
         raw = getattr(asset, "symbol", asset)
         symbol = build_ccxt_crypto_symbol(raw, getattr(quote, "symbol", quote))
         resolved = resolve_ccxt_market_symbol(self.api.markets, symbol,
@@ -98,9 +100,47 @@ class CcxtData(DataSource):
                        if market.get("contract") and market["symbol"].split(":", 1)[0] == symbol]
             if len(matches) == 1:
                 return matches[0]
+            # An exchange-style symbol such as "BTCUSDT" (the Bitunix convention) means the
+            # perpetual. Dated futures and other settlements need the full CCXT symbol.
+            perpetuals = [market for market in matches if market.get("swap")]
+            if len(perpetuals) == 1:
+                return perpetuals[0]
             if len(matches) > 1:
                 raise ValueError(f"Multiple settlement contracts for {symbol}; use the full CCXT symbol")
         raise ValueError(f"No CCXT market for {symbol}")
+
+    def _get_option_market(self, asset, quote=None):
+        """Find the CCXT option market for a LumiBot option asset (base, expiry, strike, right)."""
+        from decimal import Decimal
+
+        right = str(getattr(asset, "right", "") or "").lower()
+        expiration = getattr(asset, "expiration", None)
+        strike = getattr(asset, "strike", None)
+        if right not in ("call", "put") or expiration is None or strike is None:
+            raise ValueError("A CCXT option needs expiration, strike and right (call or put)")
+        quote_symbol = getattr(quote, "symbol", quote)
+        candidates = []
+        for market in self.api.markets.values():
+            if not market.get("option") or market.get("base") != asset.symbol:
+                continue
+            if str(market.get("optionType") or "").lower() != right:
+                continue
+            if market.get("strike") is None or Decimal(str(market["strike"])) != Decimal(str(strike)):
+                continue
+            expiry = market.get("expiry")
+            if expiry is None or datetime.datetime.fromtimestamp(
+                    expiry / 1000, tz=datetime.timezone.utc).date() != expiration:
+                continue
+            candidates.append(market)
+        if quote_symbol and len(candidates) > 1:
+            narrowed = [m for m in candidates if quote_symbol in (m.get("quote"), m.get("settle"))]
+            candidates = narrowed or candidates
+        if len(candidates) == 1:
+            return candidates[0]
+        if not candidates:
+            raise ValueError(f"No CCXT option market for {asset.symbol} {expiration} {strike} {right}")
+        raise ValueError(f"Multiple CCXT option markets for {asset.symbol} {expiration} {strike} {right}; "
+                         "pass the quote or settlement currency")
 
     def _pull_source_symbol_bars(
         self, asset, length, timestep=MIN_TIMESTEP, timeshift=None, quote=None, exchange=None, include_after_hours=True

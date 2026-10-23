@@ -660,7 +660,8 @@ def test_historical_runtime_requires_fetch_arguments_from_computed_manifest(tmp_
     agent = manager.create(name="historical", allow_trading=False, _runtime=runtime)
     agent.run(task_prompt="Reconstruct historical disclosures without trading.")
     prompt = " ".join(runtime.requests[0].system_prompt.split())
-    assert "Fetch arguments must come only from the computed eligible manifest" in prompt
+    # 4.6.27 (undated sources): the rule now applies whenever discovery tables record dates.
+    assert "When discovery tables record dates, fetch arguments must come only from the computed eligible manifest" in prompt
     assert "Do not follow URLs from samples, excluded rows or an unfiltered query" in prompt
     assert "Do not request a known future version merely to confirm metadata" in prompt
 

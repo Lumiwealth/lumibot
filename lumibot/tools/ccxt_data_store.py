@@ -64,6 +64,9 @@ class CcxtCacheDB:
 
         self.exchange_id = exchange_id
         self.api = exchange_class()
+        from lumibot.tools.ccxt_partner_ids import apply_partner_config
+
+        apply_partner_config(self.api)
         last_error = None
         for attempt in range(3):
             try:

@@ -15,6 +15,7 @@ version. You do not need a new LumiBot broker class or an approved-exchange list
 for each venue. Exchange products, API permissions, order features, credentials,
 regional availability and test environments still differ.
 
+
 Available adapters and qualification
 ------------------------------------
 
@@ -138,6 +139,47 @@ start-up with a message naming the exact variables. Native LumiBot broker names
    OKX_API_SECRET=<your-secret>
    OKX_API_PASSPHRASE=<your-passphrase>
 
+Trading-only keys for DEX wallets
+---------------------------------
+
+Some DEXes let a bot trade with a key that is not the main wallet key. LumiBot
+uses it when you set these variables, and then the main wallet private key is
+not needed:
+
+* **Paradex:** ``PARADEX_L2_PRIVATE_KEY`` (a Paradex subkey, which can trade but
+  cannot withdraw) and ``PARADEX_L2_ADDRESS`` (your Paradex account address),
+  plus ``PARADEX_WALLET_ADDRESS``.
+* **Lighter:** ``LIGHTER_API_KEY_PRIVATE_KEY``, ``LIGHTER_API_KEY_INDEX``,
+  ``LIGHTER_ACCOUNT_INDEX`` and ``LIGHTER_LIBRARY_PATH`` (an existing Lighter API
+  key and Lighter's signer library). Lighter API keys can still make secure
+  withdrawals back to the account's own wallet.
+* **dYdX:** ``DYDX_MNEMONIC`` (the dYdX Chain secret phrase) instead of the
+  Ethereum wallet key. This phrase still has full control of the dYdX account;
+  CCXT does not support dYdX API Trading Keys yet.
+* **Hyperliquid:** its API wallets already trade without withdrawal rights; give
+  the API wallet key as ``HYPERLIQUID_PRIVATE_KEY``.
+
+If you set only some of the trading-only variables, start-up names the ones still
+missing. These setups have offline tests but have not yet been run against live
+Paradex or Lighter accounts.
+
+Partner IDs and builder fees
+----------------------------
+
+CCXT normally tags orders with its own partner (broker) ID on many exchanges, and
+on some DEXes (Hyperliquid, Lighter, GRVT, Aster, Pacifica, Extended) it adds an
+extra builder fee that you pay, paid to CCXT. On Hyperliquid it also registers
+CCXT as your referrer the first time a wallet connects.
+
+LumiBot removes CCXT's tags and turns CCXT's builder fees and referrer off. LumiBot
+may attach its own exchange partner ID instead; a partner ID never changes what you
+pay. LumiBot never adds a builder fee unless one is configured with
+``LUMIBOT_CCXT_BUILDER_FEES``, and it logs a warning when one is, because it costs
+you extra on every order. On HTX (perpetual orders), WOO X and WOOFi Pro, CCXT
+re-adds its tag while signing each request, so LumiBot cannot remove it yet. See
+:doc:`environment_variables` for ``LUMIBOT_CCXT_PARTNER_IDS``,
+``LUMIBOT_CCXT_BUILDER_FEES`` and ``LUMIBOT_CCXT_REFERRAL_CODES``.
+
 Exchanges that publish no historical candles (no ``fetchOHLCV`` in CCXT) still
 trade and quote live prices; price-history requests raise a clear
 ``NotImplementedError``. ``python -m lumibot.tools.ccxt_exchange_catalog`` prints
@@ -152,7 +194,7 @@ the exchange API. Compound-order lifecycle remains separate from native attached
 orders supplied through ``custom_params``.
 
 Perpetual contracts and position modes
-------------------------------------
+--------------------------------------
 
 Use the complete CCXT instrument symbol so quote and settlement remain distinct:
 ``BTC/USDT:USDT``, ``BTC/USDC:USDC`` or ``BTC/USD:BTC``. The broker discovers
@@ -182,6 +224,32 @@ intent. Omitting the selector when closing both legs closes each separately.
 One-way accounts continue to use a single signed position without a leg selector.
 An ambiguous single-position lookup asks for a selector instead of choosing a leg.
 
+This is the same model as LumiBot's Bitunix futures broker: a contract is an
+``Asset`` with ``asset_type="crypto_future"``, hedge legs use ``position_side`` and
+``position_id``, and an exchange-style symbol such as ``BTCUSDT`` resolves to the
+perpetual. Dated futures use their full CCXT symbol, for example
+``BTC/USDT:USDT-261225``. Like Bitunix, an opening order on an asset created with
+``leverage`` above 1 (``Asset("BTC/USDT:USDT", "crypto_future", leverage=5)``) sets
+that leverage once per contract before the order; closing orders never change it,
+and a failure is logged while the order still goes. The default ``leverage=1``
+never touches account leverage, so use ``set_leverage`` to return to 1x.
+
+**Options.** CCXT option markets (for example on Deribit, OKX, Bybit and Binance)
+map to normal LumiBot option assets:
+
+.. code-block:: python
+
+   import datetime
+   from lumibot.entities import Asset
+
+   call = Asset("BTC", asset_type="option", expiration=datetime.date(2026, 12, 25),
+                strike=100000, right="call")
+   order = self.create_order(call, 1, "buy", limit_price=0.05)  # price in the option's quote
+
+``broker.get_asset("BTC/USD:BTC-261225-100000-C")`` returns the same asset.
+Positions are read for every contract type the exchange lists (swaps, dated
+futures and options).
+
 Account mode is never changed automatically. The broker exposes
 ``set_position_mode(hedged, asset, params=None)``,
 ``set_leverage(leverage, asset, params=None)`` and
@@ -198,7 +266,7 @@ that such collateral is worthless. ``fetch_funding_rate(asset)`` reads the curre
 venue funding rate; it does not simulate historical funding payments.
 
 WebSocket market and account data
---------------------------------
+---------------------------------
 
 The broker uses the CCXT Pro client included in CCXT. One lazy managed event loop
 serves subscriptions for a broker. No network connection or private authentication
@@ -229,7 +297,7 @@ Phemex requires a symbol for REST open-order discovery, so a stream-disabled
 account-wide refresh scans metadata-discovered active markets.
 
 Phemex qualification and remaining work
---------------------------------------
+---------------------------------------
 
 The offline contract and stream tests cover linear USDT, linear USDC and
 coin-settled inverse identities, quantity/exposure conversion, separate hedge

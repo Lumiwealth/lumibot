@@ -117,6 +117,131 @@ def verify_research_key(url: str, token: str, timeout: float = 15.0) -> tuple[bo
         return False, f"could not reach {url}: {error}"
 
 
+# ---- device login (OAuth 2.0 device authorization grant, RFC 8628) ----------
+#
+# `lumibot connect botspot` gets a key without a website trip or copy and
+# paste: it shows a short code, the person approves it once (in an AI app
+# connected to BotSpot, or on the BotSpot API keys page), and the key arrives
+# straight in the .env file. The key is never printed.
+
+API_URL_ENV = "BOTSPOT_API_URL"
+_DEFAULT_API_URL = "https://api.botspot.trade"
+DEVICE_CLIENT_NAME = "LumiBot CLI"
+DEVICE_PRESET = "lumibot_agent"
+
+
+def api_base_url(environ=None) -> str:
+    """BotSpot API origin; ``BOTSPOT_API_URL`` points at another BotSpot environment."""
+    env = os.environ if environ is None else environ
+    value = str(env.get(API_URL_ENV) or "").strip() or _DEFAULT_API_URL
+    return value.rstrip("/")
+
+
+def research_mcp_url_for(api_base: str) -> str:
+    return f"{api_base.rstrip('/')}/research-mcp"
+
+
+def _post_json(url: str, body: dict, timeout: float = 30.0) -> dict:
+    """POST JSON and return the JSON answer, including RFC 8628 400 error bodies."""
+    request = urllib.request.Request(
+        url,
+        data=json.dumps(body).encode(),
+        method="POST",
+        headers={"Content-Type": "application/json", "Accept": "application/json"},
+    )
+    try:
+        with urllib.request.urlopen(request, timeout=timeout) as response:
+            return json.loads(response.read() or b"{}")
+    except urllib.error.HTTPError as error:
+        try:
+            answer = json.loads(error.read() or b"{}")
+        except ValueError:
+            answer = {}
+        if isinstance(answer, dict) and answer.get("error"):
+            return answer
+        return {"error": "http_error", "error_description": f"HTTP {error.code}"}
+
+
+def start_device_login(api_base: str, client_name: str) -> dict:
+    return _post_json(
+        f"{api_base}/mcp-api-keys/device/code",
+        {"client_name": client_name, "preset": DEVICE_PRESET},
+    )
+
+
+def poll_device_login(api_base: str, device_code: str) -> dict:
+    return _post_json(f"{api_base}/mcp-api-keys/device/token", {"device_code": device_code})
+
+
+def _sleep(seconds: float) -> None:
+    import time
+
+    time.sleep(seconds)
+
+
+def _same_origin(url: str, api_base: str) -> bool:
+    from urllib.parse import urlparse
+
+    left, right = urlparse(url), urlparse(api_base)
+    return (left.scheme, left.netloc) == (right.scheme, right.netloc)
+
+
+def run_device_login(api_base: str, out, err, open_browser=None) -> tuple[str, str] | None:
+    """Run the device login. Returns (research MCP URL, key) or None after a clear error."""
+    try:
+        started = start_device_login(api_base, DEVICE_CLIENT_NAME)
+    except (urllib.error.URLError, TimeoutError, OSError, ValueError) as error:
+        print(f"Could not reach BotSpot at {api_base}: {error}", file=err)
+        return None
+    if started.get("error") or not started.get("device_code") or not started.get("user_code"):
+        detail = started.get("error_description") or started.get("error") or "no login code"
+        print(f"BotSpot could not start the login ({detail}). Nothing was changed.", file=err)
+        return None
+    code = started["user_code"]
+    page = started.get("verification_uri_complete") or started.get("verification_uri") or ""
+    print("Connect BotSpot to your LumiBot strategy agents (free BotSpot account).", file=out)
+    print(f"Your login code: {code}", file=out)
+    print("Approve it in one of two ways:", file=out)
+    print(f"  1. Ask your AI app that is connected to BotSpot: \"approve BotSpot login code {code}\"", file=out)
+    print(f"  2. Or open {page} and approve it there.", file=out)
+    print("Waiting for approval (the code works for 10 minutes)...", file=out)
+    if open_browser and page:
+        open_browser(page)
+    interval = int(started.get("interval") or 5)
+    deadline = int(started.get("expires_in") or 600)
+    waited = 0
+    while waited <= deadline + interval:
+        _sleep(interval)
+        waited += interval
+        try:
+            answer = poll_device_login(api_base, started["device_code"])
+        except (urllib.error.URLError, TimeoutError, OSError, ValueError):
+            continue
+        error = answer.get("error")
+        if error == "authorization_pending":
+            continue
+        if error == "slow_down":
+            interval += 5
+            continue
+        if error:
+            reason = {
+                "access_denied": "The login was denied.",
+                "expired_token": "The login code expired or was already used. Run the command again.",
+            }.get(error, answer.get("error_description") or error)
+            print(f"{reason} Nothing was changed.", file=err)
+            return None
+        key = str(answer.get("api_key") or "")
+        if not key:
+            print("BotSpot did not return a key. Nothing was changed.", file=err)
+            return None
+        url = str(answer.get("research_mcp_url") or "")
+        if not url or not _same_origin(url, api_base):
+            url = research_mcp_url_for(api_base)
+        return url, key
+    print("The login code expired before it was approved. Run the command again.", file=err)
+    return None
+
+
 def write_env_values(env_file: Path, values: dict[str, str]) -> None:
     """Set ``KEY=value`` lines in a dotenv file, replacing old values in place."""
     lines = env_file.read_text().splitlines() if env_file.exists() else []

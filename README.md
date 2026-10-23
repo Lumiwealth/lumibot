@@ -533,7 +533,7 @@ Lumibot includes a built-in AI trading agent runtime. Build agents that run iden
 - Mount external **MCP servers** for news, macro data, filings, or any domain-specific tools
 - Replay identical agent decisions in **backtests** without paying for another model call
 
-Use **[BotSpot MCP](https://github.com/Lumiwealth/botspot-mcp#connect)** when you want an AI coding agent to create and edit Lumibot strategies, run historical backtests, inspect artifacts, and iterate without leaving your editor. The maintained setup guide includes client instructions and starter prompts. A paid BotSpot plan is required; public store availability is tracked separately.
+Use **[BotSpot MCP](https://github.com/Lumiwealth/botspot-mcp#connect)** when you want an AI coding agent to create and edit Lumibot strategies, run historical backtests, inspect artifacts, and iterate without leaving your editor. The maintained setup guide includes client instructions and starter prompts. Connecting is free and creates a free BotSpot account with the research data tools; paid plans unlock heavier features such as hosted backtests and live bots. Public store availability is tracked separately.
 
 <p align="center">
   <a href="https://github.com/Lumiwealth/botspot-mcp#connect">

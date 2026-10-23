@@ -215,6 +215,7 @@ BotSpot managed research
 
 - ``BOTSPOT_RESEARCH_MCP_URL``: optional BotSpot Research MCP endpoint.
 - ``BOTSPOT_RESEARCH_MCP_TOKEN``: secret bearer credential. External users supply their own scoped BotSpot key; hosted runtimes receive a short-lived deployment-bound capability.
+- ``BOTSPOT_API_URL``: optional BotSpot API origin used by ``lumibot connect botspot`` for its device login (default ``https://api.botspot.trade``). Point it at another BotSpot environment for testing.
 - ``BOTSPOT_RESEARCH_MCP_RENEW_URL``: optional HTTPS renewal endpoint. Localhost is permitted for local development; otherwise its origin must match the MCP endpoint.
 - The URL and token enable automatic attachment. The renewal URL is optional for an external static key and required only when the hosted capability needs automatic renewal.
 - Missing or incomplete configuration preserves ordinary LumiBot strategy and agent behavior and emits one deduplicated capability notice. The "not connected" notice appears at most once per process and never in CI.

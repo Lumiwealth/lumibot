@@ -1,5 +1,13 @@
 # Changelog
 
+## 4.6.28 - unreleased
+
+### Added
+- `lumibot connect botspot` logs in with a short code (OAuth 2.0 device login). Approve the code in an AI app connected to BotSpot or on the printed page, and a "LumiBot agent" key goes straight into `.env`; nothing is pasted or printed. `--token` still takes an existing key and `--paste` keeps the old paste flow. New `BOTSPOT_API_URL` points the command at another BotSpot environment.
+
+### Changed
+- Docs: connecting BotSpot MCP is free (a free account gets the research data tools); the old "paid plan required" wording is gone. The LumiBot agent key section describes the new login and the key's exact permissions.
+
 ## 4.6.27 - 2026-10-23
 
 ### Changed

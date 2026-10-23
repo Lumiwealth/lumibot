@@ -100,6 +100,47 @@ and a static-response sandbox does not prove matching, fills or cancellation.
 Credentials are specific to the selected environment. Some exchanges additionally
 require ``password`` or other CCXT credential fields.
 
+Selecting any exchange with environment variables
+-------------------------------------------------
+
+Set ``TRADING_BROKER`` (or ``DATA_SOURCE``) to any CCXT exchange ID, such as
+``okx``, ``binance``, ``bitget`` or ``hyperliquid``. LumiBot reads the fields
+that exchange requires (CCXT's ``requiredCredentials``) from environment
+variables named after the exchange ID in upper case:
+
+==================  ===========================
+CCXT field          Environment variable
+==================  ===========================
+``apiKey``          ``<EXCHANGE>_API_KEY``
+``secret``          ``<EXCHANGE>_API_SECRET``
+``password``        ``<EXCHANGE>_API_PASSPHRASE``
+``uid``             ``<EXCHANGE>_UID``
+``accountId``       ``<EXCHANGE>_ACCOUNT_ID``
+``login``           ``<EXCHANGE>_LOGIN``
+``twofa``           ``<EXCHANGE>_TWOFA``
+``privateKey``      ``<EXCHANGE>_PRIVATE_KEY``
+``walletAddress``   ``<EXCHANGE>_WALLET_ADDRESS``
+``token``           ``<EXCHANGE>_TOKEN``
+==================  ===========================
+
+``<EXCHANGE>_SANDBOX=true`` selects the exchange's CCXT testnet when one exists;
+``<EXCHANGE>_MARGIN=true`` enables margin mode. Missing required fields stop
+start-up with a message naming the exact variables. Native LumiBot broker names
+(``alpaca``, ``tradier``, ``schwab``, ``bitunix`` and others) keep priority; use
+``ccxt:<id>`` to reach a CCXT exchange whose ID collides with one.
+
+.. code-block:: bash
+
+   TRADING_BROKER=okx
+   OKX_API_KEY=<your-key>
+   OKX_API_SECRET=<your-secret>
+   OKX_API_PASSPHRASE=<your-passphrase>
+
+Exchanges that publish no historical candles (no ``fetchOHLCV`` in CCXT) still
+trade and quote live prices; price-history requests raise a clear
+``NotImplementedError``. ``python -m lumibot.tools.ccxt_exchange_catalog`` prints
+every installed exchange with its credential variables and capabilities as JSON.
+
 Spot order quantities are base-coin units. LumiBot uses CCXT's own amount and
 price precision methods, including tick-size and decimal-place modes. Native
 exchange options remain available through the CCXT config and an order's

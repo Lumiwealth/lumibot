@@ -45,7 +45,7 @@ class CcxtData(DataSource):
             import ccxt
 
             exchange_class = getattr(ccxt, config["exchange_id"])
-        except:
+        except (ImportError, AttributeError, KeyError):
             raise Exception(
                 "Could not find exchange named '{}'. Are you sure you are spelling the exchange_id correctly?".format(
                     config["exchange_id"]
@@ -177,8 +177,14 @@ class CcxtData(DataSource):
         """
         from lumibot.tools import shared_bar_cache
 
-        if not api.has["fetchOHLCV"]:
-            logger.error("Exchange does not support fetching OHLCV data")
+        if not api.has.get("fetchOHLCV"):
+            # Some CCXT exchanges publish no historical candles at all. Say so
+            # plainly instead of failing later with a provider NotSupported.
+            raise NotImplementedError(
+                f"CCXT exchange '{getattr(api, 'id', 'unknown')}' does not provide historical "
+                "candles (fetchOHLCV). Live prices, balances and orders still work; use another "
+                "DATA_SOURCE for price history."
+            )
 
         self._ensure_markets_loaded()
         market = self.api.markets.get(symbol, None)

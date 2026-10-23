@@ -62,6 +62,11 @@ else:
 # CI enforces this via workflow env; do the same for local runs.
 os.environ["BACKTESTING_DATA_SOURCE"] = "none"
 
+# The shared history cache stays off unless a test turns it on (and isolates its
+# folder and remote store). Fake broker bars must never reach a developer's real
+# cache bucket or leak between tests.
+os.environ["LUMIBOT_SHARED_BARS"] = "false"
+
 # Many tests flip `IS_BACKTESTING` on/off via direct `os.environ[...] = ...` assignment (not using
 # pytest's monkeypatch), which can leak state across the suite and create order-dependent failures.
 # Keep the environment stable by restoring `IS_BACKTESTING` after every test.

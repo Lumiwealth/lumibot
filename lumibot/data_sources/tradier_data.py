@@ -10,6 +10,7 @@ logger = LazyLogger(__name__)
 TYPE_CHECKING = False
 dt = LazyModule("datetime")
 pd = LazyModule("pandas")
+shared_bar_cache = LazyModule("lumibot.tools.shared_bar_cache")
 Asset = lazy_class("lumibot.entities", "Asset")
 Decimal = lazy_class("decimal", "Decimal")
 Quote = lazy_class("lumibot.entities", "Quote")
@@ -128,6 +129,10 @@ class TradierData(DataSource):
         super().__init__(api_key=access_token, delay=delay, tzinfo=tzinfo)
         self._account_number = account_number
         self._paper = paper
+        # Sandbox (paper) market data is delayed, so it is a different series from live data.
+        self.shared_bars_scope = shared_bar_cache.credential_scope(
+            "tradier", account_number, "paper" if paper else "live"
+        )
         self.max_workers = min(max_workers, 50)
         from lumiwealth_tradier import Tradier
 
@@ -310,43 +315,58 @@ class TradierData(DataSource):
         )
         start_dt = self.tzinfo.localize(dt.datetime.combine(start_date, dt.datetime.min.time()))
 
-        # Check what timestep we are using, different endpoints are required for different timesteps
-        try:
+        def fetch(range_start, range_end):
+            """One Tradier history read for [range_start, range_end]. Errors raise; nothing is cached."""
+            range_start = range_start.tz_convert(self.tzinfo).to_pydatetime()
+            range_end = range_end.tz_convert(self.tzinfo).to_pydatetime()
             if parsed_timestep_unit == "minute":
-                df = self.tradier.market.get_timesales(
+                frame = self.tradier.market.get_timesales(
                     symbol,
                     interval=timestep_qty,
-                    start_date=start_dt,
-                    end_date=end_dt,
+                    start_date=range_start,
+                    end_date=range_end,
                     session_filter="all" if include_after_hours else "open",
                 )
             else:
-                df = self.tradier.market.get_historical_quotes(
+                frame = self.tradier.market.get_historical_quotes(
                     symbol,
                     interval=parsed_timestep_unit,
-                    start_date=start_dt,
-                    end_date=end_dt,
+                    start_date=range_start,
+                    end_date=range_end,
                     session_filter="all" if include_after_hours else "open",
                 )
+            if frame is None or frame.empty:
+                return None
+            frame = frame.drop(columns=[c for c in ("time", "timestamp") if c in frame.columns])
+            index = pd.to_datetime(frame.index)
+            # Daily rows are dates in the data source time zone; intraday rows keep their instant.
+            index = index.tz_localize(self.tzinfo) if index.tz is None else index.tz_convert(self.tzinfo)
+            frame.index = index
+            return frame
+
+        # Charts, bots and broker-backed backtests share one bar cache per connection.
+        series = shared_bar_cache.BarSeries.make(
+            "tradier",
+            symbol,
+            shared_bar_cache.normalize_timestep(timestep_qty if parsed_timestep_unit == "minute" else 1,
+                                                "minute" if parsed_timestep_unit == "minute" else timestep_unit),
+            scope=self.shared_bars_scope,
+            adjusted=True,
+            assetType=str(asset.asset_type),
+            interval=str(parsed_timestep_unit),
+            session="all" if include_after_hours else "open",
+            delayed=bool(self._delay),
+        )
+        try:
+            df = shared_bar_cache.read_bars(
+                series, start_dt, end_dt, fetch, now=now - self._delay if self._delay else now
+            )
         except Exception as e:
             logger.error(f"Error getting historical prices for {symbol}: {e}")
             return None
-
-        # Drop the "time" and "timestamp" columns if they exist
-        if "time" in df.columns:
-            df = df.drop(columns=["time"])
-        if "timestamp" in df.columns:
-            df = df.drop(columns=["timestamp"])
-
-        # If the index contains date objects, convert and handle timezone
-        if isinstance(df.index[0], dt.date):  # Check if the index contains date objects
-            df.index = pd.to_datetime(df.index)  # Always ensure it's a DatetimeIndex
-
-            # Check if the index is timezone-naive or already timezone-aware
-            if df.index.tz is None:  # Naive index, localize to data source timezone
-                df.index = df.index.tz_localize(self.tzinfo)
-            else:  # Already timezone-aware, convert to data source timezone
-                df.index = df.index.tz_convert(self.tzinfo)
+        if df.empty:
+            return None
+        df = shared_bar_cache.to_timezone(df, self.tzinfo)
 
         # Check for incomplete bars
         if self._remove_incomplete_current_bar:

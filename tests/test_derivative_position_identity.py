@@ -131,3 +131,19 @@ def test_strategy_can_close_all_legs_after_ambiguous_single_position_lookup():
     assert len(strategy.close_position(contract())) == 2
     broker.close_position.assert_called_once_with(strategy.name, contract(), 1.0)
 
+
+
+def test_sync_upgrades_an_unsided_tracked_position_in_place_and_keeps_its_owner():
+    # A fill or older snapshot can create a position before the broker names its
+    # leg. The first sided snapshot must update that same object, not replace it
+    # with an ownerless copy (a background poll syncs with no strategy).
+    tracked = Position("owner-strategy", contract(), 10)
+    broker = _BrokerForSyncTest([leg("long", 12, owner="")])
+    broker._filled_positions.append(tracked)
+
+    broker.sync_positions(None)
+
+    assert broker._filled_positions.get_list() == [tracked]
+    assert tracked.strategy == "owner-strategy"
+    assert tracked.position_side == "long" and tracked.position_id == "contract-long"
+    assert tracked.quantity == 12

@@ -587,6 +587,67 @@ def _date_only_client(*, request_log=None):
     return client
 
 
+# A generic research site whose main note carries no publication date at all,
+# plus a revision whose listing declares a date after the backtest clock. The
+# undated note is usable with a disclosed estimate; the declared-future revision
+# must stay unopened in a backtest.
+_UNDATED_HOST = "notes.example.net"
+_UNDATED_PAGES = {
+    "/research/": (
+        "<html><body><h1>Widget Industry Research Notes</h1><ul>"
+        '<li><a href="/research/widget-demand.html">Widget Industry Demand Note</a></li>'
+        '<li><a href="/research/widget-demand-revised.html">Widget Industry Demand Note: Revised</a>'
+        " (published September 2, 2026)</li>"
+        "</ul></body></html>"
+    ),
+    "/research/live/": (
+        "<html><body><h1>Widget Industry Research Notes</h1><ul>"
+        '<li><a href="/research/widget-demand.html">Widget Industry Demand Note</a></li>'
+        "</ul></body></html>"
+    ),
+    "/research/widget-demand.html": (
+        "<html><body><h1>Widget Industry Demand Note</h1>"
+        "<p>Survey responses were collected from widget buyers through June 30, 2026.</p>"
+        "<p>Second-quarter 2026 widget demand index: 112, up from 104 in the first quarter of 2026.</p>"
+        "<p>Buyers expect steady orders for the rest of the year.</p>"
+        "</body></html>"
+    ),
+    "/research/widget-demand-revised.html": (
+        "<html><body><h1>Widget Industry Demand Note: Revised</h1>"
+        "<p>Published September 2, 2026.</p>"
+        "<p>Revised second-quarter 2026 widget demand index: 97, down from the earlier 112.</p>"
+        "</body></html>"
+    ),
+}
+
+
+_UNDATED_FIXTURES = frozenset({"web_documents_undated", "web_documents_undated_live"})
+
+
+def _undated_client(*, request_log=None):
+    import httpx
+
+    from lumibot.components.agents.web_tools import WebClient
+
+    requests = request_log if request_log is not None else []
+
+    def record_request(request):
+        if len(requests) >= 1024:
+            raise RuntimeError("Synthetic web request capture is full; request was not sent.")
+        requests.append({"method": request.method, "url": str(request.url)})
+
+    def handler(request):
+        page = _UNDATED_PAGES.get(request.url.path)
+        if page is None:
+            return httpx.Response(404, text="Not found")
+        return httpx.Response(200, text=page, headers={"content-type": "text/html"})
+
+    client = WebClient(transport=httpx.MockTransport(handler), resolver=lambda host: ["93.184.216.34"])
+    client._client.event_hooks["request"].append(record_request)
+    client.web_requests = requests
+    return client
+
+
 def _recorded_fred(strategy, cache_dir):
     """Real FRED client and point-in-time filtering, fed recorded VIX closes instead of the network.
 
@@ -701,10 +762,13 @@ class ProductionFixture:
         if fixture.name == "web_documents_date_only":
             self.strategy._agent_web_client = _date_only_client()
             self.fixture.web_requests = self.strategy._agent_web_client.web_requests
+        if fixture.name in _UNDATED_FIXTURES:
+            self.strategy._agent_web_client = _undated_client()
+            self.fixture.web_requests = self.strategy._agent_web_client.web_requests
         if fixture.name == "vix_from_fred":
             self.strategy.macro = _recorded_fred(self.strategy, self.root / "fred")
         self.strategy.fundamentals = _recorded_sec_fundamentals(self.strategy, self.root / "sec")
-        if fixture.name in {"research_live_available", "research_unavailable"}:
+        if fixture.name in {"research_live_available", "research_unavailable", "web_documents_undated_live"}:
             # Use the actual Strategy mode setter after synthetic backtest setup.
             # Keep its bounded recorded clock and isolated broker: calendar data
             # is live research evidence, not a qualified historical replay.
@@ -827,7 +891,7 @@ class ProductionFixture:
         self.closed = True
         self.broker.stream.stop()
         try:
-            if self.fixture.name in {"web_documents", "web_documents_date_only"}:
+            if self.fixture.name in {"web_documents", "web_documents_date_only", *_UNDATED_FIXTURES}:
                 self.strategy._agent_web_client.close()
         finally:
             self.directory.cleanup()

@@ -68,7 +68,7 @@ def test_delivered_blocked_research_guidance_requires_a_bounded_proof_handoff(
         in instructions
     )
     assert (
-        "Identify the type of qualified source needed: for historical replay, original-release or versioned records with the original value or document version, first public release time with timezone, and a source/version reference proving availability no later than the cutoff."
+        "Identify the type of qualified source needed: for historical replay, preferably original-release or versioned records with the original value or document version and first public release time; an undated source is acceptable with a disclosed estimate of when it became public."
         in instructions
     )
     assert (
@@ -82,7 +82,9 @@ def test_delivered_guidance_preserves_historical_and_untrusted_document_safety(
 ):
     instructions = " ".join(delivered_research_guidance[2]["instructions"].split())
     assert "During a backtest, treat the simulated datetime as a hard wall." in instructions
-    assert "Require original-version availability before using values or article bodies" in instructions
+    # Capability first (Rob, 2026-10-22): original versions are preferred, not required.
+    assert "Prefer original-version values and article bodies" in instructions
+    assert "Never use a value or document known to have been released after the simulated time." in instructions
     assert (
         "do not remove the bound, switch to live mode or silently choose another provider to obtain a historical answer"
         in instructions
@@ -100,7 +102,7 @@ def test_live_discovery_does_not_treat_unqualified_history_as_an_observation_fai
     assert "Historical replay capabilities do not determine live observation availability." in instructions
     assert "For a live request, query the relevant dataset without `asOf` before reporting its observations unavailable." in instructions
     assert "A catalog flag is not a failed observation query." in instructions
-    assert "Keep the historical ceiling and require original-release proof for a historical request." in instructions
+    assert "Keep the historical ceiling for a historical request and prefer original-release values." in instructions
 
 
 def test_community_guidance_requires_independent_permissions_and_a_public_summary(

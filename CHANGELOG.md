@@ -2,6 +2,14 @@
 
 ## 4.6.27 - Unreleased
 
+### Changed
+- AI agents may use sources with no date in backtests. They still prefer dated sources and never open a document known to be from after the backtest time, but an undated page or file is now used with an estimated publication date that the agent discloses, instead of being refused. The web-documents and research-data skills, the backtest rules in the agent prompt and the `read_document` description say so. Live trading applies no publication-date rules, and the backtest-only document-manifest rule no longer appears in live prompts. New evals: `web_documents_undated_source_estimated_date`, `web_documents_known_future_document_not_opened`, `web_documents_live_undated_source_used_freely`.
+
+### Fixed
+- Bitunix HEDGE mode: a long and a short position on the same symbol are tracked as two positions with `position_side` and `position_id` (the exchange `positionId`). Before, a snapshot holding both raised and positions could not sync. Closing selects the right `positionId`, closing without a selector closes both, and opening and polled orders record the position they trade. Single-position behavior is unchanged.
+- Position sync updates a tracked position that has no side yet in place when the broker first reports its side, keeping its strategy owner, instead of replacing it with an ownerless copy.
+- CCXT: read hedge legs from native `positionIdx` (1 long, 2 short) and `holdSide` fields, and never store an order's buy/sell direction as a position leg.
+
 ## 4.6.26 - 2026-10-23
 
 ### Added

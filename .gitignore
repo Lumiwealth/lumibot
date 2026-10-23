@@ -14,6 +14,7 @@ lumibot/cache
 !lumibot/tools/shared_bar_cache.py
 !tests/test_shared_bar_cache.py
 !tests/test_shared_bar_cache_brokers.py
+!tests/test_shared_bar_cache_live_apitest.py
 !docs/SHARED_BAR_CACHE.md
 !lumibot/components/agents/replay_cache.py
 !tests/test_backtest_cache_manager.py

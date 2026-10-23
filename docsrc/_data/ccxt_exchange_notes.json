@@ -18,7 +18,7 @@
     "Copy the key and secret right away. Phemex shows the key only once."
    ],
    "permissions": "Use read and trade access. Leave withdrawals off. A bot never needs to move money out of your account.",
-   "testnet_note": "Phemex runs a full testnet at https://testnet.phemex.com with its own accounts and keys. Set ``sandbox`` to ``True`` in LumiBot to send requests there.",
+   "testnet_note": "Phemex runs a full testnet at https://testnet.phemex.com with its own accounts and keys. Set ``PHEMEX_SANDBOX=true`` (or ``\"sandbox\": True`` in a code config) to send LumiBot requests there.",
    "extra_notes": [
     "Phemex perpetual symbols use the full CCXT form, for example ``BTC/USDT:USDT`` (settled in USDT) or ``BTC/USD:BTC`` (inverse, settled in BTC). Spot is plain ``BTC/USDT``.",
     "Phemex also offers sub-accounts, and you can share one API key with sub-accounts from API Management. A separate sub-account per bot keeps bot trades apart from manual trades."
@@ -62,7 +62,7 @@
     "Enter your two-factor code, then copy the key and secret and store them safely."
    ],
    "permissions": "Choose Read-Write. Turn on the trade permissions for what you trade: spot trading, or contract orders and positions for perpetuals. Leave withdrawals off. Freqtrade's docs list Read-Write, Contract Orders and Contract Positions for futures bots.",
-   "testnet_note": "Bybit's testnet lives at https://testnet.bybit.com and its API at https://api-testnet.bybit.com. Set ``sandbox`` to ``True`` in LumiBot to use it. Bybit's demo trading mode is separate and has not been tested with LumiBot.",
+   "testnet_note": "Bybit's testnet lives at https://testnet.bybit.com and its API at https://api-testnet.bybit.com. Set ``BYBIT_SANDBOX=true`` (or ``\"sandbox\": True`` in a code config) to use it. Bybit's demo trading mode is a different system with its own keys; the sandbox setting points at the testnet, not demo trading.",
    "extra_notes": [
     "Bybit's Unified Trading Account keeps spot and derivatives in one wallet. Traders who connect bots often say to make sure it is turned on before you create keys.",
     "CCXT has a separate exchange id, ``bybiteu``, for Bybit's EU site. It uses the api.bybit.eu API. Use the id that matches the site where you opened your account.",
@@ -113,7 +113,7 @@
     "Enter your two-factor code and click Confirm. Save the key and secret right away; you cannot see the secret again."
    ],
    "permissions": "Turn on View access and Trade digital assets. Bitvavo needs both to read your orders and trades. Leave Withdraw digital assets off: Bitvavo warns that API withdrawals skip two-factor and email checks.",
-   "testnet_note": "Bitvavo has no sandbox, and CCXT lists no test URL for it. Always set ``sandbox`` to ``False`` in your LumiBot config. If you leave ``sandbox`` out, LumiBot turns sandbox mode on by default and CCXT fails with an error because Bitvavo has no test site.",
+   "testnet_note": "Bitvavo has no sandbox, and CCXT lists no test URL for it, so test with a very small amount. With environment variables, leave ``BITVAVO_SANDBOX`` unset. In a code config, always set ``\"sandbox\": False``: a code config without it turns sandbox mode on, and CCXT then fails because Bitvavo has no test site.",
    "quote_symbol": "EUR",
    "extra_notes": [
     "Bitvavo markets are priced in euros, so use ``EUR`` as your quote asset (for example ``BTC/EUR``).",

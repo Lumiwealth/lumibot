@@ -35,6 +35,30 @@ def python_examples(text):
     return ["\n".join(line[3:] for line in block.splitlines()) for block in blocks if "class " in block]
 
 
+def page_env(exchange_id):
+    """Parse the page's .env block, swapping placeholder keys for fake values."""
+    blocks = re.findall(r"\.\. code-block:: bash\n\n((?:   .*\n|\n)+)", page_text(exchange_id))
+    block = next(b for b in blocks if "TRADING_BROKER=" in b)
+    env = {}
+    for line in block.splitlines():
+        line = line.split("#", 1)[0].strip()
+        if "=" in line:
+            key, value = line.split("=", 1)
+            env[key] = "fake-value" if value.startswith("your_") else value
+    return env
+
+
+def page_env_config(exchange_id):
+    from lumibot.credentials import generic_ccxt_config
+    from lumibot.tools.ccxt_exchange_catalog import validate_ccxt_config
+
+    env = page_env(exchange_id)
+    assert env["TRADING_BROKER"] == exchange_id
+    config = generic_ccxt_config(env["TRADING_BROKER"], env)
+    validate_ccxt_config(exchange_id, config)  # the page lists every required variable
+    return config
+
+
 def fake_markets(quote):
     def market(base):
         return {
@@ -67,14 +91,12 @@ def build_example(exchange_id, source, monkeypatch):
     # with no other broker configured, which is what a docs reader has.
     import lumibot.strategies._strategy as strategy_module
     monkeypatch.setattr(strategy_module, "get_default_data_source", lambda: None)
-    for credential in FACTS[exchange_id]["required_credentials"]:
-        monkeypatch.setenv(pages_gen.env_name(exchange_id, credential), "fake-value")
-
     namespace = {"__name__": "docs_example"}  # keeps the run_live() block from running
     exec(compile(source, f"{exchange_id}_example", "exec"), namespace)
     strategy_class = next(v for v in namespace.values()
                           if isinstance(v, type) and issubclass(v, Strategy) and v is not Strategy)
-    config = next(v for k, v in namespace.items() if k.endswith("_CONFIG"))
+    # The examples get their broker from the page's .env block, exactly as a reader would.
+    config = page_env_config(exchange_id)
 
     quote = NOTES[exchange_id].get("quote_symbol", "USDT")
     broker = Ccxt(config, connect_stream=False, start_orders_thread=False)
@@ -113,6 +135,27 @@ def test_regular_example_places_one_spot_order_offline(exchange_id, monkeypatch)
     args, _ = broker.api.create_order.call_args
     quote = NOTES[exchange_id].get("quote_symbol", "USDT")
     assert args[0] == f"BTC/{quote}" and args[2] == "buy"
+
+
+@pytest.mark.parametrize("exchange_id", PAGES)
+def test_code_config_snippet_matches_env_config(exchange_id, monkeypatch):
+    """The 'build the broker in code' snippet must describe the same connection."""
+    from lumibot.brokers.ccxt import Ccxt
+
+    text = page_text(exchange_id)
+    snippet = next(b for b in re.findall(r"\.\. code-block:: python\n\n((?:   .*\n|\n)+)", text) if "_CONFIG = {" in b)
+    snippet = "\n".join(line[3:] for line in snippet.splitlines()).split("from lumibot.brokers", 1)[0]
+    for key, value in page_env(exchange_id).items():
+        monkeypatch.setenv(key, value)
+    namespace = {}
+    exec(compile(snippet, f"{exchange_id}_config", "exec"), namespace)
+    config = namespace[f"{exchange_id.upper()}_CONFIG"]
+    env_config = page_env_config(exchange_id)
+    for field in FACTS[exchange_id]["required_credentials"]:
+        assert config[field] == env_config[field] == "fake-value"
+    assert config["sandbox"] is env_config["sandbox"]
+    broker = Ccxt(config, connect_stream=False, start_orders_thread=False)  # constructs offline
+    assert broker.api.id == exchange_id
 
 
 @pytest.mark.parametrize("exchange_id", PAGES)

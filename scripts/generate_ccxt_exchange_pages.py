@@ -134,13 +134,26 @@ def config_block(fx, quote, sandbox):
     return "\n".join(lines)
 
 
-def regular_example(fx, quote, sandbox):
-    name = fx["id"].upper()
-    cls = "BuyBitcoinOn" + "".join(part.capitalize() for part in fx["id"].split("_"))
-    return f'''{config_block(fx, quote, sandbox)}
+def env_block(fx, sandbox):
+    """The .env lines LumiBot reads when TRADING_BROKER is a CCXT exchange id."""
+    lines = [f"TRADING_BROKER={fx['id']}"]
+    lines += [f"{env_name(fx['id'], c)}=your_{c}" for c in fx["required_credentials"]]
+    if sandbox:
+        lines.append(f"{fx['id'].upper()}_SANDBOX=true   # testnet; remove this line for your live account")
+    return "\n".join(lines)
 
-from lumibot.brokers import Ccxt
-from lumibot.entities import Asset
+
+def main_block(cls, quote):
+    return f'''if __name__ == "__main__":
+    # LumiBot reads TRADING_BROKER and the keys from your .env file.
+    strategy = {cls}(quote_asset=Asset("{quote}", asset_type=Asset.AssetType.CRYPTO))
+    strategy.run_live()
+'''
+
+
+def regular_example(fx, quote, sandbox):
+    cls = "BuyBitcoinOn" + "".join(part.capitalize() for part in fx["id"].split("_"))
+    return f'''from lumibot.entities import Asset
 from lumibot.strategies import Strategy
 
 
@@ -162,23 +175,12 @@ class {cls}(Strategy):
             self.submit_order(order)
 
 
-if __name__ == "__main__":
-    broker = Ccxt({name}_CONFIG)
-    strategy = {cls}(
-        broker=broker,
-        quote_asset=Asset("{quote}", asset_type=Asset.AssetType.CRYPTO),
-    )
-    strategy.run_live()
-'''
+{main_block(cls, quote)}'''
 
 
 def agent_example(fx, display, quote, sandbox):
-    name = fx["id"].upper()
     cls = "".join(part.capitalize() for part in fx["id"].split("_")) + "AITrader"
-    return f'''{config_block(fx, quote, sandbox)}
-
-from lumibot.brokers import Ccxt
-from lumibot.entities import Asset
+    return f'''from lumibot.entities import Asset
 from lumibot.strategies import Strategy
 
 
@@ -213,14 +215,7 @@ class {cls}(Strategy):
         )
 
 
-if __name__ == "__main__":
-    broker = Ccxt({name}_CONFIG)
-    strategy = {cls}(
-        broker=broker,
-        quote_asset=Asset("{quote}", asset_type=Asset.AssetType.CRYPTO),
-    )
-    strategy.run_live()
-'''
+{main_block(cls, quote)}'''
 
 
 def related_pages(exchange_id, facts_by_id, limit=4):
@@ -312,19 +307,22 @@ def render(exchange_id, facts_by_id, notes, affiliates, meta):
     )
 
     out.append(heading(f"Connect {display} to LumiBot", "-"))
-    out.append("Put your keys in a ``.env`` file next to your strategy (LumiBot loads it automatically) or in your environment:\n")
-    env_lines = "\n".join(f"{env_name(fx['id'], c)}=your_{c}" for c in creds) or "# CCXT lists no credentials for this exchange"
-    out.append(code("bash", env_lines))
     out.append(
-        f"Then pass a CCXT config to LumiBot's ``Ccxt`` broker. The keys in the config are CCXT's own credential names for {display}"
-        + (f": {', '.join('``' + c + '``' for c in creds)}." if creds else ".")
-        + "\n"
+        f"The simplest way: put these lines in a ``.env`` file next to your strategy. LumiBot loads the file, sees "
+        f"``TRADING_BROKER={fx['id']}`` and connects to {display} for you, so your strategy needs no broker code.\n"
     )
-    out.append(code("python", config_block(fx, quote, sandbox) + "\n\nfrom lumibot.brokers import Ccxt\n\nbroker = Ccxt(" + fx["id"].upper() + "_CONFIG)"))
+    out.append(code("bash", env_block(fx, sandbox)))
     out.append(
-        "The environment variable names above are only a suggestion; any names work because the config reads them with "
-        "``os.environ.get``. LumiBot turns on CCXT's built-in rate limiting for you.\n"
+        f"LumiBot reads exactly the fields CCXT needs for {display}"
+        + (f" ({', '.join('``' + c + '``' for c in creds)})" if creds else "")
+        + ". If one is missing, LumiBot stops at start-up and names the variable you still need.\n"
     )
+    out.append(
+        f"You can also build the broker in code. This is handy when one script talks to more than one exchange. "
+        f"The keys in the config are CCXT's own credential names for {display}:\n"
+    )
+    out.append(code("python", config_block(fx, quote, sandbox) + "\n\nfrom lumibot.brokers import Ccxt\n\nbroker = Ccxt(" + fx["id"].upper() + "_CONFIG)\n# then: MyStrategy(broker=broker, ...)"))
+    out.append("Either way, LumiBot turns on CCXT's built-in rate limiting for you.\n")
 
     out.append(heading(f"Practice on the {display} testnet" if sandbox else f"Testing on {display}", "-"))
     out.append(nt["testnet_note"] + "\n")
@@ -380,8 +378,8 @@ def render(exchange_id, facts_by_id, notes, affiliates, meta):
         (f"Can I build a {display} trading bot in Python?",
          f"Yes. Install LumiBot (``pip install lumibot``), set your {display} keys and use the ``{fx['id']}`` CCXT exchange id as shown above."),
         (f"Does {display} have a testnet?",
-         (f"Yes. Set ``sandbox`` to ``True`` and use keys from the {display} testnet." if sandbox
-          else f"CCXT does not list a testnet for {display}. Set ``sandbox`` to ``False`` and start with a small amount.")),
+         (f"Yes. Set ``{fx['id'].upper()}_SANDBOX=true`` and use keys from the {display} testnet." if sandbox
+          else f"CCXT does not list a testnet for {display}. Leave ``{fx['id'].upper()}_SANDBOX`` unset and start with a small amount.")),
         (f"Which API permissions does a {display} bot need?", nt["permissions"]),
         (f"Can an AI agent trade on {display} by itself?",
          "Yes. The agentic example above gives one agent permission to trade. You control what it may trade and how much through its prompt."),

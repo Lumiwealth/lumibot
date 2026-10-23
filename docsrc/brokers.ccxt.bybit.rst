@@ -66,14 +66,18 @@ Create a Bybit API key
 Connect Bybit to LumiBot
 ------------------------
 
-Put your keys in a ``.env`` file next to your strategy (LumiBot loads it automatically) or in your environment:
+The simplest way: put these lines in a ``.env`` file next to your strategy. LumiBot loads the file, sees ``TRADING_BROKER=bybit`` and connects to Bybit for you, so your strategy needs no broker code.
 
 .. code-block:: bash
 
+   TRADING_BROKER=bybit
    BYBIT_API_KEY=your_apiKey
    BYBIT_API_SECRET=your_secret
+   BYBIT_SANDBOX=true   # testnet; remove this line for your live account
 
-Then pass a CCXT config to LumiBot's ``Ccxt`` broker. The keys in the config are CCXT's own credential names for Bybit: ``apiKey``, ``secret``.
+LumiBot reads exactly the fields CCXT needs for Bybit (``apiKey``, ``secret``). If one is missing, LumiBot stops at start-up and names the variable you still need.
+
+You can also build the broker in code. This is handy when one script talks to more than one exchange. The keys in the config are CCXT's own credential names for Bybit:
 
 .. code-block:: python
 
@@ -89,13 +93,14 @@ Then pass a CCXT config to LumiBot's ``Ccxt`` broker. The keys in the config are
    from lumibot.brokers import Ccxt
 
    broker = Ccxt(BYBIT_CONFIG)
+   # then: MyStrategy(broker=broker, ...)
 
-The environment variable names above are only a suggestion; any names work because the config reads them with ``os.environ.get``. LumiBot turns on CCXT's built-in rate limiting for you.
+Either way, LumiBot turns on CCXT's built-in rate limiting for you.
 
 Practice on the Bybit testnet
 -----------------------------
 
-Bybit's testnet lives at https://testnet.bybit.com and its API at https://api-testnet.bybit.com. Set ``sandbox`` to ``True`` in LumiBot to use it. Bybit's demo trading mode is separate and has not been tested with LumiBot.
+Bybit's testnet lives at https://testnet.bybit.com and its API at https://api-testnet.bybit.com. Set ``BYBIT_SANDBOX=true`` (or ``"sandbox": True`` in a code config) to use it. Bybit's demo trading mode is a different system with its own keys; the sandbox setting points at the testnet, not demo trading.
 
 CCXT sends sandbox requests to: https://api-testnet.bybit.com. Testnet and live accounts use different keys.
 
@@ -106,16 +111,6 @@ This bot buys about 50 USDT of bitcoin on Bybit once and then holds it. It is a 
 
 .. code-block:: python
 
-   import os
-
-   BYBIT_CONFIG = {
-       "exchange_id": "bybit",
-       "apiKey": os.environ.get("BYBIT_API_KEY"),
-       "secret": os.environ.get("BYBIT_API_SECRET"),
-       "sandbox": True,  # testnet first; set False for your live account
-   }
-
-   from lumibot.brokers import Ccxt
    from lumibot.entities import Asset
    from lumibot.strategies import Strategy
 
@@ -139,11 +134,8 @@ This bot buys about 50 USDT of bitcoin on Bybit once and then holds it. It is a 
 
 
    if __name__ == "__main__":
-       broker = Ccxt(BYBIT_CONFIG)
-       strategy = BuyBitcoinOnBybit(
-           broker=broker,
-           quote_asset=Asset("USDT", asset_type=Asset.AssetType.CRYPTO),
-       )
+       # LumiBot reads TRADING_BROKER and the keys from your .env file.
+       strategy = BuyBitcoinOnBybit(quote_asset=Asset("USDT", asset_type=Asset.AssetType.CRYPTO))
        strategy.run_live()
 
 Agentic trading example: an AI agent that trades on Bybit
@@ -153,16 +145,6 @@ Agentic trading means an AI agent reads the market and decides what to do. In th
 
 .. code-block:: python
 
-   import os
-
-   BYBIT_CONFIG = {
-       "exchange_id": "bybit",
-       "apiKey": os.environ.get("BYBIT_API_KEY"),
-       "secret": os.environ.get("BYBIT_API_SECRET"),
-       "sandbox": True,  # testnet first; set False for your live account
-   }
-
-   from lumibot.brokers import Ccxt
    from lumibot.entities import Asset
    from lumibot.strategies import Strategy
 
@@ -199,11 +181,8 @@ Agentic trading means an AI agent reads the market and decides what to do. In th
 
 
    if __name__ == "__main__":
-       broker = Ccxt(BYBIT_CONFIG)
-       strategy = BybitAITrader(
-           broker=broker,
-           quote_asset=Asset("USDT", asset_type=Asset.AssetType.CRYPTO),
-       )
+       # LumiBot reads TRADING_BROKER and the keys from your .env file.
+       strategy = BybitAITrader(quote_asset=Asset("USDT", asset_type=Asset.AssetType.CRYPTO))
        strategy.run_live()
 
 The agent needs a model key such as ``OPENAI_API_KEY`` in your environment. See the :doc:`AI agents quickstart <agents_quickstart>` for models, tools and memory.
@@ -259,7 +238,7 @@ Yes. Install LumiBot (``pip install lumibot``), set your Bybit keys and use the 
 
 **Does Bybit have a testnet?**
 
-Yes. Set ``sandbox`` to ``True`` and use keys from the Bybit testnet.
+Yes. Set ``BYBIT_SANDBOX=true`` and use keys from the Bybit testnet.
 
 **Which API permissions does a Bybit bot need?**
 

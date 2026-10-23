@@ -66,14 +66,17 @@ Create a Bitvavo API key
 Connect Bitvavo to LumiBot
 --------------------------
 
-Put your keys in a ``.env`` file next to your strategy (LumiBot loads it automatically) or in your environment:
+The simplest way: put these lines in a ``.env`` file next to your strategy. LumiBot loads the file, sees ``TRADING_BROKER=bitvavo`` and connects to Bitvavo for you, so your strategy needs no broker code.
 
 .. code-block:: bash
 
+   TRADING_BROKER=bitvavo
    BITVAVO_API_KEY=your_apiKey
    BITVAVO_API_SECRET=your_secret
 
-Then pass a CCXT config to LumiBot's ``Ccxt`` broker. The keys in the config are CCXT's own credential names for Bitvavo: ``apiKey``, ``secret``.
+LumiBot reads exactly the fields CCXT needs for Bitvavo (``apiKey``, ``secret``). If one is missing, LumiBot stops at start-up and names the variable you still need.
+
+You can also build the broker in code. This is handy when one script talks to more than one exchange. The keys in the config are CCXT's own credential names for Bitvavo:
 
 .. code-block:: python
 
@@ -89,13 +92,14 @@ Then pass a CCXT config to LumiBot's ``Ccxt`` broker. The keys in the config are
    from lumibot.brokers import Ccxt
 
    broker = Ccxt(BITVAVO_CONFIG)
+   # then: MyStrategy(broker=broker, ...)
 
-The environment variable names above are only a suggestion; any names work because the config reads them with ``os.environ.get``. LumiBot turns on CCXT's built-in rate limiting for you.
+Either way, LumiBot turns on CCXT's built-in rate limiting for you.
 
 Testing on Bitvavo
 ------------------
 
-Bitvavo has no sandbox, and CCXT lists no test URL for it. Always set ``sandbox`` to ``False`` in your LumiBot config. If you leave ``sandbox`` out, LumiBot turns sandbox mode on by default and CCXT fails with an error because Bitvavo has no test site.
+Bitvavo has no sandbox, and CCXT lists no test URL for it, so test with a very small amount. With environment variables, leave ``BITVAVO_SANDBOX`` unset. In a code config, always set ``"sandbox": False``: a code config without it turns sandbox mode on, and CCXT then fails because Bitvavo has no test site.
 
 Algorithmic trading example: a simple Bitvavo bot
 -------------------------------------------------
@@ -104,16 +108,6 @@ This bot buys about 50 EUR of bitcoin on Bitvavo once and then holds it. It is a
 
 .. code-block:: python
 
-   import os
-
-   BITVAVO_CONFIG = {
-       "exchange_id": "bitvavo",
-       "apiKey": os.environ.get("BITVAVO_API_KEY"),
-       "secret": os.environ.get("BITVAVO_API_SECRET"),
-       "sandbox": False,  # this exchange has no CCXT sandbox
-   }
-
-   from lumibot.brokers import Ccxt
    from lumibot.entities import Asset
    from lumibot.strategies import Strategy
 
@@ -137,11 +131,8 @@ This bot buys about 50 EUR of bitcoin on Bitvavo once and then holds it. It is a
 
 
    if __name__ == "__main__":
-       broker = Ccxt(BITVAVO_CONFIG)
-       strategy = BuyBitcoinOnBitvavo(
-           broker=broker,
-           quote_asset=Asset("EUR", asset_type=Asset.AssetType.CRYPTO),
-       )
+       # LumiBot reads TRADING_BROKER and the keys from your .env file.
+       strategy = BuyBitcoinOnBitvavo(quote_asset=Asset("EUR", asset_type=Asset.AssetType.CRYPTO))
        strategy.run_live()
 
 Agentic trading example: an AI agent that trades on Bitvavo
@@ -151,16 +142,6 @@ Agentic trading means an AI agent reads the market and decides what to do. In th
 
 .. code-block:: python
 
-   import os
-
-   BITVAVO_CONFIG = {
-       "exchange_id": "bitvavo",
-       "apiKey": os.environ.get("BITVAVO_API_KEY"),
-       "secret": os.environ.get("BITVAVO_API_SECRET"),
-       "sandbox": False,  # this exchange has no CCXT sandbox
-   }
-
-   from lumibot.brokers import Ccxt
    from lumibot.entities import Asset
    from lumibot.strategies import Strategy
 
@@ -197,11 +178,8 @@ Agentic trading means an AI agent reads the market and decides what to do. In th
 
 
    if __name__ == "__main__":
-       broker = Ccxt(BITVAVO_CONFIG)
-       strategy = BitvavoAITrader(
-           broker=broker,
-           quote_asset=Asset("EUR", asset_type=Asset.AssetType.CRYPTO),
-       )
+       # LumiBot reads TRADING_BROKER and the keys from your .env file.
+       strategy = BitvavoAITrader(quote_asset=Asset("EUR", asset_type=Asset.AssetType.CRYPTO))
        strategy.run_live()
 
 The agent needs a model key such as ``OPENAI_API_KEY`` in your environment. See the :doc:`AI agents quickstart <agents_quickstart>` for models, tools and memory.
@@ -243,7 +221,7 @@ Yes. Install LumiBot (``pip install lumibot``), set your Bitvavo keys and use th
 
 **Does Bitvavo have a testnet?**
 
-CCXT does not list a testnet for Bitvavo. Set ``sandbox`` to ``False`` and start with a small amount.
+CCXT does not list a testnet for Bitvavo. Leave ``BITVAVO_SANDBOX`` unset and start with a small amount.
 
 **Which API permissions does a Bitvavo bot need?**
 

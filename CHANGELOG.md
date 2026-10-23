@@ -2,6 +2,10 @@
 
 ## 4.6.26 - Unreleased
 
+### Fixed
+- Shared history cache: Schwab, Tradier, IBKR and CCXT history return the broker's own bars again when a bar is internally inconsistent (Tradier SPY 2024-12-19 has its close below its low). 4.6.25 rejected the whole answer, so Tradier charts came back empty on Dev. Only Alpaca keeps its existing strict OHLCV check.
+- Shared history cache on workers with a remote store: the local Parquet write now runs on the background uploader too, so a cache miss returns right after the broker answers (Dev Lambda misses spent 1.4-3.6 s writing before answering). New `shared_bar_cache.prewarm()` loads the Parquet engine and S3 client in the background for one-request worker processes.
+
 ## 4.6.25 - 2026-10-23
 
 ### Fixed

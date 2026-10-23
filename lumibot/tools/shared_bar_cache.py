@@ -261,6 +261,23 @@ def validate_rows(rows: pd.DataFrame) -> bool:
         return False
 
 
+def structurally_valid(rows: pd.DataFrame) -> bool:
+    """Usable as stored bars: unique timestamps and price columns. Values are the provider's own.
+
+    Brokers sometimes publish internally inconsistent bars (Tradier SPY 2024-12-19 has its
+    close below its low). Those are real provider observations that LumiBot always returned,
+    so only adapters that opt into ``strict_ohlcv`` reject them.
+    """
+    if rows.empty:
+        return True
+    return (
+        isinstance(rows.index, pd.DatetimeIndex)
+        and not rows.index.hasnans
+        and not rows.index.has_duplicates
+        and set(PRICE_FIELDS) <= set(rows.columns)
+    )
+
+
 def _normalize(frame: pd.DataFrame | None) -> pd.DataFrame:
     if frame is None:
         return pd.DataFrame(columns=OHLCV_FIELDS, index=pd.DatetimeIndex([], tz="UTC"))
@@ -340,6 +357,8 @@ class _Partition:
     rows: pd.DataFrame = field(default_factory=lambda: _normalize(None))
     coverage: list[tuple[pd.Timestamp, pd.Timestamp]] = field(default_factory=list)
     epoch: int = 0
+    # Written by an adapter that rejects inconsistent OHLC (see ``strict_ohlcv``).
+    strict: bool = False
 
 
 @dataclass
@@ -358,6 +377,7 @@ def _encode_partition(part: _Partition) -> bytes:
             "start": part.start.isoformat(),
             "endExclusive": part.stop.isoformat(),
             "coverage": [[s.isoformat(), e.isoformat()] for s, e in part.coverage],
+            "strict": bool(part.strict),
         }
     }
     buffer = io.BytesIO()
@@ -381,13 +401,15 @@ def _decode_partition(part: _Partition, body: bytes | None) -> _Partition:
             return part
         coverage = [(_utc(s), _utc(e)) for s, e in meta.get("coverage") or []]
         rows = _normalize(rows)
-        if not validate_rows(rows):
+        strict = bool(meta.get("strict"))
+        if not (validate_rows(rows) if strict else structurally_valid(rows)):
             return part
         if any(s < part.start or e > part.stop for s, e in coverage):
             return part
         part.rows = rows
         part.coverage = _union(coverage)
         part.epoch = int(meta.get("epoch") or 0)
+        part.strict = strict
     except Exception:
         return _Partition(part.series, part.start, part.stop, part.path)
     return part
@@ -413,8 +435,10 @@ def _merge_partitions(base: _Partition, other: _Partition) -> _Partition:
         return base
     rows = pd.concat([other.rows, base.rows]) if not other.rows.empty else base.rows
     rows = rows[~rows.index.duplicated(keep="last")].sort_index()
+    base.strict = base.strict or other.strict
     merged = _Partition(
-        base.series, base.start, base.stop, base.path, rows, _union(base.coverage + other.coverage), base.epoch
+        base.series, base.start, base.stop, base.path, rows, _union(base.coverage + other.coverage), base.epoch,
+        base.strict,
     )
     return merged
 
@@ -501,6 +525,33 @@ def pending_shared_bar_writes() -> int:
 atexit.register(lambda: _UPLOADER.flush(120))
 
 
+_PREWARM_LOCK = threading.Lock()
+_PREWARMED = False
+
+
+def prewarm() -> None:
+    """Load the Parquet engine and the remote client on a background thread.
+
+    Short-lived workers (one process per chart read) call this at startup so the first
+    cache lookup does not pay these one-time costs. Safe to call more than once.
+    """
+    global _PREWARMED
+    with _PREWARM_LOCK:
+        if _PREWARMED:
+            return
+        _PREWARMED = True
+
+    def warm():
+        try:
+            import pyarrow.parquet  # noqa: F401
+
+            _remote()
+        except Exception:
+            pass
+
+    threading.Thread(target=warm, name="lumibot-shared-bars-prewarm", daemon=True).start()
+
+
 # --------------------------------------------------------------------------- store
 
 _THREAD_LOCKS: dict[str, threading.Lock] = {}
@@ -546,6 +597,8 @@ class _Store:
     _memory: OrderedDict[str, tuple[float, _Partition]] = OrderedDict()
     _memory_lock = threading.Lock()
     _MEMORY_LIMIT = 64
+    # Manifests written by this process (their files may still be queued for writing).
+    _manifests: dict[str, _Manifest] = {}
 
     def __init__(self):
         self.client, self.manager = _remote()
@@ -583,6 +636,10 @@ class _Store:
 
         def load_manifest(item):
             path = _series_dir(item) / "series.json"
+            with self._memory_lock:
+                known = self._manifests.get(str(path))
+            if known is not None:
+                return known
             body = self._load_bytes(path)
             if not body:
                 return _Manifest()
@@ -614,18 +671,28 @@ class _Store:
             entry = self._memory.get(str(path))
         if entry is None:
             return None
-        try:
-            if path.stat().st_mtime != entry[0]:
+        if entry[0] is not None:
+            try:
+                if path.stat().st_mtime != entry[0]:
+                    return None
+            except OSError:
                 return None
-        except OSError:
-            return None
         part = entry[1]
-        return _Partition(part.series, part.start, part.stop, part.path, part.rows, list(part.coverage), part.epoch)
+        return _Partition(
+            part.series, part.start, part.stop, part.path, part.rows, list(part.coverage), part.epoch, part.strict
+        )
+
+    def _remember(self, part: _Partition, mtime: float | None) -> None:
+        with self._memory_lock:
+            self._memory[str(part.path)] = (mtime, part)
+            self._memory.move_to_end(str(part.path))
+            while len(self._memory) > self._MEMORY_LIMIT:
+                self._memory.popitem(last=False)
 
     # Saving ----------------------------------------------------------------
 
-    def save(self, part: _Partition) -> None:
-        """Merge into the local file now (under a lock); publish remotely in the background."""
+    def _write_merged(self, part: _Partition) -> None:
+        """Merge ``part`` into its local file under a lock."""
         part.path.parent.mkdir(parents=True, exist_ok=True)
         with _path_lock(part.path):
             try:
@@ -635,23 +702,30 @@ class _Store:
             current = _decode_partition(_Partition(part.series, part.start, part.stop, part.path), current_bytes)
             merged = _merge_partitions(part, current)
             _write_local(part.path, _encode_partition(merged))
-            with self._memory_lock:
-                self._memory[str(part.path)] = (part.path.stat().st_mtime, merged)
-                self._memory.move_to_end(str(part.path))
-                while len(self._memory) > self._MEMORY_LIMIT:
-                    self._memory.popitem(last=False)
+            self._remember(merged, part.path.stat().st_mtime)
+
+    def save(self, part: _Partition) -> None:
+        """Keep the partition for this process now; write it (and publish it) off the caller's path.
+
+        With a remote store (Lambda workers, cloud backtests) the local file write runs on the
+        background uploader too: on a one-CPU worker even the Parquet encode delayed answers by
+        seconds. Without a remote store the local write stays synchronous (cheap on a desktop).
+        """
         if not self.writable:
+            self._write_merged(part)
             return
+        self._remember(part, None)
         client, manager, path = self.client, self.manager, part.path
 
-        def upload():
+        def write_and_upload():
+            self._write_merged(part)
             local = _decode_partition(_Partition(part.series, part.start, part.stop, path), path.read_bytes())
             remote = _decode_partition(
                 _Partition(part.series, part.start, part.stop, path), _remote_get(client, manager, path)
             )
             _remote_put(client, manager, path, _encode_partition(_merge_partitions(local, remote)))
 
-        _UPLOADER.submit(str(path), upload)
+        _UPLOADER.submit(str(path), write_and_upload)
 
     def save_manifest(self, series: BarSeries, manifest: _Manifest) -> None:
         path = _series_dir(series) / "series.json"
@@ -664,21 +738,25 @@ class _Store:
             },
             sort_keys=True,
         ).encode()
-        _write_local(path, body)
-        if self.writable:
-            client, manager = self.client, self.manager
+        with self._memory_lock:
+            self._manifests[str(path)] = manifest
+        if not self.writable:
+            _write_local(path, body)
+            return
+        client, manager = self.client, self.manager
 
-            def upload():
-                current = _remote_get(client, manager, path)
-                if current:
-                    try:
-                        if int(json.loads(current).get("epoch") or 0) > manifest.epoch:
-                            return  # another reader already moved to a newer generation
-                    except Exception:
-                        pass
-                _remote_put(client, manager, path, path.read_bytes())
+        def upload():
+            _write_local(path, body)
+            current = _remote_get(client, manager, path)
+            if current:
+                try:
+                    if int(json.loads(current).get("epoch") or 0) > manifest.epoch:
+                        return  # another reader already moved to a newer generation
+                except Exception:
+                    pass
+            _remote_put(client, manager, path, body)
 
-            _UPLOADER.submit(str(path), upload)
+        _UPLOADER.submit(str(path), upload)
 
 
 # --------------------------------------------------------------------------- reads
@@ -710,6 +788,7 @@ def read_bars_many(
     now=None,
     refresh: bool = False,
     coverage_from_rows: bool = False,
+    strict_ohlcv: bool = False,
 ) -> dict[BarSeries, pd.DataFrame]:
     """Bars with start in ``[start, end]`` for each series, served from the shared cache.
 
@@ -796,7 +875,7 @@ def read_bars_many(
         provider_ms += (time.perf_counter() - provider_started) * 1000
         for item in members:
             rows = _normalize(answer.get(item))
-            valid = validate_rows(rows)
+            valid = validate_rows(rows) if strict_ohlcv else structurally_valid(rows)
             rows = rows[(rows.index >= gap_start) & (rows.index < gap_stop)]
             if not valid:
                 raise InvalidBars(f"{item.provider} returned invalid OHLCV bars; shared cache was not written")
@@ -825,7 +904,7 @@ def read_bars_many(
         provider_ms += (time.perf_counter() - provider_started) * 1000
         for item in restarted:
             rows = _normalize(answer.get(item))
-            valid = validate_rows(rows)
+            valid = validate_rows(rows) if strict_ohlcv else structurally_valid(rows)
             rows = rows[(rows.index >= start) & (rows.index < end_excl)]
             if not valid:
                 raise InvalidBars(f"{item.provider} returned invalid OHLCV bars; shared cache was not written")
@@ -856,6 +935,7 @@ def read_bars_many(
                 merged = pd.concat([keep, piece]) if not keep.empty else piece
                 part.rows = merged[~merged.index.duplicated(keep="last")].sort_index()
                 part.coverage = _union(part.coverage + [(lo, hi)])
+                part.strict = part.strict or strict_ohlcv
                 changed.add(id(part))
         for part in item_parts:
             if id(part) in changed:
@@ -929,3 +1009,10 @@ def to_timezone(frame: pd.DataFrame, tz) -> pd.DataFrame:
     out.index = out.index.tz_convert(tz)
     out.attrs = attrs
     return out
+
+
+def _reset_process_memory() -> None:
+    """Forget this process's in-memory partitions and manifests (tests simulate a new process)."""
+    with _Store._memory_lock:
+        _Store._memory.clear()
+        _Store._manifests.clear()

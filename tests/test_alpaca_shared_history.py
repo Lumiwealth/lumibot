@@ -26,7 +26,7 @@ def no_real_remote_cache(monkeypatch):
     monkeypatch.delenv("LUMIBOT_SHARED_BARS", raising=False)
     from lumibot.tools import shared_bar_cache
 
-    shared_bar_cache._Store._memory.clear()
+    shared_bar_cache._reset_process_memory()
 
 
 def provider_frame(start="2025-01-01", end="2025-04-01", symbols=("TSLA",)):

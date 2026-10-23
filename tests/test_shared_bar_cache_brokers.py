@@ -9,6 +9,7 @@ only the still-open tail. Returned bars must match an uncached read exactly.
 from __future__ import annotations
 
 import datetime as dt
+import sys
 import threading
 from types import SimpleNamespace
 
@@ -31,7 +32,7 @@ def isolated_cache(tmp_path, monkeypatch):
     monkeypatch.setattr(parquet_series_cache, "get_backtest_cache", lambda: BacktestCacheManager(None))
     monkeypatch.delenv("LUMIBOT_SHARED_BARS", raising=False)
     monkeypatch.delenv("LUMIBOT_SHARED_BARS_SCOPE", raising=False)
-    shared_bar_cache._Store._memory.clear()
+    shared_bar_cache._reset_process_memory()
     yield tmp_path
 
 
@@ -304,3 +305,34 @@ def test_history_cache_measurements_reach_the_caller(broker):
     bars = _read(source, asset, 30, "day", dt.timedelta(days=40))
     stats = bars.df.attrs.get("historyCache") or {}
     assert stats.get("kind") == "lumibot_shared_bars" and stats.get("hit") is True
+
+
+@pytest.mark.parametrize("broker", ["schwab", "tradier", "ibkr"])
+def test_real_broker_quirks_still_return_bars(broker, monkeypatch):
+    """Tradier SPY 2024-12-19 really has close 584.134452 below low 585.85. The old path returned it;
+    the cache must too (Dev, Oct 23: the cached path returned no bars at all)."""
+    make, asset = BROKERS[broker]
+    source, provider = make()
+    original = synthetic_bars
+
+    def quirky(start, end, freq, *, weekdays_only=False):
+        frame = original(start, end, freq, weekdays_only=weekdays_only)
+        frame.iloc[::5, frame.columns.get_loc("close")] = frame["low"].iloc[::5] - 1.0
+        return frame
+
+    monkeypatch.setattr(sys.modules[__name__], "synthetic_bars", quirky)
+    if broker == "tradier":
+        original_quotes = provider.get_historical_quotes
+
+        def quotes(*args, **kwargs):
+            frame = original_quotes(*args, **kwargs)
+            frame.iloc[::5, frame.columns.get_loc("close")] = frame["low"].iloc[::5] - 1.0
+            return frame
+
+        provider.get_historical_quotes = quotes
+    bars = _read(source, asset, 30, "day", dt.timedelta(days=40))
+    assert bars is not None and len(bars.df) > 10
+    assert (bars.df["close"] < bars.df["low"]).any(), "the provider's own bar must come back unchanged"
+    calls = len(provider.calls)
+    _read(source, asset, 30, "day", dt.timedelta(days=40))
+    assert len(provider.calls) == calls, "quirky bars must be cached like any other"

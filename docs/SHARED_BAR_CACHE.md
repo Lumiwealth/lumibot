@@ -32,7 +32,10 @@ connection, so their bars are never mixed with broker-connection bars.
    minus coverage gives the gaps. Remote partitions load in parallel.
 3. Each gap is read from the broker, widened by one bar on both sides so callers whose start or
    end differ by milliseconds or a time-zone offset still land inside coverage next time.
-4. Settled rows are written to the local file immediately (merge under a file lock). The S3
+4. Settled rows are kept in memory for this process at once. With a remote store the local
+   file write (merge under a file lock) and the S3 upload both run on the background
+   uploader, because on a one-CPU Lambda even the Parquet encode delayed answers by seconds;
+   without a remote store the local write stays synchronous. The S3
    upload runs on a background thread; `flush_shared_bar_writes()` waits for it and also runs at
    interpreter exit.
 
@@ -52,7 +55,13 @@ connection, so their bars are never mixed with broker-connection bars.
 - **Connection scope.** By default bars are shared only within one broker connection (scope is a
   one-way hash of the account/key, never the raw credential). `LUMIBOT_SHARED_BARS_SCOPE=provider`
   shares across connections of one broker. A series without a scope is never cached.
-- **Errors propagate.** A provider error or invalid OHLCV answer raises and writes nothing.
+- **Errors propagate.** A provider error raises and writes nothing.
+- **Provider bars are returned as the provider sent them.** Brokers sometimes publish internally
+  inconsistent bars (Tradier SPY 2024-12-19: close below low); they are cached and returned like
+  any other real observation. Only adapters passing `strict_ohlcv=True` (Alpaca) reject invalid
+  OHLCV and write nothing. Stored partitions remember which rule wrote them.
+- **Warm-up.** One-request worker processes may call `prewarm()` at startup so the Parquet
+  engine and S3 client load while the process starts.
 - **Look-ahead.** The cache only answers the range the caller asked for, so backtest no-look-ahead
   behavior is unchanged.
 

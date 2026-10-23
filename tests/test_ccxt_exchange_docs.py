@@ -223,7 +223,7 @@ def test_page_copy_rules(exchange_id):
                    "guaranteed", "make money", "returns of", "passive income"):
         assert banned not in lowered, banned
     assert "botspot.ai" not in lowered
-    assert "https://botspot.trade/" in text
+    assert re.search(r"https://botspot\.trade/", text), "pages link to BotSpot"
     assert text.count(FACTS[exchange_id]["name"]) >= 8  # the exchange name is used naturally
 
 

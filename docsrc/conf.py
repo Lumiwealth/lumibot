@@ -10,7 +10,10 @@
 # add these directories to sys.path here. If the directory is relative to the
 # documentation root, use os.path.abspath to make it absolute, like shown here.
 #
+import datetime
 import os
+import re
+import subprocess
 import sys
 from pathlib import Path
 from urllib.parse import urljoin
@@ -179,18 +182,100 @@ def _prepare_page_metadata(app, pagename, templatename, context, doctree):
         context["meta"]["og:title"] = context["meta"]["seo_title"]
 
 
+_INCLUDE_RE = re.compile(r"^\s*\.\.\s+(?:include|literalinclude)::\s+(\S+)", re.MULTILINE)
+_AUTODOC_RE = re.compile(
+    r"^\s*\.\.\s+(?:auto\w+|automodule|autoclass|autofunction|automethod|autosummary)::",
+    re.MULTILINE,
+)
+
+
+def _git_commit_dates(repo_root):
+    """Map repo-relative paths to their newest commit date, or None if history is unusable.
+
+    Shallow CI clones would make every file look freshly changed, so they return None
+    and the sitemap simply omits lastmod instead of inventing freshness.
+    """
+    try:
+        shallow = subprocess.run(
+            ["git", "-C", str(repo_root), "rev-parse", "--is-shallow-repository"],
+            capture_output=True, text=True, timeout=30, check=True,
+        ).stdout.strip()
+        if shallow != "false":
+            return None
+        log = subprocess.run(
+            ["git", "-C", str(repo_root), "log", "--format=@%cI", "--name-only"],
+            capture_output=True, text=True, timeout=120, check=True,
+        ).stdout
+    except (OSError, subprocess.SubprocessError):
+        return None
+    dates, current = {}, None
+    for line in log.splitlines():
+        if line.startswith("@"):
+            current = line[1:]
+        elif line and current:
+            dates.setdefault(line, current)  # git log is newest first
+    return dates
+
+
+def _page_lastmod(source_path, srcdir, repo_root, dates):
+    """Newest commit date of a page and the files it includes.
+
+    Autodoc pages are generated from Python source, so their RST history is not an
+    honest change date; they get no lastmod at all.
+    """
+    try:
+        text = source_path.read_text(encoding="utf-8")
+    except OSError:
+        return None
+    if _AUTODOC_RE.search(text):
+        return None
+    paths = [source_path]
+    for target in _INCLUDE_RE.findall(text):
+        base = Path(srcdir) if target.startswith("/") else source_path.parent
+        paths.append((base / target.lstrip("/")).resolve())
+    found = []
+    for path in paths:
+        try:
+            key = path.resolve().relative_to(repo_root).as_posix()
+        except ValueError:
+            return None  # included file outside the repository: date unknown
+        if key not in dates:
+            return None  # uncommitted or untracked input: date unknown
+        found.append(datetime.datetime.fromisoformat(dates[key]).astimezone(datetime.timezone.utc))
+    return max(found).strftime("%Y-%m-%d") if found else None
+
+
 def _generate_sitemap(app, exception):
-    """List built documents, excluding copied redirects and Sphinx utility pages."""
+    """List built documents, excluding copied redirects and Sphinx utility pages.
+
+    lastmod is the newest commit touching the page or its include/literalinclude
+    files. It is omitted for autodoc pages, untracked inputs and shallow clones.
+    """
     if exception is not None or app.builder.name != "html":
         return
+    srcdir = Path(app.srcdir).resolve()
+    repo_root = None
+    try:
+        repo_root = Path(subprocess.run(
+            ["git", "-C", str(srcdir), "rev-parse", "--show-toplevel"],
+            capture_output=True, text=True, timeout=30, check=True,
+        ).stdout.strip()).resolve()
+    except (OSError, subprocess.SubprocessError):
+        pass
+    dates = _git_commit_dates(repo_root) if repo_root else None
     lines = [
         '<?xml version="1.0" encoding="UTF-8"?>',
         '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">',
     ]
     for pagename in sorted(app.env.found_docs):
-        lines.append(f"  <url><loc>{escape(_canonical_url(app, pagename))}</loc></url>")
+        loc = f"<loc>{escape(_canonical_url(app, pagename))}</loc>"
+        lastmod = None
+        if dates:
+            lastmod = _page_lastmod(Path(app.env.doc2path(pagename)), srcdir, repo_root, dates)
+        if lastmod:
+            loc += f"<lastmod>{lastmod}</lastmod>"
+        lines.append(f"  <url>{loc}</url>")
     lines.append("</urlset>")
-    # Source-file dates miss included code; shallow CI history also invents freshness.
     (Path(app.outdir) / "sitemap.xml").write_text("\n".join(lines) + "\n", encoding="utf-8")
 
 html_context = {

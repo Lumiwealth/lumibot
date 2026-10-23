@@ -3,7 +3,7 @@
 # If you want to set the environment variables on your computer, you can do so by creating a ".env" file in the root directory of the project
 # and adding the variables described in the "Secrets Configuration" section of the README.md file like this (but without the "# " at the front):
 # IS_BACKTESTING=True
-# POLYGON_API_KEY=p0izKxeskywlLjKi82NLrQPUvSzvlYVT
+# POLYGON_API_KEY=your_polygon_key
 # etc.
 
 import os

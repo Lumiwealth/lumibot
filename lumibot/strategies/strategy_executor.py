@@ -975,6 +975,7 @@ class StrategyExecutor(Thread):
                 update_cash
                 and asset_type not in (
                     Asset.AssetType.CRYPTO,
+                    Asset.AssetType.CRYPTO_FUTURE,
                     Asset.AssetType.FUTURE,
                     Asset.AssetType.CONT_FUTURE,
                     Asset.AssetType.PREDICTION_CONTRACT,
@@ -1015,6 +1016,7 @@ class StrategyExecutor(Thread):
                 update_cash
                 and asset_type not in (
                     Asset.AssetType.CRYPTO,
+                    Asset.AssetType.CRYPTO_FUTURE,
                     Asset.AssetType.FUTURE,
                     Asset.AssetType.CONT_FUTURE,
                     Asset.AssetType.PREDICTION_CONTRACT,

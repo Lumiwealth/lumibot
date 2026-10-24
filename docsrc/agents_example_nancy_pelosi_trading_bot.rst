@@ -8,7 +8,7 @@ Nancy Pelosi Stock Trading Bot
    :alt: Research agent works out what Pelosi owns from her House reports, trading agent makes your account match
    :width: 100%
 
-This bot owns the same stocks Nancy Pelosi owns, in the same mix, sized to your account. It reads her own reports on the U.S. House website, so it copies her whole stock portfolio, not just her latest trade. Why copy her? Her reported portfolio was up an estimated 70.9% in 2024, while the S&P 500 rose 24.9%, according to the Unusual Whales report covered by `Fortune <https://fortune.com/2025/01/08/congress-stock-trading-pelosi-2024>`__.
+This bot estimates Nancy Pelosi's disclosed household stock portfolio and mirrors its weights in your account. It reconstructs the portfolio from public reports instead of following only recent purchases. Reports arrive late and give value ranges, so the result is an approximation of disclosed holdings, not a view of her actual account today.
 
 Want her call options too? The :doc:`agents_example_nancy_pelosi_copy_trading_bot` copies those as well.
 
@@ -17,8 +17,8 @@ How it works
 
 The bot has just two AI agents, and both run every day:
 
-1. **Research agent** goes to Pelosi's official financial disclosure reports on the `House Clerk website <https://disclosures-clerk.house.gov/>`__. It reads her newest yearly report, which lists everything she owned on December 31, plus every trade report filed since, and works out what she owns today and how much of each stock.
-2. **Trading agent** makes your account hold the same stocks in the same percentages. A stock she holds $5 million to $25 million of gets a bigger share of your account than one she holds $1 million to $5 million of. It leaves a stock alone when it is within 2 percentage points of its target, so the account does not trade every day.
+1. **Research agent** reads the newest available annual snapshot on the `House Clerk website <https://disclosures-clerk.house.gov/>`__ and applies disclosed transactions after that snapshot's valuation date. This includes transactions filed before the annual report itself. Partial sales reduce holdings, exercised calls add shares, and amendments correct earlier reports. Each answer retains the complete ledger and its sources, even on quiet days.
+2. **Trading agent** buys the estimated basket on its first iteration, then compares actual holdings with the reconstructed target weights every day. It sells before dependent buys, checks fills and cash, and leaves weights within 2 percentage points of target alone. A failed lookup is not a reason to liquidate existing holdings.
 
 There is no other code. Want a different member of Congress? Change the name in the research agent's prompt.
 
@@ -49,9 +49,10 @@ Good to know
 ------------
 
 * Members of Congress can take up to 45 days to report a trade, so the bot always sees trades late.
-* Reports show dollar ranges, such as $1,000,001 to $5,000,000. The bot uses the middle of each range.
-* The yearly report comes out in May and shows what she owned on December 31. Until the new one is filed, the bot starts from the year before and adds every trade since.
-* In a backtest the website also shows reports from after the test date. The research agent reads the date on each report and skips any report filed after the test day.
+* Reports show dollar ranges, such as $1,000,001 to $5,000,000. The agent estimates quantities from those ranges and available historical prices, then values remaining holdings as of the strategy date. The weights and any unknown quantities remain estimates.
+* An annual report's filing date differs from its year-end holdings date. Applying only trades filed after the annual report would miss intervening changes.
+* Both agents receive the strategy's explicit ``as_of`` timestamp. A backtest reconstructs what could reasonably have been known then, excluding later disclosures and explaining estimated availability dates. The researcher skips any report filed after the test day and any version known to have appeared after the simulated instant.
+* Check the complete holdings, target-versus-actual weights, real simulated fills and remaining cash before trusting a backtest. A completed run with no trades is not proof that reconstruction worked.
 * Pelosi said on November 6, 2025 that she will not run for re-election in 2026 (`NBC News <https://www.nbcnews.com/politics/congress/nancy-pelosi-first-female-speaker-house-wont-seek-re-election-congress-rcna239324>`__). Her reports stop after she leaves office, so change the name in the research prompt to keep the bot trading.
 * The House website says its reports may not be used for most commercial purposes (5 U.S.C. 13107). Check that your use is allowed.
 

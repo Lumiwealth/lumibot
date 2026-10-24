@@ -1758,6 +1758,8 @@ class AgentHandle:
         builtin_skill_fingerprint: str | None,
         reasoning_effort: str | None,
     ) -> dict[str, Any]:
+        from .replay_cache import runtime_capability_fingerprint
+
         bound_tools = self._ensure_bound_tools()
         payload = {
             "user_system_prompt": self.system_prompt,
@@ -1770,6 +1772,7 @@ class AgentHandle:
             "memory_state": memory_state or {},
             "model": model,
             "reasoning_effort": reasoning_effort,
+            "runtime_capabilities": runtime_capability_fingerprint(bound_tools, self._runtime),
             "tool_surface": [
                 {
                     "name": tool.name,
@@ -2239,8 +2242,10 @@ class AgentHandle:
             strategy = self.manager.strategy
             should_replay = bool(getattr(strategy, "is_backtesting", False))
             if should_replay:
+                from .replay_cache import has_failed_tool_result
+
                 cached = self.manager.replay_cache.load(cache_key)
-                if cached is not None:
+                if cached is not None and not has_failed_tool_result(cached):
                     result = self._result_from_cached(cached, cache_key)
                     result.payload = {
                         **(result.payload or {}),

@@ -308,11 +308,11 @@ This is handled by the base prompt and the built-in ``market.load_history_table`
 Replay Cache
 ------------
 
-In backtesting mode, LumiBot caches every agent run. When a subsequent backtest hits the same combination of prompt, context, model, tools, and simulated timestamp, the cached result is returned instantly without calling the LLM or any external tool.
+In backtesting mode, LumiBot records agent runs and replays compatible successful decisions. The identity covers prompts, context, model, tools, simulated timestamp, dependency versions and callable implementation hashes. Explicit failed tool responses remain recorded but trigger fresh execution on the next run, allowing repaired dependencies and external services to recover.
 
 This means:
 
-- **Deterministic backtests.** The same inputs always produce the same outputs.
+- **Reproducible successful decisions.** Compatible saved inputs and runtime capabilities reuse the original output.
 - **Fast warm reruns.** A cached backtest that took 30 minutes on the first run can complete in seconds.
 - **Cost control.** No duplicate LLM API calls or external API calls on repeated runs.
 

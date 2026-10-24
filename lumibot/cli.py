@@ -231,6 +231,21 @@ Documentation: https://lumibot.lumiwealth.com/
 """
 
 
+# Guidance for AI coding assistants (Claude Code, Codex, Cursor and others
+# read AGENTS.md). Written once by `lumibot init`, never overwritten.
+_PROJECT_AGENTS_MD = """# AGENTS.md
+
+Notes for AI coding assistants working on this LumiBot project.
+
+- `strategy.py` holds one ordinary LumiBot `Strategy` subclass. Keep trading logic in it.
+- Backtest before anything else: `lumibot backtest {project} --days 90`.
+- Run against a paper broker with `lumibot run {project} --paper`. Place real-money orders only when the person asks for it.
+- Keep secrets (broker and API keys) in `.env`. Never print them or check them into version control.
+- LumiBot documentation: https://lumibot.lumiwealth.com/
+- Optional: the free BotSpot MCP adds hosted backtests and paper trading to your assistant; connect it with `lumibot connect botspot` or add the MCP server https://mcp.botspot.trade/mcp.
+"""
+
+
 def _class_name(project_dir: Path) -> str:
     """my-great-bot -> MyGreatBot"""
     parts = re.split(r"[^0-9a-zA-Z]+", project_dir.name)
@@ -286,6 +301,10 @@ def cmd_init(args) -> int:
             template.format(class_name=_class_name(project_dir), project=project_dir.name)
         )
         (project_dir / "README.md").write_text(_PROJECT_README.format(project=project_dir.name))
+        agents_file = project_dir / "AGENTS.md"
+        if not agents_file.exists():
+            # Only when missing: an existing AGENTS.md is the user's, even with --force.
+            agents_file.write_text(_PROJECT_AGENTS_MD.format(project=project_dir.name))
     except OSError as exc:
         print(f"Could not write to {project_dir}: {exc.strerror or exc}", file=sys.stderr)
         return 1
@@ -559,17 +578,46 @@ def cmd_version(args) -> int:
 def cmd_connect(args) -> int:
     """Link the optional BotSpot research server for strategy agents.
 
-    Writes BOTSPOT_RESEARCH_MCP_URL and BOTSPOT_RESEARCH_MCP_TOKEN to a dotenv
-    file only after BotSpot accepts the key. The key is never printed.
+    Default: device login (OAuth 2.0 device authorization grant, RFC 8628). It
+    prints a short code and opens the BotSpot page where the person signs in
+    (a free account is created if needed) and approves it. BotSpot creates a
+    key for them, the command checks it, then writes BOTSPOT_RESEARCH_MCP_URL
+    and BOTSPOT_RESEARCH_MCP_TOKEN to the dotenv file. The key is never
+    printed. A BotSpot server without device login falls back to the key page
+    flow. ``--token`` checks an existing key and ``--paste`` keeps the paste
+    flow.
     """
     from lumibot.components.agents import botspot_hint
 
     url = botspot_hint.connect_url(medium="cli", content="connect_command")
     token = (args.token or "").strip()
+    env_file = Path(args.env_file)
+    api_base = (args.api_url or "").strip().rstrip("/") or botspot_hint.api_base_url()
+    can_open_browser = not args.no_browser and sys.stdin.isatty()
+    if not token and not args.paste:
+        # Default: device login. No copy and paste; the key goes straight into
+        # the .env file and is never printed.
+        opener = None
+        if can_open_browser:
+            import webbrowser
+
+            opener = webbrowser.open
+        try:
+            result = botspot_hint.run_device_login(
+                api_base, sys.stdout, sys.stderr, opener, timeout=args.timeout
+            )
+        except botspot_hint.DeviceLoginUnavailable:
+            print("Code login is not available on this BotSpot server yet. Using the key page instead.")
+            result = False
+        if result is None:
+            return 1
+        if result:
+            research_url, key = result
+            return _save_botspot_key(botspot_hint, env_file, research_url, key, issued=True)
     if not token:
         print("Connect BotSpot research to your LumiBot strategy agents (free BotSpot account).")
         print(f"1. Create a Research key: {url}")
-        if not args.no_browser and sys.stdin.isatty():
+        if can_open_browser:
             import webbrowser
 
             webbrowser.open(url)
@@ -583,18 +631,26 @@ def cmd_connect(args) -> int:
             print("No key entered. Nothing was changed.", file=sys.stderr)
             return 2
 
-    ok, detail = botspot_hint.verify_research_key(botspot_hint.RESEARCH_MCP_URL, token)
-    if not ok:
-        print(f"BotSpot research key check failed ({detail}). Nothing was changed.", file=sys.stderr)
-        return 1
+    research_url = botspot_hint.research_mcp_url_for(api_base)
+    return _save_botspot_key(botspot_hint, env_file, research_url, token, issued=False)
 
-    env_file = Path(args.env_file)
+
+def _save_botspot_key(botspot_hint, env_file: Path, research_url: str, key: str, issued: bool) -> int:
+    """Check the key against BotSpot, then write it. The key is never printed."""
+    ok, detail = botspot_hint.verify_research_key(research_url, key)
+    if not ok:
+        if issued:
+            print(
+                f"BotSpot created a key but it did not pass the check ({detail}). Nothing was saved; "
+                "you can revoke that key on your BotSpot API keys page.",
+                file=sys.stderr,
+            )
+        else:
+            print(f"BotSpot research key check failed ({detail}). Nothing was changed.", file=sys.stderr)
+        return 1
     botspot_hint.write_env_values(
         env_file,
-        {
-            "BOTSPOT_RESEARCH_MCP_URL": botspot_hint.RESEARCH_MCP_URL,
-            "BOTSPOT_RESEARCH_MCP_TOKEN": token,
-        },
+        {"BOTSPOT_RESEARCH_MCP_URL": research_url, "BOTSPOT_RESEARCH_MCP_TOKEN": key},
     )
     print(f"Connected. Saved BOTSPOT_RESEARCH_MCP_URL and BOTSPOT_RESEARCH_MCP_TOKEN to {env_file}.")
     print("Strategy agents attach BotSpot research automatically when those are set.")
@@ -649,9 +705,21 @@ def build_parser() -> argparse.ArgumentParser:
 
     p_connect = sub.add_parser("connect", help="Link optional BotSpot research for strategy agents")
     p_connect.add_argument("service", choices=["botspot"], help="Service to connect")
-    p_connect.add_argument("--token", help="BotSpot Research key (otherwise prompted)")
+    p_connect.add_argument("--token", help="An existing BotSpot API key (default: log in with a short code)")
+    p_connect.add_argument("--paste", action="store_true", help="Paste a key made on the website instead of logging in")
     p_connect.add_argument("--env-file", default=".env", help="Dotenv file to update (default: .env)")
-    p_connect.add_argument("--no-browser", action="store_true", help="Do not open the key page")
+    p_connect.add_argument("--no-browser", action="store_true", help="Do not open the approval page")
+    p_connect.add_argument(
+        "--api-url",
+        default=None,
+        help="BotSpot API to log in against (default: BOTSPOT_API_URL, else https://api.botspot.trade)",
+    )
+    p_connect.add_argument(
+        "--timeout",
+        type=float,
+        default=None,
+        help="Seconds to wait for approval (default: until the code expires, at most 15 minutes)",
+    )
     p_connect.set_defaults(func=cmd_connect)
 
     return parser

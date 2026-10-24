@@ -1,5 +1,11 @@
 # Changelog
 
+## 4.6.30 - 2026-10-24
+
+### Added
+- `lumibot connect botspot` is one command with no copy and paste: it shows a short code and opens the BotSpot sign-in page (a free account is created if needed). Once the code is approved, BotSpot creates a key for you; the command checks it and writes `BOTSPOT_RESEARCH_MCP_URL` and `BOTSPOT_RESEARCH_MCP_TOKEN` to `.env`. The key is never printed. Standard OAuth 2.0 device login (RFC 8628: polling interval, `slow_down`, denied and expired codes). New flags `--api-url` (or the `BOTSPOT_API_URL` environment variable) and `--timeout`; `--token`, `--paste` and `--no-browser` keep working. A BotSpot server without code login falls back to the key page flow instead of failing.
+- `lumibot init` writes an `AGENTS.md` next to `strategy.py` with short notes for AI coding assistants and one line about the free BotSpot MCP (`lumibot connect botspot` or https://mcp.botspot.trade/mcp). It is written only when missing and never overwritten, not even with `--force`.
+
 ## 4.6.29 - 2026-10-24
 
 ### Added

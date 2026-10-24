@@ -12,8 +12,7 @@ import stat
 import pytest
 
 from lumibot import cli
-from lumibot.components.agents import AgentManager
-from lumibot.components.agents import botspot_hint
+from lumibot.components.agents import AgentManager, botspot_hint
 
 _QUIET_ENVS = (
     "LUMIBOT_NO_BOTSPOT_HINT",
@@ -149,10 +148,10 @@ def test_connect_rejected_key_writes_nothing(tmp_path, monkeypatch, capsys):
     assert "HTTP 401" in capsys.readouterr().err
 
 
-def test_connect_without_token_and_no_terminal_explains_the_steps(tmp_path, monkeypatch, capsys):
+def test_connect_paste_without_terminal_explains_the_steps(tmp_path, monkeypatch, capsys):
     monkeypatch.setattr("sys.stdin.isatty", lambda: False, raising=False)
     env_file = tmp_path / ".env"
-    assert cli.main(["connect", "botspot", "--env-file", str(env_file), "--no-browser"]) == 2
+    assert cli.main(["connect", "botspot", "--paste", "--env-file", str(env_file), "--no-browser"]) == 2
     out = capsys.readouterr()
     combined = out.out + out.err
     assert "https://botspot.trade/account-settings/api-keys?" in combined
@@ -235,3 +234,156 @@ def test_trader_run_all_shows_the_startup_tip(monkeypatch):
     with pytest.raises(RuntimeError, match="No strategies to run"):
         Trader(backtest=True).run_all()
     assert calls == [1]
+# ---- device login: no website trip, no copy and paste (Rob, 2026-10-24) ----
+
+
+class _FakeDeviceServer:
+    """Answers like BotSpot's device endpoints, without a network."""
+
+    def __init__(self, pending_polls=1, final=None):
+        self.pending_polls = pending_polls
+        self.final = final or {
+            "api_key": "botspot_devicekey123",
+            "key_prefix": "botspot_devi",
+            "preset": "lumibot_agent",
+            "research_mcp_url": "https://api.botspot.trade/research-mcp",
+        }
+        self.started = []
+        self.polls = 0
+
+    def start(self, api_base, client_name):
+        self.started.append((api_base, client_name))
+        return {
+            "device_code": "device-secret-abc",
+            "user_code": "BCDF-GHJK",
+            "verification_uri": "https://botspot.trade/account-settings/api-keys",
+            "verification_uri_complete": "https://botspot.trade/account-settings/api-keys?device=BCDF-GHJK",
+            "expires_in": 600,
+            "interval": 5,
+        }
+
+    def poll(self, api_base, device_code):
+        assert device_code == "device-secret-abc"
+        self.polls += 1
+        if self.polls <= self.pending_polls:
+            return {"error": "authorization_pending"}
+        return self.final
+
+
+def _use_fake_device(monkeypatch, server):
+    monkeypatch.setattr(botspot_hint, "start_device_login", server.start)
+    monkeypatch.setattr(botspot_hint, "poll_device_login", server.poll)
+    # The issued key is checked before it is saved (4.6.30); accept it here.
+    monkeypatch.setattr(botspot_hint, "verify_research_key", lambda url, token: (True, "HTTP 200"))
+    sleeps = []
+    monkeypatch.setattr(botspot_hint, "_sleep", sleeps.append)
+    return sleeps
+
+
+def test_connect_without_token_logs_in_with_a_device_code(tmp_path, monkeypatch, capsys):
+    server = _FakeDeviceServer(pending_polls=2)
+    sleeps = _use_fake_device(monkeypatch, server)
+    env_file = tmp_path / ".env"
+    assert cli.main(["connect", "botspot", "--env-file", str(env_file), "--no-browser"]) == 0
+    out = capsys.readouterr().out
+    # The person sees the code, the page, and that their AI app can approve it.
+    assert "BCDF-GHJK" in out
+    assert "https://botspot.trade/account-settings/api-keys?device=BCDF-GHJK" in out
+    assert "approve" in out.lower()
+    # The key goes straight to .env and is never printed.
+    text = env_file.read_text()
+    assert "BOTSPOT_RESEARCH_MCP_TOKEN=botspot_devicekey123\n" in text
+    assert "BOTSPOT_RESEARCH_MCP_URL=https://api.botspot.trade/research-mcp\n" in text
+    assert "botspot_devicekey123" not in out
+    assert stat.S_IMODE(os.stat(env_file).st_mode) == 0o600
+    assert server.started == [("https://api.botspot.trade", "LumiBot CLI")]
+    assert server.polls == 3
+    assert sleeps == [5, 5, 5]
+
+
+def test_device_login_honors_slow_down(tmp_path, monkeypatch):
+    server = _FakeDeviceServer(pending_polls=0)
+    answers = iter([{"error": "slow_down"}, server.final])
+    monkeypatch.setattr(botspot_hint, "start_device_login", server.start)
+    monkeypatch.setattr(botspot_hint, "poll_device_login", lambda base, code: next(answers))
+    monkeypatch.setattr(botspot_hint, "verify_research_key", lambda url, token: (True, "HTTP 200"))
+    sleeps = []
+    monkeypatch.setattr(botspot_hint, "_sleep", sleeps.append)
+    assert cli.main(["connect", "botspot", "--env-file", str(tmp_path / ".env"), "--no-browser"]) == 0
+    assert sleeps == [5, 10]
+
+
+def test_device_login_denied_or_expired_writes_nothing(tmp_path, monkeypatch, capsys):
+    for error, word in (("access_denied", "denied"), ("expired_token", "expired")):
+        server = _FakeDeviceServer(pending_polls=0, final={"error": error})
+        _use_fake_device(monkeypatch, server)
+        env_file = tmp_path / f"{error}.env"
+        assert cli.main(["connect", "botspot", "--env-file", str(env_file), "--no-browser"]) == 1
+        assert not env_file.exists()
+        assert word in capsys.readouterr().err.lower()
+
+
+def test_device_login_ignores_a_research_url_on_another_host(tmp_path, monkeypatch):
+    server = _FakeDeviceServer(
+        pending_polls=0,
+        final={"api_key": "botspot_k", "research_mcp_url": "https://evil.example/research-mcp"},
+    )
+    _use_fake_device(monkeypatch, server)
+    env_file = tmp_path / ".env"
+    assert cli.main(["connect", "botspot", "--env-file", str(env_file), "--no-browser"]) == 0
+    assert "BOTSPOT_RESEARCH_MCP_URL=https://api.botspot.trade/research-mcp\n" in env_file.read_text()
+
+
+def test_device_login_uses_a_configured_botspot_api(tmp_path, monkeypatch):
+    monkeypatch.setenv("BOTSPOT_API_URL", "https://api.dev.botspot.trade/")
+    server = _FakeDeviceServer(
+        pending_polls=0,
+        final={"api_key": "botspot_k", "research_mcp_url": "https://api.dev.botspot.trade/research-mcp"},
+    )
+    _use_fake_device(monkeypatch, server)
+    env_file = tmp_path / ".env"
+    assert cli.main(["connect", "botspot", "--env-file", str(env_file), "--no-browser"]) == 0
+    assert server.started[0][0] == "https://api.dev.botspot.trade"
+    assert "BOTSPOT_RESEARCH_MCP_URL=https://api.dev.botspot.trade/research-mcp\n" in env_file.read_text()
+
+
+def test_device_http_helpers_speak_rfc8628_json():
+    """The real request code against a local HTTP server: JSON in, JSON out, 400 errors parsed."""
+    import json
+    import threading
+    from http.server import BaseHTTPRequestHandler, HTTPServer
+
+    seen = []
+
+    class Handler(BaseHTTPRequestHandler):
+        def do_POST(self):
+            body = json.loads(self.rfile.read(int(self.headers["Content-Length"])))
+            seen.append((self.path, body))
+            if self.path.endswith("/device/code"):
+                status, answer = 200, {"device_code": "d", "user_code": "BCDF-GHJK", "interval": 5}
+            else:
+                status, answer = 400, {"error": "authorization_pending"}
+            data = json.dumps(answer).encode()
+            self.send_response(status)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Content-Length", str(len(data)))
+            self.end_headers()
+            self.wfile.write(data)
+
+        def log_message(self, *args):
+            pass
+
+    httpd = HTTPServer(("127.0.0.1", 0), Handler)
+    thread = threading.Thread(target=httpd.serve_forever, daemon=True)
+    thread.start()
+    try:
+        base = f"http://127.0.0.1:{httpd.server_address[1]}"
+        started = botspot_hint.start_device_login(base, "LumiBot CLI")
+        assert started["user_code"] == "BCDF-GHJK"
+        assert botspot_hint.poll_device_login(base, "d") == {"error": "authorization_pending"}
+    finally:
+        httpd.shutdown()
+    assert seen == [
+        ("/mcp-api-keys/device/code", {"client_name": "LumiBot CLI", "preset": "lumibot_agent"}),
+        ("/mcp-api-keys/device/token", {"device_code": "d"}),
+    ]

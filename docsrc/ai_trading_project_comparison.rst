@@ -106,6 +106,8 @@ Detailed Comparisons
    lumibot_vs_openalice
    lumibot_vs_quantdinger
    lumibot_vs_lean
+   lumibot_vs_freqtrade
+   lumibot_vs_backtrader
 
 Why Lumibot Is Different
 ************************

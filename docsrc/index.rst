@@ -14,6 +14,9 @@ the same strategy interface.
 
 .. include:: _snippets/botspot_mcp_callout.rst
 
+**Building with Claude Code, Codex or Cursor?** :doc:`Install the free LumiBot trading skills in one command <claude_code_codex_cursor>`,
+then connect the free BotSpot MCP so your assistant can run backtests for you.
+
 **The strategy class can stay the same. The code that starts it must select a
 backtest or a broker run.** See :doc:`strategy_run_modes` before running an
 example: ``IS_BACKTESTING=false`` alone cannot turn a backtest-only file into
@@ -504,7 +507,10 @@ Compared With AI Trading Agent Projects
      - Limited live focus
      - No
 
-Read the detailed comparison page: :doc:`ai_trading_project_comparison`.
+Read the detailed comparison page: :doc:`ai_trading_project_comparison`, or a
+side-by-side page: :doc:`LumiBot vs OpenAlice <lumibot_vs_openalice>`,
+:doc:`vs TradingAgents <lumibot_vs_tradingagents>`, :doc:`vs QuantConnect LEAN <lumibot_vs_lean>`,
+:doc:`vs freqtrade <lumibot_vs_freqtrade>` and :doc:`vs Backtrader <lumibot_vs_backtrader>`.
 
 Polymarket Trading And Backtesting
 ----------------------------------
@@ -535,13 +541,13 @@ Compared With Backtesting Libraries
      - Built-in
      - Alpaca, IBKR, Tradier, Schwab, Tradovate, ProjectX, Bitunix, Polymarket, selected CCXT
      - BotSpot
-   * - Backtrader
+   * - :doc:`Backtrader <lumibot_vs_backtrader>`
      - Yes
      - Stocks, limited crypto/futures, outdated forex
      - No
      - IB and other integrations; verify adapter maintenance
      - No
-   * - Freqtrade
+   * - :doc:`Freqtrade <lumibot_vs_freqtrade>`
      - Crypto
      - Crypto
      - FreqAI/ML
@@ -587,6 +593,7 @@ Table of Contents
 
    Home <self>
    Build and Deploy with BotSpot <https://botspot.trade/sales?showLogin=1&utm_source=documentation&utm_medium=sidebar&utm_campaign=lumibot&utm_content=sidebar_build_bots&sample=lumibot_deploy_sample>
+   Claude Code, Codex and Cursor <claude_code_codex_cursor>
    BotSpot MCP Integration <botspot_mcp>
    Start Here / Python Setup <getting_started>
    The lumibot Command <cli>

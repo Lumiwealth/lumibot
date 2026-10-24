@@ -71,6 +71,7 @@ def test_every_hand_written_broker_page_is_checked():
         "brokers.ccxt.bitmex", "brokers.crypto", "brokers.data_sources", "brokers.futures",
         "brokers.interactive_brokers", "brokers.interactive_brokers_legacy", "brokers.polymarket",
         "brokers.prediction_markets", "brokers.projectx", "brokers.schwab", "brokers.stocks_options",
+        "brokers.options", "brokers.forex",
         "brokers.tradier", "brokers.tradovate",
     ]:
         assert expected in names
@@ -189,7 +190,7 @@ def test_exchanges_sit_directly_under_crypto_exchanges_with_plain_names():
     assert ".. toctree::" not in ccxt[start:end], "exchange pages must not nest under the CCXT page"
     assert "CCXT" not in ccxt.split("\n")[2], "the CCXT page title should not say CCXT"
     menu = (DOCSRC / "brokers.rst").read_text(encoding="utf-8")
-    assert "Crypto exchanges <brokers.crypto>" in menu
+    assert "Crypto <brokers.crypto>" in menu
 
 
 def test_callout_says_free_and_never_paid_plan_required():
@@ -227,3 +228,45 @@ def test_brokers_page_shows_every_asset_class_per_broker():
     for page in ("brokers.alpaca", "brokers.schwab", "brokers.interactive_brokers", "brokers.tradier",
                  "brokers.tradovate", "brokers.projectx", "brokers.bitunix", "brokers.polymarket"):
         assert f"<{page}>`" in table, page
+
+
+def _hidden_toctree_docs(page):
+    text = (DOCSRC / f"{page}.rst").read_text(encoding="utf-8")
+    docs, inside = set(), False
+    for line in text.splitlines():
+        if line.startswith(".. toctree::"):
+            inside = True
+            continue
+        if inside:
+            if line and not line.startswith(" "):
+                inside = False
+                continue
+            m = re.search(r"<([^>]+)>\s*$", line)
+            if m:
+                docs.add(m.group(1))
+    return docs
+
+
+def test_brokers_appear_under_every_asset_class_they_support():
+    """Rob, 2026-10-24: a broker sits in the menu under every asset class it trades, not one main group."""
+    menu = (DOCSRC / "brokers.rst").read_text(encoding="utf-8")
+    for label in ("Stocks <brokers.stocks_options>", "Options <brokers.options>", "Futures <brokers.futures>",
+                  "Crypto <brokers.crypto>", "Forex <brokers.forex>", "Prediction markets <brokers.prediction_markets>"):
+        assert label in menu, label
+    expected = {
+        "brokers.alpaca": {"brokers.stocks_options", "brokers.options", "brokers.crypto"},
+        "brokers.schwab": {"brokers.stocks_options", "brokers.options"},
+        "brokers.tradier": {"brokers.stocks_options", "brokers.options"},
+        "brokers.interactive_brokers": {"brokers.stocks_options", "brokers.options", "brokers.futures", "brokers.forex"},
+        "brokers.interactive_brokers_legacy": {"brokers.stocks_options", "brokers.options", "brokers.futures", "brokers.forex"},
+        "brokers.bitunix": {"brokers.crypto", "brokers.futures"},
+        "brokers.tradovate": {"brokers.futures"},
+        "brokers.projectx": {"brokers.futures"},
+        "brokers.polymarket": {"brokers.prediction_markets"},
+    }
+    groups = ["brokers.stocks_options", "brokers.options", "brokers.futures", "brokers.crypto",
+              "brokers.forex", "brokers.prediction_markets"]
+    listed = {g: _hidden_toctree_docs(g) for g in groups}
+    for broker, want in expected.items():
+        have = {g for g in groups if broker in listed[g]}
+        assert have == want, (broker, sorted(have))

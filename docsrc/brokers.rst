@@ -53,7 +53,7 @@ LumiBot connects to **100+ brokers and crypto exchanges**. There are eight direc
 Brokers by asset class
 ----------------------
 
-Many brokers trade more than one asset class. In the menu each broker sits in one group (its main one), but it works for every asset class it supports. Use this table to find brokers for stocks, options, futures, crypto, forex or prediction markets.
+Many brokers trade more than one asset class. In the menu each broker appears under every asset class it supports. Alpaca, for example, is listed under Stocks, Options and Crypto. Use this table to find brokers for stocks, options, futures, crypto, forex or prediction markets.
 
 .. list-table:: Asset classes each broker supports in LumiBot
    :header-rows: 1
@@ -159,9 +159,11 @@ Broker setup is easier on `BotSpot <https://botspot.trade/sales?showLogin=1&utm_
    :maxdepth: 2
    :hidden:
 
-   Stocks & options <brokers.stocks_options>
+   Stocks <brokers.stocks_options>
+   Options <brokers.options>
    Futures <brokers.futures>
-   Crypto exchanges <brokers.crypto>
+   Crypto <brokers.crypto>
+   Forex <brokers.forex>
    Prediction markets <brokers.prediction_markets>
    Backtesting data sources <brokers.data_sources>
    All brokers A to Z <brokers.all>
@@ -169,9 +171,11 @@ Broker setup is easier on `BotSpot <https://botspot.trade/sales?showLogin=1&utm_
 Brokers by type
 ---------------
 
-* **Stocks and options:** :doc:`Alpaca <brokers.alpaca>`, :doc:`Charles Schwab <brokers.schwab>`, :doc:`Interactive Brokers <brokers.interactive_brokers>` and :doc:`Tradier <brokers.tradier>`. See :doc:`brokers.stocks_options`.
-* **Futures:** :doc:`Tradovate <brokers.tradovate>`, :doc:`TopstepX through ProjectX <brokers.projectx>` and :doc:`Interactive Brokers <brokers.interactive_brokers>`. See :doc:`brokers.futures`.
-* **Crypto exchanges:** :doc:`CCXT <brokers.ccxt>` (Binance, Coinbase, Kraken, OKX, Bybit, Hyperliquid and 100+ more) and :doc:`Bitunix <brokers.bitunix>`. See :doc:`brokers.crypto`.
+* **Stocks:** :doc:`Alpaca <brokers.alpaca>`, :doc:`Charles Schwab <brokers.schwab>`, :doc:`Interactive Brokers <brokers.interactive_brokers>` and :doc:`Tradier <brokers.tradier>`. See :doc:`brokers.stocks_options`.
+* **Options:** the same four. See :doc:`brokers.options`.
+* **Forex:** :doc:`Interactive Brokers <brokers.interactive_brokers>`. See :doc:`brokers.forex`.
+* **Futures:** :doc:`Tradovate <brokers.tradovate>`, :doc:`TopstepX through ProjectX <brokers.projectx>`, :doc:`Interactive Brokers <brokers.interactive_brokers>`, plus crypto perpetuals on :doc:`Bitunix <brokers.bitunix>` and many crypto exchanges. See :doc:`brokers.futures`.
+* **Crypto:** 100+ exchanges (Binance, Coinbase, Kraken, OKX, Bybit, Hyperliquid and more), :doc:`Bitunix <brokers.bitunix>` and :doc:`Alpaca <brokers.alpaca>`. See :doc:`brokers.crypto`.
 * **Prediction markets:** :doc:`Polymarket <brokers.polymarket>`. See :doc:`brokers.prediction_markets`.
 * **Backtesting data sources:** you do not need a broker to backtest. See :doc:`brokers.data_sources` for Yahoo, Polygon, ThetaData, Databento, Interactive Brokers, Alpaca and your own CSV data.
 * **Every broker and exchange:** :doc:`brokers.all` lists all of them in one table you can filter.

@@ -35,8 +35,11 @@ Trade CME futures from a LumiBot strategy or AI agent with one of these brokers.
 
    Tradovate <brokers.tradovate>
    TopstepX (ProjectX) <brokers.projectx>
+   Interactive Brokers <brokers.interactive_brokers>
+   Interactive Brokers (legacy TWS) <brokers.interactive_brokers_legacy>
+   Bitunix (crypto perpetuals) <brokers.bitunix>
 
-Interactive Brokers sits under :doc:`brokers.stocks_options` in the sidebar because it also trades stocks and options.
+Interactive Brokers also trades stocks, options and forex, so it appears under those groups too. For crypto perpetual futures, see :doc:`Bitunix <brokers.bitunix>` and the :doc:`crypto exchanges <brokers.crypto>`.
 
 To backtest a futures strategy before you connect a broker, see :doc:`Databento <backtesting.databento>`, :doc:`Interactive Brokers history <backtesting.ibkr>` and :doc:`futures`.
 

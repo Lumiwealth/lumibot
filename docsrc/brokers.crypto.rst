@@ -28,6 +28,7 @@ LumiBot trades crypto on 100+ exchanges through one shared crypto broker (built 
 
    How crypto exchange setup works <brokers.ccxt>
    Bitunix <brokers.bitunix>
+   Alpaca <brokers.alpaca>
 
 .. lumibot-exchange-toctree::
 

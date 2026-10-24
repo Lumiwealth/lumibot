@@ -1,6 +1,6 @@
 # Indicators Architecture
 
-**Last Updated:** 2026-04-16
+**Last Updated:** 2026-10-24
 **Status:** Active
 **Audience:** Contributors / AI sessions maintaining `lumibot/indicators/indicators.py`
 
@@ -130,7 +130,8 @@ new data source adds a store-key convention.
 
 ## What we deliberately don't do
 
-- **No streaming / incremental indicator updates.** The full-history compute
+- **No streaming / incremental updates in the pandas-ta accessor** (Indicator v2
+  above is the streaming model). The full-history compute
   runs on first call or when the frame grows; it does not maintain
   partial-sum state. The indicators we expose (`sma`, `rsi`, `bbands`, custom
   rolling ops) are all cheap enough that recompute on frame growth is fine.
@@ -149,6 +150,46 @@ new data source adds a store-key convention.
   detection) currently shuttle that via `self.vars.prev_val = current_val`.
   Extending the API to support `self.indicators.sma(asset, length=20, offset=-1)`
   is plausible but has not been a blocker for the strategies we've ported.
+
+## Indicator v2 (one-bar updates), added 2026-10-24
+
+A second, class-based indicator model lives next to the pandas-ta accessor.
+User docs: `docsrc/building_indicators.rst`.
+
+- `lumibot/indicators/base.py`: `Indicator`, `InputSpec`, `OutputSpec`,
+  `Level`, `Bar`, bar normalization (`to_bar`, `iter_bars`).
+- `lumibot/indicators/primitives.py`: O(1) incremental `RollingSMA`,
+  `SeededEMA`, `SeededRMA`, `RollingStdev` (sliding Welford), `RollingMax` /
+  `RollingMin` (monotonic deque), `Previous`, `safe_div`. Rolling sums are
+  re-summed exactly once every `length` updates to bound float drift.
+- `lumibot/indicators/builtin.py`: the nine built-ins (Pine v6 math).
+- `lumibot/indicators/indicator_registry.py`: `registry` (key -> version ->
+  class). `(key, version)` is immutable.
+- `lumibot/indicators/runner.py`: `IndicatorRunner` (history through
+  `get_historical_prices`, then `on_bar`).
+- `Indicators.get()` in `indicators.py`: keeps one live v2 instance per
+  (asset, timestep, key, version, inputs, quote, exchange) and feeds only bars
+  that appeared since the last call.
+
+Invariants (all pinned by `tests/test_indicators_v2.py`):
+
+1. **Rollback.** `update(bar, closed=False)` runs `step` on a deep copy of the
+   committed state, so forming ticks never leak. This is why authors must keep
+   all mutable data inside `init_state()`'s return value. The copy is sized by
+   the indicator's windows, not by processed history.
+2. **compute == loop.** Default `compute()` is `feed()` on a fresh instance.
+   A vectorized override must keep the parity test green.
+3. **No lookahead.** `compute(bars[:k]) == compute(bars)[:k]` for every
+   built-in.
+4. **Closed bars move forward in time**; an older or equal timestamp raises.
+5. **`get()` rebuild rule.** It rebuilds from observed history when time
+   rewinds or when the last bar it consumed changed. A correction to an older
+   bar (not the last consumed one) is not detected, by design: detecting it
+   would need a full-history hash per call, which is the O(N) cost v2 exists
+   to avoid. The pandas-ta accessor keeps its full-hash behavior.
+6. `get()` still goes through `_full_history` (prefetch, store lookup) and
+   `_record_consumed_input` (backtest market-input evidence), and slices input
+   to strategy time before feeding.
 
 ## Known gaps / follow-ups
 

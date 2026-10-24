@@ -3,6 +3,8 @@
 ## 4.6.31 - Unreleased
 
 ### Fixed
+- Agent backtests bind replay identity to dependency versions and callable source hashes. Explicit failed tool responses remain recorded but are not replayed, allowing repaired research capabilities to recover while compatible successful decisions remain reusable.
+- Portfolio reconstruction examples distinguish an annual snapshot's valuation date from its filing date, retain complete holdings across daily handoffs, and explicitly pass simulation time and prior research to the trading agent. Prompts cover initial basket purchases, partial sales, exercises, amendments and research failures.
 - `lumibot connect botspot` handles odd server answers cleanly: a JSON "Not Found" from a server without code login still falls back to the key page, a 429 or 5xx while waiting for approval keeps polling instead of stopping, a non-object answer gives a clear error instead of a traceback, and a missing or invalid `interval`/`expires_in` uses the RFC 8628 defaults.
 
 ## 4.6.30 - 2026-10-24

@@ -593,8 +593,8 @@ Table of Contents
 
    Home <self>
    Build and Deploy with BotSpot <https://botspot.trade/sales?showLogin=1&utm_source=documentation&utm_medium=sidebar&utm_campaign=lumibot&utm_content=sidebar_build_bots&sample=lumibot_deploy_sample>
-   Claude Code, Codex and Cursor <claude_code_codex_cursor>
    BotSpot MCP Integration <botspot_mcp>
+   Claude Code, Codex and Cursor <claude_code_codex_cursor>
    Start Here / Python Setup <getting_started>
    The lumibot Command <cli>
    Python Strategy Examples <examples>

@@ -1,6 +1,6 @@
 # Changelog
 
-## 4.6.28 - unreleased
+## 4.6.28 - 2026-10-23
 
 ### Added
 - Alpaca adapters accept caller-owned trading and stock, option, and crypto data clients. Injected clients own their authentication, use the existing order-polling lifecycle, and remain configured after data authentication resets. Standalone API-key and OAuth connections keep their existing behavior.
@@ -11,7 +11,7 @@
 - Docs: a "Frequently asked questions" section on every hand-written broker page, the backtesting data-source pages and the top docs pages by search impressions. Each FAQ is emitted as FAQPage JSON-LD (`_add_faq_schema` in `docsrc/conf.py`, rendered from `_templates/base.html`, which is the template Furo actually uses; the old FAQ page schema in `layout.html` never rendered).
 - Docs: one shared BotSpot MCP callout (`docsrc/_snippets/botspot_mcp_callout.rst`) near the top of broker, exchange, backtesting, getting started, AI agent pages and the homepage, plus a "Why connect the free BotSpot MCP" section on the BotSpot MCP page.
 - Docs: brokers grouped in the sidebar (Stocks & options, Futures, Crypto exchanges, Prediction markets, Backtesting data sources) and an all brokers A to Z page with a filter box. Every exchange guide sits directly under "Crypto exchanges" with its plain name. Page URLs are unchanged.
-- Docs: an asset-class table (stocks, options, futures, crypto, forex, prediction markets) on the brokers page, and the Bing Webmaster verification file for lumibot.lumiwealth.com.
+- Docs: an asset-class table (stocks, options, futures, crypto, forex, prediction markets) on the brokers page, each broker listed under every asset class it trades (new Options and Forex groups), and the Bing Webmaster verification file for lumibot.lumiwealth.com.
 
 ### Changed
 - CCXT partner IDs and builder fees: CCXT tags orders with its own partner ID on many exchanges (Binance, Bitget, MEXC, BingX, HTX, OKX, Bybit, Phemex, Coinbase, Gate, KuCoin, Bitmart, Blofin, Coinex, Crypto.com, Paradex and others) and adds an extra user-paid builder fee on Hyperliquid, Lighter, GRVT, Aster, Pacifica and Extended, plus a CCXT referrer on Hyperliquid. LumiBot now removes CCXT's IDs, turns CCXT's builder fees and referrer off, and attaches only its own configured IDs (`LUMIBOT_CCXT_PARTNER_IDS`, default empty). A builder fee is added only when configured (`LUMIBOT_CCXT_BUILDER_FEES`) and is logged as a warning because it costs the user extra. New `lumibot.tools.ccxt_partner_ids`, applied to every CCXT client LumiBot creates. HTX perpetual orders, WOO X, WOOFi Pro and ModeTrade still carry CCXT's tag because CCXT re-adds it while signing.

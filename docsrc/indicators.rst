@@ -203,12 +203,3 @@ iteration returns the current-bar row in O(log N) without re-running the
 rolling-window math.
 
 See :doc:`standalone_components` for use in scripts and notebooks.
-
-Indicators that update one bar at a time
-----------------------------------------
-
-``self.indicators.get(key, asset, **inputs)`` runs an Indicator v2 from the
-registry (``sma``, ``ema``, ``rsi``, ``macd``, ``bbands``, ``atr``, ``stoch``,
-``vwap``, ``wavetrend`` or your own) and returns the current bar's outputs as a
-dict. Each new bar costs one update, and the same indicator class also runs
-outside a strategy and on live charts. See :doc:`building_indicators`.

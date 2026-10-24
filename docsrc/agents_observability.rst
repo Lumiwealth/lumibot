@@ -76,7 +76,7 @@ From strategy code, the trace path is available on the result object:
 Replay Cache
 ------------
 
-In backtests, LumiBot caches every agent run. When a subsequent run hits the same combination of prompt, context, model, tool surface, and simulated timestamp, the cached result is returned without making any LLM or MCP calls.
+In backtests, LumiBot records agent runs and reuses compatible successful decisions. Replay identity includes the prompt, context, model, tool surface, simulated timestamp, installed dependency versions and callable implementation hashes. A repaired or changed runtime gets a fresh decision. Results containing explicit failed tool responses are retained as evidence but are not replayed, so an earlier missing dependency or failed lookup cannot permanently prevent recovery.
 
 Warm reruns show:
 
@@ -164,7 +164,7 @@ SHV is the defensive parking asset in many demo strategies. If the agent always 
 
 **What does cache_hit=True mean?**
 
-It means the agent run result was replayed from the replay cache instead of making fresh LLM and tool calls. The inputs (prompt, context, model, tools, simulated timestamp) matched a previously cached run. The output is identical to the original run. If you suspect the cached result is wrong, clear the cache directory and rerun to get a fresh result.
+It means a compatible successful agent result was replayed instead of making fresh LLM and tool calls. Its request inputs and runtime capabilities matched the saved run. The output retains the original decision's provenance. Explicit tool failures are not reused as decisions; changing dependencies or callable implementation code also changes replay identity.
 
 **How do I clear the cache for a fresh run?**
 

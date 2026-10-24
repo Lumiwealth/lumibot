@@ -175,13 +175,12 @@ def test_exchanges_sit_directly_under_crypto_exchanges_with_plain_names():
     # sidebar, labelled by its plain name, never "CCXT"; URLs stay brokers.ccxt.<id>.
     conf = _load_docs_config()
     entries = conf.exchange_menu_entries(str(DOCSRC))
-    pages = {p.stem for p in DOCSRC.glob("brokers.ccxt.*.rst")}
+    pages = {p.stem for p in DOCSRC.glob("brokers.ccxt.*.rst")} - {"brokers.ccxt.alpaca"}
     assert {doc for _label, doc in entries} == pages
     labels = {doc: label for label, doc in entries}
     assert labels["brokers.ccxt.binance"] == "Binance"
     assert labels["brokers.ccxt.kucoin"] == "KuCoin"
     assert labels["brokers.ccxt.bitmex"] == "BitMEX"
-    assert labels["brokers.ccxt.alpaca"] == "Alpaca"
     assert not any("ccxt" in label.lower() for label in labels.values())
     crypto = (DOCSRC / "brokers.crypto.rst").read_text(encoding="utf-8")
     assert ".. lumibot-exchange-toctree::" in crypto
@@ -270,3 +269,12 @@ def test_brokers_appear_under_every_asset_class_they_support():
     for broker, want in expected.items():
         have = {g for g in groups if broker in listed[g]}
         assert have == want, (broker, sorted(have))
+
+
+def test_crypto_menu_lists_each_broker_once():
+    """Rob, 2026-10-24: the Crypto group showed "Alpaca" twice (native page plus the CCXT exchange page)."""
+    conf = _load_docs_config()
+    entries = conf.exchange_menu_entries(DOCSRC)
+    crypto_extra = {label for label, _doc in entries} & {"Alpaca"}
+    assert not crypto_extra, "Alpaca is already in the Crypto group through its native broker page"
+    assert (DOCSRC / "brokers.ccxt.alpaca.rst").exists(), "the exchange page URL must stay published"

@@ -756,3 +756,10 @@ Do I need to set the market hours for crypto?
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 Yes, call ``self.set_market("24/7")`` in ``initialize``, because crypto markets never close. The live ``Ccxt`` broker already defaults to 24/7 unless you set ``MARKET``, but setting it in your strategy keeps the hours clear in every run.
+
+.. Alpaca has its own native broker page in the Crypto menu; its crypto-exchange page is kept here so the URL stays in the docs tree.
+
+.. toctree::
+   :hidden:
+
+   Alpaca crypto exchange setup <brokers.ccxt.alpaca>

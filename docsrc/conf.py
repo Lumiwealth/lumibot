@@ -1125,10 +1125,17 @@ def exchange_menu_entries(srcdir):
     CCXT page, and no menu label says "CCXT". URLs stay brokers.ccxt.<id>.html.
     """
     labels = {}
+    # Exchange ids that are also a native LumiBot broker with its own page (for example
+    # Alpaca) are left out of this menu, so the Crypto group lists that broker once (its
+    # native page). The exchange page and its URL stay published and in the A to Z list.
+    native_duplicates = {"brokers.ccxt.alpaca"}
     for name, _kind, _markets, docname in _ccxt_index_rows(srcdir):
+        if docname in native_duplicates:
+            continue
         labels[docname] = name.replace(" (crypto)", "")
     for page in Path(srcdir).glob("brokers.ccxt.*.rst"):
-        labels.setdefault(page.stem, page.stem.split(".", 2)[2])
+        if page.stem not in native_duplicates:
+            labels.setdefault(page.stem, page.stem.split(".", 2)[2])
     return sorted(((label, doc) for doc, label in labels.items()), key=lambda e: e[0].lower())
 
 

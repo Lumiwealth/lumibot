@@ -478,3 +478,18 @@ Additional Resources
 * `Alpaca API Documentation <https://alpaca.markets/docs/api-documentation/>`__ - Technical details
 * `botspot.trade <https://botspot.trade>`__ - OAuth integration platform
 * `Lumibot Examples <https://github.com/Lumiwealth/lumibot/tree/master/lumibot/example_strategies>`__ - More strategy examples
+
+Caller-owned SDK clients
+------------------------
+
+Applications that manage Alpaca SDK clients can supply ``trading_client`` to
+``Alpaca`` and ``stock_client``, ``crypto_client`` and ``option_client`` to
+``AlpacaData``. Each supplied client owns its authentication. The equivalent
+configuration keys are ``TRADING_CLIENT``, ``STOCK_CLIENT``, ``CRYPTO_CLIENT``
+and ``OPTION_CLIENT``; explicit constructor arguments take precedence.
+
+Passing these keys to ``Alpaca(config)`` also configures its default data source.
+Supply a separate ``data_source`` to keep using another market-data provider.
+Injected trading clients use the existing REST order-polling lifecycle.
+Authentication resets retain supplied clients; they do not replace their
+authentication or credentials. API-key and OAuth construction remains available.

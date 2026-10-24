@@ -14,6 +14,32 @@ moving toward paper or live trading. You can also keep the parts that should
 never be left to a model, such as hard risk limits and order sizing rules, in
 normal Python code.
 
+At a glance
+***********
+
+.. list-table::
+   :header-rows: 1
+   :widths: 22 39 39
+
+   * -
+     - OpenAlice
+     - LumiBot
+   * - What it is
+     - "The AI orchestrator for trading": a local workspace where AI agents research and prepare trades
+     - Python framework for trading strategies and AI trading agents
+   * - Language and license
+     - TypeScript, AGPL-3.0. Desktop app for macOS and Windows, plus a CLI
+     - Python, GPL-3.0. ``pip install lumibot``
+   * - AI agents
+     - Orchestrates agents you already use, such as Claude Code, Codex and OpenCode
+     - Built-in agents that call the model you choose per agent, inside the strategy
+   * - Live trading
+     - Beta. Broker packs for CCXT, Alpaca, IBKR, LeverUp and Longbridge; you approve staged orders
+     - Alpaca, Interactive Brokers, Tradier, Schwab, Tradovate, ProjectX, Bitunix, Polymarket and many crypto exchanges through CCXT
+   * - Backtesting
+     - Includes a simulate tool that tests one entry and one exit rule over dated bars; check its docs for current backtesting features
+     - Full strategy backtests with orders, fills, charts, logs and tearsheets
+
 Where OpenAlice Fits
 ********************
 
@@ -58,6 +84,27 @@ guardrails, and broker paths behind an AI trading agent.
 
 Continue with the :doc:`complete AI-agent quick start <agents_quickstart>` or
 compare the :doc:`broker integrations supported by LumiBot <brokers>`.
+
+Try LumiBot with your AI assistant
+**********************************
+
+The fastest way to try LumiBot is to let your AI coding assistant do the setup.
+Install the free
+`LumiBot trading skills <https://github.com/Lumiwealth/lumibot-trading-skills>`_
+in Claude Code, Codex or Cursor with one command, then connect the free BotSpot
+MCP so your assistant can run backtests in the cloud. See
+:doc:`claude_code_codex_cursor` for the exact commands.
+
+.. include:: _snippets/botspot_mcp_callout.rst
+
+Sources
+*******
+
+Facts on this page were checked on October 24, 2026 (OpenAlice v0.94.1).
+
+- `OpenAlice source repository and README <https://github.com/TraderAlice/OpenAlice>`_
+- `OpenAlice broker packs <https://github.com/TraderAlice/OpenAlice/blob/master/docs/broker-packs.md>`_
+- `LumiBot source repository <https://github.com/Lumiwealth/lumibot>`_
 
 Frequently asked questions
 **************************

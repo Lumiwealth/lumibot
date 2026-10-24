@@ -324,6 +324,8 @@ class AlpacaData(DataSource):
           implementing the respective Alpaca historical-data SDK interfaces. Each
           supplied client owns its authentication and survives authentication reset.
           Other product clients are created lazily from config when requested.
+          Config may also provide STOCK_CLIENT, CRYPTO_CLIENT and OPTION_CLIENT;
+          explicit keyword arguments take precedence over these values.
         - max_workers (int, optional): The maximum number of workers for parallel processing. Default is 20.
         - chunk_size (int, optional): The size of chunks for batch requests. Default is 100.
         - delay (Optional[int], optional): A delay parameter to control how many minutes to delay non-crypto data for. 
@@ -365,7 +367,16 @@ class AlpacaData(DataSource):
 
         # Initialize these to none so they will be lazily created and kept around
         # for better performance.
-        self._provided_clients = (stock_client, crypto_client, option_client)
+        def configured_client(supplied, name):
+            if supplied is not None:
+                return supplied
+            return config.get(name) if isinstance(config, dict) else getattr(config, name, None)
+
+        self._provided_clients = (
+            configured_client(stock_client, "STOCK_CLIENT"),
+            configured_client(crypto_client, "CRYPTO_CLIENT"),
+            configured_client(option_client, "OPTION_CLIENT"),
+        )
         self._stock_client, self._crypto_client, self._option_client = self._provided_clients
 
         # Initialize authentication credentials

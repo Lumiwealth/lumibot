@@ -46,7 +46,7 @@ theta_jar_path = PROJECT_ROOT / "lumibot" / "resources" / "ThetaTerminal.jar"
 
 setuptools.setup(
     name="lumibot",
-    version="4.6.28",
+    version="4.6.29",
     author="Robert Grzesik",
     author_email="rob@botspot.trade",
     description="Python framework for algorithmic trading: backtesting and live deployment for stocks, options, crypto, futures, and forex. Same code for backtest and live trading.",
@@ -164,6 +164,10 @@ setuptools.setup(
         "ai-trading",
         "multi-asset",
         "event-driven",
+        "ai-agents",
+        "agentic-trading",
+        "llm",
+        "ccxt",
     ],
     classifiers=[
         "Development Status :: 5 - Production/Stable",
@@ -184,6 +188,7 @@ setuptools.setup(
     project_urls={
         "Documentation": "https://lumibot.lumiwealth.com/",
         "Bug Tracker": "https://github.com/Lumiwealth/lumibot/issues",
+        "Changelog": "https://github.com/Lumiwealth/lumibot/blob/dev/CHANGELOG.md",
         "Source Code": "https://github.com/Lumiwealth/lumibot",
         "Reddit Community": "https://www.reddit.com/r/BotSpotTrade/",
         "Discord Community": "https://discord.gg/4R9j6T3PN8",

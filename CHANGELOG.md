@@ -1,5 +1,20 @@
 # Changelog
 
+## 4.6.29 - 2026-10-24
+
+### Added
+- Alpaca configuration accepts caller-owned SDK clients through `TRADING_CLIENT`, `STOCK_CLIENT`, `CRYPTO_CLIENT` and `OPTION_CLIENT`. Explicit constructor clients take precedence, and default data-source construction retains the configured clients.
+- Docs: new page "Use LumiBot with Claude Code, Codex and Cursor" (`claude_code_codex_cursor.html`). It installs the free LumiBot trading skills (`Lumiwealth/lumibot-trading-skills`) with one command and connects the free BotSpot MCP. Linked from the home page, getting started, the AI agent guide and the sidebar.
+- Docs: new comparison pages `lumibot_vs_freqtrade.html` and `lumibot_vs_backtrader.html`. The LEAN, OpenAlice and TradingAgents pages gain at-a-glance tables and dated sources (checked October 24, 2026). Every comparison page ends with the skills and BotSpot MCP call to action. All existing URLs are unchanged.
+- Docs and README: one-click "Add to Cursor", "Add to VS Code" and "Add to Claude" buttons for the free BotSpot MCP, in the shared BotSpot MCP callout, at the top of the new page and on the README BotSpot MCP line. Claude has no documented pre-filled connector link, so its button opens Customize > Connectors and the text gives the address to paste.
+- README: one line pointing Claude Code, Codex and Cursor users to the trading skills repository.
+- `CITATION.cff`, a PyPI "Changelog" project URL and extra PyPI keywords (`ai-agents`, `agentic-trading`, `llm`, `ccxt`).
+- Test: `tests/test_docs_coding_assistant_and_comparisons.py` fails if the new pages, their links, the call to action or the install buttons disappear.
+
+### Fixed
+- Docs: the Crypto exchanges menu listed Alpaca twice. It now shows Alpaca once (its native broker page); the Alpaca exchange page and URL stay published.
+- The GitHub Sponsor link (`.github/FUNDING.yml`) pointed at the frozen `version/4.5.92` branch; it now points at the live partnerships page.
+
 ## 4.6.28 - 2026-10-23
 
 ### Added

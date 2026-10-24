@@ -16,39 +16,52 @@ class NancyPelosiTradingBot(Strategy):
             allow_trading=False,
             allow_network=True,
             system_prompt=(
-                "Reconstruct Nancy Pelosi's entire disclosed household stock portfolio as of as_of, not a list of "
-                "recent purchases. In backtests as_of is simulated time; never use a later disclosure. Start with "
-                "the newest annual holdings snapshot available then. Its year-end valuation date is different from "
-                "its filing date: apply all disclosed transactions AFTER THE SNAPSHOT DATE, including those filed "
-                "before the annual report. Check the filing list for new reports and amendments every day. "
-                "Use official reports at https://disclosures-clerk.house.gov and cite their URLs and filing dates; "
-                "you may find them through other public sources. Disclose estimated availability dates. "
-                "Keep a full ledger in your answer: snapshot date, reports already applied, latest filing checked, "
-                "each ticker, estimated shares or value, assumptions and target percentage. Apply a transaction "
-                "once, in transaction-date order; an amendment corrects the original, not another trade. A partial "
-                "sale reduces a position; only a full sale removes it. Exercised calls add shares; account for "
-                "splits and gifts. Include publicly traded partnership units; skip unexercised options, funds, "
-                "bonds, private companies and real estate. Estimate unknown quantities from disclosed ranges and "
-                "contemporaneous prices, mark remaining shares at prices available as of as_of, and explain "
-                "uncertainty. Normalize stock weights to 100%. Never replace missing evidence with a favorite-stock "
-                "basket. Reuse your last complete ledger when nothing changed, but return the FULL portfolio "
-                "again. On research failure say what failed, retain the prior ledger and label it stale; a missing "
-                "report or lookup failure is not evidence of a sale or an empty portfolio. Do not trade."
+                "Build an investable estimate of Nancy Pelosi's full publicly disclosed household stock portfolio "
+                "as of as_of. This is an approximate model portfolio, not verification of her exact account. "
+                "Find annual reports, transactions and amendments in the official yearly indexes at "
+                "https://disclosures-clerk.house.gov/public_disc/financial-pdfs/<year>FD.zip. Check the as_of year "
+                "and earlier years needed for the baseline. Under the same /public_disc/ root, transaction PDFs "
+                "use ptr-pdfs/<filing-year>/<DocID>.pdf; annual PDFs use financial-pdfs/<report-year>/<DocID>.pdf. "
+                "Use actual indexed IDs and cite the reports read. Never use a later disclosure in a backtest. "
+                "Start with the newest eligible annual snapshot. Assume its reporting year-end is the valuation "
+                "date when implicit, and disclose that convention. Apply eligible transactions AFTER that date "
+                "once, including those filed before the annual report. Earlier trades are already reflected. "
+                "Read full asset-value ranges across wrapped lines; income is separate and a None asset value "
+                "does not establish a holding. Partial sales reduce holdings; exercised calls add shares. "
+                "Reconcile amendments, gifts, splits and ticker changes; return current tickers and historical aliases. "
+                "Keep pre-snapshot trades in reconciliation notes, not in applied share changes. "
+                "Inspect every transaction row: separate stock and option purchases can share an issuer. "
+                "Include listed partnership units; "
+                "exclude unexercised options, funds, bonds, private assets and property. "
+                "Return the FULL source ledger: each stock or listed partnership, baseline asset-value range, "
+                "dated post-snapshot share changes, sources, applied report IDs and latest filing checked. "
+                "Include additions absent from the baseline, including shares from exercised calls and spinoffs. "
+                "The trader handles valuation and sizing; missing prices do not prevent this source ledger. "
+                "Check indexes each day and return the FULL ledger, reusing your prior answer when unchanged. "
+                "A lookup failure is not a sale: retain supported prior findings, label stale evidence and explain "
+                "gaps. Never substitute a favorite-stock basket. Do not trade."
             ),
         )
         self.agents.create(
             name="trader",
             allow_trading=True,
             system_prompt=(
-                "Mirror the complete estimated stock portfolio in the research as of as_of. From cash, buy the "
-                "whole basket on the first iteration; do not wait for a new Pelosi trade. Inspect actual positions, "
-                "pending orders, prices and cash. Size to this account's value, not her account. Sell confirmed "
-                "removed holdings and overweight shares before buying missing or underweight holdings; verify "
-                "fills and available cash before dependent buys. Leave weights within 2 percentage points of "
-                "target alone. Respect whole-share rounding and explain unfilled orders or unaffordable targets. "
-                "Never short or overspend. If research failed or is incomplete, compare previous_research and "
-                "preserve existing holdings; do not interpret an error or 'nothing new' as a liquidation signal. "
-                "Report target versus actual weights, fills, remaining cash and any unresolved mismatch."
+                "Use the source ledger to calculate an approximate model portfolio as of as_of. For unknown "
+                "baseline shares, divide the reported asset-value range midpoint by its snapshot-date price. "
+                "Apply only post-snapshot share changes and mark remaining shares as of as_of. If shares turn "
+                "negative, recheck dates and double counting; do not clip a contradictory estimate to zero. "
+                "Retain a labeled baseline-value proxy if quantity reconciliation remains unresolved. Check "
+                "ticker changes if a quote is missing; otherwise use a clearly labeled stale midpoint proxy. "
+                "Normalize estimated stock values to 100% and explain the assumptions. "
+                "Mirror the full estimated stock basket as of as_of, sized to this account. Buy the basket on "
+                "the first iteration from cash; do not wait for a new Pelosi trade. Buy missing positive-weight "
+                "holdings when a whole share fits; leave established positions within 2 percentage points of "
+                "target alone. Sell removed or overweight holdings before dependent buys and verify fills and "
+                "cash. Never short or overspend. Leave an unpriced or unaffordable holding's allocation in cash "
+                "while trading the supported remainder. Disclosed valuation and coverage estimates are usable; "
+                "exact household quantities are not required. If no supported basket was produced, compare "
+                "previous_research and preserve holdings; a lookup error or 'nothing new' is not a liquidation "
+                "signal. Report target versus actual weights, actual fills, cash and unresolved mismatches."
             ),
         )
 
@@ -56,12 +69,16 @@ class NancyPelosiTradingBot(Strategy):
         as_of = self.get_datetime().isoformat()
         previous = self.vars.get("last_research", "none yet")
         research = self.agents["researcher"].run(
-            task_prompt="Reconstruct the full portfolio as of as_of and check for newly available disclosures.",
+            task_prompt=(
+                "Return the full report-derived stock ledger as of as_of. Read chosen reports completely, "
+                "reconcile holdings and dated share changes, check newly available disclosures and cite "
+                "sources. The trader will calculate valuation estimates and target allocations."
+            ),
             context={"as_of": as_of, "your_last_answer": previous},
         )
         self.vars.set("last_research", research.summary)
         self.agents["trader"].run(
-            task_prompt="Match the account to the complete portfolio, including the initial purchases.",
+            task_prompt="Calculate the estimated basket from the source ledger and match the account, including initial purchases.",
             context={"as_of": as_of, "research": research.summary, "previous_research": previous},
         )
 

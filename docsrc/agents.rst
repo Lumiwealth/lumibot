@@ -479,6 +479,13 @@ Describe your strategy's thesis and the assets it trades. Do not repeat instruct
 
 The base prompt tells the agent whether the run is a backtest or live, the current datetime and timezone, current positions and cash, rules about look-ahead bias, the default investor policy (conviction over activity, no overtrading), risk and drawdown discipline (risk-adjusted returns over raw returns, recovery math, cut losers, no chasing after drawdowns, Sharpe/Sortino/Calmar framing), position sizing and limit order preferences, and DuckDB conventions and tool usage guidance.
 
+For web research in backtests, the shared skill permits reasonable date, quantity
+and valuation estimates with their assumptions and coverage limits. A certified
+complete archive or original-version hash is not required. Known future
+disclosures and revisions remain excluded; uncertain evidence must never be
+presented as an exact historical snapshot. Live research has no publication-date
+restriction.
+
 **Can I override the default investor policy?**
 
 The base prompt includes a default policy favoring conviction over activity and discouraging overtrading. Your system prompt can direct the agent toward different behavior -- for example, telling it to rebalance daily or trade more aggressively. The system prompt is added on top of the base prompt, so your instructions take priority for strategy-specific guidance.

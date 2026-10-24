@@ -623,8 +623,46 @@ _UNDATED_PAGES = {
 
 _UNDATED_FIXTURES = frozenset({"web_documents_undated", "web_documents_undated_live"})
 
+# Ordinary HTML reports with imperfect coverage, date-only publication and no
+# retained-version hashes. Exercise estimates without relaxing future exclusion.
+_APPROXIMATE_PORTFOLIO_PAGES = {
+    "/portfolio/": (
+        "<html><body><h1>Public stock basket reports</h1>"
+        "<p>The archive is incomplete; no certified complete manifest or version hashes are available.</p>"
+        '<p><a href="/portfolio/snapshot.html">March 31 snapshot</a>, published April 15, 2026.</p>'
+        '<p><a href="/portfolio/update.html">Transaction update</a>, published June 15, 2026.</p>'
+        '<p><a href="/portfolio/marks.html">August 10 closing marks</a>, published August 10, 2026.</p>'
+        '<p><a href="/portfolio/future.html">New transaction update</a>, published September 2, 2026.</p>'
+        "</body></html>"
+    ),
+    "/portfolio/snapshot.html": (
+        "<html><body><h1>Stock basket at March 31, 2026</h1>"
+        "<p>Published April 15, 2026. Common shares only. AAPL: 1,000 shares. "
+        "MSFT: value $50,000 to $100,000; quantity not disclosed; March 31 price $300. "
+        "These are the only reported holdings at the snapshot.</p></body></html>"
+    ),
+    "/portfolio/update.html": (
+        "<html><body><h1>Transaction update, published June 15, 2026</h1>"
+        "<p>February 10: sold 1,000 AAPL shares. This historical transaction is "
+        "repeated here and is already reflected in the March 31 snapshot.</p>"
+        "<p>June 10: sold 300 AAPL shares (partial sale).</p>"
+        "<p>June 10: TSLA common stock [ST], purchase, 200 shares.</p>"
+        "<p>June 10: TSLA call options [OP], purchase, 2 contracts, strike $350, "
+        "expiration December 18, 2026. These calls remain unexercised.</p>"
+        "<p>No other transactions in this report.</p></body></html>"
+    ),
+    "/portfolio/marks.html": (
+        "<html><body><h1>August 10, 2026 closing prices</h1>"
+        "<p>Published August 10, 2026. AAPL $230; MSFT $320; TSLA $300.</p></body></html>"
+    ),
+    "/portfolio/future.html": (
+        "<html><body><h1>Published September 2, 2026</h1>"
+        "<p>August 28: sold the entire AAPL holding.</p></body></html>"
+    ),
+}
 
-def _undated_client(*, request_log=None):
+
+def _undated_client(*, request_log=None, pages=None):
     import httpx
 
     from lumibot.components.agents.web_tools import WebClient
@@ -637,7 +675,7 @@ def _undated_client(*, request_log=None):
         requests.append({"method": request.method, "url": str(request.url)})
 
     def handler(request):
-        page = _UNDATED_PAGES.get(request.url.path)
+        page = (pages if pages is not None else _UNDATED_PAGES).get(request.url.path)
         if page is None:
             return httpx.Response(404, text="Not found")
         return httpx.Response(200, text=page, headers={"content-type": "text/html"})
@@ -765,6 +803,9 @@ class ProductionFixture:
         if fixture.name in _UNDATED_FIXTURES:
             self.strategy._agent_web_client = _undated_client()
             self.fixture.web_requests = self.strategy._agent_web_client.web_requests
+        if fixture.name == "web_documents_approximate_portfolio":
+            self.strategy._agent_web_client = _undated_client(pages=_APPROXIMATE_PORTFOLIO_PAGES)
+            self.fixture.web_requests = self.strategy._agent_web_client.web_requests
         if fixture.name == "vix_from_fred":
             self.strategy.macro = _recorded_fred(self.strategy, self.root / "fred")
         self.strategy.fundamentals = _recorded_sec_fundamentals(self.strategy, self.root / "sec")
@@ -891,7 +932,7 @@ class ProductionFixture:
         self.closed = True
         self.broker.stream.stop()
         try:
-            if self.fixture.name in {"web_documents", "web_documents_date_only", *_UNDATED_FIXTURES}:
+            if self.fixture.name in {"web_documents", "web_documents_date_only", "web_documents_approximate_portfolio", *_UNDATED_FIXTURES}:
                 self.strategy._agent_web_client.close()
         finally:
             self.directory.cleanup()

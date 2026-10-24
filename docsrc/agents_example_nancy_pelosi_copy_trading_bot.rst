@@ -18,7 +18,7 @@ How it works
 The bot has just two AI agents, and both run every day:
 
 1. **Research agent** reconstructs disclosed household holdings from the latest annual snapshot available as of the strategy date and all disclosed transactions after its valuation date, including those filed before the annual report. It keeps a complete ledger of stocks and calls, corrects amendments and partial sales, and transfers exercised calls into shares. It checks for new filings every day and excludes later disclosures in backtests.
-2. **Trading agent** sizes everything to your account and trades it. By default 20% goes to her calls and the rest to her stocks, in her proportions. Her calls cost $9,000 to $18,000 a contract, more than a normal account can spread around, so it uses her exact strike when one contract fits and otherwise the nearest strike that fits, with the same expiration date. It leaves a holding alone when it is within 2 percentage points of its target.
+2. **Trading agent** sizes everything to your account and trades it. By default 20% goes to her calls and the rest to her stocks, in her proportions. A call premium can exceed its allocation, so it uses her exact strike when one contract fits and otherwise the nearest higher strike that fits, with the same expiration date. It buys affordable missing holdings, then leaves established holdings within 2 percentage points of target alone. A missing usable price leaves that allocation in cash while the supported remainder can trade.
 
 Want a different member of Congress? Change the name in the research agent's prompt.
 
@@ -54,8 +54,9 @@ Good to know
 * A cheaper strike is a bigger bet on the stock going up than her strike: it is cheaper because it pays off only above a higher price.
 * Call options can lose all their value by the expiration date.
 * Members of Congress can take up to 45 days to report a trade, so the bot always buys late, often at a different price than she paid.
-* Reports show dollar ranges, such as $1,000,001 to $5,000,000. Quantities and current values reconstructed from them are estimates, not an exact view of her account.
+* Reports show dollar ranges, such as $1,000,001 to $5,000,000. Unknown baseline shares are estimated from the range midpoint and snapshot-date price, then updated for later share changes and valued as of the strategy date. A missing historical mark uses a clearly labeled stale value proxy. Quantities and weights remain estimates.
 * The annual snapshot's year-end valuation date differs from its filing date. Intervening transactions must be applied even if their reports were filed before the annual report.
+* Transactions already reflected in that snapshot are not applied again when a later filing repeats them. A positive income entry is not evidence of a remaining asset value.
 * The configured stock/call split and any higher strike are deliberate deviations from her portfolio. An unaffordable target or an empty sleeve stays in cash; the bot does not silently choose another expiration.
 * In a backtest the website also shows reports from after the test date. The research agent reads the date on each report and skips any report filed after the test day.
 * Pelosi said on November 6, 2025 that she will not run for re-election in 2026 (`NBC News <https://www.nbcnews.com/politics/congress/nancy-pelosi-first-female-speaker-house-wont-seek-re-election-congress-rcna239324>`__). Her reports stop after she leaves office, so change the name in the research prompt to keep the bot trading.

@@ -2,8 +2,8 @@
 
 Backtest replay must represent the runtime that could actually execute the decision.
 
-**Last Updated:** 2026-10-23
-**Status:** Cache and handoff checks pass; full portfolio qualification incomplete
+**Last Updated:** 2026-10-24
+**Status:** Cache and handoff checks pass; basket execution demonstrated; reconstruction qualification incomplete
 **Audience:** Framework contributors
 
 ## Overview
@@ -18,11 +18,21 @@ The portfolio examples retain one researcher and one trading agent, called every
 
 The regression tests first reproduced stale failed-result reuse and unchanged identities after dependency/implementation changes. The existing compatible-success control passed before the fix. Date-handoff regressions first failed because the examples omitted their explicit strategy timestamp.
 
-Affected local checks: **276 passed**. This covers replay compatibility, tool permissions, example structure and handoffs, synthetic stock fills, documentation contracts and public instruction hygiene. The wider 1,368-case agent inventory exceeded the bounded run window before completion; it is not a full-suite pass. Its observed documentation wording failure was repaired without weakening the assertion. A payload-only custom-runtime compatibility failure was corrected by allowing a runtime without an executable `run` method when constructing cache identity; both native and programmatic payload contracts now pass.
+The initial cache/handoff checks passed **276 tests**. After the research revision, the focused skill, instruction, example, SDK-rendering, evaluation-harness and public-hygiene checks pass **552 tests**. These are deterministic checks, not a complete real-model qualification. The wider 1,368-case agent inventory exceeded the bounded run window before completion; it is not a full-suite pass. Its observed documentation wording failure was repaired without weakening the assertion. A payload-only custom-runtime compatibility failure was corrected by allowing a runtime without an executable `run` method when constructing cache identity; both native and programmatic payload contracts now pass.
 
-A fresh subscription-model stock backtest read an annual report and subsequent disclosures, but the researcher returned an incomplete reconstruction rather than weights, and the trader retained cash. The run was stopped after preserving that evidence. The shared web-document skill still requires exhaustive index manifests and original-version evidence before answering. That is a separate research-policy issue; it is not resolved by the cache repair and is not patched in this change.
+A fresh subscription-model stock backtest first read an annual report and subsequent disclosures but withheld estimated weights, leaving cash unchanged. The shared research policy has since been revised to permit requested estimates without a complete archive or original-version hashes. It preserves explicit publication-time comparisons, conservative date-only availability and exclusion of known later versions. For a timestamped index, eligible links are selected before reading its reports; an undated source remains usable with a disclosed estimate. Direct publisher-index hints remain inside the examples' own prompts.
 
-Unit tests with a scripted model prove cache and handoff contracts, not real research or portfolio accuracy. No profitable backtest, complete holdings reconstruction or options qualification is claimed.
+Native controls caught attempts to follow known future links during an intermediate revision. The revised workflow keeps selected rows separate from excluded diagnostics and prohibits opening a known later page merely to confirm its metadata. Other controls caught incorrect optional sensitivity calculations and a mislabeled timestamp; these are failed evidence, not accepted qualification. The judge continues to reject incorrect amounts, incorrect timestamps and future access. It does not demand a particular SQL syntax or a narration of every excluded candidate when the evidence and actual exclusions are correct.
+
+A later one-session stock run produced estimated weights and **one actual broker-simulated fill**, but it omitted an earlier eligible disclosure and did not execute the basket. The first stock order was accepted; subsequent submissions were rejected by account-readiness checks and were not recovered. This is a reproduced execution-guidance issue, not a successful portfolio backtest. No readiness check is removed by this research change.
+
+A publisher URL hint initially used a brace-delimited year token, which the native SDK interpreted as a missing session variable before inference. The hint now uses angle brackets. A regression exercises the actual SDK instruction renderer without a provider call; both examples must render unchanged with empty session state.
+
+Unit tests with a scripted model prove cache and handoff contracts, not real research or portfolio accuracy. Research-only stage checks are labeled separately from full backtests. No profitable backtest, complete holdings reconstruction, complete basket execution or options qualification is claimed.
+
+A research-only stage returned the complete supported stock ledger, including disclosed purchases and exercised shares absent from the annual baseline. A separate cold backtest then omitted common-share purchases from a report containing both stock and option rows for the same issuers. Its returned document text explicitly contained those purchases, so this is a reconciliation failure rather than a missing-source failure. The research skill now distinguishes separately labeled stock and option transactions; the neutral approximation case includes both instrument types for one issuer. The examples also keep pre-snapshot transactions in reconciliation notes and request current ticker aliases. These revisions pass the same **552 deterministic checks**; repeated native qualification remains required.
+
+That cold backtest completed with **20 actual simulated fills**, no remaining open orders and **$2,461.74 cash** from a $100,000 starting balance. The trader refreshed account state between accepted orders and recovered one readiness rejection without removing any guard. However, it also deducted pre-snapshot sales again and clipped an inferred negative balance to zero, wrongly omitting a supported baseline holding. The research guidance and neutral case now explicitly cover repeated historical transactions and inconsistent inferred balances. This completed run predates those latest prompt revisions and is failed reconstruction evidence, not qualification of the corrected source. Quiet-day retention, disclosure-driven rebalancing and options execution remain unqualified.
 
 ## Sources and limits
 

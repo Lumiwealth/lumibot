@@ -2,6 +2,9 @@
 
 ## 4.6.29 - Unreleased
 
+### Added
+- Alpaca configuration accepts caller-owned SDK clients through `TRADING_CLIENT`, `STOCK_CLIENT`, `CRYPTO_CLIENT` and `OPTION_CLIENT`. Explicit constructor clients take precedence, and default data-source construction retains the configured clients.
+
 ## 4.6.28 - 2026-10-23
 
 ### Added

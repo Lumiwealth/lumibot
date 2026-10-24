@@ -381,13 +381,18 @@ class Alpaca(Broker):
         ``trading_client`` implements the Alpaca SDK TradingClient interface and
         owns its authentication. Provide ``data_source`` or separate data
         credentials for market data. Injected HTTP clients use order polling.
+        Config may also provide ``TRADING_CLIENT``; the keyword argument wins.
         """
+        if not isinstance(config, dict):
+            config = vars(config)
         # Calling init methods
         self.api_key = ""
         self.api_secret = ""
         self.oauth_token = ""
         self.is_paper = False
         self.polling_interval = polling_interval
+        if trading_client is None:
+            trading_client = _config_value(config, "TRADING_CLIENT")
         # A caller-owned SDK-compatible client manages its own authentication.
         self._injected_trading_client = trading_client
         self._api = trading_client

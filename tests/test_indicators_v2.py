@@ -36,7 +36,7 @@ from lumibot.indicators import (
 )
 
 TOL = 1e-9
-BUILTIN_KEYS = {"sma", "ema", "rsi", "macd", "bbands", "atr", "stoch", "vwap", "wavetrend"}
+BUILTIN_KEYS = {"sma", "ema", "rsi", "macd", "bbands", "atr", "stoch", "vwap"}
 
 
 # --------------------------------------------------------------------------
@@ -336,52 +336,6 @@ def test_vwap_reference_resets_each_utc_day():
     assert out[24] == pytest.approx((h[24] + l[24] + c[24]) / 3)
 
 
-def ref_wavetrend(bars, n1=10, n2=21, sig=3):
-    o, h, l, c, _ = cols(bars)
-    ap = [(a + b + x + y) / 4 for a, b, x, y in zip(o, h, l, c)]
-    esa = ref_ema(ap, n1)
-    dev = [None if e is None else abs(a - e) for a, e in zip(ap, esa)]
-    d = ref_ema(dev, n1)
-    ci = [
-        None if e is None or dd is None or dd == 0 else (a - e) / (0.015 * dd)
-        for a, e, dd in zip(ap, esa, d)
-    ]
-    wt1 = ref_ema(ci, n2)
-    wt2 = ref_sma(wt1, sig)
-    cross, signal = [None], [None]
-    for i in range(1, len(wt1)):
-        a, b, pa, pb = wt1[i], wt2[i], wt1[i - 1], wt2[i - 1]
-        if None in (a, b, pa, pb):
-            cross.append(None)
-            signal.append(None)
-        elif (a > b and pa <= pb) or (a < b and pa >= pb):
-            cross.append(b)
-            signal.append(1.0 if a > b else -1.0)
-        else:
-            cross.append(None)
-            signal.append(None)
-    return {"wave1": wt1, "wave2": wt2, "diff": sub(wt1, wt2), "cross": cross, "cross_signal": signal}
-
-
-def test_wavetrend_reference_crosses_and_levels():
-    bars = make_bars(200)
-    out = compute("wavetrend", bars)
-    for key, series in ref_wavetrend(bars).items():
-        assert_series(out[key], series, tol=1e-8)
-    assert any(v is not None for v in out["cross"]), "fixture must contain a cross"
-    assert {v for v in out["cross_signal"] if v is not None} == {1.0, -1.0}
-    custom = compute("wavetrend", bars, channel_length=7, average_length=11)
-    for key, series in ref_wavetrend(bars, 7, 11).items():
-        assert_series(custom[key], series, tol=1e-8)
-
-
-def test_wavetrend_levels_follow_inputs():
-    levels = {lv["label"]: lv["value"] for lv in registry.create("wavetrend", ob1=65, os2=-50).current_levels()}
-    assert levels["OB1"] == 65 and levels["OB2"] == 53
-    assert levels["OS1"] == -60 and levels["OS2"] == -50
-    assert {0, 75, -75, 100} <= set(levels.values())
-
-
 # --------------------------------------------------------------------------
 # Streaming contract: parity, replay, rollback, snapshot
 # --------------------------------------------------------------------------
@@ -395,7 +349,6 @@ DEFAULT_CASES = [
     ("atr", {}),
     ("stoch", {}),
     ("vwap", {}),
-    ("wavetrend", {}),
 ]
 
 
@@ -550,8 +503,6 @@ def test_describe_schema_for_every_builtin():
     assert described["sma"]["overlay"] is True and described["rsi"]["overlay"] is False
     src = next(s for s in described["sma"]["inputs"] if s["name"] == "source")
     assert src["type"] == "source" and "ohlc4" in src["options"]
-    assert {o["id"] for o in described["wavetrend"]["outputs"]} == {"wave1", "wave2", "diff", "cross", "cross_signal"}
-    assert next(o for o in described["wavetrend"]["outputs"] if o["id"] == "cross")["kind"] == "markers"
     # describe is JSON-safe
     import json
 

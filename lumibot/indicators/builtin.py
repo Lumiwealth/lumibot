@@ -240,83 +240,6 @@ class VWAPIndicator(Indicator):
         return {"vwap": safe_div(state["pv"], state["volume"])}
 
 
-class WaveTrendIndicator(Indicator):
-    """WaveTrend oscillator (the widely published public formula).
-
-    ``ap`` = source (default ohlc4), ``esa = ema(ap, n1)``,
-    ``d = ema(|ap - esa|, n1)``, ``ci = (ap - esa) / (0.015 * d)``,
-    ``wave1 = ema(ci, n2)``, ``wave2 = sma(wave1, signal_length)``,
-    ``diff = wave1 - wave2``. ``cross`` marks bars where wave1 crosses wave2
-    (value = wave2 there) and ``cross_signal`` is +1 for an upward cross,
-    -1 for a downward cross.
-    """
-
-    key = "wavetrend"
-    version = 1
-    title = "WaveTrend Oscillator"
-    short_title = "WT"
-    overlay = False
-    inputs = [
-        _length("channel_length", 10, "Channel length"),
-        _length("average_length", 21, "Average length"),
-        _length("signal_length", 3, "Signal length"),
-        _source("ohlc4"),
-        InputSpec("ob1", "float", 60.0, min=-200, max=200, step=1, label="Overbought 1"),
-        InputSpec("ob2", "float", 53.0, min=-200, max=200, step=1, label="Overbought 2"),
-        InputSpec("os1", "float", -60.0, min=-200, max=200, step=1, label="Oversold 1"),
-        InputSpec("os2", "float", -53.0, min=-200, max=200, step=1, label="Oversold 2"),
-    ]
-    outputs = [
-        OutputSpec("wave1", "Wave 1", "area", "#26A69A"),
-        OutputSpec("wave2", "Wave 2", "area", "#2962FF"),
-        OutputSpec("diff", "Wave 1 - Wave 2", "histogram", "#FFB300"),
-        OutputSpec("cross", "Cross", "markers", "#FFFFFF"),
-        OutputSpec("cross_signal", "Cross direction (+1 up, -1 down)", "markers", "#FFFFFF"),
-    ]
-
-    @classmethod
-    def levels_for(cls, inputs):
-        return [
-            Level(0, "Zero", "dotted"),
-            Level(inputs["ob1"], "OB1"),
-            Level(inputs["ob2"], "OB2", "dotted"),
-            Level(inputs["os1"], "OS1"),
-            Level(inputs["os2"], "OS2", "dotted"),
-            Level(75, "+75", "dotted"),
-            Level(-75, "-75", "dotted"),
-            Level(100, "100", "dotted"),
-        ]
-
-    def init_state(self):
-        n1 = self.inputs["channel_length"]
-        return {
-            "esa": SeededEMA(n1),
-            "d": SeededEMA(n1),
-            "wave1": SeededEMA(self.inputs["average_length"]),
-            "wave2": RollingSMA(self.inputs["signal_length"]),
-            "prev": None,  # (wave1, wave2) of the previous bar
-        }
-
-    def step(self, state, bar):
-        ap = bar.source(self.inputs["source"])
-        esa = state["esa"].update(ap)
-        d = state["d"].update(None if esa is None else abs(ap - esa))
-        ci = None if esa is None or d is None else safe_div(ap - esa, 0.015 * d)
-        wt1 = state["wave1"].update(ci)
-        wt2 = state["wave2"].update(wt1)
-        diff = None if wt1 is None or wt2 is None else wt1 - wt2
-        cross = signal = None
-        prev = state["prev"]
-        if prev is not None and None not in prev and wt1 is not None and wt2 is not None:
-            pa, pb = prev
-            if wt1 > wt2 and pa <= pb:
-                cross, signal = wt2, 1.0
-            elif wt1 < wt2 and pa >= pb:
-                cross, signal = wt2, -1.0
-        state["prev"] = (wt1, wt2)
-        return {"wave1": wt1, "wave2": wt2, "diff": diff, "cross": cross, "cross_signal": signal}
-
-
 BUILTIN_INDICATORS = (
     SMAIndicator,
     EMAIndicator,
@@ -326,7 +249,6 @@ BUILTIN_INDICATORS = (
     ATRIndicator,
     StochasticIndicator,
     VWAPIndicator,
-    WaveTrendIndicator,
 )
 
 __all__ = [cls.__name__ for cls in BUILTIN_INDICATORS] + ["BUILTIN_INDICATORS"]

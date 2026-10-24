@@ -205,7 +205,7 @@ def _post_json(url: str, body: dict, timeout: float = 30.0) -> dict:
             answer = {}
         if isinstance(answer, dict) and answer.get("error"):
             return answer
-        return {"error": "http_error", "error_description": f"HTTP {error.code}"}
+        return {"error": "http_error", "error_description": f"HTTP {error.code}", "status": error.code}
 
 
 def start_device_login(api_base: str, client_name: str) -> dict:
@@ -232,31 +232,55 @@ def _same_origin(url: str, api_base: str) -> bool:
     return (left.scheme, left.netloc) == (right.scheme, right.netloc)
 
 
-def run_device_login(api_base: str, out, err, open_browser=None) -> tuple[str, str] | None:
-    """Run the device login. Returns (research MCP URL, key) or None after a clear error."""
+class DeviceLoginUnavailable(Exception):
+    """This BotSpot server has no device login yet; use the key page flow instead."""
+
+
+# HTTP answers that mean "this server has no device-login route" rather than
+# "the login failed". An older BotSpot API answers 404 "Cannot POST".
+_DEVICE_ROUTE_MISSING = {404, 405, 501}
+# Upper bound on how long the command waits for approval, whatever the server says.
+DEFAULT_DEVICE_TIMEOUT_SECONDS = 900
+
+
+def run_device_login(
+    api_base: str, out, err, open_browser=None, timeout: float | None = None
+) -> tuple[str, str] | None:
+    """Run the device login. Returns (research MCP URL, key) or None after a clear error.
+
+    Raises ``DeviceLoginUnavailable`` when the server does not offer device
+    login, so the caller can fall back to the key page flow.
+    """
     try:
         started = start_device_login(api_base, DEVICE_CLIENT_NAME)
     except (urllib.error.URLError, TimeoutError, OSError, ValueError) as error:
         print(f"Could not reach BotSpot at {api_base}: {error}", file=err)
         return None
+    if started.get("error") == "http_error" and started.get("status") in _DEVICE_ROUTE_MISSING:
+        raise DeviceLoginUnavailable(str(started.get("error_description") or "not found"))
     if started.get("error") or not started.get("device_code") or not started.get("user_code"):
         detail = started.get("error_description") or started.get("error") or "no login code"
         print(f"BotSpot could not start the login ({detail}). Nothing was changed.", file=err)
         return None
     code = started["user_code"]
     page = started.get("verification_uri_complete") or started.get("verification_uri") or ""
-    print("Connect BotSpot to your LumiBot strategy agents (free BotSpot account).", file=out)
+    expires_in = int(started.get("expires_in") or 600)
+    print("Connect BotSpot to your LumiBot strategy agents. Connecting is free.", file=out)
     print(f"Your login code: {code}", file=out)
     print("Approve it in one of two ways:", file=out)
-    print(f"  1. Ask your AI app that is connected to BotSpot: \"approve BotSpot login code {code}\"", file=out)
-    print(f"  2. Or open {page} and approve it there.", file=out)
-    print("Waiting for approval (the code works for 10 minutes)...", file=out)
+    print(f"  1. Open {page}, sign in (a free BotSpot account is created if you do not have one) and approve the code.", file=out)
+    print(f"  2. Or ask your AI app that is connected to BotSpot: \"approve BotSpot login code {code}\"", file=out)
+    print(f"Waiting for approval (the code works for {max(1, round(expires_in / 60))} minutes)...", file=out, flush=True)
     if open_browser and page:
-        open_browser(page)
+        try:
+            open_browser(page)
+        except Exception:  # noqa: BLE001 - a browser that cannot open is not fatal
+            pass
     interval = int(started.get("interval") or 5)
-    deadline = int(started.get("expires_in") or 600)
+    limit = DEFAULT_DEVICE_TIMEOUT_SECONDS if timeout is None else float(timeout)
+    deadline = min(expires_in, limit)
     waited = 0
-    while waited <= deadline + interval:
+    while waited < deadline:
         _sleep(interval)
         waited += interval
         try:
@@ -284,7 +308,7 @@ def run_device_login(api_base: str, out, err, open_browser=None) -> tuple[str, s
         if not url or not _same_origin(url, api_base):
             url = research_mcp_url_for(api_base)
         return url, key
-    print("The login code expired before it was approved. Run the command again.", file=err)
+    print("The login was not approved in time. Nothing was changed. Run the command again.", file=err)
     return None
 
 

@@ -100,11 +100,23 @@ secret manager:
    export BOTSPOT_RESEARCH_MCP_URL="https://api.botspot.trade/research-mcp"
    export BOTSPOT_RESEARCH_MCP_TOKEN="botspot_YOUR_RESEARCH_KEY"
 
-Or let the command line check the key and write both values to ``.env``:
+Or skip the key page entirely. One command signs you in and writes both values
+to ``.env``:
 
 .. code-block:: bash
 
    lumibot connect botspot
+
+It prints a short login code and opens the BotSpot page where you sign in (a
+free account is created if you do not have one) and approve the code. You can
+also approve it by asking an AI app that is already connected to BotSpot.
+BotSpot then creates a key for you, the command checks it and saves it. The key
+is never printed. This is the standard device login (OAuth 2.0 device
+authorization grant, RFC 8628) used by tools such as the GitHub CLI. Use
+``--no-browser`` to only print the link, ``--token`` to save a key you already
+have, or ``--paste`` to paste one made on the website. If the BotSpot server
+you point at does not offer code login yet, the command falls back to the key
+page flow. Connecting is free.
 
 LumiBot attaches that connection when you create a strategy agent. Static keys
 do not need a renewal URL. BotSpot-hosted runtimes supply their own short-lived

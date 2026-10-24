@@ -273,6 +273,8 @@ class _FakeDeviceServer:
 def _use_fake_device(monkeypatch, server):
     monkeypatch.setattr(botspot_hint, "start_device_login", server.start)
     monkeypatch.setattr(botspot_hint, "poll_device_login", server.poll)
+    # The issued key is checked before it is saved (4.6.30); accept it here.
+    monkeypatch.setattr(botspot_hint, "verify_research_key", lambda url, token: (True, "HTTP 200"))
     sleeps = []
     monkeypatch.setattr(botspot_hint, "_sleep", sleeps.append)
     return sleeps
@@ -304,6 +306,7 @@ def test_device_login_honors_slow_down(tmp_path, monkeypatch):
     answers = iter([{"error": "slow_down"}, server.final])
     monkeypatch.setattr(botspot_hint, "start_device_login", server.start)
     monkeypatch.setattr(botspot_hint, "poll_device_login", lambda base, code: next(answers))
+    monkeypatch.setattr(botspot_hint, "verify_research_key", lambda url, token: (True, "HTTP 200"))
     sleeps = []
     monkeypatch.setattr(botspot_hint, "_sleep", sleeps.append)
     assert cli.main(["connect", "botspot", "--env-file", str(tmp_path / ".env"), "--no-browser"]) == 0

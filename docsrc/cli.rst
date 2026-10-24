@@ -31,13 +31,19 @@ Start your own project
    lumibot backtest my-bot --days 90
    lumibot run my-bot --paper
 
-``init`` writes two files and nothing else:
+``init`` writes three files and nothing else:
 
 .. code-block:: text
 
    my-bot/
      strategy.py   the strategy you edit
      README.md     the three commands above
+     AGENTS.md     short notes for AI coding assistants (Claude Code, Codex, Cursor)
+
+``AGENTS.md`` is written only when the folder does not already have one; an
+existing ``AGENTS.md`` is never overwritten, not even with ``--force``. It
+tells your coding assistant how the project is laid out and mentions the free
+BotSpot MCP (hosted backtests and paper trading) with how to connect it.
 
 For an AI strategy instead of a Python one:
 
@@ -129,8 +135,9 @@ Commands
      - Backtest a built-in strategy on free data. No keys, no files written to
        your project.
    * - ``lumibot init <project>``
-     - Write ``strategy.py`` and ``README.md``. ``--template ai`` writes the
-       agent version. ``--force`` overwrites.
+     - Write ``strategy.py``, ``README.md`` and (when missing) ``AGENTS.md``.
+       ``--template ai`` writes the agent version. ``--force`` overwrites
+       ``strategy.py`` and ``README.md``, never an existing ``AGENTS.md``.
    * - ``lumibot backtest <project>``
      - Backtest the project. ``--days`` sets the window, ``--budget`` the
        starting cash.
@@ -138,11 +145,16 @@ Commands
      - Trade the project. ``--paper`` or ``--live`` is required; ``--live`` also
        requires ``--yes``.
    * - ``lumibot connect botspot``
-     - Optional. Link BotSpot research (public macro data, SEC research,
-       Marketplace and Community reads) for strategy agents with a free
-       BotSpot account. Checks the key, then writes
-       ``BOTSPOT_RESEARCH_MCP_URL`` and ``BOTSPOT_RESEARCH_MCP_TOKEN`` to
-       ``.env``. ``--token`` skips the prompt; ``--env-file`` picks the file.
+     - Optional and free. One command: it shows a short code and opens the
+       BotSpot sign-in page (a free account is created if you need one).
+       Approve the code and BotSpot creates a key for you; the command checks
+       it, then writes ``BOTSPOT_RESEARCH_MCP_URL`` and
+       ``BOTSPOT_RESEARCH_MCP_TOKEN`` to ``.env``. The key is never printed.
+       ``--token`` uses a key you already have, ``--paste`` pastes one made on
+       the website, ``--no-browser`` only prints the link, ``--api-url`` (or
+       ``BOTSPOT_API_URL``) picks another BotSpot API, ``--timeout`` limits the
+       wait and ``--env-file`` picks the file. A BotSpot server without code
+       login falls back to the key page automatically.
    * - ``lumibot --version``
      - Print the installed version.
 

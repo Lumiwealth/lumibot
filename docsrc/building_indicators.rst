@@ -21,7 +21,7 @@ Use a built-in
 --------------
 
 Built-ins: ``sma``, ``ema``, ``rsi``, ``macd``, ``bbands``, ``atr``,
-``stoch``, ``vwap`` and ``wavetrend``. They follow TradingView Pine Script v6
+``stoch`` and ``vwap``. They follow TradingView Pine Script v6
 math: ``ema`` and ``rma`` are seeded with the simple average of the first
 ``length`` values, ``rsi`` and ``atr`` use Wilder smoothing (``rma``),
 Bollinger Bands use the population standard deviation, ``stoch`` is not
@@ -47,9 +47,9 @@ On its own (scripts, notebooks, chart servers)::
     from lumibot.indicators import IndicatorRunner
 
     runner = IndicatorRunner(data_source, asset, quote=quote, timestep="minute")
-    wt = runner.add("wavetrend", channel_length=10, average_length=21)
+    rsi = runner.add("rsi", length=14)
     snapshot = runner.load_history(500)
-    # snapshot = {"bars": [...], "indicators": {wt: {"key", "version", "meta", "outputs"}}}
+    # snapshot = {"bars": [...], "indicators": {rsi: {"key", "version", "meta", "outputs"}}}
 
     # then, for every live bar from your stream:
     values = runner.on_bar(bar, closed=False)   # still forming: nothing is committed
@@ -66,67 +66,40 @@ Bars can be dicts with ``t/o/h/l/c/v`` (or ``time/open/high/low/close/volume``)
 keys, or a DataFrame whose index is the bar time. Numeric times are epoch
 milliseconds; naive times are treated as UTC.
 
-Write your own: WaveTrend example
----------------------------------
+Write your own: Donchian midline example
+---------------------------------------
 
-This is the built-in WaveTrend oscillator, written the way you would write any
-indicator::
+Any indicator is written the same way: declare its inputs and outputs, keep a
+small state, and update it one bar at a time::
 
-    from lumibot.indicators import Indicator, InputSpec, Level, OutputSpec, register
-    from lumibot.indicators.primitives import RollingSMA, SeededEMA, safe_div
+    from collections import deque
+
+    from lumibot.indicators import Indicator, InputSpec, OutputSpec, register
 
     @register
-    class MyWaveTrend(Indicator):
-        key = "my_wavetrend"
+    class DonchianMidline(Indicator):
+        key = "donchian_mid"
         version = 1                  # bump when you change the math
-        title = "WaveTrend Oscillator"
-        short_title = "WT"
-        overlay = False              # draw in its own pane
+        title = "Donchian Channel Midline"
+        short_title = "DCM"
+        overlay = True               # draw on the price pane
 
-        inputs = [
-            InputSpec("channel_length", "int", 10, min=1, label="Channel length"),
-            InputSpec("average_length", "int", 21, min=1, label="Average length"),
-            InputSpec("source", "source", "ohlc4", label="Source"),
-            InputSpec("ob1", "float", 60.0, label="Overbought"),
-            InputSpec("os1", "float", -60.0, label="Oversold"),
-        ]
-        outputs = [
-            OutputSpec("wave1", "Wave 1", "area", "#26A69A"),
-            OutputSpec("wave2", "Wave 2", "area", "#2962FF"),
-            OutputSpec("cross", "Cross", "markers", "#FFFFFF"),
-        ]
-
-        @classmethod
-        def levels_for(cls, inputs):
-            return [Level(0, "Zero", "dotted"), Level(inputs["ob1"], "OB"), Level(inputs["os1"], "OS")]
+        inputs = [InputSpec("length", "int", 20, min=1, label="Length")]
+        outputs = [OutputSpec("mid", "Midline", "line", "#F59E0B")]
 
         def init_state(self):
-            n1 = self.inputs["channel_length"]
-            return {
-                "esa": SeededEMA(n1),
-                "d": SeededEMA(n1),
-                "wave1": SeededEMA(self.inputs["average_length"]),
-                "wave2": RollingSMA(3),
-                "prev": None,
-            }
+            n = self.inputs["length"]
+            return {"highs": deque(maxlen=n), "lows": deque(maxlen=n)}
 
         def step(self, state, bar):
-            ap = bar.source(self.inputs["source"])           # ohlc4 by default
-            esa = state["esa"].update(ap)
-            d = state["d"].update(None if esa is None else abs(ap - esa))
-            ci = None if esa is None or d is None else safe_div(ap - esa, 0.015 * d)
-            wt1 = state["wave1"].update(ci)
-            wt2 = state["wave2"].update(wt1)
-            cross = None
-            prev = state["prev"]
-            if prev and None not in prev and wt1 is not None and wt2 is not None:
-                if (wt1 > wt2) != (prev[0] > prev[1]):
-                    cross = wt2
-            state["prev"] = (wt1, wt2)
-            return {"wave1": wt1, "wave2": wt2, "cross": cross}
+            state["highs"].append(bar.high)
+            state["lows"].append(bar.low)
+            if len(state["highs"]) < self.inputs["length"]:
+                return {"mid": None}
+            return {"mid": (max(state["highs"]) + min(state["lows"])) / 2}
 
-Now ``self.indicators.get("my_wavetrend", asset)``,
-``runner.add("my_wavetrend")`` and ``registry.list()`` all know about it.
+Now ``self.indicators.get("donchian_mid", asset)``,
+``runner.add("donchian_mid")`` and ``registry.list()`` all know about it.
 
 What each piece does
 --------------------

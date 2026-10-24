@@ -350,3 +350,9 @@ a.reference.image-reference:has(.lumibot-learning-image) { display: block; width
 
 /* Keep navigation visible near the top, including on narrow screens. */
 .sidebar-brand img.sidebar-logo { max-width: 128px; margin: 0 auto; }
+
+/* Keep Furo toctree expanders above the padded link so sidebar toggles
+   remain clickable on nested module pages. */
+.sidebar-tree li.has-children > label {
+    z-index: 1;
+}

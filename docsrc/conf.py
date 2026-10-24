@@ -139,7 +139,7 @@ html_favicon = "_html/lumibot_favicon_transparent.png"
 # so a file named "default.css" will overwrite the builtin "default.css".
 html_static_path = ["_html", "../docs/assets/community"]
 html_css_files = ["custom.css"]
-html_js_files = ["posthog.js"]
+html_js_files = ["posthog.js", "docs_nav_fix.js"]
 html_extra_path = ["_extra"]
 
 

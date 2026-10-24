@@ -23,7 +23,8 @@ Choose what you want to build
 * **Your own trading rules:** :ref:`Backtest a Python strategy <first-python-backtest>` using daily stock prices. No model account is needed.
 * **Research in another project:** :doc:`Use data and research components <standalone_components>` without creating a trading strategy.
 
-Already building with an AI coding assistant? Give it :doc:`agent_start_here`.
+Already building with an AI coding assistant? :doc:`Install the free LumiBot trading skills <claude_code_codex_cursor>`
+in Claude Code, Codex or Cursor with one command, and give it :doc:`agent_start_here`.
 
 Install LumiBot
 ---------------

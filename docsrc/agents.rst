@@ -13,6 +13,7 @@ broker. You choose when they run and which agents can trade.
 Choose your first workflow
 --------------------------
 
+* **Use Claude Code, Codex or Cursor:** :doc:`install the free LumiBot trading skills <claude_code_codex_cursor>` with one command and connect the free BotSpot MCP, then ask your assistant to build and backtest an agent for you.
 * **Build your first agent:** :doc:`agents_quickstart` has installation, model credentials, daily data, and a complete researcher-and-trader backtest.
 * **Trade stocks:** start with :doc:`a large-cap stock team <agents_example_bull_vs_bear_ai_stock_trading_bot>` or :doc:`opening range breakout <agents_example_opening_range_breakout_ai_trading_bot>`.
 * **Explore macro teams:** inspect :doc:`the idea-meritocracy example <agents_example_ray_dalio_idea_meritocracy>` and :doc:`FRED/ALFRED data setup <macro_data>`.

@@ -2,6 +2,9 @@
 
 ## 4.6.30 - Unreleased
 
+### Added
+- Indicator v2 (`lumibot.indicators.Indicator`): indicators that process one bar at a time with forming-bar rollback (state advances only on closed bars), `compute()` equal to the update loop, `snapshot()`/`restore()`, typed input/output/level schemas and `describe()` for chart UIs and AI agents. Built-ins follow TradingView Pine v6 math: `sma`, `ema`, `rsi`, `macd`, `bbands`, `atr`, `stoch`, `vwap`, `wavetrend`; every built-in update is O(1) per bar. New `lumibot.indicators.registry` (`get(key, version)`, `list()`, `create()`, `register()`, immutable versions), `IndicatorRunner` for running indicators outside a strategy through any data source's `get_historical_prices` with live `on_bar(bar, closed)`, and `self.indicators.get(key, asset, version=, **inputs)` inside strategies (streams new bars instead of recomputing history; existing `self.indicators` calls are unchanged). Docs: new "Building indicators" page.
+
 ## 4.6.29 - 2026-10-24
 
 ### Added

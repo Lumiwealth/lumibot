@@ -6,6 +6,8 @@ Interactive Brokers (REST) Backtesting
 
 LumiBot supports backtesting with **Interactive Brokers data providers**.
 
+.. include:: _snippets/botspot_mcp_callout.rst
+
 The primary data path uses Client Portal (REST) via the LumiBot Data Downloader.
 
 Corporate-action metadata availability
@@ -292,3 +294,51 @@ A root-symbol closing order targets a single matching held expiry. If several
 opposite positions exist, or a reversal would span different expiries, use
 explicit ``position.asset`` contracts and separate orders. The simulator rejects
 ambiguous operations rather than silently choosing a different financial result.
+
+Frequently asked questions
+--------------------------
+
+Can I backtest with Interactive Brokers data in LumiBot?
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Yes, with limits. Set ``BACKTESTING_DATA_SOURCE=ibkr``. LumiBot reads IBKR history through Client Portal (REST) using the LumiBot Data Downloader. IBKR REST backtesting is still under active development and is not yet a fully supported public workflow in the open source release.
+
+What IBKR data can I backtest?
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+US futures on CME, CBOT, COMEX and NYMEX with minute, hour and day bars, plus spot crypto bars where IBKR offers them. Daily stock and index bars work in routed backtests, for example ThetaData plus IBKR. Second and tick level history is not yet a fully supported workflow.
+
+Do I need IBKR market data subscriptions?
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Yes. IBKR requires market data entitlements to return data through its API. IBKR says historical bars are part of Level 1 entitlements and that crypto needs no extra subscription. See IBKR's `market data subscriptions page <https://www.interactivebrokers.com/campus/ibkr-api-page/market-data-subscriptions/>`__ and `pricing table <https://www.interactivebrokers.com/en/pricing/market-data-pricing.php>`__ to confirm your costs.
+
+What is a conid, and why do expired futures need one?
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+A conid is IBKR's contract ID. IBKR needs it to return futures history, but Client Portal cannot reliably find conids for expired contracts. LumiBot keeps a registry at ``LUMIBOT_CACHE_FOLDER/ibkr/conids.json`` that grows as backtests run, so known expired contracts can still be tested.
+
+How do I use ThetaData and IBKR in the same backtest?
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Set ``BACKTESTING_DATA_SOURCE`` to a JSON map that names a source per asset type, as shown in Multi-provider routing above. For example, route stocks, options and indexes to ``thetadata`` and futures and crypto to ``ibkr``.
+
+Does IBKR history include dividends and splits?
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+IBKR ``TRADES`` stock and ETF prices are already split adjusted, but IBKR day bars have no dividend columns. LumiBot adds dividend and split values to cached IBKR daily stock bars from Yahoo actions as a best effort source. If that data is unavailable, the backtest still runs and ``settings.json`` notes that cash dividends were not verified.
+
+Why do my intraday IBKR bars stop 20 minutes before the run started?
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+IBKR stock, index and futures history can lag real time. LumiBot stops intraday requests 20 minutes before the clock captured when the run started, so it never caches prices that were not yet available.
+
+Does LumiBot roll my continuous futures position for me?
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+No. The continuous series only supplies history. An order binds to one real expiry, and the position keeps that expiry. To roll, close ``position.asset`` and open the next contract with your own orders.
+
+How do I choose the futures exchange?
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+LumiBot tries to find it automatically, preferring USD and US venues. If the result is unclear, pass ``exchange=...`` to ``get_historical_prices()``, ``get_last_price()`` or ``get_quote()``. ``IBKR_FUTURES_EXCHANGE`` (default ``CME``) is used when automatic routing fails.

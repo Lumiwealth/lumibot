@@ -278,3 +278,9 @@ def test_shallow_clone_omits_lastmod_instead_of_inventing_freshness(tmp_path):
     subprocess.run(["git", "clone", "-q", "--depth", "1", f"file://{origin}", str(clone)], check=True)
     assert config._git_commit_dates(clone) is None
     assert config._git_commit_dates(origin)["docsrc/page.rst"]
+
+
+def test_bing_webmaster_verification_file_is_published():
+    """Bing Webmaster Tools verifies lumibot.lumiwealth.com with this file (added 2026-10-23)."""
+    text = (ROOT / "docsrc/_extra/BingSiteAuth.xml").read_text()
+    assert "<user>4858E38F7A73B940D6A4FF548455514F</user>" in text

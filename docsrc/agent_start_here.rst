@@ -4,6 +4,8 @@ LumiBot for coding agents
 .. meta::
    :description: Exact starting points for coding agents using LumiBot: install, complete Strategy examples, AI model credentials, backtest artifacts, and supported tools.
 
+.. include:: _snippets/botspot_mcp_callout.rst
+
 Start from a complete example
 -----------------------------
 

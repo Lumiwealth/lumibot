@@ -44,3 +44,62 @@ Documentation
    :members:
    :undoc-members:
    :show-inheritance:
+
+Frequently asked questions
+""""""""""""""""""""""""""
+
+What is a Bars object in LumiBot?
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+A Bars object holds price history for one asset. You get one back from
+``self.get_historical_prices(asset, length, timestep)``. It keeps the data in a
+DataFrame and adds helper methods such as ``get_last_price()`` and
+``aggregate_bars()``.
+
+How do I get a pandas DataFrame from get_historical_prices?
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Use ``bars.df`` or ``bars.pandas_df``. For example,
+``bars = self.get_historical_prices("SPY", 30, "day")`` gets 30 daily bars.
+Check that ``bars`` is not ``None``, then ``bars.df.iloc[-1]`` is the newest
+bar.
+
+What columns are in bars.df?
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+``open``, ``high``, ``low``, ``close`` and ``volume``. LumiBot also adds a
+``return`` column with the change from the bar before. When the data source has
+them, you also get ``dividend`` and ``stock_splits``.
+
+What time zone does bars.df use?
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The index is a time zone aware datetime index. By default LumiBot uses
+``America/New_York``.
+
+Is bars.df the same when my data comes from Alpaca?
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Yes. In a LumiBot strategy, ``get_historical_prices`` returns a LumiBot Bars
+object for every data source, including Alpaca. You read its DataFrame the same
+way with ``bars.df``.
+
+How do I get the last closing price from Bars?
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Call ``bars.get_last_price()``. It returns the ``close`` value of the newest
+row. For the latest price from your data source, call
+``self.get_last_price(asset)`` in your strategy instead.
+
+How do I change bars to a different timeframe?
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Call ``bars.aggregate_bars("15Min")``, or another frequency such as ``"1H"`` or
+``"1D"``. It returns a new Bars object. You can also ask for that timeframe
+directly, for example ``self.get_historical_prices("SPY", 20, "15min")``.
+
+How many bars are in a Bars object?
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Use ``len(bars)``. You can also check ``bars.empty`` to see if no data came
+back.

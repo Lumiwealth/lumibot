@@ -72,6 +72,13 @@ class Ccxt(Broker):
     def get_asset(self, symbol):
         """Build an asset from provider metadata; contract quantities are contracts."""
         market = self.get_market(symbol)
+        if market.get("option"):
+            # CCXT options map to LumiBot option assets (base, expiry, strike, right).
+            expiry = datetime.datetime.fromtimestamp(market["expiry"] / 1000, tz=datetime.timezone.utc).date()
+            strike = market["strike"]
+            strike = int(strike) if float(strike).is_integer() else float(strike)
+            return Asset(market["base"], asset_type="option", expiration=expiry, strike=strike,
+                         right=str(market["optionType"]).upper(), multiplier=market.get("contractSize") or 1)
         if market.get("contract"):
             return Asset(market["symbol"], asset_type="crypto_future", multiplier=market["contractSize"])
         return Asset(market["base"], asset_type="crypto")
@@ -151,7 +158,20 @@ class Ccxt(Broker):
     def _fetch_derivative_positions(self):
         if self.api.id == "phemex":
             return self._phemex_contract_accounts()["positions"]
-        return self.api.fetch_positions(params={"type": "swap"})
+        # One call per contract type the exchange actually lists (swap first, as before),
+        # so dated futures and options positions are read too.
+        present = {m.get("type") for m in self.api.markets.values() if m.get("contract")}
+        types = [t for t in ("swap", "future", "option") if t in present] or ["swap"]
+        positions = []
+        for market_type in types:
+            try:
+                positions.extend(self.api.fetch_positions(params={"type": market_type}) or [])
+            except Exception as exc:
+                if market_type == types[0]:
+                    raise
+                logger.warning("CCXT %s positions for %s could not be read: %s",
+                               market_type, self.api.id, type(exc).__name__)
+        return positions
 
     def set_position_mode(self, hedged, asset, params=None):
         market = self.get_market(asset)
@@ -548,6 +568,8 @@ class Ccxt(Broker):
             params.update(order.custom_params or {})
             if self.api.id == "phemex":
                 params.setdefault("clientOrderId", str(order.identifier))
+            if market.get("contract") and not market.get("option") and not params.get("reduceOnly"):
+                self._apply_asset_leverage(order.asset, pair)
             client_id = params.get("clientOrderId")
             if client_id:
                 self._pending_client_orders[str(client_id)] = order
@@ -588,6 +610,26 @@ class Ccxt(Broker):
                 order.set_error(exc)
             logger.error("CCXT order submission for %s: %s", order.pair, type(exc).__name__)
         return order
+
+    def _apply_asset_leverage(self, asset, pair):
+        """Set ``asset.leverage`` on opening contract orders, as the Bitunix broker does.
+
+        Only a leverage above 1 is applied: ``Asset`` defaults to 1, and treating that
+        default as an instruction would reset leverage a user set with ``set_leverage``.
+        A failure is logged and the order still goes, matching Bitunix.
+        """
+        leverage = getattr(asset, "leverage", 1) or 1
+        if leverage <= 1:
+            return
+        applied = self.__dict__.setdefault("_applied_leverage", {})
+        if applied.get(pair) == leverage:
+            return
+        try:
+            self.api.set_leverage(leverage, pair, {})
+            applied[pair] = leverage
+            logger.info("Set leverage for %s to %sx", pair, leverage)
+        except Exception as exc:
+            logger.warning("Could not set leverage for %s to %sx: %s", pair, leverage, exc)
 
     @staticmethod
     def _check_market_limit(field, value, limits):

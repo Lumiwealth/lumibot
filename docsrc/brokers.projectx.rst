@@ -6,6 +6,8 @@ ProjectX / TopstepX
 
 Lumibot's ProjectX path is a **futures-only broker integration** currently documented for TopstepX. The lower-level adapter contains firm-specific ProjectX environment-variable prefixes, but new firms should be treated as advanced and validation-required until they are tested in Lumibot.
 
+.. include:: _snippets/botspot_mcp_callout.rst
+
 Features
 --------
 
@@ -113,4 +115,47 @@ Supported Features
 
 ❌ **Stock Trading**: Futures only
 ❌ **Options Trading**: Futures only
-❌ **Order Modification**: Must cancel and re-place 
+❌ **Order Modification**: Must cancel and re-place
+
+Frequently asked questions
+--------------------------
+
+What is ProjectX?
+^^^^^^^^^^^^^^^^^
+
+ProjectX is a futures trading platform that prop firms and evaluation providers use to run trader accounts. TopstepX runs on it. The `ProjectX Gateway API documentation <https://gateway.docs.projectx.com/docs/intro>`__ describes the REST API that LumiBot talks to.
+
+Does LumiBot work with TopstepX?
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Yes. TopstepX is the documented ProjectX path in LumiBot. Set ``PROJECTX_TOPSTEPX_API_KEY``, ``PROJECTX_TOPSTEPX_USERNAME`` and ``PROJECTX_TOPSTEPX_PREFERRED_ACCOUNT_NAME``, then run your strategy. LumiBot finds the ProjectX settings on its own.
+
+Where do I get a ProjectX API key?
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Your broker gives you the API key and username. For TopstepX, get them from your TopstepX account, then put the key in ``PROJECTX_TOPSTEPX_API_KEY`` and the username in ``PROJECTX_TOPSTEPX_USERNAME``.
+
+Which account does LumiBot trade if I have more than one?
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+LumiBot looks for the account named in ``PROJECTX_TOPSTEPX_PREFERRED_ACCOUNT_NAME``. If that name is not set, or no account matches it, LumiBot logs a warning and uses the account with the highest balance. Set the name so you always know which account trades.
+
+Can I use other prop firms that run on ProjectX?
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+The adapter can read other ``PROJECTX_<FIRM>_*`` settings, and ``PROJECTX_FIRM`` picks the firm. Only TopstepX is documented here. Treat any other firm as a test: check fills, positions, account choice, market data and order errors with small orders before you rely on it.
+
+Which order types does the ProjectX integration support?
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Market, limit and stop orders. LumiBot rounds your prices to the contract tick size before it sends the order.
+
+Can I trade stocks or options through ProjectX?
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+No. The ProjectX integration is for futures only, such as CME micro and standard contracts. Use a continuous futures asset, for example ``Asset("MES", asset_type=Asset.AssetType.CONT_FUTURE)``.
+
+Can ProjectX supply market data while another broker places trades?
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Yes. Set ``DATA_SOURCE=projectx`` to use ProjectX prices with a different trading broker. The :doc:`brokers.tradovate` guide shows this setup, because Tradovate does not supply market data to LumiBot.

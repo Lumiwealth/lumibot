@@ -147,6 +147,11 @@ class Trader:
         dict
             A dictionary with the keys being the strategy names and the values being the strategy analysis.
         """
+        # One BotSpot MCP tip per run when BotSpot is not connected; never raises.
+        from lumibot.components.agents import botspot_hint
+
+        botspot_hint.show_startup_tip(logger)
+
         if not self._strategies:
             raise RuntimeError(
                 "No strategies to run. You must call trader.add_strategy(strategy) " "before trader.run_all()."

@@ -137,6 +137,9 @@ class CcxtStream:
 
                 exchange_class = PhemexClient
             client = exchange_class({**self.config, "newUpdates": True})
+            from lumibot.tools.ccxt_partner_ids import apply_partner_config
+
+            apply_partner_config(client)
         client.set_sandbox_mode(self.config.get("sandbox", True))
         client.set_markets(self.api.markets or {}, self.api.currencies or {})
         self._client = client

@@ -26,6 +26,13 @@ from pathlib import Path
 
 RESEARCH_MCP_URL = "https://api.botspot.trade/research-mcp"
 OPT_OUT_ENV = "LUMIBOT_NO_BOTSPOT_HINT"
+# Documented off switch for the startup tip (Rob, 2026-10-23). Either variable
+# silences both the startup tip and the agent hint.
+HIDE_TIP_ENV = "LUMIBOT_HIDE_BOTSPOT_TIP"
+AGENTS_PAGE_URL = "https://botspot.trade/agents"
+# Any of these means BotSpot is already linked (hosted runs set the research
+# variables automatically; coding agents use BOTSPOT_API_KEY).
+_CONNECTED_ENVS = ("BOTSPOT_RESEARCH_MCP_TOKEN", "BOTSPOT_RESEARCH_MCP_RENEW_URL", "BOTSPOT_API_KEY")
 _API_KEYS_URL = "https://botspot.trade/account-settings/api-keys"
 _UTM = "utm_source=lumibot&utm_medium={medium}&utm_campaign=mcp_nudge&utm_content={content}"
 _TRUTHY_CI_ENVS = ("CI", "GITHUB_ACTIONS", "GITLAB_CI", "BUILDKITE", "CIRCLECI", "TF_BUILD")
@@ -46,7 +53,7 @@ def _is_true(value: str | None) -> bool:
 
 def hint_suppressed(environ=None) -> bool:
     env = os.environ if environ is None else environ
-    if _is_true(env.get(OPT_OUT_ENV)) or _is_true(env.get("DO_NOT_TRACK")):
+    if _is_true(env.get(OPT_OUT_ENV)) or _is_true(env.get(HIDE_TIP_ENV)) or _is_true(env.get("DO_NOT_TRACK")):
         return True
     if any(_is_true(env.get(name)) for name in _TRUTHY_CI_ENVS):
         return True
@@ -69,6 +76,45 @@ def _reset_for_tests() -> None:
     global _shown
     with _lock:
         _shown = False
+
+
+def botspot_connected(environ=None) -> bool:
+    env = os.environ if environ is None else environ
+    return any(str(env.get(name) or "").strip() for name in _CONNECTED_ENVS)
+
+
+def startup_tip_message() -> str:
+    link = f"{AGENTS_PAGE_URL}?{_UTM.format(medium='log', content='startup_tip')}"
+    rule = "=" * 72
+    return (
+        f"\n{rule}\n"
+        "BotSpot MCP is not connected. Connect it free to give your agents skills, free data\n"
+        "(news, economic data, SEC filings), community and marketplace access.\n"
+        f"  {link}\n"
+        "  Or run: lumibot connect botspot\n"
+        f"Hide this message: {HIDE_TIP_ENV}=1\n"
+        f"{rule}"
+    )
+
+
+def show_startup_tip(log=None) -> bool:
+    """Log the startup tip once per run when BotSpot is not connected.
+
+    Called at the start of ``Trader.run_all`` (backtests and live runs). It
+    shares the once-per-process claim with the agent hint, so a run shows one
+    BotSpot message at most. It never raises.
+    """
+    try:
+        if botspot_connected() or not claim_unlinked_hint():
+            return False
+        if log is None:
+            import logging
+
+            log = logging.getLogger("lumibot")
+        log.warning(startup_tip_message())
+        return True
+    except Exception:
+        return False
 
 
 def unlinked_research_message() -> str:

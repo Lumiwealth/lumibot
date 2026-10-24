@@ -1,5 +1,30 @@
 # Changelog
 
+## 4.6.28 - 2026-10-23
+
+### Added
+- Alpaca adapters accept caller-owned trading and stock, option, and crypto data clients. Injected clients own their authentication, use the existing order-polling lifecycle, and remain configured after data authentication resets. Standalone API-key and OAuth connections keep their existing behavior.
+- Trading-only keys for DEX wallets: Paradex subkeys (`PARADEX_L2_PRIVATE_KEY`, `PARADEX_L2_ADDRESS`), existing Lighter API keys (`LIGHTER_API_KEY_PRIVATE_KEY`, `LIGHTER_API_KEY_INDEX`, `LIGHTER_ACCOUNT_INDEX`, `LIGHTER_LIBRARY_PATH`) and the dYdX Chain mnemonic (`DYDX_MNEMONIC`) replace the main wallet private key when set. Offline tests only so far.
+- Docs: every generated CCXT exchange page includes the shared BotSpot MCP callout (`docsrc/_snippets/botspot_mcp_callout.rst`) and a "Fees and partner IDs" section; 31 exchanges that list spot and perpetuals (with CCXT position reads) gain a perpetual example. Every page example now runs a full iteration offline: the fake exchange fills the order, LumiBot processes the fill and the position appears after a normal position sync. The Lighter "set builderFee False" workaround text is gone.
+- Opt-in live order proof for Coinbase, Kraken, Kraken Futures and Coinbase International (`tests/test_ccxt_live_orders_apitest.py`): skipped unless `LUMIBOT_LIVE_CCXT_ORDER_TESTS=1` and keys are set.
+- Startup tip: when a backtest or live run starts (`Trader.run_all`) and BotSpot is not connected, LumiBot logs one clean block saying the BotSpot MCP is free and how to connect it (`lumibot connect botspot`, https://botspot.trade/agents). Once per run, shared with the agent research hint, never raises, hidden in CI and when `BOTSPOT_RESEARCH_MCP_TOKEN`, `BOTSPOT_RESEARCH_MCP_RENEW_URL` or `BOTSPOT_API_KEY` is set. New env var `LUMIBOT_HIDE_BOTSPOT_TIP=1` silences it (`LUMIBOT_NO_BOTSPOT_HINT=1` still works).
+- Docs: a "Frequently asked questions" section on every hand-written broker page, the backtesting data-source pages and the top docs pages by search impressions. Each FAQ is emitted as FAQPage JSON-LD (`_add_faq_schema` in `docsrc/conf.py`, rendered from `_templates/base.html`, which is the template Furo actually uses; the old FAQ page schema in `layout.html` never rendered).
+- Docs: one shared BotSpot MCP callout (`docsrc/_snippets/botspot_mcp_callout.rst`) near the top of broker, exchange, backtesting, getting started, AI agent pages and the homepage, plus a "Why connect the free BotSpot MCP" section on the BotSpot MCP page.
+- Docs: brokers grouped in the sidebar (Stocks & options, Futures, Crypto exchanges, Prediction markets, Backtesting data sources) and an all brokers A to Z page with a filter box. Every exchange guide sits directly under "Crypto exchanges" with its plain name. Page URLs are unchanged.
+- Docs: an asset-class table (stocks, options, futures, crypto, forex, prediction markets) on the brokers page, each broker listed under every asset class it trades (new Options and Forex groups), and the Bing Webmaster verification file for lumibot.lumiwealth.com.
+
+### Changed
+- CCXT partner IDs and builder fees: CCXT tags orders with its own partner ID on many exchanges (Binance, Bitget, MEXC, BingX, HTX, OKX, Bybit, Phemex, Coinbase, Gate, KuCoin, Bitmart, Blofin, Coinex, Crypto.com, Paradex and others) and adds an extra user-paid builder fee on Hyperliquid, Lighter, GRVT, Aster, Pacifica and Extended, plus a CCXT referrer on Hyperliquid. LumiBot now removes CCXT's IDs, turns CCXT's builder fees and referrer off, and attaches only its own configured IDs (`LUMIBOT_CCXT_PARTNER_IDS`, default empty). A builder fee is added only when configured (`LUMIBOT_CCXT_BUILDER_FEES`) and is logged as a warning because it costs the user extra. New `lumibot.tools.ccxt_partner_ids`, applied to every CCXT client LumiBot creates. HTX perpetual orders, WOO X, WOOFi Pro and ModeTrade still carry CCXT's tag because CCXT re-adds it while signing.
+- CCXT market types follow the Bitunix futures model: an exchange-style contract symbol such as `BTCUSDT` resolves to the perpetual, an opening order on an asset created with `leverage` above 1 sets that leverage once (closing orders and the default 1x never change it), dated futures use their full CCXT symbol, and CCXT option markets map to LumiBot option assets (base, expiration, strike, right). Positions are read for every contract type the exchange lists (swaps, then dated futures and options); swap-only accounts make the same single call as before.
+- Docs: titles and menu labels no longer say "CCXT" (the CCXT library is still named in the body). The BotSpot MCP is described as free to connect; paid plans apply only to some heavier features.
+- README: 100+ brokers and exchanges with links to the A to Z list, and a free BotSpot MCP line below the existing top links (which are unchanged).
+
+### Fixed
+- Simple moving averages over a finite window now request and validate only the history that window needs (positive offsets included), grow smaller lazy caches and keep causal slicing. Custom, recursive and explicit-window calculations keep their existing history contract.
+- Alpaca authentication diagnostics no longer print OAuth token prefixes, raw authentication response bodies, or application-specific sign-in addresses.
+- Docs: the BitMEX page said `BACKTESTING_DATA_SOURCE=bitmex`, which raises "Unknown BACKTESTING_DATA_SOURCE". It now says `ccxt` with `exchange_id="bitmex"`.
+- Docs: the generated Bybit page had the same mistake (`BACKTESTING_DATA_SOURCE=bybit`). The exchange page generator now always writes `ccxt` plus the `exchange_id`, and a test fails if any exchange page uses an exchange id there.
+
 ## 4.6.27 - 2026-10-23
 
 ### Changed

@@ -6,6 +6,8 @@ Charles Schwab API Trading with LumiBot
 
 Lumibot integrates directly with Charles Schwab's *Trader* API for equities and options.  Everything you need is built-in; no external wrapper is required.
 
+.. include:: _snippets/botspot_mcp_callout.rst
+
 Order lifecycle and rejection details
 ------------------------------------
 
@@ -620,6 +622,72 @@ Then, create your `main.py` (or `strategy.py`) file:
    strategy = MyStrategy()
    trader.add_strategy(strategy)
    trader.run_all()
+
+Frequently asked questions
+--------------------------
+
+Does Charles Schwab have an API for trading?
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Yes. Schwab offers the Trader API through the `Schwab Developer Portal <https://developer.schwab.com/>`__. You need a Schwab brokerage account and an app that Schwab approves for the Trader API.
+
+LumiBot connects to that API directly, so your Python strategy can read prices and place stock, ETF and option orders in your Schwab account.
+
+Can I run an automated or AI trading bot on my Schwab account?
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Yes, with LumiBot. LumiBot is an open-source Python library, not a Schwab product. You write a strategy, and LumiBot sends its orders through Schwab's Trader API.
+
+Strategies can use plain rules or AI agents. See :doc:`agents` for AI agent strategies.
+
+How do I get a Schwab API key?
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Register on the `Schwab Developer Portal <https://developer.schwab.com/>`__, create an app, request the Trader API product, and enter an HTTPS callback URL. After Schwab approves the app, copy the App Key and App Secret from the app details.
+
+Approval is manual and can take a few days. Wait until the app is fully ready before you try to log in.
+
+What environment variables does LumiBot use for Schwab?
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Set ``SCHWAB_APP_KEY``, ``SCHWAB_APP_SECRET``, ``SCHWAB_ACCOUNT_NUMBER`` and ``SCHWAB_BACKEND_CALLBACK_URL``. ``SCHWAB_TOKEN`` is optional and only helps the first start on a server with no browser.
+
+Add ``TRADING_BROKER=schwab`` if keys for other brokers are also set.
+
+What is the Schwab API rate limit?
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Each Schwab developer app has an order limit. It is the number of place, cancel and replace requests the app may send per minute, and you set it on your app.
+
+Schwab may answer with HTTP 429 when you send too many requests. Wait for the time in ``Retry-After`` if it is given, or back off and try again. Do not assume one fixed limit for data requests.
+
+Can I paper trade with the Schwab API in LumiBot?
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The LumiBot Schwab broker has no paper trading setting. It trades the account in ``SCHWAB_ACCOUNT_NUMBER``.
+
+To try a strategy without risking money, run a backtest first. See :doc:`backtesting`.
+
+How often do I need to log in to Schwab again?
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Access tokens last about 30 minutes, and LumiBot refreshes them for you. Refresh tokens expire 7 days after they are created, or sooner if access is revoked.
+
+When the refresh token expires, repeat the browser login once.
+
+What can I trade on Schwab with LumiBot?
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Stocks, ETFs and single-leg options. Stock orders can be market, limit, stop or stop-limit. OTO, OCO and bracket orders are experimental.
+
+Multi-leg option spreads, futures orders and crypto are not supported. The ticker ``BTC`` on Schwab is a bitcoin ETF, not spot bitcoin.
+
+Why do I get a 400 or 401 error when I log in to Schwab?
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+This usually means your callback URL does not match the one in the Developer Portal exactly. Check every character, including any trailing slash.
+
+For local testing, ``https://127.0.0.1:8182`` is a common callback URL.
 
 Support & Contact
 -----------------

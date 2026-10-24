@@ -27,6 +27,19 @@ This page documents environment variables used by LumiBot, with an emphasis on *
   - The tool date-gates requests to the strategy datetime during backtests.
   - Do not commit real key values.
 
+### `LUMIBOT_CCXT_PARTNER_IDS` / `LUMIBOT_CCXT_BUILDER_FEES` / `LUMIBOT_CCXT_REFERRAL_CODES`
+- Owner: `lumibot/tools/ccxt_partner_ids.py`, applied wherever LumiBot creates a CCXT client
+  (`CcxtData`, `CcxtDataStore`, the CCXT Pro stream).
+- Default: all empty. CCXT's own partner IDs, builder fees and Hyperliquid referrer are removed.
+- JSON objects keyed by CCXT exchange id. Builder fees cost the user extra and are logged as a warning.
+- `tests/test_ccxt_partner_ids.py` fails if a CCXT upgrade stops sending an ID we strip.
+- CCXT re-adds its tag inside `sign` on HTX swaps, WOO X, WOOFi Pro and ModeTrade; those are reported as
+  `unremovable` (needs a CCXT change that honours an explicit off value).
+
+### DEX trading-only keys (`PARADEX_L2_*`, `LIGHTER_API_KEY_*`, `LIGHTER_ACCOUNT_INDEX`, `LIGHTER_LIBRARY_PATH`, `DYDX_MNEMONIC`)
+- Owner: `AGENT_KEY_CREDENTIALS` in `lumibot/tools/ccxt_exchange_catalog.py`. When complete they replace
+  `<EXCHANGE>_PRIVATE_KEY`; a partial set names what is missing.
+
 ### Polymarket CLOB broker variables
 - Selectors:
   - `TRADING_BROKER=polymarket` or `TRADING_BROKER=polymarket_clob`
@@ -151,6 +164,7 @@ This page documents environment variables used by LumiBot, with an emphasis on *
 - Endpoints must use HTTPS, except HTTP on loopback for local development. Do not put credentials in the URL, query string or fragment. A supplied renewal endpoint must have the same origin as the MCP endpoint.
 - Missing or incomplete configuration preserves ordinary LumiBot strategy and agent behavior and emits one deduplicated capability notice. The "not connected" notice (`lumibot/components/agents/botspot_hint.py`) shows at most once per process, never in CI, and carries a tracked link (`utm_campaign=mcp_nudge`).
 - `LUMIBOT_NO_BOTSPOT_HINT`: set to `1` to hide that notice. `DO_NOT_TRACK=1` also hides it.
+- `LUMIBOT_HIDE_BOTSPOT_TIP`: set to `1` to hide the one-time startup tip that `Trader.run_all` logs when no BotSpot connection is configured (`lumibot/components/agents/botspot_hint.py::show_startup_tip`). It shares the once-per-process claim with the agent hint, so a run shows at most one BotSpot message. Connected means `BOTSPOT_RESEARCH_MCP_TOKEN`, `BOTSPOT_RESEARCH_MCP_RENEW_URL` or `BOTSPOT_API_KEY` is set. Hidden in CI too.
 - `lumibot connect botspot` verifies a Research key and writes the URL and token to `.env` (mode 0600).
 
 ### `GITHUB_TOKEN` in release CI

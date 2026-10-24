@@ -29,12 +29,20 @@ Usage::
     python scripts/generate_ccxt_exchange_pages.py phemex bybit
 """
 
+import copy
 import json
 import re
 import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+# The fee section describes exactly what LumiBot's CCXT client policy does.
+from lumibot.tools.ccxt_partner_ids import BUILDER_FEE_DEFAULTS, PARTNER_RULES, REFERRER_EXCHANGES  # noqa: E402
+
+# One shared callout file, included near the top of every exchange page.
+MCP_CALLOUT_INCLUDE = ".. include:: _snippets/botspot_mcp_callout.rst\n"
 DATA = ROOT / "docsrc" / "_data"
 DOCSRC = ROOT / "docsrc"
 INDEX_PAGE = DOCSRC / "brokers.ccxt.rst"
@@ -337,6 +345,52 @@ class {cls}(Strategy):
 {main_block(cls, p.quote)}'''
 
 
+def swap_example_page(p):
+    """A copy of the page set up for a perpetual example, when the exchange lists spot and swaps."""
+    if p.perp_symbol or not (p.fx["markets"].get("spot") and p.fx["markets"].get("swap")):
+        return None
+    # LumiBot reads contract positions through CCXT's fetchPositions; without it a
+    # perpetual position would be invisible to the strategy, so no example.
+    if p.fx["methods"].get("fetchPositions") not in (True, "emulated"):
+        return None
+    swap = copy.copy(p)
+    swap.perp_symbol = p.nt.get("perp_example_symbol") or f"{p.base}/{p.quote}:{p.quote}"
+    return swap
+
+
+def fee_note(p):
+    """Plain description of the CCXT partner-ID and builder-fee policy for this exchange."""
+    rules = PARTNER_RULES.get(p.id, ())
+    unremovable = [r.target for r in rules if r.kind == "unremovable"]
+    parts = [f"You pay {p.name}'s normal trading fees."]
+    if unremovable:
+        parts.append(
+            f"CCXT, the library underneath, tags {p.name} orders with its own partner ID and adds it again while "
+            "signing each request, so LumiBot cannot remove it yet. A partner ID does not change what you pay."
+        )
+    elif rules:
+        parts.append(
+            f"CCXT, the library underneath, normally tags {p.name} orders with its own partner ID. LumiBot removes "
+            "that tag."
+        )
+    parts.append("LumiBot may attach its own exchange partner ID" + (" instead" if rules else "")
+                 + ". That costs you nothing extra.")
+    if p.id in BUILDER_FEE_DEFAULTS:
+        parts.append(
+            f"CCXT also adds its own extra builder fee on {p.name}, paid by you. LumiBot turns it off. LumiBot never "
+            "adds a builder fee unless one is turned on in its settings, and it logs a warning when one is, because "
+            "it costs you extra on every order."
+        )
+    else:
+        parts.append("LumiBot never adds an extra builder fee unless one is turned on, and it logs a warning when one is.")
+    if p.id in REFERRER_EXCHANGES:
+        parts.append(
+            f"CCXT also tries to register itself as your {p.name} referrer the first time a wallet connects. "
+            "LumiBot skips that step."
+        )
+    return " ".join(parts)
+
+
 def related_pages(exchange_id, facts_by_id, rendered_ids, limit=4):
     mine = facts_by_id[exchange_id]["markets"]
     scored = []
@@ -351,7 +405,8 @@ def related_pages(exchange_id, facts_by_id, rendered_ids, limit=4):
 
 def titles(p):
     short = f"{p.name} Trading Bot in Python"
-    full = f"{p.name} Trading Bot in Python: AI Agent and Algorithmic Trading with LumiBot"
+    # Rob, 2026-10-23: titles and menu labels never say "CCXT"; the body names it once.
+    full = f"{p.name} Trading Bot in Python: AI Agent and Algorithmic Trading"
     return short, full
 
 
@@ -393,6 +448,7 @@ def render(exchange_id, facts_by_id, notes, affiliates, meta, rendered_ids=None)
         + ", connect it, and run two examples: a simple algorithmic trading bot and an agentic trading bot where an AI "
         "agent makes the calls.\n"
     )
+    out.append(MCP_CALLOUT_INCLUDE)
 
     rows = [
         ("CCXT exchange id", f"``{fx['id']}``"),
@@ -500,7 +556,7 @@ def render(exchange_id, facts_by_id, notes, affiliates, meta, rendered_ids=None)
         ":doc:`AI agents quickstart <agents_quickstart>` for models, tools and memory.\n"
     )
 
-    out.append(heading(f"What you can trade on {display} through CCXT", "-"))
+    out.append(heading(f"What you can trade on {display}", "-"))
     market_rows = [".. list-table::", "   :header-rows: 1", "   :widths: 40 60", "", "   * - Market", "     - Listed by CCXT"]
     for key, label in MARKET_LABEL.items():
         market_rows += [f"   * - {label}", f"     - {yes_no(fx['markets'].get(key))}"]
@@ -513,11 +569,31 @@ def render(exchange_id, facts_by_id, notes, affiliates, meta, rendered_ids=None)
             f"``{p.perp_symbol or 'BTC/USDT:USDT'}``. See :doc:`the CCXT guide <brokers.ccxt>` for contract quantities, "
             "position modes and leverage.\n"
         )
+    swap_page = swap_example_page(p)
+    if swap_page is not None:
+        out.append(heading(f"Perpetual futures example on {display}", "-"))
+        out.append(
+            f"{display} also lists perpetual swaps. This bot opens one small long position in "
+            f"``{swap_page.perp_symbol}`` worth about {p.notional} {p.quote} and then holds it. LumiBot treats a "
+            "perpetual as ``asset_type=\"crypto_future\"`` and sizes it in contracts, the same model as LumiBot's "
+            "Bitunix futures broker. Contract symbols can differ by exchange, so check the symbol in "
+            "``self.broker.api.markets`` before going live. In hedge mode, add ``position_side=\"long\"`` to "
+            "``create_order``." + order_sentence(p) + "\n"
+        )
+        out.append(code("python", perp_example(swap_page)))
+
+    out.append(heading(f"Fees and partner IDs on {display}", "-"))
+    out.append(fee_note(p) + "\n")
 
     if nt.get("backtesting"):
         out.append(heading(f"Backtesting with {display} data", "-"))
-        out.append(f"``{fx['id']}`` is a documented CCXT backtesting exchange id in LumiBot:\n")
-        out.append(code("bash", f"export BACKTESTING_DATA_SOURCE={fx['id']}"))
+        out.append(f"``{fx['id']}`` is a documented CCXT backtesting exchange id in LumiBot. Set the data source to ``ccxt``:\n")
+        out.append(code("bash", "export BACKTESTING_DATA_SOURCE=ccxt"))
+        out.append(
+            f"Then pass ``exchange_id=\"{fx['id']}\"`` to ``CcxtBacktesting``, as in "
+            "``lumibot/example_strategies/ccxt_backtesting_example.py``. "
+            f"``{fx['id']}`` itself is not a valid ``BACKTESTING_DATA_SOURCE`` value.\n"
+        )
         out.append("Backtests use historical candles through the CCXT data path. Live trading results can differ from a backtest.\n")
 
     if nt.get("extra_notes"):
@@ -555,7 +631,7 @@ def render(exchange_id, facts_by_id, notes, affiliates, meta, rendered_ids=None)
 
     related = related_pages(exchange_id, facts_by_id, rendered_ids)
     out.append(heading("Related guides", "-"))
-    links = [":doc:`CCXT crypto trading with LumiBot <brokers.ccxt>`", ":doc:`AI agents quickstart <agents_quickstart>`"]
+    links = [":doc:`How crypto exchange setup works <brokers.ccxt>`", ":doc:`AI agents quickstart <agents_quickstart>`"]
     links += [f":doc:`{facts_by_id[r]['name']} trading bot <brokers.ccxt.{r}>`" for r in related]
     out.append(bullets(links) + "\n")
 
@@ -568,12 +644,21 @@ def render(exchange_id, facts_by_id, notes, affiliates, meta, rendered_ids=None)
 
 
 def index_block(page_ids, facts_by_id):
-    """The toctree of every exchange page, sorted by display name."""
-    names = sorted(page_ids, key=lambda i: facts_by_id[i]["name"].lower() if i in facts_by_id else i)
-    lines = [INDEX_START, "", ".. toctree::", "   :maxdepth: 1", ""]
-    lines += [f"   brokers.ccxt.{i}" for i in names]
-    lines += ["", INDEX_END]
-    return "\n".join(lines)
+    """A pointer to the exchange list, not a toctree.
+
+    Rob, 2026-10-23: exchange pages sit directly under "Crypto exchanges" in the
+    sidebar, by plain name. ``brokers.crypto.rst`` lists them through the
+    ``lumibot-exchange-toctree`` directive in docsrc/conf.py, which reads every
+    brokers.ccxt.<id>.rst, so new pages appear there with no edit here.
+    """
+    return "\n".join([
+        INDEX_START,
+        "",
+        "Every exchange has its own step by step guide. They are listed by name in the sidebar under",
+        "Crypto exchanges, and in :doc:`brokers.crypto` and :doc:`the A to Z list <brokers.all>`.",
+        "",
+        INDEX_END,
+    ])
 
 
 def update_index(page_ids, facts_by_id):

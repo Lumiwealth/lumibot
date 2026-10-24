@@ -6,6 +6,8 @@ ThetaData Options and Stock Backtesting with LumiBot
 .. meta::
    :description: Backtest options, stocks, indexes, forex, and crypto with ThetaData and LumiBot using minute, hourly, or daily historical data.
 
+.. include:: _snippets/botspot_mcp_callout.rst
+
 .. important::
    
    **Sign up at** `ThetaData <https://www.thetadata.net/>`_. **Use the promo code ``BotSpot10`` at checkout for 10% off the first order—ThetaData tracks the code so they can credit BotSpot for the referral.**
@@ -201,3 +203,55 @@ Below is **the full code** that relies *entirely on environment variables*:
         )
 
 In summary, the ThetaData backtester is a powerful tool for fetching pricing data for backtesting various strategies. With its capability to cache data for faster subsequent backtesting and its easy integration with thetadata API, it is a versatile choice for any backtesting needs.
+
+Frequently asked questions
+--------------------------
+
+Is there a ThetaData promo code?
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Yes. Use the promo code ``BotSpot10`` at checkout on `thetadata.net <https://www.thetadata.net/>`__ for 10% off the first order. ThetaData tracks the code so it can credit BotSpot for the referral.
+
+Does ThetaData have a free plan?
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Check the `ThetaData pricing page <https://www.thetadata.net/pricing>`__ for current plans. At the time of writing it lists the Options Value, Options Standard and Options Pro monthly plans.
+
+Paid plans give you more years of history, and backtests download faster because requests are not rate limited.
+
+What do I need to run a ThetaData backtest in LumiBot?
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+You need a ThetaData account and its login, set as ``THETADATA_USERNAME`` and ``THETADATA_PASSWORD``. You also need Java 21 or higher, because ThetaData's `Theta Terminal <https://thetadata.net/docs/Articles/Getting-Started/Getting-Started.html>`__ runs as a local server on your computer.
+
+LumiBot starts and manages the local Theta Terminal for you. If you set ``DATADOWNLOADER_BASE_URL``, LumiBot uses that Data Downloader instead and does not start a local terminal.
+
+Which timeframes does ThetaData support in LumiBot?
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+``"minute"`` and ``"day"`` bars are supported directly. ``"hour"`` and multi hour bars such as ``"4h"`` work when minute bars are available, because LumiBot builds them from minute bars.
+
+Which assets can I backtest with ThetaData?
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The ThetaData backtester covers stocks, options, indexes such as SPX, forex and crypto, as described at the top of this page.
+
+How do I select ThetaData without changing my code?
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Set ``BACKTESTING_DATA_SOURCE=thetadata``. This setting wins over the data source class in your code. ThetaData is also LumiBot's default when you pass no class and set no environment variable.
+
+Can I use ThetaData for options and another source for stocks?
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Yes. Pass a dictionary such as ``{"STOCK": PolygonDataBacktesting, "OPTION": ThetaDataBacktesting}`` as the first argument to ``run_backtest()``, as shown above. You can also route by asset type with a JSON map in ``BACKTESTING_DATA_SOURCE`` (see :doc:`backtesting.ibkr`).
+
+Why does my option price look stale?
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Options can go a whole day without a trade, so ``get_last_price()`` may return an old trade price. Use ``get_quote()`` to get the bid and ask. LumiBot uses the quote midpoint to value options, like most live brokers do.
+
+Where does LumiBot cache ThetaData downloads?
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+In the ``thetadata`` folder inside ``LUMIBOT_CACHE_FOLDER``. When that variable is not set, LumiBot uses your user cache folder. The first backtest can take a while, and later runs over the same data are much faster.

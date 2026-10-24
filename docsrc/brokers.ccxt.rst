@@ -1,17 +1,20 @@
 .. _ccxt backtesting:
 
-CCXT Crypto Trading and Backtesting with LumiBot
-================================================
+Crypto Exchange Trading and Backtesting with LumiBot
+====================================================
 
 .. meta::
    :description: Use CCXT crypto exchanges with LumiBot for trading and backtesting. Compare verified exchange integrations, credentials, order handling, and example setup.
 
 This is the guide for Lumibot's CCXT-based cryptocurrency broker integrations. CCXT is a popular library for cryptocurrency trading. If you are interested (but not required!), you can find the documentation for CCXT here: https://ccxt.readthedocs.io/en/latest/
 
+.. include:: _snippets/botspot_mcp_callout.rst
+
 The shared ``Ccxt`` broker accepts exchange IDs provided by your installed CCXT
 version. You do not need a new LumiBot broker class or an approved-exchange list
 for each venue. Exchange products, API permissions, order features, credentials,
 regional availability and test environments still differ.
+
 
 Available adapters and qualification
 ------------------------------------
@@ -136,6 +139,47 @@ start-up with a message naming the exact variables. Native LumiBot broker names
    OKX_API_SECRET=<your-secret>
    OKX_API_PASSPHRASE=<your-passphrase>
 
+Trading-only keys for DEX wallets
+---------------------------------
+
+Some DEXes let a bot trade with a key that is not the main wallet key. LumiBot
+uses it when you set these variables, and then the main wallet private key is
+not needed:
+
+* **Paradex:** ``PARADEX_L2_PRIVATE_KEY`` (a Paradex subkey, which can trade but
+  cannot withdraw) and ``PARADEX_L2_ADDRESS`` (your Paradex account address),
+  plus ``PARADEX_WALLET_ADDRESS``.
+* **Lighter:** ``LIGHTER_API_KEY_PRIVATE_KEY``, ``LIGHTER_API_KEY_INDEX``,
+  ``LIGHTER_ACCOUNT_INDEX`` and ``LIGHTER_LIBRARY_PATH`` (an existing Lighter API
+  key and Lighter's signer library). Lighter API keys can still make secure
+  withdrawals back to the account's own wallet.
+* **dYdX:** ``DYDX_MNEMONIC`` (the dYdX Chain secret phrase) instead of the
+  Ethereum wallet key. This phrase still has full control of the dYdX account;
+  CCXT does not support dYdX API Trading Keys yet.
+* **Hyperliquid:** its API wallets already trade without withdrawal rights; give
+  the API wallet key as ``HYPERLIQUID_PRIVATE_KEY``.
+
+If you set only some of the trading-only variables, start-up names the ones still
+missing. These setups have offline tests but have not yet been run against live
+Paradex or Lighter accounts.
+
+Partner IDs and builder fees
+----------------------------
+
+CCXT normally tags orders with its own partner (broker) ID on many exchanges, and
+on some DEXes (Hyperliquid, Lighter, GRVT, Aster, Pacifica, Extended) it adds an
+extra builder fee that you pay, paid to CCXT. On Hyperliquid it also registers
+CCXT as your referrer the first time a wallet connects.
+
+LumiBot removes CCXT's tags and turns CCXT's builder fees and referrer off. LumiBot
+may attach its own exchange partner ID instead; a partner ID never changes what you
+pay. LumiBot never adds a builder fee unless one is configured with
+``LUMIBOT_CCXT_BUILDER_FEES``, and it logs a warning when one is, because it costs
+you extra on every order. On HTX (perpetual orders), WOO X and WOOFi Pro, CCXT
+re-adds its tag while signing each request, so LumiBot cannot remove it yet. See
+:doc:`environment_variables` for ``LUMIBOT_CCXT_PARTNER_IDS``,
+``LUMIBOT_CCXT_BUILDER_FEES`` and ``LUMIBOT_CCXT_REFERRAL_CODES``.
+
 Exchanges that publish no historical candles (no ``fetchOHLCV`` in CCXT) still
 trade and quote live prices; price-history requests raise a clear
 ``NotImplementedError``. ``python -m lumibot.tools.ccxt_exchange_catalog`` prints
@@ -150,7 +194,7 @@ the exchange API. Compound-order lifecycle remains separate from native attached
 orders supplied through ``custom_params``.
 
 Perpetual contracts and position modes
-------------------------------------
+--------------------------------------
 
 Use the complete CCXT instrument symbol so quote and settlement remain distinct:
 ``BTC/USDT:USDT``, ``BTC/USDC:USDC`` or ``BTC/USD:BTC``. The broker discovers
@@ -180,6 +224,32 @@ intent. Omitting the selector when closing both legs closes each separately.
 One-way accounts continue to use a single signed position without a leg selector.
 An ambiguous single-position lookup asks for a selector instead of choosing a leg.
 
+This is the same model as LumiBot's Bitunix futures broker: a contract is an
+``Asset`` with ``asset_type="crypto_future"``, hedge legs use ``position_side`` and
+``position_id``, and an exchange-style symbol such as ``BTCUSDT`` resolves to the
+perpetual. Dated futures use their full CCXT symbol, for example
+``BTC/USDT:USDT-261225``. Like Bitunix, an opening order on an asset created with
+``leverage`` above 1 (``Asset("BTC/USDT:USDT", "crypto_future", leverage=5)``) sets
+that leverage once per contract before the order; closing orders never change it,
+and a failure is logged while the order still goes. The default ``leverage=1``
+never touches account leverage, so use ``set_leverage`` to return to 1x.
+
+**Options.** CCXT option markets (for example on Deribit, OKX, Bybit and Binance)
+map to normal LumiBot option assets:
+
+.. code-block:: python
+
+   import datetime
+   from lumibot.entities import Asset
+
+   call = Asset("BTC", asset_type="option", expiration=datetime.date(2026, 12, 25),
+                strike=100000, right="call")
+   order = self.create_order(call, 1, "buy", limit_price=0.05)  # price in the option's quote
+
+``broker.get_asset("BTC/USD:BTC-261225-100000-C")`` returns the same asset.
+Positions are read for every contract type the exchange lists (swaps, dated
+futures and options).
+
 Account mode is never changed automatically. The broker exposes
 ``set_position_mode(hedged, asset, params=None)``,
 ``set_leverage(leverage, asset, params=None)`` and
@@ -196,7 +266,7 @@ that such collateral is worthless. ``fetch_funding_rate(asset)`` reads the curre
 venue funding rate; it does not simulate historical funding payments.
 
 WebSocket market and account data
---------------------------------
+---------------------------------
 
 The broker uses the CCXT Pro client included in CCXT. One lazy managed event loop
 serves subscriptions for a broker. No network connection or private authentication
@@ -227,7 +297,7 @@ Phemex requires a symbol for REST open-order discovery, so a stream-disabled
 account-wide refresh scans metadata-discovered active markets.
 
 Phemex qualification and remaining work
---------------------------------------
+---------------------------------------
 
 The offline contract and stream tests cover linear USDT, linear USDC and
 coin-settled inverse identities, quantity/exposure conversion, separate hedge
@@ -266,98 +336,8 @@ Use these pages for exchange-specific setup details:
 
 .. ccxt-exchange-pages-start (generated by scripts/generate_ccxt_exchange_pages.py)
 
-.. toctree::
-   :maxdepth: 1
-
-   brokers.ccxt.aftermath
-   brokers.ccxt.alpaca
-   brokers.ccxt.apex
-   brokers.ccxt.backpack
-   brokers.ccxt.bequant
-   brokers.ccxt.bigone
-   brokers.ccxt.binance
-   brokers.ccxt.binancecoinm
-   brokers.ccxt.binanceus
-   brokers.ccxt.binanceusdm
-   brokers.ccxt.bingx
-   brokers.ccxt.bit2c
-   brokers.ccxt.bitbank
-   brokers.ccxt.bitfinex
-   brokers.ccxt.bitflyer
-   brokers.ccxt.bitget
-   brokers.ccxt.bithumb
-   brokers.ccxt.bitmart
-   brokers.ccxt.bitmex
-   brokers.ccxt.bitopro
-   brokers.ccxt.bitrue
-   brokers.ccxt.bitso
-   brokers.ccxt.bittrade
-   brokers.ccxt.bitvavo
-   brokers.ccxt.blofin
-   brokers.ccxt.btcmarkets
-   brokers.ccxt.btcturk
-   brokers.ccxt.bullish
-   brokers.ccxt.bybit
-   brokers.ccxt.bybiteu
-   brokers.ccxt.cex
-   brokers.ccxt.coinbase
-   brokers.ccxt.coinbaseexchange
-   brokers.ccxt.coincheck
-   brokers.ccxt.coinex
-   brokers.ccxt.coinmate
-   brokers.ccxt.coinone
-   brokers.ccxt.coinsph
-   brokers.ccxt.coinspot
-   brokers.ccxt.cryptocom
-   brokers.ccxt.cryptomus
-   brokers.ccxt.deribit
-   brokers.ccxt.digifinex
-   brokers.ccxt.dydx
-   brokers.ccxt.extended
-   brokers.ccxt.fmfwio
-   brokers.ccxt.foxbit
-   brokers.ccxt.gate
-   brokers.ccxt.gateeu
-   brokers.ccxt.gemini
-   brokers.ccxt.hashkey
-   brokers.ccxt.hibachi
-   brokers.ccxt.hitbtc
-   brokers.ccxt.hollaex
-   brokers.ccxt.htx
-   brokers.ccxt.hyperliquid
-   brokers.ccxt.independentreserve
-   brokers.ccxt.indodax
-   brokers.ccxt.kraken
-   brokers.ccxt.krakenfutures
-   brokers.ccxt.kucoin
-   brokers.ccxt.kucoinfutures
-   brokers.ccxt.latoken
-   brokers.ccxt.lbank
-   brokers.ccxt.lighter
-   brokers.ccxt.luno
-   brokers.ccxt.mercado
-   brokers.ccxt.mexc
-   brokers.ccxt.mudrex
-   brokers.ccxt.myokx
-   brokers.ccxt.ndax
-   brokers.ccxt.okx
-   brokers.ccxt.okxus
-   brokers.ccxt.onetrading
-   brokers.ccxt.p2b
-   brokers.ccxt.pacifica
-   brokers.ccxt.paradex
-   brokers.ccxt.paymium
-   brokers.ccxt.phemex
-   brokers.ccxt.poloniex
-   brokers.ccxt.toobit
-   brokers.ccxt.upbit
-   brokers.ccxt.weex
-   brokers.ccxt.whitebit
-   brokers.ccxt.woo
-   brokers.ccxt.woofipro
-   brokers.ccxt.xt
-   brokers.ccxt.zaif
-   brokers.ccxt.zebpay
+Every exchange has its own step by step guide. They are listed by name in the sidebar under
+Crypto exchanges, and in :doc:`brokers.crypto` and :doc:`the A to Z list <brokers.all>`.
 
 .. ccxt-exchange-pages-end
 
@@ -719,3 +699,60 @@ In this example, we've demonstrated the following:
 
 .. note::
     You can find the full source code for this example in the `example_strategies` folder of the `lumibot` GitHub repository.
+
+Frequently asked questions
+--------------------------
+
+What is CCXT and how does LumiBot use it?
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+CCXT is an open source Python library that gives one interface to many crypto exchanges. LumiBot's ``Ccxt`` broker sits on top of it, so the same strategy code can trade on any exchange your installed CCXT version supports. The `CCXT documentation <https://docs.ccxt.com/>`__ covers the library itself.
+
+Which crypto exchanges can I use with LumiBot through CCXT?
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Any exchange ID in your installed CCXT version. LumiBot has no exchange allowlist. Being available is not the same as being tested, though: check the qualification table at the top of this page, and test balances, orders, fills and cancels with a tiny order first.
+
+Run ``python -m lumibot.tools.ccxt_exchange_catalog`` to print every installed exchange with its credential variables and capabilities.
+
+How do I connect an exchange like OKX or Binance with environment variables?
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Set ``TRADING_BROKER`` to the CCXT exchange ID, such as ``okx`` or ``binance``. Then add the keys that exchange needs, named after the ID in upper case, for example ``OKX_API_KEY``, ``OKX_API_SECRET`` and ``OKX_API_PASSPHRASE``. If a required key is missing, start-up stops and names the exact variable.
+
+How do I use an exchange testnet or sandbox?
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Set ``<EXCHANGE>_SANDBOX=true``, or pass ``"sandbox": True`` in an explicit ``Ccxt`` config. LumiBot then uses the exchange testnet when CCXT publishes one. Testnet keys are separate from live keys, and some exchanges, such as WEEX, have no sandbox at all.
+
+How do I trade a pair like BTC/USDT?
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Use the base coin as the asset, for example ``Asset("BTC", asset_type=Asset.AssetType.CRYPTO)``. Then pass the quote coin with ``quote=Asset("USDT", asset_type=Asset.AssetType.CRYPTO)`` when you get prices and create orders, or set it once as the strategy ``quote_asset``. The pair must exist on that exchange.
+
+For perpetual contracts, use the full CCXT symbol, such as ``BTC/USDT:USDT``, as shown in the perpetual contracts section above.
+
+Can I backtest crypto strategies with CCXT?
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Yes, for spot trading. Use ``CcxtBacktesting`` instead of the live ``Ccxt`` broker. Backtesting perpetual contracts with margin, funding and liquidation is not finished yet.
+
+Which order types work through CCXT?
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Market, limit and stop orders. Stop orders use CCXT's unified ``triggerPrice`` parameter. Extra exchange options can go in an order's ``custom_params``. What each exchange accepts still depends on that exchange's API.
+
+Does the CCXT broker use WebSockets?
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Yes, for market and account data. Live prices, quotes, order books, trades and live candles stream through CCXT Pro, with REST as the fallback. Orders are still sent, changed and canceled over REST. Pass ``connect_stream=False`` to use REST only.
+
+How do I set up Coinbase API keys?
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Create a key in the `Coinbase Developer Platform <https://portal.cdp.coinbase.com/>`__. Put the key ``name`` in ``COINBASE_API_KEY_NAME`` and the full private key block in ``COINBASE_PRIVATE_KEY``. ``COINBASE_API_PASSPHRASE`` is only for older HMAC keys.
+
+Do I need to set the market hours for crypto?
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Yes, call ``self.set_market("24/7")`` in ``initialize``, because crypto markets never close. The live ``Ccxt`` broker already defaults to 24/7 unless you set ``MARKET``, but setting it in your strategy keeps the hours clear in every run.

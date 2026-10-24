@@ -28,6 +28,8 @@ _QUIET_ENVS = (
     "BOTSPOT_RESEARCH_MCP_URL",
     "BOTSPOT_RESEARCH_MCP_TOKEN",
     "BOTSPOT_RESEARCH_MCP_RENEW_URL",
+    "LUMIBOT_HIDE_BOTSPOT_TIP",
+    "BOTSPOT_API_KEY",
 )
 
 
@@ -156,3 +158,80 @@ def test_connect_without_token_and_no_terminal_explains_the_steps(tmp_path, monk
     assert "https://botspot.trade/account-settings/api-keys?" in combined
     assert "--token" in combined
     assert not env_file.exists()
+
+
+
+# --- Startup tip (Rob, 2026-10-23) -------------------------------------------
+# When LumiBot starts a backtest or live run and BotSpot is not connected, show
+# one clean block that says the BotSpot MCP is free and how to connect it.
+# Once per run, never crash, LUMIBOT_HIDE_BOTSPOT_TIP=1 silences it.
+
+
+class _Log:
+    def __init__(self):
+        self.lines = []
+
+    def warning(self, message, *args, **kwargs):
+        self.lines.append(message)
+
+
+def test_startup_tip_says_free_and_how_to_connect_and_hide():
+    message = botspot_hint.startup_tip_message()
+    assert "BotSpot MCP is not connected" in message
+    assert "free" in message.lower()
+    assert "https://botspot.trade/agents?" in message
+    assert "utm_source=lumibot" in message and "utm_content=startup_tip" in message
+    assert "lumibot connect botspot" in message
+    assert "LUMIBOT_HIDE_BOTSPOT_TIP=1" in message
+    assert "paid plan" not in message.lower()
+    assert "you must" not in message.lower()
+
+
+def test_startup_tip_shows_once_per_run():
+    log = _Log()
+    assert botspot_hint.show_startup_tip(log) is True
+    assert botspot_hint.show_startup_tip(log) is False
+    assert len(log.lines) == 1
+
+
+def test_startup_tip_replaces_the_agent_hint_in_the_same_run():
+    botspot_hint.show_startup_tip(_Log())
+    strategy = _Strategy()
+    AgentManager(strategy).create(name="a", _runtime=_Runtime())
+    assert _notices(strategy) == []
+
+
+@pytest.mark.parametrize(
+    "name,value",
+    [
+        ("LUMIBOT_HIDE_BOTSPOT_TIP", "1"),
+        ("LUMIBOT_NO_BOTSPOT_HINT", "1"),
+        ("CI", "true"),
+        ("BOTSPOT_RESEARCH_MCP_TOKEN", "botspot_key"),
+        ("BOTSPOT_RESEARCH_MCP_RENEW_URL", "https://example.invalid/renew"),
+        ("BOTSPOT_API_KEY", "botspot_key"),
+    ],
+)
+def test_startup_tip_is_silent_when_hidden_in_ci_or_connected(monkeypatch, name, value):
+    monkeypatch.setenv(name, value)
+    log = _Log()
+    assert botspot_hint.show_startup_tip(log) is False
+    assert log.lines == []
+
+
+def test_startup_tip_never_crashes():
+    class _Broken:
+        def warning(self, *args, **kwargs):
+            raise RuntimeError("logger is broken")
+
+    assert botspot_hint.show_startup_tip(_Broken()) is False
+
+
+def test_trader_run_all_shows_the_startup_tip(monkeypatch):
+    from lumibot.traders import Trader
+
+    calls = []
+    monkeypatch.setattr(botspot_hint, "show_startup_tip", lambda *a, **k: calls.append(1) or True)
+    with pytest.raises(RuntimeError, match="No strategies to run"):
+        Trader(backtest=True).run_all()
+    assert calls == [1]

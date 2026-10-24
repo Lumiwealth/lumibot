@@ -132,15 +132,35 @@ def build_example(exchange_id, source, monkeypatch):
     # Hard offline guarantee: any CCXT request that is not faked below fails
     # here instead of reaching the exchange with the fake keys.
     broker.api.request = Mock(side_effect=AssertionError("network disabled in docs example tests"))
-    broker.api.fetch_positions = Mock(return_value=[])
+    # A small stateful fake exchange: fills change its balances and positions,
+    # so LumiBot's normal position sync sees the result of the trade.
+    balances = {quote: 1000.0}
+    contracts = []
+    broker.api.fetch_positions = Mock(side_effect=lambda *a, **k: [dict(c) for c in contracts])
     broker.api.fetch_my_trades = Mock(return_value=[])
     broker.api.fetch_closed_orders = Mock(return_value=[])
     broker.api.fetch_ticker = Mock(return_value={"last": 50000, "bid": 49990, "ask": 50010, "close": 50000})
     broker.api.set_markets(fake_markets(exchange_id))
     broker.data_source._markets_loaded = True
-    broker.api.fetch_balance = Mock(return_value={"total": {quote: 1000}, "free": {quote: 1000}, "used": {quote: 0}})
+    broker.api.fetch_balance = Mock(side_effect=lambda *a, **k: {
+        "total": dict(balances), "free": dict(balances), "used": {k2: 0 for k2 in balances}})
     broker.api.fetch_open_orders = Mock(return_value=[])
-    broker.api.create_order = Mock(return_value={"id": "fake-order", "status": "open"})
+
+    def fill(symbol, order_type, side, amount, price=None, params=None):
+        # The fake exchange fills the whole order at once at the last price.
+        market = broker.api.markets[symbol]
+        amount = float(amount)
+        if market.get("contract"):
+            contracts.append({"symbol": symbol, "contracts": amount, "side": "long" if side == "buy" else "short",
+                              "contractSize": market["contractSize"], "entryPrice": 50000.0, "markPrice": 50000.0,
+                              "unrealizedPnl": 0.0, "hedged": False, "info": {}})
+        else:
+            balances[market["base"]] = balances.get(market["base"], 0.0) + amount
+            balances[market["quote"]] -= amount * 50000.0
+        return {"id": "fake-order", "status": "closed", "symbol": symbol, "side": side,
+                "amount": amount, "filled": amount, "average": 50000.0}
+
+    broker.api.create_order = Mock(side_effect=fill)
     broker.data_source.get_last_price = Mock(return_value=50000)
 
     strategy = strategy_class(broker=broker, quote_asset=Asset(quote, asset_type=Asset.AssetType.CRYPTO))
@@ -175,6 +195,71 @@ def test_regular_example_places_one_spot_order_offline(exchange_id, monkeypatch)
     # Limit-only exchanges (no createMarketOrder in CCXT) must get a limit order.
     page = pages_gen.Page(exchange_id, FACTS, NOTES, AFFILIATES)
     assert str(args[1]).endswith("market" if page.market_orders else "limit")
+    assert_fill_processed(strategy, broker, expected_order_symbol(exchange_id))
+
+
+def assert_fill_processed(strategy, broker, symbol):
+    """The fake fill went through LumiBot's real order lifecycle and became a position."""
+    filled = [o for o in broker.get_tracked_orders(strategy.name) if o.is_filled()]
+    assert filled, "the order was submitted but its fill was never processed"
+    order = filled[0]
+    assert order.avg_fill_price == 50000.0 and order.identifier == "fake-order"
+    broker.sync_positions(strategy)  # live brokers learn positions from the exchange
+    position = broker.get_tracked_position(strategy.name, order.asset)
+    assert position is not None and float(position.quantity) == float(order.quantity)
+    assert symbol.startswith(order.asset.symbol.split("/")[0])
+
+
+def swap_pages():
+    return [i for i in PAGES if pages_gen.swap_example_page(pages_gen.Page(i, FACTS, NOTES, AFFILIATES)) is not None]
+
+
+@pytest.mark.parametrize("exchange_id", swap_pages())
+def test_perpetual_example_opens_one_contract_position_offline(exchange_id, monkeypatch):
+    """Exchanges that list spot and swaps get a perpetual example that really runs."""
+    text = page_text(exchange_id)
+    assert f"Perpetual futures example on {FACTS[exchange_id]['name']}" in text
+    source = next(s for s in python_examples(text) if "OpenOneLong" in s)
+    swap_page = pages_gen.swap_example_page(pages_gen.Page(exchange_id, FACTS, NOTES, AFFILIATES))
+    symbol = swap_page.perp_symbol
+    base, rest = symbol.split("/", 1)
+    quote, settle = rest.split(":", 1)
+    strategy, _, broker = build_example(exchange_id, source, monkeypatch)
+    markets = list(broker.api.markets.values())
+    contract = dict(markets[0], id=symbol.replace("/", "").replace(":", ""), symbol=symbol, base=base, quote=quote,
+                    settle=settle, settleId=settle, type="swap", spot=False, swap=True, contract=True,
+                    linear=settle != base, inverse=settle == base, contractSize=0.001)
+    broker.api.set_markets(markets + [contract])
+    if exchange_id == "phemex":
+        # Phemex positions come from its contract-account endpoint (covered in test_ccxt_derivatives);
+        # here the fake exchange's positions stand in for that endpoint.
+        broker._fetch_derivative_positions = broker.api.fetch_positions
+
+    strategy.initialize()
+    strategy.on_trading_iteration()
+    args, _ = broker.api.create_order.call_args
+    assert args[0] == symbol and args[2] == "buy" and float(args[3]) > 0
+    order = broker.get_tracked_orders(strategy.name)[0]
+    assert order.asset.asset_type == "crypto_future" and order.asset.symbol == symbol
+    assert_fill_processed(strategy, broker, symbol)
+
+
+@pytest.mark.parametrize("exchange_id", PAGES)
+def test_page_has_botspot_mcp_callout_near_the_top_and_fee_note(exchange_id):
+    text = page_text(exchange_id)
+    include = pages_gen.MCP_CALLOUT_INCLUDE.strip()
+    assert text.count(include) == 1
+    assert text.index(include) < text.index(f"{FACTS[exchange_id]['name']} at a glance")
+    assert f"Fees and partner IDs on {FACTS[exchange_id]['name']}" in text
+    assert "builderFee`` to ``False" not in text  # LumiBot does this itself now
+
+
+def test_mcp_callout_snippet_is_the_single_shared_copy():
+    snippets = list((ROOT / "docsrc").rglob("botspot_mcp_callout.rst"))
+    assert snippets == [ROOT / "docsrc" / "_snippets" / "botspot_mcp_callout.rst"]
+    body = snippets[0].read_text()
+    assert "https://botspot.trade/agents" in body and "—" not in body and "–" not in body
+    assert "Claude, ChatGPT, Codex or Cursor" in body
 
 
 @pytest.mark.parametrize("exchange_id", PAGES)

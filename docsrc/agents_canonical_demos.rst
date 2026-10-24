@@ -9,6 +9,8 @@ with a few sentences of plain English, about 30 lines in all. The agent uses
 LumiBot's built-in tools on its own: prices, news, Federal Reserve data, and
 more. You never write a tool or name one in the prompt.
 
+.. include:: _snippets/botspot_mcp_callout.rst
+
 For bigger bots with several agents, see :doc:`agents_examples`.
 
 The demos
@@ -88,6 +90,64 @@ What to look at after a run
 - ``*_agent_detail.parquet``: every AI call, the tools it used, and why it traded
 
 See :doc:`agents_observability` for how to read them.
+
+Frequently asked questions
+--------------------------
+
+What is the simplest AI trading bot in LumiBot?
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The demos on this page. Each one is a single AI agent with a few sentences of
+plain English, about 30 lines of Python in all. The agent uses LumiBot's
+built-in tools on its own.
+
+Do I need to write tools for the agent?
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+No. The demos use LumiBot's built-in tools for prices, news, Federal Reserve
+data and more. You never write a tool or name one in the prompt. See
+:doc:`agents_builtin_tools`.
+
+What API keys do the demos need?
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Put ``OPENAI_API_KEY`` in your ``.env`` file. The M2 Liquidity bot also needs a
+free ``FRED_API_KEY``. The news bots need free Alpaca keys, ``ALPACA_API_KEY``
+and ``ALPACA_API_SECRET``.
+
+How do I run a demo?
+~~~~~~~~~~~~~~~~~~~~
+
+Run it as a module, for example
+``python -m lumibot.example_strategies.agent_m2_liquidity``. With
+``IS_BACKTESTING=true`` it runs a backtest, and you set the dates with
+``BACKTESTING_START`` and ``BACKTESTING_END``. Otherwise it trades with the
+broker in your ``.env`` file. See :doc:`strategy_run_modes`.
+
+Can I run a demo with Claude or another AI model?
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Yes. Add ``model="anthropic/claude-sonnet-4-6"``, or another model id, to
+``self.agents.create(...)``. Then put that provider's API key in your ``.env``
+file.
+
+Where can I see why the agent made a trade?
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Open ``*_agent_detail.parquet`` after a run. It records every AI call, the tools
+the agent used and why it traded. ``trades.csv`` lists every order and fill. See
+:doc:`agents_observability`.
+
+Do the tear sheet results mean these bots will make money?
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+No. The tear sheets cover a two-week backtest. They show that each bot works as
+written. They are not a promise of future returns.
+
+Where can I find bigger AI trading bots with several agents?
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+See :doc:`agents_examples` for multi-agent AI trading bots.
 
 Related pages
 -------------

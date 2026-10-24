@@ -4,6 +4,8 @@ Tradovate
 .. meta::
    :description: Tradovate does not provide market data. You must use a separate data source for live trading.
 
+.. include:: _snippets/botspot_mcp_callout.rst
+
 .. important::
    
    **Tradovate does not provide market data.** You must use a separate data source for live trading. Recommended data sources include DataBento, ProjectX, or Interactive Brokers (all support futures data).
@@ -291,3 +293,57 @@ Troubleshooting
 - Ensure the contract symbols are correctly formatted
 
 For additional support, consult the `Tradovate API documentation <https://api.tradeovate.com/>`_ or contact Tradovate support directly.
+
+Frequently asked questions
+--------------------------
+
+Is Tradovate a broker?
+~~~~~~~~~~~~~~~~~~~~~~
+
+Yes. Tradovate is a futures broker for CME Group markets. LumiBot connects to it as a live trading broker when you set ``TRADING_BROKER=tradovate`` and add your Tradovate API credentials.
+
+How do I connect LumiBot to Tradovate?
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Set four environment variables: ``TRADOVATE_USERNAME``, ``TRADOVATE_DEDICATED_PASSWORD``, ``TRADOVATE_CID`` and ``TRADOVATE_SECRET``. Then set ``TRADING_BROKER=tradovate`` and a separate ``DATA_SOURCE``, as shown in the configuration examples above.
+
+LumiBot reads these values from your environment or a ``.env`` file when the strategy starts.
+
+What are the Tradovate client ID and secret called in LumiBot?
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The client ID goes in ``TRADOVATE_CID`` and the secret goes in ``TRADOVATE_SECRET``. You get both when you create an API application in your Tradovate dashboard. The `Tradovate API documentation <https://api.tradovate.com/>`__ describes the API itself.
+
+Does Tradovate give LumiBot market data?
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+No. Plan on a separate data source for prices. DataBento, ProjectX and Interactive Brokers all work with Tradovate as the broker. Set the one you pick with ``DATA_SOURCE``, for example ``DATA_SOURCE=databento``.
+
+How do I switch between a Tradovate demo account and a live account?
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Use ``TRADOVATE_IS_PAPER``. It defaults to ``true``, which sends orders to Tradovate's demo API. Set it to ``false`` to use the live API with real money. Start in demo mode until you trust your strategy.
+
+Why does Tradovate reject my login?
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The most common cause is using your normal login password. LumiBot needs the dedicated API password in ``TRADOVATE_DEDICATED_PASSWORD``. Also check that ``TRADOVATE_CID`` and ``TRADOVATE_SECRET`` come from the same API application.
+
+LumiBot renews the Tradovate access token on its own before it expires, so a long running bot does not need you to log in again.
+
+Which order types can I use with Tradovate?
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Market, limit, stop and stop limit orders. Any other order type is sent as a market order and LumiBot logs a warning, so stick to these four.
+
+Changing an open order in place is not built in yet. Cancel the order and place a new one instead.
+
+Can I trade stocks or options on Tradovate with LumiBot?
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+No. The Tradovate integration is for futures only.
+
+How do I pick which futures contract to trade?
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Use a continuous futures asset, such as ``Asset("MES", asset_type=Asset.AssetType.CONT_FUTURE)``. When you place an order, LumiBot turns it into the current contract month in Tradovate's format (for example ``MNQZ5``). See :doc:`futures` for more on futures assets.

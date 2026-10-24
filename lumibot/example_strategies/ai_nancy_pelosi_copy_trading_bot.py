@@ -18,40 +18,53 @@ class NancyPelosiCopyTradingBot(Strategy):
             allow_trading=False,
             allow_network=True,
             system_prompt=(
-                "Reconstruct Nancy Pelosi's entire disclosed household stocks and calls as of as_of, not recent "
-                "purchases alone. In backtests as_of is simulated time; never use a later disclosure. Start with "
-                "the newest annual holdings snapshot available then and apply all disclosed transactions AFTER "
-                "THE SNAPSHOT DATE, including those filed before that annual report. Check new reports and "
-                "amendments daily at https://disclosures-clerk.house.gov; other public sources may help find them. "
-                "Cite URLs and filing dates, and disclose estimated availability. Return a complete ledger every "
-                "day: snapshot date, applied reports, latest filing checked, each stock's estimated shares/value, "
-                "and each call's underlying, strike, expiration, contracts and estimated value. Apply each trade "
-                "once in transaction-date order; an amendment corrects the original. A partial sale reduces a "
-                "holding; only a full sale removes it. Exercised calls remove those contracts and add shares; "
-                "account for splits, gifts and expiration. Include listed partnership units; skip funds, bonds, "
-                "private companies and real estate. Estimate unknown quantities from value ranges and prices "
-                "available then; mark remaining holdings as of as_of and explain assumptions and uncertainty. "
-                "Keep stocks and calls distinct. Return the FULL ledger even when nothing changed. On lookup "
-                "failure retain the previous ledger, label it stale and explain the gap; missing evidence never "
-                "means a position was sold. Never invent holdings to force a trade. Do not trade."
+                "Build an investable estimate of Nancy Pelosi's full publicly disclosed household stocks and calls "
+                "as of as_of. This is an approximate model portfolio, not verification of her exact account. "
+                "Find annual reports, transactions and amendments in the official yearly indexes at "
+                "https://disclosures-clerk.house.gov/public_disc/financial-pdfs/<year>FD.zip. Check the as_of year "
+                "and earlier years needed for the baseline. Under the same /public_disc/ root, transaction PDFs "
+                "use ptr-pdfs/<filing-year>/<DocID>.pdf; annual PDFs use financial-pdfs/<report-year>/<DocID>.pdf. "
+                "Use actual indexed IDs and cite the reports read. Never use a later disclosure in a backtest. "
+                "Start with the newest eligible annual snapshot. Assume its reporting year-end is the valuation "
+                "date when implicit, and disclose that convention. Apply eligible transactions AFTER that date "
+                "once, including those filed before the annual report. Earlier trades are already reflected. "
+                "Read full asset-value ranges across wrapped lines; income is separate and a None asset value "
+                "does not establish a holding. Partial sales reduce holdings; exercised calls remove contracts and add shares. "
+                "Reconcile amendments, gifts, splits and ticker changes; return current tickers and historical aliases. "
+                "Keep pre-snapshot trades in reconciliation notes, not in applied share changes. "
+                "Inspect every transaction row: separate stock and option purchases can share an issuer. "
+                "Include listed partnership units; "
+                "exclude funds, bonds, private assets and property. "
+                "Return the FULL source ledger: each stock and call, baseline asset-value range, remaining "
+                "reported contract quantities, dated share/contract changes, contract terms, sources, applied "
+                "report IDs and latest filing checked. The trader handles valuation and sizing from this ledger. "
+                "Check indexes each day and return the FULL ledger, reusing your prior answer when unchanged. "
+                "A lookup failure is not a sale: retain supported prior findings, label stale evidence and explain "
+                "gaps. Never substitute a favorite-stock basket. Do not trade."
             ),
         )
         self.agents.create(
             name="trader",
             allow_trading=True,
             system_prompt=(
-                "Mirror the complete reconstructed portfolio as of as_of, including initial purchases from cash; "
-                "do not wait for a new Pelosi trade. Put options_share of the account into her call options and the "
-                "rest into her stocks, each in proportion to the middle of its dollar range. Use the same stock and "
-                "expiration as each of her calls, her strike if one contract fits that call's money, otherwise the "
-                "nearest higher strike that fits. Sell holdings that are not in the research and buy the ones you do "
-                "not own. If a sleeve has no holdings, leave its allocation in cash. Inspect positions, pending "
-                "orders and actual quotes; use the option contract multiplier when sizing. Never substitute a "
-                "different expiration; disclose every strike substitution and leave unaffordable targets in cash. "
-                "Leave a holding alone within 2 percentage points of target. Sell before buying and verify fills "
-                "and cash before dependent buys. Never short or overspend. Research failure or 'nothing new' "
-                "is not a sale: compare previous_research and preserve existing holdings on incomplete research. "
-                "Report target versus actual weights, fills, substitutions, cash and unresolved mismatches."
+                "Use the source ledger to calculate an approximate model portfolio as of as_of. For unknown "
+                "baseline shares, divide the reported asset-value range midpoint by its snapshot-date price. "
+                "Apply only post-snapshot share changes and mark remaining shares as of as_of. If shares turn "
+                "negative, recheck dates and double counting; do not clip a contradictory estimate to zero. "
+                "Retain a labeled baseline-value proxy if quantity reconciliation remains unresolved. Check "
+                "ticker changes if a quote is missing; otherwise use a clearly labeled stale midpoint proxy. "
+                "Keep calls separate, estimate their remaining values from reported quantities and quotes or disclosed ranges, and explain assumptions. "
+                "Mirror the full estimated portfolio as of as_of, including initial purchases from cash. Put "
+                "options_share of this account in her calls and the rest in stocks, each proportional to its "
+                "estimated value. Use the same underlying and expiration for calls: her strike if one contract "
+                "fits its allocation, otherwise the nearest higher strike that fits. Use the contract multiplier, "
+                "disclose substitutions and leave unaffordable or unpriced targets in cash. An empty sleeve stays "
+                "in cash. Buy missing affordable holdings; drift tolerance must not skip initial small positions. "
+                "Leave established positions within 2 percentage points of target alone. Verify sales and cash "
+                "before dependent buys; never short or overspend. Disclosed valuation and coverage estimates are "
+                "usable without exact household quantities. If no supported basket was produced, compare "
+                "previous_research and preserve holdings; an error or 'nothing new' is not a sale. Report targets "
+                "versus actual weights, fills, cash, substitutions and unresolved mismatches."
             ),
         )
 
@@ -59,12 +72,16 @@ class NancyPelosiCopyTradingBot(Strategy):
         as_of = self.get_datetime().isoformat()
         previous = self.vars.get("last_research", "none yet")
         research = self.agents["researcher"].run(
-            task_prompt="Reconstruct the full portfolio as of as_of and check for newly available disclosures.",
+            task_prompt=(
+                "Return the full report-derived stocks-and-calls ledger as of as_of. Read chosen reports "
+                "completely, reconcile holdings and dated changes, retain contract identities, check new "
+                "disclosures and cite sources. The trader will calculate estimates and allocations."
+            ),
             context={"as_of": as_of, "your_last_answer": previous},
         )
         self.vars.set("last_research", research.summary)
         self.agents["trader"].run(
-            task_prompt="Match the account to the complete portfolio, including the initial purchases.",
+            task_prompt="Calculate the estimated basket from the source ledger and match the account, including initial purchases.",
             context={"as_of": as_of, "research": research.summary, "previous_research": previous,
                      "options_share": self.parameters["options_share"]},
         )

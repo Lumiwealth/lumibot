@@ -18,7 +18,7 @@ How it works
 The bot has just two AI agents, and both run every day:
 
 1. **Research agent** reads the newest available annual snapshot on the `House Clerk website <https://disclosures-clerk.house.gov/>`__ and applies disclosed transactions after that snapshot's valuation date. This includes transactions filed before the annual report itself. Partial sales reduce holdings, exercised calls add shares, and amendments correct earlier reports. Each answer retains the complete ledger and its sources, even on quiet days.
-2. **Trading agent** buys the estimated basket on its first iteration, then compares actual holdings with the reconstructed target weights every day. It sells before dependent buys, checks fills and cash, and leaves weights within 2 percentage points of target alone. A failed lookup is not a reason to liquidate existing holdings.
+2. **Trading agent** buys the estimated basket on its first iteration, including small positions when a whole share fits. It then compares actual holdings with target weights, sells before dependent buys, checks fills and cash, and leaves established positions within 2 percentage points of target alone. A missing price leaves that holding's allocation in cash while the supported remainder can trade. A failed lookup is not a reason to liquidate existing holdings.
 
 There is no other code. Want a different member of Congress? Change the name in the research agent's prompt.
 
@@ -49,8 +49,9 @@ Good to know
 ------------
 
 * Members of Congress can take up to 45 days to report a trade, so the bot always sees trades late.
-* Reports show dollar ranges, such as $1,000,001 to $5,000,000. The agent estimates quantities from those ranges and available historical prices, then values remaining holdings as of the strategy date. The weights and any unknown quantities remain estimates.
+* Reports show dollar ranges, such as $1,000,001 to $5,000,000. For an unknown share count, the agent divides the range midpoint by the snapshot-date price, applies later share changes, then values the estimated remainder as of the strategy date. A missing historical price uses a clearly labeled stale value proxy. These quantities and weights remain estimates.
 * An annual report's filing date differs from its year-end holdings date. Applying only trades filed after the annual report would miss intervening changes.
+* Transactions already reflected in the year-end snapshot are not applied a second time when a later filing repeats them. Asset values and income are separate columns; positive income does not establish a remaining holding with no reported asset value.
 * Both agents receive the strategy's explicit ``as_of`` timestamp. A backtest reconstructs what could reasonably have been known then, excluding later disclosures and explaining estimated availability dates. The researcher skips any report filed after the test day and any version known to have appeared after the simulated instant.
 * Check the complete holdings, target-versus-actual weights, real simulated fills and remaining cash before trusting a backtest. A completed run with no trades is not proof that reconstruction worked.
 * Pelosi said on November 6, 2025 that she will not run for re-election in 2026 (`NBC News <https://www.nbcnews.com/politics/congress/nancy-pelosi-first-female-speaker-house-wont-seek-re-election-congress-rcna239324>`__). Her reports stop after she leaves office, so change the name in the research prompt to keep the bot trading.

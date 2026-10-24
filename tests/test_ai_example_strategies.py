@@ -127,6 +127,30 @@ def test_rebuilt_example_is_short_and_imports_only_lumibot(name):
         assert banned not in source, (name, banned)
 
 
+@pytest.mark.parametrize("name", ["ai_nancy_pelosi_trading_bot.py", "ai_nancy_pelosi_copy_trading_bot.py"])
+def test_disclosure_source_hints_render_with_native_adk_without_missing_state(name):
+    import asyncio
+    from google.adk.agents import LlmAgent
+    from google.adk.agents.invocation_context import InvocationContext
+    from google.adk.agents.readonly_context import ReadonlyContext
+    from google.adk.sessions import InMemorySessionService, Session
+    from google.adk.utils.instructions_utils import inject_session_state
+
+    # Actual SDK rendering catches URL placeholders mistaken for session keys
+    # before any provider call, without a scripted model or external request.
+    context = InvocationContext(
+        session_service=InMemorySessionService(), invocation_id="source_hint_preflight",
+        session=Session(id="source_hint", app_name="examples", user_id="synthetic", state={}),
+        agent=LlmAgent(name="example_preflight"),
+    )
+    prompts = [ast.literal_eval(keyword.value)
+               for call in ast.walk(_tree(name))
+               if isinstance(call, ast.Call) and ast.unparse(call.func) == "self.agents.create"
+               for keyword in call.keywords if keyword.arg == "system_prompt"]
+    for prompt in prompts:
+        assert asyncio.run(inject_session_state(prompt, ReadonlyContext(context))) == prompt
+
+
 @pytest.mark.parametrize("name", sorted(REBUILT))
 def test_rebuilt_example_has_exactly_one_trading_agent(name):
     _, _, browsing = REBUILT[name]

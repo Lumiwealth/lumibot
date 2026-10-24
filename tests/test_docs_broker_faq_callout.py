@@ -215,3 +215,15 @@ def test_exchange_pages_never_use_exchange_id_as_backtesting_data_source():
     generator = (ROOT / "scripts" / "generate_ccxt_exchange_pages.py").read_text(encoding="utf-8")
     assert "BACKTESTING_DATA_SOURCE={fx['id']}" not in generator
     assert not bad, bad
+
+
+def test_brokers_page_shows_every_asset_class_per_broker():
+    """Rob, 2026-10-24: brokers trade several asset classes; the overview must show options and forex too."""
+    text = (DOCSRC / "brokers.rst").read_text(encoding="utf-8")
+    start = text.index("Asset classes each broker supports in LumiBot")
+    table = text[start:text.index("Broker setup is easier", start)]
+    for column in ("Stocks", "Options", "Futures", "Crypto", "Forex", "Prediction markets"):
+        assert f"- {column}" in table, column
+    for page in ("brokers.alpaca", "brokers.schwab", "brokers.interactive_brokers", "brokers.tradier",
+                 "brokers.tradovate", "brokers.projectx", "brokers.bitunix", "brokers.polymarket"):
+        assert f"<{page}>`" in table, page

@@ -50,6 +50,93 @@ LumiBot connects to **100+ brokers and crypto exchanges**. There are eight direc
      - Access token and account number
      - :doc:`Tradier guide <brokers.tradier>`
 
+Brokers by asset class
+----------------------
+
+Many brokers trade more than one asset class. In the menu each broker sits in one group (its main one), but it works for every asset class it supports. Use this table to find brokers for stocks, options, futures, crypto, forex or prediction markets.
+
+.. list-table:: Asset classes each broker supports in LumiBot
+   :header-rows: 1
+   :widths: 28 10 10 10 10 10 12
+
+   * - Broker
+     - Stocks
+     - Options
+     - Futures
+     - Crypto
+     - Forex
+     - Prediction markets
+   * - :doc:`Alpaca <brokers.alpaca>`
+     - Yes
+     - Yes
+     -
+     - Yes
+     -
+     -
+   * - :doc:`Charles Schwab <brokers.schwab>`
+     - Yes
+     - Yes
+     -
+     -
+     -
+     -
+   * - :doc:`Interactive Brokers <brokers.interactive_brokers>`
+     - Yes
+     - Yes
+     - Yes
+     -
+     - Yes
+     -
+   * - :doc:`Interactive Brokers (legacy TWS) <brokers.interactive_brokers_legacy>`
+     - Yes
+     - Yes
+     - Yes
+     -
+     - Yes
+     -
+   * - :doc:`Tradier <brokers.tradier>`
+     - Yes
+     - Yes
+     -
+     -
+     -
+     -
+   * - :doc:`Tradovate <brokers.tradovate>`
+     -
+     -
+     - Yes
+     -
+     -
+     -
+   * - :doc:`TopstepX (ProjectX) <brokers.projectx>`
+     -
+     -
+     - Yes
+     -
+     -
+     -
+   * - :doc:`Bitunix <brokers.bitunix>`
+     -
+     -
+     - Crypto perpetuals
+     - Yes
+     -
+     -
+   * - :doc:`100+ crypto exchanges <brokers.crypto>`
+     -
+     -
+     - Crypto perpetuals and futures, where the exchange offers them
+     - Yes
+     -
+     -
+   * - :doc:`Polymarket <brokers.polymarket>`
+     -
+     -
+     -
+     -
+     -
+     - Yes
+
 Broker setup is easier on `BotSpot <https://botspot.trade/sales?showLogin=1&utm_source=documentation&utm_medium=brokers&utm_campaign=lumibot&utm_content=broker_setup_text&sample=lumibot_deploy_sample>`_ because the broker connection, strategy runtime, account checks, monitoring, alerts, audit history, and kill-switch controls live in one platform.
 
 - **Connect brokers through the website.** Avoid rebuilding secret storage, environment variables, broker account checks, and deployment configuration for every server.

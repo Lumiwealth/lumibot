@@ -197,15 +197,35 @@ def _post_json(url: str, body: dict, timeout: float = 30.0) -> dict:
     )
     try:
         with urllib.request.urlopen(request, timeout=timeout) as response:
-            return json.loads(response.read() or b"{}")
+            answer = json.loads(response.read() or b"{}")
     except urllib.error.HTTPError as error:
         try:
             answer = json.loads(error.read() or b"{}")
         except ValueError:
             answer = {}
-        if isinstance(answer, dict) and answer.get("error"):
+        # Only RFC 8628 codes pass through; anything else (an HTML or JSON
+        # "Not Found", a gateway page) is reported with its HTTP status.
+        if isinstance(answer, dict) and answer.get("error") in _RFC8628_ERRORS:
             return answer
         return {"error": "http_error", "error_description": f"HTTP {error.code}", "status": error.code}
+    if not isinstance(answer, dict):
+        raise ValueError("BotSpot answered with something other than a JSON object")
+    return answer
+
+
+_RFC8628_ERRORS = {
+    "authorization_pending", "slow_down", "access_denied", "expired_token",
+    "invalid_request", "invalid_client", "invalid_grant", "unsupported_grant_type",
+    "rate_limited", "forbidden", "not_found", "limit_reached", "server_error",
+}
+
+
+def _positive_int(value, default: int) -> int:
+    try:
+        number = int(value)
+    except (TypeError, ValueError):
+        return default
+    return number if number > 0 else default
 
 
 def start_device_login(api_base: str, client_name: str) -> dict:
@@ -239,6 +259,7 @@ class DeviceLoginUnavailable(Exception):
 # HTTP answers that mean "this server has no device-login route" rather than
 # "the login failed". An older BotSpot API answers 404 "Cannot POST".
 _DEVICE_ROUTE_MISSING = {404, 405, 501}
+_TRANSIENT_STATUSES = {429, 500, 502, 503, 504}
 # Upper bound on how long the command waits for approval, whatever the server says.
 DEFAULT_DEVICE_TIMEOUT_SECONDS = 900
 
@@ -264,7 +285,7 @@ def run_device_login(
         return None
     code = started["user_code"]
     page = started.get("verification_uri_complete") or started.get("verification_uri") or ""
-    expires_in = int(started.get("expires_in") or 600)
+    expires_in = _positive_int(started.get("expires_in"), 600)
     print("Connect BotSpot to your LumiBot strategy agents. Connecting is free.", file=out)
     print(f"Your login code: {code}", file=out)
     print("Approve it in one of two ways:", file=out)
@@ -276,7 +297,7 @@ def run_device_login(
             open_browser(page)
         except Exception:  # noqa: BLE001 - a browser that cannot open is not fatal
             pass
-    interval = int(started.get("interval") or 5)
+    interval = _positive_int(started.get("interval"), 5)
     limit = DEFAULT_DEVICE_TIMEOUT_SECONDS if timeout is None else float(timeout)
     deadline = min(expires_in, limit)
     waited = 0
@@ -293,6 +314,8 @@ def run_device_login(
         if error == "slow_down":
             interval += 5
             continue
+        if error == "http_error" and answer.get("status") in _TRANSIENT_STATUSES:
+            continue  # a proxy or gateway blip; the loop already waits between polls
         if error:
             reason = {
                 "access_denied": "The login was denied.",

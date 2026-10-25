@@ -392,7 +392,7 @@ def test_pelosi_bots_run_both_agents_every_day_with_no_python_gate(name):
 
 
 @pytest.mark.parametrize("name", ["ai_nancy_pelosi_trading_bot.py", "ai_nancy_pelosi_copy_trading_bot.py"])
-def test_pelosi_handoff_keeps_the_simulation_date_and_previous_portfolio(name, monkeypatch):
+def test_research_handoff_keeps_the_simulation_date_and_previous_portfolio(name, monkeypatch):
     class_name = REBUILT[name][0]
     module = __import__(f"lumibot.example_strategies.{name[:-3]}", fromlist=[class_name])
     strategy_class = getattr(module, class_name)

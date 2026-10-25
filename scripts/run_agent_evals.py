@@ -1183,8 +1183,8 @@ def run_judge(
         bound_tools=[],
         include_builtin_skills=False,
         model_call_id=f"judge-{uuid.uuid4()}",
-        model_request_timeout_seconds=180,
-        run_timeout_seconds=300,
+        model_request_timeout_seconds=0,
+        run_timeout_seconds=0,
         max_output_tokens=JUDGE_MAX_OUTPUT_TOKENS,
         model_call_budget=budget,
         reasoning_effort=JUDGE_REASONING_EFFORT,
@@ -1273,8 +1273,8 @@ def execute_repetition(
             research_result = researcher.run(
                 task_prompt=str(case["taskPrompt"]),
                 context={"eval_repetition_id": str(uuid.uuid4()), **dict(case.get("context") or {})},
-                model_request_timeout_seconds=240,
-                run_timeout_seconds=600,
+                model_request_timeout_seconds=0,
+                run_timeout_seconds=0,
             )
             trader = production.create_agent(
                 case,
@@ -1294,8 +1294,8 @@ def execute_repetition(
                     f"RESEARCH PACKET:\n{research_result.summary or research_result.text}"
                 ),
                 context={"eval_repetition_id": str(uuid.uuid4()), "research_packet": research_result.summary},
-                model_request_timeout_seconds=240,
-                run_timeout_seconds=600,
+                model_request_timeout_seconds=0,
+                run_timeout_seconds=0,
             )
             actor_results = [research_result, result]
         else:
@@ -1303,8 +1303,8 @@ def execute_repetition(
             result = handle.run(
                 task_prompt=str(case["taskPrompt"]),
                 context={"eval_repetition_id": str(uuid.uuid4()), **dict(case.get("context") or {})},
-                model_request_timeout_seconds=240,
-                run_timeout_seconds=600,
+                model_request_timeout_seconds=0,
+                run_timeout_seconds=0,
             )
             actor_results = [result]
         model_seconds = time.perf_counter() - model_started

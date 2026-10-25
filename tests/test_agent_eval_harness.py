@@ -1,4 +1,5 @@
 import copy
+import ast
 import hashlib
 import importlib.util
 import json
@@ -19,6 +20,36 @@ assert SPEC is not None and SPEC.loader is not None
 evals = importlib.util.module_from_spec(SPEC)
 sys.modules[SPEC.name] = evals
 SPEC.loader.exec_module(evals)
+
+
+def _assert_no_qualification_turn_deadlines(source):
+    fields = {"model_request_timeout_seconds", "run_timeout_seconds"}
+    for node in ast.walk(ast.parse(source)):
+        candidates = []
+        if isinstance(node, ast.keyword) and node.arg in fields:
+            candidates.append(node.value)
+        if isinstance(node, ast.Dict):
+            candidates.extend(value for key, value in zip(node.keys, node.values)
+                              if isinstance(key, ast.Constant) and key.value in fields)
+        for value in candidates:
+            if not isinstance(value, ast.Constant) or type(value.value) is not int or value.value != 0:
+                raise ValueError("Qualification model and agent deadlines must be explicitly disabled")
+
+
+def test_qualification_actor_and_judge_deadlines_are_disabled():
+    _assert_no_qualification_turn_deadlines(SCRIPT_PATH.read_text())
+
+
+@pytest.mark.parametrize("source", [
+    "agent.run(run_timeout_seconds=300)",
+    "agent.run(model_request_timeout_seconds=deadline)",
+    "agent.run(model_request_timeout_seconds=None)",
+    "settings = {'nested': {'run_timeout_seconds': duration}}",
+    "settings = {'model_request_timeout_seconds': 180}",
+])
+def test_qualification_deadline_policy_rejects_limits_aliases_and_nested_settings(source):
+    with pytest.raises(ValueError, match="disabled"):
+        _assert_no_qualification_turn_deadlines(source)
 
 
 

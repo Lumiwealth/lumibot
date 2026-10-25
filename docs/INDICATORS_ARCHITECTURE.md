@@ -191,6 +191,34 @@ Invariants (all pinned by `tests/test_indicators_v2.py`):
    `_record_consumed_input` (backtest market-input evidence), and slices input
    to strategy time before feeding.
 
+## Candle builder, execution hook and forming-bar copies (added 2026-10-25)
+
+- **One candle builder:** `lumibot/tools/candles.py`. `resample_ohlcv` is the
+  batch resampler for the pandas paths (Alpaca backtester, the
+  `get_historical_prices` multi-timeframe fallback, `Data.get_bars`,
+  `DataPolars.get_bars` and both `get_bars_between_dates`). It keeps each
+  caller's exact options (explicit aggregation map, `dropna="any"` or
+  `"ohlc"`, sort or not, pandas' default `start_day` origin), so switching was
+  behavior-neutral; `tests/test_candles.py` compares every caller with a copy
+  of its former code. `build_candles` and `CandleBuilder` cut on UTC epoch
+  boundaries for live/exchange-style candles; `choose_candle_source` prefers
+  native timeframes and falls back to 1 minute. Not merged: the Polars engine
+  (`resample_polars_ohlc`, `Bars.aggregate_bars`), because it returns Polars
+  frames with different column handling; moving it needs its own parity work.
+- **Execution hook:** `lumibot/indicators/execution.py`. Every place that
+  creates an indicator instance to run (`IndicatorRunner.add`,
+  `Indicators.get`) calls `prepare_indicator(instance)`. Default returns the
+  instance (in-process). A host may register an executor that returns a proxy
+  running elsewhere; it must keep `key`, `version`, `inputs`, `outputs`,
+  `update`, `reset`, `describe`. Tested with a child-process executor.
+- **Forming-bar copies:** `Indicator.update(closed=False)` copies state with a
+  pickle round trip (falls back to `deepcopy`). yappi showed `deepcopy` was most
+  of the forming-update cost; forming updates got 1.3x to 2.5x faster.
+- **Docs and examples:** the "Indicators" section in `docsrc/indicators_*.rst`;
+  every example lives in `lumibot/example_indicators/` and is executed by
+  `tests/test_example_indicators.py` (network examples: recorded-shape fakes
+  offline, real public endpoints with `-m apitest`).
+
 ## Known gaps / follow-ups
 
 - **1-day MTM cosmetic diff** on the final backtest day when porting a
@@ -212,7 +240,7 @@ Invariants (all pinned by `tests/test_indicators_v2.py`):
 
 ## Performance receipts
 
-Benchmarked on `/Users/robertgrzesik/Documents/Development/Strategy Library/Demos/botspot_benchmarks/`
+Benchmarked on a local strategy benchmark folder
 with `compare_artifacts.py` verifying byte-identical trades.
 
 | Strategy               | Baseline  | With `self.indicators` | Speedup |

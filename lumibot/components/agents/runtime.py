@@ -1347,26 +1347,6 @@ def _replace_function_response_payload(part: Any, message: str) -> bool:
         return False
 
 
-def _prune_tool_response_for_context_window(
-    tool_response: Any, *, tool_name: str | None, max_chars: int = 4_000
-) -> Any | None:
-    response_chars = _serialized_content_length(tool_response)
-    if response_chars <= max_chars:
-        return None
-    serialized = json.dumps(_json_safe_value(tool_response), sort_keys=True, default=str)
-    return {
-        "lumibot_tool_result_pruned": True,
-        "tool_name": tool_name,
-        "original_chars": response_chars,
-        "excerpt": _truncate_preserving_edges(serialized, max_chars, label=f"tool_response.{tool_name or 'unknown'}"),
-        "message": (
-            "Tool response was shortened by Lumibot before sending it back to this model "
-            "because the provider context window would otherwise be exceeded. Call a targeted tool "
-            "again if more detail is required."
-        ),
-    }
-
-
 def _prune_request_contents_for_context_window(
     contents: list[Any],
     *,
@@ -1852,35 +1832,6 @@ class GoogleADKRuntime:
             },
         }
 
-    def _after_tool_context_pruning_callback(self, request: RuntimeRequest):
-        if _model_context_limit_tokens(request.model) is None:
-            return None
-
-        def _callback(
-            *args: Any,
-            tool: Any = None,
-            tool_response: Any = None,
-            **_kwargs: Any,
-        ) -> Any | None:
-            if tool is None and len(args) >= 1:
-                tool = args[0]
-            if tool_response is None and len(args) >= 4:
-                tool_response = args[3]
-            tool_name = str(getattr(tool, "name", None) or "")
-            if tool_name in {"list_skills", "load_skill", "load_skill_resource"}:
-                return None
-            pruned = _prune_tool_response_for_context_window(tool_response, tool_name=tool_name)
-            if pruned is not None:
-                logging.getLogger(__name__).warning(
-                    "Pruned oversized tool response for model=%s tool=%s original_chars=%s.",
-                    request.model,
-                    tool_name,
-                    pruned["original_chars"],
-                )
-            return pruned
-
-        return _callback
-
     def _build_user_text(self, request: RuntimeRequest) -> str:
         sections: list[str] = []
         tool_names = {tool.name for tool in request.bound_tools}
@@ -2000,7 +1951,6 @@ class GoogleADKRuntime:
             planner=planner,
             before_model_callback=before_model,
             after_model_callback=after_model,
-            after_tool_callback=self._after_tool_context_pruning_callback(request),
             on_tool_error_callback=GoogleADKRuntime._unknown_tool_error_callback,
         )
         runner = InMemoryRunnerType(agent=agent, app_name="lumibot-agents")

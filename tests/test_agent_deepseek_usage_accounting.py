@@ -1,5 +1,7 @@
 from types import SimpleNamespace
 
+import pytest
+
 from lumibot.components.agents.manager import _usage_breakdown
 from lumibot.components.agents.runtime import (
     GoogleADKRuntime,
@@ -7,7 +9,6 @@ from lumibot.components.agents.runtime import (
     _aggregate_usage_metadata,
     _prune_large_context_strings,
     _prune_request_contents_for_context_window,
-    _prune_tool_response_for_context_window,
     _request_contents_length,
 )
 
@@ -278,7 +279,7 @@ def test_context_pruning_preserves_tool_evidence_until_request_is_oversized():
     )
 
 
-def test_skill_loading_results_are_not_truncated_by_per_tool_guard():
+def test_skill_loading_results_remain_complete_before_model_call():
     request = RuntimeRequest(
         agent_name="test",
         model="gemini-3.5-flash-lite",
@@ -290,16 +291,17 @@ def test_skill_loading_results_are_not_truncated_by_per_tool_guard():
         memory_notes=[],
         bound_tools=[],
     )
-    callback = GoogleADKRuntime()._after_tool_context_pruning_callback(request)
+    callback = GoogleADKRuntime()._before_model_context_pruning_callback(request)
     assert callback is not None
 
+    from google.genai import types
     response = {"instructions": "x" * 10_000}
-    assert callback(tool=SimpleNamespace(name="load_skill"), tool_response=response) is None
+    content = types.Content(role="user", parts=[types.Part(function_response=types.FunctionResponse(
+        name="load_skill", response=response,
+    ))])
+    assert callback(llm_request=SimpleNamespace(contents=[content])) is None
     assert response["instructions"] == "x" * 10_000
-
-    pruned = callback(tool=SimpleNamespace(name="market_history"), tool_response=response)
-    assert pruned is not None
-    assert pruned["lumibot_tool_result_pruned"] is True
+    assert content.parts[0].function_response.response == response
 
 
 def test_deepseek_context_string_pruning_preserves_edges():
@@ -319,15 +321,41 @@ def test_deepseek_context_string_pruning_preserves_edges():
     assert len(payload["evidence_pack"]) <= 120
 
 
-def test_deepseek_tool_response_pruning_returns_excerpt():
-    result = _prune_tool_response_for_context_window(
-        {"rows": ["start", "x" * 10_000, "end"]},
-        tool_name="market_load_history_table",
-        max_chars=500,
-    )
+def test_context_pruning_keeps_recent_large_results_when_removing_old_history():
+    from google.genai import types
 
-    assert result is not None
-    assert result["lumibot_tool_result_pruned"] is True
-    assert result["tool_name"] == "market_load_history_table"
-    assert result["original_chars"] > 500
-    assert len(result["excerpt"]) <= 500
+    contents = [types.Content(role="user", parts=[types.Part(function_response=types.FunctionResponse(
+        name=f"records_{i}", response={"rows": [f"row-{i}-start", "x" * 10_000, f"row-{i}-end"]},
+    ))]) for i in range(8)]
+    recent = [part.parts[0].function_response.response.copy() for part in contents[-4:]]
+    result = _prune_request_contents_for_context_window(contents, context_limit_tokens=15_000)
+    assert result is not None and result["pruned_tool_results"] > 0
+    assert [part.parts[0].function_response.response for part in contents[-4:]] == recent
+
+
+@pytest.mark.parametrize("model", ["chatgpt/gpt-6-luna", "gemini-3.5-flash-lite", "deepseek/deepseek-chat"])
+@pytest.mark.parametrize("tool_name", ["records", "read_document", "account_positions", "load_skill"])
+def test_current_tool_results_preserve_complete_typed_rows(model, tool_name):
+    from google.genai import types
+
+    request = RuntimeRequest(
+        agent_name="test", model=model, system_prompt="test", task_prompt="test",
+        context=None, runtime_context=None, memory_state=None, memory_notes=[], bound_tools=[],
+    )
+    runtime = GoogleADKRuntime()
+    rows = [{"record_id": i, "quantity": i + 1, "description": "detail " * 12} for i in range(100)]
+    response = {"ok": True, "rows": rows, "row_count": len(rows)}
+    factory = getattr(runtime, "_after_tool_context_pruning_callback", None)
+    after_tool = factory(request) if factory else None
+    transformed = after_tool(tool=SimpleNamespace(name=tool_name), tool_response=response) if after_tool else None
+    content = types.Content(role="user", parts=[types.Part(function_response=types.FunctionResponse(
+        name=tool_name, response=transformed if transformed is not None else response,
+    ))])
+    before_model = runtime._before_model_context_pruning_callback(request)
+    if before_model:
+        before_model(llm_request=SimpleNamespace(contents=[content]))
+    visible = content.parts[0].function_response.response
+    assert visible.get("rows") == rows
+    assert visible["rows"][50]["record_id"] == 50
+    assert visible["rows"][50]["quantity"] == 51
+    assert visible["row_count"] == 100

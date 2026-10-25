@@ -1553,8 +1553,7 @@ def _resolve_model_for_adk(
             kwargs["reasoning_effort"] = reasoning_effort
             kwargs["allowed_openai_params"] = ["reasoning_effort"]
         timeout = _coerce_positive_timeout_seconds(model_request_timeout_seconds)
-        if timeout is not None:
-            kwargs["timeout"] = timeout
+        kwargs["timeout"] = timeout
         return ChatGPTPlanLlm(model="openai/responses/" + slug, profile=profile_path(), **kwargs)
     from lumibot.components.agents.managed_gateway import (
         MANAGED_MODEL_FAMILIES,

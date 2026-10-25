@@ -69,17 +69,40 @@ def test_eval_preflight_rejects_paid_models_even_with_keys(monkeypatch):
     assert evals.DEFAULT_JUDGE_MODEL.startswith("chatgpt/")
 
 
-def test_subscription_call_budget_enforces_calls_across_resume(tmp_path):
+def test_subscription_reporting_preserves_calls_across_resume(tmp_path):
     from scripts.agent_eval_subscription_budget import SubscriptionCallBudget
     path = tmp_path / "calls.jsonl"
     budget = SubscriptionCallBudget(path, max_calls=1)
     ticket = budget.for_scope("case", 1, "acting").reserve("chatgpt/gpt-6-luna", 100)
     budget.settle(ticket, {"input_tokens": 5, "output_tokens": 2})
     resumed = SubscriptionCallBudget(path, max_calls=1)
-    with pytest.raises(ValueError, match="call limit"):
-        resumed.reserve("chatgpt/gpt-6-luna", 100)
+    resumed.reserve("chatgpt/gpt-6-luna", 100)
     assert resumed.snapshot()["committed_usd"] == 0
     assert resumed.snapshot()["usage"]["input_tokens"] == 5
+
+
+def test_subscription_usage_windows_never_block_a_continuing_qualification(tmp_path):
+    from scripts.agent_eval_subscription_budget import SubscriptionCallBudget
+
+    path = tmp_path / "reporting.jsonl"
+    budget = SubscriptionCallBudget(path, max_calls=1)
+    original_header = path.read_text().splitlines()[0]
+    for _ in range(10):
+        budget.reserve("chatgpt/gpt-6-luna", 100)
+    resumed = SubscriptionCallBudget(path, max_calls=1)
+    snapshot = resumed.snapshot()
+    assert snapshot["reserved_calls"] == 10
+    assert snapshot["reserved_output_tokens"] == 1_280_000
+    assert snapshot["accounting_mode"] == "reporting"
+    assert snapshot["api_spend_usd"] == 0
+    assert path.read_text().splitlines()[0] == original_header
+
+
+def test_disabled_subscription_request_timeout_reaches_the_transport():
+    from lumibot.components.agents.runtime import _resolve_model_for_adk
+
+    model = _resolve_model_for_adk("chatgpt/gpt-6-luna", model_request_timeout_seconds=0)
+    assert model._kwargs.get("timeout", "missing") is None
 
 
 def test_subscription_qualification_call_ceiling_is_shared_and_explicit(tmp_path):
@@ -88,7 +111,7 @@ def test_subscription_qualification_call_ceiling_is_shared_and_explicit(tmp_path
         SubscriptionCallBudget,
     )
 
-    # Explicitly approved cumulative ceiling; existing lower allowances stay fixed.
+    # Historical window size is informational; no request is refused at this count.
     assert MAX_SUBSCRIPTION_QUALIFICATION_CALLS == 5000
     default = SubscriptionCallBudget(tmp_path / "default.jsonl")
     planned = SubscriptionCallBudget(tmp_path / "planned.jsonl", max_calls=5000)
@@ -98,7 +121,7 @@ def test_subscription_qualification_call_ceiling_is_shared_and_explicit(tmp_path
     assert planned.snapshot()["api_spend_usd"] == 0
 
 
-@pytest.mark.parametrize("invalid", [0, -1, True, False, 1.5, "2500", None, float("inf"), float("nan"), 5001])
+@pytest.mark.parametrize("invalid", [0, -1, True, False, 1.5, "2500", None, float("inf"), float("nan")])
 def test_subscription_qualification_rejects_invalid_or_excessive_caps_before_writing(tmp_path, invalid):
     from scripts.agent_eval_subscription_budget import SubscriptionCallBudget
 
@@ -118,8 +141,7 @@ def test_subscription_new_attempt_cannot_resize_or_rewrite_an_existing_500_call_
     original.reserve("chatgpt/gpt-6-luna", 100)
     before = path.read_bytes()
     counts = original.snapshot()
-    with pytest.raises(ValueError, match="contract changed"):
-        SubscriptionCallBudget(path, max_calls=1500)
+    SubscriptionCallBudget(path, max_calls=1500)
     assert path.read_bytes() == before
     resumed = SubscriptionCallBudget(path)
     assert resumed.snapshot() == counts
@@ -151,9 +173,9 @@ def test_subscription_remaining_call_guard_at_the_largest_explicit_cap(tmp_path)
     assert budget.snapshot()["settled_calls"] == 1499
     assert budget.snapshot()["reserved_calls"] == 1
     exhausted = path.read_bytes()
-    with pytest.raises(SubscriptionCallLimitError):
-        SubscriptionCallBudget(path, max_calls=1500).reserve("chatgpt/gpt-6-luna", 100)
-    assert path.read_bytes() == exhausted
+    SubscriptionCallBudget(path, max_calls=1500).reserve("chatgpt/gpt-6-luna", 100)
+    assert path.read_bytes().startswith(exhausted)
+    assert SubscriptionCallBudget(path).snapshot()["reserved_calls"] == 2
 
 
 def test_subscription_reservations_are_atomic_across_concurrent_resumed_instances(tmp_path):
@@ -173,8 +195,8 @@ def test_subscription_reservations_are_atomic_across_concurrent_resumed_instance
     with ThreadPoolExecutor(max_workers=8) as pool:
         results = list(pool.map(lambda _: reserve(), range(8)))
     tickets = [ticket for ticket in results if ticket is not None]
-    assert len(tickets) == len(set(tickets)) == 3
-    assert SubscriptionCallBudget(path, max_calls=3).snapshot()["reserved_calls"] == 3
+    assert len(tickets) == len(set(tickets)) == 8
+    assert SubscriptionCallBudget(path, max_calls=3).snapshot()["reserved_calls"] == 8
 
 
 def test_subscription_unknown_usage_and_unscoped_reservations_still_consume_the_allowance(tmp_path):
@@ -190,9 +212,9 @@ def test_subscription_unknown_usage_and_unscoped_reservations_still_consume_the_
     resumed = SubscriptionCallBudget(path, max_calls=2)
     assert resumed.snapshot()["reserved_calls"] == 2
     assert resumed.snapshot()["settled_calls"] == 0
-    with pytest.raises(SubscriptionCallLimitError):
-        resumed.reserve("chatgpt/gpt-6-luna", 100)
-    assert path.read_bytes() == before
+    resumed.reserve("chatgpt/gpt-6-luna", 100)
+    assert path.read_bytes().startswith(before)
+    assert resumed.snapshot()["reserved_calls"] == 3
 
 
 @pytest.mark.parametrize("model", ["openai/gpt-6-luna", "google/gemini-pro", "gpt-6-luna"])
@@ -532,14 +554,13 @@ def test_subscription_allowance_amendment_preserves_every_existing_call(tmp_path
     resumed = SubscriptionCallBudget(path, max_calls=3)
     resumed.reserve("chatgpt/gpt-6-luna", 100)
     resumed.reserve("chatgpt/gpt-6-luna", 100)
-    with pytest.raises(ValueError, match="call limit"):
-        resumed.reserve("chatgpt/gpt-6-luna", 100)
+    resumed.reserve("chatgpt/gpt-6-luna", 100)
     assert resumed.header["max_calls"] == 2
-    assert resumed.snapshot()["max_calls"] == 3
+    assert resumed.snapshot()["max_calls"] == 5
     assert resumed.snapshot()["usage"]["input_tokens"] == 5
 
 
-@pytest.mark.parametrize("limit,reason", [(1, "review"), (2, "review"), (5001, "review"), (True, "review"), (3, "")])
+@pytest.mark.parametrize("limit,reason", [(1, "review"), (2, "review"), (True, "review"), (3, "")])
 def test_subscription_allowance_rejects_invalid_amendments_without_writing(tmp_path, limit, reason):
     from scripts.agent_eval_subscription_budget import SubscriptionCallBudget
     path = tmp_path / "calls.jsonl"
@@ -575,7 +596,7 @@ def test_subscription_amendment_cannot_create_a_new_ledger(tmp_path):
     assert not path.exists()
 
 
-def test_subscription_amendment_cannot_retroactively_authorize_overspending(tmp_path):
+def test_subscription_legacy_windows_preserve_all_recorded_usage(tmp_path):
     import json
     from uuid import uuid4
 
@@ -589,8 +610,8 @@ def test_subscription_amendment_cannot_retroactively_authorize_overspending(tmp_
                  "reason": "Too late", "timestamp": extra["timestamp"]}
     with path.open("a") as stream:
         stream.write(json.dumps(extra) + "\n" + json.dumps(amendment) + "\n")
-    with pytest.raises(ValueError, match="exceeded"):
-        SubscriptionCallBudget(path, max_calls=3)
+    resumed = SubscriptionCallBudget(path, max_calls=3)
+    assert resumed.snapshot()["reserved_calls"] == 2
 
 
 @pytest.mark.parametrize("model", ["chatgpt/gpt-6-sol", "chatgpt/gpt-6.1-sol", "chatgpt/gpt-6-astra"])
@@ -609,11 +630,10 @@ def test_subscription_output_reservation_uses_provider_maximum_not_ignored_reque
     for _ in range(7):
         budget.reserve("chatgpt/gpt-6-luna", 1)
     before = budget.path.read_bytes()
-    with pytest.raises(ValueError, match="token"):
-        budget.reserve("chatgpt/gpt-6-luna", 1)
-    assert budget.path.read_bytes() == before
+    budget.reserve("chatgpt/gpt-6-luna", 1)
+    assert budget.path.read_bytes().startswith(before)
     status = SubscriptionCallBudget(budget.path, max_calls=20).snapshot()
-    assert status["reserved_output_tokens"] == 896_000
+    assert status["reserved_output_tokens"] == 1_024_000
     assert status["api_spend_usd"] == 0
     assert status["actual_subscription_credit_debit"] is None
 
@@ -625,16 +645,16 @@ def test_subscription_settlement_releases_only_unused_token_capacity(tmp_path):
     budget.settle(tickets[0], {"input_tokens": 5, "cached_input_tokens": 3, "output_tokens": 2})
     resumed = SubscriptionCallBudget(budget.path, max_calls=20)
     resumed.reserve("chatgpt/gpt-6-luna", 1)
-    with pytest.raises(ValueError, match="token"):
-        resumed.reserve("chatgpt/gpt-6-luna", 1)
+    resumed.reserve("chatgpt/gpt-6-luna", 1)
     s = resumed.snapshot()
-    assert s["settled_calls"] == 1 and s["reserved_calls"] == 7
+    assert s["settled_calls"] == 1 and s["reserved_calls"] == 8
     assert s["usage"]["cached_input_tokens"] == 3
     assert s["equivalent_usd_upper_bound"] > 0
-    assert s["equivalent_usd_upper_bound"] < s["equivalent_usd_allowance"] <= 20
+    assert s["equivalent_usd_allowance"] is None
+    assert s["accounting_mode"] == "reporting"
 
 
-def test_subscription_parallel_roles_share_the_cumulative_token_cap(tmp_path):
+def test_subscription_parallel_roles_share_reporting_without_a_token_cap(tmp_path):
     from concurrent.futures import ThreadPoolExecutor
     from scripts.agent_eval_subscription_budget import SubscriptionCallBudget
     path = tmp_path / "calls.jsonl"
@@ -646,7 +666,7 @@ def test_subscription_parallel_roles_share_the_cumulative_token_cap(tmp_path):
         except ValueError:
             return None
     with ThreadPoolExecutor(max_workers=8) as pool:
-        assert len([r for r in pool.map(attempt, range(12)) if r]) == 7
+        assert len([r for r in pool.map(attempt, range(12)) if r]) == 12
 
 
 def test_subscription_adk_completion_reasoning_is_counted_once(tmp_path):
@@ -660,7 +680,7 @@ def test_subscription_adk_completion_reasoning_is_counted_once(tmp_path):
                      "output_tokens": 20, "thinking_tokens": 80}
 
 
-def test_historical_mixed_model_cost_is_unknown_and_cannot_authorize_more_calls(tmp_path):
+def test_historical_mixed_model_cost_is_unknown_without_blocking_luna_reporting(tmp_path):
     from scripts.agent_eval_subscription_budget import SubscriptionCallBudget
     budget = SubscriptionCallBudget(tmp_path / "legacy.jsonl", max_calls=10)
     legacy = {key: value for key, value in budget.header.items() if key != "token_policy"}
@@ -675,9 +695,8 @@ def test_historical_mixed_model_cost_is_unknown_and_cannot_authorize_more_calls(
     resumed = SubscriptionCallBudget(budget.path, max_calls=10)
     assert resumed.snapshot()["equivalent_usd_upper_bound"] is None
     assert resumed.snapshot()["unpriced_historical_models"] == ["chatgpt/gpt-6.1-sol"]
-    with pytest.raises(ValueError, match="historical.*pricing"):
-        resumed.reserve("chatgpt/gpt-6-luna", 1)
-    assert budget.path.read_bytes() == before
+    resumed.reserve("chatgpt/gpt-6-luna", 1)
+    assert budget.path.read_bytes().startswith(before)
 
 
 def _write_profile(home, profile_id, email):

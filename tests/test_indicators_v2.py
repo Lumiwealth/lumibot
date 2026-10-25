@@ -787,3 +787,27 @@ def test_strategy_backtest_indicators_get_and_existing_passthrough(tmp_path, mon
     assert len(rows) >= 5
     for _, v2, legacy in rows:
         assert v2 is not None and v2["sma"] == pytest.approx(float(legacy))
+
+
+def test_forming_bar_copy_handles_state_that_cannot_be_pickled():
+    """Forming bars copy state with pickle for speed; unpicklable state still works."""
+    from lumibot.indicators import Indicator, OutputSpec
+
+    class LambdaState(Indicator):
+        key = "lambda_state_test"
+        outputs = [OutputSpec("x", "X")]
+
+        def init_state(self):
+            return {"fn": lambda v: v * 2, "count": 0}
+
+        def step(self, state, bar):
+            state["count"] += 1
+            return {"x": state["fn"](bar.close) + state["count"]}
+
+    ind = LambdaState()
+    t0 = pd.Timestamp("2024-01-01", tz="UTC")
+    assert ind.update({"t": t0, "o": 1, "h": 1, "l": 1, "c": 1}, closed=True)["x"] == 3
+    forming = {"t": t0 + pd.Timedelta(days=1), "o": 2, "h": 2, "l": 2, "c": 2}
+    assert ind.update(forming, closed=False)["x"] == 6
+    assert ind.update(forming, closed=False)["x"] == 6  # state did not advance
+    assert ind.update(forming, closed=True)["x"] == 6

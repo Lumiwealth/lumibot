@@ -202,7 +202,9 @@ class Indicators:
             if last_seen is None or last_seen != entry["last_bar"]:
                 entry = None  # rewound or corrected: rebuild from observed history
         if entry is None:
-            entry = {"indicator": cls(**resolved), "count": 0, "last_bar": None, "values": None}
+            from lumibot.indicators.execution import prepare_indicator
+
+            entry = {"indicator": prepare_indicator(cls(**resolved)), "count": 0, "last_bar": None, "values": None}
             self._streams[stream_key] = entry
         if entry["count"] < end:
             indicator = entry["indicator"]

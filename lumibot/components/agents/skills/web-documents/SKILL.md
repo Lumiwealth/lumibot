@@ -23,6 +23,13 @@ useful source, or switch to a worse one, only because it has no date.
 
 ## Practical historical research
 
+Before **each** linked-document call, compare its known publication/version
+instant with the simulated cutoff. If it is later, omit the call entirely.
+Passing a later `available_at` to test the reader's refusal is still a failed
+lookup, not a safe way to inspect metadata; use the discovery metadata already
+returned to explain the exclusion. Apply this check to supplements as well as
+the main index.
+
 Use the simulated datetime from the runtime, not today's date. Find a relevant
 baseline and available updates, read their contents, and provide the best
 supported reconstruction. An exhaustive index or original-version archive is
@@ -47,6 +54,10 @@ number against the calculation output rather than recomputing it in prose.
    its linked reports, including relevant supplementary tables. Keep selected
    URLs separate from excluded diagnostics; an unfiltered preview is not a fetch
    list. This list can cover only part of an archive without blocking an estimate.
+   Copy each document's URL, timestamp and hash from that selected result.
+   Its distinct-document count bounds that result's fetch list: do not add
+   another supposedly eligible document from a preview. Pagination and corrected
+   retries of an already selected document remain allowed.
    For ordinary
    pages use their dated links and text; a downloadable index is not required.
    Samples are previews of tables, not proof that the full table was inspected.
@@ -75,6 +86,13 @@ number against the calculation output rather than recomputing it in prose.
    Preserve supported prior findings and distinguish stale research from a
    newly supported estimate. Continue feasible relevant lookups, but do not
    make an impossible completeness certificate a condition for answering.
+
+Before returning the answer, audit the final table against the source rows:
+each holding needs its own instrument evidence, and an issuer heading must not
+become an extra holding beside its instrument details. Audit the final citations
+too: copy a timestamp with its offset verbatim, or copy a tool's explicit UTC
+conversion. A correct lookup does not excuse an invented row or a mislabeled
+time in the answer handed to another agent.
 
 ## Historical eligibility comes before reading linked documents
 

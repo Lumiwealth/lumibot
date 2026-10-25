@@ -24,6 +24,7 @@ import itertools
 from collections import deque
 
 from lumibot.indicators.base import Bar, Indicator, iter_bars, to_bar
+from lumibot.indicators.execution import prepare_indicator
 from lumibot.indicators.indicator_registry import registry as default_registry
 
 
@@ -54,14 +55,21 @@ class IndicatorRunner:
         another history request. Defaults to the last ``load_history`` length.
     registry
         Where ``add(key, ...)`` looks indicators up (the shared one by default).
+    executor
+        How added indicators run (see :mod:`lumibot.indicators.execution`).
+        ``None`` uses the executor registered when ``add`` is called, which
+        is in-process unless a host changed it.
     """
 
-    def __init__(self, data_source, asset, quote=None, timestep="minute", *, max_bars=None, registry=None):
+    def __init__(
+        self, data_source, asset, quote=None, timestep="minute", *, max_bars=None, registry=None, executor=None
+    ):
         self.data_source = data_source
         self.asset = asset
         self.quote = quote
         self.timestep = timestep
         self.registry = registry or default_registry
+        self.executor = executor
         self._max_bars = max_bars
         self._bars: deque = deque(maxlen=max_bars)
         self._instances: dict[str, Indicator] = {}
@@ -76,6 +84,7 @@ class IndicatorRunner:
         If history is already loaded, the kept bars are replayed into it so its
         outputs line up with the others. Returns the instance id."""
         instance = indicator if isinstance(indicator, Indicator) else self.registry.create(indicator, version, **inputs)
+        instance = prepare_indicator(instance, self.executor)
         instance_id = instance_id or f"{instance.key}-{next(self._ids)}"
         if instance_id in self._instances:
             raise ValueError(f"indicator instance {instance_id!r} already exists")
@@ -91,7 +100,7 @@ class IndicatorRunner:
         del self._instances[instance_id]
         del self._series[instance_id]
 
-    def instance(self, instance_id: str) -> Indicator:
+    def instance(self, instance_id: str):
         return self._instances[instance_id]
 
     @property

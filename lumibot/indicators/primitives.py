@@ -36,16 +36,28 @@ def _check_length(length) -> int:
     return length
 
 
+_SLOT_NAMES: dict = {}
+
+
+def _slot_names(cls) -> tuple:
+    """All ``__slots__`` names of ``cls`` and its bases, computed once per class
+    (state is copied for every forming bar, so this is on the hot path)."""
+    names = _SLOT_NAMES.get(cls)
+    if names is None:
+        collected = []
+        for klass in cls.__mro__:
+            collected.extend(getattr(klass, "__slots__", ()))
+        names = _SLOT_NAMES[cls] = tuple(collected)
+    return names
+
+
 class _State:
     """Value equality over ``__slots__`` so snapshots compare by content."""
 
     __slots__ = ()
 
     def _fields(self):
-        names = []
-        for klass in type(self).__mro__:
-            names.extend(getattr(klass, "__slots__", ()))
-        return tuple(getattr(self, name) for name in names)
+        return tuple(getattr(self, name) for name in _slot_names(type(self)))
 
     def __eq__(self, other):
         return type(self) is type(other) and self._fields() == other._fields()
@@ -56,10 +68,7 @@ class _State:
     __hash__ = None
 
     def __getstate__(self):
-        names = []
-        for klass in type(self).__mro__:
-            names.extend(getattr(klass, "__slots__", ()))
-        return {name: getattr(self, name) for name in names}
+        return {name: getattr(self, name) for name in _slot_names(type(self))}
 
     def __setstate__(self, state):
         for name, value in state.items():

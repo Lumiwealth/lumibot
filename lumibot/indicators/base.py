@@ -51,6 +51,7 @@ from __future__ import annotations
 
 import copy
 import math
+import pickle
 from dataclasses import dataclass
 from typing import Any, Iterable, NamedTuple
 
@@ -273,6 +274,19 @@ def iter_bars(bars) -> Iterable[Bar]:
         yield to_bar(bar)
 
 
+def _copy_state(state):
+    """Throwaway copy of committed state for a forming bar.
+
+    A pickle round trip copies plain data (dicts, lists, deques, numbers and
+    the primitives) several times faster than ``copy.deepcopy``. State that
+    cannot be pickled (a lambda, a local class) falls back to ``deepcopy``,
+    so the result is the same either way."""
+    try:
+        return pickle.loads(pickle.dumps(state, pickle.HIGHEST_PROTOCOL))
+    except Exception:  # noqa: BLE001 - any pickling problem: use the general copier
+        return copy.deepcopy(state)
+
+
 def _clean(value):
     """Outputs are floats or None. NaN/inf (and numpy scalars) are normalized."""
     if value is None:
@@ -372,7 +386,7 @@ class Indicator:
             raise ValueError(
                 f"bar time {bar.time} must be after the last closed bar time {self._last_time}"
             )
-        state = self._state if closed else copy.deepcopy(self._state)
+        state = self._state if closed else _copy_state(self._state)
         values = self.step(state, bar) or {}
         if closed:
             self._bars_seen += 1

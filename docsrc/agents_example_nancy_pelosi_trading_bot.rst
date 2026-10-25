@@ -18,7 +18,7 @@ How it works
 The bot has just two AI agents, and both run every day:
 
 1. **Research agent** reads the newest available annual snapshot on the `House Clerk website <https://disclosures-clerk.house.gov/>`__ and applies disclosed transactions after that snapshot's valuation date. This includes transactions filed before the annual report itself. Partial sales reduce holdings, exercised calls add shares, and amendments correct earlier reports. Each answer retains the complete ledger and its sources, even on quiet days.
-2. **Trading agent** buys the estimated basket on its first iteration, including small positions when a whole share fits. It then compares actual holdings with target weights, sells before dependent buys, checks fills and cash, and leaves established positions within 2 percentage points of target alone. A missing price leaves that holding's allocation in cash while the supported remainder can trade. A failed lookup is not a reason to liquidate existing holdings.
+2. **Trading agent** buys the estimated basket on its first iteration, including small positions when a whole share fits. It compares actual holdings with target weights, sells before dependent buys, and checks fills and cash. On quiet days it leaves established positions within 2 percentage points of target alone. When a new disclosure changes holdings, it rebalances the updated basket and trims existing positions to fund new allocations. A missing price leaves that holding's allocation in cash while the supported remainder can trade. A failed lookup is not a reason to liquidate existing holdings.
 
 There is no other code. Want a different member of Congress? Change the name in the research agent's prompt.
 

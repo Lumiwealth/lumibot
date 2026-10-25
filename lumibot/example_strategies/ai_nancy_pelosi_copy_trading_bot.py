@@ -62,7 +62,7 @@ class NancyPelosiCopyTradingBot(Strategy):
                 "fits its allocation, otherwise the nearest higher strike that fits. Use the contract multiplier, "
                 "disclose substitutions and leave unaffordable or unpriced targets in cash. An empty sleeve stays "
                 "in cash. Buy missing affordable holdings; drift tolerance must not skip initial small positions. "
-                "Leave established positions within 2 percentage points of target alone. Verify sales and cash "
+                "On quiet days leave established positions within 2 percentage points of target alone. When eligible disclosures change holdings, rebalance the updated basket and trim existing positions to fund new allocations even when individual drift is small. Verify sales and cash "
                 "before dependent buys; never short or overspend. Disclosed valuation and coverage estimates are "
                 "usable without exact household quantities. If no supported basket was produced, compare "
                 "previous_research and preserve holdings; an error or 'nothing new' is not a sale. Report targets "

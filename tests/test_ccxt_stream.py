@@ -91,6 +91,47 @@ def test_phemex_empty_snapshot_and_usdc_order_use_v2_scope():
     assert observed.call_args.args[0][0]["symbol"] == "BTC/USDC:USDC"
 
 
+def test_phemex_balance_snapshot_is_retained_for_later_subscribers():
+    # A real wo.subscribe snapshot carries wallets and empty order lists.
+    # Credentials and account identifiers are deliberately absent.
+    api = SimpleNamespace(id="phemex", markets={}, currencies={})
+    observed = Mock()
+    stream = CcxtStream(api, {}, on_balance=observed)
+    client = SimpleNamespace(balance={"USDC": {"free": 12, "used": 0, "total": 12}},
+                             safe_currency_code=lambda value: value,
+                             parse_order=lambda value: value)
+    stream._phemex_message(client, {"type": "snapshot", "orders": {"open": [], "closed": [], "fills": []},
+                                    "wallets": [{"currency": "USDC", "balanceEv": 1200000000,
+                                                 "lockedTradingBalanceEv": 0, "lockedWithdrawEv": 0}]})
+    key = stream._key("watch_balance", {"params": {"type": "spot"}})
+    assert stream._states[key]["value"]["total"] == {"USDC": 12}
+    assert stream._states[key]["snapshot_seen"]
+    observed.assert_called_once()
+    client.balance["USDC"]["total"] = 999
+    assert stream._states[key]["value"]["total"] == {"USDC": 12}
+
+
+def test_phemex_private_balance_caches_keep_wallet_families_separate():
+    api = SimpleNamespace(id="phemex", markets={}, currencies={})
+    stream = CcxtStream(api, {})
+    client = SimpleNamespace(balance={"USDC": {"free": 12, "used": 0, "total": 12}},
+                             safe_currency_code=lambda value: value)
+    stream._phemex_message(client, {"type": "snapshot", "wallets": [{
+        "currency": "USDC", "balanceEv": 1200000000,
+        "lockedTradingBalanceEv": 0, "lockedWithdrawEv": 0}]})
+    client.balance["USDC"] = {"free": 7, "used": 3, "total": 10}
+    # V2 account shape is recorded in CCXT Pro's Phemex handle_balance docs.
+    stream._phemex_message(client, {"type": "snapshot", "accounts_p": [{
+        "currency": "USDC", "accountBalanceRv": "10", "totalUsedBalanceRv": "3"}]})
+    client.balance["USDC"] = {"free": 8, "used": 3, "total": 11}
+    stream._phemex_message(client, {"type": "incremental", "accounts_p": [{
+        "currency": "USDC", "accountBalanceRv": "11", "totalUsedBalanceRv": "3"}]})
+    spot = stream._key("watch_balance", {"params": {"type": "spot"}})
+    contracts = stream._key("watch_balance", {"params": {"type": "swap", "settle": "USDT"}})
+    assert stream._states[spot]["value"]["total"] == {"USDC": 12}
+    assert stream._states[contracts]["value"]["total"] == {"USDC": 11}
+
+
 def test_live_quote_uses_streamed_ticker_and_book(make_broker):
     broker = make_broker()
     source = broker.data_source

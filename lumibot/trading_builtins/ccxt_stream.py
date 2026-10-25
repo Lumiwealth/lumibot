@@ -158,7 +158,7 @@ class CcxtStream:
                 result = await watch(**kwargs)
                 # Native frames also deliver empty account snapshots and fix
                 # Phemex's V2 USDC generic-order channel resolution in CCXT.
-                if not (self.api.id == "phemex" and method == "watch_orders"):
+                if not (self.api.id == "phemex" and method in ("watch_orders", "watch_balance")):
                     self._publish(key, result)
                 delay = 0.2
             except asyncio.CancelledError:
@@ -192,6 +192,25 @@ class CcxtStream:
             self._condition.notify_all()
 
     def _phemex_message(self, client, message):
+        for field, balance_scope in (("wallets", {"type": "spot"}),
+                                     ("accounts", {"type": "swap"}),
+                                     ("accounts_p", {"type": "swap", "settle": "USDT"})):
+            if field not in message:
+                continue
+            key = self._key("watch_balance", {"params": balance_scope})
+            snapshot = message.get("type") == "snapshot"
+            with self._condition:
+                previous = {} if snapshot else deepcopy(self._states.get(key, {}).get("value", {}))
+            rows = {code: value for code, value in previous.items()
+                    if isinstance(value, dict) and "total" in value}
+            # CCXT has already parsed the frame. Keep each account family's
+            # values separate from its shared, cross-family balance cache.
+            for raw_balance in message[field]:
+                code = client.safe_currency_code(raw_balance["currency"])
+                rows[code] = deepcopy(client.balance[code])
+            balance = {**rows, **{name: {code: row.get(name) for code, row in rows.items()}
+                                  for name in ("free", "used", "total")}}
+            self._publish(key, balance, snapshot=snapshot)
         if "orders_p" in message:
             raw, scope = message["orders_p"], {"type": "swap", "settle": "USDT"}
         elif "orders" in message:

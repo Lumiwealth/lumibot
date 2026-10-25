@@ -121,6 +121,41 @@ def test_phemex_account_routes_follow_product_metadata_and_real_value_fields(der
     assert snapshot["balances"]["BTC"]["total"] == Decimal("1")
 
 
+@pytest.mark.parametrize("active,error_code,skip", [
+    (False, 39108, True), (True, 39108, False), (None, 39108, False),
+    (False, 10002, False),
+])
+def test_phemex_retired_unsupported_settlement_does_not_break_other_wallets(
+        derivatives, active, error_code, skip):
+    import ccxt
+
+    # Shape and code come from Phemex's account endpoint. Retired market
+    # metadata can still name a currency the account API no longer supports.
+    obsolete = deepcopy(derivatives.api.markets["BTC/USD:BTC"])
+    obsolete.update(symbol="ETH/USD:USD", id="ETHUSD", settle="USD", active=active)
+    derivatives.api.markets[obsolete["symbol"]] = obsolete
+    derivatives.api.privateGetGAccountsAccountPositions = Mock(return_value={
+        "code": 0, "data": {"account": {"accountBalanceRv": "0", "totalUsedBalanceRv": "0"},
+                             "positions": []}})
+    valid = {"code": 0, "data": {"account": {"accountBalanceEv": 100000000,
+                                              "totalUsedBalanceEv": 0}, "positions": []}}
+
+    def legacy(params):
+        if params["currency"] == "USD":
+            raise ccxt.ExchangeError(
+                'phemex {"code":%s,"msg":"Currency not supported.","data":null}' % error_code)
+        return valid
+
+    derivatives.api.privateGetAccountsAccountPositions = Mock(side_effect=legacy)
+    if skip:
+        result = derivatives._phemex_contract_accounts()
+        assert set(result["balances"]) == {"BTC", "USDT", "USDC"}
+        assert result["balances"]["BTC"]["total"] == Decimal("1")
+    else:
+        with pytest.raises(ccxt.ExchangeError):
+            derivatives._phemex_contract_accounts()
+
+
 def test_phemex_equity_adds_collateral_and_settlement_pnl_once(derivatives):
     derivatives.api.fetch_balance = Mock(return_value={"total": {"USDT": 100, "BTC": 0.01}})
     derivatives.api.fetch_ticker = Mock(return_value={"last": 20000})

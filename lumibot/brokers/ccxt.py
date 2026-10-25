@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import os
 import time
 from collections import OrderedDict
@@ -121,6 +122,8 @@ class Ccxt(Broker):
         use the original endpoints and currency-specific Ev scaling. Routing by
         product metadata also covers newly listed settlement currencies.
         """
+        import ccxt
+
         self._ensure_markets_loaded()
         with self._contract_accounts_lock:
             if self._contract_accounts_cache and time.monotonic() - self._contract_accounts_cache[0] < 1:
@@ -128,13 +131,28 @@ class Ccxt(Broker):
             groups = {}
             for market in self.api.markets.values():
                 if market.get("contract"):
-                    groups[(market["settle"], self._phemex_uses_real_values(market))] = market
+                    groups.setdefault((market["settle"], self._phemex_uses_real_values(market)), []).append(market)
             result = {"positions": [], "balances": {}}
-            for (settle, real), market in sorted(groups.items()):
+            for (settle, real), markets in sorted(groups.items()):
                 currency = self.api.currency(settle)
                 request = {"currency": currency["id"]}
                 endpoint = self.api.privateGetGAccountsAccountPositions if real else self.api.privateGetAccountsAccountPositions
-                response = endpoint(request)
+                try:
+                    response = endpoint(request)
+                except ccxt.ExchangeError as exc:
+                    try:
+                        error = json.loads(str(exc)[str(exc).index("{"):])
+                    except (ValueError, TypeError):
+                        error = {}
+                    if not isinstance(error, dict):
+                        error = {}
+                    # Retired catalog entries can outlive their settlement API.
+                    # Still read inactive wallets when supported, and preserve
+                    # auth/network/active-market failures instead of hiding them.
+                    if str(error.get("code")) == "39108" and all(m.get("active") is False for m in markets):
+                        logger.warning("Phemex no longer supports settlement %s for its retired markets", settle)
+                        continue
+                    raise
                 data = response.get("data") or {}
                 account = data.get("account") or {}
                 values = {}

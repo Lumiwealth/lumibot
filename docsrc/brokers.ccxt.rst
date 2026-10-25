@@ -33,7 +33,7 @@ exchange's API. These are different levels of evidence.
      - Authenticated exchange qualification in this change
    * - ``phemex``
      - Unified spot orders, balances, cancellation; native CCXT request serialization
-     - Pending testnet credentials
+     - Spot balance/private snapshots and collateral/position reads verified; execution pending
    * - ``coinbase``, ``kraken``, ``kucoin``, ``okx``, ``bybit``
      - Unified spot orders, balances and cancellation
      - Not exercised
@@ -264,6 +264,10 @@ a direct or inverse conversion market is explicitly warned about and excluded
 from converted equity. This is an unresolved valuation limit, not an assertion
 that such collateral is worthless. ``fetch_funding_rate(asset)`` reads the current
 venue funding rate; it does not simulate historical funding payments.
+Retired market metadata may name a settlement currency the account API no longer
+supports. Only an explicit currency-not-supported response for an entirely
+inactive market group is omitted; supported inactive wallets are still read,
+and authentication failures or errors for active markets remain visible.
 
 WebSocket market and account data
 ---------------------------------
@@ -288,7 +292,10 @@ and cancellation use REST. Account order updates feed the normal order/fill
 callbacks, applying cumulative fill quantities once across REST acknowledgements,
 WebSocket updates and replays. An uncertain submission retains its client ID for
 reconciliation and is not automatically resubmitted. Balance updates invalidate
-the collateral snapshot. Positions are reconciled through REST because the
+the collateral snapshot. Phemex wallet snapshots are retained even when they
+arrive before the balance subscription starts. Spot, legacy contract and V2
+contract balances remain separate, including when they use the same currency.
+Positions are reconciled through REST because the
 installed Phemex Pro adapter has no ``watch_positions`` implementation.
 
 Call ``broker.cleanup_streams()`` when finished; normal broker shutdown also
@@ -303,9 +310,9 @@ The offline contract and stream tests cover linear USDT, linear USDC and
 coin-settled inverse identities, quantity/exposure conversion, separate hedge
 legs, native request serialization, cumulative fills, replay handling, fees,
 amendment and cancellation. Transport doubles are not exchange trading proof.
-The final affected regression run passed 337 tests with two pre-existing skips,
-including shared history/cache behavior, Bitunix compatibility, position identity
-and strategy execution callbacks. The new contract/stream tests are
+Regression coverage also includes shared history/cache behavior, Bitunix
+compatibility, position identity and strategy execution callbacks.
+The contract/stream tests are
 ``tests/test_ccxt_derivatives.py`` and ``tests/test_ccxt_stream.py``.
 
 Public API qualification on October 23, 2026 with CCXT 4.5.64 established:
@@ -318,9 +325,13 @@ Public API qualification on October 23, 2026 with CCXT 4.5.64 established:
   its public subscriptions failed to produce usable snapshots. The opt-in
   testnet checks retain this failure; USDC is not removed from discovery.
 
-Authenticated testnet orders, private streams, mode changes, collateral balances
-and a complete strategy trading cycle remain unqualified until testnet credentials
-are available. Run the public checks with ``pytest
+Authenticated read-only checks on October 25, 2026 additionally established spot
+balances, metadata-discovered supported collateral wallets, combined position and
+equity reads, and spot private order/balance snapshots. Perpetual private
+subscriptions were acknowledged without delivering account snapshots during the
+check; acknowledgments alone do not establish snapshot or fill-update behavior.
+Order execution, position-mode changes and a complete strategy trading cycle
+remain separate qualification steps. Run the public checks with ``pytest
 tests/test_ccxt_phemex_testnet.py -m apitest``; these make no account writes.
 Other exchanges' private/perpetual streams have not been exchange-qualified by
 this change. CCXT adapter availability is not a promise that every feature works.

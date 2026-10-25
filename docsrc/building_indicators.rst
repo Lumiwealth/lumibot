@@ -4,6 +4,11 @@ Building indicators
 .. meta::
    :description: Write a LumiBot indicator that updates one bar at a time, runs inside a strategy or on its own, and describes itself to chart UIs and AI agents.
 
+.. tip::
+
+   New to indicators? Start with :doc:`indicators_overview` and
+   :doc:`indicators_first_custom`. This page is the full reference.
+
 An **Indicator v2** is a small Python class that processes **one bar at a
 time**. The same class runs:
 
@@ -67,7 +72,7 @@ keys, or a DataFrame whose index is the bar time. Numeric times are epoch
 milliseconds; naive times are treated as UTC.
 
 Write your own: Donchian midline example
----------------------------------------
+----------------------------------------
 
 Any indicator is written the same way: declare its inputs and outputs, keep a
 small state, and update it one bar at a time::

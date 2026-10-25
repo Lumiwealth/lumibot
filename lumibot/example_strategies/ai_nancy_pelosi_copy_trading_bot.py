@@ -30,7 +30,7 @@ class NancyPelosiCopyTradingBot(Strategy):
                 "once, including those filed before the annual report. Earlier trades are already reflected. "
                 "Read full asset-value ranges across wrapped lines; income is separate and a None asset value "
                 "does not establish a holding. Partial sales reduce holdings; exercised calls remove contracts and add shares. "
-                "Reconcile amendments, gifts, splits and ticker changes; return current tickers and historical aliases. "
+                "Reconcile amendments, gifts and splits. Verify current listings and ticker changes; return current tickers and historical aliases. "
                 "Keep pre-snapshot trades in reconciliation notes, not in applied share changes. "
                 "Inspect every transaction row: separate stock and option purchases can share an issuer. "
                 "Include listed partnership units; "
@@ -38,7 +38,7 @@ class NancyPelosiCopyTradingBot(Strategy):
                 "Return the FULL source ledger: each stock and call, baseline asset-value range, remaining "
                 "reported contract quantities, dated share/contract changes, contract terms, sources, applied "
                 "report IDs and latest filing checked. The trader handles valuation and sizing from this ledger. "
-                "Check indexes each day and return the FULL ledger, reusing your prior answer when unchanged. "
+                "Check indexes for newly eligible filings each day. Without new evidence, copy the FULL prior ledger with refreshed source status. "
                 "A lookup failure is not a sale: retain supported prior findings, label stale evidence and explain "
                 "gaps. Never substitute a favorite-stock basket. Do not trade."
             ),
@@ -54,9 +54,9 @@ class NancyPelosiCopyTradingBot(Strategy):
                 "Retain a labeled baseline-value proxy if quantity reconciliation remains unresolved. Check "
                 "ticker changes if a quote is missing; otherwise use a clearly labeled stale midpoint proxy. "
                 "Keep calls separate, estimate their remaining values from reported quantities and quotes or disclosed ranges, and explain assumptions. "
-                "Mirror the full estimated portfolio as of as_of, including initial purchases from cash. "
-                "Complete all feasible basket orders, reserving pending orders' cash for independent targets. "
-                "For immediate stock execution during the open session, use market orders and orders_wait_for_terminal. Put "
+                "Mirror the full estimated portfolio as of as_of, including initial purchases from cash. Replication includes small target positions and requires no separate conviction thesis. "
+                "Size the basket jointly using 99% of capital, scaling buys to available cash rather than dropping whole constituents. Complete all feasible orders, reserving pending orders' cash for independent targets. "
+                "For immediate stock execution during the open session, use market orders and orders_wait_for_terminal. Submit one order at a time; after each mutation or ORDER_READINESS_REQUIRED, refresh account_portfolio and complete account_positions plus orders_open_orders pagination, then continue the basket. Put "
                 "options_share of this account in her calls and the rest in stocks, each proportional to its "
                 "estimated value. Use the same underlying and expiration for calls: her strike if one contract "
                 "fits its allocation, otherwise the nearest higher strike that fits. Use the contract multiplier, "
@@ -76,7 +76,7 @@ class NancyPelosiCopyTradingBot(Strategy):
         research = self.agents["researcher"].run(
             task_prompt=(
                 "Return the full report-derived stocks-and-calls ledger as of as_of. Read chosen reports "
-                "completely, reconcile holdings and dated changes, retain contract identities, check new "
+                "completely; audit each eligible post-snapshot purchase, exercise and sale against the ledger, including additions absent from the annual inventory; resolve ticker aliases, retain contract identities, check new "
                 "disclosures and cite sources. The trader will calculate estimates and allocations."
             ),
             context={"as_of": as_of, "your_last_answer": previous},

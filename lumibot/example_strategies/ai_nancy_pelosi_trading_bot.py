@@ -28,7 +28,7 @@ class NancyPelosiTradingBot(Strategy):
                 "once, including those filed before the annual report. Earlier trades are already reflected. "
                 "Read full asset-value ranges across wrapped lines; income is separate and a None asset value "
                 "does not establish a holding. Partial sales reduce holdings; exercised calls add shares. "
-                "Reconcile amendments, gifts, splits and ticker changes; return current tickers and historical aliases. "
+                "Reconcile amendments, gifts and splits. Verify current listings and ticker changes; return current tickers and historical aliases. "
                 "Keep pre-snapshot trades in reconciliation notes, not in applied share changes. "
                 "Inspect every transaction row: separate stock and option purchases can share an issuer. "
                 "Include listed partnership units; "
@@ -37,7 +37,7 @@ class NancyPelosiTradingBot(Strategy):
                 "dated post-snapshot share changes, sources, applied report IDs and latest filing checked. "
                 "Include additions absent from the baseline, including shares from exercised calls and spinoffs. "
                 "The trader handles valuation and sizing; missing prices do not prevent this source ledger. "
-                "Check indexes each day and return the FULL ledger, reusing your prior answer when unchanged. "
+                "Check indexes for newly eligible filings each day. Without new evidence, copy the FULL prior ledger with refreshed source status. "
                 "A lookup failure is not a sale: retain supported prior findings, label stale evidence and explain "
                 "gaps. Never substitute a favorite-stock basket. Do not trade."
             ),
@@ -52,13 +52,13 @@ class NancyPelosiTradingBot(Strategy):
                 "negative, recheck dates and double counting; do not clip a contradictory estimate to zero. "
                 "Retain a labeled baseline-value proxy if quantity reconciliation remains unresolved. Check "
                 "ticker changes if a quote is missing; otherwise use a clearly labeled stale midpoint proxy. "
-                "Normalize estimated stock values to 100% and explain the assumptions. "
+                "Normalize estimated stock values to 100% and explain assumptions. Size the basket jointly using 99% of capital; scale buys to available cash rather than dropping whole constituents when their full targets exceed cash. "
                 "Mirror the full estimated stock basket as of as_of, sized to this account. Buy the basket on "
-                "the first iteration from cash; do not wait for a new Pelosi trade. Complete every feasible "
+                "the first iteration from cash; do not wait for a new Pelosi trade. Replication includes small target positions and requires no separate conviction thesis. Complete every feasible "
                 "basket order in this iteration, not just the first stock. A pending order for one stock does "
                 "not cover other missing stocks: reserve its cash and continue independently affordable targets. "
                 "During the open session, use market orders when immediate execution is required and verify "
-                "their terminal status with orders_wait_for_terminal. Buy missing positive-weight "
+                "their terminal status with orders_wait_for_terminal. Submit one order at a time. After each mutation or ORDER_READINESS_REQUIRED, refresh account_portfolio and complete account_positions plus orders_open_orders pagination, then continue the remaining basket. Buy missing positive-weight "
                 "holdings when a whole share fits; leave established positions within 2 percentage points of "
                 "target alone. Sell removed or overweight holdings before dependent buys and verify fills and "
                 "cash. Never short or overspend. Leave an unpriced or unaffordable holding's allocation in cash "
@@ -75,7 +75,7 @@ class NancyPelosiTradingBot(Strategy):
         research = self.agents["researcher"].run(
             task_prompt=(
                 "Return the full report-derived stock ledger as of as_of. Read chosen reports completely, "
-                "reconcile holdings and dated share changes, check newly available disclosures and cite "
+                "audit every eligible post-snapshot stock purchase/exercise against the ledger, including additions absent from the annual stock section; resolve ticker aliases, check new disclosures and cite "
                 "sources. The trader will calculate valuation estimates and target allocations."
             ),
             context={"as_of": as_of, "your_last_answer": previous},

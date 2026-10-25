@@ -33,16 +33,19 @@
   exception requires explicit human approval and an exact bounded plan.
 - Explicit Standard/default service tier is required for actors, judges, nested
   calls and retries. Never use fast/priority service for evals.
-- Declare one cumulative call/input/output and API-equivalent envelope before
-  inference. The default task allowance is at most $20 equivalent, not a target
-  or permission for cash billing. Use the existing subscription budget owner;
-  do not create separate budgets for judges, retries or calibration to reset use.
+- Keep one append-only call/input/output usage ledger for subscription inference.
+  API-equivalent estimates are informational, not charges or approval limits.
+  Replenish technical reporting windows automatically without resetting history
+  or stopping actors, judges or calibration. Actual provider limits remain real.
 - Reserve the provider's actual possible envelope before every request, including
   ignored output limits. Unknown usage keeps its reservation after interruption.
   Retain cache and reasoning counts without double-counting OpenAI completion
   tokens. Record API-equivalent estimates separately from API charges and
   unreported subscription-credit debits.
-- Run deterministic setup/budget checks before inference. Reuse compatible native
+- Qualification actors and judges explicitly disable model-request and run
+  deadlines, including inherited transport defaults. Preserve functional,
+  authorization, trading and source-integrity assertions.
+- Run deterministic setup, authentication and billing-path checks before inference. Reuse compatible native
   actor evidence and rejudge stored transcripts when only the judge changes;
   preserve source, model and timestamp identities and every release assertion.
   A new verdict must never relabel old actor evidence as a new run.

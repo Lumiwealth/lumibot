@@ -2,6 +2,7 @@
 
 ## 4.6.31 - Unreleased
 
+- Agent replay identity includes dependency versions and callable implementations; explicit failed tool results no longer block fresh recovery, while compatible successful decisions remain reusable.
 ### Fixed
 - Agent backtests bind replay identity to dependency versions and callable source hashes. Explicit failed tool responses remain recorded but are not replayed, allowing repaired research capabilities to recover while compatible successful decisions remain reusable.
 - Portfolio reconstruction examples distinguish an annual snapshot's valuation date from its filing date, retain complete holdings across daily handoffs, and explicitly pass simulation time and prior research to the trading agent. Prompts cover initial basket purchases, partial sales, exercises, amendments and research failures.

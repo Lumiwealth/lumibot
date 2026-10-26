@@ -1,3 +1,5 @@
+:seo_title: Open-Source TradingView Alternative: LumiBot Python Indicators vs Pine Script, NinjaTrader, MT5, QuantConnect
+
 LumiBot indicators compared
 ===========================
 
@@ -77,16 +79,16 @@ What an indicator can do
      - Built-in feeds only
      - No ("no orders from the file")
    * - **NinjaTrader 8**
-     - Not covered here
-     - Not covered here
+     - No Python. C# on .NET Framework 4.8; third-party .NET DLLs can be referenced
+     - Technically possible with standard .NET classes; NinjaTrader support calls it undocumented and unsupported
      - Yes, NinjaScript strategies
    * - **MetaTrader 5**
-     - Not covered here
-     - Not covered here
+     - No Python libraries. MQL5 (C++-like); DLL imports if the user turns them on
+     - No. ``WebRequest()`` is blocked in indicators (error 4014). It works only in Expert Advisors and scripts, for URLs the user allow-lists, and never in the Strategy Tester
      - Yes, Expert Advisors
    * - **QuantConnect LEAN**
-     - Not covered here
-     - Not covered here
+     - Yes, several machine-learning libraries in Python
+     - Yes, in the algorithm: ``self.download`` (with headers or a login) and custom data streams. In their cloud each download times out after 10 seconds and the number of remote files per backtest depends on the plan (Free: 25)
      - Yes, LEAN algorithms
 
 Live updates and backtests
@@ -132,10 +134,17 @@ Live updates and backtests
 What this means in plain words
 ------------------------------
 
-- If you want **Python**, real **machine learning** and **outside data** inside
-  an indicator, and the same code to **trade your own broker**, LumiBot and
-  QuantConnect LEAN are the Python options. LumiBot runs entirely on your own
-  machine with ``pip install lumibot``.
+- If you want **Python**, real **machine learning** and **outside data**, and
+  the same code to **trade your own broker**, LumiBot and QuantConnect LEAN are
+  the two Python options. LEAN is the closest match: also Python, also open
+  source, also backtests and live trading. In LEAN, outside data is loaded by
+  the algorithm and its cloud has download limits; in LumiBot an indicator
+  calls the API itself, updates the forming live bar with rollback, can stream
+  live in a plain Python script, and runs on your own machine with
+  ``pip install lumibot``.
+- **NinjaTrader** indicators are C#. Web calls are possible with .NET classes
+  but NinjaTrader does not support them. **MetaTrader 5** blocks web requests
+  in indicators entirely.
 - If you want the **biggest charting community**, TradingView is it, with Pine
   Script's limits (no outside APIs, no Python libraries).
 - **Vela** gives you a fast open-source chart in the browser that runs Pine
@@ -157,14 +166,31 @@ Checked October 25, 2026.
   PineTS (license): https://github.com/LuxAlgo/PineTS
 - OpenMarket wrun documentation: https://openmarket.xyz
 - NinjaTrader ``Calculate`` property: https://docs.ninjatrader.com/ninjascript/calculate
+- NinjaTrader outside calls and third-party DLLs (NinjaTrader support forum and
+  help guide):
+  https://forum.ninjatrader.com/forum/ninjatrader-8/indicator-development/1134931-dynamically-adding-property-values-to-a-script-via-file-api ;
+  https://forum.ninjatrader.com/forum/ninjatrader-8/add-on-development/1123485-how-do-i-make-an-external-call ;
+  https://ninjatrader-devel.ninjatrader.com/support/helpGuides/nt8/using_3rd_party_indicators.htm ;
+  https://forum.ninjatrader.com/forum/ninjatrader-8/indicator-development/1207367-trying-to-add-htmlagilitypack-run-into-number-of-errors
 - MQL5 ``OnCalculate``: https://www.mql5.com/en/docs/event_handlers/oncalculate ;
   program events: https://www.mql5.com/en/docs/runtime/running
+- MQL5 ``WebRequest`` (not allowed in indicators, not in the Strategy Tester):
+  https://www.mql5.com/en/docs/network/webrequest ;
+  MetaTrader 5 robots and indicators:
+  https://www.metatrader5.com/en/terminal/help/algotrading/trade_robots_indicators
 - QuantConnect custom indicators:
   https://www.quantconnect.com/docs/v2/writing-algorithms/indicators/custom-indicators ;
   LEAN source and license: https://github.com/QuantConnect/Lean
+- QuantConnect outside data and machine learning:
+  https://www.quantconnect.com/docs/v2/writing-algorithms/importing-data/bulk-downloads ;
+  https://www.quantconnect.com/docs/v2/writing-algorithms/importing-data/key-concepts ;
+  https://www.quantconnect.com/docs/v2/writing-algorithms/machine-learning/key-concepts
 
 Frequently asked questions
 --------------------------
+
+Questions about what an indicator can do (machine learning, outside data,
+live values, repainting) are answered on :doc:`indicators_overview`.
 
 Is there a free, open-source alternative to TradingView indicators?
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -197,33 +223,6 @@ Yes, by hand or with an AI coding assistant. :doc:`indicators_tradingview_number
 maps Pine functions to LumiBot ones. Only convert code you wrote or have the right to
 use; many published scripts have licenses.
 
-Can an indicator use machine learning?
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-Yes. It is plain Python, so numpy, scikit-learn, LightGBM or a model file you
-trained all work. :doc:`indicators_examples` includes a small numpy
-classifier.
-
-Can an indicator use data from outside the chart?
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-Yes. It can call any web API. :doc:`indicators_outside_data` shows a funding
-rate from a public exchange, done without look-ahead in backtests.
-
-Can I get live indicator values without a paid data service?
-~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-For crypto, yes. :doc:`indicators_live_crypto_stream` streams public candles
-from an exchange through CCXT with no API key. Stocks need a data source or
-broker that provides them.
-
-Will my indicator repaint?
-~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-Closed-bar values never change. A forming bar's value can change until the
-bar closes, which is why LumiBot labels it ``closed=False`` and never saves
-it into history.
-
 Does LumiBot draw charts like TradingView?
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -231,3 +230,13 @@ LumiBot draws indicator charts for backtests. Each indicator's
 ``describe()`` gives a chart everything it needs (settings, lines, colors,
 guide lines, price pane or own pane), so you can also plot the values with
 any charting library.
+
+How is LumiBot different from QuantConnect?
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Both are open source and both run Python strategies in backtests and live.
+In LumiBot, an indicator itself can call a web API and give a value for the
+still-forming live bar, and it runs on your own computer with
+``pip install lumibot``. In QuantConnect, the algorithm loads outside data,
+and their cloud limits download time and the number of remote files per
+backtest. See the tables above for the sources.

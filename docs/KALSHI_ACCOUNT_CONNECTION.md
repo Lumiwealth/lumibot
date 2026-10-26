@@ -18,7 +18,7 @@ strategy functions or persistence service is introduced.
 
 Implemented: signed balances, YES/NO orders and net positions, last prices,
 quotes, limit orders, marketable IOC execution for market orders, order reads,
-amend/cancel, fill deltas/fees and REST polling. Full discovery/history,
+amend/cancel, fill deltas/fees and REST polling. Full discovery,
 WebSocket acceleration, settlement events, historical backtesting and other
 product paths remain later increments. They are not qualified by this packet.
 
@@ -175,8 +175,42 @@ of unrelated account history.
 `get_quote` derives the selected bid from its own book and the ask from the
 opposite bid, complementing prices and swapping sizes for NO. Empty sides are
 `None`, not zero; actual zero last prices remain zero. Quote timestamps are
-receipt times unless the provider supplies a source timestamp. History and
-point-in-time backtests remain unfinished.
+receipt times unless the provider supplies a source timestamp. History is implemented below; point-in-time backtesting is the next packet.
+
+## Historical prices
+
+`get_historical_prices(asset, length, timestep, timeshift=...)` now returns normal
+`Bars`; the existing `get_bars` dispatcher preserves plural asset reads and
+per-asset failures. It keeps YES/NO as separate Asset keys. No new strategy
+history function or provider-specific bar type is needed.
+
+The current batch-candle endpoint supplies native minute/hour/day data. Older
+settled markets and metadata fall back to the historical endpoints. Archive
+membership follows the market's settlement, not the requested candle date;
+the adapter does not split a current market's old candles using an unrelated
+trade/order cutoff. Each inclusive request window stays below the aggregate
+10,000-candle limit. Results are sorted, deduplicated and clipped by bar end.
+
+History timestamps are **completed period ends**. Explicit `start`/`end` (also
+`start_dt`/`end_dt`, `start_date`/`end_date`, `datetime_start`/`datetime_end`) accept
+normal date/datetime inputs; naive timestamps are interpreted as UTC. `length=None`
+with an explicit range loads that range; without a start it uses market open time.
+Positive minute/hour/day/week multiples reuse native intervals and aggregate
+with right-labelled, completed boundaries. Timedelta timeshifts and numeric
+bar-count shifts move the request end. No prior-price synthetic candle is requested.
+
+Current `*_dollars`/`*_fp` fields and archival unsuffixed decimal-string fields
+have separate parsing; archive dollar strings are not divided by 100. Fractional
+volume is retained. Quote-only candles keep missing trade OHLC as missing; no
+midpoint or previous close is substituted for a trade. NO open/close complement
+YES; NO high complements YES low and NO low complements YES high. NO bid/ask
+complement and swap YES ask/bid. Actual zero values survive.
+
+Qualification: six new recorded-response history contracts and 108 affected
+offline contracts passed. Four read-only native API cases returned populated
+current and archived candles in demo and public production, including YES/NO
+normalization. The historical fixture uses provider-recorded shapes with neutral
+identifiers. This is historical-data proof, not backtest execution proof.
 
 ## Caller-owned clients and resource ownership
 

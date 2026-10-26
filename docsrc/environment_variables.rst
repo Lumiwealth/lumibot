@@ -622,7 +622,7 @@ Kalshi connection and trading (in development)
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 - ``TRADING_BROKER=kalshi`` selects the native adapter. Standard order, position,
-  quote and account methods are implemented; historical prices, settlement and
+  quote, historical-price and account methods are implemented; settlement and
   backtesting remain unfinished. Whole and fractional demo trading are verified.
 - ``KALSHI_API_KEY_ID`` identifies the separately configured demo or production key.
 - ``KALSHI_PRIVATE_KEY`` supplies PEM text (Ed25519 or RSA); alternatively use

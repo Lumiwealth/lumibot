@@ -622,7 +622,7 @@ Table of Contents
    :maxdepth: 1
    :caption: Indicators
 
-   What an Indicator Is <indicators_overview>
+   Custom Indicators: What They Can Do <indicators_overview>
    Build Your First Indicator <indicators_first_custom>
    Settings and Outputs <indicators_settings_outputs>
    Price Chart or Own Pane <indicators_chart_placement>

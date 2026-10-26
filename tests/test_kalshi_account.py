@@ -15,18 +15,18 @@ from lumibot.tools.kalshi_client import KalshiAPIError, KalshiClient
 @pytest.mark.parametrize(
     "row,expected",
     [
-        ({"balance": 10000, "balance_dollars": "100.0000", "portfolio_value": 15000}, (100, 50, 150)),
-        ({"balance": 10000, "balance_dollars": "100.0000", "portfolio_value": 10000}, (100, 0, 100)),
+        ({"balance": 10000, "balance_dollars": "100.0000", "portfolio_value": 5000}, (100, 50, 150)),
+        ({"balance": 10000, "balance_dollars": "100.0000", "portfolio_value": 0}, (100, 0, 100)),
         ({"balance": 0, "balance_dollars": "0.0000", "portfolio_value": 0}, (0, 0, 0)),
-        ({"balance": 10000, "portfolio_value": 12500}, (100, 25, 125)),
+        ({"balance": 10000, "portfolio_value": 2500}, (100, 25, 125)),
         (
-            {"balance": 10000, "balance_dollars": "100.1234", "portfolio_value": 12500},
-            (Decimal("100.1234"), Decimal("24.8766"), Decimal("125")),
+            {"balance": 10000, "balance_dollars": "100.1234", "portfolio_value": 2500},
+            (Decimal("100.1234"), Decimal("25"), Decimal("125.1234")),
         ),
     ],
 )
-def test_balance_arithmetic_does_not_add_cash_twice(row, expected):
-    # Independent arithmetic for Kalshi's documented total-equity contract.
+def test_balance_arithmetic_preserves_cash_and_adds_holdings(row, expected):
+    # Current authenticated response semantics supersede the older changelog description.
     assert _parse_balances(row) == tuple(Decimal(str(v)) for v in expected)
 
 
@@ -195,3 +195,14 @@ broker.close()
 """
     result = subprocess.run([sys.executable, "-c", code], env=env, capture_output=True, text=True)
     assert result.returncode == 0, result.stderr
+
+
+def test_recorded_demo_flat_balance_matches_independent_website_total():
+    import json
+    from pathlib import Path
+
+    # Authenticated demo response recorded 2026-10-26; timestamp neutralized.
+    # The independent website showed cash=100, holdings=0, portfolio=100.
+    # The older changelog's total-equity description does not match this API.
+    row = json.loads((Path(__file__).parent / "fixtures/kalshi/balance_flat.json").read_text())
+    assert _parse_balances(row) == (Decimal("100"), Decimal("0"), Decimal("100"))

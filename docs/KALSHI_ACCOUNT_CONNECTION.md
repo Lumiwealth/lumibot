@@ -3,7 +3,7 @@
 Connect a Kalshi account through LumiBot's existing broker and data-source interfaces.
 
 Last Updated: 2026-10-26
-Status: Account-read foundation; authenticated demo qualification pending
+Status: Account-read foundation; funded-flat demo qualification verified
 Audience: Developers implementing or testing the Kalshi adapter
 
 ## Overview
@@ -41,7 +41,7 @@ Run:
 python -m lumibot.example_strategies.kalshi_account_check
 ```
 
-The check submits no orders. It prints cash, derived holdings value, total value
+The check submits no orders. It prints cash, holdings value, total value
 and the provider's update timestamp. Successful construction or public market
 access alone does not prove authentication.
 
@@ -55,11 +55,17 @@ The standard Broker hook returns `(cash, holdings_value, total_value)` as floats
 for compatibility. Parsing and arithmetic use `Decimal` first:
 
 - Cash uses `balance_dollars`, with legacy `balance / 100` fallback.
-- Total uses `portfolio_value / 100`; the official October 7, 2025 changelog
-  defines this field as cash plus positions. Do not add cash again.
-- Derived holdings value is total minus cash. Its accuracy inherits the
-  legacy total's cent precision, whereas direct-member cash can have sub-cent
-  precision. A small residual is not an independently measured position mark.
+- Holdings use `portfolio_value / 100`. On 2026-10-26 an authenticated demo
+  account returned cash `100.0000`, `portfolio_value=0`, and the independent
+  website showed cash/total of 100. Therefore current demo portfolio_value
+  excludes cash. Total is cash plus holdings.
+- The October 7, 2025 changelog describes that field as cash-inclusive total;
+  that description disagrees with current measured demo behavior. The original
+  foundation followed it and was corrected after a recorded-response regression
+  reproduced negative holdings and zero total on a funded-flat account.
+- Holdings inherit the cent-valued field's precision; direct-member cash may
+  have sub-cent precision. Open-position valuation, reserved collateral and
+  production-account semantics still need independent qualification.
 - Missing, invalid or non-finite fields raise a sanitized `KalshiAPIError`.
   They never become a zero-valued account.
 
@@ -69,7 +75,7 @@ bucket. This is not a cross-process rate limiter. HTTP GET retries are bounded;
 uncertain writes are never automatically replayed. Trading integration must
 invalidate or refresh balance evidence on actual account events.
 
-Before enabling trading, reconcile current funded-flat and open-position
+The funded-flat example is verified. Before enabling trading, reconcile open-position
 examples independently, including reserved collateral, source precision,
 selected subaccount and shard funds. A parser unit test or a single algebraic
 identity cannot establish those account semantics.
@@ -95,11 +101,12 @@ No credentials, signed headers or provider error bodies are logged.
 
 ## Verification at this increment
 
-The affected offline inventory passed 216 tests, including signing, pure balance
+The corrected affected offline inventory passed 217 tests, including signing, pure balance
 arithmetic, Strategy cash/equity wiring, eager/lazy credential selection,
 Polymarket compatibility and CCXT derivative/startup regressions. The public demo
-metadata API check passed; the signed balance check remains pending dedicated
-demo credentials. No order, fill, settlement or backtest is claimed by this
+metadata API check passed. Subsequent signed demo reads exposed and corrected
+the balance-field discrepancy described above; the standard Strategy account
+check now reports cash 100, holdings 0 and total 100, matching the website. No order, fill, settlement or backtest is claimed by this
 account-read increment.
 
 ## Tests and remaining proof
@@ -119,8 +126,9 @@ from fills, settlement, populated historical prices and backtests.
 
 This foundation adapts transport, scaffolding and offline contract tests from
 [the public Kalshi draft](https://github.com/Lumiwealth/lumibot/pull/1167), pinned
-at `1ed4d0f3dc361de96b04c795355f2e4e7bb6b670`. Its signed-YES order model and old
-balance arithmetic were not imported as working trading behavior. Its historical
+at `1ed4d0f3dc361de96b04c795355f2e4e7bb6b670`. Its signed-YES order model was not imported as working trading behavior. Its
+balance arithmetic agrees with current demo evidence; the initial contrary
+interpretation of the older changelog was corrected after authenticated testing. Its historical
 test claims do not replace current qualification.
 
 Sources: [API keys](https://docs.kalshi.com/getting_started/api_keys),

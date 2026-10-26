@@ -10,11 +10,12 @@ from lumibot.tools.kalshi_client import KalshiAPIError, KalshiClient, decimal_va
 
 
 def _parse_balances(row):
-    """Parse cash, holdings, total; portfolio_value already includes cash.
+    """Parse cash, holdings, total from the currently observed API contract.
 
-    Kalshi's October 7, 2025 changelog defines total value explicitly. Cash can
-    have sub-cent precision while the legacy total field has cent precision.
-    The derived holdings value therefore inherits the total's precision limit.
+    Authenticated demo evidence on 2026-10-26 reports portfolio_value=0 for
+    an independently verified funded-flat account. It is holdings value, not
+    cash-inclusive equity; the older changelog describes a different meaning.
+    Cash preserves fixed-point precision; holdings use the cent-valued field.
     """
     if not isinstance(row, dict):
         raise KalshiAPIError("Kalshi returned an invalid balance response")
@@ -24,10 +25,10 @@ def _parse_balances(row):
             if row.get("balance_dollars") is not None
             else decimal_value(row["balance"], "balance") / Decimal(100)
         )
-        total = decimal_value(row["portfolio_value"], "portfolio_value") / Decimal(100)
+        holdings = decimal_value(row["portfolio_value"], "portfolio_value") / Decimal(100)
     except (KeyError, TypeError, ValueError):
         raise KalshiAPIError("Kalshi balance response is missing valid cash or portfolio value") from None
-    return cash, total - cash, total
+    return cash, holdings, cash + holdings
 
 
 class Kalshi(Broker):

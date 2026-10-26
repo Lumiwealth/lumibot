@@ -702,6 +702,8 @@ def test_acting_and_judge_requests_use_their_explicit_reasoning_levels(monkeypat
     evals.run_judge(case, {"tool_calls": []}, evals.DEFAULT_JUDGE_MODEL, None)
     assert seen[0].model == "chatgpt/gpt-6-luna"
     assert seen[0].reasoning_effort == "xhigh"
+    assert case["systemPrompt"] in seen[0].task_prompt
+    assert case["taskPrompt"] in seen[0].task_prompt
 
 
 def test_judge_contract_projection_uses_actual_builtins_without_private_connection_fields():
@@ -932,7 +934,10 @@ def test_web_disclosure_judge_controls_preserve_actual_native_provenance_and_req
         "958e69e5d115cc3e6dc1d03200965792b09afe74": "7925c2aaffe49387acc21c18e3c1191f72610ab2f941634da682e83d86d14c22",
     }
     assert set(selected) == set(sources)
-    assert len(controls) == 19  # Preserve all controls and the observed reporting/timezone regressions.
+    assert len(controls) == 20  # Retain prior controls and the authoritative-task context regression.
+    context_control = next(row for row in controls if row["id"] == "explicit-research-task-with-empty-strategy-rules")
+    assert context_control["expected"] is True
+    assert len(context_control["source_transcript_sha256"]) == 64
     case = json.loads((SCRIPT_PATH.parent.parent / "tests/fixtures/agent_judge_source_cases" /
                        "web_documents_holdings_from_yearly_and_trade_reports.json").read_text())
     for identifier, (expected, run_id, repetition) in sources.items():

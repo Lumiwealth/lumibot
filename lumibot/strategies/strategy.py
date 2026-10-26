@@ -2110,13 +2110,14 @@ class Strategy(_Strategy):
 
             # Broker-agnostic multi-leg LIMIT UX:
             # If the caller requests a package LIMIT (`order_type='limit'`) on a broker that uses
-            # debit/credit/even semantics (Tradier) or needs net-side hints (Alpaca mleg),
-            # infer the net sign from quotes and map internally so strategies remain portable.
+            # debit/credit/even semantics (Tradier, Schwab NET_DEBIT/NET_CREDIT/NET_ZERO) or needs
+            # net-side hints (Alpaca mleg), infer the net sign from quotes and map internally so
+            # strategies remain portable. Without this a positive Schwab limit is always a debit.
             if (
                 is_multileg
                 and not self.broker.IS_BACKTESTING_BROKER
                 and str(kwargs.get("order_type", "")).lower() == str(Order.OrderType.LIMIT)
-                and str(getattr(self.broker, "name", "")).lower() in {"tradier", "alpaca"}
+                and str(getattr(self.broker, "name", "")).lower() in {"tradier", "alpaca", "schwab"}
             ):
                 inferred = self._infer_multileg_type_and_mid(order)
                 if inferred is not None:
@@ -2286,6 +2287,13 @@ class Strategy(_Strategy):
 
         computed = self._compute_multileg_net_best_fastest(child_orders)
         if computed is None:
+            if str(getattr(self.broker, "name", "")).lower() == "schwab":
+                self.log_message(
+                    "[SMART_LIMIT] Missing bid/ask for a Schwab multi-leg package. "
+                    "Schwab requires a net price, so the package was not submitted.",
+                    color="yellow",
+                )
+                return None
             self.log_message(
                 "[SMART_LIMIT] Missing bid/ask for multileg order; downgrading to market.",
                 color="yellow",
@@ -2332,6 +2340,15 @@ class Strategy(_Strategy):
                 price=submit_price_or_none,
             )
         except Exception as exc:
+            if broker_name == "schwab":
+                # An unsigned positive limit is a debit. Retrying a failed credit
+                # that way would buy the package instead of selling it.
+                self.log_message(
+                    f"[SMART_LIMIT] Multi-leg submit failed for type={initial_type} ({exc}). "
+                    "The package was not submitted.",
+                    color="yellow",
+                )
+                return None
             self.log_message(
                 f"[SMART_LIMIT] Multi-leg submit failed for type={initial_type} ({exc}); retrying as limit.",
                 color="yellow",

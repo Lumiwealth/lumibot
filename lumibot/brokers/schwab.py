@@ -1778,8 +1778,28 @@ class Schwab(Broker):
                 if skipped_child_orders == len(child_order_strategies):
                     return None
             else:
-                # Process simple order
+                # Process simple order. A multi-leg option package is one broker
+                # order, so return the parent with its legs instead of the first leg.
                 simple_orders = self._parse_simple_order(response, strategy_name)
+                multileg_order = self._parse_multileg_option_snapshot(response, simple_orders, strategy_name)
+                if multileg_order is not None:
+                    return multileg_order
+                # A broken option package must not surface as its first leg.
+                # Mixed stock-and-option orders keep the existing one-order parse.
+                if self._schwab_snapshot_is_option_package(response):
+                    # The broad poll re-reads seven days of history every 30 seconds;
+                    # warn once per order instead of on every poll.
+                    package_id = str(response.get("orderId", ""))
+                    skipped = getattr(self, "_schwab_skipped_package_ids", None)
+                    if skipped is None:
+                        skipped = self._schwab_skipped_package_ids = set()
+                    message = f"Skipping Schwab option package {package_id}: the legs could not be read as one order."
+                    if package_id in skipped:
+                        logger.debug(message)
+                    else:
+                        skipped.add(package_id)
+                        logger.warning(colored(message, "yellow"))
+                    return None
                 if simple_orders:
                     return simple_orders[0]  # Return the first order
 
@@ -1801,6 +1821,10 @@ class Schwab(Broker):
             "STOP": Order.OrderType.STOP,
             "STOP_LIMIT": Order.OrderType.STOP_LIMIT,
             "TRAILING_STOP": Order.OrderType.TRAIL,
+            # A Schwab package is a limit at the net price. The raw type stays on the order.
+            "NET_DEBIT": Order.OrderType.LIMIT,
+            "NET_CREDIT": Order.OrderType.LIMIT,
+            "NET_ZERO": Order.OrderType.LIMIT,
         }
         if raw_order_type in order_type_map:
             return order_type_map[raw_order_type]
@@ -1855,22 +1879,7 @@ class Schwab(Broker):
         cumulative broker value on the observed Order and the reducer calculates
         the delta against a per-order high-water mark.
         """
-        execution_rows = []
-        for activity in schwab_order.get("orderActivityCollection") or schwab_order.get("activityCollection") or []:
-            if str(activity.get("activityType", "")).upper() not in {"EXECUTION", "ORDER_EXECUTION"}:
-                continue
-            for execution in activity.get("executionLegs") or []:
-                execution_leg_id = execution.get("legId")
-                if leg_id is not None and execution_leg_id is not None and str(execution_leg_id) != str(leg_id):
-                    continue
-                try:
-                    quantity = float(execution.get("quantity") or 0)
-                    price = float(execution.get("price"))
-                except (TypeError, ValueError):
-                    continue
-                if quantity > 0:
-                    execution_rows.append((quantity, price))
-
+        execution_rows = Schwab._schwab_execution_rows(schwab_order, leg_id=leg_id)
         if execution_rows:
             cumulative = sum(quantity for quantity, _ in execution_rows)
             average_price = sum(quantity * price for quantity, price in execution_rows) / cumulative
@@ -1886,6 +1895,26 @@ class Schwab(Broker):
         except (TypeError, ValueError):
             average_price = None
         return cumulative, average_price
+
+    @staticmethod
+    def _schwab_execution_rows(schwab_order: dict, leg_id=None):
+        """Return (quantity, price) for each broker execution, optionally for one leg."""
+        execution_rows = []
+        for activity in schwab_order.get("orderActivityCollection") or schwab_order.get("activityCollection") or []:
+            if str(activity.get("activityType", "")).upper() not in {"EXECUTION", "ORDER_EXECUTION"}:
+                continue
+            for execution in activity.get("executionLegs") or []:
+                execution_leg_id = execution.get("legId")
+                if leg_id is not None and execution_leg_id is not None and str(execution_leg_id) != str(leg_id):
+                    continue
+                try:
+                    quantity = float(execution.get("quantity") or 0)
+                    price = float(execution.get("price"))
+                except (TypeError, ValueError):
+                    continue
+                if quantity > 0:
+                    execution_rows.append((quantity, price))
+        return execution_rows
 
     def _schwab_instruction_to_side(self, instruction):
         side_mapping = {
@@ -2086,6 +2115,178 @@ class Schwab(Broker):
             logger.warning(colored(f"Skipping malformed Schwab simple order: {str(e)}", "yellow"))
             logger.debug(_format_exc())
             return []
+
+    def _parse_multileg_option_snapshot(self, schwab_order: dict, simple_orders: list[Order], strategy_name: str):
+        """Return a MULTILEG parent when a snapshot is one option package.
+
+        Single-leg orders and mixed asset legs keep the existing one-order parse.
+        Child identifiers stay distinct from the package id because Order equality
+        uses the identifier.
+        """
+        if not isinstance(schwab_order, dict) or not simple_orders or len(simple_orders) < 2:
+            return None
+
+        schwab_legs = schwab_order.get("orderLegCollection") or []
+        if len(simple_orders) != len(schwab_legs):
+            return None
+        if any(
+            getattr(getattr(order, "asset", None), "asset_type", None) != Asset.AssetType.OPTION
+            for order in simple_orders
+        ):
+            return None
+
+        order_id = schwab_order.get("orderId")
+        if order_id is None:
+            return None
+
+        raw_order_type = schwab_order.get("orderType")
+        if raw_order_type == "NET_CREDIT":
+            side = Order.OrderSide.SELL
+        elif raw_order_type in {"NET_DEBIT", "NET_ZERO"}:
+            side = Order.OrderSide.BUY
+        else:
+            side = simple_orders[0].side
+
+        price = schwab_order.get("price")
+        try:
+            price = float(price) if price is not None else None
+        except (TypeError, ValueError):
+            price = None
+        if raw_order_type == "NET_ZERO" and price is None:
+            price = 0.0
+
+        raw_quantity = schwab_order.get("quantity")
+        if raw_quantity is None:
+            raw_quantity = simple_orders[0].quantity
+
+        duration = schwab_order.get("duration")
+        time_in_force = "gtc" if duration == "GOOD_TILL_CANCEL" else "day"
+
+        for index, child in enumerate(simple_orders, start=1):
+            child.identifier = f"{order_id}-leg-{index}"
+
+        parent = Order(
+            strategy=strategy_name,
+            asset=Asset(
+                symbol=simple_orders[0].asset.symbol,
+                asset_type=Asset.AssetType.MULTILEG,
+            ),
+            quantity=raw_quantity,
+            side=side,
+            limit_price=price,
+            order_type=self._schwab_order_type_to_lumibot(raw_order_type),
+            time_in_force=time_in_force,
+            order_class=Order.OrderClass.MULTILEG,
+            child_orders=simple_orders,
+            identifier=order_id,
+        )
+        parent.status = simple_orders[0].status
+        parent.broker_create_date = simple_orders[0].broker_create_date
+        parent.created_at = simple_orders[0].created_at
+        parent.broker_update_date = simple_orders[0].broker_update_date
+
+        # Package fills are one net quantity. Summing execution legs would count
+        # every contract on every side, so executions are converted to packages.
+        execution_fill = self._schwab_multileg_execution_fill(schwab_order, schwab_legs, simple_orders)
+        if execution_fill is not None:
+            cumulative, average_price = execution_fill
+        else:
+            filled_quantity = schwab_order.get("filledQuantity")
+            try:
+                cumulative = float(filled_quantity) if filled_quantity is not None else 0.0
+            except (TypeError, ValueError):
+                cumulative = 0.0
+            average_price = schwab_order.get("averagePrice")
+            if average_price is None and cumulative > 0:
+                average_price = schwab_order.get("price")
+            try:
+                average_price = float(average_price) if average_price is not None else None
+            except (TypeError, ValueError):
+                average_price = None
+        parent._schwab_cumulative_filled_quantity = cumulative
+        parent._schwab_average_fill_price = average_price
+        if average_price is not None and cumulative > 0:
+            parent.avg_fill_price = average_price
+
+        self._attach_raw_broker_data(
+            parent,
+            schwab_order,
+            raw_order_type=raw_order_type,
+            raw_order_status=schwab_order.get("status"),
+        )
+        # A restart only has this snapshot. Keep the net type so a later replace
+        # cannot turn an even package into a debit, or a credit into zero.
+        effect = {"NET_CREDIT": "credit", "NET_DEBIT": "debit", "NET_ZERO": "even"}.get(raw_order_type)
+        if effect is not None:
+            parent._multileg_effect = effect
+        return parent
+
+    @staticmethod
+    def _schwab_snapshot_is_option_package(schwab_order) -> bool:
+        """True when every leg of a multi-leg snapshot is an option."""
+        if not isinstance(schwab_order, dict) or schwab_order.get("childOrderStrategies"):
+            return False
+        legs = schwab_order.get("orderLegCollection") or []
+        if len(legs) < 2:
+            return False
+        for leg in legs:
+            if not isinstance(leg, dict):
+                return False
+            instrument = leg.get("instrument") or {}
+            asset_type = leg.get("orderLegType") or instrument.get("assetType")
+            if asset_type != "OPTION":
+                return False
+        return True
+
+    def _schwab_multileg_execution_fill(self, schwab_order: dict, schwab_legs: list, legs: list[Order]):
+        """Return (packages filled, net average price) from the leg executions.
+
+        The net price is each leg's execution VWAP times its leg ratio, buys
+        positive and sells negative, reported as a positive package price.
+        Returns None, so the order-level fields are used, when an execution has
+        no legId (it could not be attributed to one leg), a leg has no
+        execution, or the legs filled out of ratio.
+        """
+        try:
+            package_quantity = float(schwab_order.get("quantity"))
+        except (TypeError, ValueError):
+            return None
+        if package_quantity <= 0:
+            return None
+
+        for activity in schwab_order.get("orderActivityCollection") or schwab_order.get("activityCollection") or []:
+            if str(activity.get("activityType", "")).upper() not in {"EXECUTION", "ORDER_EXECUTION"}:
+                continue
+            if any(execution.get("legId") is None for execution in activity.get("executionLegs") or []):
+                return None
+
+        packages_filled = None
+        net_price = 0.0
+        for index, (schwab_leg, leg) in enumerate(zip(schwab_legs, legs)):
+            rows = self._schwab_execution_rows(schwab_order, leg_id=schwab_leg.get("legId", index + 1))
+            try:
+                ratio = float(schwab_leg.get("quantity")) / package_quantity
+            except (TypeError, ValueError):
+                return None
+            if not rows or ratio <= 0:
+                return None
+            leg_filled = sum(quantity for quantity, _ in rows)
+            leg_average = sum(quantity * price for quantity, price in rows) / leg_filled
+            leg_packages = leg_filled / ratio
+            if packages_filled is None:
+                packages_filled = leg_packages
+            elif abs(leg_packages - packages_filled) > 1e-9:
+                return None
+            if leg.is_buy_order():
+                sign = 1
+            elif leg.is_sell_order():
+                sign = -1
+            else:
+                # An unknown side would be treated as a sell and invent a net price.
+                return None
+            net_price += ratio * leg_average * sign
+
+        return packages_filled, round(abs(net_price), 6)
 
     def _process_schwab_order_snapshot(self, observed_order: Order) -> None:
         """Serialize every REST/stream observation through one reducer."""
@@ -2597,6 +2798,135 @@ class Schwab(Broker):
         if stream is not None and hasattr(stream, "dispatch"):
             stream.dispatch(event, **kwargs)
 
+    def _submit_orders(self, orders, is_multileg=False, order_type=None, duration="day", price=None, **kwargs):
+        """Submit orders. A multi-leg request is one package, never one order per leg."""
+        if not orders:
+            return None
+
+        if not is_multileg:
+            return [self._submit_order(order) for order in orders]
+
+        # Strategy SMART_LIMIT accepts time_in_force as an alias for duration.
+        if kwargs.get("time_in_force") and duration in (None, "day"):
+            duration = kwargs["time_in_force"]
+
+        parent = self._multileg_parent_from_orders(orders, order_type=order_type, duration=duration, price=price)
+        if parent is None:
+            return None
+
+        submitted = self._submit_order(parent)
+        if submitted is None:
+            return None
+        return [submitted]
+
+    def _multileg_effect_name(self, order_type):
+        """Return credit, debit, or even when the submit keyword says so."""
+        if order_type is None:
+            return None
+        value = getattr(order_type, "value", order_type)
+        value = str(value).strip().lower()
+        if value in {"credit", "debit", "even"}:
+            return value
+        return None
+
+    def _multileg_parent_from_orders(self, orders, order_type=None, duration="day", price=None):
+        """Build the MULTILEG parent that `_submit_order` already knows how to send."""
+        if not orders:
+            logger.error(colored("Schwab multi-leg submission received no orders.", "red"))
+            return None
+
+        first_asset = getattr(orders[0], "asset", None)
+        symbol = getattr(first_asset, "symbol", None)
+        if not symbol:
+            logger.error(colored("Schwab multi-leg submission is missing an underlying symbol.", "red"))
+            return None
+
+        # Reject what Schwab cannot send instead of quietly pricing it as a limit.
+        requested_type = str(getattr(order_type, "value", order_type) or "").strip().lower()
+        if requested_type == "market":
+            logger.error(colored(
+                "Schwab multi-leg option orders need a net price; use credit, debit, even, or limit. "
+                "No leg was submitted.",
+                "red",
+            ))
+            return None
+        if requested_type not in {"", "limit", "credit", "debit", "even"}:
+            logger.error(colored(
+                f"Unsupported Schwab multi-leg order type {order_type!r}. No leg was submitted.",
+                "red",
+            ))
+            return None
+
+        effect = self._multileg_effect_name(order_type)
+        limit_price = None
+        side = orders[0].side
+        parent_order_type = Order.OrderType.MARKET
+        if effect == "even":
+            parent_order_type = Order.OrderType.LIMIT
+            limit_price = 0.0
+            side = Order.OrderSide.BUY
+        elif effect in {"credit", "debit"}:
+            parent_order_type = Order.OrderType.LIMIT
+            side = Order.OrderSide.SELL if effect == "credit" else Order.OrderSide.BUY
+            if price is not None:
+                limit_price = self._finite_multileg_price(price)
+                if limit_price is None:
+                    return None
+                limit_price = abs(limit_price)
+        elif price is not None:
+            limit_price = self._finite_multileg_price(price)
+            if limit_price is None:
+                return None
+            parent_order_type = Order.OrderType.LIMIT
+            side = Order.OrderSide.SELL if limit_price < 0 else Order.OrderSide.BUY
+
+        package_quantity = self._multileg_package_quantity(
+            [self._multileg_contract_quantity(order) for order in orders]
+        )
+
+        parent = Order(
+            strategy=orders[0].strategy,
+            asset=Asset(symbol=symbol, asset_type=Asset.AssetType.MULTILEG),
+            quantity=package_quantity or orders[0].quantity,
+            side=side,
+            limit_price=limit_price,
+            order_type=parent_order_type,
+            time_in_force=duration or "day",
+            order_class=Order.OrderClass.MULTILEG,
+            child_orders=list(orders),
+            tag=getattr(orders[0], "tag", None) or orders[0].strategy,
+        )
+        if effect is not None:
+            parent._multileg_effect = effect
+        return parent
+
+    @staticmethod
+    def _multileg_contract_quantity(order):
+        """Return a positive whole-contract quantity, or None when the leg cannot be sent."""
+        try:
+            quantity = float(order.quantity)
+        except (TypeError, ValueError):
+            return None
+        if quantity <= 0 or not quantity.is_integer():
+            return None
+        return int(quantity)
+
+    @staticmethod
+    def _multileg_package_quantity(quantities):
+        """Return the package quantity (GCD of the legs), or None when any leg cannot be sent.
+
+        Legs keep their own contract counts; a 2-and-4 contract ratio spread is
+        one package of quantity 2.
+        """
+        if not quantities or any(not quantity for quantity in quantities):
+            return None
+        from math import gcd
+
+        package_quantity = quantities[0]
+        for quantity in quantities[1:]:
+            package_quantity = gcd(package_quantity, quantity)
+        return package_quantity
+
     def _submit_order(self, order: Order) -> Order:
         """
         Submit an order to the broker after necessary checks and input sanitization.
@@ -2636,6 +2966,8 @@ class Schwab(Broker):
                 order_builder = self._prepare_oco_order_builder(order)
             elif order.order_class is Order.OrderClass.BRACKET:
                 order_builder = self._prepare_bracket_order_builder(order)
+            elif order.order_class is Order.OrderClass.MULTILEG:
+                order_builder = self._prepare_multileg_option_order_builder(order)
             elif order.is_advanced_order():
                 logger.error(colored("Only OTO, OCO, and bracket advanced orders are implemented for Schwab broker.", "red"))
                 return None
@@ -2656,7 +2988,12 @@ class Schwab(Broker):
                 return None
 
             # Log the final order request - reduce verbosity
-            logger.info(colored(f"Sending order to Schwab: {order.asset.symbol, order.quantity} @ {order.limit_price or 'market'}", "cyan"))
+            if order.order_class is Order.OrderClass.MULTILEG:
+                # A package can be NET_ZERO at 0.00; "or 'market'" would mislabel it as market.
+                price_text = f"{order_spec.get('orderType')} {order_spec.get('price')}"
+            else:
+                price_text = order.limit_price or 'market'
+            logger.info(colored(f"Sending order to Schwab: {order.asset.symbol, order.quantity} @ {price_text}", "cyan"))
 
             # Submit the order to Schwab
             response = self.client.place_order(self.hash_value, order_spec)
@@ -2856,6 +3193,327 @@ class Schwab(Broker):
 
         return first_triggers_second(parent_builder, oco_builder)
 
+    def _prepare_multileg_option_order_builder(self, order):
+        """Build an OrderBuilder for a multi-leg options package (vertical, box, etc.)."""
+        children = list(getattr(order, "child_orders", None) or [])
+        if not 2 <= len(children) <= 4:
+            logger.error(colored(
+                f"Schwab multi-leg option orders require 2 to 4 option legs. Found {len(children)}.",
+                "red",
+            ))
+            return None
+
+        # Every path (submit_orders, a hand-built parent, modify) passes here.
+        # Order keeps time_in_force as given, and the spec builder matches only
+        # lowercase, so "GTC" would otherwise be sent with no duration at all.
+        time_in_force = str(getattr(order, "time_in_force", None) or "day").strip().lower()
+        if time_in_force not in {"day", "gtc"}:
+            logger.error(colored(
+                f"Schwab multi-leg option orders support day or gtc duration, not {order.time_in_force!r}. "
+                "No leg was submitted.",
+                "red",
+            ))
+            return None
+        order.time_in_force = time_in_force
+
+        resolved_children = []
+        for child in children:
+            if getattr(getattr(child, "asset", None), "asset_type", None) != Asset.AssetType.OPTION:
+                logger.error(colored("Schwab multi-leg option orders accept option legs only.", "red"))
+                return None
+            # Generic sides need a position book. Explicit closes do too, so two
+            # closes of one contract are refused. A bare broker used by price-only
+            # tests has no book; those legs are already explicit opens or closes.
+            if child.side in (Order.OrderSide.BUY, Order.OrderSide.SELL) or hasattr(self, "_filled_positions"):
+                try:
+                    # Earlier legs of this package count as active orders, as in Broker.submit_orders.
+                    self.resolve_option_order_intent(child, additional_active_orders=resolved_children)
+                except ValueError as exc:
+                    logger.error(colored(
+                        f"Schwab multi-leg option leg was rejected: {exc} No leg was submitted.",
+                        "red",
+                    ))
+                    return None
+            resolved_children.append(child)
+
+        try:
+            from schwab.orders.common import (
+                ComplexOrderStrategyType,
+                OptionInstruction,
+                OrderStrategyType,
+                OrderType as SchwabOrderType,
+            )
+            from schwab.orders.generic import OrderBuilder
+            from schwab.orders.options import OptionSymbol
+        except ImportError:
+            logger.error(colored(
+                "Failed to import Schwab order templates. Make sure the schwab-py library is installed.",
+                "red",
+            ))
+            return None
+
+        try:
+            leg_parts = []
+            underlyings = []
+            for child in children:
+                contract = self._schwab_multileg_option_contract(child, OptionSymbol)
+                if contract is None:
+                    return None
+                instruction = self._schwab_option_instruction(child, OptionInstruction)
+                if instruction is None:
+                    logger.error(colored(
+                        f"Unsupported order side for Schwab multi-leg options: {child.side}",
+                        "red",
+                    ))
+                    return None
+                quantity = self._multileg_contract_quantity(child)
+                if quantity is None:
+                    logger.error(colored(
+                        "Schwab multi-leg option legs require a positive whole-number quantity.",
+                        "red",
+                    ))
+                    return None
+                underlying, option_symbol = contract
+                underlyings.append(underlying)
+                leg_parts.append((child, instruction, option_symbol, quantity))
+
+            if len(set(underlyings)) != 1:
+                logger.error(colored(
+                    "Schwab multi-leg option orders require the same underlying on every leg.",
+                    "red",
+                ))
+                return None
+
+            package_quantity = self._multileg_package_quantity([part[3] for part in leg_parts])
+            if not package_quantity:
+                logger.error(colored("Schwab multi-leg option orders require a positive package quantity.", "red"))
+                return None
+
+            if getattr(order, "quantity", None) is not None:
+                parent_quantity = self._multileg_contract_quantity(order)
+                if parent_quantity != package_quantity:
+                    logger.error(colored(
+                        "Schwab multi-leg parent quantity must match the greatest common divisor "
+                        f"of the leg quantities ({package_quantity}).",
+                        "red",
+                    ))
+                    return None
+
+            net_order = self._schwab_multileg_net_order(order, SchwabOrderType)
+            if net_order is None:
+                return None
+            net_type, net_price = net_order
+
+            strategy_type = (
+                ComplexOrderStrategyType.VERTICAL
+                if self._schwab_multileg_is_vertical(leg_parts)
+                else ComplexOrderStrategyType.CUSTOM
+            )
+            builder = (
+                OrderBuilder()
+                .set_order_type(net_type)
+                .set_complex_order_strategy_type(strategy_type)
+                .set_quantity(package_quantity)
+                .set_order_strategy_type(OrderStrategyType.SINGLE)
+                .set_price(self._format_schwab_package_price(net_price))
+            )
+            for _, instruction, option_symbol, quantity in leg_parts:
+                builder = builder.add_option_leg(instruction, option_symbol, quantity)
+            return builder
+        except Exception as e:
+            logger.error(colored(f"Error creating multi-leg option order builder: {e}", "red"))
+            logger.error(_format_exc())
+            return None
+
+    def _schwab_multileg_option_contract(self, order, OptionSymbol):
+        """Return (underlying, OCC symbol) for one option leg."""
+        asset = order.asset
+        underlying = self._normalize_symbol_for_broker(asset.symbol, asset_type=asset.asset_type)
+        right = getattr(getattr(asset, "right", None), "value", getattr(asset, "right", None))
+        right_text = str(right or "").upper()
+        if right_text.startswith("C"):
+            option_type = "C"
+        elif right_text.startswith("P"):
+            option_type = "P"
+        else:
+            option_type = None
+
+        try:
+            strike = float(asset.strike)
+        except (TypeError, ValueError):
+            strike = None
+        # Schwab OCC symbols left-justify the underlying in six characters and
+        # do not truncate. A longer root would be sent as an invalid symbol.
+        if (
+            not underlying
+            or len(str(underlying)) > 6
+            or asset.expiration is None
+            or strike is None
+            or strike <= 0
+            or option_type is None
+        ):
+            logger.error(colored(
+                "Schwab multi-leg option legs require a 1- to 6-character underlying, "
+                "expiration, positive strike, and right.",
+                "red",
+            ))
+            return None
+
+        option_symbol = OptionSymbol(
+            underlying,
+            asset.expiration,
+            option_type,
+            f"{strike:.2f}",
+        ).build()
+        return underlying, option_symbol
+
+    @staticmethod
+    def _schwab_option_instruction(order, OptionInstruction):
+        """Map a resolved option side to the Schwab leg instruction."""
+        try:
+            side = order.side if isinstance(order.side, Order.OrderSide) else Order.OrderSide(order.side)
+        except (TypeError, ValueError):
+            return None
+        return {
+            Order.OrderSide.BUY_TO_OPEN: OptionInstruction.BUY_TO_OPEN,
+            Order.OrderSide.BUY_TO_CLOSE: OptionInstruction.BUY_TO_CLOSE,
+            Order.OrderSide.SELL_TO_OPEN: OptionInstruction.SELL_TO_OPEN,
+            Order.OrderSide.SELL_TO_CLOSE: OptionInstruction.SELL_TO_CLOSE,
+        }.get(side)
+
+    @staticmethod
+    def _schwab_multileg_is_vertical(leg_parts):
+        """Ordinary vertical: one buy and one sell, same expiry and right, different strikes."""
+        if len(leg_parts) != 2:
+            return False
+        first, second = leg_parts[0][0], leg_parts[1][0]
+        if first.asset.expiration != second.asset.expiration:
+            return False
+        first_right = str(getattr(first.asset.right, "value", first.asset.right) or "").upper()
+        second_right = str(getattr(second.asset.right, "value", second.asset.right) or "").upper()
+        if first_right != second_right:
+            return False
+        if first.asset.strike == second.asset.strike:
+            return False
+        if first.is_buy_order() == second.is_buy_order():
+            return False
+        return leg_parts[0][3] == leg_parts[1][3]
+
+    def _schwab_multileg_net_order(self, order, SchwabOrderType):
+        """Choose NET_CREDIT, NET_DEBIT, or NET_ZERO from the parent price and side."""
+        effect = getattr(order, "_multileg_effect", None)
+        if isinstance(effect, str):
+            effect = effect.strip().lower()
+        if effect not in {"credit", "debit", "even"}:
+            effect = None
+
+        price = getattr(order, "limit_price", None)
+        if price is not None:
+            price = self._finite_multileg_price(price)
+            if price is None:
+                return None
+
+        # Zero means zero as sent: a sub-tick price is formatted as "0.00", and a
+        # NET_CREDIT or NET_DEBIT at 0.00 is not the package that was asked for.
+        rounds_to_zero = price is not None and self._format_schwab_package_price(price) == "0.00"
+
+        if effect == "even":
+            return SchwabOrderType.NET_ZERO, 0.0
+        if effect in {"credit", "debit"}:
+            if price is None or rounds_to_zero:
+                logger.error(colored(
+                    f"Schwab multi-leg {effect} orders require a net price.",
+                    "red",
+                ))
+                return None
+            net_type = SchwabOrderType.NET_CREDIT if effect == "credit" else SchwabOrderType.NET_DEBIT
+            return net_type, abs(price)
+        if price is None:
+            logger.error(colored(
+                "Schwab multi-leg option orders require a net credit, debit, or zero price.",
+                "red",
+            ))
+            return None
+        if rounds_to_zero:
+            return SchwabOrderType.NET_ZERO, 0.0
+        if price < 0 or order.is_sell_order():
+            return SchwabOrderType.NET_CREDIT, abs(price)
+        return SchwabOrderType.NET_DEBIT, abs(price)
+
+    @staticmethod
+    def _finite_multileg_price(price):
+        """Return a finite net price, or None after logging."""
+        try:
+            value = float(price)
+        except (TypeError, ValueError):
+            logger.error(colored(f"Schwab multi-leg price {price!r} is not a number.", "red"))
+            return None
+        if value != value or value in (float("inf"), float("-inf")):
+            logger.error(colored(f"Schwab multi-leg price {price!r} is not a finite number.", "red"))
+            return None
+        return value
+
+    @staticmethod
+    def _format_schwab_package_price(price):
+        """Format a package price as a Schwab price string.
+
+        Prices under one dollar keep four decimals. One dollar and above keep two.
+        Rounding is done in decimal space so 1.15 stays "1.15". Truncating the
+        binary float would send "1.14". A value that rounds up to one dollar is
+        sent as "1.00", not "1.0000".
+        """
+        from decimal import Decimal, ROUND_HALF_UP
+
+        amount = abs(Decimal(str(price)))
+        if amount == 0:
+            return "0.00"
+        cents = amount.quantize(Decimal("0.01"), rounding=ROUND_HALF_UP)
+        if cents >= 1:
+            return f"{cents:.2f}"
+        subpenny = amount.quantize(Decimal("0.0001"), rounding=ROUND_HALF_UP)
+        if subpenny <= 0:
+            return "0.00"
+        if subpenny >= 1:
+            return "1.00"
+        return f"{subpenny:.4f}"
+
+    @staticmethod
+    def _format_schwab_single_price(price):
+        """Format a single-order limit price as a Schwab price string.
+
+        schwab-py deprecated float prices. Its float path truncates toward zero
+        (four decimals under one dollar, two above), so this keeps that rule
+        but works in decimal space: the float path sends 1.15 as "1.14".
+        """
+        if price is None:
+            return None
+        from decimal import Decimal, ROUND_DOWN
+
+        amount = Decimal(str(price))
+        if amount != 0 and abs(amount) < 1:
+            return f"{amount.quantize(Decimal('0.0001'), rounding=ROUND_DOWN):.4f}"
+        return f"{amount.quantize(Decimal('0.01'), rounding=ROUND_DOWN):.2f}"
+
+    def _schwab_multileg_is_even_package(self, order) -> bool:
+        """True when this package is NET_ZERO and cannot take a new non-zero price."""
+        effect = getattr(order, "_multileg_effect", None)
+        if isinstance(effect, str):
+            effect = effect.strip().lower()
+        if effect == "even":
+            return True
+        if effect in {"credit", "debit"}:
+            return False
+        if str(getattr(order, "raw_order_type", "") or "").upper() == "NET_ZERO":
+            return True
+        price = getattr(order, "limit_price", None)
+        if price is None:
+            return False
+        try:
+            value = float(price)
+        except (TypeError, ValueError):
+            return False
+        return value == value and abs(value) < 1e-9
+
     def _prepare_stock_order_builder(self, order, equity_buy_market, equity_buy_limit,
                                    equity_sell_market, equity_sell_limit,
                                    equity_sell_short_market, equity_sell_short_limit,
@@ -2893,6 +3551,7 @@ class Schwab(Broker):
         limit_price = order.limit_price
         if order.order_type == Order.OrderType.STOP_LIMIT:
             limit_price = order.stop_limit_price
+        limit_price = self._format_schwab_single_price(limit_price)
 
         # Create the appropriate order builder based on order side and type
         order_builder = None
@@ -2993,7 +3652,7 @@ class Schwab(Broker):
         try:
             # Get order parameters
             quantity = int(order.quantity)
-            limit_price = order.limit_price
+            limit_price = self._format_schwab_single_price(order.limit_price)
 
             # Construct the option symbol in Schwab format
             # Get option data from the order's asset
@@ -3300,6 +3959,38 @@ class Schwab(Broker):
             order.stop_price = original_stop_price
             order.tag = original_tag
 
+    def _prepare_multileg_option_order_spec(self, order, limit_price=None):
+        """Replacement-side equivalent of `_prepare_multileg_option_order_builder`.
+
+        The same builder as new submits keeps the legs, package quantity and
+        credit/debit/even type; only the net price changes.
+        """
+        replacement = None
+        if limit_price is not None:
+            replacement = self._finite_multileg_price(limit_price)
+            if replacement is None:
+                return None
+        if self._schwab_multileg_is_even_package(order) and replacement is not None and abs(replacement) >= 1e-9:
+            # NET_ZERO is always 0.00. A parsed or hand-built even package has no
+            # submit-time flag, and replacing it would silently become a debit.
+            logger.error(colored(
+                "A Schwab even (NET_ZERO) package cannot be repriced; cancel it and submit a credit or debit package.",
+                "red",
+            ))
+            return None
+        original_limit_price = order.limit_price
+        try:
+            if replacement is not None:
+                order.limit_price = replacement
+            order_builder = self._prepare_multileg_option_order_builder(order)
+            return self._build_order_spec_from_builder(
+                order_builder,
+                order.time_in_force,
+                session=self._schwab_session_for_order(order),
+            )
+        finally:
+            order.limit_price = original_limit_price
+
     def _prepare_futures_order_builder(self, order, OrderBuilder):
         """
         Prepare the order builder for futures orders using Schwab generic order builder.
@@ -3499,6 +4190,10 @@ class Schwab(Broker):
         # Use original values for prices if new ones are not provided
         final_limit_price = limit_price if limit_price is not None else order.limit_price
         final_stop_price = stop_price if stop_price is not None else order.stop_price
+
+        # A package is replaced as a package; its parent asset is not an option.
+        if order.order_class == Order.OrderClass.MULTILEG:
+            return self._prepare_multileg_option_order_spec(order, final_limit_price)
 
         # Create the replacement order spec based on asset type
         if order.asset.asset_type == Asset.AssetType.STOCK:

@@ -153,6 +153,47 @@ def test_multileg_limit_even_alpaca_uses_zero_price(mocker):
     assert kwargs["price"] == 0.0
 
 
+def test_multileg_limit_maps_to_credit_schwab(mocker):
+    # Schwab sends a positive unhinted limit as NET_DEBIT, so a credit spread
+    # passed as order_type='limit' must be mapped to credit before it is sent.
+    broker = _BrokerStub(name="Schwab")
+    broker.submit_orders = mocker.Mock(return_value="ok")
+    strategy = _MinimalStrategy(broker)
+
+    long_leg = _leg("unit", _option("SPY", 500), Order.OrderSide.BUY_TO_OPEN)
+    short_leg = _leg("unit", _option("SPY", 505), Order.OrderSide.SELL_TO_OPEN)
+
+    def _get_quote(asset, **_kwargs):
+        if asset == long_leg.asset:
+            return _Quote(bid=0.50, ask=0.60)
+        return _Quote(bid=1.00, ask=1.20)
+
+    mocker.patch.object(strategy, "get_quote", side_effect=_get_quote)
+
+    strategy.submit_order([long_leg, short_leg], is_multileg=True, order_type=Order.OrderType.LIMIT, price=0.30)
+
+    _, kwargs = broker.submit_orders.call_args
+    assert kwargs["order_type"] == "credit"
+    assert kwargs["price"] == 0.30
+
+
+def test_multileg_limit_even_schwab_uses_zero_price(mocker):
+    broker = _BrokerStub(name="Schwab")
+    broker.submit_orders = mocker.Mock(return_value="ok")
+    strategy = _MinimalStrategy(broker)
+
+    leg1 = _leg("unit", _option("SPY", 500), Order.OrderSide.BUY_TO_OPEN)
+    leg2 = _leg("unit", _option("SPY", 505), Order.OrderSide.SELL_TO_OPEN)
+
+    mocker.patch.object(strategy, "get_quote", return_value=_Quote(bid=1.00, ask=1.00))
+
+    strategy.submit_order([leg1, leg2], is_multileg=True, order_type=Order.OrderType.LIMIT)
+
+    _, kwargs = broker.submit_orders.call_args
+    assert kwargs["order_type"] == "even"
+    assert kwargs["price"] == 0.0
+
+
 def test_multileg_inference_allows_zero_bid(mocker):
     broker = _BrokerStub(name="tradier")
     broker.submit_orders = mocker.Mock(return_value="ok")
@@ -444,3 +485,50 @@ def test_multileg_submit_missing_quotes_downgrades_to_market(mocker):
 
     _, kwargs = broker.submit_orders.call_args
     assert kwargs["order_type"] == Order.OrderType.MARKET
+
+
+def test_schwab_smart_limit_missing_quotes_does_not_submit_a_market_package(mocker):
+    broker = _BrokerStub(name="Schwab")
+    broker.IS_BACKTESTING_BROKER = False
+    broker.submit_orders = mocker.Mock(return_value="ok")
+    strategy = _MinimalStrategy(broker)
+
+    leg_buy = _leg("unit", _option("SPY", 500), Order.OrderSide.BUY_TO_OPEN)
+    leg_sell = _leg("unit", _option("SPY", 505), Order.OrderSide.SELL_TO_OPEN)
+    leg_buy.order_type = Order.OrderType.SMART_LIMIT
+    leg_sell.order_type = Order.OrderType.SMART_LIMIT
+    cfg = SmartLimitConfig(preset=SmartLimitPreset.FAST)
+    leg_buy.smart_limit = cfg
+    leg_sell.smart_limit = cfg
+
+    mocker.patch.object(strategy, "get_quote", return_value=_Quote(bid=None, ask=None))
+
+    assert strategy.submit_order([leg_buy, leg_sell], is_multileg=True) is None
+    assert not broker.submit_orders.called
+
+
+def test_schwab_smart_limit_submit_error_does_not_retry_a_credit_as_a_debit(mocker):
+    broker = _BrokerStub(name="Schwab")
+    broker.IS_BACKTESTING_BROKER = False
+    broker.submit_orders = mocker.Mock(side_effect=RuntimeError("rejected"))
+    strategy = _MinimalStrategy(broker)
+
+    long_leg = _leg("unit", _option("SPY", 500), Order.OrderSide.BUY_TO_OPEN)
+    short_leg = _leg("unit", _option("SPY", 505), Order.OrderSide.SELL_TO_OPEN)
+    long_leg.order_type = Order.OrderType.SMART_LIMIT
+    short_leg.order_type = Order.OrderType.SMART_LIMIT
+    cfg = SmartLimitConfig(preset=SmartLimitPreset.FAST)
+    long_leg.smart_limit = cfg
+    short_leg.smart_limit = cfg
+
+    def _get_quote(asset, **_kwargs):
+        if asset == long_leg.asset:
+            return _Quote(bid=0.50, ask=0.60)
+        return _Quote(bid=1.00, ask=1.20)
+
+    mocker.patch.object(strategy, "get_quote", side_effect=_get_quote)
+
+    assert strategy.submit_order([long_leg, short_leg], is_multileg=True) is None
+    assert broker.submit_orders.call_count == 1
+    _, kwargs = broker.submit_orders.call_args
+    assert kwargs["order_type"] == "credit"

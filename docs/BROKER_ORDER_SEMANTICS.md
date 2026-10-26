@@ -2,7 +2,7 @@
 
 > Notes on live broker behavior that affect backtesting semantics (extended hours, order types, and “market closed / no data” handling).
 
-**Last Updated:** 2026-11-03
+**Last Updated:** 2026-11-07
 **Status:** Active
 **Audience:** Developers, AI Agents
 
@@ -251,6 +251,64 @@ Live trading implications:
 - Do not generalize "seamless spans all sessions" into "seamless works with all
   order types." The session span and order type eligibility are separate broker
   constraints.
+- Single-order limit prices (stock limit, stock stop-limit, option limit) are
+  passed to schwab-py as strings by `_format_schwab_single_price`. schwab-py's
+  float path is deprecated, and it truncates in binary: 1.15 was sent as
+  "1.14". The string keeps schwab-py's rule (4 decimals under $1, 2 at or
+  above, toward zero) using `Decimal`. `tests/test_schwab_single_order_prices_unit.py`
+  turns the deprecation warning into an error. Stop prices were already sent
+  as `str(stop_price)` and are not reformatted.
+
+### Schwab (multi-leg options)
+
+Schwab receives a multi-leg option package as one `orderStrategyType=SINGLE`
+order (`lumibot/brokers/schwab.py`, `_prepare_multileg_option_order_builder`).
+
+Wire contract:
+- 2 to 4 option legs, all on one underlying. Stock legs, more legs, or mixed
+  underlyings are rejected before any HTTP request; no leg is sent alone.
+- `orderType` is `NET_CREDIT`, `NET_DEBIT` or `NET_ZERO`, with a positive price
+  (`NET_ZERO` is `0.00`). Market packages, other order types, and durations
+  other than `day`/`gtc` are rejected. The type comes from the
+  `credit`/`debit`/`even` keyword, else from the parent side and price sign.
+  Zero is judged on the price as sent (four decimals under $1): a credit or
+  debit that rounds to `0.00` is refused, and an unhinted price that rounds to
+  `0.00` is `NET_ZERO`, never `NET_CREDIT`/`NET_DEBIT` at `0.00`.
+- `Strategy.submit_order(legs, order_type='limit', price=...)` infers
+  credit/debit/even from leg quotes for Schwab, as it does for Tradier and
+  Alpaca. Without that a positive Schwab limit would always be a debit.
+- `complexOrderStrategyType` is `VERTICAL` only for one buy and one sell with
+  the same expiry and right, different strikes and equal quantities; anything
+  else is `CUSTOM`.
+- Legs keep their own contract counts. The top-level `quantity` is the GCD of
+  the leg quantities; a hand-built parent must match it.
+
+Lifecycle:
+- A snapshot whose legs are all options parses as one `OrderClass.MULTILEG`
+  parent with the broker order id. Child legs get `<id>-leg-<n>` identifiers
+  because `Order` equality uses the identifier. An all-option snapshot whose
+  legs cannot all be read is skipped, never returned as its first leg; the
+  warning is logged once per order id because the broad poll re-reads seven
+  days of history every 30 seconds.
+- Fills are counted in packages, never contracts: summing `executionLegs`
+  directly would count every contract on every side. The net fill price is
+  each leg's execution VWAP times its leg ratio (buys positive, sells negative),
+  reported positive. Schwab's `price` is the limit, not the fill. Only when an
+  execution has no `legId`, a leg has no execution, or legs filled out of ratio
+  does the parser use `filledQuantity` and `averagePrice` (then `price`).
+  A leg whose side is neither buy nor sell uses that same fallback. A parsed
+  `NET_CREDIT`, `NET_DEBIT`, or `NET_ZERO` keeps that effect, so a replace after
+  a restart follows the same credit, debit, and even rules as the original submit.
+- The parent fill does not move cash (`Order.is_parent()`); leg positions come
+  from the regular Schwab position sync.
+- `modify_order` replaces the package through the same builder, so SMART_LIMIT
+  repricing changes only the net price. A change between credit, debit and even
+  is a cancel and resubmit (strategy executor); modifying an `even` package to a
+  non-zero price is refused because `NET_ZERO` is always `0.00`.
+- Durations are checked in the package builder, which every path uses
+  (`submit_orders`, a hand-built parent, modify): `day`/`gtc` in any case are
+  sent; anything else is refused instead of being sent with no duration.
+  `time_in_force` is accepted as an alias for `duration` on `submit_orders`.
 
 ### Tradier (equities/options)
 

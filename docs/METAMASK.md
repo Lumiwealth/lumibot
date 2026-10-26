@@ -18,7 +18,7 @@ npm start
 Open the localhost URL printed by the service. Unlock setup with its local `admin-token` file. In setup:
 
 1. Open the official MetaMask Agent Wallet login page. Complete sign-in and import its CLI token **into the local page**, never into a strategy or chat.
-2. Create a named server wallet for the agent. Review the provider's Guard Mode policy, including network/address allowlists and outflow limits. Policy changes that broaden access can require MetaMask approval. Reload the policy to confirm it applied.
+2. Create a named server wallet for the agent. Review the provider's Guard Mode policy, including network/address allowlists and outflow limits. Policy changes that broaden access can require MetaMask approval. Use **Refresh policy approvals** to see pending, approved, denied or expired requests after a restart, then reload the policy to confirm it applied. An unknown submission remains blocked against duplicate widening requests.
 3. Set allowed markets, chains, exact token contracts/decimals, trade-notional limits, leverage, slippage, and expiry. Defaults are testnet, $10 per order, $25 per rolling 24 hours, 1× leverage, 50 bps slippage, and 24-hour expiry. These are editable defaults, not trading advice.
 4. Create a scoped token. Save the displayed broker configuration in your secret manager. The service stores only the token hash; its UI displays the raw token once.
 5. Fund only the agent wallet. The normal MetaMask Connect flow can request a user-approved testnet ETH transfer. Hyperliquid testnet collateral is separate from native gas. A submitted funding hash is not confirmation.
@@ -76,7 +76,7 @@ operation = broker.swap(source, target, "0.001", slippage_bps=50,
 status = broker.get_swap(operation["id"])
 ```
 
-Use real contract metadata; placeholder contracts intentionally fail validation. `input_amount` is the amount spent, not an exact output quantity. `swap()` returns a durable operation rather than pretending an exact-input swap is an exact-output LumiBot buy order. Swaps require a same-chain provider route. Missing testnet liquidity or reliable USD pricing is a supported refusal, not permission to trade on mainnet.
+Use real contract metadata; placeholder contracts intentionally fail validation. `input_amount` is the amount spent, not an exact output quantity. `swap()` returns a durable operation rather than pretending an exact-input swap is an exact-output LumiBot buy order. Swaps require a same-chain provider route. Agent SDK 7.3.0's swap routing supports mainnet chains only: the Sepolia example demonstrates asset identity and is explicitly refused before pricing or signing. Testnet wallet balances and signatures remain supported. Do not switch to mainnet merely to make a test pass.
 
 Identity is `(chain_id, token_address)` for bound EVM assets; ticker aliases do not create another token. Decimals are validated metadata, not identity. Existing unbound assets retain their previous serialization shape and identity.
 
@@ -96,6 +96,7 @@ Guard Mode can ask for 2FA on out-of-policy requests. MetaMask's documented outf
 
 - `prepared` is a durable reservation. `unknown` is persisted before external submission. Neither is a fill.
 - `awaiting_approval` retains the MetaMask signing-job ID. Browser sign-in approvals arrive by email; QR sign-in approvals appear in MetaMask Mobile notifications. Do not resubmit while approval is pending.
+- Perpetual openings check available collateral before signing. Each internal SDK signature (including leverage setup) rechecks local and provider authority, and checks again after the signing wait before releasing the signature to the venue. Pending signature IDs survive interruption. A completed signature that was never released is not automatically replayed; the interrupted order becomes rejected when its signature job resolves. A prior leverage change may already have applied. Once a signature is released, an uncertain venue response still requires manual reconciliation.
 - `submitted` means accepted/broadcast, not mined. Swaps require mined transfer evidence. Perpetual fills use paginated venue fill records, not quote estimates; partial fills emit only the new quantity.
 - Allowance transactions and trade transactions are separate. When an interrupted allowance later confirms, setup offers **Resume swap with fresh quote**. It rechecks policy and valuation against the existing reservation. An uncertain trade is never automatically replayed.
 - A timeout without a known job/hash/order ID stays unknown. Inspect the provider wallet and venue before any replacement. This version does not guess an order match or offer an owner override that declares an unknown trade failed.
@@ -114,11 +115,31 @@ METAMASK_TEST_PUBLIC_TESTNET=1 npm test
 
 # In repository root; dotenv disabled to avoid real account configuration
 LUMIBOT_DISABLE_DOTENV=1 python -m pytest tests/test_metamask_broker.py tests/test_asset.py
+
+# Connected reads: private JSON array of setup responses for two testnet agents.
+# This suite never submits a trade or signature and skips without configuration.
+LUMIBOT_DISABLE_DOTENV=1 METAMASK_TEST_CONFIG_FILE="<private-testnet-config-file>" \
+  python -m pytest tests/test_metamask_apitest.py -q
 ```
 
 Local tests cover authorization separation, Host/Origin validation, idempotency, racing submissions, limits, expiry/revocation, restart uncertainty, approval persistence, exact chain identity, fill deduplication, partial fills, cancellation, transport loss, and broker lifecycle integration. The opt-in public test queries real Hyperliquid testnet market/candle APIs and submits no transactions.
 
 Before operational use, qualify a funded testnet wallet: login, create/list wallet, policy update/2FA, scoped-token issuance, balances, a small order and receipt, partial fills/cancel where available, explicit approval denial/expiry, service restart during pending work, and revocation. Test swaps only where MetaMask returns a supported route and reliable prices. Hyperliquid faucet eligibility is provider-specific; never fund mainnet just to make a test pass.
+
+### Qualification status, 2026-10-26
+
+| Path | Evidence | Remaining qualification |
+| --- | --- | --- |
+| Agent Wallet login, creation and Guard Mode | Two real, separate server wallets created and read back | Provider approval of a widened policy |
+| Signing | Harmless message and EIP-712 verification signatures checked cryptographically against the real wallet; new signing boundary exercised | Funded venue actions, MFA denial and approval during an actual trade |
+| Account and market reads | Connected Python broker checks pass for both wallets, empty spot portfolios, marks and closed candles | Funded equity, positions, fills and fees |
+| Isolation and revocation | Wrong wallet/admin credentials denied; revoked and superseded tokens rejected; replacement token accepted | Deployment isolation for untrusted strategies |
+| Policy recovery | Real requests expired; expiry displayed after restart; approved/denied/expired regression coverage | User-completed approval and denial against provider |
+| Perpetual execution | Real market quote and zero-collateral refusal before signing; duplicate ID returns the same refusal. Deterministic partial-fill, cancellation and unknown-outcome coverage | Real opening, closing, resting-order cancellation, partial fills and reconciliation across restart |
+| Spot execution | Exact-input guards and unsupported testnet route refusal | Mined receipts require a supported route; current provider offers no testnet swap route |
+| Browser wallet | Connect integration and local setup rendered | User wallet connection and user-approved funding transaction |
+
+Hyperliquid's official faucet requires prior mainnet deposits from the same address. Its Arbitrum Sepolia bridge uses a distinct USDC2 contract, not the token issued by the ordinary Circle testnet faucet. A transfer of existing Hyperliquid testnet collateral from another testnet participant avoids mainnet deposits. No funded execution is claimed without that collateral.
 
 ## Dependency qualification
 
@@ -134,9 +155,10 @@ version overrides have not been used to conceal incompatible vendor pins.
 Recheck with `npm audit --omit=dev`. See, for example, the
 [bigint-buffer advisory](https://github.com/advisories/GHSA-3gc7-fjrx-p6mg) and
 [Zod advisory](https://github.com/advisories/GHSA-mrhx-c7xc-m3w5).
-Authenticated execution also remains unverified: mined swap transfer units,
-native-token receipt conventions, approval denial/expiry and funded account
-reconciliation need the connected testnet qualification described above.
+Funded execution remains unverified: mined swap transfer units, native-token
+receipt conventions, trade approval denial and funded account reconciliation
+need the connected qualification described above. Policy expiry and harmless
+authenticated signing have been verified; they do not prove funded execution.
 
 ## Sources checked 2026-10-26
 
@@ -147,5 +169,6 @@ reconciliation need the connected testnet qualification described above.
 - [MetaMask Connect](https://www.npmjs.com/package/@metamask/connect-evm)
 - [Agent SDK](https://www.npmjs.com/package/@metamask/agent-sdk)
 - [Hyperliquid API](https://hyperliquid.gitbook.io/hyperliquid-docs/for-developers/api/info-endpoint)
+- [Hyperliquid testnet faucet requirements](https://hyperliquid.gitbook.io/hyperliquid-docs/onboarding/testnet-faucet)
 
 Pinned packages: Agent SDK 7.3.0, Connect EVM 2.1.1, Smart Accounts Kit 2.0.0, viem 2.57.11, Zod 4.6.7. The standalone Agent Wallet CLI is not installed by this integration. Supported APIs were checked against the installed package declarations and official docs. Mobbin finance catalog was consulted; full authenticated flows were not accessible, so no claim of inspecting those flows is made.

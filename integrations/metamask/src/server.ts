@@ -3,7 +3,7 @@ import {
   type IncomingMessage,
   type ServerResponse,
 } from "node:http";
-import { randomBytes, timingSafeEqual } from "node:crypto";
+import { randomBytes, randomUUID, timingSafeEqual } from "node:crypto";
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { resolve, join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -21,6 +21,7 @@ import {
 } from "./contracts.js";
 import { Store, digest } from "./store.js";
 import { Engine } from "./engine.js";
+import { PolicyApprovals } from "./policy-approvals.js";
 import { MetaMaskProvider } from "./sdk.js";
 
 const bodyLimit = 65536;
@@ -51,6 +52,7 @@ export function application(
   allowMainnet = false,
 ) {
   const engine = new Engine(store, provider);
+  const policyApprovals = new PolicyApprovals(store, provider);
   const parent = resolve(dirname(fileURLToPath(import.meta.url)), "..");
   const root = existsSync(join(parent, "package.json"))
     ? parent
@@ -156,15 +158,23 @@ export function application(
           );
           return;
         }
+        if (req.method === "GET" && url.pathname === "/admin/approvals") {
+          const wallet = address.parse(url.searchParams.get("wallet"));
+          json(res, await policyApprovals.list(wallet));
+          return;
+        }
         if (req.method === "POST" && url.pathname === "/admin/policy") {
           const input = z
-            .object({ wallet: address, policy: z.string().min(1).max(20000) })
+            .object({
+              id: identifier.default(() => randomUUID()),
+              wallet: address,
+              policy: z.string().min(1).max(20000),
+            })
             .strict()
             .parse(await body(req));
-          await provider.walletState(input.wallet);
           json(
             res,
-            await provider.policy.updatePolicy(input.wallet, input.policy),
+            await policyApprovals.submit(input.id, input.wallet, input.policy),
           );
           return;
         }

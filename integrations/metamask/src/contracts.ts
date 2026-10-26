@@ -105,6 +105,7 @@ export const operationSchema = z
     quoteId: z.string().optional(),
     hashes: z.array(z.string()).default([]),
     approvalId: z.string().optional(),
+    signatureOnly: z.boolean().optional(),
     message: z.string().optional(),
     transactionStage: z
       .enum(["allowance", "allowance_confirmed", "trade"])
@@ -113,6 +114,27 @@ export const operationSchema = z
   })
   .strict();
 export type Operation = z.infer<typeof operationSchema>;
+export const policyApprovalSchema = z
+  .object({
+    id: identifier,
+    wallet: address,
+    policyDigest: z.string().regex(/^[a-f0-9]{64}$/),
+    state: z.enum([
+      "unknown",
+      "pending",
+      "approved",
+      "denied",
+      "expired",
+      "applied",
+    ]),
+    requestId: z.string().optional(),
+    createdAt: z.number().int(),
+    updatedAt: z.number().int(),
+    expiresAt: z.string().optional(),
+  })
+  .strict();
+export type PolicyApproval = z.infer<typeof policyApprovalSchema>;
+
 export const positionSchema = z.object({
   symbol: z.string(),
   quantity: amount.or(z.string().regex(/^-\d+(\.\d+)?$/)),

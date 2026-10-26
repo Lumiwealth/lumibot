@@ -228,6 +228,37 @@ test("restart preserves unknown operation and reservation", async () => {
     rmSync(dir, { recursive: true });
   }
 });
+test("restart reconciliation accepts unchanged records despite JSON field order", () => {
+  const dir = mkdtempSync(join(tmpdir(), "metamask-cas-"));
+  const file = join(dir, "orders.sqlite");
+  let store = new Store(file);
+  try {
+    store.putBinding(binding);
+    const op = store.reserve(binding, request(), "8").operation;
+    // Simulate a journal written before schema-normalized persistence.
+    const reordered = {
+      approvalId: "job",
+      ...op,
+      state: "awaiting_approval" as const,
+    };
+    store.db
+      .prepare("UPDATE operations SET data=? WHERE agent=? AND id=?")
+      .run(JSON.stringify(reordered), binding.id, op.id);
+    store.close();
+    store = new Store(file);
+    const loaded = store.get(binding.id, op.id);
+    assert.ok(loaded);
+    assert.equal(
+      store.replaceIfUnchanged(loaded, { ...loaded, state: "rejected" }).state,
+      "rejected",
+    );
+    assert.equal(store.get(binding.id, op.id)?.state, "rejected");
+  } finally {
+    store.close();
+    rmSync(dir, { recursive: true });
+  }
+});
+
 test("wrong-chain, changed decimals, extra parameters and precision rejected", async () => {
   const f = fixture();
   const token = {

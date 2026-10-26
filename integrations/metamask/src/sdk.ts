@@ -2,6 +2,11 @@ import {
   AccountService,
   AuthService,
   NetworkRegistry,
+  MfaApprovalService,
+  HyperliquidVenueProvider,
+  PerpsService,
+  WalletRuntimeMode,
+  isBridgeChainId,
   PriceService,
   SessionManager,
   SwapService,
@@ -41,6 +46,7 @@ import {
   type TradeRequest,
 } from "./contracts.js";
 import { digest } from "./store.js";
+import { PerpsWallet, type SigningBoundary } from "./perps-wallet.js";
 
 const approvalAbi = parseAbi([
   "function approve(address spender, uint256 amount) returns (bool)",
@@ -98,6 +104,7 @@ export class MetaMaskProvider implements Provider {
   readonly networks: NetworkRegistry;
   readonly accounts: AccountService;
   readonly policy: TradingPolicyService;
+  readonly approvals: MfaApprovalService;
   readonly modes: TradingModeService;
   private networkCache: SupportedNetworksCache | null = null;
   private readonly quotes = new Map<string, PersistedSwapQuote>();
@@ -148,6 +155,7 @@ export class MetaMaskProvider implements Provider {
       },
     });
     this.policy = new TradingPolicyService(this.session, "prod", logger);
+    this.approvals = new MfaApprovalService(this.session, "prod");
     this.modes = new TradingModeService(this.session, "prod");
   }
   token(): string {
@@ -276,7 +284,39 @@ export class MetaMaskProvider implements Provider {
       );
     }
   }
-  async perps(binding: Binding) {
+  async perps(binding: Binding, boundary?: SigningBoundary) {
+    if (boundary) {
+      const state = await this.walletState(binding.wallet);
+      const projectId = this.session.get("projectId");
+      assert(
+        typeof projectId === "string",
+        "AUTH_REQUIRED",
+        "Missing MetaMask project",
+      );
+      const wallet = new PerpsWallet(
+        {
+          mode: WalletRuntimeMode.Server,
+          authToken: await this.authToken(),
+          projectId,
+          wallets: state.remoteWallets,
+          serverWalletBaseUrl: this.config.serverWalletBaseUrl,
+          accountsApiBaseUrl: this.config.accountsApiBaseUrl,
+          infuraRpcBaseUrl: this.config.infuraRpcBaseUrl,
+          priceService: this.prices,
+          networkRegistry: this.networks,
+          logger,
+          refreshAuthToken: () => this.authToken(),
+        },
+        boundary,
+      );
+      return new PerpsService([
+        new HyperliquidVenueProvider({
+          walletService: wallet,
+          walletState: state,
+          network: binding.network,
+        }),
+      ]);
+    }
     return createPerpsServiceFromSession({
       session: this.session.load(),
       walletState: await this.walletState(binding.wallet),
@@ -339,7 +379,7 @@ export class MetaMaskProvider implements Provider {
         size: request.quantity,
         leverage: request.leverage,
         orderType: request.orderType,
-        tif: request.tif,
+        tif: request.orderType === "market" ? "ioc" : request.tif,
         ...(request.limitPrice ? { limitPrice: request.limitPrice } : {}),
       });
       if (request.orderType === "limit")
@@ -376,6 +416,11 @@ export class MetaMaskProvider implements Provider {
         limitPrice: limit.toFixed(),
       };
     }
+    assert(
+      isBridgeChainId(await this.networks.getSnapshot(), request.input.chainId),
+      "UNSUPPORTED_ROUTE",
+      "MetaMask swap routing is unavailable on this chain; testnet wallets support balances and signing, not testnet swaps",
+    );
     return {
       usd: new Decimal(request.inputAmount)
         .mul(await this.tokenPrice(binding, request.input))
@@ -416,7 +461,42 @@ export class MetaMaskProvider implements Provider {
         "MISSING_EXECUTION_PLAN",
         "No persisted bounded execution price",
       );
-      const service = await this.perps(binding);
+      let signing = operation;
+      const recheck = async () => {
+        await this.verify(binding);
+        signing = {
+          ...signing,
+          state: "unknown",
+          signatureOnly: false,
+          approvalId: undefined,
+          updatedAt: Date.now(),
+        };
+        save(signing);
+      };
+      const service = await this.perps(binding, {
+        before: recheck,
+        release: recheck,
+        pending: (id) => {
+          signing = {
+            ...signing,
+            state: "awaiting_approval",
+            approvalId: id,
+            signatureOnly: true,
+            updatedAt: Date.now(),
+            message:
+              "MetaMask signature pending. If interrupted, completion will not automatically place an order.",
+          };
+          save(signing);
+        },
+      });
+      if (!request.reduceOnly) {
+        const balance = await service.getBalance("hyperliquid");
+        assert(
+          new Decimal(balance.spendableBalance).gt(0),
+          "INSUFFICIENT_COLLATERAL",
+          "Fund the selected venue account before opening a perpetual position",
+        );
+      }
       save(operation);
       attempt.started = true;
       const result = await service.open("hyperliquid", {
@@ -734,6 +814,23 @@ export class MetaMaskProvider implements Provider {
   }
   async reconcile(binding: Binding, op: Operation): Promise<Operation> {
     if (op.request.kind === "perp") {
+      if (op.signatureOnly && op.approvalId && !op.providerOrderId) {
+        const wallet = this.wallet(await this.walletState(binding.wallet));
+        const job = await wallet.getJobStatus("evm", {
+          kind: "signature",
+          pollingId: op.approvalId,
+        });
+        if (["SIGNED", "FAILED", "DENIED", "EXPIRED"].includes(job.status)) {
+          return {
+            ...op,
+            state: "rejected",
+            updatedAt: Date.now(),
+            message:
+              "Interrupted signature request resolved; signature was never released to the venue. No order will be replayed. Earlier leverage changes may have applied.",
+          };
+        }
+        return op;
+      }
       if (!op.providerOrderId) return op;
       const response = orderStatus.parse(
         await this.info(binding, {
@@ -975,9 +1072,16 @@ export class MetaMaskProvider implements Provider {
           : [z.templateLiteral(["0x", z.string()]).parse(a.address)],
       ),
     });
+    const holdings = balances.balances.filter(
+      (b) => !new Decimal(b.balance).isZero(),
+    );
     assert(
-      balances.unpricedAssetIds.length === 0 &&
-        balances.unprocessedNetworks.length === 0,
+      holdings.every(
+        (b) =>
+          b.value !== null &&
+          b.value !== undefined &&
+          !balances.unpricedAssetIds.includes(b.assetId),
+      ) && balances.unprocessedNetworks.length === 0,
       "INCOMPLETE_VALUATION",
       "Wallet contains unpriced assets or unavailable networks",
     );
@@ -986,7 +1090,7 @@ export class MetaMaskProvider implements Provider {
       equity: balances.totalValue,
       positionsValue: balances.totalValue,
       currency: "USD",
-      positions: balances.balances.map((b) => ({
+      positions: holdings.map((b) => ({
         symbol: b.symbol,
         quantity: b.balance,
         marketValue: b.value ?? "0",

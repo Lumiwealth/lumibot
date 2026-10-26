@@ -70,6 +70,9 @@ and ``decimals``. The amount is exact input, not an exact output buy quantity.
 Poll with ``broker.get_swap(identifier)``. Both tokens must be owner-allowlisted,
 on the same chain, and supported by the provider. Unpriced test tokens and
 missing routes do not trigger a mainnet fallback.
+Agent SDK 7.3.0's swap router supports mainnet chains only; testnet swaps are
+explicitly refused before pricing or signing. Testnet balances and signatures
+remain supported.
 
 Recovery and scope
 ------------------
@@ -78,6 +81,10 @@ The service stores durable order IDs and reservations. Broadcasts and approvals
 are not fills. Unknown submissions block new orders and are never automatically
 retried. Interrupted allowance approval can be resumed from setup after its
 receipt confirms, under the original budget and current policy checks.
+Policy requests persist separately and expose approved, denied and expired
+states after restart. Perpetual openings check authority before each SDK
+signature and again before releasing it to the venue. Interrupted pending
+signatures retain their recovery IDs and never automatically replay an order.
 
 Revoking a runtime token stops new bot access. It does not cancel pending venue
 orders, revoke onchain allowances, or undo signatures. Setup supports cancellation
@@ -99,7 +106,9 @@ For examples, failure states, qualification steps and primary sources, see
 Qualification limits
 --------------------
 
-Authenticated wallet execution requires connected testnet qualification. The
+Connected identity, balances, market data, harmless signing, policy expiry and
+token revocation have been verified. Funded fills, cancellation and receipt
+reconciliation still require connected qualification. The
 pinned MetaMask dependency tree also has unresolved upstream security advisories;
 this beta is not production-qualified. See the engineering guide for the audit,
 trust boundary, and test checklist. Configure strategies with

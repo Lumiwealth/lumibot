@@ -6,6 +6,7 @@ import {
   assetSchema,
   bindingSchema,
   operationSchema,
+  policyApprovalSchema,
 } from "../src/contracts.js";
 
 function element(id: string): HTMLElement {
@@ -143,12 +144,23 @@ async function wallets() {
     );
   if (rows.some((w) => w.address.toLowerCase() === previous))
     menu.value = previous;
+  if (menu.value !== previous) clearPolicy();
 }
 function wallet() {
   const value = select("wallet-select").value;
   if (!value) throw new Error("Select an agent wallet first");
   return getAddress(value);
 }
+let policyWallet: string | undefined;
+let policyRevision = 0;
+function clearPolicy() {
+  policyWallet = undefined;
+  policyRevision++;
+  textarea("policy").value = "";
+  element("policy-area").hidden = true;
+  element("policy-approvals").replaceChildren();
+}
+select("wallet-select").addEventListener("change", clearPolicy);
 action(
   "unlock-form",
   async () => {
@@ -181,28 +193,67 @@ action(
       .parse(await api("wallets", { name }));
     await wallets();
     select("wallet-select").value = result.address.toLowerCase();
+    clearPolicy();
     input("agent-id").value = name;
     notice("Agent wallet created. Review its Guard policy next.");
   },
   "submit",
 );
 action("load-policy", async () => {
+  const target = wallet();
+  const revision = ++policyRevision;
   const response = z
     .object({ policy: z.string(), mode: z.object({ mode: z.string() }) })
     .passthrough()
-    .parse(await api(`policy?wallet=${wallet()}`));
+    .parse(await api(`policy?wallet=${target}`));
+  if (revision !== policyRevision || wallet() !== target) return;
+  policyWallet = target;
   textarea("policy").value = response.policy;
   element("guard-state").textContent = `Provider mode: ${response.mode.mode}`;
   element("policy-area").hidden = false;
 });
+async function policyApprovals() {
+  const target = wallet();
+  const revision = policyRevision;
+  const rows = z
+    .array(policyApprovalSchema)
+    .parse(await api(`approvals?wallet=${target}`));
+  if (revision !== policyRevision || wallet() !== target) return;
+  const list = element("policy-approvals");
+  list.replaceChildren();
+  for (const row of rows) {
+    const item = document.createElement("p");
+    item.textContent = `Policy ${row.state}${row.expiresAt ? ` · deadline ${new Date(row.expiresAt).toLocaleString()}` : ""}`;
+    if (row.state === "unknown")
+      item.textContent +=
+        " · Outcome unknown; inspect MetaMask before another request.";
+    if (row.state === "approved")
+      item.textContent +=
+        " · Approval recorded. Review current policy before renewing bot access.";
+    list.append(item);
+  }
+  if (!rows.length)
+    list.textContent = "No recorded policy requests for this wallet.";
+}
+action("refresh-policy-approvals", policyApprovals);
 action("save-policy", async () => {
-  const result = await api("policy", {
-    wallet: wallet(),
-    policy: textarea("policy").value,
-  });
-  notice(
-    `Policy response: ${JSON.stringify(result)}. Refresh policy after any MetaMask approval.`,
+  const target = wallet();
+  if (policyWallet !== target)
+    throw new Error("Review this wallet's policy before submitting changes.");
+  const result = policyApprovalSchema.parse(
+    await api("policy", {
+      id: crypto.randomUUID(),
+      wallet: target,
+      policy: textarea("policy").value,
+    }),
   );
+  if (wallet() !== target) return;
+  notice(
+    result.state === "pending"
+      ? "Policy approval pending in MetaMask. Request saved across restarts."
+      : `Policy ${result.state}. Review current policy before renewing bot access.`,
+  );
+  await policyApprovals();
 });
 action("guard-mode", async () => {
   notice(

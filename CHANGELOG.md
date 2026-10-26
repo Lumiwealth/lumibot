@@ -4,6 +4,7 @@
 
 ### Added
 - Optional MetaMask Agent Wallet broker beta: dedicated agent-wallet bindings, bounded runtime tokens, Guard policy checks, durable order reservations/reconciliation, Hyperliquid perpetuals, exact-input onchain swap operations, and local MetaMask Connect setup. Wallet-authenticated testnet qualification remains required. EVM crypto assets can carry chain/contract identity.
+- MetaMask qualification fixes: durable policy-approval recovery, authority checks around every perpetual-opening signature, IOC market quotes, empty testnet portfolio valuation, early unsupported swap-route and zero-collateral refusals, and connected Python broker checks. Funded trading and receipt qualification remain outstanding.
 
 - Agent replay identity includes dependency versions and callable implementations; explicit failed tool results no longer block fresh recovery, while compatible successful decisions remain reusable.
 ### Added

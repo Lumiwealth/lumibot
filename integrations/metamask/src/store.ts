@@ -7,6 +7,8 @@ import {
   assert,
   bindingSchema,
   operationSchema,
+  policyApprovalSchema,
+  type PolicyApproval,
   type Binding,
   type Operation,
   type TradeRequest,
@@ -23,10 +25,11 @@ export class Store {
     if (path !== ":memory:") chmodSync(path, 0o600);
     this.db.exec(`PRAGMA journal_mode=WAL; PRAGMA busy_timeout=5000;
       CREATE TABLE IF NOT EXISTS bindings (id TEXT PRIMARY KEY, wallet TEXT UNIQUE NOT NULL, data TEXT NOT NULL);
-      CREATE TABLE IF NOT EXISTS operations (agent TEXT NOT NULL, id TEXT NOT NULL, data TEXT NOT NULL, PRIMARY KEY(agent,id));`);
+      CREATE TABLE IF NOT EXISTS operations (agent TEXT NOT NULL, id TEXT NOT NULL, data TEXT NOT NULL, PRIMARY KEY(agent,id));
+      CREATE TABLE IF NOT EXISTS policy_approvals (id TEXT PRIMARY KEY, wallet TEXT NOT NULL, data TEXT NOT NULL);`);
   }
   putBinding(binding: Binding): void {
-    bindingSchema.parse(binding);
+    binding = bindingSchema.parse(binding);
     const previous = this.bindings().find((b) => b.id === binding.id);
     assert(
       !previous || previous.wallet === binding.wallet,
@@ -76,7 +79,7 @@ export class Store {
     return this.operations(agent).find((op) => op.id === id);
   }
   save(op: Operation): void {
-    operationSchema.parse(op);
+    op = operationSchema.parse(op);
     this.db
       .prepare(
         "INSERT INTO operations VALUES (?,?,?) ON CONFLICT(agent,id) DO UPDATE SET data=excluded.data",
@@ -165,11 +168,93 @@ export class Store {
     try {
       const current = this.get(before.agent, before.id);
       assert(current !== undefined, "NOT_FOUND", "Operation disappeared");
-      if (JSON.stringify(current) !== JSON.stringify(before)) {
+      if (
+        JSON.stringify(operationSchema.parse(current)) !==
+        JSON.stringify(operationSchema.parse(before))
+      ) {
         this.db.exec("COMMIT");
         return current;
       }
       this.save(after);
+      this.db.exec("COMMIT");
+      return after;
+    } catch (error) {
+      this.db.exec("ROLLBACK");
+      throw error;
+    }
+  }
+  policyApprovals(wallet: string): PolicyApproval[] {
+    return this.db
+      .prepare("SELECT data FROM policy_approvals WHERE wallet=?")
+      .all(wallet)
+      .map((v) => policyApprovalSchema.parse(JSON.parse(row.parse(v).data)));
+  }
+  beginPolicyApproval(approval: PolicyApproval): {
+    approval: PolicyApproval;
+    created: boolean;
+  } {
+    approval = policyApprovalSchema.parse(approval);
+    this.db.exec("BEGIN IMMEDIATE");
+    try {
+      const existing = this.db
+        .prepare("SELECT data FROM policy_approvals WHERE id=?")
+        .get(approval.id);
+      if (existing) {
+        const prior = policyApprovalSchema.parse(
+          JSON.parse(row.parse(existing).data),
+        );
+        assert(
+          prior.wallet === approval.wallet &&
+            prior.policyDigest === approval.policyDigest,
+          "ID_CONFLICT",
+          "Policy request ID belongs to different content",
+        );
+        this.db.exec("COMMIT");
+        return { approval: prior, created: false };
+      }
+      assert(
+        !this.policyApprovals(approval.wallet).some((a) =>
+          ["unknown", "pending"].includes(a.state),
+        ),
+        "APPROVAL_PENDING",
+        "Resolve the existing policy request before submitting another",
+      );
+      this.db
+        .prepare("INSERT INTO policy_approvals VALUES (?,?,?)")
+        .run(approval.id, approval.wallet, JSON.stringify(approval));
+      this.db.exec("COMMIT");
+      return { approval, created: true };
+    } catch (error) {
+      this.db.exec("ROLLBACK");
+      throw error;
+    }
+  }
+  updatePolicyApproval(
+    before: PolicyApproval,
+    after: PolicyApproval,
+  ): PolicyApproval {
+    after = policyApprovalSchema.parse(after);
+    assert(
+      before.id === after.id && before.wallet === after.wallet,
+      "ID_CONFLICT",
+      "Approval identity cannot change",
+    );
+    this.db.exec("BEGIN IMMEDIATE");
+    try {
+      const current = this.policyApprovals(before.wallet).find(
+        (a) => a.id === before.id,
+      );
+      assert(current !== undefined, "NOT_FOUND", "Policy request not found");
+      if (
+        JSON.stringify(current) !==
+        JSON.stringify(policyApprovalSchema.parse(before))
+      ) {
+        this.db.exec("COMMIT");
+        return current;
+      }
+      this.db
+        .prepare("UPDATE policy_approvals SET data=? WHERE id=?")
+        .run(JSON.stringify(after), before.id);
       this.db.exec("COMMIT");
       return after;
     } catch (error) {

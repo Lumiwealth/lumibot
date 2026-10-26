@@ -643,7 +643,7 @@ def test_web_skill_checks_updates_without_demanding_an_exhaustive_archive():
     # or described an eligible supplemental report without opening it.
     skill = next(skill for skill in load_builtin_skills() if skill.name == "web-documents")
     text = " ".join(skill.instructions.split())
-    assert "including relevant supplementary tables" in text
+    assert "include eligible baseline and update rows, including supplementary indexes" in text
     assert "Read a relevant supplement before claiming to have reconciled it" in text
     assert "Do not describe unread contents" in text
     assert "An exhaustive index or original-version archive is not a prerequisite" in text

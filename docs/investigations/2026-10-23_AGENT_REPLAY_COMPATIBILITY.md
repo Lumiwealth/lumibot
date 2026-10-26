@@ -48,20 +48,26 @@ The neutral approximation case passed five native actor/judge trials, including
 partial sales, repeated pre-snapshot transactions, separate stock/option rows and
 usable midpoint weights. Another historical-source case exposed a blocked future
 document attempt despite a correct final answer; its decision remained incomplete.
-The research instructions were clarified. Subsequent five-trial checks each
-passed three trials and failed two: the remaining failures include omitted
-eligible updates, an invented duplicate instrument, incorrect timestamp prose,
-and a blocked future-document attempt. None qualifies the shared research path
-for release. The most recent targeted deterministic guidance/example/harness
-check passes 416 tests. Ten targeted real-model judge calibration checks pass,
-including three repetitions of the new recorded positive control. The judge now
-receives the actor's actual system and task instructions, so an empty rules-tool
-response does not erase an explicit research-only assignment.
+The research instructions were clarified. Earlier five-trial checks passed
+three and failed two, including omitted updates, a duplicate instrument,
+incorrect timestamp prose and a blocked future-document attempt. These failures
+remain preserved. After compact selections, complete current tool results and
+explicit SQL-produced UTC timestamps, the targeted historical reconstruction
+case passed all five native Luna actor/judge trials. One regression each for
+approximation, live undated sources, estimated historical dates, date-only
+publication and known-future exclusion also passed. These are scoped source
+checks, not a complete package-release qualification.
+The approximation benchmark also passes against the earlier product policy;
+it remains compatibility coverage outside the release-gated case catalog.
 
-Inspection also found an existing callback truncating every tool result larger
-than 4,000 characters irrespective of actual conversation size. A failed trial
-received a pruned discovery index. That behavior remains unchanged pending
-separate authorization for its generic repair; these findings do not establish
-that truncation caused every model error.
+Inspection found a callback truncating every tool result larger than 4,000
+characters irrespective of conversation size. A failed trial received a pruned
+discovery index. The authorized generic repair removes that callback and retains
+the existing before-model pruning of older history only when the conversation
+exceeds its context budget. Nine cross-provider row-retention tests failed
+before repair while three skill controls passed. All 50 focused tests and the
+agent/subscription owners pass, with 1,220 passing and three integration tests
+outside the unit scope. This does not establish truncation as every model
+error's cause.
 No failed or interrupted run is counted as a pass. Case, source, model, usage and
 verdict identities remain attached to their actual runs.

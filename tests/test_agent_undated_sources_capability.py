@@ -113,7 +113,7 @@ def test_research_can_finish_with_disclosed_coverage_and_valuation_estimates():
     prompt = _normalized(_prompt(backtesting=True))
     assert "an exhaustive index or original-version archive is not a prerequisite" in skill
     assert "provide the best supported reconstruction" in skill
-    assert "this list can cover only part of an archive without blocking an estimate" in skill
+    assert "missing exact quantities, version hashes or certified coverage do not prevent a useful, explicitly approximate answer" in skill
     assert "query its eligible rows with typed sql before following its report links" in prompt
     assert "reasonable approximations" in prompt
     assert "if you are unsure whether information was available yet, say the evidence is insufficient and do nothing" not in prompt

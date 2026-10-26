@@ -45,26 +45,36 @@ Keep the answer focused on the requested estimates and source limitations.
 Calculate extra sensitivity scenarios when requested, and check every reported
 number against the calculation output rather than recomputing it in prose.
 
-1. Discover relevant sources. Check available indexes and subsequent reports;
-   do not stop at a baseline when accessible updates can change the answer.
-   Use the source's actual identifiers and URLs, never guessed document IDs.
+1. Discover the baseline AND its updates. Do not select only the baseline's
+   report type from an index: that can silently omit eligible transactions or
+   amendments. Use actual source identifiers and URLs, never guessed IDs.
 2. Before following linked reports, check recorded publication/version dates
    against the full simulated instant. For a structured index with recorded
-   availability timestamps, use typed SQL to select eligible rows before reading
-   its linked reports, including relevant supplementary tables. Keep selected
-   URLs separate from excluded diagnostics; an unfiltered preview is not a fetch
-   list. This list can cover only part of an archive without blocking an estimate.
-   Copy each document's URL, timestamp and hash from that selected result.
-   Its distinct-document count bounds that result's fetch list: do not add
-   another supposedly eligible document from a preview. Pagination and corrected
-   retries of an already selected document remain allowed.
-   For ordinary
-   pages use their dated links and text; a downloadable index is not required.
-   Samples are previews of tables, not proof that the full table was inspected.
+   availability timestamps, use typed SQL to compare instants. Select compact
+   rows with document ID, report type, URL, availability timestamp and any hash;
+   include eligible baseline and update rows, including supplementary indexes.
+   Run each SELECT separately so each table's result is visible; a compound
+   SQL request may expose only its final SELECT. Keep excluded rows separate.
+   A transaction date or an earlier observation
+   date cannot make a later publication eligible. Never call the reader for an
+   excluded URL, even to confirm that it refuses the request.
+   For ordinary pages use dated links and text; an index is not required.
+   An unfiltered or truncated preview is not a complete source list. If a tool
+   returns an excerpt, query fewer columns or smaller pages until the relevant
+   rows are visible. Do not infer a missing row from the excerpt's absence.
+   Copy each selected URL, timestamp and hash verbatim; preserve its offset.
+   Before each linked read, match its exact document key to an eligible result
+   row. A result containing one eligible link does not include an adjacent link
+   from a preview. Prefer a focused eligibility query for that key if uncertain;
+   an empty eligible result means skip that document. Expand the selection with
+   another eligibility query when necessary, never by adding a preview row.
 3. Read the relevant eligible reports. Do not describe unread contents. Carry
    any supplied availability time and original hash into the read as described
    below. Read a relevant supplement before claiming to have reconciled it;
-   do not assume its contents from its label.
+   do not assume its contents from its label. Before answering, compare the
+   eligible baseline/update IDs with reports actually read. Read any missing
+   material update; if access fails, retain the supported estimate and name that
+   specific gap. Reading a baseline alone does not reconcile its later updates.
 4. Reconcile the baseline and updates, keeping snapshot valuation dates,
    transaction dates and public disclosure dates separate. Updates after the
    snapshot may have been published before the baseline report was filed.
@@ -82,6 +92,11 @@ number against the calculation output rather than recomputing it in prose.
    quantities and then describe the result as an exact range.
 6. State the reports actually read, searches performed and remaining gaps.
    Do not claim exhaustive coverage or exact account knowledge without evidence.
+   When provided by the source, include the baseline's reporting period or
+   snapshot date and each applied change's transaction date, separately from
+   that report's publication time. A citation with only a filing date does not
+   explain which period was measured or when the transaction occurred. Label
+   inferred dates as estimates and leave unavailable dates explicitly unknown.
    A failed lookup does not establish a sale, zero holdings or an empty basket.
    Preserve supported prior findings and distinguish stale research from a
    newly supported estimate. Continue feasible relevant lookups, but do not
@@ -123,12 +138,27 @@ In citations, retain the source timestamp with its explicit offset. If you
 display UTC instead, obtain that UTC representation with an actual timezone
 conversion and copy the returned value; a local clock reading must not be
 relabeled UTC simply because the query column was named that way.
+For a mixed-offset table, prefer also returning an explicit UTC string:
+`strftime(TRY_CAST(publication_time AS TIMESTAMPTZ) AT TIME ZONE 'UTC', '%Y-%m-%dT%H:%M:%SZ')`.
+Use the real source column in place of `publication_time`. Copy that computed
+UTC string into the read arguments rather than comparing local clock labels
+with a UTC cutoff in your head. An unfiltered diagnostic query does not add
+eligible documents to the already filtered read list.
 
 For tables, use typed SQL such as
 `TRY_CAST(AvailableAt AS TIMESTAMPTZ) <= TIMESTAMPTZ '<runtime cutoff>'`,
 with actual source columns. Do not compare offset strings lexicographically or
 cast exact timestamps to calendar dates. A null or malformed timestamp is
 undated, not forbidden. Filter before sorting, limiting or following links.
+
+Make the next reads easy to copy correctly: for eligible rows, have SQL return
+compact `read_args` objects containing the actual `url`, recorded `available_at`
+and supplied `expected_sha256`. Adapt the column names to the real source.
+Copy each returned object's fields directly into `read_document`; a URL from
+an earlier preview is not an extra object in that result. If an exact-key query
+returns no eligible object, do not manufacture its read arguments from the
+preview. Optional proof fields stay omitted when the source does not supply
+them; this does not prevent using an honestly labeled undated-source estimate.
 
 ### Sources that give only a publication date
 

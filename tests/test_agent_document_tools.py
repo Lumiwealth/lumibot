@@ -342,12 +342,7 @@ def test_document_exact_cutoff_and_original_hash_allow_verified_bytes():
     assert result["available_at"] == result["historical_as_of"]
 
 
-def test_read_document_results_fit_the_agent_tool_result_limit():
-    # The agent runtime cuts any tool result over 4,000 characters down to its
-    # head and tail, so a long default page silently hid the middle of a report.
-    import json
-
-    from lumibot.components.agents.runtime import _prune_tool_response_for_context_window
+def test_read_document_paginates_long_pages_and_retains_targeted_links():
 
     links = "".join(f'<a href="/r/{i}.pdf">Report {i}</a>' for i in range(400))
     page = f"<html><body><p>{'word ' * 3000}</p>{links}</body></html>".encode()
@@ -362,7 +357,7 @@ def test_read_document_results_fit_the_agent_tool_result_limit():
     tool = BuiltinTools.web.read_document().binder(strategy, SimpleNamespace(duckdb=DuckDBQueryLayer(strategy)))
 
     result = tool.function(url="https://clerk.example/list")
-    assert _prune_tool_response_for_context_window(result, tool_name="read_document") is None, len(json.dumps(result))
+    assert result["ok"] is True and result["text"]
     assert result["next_start"] and result["links_total"] == 400
 
     found = tool.function(url="https://clerk.example/list", find="Report 12")

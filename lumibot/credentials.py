@@ -70,6 +70,7 @@ _BROKER_CLASS_NAMES = {
     "ProjectX",
     "Polymarket",
     "MetaMask",
+    "Kalshi",
 }
 
 
@@ -391,6 +392,17 @@ ALPACA_TEST_CONFIG = {  # Paper trading!
     "PAPER": True
 }
 
+# Kalshi event-market account configuration (demo is the standalone default).
+KALSHI_CONFIG = {
+    "API_KEY_ID": os.environ.get("KALSHI_API_KEY_ID"),
+    "PRIVATE_KEY": os.environ.get("KALSHI_PRIVATE_KEY"),
+    "PRIVATE_KEY_PATH": os.environ.get("KALSHI_PRIVATE_KEY_PATH"),
+    "IS_DEMO": os.environ.get("KALSHI_IS_DEMO", "true"),
+    "SUBACCOUNT": os.environ.get("KALSHI_SUBACCOUNT"),
+    "EXCHANGE_INDEX": os.environ.get("KALSHI_EXCHANGE_INDEX"),
+    "BASE_URL": os.environ.get("KALSHI_BASE_URL"),
+}
+
 # Polymarket International CLOB Configuration
 POLYMARKET_CONFIG = {
     "PRIVATE_KEY": os.environ.get("POLYMARKET_PRIVATE_KEY"),
@@ -703,6 +715,9 @@ def _build_default_live_credentials():
             broker = _broker_class("MetaMask")(
                 _metamask_config(), connect_stream=connect_stream, start_orders_thread=start_orders_thread
             )
+        elif broker_name == "kalshi":
+            broker = _broker_class("Kalshi")(KALSHI_CONFIG, connect_stream=connect_stream)
+            data_source = broker.data_source
         elif broker_name in ("polymarket", "polymarket_clob"):
             from .data_sources import PolymarketData
 
@@ -875,6 +890,11 @@ def _build_default_live_credentials():
                 from .data_sources import MetaMaskData
 
                 data_source = MetaMaskData(_metamask_config())
+            elif data_name == "kalshi":
+                from .data_sources import KalshiData
+
+                selected_client = broker._client if broker and broker.name.lower() == "kalshi" else None
+                data_source = KalshiData(KALSHI_CONFIG, client=selected_client)
             elif data_name in ("polymarket", "polymarket_clob"):
                 from .data_sources import PolymarketData
 
@@ -1000,6 +1020,9 @@ elif not is_backtesting or is_backtesting.lower() == "false":
             broker = _broker_class("MetaMask")(
                 _metamask_config(), connect_stream=connect_stream, start_orders_thread=start_orders_thread
             )
+        elif trading_broker_name.lower() == "kalshi":
+            broker = _broker_class("Kalshi")(KALSHI_CONFIG, connect_stream=connect_stream)
+            data_source = broker.data_source
         elif trading_broker_name.lower() in ("polymarket", "polymarket_clob"):
             from .data_sources import PolymarketData
 
@@ -1193,6 +1216,11 @@ elif not is_backtesting or is_backtesting.lower() == "false":
                 from .data_sources import MetaMaskData
 
                 data_source = MetaMaskData(_metamask_config())
+            elif data_source_name.lower() == "kalshi":
+                from .data_sources import KalshiData
+
+                selected_client = broker._client if broker and broker.name.lower() == "kalshi" else None
+                data_source = KalshiData(KALSHI_CONFIG, client=selected_client)
             elif data_source_name.lower() in ("polymarket", "polymarket_clob"):
                 from .data_sources import PolymarketData
 

@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import json
 import os
 import time
 from collections import OrderedDict
@@ -12,6 +11,7 @@ from .broker import Broker
 
 logger = LazyLogger(__name__)
 TYPE_CHECKING = False
+json = LazyModule("json")
 datetime = LazyModule("datetime")
 Asset = lazy_class("lumibot.entities", "Asset")
 Order = lazy_class("lumibot.entities", "Order")

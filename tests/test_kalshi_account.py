@@ -93,12 +93,16 @@ def test_config_client_is_reused_without_direct_credentials():
     broker.close()
 
 
-def test_stage_one_reports_unimplemented_trading_without_sending():
+def test_trading_rejects_an_ambiguous_prediction_contract_without_sending():
+    # Trading is now implemented; the account-only placeholder is replaced by
+    # the actual instrument boundary, using the existing Order/Asset entities.
+    from lumibot.entities import Order
+
     client = Mock(spec=KalshiClient)
     broker = Kalshi(client=client)
     try:
-        with pytest.raises(NotImplementedError):
-            broker._submit_order(Mock())
+        with pytest.raises(ValueError, match="outcome"):
+            broker.submit_order(Order("neutral", Asset("EVENT", "prediction_contract"), 1, "buy", limit_price=.2))
         client.request.assert_not_called()
     finally:
         broker.close()

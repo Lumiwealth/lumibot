@@ -4,8 +4,9 @@
 
 - Agent replay identity includes dependency versions and callable implementations; explicit failed tool results no longer block fresh recovery, while compatible successful decisions remain reusable.
 ### Added
+- Kalshi selected YES/NO trading through normal Strategy order, position, quote and callback methods: metadata-driven routing/ticks, limit and marketable IOC orders, amend/cancel, REST polling, actual fill fees and cumulative reconciliation. Demo whole and fractional execution and netting verified; advanced product/history/settlement qualification remains separate.
 - Optional selected-outcome identity on the existing prediction-contract asset, retained through orders, positions and strategy backups. Existing token-ID assets keep their wire shape and identity. Prediction partial-fill averages retain sub-cent precision and zero position marks survive serialization.
-- Kalshi account-read foundation: existing Broker/DataSource interfaces, shared native client, Ed25519 and RSA signing, demo/production configuration, scoped balances and public metadata. The account check uses normal Strategy cash/equity methods. Trading, outcome-aware positions, price history and backtesting remain unfinished; funded-flat demo account values are verified. Current demo API `portfolio_value` excludes cash despite the older changelog description; total adds cash and holdings once.
+- Kalshi account-read foundation: existing Broker/DataSource interfaces, shared native client, Ed25519 and RSA signing, demo/production configuration, scoped balances and public metadata. The account check uses normal Strategy cash/equity methods. Price history, settlement and backtesting remain unfinished; funded-flat demo account values are verified. Current demo API `portfolio_value` excludes cash despite the older changelog description; total adds cash and holdings once.
 
 ### Fixed
 - Phemex derivatives retain settlement wallet selection and early balance snapshots; missing optional wallet metadata no longer narrows supported account discovery.

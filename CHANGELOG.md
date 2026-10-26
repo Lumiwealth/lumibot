@@ -1,9 +1,11 @@
 # Changelog
 
-## 4.6.31 - Unreleased
+## 4.6.31 - 2026-10-25
 
 - Agent replay identity includes dependency versions and callable implementations; explicit failed tool results no longer block fresh recovery, while compatible successful decisions remain reusable.
 ### Fixed
+- Phemex derivatives retain settlement wallet selection and early balance snapshots; missing optional wallet metadata no longer narrows supported account discovery.
+- Agent subscription usage remains informational and qualification awaits completed model/tool work instead of imposing response or turn deadlines.
 - Alpaca polling delivers a confirmed fill even when account synchronization already copied its terminal status. Cumulative fills retain their unprocessed quantity and price, repeated observations do not duplicate callbacks, and SDK UUID identifiers match serialized identifiers.
 - Historical research can produce disclosed date, quantity and valuation estimates without demanding an exhaustive archive. Instructions retain known-future exclusions, separate snapshot and transaction dates, and use explicit UTC values for mixed-offset source tables.
 - Agent tools retain complete new results, including typed rows and error fields. Context-window pruning still removes older history only when the conversation is oversized.

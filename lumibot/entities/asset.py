@@ -105,6 +105,9 @@ class Asset:
         Positive finite contract price scale; distinct from leverage.
     precision : str (required if asset_type is 'crypto')
         Conversion currency.
+    outcome : str, optional
+        Selected prediction outcome, normalized to lowercase. Included in asset
+        identity and serialization when supplied; token-ID assets may omit it.
     _right : list of str
         Acceptable values for right.
 
@@ -202,6 +205,7 @@ class Asset:
         precision: str = None,
         underlying_asset: "Asset" = None,
         auto_expiry: str = None,
+        outcome: str | None = None,
     ):
         """
         Parameters
@@ -267,6 +271,7 @@ class Asset:
             100 if asset_type == self.AssetType.OPTION else 1
         )
         self.precision = precision
+        self.outcome = str(outcome).strip().casefold() if outcome is not None else None
         self.underlying_asset = underlying_asset
 
         # Leverage for futures assets (ignored for other asset types)
@@ -320,9 +325,8 @@ class Asset:
         auto_expiry_key = (
             self.auto_expiry if (self.asset_type == self.AssetType.FUTURE and self.expiration is None) else None
         )
-        self._cached_hash = hash(
-            (self.symbol, self.asset_type, self.expiration, self.strike, self.right, auto_expiry_key)
-        )
+        identity = (self.symbol, self.asset_type, self.expiration, self.strike, self.right, auto_expiry_key)
+        self._cached_hash = hash(identity if self.outcome is None else (*identity, self.outcome))
         minimal_type = str(self.asset_type) if self.asset_type else "stock"
         minimal_dict = {
             "symbol": self.symbol,
@@ -353,6 +357,8 @@ class Asset:
                 )
             if self.multiplier and self.multiplier != 1:
                 minimal_dict["mult"] = self.multiplier
+        if self.outcome is not None:
+            minimal_dict["outcome"] = self.outcome
         self._cached_minimal_dict = minimal_dict
 
     @classmethod
@@ -396,6 +402,8 @@ class Asset:
             return Asset(symbol=None)
 
     def __repr__(self):
+        if getattr(self, "outcome", None) is not None:
+            return f"{self.symbol} ({self.outcome})"
         if self.asset_type == "future":
             if self.expiration is not None:
                 return f"{self.symbol} {self.expiration}"
@@ -408,6 +416,8 @@ class Asset:
             return f"{self.symbol}"
 
     def __str__(self):
+        if getattr(self, "outcome", None) is not None:
+            return f"{self.symbol} ({self.outcome})"
         if self.asset_type == "future":
             if self.expiration is not None:
                 return f"{self.symbol} {self.expiration}"
@@ -445,6 +455,7 @@ class Asset:
             and self.expiration == other.expiration
             and self.strike == other.strike
             and self.right == other.right
+            and getattr(self, "outcome", None) == getattr(other, "outcome", None)
         ):
             return False
 
@@ -540,7 +551,7 @@ class Asset:
         return dict(self._cached_minimal_dict)
 
     def to_dict(self):
-        return {
+        result = {
             "symbol": self.symbol,
             "asset_type": self.asset_type,
             "expiration": self.expiration.strftime("%Y-%m-%d") if self.expiration else None,
@@ -552,18 +563,23 @@ class Asset:
             "underlying_asset": self.underlying_asset.to_dict() if self.underlying_asset else None,
         }
 
+        if getattr(self, "outcome", None) is not None:
+            result["outcome"] = self.outcome
+        return result
+
     @classmethod
     def from_dict(cls, data):
         return cls(
             symbol=data["symbol"],
-            asset_type=data["asset_type"],
-            expiration=datetime.strptime(data["expiration"], "%Y-%m-%d").date() if data["expiration"] else None,
-            strike=data["strike"],
-            right=data["right"],
-            multiplier=data["multiplier"],
+            asset_type=data.get("asset_type", data.get("type", "stock")),
+            expiration=data.get("expiration", data.get("exp")),
+            strike=data.get("strike", 0),
+            right=data.get("right"),
+            multiplier=data.get("multiplier", data.get("mult")),
             leverage=data.get("leverage", 1),
-            precision=data["precision"],
-            underlying_asset=cls.from_dict(data["underlying_asset"]) if data["underlying_asset"] else None,
+            precision=data.get("precision"),
+            underlying_asset=cls.from_dict(data["underlying_asset"]) if data.get("underlying_asset") else None,
+            outcome=data.get("outcome"),
         )
 
     def _calculate_auto_expiry(self, auto_expiry):

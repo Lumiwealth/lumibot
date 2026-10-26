@@ -21,6 +21,27 @@ empty accounts or simulated fills. The existing prediction-contract asset type
 is the instrument owner. Trading work must resolve persistent selected-outcome
 identity before adopting order code.
 
+## Selected outcome identity
+
+The existing `prediction_contract` type now accepts an optional `outcome`:
+
+```python
+yes = Asset("<market-ticker>", "prediction_contract", outcome="yes")
+no = Asset("<market-ticker>", "prediction_contract", outcome="no")
+```
+
+These are distinct assets for equality, dictionary keys, orders, positions,
+full/minimal JSON and the existing strategy backup codec. Outcome labels are
+case-normalized and may contain generic named outcomes. No new asset class,
+order method or strategy persistence system is introduced. Existing assets
+without an outcome retain their previous hash, display and serialized shape;
+Polymarket token identifiers continue to work unchanged.
+
+Prediction fill-price fallback uses the quantity actually filled and retains
+sub-cent precision. Position serialization preserves real zero marks and P&L.
+These shared contracts are verified offline; they do not establish Kalshi
+execution or a working historical backtest.
+
 ## Configure and run the account check
 
 Use a separate demo account and demo API key. API keys support Ed25519 and

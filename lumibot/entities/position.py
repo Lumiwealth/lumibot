@@ -298,8 +298,8 @@ class Position:
             "quantity": float(self.quantity),
             "orders": [],  # We'll handle orders specially below
             "hold": self.hold,
-            "available": float(self.available) if self.available else None,
-            "avg_fill_price": float(self.avg_fill_price) if self.avg_fill_price else None,
+            "available": float(self.available) if self.available is not None else None,
+            "avg_fill_price": float(self.avg_fill_price) if self.avg_fill_price is not None else None,
         }
         if self.position_side is not None:
             result["position_side"] = self.position_side
@@ -308,13 +308,13 @@ class Position:
 
         # Add dynamically set fields if they exist (from broker)
         if hasattr(self, 'current_price'):
-            result['current_price'] = float(self.current_price) if self.current_price else None
+            result['current_price'] = float(self.current_price) if self.current_price is not None else None
         if hasattr(self, 'market_value'):
-            result['market_value'] = float(self.market_value) if self.market_value else None
+            result['market_value'] = float(self.market_value) if self.market_value is not None else None
         if hasattr(self, 'pnl'):
-            result['pnl'] = float(self.pnl) if self.pnl else None
+            result['pnl'] = float(self.pnl) if self.pnl is not None else None
         if hasattr(self, 'pnl_percent'):
-            result['pnl_percent'] = float(self.pnl_percent) if self.pnl_percent else None
+            result['pnl_percent'] = float(self.pnl_percent) if self.pnl_percent is not None else None
         if hasattr(self, 'asset_type'):
             result['asset_type'] = self.asset_type
         if hasattr(self, 'exchange'):

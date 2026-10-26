@@ -100,6 +100,12 @@ gasless delegation execution, browser-wallet delegation redemption, conditional
 orders, spot candle history, and historical account equity. Missing spot cost
 basis/PnL remains unavailable rather than estimated silently.
 
+Each journal permits one companion process. A second process fails with
+``STATE_IN_USE`` even if it uses a different port. Crash-safe SQLite ownership
+and session locks release when the process exits; keep state on a local
+filesystem and never delete lock files while running. Stop older companion
+versions before upgrading. Multi-host active/active operation is unsupported.
+
 For examples, failure states, qualification steps and primary sources, see
 `the full MetaMask integration guide <https://github.com/Lumiwealth/lumibot/blob/dev/docs/METAMASK.md>`__.
 

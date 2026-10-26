@@ -94,7 +94,12 @@ async function refresh() {
     const div = document.createElement("div");
     div.className = "binding";
     const title = document.createElement("strong");
-    title.textContent = `${binding.id} · ${binding.enabled ? "Enabled" : "Revoked"} · ${binding.network}`;
+    const access = !binding.enabled
+      ? "Revoked"
+      : binding.expiresAt <= Date.now()
+        ? "Expired"
+        : "Enabled";
+    title.textContent = `${binding.id} · ${access} · ${binding.network}`;
     const wallet = document.createElement("p");
     wallet.textContent = binding.wallet;
     const limits = document.createElement("p");

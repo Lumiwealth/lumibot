@@ -35,6 +35,7 @@ import { join } from "node:path";
 import { decodeFunctionData, encodeFunctionData, parseAbi } from "viem";
 import { z } from "zod";
 import { Decimal } from "./numeric.js";
+import { acquireStateLock } from "./state-lock.js";
 import {
   assert,
   assetId,
@@ -112,11 +113,11 @@ export class MetaMaskProvider implements Provider {
     disableAnalytics();
     mkdirSync(directory, { recursive: true, mode: 0o700 });
     const path = join(directory, "session.json");
-    const lock = join(directory, "session.lock");
-    const acquire = () => {
-      mkdirSync(lock, { mode: 0o700 });
-      return () => rmSync(lock, { recursive: true });
-    };
+    const acquire = () =>
+      acquireStateLock(
+        join(directory, "session.owner.sqlite"),
+        "Session refresh already in use by another process",
+      );
     this.session = new SessionManager({
       logger,
       locker: {

@@ -1,8 +1,10 @@
 import { DatabaseSync } from "node:sqlite";
 import { createHash, timingSafeEqual } from "node:crypto";
-import { chmodSync } from "node:fs";
+import { chmodSync, existsSync, realpathSync } from "node:fs";
+import { basename, dirname, join, resolve } from "node:path";
 import { Decimal } from "./numeric.js";
 import { z } from "zod";
+import { acquireStateLock } from "./state-lock.js";
 import {
   assert,
   bindingSchema,
@@ -20,13 +22,34 @@ export function digest(value: string): string {
 const row = z.object({ data: z.string() });
 export class Store {
   readonly db: DatabaseSync;
+  readonly executingWallets = new Set<string>();
+  private readonly releaseOwner: (() => void) | undefined;
   constructor(path: string) {
-    this.db = new DatabaseSync(path);
-    if (path !== ":memory:") chmodSync(path, 0o600);
-    this.db.exec(`PRAGMA journal_mode=WAL; PRAGMA busy_timeout=5000;
+    if (path !== ":memory:") {
+      path = existsSync(path)
+        ? realpathSync(path)
+        : join(realpathSync(dirname(resolve(path))), basename(path));
+      // Keep ownership separate from journal transactions. The OS releases this
+      // SQLite lock on process death; an elapsed lease must never fence a signer.
+      this.releaseOwner = acquireStateLock(
+        `${path}.owner.sqlite`,
+        "Broker journal already in use by another execution owner",
+      );
+    }
+    let database: DatabaseSync | undefined;
+    try {
+      database = new DatabaseSync(path);
+      this.db = database;
+      if (path !== ":memory:") chmodSync(path, 0o600);
+      this.db.exec(`PRAGMA journal_mode=WAL; PRAGMA busy_timeout=5000;
       CREATE TABLE IF NOT EXISTS bindings (id TEXT PRIMARY KEY, wallet TEXT UNIQUE NOT NULL, data TEXT NOT NULL);
       CREATE TABLE IF NOT EXISTS operations (agent TEXT NOT NULL, id TEXT NOT NULL, data TEXT NOT NULL, PRIMARY KEY(agent,id));
       CREATE TABLE IF NOT EXISTS policy_approvals (id TEXT PRIMARY KEY, wallet TEXT NOT NULL, data TEXT NOT NULL);`);
+    } catch (error) {
+      database?.close();
+      this.releaseOwner?.();
+      throw error;
+    }
   }
   putBinding(binding: Binding): void {
     binding = bindingSchema.parse(binding);
@@ -264,5 +287,6 @@ export class Store {
   }
   close(): void {
     this.db.close();
+    this.releaseOwner?.();
   }
 }

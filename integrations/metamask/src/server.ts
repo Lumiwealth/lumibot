@@ -467,10 +467,10 @@ if (
     .max(65535)
     .parse(value("--port", "8766"));
   mkdirSync(directory, { recursive: true, mode: 0o700 });
+  const store = new Store(join(directory, "broker.sqlite"));
   const tokenPath = join(directory, "admin-token");
   if (!existsSync(tokenPath))
     writeFileSync(tokenPath, randomBytes(32).toString("hex"), { mode: 0o600 });
-  const store = new Store(join(directory, "broker.sqlite"));
   const server = application(
     store,
     new MetaMaskProvider(directory),

@@ -139,15 +139,78 @@ Before operational use, qualify a funded testnet wallet: login, create/list wall
 | Spot execution | Exact-input guards and unsupported testnet route refusal | Mined receipts require a supported route; current provider offers no testnet swap route |
 | Browser wallet | Connect integration and local setup rendered | User wallet connection and user-approved funding transaction |
 
-Hyperliquid's official faucet requires prior mainnet deposits from the same address. Its Arbitrum Sepolia bridge uses a distinct USDC2 contract, not the token issued by the ordinary Circle testnet faucet. A transfer of existing Hyperliquid testnet collateral from another testnet participant avoids mainnet deposits. No funded execution is claimed without that collateral.
+Hyperliquid's official faucet requires prior mainnet deposits from the same address. Its Arbitrum Sepolia bridge uses a distinct USDC2 contract, not the token issued by the ordinary Circle testnet faucet. The verified USDC2 source has owner-only minting and no public claim function despite exposing `dripAmount` and `dripClaimed` getters. A transfer of existing Hyperliquid testnet collateral from another testnet participant avoids mainnet deposits. No funded execution is claimed without that collateral.
+
+Alternate funding research found these constraints, checked on 2026-10-26:
+
+| Route | Constraint |
+| --- | --- |
+| Chainstack HyperEVM faucet | API key plus recipient's existing mainnet ETH balance/history; not available to a fresh wallet |
+| QuickNode HyperEVM faucet | Fresh test wallet was refused for insufficient mainnet balance |
+| Alchemy HyperEVM faucet | Recipient must already hold at least 0.01 mainnet HYPE |
+| Thirdweb HyperEVM faucet | Login and 0.01 test HYPE per day; useful for deposit gas, insufficient for a regular minimum-notional spot sale at the observed bid |
+| Circle Arbitrum Sepolia USDC | Different token from the legacy Hyperliquid test bridge's collateral; cannot substitute on that bridge |
+| Circle HyperEVM testnet USDC | Permissionless faucet delivered 20 USDC; onchain balance and successful transfer receipt verified. CoreDepositWallet's token getter matches Circle's contract, but Circle documents a mainnet-history requirement for testnet HyperCore recipients |
+
+The native HyperEVM route is separate from the legacy Arbitrum USDC2 bridge:
+Circle's HyperEVM test USDC uses CoreDepositWallet. However, Circle explicitly
+documents that testnet HyperCore recipients must already exist on mainnet and
+that transfers to missing recipients fail silently. Both fresh test wallets
+returned `role: missing` from Hyperliquid's mainnet info API, so no deposit was
+submitted. This restriction also applies to CCTP forwarding from another chain;
+creating an Arc funding wallet does not remove it. Faucet funding and even a
+successful EVM receipt do not prove destination HyperCore credit. The incoming
+test-USDC receipt was verified through RPC; the current MetaMask Account API
+returned HTTP 400 for that HyperEVM testnet transaction.
+
+An eligible existing wallet could also claim test HYPE, transfer it to the test agent,
+and potentially sell it on the HyperCore spot book for test USDC. This route
+requires enough HYPE after gas, a supported EVM-to-Core transfer, venue minimum
+order size and actual liquidity. It is not yet qualified. Do not assume a gas
+faucet also supplies trading collateral or deposit real funds automatically.
+
+## Runtime ownership and restart
+
+One companion owns each journal. A second process using the same state directory
+fails with `STATE_IN_USE`, even on a different port. Engines sharing a Store
+also share wallet execution locks, so another engine cannot mark an in-flight
+signature rejected while its owner is waiting for approval. Session refresh
+uses the same crash-safe lock mechanism instead of a stale directory lock.
+
+Ownership uses a separate SQLite exclusive transaction on a local filesystem.
+The OS releases it when the process dies; there is no expiring lease that could
+admit a second signer while the first is paused. Keep the state directory on a
+local filesystem, never delete or replace lock files while running, and stop all
+older companion versions before upgrading. Do not copy an active journal or
+run independently copied state for the same wallet. Multi-host active/active
+operation is not supported. Tests cover duplicate processes, abrupt owner death,
+restart, independent journals and concurrent engine reconciliation.
 
 ## Dependency qualification
 
-The 2026-10-26 production dependency audit reports 119 affected package entries
-(10 high, 90 moderate, 19 low; zero critical). Compatible updates were applied.
-Remaining findings include nested dependencies pinned by Agent SDK / Fox SDK,
-including `bigint-buffer`, old Zod, Axios, viem and ws. Counts include transitive
-paths and are not evidence that every advisory is reachable through this broker.
+The 2026-10-26 production dependency audit reports 107 affected package entries
+(6 high, 77 moderate, 24 low; zero critical), down from 119 entries and 10 high.
+Scoped overrides update ws, bn.js, the Axios 0.x security branch and the affected
+transitive esbuild version. A real local HTTP test checks the vendor's Axios
+wrapper request and error contracts after the backport; the main broker's
+authenticated testnet reads also pass after a clean install.
+
+Remaining root advisories concern `bigint-buffer`, nested Zod 3, `elliptic`,
+`stream-json` and old `uuid`. Counts include transitive paths and are not evidence
+that every advisory is reachable through this broker. Current assessment:
+
+- The `bigint-buffer` high advisory targets its native addon. A clean
+  `npm ci --ignore-scripts` installation did not contain a loadable addon and
+  used the package's JavaScript fallback. This is an installation-specific
+  mitigation, not an upstream fix; rebuilding native modules invalidates it.
+- Nested Zod 3 remains in Fox SDK. The broker bounds HTTP request bodies and
+  uses patched Zod 4 at its own boundary, but those controls do not prove every
+  SDK-parsed provider response is bounded. This remains unresolved.
+- `stream-json` is imported through Jayson; `elliptic` and UUID have multiple
+  vendor paths. A complete call-path assessment is still required. No blanket
+  "unreachable" exception is granted merely because Solana and prediction-market
+  trading are not exposed by this broker.
+
 Do not treat the integration as production-qualified until upstream fixes or a
 reviewed reachability assessment resolves the relevant findings. Forced major
 version overrides have not been used to conceal incompatible vendor pins.
@@ -170,5 +233,11 @@ authenticated signing have been verified; they do not prove funded execution.
 - [Agent SDK](https://www.npmjs.com/package/@metamask/agent-sdk)
 - [Hyperliquid API](https://hyperliquid.gitbook.io/hyperliquid-docs/for-developers/api/info-endpoint)
 - [Hyperliquid testnet faucet requirements](https://hyperliquid.gitbook.io/hyperliquid-docs/onboarding/testnet-faucet)
+- [Chainstack HyperEVM faucet requirements](https://faucet.chainstack.com/hyperliquid-testnet-faucet)
+- [Alchemy faucet eligibility](https://www.alchemy.com/docs/faucets)
+- [Thirdweb HyperEVM testnet faucet](https://thirdweb.com/HyperEVM-testnet)
+- [Circle HyperCore testnet recipient restrictions](https://developers.circle.com/cctp/concepts/cctp-on-hypercore)
+- [Circle native USDC addresses](https://developers.circle.com/stablecoins/usdc-contract-addresses)
+- [Axios 0.34 security backport](https://github.com/axios/axios/releases/tag/v0.34.0)
 
 Pinned packages: Agent SDK 7.3.0, Connect EVM 2.1.1, Smart Accounts Kit 2.0.0, viem 2.57.11, Zod 4.6.7. The standalone Agent Wallet CLI is not installed by this integration. Supported APIs were checked against the installed package declarations and official docs. Mobbin finance catalog was consulted; full authenticated flows were not accessible, so no claim of inspecting those flows is made.

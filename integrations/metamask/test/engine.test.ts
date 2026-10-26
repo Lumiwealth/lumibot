@@ -87,12 +87,58 @@ test("same ID is idempotent and different payload is rejected", async () => {
 test("parallel engine instances cannot execute same ID twice", async () => {
   const f = fixture();
   try {
-    await Promise.all([
+    const results = await Promise.allSettled([
       f.engine.submit(binding, request()),
       new Engine(f.store, f.provider).submit(binding, request()),
     ]);
+    assert.equal(results.filter((r) => r.status === "fulfilled").length, 1);
+    const denied = results.find((r) => r.status === "rejected");
+    assert(denied?.status === "rejected");
+    assert.match(String(denied.reason), /execution in progress/);
     assert.equal(f.calls(), 1);
   } finally {
+    f.store.close();
+  }
+});
+test("another engine cannot reconcile a signature while its owner awaits approval", async () => {
+  const f = fixture();
+  let markEntered = () => {};
+  let releaseExecution = () => {};
+  const entered = new Promise<void>((resolve) => {
+    markEntered = resolve;
+  });
+  const release = new Promise<void>((resolve) => {
+    releaseExecution = resolve;
+  });
+  let reconciliations = 0;
+  f.provider.execute = async (_binding, op, persist) => {
+    const waiting: Operation = {
+      ...op,
+      state: "awaiting_approval",
+      approvalId: "pending-signature",
+      signatureOnly: true,
+    };
+    persist(waiting);
+    markEntered();
+    await release;
+    return { ...waiting, state: "submitted", signatureOnly: false };
+  };
+  f.provider.reconcile = async (_binding, op) => {
+    reconciliations++;
+    return { ...op, state: "rejected" };
+  };
+  const submission = f.engine.submit(binding, request());
+  try {
+    await entered;
+    const result = await new Engine(f.store, f.provider).refresh(
+      binding,
+      request().id,
+    );
+    assert.equal(result.state, "awaiting_approval");
+    assert.equal(reconciliations, 0);
+  } finally {
+    releaseExecution();
+    await submission;
     f.store.close();
   }
 });

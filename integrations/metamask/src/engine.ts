@@ -10,7 +10,9 @@ import {
 import { Store } from "./store.js";
 
 export class Engine {
-  private readonly active = new Set<string>();
+  private get active(): Set<string> {
+    return this.store.executingWallets;
+  }
   constructor(
     readonly store: Store,
     readonly provider: Provider,

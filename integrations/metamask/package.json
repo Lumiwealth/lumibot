@@ -1,0 +1,30 @@
+{
+  "name": "@lumiwealth/metamask-broker",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=22.18 <23 || >=24 <25"
+  },
+  "scripts": {
+    "build": "tsc && esbuild web/main.ts --bundle --format=esm --outfile=dist/web/setup.bundle.js",
+    "typecheck": "tsc --noEmit",
+    "test": "tsc && node --test dist/test/*.test.js",
+    "start": "node dist/src/server.js",
+    "format:check": "prettier --check src web test package.json tsconfig.json"
+  },
+  "dependencies": {
+    "@metamask/agent-sdk": "7.3.0",
+    "@metamask/connect-evm": "2.1.1",
+    "@metamask/smart-accounts-kit": "2.0.0",
+    "decimal.js": "10.6.0",
+    "viem": "2.57.11",
+    "zod": "4.6.7"
+  },
+  "devDependencies": {
+    "@types/node": "24.10.1",
+    "esbuild": "0.25.12",
+    "prettier": "3.6.2",
+    "typescript": "5.9.3"
+  }
+}

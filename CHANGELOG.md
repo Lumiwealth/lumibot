@@ -2,6 +2,9 @@
 
 ## 4.6.31 - 2026-10-25
 
+### Added
+- Optional MetaMask Agent Wallet broker beta: dedicated agent-wallet bindings, bounded runtime tokens, Guard policy checks, durable order reservations/reconciliation, Hyperliquid perpetuals, exact-input onchain swap operations, and local MetaMask Connect setup. Wallet-authenticated testnet qualification remains required. EVM crypto assets can carry chain/contract identity.
+
 - Agent replay identity includes dependency versions and callable implementations; explicit failed tool results no longer block fresh recovery, while compatible successful decisions remain reusable.
 ### Fixed
 - Phemex derivatives retain settlement wallet selection and early balance snapshots; missing optional wallet metadata no longer narrows supported account discovery.

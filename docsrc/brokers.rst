@@ -6,6 +6,8 @@ Trading Brokers Supported by LumiBot
 
 LumiBot connects to **100+ brokers and crypto exchanges**. There are eight direct broker integrations (Alpaca, Charles Schwab, Interactive Brokers, Tradier, Tradovate, TopstepX through ProjectX, Bitunix and Polymarket) plus one shared crypto broker built on the `CCXT library <https://github.com/ccxt/ccxt>`__, which accepts the 100+ exchange ids your installed CCXT version lists. The same strategy code backtests, paper trades and trades live. Browse by group below, or open the :doc:`A to Z list of every broker and exchange <brokers.all>`.
 
+An optional :doc:`MetaMask Agent Wallet beta <brokers.metamask>` adds dedicated agent wallets, exact-input swaps, and Hyperliquid perpetuals; connected testnet qualification is required.
+
 .. include:: _snippets/botspot_mcp_callout.rst
 
 .. image:: ../docs/assets/ai-trading/broker-connections.png

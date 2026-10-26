@@ -1007,6 +1007,7 @@ HAND_WRITTEN_BROKERS = [
     ("Charles Schwab", "Stocks and options broker", "Stocks, ETFs, single-leg options", "brokers.schwab"),
     ("Interactive Brokers (Client Portal REST)", "Stocks, options and futures broker", "Stocks, options, futures and more, by account", "brokers.interactive_brokers"),
     ("Interactive Brokers (legacy TWS)", "Stocks, options and futures broker", "Markets your TWS account can trade", "brokers.interactive_brokers_legacy"),
+    ("MetaMask Agent Wallet (beta)", "Wallet broker", "Exact-input swaps and Hyperliquid perpetuals", "brokers.metamask"),
     ("Polymarket", "Prediction market", "Prediction contracts", "brokers.polymarket"),
     ("TopstepX (ProjectX)", "Futures broker", "CME futures", "brokers.projectx"),
     ("Tradier", "Stocks and options broker", "Stocks, ETFs, options", "brokers.tradier"),

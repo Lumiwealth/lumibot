@@ -3,6 +3,7 @@
 from importlib import import_module as _import_module
 
 _NAME_TO_MODULE = {
+    "MetaMask": "metamask",
     "Alpaca": "alpaca",
     "Bitunix": "bitunix",
     "Broker": "broker",

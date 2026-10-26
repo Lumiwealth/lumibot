@@ -202,6 +202,9 @@ class Asset:
         precision: str = None,
         underlying_asset: "Asset" = None,
         auto_expiry: str = None,
+        chain_id: int | None = None,
+        token_address: str | None = None,
+        decimals: int | None = None,
     ):
         """
         Parameters
@@ -266,6 +269,23 @@ class Asset:
         self.multiplier = multiplier if multiplier is not None else (
             100 if asset_type == self.AssetType.OPTION else 1
         )
+        # Onchain identity is explicit; a ticker alone cannot identify a token.
+        if any(v is not None for v in (chain_id, token_address, decimals)):
+            import re
+
+            if asset_type != self.AssetType.CRYPTO:
+                raise ValueError("Chain identity is supported only for crypto assets")
+            if type(chain_id) is not int or chain_id <= 0:
+                raise ValueError("chain_id must be a positive integer")
+            if not isinstance(token_address, str) or not (
+                token_address == "native" or re.fullmatch(r"0x[0-9a-fA-F]{40}", token_address)
+            ):
+                raise ValueError("token_address must be an EVM address or 'native'")
+            if type(decimals) is not int or not 0 <= decimals <= 36:
+                raise ValueError("decimals must be an integer between 0 and 36")
+        self.chain_id = chain_id
+        self.token_address = token_address.lower() if token_address else None
+        self.decimals = decimals
         self.precision = precision
         self.underlying_asset = underlying_asset
 
@@ -323,6 +343,8 @@ class Asset:
         self._cached_hash = hash(
             (self.symbol, self.asset_type, self.expiration, self.strike, self.right, auto_expiry_key)
         )
+        if self.chain_id is not None:
+            self._cached_hash = hash(("evm", self.chain_id, self.token_address))
         minimal_type = str(self.asset_type) if self.asset_type else "stock"
         minimal_dict = {
             "symbol": self.symbol,
@@ -353,6 +375,8 @@ class Asset:
                 )
             if self.multiplier and self.multiplier != 1:
                 minimal_dict["mult"] = self.multiplier
+        if self.chain_id is not None:
+            minimal_dict.update(chain_id=self.chain_id, token_address=self.token_address, decimals=self.decimals)
         self._cached_minimal_dict = minimal_dict
 
     @classmethod
@@ -434,6 +458,15 @@ class Asset:
         if self._cached_hash != other._cached_hash:
             return False
 
+        chain_id = getattr(self, "chain_id", None)
+        other_chain_id = getattr(other, "chain_id", None)
+        if chain_id is not None or other_chain_id is not None:
+            return (
+                chain_id == other_chain_id
+                and self.asset_type == other.asset_type
+                and getattr(self, "token_address", None) == getattr(other, "token_address", None)
+            )
+
         # Optimize: Check symbol first as it's most likely to differ
         # This avoids expensive enum comparisons when symbols don't match
         if self.symbol != other.symbol:
@@ -445,6 +478,7 @@ class Asset:
             and self.expiration == other.expiration
             and self.strike == other.strike
             and self.right == other.right
+
         ):
             return False
 
@@ -540,7 +574,7 @@ class Asset:
         return dict(self._cached_minimal_dict)
 
     def to_dict(self):
-        return {
+        result = {
             "symbol": self.symbol,
             "asset_type": self.asset_type,
             "expiration": self.expiration.strftime("%Y-%m-%d") if self.expiration else None,
@@ -552,6 +586,10 @@ class Asset:
             "underlying_asset": self.underlying_asset.to_dict() if self.underlying_asset else None,
         }
 
+        if getattr(self, "chain_id", None) is not None:
+            result.update(chain_id=self.chain_id, token_address=self.token_address, decimals=self.decimals)
+        return result
+
     @classmethod
     def from_dict(cls, data):
         return cls(
@@ -562,6 +600,9 @@ class Asset:
             right=data["right"],
             multiplier=data["multiplier"],
             leverage=data.get("leverage", 1),
+            chain_id=data.get("chain_id"),
+            token_address=data.get("token_address"),
+            decimals=data.get("decimals"),
             precision=data["precision"],
             underlying_asset=cls.from_dict(data["underlying_asset"]) if data["underlying_asset"] else None,
         )

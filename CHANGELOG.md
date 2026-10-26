@@ -1,6 +1,6 @@
 # Changelog
 
-## 4.6.31 - 2026-10-25
+## 4.6.31 - 2026-10-26
 
 - Agent replay identity includes dependency versions and callable implementations; explicit failed tool results no longer block fresh recovery, while compatible successful decisions remain reusable.
 ### Added
@@ -10,6 +10,8 @@
 - Kalshi account-read foundation: existing Broker/DataSource interfaces, shared native client, Ed25519 and RSA signing, demo/production configuration, scoped balances and public metadata. The account check uses normal Strategy cash/equity methods. Settlement and backtesting remain unfinished; funded-flat demo account values are verified. Current demo API `portfolio_value` excludes cash despite the older changelog description; total adds cash and holdings once.
 
 ### Fixed
+- Continuous strategies stop scheduler dispatch before joining running jobs, outside the scheduler's jobs lock. An iteration reading its next run can finish before broker cleanup, rather than deadlocking shutdown.
+- Release history checks isolate both shared-cache modes and preserve the same provider-instant and cutoff assertions with the cache's documented overlap bar.
 - Phemex derivatives retain settlement wallet selection and early balance snapshots; missing optional wallet metadata no longer narrows supported account discovery.
 - Agent subscription usage remains informational and qualification awaits completed model/tool work instead of imposing response or turn deadlines.
 - Alpaca polling delivers a confirmed fill even when account synchronization already copied its terminal status. Cumulative fills retain their unprocessed quantity and price, repeated observations do not duplicate callbacks, and SDK UUID identifiers match serialized identifiers.

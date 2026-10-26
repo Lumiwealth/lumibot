@@ -1251,7 +1251,11 @@ class Order:
 
         # calculate the weighted average filled price since options often encounter partial fills
         # Some Backtest runs are using a Decimal for the Transaction quantity, so we need to convert to float
-        return round(sum([float(x.price) * float(x.quantity) for x in self.transactions]) / float(self.quantity), 2)
+        filled = sum(float(x.quantity) for x in self.transactions)
+        if not filled:
+            return None
+        average = sum(float(x.price) * float(x.quantity) for x in self.transactions) / filled
+        return average if self.asset.asset_type == "prediction_contract" else round(average, 2)
 
     def is_active(self):
         """
@@ -1554,6 +1558,8 @@ class Order:
         if asset_data and isinstance(asset_data, dict):
             # Assuming Asset has its own from_dict method
             asset_obj = entities.Asset.from_dict(asset_data)
+        quote_data = order_dict.get('quote')
+        quote_obj = entities.Asset.from_dict(quote_data) if isinstance(quote_data, dict) else quote_data
 
         # Extract essential arguments, using None if the values are missing
         strategy = order_dict.get('strategy', None)
@@ -1565,6 +1571,7 @@ class Order:
             strategy=strategy,
             side=side,
             asset=asset_obj,  # Pass the constructed asset object
+            quote=quote_obj,
             quantity=quantity
         )
 
@@ -1575,7 +1582,7 @@ class Order:
 
         # Handle additional fields directly after the instance is created
         for key, value in order_dict.items():
-            if key not in ['strategy', 'side', 'asset', 'quantity'] and key not in non_serializable_keys:
+            if key not in ['strategy', 'side', 'asset', 'quote', 'quantity'] and key not in non_serializable_keys:
 
                 # Convert datetime strings back to datetime objects
                 if isinstance(value, str) and "T" in value:

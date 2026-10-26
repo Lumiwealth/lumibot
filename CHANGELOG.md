@@ -8,6 +8,7 @@
 
 - Agent replay identity includes dependency versions and callable implementations; explicit failed tool results no longer block fresh recovery, while compatible successful decisions remain reusable.
 ### Added
+- Optional selected-outcome identity on the existing prediction-contract asset, retained through orders, positions and strategy backups. Existing token-ID assets keep their wire shape and identity. Prediction partial-fill averages retain sub-cent precision and zero position marks survive serialization.
 - Kalshi account-read foundation: existing Broker/DataSource interfaces, shared native client, Ed25519 and RSA signing, demo/production configuration, scoped balances and public metadata. The account check uses normal Strategy cash/equity methods. Trading, outcome-aware positions, price history and backtesting remain unfinished; funded-flat demo account values are verified. Current demo API `portfolio_value` excludes cash despite the older changelog description; total adds cash and holdings once.
 
 ### Fixed

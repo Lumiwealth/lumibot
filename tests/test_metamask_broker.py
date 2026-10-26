@@ -8,7 +8,7 @@ import pytest
 import requests
 
 from lumibot.brokers import MetaMask
-from lumibot.entities import Asset, Order
+from lumibot.entities import Asset, Order, Position
 from lumibot.tools.metamask_client import MetaMaskAPIError, MetaMaskClient
 
 WALLET = "0x" + "1" * 40
@@ -51,6 +51,23 @@ def test_chain_identity_roundtrip_and_legacy_shape():
     assert native.to_minimal_dict()["chain_id"] == 11155111
     assert "chain_id" not in Asset("ETH", asset_type="crypto").to_dict()
     assert native != Asset("ETH", asset_type="crypto")
+
+
+def test_chain_identity_survives_shared_order_and_position_serialization():
+    asset = Asset("TOKEN", asset_type="crypto", chain_id=11155111, token_address="0x" + "2" * 40, decimals=6)
+    trade = Order("neutral", asset, Decimal("1.25"), "buy", quote=Asset("USDC", asset_type="crypto"))
+    restored_trade = Order.from_dict(trade.to_dict())
+    assert restored_trade.quote == trade.quote
+    restored = [
+        Asset.from_dict(asset.to_minimal_dict()),
+        restored_trade.asset,
+        Position.from_dict(Position("neutral", asset, Decimal("1.25")).to_dict()).asset,
+    ]
+    for value in restored:
+        assert value == asset
+        assert value.decimals == 6
+        assert value.chain_id == 11155111
+        assert value.token_address == asset.token_address
 
 
 @pytest.mark.parametrize(

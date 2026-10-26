@@ -127,6 +127,30 @@ def test_rebuilt_example_is_short_and_imports_only_lumibot(name):
         assert banned not in source, (name, banned)
 
 
+@pytest.mark.parametrize("name", ["ai_nancy_pelosi_trading_bot.py", "ai_nancy_pelosi_copy_trading_bot.py"])
+def test_disclosure_source_hints_render_with_native_adk_without_missing_state(name):
+    import asyncio
+    from google.adk.agents import LlmAgent
+    from google.adk.agents.invocation_context import InvocationContext
+    from google.adk.agents.readonly_context import ReadonlyContext
+    from google.adk.sessions import InMemorySessionService, Session
+    from google.adk.utils.instructions_utils import inject_session_state
+
+    # Actual SDK rendering catches URL placeholders mistaken for session keys
+    # before any provider call, without a scripted model or external request.
+    context = InvocationContext(
+        session_service=InMemorySessionService(), invocation_id="source_hint_preflight",
+        session=Session(id="source_hint", app_name="examples", user_id="synthetic", state={}),
+        agent=LlmAgent(name="example_preflight"),
+    )
+    prompts = [ast.literal_eval(keyword.value)
+               for call in ast.walk(_tree(name))
+               if isinstance(call, ast.Call) and ast.unparse(call.func) == "self.agents.create"
+               for keyword in call.keywords if keyword.arg == "system_prompt"]
+    for prompt in prompts:
+        assert asyncio.run(inject_session_state(prompt, ReadonlyContext(context))) == prompt
+
+
 @pytest.mark.parametrize("name", sorted(REBUILT))
 def test_rebuilt_example_has_exactly_one_trading_agent(name):
     _, _, browsing = REBUILT[name]
@@ -343,6 +367,8 @@ def test_pelosi_bots_run_both_agents_every_day_with_no_python_gate(name):
     strategy = object.__new__(strategy_class)
     strategy.vars = Vars()
     strategy.__dict__["parameters"] = dict(getattr(strategy_class, "parameters", {}) or {})
+    # The example now explicitly hands its real strategy clock to both agents.
+    strategy.get_datetime = lambda: datetime(2026, 1, 6, 11, 30, tzinfo=ZoneInfo("America/New_York"))
     for answer in ("Holdings: AAPL 60%, NVDA 40%.", "Same holdings as yesterday.", "Holdings: AAPL 60%, NVDA 40%."):
         calls = []
 
@@ -363,3 +389,29 @@ def test_pelosi_bots_run_both_agents_every_day_with_no_python_gate(name):
             del type(strategy).agents
         assert [call[0] for call in calls] == ["researcher", "trader"]
         assert answer in calls[1][1].values(), "the trader gets the research"
+
+
+@pytest.mark.parametrize("name", ["ai_nancy_pelosi_trading_bot.py", "ai_nancy_pelosi_copy_trading_bot.py"])
+def test_research_handoff_keeps_the_simulation_date_and_previous_portfolio(name, monkeypatch):
+    class_name = REBUILT[name][0]
+    module = __import__(f"lumibot.example_strategies.{name[:-3]}", fromlist=[class_name])
+    strategy_class = getattr(module, class_name)
+    strategy = object.__new__(strategy_class)
+    strategy.vars = Vars()
+    previous = "Complete portfolio as of 2026-01-05: AAPL 60%, NVDA 40%."
+    strategy.vars.set("last_research", previous)
+    strategy.__dict__["parameters"] = dict(getattr(strategy_class, "parameters", {}) or {})
+    when = datetime(2026, 1, 6, 11, 30, tzinfo=ZoneInfo("America/New_York"))
+    strategy.get_datetime = lambda: when
+    agents = _Agents()
+    monkeypatch.setattr(strategy_class, "agents", property(lambda self: agents), raising=False)
+
+    strategy.on_trading_iteration()
+
+    assert [call[0] for call in agents.calls] == ["researcher", "trader"]
+    assert agents.calls[0][1]["as_of"] == when.isoformat()
+    assert agents.calls[1][1]["as_of"] == when.isoformat()
+    assert agents.calls[0][1]["your_last_answer"] == previous
+    assert agents.calls[1][1]["previous_research"] == previous
+    assert agents.calls[1][1]["research"] == "researcher summary"
+    assert strategy.vars.get("last_research") == "researcher summary"

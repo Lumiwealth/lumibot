@@ -5,6 +5,7 @@
 - Agent replay identity includes dependency versions and callable implementations; explicit failed tool results no longer block fresh recovery, while compatible successful decisions remain reusable.
 ### Fixed
 - Alpaca polling delivers a confirmed fill even when account synchronization already copied its terminal status. Cumulative fills retain their unprocessed quantity and price, repeated observations do not duplicate callbacks, and SDK UUID identifiers match serialized identifiers.
+- Historical research can produce disclosed date, quantity and valuation estimates without demanding an exhaustive archive. Instructions retain known-future exclusions, separate snapshot and transaction dates, and use explicit UTC values for mixed-offset source tables.
 - Agent tools retain complete new results, including typed rows and error fields. Context-window pruning still removes older history only when the conversation is oversized.
 - `lumibot connect botspot` handles odd server answers cleanly: a JSON "Not Found" from a server without code login still falls back to the key page, a 429 or 5xx while waiting for approval keeps polling instead of stopping, a non-object answer gives a clear error instead of a traceback, and a missing or invalid `interval`/`expires_in` uses the RFC 8628 defaults.
 

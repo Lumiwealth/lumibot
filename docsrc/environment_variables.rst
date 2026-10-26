@@ -618,6 +618,24 @@ POLYMARKET_TEST_TOKEN_ID / POLYMARKET_LIVE_TRADING_ENABLED / POLYMARKET_TEST_MAX
   ``gtd-buy``, ``post-only-buy``, ``cancel-single``, ``cancel-multiple``, ``cancel-all``, ``cancel-market``, and
   ``--websocket``.
 
+Kalshi account connection (in development)
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+- ``TRADING_BROKER=kalshi`` selects the account-read foundation. Order execution,
+  positions, quotes, historical prices and backtesting are unfinished.
+- ``KALSHI_API_KEY_ID`` identifies the separately configured demo or production key.
+- ``KALSHI_PRIVATE_KEY`` supplies PEM text (Ed25519 or RSA); alternatively use
+  ``KALSHI_PRIVATE_KEY_PATH`` for your own protected PEM file. Inline text wins.
+- ``KALSHI_IS_DEMO`` defaults to ``true``; use ``false`` for a production connection.
+- ``KALSHI_SUBACCOUNT`` is optional; absence preserves the key's provider binding.
+  ``KALSHI_EXCHANGE_INDEX`` optionally scopes the account read to a shard.
+- ``KALSHI_BASE_URL`` optionally replaces the standard REST endpoint. Configured
+  query parameters are retained, and secrets in endpoint configuration are not logged.
+- ``DATA_SOURCE=kalshi`` optionally selects the metadata source. With the Kalshi
+  broker it reuses that broker's client.
+- Account-only check: ``python -m lumibot.example_strategies.kalshi_account_check``.
+  It uses the existing Strategy cash/equity methods and submits no orders.
+
 Polymarket CLOB implementation notes
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 

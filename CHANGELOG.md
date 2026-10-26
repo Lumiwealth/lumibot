@@ -3,6 +3,9 @@
 ## 4.6.31 - 2026-10-25
 
 - Agent replay identity includes dependency versions and callable implementations; explicit failed tool results no longer block fresh recovery, while compatible successful decisions remain reusable.
+### Added
+- Kalshi account-read foundation: existing Broker/DataSource interfaces, shared native client, Ed25519 and RSA signing, demo/production configuration, scoped balances and public metadata. The account check uses normal Strategy cash/equity methods. Trading, outcome-aware positions, price history and backtesting remain unfinished; signed demo qualification is pending.
+
 ### Fixed
 - Phemex derivatives retain settlement wallet selection and early balance snapshots; missing optional wallet metadata no longer narrows supported account discovery.
 - Agent subscription usage remains informational and qualification awaits completed model/tool work instead of imposing response or turn deadlines.

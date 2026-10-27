@@ -183,6 +183,7 @@ class StrategyExecutor(Thread):
         # APScheduler is only needed for continuous live loops and explicit cron callbacks.
         # Scheduled run_once deployments skip it, so create it lazily.
         self.scheduler = None
+        self._scheduler_job_executor = None
 
         # Initialize a target count and a current count for cron jobs to 0.
         # These are used to determine when to execute the on_trading_iteration method.
@@ -230,13 +231,14 @@ class StrategyExecutor(Thread):
             else self.strategy.on_trading_iteration
         )
 
-    @staticmethod
-    def _create_scheduler():
+    def _create_scheduler(self):
+        from apscheduler.executors.pool import ThreadPoolExecutor
         from apscheduler.jobstores.memory import MemoryJobStore
         from apscheduler.schedulers.background import BackgroundScheduler
 
         job_stores = {"default": MemoryJobStore(), "On_Trading_Iteration": MemoryJobStore()}
-        return BackgroundScheduler(jobstores=job_stores)
+        self._scheduler_job_executor = ThreadPoolExecutor()
+        return BackgroundScheduler(jobstores=job_stores, executors={"default": self._scheduler_job_executor})
 
     def ensure_scheduler(self):
         if self.scheduler is None:
@@ -1661,8 +1663,14 @@ class StrategyExecutor(Thread):
                 if self.scheduler.running:
                     # Remove all jobs first to prevent new scheduling
                     self.scheduler.remove_all_jobs()
-                    # Shutdown and wait for completion to prevent race conditions
-                    self.scheduler.shutdown(wait=True)
+                    # APScheduler holds its jobs lock while shutting down executors.
+                    # A running iteration can need that lock to read its next run.
+                    # Stop dispatch first, then join our workers outside scheduler locks.
+                    self.scheduler.shutdown(wait=False)
+                job_executor = getattr(self, "_scheduler_job_executor", None)
+                if job_executor is not None:
+                    job_executor.shutdown(wait=True)
+                    self._scheduler_job_executor = None
                 # Set scheduler to None to prevent reuse
                 self.scheduler = None
             except Exception as e:
@@ -2444,6 +2452,8 @@ class StrategyExecutor(Thread):
 
                 # Get the current jobs from the scheduler (may be None if gracefully exited previously)
                 if self.scheduler is None:
+                    if not self.should_continue:
+                        break
                     self.strategy.log_message("⚠️ Scheduler is None, attempting to recreate", color="yellow")
                     # Attempt to re-create and start the scheduler
                     self._setup_live_trading_scheduler()
@@ -2517,11 +2527,12 @@ class StrategyExecutor(Thread):
         # Check if scheduler object exists.
         from apscheduler.schedulers.background import BackgroundScheduler
 
-        if self.scheduler is None or not isinstance(self.scheduler, BackgroundScheduler):
+        scheduler = self.scheduler
+        if scheduler is None or not isinstance(scheduler, BackgroundScheduler):
             return None
 
         # Get the current jobs from the scheduler.
-        jobs = self.scheduler.get_jobs()
+        jobs = scheduler.get_jobs()
 
         if not jobs or len(jobs) == 0:
             return None

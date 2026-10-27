@@ -126,15 +126,15 @@ Local tests cover authorization separation, Host/Origin validation, idempotency,
 
 Before operational use, qualify a funded testnet wallet: login, create/list wallet, policy update/2FA, scoped-token issuance, balances, a small order and receipt, partial fills/cancel where available, explicit approval denial/expiry, service restart during pending work, and revocation. Test swaps only where MetaMask returns a supported route and reliable prices. Hyperliquid faucet eligibility is provider-specific; never fund mainnet just to make a test pass.
 
-### Qualification status, 2026-10-26
+### Qualification status, 2026-10-27
 
 | Path | Evidence | Remaining qualification |
 | --- | --- | --- |
-| Agent Wallet login, creation and Guard Mode | Two real, separate server wallets created and read back | Provider approval of a widened policy |
+| Agent Wallet login, creation and Guard Mode | Two real, separate server wallets created and read back; provider approved adding HyperEVM testnet to one wallet, with Guard Mode and zero rolling outflow unchanged | Funded execution under the reviewed policy |
 | Signing | Harmless message and EIP-712 verification signatures checked cryptographically against the real wallet; new signing boundary exercised | Funded venue actions, MFA denial and approval during an actual trade |
 | Account and market reads | Connected Python broker checks pass for both wallets, empty spot portfolios, marks and closed candles | Funded equity, positions, fills and fees |
 | Isolation and revocation | Wrong wallet/admin credentials denied; revoked and superseded tokens rejected; replacement token accepted | Deployment isolation for untrusted strategies |
-| Policy recovery | Real requests expired; expiry displayed after restart; approved/denied/expired regression coverage | User-completed approval and denial against provider |
+| Policy recovery | Real expired, approved and denied requests observed through the broker; email approval changed only the requested testnet chain, and email rejection left the other wallet's policy unchanged | Approval/denial during an actual funded trade and restart during a pending approval |
 | Perpetual execution | Real market quote and zero-collateral refusal before signing; duplicate ID returns the same refusal. Deterministic partial-fill, cancellation and unknown-outcome coverage | Real opening, closing, resting-order cancellation, partial fills and reconciliation across restart |
 | Spot execution | Exact-input guards and unsupported testnet route refusal | Mined receipts require a supported route; current provider offers no testnet swap route |
 | Browser wallet | Connect integration and local setup rendered | User wallet connection and user-approved funding transaction |

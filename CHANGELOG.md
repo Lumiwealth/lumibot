@@ -14,8 +14,10 @@
 - Documentation explains LumiBot and the AI strategy workflow before hosted setup, replaces duplicate client install badges with one setup-guide button, and keeps shared connection panels compact on desktop and mobile.
 - Option tool descriptions distinguish quote evidence from Greeks and require both for every final opening leg, including protective wings. Agent eval judging follows explicit rubric requirements without adding an unstated SQL cutoff predicate; a recorded safe date-only selection protects that distinction alongside existing unsafe-source controls.
 - Continuous strategies stop scheduler dispatch before joining running jobs, outside the scheduler's jobs lock. An iteration reading its next run can finish before broker cleanup, rather than deadlocking shutdown.
-- Release history checks isolate both shared-cache modes and preserve the same provider-instant and cutoff assertions with the cache's documented overlap bar.
+- Release history and pagination checks isolate both shared-cache modes, preserve provider-instant/cutoff assertions and verify actual sparse-history expansion without another synthetic client's cached bars.
 - Phemex derivatives retain settlement wallet selection and early balance snapshots; missing optional wallet metadata no longer narrows supported account discovery.
+- Phemex streamed account snapshots reconcile each settlement currency independently, retaining other collateral balances and open orders.
+- Bitunix order submission honors the account's existing hedge or one-way mode instead of changing it implicitly. Explicit mode changes remain available; close sides and hedge-leg selectors follow the confirmed mode.
 - Agent subscription usage remains informational and qualification awaits completed model/tool work instead of imposing response or turn deadlines.
 - Alpaca polling delivers a confirmed fill even when account synchronization already copied its terminal status. Cumulative fills retain their unprocessed quantity and price, repeated observations do not duplicate callbacks, and SDK UUID identifiers match serialized identifiers.
 - Historical research can produce disclosed date, quantity and valuation estimates without demanding an exhaustive archive. Instructions retain known-future exclusions, separate snapshot and transaction dates, and use explicit UTC values for mixed-offset source tables.

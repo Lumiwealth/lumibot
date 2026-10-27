@@ -546,3 +546,40 @@ def test_native_export_retains_original_header_and_explicit_allowance_amendment(
     receipt = make_receipt(metadata)
     assert receipt["call_allowance"] == {"max_calls": 1500, "consumed_calls": 12}
     assert metadata[1][0]["max_calls"] == 500
+
+
+def test_earlier_unsettled_judge_can_resume_without_replaying_settled_actor(native_metadata):
+    rows, calls, cases, versions, now = deepcopy(native_metadata)
+    row = rows[0]
+    unknown = {**calls[1], "id": str(uuid4()),
+               "scope": {**calls[1]["scope"], "role": "judge"},
+               "timestamp": (datetime.fromisoformat(row["started_at"]) + timedelta(seconds=0.5)).isoformat()}
+    calls.append(unknown)
+    receipt = build_with_calibration(rows, calls, cases, runtime_hash="source", versions=versions, now=now)
+    assert receipt["call_allowance"]["consumed_calls"] == 13
+    assert all(call["id"] != unknown["id"] for item in receipt["cases"]["contract"]["repetitions"] for call in item["calls"])
+    assert calls[-1] == unknown  # Unknown usage is retained, never settled or removed.
+
+
+@pytest.mark.parametrize("role", ["acting", "judge"])
+def test_unsettled_actor_or_newer_judge_still_blocks_resumed_export(native_metadata, role):
+    rows, calls, cases, versions, now = deepcopy(native_metadata)
+    row = rows[0]
+    calls.append({**calls[1], "id": str(uuid4()), "scope": {**calls[1]["scope"], "role": role},
+                  "timestamp": (datetime.fromisoformat(row["started_at"]) + timedelta(seconds=15)).isoformat()})
+    with pytest.raises(ValueError):
+        build_with_calibration(rows, calls, cases, runtime_hash="source", versions=versions, now=now)
+
+
+@pytest.mark.parametrize("damage", ["model", "case_id", "fingerprint"])
+def test_unknown_judge_exception_never_hides_foreign_scope_or_model(native_metadata, damage):
+    rows, calls, cases, versions, now = deepcopy(native_metadata)
+    old = {**calls[1], "id": str(uuid4()), "scope": {**calls[1]["scope"], "role": "judge"},
+           "timestamp": (datetime.fromisoformat(rows[0]["started_at"]) + timedelta(seconds=0.5)).isoformat()}
+    if damage == "model":
+        old["model"] = "other-model"
+    else:
+        old["scope"][damage] = "other-identity"
+    calls.append(old)
+    with pytest.raises(ValueError):
+        build_with_calibration(rows, calls, cases, runtime_hash="source", versions=versions, now=now)

@@ -163,6 +163,11 @@ def case_fingerprint(case: dict[str, Any], *, judge_model: str, runtime_hash: st
     return hashlib.sha256(stable_json(payload).encode("utf-8")).hexdigest()
 
 
+def actor_case_digest(case: dict[str, Any]) -> str:
+    return hashlib.sha256(stable_json({key: value for key, value in case.items()
+                                      if not key.startswith("_")}).encode()).hexdigest()
+
+
 def normalize_usage(usage: dict[str, Any] | None) -> dict[str, int]:
     usage = usage or {}
 
@@ -583,6 +588,11 @@ def _native_journal_failures(contract: dict[str, Any], transcript: dict[str, Any
             purpose = arguments.pop(purpose_parameter)
             if not isinstance(purpose, str):
                 raise ValueError("missing private purpose")
+            if declaration is not None:
+                # ADK FunctionTool._prepare_invocation_args filters undeclared
+                # fields before invoking the audited callable. Keep the raw
+                # request above; hash the actual declared invocation here.
+                arguments = {key: value for key, value in arguments.items() if key in properties}
             digest = hashlib.sha256(
                 json.dumps(
                     _json_safe_value({"args": [], "kwargs": arguments}),
@@ -1237,6 +1247,7 @@ def execute_repetition(
     budget: Any,
     run_id: str | None = None,
     started_at: str | None = None,
+    on_actor_completed: Any = None,
 ) -> dict[str, Any]:
     from lumibot.components.agents.runtime import GoogleADKRuntime
     from scripts.agent_eval_production_fixture import ProductionFixture
@@ -1383,41 +1394,67 @@ def execute_repetition(
             "external_writes": "fixture_only",
         }
     machine = score_machine_contract(case, transcript)
-    judge, judge_result, judge_seconds = run_judge(
-        case, transcript, judge_model,
-        budget.for_scope(case["id"], repetition, "judge", run_id=run_id, fingerprint=fingerprint)
-    )
     acting_model = str(case.get("model") or DEFAULT_ACTING_MODEL)
     acting_cost = estimate_cost(acting_model, combined_usage(*actor_results))
-    judge_cost = estimate_cost(judge_model, judge_result.usage)
-    passed = bool(machine["pass"] and judge["pass"])
-    return {
+    checkpoint = {
         "timestamp": utc_text(),
         "started_at": started_at,
         "run_id": run_id,
         "case_id": case["id"],
         "repetition": repetition,
         "fingerprint": fingerprint,
-        "status": "pass" if passed else "fail",
+        "status": "actor_completed",
+        "actor_completed": True,
+        "actor_case_digest": actor_case_digest(case),
         "acting_model": acting_model,
         "judge_model": judge_model,
         "machine": machine,
-        "judge": judge,
         "transcript": transcript,
-        "usage": {
-            "acting": acting_cost,
-            "judge": judge_cost,
-            "estimated_cost_usd": round(acting_cost["estimated_usd"] + judge_cost["estimated_usd"], 6),
-        },
+        "usage": {"acting": acting_cost},
         "timing_seconds": {
             "setup": round(setup_seconds, 3),
             "queue": 0.0,
             "model": round(model_seconds, 3),
-            "judge": round(judge_seconds, 3),
-            "total": round(setup_seconds + model_seconds + judge_seconds, 3),
+            "total": round(setup_seconds + model_seconds, 3),
         },
         "external_writes": "fixture_only",
     }
+    if on_actor_completed is not None:
+        on_actor_completed(checkpoint)
+    return resume_judge(case, checkpoint, judge_model=judge_model, budget=budget)
+
+
+def resume_judge(case: dict[str, Any], checkpoint: dict[str, Any], *, judge_model: str, budget: Any) -> dict[str, Any]:
+    """Reuse a completed actor's exact evidence; never rerun its tools or model."""
+    if (checkpoint.get("actor_completed") is not True
+            or checkpoint.get("status") not in {"actor_completed", "error"}
+            or checkpoint.get("case_id") != case["id"]
+            or checkpoint.get("actor_case_digest") != actor_case_digest(case)
+            or checkpoint.get("judge_model") != judge_model):
+        raise ValueError("Judge recovery requires the original completed actor, case and judge model")
+    started = time.perf_counter()
+    try:
+        judge, result, seconds = run_judge(
+            case, checkpoint["transcript"], judge_model,
+            budget.for_scope(case["id"], checkpoint["repetition"], "judge",
+                             run_id=checkpoint["run_id"], fingerprint=checkpoint["fingerprint"]),
+        )
+    except Exception as exc:
+        failure = harness_error_row(case["id"], checkpoint["repetition"], checkpoint["fingerprint"], exc,
+                                    run_id=checkpoint["run_id"], started_at=checkpoint["started_at"])
+        return {**checkpoint, **failure,
+                "timing_seconds": {**checkpoint.get("timing_seconds", {}),
+                                   "judge_interrupted": round(time.perf_counter() - started, 3)}}
+    judge_cost = estimate_cost(judge_model, result.usage)
+    acting_cost = checkpoint["usage"]["acting"]
+    # Prior errors stay in the append-only ledger, not as stale fields on a pass.
+    row = {key: value for key, value in checkpoint.items()
+           if key not in {"error", "error_code", "error_location", "http_status"}}
+    row.update(timestamp=utc_text(), status="pass" if checkpoint["machine"]["pass"] and judge["pass"] else "fail",
+               judge=judge, usage={"acting": acting_cost, "judge": judge_cost,
+                                   "estimated_cost_usd": round(acting_cost["estimated_usd"] + judge_cost["estimated_usd"], 6)},
+               timing_seconds={**checkpoint.get("timing_seconds", {}), "judge": round(seconds, 3)})
+    return row
 
 
 def harness_error_row(case_id: str, repetition: int, fingerprint: str, exc: BaseException,
@@ -1904,23 +1941,34 @@ def main() -> int:
         attempts = {}
         for case, repetition, fingerprint, _ in batch:
             began = utc_text()
-            row = {"timestamp": began, "started_at": began, "run_id": str(uuid.uuid4()),
-                   "case_id": case["id"], "repetition": repetition, "fingerprint": fingerprint,
-                   "status": "incomplete", "external_writes": "fixture_only"}
+            previous = latest_repetition_rows(existing_rows, case["id"], fingerprint).get(repetition, {})
+            if previous.get("actor_completed") is True and previous.get("status") in {"actor_completed", "error"}:
+                row = {**previous, "timestamp": began, "status": "actor_completed"}
+            else:
+                row = {"timestamp": began, "started_at": began, "run_id": str(uuid.uuid4()),
+                       "case_id": case["id"], "repetition": repetition, "fingerprint": fingerprint,
+                       "status": "incomplete", "external_writes": "fixture_only"}
             append_jsonl(ledger_path, row)
             started_rows.append(row)
             attempts[(case["id"], repetition)] = row
+
+        def run_attempt(case, repetition, fingerprint):
+            attempt = attempts[(case["id"], repetition)]
+            if attempt.get("actor_completed") is True:
+                return resume_judge(case, attempt, judge_model=args.judge_model, budget=budget)
+            return execute_repetition(
+                case, repetition=repetition, fingerprint=fingerprint, judge_model=args.judge_model, budget=budget,
+                run_id=attempt["run_id"], started_at=attempt["started_at"],
+                on_actor_completed=lambda checkpoint: append_jsonl(ledger_path, checkpoint),
+            )
+
         with concurrent.futures.ThreadPoolExecutor(max_workers=batch_size) as executor:
             futures = {
                 executor.submit(
-                    execute_repetition,
+                    run_attempt,
                     case,
-                    repetition=repetition,
-                    fingerprint=fingerprint,
-                    judge_model=args.judge_model,
-                    budget=budget,
-                    run_id=attempts[(case["id"], repetition)]["run_id"],
-                    started_at=attempts[(case["id"], repetition)]["started_at"],
+                    repetition,
+                    fingerprint,
                 ): (case["id"], repetition, reservation)
                 for case, repetition, fingerprint, reservation in batch
             }

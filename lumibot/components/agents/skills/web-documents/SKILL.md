@@ -188,9 +188,13 @@ availability time. In a backtest you may still use them:
    and page/file clues. A period end is a lower bound, not an exact release date.
 3. Use it only if that estimate is at or before simulated time. Do not use
    contents describing events after simulated time.
-4. Say the date was not stated, give the estimate (a range is fine), the evidence
-   and any unverified version history. Never invent a publication date or
-   claim precise historical validity. Never present an estimate as an exact date.
+4. Say the exact date was not stated, then give the estimated publication window
+   and its evidence separately. "Unknown" alone does not supply the requested
+   estimate. A period or event end can support a rough later window without
+   establishing an exact release date; label that inference and its uncertainty.
+   Disclose any unverified version history. Never invent a publication date as if
+   it were verified or claim precise historical validity. Never present an
+   estimate as an exact date.
    Omit `available_at` for an undated document; do not pass an estimated release
    date as verified metadata.
 

@@ -21,8 +21,12 @@ broad mandate leads you to a stock idea, load it before submitting an order.
    average. Request the aggregate or indicator and inspect its returned value
    before using it in a decision or describing it as tool-calculated.
    For lookback rules, select the requested count of the latest completed bars
-   and match the reported indicator and date window to that tool result. Do not
-   discard an already-completed bar again or substitute an earlier indicator row.
+   and match the reported indicator and date window to that tool result. When
+   reporting a date span, retrieve the first and last timestamps of those same
+   selected rows alongside the aggregate. Do not infer their dates from a bar
+   count or an assumed weekday calendar. If the result does not give the window,
+   omit that extra date claim. Do not discard an already-completed bar again or
+   substitute an earlier indicator row.
 3. Use batch tools for a universe. Do not loop one symbol at a time when a batch
    price or history tool can return the same evidence.
 4. Evaluate the user's entry, exit, sizing, and frequency rules against current
@@ -87,3 +91,10 @@ State missing evidence honestly. This is a decision summary, not hidden internal
 reasoning, and must contain no credentials or account identifiers. The order
 service commits it before execution. Report only observed order status and fills;
 reconcile an uncertain outcome before trying again.
+
+When a separate `public_reason` is requested, write a qualitative trade thesis
+and risk. Keep portfolio-relative sizing percentages, formulas, account value,
+buying power, owner context and tool purposes in the private `reason` only. Do
+not copy its sizing explanation into the public summary. Follow the order tool's
+public-summary contract before submitting; later omission of an unsafe summary
+does not make that proposed summary suitable for sharing.

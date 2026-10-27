@@ -307,3 +307,50 @@ def test_ccxt_history_still_raises_errors_unrelated_to_page_size(ccxt_cache_mode
 
     with pytest.raises(ccxt.AuthenticationError):
         source.get_barset_from_api(api, "BTC/USD", "10m", limit=20, end=end)
+
+
+class _KnownSymbolBitunixClient(_CappedBitunixClient):
+    """Return candles only for the exchange's real pair name, like Bitunix does."""
+
+    def get_kline(self, symbol, interval, start_time=None, end_time=None, limit=None):
+        response = super().get_kline(symbol, interval, start_time, end_time, limit)
+        if symbol != "BTCUSDT":
+            response["data"] = []
+        return response
+
+
+@pytest.mark.parametrize("symbol", ["BTC", "BTCUSDT", "BTC-USDT", "BTC/USDT"])
+def test_bitunix_spot_pair_name_is_not_doubled(symbol):
+    # A spot request may name the base coin or the whole pair. Either way the
+    # exchange must be asked for BTCUSDT, never BTCUSDTUSDT.
+    end = pd.Timestamp("2026-09-04T12:00:00Z")
+    source = _bitunix_source(end)
+    source.client = _KnownSymbolBitunixClient(end)
+
+    bars = source.get_historical_prices(
+        Asset(symbol, asset_type=Asset.AssetType.CRYPTO), length=5, timestep="minute",
+        quote=Asset("USDT", asset_type=Asset.AssetType.CRYPTO),
+    )
+
+    assert len(bars) == 5
+    assert {call["symbol"] for call in source.client.calls} == {"BTCUSDT"}
+
+
+@pytest.mark.parametrize(
+    ("timestep", "interval"),
+    [("15 minutes", "15m"), ("15 minute", "15m"), ("3 minutes", "3m"), ("2 hours", "2h"),
+     ("4 hours", "4h"), ("1 hour", "1h"), ("1 day", "1d"), ("15min", "15m")],
+)
+def test_bitunix_reads_lumibot_timestep_names(timestep, interval):
+    end = pd.Timestamp("2026-09-04T12:00:00Z")
+    source = _bitunix_source(end)
+
+    assert source._parse_source_timestep(timestep) == interval
+
+
+def test_bitunix_unknown_timestep_is_an_error_not_silent_minutes():
+    end = pd.Timestamp("2026-09-04T12:00:00Z")
+    source = _bitunix_source(end)
+
+    with pytest.raises(ValueError, match="7 minutes"):
+        source._parse_source_timestep("7 minutes")

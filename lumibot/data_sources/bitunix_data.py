@@ -112,6 +112,20 @@ class BitunixData(DataSource):
 
         return None
 
+    @staticmethod
+    def _spot_pair_symbol(base: str, quote: str) -> str:
+        """Bitunix pair name for a spot request.
+
+        Callers may name the base coin (``BTC``) or the whole pair (``BTCUSDT``,
+        ``BTC-USDT``, ``BTC/USDT``). Appending the quote to a full pair produced
+        names such as ``BTCUSDTUSDT`` that the exchange does not know.
+        """
+        compact = str(base).replace("/", "").replace("-", "").upper()
+        quote = str(quote).upper()
+        if len(compact) > len(quote) and compact.endswith(quote):
+            return compact
+        return f"{compact}{quote}"
+
     def _parse_source_timestep(self, timestep: str) -> str:
         """Convert Lumibot timestep to BitUnix interval format."""
         normalized = self.get_timestep_from_string(timestep)
@@ -134,9 +148,7 @@ class BitunixData(DataSource):
             return "4h"
         elif normalized == "day":
             return "1d"
-        else:
-            # Default to 1m if unknown
-            return "1m"
+        raise ValueError(f"Bitunix has no candle interval for timestep {timestep!r}")
 
     def supports_native_timestep(self, timestep: str) -> bool:
         """Return whether Bitunix can serve the requested interval directly."""
@@ -165,7 +177,7 @@ class BitunixData(DataSource):
         if asset.asset_type in (Asset.AssetType.FUTURE, Asset.AssetType.CRYPTO_FUTURE):
             symbol = asset.symbol
         else:
-            symbol = f"{asset.symbol}{quote.symbol}"
+            symbol = self._spot_pair_symbol(asset.symbol, quote.symbol)
 
         # Add to tracked symbols
         self.client_symbols.add(symbol)
@@ -311,9 +323,21 @@ class BitunixData(DataSource):
         """
         Maps a string representation of a timestep to the normalized timestep.
         """
-        ts = timestep.lower().strip()
+        ts = " ".join(str(timestep).lower().split())
+        # LumiBot names timesteps "15 minutes", "2 hours", "day"; also accept
+        # singular forms and "15min". An unknown timestep is an error: falling
+        # back to one-minute bars silently mislabeled every larger request.
+        aliases = {"1 minute": "minute", "1 hour": "hour", "1 day": "day"}
+        ts = aliases.get(ts, ts)
+        for unit_alias, unit in (("min", "minutes"), ("minute", "minutes"), ("hour", "hours")):
+            if ts.endswith(unit_alias) and not ts.endswith(unit):
+                number = ts[: -len(unit_alias)].strip()
+                if number.isdigit():
+                    ts = f"{number} {unit}"
         for mapping in self.TIMESTEP_MAPPING:
-            if ts in [r.lower() for r in mapping["representations"]]:
+            if ts == str(mapping["timestep"]).lower() or ts in [r.lower() for r in mapping["representations"]]:
                 return mapping["timestep"]
-        # Default to "minute" if not found
-        return "minute"
+        raise ValueError(
+            f"Bitunix has no candle interval for timestep {timestep!r}; supported: "
+            + ", ".join(str(m["timestep"]) for m in self.TIMESTEP_MAPPING)
+        )

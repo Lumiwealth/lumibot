@@ -206,6 +206,7 @@ class Asset:
         underlying_asset: "Asset" = None,
         auto_expiry: str = None,
         outcome: str | None = None,
+        contract_spec=None,
     ):
         """
         Parameters
@@ -276,6 +277,16 @@ class Asset:
 
         # Leverage for futures assets (ignored for other asset types)
         self.leverage = leverage if asset_type in (self.AssetType.FUTURE, self.AssetType.CRYPTO_FUTURE) else 1
+        self.contract_spec = contract_spec
+        if contract_spec is not None:
+            from .contract import ContractSpec
+
+            if isinstance(contract_spec, dict):
+                self.contract_spec = ContractSpec.from_dict(contract_spec)
+            elif not isinstance(contract_spec, ContractSpec):
+                raise TypeError("contract_spec must be ContractSpec or its serialized dictionary")
+            if multiplier is None and self.contract_spec.quantity_unit == "contracts":
+                self.multiplier = float(self.contract_spec.contract_size)
 
         # If the underlying asset is set but the symbol is not, set the symbol to the underlying asset symbol
         if self.underlying_asset is not None and self.symbol is None:
@@ -565,6 +576,8 @@ class Asset:
 
         if getattr(self, "outcome", None) is not None:
             result["outcome"] = self.outcome
+        if getattr(self, "contract_spec", None) is not None:
+            result["contract_spec"] = self.contract_spec.to_dict()
         return result
 
     @classmethod
@@ -580,6 +593,7 @@ class Asset:
             precision=data.get("precision"),
             underlying_asset=cls.from_dict(data["underlying_asset"]) if data.get("underlying_asset") else None,
             outcome=data.get("outcome"),
+            contract_spec=data.get("contract_spec"),
         )
 
     def _calculate_auto_expiry(self, auto_expiry):

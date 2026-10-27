@@ -254,3 +254,25 @@ def resolve_ccxt_market_symbol(markets: Optional[dict], symbol: object, *, excha
         if candidate in market_map:
             return candidate
     return None
+
+
+def resolve_ccxt_instrument_market(markets, asset, quote=None, *, exchange_id=None):
+    """Resolve an instrument with identical spot/contract rules in live and history."""
+    raw = getattr(asset, "symbol", asset)
+    quote_symbol = getattr(quote, "symbol", quote if isinstance(quote, str) else None)
+    symbol = build_ccxt_crypto_symbol(raw, quote_symbol)
+    resolved = resolve_ccxt_market_symbol(markets, symbol, exchange_id=exchange_id)
+    contract = getattr(asset, "asset_type", None) == "crypto_future"
+    if resolved and (not contract or markets[resolved].get("contract")):
+        return markets[resolved]
+    if contract and ":" not in symbol:
+        matches = [market for market in markets.values()
+                   if market.get("contract") and market["symbol"].split(":", 1)[0] == symbol]
+        if len(matches) == 1:
+            return matches[0]
+        perpetuals = [market for market in matches if market.get("swap")]
+        if len(perpetuals) == 1:
+            return perpetuals[0]
+        if len(matches) > 1:
+            raise ValueError(f"Multiple settlement contracts for {symbol}; use the full CCXT symbol")
+    raise ValueError(f"No CCXT market for {symbol}")

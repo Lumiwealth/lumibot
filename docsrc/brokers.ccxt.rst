@@ -216,6 +216,20 @@ exposure is quantity times contract size. ``broker.get_contract_exposure(asset,
 quantity, price)`` returns both exposures and the settlement currency.
 Existing broker-specific quantity conventions are unchanged.
 
+For portable sizing, ``self.get_quantity_for_notional(asset, notional, price)``
+returns the selected broker's native quantity for a notional in the instrument's
+quote currency. CCXT derivatives use contracts; Bitunix retains base-coin units.
+For example, the same 1,000 quote-unit exposure at a price of 50,000 is 20
+contracts when each linear contract represents 0.001 BTC, 1,000 inverse
+contracts when each represents 1 quote unit, or 0.02 BTC in base-coin units.
+Provider precision and minimums still apply when submitting the order.
+
+``self.get_contract_exposure(asset, quantity, price)`` reports base/quote
+exposure and settlement. CCXT's ``broker.get_asset(symbol)`` attaches a
+serializable ``ContractSpec`` to the asset, preserving the terms when saving
+orders or moving the instrument to a historical simulation. Historical CCXT
+candle requests and cache keys preserve the full settlement-aware symbol.
+
 ``position_side="long"`` and ``position_side="short"`` identify separate hedge
 legs. For example, an account can retain ten long contracts and four short
 contracts as two positions. ``self.get_position(contract, position_side="short")``

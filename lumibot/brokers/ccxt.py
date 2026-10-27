@@ -86,19 +86,14 @@ class Ccxt(Broker):
             return Asset(market["base"], asset_type="option", expiration=expiry, strike=strike,
                          right=str(market["optionType"]).upper(), multiplier=market.get("contractSize") or 1)
         if market.get("contract"):
-            return Asset(market["symbol"], asset_type="crypto_future", multiplier=market["contractSize"])
+            return Asset(market["symbol"], asset_type="crypto_future", multiplier=market["contractSize"],
+                         contract_spec=self.get_contract_spec(market["symbol"]))
         return Asset(market["base"], asset_type="crypto")
 
-    def get_contract_exposure(self, asset, quantity, price):
-        market = self.get_market(asset)
-        contracts, size, price = Decimal(str(quantity)), Decimal(str(market["contractSize"])), Decimal(str(price))
-        if market.get("inverse"):
-            quote = contracts * size
-            base = quote / price
-        else:
-            base = contracts * size
-            quote = base * price
-        return {"base": base, "quote": quote, "settle": market["settle"], "contract_size": size}
+    def get_contract_spec(self, asset, quote=None):
+        from lumibot.entities import ContractSpec
+
+        return ContractSpec.from_ccxt_market(self.get_market(asset, quote))
 
     @staticmethod
     def _position_side(response):

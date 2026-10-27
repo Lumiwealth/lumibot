@@ -36,6 +36,28 @@ The ``leverage`` constructor argument is preserved for both ``future`` and
 Other asset types use leverage 1. This value expresses requested leverage;
 the broker determines whether it can apply it.
 
+**Perpetual contract terms**
+
+``crypto_future`` assets can carry ``contract_spec=ContractSpec(...)``. The
+terms identify base, quote and settlement currencies, contract size, inverse
+versus linear P&L, and whether native order quantities are contracts or base
+coin. CCXT's ``broker.get_asset(symbol)`` obtains these terms from provider
+metadata. They survive ``Asset.to_dict()`` / ``Asset.from_dict()`` without
+changing the asset's existing identity or silently reinterpreting quantities.
+
+.. code-block:: python
+
+   from lumibot.entities import Asset, ContractSpec
+
+   spec = ContractSpec("BTC", "USDC", "USDC", contract_size="0.001")
+   asset = Asset("BTC/USDC:USDC", "crypto_future", contract_spec=spec)
+   quantity = spec.quantity_for_notional("1000", "50000")  # 20 contracts
+
+Position mode and margin mode belong to the account/order configuration rather
+than these instrument terms. ``ContractSpec.pnl()`` computes signed linear or
+inverse P&L before fees/funding, in ``spec.pnl_currency``. Accounting converts
+that amount to the settlement/reporting currency where necessary.
+
 **Forex Only**
 
 * symbol(str): Currency base: eg: EUR

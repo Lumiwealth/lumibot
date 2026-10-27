@@ -240,3 +240,70 @@ def test_ccxt_expands_lookback_for_sparse_history(ccxt_cache_mode):
 
     assert len(frame) == 5
     assert min(api.calls) <= api.end_ms - 40 * 60_000
+
+
+class _PageSizeStrictCcxtApi(_SparseCcxtApi):
+    """Reject any page size outside a fixed list, the way some exchanges do.
+
+    Some exchanges accept only a short list of candle counts per request (for
+    example 5, 10, 50, 100, 500, 1000) and answer anything else with a generic
+    "bad request". History must still load for every CCXT exchange, so the
+    pager has to find a page size the exchange accepts instead of failing.
+    """
+
+    id = "strict"
+    accepted = {5, 10, 50, 100, 500, 1000}
+
+    def fetch_ohlcv(self, symbol, freq, since, limit, params):
+        import ccxt
+
+        if limit not in self.accepted:
+            raise ccxt.BadRequest('strict {"code":30000,"msg":"Please double check input arguments"}')
+        return super().fetch_ohlcv(symbol, freq, since, limit, params)
+
+
+class _AdvertisedLimitCcxtApi(_SparseCcxtApi):
+    """An exchange that publishes its maximum page size through CCXT features."""
+
+    id = "advertised"
+    features = {"spot": {"fetchOHLCV": {"limit": 200}}}
+    markets = {"BTC/USD": {"type": "spot", "spot": True}}
+
+    def fetch_ohlcv(self, symbol, freq, since, limit, params):
+        import ccxt
+
+        if limit > 200:
+            raise ccxt.BadRequest("advertised limit exceeded")
+        return super().fetch_ohlcv(symbol, freq, since, limit, params)
+
+
+@pytest.mark.parametrize("api_class", [_PageSizeStrictCcxtApi, _AdvertisedLimitCcxtApi])
+def test_ccxt_history_finds_a_page_size_the_exchange_accepts(ccxt_cache_mode, api_class):
+    end = datetime.datetime(2026, 9, 4, 12, 0)
+    api = api_class(end)
+    source = CcxtData.__new__(CcxtData)
+    source.api = api
+    source._ensure_markets_loaded = lambda: None
+
+    frame = source.get_barset_from_api(api, "BTC/USD", "10m", limit=20, end=end)
+
+    assert len(frame) == 20
+
+
+def test_ccxt_history_still_raises_errors_unrelated_to_page_size(ccxt_cache_mode):
+    import ccxt
+
+    class _BrokenApi(_SparseCcxtApi):
+        id = "broken"
+
+        def fetch_ohlcv(self, symbol, freq, since, limit, params):
+            raise ccxt.AuthenticationError("bad key")
+
+    end = datetime.datetime(2026, 9, 4, 12, 0)
+    api = _BrokenApi(end)
+    source = CcxtData.__new__(CcxtData)
+    source.api = api
+    source._ensure_markets_loaded = lambda: None
+
+    with pytest.raises(ccxt.AuthenticationError):
+        source.get_barset_from_api(api, "BTC/USD", "10m", limit=20, end=end)

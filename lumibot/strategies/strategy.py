@@ -575,6 +575,7 @@ class Strategy(_Strategy):
         custom_params: dict = None,
         position_side: str = None,
         position_id: str = None,
+        reduce_only: bool = False,
     ):
         # noinspection PyShadowingNames,PyUnresolvedReferences
         """Creates a new order for this specific strategy. Once created, an order must still be submitted.
@@ -926,6 +927,7 @@ class Strategy(_Strategy):
             custom_params=custom_params,
             position_side=position_side,
             position_id=position_id,
+            reduce_only=reduce_only,
             identifier=identifier,
         )
 

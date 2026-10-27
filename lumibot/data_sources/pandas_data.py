@@ -472,6 +472,16 @@ class PandasData(DataSourceBacktesting):
 
         candidates = []
 
+        # Instrument prices retain their own quote currency even when a
+        # perpetual settles or the strategy reports in a different currency.
+        spec = getattr(asset_lookup, "contract_spec", None)
+        if requested_asset_type == "crypto_future" and spec is not None:
+            instrument_quote = Asset(spec.quote, "crypto")
+            if timestep is not None:
+                candidates.append((asset_lookup, instrument_quote, timestep))
+                candidates.append((asset_lookup, instrument_quote, normalized_key))
+            candidates.append((asset_lookup, instrument_quote))
+
         if timestep is not None:
             base_quote = quote_lookup if quote_lookup is not None else _USD_FOREX
             candidates.append((asset_lookup, base_quote, timestep))

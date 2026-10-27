@@ -190,6 +190,8 @@ class BacktestingBroker(Broker):
         self._next_trading_day_cache_value = None
         # Track per-strategy futures lots for accurate margin/P&L when flipping
         self._futures_lot_ledgers = defaultdict(list)
+        from lumibot.backtesting.perpetuals import PerpetualAccount
+        self._perpetuals = PerpetualAccount(self)
 
         # Backtest-only trade audit telemetry (NVDA/SPX investigations).
         #
@@ -1000,7 +1002,7 @@ class BacktestingBroker(Broker):
 
             return None
 
-        existing_position = self.get_tracked_position(order.strategy, order.asset)
+        existing_position = self._position_for_order(order)
         previous_quantity = existing_position._quantity if existing_position is not None else Decimal(0)
         previous_average = existing_position.avg_fill_price if existing_position is not None else None
 
@@ -1028,7 +1030,7 @@ class BacktestingBroker(Broker):
                 elif getattr(order, "side", None) in {Order.OrderSide.BUY_TO_COVER, Order.OrderSide.BUY_TO_CLOSE}:
                     cancel_sides = {Order.OrderSide.BUY_TO_COVER, Order.OrderSide.BUY_TO_CLOSE}
 
-                if cancel_sides is not None:
+                if cancel_sides is not None and order.asset.asset_type != Asset.AssetType.CRYPTO_FUTURE:
                     self._cancel_open_orders_for_asset(
                         order.strategy,
                         order.asset,
@@ -1040,6 +1042,8 @@ class BacktestingBroker(Broker):
             self._filled_positions.append(position)  # New position, add it to the tracker
 
         position = self._normalize_prediction_net_position(order, price, position)
+        if order.asset.asset_type == Asset.AssetType.CRYPTO_FUTURE:
+            self._perpetuals.sync_position(position)
 
         # If this is a child order, update the parent order status if all children are filled or cancelled.
         if order.parent_identifier:
@@ -1096,7 +1100,7 @@ class BacktestingBroker(Broker):
         BackTesting needs to create/update positions when orders are partially filled becuase there is no broker
         to do it
         """
-        existing_position = self.get_tracked_position(order.strategy, order.asset)
+        existing_position = self._position_for_order(order)
         previous_quantity = existing_position._quantity if existing_position is not None else Decimal(0)
         previous_average = existing_position.avg_fill_price if existing_position is not None else None
         stored_order, position = super()._process_partially_filled_order(order, price, quantity)
@@ -1110,6 +1114,8 @@ class BacktestingBroker(Broker):
         if self._prediction_opposite(order.asset) is not None:
             order.avg_fill_price = order.get_fill_price()
         position = self._normalize_prediction_net_position(order, price, position)
+        if order.asset.asset_type == Asset.AssetType.CRYPTO_FUTURE:
+            self._perpetuals.sync_position(position)
         return stored_order, position
 
     def _prediction_opposite(self, asset):
@@ -1931,6 +1937,16 @@ class BacktestingBroker(Broker):
         filled_quantity: Decimal,
         strategy,
     ) -> None:
+        is_perpetual = getattr(order.asset, "asset_type", None) == Asset.AssetType.CRYPTO_FUTURE
+        capped_perpetual = False
+        if is_perpetual:
+            try:
+                actual, settled_fee = self._perpetuals.fill(strategy, order, price, filled_quantity)
+            except ValueError as exc:
+                self._process_trade_event(order, self.ERROR_ORDER, error=exc)
+                return
+            capped_perpetual = actual < Decimal(str(filled_quantity))
+            filled_quantity = actual
         parent_identifier = getattr(order, "parent_identifier", None)
 
         if order.dependent_order:
@@ -1949,8 +1965,12 @@ class BacktestingBroker(Broker):
         partial_model_fill = (
             callable(getattr(self.data_source, "get_backtest_fill_quantity", None))
             and Decimal(str(filled_quantity)) < Decimal(str(order.quantity))
-        )
-        if partial_model_fill:
+        ) or capped_perpetual
+        if is_perpetual:
+            # Perpetual fees were applied in the actual settlement wallet.
+            trade_cost = settled_fee
+            order.trade_cost_currency = self.get_contract_spec(order.asset).settle
+        elif partial_model_fill:
             trade_cost = self.calculate_trade_cost(order, strategy, price, quantity=filled_quantity)
         else:
             trade_cost = Decimal("0") if is_multileg_parent else self.calculate_trade_cost(order, strategy, price)
@@ -2033,9 +2053,14 @@ class BacktestingBroker(Broker):
             and not (
                 (asset_type == Asset.AssetType.CRYPTO and quote_asset_type == Asset.AssetType.FOREX)
                 or asset_type == Asset.AssetType.PREDICTION_CONTRACT
+                or is_perpetual
             )
         ):
             self._apply_trade_cost(strategy, trade_cost)
+
+        if capped_perpetual:
+            # Record the actual reduction, then cancel the unfillable remainder.
+            self._process_trade_event(order, self.CANCELED_ORDER)
 
         # If this was an OCO child fill, mark the OCO parent filled after the child
         # fill is recorded so legacy ordering expectations remain stable.
@@ -2067,7 +2092,7 @@ class BacktestingBroker(Broker):
         if asset_type == Asset.AssetType.PREDICTION_CONTRACT:
             return
 
-        if asset_type in (Asset.AssetType.FUTURE, Asset.AssetType.CONT_FUTURE):
+        if asset_type in (Asset.AssetType.FUTURE, Asset.AssetType.CONT_FUTURE, Asset.AssetType.CRYPTO_FUTURE):
             return
 
         # For other asset types (crypto+crypto, stocks, etc.), use the original position-based processing
@@ -2162,6 +2187,9 @@ class BacktestingBroker(Broker):
             return Decimal("0")
 
         quantity = order.quantity if quantity is None else quantity
+        notional = Decimal(str(price)) * Decimal(str(quantity))
+        if order.asset.asset_type == Asset.AssetType.CRYPTO_FUTURE:
+            notional = abs(self.get_contract_exposure(order.asset, quantity, price)["quote"])
         trade_cost = Decimal("0")
         trading_fees = []
         side_value = str(order.side).lower() if order.side is not None else ""
@@ -2178,11 +2206,11 @@ class BacktestingBroker(Broker):
         for trading_fee in trading_fees:
             if trading_fee.taker is True and order_type_value in {"market", "stop"}:
                 trade_cost += trading_fee.flat_fee
-                trade_cost += Decimal(str(price)) * Decimal(str(quantity)) * trading_fee.percent_fee
+                trade_cost += notional * trading_fee.percent_fee
                 trade_cost += Decimal(str(quantity)) * trading_fee.per_contract_fee
             elif trading_fee.maker is True and order_type_value in {"limit", "stop_limit", "smart_limit"}:
                 trade_cost += trading_fee.flat_fee
-                trade_cost += Decimal(str(price)) * Decimal(str(quantity)) * trading_fee.percent_fee
+                trade_cost += notional * trading_fee.percent_fee
                 trade_cost += Decimal(str(quantity)) * trading_fee.per_contract_fee
 
         return trade_cost

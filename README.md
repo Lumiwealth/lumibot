@@ -146,7 +146,7 @@ MyStrategy.backtest(
 python my_strategy.py
 ```
 
-### Build a hybrid strategy
+## Build a hybrid strategy
 
 Use Python for the rules you want to control directly and an agent for the
 research or decision you want it to handle. A moving-average entry can trigger

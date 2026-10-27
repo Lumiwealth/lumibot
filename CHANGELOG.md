@@ -35,7 +35,7 @@
 
 Deploy marker: `51f8a06601c8ff44d5d34a7d7128dd33c7926110`.
 
-Qualification: 6,315 offline unit tests, 316 offline backtests and 719 affected documentation checks passed. The native qualification receipt verifies 105 actor trials and 92 judge controls on the pinned SDK tuple.
+Qualification: 6,330 offline unit tests, 316 offline backtests and 719 affected documentation checks passed. Repaired-source native qualification verifies 105 actor trials and 92 judge controls on the pinned SDK tuple; the original provenance is retained. An isolated wheel install preserves selected YES/NO identity and standard reduce-only intent, with all 323 installed dependencies compatible.
 
 ## 4.6.30 - 2026-10-24
 

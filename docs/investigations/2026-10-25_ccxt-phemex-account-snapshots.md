@@ -55,3 +55,27 @@ for every strategy and supported collateral currency, independent of any user.
 The complete affected CCXT, Bitunix and derivative-position group passed 1,055
 checks with two existing skips and 17 opt-in API/downloader cases deselected.
 It does not turn an acknowledgment into a complete account snapshot.
+
+## Startup and reconnect reconciliation
+
+An AOP subscription acknowledgment now establishes transport separately from
+account data. Unique JSON-RPC request IDs distinguish concurrently started
+private families. Order startup no longer requires an initial AOP snapshot that
+the provider does not guarantee for an empty collateral account.
+
+Phemex open-order REST endpoints require a symbol and AOP has no account-wide
+snapshot completion marker. After subscriptions are acknowledged, discover open
+orders for every metadata-active instrument once. This can require many
+rate-limited requests on initial startup. Normal iterations use the managed
+registry instead of repeating the catalog scan. A transport disconnect
+invalidates the bootstrap, so recovery repeats complete REST discovery.
+
+REST discovery does not overwrite newer stream events: buffer native messages
+while discovery runs, install the complete successful REST result under the
+broker lock, then replay those messages in arrival order. A failed scan leaves
+the previously observed state intact and raises, instead of publishing a flat
+account. External orders and conditional orders use the same discovery path.
+An event-barrier regression places an empty collateral snapshot between a REST
+request and its stale response to prove the deleted order cannot reappear.
+Authenticated exchange qualification is separate from these transport and
+reconciliation contracts.

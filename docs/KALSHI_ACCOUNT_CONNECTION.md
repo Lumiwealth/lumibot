@@ -261,7 +261,8 @@ asset or empty history stays empty and does not break unrelated loaded assets.
 ### Clock, fills, positions and settlement
 
 - Completed period-end candles become visible only when the simulated clock
-  reaches their timestamp. Source frames retain gaps and missing trade OHLC;
+  reaches their timestamp. Negative history offsets are capped at that clock;
+  normal past shifts remain available. Source frames retain gaps and missing trade OHLC;
   Pandas forward-fill repair is not used. Quotes use observed candle-end bid/ask;
   last price uses the most recent observed trade close. They never fetch today's
   live quote during replay. Coarser requests aggregate only completed windows;
@@ -315,7 +316,7 @@ full-depth liquidity and queue priority need separate data and qualification.
 Choose dates and assumptions accordingly and report those limits with results.
 No synthetic resolution candle or end-of-test payout is inserted.
 
-Backtest qualification: 489 affected offline contracts passed, including existing
+Backtest qualification: 490 affected offline contracts passed, including existing
 Polymarket, entity/serialization, Pandas, broker execution and cash-financing
 coverage. Five read-only native checks passed: populated current/archive history
 in demo/public production plus a complete normal Strategy backtest loading real

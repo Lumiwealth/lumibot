@@ -113,13 +113,15 @@ class KalshiBacktesting(PandasData):
         self, asset, length, timestep="", timeshift=None, quote=None, exchange=None, include_after_hours=True, **kwargs
     ):
         period, _ = KalshiData._history_period(timestep or f"{self._prediction_period}min")
-        end = KalshiData._utc(self.get_datetime())
+        now = end = KalshiData._utc(self.get_datetime())
         if timeshift is not None:
             end -= (
                 pd.Timedelta(minutes=period * timeshift)
                 if isinstance(timeshift, (int, float))
                 else pd.Timedelta(timeshift)
             )
+        # A negative offset cannot make a preloaded future candle observable.
+        end = min(end, now)
         frame = self._available(asset, end).copy()
         if period > self._prediction_period and not frame.empty:
             aggregation = {

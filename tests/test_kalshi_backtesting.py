@@ -358,3 +358,13 @@ def test_normal_runner_records_settlement_without_an_external_cash_flow(monkeypa
     assert strategy.cash == pytest.approx(101 - fills[0].avg_fill_price)
     cash_events = events.loc[events["event_kind"] == "cash_event"]
     assert len(cash_events) == 1 and not cash_events.iloc[0]["is_external_cash_flow"]
+
+
+def test_negative_history_timeshift_cannot_expose_a_future_completed_candle():
+    source = make_source()
+    now = pd.Timestamp("2026-01-01T12:00:30Z")
+    source._update_datetime(now.to_pydatetime())
+    for shift in (-1, pd.Timedelta(minutes=-2)):
+        frame = source.get_historical_prices(asset(), 100, timeshift=shift).df
+        assert frame.index.max() <= now
+        assert list(frame["close"]) == [0.4]

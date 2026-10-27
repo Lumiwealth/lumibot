@@ -10,6 +10,8 @@ from scripts import agent_eval_source_compatibility as scope
 def test_scope_rejects_an_agent_or_fixture_change():
     for path in ('lumibot/components/agents/runtime.py', 'scripts/run_agent_evals.py',
                  'scripts/agent_eval_production_fixture.py', 'lumibot/strategies/strategy.py',
+                 'lumibot/backtesting/backtesting_broker.py', 'lumibot/data_sources/pandas_data.py',
+                 'lumibot/components/agents/builtins.py', 'tests/fixtures/agent_judge_calibration.json',
                  'requirements_agent_evals.txt'):
         with pytest.raises(ValueError, match='affects model qualification'):
             scope.check_change(path, b'before', b'after')
@@ -17,9 +19,30 @@ def test_scope_rejects_an_agent_or_fixture_change():
 
 def test_scope_accepts_only_unused_provider_modules_and_package_version():
     scope.check_change('lumibot/tools/ibkr_helper.py', b'before', b'after')
+    for path in ('lumibot/trading_builtins/ccxt_stream.py', 'lumibot/brokers/bitunix.py',
+                 'lumibot/tools/bitunix_helpers.py'):
+        scope.check_change(path, b'before', b'after')
     scope.check_change('setup.py', b'version="4.6.23",\nrequires=[]', b'version="4.6.24",\nrequires=[]')
     with pytest.raises(ValueError):
         scope.check_change('setup.py', b'version="4.6.23",\nrequires=[]', b'version="4.6.24",\nrequires=["x"]')
+
+
+def test_native_catalog_bindings_use_pandas_backtesting_not_live_provider_adapters():
+    from lumibot.backtesting import BacktestingBroker, PandasDataBacktesting
+    from scripts import run_agent_evals as evals
+    from scripts.agent_eval_isolation import fixture_network_boundary
+    from scripts.agent_eval_production_fixture import ProductionFixture
+
+    cases = {case['fixture']: case for case in evals.load_cases()}
+    with fixture_network_boundary():
+        for name, case in cases.items():
+            fixture = ProductionFixture(evals.build_fixture(name))
+            try:
+                assert isinstance(fixture.broker, BacktestingBroker), name
+                assert isinstance(fixture.broker.data_source, PandasDataBacktesting), name
+                fixture.create_agent(case, None)._ensure_bound_tools()
+            finally:
+                fixture.close()
 
 
 def test_source_files_cover_the_existing_runtime_fingerprint(monkeypatch):

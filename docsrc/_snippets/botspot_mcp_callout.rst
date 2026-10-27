@@ -1,20 +1,17 @@
-.. Shared BotSpot MCP callout. Included near the top of broker, exchange, backtesting
-   and AI pages. Edit this one file; every page that includes it updates. Keep exactly one copy.
+.. Shared compact callout for broker, exchange, backtesting and AI docs.
+   Setup destination: https://botspot.trade/agents
 
-.. admonition:: Strongly recommended: connect the free BotSpot MCP
+.. admonition:: Connect your AI assistant
    :class: tip botspot-mcp-callout
 
-   Use Claude, ChatGPT, Codex or Cursor? Connect the **free** BotSpot MCP and your AI gets:
+   Use Claude, ChatGPT, Codex, Cursor or VS Code? Connect the **free BotSpot MCP** for:
 
-   * **Strategy-building skills** for LumiBot.
-   * **Free data:** news, economic data and SEC filings.
-   * **Backtests with charts** it can run and read for you.
-   * **Cheap scheduled deployments** on BotSpot's servers, so you do not have to keep your own computer or server running.
-   * **The community and marketplace:** see what other people's bots are doing, post your own, research strategies and publish yours.
-   * **Easy broker linking.**
+   * **Skills:** build LumiBot strategies.
+   * **Free data:** news, economics and SEC filings.
+   * **Backtests:** run tests and read charts.
+   * **Cloud hosting:** low-cost scheduled bots.
+   * **Community:** share bots and discuss trades.
+   * **Marketplace:** discover and publish strategies.
+   * **Broker linking:** connect accounts through BotSpot.
 
-   .. include:: /_snippets/botspot_mcp_install_buttons.rst
-
-   It also gives LumiBot's own AI agents extra research tools inside your strategies.
-   `Connect it free at botspot.trade/agents <https://botspot.trade/agents?utm_source=documentation&utm_medium=mcp_callout&utm_campaign=lumibot&utm_content=mcp_callout>`__
-   · :ref:`Why connect it <why-botspot-mcp>`
+   .. include:: /_snippets/botspot_mcp_connect.rst

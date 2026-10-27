@@ -15,7 +15,7 @@ Why connect the free BotSpot MCP
 --------------------------------
 
 We strongly recommend it if you build with an AI assistant. One free connection
-gives Claude, ChatGPT, Codex or Cursor what it needs to work on real trading
+gives Claude, ChatGPT, Codex, Cursor or VS Code what it needs to work on real trading
 strategies instead of only writing code:
 
 * **Strategy-building skills.** Your assistant learns how LumiBot strategies are
@@ -40,7 +40,7 @@ Backtests are simulations. They do not promise future results.
 
 `Connect it free at botspot.trade/agents <https://botspot.trade/agents?utm_source=documentation&utm_medium=mcp_page&utm_campaign=lumibot&utm_content=why_section>`__
 
-Start with the `maintained setup guide <https://github.com/Lumiwealth/botspot-mcp#connect>`_.
+Start with the `maintained setup guide <https://botspot.trade/agents>`_.
 It contains current Claude Code, Cursor, Codex and hosted-client instructions,
 first-use prompts, pricing and connection troubleshooting.
 
@@ -48,7 +48,7 @@ first-use prompts, pricing and connection troubleshooting.
    :alt: Use BotSpot MCP
    :align: center
    :width: 520px
-   :target: https://github.com/Lumiwealth/botspot-mcp#connect
+   :target: https://botspot.trade/agents
 
 Connect and try one workflow
 ----------------------------------------

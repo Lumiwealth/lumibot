@@ -8,19 +8,35 @@ LumiBot AI Trading
 
    **Turn trading ideas into working strategies.**
 
-Build trading strategies with Python rules, AI agents, or both. Backtest on
-historical data, view trades and results, and connect a supported broker through
-the same strategy interface.
+LumiBot is a **free, open-source Python framework** for building trading bots.
+Write your own trading rules, let AI agents make decisions, or combine both.
+LumiBot runs your strategy against historical data, records its trades and
+results, and connects it to supported brokers for paper or live trading.
+
+Why build with LumiBot?
+************************
+
+* **Test before trading:** backtest your idea and inspect charts, orders and results.
+* **Keep your strategy:** use one ``Strategy`` lifecycle across backtesting and broker trading.
+* **Choose your market:** work with stocks, options, futures, forex, crypto and prediction markets through :doc:`supported brokers <brokers.all>`.
+* **Own your code:** run locally or choose hosted tools. AI is optional.
+
+How to build an AI trading strategy
+************************************
+
+1. **Describe your idea.** Use Claude, Codex, Cursor or VS Code with the
+   :doc:`free LumiBot trading skills <claude_code_codex_cursor>` to write a strategy,
+   or start from an :doc:`AI example <agents_examples>`.
+2. **Choose how it decides.** Give research agents a job, such as reviewing news
+   or assessing risk, and let one trading agent use their answers to decide
+   what to buy, hold or sell on each iteration.
+3. **Backtest and review.** Run the strategy on historical data. Inspect the
+   decisions, trades and results, then adjust your idea before connecting a broker.
+
+You can run LumiBot on your own machine. To let your existing AI assistant build
+and test strategies using BotSpot's hosted tools, connect it below.
 
 .. include:: _snippets/botspot_mcp_callout.rst
-
-**Building with Claude Code, Codex or Cursor?** :doc:`Install the free LumiBot trading skills in one command <claude_code_codex_cursor>`,
-then connect the free BotSpot MCP so your assistant can run backtests for you.
-
-**The strategy class can stay the same. The code that starts it must select a
-backtest or a broker run.** See :doc:`strategy_run_modes` before running an
-example: ``IS_BACKTESTING=false`` alone cannot turn a backtest-only file into
-paper or live trading.
 
 .. container:: lumibot-start-routes
 
@@ -48,6 +64,10 @@ account; model calls use your provider billing.
    export BACKTESTING_DATA_SOURCE=yahoo
    python -m lumibot.example_strategies.ai_researcher_trader
 
+**The strategy class can stay the same. The code that starts it must select a
+backtest or a broker run.** See :doc:`strategy_run_modes`: ``IS_BACKTESTING=false``
+alone cannot turn a backtest-only file into paper or live trading.
+
 :doc:`Read and customize the strategy <agents_quickstart>` or
 `inspect the recorded decisions and fill <https://github.com/Lumiwealth/lumibot/blob/version/4.5.92/docs/assets/ai-trading/spy-20260913/README.md>`_.
 The example uses ``openai/gpt-6-luna`` on medium reasoning. Fresh AI decisions can vary.
@@ -57,14 +77,6 @@ The example uses ``openai/gpt-6-luna`` on medium reasoning. Fresh AI decisions c
    :width: 640px
    :align: center
    :class: lumibot-entry-hero
-
-Why build with LumiBot?
-************************
-
-* **One strategy lifecycle:** use your own Python rules, AI agents, or both.
-* **Historical backtesting:** test an idea before connecting a broker.
-* **Broker adapters:** keep trading logic separate from broker configuration, across :doc:`100+ brokers and crypto exchanges <brokers.all>`.
-* **Examples to build on:** start with stocks, macro, options, or buy-and-hold.
 
 Build your own trading system
 *****************************

@@ -1,21 +1,16 @@
-Use LumiBot with Claude Code, Codex and Cursor
-==============================================
+Use LumiBot with Claude Code, Codex, Cursor and VS Code
+=======================================================
 
 .. meta::
    :description: Install the free LumiBot trading skills in Claude Code, Codex or Cursor with one command, then connect the free BotSpot MCP so your AI can run backtests in the cloud.
 
-.. include:: _snippets/botspot_mcp_install_buttons.rst
+Your coding assistant can help you write a LumiBot ``Strategy``, test it on
+historical data and inspect its trades. The free **LumiBot trading skills** teach
+it the framework's methods, strategy lifecycle and backtesting checks.
 
-Ask your AI coding assistant to build a trading bot and it will write code. Give
-it the free **LumiBot trading skills** and it writes code that actually runs:
-correct LumiBot method names, real backtests, and the checks that catch a
-backtest that lies.
-
-Then connect the free **BotSpot MCP** and your assistant can run that backtest
-in the cloud, read the charts and trades, and paper trade it. No Python setup and
-no data subscription on your machine.
-
-.. include:: _snippets/botspot_mcp_callout.rst
+Install the skills for local development, then connect the **free BotSpot MCP**
+if you want your assistant to use hosted strategy-building and backtesting tools.
+Connecting is free; hosted features and usage depend on your BotSpot plan.
 
 Step 1: install the trading skills (one command)
 ------------------------------------------------
@@ -76,48 +71,7 @@ for the current list.
 Step 2: connect the free BotSpot MCP
 ------------------------------------
 
-`BotSpot <https://botspot.trade/agents?utm_source=documentation&utm_medium=assistant_page&utm_campaign=lumibot&utm_content=step2>`__
-is the hosted service around LumiBot. Connecting is free and creates a free
-BotSpot account. Your assistant can then build strategies, run backtests on
-BotSpot's servers with the data already set up, read the charts, trades and logs,
-and paper trade.
-
-The MCP address is ``https://mcp.botspot.trade/mcp``. Sign in through the normal
-BotSpot sign-in when your assistant asks. Never paste a password or key into a
-chat.
-
-**Claude Code:**
-
-.. code-block:: bash
-
-   claude mcp add --transport http botspot https://mcp.botspot.trade/mcp
-
-Then run ``/mcp`` inside Claude Code to finish signing in.
-
-**Codex:**
-
-.. code-block:: bash
-
-   codex mcp add botspot --url https://mcp.botspot.trade/mcp
-   codex mcp login botspot
-
-**Cursor.** Add this to your MCP configuration, then use Cursor's sign-in control:
-
-.. code-block:: json
-
-   {
-     "mcpServers": {
-       "botspot": {
-         "url": "https://mcp.botspot.trade/mcp"
-       }
-     }
-   }
-
-**Claude and ChatGPT apps.** Add a custom connector with the same address. The
-`BotSpot MCP setup guide <https://github.com/Lumiwealth/botspot-mcp#connect>`_
-has the current steps for each app.
-
-`Connect the BotSpot MCP free <https://botspot.trade/agents?utm_source=documentation&utm_medium=assistant_page&utm_campaign=lumibot&utm_content=connect_button>`__
+.. include:: _snippets/botspot_mcp_callout.rst
 
 Step 3: ask for your first strategy
 -----------------------------------

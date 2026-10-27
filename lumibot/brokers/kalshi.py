@@ -235,7 +235,6 @@ class Kalshi(Broker):
             raise ValueError("Kalshi good_till_date requires time_in_force='gtd'")
         options = {key: value for key, value in (order.custom_params or {}).items() if key != "_kalshi"}
         protected = (set(payload) - {"self_trade_prevention_type"}) | {
-            "client_order_id",
             "subaccount",
             "exchange_index",
             "expiration_time",
@@ -246,6 +245,10 @@ class Kalshi(Broker):
             )
         if options.get("reduce_only") and tif != "ioc":
             raise ValueError("Kalshi reduce_only requires time_in_force='ioc'")
+        if "client_order_id" in options and (
+            not isinstance(options["client_order_id"], str) or not options["client_order_id"].strip()
+        ):
+            raise ValueError("Kalshi client_order_id must be a non-empty string")
         payload.update(options)
         return payload
 
@@ -257,7 +260,7 @@ class Kalshi(Broker):
                 # Order whose _transmitted flag was intentionally not serialized.
                 raise ValueError("Kalshi order has already been attempted; reconcile it before submitting a new order")
             payload = self._order_payload(order)
-            client_id = str(uuid.uuid4())
+            client_id = payload.get("client_order_id") or str(uuid.uuid4())
             state.update(client_order_id=client_id, fill_count="0", fill_notional="0")
             payload["client_order_id"] = client_id
             self._pending_submissions[client_id] = order

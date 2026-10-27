@@ -5001,6 +5001,9 @@ def _lookup_conid_remote(
     elif asset_type == "index":
         preferred_sec_types = ("IND",)
 
+    requested_currency = str(getattr(quote, "symbol", "") or "").strip().upper() if asset_type == "stock" else ""
+    contract_currencies: Dict[int, str] = {}
+
     def _payload_item_matches_sec_type(item: dict, allowed: tuple[str, ...]) -> bool:
         if not allowed:
             return True
@@ -5024,7 +5027,16 @@ def _lookup_conid_remote(
                 continue
             conid = item.get("conid")
             if conid is not None:
-                return int(conid)
+                conid = int(conid)
+                if requested_currency:
+                    # A stock symbol can identify listings priced in different currencies.
+                    # Search results omit currency; inspect each distinct contract once.
+                    if conid not in contract_currencies:
+                        info = _fetch_contract_info(conid)
+                        contract_currencies[conid] = str(info.get("currency") or "").strip().upper()
+                    if contract_currencies[conid] != requested_currency:
+                        continue
+                return conid
         return None
 
     base_url = _downloader_base_url()
@@ -5048,7 +5060,8 @@ def _lookup_conid_remote(
     if conid is not None:
         return int(conid)
 
-    message = f"Unable to resolve IBKR conid for {asset.symbol} (type={asset_type})"
+    currency_detail = f", currency={requested_currency}" if requested_currency else ""
+    message = f"Unable to resolve IBKR conid for {asset.symbol} (type={asset_type}{currency_detail})"
     _record_negative_conid(key=_conid_key(asset=asset, quote=quote, exchange=exchange).to_key(), reason="no_conid", message=message)
     raise RuntimeError(message)
 

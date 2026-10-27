@@ -927,6 +927,9 @@ def test_stock_conid_resolution_prefers_stock_contract_for_ambiguous_symbol(monk
     seen_queries = []
 
     def fake_queue_request(url: str, querystring, headers=None, timeout=None):
+        if url.endswith("/ibkr/iserver/contract/265598/info"):
+            # Stock lookup now confirms the requested currency from contract metadata.
+            return {"con_id": 265598, "currency": "USD", "instrument_type": "STK"}
         if url.endswith("/ibkr/iserver/secdef/search"):
             seen_queries.append(dict(querystring))
             if querystring.get("secType") == "STK":
@@ -961,6 +964,114 @@ def test_stock_conid_resolution_prefers_stock_contract_for_ambiguous_symbol(monk
     assert conid == 265598
     assert seen_queries == [{"symbol": "MHO", "secType": "STK"}]
     assert ibkr_helper._RUNTIME_CONID_CACHE["stock|MHO|USD||"] == 265598
+
+
+@pytest.mark.parametrize("requested,first_currency,matching_currency", [
+    ("USD", "MXN", "USD"),
+    ("MXN", "USD", "MXN"),
+    ("CAD", "USD", "CAD"),
+    ("USD", "MXN", " usd "),
+])
+@pytest.mark.parametrize("typed_search_has_results", [True, False])
+def test_stock_lookup_selects_requested_currency(
+    monkeypatch, requested, first_currency, matching_currency, typed_search_has_results
+):
+    from lumibot.tools import ibkr_helper as helper
+
+    # Shapes copied from recorded IBKR secdef/search and contract/info responses;
+    # symbols, identities and company names are synthetic.
+    entries = [
+        {"conid": "101", "symbol": "SAMPLE", "companyName": "SAMPLE INC",
+         "description": "MEXI", "sections": [{"secType": "STK"}]},
+        {"conid": "202", "symbol": "SAMPLE", "companyName": "SAMPLE INC",
+         "description": "VALUE", "sections": [{"secType": "STK"}]},
+    ]
+    calls = []
+
+    def request(url, querystring, headers=None, timeout=None):
+        if url.endswith("/secdef/search"):
+            if querystring.get("secType") and not typed_search_has_results:
+                return []
+            return entries
+        conid = int(url.rsplit("/", 2)[1])
+        assert url.endswith("/info")
+        calls.append(conid)
+        return {"con_id": conid, "symbol": "SAMPLE", "instrument_type": "STK",
+                "currency": {101: first_currency, 202: matching_currency}[conid],
+                "exchange": "VALUE", "r_t_h": False, "allow_sell_long": False}
+
+    monkeypatch.setattr(helper, "queue_request", request)
+    asset = Asset("SAMPLE", asset_type="stock")
+    quote = Asset(requested, asset_type="forex")
+    assert helper._lookup_conid_remote(asset=asset, quote=quote, exchange=None) == 202
+    assert calls == [101, 202]
+
+
+@pytest.mark.parametrize("currency", ["MXN", "", None])
+def test_stock_lookup_does_not_substitute_unmatched_currency(monkeypatch, currency):
+    from lumibot.tools import ibkr_helper as helper
+
+    monkeypatch.setattr(helper, "queue_request", lambda **_: [
+        {"conid": "101", "symbol": "SAMPLE", "sections": [{"secType": "STK"}]}
+    ])
+    inspected = []
+
+    def info(conid):
+        inspected.append(conid)
+        return {"con_id": conid, "currency": currency}
+
+    monkeypatch.setattr(helper, "_fetch_contract_info", info)
+    negative = []
+    monkeypatch.setattr(helper, "_record_negative_conid", lambda **kw: negative.append(kw))
+    with pytest.raises(RuntimeError, match="currency=USD"):
+        helper._lookup_conid_remote(
+            asset=Asset("SAMPLE", asset_type="stock"),
+            quote=Asset("USD", asset_type="forex"), exchange=None,
+        )
+    assert inspected == [101], "the fallback search must reuse inspected contract metadata"
+    assert len(negative) == 1
+
+
+@pytest.mark.parametrize("asset_type,quote,sec_type", [
+    ("stock", None, "STK"),
+    ("index", Asset("USD", asset_type="forex"), "IND"),
+])
+def test_lookup_preserves_callers_without_stock_currency(monkeypatch, asset_type, quote, sec_type):
+    from lumibot.tools import ibkr_helper as helper
+
+    monkeypatch.setattr(helper, "queue_request", lambda **_: [
+        {"conid": "101", "sections": [{"secType": sec_type}]},
+        {"conid": "202", "sections": [{"secType": sec_type}]},
+    ])
+
+    def unexpected_info(conid):
+        pytest.fail("unchanged callers do not require an additional metadata request")
+
+    monkeypatch.setattr(helper, "_fetch_contract_info", unexpected_info)
+    assert helper._lookup_conid_remote(
+        asset=Asset("SAMPLE", asset_type=asset_type), quote=quote, exchange=None
+    ) == 101
+
+
+def test_stock_lookup_keeps_contract_metadata_errors_visible(monkeypatch):
+    from lumibot.tools import ibkr_helper as helper
+
+    monkeypatch.setattr(helper, "queue_request", lambda **_: [
+        {"conid": "101", "sections": [{"secType": "STK"}]}
+    ])
+
+    def unavailable(conid):
+        raise RuntimeError("contract metadata service unavailable")
+
+    monkeypatch.setattr(helper, "_fetch_contract_info", unavailable)
+    negative = []
+    monkeypatch.setattr(helper, "_record_negative_conid", lambda **kw: negative.append(kw))
+    with pytest.raises(RuntimeError, match="metadata service unavailable"):
+        helper._lookup_conid_remote(
+            asset=Asset("SAMPLE", asset_type="stock"),
+            quote=Asset("USD", asset_type="forex"), exchange=None,
+        )
+    assert negative == [], "a provider error does not establish a missing contract"
 
 
 def test_option_conid_lookup_uses_strike_right_and_expiration(monkeypatch):

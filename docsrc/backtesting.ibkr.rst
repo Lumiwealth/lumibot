@@ -84,6 +84,18 @@ interval returns empty bars with partial history health; unavailable prices
 are never cached as confirmed absence. Daily bars, older historical windows
 and real-time snapshot APIs retain their separate behavior.
 
+Stock contract currency
+-----------------------
+
+When resolving a stock contract, LumiBot checks IBKR's contract details against
+the requested quote currency instead of taking the first stock search result.
+This supports USD and other requested currencies. A lookup with no matching
+currency reports an error; it does not substitute another currency. Historical
+contracts are not excluded because they are no longer tradable today.
+
+This check applies to new contract lookups. Existing contract mappings and price
+caches are not rewritten or revalidated by this change.
+
 Portfolio Valuation (Stocks/Indexes)
 ------------------------------------
 

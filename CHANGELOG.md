@@ -2,6 +2,9 @@
 
 ## 4.6.32 - Unreleased
 
+### Fixed
+- IBKR stock contract lookup selects a candidate matching the requested quote currency instead of accepting the first stock search result. Existing mappings and historical price caches are not rewritten.
+
 ## 4.6.31 - 2026-10-27
 
 ### Added

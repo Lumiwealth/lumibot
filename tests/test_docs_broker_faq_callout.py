@@ -153,6 +153,7 @@ def test_broker_index_lists_every_broker_page_and_splits_dex():
     conf = _load_docs_config()
     rows = conf.broker_index_rows(str(DOCSRC))
     docnames = {row[3] for row in rows}
+    assert any(row[0] == "Kalshi" and row[3] == "brokers.prediction_markets" for row in rows)
     for page in DOCSRC.glob("brokers.*.rst"):
         if page.stem.startswith("brokers.ccxt.") or page.stem in {
             "brokers.alpaca", "brokers.bitunix", "brokers.ccxt", "brokers.schwab", "brokers.tradier",

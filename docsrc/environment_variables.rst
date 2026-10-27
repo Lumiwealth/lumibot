@@ -618,8 +618,8 @@ POLYMARKET_TEST_TOKEN_ID / POLYMARKET_LIVE_TRADING_ENABLED / POLYMARKET_TEST_MAX
   ``gtd-buy``, ``post-only-buy``, ``cancel-single``, ``cancel-multiple``, ``cancel-all``, ``cancel-market``, and
   ``--websocket``.
 
-Kalshi connection and trading (in development)
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+Kalshi connection and trading
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 - ``TRADING_BROKER=kalshi`` selects the native adapter. Standard order, position,
   quote, historical-price and account methods are implemented. Whole and fractional

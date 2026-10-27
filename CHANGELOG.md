@@ -1,9 +1,10 @@
 # Changelog
 
-## 4.6.31 - 2026-10-26
+## 4.6.31 - 2026-10-27
 
 - Agent replay identity includes dependency versions and callable implementations; explicit failed tool results no longer block fresh recovery, while compatible successful decisions remain reusable.
 ### Added
+- Perpetual contract terms retain exchange contract size, settlement currency and linear/inverse exposure through assets and positions. Backtesting uses those terms for collateral, realized PnL and explicit historical funding events, with provider-backed historical symbol discovery and documented data/fee approximations.
 - Kalshi completed-candle backtesting reuses PandasData and BacktestingBroker with normal Strategy functions: selected-outcome netting/collateral, historical bid/ask execution, actual-time cash settlement, and configurable fee estimates. Real archived-data simulation and existing-provider regressions verified; depth, queues and full historical fee schedules remain explicit approximations.
 - Kalshi historical Bars through normal single/plural data functions: current/archive routing, fixed-point schema normalization, selected NO OHLC/quotes, complete bounded windows and completed custom-interval aggregation. Populated current/archive reads verified in demo and the public production API.
 - Kalshi selected YES/NO trading through normal Strategy order, position, quote and callback methods: metadata-driven routing/ticks, limit and marketable IOC orders, amend/cancel, REST polling, actual fill fees and cumulative reconciliation. Demo whole and fractional execution and netting verified; advanced product and live settlement qualification remains separate.
@@ -11,6 +12,8 @@
 - Kalshi account-read foundation: existing Broker/DataSource interfaces, shared native client, Ed25519 and RSA signing, demo/production configuration, scoped balances and public metadata. The account check uses normal Strategy cash/equity methods; funded-flat demo account values are verified. Current demo API `portfolio_value` excludes cash despite the older changelog description; total adds cash and holdings once.
 
 ### Fixed
+- Prediction-market guides and broker discovery include Kalshi, and documentation builds preserve authored API examples instead of replacing them with generated stubs.
+- Kalshi orders accept the normal caller-supplied client order ID while retaining protected request fields, reconciliation checkpoints and no-replay submission behavior.
 - Ordinary stock fill accounting does not access prediction-contract data resolution. Public order explanations keep account-relative sizing in their separate private decision summary.
 - Agent qualification saves completed actor evidence before judging and resumes interrupted judges without replaying actors. Audit checks match the SDK's executed declared arguments while retaining raw requests and rejecting changed recognized arguments.
 - Stock answers derive reported date windows from the selected rows, and undated-source research distinguishes an unknown exact date from a labeled contextual estimate.

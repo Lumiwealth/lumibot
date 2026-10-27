@@ -4,7 +4,7 @@ Trading Brokers Supported by LumiBot
 .. meta::
    :description: Compare trading brokers supported by LumiBot for stocks, options, crypto, futures, forex, paper trading, live trading, and backtesting.
 
-LumiBot connects to **100+ brokers and crypto exchanges**. There are eight direct broker integrations (Alpaca, Charles Schwab, Interactive Brokers, Tradier, Tradovate, TopstepX through ProjectX, Bitunix and Polymarket) plus one shared crypto broker built on the `CCXT library <https://github.com/ccxt/ccxt>`__, which accepts the 100+ exchange ids your installed CCXT version lists. The same strategy code backtests, paper trades and trades live. Browse by group below, or open the :doc:`A to Z list of every broker and exchange <brokers.all>`.
+LumiBot connects to **100+ brokers and crypto exchanges**. There are nine direct broker integrations (Alpaca, Charles Schwab, Interactive Brokers, Tradier, Tradovate, TopstepX through ProjectX, Bitunix, Kalshi and Polymarket) plus one shared crypto broker built on the `CCXT library <https://github.com/ccxt/ccxt>`__, which accepts the 100+ exchange ids your installed CCXT version lists. The same strategy code backtests, paper trades and trades live. Browse by group below, or open the :doc:`A to Z list of every broker and exchange <brokers.all>`.
 
 .. include:: _snippets/botspot_mcp_callout.rst
 
@@ -129,6 +129,13 @@ Many brokers trade more than one asset class. In the menu each broker appears un
      - Yes
      -
      -
+   * - Kalshi (see :doc:`brokers.prediction_markets`)
+     -
+     -
+     -
+     -
+     -
+     - Yes
    * - :doc:`Polymarket <brokers.polymarket>`
      -
      -
@@ -176,7 +183,7 @@ Brokers by type
 * **Forex:** :doc:`Interactive Brokers <brokers.interactive_brokers>`. See :doc:`brokers.forex`.
 * **Futures:** :doc:`Tradovate <brokers.tradovate>`, :doc:`TopstepX through ProjectX <brokers.projectx>`, :doc:`Interactive Brokers <brokers.interactive_brokers>`, plus crypto perpetuals on :doc:`Bitunix <brokers.bitunix>` and many crypto exchanges. See :doc:`brokers.futures`.
 * **Crypto:** 100+ exchanges (Binance, Coinbase, Kraken, OKX, Bybit, Hyperliquid and more), :doc:`Bitunix <brokers.bitunix>` and :doc:`Alpaca <brokers.alpaca>`. See :doc:`brokers.crypto`.
-* **Prediction markets:** :doc:`Polymarket <brokers.polymarket>`. See :doc:`brokers.prediction_markets`.
+* **Prediction markets:** Kalshi and :doc:`Polymarket <brokers.polymarket>`. See :doc:`brokers.prediction_markets`.
 * **Backtesting data sources:** you do not need a broker to backtest. See :doc:`brokers.data_sources` for Yahoo, Polygon, ThetaData, Databento, Interactive Brokers, Alpaca and your own CSV data.
 * **Every broker and exchange:** :doc:`brokers.all` lists all of them in one table you can filter.
 
@@ -186,7 +193,7 @@ Frequently asked questions
 How many brokers does LumiBot support?
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-LumiBot has nine broker integrations (Alpaca, Charles Schwab, Interactive Brokers, Tradier, Tradovate, TopstepX through ProjectX, Bitunix, Polymarket and the CCXT crypto broker). The CCXT broker accepts any exchange id from your installed CCXT version, which lists more than 100 crypto exchanges. The :doc:`A to Z list <brokers.all>` links every guide.
+LumiBot has ten broker integrations (Alpaca, Charles Schwab, Interactive Brokers, Tradier, Tradovate, TopstepX through ProjectX, Bitunix, Kalshi, Polymarket and the CCXT crypto broker). The CCXT broker accepts any exchange id from your installed CCXT version, which lists more than 100 crypto exchanges. The :doc:`A to Z list <brokers.all>` links every guide.
 
 Which broker should I start with?
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~

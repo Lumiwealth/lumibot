@@ -159,8 +159,8 @@ settlement paths have been qualified.
 
 Kalshi's V2 write acknowledgement is compact and can lead both order-list and
 direct GET visibility. An accepted write stays accepted while follow-up reads
-catch up. A transient 404 is not a cancellation. Each submit gets a client UUID
-before POST, and uncertain writes are not automatically replayed. In-process
+catch up. A transient 404 is not a cancellation. Each submit retains its caller
+client ID or gets a UUID before POST; uncertain writes are not automatically replayed. In-process
 recovery links that UUID to the original Order even if its first visible state
 is already filled. Repeated observations apply only the newly filled quantity,
 selected-contract notional and actual six-decimal `fee_cost` totals. Partial
@@ -358,6 +358,13 @@ account-read increment.
 Offline coverage includes the selected-contract direction matrix, dynamic ticks,
 provider options, partial fill deltas, net-position callback ordering, duplicate
 reads, serialized checkpoints, held NEW events and uncertain submit recovery.
+
+Callers may provide their own `custom_params={"client_order_id": "unique-order-id"}`
+when creating an order. Otherwise the adapter generates a UUID. The selected ID
+is sent to Kalshi, retained in the serialized order checkpoint and used for
+reconciliation. An attempted Order is never automatically submitted again after
+an uncertain response. The provider's [Create Order V2 contract](https://docs.kalshi.com/api-reference/orders/create-order-v2)
+documents this optional caller-supplied string.
 Provider response shapes in `tests/fixtures/kalshi/trading_responses.json` were
 recorded from the demo API and neutralized; they are not invented database rows.
 

@@ -292,9 +292,19 @@ passing timestamp and still requires the full consecutive pass count. Unrelated
 fingerprints cannot renew the receipt, and an expired or incompatible receipt
 cannot qualify a different release candidate. This recovery does not invoke the
 model again for the already completed matching repetitions.
+The runner appends the completed actor transcript, machine result, case digest,
+original attempt identity and usage before invoking the judge. If only judging
+is interrupted, resume judges that same evidence with the same case and judge
+model; it does not replay the actor or its tools. An earlier unknown judge
+reservation remains in the cumulative call journal. It may be omitted from the
+compact qualification binding only after a later completed judge on that exact
+attempt. Unknown actor usage, foreign scopes and newer unfinished judges still
+block export.
+
 Newer incomplete native attempts supersede older passes. Export rejects them;
-resume reruns the affected repetition, including failed repetitions above a
-smaller newly requested repeat count. Fixture memory databases and exports belong
+resume reruns the affected actor repetition unless its completed-actor checkpoint
+permits judge-only recovery, including failed repetitions above a smaller newly
+requested repeat count. Fixture memory databases and exports belong
 to their exact temporary fixture and are removed in its final cleanup.
 
 A typed retryable inference `Timeout`, subscription response failure or managed

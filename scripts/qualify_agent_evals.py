@@ -265,6 +265,20 @@ def build_receipt(rows, call_rows, cases, *, runtime_hash, versions, calibration
                         and timestamp(call.get("timestamp"), now=now, require_fresh=False) >= started):
                     raise ValueError("A newer incomplete native attempt supersedes the prior pass")
             bound_calls = [call for call in calls.values() if (call.get("scope") or {}).get("run_id") == attempt]
+            # A transport-failed judge may have unknown usage. Retain its native
+            # reservation in the full cumulative journal, while qualifying only
+            # a later completed judge over this same completed actor attempt.
+            settled_judges = [call for call in bound_calls if call.get("kind") == "settle"
+                              and (call.get("scope") or {}).get("role") == "judge"]
+            expected_judge_scope = {key: row[key] for key in ("case_id", "repetition", "run_id", "fingerprint")} | {"role": "judge"}
+            earlier_unknown_judges = {
+                call["id"] for call in bound_calls if call.get("kind") == "reserve"
+                and call.get("scope") == expected_judge_scope
+                and call.get("model") == evals.DEFAULT_JUDGE_MODEL
+                and any(timestamp(call["timestamp"], now=now) < timestamp(judge["timestamp"], now=now)
+                        for judge in settled_judges)
+            }
+            bound_calls = [call for call in bound_calls if call["id"] not in earlier_unknown_judges]
             projected = {key: row.get(key) for key in ("case_id", "repetition", "run_id", "fingerprint", "started_at",
                                                        "timestamp", "status", "acting_model", "judge_model")}
             projected.update(machine_pass=(row.get("machine") or {}).get("pass"),

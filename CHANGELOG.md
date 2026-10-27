@@ -11,6 +11,8 @@
 - Kalshi account-read foundation: existing Broker/DataSource interfaces, shared native client, Ed25519 and RSA signing, demo/production configuration, scoped balances and public metadata. The account check uses normal Strategy cash/equity methods; funded-flat demo account values are verified. Current demo API `portfolio_value` excludes cash despite the older changelog description; total adds cash and holdings once.
 
 ### Fixed
+- Agent qualification saves completed actor evidence before judging and resumes interrupted judges without replaying actors. Audit checks match the SDK's executed declared arguments while retaining raw requests and rejecting changed recognized arguments.
+- Stock answers derive reported date windows from the selected rows, and undated-source research distinguishes an unknown exact date from a labeled contextual estimate.
 - Option tool descriptions distinguish quote evidence from Greeks and require both for every final opening leg, including protective wings. Agent eval judging follows explicit rubric requirements without adding an unstated SQL cutoff predicate; a recorded safe date-only selection protects that distinction alongside existing unsafe-source controls.
 - Continuous strategies stop scheduler dispatch before joining running jobs, outside the scheduler's jobs lock. An iteration reading its next run can finish before broker cleanup, rather than deadlocking shutdown.
 - Release history and pagination checks isolate both shared-cache modes, preserve provider-instant/cutoff assertions and verify actual sparse-history expansion without another synthetic client's cached bars.

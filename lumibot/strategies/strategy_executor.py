@@ -4,7 +4,7 @@ import time
 from contextlib import contextmanager
 from functools import wraps
 from queue import Empty, Queue
-from threading import Event, Lock, Thread
+from threading import Event, Lock, RLock, Thread
 
 from lumibot._lazy_imports import LazyLogger, LazyModule, lazy_class
 
@@ -163,6 +163,8 @@ class StrategyExecutor(Thread):
         self.lock = Lock()
         self.queue = Queue()
         self.priority_queue = Queue()
+        self._event_drain_lock = RLock()
+        self._live_iteration_callbacks_ready = False
 
         self.strategy = strategy
         self._strategy_context = None
@@ -922,7 +924,11 @@ class StrategyExecutor(Thread):
         # If it's the first iteration, we don't want to process any events.
         # This is because in this case we are most likely processing events that occurred before the strategy started.
         # Callers draining fills the strategy itself just produced mid-iteration pass False.
-        if skip_first_iteration_events and (self.strategy._first_iteration or self.broker._first_iteration):
+        if (
+            skip_first_iteration_events
+            and not self._live_iteration_callbacks_ready
+            and (self.strategy._first_iteration or self.broker._first_iteration)
+        ):
             # Reduce noise on startup: log at debug instead of info
             if self.strategy.logger.isEnabledFor(10):
                 self.strategy.logger.debug(
@@ -1038,18 +1044,21 @@ class StrategyExecutor(Thread):
             self.strategy.logger.error(f"Event {event} not recognized. Payload: {payload}")
 
     def process_queue(self, skip_first_iteration_events=True):
-        while True:
-            try:
-                event, payload = self.priority_queue.get_nowait()
-            except Empty:
+        # A callback may itself drain newly queued events; keep that reentrant,
+        # while preventing the background and iteration workers from overlapping.
+        with self._event_drain_lock:
+            while True:
                 try:
-                    event, payload = self.queue.get_nowait()
+                    event, payload = self.priority_queue.get_nowait()
                 except Empty:
-                    break
-            if skip_first_iteration_events:
-                self.process_event(event, payload)
-            else:
-                self.process_event(event, payload, skip_first_iteration_events=False)
+                    try:
+                        event, payload = self.queue.get_nowait()
+                    except Empty:
+                        break
+                if skip_first_iteration_events:
+                    self.process_event(event, payload)
+                else:
+                    self.process_event(event, payload, skip_first_iteration_events=False)
 
     def _process_smart_limit_orders(self):
         if self.broker.IS_BACKTESTING_BROKER:
@@ -1437,6 +1446,13 @@ class StrategyExecutor(Thread):
         keep draining priority fill/cancel events so hedge submission is not
         delayed by the full scan duration.
         """
+        # Synchronization has finished. Discard queued startup notifications
+        # before user code can submit an order, then let every drain deliver
+        # fresh callbacks even while the public first-iteration flags stay true.
+        with self._event_drain_lock:
+            self.process_queue()
+            self._live_iteration_callbacks_ready = True
+
         done = Event()
         errors: list[BaseException] = []
 

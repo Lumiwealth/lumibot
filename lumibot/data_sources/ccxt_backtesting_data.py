@@ -46,6 +46,27 @@ class CcxtBacktestingData(DataSourceBacktesting):
 
         self.cache_db = CcxtCacheDB(self.name,max_download_limit=download_limit)
 
+    def get_market(self, asset, quote=None):
+        from lumibot.tools.symbol_normalization import resolve_ccxt_instrument_market
+
+        return resolve_ccxt_instrument_market(self.cache_db.api.markets, asset, quote, exchange_id=self.name)
+
+    def get_contract_spec(self, asset, quote=None):
+        from lumibot.entities import ContractSpec
+
+        return ContractSpec.from_ccxt_market(self.get_market(asset, quote))
+
+    def _history_symbol(self, asset, quote=None):
+        from lumibot.tools.symbol_normalization import build_ccxt_crypto_symbol
+
+        if isinstance(asset, tuple):
+            asset, quote = asset
+        quote_symbol = getattr(quote, "symbol", quote if isinstance(quote, str) else None)
+        symbol = build_ccxt_crypto_symbol(getattr(asset, "symbol", asset), quote_symbol)
+        if getattr(asset, "asset_type", None) == "crypto_future" and ":" not in symbol:
+            return self.get_market(asset, quote)["symbol"]
+        return symbol
+
 
     def _to_utc_timezone(self, dt:datetime)->datetime:
         if dt.tzinfo is not None:
@@ -96,12 +117,7 @@ class CcxtBacktestingData(DataSourceBacktesting):
                 f"the exchange parameter is not implemented for CcxtData, but {exchange} was passed as the exchange"
             )
 
-        if isinstance(asset, tuple):
-            symbol = f"{asset[0].symbol.upper()}/{asset[1].symbol.upper()}"
-        elif quote is not None:
-            symbol = f"{asset.symbol.upper()}/{quote.symbol.upper()}"
-        else:
-            symbol = asset
+        symbol = self._history_symbol(asset, quote)
 
         parsed_timestep = self._parse_source_timestep(timestep, reverse=True)
         symbol_timestep = f"{symbol}_{parsed_timestep}"
@@ -144,12 +160,7 @@ class CcxtBacktestingData(DataSourceBacktesting):
 
         result = {}
         for asset in assets:
-            if isinstance(asset, tuple):
-                symbol = f"{asset[0].symbol.upper()}/{asset[1].symbol.upper()}"
-            elif quote is not None:
-                symbol = f"{asset.symbol.upper()}/{quote.symbol.upper()}"
-            else:
-                symbol = asset
+            symbol = self._history_symbol(asset, quote)
 
             # convert native timezone aware
             start_dt = self._to_utc_timezone(self.datetime_start)

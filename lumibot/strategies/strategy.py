@@ -2777,6 +2777,14 @@ class Strategy(_Strategy):
             results.append(self.close_position(asset))
         return results
 
+    def get_contract_exposure(self, asset, quantity, price):
+        """Return base/quote derivative exposure using the selected broker's native units."""
+        return self.broker.get_contract_exposure(asset, quantity, price, quote=self.quote_asset)
+
+    def get_quantity_for_notional(self, asset, notional, price=None):
+        """Native derivative quantity for a notional in the instrument's quote currency."""
+        return self.broker.get_quantity_for_notional(asset, notional, price=price, quote=self.quote_asset)
+
     def get_last_price(self, asset: Union[Asset, str], quote=None, exchange=None) -> Union[float, Decimal, None]:
         """Takes an asset and returns the last known price
 

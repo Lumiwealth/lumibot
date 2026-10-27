@@ -1433,6 +1433,26 @@ class Broker(ABC):
 
     # =========Market functions=======================
 
+    def get_contract_spec(self, asset, quote=None):
+        """Return explicit instrument terms from the asset or selected data source."""
+        spec = getattr(asset, "contract_spec", None)
+        if spec is not None:
+            return spec
+        getter = getattr(self.data_source, "get_contract_spec", None)
+        if callable(getter):
+            return getter(asset, quote)
+        raise ValueError("Derivative contract terms are unavailable; supply Asset.contract_spec or provider metadata")
+
+    def get_contract_exposure(self, asset, quantity, price, quote=None):
+        """Base and quote exposure for an adapter-native derivative quantity."""
+        return self.get_contract_spec(asset, quote).exposure(quantity, price)
+
+    def get_quantity_for_notional(self, asset, notional, price=None, quote=None):
+        """Size a derivative in its quote currency, preserving native order units."""
+        if price is None:
+            price = self.get_last_price(asset, quote=quote)
+        return self.get_contract_spec(asset, quote).quantity_for_notional(notional, price)
+
     def get_last_price(self, asset: Asset, quote=None, exchange=None) -> Union[float, Decimal, None]:
         """
         Takes an asset and returns the last known price

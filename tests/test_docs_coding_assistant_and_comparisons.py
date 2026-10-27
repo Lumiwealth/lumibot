@@ -105,15 +105,29 @@ def test_callout_is_compact_and_lists_every_client_and_separate_benefits():
     assert "botspot_mcp_connect.rst" not in page
 
 
-def test_home_explains_framework_and_ai_workflow_before_mcp():
+def test_home_and_readme_distinguish_strategy_types_from_coding_assistants():
+    # October 26 correction: show strategy code; connection setup is its own section.
     home = _read("index")
-    opening = home.split(CALLOUT)[0]
-    assert "free, open-source Python framework" in opening
-    assert "How to build an AI trading strategy" in opening
-    assert home.index("Why build with LumiBot?") < home.index(CALLOUT)
-    assert "Strategy" in opening and "research" in opening and "backtest" in opening
-    assert home.count(CALLOUT) == 1
-    assert home.index("strategy class can stay the same") > home.index("Run an AI strategy")
+    readme = (ROOT / "README.md").read_text()
+    for text in (home, readme):
+        for kind in ("Python strategies", "AI-native strategies", "Hybrid strategies"):
+            assert kind in text
+        for stale in ("AI is optional", "Choose your market", "Keep your strategy", "Own your code"):
+            assert stale not in text
+        assert "Backtest before trading" in text
+        assert "Same strategy for backtesting and trading" in text
+        assert "Multiple asset classes" in text
+    assert "How to build an AI trading strategy" not in home
+    assert home.index("Build an AI-native strategy") < home.index("Connect your AI assistant")
+    assert home.count("Connect your AI assistant\n***") == 1
+    assert home.index(CALLOUT) > home.index("Connect your AI assistant\n***")
+    assert "or another MCP-compatible" in _read("_snippets/botspot_mcp_callout")
+    assert "system_prompt=" in readme
+    assert "literalinclude:: _snippets/ai_strategy.py" in home
+    assert home.count(".. _first-python-backtest:") == 1
+    assert home.count("Why build with LumiBot?") == 1
+    assert "Example: Research, Bull, Bear, and Trader Agents" not in home
+
 
 
 def test_no_paid_plan_required_wording():
@@ -125,3 +139,31 @@ def test_no_paid_plan_required_wording():
     )
     for path in paths:
         assert "paid plan required" not in path.read_text(encoding="utf-8").lower(), path.name
+
+
+def test_editable_ai_example_runs_the_documented_lifecycle_and_matches_readme():
+    # Exercise the published snippet's plumbing without a model call or broker action.
+    # Recorder shape follows test_growth_entrypoints.test_two_roles_preserve_evidence_and_trading_ownership.
+    from datetime import datetime
+    from types import SimpleNamespace
+    source = (DOCSRC / "_snippets/ai_strategy.py").read_text()
+    namespace = {"__name__": "documentation_example"}
+    exec(compile(source, "ai_strategy.py", "exec"), namespace)
+    created, calls = [], []
+
+    class Agents(dict):
+        def create(self, **kwargs):
+            created.append(kwargs)
+            self[kwargs["name"]] = SimpleNamespace(run=lambda **args: calls.append(args))
+
+    ctx = SimpleNamespace(agents=Agents(), get_datetime=lambda: datetime(2026, 4, 6))
+    strategy = namespace["MyAIStrategy"]
+    strategy.initialize(ctx)
+    strategy.on_trading_iteration(ctx)
+    strategy.on_trading_iteration(ctx)
+    assert len(created) == 1
+    assert created[0]["name"] == "trader" and created[0]["allow_trading"] is True
+    assert created[0]["system_prompt"]
+    assert len(calls) == 2
+    assert all(c["context"] == {"as_of": "2026-04-06T00:00:00"} for c in calls)
+    assert source.strip() in (ROOT / "README.md").read_text()

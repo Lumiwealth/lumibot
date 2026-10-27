@@ -17,13 +17,23 @@ class PerpetualAccount:
     def __init__(self, broker):
         self.broker = broker
         self.lots = {}
+        self.funding_seen = set()
+        self.last_event_time = {}
+        self.processing_events = False
+        broker.backtest_assumptions = []
+        broker.perpetual_events = []
+
+    def assumption(self, message):
+        if message not in self.broker.backtest_assumptions:
+            self.broker.backtest_assumptions.append(message)
+            self.broker.logger.warning(message)
 
     @staticmethod
     def key(strategy, instrument):
         return (getattr(strategy, "name", strategy), instrument.asset,
                 getattr(instrument, "position_side", None), getattr(instrument, "position_id", None))
 
-    def convert(self, amount, source, target, asset, price):
+    def convert(self, amount, source, target, asset, price, at=None):
         amount = dec(amount)
         if source == target or not amount:
             return amount
@@ -34,10 +44,22 @@ class PerpetualAccount:
         if (source, target) == (spec.quote, spec.base):
             return amount / price
         pair = (Asset(source, "crypto"), Asset(target, "crypto"))
-        rate = self.broker.data_source.get_last_price(pair[0], quote=pair[1])
+        def historical_rate(base, quote):
+            data = self.broker.data_source
+            if at is None or at == data.get_datetime():
+                return data.get_last_price(base, quote=quote)
+            timestep = data.get_timestep()
+            bars = data.get_historical_prices((base, quote), 2, timestep=timestep,
+                                              timeshift=data.get_datetime() - at)
+            if bars is None:
+                return None
+            duration, _ = data.convert_timestep_str_to_timedelta(timestep)
+            closed = bars.df[bars.df.index + duration <= at]
+            return None if closed.empty else closed.iloc[-1]["close"]
+        rate = historical_rate(*pair)
         if rate is not None:
             return amount * dec(rate)
-        reverse = self.broker.data_source.get_last_price(pair[1], quote=pair[0])
+        reverse = historical_rate(pair[1], pair[0])
         if reverse is not None:
             return amount / dec(reverse)
         raise ValueError(f"Missing historical currency conversion {source}/{target} for {asset}")
@@ -146,7 +168,7 @@ class PerpetualAccount:
             leverage = dec(params.get("leverage", asset.leverage))
             if leverage <= 0:
                 raise ValueError("Perpetual leverage must be positive")
-            mode = params.get("marginMode", "cross")
+            mode = str(params.get("marginMode", "cross")).lower()
             lots.append(self.lot(asset, spec, remaining, price, leverage, mode, self.broker.datetime))
             replacement_margin = sum((lot["margin"] for lot in lots), Decimal(0))
             previous_margin = sum((lot["margin"] for lot in self.lots.get(key, [])), Decimal(0))
@@ -182,3 +204,132 @@ class PerpetualAccount:
         margin = self.convert(exposure / dec(leverage), spec.quote, spec.settle, asset, price)
         return {"quantity": dec(quantity), "price": dec(price), "margin": margin,
                 "settle": spec.settle, "mode": mode, "opened_at": opened_at}
+
+    def process_events(self, strategy):
+        if self.processing_events:
+            return
+        keys = [key for key in self.lots if key[0] == strategy.name]
+        if not keys:
+            return
+        self.processing_events = True
+        try:
+            source, now = self.broker.data_source, self.broker.datetime
+            first_open = min(lot["opened_at"] for key in keys for lot in self.lots[key])
+            start = self.last_event_time.get(strategy.name, first_open)
+            timeline = {}
+            for asset in {key[1] for key in keys}:
+                try:
+                    events = source.get_funding_events(asset, start, now)
+                except Exception as exc:
+                    self.assumption(f"{asset}: historical funding unavailable ({type(exc).__name__}); omitted")
+                    events = None
+                if events is None:
+                    self.assumption(f"{asset}: historical funding unavailable; funding omitted")
+                else:
+                    for event in events:
+                        timeline.setdefault(event["timestamp"], []).append((asset, event))
+                marks = source._perpetual_rows(source._perpetual_input(getattr(source, "mark_prices", None), asset)) or []
+                for row in marks:
+                    if start < row["timestamp"] <= now:
+                        timeline.setdefault(row["timestamp"], [])
+            timeline.setdefault(now, [])
+            for at, events in sorted(timeline.items()):
+                for asset, event in events:
+                    identity = (strategy.name, asset, event["timestamp"])
+                    if identity in self.funding_seen:
+                        continue
+                    spec = self.broker.get_contract_spec(asset)
+                    mark = event.get("markPrice")
+                    if mark is None:
+                        mark, exact = source.get_perpetual_mark(asset, at)
+                        if not exact:
+                            self.assumption(f"{asset}: funding uses causal candle prices where historical mark data is unavailable")
+                    if mark is None:
+                        self.assumption(f"{asset}: funding event without an available historical price omitted")
+                        self.funding_seen.add(identity)
+                        continue
+                    for key in list(self.lots):
+                        if key[0] != strategy.name or key[1] != asset:
+                            continue
+                        amount = Decimal(0)
+                        for lot in self.lots[key]:
+                            if lot["opened_at"] >= at:
+                                continue
+                            exposure = spec.exposure(lot["quantity"], mark)["quote"]
+                            payment = self.convert(-exposure * dec(event["fundingRate"]), spec.quote, spec.settle, asset, mark, at=at)
+                            amount += payment
+                            if lot["mode"] == "isolated":
+                                lot["margin"] += payment
+                        if amount:
+                            self.credit(strategy, spec.settle, amount)
+                            self.broker.perpetual_events.append({"type": "funding", "strategy": strategy.name,
+                                "symbol": asset.symbol, "timestamp": at.isoformat(), "amount": str(amount),
+                                "currency": spec.settle, "position_side": key[2], "position_id": key[3]})
+                    self.funding_seen.add(identity)
+                self.liquidate(strategy, at)
+            self.last_event_time[strategy.name] = now
+        finally:
+            self.processing_events = False
+
+    def liquidate(self, strategy, at):
+        source = self.broker.data_source
+        groups, close = {}, []
+        for key, lots in list(self.lots.items()):
+            if key[0] != strategy.name:
+                continue
+            asset = key[1]
+            spec = self.broker.get_contract_spec(asset)
+            mark, exact = source.get_perpetual_mark(asset, at)
+            if not exact:
+                self.assumption(f"{asset}: liquidation uses causal candle marks; intrabar liquidation is not modeled")
+            if mark is None:
+                continue
+            risk = source.get_perpetual_risk(asset)
+            if risk is None:
+                self.assumption(f"{asset}: maintenance tiers and liquidation fees unavailable; liquidation uses collateral exhaustion")
+                risk = {}
+            maintenance_rate = dec(risk.get("maintenance_margin_rate", 0))
+            quantity = sum((lot["quantity"] for lot in lots), Decimal(0))
+            pnl = sum((self.convert(spec.pnl(lot["quantity"], lot["price"], mark), spec.pnl_currency,
+                                    spec.settle, asset, mark, at=at) for lot in lots), Decimal(0))
+            margin = sum((lot["margin"] for lot in lots), Decimal(0))
+            maintenance = self.convert(abs(spec.exposure(quantity, mark)["quote"]) * maintenance_rate,
+                                       spec.quote, spec.settle, asset, mark, at=at)
+            item = (key, mark, quantity, risk)
+            if lots[0]["mode"] == "isolated":
+                if margin + pnl <= maintenance:
+                    close.append(item)
+            else:
+                group = groups.setdefault(spec.settle, {"pnl": Decimal(0), "maintenance": Decimal(0), "items": []})
+                group["pnl"] += pnl
+                group["maintenance"] += maintenance
+                group["items"].append(item)
+        for currency, group in groups.items():
+            isolated = sum((lot["margin"] for key, lots in self.lots.items() if key[0] == strategy.name
+                            for lot in lots if lot["settle"] == currency and lot["mode"] == "isolated"), Decimal(0))
+            if self.wallet(strategy, currency) - isolated + group["pnl"] <= group["maintenance"]:
+                close.extend(group["items"])
+        for key, mark, quantity, risk in close:
+            if key not in self.lots:
+                continue
+            asset = key[1]
+            spec = self.broker.get_contract_spec(asset)
+            isolated = all(lot["mode"] == "isolated" for lot in self.lots[key])
+            allocation = sum((lot["margin"] for lot in self.lots[key]), Decimal(0))
+            wallet_before = self.wallet(strategy, spec.settle)
+            order = strategy.create_order(asset, abs(quantity), "sell" if quantity > 0 else "buy",
+                position_side=key[2], position_id=key[3], reduce_only=True, custom_params={"liquidation": True})
+            self.broker._process_new_order(order)
+            self.broker._execute_filled_order(order, float(mark), abs(quantity), strategy)
+            fee = self.convert(abs(spec.exposure(quantity, mark)["quote"]) * dec(risk.get("liquidation_fee_rate", 0)),
+                               spec.quote, spec.settle, asset, mark)
+            insurance_credit = Decimal(0)
+            if isolated:
+                insurance_credit = max(Decimal(0), wallet_before - allocation - (self.wallet(strategy, spec.settle) - fee))
+                if insurance_credit:
+                    self.assumption(f"{asset}: isolated gap loss beyond allocated collateral uses modeled insurance credit")
+            self.credit(strategy, spec.settle, insurance_credit - fee)
+            self.broker.perpetual_events.append({"type": "liquidation", "strategy": strategy.name,
+                "symbol": asset.symbol, "timestamp": at.isoformat(), "price": str(mark),
+                "quantity": str(quantity), "fee": str(fee), "currency": spec.settle,
+                "position_side": key[2], "position_id": key[3], "insurance_credit": str(insurance_credit)})

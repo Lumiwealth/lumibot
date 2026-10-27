@@ -2513,6 +2513,12 @@ class _Strategy:
             self._strategy_returns_df = day_deduplicate(self._stats)
 
             self._analysis = stats_summary(self._strategy_returns_df, self.risk_free_rate)
+            assumptions = getattr(self.broker, "backtest_assumptions", None)
+            if assumptions:
+                self._analysis["backtest_assumptions"] = list(assumptions)
+            perpetual_events = getattr(self.broker, "perpetual_events", None)
+            if perpetual_events:
+                self._analysis["perpetual_events"] = [row for row in perpetual_events if row["strategy"] == self._name]
 
             # Get performance for the benchmark asset
             self._dump_benchmark_stats()

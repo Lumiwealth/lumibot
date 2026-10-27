@@ -71,6 +71,8 @@ class CcxtData(DataSource):
                 return
             try:
                 self.api.load_markets()
+                from lumibot.tools.ccxt_phemex import normalize_markets
+                normalize_markets(self.api)
                 self._markets_loaded = True
             except Exception as exc:
                 logger.warning(
@@ -88,8 +90,9 @@ class CcxtData(DataSource):
         self._ensure_markets_loaded()
         if getattr(asset, "asset_type", None) == "option":
             return self._get_option_market(asset, quote)
-        return resolve_ccxt_instrument_market(self.api.markets, asset, quote,
-                                              exchange_id=self.config.get("exchange_id"))
+        from lumibot.tools.ccxt_phemex import normalize_market
+        return normalize_market(self.api, resolve_ccxt_instrument_market(self.api.markets, asset, quote,
+                                              exchange_id=self.config.get("exchange_id")))
 
     def _get_option_market(self, asset, quote=None):
         """Find the CCXT option market for a LumiBot option asset (base, expiry, strike, right)."""
@@ -246,7 +249,8 @@ class CcxtData(DataSource):
             cnt = 0
             while curr_start <= endunix:
                 cnt += 1
-                candles = self.api.fetch_ohlcv(symbol, freq, since=curr_start, limit=loop_limit, params={})
+                from lumibot.tools.ccxt_phemex import fetch_ohlcv
+                candles = fetch_ohlcv(self.api, symbol, freq, since=curr_start, limit=loop_limit, params={})
                 df = pd.DataFrame(candles, columns=["datetime", "open", "high", "low", "close", "volume"])
                 df["datetime"] = pd.to_datetime(df["datetime"], unit="ms", utc=True)
                 df = df.set_index("datetime")

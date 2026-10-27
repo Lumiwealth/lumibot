@@ -56,6 +56,53 @@ class CcxtBacktestingData(DataSourceBacktesting):
 
         return ContractSpec.from_ccxt_market(self.get_market(asset, quote))
 
+    def get_funding_events(self, asset, start, end):
+        supplied = super().get_funding_events(asset, start, end)
+        if supplied is not None:
+            return supplied
+        api = self.cache_db.api
+        if not api.has.get("fetchFundingRateHistory"):
+            return None
+        cache = getattr(self, "_funding_history", None)
+        if cache is None:
+            self._funding_history = cache = {}
+        market = self.get_market(asset)
+        symbol = market["symbol"]
+        if symbol not in cache:
+            first = int(self.datetime_start.timestamp() * 1000)
+            last = int(self.datetime_end.timestamp() * 1000)
+            cursor, result = first, {}
+            while cursor <= last:
+                if self.name == "phemex":
+                    # CCXT 4.5.64 selects a retired V1 route for inverse history.
+                    # The V2 endpoint serves all funding symbols. FR8H is the
+                    # provider's symbol suffix, not an assumed payment interval.
+                    info = market.get("info") or {}
+                    native = market.get("baseId") if market.get("inverse") else market["id"]
+                    rate_symbol = info.get("fundingRate8hSymbol") or f".{native}FR8H"
+                    response = api.v2GetApiDataPublicDataFundingRateHistory(
+                        {"symbol": rate_symbol, "start": cursor, "end": last, "limit": 100})
+                    if str(response.get("code", 0)) != "0":
+                        raise ValueError(f"Phemex funding history failed: {response.get('code')}")
+                    page = [{"timestamp": int(row["fundingTime"]), "fundingRate": row["fundingRate"], "info": row}
+                            for row in response["data"]["rows"]]
+                else:
+                    page = api.fetch_funding_rate_history(symbol, since=cursor, limit=100, params={"until": last})
+                if not page:
+                    break
+                timestamps = [int(row["timestamp"]) for row in page]
+                newest = max(timestamps)
+                if newest < cursor:
+                    raise ValueError("Funding history pagination did not advance")
+                for row in page:
+                    if first <= int(row["timestamp"]) <= last:
+                        result[int(row["timestamp"])] = row
+                cursor = newest + 1
+                if len(page) < 100:
+                    break
+            cache[symbol] = self._perpetual_rows(list(result.values()))
+        return [row for row in cache[symbol] if start <= row["timestamp"] <= end]
+
     def _history_symbol(self, asset, quote=None):
         from lumibot.tools.symbol_normalization import build_ccxt_crypto_symbol
 
@@ -226,12 +273,7 @@ class CcxtBacktestingData(DataSourceBacktesting):
     )->Bars:
         parsed_timestep = self._parse_source_timestep(timestep, reverse=True)
 
-        if isinstance(asset, tuple):
-            symbol = f"{asset[0].symbol.upper()}/{asset[1].symbol.upper()}"
-        elif quote is not None:
-            symbol = f"{asset.symbol.upper()}/{quote.symbol.upper()}"
-        else:
-            symbol = asset
+        symbol = self._history_symbol(asset, quote)
 
         # convert utc timezone
         start_dt = self._to_utc_timezone(start_date)

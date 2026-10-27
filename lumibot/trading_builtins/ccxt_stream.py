@@ -98,7 +98,7 @@ class CcxtStream:
 
     def snapshot(self, method, *, timeout=10, max_age=5, require_snapshot=False, **kwargs):
         key = self.subscribe(method, **kwargs)
-        deadline = time.monotonic() + timeout
+        deadline = None if timeout is None else time.monotonic() + timeout
         with self._condition:
             state = self._states[key]
             while not self._stopping:
@@ -108,8 +108,8 @@ class CcxtStream:
                         return deepcopy(state["value"])
                 if state.get("terminal_error"):
                     raise state["error"]
-                remaining = deadline - time.monotonic()
-                if remaining <= 0:
+                remaining = None if deadline is None else deadline - time.monotonic()
+                if remaining is not None and remaining <= 0:
                     raise TimeoutError(f"No usable CCXT {method} snapshot for {kwargs.get('symbol', 'account')}")
                 self._condition.wait(remaining)
         raise RuntimeError("CCXT stream closed while waiting for data")

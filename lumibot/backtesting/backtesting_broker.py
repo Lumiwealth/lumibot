@@ -1940,6 +1940,7 @@ class BacktestingBroker(Broker):
         is_perpetual = getattr(order.asset, "asset_type", None) == Asset.AssetType.CRYPTO_FUTURE
         capped_perpetual = False
         if is_perpetual:
+            self._perpetuals.process_events(strategy)
             try:
                 actual, settled_fee = self._perpetuals.fill(strategy, order, price, filled_quantity)
             except ValueError as exc:
@@ -2232,6 +2233,10 @@ class BacktestingBroker(Broker):
         # This function is called once per bar (minute-level: ~100k/year). Avoid allocating lists
         # or copying buckets when there are no pending orders.
         strategy_name = strategy.name
+
+        perpetuals = getattr(self, "_perpetuals", None)
+        if perpetuals is not None:
+            perpetuals.process_events(strategy)
 
         unprocessed_bucket = getattr(self, "_unprocessed_orders", None)
         new_bucket = getattr(self, "_new_orders", None)

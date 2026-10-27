@@ -47,3 +47,6 @@ def test_history_preserves_spot_or_settlement_through_cache(contract_cache_direc
     assert result["close"].tolist() == [101, 102]
     assert f"{symbol}_1m" in source._data_store
     assert result.index[-1] + timedelta(minutes=1) <= source.get_datetime()
+    window = source.get_historical_prices_between_dates(
+        (asset, quote), start_date=source.datetime_start, end_date=source.get_datetime())
+    assert window.df["close"].tolist() == [101, 102]

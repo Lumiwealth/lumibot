@@ -48,6 +48,9 @@ class DataSourceBacktesting(DataSource, ABC):
             progress_csv_path: str | None = None,
             delay: int | None = None,
             pandas_data: dict | list = None,
+            funding_rates=None,
+            mark_prices=None,
+            perpetual_risk=None,
             **kwargs
     ):
         # Pass only api_key to parent class, not datetime_start and datetime_end
@@ -61,6 +64,9 @@ class DataSourceBacktesting(DataSource, ABC):
 
         # Initialize parent class
         super().__init__(api_key=api_key, delay=delay, config=config, **kwargs)
+        self.funding_rates = funding_rates
+        self.mark_prices = mark_prices
+        self.perpetual_risk = perpetual_risk
 
         if backtesting_started is None:
             _backtesting_started = dt.datetime.now()
@@ -108,6 +114,7 @@ class DataSourceBacktesting(DataSource, ABC):
         self._progress_csv_path = progress_csv_path or "logs/progress.csv"
         # Add initialization for the logging timer attribute
         self._last_logging_time = None
+
         self._portfolio_value = None
         self._progress_csv_lock = threading.Lock()
         self._progress_snapshot_lock = threading.Lock()
@@ -147,6 +154,57 @@ class DataSourceBacktesting(DataSource, ABC):
 
         if self.log_backtest_progress_to_file and self._progress_heartbeat_enabled:
             self._start_progress_heartbeat_thread()
+
+    @staticmethod
+    def _perpetual_input(mapping, asset):
+        if mapping is None:
+            return None
+        return mapping.get(asset, mapping.get(asset.symbol))
+
+    @staticmethod
+    def _perpetual_rows(records):
+        import pandas as pd
+
+        if records is None:
+            return None
+        if isinstance(records, pd.DataFrame):
+            records = [dict(row, timestamp=row.get("timestamp", index)) for index, row in records.iterrows()]
+        rows = []
+        for original in records:
+            row = dict(original)
+            value = row["timestamp"]
+            row["timestamp"] = (pd.Timestamp(value, unit="ms", tz="UTC") if isinstance(value, (int, float))
+                                else pd.Timestamp(value))
+            if row["timestamp"].tzinfo is None:
+                row["timestamp"] = row["timestamp"].tz_localize("UTC")
+            rows.append(row)
+        return sorted(rows, key=lambda row: row["timestamp"])
+
+    def get_funding_events(self, asset, start, end):
+        """Explicit funding history; None means unavailable, [] means no events."""
+        rows = self._perpetual_rows(self._perpetual_input(getattr(self, "funding_rates", None), asset))
+        return None if rows is None else [row for row in rows if start <= row["timestamp"] <= end]
+
+    def get_perpetual_risk(self, asset):
+        """Caller-supplied maintenance and liquidation fee rates, by instrument."""
+        return self._perpetual_input(getattr(self, "perpetual_risk", None), asset)
+
+    def get_perpetual_mark(self, asset, at):
+        """Historical mark or a clearly identified closed-candle approximation."""
+        rows = self._perpetual_rows(self._perpetual_input(getattr(self, "mark_prices", None), asset))
+        if rows is not None:
+            visible = [row for row in rows if row["timestamp"] <= at]
+            if visible:
+                return visible[-1]["markPrice"], True
+        timestep = self.get_timestep()
+        bars = self.get_historical_prices(asset, 2, timestep=timestep, timeshift=self.get_datetime() - at)
+        if bars is not None and not bars.df.empty:
+            duration, _ = self.convert_timestep_str_to_timedelta(timestep)
+            closed = bars.df[bars.df.index + duration <= at]
+            if not closed.empty:
+                return closed.iloc[-1]["close"], False
+        # At the current clock, a source may expose a causal current-bar open.
+        return (self.get_last_price(asset), False) if at == self.get_datetime() else (None, False)
 
     def record_runtime_milestone(self, name):
         """Record bounded, per-run wall-clock observations without advancing simulation.

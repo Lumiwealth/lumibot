@@ -33,6 +33,16 @@ class Client:
         self.closed = True
 
 
+def test_stream_snapshot_can_wait_without_an_elapsed_deadline():
+    client = Client()
+    stream = CcxtStream(SimpleNamespace(id="phemex", markets={}, currencies={}),
+                        {"sandbox": True}, client_factory=lambda: client)
+    try:
+        assert stream.snapshot("watch_ticker", symbol="BTC/USDT", timeout=None)["last"] == 123
+    finally:
+        stream.stop()
+
+
 def test_stream_starts_lazily_reuses_subscription_and_closes_client():
     client = Client()
     factory = Mock(return_value=client)

@@ -350,9 +350,29 @@ tests/test_ccxt_phemex_testnet.py -m apitest``; these make no account writes.
 Other exchanges' private/perpetual streams have not been exchange-qualified by
 this change. CCXT adapter availability is not a promise that every feature works.
 
-Perpetual backtesting with contract-aware margin, inverse PnL, historical funding
-and liquidation is still remaining work. Existing spot ``CcxtBacktesting`` support
-does not establish that accounting.
+``CcxtBacktesting`` now supports contract-aware perpetual collateral, FIFO
+realized/unrealized P&L, native settlement fees and timestamped funding. Phemex
+history uses settlement-aware candle symbols and its current public funding
+endpoint for linear and inverse contracts. Public API qualification completed
+spot, USDT, USDC and inverse backtest round trips across a funding boundary;
+matching and fills were simulated locally.
+
+Backtesting data sources accept ``funding_rates``, ``mark_prices`` and
+``perpetual_risk`` mappings keyed by an ``Asset`` or full symbol. Funding rows
+contain ``timestamp`` (UTC milliseconds or an aware datetime), ``fundingRate``
+and optionally ``markPrice``. Mark rows contain ``timestamp`` and ``markPrice``.
+Risk inputs contain ``maintenance_margin_rate`` and ``liquidation_fee_rate``.
+Strategies retain independent net or long/short legs and can use
+``create_order(..., reduce_only=True)``.
+
+The liquidation model supports cross-wallet and isolated collateral. When
+historical marks or risk inputs are unavailable it uses causal candle prices
+and collateral exhaustion, and records those assumptions. Isolated gap losses
+beyond allocated collateral record modeled insurance credits. Exchange-specific
+risk tiers, intrabar liquidation, insurance and matching still need venue
+calibration. Missing funding is disclosed, not silently claimed as complete
+zero-cost history. Inspect ``broker.backtest_assumptions`` and
+``broker.perpetual_events``; analyzed results include those records too.
 
 Exchange-Specific Guides
 ------------------------
@@ -760,7 +780,11 @@ For perpetual contracts, use the full CCXT symbol, such as ``BTC/USDT:USDT``, as
 Can I backtest crypto strategies with CCXT?
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Yes, for spot trading. Use ``CcxtBacktesting`` instead of the live ``Ccxt`` broker. Backtesting perpetual contracts with margin, funding and liquidation is not finished yet.
+Yes. Use ``CcxtBacktesting`` for spot or metadata-described perpetual contracts.
+Perpetual accounting includes collateral, linear/inverse P&L, fees and funding.
+Historical marks and risk settings improve the liquidation model; inspect its
+reported assumptions. The qualification above separates real public data from
+simulated fills and authenticated exchange execution.
 
 Which order types work through CCXT?
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^

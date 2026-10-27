@@ -132,6 +132,43 @@ def test_phemex_private_balance_caches_keep_wallet_families_separate():
     assert stream._states[contracts]["value"]["total"] == {"USDC": 11}
 
 
+@pytest.mark.parametrize("field,scope", [
+    ("accounts_p", {"type": "swap", "settle": "USDT"}),
+    ("accounts", {"type": "swap"}),
+])
+def test_phemex_account_snapshots_replace_one_currency_not_the_whole_family(field, scope):
+    # Phemex AOP sends zero or more snapshots, each describing one trading
+    # account. Shapes follow the provider's AOP examples; amounts are synthetic.
+    stream = CcxtStream(SimpleNamespace(id="phemex", markets={}, currencies={}), {})
+    client = SimpleNamespace(balance={}, safe_currency_code=lambda value: value)
+    for currency, total in (("USDT", 12), ("USDC", 7), ("USDT", 10)):
+        client.balance[currency] = {"free": total, "used": 0, "total": total}
+        stream._phemex_message(client, {"type": "snapshot", field: [{"currency": currency}]})
+    key = stream._key("watch_balance", {"params": scope})
+    assert stream._states[key]["value"]["total"] == {"USDT": 10, "USDC": 7}
+
+
+@pytest.mark.parametrize("field,orders_field", [("accounts_p", "orders_p"), ("accounts", "orders")])
+def test_phemex_order_snapshots_reconcile_each_settlement_independently(make_broker, field, orders_field):
+    broker = make_broker()
+    markets = {
+        "BTC/USDT:USDT": {"settle": "USDT"}, "BTC/USDC:USDC": {"settle": "USDC"},
+    }
+    stream = CcxtStream(SimpleNamespace(id="phemex", markets=markets, currencies={}), {},
+                        on_orders=broker._on_ccxt_orders)
+    client = SimpleNamespace(balance={"USDT": {"total": 12}, "USDC": {"total": 7}},
+                             safe_currency_code=lambda value: value,
+                             parse_ws_swap_order=lambda value: value)
+    def frame(currency, orders, kind="snapshot"):
+        stream._phemex_message(client, {"type": kind, field: [{"currency": currency}],
+                                        orders_field: orders})
+    frame("USDT", [{"id": "tether-order", "symbol": "BTC/USDT:USDT", "status": "open"}])
+    frame("USDC", [{"id": "usd-coin-order", "symbol": "BTC/USDC:USDC", "status": "open"}])
+    assert set(broker._stream_orders) == {"tether-order", "usd-coin-order"}
+    frame("USDT", [])
+    assert set(broker._stream_orders) == {"usd-coin-order"}
+
+
 def test_live_quote_uses_streamed_ticker_and_book(make_broker):
     broker = make_broker()
     source = broker.data_source

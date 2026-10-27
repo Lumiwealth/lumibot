@@ -179,10 +179,10 @@ class CcxtStream:
                 await asyncio.sleep(delay)
                 delay = min(delay * 2, 10)
 
-    def _publish(self, key, value, snapshot=False):
+    def _publish(self, key, value, snapshot=False, scope=None):
         method, encoded = key
         if method == "watch_orders" and self.on_orders:
-            self.on_orders(value, json.loads(encoded).get("params", {}), snapshot)
+            self.on_orders(value, scope if scope is not None else json.loads(encoded).get("params", {}), snapshot)
         elif method == "watch_balance" and self.on_balance:
             self.on_balance(value)
         with self._condition:
@@ -200,7 +200,10 @@ class CcxtStream:
             key = self._key("watch_balance", {"params": balance_scope})
             snapshot = message.get("type") == "snapshot"
             with self._condition:
-                previous = {} if snapshot else deepcopy(self._states.get(key, {}).get("value", {}))
+                # wo snapshots replace all spot wallets; AOP snapshots replace
+                # one collateral account, not the entire perpetual family.
+                previous = {} if snapshot and field == "wallets" else deepcopy(
+                    self._states.get(key, {}).get("value", {}))
             rows = {code: value for code, value in previous.items()
                     if isinstance(value, dict) and "total" in value}
             # CCXT has already parsed the frame. Keep each account family's
@@ -225,4 +228,22 @@ class CcxtStream:
         # USDT here selects CCXT's V2 protocol, not a settlement-currency
         # filter: the aop_p account channel contains every V2 settlement.
         key = self._key("watch_orders", {"params": scope})
-        self._publish(key, orders, snapshot=message.get("type") == "snapshot")
+        if scope["type"] == "spot":
+            self._publish(key, orders, snapshot=message.get("type") == "snapshot")
+            return
+        account_field = "accounts_p" if "orders_p" in message else "accounts"
+        currencies = {client.safe_currency_code(row["currency"])
+                      for row in message.get(account_field, [])}
+        groups = {currency: [] for currency in currencies}
+        for order in orders:
+            market = (self.api.markets or {}).get(order.get("symbol")) or {}
+            currency = market.get("settle")
+            if currency is None and len(currencies) == 1:
+                currency = next(iter(currencies))
+            groups.setdefault(currency, []).append(order)
+        if not groups:
+            self._publish(key, orders, snapshot=message.get("type") == "snapshot")
+        for currency, account_orders in groups.items():
+            account_scope = {**scope, "currency": currency} if currency is not None else scope
+            self._publish(key, account_orders, snapshot=message.get("type") == "snapshot",
+                          scope=account_scope)

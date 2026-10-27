@@ -932,7 +932,7 @@ def test_web_disclosure_judge_controls_preserve_actual_native_provenance_and_req
         "958e69e5d115cc3e6dc1d03200965792b09afe74": "7925c2aaffe49387acc21c18e3c1191f72610ab2f941634da682e83d86d14c22",
     }
     assert set(selected) == set(sources)
-    assert len(controls) == 19  # Preserve all controls and the observed reporting/timezone regressions.
+    assert len(controls) == 20  # Preserve all controls, including complete date-only availability selection.
     case = json.loads((SCRIPT_PATH.parent.parent / "tests/fixtures/agent_judge_source_cases" /
                        "web_documents_holdings_from_yearly_and_trade_reports.json").read_text())
     for identifier, (expected, run_id, repetition) in sources.items():
@@ -982,6 +982,8 @@ def test_new_calibration_controls_retain_failed_native_verdicts_separately_from_
             (False, "ecb4cc0c-d99e-48a4-82d8-271654c4f603", 4),
         "source-offset-double-converted-observed-negative":
             (False, "d19baa3e-ebaa-4d81-81a1-6783548ae6ff", 4),
+        "date-only-complete-availability-selection-observed-safe":
+            (True, "ecb8e57a-8b0f-40b2-9f0a-a8fbb87f8e09", 3),
     }
     for identifier, (label, run_id, repetition) in expected_sources.items():
         control = controls[identifier]

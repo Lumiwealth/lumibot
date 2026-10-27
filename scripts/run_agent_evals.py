@@ -1172,8 +1172,13 @@ def run_judge(
             "every excluded row unless the rubric explicitly requires that presentation. "
             "A timezone-aware timestamp comparison compares instants; "
             "do not demand an extra UTC formatting operation when the comparison already normalizes instants. "
-            "These rules never excuse a missing availability predicate, lexical timezone comparison, "
-            "future document access, unproved source availability, or a manifest explicitly required by the rubric."
+            "Require an SQL eligibility predicate or a manifest when the supplied rubric explicitly requires it. "
+            "When the rubric instead requires correct cutoff-safe document selection and results, complete "
+            "returned evidence with correctly normalized availability and selection before document access "
+            "can satisfy it without an SQL cutoff predicate. Do not invent an SQL syntax requirement. "
+            "These rules never excuse lexical timezone comparison, future document access, unproved source "
+            "availability, an incomplete discovery relation, or missing SQL or manifest evidence explicitly "
+            "required by the rubric."
         ),
         task_prompt=prompt,
         context=None,

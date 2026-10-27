@@ -10,6 +10,7 @@
 - Kalshi account-read foundation: existing Broker/DataSource interfaces, shared native client, Ed25519 and RSA signing, demo/production configuration, scoped balances and public metadata. The account check uses normal Strategy cash/equity methods. Settlement and backtesting remain unfinished; funded-flat demo account values are verified. Current demo API `portfolio_value` excludes cash despite the older changelog description; total adds cash and holdings once.
 
 ### Fixed
+- Option tool descriptions distinguish quote evidence from Greeks and require both for every final opening leg, including protective wings. Agent eval judging follows explicit rubric requirements without adding an unstated SQL cutoff predicate; a recorded safe date-only selection protects that distinction alongside existing unsafe-source controls.
 - Continuous strategies stop scheduler dispatch before joining running jobs, outside the scheduler's jobs lock. An iteration reading its next run can finish before broker cleanup, rather than deadlocking shutdown.
 - Release history checks isolate both shared-cache modes and preserve the same provider-instant and cutoff assertions with the cache's documented overlap bar.
 - Phemex derivatives retain settlement wallet selection and early balance snapshots; missing optional wallet metadata no longer narrows supported account discovery.

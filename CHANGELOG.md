@@ -4,6 +4,7 @@
 
 ### Fixed
 - The README and documentation homepage lead with native AI trading, backtesting and the same strategy across backtests and broker runs. Strategy choices link to their examples, BotSpot MCP has a short introduction and a separate setup section, and all eight localized README summaries are synchronized with a checked source fingerprint.
+- IBKR stock contract lookup selects a candidate matching the requested quote currency instead of accepting the first stock search result. Existing mappings and historical price caches are not rewritten.
 
 ## 4.6.31 - 2026-10-27
 

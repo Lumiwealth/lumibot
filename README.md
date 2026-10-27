@@ -7,7 +7,7 @@
 
 # LumiBot AI Trading
 
-**Turn trading ideas into working strategies.**
+**Build AI trading agents. Backtest them. Trade with the same strategy.**
 
 LumiBot is a **free, open-source Python framework** for building trading bots.
 Write your own trading rules, let AI agents make decisions, or combine both.
@@ -20,18 +20,24 @@ Read this in [中文](README.zh-CN.md) · [Español](README.es.md) · [Français
 
 ## Why LumiBot?
 
-- **Backtest before trading:** test on historical data and inspect charts, trades and results.
-- **Same strategy for backtesting and trading:** keep your strategy class; select a historical data source or a broker runner.
+- **Native AI trading:** agents research, reason and place orders from your prompts.
+- **Backtest before trading:** evaluate AI decisions and Python rules on historical data, with charts, trades and logs.
+- **Same strategy for backtesting and trading:** keep your strategy class; change the data source and broker runner.
 - **Multiple asset classes:** stocks, options, futures, forex, crypto and prediction markets through [supported brokers](https://lumibot.lumiwealth.com/brokers.all.html).
-- **The decision reaches a broker.** Inspect the orders, fills and decision records. [How execution works](https://lumibot.lumiwealth.com/execution_gap.html).
+
+**Build faster with BotSpot MCP.** Connect your assistant for free to get LumiBot
+strategy-building skills, research data and tools for backtests and deployment.
+[See what your assistant gets](#connect-your-ai-assistant).
 
 ## Three ways to build a strategy
 
-- **Python strategies:** write rules, indicators, position sizing and orders in Python.
-- **AI-native strategies:** write prompts for agents that research, reason and place trades inside your strategy.
-- **Hybrid strategies:** combine Python rules and AI decisions. For example, Python finds a signal, an AI agent reviews risk, and Python sizes the order.
+- **[AI-native strategies](#run-your-first-ai-backtest):** write prompts for trading agents.
+- **[Python strategies](#backtest-a-strategy):** write your rules in Python.
+- **[Hybrid strategies](#build-a-hybrid-strategy):** combine Python rules and AI decisions.
 
-**[Python quickstart](#backtest-a-strategy)** · **[AI example](#run-your-first-ai-backtest)** · [More examples](https://lumibot.lumiwealth.com/examples.html)
+<p align="center">
+  <img src="docs/assets/ai-trading/benefit-hero.png" alt="LumiBot combines market data, AI reasoning and trading strategies, with Python rules, AI agents or both" width="640">
+</p>
 
 ## Run your first AI backtest
 
@@ -140,7 +146,16 @@ MyStrategy.backtest(
 python my_strategy.py
 ```
 
-### Run the same strategy with a paper broker
+### Build a hybrid strategy
+
+Use Python for the rules you want to control directly and an agent for the
+research or decision you want it to handle. A moving-average entry can trigger
+a read-only risk review; Python checks the structured answer, sizes the
+position and submits the order. Set that reviewer's `allow_trading=False`.
+[See the hybrid flow](https://lumibot.lumiwealth.com/agents_flows.html) and
+[structured-answer examples](https://lumibot.lumiwealth.com/agents_quickstart.html).
+
+## Run the same strategy with a paper broker
 
 After the backtest works, keep the `MyStrategy` class and replace the final `MyStrategy.backtest(...)` call with a broker runner. This example uses Alpaca paper trading:
 
@@ -174,15 +189,6 @@ Start with paper trading. When you are ready for live trading, use the same stra
 
 For full setup guides, broker tutorials, AI-agent docs, examples, and deployment notes, use the **[Lumibot documentation](https://lumibot.lumiwealth.com/)**.
 
-## Build a hybrid strategy
-
-Use Python for the rules you want to control directly and an agent for the
-research or decision you want it to handle. A moving-average entry can trigger
-a read-only risk review; Python checks the structured answer, sizes the
-position and submits the order. Set that reviewer's `allow_trading=False`.
-[See the hybrid flow](https://lumibot.lumiwealth.com/agents_flows.html) and
-[structured-answer examples](https://lumibot.lumiwealth.com/agents_quickstart.html).
-
 ## Connect your AI assistant
 
 Claude, ChatGPT, Codex, Cursor, VS Code or another MCP-compatible assistant can
@@ -203,10 +209,6 @@ For research tools inside a running strategy's agents, see [LumiBot strategy age
 - [Compare frameworks](https://lumibot.lumiwealth.com/ai_trading_project_comparison.html) and [migrate from Backtrader](docsrc/MIGRATING_FROM_BACKTRADER.rst)
 - [CLI setup](https://lumibot.lumiwealth.com/cli.html), including `lumibot demo` and `lumibot init`
 - [Run locally or deploy](https://lumibot.lumiwealth.com/deployment.html) and [cash accounting](https://lumibot.lumiwealth.com/cash_accounting.html)
-
-<p align="center">
-  <img src="docs/assets/ai-trading/benefit-hero.png" alt="LumiBot: Python rules or AI agents, historical backtests and broker connections" width="640">
-</p>
 
 ## Want help building your first AI trading bot?
 

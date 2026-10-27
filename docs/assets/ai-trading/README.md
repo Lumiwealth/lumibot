@@ -2,6 +2,8 @@
 
 See [nine creator portraits and all tracked placements](CREATOR_CAMPAIGN.md). The hero and AI gallery now explain AI trading with the supplied circular official logo. Prior artwork notes below describe superseded revisions.
 
+The README and documentation homepage place the existing `benefit-hero.png` after the three linked strategy routes, before the examples. It is a conceptual illustration, not a backtest result. This placement reuses the current asset unchanged.
+
 # Current visual policy
 
 Generated robot/mascot variants are rejected. Current editorial images are character-free. All four creator banners include Rob Grzesik and creator of LumiBot. Do not use historical review images as brand references.

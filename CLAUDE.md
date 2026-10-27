@@ -1,3 +1,7 @@
+# Entry-page translation policy
+
+Follow the shared entry-page and translation policy in `AGENTS.md`: README and documentation-homepage changes include every shipped localized counterpart in the same commit. Review meaning, commands, prerequisites and links together; do not update English alone or treat a matching source fingerprint as proof of translation quality.
+
 # Capability first: agents may use undated sources; live trading has no date rules (Rob, 2026-10-22)
 
 - Never make LumiBot agents less capable to look safer. Do not add an instruction, tool filter or gate that blocks ordinary research without a concrete failure behind it.

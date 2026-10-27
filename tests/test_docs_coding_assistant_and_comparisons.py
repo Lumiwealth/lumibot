@@ -8,6 +8,7 @@ from the main entry pages, or its call to action disappears.
 """
 
 import re
+import hashlib
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -70,6 +71,46 @@ def test_every_comparison_page_exists_with_sources_and_cta():
 def test_readme_points_to_trading_skills_once():
     readme = (ROOT / "README.md").read_text(encoding="utf-8")
     assert readme.count("github.com/Lumiwealth/lumibot-trading-skills") == 1
+
+
+def test_all_localized_entry_summaries_match_current_readme_and_homepage():
+    # A change to either entry source must invalidate all old localized summaries.
+    sources = (ROOT / "README.md", DOCSRC / "index.rst")
+    content = b"\0".join(path.read_bytes() for path in sources)
+    expected = hashlib.sha256(content).hexdigest()
+    shipped = {"zh-CN", "es", "fr", "de", "ja", "ko", "pt", "ru"}
+    assert {p.name.removeprefix("README.").removesuffix(".md")
+            for p in ROOT.glob("README.*.md")} == shipped
+    for language in shipped:
+        text = (ROOT / f"README.{language}.md").read_text()
+        assert f"<!-- entry-source-sha256: {expected} -->" in text, language
+        for destination in (
+            "https://botspot.trade/agents",
+            "README.md#run-your-first-ai-backtest",
+            "README.md#backtest-a-strategy",
+            "README.md#build-a-hybrid-strategy",
+            "https://github.com/Lumiwealth/lumibot-trading-skills",
+        ):
+            assert destination in text, (language, destination)
+        assert "pip install lumibot" in text
+        assert "lumibot demo" in text
+
+
+def test_home_strategy_choices_link_to_sections_in_the_same_order():
+    home = _read("index")
+    labels = ("first-ai-strategy", "first-python-backtest", "first-hybrid-strategy")
+    assert home.index("Native AI trading") < home.index("Three ways to build a strategy")
+    assert home.index("See what your assistant gets") < home.index("Three ways to build a strategy")
+    choices = home[home.index("Three ways to build a strategy"):home.index(".. _first-ai-strategy:")]
+    for label in labels:
+        assert f"<{label}>`" in choices
+        assert home.count(f".. _{label}:") == 1
+    assert [choices.index(f"<{label}>`") for label in labels] == sorted(
+        choices.index(f"<{label}>`") for label in labels
+    )
+    assert [home.index(f".. _{label}:") for label in labels] == sorted(
+        home.index(f".. _{label}:") for label in labels
+    )
 
 
 # October 26: replace broken client deep links and duplicate rows with one guide CTA.

@@ -2,6 +2,9 @@
 
 ## 4.6.32 - Unreleased
 
+### Fixed
+- The README and documentation homepage lead with native AI trading, backtesting and the same strategy across backtests and broker runs. Strategy choices link to their examples, BotSpot MCP has a short introduction and a separate setup section, and all eight localized README summaries are synchronized with a checked source fingerprint.
+
 ## 4.6.31 - 2026-10-27
 
 ### Added

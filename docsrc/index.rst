@@ -6,7 +6,7 @@ LumiBot AI Trading
 
 .. container:: lumibot-hero-lead
 
-   **Turn trading ideas into working strategies.**
+   **Build AI trading agents. Backtest them. Trade with the same strategy.**
 
 LumiBot is a **free, open-source Python framework** for building trading bots.
 Write your own trading rules, let AI agents make decisions, or combine both.
@@ -16,20 +16,45 @@ results, and connects it to supported brokers for paper or live trading.
 Why build with LumiBot?
 ************************
 
-* **Backtest before trading:** test on historical data and inspect charts, trades and results.
-* **Same strategy for backtesting and trading:** use the same strategy class for historical tests, paper trading and live trading. Change the data source and broker runner.
-* **Multiple asset classes:** trade stocks, options, futures, forex, crypto and prediction markets through :doc:`supported brokers <brokers.all>`.
+* **Native AI trading:** agents research, reason and place orders from your prompts.
+* **Backtest before trading:** evaluate AI decisions and Python rules on historical data, with charts, trades and logs.
+* **Same strategy for backtesting and trading:** keep your strategy class; change the data source and broker runner.
+* **Multiple asset classes:** stocks, options, futures, forex, crypto and prediction markets through :doc:`supported brokers <brokers.all>`.
+
+.. tip::
+
+   **Build faster with BotSpot MCP.** Connect your assistant for free to get LumiBot
+   strategy-building skills, research data and tools for backtests and deployment.
+   :ref:`See what your assistant gets <connect-your-ai-assistant>`.
 
 Three ways to build a strategy
 *******************************
 
-* **Python strategies:** write the rules, indicators, position sizing and orders in Python.
-* **AI-native strategies:** write prompts for agents that research, reason and place trades inside your strategy.
-* **Hybrid strategies:** combine them. For example, Python finds an entry signal, an AI agent reviews it, and Python controls sizing and submits the order.
+.. container:: lumibot-entry-grid lumibot-start-routes
 
-.. container:: lumibot-start-routes
+   .. container:: lumibot-entry-card
 
-   :ref:`Python quickstart <first-python-backtest>` · :ref:`AI example <first-ai-strategy>` · :doc:`More strategy examples <examples>`
+      **AI-native strategies**
+
+      :ref:`Write prompts for trading agents <first-ai-strategy>`.
+
+   .. container:: lumibot-entry-card
+
+      **Python strategies**
+
+      :ref:`Write your rules in Python <first-python-backtest>`.
+
+   .. container:: lumibot-entry-card
+
+      **Hybrid strategies**
+
+      :ref:`Combine Python rules and AI decisions <first-hybrid-strategy>`.
+
+.. image:: ../docs/assets/ai-trading/benefit-hero.png
+   :alt: LumiBot combines market data, AI reasoning and trading strategies, with Python rules, AI agents or both
+   :width: 640px
+   :align: center
+   :class: lumibot-entry-hero
 
 .. _first-ai-strategy:
 
@@ -100,6 +125,8 @@ on its first iteration and holds them. Save it as ``my_strategy.py``:
 See :doc:`getting_started` for setup and :doc:`examples` for indicators,
 options and other Python strategies.
 
+.. _first-hybrid-strategy:
+
 Build a hybrid strategy
 ***********************
 
@@ -119,10 +146,12 @@ backtest or a broker run: ``Strategy.backtest(...)`` runs historical data;
 ``IS_BACKTESTING=false`` alone cannot change a backtest-only runner.
 See :doc:`strategy_run_modes` and the :doc:`broker guides <brokers>` for setup.
 
+.. _connect-your-ai-assistant:
+
 Connect your AI assistant
 **************************
 
-Use a coding assistant to help write either kind of strategy. This is separate
+Use a coding assistant to help write any of these strategies. This is separate
 from the AI agents that run **inside** an AI-native strategy: the assistant
 helps you build and test the code; the strategy's agents make its trading decisions.
 
@@ -154,12 +183,6 @@ Explore the framework
       **API and comparisons**
 
       :doc:`Strategy API <strategy_api_overview>` · :doc:`Reusable components <standalone_components>` · :doc:`Compare frameworks <ai_trading_project_comparison>`
-
-.. image:: ../docs/assets/ai-trading/benefit-hero.png
-   :alt: LumiBot: Python rules or AI agents, historical backtests and broker connections
-   :width: 640px
-   :align: center
-   :class: lumibot-entry-hero
 
 Want help building your first AI trading bot?
 ---------------------------------------------

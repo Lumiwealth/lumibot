@@ -26,6 +26,7 @@ def submission():
             "data": [{"positionMode": "HEDGE"}],
         }
     )
+    client.get_position_mode = MagicMock(return_value={"code": 0, "data": {"positionMode": "HEDGE"}})
     client.change_leverage = MagicMock(return_value={"code": 0})
     client.get_positions = MagicMock(
         return_value={
@@ -61,6 +62,67 @@ def make_order(quantity="0.008868641", **kwargs):
     return Order(
         "test-strategy", Asset("BTCUSDT", Asset.AssetType.CRYPTO_FUTURE, leverage=10), Decimal(quantity), **kwargs
     )
+
+
+@pytest.mark.parametrize("mode", ["HEDGE", "ONE_WAY"])
+def test_submission_reads_account_mode_without_switching_it(submission, mode):
+    broker, client, request = submission
+    # Official GET position_mode response; account mode is a user choice.
+    client.get_position_mode = MagicMock(return_value={"code": 0, "data": {"positionMode": mode}})
+    order = broker._submit_order(make_order())
+    assert order.status == Order.OrderStatus.SUBMITTED
+    client.change_position_mode.assert_not_called()
+    client.get_position_mode.assert_called_once_with()
+    if mode == "ONE_WAY":
+        assert order.position_side is None
+        assert "tradeSide" not in json.loads(request.call_args.kwargs["data"])
+
+
+@pytest.mark.parametrize("side,wire_side", [(Order.OrderSide.SELL, "SELL"), (Order.OrderSide.BUY, "BUY")])
+def test_one_way_reduce_only_preserves_execution_side(submission, side, wire_side):
+    broker, client, request = submission
+    client.get_position_mode = MagicMock(return_value={"code": 0, "data": {"positionMode": "ONE_WAY"}})
+    for position in client.get_positions.return_value["data"]:
+        position["positionMode"] = "ONE_WAY"
+    order = make_order(side=side)
+    order.reduce_only = True
+    assert broker._submit_order(order).status == Order.OrderStatus.SUBMITTED
+    body = json.loads(request.call_args.kwargs["data"])
+    assert body["side"] == wire_side
+    assert body["reduceOnly"] is True
+    assert "tradeSide" not in body
+    assert order.position_side is None
+    client.change_position_mode.assert_not_called()
+
+
+def test_one_way_snapshot_and_order_use_net_position_identity(submission):
+    broker, client, _ = submission
+    client.get_positions.return_value["data"] = [
+        {"symbol": "BTCUSDT", "side": "LONG", "positionId": "net-position", "qty": "0.02",
+         "positionMode": "ONE_WAY", "avgOpenPrice": "60000"}]
+    position = broker._pull_positions(None)[0]
+    assert position.position_side is None
+    order = broker._parse_broker_order({"orderId": "net-order", "symbol": "BTCUSDT", "side": "SELL",
+                                         "positionMode": "ONE_WAY", "orderType": "MARKET",
+                                         "status": "FILLED", "qty": "0.01", "reduceOnly": True}, "strategy")
+    assert order.position_side is None
+    assert order.side == Order.OrderSide.SELL
+    assert order.reduce_only
+
+
+def test_client_position_mode_read_uses_documented_get_endpoint():
+    client = BitUnixClient(api_key="test-key", secret_key="test-secret")
+    client._request = MagicMock(return_value={"code": 0, "data": {"positionMode": "ONE_WAY"}})
+    assert client.get_position_mode()["data"]["positionMode"] == "ONE_WAY"
+    client._request.assert_called_once_with(method="GET", endpoint="/api/v1/futures/account/position_mode")
+
+
+@pytest.mark.parametrize("hedged,native", [(True, "HEDGE"), (False, "ONE_WAY")])
+def test_position_mode_changes_are_explicit(submission, hedged, native):
+    broker, client, request = submission
+    broker.set_position_mode(hedged)
+    client.change_position_mode.assert_called_once_with(native)
+    request.assert_not_called()
 
 
 def test_generic_broker_submit_orders_rejects_a_null_entry(submission):
@@ -199,21 +261,22 @@ def test_missing_or_invalid_pair_rules_fail_closed_and_retry(submission, respons
 
 
 @pytest.mark.parametrize(
-    "failure", [RuntimeError("mode unavailable"), {"code": 20009}, {"code": 0, "data": [{"positionMode": "ONE_WAY"}]}]
+    "failure", [RuntimeError("mode unavailable"), {"code": 20009}, {"code": 0, "data": {"positionMode": "INVALID"}}]
 )
-def test_failed_hedge_initialization_blocks_submit_and_retries(submission, failure):
+def test_failed_mode_read_blocks_unidentified_open_and_retries(submission, failure):
     broker, client, request = submission
-    client.change_position_mode.side_effect = [failure, client.change_position_mode.return_value]
+    # No implicit account mutation: unreadable/invalid mode is retried as a read.
+    client.get_position_mode.side_effect = [failure, client.get_position_mode.return_value]
     order = broker._submit_order(make_order())
     assert order.status == Order.OrderStatus.ERROR
-    assert "HEDGE" in str(order._error)
+    assert "position mode" in str(order._error)
     request.assert_not_called()
     assert broker._submit_order(make_order()).status == Order.OrderStatus.SUBMITTED
 
 
-def test_confirmed_existing_hedge_position_allows_reduce_only_close_after_mode_change_failure(submission):
+def test_confirmed_existing_hedge_position_allows_close_after_mode_read_failure(submission):
     broker, client, request = submission
-    client.change_position_mode.side_effect = RuntimeError("existing position prevents mode change")
+    client.get_position_mode.side_effect = RuntimeError("mode read unavailable")
     order = make_order(side=Order.OrderSide.SELL)
     order.reduce_only = True
 
@@ -224,11 +287,11 @@ def test_confirmed_existing_hedge_position_allows_reduce_only_close_after_mode_c
 
 
 @pytest.mark.parametrize("position_mode", [None, "ONE_WAY"])
-def test_reduce_only_close_still_fails_when_live_position_does_not_confirm_hedge_mode(
+def test_reduce_only_close_uses_confirmed_live_position_mode_after_read_failure(
     submission, position_mode
 ):
     broker, client, request = submission
-    client.change_position_mode.side_effect = RuntimeError("mode unavailable")
+    client.get_position_mode.side_effect = RuntimeError("mode unavailable")
     for position in client.get_positions.return_value["data"]:
         if position_mode is None:
             position.pop("positionMode", None)
@@ -237,8 +300,15 @@ def test_reduce_only_close_still_fails_when_live_position_does_not_confirm_hedge
     order = make_order(side=Order.OrderSide.SELL)
     order.reduce_only = True
 
-    assert broker._submit_order(order).status == Order.OrderStatus.ERROR
-    request.assert_not_called()
+    result = broker._submit_order(order)
+    # ONE_WAY is a supported mode, not an initialization failure. Preserve the
+    # rejection for a genuinely unidentified close protocol (missing mode).
+    if position_mode is None:
+        assert result.status == Order.OrderStatus.ERROR
+        request.assert_not_called()
+    else:
+        assert result.status == Order.OrderStatus.SUBMITTED
+        assert json.loads(request.call_args.kwargs["data"])["side"] == "SELL"
 
 
 @pytest.mark.parametrize(

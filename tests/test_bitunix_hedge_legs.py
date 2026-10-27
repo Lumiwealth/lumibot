@@ -47,6 +47,7 @@ def hedged():
     client.get_trading_pairs = MagicMock(return_value={
         "code": 0, "data": [{"symbol": SYMBOL, "basePrecision": 4, "quotePrecision": 1, "minTradeVolume": "0.0001"}]})
     client.change_position_mode = MagicMock(return_value={"code": 0, "data": [{"positionMode": "HEDGE"}]})
+    client.get_position_mode = MagicMock(return_value={"code": 0, "data": {"positionMode": "HEDGE"}})
     client.change_leverage = MagicMock(return_value={"code": 0})
     client.get_positions = MagicMock(return_value={"code": 0, "data": [dict(item) for item in BOTH_LEGS]})
     with patch("lumibot.brokers.bitunix.BitUnixClient", return_value=client), patch(

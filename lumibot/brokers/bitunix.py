@@ -132,7 +132,7 @@ class Bitunix(Broker):
         # Private-channel URL per BitUnix docs (used for authenticated account streams)
         self.ws_url = "wss://fapi.bitunix.com/private/"
         """Private websocket endpoint for authenticated Bitunix futures streams."""
-        self._position_mode_initialized = False
+        self._position_mode = None
 
         if not data_source:
             data_source = _get_bitunix_data_class()(config, max_workers=max_workers, chunk_size=chunk_size)
@@ -252,7 +252,8 @@ class Bitunix(Broker):
                     # Each leg keeps its own side and exchange positionId so the
                     # shared tracker never merges or overwrites them. A repeated
                     # leg with no distinct positionId is still ambiguous.
-                    position_side = "short" if side in ("SELL", "SHORT") else "long"
+                    position_side = None if p.get("positionMode") == "ONE_WAY" else (
+                        "short" if side in ("SELL", "SHORT") else "long")
                     raw_id = p.get("positionId")
                     position_id = str(raw_id) if raw_id not in (None, "") else None
                     ids = seen_legs.setdefault((asset, position_side), set())
@@ -290,25 +291,26 @@ class Bitunix(Broker):
         else:
             return "MARKET"  # Default to MARKET for unknown types
 
-    def _ensure_position_mode_initialized(self):
-        if self._position_mode_initialized:
-            return
-
+    def _read_position_mode(self):
+        """Account mode belongs to the caller; order submission only reads it."""
         try:
-            response = self.api.change_position_mode("HEDGE")
-            if response and response.get("code") == 0:
-                mode = response.get("data", [{}])[0].get("positionMode")
-                self._position_mode_initialized = mode == "HEDGE"
-                logger.info("Position mode initialization returned %s", mode)
-            else:
-                logger.warning(
-                    "Failed to set default position mode to HEDGE. API response: %s", response
-                )
+            response = self.api.get_position_mode()
+            mode = (response.get("data") or {}).get("positionMode")
+            if response.get("code") != 0 or mode not in ("HEDGE", "ONE_WAY"):
+                raise ValueError("missing or invalid position mode")
         except Exception as exc:
-            logger.warning(
-                "Failed to set default position mode to HEDGE due to an exception: %s", exc
-            )
-            logger.debug(_format_exc())
+            raise LumibotBrokerAPIError("Cannot read Bitunix account position mode") from exc
+        self._position_mode = mode
+        return mode
+
+    def set_position_mode(self, hedged, asset=None, params=None):
+        """Explicitly change the account-wide mode; never called implicitly."""
+        mode = "HEDGE" if hedged else "ONE_WAY"
+        response = self.api.change_position_mode(mode)
+        if not response or response.get("code") != 0:
+            raise LumibotBrokerAPIError("Bitunix rejected the requested position mode")
+        self._position_mode = None
+        return response
 
     def _get_trading_pair_rules(self, symbol: str) -> tuple[Decimal, Decimal, Decimal]:
         """Cache validated quantity/price steps and minimum size for this broker session."""
@@ -399,37 +401,33 @@ class Bitunix(Broker):
                         f"Bitunix {symbol} limit price must be positive after precision rounding"
                     )
 
-            self._ensure_position_mode_initialized()
             close_position = None
             opening_leg = "long" if self._map_side_to_bitunix(order.side) == "BUY" else "short"
             if not reduce_only and order.position_side is not None and order.position_side != opening_leg:
                 # An order naming the other leg trades against it: a hedge-mode close.
                 reduce_only = True
                 order.reduce_only = True
-            if reduce_only:
+            try:
+                mode = self._read_position_mode()
+            except LumibotBrokerAPIError:
+                if not reduce_only:
+                    raise
+                # A position snapshot can still authoritatively select the
+                # close protocol when the separate account-mode read failed.
                 position_side = "LONG" if self._map_side_to_bitunix(order.side) == "SELL" else "SHORT"
                 close_position = self._get_close_position(symbol, position_side, order.position_id)
-                order.position_side = position_side.lower()
+                mode = close_position.get("positionMode")
+                if mode not in ("HEDGE", "ONE_WAY"):
+                    raise LumibotBrokerAPIError("Cannot confirm Bitunix position mode for closing")
+            if reduce_only:
+                position_side = "LONG" if self._map_side_to_bitunix(order.side) == "SELL" else "SHORT"
+                if close_position is None:
+                    close_position = self._get_close_position(symbol, position_side, order.position_id)
+                order.position_side = position_side.lower() if mode == "HEDGE" else None
                 order.position_id = str(close_position["positionId"])
             else:
                 # Name the leg an opening order trades so its fill lands on that leg.
-                order.position_side = opening_leg
-
-            confirmed_existing_hedge_close = bool(
-                reduce_only
-                and close_position is not None
-                and close_position.get("positionMode") == "HEDGE"
-            )
-            if not self._position_mode_initialized and not confirmed_existing_hedge_close:
-                raise LumibotBrokerAPIError(
-                    "Bitunix HEDGE position mode could not be confirmed; order was not sent. "
-                    "Check the account position mode and outstanding positions/orders before retrying."
-                )
-            if confirmed_existing_hedge_close and not self._position_mode_initialized:
-                logger.info(
-                    "Allowing reduce-only close because the live %s position confirms HEDGE mode",
-                    symbol,
-                )
+                order.position_side = opening_leg if mode == "HEDGE" else None
             # Only opening orders set leverage. Reconstructed close assets may
             # default to 1x, which must not change an existing position's margin.
             leverage = order.asset.leverage
@@ -453,9 +451,10 @@ class Bitunix(Broker):
                 "qty": format(quantity, "f"),
                 "tradeSide": "CLOSE" if reduce_only else "OPEN",
                 "clientId": client_order_id,
+                "position_mode": mode,
                 **({"reduceOnly": True} if reduce_only else {}),
             }
-            if reduce_only:
+            if reduce_only and mode == "HEDGE":
                 # Bitunix HEDGE uses the position's side, while LumiBot keeps the execution side.
                 params["positionId"] = str(close_position["positionId"])
                 params["side"] = "BUY" if position_side == "LONG" else "SELL"
@@ -700,11 +699,13 @@ class Bitunix(Broker):
 
             # Map order side
             side = Order.OrderSide.BUY if side_raw.upper() == "BUY" else Order.OrderSide.SELL
-            is_close = response.get("tradeSide") == "CLOSE"
+            is_close = response.get("tradeSide") == "CLOSE" or bool(response.get("reduceOnly"))
             # HEDGE responses name the position side for a CLOSE and the opening
             # direction for an OPEN, so the wire side identifies the leg either way.
-            position_side = "long" if side == Order.OrderSide.BUY else "short"
-            if is_close:
+            mode = response.get("positionMode") or getattr(self, "_position_mode", None)
+            hedged = mode == "HEDGE" or (mode is None and response.get("tradeSide") in ("OPEN", "CLOSE"))
+            position_side = ("long" if side == Order.OrderSide.BUY else "short") if hedged else None
+            if is_close and hedged:
                 side = Order.OrderSide.SELL if side == Order.OrderSide.BUY else Order.OrderSide.BUY
             raw_position_id = response.get("positionId")
 

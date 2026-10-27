@@ -350,3 +350,32 @@ a.reference.image-reference:has(.lumibot-learning-image) { display: block; width
 
 /* Keep navigation visible near the top, including on narrow screens. */
 .sidebar-brand img.sidebar-logo { max-width: 128px; margin: 0 auto; }
+
+/* Shared MCP callout: compact benefits, using the existing docs CTA styles. */
+.botspot-mcp-callout ul {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 4px 20px;
+}
+.botspot-mcp-callout li > p { margin: 0; }
+@media (max-width: 680px) {
+    .botspot-mcp-callout ul { grid-template-columns: 1fr; }
+}
+
+/* Compact variant of the shared docs button, including Furo's manual theme. */
+.course-button-compact,
+.course-button-compact:visited {
+    box-sizing: border-box;
+    max-width: 100%;
+    min-height: 44px;
+    padding: 10px 16px;
+    box-shadow: none;
+    background: var(--color-background-secondary);
+    border-color: var(--color-brand-primary);
+    color: var(--color-brand-primary);
+}
+.course-button-compact:hover,
+.course-button-compact:focus {
+    background: var(--color-background-hover);
+    color: var(--color-brand-primary);
+}

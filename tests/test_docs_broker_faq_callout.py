@@ -194,8 +194,9 @@ def test_exchanges_sit_directly_under_crypto_exchanges_with_plain_names():
 
 def test_callout_says_free_and_never_paid_plan_required():
     text = SNIPPET.read_text(encoding="utf-8")
-    assert "free" in text.lower() and "strongly recommended" in text.lower()
-    assert "why-botspot-mcp" in text
+    # October 26: remove the oversized recommendation heading and extra explainer link.
+    assert "free" in text.lower() and "Connect your AI assistant" in text
+    assert "Add custom connector" not in text
     assert "paid plan is required" not in text.lower()
     mcp = (DOCSRC / "botspot_mcp.rst").read_text(encoding="utf-8")
     assert ".. _why-botspot-mcp:" in mcp

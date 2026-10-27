@@ -312,6 +312,18 @@ class Bitunix(Broker):
         self._position_mode = None
         return response
 
+    def get_contract_spec(self, asset, quote=None):
+        """Bitunix quantities remain base coin; currency names come from metadata."""
+        from lumibot.entities import ContractSpec
+
+        symbol = getattr(asset, "symbol", asset)
+        response = self.api.get_trading_pairs(symbols=symbol)
+        if not response or response.get("code") != 0:
+            raise LumibotBrokerAPIError("Cannot read Bitunix contract metadata")
+        pair = next(item for item in response["data"] if item["symbol"] == symbol)
+        return ContractSpec(pair["base"], pair["quote"], pair.get("marginCoin") or pair["quote"],
+                            quantity_unit="base")
+
     def _get_trading_pair_rules(self, symbol: str) -> tuple[Decimal, Decimal, Decimal]:
         """Cache validated quantity/price steps and minimum size for this broker session."""
         if symbol not in self._trading_pair_rules:

@@ -13,6 +13,8 @@
 ### Fixed
 - Agent qualification saves completed actor evidence before judging and resumes interrupted judges without replaying actors. Audit checks match the SDK's executed declared arguments while retaining raw requests and rejecting changed recognized arguments.
 - Stock answers derive reported date windows from the selected rows, and undated-source research distinguishes an unknown exact date from a labeled contextual estimate.
+- Documentation distinguishes Python, AI-native and hybrid strategies, shows editable AI prompts and a complete Python example, and gives coding-assistant connection its own section. The homepage and README link to detailed guides instead of repeating them.
+- Documentation explains LumiBot and the AI strategy workflow before hosted setup, replaces duplicate client install badges with one setup-guide button, and keeps shared connection panels compact on desktop and mobile.
 - Option tool descriptions distinguish quote evidence from Greeks and require both for every final opening leg, including protective wings. Agent eval judging follows explicit rubric requirements without adding an unstated SQL cutoff predicate; a recorded safe date-only selection protects that distinction alongside existing unsafe-source controls.
 - Continuous strategies stop scheduler dispatch before joining running jobs, outside the scheduler's jobs lock. An iteration reading its next run can finish before broker cleanup, rather than deadlocking shutdown.
 - Release history and pagination checks isolate both shared-cache modes, preserve provider-instant/cutoff assertions and verify actual sparse-history expansion without another synthetic client's cached bars.

@@ -194,15 +194,18 @@ def test_exchanges_sit_directly_under_crypto_exchanges_with_plain_names():
 
 def test_callout_says_free_and_never_paid_plan_required():
     text = SNIPPET.read_text(encoding="utf-8")
-    assert "free" in text.lower() and "strongly recommended" in text.lower()
-    assert "why-botspot-mcp" in text
+    # October 26: remove the oversized recommendation heading and extra explainer link.
+    assert "free" in text.lower() and "Connect your AI assistant" in text
+    assert "Add custom connector" not in text
     assert "paid plan is required" not in text.lower()
     mcp = (DOCSRC / "botspot_mcp.rst").read_text(encoding="utf-8")
     assert ".. _why-botspot-mcp:" in mcp
     assert "paid botspot plan is required" not in mcp.lower()
     readme = (ROOT / "README.md").read_text(encoding="utf-8")
     assert "paid botspot plan is required" not in readme.lower()
-    assert "connect the free [BotSpot MCP]" in readme[:3000]
+    # October 26: connection is a separate section after the strategy examples.
+    connection = readme.split("## Connect your AI assistant")[1].split("## Explore LumiBot")[0]
+    assert "Connect the free [BotSpot MCP]" in connection
 
 
 def test_exchange_pages_never_use_exchange_id_as_backtesting_data_source():

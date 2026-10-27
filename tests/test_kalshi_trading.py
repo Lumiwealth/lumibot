@@ -109,6 +109,36 @@ def test_provider_self_trade_option_is_configurable(broker):
     assert broker._order_payload(order)["self_trade_prevention_type"] == "maker"
 
 
+def test_caller_client_order_id_is_sent_and_checkpointed_once(broker, monkeypatch):
+    order = Order("neutral", contract("yes"), .25, "buy", limit_price=.23,
+                  custom_params={"client_order_id": "synthetic-owner-order"})
+    monkeypatch.setattr(broker, "_refresh_after_mutation", lambda order: None)
+    original = broker._client.request.side_effect
+
+    def request(method, path, **kwargs):
+        if method == "POST":
+            assert kwargs["json"]["client_order_id"] == "synthetic-owner-order"
+            return {**recorded("create_ack"), "client_order_id": kwargs["json"]["client_order_id"]}
+        return original(method, path, **kwargs)
+
+    broker._client.request.side_effect = request
+    broker._submit_order(order)
+    assert broker._state(order)["client_order_id"] == "synthetic-owner-order"
+    assert Order.from_dict(order.to_dict()).custom_params["_kalshi"]["client_order_id"] == "synthetic-owner-order"
+    with pytest.raises(ValueError, match="already been attempted"):
+        broker._submit_order(order)
+    assert sum(call.args[0] == "POST" for call in broker._client.request.call_args_list) == 1
+
+
+@pytest.mark.parametrize("client_id", [None, "", " ", 42])
+def test_invalid_client_order_ids_fail_before_submission(broker, client_id):
+    order = Order("neutral", contract("yes"), 1, "buy", limit_price=.23,
+                  custom_params={"client_order_id": client_id})
+    with pytest.raises(ValueError, match="client_order_id must be a non-empty string"):
+        broker._submit_order(order)
+    assert not any(call.args[0] == "POST" for call in broker._client.request.call_args_list)
+
+
 def test_market_order_uses_ioc_and_published_grid_extreme(broker):
     order = Order("neutral", contract("no"), 1, "buy", order_type="market")
     payload = broker._order_payload(order)

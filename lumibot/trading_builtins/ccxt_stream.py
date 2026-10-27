@@ -12,12 +12,15 @@ logger = LazyLogger(__name__)
 
 
 class CcxtStream:
-    def __init__(self, api, config, on_orders=None, on_balance=None, client_factory=None):
+    def __init__(self, api, config, on_orders=None, on_balance=None, client_factory=None, on_disconnect=None):
         self.api = api
         self.config = dict(config)
         self.on_orders = on_orders
         self.on_balance = on_balance
         self.client_factory = client_factory
+        self.on_disconnect = on_disconnect
+        self._private_request_scopes = {}
+        self._private_acks = {}
         self._condition = threading.Condition()
         self._ready = threading.Event()
         self._thread = None
@@ -111,6 +114,31 @@ class CcxtStream:
                 self._condition.wait(remaining)
         raise RuntimeError("CCXT stream closed while waiting for data")
 
+    def wait_subscribed(self, method, *, params, timeout=10):
+        """Wait for a Phemex channel acknowledgment, not an account snapshot.
+
+        The provider explicitly allows zero initial AOP snapshots. REST must
+        establish account state; an acknowledgment only establishes transport.
+        """
+        key = self.subscribe(method, params=params)
+        scope = self._key("private", params)
+        deadline = None if timeout is None else time.monotonic() + timeout
+        with self._condition:
+            while not self._stopping:
+                ack = self._private_acks.get(scope, {})
+                if ack.get("error") is not None:
+                    raise ack["error"]
+                if ack.get("ready"):
+                    return
+                state = self._states.get(key, {})
+                if state.get("terminal_error"):
+                    raise state["error"]
+                remaining = None if deadline is None else deadline - time.monotonic()
+                if remaining is not None and remaining <= 0:
+                    raise TimeoutError("Phemex private subscription was not acknowledged")
+                self._condition.wait(remaining)
+        raise RuntimeError("CCXT stream closed while subscribing")
+
     def _spawn(self, key, method, kwargs):
         self._tasks[key] = asyncio.create_task(self._watch(key, method, kwargs))
 
@@ -155,7 +183,22 @@ class CcxtStream:
                     import ccxt
 
                     raise ccxt.NotSupported(f"{self.api.id} has no {method} method")
-                result = await watch(**kwargs)
+                watch_kwargs = kwargs
+                request_id = None
+                if self.api.id == "phemex" and method in ("watch_orders", "watch_balance"):
+                    # Upstream uses seconds as request IDs for all private
+                    # channels. Distinct IDs let acknowledgments identify the
+                    # subscribed family even when channels start concurrently.
+                    request_id = client.request_id()
+                    with self._condition:
+                        self._private_request_scopes[request_id] = self._key("private", kwargs.get("params", {}))
+                    watch_kwargs = {**kwargs, "params": {**kwargs.get("params", {}), "id": request_id}}
+                try:
+                    result = await watch(**watch_kwargs)
+                finally:
+                    if request_id is not None:
+                        with self._condition:
+                            self._private_request_scopes.pop(request_id, None)
                 # Native frames also deliver empty account snapshots and fix
                 # Phemex's V2 USDC generic-order channel resolution in CCXT.
                 if not (self.api.id == "phemex" and method in ("watch_orders", "watch_balance")):
@@ -173,6 +216,11 @@ class CcxtStream:
                     state["terminal_error"] = isinstance(exc, (ccxt.NotSupported, ccxt.AuthenticationError,
                                                                 ccxt.ArgumentsRequired, ccxt.BadSymbol))
                     self._condition.notify_all()
+                    disconnected = isinstance(exc, (ccxt.NetworkError, ConnectionError))
+                    if disconnected:
+                        self._private_acks.clear()
+                if disconnected and self.on_disconnect is not None:
+                    self.on_disconnect()
                 logger.warning("CCXT %s subscription failed: %s", method, type(exc).__name__)
                 if state["terminal_error"]:
                     return
@@ -192,6 +240,17 @@ class CcxtStream:
             self._condition.notify_all()
 
     def _phemex_message(self, client, message):
+        with self._condition:
+            scope = self._private_request_scopes.pop(message.get("id"), None)
+            if scope is not None:
+                success = (message.get("result") or {}).get("status") == "success" and not message.get("error")
+                if success:
+                    self._private_acks[scope] = {"ready": True}
+                else:
+                    import ccxt
+
+                    self._private_acks[scope] = {"error": ccxt.ExchangeError("Phemex rejected the private subscription")}
+                self._condition.notify_all()
         for field, balance_scope in (("wallets", {"type": "spot"}),
                                      ("accounts", {"type": "swap"}),
                                      ("accounts_p", {"type": "swap", "settle": "USDT"})):

@@ -1166,7 +1166,7 @@ class _Strategy:
         # Check if cash is in the list of positions yet
         for x in range(len(self.broker._filled_positions.get_list())):
             position = self.broker._filled_positions[x]
-            if position is not None and position.asset == self._quote_asset:
+            if position is not None and position.asset == self._quote_asset and position.strategy == self._name:
                 position.quantity = cash
                 self.broker._filled_positions[x] = position
                 self._cash_position = position
@@ -1753,6 +1753,9 @@ class _Strategy:
                     entry_price = position.avg_fill_price if (hasattr(position, 'avg_fill_price') and position.avg_fill_price) else price
                     unrealized_pnl = (float(price) - float(entry_price)) * float(quantity) * multiplier
                     portfolio_value += unrealized_pnl
+                elif self.is_backtesting and position_asset_type == "crypto_future":
+                    portfolio_value += float(self.broker._perpetuals.unrealized(
+                        self, position, price, currency=quote_asset.symbol))
                 else:
                     # All other cases (stocks, options, crypto, live trading)
                     position_value = float(quantity) * float(price) * multiplier

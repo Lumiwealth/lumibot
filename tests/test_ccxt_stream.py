@@ -91,6 +91,16 @@ def test_phemex_empty_snapshot_and_usdc_order_use_v2_scope():
     assert observed.call_args.args[0][0]["symbol"] == "BTC/USDC:USDC"
 
 
+def test_phemex_subscription_ack_establishes_transport_without_fabricating_account_data():
+    stream = CcxtStream(SimpleNamespace(id="phemex", markets={}, currencies={}), {})
+    scope = {"type": "swap", "settle": "USDT"}
+    stream._private_request_scopes[7] = stream._key("private", scope)
+    stream.subscribe = Mock()
+    stream._phemex_message(SimpleNamespace(), {"id": 7, "error": None, "result": {"status": "success"}})
+    stream.wait_subscribed("watch_orders", params=scope, timeout=None)
+    assert not any("value" in state or state.get("snapshot_seen") for state in stream._states.values())
+
+
 def test_phemex_balance_snapshot_is_retained_for_later_subscribers():
     # A real wo.subscribe snapshot carries wallets and empty order lists.
     # Credentials and account identifiers are deliberately absent.

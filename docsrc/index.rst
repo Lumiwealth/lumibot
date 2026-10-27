@@ -240,6 +240,7 @@ Table of Contents
    Strategy Properties <strategy_properties>
    Assets and Orders <entities>
    Indicators <indicators>
+   Building Indicators <building_indicators>
    SEC Fundamentals <fundamentals>
    Macro Data <macro_data>
 

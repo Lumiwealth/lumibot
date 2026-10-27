@@ -223,7 +223,7 @@ class KalshiBacktesting(PandasData):
         if str(order.time_in_force).lower() == "gtd" and order.good_till_date is None:
             raise ValueError("Kalshi GTD requires good_till_date")
         options = order.custom_params or {}
-        if options.get("reduce_only") and str(order.time_in_force).lower() != "ioc":
+        if (getattr(order, "reduce_only", False) or options.get("reduce_only")) and str(order.time_in_force).lower() != "ioc":
             raise ValueError("Kalshi reduce_only requires time_in_force='ioc'")
         if options.get("post_only"):
             if order.order_type != Order.OrderType.LIMIT:
@@ -257,7 +257,7 @@ class KalshiBacktesting(PandasData):
         return order.limit_price if (order.custom_params or {}).get("post_only") else price
 
     def get_backtest_fill_quantity(self, order, broker):
-        if not (order.custom_params or {}).get("reduce_only"):
+        if not (getattr(order, "reduce_only", False) or (order.custom_params or {}).get("reduce_only")):
             return order.quantity
         closing_asset = order.asset if order.is_sell_order() else self.get_prediction_contract_opposite(order.asset)
         position = broker.get_tracked_position(order.strategy, closing_asset)

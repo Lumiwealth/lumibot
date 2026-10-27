@@ -1413,7 +1413,7 @@ class Alpaca(Broker):
                 remaining_quantity = total_quantity - prior_quantity
                 if (order.is_filled() and total_quantity.is_finite() and price.is_finite()
                         and total_quantity == Decimal(str(order.quantity)) == prior_quantity
-                        and price > 0 and prior_value == total_quantity * price):
+                        and price > 0):
                     return True
                 remaining_price = (total_quantity * price - prior_value) / remaining_quantity
                 valid_fill = (

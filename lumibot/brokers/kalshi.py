@@ -234,6 +234,9 @@ class Kalshi(Broker):
         elif order.good_till_date is not None:
             raise ValueError("Kalshi good_till_date requires time_in_force='gtd'")
         options = {key: value for key, value in (order.custom_params or {}).items() if key != "_kalshi"}
+        if getattr(order, "reduce_only", False):
+            # The standard Order flag cannot be disabled by a legacy option.
+            options["reduce_only"] = True
         protected = (set(payload) - {"self_trade_prevention_type"}) | {
             "subaccount",
             "exchange_index",
@@ -465,11 +468,15 @@ class Kalshi(Broker):
         except KalshiAPIError as exc:
             if exc.status_code != 404:
                 raise
+            params = {**self._account_params, "limit": 1000}
+            tracked = self.get_tracked_order(identifier)
+            if tracked is not None:
+                params["ticker"] = tracked.asset.symbol
             row = next(
                 (
                     row
                     for row in self._client.pages(
-                        "/historical/orders", "orders", params={**self._account_params, "limit": 1000}
+                        "/historical/orders", "orders", params=params
                     )
                     if str(row.get("order_id")) == str(identifier)
                 ),

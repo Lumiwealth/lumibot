@@ -320,9 +320,12 @@ class Bitunix(Broker):
         response = self.api.get_trading_pairs(symbols=symbol)
         if not response or response.get("code") != 0:
             raise LumibotBrokerAPIError("Cannot read Bitunix contract metadata")
-        pair = next(item for item in response["data"] if item["symbol"] == symbol)
-        return ContractSpec(pair["base"], pair["quote"], pair.get("marginCoin") or pair["quote"],
-                            quantity_unit="base")
+        try:
+            pair = next(item for item in response["data"] if item["symbol"] == symbol)
+            return ContractSpec(pair["base"], pair["quote"], pair.get("marginCoin") or pair["quote"],
+                                quantity_unit="base")
+        except (KeyError, TypeError, StopIteration, ValueError):
+            raise LumibotBrokerAPIError("Cannot read Bitunix contract metadata") from None
 
     def _get_trading_pair_rules(self, symbol: str) -> tuple[Decimal, Decimal, Decimal]:
         """Cache validated quantity/price steps and minimum size for this broker session."""

@@ -2,7 +2,6 @@
 
 ## 4.6.31 - 2026-10-27
 
-- Agent replay identity includes dependency versions and callable implementations; explicit failed tool results no longer block fresh recovery, while compatible successful decisions remain reusable.
 ### Added
 - Perpetual contract terms retain exchange contract size, settlement currency and linear/inverse exposure through assets and positions. Backtesting uses those terms for collateral, realized PnL and explicit historical funding events, with provider-backed historical symbol discovery and documented data/fee approximations.
 - Kalshi completed-candle backtesting reuses PandasData and BacktestingBroker with normal Strategy functions: selected-outcome netting/collateral, historical bid/ask execution, actual-time cash settlement, and configurable fee estimates. Real archived-data simulation and existing-provider regressions verified; depth, queues and full historical fee schedules remain explicit approximations.
@@ -12,6 +11,9 @@
 - Kalshi account-read foundation: existing Broker/DataSource interfaces, shared native client, Ed25519 and RSA signing, demo/production configuration, scoped balances and public metadata. The account check uses normal Strategy cash/equity methods; funded-flat demo account values are verified. Current demo API `portfolio_value` excludes cash despite the older changelog description; total adds cash and holdings once.
 
 ### Fixed
+- Agent replay identity includes dependency versions and callable implementations; explicit failed tool results no longer block fresh recovery, while compatible successful decisions remain reusable.
+- Standard reduce-only orders retain their close-only intent in Kalshi trading and backtests. Completed Alpaca fills tolerate rounded broker averages without duplicate callbacks; failed funding-history downloads are not repeated on every simulated bar.
+- Contract-metadata and missing-price failures use useful broker errors, and native qualification exports accept automatically replenished informational usage windows.
 - Prediction-market guides and broker discovery include Kalshi, and documentation builds preserve authored API examples instead of replacing them with generated stubs.
 - Kalshi orders accept the normal caller-supplied client order ID while retaining protected request fields, reconciliation checkpoints and no-replay submission behavior.
 - Ordinary stock fill accounting does not access prediction-contract data resolution. Public order explanations keep account-relative sizing in their separate private decision summary.

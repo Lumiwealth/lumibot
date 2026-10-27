@@ -292,11 +292,13 @@ def test_a_market_without_candles_remains_missing_instead_of_failing_other_asset
     assert source.get_historical_prices(asset(), 2).df.empty
 
 
-def test_reduce_only_ioc_caps_fill_without_losing_requested_quantity():
+@pytest.mark.parametrize("options", [{"custom_params": {"reduce_only": True}}, {"reduce_only": True},
+                                      {"reduce_only": True, "custom_params": {"reduce_only": False}}])
+def test_reduce_only_ioc_caps_fill_without_losing_requested_quantity(options):
     source = make_source()
     strategy, broker = make_strategy(source)
     execute(strategy, broker, "yes", 2, "buy")
-    order = strategy.create_order(asset("no"), 5, "buy", time_in_force="ioc", custom_params={"reduce_only": True})
+    order = strategy.create_order(asset("no"), 5, "buy", time_in_force="ioc", **options)
     strategy.submit_order(order)
     broker.process_pending_orders(strategy)
     assert order.quantity == 5

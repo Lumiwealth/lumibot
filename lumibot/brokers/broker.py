@@ -1451,6 +1451,8 @@ class Broker(ABC):
         """Size a derivative in its quote currency, preserving native order units."""
         if price is None:
             price = self.get_last_price(asset, quote=quote)
+        if price is None:
+            raise ValueError(f"Last price is unavailable for {asset}")
         return self.get_contract_spec(asset, quote).quantity_for_notional(notional, price)
 
     def get_last_price(self, asset: Asset, quote=None, exchange=None) -> Union[float, Decimal, None]:

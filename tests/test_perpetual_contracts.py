@@ -66,3 +66,20 @@ def test_backtesting_broker_uses_serialized_terms_without_provider_dependency():
     broker = BacktestingBroker.__new__(BacktestingBroker)
     asset = Asset("BTC/USD:BTC", "crypto_future", contract_spec=ContractSpec("BTC", "USD", "BTC", 1, True))
     assert broker.get_contract_exposure(asset, 1000, 50000)["base"] == Decimal("0.02")
+
+
+@pytest.mark.parametrize("data", [None, [], [{"symbol": "OTHER"}], [{"symbol": "BTCUSDT", "quote": "USDT"}]])
+def test_bitunix_malformed_contract_metadata_has_the_normal_broker_error(data):
+    from lumibot.brokers.broker import LumibotBrokerAPIError
+    broker = Bitunix.__new__(Bitunix)
+    broker.api = SimpleNamespace(get_trading_pairs=Mock(return_value={"code": 0, "data": data}))
+    with pytest.raises(LumibotBrokerAPIError, match="contract metadata"):
+        broker.get_contract_spec(Asset("BTCUSDT", "crypto_future"))
+
+
+def test_notional_sizing_names_the_asset_when_last_price_is_missing():
+    broker = BacktestingBroker.__new__(BacktestingBroker)
+    broker.get_last_price = Mock(return_value=None)
+    asset = Asset("BTC/USD:BTC", "crypto_future", contract_spec=ContractSpec("BTC", "USD", "BTC", 1, True))
+    with pytest.raises(ValueError, match="BTC"):
+        broker.get_quantity_for_notional(asset, 1000)

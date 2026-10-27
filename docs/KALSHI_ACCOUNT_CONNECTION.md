@@ -22,6 +22,10 @@ amend/cancel, fill deltas/fees, REST polling, historical Bars and completed-cand
 backtesting. Full discovery, WebSocket acceleration, live settlement reconciliation
 and other product paths remain later increments.
 
+The standard ``reduce_only=True`` order flag is honored by the live broker and
+backtester, along with the existing custom-parameter form. It requires IOC; an
+oversized close is capped to existing exposure and cannot open the opposite side.
+
 ## Selected outcome identity
 
 The existing `prediction_contract` type now accepts an optional `outcome`:
@@ -175,7 +179,7 @@ of unrelated account history.
 `get_quote` derives the selected bid from its own book and the ask from the
 opposite bid, complementing prices and swapping sizes for NO. Empty sides are
 `None`, not zero; actual zero last prices remain zero. Quote timestamps are
-receipt times unless the provider supplies a source timestamp. History is implemented below; point-in-time backtesting is the next packet.
+receipt times unless the provider supplies a source timestamp. History and completed-candle backtesting are documented below.
 
 ## Historical prices
 

@@ -334,3 +334,34 @@ def test_ambiguous_submit_reconciles_owned_terminal_fill_by_client_id(broker, mo
     assert order.is_filled()
     assert callback.call_count == 1
     assert len([c for c in broker._client.request.call_args_list if c.args[0] == "POST"]) == 1
+
+
+@pytest.mark.parametrize("custom", [None, {"reduce_only": False}])
+def test_standard_reduce_only_reaches_provider_without_legacy_override(broker, custom):
+    order = Order("neutral", contract("no"), 5, "buy", limit_price=.23,
+                  time_in_force="ioc", reduce_only=True, custom_params=custom)
+    assert broker._order_payload(order)["reduce_only"] is True
+    restored = Order.from_dict(order.to_dict())
+    assert restored.reduce_only is True
+    assert broker._order_payload(restored)["reduce_only"] is True
+
+
+def test_standard_reduce_only_uses_the_existing_provider_time_in_force_rule(broker):
+    order = Order("neutral", contract("yes"), 1, "sell", limit_price=.23, reduce_only=True)
+    with pytest.raises(ValueError, match="reduce_only"):
+        broker._order_payload(order)
+
+
+def test_ordinary_order_exposes_false_reduce_only():
+    assert Order("neutral", contract("yes"), 1, "buy").reduce_only is False
+
+
+def test_direct_order_archive_fallback_filters_the_known_market(broker):
+    order = Order("neutral", contract("yes"), 1, "buy", identifier="archived-order")
+    broker._process_new_order(order)
+    broker._client.request.side_effect = KalshiAPIError("Not found", status_code=404)
+    row = json.loads((Path(__file__).parent / "fixtures/kalshi/trading_responses.json").read_text())["yes_order"].copy()
+    row.update(order_id="archived-order", ticker=order.asset.symbol)
+    broker._client.pages.return_value = iter([row])
+    assert broker._pull_broker_order(order.identifier) == row
+    assert broker._client.pages.call_args.kwargs["params"]["ticker"] == order.asset.symbol

@@ -53,3 +53,19 @@ def test_ccxt_funding_pagination_uses_last_observed_timestamp(derivatives):
     assert len(rows) == 101
     assert api.fetch_funding_rate_history.call_args_list[1].kwargs["since"] == start+99*3600000+1
     assert "paginate" not in api.fetch_funding_rate_history.call_args.kwargs["params"]
+
+
+def test_failed_funding_history_is_not_refetched_for_every_backtest_bar(derivatives):
+    source = CcxtBacktestingData.__new__(CcxtBacktestingData)
+    source.name = "other"
+    source.datetime_start = pd.Timestamp("2026-01-01", tz="UTC")
+    source.datetime_end = source.datetime_start + pd.Timedelta(days=1)
+    api = derivatives.api
+    api.has["fetchFundingRateHistory"] = True
+    api.fetch_funding_rate_history = Mock(side_effect=ConnectionError("synthetic provider outage"))
+    source.cache_db = SimpleNamespace(api=api)
+    asset = derivatives.get_asset("BTC/USDT:USDT")
+    with pytest.raises(ConnectionError):
+        source.get_funding_events(asset, source.datetime_start, source.datetime_end)
+    assert source.get_funding_events(asset, source.datetime_start, source.datetime_end) is None
+    api.fetch_funding_rate_history.assert_called_once()

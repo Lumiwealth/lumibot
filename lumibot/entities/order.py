@@ -507,8 +507,7 @@ class Order:
         self.custom_params = custom_params
         self.position_side = str(position_side).lower() if position_side is not None else None
         self.position_id = position_id
-        if reduce_only:
-            self.reduce_only = True
+        self.reduce_only = bool(reduce_only)
         self._trail_stop_price = None  # Used by backtesting broker to track desired trailing stop price so far
         self.tag = tag
         self._avg_fill_price = avg_fill_price # The weighted average filled price for this order. Calculated if not given by broker

@@ -69,6 +69,9 @@ class CcxtBacktestingData(DataSourceBacktesting):
         market = self.get_market(asset)
         symbol = market["symbol"]
         if symbol not in cache:
+            # A failed static history download remains unavailable for this run;
+            # do not repeat the same paginated request on every simulated bar.
+            cache[symbol] = None
             first = int(self.datetime_start.timestamp() * 1000)
             last = int(self.datetime_end.timestamp() * 1000)
             cursor, result = first, {}
@@ -101,6 +104,8 @@ class CcxtBacktestingData(DataSourceBacktesting):
                 if len(page) < 100:
                     break
             cache[symbol] = self._perpetual_rows(list(result.values()))
+        if cache[symbol] is None:
+            return None
         return [row for row in cache[symbol] if start <= row["timestamp"] <= end]
 
     def _history_symbol(self, asset, quote=None):

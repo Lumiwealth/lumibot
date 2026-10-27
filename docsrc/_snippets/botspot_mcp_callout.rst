@@ -1,7 +1,7 @@
 .. Shared compact callout for broker, exchange, backtesting and AI docs.
    Setup destination: https://botspot.trade/agents
 
-.. admonition:: Connect your AI assistant
+.. admonition:: What BotSpot MCP adds
    :class: tip botspot-mcp-callout
 
    Use Claude, ChatGPT, Codex, Cursor, VS Code or another MCP-compatible assistant?

@@ -39,6 +39,7 @@ def test_native_catalog_bindings_use_pandas_backtesting_not_live_provider_adapte
             fixture = ProductionFixture(evals.build_fixture(name))
             try:
                 assert isinstance(fixture.broker, BacktestingBroker), name
+                assert fixture.broker.IS_BACKTESTING_BROKER is True, name
                 assert isinstance(fixture.broker.data_source, PandasDataBacktesting), name
                 fixture.create_agent(case, None)._ensure_bound_tools()
             finally:
@@ -51,6 +52,16 @@ def test_source_files_cover_the_existing_runtime_fingerprint(monkeypatch):
     monkeypatch.setattr(evals, 'sha256_files', lambda values: paths.extend(values) or 'test')
     evals.runtime_fingerprint()
     assert set(scope.runtime_paths()) == {path.relative_to(evals.REPO_ROOT).as_posix() for path in paths}
+
+
+def test_live_executor_reuse_is_pinned_and_rejects_any_unreviewed_shared_change():
+    path = 'lumibot/strategies/strategy_executor.py'
+    current = (scope.ROOT / path).read_bytes()
+    assert hashlib.sha256(current).hexdigest() == scope.LIVE_EXECUTOR_COMPATIBILITY[1]
+    with pytest.raises(ValueError, match='affects model qualification'):
+        scope.check_change(path, b'unreviewed prior executor', current)
+    with pytest.raises(ValueError, match='affects model qualification'):
+        scope.check_change(path, current, current + b'\nraise RuntimeError("changed")\n')
 
 
 def test_reconstructed_hash_preserves_path_order_and_sdk_identity():

@@ -17,6 +17,13 @@ import subprocess
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
+# Reviewed first-live-iteration handoff only. The maintained catalog uses the
+# Pandas backtesting branch; its inputs and callback behavior are unchanged.
+# Bind the whole file so another shared executor edit can never inherit reuse.
+LIVE_EXECUTOR_COMPATIBILITY = (
+    '3b659b321c10f224eacf95282d3bec1932cfe46892a0ad40ed2c63c24f7b51ed',
+    'eec468ced168bdfe90e56e292ab5110146dc29b89a5ebcc4a2146dfc447bf4b6',
+)
 # Exact entry-point migration for the preserved legacy receipt. This is not a
 # general main() exemption. Remove the pair when the anchor is replaced by fresh
 # native proof under the current verifier; any other entry-point edit is stale.
@@ -105,6 +112,10 @@ def entry_digest(node):
 
 def check_change(path, before, after):
     if before == after or path in PROVIDER_ONLY_PATHS:
+        return
+    if path == 'lumibot/strategies/strategy_executor.py' and (
+        hashlib.sha256(before).hexdigest(), hashlib.sha256(after).hexdigest()
+    ) == LIVE_EXECUTOR_COMPATIBILITY:
         return
     if path == 'setup.py':
         # Dependency/package changes remain incompatible; only the release

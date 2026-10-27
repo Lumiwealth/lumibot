@@ -195,8 +195,12 @@ def test_exchanges_sit_directly_under_crypto_exchanges_with_plain_names():
 
 def test_callout_says_free_and_never_paid_plan_required():
     text = SNIPPET.read_text(encoding="utf-8")
-    # October 26: remove the oversized recommendation heading and extra explainer link.
-    assert "free" in text.lower() and "Connect your AI assistant" in text
+    # Keep the benefits heading distinct from the surrounding connection section;
+    # the shared include supplies the one setup button.
+    assert "free" in text.lower() and "What BotSpot MCP adds" in text
+    assert ".. include:: /_snippets/botspot_mcp_connect.rst" in text
+    button = (DOCSRC / "_snippets" / "botspot_mcp_connect.rst").read_text(encoding="utf-8")
+    assert "Connect your AI assistant" in button
     assert "Add custom connector" not in text
     assert "paid plan is required" not in text.lower()
     mcp = (DOCSRC / "botspot_mcp.rst").read_text(encoding="utf-8")

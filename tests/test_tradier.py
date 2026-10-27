@@ -9,6 +9,7 @@ from types import SimpleNamespace
 import numpy as np
 import pandas as pd
 import pytest
+import requests
 
 from lumibot.brokers.tradier import Tradier
 from lumibot.data_sources.tradier_data import TradierData
@@ -162,7 +163,7 @@ class TestTradierBroker:
         def _fake_post(*args, **kwargs):
             return _Resp()
 
-        monkeypatch.setattr(tradier_module.requests, "post", _fake_post)
+        monkeypatch.setattr(requests, "post", _fake_post)
 
         broker = Tradier(
             config={"ACCESS_TOKEN": None, "ACCOUNT_NUMBER": "1234", "PAPER": True},
@@ -200,7 +201,7 @@ class TestTradierBroker:
 
         from lumibot.brokers import tradier as tradier_module
 
-        monkeypatch.setattr(tradier_module.requests, "post", lambda *args, **kwargs: _Resp())
+        monkeypatch.setattr(requests, "post", lambda *args, **kwargs: _Resp())
 
         Tradier(
             config={"ACCESS_TOKEN": None, "ACCOUNT_NUMBER": "1234", "PAPER": True},

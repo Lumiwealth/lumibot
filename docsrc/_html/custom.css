@@ -370,12 +370,17 @@ a.reference.image-reference:has(.lumibot-learning-image) { display: block; width
     min-height: 44px;
     padding: 10px 16px;
     box-shadow: none;
-    background: var(--color-background-secondary);
+    background: var(--color-brand-primary);
     border-color: var(--color-brand-primary);
-    color: var(--color-brand-primary);
+    color: var(--color-background-primary);
 }
 .course-button-compact:hover,
 .course-button-compact:focus {
-    background: var(--color-background-hover);
-    color: var(--color-brand-primary);
+    background: var(--color-brand-content);
+    border-color: var(--color-brand-content);
+    color: var(--color-background-primary);
+}
+.course-button-compact:focus-visible {
+    outline: 2px solid var(--color-brand-primary);
+    outline-offset: 3px;
 }

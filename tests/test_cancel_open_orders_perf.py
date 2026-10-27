@@ -1,6 +1,8 @@
 import datetime
 from unittest.mock import MagicMock
 
+import pandas as pd
+
 from lumibot.strategies import strategy as strategy_module
 from lumibot.strategies import _strategy as base_strategy_module
 
@@ -70,14 +72,14 @@ def test_format_stats_reuses_dataframe(monkeypatch):
     }
     harness._append_row(row)
 
-    real_dataframe = base_strategy_module.pd.DataFrame
+    real_dataframe = pd.DataFrame
     call_counter = {"count": 0}
 
     def counting_df(data):
         call_counter["count"] += 1
         return real_dataframe(data)
 
-    monkeypatch.setattr(base_strategy_module.pd, "DataFrame", counting_df)
+    monkeypatch.setattr(pd, "DataFrame", counting_df)
 
     harness._format_stats()
     assert call_counter["count"] == 1

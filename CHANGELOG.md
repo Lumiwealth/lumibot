@@ -1,5 +1,13 @@
 # Changelog
 
+## 4.6.32 - 2026-10-27
+
+### Fixed
+- First-iteration live order notifications survive competing background and iteration queue drains. Queued startup events remain suppressed, foreign-order filtering remains active, and callbacks are serialized with reentrant queue handling. Priority callback tests use controlled events instead of elapsed-time acceptance targets.
+- HTTP and dataframe test doubles patch their real modules so pytest restoration cannot remove shared methods or constructors. Entry pages keep the runnable AI example before the hero image and retain the execution explanation in every localized summary.
+- The README and documentation homepage lead with native AI trading, backtesting and the same strategy across backtests and broker runs. Strategy choices link to their examples, BotSpot MCP has a short introduction and a separate setup section, and all eight localized README summaries are synchronized with a checked source fingerprint.
+- IBKR stock contract lookup selects a candidate matching the requested quote currency instead of accepting the first stock search result. Existing mappings and historical price caches are not rewritten.
+
 ## 4.6.31 - 2026-10-27
 
 ### Added

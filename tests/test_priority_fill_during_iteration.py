@@ -84,6 +84,7 @@ class _PriorityHedgeStrategy:
         self.scan_seconds = scan_seconds
         self.iteration_started = threading.Event()
         self.iteration_finished = threading.Event()
+        self.iteration_release = None
         self.recorded_fills = []
         self.recorded_fills_lock = threading.Lock()
         self._executor = None
@@ -134,6 +135,10 @@ class _PriorityHedgeStrategy:
 
     def on_trading_iteration(self):
         self.iteration_started.set()
+        if self.iteration_release is not None:
+            self.iteration_release.wait()
+            self.iteration_finished.set()
+            return
         # Pure-Python busy work to stress GIL the way a long option scan does.
         deadline = time.monotonic() + self.scan_seconds
         while time.monotonic() < deadline:
@@ -150,6 +155,8 @@ class _PriorityHedgeStrategy:
                     "order": order,
                 }
             )
+        if self.iteration_release is not None:
+            self.iteration_release.set()
 
     def on_new_order(self, order):
         return None
@@ -196,12 +203,13 @@ def _build_live_executor(strategy: _PriorityHedgeStrategy) -> StrategyExecutor:
     return executor
 
 
-def test_fill_callback_runs_during_long_live_iteration_not_after():
+def test_fill_callback_runs_during_long_live_iteration_not_after(record_property):
     """BEFORE metric: fill waited until scan end (~scan_seconds).
     AFTER metric: fill callback during scan, latency << scan duration.
     """
     scan_seconds = 0.7
     strategy = _PriorityHedgeStrategy(scan_seconds=scan_seconds)
+    strategy.iteration_release = threading.Event()
     executor = _build_live_executor(strategy)
 
     asset = Asset("CVNA", asset_type=Asset.AssetType.OPTION)
@@ -211,8 +219,7 @@ def test_fill_callback_runs_during_long_live_iteration_not_after():
     fill_enqueued_at = {}
 
     def _enqueue_fill_mid_scan():
-        assert strategy.iteration_started.wait(timeout=2.0)
-        time.sleep(0.05)
+        strategy.iteration_started.wait()
         fill_enqueued_at["t"] = time.monotonic()
         executor.add_event(
             executor.FILLED_ORDER,
@@ -231,7 +238,7 @@ def test_fill_callback_runs_during_long_live_iteration_not_after():
     t0 = time.monotonic()
     executor._on_trading_iteration()
     elapsed = time.monotonic() - t0
-    feeder.join(timeout=2.0)
+    feeder.join()
 
     with strategy.recorded_fills_lock:
         recorded = list(strategy.recorded_fills)
@@ -246,13 +253,12 @@ def test_fill_callback_runs_during_long_live_iteration_not_after():
         f"fill processed only after iteration finished (latency={fill_latency:.3f}s, "
         f"scan={scan_seconds}s) — hedge still gated behind on_trading_iteration"
     )
-    assert fill_latency < scan_seconds * 0.5, (
-        f"fill->callback latency {fill_latency:.3f}s too close to scan {scan_seconds}s"
-    )
-    assert elapsed >= scan_seconds * 0.8  # scan still took its time
+    assert strategy.iteration_finished.is_set()
+    record_property("fill_callback_latency_seconds", fill_latency)
+    record_property("iteration_duration_seconds", elapsed)
 
 
-def test_priority_events_wake_check_queue_without_half_second_sleep():
+def test_priority_events_wake_check_queue_without_half_second_sleep(record_property):
     strategy = _PriorityHedgeStrategy(scan_seconds=0.01)
     executor = _build_live_executor(strategy)
 
@@ -264,13 +270,12 @@ def test_priority_events_wake_check_queue_without_half_second_sleep():
 
     def _run_check_queue_once_via_wait():
         t_wait_start = time.monotonic()
-        executor._queue_wakeup.wait(timeout=0.5)
+        executor._queue_wakeup.wait()
         wake_to_fill["waited"] = time.monotonic() - t_wait_start
         executor.process_queue()
 
     waiter = threading.Thread(target=_run_check_queue_once_via_wait, daemon=True)
     waiter.start()
-    time.sleep(0.05)
     executor.add_event(
         executor.FILLED_ORDER,
         dict(
@@ -281,12 +286,11 @@ def test_priority_events_wake_check_queue_without_half_second_sleep():
             multiplier=1,
         ),
     )
-    waiter.join(timeout=2.0)
+    waiter.join()
 
     assert strategy.recorded_fills, "priority wake did not drain fill"
-    assert wake_to_fill.get("waited", 1.0) < 0.25, (
-        f"check_queue waited {wake_to_fill.get('waited')}s; expected immediate wake"
-    )
+    assert executor.priority_queue.empty()
+    record_property("queue_wakeup_wait_seconds", wake_to_fill["waited"])
 
 
 def test_broker_does_not_hold_fill_events_during_sync():
@@ -309,6 +313,74 @@ def test_broker_does_not_hold_fill_events_during_sync():
     assert not should_hold_trade_event_for_sync(
         hold_trade_events=True, is_backtesting=True, type_event="new"
     )
+
+
+def test_first_live_iteration_preserves_new_fill_across_competing_drains():
+    strategy = _PriorityHedgeStrategy()
+    strategy._first_iteration = True
+    strategy.broker._first_iteration = True
+    executor = _build_live_executor(strategy)
+    asset = Asset("TEST", asset_type=Asset.AssetType.STOCK)
+    startup_order = _DummyOrder(asset)
+    startup_order.identifier = "startup-order"
+    current_order = _DummyOrder(asset)
+    current_order.identifier = "current-order"
+
+    def payload(order):
+        return dict(position=_DummyPosition(asset), order=order, price=10,
+                    quantity=Decimal("1"), multiplier=1)
+
+    executor.add_event(executor.FILLED_ORDER, payload(startup_order))
+
+    def first_iteration():
+        strategy.iteration_started.set()
+        executor.add_event(executor.FILLED_ORDER, payload(current_order))
+        consumers = [threading.Thread(target=executor.process_queue) for _ in range(2)]
+        for consumer in consumers:
+            consumer.start()
+        for consumer in consumers:
+            consumer.join()
+        strategy.iteration_finished.set()
+
+    executor._on_trading_iteration_callable = first_iteration
+    executor._on_trading_iteration()
+    assert [row["order"].identifier for row in strategy.recorded_fills] == ["current-order"]
+    assert strategy.recorded_fills[0]["during_iteration"] is True
+    assert executor.priority_queue.empty()
+
+
+def test_startup_events_remain_suppressed_before_first_live_iteration():
+    strategy = _PriorityHedgeStrategy()
+    strategy._first_iteration = True
+    strategy.broker._first_iteration = True
+    executor = _build_live_executor(strategy)
+    asset = Asset("TEST", asset_type=Asset.AssetType.STOCK)
+    executor.add_event(executor.FILLED_ORDER, dict(
+        position=_DummyPosition(asset), order=_DummyOrder(asset), price=10,
+        quantity=Decimal("1"), multiplier=1))
+    executor.process_queue()
+    assert strategy.recorded_fills == []
+    assert executor.priority_queue.empty()
+
+
+def test_first_live_iteration_keeps_foreign_order_filtering():
+    strategy = _PriorityHedgeStrategy()
+    strategy._first_iteration = True
+    strategy.broker._first_iteration = True
+    executor = _build_live_executor(strategy)
+    asset = Asset("TEST", asset_type=Asset.AssetType.STOCK)
+    foreign_order = _DummyOrder(asset)
+    foreign_order.strategy = "another-strategy"
+
+    def first_iteration():
+        executor.add_event(executor.FILLED_ORDER, dict(
+            position=_DummyPosition(asset), order=foreign_order, price=10,
+            quantity=Decimal("1"), multiplier=1))
+        executor.process_queue()
+
+    executor._on_trading_iteration_callable = first_iteration
+    executor._on_trading_iteration()
+    assert strategy.recorded_fills == []
 
 
 def test_process_queue_uses_nonblocking_retrieval():

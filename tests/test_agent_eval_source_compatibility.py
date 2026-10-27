@@ -67,14 +67,19 @@ def test_validator_reuse_never_accepts_changed_native_validation():
         scope.check_change('scripts/qualify_agent_evals.py', before, before.replace(b'return True', b'return False'))
 
 
-def test_validator_entry_migration_is_bound_to_the_exact_checked_main():
+def test_fresh_anchor_cannot_retain_an_obsolete_validator_entry_exception(monkeypatch):
     import ast
-    source = (scope.ROOT / 'scripts/qualify_agent_evals.py').read_bytes()
-    main = next(node for node in ast.parse(source).body if isinstance(node, ast.FunctionDef) and node.name == 'main')
-    assert scope.entry_digest(main) == scope.VALIDATOR_ENTRY_COMPATIBILITY[1]
-    early_success = source.replace(b'    cases, runtime_hash, versions =', b'    return 0\n    cases, runtime_hash, versions =')
-    with pytest.raises(ValueError):
-        scope.check_change('scripts/qualify_agent_evals.py', source, early_success)
+    before = b'def verify():\n    return True\n\ndef main():\n    return 1\n'
+    after = before.replace(b'return 1', b'return 0')
+    entries = [next(node for node in ast.parse(source).body
+                    if isinstance(node, ast.FunctionDef) and node.name == 'main')
+               for source in (before, after)]
+    pair = tuple(hashlib.sha256(ast.dump(node).encode()).hexdigest() for node in entries)
+    if hasattr(scope, 'entry_digest'):
+        pair = tuple(scope.entry_digest(node) for node in entries)
+    monkeypatch.setattr(scope, 'VALIDATOR_ENTRY_COMPATIBILITY', pair, raising=False)
+    with pytest.raises(ValueError, match='affects model qualification'):
+        scope.check_change('scripts/qualify_agent_evals.py', before, after)
 
 
 def test_compatibility_anchor_cannot_rebind_a_changed_native_receipt(tmp_path):
@@ -84,12 +89,9 @@ def test_compatibility_anchor_cannot_rebind_a_changed_native_receipt(tmp_path):
         scope.compatible_runtime(receipt, json.dumps(receipt).encode(), anchor, root=tmp_path)
 
 
-def test_entry_digest_ignores_new_empty_ast_fields_only():
-    import ast
-    node = ast.parse("def main():\n    return True\n").body[0]
-    baseline = scope.entry_digest(node)
-    node._fields = tuple(field for field in node._fields if field != "type_params") + ("type_params",)
-    node.type_params = []
-    assert scope.entry_digest(node) == baseline
-    node.body[0].value = ast.Constant(value=False)
-    assert scope.entry_digest(node) != baseline
+def test_current_validator_reuse_requires_unchanged_bytes():
+    source = (scope.ROOT / 'scripts/qualify_agent_evals.py').read_bytes()
+    scope.check_change('scripts/qualify_agent_evals.py', source, source)
+    for changed in (source + b'\n', source.replace(b'def main():', b'def main(unused=None):')):
+        with pytest.raises(ValueError, match='affects model qualification'):
+            scope.check_change('scripts/qualify_agent_evals.py', source, changed)

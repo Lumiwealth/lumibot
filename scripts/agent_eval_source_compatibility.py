@@ -9,7 +9,6 @@ proof. This is compatibility verification, never new case freshness.
 """
 from __future__ import annotations
 
-import ast
 import hashlib
 import json
 import re
@@ -17,13 +16,6 @@ import subprocess
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-# Exact entry-point migration for the preserved legacy receipt. This is not a
-# general main() exemption. Remove the pair when the anchor is replaced by fresh
-# native proof under the current verifier; any other entry-point edit is stale.
-VALIDATOR_ENTRY_COMPATIBILITY = (
-    'f38655adfc6ede1098d397949eb99de2b0de37ad7d89daa97141c2d866b38084',
-    'c2b63a8b5b268ea44190d93238769562878fb0d406b32bb55fd83189b58605c9',
-)
 PROVIDER_ONLY_PATHS = frozenset({
     'lumibot/backtesting/routed_backtesting.py',
     'lumibot/tools/ibkr_equity_basis.py',
@@ -86,23 +78,6 @@ def _fingerprint(blobs, versions):
     return hashlib.sha256((digest.hexdigest() + sdk).encode()).hexdigest()
 
 
-def portable_ast(value):
-    """Ignore parser-version empty fields, preserving all meaningful AST data."""
-    if isinstance(value, ast.AST):
-        return {"node": type(value).__name__, **{
-            key: portable_ast(item) for key, item in ast.iter_fields(value)
-            if item is not None and not (isinstance(item, list) and not item)
-        }}
-    if isinstance(value, list):
-        return [portable_ast(item) for item in value]
-    return value
-
-
-def entry_digest(node):
-    return hashlib.sha256(json.dumps(portable_ast(node), sort_keys=True,
-                                    separators=(",", ":")).encode()).hexdigest()
-
-
 def check_change(path, before, after):
     if before == after or path in PROVIDER_ONLY_PATHS:
         return
@@ -113,19 +88,6 @@ def check_change(path, before, after):
         old, old_count = re.subn(version, b'version="<release>"', before)
         new, new_count = re.subn(version, b'version="<release>"', after)
         if old_count == new_count == 1 and old == new:
-            return
-    if path == 'scripts/qualify_agent_evals.py':
-        def validator_contract(source):
-            tree = ast.parse(source)
-            entries = [node for node in tree.body if isinstance(node, ast.FunctionDef) and node.name == 'main']
-            if len(entries) != 1:
-                raise ValueError('Validator requires exactly one maintained main entry point')
-            entry_hash = entry_digest(entries[0])
-            tree.body = [node for node in tree.body if not isinstance(node, ast.FunctionDef) or node.name != 'main']
-            return ast.dump(tree), entry_hash
-        old_contract, old_entry = validator_contract(before)
-        new_contract, new_entry = validator_contract(after)
-        if old_contract == new_contract and (old_entry, new_entry) == VALIDATOR_ENTRY_COMPATIBILITY:
             return
     raise ValueError(f'Source change affects model qualification: {path}')
 

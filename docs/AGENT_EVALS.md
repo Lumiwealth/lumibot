@@ -417,3 +417,16 @@ again on that source, with normal fixtures in separate processes and no model
 calls. The preserved 77-judgment calibration retains its original `19fac6f3`
 source; it is not a qualification of the new actor/runtime candidate. Package
 publication still requires the normal exact-candidate release gates.
+
+### 4.6.31 native qualification
+
+The October 26 release repair completed 105 actor/judge repetitions across all
+21 catalog cases and 92 independent judgments over 20 labeled calibration
+controls. All passed on runtime fingerprint
+`bf802524f6b30a4027fccfbbf82f4166144b5fc035ebb7f3db222b46817fab20`
+with the exact twelve-package SDK tuple. Actors and judges used Luna High through
+Login with ChatGPT, Standard/default service; API cash billing was zero. The
+aggregate resume reused all 105 completed repetitions and scheduled zero calls.
+Original interrupted attempts and unknown usage remain in the cumulative journal.
+The fresh native anchor retires the old validator-entry migration exception;
+changes to the qualification validator now require new native proof.

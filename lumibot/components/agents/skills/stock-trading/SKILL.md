@@ -91,3 +91,10 @@ State missing evidence honestly. This is a decision summary, not hidden internal
 reasoning, and must contain no credentials or account identifiers. The order
 service commits it before execution. Report only observed order status and fills;
 reconcile an uncertain outcome before trying again.
+
+When a separate `public_reason` is requested, write a qualitative trade thesis
+and risk. Keep portfolio-relative sizing percentages, formulas, account value,
+buying power, owner context and tool purposes in the private `reason` only. Do
+not copy its sizing explanation into the public summary. Follow the order tool's
+public-summary contract before submitting; later omission of an unsafe summary
+does not make that proposed summary suitable for sharing.

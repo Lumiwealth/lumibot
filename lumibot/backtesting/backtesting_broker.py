@@ -1119,8 +1119,10 @@ class BacktestingBroker(Broker):
         return stored_order, position
 
     def _prediction_opposite(self, asset):
+        if asset.asset_type != "prediction_contract":
+            return None
         resolver = getattr(self.data_source, "get_prediction_contract_opposite", None)
-        return resolver(asset) if callable(resolver) and asset.asset_type == "prediction_contract" else None
+        return resolver(asset) if callable(resolver) else None
 
     def _normalize_prediction_net_position(self, order, price, position):
         opposite = self._prediction_opposite(order.asset)

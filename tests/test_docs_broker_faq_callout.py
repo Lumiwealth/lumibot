@@ -203,7 +203,9 @@ def test_callout_says_free_and_never_paid_plan_required():
     assert "paid botspot plan is required" not in mcp.lower()
     readme = (ROOT / "README.md").read_text(encoding="utf-8")
     assert "paid botspot plan is required" not in readme.lower()
-    assert "connect the free [BotSpot MCP]" in readme[:3000]
+    # October 26: connection is a separate section after the strategy examples.
+    connection = readme.split("## Connect your AI assistant")[1].split("## Explore LumiBot")[0]
+    assert "Connect the free [BotSpot MCP]" in connection
 
 
 def test_exchange_pages_never_use_exchange_id_as_backtesting_data_source():

@@ -4,7 +4,8 @@
 .. admonition:: Connect your AI assistant
    :class: tip botspot-mcp-callout
 
-   Use Claude, ChatGPT, Codex, Cursor or VS Code? Connect the **free BotSpot MCP** for:
+   Use Claude, ChatGPT, Codex, Cursor, VS Code or another MCP-compatible assistant?
+   Connect the **free BotSpot MCP** for:
 
    * **Skills:** build LumiBot strategies.
    * **Free data:** news, economics and SEC filings.

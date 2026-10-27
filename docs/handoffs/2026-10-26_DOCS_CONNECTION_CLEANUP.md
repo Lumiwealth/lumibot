@@ -47,3 +47,25 @@ Those compatible documentation passes and raw captures remain valid after merge.
 This receipt covers source and local rendering. No package release, tag or docs
 publication was triggered. Publish through the normal documentation workflow,
 then verify the homepage, assistant guide and a broker page on the public site.
+
+## Strategy explanation correction (October 26)
+
+The homepage and README now distinguish Python, AI-native and hybrid strategies
+before examples. The single-agent example exposes `system_prompt`, creates one
+trading agent in `initialize()` and invokes it every trading iteration. Its
+source is shared between the README and Sphinx via `docsrc/_snippets/ai_strategy.py`.
+It is an API/lifecycle example, not a profitability or completed-model-run claim.
+The lifecycle contract is exercised without external model or broker actions.
+
+Assistant connection is a separate heading after strategy examples and broker
+execution, with an open-ended list of MCP-compatible clients. Repeated generic
+AI disclaimers and duplicated walkthroughs/comparison tables were replaced by
+links to existing detailed guides. No new page or runtime capability was added.
+This improves every user's choice of strategy architecture independently of any
+particular strategy, indicator, creator or customer.
+
+All 737 documentation checks passed after the correction. The full local
+Sphinx build completed, with pre-existing formatting diagnostics outside the
+changed pages. Complete desktop screenshots include the entire page through its
+FAQ and footer, rather than stopping at the introduction. Phone viewport capture
+is tracked separately and must not be inferred from a desktop screenshot.

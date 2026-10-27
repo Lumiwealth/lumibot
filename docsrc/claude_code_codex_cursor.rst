@@ -4,7 +4,7 @@ Use LumiBot with Claude Code, Codex, Cursor and VS Code
 .. meta::
    :description: Install the free LumiBot trading skills in Claude Code, Codex or Cursor with one command, then connect the free BotSpot MCP so your AI can run backtests in the cloud.
 
-Your coding assistant can help you write a LumiBot ``Strategy``, test it on
+Claude Code, Codex, Cursor, VS Code and other coding assistants can help you write a LumiBot ``Strategy``, test it on
 historical data and inspect its trades. The free **LumiBot trading skills** teach
 it the framework's methods, strategy lifecycle and backtesting checks.
 

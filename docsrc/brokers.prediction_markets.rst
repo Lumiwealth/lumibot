@@ -62,7 +62,7 @@ Completed candles, historical bid/ask and cash settlement are modeled;
 depth, queue priority and full historical fee schedules remain approximations.
 Whole and fractional demo execution is verified. Advanced execution paths and
 live settlement reconciliation have separate qualification limits, described
-in the `technical integration guide <https://github.com/Lumiwealth/lumibot/blob/dev/docs/KALSHI_ACCOUNT_CONNECTION.md>`_.
+in the `technical integration guide <https://github.com/Lumiwealth/lumibot/blob/b5523578dc7f4453c9ccb7ce7932f916626ea1db/docs/KALSHI_ACCOUNT_CONNECTION.md>`_.
 
 Frequently asked questions
 --------------------------

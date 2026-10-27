@@ -10,7 +10,6 @@ import time
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
-from urllib.parse import urlparse
 
 from lumibot import LUMIBOT_CACHE_FOLDER
 
@@ -241,24 +240,6 @@ def _botspot_research_server_from_environment() -> tuple[MCPServer | None, str |
             "to use the managed public macro and SEC research catalog.",
         )
     try:
-        # Static external keys do not configure renewal, so MCPServer's refresh
-        # validation alone cannot protect the initial bearer request. Keep all
-        # credentials in the header and permit cleartext only on loopback.
-        for endpoint in [url, *([renew_url] if renew_url else [])]:
-            parsed = urlparse(endpoint)
-            _ = parsed.port  # Validate a malformed port without echoing the URL.
-            if (
-                not parsed.hostname
-                or not (
-                    parsed.scheme == "https"
-                    or (parsed.scheme == "http" and parsed.hostname in {"localhost", "127.0.0.1", "::1"})
-                )
-                or parsed.username is not None
-                or parsed.password is not None
-                or parsed.query
-                or parsed.fragment
-            ):
-                raise ValueError("Research endpoints require HTTPS or loopback HTTP and no URL credentials, query or fragment.")
         return (
             MCPServer(
                 name="botspot_research",
@@ -271,7 +252,7 @@ def _botspot_research_server_from_environment() -> tuple[MCPServer | None, str |
             None,
         )
     except ValueError:
-        return None, "BotSpot research configuration is invalid: use HTTPS (or loopback HTTP), with a same-origin renewal endpoint and credentials only in BOTSPOT_RESEARCH_MCP_TOKEN."
+        return None, "BotSpot research configuration is invalid. Check the MCP connection and optional token-renewal settings."
 
 
 def _iso_or_none(value: Any) -> str | None:
@@ -1314,7 +1295,6 @@ class AgentHandle:
             "Available order tools in this run: " + ", ".join(sorted(name for name in available_tool_names if name.startswith("orders_"))) + ". The registered function declarations are authoritative; do not invent missing capabilities.",
             "An order-submission tool call and its returned acknowledgement are required before claiming submission. A price preview, calculated size, intention or schema-validation error is not an accepted order. A single child order's fill does not prove that its entire package filled.",
             "When no explicit analysis window is requested, leave optional indicator start/end unset so the indicator tool can obtain its required past warmup. If you selected a window too short to calculate the requested period, expand its earlier start within the user's permitted history; never move its end beyond the simulated cutoff or invent a value.",
-            "Never change a publisher timestamp to make a document eligible. Carry the exact selected document URL, version time and hash together from the typed eligible manifest to the read; normalized timestamps must represent the same instant. An excluded row is a diagnostic, never a candidate to open.",
             "An empty catalog lookup requires a bounded refinement or unfiltered catalog lookup before concluding no relevant dataset exists. Catalog metadata alone cannot establish observation availability; query relevant observations before reporting a provider outage.",
             "After a candidate fails a requested constraint, inspect bounded relevant alternatives from the returned inputs before declaring the setup unavailable. When a real blocker remains, state its observed evidence and the exact missing requirement without fabricating a trade or research result.",
             "Execution mode, current datetime, current timezone, current positions, cash, equity/portfolio value, recent orders, and recent trades are provided in Runtime Context JSON.",
@@ -1412,8 +1392,9 @@ class AgentHandle:
                     "If you leak future information into a backtest, the backtest becomes invalid, misleading, and useless for decision-making.",
                     "Treat the current simulated datetime as a hard wall. Do not cross it. Do not infer across it. Do not hint across it.",
                     "Only use bars, news, macro data, filings, prices, positions, and events that were available at or before the current simulated datetime.",
-                    "Before following document links, use discovery metadata and typed duckdb_query SQL to compare first public availability and version time against the full current simulated datetime. Parse explicit timezone offsets as TIMESTAMPTZ and compare UTC instants before sorting or limiting; never use lexicographic timestamp strings or observation/transaction dates as substitutes. When a source records only a publication or filing date, the document counts as public from the start of the next day; a document dated on the simulated day or later is not yet public. Query EACH relevant discovery table, including short CSVs; samples and counts are not an eligible document manifest. Select actual IDs/URLs and inspect every selected URL and normalized availability time. A baseline-only report-type filter does not discover later transactions. Never open a post-cutoff disclosure or revised page, even to reject it or reconstruct an unproved original version. Unknown original-version availability means unavailable historical evidence.",
-                    "Fetch arguments must come only from the computed eligible manifest. Do not follow URLs from samples, excluded rows or an unfiltered query. If you lose the selected rows, rerun the eligibility query. For each linked document, pass the selected normalized instant as read_document available_at and any indexed original hash as expected_sha256; never recompute eligibility mentally from an offset string.",
+                    "Before following document links, use discovery metadata and typed duckdb_query SQL to compare first public availability and version time against the full current simulated datetime. Parse explicit timezone offsets as TIMESTAMPTZ and compare UTC instants before sorting or limiting; never use lexicographic timestamp strings or observation/transaction dates as substitutes. When a source records only a publication or filing date, the document counts as public from the start of the next day; a document dated on the simulated day or later is not yet public. Query EACH relevant discovery table, including short CSVs; samples and counts are not an eligible document manifest. Select actual IDs/URLs and inspect every selected URL and normalized availability time. A baseline-only report-type filter does not discover later transactions. Never open a disclosure or revision known to have become public after the simulated datetime, even to reject it or reconstruct an earlier version. Prefer dated sources, but a source with no date at all is allowed: estimate when it became public from its contents and context, use it only if that estimate is at or before the simulated datetime, and say in your answer that the date is an estimate and why. Never invent a date or present an estimate as exact; a missing date alone does not make evidence unavailable.",
+                    "Never change a publisher timestamp to make a document eligible. Carry the exact selected document URL, version time and hash together from the typed eligible manifest to the read; normalized timestamps must represent the same instant. An excluded row is a diagnostic, never a candidate to open.",
+                    "When discovery tables record dates, fetch arguments must come only from the computed eligible manifest. Do not follow URLs from samples, excluded rows or an unfiltered query. If you lose the selected rows, rerun the eligibility query. For each linked document, pass the selected normalized instant as read_document available_at and any indexed original hash as expected_sha256; never recompute eligibility mentally from an offset string.",
                     "Do not request a known future version merely to confirm metadata, test a cutoff error, or check that it should be excluded. Discovery metadata already establishes that exclusion. Read every relevant eligible supplement before claiming completion, including administrative confirmations, and reconcile the manifest with documents actually read.",
                     "Correct example: if the current simulated time is 2026-03-10 10:15 ET, you may use a news article published at 09:30 ET that same day if it appears in tool output.",
                     "Incorrect example: using a headline published at 14:00 ET, a later macro revision, a later SEC filing, or knowledge of the close when the simulated time is still the morning.",

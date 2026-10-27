@@ -120,25 +120,25 @@ def test_auto_attachment_rejects_a_supplied_unsafe_renewal_endpoint(monkeypatch,
     [
         "http://api.test.botspot.trade/research-mcp",
         "https://user:private-url-secret@api.test.botspot.trade/research-mcp",
-        "https://api.test.botspot.trade/research-mcp?token=private-url-secret",
-        "https://api.test.botspot.trade/research-mcp#private-url-secret",
-        "https:///research-mcp",
-        "https://api.test.botspot.trade:invalid/research-mcp",
+        "https://api.test.botspot.trade/research-mcp?region=us&tenant=research",
+        "https://api.test.botspot.trade/research-mcp#research",
+        "http://10.0.0.10:8080/research-mcp?region=us",
     ],
 )
-def test_external_research_connection_rejects_unsafe_or_secret_bearing_urls(monkeypatch, endpoint):
-    # A static API key has no renewal endpoint, so refresh-only validation cannot
-    # protect the initial bearer request or keep credentials out of URL traces.
+def test_external_research_connection_preserves_supported_mcp_endpoint_configuration(monkeypatch, endpoint):
+    # Rob removed the extra BotSpot-specific URL policy. Normal MCP transport
+    # owns endpoint handling; private HTTP and query parameters are valid inputs.
     _configure_hosted_research(monkeypatch)
     monkeypatch.setenv("BOTSPOT_RESEARCH_MCP_URL", endpoint)
     monkeypatch.delenv("BOTSPOT_RESEARCH_MCP_RENEW_URL")
     strategy = _Strategy()
     manager = AgentManager(strategy)
 
-    assert manager.create(name="first", _runtime=_Runtime())._mcp_servers == []
-    assert manager.create(name="second", _runtime=_Runtime())._mcp_servers == []
-    assert len([message for message in strategy.messages if "configuration is invalid" in message]) == 1
-    assert all("private-url-secret" not in message and "research-token" not in message for message in strategy.messages)
+    handle = manager.create(name="researcher", _runtime=_Runtime())
+    assert len(handle._mcp_servers) == 1
+    assert handle._mcp_servers[0].url == endpoint
+    assert handle._mcp_servers[0].auth_token_env == "BOTSPOT_RESEARCH_MCP_TOKEN"
+    assert not any("configuration is invalid" in message for message in strategy.messages)
 
 
 @pytest.mark.parametrize("scope,parent_post_id", [("community:post", None), ("community:reply", "public-post")])

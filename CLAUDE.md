@@ -1,3 +1,10 @@
+# Capability first: agents may use undated sources; live trading has no date rules (Rob, 2026-10-22)
+
+- Never make LumiBot agents less capable to look safer. Do not add an instruction, tool filter or gate that blocks ordinary research without a concrete failure behind it.
+- Backtests: prefer sources that say when each document became public, and never use anything known to be from after the simulated time (the `document_after_cutoff` refusal and price-data clamping stay). A source with no date at all is still allowed: the agent estimates when it became public, uses it only if that estimate is at or before the simulated time, and says in its answer that the date is an estimate and why. Never invent a date or present an estimate as exact.
+- Live trading has no publication-date restrictions. Backtest-only date rules must stay inside the backtest branch of the prompt and tool results.
+- Enforced by `tests/test_agent_undated_sources_capability.py` and the evals `web_documents_undated_source_estimated_date`, `web_documents_known_future_document_not_opened` and `web_documents_live_undated_source_used_freely`. Do not loosen them.
+
 # Generic platform behavior and evidence-bound selection (Rob, 2026-10-18, ABSOLUTE)
 
 - LumiBot, BotSpot, BotSpot Agent, Node, Bot Manager and their infrastructure serve every supported strategy, broker, account and customer. Fix generic capabilities at their existing owner. Never add strategy/customer names, IDs, ticker-specific intent branches, private network routes, resource exceptions or hidden defaults to shared runtime, prompts, skills, tools or infrastructure to solve one incident.

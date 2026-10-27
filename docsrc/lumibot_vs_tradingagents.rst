@@ -13,6 +13,32 @@ that already supports backtests, broker objects, orders, positions, artifacts,
 and live execution paths. The agent conversation is not the final product. The
 strategy lifecycle is the product.
 
+At a glance
+***********
+
+.. list-table::
+   :header-rows: 1
+   :widths: 22 39 39
+
+   * -
+     - TradingAgents
+     - LumiBot
+   * - What it is
+     - Multi-agent LLM financial trading framework that mirrors a trading firm
+     - Python trading framework with built-in AI agents, backtests and brokers
+   * - Language and license
+     - Python 3.11+, Apache-2.0
+     - Python 3.10+, GPL-3.0
+   * - Agents
+     - Analysts, bull and bear researchers, trader, risk team and portfolio manager, built on LangGraph
+     - Any flow you design: one agent, research then trade, bull and bear teams, or hybrid Python plus AI
+   * - Backtesting
+     - Runs the agents over a grid of tickers and dates and scores their decisions
+     - Runs the agents inside a full market simulation with orders, fills, cash and positions
+   * - Live trading
+     - No broker integration; orders go to a simulated exchange. Described as designed for research.
+     - Yes, paper and live through Alpaca, Interactive Brokers, Tradier, Schwab, Tradovate and other supported brokers
+
 Where TradingAgents Fits
 ************************
 
@@ -53,8 +79,9 @@ LumiBot's execution loop adds order and account artifacts to inspect alongside
 agent reasoning. For either project, record the data cutoff, model, source
 revision and actual evidence before comparing results.
 
-This description was checked against the `TradingAgents README
-<https://github.com/TauricResearch/TradingAgents>`_ on September 12, 2026.
+This description was first checked against the `TradingAgents README
+<https://github.com/TauricResearch/TradingAgents>`_ on September 12, 2026, and
+the at-a-glance table was checked on October 24, 2026 (TradingAgents v0.7.0).
 It is a documentation comparison, not an independently run benchmark.
 
 Short Version
@@ -63,3 +90,15 @@ Short Version
 TradingAgents is a strong multi-agent research framework. Lumibot is the
 practical strategy framework when you want AI trading teams that can be
 customized, backtested, guarded by Python, and operated with real broker paths.
+
+Try LumiBot with your AI assistant
+**********************************
+
+The fastest way to try LumiBot is to let your AI coding assistant do the setup.
+Install the free
+`LumiBot trading skills <https://github.com/Lumiwealth/lumibot-trading-skills>`_
+in Claude Code, Codex or Cursor with one command, then connect the free BotSpot
+MCP so your assistant can run backtests in the cloud. See
+:doc:`claude_code_codex_cursor` for the exact commands.
+
+.. include:: _snippets/botspot_mcp_callout.rst

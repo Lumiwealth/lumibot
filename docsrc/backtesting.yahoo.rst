@@ -8,6 +8,8 @@ Free Daily Stock Backtesting with Yahoo and LumiBot
 
 **NOTE: Please ensure you have installed the latest lumibot version using ``pip install lumibot --upgrade`` before proceeding as there have been some major changes to the backtesting module in the latest version.**
 
+.. include:: _snippets/botspot_mcp_callout.rst
+
 Yahoo backtesting is so named because we get data for the backtesting from the Yahoo Finance website. The user is not required to supply data. Any stock information that is available in the Yahoo Finance API should be available for backtesting. The Yahoo backtester is only for stock data (including ETFs). Additionally, you cannot use the Yahoo backtester for intra-day trading, it is for daily trading only. For other securities, use the Polygon or Pandas backtesters.
 
 For a complete AI stock example, see :doc:`the bull/bear large-cap team
@@ -118,3 +120,46 @@ This example calls ``run_backtest()`` in every case. ``BACKTESTING_START`` and
 ``BACKTESTING_END`` can supply omitted dates; ``IS_BACKTESTING=false`` does not
 start broker execution. See :doc:`strategy_run_modes` for the separate broker
 runner.
+
+Frequently asked questions
+--------------------------
+
+Is Yahoo backtesting free?
+~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Yes. You do not need an API key, broker account or data provider credentials. LumiBot downloads the data from Yahoo Finance with the ``yfinance`` library.
+
+Can I backtest intraday strategies with Yahoo?
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+No. The Yahoo backtester is for daily trading only. For minute bars, use :doc:`ThetaData <backtesting.thetadata>`, :doc:`Polygon.io <backtesting.polygon>`, :doc:`Alpaca <backtesting.alpaca>` or your own data with :doc:`Pandas <backtesting.pandas>`.
+
+Which assets work with the Yahoo backtester?
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Stocks and ETFs. Any stock that Yahoo Finance has data for should work. For options, futures, forex or crypto, pick another data source from :doc:`backtesting`.
+
+How do I get historical prices in a Yahoo backtest?
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Call ``self.get_historical_prices(asset, length, "day")`` inside your strategy, and use ``bars.df`` for the pandas DataFrame. The same call works with every LumiBot data source, so you do not have to change your strategy.
+
+How do I add commissions and slippage to a Yahoo backtest?
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Pass ``buy_trading_fees`` and ``sell_trading_fees`` (lists of ``TradingFee`` objects) and ``buy_trading_slippages`` and ``sell_trading_slippages`` (lists of ``TradingSlippage`` objects) to ``run_backtest()``. See :doc:`entities.trading_fee` and :doc:`entities.trading_slippage`.
+
+How do I select Yahoo without changing my code?
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Set ``BACKTESTING_DATA_SOURCE=yahoo``. This setting wins over the data source class in your code. You can also set ``BACKTESTING_START`` and ``BACKTESTING_END`` to pick the dates.
+
+Where does LumiBot cache Yahoo data?
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+In the ``yahoo`` folder inside ``LUMIBOT_CACHE_FOLDER``. When that variable is not set, LumiBot uses your user cache folder.
+
+Where are the backtest results saved?
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+By default, the plots and reports go in the ``logs`` folder. See :doc:`backtesting.tearsheet_html` and :doc:`backtesting.trades_files` for what each file shows.

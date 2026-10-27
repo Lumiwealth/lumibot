@@ -6,6 +6,8 @@ How to Backtest a Python Trading Strategy with LumiBot
 
 Backtesting is a vital step in validating your trading strategies using historical data. With LumiBot, you can backtest strategies across various data sources such as **ThetaData** (our recommended vendor), **Polygon.io**, **Yahoo Finance**, **Polymarket CLOB prediction-contract history**, or even your own custom **CSV** files. This guide will walk you through each step of backtesting, explain the data sources, and introduce the files that LumiBot generates during backtesting.
 
+.. include:: _snippets/botspot_mcp_callout.rst
+
 .. note::
 
    **Why Backtest?**
@@ -265,3 +267,77 @@ Conclusion
 LumiBot’s backtesting feature provides a powerful framework for validating your strategies across multiple data sources. By following this guide, you can quickly set up your environment, choose a data source, and begin backtesting with confidence.
 
 For further details on each data source and the files generated during backtesting, refer to the individual sections listed above.
+
+Frequently asked questions
+--------------------------
+
+How do I run a backtest with LumiBot?
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Install LumiBot with ``pip install lumibot``, write a ``Strategy`` class, and
+call ``MyStrategy.run_backtest()`` with a data source, a start date, and an end
+date. You can also pass extra settings such as ``benchmark_asset="SPY"``. The
+Polygon.io example above shows a complete script.
+
+Which data source should I use for backtesting?
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+ThetaData is the recommended vendor for U.S. stocks and options. Yahoo Finance
+is free and works well for daily stock and ETF backtests. Polygon.io covers
+stocks, options, forex, and crypto. Pandas lets you load your own CSV files,
+and Polymarket CLOB covers prediction contracts.
+
+Is there a ThetaData promo code?
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Yes. Use the promo code ``BotSpot10`` when you sign up at
+`ThetaData <https://www.thetadata.net/>`_ to get 10% off your first order.
+ThetaData uses the code to credit BotSpot for the referral.
+
+Can I backtest for free?
+~~~~~~~~~~~~~~~~~~~~~~~~
+
+Yes. Yahoo Finance data is free and works for daily stock and ETF backtests.
+Polygon.io offers up to two years of free data, and ThetaData has free tiers.
+You can also backtest with your own CSV files through Pandas.
+
+Can I use Yahoo Finance for intraday backtests?
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Yahoo Finance suits longer term strategies that trade on daily bars. It is not
+a good fit for intraday backtests. For intraday stock or options data, use a
+provider such as ThetaData or Polygon.io.
+
+Do I need a Polygon.io API key to backtest?
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Yes, to use Polygon.io data you need your own API key. Pass it as
+``polygon_api_key`` to ``run_backtest()``. The key is still required when you
+pick Polygon through the ``BACKTESTING_DATA_SOURCE`` environment variable.
+
+Does BACKTESTING_DATA_SOURCE override the data source in my code?
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Yes. When ``BACKTESTING_DATA_SOURCE`` is set to a provider, it overrides the
+data source class you pass in Python. Set it to ``none`` to keep the class from
+your code. See :ref:`Choose your backtest data <backtest-data-source-selection>`.
+
+Can I set backtest dates without changing my code?
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Yes. Set ``BACKTESTING_START`` and ``BACKTESTING_END`` in the format
+``YYYY-MM-DD``. LumiBot uses them when your code does not pass dates.
+
+What files does a LumiBot backtest create?
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+A backtest creates a tearsheet HTML report with an equity curve, performance
+metrics, and a benchmark comparison. It also writes a trades file that lists
+every trade and an indicators file with the indicators your strategy recorded.
+
+Can I backtest Polymarket prediction markets?
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Yes. The Polymarket CLOB data source uses real Polymarket price history and
+trades outcome tokens as ``prediction_contract`` assets priced between ``0``
+and ``1``. See the :doc:`Polymarket broker guide <brokers.polymarket>`.

@@ -46,6 +46,12 @@ def _get_bars_class():
     return Bars
 
 
+def _shared_bar_cache():
+    from lumibot.tools import shared_bar_cache
+
+    return shared_bar_cache
+
+
 def _get_quote_class():
     from lumibot.entities import Quote
 
@@ -615,79 +621,76 @@ class SchwabData(DataSource):
                 frequency_type = self.client.PriceHistory.FrequencyType.DAILY
                 frequency = 1
 
-            # Get price history using the simplified API function
-            if timestep_unit == "day":
-                response = self.client.get_price_history_every_day(
-                    symbol,
-                    start_datetime=start_date,
-                    end_datetime=end_date,
-                    need_extended_hours_data=include_after_hours,
-                )
-            else:
-                # Convert raw frequency integer to Enum if required
-                freq_enum = frequency
-                try:
-                    if isinstance(frequency, int):
-                        freq_enum = self.client.PriceHistory.Frequency(frequency)
-                except Exception:
-                    pass
+            freq_enum = frequency
+            try:
+                if isinstance(frequency, int):
+                    freq_enum = self.client.PriceHistory.Frequency(frequency)
+            except Exception:
+                pass
 
-                response = self.client.get_price_history(
-                    symbol=symbol,
-                    frequency_type=frequency_type,
-                    frequency=freq_enum,
-                    start_datetime=start_date,
-                    end_datetime=end_date,
-                    need_extended_hours_data=include_after_hours
-                )
-
-            # Check if the response is a Response object and handle accordingly
-            if hasattr(response, 'status_code'):
-                # It's a Response object from requests library
-                if response.status_code != 200:
-                    logger.error(colored(f"Error fetching historical prices for {asset.symbol}: {response.status_code}, {response.text}", "red"))
-                    return None
-
-                # Parse the JSON response
-                try:
+            def fetch(range_start, range_end):
+                """One Schwab candle read for [range_start, range_end]. Errors raise; nothing is cached."""
+                if timestep_unit == "day":
+                    response = self.client.get_price_history_every_day(
+                        symbol,
+                        start_datetime=range_start.to_pydatetime(),
+                        end_datetime=range_end.to_pydatetime(),
+                        need_extended_hours_data=include_after_hours,
+                    )
+                else:
+                    response = self.client.get_price_history(
+                        symbol=symbol,
+                        frequency_type=frequency_type,
+                        frequency=freq_enum,
+                        start_datetime=range_start.to_pydatetime(),
+                        end_datetime=range_end.to_pydatetime(),
+                        need_extended_hours_data=include_after_hours,
+                    )
+                if hasattr(response, 'status_code'):
+                    if response.status_code != 200:
+                        raise RuntimeError(f"Schwab price history returned {response.status_code}: {response.text}")
                     data = response.json()
-                except ValueError as e:
-                    logger.error(colored(f"Invalid JSON in response for {asset.symbol}: {e}", "red"))
-                    return None
-            else:
-                # It's already a dictionary or other data structure
-                data = response
+                else:
+                    data = response
+                if not data or 'candles' not in data:
+                    raise RuntimeError("Schwab price history response has no candles field")
+                frame = pd.DataFrame(data['candles'])
+                if frame.empty:
+                    return frame
+                expected_columns = ['open', 'high', 'low', 'close', 'volume', 'datetime']
+                if not all(col in frame.columns for col in expected_columns):
+                    logger.warning(colored(f"Missing expected columns in response. Got: {frame.columns.tolist()}", "yellow"))
+                # Epoch milliseconds identify UTC instants, never local wall time.
+                frame['datetime'] = pd.to_datetime(frame['datetime'], unit='ms', utc=True)
+                frame = frame.set_index('datetime')
+                return frame[~frame.index.duplicated(keep='first')]
 
-            # Check if data contains candles data
-            if not data or 'candles' not in data:
-                logger.error(colored(f"No candles data found in the response for {asset.symbol}", "red"))
-                return None
-
-            candles = data['candles']
+            # Charts, bots and broker-backed backtests share one bar cache per connection.
+            provider_timestep = {
+                "minute": f"{frequency}minute",
+                "hour": "30minute",
+                "day": "1day",
+                "week": "1week",
+                "month": "1month",
+            }.get(timestep_unit, "1day")
+            series = _shared_bar_cache().BarSeries.make(
+                "schwab",
+                symbol,
+                provider_timestep,
+                scope=self.shared_bars_scope,
+                adjusted=True,
+                assetType=str(asset.asset_type),
+                extendedHours=bool(include_after_hours),
+            )
+            df = _shared_bar_cache().read_bars(series, start_date, end_date, fetch)
 
             # If no candles were returned, return None
-            if not candles or len(candles) == 0:
+            if df.empty:
                 logger.warning(colored(f"No price data available for {asset.symbol} in the requested time range", "yellow"))
                 return None
 
-            # Convert candles to a DataFrame
-            df = pd.DataFrame(candles)
-
-            # Ensure expected columns are present
-            expected_columns = ['open', 'high', 'low', 'close', 'volume', 'datetime']
-            if not all(col in df.columns for col in expected_columns):
-                logger.warning(colored(f"Missing expected columns in response. Got: {df.columns.tolist()}", "yellow"))
-
-            # Set datetime as the index
-            if 'datetime' in df.columns:
-                # Epoch milliseconds identify UTC instants, never local wall time.
-                df['datetime'] = pd.to_datetime(df['datetime'], unit='ms', utc=True)
-                df.set_index('datetime', inplace=True)
-
-            # Drop any duplicate indices
-            df = df[~df.index.duplicated(keep='first')]
-
-            df.index = df.index.tz_convert(LUMIBOT_DEFAULT_TIMEZONE)
+            df = _shared_bar_cache().to_timezone(df, LUMIBOT_DEFAULT_TIMEZONE)
+            df.index.name = 'datetime'
 
             # Create and return the Bars object
             bars = _get_bars_class()(df, self.SOURCE, asset, raw=df, quote=quote)

@@ -1144,3 +1144,75 @@ Conclusion
 Deploying your application is straightforward with our GitHub deployment buttons for **Render** and **Replit**. By following this guide, you can quickly set up your environment variables and get your application live. Happy deploying! 🎉
 
 For further assistance, refer to the `Render Documentation <https://render.com/docs>`_ or the `Replit Documentation <https://docs.replit.com/>`_.
+
+Frequently asked questions
+--------------------------
+
+How do I deploy a LumiBot trading bot?
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+You have three paths. You can run the strategy as a local process for a short
+test, use BotSpot for managed hosting, or host it yourself on a service such as
+Render or Replit. All three paths use the same LumiBot strategy code.
+
+Can I run LumiBot on my own server?
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Yes. You can deploy LumiBot on any cloud host that runs Python. This guide
+covers Render and Replit, the two platforms tested end to end. When you host it
+yourself, you manage the server, scheduler, environment variables, broker
+credentials, logs, alerts, and uptime.
+
+How much does it cost to host a bot on Render or Replit?
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+At the time this guide was written, Render cost about $7 a month and Replit
+cost about $25 a month. Neither company is part of LumiBot or BotSpot, and
+prices change, so check `Render <https://render.com/docs>`_ and
+`Replit <https://docs.replit.com/>`_ for current pricing.
+
+Where do I put my broker API keys when I deploy?
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Set them as environment variables, which Render and Replit call secrets. Add
+the secrets for your one broker first, then any general settings. On your own
+computer, put the same values in a ``.env`` file in the same folder as
+``main.py``. See :ref:`secrets-configuration` and :doc:`environment_variables`.
+
+How do I switch Alpaca between paper trading and live trading?
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Set ``ALPACA_IS_PAPER``. Use ``True`` for the Alpaca paper trading API and
+``False`` for the real money API. If you do not set it, LumiBot uses paper
+trading.
+
+Can I use one broker for trading and a different source for market data?
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Yes. Set ``TRADING_BROKER`` to the broker that places your orders and
+``DATA_SOURCE`` to the provider for market data. For example, you can trade
+with Tradier and read data from DataBento. If you leave ``DATA_SOURCE`` unset,
+the trading broker also supplies the data.
+
+Which brokers can I set with TRADING_BROKER?
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+The listed values are ``alpaca``, ``tradier``, ``ccxt``, ``coinbase``,
+``kraken``, ``weex``, ``ib`` (or ``interactivebrokers``), ``ibrest`` (or
+``interactivebrokersrest``), ``tradovate``, ``schwab``, ``bitunix``, and
+``projectx``. The values are not case sensitive.
+
+Does IS_BACKTESTING=False make my bot trade live?
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+No. ``IS_BACKTESTING`` is only read by startup code that checks it. Paper or
+live trading still needs a broker runner and a broker configuration. See
+:doc:`strategy_run_modes` for how each mode starts.
+
+Can LumiBot trade futures through ProjectX accounts like TopstepX?
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+ProjectX is a futures only broker path that is currently documented for
+TopstepX. Set ``PROJECTX_TOPSTEPX_API_KEY`` and ``PROJECTX_TOPSTEPX_USERNAME``.
+The adapter also has prefixes for other firms, but those firms should be
+checked before you use them with real money.

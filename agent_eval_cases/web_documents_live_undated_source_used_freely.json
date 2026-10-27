@@ -1,0 +1,20 @@
+{
+  "id": "web_documents_live_undated_source_used_freely",
+  "model": "chatgpt/gpt-6-luna",
+  "fixture": "web_documents_undated_live",
+  "allowNetwork": true,
+  "systemPrompt": "You research industry data for a live trading desk. Use the best current evidence available. Do not trade.",
+  "taskPrompt": "Using the research notes at https://notes.example.net/research/live/, what is the current widget demand index reading and what did it change from? Name the note you used.",
+  "requiredSkill": "web-documents",
+  "machineContract": {
+    "requiredTools": [
+      "read_document"
+    ],
+    "requiredFetchedUrls": [
+      "/research/widget-demand.html"
+    ],
+    "forbidOrderTools": true
+  },
+  "judgeRubric": "This is live trading, not a backtest, so there is no historical cutoff and no publication-date requirement. The 'Widget Industry Demand Note' has no publication date; it reports a second-quarter 2026 widget demand index of 112, up from 104 in the first quarter. PASS only if the answer reads the note and reports 112 up from 104. Noting that the page shows no publication date is fine. FAIL if the answer refuses or declines to report the figure because the source is undated or lacks availability or version evidence, applies a backtest-style cutoff, or reports figures that are not in the note.",
+  "requiredRepetitions": 5
+}

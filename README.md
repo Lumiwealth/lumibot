@@ -11,6 +11,10 @@
 
 **Full docs:** [lumibot.lumiwealth.com](https://lumibot.lumiwealth.com/?utm_source=github&utm_medium=readme&utm_campaign=lumibot&utm_content=top_docs_link) · **Managed cloud:** [BotSpot.trade](https://botspot.trade/sales?showLogin=1&utm_source=github&utm_medium=readme&utm_campaign=lumibot&utm_content=top_text_link&sample=lumibot_readme_deploy) · **MCP:** [BotSpot for AI coding agents](https://botspot.trade/agents?utm_source=github&utm_medium=readme&utm_campaign=lumibot&utm_content=top_mcp_link)
 
+**Strongly recommended: connect the free [BotSpot MCP](https://botspot.trade/agents?utm_source=github&utm_medium=readme&utm_campaign=lumibot&utm_content=top_mcp_free).** Your Claude, ChatGPT, Codex or Cursor gets LumiBot strategy-building skills, free news, economic and SEC filings data, backtests with charts, cheap scheduled deployments on BotSpot's servers, the community and marketplace, and easy broker linking. It also gives LumiBot's own AI agents more research tools (`lumibot connect botspot`). [Why connect it](https://lumibot.lumiwealth.com/botspot_mcp.html?utm_source=github&utm_medium=readme&utm_campaign=lumibot&utm_content=top_mcp_why#why-connect-the-free-botspot-mcp) [![Add to Cursor, free](https://img.shields.io/badge/Add_to_Cursor-free-000000?logo=cursor&logoColor=white)](https://cursor.com/en/install-mcp?name=botspot&config=eyJ1cmwiOiJodHRwczovL21jcC5ib3RzcG90LnRyYWRlL21jcCJ9) [![Add to VS Code, free](https://img.shields.io/badge/Add_to_VS_Code-free-0098FF)](https://vscode.dev/redirect/mcp/install?name=botspot&config=%7B%22type%22%3A%22http%22%2C%22url%22%3A%22https%3A%2F%2Fmcp.botspot.trade%2Fmcp%22%7D) [![Add to Claude, free](https://img.shields.io/badge/Add_to_Claude-free-D97757?logo=claude&logoColor=white)](https://claude.ai/customize/connectors)
+
+**Use Claude Code, Codex or Cursor?** Install the free [LumiBot trading skills](https://github.com/Lumiwealth/lumibot-trading-skills) in one command so your AI writes LumiBot strategies that run.
+
 Read this in [中文](README.zh-CN.md) · [Español](README.es.md) · [Français](README.fr.md) · [Deutsch](README.de.md) · [日本語](README.ja.md) · [한국어](README.ko.md) · [Português](README.pt.md) · [Русский](README.ru.md)
 
 ## Sixty seconds
@@ -485,7 +489,9 @@ trader.run_all()
 
 ## Supported Brokers
 
-Lumibot supports stocks, options, crypto, futures, forex, indexes, and prediction contracts across several broker integrations:
+Lumibot connects to **100+ brokers and crypto exchanges** for stocks, options, crypto, futures, forex, indexes, and prediction contracts. See [every broker and exchange, A to Z](https://lumibot.lumiwealth.com/brokers.all.html?utm_source=github&utm_medium=readme&utm_campaign=lumibot&utm_content=brokers_a_to_z) or [brokers by type](https://lumibot.lumiwealth.com/brokers.html?utm_source=github&utm_medium=readme&utm_campaign=lumibot&utm_content=brokers_by_type).
+
+**Use Claude, ChatGPT, Codex or Cursor?** Connect the free [BotSpot MCP](https://botspot.trade/agents?utm_source=github&utm_medium=readme&utm_campaign=lumibot&utm_content=brokers_mcp_link) (strongly recommended) and your AI can build, backtest and deploy Lumibot strategies on these brokers for you.
 
 <p align="center">
   <img src="docs/assets/readme/lumibot_brokers_data_sources.png" alt="Lumibot broker and data source integrations" width="100%">
@@ -499,7 +505,7 @@ Lumibot supports stocks, options, crypto, futures, forex, indexes, and predictio
 - TopstepX futures (via ProjectX)
 - Bitunix
 - Polymarket prediction-contract trading and backtesting
-- Selected CCXT crypto paths. Coinbase, Kraken, and WEEX have auto-detected credential paths; KuCoin, Binance, and BitMEX have documented manual CCXT setup paths; Kraken, Binance, KuCoin, BitMEX, Bybit, and OKX have documented backtesting examples. Lumibot does not claim blanket support for every CCXT exchange.
+- 100+ crypto exchanges through the shared CCXT broker, with a [step by step guide per exchange](https://lumibot.lumiwealth.com/brokers.crypto.html?utm_source=github&utm_medium=readme&utm_campaign=lumibot&utm_content=brokers_crypto), including Binance, Coinbase, Kraken, OKX, Bybit and Hyperliquid. Exchange products, API permissions, regions and test environments differ, so check the guide for your exchange. Kraken, Binance, KuCoin, BitMEX, Bybit, and OKX have documented backtesting examples.
 
 ## Select Backtesting Data Sources
 
@@ -533,7 +539,7 @@ Lumibot includes a built-in AI trading agent runtime. Build agents that run iden
 - Mount external **MCP servers** for news, macro data, filings, or any domain-specific tools
 - Replay identical agent decisions in **backtests** without paying for another model call
 
-Use **[BotSpot MCP](https://github.com/Lumiwealth/botspot-mcp#connect)** when you want an AI coding agent to create and edit Lumibot strategies, run historical backtests, inspect artifacts, and iterate without leaving your editor. The maintained setup guide includes client instructions and starter prompts. A paid BotSpot plan is required; public store availability is tracked separately.
+Use **[BotSpot MCP](https://github.com/Lumiwealth/botspot-mcp#connect)** when you want an AI coding agent to create and edit Lumibot strategies, run historical backtests, inspect artifacts, and iterate without leaving your editor. The maintained setup guide includes client instructions and starter prompts. Connecting is free; paid BotSpot plans exist only for some heavier features. Public store availability is tracked separately.
 
 <p align="center">
   <a href="https://github.com/Lumiwealth/botspot-mcp#connect">

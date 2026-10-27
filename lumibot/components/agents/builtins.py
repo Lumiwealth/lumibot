@@ -2602,12 +2602,17 @@ def _bind_read_document(strategy: Any, manager: Any) -> BoundTool:
         # No download time here: a page or file read now shows its current version,
         # and agents mistook the download time for the document's date.
         result = {key: fetched[key] for key in ("ok", "status_code", "url", "error") if key in fetched}
-        result["dates"] = (
-            "Current bytes. Before links, SQL-filter EACH index table by UTC first-public/version instants <= "
-            "historical_as_of; inspect actual selected IDs/URLs. Samples, counts, period and retrieval dates are "
-            "not availability proof; a source that records only a publication date counts from the next day. "
-            "Never fetch excluded versions."
-        )
+        if historical_as_of is not None:
+            result["dates"] = (
+                "Current bytes. When index tables record dates, SQL-filter EACH by UTC first-public/version "
+                "instants <= historical_as_of before following links; a source that records only a publication "
+                "date counts from the next day. An undated source may be used: estimate when it became public, "
+                "say so in the answer, and never claim the estimate is exact. Never fetch versions known to be "
+                "after historical_as_of."
+            )
+        else:
+            # Live trading has no date restrictions; the page is simply current.
+            result["dates"] = "Current bytes, retrieved now. Live mode applies no publication-date rules."
         if historical_as_of is not None:
             result["historical_as_of"] = historical_as_of
         if availability is not None:
@@ -2699,16 +2704,18 @@ def _bind_read_document(strategy: Any, manager: Any) -> BoundTool:
             "to page through long text: call again with start=next_start until next_start is null. Every table in the file "
             "(a CSV, an Excel sheet, a table file inside a ZIP) is loaded for duckdb_query: the result lists "
             "each table_name, its columns and sample rows, so filter, sort and add up rows with SQL instead of "
-            "by hand. In a backtest, select exact document IDs/URLs from every relevant discovery table using "
-            "SQL that compares UTC first-public/version timestamps with the full simulated cutoff before following "
-            "links. Observation and transaction dates do not prove availability; when a source records only a "
-            "publication or filing date, the document counts as public from the start of the next day. "
+            "by hand. Live trading has no date rules. In a backtest, prefer dated sources: when discovery tables "
+            "record dates, select exact document IDs/URLs using SQL that compares UTC first-public/version "
+            "timestamps with the full simulated cutoff before following links. Observation and transaction dates "
+            "do not prove availability; when a source records only a publication or filing date, the document "
+            "counts as public from the start of the next day. A source with no date at all may be used: omit "
+            "available_at, estimate when it became public from its contents, and disclose the estimate. "
             "Never guess an ID from "
-            "a row count, fetch an excluded revision, or stop at a baseline without eligible updates. "
-            "For linked evidence supply available_at from the discovery row's version publication instant; "
-            "the tool refuses known post-cutoff versions before HTTP. Supply expected_sha256 when the publisher "
-            "identifies retained original bytes; a mismatch exposes no document text or tables. "
-            "These declarations do not independently prove source availability; never invent them. "
+            "a row count, fetch a revision known to be after the cutoff, or stop at a baseline without eligible "
+            "updates. For dated linked evidence supply available_at from the discovery row's version publication "
+            "instant; the tool refuses known post-cutoff versions before HTTP. Supply expected_sha256 when the "
+            "publisher identifies retained original bytes; a mismatch exposes no document text or tables. "
+            "Never invent available_at or pass an estimate as available_at. "
             "Example: read_document(url='https://example.com/reports/2025.zip')."
         ),
         function=read_document,

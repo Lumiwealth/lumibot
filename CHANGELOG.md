@@ -5,6 +5,89 @@
 ### Fixed
 - Preserve dividend and stock-split event timestamps when Pandas and Polars backtest data are aligned to a shared index. Inserted rows carry zero actions instead of repeating a prior event.
 
+## 4.6.30 - 2026-10-24
+
+### Added
+- `lumibot connect botspot` is one command with no copy and paste: it shows a short code and opens the BotSpot sign-in page (a free account is created if needed). Once the code is approved, BotSpot creates a key for you; the command checks it and writes `BOTSPOT_RESEARCH_MCP_URL` and `BOTSPOT_RESEARCH_MCP_TOKEN` to `.env`. The key is never printed. Standard OAuth 2.0 device login (RFC 8628: polling interval, `slow_down`, denied and expired codes). New flags `--api-url` (or the `BOTSPOT_API_URL` environment variable) and `--timeout`; `--token`, `--paste` and `--no-browser` keep working. A BotSpot server without code login falls back to the key page flow instead of failing.
+- `lumibot init` writes an `AGENTS.md` next to `strategy.py` with short notes for AI coding assistants and one line about the free BotSpot MCP (`lumibot connect botspot` or https://mcp.botspot.trade/mcp). It is written only when missing and never overwritten, not even with `--force`.
+
+## 4.6.29 - 2026-10-24
+
+### Added
+- Alpaca configuration accepts caller-owned SDK clients through `TRADING_CLIENT`, `STOCK_CLIENT`, `CRYPTO_CLIENT` and `OPTION_CLIENT`. Explicit constructor clients take precedence, and default data-source construction retains the configured clients.
+- Docs: new page "Use LumiBot with Claude Code, Codex and Cursor" (`claude_code_codex_cursor.html`). It installs the free LumiBot trading skills (`Lumiwealth/lumibot-trading-skills`) with one command and connects the free BotSpot MCP. Linked from the home page, getting started, the AI agent guide and the sidebar.
+- Docs: new comparison pages `lumibot_vs_freqtrade.html` and `lumibot_vs_backtrader.html`. The LEAN, OpenAlice and TradingAgents pages gain at-a-glance tables and dated sources (checked October 24, 2026). Every comparison page ends with the skills and BotSpot MCP call to action. All existing URLs are unchanged.
+- Docs and README: one-click "Add to Cursor", "Add to VS Code" and "Add to Claude" buttons for the free BotSpot MCP, in the shared BotSpot MCP callout, at the top of the new page and on the README BotSpot MCP line. Claude has no documented pre-filled connector link, so its button opens Customize > Connectors and the text gives the address to paste.
+- README: one line pointing Claude Code, Codex and Cursor users to the trading skills repository.
+- `CITATION.cff`, a PyPI "Changelog" project URL and extra PyPI keywords (`ai-agents`, `agentic-trading`, `llm`, `ccxt`).
+- Test: `tests/test_docs_coding_assistant_and_comparisons.py` fails if the new pages, their links, the call to action or the install buttons disappear.
+
+### Fixed
+- Docs: the Crypto exchanges menu listed Alpaca twice. It now shows Alpaca once (its native broker page); the Alpaca exchange page and URL stay published.
+- The GitHub Sponsor link (`.github/FUNDING.yml`) pointed at the frozen `version/4.5.92` branch; it now points at the live partnerships page.
+
+## 4.6.28 - 2026-10-23
+
+### Added
+- Alpaca adapters accept caller-owned trading and stock, option, and crypto data clients. Injected clients own their authentication, use the existing order-polling lifecycle, and remain configured after data authentication resets. Standalone API-key and OAuth connections keep their existing behavior.
+- Trading-only keys for DEX wallets: Paradex subkeys (`PARADEX_L2_PRIVATE_KEY`, `PARADEX_L2_ADDRESS`), existing Lighter API keys (`LIGHTER_API_KEY_PRIVATE_KEY`, `LIGHTER_API_KEY_INDEX`, `LIGHTER_ACCOUNT_INDEX`, `LIGHTER_LIBRARY_PATH`) and the dYdX Chain mnemonic (`DYDX_MNEMONIC`) replace the main wallet private key when set. Offline tests only so far.
+- Docs: every generated CCXT exchange page includes the shared BotSpot MCP callout (`docsrc/_snippets/botspot_mcp_callout.rst`) and a "Fees and partner IDs" section; 31 exchanges that list spot and perpetuals (with CCXT position reads) gain a perpetual example. Every page example now runs a full iteration offline: the fake exchange fills the order, LumiBot processes the fill and the position appears after a normal position sync. The Lighter "set builderFee False" workaround text is gone.
+- Opt-in live order proof for Coinbase, Kraken, Kraken Futures and Coinbase International (`tests/test_ccxt_live_orders_apitest.py`): skipped unless `LUMIBOT_LIVE_CCXT_ORDER_TESTS=1` and keys are set.
+- Startup tip: when a backtest or live run starts (`Trader.run_all`) and BotSpot is not connected, LumiBot logs one clean block saying the BotSpot MCP is free and how to connect it (`lumibot connect botspot`, https://botspot.trade/agents). Once per run, shared with the agent research hint, never raises, hidden in CI and when `BOTSPOT_RESEARCH_MCP_TOKEN`, `BOTSPOT_RESEARCH_MCP_RENEW_URL` or `BOTSPOT_API_KEY` is set. New env var `LUMIBOT_HIDE_BOTSPOT_TIP=1` silences it (`LUMIBOT_NO_BOTSPOT_HINT=1` still works).
+- Docs: a "Frequently asked questions" section on every hand-written broker page, the backtesting data-source pages and the top docs pages by search impressions. Each FAQ is emitted as FAQPage JSON-LD (`_add_faq_schema` in `docsrc/conf.py`, rendered from `_templates/base.html`, which is the template Furo actually uses; the old FAQ page schema in `layout.html` never rendered).
+- Docs: one shared BotSpot MCP callout (`docsrc/_snippets/botspot_mcp_callout.rst`) near the top of broker, exchange, backtesting, getting started, AI agent pages and the homepage, plus a "Why connect the free BotSpot MCP" section on the BotSpot MCP page.
+- Docs: brokers grouped in the sidebar (Stocks & options, Futures, Crypto exchanges, Prediction markets, Backtesting data sources) and an all brokers A to Z page with a filter box. Every exchange guide sits directly under "Crypto exchanges" with its plain name. Page URLs are unchanged.
+- Docs: an asset-class table (stocks, options, futures, crypto, forex, prediction markets) on the brokers page, each broker listed under every asset class it trades (new Options and Forex groups), and the Bing Webmaster verification file for lumibot.lumiwealth.com.
+
+### Changed
+- CCXT partner IDs and builder fees: CCXT tags orders with its own partner ID on many exchanges (Binance, Bitget, MEXC, BingX, HTX, OKX, Bybit, Phemex, Coinbase, Gate, KuCoin, Bitmart, Blofin, Coinex, Crypto.com, Paradex and others) and adds an extra user-paid builder fee on Hyperliquid, Lighter, GRVT, Aster, Pacifica and Extended, plus a CCXT referrer on Hyperliquid. LumiBot now removes CCXT's IDs, turns CCXT's builder fees and referrer off, and attaches only its own configured IDs (`LUMIBOT_CCXT_PARTNER_IDS`, default empty). A builder fee is added only when configured (`LUMIBOT_CCXT_BUILDER_FEES`) and is logged as a warning because it costs the user extra. New `lumibot.tools.ccxt_partner_ids`, applied to every CCXT client LumiBot creates. HTX perpetual orders, WOO X, WOOFi Pro and ModeTrade still carry CCXT's tag because CCXT re-adds it while signing.
+- CCXT market types follow the Bitunix futures model: an exchange-style contract symbol such as `BTCUSDT` resolves to the perpetual, an opening order on an asset created with `leverage` above 1 sets that leverage once (closing orders and the default 1x never change it), dated futures use their full CCXT symbol, and CCXT option markets map to LumiBot option assets (base, expiration, strike, right). Positions are read for every contract type the exchange lists (swaps, then dated futures and options); swap-only accounts make the same single call as before.
+- Docs: titles and menu labels no longer say "CCXT" (the CCXT library is still named in the body). The BotSpot MCP is described as free to connect; paid plans apply only to some heavier features.
+- README: 100+ brokers and exchanges with links to the A to Z list, and a free BotSpot MCP line below the existing top links (which are unchanged).
+
+### Fixed
+- Simple moving averages over a finite window now request and validate only the history that window needs (positive offsets included), grow smaller lazy caches and keep causal slicing. Custom, recursive and explicit-window calculations keep their existing history contract.
+- Alpaca authentication diagnostics no longer print OAuth token prefixes, raw authentication response bodies, or application-specific sign-in addresses.
+- Docs: the BitMEX page said `BACKTESTING_DATA_SOURCE=bitmex`, which raises "Unknown BACKTESTING_DATA_SOURCE". It now says `ccxt` with `exchange_id="bitmex"`.
+- Docs: the generated Bybit page had the same mistake (`BACKTESTING_DATA_SOURCE=bybit`). The exchange page generator now always writes `ccxt` plus the `exchange_id`, and a test fails if any exchange page uses an exchange id there.
+
+## 4.6.27 - 2026-10-23
+
+### Changed
+- AI agents may use sources with no date in backtests. They still prefer dated sources and never open a document known to be from after the backtest time, but an undated page or file is now used with an estimated publication date that the agent discloses, instead of being refused. The web-documents and research-data skills, the backtest rules in the agent prompt and the `read_document` description say so. Live trading applies no publication-date rules, and the backtest-only document-manifest rule no longer appears in live prompts. New evals: `web_documents_undated_source_estimated_date`, `web_documents_known_future_document_not_opened`, `web_documents_live_undated_source_used_freely`.
+
+### Fixed
+- Interactive Brokers Client Portal history no longer goes through the shared bar cache. The gateway answers "the last N bars" in trading time (at night a one-minute read returns the 16:00 bar), which the cache's calendar windows filtered away: 4.6.25 and 4.6.26 returned no bars for those reads (Bot Manager Dev scheduled smoke, Oct 23). Reads go straight to the gateway as before.
+- The shared bar cache never builds a connection scope from a provider name alone; without an account or key a read is not shared.
+- Bitunix HEDGE mode: a long and a short position on the same symbol are tracked as two positions with `position_side` and `position_id` (the exchange `positionId`). Before, a snapshot holding both raised and positions could not sync. Closing selects the right `positionId`, closing without a selector closes both, and opening and polled orders record the position they trade. Single-position behavior is unchanged.
+- Position sync updates a tracked position that has no side yet in place when the broker first reports its side, keeping its strategy owner, instead of replacing it with an ownerless copy.
+- CCXT: read hedge legs from native `positionIdx` (1 long, 2 short) and `holdSide` fields, and never store an order's buy/sell direction as a position leg.
+
+## 4.6.26 - 2026-10-23
+
+### Added
+- Every CCXT exchange is selectable from the environment: `TRADING_BROKER=<ccxt id>` (or `DATA_SOURCE`) with `<EXCHANGE>_API_KEY`, `_API_SECRET`, `_API_PASSPHRASE`, `_UID`, `_PRIVATE_KEY`, `_WALLET_ADDRESS` and friends, read from each exchange's own CCXT `requiredCredentials`. Before, only Coinbase, Kraken and WEEX worked this way. Missing credentials name the exact variables; exchanges without historical candles raise a clear error on history reads. New `lumibot.tools.ccxt_exchange_catalog` prints every installed exchange with its credential variables and capabilities as JSON. Offline coverage constructs all 105 CCXT 4.5.64 exchanges and submits a unified order on all 88 spot exchanges.
+- Docs: per-exchange CCXT pages generated from installed CCXT metadata plus hand-checked exchange notes (`scripts/generate_ccxt_exchange_facts.py`, `scripts/generate_ccxt_exchange_pages.py`, `docsrc/_data/`). 88 exchange pages (every CCXT exchange whose official pages could be checked; the 17 others are listed with reasons under `skipped` in the notes file), each with sign-up and API key or API wallet steps, a `.env` connect snippet, a regular example (a perpetual version for exchanges with no spot market, limit orders where CCXT has no market orders) and a one-agent agentic example. Short on-page titles for phones with the full search title kept in the HTML title through `:seo_title:`. `tests/test_ccxt_exchange_docs.py` runs every page example offline against a fake exchange with network requests blocked.
+
+### Fixed
+- Shared history cache: Schwab, Tradier, IBKR and CCXT history return the broker's own bars again when a bar is internally inconsistent (Tradier SPY 2024-12-19 has its close below its low). 4.6.25 rejected the whole answer, so Tradier charts came back empty on Dev. Only Alpaca keeps its existing strict OHLCV check.
+- Shared history cache on workers with a remote store: the local Parquet write now runs on the background uploader too, so a cache miss returns right after the broker answers (Dev Lambda misses spent 1.4-3.6 s writing before answering). New `shared_bar_cache.prewarm()` loads the Parquet engine and S3 client in the background for one-request worker processes.
+
+## 4.6.25 - 2026-10-23
+
+### Fixed
+- Resolve CCXT perpetual instruments with settlement and contract-size metadata, preserve hedge legs through native requests and convert linear/inverse fills consistently. Phemex account and V2 stream routes follow product metadata across settlement currencies. Crypto-future execution callbacks no longer debit full spot notional from cash.
+- Add one managed CCXT Pro client per broker for live market data and account order updates, with cumulative-fill reconciliation, REST public-data fallback and explicit shutdown. Public Phemex testnet spot, USDT and inverse streams passed; USDC public production streams passed, while USDC testnet remains unavailable in the observed checks. Authenticated testnet trading and perpetual backtesting remain unqualified; see the CCXT guide.
+- Preserve optional derivative position sides and IDs through order fills, position synchronization, serialization and closing. Separate hedge legs no longer overwrite one another; single-position lookup accepts leg selectors and closing without a selector closes both legs.
+- CCXT spot trading uses the unified order and balance contracts across installed exchange adapters, removing hard-coded exchange approval lists. Use CCXT precision and trigger parameters, preserve crypto wallet dust, correct holdings valuation and cancellation, and accept optional order fields. Offline coverage includes Phemex, Coinbase, Kraken, KuCoin, OKX and Bybit; authenticated testnet trading remains unqualified.
+- Restore normal MCP endpoint handling for automatic BotSpot connections, including private HTTP endpoints, URL authentication, query parameters and fragments. Remove the extra BotSpot-specific URL policy; retain sanitized configuration notices and the shared client's token-renewal checks.
+
+### Changed
+- One shared history cache for every broker (`lumibot/tools/shared_bar_cache.py`). Schwab, Tradier, Interactive Brokers (Client Portal) and CCXT live history now read through it, alongside Alpaca charts and Alpaca backtests. Repeated reads of settled bars make no broker call; live reads fetch only the still-open tail.
+- Completed bars no longer expire (the old Alpaca cache dropped closed months after 24 hours and never stored the current month). Split- or dividend-adjusted history is re-checked against the broker and rebuilt when old prices change.
+- Cache uploads to S3 run in the background; the caller gets its bars after the local write only. Remote partitions load in parallel.
+- New settings: `LUMIBOT_SHARED_BARS`, `LUMIBOT_SHARED_BARS_SCOPE`, `LUMIBOT_SHARED_BARS_SETTLE_MINUTES`. Design: `docs/SHARED_BAR_CACHE.md`.
+
 ## 4.6.24 - 2026-10-21
 
 ### Fixed

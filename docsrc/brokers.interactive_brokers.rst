@@ -6,6 +6,8 @@ Interactive Brokers API Trading with LumiBot
 
 Interactive Brokers is a brokerage firm that operates in most countries around the world. It's a great choice for investing and trading, especially if you don't have access to other supported platforms.
 
+.. include:: _snippets/botspot_mcp_callout.rst
+
 **Note:** If you have access to other supported brokers, compare their fee structures to see which one offers the best deal for you.
 
 .. note::
@@ -149,3 +151,63 @@ Example Strategy
   strategy = Strangle()
   trader.add_strategy(strategy)
   trader.run_all()
+
+Frequently asked questions
+--------------------------
+
+Does LumiBot work with Interactive Brokers?
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Yes. This page covers the Client Portal REST connection, which LumiBot selects when ``IB_USERNAME`` is set. The older Trader Workstation (TWS) socket method is on :doc:`brokers.interactive_brokers_legacy` and is deprecated.
+
+What environment variables does LumiBot use for Interactive Brokers?
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Set ``IB_USERNAME`` and ``IB_PASSWORD``. ``IB_ACCOUNT_ID`` is optional and picks a subaccount. ``IB_USE_PAPER_ACCOUNT`` defaults to ``true``.
+
+If keys for other brokers are also set, add ``TRADING_BROKER=ibrest`` to force this connection.
+
+How do I paper trade with Interactive Brokers in LumiBot?
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Request a paper trading account in the IBKR Client Portal under Settings. IBKR gives you a separate paper username and password.
+
+Put those paper credentials in ``IB_USERNAME`` and ``IB_PASSWORD``. Keep ``IB_USE_PAPER_ACCOUNT=true`` when LumiBot starts the local IBeam gateway.
+
+What can I trade on Interactive Brokers with LumiBot?
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Stocks, options, futures and forex, plus multi-leg option orders. LumiBot can also read index data.
+
+Order types include market, limit, stop, stop-limit and trailing stop.
+
+Do I need to pay for IBKR market data to use the API?
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+For real-time data, you need IBKR market data subscriptions, and they may cost extra. Check the price of each package in the Client Portal before you subscribe.
+
+Subscriptions belong to one username. Subscribe while logged in with the same username you give LumiBot.
+
+Which IBKR market data subscription do I need for options?
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+For most options strategies, the **OPRA (US Options Exchanges)** subscription is enough. Other strategies may need other packages, such as the US Securities Snapshot and Futures Value Bundle.
+
+Why does my IBKR API session keep getting logged out?
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+IBKR allows one active brokerage session per username. Logging in to Client Portal, TWS, IB Gateway or another trading session with the same username can push the API session out.
+
+A second username for API use avoids this. It still needs 2FA, and its market data subscriptions are separate.
+
+Do I have to log in to IBKR every day?
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Yes. IBKR requires two-factor authentication for Client Portal Gateway users, and individual users must log in again at least daily. LumiBot does not bypass this.
+
+What is IBeam?
+~~~~~~~~~~~~~~
+
+IBeam is a third-party tool that runs the IBKR Client Portal Gateway. LumiBot can start it locally for your own testing, for example with a paper account.
+
+IBKR does not support third-party wrappers like IBeam. Do not use it to collect other people's credentials.

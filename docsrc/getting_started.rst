@@ -9,6 +9,8 @@ Traditional strategies are fully supported: define your own Python rules in a
 See :doc:`Python strategy examples <examples>` for buy-and-hold, momentum, and
 bracket-order starting points.
 
+.. include:: _snippets/botspot_mcp_callout.rst
+
 **The strategy class can stay the same. The code that starts it must select a
 backtest or a broker run.** See :doc:`strategy_run_modes` before copying an
 example's runner. The AI examples are labeled by what direct file execution
@@ -21,7 +23,8 @@ Choose what you want to build
 * **Your own trading rules:** :ref:`Backtest a Python strategy <first-python-backtest>` using daily stock prices. No model account is needed.
 * **Research in another project:** :doc:`Use data and research components <standalone_components>` without creating a trading strategy.
 
-Already building with an AI coding assistant? Give it :doc:`agent_start_here`.
+Already building with an AI coding assistant? :doc:`Install the free LumiBot trading skills <claude_code_codex_cursor>`
+in Claude Code, Codex or Cursor with one command, and give it :doc:`agent_start_here`.
 
 Install LumiBot
 ---------------
@@ -324,28 +327,79 @@ This will open a web browser with a visualization of the profiling results.
 
    **Profiling can be complex**, so it is recommended to read the `yappi documentation <https://yappi.readthedocs.io/en/latest/>`__.
 
-Frequently Asked Questions
+Frequently asked questions
 ==========================
 
-**What is the fastest way to test a strategy?**
+What is the fastest way to test a strategy?
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-Use Yahoo Finance backtesting -- it's free and requires no API keys. Import ``YahooDataBacktesting``, set a date range, and call ``.backtest()``. See the example at the top of this page.
+Use Yahoo Finance backtesting. It is free and needs no API keys. Import
+``YahooDataBacktesting``, set a date range, and call ``run_backtest()`` as shown
+in Step 7 above.
 
-**Do I need a broker account to get started?**
+Do I need a broker account to get started?
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-No. You can backtest strategies using free data from Yahoo Finance without any broker account. You only need a broker when you're ready to paper trade or go live. Alpaca offers free paper trading accounts.
+No. You can backtest strategies with free data from Yahoo Finance without any
+broker account. You only need a broker when you are ready to paper trade or go
+live. Alpaca offers free paper trading accounts.
 
-**Can I build an AI-powered trading strategy?**
+Is LumiBot free?
+~~~~~~~~~~~~~~~~
 
-Yes! LumiBot supports AI trading agents that use LLMs to make decisions on every bar. Create an agent in ``initialize()``, run it from ``on_trading_iteration()``, and it can call external tools, analyze data with DuckDB, and submit orders. The same code works for backtesting and live trading. See :doc:`agents` for the full guide.
+Yes. LumiBot is free and open source under the GPL 3.0 license. You install it
+with ``pip install lumibot``. Your broker, data provider or AI model provider
+may charge for their own services.
 
-**Why must I use ``self.get_datetime()`` instead of ``datetime.now()``?**
+Where is LumiBot on GitHub?
+~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-During backtesting, ``datetime.now()`` returns the real current time, not the simulated historical time. This will make your strategy think it's in the present when it's actually replaying historical data. Always use ``self.get_datetime()`` -- it works correctly in both backtesting and live trading.
+The source code is at
+`github.com/Lumiwealth/lumibot <https://github.com/Lumiwealth/lumibot>`_. The
+``lumibot/example_strategies`` folder there has ready-to-run example
+strategies.
 
-**Where can I find more help?**
+What Python version does LumiBot need?
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-Check the :doc:`faq` for 70+ answered questions covering backtesting, brokers, AI agents, options, crypto, and more.
+Python 3.10 or later. Install LumiBot in your own virtual environment.
+
+Can I build an AI-powered trading strategy?
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Yes. LumiBot supports AI trading agents that use LLMs to make decisions on
+every bar. Create an agent in ``initialize()``, run it from
+``on_trading_iteration()``, and it can call external tools, analyze data with
+DuckDB, and submit orders. The same strategy class works for backtesting and
+live trading. See :doc:`agents` for the full guide.
+
+Why must I use self.get_datetime() instead of datetime.now()?
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+During backtesting, ``datetime.now()`` returns the real current time, not the
+simulated historical time. Your strategy would think it is in the present while
+it is replaying past data. Always use ``self.get_datetime()``. It works
+correctly in both backtesting and live trading.
+
+How do I switch from paper trading to live trading?
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+In the Alpaca config from Step 4, set ``"PAPER": False`` to use a live account.
+Live trading uses real money, so test with a paper account first. See
+:doc:`brokers` for other brokers.
+
+How do I add trading fees to a backtest?
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Create ``TradingFee`` objects with a flat fee, a percent fee or a per contract
+fee. Pass them to ``run_backtest()`` with ``buy_trading_fees`` and
+``sell_trading_fees``. See Adding Trading Fees above.
+
+Where can I find more help?
+~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Check the :doc:`faq` for 70+ answered questions covering backtesting, brokers,
+AI agents, options, crypto, and more.
 
 Want help building your first AI trading bot?
 ---------------------------------------------

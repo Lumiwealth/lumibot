@@ -27,6 +27,19 @@ This page documents environment variables used by LumiBot, with an emphasis on *
   - The tool date-gates requests to the strategy datetime during backtests.
   - Do not commit real key values.
 
+### `LUMIBOT_CCXT_PARTNER_IDS` / `LUMIBOT_CCXT_BUILDER_FEES` / `LUMIBOT_CCXT_REFERRAL_CODES`
+- Owner: `lumibot/tools/ccxt_partner_ids.py`, applied wherever LumiBot creates a CCXT client
+  (`CcxtData`, `CcxtDataStore`, the CCXT Pro stream).
+- Default: all empty. CCXT's own partner IDs, builder fees and Hyperliquid referrer are removed.
+- JSON objects keyed by CCXT exchange id. Builder fees cost the user extra and are logged as a warning.
+- `tests/test_ccxt_partner_ids.py` fails if a CCXT upgrade stops sending an ID we strip.
+- CCXT re-adds its tag inside `sign` on HTX swaps, WOO X, WOOFi Pro and ModeTrade; those are reported as
+  `unremovable` (needs a CCXT change that honours an explicit off value).
+
+### DEX trading-only keys (`PARADEX_L2_*`, `LIGHTER_API_KEY_*`, `LIGHTER_ACCOUNT_INDEX`, `LIGHTER_LIBRARY_PATH`, `DYDX_MNEMONIC`)
+- Owner: `AGENT_KEY_CREDENTIALS` in `lumibot/tools/ccxt_exchange_catalog.py`. When complete they replace
+  `<EXCHANGE>_PRIVATE_KEY`; a partial set names what is missing.
+
 ### Polymarket CLOB broker variables
 - Selectors:
   - `TRADING_BROKER=polymarket` or `TRADING_BROKER=polymarket_clob`
@@ -147,10 +160,12 @@ This page documents environment variables used by LumiBot, with an emphasis on *
 - `BOTSPOT_RESEARCH_MCP_URL`: optional BotSpot Research MCP endpoint.
 - `BOTSPOT_RESEARCH_MCP_TOKEN`: secret BotSpot API key for an external connection, or a short-lived bearer capability bound to a hosted workload.
 - `BOTSPOT_RESEARCH_MCP_RENEW_URL`: optional HTTPS renewal endpoint. Localhost is permitted for local development; otherwise its origin must match the MCP endpoint.
+- `BOTSPOT_API_URL`: optional BotSpot API origin for `lumibot connect botspot` device login (default `https://api.botspot.trade`; `--api-url` overrides it). The research URL a server returns is used only when it is on that same origin. Servers without `/mcp-api-keys/device/code` (404/405/501) make the command fall back to the key page flow (`botspot_hint.DeviceLoginUnavailable`).
 - URL and token attach the connection automatically to agents. External API keys do not need a renewal URL. BotSpot-hosted runtimes inject all three variables and renew the restricted workload capability automatically.
 - Endpoints must use HTTPS, except HTTP on loopback for local development. Do not put credentials in the URL, query string or fragment. A supplied renewal endpoint must have the same origin as the MCP endpoint.
 - Missing or incomplete configuration preserves ordinary LumiBot strategy and agent behavior and emits one deduplicated capability notice. The "not connected" notice (`lumibot/components/agents/botspot_hint.py`) shows at most once per process, never in CI, and carries a tracked link (`utm_campaign=mcp_nudge`).
 - `LUMIBOT_NO_BOTSPOT_HINT`: set to `1` to hide that notice. `DO_NOT_TRACK=1` also hides it.
+- `LUMIBOT_HIDE_BOTSPOT_TIP`: set to `1` to hide the one-time startup tip that `Trader.run_all` logs when no BotSpot connection is configured (`lumibot/components/agents/botspot_hint.py::show_startup_tip`). It shares the once-per-process claim with the agent hint, so a run shows at most one BotSpot message. Connected means `BOTSPOT_RESEARCH_MCP_TOKEN`, `BOTSPOT_RESEARCH_MCP_RENEW_URL` or `BOTSPOT_API_KEY` is set. Hidden in CI too.
 - `lumibot connect botspot` verifies a Research key and writes the URL and token to `.env` (mode 0600).
 
 ### `GITHUB_TOKEN` in release CI
@@ -344,6 +359,14 @@ These env vars are used by the ThetaData chain cache/builder in `lumibot/tools/t
 ### `LUMIBOT_CACHE_FOLDER`
 - Purpose: Override the local cache folder (useful to simulate a fresh ECS task).
 - Notes: This is read at import/startup time; changing it mid-run will not relocate already-created paths.
+
+### `LUMIBOT_SHARED_BARS` / `LUMIBOT_SHARED_BARS_SCOPE` / `LUMIBOT_SHARED_BARS_SETTLE_MINUTES`
+- Purpose: Control the broker-agnostic shared history cache (`lumibot/tools/shared_bar_cache.py`).
+- `LUMIBOT_SHARED_BARS`: `true` (default) or `false`. The test suite sets `false` in `tests/conftest.py`;
+  cache tests turn it back on and isolate their folder and remote store.
+- `LUMIBOT_SHARED_BARS_SCOPE`: `credential` (default, one cache per broker connection) or `provider`.
+- `LUMIBOT_SHARED_BARS_SETTLE_MINUTES`: minutes after a bar ends before it is stored (default 15).
+- Design and invariants: `docs/SHARED_BAR_CACHE.md`.
 
 ### `LUMIBOT_CACHE_S3_BUCKET`, `LUMIBOT_CACHE_S3_PREFIX`, `LUMIBOT_CACHE_S3_REGION`
 - Purpose: S3 target configuration.

@@ -106,6 +106,12 @@ def _get_bars_class():
 
     return Bars
 
+
+def _shared_bar_cache():
+    from lumibot.tools import shared_bar_cache
+
+    return shared_bar_cache
+
 TYPE_MAP = dict(
     stock="STK",
     option="OPT",
@@ -999,81 +1005,79 @@ class InteractiveBrokersRESTData(DataSource):
                 quote=quote,
             )
 
-        url = (
-            f"{self.base_url}/iserver/marketdata/history?conid={conid}"
-            f"&period={period}&bar={timestep}&outsideRth={include_after_hours}"
-            f"&startTime={start_time}"
-        )
-        if getattr(asset, "asset_type", None) == Asset.AssetType.FUTURE and getattr(asset, "expiration", None) is None:
-            url += "&continuous=true"
-        if exchange:
-            url += f"&exchange={exchange}"
-
-        result = self.get_from_endpoint(url, "Getting Historical Prices")
-
-        if result and "error" in result:
-            logger.error(
-                colored(f"Error getting historical prices: {result['error']}", "red")
-            )
-            return _get_bars_class()(
-                pd.DataFrame(
-                    columns=["timestamp", "open", "high", "low", "close", "volume"]
-                ),
-                self.SOURCE,
-                asset,
-                raw=pd.DataFrame(
-                    columns=["timestamp", "open", "high", "low", "close", "volume"]
-                ),
-                quote=quote,
-            )
-
-        if not result or not result["data"]:
-            logger.error(
-                colored(
-                    f"Failed to get historical prices for {asset.symbol}, result was: {result}",
-                    "red",
-                )
-            )
-            return _get_bars_class()(
-                pd.DataFrame(
-                    columns=["timestamp", "open", "high", "low", "close", "volume"]
-                ),
-                self.SOURCE,
-                asset,
-                raw=pd.DataFrame(
-                    columns=["timestamp", "open", "high", "low", "close", "volume"]
-                ),
-                quote=quote,
-            )
-
-        # Create a DataFrame from the data
-        df = pd.DataFrame(result["data"], columns=["t", "o", "h", "l", "c", "v"])
-
-        # Rename columns to match the expected format
-        df.rename(
-            columns={
-                "t": "timestamp",
-                "o": "open",
-                "h": "high",
-                "l": "low",
-                "c": "close",
-                "v": "volume",
-            },
-            inplace=True,
+        unit_suffix = timestep[len(str(timestep_value)):]
+        unit_span = {
+            "min": pd.Timedelta(minutes=1),
+            "h": pd.Timedelta(hours=1),
+            "d": pd.Timedelta(days=1),
+            "w": pd.Timedelta(days=7),
+            "m": pd.Timedelta(days=31),
+            "y": pd.Timedelta(days=366),
+        }[unit_suffix]
+        empty_bars = _get_bars_class()(
+            pd.DataFrame(columns=["timestamp", "open", "high", "low", "close", "volume"]),
+            self.SOURCE,
+            asset,
+            raw=pd.DataFrame(columns=["timestamp", "open", "high", "low", "close", "volume"]),
+            quote=quote,
         )
 
-        # Convert timestamp to datetime and set as index
-        df["timestamp"] = pd.to_datetime(df["timestamp"], unit="ms")
-        df["timestamp"] = (
-            df["timestamp"].dt.tz_localize("UTC").dt.tz_convert(_default_pytz())
-        )
-        df.set_index("timestamp", inplace=True)
+        def fetch(range_start, range_end):
+            """One Client Portal history read covering [range_start, range_end]. Errors raise."""
+            units = max(1, int(-(-(range_end - range_start) // unit_span)))
+            url = (
+                f"{self.base_url}/iserver/marketdata/history?conid={conid}"
+                f"&period={units}{unit_suffix}&bar={timestep}&outsideRth={include_after_hours}"
+                f"&startTime={range_end.tz_convert('UTC').strftime('%Y%m%d-%H:%M:%S')}"
+            )
+            if getattr(asset, "asset_type", None) == Asset.AssetType.FUTURE and getattr(asset, "expiration", None) is None:
+                url += "&continuous=true"
+            if exchange:
+                url += f"&exchange={exchange}"
+            result = self.get_from_endpoint(url, "Getting Historical Prices")
+            if result and "error" in result:
+                raise RuntimeError(f"Error getting historical prices: {result['error']}")
+            if not result or not result.get("data"):
+                return None
+            frame = pd.DataFrame(result["data"], columns=["t", "o", "h", "l", "c", "v"])
+            frame = frame.rename(
+                columns={"t": "timestamp", "o": "open", "h": "high", "l": "low", "c": "close", "v": "volume"}
+            )
+            frame["timestamp"] = pd.to_datetime(frame["timestamp"], unit="ms", utc=True)
+            return frame.set_index("timestamp")
 
-        """
-        # Add dividend and stock_splits columns with default values
-        df['dividend'] = 0.0
-        df['stock_splits'] = 0.0
-        """
+        range_end = pd.Timestamp(datetime.strptime(start_time, "%Y%m%d-%H:%M:%S"), tz="UTC")
+        range_start = range_end - unit_span * (length * timestep_value)
+        # Charts, bots and broker-backed backtests share one bar cache per connection.
+        # The gateway can return fewer bars than asked, so coverage starts at the first bar.
+        series = _shared_bar_cache().BarSeries.make(
+            "ibkr_rest",
+            str(conid),
+            _shared_bar_cache().normalize_timestep(
+                timestep_value, {"min": "minute", "h": "hour", "d": "day", "w": "week", "m": "month"}.get(unit_suffix, "day")
+            ),
+            # Not shared yet: Client Portal answers "the last N bars ending at startTime" in
+            # trading time (at night a one-minute read returns the 16:00 bar), which a calendar
+            # range cannot describe. The read goes straight to the gateway, as before 4.6.25.
+            scope=None,
+            adjusted=True,
+            bar=timestep,
+            outsideRth=bool(include_after_hours),
+            exchange=exchange,
+            continuous=getattr(asset, "asset_type", None) == Asset.AssetType.FUTURE
+            and getattr(asset, "expiration", None) is None,
+        )
+        try:
+            df = _shared_bar_cache().read_bars(series, range_start, range_end, fetch, coverage_from_rows=True)
+        except Exception as exc:
+            logger.error(colored(f"Failed to get historical prices for {asset.symbol}: {exc}", "red"))
+            return empty_bars
+        if df.empty:
+            logger.error(colored(f"Failed to get historical prices for {asset.symbol}, no bars returned", "red"))
+            return empty_bars
+
+        df = _shared_bar_cache().to_timezone(df, _default_pytz())
+        df.index.name = "timestamp"
 
         bars = _get_bars_class()(df, self.SOURCE, asset, raw=df, quote=quote)
 

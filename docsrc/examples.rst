@@ -979,6 +979,69 @@ Query with a custom JSON schema for structured results:
                 self.submit_order(order)
                 break
 
+Frequently asked questions
+--------------------------
+
+Where can I find LumiBot Python trading strategy examples?
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+This page has short code examples for stocks, options, crypto, futures and
+forex. Full example strategy files live in the ``lumibot/example_strategies``
+folder of the `LumiBot GitHub repository <https://github.com/Lumiwealth/lumibot>`_.
+
+Which example should I start with?
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+If you want to use your own rules, start with the
+:ref:`Yahoo buy-and-hold backtest <first-python-backtest>`. It needs no broker
+or data account. If you want an AI agent, start with :doc:`agents_quickstart`.
+
+Do I need an AI model key to run these examples?
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+No. AI is optional. The traditional Python examples use the normal
+``Strategy`` lifecycle and need no model API key. Only the AI agent examples
+need a key for the model you choose.
+
+What columns does bars.df have after get_historical_prices?
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+``self.get_historical_prices(asset, length, timestep)`` returns a Bars object.
+Its ``bars.df`` is a pandas DataFrame with ``open``, ``high``, ``low``,
+``close`` and ``volume`` columns, plus a ``return`` column that LumiBot adds.
+Some data sources also add ``dividend`` and ``stock_splits``.
+
+The index is a time zone aware datetime index. Read the newest bar with
+``bars.df.iloc[-1]``. See :doc:`entities.bars` for more.
+
+How do I get prices for several stocks at once?
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Use ``self.get_historical_prices_for_assets(assets, length, timestep)``. It
+returns a dictionary that maps each asset to its Bars object. Check for
+``None`` before you use a result, because some assets may have no data.
+
+Can LumiBot trade crypto?
+~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Yes. Use an ``Asset`` with ``asset_type=Asset.AssetType.CRYPTO`` and a quote
+asset such as USD. Call ``self.set_market("24/7")`` in ``initialize()`` so the
+strategy runs on weekends too. See :doc:`brokers.ccxt` for crypto exchange
+setup and :doc:`brokers.bitunix` for Bitunix crypto futures.
+
+Does LumiBot support options trading?
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Yes. The options examples show how to get option chains, option prices, quotes
+and Greeks, and how to place option orders. The OptionsHelper examples cover
+spreads such as calendar spreads, straddles and strangles.
+
+Can I backtest futures with LumiBot?
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Yes. The futures examples use DataBento data for futures backtests. See
+:doc:`backtesting.databento` for a complete runner and the data it needs.
+
 Build your trading bot with Rob
 -------------------------------
 

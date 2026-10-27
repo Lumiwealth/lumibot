@@ -67,7 +67,9 @@ class Position:
             orders=None,
             hold=0,
             available=0,
-            avg_fill_price=None
+            avg_fill_price=None,
+            position_side=None,
+            position_id=None,
         ):
         """Creates a position.
 
@@ -79,6 +81,8 @@ class Position:
         self.symbol = self.asset.symbol
         self.orders = None
         self.avg_fill_price = avg_fill_price
+        self.position_side = str(position_side).lower() if position_side is not None else None
+        self.position_id = position_id
 
         # Quantity is the total number of shares/units owned in the position.
         # setting the quantity
@@ -116,7 +120,7 @@ class Position:
         result = self._quantity_float
 
         # If result is less than 0.000001, return 0.0 to avoid rounding errors.
-        if abs(result) < 0.000001:
+        if self.asset.asset_type not in ("crypto", "crypto_future") and abs(result) < 0.000001:
             return 0.0
 
         return result
@@ -160,24 +164,9 @@ class Position:
         # Used to check the number types for hold and available.
         if self.asset.asset_type != "crypto":
             return 0
-
-        default_precision = 8
-        precision = (
-            self.asset.precision
-            if hasattr(self, "asset.precision")
-            else default_precision
-        )
-        if isinstance(value, Decimal):
-            return value.quantize(Decimal(precision))
-        elif isinstance(
-            value,
-            (
-                int,
-                float,
-                str,
-            ),
-        ):
-            return Decimal(str(value)).quantize(Decimal(precision))
+        # Wallet balances can include dust smaller than an order's minimum
+        # increment. Preserve the reported amount instead of rounding it away.
+        return Decimal(str(value)) if value is not None else None
 
     def get_selling_order(self, quote_asset=None):
         """Returns an order that can be used to sell this position.
@@ -279,6 +268,10 @@ class Position:
             "val": round(market_value, 2),
             "pnl": round(pnl, 2),
         }
+        if self.position_side is not None:
+            result["position_side"] = self.position_side
+        if self.position_id is not None:
+            result["position_id"] = self.position_id
 
         return result
 
@@ -308,6 +301,10 @@ class Position:
             "available": float(self.available) if self.available else None,
             "avg_fill_price": float(self.avg_fill_price) if self.avg_fill_price else None,
         }
+        if self.position_side is not None:
+            result["position_side"] = self.position_side
+        if self.position_id is not None:
+            result["position_id"] = self.position_id
 
         # Add dynamically set fields if they exist (from broker)
         if hasattr(self, 'current_price'):
@@ -355,7 +352,9 @@ class Position:
             asset=asset,
             quantity=Decimal(data["quantity"]),
             orders=[entities.Order.from_dict(order) for order in data["orders"]],
-            hold=Decimal(data["hold"]),
-            available=Decimal(data["available"]),
-            avg_fill_price=Decimal(data["avg_fill_price"]),
+            hold=Decimal(str(data["hold"])) if data.get("hold") is not None else None,
+            available=Decimal(str(data["available"])) if data.get("available") is not None else None,
+            avg_fill_price=Decimal(str(data["avg_fill_price"])) if data.get("avg_fill_price") is not None else None,
+            position_side=data.get("position_side"),
+            position_id=data.get("position_id"),
         )

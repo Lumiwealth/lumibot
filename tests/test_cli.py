@@ -363,3 +363,238 @@ class TestEdgeCases:
         for action in actions:
             names |= set(action.choices)
         assert {"init", "backtest", "run", "demo", "version"} <= names
+
+
+# ---------------------------------------------------------------------------
+# `lumibot connect botspot`: one command, sign in, a key is created for you
+# (Rob, 2026-10-24). Only the HTTP boundary is faked: a local server answers
+# exactly like BotSpot Node's device-login controller
+# (src/Mcp/mcpDeviceLogin.controller.ts + agentApiKeys.service.ts):
+#   POST /mcp-api-keys/device/code   200 {device_code, user_code,
+#        verification_uri, verification_uri_complete, expires_in: 600, interval: 5}
+#   POST /mcp-api-keys/device/token  400 {error, error_description} while
+#        pending / slow_down / denied / expired; 200 {api_key, key_id,
+#        key_prefix, preset, scopes, expires_at, research_mcp_url} once approved
+#   An older server without the route answers Express's 404 "Cannot POST".
+# ---------------------------------------------------------------------------
+
+import json as _json
+import os as _os
+import stat as _stat
+import threading as _threading
+from http.server import BaseHTTPRequestHandler, HTTPServer
+
+_KEY = "botspot_ak_cli_test_secret_0123456789"
+
+
+class _FakeBotSpot:
+    def __init__(self, polls=(), device_route=True, research_status=200, expires_in=600):
+        self.polls = list(polls)
+        self.device_route = device_route
+        self.research_status = research_status
+        self.expires_in = expires_in
+        self.requests = []
+        fake = self
+
+        class Handler(BaseHTTPRequestHandler):
+            def do_POST(self):
+                length = int(self.headers.get("Content-Length") or 0)
+                body = _json.loads(self.rfile.read(length) or b"{}")
+                fake.requests.append((self.path, body, self.headers.get("Authorization")))
+                if self.path.startswith("/mcp-api-keys/device/") and not fake.device_route:
+                    page = f"<!DOCTYPE html><pre>Cannot POST {self.path}</pre>".encode()
+                    return self._send(404, page, "text/html; charset=utf-8")
+                if self.path == "/mcp-api-keys/device/code":
+                    return self._json(200, {
+                        "device_code": "Zx3-device-code-base64url-secret-abcdef",
+                        "user_code": "BCDF-GHJK",
+                        "verification_uri": "https://botspot.trade/account-settings/api-keys",
+                        "verification_uri_complete": "https://botspot.trade/account-settings/api-keys?device=BCDF-GHJK",
+                        "expires_in": fake.expires_in,
+                        "interval": 5,
+                    })
+                if self.path == "/mcp-api-keys/device/token":
+                    step = fake.polls.pop(0) if fake.polls else "authorization_pending"
+                    if step == "approved":
+                        host = self.headers.get("Host")
+                        return self._json(200, {
+                            "api_key": _KEY,
+                            "key_id": "7f0c1a2b-0000-4000-8000-000000000001",
+                            "key_prefix": _KEY[:12],
+                            "preset": "lumibot_agent",
+                            "scopes": ["research:read"],
+                            "expires_at": None,
+                            "research_mcp_url": f"http://{host}/research-mcp",
+                        })
+                    descriptions = {
+                        "authorization_pending": "Waiting for approval.",
+                        "slow_down": "Polling too fast.",
+                        "access_denied": "The login was denied.",
+                        "expired_token": "The device code expired. Start again.",
+                    }
+                    return self._json(400, {"error": step, "error_description": descriptions[step]})
+                if self.path == "/research-mcp":
+                    return self._json(fake.research_status, {"jsonrpc": "2.0", "id": 1, "result": {}})
+                return self._send(404, b"not found", "text/plain")
+
+            def _json(self, status, answer):
+                self._send(status, _json.dumps(answer).encode(), "application/json")
+
+            def _send(self, status, data, content_type):
+                self.send_response(status)
+                self.send_header("Content-Type", content_type)
+                self.send_header("Content-Length", str(len(data)))
+                self.end_headers()
+                self.wfile.write(data)
+
+            def log_message(self, *args):
+                pass
+
+        self.httpd = HTTPServer(("127.0.0.1", 0), Handler)
+        self.url = f"http://127.0.0.1:{self.httpd.server_address[1]}"
+        _threading.Thread(target=self.httpd.serve_forever, daemon=True).start()
+
+    def paths(self):
+        return [path for path, _body, _auth in self.requests]
+
+
+@pytest.fixture
+def botspot(monkeypatch):
+    servers = []
+    sleeps = []
+    from lumibot.components.agents import botspot_hint
+
+    monkeypatch.setattr(botspot_hint, "_sleep", sleeps.append)
+    monkeypatch.delenv("BOTSPOT_API_URL", raising=False)
+
+    def make(**kwargs):
+        server = _FakeBotSpot(**kwargs)
+        servers.append(server)
+        server.sleeps = sleeps
+        return server
+
+    yield make
+    for server in servers:
+        server.httpd.shutdown()
+
+
+def _connect(server, env_file, *extra):
+    return cli.main(
+        ["connect", "botspot", "--api-url", server.url, "--env-file", str(env_file), "--no-browser", *extra]
+    )
+
+
+class TestConnectBotspotDeviceLogin:
+    def test_pending_then_approved_saves_a_verified_key_without_printing_it(self, botspot, tmp_path, capsys):
+        server = botspot(polls=["authorization_pending", "authorization_pending", "approved"])
+        env_file = tmp_path / ".env"
+        assert _connect(server, env_file) == 0
+        captured = capsys.readouterr()
+        assert "BCDF-GHJK" in captured.out
+        assert "https://botspot.trade/account-settings/api-keys?device=BCDF-GHJK" in captured.out
+        assert "free" in captured.out.lower()
+        assert _KEY not in captured.out + captured.err
+        text = env_file.read_text()
+        assert f"BOTSPOT_RESEARCH_MCP_TOKEN={_KEY}\n" in text
+        assert f"BOTSPOT_RESEARCH_MCP_URL={server.url}/research-mcp\n" in text
+        assert _stat.S_IMODE(_os.stat(env_file).st_mode) == 0o600
+        # The key is checked against BotSpot before it is saved.
+        assert server.paths()[-1] == "/research-mcp"
+        assert server.requests[-1][2] == f"Bearer {_KEY}"
+        assert server.requests[0][1] == {"client_name": "LumiBot CLI", "preset": "lumibot_agent"}
+        assert server.paths().count("/mcp-api-keys/device/token") == 3
+        assert server.sleeps == [5, 5, 5]
+
+    def test_slow_down_adds_five_seconds_to_the_interval(self, botspot, tmp_path):
+        server = botspot(polls=["slow_down", "authorization_pending", "approved"])
+        assert _connect(server, tmp_path / ".env") == 0
+        assert server.sleeps == [5, 10, 10]
+
+    @pytest.mark.parametrize("error,word", [("access_denied", "denied"), ("expired_token", "expired")])
+    def test_denied_or_expired_writes_nothing(self, botspot, tmp_path, capsys, error, word):
+        server = botspot(polls=["authorization_pending", error])
+        env_file = tmp_path / ".env"
+        assert _connect(server, env_file) == 1
+        assert not env_file.exists()
+        assert word in capsys.readouterr().err.lower()
+
+    def test_a_key_botspot_rejects_is_not_saved(self, botspot, tmp_path, capsys):
+        server = botspot(polls=["approved"], research_status=401)
+        env_file = tmp_path / ".env"
+        assert _connect(server, env_file) == 1
+        assert not env_file.exists()
+        captured = capsys.readouterr()
+        assert _KEY not in captured.out + captured.err
+
+    def test_timeout_stops_waiting(self, botspot, tmp_path, capsys):
+        server = botspot(polls=[])  # pending forever
+        env_file = tmp_path / ".env"
+        assert _connect(server, env_file, "--timeout", "15") == 1
+        assert not env_file.exists()
+        assert sum(server.sleeps) <= 20
+        assert "run the command again" in capsys.readouterr().err.lower()
+
+    def test_old_server_without_device_login_falls_back_to_the_key_page(
+        self, botspot, tmp_path, capsys, monkeypatch
+    ):
+        server = botspot(device_route=False)
+        monkeypatch.setattr(sys.stdin, "isatty", lambda: True, raising=False)
+        import getpass
+
+        monkeypatch.setattr(getpass, "getpass", lambda prompt="": _KEY)
+        env_file = tmp_path / ".env"
+        assert _connect(server, env_file) == 0
+        captured = capsys.readouterr()
+        assert "Traceback" not in captured.err
+        assert "api-keys" in captured.out  # the existing key page flow
+        assert f"BOTSPOT_RESEARCH_MCP_TOKEN={_KEY}\n" in env_file.read_text()
+        assert _KEY not in captured.out + captured.err
+
+    def test_old_server_fallback_without_a_terminal_explains_the_next_step(self, botspot, tmp_path, capsys, monkeypatch):
+        server = botspot(device_route=False)
+        monkeypatch.setattr(sys.stdin, "isatty", lambda: False, raising=False)
+        env_file = tmp_path / ".env"
+        assert _connect(server, env_file) == 2
+        captured = capsys.readouterr()
+        assert "--token" in captured.err
+        assert "Traceback" not in captured.err
+        assert not env_file.exists()
+
+    def test_token_flag_still_works_and_is_never_printed(self, botspot, tmp_path, capsys):
+        server = botspot()
+        env_file = tmp_path / ".env"
+        assert _connect(server, env_file, "--token", _KEY) == 0
+        captured = capsys.readouterr()
+        assert _KEY not in captured.out + captured.err
+        assert "/mcp-api-keys/device/code" not in server.paths()
+
+    def test_default_api_is_the_public_botspot_api(self):
+        from lumibot.components.agents import botspot_hint
+
+        assert botspot_hint.api_base_url({}) == "https://api.botspot.trade"
+        args = cli.build_parser().parse_args(["connect", "botspot"])
+        assert args.api_url is None
+
+
+class TestInitWritesAgentsMd:
+    def test_init_writes_agents_md_with_one_free_botspot_mcp_line(self, tmp_path):
+        target = tmp_path / "bot"
+        assert cli.main(["init", str(target)]) == 0
+        agents = (target / "AGENTS.md").read_text()
+        assert "strategy.py" in agents
+        botspot_lines = [line for line in agents.splitlines() if "BotSpot" in line]
+        assert len(botspot_lines) == 1
+        line = botspot_lines[0]
+        assert "free" in line.lower()
+        assert "lumibot connect botspot" in line
+        assert "https://mcp.botspot.trade/mcp" in line
+        assert "paid" not in agents.lower()
+
+    def test_init_never_overwrites_an_existing_agents_md(self, tmp_path):
+        target = tmp_path / "bot"
+        target.mkdir()
+        (target / "AGENTS.md").write_text("my own rules\n")
+        assert cli.main(["init", str(target)]) == 0
+        assert (target / "AGENTS.md").read_text() == "my own rules\n"
+        assert cli.main(["init", str(target), "--force"]) == 0
+        assert (target / "AGENTS.md").read_text() == "my own rules\n"

@@ -10,7 +10,10 @@
 # add these directories to sys.path here. If the directory is relative to the
 # documentation root, use os.path.abspath to make it absolute, like shown here.
 #
+import datetime
 import os
+import re
+import subprocess
 import sys
 from pathlib import Path
 from urllib.parse import urljoin
@@ -102,6 +105,7 @@ templates_path = ["_templates"]
 exclude_patterns = [
     "_build",
     "_includes",
+    "_snippets",
     "Thumbs.db",
     ".DS_Store",
     "strategy_methods.*/strategies.strategy.*.rst",
@@ -174,20 +178,105 @@ def _prepare_page_metadata(app, pagename, templatename, context, doctree):
     })
     if pagename == app.config.root_doc:
         context["meta"]["og:title"] = "Lumibot: Python Algorithmic Trading and AI Agents"
+    elif context["meta"].get("seo_title"):
+        # Short on-page H1 for phones, full search title for shares (see _templates/base.html).
+        context["meta"]["og:title"] = context["meta"]["seo_title"]
+
+
+_INCLUDE_RE = re.compile(r"^\s*\.\.\s+(?:include|literalinclude)::\s+(\S+)", re.MULTILINE)
+_AUTODOC_RE = re.compile(
+    r"^\s*\.\.\s+(?:auto\w+|automodule|autoclass|autofunction|automethod|autosummary)::",
+    re.MULTILINE,
+)
+
+
+def _git_commit_dates(repo_root):
+    """Map repo-relative paths to their newest commit date, or None if history is unusable.
+
+    Shallow CI clones would make every file look freshly changed, so they return None
+    and the sitemap simply omits lastmod instead of inventing freshness.
+    """
+    try:
+        shallow = subprocess.run(
+            ["git", "-C", str(repo_root), "rev-parse", "--is-shallow-repository"],
+            capture_output=True, text=True, timeout=30, check=True,
+        ).stdout.strip()
+        if shallow != "false":
+            return None
+        log = subprocess.run(
+            ["git", "-C", str(repo_root), "log", "--format=@%cI", "--name-only"],
+            capture_output=True, text=True, timeout=120, check=True,
+        ).stdout
+    except (OSError, subprocess.SubprocessError):
+        return None
+    dates, current = {}, None
+    for line in log.splitlines():
+        if line.startswith("@"):
+            current = line[1:]
+        elif line and current:
+            dates.setdefault(line, current)  # git log is newest first
+    return dates
+
+
+def _page_lastmod(source_path, srcdir, repo_root, dates):
+    """Newest commit date of a page and the files it includes.
+
+    Autodoc pages are generated from Python source, so their RST history is not an
+    honest change date; they get no lastmod at all.
+    """
+    try:
+        text = source_path.read_text(encoding="utf-8")
+    except OSError:
+        return None
+    if _AUTODOC_RE.search(text):
+        return None
+    paths = [source_path]
+    for target in _INCLUDE_RE.findall(text):
+        base = Path(srcdir) if target.startswith("/") else source_path.parent
+        paths.append((base / target.lstrip("/")).resolve())
+    found = []
+    for path in paths:
+        try:
+            key = path.resolve().relative_to(repo_root).as_posix()
+        except ValueError:
+            return None  # included file outside the repository: date unknown
+        if key not in dates:
+            return None  # uncommitted or untracked input: date unknown
+        found.append(datetime.datetime.fromisoformat(dates[key]).astimezone(datetime.timezone.utc))
+    return max(found).strftime("%Y-%m-%d") if found else None
 
 
 def _generate_sitemap(app, exception):
-    """List built documents, excluding copied redirects and Sphinx utility pages."""
+    """List built documents, excluding copied redirects and Sphinx utility pages.
+
+    lastmod is the newest commit touching the page or its include/literalinclude
+    files. It is omitted for autodoc pages, untracked inputs and shallow clones.
+    """
     if exception is not None or app.builder.name != "html":
         return
+    srcdir = Path(app.srcdir).resolve()
+    repo_root = None
+    try:
+        repo_root = Path(subprocess.run(
+            ["git", "-C", str(srcdir), "rev-parse", "--show-toplevel"],
+            capture_output=True, text=True, timeout=30, check=True,
+        ).stdout.strip()).resolve()
+    except (OSError, subprocess.SubprocessError):
+        pass
+    dates = _git_commit_dates(repo_root) if repo_root else None
     lines = [
         '<?xml version="1.0" encoding="UTF-8"?>',
         '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">',
     ]
     for pagename in sorted(app.env.found_docs):
-        lines.append(f"  <url><loc>{escape(_canonical_url(app, pagename))}</loc></url>")
+        loc = f"<loc>{escape(_canonical_url(app, pagename))}</loc>"
+        lastmod = None
+        if dates:
+            lastmod = _page_lastmod(Path(app.env.doc2path(pagename)), srcdir, repo_root, dates)
+        if lastmod:
+            loc += f"<lastmod>{lastmod}</lastmod>"
+        lines.append(f"  <url>{loc}</url>")
     lines.append("</urlset>")
-    # Source-file dates miss included code; shallow CI history also invents freshness.
     (Path(app.outdir) / "sitemap.xml").write_text("\n".join(lines) + "\n", encoding="utf-8")
 
 html_context = {
@@ -799,7 +888,276 @@ def _normalize_strategy_docstrings(app, what, name, obj, options, lines):
     if override:
         lines[:] = override.splitlines()
 
+# ============================================================================
+# FAQPage structured data
+# ----------------------------------------------------------------------------
+# Any page with a "Frequently asked questions" section gets FAQPage JSON-LD
+# built from that section, so search engines and AI crawlers can lift exact
+# question and answer pairs. Two authoring styles are read:
+#   * one subsection per question (the question is the subsection title), and
+#   * a bold-only paragraph per question followed by its answer paragraphs
+#     (the style the generated CCXT exchange pages use).
+# The hand-maintained FAQ page keeps its own schema in _templates/layout.html.
+# ============================================================================
+_FAQ_TITLES = ("frequently asked questions", "faq")
+_FAQ_SKIP_NODES = (nodes.literal_block, nodes.comment, nodes.raw, nodes.image, nodes.target)
+
+
+def _plain_text(node):
+    return re.sub(r"\s+", " ", node.astext()).strip()
+
+
+def _answer_text(children):
+    parts = [
+        _plain_text(child)
+        for child in children
+        if not isinstance(child, (nodes.title, nodes.section, *_FAQ_SKIP_NODES))
+    ]
+    return " ".join(part for part in parts if part)
+
+
+def _is_bold_question(node):
+    if not isinstance(node, nodes.paragraph):
+        return False
+    meaningful = [c for c in node.children if not (isinstance(c, nodes.Text) and not c.strip())]
+    return len(meaningful) == 1 and isinstance(meaningful[0], nodes.strong)
+
+
+def _ancestors(node):
+    node = node.parent
+    while node is not None:
+        yield node
+        node = node.parent
+
+
+def extract_faq_pairs(doctree):
+    """Return [(question, answer)] from the page's FAQ section, in page order."""
+    pairs = []
+    if doctree is None:
+        return pairs
+    for section in doctree.findall(nodes.section):
+        title = section.next_node(nodes.title)
+        if title is None or title.parent is not section:
+            continue
+        if any(
+            isinstance(a, nodes.section) and a.next_node(nodes.title) is not None
+            and _plain_text(a.next_node(nodes.title)).lower().startswith(_FAQ_TITLES)
+            for a in _ancestors(section)
+        ):
+            continue
+        if not _plain_text(title).lower().startswith(_FAQ_TITLES):
+            continue
+        question, answer_nodes = None, []
+        for child in section.children:
+            if isinstance(child, nodes.section):
+                # A question subsection, or a topic group holding question subsections
+                # (the hand-written faq.rst groups its questions under topic headings).
+                inner = list(child.findall(nodes.section, include_self=False))
+                candidates = [child, *inner] if inner else [child]
+                for sub in candidates:
+                    sub_title = sub.next_node(nodes.title)
+                    if sub_title is None or sub_title.parent is not sub:
+                        continue
+                    name, answer = _plain_text(sub_title), _answer_text(sub.children)
+                    if answer and (not inner or name.endswith("?")):
+                        pairs.append((name, answer))
+            elif _is_bold_question(child):
+                if question and _answer_text(answer_nodes):
+                    pairs.append((question, _answer_text(answer_nodes)))
+                question, answer_nodes = _plain_text(child), []
+            elif question is not None:
+                answer_nodes.append(child)
+        if question and _answer_text(answer_nodes):
+            pairs.append((question, _answer_text(answer_nodes)))
+    return pairs
+
+
+def _add_faq_schema(app, pagename, templatename, context, doctree):
+    pairs = extract_faq_pairs(doctree)
+    if not pairs:
+        return
+    import json
+
+    schema = {
+        "@context": "https://schema.org",
+        "@type": "FAQPage",
+        "url": _canonical_url(app, pagename),
+        "mainEntity": [
+            {"@type": "Question", "name": q, "acceptedAnswer": {"@type": "Answer", "text": a}}
+            for q, a in pairs
+        ],
+    }
+    # "</" would end the <script> element early; JSON allows the escaped form.
+    context["faq_jsonld"] = json.dumps(schema, ensure_ascii=False, indent=1).replace("</", "<\\/")
+
+
+# ============================================================================
+# Broker and exchange A to Z index
+# ----------------------------------------------------------------------------
+# ``.. lumibot-broker-index::`` renders one filterable table of every broker
+# page: the hand-written broker guides listed below plus every generated CCXT
+# exchange page, read from docsrc/_data/ccxt_exchange_facts.json. New exchange
+# pages appear automatically when the generator adds them.
+# ============================================================================
+HAND_WRITTEN_BROKERS = [
+    # (name, type, markets, docname)
+    ("Alpaca", "Stocks and options broker", "Stocks, ETFs, options, crypto", "brokers.alpaca"),
+    ("Bitunix", "Crypto exchange", "USDT perpetual futures", "brokers.bitunix"),
+    ("Crypto exchanges: how setup works (100+ exchanges)", "Crypto exchange guide", "Spot, margin, swaps or futures, by exchange", "brokers.ccxt"),
+    ("Charles Schwab", "Stocks and options broker", "Stocks, ETFs, single-leg options", "brokers.schwab"),
+    ("Interactive Brokers (Client Portal REST)", "Stocks, options and futures broker", "Stocks, options, futures and more, by account", "brokers.interactive_brokers"),
+    ("Interactive Brokers (legacy TWS)", "Stocks, options and futures broker", "Markets your TWS account can trade", "brokers.interactive_brokers_legacy"),
+    ("Polymarket", "Prediction market", "Prediction contracts", "brokers.polymarket"),
+    ("TopstepX (ProjectX)", "Futures broker", "CME futures", "brokers.projectx"),
+    ("Tradier", "Stocks and options broker", "Stocks, ETFs, options", "brokers.tradier"),
+    ("Tradovate", "Futures broker", "CME futures", "brokers.tradovate"),
+]
+
+_CCXT_MARKET_LABELS = [
+    ("spot", "spot"), ("margin", "margin"), ("swap", "perpetual swaps"),
+    ("future", "futures"), ("option", "options"),
+]
+
+
+def _ccxt_index_rows(srcdir):
+    import json
+
+    facts_path = Path(srcdir) / "_data" / "ccxt_exchange_facts.json"
+    facts = {fx["id"]: fx for fx in json.loads(facts_path.read_text(encoding="utf-8"))["exchanges"]}
+    rows = []
+    for page in sorted(Path(srcdir).glob("brokers.ccxt.*.rst")):
+        exchange_id = page.stem.split(".", 2)[2]
+        fact = facts.get(exchange_id)
+        if fact is None:
+            raise ValueError(f"{page.name} has no entry in {facts_path.name}")
+        markets = ", ".join(label for key, label in _CCXT_MARKET_LABELS if fact["markets"].get(key))
+        kind = CCXT_DEX if fact.get("dex") else CCXT_CENTRALIZED
+        name = fact["name"]
+        if name.lower() in {row[0].lower() for row in HAND_WRITTEN_BROKERS}:
+            name = f"{name} (crypto)"  # e.g. Alpaca also has a direct broker guide
+        rows.append((name, kind, markets or "See guide", page.stem))
+    return rows
+
+
+CCXT_DEX = "Crypto exchange (DEX, wallet login)"
+CCXT_CENTRALIZED = "Crypto exchange"
+
+
+def broker_index_rows(srcdir, only=None):
+    """All broker rows A to Z. ``only`` limits the list: "ccxt-centralized" or "ccxt-dex"."""
+    if only == "ccxt-centralized":
+        rows = [r for r in _ccxt_index_rows(srcdir) if r[1] == CCXT_CENTRALIZED]
+    elif only == "ccxt-dex":
+        rows = [r for r in _ccxt_index_rows(srcdir) if r[1] == CCXT_DEX]
+    elif only is None:
+        rows = HAND_WRITTEN_BROKERS + _ccxt_index_rows(srcdir)
+    else:
+        raise ValueError(f"unknown lumibot-broker-index :only: value {only!r}")
+    return sorted(rows, key=lambda row: row[0].lower())
+
+
+from docutils.parsers.rst import Directive  # noqa: E402
+from docutils.statemachine import StringList  # noqa: E402
+
+_BROKER_FILTER_SCRIPT = """   <script>
+   (function () {
+     var input = document.getElementById("broker-index-filter");
+     var table = document.querySelector("table.broker-index");
+     if (!input || !table) { return; }
+     input.addEventListener("input", function () {
+       var term = input.value.trim().toLowerCase();
+       table.querySelectorAll("tbody tr").forEach(function (row) {
+         row.style.display = row.textContent.toLowerCase().indexOf(term) === -1 ? "none" : "";
+       });
+     });
+   })();
+   </script>"""
+
+
+class BrokerIndexDirective(Directive):
+    has_content = False
+    option_spec = {"only": str}
+
+    def run(self):
+        env = self.state.document.settings.env
+        only = self.options.get("only")
+        rows = broker_index_rows(env.srcdir, only)
+        env.note_dependency(str(Path(env.srcdir) / "_data" / "ccxt_exchange_facts.json"))
+        caption = {
+            None: f"All {len(rows)} LumiBot broker and exchange guides, A to Z",
+            "ccxt-centralized": f"{len(rows)} centralized crypto exchanges, A to Z",
+            "ccxt-dex": f"{len(rows)} decentralized exchanges (DEX), A to Z",
+        }[only]
+        lines = []
+        if only is None:
+            lines += [
+                ".. raw:: html",
+                "",
+                '   <p class="broker-index-filter"><label for="broker-index-filter">Filter brokers and exchanges</label>',
+                '   <input id="broker-index-filter" type="search" autocomplete="off"'
+                ' placeholder="Type a name or market, for example futures or Binance"></p>',
+                "",
+            ]
+        lines += [
+            f".. list-table:: {caption}",
+            "   :header-rows: 1",
+            "   :widths: 34 26 40",
+            "   :class: broker-index",
+            "",
+            "   * - Broker or exchange",
+            "     - Type",
+            "     - Markets",
+        ]
+        for name, kind, markets, docname in rows:
+            lines += [f"   * - :doc:`{name} <{docname}>`", f"     - {kind}", f"     - {markets}"]
+        if only is None:
+            lines += ["", ".. raw:: html", "", *_BROKER_FILTER_SCRIPT.splitlines()]
+        container = nodes.container()
+        self.state.nested_parse(StringList(lines, source="lumibot-broker-index"), self.content_offset, container)
+        return container.children
+
+
+def exchange_menu_entries(srcdir):
+    """(menu label, docname) for every per-exchange page, sorted by label.
+
+    Rob, 2026-10-23: the sidebar lists each exchange by its plain name
+    ("Binance", "KuCoin") directly under "Crypto exchanges", not nested under a
+    CCXT page, and no menu label says "CCXT". URLs stay brokers.ccxt.<id>.html.
+    """
+    labels = {}
+    # Exchange ids that are also a native LumiBot broker with its own page (for example
+    # Alpaca) are left out of this menu, so the Crypto group lists that broker once (its
+    # native page). The exchange page and its URL stay published and in the A to Z list.
+    native_duplicates = {"brokers.ccxt.alpaca"}
+    for name, _kind, _markets, docname in _ccxt_index_rows(srcdir):
+        if docname in native_duplicates:
+            continue
+        labels[docname] = name.replace(" (crypto)", "")
+    for page in Path(srcdir).glob("brokers.ccxt.*.rst"):
+        if page.stem not in native_duplicates:
+            labels.setdefault(page.stem, page.stem.split(".", 2)[2])
+    return sorted(((label, doc) for doc, label in labels.items()), key=lambda e: e[0].lower())
+
+
+class ExchangeToctreeDirective(Directive):
+    """``.. lumibot-exchange-toctree::`` emits a hidden toctree of every exchange page."""
+
+    has_content = False
+
+    def run(self):
+        env = self.state.document.settings.env
+        env.note_dependency(str(Path(env.srcdir) / "_data" / "ccxt_exchange_facts.json"))
+        lines = [".. toctree::", "   :maxdepth: 1", "   :hidden:", ""]
+        lines += [f"   {label} <{doc}>" for label, doc in exchange_menu_entries(env.srcdir)]
+        container = nodes.container()
+        self.state.nested_parse(StringList(lines, source="lumibot-exchange-toctree"), self.content_offset, container)
+        return container.children
+
+
 def setup(app):
+    app.add_directive("lumibot-broker-index", BrokerIndexDirective)
+    app.add_directive("lumibot-exchange-toctree", ExchangeToctreeDirective)
     app.connect('html-page-context', _prepare_page_metadata, priority=400)
+    app.connect('html-page-context', _add_faq_schema, priority=450)
     app.connect('build-finished', _generate_sitemap)
     app.connect('autodoc-process-docstring', _normalize_strategy_docstrings)

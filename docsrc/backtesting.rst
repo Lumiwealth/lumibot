@@ -4,6 +4,8 @@ Backtesting Trading Strategies in Python with LumiBot
 .. meta::
    :description: Backtest Python trading strategies with LumiBot using Yahoo, ThetaData, Polygon, Databento, Interactive Brokers, Polymarket, or your own data.
 
+.. include:: _snippets/botspot_mcp_callout.rst
+
 Choose a backtesting source from the strategy's asset class and required bar
 interval:
 
@@ -123,3 +125,64 @@ Learn with Rob Grzesik, creator of LumiBot. Join the FREE AI challenge.
    :align: center
    :class: lumibot-learning-image
    :target: https://botspot.trade/challenges?utm_source=documentation&utm_medium=docs&utm_campaign=lumibot_ai_trading&utm_content=backtesting_challenge_image
+
+Frequently asked questions
+==========================
+
+Which data sources can LumiBot backtest with?
+---------------------------------------------
+
+LumiBot can backtest with Yahoo, ThetaData, Polygon.io, Databento, Interactive Brokers (REST), Alpaca, Polymarket, CCXT crypto exchanges, and your own data through the Pandas backtester. The table at the top of this page shows which one fits each need.
+
+Each source has its own page with setup steps, for example :doc:`backtesting.yahoo`, :doc:`backtesting.thetadata` and :doc:`backtesting.pandas`.
+
+Which asset classes can I backtest in LumiBot?
+----------------------------------------------
+
+You can backtest stocks and ETFs, options, futures (including continuous futures), forex, crypto and prediction contracts. What you can test depends on the data source you pick. For example, Yahoo covers daily stocks and ETFs only, while Databento and Interactive Brokers cover futures.
+
+Can I backtest for free?
+------------------------
+
+Yes. :doc:`Yahoo <backtesting.yahoo>` daily stock backtests need no data provider credentials. The :doc:`Pandas <backtesting.pandas>` backtester uses data you already have. A free :doc:`Alpaca <backtesting.alpaca>` account also includes option history from about February 2024.
+
+Other providers may need a paid plan for more history or faster downloads. Check each provider's own site for current plans.
+
+How do I pick the data source for a backtest?
+---------------------------------------------
+
+Pass a data source class in Python, such as ``YahooDataBacktesting``, or set ``BACKTESTING_DATA_SOURCE``. Accepted names include ``yahoo``, ``thetadata``, ``polygon``, ``databento``, ``ibkr``, ``alpaca``, ``ccxt`` and ``polymarket``.
+
+When ``BACKTESTING_DATA_SOURCE`` is set, it wins over the class in your code. If you set neither, LumiBot uses ThetaData. See :ref:`Choose your backtest data <backtest-data-source-selection>` for more examples.
+
+Can I use different data sources for different assets in one backtest?
+----------------------------------------------------------------------
+
+Yes. Set ``BACKTESTING_DATA_SOURCE`` to a JSON map that names a source for each asset type, for example ThetaData for stocks and options and Interactive Brokers for futures. The :doc:`IBKR page <backtesting.ibkr>` shows a full example.
+
+How do I add commissions and slippage to a backtest?
+----------------------------------------------------
+
+Pass ``buy_trading_fees`` and ``sell_trading_fees`` (lists of ``TradingFee`` objects) to ``run_backtest()``. A fee can be flat, a percent of the order, or a per contract amount.
+
+For slippage, pass ``buy_trading_slippages`` and ``sell_trading_slippages`` with ``TradingSlippage`` objects. See :doc:`entities.trading_fee` and :doc:`entities.trading_slippage`.
+
+Can I backtest crypto?
+----------------------
+
+Yes. Set ``BACKTESTING_DATA_SOURCE=ccxt`` to use the CCXT crypto backtester, or use Polygon.io, ThetaData or Interactive Brokers when they carry the coins you need. You can also load your own crypto bars with the Pandas backtester.
+
+Can an AI agent run inside a backtest?
+--------------------------------------
+
+Yes. A strategy can create AI agents, call them from normal lifecycle methods such as ``on_trading_iteration()``, and attach MCP tools. Identical agent runs are replayed from cache on the next backtest, so you do not pay for the same model call twice. See :doc:`agents`.
+
+What files does a backtest create?
+----------------------------------
+
+A backtest writes files named after the strategy and the date. They include an HTML tearsheet, trade files, indicator files and a CSV log. See :doc:`backtesting.tearsheet_html`, :doc:`backtesting.trades_files`, :doc:`backtesting.indicators_files` and :doc:`backtesting.logs_csv`.
+
+Do backtest results tell me how a strategy will do live?
+--------------------------------------------------------
+
+No. A backtest replays past data with simulated fills. Live results can be different because of real fills, costs, missing data and changing markets. Use a backtest to find problems and compare ideas, not as a forecast.

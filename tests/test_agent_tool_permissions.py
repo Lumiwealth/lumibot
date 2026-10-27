@@ -483,7 +483,7 @@ def test_backtest_prompt_requires_document_eligibility_before_fetching(allow_tra
     assert (
         "Parse explicit timezone offsets as TIMESTAMPTZ and compare UTC instants before sorting or limiting" in prompt
     )
-    assert "Never open a post-cutoff disclosure or revised page" in prompt
+    assert "Never open a disclosure or revision known to have become public after the simulated datetime" in prompt
 
 
 def test_live_agent_auth_failure_emits_structured_decision_outcome():

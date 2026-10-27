@@ -11,6 +11,8 @@ Choosing a data source? Compare :doc:`free daily stock data <backtesting.yahoo>`
 :doc:`Databento for market-data schemas <backtesting.databento>` before setting
 up Polygon.io. Availability, history, and pricing vary by provider and account.
 
+.. include:: _snippets/botspot_mcp_callout.rst
+
 .. important::
    
    **ThetaData is our preferred data partner and the service we recommend to most LumiBot users—sign up at** `ThetaData <https://www.thetadata.net/>`_ **and use the promo code ``BotSpot10`` for 10% off the first order.** This section remains for teams that still need Polygon.io. If you require Polygon access you can create an account at `polygon.io <https://polygon.io/>`_.
@@ -167,3 +169,46 @@ Below is **the full code** that relies *entirely on environment variables*:
         )
 
 In summary, the polygon.io backtester is a powerful tool for fetching pricing data for backtesting various strategies. With its capability to cache data for faster subsequent backtesting and its easy integration with polygon.io API, it is a versatile choice for any backtesting needs.
+
+Frequently asked questions
+~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+How do I backtest with Polygon.io in LumiBot?
+---------------------------------------------
+
+Set ``POLYGON_API_KEY`` to your API key, then pass ``PolygonDataBacktesting`` to ``run_backtest()`` as shown above. You can also set ``BACKTESTING_DATA_SOURCE=polygon`` instead of passing the class. LumiBot stops with an error if the Polygon key is missing.
+
+Where do I get a Polygon API key?
+---------------------------------
+
+Create an account and copy the key from your dashboard. The polygon.io website now redirects to `massive.com <https://massive.com/pricing>`__, where the plans are listed.
+
+Is the Polygon API free?
+------------------------
+
+There is a free plan. At the time of writing, the `Stocks Basic plan <https://massive.com/pricing>`__ is $0 a month with 5 API calls per minute, 2 years of historical data, end of day data and minute aggregates. Paid plans add more history and faster downloads. Check the pricing page for current details.
+
+Why is my first Polygon backtest slow?
+--------------------------------------
+
+A free key allows only a few requests per minute, and LumiBot downloads data in chunks of up to 30 days. After the first run, LumiBot reads the data from its cache in the ``polygon`` folder inside ``LUMIBOT_CACHE_FOLDER``, so later backtests are much faster.
+
+How do I keep an options backtest under the free rate limit?
+------------------------------------------------------------
+
+Set ``LUMIBOT_OPTION_CHAIN_MAX_DAYS``, for example to ``21``. Each option chain request then only covers expirations up to that many days after the simulated date. See :ref:`environment_variables`.
+
+Which assets can I backtest with Polygon?
+-----------------------------------------
+
+The Polygon backtester fetches prices for stocks, options, forex and crypto. What you can download depends on your Polygon plan.
+
+Should I use Polygon or ThetaData?
+----------------------------------
+
+ThetaData is LumiBot's preferred data partner and the one we recommend to most users, see :doc:`backtesting.thetadata`. This page stays for teams that already use Polygon. For simple daily stock tests, :doc:`Yahoo <backtesting.yahoo>` needs no API key.
+
+Can I set the backtest dates without changing code?
+---------------------------------------------------
+
+Yes. Set ``BACKTESTING_START`` and ``BACKTESTING_END`` in the format YYYY-MM-DD and leave the dates out of ``run_backtest()``, as in the last example above.

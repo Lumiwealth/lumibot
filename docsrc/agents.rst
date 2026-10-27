@@ -8,9 +8,12 @@ Build AI trading agents in Python inside a LumiBot strategy. Agents can inspect
 market evidence, use research tools, and submit orders through the strategy's
 broker. You choose when they run and which agents can trade.
 
+.. include:: _snippets/botspot_mcp_callout.rst
+
 Choose your first workflow
 --------------------------
 
+* **Use Claude Code, Codex or Cursor:** :doc:`install the free LumiBot trading skills <claude_code_codex_cursor>` with one command and connect the free BotSpot MCP, then ask your assistant to build and backtest an agent for you.
 * **Build your first agent:** :doc:`agents_quickstart` has installation, model credentials, daily data, and a complete researcher-and-trader backtest.
 * **Trade stocks:** start with :doc:`a large-cap stock team <agents_example_bull_vs_bear_ai_stock_trading_bot>` or :doc:`opening range breakout <agents_example_opening_range_breakout_ai_trading_bot>`.
 * **Explore macro teams:** inspect :doc:`the idea-meritocracy example <agents_example_ray_dalio_idea_meritocracy>` and :doc:`FRED/ALFRED data setup <macro_data>`.
@@ -136,18 +139,20 @@ Set ``BOTSPOT_RESEARCH_MCP_URL`` to the BotSpot Research MCP endpoint and
 ``BOTSPOT_RESEARCH_MCP_TOKEN`` to the key. Agents attach it automatically without
 supplier keys or custom ``MCPServer`` configuration. External static keys do not
 need a renewal URL; hosted workloads receive
-``BOTSPOT_RESEARCH_MCP_RENEW_URL`` automatically. HTTPS is required outside
-loopback, renewal must use the same origin, and URLs cannot contain credentials,
-query strings or fragments.
+``BOTSPOT_RESEARCH_MCP_RENEW_URL`` automatically. The connection uses the normal
+MCP transport configuration, including private HTTP endpoints, URL authentication
+and query parameters. There is no additional BotSpot-specific URL prohibition.
+Optional automatic token renewal retains the shared MCP client's same-origin
+and HTTPS (or loopback HTTP) requirements.
 
 BotSpot owns supplier credentials, normalization, storage and source qualification.
 The connection provides research and permitted Marketplace/Community capabilities;
 it does not grant permission to launch a backtest, deploy a bot or place a trade.
 Community publication needs its own explicit grants. Revoking a selected key also
-narrows hosted access. Historical reads require qualified source history and a
-server-verified hosted simulation clock; an unavailable binding must return an
-explicit unsupported-capability error. Never bypass that error by switching to
-live data or an unbounded external key.
+narrows hosted access. During backtests, LumiBot supplies the simulation date for
+data and document reads. Each source applies its own historical availability
+contract and reports unavailable snapshots explicitly. Backtests are not blocked
+from research merely because they lack a separate server-attested clock.
 
 **Pattern 1: @agent_tool wrapping a REST API (recommended)**
 
@@ -342,43 +347,46 @@ See :doc:`agents_canonical_demos` for all of them.
 
 The demo files are located at ``lumibot/example_strategies/agent_*.py`` and can be run directly after setting the required environment variables.
 
-Frequently Asked Questions
+Frequently asked questions
 --------------------------
 
-**Can I backtest an AI trading agent?**
+Can I backtest an AI trading agent?
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-Yes. LumiBot lets an AI agent reason, call tools, and execute trades on every bar during a backtest. The agent runs inside ``on_trading_iteration()``, receives point-in-time market state, and uses tools to make decisions -- all within the backtest simulation. A built-in replay cache makes warm reruns deterministic and fast.
+Yes. LumiBot lets an AI agent reason, call tools, and execute trades on every bar during a backtest. The agent runs inside ``on_trading_iteration()``, receives point-in-time market state, and uses tools to make decisions, all within the backtest simulation. A built-in replay cache makes warm reruns deterministic and fast.
 
-**What makes LumiBot different from other AI trading frameworks?**
+Can I backtest an AI crypto trading agent?
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-Most alternatives either put the LLM outside the backtest loop (QuantConnect), have no backtesting at all (CrewAI, AutoGen, LangGraph), or are hobby scripts with no infrastructure. LumiBot runs the AI agent inside the backtest simulation on every bar, with ``@agent_tool`` for reliable external data, MCP server support, replay caching, DuckDB time-series queries, and full observability -- all with the same code for backtest and live.
+Yes. An agent runs inside a normal LumiBot ``Strategy``, so it uses the same
+backtesting data sources as any other strategy. For spot crypto, use
+``CcxtBacktesting``. :doc:`brokers.ccxt` documents CCXT backtesting examples for
+exchanges such as Kraken, Binance and Bybit. Backtesting perpetual futures with
+margin, funding and liquidation is not finished yet. Call
+``self.set_market("24/7")`` in ``initialize()`` so the strategy also runs on
+weekends.
 
-**What AI models are supported?**
+What AI models are supported?
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 LumiBot ships with first-class support for Gemini, OpenAI (GPT), xAI (Grok), Anthropic (Claude), and any other provider covered by LiteLLM (~100 providers). You pick the model per agent via the ``default_model`` parameter when creating your agent.
 
 The default is ``"openai/gpt-6-luna"`` with medium reasoning effort. Gemini ids (e.g. ``"gemini-3.5-flash-lite"``) take Google ADK's native fast path. Anything else is automatically routed through LiteLLM using the provider-prefixed id format:
 
-- Gemini: ``"gemini-3.5-flash-lite"`` -- requires ``GEMINI_API_KEY`` for native calls; managed calls use the configured gateway capability
-- OpenAI: ``"openai/gpt-6-luna"`` (default, medium reasoning), ``"openai/gpt-5.4-mini"``, ``"openai/gpt-5.4"``, ``"openai/gpt-5.4-pro"``, ``"openai/gpt-5.4-nano"`` -- requires ``OPENAI_API_KEY``
-- xAI Grok: ``"xai/grok-4.20-0309-reasoning"`` (Grok 4.2, reasoning on, 2M ctx), ``"xai/grok-4-1-fast-reasoning-latest"`` (cheap/fast), or ``"xai/grok-4-latest"`` (older) -- requires ``XAI_API_KEY`` or ``GROK_API_KEY``
-- Anthropic Claude: ``"anthropic/claude-opus-4-7"``, ``"anthropic/claude-sonnet-4-6"`` -- requires ``ANTHROPIC_API_KEY``
+- Gemini: ``"gemini-3.5-flash-lite"``. Requires ``GEMINI_API_KEY`` for native calls; managed calls use the configured gateway capability
+- OpenAI: ``"openai/gpt-6-luna"`` (default, medium reasoning), ``"openai/gpt-5.4-mini"``, ``"openai/gpt-5.4"``, ``"openai/gpt-5.4-pro"``, ``"openai/gpt-5.4-nano"``. Requires ``OPENAI_API_KEY``
+- xAI Grok: ``"xai/grok-4.20-0309-reasoning"`` (Grok 4.2, reasoning on, 2M ctx), ``"xai/grok-4-1-fast-reasoning-latest"`` (cheap/fast), or ``"xai/grok-4-latest"`` (older). Requires ``XAI_API_KEY`` or ``GROK_API_KEY``
+- Anthropic Claude: ``"anthropic/claude-opus-4-7"``, ``"anthropic/claude-sonnet-4-6"``. Requires ``ANTHROPIC_API_KEY``
 
 The replay cache keys on the model id, so swapping providers on the same backtest produces fresh runs rather than stale cross-model replays. Tool calling is normalized across providers by LiteLLM, so your ``@agent_tool`` functions work unchanged regardless of which model you pick.
 
-**How do I get started?**
+What API keys do I need?
+~~~~~~~~~~~~~~~~~~~~~~~~
 
-Install LumiBot, set ``OPENAI_API_KEY`` in your environment, copy the Quick Start example on this page, and run it. The M2 Liquidity Strategy example is a complete, runnable strategy file. Provider-specific variants are available for OpenAI, Grok, and Anthropic. See :doc:`agents_quickstart` for additional patterns and :doc:`agents_canonical_demos` for the reference demo strategies.
+At minimum, one model provider key matching the ``default_model`` you set: ``OPENAI_API_KEY`` for GPT models (the default), ``GEMINI_API_KEY`` for Gemini, ``XAI_API_KEY`` or ``GROK_API_KEY`` for Grok, or ``ANTHROPIC_API_KEY`` for Claude. If your ``@agent_tool`` functions call external APIs, you also need those keys, for example ``ALPACA_API_KEY`` and ``ALPACA_API_SECRET`` for Alpaca data APIs. Macro-data examples and built-in FRED tools require ``FRED_API_KEY`` so LumiBot can use the official FRED/ALFRED API and request point-in-time vintage observations in backtests.
 
-**What API keys do I need?**
-
-At minimum, one model provider key matching the ``default_model`` you set: ``OPENAI_API_KEY`` for GPT models (the default), ``GEMINI_API_KEY`` for Gemini, ``XAI_API_KEY`` or ``GROK_API_KEY`` for Grok, or ``ANTHROPIC_API_KEY`` for Claude. If your ``@agent_tool`` functions call external APIs, you also need those keys -- for example ``ALPACA_API_KEY`` and ``ALPACA_API_SECRET`` for Alpaca data APIs. Macro-data examples and built-in FRED tools require ``FRED_API_KEY`` so LumiBot can use the official FRED/ALFRED API and request point-in-time vintage observations in backtests.
-
-**How do I set up my environment?**
-
-Create a ``.env`` file in your project directory with your API keys (e.g., ``OPENAI_API_KEY=your_key_here``). LumiBot reads environment variables at startup. You can also export them in your shell. For backtesting, set ``BACKTESTING_DATA_SOURCE`` in ``.env`` or use ``datasource_class=None`` to defer to the environment configuration.
-
-**Can I use this for live trading?**
+Can I use this for live trading?
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 The same ``Strategy`` class can be used in a backtest and with a supported
 broker (Alpaca, Interactive Brokers, Tradier, Schwab, and others). The startup
@@ -387,13 +395,45 @@ the strategy with a broker and call ``run_live()`` or ``Trader.run_all()`` for
 broker execution. Some example files include only a backtest runner. See
 :doc:`strategy_run_modes` before running one directly.
 
-**Does it work with my broker?**
+Does it work with my broker?
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 LumiBot supports Alpaca, Interactive Brokers, Tradier, Schwab, Tradovate, TopstepX futures (via ProjectX), Bitunix, and selected CCXT crypto paths. Coinbase, Kraken, and WEEX have auto-detected credential paths; KuCoin, Binance, and BitMEX have documented manual CCXT setup paths; Kraken, Binance, KuCoin, BitMEX, Bybit, and OKX have documented backtesting examples. Lumibot does not claim support for every CCXT exchange. Any broker supported by LumiBot works with AI agents. The agent submits orders through the standard LumiBot order execution pipeline.
 
-**What is @agent_tool?**
+What is @agent_tool?
+~~~~~~~~~~~~~~~~~~~~
 
 ``@agent_tool`` is a decorator that wraps a Python method as a callable tool the AI agent can invoke during its reasoning loop. You provide a name and description, write a standard method with type hints and a docstring, and the decorator handles the rest. The function's source code is automatically included in the tool description so the AI can see parameters, defaults, and implementation details.
+
+How does the agent avoid looking into the future during backtests?
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+LumiBot injects the simulated datetime into the agent's context and the base prompt includes explicit rules about look-ahead bias. The observability system also flags future-dated data warnings if a tool result references data published after the simulated backtest time. Your ``@agent_tool`` functions should respect date parameters to avoid requesting future data.
+
+What is the replay cache?
+~~~~~~~~~~~~~~~~~~~~~~~~~
+
+In backtesting mode, LumiBot caches every agent run keyed by a SHA-256 hash of the prompt, context, model, tool surface, and simulated timestamp. When a subsequent backtest hits the same combination, the cached result is returned instantly without calling the LLM or any external tool. This makes warm reruns deterministic, fast, and cost-free.
+
+How much does it cost to run?
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Cost depends on the LLM provider and model, the number of bars in your backtest, and how many tool calls the agent makes per bar. The first cold run of a long backtest makes one or more model calls per bar, so check your provider's current pricing and start with a short date range. Warm reruns cost nothing because the replay cache eliminates all LLM and external API calls.
+
+More AI agent questions
+-----------------------
+
+**What makes LumiBot different from other AI trading frameworks?**
+
+Most alternatives either put the LLM outside the backtest loop (QuantConnect), have no backtesting at all (CrewAI, AutoGen, LangGraph), or are hobby scripts with no infrastructure. LumiBot runs the AI agent inside the backtest simulation on every bar, with ``@agent_tool`` for reliable external data, MCP server support, replay caching, DuckDB time-series queries, and full observability -- all with the same code for backtest and live.
+
+**How do I get started?**
+
+Install LumiBot, set ``OPENAI_API_KEY`` in your environment, copy the Quick Start example on this page, and run it. The M2 Liquidity Strategy example is a complete, runnable strategy file. Provider-specific variants are available for OpenAI, Grok, and Anthropic. See :doc:`agents_quickstart` for additional patterns and :doc:`agents_canonical_demos` for the reference demo strategies.
+
+**How do I set up my environment?**
+
+Create a ``.env`` file in your project directory with your API keys (e.g., ``OPENAI_API_KEY=your_key_here``). LumiBot reads environment variables at startup. You can also export them in your shell. For backtesting, set ``BACKTESTING_DATA_SOURCE`` in ``.env`` or use ``datasource_class=None`` to defer to the environment configuration.
 
 **How does the agent know what parameters my tool accepts?**
 
@@ -451,14 +491,6 @@ Add explicit direction in your system prompt. For a more aggressive agent: ``"Tr
 
 The agent runs inside ``on_trading_iteration()`` on every bar (e.g., every trading day if ``sleeptime="1D"``). On each bar, the agent receives point-in-time market state, calls tools (both built-in and custom), reasons over the data, and submits orders. The backtest simulation processes those orders at simulated market prices. The replay cache makes warm reruns deterministic.
 
-**How does the agent avoid looking into the future during backtests?**
-
-LumiBot injects the simulated datetime into the agent's context and the base prompt includes explicit rules about look-ahead bias. The observability system also flags future-dated data warnings if a tool result references data published after the simulated backtest time. Your ``@agent_tool`` functions should respect date parameters to avoid requesting future data.
-
-**What is the replay cache?**
-
-In backtesting mode, LumiBot caches every agent run keyed by a SHA-256 hash of the prompt, context, model, tool surface, and simulated timestamp. When a subsequent backtest hits the same combination, the cached result is returned instantly without calling the LLM or any external tool. This makes warm reruns deterministic, fast, and cost-free.
-
 **How do I clear the cache for a fresh run?**
 
 Delete the replay cache directory. On macOS the default location is ``~/Library/Caches/lumibot/1.0/agent_runtime/replay/``. Set ``LUMIBOT_CACHE_FOLDER`` before importing lumibot to store caches somewhere else. After clearing, the next run will make fresh LLM and tool calls.
@@ -498,10 +530,6 @@ Check the agent's summary in the logs -- it may have decided not to trade becaus
 **Why is my agent only buying SHV?**
 
 SHV is a common defensive parking asset used in the demo strategies. If the agent only buys SHV, it means the agent is not finding enough conviction to take risk. Check whether your tool is returning useful data (inspect the trace), whether the system prompt is clear about when to be risk-on, and whether the market data covers the right date range.
-
-**How much does it cost to run?**
-
-Cost depends on the LLM provider and model, the number of bars in your backtest, and how many tool calls the agent makes per bar. The first cold run of a long backtest makes one or more model calls per bar, so check your provider's current pricing and start with a short date range. Warm reruns cost nothing because the replay cache eliminates all LLM and external API calls.
 
 **How can I reduce API costs?**
 

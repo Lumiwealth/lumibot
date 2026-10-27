@@ -265,6 +265,17 @@ receipt. Hashes bind evidence and do not cryptographically prove inference. The
 normal repository review and release authority remain the trust boundary. Full
 prompts, transcripts and private artifacts stay out of the public receipt.
 
+The existing source-compatibility verifier can retain an unchanged native receipt
+through edits to its exact unused-provider paths. The anchor names the immutable
+Git commit containing that receipt and its byte digest; the verifier reconstructs
+the original runtime hash and compares the complete file inventory and content.
+The current catalog's bindings use PandasDataBacktesting and BacktestingBroker,
+not the live IBKR helpers, CCXT stream or Bitunix adapters listed in the verifier.
+A fixture/binding test protects that distinction. Provider checks still qualify
+the changed adapters separately. Shared broker/data, agent, skill, rubric,
+fixture or dependency changes do not inherit this exception. Retained results keep
+their original source, model, timestamps and usage; they are never new inference.
+
 This replaces the old successful-workflow freshness ZIP import, which could
 accept a freshness-only archive without native actor/judge evidence. Its helper
 and normal workflow path are removed. Existing native ledgers stay recoverable;

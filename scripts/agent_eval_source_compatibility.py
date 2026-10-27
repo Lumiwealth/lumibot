@@ -2,7 +2,7 @@
 
 The native receipt remains byte-identical. Its original full source hash is rebuilt
 from Git objects, then every model-relevant byte is compared with the candidate.
-Only external IBKR price modules unused by the maintained Pandas fixtures, package
+Only exact live-provider modules unused by the maintained Pandas fixtures, package
 version metadata, and validator entry-point wiring are outside that comparison.
 Any actor, judge, fixture, SDK, case, skill or shared trading change still expires
 proof. This is compatibility verification, never new case freshness.
@@ -29,6 +29,11 @@ PROVIDER_ONLY_PATHS = frozenset({
     'lumibot/tools/ibkr_equity_basis.py',
     'lumibot/tools/ibkr_helper.py',
     'lumibot/tools/ibkr_history_health.py',
+    # The native catalog constructs PandasDataBacktesting and BacktestingBroker,
+    # never these live adapters. The fixture/binding contract tests that boundary.
+    'lumibot/trading_builtins/ccxt_stream.py',
+    'lumibot/brokers/bitunix.py',
+    'lumibot/tools/bitunix_helpers.py',
 })
 NON_PACKAGE_PATHS = (
     'agent_eval_fixtures/research_data.json',

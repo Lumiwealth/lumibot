@@ -2,11 +2,15 @@ from __future__ import annotations
 
 import gzip
 import hashlib
+import inspect
 import json
 import os
+import sys
 from datetime import date, datetime
 from decimal import Decimal
 from enum import Enum
+from functools import lru_cache
+from importlib import metadata
 from pathlib import Path
 from typing import Any
 from uuid import UUID
@@ -14,6 +18,61 @@ from uuid import UUID
 from lumibot.constants import LUMIBOT_CACHE_FOLDER
 
 _BACKTEST_CACHE_GETTER = None
+
+
+@lru_cache(maxsize=1)
+def _installed_distributions() -> tuple[tuple[str, str], ...]:
+    """Public package identities only; never environment variables or paths."""
+    return tuple(sorted({
+        (str(dist.metadata.get("Name") or "").lower(), dist.version)
+        for dist in metadata.distributions()
+    }))
+
+
+@lru_cache(maxsize=128)
+def _source_digest(path: str, modified: int, size: int) -> str:
+    return hashlib.sha256(Path(path).read_bytes()).hexdigest()
+
+
+def runtime_capability_fingerprint(tools: Any, runtime: Any) -> dict[str, Any]:
+    """Bind replay to installed dependencies and the actual callable sources.
+
+    Package versions alone miss editable installs. Source hashes cover those
+    without putting local paths or configuration secrets in replay payloads.
+    """
+    implementations = {}
+    functions = [tool.function for tool in tools]
+    runtime_run = getattr(runtime, "run", None)
+    if callable(runtime_run):
+        functions.append(runtime_run)
+    for function in functions:
+        module = inspect.getmodule(inspect.unwrap(function))
+        path = getattr(module, "__file__", None)
+        if module is None or not path:
+            continue
+        try:
+            stat = Path(path).stat()
+            implementations[module.__name__] = _source_digest(path, stat.st_mtime_ns, stat.st_size)
+        except OSError:
+            implementations[module.__name__] = None
+    return {
+        "python": list(sys.version_info[:3]),
+        "dependencies": _installed_distributions(),
+        "implementations": implementations,
+    }
+
+
+def has_failed_tool_result(cached: dict[str, Any]) -> bool:
+    """Failed evidence remains saved, but must not prevent fresh recovery."""
+    for event in cached.get("events") or []:
+        if event.get("kind") != "tool_result":
+            continue
+        result = event.get("payload")
+        if isinstance(result, dict) and (
+            result.get("tool_error") is True or result.get("ok") is False or result.get("isError") is True
+        ):
+            return True
+    return False
 
 
 def get_backtest_cache():

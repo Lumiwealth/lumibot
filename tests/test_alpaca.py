@@ -681,3 +681,27 @@ class TestAlpacaBroker:
         assert result is not None
         assert result.avg_fill_price is None
         assert result.broker_create_date is None
+
+
+def test_cancel_after_stream_fill_accepts_rounded_provider_average_without_duplicate_callbacks():
+    from alpaca.common.exceptions import APIError
+    from requests import HTTPError, Response
+    broker = Alpaca(ALPACA_UNIT_CONFIG, connect_stream=False, start_orders_thread=False)
+    subscriber = SimpleNamespace(name="neutral", FILLED_ORDER=broker.FILLED_ORDER,
+                                 PARTIALLY_FILLED_ORDER=broker.PARTIALLY_FILLED_ORDER, add_event=MagicMock())
+    broker._add_subscriber(subscriber)
+    order = Order("neutral", Asset("SPY"), 3, "buy", identifier="rounded-fill")
+    broker._process_new_order(order)
+    broker._process_trade_event(order, broker.PARTIALLY_FILLED_ORDER, price=101.1234567, filled_quantity=1)
+    broker._process_trade_event(order, broker.FILLED_ORDER, price=101.9876543, filled_quantity=2)
+    original = list(order.transactions)
+    subscriber.add_event.reset_mock()
+    response = Response()
+    response.status_code = 422
+    broker.api.cancel_order_by_id = MagicMock(side_effect=APIError(
+        '{"code":42210000,"message":"order is already filled"}', HTTPError(response=response)))
+    broker.api.get_order_by_id = MagicMock(return_value=SimpleNamespace(
+        id=order.identifier, status="filled", filled_qty="3", filled_avg_price="101.6995884"))
+    broker.cancel_order(order)
+    assert order.is_filled() and order.transactions == original
+    subscriber.add_event.assert_not_called()

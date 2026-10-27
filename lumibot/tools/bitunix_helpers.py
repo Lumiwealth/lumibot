@@ -164,6 +164,7 @@ class BitUnixClient:
         price: Optional[str | float | Decimal] = None,
         clientId: Optional[str] = None,
         tradeSide: Optional[str] = None,
+        position_mode: Optional[str] = None,
         **kwargs,
     ) -> Dict[str, Any]:
         """
@@ -186,6 +187,11 @@ class BitUnixClient:
             **({"slPrice": stop_loss_price} if stop_loss_price is not None else {}),
             **kwargs,
         }
+        if position_mode == "ONE_WAY":
+            # In one-way mode side is the execution direction; tradeSide and
+            # positionId are hedge-leg selectors, not net-position commands.
+            body.pop("tradeSide", None)
+            body.pop("positionId", None)
         # Normalize after kwargs so native TP/SL fields obey the same wire contract.
         # Fixed-point formatting also avoids scientific notation for small quantities.
         for field in ("qty", "price", "tpPrice", "slPrice", "tpOrderPrice", "slOrderPrice"):
@@ -306,6 +312,10 @@ class BitUnixClient:
             endpoint="/api/v1/futures/account/change_margin_mode",
             json_body=body,
         )
+
+    def get_position_mode(self) -> Dict[str, Any]:
+        """Read the account's existing futures position mode without changing it."""
+        return self._request(method="GET", endpoint="/api/v1/futures/account/position_mode")
 
     def change_position_mode(self, position_mode: str) -> Dict[str, Any]:
         """

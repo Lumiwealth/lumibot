@@ -259,7 +259,9 @@ def test_mcp_callout_snippet_is_the_single_shared_copy():
     assert snippets == [ROOT / "docsrc" / "_snippets" / "botspot_mcp_callout.rst"]
     body = snippets[0].read_text()
     assert "https://botspot.trade/agents" in body and "—" not in body and "–" not in body
-    assert "Claude, ChatGPT, Codex or Cursor" in body
+    # October 26: VS Code belongs in the same shared client list.
+    for client in ("Claude", "ChatGPT", "Codex", "Cursor", "VS Code"):
+        assert client in body
 
 
 @pytest.mark.parametrize("exchange_id", PAGES)

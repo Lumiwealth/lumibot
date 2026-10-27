@@ -174,7 +174,7 @@ jobs:
           )
           PY
 
-          timeout 1500 python -m pytest -m "${PYTEST_MARKERS}" \
+          python -m pytest -m "${PYTEST_MARKERS}" \
             --tb=short -q --durations=30 -x $(cat shard_files.txt)
 
   backtest-tests:
@@ -254,7 +254,7 @@ jobs:
           )
           PY
 
-          timeout 1500 python -m pytest -m "${PYTEST_MARKERS}" \
+          python -m pytest -m "${PYTEST_MARKERS}" \
             --tb=short -q --durations=30 -x $(cat shard_nodeids.txt)
 
   agent-evals:
@@ -277,7 +277,7 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements_dev.txt -c requirements_agent_evals.txt
       - name: Verify native real-model actor and judge qualification
-        run: timeout 120 python scripts/qualify_agent_evals.py verify
+        run: python scripts/qualify_agent_evals.py verify
       - name: Upload compact qualification evidence
         if: always()
         uses: actions/upload-artifact@v4

@@ -33,6 +33,16 @@ class Client:
         self.closed = True
 
 
+def test_stream_snapshot_can_wait_without_an_elapsed_deadline():
+    client = Client()
+    stream = CcxtStream(SimpleNamespace(id="phemex", markets={}, currencies={}),
+                        {"sandbox": True}, client_factory=lambda: client)
+    try:
+        assert stream.snapshot("watch_ticker", symbol="BTC/USDT", timeout=None)["last"] == 123
+    finally:
+        stream.stop()
+
+
 def test_stream_starts_lazily_reuses_subscription_and_closes_client():
     client = Client()
     factory = Mock(return_value=client)
@@ -89,6 +99,94 @@ def test_phemex_empty_snapshot_and_usdc_order_use_v2_scope():
     observed.assert_called_once_with([], {"type": "swap", "settle": "USDT"}, True)
     stream._phemex_message(client, {"orders_p": [{"symbol": "BTC/USDC:USDC"}], "type": "incremental"})
     assert observed.call_args.args[0][0]["symbol"] == "BTC/USDC:USDC"
+
+
+def test_phemex_subscription_ack_establishes_transport_without_fabricating_account_data():
+    stream = CcxtStream(SimpleNamespace(id="phemex", markets={}, currencies={}), {})
+    scope = {"type": "swap", "settle": "USDT"}
+    stream._private_request_scopes[7] = stream._key("private", scope)
+    stream.subscribe = Mock()
+    stream._phemex_message(SimpleNamespace(), {"id": 7, "error": None, "result": {"status": "success"}})
+    stream.wait_subscribed("watch_orders", params=scope, timeout=None)
+    assert not any("value" in state or state.get("snapshot_seen") for state in stream._states.values())
+
+
+def test_phemex_balance_snapshot_is_retained_for_later_subscribers():
+    # A real wo.subscribe snapshot carries wallets and empty order lists.
+    # Credentials and account identifiers are deliberately absent.
+    api = SimpleNamespace(id="phemex", markets={}, currencies={})
+    observed = Mock()
+    stream = CcxtStream(api, {}, on_balance=observed)
+    client = SimpleNamespace(balance={"USDC": {"free": 12, "used": 0, "total": 12}},
+                             safe_currency_code=lambda value: value,
+                             parse_order=lambda value: value)
+    stream._phemex_message(client, {"type": "snapshot", "orders": {"open": [], "closed": [], "fills": []},
+                                    "wallets": [{"currency": "USDC", "balanceEv": 1200000000,
+                                                 "lockedTradingBalanceEv": 0, "lockedWithdrawEv": 0}]})
+    key = stream._key("watch_balance", {"params": {"type": "spot"}})
+    assert stream._states[key]["value"]["total"] == {"USDC": 12}
+    assert stream._states[key]["snapshot_seen"]
+    observed.assert_called_once()
+    client.balance["USDC"]["total"] = 999
+    assert stream._states[key]["value"]["total"] == {"USDC": 12}
+
+
+def test_phemex_private_balance_caches_keep_wallet_families_separate():
+    api = SimpleNamespace(id="phemex", markets={}, currencies={})
+    stream = CcxtStream(api, {})
+    client = SimpleNamespace(balance={"USDC": {"free": 12, "used": 0, "total": 12}},
+                             safe_currency_code=lambda value: value)
+    stream._phemex_message(client, {"type": "snapshot", "wallets": [{
+        "currency": "USDC", "balanceEv": 1200000000,
+        "lockedTradingBalanceEv": 0, "lockedWithdrawEv": 0}]})
+    client.balance["USDC"] = {"free": 7, "used": 3, "total": 10}
+    # V2 account shape is recorded in CCXT Pro's Phemex handle_balance docs.
+    stream._phemex_message(client, {"type": "snapshot", "accounts_p": [{
+        "currency": "USDC", "accountBalanceRv": "10", "totalUsedBalanceRv": "3"}]})
+    client.balance["USDC"] = {"free": 8, "used": 3, "total": 11}
+    stream._phemex_message(client, {"type": "incremental", "accounts_p": [{
+        "currency": "USDC", "accountBalanceRv": "11", "totalUsedBalanceRv": "3"}]})
+    spot = stream._key("watch_balance", {"params": {"type": "spot"}})
+    contracts = stream._key("watch_balance", {"params": {"type": "swap", "settle": "USDT"}})
+    assert stream._states[spot]["value"]["total"] == {"USDC": 12}
+    assert stream._states[contracts]["value"]["total"] == {"USDC": 11}
+
+
+@pytest.mark.parametrize("field,scope", [
+    ("accounts_p", {"type": "swap", "settle": "USDT"}),
+    ("accounts", {"type": "swap"}),
+])
+def test_phemex_account_snapshots_replace_one_currency_not_the_whole_family(field, scope):
+    # Phemex AOP sends zero or more snapshots, each describing one trading
+    # account. Shapes follow the provider's AOP examples; amounts are synthetic.
+    stream = CcxtStream(SimpleNamespace(id="phemex", markets={}, currencies={}), {})
+    client = SimpleNamespace(balance={}, safe_currency_code=lambda value: value)
+    for currency, total in (("USDT", 12), ("USDC", 7), ("USDT", 10)):
+        client.balance[currency] = {"free": total, "used": 0, "total": total}
+        stream._phemex_message(client, {"type": "snapshot", field: [{"currency": currency}]})
+    key = stream._key("watch_balance", {"params": scope})
+    assert stream._states[key]["value"]["total"] == {"USDT": 10, "USDC": 7}
+
+
+@pytest.mark.parametrize("field,orders_field", [("accounts_p", "orders_p"), ("accounts", "orders")])
+def test_phemex_order_snapshots_reconcile_each_settlement_independently(make_broker, field, orders_field):
+    broker = make_broker()
+    markets = {
+        "BTC/USDT:USDT": {"settle": "USDT"}, "BTC/USDC:USDC": {"settle": "USDC"},
+    }
+    stream = CcxtStream(SimpleNamespace(id="phemex", markets=markets, currencies={}), {},
+                        on_orders=broker._on_ccxt_orders)
+    client = SimpleNamespace(balance={"USDT": {"total": 12}, "USDC": {"total": 7}},
+                             safe_currency_code=lambda value: value,
+                             parse_ws_swap_order=lambda value: value)
+    def frame(currency, orders, kind="snapshot"):
+        stream._phemex_message(client, {"type": kind, field: [{"currency": currency}],
+                                        orders_field: orders})
+    frame("USDT", [{"id": "tether-order", "symbol": "BTC/USDT:USDT", "status": "open"}])
+    frame("USDC", [{"id": "usd-coin-order", "symbol": "BTC/USDC:USDC", "status": "open"}])
+    assert set(broker._stream_orders) == {"tether-order", "usd-coin-order"}
+    frame("USDT", [])
+    assert set(broker._stream_orders) == {"usd-coin-order"}
 
 
 def test_live_quote_uses_streamed_ticker_and_book(make_broker):

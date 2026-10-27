@@ -3,6 +3,7 @@ from __future__ import annotations
 import os
 import time
 from collections import OrderedDict
+from copy import deepcopy
 from threading import Lock
 
 from lumibot._lazy_imports import LazyLogger, LazyModule, lazy_class
@@ -11,6 +12,7 @@ from .broker import Broker
 
 logger = LazyLogger(__name__)
 TYPE_CHECKING = False
+json = LazyModule("json")
 datetime = LazyModule("datetime")
 Asset = lazy_class("lumibot.entities", "Asset")
 Order = lazy_class("lumibot.entities", "Order")
@@ -51,6 +53,10 @@ class Ccxt(Broker):
         self._stream_order_scopes = {}
         self._submitted_orders = {}
         self._pending_client_orders = {}
+        self._orders_bootstrapped = False
+        self._order_stream_generation = 0
+        self._order_bootstrap_lock = Lock()
+        self._rest_order_buffer = None
         super().__init__(name="ccxt", config=config, data_source=data_source, max_workers=max_workers, **kwargs)
 
         # Override default market setting for crypto to be 24/7, but still respect config/env if set
@@ -80,19 +86,14 @@ class Ccxt(Broker):
             return Asset(market["base"], asset_type="option", expiration=expiry, strike=strike,
                          right=str(market["optionType"]).upper(), multiplier=market.get("contractSize") or 1)
         if market.get("contract"):
-            return Asset(market["symbol"], asset_type="crypto_future", multiplier=market["contractSize"])
+            return Asset(market["symbol"], asset_type="crypto_future", multiplier=market["contractSize"],
+                         contract_spec=self.get_contract_spec(market["symbol"]))
         return Asset(market["base"], asset_type="crypto")
 
-    def get_contract_exposure(self, asset, quantity, price):
-        market = self.get_market(asset)
-        contracts, size, price = Decimal(str(quantity)), Decimal(str(market["contractSize"])), Decimal(str(price))
-        if market.get("inverse"):
-            quote = contracts * size
-            base = quote / price
-        else:
-            base = contracts * size
-            quote = base * price
-        return {"base": base, "quote": quote, "settle": market["settle"], "contract_size": size}
+    def get_contract_spec(self, asset, quote=None):
+        from lumibot.entities import ContractSpec
+
+        return ContractSpec.from_ccxt_market(self.get_market(asset, quote))
 
     @staticmethod
     def _position_side(response):
@@ -121,6 +122,8 @@ class Ccxt(Broker):
         use the original endpoints and currency-specific Ev scaling. Routing by
         product metadata also covers newly listed settlement currencies.
         """
+        import ccxt
+
         self._ensure_markets_loaded()
         with self._contract_accounts_lock:
             if self._contract_accounts_cache and time.monotonic() - self._contract_accounts_cache[0] < 1:
@@ -128,13 +131,28 @@ class Ccxt(Broker):
             groups = {}
             for market in self.api.markets.values():
                 if market.get("contract"):
-                    groups[(market["settle"], self._phemex_uses_real_values(market))] = market
+                    groups.setdefault((market["settle"], self._phemex_uses_real_values(market)), []).append(market)
             result = {"positions": [], "balances": {}}
-            for (settle, real), market in sorted(groups.items()):
+            for (settle, real), markets in sorted(groups.items()):
                 currency = self.api.currency(settle)
                 request = {"currency": currency["id"]}
                 endpoint = self.api.privateGetGAccountsAccountPositions if real else self.api.privateGetAccountsAccountPositions
-                response = endpoint(request)
+                try:
+                    response = endpoint(request)
+                except ccxt.ExchangeError as exc:
+                    try:
+                        error = json.loads(str(exc)[str(exc).index("{"):])
+                    except (ValueError, TypeError):
+                        error = {}
+                    if not isinstance(error, dict):
+                        error = {}
+                    # Retired catalog entries can outlive their settlement API.
+                    # Still read inactive wallets when supported, and preserve
+                    # auth/network/active-market failures instead of hiding them.
+                    if str(error.get("code")) == "39108" and all(m.get("active") is False for m in markets):
+                        logger.warning("Phemex no longer supports settlement %s for its retired markets", settle)
+                        continue
+                    raise
                 data = response.get("data") or {}
                 account = data.get("account") or {}
                 values = {}
@@ -470,7 +488,10 @@ class Ccxt(Broker):
                     scopes.append({"type": "swap", "settle": "USDT"})
                 for scope in scopes:
                     self.stream.subscribe("watch_balance", params=scope)
-                    self.stream.snapshot("watch_orders", params=scope, max_age=None, require_snapshot=True)
+                    self.stream.wait_subscribed("watch_orders", params=scope)
+                with self._order_bootstrap_lock:
+                    if not self._orders_bootstrapped:
+                        self._bootstrap_phemex_orders()
                 with self._lock:
                     return [dict(order) for order in self._stream_orders.values()
                             if order.get("status") in ("open", "new", "pending")]
@@ -508,6 +529,51 @@ class Ccxt(Broker):
 
         orders = self.api.fetch_open_orders(params=params)
         return orders
+
+    def _bootstrap_phemex_orders(self):
+        """Reconcile REST discovery with buffered native frames under one lock.
+
+        Phemex has symbol-scoped open-order REST endpoints and no AOP snapshot
+        completion marker. Discover all active instruments once after channel
+        acknowledgment, then consume live frames. Reconnects repeat discovery.
+        """
+        with self._lock:
+            generation = self._order_stream_generation
+            self._rest_order_buffer = []
+        try:
+            rows = []
+            for market in self.api.markets.values():
+                if market.get("active") is not False:
+                    rows.extend(self.api.fetch_open_orders(market["symbol"]))
+        except Exception:
+            with self._lock:
+                self._rest_order_buffer = None
+            raise
+        with self._lock:
+            buffered = self._rest_order_buffer
+            self._rest_order_buffer = None
+            self._stream_orders.clear()
+            self._stream_order_scopes.clear()
+            groups = {}
+            for row in rows:
+                market = self.get_market(row["symbol"])
+                scope = {"type": "spot"}
+                if market.get("contract"):
+                    scope = {"type": "swap", "currency": market["settle"]}
+                    if self._phemex_uses_real_values(market):
+                        scope["settle"] = "USDT"  # V2 protocol selector, not a currency filter.
+                key = tuple(sorted(scope.items()))
+                groups.setdefault(key, []).append(row)
+            for scope, observations in groups.items():
+                self._on_ccxt_orders(observations, dict(scope))
+            for observations, scope, snapshot in buffered:
+                self._on_ccxt_orders(observations, scope, snapshot)
+            self._orders_bootstrapped = generation == self._order_stream_generation
+
+    def _on_ccxt_stream_disconnect(self):
+        with self._lock:
+            self._orders_bootstrapped = False
+            self._order_stream_generation += 1
 
     def _flatten_order(self, order):
         # A REST acknowledgement can register or finish an order before the
@@ -714,7 +780,7 @@ class Ccxt(Broker):
         from lumibot.trading_builtins.ccxt_stream import CcxtStream
 
         stream = CcxtStream(self.api, self._config, on_orders=self._on_ccxt_orders,
-                            on_balance=self._on_ccxt_balance)
+                            on_balance=self._on_ccxt_balance, on_disconnect=self._on_ccxt_stream_disconnect)
         self.data_source._stream = stream
         return stream
 
@@ -736,6 +802,8 @@ class Ccxt(Broker):
     def _on_ccxt_orders(self, orders, scope, snapshot=False):
         scope_key = tuple(sorted(scope.items()))
         with self._lock:
+            if self._rest_order_buffer is not None:
+                self._rest_order_buffer.append((deepcopy(orders), dict(scope), snapshot))
             if snapshot:
                 for identifier in list(self._stream_orders):
                     if self._stream_order_scopes.get(identifier) == scope_key:

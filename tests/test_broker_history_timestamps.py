@@ -38,8 +38,17 @@ def test_schwab_history_preserves_provider_instant(instant):
     pd.Timestamp("2026-10-16T09:06:00-04:00").to_pydatetime(),
     dt.datetime(2026, 10, 16, 13, 6),  # legacy naive input denotes UTC
 ])
-def test_ccxt_history_preserves_epoch_and_cutoff(end):
+@pytest.mark.parametrize("shared_cache", [False, True])
+def test_ccxt_history_preserves_epoch_and_cutoff(end, shared_cache, tmp_path, monkeypatch):
     from threading import Lock
+    from lumibot import constants
+    from lumibot.tools import backtest_cache, parquet_series_cache, shared_bar_cache
+
+    monkeypatch.setenv("LUMIBOT_SHARED_BARS", str(shared_cache).lower())
+    monkeypatch.setattr(constants, "LUMIBOT_CACHE_FOLDER", str(tmp_path))
+    monkeypatch.setattr(backtest_cache, "LUMIBOT_CACHE_FOLDER", str(tmp_path))
+    monkeypatch.setattr(parquet_series_cache, "get_backtest_cache", lambda: backtest_cache.BacktestCacheManager(None))
+    shared_bar_cache._reset_process_memory()
 
     source = object.__new__(CcxtData)
     source._markets_loaded = True
@@ -60,7 +69,9 @@ def test_ccxt_history_preserves_epoch_and_cutoff(end):
 
     assert list(frame.index) == [first]
     assert frame.index.tz is not None
-    assert requests[0] == int((pd.Timestamp("2026-10-16T13:06Z") - pd.Timedelta(minutes=55)).timestamp() * 1000)
+    # The shared cache deliberately overlaps one earlier bar when filling a gap.
+    lookback_minutes = 60 if shared_cache else 55
+    assert requests[0] == int((pd.Timestamp("2026-10-16T13:06Z") - pd.Timedelta(minutes=lookback_minutes)).timestamp() * 1000)
 
 
 @pytest.mark.parametrize("instant", ["2026-01-16T14:30Z", "2026-10-16T13:30Z"])

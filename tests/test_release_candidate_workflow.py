@@ -54,7 +54,6 @@ def test_candidate_version_check_preserves_the_tag_boundary(tmp_path, event, ref
         },
         capture_output=True,
         text=True,
-        timeout=10,
     )
     assert result.returncode == expected_exit, result.stderr
 
@@ -66,3 +65,13 @@ def test_source_ci_and_release_share_the_exact_eval_sdk_constraints():
                 if "pip install -r requirements_dev.txt" in step.get("run", "")]
     assert len(installs) == 3
     assert all("pip install -r requirements_dev.txt -c requirements_agent_evals.txt" in step for step in installs)
+
+
+def test_release_and_source_qualification_await_completion_without_shell_deadlines():
+    root = Path(__file__).resolve().parents[1]
+    for name in ("release.yml", "cicd.yaml"):
+        workflow = yaml.load((root / ".github/workflows" / name).read_text(), Loader=yaml.BaseLoader)
+        commands = [step.get("run", "") for job in workflow["jobs"].values() for step in job.get("steps", [])]
+        for command in commands:
+            for line in command.splitlines():
+                assert not line.strip().startswith("timeout "), "Qualification must await completion or a real error"

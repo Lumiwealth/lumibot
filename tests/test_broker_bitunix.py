@@ -20,6 +20,8 @@ class TestBitunixBroker(unittest.TestCase):
         }
         # Mock the BitUnixClient to prevent actual API calls
         self.mock_bitunix_client = MagicMock(spec=BitUnixClient)
+        self.mock_bitunix_client.get_position_mode.return_value = {
+            "code": 0, "data": {"positionMode": "HEDGE"}}
         # Submission now validates exchange rules before sending an order; keep the
         # existing broker lifecycle assertions exercising their original API paths.
         self.mock_bitunix_client.get_trading_pairs.return_value = {
@@ -55,7 +57,7 @@ class TestBitunixBroker(unittest.TestCase):
 
     @patch("lumibot.brokers.bitunix.BitUnixClient")
     @patch("lumibot.brokers.bitunix.BitunixData")
-    def test_submit_order_initializes_position_mode_once(self, MockBitunixData, MockBitUnixClientInstance):
+    def test_submit_order_reads_current_position_mode_without_changing_it(self, MockBitunixData, MockBitUnixClientInstance):
         MockBitUnixClientInstance.return_value = self.mock_bitunix_client
         self.mock_bitunix_client.change_position_mode.return_value = {
             "code": 0,
@@ -76,7 +78,10 @@ class TestBitunixBroker(unittest.TestCase):
         second_order = Order("test_strategy", Asset("BTCUSDT", Asset.AssetType.CRYPTO_FUTURE), Decimal("0.2"))
         broker._submit_order(second_order)
 
-        self.mock_bitunix_client.change_position_mode.assert_called_once_with("HEDGE")
+        # Account mode is explicitly caller-controlled. Refresh the read for
+        # each order so a manual mode change cannot leave a stale translator.
+        self.mock_bitunix_client.change_position_mode.assert_not_called()
+        self.assertEqual(self.mock_bitunix_client.get_position_mode.call_count, 2)
 
     @patch("lumibot.brokers.bitunix.BitUnixClient")
     @patch("lumibot.brokers.bitunix.BitunixData")
@@ -102,23 +107,22 @@ class TestBitunixBroker(unittest.TestCase):
 
     @patch("lumibot.brokers.bitunix.BitUnixClient")
     @patch("lumibot.brokers.bitunix.BitunixData")
-    def test_position_mode_initialization_retries_after_failure(self, MockBitunixData, MockBitUnixClientInstance):
+    def test_position_mode_read_retries_after_failure(self, MockBitunixData, MockBitUnixClientInstance):
         MockBitUnixClientInstance.return_value = self.mock_bitunix_client
-        self.mock_bitunix_client.change_position_mode.side_effect = [
+        self.mock_bitunix_client.get_position_mode.side_effect = [
             RuntimeError("temporary"),
-            {"code": 0, "data": [{"positionMode": "HEDGE"}]},
+            {"code": 0, "data": {"positionMode": "HEDGE"}},
         ]
         mock_data_source = MockBitunixData.return_value
         mock_data_source.client_symbols = set()
 
         broker = Bitunix(self.config, connect_stream=False)
 
-        broker._ensure_position_mode_initialized()
-        self.assertFalse(broker._position_mode_initialized)
-
-        broker._ensure_position_mode_initialized()
-        self.assertTrue(broker._position_mode_initialized)
-        self.assertEqual(self.mock_bitunix_client.change_position_mode.call_count, 2)
+        with self.assertRaises(LumibotBrokerAPIError):
+            broker._read_position_mode()
+        self.assertEqual(broker._read_position_mode(), "HEDGE")
+        self.assertEqual(self.mock_bitunix_client.get_position_mode.call_count, 2)
+        self.mock_bitunix_client.change_position_mode.assert_not_called()
 
     @patch("lumibot.brokers.bitunix.BitUnixClient")
     @patch("lumibot.brokers.bitunix.BitunixData")

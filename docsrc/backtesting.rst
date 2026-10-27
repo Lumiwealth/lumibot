@@ -2,7 +2,7 @@ Backtesting Trading Strategies in Python with LumiBot
 *****************************************************
 
 .. meta::
-   :description: Backtest Python trading strategies with LumiBot using Yahoo, ThetaData, Polygon, Databento, Interactive Brokers, Polymarket, or your own data.
+   :description: Backtest Python trading strategies with LumiBot using Yahoo, ThetaData, Polygon, Databento, Interactive Brokers, Polymarket, Kalshi, or your own data.
 
 .. include:: _snippets/botspot_mcp_callout.rst
 
@@ -49,6 +49,10 @@ interval:
      - Polymarket
      - Market price history
      - Polymarket market identifiers
+   * - Selected YES/NO prediction contracts
+     - Kalshi
+     - Completed minute, hour, or daily candles
+     - Market ticker plus selected outcome; public history needs no trading key
 
 Use Yahoo for the simplest free daily-stock example. Use ThetaData when a stock
 or option strategy needs intraday history, and use Pandas when you already own
@@ -132,7 +136,7 @@ Frequently asked questions
 Which data sources can LumiBot backtest with?
 ---------------------------------------------
 
-LumiBot can backtest with Yahoo, ThetaData, Polygon.io, Databento, Interactive Brokers (REST), Alpaca, Polymarket, CCXT crypto exchanges, and your own data through the Pandas backtester. The table at the top of this page shows which one fits each need.
+LumiBot can backtest with Yahoo, ThetaData, Polygon.io, Databento, Interactive Brokers (REST), Alpaca, Polymarket, Kalshi, CCXT crypto exchanges, and your own data through the Pandas backtester. The table at the top of this page shows which one fits each need.
 
 Each source has its own page with setup steps, for example :doc:`backtesting.yahoo`, :doc:`backtesting.thetadata` and :doc:`backtesting.pandas`.
 

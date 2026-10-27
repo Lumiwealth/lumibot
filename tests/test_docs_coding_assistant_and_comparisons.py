@@ -15,7 +15,6 @@ DOCSRC = ROOT / "docsrc"
 
 ASSISTANT_PAGE = "claude_code_codex_cursor"
 SKILLS_REPO = "https://github.com/Lumiwealth/lumibot-trading-skills"
-MCP_URL = "https://mcp.botspot.trade/mcp"
 CALLOUT = ".. include:: _snippets/botspot_mcp_callout.rst"
 
 COMPARISONS = {
@@ -38,8 +37,8 @@ def test_assistant_page_has_one_command_skill_install_and_mcp_connect():
     assert "npx skills add Lumiwealth/lumibot-trading-skills" in page
     assert "Node 22" in page
     assert SKILLS_REPO in page
-    assert MCP_URL in page
-    assert "claude mcp add --transport http botspot https://mcp.botspot.trade/mcp" in page
+    # Setup now has one maintained destination rather than copied client instructions.
+    assert "https://botspot.trade/agents" in (DOCSRC / "_snippets/botspot_mcp_connect.rst").read_text()
     assert CALLOUT in page
     assert ":description:" in page
 
@@ -73,54 +72,98 @@ def test_readme_points_to_trading_skills_once():
     assert readme.count("github.com/Lumiwealth/lumibot-trading-skills") == 1
 
 
-# One-click install buttons for the free BotSpot MCP. Formats come from each
-# client's own docs; see the comment in _snippets/botspot_mcp_install_buttons.rst.
-CURSOR_INSTALL = (
-    "https://cursor.com/en/install-mcp?name=botspot&config="
-    "eyJ1cmwiOiJodHRwczovL21jcC5ib3RzcG90LnRyYWRlL21jcCJ9"
-)
-VSCODE_INSTALL = (
-    "https://vscode.dev/redirect/mcp/install?name=botspot&config="
-    "%7B%22type%22%3A%22http%22%2C%22url%22%3A%22https%3A%2F%2Fmcp.botspot.trade%2Fmcp%22%7D"
-)
-CLAUDE_CONNECTORS = "https://claude.ai/customize/connectors"
+# October 26: replace broken client deep links and duplicate rows with one guide CTA.
+def test_connect_cta_has_one_destination_and_no_client_install_badges():
+    snippet = (DOCSRC / "_snippets" / "botspot_mcp_connect.rst").read_text()
+    assert snippet.count('<a ') == 1
+    assert 'href="https://botspot.trade/agents"' in snippet
+    assert "Connect your AI assistant" in snippet
+    assert "<img" not in snippet
+    assert not (DOCSRC / "_snippets" / "botspot_mcp_install_buttons.rst").exists()
+    for source in [*_all_doc_sources(), ROOT / "README.md"]:
+        text = source.read_text()
+        for obsolete in ("cursor.com/en/install-mcp", "vscode.dev/redirect/mcp/install", "claude.ai/customize/connectors"):
+            assert obsolete not in text, source.name
 
 
-def test_install_links_point_at_the_botspot_mcp():
-    import base64
-    import json
-    from urllib.parse import parse_qs, unquote, urlparse
-
-    cursor_cfg = json.loads(base64.b64decode(parse_qs(urlparse(CURSOR_INSTALL).query)["config"][0]))
-    vscode_cfg = json.loads(unquote(VSCODE_INSTALL.split("config=", 1)[1]))
-    assert cursor_cfg == {"url": MCP_URL}
-    assert vscode_cfg == {"type": "http", "url": MCP_URL}
+def _all_doc_sources():
+    return sorted(DOCSRC.rglob("*.rst"))
 
 
-def test_install_buttons_are_in_snippet_callout_assistant_page_and_readme():
-    snippet = (DOCSRC / "_snippets" / "botspot_mcp_install_buttons.rst").read_text(encoding="utf-8")
-    for link in (CURSOR_INSTALL, VSCODE_INSTALL, CLAUDE_CONNECTORS):
-        assert link.replace("&", "&amp;") in snippet
-    assert "free to connect" in snippet.lower()
-
-    callout = (DOCSRC / "_snippets" / "botspot_mcp_callout.rst").read_text(encoding="utf-8")
-    assert "botspot_mcp_install_buttons.rst" in callout
-
+def test_callout_is_compact_and_lists_every_client_and_separate_benefits():
+    text = (DOCSRC / "_snippets" / "botspot_mcp_callout.rst").read_text()
+    for client in ("Claude", "ChatGPT", "Codex", "Cursor", "VS Code"):
+        assert client in text
+    assert "**Community:**" in text and "**Marketplace:**" in text
+    assert "**Broker linking:**" in text
+    assert len(text.split()) < 120
+    assert "Add custom connector" not in text
+    assert text.count(".. include:: /_snippets/botspot_mcp_connect.rst") == 1
     page = _read(ASSISTANT_PAGE)
-    assert "botspot_mcp_install_buttons.rst" in page.split("Step 1:", 1)[0], "buttons must sit at the top"
+    assert page.count(CALLOUT) == 1
+    assert page.index(CALLOUT) > page.index("Step 2:")
+    assert "botspot_mcp_connect.rst" not in page
 
-    readme = (ROOT / "README.md").read_text(encoding="utf-8")
-    mcp_line = next(line for line in readme.splitlines() if "Strongly recommended: connect the free" in line)
-    for link in (CURSOR_INSTALL, VSCODE_INSTALL, CLAUDE_CONNECTORS):
-        assert link in mcp_line, f"README MCP line is missing {link}"
+
+def test_home_and_readme_distinguish_strategy_types_from_coding_assistants():
+    # October 26 correction: show strategy code; connection setup is its own section.
+    home = _read("index")
+    readme = (ROOT / "README.md").read_text()
+    for text in (home, readme):
+        for kind in ("Python strategies", "AI-native strategies", "Hybrid strategies"):
+            assert kind in text
+        for stale in ("AI is optional", "Choose your market", "Keep your strategy", "Own your code"):
+            assert stale not in text
+        assert "Backtest before trading" in text
+        assert "Same strategy for backtesting and trading" in text
+        assert "Multiple asset classes" in text
+    assert "How to build an AI trading strategy" not in home
+    assert home.index("Build an AI-native strategy") < home.index("Connect your AI assistant")
+    assert home.count("Connect your AI assistant\n***") == 1
+    assert home.index(CALLOUT) > home.index("Connect your AI assistant\n***")
+    assert "or another MCP-compatible" in _read("_snippets/botspot_mcp_callout")
+    assert "system_prompt=" in readme
+    assert "literalinclude:: _snippets/ai_strategy.py" in home
+    assert home.count(".. _first-python-backtest:") == 1
+    assert home.count("Why build with LumiBot?") == 1
+    assert "Example: Research, Bull, Bear, and Trader Agents" not in home
+
 
 
 def test_no_paid_plan_required_wording():
     paths = (
-        DOCSRC / "_snippets" / "botspot_mcp_install_buttons.rst",
+        DOCSRC / "_snippets" / "botspot_mcp_connect.rst",
         DOCSRC / "_snippets" / "botspot_mcp_callout.rst",
         DOCSRC / f"{ASSISTANT_PAGE}.rst",
         ROOT / "README.md",
     )
     for path in paths:
         assert "paid plan required" not in path.read_text(encoding="utf-8").lower(), path.name
+
+
+def test_editable_ai_example_runs_the_documented_lifecycle_and_matches_readme():
+    # Exercise the published snippet's plumbing without a model call or broker action.
+    # Recorder shape follows test_growth_entrypoints.test_two_roles_preserve_evidence_and_trading_ownership.
+    from datetime import datetime
+    from types import SimpleNamespace
+    source = (DOCSRC / "_snippets/ai_strategy.py").read_text()
+    namespace = {"__name__": "documentation_example"}
+    exec(compile(source, "ai_strategy.py", "exec"), namespace)
+    created, calls = [], []
+
+    class Agents(dict):
+        def create(self, **kwargs):
+            created.append(kwargs)
+            self[kwargs["name"]] = SimpleNamespace(run=lambda **args: calls.append(args))
+
+    ctx = SimpleNamespace(agents=Agents(), get_datetime=lambda: datetime(2026, 4, 6))
+    strategy = namespace["MyAIStrategy"]
+    strategy.initialize(ctx)
+    strategy.on_trading_iteration(ctx)
+    strategy.on_trading_iteration(ctx)
+    assert len(created) == 1
+    assert created[0]["name"] == "trader" and created[0]["allow_trading"] is True
+    assert created[0]["system_prompt"]
+    assert len(calls) == 2
+    assert all(c["context"] == {"as_of": "2026-04-06T00:00:00"} for c in calls)
+    assert source.strip() in (ROOT / "README.md").read_text()

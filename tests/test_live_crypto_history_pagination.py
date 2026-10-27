@@ -193,7 +193,25 @@ class _SparseCcxtApi(_SingleCandleCcxtApi):
         return [candle for candle in self.candles if candle[0] >= since][:limit]
 
 
-def test_ccxt_live_pagination_advances_past_inclusive_last_candle():
+@pytest.fixture(params=[False, True], ids=["uncached", "isolated-cache"])
+def ccxt_cache_mode(request, tmp_path, monkeypatch):
+    from lumibot import constants
+    from lumibot.tools import backtest_cache, parquet_series_cache, shared_bar_cache
+
+    # These clients deliberately expose different histories for the same pair.
+    # Reusing another client's cached bars would bypass the pagination under test.
+    monkeypatch.setenv("LUMIBOT_SHARED_BARS", str(request.param).lower())
+    monkeypatch.setattr(constants, "LUMIBOT_CACHE_FOLDER", str(tmp_path))
+    monkeypatch.setattr(backtest_cache, "LUMIBOT_CACHE_FOLDER", str(tmp_path))
+    monkeypatch.setattr(parquet_series_cache, "get_backtest_cache", lambda: backtest_cache.BacktestCacheManager(None))
+    shared_bar_cache._reset_process_memory()
+    try:
+        yield request.param
+    finally:
+        shared_bar_cache._reset_process_memory()
+
+
+def test_ccxt_live_pagination_advances_past_inclusive_last_candle(ccxt_cache_mode):
     end = datetime.datetime(2026, 9, 4, 12, 0)
     api = _SingleCandleCcxtApi(end)
     source = CcxtData.__new__(CcxtData)
@@ -211,7 +229,7 @@ def test_ccxt_live_pagination_advances_past_inclusive_last_candle():
     )
 
 
-def test_ccxt_expands_lookback_for_sparse_history():
+def test_ccxt_expands_lookback_for_sparse_history(ccxt_cache_mode):
     end = datetime.datetime(2026, 9, 4, 12, 0)
     api = _SparseCcxtApi(end)
     source = CcxtData.__new__(CcxtData)

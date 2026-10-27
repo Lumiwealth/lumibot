@@ -33,7 +33,7 @@ exchange's API. These are different levels of evidence.
      - Authenticated exchange qualification in this change
    * - ``phemex``
      - Unified spot orders, balances, cancellation; native CCXT request serialization
-     - Pending testnet credentials
+     - Spot balance/private snapshots and collateral/position reads verified; execution pending
    * - ``coinbase``, ``kraken``, ``kucoin``, ``okx``, ``bybit``
      - Unified spot orders, balances and cancellation
      - Not exercised
@@ -216,6 +216,20 @@ exposure is quantity times contract size. ``broker.get_contract_exposure(asset,
 quantity, price)`` returns both exposures and the settlement currency.
 Existing broker-specific quantity conventions are unchanged.
 
+For portable sizing, ``self.get_quantity_for_notional(asset, notional, price)``
+returns the selected broker's native quantity for a notional in the instrument's
+quote currency. CCXT derivatives use contracts; Bitunix retains base-coin units.
+For example, the same 1,000 quote-unit exposure at a price of 50,000 is 20
+contracts when each linear contract represents 0.001 BTC, 1,000 inverse
+contracts when each represents 1 quote unit, or 0.02 BTC in base-coin units.
+Provider precision and minimums still apply when submitting the order.
+
+``self.get_contract_exposure(asset, quantity, price)`` reports base/quote
+exposure and settlement. CCXT's ``broker.get_asset(symbol)`` attaches a
+serializable ``ContractSpec`` to the asset, preserving the terms when saving
+orders or moving the instrument to a historical simulation. Historical CCXT
+candle requests and cache keys preserve the full settlement-aware symbol.
+
 ``position_side="long"`` and ``position_side="short"`` identify separate hedge
 legs. For example, an account can retain ten long contracts and four short
 contracts as two positions. ``self.get_position(contract, position_side="short")``
@@ -264,6 +278,10 @@ a direct or inverse conversion market is explicitly warned about and excluded
 from converted equity. This is an unresolved valuation limit, not an assertion
 that such collateral is worthless. ``fetch_funding_rate(asset)`` reads the current
 venue funding rate; it does not simulate historical funding payments.
+Retired market metadata may name a settlement currency the account API no longer
+supports. Only an explicit currency-not-supported response for an entirely
+inactive market group is omitted; supported inactive wallets are still read,
+and authentication failures or errors for active markets remain visible.
 
 WebSocket market and account data
 ---------------------------------
@@ -288,7 +306,10 @@ and cancellation use REST. Account order updates feed the normal order/fill
 callbacks, applying cumulative fill quantities once across REST acknowledgements,
 WebSocket updates and replays. An uncertain submission retains its client ID for
 reconciliation and is not automatically resubmitted. Balance updates invalidate
-the collateral snapshot. Positions are reconciled through REST because the
+the collateral snapshot. Phemex wallet snapshots are retained even when they
+arrive before the balance subscription starts. Spot, legacy contract and V2
+contract balances remain separate, including when they use the same currency.
+Positions are reconciled through REST because the
 installed Phemex Pro adapter has no ``watch_positions`` implementation.
 
 Call ``broker.cleanup_streams()`` when finished; normal broker shutdown also
@@ -303,9 +324,9 @@ The offline contract and stream tests cover linear USDT, linear USDC and
 coin-settled inverse identities, quantity/exposure conversion, separate hedge
 legs, native request serialization, cumulative fills, replay handling, fees,
 amendment and cancellation. Transport doubles are not exchange trading proof.
-The final affected regression run passed 337 tests with two pre-existing skips,
-including shared history/cache behavior, Bitunix compatibility, position identity
-and strategy execution callbacks. The new contract/stream tests are
+Regression coverage also includes shared history/cache behavior, Bitunix
+compatibility, position identity and strategy execution callbacks.
+The contract/stream tests are
 ``tests/test_ccxt_derivatives.py`` and ``tests/test_ccxt_stream.py``.
 
 Public API qualification on October 23, 2026 with CCXT 4.5.64 established:
@@ -318,16 +339,40 @@ Public API qualification on October 23, 2026 with CCXT 4.5.64 established:
   its public subscriptions failed to produce usable snapshots. The opt-in
   testnet checks retain this failure; USDC is not removed from discovery.
 
-Authenticated testnet orders, private streams, mode changes, collateral balances
-and a complete strategy trading cycle remain unqualified until testnet credentials
-are available. Run the public checks with ``pytest
+Authenticated read-only checks on October 25, 2026 additionally established spot
+balances, metadata-discovered supported collateral wallets, combined position and
+equity reads, and spot private order/balance snapshots. Perpetual private
+subscriptions were acknowledged without delivering account snapshots during the
+check; acknowledgments alone do not establish snapshot or fill-update behavior.
+Order execution, position-mode changes and a complete strategy trading cycle
+remain separate qualification steps. Run the public checks with ``pytest
 tests/test_ccxt_phemex_testnet.py -m apitest``; these make no account writes.
 Other exchanges' private/perpetual streams have not been exchange-qualified by
 this change. CCXT adapter availability is not a promise that every feature works.
 
-Perpetual backtesting with contract-aware margin, inverse PnL, historical funding
-and liquidation is still remaining work. Existing spot ``CcxtBacktesting`` support
-does not establish that accounting.
+``CcxtBacktesting`` now supports contract-aware perpetual collateral, FIFO
+realized/unrealized P&L, native settlement fees and timestamped funding. Phemex
+history uses settlement-aware candle symbols and its current public funding
+endpoint for linear and inverse contracts. Public API qualification completed
+spot, USDT, USDC and inverse backtest round trips across a funding boundary;
+matching and fills were simulated locally.
+
+Backtesting data sources accept ``funding_rates``, ``mark_prices`` and
+``perpetual_risk`` mappings keyed by an ``Asset`` or full symbol. Funding rows
+contain ``timestamp`` (UTC milliseconds or an aware datetime), ``fundingRate``
+and optionally ``markPrice``. Mark rows contain ``timestamp`` and ``markPrice``.
+Risk inputs contain ``maintenance_margin_rate`` and ``liquidation_fee_rate``.
+Strategies retain independent net or long/short legs and can use
+``create_order(..., reduce_only=True)``.
+
+The liquidation model supports cross-wallet and isolated collateral. When
+historical marks or risk inputs are unavailable it uses causal candle prices
+and collateral exhaustion, and records those assumptions. Isolated gap losses
+beyond allocated collateral record modeled insurance credits. Exchange-specific
+risk tiers, intrabar liquidation, insurance and matching still need venue
+calibration. Missing funding is disclosed, not silently claimed as complete
+zero-cost history. Inspect ``broker.backtest_assumptions`` and
+``broker.perpetual_events``; analyzed results include those records too.
 
 Exchange-Specific Guides
 ------------------------
@@ -735,7 +780,11 @@ For perpetual contracts, use the full CCXT symbol, such as ``BTC/USDT:USDT``, as
 Can I backtest crypto strategies with CCXT?
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Yes, for spot trading. Use ``CcxtBacktesting`` instead of the live ``Ccxt`` broker. Backtesting perpetual contracts with margin, funding and liquidation is not finished yet.
+Yes. Use ``CcxtBacktesting`` for spot or metadata-described perpetual contracts.
+Perpetual accounting includes collateral, linear/inverse P&L, fees and funding.
+Historical marks and risk settings improve the liquidation model; inspect its
+reported assumptions. The qualification above separates real public data from
+simulated fills and authenticated exchange execution.
 
 Which order types work through CCXT?
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^

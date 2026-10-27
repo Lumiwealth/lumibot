@@ -71,6 +71,8 @@ class CcxtData(DataSource):
                 return
             try:
                 self.api.load_markets()
+                from lumibot.tools.ccxt_phemex import normalize_markets
+                normalize_markets(self.api)
                 self._markets_loaded = True
             except Exception as exc:
                 logger.warning(
@@ -83,31 +85,14 @@ class CcxtData(DataSource):
 
     def get_market(self, asset, quote=None):
         """Resolve a spot or contract instrument without losing settlement."""
-        from lumibot.tools.symbol_normalization import build_ccxt_crypto_symbol, resolve_ccxt_market_symbol
+        from lumibot.tools.symbol_normalization import resolve_ccxt_instrument_market
 
         self._ensure_markets_loaded()
         if getattr(asset, "asset_type", None) == "option":
             return self._get_option_market(asset, quote)
-        raw = getattr(asset, "symbol", asset)
-        symbol = build_ccxt_crypto_symbol(raw, getattr(quote, "symbol", quote))
-        resolved = resolve_ccxt_market_symbol(self.api.markets, symbol,
-                                              exchange_id=self.config.get("exchange_id"))
-        contract = getattr(asset, "asset_type", None) == "crypto_future"
-        if resolved and (not contract or self.api.markets[resolved].get("contract")):
-            return self.api.markets[resolved]
-        if contract and ":" not in symbol:
-            matches = [market for market in self.api.markets.values()
-                       if market.get("contract") and market["symbol"].split(":", 1)[0] == symbol]
-            if len(matches) == 1:
-                return matches[0]
-            # An exchange-style symbol such as "BTCUSDT" (the Bitunix convention) means the
-            # perpetual. Dated futures and other settlements need the full CCXT symbol.
-            perpetuals = [market for market in matches if market.get("swap")]
-            if len(perpetuals) == 1:
-                return perpetuals[0]
-            if len(matches) > 1:
-                raise ValueError(f"Multiple settlement contracts for {symbol}; use the full CCXT symbol")
-        raise ValueError(f"No CCXT market for {symbol}")
+        from lumibot.tools.ccxt_phemex import normalize_market
+        return normalize_market(self.api, resolve_ccxt_instrument_market(self.api.markets, asset, quote,
+                                              exchange_id=self.config.get("exchange_id")))
 
     def _get_option_market(self, asset, quote=None):
         """Find the CCXT option market for a LumiBot option asset (base, expiry, strike, right)."""
@@ -264,7 +249,8 @@ class CcxtData(DataSource):
             cnt = 0
             while curr_start <= endunix:
                 cnt += 1
-                candles = self.api.fetch_ohlcv(symbol, freq, since=curr_start, limit=loop_limit, params={})
+                from lumibot.tools.ccxt_phemex import fetch_ohlcv
+                candles = fetch_ohlcv(self.api, symbol, freq, since=curr_start, limit=loop_limit, params={})
                 df = pd.DataFrame(candles, columns=["datetime", "open", "high", "low", "close", "volume"])
                 df["datetime"] = pd.to_datetime(df["datetime"], unit="ms", utc=True)
                 df = df.set_index("datetime")

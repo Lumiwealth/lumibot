@@ -284,3 +284,27 @@ def test_bing_webmaster_verification_file_is_published():
     """Bing Webmaster Tools verifies lumibot.lumiwealth.com with this file (added 2026-10-23)."""
     text = (ROOT / "docsrc/_extra/BingSiteAuth.xml").read_text()
     assert "<user>4858E38F7A73B940D6A4FF548455514F</user>" in text
+
+
+def test_autosummary_preserves_authored_reference_notes(tmp_path):
+    for dependency in ("sphinx", "furo", "sphinx_llms_txt", "sphinxext.opengraph"):
+        pytest.importorskip(dependency)
+    source = tmp_path / "docsrc"
+    source.mkdir()
+    shutil.copy(ROOT / "docsrc/conf.py", source / "conf.py")
+    shutil.copytree(ROOT / "docsrc/_templates", source / "_templates")
+    (source / "index.rst").write_text(
+        "Reference\n=========\n\n.. autosummary::\n   :toctree: api\n\n   json.dumps\n"
+    )
+    (source / "api").mkdir()
+    guide = source / "api/json.dumps.rst"
+    authored = "Saved reference\n===============\n\n.. autofunction:: json.dumps\n\nAuthored usage notes.\n"
+    guide.write_text(authored)
+    result = subprocess.run(
+        [sys.executable, "-m", "sphinx", "-b", "html", str(source), str(tmp_path / "html")],
+        capture_output=True,
+        text=True,
+    )
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert guide.read_text() == authored
+    assert "Authored usage notes." in (tmp_path / "html/api/json.dumps.html").read_text()

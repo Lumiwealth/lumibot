@@ -31,6 +31,10 @@
 - Agent tools retain complete new results, including typed rows and error fields. Context-window pruning still removes older history only when the conversation is oversized.
 - `lumibot connect botspot` handles odd server answers cleanly: a JSON "Not Found" from a server without code login still falls back to the key page, a 429 or 5xx while waiting for approval keeps polling instead of stopping, a non-object answer gives a clear error instead of a traceback, and a missing or invalid `interval`/`expires_in` uses the RFC 8628 defaults.
 
+Deploy marker: `51f8a06601c8ff44d5d34a7d7128dd33c7926110`.
+
+Qualification: 6,315 offline unit tests, 316 offline backtests and 719 affected documentation checks passed. The native qualification receipt verifies 105 actor trials and 92 judge controls on the pinned SDK tuple.
+
 ## 4.6.30 - 2026-10-24
 
 ### Added

@@ -102,6 +102,26 @@ For more details, see the :ref:`Pandas Backtesting <backtesting.pandas>` section
 
 For more details, see the :doc:`Polymarket broker guide <brokers.polymarket>`.
 
+**6. Kalshi**
+
+``KalshiBacktesting(PandasData)`` loads current or archived completed candles for
+the existing ``prediction_contract`` Asset with ``outcome="yes"`` or ``"no"``.
+Pass ``assets=[yes_asset, no_asset]`` and ``timestep="minute"``, ``"hour"`` or
+``"day"`` to normal ``YourStrategy.run_backtest(KalshiBacktesting, start, end, ...)``;
+``BACKTESTING_DATA_SOURCE=kalshi`` selects the same class. Use normal Strategy
+price, quote, history, order and position methods. Public market reads need no
+trading key. ``pandas_data=`` and matching ``market_metadata=`` support offline
+replay and earlier signal warm-up.
+
+BacktestingBroker fills marketable orders against observed candle-end bid/ask,
+nets opposite outcomes with cash collateral, and uses actual settlement timing.
+Future results and unfinished bars are withheld; no end-of-test payout is
+invented. Fee rates and balance precision are configurable estimates; explicit
+normal Strategy TradingFee lists override them. Candle data cannot reconstruct
+historical depth, queue priority, all vintage fees or cross-event margin.
+See the repository's ``docs/KALSHI_ACCOUNT_CONNECTION.md`` for configuration,
+settlement, fill assumptions, evidence and remaining qualification.
+
 Running a Backtest with Polygon.io
 -----------------------------------
 

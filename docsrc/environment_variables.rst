@@ -622,8 +622,9 @@ Kalshi connection and trading (in development)
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 - ``TRADING_BROKER=kalshi`` selects the native adapter. Standard order, position,
-  quote, historical-price and account methods are implemented; settlement and
-  backtesting remain unfinished. Whole and fractional demo trading are verified.
+  quote, historical-price and account methods are implemented. Whole and fractional
+  demo trading and completed-candle backtesting are verified; live settlement
+  reconciliation and advanced execution fidelity remain separate qualification.
 - ``KALSHI_API_KEY_ID`` identifies the separately configured demo or production key.
 - ``KALSHI_PRIVATE_KEY`` supplies PEM text (Ed25519 or RSA); alternatively use
   ``KALSHI_PRIVATE_KEY_PATH`` for your own protected PEM file. Inline text wins.
@@ -636,6 +637,10 @@ Kalshi connection and trading (in development)
   query parameters are retained, and secrets in endpoint configuration are not logged.
 - ``DATA_SOURCE=kalshi`` optionally selects the metadata/price/quote source. With the Kalshi
   broker it reuses that broker's client.
+- ``BACKTESTING_DATA_SOURCE=kalshi`` selects ``KalshiBacktesting`` through the
+  existing backtest source override. Preload selected YES/NO assets with ``assets=``
+  and a minute/hour/day ``timestep``, or pass ordinary ``pandas_data``. Public
+  market history needs no trading keys; orders in a backtest are simulated.
 - Account-only check: ``python -m lumibot.example_strategies.kalshi_account_check``.
   It uses the existing Strategy cash/equity methods and submits no orders.
 

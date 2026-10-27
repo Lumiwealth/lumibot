@@ -1039,6 +1039,8 @@ class BacktestingBroker(Broker):
             self._update_position_fill_basis(position, previous_quantity, previous_average, price)
             self._filled_positions.append(position)  # New position, add it to the tracker
 
+        position = self._normalize_prediction_net_position(order, price, position)
+
         # If this is a child order, update the parent order status if all children are filled or cancelled.
         if order.parent_identifier:
             parent_order = self.get_tracked_order(order.parent_identifier, use_placeholders=True)
@@ -1105,7 +1107,44 @@ class BacktestingBroker(Broker):
             self._filled_positions.append(position)
         elif position.quantity == 0:
             self._filled_positions.remove(position)
+        if self._prediction_opposite(order.asset) is not None:
+            order.avg_fill_price = order.get_fill_price()
+        position = self._normalize_prediction_net_position(order, price, position)
         return stored_order, position
+
+    def _prediction_opposite(self, asset):
+        resolver = getattr(self.data_source, "get_prediction_contract_opposite", None)
+        return resolver(asset) if callable(resolver) and asset.asset_type == "prediction_contract" else None
+
+    def _normalize_prediction_net_position(self, order, price, position):
+        opposite = self._prediction_opposite(order.asset)
+        if opposite is None:
+            return position
+        selected = self.get_tracked_position(order.strategy, order.asset)
+        other = self.get_tracked_position(order.strategy, opposite)
+        selected_quantity = Decimal(str(selected.quantity)) if selected is not None else Decimal(0)
+        other_quantity = Decimal(str(other.quantity)) if other is not None else Decimal(0)
+        net = selected_quantity - other_quantity
+        target = selected if net > 0 else other if net < 0 else None
+        target_asset = order.asset if net > 0 else opposite
+        old_quantity = Decimal(str(target.quantity)) if target is not None else Decimal(0)
+        for candidate in (selected, other):
+            if candidate is not None and candidate is not target:
+                self._filled_positions.remove(candidate)
+        if not net:
+            return Position(order.strategy, order.asset, 0, orders=[order])
+        if target is None:
+            basis = float(price) if target_asset == order.asset else 1 - float(price)
+            target = Position(order.strategy, target_asset, abs(net), orders=[order], avg_fill_price=basis)
+            self._filled_positions.append(target)
+        else:
+            if abs(net) > old_quantity and target.avg_fill_price is not None:
+                basis = Decimal(str(price)) if target_asset == order.asset else Decimal(1) - Decimal(str(price))
+                target.avg_fill_price = float((old_quantity * Decimal(str(target.avg_fill_price)) +
+                                              (abs(net) - old_quantity) * basis) / abs(net))
+            target.quantity = abs(net)
+            target.add_order(order)
+        return target if target.asset == order.asset else Position(order.strategy, order.asset, 0, orders=[order])
 
     def _process_cash_settlement(self, order, price, quantity):
         """
@@ -1626,6 +1665,12 @@ class BacktestingBroker(Broker):
             return None
         return option_price
 
+    def _run_backtest_lifecycle_tasks(self, strategy):
+        lifecycle = getattr(self.data_source, "process_backtest_lifecycle", None)
+        if callable(lifecycle):
+            lifecycle(self, strategy)
+        self._run_backtest_option_lifecycle_tasks(strategy)
+
     def _run_backtest_option_lifecycle_tasks(self, strategy) -> None:
         # Run conservative early-assignment checks near close.
         self.process_early_assignment_contracts(strategy)
@@ -1901,7 +1946,14 @@ class BacktestingBroker(Broker):
 
         is_multileg_parent = order.is_parent() and order.order_class is Order.OrderClass.MULTILEG
 
-        trade_cost = Decimal("0") if is_multileg_parent else self.calculate_trade_cost(order, strategy, price)
+        partial_model_fill = (
+            callable(getattr(self.data_source, "get_backtest_fill_quantity", None))
+            and Decimal(str(filled_quantity)) < Decimal(str(order.quantity))
+        )
+        if partial_model_fill:
+            trade_cost = self.calculate_trade_cost(order, strategy, price, quantity=filled_quantity)
+        else:
+            trade_cost = Decimal("0") if is_multileg_parent else self.calculate_trade_cost(order, strategy, price)
         order.trade_cost = float(trade_cost)
 
         # Handle cash updates based on asset types
@@ -1942,6 +1994,17 @@ class BacktestingBroker(Broker):
                 # Add cash for sell orders (trade amount - fees)
                 new_cash = current_cash + trade_amount - float(trade_cost)
 
+            opposite = self._prediction_opposite(order.asset)
+            if opposite is not None:
+                held = self.get_tracked_position(order.strategy, order.asset)
+                other = self.get_tracked_position(order.strategy, opposite)
+                held_quantity = max(0, held.quantity) if held is not None else 0
+                other_quantity = max(0, other.quantity) if other is not None else 0
+                count = float(filled_quantity)
+                collateral = min(count, other_quantity) if order.is_buy_order() else -max(0, count - held_quantity)
+                new_cash += collateral * float(getattr(order.asset, "multiplier", 1) or 1)
+                if new_cash < -1e-9:
+                    raise ValueError("Insufficient cash collateral for the prediction-contract fill")
             strategy._set_cash_position(new_cash)
 
         multiplier = 1
@@ -1955,7 +2018,7 @@ class BacktestingBroker(Broker):
             filled_quantity_f = float(filled_quantity_f)
 
         self.stream.dispatch(
-            self.FILLED_ORDER,
+            self.PARTIALLY_FILLED_ORDER if partial_model_fill else self.FILLED_ORDER,
             wait_until_complete=True,
             order=order,
             price=price,
@@ -2086,15 +2149,19 @@ class BacktestingBroker(Broker):
 
         strategy._set_cash_position(new_cash)
 
-    def calculate_trade_cost(self, order: Order, strategy, price: float):
+    def calculate_trade_cost(self, order: Order, strategy, price: float, quantity=None):
         """Calculate the trade cost of an order for a given strategy"""
         # PERF: Trade fees are frequently empty in backtests/benchmarks. Avoid per-fill string
         # normalization and Decimal math when there are no configured fees.
         buy_fees = getattr(strategy, "buy_trading_fees", None) or []
         sell_fees = getattr(strategy, "sell_trading_fees", None) or []
         if not buy_fees and not sell_fees:
+            calculator = getattr(self.data_source, "calculate_backtest_trade_cost", None)
+            if callable(calculator):
+                return Decimal(str(calculator(order, price, quantity=quantity)))
             return Decimal("0")
 
+        quantity = order.quantity if quantity is None else quantity
         trade_cost = Decimal("0")
         trading_fees = []
         side_value = str(order.side).lower() if order.side is not None else ""
@@ -2111,12 +2178,12 @@ class BacktestingBroker(Broker):
         for trading_fee in trading_fees:
             if trading_fee.taker is True and order_type_value in {"market", "stop"}:
                 trade_cost += trading_fee.flat_fee
-                trade_cost += Decimal(str(price)) * Decimal(str(order.quantity)) * trading_fee.percent_fee
-                trade_cost += Decimal(str(order.quantity)) * trading_fee.per_contract_fee
+                trade_cost += Decimal(str(price)) * Decimal(str(quantity)) * trading_fee.percent_fee
+                trade_cost += Decimal(str(quantity)) * trading_fee.per_contract_fee
             elif trading_fee.maker is True and order_type_value in {"limit", "stop_limit", "smart_limit"}:
                 trade_cost += trading_fee.flat_fee
-                trade_cost += Decimal(str(price)) * Decimal(str(order.quantity)) * trading_fee.percent_fee
-                trade_cost += Decimal(str(order.quantity)) * trading_fee.per_contract_fee
+                trade_cost += Decimal(str(price)) * Decimal(str(quantity)) * trading_fee.percent_fee
+                trade_cost += Decimal(str(quantity)) * trading_fee.per_contract_fee
 
         return trade_cost
         
@@ -2141,7 +2208,7 @@ class BacktestingBroker(Broker):
         unprocessed_bucket = getattr(self, "_unprocessed_orders", None)
         new_bucket = getattr(self, "_new_orders", None)
         if not unprocessed_bucket and not new_bucket:
-            self._run_backtest_option_lifecycle_tasks(strategy)
+            self._run_backtest_lifecycle_tasks(strategy)
             return
 
         def _iter_bucket(bucket):
@@ -2161,7 +2228,7 @@ class BacktestingBroker(Broker):
                 pending_orders.append(order)
 
         if not pending_orders:
-            self._run_backtest_option_lifecycle_tasks(strategy)
+            self._run_backtest_lifecycle_tasks(strategy)
             return
 
         # Prefetching: Track assets and schedule prefetch
@@ -2307,6 +2374,19 @@ class BacktestingBroker(Broker):
                         multiplier=parent_multiplier,
                     )
 
+                continue
+
+            fill_model = getattr(self.data_source, "get_backtest_fill_price", None)
+            if callable(fill_model):
+                price = fill_model(order)
+                quantity_model = getattr(self.data_source, "get_backtest_fill_quantity", None)
+                count = quantity_model(order, self) if callable(quantity_model) else order.quantity
+                if price is not None and count > 0:
+                    self._execute_filled_order(order, price, count, strategy)
+                if order.is_active():
+                    self._cancel_unfilled_immediate_time_in_force(
+                        order, "historical fill model left an unfilled remainder", strategy=strategy
+                    )
                 continue
 
             # Check validity if current date > valid date, cancel order. todo valid date
@@ -3295,7 +3375,7 @@ class BacktestingBroker(Broker):
                     )
                 continue
 
-        self._run_backtest_option_lifecycle_tasks(strategy)
+        self._run_backtest_lifecycle_tasks(strategy)
 
     def _coerce_price(self, value):
         """Convert numeric inputs to float when possible for safe comparisons."""
@@ -5108,6 +5188,13 @@ class BacktestingBroker(Broker):
                 return True
             except:
                 logger.error(traceback.format_exc())
+
+        @broker.stream.add_action(broker.PARTIALLY_FILLED_ORDER)
+        def on_partial(order, price, filled_quantity=None, quantity=None, multiplier=1):
+            broker._process_trade_event(
+                order, broker.PARTIALLY_FILLED_ORDER, price=price,
+                filled_quantity=filled_quantity if filled_quantity is not None else quantity, multiplier=multiplier,
+            )
 
         @broker.stream.add_action(broker.CANCELED_ORDER)
         def on_trade_event(order, **payload):

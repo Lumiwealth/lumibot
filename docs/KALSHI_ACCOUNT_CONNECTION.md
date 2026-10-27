@@ -1,9 +1,9 @@
-# Kalshi connection and selected-contract trading
+# Kalshi connection, trading and backtesting
 
 Connect a Kalshi account through LumiBot's existing broker and data-source interfaces.
 
 Last Updated: 2026-10-26
-Status: Native demo trading implemented; whole and fractional execution verified
+Status: Native demo trading, current/archive history and candle backtesting implemented
 Audience: Developers implementing or testing the Kalshi adapter
 
 ## Overview
@@ -18,9 +18,9 @@ strategy functions or persistence service is introduced.
 
 Implemented: signed balances, YES/NO orders and net positions, last prices,
 quotes, limit orders, marketable IOC execution for market orders, order reads,
-amend/cancel, fill deltas/fees and REST polling. Full discovery,
-WebSocket acceleration, settlement events, historical backtesting and other
-product paths remain later increments. They are not qualified by this packet.
+amend/cancel, fill deltas/fees, REST polling, historical Bars and completed-candle
+backtesting. Full discovery, WebSocket acceleration, live settlement reconciliation
+and other product paths remain later increments.
 
 ## Selected outcome identity
 
@@ -41,7 +41,7 @@ Polymarket token identifiers continue to work unchanged.
 Prediction fill-price fallback uses the quantity actually filled and retains
 sub-cent precision. Position serialization preserves real zero marks and P&L.
 These shared contracts are verified offline. Native execution proof is recorded
-below; a working historical backtest remains separate acceptance work.
+below; historical-data and simulated-execution proof are recorded separately.
 
 ## Configure and run the account check
 
@@ -212,6 +212,118 @@ current and archived candles in demo and public production, including YES/NO
 normalization. The historical fixture uses provider-recorded shapes with neutral
 identifiers. This is historical-data proof, not backtest execution proof.
 
+## Backtesting with the same Strategy API
+
+`KalshiBacktesting(PandasData)` reuses the same `Data`, `Bars`, `Quote`, `Order`,
+`Position`, Strategy callbacks and `BacktestingBroker` used elsewhere in LumiBot.
+Polymarket's data-loading pattern was the reference; Kalshi is a sibling source,
+not a subclass of the concrete Polymarket adapter. No new Strategy function is
+needed. `get_last_price`, `get_last_prices`, `get_quote`, `get_historical_prices`,
+`get_historical_prices_for_assets`, `create_order`, `submit_order`, `get_order`,
+`get_orders`, `get_position` and `get_positions` retain their normal interfaces.
+
+Pass your existing Strategy subclass and selected assets to the normal runner:
+
+```python
+from datetime import datetime, timezone
+from lumibot.backtesting import KalshiBacktesting
+from lumibot.entities import Asset
+
+yes = Asset("<historical-market-ticker>", "prediction_contract", outcome="yes")
+no = Asset(yes.symbol, "prediction_contract", outcome="no")
+
+result, strategy = YourStrategy.run_backtest(
+    KalshiBacktesting,
+    datetime(2026, 1, 1, tzinfo=timezone.utc),
+    datetime(2026, 1, 2, tzinfo=timezone.utc),
+    assets=[yes, no],
+    timestep="hour",
+    market="24/7",
+    budget=100,
+    benchmark_asset=None,
+)
+```
+
+Replace the ticker and dates with a market's actual historical interval. Public
+market reads need no trading key. The source defaults to the demo market API;
+`config={"IS_DEMO": False}` selects Kalshi's public production market API without
+placing real orders. An existing `KalshiData` can instead be passed as
+`kalshi_data=` and remains caller-owned. `BACKTESTING_DATA_SOURCE=kalshi` selects
+this class through the existing environment override; as usual, an environment
+selection takes precedence over the class argument.
+
+The `assets` list preloads only the requested backtest range. For earlier signal
+warm-up, prepare ordinary `Data` objects containing that earlier history and
+pass `pandas_data=`. Supply their matching `market_metadata=` mapping for a fully
+offline replay. All asset identity keys retain the selected outcome. An unloaded
+asset or empty history stays empty and does not break unrelated loaded assets.
+
+### Clock, fills, positions and settlement
+
+- Completed period-end candles become visible only when the simulated clock
+  reaches their timestamp. Negative history offsets are capped at that clock;
+  normal past shifts remain available. Source frames retain gaps and missing trade OHLC;
+  Pandas forward-fill repair is not used. Quotes use observed candle-end bid/ask;
+  last price uses the most recent observed trade close. They never fetch today's
+  live quote during replay. Coarser requests aggregate only completed windows;
+  requests finer than the loaded interval retain the available coarse data and
+  do not synthesize ticks.
+- Market buys use the historical ask and sells use the bid. A limit fills only
+  if it crosses that observed quote. Missing or stale interval quotes produce
+  no execution. IOC/FOK remainder cancellation and DAY/GTD expiry reuse existing
+  broker behavior. Reduce-only IOC quantity is capped by the holding it closes,
+  preserving the requested quantity, partial-fill event and canceled remainder.
+- Post-only requires a non-crossing limit at submission. A later crossing is
+  estimated to fill at its resting limit. Candle data has no order queue or
+  depth: full executable quantity and passive fills are **simulation assumptions**,
+  not a claim of exchange matching or available historical size.
+- Buying the opposite outcome offsets the existing holding, redeeming the
+  matched YES/NO pair for $1. Selling beyond the held quantity posts the remaining
+  collateral and opens the opposite holding. Netting finishes before callbacks;
+  a selected-outcome callback may carry zero while the remaining holding is on
+  the other outcome. Cash collateral and fee checks stay in BacktestingBroker.
+- Market close stops fills and cancels resting orders. Settlement waits for the
+  provider's actual `settlement_ts`, not `close_time` or the backtest end. Before
+  then, metadata hides the result and payout. When the clock reaches settlement,
+  selected payouts use the existing cash owner and `CASH_SETTLED` lifecycle;
+  nonzero payouts also enter existing cash-event history as `other_cash` with
+  `is_external_cash_flow=False`. Zero payouts still retire the position with a
+  terminal lifecycle record. Scalar payout values between zero and one are
+  preserved. Missing settlement timing leaves the contract unresolved.
+
+The source supplies optional internal fill-price, fill-quantity, fee,
+opposite-contract and lifecycle hooks to the existing BacktestingBroker. Other
+sources keep their current execution paths and configured fees. There is no
+second matching engine, account ledger, entity schema or migration.
+
+### Fees and historical fidelity
+
+Default fee estimates use `fee_rate="0.07"`, `maker_fee_rate="0"` and
+`balance_precision="0.0001"`. A non-post-only fill is estimated as a taker even
+when submitted as a limit. The model rounds the quadratic fee up to six decimal
+places, then aligns signed revenue minus fee down to the balance precision.
+Configure these values for the account and series; `balance_precision="0.01"`
+models cent-aligned balances. Explicit normal Strategy `TradingFee` lists
+override this provider estimate. Regression cases match the recorded native
+whole-contract and fractional fees, but this is **not** a complete reconstruction
+of historical fee schedules, event overrides, rebates or per-order rounding
+accumulators.
+
+Today's metadata is not a complete historical catalog or rule-version archive.
+Mutable price/volume fields and future result fields are withheld during replay;
+historical discovery, rule changes, cross-market/event collateral offsets,
+full-depth liquidity and queue priority need separate data and qualification.
+Choose dates and assumptions accordingly and report those limits with results.
+No synthetic resolution candle or end-of-test payout is inserted.
+
+Backtest qualification: 490 affected offline contracts passed, including existing
+Polymarket, entity/serialization, Pandas, broker execution and cash-financing
+coverage. Five read-only native checks passed: populated current/archive history
+in demo/public production plus a complete normal Strategy backtest loading real
+archived candles and making a simulated fractional fill. Separate deterministic
+runner coverage verifies netting, actual-time settlement and cash-event history.
+Native data is real; backtest orders and payouts are simulated.
+
 ## Caller-owned clients and resource ownership
 
 An explicit `client=` wins over config `CLIENT`/`KALSHI_CLIENT`. A compatible
@@ -252,6 +364,9 @@ recorded from the demo API and neutralized; they are not invented database rows.
 ```shell
 LUMIBOT_DISABLE_DOTENV=1 BACKTESTING_DATA_SOURCE=none python -m pytest tests/test_kalshi_client.py tests/test_kalshi_account.py tests/test_kalshi_trading.py tests/test_prediction_contract_identity.py
 LUMIBOT_DISABLE_DOTENV=1 BACKTESTING_DATA_SOURCE=none python -m pytest tests/test_kalshi_apitest.py
+# Public market reads and simulated orders only; no API keys required.
+LUMIBOT_DISABLE_DOTENV=1 BACKTESTING_DATA_SOURCE=none python -m pytest tests/test_kalshi_history.py tests/test_kalshi_backtesting.py
+LUMIBOT_DISABLE_DOTENV=1 BACKTESTING_DATA_SOURCE=none python -m pytest tests/test_kalshi_history_apitest.py tests/test_kalshi_backtesting_apitest.py
 # Explicit demo writes: dedicated demo keys plus a funded, liquid test ticker.
 KALSHI_TEST_MARKET='<demo-market-ticker>' python -m pytest tests/test_kalshi_trading_apitest.py
 ```
@@ -273,8 +388,8 @@ or an explicit test market skip visibly. Functional reconciliation waits have
 no elapsed-time acceptance threshold; real errors/interruption remain failures.
 
 Remaining proof includes native partial/cancel races, FOK/GTD/DAY, nonzero
-subaccounts/pools, restricted keys, process-crash recovery, WebSockets, settlement,
-scalar/multivariate permutations, historical data and full backtests. Passing
+subaccounts/pools, restricted keys, process-crash recovery, WebSockets, live settlement,
+scalar/multivariate native permutations and advanced historical execution fidelity. Passing
 replayed wire contracts does not certify those native paths or a release.
 
 This foundation adapts transport, scaffolding and offline contract tests from
@@ -297,3 +412,11 @@ Trading sources: [V2 create](https://docs.kalshi.com/api-reference/orders/create
 [orders](https://docs.kalshi.com/api-reference/orders/get-order),
 [fills](https://docs.kalshi.com/api-reference/portfolio/get-fills),
 [positions](https://docs.kalshi.com/api-reference/portfolio/get-positions).
+
+History and simulation sources:
+[current batch candles](https://docs.kalshi.com/api-reference/market/batch-get-market-candlesticks),
+[archived candles](https://docs.kalshi.com/api-reference/historical/get-historical-market-candlesticks),
+[archive routing](https://docs.kalshi.com/getting_started/historical_data),
+[fee rounding](https://docs.kalshi.com/getting_started/fee_rounding),
+[series fee changes](https://docs.kalshi.com/api-reference/exchange/get-series-fee-changes),
+[event fee changes](https://docs.kalshi.com/api-reference/events/get-event-fee-changes).

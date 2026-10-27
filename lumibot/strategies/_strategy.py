@@ -207,6 +207,7 @@ def __getattr__(name):
 STATS_TABLE_NAME = "strategy_tracker"
 
 _BACKTESTING_CLASS_MODULES = {
+    "KalshiBacktesting": "lumibot.backtesting.kalshi_backtesting",
     "AlpacaBacktesting": "lumibot.backtesting.alpaca_backtesting",
     "BacktestingBroker": "lumibot.backtesting.backtesting_broker",
     "CcxtBacktesting": "lumibot.backtesting.ccxt_backtesting",
@@ -3320,6 +3321,7 @@ class _Strategy:
                 "interactivebrokersrest": "InteractiveBrokersRESTBacktesting",
                 "interactive_brokers_rest": "InteractiveBrokersRESTBacktesting",
                 "polymarket": "PolymarketBacktesting",
+                "kalshi": "KalshiBacktesting",
                 "polymarket_clob": "PolymarketBacktesting",
                 "router": "RoutedBacktestingPandas",
                 "thetadata_ibkr": "RoutedBacktestingPandas",

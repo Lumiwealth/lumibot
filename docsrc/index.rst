@@ -20,6 +20,7 @@ Why build with LumiBot?
 * **Backtest before trading:** evaluate AI decisions and Python rules on historical data, with charts, trades and logs.
 * **Same strategy for backtesting and trading:** keep your strategy class; change the data source and broker runner.
 * **Multiple asset classes:** stocks, options, futures, forex, crypto and prediction markets through :doc:`supported brokers <brokers.all>`.
+* **The decision reaches a broker.** Inspect orders, fills and decision records. :doc:`How execution works <execution_gap>`.
 
 .. tip::
 
@@ -49,12 +50,6 @@ Three ways to build a strategy
       **Hybrid strategies**
 
       :ref:`Combine Python rules and AI decisions <first-hybrid-strategy>`.
-
-.. image:: ../docs/assets/ai-trading/benefit-hero.png
-   :alt: LumiBot combines market data, AI reasoning and trading strategies, with Python rules, AI agents or both
-   :width: 640px
-   :align: center
-   :class: lumibot-entry-hero
 
 .. _first-ai-strategy:
 
@@ -91,6 +86,12 @@ team. To run that existing example directly:
 .. code-block:: bash
 
    python -m lumibot.example_strategies.ai_researcher_trader
+
+.. image:: ../docs/assets/ai-trading/benefit-hero.png
+   :alt: LumiBot combines market data, AI reasoning and trading strategies, with Python rules, AI agents or both
+   :width: 640px
+   :align: center
+   :class: lumibot-entry-hero
 
 .. _first-python-backtest:
 

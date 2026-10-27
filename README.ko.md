@@ -1,4 +1,4 @@
-<!-- entry-source-sha256: 75a1c791a03f0709b51345518141560ea680b7cdf7b99216aee8a7eb94f9be35 -->
+<!-- entry-source-sha256: 2993b26f0600e23f854bc072e7087510e5707cfe35d9b733b6ba5739ac78cfc9 -->
 
 # LumiBot AI Trading
 
@@ -16,6 +16,7 @@ LumiBot은 트레이딩 봇을 만드는 무료 오픈소스 Python 프레임워
 - **거래 전에 백테스트:** 과거 데이터로 AI 판단과 Python 규칙을 평가하고 차트, 거래, 로그를 확인합니다.
 - **백테스트와 거래에 같은 전략 사용:** 전략 클래스를 유지하고 데이터 소스와 브로커 실행 설정을 바꿉니다.
 - **여러 자산군 지원:** [지원 브로커](https://lumibot.lumiwealth.com/brokers.all.html)에 따라 주식, 옵션, 선물, 외환, 암호화폐 및 예측 시장을 다룹니다.
+- **의사결정이 브로커에게 전달됩니다.** 주문, 체결 및 의사결정 기록을 확인하세요. [실행 방식](https://lumibot.lumiwealth.com/execution_gap.html).
 
 ## BotSpot MCP로 더 빠르게 구축
 

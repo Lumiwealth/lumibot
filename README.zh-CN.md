@@ -1,4 +1,4 @@
-<!-- entry-source-sha256: 75a1c791a03f0709b51345518141560ea680b7cdf7b99216aee8a7eb94f9be35 -->
+<!-- entry-source-sha256: 2993b26f0600e23f854bc072e7087510e5707cfe35d9b733b6ba5739ac78cfc9 -->
 
 # LumiBot AI 交易框架
 
@@ -16,6 +16,7 @@ LumiBot 是一个免费、开源的 Python 交易机器人框架。你可以编�
 - **先回测，再交易：** 用历史数据评估 AI 决策与 Python 规则，查看图表、交易和日志。
 - **回测和交易使用同一套策略：** 保留策略类，切换数据源和券商运行配置。
 - **多资产类别：** 支持股票、期权、期货、外汇、加密货币和预测市场，具体取决于[券商支持范围](https://lumibot.lumiwealth.com/brokers.all.html)。
+- **决策会传达到券商。** 查看订单、成交和决策记录。[执行机制说明](https://lumibot.lumiwealth.com/execution_gap.html).
 
 ## 借助 BotSpot MCP 更快构建
 

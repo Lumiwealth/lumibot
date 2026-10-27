@@ -1,4 +1,4 @@
-<!-- entry-source-sha256: 75a1c791a03f0709b51345518141560ea680b7cdf7b99216aee8a7eb94f9be35 -->
+<!-- entry-source-sha256: 2993b26f0600e23f854bc072e7087510e5707cfe35d9b733b6ba5739ac78cfc9 -->
 
 # LumiBot AI Trading
 
@@ -16,6 +16,7 @@ Cette page résume le README anglais et la page d'accueil de la documentation. L
 - **Backtester avant de trader :** évaluez les décisions IA et les règles Python sur des données historiques, avec graphiques, transactions et journaux.
 - **La même stratégie en backtest et chez le courtier :** conservez la classe de stratégie ; changez la source de données et la configuration d'exécution.
 - **Plusieurs classes d'actifs :** actions, options, contrats à terme, devises, crypto et marchés prédictifs selon les [courtiers pris en charge](https://lumibot.lumiwealth.com/brokers.all.html).
+- **La décision atteint un courtier.** Consultez les ordres, les exécutions et les journaux de décision. [Fonctionnement de l’exécution](https://lumibot.lumiwealth.com/execution_gap.html).
 
 ## Construisez plus vite avec BotSpot MCP
 

@@ -24,6 +24,7 @@ Read this in [中文](README.zh-CN.md) · [Español](README.es.md) · [Français
 - **Backtest before trading:** evaluate AI decisions and Python rules on historical data, with charts, trades and logs.
 - **Same strategy for backtesting and trading:** keep your strategy class; change the data source and broker runner.
 - **Multiple asset classes:** stocks, options, futures, forex, crypto and prediction markets through [supported brokers](https://lumibot.lumiwealth.com/brokers.all.html).
+- **The decision reaches a broker.** Inspect the orders, fills and decision records. [How execution works](https://lumibot.lumiwealth.com/execution_gap.html).
 
 **Build faster with BotSpot MCP.** Connect your assistant for free to get LumiBot
 strategy-building skills, research data and tools for backtests and deployment.
@@ -34,10 +35,6 @@ strategy-building skills, research data and tools for backtests and deployment.
 - **[AI-native strategies](#run-your-first-ai-backtest):** write prompts for trading agents.
 - **[Python strategies](#backtest-a-strategy):** write your rules in Python.
 - **[Hybrid strategies](#build-a-hybrid-strategy):** combine Python rules and AI decisions.
-
-<p align="center">
-  <img src="docs/assets/ai-trading/benefit-hero.png" alt="LumiBot combines market data, AI reasoning and trading strategies, with Python rules, AI agents or both" width="640">
-</p>
 
 ## Run your first AI backtest
 
@@ -113,6 +110,10 @@ python -m lumibot.example_strategies.ai_researcher_trader
 ```
 
 **Recorded run (made with Gemini):** the existing two-agent example has [source, decisions and trade records](docs/assets/ai-trading/spy-20260913/README.md). These are historical results, separate from the single-agent example above.
+
+<p align="center">
+  <img src="docs/assets/ai-trading/benefit-hero.png" alt="LumiBot combines market data, AI reasoning and trading strategies, with Python rules, AI agents or both" width="640">
+</p>
 
 ## Backtest a strategy
 

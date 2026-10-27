@@ -1,4 +1,4 @@
-<!-- entry-source-sha256: 75a1c791a03f0709b51345518141560ea680b7cdf7b99216aee8a7eb94f9be35 -->
+<!-- entry-source-sha256: 2993b26f0600e23f854bc072e7087510e5707cfe35d9b733b6ba5739ac78cfc9 -->
 
 # LumiBot AI Trading
 
@@ -16,6 +16,7 @@ LumiBot は無料のオープンソース Python フレームワークです。P
 - **取引前にバックテスト：** AI の判断と Python ルールを過去データで評価し、チャート、取引、ログを確認できます。
 - **検証と取引で同じ戦略を使用：** 戦略クラスを維持し、データソースとブローカーの実行設定を変更します。
 - **複数の資産クラス：** [対応ブローカー](https://lumibot.lumiwealth.com/brokers.all.html) に応じて、株式、オプション、先物、外国為替、暗号資産、予測市場に対応します。
+- **判断をブローカーに届けます。** 注文、約定、判断の記録を確認できます。[実行の仕組み](https://lumibot.lumiwealth.com/execution_gap.html).
 
 ## BotSpot MCP で構築を効率化
 

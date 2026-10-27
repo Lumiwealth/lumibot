@@ -26,7 +26,7 @@ the selected theme. No new routes, runtime behavior or package version changes.
 - Documentation checks: 736 passed across the coding-assistant, broker FAQ,
   exchange, growth, community, tracking, discovery and docs SEO test modules.
 - Sphinx 8.1.3 HTML build succeeded. Seven existing warnings concern unchanged
-  API docstrings, heading underlines and a duplicate reference in API content.
+  broker/backtesting heading underlines, list formatting and an unlisted page.
 - Shared Firefox manual QA: homepage, coding-assistant guide and broker guide
   at 1440x1100 and 390x844, in light and dark themes. Raw captures inspected.
 - Connection button clicked through to the live setup page. One panel and one
@@ -34,6 +34,13 @@ the selected theme. No new routes, runtime behavior or package version changes.
   no horizontal page overflow observed.
 - Public-file review: original documentation changes only; no customer-supplied
   strategy code, private operational information or credentials added.
+
+## Source compatibility
+
+Validation started from `5bfbb71d`; documentation implementation is `b62b997f`.
+The subsequent `4f992daa` account-mode repair changes broker runtime/tests only,
+with no overlap in the changed documentation owners or documentation assertions.
+Those compatible documentation passes and raw captures remain valid after merge.
 
 ## Publication
 

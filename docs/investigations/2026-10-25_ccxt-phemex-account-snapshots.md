@@ -36,3 +36,22 @@ returned a usable price.
 Owners: `lumibot/brokers/ccxt.py`,
 `lumibot/trading_builtins/ccxt_stream.py`,
 `tests/test_ccxt_derivatives.py`, `tests/test_ccxt_stream.py`.
+
+## Per-collateral AOP snapshots
+
+The [provider AOP specification](https://phemex-docs.github.io/#subscribe-account-order-position-aop)
+allows zero or more initial snapshots, each describing one collateral account.
+Treating an individual snapshot as the whole legacy or V2 family discarded
+other currencies' balances and open orders. Spot wallet snapshots still replace
+the entire spot wallet set; perpetual snapshots retain other collateral wallets.
+Order reconciliation carries the collateral currency independently of the V2
+transport selector, including an empty order list that clears only that wallet.
+Incremental orders use market settlement metadata to keep the same ownership.
+
+Four regression cases reproduced the balance and order loss across both native
+account families before the fix. The affected stream, derivative, spot and
+Bitunix compatibility groups passed afterward. This is generic account isolation
+for every strategy and supported collateral currency, independent of any user.
+The complete affected CCXT, Bitunix and derivative-position group passed 1,055
+checks with two existing skips and 17 opt-in API/downloader cases deselected.
+It does not turn an acknowledgment into a complete account snapshot.

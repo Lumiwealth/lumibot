@@ -570,15 +570,45 @@ def performance(_df, risk_free, prefix=""):
     print(f"{prefix} RoMaD {romad_adj*100:,.2f}%")
 
 
-def benchmark_returns_from_bars(frame):
+def benchmark_returns_from_bars(frame, *, market=None, start_date=None, end_date=None):
     """Passive daily returns from the first observed open, with an explicit anchor.
 
     The anchor represents initial capital, not an invented historical quote.
     Dividends on the entry session are excluded: a purchase at its open did not
     own the asset before that session's ex-dividend date.
+    Optional bounds select daily calendar labels in a half-open window. An
+    intraday start includes that session; these remain daily session returns,
+    not quotes measured at an arbitrary intraday start or end instant.
     """
     result = frame.copy().sort_index()
+    dates = pd.DatetimeIndex(result.index).date
+    window_start = pd.Timestamp(start_date).normalize().tz_localize(None) if start_date is not None else None
+    window_end = None
+    if end_date is not None:
+        end = pd.Timestamp(end_date)
+        window_end = end.normalize().tz_localize(None)
+        if end != end.normalize():
+            window_end += pd.Timedelta(days=1)
+    if window_start is not None:
+        result = result.loc[dates >= window_start.date()]
+    if window_end is not None:
+        result = result.loc[pd.DatetimeIndex(result.index).date < window_end.date()]
     close = pd.to_numeric(result["close"], errors="coerce")
+    if close.empty or not np.isfinite(close).all() or (close <= 0).any():
+        raise ValueError("Benchmark observed closing price is unavailable")
+    if market is not None:
+        from lumibot.tools.helpers import get_trading_days
+
+        # Calendar closures may carry the previous valuation. Missing open
+        # sessions may not: calendar resampling would otherwise invent 0% days.
+        dates = pd.DatetimeIndex(result.index).date
+        sessions = get_trading_days(market=market,
+            start_date=window_start if window_start is not None else pd.Timestamp(dates[0]),
+            end_date=window_end if window_end is not None else pd.Timestamp(dates[-1]) + pd.Timedelta(days=1))
+        expected_dates = set(sessions.index.date) if not sessions.empty else set()
+        missing = expected_dates - set(dates)
+        if missing:
+            raise ValueError("Benchmark is missing observed trading sessions")
     dividend = pd.to_numeric(result.get("dividend", pd.Series(0., index=result.index)), errors="coerce").fillna(0.)
     first_open = result["open"].iloc[0] if "open" in result else close.iloc[0]
     first_open = float(first_open)
@@ -596,6 +626,8 @@ def benchmark_returns_from_bars(frame):
     anchor = pd.DataFrame({"return": [0.], "symbol_cumprod": [1.]}, index=[anchor_time])
     result = pd.concat([anchor, result])
     result.attrs["entry_basis"] = "first_available_open" if "open" in frame else "first_available_close"
+    if market is not None:
+        result.attrs["benchmark_calendar"] = market
     return result
 
 

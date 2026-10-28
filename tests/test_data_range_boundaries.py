@@ -24,12 +24,17 @@ def test_daily_range_keeps_last_completed_bar_without_including_outside_window(s
 
 
 @pytest.mark.parametrize("constructor_window", [False, True])
-def test_utc_midnight_daily_labels_keep_first_and_final_requested_sessions(constructor_window):
-    index = pd.date_range("2025-01-06", periods=3, tz="UTC")
-    frame = pd.DataFrame({"open": [10., 11., 12.], "high": [10., 11., 12.],
-        "low": [10., 11., 12.], "close": [10., 11., 12.], "volume": [100.] * 3}, index=index)
-    begin = pd.Timestamp("2025-01-06", tz="America/New_York")
-    end = pd.Timestamp("2025-01-09", tz="America/New_York")
+@pytest.mark.parametrize("source_timezone", ["UTC", "America/Los_Angeles", "Asia/Tokyo"])
+@pytest.mark.parametrize("bound_timezone", ["America/New_York", "America/Los_Angeles", "Asia/Tokyo"])
+def test_midnight_daily_labels_keep_requested_calendar_sessions(
+    constructor_window, source_timezone, bound_timezone,
+):
+    index = pd.date_range("2025-01-05", periods=5, tz=source_timezone)
+    prices = [9., 10., 11., 12., 13.]
+    frame = pd.DataFrame({"open": prices, "high": prices,
+        "low": prices, "close": prices, "volume": [100.] * 5}, index=index)
+    begin = pd.Timestamp("2025-01-06", tz=bound_timezone)
+    end = pd.Timestamp("2025-01-09", tz=bound_timezone)
     window = {"date_start": begin.to_pydatetime(),
               "date_end": (end - pd.Timedelta(days=1)).to_pydatetime()} if constructor_window else {}
     data = Data(Asset("ALPHA"), frame, timestep="day", **window)

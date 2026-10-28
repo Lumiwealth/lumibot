@@ -11,6 +11,7 @@ from .asset_resolution import resolve_asset_and_quote
 from .docs_tools import search_lumibot_docs
 from .schemas import BoundTool, ToolDefinition
 from .tool_context import current_agent_tool_context
+from lumibot.tools.ibkr_history_health import IncompleteResearchHistoryError, recoverable_history_request
 
 AssetTypeArg = Literal["stock", "option", "future", "cont_future", "forex", "crypto", "index", "multileg", "us_equity"]
 OrderSideArg = Literal[
@@ -1394,6 +1395,7 @@ def _bind_last_prices(strategy: Any, manager: Any) -> BoundTool:
 
 
 def _bind_historical_prices(strategy: Any, manager: Any) -> BoundTool:
+    @recoverable_history_request()
     def historical_prices(
         *,
         symbols: list[str] | tuple[str, ...] | str | None = None,
@@ -1435,6 +1437,7 @@ def _bind_historical_prices(strategy: Any, manager: Any) -> BoundTool:
         bar_timezones: list[str] = []
         missing: list[str] = []
         interval_mismatch: list[str] = []
+        data_errors: dict[str, str] = {}
         batch_fn = getattr(strategy, "get_historical_prices_for_assets", None)
         batch_result = None
         if callable(batch_fn) and asset_type in {"stock", "us_equity", "index"}:
@@ -1495,12 +1498,19 @@ def _bind_historical_prices(strategy: Any, manager: Any) -> BoundTool:
                         bar_timezones.append(zone)
                     if not records:
                         missing.append(symbol)
+                except IncompleteResearchHistoryError as exc:
+                    bars_by_symbol[symbol] = []
+                    missing.append(symbol)
+                    data_errors[symbol] = str(exc)
                 except Exception:
                     bars_by_symbol[symbol] = []
                     missing.append(symbol)
 
         available = [symbol for symbol, records in bars_by_symbol.items() if records]
-        interval_fields: dict[str, Any] = {"symbols_interval_mismatch": interval_mismatch}
+        interval_fields: dict[str, Any] = {
+            "symbols_interval_mismatch": interval_mismatch,
+            "symbols_data_errors": data_errors,
+        }
         if interval_mismatch:
             interval_fields["interval_note"] = (
                 f"The data source returned daily bars, not {timestep} bars, for "
@@ -2365,6 +2375,7 @@ def _bind_orders_wait_for_terminal(strategy: Any, manager: Any) -> BoundTool:
 
 
 def _bind_load_history(strategy: Any, manager: Any) -> BoundTool:
+    @recoverable_history_request()
     def load_history_table(
         *,
         symbol: str,
@@ -3497,6 +3508,7 @@ def _bind_list_indicators(strategy: Any, manager: Any) -> BoundTool:
 
 
 def _bind_get_indicator(strategy: Any, manager: Any) -> BoundTool:
+    @recoverable_history_request()
     def get_indicator(
         symbol: str,
         indicator: str,

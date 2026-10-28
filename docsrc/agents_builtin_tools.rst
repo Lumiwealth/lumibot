@@ -236,6 +236,17 @@ Indicator tools expose LumiBot's indicator system to agents:
 - ``get_indicator``
 - ``get_indicators``
 
+In a backtest, known incomplete history needed by an indicator or a single-symbol
+history tool produces a visible tool error rather than a calculated value or a
+registered table. The agent can request an available interval, try another source
+or asset, and explain the limitation. Batch indicator requests retain independent
+results, so one failed candidate does not hide successful candidates. Failed
+research requests remain recorded in data-health warnings and provider coverage
+evidence; they do not by themselves invalidate otherwise complete execution.
+Direct strategy history/indicator reads keep their required-data behavior, and
+missing portfolio-valuation prices still invalidate the backtest. A successful
+fallback never clears a previously recorded required-data failure.
+
 Indicator input is restricted to rows at or before strategy time, not just the
 returned value. Noncausal parameters are rejected. Completion of a timestamped
 bar follows the selected data source's contract; see :doc:`indicators`.

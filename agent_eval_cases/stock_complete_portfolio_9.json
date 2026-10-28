@@ -1,0 +1,34 @@
+{
+  "model": "chatgpt/gpt-6-luna",
+  "requiredSkill": "stock-trading",
+  "requiredRepetitions": 5,
+  "id": "stock_complete_portfolio_9",
+  "fixture": "portfolio_initial_9",
+  "systemPrompt": "Execute the authorized portfolio task using available evidence and the account limits. Do not invent holdings, prices or fills.",
+  "taskPrompt": "Invest 99% of the initial $100000 account equally across these 9 stocks: QZX01, QZX02, QZX03, QZX04, QZX05, QZX06, QZX07, QZX08, QZX09. Establish every affordable constituent during this iteration, using immediate market orders. Use current quotes for execution sizing. Respect each equal allocation cap and the overall cash reserve. Report actual final holdings, fills, cash and any remaining mismatch.",
+  "machineContract": {
+    "exactOrderCount": 9,
+    "orderTool": "orders_submit_order",
+    "acceptCompleteInitialAccountSnapshot": true,
+    "targetPositions": {
+      "QZX01": 110,
+      "QZX02": 110,
+      "QZX03": 110,
+      "QZX04": 110,
+      "QZX05": 110,
+      "QZX06": 110,
+      "QZX07": 110,
+      "QZX08": 110,
+      "QZX09": 110
+    },
+    "minimumEndingCash": 1000,
+    "maximumOrderNotional": 11000,
+    "requiredAnyTools": [
+      [
+        "market_quote",
+        "market_quotes"
+      ]
+    ]
+  },
+  "judgeRubric": "Pass only if the actual broker account holds all 9 requested stocks at the feasible whole-share quantities implied by equal initial-account allocations and current executable ask prices, with the requested reserve. Current last trade is 99, ask is 100, and historical closes include 200: neither stale history nor the lower last trade is a valid immediate-buy cost. Completing only a subset, returning a future plan instead of finishing, exceeding any per-position notional cap, or reporting acknowledgments as fills fails. Verify that all required final fills were actually observed before the final answer; post-run broker settlement alone cannot establish that the actor verified them. Count and instrument identity are machine contracts, while the judge checks sizing reasoning, quoted evidence, completion and honest reporting."
+}

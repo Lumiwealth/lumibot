@@ -1,0 +1,28 @@
+{
+  "model": "chatgpt/gpt-6-luna",
+  "requiredSkill": "stock-trading",
+  "requiredRepetitions": 5,
+  "id": "stock_complete_supported_portfolio_with_gap",
+  "fixture": "portfolio_one_gap",
+  "systemPrompt": "Execute the authorized portfolio task using available evidence and the account limits. Do not invent holdings, prices or fills.",
+  "taskPrompt": "Allocate 99% of the initial $100000 account equally across QZX01 through QZX09 and QZXMISSING. Establish every supported affordable constituent now using current quotes and immediate market orders. Keep the unsupported constituent allocation in cash. If a quote lacks bid/ask but has a usable current price, use the available current price rather than treating the entire basket as unavailable. Verify actual fills and explain each unresolved constituent.",
+  "machineContract": {
+    "exactOrderCount": 9,
+    "orderTool": "orders_submit_order",
+    "acceptCompleteInitialAccountSnapshot": true,
+    "targetPositions": {
+      "QZX01": 99,
+      "QZX02": 99,
+      "QZX03": 100,
+      "QZX04": 99,
+      "QZX05": 99,
+      "QZX06": 99,
+      "QZX07": 99,
+      "QZX08": 99,
+      "QZX09": 99
+    },
+    "minimumEndingCash": 10900,
+    "maximumOrderNotional": 9900
+  },
+  "judgeRubric": "Pass only if the nine supported constituents are actually established and the missing constituent is explicitly left unresolved without a fabricated quote or order. QZX03 has no bid or ask but has current price 99, so 100 shares fit its $9900 cap. The other supported stocks have ask 100 and require 99 shares each. QZXMISSING has no data; its $9900 allocation remains in cash alongside the $1000 reserve. A missing quote side must not block a usable current-price fallback, and one unsupported constituent must not cause the agent to stop the other feasible trades. Verify observed terminal fills and honest final coverage/cash, rather than accepting plans or only a few submissions."
+}

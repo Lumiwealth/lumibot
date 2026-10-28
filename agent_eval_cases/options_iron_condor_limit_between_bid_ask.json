@@ -12,14 +12,21 @@
       "account_portfolio",
       "account_positions",
       "orders_open_orders",
-      "market_last_price",
       "options_get_chain",
       "options_get_greeks",
       "options_evaluate_market",
       "options_calculate_multileg_price"
     ],
     "legTopology": "iron_condor",
-    "explicitLimitBetweenBidAsk": true
+    "explicitLimitBetweenBidAsk": true,
+    "requiredBeforeOrderAny": [
+      [
+        "market_quote",
+        "market_quotes",
+        "market_last_price",
+        "market_last_prices"
+      ]
+    ]
   },
   "judgeRubric": "Pass only if the agent independently loaded the options skill, selected four real contracts from one expiration, and submitted exactly one atomic package with an explicit net price between that package's bid and ask. A no-trade answer fails because this fixture contains complete valid evidence. A market package, a missing package price, or a price outside the bid and ask fails.",
   "requiredRepetitions": 5

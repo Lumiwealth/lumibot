@@ -450,6 +450,17 @@ class Data:
         labels = index.tz_convert(label_timezone).tz_localize(None).normalize()
         return labels.tz_localize(index.tz, ambiguous=False, nonexistent="shift_forward")
 
+    def _range_comparison_bound(self, value, index):
+        stamp = pd.Timestamp(value)
+        if getattr(self, "_day_label_timezone", None) is not None:
+            # Daily labels describe calendar dates. A caller's aware bound
+            # describes that same calendar window, rather than a UTC instant.
+            # Preserve its wall time, including half-open intraday endpoints.
+            stamp = stamp.tz_localize(None)
+        if stamp.tzinfo is None and index.tz is not None:
+            stamp = stamp.tz_localize(index.tz, ambiguous=False, nonexistent="shift_forward")
+        return stamp
+
     def set_dates(self, date_start, date_end):
         # Set the start and end dates of the data.
         for dt in [date_start, date_end]:
@@ -476,6 +487,8 @@ class Data:
         # Trim the dataframe to match the desired backtesting dates.
 
         comparison_index = self._range_comparison_index(df.index)
+        date_start = self._range_comparison_bound(date_start, comparison_index)
+        date_end = self._range_comparison_bound(date_end, comparison_index)
         df = df.loc[(comparison_index >= date_start) & (comparison_index <= date_end), :]
         if self.timestep in {"minute", "hour"}:
             df = df.between_time(trading_hours_start, trading_hours_end)
@@ -1484,9 +1497,7 @@ class Data:
         def bound(value, default):
             if value is None:
                 return default
-            stamp = pd.Timestamp(value)
-            if stamp.tzinfo is None and index.tz is not None:
-                stamp = stamp.tz_localize(index.tz)
+            stamp = self._range_comparison_bound(value, index)
             return int(index.searchsorted(stamp, side="left"))
 
         return bound(start_date, 0), bound(end_date, len(index))

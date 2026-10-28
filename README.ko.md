@@ -1,4 +1,4 @@
-<!-- entry-source-sha256: 7e4b9f55cd1699da8c65e25a9decaff4608e9ba1e7bf7bc06e5ffb5bcca95206 -->
+<!-- entry-source-sha256: 55bfb39676bd80179a30ead48b0344b4a517c92660cfe893494caf76e10dbe31 -->
 
 # LumiBot AI Trading
 
@@ -18,19 +18,17 @@ LumiBot은 트레이딩 봇을 만드는 무료 오픈소스 Python 프레임워
 - **여러 자산군 지원:** [지원 브로커](https://lumibot.lumiwealth.com/brokers.all.html)에 따라 주식, 옵션, 선물, 외환, 암호화폐 및 예측 시장을 다룹니다.
 - **의사결정이 브로커에게 전달됩니다.** 주문, 체결 및 의사결정 기록을 확인하세요. [실행 방식](https://lumibot.lumiwealth.com/execution_gap.html).
 
-## BotSpot MCP로 더 빠르게 구축
+## AI 어시스턴트 연결
 
-어시스턴트를 무료로 연결하면 LumiBot 전략 작성 스킬, 조사 데이터, 백테스트 및 배포 도구를 사용할 수 있습니다. [제공되는 기능 확인](#ai-어시스턴트-연결).
+**BotSpot MCP로 더 빠르게 구축**
 
-## 에이전트에 슈퍼파워를 더하세요 — 무료 연결
+Claude, ChatGPT, Codex, Cursor, VS Code 또는 다른 MCP 호환 어시스턴트를 사용할 수 있습니다. 코딩 어시스턴트는 코드 작성과 테스트를 돕고, 전략 내부 에이전트는 실행 중 거래 판단을 합니다.
 
-LumiBot 전략에 BotSpot MCP를 연결하면 경제 데이터, 뉴스, SEC 문서, Marketplace 전략과 Community 지식을 활용할 수 있습니다.
+BotSpot MCP는 전략 작성 스킬, 무료 조사 데이터, 차트가 포함된 백테스트, 예약 클라우드 실행, 커뮤니티, 마켓플레이스 및 브로커 계정 연결을 제공합니다. 연결은 무료이며 호스팅된 기능의 사용량은 요금제에 따라 다릅니다.
 
-![에이전트에 슈퍼파워를 더하세요 — 무료 연결](docs/assets/readme/botspot_mcp_superpowers.png)
+**[AI 어시스턴트 연결](https://botspot.trade/agents)**
 
-이미 도우미를 BotSpot에 연결했나요? “이 LumiBot 프로젝트를 BotSpot MCP에 연결해 줘”라고 요청하세요. 도우미가 API 키를 만들고 설정을 저장할 수 있습니다.
-
-**[에이전트 연결하기](https://lumibot.lumiwealth.com/botspot_mcp.html)**
+로컬 코딩 지원에는 무료 [LumiBot 트레이딩 스킬](https://github.com/Lumiwealth/lumibot-trading-skills)을 사용할 수 있습니다. 전략 내부 조사 도구는 [BotSpot MCP 가이드](https://lumibot.lumiwealth.com/botspot_mcp.html)를 참고하세요.
 
 ## 전략을 만드는 세 가지 방법
 
@@ -49,15 +47,23 @@ lumibot demo
 
 AI 예제에는 모델 인증 정보가 필요하며 호출 비용이 발생할 수 있습니다. 모의 또는 실거래에는 브로커 계정과 인증 정보가 필요합니다. [AI 예제](README.md#run-your-first-ai-backtest), [CLI 설정](https://lumibot.lumiwealth.com/cli.html), [실행 모드](https://lumibot.lumiwealth.com/strategy_run_modes.html)를 확인하세요. 백테스트는 미래 성과를 보장하지 않습니다.
 
-## AI 어시스턴트 연결
+## 에이전트에 슈퍼파워를 더하세요 — 무료 연결
 
-Claude, ChatGPT, Codex, Cursor, VS Code 또는 다른 MCP 호환 어시스턴트를 사용할 수 있습니다. 코딩 어시스턴트는 코드 작성과 테스트를 돕고, 전략 내부 에이전트는 실행 중 거래 판단을 합니다.
+LumiBot 전략에 BotSpot MCP를 연결하면 경제 데이터, 뉴스, SEC 문서, Marketplace 전략과 Community 지식을 활용할 수 있습니다.
 
-BotSpot MCP는 전략 작성 스킬, 무료 조사 데이터, 차트가 포함된 백테스트, 예약 클라우드 실행, 커뮤니티, 마켓플레이스 및 브로커 계정 연결을 제공합니다. 연결은 무료이며 호스팅된 기능의 사용량은 요금제에 따라 다릅니다.
+![에이전트에 슈퍼파워를 더하세요 — 무료 연결](docs/assets/readme/botspot_mcp_superpowers.png)
 
-**[AI 어시스턴트 연결](https://botspot.trade/agents)**
+이미 도우미를 BotSpot에 연결했나요? “이 LumiBot 프로젝트를 BotSpot MCP에 연결해 줘”라고 요청하세요. 도우미가 API 키를 만들고 설정을 저장할 수 있습니다.
 
-로컬 코딩 지원에는 무료 [LumiBot 트레이딩 스킬](https://github.com/Lumiwealth/lumibot-trading-skills)을 사용할 수 있습니다. 전략 내부 조사 도구는 [BotSpot MCP 가이드](https://lumibot.lumiwealth.com/botspot_mcp.html)를 참고하세요.
+**[에이전트 연결하기](https://lumibot.lumiwealth.com/botspot_mcp.html)**
+
+전략 폴더에서 아래 명령을 실행하고 로그인해 연결을 승인한 뒤 전략을 다시 실행하세요. 설정은 프로젝트의 `.env`에 저장되며, 에이전트를 만들 때 LumiBot이 조사 도구를 자동으로 연결합니다. `system_prompt`에 조사할 내용을 적고 출처, 날짜, 과거 데이터의 한계를 명시하도록 요청하세요.
+
+```bash
+lumibot connect botspot
+```
+
+[BotSpot MCP → LumiBot](README.md#strategy-botspot-research)
 
 ## 프레임워크 살펴보기
 

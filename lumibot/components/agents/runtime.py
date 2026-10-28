@@ -1175,12 +1175,13 @@ def _model_max_output_tokens(model: Any) -> int | None:
     if name in _MODEL_OUTPUT_LIMIT_CACHE:
         return _MODEL_OUTPUT_LIMIT_CACHE[name]
     limit: int | None = None
-    bare = name[len("openai/"):] if name.startswith("openai/") else name
+    # chatgpt/ selects our funding adapter, not LiteLLM's separate auth provider.
+    bare = name.split("/", 1)[1] if name.startswith(("openai/", "chatgpt/")) else name
     gpt6 = _OPENAI_GPT6_MODEL_INFO.get(bare)
     if gpt6 is not None:
         limit = int(gpt6["max_output_tokens"])
     else:
-        candidates = [name]
+        candidates = ["openai/" + bare] if name.startswith("chatgpt/") else [name]
         if _is_native_gemini_model(name):
             bare_gemini = name.split("/", 1)[-1] if name.startswith("models/") else name
             candidates = [f"gemini/{bare_gemini}", bare_gemini]

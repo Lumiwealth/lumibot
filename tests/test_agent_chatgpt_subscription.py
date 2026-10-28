@@ -7,6 +7,41 @@ import pytest
 from lumibot.components.agents import chatgpt_auth as auth
 
 
+def test_subscription_model_limits_do_not_enter_litellm_device_auth(monkeypatch):
+    from lumibot.components.agents import runtime
+    import litellm
+
+    requested = []
+    def model_info(name, **kwargs):
+        requested.append(name)
+        return dict(runtime._OPENAI_GPT6_MODEL_INFO["gpt-6-luna"])
+
+    monkeypatch.setattr(litellm, "get_model_info", model_info)
+    monkeypatch.setattr(runtime, "_MODEL_OUTPUT_LIMIT_CACHE", {})
+    expected = runtime._OPENAI_GPT6_MODEL_INFO["gpt-6-luna"]["max_output_tokens"]
+    assert runtime._model_max_output_tokens("chatgpt/gpt-6-luna") == expected
+    assert runtime._effective_max_output_tokens("chatgpt/gpt-6-luna", None) is None
+    assert not requested, "metadata must not start LiteLLM's separate ChatGPT authentication"
+
+
+@pytest.mark.parametrize("model,lookup", [("chatgpt/synthetic-model", "openai/synthetic-model"),
+                                         ("openai/synthetic-model", "openai/synthetic-model"),
+                                         ("anthropic/synthetic-model", "anthropic/synthetic-model")])
+def test_only_subscription_metadata_namespace_is_normalized(monkeypatch, model, lookup):
+    from lumibot.components.agents import runtime
+    import litellm
+
+    requested = []
+    def model_info(name, **kwargs):
+        requested.append(name)
+        return dict(runtime._OPENAI_GPT6_MODEL_INFO["gpt-6-luna"])
+
+    monkeypatch.setattr(litellm, "get_model_info", model_info)
+    monkeypatch.setattr(runtime, "_MODEL_OUTPUT_LIMIT_CACHE", {})
+    assert runtime._model_max_output_tokens(model) == runtime._OPENAI_GPT6_MODEL_INFO["gpt-6-luna"]["max_output_tokens"]
+    assert requested == [lookup]
+
+
 def test_callback_accepts_returning_client_and_rejects_account_switch():
     assert auth.validate_callback({"state": ["state"], "code": ["code"]}, "state", "issued") == ("code", "issued")
     with pytest.raises(ValueError, match="client"):

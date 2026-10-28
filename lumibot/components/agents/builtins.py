@@ -220,6 +220,7 @@ def _has_successful_tool_call(tool_name: str) -> bool:
 
 _ACCOUNT_MUTATING_ORDER_TOOLS = {
     "orders_submit_order",
+    "orders_submit_orders",
     "orders_submit_multileg",
     "orders_cancel_order",
     "orders_modify_order",
@@ -234,6 +235,7 @@ def _last_successful_account_mutation_index() -> int:
             if call.get("tool_name") in _ACCOUNT_MUTATING_ORDER_TOOLS
             and (
                 _tool_call_was_successful(call)
+                or call.get("broker_state_certainty") == "unknown"
                 # The tool ran, but its outcome could not be durably recorded.
                 # Account evidence must be refreshed despite the visible error.
                 or (call.get("status") == "journal_failed" and call.get("invocation_completed") is True)
@@ -2357,7 +2359,7 @@ def _bind_orders_get_status(strategy: Any, manager: Any) -> BoundTool:
         description=(
             "Get current status for one or more tracked order identifiers. "
             "Arguments: optional identifier, optional identifiers_json as a JSON array of identifiers. "
-            "Reuse this after orders_submit_order or orders_submit_multileg. Never claim a fill unless "
+            "Reuse this after orders_submit_order, orders_submit_orders or orders_submit_multileg. Never claim a fill unless "
             "is_filled is true for the exact identifier. Missing identifiers are returned with available=false. "
             "Example: orders_get_status(identifier='bt_1') or orders_get_status(identifiers_json='[\"bt_1\",\"bt_2\"]')."
         ),
@@ -4598,6 +4600,74 @@ def _bind_close_thesis(strategy: Any, manager: Any) -> BoundTool:
     )
 
 
+def _prepare_agent_order(
+    strategy: Any,
+    *,
+    symbol: str,
+    quantity: float,
+    side: OrderSideArg,
+    reason: str,
+    public_reason: str | None = None,
+    asset_type: AssetTypeArg = "stock",
+    expiration: str | None = None,
+    strike: float | None = None,
+    right: str | None = None,
+    order_type: OrderTypeArg = "market",
+    limit_price: float | None = None,
+    stop_price: float | None = None,
+    stop_limit_price: float | None = None,
+    trail_price: float | None = None,
+    trail_percent: float | None = None,
+    quote_symbol: str | None = None,
+    exchange: str | None = None,
+    time_in_force: TimeInForceArg = "day",
+) -> tuple[Any, str]:
+    from lumibot.components.memory.store import validate_order_reason
+
+    reason = validate_order_reason(reason, required=True)
+    symbol = _require_single_symbol_text("symbol", symbol)
+    quantity = _require_positive_number("quantity", quantity)
+    _require_agent_order_readiness(symbol)
+    if order_type == "limit" and limit_price is None:
+        raise ValueError("orders_submit_order with order_type='limit' requires limit_price.")
+    if order_type in {"stop", "stop_limit"} and stop_price is None:
+        raise ValueError(f"orders_submit_order with order_type={order_type!r} requires stop_price.")
+    if order_type == "stop_limit" and stop_limit_price is None and limit_price is None:
+        raise ValueError(
+            "orders_submit_order with order_type='stop_limit' requires stop_limit_price or limit_price."
+        )
+    if order_type == "trailing_stop" and trail_price is None and trail_percent is None:
+        raise ValueError(
+            "orders_submit_order with order_type='trailing_stop' requires trail_price or trail_percent."
+        )
+    asset, quote = resolve_asset_and_quote(
+        strategy,
+        symbol=symbol,
+        asset_type=asset_type,
+        expiration=_coerce_expiration(expiration),
+        strike=strike,
+        right=right,
+        quote_symbol=quote_symbol,
+    )
+    created = strategy.create_order(
+        asset,
+        quantity,
+        side,
+        order_type=order_type,
+        limit_price=limit_price,
+        stop_price=stop_price,
+        stop_limit_price=stop_limit_price,
+        trail_price=trail_price,
+        trail_percent=trail_percent,
+        exchange=exchange,
+        quote=quote,
+        time_in_force=time_in_force,
+    )
+    _require_option_chain_before_opening(strategy, [created])
+    _validate_option_closing_orders(strategy, [created])
+    return created, reason
+
+
 def _bind_submit_order(strategy: Any, manager: Any) -> BoundTool:
     def submit_order(
         *,
@@ -4620,49 +4690,27 @@ def _bind_submit_order(strategy: Any, manager: Any) -> BoundTool:
         exchange: str | None = None,
         time_in_force: TimeInForceArg = "day",
     ) -> dict[str, Any]:
-        from lumibot.components.memory.store import validate_order_reason
-
-        reason = validate_order_reason(reason, required=True)
-        symbol = _require_single_symbol_text("symbol", symbol)
-        quantity = _require_positive_number("quantity", quantity)
-        _require_agent_order_readiness(symbol)
-        if order_type == "limit" and limit_price is None:
-            raise ValueError("orders_submit_order with order_type='limit' requires limit_price.")
-        if order_type in {"stop", "stop_limit"} and stop_price is None:
-            raise ValueError(f"orders_submit_order with order_type={order_type!r} requires stop_price.")
-        if order_type == "stop_limit" and stop_limit_price is None and limit_price is None:
-            raise ValueError(
-                "orders_submit_order with order_type='stop_limit' requires stop_limit_price or limit_price."
-            )
-        if order_type == "trailing_stop" and trail_price is None and trail_percent is None:
-            raise ValueError(
-                "orders_submit_order with order_type='trailing_stop' requires trail_price or trail_percent."
-            )
-        asset, quote = resolve_asset_and_quote(
+        created, reason = _prepare_agent_order(
             strategy,
             symbol=symbol,
+            quantity=quantity,
+            side=side,
+            reason=reason,
+            public_reason=public_reason,
             asset_type=asset_type,
-            expiration=_coerce_expiration(expiration),
+            expiration=expiration,
             strike=strike,
             right=right,
-            quote_symbol=quote_symbol,
-        )
-        created = strategy.create_order(
-            asset,
-            quantity,
-            side,
             order_type=order_type,
             limit_price=limit_price,
             stop_price=stop_price,
             stop_limit_price=stop_limit_price,
             trail_price=trail_price,
             trail_percent=trail_percent,
+            quote_symbol=quote_symbol,
             exchange=exchange,
-            quote=quote,
             time_in_force=time_in_force,
         )
-        _require_option_chain_before_opening(strategy, [created])
-        _validate_option_closing_orders(strategy, [created])
         memory = getattr(strategy, "memory", None)
         memory_context = _agent_memory_context_kwargs()
         try:
@@ -4730,6 +4778,73 @@ def _bind_submit_order(strategy: Any, manager: Any) -> BoundTool:
         )
         + _PUBLIC_ORDER_REASON_DESCRIPTION,
         function=submit_order,
+        metadata={"kind": "builtin", "replay_on_cache": True},
+    )
+
+
+def _bind_submit_orders(strategy: Any, manager: Any) -> BoundTool:
+    def submit_orders(*, orders_json: str, reason: str) -> dict[str, Any]:
+        from lumibot.components.memory.store import validate_order_reason
+
+        reason = validate_order_reason(reason, required=True)
+        specifications = json.loads(orders_json)
+        if not isinstance(specifications, list) or not specifications:
+            raise ValueError("orders_json must be a nonempty JSON array of explicit order objects.")
+        created = []
+        explanations = []
+        for index, specification in enumerate(specifications):
+            if not isinstance(specification, dict):
+                raise ValueError(f"Order at index {index} must be an object.")
+            arguments = {"reason": reason, **specification}
+            order, order_reason = _prepare_agent_order(strategy, **arguments)
+            created.append(order)
+            explanations.append({"identifier": order.identifier, "reason": order_reason,
+                                 "public_reason": specification.get("public_reason")})
+        # Validate cumulative closes too: two individually valid rows must not
+        # close the same held option quantity twice.
+        _validate_option_closing_orders(strategy, created)
+        try:
+            submitted = strategy.submit_orders(
+                created, is_multileg=False, reason=reason, evidence={"orders": explanations},
+            )
+        except Exception as exc:
+            return {
+                "ok": False, "tool_error": True, "tool_name": "orders_submit_orders",
+                "orders": [_order_to_dict(order) for order in created],
+                "error": {"type": type(exc).__name__, "message": str(exc)},
+                "execution_outcome": _broker_submission_outcome(certainty="unknown"),
+            }
+        returned = submitted if isinstance(submitted, list) else []
+        # Preserve the native return objects, including None/rejections. A short
+        # return is incomplete evidence, never authority to retry the batch.
+        complete = len(returned) == len(created) and all(order is not None for order in returned)
+        return {
+            "ok": complete,
+            "orders": [_order_to_dict(order) for order in created],
+            "returned_orders": [_order_to_dict(order) if order is not None else None for order in returned],
+            "execution_outcome": _broker_submission_outcome(
+                certainty="confirmed_submitted" if complete else "unknown"),
+        }
+
+    return BoundTool(
+        name="orders_submit_orders",
+        description=(
+            "Submit explicit independent orders through Strategy.submit_orders. Prefer this for a planned basket. "
+            "orders_json is a nonempty JSON array; each object accepts the same order fields as orders_submit_order: "
+            "required symbol, quantity and side; optional asset_type, expiration, strike, right, order_type, limit_price, "
+            "stop_price, stop_limit_price, trail_price, trail_percent, quote_symbol, exchange, time_in_force, reason, public_reason. "
+            "The required batch reason (at least 200 trimmed characters) applies to rows without their own reason; "
+            "each supplied row reason has the same requirement. All explanations are journaled before the broker call. "
+            "Inspect current account, all held/pending orders and current quotes for EVERY exact instrument first, "
+            "and size the joint basket within actual cash and individual allocation caps. All rows are validated before submission. "
+            "The batch is NOT atomic and acknowledgement is NOT a fill. For an atomic option spread use orders_submit_multileg. "
+            "Execute required funding sells separately and verify fills/proceeds before a dependent buy batch. "
+            "Use orders_wait_for_terminal or orders_get_status with identifiers_json for every returned identifier, "
+            "then refresh account_portfolio, complete account_positions and orders_open_orders and reconcile every target. "
+            "On exceptions or incomplete returns, reconcile ALL requested identifiers and actual broker state before any retry; "
+            "a partial batch may already have executed. Never resubmit the whole basket blindly."
+        ) + _PUBLIC_ORDER_REASON_DESCRIPTION,
+        function=submit_orders,
         metadata={"kind": "builtin", "replay_on_cache": True},
     )
 
@@ -5334,6 +5449,14 @@ class _MemoryTools:
 
 
 class _OrderTools:
+    def submit_orders(self) -> ToolDefinition:
+        return ToolDefinition(
+            name="orders_submit_orders",
+            description="Submit an explicit basket through Strategy.submit_orders." + _PUBLIC_ORDER_REASON_DESCRIPTION,
+            binder=_bind_submit_orders,
+            metadata={"mutates_trading": True},
+        )
+
     def submit(self) -> ToolDefinition:
         return ToolDefinition(
             name="orders_submit_order",
@@ -5486,6 +5609,7 @@ class _BuiltinTools:
             self.memory.update_thesis(),
             self.memory.close_thesis(),
             self.orders.submit(),
+            self.orders.submit_orders(),
             self.orders.submit_multileg(),
             self.orders.cancel(),
             self.orders.open_orders(),

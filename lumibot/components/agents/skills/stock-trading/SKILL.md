@@ -89,7 +89,11 @@ unavailable name keeps its allocation in cash, alongside the original reserve;
 do not silently use the full account as the allocation basis or renormalize the
 supported subset unless the user authorized that change.
 
-Work through every feasible required change in this run. Use batch quotes and
+Work through every feasible required change in this run. Prefer `orders_submit_orders`
+for a jointly sized independent basket: pass explicit order rows, verify all returned
+identifiers together, then reconcile actual account state. A batch is not atomic;
+verify funding sells before submitting dependent buys. Preserve atomic option
+packages through `orders_submit_multileg`. Use batch quotes and
 history when the task needs historical analysis; an explicit allocation does not
 need an invented historical entry signal. After each mutation refresh the account and complete position/open-order
 pagination, then size only the next intended order against its allocation cap

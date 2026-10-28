@@ -251,7 +251,7 @@ def _order_call_outcomes(result):
             unmatched.setdefault(event.tool_name, []).append(event)
     outcomes = {}
     for position, call in enumerate(calls):
-        if call.tool_name not in {"orders_submit_order", "orders_submit_multileg"}:
+        if call.tool_name not in {"orders_submit_order", "orders_submit_orders", "orders_submit_multileg"}:
             continue
         outcome = by_id.get(call.call_id) if getattr(call, "call_id", None) else None
         if outcome is None and unmatched.get(call.tool_name):
@@ -949,9 +949,18 @@ class ProductionFixture:
         outcomes = _order_call_outcomes(result)
         rejected = _rejected_order_calls(result)
         for position, event in enumerate(result.tool_calls):
-            if event.tool_name not in {"orders_submit_order", "orders_submit_multileg"}:
+            if event.tool_name not in {"orders_submit_order", "orders_submit_orders", "orders_submit_multileg"}:
                 continue
             args = event.payload or {}
+            if event.tool_name == "orders_submit_orders":
+                try:
+                    specifications = json.loads(args.get("orders_json", "[]"))
+                except (TypeError, json.JSONDecodeError):
+                    specifications = []
+                target = self.fixture.rejected_submissions if position in rejected else self.fixture.submissions
+                if isinstance(specifications, list):
+                    target.extend({"tool": event.tool_name, **row} for row in specifications if isinstance(row, dict))
+                continue
             if event.tool_name == "orders_submit_multileg":
                 legs = args.get("legs_json", "[]")
                 try:

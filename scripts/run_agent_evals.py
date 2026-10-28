@@ -44,7 +44,7 @@ REQUIRED_CONSECUTIVE_PASSES = NEW_CASE_REQUIRED_PASSES  # backwards-compatible a
 MAX_INPUT_TOKENS_PER_MODEL_CALL = 1_048_576
 ACTING_MAX_OUTPUT_TOKENS = 12_000
 JUDGE_MAX_OUTPUT_TOKENS = 4_000  # GPT-6 Luna reasoning tokens count against this cap
-ORDER_TOOLS = {"orders_submit_order", "orders_submit_multileg"}
+ORDER_TOOLS = {"orders_submit_order", "orders_submit_orders", "orders_submit_multileg"}
 LEDGER_LOCK = threading.Lock()
 EVAL_SDK_PACKAGES = (
     "google-adk", "google-genai", "litellm", "pandas-ta-classic", "pandas", "numpy", "alpaca-py",
@@ -761,6 +761,10 @@ def score_machine_contract(case: dict[str, Any], transcript: dict[str, Any]) -> 
     sequence = [call["name"] for call in calls]
     submissions = transcript["submissions"]
     failures: list[str] = []
+    if "exactBrokerOrderCount" in contract:
+        orders = transcript.get("broker_orders")
+        if not isinstance(orders, list) or len(orders) != contract["exactBrokerOrderCount"]:
+            failures.append(f"expected {contract['exactBrokerOrderCount']} actual broker orders, observed {len(orders) if isinstance(orders, list) else 'missing'}")
     expected_positions = contract.get("targetPositions")
     if expected_positions is not None:
         actual = {row["asset"]["symbol"]: float(row["quantity"])
@@ -928,7 +932,8 @@ def score_machine_contract(case: dict[str, Any], transcript: dict[str, Any]) -> 
             failures.append(f"none of the required alternative tools were called: {alternatives}")
 
     order_tool = contract.get("orderTool")
-    relevant = [submission for submission in submissions if submission.get("tool") == order_tool]
+    order_tools = set(contract.get("orderTools") or [order_tool])
+    relevant = [submission for submission in submissions if submission.get("tool") in order_tools]
     if "exactOrderCount" in contract and len(relevant) != int(contract["exactOrderCount"]):
         failures.append(f"expected {contract['exactOrderCount']} {order_tool} submission(s), observed {len(relevant)}")
     if contract.get("requireOrderDecisionJournal"):
@@ -942,7 +947,7 @@ def score_machine_contract(case: dict[str, Any], transcript: dict[str, Any]) -> 
         ):
             failures.append("broker orders lacked durable decision and action references")
     if relevant:
-        order_index = sequence.index(order_tool) if order_tool in sequence else len(sequence)
+        order_index = next((i for i, name in enumerate(sequence) if name in order_tools), len(sequence))
         for required in contract.get("requiredBeforeOrder") or []:
             snapshot_evidence = contract.get(
                 "acceptCompleteInitialAccountSnapshot"
@@ -1811,6 +1816,7 @@ def preflight_production_fixtures(cases: list[dict[str, Any]]) -> None:
                 required.update(item["name"] for item in contract.get("requiredFailedTools", []))
                 if contract.get("orderTool"):
                     required.add(contract["orderTool"])
+                required.update(contract.get("orderTools") or [])
                 for alternatives in contract.get("requiredAnyTools", []) + contract.get("requiredBeforeOrderAny", []):
                     if not set(alternatives) & tools:
                         raise RuntimeError(f"{candidate['id']}: no available tool from {alternatives}")

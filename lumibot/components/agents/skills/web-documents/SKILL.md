@@ -126,15 +126,20 @@ number against the calculation output rather than recomputing it in prose.
 Before returning the answer, audit the final table against the source rows:
 each holding needs its own instrument evidence, and an issuer heading must not
 become an extra holding beside its instrument details. Audit the final citations
-too. For structured sources, use a compact final query returning the document
-ID and one fully formatted publication timestamp for every source you will
-cite, including any excluded source whose time you report. Copy that complete
-timestamp into the answer as one value; do not separately reconstruct its clock
-and zone. Prefer the original timestamp verbatim. If UTC is needed, return a
-formatted UTC string through SQL and copy it instead. Reporting both local and
-UTC forms is unnecessary unless requested. Match each final document ID and
-timestamp to the same returned row. A correct eligibility decision does not
-excuse a mislabeled citation.
+too. For structured sources, use a compact final query returning each document
+ID and its original publication timestamp directly, including any excluded
+source whose time you report. Copy that complete source value unchanged. For
+computed availability, such as a date-only next-day assumption, select the
+typed TIMESTAMPTZ value itself and copy the tool's serialized value with its
+offset. Do not reformat it just for the citation. A displayed local offset is
+part of that value, not a reason to replace its suffix with `Z` or label it UTC.
+Only convert to UTC when the task requires UTC output, using an explicit
+`AT TIME ZONE 'UTC'` conversion before formatting. DuckDB's `strftime` on a
+TIMESTAMPTZ uses the session timezone: a literal `Z` in its format does not
+convert the instant. Reporting both local and UTC forms is unnecessary unless
+requested. Match each final document ID and complete timestamp to the same
+returned row. A correct eligibility decision does not excuse a mislabeled
+citation.
 
 ## Historical eligibility comes before reading linked documents
 
@@ -165,11 +170,12 @@ In citations, retain the source timestamp with its explicit offset. If you
 display UTC instead, obtain that UTC representation with an actual timezone
 conversion and copy the returned value; a local clock reading must not be
 relabeled UTC simply because the query column was named that way.
-For a mixed-offset table, prefer also returning an explicit UTC string:
+Mixed-offset tables can retain their original timestamp strings in results and
+read arguments; typed SQL compares their instants without rewriting them.
+When the task requires UTC output, use this explicit conversion before formatting:
 `strftime(TRY_CAST(publication_time AS TIMESTAMPTZ) AT TIME ZONE 'UTC', '%Y-%m-%dT%H:%M:%SZ')`.
-Use the real source column in place of `publication_time`. Copy that computed
-UTC string into the read arguments rather than comparing local clock labels
-with a UTC cutoff in your head. An unfiltered diagnostic query does not add
+Use the real source column in place of `publication_time` and copy the complete
+returned string. An unfiltered diagnostic query does not add
 eligible documents to the already filtered read list.
 
 For tables, use typed SQL such as

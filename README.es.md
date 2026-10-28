@@ -1,4 +1,4 @@
-<!-- entry-source-sha256: 5b732c279d9628ef9355c3c2c17fbcd268393bf84b752f6f2eac33bbfeb3137f -->
+<!-- entry-source-sha256: 8ecf9bafe56a350f0394f277d4c890a90762d87262cbda98cad00a25b44b4460 -->
 
 # LumiBot AI Trading
 
@@ -48,6 +48,9 @@ BotSpot MCP ofrece habilidades de desarrollo, datos de investigación gratuitos,
 **[Conecta tu asistente de IA](https://botspot.trade/agents)**
 
 Para ayuda local de programación, instala las [habilidades gratuitas de LumiBot](https://github.com/Lumiwealth/lumibot-trading-skills). Para herramientas de investigación dentro de la estrategia, consulta la [guía de BotSpot MCP](https://lumibot.lumiwealth.com/botspot_mcp.html).
+
+
+Para dar herramientas de investigación a los agentes de la estrategia, ejecuta `lumibot connect botspot`. Pueden consultar datos y documentos y leer la información permitida del marketplace y la comunidad. LumiBot también funciona por sí solo.
 
 ## Explora el framework
 

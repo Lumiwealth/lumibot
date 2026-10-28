@@ -86,7 +86,7 @@ To disconnect, use your client's connector controls. Revoke any separate
 BotSpot API key through BotSpot Account Settings.
 
 LumiBot strategy agents
-----------------------
+-----------------------
 
 Create a named key in BotSpot's API Keys settings. Enable the independent public
 research, Marketplace and Community-read permissions you need. Leave trading,
@@ -118,36 +118,38 @@ have, or ``--paste`` to paste one made on the website. If the BotSpot server
 you point at does not offer code login yet, the command falls back to the key
 page flow. Connecting is free.
 
-LumiBot attaches that connection when you create a strategy agent. Static keys
-do not need a renewal URL. BotSpot-hosted runtimes supply their own short-lived
-capability and renewal endpoint; never copy those runtime tokens elsewhere.
-Endpoints require HTTPS outside loopback, and renewal must use the same origin.
-Never put credentials in a URL, query string or fragment.
+LumiBot attaches the connection when you create a strategy agent. Static keys
+need no renewal URL. The configured MCP transport supports HTTP, private/local
+servers, username/password authentication and endpoint query parameters. Use
+HTTPS when available to protect credentials in transit, keep secrets out of
+source control and logs, and use the server's supported authentication settings.
 
-The connection discovers datasets through ``search_data_catalog`` and reads
-structured observations with ``query_data`` or documents with
-``search_documents`` and ``get_document``. It also reads permitted Marketplace
-listings, code and accounts, and the Community feed. Protected code and private
-positions retain the owner's sharing and purchase rules.
+What your strategy agent gains
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-In a backtest, LumiBot limits research requests to the strategy's actual UTC
-clock. Hosted server authorization must also verify that simulation clock; an
-authenticated backtest workload alone does not establish the current timestamp.
-Without a trusted server clock binding, time-dependent reads return
-``unsupported_capability`` before fetching data. Never bypass this by requesting
-live data or substituting an external key.
-Sources without original-version and publication-time proof return a visible
-``unsupported_capability`` error. Calendar dates or today's revised economic
-tables do not establish what was available historically. Record missing
-evidence and the provider used; changing a news source requires a new backtest.
+* **Discover data:** use ``search_data_catalog`` and dataset descriptions to find
+  available economics, news and SEC research. Availability depends on the source.
+* **Read evidence:** use ``query_data``, ``search_documents`` and ``get_document``
+  for observations and source documents, without wiring each supplier into the strategy.
+* **Learn from other builders:** inspect permitted Marketplace descriptions,
+  shared code and account information, and read Community discussions. Private
+  code and account data follow their owner's sharing and purchase permissions.
 
-Edit the same independent switches to narrow a key or revoke it on the existing
-API Keys page. Hosted bot settings are separate from key creation; disabling
-hosted research or revoking a selected key denies that hosted access too.
-Community publication requires separate explicit account, key and bot consent.
-BotSpot owns supplier credentials, normalization, storage and source qualification;
-LumiBot is the client. Research access never grants deployment, backtest-control,
-trading or secret-management authority.
+In backtests, LumiBot bounds requests to simulated time. A date range remains
+optional; a supplied range is clamped rather than added to every request.
+Missing timestamps, date-only values and imperfect coverage do not disable the
+connection. Agents can use available evidence, explain reasonable date estimates
+and disclose uncertainty. They must not use information known to be from the
+future or present revised/current data as an exact historical snapshot. A source
+may return ``unsupported_capability`` for a historical form it cannot provide;
+that is a limitation of that request, not a reason to shut down all research.
+Live research has no backtest publication-date rule.
+
+The research connection adds tools to a running strategy. Your external coding
+assistant can separately use BotSpot MCP for free strategy-building skills,
+backtest submission/results and deployment workflows. Hosted compute and heavier
+usage depend on your plan; connecting is free. See the setup instructions above.
+LumiBot also works independently with its existing broker and research tools.
 
 Frequently asked questions
 --------------------------

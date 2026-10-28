@@ -1,4 +1,4 @@
-<!-- entry-source-sha256: 5b732c279d9628ef9355c3c2c17fbcd268393bf84b752f6f2eac33bbfeb3137f -->
+<!-- entry-source-sha256: 8ecf9bafe56a350f0394f277d4c890a90762d87262cbda98cad00a25b44b4460 -->
 
 # LumiBot AI Trading
 
@@ -48,6 +48,9 @@ BotSpot MCP bietet Strategie-Skills, kostenlose Forschungsdaten, Backtests mit C
 **[Verbinde deinen KI-Assistenten](https://botspot.trade/agents)**
 
 Für lokale Programmierhilfe gibt es die [kostenlosen LumiBot-Trading-Skills](https://github.com/Lumiwealth/lumibot-trading-skills). Forschungswerkzeuge innerhalb einer Strategie erklärt der [BotSpot-MCP-Leitfaden](https://lumibot.lumiwealth.com/botspot_mcp.html).
+
+
+Mit `lumibot connect botspot` erhalten Strategieagenten Forschungswerkzeuge für Daten, Dokumente und erlaubte Marketplace- und Community-Inhalte. LumiBot funktioniert auch eigenständig.
 
 ## Framework erkunden
 

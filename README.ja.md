@@ -1,4 +1,4 @@
-<!-- entry-source-sha256: 5b732c279d9628ef9355c3c2c17fbcd268393bf84b752f6f2eac33bbfeb3137f -->
+<!-- entry-source-sha256: 8ecf9bafe56a350f0394f277d4c890a90762d87262cbda98cad00a25b44b4460 -->
 
 # LumiBot AI Trading
 
@@ -48,6 +48,9 @@ BotSpot MCP では戦略構築スキル、無料の調査データ、チャー�
 **[AI アシスタントを接続](https://botspot.trade/agents)**
 
 ローカルでのコーディング支援には無料の [LumiBot トレーディングスキル](https://github.com/Lumiwealth/lumibot-trading-skills) を利用できます。戦略内の調査ツールは [BotSpot MCP ガイド](https://lumibot.lumiwealth.com/botspot_mcp.html) を参照してください。
+
+
+戦略内のエージェントに調査ツールを追加するには、`lumibot connect botspot` を実行します。データや文書、権限のある Marketplace・Community 情報を参照できます。LumiBot は単独でも動作します。
 
 ## フレームワークを調べる
 

@@ -1,6 +1,6 @@
 # Changelog
 
-## 4.6.32 - 2026-10-27
+## 4.6.33 - 2026-10-27
 
 ### Added
 - Indicator v2 (`lumibot.indicators.Indicator`): indicators that process one bar at a time with forming-bar rollback (state advances only on closed bars), `compute()` equal to the update loop, `snapshot()`/`restore()`, typed input/output/level schemas and `describe()` for chart UIs and AI agents. Built-ins follow TradingView Pine v6 math: `sma`, `ema`, `rsi`, `macd`, `bbands`, `atr`, `stoch`, `vwap`; every built-in update is O(1) per bar. New `lumibot.indicators.registry` (`get(key, version)`, `list()`, `create()`, `register()`, immutable versions), `IndicatorRunner` for running indicators outside a strategy through any data source's `get_historical_prices` with live `on_bar(bar, closed)`, and `self.indicators.get(key, asset, version=, **inputs)` inside strategies (streams new bars instead of recomputing history; existing `self.indicators` calls are unchanged). Docs: new "Building indicators" page.
@@ -11,6 +11,10 @@
 ### Fixed
 - Bitunix history: a spot request that names the whole pair (`BTCUSDT`, `BTC-USDT`, `BTC/USDT`) no longer asks the exchange for `BTCUSDTUSDT`, and LumiBot timestep names such as `"15 minutes"`, `"2 hours"` and `"1 day"` map to the matching Bitunix interval. An unknown timestep now raises instead of silently returning one-minute bars.
 - CCXT history loads on exchanges that reject the default page size. The pager starts from the per-market-type maximum CCXT advertises, steps through common sizes when the exchange answers a request with `BadRequest`, and keeps the size that worked; other errors still raise. New `scripts/check_ccxt_history.py` checks public history on any or every CCXT exchange.
+
+## 4.6.32 - 2026-10-27
+
+### Fixed
 - First-iteration live order notifications survive competing background and iteration queue drains. Queued startup events remain suppressed, foreign-order filtering remains active, and callbacks are serialized with reentrant queue handling. Priority callback tests use controlled events instead of elapsed-time acceptance targets.
 - HTTP and dataframe test doubles patch their real modules so pytest restoration cannot remove shared methods or constructors. Entry pages keep the runnable AI example before the hero image and retain the execution explanation in every localized summary.
 - The README and documentation homepage lead with native AI trading, backtesting and the same strategy across backtests and broker runs. Strategy choices link to their examples, BotSpot MCP has a short introduction and a separate setup section, and all eight localized README summaries are synchronized with a checked source fingerprint.

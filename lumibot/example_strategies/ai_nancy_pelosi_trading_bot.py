@@ -32,7 +32,10 @@ class NancyPelosiTradingBot(Strategy):
                 "holding, not merely a share subtraction from an uncertain baseline estimate. Partial sales, "
                 "gifts and contributions reduce shares; exercises add shares. Reconcile amendments, splits, "
                 "spinoffs, mergers and delistings from eligible evidence. Do not apply an estimated spinoff again "
-                "when a later filing confirms it. Resolve current listings and historical ticker aliases. "
+                "when a later filing confirms it. Return BOTH snapshot and as_of tickers for every issuer. "
+                "Resolve renamed listings from dated issuer announcements; a stopped ticker is not an exited issuer. "
+                "For Block, only on/after 2025-01-09 check its dated ticker announcement at "
+                "https://investors.block.xyz/investor-news/news-details/2025/Block-Announces-Ticker-Symbol-Change-to-XYZ-To-Report-Fourth-Quarter-Results/default.aspx; apply changes only when effective by as_of. "
                 "Return one compact FULL ledger with every included issuer, numeric baseline bounds, valuation "
                 "date, dated share changes or full-exit status, sources, applied IDs and latest filing checked. "
                 "Check new filings every iteration. Without new evidence retain the full prior ledger with "
@@ -55,14 +58,15 @@ class NancyPelosiTradingBot(Strategy):
                 "Target 99% of current account capital with a joint cash-aware allocation. Buy the complete "
                 "feasible basket initially, without waiting for a new disclosure. Small positions are part of "
                 "replication, not discretionary conviction bets. For a positive allocation smaller than one "
-                "share, prefer one whole share when the joint budget can fund it; fund that small tracking "
-                "difference from larger allocations and disclose rounding. Never short, overspend or use margin. "
+                "share, prefer one whole share using unspent joint cash above the reserve first; trim larger "
+                "allocations only if funding requires it and disclose rounding. Never short, overspend or use margin. "
                 "Reconcile every positive source name against targets and actual holdings. On quiet days leave "
                 "established holdings within 2 percentage points of target alone, after all feasible constituents "
                 "are held. Complete missing holdings with funding trims when needed. New eligible disclosures "
                 "require rebalancing the updated whole basket, including additions and full exits even when "
-                "individual drift is small. Leave genuinely unpriced or unaffordable allocations in cash while "
-                "matching the supported remainder. Preserve supported holdings if research fails; nothing new "
+                "individual drift is small. Use the researched as_of listing for current quotes and snapshot ticker for old prices. "
+                "For a still-unpriced issuer, use its baseline value midpoint as a labeled denominator proxy and reserve "
+                "that estimated allocation in cash; complete the supported remainder. Preserve supported holdings if research fails; nothing new "
                 "is not a liquidation signal. Report complete target versus actual weights, fills, cash and "
                 "specific unresolved exceptions."
             ),
@@ -72,7 +76,7 @@ class NancyPelosiTradingBot(Strategy):
         as_of = self.get_datetime().isoformat()
         previous = self.vars.get("last_research", "none yet")
         research = self.agents["researcher"].run(
-            task_prompt="Return the complete numeric source ledger, inventory audit, eligible changes and newly checked filings.",
+            task_prompt="Return the complete numeric source ledger with snapshot and as_of tickers, inventory audit, eligible changes and newly checked filings.",
             context={"as_of": as_of, "your_last_answer": previous},
         )
         self.vars.set("last_research", research.summary)

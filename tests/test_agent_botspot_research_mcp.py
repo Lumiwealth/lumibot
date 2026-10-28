@@ -52,11 +52,11 @@ class _Runtime:
 
 
 def _configure_hosted_research(monkeypatch):
-    monkeypatch.setenv("BOTSPOT_RESEARCH_MCP_URL", "https://api.test.botspot.trade/research-mcp")
+    monkeypatch.setenv("BOTSPOT_RESEARCH_MCP_URL", "https://research.example.test/research-mcp")
     monkeypatch.setenv("BOTSPOT_RESEARCH_MCP_TOKEN", "research-token")
     monkeypatch.setenv(
         "BOTSPOT_RESEARCH_MCP_RENEW_URL",
-        "https://api.test.botspot.trade/saved-secrets/research-runtime-capabilities/renew",
+        "https://research.example.test/renew",
     )
 
 
@@ -70,7 +70,7 @@ def test_hosted_research_capability_auto_attaches_the_shared_research_preset(mon
     # Community is one mixed-action tool; its write scopes are enforced by Node.
     assert server.exposed_tools == _RESEARCH_PRESET_TOOL_NAMES
     assert server.auth_token_env == "BOTSPOT_RESEARCH_MCP_TOKEN"
-    assert server.auth_token_refresh_url.endswith("/research-runtime-capabilities/renew")
+    assert server.auth_token_refresh_url.endswith("/renew")
 
 
 @pytest.mark.parametrize("renew_url", [None, "", "  "])
@@ -98,7 +98,7 @@ def test_external_static_research_key_auto_attaches_without_a_renewal_endpoint(m
 
 @pytest.mark.parametrize(
     "renew_url",
-    ["https://attacker.example/renew", "http://api.test.botspot.trade/renew", "not-a-url"],
+    ["https://attacker.example/renew", "http://research.example.test/renew", "not-a-url"],
 )
 def test_auto_attachment_rejects_a_supplied_unsafe_renewal_endpoint(monkeypatch, renew_url):
     _configure_hosted_research(monkeypatch)
@@ -118,10 +118,10 @@ def test_auto_attachment_rejects_a_supplied_unsafe_renewal_endpoint(monkeypatch,
 @pytest.mark.parametrize(
     "endpoint",
     [
-        "http://api.test.botspot.trade/research-mcp",
-        "https://user:private-url-secret@api.test.botspot.trade/research-mcp",
-        "https://api.test.botspot.trade/research-mcp?region=us&tenant=research",
-        "https://api.test.botspot.trade/research-mcp#research",
+        "http://research.example.test/research-mcp",
+        "https://user:private-url-secret@research.example.test/research-mcp",
+        "https://research.example.test/research-mcp?region=us&tenant=research",
+        "https://research.example.test/research-mcp#research",
         "http://10.0.0.10:8080/research-mcp?region=us",
     ],
 )
@@ -250,7 +250,7 @@ def test_remote_mcp_contract_failure_warns_once_and_keeps_legacy_payload_shape(m
 
 
 def test_partial_hosted_configuration_warns_once_without_changing_ordinary_execution(monkeypatch):
-    monkeypatch.setenv("BOTSPOT_RESEARCH_MCP_URL", "https://api.test.botspot.trade/research-mcp")
+    monkeypatch.setenv("BOTSPOT_RESEARCH_MCP_URL", "https://research.example.test/research-mcp")
     monkeypatch.delenv("BOTSPOT_RESEARCH_MCP_TOKEN", raising=False)
     monkeypatch.delenv("BOTSPOT_RESEARCH_MCP_RENEW_URL", raising=False)
     strategy = _Strategy()

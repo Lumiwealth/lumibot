@@ -1584,7 +1584,7 @@ class AgentHandle:
                         hour=23, minute=59, second=59, microsecond=999999, tzinfo=timezone.utc
                     )
                 else:
-                    # Node's ISO contract permits compact offsets. Python 3.10
+                    # The server's ISO contract permits compact offsets. Python 3.10
                     # requires their colon; preserve the instant before parsing.
                     normalized = re.sub(r"([+-]\d{2})(\d{2})$", r"\1:\2", requested_as_of)
                     requested = datetime.fromisoformat(normalized.replace("Z", "+00:00"))

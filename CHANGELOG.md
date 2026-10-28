@@ -111,7 +111,7 @@ Qualification: 6,330 offline unit tests, 316 offline backtests and 719 affected 
 - AI agents may use sources with no date in backtests. They still prefer dated sources and never open a document known to be from after the backtest time, but an undated page or file is now used with an estimated publication date that the agent discloses, instead of being refused. The web-documents and research-data skills, the backtest rules in the agent prompt and the `read_document` description say so. Live trading applies no publication-date rules, and the backtest-only document-manifest rule no longer appears in live prompts. New evals: `web_documents_undated_source_estimated_date`, `web_documents_known_future_document_not_opened`, `web_documents_live_undated_source_used_freely`.
 
 ### Fixed
-- Interactive Brokers Client Portal history no longer goes through the shared bar cache. The gateway answers "the last N bars" in trading time (at night a one-minute read returns the 16:00 bar), which the cache's calendar windows filtered away: 4.6.25 and 4.6.26 returned no bars for those reads (Bot Manager Dev scheduled smoke, Oct 23). Reads go straight to the gateway as before.
+- Interactive Brokers Client Portal history no longer goes through the shared bar cache. The gateway answers "the last N bars" in trading time (at night a one-minute read returns the 16:00 bar), which the cache's calendar windows filtered away: 4.6.25 and 4.6.26 returned no bars for those reads. Reads go straight to the gateway as before.
 - The shared bar cache never builds a connection scope from a provider name alone; without an account or key a read is not shared.
 - Bitunix HEDGE mode: a long and a short position on the same symbol are tracked as two positions with `position_side` and `position_id` (the exchange `positionId`). Before, a snapshot holding both raised and positions could not sync. Closing selects the right `positionId`, closing without a selector closes both, and opening and polled orders record the position they trade. Single-position behavior is unchanged.
 - Position sync updates a tracked position that has no side yet in place when the broker first reports its side, keeping its strategy owner, instead of replacing it with an ownerless copy.
@@ -527,7 +527,7 @@ Deploy marker: `3abbf8fcbd64` (original 4.5.92 marker)
 - Added an optional Patchright browser runtime with persistent profiles, JavaScript interaction, multi-tab control, scoped login credentials, managed uploads/downloads, storage-state export, screenshots, and action receipts.
 - Added an optional Camoufox browser engine plus reproducible lifecycle,
   fingerprint, latency, and memory qualification. No hosted default is selected
-  until an engine passes the exact Linux ARM64 Bot Manager gate.
+  until an engine passes the Linux ARM64 integration checks.
 - Added independently allowlisted Resend email and Slack communication tools.
   Historical runs use explicit fixtures for reads and can never force a live
   send; attempted writes produce structured simulation receipts.
@@ -1242,7 +1242,7 @@ Deploy marker: `deploy 4.5.76`
   still fails explicitly when neither source has a valid positive price.
 - **Scheduled lazy credentials preserve legacy lowercase exports.** Explicit
   imports of `broker` and `data_source` now resolve through the same cached lazy
-  getters as `BROKER` and `DATA_SOURCE`, so existing scheduled Bot Manager
+  getters as `BROKER` and `DATA_SOURCE`, so existing scheduled
   workloads no longer capture `None` while import-only startup remains lazy.
 - **Temporary broker balance-read failures no longer look like strategy failures.**
   A skipped cloud account snapshot is now logged as a warning that explains no
@@ -1263,8 +1263,8 @@ Deploy marker: `deploy 4.5.76`
 ### Documentation
 - **Release operations now require explicit publishing authority and verifiable
   downstream rebuilds.** The deployment runbook records the release approval
-  boundary, mandatory next-version checkout verification, and forced Bot Manager
-  image rebuild requirement for every LumiBot version bump.
+  boundary, next-version verification, and downstream runtime rebuild
+  requirements for every LumiBot version bump.
 - **The README Star History chart renders correctly in light and dark themes.**
 
 ## 4.5.75 - Unreleased

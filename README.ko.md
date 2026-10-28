@@ -1,4 +1,4 @@
-<!-- entry-source-sha256: 8ecf9bafe56a350f0394f277d4c890a90762d87262cbda98cad00a25b44b4460 -->
+<!-- entry-source-sha256: 7e4b9f55cd1699da8c65e25a9decaff4608e9ba1e7bf7bc06e5ffb5bcca95206 -->
 
 # LumiBot AI Trading
 
@@ -21,6 +21,16 @@ LumiBot은 트레이딩 봇을 만드는 무료 오픈소스 Python 프레임워
 ## BotSpot MCP로 더 빠르게 구축
 
 어시스턴트를 무료로 연결하면 LumiBot 전략 작성 스킬, 조사 데이터, 백테스트 및 배포 도구를 사용할 수 있습니다. [제공되는 기능 확인](#ai-어시스턴트-연결).
+
+## 에이전트에 슈퍼파워를 더하세요 — 무료 연결
+
+LumiBot 전략에 BotSpot MCP를 연결하면 경제 데이터, 뉴스, SEC 문서, Marketplace 전략과 Community 지식을 활용할 수 있습니다.
+
+![에이전트에 슈퍼파워를 더하세요 — 무료 연결](docs/assets/readme/botspot_mcp_superpowers.png)
+
+이미 도우미를 BotSpot에 연결했나요? “이 LumiBot 프로젝트를 BotSpot MCP에 연결해 줘”라고 요청하세요. 도우미가 API 키를 만들고 설정을 저장할 수 있습니다.
+
+**[에이전트 연결하기](https://lumibot.lumiwealth.com/botspot_mcp.html)**
 
 ## 전략을 만드는 세 가지 방법
 
@@ -48,9 +58,6 @@ BotSpot MCP는 전략 작성 스킬, 무료 조사 데이터, 차트가 포함�
 **[AI 어시스턴트 연결](https://botspot.trade/agents)**
 
 로컬 코딩 지원에는 무료 [LumiBot 트레이딩 스킬](https://github.com/Lumiwealth/lumibot-trading-skills)을 사용할 수 있습니다. 전략 내부 조사 도구는 [BotSpot MCP 가이드](https://lumibot.lumiwealth.com/botspot_mcp.html)를 참고하세요.
-
-
-전략 에이전트에 리서치 도구를 추가하려면 `lumibot connect botspot`을 실행하세요. 데이터, 문서와 허용된 Marketplace 및 Community 정보를 읽을 수 있습니다. LumiBot은 독립적으로도 사용할 수 있습니다.
 
 ## 프레임워크 살펴보기
 

@@ -111,9 +111,19 @@ python -m lumibot.example_strategies.ai_researcher_trader
 
 **Recorded run (made with Gemini):** the existing two-agent example has [source, decisions and trade records](docs/assets/ai-trading/spy-20260913/README.md). These are historical results, separate from the single-agent example above.
 
+## Give your agents superpowers—for free
+
+**Add BotSpot MCP to your LumiBot strategy.** Your AI agents get economic data,
+news and SEC documents, Marketplace strategies and Community knowledge through
+one free connection.
+
 <p align="center">
-  <img src="docs/assets/ai-trading/benefit-hero.png" alt="LumiBot combines market data, AI reasoning and trading strategies, with Python rules, AI agents or both" width="640">
+  <img src="docs/assets/readme/botspot_mcp_superpowers.png" alt="BotSpot MCP gives LumiBot agents Research, Marketplace and Community tools. Free to connect." width="640">
 </p>
+
+Already connected BotSpot to Codex, Claude Code or Cursor? Tell it:
+**“Connect this LumiBot project to BotSpot MCP.”** It can create the key and save
+the settings for you. **[Give your agents superpowers](https://lumibot.lumiwealth.com/botspot_mcp.html)**.
 
 ## Backtest a strategy
 

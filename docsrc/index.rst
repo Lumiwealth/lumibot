@@ -87,11 +87,22 @@ team. To run that existing example directly:
 
    python -m lumibot.example_strategies.ai_researcher_trader
 
-.. image:: ../docs/assets/ai-trading/benefit-hero.png
-   :alt: LumiBot combines market data, AI reasoning and trading strategies, with Python rules, AI agents or both
+Give your agents superpowers—for free
+*************************************
+
+**Add BotSpot MCP to your LumiBot strategy.** Give its AI agents economic data,
+news and SEC documents, Marketplace strategies and Community knowledge through
+one free connection.
+
+.. image:: ../docs/assets/readme/botspot_mcp_superpowers.png
+   :alt: BotSpot MCP gives LumiBot agents Research, Marketplace and Community tools. Free to connect.
    :width: 640px
    :align: center
    :class: lumibot-entry-hero
+
+Already connected BotSpot to your coding assistant? Tell it: **“Connect this
+LumiBot project to BotSpot MCP.”** It can create the key and save the settings
+for you. :doc:`Get your agents connected <botspot_mcp>`.
 
 .. _first-python-backtest:
 

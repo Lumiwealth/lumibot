@@ -2,6 +2,8 @@
 
 ## 4.6.34 - 2026-10-28
 
+Deploy marker: `5785a912c741c85f9dee909456c31d3c6d623266`.
+
 ### Fixed
 - Incomplete optional agent history, indicator and quote research returns visible, recoverable limitations without invalidating unrelated healthy execution. Direct strategy and portfolio-valuation data remain required.
 - Historical FRED requests use the previous completed Chicago calendar vintage and disclose date-only timing limits, preventing morning decisions from using the same day's closing values.

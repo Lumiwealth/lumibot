@@ -108,6 +108,7 @@ class CompletionCheckedStream(httpx.AsyncByteStream):
     async def __aiter__(self) -> AsyncGenerator[bytes, None]:
         pending = b""
         complete = False
+        arguments_seen = set()
         async for chunk in self.delegate:
             pending += chunk
             while b"\n" in pending:
@@ -116,6 +117,24 @@ class CompletionCheckedStream(httpx.AsyncByteStream):
                     data = line[5:].strip()
                     if data and data != b"[DONE]":
                         event = json.loads(data)
+                        item = event.get("item") or {}
+                        item_id = event.get("item_id") or item.get("id")
+                        event_type = event.get("type")
+                        if (event_type == "response.function_call_arguments.delta" and event.get("delta")) or (
+                            event_type == "response.output_item.added" and item.get("type") == "function_call"
+                            and item.get("arguments")
+                        ):
+                            arguments_seen.add(item_id)
+                        # Some plan responses send complete arguments without deltas.
+                        # LiteLLM 1.105 ignores the done event; supply its missing
+                        # delta once, preserving normal streamed arguments verbatim.
+                        if event_type == "response.function_call_arguments.done":
+                            arguments = event.get("arguments")
+                            if item_id and arguments and item_id not in arguments_seen:
+                                arguments_seen.add(item_id)
+                                delta = {"type": "response.function_call_arguments.delta", "item_id": item_id,
+                                         "output_index": event["output_index"], "delta": arguments}
+                                yield b"data: " + json.dumps(delta).encode() + b"\n\n"
                         if event.get("type") in {"error", "response.failed", "response.incomplete"}:
                             error = event.get("error") or event.get("response", {}).get("error") or {}
                             self.failure = SubscriptionModelResponseError(error.get("code") or event.get("code") or "unknown")
@@ -130,7 +149,9 @@ class CompletionCheckedStream(httpx.AsyncByteStream):
                                 except Exception as error:
                                     self.failure = error
                                     raise
-            yield chunk
+                yield line + b"\n"
+        if pending:
+            yield pending
         if not complete:
             self.failure = SubscriptionModelResponseError("subscription_stream_incomplete")
             raise self.failure

@@ -483,7 +483,8 @@ def test_actual_adk_subscription_transport_owns_stream_validation(monkeypatch, t
 
 @pytest.mark.parametrize('runner_mode', [False, True])
 @pytest.mark.parametrize("content_type", ["text/event-stream", None])
-def test_stateless_tool_continuation_replays_opaque_reasoning_and_function_items(monkeypatch, tmp_path, runner_mode, content_type):
+@pytest.mark.parametrize('argument_mode', ['delta', 'done_only'])
+def test_stateless_tool_continuation_replays_opaque_reasoning_and_function_items(monkeypatch, tmp_path, runner_mode, content_type, argument_mode):
     """ADK drops Responses reasoning metadata; assert the actual second wire body."""
     import asyncio
 
@@ -504,6 +505,7 @@ def test_stateless_tool_continuation_replays_opaque_reasoning_and_function_items
     parallel_call = {**call, 'id': 'fc_parallel', 'call_id': 'call_parallel', 'arguments': '{"series":"RATE"}'}
     original_output = [reasoning, commentary, call, parallel_call] if runner_mode else [reasoning, call]
     requests = []
+    observed = []
     def handle(request):
         body = json.loads(request.content)
         requests.append(body)
@@ -528,8 +530,11 @@ def test_stateless_tool_continuation_replays_opaque_reasoning_and_function_items
                         events.extend([
                             {'type': 'response.output_item.added', 'output_index': index,
                              'item': {**tool_call, 'arguments': '', 'status': 'in_progress'}},
-                            {'type': 'response.function_call_arguments.delta', 'item_id': tool_call['id'],
-                             'output_index': index, 'delta': tool_call['arguments']},
+                            {'type': 'response.function_call_arguments.' + ('delta' if argument_mode == 'delta' else 'done'),
+                             'item_id': tool_call['id'], 'output_index': index,
+                             ('delta' if argument_mode == 'delta' else 'arguments'): tool_call['arguments']},
+                            {'type': 'response.function_call_arguments.done', 'item_id': tool_call['id'],
+                             'output_index': index, 'arguments': tool_call['arguments']},
                             {'type': 'response.output_item.done', 'output_index': index, 'item': tool_call},
                         ])
                 else:
@@ -547,6 +552,7 @@ def test_stateless_tool_continuation_replays_opaque_reasoning_and_function_items
         from google.adk.runners import InMemoryRunner
         def get_evidence(series: str) -> dict:
             """Return recorded economic evidence for the requested series."""
+            observed.append(series)
             return {'value': 2.5 if series == 'CPI' else 4.0}
         runner = InMemoryRunner(agent=LlmAgent(name='researcher', model=model, tools=[get_evidence]), app_name='replay-contract')
         await runner.session_service.create_session(app_name=runner.app_name, user_id='synthetic', session_id='test')
@@ -558,12 +564,14 @@ def test_stateless_tool_continuation_replays_opaque_reasoning_and_function_items
         assert first[-1].usage_metadata.cached_content_token_count == 3
         assert first[-1].usage_metadata.thoughts_token_count == 1
         function = next(p.function_call for p in first[-1].content.parts if p.function_call)
+        assert function.args == {'series': 'CPI'}
         request.contents.extend([first[-1].content, types.Content(role='user', parts=[
             types.Part(function_response=types.FunctionResponse(id=function.id, name=function.name,
                                                                 response={'value': 2.5}))])])
         return [r async for r in model.generate_content_async(request)]
     if runner_mode:
         asyncio.run(run_runner())
+        assert observed == ['CPI', 'RATE']
     else:
         assert asyncio.run(run())[-1].content.parts[0].text == 'done'
     # The opaque provider item must not be exposed in ADK public response metadata.

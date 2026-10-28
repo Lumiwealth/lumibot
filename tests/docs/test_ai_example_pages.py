@@ -96,10 +96,18 @@ def test_page_follows_the_contract(slug):
     assert lines[0] == title and set(lines[1]) == {"="}
 
     head = text.split("\nHow it works\n", 1)[0]
-    assert ".. image:: ../docs/assets/" in head
-    image = head.split(".. image:: ", 1)[1].split("\n", 1)[0]
-    assert (DOCS / image).resolve().is_file(), image
-    description = head.split(":width: 100%", 1)[1].strip()
+    if slug == "agents_example_iron_condor_ai_trading_bot":
+        # The approved hybrid makes Python the execution owner. The old image
+        # incorrectly shows the AI placing trades and handling required exits.
+        # Keep that misleading illustration out until accurate artwork exists.
+        assert "iron-condor-ai-trading-bot.png" not in text
+        assert "planner cannot place orders" in head
+        description = head.split(":description:", 1)[1].strip()
+    else:
+        assert ".. image:: ../docs/assets/" in head
+        image = head.split(".. image:: ", 1)[1].split("\n", 1)[0]
+        assert (DOCS / image).resolve().is_file(), image
+        description = head.split(":width: 100%", 1)[1].strip()
     assert len(description.split()) >= 25, "needs a plain-English description before How it works"
 
     sections = _sections(text)

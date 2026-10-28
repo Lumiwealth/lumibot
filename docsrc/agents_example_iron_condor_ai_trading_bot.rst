@@ -2,49 +2,104 @@ AI Iron Condor Trading Bot
 ==========================
 
 .. meta::
-   :description: Build an AI iron condor bot for SPY with LumiBot. Sell next-day spreads at 3:45 PM, skip high-VIX days, and check a Python early exit. Free strategy code and backtest results.
+   :description: A hybrid SPY iron condor: Luna selects next-session contracts, while Python sizes, monitors and closes each package without repeated AI calls.
 
-.. image:: ../docs/assets/ai-agent-workflows/iron-condor-ai-trading-bot.png
-   :alt: At 3:45 PM the trading agent sells a one-day SPY iron condor; plain Python watches SPY and wakes the agent to close early
-   :width: 100%
-
-This bot sells an iron condor on SPY every afternoon. An iron condor is a bet that SPY stays inside a price range until the next day's close. You collect cash up front, and the protective options cap how much you can lose. It copies the core of our older Iron Condor bot, which sold a one-day condor at 3:45 PM and did best when it closed early once SPY ran toward a strike. Why this trade? Over about 35 years, Cboe's iron condor index had a worst drop of 19%, compared with 51% for the S&P 500 (`Cboe <https://www.cboe.com/insights/posts/benchmark-indices-series-volatility-management-with-cboes-bfly-and-cndr-indices/>`__).
+This example separates a daily AI decision from frequent numerical monitoring.
+The planner proposes a next-session SPY iron condor or skips the session.
+Python validates the contracts, submits the order and manages the actual
+positions. The planner cannot place orders.
 
 How it works
 ------------
 
-1. At 3:45 PM each trading day, the **trading agent** checks yesterday's VIX close. If the VIX is above 25, it skips the day.
-2. Otherwise it sells a SPY iron condor that expires the next trading day: a put and a call near 0.14 delta, each with a protective option $1 farther out. It sizes the trade so the most it can lose is about 3% of the account.
-3. Every 5 minutes, a few lines of plain Python check SPY for free. If SPY moves 40% of the way from the middle of the condor toward a short strike, they wake the trading agent, which closes the whole condor.
-4. Otherwise the condor expires the next afternoon, and the agent sells a new one at 3:45 PM.
+1. Fifteen minutes before the exchange session closes, the planning agent checks
+   yesterday's VIX close and skips if it exceeded 25 or is unavailable. Otherwise
+   it selects next-session puts and calls near 0.14 absolute delta with $1 wings.
+2. Python verifies the listed contracts, expiration, protective wings and package
+   price. It sizes the order within 3% of portfolio value using maximum expiry
+   loss plus an allowance for entry and exit commissions, and available cash.
+3. Every minute, Python checks each expiration separately. It closes when SPY
+   moves 40% of the distance from the short-strike midpoint toward either short
+   strike. This is a price-distance rule, not a premium-loss percentage.
+4. Expiring exposure is closed thirty minutes before the exchange closes.
+   The next daily entry waits until positions are flat and related orders are
+   terminal. Early-closing sessions use their actual exchange closing time.
+
+Unrelated orders do not suppress monitoring. Pending entries are canceled before
+closing partial exposure. A required exit remains latched after a price rebound.
+Closing orders are reconciled before repricing; the example allows three close
+attempts, five minutes apart. An uncertain submission or exhausted attempts is
+reported as unresolved, never as a successful exit. Incomplete packages and
+strategy-owned assignment stock are reconciled with their actual signed quantities.
+
+Monitoring and exits make no AI calls. Market data and hosting still have their
+own costs. An unavailable model cannot prevent Python from monitoring existing
+positions.
+
+Run locally with Login with ChatGPT
+----------------------------------
+
+The default planner is ``chatgpt/gpt-6-luna`` with medium reasoning and Standard
+processing. It uses your explicitly connected ChatGPT plan or authorized credit
+allowance, without an API-key fallback. See :doc:`agents_chatgpt`.
+
+.. code-block:: bash
+
+   python -m lumibot.components.agents.chatgpt_auth login
+   python -m lumibot.components.agents.chatgpt_auth status
+   python -m lumibot.example_strategies.ai_iron_condor
+
+Set ``IS_BACKTESTING=true``, ``BACKTESTING_START`` and ``BACKTESTING_END`` for
+historical simulation. The default historical source requires your own Alpaca
+data credentials; the VIX lookup requires your existing FRED access.
+Starting the module with ``IS_BACKTESTING=false`` is a separate live-trading action.
+
+Contributors can run a bounded historical window from a source checkout:
+
+.. code-block:: bash
+
+   python scripts/backtest_hybrid_iron_condor.py \
+       --start 2026-01-05T09:30:00 --end 2026-01-23T15:40:00 \
+       --output-dir /path/to/private/condor-run
+
+The end is before the final session's next entry opportunity. This lets the
+expiring package close without opening a position outside the requested window.
+The runner uses minute bars, unadjusted underlying prices and an illustrative
+$0.65 per-contract commission on both entry and exit. That fee is an assumption,
+not a quote for every broker.
+
+The run directory contains the normal trade/event logs, agent trace, tear sheet,
+``ai-usage.json`` and ``summary.json``. Usage distinguishes daily planner turns
+from completed inference responses, including continuations. Tokens are measured;
+API-equivalent pricing is an estimate and does not establish the number of
+ChatGPT credits debited. The inference response does not report that debit.
+
+Backtest limitations
+-------------------
+
+Alpaca's historical option bars contain trades, not historical NBBO quotes.
+When a historical quote has only a last-trade price, this example labels it
+``historical_trade_mark_not_nbbo``. Such a fill is a simulation assumption,
+not proof that a live four-leg order would execute at that price. Missing prices
+do not become invented quotes. Expiry loss limits assume the protected structure
+remains intact; assignment, gaps, liquidity and order failures require separate
+attention.
+
+A completed historical lifecycle establishes mechanics for its recorded window.
+It does not establish profitability, live execution quality or an AI advantage.
 
 Run it on BotSpot
 -----------------
 
-Run this bot on `BotSpot <https://botspot.trade/marketplace?utm_source=documentation&utm_medium=docs&utm_campaign=lumibot_ai_examples&utm_content=agents_example_iron_condor_ai_trading_bot>`_ without installing anything. BotSpot runs LumiBot in the cloud, backtests it, and connects it to your broker.
+This hybrid is source work awaiting its own release. An existing Marketplace
+listing or installed package does not establish that it contains this revision.
+Use the source runner above to reproduce its historical qualification.
 
 The code
 --------
 
-The whole bot is one short file. The prompt is the strategy; the stop is four lines of Python.
-
 .. literalinclude:: ../lumibot/example_strategies/ai_iron_condor.py
    :language: python
 
-Run it yourself
----------------
-
-.. code-block:: bash
-
-   pip install lumibot
-   python -m lumibot.example_strategies.ai_iron_condor
-
-Put these in your ``.env`` file: ``OPENAI_API_KEY``, a free ``FRED_API_KEY`` for the VIX, and your broker keys (for example ``ALPACA_API_KEY``, ``ALPACA_API_SECRET``, and ``ALPACA_IS_PAPER=true`` for paper trading). With ``IS_BACKTESTING=false`` the bot trades. With ``IS_BACKTESTING=true`` it backtests instead; set ``BACKTESTING_START`` and ``BACKTESTING_END`` to pick the dates. The AI runs about once a day, so a month of backtest costs little. Option backtests use Alpaca's free history (from February 2024), so paper Alpaca keys are enough.
-
-Good to know
-------------
-
-* Options can lose money fast, and a one-day condor can lose its full width on a sharp move. Paper trade first.
-* SPY options can be exercised at expiry. If that ever leaves you holding SPY shares, the agent sells them at 3:45 PM.
-
-See :doc:`agents_examples` for more AI trading bots and :doc:`strategy_run_modes` for backtest and live runs.
+See :doc:`agents_examples` for other examples and
+:doc:`strategy_run_modes` for backtest and live run configuration.

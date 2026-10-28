@@ -29,6 +29,12 @@ API key or BotSpot's managed inference. Existing explicit provider models retain
 their own authentication. Broker, price-data and research permissions are
 separate from model authentication.
 
+Model-limit discovery uses OpenAI model metadata without starting another login
+flow. The agent keeps its selected ``chatgpt/`` connection for inference; missing
+model-limit metadata does not invent a capacity or change the funding source.
+Parallel tool calls retain their exact completed provider arguments even when
+the stream supplies no incremental argument events.
+
 Choose your ChatGPT usage policy
 -------------------------------
 

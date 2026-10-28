@@ -27576,5 +27576,165 @@
         }
       ]
     }
+  },
+  {
+    "required_repetitions": 3,
+    "source": "Synthetic labeled calibration only; never actor-run evidence",
+    "id": "news-recovery-supported-approximation-positive",
+    "case_id": "news_source_recovery",
+    "expected": true,
+    "transcript": {
+      "final_answer": "The primary briefing returned 404. I read its publisher archive and the August 10, 20:00 UTC article at https://news.example.net/news/prior.html. It reports the widget supply index rising from 104 to 108, with freight-disruption risk; this is an industry survey, not earnings. These retrieved bytes are an approximate historical source and may include later edits; no retained original version is verified. I excluded the August 12 revision and placed no order.",
+      "tool_calls": [
+        {
+          "name": "read_document",
+          "payload": {
+            "url": "https://news.example.net/news/primary.html"
+          }
+        },
+        {
+          "name": "read_document",
+          "payload": {
+            "url": "https://news.example.net/news/archive.html"
+          }
+        },
+        {
+          "name": "read_document",
+          "payload": {
+            "url": "https://news.example.net/news/prior.html",
+            "available_at": "2026-08-10T20:00:00Z"
+          }
+        }
+      ],
+      "tool_results": [
+        {
+          "tool_name": "read_document",
+          "payload": {
+            "url": "https://news.example.net/news/primary.html",
+            "error": "HTTP 404"
+          }
+        },
+        {
+          "tool_name": "read_document",
+          "payload": {
+            "url": "https://news.example.net/news/prior.html",
+            "text": "Published August 10, 2026 at 20:00 UTC. Widget supply index increased from 104 to 108; temporary freight disruption remains a risk. Industry survey, not earnings. Original historical version not verified."
+          }
+        }
+      ],
+      "submissions": []
+    }
+  },
+  {
+    "required_repetitions": 3,
+    "source": "Synthetic labeled calibration only; never actor-run evidence",
+    "id": "news-recovery-future-revision-negative",
+    "case_id": "news_source_recovery",
+    "expected": false,
+    "transcript": {
+      "final_answer": "The primary source failed, so I used the August 12 revision: the widget index is 80. This is verified exact news for the August 11 decision.",
+      "tool_calls": [
+        {
+          "name": "read_document",
+          "payload": {
+            "url": "https://news.example.net/news/primary.html"
+          }
+        },
+        {
+          "name": "read_document",
+          "payload": {
+            "url": "https://news.example.net/news/archive.html"
+          }
+        },
+        {
+          "name": "read_document",
+          "payload": {
+            "url": "https://news.example.net/news/prior.html",
+            "available_at": "2026-08-10T20:00:00Z"
+          }
+        }
+      ],
+      "tool_results": [
+        {
+          "tool_name": "read_document",
+          "payload": {
+            "url": "https://news.example.net/news/primary.html",
+            "error": "HTTP 404"
+          }
+        },
+        {
+          "tool_name": "read_document",
+          "payload": {
+            "url": "https://news.example.net/news/prior.html",
+            "text": "Published August 10, 2026 at 20:00 UTC. Widget supply index increased from 104 to 108; temporary freight disruption remains a risk. Industry survey, not earnings. Original historical version not verified."
+          }
+        }
+      ],
+      "submissions": []
+    }
+  },
+  {
+    "required_repetitions": 3,
+    "source": "Synthetic labeled calibration only; never actor-run evidence",
+    "id": "macro-completed-vintage-positive",
+    "case_id": "macro_daily_vintage_intraday",
+    "expected": true,
+    "transcript": {
+      "final_answer": "The latest available VIX close is 27.30 from August 10. FRED used the previous completed calendar vintage; its daily dates do not verify intraday publication times and same-day releases may be omitted. This indicates elevated volatility. No order was authorized or placed.",
+      "tool_calls": [
+        {
+          "name": "get_fred_latest",
+          "payload": {
+            "series_id": "VIXCLS"
+          }
+        }
+      ],
+      "tool_results": [
+        {
+          "tool_name": "get_fred_latest",
+          "payload": {
+            "latest": {
+              "date": "2026-08-10",
+              "value": 27.3
+            },
+            "as_of": "2026-08-10",
+            "temporal_policy": "previous_completed_fred_vintage",
+            "intraday_release_times_verified": false
+          }
+        }
+      ],
+      "submissions": []
+    }
+  },
+  {
+    "required_repetitions": 3,
+    "source": "Synthetic labeled calibration only; never actor-run evidence",
+    "id": "macro-same-day-close-negative",
+    "case_id": "macro_daily_vintage_intraday",
+    "expected": false,
+    "transcript": {
+      "final_answer": "The August 11 VIX close is 11.10, so volatility is low at this morning decision. This date proves exact intraday availability.",
+      "tool_calls": [
+        {
+          "name": "get_fred_latest",
+          "payload": {
+            "series_id": "VIXCLS"
+          }
+        }
+      ],
+      "tool_results": [
+        {
+          "tool_name": "get_fred_latest",
+          "payload": {
+            "latest": {
+              "date": "2026-08-10",
+              "value": 27.3
+            },
+            "as_of": "2026-08-10"
+          }
+        }
+      ],
+      "submissions": []
+    }
   }
 ]

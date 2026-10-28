@@ -693,7 +693,10 @@ def _recorded_fred(strategy, cache_dir):
     """
     from lumibot.macro.fred import FREDMacroData
 
-    closes = {"2026-08-05": 22.10, "2026-08-06": 23.45, "2026-08-07": 24.90, "2026-08-10": 27.30, "2026-08-12": 31.00}
+    # The same-day close is deliberately contradictory: a date-only vintage
+    # must not let a morning decision use an after-close observation.
+    closes = {"2026-08-05": 22.10, "2026-08-06": 23.45, "2026-08-07": 24.90,
+              "2026-08-10": 27.30, "2026-08-11": 11.10, "2026-08-12": 31.00}
 
     class _RecordedFRED(FREDMacroData):
         def _get_json(self, url, params, cache_path):
@@ -808,6 +811,26 @@ class ProductionFixture:
             self.fixture.web_requests = self.strategy._agent_web_client.web_requests
         if fixture.name == "vix_from_fred":
             self.strategy.macro = _recorded_fred(self.strategy, self.root / "fred")
+        if fixture.name == "news_source_recovery":
+            self.strategy._agent_web_client = _undated_client(pages={
+                "/news/archive.html": (
+                    "<html><body><h1>Industry newsroom archive</h1>"
+                    '<a href="/news/prior.html">Supply update, published August 10, 2026 at 20:00 UTC</a>'
+                    '<a href="/news/future.html">Revised supply update, published August 12, 2026</a>'
+                    "</body></html>"
+                ),
+                "/news/prior.html": (
+                    '<html><head><meta property="article:published_time" content="2026-08-10T20:00:00Z"></head>'
+                    "<body><h1>Widget supply update</h1><p>Published August 10, 2026 at 20:00 UTC.</p>"
+                    "<p>The widget supply index rose from 104 to 108. Temporary freight disruption "
+                    "remains a risk. This is an industry survey, not a company earnings release.</p></body></html>"
+                ),
+                "/news/future.html": (
+                    "<html><body><h1>Revised supply update</h1><p>Published August 12, 2026.</p>"
+                    "<p>The revised widget supply index is 80.</p></body></html>"
+                ),
+            })
+            self.fixture.web_requests = self.strategy._agent_web_client.web_requests
         self.strategy.fundamentals = _recorded_sec_fundamentals(self.strategy, self.root / "sec")
         if fixture.name in {"research_live_available", "research_unavailable", "web_documents_undated_live"}:
             # Use the actual Strategy mode setter after synthetic backtest setup.

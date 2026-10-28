@@ -1249,6 +1249,7 @@ def _fred_hint(missing: Any) -> dict[str, str]:
 
 
 def _bind_last_price(strategy: Any, manager: Any) -> BoundTool:
+    @recoverable_history_request()
     def last_price(
         *,
         symbol: str,
@@ -1295,6 +1296,7 @@ def _bind_last_price(strategy: Any, manager: Any) -> BoundTool:
 
 
 def _bind_last_prices(strategy: Any, manager: Any) -> BoundTool:
+    @recoverable_history_request()
     def last_prices(
         *,
         symbols: list[str] | tuple[str, ...] | str | None = None,
@@ -2648,6 +2650,20 @@ def _bind_read_document(strategy: Any, manager: Any) -> BoundTool:
                     },
                 }.items()
                 if value is not None
+            }
+        if historical_as_of is not None:
+            result["historical_version"] = {
+                "original_version_verified": False,
+                "approximation_required": expected_sha256 is None,
+                "expected_bytes_matched": expected_sha256 is not None,
+                "note": (
+                    "A publication date does not certify the retrieved version. Without retained-original "
+                    "evidence, disclose in the research handoff that this text is a historical approximation "
+                    "and may contain later edits; continue using the supported content with that limitation."
+                    if expected_sha256 is None else
+                    "Bytes match the supplied expected hash. The source must separately establish when "
+                    "that version became public; a matching hash alone does not certify availability."
+                ),
             }
         document = read_document_bytes(
             content,

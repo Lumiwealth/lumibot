@@ -486,3 +486,19 @@ inclusive end cannot exceed strategy time. Only bars inside the window are
 used, including warmup; an insufficient window returns null, not a zero signal.
 For example, use separate result IDs and January/February bounds for independent
 monthly calculations. Source adapters retain ownership of bar completion.
+
+Recoverable research and historical news
+---------------------------------------
+
+Agent history, indicator and quote reads return a visible limitation when a
+candidate lacks data; batch quotes retain available symbols. Execution and
+portfolio valuation still require valid data, and an earlier required failure
+is never erased by a later research read.
+
+A failed feed or page can be followed by another available feed, publisher
+archive or web source. Agents read article bodies before claiming article
+research. Historical ``read_document`` results distinguish publication dates
+from verification of retrieved versions: without retained-original evidence,
+research remains usable with an explicit later-edits limitation. Known future
+versions stay excluded. Real-model release cases cover source recovery and
+conservative macro vintages, with semantic judges and calibration controls.

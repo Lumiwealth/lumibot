@@ -2748,10 +2748,9 @@ class _Strategy:
                     self.logger.error(f"Router benchmark bars empty/invalid: {benchmark_asset}")
                     _fallback_benchmark(benchmark_asset)
                     return
-                df = df.copy()
-                df["return"] = df["close"].pct_change(fill_method=None)
-                df["symbol_cumprod"] = (1 + df["return"]).cumprod()
-                self._benchmark_returns_df = df
+                from lumibot.tools.indicators import benchmark_returns_from_bars
+
+                self._benchmark_returns_df = benchmark_returns_from_bars(df)
 
             elif type(self.broker.data_source) == AlpacaBacktesting:
                 benchmark_asset = self._benchmark_asset

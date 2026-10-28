@@ -285,6 +285,10 @@ def _wrap_tool_callable(
                             "next_offset", "filters", "snapshot_id",
                         )
                     }
+                if tool.name in {"market_quote", "market_quotes"} and isinstance(result, dict):
+                    rows = result.get("quotes", []) if tool.name == "market_quotes" else [result]
+                    call_record["market_coverage"] = [row["asset"] for row in rows
+                                                      if row.get("available") is True and isinstance(row.get("asset"), dict)]
         return result
 
     wrapper.__name__ = _tool_function_name(tool.name)

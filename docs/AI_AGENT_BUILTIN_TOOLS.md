@@ -101,7 +101,7 @@ Before an agent can submit an order with `orders_submit_order` or `orders_submit
 
 - `account_portfolio` for cash and portfolio value
 - `account_positions` for current holdings
-- `market_last_price` for the ordered symbol, or `market_last_prices` with that symbol included in the batch
+- `market_quote` for the exact asset, or a usable `market_quotes` row for it; current `market_last_price` / `market_last_prices` remain supported fallbacks
 - for an order that opens an option position: `options_get_chain` for the underlying (closing a held contract is exempt). Release eval `options_single_leg_chain_and_quote` caught an agent opening a call found only through `options_find_expiration` and `options_find_strike_for_delta`.
 
 If any of those checks are missing, the order tool returns a structured `ORDER_READINESS_REQUIRED` error instead of submitting the order. Lumibot does not silently resize orders and does not apply universal margin rules across asset classes; the agent must use the checked cash, portfolio value, positions, and price to size the explicit order it submits.
@@ -110,6 +110,9 @@ For options, `account_positions` includes exact contract fields, signed quantity
 
 Market-price tools:
 
+- `market_quote` wraps `Strategy.get_quote`; `market_quotes` wraps `Strategy.get_quotes`, preserving native provider batching. Results include exact asset identity, last, bid, ask, midpoint, sizes and available timestamps. Missing fields remain null. The strategy datetime and quote-object construction timestamp do not establish provider freshness.
+- For a portfolio, pass `symbols` / `symbols_json` to `market_quotes`. For exact options, use `assets_json` entries with `symbol`, `asset_type`, `expiration`, `strike`, `right`, and optional `quote_symbol` / `exchange`. Rows remain separate when contracts share an underlying. Provider group failures stay visible while independent groups remain available.
+- Size immediate buys from the current ask, sells from the bid, and limit orders from their intended price. If quote sides are unavailable, use the quote's usable current price or the current last-price tool. Options require the exact contract and multiplier. Historical bars support research and dated valuation, not current execution sizing.
 - `market_last_price` accepts one tradable symbol per call.
 - `market_last_prices` accepts a JSON-friendly list (`symbols` or `symbols_json`, cap 150) and returns last prices available at the current runtime datetime, plus `symbols_available` / `symbols_missing`. Prefer this when scanning a provided universe (for example multi-ticker ORB). Do not invent prices for missing symbols.
 - `market_load_history_table` still loads one symbol per call; load finalists into DuckDB after the batch scan.

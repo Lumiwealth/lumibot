@@ -335,6 +335,11 @@ def _has_successful_market_last_price_for_symbol(symbol: str) -> bool:
     normalized_symbol = str(symbol or "").strip().upper()
     for call in _agent_tool_calls_for_current_run():
         tool_name = call.get("tool_name")
+        if tool_name in {"market_quote", "market_quotes"} and _tool_call_was_successful(call):
+            if any(str(asset.get("symbol", "")).upper() == normalized_symbol
+                   for asset in call.get("market_coverage", []) if isinstance(asset, dict)):
+                return True
+            continue
         if tool_name not in {"market_last_price", "market_last_prices"} or not _tool_call_was_successful(call):
             continue
         arguments = call.get("arguments") if isinstance(call.get("arguments"), dict) else {}
@@ -370,7 +375,7 @@ def _require_agent_order_readiness(symbol: str) -> None:
     ):
         missing.append("complete orders_open_orders pagination")
     if not _has_successful_market_last_price_for_symbol(symbol):
-        missing.append(f"market_last_price(symbol={symbol!r}) or market_last_prices including {symbol!r}")
+        missing.append(f"market_last_price(symbol={symbol!r}) or market_last_prices including {symbol!r}, or available market_quote/market_quotes evidence for that asset")
     if missing:
         raise ValueError(
             "ORDER_READINESS_REQUIRED: Before submitting an order, call "
@@ -1203,7 +1208,7 @@ def _bind_calculate_stock_quantity(strategy: Any, manager: Any) -> BoundTool:
         name="risk_calculate_stock_quantity",
         description=(
             "Calculate a whole-share stock quantity without model arithmetic. "
-            "Arguments: maximum_notional, current or intended limit price, and optional available_cash. "
+            "Arguments: maximum_notional, current executable buy ask (or intended limit price), and optional available_cash. Use a valid current quote/last-price fallback when ask is unavailable, never a historical close. "
             "Returns floor(min(maximum_notional, available_cash) / price), the resulting notional, and explicit cap checks. "
             "Use the returned quantity unchanged for a capped stock order after verifying it is positive."
         ),
@@ -1393,6 +1398,108 @@ def _bind_last_prices(strategy: Any, manager: Any) -> BoundTool:
         ),
         function=last_prices,
         metadata={"kind": "builtin", "replay_on_cache": True, "temporal": "strategy_clock_as_of"},
+    )
+
+
+def _market_quote_payload(strategy: Any, asset: Any, quote: Any, exchange: Any, value: Any) -> dict[str, Any]:
+    def number(field):
+        raw = getattr(value, field, None)
+        try:
+            parsed = float(raw)
+            return parsed if math.isfinite(parsed) else None
+        except (TypeError, ValueError):
+            return None
+
+    result = {"asset": _asset_to_dict(asset), "quote": _asset_to_dict(quote) if quote else None,
+              "exchange": exchange, "datetime": strategy.get_datetime().isoformat()}
+    if value is not None and getattr(value, "asset", asset) != asset:
+        raise ValueError("Quote provider returned a different instrument")
+    for field in ("price", "bid", "ask", "mid_price", "volume", "bid_size", "ask_size"):
+        result[field] = number(field)
+    for field in ("timestamp", "quote_time", "bid_time", "ask_time"):
+        raw = getattr(value, field, None)
+        result[field] = raw.isoformat() if hasattr(raw, "isoformat") else str(raw) if raw is not None else None
+    result["available"] = any(result[field] is not None and result[field] > 0 for field in ("price", "bid", "ask"))
+    return result
+
+
+def _bind_quote(strategy: Any, manager: Any) -> BoundTool:
+    def quote(*, symbol: str, asset_type: AssetTypeArg = "stock", expiration: str | None = None,
+              strike: float | None = None, right: str | None = None,
+              quote_symbol: str | None = None, exchange: str | None = None) -> dict[str, Any]:
+        asset, currency = resolve_asset_and_quote(
+            strategy, symbol=_require_single_symbol_text("symbol", symbol), asset_type=asset_type,
+            expiration=_coerce_expiration(expiration), strike=strike, right=right, quote_symbol=quote_symbol,
+        )
+        value = strategy.get_quote(asset, quote=currency, exchange=exchange)
+        return _market_quote_payload(strategy, asset, currency, exchange, value)
+
+    return BoundTool(
+        name="market_quote", function=quote,
+        description=("Get the current quote for one exact asset using Strategy.get_quote: last price, bid, ask, "
+                     "midpoint, sizes and supplied timestamps. Specify expiration/strike/right for an option. "
+                     "quote_symbol and exchange retain the requested listing. Missing fields stay null. "
+                     "datetime is the strategy clock; timestamp can be quote construction time, so neither "
+                     "alone proves provider freshness. Prefer market_quotes for a portfolio."),
+        metadata={"kind": "builtin", "replay_on_cache": True, "temporal": "strategy_clock_snapshot"},
+    )
+
+
+def _bind_quotes(strategy: Any, manager: Any) -> BoundTool:
+    def quotes(*, symbols: list[str] | str | None = None, symbols_json: str | None = None,
+               assets_json: str | None = None, asset_type: AssetTypeArg = "stock",
+               quote_symbol: str | None = None, exchange: str | None = None) -> dict[str, Any]:
+        if assets_json is not None:
+            requests = json.loads(assets_json)
+            if not isinstance(requests, list) or any(not isinstance(row, dict) for row in requests):
+                raise ValueError("assets_json must be a JSON array of exact asset requests")
+        else:
+            requests = [{"symbol": symbol, "asset_type": asset_type} for symbol in
+                        _parse_symbol_list(symbols=symbols, symbols_json=symbols_json, max_symbols=150)]
+        resolved = []
+        groups = {}
+        for request in requests:
+            asset, currency = resolve_asset_and_quote(
+                strategy, symbol=_require_single_symbol_text("symbol", request.get("symbol")),
+                asset_type=request.get("asset_type", asset_type),
+                expiration=_coerce_expiration(request.get("expiration")), strike=request.get("strike"),
+                right=request.get("right"), quote_symbol=request.get("quote_symbol", quote_symbol),
+            )
+            venue = request.get("exchange", exchange)
+            key = (currency, venue)
+            groups.setdefault(key, []).append(asset)
+            resolved.append((asset, currency, venue))
+        values = {}
+        errors = {}
+        for key, assets in groups.items():
+            currency, venue = key
+            try:
+                # Strategy owns native provider batching, exact option_source routing,
+                # and adapters without native batches. Do not silently retry a failed batch.
+                values[key] = strategy.get_quotes(assets, quote=currency, exchange=venue)
+            except Exception as exc:
+                values[key] = {}
+                errors[key] = {"type": type(exc).__name__, "message": str(exc)}
+        rows = []
+        for asset, currency, venue in resolved:
+            key = (currency, venue)
+            result = _market_quote_payload(strategy, asset, currency, venue, values[key].get(asset))
+            if key in errors:
+                result["error"] = errors[key]
+            rows.append(result)
+        return {"quotes": rows, "count_requested": len(rows),
+                "count_available": sum(row["available"] for row in rows),
+                "datetime": strategy.get_datetime().isoformat()}
+
+    return BoundTool(
+        name="market_quotes", function=quotes,
+        description=("Get current portfolio quotes through Strategy.get_quotes. Supply symbols/symbols_json "
+                     "for stocks or assets_json containing exact requests with symbol, asset_type, optional "
+                     "expiration/strike/right, quote_symbol and exchange. Each result retains exact asset "
+                     "identity, last price, bid/ask, supplied times and availability; missing values stay null. "
+                     "Native batches are preserved. Provider batch failures remain visible per requested asset. "
+                     "datetime is strategy time; quote-object timestamp alone is not proof of source freshness."),
+        metadata={"kind": "builtin", "replay_on_cache": True, "temporal": "strategy_clock_snapshot"},
     )
 
 
@@ -4603,7 +4710,7 @@ def _bind_submit_order(strategy: Any, manager: Any) -> BoundTool:
             "Explain the action, evidence, sizing, risks and invalidation in at least 200 trimmed characters (usually 600-2,500; maximum 100,000). This explicit explanation is saved privately before execution; exclude hidden thinking, secrets and credentials. "
             "Valid asset_type values: stock, option, future, cont_future, forex, crypto, index, multileg, us_equity. "
             "Use stock for normal equities. "
-            "Before using this tool, inspect the injected account_snapshot plus market_last_price (or market_last_prices including the symbol). A complete injected account_snapshot satisfies the initial account_portfolio, account_positions, and open-order readiness checks; after any order mutation, refresh account_portfolio and complete unfiltered pagination for both account_positions and orders_open_orders before another order. The current-price check is always required in the same agent run; otherwise the order is rejected with ORDER_READINESS_REQUIRED. "
+            "Before using this tool, inspect the injected account_snapshot plus available market_quote/market_quotes evidence for the asset, or market_last_price/market_last_prices as a current-price fallback. A complete injected account_snapshot satisfies the initial account_portfolio, account_positions, and open-order readiness checks; after any order mutation, refresh account_portfolio and complete unfiltered pagination for both account_positions and orders_open_orders before another order. The current-price check is always required in the same agent run; otherwise the order is rejected with ORDER_READINESS_REQUIRED. "
             "Valid side values: buy, sell, buy_to_open, buy_to_close, sell_to_open, sell_to_close, sell_short, buy_to_cover. "
             "For an option close, reconcile the exact contract with the latest account_positions result: positive long quantity requires sell_to_close and negative short quantity requires buy_to_close, always using the absolute current quantity. Never use the inverse mapping. "
             "Opening an option position also requires options_get_chain for the underlying in the same agent run; closing a held contract does not. "
@@ -4693,7 +4800,7 @@ def _bind_submit_multileg_order(strategy: Any, manager: Any) -> BoundTool:
             "Create and submit one atomic multi-leg option order from exact contracts selected by the agent. This is generic and does not choose a strategy or its legs. "
             "Arguments: legs_json, required reason, optional price_style='market', 'best', 'mid', or 'fastest', optional signed net_limit_price, optional time_in_force. legs_json must be a JSON array with at least two legs; each leg requires symbol, expiration, strike, right, quantity, and side. "
             "Explain the package thesis, evidence, net pricing, sizing, risks and invalidation in at least 200 trimmed characters (usually 600-2,500; maximum 100,000). One private decision links all legs before execution. "
-            "Before submitting in the same agent run, inspect the injected account_snapshot, market_last_price or market_last_prices for each underlying symbol, options_get_chain, and options_calculate_multileg_price after evaluating every exact leg. A complete injected account_snapshot satisfies the initial account_portfolio, account_positions, and open-order inspection; after any order mutation, refresh account_portfolio, account_positions, and orders_open_orders before another order. Market and option evidence are always required. "
+            "Before submitting in the same agent run, inspect the injected account_snapshot, current market_quote/market_quotes or last-price fallback for each underlying symbol, options_get_chain, and options_calculate_multileg_price after evaluating every exact leg. A complete injected account_snapshot satisfies the initial account_portfolio, account_positions, and open-order inspection; after any order mutation, refresh account_portfolio, account_positions, and orders_open_orders before another order. Market and option evidence are always required. "
             "Opening sides are buy_to_open and sell_to_open. Use matching quantities when the intended position requires matched contracts. "
             "Before opening a package, call both options_get_greeks and options_evaluate_market for every final leg, including protective buy legs, then calculate the package price. Checks for another strike or a replaced candidate do not verify the final contract. "
             "To close held option contracts, always pass action='close' and list only symbol, expiration, strike, and right for each held leg, plus an optional quantity (default: the full held quantity). LumiBot derives each closing side from the current signed position (long -> sell_to_close, short -> buy_to_close), so never write closing sides yourself. Close mode rejects contracts with no open position and quantities above the held amount. "
@@ -4727,6 +4834,12 @@ class _AccountTools:
 
 
 class _MarketTools:
+    def quote(self) -> ToolDefinition:
+        return ToolDefinition(name="market_quote", description="Get a current exact-asset quote.", binder=_bind_quote)
+
+    def quotes(self) -> ToolDefinition:
+        return ToolDefinition(name="market_quotes", description="Get current quotes for a portfolio.", binder=_bind_quotes)
+
     def last_price(self) -> ToolDefinition:
         return ToolDefinition(
             name="market_last_price",
@@ -5293,6 +5406,8 @@ class _BuiltinTools:
         return [
             self.account.positions(),
             self.account.portfolio(),
+            self.market.quote(),
+            self.market.quotes(),
             self.market.last_price(),
             self.market.last_prices(),
             self.market.historical_prices(),

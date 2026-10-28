@@ -36,20 +36,20 @@ claiming it was published. A visible authorization error means it was not publis
    evidence, you MUST call `query_data` for at least one relevant macro dataset
    before finishing, as well as retrieving the SEC evidence. One category is not
    a substitute for the other.
-3. In the final evidence packet, pair each returned dataset id with its source,
-   attribution, effective or release date, and query time bound. A provider name
-   alone cannot identify the queried dataset; retain the id even when the returned
-   observations are stale or insufficient. Do not leave it only in the tool call.
-   Distinguish the requested bound from the successful response's effective bound.
-   Report each dataset's own effective `asOf`, calendar start/end and retrieval
-   time. Copy its bounds from that request/response; another dataset's window
-   is not interchangeable. A date filter is not proof of historical availability.
-   If an earlier bounded
-   request failed and a permitted live retry succeeded, describe that correction
-   and the successful request, not the failed request's bound.
+3. Build the final evidence packet from one compact row or entry per source
+   request. Keep these fields together: dataset id and source/attribution;
+   requested calendar start/end; returned effective `asOf`, release and retrieval
+   dates when supplied; observations or error; and remaining limitations.
+   Copy each window from that request's arguments and each effective bound from
+   its successful response. For a failed query, label its actual arguments as
+   requested, not applied. Never borrow another dataset's dates or collapse
+   different windows into a shared period. Missing metadata stays unknown.
+   A provider name alone is not a dataset id; retain the id for stale or failed
+   evidence too. Calendar filtering is not proof of historical availability.
+   If a permitted live retry succeeds after a bounded failure, use the successful
+   response's provenance and describe the correction separately.
    If the successful response returns `asOf: null`, describe it as unbounded live
-   retrieval; do not describe it as cutoff-bounded. Never inherit a failed
-   request's historical cutoff in the final provenance of a successful live read.
+   retrieval; do not describe it as cutoff-bounded or inherit the failed cutoff.
 4. During a backtest, treat the simulated datetime as a hard wall. Pass an aware
    UTC `asOf` no later than that wall. The runtime also clamps managed research.
    Observation periods, release dates and retrieval times are different facts.

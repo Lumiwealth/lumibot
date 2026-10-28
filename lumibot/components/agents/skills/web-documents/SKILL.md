@@ -112,9 +112,12 @@ number against the calculation output rather than recomputing it in prose.
 Before returning the answer, audit the final table against the source rows:
 each holding needs its own instrument evidence, and an issuer heading must not
 become an extra holding beside its instrument details. Audit the final citations
-too: copy a timestamp with its offset verbatim, or copy a tool's explicit UTC
-conversion. A correct lookup does not excuse an invented row or a mislabeled
-time in the answer handed to another agent.
+too: treat the clock reading and its zone as one indivisible value. Prefer one
+verbatim, fully qualified timestamp per source. Avoid redundant local/UTC
+translations unless the task needs them; if needed, copy a tool's explicit
+conversion. Never combine a clock value from one column with an offset from
+another. Match the final document ID and full timestamp to the same returned
+row. A correct eligibility decision does not excuse a mislabeled citation.
 
 ## Historical eligibility comes before reading linked documents
 

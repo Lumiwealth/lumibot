@@ -8,6 +8,7 @@
 - Daily ranges retain the final available bar and exclude observations before the requested start. Routed daily benchmarks include the first open-to-close move and final close; incomplete coverage is reported instead of filled with invented flat returns.
 - News research can recover through available alternative sources and read article bodies. Shared document guidance preserves supported approximations, matched retained originals and unchanged baseline holdings.
 - Real-model release cases cover news recovery and macro timing, with positive and negative judge calibration for original-version and approximate-source evidence.
+- Research handoffs retain separate source-request windows and complete timestamp offsets. Option selection distinguishes listed contracts from the subset already inspected before reporting missing protective legs.
 
 ## 4.6.33 - 2026-10-27
 

@@ -143,7 +143,10 @@ def test_packaged_research_skill_distinguishes_live_queries_from_historical_repl
 def test_research_skill_reports_the_successful_response_bound_without_inheriting_failed_requests():
     skill = next(skill for skill in load_builtin_skills() if skill.name == "research-data")
     instructions = " ".join(skill.instructions.split())
-    assert "requested bound from the successful response's effective bound" in instructions
+    # Compact per-source entries preserve requested arguments separately from
+    # the response's applied bound; real-model cases assess factual handoffs.
+    assert "Copy each window from that request's arguments and each effective bound from" in instructions
+    assert "its successful response" in instructions
     assert "If the successful response returns `asOf: null`" in instructions
     assert "do not describe it as cutoff-bounded" in instructions
 

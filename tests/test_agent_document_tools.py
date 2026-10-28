@@ -264,6 +264,8 @@ def test_read_document_returns_actual_byte_hash_and_absolute_backtest_cutoff():
     result = tool.function(url="https://clerk.example/report.txt")
     assert result["historical_as_of"] == "2026-08-11T14:35:00+00:00"
     assert result["sha256"] == hashlib.sha256(data).hexdigest()
+    assert result["historical_version"]["original_version_verified"] is False
+    assert result["historical_version"]["approximation_required"] is True
 
 
 @pytest.mark.parametrize("clock", [None, datetime(2026, 8, 11, 10, 35), "2026-08-11"])

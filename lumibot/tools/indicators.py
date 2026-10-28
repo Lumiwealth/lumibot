@@ -570,6 +570,35 @@ def performance(_df, risk_free, prefix=""):
     print(f"{prefix} RoMaD {romad_adj*100:,.2f}%")
 
 
+def benchmark_returns_from_bars(frame):
+    """Passive daily returns from the first observed open, with an explicit anchor.
+
+    The anchor represents initial capital, not an invented historical quote.
+    Dividends on the entry session are excluded: a purchase at its open did not
+    own the asset before that session's ex-dividend date.
+    """
+    result = frame.copy().sort_index()
+    close = pd.to_numeric(result["close"], errors="coerce")
+    dividend = pd.to_numeric(result.get("dividend", pd.Series(0., index=result.index)), errors="coerce").fillna(0.)
+    first_open = result["open"].iloc[0] if "open" in result else close.iloc[0]
+    first_open = float(first_open)
+    if not math.isfinite(first_open) or first_open <= 0:
+        raise ValueError("Benchmark initial observed price is unavailable")
+    result["return"] = (close + dividend) / close.shift() - 1
+    result.iloc[0, result.columns.get_loc("return")] = close.iloc[0] / first_open - 1
+    result["symbol_cumprod"] = (1 + result["return"]).cumprod()
+    first_time = pd.Timestamp(result.index[0])
+    # Tearsheet daily alignment uses UTC. Place initial capital in its previous
+    # UTC day so an exchange-local midnight bar does not erase the entry return.
+    anchor_time = (first_time.tz_convert("UTC") if first_time.tzinfo else first_time).normalize() - pd.Timedelta(nanoseconds=1)
+    if first_time.tzinfo:
+        anchor_time = anchor_time.tz_convert(first_time.tzinfo)
+    anchor = pd.DataFrame({"return": [0.], "symbol_cumprod": [1.]}, index=[anchor_time])
+    result = pd.concat([anchor, result])
+    result.attrs["entry_basis"] = "first_available_open" if "open" in frame else "first_available_close"
+    return result
+
+
 def get_symbol_returns(symbol, start=datetime(1900, 1, 1), end=datetime.now()):
     """Get the returns for a symbol between two dates
 
@@ -1546,6 +1575,7 @@ def _prepare_tearsheet_returns(strategy_df: pd.DataFrame, benchmark_df: pd.DataF
         strategy_value_column = "portfolio_value"
 
     strategy_returns = None
+    strategy_anchor_day = None
     if strategy_value_column is None and "return" in _strategy_df.columns:
         strategy_returns = pd.to_numeric(_strategy_df["return"], errors="coerce")
         strategy_returns = _coerce_datetime_index_to_utc_naive(strategy_returns)
@@ -1577,6 +1607,7 @@ def _prepare_tearsheet_returns(strategy_df: pd.DataFrame, benchmark_df: pd.DataF
             initial_cash_adjustments_total = 0.0
 
         anchor_idx = first_strategy_idx.normalize() - pd.Timedelta(microseconds=1)
+        strategy_anchor_day = anchor_idx.normalize()
         anchor_row = pd.DataFrame(
             {
                 strategy_value_column: [initial_equity],
@@ -1609,11 +1640,16 @@ def _prepare_tearsheet_returns(strategy_df: pd.DataFrame, benchmark_df: pd.DataF
         benchmark_cumprod = pd.to_numeric(_benchmark_df["symbol_cumprod"], errors="coerce")
         benchmark_cumprod = benchmark_cumprod.sort_index().groupby(level=0).last().dropna()
         if benchmark_cumprod.empty:
-            benchmark_returns = pd.Series(0.0, index=strategy_returns.index, name="benchmark")
+            return None
         else:
             benchmark_daily = benchmark_cumprod.resample("D").last().ffill()
             benchmark_returns = benchmark_daily.pct_change(fill_method=None).fillna(0.0)
-            benchmark_returns = benchmark_returns.reindex(strategy_returns.index).fillna(0.0)
+            benchmark_returns = benchmark_returns.reindex(strategy_returns.index)
+            if strategy_anchor_day is not None and strategy_anchor_day in benchmark_returns.index:
+                benchmark_returns.loc[strategy_anchor_day] = 0.0
+            if benchmark_returns.isna().any():
+                logger.warning("Benchmark does not cover the strategy valuation window; comparison unavailable.")
+                return None
             benchmark_returns.name = "benchmark"
     else:
         benchmark_returns = pd.Series(0.0, index=strategy_returns.index, name="benchmark")

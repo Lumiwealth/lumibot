@@ -1354,15 +1354,7 @@ class Data:
         dict
         """
 
-        end_row = self.get_iter_count(end_date)
-        start_row = self.get_iter_count(start_date)
-
-        if start_row < 0:
-            start_row = 0
-
-        # Cast both start_row and end_row to int
-        start_row = int(start_row)
-        end_row = int(end_row)
+        start_row, end_row = self._date_range_row_bounds(start_date, end_date)
 
         dict = {}
         for dl_name, dl in self.datalines.items():
@@ -1465,15 +1457,26 @@ class Data:
             return None, start_row, end_row, normalized_timeshift
         return df, start_row, end_row, normalized_timeshift
 
+    def _date_range_row_bounds(self, start_date, end_date):
+        # Range endpoints are insertion points, not the last observation at or
+        # before an instant. Flooring the exclusive end drops the final daily
+        # bar when a benchmark ends after its last stored timestamp.
+        if getattr(self, "iter_index_dict", None) is None:
+            self.repair_times_and_fill(self.df.index)
+        index = self.df.index
+
+        def bound(value, default):
+            if value is None:
+                return default
+            stamp = pd.Timestamp(value)
+            if stamp.tzinfo is None and index.tz is not None:
+                stamp = stamp.tz_localize(index.tz)
+            return int(index.searchsorted(stamp, side="left"))
+
+        return bound(start_date, 0), bound(end_date, len(index))
+
     def _get_frame_between_dates(self, start_date=None, end_date=None, bars_only=False):
-        end_row = self.get_iter_count(end_date)
-        start_row = self.get_iter_count(start_date)
-
-        if start_row < 0:
-            start_row = 0
-
-        start_row = int(start_row)
-        end_row = int(end_row)
+        start_row, end_row = self._date_range_row_bounds(start_date, end_date)
 
         df_source = self._get_bars_source_frame() if bars_only else self.df
         df = df_source._slice(slice(start_row, end_row))

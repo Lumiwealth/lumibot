@@ -8,6 +8,7 @@ import pytest
 
 from lumibot.components.agents.builtins import (
     _bind_get_indicator, _bind_get_indicators, _bind_historical_prices, _bind_load_history,
+    _bind_last_price, _bind_last_prices,
 )
 from lumibot.entities import Asset
 from lumibot.indicators import Indicators
@@ -130,6 +131,28 @@ def test_single_history_table_cannot_register_incomplete_input():
     with pytest.raises(ValueError, match="missing_required_sessions"):
         _bind_load_history(strategy, manager).function(symbol=bad.symbol, length=12)
     assert ibkr_history_health_snapshot()["required_complete"] is True
+
+
+def test_quote_scan_recovers_from_unavailable_candidate_without_invalidating_other_prices():
+    strategy, bad, good = research_strategy()
+
+    def price(asset, **kwargs):
+        if asset == bad:
+            record_required_history(asset=asset, timestep="day", requested_bars=1,
+                frame=None, when=strategy.get_datetime())
+            return None
+        return 111.0
+
+    strategy.get_last_price = price
+    result = _bind_last_prices(strategy, None).function(symbols=[bad.symbol, good.symbol])
+    assert result["prices"] == {bad.symbol: None, good.symbol: 111.0}
+    assert result["symbols_missing"] == [bad.symbol]
+    assert ibkr_history_health_snapshot()["required_complete"] is True
+    with pytest.raises(ValueError, match="insufficient_required_history"):
+        _bind_last_price(strategy, None).function(symbol=bad.symbol)
+    assert ibkr_history_health_snapshot()["required_complete"] is True
+    price(bad)
+    assert ibkr_history_health_snapshot()["required_complete"] is False
 
 
 def test_research_scope_cannot_downgrade_valuation_and_does_not_leak_to_other_threads():

@@ -35,6 +35,11 @@ baseline and available updates, read their contents, and provide the best
 supported reconstruction. An exhaustive index or original-version archive is
 not a prerequisite. Missing exact quantities, version hashes or certified
 coverage do not prevent a useful, explicitly approximate answer.
+When a historical read has a publication date but no retained original-version
+proof, say briefly in the evidence handoff that the retrieved text is a
+historical approximation and may contain later edits. A publication date makes
+the article relevant to the cutoff; it does not certify the version of its
+current bytes. Continue using the supported content with that limitation.
 
 When the task requests an estimate, calculate it using the requested method and
 label the assumptions. A range midpoint used for sizing is an estimate, not a

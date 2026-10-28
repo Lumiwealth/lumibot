@@ -36,7 +36,17 @@ Lumibot does not use public CSV fallbacks for macro data. Built-in FRED agent to
 
 In a backtest, `as_of` defaults to `self.get_datetime()`.
 
-Lumibot always filters observations to `observation_date <= as_of` and requests the vintage data known as of that date through the official API.
+FRED vintages identify calendar dates, not intraday release instants. During a
+backtest, LumiBot caps both the vintage request and eligible observations at the
+previous completed calendar day in America/Chicago, relative to the simulated
+clock. An earlier explicit `as_of` remains earlier; a future override cannot
+advance the effective vintage. Live requests retain their current-date behavior.
+
+Results include `as_of_date`, `temporal_policy` and a timing limitation. This is a
+conservative availability approximation: it prevents a morning decision from
+seeing that day's closing observation, but can omit legitimate same-day releases.
+It does not certify exact intraday release timing. Keep that limitation in research
+handoffs rather than describing date-only vintages as exact historical replay.
 
 ## Cache
 

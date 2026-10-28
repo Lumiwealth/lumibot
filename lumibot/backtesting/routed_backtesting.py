@@ -251,6 +251,20 @@ class _DataFrameRoutingAdapter(_RoutingAdapter):
             df = df.sort_index()
         return df
 
+    @staticmethod
+    def _merge_fetched_frame(existing_df: pd.DataFrame | None, df: pd.DataFrame) -> pd.DataFrame:
+        if not isinstance(existing_df, pd.DataFrame) or existing_df.empty:
+            return df
+        # Stored bars use the default timezone. Restore the fetched index's
+        # timezone before merging so daily calendar labels survive refresh
+        # and concatenation keeps a DatetimeIndex instead of mixed objects.
+        previous = existing_df
+        if isinstance(previous.index, pd.DatetimeIndex) and isinstance(df.index, pd.DatetimeIndex):
+            previous = previous.copy()
+            previous.index = previous.index.tz_convert(df.index.tz)
+        merged = pd.concat([previous, df], axis=0).sort_index()
+        return merged[~merged.index.duplicated(keep="last")]
+
     def update_pandas_data(
         self,
         *,
@@ -336,18 +350,7 @@ class _DataFrameRoutingAdapter(_RoutingAdapter):
 
         df = self._normalize_fetched_index(df, ts_unit)
 
-        if existing_df is not None and isinstance(existing_df, pd.DataFrame) and not existing_df.empty:
-            # Stored bars use the default timezone. Restore the fetched index's
-            # timezone before merging so daily calendar labels survive refresh
-            # and concatenation keeps a DatetimeIndex instead of mixed objects.
-            previous = existing_df
-            if isinstance(previous.index, pd.DatetimeIndex) and isinstance(df.index, pd.DatetimeIndex):
-                previous = previous.copy()
-                previous.index = previous.index.tz_convert(df.index.tz)
-            merged = pd.concat([previous, df], axis=0).sort_index()
-            merged = merged[~merged.index.duplicated(keep="last")]
-        else:
-            merged = df
+        merged = self._merge_fetched_frame(existing_df, df)
 
         data = Data(original_asset, merged, timestep=ts_unit, quote=original_quote_asset)
         data.strict_end_check = ts_unit != "day"
@@ -684,18 +687,11 @@ class _IbkrRoutingAdapter(_DataFrameRoutingAdapter):
         if df is None or df.empty:
             return None
 
-        if isinstance(df.index, pd.DatetimeIndex):
-            if df.index.tz is None:
-                df.index = df.index.tz_localize("UTC")
-            df.index = df.index.tz_convert(LUMIBOT_DEFAULT_PYTZ)
-            df = df.sort_index()
+        df = self._normalize_fetched_index(df, unit)
 
         if existing_df is not None and isinstance(existing_df, pd.DataFrame) and not existing_df.empty:
             assert_same_basis(existing_df, df)
-            merged = pd.concat([existing_df, df], axis=0).sort_index()
-            merged = merged[~merged.index.duplicated(keep="last")]
-        else:
-            merged = df
+        merged = self._merge_fetched_frame(existing_df, df)
 
         # `Data` supports base units, but IBKR can return multi-minute datasets. Store them under
         # a separate key (e.g., "60minute") and annotate the instance so `Data.get_bars()` can
@@ -707,7 +703,7 @@ class _IbkrRoutingAdapter(_DataFrameRoutingAdapter):
         data._native_timestep_unit = unit  # type: ignore[attr-defined]
         try:
             if isinstance(merged.index, pd.DatetimeIndex) and len(merged.index) > 0:
-                data.repair_times_and_fill(merged.index)
+                data.repair_times_and_fill(data.df.index)
         except Exception:
             pass
 

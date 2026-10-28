@@ -49,6 +49,28 @@ class _ResponsesReplay:
             if item.get("type") == "function_call" and isinstance(item.get("call_id"), str):
                 self.by_call[item["call_id"]] = original
 
+    def restore_tool_arguments(self, response):
+        # Parallel Responses calls can omit argument deltas while retaining the
+        # complete arguments in terminal output. LiteLLM's streaming projection
+        # loses those fields; restore only the provider's exact completed values.
+        for part in getattr(getattr(response, "content", None), "parts", None) or []:
+            call = getattr(part, "function_call", None)
+            if call is None or call.id not in self.by_call:
+                continue
+            original = next(item for item in self.by_call[call.id]
+                            if item.get("type") == "function_call" and item.get("call_id") == call.id)
+            if original.get("name") != call.name:
+                raise SubscriptionModelResponseError("subscription_tool_identity_mismatch")
+            try:
+                arguments = json.loads(original["arguments"])
+            except (KeyError, TypeError, ValueError):
+                raise SubscriptionModelResponseError("subscription_invalid_tool_arguments") from None
+            if not isinstance(arguments, dict):
+                raise SubscriptionModelResponseError("subscription_invalid_tool_arguments")
+            if call.args and call.args != arguments:
+                raise SubscriptionModelResponseError("subscription_tool_arguments_mismatch")
+            call.args = arguments
+
     @staticmethod
     def _text(item):
         content = item.get("content", [])
@@ -310,6 +332,7 @@ class ChatGPTPlanLlm(BaseLlm):
                 if getattr(response, "error_code", None):
                     raise SubscriptionModelResponseError(response.error_code)
                 if not getattr(response, "partial", False):
+                    self._replay.restore_tool_arguments(response)
                     terminal = True
                 if stream or not getattr(response, "partial", False):
                     yield response

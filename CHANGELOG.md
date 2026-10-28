@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+### Fixed
+- ChatGPT-funded agents resolve model limits without starting LiteLLM's separate authentication flow. Inference retains the selected native ChatGPT connection, and unknown model limits remain unknown.
+- ChatGPT tool calls retain the provider's completed arguments when parallel Responses streams omit incremental argument events. Conflicting tool identities or arguments fail visibly instead of silently executing changed values.
+
 ## 4.6.32 - 2026-10-27
 
 ### Fixed

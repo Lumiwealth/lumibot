@@ -446,9 +446,32 @@ def test_actual_adk_subscription_transport_owns_stream_validation(monkeypatch, t
     assert request.config.temperature == 0.2
 
 
+@pytest.mark.parametrize("mutation", [None, "name", "arguments"])
+def test_completed_tool_arguments_preserve_nested_values_and_reject_conflicts(mutation):
+    from google.adk.models.llm_response import LlmResponse
+    from google.genai import types
+    from lumibot.components.agents.chatgpt_llm import _ResponsesReplay, SubscriptionModelResponseError
+
+    arguments = {"quantity": 2, "settings": {"enabled": False, "items": [1, "value", None]}}
+    replay = _ResponsesReplay()
+    replay.remember([{"type": "function_call", "id": "fc_nested", "call_id": "call_nested",
+                     "name": "inspect_evidence", "arguments": json.dumps(arguments), "status": "completed"}])
+    call = types.FunctionCall(id="call_nested", name="other_tool" if mutation == "name" else "inspect_evidence",
+                              args={"quantity": 99} if mutation == "arguments" else None)
+    response = LlmResponse(content=types.Content(role="model", parts=[types.Part(function_call=call)]))
+    if mutation:
+        with pytest.raises(SubscriptionModelResponseError, match="subscription_tool_"):
+            replay.restore_tool_arguments(response)
+    else:
+        replay.restore_tool_arguments(response)
+        assert response.content.parts[0].function_call.args == arguments
+
+
+
 @pytest.mark.parametrize('runner_mode', [False, True])
 @pytest.mark.parametrize("content_type", ["text/event-stream", None])
-def test_stateless_tool_continuation_replays_opaque_reasoning_and_function_items(monkeypatch, tmp_path, runner_mode, content_type):
+@pytest.mark.parametrize("argument_deltas", [True, False])
+def test_stateless_tool_continuation_replays_opaque_reasoning_and_function_items(monkeypatch, tmp_path, runner_mode, content_type, argument_deltas):
     """ADK drops Responses reasoning metadata; assert the actual second wire body."""
     import asyncio
 
@@ -490,11 +513,15 @@ def test_stateless_tool_continuation_replays_opaque_reasoning_and_function_items
                     for index, tool_call in enumerate(original_output):
                         if tool_call['type'] != 'function_call':
                             continue
+                        events.append({'type': 'response.output_item.added', 'output_index': index,
+                                       'item': {**tool_call, 'arguments': '', 'status': 'in_progress'}})
+                        # Real parallel responses may provide complete arguments only in done items.
+                        if argument_deltas:
+                            events.append({'type': 'response.function_call_arguments.delta', 'item_id': tool_call['id'],
+                                           'output_index': index, 'delta': tool_call['arguments']})
                         events.extend([
-                            {'type': 'response.output_item.added', 'output_index': index,
-                             'item': {**tool_call, 'arguments': '', 'status': 'in_progress'}},
-                            {'type': 'response.function_call_arguments.delta', 'item_id': tool_call['id'],
-                             'output_index': index, 'delta': tool_call['arguments']},
+                            {'type': 'response.function_call_arguments.done', 'item_id': tool_call['id'],
+                             'output_index': index, 'arguments': tool_call['arguments']},
                             {'type': 'response.output_item.done', 'output_index': index, 'item': tool_call},
                         ])
                 else:
@@ -510,19 +537,23 @@ def test_stateless_tool_continuation_replays_opaque_reasoning_and_function_items
     async def run_runner():
         from google.adk.agents import LlmAgent
         from google.adk.runners import InMemoryRunner
+        observed = []
         def get_evidence(series: str) -> dict:
             """Return recorded economic evidence for the requested series."""
+            observed.append(series)
             return {'value': 2.5 if series == 'CPI' else 4.0}
         runner = InMemoryRunner(agent=LlmAgent(name='researcher', model=model, tools=[get_evidence]), app_name='replay-contract')
         await runner.session_service.create_session(app_name=runner.app_name, user_id='synthetic', session_id='test')
         events = [event async for event in runner.run_async(user_id='synthetic', session_id='test', new_message=request.contents[0])]
         assert any(event.content and any(part.text == 'done' for part in event.content.parts) for event in events)
         assert 'opaque-contract' not in json.dumps([event.model_dump(mode='json') for event in events])
+        assert sorted(observed) == ['CPI', 'RATE']
     async def run():
         first = [r async for r in model.generate_content_async(request)]
         assert first[-1].usage_metadata.cached_content_token_count == 3
         assert first[-1].usage_metadata.thoughts_token_count == 1
         function = next(p.function_call for p in first[-1].content.parts if p.function_call)
+        assert function.args == {'series': 'CPI'}
         request.contents.extend([first[-1].content, types.Content(role='user', parts=[
             types.Part(function_response=types.FunctionResponse(id=function.id, name=function.name,
                                                                 response={'value': 2.5}))])])

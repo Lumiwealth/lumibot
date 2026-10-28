@@ -302,7 +302,7 @@ def test_backtest_research_calls_receive_a_hard_point_in_time_ceiling(monkeypatc
         handle._bound_remote_tool_payload(
             server,
             "search_documents",
-            {"datasetId": "sec.filings"},
+            {"datasetId": "sec.filings", "timeRange": {"endDate": "2026-01-01"}},
         )["timeRange"]["endDate"]
         == "2025-01-06"
     )
@@ -314,6 +314,21 @@ def test_backtest_research_calls_receive_a_hard_point_in_time_ceiling(monkeypatc
         )["asOf"]
         == "2025-01-06T15:30:00Z"
     )
+
+
+@pytest.mark.parametrize("tool_name", ["query_data", "search_documents"])
+def test_backtest_research_does_not_invent_an_optional_period_selector(monkeypatch, tool_name):
+    # Some registered releases accept asOf but do not accept period selection.
+    # Preserve the exact temporal ceiling without adding an unsupported field.
+    _configure_hosted_research(monkeypatch)
+    handle = AgentManager(_Strategy()).create(name="researcher", _runtime=_Runtime())
+    server = handle._mcp_servers[0]
+    payload = {"datasetId": "provider.release", "asOf": "2025-01-03"}
+
+    result = handle._bound_remote_tool_payload(server, tool_name, payload)
+
+    assert result == {"datasetId": "provider.release", "asOf": "2025-01-03T23:59:59.999999Z"}
+    assert payload == {"datasetId": "provider.release", "asOf": "2025-01-03"}
 
 
 @pytest.mark.parametrize("offset", ["-05:00", "-0500"])

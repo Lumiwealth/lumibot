@@ -1595,7 +1595,10 @@ class AgentHandle:
                 raise ValueError("BotSpot research asOf must be a valid date or timezone-aware ISO timestamp.") from exc
         arguments["asOf"] = ceiling.isoformat().replace("+00:00", "Z")
         as_of_day = ceiling.date().isoformat()
-        if tool_name in {"query_data", "search_documents"}:
+        # asOf is the availability ceiling. Period selection is optional and
+        # some release adapters intentionally do not support it; do not invent
+        # a selector merely because this is a backtest.
+        if tool_name in {"query_data", "search_documents"} and arguments.get("timeRange") is not None:
             time_range = dict(arguments.get("timeRange") or {})
             requested_end = str(time_range.get("endDate") or "").strip()
             if not requested_end or requested_end[:10] > as_of_day:

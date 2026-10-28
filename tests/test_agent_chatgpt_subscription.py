@@ -820,3 +820,72 @@ def test_token_envelope_fits_a_full_release_catalog_inside_the_dollar_allowance(
     assert budget.equivalent_upper_bound(
         budget.MAX_SUBSCRIPTION_INPUT_TOKENS, budget.MAX_SUBSCRIPTION_OUTPUT_TOKENS
     ) <= budget.SUBSCRIPTION_EQUIVALENT_ALLOWANCE_USD
+
+
+@pytest.mark.parametrize("terminal_arguments_event", [True, False])
+def test_tool_call_arguments_sent_only_in_done_events_reach_the_agent(monkeypatch, tmp_path, terminal_arguments_event):
+    """The plan endpoint can stream a function call with no argument deltas.
+
+    Observed on 2026-10-28: about 40 percent of tool calls arrived as
+    output_item.added (empty arguments), then function_call_arguments.done and
+    output_item.done carrying the full arguments, with no delta events. LiteLLM
+    builds arguments only from deltas, so those calls reached the agent with
+    null arguments and failed. A parallel call that does stream deltas must keep
+    its arguments exactly once.
+    """
+    import asyncio
+
+    import httpx
+    from google.adk.models.llm_request import LlmRequest
+    from google.genai import types
+
+    from lumibot.components.agents import chatgpt_llm
+    from lumibot.components.agents.runtime import _configure_litellm_quietly, _register_openai_gpt6_models
+    _configure_litellm_quietly()
+    _register_openai_gpt6_models()
+    monkeypatch.setattr(chatgpt_llm, 'access_token', lambda path: 'synthetic-plan-token')
+    quiet = {'id': 'fc_quiet', 'type': 'function_call', 'call_id': 'call_quiet',
+             'name': 'get_evidence', 'arguments': '{"series":"CPI"}', 'status': 'completed'}
+    streamed = {**quiet, 'id': 'fc_streamed', 'call_id': 'call_streamed', 'arguments': '{"series":"RATE"}'}
+
+    def handle(request):
+        terminal = {'id': 'resp_quiet', 'object': 'response', 'model': 'gpt-6-luna', 'status': 'completed',
+                    'output': [quiet, streamed],
+                    'usage': {'input_tokens': 5, 'output_tokens': 2, 'total_tokens': 7,
+                              'input_tokens_details': {'cached_tokens': 0},
+                              'output_tokens_details': {'reasoning_tokens': 0}}}
+
+        class Stream(httpx.AsyncByteStream):
+            async def __aiter__(self):
+                events = [{'type': 'response.output_item.added', 'output_index': 0,
+                           'item': {**quiet, 'arguments': '', 'status': 'in_progress'}}]
+                if terminal_arguments_event:
+                    events.append({'type': 'response.function_call_arguments.done', 'item_id': quiet['id'],
+                                   'output_index': 0, 'arguments': quiet['arguments']})
+                events += [
+                    {'type': 'response.output_item.done', 'output_index': 0, 'item': quiet},
+                    {'type': 'response.output_item.added', 'output_index': 1,
+                     'item': {**streamed, 'arguments': '', 'status': 'in_progress'}},
+                    {'type': 'response.function_call_arguments.delta', 'item_id': streamed['id'],
+                     'output_index': 1, 'delta': streamed['arguments']},
+                    {'type': 'response.function_call_arguments.done', 'item_id': streamed['id'],
+                     'output_index': 1, 'arguments': streamed['arguments']},
+                    {'type': 'response.output_item.done', 'output_index': 1, 'item': streamed},
+                    {'type': 'response.completed', 'response': terminal},
+                ]
+                # One chunk boundary inside an event proves line reframing is safe.
+                payload = ''.join('data: ' + json.dumps(event) + '\n\n' for event in events).encode()
+                yield payload[:37]
+                yield payload[37:]
+        return httpx.Response(200, headers={'content-type': 'text/event-stream'}, stream=Stream())
+
+    model = chatgpt_llm.ChatGPTPlanLlm(model='openai/responses/gpt-6-luna', profile=tmp_path/'profile.json',
+                                     transport=httpx.MockTransport(handle))
+    request = LlmRequest(contents=[types.Content(role='user', parts=[types.Part(text='get evidence')])],
+                         config=types.GenerateContentConfig())
+
+    async def run():
+        return [r async for r in model.generate_content_async(request)]
+    final = asyncio.run(run())[-1]
+    calls = {p.function_call.id: p.function_call.args for p in final.content.parts if p.function_call}
+    assert calls == {'call_quiet': {'series': 'CPI'}, 'call_streamed': {'series': 'RATE'}}

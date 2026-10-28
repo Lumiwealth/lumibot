@@ -2750,7 +2750,20 @@ class _Strategy:
                     return
                 from lumibot.tools.indicators import benchmark_returns_from_bars
 
-                self._benchmark_returns_df = benchmark_returns_from_bars(df)
+                base_asset = benchmark_asset[0] if isinstance(benchmark_asset, tuple) else benchmark_asset
+                asset_type = str(getattr(base_asset, "asset_type", "stock")).lower()
+                market = {
+                    "crypto": "24/7", "forex": "CME_FX",
+                    "future": "us_futures", "cont_future": "us_futures",
+                }.get(asset_type, getattr(self.broker, "market", "NYSE"))
+                if asset_type in {"stock", "index"} and market in {"24/7", "CME_FX", "us_futures"}:
+                    # A non-equity strategy calendar does not change the cash
+                    # benchmark's sessions. Preserve configured equity markets.
+                    market = "NYSE"
+                try:
+                    self._benchmark_returns_df = benchmark_returns_from_bars(df, market=market)
+                except (TypeError, ValueError, RuntimeError):
+                    _fallback_benchmark(benchmark_asset)
 
             elif type(self.broker.data_source) == AlpacaBacktesting:
                 benchmark_asset = self._benchmark_asset

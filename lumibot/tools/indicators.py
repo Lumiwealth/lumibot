@@ -570,7 +570,7 @@ def performance(_df, risk_free, prefix=""):
     print(f"{prefix} RoMaD {romad_adj*100:,.2f}%")
 
 
-def benchmark_returns_from_bars(frame):
+def benchmark_returns_from_bars(frame, *, market=None):
     """Passive daily returns from the first observed open, with an explicit anchor.
 
     The anchor represents initial capital, not an invented historical quote.
@@ -579,6 +579,20 @@ def benchmark_returns_from_bars(frame):
     """
     result = frame.copy().sort_index()
     close = pd.to_numeric(result["close"], errors="coerce")
+    if close.empty or not np.isfinite(close).all() or (close <= 0).any():
+        raise ValueError("Benchmark observed closing price is unavailable")
+    if market is not None:
+        from lumibot.tools.helpers import get_trading_days
+
+        # Calendar closures may carry the previous valuation. Missing open
+        # sessions may not: calendar resampling would otherwise invent 0% days.
+        dates = pd.DatetimeIndex(result.index).date
+        sessions = get_trading_days(market=market, start_date=pd.Timestamp(dates[0]),
+                                   end_date=pd.Timestamp(dates[-1]) + pd.Timedelta(days=1))
+        expected_dates = set(sessions.index.date) if not sessions.empty else set()
+        missing = expected_dates - set(dates)
+        if missing:
+            raise ValueError("Benchmark is missing observed trading sessions")
     dividend = pd.to_numeric(result.get("dividend", pd.Series(0., index=result.index)), errors="coerce").fillna(0.)
     first_open = result["open"].iloc[0] if "open" in result else close.iloc[0]
     first_open = float(first_open)
@@ -596,6 +610,8 @@ def benchmark_returns_from_bars(frame):
     anchor = pd.DataFrame({"return": [0.], "symbol_cumprod": [1.]}, index=[anchor_time])
     result = pd.concat([anchor, result])
     result.attrs["entry_basis"] = "first_available_open" if "open" in frame else "first_available_close"
+    if market is not None:
+        result.attrs["benchmark_calendar"] = market
     return result
 
 

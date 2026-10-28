@@ -18,6 +18,8 @@ broad mandate leads you to a stock idea, load it before submitting an order.
    `market_last_price` / `market_last_prices`, is a usable disclosed fallback.
    Missing bid/ask alone does not make a priced stock untradeable. Do not
    substitute an old historical close for the execution price.
+   Keep last (`price`), bid and ask distinct in calculations and reporting.
+   Copy the observed field with its correct label; never relabel last or mid as bid.
    Retrieve recent price history for every serious candidate.
    Read that history with `market_historical_prices`, also for a single symbol;
    pass `table_name` to query it with `duckdb_query`.

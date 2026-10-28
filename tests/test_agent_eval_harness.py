@@ -669,6 +669,10 @@ def test_eval_defaults_use_subscription_for_both_roles_with_qualified_role_reaso
 @pytest.fixture(autouse=True)
 def synthetic_subscription_for_harness_contracts(monkeypatch, tmp_path):
     from lumibot.components.agents import chatgpt_auth
+    # chatgpt_llm binds access_token by name at import. Import it before the
+    # patch so a first import here cannot capture the synthetic token and leak
+    # it into later test files in the same process.
+    from lumibot.components.agents import chatgpt_llm  # noqa: F401
     monkeypatch.setattr(chatgpt_auth, "profile_path", lambda: tmp_path / "synthetic-profile.json")
     monkeypatch.setattr(chatgpt_auth, "access_token", lambda path: "synthetic-token")
     monkeypatch.setattr(chatgpt_auth, "available_models", lambda path: [{"slug": "gpt-6-luna"}])

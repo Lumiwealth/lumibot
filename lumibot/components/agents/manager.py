@@ -248,6 +248,11 @@ def _botspot_research_server_from_environment() -> tuple[MCPServer | None, str |
                 exposed_tools=_BOTSPOT_RESEARCH_TOOLS,
                 auth_token_env="BOTSPOT_RESEARCH_MCP_TOKEN",
                 auth_token_refresh_url=renew_url or None,
+                headers=(
+                    {"X-BotSpot-Attribution": "utm_source=lumibot&utm_medium=strategy&utm_campaign=research_connection"}
+                    if str(os.environ.get("DO_NOT_TRACK") or "").strip().lower() in {"", "0", "false", "no", "off"}
+                    else None
+                ),
             ),
             None,
         )
@@ -1584,7 +1589,7 @@ class AgentHandle:
                         hour=23, minute=59, second=59, microsecond=999999, tzinfo=timezone.utc
                     )
                 else:
-                    # Node's ISO contract permits compact offsets. Python 3.10
+                    # The server's ISO contract permits compact offsets. Python 3.10
                     # requires their colon; preserve the instant before parsing.
                     normalized = re.sub(r"([+-]\d{2})(\d{2})$", r"\1:\2", requested_as_of)
                     requested = datetime.fromisoformat(normalized.replace("Z", "+00:00"))
@@ -1595,7 +1600,10 @@ class AgentHandle:
                 raise ValueError("BotSpot research asOf must be a valid date or timezone-aware ISO timestamp.") from exc
         arguments["asOf"] = ceiling.isoformat().replace("+00:00", "Z")
         as_of_day = ceiling.date().isoformat()
-        if tool_name in {"query_data", "search_documents"}:
+        # asOf is the availability ceiling. Period selection is optional and
+        # some release adapters intentionally do not support it; do not invent
+        # a selector merely because this is a backtest.
+        if tool_name in {"query_data", "search_documents"} and arguments.get("timeRange") is not None:
             time_range = dict(arguments.get("timeRange") or {})
             requested_end = str(time_range.get("endDate") or "").strip()
             if not requested_end or requested_end[:10] > as_of_day:

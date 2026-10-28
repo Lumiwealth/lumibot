@@ -679,3 +679,56 @@ def test_explicit_max_output_tokens_below_the_limit_is_sent_unchanged():
     )
 
     assert config["max_output_tokens"] == 2_000
+
+
+@pytest.mark.parametrize("model", ["chatgpt/gpt-6-luna"])
+def test_chatgpt_model_metadata_uses_local_limits_without_provider_login(monkeypatch, model):
+    from lumibot.components.agents import runtime
+
+    monkeypatch.setattr(runtime, "_MODEL_OUTPUT_LIMIT_CACHE", {})
+    looked_up = []
+
+    def metadata_lookup(name):
+        looked_up.append(name)
+        raise ValueError("Unknown model metadata")
+
+    monkeypatch.setattr("litellm.get_model_info", metadata_lookup)
+    limit = runtime._model_max_output_tokens(model)
+
+    assert limit == runtime._OPENAI_GPT6_MODEL_INFO[model.split("/", 1)[1]]["max_output_tokens"]
+    assert looked_up == []
+
+
+@pytest.mark.parametrize("model", ["chatgpt/unknown-model", "chatgpt/gpt-6-sol"])
+def test_chatgpt_unknown_model_metadata_normalizes_provider_without_inventing_limit(monkeypatch, model):
+    from lumibot.components.agents import runtime
+
+    monkeypatch.setattr(runtime, "_MODEL_OUTPUT_LIMIT_CACHE", {})
+    looked_up = []
+
+    def metadata_lookup(name):
+        looked_up.append(name)
+        raise ValueError("Unknown model metadata")
+
+    monkeypatch.setattr("litellm.get_model_info", metadata_lookup)
+
+    # Models absent from the local limit table must keep unknown limits honest.
+    assert runtime._model_max_output_tokens(model) is None
+    assert looked_up == ["openai/" + model.split("/", 1)[1]]
+
+
+@pytest.mark.parametrize("model", ["openai/unknown-model", "gemini/unknown-model"])
+def test_model_metadata_preserves_other_provider_identifiers(monkeypatch, model):
+    from lumibot.components.agents import runtime
+
+    monkeypatch.setattr(runtime, "_MODEL_OUTPUT_LIMIT_CACHE", {})
+    looked_up = []
+
+    def metadata_lookup(name):
+        looked_up.append(name)
+        raise ValueError("Unknown model metadata")
+
+    monkeypatch.setattr("litellm.get_model_info", metadata_lookup)
+
+    assert runtime._model_max_output_tokens(model) is None
+    assert looked_up == [model]

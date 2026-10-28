@@ -88,8 +88,8 @@ def startup_tip_message() -> str:
     rule = "=" * 72
     return (
         f"\n{rule}\n"
-        "BotSpot MCP is not connected. Connect it free to give your agents skills, free data\n"
-        "(news, economic data, SEC filings), community and marketplace access.\n"
+        "BotSpot MCP is not connected. Connect it free for research data\n"
+        "(economics, SEC filings and available news), plus permitted Community/Marketplace reads.\n"
         f"  {link}\n"
         "  Or run: lumibot connect botspot\n"
         f"Hide this message: {HIDE_TIP_ENV}=1\n"

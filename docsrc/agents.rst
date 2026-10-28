@@ -154,6 +154,10 @@ data and document reads. Each source applies its own historical availability
 contract and reports unavailable snapshots explicitly. Backtests are not blocked
 from research merely because they lack a separate server-attested clock.
 
+The simulated-time ceiling uses ``asOf``. If a request supplies a ``timeRange``,
+its end date is also bounded; requests that omit period selection keep it omitted
+so release-based datasets can use their own supported selectors.
+
 **Pattern 1: @agent_tool wrapping a REST API (recommended)**
 
 This is the primary and recommended approach. It works reliably in both backtests and live trading because you control the HTTP call directly.

@@ -201,7 +201,17 @@ Connect the free [BotSpot MCP](https://botspot.trade/agents?utm_source=github&ut
 **[Connect your AI assistant](https://botspot.trade/agents)**
 
 For local coding help, install the free [LumiBot trading skills](https://github.com/Lumiwealth/lumibot-trading-skills).
-For research tools inside a running strategy's agents, see [LumiBot strategy agents](https://lumibot.lumiwealth.com/botspot_mcp.html) and `lumibot connect botspot`.
+**Give running strategy agents research tools too:**
+
+```bash
+lumibot connect botspot
+```
+
+They can discover datasets, query economics and SEC observations, retrieve source
+documents, and read permitted Marketplace and Community information. See the
+[LumiBot connection guide](https://lumibot.lumiwealth.com/botspot_mcp.html) for
+source availability, permissions and backtest-date limitations. LumiBot works
+independently; connecting BotSpot adds these tools.
 
 ## Explore LumiBot
 

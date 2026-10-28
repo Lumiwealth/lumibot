@@ -5,6 +5,11 @@ Direct run: backtest only.
 Run: python -m lumibot.example_strategies.ai_researcher_trader
 Requires OPENAI_API_KEY and Yahoo daily price access. Model calls incur charges.
 This module only starts a historical backtest when run as a program.
+
+Optional research tools: run ``lumibot connect botspot`` once before starting.
+The research agent then has dataset, document and permitted Marketplace/Community
+reads available. Adjust its research prompt when your strategy needs those sources;
+this example's trend rule still uses completed price bars.
 """
 from datetime import datetime
 

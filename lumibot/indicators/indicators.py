@@ -90,6 +90,9 @@ class Indicators:
     def __init__(self, strategy):
         self._strategy = strategy
         self._cache: dict = {}
+        # Indicator v2 streaming state for get(): one live instance per
+        # (asset, timestep, key, version, inputs, quote, exchange).
+        self._streams: dict = {}
         self._fallback_length: int = 10_000
 
     def __getattr__(self, name: str):
@@ -152,6 +155,65 @@ class Indicators:
             asset, timestep, "fibonacci", {"direction": direction, "length": length, **kwargs}, None
         )
 
+    def get(self, key, asset, *, version=None, timestep="day", quote=None, exchange=None, **inputs):
+        """Current-bar outputs of an Indicator v2 from the registry.
+
+        ``self.indicators.get("rsi", asset, length=14)`` returns
+        ``{"rsi": 55.1}`` (``None`` values while warming up, ``None`` overall
+        when no bars exist yet). ``version`` pins the indicator math; omit it
+        for the latest registered version. Custom indicators registered with
+        ``lumibot.indicators.register`` work the same way.
+
+        Only bars at or before strategy time are fed. The indicator keeps its
+        streaming state between calls, so each new bar costs one ``update``
+        instead of a full-history recompute. If time moves backwards or the
+        last bar it saw has changed, it rebuilds from the observed history.
+        """
+        from lumibot.indicators.base import iter_bars
+        from lumibot.indicators.indicator_registry import registry
+
+        cls = registry.get(key, version)
+        resolved = cls.resolve_inputs(inputs)
+        stream_key = (
+            self._asset_key(asset),
+            timestep,
+            cls.key,
+            cls.version,
+            tuple(sorted((k, repr(v)) for k, v in resolved.items())),
+            self._asset_key(quote) if quote is not None else None,
+            exchange,
+        )
+        df = self._full_history(asset, timestep, quote=quote, exchange=exchange)
+        if df is None or df.empty:
+            self._record_consumed_input(asset, timestep, None, quote=quote)
+            return None
+        if not isinstance(df.index, pd.DatetimeIndex) or not df.index.is_monotonic_increasing or not df.index.is_unique:
+            raise ValueError("Indicator history requires a unique, increasing DatetimeIndex.")
+        end = self._position_at(df.index, self._strategy.get_datetime()) + 1
+        observed = df.iloc[:end]
+        self._record_consumed_input(asset, timestep, observed, quote=quote)
+        if end <= 0:
+            return None
+
+        entry = self._streams.get(stream_key)
+        if entry is not None:
+            count = entry["count"]
+            last_seen = next(iter(iter_bars(observed.iloc[count - 1 : count]))) if 0 < count <= end else None
+            if last_seen is None or last_seen != entry["last_bar"]:
+                entry = None  # rewound or corrected: rebuild from observed history
+        if entry is None:
+            from lumibot.indicators.execution import prepare_indicator
+
+            entry = {"indicator": prepare_indicator(cls(**resolved)), "count": 0, "last_bar": None, "values": None}
+            self._streams[stream_key] = entry
+        if entry["count"] < end:
+            indicator = entry["indicator"]
+            bar = None
+            for bar in iter_bars(observed.iloc[entry["count"] : end]):
+                entry["values"] = indicator.update(bar, closed=True)
+            entry["count"], entry["last_bar"] = end, bar
+        return dict(entry["values"])
+
     def invalidate(self, asset=None) -> None:
         """Drop memoized indicator results.
 
@@ -161,10 +223,13 @@ class Indicators:
         """
         if asset is None:
             self._cache.clear()
+            self._streams.clear()
             return
         asset_key = self._asset_key(asset)
         for key in [k for k in self._cache if k[0] == asset_key]:
             self._cache.pop(key, None)
+        for key in [k for k in self._streams if k[0] == asset_key]:
+            self._streams.pop(key, None)
 
     @property
     def cache_size(self) -> int:

@@ -165,6 +165,8 @@ class AIIronCondorStrategy(Strategy):
                      "as_of": self.get_datetime().isoformat(), "wing_width": self.parameters["wing_width"]},
         )
         usage = {"time": self.get_datetime().isoformat(), "usage": result.usage,
+                 "decision": result.parsed.get("decision") if isinstance(result.parsed, dict) else None,
+                 "parse_error": result.parse_error, "cache_hit": getattr(result, "cache_hit", False),
                  "completed_requests": [e.payload for e in getattr(result, "events", []) if e.kind == "usage"]}
         self.vars.ai_usage.append(usage)
         self._record("ai_usage", **usage)

@@ -2657,9 +2657,10 @@ def _bind_read_document(strategy: Any, manager: Any) -> BoundTool:
                 "approximation_required": expected_sha256 is None,
                 "expected_bytes_matched": expected_sha256 is not None,
                 "note": (
-                    "A publication date does not certify the retrieved version. Without retained-original "
-                    "evidence, disclose in the research handoff that this text is a historical approximation "
-                    "and may contain later edits; continue using the supported content with that limitation."
+                    "Use supported content as a disclosed historical approximation: these bytes may include "
+                    "later edits. Missing publication/version proof alone does not make it unusable. For "
+                    "undated material, estimate public timing from its contents and context, label that "
+                    "assumption and uncertainty, and exclude content known to be after the cutoff."
                     if expected_sha256 is None else
                     "Bytes match the supplied expected hash. The source must separately establish when "
                     "that version became public; a matching hash alone does not certify availability."

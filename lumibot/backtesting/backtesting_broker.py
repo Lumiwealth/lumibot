@@ -2452,6 +2452,7 @@ class BacktestingBroker(Broker):
                     order.asset,
                     order.quote,
                     getattr(order, "exchange", None),
+                    timestep=order_fill_timestep,
                 )
                 fast_bid = self._coerce_price(fast_bid)
                 fast_ask = self._coerce_price(fast_ask)
@@ -3543,6 +3544,18 @@ class BacktestingBroker(Broker):
         if str(unit or "").strip().lower() == "day":
             return False
 
+        # Daily strategy cadence can use already loaded intraday stock bars for
+        # market execution. A missing current bar must not become a stale fill.
+        if order is not None and order.order_type == Order.OrderType.MARKET and self._normalize_asset_type(
+            getattr(order.asset, "asset_type", "")
+        ) in {"stock", "equity"}:
+            try:
+                _, source_unit = parse_timestep_qty_and_unit(getattr(source, "_timestep", "minute"))
+                if source_unit == "day":
+                    return True
+            except (TypeError, ValueError):
+                pass
+
         source = getattr(self, "data_source", None)
         source_name = data_source_name or str(getattr(source, "SOURCE", "") or "").upper()
         source_class_name = source.__class__.__name__ if source is not None else ""
@@ -3817,6 +3830,12 @@ class BacktestingBroker(Broker):
 
     def _quote_matches_current_execution_bar(self, quote, order: Order, timestep: Optional[str] = None) -> bool:
         raw = getattr(quote, "raw_data", None)
+        source_timestep = getattr(getattr(self, "data_source", None), "_timestep", None)
+        execution_timestep = self._resolve_order_fill_timestep(order, source_timestep)
+        # A daily quote must not bypass the current intraday execution contract
+        # merely by labeling its own stale observation as a daily bar.
+        if source_timestep == "day" and self._requires_current_execution_bar(order, execution_timestep):
+            timestep = execution_timestep
         if timestep is None and isinstance(raw, dict):
             timestep = raw.get("bar_timestep")
         timestep = timestep or getattr(getattr(self, "data_source", None), "_timestep", None) or "minute"
@@ -3834,6 +3853,7 @@ class BacktestingBroker(Broker):
         asset: Asset,
         quote: Optional[Asset],
         exchange: Optional[str] = None,
+        timestep: Optional[str] = None,
     ) -> tuple[Optional[float], Optional[float]]:
         """Fast-path for bid/ask retrieval in backtesting order fills.
 
@@ -3859,7 +3879,7 @@ class BacktestingBroker(Broker):
             return None, None
 
         # Match IBKR's `get_quote()` special-case for crypto at midnight: use the daily series.
-        timestep = getattr(data_source, "_timestep", None) or "minute"
+        timestep = timestep or getattr(data_source, "_timestep", None) or "minute"
         if (
             self._normalize_asset_type(getattr(asset, "asset_type", "")) == "crypto"
             and now.hour == 0
@@ -4014,13 +4034,31 @@ class BacktestingBroker(Broker):
     def _resolve_order_fill_timestep(self, order: Optional[Order], default_timestep: Optional[str]) -> str:
         """Resolve the OHLC timestep for pending-order fills.
 
-        The default remains the data source timestep. The narrow exception is the
+        Stock market orders under daily cadence use matching intraday data when
+        already loaded; this selection never requests a new data resolution.
+        Daily-only data and non-market orders retain their existing behavior.
+        The other exception is the
         IBKR stock/index daily-data contract: routed/direct IBKR stock and index
         backtests explicitly prefer native daily bars so a warmed minute frame
         cannot satisfy daily lookups. If an intraday series is already loaded for
         the same asset, preserve the data source's intraday timestep.
         """
         fallback = str(default_timestep or "minute")
+        if order is not None and order.order_type == Order.OrderType.MARKET and self._normalize_asset_type(
+            getattr(order.asset, "asset_type", "")
+        ) in {"stock", "equity"}:
+            try:
+                _, default_unit = parse_timestep_qty_and_unit(fallback)
+                if default_unit == "day":
+                    intraday = []
+                    for timestep in self._loaded_order_fill_timesteps(order):
+                        quantity, unit = parse_timestep_qty_and_unit(timestep)
+                        if unit in {"minute", "hour"}:
+                            intraday.append((quantity * (60 if unit == "hour" else 1), timestep))
+                    if intraday:
+                        return min(intraday)[1]
+            except (TypeError, ValueError):
+                pass
         if not self._should_use_native_day_stock_index_fill(order):
             return fallback
 
@@ -4071,17 +4109,28 @@ class BacktestingBroker(Broker):
         return bool(getattr(data_source, "PREFER_NATIVE_DAY_BARS_FOR_STOCK_INDEX", False))
 
     def _has_loaded_order_fill_series(self, order: Optional[Order], units: set[str]) -> bool:
+        normalized_units = {str(unit).strip().lower() for unit in units}
+        for timestep in self._loaded_order_fill_timesteps(order):
+            try:
+                _, unit = parse_timestep_qty_and_unit(timestep)
+            except Exception:
+                unit = timestep
+            if str(unit or "").strip().lower() in normalized_units:
+                return True
+        return False
+
+    def _loaded_order_fill_timesteps(self, order: Optional[Order]) -> list[str]:
         data_source = getattr(self, "data_source", None)
         store = getattr(data_source, "_data_store", None)
         if order is None or not isinstance(store, dict):
-            return False
+            return []
 
         order_asset = getattr(order, "asset", None)
         if order_asset is None:
-            return False
+            return []
 
         order_quote = getattr(order, "quote", None)
-        normalized_units = {str(unit).strip().lower() for unit in units}
+        timesteps = []
 
         for key, data_obj in store.items():
             key_asset = None
@@ -4102,17 +4151,16 @@ class BacktestingBroker(Broker):
             if order_quote is not None and key_quote is not None and key_quote != order_quote:
                 continue
 
-            timestep = key_timestep or getattr(data_obj, "timestep", None)
-            try:
-                _, unit = parse_timestep_qty_and_unit(str(timestep))
-                unit = str(unit or "").strip().lower()
-            except Exception:
-                unit = str(timestep or "").strip().lower()
-
-            if unit in normalized_units:
-                return True
-
-        return False
+            timestep = key_timestep or self._execution_timestep_for_data_obj(data_obj)
+            if key_timestep in {"minute", "hour"}:
+                native = self._execution_timestep_for_data_obj(data_obj, key_timestep)
+                try:
+                    if parse_timestep_qty_and_unit(native)[1] == key_timestep:
+                        timestep = native
+                except (TypeError, ValueError):
+                    pass
+            timesteps.append(timestep)
+        return timesteps
 
     def _is_option_asset(self, asset) -> bool:
         if asset is None:

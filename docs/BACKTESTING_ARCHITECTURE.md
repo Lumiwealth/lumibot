@@ -325,6 +325,14 @@ LumiBot intentionally separates *trade-based* pricing from *quote/mark* pricing:
 
 This is essential to ensure ThetaData backtests behave like live brokers: brokers return stale last trades, and only quote endpoints provide NBBO/mark.
 
+For stock market orders in a daily-cadence strategy, already loaded matching
+intraday bars supply the execution price at the simulated time. This selection
+does not download minute history or change completed daily research bars. If the
+current execution bar is missing, the order remains working rather than filling
+from an older bar or daily quote. Daily-only sources retain their daily fill
+model; limit/stop orders, other asset classes and live brokers retain their
+existing selection rules.
+
 ### SMART_LIMIT Backtest Fills
 
 - SMART_LIMIT fills use **mid ± slippage** when bid/ask is available (mid + slippage for buys, mid - slippage for sells).

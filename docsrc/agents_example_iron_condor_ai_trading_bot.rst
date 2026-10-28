@@ -37,7 +37,7 @@ own costs. An unavailable model cannot prevent Python from monitoring existing
 positions.
 
 Run locally with Login with ChatGPT
-----------------------------------
+-----------------------------------
 
 The default planner is ``chatgpt/gpt-6-luna`` with medium reasoning and Standard
 processing. It uses your explicitly connected ChatGPT plan or authorized credit
@@ -75,7 +75,7 @@ API-equivalent pricing is an estimate and does not establish the number of
 ChatGPT credits debited. The inference response does not report that debit.
 
 Recorded three-week smoke run
-----------------------------
+-----------------------------
 
 The January 5–23, 2026 run at source revision ``3f768aaed`` completed eight
 four-leg entries and eight signed closes, including entry, exit and later
@@ -95,7 +95,7 @@ registered Luna Standard API rates gives an illustrative API-equivalent estimate
 of $0.18231 for this run. That estimate is not a ChatGPT credit debit.
 
 Backtest limitations
--------------------
+--------------------
 
 Alpaca's historical option bars contain trades, not historical NBBO quotes.
 When a historical quote has only a last-trade price, this example labels it

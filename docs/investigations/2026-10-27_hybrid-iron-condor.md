@@ -84,7 +84,7 @@ no additional unapproved core repair was made.
 The small source/run receipt is
 [`2026-10-28_hybrid-iron-condor-backtest.json`](2026-10-28_hybrid-iron-condor-backtest.json).
 The final affected inventory passed 385 tests; the documentation HTML build
-succeeded with seven warnings. Full market-data and model traces remain private. Both source changes and the
+succeeded with one unrelated toctree warning. Full market-data and model traces remain private. Both source changes and the
 receipt are source publication only: no package release or deployment occurred.
 
 ## Reproduction and reporting

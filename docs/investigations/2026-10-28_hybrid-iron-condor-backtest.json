@@ -104,7 +104,7 @@
       "tests/backtest/test_multileg_backtest.py",
       "tests/docs/test_ai_example_pages.py"
     ],
-    "documentation_build": "Sphinx HTML succeeded with seven warnings"
+    "documentation_build": "Sphinx HTML succeeded with one unrelated toctree warning"
   },
   "dependencies": {
     "google-adk": "2.11.0",

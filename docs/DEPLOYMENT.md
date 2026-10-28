@@ -320,6 +320,13 @@ Publishing is **tag-driven** via `.github/workflows/release.yml`.
    - Rationale: other people may have merged changes to `dev` while the version branch was in flight; this step ensures the release includes those changes.
 
 1) **Verify tests**
+   - Web-enabled native cases can choose the normal optional keyless search tool.
+     Prepare its backend in the owned qualification environment before model calls
+     (`pip install ddgs==9.16.1 primp==2.0.1` for this qualification tuple), then
+     verify `from lumibot.components.agents.builtins import _web_search_backend;
+     _web_search_backend()` imports successfully. Missing optional dependencies
+     are setup failures. Record added versions and preserve compatible passes;
+     never mutate the shared SDK environment while model workers are active.
    - Native inference may retain its actual original source/time through `ci/agent-evals/source-compatibility.json` only when `scripts/qualify_agent_evals.py verify` proves the complete source comparison. This applies to the maintained Pandas fixtures and unused external IBKR modules; actor/judge/fixture/shared-code changes still require normal native qualification. Never rewrite historical fingerprints or timestamps to a candidate.
    - Ensure required CI checks are green (unit + backtest + acceptance gates as applicable).
    - The standard gate is portable: no paid historical-data subscription or shared remote cache is required.

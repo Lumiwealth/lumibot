@@ -10,6 +10,7 @@
 
 ### Fixed
 - Agent research preserves omitted period selectors during backtests. Requests that use only `asOf` no longer gain an unsupported `timeRange`; caller-supplied date ranges and the simulated-time ceiling remain bounded.
+- ChatGPT plan agent tool calls keep their arguments when the provider sends them only in the final done events, without argument deltas. Those calls previously reached the agent with empty arguments and failed.
 - Bitunix history: a spot request that names the whole pair (`BTCUSDT`, `BTC-USDT`, `BTC/USDT`) no longer asks the exchange for `BTCUSDTUSDT`, and LumiBot timestep names such as `"15 minutes"`, `"2 hours"` and `"1 day"` map to the matching Bitunix interval. An unknown timestep now raises instead of silently returning one-minute bars.
 - CCXT history loads on exchanges that reject the default page size. The pager starts from the per-market-type maximum CCXT advertises, steps through common sizes when the exchange answers a request with `BadRequest`, and keeps the size that worked; other errors still raise. New `scripts/check_ccxt_history.py` checks public history on any or every CCXT exchange.
 

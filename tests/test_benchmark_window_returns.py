@@ -59,3 +59,12 @@ def test_benchmark_coverage_uses_the_configured_calendar(dates, market):
         index=pd.to_datetime(dates).tz_localize("UTC"))
     result = indicators.benchmark_returns_from_bars(bars, market=market)
     assert result.symbol_cumprod.iloc[-1] == pytest.approx(1.03)
+
+
+def test_requested_daily_benchmark_window_omits_outside_observations():
+    index = pd.date_range("2025-01-06", periods=4, tz="America/New_York")
+    bars = pd.DataFrame({"open": [90., 100., 105., 120.], "close": [95., 105., 110., 125.]}, index=index)
+    result = indicators.benchmark_returns_from_bars(bars, market="NYSE",
+        start_date=index[1] + pd.Timedelta(hours=9, minutes=30), end_date=index[3])
+    assert result.close.dropna().tolist() == [105., 110.]
+    assert result.symbol_cumprod.iloc[-1] == pytest.approx(1.10)

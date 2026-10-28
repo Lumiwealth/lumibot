@@ -149,10 +149,52 @@ def test_router_benchmark_preserves_equity_and_continuous_calendars(
 
     monkeypatch.setattr(_strategy, "get_symbol_returns", unexpected_fallback)
     strategy = SimpleNamespace(is_backtesting=True, _benchmark_asset=Asset("ALPHA", asset_type),
-        _backtesting_start=index[0], _backtesting_end=index[-1],
+        _backtesting_start=index[0], _backtesting_end=index[-1] + pd.Timedelta(hours=16),
         _quote_asset=Asset("USD", Asset.AssetType.FOREX),
         broker=SimpleNamespace(data_source=router, market=strategy_market),
         logger=SimpleNamespace(error=lambda *args: None, warning=lambda *args: None))
     _strategy._Strategy._dump_benchmark_stats(strategy)
     assert strategy._benchmark_returns_df.attrs["benchmark_calendar"] == expected_calendar
     assert strategy._benchmark_returns_df.symbol_cumprod.iloc[-1] == pytest.approx(1.02)
+
+
+@pytest.mark.parametrize("missing_boundary", [None, "first", "last"])
+def test_router_daily_benchmark_covers_requested_sessions_from_intraday_start(monkeypatch, missing_boundary):
+    from types import SimpleNamespace
+
+    from lumibot.entities import Data
+    from lumibot.strategies import _strategy
+
+    index = pd.date_range("2025-01-06", periods=3, tz="America/New_York")
+    frame = pd.DataFrame({"open": [100., 104., 108.], "high": [105., 109., 111.],
+        "low": [99., 103., 107.], "close": [105., 109., 110.], "volume": [100.] * 3}, index=index)
+    if missing_boundary == "first":
+        frame = frame.iloc[1:]
+    elif missing_boundary == "last":
+        frame = frame.iloc[:-1]
+    data = Data(Asset("ALPHA"), frame, timestep="day")
+    router = object.__new__(RoutedBacktestingPandas)
+    requests = []
+
+    def between_dates(asset, timestep, **kwargs):
+        requests.append(kwargs)
+        return SimpleNamespace(df=data.get_bars_between_dates(timestep=timestep,
+            start_date=kwargs["start_date"], end_date=kwargs["end_date"]))
+
+    monkeypatch.setattr(router, "get_historical_prices_between_dates", between_dates)
+    fallback_calls = []
+    monkeypatch.setattr(_strategy, "get_symbol_returns", lambda *args: fallback_calls.append(args))
+    start = index[0] + pd.Timedelta(hours=9, minutes=30)
+    end = index[-1] + pd.Timedelta(hours=16)
+    strategy = SimpleNamespace(is_backtesting=True, _benchmark_asset=Asset("ALPHA"),
+        _backtesting_start=start, _backtesting_end=end, _quote_asset=Asset("USD", Asset.AssetType.FOREX),
+        broker=SimpleNamespace(data_source=router, market="NYSE"),
+        logger=SimpleNamespace(error=lambda *args: None, warning=lambda *args: None))
+    _strategy._Strategy._dump_benchmark_stats(strategy)
+    assert requests[0]["start_date"] == index[0]
+    if missing_boundary:
+        assert len(fallback_calls) == 1
+        assert strategy._benchmark_returns_df is None
+    else:
+        assert not fallback_calls
+        assert strategy._benchmark_returns_df.symbol_cumprod.iloc[-1] == pytest.approx(1.10)

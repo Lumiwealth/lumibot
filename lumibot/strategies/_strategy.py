@@ -2727,12 +2727,13 @@ class _Strategy:
 
                 # Use daily bars for benchmark across intraday strategies to keep tearsheet cost bounded.
                 timestep = "day"
+                benchmark_start = pd.Timestamp(self._backtesting_start).normalize()
 
                 try:
                     bars = self.broker.data_source.get_historical_prices_between_dates(
                         benchmark_asset,
                         timestep,
-                        start_date=self._backtesting_start,
+                        start_date=benchmark_start,
                         end_date=backtesting_end_adjusted,
                         quote=self._quote_asset,
                     )
@@ -2761,7 +2762,10 @@ class _Strategy:
                     # benchmark's sessions. Preserve configured equity markets.
                     market = "NYSE"
                 try:
-                    self._benchmark_returns_df = benchmark_returns_from_bars(df, market=market)
+                    self._benchmark_returns_df = benchmark_returns_from_bars(
+                        df, market=market, start_date=self._backtesting_start,
+                        end_date=self._backtesting_end,
+                    )
                 except (TypeError, ValueError, RuntimeError):
                     _fallback_benchmark(benchmark_asset)
 

@@ -40,6 +40,13 @@ proof, say briefly in the evidence handoff that the retrieved text is a
 historical approximation and may contain later edits. A publication date makes
 the article relevant to the cutoff; it does not certify the version of its
 current bytes. Continue using the supported content with that limitation.
+Apply this limitation to the particular document it describes. A current
+discovery index can identify retained original reports through recorded
+publication times and original-content hashes. When a report's retrieved hash
+matches that indexed original hash, describe that matched original evidence;
+uncertainty about the index's own historical version does not turn the linked
+report into an unverified current revision. Keep any limitation about the
+index separate from the evidence supplied for each report.
 
 When the task requests an estimate, calculate it using the requested method and
 label the assumptions. A range midpoint used for sizing is an estimate, not a
@@ -50,9 +57,16 @@ Keep the answer focused on the requested estimates and source limitations.
 Calculate extra sensitivity scenarios when requested, and check every reported
 number against the calculation output rather than recomputing it in prose.
 
-1. Discover the baseline AND its updates. Do not select only the baseline's
-   report type from an index: that can silently omit eligible transactions or
-   amendments. Use actual source identifiers and URLs, never guessed IDs.
+1. Discover the baseline AND its updates. First query each relevant discovered
+   index for the subject and eligible publication cutoff across report types.
+   Build that compact candidate list before choosing the latest baseline:
+   filtering to the baseline's type first can hide transactions or amendments
+   in the same index. Keep those eligible updates on the read list when a
+   separate supplementary index adds more records; the supplement does not
+   replace updates in the original index. A year-labeled archive may contain
+   several report types. Use actual source identifiers and URLs, never guessed
+   IDs. This is a focused search of available sources, not a requirement to
+   prove exhaustive archive coverage.
 2. Before following linked reports, check recorded publication/version dates
    against the full simulated instant. For a structured index with recorded
    availability timestamps, use typed SQL to compare instants. Select compact
@@ -112,12 +126,15 @@ number against the calculation output rather than recomputing it in prose.
 Before returning the answer, audit the final table against the source rows:
 each holding needs its own instrument evidence, and an issuer heading must not
 become an extra holding beside its instrument details. Audit the final citations
-too: treat the clock reading and its zone as one indivisible value. Prefer one
-verbatim, fully qualified timestamp per source. Avoid redundant local/UTC
-translations unless the task needs them; if needed, copy a tool's explicit
-conversion. Never combine a clock value from one column with an offset from
-another. Match the final document ID and full timestamp to the same returned
-row. A correct eligibility decision does not excuse a mislabeled citation.
+too. For structured sources, use a compact final query returning the document
+ID and one fully formatted publication timestamp for every source you will
+cite, including any excluded source whose time you report. Copy that complete
+timestamp into the answer as one value; do not separately reconstruct its clock
+and zone. Prefer the original timestamp verbatim. If UTC is needed, return a
+formatted UTC string through SQL and copy it instead. Reporting both local and
+UTC forms is unnecessary unless requested. Match each final document ID and
+timestamp to the same returned row. A correct eligibility decision does not
+excuse a mislabeled citation.
 
 ## Historical eligibility comes before reading linked documents
 

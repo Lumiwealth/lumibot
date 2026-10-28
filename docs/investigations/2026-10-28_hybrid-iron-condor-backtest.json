@@ -1,0 +1,115 @@
+{
+  "source_commit": "3f768aaed",
+  "source_hashes": {
+    "lumibot/example_strategies/ai_iron_condor.py": "fbf98fc2397dd3d4bffc7a39da9a5af0be97acf79af76497c3eebe424c12f502",
+    "scripts/backtest_hybrid_iron_condor.py": "3200a6c637effb3c4071f8fee16211d197c629bf4aa8f8a71c39e5cc45d980f2",
+    "lumibot/components/agents/runtime.py": "73736e2044bd29f575b4837ae20bc25ad1e65aef1b67c4b18d955b8c47601d9e",
+    "lumibot/components/agents/chatgpt_llm.py": "55604f9824a37561b34948157da0af24ccf7ab428828ebfa4da8e7a44727f50d"
+  },
+  "window": {
+    "start": "2026-01-05T09:30:00-05:00",
+    "end": "2026-01-23T15:40:00-05:00"
+  },
+  "qualification_passed": true,
+  "filled_option_legs": 64,
+  "gross_pnl_usd": -192.0,
+  "commissions_usd": 124.8,
+  "net_pnl_usd": -316.8,
+  "ending_equity_usd": 9683.2,
+  "max_drawdown_pct": 4.53601246354854,
+  "planner_decisions": 13,
+  "completed_inference_responses": 116,
+  "uncompleted_response_ids": [],
+  "usage": {
+    "input_tokens": 3680855,
+    "cached_input_tokens": 2170240,
+    "output_tokens_including_reasoning": 19093,
+    "reasoning_tokens_subset": 1038,
+    "api_equivalent_usd": 0.18231039999999998
+  },
+  "package_pnl": [
+    {
+      "asset.expiration": "2026-01-07",
+      "gross": 3.0,
+      "fees": 15.6,
+      "net": -12.6
+    },
+    {
+      "asset.expiration": "2026-01-09",
+      "gross": 3.0,
+      "fees": 15.6,
+      "net": -12.6
+    },
+    {
+      "asset.expiration": "2026-01-15",
+      "gross": -123.0,
+      "fees": 15.6,
+      "net": -138.6
+    },
+    {
+      "asset.expiration": "2026-01-16",
+      "gross": -9.0,
+      "fees": 15.6,
+      "net": -24.6
+    },
+    {
+      "asset.expiration": "2026-01-20",
+      "gross": -87.0,
+      "fees": 15.6,
+      "net": -102.6
+    },
+    {
+      "asset.expiration": "2026-01-21",
+      "gross": 18.0,
+      "fees": 15.6,
+      "net": 2.4
+    },
+    {
+      "asset.expiration": "2026-01-22",
+      "gross": -21.0,
+      "fees": 15.6,
+      "net": -36.6
+    },
+    {
+      "asset.expiration": "2026-01-23",
+      "gross": 24.0,
+      "fees": 15.6,
+      "net": 8.4
+    }
+  ],
+  "artifact_sha256": {
+    "hybrid-iron-condor-chatgpt-luna_2026-10-28_00-03_IykUvt_trades.csv": "38a8dcffda2c2598e253a577cc66fd631889c2d4e8ff82fdecc14d6dcae184ae",
+    "summary.json": "3549b8606d07637e4a9d883821d20dde79f416158a4b5c4c514f9d9abd45de2b",
+    "inference-ledger-selection-fixed.jsonl": "3f8e9b8415b03cb3ec4edb9b8fb15a699876c7cb93939398554f77cabb5e835e"
+  },
+  "funding": "Login with ChatGPT",
+  "model": "gpt-6-luna",
+  "service_tier": "default",
+  "api_billed_usd": 0,
+  "chatgpt_credit_debit": null,
+  "assumptions": [
+    "Alpaca historical trade bars, not NBBO; locally calculated Greeks",
+    "Unadjusted underlying; $0.65 per-contract entry and exit commission",
+    "No slippage, queue-position or partial-fill realism claim"
+  ],
+  "tests": {
+    "affected_tests": "385 passed",
+    "inventory": [
+      "tests/test_agent_chatgpt_subscription.py",
+      "tests/test_agent_runtime_provider_keys.py",
+      "tests/test_agent_tool_permissions.py",
+      "tests/test_agent_research_history.py",
+      "tests/examples",
+      "tests/test_ai_example_strategies.py",
+      "tests/backtest/test_multileg_backtest.py",
+      "tests/docs/test_ai_example_pages.py"
+    ],
+    "documentation_build": "Sphinx HTML succeeded with one unrelated toctree warning"
+  },
+  "dependencies": {
+    "google-adk": "2.11.0",
+    "google-genai": "2.29.0",
+    "litellm": "1.105.0",
+    "alpaca-py": "0.44.0"
+  }
+}

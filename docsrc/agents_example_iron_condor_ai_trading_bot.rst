@@ -37,7 +37,7 @@ own costs. An unavailable model cannot prevent Python from monitoring existing
 positions.
 
 Run locally with Login with ChatGPT
-----------------------------------
+-----------------------------------
 
 The default planner is ``chatgpt/gpt-6-luna`` with medium reasoning and Standard
 processing. It uses your explicitly connected ChatGPT plan or authorized credit
@@ -74,13 +74,35 @@ from completed inference responses, including continuations. Tokens are measured
 API-equivalent pricing is an estimate and does not establish the number of
 ChatGPT credits debited. The inference response does not report that debit.
 
+Recorded three-week smoke run
+-----------------------------
+
+The January 5–23, 2026 run at source revision ``3f768aaed`` completed eight
+four-leg entries and eight signed closes, including entry, exit and later
+re-entry. It ended with no positions or active orders. All eight exits were
+price-distance stops; expiry timing, partial exposure and cancellation/repricing
+are covered separately by the strategy's regression tests.
+
+Starting equity was $10,000 and ending equity was $9,683.20, a loss of $316.80
+(3.168%), including $124.80 in assumed commissions. This is a mechanics smoke
+test, not evidence of profitability or an AI advantage.
+
+There were thirteen daily planning sessions and 116 completed inference
+responses, including continuations: 3,680,855 input tokens (2,170,240 cached) and
+19,093 output tokens including reasoning. Monitoring and closing used no model
+requests. Login with ChatGPT incurred no per-call API cash billing; using the
+registered Luna Standard API rates gives an illustrative API-equivalent estimate
+of $0.18231 for this run. That estimate is not a ChatGPT credit debit.
+
 Backtest limitations
--------------------
+--------------------
 
 Alpaca's historical option bars contain trades, not historical NBBO quotes.
 When a historical quote has only a last-trade price, this example labels it
 ``historical_trade_mark_not_nbbo``. Such a fill is a simulation assumption,
-not proof that a live four-leg order would execute at that price. Missing prices
+not proof that a live four-leg order would execute at that price. Historical
+Greeks are calculated locally from available marks, not recorded broker Greeks.
+Missing prices
 do not become invented quotes. Expiry loss limits assume the protected structure
 remains intact; assignment, gaps, liquidity and order failures require separate
 attention.

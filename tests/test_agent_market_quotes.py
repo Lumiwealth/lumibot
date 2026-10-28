@@ -30,6 +30,8 @@ def test_single_quote_preserves_native_prices_and_strategy_clock(native_market):
     assert result["ask"] == expected.ask
     assert result["price"] == expected.price
     assert result["datetime"] == native_market.strategy.get_datetime().isoformat()
+    assert result["bar_timestamp"] == expected.raw_data["bar_timestamp"].isoformat()
+    assert result["bar_timestep"] == expected.raw_data["bar_timestep"]
     assert result["available"] is True
     assert "raw_data" not in result
     json.dumps(result, allow_nan=False)

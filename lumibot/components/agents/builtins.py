@@ -1419,6 +1419,13 @@ def _market_quote_payload(strategy: Any, asset: Any, quote: Any, exchange: Any, 
     for field in ("timestamp", "quote_time", "bid_time", "ask_time"):
         raw = getattr(value, field, None)
         result[field] = raw.isoformat() if hasattr(raw, "isoformat") else str(raw) if raw is not None else None
+    # Native bar-derived quotes carry their observation time here, separately
+    # from Quote.timestamp (which can be object construction time). Preserve
+    # only these source fields, not arbitrary provider payloads.
+    source = getattr(value, "raw_data", None)
+    for field in ("bar_timestamp", "bar_timestep"):
+        raw = source.get(field) if isinstance(source, dict) else None
+        result[field] = raw.isoformat() if hasattr(raw, "isoformat") else str(raw) if raw is not None else None
     result["available"] = any(result[field] is not None and result[field] > 0 for field in ("price", "bid", "ask"))
     return result
 

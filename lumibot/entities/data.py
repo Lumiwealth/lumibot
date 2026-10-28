@@ -7,6 +7,7 @@ import numpy as np
 import pandas as pd
 
 from lumibot.constants import LUMIBOT_DEFAULT_PYTZ as DEFAULT_PYTZ
+from lumibot.tools.candles import resample_ohlcv
 from lumibot.tools.helpers import parse_timestep_qty_and_unit, to_datetime_aware
 from lumibot.tools.lumibot_logger import get_logger
 
@@ -1738,10 +1739,9 @@ class Data:
             agg_column_map["dividend"] = "sum"
         if "stock_splits" in df.columns:
             agg_column_map["stock_splits"] = "max"
-        df_result = df.resample(f"{quantity}{unit}").agg(agg_column_map)
-
-        # Drop any rows that have NaN values (this can happen if the data is not complete, eg. weekends)
-        df_result = df_result.dropna()
+        # Shared candle builder, same pandas call as before. Drop any rows that have NaN values
+        # (this can happen if the data is not complete, eg. weekends).
+        df_result = resample_ohlcv(df, f"{quantity}{unit}", aggregation=agg_column_map, dropna="any", sort=False)
 
         if timestep in {"minute", "hour"} and self.timestep in {"minute", "hour"}:
             base_delta = datetime.timedelta(minutes=1) if self.timestep == "minute" else datetime.timedelta(hours=1)
@@ -1819,5 +1819,5 @@ class Data:
             agg["stock_splits"] = "max"
 
         unit_code = "min" if timestep == "minute" else "h" if timestep == "hour" else "D"
-        df_result = df.resample(f"{int(quantity)}{unit_code}").agg(agg).dropna()
+        df_result = resample_ohlcv(df, f"{int(quantity)}{unit_code}", aggregation=agg, dropna="any", sort=False)
         return df_result

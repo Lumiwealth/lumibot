@@ -1013,7 +1013,12 @@ class Bitunix(Broker):
         Delegates to the data source's implementation.
         """
         if hasattr(self.data_source, '_parse_source_timestep'):
-            parsed = self.data_source._parse_source_timestep(timestep)
+            try:
+                parsed = self.data_source._parse_source_timestep(timestep)
+            except ValueError:
+                # The data source refuses unknown timesteps for history; the
+                # broker keeps its long-standing interval mapping below.
+                parsed = None
             if isinstance(parsed, str):
                 return parsed
 

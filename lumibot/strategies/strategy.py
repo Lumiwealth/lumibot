@@ -5042,13 +5042,13 @@ class Strategy(_Strategy):
                     else:
                         return bars
 
-                    resampled_df = df.resample(resample_rule, label='left', closed='left').agg({
-                        'open': 'first',
-                        'high': 'max',
-                        'low': 'min',
-                        'close': 'last',
-                        'volume': 'sum'
-                    }).dropna()
+                    from lumibot.tools.candles import OHLCV_AGGREGATION, resample_ohlcv
+
+                    # Explicit OHLCV map: a frame without volume still fails here and
+                    # the original bars are returned, as before.
+                    resampled_df = resample_ohlcv(
+                        df, resample_rule, aggregation=dict(OHLCV_AGGREGATION), dropna="any", sort=False
+                    )
 
                     if len(resampled_df) > length:
                         resampled_df = resampled_df.iloc[-length:]

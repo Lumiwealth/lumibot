@@ -680,25 +680,10 @@ class AlpacaBacktesting(DataSourceBacktesting):
         """Aggregate source OHLCV bars into a requested multi-timeframe."""
         if df.empty:
             return df
+        from lumibot.tools.candles import resample_ohlcv
 
-        aggregation = {
-            "open": "first",
-            "high": "max",
-            "low": "min",
-            "close": "last",
-            "volume": "sum",
-        }
-        available_aggregation = {column: method for column, method in aggregation.items() if column in df.columns}
-
-        resampled = (
-            df.sort_index()
-            .resample(resample_rule, label="left", closed="left")
-            .agg(available_aggregation)
-        )
-        required_columns = [column for column in ("open", "high", "low", "close") if column in resampled.columns]
-        if required_columns:
-            resampled = resampled.dropna(subset=required_columns, how="any")
-        return resampled
+        # Shared builder: standard OHLCV columns present, sorted, empty buckets dropped.
+        return resample_ohlcv(df, resample_rule)
 
     # ------------------------------------------------------------------
     # Options

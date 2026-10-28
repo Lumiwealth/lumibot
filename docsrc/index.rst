@@ -239,9 +239,26 @@ Table of Contents
    Strategy Methods <strategy_methods>
    Strategy Properties <strategy_properties>
    Assets and Orders <entities>
-   Indicators <indicators>
    SEC Fundamentals <fundamentals>
    Macro Data <macro_data>
+
+.. toctree::
+   :maxdepth: 1
+   :caption: Indicators
+
+   Custom Indicators: What They Can Do <indicators_overview>
+   Build Your First Indicator <indicators_first_custom>
+   Settings and Outputs <indicators_settings_outputs>
+   Price Chart or Own Pane <indicators_chart_placement>
+   Indicators in Backtests <indicators_backtesting>
+   Indicators in Live Strategies <indicators_live_strategies>
+   Stream Live from a Crypto Exchange <indicators_live_crypto_stream>
+   Outside Data in an Indicator <indicators_outside_data>
+   Matching TradingView Numbers <indicators_tradingview_numbers>
+   Indicator Examples <indicators_examples>
+   Compare and FAQ <indicators_comparison>
+   Indicator Reference <building_indicators>
+   The self.indicators Accessor <indicators>
 
 .. toctree::
    :maxdepth: 1

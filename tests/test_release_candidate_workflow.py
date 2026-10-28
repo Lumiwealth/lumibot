@@ -146,3 +146,40 @@ def test_post_release_checkout_still_accepts_the_next_patch(release_checkout_can
     repo, _ = release_checkout_candidate("1.2.4")
     result = _verify_checkout(repo, "--post-release-of", "1.2.3")
     assert result.returncode == 0, result.stdout + result.stderr
+
+
+def test_portable_gate_keeps_offline_tradier_checks_and_excludes_live_api(tmp_path):
+    """Collect with configured placeholders; no broker request is executed."""
+    root = Path(__file__).resolve().parents[1]
+    result = subprocess.run(
+        [sys.executable, "-m", "pytest", "tests/test_tradier_data.py",
+         "--collect-only", "-q", "-m", "not apitest", "-o", "addopts=",
+         "--basetemp", str(tmp_path / "collection")],
+        cwd=root,
+        env={**os.environ, "LUMIBOT_DISABLE_DOTENV": "1", "PYTEST_ADDOPTS": "",
+             "TRADIER_TEST_ACCESS_TOKEN": "collection-only-not-a-credential",
+             "TRADIER_TEST_ACCOUNT_NUMBER": "collection-only"},
+        capture_output=True, text=True,
+    )
+    assert result.returncode == 0, result.stdout + result.stderr
+    selected = [line for line in result.stdout.splitlines() if "::TestTradierData::" in line]
+    assert set(selected) == {
+        "tests/test_tradier_data.py::TestTradierData::test_basics",
+        "tests/test_tradier_data.py::TestTradierData::test_sanitize_base_and_quote_asset",
+        "tests/test_tradier_data.py::TestTradierData::test_default_delay_value",
+    }, "The portable gate must preserve offline checks without running the live broker API."
+    # The network assertions remain runnable as API integration tests.
+    api_command = list(result.args)
+    api_command[api_command.index("not apitest")] = "apitest"
+    api_command[-1] = str(tmp_path / "api-collection")
+    api_result = subprocess.run(
+        api_command, cwd=root,
+        env={**os.environ, "LUMIBOT_DISABLE_DOTENV": "1", "PYTEST_ADDOPTS": "",
+             "TRADIER_TEST_ACCESS_TOKEN": "collection-only-not-a-credential",
+             "TRADIER_TEST_ACCOUNT_NUMBER": "collection-only"},
+        capture_output=True, text=True,
+    )
+    assert api_result.returncode == 0, api_result.stdout + api_result.stderr
+    api_selected = [line for line in api_result.stdout.splitlines() if "::TestTradierData::" in line]
+    assert len(api_selected) == 10
+    assert "tests/test_tradier_data.py::TestTradierData::test_get_last_price_stock" in api_selected

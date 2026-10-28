@@ -15,6 +15,7 @@ Deploy marker: `ff2d90ba2f0ca6e4639928c03acc597019b88389`.
 - Batch history discloses short-but-usable coverage through per-symbol counts and completeness metadata. Known invalid interior gaps remain visible recoverable limitations.
 - Release checkout verification rejects changed source under an existing immutable version tag while permitting exact-source rechecks.
 - Live Tradier sandbox reads are classified as API integrations, preserving their original assertions and keeping constructor/normalization/default checks in the portable gate.
+- Documentation explains the optional BotSpot research connection before setup steps, with synchronized translated entry pages.
 
 ## 4.6.33 - 2026-10-27
 

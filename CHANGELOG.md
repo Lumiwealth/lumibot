@@ -2,7 +2,7 @@
 
 ## 4.6.34 - 2026-10-28
 
-Deploy marker: `ff2d90ba2f0ca6e4639928c03acc597019b88389`.
+Deploy marker: `d326af579d52b2869152e4ee7ff775e0ec1685a3`.
 
 ### Fixed
 - Incomplete optional agent history, indicator and quote research returns visible, recoverable limitations without invalidating unrelated healthy execution. Direct strategy and portfolio-valuation data remain required.
